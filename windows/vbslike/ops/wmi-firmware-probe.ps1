@@ -28,6 +28,11 @@ param(
   [int]    $MemMiB = 4096,
   [int]    $Vcpus = 2,
   [string] $IsolationType = 'OpenHCL',
+  # GuestFeatureSet: 513 (0x201) is what Microsoft's Set-OpenHCL-HyperV-VM.ps1 writes - but that
+  # script creates the VM with NO guest-state isolation type, so it clobbers nothing. A VM created
+  # with -GuestStateIsolationType OpenHCL already carries GuestFeatureSet 1024, and overwriting it
+  # with 513 may be removing the very bit the isolation type set. -1 means LEAVE IT ALONE.
+  [int]    $GuestFeatureSet = 513,
   [switch] $Approve
 )
 
@@ -146,7 +151,8 @@ try {
   $ns   = 'root\virtualization\v2'
   $cs   = Get-CimInstance -Namespace $ns -Query ("select * from Msvm_ComputerSystem where ElementName = '" + $name + "'")
   $vssd = $cs | Get-CimAssociatedInstance -ResultClass Msvm_VirtualSystemSettingData -Association Msvm_SettingsDefineState
-  $vssd.GuestFeatureSet = 513
+  if ($GuestFeatureSet -ge 0) { $vssd.GuestFeatureSet = $GuestFeatureSet; Note "setting GuestFeatureSet=$GuestFeatureSet (was $($vssd.GuestFeatureSet))" }
+  else { Note "leaving GuestFeatureSet as the isolation type set it: $($vssd.GuestFeatureSet)" }
   $vssd.FirmwareFile    = $Image
   $ser  = [Microsoft.Management.Infrastructure.Serialization.CimSerializer]::Create()
   $emb  = [System.Text.Encoding]::Unicode.GetString($ser.Serialize($vssd, [Microsoft.Management.Infrastructure.Serialization.InstanceSerializationOptions]::None))
@@ -164,30 +170,31 @@ try {
 
   $t0 = Get-Date
   $startErr = $null
-  try { Start-VM -Name $name -ErrorAction Stop; Note "START OK after $([int]((Get-Date)-$t0).TotalMilliseconds) ms, state=$((Get-VM -Name $name).State)" }
-  catch {
-    $startErr = ($_.Exception.Message -replace "`r?`n", ' ')
-    Note "START FAILED: $startErr"
-    # Start-VM's message is often just "failed to start". The REASON lives on the WMI job, so ask
-    # the object that actually ran it: RequestStateChange returns a Msvm_ConcreteJob whose
-    # ErrorDescription and ErrorCode name the element that refused. Without this the operator is
-    # left with a sentence that says only that something went wrong.
-    try {
-      $cs2 = Get-CimInstance -Namespace $ns -Query ("select * from Msvm_ComputerSystem where ElementName = '" + $name + "'")
-      $rsc = Invoke-CimMethod -InputObject $cs2 -MethodName RequestStateChange -Arguments @{ RequestedState = [uint16]2 }
-      Note "RequestStateChange returnValue=$([int]$rsc.ReturnValue)"
-      if ($rsc.Job) {
-        $job = $rsc.Job | Get-CimInstance
-        $deadlineJ = (Get-Date).AddSeconds(60)
-        while ($job.JobState -eq 4 -and (Get-Date) -lt $deadlineJ) { Start-Sleep -Milliseconds 500; $job = $job | Get-CimInstance }
-        Note "job state=$($job.JobState) errorCode=$($job.ErrorCode) desc=$(($job.ErrorDescription -replace "`r?`n",' '))"
-        try {
-          $ge = Invoke-CimMethod -InputObject $job -MethodName GetErrorEx
-          foreach ($x in @($ge.Errors)) { Note ("job error: " + ($x -replace "`r?`n", ' ')) }
-        } catch { Note "GetErrorEx: $($_.Exception.Message)" }
+  # START VIA WMI, not Start-VM. Start-VM's message is often just "failed to start", and by the time
+  # it has failed the VM is in a state where a second RequestStateChange answers 32775 (invalid
+  # state for this operation) with NO job - so the reason is gone. Asking Msvm_ComputerSystem first
+  # gives a Msvm_ConcreteJob whose ErrorDescription names the element that refused.
+  $startErr = $null
+  try {
+    $cs2 = Get-CimInstance -Namespace $ns -Query ("select * from Msvm_ComputerSystem where ElementName = '" + $name + "'")
+    $rsc = Invoke-CimMethod -InputObject $cs2 -MethodName RequestStateChange -Arguments @{ RequestedState = [uint16]2 }
+    $rv = [int]$rsc.ReturnValue
+    Note "RequestStateChange returnValue=$rv"
+    if ($rv -eq 4096 -and $rsc.Job) {
+      $job = $rsc.Job | Get-CimInstance
+      $dl = (Get-Date).AddSeconds(90)
+      while ($job.JobState -eq 4 -and (Get-Date) -lt $dl) { Start-Sleep -Milliseconds 500; $job = $job | Get-CimInstance }
+      Note "job state=$($job.JobState) errorCode=$($job.ErrorCode) desc=$(($job.ErrorDescription -replace "`r?`n",' '))"
+      if ($job.JobState -ne 7) {
+        $startErr = "job state $($job.JobState), errorCode $($job.ErrorCode): $($job.ErrorDescription)"
+        try { $ge = Invoke-CimMethod -InputObject $job -MethodName GetErrorEx
+              foreach ($x in @($ge.Errors)) { Note ("job error: " + ($x -replace "`r?`n", ' ')) } }
+        catch { Note "GetErrorEx: $(($_.Exception.Message -replace "`r?`n",' '))" }
       }
-    } catch { Note "job probe: $(($_.Exception.Message -replace "`r?`n",' '))" }
-  }
+    } elseif ($rv -ne 0) { $startErr = "RequestStateChange returned $rv" }
+    if (-not $startErr) { Note "START OK after $([int]((Get-Date)-$t0).TotalMilliseconds) ms, state=$((Get-VM -Name $name).State)" }
+    else { Note "START FAILED: $startErr" }
+  } catch { $startErr = ($_.Exception.Message -replace "`r?`n", ' '); Note "START FAILED (exception): $startErr" }
 
   $loadLines = @()
   if (-not $startErr) {
