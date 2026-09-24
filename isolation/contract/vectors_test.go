@@ -183,19 +183,29 @@ func generate(t *testing.T) vectors {
 
 	// runtime identities: the reference, the same on ARM64 (a Pixel pVM), a different feature policy, a
 	// different version, and the ones the contract refuses
-	ref := RuntimeIdentity{Name: "wasmtime", Version: "48.0.1", TargetISA: ISAx86_64, CPUFeatures: "baseline", WX: WXEnforced, Cache: CacheNone}
+	ref := RuntimeIdentity{Name: "wasmtime", Version: "48.0.1", Execution: ExecJIT, TargetISA: ISAx86_64, HostISA: ISAx86_64, CPUFeatures: "baseline", WX: WXEnforced, Cache: CacheNone}
 	arm := ref
-	arm.TargetISA = ISAaarch64
+	arm.TargetISA, arm.HostISA = ISAaarch64, ISAaarch64
 	feat := ref
 	feat.CPUFeatures = "+sse4.2,+avx2"
 	ver := ref
 	ver.Version = "49.0.0"
+	// the Pixel pVM: Pulley bytecode interpreted on ARM64 (no executable page can exist there)
+	pvm := RuntimeIdentity{Name: "wasmtime", Version: "48.0.1", Execution: ExecInterpreter, TargetISA: ISApulley64, HostISA: ISAaarch64, CPUFeatures: "baseline", WX: WXEnforced, Cache: CacheNone}
 	noWX := ref
 	noWX.WX = "best-effort"
 	badCache := ref
 	badCache.Cache = "unauthenticated"
 	badISA := ref
-	badISA.TargetISA = "riscv64"
+	badISA.TargetISA, badISA.HostISA = "riscv64", "riscv64"
+	pulleyJIT := pvm
+	pulleyJIT.Execution = ExecJIT
+	armInterp := arm
+	armInterp.Execution = ExecInterpreter
+	crossJIT := ref
+	crossJIT.TargetISA = ISAaarch64
+	noExec := ref
+	noExec.Execution = ""
 	appRef := AppID(bA)
 	for _, c := range []struct {
 		id   RuntimeIdentity
@@ -204,9 +214,14 @@ func generate(t *testing.T) vectors {
 		{arm, "the same runtime emitting ARM64 inside a Pixel pVM: a different runtime ID"},
 		{feat, "a different CPU-feature policy: a different runtime ID"},
 		{ver, "a different runtime version: a different runtime ID"},
+		{pvm, "the Pixel pVM: the component compiled to Pulley bytecode inside the pVM and interpreted on ARM64"},
 		{noWX, "W^X not stated as enforced: refused"},
 		{badCache, "an unauthenticated cache: refused"},
-		{badISA, "an ISA the contract does not name: refused"}} {
+		{badISA, "an ISA the contract does not name: refused"},
+		{pulleyJIT, "pulley64 with execution jit: refused (bytecode is interpreted)"},
+		{armInterp, "aarch64 with execution interpreter: refused (an interpreter runs pulley64)"},
+		{crossJIT, "a JIT whose target is not the host ISA: refused"},
+		{noExec, "no execution mode stated: refused"}} {
 		rv := runtimeVector{Identity: c.id, Note: c.note}
 		if rid, err := RuntimeID(c.id); err == nil {
 			rv.Valid = true
@@ -370,7 +385,7 @@ func TestProperties(t *testing.T) {
 		t.Fatal("defaults")
 	}
 	// Bind2 differs from Bind for the same key and nonce, and changes with the runtime identity
-	ref := RuntimeIdentity{Name: "wasmtime", Version: "48.0.1", TargetISA: ISAx86_64, CPUFeatures: "baseline", WX: WXEnforced, Cache: CacheNone}
+	ref := RuntimeIdentity{Name: "wasmtime", Version: "48.0.1", Execution: ExecJIT, TargetISA: ISAx86_64, HostISA: ISAx86_64, CPUFeatures: "baseline", WX: WXEnforced, Cache: CacheNone}
 	rid, err := RuntimeID(ref)
 	if err != nil {
 		t.Fatal(err)

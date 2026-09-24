@@ -18,11 +18,22 @@ import (
 //   - no host-supplied native code and no unverified compiled cache: Cache is "none" (compile every
 //     time) or "authenticated" (a cache keyed by CacheKey and authenticated under a domain-held key);
 //   - the runtime name, version, target ISA and CPU-feature policy are bound into the report via Bind2.
+//
+// Execution has two admissible modes, because a stock Pixel protected VM refuses every executable
+// mapping (measured 2026-09-23 on a Pixel 10 Pro XL: execmem denied, RWX and RW->RX both refused, no
+// writable memfd, the data store noexec): there the runtime compiles the verified component with
+// Cranelift to wasmtime's Pulley bytecode, still inside the boundary, and INTERPRETS it. W^X then holds
+// trivially. Everywhere else the runtime JITs to the host's own ISA. The mode is part of the identity:
+//   - "jit":         TargetISA is the host's ISA (x86_64 | aarch64) and equals HostISA;
+//   - "interpreter": TargetISA is "pulley64" and HostISA names the real hardware the interpreter runs on,
+//                    so the CPU-feature policy still describes something a verifier can reason about.
 type RuntimeIdentity struct {
 	Name        string `json:"name"`        // e.g. "wasmtime"
 	Version     string `json:"version"`     // e.g. "48.0.1"
-	TargetISA   string `json:"targetIsa"`   // "x86_64" | "aarch64": the ISA the JIT emits inside the domain
-	CPUFeatures string `json:"cpuFeatures"` // the JIT's enabled feature policy, a canonical string ("baseline", or "+sse4.2,+avx2", ...)
+	Execution   string `json:"execution"`   // "jit" | "interpreter"
+	TargetISA   string `json:"targetIsa"`   // "x86_64" | "aarch64" (jit) | "pulley64" (interpreter)
+	HostISA     string `json:"hostIsa"`     // "x86_64" | "aarch64": the ISA the runtime itself executes on
+	CPUFeatures string `json:"cpuFeatures"` // the enabled feature policy, a canonical string ("baseline", or "+sse4.2,+avx2", ...)
 	WX          string `json:"wx"`          // "enforced"
 	Cache       string `json:"cache"`       // "none" | "authenticated"
 }
@@ -30,8 +41,12 @@ type RuntimeIdentity struct {
 const (
 	ABI2 = "enclave-domain-abi/2" // ABI with the runtime identity bound into the report
 
-	ISAx86_64  = "x86_64"
-	ISAaarch64 = "aarch64"
+	ISAx86_64   = "x86_64"
+	ISAaarch64  = "aarch64"
+	ISApulley64 = "pulley64" // wasmtime's portable bytecode target: interpreter only
+
+	ExecJIT         = "jit"
+	ExecInterpreter = "interpreter"
 
 	WXEnforced         = "enforced"
 	CacheNone          = "none"
@@ -46,8 +61,20 @@ func (r RuntimeIdentity) Validate() error {
 	if r.Name == "" || r.Version == "" {
 		return errors.New("runtime name and version are required")
 	}
-	if r.TargetISA != ISAx86_64 && r.TargetISA != ISAaarch64 {
-		return fmt.Errorf("target ISA %q is not one of %s, %s", r.TargetISA, ISAx86_64, ISAaarch64)
+	if r.HostISA != ISAx86_64 && r.HostISA != ISAaarch64 {
+		return fmt.Errorf("host ISA %q is not one of %s, %s", r.HostISA, ISAx86_64, ISAaarch64)
+	}
+	switch r.Execution {
+	case ExecJIT:
+		if r.TargetISA != r.HostISA {
+			return fmt.Errorf("a JIT emits the host's own ISA: target %q must equal host %q", r.TargetISA, r.HostISA)
+		}
+	case ExecInterpreter:
+		if r.TargetISA != ISApulley64 {
+			return fmt.Errorf("an interpreter runs %s bytecode, not %q", ISApulley64, r.TargetISA)
+		}
+	default:
+		return fmt.Errorf("execution %q is not one of %s, %s", r.Execution, ExecJIT, ExecInterpreter)
 	}
 	if r.CPUFeatures == "" {
 		return errors.New("the CPU-feature policy must be stated (\"baseline\" if none)")

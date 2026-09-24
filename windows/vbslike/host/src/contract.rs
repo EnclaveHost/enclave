@@ -25,8 +25,13 @@ pub const CACHE_AUTHENTICATED: &str = "authenticated";
 pub struct RuntimeIdentity {
     pub name: String,
     pub version: String,
+    /// "jit" (target == host ISA) or "interpreter" (target pulley64: a stock Pixel pVM allows no
+    /// executable page, so the component is compiled to Pulley bytecode inside it and interpreted)
+    pub execution: String,
     #[serde(rename = "targetIsa")]
     pub target_isa: String,
+    #[serde(rename = "hostIsa")]
+    pub host_isa: String,
     #[serde(rename = "cpuFeatures")]
     pub cpu_features: String,
     pub wx: String,
@@ -39,8 +44,21 @@ impl RuntimeIdentity {
         if self.name.is_empty() || self.version.is_empty() {
             return Err("runtime name and version are required".into());
         }
-        if self.target_isa != "x86_64" && self.target_isa != "aarch64" {
-            return Err(format!("target ISA {:?} is not one of x86_64, aarch64", self.target_isa));
+        if self.host_isa != "x86_64" && self.host_isa != "aarch64" {
+            return Err(format!("host ISA {:?} is not one of x86_64, aarch64", self.host_isa));
+        }
+        match self.execution.as_str() {
+            "jit" => {
+                if self.target_isa != self.host_isa {
+                    return Err(format!("a JIT emits the host's own ISA: target {:?} must equal host {:?}", self.target_isa, self.host_isa));
+                }
+            }
+            "interpreter" => {
+                if self.target_isa != "pulley64" {
+                    return Err(format!("an interpreter runs pulley64 bytecode, not {:?}", self.target_isa));
+                }
+            }
+            other => return Err(format!("execution {other:?} is not one of jit, interpreter")),
         }
         if self.cpu_features.is_empty() {
             return Err("the CPU-feature policy must be stated".into());
