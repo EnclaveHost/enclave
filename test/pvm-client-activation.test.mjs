@@ -304,11 +304,13 @@ test("the real client, activated: runs `run` from memory end to end; one hop eve
     assert.equal(gone.code, 2); assert.equal(gone.lines[0].result.step, "launch"); assert.equal(gone.lines[0].result.found, "missing");
     assert.equal((await L.state()).state.serial, 10, "no launch refusal moved the floor");
     // the carrier recorded each evidence exchange as received -- the four runs that fetched evidence, not the launch refusal
-    const ev = fs.readdirSync(recorded).filter((f) => f.endsWith(".json")).sort();
+    const ev = fs.readdirSync(recorded).filter((f) => /^evidence-\d{3}\.json$/.test(f)).sort();
     assert.equal(ev.length, 4, JSON.stringify(fs.readdirSync(recorded)));
     for (const f of ev) {
       const env = JSON.parse(fs.readFileSync(path.join(recorded, f), "utf8")), q = fs.readFileSync(path.join(recorded, f.replace(/\.json$/, ".request")), "utf8");
       assert.equal(env.format, "enclave-pvm-app-evidence/v2"); assert.equal(q, `EVIDENCE ${env.nonce}\n`, "each envelope answers the nonce the client sent");
+      const meta = JSON.parse(fs.readFileSync(path.join(recorded, f.replace(/\.json$/, ".meta.json")), "utf8"));
+      assert.equal(`evidence-${String(meta.n).padStart(3, "0")}.json`, f); assert.ok(meta.sentToVmAt <= meta.answeredAt && /Z$/.test(meta.answeredAt), "UTC times, in order");
     }
     assert.equal(vm.log.filter((l) => l.served).length, 0, "no request reached the VM");
   } finally { carrier.close(); vm.close(); }

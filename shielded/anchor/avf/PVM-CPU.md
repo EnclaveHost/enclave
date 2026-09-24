@@ -570,6 +570,13 @@ agreed with the Enclave verifier session, all nine of its fail-closed refinement
       manifest. A final rollback was refused, and no state moved on any failure.
     - The run's own checker failed on its own miscount (9 expected, 10 results, all 0.3.1). The kept check.txt shows
       that; the corrected check passes 43/43 on the same results.
+  - Repeat with raw evidence capture: results/pvm-cpu-client-activation-2, same bytes and sequence.
+    - The relay's lab carrier recorded all 10 attestation exchanges as received, each with its request nonce, UTC times
+      and run label. The verifier session re-verifies the chains offline itself.
+    - Everything else passed again. The run's own check FAILED on a script defect: the per-exchange state copy was
+      recorded as null, because a heredoc took the pipe's stdin.
+    - The correlation rests on the client's own stateGen and the generation log instead (split check: 48 ok, 1 FAIL).
+      The script is fixed for future runs, and the failure is kept.
 
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 

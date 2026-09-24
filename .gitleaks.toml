@@ -115,6 +115,6 @@ paths = ['''^windows/vbslike/evidence/''']
 description = "pVM app evidence envelopes (enclave-pvm-app-evidence/v1, /v2) hold PUBLIC material only: certificates, the transport key's SPKI, the X25519 app key and the transport key's signature over it (appKeySig); the private halves never leave the pVM (shielded/anchor/avf/PVM-CPU.md)"
 targetRules = ["generic-api-key"]
 condition = "AND"
-paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/[a-z0-9]+-evidence\.json$''']
+paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/[a-z0-9]+-evidence\.json$''', '''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/evidence/evidence-[0-9]{3}\.json$''']   # the relay carrier's lab capture (cpu/web-carrier.mjs recordEvidence)
 regexTarget = "line"
 regexes = ['''^\{"format":"enclave-pvm-app-evidence/v[12]",''']

@@ -117,14 +117,44 @@ for n in ["l1.log", "hub.jsonl", "hub.err", "carrier.log", "update-carrier.log"]
     hit = [m for m in ["GET /?graph", "steps=", '"token":', "tok_per_s"] if m in t]
     expect(not hit, f"{n}: no request or token in the clear{' (found ' + ', '.join(hit) + ')' if hit else ''}")
 # raw evidence, recorded by the relay's carrier as received (runs from 2026-09-24 12:40Z on declare it in capture.json):
-# one envelope per evidence exchange -- every run that got past the policy (10) -- each a v2 envelope answering a nonce
-# the client sent; the launch and policy refusals fetched none
-if js("capture.json"):
-    ev = sorted(f for f in os.listdir(os.path.join(d, "evidence")) if f.endswith(".json")) if os.path.isdir(os.path.join(d, "evidence")) else []
+# one envelope per evidence exchange -- every run that got past the policy (10) -- each a v2 envelope answering the nonce
+# its request carried, timed inside the run, mapped to its run label, and matching that run's own verified summary (nonce,
+# app, app key) under the serial and active record committed before it; the launch and policy refusals fetched none
+EXCH = ["base-stream", "staged-not-active", "active-stream", "active-whole", "planted-marker", "active-policy-2", "rotate-3", "successor-4", "repaired-stream", "repaired-2-stream"]
+cap = js("capture.json")
+if cap:
+    ed = os.path.join(d, "evidence")
+    ev = sorted(f for f in os.listdir(ed) if f.endswith(".json") and not f.endswith(".meta.json")) if os.path.isdir(ed) else []
     envs = [js(os.path.join("evidence", f)) or {} for f in ev]
-    reqs = [rd(os.path.join("evidence", f[:-5] + ".request")).strip() for f in ev]
-    expect(len(envs) == 10 and all(e.get("format") == "enclave-pvm-app-evidence/v2" and e.get("nonce") and e["nonce"] in q for e, q in zip(envs, reqs)),
-           f"the relay recorded one raw v2 evidence envelope per exchange, each answering the nonce the client sent ({len(envs)}, want 10)")
+    reqs = [rd(os.path.join("evidence", f[:-5] + ".request")) for f in ev]
+    metas = [js(os.path.join("evidence", f[:-5] + ".meta.json")) or {} for f in ev]
+    expect(len(envs) == len(EXCH) and all(e.get("format") == "enclave-pvm-app-evidence/v2" and q == f"EVIDENCE {e.get('nonce')}\n" for e, q in zip(envs, reqs)),
+           f"the relay recorded one raw v2 evidence envelope per exchange, each answering the nonce its request carried ({len(envs)}, want {len(EXCH)})")
+    t0, t1 = cap.get("runStart", "~"), cap.get("runEnd", "")
+    expect(all(m.get("n") == i + 1 and t0 <= m.get("sentToVmAt", "") <= m.get("answeredAt", "~") <= t1 + "~" for i, m in enumerate(metas)),
+           f"each exchange is timed in UTC inside the run ({t0} .. {t1})")
+    mp = cap.get("exchanges", [])
+    expect([x.get("label") for x in mp] == EXCH and [x.get("n") for x in mp] == list(range(1, len(EXCH) + 1)),
+           "capture.json maps every exchange, in arrival order, to exactly one run label")
+    # three separate claims, so a failure names its cause: (a) the envelope is the one its run verified; (b) the state the
+    # run committed before its evidence request (its own stateGen, read in the generation log) has the serial and active
+    # record expected; (c) the per-exchange state capture in exchanges.jsonl agrees with that generation
+    ok_a = ok_b = ok_c = True
+    for x, e in zip(mp, envs):
+        r = res(x["label"]); v = r.get("verified") or {}
+        if not (e.get("nonce", "").startswith(v.get("nonce", "~")) and e.get("app") == v.get("app") and e.get("appKey", "").startswith(v.get("appKey", "~"))):
+            ok_a = False; print(f"     exchange {x.get('n')} ({x.get('label')}): the envelope is not the one its run verified")
+        g = js(os.path.join("cli-state.d", f"{r.get('stateGen')}.json")) or {}; gs = g.get("state", {})
+        want_act = None if x["label"] in ("base-stream", "staged-not-active") else REC
+        if not (g.get("gen") == r.get("stateGen") and gs.get("serial") == r.get("policySerial") and gs.get("active") == want_act):
+            ok_b = False; print(f"     exchange {x.get('n')} ({x.get('label')}): generation {r.get('stateGen')} does not hold serial {r.get('policySerial')} and the expected active record")
+        st = x.get("stateAfter") or {}; a = gs.get("active") or {}
+        if not (st.get("gen") == r.get("stateGen") and st.get("serial") == gs.get("serial") and st.get("policyFp") == gs.get("policyFp")
+                and st.get("releaseFp") == gs.get("releaseFp") and st.get("active") == (a and {"version": a.get("version"), "sha256": a.get("sha256")} or None)):
+            ok_c = False; print(f"     exchange {x.get('n')} ({x.get('label')}): exchanges.jsonl recorded {json.dumps(st)[:120]}, the generation log says gen {g.get('gen')}")
+    expect(ok_a, "each envelope is the one its run verified (nonce, app, app key)")
+    expect(ok_b, "each exchange ran under the state its run committed first (its stateGen in the generation log: the serial it reports; active none before activation, 0.3.1 after)")
+    expect(ok_c, "the per-exchange state capture (exchanges.jsonl 'after') agrees with the generation log")
 else:
     print("info this run predates raw evidence capture: the attestation chains cannot be re-verified offline from it")
 print("-- device measurements (this run, this phone; not checks):")
