@@ -345,24 +345,65 @@ export function enclaveClassOf(row){
 export const CPU_TEE_TECHNOLOGIES = { "amd-sev-snp": "AMD SEV-SNP", "intel-tdx": "Intel TDX", "android-avf-pvm": "Android protected VM", "windows-vbs-enclave": "Windows VBS enclave" };
 // The consumer tier: real evidence, a different threat model. Copy for the badge.
 export const CPU_TEE_CONSUMER = { "windows-vbs-enclave": "VBS enclave on a consumer PC: protects against the owner’s software, not physical possession" };
+// The phone tier under construction: CPU-only inference inside a Pixel's protected VM, the pVM's
+// attestation chain verified by the relay at attach, admission by proven capability. Its UI
+// identity is the amber ("orange") badge, and its copy is future tense until reviewed evidence
+// says otherwise: it is NOT tenant app hosting and NOT the server isolation contract, so a row
+// wearing it is never sellable app capacity (computeEligibleOf below).
+export const CPU_TEE_PHONE = { "android-avf-pvm": "pVM CPU: CPU-only inference inside the phone’s protected VM; a tier under construction, not yet available" };
+export const PVM_CPU_TIER = "pvm-cpu";   // the relay's row.tier for an admitted phone (relay/pvm-cpu-tier.mjs); never read from the box
 export const CPU_TEE_DEV_TIERS = { "vbs-dev": "development, unsigned" };
 export function teeCpuOf(row){
   const a = (row && row.availability) || {};
-  const tech = typeof a.teeCpu === "string" && a.teeCpu ? a.teeCpu : null;
+  // A TUNNEL row's own word about its CPU is not evidence: the hub verified (or did
+  // not verify) a quote at attach, and that verdict is `row.mode`. Only a dialed,
+  // first-party row may present its technology itself, read from its measured
+  // image's attestation document. A token-attached tunnel that says
+  // teeCpu:"amd-sev-snp" therefore reads below as a self-report, never as real.
+  const claimed = typeof a.teeCpu === "string" && a.teeCpu ? a.teeCpu : null;
+  const tech = row && row.tunnel ? null : claimed;
   // The tier is the RELAY's verdict (row.tier, written when it verified the attestation), and the
   // box's own copy only fills in for an older relay that recorded none. A node must not be able to
   // promote itself out of the development tier by saying so in its own /availability, which is the
   // same rule payoutWallet follows in the registry: never believe a box quoting itself.
   const tier = (row && typeof row.tier === "string" && row.tier) ? row.tier : (typeof a.tier === "string" && a.tier ? a.tier : null);
+  // The phone tier is the RELAY's verdict: row.tier === "pvm-cpu" after it admitted a capability
+  // report. A phone whose chain was verified but whose report was not (yet) admitted is a verified
+  // protected VM and nothing more, and its own availability.tier never promotes it.
+  const phoneTiered = !!(row && row.tunnel && row.tier === PVM_CPU_TIER);
   const real = (technology, source) => ({ real: true, known: true, technology, label: CPU_TEE_TECHNOLOGIES[technology], source,
-                                          consumer: !!CPU_TEE_CONSUMER[technology], note: CPU_TEE_CONSUMER[technology] || null,
+                                          consumer: !!CPU_TEE_CONSUMER[technology],
+                                          note: CPU_TEE_CONSUMER[technology] || (CPU_TEE_PHONE[technology] ? (phoneTiered ? CPU_TEE_PHONE[technology]
+                                                : "Protected VM verified at attach; no pVM CPU capability report admitted yet, so this phone is not in the tier") : null),
+                                          phone: !!CPU_TEE_PHONE[technology] && phoneTiered, phoneUntiered: !!CPU_TEE_PHONE[technology] && !phoneTiered,
                                           tier: CPU_TEE_CONSUMER[technology] ? tier : null, dev: CPU_TEE_DEV_TIERS[tier] || null });
   if (tech && CPU_TEE_TECHNOLOGIES[tech]) return real(tech, "attestation");
   if (row && row.tunnel && row.mode === "snp") return real("amd-sev-snp", "relay");
   if (row && row.tunnel && row.mode === "avf") return real("android-avf-pvm", "relay");
   if (row && row.tunnel && row.mode === "vbs") return real("windows-vbs-enclave", "relay");
+  // a tunnel admitted on a token or an operator key that SAYS it has a TEE: a known claim, unverified
+  if (row && row.tunnel && claimed) return { real: false, known: true, technology: claimed, label: CPU_TEE_TECHNOLOGIES[claimed] || claimed, source: "self-reported", consumer: false, note: null, tier: null, dev: null, unverified: true };
   if (tech) return { real: false, known: true, technology: tech, label: tech, source: "attestation", consumer: false, note: null, tier: null, dev: null };
   return { real: false, known: false, technology: null, label: null, source: null, consumer: false, note: null, tier: null, dev: null };
+}
+
+// Tenant-compute eligibility, the client-side twin of the relay's rule
+// (relay/api-relay.js computeEligible): a box may be offered as a deploy target,
+// counted as sellable capacity, or proposed as a move target only on hardware
+// EVIDENCE for the contract it would be sold under, never on its own word. Today
+// only a confidential CPU proves that contract: the relay's verified SNP attach
+// for a tunnel, or the technology a first-party dialed box's attestation document
+// presented. The relay's explicit `eligible` verdict (rows since 2026-09-23)
+// outranks the local rule; rows from an older relay fall back to it. Verified
+// evidence for a DIFFERENT contract (a protected-VM chain, a VBS enclave report)
+// is real evidence and still not tenant-compute eligibility, which is why this
+// is not simply teeCpuOf(row).real.
+export const CONFIDENTIAL_CPU = new Set(["amd-sev-snp", "intel-tdx"]);
+export function computeEligibleOf(row){
+  if (!row || row.relay === true) return false;
+  if (typeof row.eligible === "boolean") return row.eligible;
+  const t = teeCpuOf(row);
+  return t.real === true && CONFIDENTIAL_CPU.has(t.technology);
 }
 
 // The VRAM a shielded card actually sells: the worker's budget, not the physical
@@ -457,7 +498,7 @@ export function hasVolumes(a, want){
 // queued }. The deploy surfaces render this as the target dropdown — the
 // head is the recommended pick, any entry is a valid user choice.
 export function rankEnclavesFor(v, rows){
-  const claiming = (rows || []).filter((e) => e && e.availability && (e.serving != null
+  const claiming = (rows || []).filter((e) => e && e.availability && computeEligibleOf(e) && (e.serving != null
     ? e.serving === true   // the relay's explicit verdict (rows since 2026-07-25) outranks the local rule
     : (e.availability.claimEnabled === true || (e.availability.claimEnabled == null && !e.tunnel))));
   const vramMb = Number(v && v.vramMb || 0), gpuGf = Number(v && v.gpuGflops || 0);
@@ -576,7 +617,7 @@ export function leaseHostOf(d, rows, nowMs){
 }
 
 export function pickEnclaveFor(v, rows){
-  const claiming = (rows || []).filter((e) => e && e.availability
+  const claiming = (rows || []).filter((e) => e && e.availability && computeEligibleOf(e)
     && (e.availability.claimEnabled === true || (e.availability.claimEnabled == null && !e.tunnel)));
   if (!claiming.length) return { none: "no live enclave is taking work right now" };
   const ranked = rankEnclavesFor(v, rows);
@@ -629,7 +670,7 @@ export function moveTargetsFor(v, rows, currentRunnerId){
 // carries the model).
 export function moveBlockReason(v, rows, currentRunnerId){
   const cur = String(currentRunnerId || "").toLowerCase();
-  const others = (rows || []).filter((e) => e && e.availability
+  const others = (rows || []).filter((e) => e && e.availability && computeEligibleOf(e)
     && String((e.id) || "").toLowerCase() !== cur
     && (e.serving != null ? e.serving === true : e.availability.claimEnabled !== false));
   if (!others.length) return "no other enclave is taking work right now";

@@ -1147,12 +1147,29 @@ export class Host {
    */
   appsInTee() { return Number(this.cfg.enclaveAppAbi || 0) >= 1; }
   /**
+   * Does this box meet the isolation contract it would be SOLD under (site: Develop > Architecture,
+   * "The isolation contract")? Tenant work needs every property, and this box knows which it lacks
+   * today: the app-zone TLS key and the app traffic run through VTL0 (windows/PARITY.md, the
+   * declared gap), and a test-signed enclave is the development tier, not a production trusted
+   * layer. Both are facts about this build, not switches: appTrafficInsideEnclave() is false by
+   * construction until the code that terminates app TLS inside VTL1 exists, and the tier is the
+   * RELAY's verdict from attach (relayTier, set by the agent from attest-result), never this box's
+   * own word. Until both hold, the box is implementation evidence and takes its OWNER's apps only.
+   * The relay applies the same rule from its side (relay/api-relay.js computeEligible), so a build
+   * that lied here would still not be routed work; this gate keeps the box from claiming it off
+   * the ledger on its own.
+   */
+  appTrafficInsideEnclave() { return false; }
+  meetsIsolationContract() {
+    return this.appsInTee() && this.appTrafficInsideEnclave() && String(this.relayTier || "") === "vbs";
+  }
+  /**
    * Which scope this box claims in. The market is only open when an app runs inside the enclave
    * (appsInTee): claiming a stranger's deployment onto a runtime the enclave does not cover would
    * sell them the one thing they came here for and not deliver it. Until then the box runs its
    * OWNER's apps only, which is the owner's own machine and the owner's own call.
    */
-  scope() { return this.appsInTee() && this.cfg.claimScope === "market" ? "market" : "owner-only"; }
+  scope() { return this.meetsIsolationContract() && this.cfg.claimScope === "market" ? "market" : "owner-only"; }
   /**
    * What this box adds to /availability.
    *
@@ -1173,7 +1190,9 @@ export class Host {
       // `nodeSlotsFree` beside it. Folding "full" into this made the box drop out of the serving
       // set the moment its fourth app started, which took its capacity, its price and its card off
       // the fleet's books - the opposite of what a full box should report.
-      claimEnabled: this.appsInTee() && ready,
+      // ...and, above all of those, the isolation contract: a box that does not meet it takes no
+      // tenant work and says so, whatever its scope config asks for (meetsIsolationContract).
+      claimEnabled: this.meetsIsolationContract() && ready,
       // The honest word for what this box is: a seller of SOME of the platform's features. The
       // relay reads it and keeps this box out of the fleet-wide capability ANDs, the sizing floors
       // and the default price, so the flags below can be the plain truth about this box instead of
@@ -1191,6 +1210,10 @@ export class Host {
                  ...(Number(this.cfg.enclaveAppWorlds || 1) & 2 ? ["wasi:http@0.2"] : []),
                  ...(Number(this.cfg.enclaveAppWorlds || 1) & 4 ? ["wasi:cli@0.2 (its own socket, brokered)"] : [])],
         world: "enclave:app@0.1.0", traffic: "carried by the host",
+        // The contract verdict this box gives about ITSELF, for the row and for the operator's own
+        // eyes: false today, with the reason. The relay's verdict is the one that counts.
+        isolationContract: this.meetsIsolationContract(),
+        ...(this.meetsIsolationContract() ? {} : { contractGap: "app-zone TLS key and traffic run through the host OS; tier " + (this.relayTier || "unverified") }),
         scope: this.scope(), public: true, running, capacity: cap.slots,
         // The enclave's dedicated size, what the engine holds of it, and what is free - the three
         // numbers that make the pool checkable rather than asserted.

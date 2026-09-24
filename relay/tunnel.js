@@ -18,6 +18,7 @@ import { WebSocketServer } from "ws";
 import { createHash, timingSafeEqual, randomBytes } from "node:crypto";
 import { verifyQuote } from "./snp-verify.mjs";
 import { verifyAvfEvidence } from "./avf-verify.mjs";
+import { admitPvmCpu, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { AVF_PAD_FORMAT, avfPadBinding } from "./avf-binding.mjs";
 import { VBS_FORMAT, verifyVbsEvidence, tpmNameOf, VBS_MAX_CERT_BYTES, VBS_MAX_CHAIN_CERTS, VBS_MAX_TPMT_PUBLIC_BYTES } from "./vbs-verify.mjs";
 import { ekPublicFrom, makeCredential } from "./vbs-credential.mjs";
@@ -60,7 +61,9 @@ function selfRoutedUrl(url, name) {
 
 // allow:  [{ name, tokenSha256 }]                       — bootstrap / first-party boxes
 // attest: { allowedMeasurements: [hex], requireVcek, minTcb,   — permissionless sellers:
-//           avf: { codeHashes: [hex], padCodeHashes: [hex], authorityHashes: [hex] } }
+//           avf: { codeHashes: [hex], padCodeHashes: [hex], authorityHashes: [hex] },
+//           pvmCpu: pvmCpuPolicy (relay/pvm-cpu-tier.mjs) - admits an AVF phone to the
+//                   pVM CPU tier on ONE signed capability report per attach ({t:"caps"}) }
 //   attach is granted to ANY enclave that proves, with a fresh SEV-SNP quote over
 //   a relay-chosen challenge, that it runs a published Metal release (measurement
 //   on the allowlist). No token, no per-seller identity. See metal/PROTOCOL.md.
@@ -106,6 +109,11 @@ function selfRoutedUrl(url, name) {
 //   and a row that claims capacity lands in the set that sizes the fleet and
 //   takes placement. A token needs a committed hash and a quote needs an
 //   allowlisted measurement; proving a name from chain has to clear a bar too.
+// The AVF builds that may receive dealt pads: attest.avf.padCodeHashes, lowercased. A
+// pVM CPU build (attest.pvmCpu.codeHashes) is deliberately NOT in this set unless it
+// is also listed there, so the tier routes but never provisions pads.
+const padBuildsOf = (attest) => new Set((Array.isArray(attest?.avf?.padCodeHashes) ? attest.avf.padCodeHashes : []).map((h) => String(h).toLowerCase()));
+
 export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 30000, onChange = () => {},
                                   operatorFor = null, operatorAttach = false,
                                   trustedOperators = [], operatorsUnrestricted = false } = {}) {
@@ -184,8 +192,13 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     if (prev && prev.ws !== ws) { try { prev.ws.terminate(); } catch {} }   // newest wins
     const t = { ws, pending: new Map(), streams: new Map(), lastSeen: Date.now(), mode: meta.mode || "", publicUrl: "",
                 measurement: meta.measurement || null, keyFp: meta.keyFp || "",
-                // mode "vbs" only: "vbs" (production) or "vbs-dev" (test-signed, admitted by lab policy)
+                // mode "vbs": "vbs" (production) or "vbs-dev" (test-signed, admitted by lab policy);
+                // mode "avf": "pvm-cpu" once, and only once, a capability report is admitted (below)
                 tier: meta.tier || "",
+                // an AVF attach keeps what the pVM CPU admission needs: the verified verdict, the
+                // attested transport key, this attach's nonce, and the relay's policy. Nothing the
+                // box sends later can change any of these.
+                pvm: meta.pvm || null,
                 // dealt pads (relay/pads.mjs): the attested transport SPKI signs
                 // ledger requests, the X25519 pad key receives the pVM's seed
                 spki: meta.spki || "", padKey: meta.padKey || "" };
@@ -197,7 +210,14 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       let f; try { f = JSON.parse(data); } catch { return; }
       if (f.t === "hello") {
         const had = t.publicUrl;
-        t.mode = f.mode || t.mode; t.transportKeyFp = f.transportKeyFp || "";
+        // The MODE is the hub's verdict from attach (bind: "snp" / "avf" / "vbs" after a verified
+        // quote or chain, "" for a token or operator attach) and only the hub may set it. A box
+        // used to be able to promote itself here - `t.mode = f.mode || t.mode` - so a token-attached
+        // metal box saying `mode:"snp"` in its hello read, downstream, as "the relay verified a fresh
+        // SEV-SNP quote" (site/js/core/pricing.js teeCpuOf, source "relay") and became eligible for
+        // tenant work on its own word. Eligibility is derived from verified evidence, never from a
+        // self-reported string, so the hello's mode is recorded as what it is: a declaration.
+        t.declaredMode = f.mode || ""; t.transportKeyFp = f.transportKeyFp || "";
         t.publicUrl = selfRoutedUrl(f.publicUrl, name);
         if (f.publicUrl && !t.publicUrl)
           console.error(`[tunnel] ${name} claimed publicUrl ${String(f.publicUrl).slice(0, 120)} — IGNORED (not this tunnel's own https://<relay>/t/${name} route); its on-chain runner id stays unstamped`);
@@ -207,6 +227,31 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
         // "claimed"/unnamed for minutes after every relay restart. Re-announce
         // the moment the identity lands.
         if (t.publicUrl !== had) { try { onChange("hello", name); } catch {} }
+        return;
+      }
+      // pVM CPU tier (relay/pvm-cpu-tier.mjs, shielded/anchor/avf/PVM-CPU.md): ONE capability
+      // report per attach, from an AVF-attached phone only. The report is signed by the VM's
+      // attested transport key over this attach's nonce and judged against the relay's policy; the
+      // tier is set by THIS hub when the verdict is eligible, never from a field the phone sends.
+      // Refusals log their reasons here and reach the phone in its caps-result; the public row
+      // carries only that a report was refused, never the measured figures inside it.
+      if (f.t === "caps") {
+        if (!t.pvm || t.capsSeen) return;               // not an AVF attach, or the one frame was already judged
+        t.capsSeen = true;
+        const rep = typeof f.report === "string" && f.report.length <= 8192 ? Buffer.from(f.report, "base64") : Buffer.alloc(0);
+        const verdict = admitPvmCpu({ attach: { ...t.pvm.verdict, transportSpki: t.pvm.spki }, reportBytes: rep,
+                                      signature: String(f.sig || ""), nonce: t.pvm.nonce }, t.pvm.policy, { now: Date.now() });
+        if (verdict.eligible) {
+          t.tier = PVM_CPU_TIER;
+          t.pvmCpu = { model: verdict.capability.model ? verdict.capability.model.name : null, ctx: verdict.capability.model ? verdict.capability.model.ctx : null,
+                       device: verdict.capability.device || "", checkedAt: verdict.capability.checkedAt };
+          console.log(`[tunnel] ${name} pvm-cpu ADMITTED (${t.pvmCpu.model || "model?"})`);
+          try { onChange("caps", name); } catch {}
+        } else {
+          t.capsRefused = true;
+          console.log(`[tunnel] ${name} pvm-cpu REFUSED: ${verdict.reasons.join("; ")}`);
+        }
+        try { ws.send(JSON.stringify({ t: "caps-result", ok: verdict.eligible, tier: verdict.tier, reasons: verdict.reasons })); } catch {}
         return;
       }
       if (f.t === "pong") return;
@@ -380,7 +425,14 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
               // Earlier measured payloads signed arbitrary app-supplied
               // transcripts. A v2 label alone cannot fix that oracle: only
               // explicitly admitted builds with own-key checks may get pads.
-              const codeHashes = avfV2 ? attest.avf?.padCodeHashes : attest.avf?.codeHashes;
+              // The pVM CPU build (relay/pvm-cpu-tier.mjs) always attaches with the v2
+              // transcript, because its VM mints a pad key and the v2 binding covers both
+              // keys. It is admitted on ITS code hashes for ROUTING ONLY: the tier must never
+              // receive dealt pads, so a pvm-cpu code hash that is not also a pad build keeps
+              // no pad key (below), exactly as a v1 attach routes without pad eligibility.
+              const padBuilds = Array.isArray(attest.avf?.padCodeHashes) ? attest.avf.padCodeHashes.map((h) => String(h).toLowerCase()) : [];
+              const pvmCpuBuilds = attest.pvmCpu && attest.pvmCpu.codeHashes ? [...attest.pvmCpu.codeHashes] : [];
+              const codeHashes = avfV2 ? [...new Set([...padBuilds, ...pvmCpuBuilds])] : attest.avf?.codeHashes;
               if (!Array.isArray(codeHashes) || !codeHashes.length)
                 return deny(avfV2 ? "AVF v2 pad attach is not enabled on this relay" : "AVF attach is not enabled on this relay");
               if (!spki) return deny("AVF attach must carry transportKey");
@@ -442,10 +494,16 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             try { ws.send(JSON.stringify({ t: "attest-result", ok: true, measurement: res.measurement, ...(isVbs && res.tier ? { tier: res.tier } : {}) })); } catch {}
             // A v1 padKey was outside the attested message. Never retain it
             // for seed issuance or for the dealer's consumer enumeration.
-            const padKey = (!isAvf || avfV2) && /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";
+            // ...and a v2 attach keeps its pad key only when the build is an admitted PAD build:
+            // a pVM CPU build routed through on its own code hash is never a pad consumer.
+            const padEligible = !isAvf || (avfV2 && padBuildsOf(attest).has(String(res.component?.codeHash || res.measurement || "").toLowerCase()));
+            const padKey = padEligible && /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";
             bind(name, ws, { via: isVbs ? `attestation(${res.tier})` : isAvf ? "attestation(avf)" : res.vcekVerified ? "attestation" : "attestation(measurement-only)",
                              measurement: res.measurement, mode: isVbs ? "vbs" : isAvf ? "avf" : "snp", keyFp, tier: isVbs ? res.tier : "",
-                             spki: spki ? spki.toString("base64") : "", padKey });
+                             spki: spki ? spki.toString("base64") : "", padKey,
+                             // the pVM CPU admission inputs, pinned at attach (policy included: a hub
+                             // without one refuses every report, by the verifier's own first rule)
+                             pvm: isAvf ? { verdict: res, spki, nonce, policy: (attest && attest.pvmCpu) || null } : null });
           } catch (e) { deny(`verify error: ${e.message}`); }
           finally { verifying = false; }
         });
@@ -546,6 +604,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       lastSeen: Math.floor(t.lastSeen / 1000), tunnel: true, mode: t.mode, publicUrl: t.publicUrl,
       measurement: t.measurement || undefined,
       ...(t.tier ? { tier: t.tier } : {}),
+      // the pVM CPU tier's display facts (model, context, device name), set by this hub from an
+      // admitted capability report; measured rates stay in the relay log, never on the public row
+      ...(t.pvmCpu ? { pvmCpu: t.pvmCpu } : {}),
+      ...(t.capsRefused && !t.pvmCpu ? { capsRefused: true } : {}),
       // A CONSUMER NODE's attested public keys, published because a client needs them to
       // talk to it at all: the session is sealed to the enclave's X25519 key (padKey) and
       // signed by its Ed25519 transport key, both minted inside VTL1 per boot and both

@@ -94,6 +94,7 @@ import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDep
 import { handleCerts, initCerts } from "./certs.js";
 import { createTunnelHub } from "./tunnel.js";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
+import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { vbsPolicyFromEnv } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir } from "./store.js";
@@ -142,6 +143,10 @@ const METAL_MIN_TCB = (() => {
 // METAL_AVF_PAD_CODE_HASHES. Either needs METAL_AVF_AUTHORITY_HASHES. All are
 // empty by default. The verifier pins Google's roots itself.
 const AVF_ATTEST = avfPolicyFromEnv(process.env);
+// The pVM CPU tier's admission policy (PVM_CPU_CODE_HASHES / PVM_CPU_AUTHORITY_HASHES /
+// PVM_CPU_MODELS): only meaningful beside AVF attach, and null means every capability
+// report is refused, which is the fail-closed default.
+const PVM_CPU_POLICY = AVF_ATTEST ? pvmCpuPolicyFromEnv(process.env) : null;
 // Windows consumer nodes running a VBS enclave (windows/vbs/EVIDENCE.md): the
 // enclave builds admitted (sha256(FamilyId||ImageId||AuthorId)), minimum SVN,
 // pinned PCR 0 per firmware, the pinned TPM EK roots, and the lab-only
@@ -196,7 +201,7 @@ function padsRoutes() {
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
   attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST || VBS_ATTEST
-    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(VBS_ATTEST ? { vbs: VBS_ATTEST } : {}) }
+    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(PVM_CPU_POLICY ? { pvmCpu: PVM_CPU_POLICY } : {}), ...(VBS_ATTEST ? { vbs: VBS_ATTEST } : {}) }
     : null,
   operatorFor: tunnelNameOwner,
   // TUNNEL_OPERATOR_ATTACH=1 — let a box prove its tunnel name with the operator
@@ -1360,13 +1365,74 @@ function sendForwarded(res, r, req) {
 // newer supervisors; hosted (non-tunnel) enclaves predate the field and have
 // always claimed, tunnel boxes count only when they SAY they claim (Phase C
 // sellers with registryKey set report true).
+// ---- tenant-compute eligibility: hardware EVIDENCE, never self-description --
+// A box takes, or is offered, tenant work only when the relay holds hardware
+// evidence for the isolation contract it would be sold under:
+//   - a TUNNEL box: the mode this hub VERIFIED at attach (relay/tunnel.js bind).
+//     "snp" is a fresh SEV-SNP quote chained through the VCEK to AMD's root, the
+//     confidential contract. "avf" and "vbs" are verified reports too, but for a
+//     different contract than tenant app hosting: the phone anchor serves its
+//     own inference, and the VBS enclave's app-zone key and traffic still run
+//     through the host OS (windows/PARITY.md), so neither is sold as app hosting
+//     until the full contract is proven. A token- or operator-attached box has
+//     mode "" and proved nothing about its CPU. Its own /availability strings
+//     (teeCpu, tier, claimEnabled) never promote it: the hub's verdict outranks
+//     anything the box says about itself, which is the whole point of the hub.
+//   - a DIALED box (first-party, operator-allowlisted, registry-discovered): the
+//     CPU technology its own attestation document presented (availability.teeCpu,
+//     read by the measured image from its RAD). The relay does not re-verify
+//     that quote; clients do at connect. A build that never said is UNKNOWN,
+//     and unknown is not eligible.
+// The rule is fail-closed on purpose: a machine with no evidence may carry
+// traffic (a relay row) or sit attached as evidence of work in progress, but it
+// is never presented as sellable capacity and never routed a deployment.
+// GPUs follow the same gate with one more word: on a host WITHOUT a confidential
+// processor, Enclave Shielded (the OS-neutral VBS-like isolation layer) is the only
+// supported way a GPU is exposed at all, and until that contract and its evidence
+// verify, such a host neither advertises a card (its GPU / shielded pools never
+// reach the totals or the placement pool) nor receives GPU work. A verifier for the
+// Enclave Shielded contract does not exist yet, so today this is simply the
+// confidential-CPU rule above applied to every axis of the box.
+const TENANT_COMPUTE_MODES = new Set(["snp"]);
+const CONFIDENTIAL_CPU = new Set(["amd-sev-snp", "intel-tdx"]);
+function computeEligible(e) {
+  if (!e || e.relay) return false;
+  if (e.tunnel) return TENANT_COMPUTE_MODES.has(String(e.mode || ""));
+  return CONFIDENTIAL_CPU.has(String(e.availability?.teeCpu || ""));
+}
+// The pVM CPU tier is its own INFERENCE lane, not app hosting: a phone the hub tiered
+// "pvm-cpu" (one admitted capability report, relay/pvm-cpu-tier.mjs) serves the platform's
+// engine on its owner's device. It is never in servingEnclaves (computeEligible stays
+// false for mode "avf"), and the tier comes from the hub's row, never from the box.
+function inferenceLaneOf(e) {
+  return e && e.tunnel && String(e.mode || "") === "avf" && e.tier === PVM_CPU_TIER ? PVM_CPU_TIER : null;
+}
+// Why a row is NOT eligible, for the fleet panel to say in words (null when it is).
+function ineligibleReason(e) {
+  if (!e || e.relay) return "carries traffic only";
+  if (computeEligible(e)) return null;
+  if (e.tunnel) {
+    const m = String(e.mode || "");
+    if (m === "vbs") return "verified enclave report, but the app-zone key and traffic run through the host: the isolation contract is not met";
+    if (m === "avf") return inferenceLaneOf(e) ? "pVM CPU tier: an inference lane on its owner's phone, not app deployments"
+                         : e.capsRefused ? "verified protected-VM chain; its pVM CPU capability report was refused"
+                         : "verified protected-VM chain; no pVM CPU capability report admitted yet";
+    return "attached on a token, no hardware quote verified";
+  }
+  const t = String(e.availability?.teeCpu || "");
+  const gpu = (e.availability?.gpu === true || (e.availability?.shielded && e.availability.shielded.vramGb > 0))
+    ? "; its GPU is exposed only through Enclave Shielded, whose evidence it has not presented" : "";
+  return (t ? `its attestation document presents ${t}, not a confidential CPU` : "its build never named its CPU technology") + gpu;
+}
 function servingEnclaves() {
   // A relay is never in this set. It says so itself (claimEnabled:false), but
   // the row is checked here too: this function decides the fleet-minimum spec*
   // fields and every fleet-AND capability flag, so one box that reports no vCPUs
   // slipping in is a fleet-wide sizing and feature outage. Belt and braces on
   // the one filter that has already failed that way once.
-  return live.filter((e) => !e.relay && (e.availability?.claimEnabled === true
+  // And a box without hardware evidence is never in it either, whatever it
+  // says about itself (computeEligible above).
+  return live.filter((e) => !e.relay && computeEligible(e) && (e.availability?.claimEnabled === true
     || (e.availability?.claimEnabled == null && !e.tunnel)));
 }
 // A box may sell a SUBSET of what the fleet offers and SAY so (`fullService: false` on its
@@ -2120,7 +2186,14 @@ function handleRequest(req, res) {
     // every row carries an explicit `serving` verdict so display surfaces
     // (fleet panel, deploy target lists) can hide what cannot take work
     // without re-deriving the rule client-side
-    const rows = live.map((e) => ({ ...e, serving: servingSet.has(e) }));
+    // ...and an explicit eligibility verdict beside it: `serving` says whether
+    // the box takes work now, `eligible` whether it ever could on the evidence
+    // the relay holds, and `ineligible` says why not, in the words the fleet
+    // panel prints. Derived from verified evidence, never from the row's own
+    // teeCpu / tier / claimEnabled strings.
+    const rows = live.map((e) => ({ ...e, serving: servingSet.has(e), eligible: computeEligible(e),
+                                    ...(computeEligible(e) ? {} : { ineligible: ineligibleReason(e) }),
+                                    ...(inferenceLaneOf(e) ? { lane: inferenceLaneOf(e) } : {}) }));
     const agg = {
       enclaves: live.length, serving: serving.length,
       totalGpuShareFree: Math.round(serving.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
