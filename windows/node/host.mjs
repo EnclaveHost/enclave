@@ -55,6 +55,10 @@ export class Host {
     this.statePath = path.join(cfg.dir, "host-state.json");
     const st = this.#loadState();
     this.tracked = new Set(st.tracked || []);
+    // THE PER-APP ISOLATION BACKEND, off unless a manager is configured. One place decides, so no
+    // other code path can half-enable it: the deployed build has no such config and is unaffected.
+    this.cfg.isolationManager   = this.cfg.isolationManager   || process.env.ENCLAVE_ISOLATION_MANAGER || "";
+    this.cfg.isolationRuntimeId = this.cfg.isolationRuntimeId || process.env.ENCLAVE_ISOLATION_RUNTIME_ID || "";
     /// Secrets this box fetched for a lease it holds, in memory only: never written beside the
     /// state file, never logged, and dropped when the lease goes.
     this.secrets = new Map();
@@ -129,6 +133,9 @@ export class Host {
         + `${Number(e.gpuPricePerSec6) > 0 ? ` + ${e.gpuPricePerSec6}/sec card` : ""}, payout ${e.payoutWallet}`);
     } catch (e) { this.lastError = e.message; }
   }
+  /** Is this box running apps as isolated domains? False unless a manager is configured. */
+  get isolation() { return !!this.cfg.isolationManager; }
+
   /** The wallet whose deployments this box will run: the on-chain declaration, else the config. */
   ownerAllow() {
     const ZERO = "0x0000000000000000000000000000000000000000";
@@ -430,6 +437,53 @@ export class Host {
     } else { this.secrets.delete(id); }
   }
 
+  /**
+   * Run this deployment as an isolated domain through the manager, and translate the outcome into
+   * this node's record vocabulary. Returns a record when it decided, or null to fall through to the
+   * in-enclave path.
+   *
+   * The lease rule is the client's, not restated here: `held` means the outcome is UNKNOWN, so the
+   * lease stays and nothing is retried; only a KNOWN failure frees it.
+   */
+  async #isolationReconcile(id, d, v, { memMb, port }) {
+    const { reconcile } = await import("./isolation-lifecycle.mjs");
+    const { IsolationManagerClient } = await import("./isolation-client.mjs");
+    const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
+    const body = IsolationManagerClient.spawnBody({
+      image: `ipfs://${v.cid}`, name: id, appPort: port,
+      cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000,
+      // stated from the LEDGER, never assumed: the manager refuses a spawn that does not say
+      isPublic: d.isPublic !== false,
+      hasSecrets: false,
+      derive: { derivation: "enclave-catalog-bundle/1", cid: v.cid,
+                catalog: { app: d.appRef, version: v.version },
+                policy: { cpuPercent: 100, memMiB: memMb, vcpus: 1 },
+                runtimeId: this.cfg.isolationRuntimeId || "" },
+    });
+    let r;
+    try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
+    catch (e) { return this.#record(id, { status: "failed", reason: `isolation: ${e.message}` }); }
+
+    if (r.action === "held") {
+      // NOT a failure and NOT a success: the lease is kept and this tick decided nothing.
+      this.log(`${id.slice(0, 10)} isolation held: ${r.reason}`);
+      return this.#record(id, { status: "provisioning", reason: r.reason });
+    }
+    if (r.action === "failed") {
+      if (r.leaseFree) return await this.#giveUp(id, `isolation: ${r.reason}`);
+      return this.#record(id, { status: "failed", reason: `isolation: ${r.reason}` });
+    }
+    // adopted or spawned, and serving
+    const inst = r.instance || {};
+    this.log(`${id.slice(0, 10)} isolation ${r.action}: ${inst.id} status=${inst.status} image=${inst.image || "?"}`);
+    return this.#record(id, { status: "running", reason: null,
+                              isolation: { backend: "hyperv-partition-per-app", instance: inst.id,
+                                           image: inst.image ?? null, tier: inst.tier ?? null,
+                                           // carried up verbatim; this is NOT verified capacity
+                                           hostExcluded: inst.hostExcluded === true,
+                                           transportKeySha256: inst.transportKeySha256 ?? null } });
+  }
+
   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
   async ensureApp(id, d, { force = false, version = null } = {}) {
     const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil),
@@ -600,6 +654,25 @@ export class Host {
       // also what happens on a platform box.
       await this.refreshDomains(id, { forLaunch: true })
         .catch((e) => this.log(`domains ${id.slice(0, 10)}: ${e.message}`));
+      // THE PER-APP ISOLATION BACKEND, when this box is configured for it.
+      //
+      // Default OFF. Without ENCLAVE_ISOLATION_MANAGER nothing below runs and this node behaves
+      // exactly as the deployed build does - which matters, because the bytes running on nucbox-k11
+      // are NOT this branch's, and a change that altered the default would take six live apps with
+      // it.
+      //
+      // When it IS set, the deployment's domain is a Hyper-V child partition managed by the
+      // manager rather than a process in this enclave, and `reconcile` owns the decision: it adopts
+      // a domain that is already there (so a node restart does not run a deployment twice), waits
+      // for the manager's own readiness verdict, and HOLDS the lease whenever the outcome is
+      // unknown. It never frees a lease on a guess.
+      //
+      // What it does NOT do: change what this box advertises. A T0-hv partition does not exclude
+      // the host, attestedCapacity() is false for it, and nothing here touches meetsIsolationContract().
+      if (this.isolation) {
+        const outcome = await this.#isolationReconcile(id, d, v, { memMb, port });
+        if (outcome) return outcome;
+      }
       const env = this.appEnvFor(id, d, v, { memMb, port, world: want, declared,
                                              config: await this.appConfigResolved(d, v) });
       app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, memMb, world: want, port, env,
