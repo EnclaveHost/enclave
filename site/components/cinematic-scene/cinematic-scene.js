@@ -1,5 +1,6 @@
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 class CinematicScene extends EnclaveElement {
+  static properties = { image: "assets/compute-cinematic.webp" };
   static templateUrl = new URL("./cinematic-scene.html", import.meta.url);
   renderedCallback() {
     this._observer?.disconnect();

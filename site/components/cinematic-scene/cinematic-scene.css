@@ -9,5 +9,16 @@ c-cinematic-scene{position:absolute;display:block;inset:0;overflow:hidden;z-inde
 .cinema-pause:hover{background:#172622;border-color:#58ebbb;}
 @keyframes cinema-drift{from{transform:scale(1.04) translate3d(0,0,0);}to{transform:scale(1.14) translate3d(-1.5%,1%,0);}}
 @keyframes cinema-light{from{transform:translateX(-20%);opacity:.3;}to{transform:translateX(20%);opacity:.85;}}
+/* Each scene has its own camera path and light behavior. */
+c-cinematic-scene[scene="apps"] .cinema-media{animation-name:cinema-apps;animation-duration:22s;}
+c-cinematic-scene[scene="apps"] .cinema-light{background:linear-gradient(100deg,transparent 45%,rgba(121,214,255,.13) 50%,transparent 55%);animation-duration:13s;}
+c-cinematic-scene[scene="develop"] .cinema-media{animation-name:cinema-develop;animation-duration:26s;transform-origin:85% 35%;}
+c-cinematic-scene[scene="develop"] .cinema-light{background:radial-gradient(ellipse at 80% 40%,rgba(191,159,255,.18),transparent 40%);animation-name:cinema-pulse;animation-duration:8s;}
+c-cinematic-scene[scene="host"] .cinema-media{animation-name:cinema-host;animation-duration:30s;transform-origin:36% 44%;}
+c-cinematic-scene[scene="host"] .cinema-light{background:linear-gradient(80deg,transparent 40%,rgba(255,181,84,.09) 50%,transparent 60%);animation-duration:21s;}
+@keyframes cinema-apps{from{transform:scale(1.09) translate3d(-1.5%,0,0);}to{transform:scale(1.09) translate3d(1.5%,0,0);}}
+@keyframes cinema-develop{from{transform:scale(1.04) translate3d(0,1%,0);}to{transform:scale(1.14) translate3d(-1%,-1%,0);}}
+@keyframes cinema-host{from{transform:scale(1.03);}to{transform:scale(1.16);}}
+@keyframes cinema-pulse{from{opacity:.15;transform:scale(.94);}to{opacity:.7;transform:scale(1.06);}}
 @media(prefers-reduced-motion:reduce){.cinema-media,.cinema-light{animation:none!important;}.cinema-pause{display:none;}}
 @media(max-width:640px){.cinema-image{object-position:64% center;}.cinema-shade{background:linear-gradient(90deg,rgba(5,8,10,.7),rgba(5,8,10,.2)),linear-gradient(0deg,#070a0f,rgba(7,10,15,.15) 50%,rgba(7,10,15,.35));}.cinema-pause{right:22px;bottom:18px;}}
