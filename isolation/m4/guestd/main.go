@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -21,6 +22,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"enclave.host/isolation/contract"
 )
 
 // realLauncher drives the M4a scripts the hardware suite scores (isolation/m4/test-m4.sh), not a reimplementation
@@ -182,6 +185,36 @@ func (l *realLauncher) Sweep() ([]string, error) {
 	return stopped, nil
 }
 
+// pyFetcher fetches through the platform's own CAR verifier (wasm/ipfs_fetch.py, via fetch-cid.py): the bytes a
+// CID names, verified against it, or an error - never unverified bytes.
+type pyFetcher struct{ script, repo, gateway, tmp string }
+
+func (p *pyFetcher) Fetch(ctx context.Context, cid string, max int) ([]byte, error) {
+	f, err := os.CreateTemp(p.tmp, "fetch-*")
+	if err != nil {
+		return nil, err
+	}
+	out := f.Name()
+	f.Close()
+	defer os.Remove(out)
+	var stderr bytes.Buffer
+	cmd := exec.CommandContext(ctx, "python3", p.script, p.repo, cid, out, strconv.Itoa(max), p.gateway)
+	cmd.Stderr = &stderr
+	so, err := cmd.Output()
+	if err != nil {
+		return nil, errors.New(strings.TrimSpace(stderr.String()))
+	}
+	b, err := os.ReadFile(out)
+	if err != nil {
+		return nil, err
+	}
+	// the verifier printed the digest of what it wrote; what was read back must be that
+	if want := strings.Fields(string(so)); len(want) != 3 || want[0] != "ok" || want[2] != componentSha(b) {
+		return nil, fmt.Errorf("the fetcher's report %q does not describe the bytes it wrote", strings.TrimSpace(string(so)))
+	}
+	return b, nil
+}
+
 func sha256File(p string) (string, error) {
 	b, err := os.ReadFile(p)
 	if err != nil {
@@ -201,6 +234,7 @@ func main() {
 	product := flag.String("product", "Turin", "AMD product name for the chain")
 	chain := flag.String("chain", "", "AMD cert chain PEM (default: test/fixtures/amd/<product>-cert_chain.pem)")
 	minTCB := flag.String("min-tcb", filepath.Join(home, ".cache/enclave-isolation/m3-clean/min-tcb.json"), "TCB floor JSON")
+	gateway := flag.String("gateway", "https://ipfs.enclave.host", "IPFS gateway for catalog components (untrusted: every block is verified)")
 	flag.Parse()
 
 	// DISABLED unless asked for, by name. Nothing in production sets this.
@@ -265,6 +299,25 @@ func main() {
 	}
 	s := newServer(l, *root)
 	s.Firmware = map[string]any{"path": *ovmf, "sha256": fw, "pinnedVerifying": true}
+	// The catalog store, and the RuntimeID a derivation record must be pinned to: this host's, computed from the
+	// same identity file the judge is given, by the contract's own function.
+	var ident contract.RuntimeIdentity
+	if err := json.Unmarshal(ridOut, &ident); err != nil {
+		log.Fatalf("runtime identity: %v", err)
+	}
+	rtID, err := contract.RuntimeID(ident)
+	if err != nil {
+		log.Fatalf("runtime identity: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(*root, "store", "tmp"), 0o700); err != nil {
+		log.Fatal(err)
+	}
+	st, err := newStore(filepath.Join(*root, "store"), &pyFetcher{script: filepath.Join(*iso, "m4", "guestd", "fetch-cid.py"),
+		repo: filepath.Join(*iso, ".."), gateway: *gateway, tmp: filepath.Join(*root, "store", "tmp")}, hex.EncodeToString(rtID[:]))
+	if err != nil {
+		log.Fatal(err)
+	}
+	s.Store = st
 	go func() {
 		for range time.Tick(5 * time.Second) {
 			s.tick()

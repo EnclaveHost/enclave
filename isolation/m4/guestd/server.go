@@ -85,6 +85,9 @@ type Request struct {
 	Secrets   map[string]any    `json:"secrets"`
 	Hosts     string            `json:"hosts"`
 	Shielded  json.RawMessage   `json:"shielded"`
+	// Derive is the catalog derivation record (contract/DERIVE.md) an ipfs:// image needs: the CID alone names
+	// bytes, not a contract identity, and guestd will not invent one.
+	Derive *contract.CatalogDerivation `json:"derive"`
 }
 
 // unsupported names the first feature this backend cannot honour inside the guest, or "".
@@ -106,6 +109,7 @@ func unsupported(r *Request) string {
 
 type vm struct {
 	ID, Name, AppID, Measurement, Status, Error, Verdict string
+	RecordSha256                                         string // the catalog derivation, when the app came from one
 	HostPort                                             int
 	Vcpus, MemMiB, CPUPct                                int
 	Created                                              time.Time
@@ -117,6 +121,7 @@ type vm struct {
 
 type server struct {
 	L         Launcher
+	Store     *store // catalog mappings; nil = only file:// bundles are accepted
 	Root      string // per-guest workdirs live under here, and nothing else does
 	LeaseTTL  time.Duration
 	Silence   time.Duration
@@ -157,6 +162,9 @@ func (v *vm) public() map[string]any {
 	if v.Verdict != "" {
 		m["verdict"] = v.Verdict
 	}
+	if v.RecordSha256 != "" {
+		m["recordSha256"] = v.RecordSha256
+	}
 	return m
 }
 
@@ -166,13 +174,19 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		n := len(s.vms)
 		s.mu.Unlock()
+		cat := map[string]any{"derivations": []string{}}
+		if s.Store != nil {
+			cat = map[string]any{"derivations": []string{contract.CatalogDerivationV1}, "runtimeId": s.Store.RuntimeID}
+		}
 		s.json(w, 200, map[string]any{"ok": true, "backend": "snp-guest-per-app", "guests": n,
-			"firmware": s.Firmware,
+			"firmware": s.Firmware, "catalog": cat,
 			// what a tenant here does NOT get, so a claim gate can refuse deployments that need it
 			"supports": map[string]bool{"gpu": false, "secrets": false, "egress": false, "config": false,
 				"ports": false, "configCid": false}})
 	case r.Method == http.MethodPost && r.URL.Path == "/vms":
 		s.create(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/prefetch":
+		s.prefetch(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/vms/lease":
 		s.lease(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/vms":
@@ -223,16 +237,11 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 422, map[string]any{"error": "this backend refuses " + why})
 		return
 	}
-	// The bundle is read and checked BEFORE anything is accepted, so a request for an app with no contract
+	// The bundle is obtained and checked BEFORE anything is accepted, so a request for an app with no contract
 	// identity is refused synchronously instead of surfacing later as a failed boot.
-	path, err := bundlePath(req.Image)
+	raw, record, code, err := s.bundleFor(r.Context(), req.Image, req.Derive)
 	if err != nil {
-		s.json(w, 422, map[string]any{"error": err.Error()})
-		return
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		s.json(w, 422, map[string]any{"error": "reading the bundle: " + err.Error()})
+		s.json(w, code, map[string]any{"error": err.Error()})
 		return
 	}
 	m, _, err := contract.Parse(raw)
@@ -250,7 +259,7 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	v := &vm{ID: newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting",
+	v := &vm{ID: newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting", RecordSha256: record,
 		Vcpus: pol.Vcpus, MemMiB: guestMemMiB(pol.MemMiB), CPUPct: pol.CPUPercent, Created: s.Now(),
 		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL)}
 	v.workdir = filepath.Join(s.Root, v.ID)
@@ -281,14 +290,75 @@ func guestMemMiB(policy int) int {
 	return policy + 384
 }
 
-// bundlePath accepts file:// only. A catalog reference (ipfs://<cid>) names a bare component today, and a bare
-// component has no contract identity on this backend: the mapping from a catalog version to a bundle is not built,
-// and inventing one here would invent the AppID a verifier is asked to trust.
-func bundlePath(image string) (string, error) {
+// bundleFor returns the bundle bytes an image reference names, the derivation record's digest when it came from
+// the catalog, and the status a refusal deserves.
+//
+//   - file:///abs/path  a contract bundle on this host (lab and staging)
+//   - ipfs://<cid>      a catalog component, ONLY with a derivation record naming that same CID: resolved through
+//     the immutable mapping store, which fetches and verifies at most once. The CID alone names
+//     bytes, not a contract identity, and guestd will not invent one.
+func (s *server) bundleFor(ctx context.Context, image string, d *contract.CatalogDerivation) ([]byte, string, int, error) {
 	if p, ok := strings.CutPrefix(image, "file://"); ok && filepath.IsAbs(p) {
-		return p, nil
+		if d != nil {
+			return nil, "", 422, errors.New("a derivation record applies to an ipfs:// catalog component, not to a file bundle")
+		}
+		raw, err := os.ReadFile(p)
+		if err != nil {
+			return nil, "", 422, errors.New("reading the bundle: " + err.Error())
+		}
+		return raw, "", 0, nil
 	}
-	return "", errors.New("only file:///absolute/path bundles are accepted: the catalog-CID-to-bundle mapping is not built")
+	cid, ok := strings.CutPrefix(image, "ipfs://")
+	switch {
+	case !ok:
+		return nil, "", 422, errors.New("the image must be file:///absolute/path or ipfs://<cid>")
+	case s.Store == nil:
+		return nil, "", 422, errors.New("this guestd has no catalog store: only file:// bundles are accepted")
+	case d == nil:
+		return nil, "", 422, errors.New("a catalog CID needs its derivation record (derive): the CID names bytes, not a contract identity")
+	case d.CID != cid:
+		return nil, "", 422, fmt.Errorf("the derivation record is for %s, not for the image %s", d.CID, cid)
+	}
+	m, b, err := s.Store.resolve(ctx, *d)
+	if err != nil {
+		var se *storeErr
+		if errors.As(err, &se) {
+			return nil, "", se.code, err
+		}
+		return nil, "", 502, err
+	}
+	return b, m.RecordSha256, 0, nil
+}
+
+// prefetch is the supervisor's POST /prefetch (supervisor.js tryClaim, switchTenantVersion): fetch and verify
+// BEFORE a lease is burned or an old version stopped. Here it also derives and stores the mapping, so the launch
+// that follows reads verified bytes and never the network.
+func (s *server) prefetch(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		Image  string                      `json:"image"`
+		Derive *contract.CatalogDerivation `json:"derive"`
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&b); err != nil {
+		s.json(w, 400, map[string]any{"error": "bad request: " + err.Error()})
+		return
+	}
+	if !strings.HasPrefix(b.Image, "ipfs://") {
+		s.json(w, 400, map[string]any{"error": "prefetch takes an ipfs://<cid> app reference"})
+		return
+	}
+	t0 := time.Now()
+	raw, record, code, err := s.bundleFor(r.Context(), b.Image, b.Derive)
+	if err != nil {
+		s.json(w, code, map[string]any{"error": err.Error()})
+		return
+	}
+	id := contract.AppID(raw)
+	_, comp, _ := contract.Parse(raw)
+	s.json(w, 200, map[string]any{"ok": true, "bytes": len(comp), "seconds": time.Since(t0).Round(100 * time.Millisecond).Seconds(),
+		"appId": hex.EncodeToString(id[:]), "recordSha256": record, "componentSha256": componentSha(comp),
+		"bundleBytes": len(raw)})
 }
 
 func (s *server) set(v *vm, f func()) {
