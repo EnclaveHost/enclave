@@ -1,0 +1,36 @@
+{
+    "_comment": [
+        "An OpenHCL IGVM whose VTL0 is OUR guest -- the isolation/m3 monitor image -- instead of the",
+        "OpenVMM project's test kernel and initrd. Built by build-ownguest.sh, which supplies the",
+        "resources file; see that script for what each resource is and where it comes from.",
+        "",
+        "The VTL0 command line is the one the Windows launcher passes today for a partition",
+        "(windows/vbslike/host/src/launcher.rs): the m3 init reads report_host= to find the launcher's",
+        "signing service, and the console goes to ttyS0 so the partition's COM port carries it.",
+        "",
+        "WHAT THIS FILE DOES NOT DECIDE, and must not be read as deciding: the trust configuration. This",
+        "is the kernel-hashes shape -- a paravisor above our guest, no SVSM beneath it -- in which the m3",
+        "monitor's configfs-tsm report path still exists. A COCONUT-bearing configuration is a different",
+        "thing with different digests, and on that path the guest's VMPCKs are being removed, so the",
+        "monitor must move to an SVSM protocol before it works there (isolation lane, 2026-09-23). One",
+        "image never implies one trust configuration."
+    ],
+    "guest_arch": "x64",
+    "guest_configs": [
+        {
+            "guest_svn": 1,
+            "max_vtl": 2,
+            "isolation_type": "none",
+            "image": {
+                "openhcl": {
+                    "command_line": "OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux OPENHCL_BOOT_LOG=com3",
+                    "memory_page_count": 245760,
+                    "linux": {
+                        "command_line": "console=ttyS0 rdinit=/init loglevel=3 report_host=9001",
+                        "use_initrd": true
+                    }
+                }
+            }
+        }
+    ]
+}

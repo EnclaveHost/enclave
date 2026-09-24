@@ -162,50 +162,47 @@ try {
 }
 finally {
   Write-Host "=== cleanup"
-
-  # 1. a partition this run's probe may have left behind, if it was killed mid-flight. Only ids with
-  #    this run's prefix are candidates; `reap` refuses anything else.
-  if ($mutated -and $probePrefix) {
-    try {
-      $r = & $HostExe reap --prefix $probePrefix 2>&1 | Out-String
-      $r | Set-Content (Join-Path $EvidenceDir 'reap.json')
-      $rj = $null; try { $rj = $r | ConvertFrom-Json } catch {}
-      if ($null -ne $rj -and $rj.ok) {
-        Note ("reap: matched $($rj.matched.Count), terminated $($rj.terminated.Count) (prefix $probePrefix)")
-      } else {
-        Write-Error "REAP FAILED for $probePrefix; a partition of this run may still be running. Check with: $HostExe probe. Output: $r"
-      }
-    } catch { Write-Error "REAP FAILED for ${probePrefix}: $_" }
-  }
-
-  # 2. the setting. A write here is licensed ONLY by this run having made one.
-  if ($mutated) {
-    if ($before.Status -eq 'Present') { Set-ItemProperty -Path $RegPath -Name $RegName -Value $before.Value -Type $before.Kind }
-    else { Remove-ItemProperty -Path $RegPath -Name $RegName -ErrorAction SilentlyContinue }
-    $now = Read-SettingState
-    $now | ConvertTo-Json | Set-Content (Join-Path $EvidenceDir 'setting-after.json')
-    if (Test-SettingRestored -Before $before -Now $now) {
-      Note ("setting restored to " + $(if ($before.Status -eq 'Present') { "$($before.Kind)=$($before.Value)" } else { 'ABSENT' }) + " (status, value and type verified)")
-    } else {
-      Write-Error "THE SETTING WAS NOT RESTORED. Expected $($before | ConvertTo-Json -Compress), found $($now | ConvertTo-Json -Compress). Remove it by hand: Remove-ItemProperty '$RegPath' -Name $RegName"
+  # Nothing in this block may terminate this block. The bug this replaced was exactly that: with
+  # $ErrorActionPreference = 'Stop', a Write-Error (or a property access) in the reap step ended the
+  # whole finally and the registry was never restored. So errors here are collected, the orchestration
+  # lives in Invoke-ProbeCleanup where restoration sits in its own nested finally, and the failures are
+  # reported once all three steps have been attempted.
+  $ErrorActionPreference = 'Continue'
+  $result = Invoke-ProbeCleanup -Mutated $mutated -Before $before `
+    -Reap {
+      $out = & $HostExe reap --prefix $probePrefix 2>&1 | Out-String
+      $out | Set-Content (Join-Path $EvidenceDir 'reap.json')
+      $parsed = $null
+      try { $parsed = $out | ConvertFrom-Json } catch { }
+      if ($null -eq $parsed) { throw "reap output is not JSON: $out" }
+      Note ("reap: matched $(@(Get-Prop $parsed 'matched').Count), terminated $(@(Get-Prop $parsed 'terminated').Count) (prefix $probePrefix)")
+      $parsed
+    } `
+    -Restore {
+      if ($before.Status -eq 'Present') { Set-ItemProperty -Path $RegPath -Name $RegName -Value $before.Value -Type $before.Kind }
+      else { Remove-ItemProperty -Path $RegPath -Name $RegName -ErrorAction SilentlyContinue }
+    } `
+    -ReadState {
+      $now = Read-SettingState
+      $now | ConvertTo-Json | Set-Content (Join-Path $EvidenceDir 'setting-after.json')
+      $now
+    } `
+    -VerifyNode {
+      $nodeAfter = Get-NodeHealth
+      $nodeAfter | ConvertTo-Json | Set-Content (Join-Path $EvidenceDir 'node-after.json')
+      @{ Ok = (Test-NodeUnchanged $nodeBefore $nodeAfter); Detail = "before $($nodeBefore | ConvertTo-Json -Compress) after $($nodeAfter | ConvertTo-Json -Compress)" }
     }
-  } elseif ($null -ne $before) {
-    # read-only run: VERIFY the state is what the preflight saw, and write nothing either way
-    $now = Read-SettingState
-    $now | ConvertTo-Json | Set-Content (Join-Path $EvidenceDir 'setting-after.json')
-    if (Test-SettingRestored -Before $before -Now $now) { Note "setting unchanged by this run (verified, not rewritten): $($now.Status)" }
-    else { Write-Error "THE SETTING CHANGED during a run that never wrote it: before $($before | ConvertTo-Json -Compress), now $($now | ConvertTo-Json -Compress). Something else on this host changed it." }
-  } else {
-    Note 'nothing to verify: the run stopped before the setting was read'
-  }
 
-  # 3. the live node, unchanged
-  if ($null -ne $nodeBefore) {
-    $nodeAfter = Get-NodeHealth
-    $nodeAfter | ConvertTo-Json | Set-Content (Join-Path $EvidenceDir 'node-after.json')
-    if (Test-NodeUnchanged $nodeBefore $nodeAfter) { Note "live node unchanged: task $($nodeAfter.TaskState), processes $($nodeAfter.Processes -join ' ')" }
-    else { Write-Error "THE LIVE NODE CHANGED: before $($nodeBefore | ConvertTo-Json -Compress) after $($nodeAfter | ConvertTo-Json -Compress)" }
+  Note ("steps attempted: " + ($result.Attempted -join ', '))
+  if ($result.RestoreOk) {
+    Note ($(if ($mutated) { "setting restored to " } else { "setting unchanged by this run (verified, not rewritten): " }) +
+          $(if ($before.Status -eq 'Present') { "$($before.Kind)=$($before.Value)" } else { 'ABSENT' }) + " (status, value and type verified)")
   }
+  if ($result.NodeOk) { Note "live node unchanged" }
+  $result | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $EvidenceDir 'cleanup.json')
   Note "evidence: $EvidenceDir"
   Stop-Transcript | Out-Null
+  # reported last, after every step has been attempted
+  foreach ($f in $result.Failures) { Write-Error $f -ErrorAction Continue }
+  if (-not $result.Ok) { Write-Host "CLEANUP INCOMPLETE: $($result.Failures.Count) failure(s) above; the run's state is in $EvidenceDir\cleanup.json" }
 }

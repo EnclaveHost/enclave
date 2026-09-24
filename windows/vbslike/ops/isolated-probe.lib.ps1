@@ -83,10 +83,26 @@ function Read-ProbeResult {
   try { $j = $Output | ConvertFrom-Json -ErrorAction Stop } catch { return [pscustomobject]@{ Ok = $false; Systems = @(); Reason = "the launcher's output is not JSON: $($_.Exception.Message)" } }
   $enum = Get-Prop (Get-Prop $j 'hcs') 'HcsEnumerateComputeSystems'
   if ($null -eq $enum) { return [pscustomobject]@{ Ok = $false; Systems = @(); Reason = 'the output carries no HcsEnumerateComputeSystems result' } }
-  if (-not (Get-Prop $enum 'ok')) { return [pscustomobject]@{ Ok = $false; Systems = @(); Reason = "the enumeration failed: $(Get-Prop $enum 'error')" } }
+  # a TYPED boolean true, not anything truthy: the string "false" is truthy in PowerShell, and so is any
+  # non-empty string a future launcher or a corrupted pipe might put there
+  $okField = Get-Prop $enum 'ok'
+  if ($okField -isnot [bool]) { return [pscustomobject]@{ Ok = $false; Systems = @(); Reason = "the enumeration's ok field is $(if ($null -eq $okField) { 'absent' } else { "a $($okField.GetType().Name), not a boolean" }) " } }
+  if (-not $okField) { return [pscustomobject]@{ Ok = $false; Systems = @(); Reason = "the enumeration failed: $(Get-Prop $enum 'error')" } }
   # presence, not value: an empty list of compute systems is a valid answer and the common one
   if (-not (Test-PropPresent $enum 'result')) { return [pscustomobject]@{ Ok = $false; Systems = @(); Reason = 'the enumeration reported ok with no result array' } }
-  $arr = @(Get-Prop $enum 'result')
+  # ...and it must be a LIST OF OBJECTS, not a scalar. A string or a number there means the output is not
+  # the shape this code knows, and wrapping it in @() would invent a one-element list out of nothing.
+  #
+  # Why this is not a plain `-is [array]` test: Windows PowerShell 5.1's ConvertFrom-Json collapses a
+  # one-element JSON array to a single object, so a genuine enumeration holding exactly one compute
+  # system is indistinguishable from an object here, and rejecting it would refuse the commonest real
+  # case. What is still refused is a scalar, and every element must carry a usable Id and Owner below,
+  # which is what actually stops a nonsense result from being interpreted.
+  $rawResult = Get-Prop $enum 'result'
+  if ($null -ne $rawResult -and ($rawResult -is [string] -or $rawResult -is [bool] -or $rawResult -is [valuetype])) {
+    return [pscustomobject]@{ Ok = $false; Systems = @(); Reason = "the enumeration's result is a $($rawResult.GetType().Name), not a list of compute systems" }
+  }
+  $arr = @($rawResult)
   foreach ($s in $arr) {
     if (-not (Test-PropPresent $s 'Id') -or -not (Test-PropPresent $s 'Owner') -or
         [string]::IsNullOrWhiteSpace((Get-Prop $s 'Id')) -or [string]::IsNullOrWhiteSpace((Get-Prop $s 'Owner'))) {
@@ -103,4 +119,79 @@ function Select-OwnedSystems {
   $ours = @($Systems | Where-Object { (Get-Prop $_ 'Owner') -eq $Owner })
   if ($IdPrefix) { return @($ours | Where-Object { (Get-Prop $_ 'Id') -like "$IdPrefix*" }) }
   return $ours
+}
+
+
+# --- cleanup orchestration ---------------------------------------------------------------------------
+# The order and the isolation of the cleanup steps, as a function, because the bug this replaced was in
+# the ORCHESTRATION and not in any single decision: with $ErrorActionPreference = 'Stop', a Write-Error
+# or a property access in the reap step terminated the whole `finally` block and the registry was never
+# restored -- the one outcome the script exists to prevent.
+#
+# The rules encoded here:
+#   1. reap is attempted first (only when this run mutated and a prefix exists), and its failure is
+#      COLLECTED, never thrown: it must not be able to prevent step 2;
+#   2. restoration is attempted in its own nested finally, so it runs even if step 1 terminates;
+#   3. the live-node verification is attempted after that, whatever happened before;
+#   4. every failure is reported together, at the end, once all three have been attempted.
+# The steps are script blocks so the tests can make any of them throw, return nonsense, or fail together.
+function Invoke-ProbeCleanup {
+  param(
+    [bool] $Mutated,
+    [pscustomobject] $Before,
+    [scriptblock] $Reap,        # may throw; may return a malformed result
+    [scriptblock] $Restore,     # performs the restoring write; may throw
+    [scriptblock] $ReadState,   # reads the setting back; may throw
+    [scriptblock] $VerifyNode   # returns @{ Ok = <bool>; Detail = <string> }; may throw
+  )
+  $failures = @()
+  $attempted = @()
+  $restoreOk = $false
+  $nodeOk = $false
+  try {
+    if ($Mutated -and $null -ne $Reap) {
+      $attempted += 'reap'
+      try {
+        $r = & $Reap
+        $ok = $null
+        if ($null -ne $r) { $ok = Get-Prop $r 'ok' }
+        if ($ok -isnot [bool] -or -not $ok) {
+          $failures += "reap did not report success: $(if ($null -eq $r) { 'no result' } else { ($r | Out-String).Trim() })"
+        }
+      } catch {
+        $failures += "reap threw: $($_.Exception.Message)"
+      }
+    }
+  } finally {
+    # step 2 lives in a finally of its own: whatever step 1 did, including terminating, the setting is
+    # put back before anything else happens
+    if ($null -ne $Before -and $null -ne $ReadState) {
+      $attempted += $(if ($Mutated) { 'restore' } else { 'verify-unchanged' })
+      try {
+        if ($Mutated) {
+          if ($null -eq $Restore) { throw 'no restore action was supplied for a run that mutated the setting' }
+          & $Restore | Out-Null
+        }
+        $now = & $ReadState
+        $restoreOk = Test-SettingRestored -Before $Before -Now $now
+        if (-not $restoreOk) {
+          $failures += $(if ($Mutated) { "THE SETTING WAS NOT RESTORED: expected $($Before | ConvertTo-Json -Compress), found $($now | ConvertTo-Json -Compress)" }
+                         else { "THE SETTING CHANGED during a run that never wrote it: before $($Before | ConvertTo-Json -Compress), now $($now | ConvertTo-Json -Compress)" })
+        }
+      } catch {
+        $failures += "restoration failed: $($_.Exception.Message)"
+      }
+    }
+    if ($null -ne $VerifyNode) {
+      $attempted += 'node'
+      try {
+        $n = & $VerifyNode
+        $nodeOk = [bool](Get-Prop $n 'Ok')
+        if (-not $nodeOk) { $failures += "the live node changed: $(Get-Prop $n 'Detail')" }
+      } catch {
+        $failures += "the live node could not be verified: $($_.Exception.Message)"
+      }
+    }
+  }
+  return [pscustomobject]@{ Attempted = $attempted; Failures = $failures; RestoreOk = $restoreOk; NodeOk = $nodeOk; Ok = ($failures.Count -eq 0) }
 }

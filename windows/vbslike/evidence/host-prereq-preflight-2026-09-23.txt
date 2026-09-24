@@ -1,12 +1,12 @@
 ﻿**********************
 Windows PowerShell transcript start
-Start time: 20260923224428
+Start time: 20260923234651
 Username: NUCBOX_K11\claude
 RunAs User: NUCBOX_K11\claude
 Configuration Name: 
 Machine: NUCBOX_K11 (Microsoft Windows NT 10.0.26200.0)
 Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\vbs-like\ops\isolated-probe.ps1 -Image C:\Users\claude\vbs-like\openhcl-x64-test-linux-direct.bin -ImageSha256 d240f40c53eb6fa016caaea9357dafbfea2048f18851a38f928fe25792df2864
-Process ID: 17944
+Process ID: 6624
 PSVersion: 5.1.26100.9444
 PSEdition: Desktop
 PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9444
@@ -29,13 +29,14 @@ PS>TerminatingError(Get-ItemProperty): "The running command stopped because the 
       1. set AllowFirmwareLoadFromFile = 1 (REG_DWORD) under HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Virtualization  [HOST-WIDE, permits UNSIGNED guest firmware]
       2. run: vbslike-host isoprobe --only vbs-igvmpath --igvm C:\Users\claude\vbs-like\openhcl-x64-test-linux-direct.bin
       3. restore the setting to 'absent' and verify status, value and type
-    Evidence: C:\Users\claude\vbs-like\out\iso-probe-20260923-224428
+    Evidence: C:\Users\claude\vbs-like\out\iso-probe-20260923-234650
 === cleanup
 PS>TerminatingError(Get-ItemProperty): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Property AllowFirmwareLoadFromFile does not exist at path HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Virtualization."
-  setting unchanged by this run (verified, not rewritten): Absent
-  live node unchanged: task Running, processes ee-host node shielded-worker
-  evidence: C:\Users\claude\vbs-like\out\iso-probe-20260923-224428
+  steps attempted: verify-unchanged, node
+  setting unchanged by this run (verified, not rewritten): ABSENT (status, value and type verified)
+  live node unchanged
+  evidence: C:\Users\claude\vbs-like\out\iso-probe-20260923-234650
 **********************
 Windows PowerShell transcript end
-End time: 20260923224431
+End time: 20260923234654
 **********************

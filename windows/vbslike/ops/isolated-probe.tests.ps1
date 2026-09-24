@@ -113,6 +113,85 @@ T 'without a prefix, ownership alone still excludes foreign systems' {
   @(Select-OwnedSystems -Systems $mixed).Count -eq 2
 }
 
+Write-Host "the launcher's ok field and result type are checked, not merely truthy"
+T 'a STRING "false" for ok is refused (it is truthy in PowerShell)' {
+  -not (Read-ProbeResult -ExitCode 0 -Output '{"hcs":{"HcsEnumerateComputeSystems":{"ok":"false","result":[]}}}').Ok
+}
+T 'a string "true" for ok is refused: the field must be a boolean' {
+  -not (Read-ProbeResult -ExitCode 0 -Output '{"hcs":{"HcsEnumerateComputeSystems":{"ok":"true","result":[]}}}').Ok
+}
+T 'a number for ok is refused' {
+  -not (Read-ProbeResult -ExitCode 0 -Output '{"hcs":{"HcsEnumerateComputeSystems":{"ok":1,"result":[]}}}').Ok
+}
+T 'a single compute system is accepted (PowerShell 5.1 collapses a one-element JSON array to an object)' {
+  $r = Read-ProbeResult -ExitCode 0 -Output '{"hcs":{"HcsEnumerateComputeSystems":{"ok":true,"result":{"Id":"vbslike-iso-1-0","Owner":"vbslike"}}}}'
+  $r.Ok -and @($r.Systems).Count -eq 1
+}
+T 'an object without a usable Id or Owner is still refused, which is what stops nonsense being interpreted' {
+  -not (Read-ProbeResult -ExitCode 0 -Output '{"hcs":{"HcsEnumerateComputeSystems":{"ok":true,"result":{"something":"else"}}}}').Ok
+}
+T 'a result that is a string is refused' {
+  -not (Read-ProbeResult -ExitCode 0 -Output '{"hcs":{"HcsEnumerateComputeSystems":{"ok":true,"result":"none"}}}').Ok
+}
+T 'a result that is a number is refused' {
+  -not (Read-ProbeResult -ExitCode 0 -Output '{"hcs":{"HcsEnumerateComputeSystems":{"ok":true,"result":0}}}').Ok
+}
+T 'a valid EMPTY array is still accepted' {
+  $r = Read-ProbeResult -ExitCode 0 -Output '{"hcs":{"HcsEnumerateComputeSystems":{"ok":true,"result":[]}}}'
+  $r.Ok -and @($r.Systems).Count -eq 0
+}
+
+Write-Host "cleanup orchestration: a failing step must never prevent the next one"
+$absentState = [pscustomobject]@{ Status = 'Absent'; Value = $null; Kind = $null; Error = $null }
+$okReap   = { @{ ok = $true; matched = @(); terminated = @() } }
+$okNode   = { @{ Ok = $true; Detail = 'unchanged' } }
+$readBack = { $absentState }
+T 'a reap that THROWS still leaves the setting restored and the node verified' {
+  $r = Invoke-ProbeCleanup -Mutated $true -Before $absentState -Reap { throw 'reap exploded' } -Restore {} -ReadState $readBack -VerifyNode $okNode
+  $r.RestoreOk -and $r.NodeOk -and ($r.Attempted -contains 'restore') -and (-not $r.Ok) -and ($r.Failures -join ' ') -match 'reap threw'
+}
+T 'a reap that reports ok=false is a failure but does not stop restoration' {
+  $r = Invoke-ProbeCleanup -Mutated $true -Before $absentState -Reap { @{ ok = $false; error = 'partition still running' } } -Restore {} -ReadState $readBack -VerifyNode $okNode
+  $r.RestoreOk -and $r.NodeOk -and (-not $r.Ok) -and ($r.Failures -join ' ') -match 'did not report success'
+}
+T 'a reap whose output is malformed does not stop restoration' {
+  $r = Invoke-ProbeCleanup -Mutated $true -Before $absentState -Reap { 'not an object at all' } -Restore {} -ReadState $readBack -VerifyNode $okNode
+  $r.RestoreOk -and $r.NodeOk -and (-not $r.Ok)
+}
+T 'a restoration that throws is reported, and the node is still verified' {
+  $r = Invoke-ProbeCleanup -Mutated $true -Before $absentState -Reap $okReap -Restore { throw 'registry write denied' } -ReadState $readBack -VerifyNode $okNode
+  (-not $r.RestoreOk) -and $r.NodeOk -and ($r.Failures -join ' ') -match 'restoration failed'
+}
+T 'a restoration that leaves the wrong state is reported as NOT restored' {
+  $r = Invoke-ProbeCleanup -Mutated $true -Before $absentState -Reap $okReap -Restore {} -VerifyNode $okNode `
+        -ReadState { [pscustomobject]@{ Status = 'Present'; Value = 1; Kind = 'DWord'; Error = $null } }
+  (-not $r.RestoreOk) -and ($r.Failures -join ' ') -match 'WAS NOT RESTORED'
+}
+T 'all three failing at once: every step is still attempted and every failure reported' {
+  $r = Invoke-ProbeCleanup -Mutated $true -Before $absentState -Reap { throw 'a' } -Restore { throw 'b' } -ReadState $readBack -VerifyNode { throw 'c' }
+  ($r.Attempted -contains 'reap') -and ($r.Attempted -contains 'restore') -and ($r.Attempted -contains 'node') -and $r.Failures.Count -eq 3
+}
+T 'a node verification that throws does not hide a successful restoration' {
+  $r = Invoke-ProbeCleanup -Mutated $true -Before $absentState -Reap $okReap -Restore {} -ReadState $readBack -VerifyNode { throw 'node query failed' }
+  $r.RestoreOk -and (-not $r.NodeOk) -and ($r.Failures -join ' ') -match 'could not be verified'
+}
+T 'a read-only run performs NO reap and NO restoring write, only verification' {
+  $script:wrote = $false; $script:reaped = $false
+  $r = Invoke-ProbeCleanup -Mutated $false -Before $absentState -Reap { $script:reaped = $true; @{ ok = $true } } `
+        -Restore { $script:wrote = $true } -ReadState $readBack -VerifyNode $okNode
+  (-not $script:wrote) -and (-not $script:reaped) -and $r.Ok -and ($r.Attempted -contains 'verify-unchanged')
+}
+T 'a read-only run whose setting changed underneath it reports that, without writing' {
+  $script:wrote = $false
+  $r = Invoke-ProbeCleanup -Mutated $false -Before $absentState -Restore { $script:wrote = $true } -VerifyNode $okNode `
+        -ReadState { [pscustomobject]@{ Status = 'Present'; Value = 1; Kind = 'DWord'; Error = $null } }
+  (-not $script:wrote) -and (-not $r.Ok) -and ($r.Failures -join ' ') -match 'CHANGED during a run that never wrote it'
+}
+T 'a mutating run with no restore action supplied is a reported failure, not a silent skip' {
+  $r = Invoke-ProbeCleanup -Mutated $true -Before $absentState -ReadState $readBack -VerifyNode $okNode
+  (-not $r.Ok) -and ($r.Failures -join ' ') -match 'no restore action'
+}
+
 Write-Host ""
 Write-Host "$script:pass passed, $script:fail failed"
 if ($script:fail -gt 0) { exit 1 }
