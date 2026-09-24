@@ -488,6 +488,28 @@ export class Host {
     let derivations = null;
     try { derivations = (await client.health())?.catalog?.derivations ?? null; } catch { derivations = null; }
 
+    // Which model volumes this version needs, from the version's own config rather than from a
+    // literal. null when the config could not be read at all: unknown, not "none".
+    let volumes = null;
+    try {
+      const cfg = v && v.config ? (typeof v.config === "string" ? JSON.parse(v.config) : v.config) : {};
+      volumes = Array.isArray(cfg.volumes) ? cfg.volumes.slice() : [];
+    } catch { volumes = null; }
+
+    // DID THIS DEPLOYMENT ASK FOR ISOLATION?
+    //
+    // enclave-99: nothing in the plan's inputs carries the deployment's own requirement, so a
+    // deployment that never asked for a partition would be planned onto one simply because this
+    // box is configured for the backend. That is a scope decision the tenant makes, not the
+    // operator, so it is refused HERE - before the plan - rather than waiting for the plan to
+    // grow an input. A deployment that did not ask falls through to the in-enclave path, which is
+    // what it bought.
+    const req = this.records.get(id)?.isolationRequired;
+    if (req !== true) {
+      if (req === undefined || req === null) this.log(`${id.slice(0, 10)} isolation: the deployment's envelope was not read for an isolation requirement; not isolating`);
+      return null;      // fall through: not an error, just not this backend
+    }
+
     const plan = isolationPlan({
       deploymentId: id,
       deployment: d,
@@ -497,7 +519,12 @@ export class Host {
       // {} and [] ONLY when known to be none: this node parsed the envelope at claim time and
       // recorded what it found, so an unparsed envelope must not read as "no rules".
       waf: this.records.get(id)?.waf ?? null,
-      volumes: [],
+      // DERIVED, not asserted. I wrote `volumes: []` here as a literal, flagged it to 5d as
+      // "asserted by me, not derived", and then left it - which is the same class as the
+      // hasSecrets:false I had just removed, so removing one and leaving the other was not a fix,
+      // it was a preference. enclave-99 caught it. The version's own config says which model
+      // volumes the app needs; a config we could not read is UNKNOWN and holds the lease.
+      volumes,
       runtimeId: this.cfg.isolationRuntimeId,
       derivations,
     });

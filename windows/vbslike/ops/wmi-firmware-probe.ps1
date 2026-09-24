@@ -39,6 +39,8 @@ param(
   [long]   $Vtl2RangeMiB = -1,
   [long]   $Vtl2MmioMiB  = -1,
   [int]    $Vtl2Mode     = -1,
+  [long]   $Vtl2BaseMiB  = -1,
+  [int]    $IsolationMode = -1,
   [switch] $Approve
 )
 
@@ -165,6 +167,8 @@ try {
   # in bytes, and the field wants 256.
   if ($Vtl2RangeMiB -ge 0) { $vssd.Vtl2AddressRangeSize = [uint64]$Vtl2RangeMiB; Note "Vtl2AddressRangeSize=$Vtl2RangeMiB (MiB)" }
   if ($Vtl2MmioMiB -ge 0)  { $vssd.Vtl2MmioAddressRangeSize = [uint64]$Vtl2MmioMiB; Note "Vtl2MmioAddressRangeSize=$Vtl2MmioMiB (MiB)" }
+  if ($Vtl2BaseMiB -ge 0)  { $vssd.Vtl2AddressRangeBase = [uint64]$Vtl2BaseMiB; Note "Vtl2AddressRangeBase=$Vtl2BaseMiB (MiB)" }
+  if ($IsolationMode -ge 0){ $vssd.GuestStateIsolationMode = [uint16]$IsolationMode; Note "GuestStateIsolationMode=$IsolationMode" }
   $vssd.FirmwareFile    = $Image
   $ser  = [Microsoft.Management.Infrastructure.Serialization.CimSerializer]::Create()
   $emb  = [System.Text.Encoding]::Unicode.GetString($ser.Serialize($vssd, [Microsoft.Management.Infrastructure.Serialization.InstanceSerializationOptions]::None))
