@@ -354,8 +354,12 @@ Exact remaining integration gaps (nothing below is verified today):
 2. No authentic evidence fixture in the `enclave-pvm-app-evidence/v1` format exists; the real captures on
    the pVM branch carry the owner's nonce and no transport SPKI, so a real-envelope fixture waits for the
    owner's push.
-3. The browser path has no application-layer key in the v1 proposal; the gate holds every browser request
-   on pVM evidence until one is bound (requested change 3 in section 2.6).
+3. The browser path: the owner's v2 (proposed 2026-09-24, not pushed) adds `appKey` (32-byte X25519) and
+   `appKeySig` (Ed25519 under the attested transport key over the nonce, app id and key), with HPKE base
+   mode (X25519, HKDF-SHA256, AES-128-GCM) requests in RFC 9458 shape to a sealed VM port. The adapter
+   already accepts the v2 shape (closed: a stripped or grafted key is malformed, never a downgrade) and the
+   gate releases a browser client only on a key the owner's verifier vouched for. Until v2 is pushed and a
+   real v2 fixture exists, every browser request on pVM evidence holds.
 4. The relay stream kind `pvm-evidence` and the `EVIDENCE <nonce>` request line are not wired anywhere on
    this branch; the adapter judges a JSON object it is handed.
 5. The gate's expectations come from the caller; the catalog-to-expectation step (which app id, which
