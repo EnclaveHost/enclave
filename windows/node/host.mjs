@@ -1020,14 +1020,27 @@ export class Host {
       // blank: two did exactly that for two hours. A record that says running while the port
       // refuses connections is the wrong answer to the only question a tenant is asking.
       const live = this.apps.get(id);
-      if (live && rec.status === "running" && !(await live.alive().catch(() => false))) {
-        const since = this.#deadSince.get(id) || Date.now();
-        this.#deadSince.set(id, since);
-        // One tick of grace: a probe can lose a race with a busy app. Two in a row is a fact.
-        if (Date.now() - since >= TICK_MS) {
-          this.#record(id, { status: "unreachable",
-            reason: "the app stopped accepting connections on its port inside the enclave; the lease is still held" });
-          this.log(`${id.slice(0, 10)}: not answering on its port - recorded unreachable (lease still held)`);
+      if (live && ["running", "unreachable"].includes(rec.status)) {
+        const answering = await live.alive().catch(() => false);
+        if (!answering) {
+          const since = this.#deadSince.get(id) || Date.now();
+          this.#deadSince.set(id, since);
+          // One tick of grace: a probe can lose a race with a busy app. Two in a row is a fact.
+          if (Date.now() - since >= TICK_MS && rec.status !== "unreachable") {
+            this.#record(id, { status: "unreachable",
+              reason: "the app stopped accepting connections on its port inside the enclave; the lease is still held" });
+            this.log(`${id.slice(0, 10)}: not answering on its port - recorded unreachable (lease still held)`);
+          }
+        } else {
+          // AND BACK AGAIN. "unreachable" is a reading, not a verdict: an app whose listener
+          // returns - it was busy, it was restarting itself, the enclave freed the socket - must
+          // go back to running on the next tick that finds it answering. A health state that can
+          // only get worse stops being health and becomes a label.
+          this.#deadSince.delete(id);
+          if (rec.status === "unreachable") {
+            this.#record(id, { status: "running", reason: null });
+            this.log(`${id.slice(0, 10)}: answering again - back to running`);
+          }
         }
       } else if (live) { this.#deadSince.delete(id); }
       await this.#applyEnvelopeEdit(id, d).catch((e) => this.log(`config edit ${id.slice(0, 10)}: ${e.message}`));

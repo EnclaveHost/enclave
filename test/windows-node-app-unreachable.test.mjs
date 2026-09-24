@@ -58,3 +58,41 @@ test("alive() is the port for a socket app and the gate for a gate-served one", 
   assert.match(fn, /this\.world === 4/, "a wasi:cli app owns a socket, and the socket is the evidence");
   assert.match(fn, /waitPort/);
 });
+
+/* ---- unreachable must be a reading, not a sticky label ---------------------------------------- */
+
+test("an app that starts answering again goes back to running", async () => {
+  const { Host } = await import("../windows/node/host.mjs");
+  const fsx = await import("node:fs"); const osx = await import("node:os"); const px = await import("node:path");
+  const dir = fsx.mkdtempSync(px.join(osx.tmpdir(), "ee-recov-"));
+  const h = new Host({ dir, endpoint: "https://x.invalid", name: "t", appsEnabled: true, log: () => {} });
+  const id = "0x" + "ee".repeat(32);
+  let answering = false;
+  h.apps.set(id, { state: "running", alive: async () => answering });
+  h.records.set(id, { id, status: "unreachable", reason: "stopped accepting" });
+
+  // the tick's health block, driven directly: it is a pure function of alive() and the record
+  const beat = async () => {
+    const rec = h.records.get(id);
+    const live = h.apps.get(id);
+    if (live && ["running", "unreachable"].includes(rec.status)) {
+      const ok = await live.alive();
+      if (ok && rec.status === "unreachable") { rec.status = "running"; rec.reason = null; }
+    }
+  };
+  await beat();
+  assert.equal(h.records.get(id).status, "unreachable", "still silent, still unreachable");
+  answering = true;
+  await beat();
+  assert.equal(h.records.get(id).status, "running", "the listener came back, and so did the status");
+  assert.equal(h.records.get(id).reason, null, "and the stale reason is cleared with it");
+  fsx.rmSync(dir, { recursive: true, force: true });
+});
+
+test("the recovery path is in the real tick, not only in this test (pinned)", () => {
+  const tick = host.slice(host.indexOf("async tick()"), host.indexOf("async proveAll()"));
+  assert.match(tick, /\["running", "unreachable"\]\.includes\(rec\.status\)/,
+               "an unreachable app must still be probed, or it can never come back");
+  assert.match(tick, /back to running/);
+  assert.match(tick, /A health state that can/, "and the reason it must not be sticky is written down");
+});
