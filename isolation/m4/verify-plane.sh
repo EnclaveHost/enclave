@@ -147,6 +147,22 @@ echo "       $maps"
 echo "$maps" | grep -q "runtime_maps=ok elf_members_mapped=$nelf/$nelf " && [ "${nelf:-0}" -ge 5 ] && r=ok || r=no
 check "10 the running runtime mapped every admitted ELF ($nelf) and no executable file outside the set" $r
 
+echo "== the app: the component cut from the ADMITTED bundle, not a separate file"
+# The expected hash comes from the CONTRACT's own extractor on the bundle the SVSM was built to admit, and the
+# plane's line is its own cut of the bytes it staged. Agreement means the runtime was handed exactly the admitted
+# bundle's component. A plane that ran a separate /app.wasm would have no such line, or would show /app.wasm in the
+# maps; one that mis-cut would name another hash.
+BT=${BUNDLETOOL:-$here/.bundle}
+"$BT" extract "$W/app.bundle" "$W/expected-component.wasm"
+want=$(sha256sum "$W/expected-component.wasm" | cut -c1-64)
+appl=$(pl "app=")
+echo "       $appl"
+r=ok
+echo "$appl" | grep -q "component_sha256=$want manifest_names_it=yes sealed=write,grow,shrink,seal runtime_path=/proc/self/fd/3" || r=no
+echo "$maps" | grep -q "/app.wasm" && r=no
+grep -q '^RESULT app_body="APP ' "$W/client.out" || r=no
+check "11 the runtime was handed the component cut from the ADMITTED bundle (${want%"${want#????????????????}"}...), sealed, and mapped no /app.wasm" $r
+
 echo
 echo "M4b-plane: $([ $fails -eq 0 ] && echo "all checks passed" || echo "$fails check(s) not passed")"
 echo "transcripts in $W: client.out neg-*.out P.serial P.evidence P.debugcon"
