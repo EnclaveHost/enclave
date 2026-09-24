@@ -1,0 +1,89 @@
+{
+ "at": "2026-09-24T22:13:27.567Z",
+ "steps": [
+  {
+   "name": "bundle",
+   "at": "2026-09-24T22:13:27.568Z",
+   "bytes": 73228,
+   "sha256": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45",
+   "expectAppId": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45"
+  },
+  {
+   "name": "preflight",
+   "at": "2026-09-24T22:13:27.569Z",
+   "ok": true,
+   "checks": [
+    {
+     "name": "launcher",
+     "ok": true,
+     "detail": "C:\\Users\\claude\\vbs-like\\target\\release\\vbslike-host.exe: 1004544 bytes"
+    },
+    {
+     "name": "guest kernel",
+     "ok": true,
+     "detail": "C:\\Users\\claude\\vbs-like\\wsl-kernel: 15876096 bytes"
+    },
+    {
+     "name": "guest initrd",
+     "ok": true,
+     "detail": "C:\\Users\\claude\\vbs-like\\mon.cpio.gz: 24008350 bytes"
+    },
+    {
+     "name": "host excluded",
+     "ok": false,
+     "detail": "an HCS child partition does not exclude this host; development path only"
+    }
+   ],
+   "boundary": {
+    "tier": "t0-hv",
+    "partition": "hcs-child",
+    "hostExcluded": false,
+    "attested": false,
+    "note": "a Hyper-V child partition: separated from other partitions, NOT from this host. The root partition can read its memory. Development path only; never advertise it as verified or host-excluded capacity."
+   }
+  },
+  {
+   "name": "launcher-ready",
+   "at": "2026-09-24T22:13:27.693Z",
+   "launcherKey": "0rE6KMj8t/yj/Z0m5+38Jz1HbgI/NZM9W2Upx+2auz8=",
+   "boundary": "tier=T0-hv partition=hcs-child isolation=none host_excluded=no signer=launcher-in-root-partition",
+   "initrdSha256": "44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf",
+   "kernelSha256": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd"
+  },
+  {
+   "name": "started",
+   "at": "2026-09-24T22:13:33.030Z",
+   "ms": 5337,
+   "domainId": 1,
+   "tcpPort": 19101,
+   "guestPort": 40001,
+   "appReady": false,
+   "boundary": {
+    "tier": "t0-hv",
+    "partition": "hcs-child",
+    "hostExcluded": false,
+    "attested": false,
+    "note": "a Hyper-V child partition: separated from other partitions, NOT from this host. The root partition can read its memory. Development path only; never advertise it as verified or host-excluded capacity."
+   }
+  },
+  {
+   "name": "error",
+   "at": "2026-09-24T22:13:33.037Z",
+   "message": "Client network socket disconnected before secure TLS connection was established",
+   "code": "ECONNRESET"
+  },
+  {
+   "name": "stop",
+   "at": "2026-09-24T22:13:33.076Z",
+   "stopped": true,
+   "guest": {
+    "destroyed": 1
+   }
+  },
+  {
+   "name": "teardown",
+   "at": "2026-09-24T22:13:33.076Z",
+   "removed": 0
+  }
+ ]
+}
