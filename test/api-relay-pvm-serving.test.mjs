@@ -16,6 +16,7 @@ import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs";
+import net from "node:net";
 import { bootDaemon, listenOnFreePort } from "./helpers/daemon.mjs";
 
 const RELAY_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "relay");
@@ -69,10 +70,18 @@ async function appEnclave(t) {
     if (req.method === "HEAD") { res.statusCode = 200; return res.end(); }
     let b = ""; req.on("data", (d) => (b += d)); req.on("end", () => { const h = { ...req.headers }; for (const k of ["host", "content-length", "connection", "x-forwarded-for", "x-real-ip"]) delete h[k];
       res.setHeader("content-type", "application/json"); res.setHeader("x-app", "own"); res.end(JSON.stringify({ app: "OWN RESPONSE", headers: h, body: b })); }); });
+  // a WebSocket handshake reaching the app is answered by the app itself, and noted
+  e.on("upgrade", (req, sock) => { seen.push("UPGRADE " + req.url); sock.end("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nx-app: own\r\n\r\n"); });
   await new Promise((r) => e.listen(0, "127.0.0.1", r)); t.after(() => e.close());
   const endpoint = `http://127.0.0.1:${e.address().port}`, { keccak256, stringToBytes } = await import("viem");
   return { endpoint, seen, row: { id: ID("66"), owner: "0x" + "aa".repeat(20), appRef: "ipfs://ordinary", runner: keccak256(stringToBytes(endpoint)), leaseUntil: FUTURE } };
 }
+// a raw WebSocket handshake through the relay: the status and head of whatever answers it
+const upgrade = (port, p) => new Promise((resolve) => {
+  const s = net.connect(port, "127.0.0.1", () => s.write(`GET ${p} HTTP/1.1\r\nHost: 127.0.0.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n`));   // gitleaks:allow -- RFC 6455's sample key
+  let b = ""; const done = () => { s.destroy(); resolve({ status: Number((/^HTTP\/1\.1 (\d{3})/.exec(b) || [])[1] || 0), head: b.split("\r\n\r\n")[0] }); };
+  s.on("data", (d) => { b += d; if (b.includes("\r\n\r\n")) done(); }); s.on("close", done); s.on("error", done); s.setTimeout(5000, done);
+});
 const same = (a, b) => { const drop = (h) => Object.fromEntries(Object.entries(h).filter(([k]) => !["date", "content-length", "etag", "keep-alive"].includes(k))); return JSON.stringify(drop(a)) === JSON.stringify(drop(b)); };
 
 test("PVM_SERVING OFF (the default): /x/<id>/pvm/* is an ordinary /x path -- same status, body, response headers and forwarded headers -- and the carrier module is not even loaded", async (t) => {
@@ -87,6 +96,8 @@ test("PVM_SERVING OFF (the default): /x/<id>/pvm/* is an ordinary /x path -- sam
     const a = await req(port, "POST", `/x/${id}/pvm/evidence`, "x"), b = await req(port, "POST", `/x/${id}/some/app/path`, "x");
     assert.equal(a.status, b.status, id); assert.equal(a.body, b.body); assert.ok(same(a.headers, b.headers));
   }
+  const up = await upgrade(port, `/x/${ID("66")}/pvm/evidence`);
+  assert.equal(up.status, 101); assert.match(up.head, /x-app: own/); assert.ok(app.seen.includes(`UPGRADE /x/${ID("66")}/pvm/evidence`), "a WebSocket upgrade there is the app's");
   assert.doesNotMatch(log(), /\[pvm-serving\]/);
   for (const v of ["0", "false", "off", "no", "enabled", " "]) {
     const r = await relay(t, { PVM_SERVING: v }, {}, { enclaves: app.endpoint });
@@ -100,8 +111,12 @@ test("OFF carries no new code: with a deliberately BROKEN pvm-serving.mjs beside
   for (const f of fs.readdirSync(RELAY_DIR)) if (f !== "api-relay.js" && f !== "pvm-serving.mjs") fs.symlinkSync(path.join(RELAY_DIR, f), path.join(d, f));
   fs.copyFileSync(path.join(RELAY_DIR, "api-relay.js"), path.join(d, "api-relay.js"));
   fs.writeFileSync(path.join(d, "pvm-serving.mjs"), 'throw new Error("a deliberately broken pvm-serving.mjs");\n');
-  const off = await relay(t, {}, {}, { dir: d });
-  assert.equal((await req(off.port, "GET", "/health")).status, 200); assert.notEqual((await req(off.port, "POST", `/x/${ID("33")}/pvm/evidence`, "x")).status, 0);
+  // every OFF value, not only unset: the relay's own switch test decides the import, and must agree with the module's
+  for (const v of [undefined, "", "0", "false", "off", "no", "enabled", " "]) {
+    const off = await relay(t, v === undefined ? {} : { PVM_SERVING: v }, {}, { dir: d });
+    assert.equal((await req(off.port, "GET", "/health")).status, 200, `PVM_SERVING=${JSON.stringify(v)} boots without the module`);
+    assert.notEqual((await req(off.port, "POST", `/x/${ID("33")}/pvm/evidence`, "x")).status, 0);
+  }
   await assert.rejects(relay(t, CONFIGURED, {}, { dir: d }), /never claimed a port/, "ON loads the module at startup: a broken one stops the relay, it never serves half-built");
 });
 
@@ -153,6 +168,9 @@ test("PVM_SERVING ON and configured: the ledger runner only -- an ordinary app's
   assert.ok(app.seen.some((u) => u.endsWith(`/x/${ID("33")}/pvm/sealed`) && u.startsWith(`/x/${ID("66").slice(0, 10)}`)), `carried under the app's own /x path: ${JSON.stringify(app.seen)}`);
   app.seen.length = 0;
   for (const id of [ID("99"), ID("33")]) { const r = await post(id); assert.equal(r.status, 404, id); assert.equal(r.body, ""); }
+  // WebSocket upgrades are NOT reserved: one on the same path takes the ordinary /x upgrade path to the app, as OFF
+  const up = await upgrade(port, `/x/${ID("66")}/pvm/evidence`);
+  assert.equal(up.status, 101); assert.match(up.head, /x-app: own/); assert.ok(app.seen.includes(`UPGRADE /x/${ID("66")}/pvm/evidence`), "the app answered the handshake itself");
   const g = await req(port, "GET", `/x/${ID("33")}/pvm/evidence`, "a body"); assert.equal(g.status, 405); assert.equal(g.headers.connection, "close");
   assert.equal((await req(port, "GET", "/health")).status, 200, "the next request after an early refusal is served");
   assert.equal((await post("0x3333333333")).status, 404, "a prefix never resolves");
