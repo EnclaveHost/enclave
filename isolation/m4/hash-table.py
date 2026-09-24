@@ -86,6 +86,24 @@ def reference(kernel: str, initrd: str, cmdline: str) -> bytes | None:
         return None
     return bytes(sev_hashes.SevHashes(kernel, initrd, cmdline).construct_table())
 
+def reference_page(kernel: str, initrd: str, cmdline: str, firmware: str) -> tuple[bytes, int] | None:
+    """The whole 4096-byte page, table at the offset THIS FIRMWARE reads it from.
+
+    The table's address is not the KERNEL_HASHES descriptor's base. The descriptor gives the page to validate;
+    the SEV_HASH_TABLE_RV_GUID footer entry gives the address the firmware actually reads, which in AmdSevX64 is
+    0x810c00 - offset 0xc00 into the page, matching its FixedPcd PcdQemuHashTableBase. A table written at offset
+    0 is invisible: the firmware reads zeros and reports "no hashes table discoverd in MEMFD" while every
+    table-level check passes. Measured on hardware 2026-09-24, which is why the page-level check exists.
+    """
+    try:
+        sys.path.insert(0, '/home/steven/.local/lib/python3.14/site-packages')
+        from sevsnpmeasure import sev_hashes
+        from sevsnpmeasure.ovmf import OVMF
+    except ImportError:
+        return None
+    off = OVMF(firmware).sev_hashes_table_gpa() & 0xfff
+    return bytes(sev_hashes.SevHashes(kernel, initrd, cmdline).construct_page(off)), off
+
 def diff(mine: bytes, ref: bytes) -> None:
     for off in range(0, max(len(mine), len(ref)), 16):
         a, b = mine[off:off + 16], ref[off:off + 16]
@@ -99,7 +117,31 @@ def main() -> int:
     ap.add_argument('--area-size', type=int, default=0)
     ap.add_argument('--compare', help='a file holding a table to check against the reference')
     ap.add_argument('--compare-hex', help='the same, as hex')
+    ap.add_argument('--compare-page', help='a file holding the whole 4096-byte page; needs --firmware')
+    ap.add_argument('--firmware', help='the OVMF .fd whose SEV_HASH_TABLE_RV_GUID gives the in-page offset')
     a = ap.parse_args()
+
+    if a.compare_page:
+        if not a.firmware:
+            raise SystemExit('--compare-page needs --firmware: the in-page offset comes from the firmware')
+        ref = reference_page(a.kernel, a.initrd, a.cmdline, a.firmware)
+        if ref is None:
+            print('sev-snp-measure is absent, so nothing can be checked - do not build from this')
+            return 1
+        refpage, off = ref
+        got = open(a.compare_page, 'rb').read()
+        if got == refpage:
+            print(f'{a.compare_page}: {len(got)} bytes, WHOLE PAGE IDENTICAL to construct_page({off:#x})')
+            return 0
+        print(f'{a.compare_page}: {len(got)} bytes, page DIFFERS from construct_page({off:#x}) '
+              f'- do not build with this')
+        if len(got) == len(refpage) and got[off:off + PADDED_LEN] == refpage[off:off + PADDED_LEN]:
+            print(f'  the table bytes at {off:#x} are right, so the difference is elsewhere in the page')
+        elif len(got) == len(refpage) and got[:PADDED_LEN] == refpage[off:off + PADDED_LEN]:
+            print(f'  the table is at offset 0 but this firmware reads it at {off:#x}: the firmware would find '
+                  f'zeros and report no table, and boot nothing')
+        diff(got, refpage)
+        return 1
 
     ref = reference(a.kernel, a.initrd, a.cmdline)
     if ref is None:
