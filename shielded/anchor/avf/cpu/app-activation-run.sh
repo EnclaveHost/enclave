@@ -27,7 +27,7 @@ APPID=$(sha256sum "$BUNDLE" | cut -c1-64); REQ="/?graph=$GRAPH&steps=$STEPS"
 sh_() { "$ADB" shell "$@" </dev/null 2>/dev/null | tr -d '\r'; }
 [ -e "$OUT" ] && { echo "$OUT exists: refusing to mix runs"; exit 2; }
 mkdir -p "$OUT/policies" || exit 2
-log() { echo "$(date +%T) $*" | tee -a "$OUT/run.log"; }
+log() { echo "$(date -u +%H:%M:%SZ) $*" | tee -a "$OUT/run.log"; }   # UTC, like the signed documents
 # ---- the launcher: the accepted 0.3.0, copied into a lab install directory ----
 [ "$(sha256sum "$DIST" | cut -c1-64)" = "$BASE_SHA" ] || { log "client/dist/pvm-client.mjs is not the accepted 0.3.0 ($BASE_SHA): refusing"; exit 2; }
 [ -e "$KEYS" ] && { log "$KEYS exists: refusing to reuse lab keys or an install directory"; exit 2; }
@@ -73,7 +73,9 @@ if [ "$want" != "$have" ]; then timeout 300 "$ADB" install -r "$APK" </dev/null 
 "$ADB" push "$BUNDLE" /data/local/tmp/app-stream-probe.wasm </dev/null >/dev/null && sh_ "run-as $P cp /data/local/tmp/app-stream-probe.wasm files/app-stream-probe.wasm" >/dev/null
 ( cd "$H" && exec node cpu/local-hub.mjs --port $PORT --code-hash "$CODE" --authority $AUTH \
     --model-sha 5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48 --selftest-sha 9c4c7f764bf657c708cb19c6493a0be303db49093fd7df1432664cfd3801ce2f \
-    --min-tok-s 10 --app-id "$APPID" --app-port $APPPORT --evidence-port $EVPORT --sealed-port $SEALPORT --web-port $WEBPORT --app-name $NAME --seconds 2400 > "$OUT/hub.jsonl" 2> "$OUT/hub.err" ) & HUB=$!
+    --min-tok-s 10 --app-id "$APPID" --app-port $APPPORT --evidence-port $EVPORT --sealed-port $SEALPORT --web-port $WEBPORT --app-name $NAME --seconds 2400 \
+    --record-evidence "$OUT/evidence" > "$OUT/hub.jsonl" 2> "$OUT/hub.err" ) & HUB=$!
+echo '{"evidence":"every /evidence exchange recorded as received in evidence/ (public; sealed traffic is not recorded)","clock":"UTC"}' > "$OUT/capture.json"
 mkdir -p "$OUT/carrier"; ( exec python3 -m http.server $POLPORT --bind 127.0.0.1 --directory "$OUT/carrier" > "$OUT/carrier.log" 2>&1 ) & POL=$!
 ( exec python3 -m http.server $UPDPORT --bind 127.0.0.1 --directory "$UPD" > "$OUT/update-carrier.log" 2>&1 ) & UPC=$!
 sleep 2

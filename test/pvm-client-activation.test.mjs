@@ -266,7 +266,8 @@ test("processes: activation racing a policy commit that rotates the policy key, 
 test("the real client, activated: runs `run` from memory end to end; one hop even when a newer activation lands meanwhile; a planted marker never makes the launcher skip delegation", { skip: !haveOpenssl && "no openssl", timeout: 180000 }, async () => {
   const cadir = tmpdir("pvm-act-ca-"), ca = makeCa(cadir);
   const vm = await startFakeVm({ dir: cadir, ca, code: Buffer.from("6fab3d4c43ef6df953d5102098203c0b8db58a162172e4b92fa26df0ca598990", "hex"), appId: APP });
-  const carrier = createWebCarrier({ port: 0, evidencePort: vm.evidencePort, sealedPort: vm.sealedPort });
+  const recorded = tmp("pvm-act-ev-");   // the carrier's LAB evidence capture (what the device runs keep for offline re-verification)
+  const carrier = createWebCarrier({ port: 0, evidencePort: vm.evidencePort, sealedPort: vm.sealedPort, recordEvidence: recorded });
   await new Promise((r) => carrier.on("listening", r));
   const relay = `http://127.0.0.1:${carrier.address().port}`;
   try {
@@ -302,6 +303,13 @@ test("the real client, activated: runs `run` from memory end to end; one hop eve
     const gone = await L.runWith(["--policy", pol(11), "--relay", relay, "--app", APP]);
     assert.equal(gone.code, 2); assert.equal(gone.lines[0].result.step, "launch"); assert.equal(gone.lines[0].result.found, "missing");
     assert.equal((await L.state()).state.serial, 10, "no launch refusal moved the floor");
+    // the carrier recorded each evidence exchange as received -- the four runs that fetched evidence, not the launch refusal
+    const ev = fs.readdirSync(recorded).filter((f) => f.endsWith(".json")).sort();
+    assert.equal(ev.length, 4, JSON.stringify(fs.readdirSync(recorded)));
+    for (const f of ev) {
+      const env = JSON.parse(fs.readFileSync(path.join(recorded, f), "utf8")), q = fs.readFileSync(path.join(recorded, f.replace(/\.json$/, ".request")), "utf8");
+      assert.equal(env.format, "enclave-pvm-app-evidence/v2"); assert.equal(q, `EVIDENCE ${env.nonce}\n`, "each envelope answers the nonce the client sent");
+    }
     assert.equal(vm.log.filter((l) => l.served).length, 0, "no request reached the VM");
   } finally { carrier.close(); vm.close(); }
 });
