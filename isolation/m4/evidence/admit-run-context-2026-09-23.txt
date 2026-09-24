@@ -21,3 +21,14 @@ Verified from the signed report in admit-good-2026-09-23.txt (parsed, not eyebal
   report_data[32:64] = ce52712f...b91         the AppID the SVSM holds for plane 2
   measurement        = 839B88FCD2B8B45B7C05F1E25FFD972FFE81D5207198DA277D2E78E99E5401545767BFE9AA02913BC03DBE23D2F51B0F
                        equal to the igvmmeasure digest above
+
+LAYOUT an allowlist entry for this digest must carry (see svsm/README.md, condition 3): a report differs
+between a dedicated and a shared plane only by the VMPL field, so the shape has to come from the digest.
+
+  { "plane": 2, "shape": "dedicated", "slots": 1,
+    "admitted": { "bundle": "ce52712f...0b91", "runtime": "b77aecdb...f451" },
+    "guest_vmpck": "none",
+    "report_paths": ["svsm protocol 6", "svsm protocol 1 (gated on admission)"] }
+
+Plane 1 is named in ENCLAVE_APP_IDS but unreachable: require_owning_plane serves only GUEST_VMPL.
+A verifier demanding hardware app-vs-app isolation must accept dedicated planes only.

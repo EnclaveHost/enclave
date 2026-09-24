@@ -248,6 +248,79 @@ Option 3 is the recommendation, and it is a change to what the naming authority 
 `[32:64]` is "the monitor's app ID, never the caller's", and this makes it "an admitted app ID, chosen by the
 caller from a measured set". That is a contract-level decision and is flagged rather than taken unilaterally.
 
+### What naming by admitted index is and is not an authority over
+
+From the independent review (enclave-59, recorded because it is the clearest statement of the limit):
+
+* **YES over the SET.** A caller can only obtain an identity this measured image expected, so a verifier's app
+  allowlist is enforced by the SVSM and a compromised monitor cannot introduce a new identity.
+* **YES over the BYTES.** They were hashed and frozen by the SVSM before anything was named.
+* **NO over the MAPPING** from a domain's key to an app, inside the plane. Every observable the SVSM has for a
+  request - registers, the descriptor, the GPAs, the CPU - is the plane kernel's to set, so **nothing attributes
+  a request to a domain rather than to the plane**. That is a hardware limit of a shared plane, not a gap in the
+  design, and it is why M3a puts the guest kernel in the app-vs-app TCB. No design below the plane boundary
+  obtains it, so it is not worth asking the SVSM to derive the slot from something the caller cannot choose:
+  nothing such exists.
+
+The contract sentence survives if read precisely: **"never the caller's" is about the DOMAIN**, and a domain
+cannot reach protocol 6 at all (ring 0 only, no `/sys` in the domain's root, M3a check 5 measures it). The
+caller of protocol 6 is the monitor, which was always the chooser; what changes is that it chooses from the
+SVSM's admitted set instead of from its own table. Proposed wording, to land with an ABI bump:
+
+> `[32:64]` is an app ID the platform's measured naming authority admitted for the domain's plane; a domain
+> never states it. In a dedicated plane the authority names the plane; in a shared plane it names the slot the
+> plane's monitor registered for the domain's key.
+
+### Three conditions that make option 3 worth building
+
+1. **Register the key with the slot at admission, and let the SVSM compute the bind.** `ADMIT(slot, pages,
+   SPKI)` records `sha256(SPKI)` per slot, one slot to one SPKI with duplicates across slots refused;
+   `GET_REPORT(slot, nonce)` has the SVSM compute `Bind(SPKI, nonce)` itself - or `Bind2` with a RuntimeID
+   compiled in beside `RUNTIME_TABLE`, which closes B5 for free. The mapping is then fixed at domain start and
+   one-to-one, so no later compromise can re-label a live domain and a report for slot *i* can only ever carry
+   slot *i*'s key. The residual is a monitor that mis-registers at start, which is the TCB statement M3a
+   already makes.
+2. **A4 makes the chooser measured.** Once the SVSM owns or verifies the plane's initial image (kernel plus
+   monitor), the registration above is measured code's word, and option 3 regains M3a's standing on the IGVM
+   path: "chosen by measured code from a measured set", which is the contract's original meaning. Until A4 it
+   is "chosen by UNMEASURED code from a measured set", and every document must say so.
+3. **Tell the verifier the shape** - see the next section, and it applies today.
+
+### Condition 3 applies NOW, to the single plane this SVSM already serves
+
+All planes share one launch measurement, so a shared-plane report differs from a dedicated-plane one only by
+the VMPL field plus whatever the IGVM digest implies. Nothing in a report says which shape produced it. So an
+allowlist entry for a digest must carry the compiled-in layout, and a verifier that demands hardware app-vs-app
+isolation must accept **dedicated planes only** - otherwise a shared-plane report can be presented as though it
+had M4b-strength identity.
+
+The layout of the IGVM measured in `isolation/m4/evidence/`, which an allowlist entry for that digest must
+state:
+
+    { "plane": 2, "shape": "dedicated", "slots": 1,
+      "admitted": { "bundle": "ce52712f...0b91", "runtime": "b77aecdb...f451" },
+      "apps": { "plane1": "8773d334...2685", "plane2": "ce52712f...0b91" },
+      "guest_vmpck": "none", "report_paths": ["svsm protocol 6", "svsm protocol 1, gated on admission"] }
+
+`plane1` is named in the table but unreachable: `require_owning_plane` serves only `GUEST_VMPL`.
+
+### The fourth options, and the non-options
+
+* **4b, hybrid layout, and the reviewer calls it the honest product shape.** With `vmpl_count=4`: two dedicated
+  planes (VMPL1, VMPL2) for apps that need hardware identity, and one shared plane (VMPL3) under option 3 for
+  density, with the verifier choosing by policy. M4a-strength identity and M3a-style density in one guest.
+* **4c, measured monitor.** The plane's kernel and initrd as measured IGVM page data, or verified by the SVSM
+  against compiled-in digests before the plane launches. That is A4 by another route, and the cheapest way to
+  get its effect for the monitor specifically.
+* **Non-options, listed so nobody chases them:** the SVSM holding domains' TLS private keys (a signing oracle
+  still signs for whoever the monitor routes to it); per-domain VMPCKs (there are four keys, one per level, not
+  one per domain); any sub-plane signal from the CPU, registers or GPAs (all of it is the plane kernel's).
+
+### Naming the two SVSM configurations
+
+They have different IGVM digests by construction, so a verifier's allowlist separates them already. Every
+write-up names them by digest, and an M3 pass and an M4b admission are never presented as one configuration.
+
 Until it is settled: **M3a and M3b do not pass against an IGVM built from this SVSM**, because their domains
 get reports through configfs-tsm and the guest holds no key. M4a is unaffected - it has no SVSM. Running the M3
 suites means building the SVSM without `copy_with_no_vmpck`, which reopens the bypass, so the two
