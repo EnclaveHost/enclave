@@ -7,7 +7,10 @@ production). Exit 0 only when:
     relay swapping the VM's app key; the CLI also refused a policy narrowing the roots off the Pixel's own root (at verify,
     on the real chain), a minimum version above it (disabled), and a policy that does not admit the app;
   - the extension refused a relay-truncated stream as incomplete;
-  - the VM served exactly the requests that were released; no private key and no plaintext appear in the results or logs."""
+  - the VM served exactly the requests that were released; no private key and no plaintext appear in the results or logs.
+From 0.2.0 the extension also posts a "policy-committed" event under a page's label when it has durably committed the
+policy, BEFORE anything else: outcomes are the non-event lines, and each accepted page's commit must precede its outcome.
+The CLI's state is read through its `state` command (cli-state-cmd.json); a 0.1.0 run kept it in cli-state.json."""
 import json, os, re, sys
 d = sys.argv[1]
 fails = []
@@ -22,7 +25,8 @@ def cli(label):
     r = next((x["result"] for x in reversed(lines) if "result" in x), {})
     return r, [x["line"] for x in lines if "line" in x]
 ext = [json.loads(l) for l in rd("ext-results.jsonl").splitlines() if l.startswith("{")]
-e = lambda label: next((x for x in reversed(ext) if x.get("label") == label), {})
+outcomes = [x for x in ext if not x.get("event")]
+e = lambda label: next((x for x in reversed(outcomes) if x.get("label") == label), {})
 def complete(r, n=24): return r.get("complete") is True and r.get("tokens") == n and r.get("status") == 200
 inst = json.loads(rd("cli-install.json") or "{}")
 expect(inst.get("anchor", {}).get("policyKeyFp") == json.loads(rd("policy-key.json") or "{}").get("fingerprint"), "CLI: installed with the lab policy key's fingerprint as its anchor")
@@ -35,17 +39,24 @@ for label, step, why in [("attacker-policy", "policy", "anchor does not name"), 
     r, _ = cli(label)
     expect(r.get("step") == step and r.get("sent") is False and why in (r.get("refused") or ""), f"CLI {label}: refused at {step}, nothing sent ({(r.get('refused') or '')[:90]})")
 r, _ = cli("policy-2"); expect(complete(r) and r.get("policySerial") == 2, "CLI: followed the newer signed policy (serial 2), complete")
-st = json.loads(rd("cli-state.json") or "{}"); expect(st.get("serial") == 6, f"CLI: its state holds serial {st.get('serial')}, the newest genuine policy it saw (the rollback memory)")
-labels = [x.get("label") for x in ext if x.get("label")]
+st = json.loads(rd("cli-state-cmd.json") or "{}").get("state") if rd("cli-state-cmd.json") else json.loads(rd("cli-state.json") or "{}"); st = st or {}; expect(st.get("serial") == 6, f"CLI: its state holds serial {st.get('serial')}, the newest genuine policy it saw (the rollback memory)")
+labels = [x.get("label") for x in outcomes if x.get("label")]
 expect(len(labels) == len(set(labels)) == 6, f"extension: each of its 6 pages ran exactly once (no restored tab re-ran a page): {sorted(labels)}")
 installed = next((x for x in ext if x.get("installed")), {})
 expect(installed.get("anchor", {}).get("policyKeyFp") == inst.get("anchor", {}).get("policyKeyFp"), "extension: anchored from its own options page on the lab policy key")
 for label, ser in [("ext-stream", 1), ("ext-policy-2", 2)]:
-    x = e(label); expect(sum(1 for y in ext if y.get("label") == label) == 1 and complete(x) and x.get("policySerial") == ser and "HeadlessChrome" in x.get("userAgent", "") and x.get("extension"),
+    x = e(label); expect(sum(1 for y in outcomes if y.get("label") == label) == 1 and complete(x) and x.get("policySerial") == ser and "HeadlessChrome" in x.get("userAgent", "") and x.get("extension"),
                          f"extension {label}: 24 tokens complete under policy {ser} in {x.get('userAgent', '?')[-28:]} (first token {x.get('firstTokenMs')} ms)")
 for label, step, why in [("ext-attacker-policy", "policy", "anchor does not name"), ("ext-rollback", "policy", "rollback"),
                          ("ext-relay-swaps-key", "verify", "not signed by the attested transport key")]:
     x = e(label); expect(x.get("step") == step and x.get("sent") is False and why in (x.get("refused") or ""), f"extension {label}: refused at {step}, nothing sent ({(x.get('refused') or '')[:90]})")
+if any(y.get("event") for y in ext):   # 0.2.0: the policy was committed durably before the page fetched evidence or sent anything
+    for label, ser in [("ext-stream", 1), ("ext-policy-2", 2), ("ext-relay-swaps-key", 2), ("ext-relay-truncates", 2)]:
+        c = next((i for i, y in enumerate(ext) if y.get("label") == label and y.get("event") == "policy-committed"), None)
+        o = next((i for i, y in enumerate(ext) if y.get("label") == label and not y.get("event")), None)
+        expect(c is not None and o is not None and c < o and ext[c].get("serial") == ser, f"extension {label}: policy serial {ser} committed (generation {ext[c].get('gen') if c is not None else '?'}) before anything was sent")
+    for label in ["ext-attacker-policy", "ext-rollback"]:
+        expect(not any(y.get("label") == label and y.get("event") for y in ext), f"extension {label}: the refused policy was never committed")
 x = e("ext-relay-truncates"); expect(x.get("complete") is False and x.get("error") == "truncated", f"extension ext-relay-truncates: incomplete, never called complete ({(x.get('refused') or '')[:80]}; {x.get('tokens')} authentic tokens)")
 L = rd("l1.log"); L += "\n" + "\n".join(bytes.fromhex(m.group(1)).decode("utf-8", "replace") for m in re.finditer(r"APPOUT \d+ ([0-9a-f]+)", L))
 fins = len(re.findall(r"SEALED stream nonce=\w+ fin after", L)); whole = len(re.findall(r"SEALED served nonce=", L))

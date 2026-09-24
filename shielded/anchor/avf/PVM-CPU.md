@@ -529,6 +529,16 @@ agreed with the Enclave verifier session, all nine of its fail-closed refinement
   - Run 1 (-run1) failed on run-script flaws, kept and explained.
 - **Not solved.** The first install's out-of-band channel; a compromised host or browser; the extension store's
   delivery (bounded by `minClientVersion`); production keys and Sigstore provenance (the owner's).
+- **0.2.0: the rollback memory is committed first.** An audit found that 0.1.0 saved its state only after the whole
+  exchange. A carrier stalling after the new policy, then a kill, left the old floor, and two runs could overwrite a
+  newer serial with an older one. Both were reproduced on the shipped 0.1.0 bytes, in the CLI and in Chrome, with
+  deterministic barriers.
+  - 0.2.0 commits the policy durably before any evidence request: a cross-process compare-and-swap log in the CLI, a
+    browser-wide lock with read-back in the extension. A failed commit sends nothing.
+  - Just before sealing, it refuses a request whose policy was superseded meanwhile.
+  - client/DESIGN.md "State" has the rules. test/pvm-client-durability and -ext-durability cover crash and stall,
+    equivocation, concurrent old and new policies, failed persistence, rotation and update concurrency.
+  - The 0.1.0 device evidence above is kept as it was.
 
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 

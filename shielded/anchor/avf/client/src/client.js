@@ -1,25 +1,49 @@
 // client.js -- one request from the INSTALLED pVM client (client/DESIGN.md; LAB, not production). The same code runs in
 // the CLI and in the browser extension; it never loads code, and every expectation comes from the signed policy.
-//   connect({ relay, policyEnv, state, appId, path, stream, cancelAfter, onLine, usedNonces, now })
-//     -> { state (the client's memory after this policy), result }
-// 1. the policy (from whatever carrier) is verified under the install anchor (trust.js); nothing runs without it;
+//   connect({ relay, policyEnv, store, appId, path, stream, cancelAfter, onLine, onCommitted, usedNonces, now })
+//     -> { result }
+// 1. the policy (from whatever carrier) is verified under the install anchor AND durably committed as the client's new
+//    monotonic memory (acceptPolicy: store.update -- a cross-process compare-and-swap in the CLI, a browser-wide lock in
+//    the extension) BEFORE anything else happens: a crash, a stalled carrier or a concurrent older policy after this
+//    point cannot bring the floor back; if the commit cannot be made durable, nothing is sent;
 // 2. the app must be one the policy admits, the mode one it allows;
 // 3. the VM's evidence is verified against the policy's pins (pvm-verify.js), then held to the release rule (gate.js --
-//    the Enclave verifier session's admission rule) and to the policy's formats and sealed window; only a release seals
-//    and sends the request (pvm-sealed.js), and the nonce is spent.
+//    the Enclave verifier session's admission rule) and to the policy's formats and sealed window; last, the committed
+//    state is read again: if a newer policy was committed meanwhile (another tab or process, while this one waited on its
+//    carrier), this request is refused, never sent under the superseded policy. Only a release seals and sends the
+//    request (pvm-sealed.js), and the nonce is spent.
 import { verifyPolicy, CLIENT_VERSION } from "./trust.js";
 import { admit, verdictOf } from "./gate.js";
 import { fetchVerified, fetchVerifiedStream } from "../../web/pvm-client.js";
 
 export { CLIENT_VERSION };
 
-export async function connect({ relay, policyEnv, state, appId, path = "/", stream = true, cancelAfter = 0, onLine = () => {}, usedNonces = new Set(), now, label = "client" }) {
-  const pol = await verifyPolicy(policyEnv, { state, now: now ?? Date.now() });
-  if (!pol.ok) return { state, result: { label, step: "policy", refused: pol.reasons[0], sent: false } };
+/** Verify the policy against the NEWEST committed state and commit the result: { ok, policy, pins, gen, serial } or { ok: false, reason }. */
+// `hold` is for tests only (an in-process barrier between reading the state and committing); no client passes it.
+export async function acceptPolicy(store, policyEnv, { now = Date.now(), clientVersion = CLIENT_VERSION, hold = null } = {}) {
+  let accepted = null;
+  let r;
+  try {
+    r = await store.update(async (state) => {
+      if (hold) await hold(state);
+      const v = await verifyPolicy(policyEnv, { state, now, clientVersion });
+      if (!v.ok) { accepted = null; return { refuse: v.reasons[0] }; }
+      accepted = v;
+      return { state: v.state };
+    });
+  } catch (e) { return { ok: false, commitFailed: true, reason: `the client could not record the policy durably (${e.message}): nothing is sent` }; }
+  if (!r.ok) return { ok: false, reason: r.reason };
+  return { ok: true, policy: accepted.policy, pins: accepted.pins, gen: r.gen, serial: r.state.serial };
+}
+
+export async function connect({ relay, policyEnv, store, appId, path = "/", stream = true, cancelAfter = 0, onLine = () => {}, onCommitted = () => {}, usedNonces = new Set(), now, label = "client" }) {
+  const pol = await acceptPolicy(store, policyEnv, { now: now ?? Date.now() });
+  if (!pol.ok) return { result: { label, step: pol.commitFailed ? "commit" : "policy", refused: pol.reason, sent: false } };
+  await onCommitted({ serial: pol.serial, gen: pol.gen });
   const p = pol.policy;
-  if (!p.appIds.includes(appId)) return { state: pol.state, result: { label, step: "policy", refused: "the policy does not admit this app", sent: false } };
+  if (!p.appIds.includes(appId)) return { result: { label, step: "policy", refused: "the policy does not admit this app", sent: false, policySerial: p.serial } };
   const mode = stream ? "chunked" : "whole";
-  if (!p.sealedModes.includes(mode)) return { state: pol.state, result: { label, step: "policy", refused: `the policy does not allow ${mode} answers`, sent: false } };
+  if (!p.sealedModes.includes(mode)) return { result: { label, step: "policy", refused: `the policy does not allow ${mode} answers`, sent: false, policySerial: p.serial } };
   const pins = { app: appId, ...pol.pins };
   const gate = async (v, env, nonceHex) => {
     if (!p.formats.includes(env.format)) return `the evidence format ${env.format} is not one the policy allows`;
@@ -28,10 +52,13 @@ export async function connect({ relay, policyEnv, state, appId, path = "/", stre
     if (d.decision !== "release") return d.reason;
     if (d.pinned.sealed.windowSeconds !== p.sealedWindow.seconds || d.pinned.sealed.maxRequests !== p.sealedWindow.maxRequests)
       return `the VM's sealed window (${d.pinned.sealed.windowSeconds} s, ${d.pinned.sealed.maxRequests}) is not the policy's (${p.sealedWindow.seconds} s, ${p.sealedWindow.maxRequests})`;
+    let cur;
+    try { cur = await store.latest(); } catch (e) { return `the committed state cannot be read (${e.message}): nothing is sent`; }
+    if (!cur || cur.state.serial !== p.serial) return `policy serial ${p.serial} was superseded by serial ${cur && cur.state.serial} committed meanwhile: nothing is sent`;
     usedNonces.add(nonceHex);
     return null;
   };
   const args = { relay, pins, path, label, gate, ...(now ? { now } : {}) };
   const result = stream ? await fetchVerifiedStream({ ...args, onLine, cancelAfter }) : await fetchVerified(args);
-  return { state: pol.state, result: { ...result, policySerial: p.serial, clientVersion: CLIENT_VERSION } };
+  return { result: { ...result, policySerial: p.serial, stateGen: pol.gen, clientVersion: CLIENT_VERSION } };
 }

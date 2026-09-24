@@ -67,7 +67,7 @@ test("policy: the anchored key's signed policy is accepted; every substitution, 
   await refused(signPolicy(policyBody(P, { serial: 7, appIds: ["ab".repeat(32)] }), P), /equivocation/, newer.state);
   assert.equal((await T.verifyPolicy(signPolicy(policyBody(P, { serial: 7 }), P), { state: newer.state, now: NOW })).ok, true, "the same policy again is fine");
   // a minimum version above this client disables it
-  await refused(signPolicy(policyBody(P, { minClientVersion: "0.2.0" }), P), /disabled until updated/);
+  await refused(signPolicy(policyBody(P, { minClientVersion: "9.0.0" }), P), /disabled until updated/);
 });
 
 test("policy key rotation happens only by a signed nextPolicyKey", async () => {
