@@ -19,13 +19,21 @@ written before the code so they could not be softened to fit a result.
    measurement (`isolation/m3/PLAN.md` section 16, corrected 2026-09-23). `report_data[32:64]` is the app ID
    *as the monitor states it*, so if the monitor's own identity is unestablished, a per-app claim inherits
    that. Per-app isolation without per-app identity is not worth shipping.
-3. **One app bundle, one ABI, across backends.** `isolation/contract` (ABI `enclave-domain-abi/1`) is the
+3. **One app bundle, one ABI, across backends.** `isolation/contract` is the
    agreement: `AppID = sha256(all bundle bytes)`, `report_data[0:32] = sha256(SPKI || nonce)` computed in the
    domain, `[32:64]` the monitor's app ID and never the caller's, a one-field report request, and the
    starting/running/ending/ended lifecycle with exactly one reclamation. The Linux monitor imports it; the
    Windows Hyper-V launcher mirrors it in `src/contract.rs`. M4 uses it unchanged - a second ABI for the SNP
    backend would defeat the point.
-4. **Nothing verified in M1, M2, M3a or M3b regresses**, including the derived launch identity, the VMPL0
+4. **The app is the portable component, and the domain states what compiled it** (added 2026-09-23,
+   `isolation/contract/RUNTIME.md`). The bundle carries a WebAssembly component and nothing else, and each
+   domain compiles it inside its own boundary: JIT to x86-64 in these SNP guests, ARM64 where the domain is
+   ARM64, and Pulley bytecode interpreted where the platform refuses executable pages (a stock Pixel pVM and
+   a Windows VBS enclave, both measured). ABI/2 binds the runtime identity - runtime, version, execution
+   mode, target and host ISA, CPU-feature policy, W^X and cache mode - into `report_data[0:32]`, because a
+   report that named only the bundle would not say what turned it into instructions. M4a's guests do this
+   today and it is verified on hardware (14/14 with ABI/2 fronts); for M4b see section 6.
+5. **Nothing verified in M1, M2, M3a or M3b regresses**, including the derived launch identity, the VMPL0
    refusal, the 31-check suite, and rollback to the previous kernel entry.
 
 ## 2. The hard limit, stated before the design
@@ -166,3 +174,14 @@ in-guest to be refused. N4 is an M4b property, where the SVSM holds VMPL0 above 
 (`isolation/contract`, on `windows/custom-vbs-like-hyperv`); the SNP backend imports it there and both the
 M3b and plain M3a suites pass with it (31/31 each, another session's live runs). The next concrete step is **M4b** (section 3): move the app-naming authority into the SVSM so a
 plane per app can carry per-app identity, within the 2-3 apps-per-guest ceiling of section 2.
+
+**M4b must carry the runtime identity too, and for the same reason it carries the app ID.** Requirement 4
+above puts the runtime that compiled the component into `report_data[0:32]` (ABI/2). In M4a that identity
+lives in the guest image, which `kernel-hashes=on` measures, so the domain's statement about its runtime is
+covered by the launch digest. Under IGVM it is not (`isolation/m3/PLAN.md` section 16): the guest image is
+outside the measurement, so a `runtime.json` inside it is asserted by unmeasured code, exactly as the app
+half was before `svsm/appid.rs`. So the SVSM protocol that fills `report_data[32:64]` from `APP_TABLE` needs
+a companion for `[0:32]`: either the SVSM computes `Bind2` over a runtime identity compiled into its own
+measured image beside the app table, or the ABI/2 claim narrows on that path to "the domain says so" and
+must be written that way. `svsm/README.md` records this as the open item; nothing in the current step
+depends on it, and the M4a path is unaffected.

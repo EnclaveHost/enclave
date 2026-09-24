@@ -48,9 +48,40 @@ Scope of the pVM CPU tier: Pixel 10 and Pixel 11, CPU only. There is no TPU tier
 
 | backend | runtime identity source | binding | status |
 |---|---|---|---|
-| Linux domains (isolation/m2 front, m3 monitor, m4) | a `runtime.json` written by `build-domain.sh` beside the runtime in `/plat/rt` (name, version from `wasmtime --version`, ISA, the `-C` feature policy the launcher passes, `wx: enforced`, `cache: none`) | the front computes `Bind2` when the file is present and states the identity in its document under `runtime`; `judge.mjs` recomputes it | contract done; front/judge wiring not started |
+| Linux domains (isolation/m2 front, m3 monitor, m4) | `runtime.json`, written into the image beside the runtime by `runtime-identity.sh` from `build-domain.sh` / `build-app-guest.sh`, and CHECKED against the domain by `m2/front/runtime.go` before it is stated | the front computes `Bind2` when the file is present and states the identity and its self-test in the document; `judge.mjs` `checkRuntime` recomputes the binding and pins the identity when the caller supplies `want.runtime` (`client.mjs --runtime`) | **WIRED and verified on hardware 2026-09-23**: M2 24/24 (2h/2i/2j), M3a 31/31, M4a 14/14, and N9g-N9k against the genuine signed report |
+| Windows VBS enclave (VTL1, `windows/vbs`) | the same file inside the enclave image | the same binding; the enclave's report replaces the SNP report | `execution: interpreter`, `targetIsa: pulley64`, `hostIsa: x86_64`: VTL1 refuses **every** executable page (`ERROR_DYNAMIC_CODE_BLOCKED` 1655 at `VirtualAlloc` AND at `VirtualProtect`, while RW->R is allowed - so it is the EXECUTE bit alone; measured, `windows/PARITY.md`), so no JIT can ever run there. Not wired |
 | Windows partitions (windows/vbslike) | the same file inside the same guest image; the launcher's signed document repeats it | the same, plus the launcher's own `partition.guestImageSha256` | contract mirrored and vectors passing; launcher wiring follows the front |
 | Pixel pVM CPU tier (Pixel 10/11, CPU only, no TPU tier) | `{wasmtime, <version>, execution interpreter, targetIsa pulley64, hostIsa aarch64, cpuFeatures baseline, wx enforced, cache none}`; the component is compiled to Pulley by Cranelift inside the pVM | the same 64 bytes: the AVF `attestationChallenge` (`AVmPayload_requestAttestation`, up to 64 bytes) carries `Bind2` in `[0:32]` and the app ID in `[32:64]`; the relay's AVF attach today verifies a 32-byte sha256 of the v2 transcript, so an ABI/2 pVM attach is its own format on the relay side | pVM lane implementing on this contract; relay format not started |
 
 Until a backend emits ABI/2, it keeps ABI/1 (`Bind`), and its documents say so; a verifier accepts only
 the ABI it was told to expect.
+
+## Status: what holds today, and what this direction still needs
+
+Holds, on hardware (warden-host, planes kernel, 2026-09-23):
+
+* the app artifact is the portable component in every backend, and `bundle.go` refuses anything else;
+* the Linux domains state their runtime identity, bind it into `report_data[0:32]`, and **check it against
+  the domain before stating it** - an executable page must be obtainable for `execution: jit`, and no page
+  in the domain may be writable and executable - exiting rather than serving on a fault;
+* a verifier recomputes that binding and refuses a report restated under any other runtime: name, version,
+  execution mode, feature policy or cache mode, each rejected on the binding itself rather than on a field
+  comparison (`negative.mjs` N9h, against the genuine PSP-signed report);
+* the Go implementation, the Rust launcher and the JavaScript verifier agree on every vector.
+
+Does NOT hold yet, and is not to be implied:
+
+* **`cpuFeatures` is `host-detected`, not a pinned list.** The launcher passes no target or feature flags,
+  so Cranelift enables what CPUID reports on the chip it runs on. The policy is bound faithfully and the
+  report's VCEK does name that chip, but a pinned feature list would be strictly stronger and is the next
+  piece of work on requirement 6.
+* **No compiled cache exists anywhere.** Both Linux launchers pass `-C cache=n`, because wasmtime's module
+  cache is on by default (measured, with a control) and m3's domains run with `HOME=/tmp`, so without that
+  flag each domain would have kept an unauthenticated compiled cache. `CacheKey` is therefore a rule for
+  when a cache is added, not a description of one.
+* **Cross-platform conformance is partial.** The vectors are shared and pass on all three implementations,
+  but no test yet runs one bundle on a Linux SNP domain and a Windows domain and compares behaviour.
+* **On the IGVM path the guest image is outside the launch measurement** (`isolation/m3/PLAN.md` section
+  16), so a `runtime.json` inside that image is not measured there. This is the same gap that moved app
+  naming into the SVSM for M4b, and it applies to the runtime identity for the same reason: under IGVM the
+  SVSM has to carry it, or the claim narrows to "the domain says so".
