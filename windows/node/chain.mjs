@@ -337,7 +337,7 @@ export function parseEnvelope(raw, gpuMilli) {
   if (!s.startsWith("{")) throw new Error("its options field is a bare CID, not a JSON options envelope");
   let o; try { o = JSON.parse(s); } catch (e) { return void 0, (() => { throw new Error("its options envelope is not readable JSON: " + e.message); })(); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("its options envelope is not a JSON object");
-  const known = ["config", "gpu", "network", "configCid", "waf"];
+  const known = ["config", "gpu", "network", "configCid", "waf", "isolation"];
   const unknown = Object.keys(o).filter((k) => !known.includes(k));
   if (unknown.length) throw new Error(`its options envelope carries ${unknown.join(", ")}, which this node does not enforce (it knows: ${known.join(", ")})`);
   const opts = {};
@@ -351,6 +351,24 @@ export function parseEnvelope(raw, gpuMilli) {
       if (g.optional && gpuMilli != null && Number(gpuMilli) <= 0)
         throw new Error("gpu.optional applies only to a deployment that bought GPU share (this one is 0% GPU, so it already runs anywhere)");
       opts.gpuOptional = g.optional;
+    }
+  }
+  if ("isolation" in o) {
+    // THE TENANT'S OWN REQUIREMENT that this deployment runs in its own isolated domain rather
+    // than in the shared enclave. Same form as the Linux tier's: {"require": "<backend name>"}.
+    //
+    // Before this, `isolation` was simply unknown here, so parseEnvelope THREW and claimPolicy
+    // refused the deployment outright: a tenant who asked for isolation could not even be claimed,
+    // and one who did not ask was logged "not isolating". The net effect was that no deployment
+    // could ever be isolated on this node (enclave-99, reading the activation path end to end).
+    const iso = o.isolation;
+    if (!iso || Array.isArray(iso) || typeof iso !== "object") throw new Error('isolation must be a JSON object like {"require":"hyperv-partition-per-app"}');
+    const bad = Object.keys(iso).filter((k) => k !== "require");
+    if (bad.length) throw new Error(`unknown isolation option ${JSON.stringify(bad[0])} (this node knows: require)`);
+    if ("require" in iso) {
+      if (typeof iso.require !== "string" || !/^[a-z0-9-]{3,64}$/.test(iso.require))
+        throw new Error("isolation.require must be a backend name like \"hyperv-partition-per-app\"");
+      opts.isolationRequire = iso.require;
     }
   }
   if ("waf" in o) {
@@ -419,7 +437,7 @@ export function parseEnvelope(raw, gpuMilli) {
 export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scope = "market",
                                  version = null, capacity = null, listedAt = 0, invited = false,
                                  legacy = false, fetchesConfigCid = false, features = null,
-                                 privateOk = false } = {}) {
+                                 privateOk = false, isolationBackend = null } = {}) {
   if (!appsEnabled) return "this node is not hosting apps (set APPS=1)";
   if (!d || !Number(d.createdAt)) return "no such deployment on the ledger";
   if (!d.active) return "the deployment is not active";
@@ -439,6 +457,17 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   // worse than one that refused it.
   if (!d.isPublic && !privateOk)
     return "it is a private deployment, and this box has no session key to verify its owner with";
+
+  // A DEPLOYMENT THAT REQUIRES ISOLATION may only be claimed by a box that actually runs that
+  // backend. Taking it and running it in the shared enclave would give the tenant the opposite of
+  // what they asked for while looking like success, which is the worst available outcome; and
+  // refusing it here leaves it free for a box that can.
+  if (opts.isolationRequire) {
+    if (!isolationBackend)
+      return `it requires isolation backend ${opts.isolationRequire}, and this box runs no isolation backend`;
+    if (opts.isolationRequire !== isolationBackend)
+      return `it requires isolation backend ${opts.isolationRequire}, and this box runs ${isolationBackend}`;
+  }
   if (d.runner && !/^0x0+$/.test(String(d.runner)) && String(d.runner).toLowerCase() !== String(enclaveId).toLowerCase()
       && Number(d.leaseUntil) * 1000 > Date.now())
     return "another enclave holds a live lease on it";
