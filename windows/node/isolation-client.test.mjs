@@ -16,6 +16,7 @@ const supervisorBody = (over = {}) => IsolationManagerClient.spawnBody({
   image: "ipfs://bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza",
   name: DEP, cpuShare: 0.25, gpuShare: 0, appPort: 8080, ports: [], config: "", configCid: "",
   egress: "", derive: { derivation: "enclave-catalog-bundle/1", policy: { cpuPercent: 100, memMiB: 512, vcpus: 1 } },
+  isPublic: true, hasSecrets: false,
   ...over,
 });
 
@@ -66,12 +67,25 @@ function manager({ routes = {}, live = new Map() } = {}) {
 
 const client = (m) => new IsolationManagerClient({ base: "http://127.0.0.1:8091", fetchImpl: m.fetchImpl });
 
-test("the body it sends is the supervisor's, carrying no field the supervisor never sends", () => {
+test("the body carries every field the manager demands, stated and not assumed", () => {
   const b = supervisorBody();
   assert.deepEqual(Object.keys(b).sort(),
-    ["appPort", "config", "configCid", "cpuShare", "derive", "egress", "gpuShare", "image", "name", "ports"]);
-  assert.ok(!("isPublic" in b), "the supervisor does not send isPublic; inventing it hides a 400");
-  assert.ok(!("hasSecrets" in b), "the supervisor does not send hasSecrets");
+    ["appPort", "config", "configCid", "cpuShare", "derive", "egress", "gpuShare", "hasSecrets",
+     "image", "isPublic", "name", "ports"]);
+  // the manager refuses a spawn that does not STATE these; supervisor.js never did, so every real
+  // spawn 400'd while a test that invented them passed. The caller knows both from the ledger.
+  assert.equal(b.isPublic, true);
+  assert.equal(b.hasSecrets, false);
+});
+
+test("an unstated isPublic or hasSecrets is refused HERE rather than 400'd at the manager", () => {
+  assert.throws(() => IsolationManagerClient.spawnBody({ image: "ipfs://x", name: DEP, derive: {}, hasSecrets: false }),
+    /isPublic must be stated/);
+  assert.throws(() => IsolationManagerClient.spawnBody({ image: "ipfs://x", name: DEP, derive: {}, isPublic: true }),
+    /hasSecrets must be stated/);
+  // and "falsy" is not the same as "stated false"
+  assert.throws(() => IsolationManagerClient.spawnBody({ image: "ipfs://x", name: DEP, derive: {}, isPublic: true, hasSecrets: undefined }),
+    /hasSecrets must be stated/);
 });
 
 test("a CID with no derivation record is refused before anything is sent", () => {

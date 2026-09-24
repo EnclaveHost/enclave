@@ -16,7 +16,9 @@ const REC = v.ok[0].mapping.record;
 const RT = REC.runtimeId;
 
 const mk = (over = {}) => new Manager({ runtimeId: RT, fetchComponent: async () => component, ...over });
-const spawnBody = (over = {}) => ({ derive: REC, isPublic: true, hasSecrets: false, ...over });
+const DEP = "0x" + "e6".repeat(32);
+// the body the node client actually sends: guestd's contract, name included
+const spawnBody = (over = {}) => ({ derive: REC, name: DEP, isPublic: true, hasSecrets: false, ...over });
 
 test("/health states the backend, refuses everything it cannot honour, and admits it cannot start", () => {
   const h = mk().health();
@@ -50,24 +52,24 @@ test("a spawn derives the contract's AppID, and it is the shared one", async () 
 
 test("a domain that did not start is failed, says why, and carries NO attestation", async () => {
   const r = await mk().spawn(spawnBody());
-  assert.equal(r.state, "failed");
+  assert.equal(r.status, "failed");
   assert.match(r.reason, /custom IGVM|Hyper-V role|IgvmFilePath/);
   assert.equal("attestation" in r, false, "no evidence is invented for a domain that never ran");
   assert.ok(r.prerequisites, "and the prerequisite is named rather than guessed at");
-  assert.equal(r.state === "running", false);
+  assert.equal(r.status === "running", false);
 });
 
 test("the seam works when a host can launch, and a booted guest is not a running app", async () => {
   const booted = new HyperVPartitionBackend({ launch: async () => ({ pid: 4242, appReady: false, guest: { booted: true, bytes: 9, head: "hi" }, stop: async () => {} }) });
   const r = await mk({ backend: booted }).spawn(spawnBody());
-  assert.equal(r.state, "guest-booted", "console output is not evidence the app is serving");
+  assert.equal(r.status, "starting", "console output is not evidence the app is serving, and 'starting' is a word the supervisor knows");
   assert.equal(r.appReady, false);
   assert.match(r.reason, /no app-readiness handshake/);
   assert.equal("attestation" in r, false, "still none: booted is not attested either");
   // and when a backend CAN prove the app is up, the word is earned
   const ready = new HyperVPartitionBackend({ launch: async () => ({ pid: 1, appReady: true, guest: { booted: true, bytes: 9 }, stop: async () => {} }) });
   const r2 = await mk({ backend: ready }).spawn(spawnBody());
-  assert.equal(r2.state, "running");
+  assert.equal(r2.status, "running");
 });
 
 test("everything this backend cannot honour is refused again on this side of the wire", async () => {
@@ -95,9 +97,9 @@ test("the lifecycle is readable: list, get, delete", async () => {
   const r = await m.spawn(spawnBody({ id: "d1" }));
   assert.equal(m.list().length, 1);
   assert.equal(m.get("d1").appId, r.appId);
-  assert.equal(await m.remove("d1"), true);
+  assert.deepEqual(await m.remove("d1"), { removed: true, absent: false });
   assert.equal(m.get("d1"), null);
-  assert.equal(await m.remove("d1"), false);
+  assert.deepEqual(await m.remove("d1"), { removed: false, absent: true });
 });
 
 test("the backend takes the REAL launcher, and a domain started through it is running", async () => {
@@ -114,7 +116,7 @@ test("the backend takes the REAL launcher, and a domain started through it is ru
     imagePath: "C:\\img.bin", imageSha256: SHA, prefix: "enclave-app-t-" });
   const backend = new HyperVPartitionBackend({ launcher });
   const r = await mk({ backend }).spawn(spawnBody());
-  assert.equal(r.state, "guest-booted", "the guest booted; no app-readiness handshake exists, so not \"running\"");
+  assert.equal(r.status, "starting", "the guest booted; no app-readiness handshake exists, so not \"running\"");
   assert.equal(r.appReady, false);
   assert.equal("attestation" in r, false, "a VM that started is still not an attested one");
   const pre = await backend.preflight();
@@ -139,4 +141,64 @@ test("a rule we cannot serve is absent from the gate list, not merely refused la
     + "serve it sits free. Silence is the refusal the gate understands.");
   assert.equal(h.catalog.derives.includes("enclave-catalog-bundle/2"), true,
     "but the capability is still reported, so nobody has to guess whether the identity would match");
+});
+
+/** A backend whose guest boots but has no readiness handshake: the ordinary case on this tier. */
+const bootedBackend = () => new HyperVPartitionBackend({
+  launch: async () => ({ pid: 4242, appReady: false, guest: { booted: true, bytes: 9, head: "hi" }, stop: async () => {} }),
+});
+
+/* ---- defects 4, 5 and 6, and guestd's vocabulary ---------------------------------------------- *
+ * All found by enclave-99 by reading the sources against supervisor.js and isolation/m4/guestd. */
+
+test("defect 6: a second spawn for a live deployment is a 409 naming the instance to adopt", async () => {
+  const m = mk({ backend: bootedBackend() });
+  const first = await m.spawn(spawnBody());
+  const e = await m.spawn(spawnBody()).then(() => null, (x) => x);
+  assert.ok(e, "a live name must not be silently overwritten");
+  assert.equal(e.status, 409);
+  assert.equal(e.id, first.id, "the 409 names WHICH instance to adopt, or the caller cannot adopt it");
+  assert.equal(m.list().length, 1, "and the first handle is not forgotten");
+});
+
+test("defect 6: an explicit duplicate id is a 409 too, never an overwrite", async () => {
+  const m = mk({ backend: bootedBackend() });
+  await m.spawn(spawnBody({ id: "hvdeadbeef" }));
+  const e = await m.spawn(spawnBody({ id: "hvdeadbeef", name: "0x" + "ff".repeat(32) })).then(() => null, (x) => x);
+  assert.equal(e && e.status, 409);
+  assert.equal(m.list().length, 1);
+});
+
+test("ids are the manager's own shape, and the record names the deployment", async () => {
+  const r = await mk({ backend: bootedBackend() }).spawn(spawnBody());
+  assert.match(r.id, /^hv[0-9a-f]{8}$/, "hv + 8 hex, as 5d's supervisor and datapath expect");
+  assert.equal(r.name, DEP, "adoption after a restart matches on name");
+});
+
+test("defect 4: the record carries what the data plane needs to route, and the boundary word", async () => {
+  const withRoute = { supports: {}, backend: "hv", BOUNDARY: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
+    start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 12, head: "MON" },
+                          appReady: false, boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
+                          domainId: 1, guestPort: 40001, tcpPort: 19101, image: "ab".repeat(32) }) };
+  const r = await mk({ backend: withRoute }).spawn(spawnBody());
+  assert.deepEqual(r.relay, { host: "127.0.0.1", port: 19101 }, "without a relay port nothing can be routed");
+  assert.equal(r.domainId, 1);
+  assert.equal(r.guestPort, 40001);
+  assert.equal(r.image, "ab".repeat(32), "the splice admits on image + transportKeySha256");
+  assert.equal(r.boundary.hostExcluded, false, "carried verbatim: this is the word that must never be lost");
+  assert.equal(r.hostExcluded, false);
+  assert.equal(r.tier, "t0-hv");
+});
+
+test("defect 5: a stop that FAILED is not a removal, and the domain stays listed", async () => {
+  const stubborn = { supports: {}, backend: "hv",
+    start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false }),
+    stop: async () => { throw new Error("stop_failed"); } };
+  const m = mk({ backend: stubborn });
+  const r = await m.spawn(spawnBody());
+  const e = await m.remove(r.id).then(() => null, (x) => x);
+  assert.ok(e, "remove must not answer ok when the domain may still be running");
+  assert.match(e.message, /may still be RUNNING/);
+  assert.equal(m.list().length, 1, "an orphan the manager stopped listing is one nobody can find");
+  assert.equal(m.get(r.id).status, "failed");
 });
