@@ -58,10 +58,22 @@ PRODUCTION NEGATIVES RUN (no transactions)
   - client with a wrong measurement / wrong app / wrong runtime version / malformed TCB floor: exit 3, gate closed,
     0 application requests.
 
-FINDINGS OPEN AT THE TIME OF WRITING
-  F1  /availability on the tier advertises capability flags the tier refuses (secrets, customDomains, config
-      overrides...). The relay's fleet-AND is over serving boxes and this is currently the only one, so clients
-      may offer features whose deployments would queue forever. Fix: report them false on the tier.
+THE CAPTURE vs THE LIVE ENDPOINT. prod-doc.json, served-cert.pem and prod-client.txt are from guest gd9a34e856
+(transport key b6230cb3...). served-cert.pem is PUBLIC and was force-added past the repo's *.pem ignore rule, which
+exists for private keys. At 12:24:58 a node restart (deploying the F1 fix) REAPED that guest before the claim
+loop resumed its lease, and the lease relaunched it as gda9c2b39a (key 08c88f1e...), which verifies attested
+the same way. So the live endpoint now presents a different key than this capture: expected, see F6.
+
+FINDINGS
+  F1  FIXED (39d2d138, live 12:25): /availability on the tier advertised capability flags the tier refuses
+      (secrets, customDomains, config overrides, waf...). With the tier box the only serving box, the relay's
+      aggregate offered them to every customer (confirmed live), and such deployments would queue forever. The tier
+      now reports them false, and the live aggregate shows secrets/customDomains/configOverride/waf/devDeploy/
+      shareResize false.
+  F6  OPEN: a node restart REAPS the app's guest instead of adopting it. The orphan reaper runs before the claim
+      loop has resumed the lease, sees an instance no record owns, and ends it; the resumed lease then launches a
+      fresh guest (about a minute of downtime and a new transport key). The adoption path added in 39d2d138 never
+      got to run. Fix: on the tier, no reaping before the claim loop's first pass.
   F2  The guest front's certificate is self-signed: a browser warns. Trust comes from attestation (the verifying
       client), not WebPKI. A CA certificate for the guest's own key (CSR from inside the guest) is not built.
   F3  The relay-terminated /x/<id>/ path answers 503 "state unknown" for this deployment instead of a clear refusal.
