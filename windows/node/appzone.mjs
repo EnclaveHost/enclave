@@ -212,7 +212,7 @@ export function appRequestHandler({ serveHttp, log = () => {} }) {
   };
 }
 
-export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, log = () => {} }) {
+export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, log = () => {}, isolationSplicer = null }) {
   const streams = new Map();
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
   // The server for GATE-SERVED apps: node's own HTTP parser, fed sockets by hand. It never
@@ -275,6 +275,35 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
     let target = null;
     try { target = await resolve(ref); } catch (e) { log(`app-zone ${ref}: ${e.message}`); }
     const id = target?.id || ref;
+
+    // AN ISOLATED DEPLOYMENT IS SPLICED, NOT TERMINATED.
+    //
+    // This branch runs BEFORE the certificate check on purpose: an isolated target has no
+    // certificate here and never should. The guest holds its own key and does the handshake with
+    // the client, so this agent must not be able to read the traffic even in principle - which is
+    // the whole reason the tier exists. Falling through to the block below would have answered 503
+    // for a perfectly healthy domain, and "fixing" that by giving this agent a certificate would
+    // have quietly turned the tier into the old one.
+    //
+    // So: upgrade, hand the raw stream to the splicer, and terminate nothing.
+    if (target && target.isolation) {
+      if (!isolationSplicer) {
+        log(`app-zone ${id.slice(0, 10)}: isolated, but this agent has no splicer configured`);
+        st.sock.write(`HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n`);
+        return drop(st.sid);
+      }
+      const req0 = { method: head.method || "GET", url: head.url, headers: head.headers, httpVersion: "1.1",
+                     httpVersionMajor: 1, httpVersionMinor: 1, socket: st.sock, connection: st.sock };
+      st.upgraded = true;
+      wss.handleUpgrade(req0, st.sock, head.rest, (ws) => {
+        const s = createWebSocketStream(ws, { decodeStrings: false });
+        isolationSplicer.serve(s, target, { close: () => ws.terminate() })
+          .then((o) => log(`app-zone ${id.slice(0, 10)} -> ${o.outcome}${o.kind ? " " + o.kind : ""}${o.why ? ": " + o.why : ""}`))
+          .catch((e) => log(`app-zone ${id.slice(0, 10)} splice: ${e.message}`));
+      });
+      return;
+    }
+
     if (!target || !target.cert || (!target.port && !target.gate)) {
       // 503 rather than a silent close: the relay logs the status and the operator can see which
       // half is missing (no app, or no certificate yet).
