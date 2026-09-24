@@ -1,0 +1,108 @@
+# The NucBox own-guest package
+
+One manifest pins, by sha256, every byte that nucbox-k11 needs to boot OUR guest and serve one small app. For each byte
+it records where it comes from and how to make it again. Owned by enclave-53. The box, the manager, the launcher and
+the IGVM recipe belong to enclave-d1. The guest runtime (isolation/m3) and the datapath belong to enclave-5d. Tests
+belong to enclave-99. This directory copies none of their files: it pins them by commit and hash.
+
+**What this box is.** Tier `T0-hv`: a Ryzen with no SEV-SNP and no VMPL. The root partition can read every guest's
+memory. Nothing served from this package is attested, verified or host-excluded capacity, and every script and record
+says so.
+
+## Two profiles, one monitor image
+
+| profile | boots | needs from the host | serves the app through |
+|---|---|---|---|
+| `igvm` (the target) | `guest/openhcl-ownguest.bin`: an OpenHCL IGVM whose VTL0 is the monitor image | the Hyper-V role: `vmms`, `root\virtualization\v2` with `FirmwareFile`, `Get-VM` | the manager's WMI launcher boots it. Loading a bundle into it needs the datapath (slot `control.datapath`) |
+| `hcs-dev` (development) | `guest/wsl-kernel` + `guest/mon.cpio.gz` under the box's `vbslike-host lab` | Virtual Machine Platform only | the launcher itself (hv_sock load + TCP relay). `win/smoke-hcs.ps1` runs it end to end |
+
+`guest/mon.cpio.gz` is the IGVM's VTL0 initrd AND the hcs-dev initrd. `pkg.mjs verify` refuses a manifest in which the
+two differ. `check.ps1` reports each profile's host state live. The manifest states only what each profile needs.
+
+## Manifests
+
+| version | id (sha256 of the file) | guest | apps | datapath |
+|---|---|---|---|---|
+| 1 | `manifests/nucbox-ownguest-1.json` | IGVM `2d735376…` around monitor `44abb52b…` (isolation/m3 at `3c077840`), WSL kernel `7fe3edb5…` | hello-world 1.0.4 (`/1`, AppID `9c3d10f1…`, servable), hookbin 0.1.4 (`/2`, pinned, not servable) | empty |
+
+A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
+
+## Reproduce and verify (warden-host)
+
+```
+node windows/vbslike/pkg/pkg.mjs verify windows/vbslike/pkg/manifests/nucbox-ownguest-1.json --rebuild --fetch https://ipfs.enclave.host
+node --test windows/vbslike/pkg/pkg.test.mjs
+```
+
+`verify` derives every pin from its source. It does not take the pin from the manifest's say-so:
+- **Pinned bytes.** Git objects at their commits, the files on this host, and canonical JSON written from the manifest
+  itself.
+- **Apps.**
+  - The component is the content its CID names.
+  - The record hashes to its recordSha256 and names that CID and the guest's runtime.
+  - The bundle is derived twice, by `derive_reference.py` and by the manager's own `derive.mjs` at its pinned commit,
+    and both derivations hash to the AppID.
+  - A spawn request carries exactly the record.
+- **Runtime.** The runtime identity recomputes to `runtimeId`.
+- **Tier.** It says T0-hv, host not excluded, no SNP, no VMPL.
+- **Servable.** An app is marked servable only on the derivation the pinned manager serves.
+- **`--rebuild`.** Makes the VTL0 vmlinux from the WSL bzImage (`vtl0-vmlinux.sh`), then the IGVM from the pinned
+  openvmm `a7b0bd4` VTL2 pieces, that vmlinux and the monitor initrd (`build-ownguest.sh`, igvmfilegen only). This
+  takes seconds and starts no compiler.
+- **`--fetch`.** Fetches each component by CID.
+
+The test suite has 25 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
+re-pinned to its new bytes. Each case must FAIL at the check that covers it, and the two controls must PASS. The
+sources live in `~/enclave-bench/ownguest-pkg/sources/`, and the tests skip without them.
+
+`vbslike-host.exe` is the one box-only file. enclave-d1 built it on the box. It is pinned by observation and cannot be
+reproduced here.
+
+## Put it on the box (read `win/*.ps1` first: they state what they write)
+
+```
+node windows/vbslike/pkg/pkg.mjs pack windows/vbslike/pkg/manifests/nucbox-ownguest-1.json ~/enclave-bench/ownguest-pkg/out
+windows/vbslike/pkg/push.sh ~/enclave-bench/ownguest-pkg/out/<id16> minipc-zt
+```
+
+`push.sh` sends only the small files, into a NEW `C:\Users\claude\vbs-like\pkg\<id16>\`. Then, on the box, with the full
+id taken from the commit and not from the box:
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\vbs-like\pkg\<id16>\win\stage.ps1 -ManifestSha256 <id>
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\vbs-like\pkg\<id16>\win\check.ps1 -ManifestSha256 <id> -Fetch
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\vbs-like\pkg\<id16>\win\check.ps1 -ManifestSha256 <id> -SelfTest
+```
+
+**`stage.ps1`** does three things:
+- it copies each `boxReuse` file (the IGVM, the monitor initrd, the WSL kernel, the launcher) from the box's existing
+  copy, only after that copy hashes to the pin;
+- it grants `S-1-5-83-0` read on the IGVM (without that grant the launch fails with 0x80070005);
+- it verifies everything and writes `staged.json`.
+
+**`check.ps1`** re-verifies the package and runs the self-test, which requires 9 cases to give their expected result.
+It reports each profile's host checks as ok or `BLOCKED`, never as a package failure. It then prints the manager's
+environment for `igvm` and the smoke command for `hcs-dev`. `-Require igvm` exits 3 when that profile is blocked.
+
+**Limits.** None of these scripts enables a feature, changes a host setting, reboots, or writes outside the package
+directory. They never touch `C:\Users\claude\vbs\node` or `\vbs\ee`.
+
+## Boot, then serve (the box owner runs these: they start VMs)
+
+**hcs-dev, today.** `win\smoke-hcs.ps1 -ManifestSha256 <id>` runs these steps:
+1. It verifies the package.
+2. It starts `vbslike-host lab` on the package's kernel and initrd. The launcher's ready line must name those two hashes.
+3. It `load`s the bundle. The monitor's own hash of what arrived must be the AppID.
+4. It GETs `https://127.0.0.1:<tcpPort>/` (TLS ends in the domain) and expects the manifest's answer, `200 "Hello World!"`.
+5. It always ends with `destroy` + `quit`.
+
+The record goes to `runs\hcs-<utc>\smoke.json`.
+
+**igvm.** Start the manager with the environment that `check.ps1` prints, then `POST
+apps\hello-world-1.0.4\spawn.json` to `127.0.0.1:8091/vms`. The console should say `MON ready control_port=9000`.
+Serving needs a datapath that loads the bundle into the IGVM guest. Until a manifest pins one, `check.ps1 -Phase serve
+-Boot igvm` answers BLOCKED.
+
+**Checking an answer from any stack.** `check.ps1 -Phase serve -Boot <profile> -Url <url> -LoadJson <launcher answer>`
+ties the answer to the package: it requires the guest's own `appSha256` to equal the pinned AppID, and the answer to
+equal the expected one.

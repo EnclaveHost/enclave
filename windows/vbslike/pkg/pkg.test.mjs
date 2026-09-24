@@ -1,0 +1,126 @@
+// pkg.test.mjs -- the package verifier (pkg.mjs) held to its claims: each mutation below breaks ONE claim, on a copy,
+// and verify must FAIL at the check that covers it; the unmutated manifest and packed directory must PASS. Several
+// mutations are CONSISTENT forgeries -- the edited entry re-pinned to the bytes it now has -- so they must fail at the
+// claim, not merely at a hash. Needs this host's sources (~/enclave-bench/ownguest-pkg/sources); skips without them.
+//   node --test windows/vbslike/pkg/pkg.test.mjs
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const PKG = path.join(HERE, "pkg.mjs");
+const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-1.json");
+const SOURCES = path.join(os.homedir(), "enclave-bench/ownguest-pkg/sources");
+const WORK = path.join(os.homedir(), "enclave-bench/ownguest-pkg/test-work");   // the IGVM is 125 MB: not a tmpfs
+const have = fs.existsSync(path.join(SOURCES, "guest/openhcl-ownguest.bin"));
+const skip = !have && "no local sources";
+const base = JSON.parse(fs.readFileSync(MANIFEST, "utf8"));
+
+const run = (args) => { const r = spawnSync(process.execPath, [PKG, ...args], { encoding: "utf8", timeout: 300000 }); return { code: r.status, out: r.stdout + r.stderr }; };
+const fails = (out) => out.split("\n").filter((l) => l.startsWith("FAIL")).join("\n");
+let n = 0;
+function writeManifest(m) { const p = path.join(WORK, `m-${process.pid}-${n++}.json`); fs.writeFileSync(p, JSON.stringify(m, null, 1) + "\n"); return p; }
+// re-pin the named entries to what their sources now give: a consistent forgery
+function repin(m, ids) {
+  const r = run(["pins", writeManifest(m)]);
+  for (const l of r.out.split("\n").filter(Boolean)) {
+    const [h, b, id] = l.trim().split(/\s+/);
+    if (!ids.includes(id)) continue;
+    const e = m.files.find((f) => f.path === id) || m.inputs.find((i) => i.name === id);
+    e.sha256 = h; e.bytes = Number(b);
+  }
+  return m;
+}
+const file = (m, p) => m.files.find((f) => f.path === p);
+const app = (m, name) => m.apps.find((a) => a.name === name);
+const H = "apps/hello-world-1.0.4";
+
+let packed = null;
+before(() => {
+  if (!have) return;
+  fs.mkdirSync(WORK, { recursive: true });
+  const root = fs.mkdtempSync(path.join(WORK, "pack-"));
+  const r = run(["pack", MANIFEST, root]);
+  assert.equal(r.code, 0, r.out);
+  packed = path.join(root, fs.readdirSync(root)[0]);
+});
+after(() => { if (fs.existsSync(WORK)) fs.rmSync(WORK, { recursive: true, force: true }); });
+
+test("control: the committed manifest verifies", { skip }, () => {
+  const r = run(["verify", MANIFEST]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /^PASS package [0-9a-f]{64}$/m);
+});
+test("control: the packed directory verifies", { skip }, () => {
+  const r = run(["verify", MANIFEST, "--out", packed]);
+  assert.equal(r.code, 0, fails(r.out));
+});
+
+const MANIFEST_CASES = [
+  ["another AppID for hello-world", (m) => { app(m, "hello-world").appId = "ab".repeat(32); }, /FAIL hello-world 1\.0\.4: the derived bundle hashes to the AppID/],
+  ["hello-world named by hookbin's CID", (m) => { app(m, "hello-world").cid = app(m, "hookbin").cid; }, /FAIL hello-world 1\.0\.4: the component is the content its CID names/],
+  ["the record edited but not re-pinned", (m) => { file(m, `${H}/record.json`).from.canonical.runtimeId = "cd".repeat(32); }, /FAIL source apps\/hello-world-1\.0\.4\/record\.json/],
+  ["the record re-pinned to another runtime (consistent forgery)", (m) => {
+     file(m, `${H}/record.json`).from.canonical.runtimeId = "cd".repeat(32); repin(m, [`${H}/record.json`, `${H}/app.bundle`]);
+     app(m, "hello-world").recordSha256 = file(m, `${H}/record.json`).sha256; },
+   /FAIL hello-world 1\.0\.4: the record names this CID, derivation, catalog version and the guest's runtime/],
+  ["the spawn request re-pinned with another policy (consistent forgery)", (m) => {
+     file(m, `${H}/spawn.json`).from.canonical.derive = { ...file(m, `${H}/spawn.json`).from.canonical.derive, policy: { cpuPercent: 100, memMiB: 256, vcpus: 1 } };
+     repin(m, [`${H}/spawn.json`]); }, /FAIL hello-world 1\.0\.4: the spawn request carries exactly this record/],
+  ["the runtime identity says another runtimeId", (m) => { m.runtime.runtimeId = "ef".repeat(32); }, /FAIL runtime identity recomputes to the runtimeId/],
+  ["the IGVM pinned to other bytes", (m) => { file(m, "guest/openhcl-ownguest.bin").sha256 = "01".repeat(32); }, /FAIL source guest\/openhcl-ownguest\.bin/],
+  ["the manager pinned to a commit without backend-hcs.mjs", (m) => {
+     for (const f of m.files.filter((x) => x.role === "control.manager")) f.from.git.commit = "23ea4340868a2dc4ff2556bdbb179f8090dcf325"; },
+   /FAIL source control\/windows\/vbslike\/manager\/backend-hcs\.mjs/],
+  ["hookbin (/2) called servable", (m) => { app(m, "hookbin").servable = true; }, /FAIL hookbin 0\.1\.4: servable only on a derivation the pinned manager serves/],
+  ["the tier claims host exclusion", (m) => { m.tier.hostExcluded = true; }, /FAIL tier states what this box is/],
+  ["the tier claims SNP", (m) => { m.tier.snp = true; }, /FAIL tier states what this box is/],
+  ["a path that leaves the package", (m) => { file(m, "win/check.ps1").path = "../check.ps1"; }, /FAIL manifest shape: .*not a plain relative path/],
+  ["a path twice", (m) => { m.files.push({ ...file(m, "win/check.ps1") }); }, /FAIL manifest shape: .*appears twice/],
+  ["the datapath slot called pinned with no file", (m) => { m.slots[0].state = "pinned"; }, /FAIL slot control\.datapath/],
+  ["hcs-dev boots another initrd than the IGVM's", (m) => { m.profiles["hcs-dev"].initrd = "guest/wsl-kernel"; },
+   /FAIL profile hcs-dev names a kernel, the monitor initrd|FAIL both profiles boot the SAME monitor image/],
+  ["the IGVM recipe reads another initrd than hcs-dev boots", (m) => { m.rebuild.igvm.initrd = "guest/runtime.json"; }, /FAIL both profiles boot the SAME monitor image/],
+  ["no VM worker grant for the IGVM", (m) => { m.vmWorkerRead = []; }, /FAIL vmWorkerRead names the IGVM/],
+  ["a box-only file with nowhere to stage it from", (m) => { delete file(m, "control/vbslike-host.exe").boxReuse; }, /FAIL manifest shape: .*needs boxReuse/],
+];
+for (const [name, mutate, want] of MANIFEST_CASES) {
+  test(`manifest: ${name} -> FAIL at the check that covers it`, { skip }, () => {
+    const m = structuredClone(base); mutate(m);
+    const r = run(["verify", writeManifest(m)]);
+    assert.equal(r.code, 1, `verify PASSED a manifest with ${name}`);
+    assert.match(r.out, want, fails(r.out));
+  });
+}
+
+const monOther = path.join(SOURCES, "test/mon-30d8e344.cpio.gz");
+test("rebuild: another monitor initrd, re-pinned consistently, does not make the pinned IGVM", { skip: skip || (!fs.existsSync(monOther) && "no second initrd") }, () => {
+  const m = structuredClone(base);
+  file(m, "guest/mon.cpio.gz").from.file = monOther; repin(m, ["guest/mon.cpio.gz"]);
+  const r = run(["verify", writeManifest(m), "--rebuild"]);
+  assert.equal(r.code, 1, "an IGVM rebuilt on another initrd was accepted");
+  assert.match(r.out, /FAIL rebuild: the IGVM from its pinned inputs/, fails(r.out));
+  assert.match(r.out, /ok   rebuild: the VTL0 vmlinux/, "the kernel half must still rebuild");
+});
+
+// packed-directory mutations work on a hard-linked copy; a mutated file is REPLACED, never written through the link
+function outCase(name, mutate, want) {
+  test(`out: ${name} -> FAIL`, { skip }, () => {
+    const d = fs.mkdtempSync(path.join(WORK, "out-"));
+    const copy = path.join(d, path.basename(packed));
+    assert.equal(spawnSync("cp", ["-al", packed, copy]).status, 0);
+    const replace = (rel, f) => { const p = path.join(copy, rel), b = fs.readFileSync(p); fs.rmSync(p); fs.writeFileSync(p, f(b)); };
+    mutate(copy, replace);
+    const r = run(["verify", MANIFEST, "--out", copy]);
+    assert.equal(r.code, 1, `verify PASSED a packed directory with ${name}`);
+    assert.match(r.out, want, fails(r.out));
+  });
+}
+outCase("one byte of the app bundle changed", (c, rep) => rep(`${H}/app.bundle`, (b) => { const x = Buffer.from(b); x[x.length - 1] ^= 1; return x; }), /FAIL out: apps\/hello-world-1\.0\.4\/app\.bundle/);
+outCase("a script removed", (c) => fs.rmSync(path.join(c, "win/check.ps1")), /FAIL out: exactly the packable files: missing win\/check\.ps1/);
+outCase("a file the manifest does not name", (c) => fs.writeFileSync(path.join(c, "win/extra.ps1"), "x"), /FAIL out: exactly the packable files: extra win\/extra\.ps1/);
+outCase("MANIFEST.json edited", (c, rep) => rep("MANIFEST.json", (b) => Buffer.concat([b, Buffer.from(" ")])), /FAIL out: MANIFEST\.json is this manifest/);
