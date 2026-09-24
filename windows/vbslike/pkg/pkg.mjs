@@ -342,7 +342,9 @@ async function serveCheck(m, bytes, R) {
 
 // Run each pinned functional test inside the package's own tree: its control/ files, laid out as shipped, with the test
 // placed at its declared path so its relative imports resolve to the PACKAGE's bytes. The expected result is exact:
-// the number of tests, passes and failures, and which cases fail -- a known result, never "whatever is green".
+// the number of tests, passes and failures, which cases fail, and which cases SKIP and why -- a known result, never
+// "whatever is green". A skip not declared is a failure of the pin: a case that silently stops running reads as a pass
+// in the counts alone. todo and cancelled must be zero unless declared.
 function testsCheck(m, bytes, R) {
   for (const t of m.tests || []) {
     const inp = m.inputs.find((i) => i.name === t.input);
@@ -360,11 +362,15 @@ function testsCheck(m, bytes, R) {
       const r = spawnSync(process.execPath, ["--test", "--test-reporter=tap", tp], { cwd: d, encoding: "utf8", timeout: 300000, env });
       const o = r.stdout + r.stderr, n = (k) => Number((new RegExp(`^# ${k} (\\d+)$`, "m").exec(o) || [])[1]);
       const failing = [...o.matchAll(/^not ok (\d+) /gm)].map((x) => Number(x[1]));
+      const skipped = [...o.matchAll(/^ok (\d+) - .* # SKIP (.*)$/gm)].map((x) => ({ case: Number(x[1]), reason: x[2].trim() }));
       const e = t.expect || {};
-      const ok = n("tests") === e.tests && n("pass") === e.pass && n("fail") === e.fail && JSON.stringify(failing) === JSON.stringify(e.failing || []);
-      R.add(ok, `test ${t.name} (${t.owner}) gives exactly its expected result`,
-            `${n("tests")} tests, ${n("pass")} pass, ${n("fail")} fail${failing.length ? ` (failing ${failing.join(", ")})` : ""}`
-            + (ok ? "" : `; expected ${e.tests} / ${e.pass} / ${e.fail}${(e.failing || []).length ? ` (failing ${e.failing.join(", ")})` : ""}`));
+      const ok = n("tests") === e.tests && n("pass") === e.pass && n("fail") === e.fail && JSON.stringify(failing) === JSON.stringify(e.failing || [])
+        && n("skipped") === (e.skipped || []).length && JSON.stringify(skipped) === JSON.stringify(e.skipped || [])
+        && n("todo") === (e.todo || 0) && n("cancelled") === (e.cancelled || 0);
+      const said = (x) => `${x.tests} tests, ${x.pass} pass, ${x.fail} fail${(x.failing || []).length ? ` (failing ${x.failing.join(", ")})` : ""}`
+        + `${(x.skipped || []).length ? `, skipped ${x.skipped.map((k) => `${k.case} "${k.reason}"`).join(", ")}` : ""}${x.todo ? `, todo ${x.todo}` : ""}${x.cancelled ? `, cancelled ${x.cancelled}` : ""}`;
+      const got = { tests: n("tests"), pass: n("pass"), fail: n("fail"), failing, skipped, todo: n("todo"), cancelled: n("cancelled") };
+      R.add(ok, `test ${t.name} (${t.owner}) gives exactly its expected result`, said(got) + (ok ? "" : `; expected ${said(e)}`));
     } finally { fs.rmSync(d, { recursive: true, force: true }); }
   }
 }
