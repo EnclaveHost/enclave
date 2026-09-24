@@ -1,0 +1,460 @@
+// guestd: the per-app SNP guest manager, on the HOST.
+//
+// WHY IT EXISTS. On a metal node every app runs as a process inside ONE node CVM, and the supervisor there drives
+// an app manager over the /vms contract (supervisor.js spawnContainer / stopContainer / listBackendInstances /
+// instanceAlive / vouchTenants). The per-app isolation backend that is measured on this hardware (M4a:
+// isolation/m4/build-app-guest.sh, test-m4.sh) runs each app in its OWN SNP guest - and an SNP guest cannot launch
+// SNP guests, so that backend has to be driven from the host. guestd speaks the same /vms contract, so the seam the
+// supervisor already names ("IMPLEMENT THESE for your CVM launch mechanism") is the only integration point.
+//
+// WHAT IT GUARANTEES, and what it does not:
+//
+//   - A guest is reported "running" only after the M4a client (isolation/m2/client.mjs, the judge the M4a suite
+//     scores with) has ATTESTED it: AMD chain to the pinned root, the TCB floor, the launch measurement PREDICTED
+//     from this very bundle, the AppID in report_data[32:64], and the TLS key bound in report_data[0:32]. Until
+//     then it is "starting"; if that fails it is "failed" and already torn down.
+//
+//   - It refuses, rather than drops, every request feature it cannot honour inside the guest without weakening
+//     the contract: GPU/shielded shares, owner secrets (they would cross this host in plaintext), egress, app
+//     config, extra ports. A silently dropped secret is a leak; a silently dropped config is a wrong app.
+//
+//   - Each guest's end runs through contract.Lifecycle: exactly one reclamation, however it ends (delete, lease
+//     lapse, guest death, failed start), and a delete during startup is honoured when startup finishes.
+//
+//   - The dead-man lease has the wasm-manager's semantics: inert until the first heartbeat, and silence is never
+//     evidence about a tenant.
+//
+//   - It is NOT the trust anchor. It runs on the host, which the design treats as untrusted. The client's own
+//     verification of the guest is what a user relies on; guestd's verification only keeps it from reporting a
+//     guest as running that no client could accept.
+//
+//   - It is DISABLED unless GUESTD_ENABLE=1, and nothing in production starts it.
+package main
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"enclave.host/isolation/contract"
+)
+
+// Launcher is everything guestd does to the machine. The real one shells out to the M4a scripts; tests use a fake.
+type Launcher interface {
+	// Build makes the guest image for a bundle and returns the launch measurement predicted for it.
+	Build(ctx context.Context, bundle, workdir string, vcpus int) (image, measurement string, err error)
+	// Start boots the image as an SNP guest and returns its unit and vsock CID once its front serves.
+	Start(ctx context.Context, image, tag, workdir string, vcpus, memMiB, cpuPct int) (unit string, cid uint32, err error)
+	// Forward exposes the guest's attested TLS endpoint on a host port. stop ends the forwarder.
+	Forward(ctx context.Context, cid uint32, workdir string) (port int, stop func(), err error)
+	// Verify attests the guest over that port against the predicted measurement and the AppID.
+	Verify(ctx context.Context, port int, measurement, appID, workdir string) (verdict string, err error)
+	// Alive reports whether the guest's unit is still active.
+	Alive(unit string) bool
+	// Stop tears the guest down.
+	Stop(tag, workdir string) error
+	// Sweep stops every guest a previous guestd left behind, before this one serves.
+	Sweep() ([]string, error)
+}
+
+// Request is the supervisor's POST /vms body, field for field (supervisor.js spawnContainer). Unknown fields are
+// REFUSED: a field added later is a feature, and a feature this backend does not implement must not vanish.
+type Request struct {
+	Image     string            `json:"image"`
+	Name      string            `json:"name"`
+	CPUShare  float64           `json:"cpuShare"`
+	GPUShare  float64           `json:"gpuShare"`
+	GPUTflops float64           `json:"gpuTflops"`
+	CPUGflops float64           `json:"cpuGflops"`
+	CPUTflops float64           `json:"cpuTflops"`
+	AppPort   int               `json:"appPort"`
+	Ports     []json.RawMessage `json:"ports"`
+	Config    string            `json:"config"`
+	ConfigCid string            `json:"configCid"`
+	Egress    string            `json:"egress"`
+	Secrets   map[string]any    `json:"secrets"`
+	Hosts     string            `json:"hosts"`
+	Shielded  json.RawMessage   `json:"shielded"`
+}
+
+// unsupported names the first feature this backend cannot honour inside the guest, or "".
+func unsupported(r *Request) string {
+	switch {
+	case r.GPUShare > 0 || len(r.Shielded) > 0:
+		return "a GPU share: a per-app SNP guest has no GPU path"
+	case len(r.Secrets) > 0:
+		return "owner secrets: they would cross this host in plaintext, and attested in-guest delivery is not built"
+	case r.Egress != "":
+		return "dedicated egress: not wired into the guest"
+	case r.Config != "" || r.ConfigCid != "":
+		return "app config: not delivered into the guest yet"
+	case len(r.Ports) > 0:
+		return "extra ports: only the attested TLS endpoint is forwarded"
+	}
+	return ""
+}
+
+type vm struct {
+	ID, Name, AppID, Measurement, Status, Error, Verdict string
+	HostPort                                             int
+	Vcpus, MemMiB, CPUPct                                int
+	Created                                              time.Time
+	unit, workdir                                        string
+	stopFwd                                              func()
+	lc                                                   *contract.Lifecycle
+	leaseUntil                                           time.Time
+}
+
+type server struct {
+	L         Launcher
+	Root      string // per-guest workdirs live under here, and nothing else does
+	LeaseTTL  time.Duration
+	Silence   time.Duration
+	Now       func() time.Time
+	Firmware  map[string]any
+	mu        sync.Mutex
+	vms       map[string]*vm
+	lastBeat  time.Time // zero = never heard one: the lease is INERT
+	launching sync.WaitGroup
+}
+
+func newServer(l Launcher, root string) *server {
+	return &server{L: l, Root: root, LeaseTTL: 300 * time.Second, Silence: 180 * time.Second, Now: time.Now,
+		vms: map[string]*vm{}}
+}
+
+func newID() string {
+	b := make([]byte, 4)
+	_, _ = rand.Read(b)
+	return "gd" + hex.EncodeToString(b)
+}
+
+func (s *server) json(w http.ResponseWriter, code int, v any) {
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+// public is what the supervisor sees: GET /vms needs id, name and createdAt (orphanInstancePlan), and
+// instanceAlive reads status.
+func (v *vm) public() map[string]any {
+	m := map[string]any{"id": v.ID, "name": v.Name, "status": v.Status, "createdAt": v.Created.Unix(),
+		"hostPort": v.HostPort, "appId": v.AppID, "measurement": v.Measurement, "vcpus": v.Vcpus,
+		"memMiB": v.MemMiB, "backend": "snp-guest-per-app"}
+	if v.Error != "" {
+		m["error"] = v.Error
+	}
+	if v.Verdict != "" {
+		m["verdict"] = v.Verdict
+	}
+	return m
+}
+
+func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/health":
+		s.mu.Lock()
+		n := len(s.vms)
+		s.mu.Unlock()
+		s.json(w, 200, map[string]any{"ok": true, "backend": "snp-guest-per-app", "guests": n,
+			"firmware": s.Firmware,
+			// what a tenant here does NOT get, so a claim gate can refuse deployments that need it
+			"supports": map[string]bool{"gpu": false, "secrets": false, "egress": false, "config": false,
+				"ports": false, "configCid": false}})
+	case r.Method == http.MethodPost && r.URL.Path == "/vms":
+		s.create(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/vms/lease":
+		s.lease(w, r)
+	case r.Method == http.MethodGet && r.URL.Path == "/vms":
+		s.mu.Lock()
+		out := []map[string]any{}
+		for _, v := range s.vms {
+			out = append(out, v.public())
+		}
+		s.mu.Unlock()
+		sort.Slice(out, func(i, j int) bool { return out[i]["id"].(string) < out[j]["id"].(string) })
+		s.json(w, 200, map[string]any{"vms": out})
+	case strings.HasPrefix(r.URL.Path, "/vms/") && (r.Method == http.MethodGet || r.Method == http.MethodDelete):
+		id := strings.TrimPrefix(r.URL.Path, "/vms/")
+		s.mu.Lock()
+		v := s.vms[id]
+		var pub map[string]any
+		if v != nil {
+			pub = v.public()
+		}
+		s.mu.Unlock()
+		if v == nil {
+			s.json(w, 404, map[string]any{"error": "no such instance"})
+			return
+		}
+		if r.Method == http.MethodGet {
+			s.json(w, 200, pub)
+			return
+		}
+		s.destroy(w, v)
+	default:
+		s.json(w, 404, map[string]any{"error": "not found"})
+	}
+}
+
+func (s *server) create(w http.ResponseWriter, r *http.Request) {
+	var req Request
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&req); err != nil {
+		s.json(w, 400, map[string]any{"error": "bad request: " + err.Error()})
+		return
+	}
+	if req.Name == "" || req.Image == "" {
+		s.json(w, 400, map[string]any{"error": "name and image are required"})
+		return
+	}
+	if why := unsupported(&req); why != "" {
+		s.json(w, 422, map[string]any{"error": "this backend refuses " + why})
+		return
+	}
+	// The bundle is read and checked BEFORE anything is accepted, so a request for an app with no contract
+	// identity is refused synchronously instead of surfacing later as a failed boot.
+	path, err := bundlePath(req.Image)
+	if err != nil {
+		s.json(w, 422, map[string]any{"error": err.Error()})
+		return
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		s.json(w, 422, map[string]any{"error": "reading the bundle: " + err.Error()})
+		return
+	}
+	m, _, err := contract.Parse(raw)
+	if err != nil {
+		s.json(w, 422, map[string]any{"error": "not a contract bundle this backend can name: " + err.Error()})
+		return
+	}
+	id := contract.AppID(raw)
+	pol := contract.EffectivePolicy(&m, contract.Request{})
+	s.mu.Lock()
+	for _, o := range s.vms {
+		if o.Name == req.Name && o.lc.State() != contract.Ended && o.Status != "failed" {
+			s.mu.Unlock()
+			s.json(w, 409, map[string]any{"error": "an instance for this name is live", "id": o.ID})
+			return
+		}
+	}
+	v := &vm{ID: newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting",
+		Vcpus: pol.Vcpus, MemMiB: guestMemMiB(pol.MemMiB), CPUPct: pol.CPUPercent, Created: s.Now(),
+		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL)}
+	v.workdir = filepath.Join(s.Root, v.ID)
+	s.vms[v.ID] = v
+	pub := v.public()
+	s.mu.Unlock()
+	if err := os.MkdirAll(v.workdir, 0o700); err != nil {
+		s.fail(v, fmt.Errorf("workdir: %w", err))
+		s.json(w, 500, map[string]any{"error": err.Error()})
+		return
+	}
+	if err := os.WriteFile(filepath.Join(v.workdir, "app.bundle"), raw, 0o600); err != nil {
+		s.fail(v, fmt.Errorf("staging the bundle: %w", err))
+		s.json(w, 500, map[string]any{"error": err.Error()})
+		return
+	}
+	s.launching.Add(1)
+	go s.launch(v)
+	s.json(w, 201, pub)
+}
+
+// guestMemMiB is the guest's RAM: the bundle's share plus room for the guest kernel and the runtime. M4a boots
+// the same kernel and a 45 MB runtime for every app, so a floor applies whatever the manifest asked for.
+func guestMemMiB(policy int) int {
+	if policy+384 < 1024 {
+		return 1024
+	}
+	return policy + 384
+}
+
+// bundlePath accepts file:// only. A catalog reference (ipfs://<cid>) names a bare component today, and a bare
+// component has no contract identity on this backend: the mapping from a catalog version to a bundle is not built,
+// and inventing one here would invent the AppID a verifier is asked to trust.
+func bundlePath(image string) (string, error) {
+	if p, ok := strings.CutPrefix(image, "file://"); ok && filepath.IsAbs(p) {
+		return p, nil
+	}
+	return "", errors.New("only file:///absolute/path bundles are accepted: the catalog-CID-to-bundle mapping is not built")
+}
+
+func (s *server) set(v *vm, f func()) {
+	s.mu.Lock()
+	f()
+	s.mu.Unlock()
+}
+
+// fail records why a start failed and reclaims whatever it had built. The record stays, status "failed", until
+// the supervisor deletes it - instanceAlive must SEE the failure to act on it.
+func (s *server) fail(v *vm, err error) {
+	v.lc.FailStart()
+	s.set(v, func() { v.Status, v.Error = "failed", err.Error() })
+	v.lc.Reclaim(func() { s.reclaim(v) })
+}
+
+func (s *server) launch(v *vm) {
+	defer s.launching.Done()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancel()
+	image, meas, err := s.L.Build(ctx, filepath.Join(v.workdir, "app.bundle"), v.workdir, v.Vcpus)
+	if err != nil {
+		s.fail(v, fmt.Errorf("build: %w", err))
+		return
+	}
+	s.set(v, func() { v.Measurement = meas })
+	unit, cid, err := s.L.Start(ctx, image, v.ID, v.workdir, v.Vcpus, v.MemMiB, v.CPUPct)
+	s.set(v, func() { v.unit = unit })
+	if err != nil {
+		s.fail(v, fmt.Errorf("start: %w", err))
+		return
+	}
+	port, stop, err := s.L.Forward(ctx, cid, v.workdir)
+	s.set(v, func() { v.stopFwd = stop })
+	if err != nil {
+		s.fail(v, fmt.Errorf("forward: %w", err))
+		return
+	}
+	s.set(v, func() { v.HostPort = port })
+	verdict, err := s.L.Verify(ctx, port, meas, v.AppID, v.workdir)
+	if err != nil {
+		s.fail(v, fmt.Errorf("the guest did not attest as this app: %w", err))
+		return
+	}
+	// A delete that arrived during startup was recorded by the lifecycle and is honoured NOW, before the guest
+	// is ever reported running.
+	if why := v.lc.FinishStart(); why != "" {
+		if v.lc.RequestEnd(why) {
+			v.lc.Reclaim(func() { s.reclaim(v) })
+		}
+		s.remove(v)
+		return
+	}
+	s.set(v, func() { v.Status, v.Verdict = "running", verdict })
+}
+
+// reclaim is what an end DOES. The lifecycle decides when, exactly once.
+func (s *server) reclaim(v *vm) {
+	s.mu.Lock()
+	stop, unit := v.stopFwd, v.unit
+	s.mu.Unlock()
+	if stop != nil {
+		stop()
+	}
+	if unit != "" {
+		_ = s.L.Stop(v.ID, v.workdir)
+	}
+	// the bundle and the image are the tenant's; nothing of them stays on this host
+	_ = os.RemoveAll(v.workdir)
+}
+
+func (s *server) remove(v *vm) {
+	s.mu.Lock()
+	delete(s.vms, v.ID)
+	s.mu.Unlock()
+}
+
+// destroy: 200 once the guest is gone (or already was), 202 while startup still owns it. The supervisor treats
+// only 200/404 as a confirmed stop, so a 202 hands the rest to its reconciler, which finds the record gone.
+func (s *server) destroy(w http.ResponseWriter, v *vm) {
+	if v.lc.RequestEnd("deleted") {
+		v.lc.Reclaim(func() { s.reclaim(v) })
+		s.remove(v)
+		s.json(w, 200, map[string]any{"id": v.ID, "status": "deleted"})
+		return
+	}
+	switch v.lc.State() {
+	case contract.Starting:
+		s.json(w, 202, map[string]any{"id": v.ID, "status": "stopping",
+			"note": "startup owns the guest and will end it when it finishes"})
+	default: // failed, or ended by another path: its resources are already reclaimed
+		v.lc.Reclaim(func() { s.reclaim(v) })
+		s.remove(v)
+		s.json(w, 200, map[string]any{"id": v.ID, "status": "deleted"})
+	}
+}
+
+func (s *server) lease(w http.ResponseWriter, r *http.Request) {
+	var b struct {
+		IDs []string `json:"ids"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&b); err != nil {
+		s.json(w, 400, map[string]any{"error": err.Error()})
+		return
+	}
+	want := map[string]bool{}
+	for _, id := range b.IDs {
+		want[id] = true
+	}
+	now := s.Now()
+	extended, unvouched := []string{}, []map[string]any{}
+	s.mu.Lock()
+	s.lastBeat = now
+	for _, v := range s.vms {
+		if v.Status != "starting" && v.Status != "running" {
+			continue
+		}
+		if want[v.Name] {
+			v.leaseUntil = now.Add(s.LeaseTTL)
+			extended = append(extended, v.Name)
+		} else {
+			unvouched = append(unvouched, map[string]any{"id": v.Name,
+				"expiresIn": v.leaseUntil.Sub(now).Round(100 * time.Millisecond).Seconds()})
+		}
+	}
+	s.mu.Unlock()
+	s.json(w, 200, map[string]any{"extended": extended, "unvouched": unvouched, "ttlSec": s.LeaseTTL.Seconds()})
+}
+
+// leaseExpired is the dead-man decision, with the wasm-manager's rules: nothing is reaped until the supervisor
+// has been heard from at all, and nothing while it has been silent - silence is not evidence about any tenant.
+func (s *server) leaseExpired(now time.Time) []*vm {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lastBeat.IsZero() || now.Sub(s.lastBeat) > s.Silence {
+		return nil
+	}
+	var out []*vm
+	for _, v := range s.vms {
+		if (v.Status == "starting" || v.Status == "running") && v.leaseUntil.Before(now) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// tick runs the two things nobody asks for: guests that died, and leases nobody renewed.
+func (s *server) tick() {
+	s.mu.Lock()
+	var running []*vm
+	for _, v := range s.vms {
+		if v.Status == "running" {
+			running = append(running, v)
+		}
+	}
+	s.mu.Unlock()
+	for _, v := range running {
+		if !s.L.Alive(v.unit) && v.lc.RequestEnd("the guest exited") {
+			s.set(v, func() { v.Status, v.Error = "failed", "the guest exited" })
+			v.lc.Reclaim(func() { s.reclaim(v) })
+		}
+	}
+	for _, v := range s.leaseExpired(s.Now()) {
+		if v.lc.RequestEnd("lease lapsed") {
+			v.lc.Reclaim(func() { s.reclaim(v) })
+			s.remove(v)
+		}
+	}
+}
