@@ -5,7 +5,8 @@
 // the retired key's policies and a rollback under it are refused; the update's release-key rotation and a policy commit in
 // both orders, neither losing the other's fields; and a storm of concurrent updates and policy commits whose final state
 // is fixed by the monotonic rules whatever the interleaving.
-//   run: ENCLAVE_PVM_CLIENT_CLI=<0.2.0 pvm-client.mjs> node --test test/verifier-pvm-client-update.test.mjs
+//   run: ENCLAVE_PVM_CLIENT_CLI=<pinned pvm-client.mjs> [ENCLAVE_PVM_CLIENT_F2_CLI=<0.2.0 pvm-client.mjs>] node --test test/verifier-pvm-client-update.test.mjs
+// Lab versions are above the pinned client's own (0.2.1 at e7a2badc): a manifest not newer than it is refused by design.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -33,7 +34,7 @@ test("a release-signed, policy-countersigned manifest stages its exact bytes bes
   const r = await update(d, "u1").done; assert.equal(r.status, 0, r.out + r.err); assert.equal(r.update?.version, "0.3.0");
   const s = staged(d); assert.equal(s?.version, "0.3.0"); assert.equal(s?.bytesMatch, true); assert.equal(s?.sha256, sha256(bytes));
   assert.equal(committedState(CLI, tmp, d.state)?.staged?.version, "0.3.0");
-  fs.writeFileSync(s.path, Buffer.concat([bytes, Buffer.from("\n// tampered\n")]));   // the staged bytes changed on disk
+  fs.rmSync(s.path); fs.writeFileSync(s.path, Buffer.concat([bytes, Buffer.from("\n// tampered\n")]));   // the staged file replaced on disk
   assert.equal(staged(d)?.bytesMatch, false, "`staged` reports bytes that no longer match the committed digest");
 });
 test("one key alone cannot ship code: a wrong countersignature, or a stranger's release key, is refused and nothing is staged", { skip }, async () => {
@@ -44,23 +45,23 @@ test("one key alone cannot ship code: a wrong countersignature, or a stranger's 
   const r1 = await update(d, "u2").done; assert.notEqual(r1.status, 0); assert.match(r1.update?.reasons?.[0] || "", /countersign/);
   L.manifests.set("u2", signedManifest(K, "0.3.0", bytes, { releaseKey: K.other }));
   const r2 = await update(d, "u2").done; assert.notEqual(r2.status, 0); assert.match(r2.update?.reasons?.[0] || "", /release key this client's anchor does not name/);
-  L.manifests.set("u2", signedManifest(K, "0.2.0", fakeArtifact("0.2.0"))); L.artifacts.set("u2", { bytes: fakeArtifact("0.2.0") });
-  const r3 = await update(d, "u2").done; assert.notEqual(r3.status, 0); assert.match(r3.update?.reasons?.[0] || "", /not newer than the installed 0\.2\.0/);
+  L.manifests.set("u2", signedManifest(K, "0.2.1", fakeArtifact("0.2.1"))); L.artifacts.set("u2", { bytes: fakeArtifact("0.2.1") });
+  const r3 = await update(d, "u2").done; assert.notEqual(r3.status, 0); assert.match(r3.update?.reasons?.[0] || "", /not newer than the installed 0\.2\.1/);
   assert.equal(staged(d), null); assert.deepEqual(fs.readdirSync(d.install), []);
 });
 test("two stagers, both completion orders: the older version can never replace the newer, the newer replaces the older", { skip }, async () => {
   const d = dirFor("u3"); install(CLI, tmp, d.state, K);
-  put("u3-old", "0.2.1", { hold: true }); put("u3-new", "0.3.0");
+  put("u3-old", "0.2.2", { hold: true }); const newBytes = put("u3-new", "0.3.0");
   const older = update(d, "u3-old"); await L.artifactRequested("u3-old");             // the older download is held
   const r = await update(d, "u3-new").done; assert.equal(r.status, 0, r.out);          // the newer completes first
   L.release("artifact:u3-old"); const ro = await older.done;
-  assert.notEqual(ro.status, 0); assert.match(ro.update?.reasons?.[0] || "", /update 0\.3\.0 is already staged: 0\.2\.1 cannot replace it/);
+  assert.notEqual(ro.status, 0); assert.match(ro.update?.reasons?.[0] || "", /update 0\.3\.0 is already staged: 0\.2\.2 cannot replace it/);
   assert.equal(staged(d)?.version, "0.3.0"); assert.equal(staged(d)?.bytesMatch, true);
-  // observed (reported to the owner): the refused stager's verified bytes stay beside the client under their own name
-  assert.equal(fs.existsSync(path.join(d.install, "pvm-client-0.2.1.mjs")), true, "the refused stager's file remains on disk (not staged)");
-  const d2 = dirFor("u3b"); install(CLI, tmp, d2.state, K); put("u3b-old", "0.2.1"); put("u3b-new", "0.3.0", { hold: true });
+  // F1 (since 0.2.1): a stager refused on the newest state before publishing leaves nothing; only the staged file is there
+  assert.deepEqual(fs.readdirSync(d.install), [`pvm-client-0.3.0-${sha256(newBytes)}.mjs`], "the refused sequential stager published nothing");
+  const d2 = dirFor("u3b"); install(CLI, tmp, d2.state, K); put("u3b-old", "0.2.2"); put("u3b-new", "0.3.0", { hold: true });
   const newer = update(d2, "u3b-new"); await L.artifactRequested("u3b-new");
-  assert.equal((await update(d2, "u3b-old").done).status, 0); assert.equal(staged(d2)?.version, "0.2.1");
+  assert.equal((await update(d2, "u3b-old").done).status, 0); assert.equal(staged(d2)?.version, "0.2.2");
   L.release("artifact:u3b-new"); assert.equal((await newer.done).status, 0); assert.equal(staged(d2)?.version, "0.3.0");
 });
 test("policy-key rotation: only a signed nextPolicyKey moves the anchor; afterwards the retired key's policies and a rollback under it are refused", { skip }, async () => {
@@ -109,16 +110,62 @@ test("a storm of concurrent updates and policy commits: whatever the interleavin
   for (const [i, r] of rr.entries()) { if (r.committed) { commits++; assert.equal(r.committed.serial, serials[i]); } else assert.match(r.result?.refused || "", /a rollback, refused/, `run ${serials[i]}: ${r.out}`); }
   assert.equal(st.gen, 1 + commits, "one generation per successful commit, none lost, none duplicated");
 });
-// KNOWN FINDING (reported to the owner, 2026-09-24): stageUpdate writes the verified bytes to pvm-client-<version>.mjs
-// BEFORE the commit decides, so a second manifest for the SAME version with other bytes (both signatures present: a
-// re-signed build) is refused by the monotonic rule yet has already replaced the staged file, and `staged` then reports
-// bytesMatch false. The required behaviour asserted here is that a refused stager leaves the staged bytes untouched; the
-// case is marked todo so the strict command reports it as a known finding instead of hiding or failing on it.
-test("a refused same-version re-stage must leave the staged bytes untouched", { skip, todo: "reported to the owner: the refused stager's bytes replace the staged file" }, async () => {
+// FINDING F2 (verifier/integration/findings.json; raised with the pVM owner 2026-09-24): stageUpdate writes the verified
+// bytes to pvm-client-<version>.mjs BEFORE the commit decides, so a second manifest for the SAME version with other bytes
+// (both signatures present: a re-signed build) is refused by the monotonic rule yet has already replaced the staged file,
+// and `staged` then reports bytesMatch false. The three cases below assert the REQUIRED behaviour (the state's digest and
+// the file on disk never disagree; a refused stager leaves the staged bytes untouched) and carry NO exemption: on the
+// revision the finding was found on they fail and the strict command reports NOT ACCEPTED (exit 3), never a pass; on a
+// revision that fixes it they must pass. The last case is the regression fixture: against the pinned pre-fix build (pin
+// pvm-client-dist-f2) the defect must still reproduce, so the finding stays replayable after the main pin moves.
+const F2 = process.env.ENCLAVE_PVM_CLIENT_F2_CLI || "";
+if (STRICT && !(F2 && fs.existsSync(F2))) throw new Error("strict integration: ENCLAVE_PVM_CLIENT_F2_CLI (the pre-fix build finding F2 reproduces on, pin pvm-client-dist-f2) is missing");
+const skipF2 = !(F2 && fs.existsSync(F2)) && !STRICT && "pre-fix build absent (pin pvm-client-dist-f2)";
+const otherBytes = (v, tag) => Buffer.from(`/*! enclave-pvm-client ${v} (LAB, ${tag}) */\nexport const CLIENT_VERSION = ${JSON.stringify(v)};\n`);
+const putBytes = (name, version, bytes, hold = false) => { L.artifacts.set(name, { bytes, hold }); L.manifests.set(name, signedManifest(K, version, bytes)); return bytes; };
+const updateWith = (cli, d, name) => cliRun(cli, tmp, ["update", "--manifest", `${L.base}/manifest/${name}`, "--artifact", `${L.base}/artifact/${name}`, "--state", d.state, "--install-dir", d.install]);
+const stagedWith = (cli, d) => cliSync(cli, tmp, ["staged", "--state", d.state, "--install-dir", d.install]).lines.find((l) => "staged" in l)?.staged ?? null;
+
+test("a refused same-version re-stage must leave the staged bytes untouched", { skip }, async () => {   // sequential
   const d = dirFor("u7"); install(CLI, tmp, d.state, K);
-  put("u7-a", "0.3.0"); const r1 = await update(d, "u7-a").done; assert.equal(r1.status, 0); assert.equal(staged(d)?.bytesMatch, true);
-  const other = Buffer.from(`/*! enclave-pvm-client 0.3.0 (LAB, other bytes) */\nexport const CLIENT_VERSION = "0.3.0";\n`);
-  L.artifacts.set("u7-b", { bytes: other }); L.manifests.set("u7-b", signedManifest(K, "0.3.0", other));
+  const a = put("u7-a", "0.3.0"); const r1 = await update(d, "u7-a").done; assert.equal(r1.status, 0); assert.equal(staged(d)?.bytesMatch, true);
+  putBytes("u7-b", "0.3.0", otherBytes("0.3.0", "other bytes"));
   const r2 = await update(d, "u7-b").done; assert.notEqual(r2.status, 0); assert.match(r2.update?.reasons?.[0] || "", /already staged: 0\.3\.0 cannot replace it/);
   assert.equal(staged(d)?.bytesMatch, true, "the refused stager must not replace the staged file's bytes");
+  assert.equal(staged(d)?.sha256, sha256(a));
+});
+test("concurrent same-version stagers with other bytes: the state's digest and the file on disk never disagree, whichever completes last", { skip }, async () => {
+  const d = dirFor("u8"); install(CLI, tmp, d.state, K);
+  putBytes("u8-a", "0.3.0", otherBytes("0.3.0", "a"), true); const b = putBytes("u8-b", "0.3.0", otherBytes("0.3.0", "b"));
+  const A = update(d, "u8-a"); await L.artifactRequested("u8-a");                       // A's download is held
+  assert.equal((await update(d, "u8-b").done).status, 0); assert.equal(staged(d)?.sha256, sha256(b));
+  L.release("artifact:u8-a"); const ra = await A.done; assert.notEqual(ra.status, 0);   // A loses the commit
+  let s = staged(d); assert.equal(s?.sha256, sha256(b)); assert.equal(s?.bytesMatch, true, "the loser's bytes must not replace the winner's file");
+  // a burst: six same-version stagers with different bytes at once, no holds: exactly one wins and the file holds its bytes
+  const d2 = dirFor("u8b"); install(CLI, tmp, d2.state, K);
+  const names = [0, 1, 2, 3, 4, 5].map((i) => { putBytes(`u8b-${i}`, "0.3.0", otherBytes("0.3.0", `burst ${i}`)); return `u8b-${i}`; });
+  const rs = await Promise.all(names.map((n) => update(d2, n).done));
+  assert.equal(rs.filter((r) => r.status === 0).length, 1, "exactly one same-version stager wins");
+  for (const r of rs) if (r.status !== 0) assert.match(r.update?.reasons?.[0] || "", /already staged: 0\.3\.0 cannot replace it/);
+  s = stagedWith(CLI, d2); assert.equal(s?.bytesMatch, true, "the file on disk must be the winner's bytes, whatever the completion order");
+});
+test("the same artifact again (same version, bytes and source commit) is idempotent: success, no new generation, the staged file untouched; the same bytes under another source commit are refused", { skip }, async () => {
+  const d = dirFor("u9"); install(CLI, tmp, d.state, K);
+  const a = put("u9-a", "0.3.0"); assert.equal((await update(d, "u9-a").done).status, 0);
+  const before = committedState(CLI, tmp, d.state), st0 = fs.statSync(staged(d).path);
+  putBytes("u9-b", "0.3.0", a); const r = await update(d, "u9-b").done;
+  assert.equal(r.status, 0, r.out); assert.equal(r.update?.ok, true); assert.equal(r.update?.already, true, "the same artifact again is reported as already staged");
+  const after = committedState(CLI, tmp, d.state), st1 = fs.statSync(staged(d).path);
+  assert.equal(after.gen, before.gen, "no new generation"); assert.deepEqual([st1.ino, st1.mtimeMs, st1.size], [st0.ino, st0.mtimeMs, st0.size], "the staged file is untouched");
+  assert.equal(staged(d)?.bytesMatch, true); assert.equal(staged(d)?.sha256, sha256(a));
+  L.artifacts.set("u9-c", { bytes: a }); L.manifests.set("u9-c", signedManifest(K, "0.3.0", a, { sourceCommit: "1".repeat(40) }));
+  const rc = await update(d, "u9-c").done; assert.notEqual(rc.status, 0); assert.match(rc.update?.reasons?.[0] || "", /already staged: 0\.3\.0 cannot replace it/);
+  assert.equal(committedState(CLI, tmp, d.state).gen, before.gen); assert.equal(staged(d)?.bytesMatch, true);
+});
+test("regression fixture: on the pre-fix build (pin pvm-client-dist-f2) the refused same-version stager DOES replace the staged bytes", { skip: skipF2 }, async () => {
+  const d = dirFor("f2"); install(F2, tmp, d.state, K);
+  put("f2-a", "0.3.0"); assert.equal((await updateWith(F2, d, "f2-a").done).status, 0); assert.equal(stagedWith(F2, d)?.bytesMatch, true);
+  putBytes("f2-b", "0.3.0", otherBytes("0.3.0", "other bytes"));
+  const r = await updateWith(F2, d, "f2-b").done; assert.notEqual(r.status, 0); assert.match(r.update?.reasons?.[0] || "", /already staged/);
+  assert.equal(stagedWith(F2, d)?.bytesMatch, false, "finding F2 no longer reproduces on the recorded revision: close it in verifier/integration/findings.json");
 });
