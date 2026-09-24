@@ -19,6 +19,8 @@ import { createHash, generateKeyPairSync } from "node:crypto";
 import { WebSocket } from "ws";
 import { createTunnelHub } from "../relay/tunnel.js";
 import { verifyQuote } from "../relay/snp-verify.mjs";
+import { pvmCpuPolicy, PVM_CPU_CAPS_DOMAIN } from "../relay/pvm-cpu-tier.mjs";
+import { sign as edSign } from "node:crypto";
 import { AVF_PAD_FORMAT, avfPadBinding } from "../relay/avf-binding.mjs";
 import { avfPolicyFromEnv } from "../relay/avf-policy.mjs";
 import fs from "node:fs";
@@ -729,4 +731,104 @@ test("tunnel: a minimum-TCB policy it cannot evaluate, or cannot parse, refuses 
       assert.equal(h.hub.count(), 0);
     } finally { await h.close(); }
   }
+});
+
+// ---------- pVM CPU tier: one signed capability report per AVF attach --------
+// The tier is the HUB's verdict (relay/pvm-cpu-tier.mjs admitPvmCpu): a phone whose
+// protected-VM chain verified sends ONE {t:"caps"} frame, signed by the attested
+// transport key over this attach's nonce; the hub sets tier "pvm-cpu" only when
+// the verifier says eligible. A bad signature refuses (capsRefused, no tier), a
+// second frame is ignored, a token-attached box's frame does nothing, and a hub
+// without a pvm-cpu policy refuses every report.
+test("pvm-cpu: a signed capability report over the attach nonce sets the hub's tier; refusals, replays and token boxes do not",
+     { skip: !haveOpenssl && "openssl not installed" }, async () => {
+  const dir = tmpdir("pvm-tunnel-");
+  const ca = makeCa(dir);
+  const env = { METAL_AVF_CODE_HASHES: CODE.toString("hex"), METAL_AVF_AUTHORITY_HASHES: AUTH.toString("hex") };
+  const MODEL = "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", SELF = "d".repeat(64);
+  const policy = pvmCpuPolicy({ codeHashes: [CODE.toString("hex")], authorityHashes: [AUTH.toString("hex")],
+    models: [{ sha256: MODEL, name: "gemma-4-e2b-q4_0", bytes: 3360161216, selftestSha256: SELF, minDecodeTokS: 10, minMemMib: 6144 }] });
+  const avf = { ...avfPolicyFromEnv(env), rootPins: [ca.rootPin] };
+  const h = await hubServer({ attest: { avf, pvmCpu: policy } });
+  const hNoPolicy = await hubServer({ attest: { avf } });
+  const attach = async (hub, name, key) => {
+    const r = await dial(hub.url, { "x-metal-name": name, "x-metal-attest": "1" });
+    assert.equal(r.state, "open");
+    await settle();
+    const nonce = Buffer.from(r.frames.find((f) => f.t === "challenge").nonce, "base64");
+    const transport = key.publicKey.export({ type: "spki", format: "der" });
+    const bound = Buffer.concat([transport, nonce]);
+    const leaf = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(bound).digest(), code: CODE }) });
+    const ev = { chain: [leaf.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), signature: leaf.sign(bound).toString("base64") };
+    r.ws.send(JSON.stringify({ t: "attest", rad: { format: "android-avf-pvm/v1", body: Buffer.from(JSON.stringify(ev)).toString("base64"), transportKey: transport.toString("base64") } }));
+    const res = await waitResult(r.frames);
+    assert.equal(res?.ok, true, res?.reason);
+    return { ws: r.ws, frames: r.frames, nonce };
+  };
+  const report = (nonce, over = {}) => Buffer.from(JSON.stringify({ v: 1, tier: "pvm-cpu", nonce: nonce.toString("hex"), mode: "protected",
+    model: { sha256: MODEL, bytes: 3360161216, ctx: 4096 }, vm: { threads: 6, mem_mib: 7168 },
+    selftest: { id: "pvm-cpu-selftest-v1", tokens: 64, prefill_tok_s: 108.2, decode_tok_s: 13.9, output_sha256: SELF },
+    vm_ms: 200000, attach_vm_ms: 120000, device: "Pixel 10 Pro XL", ...over }));
+  const caps = (ws, bytes, key) => ws.send(JSON.stringify({ t: "caps", report: bytes.toString("base64"),
+    sig: edSign(null, Buffer.concat([Buffer.from(PVM_CPU_CAPS_DOMAIN), bytes]), key.privateKey).toString("hex") }));
+  const capsResult = async (frames) => { for (let i = 0; i < 40; i++) { const f = frames.find((x) => x.t === "caps-result"); if (f) return f; await settle(); } return null; };
+  const row = (hub, name) => hub.hub.origins().find((o) => o.name === name);
+  try {
+    // the good phone: verified attach, then a report signed by its attested key over its nonce
+    const k1 = generateKeyPairSync("ed25519");
+    const a = await attach(h, "pixel-a", k1);
+    assert.equal(row(h, "pixel-a").mode, "avf"); assert.equal(row(h, "pixel-a").tier, undefined, "no tier before a report");
+    caps(a.ws, report(a.nonce), k1);
+    const r1 = await capsResult(a.frames);
+    assert.equal(r1?.ok, true, (r1?.reasons || []).join(" | "));
+    assert.equal(row(h, "pixel-a").tier, "pvm-cpu", "the hub set the tier");
+    assert.equal(row(h, "pixel-a").pvmCpu.model, "gemma-4-e2b-q4_0", "the row carries the model name");
+    assert.equal(row(h, "pixel-a").pvmCpu.decodeTokS, undefined, "and no measured rate");
+    // a second frame, even a worse one, changes nothing: one report per attach
+    caps(a.ws, report(a.nonce, { mode: "dev" }), k1);
+    await settle(); await settle();
+    assert.equal(row(h, "pixel-a").tier, "pvm-cpu");
+    assert.equal(a.frames.filter((x) => x.t === "caps-result").length, 1, "the second frame is ignored, not re-judged");
+    // a hello afterwards cannot touch the tier or the mode
+    a.ws.send(JSON.stringify({ t: "hello", mode: "snp", tier: "pvm-cpu", publicUrl: "https://api.enclave.host/t/pixel-a" }));
+    await settle();
+    assert.equal(row(h, "pixel-a").mode, "avf"); assert.equal(row(h, "pixel-a").tier, "pvm-cpu");
+    a.ws.close();
+
+    // a report signed by some other key: refused, no tier, the row says a report was refused
+    const k2 = generateKeyPairSync("ed25519"), other = generateKeyPairSync("ed25519");
+    const b = await attach(h, "pixel-b", k2);
+    caps(b.ws, report(b.nonce), other);
+    const r2 = await capsResult(b.frames);
+    assert.equal(r2?.ok, false); assert.ok(r2.reasons.some((x) => /not signed by the attested transport key/.test(x)), r2.reasons.join(" | "));
+    assert.equal(row(h, "pixel-b").tier, undefined); assert.equal(row(h, "pixel-b").capsRefused, true);
+    b.ws.close();
+
+    // a report over another attach's nonce: refused (a replayed or foreign report)
+    const k3 = generateKeyPairSync("ed25519");
+    const c = await attach(h, "pixel-c", k3);
+    caps(c.ws, report(Buffer.alloc(32, 5)), k3);
+    const r3 = await capsResult(c.frames);
+    assert.equal(r3?.ok, false); assert.ok(r3.reasons.some((x) => /not this attach's nonce/.test(x)), r3.reasons.join(" | "));
+    assert.equal(row(h, "pixel-c").tier, undefined);
+    c.ws.close();
+
+    // a hub with no pvm-cpu policy refuses every report, however good
+    const k4 = generateKeyPairSync("ed25519");
+    const d = await attach(hNoPolicy, "pixel-d", k4);
+    caps(d.ws, report(d.nonce), k4);
+    const r4 = await capsResult(d.frames);
+    assert.equal(r4?.ok, false); assert.ok(r4.reasons.some((x) => /not configured/.test(x)), r4.reasons.join(" | "));
+    assert.equal(row(hNoPolicy, "pixel-d").tier, undefined);
+    d.ws.close();
+
+    // a token-attached box has no attach verdict: its caps frame does nothing at all
+    const tok = await dial(h.url, { "x-metal-name": "metal0", "x-metal-token": TOKEN });
+    await settle();
+    tok.ws.send(JSON.stringify({ t: "caps", report: report(Buffer.alloc(32, 1)).toString("base64"), sig: "00".repeat(64) }));
+    await settle(); await settle();
+    assert.equal(tok.frames.some((x) => x.t === "caps-result"), false, "no verdict for a box that never attested");
+    assert.equal(row(h, "metal0").mode, ""); assert.equal(row(h, "metal0").tier, undefined);
+    tok.ws.close();
+  } finally { await h.close(); await hNoPolicy.close(); }
 });

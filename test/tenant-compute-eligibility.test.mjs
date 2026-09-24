@@ -139,3 +139,27 @@ test("the consumer node's market scope and claimEnabled are gated on the isolati
   assert.match(src, /claimEnabled: this\.meetsIsolationContract\(\) && ready,/, "claimEnabled needs the contract");
   assert.match(read("windows/node/agent.mjs"), /host\.relayTier = tier;/, "the agent hands the relay's verdict to the host");
 });
+
+test("the pVM CPU tier is the relay's row.tier, never the phone's own word, and never app-compute eligibility", () => {
+  // verified chain, no admitted report: a protected VM, not in the tier
+  let t = teeCpuOf({ tunnel: true, mode: "avf", availability: { tier: "pvm-cpu" } });
+  assert.equal(t.real, true); assert.equal(t.phone, false); assert.equal(t.phoneUntiered, true); assert.match(t.note, /no pVM CPU capability report admitted/);
+  // the hub admitted a report: in the tier, amber
+  t = teeCpuOf({ tunnel: true, mode: "avf", tier: "pvm-cpu", availability: {} });
+  assert.equal(t.phone, true); assert.equal(t.phoneUntiered, false); assert.match(t.note, /pVM CPU/);
+  // and in neither case is the phone sellable app capacity
+  assert.equal(computeEligibleOf(row("pixel", { ...BOX, claimEnabled: true }, { tunnel: true, mode: "avf", tier: "pvm-cpu" })), false);
+  assert.ok(pickEnclaveFor(APP, [row("pixel", { ...BOX, claimEnabled: true }, { tunnel: true, mode: "avf", tier: "pvm-cpu", serving: true })]).none);
+  // a dialed row cannot be a phone at all
+  t = teeCpuOf({ tier: "pvm-cpu", availability: { teeCpu: "android-avf-pvm" } });
+  assert.equal(t.phone, false);
+  // pinned in source: the relay's lane is mode avf + hub tier, and computeEligible does not read the tier
+  const src = read("relay/api-relay.js");
+  const lane = between(src, "function inferenceLaneOf(e)", "\n}\n", "relay/api-relay.js");
+  assert.match(lane, /String\(e\.mode \|\| ""\) === "avf" && e\.tier === PVM_CPU_TIER/);
+  const hub = read("relay/tunnel.js");
+  const capsHandler = between(hub, 'if (f.t === "caps") {', "return;\n      }", "relay/tunnel.js");
+  assert.match(capsHandler, /if \(!t\.pvm \|\| t\.capsSeen\) return;/, "one report per AVF attach, none for anything else");
+  assert.match(capsHandler, /t\.tier = PVM_CPU_TIER;/, "the hub, not the phone, sets the tier");
+  assert.doesNotMatch(capsHandler, /f\.tier|f\.device|f\.model/, "nothing the frame says about itself is read past the verifier");
+});

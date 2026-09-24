@@ -94,6 +94,7 @@ import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDep
 import { handleCerts, initCerts } from "./certs.js";
 import { createTunnelHub } from "./tunnel.js";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
+import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { vbsPolicyFromEnv } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir } from "./store.js";
@@ -142,6 +143,10 @@ const METAL_MIN_TCB = (() => {
 // METAL_AVF_PAD_CODE_HASHES. Either needs METAL_AVF_AUTHORITY_HASHES. All are
 // empty by default. The verifier pins Google's roots itself.
 const AVF_ATTEST = avfPolicyFromEnv(process.env);
+// The pVM CPU tier's admission policy (PVM_CPU_CODE_HASHES / PVM_CPU_AUTHORITY_HASHES /
+// PVM_CPU_MODELS): only meaningful beside AVF attach, and null means every capability
+// report is refused, which is the fail-closed default.
+const PVM_CPU_POLICY = AVF_ATTEST ? pvmCpuPolicyFromEnv(process.env) : null;
 // Windows consumer nodes running a VBS enclave (windows/vbs/EVIDENCE.md): the
 // enclave builds admitted (sha256(FamilyId||ImageId||AuthorId)), minimum SVN,
 // pinned PCR 0 per firmware, the pinned TPM EK roots, and the lab-only
@@ -196,7 +201,7 @@ function padsRoutes() {
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
   attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST || VBS_ATTEST
-    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(VBS_ATTEST ? { vbs: VBS_ATTEST } : {}) }
+    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(PVM_CPU_POLICY ? { pvmCpu: PVM_CPU_POLICY } : {}), ...(VBS_ATTEST ? { vbs: VBS_ATTEST } : {}) }
     : null,
   operatorFor: tunnelNameOwner,
   // TUNNEL_OPERATOR_ATTACH=1 — let a box prove its tunnel name with the operator
@@ -1388,6 +1393,13 @@ function computeEligible(e) {
   if (e.tunnel) return TENANT_COMPUTE_MODES.has(String(e.mode || ""));
   return CONFIDENTIAL_CPU.has(String(e.availability?.teeCpu || ""));
 }
+// The pVM CPU tier is its own INFERENCE lane, not app hosting: a phone the hub tiered
+// "pvm-cpu" (one admitted capability report, relay/pvm-cpu-tier.mjs) serves the platform's
+// engine on its owner's device. It is never in servingEnclaves (computeEligible stays
+// false for mode "avf"), and the tier comes from the hub's row, never from the box.
+function inferenceLaneOf(e) {
+  return e && e.tunnel && String(e.mode || "") === "avf" && e.tier === PVM_CPU_TIER ? PVM_CPU_TIER : null;
+}
 // Why a row is NOT eligible, for the fleet panel to say in words (null when it is).
 function ineligibleReason(e) {
   if (!e || e.relay) return "carries traffic only";
@@ -1395,7 +1407,9 @@ function ineligibleReason(e) {
   if (e.tunnel) {
     const m = String(e.mode || "");
     if (m === "vbs") return "verified enclave report, but the app-zone key and traffic run through the host: the isolation contract is not met";
-    if (m === "avf") return "verified protected-VM chain; serves its own inference, not app deployments";
+    if (m === "avf") return inferenceLaneOf(e) ? "pVM CPU tier: an inference lane on its owner's phone, not app deployments"
+                         : e.capsRefused ? "verified protected-VM chain; its pVM CPU capability report was refused"
+                         : "verified protected-VM chain; no pVM CPU capability report admitted yet";
     return "attached on a token, no hardware quote verified";
   }
   const t = String(e.availability?.teeCpu || "");
@@ -2169,7 +2183,8 @@ function handleRequest(req, res) {
     // panel prints. Derived from verified evidence, never from the row's own
     // teeCpu / tier / claimEnabled strings.
     const rows = live.map((e) => ({ ...e, serving: servingSet.has(e), eligible: computeEligible(e),
-                                    ...(computeEligible(e) ? {} : { ineligible: ineligibleReason(e) }) }));
+                                    ...(computeEligible(e) ? {} : { ineligible: ineligibleReason(e) }),
+                                    ...(inferenceLaneOf(e) ? { lane: inferenceLaneOf(e) } : {}) }));
     const agg = {
       enclaves: live.length, serving: serving.length,
       totalGpuShareFree: Math.round(serving.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,

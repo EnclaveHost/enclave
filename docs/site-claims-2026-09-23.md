@@ -50,7 +50,7 @@ what has been demonstrated.
 | The consumer machine and the partition lab build | architecture #progress | `windows/vbs/REPORT.md`, `windows/PARITY.md`, `windows/vbslike/README.md` (30 lab checks; `hostExcluded:false`; launcher-signed) | "does not meet the contract and takes no tenant work"; "lab evidence only" |
 | Linux VBS-equivalent is a design | architecture #contract, #progress | `isolation/DESIGN.md` T0+ row ("proposal only"; nothing upstream on x86) | |
 | Shielded inference | architecture #shielded, #progress, README table | `shielded/worker-cuda/worker.cu`, `wasm/ggml-shielded/*`, `docs/shielded-inference.md:3` ("nothing on the fleet"); the live consumer row's `shielded` block | no numbers published; only chat decode measured |
-| The pVM CPU tier (amber "pvm cpu") | architecture #pvm-cpu, #progress, fleet badge | owner's direction 2026-09-23; pVM session (enclave-53): TPU closed at 3d7b64de (2.4 to 2.6 tok/s measured against a 15 tok/s floor); `relay/avf-verify.mjs` verifies the protected-VM chain at attach | future tense; no Pixel 11 runtime validation or availability claimed; "there is no accelerator tier"; a phone row is never sellable app capacity (`computeEligibleOf`) |
+| The pVM CPU tier (amber "pvm cpu") | architecture #pvm-cpu, #progress, fleet badge | owner's direction 2026-09-23; pVM session (enclave-53): TPU closed at 3d7b64de (2.4 to 2.6 tok/s measured against a 15 tok/s floor); `relay/avf-verify.mjs` verifies the protected-VM chain at attach; `relay/pvm-cpu-tier.mjs` (785ef92a) judges the signed capability report; hub wiring on this branch (`relay/tunnel.js` caps frame, `relay/api-relay.js inferenceLaneOf`) | future tense; no Pixel 11 runtime validation or availability claimed; "there is no accelerator tier"; a phone row is never sellable app capacity (`computeEligibleOf`); the badge is amber only when the HUB tiered the row, a verified-but-unreported phone reads plain "pvm" |
 | Verification chain | index #attest, architecture #verify | `site/js/core/verify.js` (same-origin verifier, Sigstore), `supervisor.js` attestation endpoints, `metal/` reproducible image | the API self-check is a labeled diagnostic |
 | Independent infrastructure: what is on public contracts vs on company servers | architecture #independent | contracts, `wasm/ipfs_fetch.py`, `relay/api-relay.js`, `relay/relay.js`, `relay/tunnel.js`, `relay/certs.js`, `relay/billing.js`, `docs/autoscale.md`, `METAL_ALLOWED_MEASUREMENTS` (api-relay.js:121-127) | the decentralization direction is "proposals under discussion"; existing payments and contracts are not replaced |
 | Live wasmtime and WASIp3 pin advice | develop guide | `wasm/Dockerfile.wasm:18` pins the toolchain build of wasmtime commit `ac077297` (repinned 2026-09-14), workspace `Cargo.toml` 49.0.0, WASIp3 WIT `wasi:http@0.3.0` final; crates.io: wasip3 0.7.0+ target `+wasi-0.3.0`, 0.6.0 targets the March rc | residual: the chapter's Rust sample was not recompiled against 0.7 |
@@ -87,5 +87,11 @@ Remaining gaps, stated rather than closed:
    redeployed, the relay-side rule (mode `vbs` not eligible) is what keeps it out of the serving
    set. Its owner-only scope keeps working either way.
 4. **The develop guide's WASIp3 Rust sample** was not recompiled against the wasip3 0.7 line.
-5. **The pVM CPU tier** has no capability-based admission branch yet; the pVM session will supply
-   the verifier module and tests, and the branch is added to `computeEligible` on this branch.
+5. **The pVM CPU tier's admission is wired but nothing is admitted yet.** The pVM session's verifier
+   (`relay/pvm-cpu-tier.mjs`, 785ef92a) is called by the hub on one `{t:"caps", report, sig}` frame
+   per AVF attach (`relay/tunnel.js`); an eligible verdict sets the hub-owned tier `pvm-cpu`, the
+   relay exposes it as `lane: "pvm-cpu"` (an inference lane, never app-compute eligibility), and the
+   fleet panel shows the amber `pvm cpu` badge only for hub-tiered rows. The VM does not emit the
+   caps frame yet, and no relay carries a `PVM_CPU_*` policy yet, so every report is refused by the
+   verifier's first rule. Tested in `test/tunnel.test.mjs` (admit / bad signature / foreign nonce /
+   no policy / token box) and `test/tenant-compute-eligibility.test.mjs`.
