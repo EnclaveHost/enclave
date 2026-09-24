@@ -1,4 +1,4 @@
-/*! enclave-pvm-client 0.3.0 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
+/*! enclave-pvm-client 0.4.0 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
 Contains @hpke/core 1.9.0 and @hpke/common 1.10.1 (MIT):
 @hpke/core 1.9.0:
 MIT License
@@ -517,7 +517,7 @@ async function verifyPvmAppEvidence(envelope, expect = {}) {
 }
 
 // src/trust.js
-var CLIENT_VERSION = "0.3.0";
+var CLIENT_VERSION = "0.4.0";
 var POLICY_DOMAIN = "enclave-pvm-client-policy-v1\n";
 var UPDATE_DOMAIN = "enclave-pvm-client-update-v1\n";
 var UPDATE_COUNTERSIGN_DOMAIN = "enclave-pvm-client-update-countersign-v1\n";
@@ -586,6 +586,8 @@ var POLICY_KEYS = [
   "serial",
   "type"
 ];
+var DEPLOYMENT_ID = /^0x[0-9a-f]{64}$/;
+var MAX_DEPLOYMENTS = 64;
 async function verifyPolicy(env, { state, now = Date.now(), clientVersion = CLIENT_VERSION } = {}) {
   const no = (m) => ({ ok: false, reasons: [m], policy: null, pins: null, state });
   if (!state || !HEX(64).test(state.policyFp || "")) return no("no policy key was anchored at install: refusing (fail closed)");
@@ -607,7 +609,7 @@ async function verifyPolicy(env, { state, now = Date.now(), clientVersion = CLIE
     return no(`the policy signature cannot be checked here (${e.name}): refusing, no fallback`);
   }
   if (!sigOk) return no("the policy signature does not verify over its exact bytes");
-  if (!closed(b2, POLICY_KEYS)) return no(`the policy fields must be exactly ${POLICY_KEYS.join(",")}`);
+  if (!closed(b2, POLICY_KEYS) && !closed(b2, [...POLICY_KEYS, "deployments"])) return no(`the policy fields must be exactly ${POLICY_KEYS.join(",")}, optionally with deployments`);
   if (b2.type !== "enclave-pvm-client-policy") return no("not a pVM client policy");
   if (!Number.isSafeInteger(b2.serial) || b2.serial < 1) return no("the policy serial is not a positive integer");
   const nb = time(b2.notBefore), na = time(b2.notAfter);
@@ -623,6 +625,16 @@ async function verifyPolicy(env, { state, now = Date.now(), clientVersion = CLIE
   const w = b2.sealedWindow;
   if (!w || typeof w !== "object" || !closed(w, ["maxRequests", "seconds"]) || !Number.isSafeInteger(w.seconds) || !Number.isSafeInteger(w.maxRequests) || w.seconds < 1 || w.maxRequests < 1)
     return no("the policy's sealedWindow must be exactly { seconds, maxRequests }");
+  if ("deployments" in b2) {
+    const d = b2.deployments;
+    if (!Array.isArray(d) || d.length < 1 || d.length > MAX_DEPLOYMENTS) return no(`the policy's deployments must be a list of 1..${MAX_DEPLOYMENTS} entries (an empty table is never read as all)`);
+    for (const e of d) {
+      if (!e || typeof e !== "object" || Array.isArray(e) || !closed(e, ["app", "id"])) return no("each deployment must be exactly { id, app }");
+      if (typeof e.id !== "string" || !DEPLOYMENT_ID.test(e.id)) return no(`deployment id ${JSON.stringify(e.id)} is not 0x + 64 lowercase hex (the ledger's bytes32)`);
+      if (typeof e.app !== "string" || !HEX(64).test(e.app) || !b2.appIds.includes(e.app)) return no(`deployment ${e.id}'s app is not one of the policy's appIds`);
+    }
+    if (new Set(d.map((e) => e.id)).size !== d.length) return no("the policy names a deployment id twice: ambiguous, refused");
+  }
   if (!semver(b2.minClientVersion)) return no("the policy's minClientVersion is not MAJOR.MINOR.PATCH");
   if (b2.nextPolicyKey !== null && (typeof b2.nextPolicyKey !== "string" || !HEX(64).test(b2.nextPolicyKey) || b2.nextPolicyKey === b2.key)) return no("the policy's nextPolicyKey is not null or another 32-byte key");
   if (b2.serial < state.serial) return no(`policy serial ${b2.serial} is below the ${state.serial} this client holds (its install floor or a newer policy it accepted): a rollback, refused`);
@@ -632,6 +644,20 @@ async function verifyPolicy(env, { state, now = Date.now(), clientVersion = CLIE
   const next = { ...state, policyFp: fp, nextPolicyFp: b2.nextPolicyKey ? await fingerprint(b2.nextPolicyKey) : null, serial: b2.serial, digest };
   const pins = { allowedCodeHashes: b2.codeHashes, allowedAuthorityHashes: b2.authorityHashes, allowedRuntimeIds: b2.runtimeIds, rootPins: b2.googleRootPins };
   return { ok: true, reasons: [`policy serial ${b2.serial}${fp === state.nextPolicyFp ? " (under the rotated key)" : ""}, valid to ${b2.notAfter}`], policy: b2, pins, state: next };
+}
+function selectDeployment(policy, { deployment = null, app = null } = {}) {
+  const no = (reason) => ({ ok: false, reason });
+  if (deployment === null) {
+    if (!app) return no("no app or deployment selected");
+    if (!policy.appIds.includes(app)) return no("the policy does not admit this app");
+    return { ok: true, app, deployment: null };
+  }
+  if (typeof deployment !== "string" || !DEPLOYMENT_ID.test(deployment)) return no(`deployment ${JSON.stringify(deployment)} is not 0x + 64 lowercase hex: not normalized, refused`);
+  if (!Array.isArray(policy.deployments)) return no("the policy names no deployments: select an app, or get a policy that names this deployment");
+  const hits = policy.deployments.filter((e) => e.id === deployment);
+  if (hits.length !== 1) return no(hits.length ? "the policy names this deployment more than once: ambiguous" : `the policy does not name deployment ${deployment}`);
+  if (app && app !== hits[0].app) return no(`the selected app ${app.slice(0, 16)}... is not the app the policy expects for deployment ${deployment.slice(0, 18)}... (${hits[0].app.slice(0, 16)}...)`);
+  return { ok: true, app: hits[0].app, deployment };
 }
 var UPDATE_KEYS = ["artifact", "artifactSha256", "nextReleaseKey", "notAfter", "policyKey", "releaseKey", "size", "sourceCommit", "type", "version"];
 async function verifyUpdate(env, bytes, { state, now = Date.now(), currentVersion = CLIENT_VERSION, artifact } = {}) {
@@ -3133,13 +3159,19 @@ async function acceptPolicy(store, policyEnv, { now = Date.now(), clientVersion 
   if (!r.ok) return { ok: false, reason: r.reason };
   return { ok: true, policy: accepted.policy, pins: accepted.pins, gen: r.gen, serial: r.state.serial };
 }
-async function connect({ relay, policyEnv, store, appId, path: path5 = "/", stream = true, cancelAfter = 0, onLine = () => {
+async function connect({ relay, policyEnv, store, appId = null, deployment = null, path: path5 = "/", stream = true, cancelAfter = 0, onLine = () => {
 }, onCommitted = () => {
 }, usedNonces = /* @__PURE__ */ new Set(), now, label = "client" }) {
   const pol = await acceptPolicy(store, policyEnv, { now: now ?? Date.now() });
   if (!pol.ok) return { result: { label, step: pol.commitFailed ? "commit" : "policy", refused: pol.reason, sent: false } };
   await onCommitted({ serial: pol.serial, gen: pol.gen });
   const p = pol.policy;
+  if (deployment !== null) {
+    const sel = selectDeployment(p, { deployment, app: appId });
+    if (!sel.ok) return { result: { label, step: "select", refused: sel.reason, sent: false, policySerial: p.serial } };
+    appId = sel.app;
+  }
+  if (!appId) return { result: { label, step: "select", refused: "no app or deployment selected", sent: false, policySerial: p.serial } };
   if (!p.appIds.includes(appId)) return { result: { label, step: "policy", refused: "the policy does not admit this app", sent: false, policySerial: p.serial } };
   const mode = stream ? "chunked" : "whole";
   if (!p.sealedModes.includes(mode)) return { result: { label, step: "policy", refused: `the policy does not allow ${mode} answers`, sent: false, policySerial: p.serial } };
@@ -3166,7 +3198,7 @@ async function connect({ relay, policyEnv, store, appId, path: path5 = "/", stre
   };
   const args = { relay, pins, path: path5, label, gate, ...now ? { now } : {} };
   const result = stream ? await fetchVerifiedStream({ ...args, onLine, cancelAfter }) : await fetchVerified(args);
-  return { result: { ...result, policySerial: p.serial, stateGen: pol.gen, clientVersion: CLIENT_VERSION } };
+  return { result: { ...result, policySerial: p.serial, stateGen: pol.gen, clientVersion: CLIENT_VERSION, ...deployment !== null ? { deployment: { id: deployment, app: appId } } : {} } };
 }
 
 // cli.mjs
@@ -3232,6 +3264,8 @@ async function main() {
       if (r2.sig) return out({ error: `the active client ${active.version} ended by signal ${r2.sig}` }), 2;
       return r2.code;
     }
+    const twice = ["--deployment", "--app"].filter((k) => argv.filter((a) => a === k).length > 1);
+    if (twice.length) return out({ result: { step: "select", refused: `${twice.join(" and ")} given more than once: ambiguous, nothing fetched or sent`, sent: false, clientVersion: CLIENT_VERSION } }), 2;
     let policyEnv;
     try {
       policyEnv = await fetchJson(arg("--policy"));
@@ -3243,6 +3277,7 @@ async function main() {
       policyEnv,
       store,
       appId: arg("--app"),
+      deployment: arg("--deployment"),
       path: arg("--path", "/"),
       stream: !argv.includes("--whole"),
       cancelAfter: Number(arg("--cancel", "0")),
@@ -3266,6 +3301,17 @@ async function main() {
     const r = await stageUpdate(store, env, bytes, { dir });
     if (!r.ok) return out({ update: { ok: false, reasons: [r.reason] } }), 1;
     return out({ update: { ok: true, version: r.version, staged: r.file, gen: r.gen, ...r.already ? { already: true } : {} } }), 0;
+  }
+  if (cmd === "deployments") {
+    let policyEnv;
+    try {
+      policyEnv = await fetchJson(arg("--policy"));
+    } catch (e) {
+      return out({ deployments: null, refused: `no policy: ${e.message}` }), 1;
+    }
+    const pol = await acceptPolicy(store, policyEnv);
+    if (!pol.ok) return out({ deployments: null, refused: pol.reason }), pol.commitFailed ? 2 : 1;
+    return out({ deployments: pol.policy.deployments || [], policySerial: pol.serial, gen: pol.gen, appIds: pol.policy.appIds }), 0;
   }
   if (cmd === "activate") {
     const dir = installDir();
@@ -3292,7 +3338,7 @@ async function main() {
     const s = check(cur.state.staged || null), a = check(active);
     return out({ staged: s, active: a }), s && !s.bytesMatch || a && !a.bytesMatch ? 1 : 0;
   }
-  out({ refused: `unknown command ${JSON.stringify(cmd)}: install | run | update | activate | staged | state | version` });
+  out({ refused: `unknown command ${JSON.stringify(cmd)}: install | run | deployments | update | activate | staged | state | version` });
   return 2;
 }
 main().then((rc) => process.exit(rc), (e) => {

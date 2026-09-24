@@ -48,6 +48,47 @@ The policy travels as `{ policy: base64(exact JSON bytes), sig }`.
 A policy binds the gate's rules as well as the pins: the formats (v2 only for browsers), the sealed modes, and the
 sealed window the VM must state.
 
+## Deployments (`src/trust.js selectDeployment`; CLI `run --deployment`, `deployments`; since 0.4.0)
+
+A user picks one deployment, and the client must know which app to expect there. That expectation comes from the signed
+policy, never from a catalog, the ledger's `appRef` or a relay: they are carriers, and a carrier's claim about identity
+is exactly what the client exists not to believe.
+- **The table.** A policy may carry `deployments: [{ id, app }]`.
+  - Each `id` is the platform ledger's deployment id in canonical form, `0x` plus 64 lowercase hex.
+  - Each `app` must be one of the policy's `appIds`.
+  - A table has 1 to 64 entries, each exactly `{ id, app }`, and every id is unique. A duplicate or an unadmitted app
+    refuses the WHOLE policy.
+  - It is signed with the rest, so rollback, equivocation, expiry and key rotation apply to it unchanged. Moving a
+    deployment to another app is a new serial.
+  - A policy without the table is exactly the 15 fields it was before 0.4.0.
+- **Selecting.** `run --deployment ID` first verifies and commits the policy, as always. Then it takes the one entry with
+  that id, and the app id is that entry's `app`. The policy-wide pins apply unchanged: runtime ids, code and authority
+  hashes, roots, formats, the sealed window.
+  - The client refuses at step `select`, before any evidence request:
+    - an id the table does not name;
+    - a policy without a table, even when `--app` is also given (there is no silent fall-back to `--app`);
+    - an id that is not canonical (never normalized);
+    - `--app` also given and different;
+    - `--deployment` or `--app` given twice;
+    - a table present, but neither flag given (there is no default and no implicit first entry).
+  - The result names `deployment: { id, app }`. `--app` alone, with no `--deployment`, still selects an app the policy
+    admits.
+  - Under an activated version, the launcher hands `--deployment` to the delegated child unchanged. The child makes the
+    selection itself; the launcher never resolves it.
+- **Listing.** `pvm-client deployments --policy SRC` prints the table a user selects from.
+  - It is an acceptance under the anchor like any run: it verifies and COMMITS the policy, and its output names the
+    serial and generation.
+  - A policy it refuses prints no table.
+- **What it does not prove.** The evidence carries the app, runtime and code identity; it carries no deployment id.
+  - A hostile relay can therefore route deployment D's traffic to ANOTHER genuine instance of the SAME app.
+  - The client proves "a genuine instance of the app the signed policy expects for D". It does not prove "D's physical
+    instance or its operator".
+  - `--relay` stays the carrier, untrusted, and the id is not used to route.
+  - The extension keeps its install-time app and ignores the table. It still validates the table through the same trust
+    code, so a policy with a malformed table is refused there too.
+- **Agreed first.** The verifier session agreed this contract before the commit. Its independent policy replay adds the
+  optional field under exactly these rules.
+
 ## The release rule (`src/gate.js admit`)
 
 The client runs ONE verifier at runtime: web/pvm-verify.js, with node parity asserted in test/pvm-web-verify.test.mjs.
@@ -264,6 +305,14 @@ Agreed with the verifier session before it was built (its five fail-closed rules
     both orders; kills before the commit.
   - The real client activated and run end to end against the fake VM, one hop across a concurrent activation, and
     markers planted and mismatched.
+- test/pvm-client-deployments.test.mjs covers deployment selection. The table's rules are checked (optional, closed,
+  unique, admitted apps, canonical ids), and the built CLI is run against a fake VM:
+  - a good selection reaches the VM's evidence with the table's app;
+  - unknown, mismatched, repeated, non-canonical and tableless selections are refused before any evidence request;
+  - a forged table, an unsigned "catalog" served as the policy, a rolled-back table and a changed table under the same
+    serial are all refused.
+  In process, on the Pixel's real v2 evidence, the table's app releases, and a table naming another app for the same
+  deployment is refused before anything is sealed.
 - `client/tools/lab-next.mjs` derives a LAB next-version test artifact from a built base. Only two things change: the
   first line, labelled with the base's sha256, and the version constant. The derivation is deterministic, and apart from
   its first line it equals a source rebuild at the new version (the verifier session checked both). The activation test

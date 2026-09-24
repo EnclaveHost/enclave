@@ -2,7 +2,8 @@
 // file (client/build.sh -> client/dist/pvm-client.mjs). It never loads or evaluates fetched code in its own process; an
 // update runs only after an explicit `activate`, in a child fed the verified bytes from memory (src/activate.js).
 //   pvm-client install --policy-key-fp FP --serial-floor N --release-key-fp FP [--state DIR]
-//   pvm-client run --policy SRC --relay URL --app HEX [--path P] [--whole] [--cancel K] [--state DIR] [--install-dir DIR]
+//   pvm-client run --policy SRC --relay URL (--deployment 0x<64 hex> | --app HEX) [--path P] [--whole] [--cancel K] [--state DIR] [--install-dir DIR]
+//   pvm-client deployments --policy SRC [--state DIR]      the deployments a verified policy names, and the app it expects for each
 //   pvm-client update --manifest SRC --artifact SRC [--state DIR] [--install-dir DIR]
 //   pvm-client activate [--state DIR] [--install-dir DIR]   run the staged update from now on (explicit; never automatic)
 //   pvm-client staged [--state DIR] [--install-dir DIR]    the staged and the active update, and whether their bytes match
@@ -15,6 +16,8 @@
 // cross-process compare-and-swap committed BEFORE anything is sent; a 0.1.0 state FILE given as --state is imported into
 // <file>.d once. --install-dir defaults to this file's directory; a client fed over stdin has none and must be given it.
 // `run` prints one JSON line per token line ({"line":...}) and ends with {"result":...}; exit 0 only on a complete answer.
+// A deployment's expected app comes from the verified policy's signed table (--deployment), never from a catalog or a relay;
+// --app alone selects an app the policy admits. Both given must agree, and each may be given once.
 // `update` verifies a signed, countersigned manifest and the delivered bytes, publishes them beside this client under a
 // content-addressed name, pvm-client-<version>-<sha256>.mjs (never replacing a file: src/update.js), and commits that
 // version as staged -- only if it is newer than anything staged, active or running; the same artifact again changes
@@ -28,7 +31,7 @@ import { initialState, semverCmp, CLIENT_VERSION } from "./src/trust.js";
 import { stageUpdate } from "./src/update.js";
 import { activateStaged, launchActive, DELEGATED } from "./src/activate.js";
 import { FileStore, StoreError } from "./src/store-file.js";
-import { connect } from "./src/client.js";
+import { connect, acceptPolicy } from "./src/client.js";
 
 const argv = process.argv.slice(2), cmd = argv[0];
 const arg = (k, d = null) => { const i = argv.indexOf(k); return i > 0 ? argv[i + 1] : d; };
@@ -84,9 +87,11 @@ async function main() {
       if (r.sig) return out({ error: `the active client ${active.version} ended by signal ${r.sig}` }), 2;
       return r.code;
     }
+    const twice = ["--deployment", "--app"].filter((k) => argv.filter((a) => a === k).length > 1);
+    if (twice.length) return out({ result: { step: "select", refused: `${twice.join(" and ")} given more than once: ambiguous, nothing fetched or sent`, sent: false, clientVersion: CLIENT_VERSION } }), 2;
     let policyEnv;
     try { policyEnv = await fetchJson(arg("--policy")); } catch (e) { return out({ result: { step: "policy", refused: `no policy: ${e.message}`, sent: false, clientVersion: CLIENT_VERSION } }), 1; }
-    const r = await connect({ relay: arg("--relay"), policyEnv, store, appId: arg("--app"), path: arg("--path", "/"), stream: !argv.includes("--whole"),
+    const r = await connect({ relay: arg("--relay"), policyEnv, store, appId: arg("--app"), deployment: arg("--deployment"), path: arg("--path", "/"), stream: !argv.includes("--whole"),
                               cancelAfter: Number(arg("--cancel", "0")), label: arg("--label", "cli"), onLine: (line) => out({ line }),
                               onCommitted: (c) => out({ committed: c }) });
     out({ result: { ...r.result, lines: undefined, clientVersion: CLIENT_VERSION } });   // which client ran it: the launcher, or the version it delegated to
@@ -99,6 +104,13 @@ async function main() {
     const r = await stageUpdate(store, env, bytes, { dir });   // the floor: this client's version, and what is staged or active (src/update.js)
     if (!r.ok) return out({ update: { ok: false, reasons: [r.reason] } }), 1;
     return out({ update: { ok: true, version: r.version, staged: r.file, gen: r.gen, ...(r.already ? { already: true } : {}) } }), 0;
+  }
+  if (cmd === "deployments") {   // the selection list: from a policy verified and committed like any other, never from a catalog
+    let policyEnv;
+    try { policyEnv = await fetchJson(arg("--policy")); } catch (e) { return out({ deployments: null, refused: `no policy: ${e.message}` }), 1; }
+    const pol = await acceptPolicy(store, policyEnv);
+    if (!pol.ok) return out({ deployments: null, refused: pol.reason }), pol.commitFailed ? 2 : 1;
+    return out({ deployments: pol.policy.deployments || [], policySerial: pol.serial, gen: pol.gen, appIds: pol.policy.appIds }), 0;
   }
   if (cmd === "activate") {
     const dir = installDir(); if (!dir) return out({ activate: { ok: false, step: "file", reasons: [NO_DIR] } }), 2;
@@ -119,6 +131,6 @@ async function main() {
     const s = check(cur.state.staged || null), a = check(active);
     return out({ staged: s, active: a }), (s && !s.bytesMatch) || (a && !a.bytesMatch) ? 1 : 0;
   }
-  out({ refused: `unknown command ${JSON.stringify(cmd)}: install | run | update | activate | staged | state | version` }); return 2;
+  out({ refused: `unknown command ${JSON.stringify(cmd)}: install | run | deployments | update | activate | staged | state | version` }); return 2;
 }
 main().then((rc) => process.exit(rc), (e) => { out({ error: e instanceof StoreError ? `state: ${e.message}` : e.message }); process.exit(2); });

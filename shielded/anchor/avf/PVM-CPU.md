@@ -583,6 +583,13 @@ agreed with the Enclave verifier session, all nine of its fail-closed refinement
     - PASS, 51 checks: all 20 per-call state snapshots are present and equal the generation log, and the 10 raw
       envelopes are captured and mapped.
     - Closing F3 and re-verifying the chains offline are the verifier session's steps.
+- **0.4.0: deployment selection with caller-owned trust.** This is the verifier plan's catalog-to-expectation gap.
+  - The signed policy may map ledger deployment ids to the app each is expected to run. `run --deployment ID` takes the
+    app from that table, after the policy is verified and committed.
+  - Unknown, mismatched, ambiguous and non-canonical selections are refused before any evidence request.
+  - A catalog or relay is never consulted for identity. `deployments` lists the verified table.
+  - Limit: the evidence names no deployment, so a relay can route to another genuine instance of the same app
+    (client/DESIGN.md "Deployments").
 
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 

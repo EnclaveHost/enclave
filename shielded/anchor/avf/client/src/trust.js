@@ -15,7 +15,7 @@
 // the LAB stand-in.
 import { GOOGLE_ATTESTATION_ROOT_SHA256, PVM_APP_EVIDENCE_FORMAT, PVM_APP_EVIDENCE_FORMAT_V2, fromHex, toHex, sha256 } from "../../web/pvm-verify.js";
 
-export const CLIENT_VERSION = "0.3.0";   // inside the artifact's bytes: it cannot be claimed without changing the artifact's hash
+export const CLIENT_VERSION = "0.4.0";   // inside the artifact's bytes: it cannot be claimed without changing the artifact's hash
 export const POLICY_DOMAIN = "enclave-pvm-client-policy-v1\n";
 export const UPDATE_DOMAIN = "enclave-pvm-client-update-v1\n";
 export const UPDATE_COUNTERSIGN_DOMAIN = "enclave-pvm-client-update-countersign-v1\n";
@@ -64,6 +64,10 @@ const time = (s) => (typeof s === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$
 
 const POLICY_KEYS = ["appIds", "authorityHashes", "codeHashes", "formats", "googleRootPins", "key", "minClientVersion", "nextPolicyKey",
                      "notAfter", "notBefore", "runtimeIds", "sealedModes", "sealedWindow", "serial", "type"];
+// The optional deployment table (client/DESIGN.md "Deployments"; since 0.4.0): which app a deployment is expected to run,
+// signed like every other field. A deployment id is the platform ledger's bytes32, canonical: 0x + 64 lowercase hex.
+export const DEPLOYMENT_ID = /^0x[0-9a-f]{64}$/;
+const MAX_DEPLOYMENTS = 64;
 
 /**
  * A signed policy { policy: base64(exact JSON bytes), sig } under the client's anchored policy key (or the next key a
@@ -82,7 +86,7 @@ export async function verifyPolicy(env, { state, now = Date.now(), clientVersion
   let sigOk = false;
   try { sigOk = await edVerify(b.key, env.sig, POLICY_DOMAIN, bytes); } catch (e) { return no(`the policy signature cannot be checked here (${e.name}): refusing, no fallback`); }
   if (!sigOk) return no("the policy signature does not verify over its exact bytes");
-  if (!closed(b, POLICY_KEYS)) return no(`the policy fields must be exactly ${POLICY_KEYS.join(",")}`);
+  if (!closed(b, POLICY_KEYS) && !closed(b, [...POLICY_KEYS, "deployments"])) return no(`the policy fields must be exactly ${POLICY_KEYS.join(",")}, optionally with deployments`);
   if (b.type !== "enclave-pvm-client-policy") return no("not a pVM client policy");
   if (!Number.isSafeInteger(b.serial) || b.serial < 1) return no("the policy serial is not a positive integer");
   const nb = time(b.notBefore), na = time(b.notAfter);
@@ -98,6 +102,16 @@ export async function verifyPolicy(env, { state, now = Date.now(), clientVersion
   const w = b.sealedWindow;
   if (!w || typeof w !== "object" || !closed(w, ["maxRequests", "seconds"]) || !Number.isSafeInteger(w.seconds) || !Number.isSafeInteger(w.maxRequests) || w.seconds < 1 || w.maxRequests < 1)
     return no("the policy's sealedWindow must be exactly { seconds, maxRequests }");
+  if ("deployments" in b) {   // present means a real table: 1..64 entries, each exactly { id, app }, ids unique, every app admitted
+    const d = b.deployments;
+    if (!Array.isArray(d) || d.length < 1 || d.length > MAX_DEPLOYMENTS) return no(`the policy's deployments must be a list of 1..${MAX_DEPLOYMENTS} entries (an empty table is never read as all)`);
+    for (const e of d) {
+      if (!e || typeof e !== "object" || Array.isArray(e) || !closed(e, ["app", "id"])) return no("each deployment must be exactly { id, app }");
+      if (typeof e.id !== "string" || !DEPLOYMENT_ID.test(e.id)) return no(`deployment id ${JSON.stringify(e.id)} is not 0x + 64 lowercase hex (the ledger's bytes32)`);
+      if (typeof e.app !== "string" || !HEX(64).test(e.app) || !b.appIds.includes(e.app)) return no(`deployment ${e.id}'s app is not one of the policy's appIds`);
+    }
+    if (new Set(d.map((e) => e.id)).size !== d.length) return no("the policy names a deployment id twice: ambiguous, refused");
+  }
   if (!semver(b.minClientVersion)) return no("the policy's minClientVersion is not MAJOR.MINOR.PATCH");
   if (b.nextPolicyKey !== null && (typeof b.nextPolicyKey !== "string" || !HEX(64).test(b.nextPolicyKey) || b.nextPolicyKey === b.key)) return no("the policy's nextPolicyKey is not null or another 32-byte key");
   if (b.serial < state.serial) return no(`policy serial ${b.serial} is below the ${state.serial} this client holds (its install floor or a newer policy it accepted): a rollback, refused`);
@@ -107,6 +121,25 @@ export async function verifyPolicy(env, { state, now = Date.now(), clientVersion
   const next = { ...state, policyFp: fp, nextPolicyFp: b.nextPolicyKey ? await fingerprint(b.nextPolicyKey) : null, serial: b.serial, digest };
   const pins = { allowedCodeHashes: b.codeHashes, allowedAuthorityHashes: b.authorityHashes, allowedRuntimeIds: b.runtimeIds, rootPins: b.googleRootPins };
   return { ok: true, reasons: [`policy serial ${b.serial}${fp === state.nextPolicyFp ? " (under the rotated key)" : ""}, valid to ${b.notAfter}`], policy: b, pins, state: next };
+}
+
+/**
+ * The caller's selection against a VERIFIED policy: { deployment } (and optionally the app it must run), or { app } alone.
+ * The expected app comes from the signed table, never from a catalog or a relay. -> { ok, app, deployment } | { ok: false, reason }
+ */
+export function selectDeployment(policy, { deployment = null, app = null } = {}) {
+  const no = (reason) => ({ ok: false, reason });
+  if (deployment === null) {
+    if (!app) return no("no app or deployment selected");
+    if (!policy.appIds.includes(app)) return no("the policy does not admit this app");
+    return { ok: true, app, deployment: null };
+  }
+  if (typeof deployment !== "string" || !DEPLOYMENT_ID.test(deployment)) return no(`deployment ${JSON.stringify(deployment)} is not 0x + 64 lowercase hex: not normalized, refused`);
+  if (!Array.isArray(policy.deployments)) return no("the policy names no deployments: select an app, or get a policy that names this deployment");
+  const hits = policy.deployments.filter((e) => e.id === deployment);
+  if (hits.length !== 1) return no(hits.length ? "the policy names this deployment more than once: ambiguous" : `the policy does not name deployment ${deployment}`);
+  if (app && app !== hits[0].app) return no(`the selected app ${app.slice(0, 16)}... is not the app the policy expects for deployment ${deployment.slice(0, 18)}... (${hits[0].app.slice(0, 16)}...)`);
+  return { ok: true, app: hits[0].app, deployment };
 }
 
 const UPDATE_KEYS = ["artifact", "artifactSha256", "nextReleaseKey", "notAfter", "policyKey", "releaseKey", "size", "sourceCommit", "type", "version"];

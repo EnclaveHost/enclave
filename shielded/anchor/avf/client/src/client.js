@@ -1,18 +1,20 @@
 // client.js -- one request from the INSTALLED pVM client (client/DESIGN.md; LAB, not production). The same code runs in
 // the CLI and in the browser extension; it never loads code, and every expectation comes from the signed policy.
-//   connect({ relay, policyEnv, store, appId, path, stream, cancelAfter, onLine, onCommitted, usedNonces, now })
+//   connect({ relay, policyEnv, store, appId, deployment, path, stream, cancelAfter, onLine, onCommitted, usedNonces, now })
 //     -> { result }
 // 1. the policy (from whatever carrier) is verified under the install anchor AND durably committed as the client's new
 //    monotonic memory (acceptPolicy: store.update -- a cross-process compare-and-swap in the CLI, a browser-wide lock in
 //    the extension) BEFORE anything else happens: a crash, a stalled carrier or a concurrent older policy after this
 //    point cannot bring the floor back; if the commit cannot be made durable, nothing is sent;
-// 2. the app must be one the policy admits, the mode one it allows;
+// 2. the app: selected by deployment (its expected app from the signed policy's table, refused at step "select" if the
+//    table does not name it, or names another app than the one also given) or directly; one the policy admits, in a mode
+//    it allows;
 // 3. the VM's evidence is verified against the policy's pins (pvm-verify.js), then held to the release rule (gate.js --
 //    the Enclave verifier session's admission rule) and to the policy's formats and sealed window; last, the committed
 //    state is read again: if a newer policy was committed meanwhile (another tab or process, while this one waited on its
 //    carrier), this request is refused, never sent under the superseded policy. Only a release seals and sends the
 //    request (pvm-sealed.js), and the nonce is spent.
-import { verifyPolicy, CLIENT_VERSION } from "./trust.js";
+import { verifyPolicy, selectDeployment, CLIENT_VERSION } from "./trust.js";
 import { admit, verdictOf } from "./gate.js";
 import { fetchVerified, fetchVerifiedStream } from "../../web/pvm-client.js";
 
@@ -36,11 +38,17 @@ export async function acceptPolicy(store, policyEnv, { now = Date.now(), clientV
   return { ok: true, policy: accepted.policy, pins: accepted.pins, gen: r.gen, serial: r.state.serial };
 }
 
-export async function connect({ relay, policyEnv, store, appId, path = "/", stream = true, cancelAfter = 0, onLine = () => {}, onCommitted = () => {}, usedNonces = new Set(), now, label = "client" }) {
+export async function connect({ relay, policyEnv, store, appId = null, deployment = null, path = "/", stream = true, cancelAfter = 0, onLine = () => {}, onCommitted = () => {}, usedNonces = new Set(), now, label = "client" }) {
   const pol = await acceptPolicy(store, policyEnv, { now: now ?? Date.now() });
   if (!pol.ok) return { result: { label, step: pol.commitFailed ? "commit" : "policy", refused: pol.reason, sent: false } };
   await onCommitted({ serial: pol.serial, gen: pol.gen });
   const p = pol.policy;
+  if (deployment !== null) {   // the app a deployment runs comes from the signed table, never from a catalog or a relay
+    const sel = selectDeployment(p, { deployment, app: appId });
+    if (!sel.ok) return { result: { label, step: "select", refused: sel.reason, sent: false, policySerial: p.serial } };
+    appId = sel.app;
+  }
+  if (!appId) return { result: { label, step: "select", refused: "no app or deployment selected", sent: false, policySerial: p.serial } };
   if (!p.appIds.includes(appId)) return { result: { label, step: "policy", refused: "the policy does not admit this app", sent: false, policySerial: p.serial } };
   const mode = stream ? "chunked" : "whole";
   if (!p.sealedModes.includes(mode)) return { result: { label, step: "policy", refused: `the policy does not allow ${mode} answers`, sent: false, policySerial: p.serial } };
@@ -60,5 +68,5 @@ export async function connect({ relay, policyEnv, store, appId, path = "/", stre
   };
   const args = { relay, pins, path, label, gate, ...(now ? { now } : {}) };
   const result = stream ? await fetchVerifiedStream({ ...args, onLine, cancelAfter }) : await fetchVerified(args);
-  return { result: { ...result, policySerial: p.serial, stateGen: pol.gen, clientVersion: CLIENT_VERSION } };
+  return { result: { ...result, policySerial: p.serial, stateGen: pol.gen, clientVersion: CLIENT_VERSION, ...(deployment !== null ? { deployment: { id: deployment, app: appId } } : {}) } };
 }
