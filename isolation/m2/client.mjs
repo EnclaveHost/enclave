@@ -11,7 +11,7 @@
 // usage: node client.mjs <https://host:port> --measurement <hex> --app-sha <hex>
 //          [--lab-unsigned | --t0-diagnostic] [--min-tcb <json>|@<file>] [--vcek <der>]
 //          [--amd-chain <Product>=<cert_chain.pem>] [--no-kds] [--t0 <epoch ms>] [--perf] [--save <doc.json>]
-//          [--runtime <runtime.json>]
+//          [--runtime <runtime.json>] [--servername <name>] [--answer-within <ms>]
 //   default          trusted: only a report that is AMD-chain-verified AND meets --min-tcb opens the gate
 //   --lab-unsigned   lab-only diagnostic: verdicts "no-tcb-policy" / "unauthenticated" open it, never "attested"
 //   --t0-diagnostic  talk to a T0 domain, explicitly untrusted (the pin is trust-on-first-use)
@@ -30,6 +30,12 @@
 //                    Above 0 this ALSO requires the monitor's boundary self-test in the document to record
 //                    that a report at VMPL0 was refused: a guest at VMPL0 holds every VMPCK and can request
 //                    a report naming a lower level, so the level alone never shows confinement
+//
+//   --servername     the name to put in the ClientHello when the URL names an address rather than the domain -
+//                    a relay or splice in front of the domain that routes on SNI. It changes nothing about trust:
+//                    the key is still taken from this handshake and judged against the report
+//   --answer-within  how long to keep retrying for the first attestation document (default 180000 ms, for a
+//                    domain that is still booting); a route that refuses the connection fails after this
 //
 // Prints `RESULT k=v` lines for the harness, `evidence:` lines for people, and one VERDICT line.
 // Exit status: 0 served, 3 gate closed (no application traffic), 4 application traffic aborted on a key
@@ -62,6 +68,8 @@ if (opt('--amd-chain')) {
   seedCertChain(product, fs.readFileSync(file, 'utf8'));                       // throws unless the ARK is the pin
 }
 const t0 = Number(opt('--t0') || 0);
+const servername = opt('--servername');
+const answerMs = opt('--answer-within') !== undefined ? Number(opt('--answer-within')) : 180000;
 const sha = (b) => createHash('sha256').update(b).digest('hex');
 const out = (k, v) => console.log(`RESULT ${k}=${v}`);
 
@@ -82,7 +90,8 @@ class PinnedAgent extends https.Agent {
     if (tripped) { process.nextTick(cb, tripped); return undefined; }
     let settled = false;
     const done = (err, s) => { if (!settled) { settled = true; cb(err, s); } };
-    const s = tls.connect({ ...options, rejectUnauthorized: false, session: undefined });  // trust = the report
+    const s = tls.connect({ ...options, ...(servername ? { servername } : {}), rejectUnauthorized: false,
+      session: undefined });                                                             // trust = the report
     s.once('secureConnect', () => {
       const cert = s.getPeerX509Certificate();
       const key = cert ? cert.publicKey.export({ type: 'spki', format: 'der' }) : null;
@@ -134,7 +143,7 @@ out('mode', mode);
 // 1. the document, on a discovery connection: before a verdict, this GET and its nonce are the only traffic
 const n1 = randomBytes(32), n2 = randomBytes(32);
 let a1;
-for (const until = Date.now() + 180000; ; await new Promise((r) => setTimeout(r, 50))) {
+for (const until = Date.now() + answerMs; ; await new Promise((r) => setTimeout(r, 50))) {
   const probe = new PinnedAgent(null);
   try { a1 = await attest(probe, n1); probe.destroy(); break; } catch { probe.destroy(); }
   if (Date.now() > until) { console.log('VERDICT reject reason="the domain never answered"'); finish(1); }
