@@ -132,9 +132,16 @@ export async function routeFor(transport, instanceId, expectAppId, { timeoutMs =
   const b = r && r.body;
   if (!r || r.status !== 200 || !b) throw new SpliceRefused("no-route", `guestd answered ${r && r.status} for the instance`);
   if (b.status !== "running") throw new SpliceRefused("not-running", `the instance is ${b.status}`);
-  const route = { id: b.id, appId: b.appId, measurement: b.measurement, runtimeId: b.runtimeId, key: b.transportKeySha256 };
-  if (route.id !== instanceId || !/^gd[0-9a-f]{8}$/.test(route.id) || !HEX(32).test(route.appId || "")
-      || !HEX(48).test(route.measurement || "") || !HEX(32).test(route.runtimeId || "") || !HEX(32).test(route.key || ""))
+  // Two instance shapes, one rule: a whole verified identity or no route. An SNP guest (guestd, "gd…") is named by
+  // its launch measurement; a NucBox partition (windows/vbslike manager, "hv…") has none and is named by the guest
+  // image it booted - carried as `image`, never as a measurement, so neither can be read as the other.
+  const hv = /^hv[0-9a-f]{8}$/.test(String(b.id || ""));
+  const route = hv
+    ? { id: b.id, appId: b.appId, image: b.image, runtimeId: b.runtimeId, key: b.transportKeySha256 }
+    : { id: b.id, appId: b.appId, measurement: b.measurement, runtimeId: b.runtimeId, key: b.transportKeySha256 };
+  if (route.id !== instanceId || !(hv || /^gd[0-9a-f]{8}$/.test(route.id)) || !HEX(32).test(route.appId || "")
+      || !(hv ? HEX(32).test(route.image || "") : HEX(48).test(route.measurement || ""))
+      || !HEX(32).test(route.runtimeId || "") || !HEX(32).test(route.key || ""))
     throw new SpliceRefused("no-route", "guestd's answer does not state a whole verified identity for the instance");
   if (!HEX(32).test(String(expectAppId || "")) || route.appId !== expectAppId)
     throw new SpliceRefused("wrong-app", `the instance is app ${route.appId.slice(0, 16)}…, not the app launched for this deployment`);
@@ -167,7 +174,8 @@ export function openSplice(dataAddr, route, { timeoutMs = OPEN_MS } = {}) {
     s.on("data", onData);
     s.once("error", (e) => finish(new SpliceRefused("unreachable", `guestd's data plane: ${e.message}`)));
     s.once("close", () => finish(new SpliceRefused("unreachable", "guestd closed the data connection")));
-    s.write(`ENCLAVE-SPLICE/1 id=${route.id} app=${route.appId} measurement=${route.measurement} `
+    s.write(`ENCLAVE-SPLICE/1 id=${route.id} app=${route.appId} `
+      + (route.image !== undefined ? `image=${route.image} ` : `measurement=${route.measurement} `)
       + `runtime=${route.runtimeId} key=${route.key}\n`);
   });
 }
