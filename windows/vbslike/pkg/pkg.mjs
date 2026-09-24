@@ -2,7 +2,7 @@
 // pkg.mjs -- the NucBox own-guest package (README.md): every byte the box needs to boot our guest and serve one small
 // app, pinned by sha256 in ONE manifest, with where each byte comes from and how to make it again.
 //
-//   node windows/vbslike/pkg/pkg.mjs verify <manifest> [--out DIR] [--rebuild] [--fetch GATEWAY] [--serve]
+//   node windows/vbslike/pkg/pkg.mjs verify <manifest> [--out DIR] [--rebuild] [--fetch GATEWAY] [--serve] [--tests]
 //   node windows/vbslike/pkg/pkg.mjs pack   <manifest> <outRoot>          writes <outRoot>/<id16>/, prints the id
 //   node windows/vbslike/pkg/pkg.mjs pins   <manifest>                    prints what each source hashes to NOW
 //
@@ -22,7 +22,9 @@
 //   - with --fetch, each component is fetched by CID from that gateway and equals its pin;
 //   - with --serve, each servable wasi:http app is served HERE by the pinned runtime (wasmtime serve, the version the
 //     runtime identity names) and its answer must be the manifest's expected bytes. A pinned answer that was never
-//     observed is how package v1 came to expect "Hello World!" from an app that says "Hello World!\n".
+//     observed is how package v1 came to expect "Hello World!" from an app that says "Hello World!\n";
+//   - with --tests, each functional test the manifest pins (another lane's, by commit) runs INSIDE the package's own
+//     control/ tree, as shipped, and must give exactly the result the manifest states -- which cases fail included.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -41,7 +43,7 @@ const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.in
   "app.component", "app.record", "app.bundle", "app.spawn", "control.manager", "control.fetcher", "control.launcher",
   "control.datapath", "control.judge", "tool.windows",
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
-  "input.recipe", "input.tree"]);
+  "input.recipe", "input.tree", "input.test"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
 const SERVED_BY_PINNED_MANAGER = ["enclave-catalog-bundle/1"];   // windows/vbslike/manager/server.mjs SERVES
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
@@ -338,6 +340,35 @@ async function serveCheck(m, bytes, R) {
   }
 }
 
+// Run each pinned functional test inside the package's own tree: its control/ files, laid out as shipped, with the test
+// placed at its declared path so its relative imports resolve to the PACKAGE's bytes. The expected result is exact:
+// the number of tests, passes and failures, and which cases fail -- a known result, never "whatever is green".
+function testsCheck(m, bytes, R) {
+  for (const t of m.tests || []) {
+    const inp = m.inputs.find((i) => i.name === t.input);
+    const need = (t.requires || []).filter((c) => spawnSync("sh", ["-c", `command -v ${c}`]).status !== 0);
+    if (!inp || !bytes.get(inp) || need.length) { R.add(false, `test ${t.name} (${t.owner})`, !inp ? `no input ${t.input}` : need.length ? `needs ${need.join(", ")}` : "no bytes"); continue; }
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), "vbspkg-test-"));
+    try {
+      for (const f of m.files.filter((x) => x.path.startsWith("control/") && bytes.get(x))) {
+        const p = path.join(d, ...f.path.split("/")); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes.get(f));
+      }
+      const tp = path.join(d, ...t.layout.split("/")); fs.mkdirSync(path.dirname(tp), { recursive: true }); fs.writeFileSync(tp, bytes.get(inp));
+      // a run under another test runner inherits NODE_TEST_CONTEXT, which switches the child's output to the runner's binary
+      // protocol and leaves no counts to read: strip it, and ask for TAP by name
+      const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
+      const r = spawnSync(process.execPath, ["--test", "--test-reporter=tap", tp], { cwd: d, encoding: "utf8", timeout: 300000, env });
+      const o = r.stdout + r.stderr, n = (k) => Number((new RegExp(`^# ${k} (\\d+)$`, "m").exec(o) || [])[1]);
+      const failing = [...o.matchAll(/^not ok (\d+) /gm)].map((x) => Number(x[1]));
+      const e = t.expect || {};
+      const ok = n("tests") === e.tests && n("pass") === e.pass && n("fail") === e.fail && JSON.stringify(failing) === JSON.stringify(e.failing || []);
+      R.add(ok, `test ${t.name} (${t.owner}) gives exactly its expected result`,
+            `${n("tests")} tests, ${n("pass")} pass, ${n("fail")} fail${failing.length ? ` (failing ${failing.join(", ")})` : ""}`
+            + (ok ? "" : `; expected ${e.tests} / ${e.pass} / ${e.fail}${(e.failing || []).length ? ` (failing ${e.failing.join(", ")})` : ""}`));
+    } finally { fs.rmSync(d, { recursive: true, force: true }); }
+  }
+}
+
 // the files that exist on this host and are packed; box-only files are staged on the box from boxReuse
 const packable = (m) => m.files.filter((f) => kindOf(f.from) !== "box");
 
@@ -356,7 +387,7 @@ function checkOut(m, mbytes, dir, bytes, R) {
   }
 }
 
-export async function verify(manifestPath, { out = null, rebuild: doRebuild = false, fetchGw = null, serve = false } = {}) {
+export async function verify(manifestPath, { out = null, rebuild: doRebuild = false, fetchGw = null, serve = false, tests = false } = {}) {
   const R = reporter();
   const mbytes = fs.readFileSync(manifestPath);
   let m; try { m = JSON.parse(mbytes.toString("utf8")); } catch (e) { R.add(false, "manifest is JSON", e.message); return { R, m: null, id: sha(mbytes) }; }
@@ -375,6 +406,7 @@ export async function verify(manifestPath, { out = null, rebuild: doRebuild = fa
   if (doRebuild) rebuild(m, bytes, R);
   if (fetchGw) await fetchCheck(m, fetchGw, R);
   if (serve) await serveCheck(m, bytes, R);
+  if (tests) testsCheck(m, bytes, R);
   return { R, m, id: sha(mbytes), bytes };
 }
 
@@ -382,7 +414,7 @@ async function main(argv) {
   const [cmd, manifest, ...rest] = argv;
   const flag = (n) => rest.includes(n), val = (n) => { const i = rest.indexOf(n); return i >= 0 ? rest[i + 1] : null; };
   if (cmd === "verify" && manifest) {
-    const { R, id } = await verify(manifest, { out: val("--out"), rebuild: flag("--rebuild"), fetchGw: val("--fetch"), serve: flag("--serve") });
+    const { R, id } = await verify(manifest, { out: val("--out"), rebuild: flag("--rebuild"), fetchGw: val("--fetch"), serve: flag("--serve"), tests: flag("--tests") });
     R.print();
     console.log(R.ok() ? `PASS package ${id}` : `FAIL package ${id}`);
     return R.ok() ? 0 : 1;
@@ -412,7 +444,7 @@ async function main(argv) {
     }
     return 0;
   }
-  console.error("usage: pkg.mjs verify <manifest> [--out DIR] [--rebuild] [--fetch GATEWAY] [--serve] | pack <manifest> <outRoot> | pins <manifest>");
+  console.error("usage: pkg.mjs verify <manifest> [--out DIR] [--rebuild] [--fetch GATEWAY] [--serve] [--tests] | pack <manifest> <outRoot> | pins <manifest>");
   return 2;
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main(process.argv.slice(2));

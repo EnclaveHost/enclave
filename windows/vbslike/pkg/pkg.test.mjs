@@ -13,7 +13,8 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG = path.join(HERE, "pkg.mjs");
-const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-4.json");        // the latest; older ones are kept below as refusals
+const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-5.json");        // the latest; older ones are kept below as refusals
+const V4 = path.join(HERE, "manifests/nucbox-ownguest-4.json");
 const V1 = path.join(HERE, "manifests/nucbox-ownguest-1.json");
 const V3 = path.join(HERE, "manifests/nucbox-ownguest-3.json");
 const SOURCES = path.join(os.homedir(), "enclave-bench/ownguest-pkg/sources");
@@ -128,6 +129,41 @@ test("v1 (committed, never edited) is refused by the current verifier at its uno
   const r = run(["verify", V1]);
   assert.equal(r.code, 1);
   assert.match(r.out, /FAIL hello-world 1\.0\.4: an expected answer, exact to the byte/, fails(r.out));
+});
+// enclave-99's readiness test (review/nucbox-manager-tests f6e9a6e7) pinned against v4's manager: at f4f10c84 it gives
+// 8 tests, 4 failing (3, 4, 5, 8 = defect 10). An expected result is exact in both directions.
+const withReadiness = (expect) => { const m = JSON.parse(fs.readFileSync(V4, "utf8"));
+  m.inputs.push({ name: "readiness-rule.test.mjs", role: "input.test", sha256: "", bytes: 0,
+                  from: { git: { commit: "f6e9a6e78f9b2f68b11127e4adcb61aa07d4e046", path: "windows/vbslike/review/readiness-rule.test.mjs" } } });
+  m.tests = [{ name: "readiness-rule", owner: "enclave-99", input: "readiness-rule.test.mjs", requires: ["openssl"],
+               layout: "control/windows/vbslike/review/readiness-rule.test.mjs", expect }];
+  return repin(m, ["readiness-rule.test.mjs"]); };
+const haveOpenssl = spawnSync("sh", ["-c", "command -v openssl"]).status === 0;
+test("tests: the committed manifest's pinned tests give exactly their stated results", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+  const r = run(["verify", MANIFEST, "--tests"]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   test readiness-rule \(enclave-99\) gives exactly its expected result \(8 tests, 8 pass, 0 fail\)/);
+  assert.match(r.out, /ok   test datapath \(enclave-99\) gives exactly its expected result \(5 tests, 5 pass, 0 fail\)/);
+});
+test("tests: a pinned test re-pinned to another commit's bytes (consistent forgery) no longer gives its stated result", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+  const m = structuredClone(base), t = m.inputs.find((i) => i.name === "readiness-rule.test.mjs");
+  const mgr = m.files.filter((f) => f.role === "control.manager" && f.path.endsWith("/ready.mjs"));
+  mgr[0].from.git.commit = "f4f10c84a2596d998defa58d7dd312081287e721";           // v4's ready.mjs, with defect 10
+  repin(m, [mgr[0].path]);
+  const r = run(["verify", writeManifest(m), "--tests"]);
+  assert.equal(r.code, 1, "the defect-10 ready.mjs passed the pinned 8/8");
+  assert.match(r.out, /FAIL test readiness-rule \(enclave-99\) gives exactly its expected result: 8 tests, \d pass/, fails(r.out));
+  assert.ok(t);
+});
+test("tests: the readiness test on v4's manager gives exactly its known result (4 of 8 fail: defect 10)", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+  const r = run(["verify", writeManifest(withReadiness({ tests: 8, pass: 4, fail: 4, failing: [3, 4, 5, 8] })), "--tests"]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   test readiness-rule \(enclave-99\) gives exactly its expected result \(8 tests, 4 pass, 4 fail \(failing 3, 4, 5, 8\)\)/);
+});
+test("tests: claiming the readiness test passes on v4's manager is refused", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+  const r = run(["verify", writeManifest(withReadiness({ tests: 8, pass: 8, fail: 0, failing: [] })), "--tests"]);
+  assert.equal(r.code, 1, "a green claim for a manager with defect 10 passed");
+  assert.match(r.out, /FAIL test readiness-rule \(enclave-99\) gives exactly its expected result: 8 tests, 4 pass, 4 fail/, fails(r.out));
 });
 test("v3 (committed, never edited) is refused by the current verifier at its stale manager", { skip }, () => {
   const r = run(["verify", V3]);
