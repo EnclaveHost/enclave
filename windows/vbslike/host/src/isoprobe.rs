@@ -16,6 +16,7 @@ pub(crate) struct Row {
     why: &'static str,
     isolation: Option<&'static str>,
     no_chipset: bool,
+    fw_path: bool,
     uefi: bool,
     use_igvm: bool,
     use_vmgs: bool,
@@ -28,7 +29,7 @@ pub(crate) struct Row {
 }
 
 pub(crate) fn rows() -> Vec<Row> {
-    let base = Row { name: "", why: "", isolation: None, no_chipset: false, uefi: false, use_igvm: false, use_vmgs: false, use_empty_vmgs: false, hcl: None, fw: None, overcommit: true, transient_gs: false, tpm: false };
+    let base = Row { name: "", why: "", isolation: None, no_chipset: false, fw_path: false, uefi: false, use_igvm: false, use_vmgs: false, use_empty_vmgs: false, hcl: None, fw: None, overcommit: true, transient_gs: false, tpm: false };
     vec![
         Row { name: "plain-direct", why: "the phase-1 document exactly (no SecuritySettings): the control", ..base },
         Row { name: "normal-direct", why: "phase-1 shape with IsolationType Normal stated explicitly", isolation: Some("Normal"), ..base },
@@ -74,6 +75,14 @@ pub(crate) fn rows() -> Vec<Row> {
         // partition should not need: an isolated partition's firmware comes from its IGVM.
         Row { name: "vbs-igvm-nochipset", why: "VirtualizationBasedSecurity + IgvmFilePath + empty VMGS and NO Chipset node at all: the IGVM is the firmware, and vmchipset.dll is what faults", isolation: Some("VirtualizationBasedSecurity"), no_chipset: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, ..base },
         Row { name: "vbs-nochipset-emptyvmgs", why: "the same without our IGVM: does the in-box paravisor survive a start with no chipset described?", isolation: Some("VirtualizationBasedSecurity"), no_chipset: true, use_empty_vmgs: true, overcommit: false, ..base },
+        // THE PATH WE NEVER SENT. Worker-Operational logs "Loading IGVM file from default
+        // location" for every partition so far, including those whose
+        // SecuritySettings.Isolation.IgvmFilePath named our image: that key is not what this build
+        // reads, so our IGVM has never been loaded and every "start ok" so far was the in-box
+        // paravisor. FirmwareFile carries a Path as well as Parameters; the path is the candidate.
+        Row { name: "vbs-fwpath", why: "VirtualizationBasedSecurity + Chipset.FirmwareFile.Path pointing at our IGVM + empty VMGS: the firmware file where this worker looks for one", isolation: Some("VirtualizationBasedSecurity"), uefi: true, fw_path: true, use_empty_vmgs: true, overcommit: false, ..base },
+        Row { name: "vbs-fwpath-params", why: "... plus the paravisor command line on COM2, which is what made memory initialisation succeed for the default image", isolation: Some("VirtualizationBasedSecurity"), uefi: true, fw_path: true, use_empty_vmgs: true, overcommit: false, fw: Some("OPENHCL_BOOT_LOG=com2"), ..base },
+        Row { name: "vbs-fwpath-igvmpath-params", why: "... and with BOTH keys set, in case the worker wants the isolation key too", isolation: Some("VirtualizationBasedSecurity"), uefi: true, fw_path: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, fw: Some("OPENHCL_BOOT_LOG=com2"), ..base },
         Row { name: "vbs-emptyvmgs-tpm", why: "... plus EnableTpm", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_empty_vmgs: true, overcommit: false, tpm: true, ..base },
         Row { name: "gso-emptyvmgs", why: "GuestStateOnly + the empty VMGS", isolation: Some("GuestStateOnly"), uefi: true, use_empty_vmgs: true, overcommit: false, ..base },
         Row { name: "vbs-vmgs", why: "VirtualizationBasedSecurity + a VMGS carrying an IGVM in file id 8: 'Loading IGVM file from VMGS file'", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_vmgs: true, overcommit: false, ..base },
@@ -161,7 +170,7 @@ pub fn run(o: &Opts) -> i32 {
         let pipe = format!(r"\\.\pipe\vbslike-iso-{}-{}-com1", std::process::id(), i);
         let cmdline = "console=ttyS0 rdinit=/init loglevel=3 report_host=9001";
         let base = DomainSpec { kernel: &kernel, initrd: &initrd, cmdline, mem_mib: o.num("mem", 1024), cpus: o.num("cpus", 2), console_pipe: &pipe, hvsock_sddl: crate::launcher::SDDL_ADMIN_SYSTEM };
-        let doc = isolated_document(&IsoSpec { base: &base, isolation: r.isolation, igvm_path: if r.use_igvm { igvm.as_deref() } else { None }, hcl_enabled: r.hcl, vmgs_path: vmgs_for_row, no_chipset: r.no_chipset, uefi: r.uefi, firmware_params: r.fw, extra_com_ports: 1, enable_tpm: r.tpm, overcommit: r.overcommit, transient_guest_state: r.transient_gs });
+        let doc = isolated_document(&IsoSpec { base: &base, isolation: r.isolation, igvm_path: if r.use_igvm { igvm.as_deref() } else { None }, hcl_enabled: r.hcl, vmgs_path: vmgs_for_row, no_chipset: r.no_chipset, firmware_path: if r.fw_path { igvm.as_deref() } else { None }, uefi: r.uefi, firmware_params: r.fw, extra_com_ports: 1, enable_tpm: r.tpm, overcommit: r.overcommit, transient_guest_state: r.transient_gs });
         let _ = std::fs::write(out.join(format!("isoprobe-{}.hcs.json", r.name)), &doc);
         println!("=== {} : {}", r.name, r.why);
         let id = format!("vbslike-iso-{}-{}", std::process::id(), i);
@@ -243,7 +252,7 @@ mod tests {
         let pipe = r"\\.\pipe\t-com1";
         let base = DomainSpec { kernel: "k", initrd: "i", cmdline: "c", mem_mib: 256, cpus: 1, console_pipe: pipe, hvsock_sddl: "D:P" };
         for r in rows() {
-            let doc = isolated_document(&IsoSpec { base: &base, isolation: r.isolation, igvm_path: if r.use_igvm { Some("igvm") } else { None }, hcl_enabled: r.hcl, vmgs_path: if r.use_vmgs || r.use_empty_vmgs { Some("vmgs") } else { None }, no_chipset: r.no_chipset, uefi: r.uefi, firmware_params: r.fw, extra_com_ports: 1, enable_tpm: r.tpm, overcommit: r.overcommit, transient_guest_state: r.transient_gs });
+            let doc = isolated_document(&IsoSpec { base: &base, isolation: r.isolation, igvm_path: if r.use_igvm { Some("igvm") } else { None }, hcl_enabled: r.hcl, vmgs_path: if r.use_vmgs || r.use_empty_vmgs { Some("vmgs") } else { None }, no_chipset: r.no_chipset, firmware_path: if r.fw_path { Some("igvm") } else { None }, uefi: r.uefi, firmware_params: r.fw, extra_com_ports: 1, enable_tpm: r.tpm, overcommit: r.overcommit, transient_guest_state: r.transient_gs });
             let v: serde_json::Value = serde_json::from_str(&doc).unwrap_or_else(|e| panic!("{}: {e}", r.name));
             let vm = &v["VirtualMachine"];
             match r.isolation {
