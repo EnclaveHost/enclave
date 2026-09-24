@@ -1,0 +1,148 @@
+# check.ps1 -- is this package what the commit says, and can this host boot it? (windows/vbslike/pkg/README.md)
+#
+#   check.ps1 -ManifestSha256 <64 hex>                      the package + each profile's host readiness (read-only)
+#   check.ps1 -ManifestSha256 <id> -Require igvm            ... and exit 3 unless that profile's host is ready
+#   check.ps1 -ManifestSha256 <id> -Fetch                   ... and fetch each servable app's component by CID with
+#                                                           the package's own fetcher, into <pkg>\fetched\
+#   check.ps1 -ManifestSha256 <id> -Phase serve -Boot <hcs-dev|igvm> -Url https://127.0.0.1:<port>/ -LoadJson <file|json>
+#                                                           an app some launcher served: its AppID as the GUEST computed
+#                                                           it, and its answer, against the manifest
+#   check.ps1 -ManifestSha256 <id> -SelfTest                the checks themselves must FAIL on a tampered copy
+#
+# Writes only under this package directory (fetched\, runs\, .selftest\). Exit: 0 ok, 1 FAIL, 3 a -Require'd profile
+# is BLOCKED by its host. BLOCKED is never a package failure: the package can be right while the host is not ready.
+param(
+  [Parameter(Mandatory = $true)][string]$ManifestSha256,
+  [ValidateSet('package', 'serve')][string]$Phase = 'package',
+  [ValidateSet('', 'hcs-dev', 'igvm')][string]$Require = '',
+  [ValidateSet('', 'hcs-dev', 'igvm')][string]$Boot = '',
+  [string]$App = 'hello-world',
+  [string]$Url = '',
+  [string]$LoadJson = '',
+  [switch]$Fetch,
+  [switch]$SelfTest,
+  [string]$Dir = ''                 # default: the package directory this script sits in
+)
+$ErrorActionPreference = 'Stop'
+# $PSScriptRoot is empty in a param() default under Windows PowerShell 5.1 -File, so it is read here
+$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $here 'pkg.lib.ps1')
+if (-not $Dir) { $Dir = Split-Path -Parent $here }
+$Dir = Resolve-PkgDir $Dir
+$stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
+
+# ---- -SelfTest: every check below must be able to say FAIL ----------------------------------------------------------
+if ($SelfTest) {
+  $root = Join-Path $Dir ".selftest\$stamp"
+  $cases = New-Object System.Collections.ArrayList
+  function Case([string]$Name, [bool]$WantOk, $Rows) {
+    $got = Test-ResultsOk $Rows
+    [void]$cases.Add([pscustomobject]@{ Name = $Name; Pass = ($got -eq $WantOk); Want = $WantOk; Got = $got })
+  }
+  try {
+    New-Item -ItemType Directory -Force -Path $root | Out-Null
+    $a = Join-Path $root 'a.txt'; [System.IO.File]::WriteAllText($a, 'enclave-vbslike-package selftest')
+    $M1 = [pscustomobject]@{ files = @([pscustomobject]@{ path = 'a.txt'; sha256 = (Get-Sha256 $a) }) }
+    $r = New-Results; Test-PkgFiles $r $root $M1; Case 'control: the file as pinned' $true $r
+    [System.IO.File]::WriteAllText($a, 'enclave-vbslike-package selftesT')
+    $r = New-Results; Test-PkgFiles $r $root $M1; Case 'one byte changed' $false $r
+    Remove-Item -LiteralPath $a
+    $r = New-Results; Test-PkgFiles $r $root $M1; Case 'the file removed' $false $r
+    [System.IO.File]::WriteAllText($a, 'enclave-vbslike-package selftest')
+    [System.IO.File]::WriteAllText((Join-Path $root 'b.txt'), 'x')
+    $r = New-Results; Test-PkgFiles $r $root $M1; Case 'a file the manifest does not name' $false $r
+    Remove-Item -LiteralPath (Join-Path $root 'b.txt')
+    $M2 = [pscustomobject]@{ files = @([pscustomobject]@{ path = '../a.txt'; sha256 = $M1.files[0].sha256 }) }
+    $r = New-Results; Test-PkgFiles $r $root $M2; Case 'a path that leaves the package' $false $r
+    $r = New-Results; Test-VmWorkerRead $r $a 'a.txt'; Case 'no grant for the VM worker' $false $r
+    & icacls.exe $a /grant "*$($script:VmWorkerSid):(R)" | Out-Null
+    $r = New-Results; Test-VmWorkerRead $r $a 'a.txt'; Case 'after the grant' $true $r
+    $r = New-Results; [void](Read-PkgManifest $r $Dir ('0' * 64)); Case 'another manifest id' $false $r
+    $r = New-Results; [void](Read-PkgManifest $r $Dir $ManifestSha256); Case 'control: this manifest id' $true $r
+  } finally { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue }
+  foreach ($c in $cases) { "{0} {1} (want ok={2}, got ok={3})" -f $(if ($c.Pass) { 'ok  ' } else { 'FAIL' }), $c.Name, $c.Want, $c.Got }
+  $bad = @($cases | Where-Object { -not $_.Pass }).Count
+  if ($bad -eq 0) { "SELFTEST PASS $($cases.Count)/$($cases.Count)"; exit 0 }
+  "SELFTEST FAIL $bad of $($cases.Count)"; exit 1
+}
+
+$R = New-Results
+$M = Read-PkgManifest $R $Dir $ManifestSha256
+if (-not $M) { Write-Results $R; 'FAIL check: the manifest is not the one named'; exit 1 }
+Test-PkgFiles $R $Dir $M
+foreach ($p in @($M.vmWorkerRead)) { Test-VmWorkerRead $R (Get-PkgFilePath $Dir $p) $p }
+$tier = $M.tier
+[void](Add-Result $R ($tier.name -eq 'T0-hv' -and $tier.hostExcluded -eq $false -and $tier.snp -eq $false) 'tier' "$($tier.name): host NOT excluded, no SNP, no VMPL" 'info')
+
+# ---- serve: an answer tied to these bytes -----------------------------------------------------------------------------
+if ($Phase -eq 'serve') {
+  $a = Get-PkgApp $M $App
+  if (-not $a) { [void](Add-Result $R $false "app $App" 'not in this package') }
+  elseif (-not $a.servable) { [void](Add-Result $R $false "app $App" "not servable in this package: $($a.blockedOn)") }
+  elseif (-not $Boot) { [void](Add-Result $R $false 'serve' '-Boot hcs-dev|igvm: which profile served it') }
+  else {
+    $slot = @($M.slots | Where-Object { $_.role -eq 'control.datapath' })[0]
+    if ($Boot -eq 'igvm' -and $slot -and $slot.state -ne 'pinned') {
+      [void](Add-Result $R $false 'serve on igvm' "this package has no datapath (slot control.datapath is $($slot.state), owner $($slot.owner)): nothing here can load a bundle into an IGVM guest" 'blocked')
+    } else {
+      $lj = $LoadJson
+      if ($lj -and (Test-Path -LiteralPath $lj)) { $lj = [System.IO.File]::ReadAllText($lj) }
+      $load = $null; if ($lj) { try { $load = $lj | ConvertFrom-Json } catch { $load = $null } }
+      $guestApp = $null
+      if ($load -and ($load.PSObject.Properties.Name -contains 'loaded')) { $guestApp = [string]$load.loaded.appSha256 }
+      elseif ($load -and ($load.PSObject.Properties.Name -contains 'appSha256')) { $guestApp = [string]$load.appSha256 }
+      [void](Add-Result $R ($guestApp -eq $a.appId) "the guest computed this app's AppID" $(if ($guestApp -eq $a.appId) { $a.appId } elseif ($guestApp) { "the guest computed $guestApp, the package pins $($a.appId)" } else { '-LoadJson carries no loaded.appSha256: without the guest''s own hash nothing ties the answer to these bytes' }))
+      if (-not $Url) { [void](Add-Result $R $false 'serve' '-Url: where the app answers') }
+      else {
+        $runs = Join-Path $Dir "runs\serve-$stamp"; New-Item -ItemType Directory -Force -Path $runs | Out-Null
+        $g = Invoke-PkgGet $Url (Join-Path $runs 'body')
+        $ok = $g.Status -eq [int]$a.expect.status -and $g.Body -eq $a.expect.body
+        [void](Add-Result $R $ok "GET $Url" $(if ($ok) { "$($g.Status) '$($g.Body)'" } else { "got $($g.Status) '$($g.Body)' (curl exit $($g.Exit)), want $($a.expect.status) '$($a.expect.body)'" }))
+        $rec = [ordered]@{ type = 'enclave-vbslike-package-serve/1'; manifestSha256 = $ManifestSha256.ToLower(); boot = $Boot; app = "$($a.name) $($a.version)"
+                           appId = $a.appId; guestAppId = $guestApp; url = $Url; status = $g.Status; body = $g.Body; atUtc = $stamp; tier = $M.tier.name; hostExcluded = $false }
+        [System.IO.File]::WriteAllText((Join-Path $runs 'serve.json'), ($rec | ConvertTo-Json), (New-Object System.Text.UTF8Encoding($false)))
+      }
+    }
+  }
+  Write-Results $R
+  if (Test-ResultsOk $R) { "SERVED $App ($($a.version), AppID $($a.appId.Substring(0, 16))) on $Boot at $Url -- tier $($M.tier.name), host NOT excluded"; exit 0 }
+  'FAIL serve'; exit 1
+}
+
+# ---- package: fetch (optional), host readiness, and what to run ---------------------------------------------------------
+if ($Fetch) {
+  $fetcher = Get-PkgFilePath $Dir $M.control.fetcher
+  $out = Join-Path $Dir 'fetched'; New-Item -ItemType Directory -Force -Path $out | Out-Null
+  foreach ($a in @($M.apps | Where-Object { $_.servable })) {
+    $dst = Join-Path $out "$($a.cid).wasm"
+    $line = & python $fetcher $a.cid $dst 2>&1 | Select-Object -Last 1
+    $ok = ($LASTEXITCODE -eq 0) -and (Test-Path -LiteralPath $dst) -and ((Get-Sha256 $dst) -eq $a.componentSha256)
+    [void](Add-Result $R $ok "fetch $($a.name) $($a.version) by CID with the package's fetcher" $(if ($ok) { "$line" } else { "exit $LASTEXITCODE`: $line" }))
+  }
+}
+$ready = @{}
+foreach ($p in @('hcs-dev', 'igvm')) { $ready[$p] = Test-HostProfile $R $M $p }
+$task = Get-ScheduledTask -TaskName EnclaveWindowsNode -ErrorAction SilentlyContinue
+[void](Add-Result $R $true 'live node (not touched by this package)' $(if ($task) { "EnclaveWindowsNode $($task.State)" } else { 'no EnclaveWindowsNode task' }) 'info')
+Write-Results $R
+
+$pkgOk = Test-ResultsOk $R
+if (-not $pkgOk) { 'FAIL package: see the FAIL lines'; exit 1 }
+"PACKAGE OK $($M.name) v$($M.version) $($ManifestSha256.ToLower())"
+foreach ($p in @('hcs-dev', 'igvm')) {
+  $pr = $M.profiles.$p
+  if ($ready[$p]) { "PROFILE $p READY -- $($pr.status)" } else { "PROFILE $p BLOCKED -- $($pr.status)" }
+}
+$d = $Dir
+''
+'# igvm profile: the manager, pinned to this package (run after the Hyper-V role is enabled; see README)'
+"`$env:ENCLAVE_GUEST_IGVM        = '$(Get-PkgFilePath $d $M.profiles.igvm.image)'"
+"`$env:ENCLAVE_GUEST_IGVM_SHA256 = '$(@($M.files | Where-Object { $_.path -eq $M.profiles.igvm.image })[0].sha256)'"
+"`$env:ENCLAVE_RUNTIME_ID        = '$($M.runtime.runtimeId)'"
+"`$env:ENCLAVE_CID_FETCHER       = '$(Get-PkgFilePath $d $M.control.fetcher)'"
+"node $(Get-PkgFilePath $d $M.control.manager)"
+''
+'# hcs-dev profile: boot the same monitor image and serve the first app, end to end (development path, host NOT excluded)'
+"powershell -NoProfile -ExecutionPolicy Bypass -File $d\win\smoke-hcs.ps1 -ManifestSha256 $($ManifestSha256.ToLower())"
+if ($Require -and -not $ready[$Require]) { "REQUIRED PROFILE $Require IS BLOCKED"; exit 3 }
+exit 0
