@@ -1386,15 +1386,19 @@ function sendForwarded(res, r, req) {
 // The rule is fail-closed on purpose: a machine with no evidence may carry
 // traffic (a relay row) or sit attached as evidence of work in progress, but it
 // is never presented as sellable capacity and never routed a deployment.
-// GPUs. Enclave Shield is Enclave's protected GPU-offload mechanism for any card that
-// does not support, or is not operating in, confidential-computing mode, on any host
-// (even beside a confidential CPU, when the card is outside that boundary): masked
-// inputs, results verified before use, no plaintext protected state on the card. The
-// card-specific admission gate for that rule is BEING BUILT and must rely on explicit,
-// verified GPU protection-mode evidence, never on the absence of a field; nothing here
-// classifies a card as confidential because some block is missing. Today the only gate
-// is the box-level one above: a box without confidential-CPU evidence sells nothing,
-// card included, and a confidential box's card is offered exactly as before.
+// GPUs. Enclave Shield is the umbrella name for Enclave's protection technology on
+// machines without confidential-computing hardware: a host isolation component
+// (hardware-enforced per-app CPU isolation that keeps the ordinary host OS out of each
+// app's domain) and a masked, verified GPU-offload component. The GPU component is
+// required for any card outside a confidential boundary, on any host, even beside a
+// confidential CPU: masked inputs, results verified before use, no plaintext protected
+// state on the card; a card operating in a supported confidential-computing mode sits
+// inside the boundary and does not need it. The card-specific admission gate for that
+// rule is BEING BUILT and must rely on explicit, verified GPU protection-mode evidence,
+// never on the absence of a field; nothing here classifies a card as confidential
+// because some block is missing. Today the only gate is the box-level one above: a box
+// without confidential-CPU evidence sells nothing, card included, and a confidential
+// box's card is offered exactly as before.
 const TENANT_COMPUTE_MODES = new Set(["snp"]);
 const CONFIDENTIAL_CPU = new Set(["amd-sev-snp", "intel-tdx"]);
 function computeEligible(e) {
