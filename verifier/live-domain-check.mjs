@@ -84,7 +84,10 @@ const { spki, cert } = spkiOfCert(session.der);
 const head = session.raw.indexOf("\r\n\r\n"), status = /^HTTP\/1\.[01] (\d{3})/.exec(session.raw.subarray(0, head).toString())?.[1];
 let body = session.raw.subarray(head + 4).toString("utf8");
 if (/transfer-encoding:\s*chunked/i.test(session.raw.subarray(0, head).toString())) { let out = "", s = body; for (;;) { const m = /^([0-9a-f]+)\r\n/i.exec(s); if (!m) break; const n = parseInt(m[1], 16); if (!n) break; out += s.substr(m[0].length, n); s = s.slice(m[0].length + n + 2); } body = out; }
-report.session = { protocol: session.protocol, alpn: session.alpn, servedCertSubject: cert.subject, servedCertValid: [cert.validFrom, cert.validTo], servedSpkiSha256: createHash("sha256").update(spki).digest("hex"), httpStatus: status, bodyBytes: Buffer.byteLength(body) };
+// the served LEAF is recorded by serial, issuer and fingerprint as well as by window: a re-issued certificate for the same key
+// and name has the same window at day granularity (the owner's 8ed6231f finding), and only the serial or fingerprint shows it
+report.session = { protocol: session.protocol, alpn: session.alpn, servedCertSubject: cert.subject, servedCertIssuer: cert.issuer, servedCertSerial: String(cert.serialNumber || "").toLowerCase(), servedCertSha256: Buffer.isBuffer(cert.raw) ? createHash("sha256").update(cert.raw).digest("hex") : null,
+  servedCertValid: [cert.validFrom, cert.validTo], servedSpkiSha256: createHash("sha256").update(spki).digest("hex"), httpStatus: status, bodyBytes: Buffer.byteLength(body) };
 if (status !== "200") { report.verdict = { status: "rejected", reasons: [`REJECT: the endpoint answered HTTP ${status}`] }; done(); }
 let doc; try { doc = JSON.parse(body); } catch (e) { report.verdict = { status: "rejected", reasons: [`REJECT: the document is not JSON: ${e.message}`] }; done(); }
 report.document = { keys: Object.keys(doc).sort(), format: doc.format, abi: doc.abi, tier: doc.tier, nonceEchoed: doc.nonce === nonce.toString("hex"), transportKeyIsServedSpki: Buffer.from(String(doc.transportKey || ""), "base64").equals(spki), runtime: doc.runtime, runtimeSelfTest: doc.runtimeSelfTest, hasCerts: "certs" in doc };
@@ -104,7 +107,7 @@ done();
 function done() {
   const out = opt("out"); if (out) fs.writeFileSync(out, JSON.stringify(report, null, 1) + "\n");
   console.log(`live domain check: ${host} at ${report.at}`);
-  if (report.session) console.log(`  session: ${report.session.protocol} ${report.session.alpn || "-"}; served cert ${JSON.stringify(report.session.servedCertSubject)} ${report.session.servedCertValid.join(" .. ")}; SPKI sha256 ${report.session.servedSpkiSha256}`);
+  if (report.session) console.log(`  session: ${report.session.protocol} ${report.session.alpn || "-"}; served cert ${JSON.stringify(report.session.servedCertSubject)} serial ${report.session.servedCertSerial} by ${JSON.stringify((report.session.servedCertIssuer || {}).CN || report.session.servedCertIssuer)} ${report.session.servedCertValid.join(" .. ")} (leaf sha256 ${String(report.session.servedCertSha256).slice(0, 16)}…); SPKI sha256 ${report.session.servedSpkiSha256}`);
   if (report.document) console.log(`  document: keys ${report.document.keys.join(",")}; nonce echoed ${report.document.nonceEchoed}; transportKey == served SPKI ${report.document.transportKeyIsServedSpki}; certs ${report.document.hasCerts}`);
   if (report.derive) console.log(`  derive: ${JSON.stringify(report.derive)}`);
   console.log(`  expectations: measurement ${measurement.slice(0, 16)}… (${report.expectations.measurementSource}); AppID ${String(appId).slice(0, 16)}… (${appIdSource})`);

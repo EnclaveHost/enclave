@@ -750,8 +750,9 @@ keys; a guest relaunch (a guest image or front change) still gives new keys.
 by another node's 503 through a fan-out, because the metal agent's only hello arrived before the hub bound the attested
 tunnel and the node's row stayed synthetic. The owner restarted the node at 20:51:41Z with guestd untouched; A and E were
 adopted at 20:52:56Z. Measured from the public side at 21:06:08Z and 21:06:14Z: both VERIFIED with host data, the
-F2 measurement and the same keys (295ce2e0…, d590dd84…) and certificate windows as before the restart, and
-`GET https://api.enclave.host/x/0x<deployment id>/` answers 421 from the lease holder, naming the guest's own origin (the
+F2 measurement and the same keys (295ce2e0…, d590dd84…) as before the restart (the certificates carrying them were
+RE-ISSUED by that restart, which this check could not see: it recorded the leaf's day-granular window and not its serial;
+see the correction under F10), and `GET https://api.enclave.host/x/0x<deployment id>/` answers 421 from the lease holder, naming the guest's own origin (the
 bare-hex form is not an id there and is 404 "not_found"). So a node restart that leaves guestd alone keeps the guests'
 keys; only the F7 case above (guestd itself) and a guest relaunch were measured to change them.
 **F10, a wasi:cli command in its guest, and a TCB floor for issuance (owner's cf8b22bd; reviewed at that commit and
@@ -773,8 +774,16 @@ owner's judge as `minTcb`: with it only an "attested" verdict issues, a malforme
 which the supervisor logs. The expected guest measurement remains guestd's word. DERIVE.md describes v2 since the
 owner's 0181bce3 (the pin picks it up on its next move).
 **Measured (21:24Z), the owner's guestd restart and node restart (image dist-iso-c02a2c2e, relay allowlist af8a5d51…)
-and the first v2 deployment:** A and E VERIFIED with the same keys (295ce2e0…, d590dd84…) and certificate windows through
-both restarts (adopted by guestd at 21:17:59Z and by the new node at 21:19:36Z). hookbin 0.1.4 (deployment 0x0ddbd824…,
+and the first v2 deployment:** A and E VERIFIED with the same keys (295ce2e0…, d590dd84…) through both restarts (adopted by guestd at
+21:17:59Z and by the new node at 21:19:36Z). **Correction from the owner (their finding, not this check's):** the node
+restart re-issued both certificates (A's serial 6fbaaa4a… became 9acd5518…, E's 3a77db7e… became 2c36b3a9…) although
+each guest still served a valid leaf for the same key; the supervisor's certificate loop kept no memory across restarts,
+so every node restart spent one CA issuance per tier app from the shared quota, and the F3 and F7 restarts most likely
+did the same. This check reported "certificate windows unchanged", which was true and covered nothing: a re-issued leaf
+for the same key and name has the same window at day granularity. `verifier/live-domain-check.mjs` now records the
+served leaf's serial, issuer and sha256 beside the window. The owner's fix is 8ed6231f (before judging or issuing, the
+relay handshakes under the name and issues nothing while a WebPKI-valid leaf for exactly the route's key is before 2/3 of
+its life); baseline serials at 21:31Z, before the next node restart: A 9acd5518…, E 2c36b3a9…, hookbin 3636639a…. hookbin 0.1.4 (deployment 0x0ddbd824…,
 `0ddbd824.app.enclave.host`) VERIFIED from the public side: the AppID was DERIVED here under v2 (`--derive`: the component
 fetched by CID from the platform gateway, 201,013 bytes, its sha256 equal to the CID's multihash digest, then the pinned
 reference on the chain's record with `http: 8000`) as d2c4dfc0…, the report names it, HOST_DATA equals the deployment id,
