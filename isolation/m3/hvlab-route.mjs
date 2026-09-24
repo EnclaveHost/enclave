@@ -26,7 +26,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import path from "node:path";
 import { randomBytes, createHash } from "node:crypto";
 import { WebSocketServer, createWebSocketStream } from "ws";
-import { isolationPlan, isolatedTarget, createIsolationSplicer, dataPlaneFor, V1, V2 } from "../../windows/vbslike/datapath/node-bridge.mjs";
+import { isolationPlan, isolatedTarget, createIsolationSplicer, dataPlaneFor, V1, V2, BACKEND } from "../../windows/vbslike/datapath/node-bridge.mjs";
 import { runtimeId as runtimeIdOf } from "../contract/runtime.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -50,19 +50,20 @@ const versions = {
              cid: "bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee", memMb: 256, ports: "http:8000", config: MEDIA, configCid: "" },
 };
 const ledger = { cpuMilli: 100, gpuMilli: 0, isPublic: true, appPort: 8080 };
+const MANAGER = { backend: BACKEND, catalog: { derivations: [V1, V2] } };   // the manager's /health, as it states itself
 
 // 1. the node plans each deployment from its version (what host.mjs #isolationReconcile will call)
 const plans = {};
 for (const [dep, want, app] of [[DEP_A, V1, appA], [DEP_B, V2, appB]]) {
   const v = versions[dep];
   const p = isolationPlan({ deploymentId: dep, deployment: ledger, version: v, appConfig: v.config, hasSecrets: false,
-                            waf: {}, volumes: [], runtimeId: RT, derivations: [V1, V2] });
+                            waf: {}, volumes: [], runtimeId: RT, require: BACKEND, manager: MANAGER, appConfigCid: "" });
   plans[dep] = p;
   record(`plan ${dep.slice(0, 10)}: ${want}`, p.ok && p.derivation === want, p.ok ? `${p.derivation} http=${p.httpPort} memMiB=${p.policy.memMiB}` : `${p.input}: ${p.why}`);
 }
 record("plan: a deployment with staged secrets is refused, naming the input", (() => {
   const p = isolationPlan({ deploymentId: DEP_B, deployment: ledger, version: versions[DEP_B], appConfig: MEDIA, hasSecrets: true,
-                            waf: {}, volumes: [], runtimeId: RT, derivations: [V1, V2] });
+                            waf: {}, volumes: [], runtimeId: RT, require: BACKEND, manager: MANAGER, appConfigCid: "" });
   return !p.ok && p.input === "hasSecrets";
 })(), "hasSecrets");
 

@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { createHash, X509Certificate } from "node:crypto";
 import { WebSocketServer, WebSocket, createWebSocketStream } from "ws";
 import { appConfigOf, policyFor, httpPortOf, derivationOf, isolationPlan, isolatedTarget, createIsolationSplicer,
-         dataPlaneFor, V1, V2 } from "./node-bridge.mjs";
+         dataPlaneFor, V1, V2, BACKEND } from "./node-bridge.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SUPERVISOR = path.join(HERE, "..", "..", "..", "supervisor.js");
@@ -44,8 +44,10 @@ const DEP_A = "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1
 const DEP_H = "0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76";   // hookbin
 const ledger = { cpuMilli: 100, gpuMilli: 0, isPublic: true, appPort: 8080 };
 const BOTH = [V1, V2];
+const MGR = { backend: BACKEND, catalog: { derivations: BOTH } };
 const plan = (over = {}) => isolationPlan({ deploymentId: DEP_H, deployment: ledger, version: HOOKBIN, appConfig: HOOKBIN.config,
-                                            hasSecrets: false, waf: {}, volumes: [], runtimeId: RT, derivations: BOTH, ...over });
+                                            hasSecrets: false, waf: {}, volumes: [], runtimeId: RT, require: BACKEND, manager: MGR,
+                                            appConfigCid: "", ...over });
 
 test("the rules agree with supervisor.js's, case for case", { timeout: 60_000 }, async () => {
   const configs = ["", null, MEDIA, JSON.stringify({ _media: {}, API_URL: "x" }), "not json", "[1,2]", JSON.stringify({})];
@@ -69,6 +71,34 @@ test("the rules agree with supervisor.js's, case for case", { timeout: 60_000 },
   });
 });
 
+// The claim gate's VERDICTS, not only its helpers: for every input both take, the plan refuses exactly when
+// supervisor.js's isolationClaimVerdict refuses. (The plan also refuses what it cannot verify - null waf, volumes,
+// secrets - which the gate reads differently; those are compared only with known values here, and covered as
+// "unknown" below.)
+test("the plan refuses exactly when supervisor.js's claim gate refuses, input for input", { timeout: 60_000 }, async () => {
+  const gateMgr = (m) => m && { backend: m.backend, supports: { gpu: false, secrets: false, egress: false, config: false, ports: false },
+                                catalog: { derivations: m.catalog && m.catalog.derivations } };
+  const cases = [
+    {}, { require: "snp-guest-per-app" }, { require: "" }, { manager: { ...MGR, backend: "snp-guest-per-app" } },
+    { deployment: { ...ledger, gpuMilli: 250 } }, { appConfig: JSON.stringify({ _media: {}, TOKEN: "x" }) }, { appConfig: MEDIA },
+    { appConfigCid: "bafkreiaaaa" }, { hasSecrets: true }, { version: { ...HOOKBIN, ports: "http:8000,tcp:5432" } },
+    { version: { ...HOOKBIN, ports: "tcp:22" } }, { version: { ...HELLO }, appConfig: "" }, { manager: { ...MGR, catalog: { derivations: [V1] } } },
+    { volumes: ["llama-70b"] }, { deployment: { ...ledger, isPublic: false } }, { waf: { rateLimit: { perMin: 60 } } },
+  ];
+  const planned = cases.map((c) => plan(c));
+  const gateIn = cases.map((c) => {
+    const x = { deployment: ledger, version: HOOKBIN, appConfig: HOOKBIN.config, hasSecrets: false, waf: {}, volumes: [], require: BACKEND,
+                manager: MGR, appConfigCid: "", ...c };
+    const fw = String(x.version.ports || "").split(",").map((p) => p.trim()).filter(Boolean);
+    return { require: x.require, manager: gateMgr(x.manager), gpuMilli: x.deployment.gpuMilli, config: appConfigOf(x.appConfig),
+             appConfigCid: x.appConfigCid || x.version.configCid || "", hasSecrets: x.hasSecrets, firewall: fw, volumes: x.volumes,
+             isPublic: x.deployment.isPublic, waf: x.waf };
+  });
+  const s = await seam({ verdicts: gateIn });
+  cases.forEach((c, i) => assert.equal(planned[i].ok, s.verdicts[i] === null,
+    `case ${JSON.stringify(c)}: plan ${planned[i].ok ? "ok" : planned[i].input} vs gate ${JSON.stringify(s.verdicts[i])}`));
+});
+
 test("real records: hello-world /1 and hookbin /2 reproduce the production derivation digests", () => {
   const h = plan();
   assert.equal(h.ok, true, JSON.stringify(h));
@@ -83,8 +113,8 @@ test("real records: hello-world /1 and hookbin /2 reproduce the production deriv
   // the node's own floor (cpuFallback) never reaches the policy: another number would be another AppID
   assert.equal(plan({ version: { ...HOOKBIN, memMb: 256 } }).policy.memMiB, 256);
   // a manager that serves only /1 refuses /2 by name, and serves /1
-  assert.deepEqual(pick(plan({ derivations: [V1] })), { input: "derivations", unknown: false });
-  assert.equal(plan({ deploymentId: DEP_A, version: HELLO, appConfig: "", derivations: [V1] }).ok, true);
+  assert.deepEqual(pick(plan({ manager: { ...MGR, catalog: { derivations: [V1] } } })), { input: "manager.catalog.derivations", unknown: false });
+  assert.equal(plan({ deploymentId: DEP_A, version: HELLO, appConfig: "", manager: { ...MGR, catalog: { derivations: [V1] } } }).ok, true);
 });
 
 const pick = (r) => ({ input: r.input, unknown: r.unknown });
@@ -100,6 +130,9 @@ test("every refusal names the input that decided, and UNKNOWN is never read as n
     volumes: { volumes: ["llama-70b"] },
     "version.ports": { version: { ...HOOKBIN, ports: "http:8000,tcp:5432" } },
     "version.yanked": { version: { ...HOOKBIN, yanked: true } },
+    require: { require: "snp-guest-per-app" },
+    "manager.backend": { manager: { ...MGR, backend: "snp-guest-per-app" } },
+    appConfigCid: { appConfigCid: "bafkreiaaaa" },
   };
   for (const [input, over] of Object.entries(no)) {
     const r = plan(over);
@@ -114,7 +147,10 @@ test("every refusal names the input that decided, and UNKNOWN is never read as n
     appConfig: { appConfig: undefined },
     waf: { waf: null },
     volumes: { volumes: undefined },
-    derivations: { derivations: null },
+    require: { require: undefined },
+    manager: { manager: null },
+    "manager.catalog.derivations": { manager: { backend: BACKEND } },
+    appConfigCid: { appConfigCid: undefined },
     runtimeId: { runtimeId: "" },
     "version.memMb": { version: { ...HOOKBIN, memMb: undefined } },
     deployment: { deployment: null },
