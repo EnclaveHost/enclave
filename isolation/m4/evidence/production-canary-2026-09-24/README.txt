@@ -142,14 +142,20 @@ FINDINGS
       "state unknown" - from nucbox-k11, not metal-iso0. Cause: on the ATTESTED attach path the agent's only hello (which
       carries publicUrl = the registry id) arrived before the hub bound the tunnel, so metal-iso0's row stayed synthetic
       ("tunnel:metal-iso0"), the relay's ledger rule could not match the lease holder, and its fan-out took nucbox, which
-      answered 204 to /x/<id> for ids it does not run (reported; fixed by the Windows owner at 78b3eb9f, to deploy in
-      their reboot window). Now the row carries 0xf7a1256d... and https://api.enclave.host/x/<id>/ answers metal-iso0's
+      answered 204 to /x/<id> for ids it does not run (reported; fixed by the Windows owner at 78b3eb9f, pushed but NOT
+      deployed and NOT scheduled: deploying it needs a nucbox restart, a decision nobody has taken - CORRECTED
+      2026-09-24, an earlier note here said it would ride a planned reboot window, which does not exist; a nucbox
+      restart interrupts its full app set for about 15 minutes, the RISC Box's 21.8 GiB snapshot restore dominating). Now the row carries 0xf7a1256d... and https://api.enclave.host/x/<id>/ answers metal-iso0's
       421 "This deployment is served only over TLS that ends in its own guest: https://<label>.app.enclave.host/".
       Node restart adopted both guests (keys and certificates unchanged). Independently re-verified by the Windows
       owner (enclave-d1). RESIDUAL on nucbox's side until its fix deploys: deployments with NO live runner still reach
       the fan-out, and two real ones (0x9eb4e600..., 0x2b84a098..., model-volume apps nucbox refused by name) get a
       503 from nucbox instead of a 404 - live and user-visible, correctness and clarity, not exposure (nucbox serves
       and terminates nothing for them).
+      Related, from the same owner: the Windows manager now speaks guestd-control/1 server-side, tested against this
+      branch's unmodified control-client.mjs over a real socket (handshake, signed request, body round-trip, wrong-key
+      refusal, no-key fail-closed, single-use nonces, replay window, cross-instance rejection, response MAC). A wire
+      format change here breaks those tests by design.
   F4  The node CVM itself boots from a measured image whose supervisor comes from a branch overlay, not a main release.
   F5  The operator key is metal0's (shared between two nodes that do not run together).
 
