@@ -1,3 +1,53 @@
+diff --git a/kernel/src/greq/services.rs b/kernel/src/greq/services.rs
+index d998c92..27e7256 100644
+--- a/kernel/src/greq/services.rs
++++ b/kernel/src/greq/services.rs
+@@ -9,6 +9,7 @@
+ use zerocopy::FromBytes;
+ 
+ use crate::error::SvsmError;
++use crate::types::GUEST_VMPL;
+ use crate::greq::{
+     driver::{send_extended_guest_request, send_regular_guest_request},
+     msg::SnpGuestRequestMsgType,
+@@ -21,9 +22,18 @@ const REPORT_RESPONSE_SIZE: usize = size_of::<SnpReportResponse>();
+ 
+ fn get_report(buffer: &mut [u8], certs: Option<&mut [u8]>) -> Result<usize, SvsmError> {
+     let request: &SnpReportRequest = SnpReportRequest::try_from_as_ref(buffer)?;
+-    // Non-VMPL0 attestation reports can be requested by the guest kernel
+-    // directly to the PSP.
+-    if !request.is_vmpl0() {
++    // Upstream refused every non-VMPL0 request here, on the stated grounds that "non-VMPL0 attestation
++    // reports can be requested by the guest kernel directly to the PSP". That premise no longer holds in this
++    // build: the guest's secrets-page copy carries NO VMPCK (see SecretsPage::copy_with_no_vmpck), precisely so
++    // that it CANNOT ask the PSP for anything and every report must come through an SVSM protocol. If this
++    // check stayed as it was, the SVSM would be the only entity able to request a report and would be forbidden
++    // from requesting the one the guest plane needs - protocol 6 returned INVALID_PARAMETER for exactly that
++    // reason, and protocol 1 would have too once it started naming the plane.
++    //
++    // So a request naming VMPL0 or the one guest plane this SVSM serves is allowed, and nothing else is: a
++    // caller cannot get a report for a plane that does not exist here, and no path lets a guest choose the
++    // level, because the level is written by the SVSM and never taken from the request.
++    if !request.is_vmpl0() && request.vmpl != GUEST_VMPL as u32 {
+         return Err(SvsmError::InvalidParameter);
+     }
+     let response_len = if certs.is_none() {
+diff --git a/kernel/src/platform/snp_fw.rs b/kernel/src/platform/snp_fw.rs
+index c6ed036..f9615f7 100644
+--- a/kernel/src/platform/snp_fw.rs
++++ b/kernel/src/platform/snp_fw.rs
+@@ -208,7 +208,10 @@ unsafe fn copy_secrets_page_to_fw(
+     }
+ 
+     // Copy secrets page
+-    let mut fw_secrets_page = secrets_page().unwrap().copy_for_vmpl(GUEST_VMPL);
++    // No message key for the guest: see SecretsPage::copy_with_no_vmpck. copy_for_vmpl(GUEST_VMPL) left the
++    // guest holding VMPCK2 and VMPCK3, with which it could mint its own signed reports and bypass every gate
++    // this SVSM puts in front of one.
++    let mut fw_secrets_page = secrets_page().unwrap().copy_with_no_vmpck();
+ 
+     fw_secrets_page.set_svsm_data(
+         kernel_region.start().into(),
 diff --git a/kernel/src/protocols/attest.rs b/kernel/src/protocols/attest.rs
 index 3a3be24..95c77f8 100644
 --- a/kernel/src/protocols/attest.rs
@@ -186,3 +236,40 @@ index f2d2cfe..b1abc8f 100644
          #[cfg(feature = "vtpm")]
          SVSM_VTPM_PROTOCOL => vtpm_protocol_request(request, params),
          SVSM_APIC_PROTOCOL => apic_protocol_request(request, params),
+diff --git a/kernel/src/sev/secrets_page.rs b/kernel/src/sev/secrets_page.rs
+index 27f7f09..7222e13 100644
+--- a/kernel/src/sev/secrets_page.rs
++++ b/kernel/src/sev/secrets_page.rs
+@@ -115,6 +115,32 @@ impl SecretsPage {
+         sp
+     }
+ 
++    /// A copy of the secrets page carrying NO message key at all, for a guest plane that must not be able to
++    /// speak to the PSP on its own behalf.
++    ///
++    /// `copy_for_vmpl` clears only `0..vmpl`, so a guest at VMPL2 keeps VMPCK2 and VMPCK3 - and with them it
++    /// can request a signed report over its own GHCB, with `report_data` of its choosing and any VMPL from its
++    /// own level downwards, without involving this SVSM at all. Every gate the SVSM puts in front of a report
++    /// is then bypassed by not asking for one: an app-naming protocol that admits artifacts before it will
++    /// name a plane is worth nothing while the plane can name itself.
++    ///
++    /// Clearing all four makes the SVSM the only holder of a message key in this guest, so the SVSM's
++    /// protocols become the only path to a report. Two consequences, both intended:
++    ///
++    ///   * Linux's `sev-guest` driver finds no usable VMPCK and fails to probe, so configfs-tsm offers no
++    ///     report interface inside the guest. Anything that used it must move to an SVSM protocol.
++    ///   * that failure is itself the key-absence evidence this project wanted: a guest that can load
++    ///     `sev-guest` with `vmpck_id=0` demonstrably holds VMPCK0 and is therefore NOT beneath a VMPL0
++    ///     monitor, which is the test the forgeable `vmpl0=refused` tuple could never perform
++    ///     (isolation/DESIGN.md section 12).
++    pub fn copy_with_no_vmpck(&self) -> Box<SecretsPage> {
++        let mut sp = self.copy_for_vmpl(0);
++        for idx in 0..VMPL_MAX {
++            sp.clear_vmpck(idx);
++        }
++        sp
++    }
++
+     pub fn set_svsm_data(&mut self, base: u64, size: u64, caa_addr: u64) {
+         self.svsm_base = base;
+         self.svsm_size = size;

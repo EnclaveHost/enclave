@@ -1,0 +1,21 @@
+ADMIT tsm_report=LOADED - this guest holds a message key, so it can mint its own reports
+ADMIT sev_guest_no_vmpck=No such device
+ADMIT tsm_report_dir=No such file or directory
+ADMIT insmod=ok
+ADMIT slot0=slot=0 len=0 cap=4194304 pages=0 split=1 list_gpa=0x6200000
+ADMIT status_before=admitted=0x00 required=0x03 kinds=2 vmpl=2
+ADMIT whoami_before=error=-22 rax_out=0x80001003
+ADMIT report_before=refused
+ADMIT select_bundle_slot=ok
+ADMIT stage_bundle=ok
+ADMIT bundle_staged=slot=0 len=59829 cap=4194304 pages=15 split=1 list_gpa=0x6200000
+ADMIT admit_bundle=Permission denied
+ADMIT admit_bundle_result=ret=-22 rax_out=0x80001004
+ADMIT status_after_bundle=admitted=0x00 required=0x03 kinds=2 vmpl=2
+ADMIT whoami_after_bundle=error=-22 rax_out=0x80001003
+ADMIT poke=writing to the region a REFUSED admission must not have frozen
+ADMIT poke_result=WROTE
+ADMIT status_final=admitted=0x00 required=0x03 kinds=2 vmpl=2
+ADMIT whoami_final=error=-22 rax_out=0x80001003
+ADMIT report_final=refused
+ADMIT done=ok

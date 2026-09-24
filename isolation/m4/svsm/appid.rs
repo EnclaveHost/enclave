@@ -600,7 +600,15 @@ fn appid_get_report(vmpl: usize, params: &mut RequestParams) -> Result<(), SvsmR
     // zero default, so every report protocol 6 produced was signed as VMPL0 - a verifier pinning the plane
     // (relay/snp-verify.mjs expectedVmpl) would reject it, and one that did not would lose the level
     // entirely. VMPCK0 may request a report naming any level, so this is the SVSM's to set.
-    let report = get_attestation_report_for_app(&report_data, vmpl as u32)?;
+    let report = match get_attestation_report_for_app(&report_data, vmpl as u32) {
+        Ok(r) => r,
+        Err(e) => {
+            // Name it on the console: a refusal from the PSP path is a different finding from any of this
+            // protocol's own refusals, and mapping it to "denied" told the harness nothing.
+            log::error!("SVSM appid: plane {vmpl} report request failed: {e:?}");
+            return Err(e);
+        }
+    };
     let out = report.as_bytes();
     let cap = desc[2] as usize;
     // tell the guest the size whether or not its buffer was big enough, the shape used elsewhere here

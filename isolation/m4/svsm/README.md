@@ -57,11 +57,62 @@ that oracle a guest-supplied GPA cannot be attributed. So every call is refused 
 page to. **A compiled-in table can NAME three planes; this code speaks for one.** Per-app planes stay
 unimplemented, and that is deliberate rather than pending.
 
-## THE GATE IS BYPASSABLE TODAY. Admission buys nothing until R1 is closed
+## RUN ON HARDWARE, 2026-09-23: the gate holds, and the guest has no key of its own
 
-Stated first because everything above is worthless without it. The guest at VMPL2 still holds VMPCK2 and
-VMPCK3: `copy_for_vmpl` clears only `vmpck[0..vmpl]`. So the guest does not have to ask this SVSM for
-anything. It mints its own report over its own GHCB, with `report_data` of its choosing and `vmpl=2` - which
+`isolation/m4/evidence/admit-{good,tampered,run-context}-2026-09-23.txt`. Both runs match the line sets that
+were written down BEFORE them, which is the only way a pass here means anything.
+
+The good run, in order:
+
+| line | result |
+|---|---|
+| `sev_guest_no_vmpck` | **`No such device`** - the driver found no usable VMPCK and refused to probe, so this guest cannot ask the PSP for anything |
+| `tsm_report_dir` | absent: no configfs-tsm report interface exists in the guest |
+| `whoami_before`, `report_before` | refused, `0x80001003` (not admitted): the SVSM will not name the plane |
+| `admit_bundle` | `rax_out=0x0` after staging 59829 bytes in 15 pages |
+| `whoami_after_bundle` | still refused, `0x80001003`: the bundle alone is not what the identity covers |
+| `admit_runtime` | `rax_out=0x0` after staging 45616736 bytes in 11137 pages, hashed twice and frozen |
+| `whoami` | `ce52712f...b91`, the AppID compiled into this measured image for plane 2 |
+| `report` | GRANTED |
+| `admit_again` | refused, `0x80001005` (already admitted) |
+| `thaw_admitted` | refused, `0x80000006` - and `thaw_unadmitted` **allowed** (`0x0`) then re-validated, so the probe demonstrably reaches PVALIDATE |
+| `thaw_admitted_2m` | refused, `0x80000006`: the hook, not the alignment check |
+
+The report was parsed rather than eyeballed: VMPL field **2**, `report_data[0:32]` the caller's bind,
+`report_data[32:64]` **the AppID the SVSM holds for that plane**, and the measurement **equal to the
+`igvmmeasure` digest of the shipped IGVM**. So a verifier pinning that digest knows which SVSM produced the
+report, which app the plane was named, and that the plane's artifacts were hashed and frozen before it was.
+
+The tampered run: one flipped byte, a real staging of 59829 bytes, `admit_bundle_result 0x80001004`
+(digest mismatch), `admitted=0x00` afterwards, **`poke_result=WROTE`** - a refused admission froze nothing,
+which is the property hash-before-freeze exists for - and `whoami_final` and `report_final` both refused.
+
+### Two things the run cost, both worth recording
+
+* **`FW_FILE` and `RELEASE=1`.** Every IGVM built before this run was made by a bare `make igvm`, so it
+  carried NO firmware (3.69 MB against 4.83 MB) and could not boot a guest at all. The digests measured from
+  those builds were reproducible and moved with the app table, and both statements remain true, but they were
+  digests of an image that cannot run. A measurement is not evidence that anything works.
+* **A shared serial port loses evidence.** The first complete run dropped five consecutive result lines and
+  mangled a sixth into an SVSM console message: the guest and the SVSM write the same UART with no flow
+  control. `run-domain.sh EVIDENCE_SERIAL=1` now gives the guest its own port, and the guest writes results
+  there as well as to the console. Nothing a harness scores may share a lossy channel.
+
+## What clearing the VMPCK broke, and why upstream assumed otherwise
+
+`get_report` in `kernel/src/greq/services.rs` refused every non-VMPL0 request, with the comment "Non-VMPL0
+attestation reports can be requested by the guest kernel directly to the PSP". That premise is exactly what
+this change invalidates: the guest has no VMPCK, so it can request nothing, and the SVSM - the only holder of
+a key - was forbidden from requesting the report the guest plane needs. Protocol 6 returned
+`INVALID_PARAMETER` for that reason, and protocol 1 would have too once it started naming the plane. A request
+naming VMPL0 or the one guest plane this SVSM serves is now allowed and nothing else is; the level is written
+by the SVSM and never taken from the request.
+
+## The gate that WAS bypassable, and what closed it
+
+Recorded because it was true until this change, and because the fix is what makes everything above mean
+anything. The guest at VMPL2 held VMPCK2 and VMPCK3: `copy_for_vmpl` clears only `vmpck[0..vmpl]`. So the guest
+did not have to ask this SVSM for anything. It mints its own report over its own GHCB, with `report_data` of its choosing and `vmpl=2` - which
 is exactly what the M3 monitor does through configfs-tsm today - and a verifier sees the SVSM's measurement,
 `vmpl=2` and an attacker-chosen `[32:64]` and cannot tell that apart from a report this SVSM issued after
 admission.
@@ -69,7 +120,7 @@ admission.
 "The SVSM will not name a plane until it has admitted the plane's artifacts" is therefore bypassed by not
 asking the SVSM. Admission is a correct mechanism sitting beside an open door.
 
-What closes it, and it is the next increment:
+What closed it, in `SecretsPage::copy_with_no_vmpck` and measured above:
 
 1. the guest's copy of the secrets page carries NO VMPCK at all (clear `0..VMPL_MAX` for the guest copy, not
    `0..vmpl`), so
@@ -77,9 +128,11 @@ What closes it, and it is the next increment:
 3. protocol 6 becomes the ONLY path to a report, which is what makes admission a precondition rather than a
    suggestion.
 
-Step 2 is not a side effect to paper over: it breaks how every M3a and M3b domain gets its report today, so
-the monitor has to move to protocol 6 in the same change. That is the work, and until it lands no document may
-describe admission as enforcing anything.
+Step 2 is not a side effect to paper over, and it is the open work: **it breaks how every M3a and M3b domain
+gets its report**, because they use configfs-tsm. The admission guest does not need it - it talks protocol 6
+directly - which is why this run was possible before the monitor was ported. The monitor's move to protocol 6
+is the next increment, and until it lands the M3a and M3b suites will not pass against an IGVM built from this
+SVSM.
 
 ### What a second plane requires, agreed with the reviewer
 
