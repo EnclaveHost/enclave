@@ -64,7 +64,28 @@ So the WMI-created VM never attempted to load an IGVM. The pin was accepted into
 read back, and the worker then started the VM on stock firmware, which found no boot device and
 logged 18603. That is now established.
 
-What is still NOT established is *why* the worker ignored it — `AllowFirmwareLoadFromFile` is the
+**CONFIRMED 22:18Z with a second, different image.** enclave-53 built a new IGVM around 5d's
+initrd — `7caf7408…`, 124,991,060 bytes — and it fails **identically**: `preflight ok`, VM started
+(event 18500), `failed to boot an operating system` (event 18603), and **no `Loading IGVM file`
+line at all** in `Worker-Operational`. Two different images, same failure, both before any load
+begins.
+
+**This rules out image content as the cause**, and with it my own first hypothesis. I had proposed
+that the image was an `openhcl-x64-test-linux-DIRECT` build expecting a kernel and initrd through
+LinuxKernelDirect that the VM never supplied. enclave-53 ruled it out twice over:
+
+1. Our own-guest images EMBED VTL0. `openhcl-ownguest.bin.map` places `linux-kernel` at
+   0x1000000–0x312e000 and 0x3200000–0x4600000, `linux-initrd` at 0x4600000–0x5ce6000, and
+   `manifest-ownguest.json` sets `OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux`. Only the VTL2 half comes
+   from the `-direct` recipe. They never wanted a host-supplied kernel.
+2. More basic, and the reasoning I should have reached from my own evidence: **the worker never
+   read the file.** A hypothesis about what is INSIDE an image cannot explain a failure that
+   happens before the image is opened. Content can only matter once a load begins.
+
+So the cause is host or VM CONFIGURATION: `AllowFirmwareLoadFromFile`, or some VM setting the
+worker checks before it honours `FirmwareFile`.
+
+What is still NOT established is *which* — `AllowFirmwareLoadFromFile` is the
 leading candidate and is unset, but nothing yet proves that key is the gate rather than some other
 missing setting (the IGVM is an `openhcl-x64-test-linux-DIRECT` image, which expects the host to
 hand VTL0 a kernel and initrd through LinuxKernelDirect, and this VM supplied neither).
