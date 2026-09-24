@@ -115,3 +115,7 @@ paths = ['''^isolation/m4/evidence/''']
 description = "windows/vbslike evidence holds PUBLIC keys only: the launcher's Ed25519 verifying key (launcherKey / launcher.key) and each domain's P-256 SPKI (transportKey), plus signatures over them; the private halves are minted in memory per run and never written (windows/vbslike/README.md section 4)"
 targetRules = ["generic-api-key"]
 paths = ['''^windows/vbslike/evidence/''']
+
+[[allowlists]]
+description = "independent review evidence from NucBox lab runs: the launcher's EPHEMERAL Ed25519 PUBLIC key (base64, minted per run, announced on its ready line) and other public identifiers"
+paths = ['''^windows/vbslike/review/.*\.json$''']
