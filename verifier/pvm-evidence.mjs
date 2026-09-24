@@ -23,7 +23,10 @@ export async function loadOwnerVerifier() {
 }
 
 // verifyPvmEvidence(envelope, expect, { verifyImpl?, now? }) -> harness verdict
-//   expect: { nonce: Buffer(32), appId: Buffer(32), allowedRuntimeIds, allowedCodeHashes, allowedAuthorityHashes, rootPins }
+//   expect: { nonce: Buffer(32), appId: Buffer(32), allowedRuntimeIds, allowedCodeHashes, allowedAuthorityHashes, rootPins,
+//             formats?: [format strings the CLIENT accepts; default both] }
+//   A client that needs the browser key or the sealed channel passes formats: [v2]; a v1 answer is then refused here as a
+//   downgrade rather than verified-with-null-appKey (which the gate would still hold for a browser client).
 export async function verifyPvmEvidence(envelope, expect = {}, { verifyImpl = null, now = Date.now() } = {}) {
   const reasons = [], checks = {};
   const out = (status, extra = {}) => ({ status, admissionSafe: status === "verified", omissions: [], technology: "android-avf", reasons, checks, claims: null, ...extra });
@@ -35,6 +38,9 @@ export async function verifyPvmEvidence(envelope, expect = {}, { verifyImpl = nu
   let size = 0; try { size = Buffer.byteLength(JSON.stringify(envelope)); } catch { return fail("evidence is not serialisable"); }
   if (size > PVM_EVIDENCE_MAX_BYTES) return fail(`evidence exceeds ${PVM_EVIDENCE_MAX_BYTES} bytes`);
   if (!PVM_EVIDENCE_FORMATS.has(envelope.format)) return fail(`format ${JSON.stringify(envelope.format)} is not one of ${[...PVM_EVIDENCE_FORMATS].join(", ")}`);
+  const accepted = Array.isArray(expect.formats) ? expect.formats : [...PVM_EVIDENCE_FORMATS];
+  if (!accepted.length || accepted.some((f) => !PVM_EVIDENCE_FORMATS.has(f))) return fail("expect.formats must name only known evidence formats");
+  if (!accepted.includes(envelope.format)) return fail(`the client accepts ${accepted.join(", ")} but the evidence is ${envelope.format}: a downgrade, refused`);
   const v2 = envelope.format === PVM_EVIDENCE_FORMAT_V2;
   // consumer expectation of the closed shape: v2 carries the browser key and its signature, v1 must not (a relay
   // that strips them from v2 or adds them to v1 produces a malformed envelope, never a silent downgrade)
@@ -64,6 +70,9 @@ export async function verifyPvmEvidence(envelope, expect = {}, { verifyImpl = nu
   if (v2 && (!appKey || appKey !== envelope.appKey)) return fail("v2: the verifier did not vouch for the envelope's appKey (signature not verified, or another key)");
   if (!v2 && appKey) return fail("v1: the verifier returned an appKey the format cannot carry");
   const runtimeId = typeof r.runtimeId === "string" ? r.runtimeId.toLowerCase() : null;
+  // v2: the sealed-channel constants the VM enforces, as the verifier reports them (a client schedules re-attestation from these)
+  const sealed = v2 && Number.isInteger(r.sealedWindowSeconds) && Number.isInteger(r.sealedMaxRequests) ? { windowSeconds: r.sealedWindowSeconds, maxRequests: r.sealedMaxRequests } : null;
+  if (v2 && !sealed) return fail("v2: the verifier reported no sealed-channel window (sealedWindowSeconds, sealedMaxRequests)");
   return out("verified", { claims: { technology: "android-avf", format: envelope.format, family: "pvm-app", freshness: "client-nonce", nonce: nonceHex, appId: appHex,
-    runtimeId, transportSpki, transportSpkiSha256: createHash("sha256").update(Buffer.from(transportSpki, "hex")).digest("hex"), appKey, tlsKey: r.tlsKey ?? null, measurement: r.measurement ?? null } });
+    runtimeId, transportSpki, transportSpkiSha256: createHash("sha256").update(Buffer.from(transportSpki, "hex")).digest("hex"), appKey, sealed, tlsKey: r.tlsKey ?? null, measurement: r.measurement ?? null } });
 }

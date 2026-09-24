@@ -98,6 +98,7 @@ export function admit(verdict, expect = {}, { clientKind = "native", observedPee
     const appKey = claims.appKey || claims.hpkePublicKey || null;
     if (!isHex(appKey, 64)) return hold("browser client: the evidence binds no application-layer public key, and browser code cannot read the peer TLS certificate, so nothing here binds the transport");
     pinned.appKey = appKey; reasons.push("transport: application-layer key bound in the evidence (browser client; TLS certificate pinning is NOT claimed, browser code cannot see the peer certificate)");
+    if (claims.sealed) { pinned.sealed = { ...claims.sealed }; reasons.push(`sealed channel: this key is good for ${claims.sealed.windowSeconds} s and ${claims.sealed.maxRequests} requests from the evidence exchange; re-attest after that, never retry a refused request`); }
   } else return hold(`unknown client kind ${JSON.stringify(clientKind)}`);
 
   return { decision: RELEASE, reasons: [...reasons, "RELEASE"], pinned };

@@ -35,7 +35,8 @@ const standIn = async (env, o) => {
   if (Buffer.from(env.chain[0], "base64").toString("hex") !== want) return no("certificate challenge does not equal Bind2(spki, caller nonce, runtime) || caller app");
   if (!env.chain.includes("cm9vdA==")) return no("root not pinned");
   reasons.push("stand-in: challenge covers the caller's nonce, app, transport key and runtime identity");
-  return { ok: true, reasons, transportSpki: env.spki, runtimeId: rid, measurement: "code", freshness: "client-nonce", appId: o.appId.toString("hex"), ...(v2 ? { appKey: env.appKey } : {}) };
+  return { ok: true, reasons, transportSpki: env.spki, runtimeId: rid, measurement: "code", freshness: "client-nonce", appId: o.appId.toString("hex"),
+    appKey: v2 ? env.appKey : null, sealedWindowSeconds: v2 ? 600 : null, sealedMaxRequests: v2 ? 256 : null };   // the owner's v2 result shape
 };
 // a v2 envelope: appKey plus a stand-in signature tag over (transport key, nonce, appId, appKey)
 const evidenceV2 = (nonce, appKey = "ab".repeat(32), over = {}) => evidenceFor(nonce, { format: PVM_EVIDENCE_FORMAT_V2, appKey, appKeySig: sha("stand-in-app-key-sig", SPKI.toString("hex"), nonce, APP, appKey) + sha("pad"), ...over });
