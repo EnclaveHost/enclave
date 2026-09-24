@@ -1,0 +1,187 @@
+{
+ "at": "2026-09-24T21:55:51.282Z",
+ "preflight": {
+  "ok": false,
+  "checks": [
+   {
+    "name": "vmms service",
+    "ok": false,
+    "detail": "the Hyper-V Virtual Machine Management service"
+   },
+   {
+    "name": "root\\virtualization\\v2",
+    "ok": false,
+    "detail": "the WMI namespace the firmware pin is written through"
+   },
+   {
+    "name": "Hyper-V PowerShell module",
+    "ok": false,
+    "detail": "Get-VM, which creates and owns the VM"
+   },
+   {
+    "name": "Msvm_VirtualSystemSettingData.FirmwareFile",
+    "ok": false,
+    "detail": "the field that carries a custom IGVM"
+   },
+   {
+    "name": "hypervisor present",
+    "ok": true,
+    "detail": "already true here: VBS runs on it"
+   }
+  ]
+ },
+ "image": {
+  "sha256": "2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3",
+  "bytes": 124962164
+ },
+ "survey": {
+  "vms": []
+ },
+ "health": {
+  "backend": "hyperv-partition-per-app",
+  "supports": {
+   "gpu": false,
+   "secrets": false,
+   "egress": false,
+   "config": false,
+   "ports": false,
+   "configCid": false
+  },
+  "catalog": {
+   "derivations": [
+    "enclave-catalog-bundle/1"
+   ],
+   "derives": [
+    "enclave-catalog-bundle/1",
+    "enclave-catalog-bundle/2"
+   ],
+   "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+  },
+  "runtime": {
+   "v2SocketServer": false,
+   "note": "enclave-catalog-bundle/2 is derived byte-for-byte here but not served: serving a command on its own socket needs wasi:sockets inside the partition and an in-guest TLS front"
+  },
+  "policyRule": "enclave-isolation-policy/1",
+  "canStart": false,
+  "preflight": {
+   "ok": false,
+   "checks": [
+    {
+     "name": "vmms service",
+     "ok": false,
+     "detail": "the Hyper-V Virtual Machine Management service"
+    },
+    {
+     "name": "root\\virtualization\\v2",
+     "ok": false,
+     "detail": "the WMI namespace the firmware pin is written through"
+    },
+    {
+     "name": "Hyper-V PowerShell module",
+     "ok": false,
+     "detail": "Get-VM, which creates and owns the VM"
+    },
+    {
+     "name": "Msvm_VirtualSystemSettingData.FirmwareFile",
+     "ok": false,
+     "detail": "the field that carries a custom IGVM"
+    },
+    {
+     "name": "hypervisor present",
+     "ok": true,
+     "detail": "already true here: VBS runs on it"
+    }
+   ]
+  },
+  "cannotStart": {
+   "supportedPath": "WMI root\\virtualization\\v2: Msvm_VirtualSystemSettingData.FirmwareFile + GuestFeatureSet=0x201, applied via Msvm_VirtualSystemManagementService.ModifySystemSettings (microsoft/openvmm openhcl/Set-OpenHCL-HyperV-VM.ps1)",
+   "needs": [
+    "Microsoft-Hyper-V-Hypervisor",
+    "Microsoft-Hyper-V-Services",
+    "Microsoft-Hyper-V-Management-PowerShell"
+   ],
+   "presentHere": [
+    "VirtualMachinePlatform"
+   ],
+   "absentHere": [
+    "vmms service",
+    "root\\virtualization\\v2",
+    "Get-VM"
+   ],
+   "note": "enabling those features is a host change requiring a reboot and is not this component's to make"
+  }
+ },
+ "spawn": {
+  "id": "review99-probe",
+  "instanceId": "review99probe-708e6409",
+  "appId": "708e640945d196df5829aa4ea490774c18ef6876a0d9239f574986ad18ae3782",
+  "recordSha256": "412675336810f73e40327f049ed9ad46a189e374d57d5582ae3bdf022fd6ba2d",
+  "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+  "policy": {
+   "cpuPercent": 100,
+   "memMiB": 512,
+   "vcpus": 1
+  },
+  "catalog": {
+   "app": "0xabababababababababababababababababababababababababababababababab",
+   "version": 7
+  },
+  "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+  "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+  "state": "failed",
+  "startedAt": null,
+  "reason": "the Hyper-V role is not usable on this host: missing vmms service, root\\virtualization\\v2, Hyper-V PowerShell module, Msvm_VirtualSystemSettingData.FirmwareFile"
+ },
+ "surveyAfter": {
+  "vms": []
+ },
+ "hcsPreflight": {
+  "ok": true,
+  "checks": [
+   {
+    "name": "launcher",
+    "ok": true,
+    "detail": "C:\\Users\\claude\\vbs-like\\target\\release\\vbslike-host.exe: 1004544 bytes"
+   },
+   {
+    "name": "guest kernel",
+    "ok": true,
+    "detail": "C:\\Users\\claude\\vbs-like\\wsl-kernel: 15876096 bytes"
+   },
+   {
+    "name": "guest initrd",
+    "ok": true,
+    "detail": "C:\\Users\\claude\\vbs-like\\mon.cpio.gz: 24008350 bytes"
+   },
+   {
+    "name": "host excluded",
+    "ok": false,
+    "detail": "an HCS child partition does not exclude this host; development path only"
+   }
+  ],
+  "boundary": {
+   "tier": "t0-hv",
+   "partition": "hcs-child",
+   "hostExcluded": false,
+   "attested": false,
+   "note": "a Hyper-V child partition: separated from other partitions, NOT from this host. The root partition can read its memory. Development path only; never advertise it as verified or host-excluded capacity."
+  }
+ },
+ "files": {
+  "C:\\Users\\claude\\vbs-like\\mon.cpio.gz": {
+   "sha256": "44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf",
+   "mtime": "2026-09-24T03:08:23.2262095Z",
+   "bytes": 24008350
+  },
+  "C:\\Users\\claude\\vbs-like\\wsl-kernel": {
+   "sha256": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+   "mtime": "2025-06-06T02:01:46.0000000Z",
+   "bytes": 15876096
+  },
+  "C:\\Users\\claude\\vbs-like\\target\\release\\vbslike-host.exe": {
+   "sha256": "6040fc6b4e06c667a00c8e3418eab811c7fbf7d6357432bda8d0fe4852a3fa3d",
+   "mtime": "2026-09-24T19:51:20.7459519Z",
+   "bytes": 1004544
+  }
+ }
+}
