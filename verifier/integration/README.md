@@ -32,3 +32,11 @@ worktree of that commit, runs the recipe's own `--check` with the tool from this
 any other version), re-hashes every input and output, greps the bundle for code-loading constructs, and removes the
 worktree; any difference exits 2. `run.mjs` runs it before the acceptance suites. Reproducing the owner's artifact
 from the same commit is the lab stand-in for a transparency log (`docs/security/pvm-client-bootstrap-review.md`).
+
+## The installed client's persistence suite
+
+`npm run test:client-persistence` (`run-client-persistence.mjs`) resolves the pin `pvm-client-dist` (the owner's BUILT
+CLI bundle at its commit) and runs `test/verifier-pvm-client-persistence.test.mjs` strictly. That suite asserts the
+behaviour the owner's persistence fix must have (a durable monotonic commit before any request), so against client 0.1.0
+it FAILS by design and its output is the reproduction of the gap. It is kept apart from `run.mjs` until the fix is
+pinned, so the other acceptance suites keep a meaningful PASS; the runner prints each failing assertion.
