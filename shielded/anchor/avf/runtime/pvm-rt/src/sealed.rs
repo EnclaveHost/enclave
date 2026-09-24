@@ -24,8 +24,15 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 pub const LABEL: &str = "enclave-pvm-sealed-http/v1";
-/// key_id 0, KEM 0x0020 DHKEM(X25519, HKDF-SHA256), KDF 0x0001 HKDF-SHA256, AEAD 0x0001 AES-128-GCM
+/// key_id 0, KEM 0x0020 DHKEM(X25519, HKDF-SHA256), KDF 0x0001 HKDF-SHA256, AEAD 0x0001 AES-128-GCM: the whole response
+/// sealed at once
 pub const HDR: [u8; 7] = [0x00, 0x00, 0x20, 0x00, 0x01, 0x00, 0x01];
+/// key_id 1, the same key and suite: the response STREAMED in chunks (draft-ietf-ohai-chunked-ohttp-08's response
+/// format). The key id is inside the HPKE info, so a carrier that flips the mode gets a request that does not open.
+pub const HDR_CHUNKED: [u8; 7] = [0x01, 0x00, 0x20, 0x00, 0x01, 0x00, 0x01];
+/// Streamed responses: at most this many plaintext bytes per chunk, this many chunks, this many bytes in all.
+pub const CHUNK_PLAINTEXT: usize = 16 << 10;
+pub const MAX_CHUNKS: u64 = 1 << 20;
 /// How long after an evidence answer its nonce admits sealed requests, and how many (the v2 format's constants).
 pub const WINDOW: Duration = Duration::from_secs(600);
 pub const MAX_PER_NONCE: u32 = 256;
@@ -48,6 +55,7 @@ pub struct SealedKey {
     sk: <Kem as hpke::Kem>::PrivateKey,
     pub public: [u8; 32],
     info: Vec<u8>,
+    info_chunked: Vec<u8>,
     nonces: Mutex<HashMap<[u8; 32], Window>>,
 }
 
@@ -57,6 +65,8 @@ pub struct Opened {
     enc: [u8; 32],
     secret: [u8; 16],
     pub nonce: [u8; 32],
+    /// the page asked for a streamed response (key id 1)
+    pub chunked: bool,
 }
 
 /// Never prints the request or the secret.
@@ -93,12 +103,21 @@ impl SealedKey {
     fn with(sk: <Kem as hpke::Kem>::PrivateKey, pk: <Kem as hpke::Kem>::PublicKey, app_id: &[u8; 32], runtime_id: &[u8; 32]) -> SealedKey {
         let mut public = [0u8; 32];
         public.copy_from_slice(&pk.to_bytes());
-        let mut info = format!("{LABEL} request").into_bytes();
-        info.push(0);
-        info.extend_from_slice(&HDR);
-        info.extend_from_slice(app_id);
-        info.extend_from_slice(runtime_id);
-        SealedKey { sk, public, info, nonces: Mutex::new(HashMap::new()) }
+        let info_for = |label: &str, hdr: &[u8; 7]| {
+            let mut info = label.as_bytes().to_vec();
+            info.push(0);
+            info.extend_from_slice(hdr);
+            info.extend_from_slice(app_id);
+            info.extend_from_slice(runtime_id);
+            info
+        };
+        SealedKey {
+            sk,
+            public,
+            info: info_for(&format!("{LABEL} request"), &HDR),
+            info_chunked: info_for(&format!("{LABEL} chunked request"), &HDR_CHUNKED),
+            nonces: Mutex::new(HashMap::new()),
+        }
     }
 
     /// This VM answered `nonce` with evidence (which carried this key): requests under it are admitted for the window.
@@ -125,9 +144,11 @@ impl SealedKey {
         let (nonce, rest) = body.split_at(32);
         let (hdr, rest) = rest.split_at(7);
         let (enc, ct) = rest.split_at(32);
-        if hdr != HDR {
-            return Err("unsupported key id or suite".into());
-        }
+        let chunked = match hdr {
+            h if h == HDR => false,
+            h if h == HDR_CHUNKED => true,
+            _ => return Err("unsupported key id or suite".into()),
+        };
         let nonce: [u8; 32] = nonce.try_into().expect("32");
         let enc: [u8; 32] = enc.try_into().expect("32");
         // one lock across check, open and record: a replay cannot race its original
@@ -147,14 +168,16 @@ impl SealedKey {
             return Err("this evidence nonce's request budget is spent: fetch fresh evidence".into());
         }
         let encapped = <Kem as hpke::Kem>::EncappedKey::from_bytes(&enc).map_err(|_| "cannot open (bad key share)".to_string())?;
-        let mut ctx = hpke::setup_receiver::<AesGcm128, HkdfSha256, Kem>(&OpModeR::Base, &self.sk, &encapped, &self.info)
+        let info = if chunked { &self.info_chunked } else { &self.info };
+        let mut ctx = hpke::setup_receiver::<AesGcm128, HkdfSha256, Kem>(&OpModeR::Base, &self.sk, &encapped, info)
             .map_err(|_| "cannot open (key agreement failed)".to_string())?;
         let request = ctx.open(ct, &nonce).map_err(|_| "cannot open: not sealed to this VM's app key for this app, runtime and nonce".to_string())?;
         let mut secret = [0u8; 16];
-        ctx.export(format!("{LABEL} response").as_bytes(), &mut secret).map_err(|_| "export failed".to_string())?;
+        let label = if chunked { format!("{LABEL} chunked response") } else { format!("{LABEL} response") };
+        ctx.export(label.as_bytes(), &mut secret).map_err(|_| "export failed".to_string())?;
         w.encs.insert(enc);
         w.used += 1;
-        Ok(Opened { request, enc, secret, nonce })
+        Ok(Opened { request, enc, secret, nonce, chunked })
     }
 
     /// Seal a response for an opened request, under a fresh response nonce (or a given one: tests).
@@ -167,21 +190,130 @@ impl SealedKey {
                 n
             }
         };
-        let mut salt = o.enc.to_vec();
-        salt.extend_from_slice(&rn);
-        let prk = hkdf::Salt::new(hkdf::HKDF_SHA256, &salt).extract(&o.secret);
-        let (mut key, mut iv) = ([0u8; 16], [0u8; 12]);
-        prk.expand(&[b"key"], Len(16)).and_then(|k| k.fill(&mut key)).map_err(|_| "hkdf".to_string())?;
-        prk.expand(&[b"nonce"], Len(12)).and_then(|k| k.fill(&mut iv)).map_err(|_| "hkdf".to_string())?;
-        let k = aead::LessSafeKey::new(aead::UnboundKey::new(&aead::AES_128_GCM, &key).map_err(|_| "aead key".to_string())?);
+        if o.chunked {
+            return Err("a chunked request is answered with ChunkSealer".into());
+        }
+        let (k, iv) = response_keys(o, &rn)?;
         let mut out = Vec::with_capacity(1 + 16 + response.len() + 16);
         out.push(0);
         out.extend_from_slice(&rn);
         let mut buf = response.to_vec();
         k.seal_in_place_append_tag(aead::Nonce::assume_unique_for_key(iv), aead::Aad::empty(), &mut buf).map_err(|_| "seal".to_string())?;
         out.extend_from_slice(&buf);
-        key.iter_mut().for_each(|b| *b = 0);
         Ok(out)
+    }
+}
+
+/// The response key and base nonce for an opened request under a response nonce (RFC 9458 4.4; chunked: the same
+/// derivation under the chunked export label).
+fn response_keys(o: &Opened, rn: &[u8; 16]) -> Result<(aead::LessSafeKey, [u8; 12]), String> {
+    let mut salt = o.enc.to_vec();
+    salt.extend_from_slice(rn);
+    let prk = hkdf::Salt::new(hkdf::HKDF_SHA256, &salt).extract(&o.secret);
+    let (mut key, mut iv) = ([0u8; 16], [0u8; 12]);
+    prk.expand(&[b"key"], Len(16)).and_then(|k| k.fill(&mut key)).map_err(|_| "hkdf".to_string())?;
+    prk.expand(&[b"nonce"], Len(12)).and_then(|k| k.fill(&mut iv)).map_err(|_| "hkdf".to_string())?;
+    let k = aead::LessSafeKey::new(aead::UnboundKey::new(&aead::AES_128_GCM, &key).map_err(|_| "aead key".to_string())?);
+    key.iter_mut().for_each(|b| *b = 0);
+    Ok((k, iv))
+}
+
+/// QUIC variable-length integer (RFC 9000 section 16), the chunk length prefix.
+pub fn varint(v: u64, out: &mut Vec<u8>) {
+    match v {
+        0..=63 => out.push(v as u8),
+        64..=16383 => out.extend_from_slice(&((v as u16) | 0x4000).to_be_bytes()),
+        16384..=1073741823 => out.extend_from_slice(&((v as u32) | 0x8000_0000).to_be_bytes()),
+        _ => out.extend_from_slice(&(v | 0xc000_0000_0000_0000).to_be_bytes()),
+    }
+}
+
+/// Chunk types (SEALED-STREAMING.md): data, the authenticated end (FIN), an authenticated in-stream error (ABORT).
+pub const CHUNK_DATA: u8 = 0x00;
+pub const CHUNK_FIN: u8 = 0x01;
+pub const CHUNK_ABORT: u8 = 0x02;
+pub const CHUNK_AAD_LABEL: &[u8] = b"enclave-pvm-sealed-chunk-v1";
+
+/// A streamed response (SEALED-STREAMING.md; the key schedule and nonce construction of draft-ietf-ohai-chunked-ohttp-08,
+/// typed framing): the header `0x00 || response nonce(16)`, then chunks `type || varint(len) || ct`, chunk i sealed with
+/// AES-128-GCM under nonce = base XOR be96(i) and aad = CHUNK_AAD_LABEL || evidence nonce || response nonce || be64(i) ||
+/// type. Exactly one FIN or ABORT ends it. A reordered, duplicated, dropped, spliced or altered chunk fails at the page;
+/// a stream cut short has no FIN; bytes after FIN are refused.
+pub struct ChunkSealer {
+    key: aead::LessSafeKey,
+    base: [u8; 12],
+    nonce: [u8; 32],
+    rn: [u8; 16],
+    counter: u64,
+    pub bytes: u64,
+}
+
+impl ChunkSealer {
+    /// The stream's header and its sealer, under a fresh response nonce (or a given one: tests).
+    pub fn start(o: &Opened, response_nonce: Option<[u8; 16]>) -> Result<(Vec<u8>, ChunkSealer), String> {
+        if !o.chunked {
+            return Err("not a chunked request".into());
+        }
+        let rn = match response_nonce {
+            Some(n) => n,
+            None => {
+                let mut n = [0u8; 16];
+                SystemRandom::new().fill(&mut n).map_err(|_| "no randomness".to_string())?;
+                n
+            }
+        };
+        let (key, base) = response_keys(o, &rn)?;
+        let mut head = vec![0u8];
+        head.extend_from_slice(&rn);
+        Ok((head, ChunkSealer { key, base, nonce: o.nonce, rn, counter: 0, bytes: 0 }))
+    }
+    pub fn chunks(&self) -> u64 {
+        self.counter
+    }
+    fn seal(&mut self, kind: u8, pt: &[u8]) -> Result<Vec<u8>, String> {
+        if self.counter >= MAX_CHUNKS {
+            return Err("too many chunks".into());
+        }
+        let ok = match kind {
+            CHUNK_DATA => !pt.is_empty() && pt.len() <= CHUNK_PLAINTEXT,
+            CHUNK_FIN => pt.len() <= CHUNK_PLAINTEXT,
+            CHUNK_ABORT => pt.len() <= 256,
+            _ => false,
+        };
+        if !ok || self.bytes + pt.len() as u64 > MAX_RESPONSE as u64 {
+            return Err("chunk size out of range".into());
+        }
+        let mut n = self.base;
+        for (i, b) in self.counter.to_be_bytes().iter().enumerate() {
+            n[4 + i] ^= b;
+        }
+        let mut aad = CHUNK_AAD_LABEL.to_vec();
+        aad.extend_from_slice(&self.nonce);
+        aad.extend_from_slice(&self.rn);
+        aad.extend_from_slice(&self.counter.to_be_bytes());
+        aad.push(kind);
+        self.counter += 1;
+        let mut buf = pt.to_vec();
+        self.key.seal_in_place_append_tag(aead::Nonce::assume_unique_for_key(n), aead::Aad::from(&aad[..]), &mut buf).map_err(|_| "seal".to_string())?;
+        let mut out = Vec::with_capacity(buf.len() + 9);
+        out.push(kind);
+        varint(buf.len() as u64, &mut out);
+        out.extend_from_slice(&buf);
+        self.bytes += pt.len() as u64;
+        Ok(out)
+    }
+    /// A data chunk (1..=CHUNK_PLAINTEXT bytes of plaintext).
+    pub fn chunk(&mut self, pt: &[u8]) -> Result<Vec<u8>, String> {
+        self.seal(CHUNK_DATA, pt)
+    }
+    /// The authenticated end (possibly empty plaintext): nothing may follow it.
+    pub fn finish(mut self, pt: &[u8]) -> Result<Vec<u8>, String> {
+        self.seal(CHUNK_FIN, pt)
+    }
+    /// An authenticated in-stream error: the stream ends, failed, and the page knows the VM said so.
+    pub fn abort(mut self, why: &str) -> Result<Vec<u8>, String> {
+        let b = why.as_bytes();
+        self.seal(CHUNK_ABORT, &b[..b.len().min(256)])
     }
 }
 

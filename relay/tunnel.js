@@ -564,6 +564,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   // end-to-end. Bounded: per-tunnel stream cap, open timeout, idle timeout,
   // and a bufferedAmount guard so one slow reader can't balloon hub memory.
   const MAX_STREAMS = 128, STREAM_OPEN_MS = 10_000, STREAM_IDLE_MS = 15 * 60_000, MAX_WS_BUFFER = 16 * 1024 * 1024;
+  // LAB raw streams: the phone -> client direction has no credit-based flow control across the tunnel, so a client that
+  // does not read is bounded here and its stream finished (fail closed) rather than buffered without limit
+  const MAX_RAW_OUT = 1024 * 1024;
   function spliceUpgrade(origin, req, socket, head, path) {
     const name = (String(origin).match(NAME_RE) || [])[1];
     const t = tunnels.get(name);
@@ -641,7 +644,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
         socket.resume();
         return;
       }
-      if (f.t === "sd" && open) { const b = Buffer.from(f.d || "", "base64"); bytesOut += b.length; try { socket.write(b); } catch {} return; }
+      if (f.t === "sd" && open) {
+        if (socket.writableLength > MAX_RAW_OUT) return finish("client too slow: stream buffer bound reached");
+        const b = Buffer.from(f.d || "", "base64"); bytesOut += b.length; try { socket.write(b); } catch {} return;
+      }
       if (f.t === "sx") finish("closed by the phone");
     });
     socket.pause();
