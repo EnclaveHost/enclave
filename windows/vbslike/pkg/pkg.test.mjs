@@ -187,6 +187,32 @@ test("tests: a skip the pin does not declare is refused, and so is a skip for an
     assert.match(r.out, /FAIL test datapath-5d \(enclave-5d\) gives exactly its expected result/, fails(r.out));
   }
 });
+// enclave-99's record-to-route suite (193c2338): the manager's /vms record, read through the node's client, fed to the
+// datapath's admit(). On v5's manager (6d6c289e) both cases fail, and the pin names each failure's EXACT message.
+// The suite reads the contract vectors from the repository: a support input, placed for the run, never shipped.
+const R2R_MSG = {
+  1: "image = the launcher's initrdSha256 from its ready line, carried by the manager\n+ actual - expected\n\n+ null\n- '44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf'\n",
+  2: "NOT WIRED YET (expected until the spawn path calls judgeRunning): status=starting, transportKeySha256=null -> refused:not-running: the instance is starting" };
+const withRecordToRoute = (failing) => { const m = structuredClone(base), REV = "193c2338c90e700cd551402efebcc4414ccfc247";
+  m.files.push({ path: "control/windows/node/isolation-client.mjs", role: "control.manager", sha256: "", bytes: 0,
+                 from: { git: { commit: "6d6c289eb594c7d337c066961de59134bdbad13b", path: "windows/node/isolation-client.mjs" } } });
+  m.inputs.push({ name: "derive_vectors.json", role: "input.test-support", sha256: "", bytes: 0, from: { git: { commit: REV, path: "isolation/contract/catalog/derive_vectors.json" } } },
+                { name: "record-to-route.test.mjs", role: "input.test", sha256: "", bytes: 0, from: { git: { commit: REV, path: "windows/vbslike/review/record-to-route.test.mjs" } } });
+  m.tests = [...m.tests, { name: "record-to-route", owner: "enclave-99", input: "record-to-route.test.mjs", requires: [],
+                           layout: "control/windows/vbslike/review/record-to-route.test.mjs",
+                           support: [{ input: "derive_vectors.json", layout: "control/isolation/contract/catalog/derive_vectors.json" }],
+                           expect: { tests: 2, pass: 0, fail: 2, failing } }];
+  return repin(m, ["control/windows/node/isolation-client.mjs", "derive_vectors.json", "record-to-route.test.mjs"]); };
+test("tests: a failure is pinned with its exact message (record-to-route on v5's manager: 0 of 2, both named)", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+  const r = run(["verify", writeManifest(withRecordToRoute([{ case: 1, message: R2R_MSG[1] }, { case: 2, message: R2R_MSG[2] }])), "--tests"]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   test record-to-route \(enclave-99\) gives exactly its expected result \(2 tests, 0 pass, 2 fail \(failing 1, 2\)\)/);
+});
+test("tests: the same failure pinned with another message is refused, naming what the case said", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+  const r = run(["verify", writeManifest(withRecordToRoute([{ case: 1, message: R2R_MSG[1] }, { case: 2, message: "refused:not-running" }])), "--tests"]);
+  assert.equal(r.code, 1, "a failure pinned with the wrong message passed");
+  assert.match(r.out, /FAIL test record-to-route \(enclave-99\) gives exactly its expected result: .*case 2 said "NOT WIRED YET/, fails(r.out));
+});
 test("v3 (committed, never edited) is refused by the current verifier at its stale manager", { skip }, () => {
   const r = run(["verify", V3]);
   assert.equal(r.code, 1);
