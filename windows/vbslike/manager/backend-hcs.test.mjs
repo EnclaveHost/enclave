@@ -244,3 +244,17 @@ test("defect 3: after a timed-out command, later answers are NOT shifted onto ot
     assert.ok(r && (r.destroyed === 7 || r.guest || r.ok), `stop got no answer of its own: ${JSON.stringify(r)}`);
   } finally { await fs.rm(dir, { recursive: true, force: true }); }
 });
+
+test("the handle names the IMAGE it booted, from the launcher's own ready line", async () => {
+  // enclave-99 measured this through the real backend: server.mjs copies h.image into the record,
+  // but start() never put `image` on the handle, so the record read null and 5d's datapath - which
+  // admits on image + transportKeySha256 - could never route. On this tier there is no launch
+  // measurement, so the initrd the launcher actually booted IS the guest's identity.
+  const r = await rig();
+  try {
+    const h = await r.b.start({ appId: APPID, bundle: Buffer.from("b") }, { instanceId: "i1" });
+    assert.equal(h.image, "i", "the ready line's initrdSha256, not null");
+    assert.equal(h.launcherKey, "k", "and the key that signs this domain's documents");
+    assert.equal(h.boundary.hostExcluded, false, "still not host-excluded, whatever else it carries");
+  } finally { await r.b.close().catch(() => {}); await r.cleanup(); }
+});

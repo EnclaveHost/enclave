@@ -177,6 +177,16 @@ export class HcsPartitionBackend {
       const handle = { instanceId, backend: BACKEND_HCS, domainId: d.id, label: d.label ?? instanceId,
                        vmId: d.vmId, appId: mapping.appId, tcpPort: d.tcpPort, guestPort: d.guestPort,
                        boundary: BOUNDARY,
+                       // THE IMAGE IDENTITY for this tier. There is no launch measurement on a
+                       // Hyper-V child partition, so what names the guest is the initrd the
+                       // launcher actually booted, from its own ready line. 5d's datapath admits a
+                       // route on `image` + `transportKeySha256` and refuses without them, and
+                       // server.mjs copies h.image into the record - but nothing ever PUT it on the
+                       // handle, so the record read null and nothing could be routed (enclave-99,
+                       // measured through the real backend with a lab-faithful fake). The value was
+                       // in hand the whole time.
+                       image: this.launcher?.initrdSha256 ?? null,
+                       launcherKey: this.launcher?.launcherKey ?? null,
                        // The guest booted and took the bundle. Whether the APP answers is a separate
                        // question with its own signal, and this backend does not pretend to know it.
                        guest: { booted: true, loaded: true }, appReady: false };
