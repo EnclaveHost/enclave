@@ -28,7 +28,9 @@
 //     verification of the guest is what a user relies on; guestd's verification only keeps it from reporting a
 //     guest as running that no client could accept.
 //
-//   - It is DISABLED unless GUESTD_ENABLE=1, and nothing in production starts it.
+//   - Guests OUTLIVE a guestd restart: the next guestd adopts each that verifies again as itself (persist.go).
+//
+//   - It is DISABLED unless GUESTD_ENABLE=1.
 package main
 
 import (

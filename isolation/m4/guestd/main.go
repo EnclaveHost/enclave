@@ -392,8 +392,11 @@ func main() {
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 	go func() {
 		<-sig
-		log.Print("shutting down: every guest ends with its manager")
-		s.shutdown()
+		// F7: guests OUTLIVE this process. They run in their own user units; the next guestd adopts each that verifies
+		// again as itself and ends the rest (persist.go). Ending them here would turn every guestd restart - a deploy
+		// - into a relaunch of every app with a new key (seen on the production canary, 2026-09-24 20:43Z).
+		// To end every guest deliberately: systemctl --user stop 'm2-gd*'.
+		log.Print("exiting; guests keep running for the next guestd to adopt (end them with: systemctl --user stop 'm2-gd*')")
 		os.Exit(0)
 	}()
 	log.Printf("guestd serving the /vms contract on %s (firmware %s, root %s)", *listen, fw[:16], *root)
