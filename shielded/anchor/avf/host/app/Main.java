@@ -123,6 +123,13 @@ public class Main extends Activity {
         String draft = "";                   // --es draft <gguf>: mode local, a drafter model streamed into the VM for speculative rows (the target verifies every proposal); "none" = no drafter
         String laneDefaults = "";            // which Shielded-TPU profile values this launch took by default (logged in "LOCAL plan"), "" off the TPU lane
         int draftMax = 4;                    // --ei draft_max 1..4: proposals per step (the TPU graphs verify 5 rows at once)
+        String app = "";                     // mode app: the portable component file (PVM-CPU.md, "The app runtime")
+        String appArgs = "";                 // --es app_args "a|b": its arguments
+        String appSha = "";                  // --es app_sha256: TEST HOOK -- announce this digest instead of the file's (the VM must refuse)
+        String appGraph = "";                // --es app_graph <name>: the component runs over the staged model (LOCAL line + APP graph=), wasi:nn
+        String appHttp = "";                 // --es app_http "/ping|/?q=1": a wasi:http app (APP serve=http); these GETs are sent to it, then STOP
+        /* the whole model runs in the VM's CPU engine: mode local, or an app over the model (PVM-CPU.md, milestone 3) */
+        boolean localEngine() { return mode.equals("local") || (mode.equals("app") && !appGraph.isEmpty()); }
         String deviceProfile = "";           // mode local: what DeviceProfile read (capacities, RAM) and chose from it
         int restarts = -1;                   // --ei restarts N (0..5): mode local restarts a VM that died mid-conversation; -1 = the tier's default (pvm-cpu 2, research 0)
         String ask = "";                     // --es ask "first|second": mode local, scripted turns logged with their counters (the host tunnel will drive the same session)
@@ -202,6 +209,20 @@ public class Main extends Activity {
             p.ctx = i.getIntExtra("ctx", p.ctx); p.maxNew = i.getIntExtra("max_new", p.maxNew); p.temperatureMilli = i.getIntExtra("temp_milli", p.temperatureMilli);
             if (i.getStringExtra("ask") != null) p.ask = i.getStringExtra("ask");
             p.restarts = i.getIntExtra("restarts", -1);
+            if (i.getStringExtra("app") != null) p.app = i.getStringExtra("app");
+            if (i.getStringExtra("app_args") != null) p.appArgs = i.getStringExtra("app_args");
+            if (i.getStringExtra("app_sha256") != null) p.appSha = i.getStringExtra("app_sha256");
+            if (i.getStringExtra("app_graph") != null) p.appGraph = i.getStringExtra("app_graph");
+            if (i.getStringExtra("app_http") != null) p.appHttp = i.getStringExtra("app_http");
+            if (p.mode.equals("app") && p.configError.isEmpty()) {
+                if (p.app.isEmpty() || !new java.io.File(p.app).isFile()) p.configError = "mode app needs --es app <component file>";
+                else if (!p.appSha.isEmpty() && !p.appSha.matches("[0-9a-f]{64}")) p.configError = "app_sha256 must be 64 lowercase hex";
+                else if (p.appArgs.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 8192) p.configError = "app_args must be at most 8192 bytes";
+                else if (!p.appGraph.isEmpty() && !p.appGraph.matches("[a-z0-9][a-z0-9._-]{0,63}")) p.configError = "app_graph must be 1..64 of [a-z0-9._-], starting with a letter or digit";
+                else if (!p.appGraph.isEmpty() && !new java.io.File(p.model).isFile()) p.configError = "app_graph runs the app over the model, and model " + p.model + " is not a file";
+                else if (!p.appHttp.isEmpty() && !p.appArgs.isEmpty()) p.configError = "app_http serves the component over HTTP: it takes no app_args";
+                else if (!p.appHttp.isEmpty() && !p.appHttp.matches("(/[\\x21-\\x7e]{0,1023})(\\|/[\\x21-\\x7e]{0,1023}){0,7}")) p.configError = "app_http is 1..8 paths separated by |, each starting with / and holding no spaces or control bytes";
+            }
             if (p.restarts < -1 || p.restarts > 5) p.configError = "restarts must be 0..5";
             if (i.getStringExtra("draft") != null) p.draft = "none".equals(i.getStringExtra("draft")) ? "" : i.getStringExtra("draft");
             p.draftMax = i.getIntExtra("draft_max", p.draftMax);
@@ -212,7 +233,7 @@ public class Main extends Activity {
             if (i.getStringExtra("tpu_graphs") != null) p.tpuGraphs = i.getStringExtra("tpu_graphs");
             if (i.getStringExtra("tpu_bundle") != null) p.tpuBundle = i.getStringExtra("tpu_bundle");
             p.tpuBank = i.getIntExtra("tpu_bank", p.tpuBank); p.tpuRefill = i.getIntExtra("tpu_refill", p.tpuRefill); p.tpuLayers = i.getIntExtra("tpu_layers", p.tpuLayers);
-            if (p.mode.equals("local")) {                                          // the WHOLE model runs in the VM (LOCAL.md): no worker, pads, prefix, artifacts or catalog
+            if (p.localEngine()) {                                                 // the WHOLE model runs in the VM (LOCAL.md): no worker, pads, prefix, artifacts or catalog
                 /* sized from what the kernel reports, never from the device name (DeviceProfile; PVM-CPU.md, Devices): on a Pixel 10
                  * this is the measured 6 threads and 7,168 MiB */
                 final int[] caps = DeviceProfile.capacities(); final int big = DeviceProfile.bigCores(caps); final long ram = DeviceProfile.totalMib();
@@ -312,7 +333,7 @@ public class Main extends Activity {
         final String tierWhy = Tier.refusal(tier, plan.mode, getIntent());
         if (tierWhy != null) plan.configError = "tier " + tier + ": " + tierWhy;   /* the tier's refusal is named first, whatever else is wrong */
         /* mode local computes in the VM on THIS activity's scheduling class: a dark phone turns top-app into the background cpuset mid-run (LOCAL.md) */
-        if (plan.mode.equals("local")) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (plan.localEngine()) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (!plan.configError.isEmpty()) { say("HOST FAIL: " + plan.configError); return; }   /* an inconsistent plan never runs a VM */
         if (!captureOpen(this, getIntent())) { say("CAPTURE FAIL: launch refused"); return; }
         say("TIER " + tier + " (assets/tier)");
@@ -404,7 +425,7 @@ public class Main extends Activity {
             /* mode local: every vCPU is a full-utilization compute thread. Without the boost the host scheduler was measured stacking
              * two busy vCPU threads on one big core while another idled, and ggml's even split then runs at the slower pair's pace
              * (7 tok/s instead of 14, LOCAL.md). Fixed at instance creation: an existing instance keeps what it was created with. */
-            if (plan.mode.equals("local")) say("HOST vCPU uclamp boost: " + (tryCall(b, "setShouldBoostUclamp", true) != null ? "requested" : "not available (hidden API: settings put global hidden_api_policy 1)"));
+            if (plan.localEngine()) say("HOST vCPU uclamp boost: " + (tryCall(b, "setShouldBoostUclamp", true) != null ? "requested" : "not available (hidden API: settings put global hidden_api_policy 1)"));
             if (plan.hugepages > 0) say("HOST hugepages: " + (tryCall(b, "setShouldUseHugepages", true) != null ? "requested" : "not available"));
             if (plan.storageMib > 0) say("HOST encrypted storage " + plan.storageMib + " MiB: " + (tryCall(b, "setEncryptedStorageBytes", plan.storageMib << 20) != null ? "set" : "not available"));
             Object cfg = call(b, "build");
@@ -560,7 +581,7 @@ public class Main extends Activity {
             // 4a. the model stage: the VM receives (or finds cached) the model and judges the bytes it will parse
             //     BEFORE any seed is requested for it (PAD-BOOTSTRAP.md); a protected first boot needs this order
             boolean modelOk = false;
-            if (plan.mode.equals("engine") || plan.mode.equals("prepare") || plan.mode.equals("local")) {
+            if (plan.mode.equals("engine") || plan.mode.equals("prepare") || plan.localEngine()) {
                 String ml = modelStage(vm, plan, out, r, 0);
                 modelOk = ml != null && ml.startsWith("MODEL ok");
                 if (!modelOk) say("MODEL stage did not pass: " + ml + (plan.mode.equals("prepare") ? " (the artifact feed will NOT start; the VM refuses PREPARE and ends)" : " (pads bootstrap will be refused)"));
@@ -646,11 +667,26 @@ public class Main extends Activity {
                 if (tpu) say("LOCAL tpu lane: corr_threads " + plan.corrThreads + ", decode_threads " + plan.decodeThreads + ", verify_threads " + plan.verifyThreads + ", tpu_bank " + plan.tpuBank + ", drafter " + (plan.draft.isEmpty() ? "none" : plan.draft + " draft_max " + plan.draftMax) + " | defaulted: " + plan.laneDefaults);
                 if (modelOk) { localThread = new Thread(() -> localSession(vm, plan), "vsock-local"); localThread.start(); } else say("LOCAL not started: the model stage did not pass");
             }
+            if (plan.mode.equals("app")) {   // the portable component: its identity on the control line, its bytes on APP_PORT
+                final long abytes = new java.io.File(plan.app).length();
+                final String asha = plan.appSha.isEmpty() ? RelayAttach.hex(fileSha256Cached(plan.app)) : plan.appSha;
+                final String aargs = plan.appArgs.isEmpty() ? "" : " args=" + LocalChat.hex(plan.appArgs.replace('|', '\0').getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                if (!plan.appGraph.isEmpty()) {   // over the model: the engine's LOCAL line (no chat port is opened), the APP line names the graph
+                    String localLine = LocalChat.plan(new java.io.File(plan.model).length(), plan.threads, plan.ctx);
+                    if (plan.poolPoll >= 0) localLine = LocalChat.withPoll(localLine, plan.poolPoll);
+                    if (plan.decodeThreads > 0) localLine = LocalChat.withDecodeThreads(localLine, plan.decodeThreads);
+                    cmd.append(localLine).append('\n');
+                    say("APP over the model: " + plan.model + " (" + (new java.io.File(plan.model).length() >> 20) + " MiB), " + plan.threads + " threads, ctx " + plan.ctx + ", graph " + plan.appGraph + (modelOk ? "" : " -- the model stage did not pass; the VM will refuse"));
+                }
+                cmd.append("APP bytes=").append(abytes).append(" sha256=").append(asha).append(aargs).append(plan.appGraph.isEmpty() ? "" : " graph=" + plan.appGraph).append(plan.appHttp.isEmpty() ? "" : " serve=http").append('\n');
+                new Thread(() -> streamPublicFile(vm, APP_PORT, plan.app, "app bundle"), "vsock-app").start();
+                say("APP plan: " + plan.app + " (" + abytes + " bytes, sha256 " + asha + (plan.appSha.isEmpty() ? "" : ", ANNOUNCED BY THE TEST HOOK, not the file's") + "), args " + (plan.appArgs.isEmpty() ? "none" : plan.appArgs));
+            }
             if (plan.mode.equals("maskbench")) cmd.append("MASKBENCH\n");   // sampler + cell-import speed probe: no model stage, no seed, no worker, no shapes
             if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
             if (plan.mode.equals("bridgebench")) cmd.append("BRIDGEBENCH ").append(plan.benchSizes).append('\n');
-            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench") && !plan.mode.equals("local")) cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');   // preparation has no worker
-            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench") && !plan.mode.equals("local")) for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }   // preparation has no shapes (the VM refuses PREPARE with any)
+            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench") && !plan.mode.equals("local") && !plan.mode.equals("app")) cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');   // preparation has no worker
+            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench") && !plan.mode.equals("local") && !plan.mode.equals("app")) for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }   // preparation has no shapes (the VM refuses PREPARE with any)
             cmd.append("RUN\n");
             out.write(cmd.toString().getBytes()); out.flush();
             if (plan.mode.equals("prepare") && modelOk) {   // the feed runs now; when it ends (complete, deadline, ended) the VM is told to STOP and reports what is present
@@ -673,6 +709,7 @@ public class Main extends Activity {
                 if (line.startsWith("RECEIPT ")) PadsClient.onReceipt(padSession, line);                 // the engine's signed usage
                 if (line.startsWith("PADACK ")) PadsClient.onAck(padSession, line, plan.name);       // the VM's signed delivery acknowledgment
                 if (line.startsWith("QUIETPADS v1 ") && quietControl != null) quietControl.offer(line);   // hand it to the worker and keep reading
+                if (line.startsWith("APP serving http") && !plan.appHttp.isEmpty()) { final OutputStream o = out; new Thread(() -> appHttpProbe(vm, plan.appHttp, o), "app-http").start(); }
                 if (line.equals("END")) { sawEnd = true; break; }
             }
             say("CONTROL closed after " + n + " lines");
@@ -702,6 +739,28 @@ public class Main extends Activity {
     // accept order could not tell the roles apart -- a benchmark link could have been handed to the lane.
     static final int BENCH_PORT = 7784;
     static final int DRAFT_PORT = 7783;
+    static final int APP_PORT = 7785;       // the portable component (payload/anchor_app.h)
+    static final int APP_HTTP_PORT = 7786;  // HTTP/1.1 to a served wasi:http app (APP ... serve=http)
+    /* The test hook behind --es app_http: each path as its own GET on its own connection (Connection: close), the whole raw
+     * response into the capture as APPHTTP <i> ms=<wall> <hex>, then STOP on the control channel. The product path puts the
+     * relay tunnel where this loop is. */
+    static void appHttpProbe(Object vm, String paths, OutputStream ctl) {
+        int i = 0;
+        for (String path : paths.split("\\|")) {
+            i++;
+            final long t0 = System.nanoTime();
+            ParcelFileDescriptor pfd = connect(vm, APP_HTTP_PORT, 50);
+            if (pfd == null) { say("APPHTTP " + i + " connect failed"); continue; }
+            try (OutputStream o = new FileOutputStream(pfd.getFileDescriptor()); InputStream in = new FileInputStream(pfd.getFileDescriptor())) {
+                o.write(("GET " + path + " HTTP/1.1\r\nHost: app\r\nConnection: close\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.US_ASCII)); o.flush();
+                java.io.ByteArrayOutputStream got = new java.io.ByteArrayOutputStream(); byte[] b = new byte[1 << 16]; int n;
+                while ((n = in.read(b)) > 0 && got.size() < (4 << 20)) got.write(b, 0, n);
+                sayEvidence("APPHTTP " + i + " ms=" + (System.nanoTime() - t0) / 1_000_000 + " " + LocalChat.hex(got.toByteArray()));
+            } catch (Exception e) { say("APPHTTP " + i + " failed: " + e); }
+            finally { try { pfd.close(); } catch (Exception ignored) { } }
+        }
+        try { synchronized (ctl) { ctl.write("STOP\n".getBytes()); ctl.flush(); } } catch (Exception e) { say("APPHTTP STOP not sent: " + e); }
+    }
     /** A PUBLIC file into the VM's encrypted store (the lane bundle, a drafter): u64 size, the first 8 bytes and the file's
      *  SHA-256; then 'K' (the VM's cached copy IS that file, by its own recorded digest) or 'S' + the bytes, which the VM hashes
      *  as they arrive and refuses if they are not the digest announced here. Size and magic alone reused a stale int8 bundle

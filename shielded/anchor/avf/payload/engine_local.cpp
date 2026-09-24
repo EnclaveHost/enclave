@@ -49,6 +49,7 @@
 #include "anchor_header_file.h"
 #include "anchor_striped_read.h"
 #include "engine_local_proto.h"
+#include "pvmrt_nn.h"
 #include "anchor_plain_buft.h"
 #include "ggml-tpu.h"
 #include "llama-model.h"
@@ -80,6 +81,28 @@ extern "C" int engine_local_set_tpu(const char *bundle, int worker_fd, int bank,
  * the target checks every proposal, so a wrong or hostile drafter changes the speed and never the text. */
 static std::string g_draft_path; static int g_draft_max = 4; static ggml_threadpool *g_pool = nullptr, *g_dpool = nullptr, *g_vpool = nullptr; static int g_dthreads = 0, g_vthreads = 0;
 extern "C" int engine_local_set_draft(const char *path, int n_max) { if (!path || !*path || n_max < 1 || n_max > 4) return -1; g_draft_path = path; g_draft_max = n_max; return 0; }
+/* The app runtime (PVM-CPU.md, "The app runtime", milestone 3; pvmrt_nn.h): when the payload sets a host, the engine loads
+ * and self-tests the model exactly as for a conversation, then hands it to host() as an ops table instead of serving the
+ * chat port. The portable component reaches it only through wasi:nn (runtime/pvm-rt/src/nn.rs). */
+static pvmrt_nn_host_fn g_nn_host = nullptr; static void *g_nn_arg = nullptr;
+extern "C" void engine_local_set_nn_host(pvmrt_nn_host_fn host, void *arg) { g_nn_host = host; g_nn_arg = arg; }
+struct nn_state { llama_context *ctx; const llama_vocab *vocab; int n_vocab; };
+static int32_t nn_tokenize(void *e, const uint8_t *text, int32_t len, int32_t *out, int32_t cap) {
+    const nn_state *s = (const nn_state *)e;
+    return llama_tokenize(s->vocab, (const char *)text, len, out, cap, /*add_special=*/false, /*parse_special=*/true);
+}
+static int32_t nn_piece(void *e, int32_t id, uint8_t *buf, int32_t cap) {
+    const nn_state *s = (const nn_state *)e;
+    if (id < 0 || id >= s->n_vocab) return 0;
+    return llama_token_to_piece(s->vocab, id, (char *)buf, cap, /*lstrip=*/0, /*special=*/true);
+}
+static int32_t nn_reset(void *e) { llama_memory_clear(llama_get_memory(((nn_state *)e)->ctx), true); return 0; }
+static int32_t nn_decode(void *e, const int32_t *ids, int32_t n, float *logits) {   /* as the self-test feeds a prompt: 512 per llama_decode */
+    const nn_state *s = (const nn_state *)e;
+    for (int32_t i = 0; i < n; i += 512) { const int32_t k = n - i < 512 ? n - i : 512; if (llama_decode(s->ctx, llama_batch_get_one(const_cast<llama_token *>(ids + i), k))) return 1; }
+    const float *l = llama_get_logits_ith(s->ctx, -1); if (!l) return 2;
+    memcpy(logits, l, sizeof(float) * (size_t)s->n_vocab); return 0;
+}
 /* exported by the pinned llama fork: every model tensor by name (tied weights may appear twice) */
 extern const std::vector<std::pair<std::string, ggml_tensor *>> &llama_internal_get_tensor_map(const llama_model *);
 
@@ -298,6 +321,20 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
             outf("LOCAL selftest %s: prompt %d tokens at %.2f tok/s, %zu tokens generated at %.2f tok/s", SELFTEST_ID, nt, pf, ids.size(), dc);
             g_selftest_sink(SELFTEST_ID, (int)ids.size(), pf, dc, dg);
         }
+    }
+    if (g_nn_host) {   /* the app runtime takes the model; no chat port, no drafter, no TPU link on this path */
+        int rc = 2;
+        if (g_tpu_fd >= 0 || !g_draft_path.empty()) outf("LOCAL refused: the app runtime is served by the CPU engine alone (no TPU link, no drafter)");
+        else {
+            nn_state st = { ctx, vocab, llama_vocab_n_tokens(vocab) };
+            const pvmrt_nn_ops ops = { &st, st.n_vocab, (int32_t)llama_n_ctx(ctx), nn_tokenize, nn_piece, nn_reset, nn_decode };
+            llama_memory_clear(llama_get_memory(ctx), true);
+            outf("LOCAL nn: the verified model %s serves the app runtime (vocab %d, ctx %d, loaded in %.1f s)", model_hex[0] ? model_hex : "-", st.n_vocab, ops.n_ctx, load_s);
+            rc = g_nn_host(&ops, g_nn_arg);
+            outf("LOCAL nn: the app runtime returned %d", rc);
+        }
+        llama_free(ctx); llama_model_free(model); for (ggml_backend_buffer_t b : owned) ggml_backend_buffer_free(b);
+        return rc;
     }
     { char l[256]; snprintf(l, sizeof l, "READY ctx=%d threads=%d vocab=%d model=%s load_s=%.1f", n_ctx, n_threads, llama_vocab_n_tokens(vocab), model_hex[0] ? model_hex : "-", load_s); chat_write(chat_fd, l); }
 

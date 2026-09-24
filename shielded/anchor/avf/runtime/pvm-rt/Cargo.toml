@@ -10,8 +10,17 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # wasmtime is pinned exactly: its version is part of the runtime identity the pVM attests (isolation/contract RuntimeIdentity).
-wasmtime = { version = "=49.0.0", default-features = false, features = ["std", "runtime", "cranelift", "pulley", "component-model", "gc", "gc-drc"] }
+wasmtime = { version = "=49.0.0", default-features = false, features = ["std", "runtime", "cranelift", "pulley", "component-model", "gc", "gc-drc", "async"] }
 wasmtime-wasi = { version = "=49.0.0", default-features = false, features = ["p2"] }
+# wasi:nn's WIT host glue only: no backend features (openvino/winml/onnx/pytorch); the one backend is nn.rs, over the
+# payload's verified engine
+wasmtime-wasi-nn = { version = "=49.0.0", default-features = false }
+# wasi:http (milestone 4, src/httpd.rs): the incoming handler only. No `default-send-request`: no TLS client, no outgoing
+# requests from the VM (http.rs refuses them).
+wasmtime-wasi-http = { version = "=49.0.0", default-features = false, features = ["p2"] }
+tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }
+hyper = { version = "1", default-features = false, features = ["server", "http1"] }
+http = "1"
 sha2 = "0.10"
 
 [profile.release]

@@ -1,0 +1,32 @@
+ok   selftest: the protected pvm-cpu payload ran it
+ok   selftest: runtime identity {"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}
+ok   selftest: the engine handed its verified model to the runtime
+ok   selftest: ran bundles/nn-v1.wasm (c916cfc9efa76246...) over graph gemma-4-e2b-it-q4_0
+ok   selftest: exit 0 (got 0; stderr: nn timing prefill_ms=242 decode_ms=5884 decode_tok_s=10.71)
+ok   selftest: capture complete
+ok   the engine's own self-test digest (CAPS output_sha256) 9c4c7f764bf657c7...
+ok   the component's digest through wasi:nn 9c4c7f764bf657c7... equals it
+ok   the component's prompt tokenized to the engine's 32 tokens (32)
+ok   the same number of generated tokens
+     text: ```python\ndef factorial(n):\n    """\n    Calculates the factorial of a non-negative integer n.\n\n    Args:\n        n (int): The non-negative integer.\n\n    Returns:\n        int: The factorial of
+     app path: prefill_ms=242 decode_ms=5884 decode_tok_s=10.71 | engine self-test: decode 14.04 tok/s | compile_ms 487 run_ms 6225
+ok   refusals: the protected pvm-cpu payload ran it
+ok   refusals: runtime identity {"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}
+ok   refusals: the engine handed its verified model to the runtime
+ok   refusals: ran bundles/nn-v1.wasm (c916cfc9efa76246...) over graph gemma-4-e2b-it-q4_0
+ok   refusals: exit 0 (got 0; stderr: )
+ok   refusals: capture complete
+ok   refusals: unknown-graph
+ok   refusals: own-weights
+ok   refusals: second-context
+ok   refusals: token-out-of-range
+ok   refusals: token-negative
+ok   refusals: tokens-not-i32
+ok   refusals: tokens-short-data
+ok   refusals: tokens-empty
+ok   refusals: unsupported-beside-tokens
+ok   refusals: unknown-verb
+ok   refusals: no-inputs
+ok   refusals: context-after-drop
+ok   refusals: all
+PASS milestone 3 on the device

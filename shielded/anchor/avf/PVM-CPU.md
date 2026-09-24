@@ -156,11 +156,95 @@ Security contract for the runtime in the pVM (each item fail-closed):
 | # | milestone | status |
 |---|---|---|
 | 1 | `runtime/pvm-rt` (wasmtime =49.0.0, Cranelift -> Pulley) runs the conformance component inside the pVM: verify before compile, W^X, limits, deadline, the contract's identity | **PASS on the Pixel 10** (results/rt-probe-20260923; host tests `cargo test` 5/5); a 512 MiB VM aborted on memory, open |
-| 2 | the component delivered from outside the APK (streamed and verified like the drafter), and the runtime inside the anchor payload beside the engine | next |
-| 3 | `wasi:nn` (ggml) backed by the in-VM llama.cpp engine, so an inference app runs unchanged | |
-| 4 | `wasi:http` served over the vsock bridge | |
-| 5 | Bind2 in the 64-byte attestation challenge and the runtime identity + bundle hash in the capability report; the relay's ABI/2 AVF attach | |
+| 2 | the component delivered from outside the APK (streamed and verified like the drafter), and the runtime inside the anchor payload beside the engine | **PASS on the Pixel 10** (results/app-m2: every case byte-identical, a wrong digest refused before compiling; `test/anchor-app.test.mjs`) |
+| 3 | `wasi:nn` (ggml) backed by the in-VM llama.cpp engine, so an inference app runs unchanged | **PASS on the Pixel 10** (results/app-m3: the component's self-test digest through wasi:nn equals the engine's own, 12/12 refusals; host tests 8/8 in tests/nn.rs) |
+| 4 | `wasi:http` served over the vsock bridge | **PASS on the Pixel 10** (results/app-m4: enclave-apps' ggml-probe, unchanged, served over the verified model; host tests 4/4 in tests/httpd.rs); the relay tunnel in place of the app's test hook, and TLS into the VM, not built |
+| 5 | Bind2 in the 64-byte attestation challenge and the runtime identity + bundle hash in the capability report; the relay's ABI/2 AVF attach | **evidence verified on the Pixel 10** (results/app-m5: three apps, chain to Google's root, challenge = Bind2 \|\| AppID; `test/pvm-app-attest.test.mjs` 5/5, contract vectors byte-exact); a relay-bound nonce and the relay's attach wiring not yet (handoff) |
 | 6 | cross-domain conformance: the same vectors on Linux (Cranelift), Linux (Pulley), Windows, the pVM | host Cranelift + host Pulley + pVM Pulley agree |
+
+The compiled-module cache is **absent by construction**, not switched off: pvm-rt builds wasmtime with default features
+off and without the `cache` feature (`cargo tree -e features`; no `wasmtime-cache` in Cargo.lock), and it only ever calls
+`Component::from_binary` on the verified bytes, never `deserialize`. So `cache: "none"` in the identity does not depend on a
+flag or on HOME. `cpuFeatures: "baseline"` is literal: the engine targets `pulley64` explicitly, so Cranelift reads no host
+CPU features and the bytecode is the same on every host.
+
+For milestone 5's runtime self-test tuple (the shared judge rejects an ABI/2 document without one): wasmtime is a library
+in the payload process, so a scan of that one process is complete coverage and the tuple is `exec_pages=refused:EACCES
+wx=clean maps=1 scope=self` (jit_probe measured the EACCES). `scope=self` stops being honest if the runtime ever moves into
+a process of its own. Measured on the Pixel 10 exactly so (results/app-m5).
+
+### wasi:http in the pVM (milestone 4)
+
+An Enclave HTTP app is a `wasi:http/proxy` component; the pVM serves it unchanged. `APP ... serve=http` (payload/anchor_app.h)
+makes the payload verify, compile and pre-instantiate it once (runtime/pvm-rt `httpd.rs`: `pvmrt_http_open`), then accept
+connections on vsock 7786 one at a time and hand each to `pvmrt_http_serve_fd`, which speaks HTTP/1.1 on it (hyper) until the
+peer closes. Every request gets a fresh instance in a fresh Store (256 MiB, its own epoch deadline: 60 s, 600 s over a
+model) that is dropped when the request ends; with `graph=`, every request's wasi:nn is the same one graph, so the engine's
+single sequence is never shared between requests. The component cannot make an outgoing request (the build has no TLS
+client and `send_request` refuses; the VM has no network anyway). The server stops on the owner's `STOP`, when the control
+channel closes, or after an hour with neither a connection nor a word.
+
+The conformance app is enclave-apps' ggml-probe (runtime/conformance/bundles/ggml-probe.wasm, sha256 `1ad17b45…`, the
+bytes built from enclave-apps, not rebuilt here): `/ping`, then a greedy generation through wasi:nn. On the host it decodes
+exactly what a mock model predicts, over keep-alive, a fresh instance per request; a request past its deadline gets no answer
+and the next connection is served. On the phone the app's `--es app_http` hook sends five GETs and then STOP
+(cpu/app-http-run.sh, check-app-http.py); the product path puts the relay tunnel where that hook is, and TLS for the app
+terminates in the VM (not built: today the owner's app sees the plaintext requests, as it sees the chat).
+
+### ABI/2 for the app (milestone 5)
+
+Once the component has arrived, and before it runs, the payload (`app_attest_abi2`) measures its own code-page rights and
+asks the VM for a second AVF certificate:
+
+- the runtime self-test tuple, measured in this process: map a page RW and ask for R+X (`exec_pages=refused:EACCES` in a
+  stock Microdroid), then scan /proc/self/maps for a writable+executable mapping; any at all refuses the run.
+  `maps=1 scope=self` because the runtime is a library in this process;
+- the 64-byte challenge `Bind2 || AppID`, with Bind2 = SHA-256(`enclave-bind-v2\n` || transport SPKI || attach nonce ||
+  RuntimeID) and RuntimeID = SHA-256 of the identity exactly as printed (pvm-rt prints the contract's canonical JSON);
+- the chain as `ABI2_LINK<i>[k]` lines, apart from the attach chain, beside `ABI2 runtime`, `ABI2 selftest` and
+  `ABI2 binding`.
+
+Who states the identity matters: here it is measured code. libpvm_rt.so (whose constants `pvmrt_identity` returns) and
+the payload that computes the binding are both in the APK, and the APK's codeHash is a vmComponent of the same AVF
+certificate that carries the challenge, so an identity stated by any other runtime build comes with a different codeHash.
+(Under IGVM on the Linux lane the guest image is outside the launch measurement, and the identity there is asserted by
+unmeasured code.)
+
+`relay/pvm-app-attest.mjs` `verifyPvmAppAbi2` is the verifier. It checks the identity against the contract's rules, then
+that the identity is canonical and a pinned runtime ID, then the tuple under the shared judge's rules. It then asks
+`verifyAvfEvidence` for the challenge it recomputes from its own nonce, the transport key it holds and the app it expects:
+a restated identity, another nonce, key or app is a different challenge. The contract's `runtime.mjs` is not on main yet,
+so RuntimeID/Bind2/Validate are restated there and pinned to the contract's vectors (fb5e466c) in the test; import the
+contract once it lands. The relay's attach does not call it yet (handoff below).
+
+### wasi:nn in the pVM (milestone 3)
+
+The app reaches the model only through `wasi:nn@0.2.0-rc-2024-10-28`, the WIT the server's ggml backend
+(wasm/wasmtime-nn-ggml.patch) and ggml-probe use, with the server's verbs cut to what a portable app needs:
+`load-by-name(<graph>)`, `{"tokenize": U8}` -> `"ids"`, `{"tokens": I32 [1,n]}` -> `"logits"` (the last position),
+`{"vocab_pieces"}` -> `"bytes"` + `"offsets"`. The chain, each link fail-closed:
+
+1. The owner's launch names the graph (`--es app_graph`); the host sends the engine's LOCAL line and `APP ... graph=<name>`.
+   The payload receives the component first, then stages the model exactly as mode local does (whole-file digest against
+   the pin, then every tensor hashed before use) and loads it in the CPU engine.
+2. The engine runs the tier's capability self-test on its own path and emits the signed CAPS report, then hands the loaded
+   model to the payload as an ops table (payload/pvmrt_nn.h, the C mirror of nn.rs `NnOps`; the layout is asserted on
+   both sides) instead of opening the chat port.
+3. pvm-rt links wasi:nn only for such a run and registers exactly one graph under the APP line's name. `load` from bytes
+   is refused (a component cannot bring weights into the attested VM); an unknown name is not found; one execution context
+   at a time (`[sessions_busy]`, as the server's default); every token id range-checked; any input beside `"tokens"` other
+   than `"more"` refused rather than ignored (the server's `"all"`, `"topk"`, `"mtp"` change the answer's shape); a
+   failed decode ends its context; the sequence is cleared when a context is dropped and when the Store is dropped.
+4. The conformance component `runtime/conformance/nn-cli` (bundles/nn-v1.wasm) runs the engine's own self-test through
+   this path. Its digest must equal the CAPS report's `output_sha256` from the same VM and the same model load: parity of
+   the app path with the engine, checked by runtime/conformance/check-app-nn.py.
+
+Not in this cut: the server's speculative and prefix-cache verbs (`caps`, `all`, `topk`, `mtp_*`, `prompt`/`marks`,
+`copy_from`, `rewind`), vision, and more than one concurrent sequence. An app that needs them is refused, not misserved.
+
+Measured (results/app-m3): parity exact; the app path decodes at 10.7 tok/s against the engine's 14.0 in the same VM, the
+difference being the 262,144 logits crossing into the guest and a Pulley argmax over them each token; the server's `topk`
+verb (host-side top-k) is the remedy, not built here yet.
 
 ## On-device validation, Pixel 10 Pro XL, 2026-09-23
 
@@ -187,6 +271,10 @@ refuses first).
   `{t:"caps", report, sig}` frame and call `admitPvmCpu({ attach, reportBytes, signature, nonce }, pvmCpuPolicyFromEnv(env))`;
   on `eligible`, set the row's relay-owned tier to `pvm-cpu` and add a capability-based branch to `computeEligible` for the
   inference lane (not app deployments), with the verdict's `reasons` as the ineligible reason otherwise.
+- ABI/2 for apps on the phone: after the attach, when a pvm-cpu phone runs an app, read its `ABI2_*` lines (or a frame
+  carrying the same fields) and call `verifyPvmAppAbi2` (relay/pvm-app-attest.mjs) with the session's nonce, the attached
+  transport SPKI, the app's expected SHA-256, the pinned runtime IDs and the tier's code/authority pins; an app without
+  verified ABI/2 evidence is not served as a protected app.
 - `site/js/core/pricing.js` / `fleet-list.js`: the amber "pvm cpu" badge only for rows whose relay-owned tier is `pvm-cpu`;
   Pixel 11 copy stays future tense until this file records a Pixel 11 run.
 
