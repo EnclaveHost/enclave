@@ -24,8 +24,10 @@ test("/health states the backend, refuses everything it cannot honour, and admit
   assert.equal(h.backend, "hyperv-partition-per-app", "the name agreed with the SNP lane");
   for (const k of ["gpu", "secrets", "egress", "config", "ports", "configCid"])
     assert.equal(h.supports[k], false, `supports.${k} must be false`);
-  assert.deepEqual(h.catalog.derivations, ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2"],
-                   "both rules are implemented and agree with the shared vectors");
+  assert.deepEqual(h.catalog.derivations, ["enclave-catalog-bundle/1"],
+                   "the GATE list: only what this backend can actually serve");
+  assert.deepEqual(h.catalog.derives, ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2"],
+                   "what it can COMPUTE is separate information, and /2 is byte-exact here");
   assert.equal(h.runtime.v2SocketServer, false, "deriving /2 is not serving it, and health says which");
   assert.equal(h.catalog.runtimeId, RT);
   assert.equal(h.policyRule, POLICY_RULE);
@@ -127,4 +129,14 @@ test("a /2 app is REFUSED rather than approximated, even though its AppID is rig
   // and the manager still will not take it, because serving one needs a runtime it does not have
   await assert.rejects(() => mk().spawn(spawnBody({ derive: rec2 })),
                        /derives enclave-catalog-bundle\/2 but cannot serve it yet/);
+});
+
+test("a rule we cannot serve is absent from the gate list, not merely refused later", () => {
+  const h = mk().health();
+  assert.equal(h.catalog.derivations.includes("enclave-catalog-bundle/2"), false,
+    "listing it would pass the claim gate: the node takes the lease ON CHAIN, then this process "
+    + "refuses, and the deployment churns through claim, fail and release while a box that can "
+    + "serve it sits free. Silence is the refusal the gate understands.");
+  assert.equal(h.catalog.derives.includes("enclave-catalog-bundle/2"), true,
+    "but the capability is still reported, so nobody has to guess whether the identity would match");
 });

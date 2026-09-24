@@ -19,7 +19,11 @@
    ============================================================ */
 import http from "node:http";
 import crypto from "node:crypto";
-import { derive, DERIVATION, DERIVATIONS } from "./derive.mjs";
+import { derive, DERIVATION, DERIVATION_V2, DERIVATIONS } from "./derive.mjs";
+
+/* What this backend can actually SERVE, as opposed to derive. /2 needs a command's own socket
+   inside the partition; when that exists, it moves into this list and the gate follows. */
+export const SERVES = [DERIVATION];
 import { HyperVPartitionBackend, BACKEND, SUPPORTS, PREREQUISITES } from "./backend.mjs";
 
 export const POLICY_RULE = "enclave-isolation-policy/1";
@@ -58,15 +62,20 @@ export class Manager {
     return {
       backend: this.backend.backend,
       supports: { ...this.backend.supports },
-      // WHAT IT DERIVES, which is not what it can RUN. Both rules are implemented here and agree
-      // with the shared vectors byte for byte, so an AppID computed on this box equals the one the
-      // Linux tier computes. Whether a /2 app could actually be SERVED is a different question and
-      // `canStart` is the one that answers it: /2's runtime semantics (the command's own socket,
-      // wasi:sockets inside the partition, an in-guest TLS front proxying to 127.0.0.1:N) are not
-      // implemented on this backend, and nothing here should read as a claim that they are.
-      catalog: { derivations: DERIVATIONS, runtimeId: this.runtimeId || null },
+      // `derivations` IS THE GATE. The supervisor reads it as "this manager can derive AND run",
+      // and acts on it: a listed derivation means the claim gate passes and the node takes the
+      // lease ON CHAIN before this process ever sees the spawn. So a rule we can compute but not
+      // serve must NOT appear - refusing at spawn is too late, and costs a claim, a failure and a
+      // release, with the deployment possibly sitting Queued while a Linux box that CAN serve it is
+      // free. Silence in this list is the refusal the gate understands. (enclave-5d, who owns the
+      // consumer, asked for exactly this, and they are right.)
+      catalog: {
+        derivations: SERVES,                    // what it can serve: the gate reads this
+        derives: DERIVATIONS,                   // what it can COMPUTE, byte-exactly: information only
+        runtimeId: this.runtimeId || null,
+      },
       runtime: { v2SocketServer: false,
-                 note: "enclave-catalog-bundle/2 is derived but not yet served here: no partition runs on this host" },
+                 note: "enclave-catalog-bundle/2 is derived byte-for-byte here but not served: serving a command on its own socket needs wasi:sockets inside the partition and an in-guest TLS front" },
       policyRule: POLICY_RULE,
       // canStart is the HOST's answer, refreshed by probe(), not "a launcher object exists". A
       // launcher wired to a box with no Hyper-V role is still a launcher, and reporting ready on
