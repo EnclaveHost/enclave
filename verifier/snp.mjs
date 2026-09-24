@@ -108,11 +108,12 @@ export function verifyReportSignature(p, vcekCert) {
 const pemCerts = (pem) => String(pem).split(/(?=-----BEGIN CERTIFICATE-----)/).filter((s) => s.includes("CERTIFICATE")).map((s) => new X509Certificate(s));
 const inWindow = (c, now) => now >= new Date(c.validFrom) && now <= new Date(c.validTo);
 
-// VCEK -> ASK -> ARK, with the ARK pinned, every subject as AMD issues it, and every certificate valid now.
-export function checkChain({ vcekDer, chainPem, product, now, roots = AMD_ARK_SHA256 }) {
-  const reasons = [], fail = (why) => ({ ok: false, why, reasons });
-  let vcek, chain;
-  try { vcek = new X509Certificate(vcekDer); } catch (e) { return fail(`VCEK unparseable: ${e.message}`); }
+// ASK -> ARK alone: the ARK pinned by sha256 for the product, both subjects as AMD issues them, both valid now, RSA-4096,
+// the ARK self-signed and the ASK signed by it. Used by checkChain below and by the collateral cache to authenticate a
+// chain before it is stored or served (verifier/collateral-cache.mjs).
+export function parseAmdChain({ chainPem, product, now, roots = AMD_ARK_SHA256 }) {
+  const fail = (why) => ({ ok: false, why });
+  let chain;
   try { chain = pemCerts(chainPem); } catch (e) { return fail(`AMD chain unparseable: ${e.message}`); }
   if (chain.length !== 2) return fail(`AMD cert_chain must be exactly ASK then ARK (got ${chain.length} certificates)`);
   const [ask, ark] = chain;
@@ -121,29 +122,48 @@ export function checkChain({ vcekDer, chainPem, product, now, roots = AMD_ARK_SH
   if (fpHex(ark) !== want) return fail(`the served ARK (${fpHex(ark).slice(0, 16)}...) is not AMD's pinned ${product} root`);
   if (cn(ark.subject) !== `ARK-${product}`) return fail(`ARK subject CN is ${cn(ark.subject)}, expected ARK-${product}`);
   if (cn(ask.subject) !== `SEV-${product}`) return fail(`ASK subject CN is ${cn(ask.subject)}, expected SEV-${product}`);
-  if (cn(vcek.subject) !== "SEV-VCEK") return fail(`VCEK subject CN is ${cn(vcek.subject)}, expected SEV-VCEK`);
-  if (cn(vcek.issuer) !== `SEV-${product}`) return fail(`VCEK issuer CN is ${cn(vcek.issuer)}, expected SEV-${product}`);
-  for (const [c, what] of [[ark, "ARK"], [ask, "ASK"], [vcek, "VCEK"]]) if (!inWindow(c, now)) return fail(`${what} certificate is not valid at ${now.toISOString()} (${c.validFrom} .. ${c.validTo})`);
+  for (const [c, what] of [[ark, "ARK"], [ask, "ASK"]]) if (!inWindow(c, now)) return fail(`${what} certificate is not valid at ${now.toISOString()} (${c.validFrom} .. ${c.validTo})`);
   for (const [c, what] of [[ark, "ARK"], [ask, "ASK"]]) if (c.publicKey.asymmetricKeyType !== "rsa" || c.publicKey.asymmetricKeyDetails?.modulusLength !== 4096) return fail(`${what} key is not RSA-4096`);
   if (!ark.verify(ark.publicKey)) return fail("ARK is not self-signed");
   if (!ask.checkIssued(ark) || !ask.verify(ark.publicKey)) return fail("ASK is not signed by the ARK");
+  return { ok: true, why: null, ask, ark };
+}
+
+// VCEK -> ASK -> ARK, with the ARK pinned, every subject as AMD issues it, and every certificate valid now.
+export function checkChain({ vcekDer, chainPem, product, now, roots = AMD_ARK_SHA256 }) {
+  const reasons = [], fail = (why) => ({ ok: false, why, reasons });
+  let vcek;
+  try { vcek = new X509Certificate(vcekDer); } catch (e) { return fail(`VCEK unparseable: ${e.message}`); }
+  const c = parseAmdChain({ chainPem, product, now, roots }); if (!c.ok) return fail(c.why);
+  const { ask, ark } = c;
+  if (cn(vcek.subject) !== "SEV-VCEK") return fail(`VCEK subject CN is ${cn(vcek.subject)}, expected SEV-VCEK`);
+  if (cn(vcek.issuer) !== `SEV-${product}`) return fail(`VCEK issuer CN is ${cn(vcek.issuer)}, expected SEV-${product}`);
+  if (!inWindow(vcek, now)) return fail(`VCEK certificate is not valid at ${now.toISOString()} (${vcek.validFrom} .. ${vcek.validTo})`);
   if (!vcek.checkIssued(ask) || !vcek.verify(ask.publicKey)) return fail("VCEK is not signed by the ASK");
   reasons.push(`AMD chain verified: VCEK -> ASK (SEV-${product}) -> ARK-${product}, ARK pinned by sha256, all three valid at ${now.toISOString().slice(0, 10)}`);
   return { ok: true, why: null, reasons, vcek, ask, ark };
+}
+
+// Is this CRL AMD's, for this ARK: parseable, RSASSA-PSS, issued by the pinned ARK, signed by it, not from the future.
+// Says nothing about staleness or revocation (checkCrl judges those): a genuine CRL that revokes the ASK, or one past
+// its nextUpdate, is still authentic, and a cache must serve it rather than hide it (verifier/collateral-cache.mjs).
+export function checkCrlAuthentic({ crlDer, ark, now }) {
+  let crl; try { crl = parseCrl(crlDer); } catch (e) { return { ok: false, why: `CRL unparseable: ${e.message}` }; }
+  if (!crl.sigAlgIsRsaPss) return { ok: false, why: `CRL signature algorithm ${crl.algOid} is not RSASSA-PSS` };
+  if (!crl.issuerDer.equals(subjectNameDer(ark.raw))) return { ok: false, why: "CRL issuer is not the pinned ARK" };
+  let sigOk = false;
+  try { sigOk = cryptoVerify("sha384", crl.tbsDer, { key: ark.publicKey, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength: 48 }, crl.signature); } catch (e) { return { ok: false, why: `CRL signature error: ${e.message}` }; }
+  if (!sigOk) return { ok: false, why: "CRL signature does not verify with the pinned ARK" };
+  if (now < crl.thisUpdate) return { ok: false, why: `CRL thisUpdate ${crl.thisUpdate.toISOString()} is in the future` };
+  return { ok: true, why: null, crl };
 }
 
 // The ARK-signed CRL: issuer, signature (RSASSA-PSS SHA-384, salt 48), window, and the ASK's serial.
 export function checkCrl({ crlDer, ark, ask, now, mode = "required", maxStaleDays = 0 }) {
   if (mode === "none") return { ok: true, checked: false, reasons: ["CRL: policy 'none': revocation of the ASK was NOT checked"] };
   if (!crlDer) return mode === "required" ? { ok: false, checked: false, reasons: ["CRL: required by policy but none was supplied"] } : { ok: true, checked: false, reasons: ["CRL: none supplied; policy stale-ok continues WITHOUT a revocation check (say so to the user)"] };
-  let crl; try { crl = parseCrl(crlDer); } catch (e) { return { ok: false, checked: false, reasons: [`CRL unparseable: ${e.message}`] }; }
-  if (!crl.sigAlgIsRsaPss) return { ok: false, checked: false, reasons: [`CRL signature algorithm ${crl.algOid} is not RSASSA-PSS`] };
-  if (!crl.issuerDer.equals(subjectNameDer(ark.raw))) return { ok: false, checked: false, reasons: ["CRL issuer is not the pinned ARK"] };
-  let sigOk = false;
-  try { sigOk = cryptoVerify("sha384", crl.tbsDer, { key: ark.publicKey, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength: 48 }, crl.signature); } catch (e) { return { ok: false, checked: false, reasons: [`CRL signature error: ${e.message}`] }; }
-  if (!sigOk) return { ok: false, checked: false, reasons: ["CRL signature does not verify with the pinned ARK"] };
-  if (now < crl.thisUpdate) return { ok: false, checked: false, reasons: [`CRL thisUpdate ${crl.thisUpdate.toISOString()} is in the future`] };
-  const reasons = [];
+  const a = checkCrlAuthentic({ crlDer, ark, now }); if (!a.ok) return { ok: false, checked: false, reasons: [a.why] };
+  const crl = a.crl, reasons = [];
   if (crl.nextUpdate && now > crl.nextUpdate) {
     const staleDays = (now - crl.nextUpdate) / 86400000;
     if (mode === "required" || staleDays > maxStaleDays) return { ok: false, checked: true, reasons: [`CRL is stale: nextUpdate ${crl.nextUpdate.toISOString()} is ${staleDays.toFixed(1)} days past (policy ${mode}${mode === "stale-ok" ? `, max ${maxStaleDays}` : ""})`] };
@@ -208,15 +228,18 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
   // 4. collateral: VCEK (auxblob first), chain, CRL
   const tcb = decodeTcb(product, p.reportedTcb);
   const tcbHexStr = tcbHex(p.reportedTcb), chipHex = hex(p.chipId);
+  const prov = (r) => (r ? { source: r.source ?? null, fetchedAt: r.fetchedAt ?? null, cached: r.cached === true, ...(r.stale !== undefined ? { stale: r.stale === true } : {}) } : null);
+  claims.collateral = { vcek: null, chain: null, crl: null };   // where each piece came from, as the adapter reports it (never a trust input)
   let vcekDer = context.auxblob ? vcekFromAuxblob(context.auxblob) : null, vcekSource = vcekDer ? "the report's own certificate table" : null;
-  if (!vcekDer && collateral) { try { const v = await collateral.vcek(product, chipHex, tcbHexStr, kdsVcekUrl(product, p).replace(/^https:\/\/[^/]+\//, "")); if (v) { vcekDer = v.der; vcekSource = v.source; } } catch (e) { return fail("vcek", `VCEK unavailable: ${e.message}`); } }
+  if (vcekDer) claims.collateral.vcek = { source: vcekSource, fetchedAt: null, cached: false };
+  if (!vcekDer && collateral) { try { const v = await collateral.vcek(product, chipHex, tcbHexStr, kdsVcekUrl(product, p).replace(/^https:\/\/[^/]+\//, "")); if (v) { vcekDer = v.der; vcekSource = v.source; claims.collateral.vcek = prov(v); } } catch (e) { return fail("vcek", `VCEK unavailable: ${e.message}`); } }
   if (!vcekDer) return fail("vcek", "no VCEK: not in the certificate table and no collateral source answered (the chain cannot be verified; nothing below is authenticated)");
-  let chainPem; try { chainPem = (await collateral?.chain(product))?.pem; } catch (e) { return fail("chain", `AMD chain unavailable: ${e.message}`); }
+  let chainPem; try { const c = await collateral?.chain(product); chainPem = c?.pem; claims.collateral.chain = prov(c); } catch (e) { return fail("chain", `AMD chain unavailable: ${e.message}`); }
   if (!chainPem) return fail("chain", `no AMD ASK/ARK chain for ${product} available`);
   const ch = checkChain({ vcekDer, chainPem, product, now, roots: pol.roots });
   if (!ch.ok) return fail("chain", ch.why);
   checks.chain = true; reasons.push(...ch.reasons); claims.vcekSource = vcekSource; claims.vcekFingerprint = fpHex(ch.vcek); claims.arkFingerprint = fpHex(ch.ark);
-  let crlDer = null; try { crlDer = (await collateral?.crl?.(product))?.der ?? null; } catch { crlDer = null; }
+  let crlDer = null; try { const c = await collateral?.crl?.(product); crlDer = c?.der ?? null; claims.collateral.crl = prov(c); } catch (e) { crlDer = null; claims.collateral.crl = { source: null, fetchedAt: null, cached: false, error: e.message }; }
   const crl = checkCrl({ crlDer, ark: ch.ark, ask: ch.ask, now, mode: pol.crl, maxStaleDays: pol.crlMaxStaleDays });
   reasons.push(...crl.reasons); if (!crl.ok) { checks.crl = false; return out("rejected"); }
   checks.crl = crl.checked ? true : null; claims.crlChecked = crl.checked; if (crl.nextUpdate) claims.crlNextUpdate = crl.nextUpdate.toISOString();

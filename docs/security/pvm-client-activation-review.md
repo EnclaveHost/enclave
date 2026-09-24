@@ -413,7 +413,8 @@ Node binary and whole-machine power loss are the unchanged limits.
 
 ## 14. Completed boundary (2026-09-24): independent acceptance result
 
-After the strict runner's verdict was rewritten as a fail-closed, tested classifier (plan item 10; commit 7ae1ab36),
+After the strict runner's verdict was rewritten as a fail-closed, tested classifier (plan item 10; commit 7ae1ab36;
+the defect was found by Codex's source audit under Steven's standing scope, not by a direct instruction from Steven),
 Codex reviewed the classifier and its real-TAP negative checks and independently completed
 `node verifier/integration/run.mjs --no-fetch`: exit 0, 140 tests, 140 pass, 0 fail, 0 cancelled, 0 skipped, 0 todo;
 every pinned artifact, both next builds and the derived device artifact reproduced to their records, and all three
@@ -422,7 +423,7 @@ read and found consistent with that report). Codex's earlier 130-case run and th
 negative control (the original assertion failing on run 2 with its recorded reason) also completed successfully. No
 further full run is needed without a new change or concern.
 
-This lab review rests here, at its completed boundary. Preserved as they are: the original failed runs (run 1's and
+This lab review reached that boundary (the waiting instruction was Codex's, since superseded for further in-scope work). Preserved as they are: the original failed runs (run 1's and
 run 2's own failed checker outputs, the run-2 fixture with its null carrier copies asserted by the regression case and
 the negative runner, the 0.2.0 build pinned for F2's reproduction), and the scoped evidence limits (the attestation
 chains of runs 2 and 3 re-verified offline here; sealing and FIN the client's own claim plus the served count and the

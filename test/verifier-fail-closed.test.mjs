@@ -12,6 +12,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash, sign, randomBytes, X509Certificate } from "node:crypto";
 import { gunzipSync, gzipSync } from "node:zlib";
+import { synthChain, synthReport } from "./helpers/snp-synth.mjs";
 import { verifyEvidence, memoryCollateral, spkiOfCert, verdictStatus, parseReportStrict, JUDGED_MAX_REPORT_VERSION } from "../verifier/index.mjs";
 
 const F = new URL("./fixtures/verifier/", import.meta.url), A = new URL("./fixtures/amd/", import.meta.url);
@@ -68,42 +69,7 @@ test("every policy relaxation is an omission and caps the verdict at limited (ho
   assert.equal(all.status, "limited"); assert.deepEqual(all.omissions.sort(), ["certificate-binding-unchecked", "crl-revocation-unchecked", "tcb-floor-unjudged"]);
 });
 
-// ---- a SYNTHETIC AMD-shaped chain, so the metal and domain ABI/1 binding branches run end to end offline ----------
-function synthChain() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "synth-amd-"));
-  const o = (args, input) => execFileSync("openssl", args, { cwd: dir, stdio: ["pipe", "pipe", "pipe"], input });
-  const pss = ["-sha384", "-sigopt", "rsa_padding_mode:pss", "-sigopt", "rsa_pss_saltlen:48"];
-  o(["req", "-x509", "-newkey", "rsa:4096", "-nodes", "-keyout", "ark.key", "-out", "ark.pem", "-days", "3650", "-subj", "/O=SYNTHETIC not AMD/CN=ARK-Genoa", ...pss, "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign"]);
-  o(["req", "-new", "-newkey", "rsa:4096", "-nodes", "-keyout", "ask.key", "-out", "ask.csr", "-subj", "/O=SYNTHETIC not AMD/CN=SEV-Genoa"]);
-  fs.writeFileSync(path.join(dir, "ca.ext"), "basicConstraints=critical,CA:TRUE\nkeyUsage=critical,keyCertSign,cRLSign\n");
-  o(["x509", "-req", "-in", "ask.csr", "-CA", "ark.pem", "-CAkey", "ark.key", "-set_serial", "0x020002", "-days", "3650", ...pss, "-extfile", "ca.ext", "-out", "ask.pem"]);
-  const chip = randomBytes(64);
-  fs.writeFileSync(path.join(dir, "vcek.ext"), ["1.3.6.1.4.1.3704.1.3.1=DER:02:01:0a", "1.3.6.1.4.1.3704.1.3.2=DER:02:01:00", "1.3.6.1.4.1.3704.1.3.3=DER:02:01:17", "1.3.6.1.4.1.3704.1.3.8=DER:02:01:54",
-    "1.3.6.1.4.1.3704.1.4=DER:" + chip.toString("hex").match(/../g).join(":"), ""].join("\n"));
-  o(["ecparam", "-name", "secp384r1", "-genkey", "-noout", "-out", "vcek.key"]);
-  o(["req", "-new", "-key", "vcek.key", "-out", "vcek.csr", "-subj", "/O=SYNTHETIC not AMD/CN=SEV-VCEK"]);
-  o(["x509", "-req", "-in", "vcek.csr", "-CA", "ask.pem", "-CAkey", "ask.key", "-set_serial", "0", "-days", "3650", ...pss, "-extfile", "vcek.ext", "-out", "vcek.pem"]);
-  // an ARK-signed, empty CRL (RSASSA-PSS), via openssl ca -gencrl with a minimal database
-  fs.mkdirSync(path.join(dir, "db")); fs.writeFileSync(path.join(dir, "db/index.txt"), ""); fs.writeFileSync(path.join(dir, "db/crlnumber"), "01\n");
-  fs.writeFileSync(path.join(dir, "ca.cnf"), "[ca]\ndefault_ca=x\n[x]\ndatabase=db/index.txt\ncrlnumber=db/crlnumber\ndefault_md=sha384\ndefault_crl_days=30\n");
-  o(["ca", "-gencrl", "-config", "ca.cnf", "-keyfile", "ark.key", "-cert", "ark.pem", "-md", "sha384", "-sigopt", "rsa_padding_mode:pss", "-sigopt", "rsa_pss_saltlen:48", "-out", "crl.pem"]);
-  o(["crl", "-in", "crl.pem", "-outform", "DER", "-out", "crl.der"]);
-  const read = (f) => fs.readFileSync(path.join(dir, f));
-  const out = { chainPem: read("ask.pem").toString() + read("ark.pem").toString(), vcekDer: Buffer.from(read("vcek.pem").toString().replace(/-----[^-]+-----|\s/g, ""), "base64"), vcekKey: read("vcek.key"), crlDer: read("crl.der"), chip,
-    arkFp: new X509Certificate(read("ark.pem")).fingerprint256.replace(/:/g, "").toLowerCase() };
-  fs.rmSync(dir, { recursive: true, force: true }); return out;
-}
-function synthReport(S, { reportData, version = 3 }) {
-  const r = Buffer.alloc(0x4a0);
-  r.writeUInt32LE(version, 0); r.writeBigUInt64LE(0x30000n, 8); r.writeUInt32LE(1, 0x34);
-  const tcb = Buffer.from("0a00000000001754", "hex"); tcb.copy(r, 0x38); tcb.copy(r, 0x180); tcb.copy(r, 0x1e0); tcb.copy(r, 0x1f0);
-  reportData.copy(r, 0x50); Buffer.from("77".repeat(48), "hex").copy(r, 0x90);
-  r[0x188] = 0x19; r[0x189] = 0x11; r[0x18a] = 1; S.chip.copy(r, 0x1a0);
-  r[0x1e8] = 40; r[0x1e9] = 55; r[0x1ea] = 1; r[0x1ec] = 40; r[0x1ed] = 55; r[0x1ee] = 1;
-  const sig = sign("sha384", r.subarray(0, 0x2a0), { key: S.vcekKey, dsaEncoding: "ieee-p1363" });
-  Buffer.from(sig.subarray(0, 48)).reverse().copy(r, 0x2a0); Buffer.from(sig.subarray(48, 96)).reverse().copy(r, 0x2a0 + 0x48);
-  return r;
-}
+// ---- the SYNTHETIC AMD-shaped chain now lives in test/helpers/snp-synth.mjs (moved verbatim) ----------------------------
 const S = synthChain();
 const synthCol = memoryCollateral({ chains: { Genoa: S.chainPem }, vceks: { Genoa: S.vcekDer }, crls: { Genoa: S.crlDer } });
 const SP = randomBytes(91), NONCE = randomBytes(32), APP = randomBytes(32);
