@@ -7,7 +7,7 @@ same derivation, same AppID, same policy rule, same refusals, same backend-name 
 | | |
 |---|---|
 | backend | `hyperv-partition-per-app` |
-| derivation | `enclave-catalog-bundle/1` |
+| derivations | `enclave-catalog-bundle/1` **and** `/2` - both derived here, byte for byte against the shared vectors |
 | policy | `enclave-isolation-policy/1`: vcpus 1, memMiB = the version's on-chain memMb (floor 128), cpuPercent 100 |
 | supports | `gpu`, `secrets`, `egress`, `config`, `ports`, `configCid` all false |
 | attestation format (reserved) | `hyperv-vbs-partition-v1`, a sibling branch in the judge, agreed with the SNP lane and **not yet defined** because no report exists to define it against |
@@ -25,6 +25,24 @@ Linux domain name the same app identically.
 refuses a GPU share, app config, secrets, declared ports, volumes, a private deployment and
 protection rules **again** on this side of the wire - the supervisor's gate already refuses them,
 and two gates in two processes is the point.
+
+## What is derived but NOT served: `enclave-catalog-bundle/2`
+
+`/2` is a COMMAND that serves HTTP on its own socket (`wasi:cli` plus the version's one declared
+`http:N`), rather than a `wasi:http` proxy the runtime serves. The rule is implemented and agrees
+with the shared vectors, so an AppID computed here equals the one the Linux tier computes - which is
+the whole reason to implement it before it can run.
+
+Serving one is a different thing, and this backend cannot: it needs `wasi:sockets` inside the
+partition and an in-guest TLS front proxying to `127.0.0.1:N`. So `/health` lists the derivation and
+says `runtime.v2SocketServer: false`, and a `/2` spawn is REFUSED with that reason rather than
+approximated into something else.
+
+**One header rule, taken from the Linux tier's open finding F13 and adopted deliberately.** Their
+front appends the transport peer as `X-Forwarded-For`, which names the hypervisor rather than any
+client. No client address reaches a domain on this path either, so the right header here is NONE.
+This backend must not synthesise `X-Forwarded-For`, and must not copy one in from the tunnel, on the
+isolated path. Certificate reuse is supervisor-side and needs nothing from a manager.
 
 ## What is not
 

@@ -11,6 +11,13 @@
 import crypto from "node:crypto";
 
 export const DERIVATION = "enclave-catalog-bundle/1";
+/* A COMMAND that serves HTTP on its own socket, rather than a wasi:http proxy the runtime serves.
+   Same rule as /1 except the world is "wasi:cli" and the manifest carries the one port the version
+   declares. In the canonical manifest `http` sits between `artifact` and `policy` - keys sorted, so
+   that is not a choice, but it is worth stating because a wrong order is a different AppID. */
+export const DERIVATION_V2 = "enclave-catalog-bundle/2";
+export const DERIVATIONS = [DERIVATION, DERIVATION_V2];
+const MAX_PORT = 49999;
 export const ABI = "enclave-domain-abi/1";
 export const BUNDLE_MAGIC = "ENCLAVE-BUNDLE/1\n";
 export const KIND = "wasm-component";
@@ -35,10 +42,11 @@ export function canonical(v) {
 export function sha256Hex(b) { return crypto.createHash("sha256").update(b).digest("hex"); }
 
 /** Build(Manifest{abi, world, artifact, policy}, component). The label is empty, so it is omitted. */
-export function buildBundle({ world, policy, component }) {
+export function buildBundle({ world, policy, component, http = 0 }) {
   const manifest = {
     abi: ABI,
     artifact: { kind: KIND, sha256: sha256Hex(component) },
+    ...(http ? { http } : {}),          // omitted when zero, as the Go tag's omitempty does
     policy: { cpuPercent: policy.cpuPercent, memMiB: policy.memMiB, vcpus: policy.vcpus },
     ...(world ? { world } : {}),
   };
@@ -62,7 +70,17 @@ const CID_RE = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,120}|z[1-9A-HJ-NP-Za-k
  */
 export function derive({ record, component }) {
   const r = record || {};
-  if (r.derivation !== DERIVATION) throw new Error(`unknown derivation ${JSON.stringify(r.derivation ?? null)}`);
+  if (!DERIVATIONS.includes(r.derivation)) throw new Error(`unknown derivation ${JSON.stringify(r.derivation ?? null)}`);
+  const v2 = r.derivation === DERIVATION_V2;
+  // A version that declares a port is /2, and only /2. The two rules are not interchangeable: the
+  // same component under each gives a different world, a different manifest and a different AppID.
+  const port = r.http;
+  if (v2) {
+    if (!Number.isInteger(port) || port < 1 || port > MAX_PORT)
+      throw new Error(`enclave-catalog-bundle/2 needs http in 1..${MAX_PORT}, got ${JSON.stringify(port ?? null)}`);
+  } else if (port !== undefined && port !== null && Number(port) !== 0) {
+    throw new Error("enclave-catalog-bundle/1 carries no http: a version that declares a port is /2");
+  }
   const cat = r.catalog || {};
   if (!HEX32.test(String(cat.app ?? ""))) throw new Error("catalog.app must be 0x + 64 lowercase hex");
   if (!Number.isInteger(cat.version) || cat.version < 0) throw new Error("catalog.version must be a non-negative integer");
@@ -77,9 +95,10 @@ export function derive({ record, component }) {
   if (!component.subarray(0, 8).equals(COMPONENT_PREAMBLE))
     throw new Error("artifact is not a wasm component (a core module is refused)");
 
-  const bundle = buildBundle({ world: "wasi:http", policy: p, component });
+  const bundle = buildBundle({ world: v2 ? "wasi:cli" : "wasi:http", policy: p, component, http: v2 ? port : 0 });
   const rec = { catalog: { app: cat.app, version: cat.version }, cid: r.cid,
-                derivation: r.derivation, policy: { cpuPercent: p.cpuPercent, memMiB: p.memMiB, vcpus: p.vcpus },
+                derivation: r.derivation, ...(v2 ? { http: port } : {}),
+                policy: { cpuPercent: p.cpuPercent, memMiB: p.memMiB, vcpus: p.vcpus },
                 runtimeId: r.runtimeId };
   return {
     record: rec,
