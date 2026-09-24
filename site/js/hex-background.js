@@ -45,7 +45,7 @@ function glimmer(cell, stagger = false) {
   }).catch(() => {}); // Resizing or reduced motion may cancel a fade.
 }
 function populate() {
-  const count = reduced.matches ? 0 : Math.min(160, Math.max(28, Math.round(innerWidth * innerHeight / 10500)));
+  const count = reduced.matches ? 0 : Math.min(320, Math.max(56, Math.round(innerWidth * innerHeight / 5250)));
   // Preserve existing fades on resize instead of flashing a whole new field.
   while (cells.size > count) {
     const [cell, animations] = [...cells].at(-1);
