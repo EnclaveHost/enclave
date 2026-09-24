@@ -68,8 +68,8 @@ type Launcher interface {
 	Alive(unit string) bool
 	// Stop tears the guest down.
 	Stop(tag, workdir string) error
-	// Sweep stops every guest a previous guestd left behind, before this one serves.
-	Sweep() ([]string, error)
+	// Sweep stops every guest a previous guestd left behind, except the units adopted (keep), before this one serves.
+	Sweep(keep map[string]bool) ([]string, error)
 }
 
 // Request is the supervisor's POST /vms body, field for field (supervisor.js spawnContainer). Unknown fields are
@@ -121,6 +121,7 @@ type vm struct {
 	Vcpus, MemMiB, CPUPct                                int
 	Created                                              time.Time
 	unit, workdir                                        string
+	cid                                                  uint32
 	stopFwd                                              func()
 	lc                                                   *contract.Lifecycle
 	leaseUntil                                           time.Time
@@ -262,6 +263,21 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		sort.Slice(out, func(i, j int) bool { return out[i]["id"].(string) < out[j]["id"].(string) })
 		s.json(w, 200, map[string]any{"vms": out})
+	case strings.HasPrefix(r.URL.Path, "/vms/") && strings.HasSuffix(r.URL.Path, "/logs") && r.Method == http.MethodGet:
+		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/vms/"), "/logs")
+		s.mu.Lock()
+		v := s.vms[id]
+		s.mu.Unlock()
+		if v == nil {
+			s.json(w, 404, map[string]any{"error": "no such instance"})
+			return
+		}
+		out, err := s.logs(v, tailParam(r.URL.Query().Get("tail")))
+		if err != nil {
+			s.json(w, 404, map[string]any{"error": err.Error()})
+			return
+		}
+		s.json(w, 200, out)
 	case strings.HasPrefix(r.URL.Path, "/vms/") && (r.Method == http.MethodGet || r.Method == http.MethodDelete):
 		id := strings.TrimPrefix(r.URL.Path, "/vms/")
 		s.mu.Lock()
@@ -451,7 +467,7 @@ func (s *server) launch(v *vm) {
 	}
 	s.set(v, func() { v.Measurement = meas })
 	unit, cid, err := s.L.Start(ctx, image, v.ID, v.workdir, v.Vcpus, v.MemMiB, v.CPUPct, v.HostData)
-	s.set(v, func() { v.unit = unit })
+	s.set(v, func() { v.unit, v.cid = unit, cid })
 	if err != nil {
 		s.fail(v, fmt.Errorf("start: %w", err))
 		return
@@ -481,6 +497,7 @@ func (s *server) launch(v *vm) {
 		return
 	}
 	s.set(v, func() { v.Status, v.Verdict, v.TransportKeySha256 = "running", verdict, keySha })
+	s.persistRunning(v) // adoptable after a guestd restart (persist.go)
 }
 
 // reclaim is what an end DOES. The lifecycle decides when, exactly once.
@@ -499,6 +516,13 @@ func (s *server) reclaim(v *vm) {
 	}
 	if unit != "" {
 		_ = s.L.Stop(v.ID, v.workdir)
+	}
+	// a failed start keeps its reason (serial tail, build/launch/verify logs), bounded (persist.go)
+	s.mu.Lock()
+	failed := v.Status == "failed"
+	s.mu.Unlock()
+	if failed {
+		s.preserveFailed(v)
 	}
 	// the bundle and the image are the tenant's; nothing of them stays on this host
 	_ = os.RemoveAll(v.workdir)

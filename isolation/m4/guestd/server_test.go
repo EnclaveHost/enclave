@@ -21,16 +21,18 @@ import (
 )
 
 type fake struct {
-	mu        sync.Mutex
-	builds    int
-	stops     map[string]int
-	alive     map[string]bool
-	verifyErr error
-	startGate chan struct{} // when set, Start blocks until it is closed
-	startArgs [3]int
-	fwdPort   func(workdir string) int // when set, where each guest's forwarder listens (the data-plane tests)
-	hostData  []string                 // the HOST_DATA each Start was given, in order
-	verifyHD  []string                 // the host data each Verify was asked to require
+	mu          sync.Mutex
+	builds      int
+	stops       map[string]int
+	alive       map[string]bool
+	verifyErr   error
+	startGate   chan struct{} // when set, Start blocks until it is closed
+	startArgs   [3]int
+	fwdPort     func(workdir string) int // when set, where each guest's forwarder listens (the data-plane tests)
+	hostData    []string                 // the HOST_DATA each Start was given, in order
+	keyOverride string                   // when set, Verify reports this key (a different guest answering)
+	serial      string                   // when set, Start writes it as the guest's serial console
+	verifyHD    []string                 // the host data each Verify was asked to require
 }
 
 func newFake() *fake { return &fake{stops: map[string]int{}, alive: map[string]bool{}} }
@@ -50,6 +52,9 @@ func (f *fake) Start(ctx context.Context, image, tag, workdir string, vcpus, mem
 	}
 	f.mu.Lock()
 	f.alive["unit-"+tag] = true
+	if f.serial != "" {
+		_ = os.WriteFile(filepath.Join(workdir, tag+".serial"), []byte(f.serial), 0o600)
+	}
 	f.startArgs = [3]int{vcpus, mem, cpu}
 	f.hostData = append(f.hostData, hostData)
 	f.mu.Unlock()
@@ -68,6 +73,9 @@ func (f *fake) Verify(ctx context.Context, port int, m, id, hostData, workdir st
 	if f.verifyErr != nil {
 		return "", "", f.verifyErr
 	}
+	if f.keyOverride != "" {
+		return "attested", f.keyOverride, nil
+	}
 	return "attested", fakeKeySha, nil
 }
 
@@ -81,8 +89,8 @@ func (f *fake) Stop(tag, workdir string) error {
 	f.mu.Unlock()
 	return nil
 }
-func (f *fake) Sweep() ([]string, error) { return nil, nil }
-func (f *fake) stopsOf(tag string) int   { f.mu.Lock(); defer f.mu.Unlock(); return f.stops[tag] }
+func (f *fake) Sweep(keep map[string]bool) ([]string, error) { return nil, nil }
+func (f *fake) stopsOf(tag string) int                       { f.mu.Lock(); defer f.mu.Unlock(); return f.stops[tag] }
 
 type rig struct {
 	t     *testing.T
