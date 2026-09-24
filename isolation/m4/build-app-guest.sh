@@ -22,16 +22,18 @@ m2=$here/../m2
 bundle=$1; out=$2; vcpus=${3:-1}
 [ -f "$bundle" ] && [ -n "$out" ] || { echo "usage: build-app-guest.sh <app.bundle> <out.cpio.gz> [vcpus]"; exit 2; }
 
-# The bundle tool is built from the contract package, so the ID here is the ID every backend computes.
-BUNDLETOOL=${BUNDLETOOL:-$here/.bundle}
+d=$(mktemp -d)
+trap 'rm -rf "$d"' EXIT
+# The bundle tool is built from the contract package, so the ID here is the ID every backend computes. Built per
+# run (the Go build cache makes that cheap): a cached tool outlived a contract change once and would have judged a
+# new bundle by the old rules.
+BUNDLETOOL=${BUNDLETOOL:-$d/bundletool}
 [ -x "$BUNDLETOOL" ] || (cd "$here/../contract" && CGO_ENABLED=0 go build -trimpath -buildvcs=false \
   -ldflags='-s -w -buildid=' -o "$BUNDLETOOL" ./cmd/bundle)
 
 app_id=$("$BUNDLETOOL" id "$bundle")
 [ ${#app_id} = 64 ] || { echo "bundle id did not give 32 bytes of hex: $app_id"; exit 1; }
 
-d=$(mktemp -d)
-trap 'rm -rf "$d"' EXIT
 # template + one app: the same two steps a verifier reassembles from a published release (domain-release.sh)
 "$here/app-image-template.sh" "$d/template"
 "$here/assemble-app-image.sh" "$d/template" "$bundle" "$out" > /dev/null
