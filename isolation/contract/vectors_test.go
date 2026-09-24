@@ -52,12 +52,23 @@ type lifecycleVector struct {
 	Final   string   `json:"final"`
 }
 
+type runtimeVector struct {
+	Identity  RuntimeIdentity `json:"identity"`
+	Valid     bool            `json:"valid"`
+	RuntimeID string          `json:"runtime_id,omitempty"`
+	Bind2     string          `json:"bind2,omitempty"`     // with the bind vector's spki and nonce
+	CacheKey  string          `json:"cache_key,omitempty"` // with the reference bundle's app id
+	Note      string          `json:"note,omitempty"`
+}
+
 type vectors struct {
 	ABI            string            `json:"abi"`
+	ABI2           string            `json:"abi2"`
 	Bundles        []bundleVector    `json:"bundles"`
 	Bind           []bindVector      `json:"bind"`
 	ReportRequests []requestVector   `json:"report_requests"`
 	Lifecycle      []lifecycleVector `json:"lifecycle"`
+	Runtime        []runtimeVector   `json:"runtime"`
 }
 
 func fixedBytes(n int, seed byte) []byte {
@@ -110,7 +121,7 @@ func generate(t *testing.T) vectors {
 	mB.Label = "B"
 	mP := mA
 	mP.Policy.MemMiB = 512
-	v := vectors{ABI: ABI}
+	v := vectors{ABI: ABI, ABI2: ABI2}
 	add := func(name string, m *Manifest, artb, bundle []byte, bare, parses bool, note string) {
 		v.Bundles = append(v.Bundles, bundleVector{Name: name, Manifest: m, ArtifactHex: hex.EncodeToString(artb), BundleHex: hex.EncodeToString(bundle),
 			AppID: hex.EncodeToString(func() []byte { s := AppID(bundle); return s[:] }()), Bare: bare, Parses: parses, Note: note})
@@ -142,6 +153,17 @@ func generate(t *testing.T) vectors {
 	lie := mustBuild(t, mLie, art)
 	lie = bytes.Replace(lie, []byte(pm.Artifact.Sha256), []byte(pm2.Artifact.Sha256), 1)
 	add("artifact-hash-mismatch", nil, art, lie, false, false, "the manifest names a different artifact than the bundle carries: refused")
+	// a bundle whose manifest names a host-specific artifact kind: canonical, hash correct, refused all the same
+	mNative := mA
+	mNative.Artifact.Kind = "cwasm-x86_64"
+	nsum := sha256.Sum256(art)
+	mNative.Artifact.Sha256 = hex.EncodeToString(nsum[:])
+	ncanon, _ := Canonical(mNative)
+	native := append([]byte(BundleMagic), byte(len(ncanon)), byte(len(ncanon)>>8), 0, 0)
+	native = append(native, ncanon...)
+	native = append(native, byte(len(art)), byte(len(art)>>8), 0, 0)
+	native = append(native, art...)
+	add("native-kind-refused", nil, art, native, false, false, "a precompiled or native artifact kind is not part of the contract: refused even when otherwise well-formed")
 
 	spki := fixedBytes(91, 9)
 	nonce := fixedBytes(32, 5)
@@ -157,6 +179,59 @@ func generate(t *testing.T) vectors {
 		{JSON: `{"bind":"zz"}`, OK: false, Note: "not hex"},
 		{JSON: `{"appSha256":"` + strings.Repeat("ff", 32) + `"}`, OK: false, Note: "no bind at all"},
 		{JSON: `not json`, OK: false},
+	}
+
+	// runtime identities: the reference, the same on ARM64 (a Pixel pVM), a different feature policy, a
+	// different version, and the ones the contract refuses
+	ref := RuntimeIdentity{Name: "wasmtime", Version: "48.0.1", Execution: ExecJIT, TargetISA: ISAx86_64, HostISA: ISAx86_64, CPUFeatures: "baseline", WX: WXEnforced, Cache: CacheNone}
+	arm := ref
+	arm.TargetISA, arm.HostISA = ISAaarch64, ISAaarch64
+	feat := ref
+	feat.CPUFeatures = "+sse4.2,+avx2"
+	ver := ref
+	ver.Version = "49.0.0"
+	// the Pixel pVM: Pulley bytecode interpreted on ARM64 (no executable page can exist there)
+	pvm := RuntimeIdentity{Name: "wasmtime", Version: "48.0.1", Execution: ExecInterpreter, TargetISA: ISApulley64, HostISA: ISAaarch64, CPUFeatures: "baseline", WX: WXEnforced, Cache: CacheNone}
+	noWX := ref
+	noWX.WX = "best-effort"
+	badCache := ref
+	badCache.Cache = "unauthenticated"
+	badISA := ref
+	badISA.TargetISA, badISA.HostISA = "riscv64", "riscv64"
+	pulleyJIT := pvm
+	pulleyJIT.Execution = ExecJIT
+	armInterp := arm
+	armInterp.Execution = ExecInterpreter
+	crossJIT := ref
+	crossJIT.TargetISA = ISAaarch64
+	noExec := ref
+	noExec.Execution = ""
+	appRef := AppID(bA)
+	for _, c := range []struct {
+		id   RuntimeIdentity
+		note string
+	}{{ref, "the reference: wasmtime 48.0.1 on x86_64, baseline features, W^X enforced, no cache"},
+		{arm, "the same runtime emitting ARM64 inside a Pixel pVM: a different runtime ID"},
+		{feat, "a different CPU-feature policy: a different runtime ID"},
+		{ver, "a different runtime version: a different runtime ID"},
+		{pvm, "the Pixel pVM: the component compiled to Pulley bytecode inside the pVM and interpreted on ARM64"},
+		{noWX, "W^X not stated as enforced: refused"},
+		{badCache, "an unauthenticated cache: refused"},
+		{badISA, "an ISA the contract does not name: refused"},
+		{pulleyJIT, "pulley64 with execution jit: refused (bytecode is interpreted)"},
+		{armInterp, "aarch64 with execution interpreter: refused (an interpreter runs pulley64)"},
+		{crossJIT, "a JIT whose target is not the host ISA: refused"},
+		{noExec, "no execution mode stated: refused"}} {
+		rv := runtimeVector{Identity: c.id, Note: c.note}
+		if rid, err := RuntimeID(c.id); err == nil {
+			rv.Valid = true
+			rv.RuntimeID = hex.EncodeToString(rid[:])
+			b2, _ := Bind2(spki, nonce, rid)
+			rv.Bind2 = hex.EncodeToString(b2[:])
+			ck := CacheKey(appRef, rid)
+			rv.CacheKey = hex.EncodeToString(ck[:])
+		}
+		v.Runtime = append(v.Runtime, rv)
 	}
 
 	scripts := []lifecycleVector{
@@ -217,6 +292,41 @@ func TestVectors(t *testing.T) {
 			t.Errorf("request %q: ok=%v err=%v", r.JSON, r.OK, err)
 		}
 	}
+	// the runtime identities: validity, digest, binding and cache key re-derived through the public API
+	spkiV, _ := hex.DecodeString(want.Bind[0].SpkiHex)
+	nonceV, _ := hex.DecodeString(want.Bind[0].NonceHex)
+	var appV [32]byte
+	ab, _ := hex.DecodeString(want.Bundles[0].AppID)
+	copy(appV[:], ab)
+	for _, r := range want.Runtime {
+		rid, err := RuntimeID(r.Identity)
+		if r.Valid != (err == nil) {
+			t.Errorf("runtime %q: valid=%v err=%v", r.Note, r.Valid, err)
+			continue
+		}
+		if !r.Valid {
+			continue
+		}
+		if hex.EncodeToString(rid[:]) != r.RuntimeID {
+			t.Errorf("runtime %q: id", r.Note)
+		}
+		b2, _ := Bind2(spkiV, nonceV, rid)
+		if hex.EncodeToString(b2[:]) != r.Bind2 {
+			t.Errorf("runtime %q: bind2", r.Note)
+		}
+		if ck := CacheKey(appV, rid); hex.EncodeToString(ck[:]) != r.CacheKey {
+			t.Errorf("runtime %q: cache key", r.Note)
+		}
+	}
+	ids := map[string]bool{}
+	for _, r := range want.Runtime {
+		if r.Valid {
+			if ids[r.RuntimeID] {
+				t.Errorf("two admissible identities share a runtime ID: %s", r.Note)
+			}
+			ids[r.RuntimeID] = true
+		}
+	}
 }
 
 func TestProperties(t *testing.T) {
@@ -243,6 +353,19 @@ func TestProperties(t *testing.T) {
 	if _, _, err := Parse(art); err != ErrNotBundle {
 		t.Fatal("bare bytes must not parse as a bundle")
 	}
+	// the artifact is the portable component, compiled inside the domain; Build refuses anything else
+	mNative := m
+	mNative.Artifact.Kind = "cwasm-x86_64"
+	if _, err := Build(mNative, art); err == nil {
+		t.Fatal("a native artifact kind must be refused at build time")
+	}
+	mBlank := m
+	mBlank.Artifact.Kind = ""
+	if b, err := Build(mBlank, art); err != nil {
+		t.Fatal(err)
+	} else if pm, _, err := Parse(b); err != nil || pm.Artifact.Kind != KindWasmComponent {
+		t.Fatal("an unset kind defaults to the component")
+	}
 	// the request has no field for the app: a caller naming another gets its own binding back, only
 	bind, err := ParseReportRequest([]byte(`{"bind":"` + strings.Repeat("11", 32) + `","appSha256":"` + strings.Repeat("ff", 32) + `"}`))
 	if err != nil || bind != [32]byte(bytes.Repeat([]byte{0x11}, 32)) {
@@ -260,5 +383,30 @@ func TestProperties(t *testing.T) {
 	}
 	if p := EffectivePolicy(nil, Request{}); p.CPUPercent != 100 || p.MemMiB != 256 {
 		t.Fatal("defaults")
+	}
+	// Bind2 differs from Bind for the same key and nonce, and changes with the runtime identity
+	ref := RuntimeIdentity{Name: "wasmtime", Version: "48.0.1", Execution: ExecJIT, TargetISA: ISAx86_64, HostISA: ISAx86_64, CPUFeatures: "baseline", WX: WXEnforced, Cache: CacheNone}
+	rid, err := RuntimeID(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spki, nonce := fixedBytes(91, 9), fixedBytes(32, 5)
+	b1, _ := Bind(spki, nonce)
+	b2, _ := Bind2(spki, nonce, rid)
+	if b1 == b2 {
+		t.Fatal("Bind2 must differ from Bind")
+	}
+	other := ref
+	other.CPUFeatures = "+avx512f"
+	rid2, _ := RuntimeID(other)
+	b3, _ := Bind2(spki, nonce, rid2)
+	if b2 == b3 {
+		t.Fatal("a different CPU-feature policy must change the binding")
+	}
+	if _, err := Bind2(spki, make([]byte, 31), rid); err == nil {
+		t.Fatal("a 31-byte nonce must be refused by Bind2")
+	}
+	if CacheKey(AppID(a), rid) == CacheKey(AppID(a), rid2) {
+		t.Fatal("the cache key must change with the runtime identity")
 	}
 }

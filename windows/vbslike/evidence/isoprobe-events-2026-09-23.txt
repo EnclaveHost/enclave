@@ -1,0 +1,39 @@
+[Microsoft-Windows-Hyper-V-Compute-Admin] 16:05:36 id=11000 lvl=Error: The specified compute system configuration is invalid: The virtual machine or container JSON document is invalid. (0xC037010D, 'Unknown enumeration value '$.VirtualMachine.SecuritySettings.Isolation.IsolationType'').
+[Microsoft-Windows-Hyper-V-Compute-Admin] 16:03:55 id=11000 lvl=Error: The specified compute system configuration is invalid: The virtual machine or container JSON document is invalid. (0xC037010D, 'Unknown enumeration value '$.VirtualMachine.SecuritySettings.Isolation.IsolationType'').
+[Microsoft-Windows-Hyper-V-Compute-Admin] 16:02:21 id=11000 lvl=Error: The specified compute system configuration is invalid: The virtual machine or container JSON document is invalid. (0xC037010D, 'Unknown enumeration value '$.VirtualMachine.SecuritySettings.Isolation.IsolationType'').
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:07:21 id=3040 lvl=Error: 'vbslike-iso-880-15' could not initialize. (Virtual machine ID F6A2E311-8929-5848-9203-4CEB6412AC5F)
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:07:21 id=12000 lvl=Error: 'vbslike-iso-880-15' Microsoft Guest Runtime State (Instance ID 917BD8CB-3BB6-4124-9383-B7D21AC07F79): Failed to initialize with error 'The parameter is incorrect. ' (0x80070057). (Virtual machine ID F6A2E311-8929-5848-9203-4CEB6412AC5F)
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:07:01 id=18500 lvl=Information: 'vbslike-iso-880-14' started successfully. (Virtual machine ID 1A717AB1-4BA9-558A-AA41-C49B214AAC60)
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:06:40 id=18500 lvl=Information: 'vbslike-iso-880-13' started successfully. (Virtual machine ID A34A7B08-0DA8-5E20-8FB1-C7AE4A76F977)
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:06:19 id=18500 lvl=Information: 'vbslike-iso-880-12' started successfully. (Virtual machine ID 91A24A7B-2503-51C6-9CCB-6375BF0BFAAF)
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:05:59 id=18500 lvl=Information: 'vbslike-iso-880-11' started successfully. (Virtual machine ID 9FC061F2-D014-53A5-AA03-A18D05CFD403)
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:05:38 id=18500 lvl=Information: 'vbslike-iso-880-10' started successfully. (Virtual machine ID 13886A5A-27DA-5AC3-8EDB-B8FD085D6CC6)
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:05:37 id=3040 lvl=Error: 'vbslike-iso-880-9' could not initialize. (Virtual machine ID B5D86958-2D51-5D7E-B733-7272E3888BC2)
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:05:37 id=5142 lvl=Error: 
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:05:37 id=3040 lvl=Error: 'vbslike-iso-880-8' could not initialize. (Virtual machine ID 421C3A96-3FDF-5950-9F49-12DD44648D6C)
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:05:37 id=12000 lvl=Error: 'vbslike-iso-880-8' Microsoft Guest Runtime State (Instance ID 917BD8CB-3BB6-4124-9383-B7D21AC07F79): Failed to initialize with error 'The parameter is incorrect. ' (0x80070057). (Virtual machine ID 421C3A96-3FDF-5950-9F49-12DD44648D6C)
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:05:37 id=3040 lvl=Error: 'vbslike-iso-880-7' could not initialize. (Virtual machine ID 6166144C-3BC1-594A-85F7-E9E34B17FC38)
+[Microsoft-Windows-Hyper-V-Worker-Admin] 16:05:37 id=12000 lvl=Error: 'vbslike-iso-880-7' Microsoft Guest Runtime State (Instance ID 917BD8CB-3BB6-4124-9383-B7D21AC07F79): Failed to initialize with error 'The parameter is incorrect. ' (0x80070057). (Virtual machine ID 6166144C-3BC1-594A-85F7-E9E34B17FC38)
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:07:21 id=1820 lvl=Information: [Virtual machine F6A2E311-8929-5848-9203-4CEB6412AC5F] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:07:01 id=1820 lvl=Information: [Virtual machine 1A717AB1-4BA9-558A-AA41-C49B214AAC60] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:06:40 id=1820 lvl=Information: [Virtual machine A34A7B08-0DA8-5E20-8FB1-C7AE4A76F977] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:06:19 id=1820 lvl=Information: [Virtual machine 91A24A7B-2503-51C6-9CCB-6375BF0BFAAF] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:05:58 id=1820 lvl=Information: [Virtual machine 9FC061F2-D014-53A5-AA03-A18D05CFD403] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:05:37 id=1820 lvl=Information: [Virtual machine 13886A5A-27DA-5AC3-8EDB-B8FD085D6CC6] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:05:37 id=1820 lvl=Information: [Virtual machine 421C3A96-3FDF-5950-9F49-12DD44648D6C] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:05:37 id=1820 lvl=Information: [Virtual machine 6166144C-3BC1-594A-85F7-E9E34B17FC38] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:05:37 id=1820 lvl=Information: [Virtual machine F8294FB7-3E03-59EC-B580-BF47342F47F2] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:05:36 id=1820 lvl=Information: [Virtual machine D1A76674-80E2-5FF8-B31F-5F4A7C3E6757] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:05:36 id=1820 lvl=Information: [Virtual machine C6E7C066-2C15-54CD-AE45-C8A80B61BEB8] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:05:36 id=1820 lvl=Information: [Virtual machine B2BE7B71-0092-593B-9B69-D80E03C6C74D] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:05:36 id=1820 lvl=Information: [Virtual machine C5269302-7F0C-5FE4-A64D-440FB7C320DF] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:03:56 id=1820 lvl=Information: [Virtual machine 925624E6-21F3-59EE-BADF-0D05CEE4B9DC] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:03:56 id=1820 lvl=Information: [Virtual machine A940F65F-5276-58E6-BEFE-C6FC455BCF24] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:03:56 id=1820 lvl=Information: [Virtual machine E18010E7-9C0D-5412-A8FF-938A8E939792] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:03:56 id=1820 lvl=Information: [Virtual machine F7FE61F6-C018-5532-B285-D2EC0358BA51] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:03:56 id=1820 lvl=Information: [Virtual machine B9D11106-D7C7-51A8-B016-821731CEC8CC] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:03:56 id=1820 lvl=Information: [Virtual machine F30765F3-6DCB-5B48-8129-B6CF263860BD] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:03:55 id=1820 lvl=Information: [Virtual machine 3C1E45FE-CAB7-50E0-B704-883A29AE6A62] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:03:55 id=1820 lvl=Information: [Virtual machine EDD707CC-EEC6-5EF8-A498-D7404DC86367] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:03:55 id=1820 lvl=Information: [Virtual machine 79A5376C-2CF7-5A53-8DD2-7B5D35ADF1AE] Loading IGVM file from default location.
+[Microsoft-Windows-Hyper-V-Worker-Operational] 16:03:55 id=1820 lvl=Information: [Virtual machine E0748224-437F-5FC2-91A2-8B9E70407DD1] Loading IGVM file from default location.
