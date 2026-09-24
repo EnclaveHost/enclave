@@ -100,10 +100,10 @@ test("the manager's record carries the HCS boundary word and the relay port, and
     const h = m.health();
     assert.equal(h.canStart, true);
     assert.ok(h.boundary && h.boundary.hostExcluded === false && h.boundary.tier === "t0-hv", `health carries no boundary: ${JSON.stringify(h.boundary)}; the row above it cannot say "host not excluded"`);
-    const rec = await m.spawn({ derive: V1.record, isPublic: true, hasSecrets: false, id: "dep-3" });
-    assert.notEqual(rec.state ?? rec.status, "failed", rec.reason);
+    const rec = await m.spawn({ derive: V1.record, name: "0x" + "d3".repeat(32), image: `ipfs://${V1.record.cid}`, appPort: 8080, isPublic: true, hasSecrets: false, id: "dep-3" });
+    assert.notEqual(rec.status, "failed", rec.reason);
     assert.ok(rec.boundary && rec.boundary.hostExcluded === false, `the record lost the boundary: ${JSON.stringify(rec.boundary)}`);
-    assert.equal(rec.tcpPort, 19001, "the host relay port a request reaches the domain through, or the supervisor cannot route");
+    assert.equal(rec.relay && rec.relay.port, 19001, "the host relay port a request reaches the domain through (record.relay), or nothing can route");
     assert.equal(rec.appReady, false);
   } finally { await r.cleanup(); }
 });
@@ -112,11 +112,13 @@ test("DELETE through the manager with a launcher that cannot destroy a LIVE part
   const r = await rig();
   try {
     const m = new Manager({ backend: r.b, fetchComponent: async () => component, runtimeId: V1.record.runtimeId });
-    const rec = await m.spawn({ derive: V1.record, isPublic: true, hasSecrets: false, id: "dep-4" });
+    const rec = await m.spawn({ derive: V1.record, name: "0x" + "d4".repeat(32), image: `ipfs://${V1.record.cid}`, appPort: 8080, isPublic: true, hasSecrets: false, id: "dep-4" });
     assert.equal(r.L.live.size, 1);
     r.L.refuseDestroy = true;                                     // the launcher answers an error and the partition stays live
-    const removed = await m.remove(rec.id);
+    let removed = null, threw = null;
+    try { removed = await m.remove(rec.id); } catch (e) { threw = e; }          // a failed stop may be reported by throwing (the owner's shape) or by a non-ok answer
     assert.equal(r.L.live.size, 1, "the partition is still live: the launcher refused");
-    assert.ok(m.get(rec.id), `the record was dropped (remove answered ${removed}) while the partition runs: an orphan the manager no longer lists`);
+    assert.ok(threw || (removed && removed !== true && removed.stillListed === true), `remove answered ${JSON.stringify(removed)} for a domain the launcher could not destroy`);
+    assert.ok(m.get(rec.id), "the record stays listed while the partition runs: never an orphan the manager no longer lists");
   } finally { await r.cleanup(); }
 });
