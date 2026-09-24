@@ -86,8 +86,15 @@ expect(ok_one and len(ex) == attempted, f"every turn fetched fresh evidence exac
 expect(ok_env, "each recorded envelope is v2 and answers the nonce its request carried")
 expect(ok_turn, "each turn's envelope is the one it verified (nonce, app), under the state committed before it (snapshot == generation log, serial 1)")
 keys = {(e.get("spki"), e.get("appKey")) for e in envs.values()}
-attach = sum(1 for r in rows("hub.jsonl") if r.get("change") == "attach"); detach = sum(1 for r in rows("hub.jsonl") if r.get("change") == "detach")
-expect(len(keys) == 1 and attach == 1 and detach == 0, f"one VM boot throughout ({len(keys)} transport/app key pair(s)), one attach, no detach ({attach} attach, {detach} detach)")
+# the tunnel's attach/detach events: the script stops the lab app AFTER the last turn, which detaches the tunnel -- that
+# detach is the planned end, not a reconnect. A reconnect is a detach before the last turn ENDED (the first run's checker
+# counted every detach and failed on the planned one; its check.txt is kept as produced)
+ev = [r for r in rows("hub.jsonl") if r.get("change") in ("attach", "detach")]
+last_end = max((r.get("utcEnd", "") for r in rows("exchanges.jsonl")), default="")
+attach = sum(1 for r in ev if r["change"] == "attach"); mid = [r["t"] for r in ev if r["change"] == "detach" and r.get("t", "") <= last_end]
+after = [r["t"] for r in ev if r["change"] == "detach" and r.get("t", "") > last_end]
+expect(len(keys) == 1 and attach == 1 and not mid and len(after) <= 1,
+       f"one VM boot throughout the turns ({len(keys)} transport/app key pair(s)), one attach, no detach before the last turn ended ({len(mid)} mid-run; {len(after)} after it: the scripted stop)")
 L = rd("l1.log"); L += "\n" + "\n".join(bytes.fromhex(m.group(1)).decode("utf-8", "replace") for m in re.finditer(r"APPOUT \d+ ([0-9a-f]+)", L))
 fins = len(re.findall(r"SEALED stream nonce=\w+ fin after", L)); whole = len(re.findall(r"SEALED served nonce=", L))
 ws = sum(1 for x in derived if x["valid"] and x["mode"] == "stream"); ww = sum(1 for x in derived if x["valid"] and x["mode"] == "whole")
