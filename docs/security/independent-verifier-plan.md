@@ -33,9 +33,14 @@ mutations of every input independently, and uses Tinfoil's verifier as one diffe
 - **Collateral**: vendor-published data needed to judge evidence (AMD ARK/ASK/VCEK/CRL, Sigstore trusted
   root, Google attestation roots, Intel PCS data, NVIDIA RIMs). Public, signed, cacheable.
 - **Policy**: what the verifier's operator or user decided to accept. Never learned from the server.
-- **Verdict**: `verified` (every required check passed under the stated policy), `rejected` (a check
-  failed), `unsupported` (the evidence class is not implemented; never green), each with reasons and the
-  claims that were authenticated.
+- **Verdict**: `verified` (admission-safe: every security check passed and the policy omitted nothing),
+  `limited` (every cryptographic check passed but the policy explicitly skipped a security check, or the
+  report version's semantics are unimplemented; the omissions are listed; never admission-safe), `rejected`
+  (a check failed), `unsupported` (the evidence class or version is not implemented; never green). Each
+  carries reasons, per-check results (`true`, `false`, or `null` for not judged) and the authenticated claims.
+  A research policy (no TCB floor, `crl: none`, no certificate binding, no nonce, an unjudged report
+  version) can therefore be run and inspected, but its best outcome is `limited`, and `status === "verified"`
+  is the only outcome a consumer may treat as acceptance.
 - Dependency classes, kept separate throughout: **library** (code we run), **network service** (a host we
   fetch from at verification time), **release format and build toolchain** (who defines what a
   "measurement of our release" is), **hardware root** (whose signing key ends the chain), **deployment
@@ -245,7 +250,10 @@ nothing but silicon vendors and Sigstore can, because every mirror's content is 
 7. **Reject malformed, truncated, replayed, substituted, unknown, missing.** Envelope: exact lengths, strict
    base64, gzip only where the format says, size caps, closed format registry; parser: MBZ ranges that are
    reserved in every ABI version, signer type, signature algorithm; unknown format -> `unsupported`; dev
-   formats -> `rejected`; missing context (no SPKI, no nonce where required) -> `rejected`.
+   formats -> `rejected`; missing context (no SPKI, no nonce where required) -> `rejected`. A report version
+   whose fields the verifier has not implemented (version 6, ABI Rev 1.59, ETCB fields at 0x220..0x280) is
+   `unsupported` by default, before any collateral or signature work; the judged range is versions 2..5.
+   Structurally parsed but unjudged semantics never count as verified (independent review, 2026-09-24).
 8. **Separate evidence classes.** One dispatcher: SNP (three families), TDX (`unsupported` until a QVL-grade
    implementation is chosen), AVF (delegates to `relay/avf-verify.mjs` and the pVM ABI/2 module), VBS +
    Enclave Shield (delegates; tier `vbs-dev` never reads as verified; a CPU verdict never implies GPU
@@ -282,7 +290,7 @@ is touched).
 | `verifier/tls-binding.mjs` | SPKI hashing, the shim's `hpke`/`hatt` SAN encoding, `hashAttestationDocument`, the hosted certificate rule | node:crypto X509Certificate |
 | `verifier/collateral.mjs` | file, memory, HTTP (AMD KDS or any mirror) and layered adapters with the same shape; source and fetch time reported | fetch |
 | `verifier/provenance.mjs` | the release identity policy (repo, workflow path, tag pattern, issuer, trigger, visibility), in-toto v1 statement shape, predicate allowlist, subject digest, minimum release | `@freedomofpress/sigstore-browser` (Fulcio chain, SCT, Rekor inclusion, DSSE) |
-| `verifier/index.mjs` | dispatch by technology; AVF delegates to `relay/avf-verify.mjs`; the pVM ABI/2 module is imported when present; TDX, VBS, Hyper-V, GPU are `unsupported` with the pointer to their verifier | |
+| `verifier/index.mjs` | dispatch by technology; the verdict shape (`status`, `admissionSafe`, `omissions`, per-check `true/false/null`); AVF delegates to `relay/avf-verify.mjs` and requires the attested key's signature; the pVM ABI/2 module is imported when present; TDX, VBS, Hyper-V, GPU are `unsupported` with the pointer to their verifier | |
 | `verifier/cli.mjs` | `verify`, `release`, `capture` (RAD + certificate + VCEK/chain/CRL from AMD), `differential` (runs Tinfoil's library on the same bytes) | |
 
 What each suite proves (all offline, all on authentic bytes unless the case is a mutation of them):
@@ -290,12 +298,18 @@ What each suite proves (all offline, all on authentic bytes unless the case is a
 | suite | passing means |
 |---|---|
 | `verifier-envelope` (6) | unknown formats are `unsupported`, development and T0 formats `rejected`, TDX/VBS/Hyper-V/GPU never green, malformed or oversized bodies refused before any cryptography |
-| `verifier-snp-genoa` (16) | the hosted Genoa document verifies to AMD's pinned root with the served certificate binding; a KDS re-issue of the same VCEK verifies identically (collateral source is irrelevant); with a floor the reported and committed TCB are judged; each of signature (r, s, signed region, out-of-range r), root (Milan or Turin chain under the Genoa name, no pin), VCEK (other chip, none), TCB edit, measurement (other, none), transport key (other, none), report_data, DEBUG, MIGRATE_MA, VMPL, SMT policy, product policy, shape (truncated, padded, zero, version 1, VLEK signer, reserved bytes, signature tail), CRL (stale under each mode, missing, foreign issuer, tampered), revocation (an ASK with the Genoa CRL's revoked serial), certificate windows, and the served certificate (wrong key, substituted document, wrong host, missing) is refused on its own |
+| `verifier-fail-closed` (10) | the status is derived from the omission list (any omission -> `limited`); report version 6 is `unsupported` before any collateral work and, under the research policy, `limited` at best even when signature, chain, CRL and binding all pass (shown on a synthetic version-6 report); the authentic v3 and v5 paths still verify with nothing omitted; each policy relaxation (no TCB floor, `crl: none`, no certificate binding) is an omission that caps the verdict; on a synthetic AMD-shaped chain (own ARK/ASK/VCEK/CRL, pinned by the test and refused by the real pin) the metal format verifies with a nonce, is `limited` without one, refuses a replay, and the domain ABI/1 branch binds the nonce and app id |
+| `verifier-snp-genoa` (17) | the hosted Genoa document verifies to AMD's pinned root with the served certificate binding and a TCB floor (without the floor the verdict is `limited`, not `verified`); a KDS re-issue of the same VCEK verifies identically (collateral source is irrelevant); with a floor the reported and committed TCB are judged; each of signature (r, s, signed region, out-of-range r), root (Milan or Turin chain under the Genoa name, no pin), VCEK (other chip, none), TCB edit, measurement (other, none), transport key (other, none), report_data, DEBUG, MIGRATE_MA, VMPL, SMT policy, product policy, shape (truncated, padded, zero, version 1, VLEK signer, reserved bytes, signature tail), CRL (stale under each mode, missing, foreign issuer, tampered), revocation (an ASK with the Genoa CRL's revoked serial), certificate windows, and the served certificate (wrong key, substituted document, wrong host, missing) is refused on its own |
 | `verifier-snp-turin` (7) | the M4a v5 document verifies with the Turin TCB layout, ABI/2 binding and app id; another runtime identity, nonce, key or app changes the binding; ABI/2 to ABI/1 downgrade in either direction is refused; FMC floors are judged; Genoa's chain or VCEK do not verify it; a fresh nonce refuses the replayed report; any flipped byte refuses |
 | `verifier-provenance` (10) | both release bundles verify against our identity with the TUF-sourced root; repo (including case), workflow path, ref pattern, issuer, trigger, visibility, subject digest, predicate type and the release floor each refuse independently; payload, signature, certificate swap, missing log entry, legacy chain form, wrong media type, two signatures, and a root without Sigstore's CA or logs each refuse |
 | `verifier-tls-binding` (3) | the real shim certificate's SANs decode to sha256(format + body); chunk order, duplicates and non-base32 are refused |
 | `verifier-differential` (3) | Tinfoil's library accepts the same authentic Genoa bytes with the same measurement and refuses the same single-byte mutations; it refuses the Turin report outright where ours verifies it (stated, not hidden) |
 | `verifier-abi2-contract`, `verifier-pvm-abi2` | skip on main; on the feature branches they check the ABI/2 test vector against `isolation/contract/runtime.mjs` and judge the real Pixel captures through `relay/pvm-app-attest.mjs` |
+
+Review correction (2026-09-24): the first cut let a version-6 report reach `verified` with a note, and let
+policy relaxations reach `verified` with warnings. Both are closed: `verified` is now derived from an empty
+omission list, every relaxation is an omission, and an unjudged report version is `unsupported` by default
+(`limited` at most under an explicit research flag). The CLI exits 0 only for `verified`, 4 for `limited`.
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial

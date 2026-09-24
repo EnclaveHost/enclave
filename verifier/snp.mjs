@@ -10,14 +10,22 @@
 // Layout references: AMD 56860 (SEV-SNP Firmware ABI) Rev 1.59 Table 27 ATTESTATION_REPORT, Tables 4/5
 // TCB_VERSION (Turin adds FMC at bits 7:0), Table 148 signature (R, S 72-byte zero-extended little-endian);
 // AMD 57230 (VCEK/KDS) extension OIDs 1.3.6.1.4.1.3704.1.*. Versions 2..5 are what go-sev-guest v0.15.0
-// parses; version 6 (Rev 1.59, ETCB fields from 0x220) is accepted structurally but its new fields are not
-// judged, and the verdict says so.
+// parses. Version 6 (Rev 1.59, ETCB fields from 0x220) parses structurally so its bytes can be shown, but its
+// security semantics are NOT implemented, so it is "unsupported" by default and can never be "verified".
+//
+// VERDICTS. "verified" is admission-safe: every security check passed under a policy that omitted nothing.
+// "limited" means every cryptographic check passed but the policy EXPLICITLY relaxed a security check (no
+// TCB floor, no CRL, no certificate binding, no nonce, a research-only report version); the omissions are
+// listed and a consumer that tests `status === "verified"` cannot mistake it for acceptance. "rejected" is
+// a failed check; "unsupported" is evidence whose semantics this verifier does not implement.
 import { X509Certificate, constants, verify as cryptoVerify } from "node:crypto";
 import { AMD_ARK_SHA256, decodeTcb, TCB_FIELDS, snpProductHint, kdsVcekUrl, vcekMatchesReport, checkMinTcb } from "../relay/snp-verify.mjs";
 import { parseCrl, subjectNameDer } from "./der.mjs";
 import { sha256, checkHostedCertificate } from "./tls-binding.mjs";
 
-export const REPORT_SIZE = 0x4a0, SIG_OFFSET = 0x2a0, MAX_REPORT_VERSION = 6;
+export const REPORT_SIZE = 0x4a0, SIG_OFFSET = 0x2a0, MAX_REPORT_VERSION = 6, JUDGED_MAX_REPORT_VERSION = 5;
+// The status a run ends with when every check passed: admission-safe only when nothing was omitted.
+export const verdictStatus = (omissions) => omissions.length ? "limited" : "verified";
 const P384_N = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffc7634d81f4372ddf581a0db248b0a77aecec196accc52973");
 const VCEK_GUID = "63da758de6644564adc5f4b93be8accd";
 const hex = (b) => Buffer.from(b).toString("hex");
@@ -36,6 +44,7 @@ export const DEFAULT_SNP_POLICY = Object.freeze({
   crl: "required",                       // required | stale-ok | none
   crlMaxStaleDays: 0,
   requireCertificateBinding: true,       // hosted format: the served certificate must be supplied and must bind this document
+  researchAllowUnjudgedReportVersions: false, // RESEARCH ONLY: run the checks on a report version whose new fields are unjudged; the result is at best "limited"
 });
 
 export function parseReportStrict(r) {
@@ -51,6 +60,8 @@ export function parseReportStrict(r) {
     committedTcb: r.subarray(0x1e0, 0x1e8), currentBuild: r[0x1e8], currentMinor: r[0x1e9], currentMajor: r[0x1ea],
     committedBuild: r[0x1ec], committedMinor: r[0x1ed], committedMajor: r[0x1ee], launchTcb: r.subarray(0x1f0, 0x1f8),
     launchMitVector: r.subarray(0x1f8, 0x200), currentMitVector: r.subarray(0x200, 0x208),
+    // ABI Rev 1.59 (report version 6): extended TCB fields, parsed for display only, never judged here
+    currentEtcb: r.subarray(0x220, 0x240), launchEtcb: r.subarray(0x240, 0x260), committedEtcb: r.subarray(0x260, 0x280),
     signature: r.subarray(SIG_OFFSET, SIG_OFFSET + 0x90), signedRegion: r.subarray(0, SIG_OFFSET),
   };
   if (p.version < 2) throw new Error(`report version ${p.version} < 2`);
@@ -137,12 +148,13 @@ export function checkCrl({ crlDer, ark, ask, now, mode = "required", maxStaleDay
     const staleDays = (now - crl.nextUpdate) / 86400000;
     if (mode === "required" || staleDays > maxStaleDays) return { ok: false, checked: true, reasons: [`CRL is stale: nextUpdate ${crl.nextUpdate.toISOString()} is ${staleDays.toFixed(1)} days past (policy ${mode}${mode === "stale-ok" ? `, max ${maxStaleDays}` : ""})`] };
     reasons.push(`CRL is ${staleDays.toFixed(1)} days past nextUpdate; accepted under policy stale-ok (${maxStaleDays} days)`);
+    var stale = true;
   }
   const askSerial = String(ask.serialNumber).toLowerCase().replace(/^0+(?=.)/, "");
   const hit = crl.revoked.find((e) => e.serial.replace(/^0+(?=.)/, "") === askSerial);
   if (hit) return { ok: false, checked: true, reasons: [`the ASK (serial ${ask.serialNumber}) is REVOKED since ${hit.date.toISOString()}`] };
   reasons.push(`CRL verified (ARK-signed, ${crl.revoked.length} revoked serial(s), valid ${crl.thisUpdate.toISOString().slice(0, 10)} .. ${crl.nextUpdate ? crl.nextUpdate.toISOString().slice(0, 10) : "?"}); ASK serial ${ask.serialNumber} not revoked`);
-  return { ok: true, checked: true, reasons, nextUpdate: crl.nextUpdate };
+  return { ok: true, checked: true, stale: !!stale, reasons, nextUpdate: crl.nextUpdate };
 }
 
 const tcbHex = (b) => hex(b);
@@ -155,8 +167,9 @@ const fw = (maj, min, build) => `${maj}.${min} build ${build}`;
 export async function verifySnp(env, policy = {}, context = {}, collateral = null) {
   const pol = { ...DEFAULT_SNP_POLICY, ...policy, guestPolicy: { ...DEFAULT_SNP_POLICY.guestPolicy, ...(policy.guestPolicy || {}) } };
   const now = context.now ? new Date(context.now) : new Date();
-  const reasons = [], checks = {}, claims = { technology: "amd-sev-snp", format: env.format, family: env.spec.family };
-  const out = (status) => ({ status, reasons, checks, claims });
+  const reasons = [], checks = {}, omissions = [], claims = { technology: "amd-sev-snp", format: env.format, family: env.spec.family };
+  const out = (status) => ({ status, admissionSafe: status === "verified", omissions, reasons, checks, claims });
+  const omit = (name, why) => { omissions.push(name); reasons.push(`OMITTED (${name}): ${why}`); };
   const fail = (name, why) => { checks[name] = false; reasons.push(`REJECT: ${why}`); return out("rejected"); };
   const pass = (name, why) => { checks[name] = true; reasons.push(why); };
 
@@ -166,7 +179,12 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
     guestPolicy: p.policyBits, platformInfo: p.platformBits, firmware: { current: fw(p.currentMajor, p.currentMinor, p.currentBuild), committed: fw(p.committedMajor, p.committedMinor, p.committedBuild) },
     idKeyDigest: hex(p.idKeyDigest), authorKeyDigest: hex(p.authorKeyDigest), authorKeyEn: p.authorKeyEn, maskChipKey: p.maskChipKey });
   pass("report shape", `report version ${p.version}, ${REPORT_SIZE} bytes, VCEK-signed, ECDSA P-384, reserved ranges zero`);
-  if (p.version === 6) reasons.push("NOTE: report version 6 (ABI 1.59) carries extended TCB fields this verifier does not judge");
+  if (p.version > JUDGED_MAX_REPORT_VERSION) {
+    claims.unjudgedFields = { currentEtcb: hex(p.currentEtcb), launchEtcb: hex(p.launchEtcb), committedEtcb: hex(p.committedEtcb), reserved0x208: hex(env.body.subarray(0x208, 0x220)), reserved0x280: hex(env.body.subarray(0x280, SIG_OFFSET)) };
+    const why = `report version ${p.version} (ABI Rev 1.59) carries CURRENT_ETCB, LAUNCH_ETCB and COMMITTED_ETCB (0x220..0x280) whose policy semantics and reserved ranges this verifier has not implemented or tested; the judged range is versions 2..${JUDGED_MAX_REPORT_VERSION}`;
+    if (!pol.researchAllowUnjudgedReportVersions) { checks["report version"] = null; reasons.push(`UNSUPPORTED: ${why}`); return out("unsupported"); }
+    checks["report version"] = null; omit("report-version-unjudged", `${why} (researchAllowUnjudgedReportVersions: the verdict can be "limited" at best)`);
+  } else checks["report version"] = true;
 
   // 2. product line
   let product = p.productHint;
@@ -200,7 +218,10 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
   checks.chain = true; reasons.push(...ch.reasons); claims.vcekSource = vcekSource; claims.vcekFingerprint = fpHex(ch.vcek); claims.arkFingerprint = fpHex(ch.ark);
   let crlDer = null; try { crlDer = (await collateral?.crl?.(product))?.der ?? null; } catch { crlDer = null; }
   const crl = checkCrl({ crlDer, ark: ch.ark, ask: ch.ask, now, mode: pol.crl, maxStaleDays: pol.crlMaxStaleDays });
-  reasons.push(...crl.reasons); if (!crl.ok) { checks.crl = false; return out("rejected"); } checks.crl = crl.checked; claims.crlChecked = crl.checked; if (crl.nextUpdate) claims.crlNextUpdate = crl.nextUpdate.toISOString();
+  reasons.push(...crl.reasons); if (!crl.ok) { checks.crl = false; return out("rejected"); }
+  checks.crl = crl.checked ? true : null; claims.crlChecked = crl.checked; if (crl.nextUpdate) claims.crlNextUpdate = crl.nextUpdate.toISOString();
+  if (!crl.checked) omit("crl-revocation-unchecked", `ASK revocation was not checked (policy crl: ${pol.crl}${crlDer ? "" : ", no CRL supplied"})`);
+  else if (crl.stale) omit("crl-stale-accepted", `the CRL is past nextUpdate and was accepted under policy stale-ok (${pol.crlMaxStaleDays} days)`);
 
   // 5. signature, VCEK identity, TCB
   const sig = verifyReportSignature(p, ch.vcek); if (!sig.ok) return fail("signature", sig.why);
@@ -210,7 +231,8 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
   claims.tcb = { reported: tcb, current: decodeTcb(product, p.currentTcb), committed: decodeTcb(product, p.committedTcb), launch: decodeTcb(product, p.launchTcb) };
   const t = checkMinTcb(pol.minTcb, product, p); if (!t.ok) return fail("tcb policy", t.reason);
   if (t.checked) { const floor = pol.minTcb[product]; const low = TCB_FIELDS[product].filter((k) => claims.tcb.committed[k] < floor[k]); if (low.length) return fail("tcb policy", `committed TCB below policy: ${low.map((k) => `${k} ${claims.tcb.committed[k]} < ${floor[k]}`).join(", ")} (the platform may roll back to it)`); }
-  checks["tcb policy"] = t.checked; reasons.push(t.checked ? `${t.reason}; committed TCB meets it too` : `WARN: ${t.reason}`);
+  checks["tcb policy"] = t.checked ? true : null;
+  if (t.checked) reasons.push(`${t.reason}; committed TCB meets it too`); else omit("tcb-floor-unjudged", `${t.reason}; the reported TCB is shown in the claims, not judged`);
   if (pol.minFirmware) {
     const { major, minor, build } = pol.minFirmware; const geq = (M, m, b) => M > major || (M === major && (m > minor || (m === minor && b >= build)));
     if (!geq(p.currentMajor, p.currentMinor, p.currentBuild) || !geq(p.committedMajor, p.committedMinor, p.committedBuild)) return fail("firmware", `firmware current ${claims.firmware.current} / committed ${claims.firmware.committed} below policy ${fw(major, minor, build)}`);
@@ -237,13 +259,14 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
       if (c.claims.tlsSpkiSha256 !== claims.tlsSpkiSha256) return fail("certificate binding", "the served certificate's key is not the key the report binds");
       checks["certificate binding"] = true; claims.certificate = c.claims;
     } else if (pol.requireCertificateBinding) return fail("certificate binding", "hosted format requires the served certificate (hatt SAN binds the document; without it a replayed document over a fresh key is not excluded)");
-    else reasons.push("WARN: certificate binding not checked (policy.requireCertificateBinding=false)");
+    else { checks["certificate binding"] = null; omit("certificate-binding-unchecked", "the served certificate was not checked (policy.requireCertificateBinding=false): document freshness is not established"); }
   } else if (env.spec.binding === "spki") {
     const want = context.nonce ? sha256(spki, context.nonce) : sha256(spki);
     if (context.nonce && context.nonce.length !== 32) return fail("binding", "nonce must be 32 bytes");
     if (!want.equals(rd0)) return fail("binding", context.nonce ? "report_data[0:32] != sha256(SPKI || nonce): stale, replayed, or another key" : "report_data[0:32] != sha256(SPKI): another key");
     if (!rd1.equals(Buffer.alloc(32))) return fail("binding", "report_data[32:64] is not zero for the metal format");
-    pass("binding", context.nonce ? "report_data[0:32] binds the transport key and this verifier's fresh nonce" : "report_data[0:32] binds the transport key (no nonce: possession at attest time, not freshness)");
+    if (context.nonce) pass("binding", "report_data[0:32] binds the transport key and this verifier's fresh nonce");
+    else { checks.binding = true; reasons.push("report_data[0:32] binds the transport key"); omit("freshness-unbound", "no verifier nonce: the report proves key possession at attest time, not freshness (a replayed report is not excluded)"); }
   } else if (env.spec.binding === "domain") {
     let want, abi;
     if (context.expectedBinding) { if (!Buffer.isBuffer(context.expectedBinding) || context.expectedBinding.length !== 32) return fail("binding", "expectedBinding must be 32 bytes"); want = context.expectedBinding; abi = "ABI/2 (caller-derived Bind2 over key, nonce and runtime identity)"; }
@@ -257,7 +280,7 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
     pass("binding", `report_data[0:32] equals the ${abi} binding`); pass("app id", "report_data[32:64] names the expected app");
   } else return fail("binding", `no binding rule for format ${env.format}`);
 
-  if (!crl.checked) reasons.push("WARN: ASK revocation not checked (see the CRL line above)");
-  claims.freshness = env.spec.binding === "hosted-tinfoil" ? "served certificate window" : context.nonce || context.expectedBinding ? "verifier nonce" : "none (key possession only)";
-  return out("verified");
+  claims.freshness = env.spec.binding === "hosted-tinfoil" ? (checks["certificate binding"] ? "served certificate window" : "none (certificate binding omitted)") : context.nonce || context.expectedBinding ? "verifier nonce" : "none (key possession only)";
+  // The only way to "verified": every check true and nothing omitted. Anything relaxed by policy is "limited".
+  return out(verdictStatus(omissions));
 }

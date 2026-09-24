@@ -27,15 +27,15 @@ const vcekAmd = read(new URL("genoa-tinfoil/vcek-kds-amd.der", F)), vcekProxy = 
 const crl = read(new URL("amd/Genoa-crl.der", F));
 const col = (over = {}) => memoryCollateral({ chains, vceks: { Genoa: vcekAmd }, crls: { Genoa: crl }, ...over });
 const docWith = (r) => ({ format: rad.format, body: gzipSync(r).toString("base64") });
+const FLOOR = { Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } };   // the part's own TCB: an admission-safe run needs a floor
 const run = (doc = rad, { policy = {}, context = {}, collateral = col() } = {}) =>
-  verifyEvidence(doc, { policy: { snp: { allowedMeasurements: [MEAS], ...policy } }, context: { transportKeySpki: spki, certPem, host: HOST, now: NOW, ...context }, collateral });
+  verifyEvidence(doc, { policy: { snp: { allowedMeasurements: [MEAS], minTcb: FLOOR, ...policy } }, context: { transportKeySpki: spki, certPem, host: HOST, now: NOW, ...context }, collateral });
 const rejectedAt = (v, check, re) => { assert.equal(v.status, "rejected", v.reasons.join("\n")); assert.equal(v.checks[check], false, `expected the ${check} check to fail: ${v.reasons.at(-1)}`); if (re) assert.match(v.reasons.at(-1), re); };
 
 test("the authentic document verifies end to end, and the verdict states what it rests on", async () => {
   const v = await run();
-  assert.equal(v.status, "verified", v.reasons.join("\n"));
-  for (const k of ["report shape", "product line", "guest policy", "vmpl", "chain", "crl", "signature", "vcek identity", "measurement", "binding", "certificate binding"]) assert.equal(v.checks[k], true, k);
-  assert.equal(v.checks["tcb policy"], false, "no floor supplied: the TCB is reported, not judged");
+  assert.equal(v.status, "verified", v.reasons.join("\n")); assert.equal(v.admissionSafe, true); assert.deepEqual(v.omissions, []);
+  for (const k of ["report shape", "report version", "product line", "guest policy", "vmpl", "chain", "crl", "signature", "vcek identity", "tcb policy", "measurement", "binding", "certificate binding"]) assert.equal(v.checks[k], true, k);
   assert.equal(v.claims.product, "Genoa"); assert.equal(v.claims.reportVersion, 3); assert.equal(v.claims.vmpl, 0);
   assert.equal(v.claims.freshness, "served certificate window");
   assert.equal(v.claims.tcb.reported.snp, 23); assert.equal(v.claims.certificate.attestationHash.length, 64);
@@ -46,8 +46,14 @@ test("the same key re-issued by KDS (Tinfoil's proxy copy) verifies identically:
   assert.notEqual(vcekAmd.equals(vcekProxy), true, "the two certificates differ in bytes");
   assert.equal(new X509Certificate(vcekAmd).publicKey.export({ type: "spki", format: "der" }).toString("hex"), new X509Certificate(vcekProxy).publicKey.export({ type: "spki", format: "der" }).toString("hex"));
 });
+test("without a TCB floor the run is LIMITED, never verified: the TCB is reported, not judged", async () => {
+  const v = await run(rad, { policy: { minTcb: undefined } });
+  assert.equal(v.status, "limited", v.reasons.join("\n")); assert.equal(v.admissionSafe, false);
+  assert.deepEqual(v.omissions, ["tcb-floor-unjudged"]); assert.equal(v.checks["tcb policy"], null);
+  assert.deepEqual(v.claims.tcb.reported, { bootloader: 10, tee: 0, snp: 23, microcode: 84 });
+});
 test("with a TCB floor the reported and committed TCB are judged", async () => {
-  const ok = await run(rad, { policy: { minTcb: { Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } } } });
+  const ok = await run(rad);
   assert.equal(ok.status, "verified", ok.reasons.join("\n")); assert.equal(ok.checks["tcb policy"], true);
   rejectedAt(await run(rad, { policy: { minTcb: { Genoa: { bootloader: 10, tee: 0, snp: 24, microcode: 84 } } } }), "tcb policy", /below policy/);
   rejectedAt(await run(rad, { policy: { minTcb: { Genoa: { bootloader: 10 } } } }), "tcb policy", /malformed/);
@@ -122,10 +128,12 @@ test("collateral freshness: the CRL policy is applied to nextUpdate, and a forei
   const late = "2026-12-01T00:00:00Z";   // past the CRL's nextUpdate (2026-10-04) but inside the certificates' windows
   rejectedAt(await run(rad, { context: { now: late } }), "crl", /stale/);
   const staleOk = await run(rad, { context: { now: late }, policy: { crl: "stale-ok", crlMaxStaleDays: 90 } });
-  assert.equal(staleOk.status, "verified", staleOk.reasons.join("\n")); assert.match(staleOk.reasons.join("\n"), /past nextUpdate; accepted/);
+  assert.equal(staleOk.status, "limited", staleOk.reasons.join("\n")); assert.deepEqual(staleOk.omissions, ["crl-stale-accepted"]); assert.equal(staleOk.admissionSafe, false);
   rejectedAt(await run(rad, { context: { now: late }, policy: { crl: "stale-ok", crlMaxStaleDays: 10 } }), "crl", /stale/);
   const none = await run(rad, { policy: { crl: "none" } });
-  assert.equal(none.status, "verified"); assert.equal(none.checks.crl, false); assert.match(none.reasons.join("\n"), /NOT checked/);
+  assert.equal(none.status, "limited"); assert.equal(none.checks.crl, null); assert.deepEqual(none.omissions, ["crl-revocation-unchecked"]);
+  const staleNone = await run(rad, { policy: { crl: "stale-ok" }, collateral: col({ crls: {} }) });
+  assert.equal(staleNone.status, "limited"); assert.deepEqual(staleNone.omissions, ["crl-revocation-unchecked"]);
   rejectedAt(await run(rad, { collateral: col({ crls: {} }) }), "crl", /required by policy but none/);
   rejectedAt(await run(rad, { collateral: col({ crls: { Genoa: read(new URL("amd/Turin-crl.der", F)) } }) }), "crl", /issuer is not the pinned ARK/);
   const bad = Buffer.from(crl); bad[bad.length - 1] ^= 1;
@@ -168,5 +176,6 @@ test("served certificate: hatt must hash THIS document, hpke must match the repo
   rejectedAt(await run(rad, { context: { host: "other.example" } }), "certificate binding", /not valid for host/);
   rejectedAt(await run(rad, { context: { certPem: undefined } }), "certificate binding", /requires the served certificate/);
   const lax = await run(rad, { context: { certPem: undefined }, policy: { requireCertificateBinding: false } });
-  assert.equal(lax.status, "verified"); assert.match(lax.reasons.join("\n"), /WARN: certificate binding not checked/);
+  assert.equal(lax.status, "limited"); assert.deepEqual(lax.omissions, ["certificate-binding-unchecked"]); assert.equal(lax.checks["certificate binding"], null);
+  assert.equal(lax.claims.freshness, "none (certificate binding omitted)");
 });

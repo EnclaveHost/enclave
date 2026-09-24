@@ -15,7 +15,7 @@ const report = gunzipSync(Buffer.from(rad.body, "base64"));
 const certJson = JSON.parse(fs.readFileSync(new URL("genoa-tinfoil/tinfoil-certificate.json", F), "utf8")).certificate;
 const vcek = fs.readFileSync(new URL("genoa-tinfoil/vcek-kds-amd.der", F));
 const MEAS = report.subarray(0x90, 0xc0).toString("hex");
-const ours = (doc) => verifyEvidence(doc, { policy: { snp: { allowedMeasurements: [MEAS] } },
+const ours = (doc) => verifyEvidence(doc, { policy: { snp: { allowedMeasurements: [MEAS], minTcb: { Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } } } },
   context: { transportKeySpki: spkiOfCert(certJson).spki, certPem: certJson, host: "inference.tinfoil.sh", now: "2026-09-24T05:00:00Z" },
   collateral: memoryCollateral({ chains: { Genoa: fs.readFileSync(new URL("Genoa-cert_chain.pem", A), "utf8") }, vceks: { Genoa: vcek }, crls: { Genoa: fs.readFileSync(new URL("amd/Genoa-crl.der", F)) } }) });
 const theirs = async (doc) => { try { const r = await tinfoil.verifyAttestation({ format: doc.format, body: doc.body }, vcek.toString("base64")); await tinfoil.verifyCertificate(certJson, "inference.tinfoil.sh", { format: doc.format, body: doc.body }, r.hpkePublicKey); return { ok: true, measurement: r.measurement.registers[0] }; } catch (e) { return { ok: false, error: e.message }; } };
