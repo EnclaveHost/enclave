@@ -12,7 +12,8 @@
 // and enclave-ready. The first test proves the fake is faithful by judging it with the ABI/2 judge-hv.mjs. The rest
 // drive the manager's seam `windows/vbslike/manager/ready.mjs`: judgeRunning({ host, port, appId, launcherKey,
 // expectRuntime, deadlineMs }) -> { status: "running"|"starting"|"failed", reason, checks }. Until the seam exists,
-// each of those fails with "seam missing", which is the correct reading of the manager today.
+// each of those fails with "seam missing", which is the correct reading of the manager today. A running verdict also
+// carries transportKeySha256 (sha256 of the handshake's SPKI): the datapath's enclave-splice/1 admits a route on it.
 //   run: node --test windows/vbslike/review/*.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -151,6 +152,9 @@ test("RUNNING: the document verified on this handshake's key with a fresh nonce 
     assert.equal(v.checks.document, true); assert.equal(v.checks.ready, true);
     assert.ok(d.hits.includes("/.well-known/enclave-attestation") && d.hits.includes("/.well-known/enclave-ready"), "both were asked");
     assert.doesNotMatch(JSON.stringify(v), /attested/i, "T0-hv is never attested");
+    // the datapath (windows/vbslike/datapath/datapath.mjs, enclave-splice/1) admits a route only on `key=` the sha256 of
+    // the TLS key the manager's VERIFYING handshake saw: a running verdict must carry it, or no route can ever be admitted
+    assert.equal(v.transportKeySha256, sha256hex(d.spki), "transportKeySha256 = sha256(the SPKI this judgement's handshake saw)");
   } finally { d.close(); }
 });
 
@@ -184,6 +188,19 @@ test("NEVER RUNNING under an untrusted launcher key, for another app, or with a 
     const v = await run(e);
     assert.notEqual(v.status, "running", `ready names ${OTHER_APP.slice(0, 8)}, the document ${APP.slice(0, 8)}: ${v.status} ${v.reason}`);
   } finally { e.close(); }
+});
+
+test("a 200 that is not the readiness document is NOT ready: on an initrd without the route the APP answers the path (measured on the box: 200 \"Hello World!\\n\" for /.well-known/enclave-ready), and the app's own answer must never count", async () => {
+  const d = await new FakeDomain({ ready: { status: 200 } }).listen();
+  d.handle = ((orig) => function (req, res) {   // the front without the route: everything not attestation goes to the app
+    const u = new URL(req.url, "https://x");
+    if (u.pathname === "/.well-known/enclave-ready") { this.hits.push(u.pathname); res.writeHead(200, { "content-type": "text/plain" }); return res.end("Hello World!\n"); }
+    return orig.call(this, req, res);
+  })(d.handle);
+  try {
+    const v = await run(d, { deadlineMs: 400 });
+    assert.notEqual(v.status, "running", `a plain 200 from the app was read as ready: ${v.status} ${v.reason}`);
+  } finally { d.close(); }
 });
 
 test("the deadline bounds the whole judgement: a domain that never becomes ready is failed with the reason, not starting forever", async () => {

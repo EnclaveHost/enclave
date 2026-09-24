@@ -42,6 +42,32 @@ their directory. So a manager that judges readiness on the box needs those three
 the branch's `sync.sh` dropped exactly that mirroring (the ef1b2077 version copied `isolation/contract/runtime.mjs`,
 `isolation/m2/judge.mjs` and `relay/snp-verify.mjs`), and the packager's "7 runtime modules" do not include them.
 
+## 2026-09-24 22:13:56Z, the HCS window (approved by the owner): ONE PARTITION, END TO END, on the no-role dev path
+
+`hcs-window.mjs` on the box (`C:\Users\claude\review-99\hcs`), the owner's `backend-hcs.mjs` at 8327498e driving the real
+`vbslike-host lab` (6040fc6b…) with the box's kernel 7fe3edb5… and initrd 44abb52b…, the pinned hello-world bundle
+(73,228 B, sha256 = AppID 9c3d10f1…). Raw: `hcs-window-2026-09-24T2213Z.json` (and the first attempt, which failed only
+in the driver: it connected 7 ms after load and the domain's TLS was not listening yet).
+
+| step | measured |
+|---|---|
+| launcher ready line | launcherKey (fresh Ed25519 per run), boundary `tier=T0-hv partition=hcs-child isolation=none host_excluded=no signer=launcher-in-root-partition`, initrdSha256 44abb52b…, kernelSha256 7fe3edb5… |
+| `start` (create partition, boot, push bundle over hv_sock, monitor hashes it) | **5,344 ms**; domainId 1, relay port 19101, guest port 40001; HASH AGREEMENT real: the monitor's appSha256 equalled the derived AppID (the backend compares and would have destroyed on a difference) |
+| TLS on the relay port | accepted on attempt 2, 512 ms after start (attempt 1 at +7 ms: ECONNRESET before the handshake: the domain's front was not listening yet) |
+| `/.well-known/enclave-attestation` | 200: tier T0-hv, format hyperv-partition-domain/v1, abi enclave-domain-abi/2, nonce echoed, transportKey == the handshake's SPKI, appSha256 9c3d10f1… |
+| judge-hv (ABI/2, launcher key from the ready line, runtime pinned) | **monitor-signed**, no reasons, platform host_excluded=false; the same document under another nonce: **reject** |
+| `/.well-known/enclave-ready` | 200 with body `Hello World!\n`: on this initrd the route DOES NOT EXIST and the request reached the APP through the proxy. A readiness rule that reads "200" without the document shape would take the app's own answer for readiness (spec extended: readiness-rule.test.mjs) |
+| the app, `GET /` with an `x-forwarded-for` header sent | 200, exactly 13 bytes `Hello World!\n`, sha256 03ba204e50d126e4… (the packager's corrected expectation) |
+| stop / teardown | destroyed 1 / removed 0 (the launcher's own accounting) |
+
+What this is: the whole partition path on the box works end to end through the owner's backend on the development
+(no-role, host-not-excluded) path: boot, bundle delivery with hash agreement, TLS ending inside the domain, a
+launcher-signed document judged on the client's own key and nonce, and the app's answer. What it is NOT: a user-owned
+canary. Nothing on the node asked for this partition (the node's /vms client exists only since 261e5f03 and is not
+wired into host.mjs), the manager's record contract is still the one defects 1-6 name, readiness needs the newer initrd,
+and no relay route or lease touched it. The IGVM (role) path does not boot yet: the owner reports `Start-VM` on a pinned
+VM failing 0x80070057 with `AllowFirmwareLoadFromFile` unset, a host change that is Steven's to approve.
+
 ## What these facts do and do not say
 
 - The WMI path cannot start a partition here, by the host's own answer, and the manager says so rather than pretending.
