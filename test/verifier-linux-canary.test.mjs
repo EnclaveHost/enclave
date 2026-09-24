@@ -124,6 +124,30 @@ test("HOST_DATA live (owner's bc07f899, captures in host-data/): A and E verify 
   const client = text(new URL("client-EasA.txt", H)); assert.match(client, /is not the expected deployment 0x4e62e60da567ca6c/, "the owner's client refused the same way");
 });
 
+test("F2 live (owner's 6757d139, captures in webpki/): each guest serves a WebPKI leaf for its OWN key over SNI whose SPKI is the bound key; the self-signed carrier by address (host side) is the same key; A and E verify under the new release's measurement with host data; the carrier chain is no trust input", { skip }, async () => {
+  const W = new URL("webpki/", F), exp = text(new URL("expected-measurement.txt", W)), fld = (k) => (new RegExp(`^${k}\\s+(\\S+)$`, "m").exec(exp) || [])[1];
+  const M2 = fld("measurement"), REL2 = fld("release"); assert.match(M2 || "", /^[0-9a-f]{96}$/); assert.match(REL2 || "", /^[0-9a-f]{64}$/); assert.notEqual(M2, OWNER_MEASUREMENT, "a new front: a new measurement");
+  assert.equal(fld("app_id"), OWNER_APP_ID, "the AppID is unchanged");
+  const NOW2 = "2026-09-24T20:45:00Z";
+  for (const [x, dep] of [["A", "4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e"], ["E", "395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595"]]) {
+    const saved = json(new URL(`doc-${x}.json`, W)), d = saved.doc, DEP = Buffer.from(dep, "hex");
+    const chainPem = text(new URL(`served-chain-sni-${x}.pem`, W)), leafPem = chainPem.split(/(?=-----BEGIN CERTIFICATE-----)/).filter((c) => c.includes("CERTIFICATE"))[0], { spki: k, cert: leaf } = spkiOfCert(leafPem);
+    const { spki: kAddr, cert: carrier } = spkiOfCert(text(new URL(`served-cert-by-address-${x}.pem`, W)));
+    assert.ok(k.equals(Buffer.from(d.transportKey, "base64")) && k.equals(Buffer.from(saved.spki, "base64")), `${x}: the WebPKI leaf's key is the bound key`);
+    assert.ok(kAddr.equals(k), `${x}: the self-signed carrier by address is the same key`); assert.match(carrier.subject, /CN=enclave-domain/); assert.match(leaf.subject, new RegExp(`CN=${x === "A" ? "4e62e60d" : "395bed3e"}\\.app\\.enclave\\.host`)); assert.match(leaf.issuer, /ZeroSSL/);
+    assert.ok(Buffer.from(d.report, "base64").subarray(0xc0, 0xe0).equals(DEP), `${x}: HOST_DATA is the deployment id`);
+    const n = Buffer.from(saved.nonce, "hex"), v = await verifyEvidence(d, { policy: { snp: { allowedMeasurements: [M2], minTcb } }, context: { transportKeySpki: k, nonce: n, expectedBinding: bind2(n, k), expectedAppId: Buffer.from(OWNER_APP_ID, "hex"), expectedHostData: DEP, now: NOW2 }, collateral: col() });
+    assert.equal(v.status, "verified", `${x}: ${v.reasons.join("\n")}`); assert.equal(v.checks["host data"], true); assert.equal(v.claims.measurement, M2);
+    const old = await verifyEvidence(d, { policy: { snp: { allowedMeasurements: [OWNER_MEASUREMENT], minTcb } }, context: { transportKeySpki: k, nonce: n, expectedBinding: bind2(n, k), expectedAppId: Buffer.from(OWNER_APP_ID, "hex"), expectedHostData: DEP, now: NOW2 }, collateral: col() });
+    rejectedAt(old, "measurement", /not an allowed measurement/);   // the first release's measurement no longer matches: the front changed
+    // the carrier chain is no trust input: the verdict is a function of the SPKI, and the same SPKI from the self-signed carrier gives the same verdict
+    const viaCarrier = await verifyEvidence(d, { policy: { snp: { allowedMeasurements: [M2], minTcb } }, context: { transportKeySpki: kAddr, nonce: n, expectedBinding: bind2(n, kAddr), expectedAppId: Buffer.from(OWNER_APP_ID, "hex"), expectedHostData: DEP, now: NOW2 }, collateral: col() });
+    assert.deepEqual(viaCarrier.checks, v.checks);
+    assert.match(text(new URL(`client-${x}.txt`, W)), /attested/i, `${x}: the owner's trusted-mode run attested`);
+  }
+  assert.match(text(new URL("negative-install.txt", W)), /422/, "another key or name is refused at issuance (422)");
+});
+
 test("the browser build gives the same verdict on the capture and on a forgery", { skip }, async () => {
   const norm = (v) => JSON.parse(JSON.stringify(v));
   const inputs = (context = {}) => ({ policy: { snp: { allowedMeasurements: [OWNER_MEASUREMENT], minTcb } }, context: { transportKeySpki: spki, nonce, expectedBinding: bind2(), expectedAppId: Buffer.from(OWNER_APP_ID, "hex"), now: NOW, ...context }, collateral: col() });

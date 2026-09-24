@@ -708,6 +708,15 @@ VERIFIED, E under A REJECTED at the host-data check naming E's id, measurement a
 owner's trusted-mode runs through the relay agree. The capture is at the owner's 2db69f32 (`host-data/` beside the
 first capture) and the canary suite carries the pre-change capture as the zero-HOST_DATA refusal. What it cannot close,
 stated: a host launching another genuine instance under the same id (the owner's A3).
+**F2, WebPKI certificates for the guests' own keys (owner's 6757d139, capture at 4531d1e3 in `webpki/`).** Each guest now
+serves, over SNI, a ZeroSSL-issued leaf for `<label>.app.enclave.host` on the SAME in-guest key the report binds; by
+address (host side only, the public edge refuses a hello without SNI) the self-signed carrier on that key. Measured live
+at 20:40Z with the new release 6f14ce75… and its measurement c068f423…: A and E VERIFIED with host data, the leaf's SPKI
+equal to the document's transportKey. The verifier's rule is unchanged and the suite asserts it: the verdict is a
+function of the handshake's SPKI; the carrier chain is no trust input, and a publicly chaining certificate proves
+nothing about key custody. Recorded from the owner: the node's issuance gate applies no TCB floor and holds the
+measurement to guestd's word; a still-valid certificate for the same key and name can be re-posted by anyone (200),
+another key or name is refused (422).
 
 ## 11. Open risks
 
