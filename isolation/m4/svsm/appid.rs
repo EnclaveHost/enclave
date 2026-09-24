@@ -169,6 +169,19 @@ const fn build_table(src: Option<&str>) -> [[u8; APPID_LEN]; VMPL_MAX] {
             let h = hex_val(ids[i + byte * 2]);
             let l = hex_val(ids[i + byte * 2 + 1]);
             if h == 0xff || l == 0xff {
+                // Name what was actually there: an operator reading "not a hex digit" for a stray space has
+                // to go and count characters, and this input ends up inside a launch measurement.
+                let c = if h == 0xff {
+                    ids[i + byte * 2]
+                } else {
+                    ids[i + byte * 2 + 1]
+                };
+                if c == b',' {
+                    panic!("an entry is shorter than 64 hex digits: a comma arrived early");
+                }
+                if c == b' ' || c == b'\t' {
+                    panic!("no spaces: entries are separated by exactly one comma and nothing else");
+                }
                 panic!("an entry contains a character that is not a hex digit");
             }
             t[plane][byte] = h << 4 | l;
@@ -429,24 +442,12 @@ fn hash_pages(pages: &[PhysAddr], len: usize) -> Result<[u8; APPID_LEN], SvsmReq
 /// Execute is granted only for the runtime image. A bundle is data that the runtime reads; giving it X would
 /// hand a plane an executable mapping of attacker-influenced bytes for no reason.
 fn freeze_pages(pages: &[PhysAddr], owner: usize, kind: usize) -> Result<usize, SvsmReqError> {
-    // RMPFlags is not Copy, so keep the mask as bits and rebuild it per page.
-    let owner_bits = if kind == KIND_RUNTIME {
-        RMPFlags::READ.bits() | RMPFlags::X_USER.bits() | RMPFlags::X_SUPER.bits()
-    } else {
-        RMPFlags::READ.bits()
-    };
     for page in pages {
         let guard = PerCPUPageMappingGuard::create_4k(*page)?;
         let vaddr = guard.virt_addr();
         let mut vmpl = RMPFlags::VMPL1.bits();
         while vmpl <= RMPFlags::VMPL3.bits() {
-            let level = RMPFlags::from_bits_truncate(vmpl);
-            let flags = if vmpl as usize == owner {
-                RMPFlags::from_bits_truncate(level.bits() | owner_bits)
-            } else {
-                // not the owner: no read, no write, no execute. Never a grant.
-                RMPFlags::from_bits_truncate(level.bits() | RMPFlags::NONE.bits())
-            };
+            let flags = RMPFlags::from_bits_truncate(plane_mask(vmpl, owner, kind));
             // SAFETY: every branch here REMOVES permission from a guest plane. The owner loses write and
             // keeps what it needs to run; the others are denied. Nothing is granted that was not held.
             unsafe { rmp_adjust(vaddr, flags, PageSize::Regular) }
@@ -455,6 +456,28 @@ fn freeze_pages(pages: &[PhysAddr], owner: usize, kind: usize) -> Result<usize, 
         }
     }
     Ok(pages.len())
+}
+
+/// What the OWNING plane keeps on a frozen page: read, plus execute for code only, and never write.
+fn owner_permission_bits(kind: usize) -> u64 {
+    if kind == KIND_RUNTIME {
+        RMPFlags::READ.bits() | RMPFlags::X_USER.bits() | RMPFlags::X_SUPER.bits()
+    } else {
+        // a bundle is data the runtime reads; an executable mapping of it would be a gift to nobody's benefit
+        RMPFlags::READ.bits()
+    }
+}
+
+/// The exact RMPADJUST mask freeze_pages applies for one plane. Split out so the tests exercise THIS decision
+/// rather than restating bitflag algebra beside it - the earlier tests asserted the constants and would have
+/// passed against the version that granted every neighbour read and execute.
+fn plane_mask(level_bits: u64, owner: usize, kind: usize) -> u64 {
+    if level_bits as usize == owner {
+        level_bits | owner_permission_bits(kind)
+    } else {
+        // not the owner: no read, no write, no execute. Never a grant.
+        level_bits | RMPFlags::NONE.bits()
+    }
 }
 
 /// Record the admitted frames so the PVALIDATE path can refuse to thaw them.
@@ -504,6 +527,15 @@ fn appid_admit(vmpl: usize, params: &mut RequestParams) -> Result<(), SvsmReqErr
     if hash_pages(&pages, len)? != expected {
         return Err(SvsmReqError::invalid_request());
     }
+    // freeze -> re-hash -> record, under the PVALIDATE write lock.
+    //
+    // Without the lock there is a window an independent review found: after the second hash reads a page and
+    // before the frame is recorded, another vCPU can PVALIDATE(invalid) it, have the host flip it shared and
+    // private, and PVALIDATE(valid) it - which zeroes the page and restores guest RWX - because the PVALIDATE
+    // hook only refuses frames already RECORDED. The page would then be recorded and the plane admitted with
+    // a writable, zeroed artifact. The lock is taken in the same order core_pvalidate_one takes it, so there
+    // is no inversion.
+    let _pv = crate::protocols::core::pvalidate_write_lock();
     let frozen = freeze_pages(&pages, vmpl, kind)?;
     if hash_pages(&pages, len)? != expected {
         // The bytes changed between the first hash and the freeze. That is an active attempt, not a mistake.
@@ -589,6 +621,7 @@ pub fn appid_protocol_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::format;
 
     #[test]
     fn vmpl0_is_never_an_app() {
@@ -759,6 +792,84 @@ mod tests {
     // ---- freeze: what the owner keeps, and that neighbours are never granted anything ----
 
     #[test]
+    fn freeze_never_grants_a_neighbour_anything() {
+        // THE regression for the defect the review found: the first freeze_pages iterated the planes granting
+        // READ|X_USER|X_SUPER to VMPL1, 2 and 3, which handed every neighbour read and execute on the owner's
+        // memory. This asserts the mask the code actually applies, per plane, for both kinds.
+        let owner = GUEST_VMPL;
+        for kind in [KIND_BUNDLE, KIND_RUNTIME] {
+            for level in [RMPFlags::VMPL1.bits(), RMPFlags::VMPL2.bits(), RMPFlags::VMPL3.bits()] {
+                let mask = plane_mask(level, owner, kind);
+                assert_eq!(mask & RMPFlags::WRITE.bits(), 0, "no plane may keep WRITE on a frozen page");
+                if level as usize == owner {
+                    assert_ne!(mask & RMPFlags::READ.bits(), 0, "the owner must still read its own artifact");
+                    let x = mask & (RMPFlags::X_USER.bits() | RMPFlags::X_SUPER.bits());
+                    if kind == KIND_RUNTIME {
+                        assert_ne!(x, 0, "the runtime image must remain executable to its owner");
+                    } else {
+                        assert_eq!(x, 0, "a bundle is data: never executable");
+                    }
+                } else {
+                    assert_eq!(mask & !level, 0, "a non-owner plane must be left with NO permission at all");
+                }
+            }
+        }
+    }
+
+    // ---- the malformed table forms, as real tests. The comment here used to claim they could only be
+    // compile-time panics; build_table is a const fn but it is also callable at runtime, so each form can be
+    // pinned, which is what the review pointed out. ----
+
+    #[test]
+    #[should_panic(expected = "more entries than this hardware has app planes")]
+    fn four_entries_are_refused_not_silently_truncated() {
+        let e = "aa".repeat(APPID_LEN);
+        build_table(Some(&[e.clone(), e.clone(), e.clone(), e].join(",")));
+    }
+
+    #[test]
+    #[should_panic(expected = "not exactly 64 hex digits")]
+    fn an_odd_length_entry_is_refused_with_a_reason_not_an_index_error() {
+        build_table(Some(&"a".repeat(63)));
+    }
+
+    #[test]
+    #[should_panic(expected = "a comma arrived early")]
+    fn a_short_entry_does_not_silently_name_a_plane_with_a_half_zero_digest() {
+        build_table(Some(&format!("{},{}", "aa".repeat(30), "bb".repeat(APPID_LEN))));
+    }
+
+    #[test]
+    #[should_panic(expected = "exactly one comma")]
+    fn two_entries_with_no_separator_do_not_silently_become_two_planes() {
+        build_table(Some(&format!("{}{}", "aa".repeat(APPID_LEN), "bb".repeat(APPID_LEN))));
+    }
+
+    #[test]
+    #[should_panic(expected = "no spaces")]
+    fn a_space_after_the_comma_does_not_silently_drop_later_planes() {
+        build_table(Some(&format!("{}, {}", "aa".repeat(APPID_LEN), "bb".repeat(APPID_LEN))));
+    }
+
+    #[test]
+    #[should_panic(expected = "exactly one comma")]
+    fn a_semicolon_is_not_a_separator() {
+        build_table(Some(&format!("{};{}", "aa".repeat(APPID_LEN), "bb".repeat(APPID_LEN))));
+    }
+
+    #[test]
+    #[should_panic(expected = "trailing comma")]
+    fn a_trailing_comma_is_refused() {
+        build_table(Some(&format!("{},", "aa".repeat(APPID_LEN))));
+    }
+
+    #[test]
+    #[should_panic(expected = "not a hex digit")]
+    fn a_non_hex_character_is_refused_not_silently_left_short() {
+        build_table(Some(&format!("{}zz", "aa".repeat(APPID_LEN - 1))));
+    }
+
+    #[test]
     fn a_frozen_bundle_is_readable_and_not_executable_and_not_writable() {
         // the mask freeze_pages builds for the owner, asserted directly: the review found the first version
         // GRANTED read+execute to VMPL1..3, which handed every neighbour access to the caller's memory
@@ -834,10 +945,10 @@ mod tests {
         assert_eq!(build_table(None), [[0u8; APPID_LEN]; VMPL_MAX]);
     }
 
-    // The malformed cases are compile-time panics, which is the point: the table ends up inside a launch
-    // measurement, so an operator typo must fail the BUILD rather than ship an image whose table is not what
-    // was written. They cannot be asserted from a runtime test, so they are listed here against the
-    // behaviour an independent review measured in the lenient version this replaced:
+    // Each malformed form is pinned by a #[should_panic] test above. In a BUILD the same panic is a compile
+    // error, which is the point: the table ends up inside a launch measurement, so an operator typo must fail
+    // the build rather than ship an image whose table is not what was written. What the lenient version this
+    // replaced did instead, as an independent review measured:
     //
     //   "<64>,<64>,<64>,<64>"   4 entries: was SILENTLY IGNORED     -> now panics (more than 3 app planes)
     //   "<63 hex digits>"       odd length: was an index-OOB panic  -> now panics naming the length

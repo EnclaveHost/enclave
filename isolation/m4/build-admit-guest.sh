@@ -25,6 +25,8 @@ gcc -static -O2 -o "$d/init" "$here/guest/admitinit.c"
 cp "$here/guest/appidmod.ko" "$d/appidmod.ko"
 mkdir -p "$d/rt" "$d/proc" "$d/sys"
 cp "$bundle" "$d/app.bundle"
+# The wasmtime ELF only. It is dynamically linked, so ld-linux, libc, libgcc_s and libm are NOT admitted and
+# the bytes that actually run include unadmitted code: this admits "the runtime image", not "the runtime".
 W=$(command -v wasmtime)
 cp -L "$W" "$d/rt/wasmtime"
 printf '%s\n' "$mode" > "$d/admit.mode"
@@ -39,3 +41,4 @@ BUNDLETOOL=${BUNDLETOOL:-$here/.bundle}
 echo "admit guest $out ($(stat -c %s "$out") bytes), mode $mode"
 echo "  bundle  app id  $("$BUNDLETOOL" id "$bundle")   <- ENCLAVE_APP_IDS entry for this plane"
 echo "  runtime sha256  $(sha256sum "$d/rt/wasmtime" | cut -c1-64)   <- ENCLAVE_RUNTIME_SHA256 entry"
+echo "  NOTE: the wasmtime ELF only; its shared libraries are not admitted (see svsm/README.md)"

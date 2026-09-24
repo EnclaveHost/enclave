@@ -57,6 +57,30 @@ that oracle a guest-supplied GPA cannot be attributed. So every call is refused 
 page to. **A compiled-in table can NAME three planes; this code speaks for one.** Per-app planes stay
 unimplemented, and that is deliberate rather than pending.
 
+## THE GATE IS BYPASSABLE TODAY. Admission buys nothing until R1 is closed
+
+Stated first because everything above is worthless without it. The guest at VMPL2 still holds VMPCK2 and
+VMPCK3: `copy_for_vmpl` clears only `vmpck[0..vmpl]`. So the guest does not have to ask this SVSM for
+anything. It mints its own report over its own GHCB, with `report_data` of its choosing and `vmpl=2` - which
+is exactly what the M3 monitor does through configfs-tsm today - and a verifier sees the SVSM's measurement,
+`vmpl=2` and an attacker-chosen `[32:64]` and cannot tell that apart from a report this SVSM issued after
+admission.
+
+"The SVSM will not name a plane until it has admitted the plane's artifacts" is therefore bypassed by not
+asking the SVSM. Admission is a correct mechanism sitting beside an open door.
+
+What closes it, and it is the next increment:
+
+1. the guest's copy of the secrets page carries NO VMPCK at all (clear `0..VMPL_MAX` for the guest copy, not
+   `0..vmpl`), so
+2. `sev-guest` fails to load in the guest and configfs-tsm offers no report interface, and
+3. protocol 6 becomes the ONLY path to a report, which is what makes admission a precondition rather than a
+   suggestion.
+
+Step 2 is not a side effect to paper over: it breaks how every M3a and M3b domain gets its report today, so
+the monitor has to move to protocol 6 in the same change. That is the work, and until it lands no document may
+describe admission as enforcing anything.
+
 ## Still open, and not to be written up as done
 
 * **A1, and it blocks plane-per-app outright.** `kernel/src/sev/secrets_page.rs` `copy_for_vmpl` clears only
@@ -64,6 +88,10 @@ unimplemented, and that is deliberate rather than pending.
   minting a signed report naming **vmpl=3** with the shared measurement. With planes, plane 1 forges plane 2
   completely - its own key bound, B's AppID, vmpl=2, the SVSM's measurement - over its own GHCB, and admission
   never sees it. The fix is that app planes get NO VMPCK and protocol 6 becomes the only report path.
+* **The admitted "runtime image" is the wasmtime ELF alone.** It is dynamically linked, and none of
+  `ld-linux-x86-64.so.2`, `libc`, `libgcc_s` or `libm` is admitted, so the bytes that actually run include
+  unadmitted code. Subsumed by A4 but worth its own line, because "the runtime image is admitted" would read
+  as covering the runtime and it does not.
 * **A4: admitted bytes are not bound to what EXECUTES.** The loader is the unmeasured guest kernel: it can
   present the genuine bundle and runtime, have them admitted, and execute a different copy. Closing it means
   the SVSM owning the plane's initial image and entry - loading it from compiled-in digests into pages it

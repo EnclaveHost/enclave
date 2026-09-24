@@ -37,7 +37,7 @@ index 3a3be24..e5de26a 100644
      let mut resp = SnpReportResponse::new_box_zeroed()
          .map_err(|_| SvsmReqError::FatalError(SvsmError::Mem))?;
 diff --git a/kernel/src/protocols/core.rs b/kernel/src/protocols/core.rs
-index 0e428f2..9be37e1 100644
+index 0e428f2..3fe0397 100644
 --- a/kernel/src/protocols/core.rs
 +++ b/kernel/src/protocols/core.rs
 @@ -15,12 +15,13 @@ use crate::mm::{valid_phys_region, writable_phys_addr};
@@ -55,7 +55,24 @@ index 0e428f2..9be37e1 100644
  };
  #[cfg(feature = "vtpm")]
  use crate::protocols::{
-@@ -265,6 +266,13 @@ fn core_query_protocol(params: &mut RequestParams) -> Result<(), SvsmReqError> {
+@@ -59,6 +60,16 @@ pub const CORE_PROTOCOL_VERSION_MAX: u32 = 1;
+ // the lock for write.
+ static PVALIDATE_LOCK: RWLock<()> = RWLock::new(());
+ 
++/// Take the PVALIDATE serialization lock for writing.
++///
++/// Exposed for `protocols::appid`, whose admission must exclude page-state changes across freeze, re-hash and
++/// record: otherwise another vCPU can re-validate a page in the window between the hash that vouched for it
++/// and the record that protects it, which zeroes the page and restores guest RWX. Same lock and same order as
++/// `core_pvalidate_one`, so there is no inversion.
++pub fn pvalidate_write_lock() -> impl Drop {
++    PVALIDATE_LOCK.lock_write()
++}
++
+ #[repr(C, packed)]
+ #[derive(Copy, Clone, FromBytes, IntoBytes)]
+ struct PValidateRequest {
+@@ -265,6 +276,13 @@ fn core_query_protocol(params: &mut RequestParams) -> Result<(), SvsmReqError> {
              ATTEST_PROTOCOL_VERSION_MIN,
              ATTEST_PROTOCOL_VERSION_MAX,
          ),
@@ -69,7 +86,7 @@ index 0e428f2..9be37e1 100644
          #[cfg(feature = "vtpm")]
          SVSM_VTPM_PROTOCOL => protocol_supported(
              version,
-@@ -334,6 +342,15 @@ fn core_pvalidate_one(entry: u64) -> Result<(), SvsmReqError> {
+@@ -334,6 +352,15 @@ fn core_pvalidate_one(entry: u64) -> Result<(), SvsmReqError> {
          return Err(SvsmReqError::invalid_address());
      }
  
