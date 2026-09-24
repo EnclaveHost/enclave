@@ -22,6 +22,26 @@ directory (`C:\Users\claude\review-99\manager`, `box-probe.mjs`): no port bound,
 | `mon.cpio.gz` (VTL0 initrd, the m3 monitor) | sha256 44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf, 24,008,350 B, mtime 2026-09-24T03:08:23Z (= the only initrd the IGVM reproduces with, per enclave-53) |
 | manager on the box | `C:\Users\claude\vbs\manager` ABSENT (not deployed) |
 
+## 2026-09-24 22:05Z, after the owner's reboot with the Hyper-V role (raw: `box-probe-2026-09-24T2205Z-after-role.json`)
+
+The owner reports the reboot requested 21:57:21Z, node up 21:59:01Z, all six apps recovered, node bytes unchanged. Measured
+here through the manager's own modules, read-only (no spawn: `PROBE_SPAWN` unset while the owner's own start test ran):
+
+| fact | value |
+|---|---|
+| WMI launcher preflight | **ok=true**: vmms service, root\virtualization\v2, Hyper-V PowerShell module, FirmwareFile, hypervisor present, all true |
+| image | 2d735376…, 124,962,164 B, accepted against the pin |
+| `survey()` | `{"vms":[]}`, now a TRUE empty (`Get-VM` exists) |
+| manager `/health` | canStart=**true**, no cannotStart |
+| HCS dev backend preflight | ok=true |
+| launcher, kernel, initrd | unchanged: 6040fc6b…, 7fe3edb5…, 44abb52b… (the box still carries the 44abb52b initrd; the guest lane's 7eb1ded4 with enclave-ready and run mode is not on the box yet) |
+
+Deployment-layout fact (defect 9, sent): `windows/vbslike/verify/judge-hv.mjs` imports `../../../isolation/m2/judge.mjs`,
+which imports `../../relay/snp-verify.mjs` and `../contract/runtime.mjs`. The manager's own modules import nothing outside
+their directory. So a manager that judges readiness on the box needs those three files at the mirrored repository paths;
+the branch's `sync.sh` dropped exactly that mirroring (the ef1b2077 version copied `isolation/contract/runtime.mjs`,
+`isolation/m2/judge.mjs` and `relay/snp-verify.mjs`), and the packager's "7 runtime modules" do not include them.
+
 ## What these facts do and do not say
 
 - The WMI path cannot start a partition here, by the host's own answer, and the manager says so rather than pretending.
