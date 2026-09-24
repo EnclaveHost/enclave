@@ -1,8 +1,8 @@
 {
  "what": "the Linux per-app SNP tier's FIRST production canary capture (hello-world:1.0.4 on metal-iso0, deployment 0x4e62e60d...), copied verbatim from the isolation owner's commit; reviewed by test/verifier-linux-canary.test.mjs",
  "branch": "isolation/portable-runtime-jit",
- "commit": "2db69f32894be7d64d24719e79a61b7193c60b26",
+ "commit": "4531d1e30ec8f388f1e320d0f7f2aa2d4c4ad82a",
  "path": "isolation/m4/evidence/production-canary-2026-09-24",
  "copiedAt": "2026-09-24T19:29:34Z",
- "note": "host-data/ (added at 2db69f32) holds the first captures with HOST_DATA = the deployment id (the owner's F11 fix, live 20:06Z): doc-A/E with served-cert-A/E and the owner's client runs; served-cert.pem (added at aeddcfa1 after the verifier session reported it missing from 26c3cc86), expected-measurement.txt (added at e1ce5f21 after the README was found to abbreviate the measurement) and the KDS and gateway corrections (368a3aa9) are the owner's fixes to the verifier session's defects; the live transport key rotated after a node restart (owner's F6) and differs from this capture by design"
+ "note": "webpki/ (added at 4531d1e3) holds the third round after the owner's F2 (WebPKI certificates for the guests' own keys; new front, new release 6f14ce75…, new measurement c068f423…): doc-A/E, the served chains over SNI, the self-signed carriers by address (host side only: the public edge refuses a hello without SNI), client runs, negative install tests; host-data/ (added at 2db69f32) holds the first captures with HOST_DATA = the deployment id (the owner's F11 fix, live 20:06Z): doc-A/E with served-cert-A/E and the owner's client runs; served-cert.pem (added at aeddcfa1 after the verifier session reported it missing from 26c3cc86), expected-measurement.txt (added at e1ce5f21 after the README was found to abbreviate the measurement) and the KDS and gateway corrections (368a3aa9) are the owner's fixes to the verifier session's defects; the live transport key rotated after a node restart (owner's F6) and differs from this capture by design"
 }

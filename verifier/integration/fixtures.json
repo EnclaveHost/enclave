@@ -836,9 +836,9 @@
     }
   },
   "linux-canary-2026-09-24": {
-    "purpose": "the Linux isolation owner's first production canary of the per-app SNP guest tier (hello-world:1.0.4 at https://4e62e60d.app.enclave.host): the attestation document with its nonce, the served certificate, the VCEK, the TCB floor, the expected runtime identity, the derivation record and the release record, and (host-data/) the first captures with HOST_DATA = the deployment id after the owner's F11 fix (A and E, and E under A's expectation refused); reviewed by test/verifier-linux-canary.test.mjs",
+    "purpose": "the Linux isolation owner's first production canary of the per-app SNP guest tier (hello-world:1.0.4 at https://4e62e60d.app.enclave.host): the attestation document with its nonce, the served certificate, the VCEK, the TCB floor, the expected runtime identity, the derivation record and the release record, and (host-data/) the first captures with HOST_DATA = the deployment id after the owner's F11 fix (A and E, and E under A's expectation refused), and (webpki/) the third round after F2: WebPKI certificates on the guests' own keys over SNI, the self-signed carriers by address, the new release and its expected measurement; reviewed by test/verifier-linux-canary.test.mjs",
     "branch": "isolation/portable-runtime-jit",
-    "commit": "2db69f32894be7d64d24719e79a61b7193c60b26",
+    "commit": "4531d1e30ec8f388f1e320d0f7f2aa2d4c4ad82a",
     "path": "isolation/m4/evidence/production-canary-2026-09-24",
     "dir": "test/fixtures/verifier/linux-canary-2026-09-24",
     "files": {
@@ -848,7 +848,7 @@
       "expected-measurement.txt": "1436104ced39a74904d09934a27bcfaf1d0c73cc8dac319e0e56feb40e8a103c",
       "expected-runtime.json": "8044b26a6ef691e30ef21983829f7c0dfef34b3f15c009072c477e6ea5dd95b6",
       "guestd-instance.json": "63dc625ed09da60548141bc8e55512bc5480c0a95112e7ebed881643db8ced86",
-      "host-data/README.txt": "f101065a7270562d3097f296455f6e3bdab77d87c7193af9463df4b5c573cbf7",
+      "host-data/README.txt": "f88524ab3d21f092ef57f045a16ad5113a3070f109a01b569392b67f33e33b64",
       "host-data/client-A.txt": "424b45066b003d6756e16c7e646bed1c91a886601123d4f12539fa7c2e8df94e",
       "host-data/client-E.txt": "7b9cc10a0a313d09c062217918b6d4e96d8ba4b0f396b062c42ca9e6407de5f3",
       "host-data/client-EasA.txt": "ba48818e36c0f8fd013fc74f14433216966289c8fbc6e6e5fee46bef20c85de1",
@@ -864,7 +864,21 @@
       "record.json": "a0cd6b43359e9328338caf7ebff75004bc1466dd4d00f7d325cf6546adcb7cf6",
       "served-cert.pem": "b4df3c1f2b55abd18f40729e9da2af7090dca9d204ecd2801047274d7718ffce",
       "test-deployment-txs.json": "4b1b3dc593327024890edd88c66e15fe54fef49dd0ce415c0d6c6cf89917b0aa",
-      "vcek.der": "7370435c9f70be9fff3991b7a6dfff31d0a5f7f982eb74c89a90af1963a77835"
+      "vcek.der": "7370435c9f70be9fff3991b7a6dfff31d0a5f7f982eb74c89a90af1963a77835",
+      "webpki/README.txt": "bd0f32ff4f65c7c7a310265947e36f2d0f9e6b9898bb92d63612b23625caea8e",
+      "webpki/client-A.txt": "adf4958966ead7ae55dd9ac664deff096d4c80964a40288b9cb6e2c24dbb4fd0",
+      "webpki/client-E.txt": "cd68b4ebaa21c8aa2a9313fe134174f94048120091029121f355d8a04264cd4a",
+      "webpki/doc-A.json": "d285236089f56d983bb4b03b8f48a5ffa069dac39b3c7dbe3c446fcb35ffd636",
+      "webpki/doc-E.json": "31edbf96292cf65309bd4b57d72a325f2b413b2e63c66de3c123e673a559453d",
+      "webpki/domain-release.json": "6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb",
+      "webpki/expected-measurement.txt": "e7a3e8dab538a044716ada878ada2fcca5b8b6b4e56f0ae3ef95564ec81f8441",
+      "webpki/negative-install.txt": "eead47c81724b1012a6a64b461650283ef9782cc1f337a77f63061bc997d369c",
+      "webpki/node-image-manifest.json": "9d6da7b9478cfb288b46fc3a38312bded5d210f249079313d2fbfbbef7a20ce3",
+      "webpki/relay-log.txt": "d409dd4740f4872def79122ccc3c251999aadfee19797bd3e70084ba03d185af",
+      "webpki/served-cert-by-address-A.pem": "e091b25d25fbe4c44f85f1e952ea3ad969e5a00a0013df6e81128b6c540b50be",
+      "webpki/served-cert-by-address-E.pem": "5bd285e9de604903f4d47111c1ae3f8f66a66f4a936c0ee9a872edf6f698a2cb",
+      "webpki/served-chain-sni-A.pem": "6a38e52e5e05d491ca93b99318742cf9aec0606ce91390df3f238125aa2d70fa",
+      "webpki/served-chain-sni-E.pem": "879752cbc376ebcab6ab205668f8ae465b0eba193b8615e29b9f16296feb9b2a"
     }
   },
   "pvm-instance-device": {

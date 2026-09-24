@@ -1,0 +1,8 @@
+refused: the leaf's public key is not this domain's key
+ [HTTP 422]
+refused: not a PEM chain of 1 to 8 certificates
+ [HTTP 422]
+the chain exceeds its bound
+ [HTTP 413]
+{"installed":"395bed3e.app.enclave.host","issuer":"ZeroSSL ECC DV SSL CA 2","notAfter":"2026-12-23T23:59:59Z"}
+ [HTTP 200]

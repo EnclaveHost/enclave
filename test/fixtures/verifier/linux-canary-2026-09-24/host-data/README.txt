@@ -16,6 +16,11 @@ Trusted-mode client runs through the production relay (client-*.txt, --host-data
                                       deployment 0x4e62e60da567ca6c..." - exit 3, 0 application requests.
                                       The same check VERIFIED at 19:53Z, before the change (F11, confirmed by enclave-99).
 
+Reproduced from the public side by the verifier lane (enclave-99, its own implementation, --deployment), 20:07:45..49Z:
+A under A VERIFIED (key 9848352b..., host_data 4e62e60d...), E under E VERIFIED (key 3cd10bfc..., host_data
+395bed3e...), E under A REJECTED at the host-data check with every other check true; measurement and AppID unchanged
+on all three. A second implementation agreeing - not an independent review.
+
 SCOPE - what this closes and what it does not (the audit's and the verifier lane's framing, unchanged):
   HOST_DATA authenticates the LABEL the host supplied at launch.
   CLOSED: delivery to ANOTHER deployment's guest of the same app, for a client that chose its deployment id
