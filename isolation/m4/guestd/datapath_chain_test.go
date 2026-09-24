@@ -68,6 +68,8 @@ var chainRuntime = contract.RuntimeIdentity{Name: "wasmtime", Version: "0.0.0-fi
 
 type chainGuest struct {
 	label, appID, meas, sock string
+	hostData                 string // what the fixture monitor puts at 0xC0, as the PSP would from the launch
+	launchedFor              string // the deployment guestd launched it for (before any copied label)
 	front                    *exec.Cmd
 	frontDone                chan struct{}
 	app                      *http.Server
@@ -86,6 +88,11 @@ type chainLauncher struct {
 	mu       sync.Mutex
 	guests   map[string]*chainGuest // workdir -> guest
 	mitmFrom map[string]bool        // label -> the forwarder terminates TLS from the start
+	deps     map[string]string      // label -> deployment id, so a guest is found by the id in its HOST_DATA
+	// copyLabel models a HOST that controls its own launcher: an instance whose HOST_DATA would be the key is
+	// launched with the value instead (another deployment's id). guestd's real verifier would refuse such a guest,
+	// since it requires the record's own HOST_DATA, but a hostile host need not launch through guestd at all.
+	copyLabel map[string]string
 }
 
 func (l *chainLauncher) guest(workdir string) *chainGuest {
@@ -119,8 +126,13 @@ func (l *chainLauncher) Build(ctx context.Context, bundle, workdir string, vcpus
 	return bundle, g.meas, nil
 }
 
-func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, vcpus, mem, cpu int) (string, uint32, error) {
+func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, vcpus, mem, cpu int, hostData string) (string, uint32, error) {
 	g := l.guest(workdir)
+	g.launchedFor = hostData
+	if c, ok := l.copyLabel[hostData]; ok {
+		hostData = c
+	}
+	g.hostData = hostData
 	// the app behind the front
 	mux := http.NewServeMux()
 	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) { fmt.Fprintf(w, "app %s\n", g.label) })
@@ -171,6 +183,9 @@ func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, v
 				copy(rep[0x50:], bind)
 				copy(rep[0x70:], app)
 				copy(rep[0x90:], meas)
+				if hd, _ := hex.DecodeString(g.hostData); len(hd) == 32 {
+					copy(rep[0xc0:], hd) // HOST_DATA, fixed at launch
+				}
 				_ = json.NewEncoder(c).Encode(map[string]string{"report": base64.StdEncoding.EncodeToString(rep)})
 			}()
 		}
@@ -278,10 +293,16 @@ func hostCert() (tls.Certificate, error) {
 }
 
 // Verify runs the REAL client in lab-unsigned mode: every field check, no AMD signature (there is none).
-func (l *chainLauncher) Verify(ctx context.Context, port int, meas, appID, workdir string) (string, string, error) {
-	out, _ := exec.CommandContext(ctx, "node", "../../m2/client.mjs", "https://127.0.0.1:"+strconv.Itoa(port),
-		"--lab-unsigned", "--no-kds", "--measurement", meas, "--app-sha", appID, "--runtime", l.rtFile,
-		"--answer-within", "10000").CombinedOutput()
+func (l *chainLauncher) Verify(ctx context.Context, port int, meas, appID, hostData, workdir string) (string, string, error) {
+	args := []string{"../../m2/client.mjs", "https://127.0.0.1:" + strconv.Itoa(port),
+		"--lab-unsigned", "--no-kds", "--measurement", meas, "--app-sha", appID, "--runtime", l.rtFile, "--answer-within", "10000"}
+	if g := l.guest(workdir); g != nil && g.hostData != hostData {
+		hostData = g.hostData // the copied-label host verifies what it launched (see copyLabel)
+	}
+	if hostData != "" {
+		args = append(args, "--host-data", hostData)
+	}
+	out, _ := exec.CommandContext(ctx, "node", args...).CombinedOutput()
 	r := results(string(out))
 	if strings.HasPrefix(r["VERDICT"], "unauthenticated") && r["gate"] == "open" {
 		return "unauthenticated (FIXTURE: unsigned report)", r["spki_sha256"], nil
@@ -381,7 +402,7 @@ func newChain(t *testing.T) *chain {
 		t.Fatal(err)
 	}
 	l := &chainLauncher{t: t, front: front, sockDir: sockDir, rtFile: rtFile, guests: map[string]*chainGuest{},
-		mitmFrom: map[string]bool{"D": true}}
+		mitmFrom: map[string]bool{"D": true}, copyLabel: map[string]string{}}
 	s := newServer(l, filepath.Join(dir, "root"))
 	s.RuntimeID = hex.EncodeToString(rid[:])
 	s.Auth = newControlAuth(testKey, s.Now)
@@ -396,7 +417,12 @@ func newChain(t *testing.T) *chain {
 	ch := &chain{t: t, s: s, l: l, ts: ts, dataAddr: dl.Addr().String(), inst: map[string]string{}, apps: map[string]string{},
 		deps: map[string]string{"A": "0x" + strings.Repeat("a1", 32), "B": "0x" + strings.Repeat("b2", 32),
 			"C": "0x" + strings.Repeat("c3", 32), "D": "0x" + strings.Repeat("d4", 32),
-			"E": "0x" + strings.Repeat("e5", 32)}}
+			"E": "0x" + strings.Repeat("e5", 32),
+			// A2 and A3: the SAME app as A (identical bundle, so the same AppID and measurement), other deployments.
+			// A3's host copies A's deployment id into its HOST_DATA (copyLabel).
+			"A2": "0x" + strings.Repeat("a2", 32), "A3": "0x" + strings.Repeat("a3", 32)}}
+	l.deps = ch.deps
+	l.copyLabel[strings.Repeat("a3", 32)] = strings.Repeat("a1", 32)
 	t.Cleanup(func() {
 		s.shutdown()
 		ts.Close()
@@ -405,8 +431,14 @@ func newChain(t *testing.T) *chain {
 
 	// the guests, launched through guestd's own /vms route (the setup bypasses the channel; the supervisor below
 	// does not)
-	for _, label := range []string{"A", "B", "C", "D"} {
-		b, err := contract.Build(contract.Manifest{Label: label}, []byte("\x00asm component "+label))
+	// L: the same app again under a LAB name (not a deployment id), so guestd binds no HOST_DATA (all zero)
+	ch.deps["L"] = "lab-L"
+	for _, label := range []string{"A", "B", "C", "D", "A2", "A3", "L"} {
+		src := label
+		if label == "A2" || label == "A3" || label == "L" {
+			src = "A" // byte-identical bundles of A
+		}
+		b, err := contract.Build(contract.Manifest{Label: src}, []byte("\x00asm component "+src))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -419,7 +451,7 @@ func newChain(t *testing.T) *chain {
 		ch.inst[label], ch.apps[label] = body["id"].(string), body["appId"].(string)
 	}
 	s.launching.Wait()
-	for _, label := range []string{"A", "B", "C"} {
+	for _, label := range []string{"A", "B", "C", "A2", "A3", "L"} {
 		if _, v := ch.direct("GET", "/vms/"+ch.inst[label], nil); v["status"] != "running" {
 			t.Fatalf("guest %s did not start: %v", label, v)
 		}
@@ -551,11 +583,34 @@ func (ch *chain) client(via, name, want string, over map[string]string) clientRu
 	return clientRun{code: code, r: results(string(out)), out: string(out)}
 }
 
+// clientAtGuest runs the verifying client straight at an instance's forwarder, as if the host (not the relay or the
+// supervisor, whose SNI check would stop it) delivered the connection there. It expects `want`'s app and
+// measurement and, when hostData is not "-", that deployment binding.
+func (ch *chain) clientAtGuest(inst, want, hostData string) clientRun {
+	_, v := ch.direct("GET", "/vms/"+ch.inst[inst], nil)
+	port := fmt.Sprint(v["hostPort"])
+	args := []string{"../../m2/client.mjs", "https://127.0.0.1:" + port, "--lab-unsigned", "--no-kds",
+		"--measurement", ch.l.guestByLabel(want).meas, "--app-sha", ch.apps[want], "--runtime", ch.l.rtFile, "--answer-within", "5000"}
+	if hostData != "-" {
+		args = append(args, "--host-data", hostData)
+	}
+	out, err := exec.Command("node", args...).CombinedOutput()
+	code := 0
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		code = ee.ExitCode()
+	} else if err != nil {
+		code = -1
+	}
+	return clientRun{code: code, r: results(string(out)), out: string(out)}
+}
+
 func (l *chainLauncher) guestByLabel(label string) *chainGuest {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	want := strings.ToLower(strings.TrimPrefix(l.deps[label], "0x"))
 	for _, g := range l.guests {
-		if g.label == label {
+		if want != "" && g.launchedFor == want {
 			return g
 		}
 	}
@@ -696,6 +751,38 @@ func TestTheDataPathEndToEnd(t *testing.T) {
 	record("a host MITM behind the splice (wrong key)", fmt.Sprintf("exit=%d verdict=%.70q spliced_by_guestd=%d",
 		r.code, r.r["VERDICT"], ch.s.Data.Stats()["spliced"]-before),
 		r.code == 3 && strings.Contains(r.out, "report_data does not bind") && r.r["app_requests_sent"] == "0")
+
+	// 3b. DEPLOYMENT binding (HOST_DATA). Scope, stated rather than implied: HOST_DATA authenticates the LABEL the host
+	// gave the guest at launch. Checked against the deployment id the client chose itself, it detects delivery to
+	// another deployment's guest of the same app - the A/E misroute F11 describes. It does NOT prove owner
+	// assignment or an approved current instance, and a host that launches a second guest with a copied label is
+	// NOT detected (A3 below shows exactly that).
+	idA := strings.TrimPrefix(ch.deps["A"], "0x")
+	_, va := ch.direct("GET", "/vms/"+ch.inst["A"], nil)
+	record("guestd launched A with its deployment id as HOST_DATA", fmt.Sprint(va["hostData"]), va["hostData"] == idA)
+	r = ch.clientAtGuest("A", "A", ch.deps["A"])
+	record("a client bound to deployment A verifies A's guest", fmt.Sprintf("exit=%d host_data=%.16s…", r.code, r.r["host_data"]),
+		r.code == 0 && r.r["host_data"] == idA && r.r["host_data_checked"] == "1")
+	r = ch.clientAtGuest("A2", "A", "-")
+	record("F11 baseline: WITHOUT the binding, A's client accepts A2 (same app, another deployment)",
+		fmt.Sprintf("exit=%d", r.code), r.code == 0 && strings.Contains(r.out, "host_data NOT CHECKED"))
+	r = ch.clientAtGuest("A2", "A", ch.deps["A"])
+	record("WITH the binding, A's client refuses A2's guest (the A/E misroute)",
+		fmt.Sprintf("exit=%d verdict=%.70q app_requests_sent=%s", r.code, r.r["VERDICT"], r.r["app_requests_sent"]),
+		r.code == 3 && strings.Contains(r.out, "is not the expected deployment") && r.r["app_requests_sent"] == "0")
+	r = ch.clientAtGuest("A3", "A", ch.deps["A"])
+	record("NOT CLOSED, by design: a host-launched second guest carrying A's COPIED label is accepted",
+		fmt.Sprintf("exit=%d (a genuine instance of the same app, labelled A by the host)", r.code), r.code == 0)
+	r = ch.clientAtGuest("A", "A", "0x"+strings.Repeat("a1", 31))
+	record("the binding refuses a 31-byte expectation", fmt.Sprintf("exit=%d verdict=%.60q", r.code, r.r["VERDICT"]), r.code == 3)
+	// against a guest launched with NO deployment bound (all-zero HOST_DATA): an all-zero expectation must not
+	// pass as "equal", and a real expectation must say the guest is unbound
+	r = ch.clientAtGuest("L", "A", "0x"+strings.Repeat("00", 32))
+	record("an all-zero expectation is refused even against an unbound guest", fmt.Sprintf("exit=%d verdict=%.60q", r.code, r.r["VERDICT"]),
+		r.code == 3 && strings.Contains(r.out, "all-zero expected host_data"))
+	r = ch.clientAtGuest("L", "A", ch.deps["A"])
+	record("a client bound to A refuses an unbound guest", fmt.Sprintf("exit=%d", r.code),
+		r.code == 3 && strings.Contains(r.out, "launched with no deployment bound"))
 
 	// 4. routing refused BEFORE any guest: a session for A delivered to B's route; unknown and no SNI
 	n0, s0 := ch.nSplices(), ch.s.Data.Stats()["spliced"]

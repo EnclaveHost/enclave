@@ -18,7 +18,13 @@
 //   lab-unsigned     attested, no-tcb-policy, unauthenticated   explicit lab-only diagnostic
 //   t0-diagnostic    not-attested                               explicit; a T0 domain is never trusted
 //
-// want = { measurement, appSha, mode, minTcb?, vcek?, kds?, runtime? }
+// want = { measurement, appSha, mode, minTcb?, vcek?, kds?, runtime?, hostData? }
+//   hostData the DEPLOYMENT the caller means to reach: the full 32-byte deployment id (hex, 0x optional). A per-app
+//           guest is launched with it as SEV-SNP HOST_DATA (m2/run-domain.sh, m4/guestd), which the PSP signs into
+//           every report and which is outside the launch measurement - so two instances of one app version share a
+//           measurement and an AppID and differ here. Supplied, it must equal report.host_data byte for byte (an
+//           all-zero expectation is refused: it names nothing). Omitted, host_data is unchecked and the reasons say
+//           so. It does not stop a host from launching a second genuine instance under the same id.
 //   runtime the runtime identity the caller expects the domain to state (isolation/contract/RUNTIME.md).
 //           Supplying it pins the runtime field for field AND requires ABI/2, so a domain cannot silently
 //           drop to a binding that covers no runtime. Omitting it accepts either ABI and says in the
@@ -248,7 +254,7 @@ export function vcekTable(vcekDer) {
   return Buffer.concat([hdr, vcekDer]);
 }
 
-export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mode = 'trusted', minTcb, vcek, kds = true, expectedVmpl, runtime }) {
+export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mode = 'trusted', minTcb, vcek, kds = true, expectedVmpl, runtime, hostData }) {
   if (!MODES.includes(mode)) throw new Error(`unknown mode ${mode}`);
   const out = (verdict, reasons, extra = {}) => ({ verdict, reasons, gateOpen: OPENS[mode].includes(verdict), ...extra });
 
@@ -327,6 +333,28 @@ export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mo
     return out('reject', reasons, extra);
   }
   reasons.push('report_data[32:64] names the expected app');
+  // Which deployment: HOST_DATA (report bytes 0xC0..0xE0), judged in every mode like the app half above.
+  const hd = report.subarray(0xc0, 0xe0);
+  extra.hostData = hd.toString('hex');
+  if (hostData !== undefined && hostData !== null) {
+    const s = String(hostData).toLowerCase().replace(/^0x/, '');
+    if (!/^[0-9a-f]{64}$/.test(s)) {
+      reasons.push('REJECT: the expected deployment (hostData) must be exactly 32 bytes of hex, the full deployment id');
+      return out('reject', reasons, extra);
+    }
+    if (/^0{64}$/.test(s)) {
+      reasons.push('REJECT: an all-zero expected host_data names no deployment');
+      return out('reject', reasons, extra);
+    }
+    if (hd.toString('hex') !== s) {
+      reasons.push(`REJECT: report host_data ${hd.toString('hex').slice(0, 16)}… is not the expected deployment 0x${s.slice(0, 16)}…`
+        + (/^0{64}$/.test(hd.toString('hex')) ? ' (the guest was launched with no deployment bound)' : ''));
+      return out('reject', reasons, extra);
+    }
+    reasons.push(`host_data names the expected deployment 0x${s.slice(0, 16)}… (signed by the PSP; outside the measurement)`);
+  } else {
+    reasons.push('host_data NOT CHECKED: no expected deployment was given, so another instance of this same app version would verify identically');
+  }
   // The boundary self-test is judged BEFORE the chain verdict, deliberately. An incoherent tuple - vmpl0
   // GRANTED, a probe that never ran, a claim that disagrees with the signed level - is a security fault
   // and must be a REJECT in every mode, including the lab-unsigned diagnostic. It sat after the

@@ -41,6 +41,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -54,14 +55,15 @@ import (
 type Launcher interface {
 	// Build makes the guest image for a bundle and returns the launch measurement predicted for it.
 	Build(ctx context.Context, bundle, workdir string, vcpus int) (image, measurement string, err error)
-	// Start boots the image as an SNP guest and returns its unit and vsock CID once its front serves.
-	Start(ctx context.Context, image, tag, workdir string, vcpus, memMiB, cpuPct int) (unit string, cid uint32, err error)
+	// Start boots the image as an SNP guest and returns its unit and vsock CID once its front serves. hostData (64 hex,
+	// or "") becomes the guest's SEV-SNP HOST_DATA: signed into every report, outside the measurement.
+	Start(ctx context.Context, image, tag, workdir string, vcpus, memMiB, cpuPct int, hostData string) (unit string, cid uint32, err error)
 	// Forward exposes the guest's attested TLS endpoint on a host port. stop ends the forwarder.
 	Forward(ctx context.Context, cid uint32, workdir string) (port int, stop func(), err error)
 	// Verify attests the guest over that port against the predicted measurement and the AppID, and returns the
 	// sha256 of the TLS key its OWN handshake saw (the key the verified report binds). The data plane admits a
 	// splice only to a guest still presenting that identity (datapath.go).
-	Verify(ctx context.Context, port int, measurement, appID, workdir string) (verdict, keySha256 string, err error)
+	Verify(ctx context.Context, port int, measurement, appID, hostData, workdir string) (verdict, keySha256 string, err error)
 	// Alive reports whether the guest's unit is still active.
 	Alive(unit string) bool
 	// Stop tears the guest down.
@@ -114,6 +116,7 @@ type vm struct {
 	ID, Name, AppID, Measurement, Status, Error, Verdict string
 	RecordSha256                                         string // the catalog derivation, when the app came from one
 	TransportKeySha256                                   string // the key the verifying handshake saw
+	HostData                                             string // SEV-SNP HOST_DATA the guest was launched with (hex), "" = none
 	HostPort                                             int
 	Vcpus, MemMiB, CPUPct                                int
 	Created                                              time.Time
@@ -146,6 +149,19 @@ func newServer(l Launcher, root string) *server {
 		vms: map[string]*vm{}}
 }
 
+// deploymentIDRE is the supervisor's name for an instance: the on-chain deployment id, bytes32.
+var deploymentIDRE = regexp.MustCompile(`^0x[0-9a-fA-F]{64}$`)
+
+// hostDataFor is the SEV-SNP HOST_DATA an instance is launched with: its deployment id's 32 raw bytes (hex here),
+// so a client can check WHICH deployment it reached, not only which app (two instances of one version share a
+// measurement and an AppID). A name that is not a deployment id (lab and test launches) gets none.
+func hostDataFor(name string) string {
+	if !deploymentIDRE.MatchString(name) {
+		return ""
+	}
+	return strings.ToLower(name[2:])
+}
+
 func newID() string {
 	b := make([]byte, 4)
 	_, _ = rand.Read(b)
@@ -175,6 +191,9 @@ func (v *vm) public() map[string]any {
 	}
 	if v.TransportKeySha256 != "" {
 		m["transportKeySha256"] = v.TransportKeySha256
+	}
+	if v.HostData != "" {
+		m["hostData"] = v.HostData
 	}
 	if s := len(v.splices); s > 0 {
 		m["openSplices"] = s
@@ -305,7 +324,8 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	v := &vm{ID: newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting", RecordSha256: record,
-		Vcpus: pol.Vcpus, MemMiB: guestMemMiB(pol.MemMiB), CPUPct: pol.CPUPercent, Created: s.Now(),
+		HostData: hostDataFor(req.Name),
+		Vcpus:    pol.Vcpus, MemMiB: guestMemMiB(pol.MemMiB), CPUPct: pol.CPUPercent, Created: s.Now(),
 		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL)}
 	v.workdir = filepath.Join(s.Root, v.ID)
 	s.vms[v.ID] = v
@@ -430,7 +450,7 @@ func (s *server) launch(v *vm) {
 		return
 	}
 	s.set(v, func() { v.Measurement = meas })
-	unit, cid, err := s.L.Start(ctx, image, v.ID, v.workdir, v.Vcpus, v.MemMiB, v.CPUPct)
+	unit, cid, err := s.L.Start(ctx, image, v.ID, v.workdir, v.Vcpus, v.MemMiB, v.CPUPct, v.HostData)
 	s.set(v, func() { v.unit = unit })
 	if err != nil {
 		s.fail(v, fmt.Errorf("start: %w", err))
@@ -443,7 +463,7 @@ func (s *server) launch(v *vm) {
 		return
 	}
 	s.set(v, func() { v.HostPort = port })
-	verdict, keySha, err := s.L.Verify(ctx, port, meas, v.AppID, v.workdir)
+	verdict, keySha, err := s.L.Verify(ctx, port, meas, v.AppID, v.HostData, v.workdir)
 	if err == nil && !isHex(keySha, 32) {
 		err = fmt.Errorf("the verifier reported no transport key hash (%q)", keySha)
 	}
