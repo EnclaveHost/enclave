@@ -149,3 +149,42 @@ Two ways forward, and the first is not mine to take:
    diffing the two.
 
 Point 2 is the next thing to run and needs no new approval; point 1 needs Steven.
+
+
+## Settled: it is the host, not us (run 7, no approval needed)
+
+The firmware setting was not involved in this run - rows that use no custom IGVM need it, so the
+launcher was called directly, creating and destroying only its own partitions exactly as the
+phase-1 lab does.
+
+| shape | create | start | new vmwp crash |
+|---|---|---|---|
+| VBS + UEFI, no guest state | `0x80070057` | - | - |
+| VBS + UEFI + TRANSIENT guest state | `0x80070057` | - | - |
+| GuestStateOnly + UEFI + transient guest state | `0x80070057` | - | - |
+| VBS + an empty VMGS **file**, in-box paravisor | ok | ok, 1005 ms | **+1** |
+
+Two facts, and together they close the question.
+
+1. **A VMGS file is mandatory.** Nothing isolated constructs without one; a transient in-memory
+   declaration is refused at Construct. So every creatable isolated partition on this host has a
+   VMGS-backed guest state.
+2. **Every isolated partition that starts crashes the worker.** The crash count moved by exactly
+   one, for exactly the one row that started, and that row uses Microsoft's own in-box paravisor
+   and no custom firmware at all.
+
+So the fault is 1:1 with starting an isolated partition, and there is no configuration on this host
+that both creates and survives. It is not our IGVM, not our document, and not the firmware setting:
+all three were removed from the experiment and the crash stayed.
+
+## The decision this needs
+
+`vmwp.exe` / `vmchipset.dll` 10.0.26100.9278 faults on every isolated-partition start. The remaining
+route is host servicing - a cumulative update and a reboot - which this work is not permitted to do
+and which is Steven's call. Until then the Hyper-V per-app isolation backend cannot run on this box,
+and the Linux SNP tier (`snp-guest-per-app`) is the one going live.
+
+The backend contract is already agreed with that lane so the Windows side is a drop-in when the host
+can run a partition: backend name `hyperv-partition-per-app`, attestation format
+`hyperv-vbs-partition-v1` as a sibling branch in the judge, and everything else - derivation,
+policy, control plane, TLS splice - identical.
