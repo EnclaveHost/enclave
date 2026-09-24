@@ -98,7 +98,9 @@ test("the relay's serving set requires hardware evidence (pinned in source)", ()
     "only the confidential attach mode sells tenant compute; avf and vbs are verified for other contracts");
   assert.doesNotMatch(elig, /tier|windows|linux/i, "eligibility never reads a tier string or an operating system");
   const rows = between(src, 'if (u.pathname === "/enclaves")', "return json(res, 200, { updatedAt, aggregate", "relay/api-relay.js");
-  assert.match(rows, /eligible: computeEligible\(e\)/, "/enclaves rows carry the explicit verdict for display surfaces");
+  assert.match(rows, /const eligible = computeEligible\(e\)/, "the row's verdict is the relay's own function, not the row's claim");
+  assert.match(rows, /return \{[^}]*\beligible\b/, "/enclaves rows carry the explicit verdict for display surfaces");
+  assert.match(rows, /status: hostStatus\(/, "and one word for the row's state, so online-but-excluded never reads as offline");
 });
 
 test("the hub never lets a hello frame set the attach mode (pinned in source)", () => {
@@ -174,7 +176,8 @@ test("a GPU on a non-TEE host is exposed only through Enclave Shield: until that
   // the relay's serving verdict cannot override the client's evidence check either
   assert.ok(pickEnclaveFor(GPU_APP, [{ ...dialedNoTee, serving: true }]).none);
   // pinned: the relay's reason names the rule for a carded non-TEE box
-  const src = read("relay/api-relay.js");
-  const reason = between(src, "function ineligibleReason(e)", "\n}\n", "relay/api-relay.js");
+  // the reason lives in relay/fleet-status.mjs (evidence-derived, unit-tested in test/fleet-status.test.mjs);
+  // eligibility itself stays in api-relay.js and is unchanged
+  const reason = between(read("relay/fleet-status.mjs"), "export function ineligibleReason(e", "\n}\n", "relay/fleet-status.mjs");
   assert.match(reason, /exposed only through Enclave Shield/);
 });
