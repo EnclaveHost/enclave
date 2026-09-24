@@ -41,11 +41,18 @@ export const PREREQUISITES = Object.freeze({
 });
 
 export class HyperVPartitionBackend {
-  constructor({ launch = null } = {}) {
-    // `launch` is injected so a test can drive the lifecycle without a host; production passes none
-    // and therefore cannot start a domain at all, which is the honest state of this backend today.
-    this.launch = launch;
+  /**
+   * `launcher` is the real thing (wmi-launcher.mjs) when a host can run one; `launch` stays for a
+   * test that wants to drive the lifecycle with a function. Neither is present by default, and a
+   * backend with neither cannot start a domain - which is the honest state on a host without the
+   * Hyper-V role, and is reported rather than worked around.
+   */
+  constructor({ launch = null, launcher = null } = {}) {
+    this.launcher = launcher;
+    this.launch = launch || (launcher ? (mapping) => launcher.start(mapping) : null);
   }
+  /** Ask the host itself, when there is a launcher to ask. Null when there is nothing to ask. */
+  async preflight() { return this.launcher ? await this.launcher.preflight() : null; }
   get backend() { return BACKEND; }
   get supports() { return SUPPORTS; }
   /**
@@ -65,5 +72,10 @@ export class HyperVPartitionBackend {
     }
     return await this.launch(mapping);
   }
-  async stop(handle) { if (this.launch && handle && handle.stop) await handle.stop(); }
+  async stop(handle) {
+    if (this.launcher) return await this.launcher.stop(handle);
+    if (this.launch && handle && handle.stop) await handle.stop();
+  }
+  /** Remove every domain this backend owns. Scoped inside the launcher, by prefix and marker. */
+  async teardown() { return this.launcher ? await this.launcher.teardown() : { removed: 0 }; }
 }
