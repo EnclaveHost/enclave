@@ -3,7 +3,8 @@
 // no third party: AMD KDS direct for the VCEK→ARK chain, a measurement allowlist
 // of published Metal releases, and a per-attach freshness challenge.
 //
-// verifyQuote(report, { challenge, transportKeySpki, allowedMeasurements, requireVcek, minTcb, expectedVmpl })
+// verifyQuote(report, { challenge, transportKeySpki, allowedMeasurements, requireVcek, minTcb, expectedVmpl,
+//                        expectedBinding })
 //   -> { ok, measurement, reasons: [...], vcekVerified, vmpl, tcb: { product, reported, checked } }
 // minTcb is the CALLER's minimum-TCB policy (see checkMinTcb). Nothing here chooses a firmware floor:
 // omitted, the TCB is reported and left unjudged (tcb.checked false); supplied, it must be well formed
@@ -271,7 +272,7 @@ export function checkMinTcb(minTcb, product, p) {
 
 // kds: false never contacts AMD KDS: the VCEK must arrive in the auxblob and the chain must already be
 // held (seedCertChain). For callers that fetch once and verify many times; KDS answers 429 quickly.
-export async function verifyQuote(report, { challenge, transportKeySpki, allowedMeasurements, auxblob = null, requireVcek = true, minTcb, kds = true, expectedVmpl = 0 } = {}) {
+export async function verifyQuote(report, { challenge, transportKeySpki, allowedMeasurements, auxblob = null, requireVcek = true, minTcb, kds = true, expectedVmpl = 0, expectedBinding = null } = {}) {
   const reasons = [];
   const fail = (m) => { reasons.push(m); return { ok: false, measurement: null, reasons }; };
   let p;
@@ -317,11 +318,27 @@ export async function verifyQuote(report, { challenge, transportKeySpki, allowed
   if (!allow.has(measurement)) return fail(`measurement ${measurement.slice(0, 16)}… not on the Metal release allowlist`);
   reasons.push("measurement on Metal release allowlist");
 
-  // 2. freshness + key binding: report_data == sha256(transportKeySpki || challenge)
+  // 2. freshness + key binding: report_data[0:32] binds this connection's key to this challenge.
+  //
+  // ABI/1 (the default, and every path in production today) binds sha256(transportKeySpki || challenge).
+  // ABI/2 binds the runtime identity as well - sha256("enclave-bind-v2\n" || spki || nonce || runtimeID),
+  // isolation/contract/runtime.mjs bind2 - which this function cannot compute, because the identity comes
+  // from the caller's own attestation document and the caller is the one who decides whether that identity
+  // is admissible. So an ABI/2 caller derives the 32 bytes itself and passes them as expectedBinding.
+  //
+  // Fail closed in both directions: expectedBinding is compared byte for byte and a mismatch fails, and a
+  // caller that supplies it must still supply the key and challenge it derived from, so nothing can pass a
+  // binding computed over inputs this handshake never saw.
   if (transportKeySpki && challenge) {
-    const want = createHash("sha256").update(Buffer.concat([transportKeySpki, challenge])).digest();
-    if (Buffer.compare(want, p.reportData.subarray(0, 32)) !== 0) return fail("report_data does not bind (transport key || challenge)");
-    reasons.push("report_data binds transport key + fresh challenge");
+    if (expectedBinding !== null) {
+      if (!Buffer.isBuffer(expectedBinding) || expectedBinding.length !== 32) return fail("expectedBinding must be 32 bytes");
+      if (Buffer.compare(expectedBinding, p.reportData.subarray(0, 32)) !== 0) return fail("report_data does not bind (caller's expected binding)");
+      reasons.push("report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity)");
+    } else {
+      const want = createHash("sha256").update(Buffer.concat([transportKeySpki, challenge])).digest();
+      if (Buffer.compare(want, p.reportData.subarray(0, 32)) !== 0) return fail("report_data does not bind (transport key || challenge)");
+      reasons.push("report_data binds transport key + fresh challenge");
+    }
   } else return fail("missing challenge or transport key for freshness check");
 
   // 3. AMD hardware-signature chain (VCEK → ASK → ARK). Required in production;

@@ -59,7 +59,10 @@ serve() {
     # shellcheck disable=SC2086
     {
       client "$W/$tag.nopolicy" "$W/$tag.fwd" $TR
-      client "$W/$tag.client" "$W/$tag.fwd" $TR --min-tcb "@$W/min-tcb.json"
+      client "$W/$tag.client" "$W/$tag.fwd" $TR --min-tcb "@$W/min-tcb.json" --runtime "$W/expected-runtime.json"
+      # ABI/2 negatives, against the SAME live domain: an expectation that differs in one field must close
+      # the gate, and so must expecting a runtime from a domain that binds none.
+      client "$W/$tag.rtwrong" "$W/$tag.fwd" $TR --min-tcb "@$W/min-tcb.json" --runtime "$W/wrong-runtime.json"
       client "$W/$tag.above" "$W/$tag.fwd" $TR --min-tcb "@$W/min-tcb-above.json"
       client "$W/$tag.lab" "$W/$tag.fwd" --lab-unsigned --no-kds
       if [ "$depth" = full ]; then
@@ -86,6 +89,13 @@ if [ "${RECHECK:-0}" != 1 ]; then
   "$here/build-domain.sh" "$W/app-A.wasm" "$W/dom-A.cpio.gz" 1 > "$W/build-A.txt"
   "$here/build-domain.sh" "$W/app-A.wasm" "$W/dom-A2.cpio.gz" 1 > "$W/build-A2.txt"
   (cd "$here" && CGO_ENABLED=0 go build -trimpath -o "$W/fwd" ./fwd)
+fi
+# The runtime identity a verifier DEMANDS, derived here rather than read out of the image: same generator,
+# same wasmtime, so it must match byte for byte what build-domain.sh wrote into the domain. And one that
+# differs in a single field, to prove the pin is load-bearing.
+if [ "${RECHECK:-0}" != 1 ]; then
+  "$here/../contract/runtime-identity.sh" "$(command -v wasmtime)" > "$W/expected-runtime.json"
+  sed 's/"version":"[^"]*"/"version":"0.0.0-not-this-one"/' "$W/expected-runtime.json" > "$W/wrong-runtime.json"
 fi
 predA=$(sed -n 's/^predicted measurement: //p' "$W/build-A.txt")
 shaA=$(sha256sum "$W/app-A.wasm" | cut -c1-64)
@@ -119,6 +129,17 @@ done
 check "2b a second nonce on a new, pinned connection: attested again, same key" $r
 [ "$(res "$W/s1.client" replay_rejected)" = 1 ] && r=ok || r=no
 check "2c a report does not satisfy a different nonce (no replay)" $r
+# ABI/2: the app is one portable WebAssembly component compiled INSIDE the domain, so the runtime that
+# compiled it is part of what the report vouches for (isolation/contract/RUNTIME.md). These three checks are
+# the whole property: the domain states an identity and binds it, a verifier that pins it still gets
+# ATTESTED, and a verifier that pins a different one is refused on the binding.
+echo "evidence: expected runtime $(cat "$W/expected-runtime.json" 2>/dev/null)"
+echo "evidence: domain  runtime $(res "$W/s1.client" runtime)"
+echo "evidence: domain  selftest $(res "$W/s1.client" runtime_selftest)"
+[ "$(res "$W/s1.client" abi)" = enclave-domain-abi/2 ] && [ "$(res "$W/s1.client" runtime_pinned)" = 1 ]   && [ "$(verdict "$W/s1.client")" = attested ] && [ "$(res "$W/s1.client" gate)" = open ]   && grep -aq 'runtime identity is the expected one' "$W/s1.client"   && grep -aq "report_data binds the caller's expected binding" "$W/s1.client" && r=ok || r=no
+check "2h ABI/2 live: the domain bound its runtime identity into report_data, a verifier that PINS that identity still gets attested" $r
+grep -aq 'exec_pages=allowed wx=clean' "$W/s1.client" && grep -aq 'found no writable-and-executable mapping' "$W/s1.client"   && grep -aq 'may hold an executable page' "$W/s1.client" && r=ok || r=no
+check "2i the domain MEASURED its own runtime before stating it: an executable page is permitted (execution=jit is possible) and no page is writable AND executable (W^X)" $r
 closed() {   # closed <file> <verdict> <reason regex>: that verdict, gate closed, exit 3, no application request
   [ "$(verdict "$1")" = "$2" ] && grep -aqE "$3" "$1" && [ "$(res "$1" gate)" = closed ] \
     && [ "$(res "$1" exit)" = 3 ] && [ "$(res "$1" app_requests_sent)" = 0 ]
@@ -129,6 +150,8 @@ closed "$W/s1.nopolicy" no-tcb-policy 'no minimum-TCB policy' && r=ok || r=no
 check "2e the chain verified but NO minimum-TCB policy was supplied: not accepted, gate closed, nothing sent" $r
 closed "$W/s1.above" reject 'reported TCB below policy' && r=ok || r=no
 check "2f a floor one SNP version above the box: REJECTED on the TCB, nothing sent" $r
+closed "$W/s1.rtwrong" reject 'runtime identity differs from the expected one in version' && r=ok || r=no
+check "2j a verifier expecting a DIFFERENT runtime version is refused, gate closed, nothing sent (the binding itself is proved on the genuine report by N9h)" $r
 tr -d '\r' < "$W/negative.txt" | grep -aE '^(PASS|FAIL|evidence)' | sed 's/^/    /' || true
 grep -aq '^NEGATIVE: ALL PASS' "$W/negative.txt" && r=ok || r=no
 check "2g forged, unsigned and TCB-policy evidence (offline, incl. s1's genuine report): every case as expected" $r

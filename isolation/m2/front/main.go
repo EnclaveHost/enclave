@@ -15,11 +15,19 @@
 //
 // Under SEV-SNP the report's 64-byte report_data is
 //
-//	[0:32]  sha256(transport key SPKI DER || nonce)   the binding relay/snp-verify.mjs checks
+//	[0:32]  the binding: sha256(transport key SPKI DER || nonce) under ABI/1, or, under ABI/2,
+//	        contract.Bind2 over the same key and nonce AND this domain's runtime identity
 //	[32:64] sha256 of the app .wasm                    names the app, as M1 did
 //
 // so a verifier that checks the report against the key ITS OWN handshake saw knows its traffic ends
 // inside this measured domain. On T0 there is no hardware report, and the endpoint says so.
+//
+// ABI/2 (isolation/contract/RUNTIME.md) is used when the image carries a runtime identity beside the
+// runtime (-runtime-identity, written by build-domain.sh). The app is a portable WebAssembly component
+// compiled INSIDE this domain, so the runtime, its version, its execution mode, the ISA it targets and
+// its CPU-feature policy are part of what the report vouches for; runtime.go checks the identity against
+// this domain before the front states it, and the front refuses to serve if it cannot. Without that file
+// the domain keeps ABI/1 unchanged.
 package main
 
 import (
@@ -42,6 +50,7 @@ import (
 	"time"
 	"unsafe"
 
+	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/domtls"
 	"enclave.host/isolation/m2/vsock"
 )
@@ -67,10 +76,20 @@ type doc struct {
 	// otherwise. What it is NOT: hardware proof. The PSP does not attest "this guest cannot reach VMPL0";
 	// a verifier relies on the measured monitor truthfully reporting its own local refusal.
 	Boundary string `json:"boundary,omitempty"`
+	// ABI/2 only. Abi names the binding a verifier must recompute; Runtime is the identity that went
+	// into it, and RuntimeSelfTest is what this domain CHECKED about itself before stating that identity
+	// (runtime.go): that it may hold an executable page at all, and that no page in it is both writable
+	// and executable. Same standing as Boundary above: measured code's own word, relayed over the
+	// connection whose key is bound into the report, and the front exits rather than serving on a fault -
+	// so a document that reaches a verifier at all is one where these held. Not hardware proof.
+	Abi             string                    `json:"abi,omitempty"`
+	Runtime         *contract.RuntimeIdentity `json:"runtime,omitempty"`
+	RuntimeSelfTest string                    `json:"runtimeSelfTest,omitempty"`
 }
 
 type front struct {
 	spki, appSha []byte
+	rt           *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
 	snp          bool
 	monitor      string // M3: the monitor's socket, and then this process never opens configfs at all
 	app          http.Handler
@@ -84,6 +103,7 @@ func main() {
 	upstream := flag.String("upstream", "127.0.0.1:8080", "the app on the guest loopback")
 	appShaPath := flag.String("app-sha", "/app.sha256", "hex sha256 of the app, written at build time")
 	snp := flag.Bool("snp", false, "this domain is an SEV-SNP guest: serve hardware reports")
+	rtID := flag.String("runtime-identity", "/rt/runtime.json", "the runtime identity written into this image beside the runtime; absent means ABI/1")
 	flag.Parse()
 
 	raw, err := os.ReadFile(*appShaPath)
@@ -91,6 +111,20 @@ func main() {
 	appSha, err := hex.DecodeString(strings.TrimSpace(string(raw)))
 	if err != nil || len(appSha) != 32 {
 		die("app sha256 in %s is not 32 bytes of hex", *appShaPath)
+	}
+	// Before anything is served: the runtime identity, checked against this domain. A fault here is
+	// fatal on purpose - a domain that cannot substantiate what compiles its app attests nothing.
+	rt, err := loadRuntime(*rtID)
+	if err != nil {
+		die("runtime identity: %v", err)
+	}
+	if rt != nil {
+		fmt.Printf("DOM runtime %s/%s execution=%s target=%s host=%s features=%s wx=%s cache=%s id=%x\n",
+			rt.ID.Name, rt.ID.Version, rt.ID.Execution, rt.ID.TargetISA, rt.ID.HostISA, rt.ID.CPUFeatures,
+			rt.ID.WX, rt.ID.Cache, rt.RID)
+		fmt.Printf("DOM runtime selftest %s\n", rt.SelfTest)
+	} else {
+		fmt.Printf("DOM runtime none: no identity at %s, this domain attests %s\n", *rtID, contract.ABI)
 	}
 	cert, spki, err := domtls.Mint("enclave-domain")
 	must(err)
@@ -107,7 +141,7 @@ func main() {
 
 	rp := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: *upstream})
 	rp.Transport = &http.Transport{DialContext: (&net.Dialer{}).DialContext, MaxIdleConnsPerHost: 64}
-	f := &front{spki: spki, appSha: appSha, snp: *snp, monitor: *reportUnix, app: rp}
+	f := &front{spki: spki, appSha: appSha, rt: rt, snp: *snp, monitor: *reportUnix, app: rp}
 	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	// No session tickets: every connection then proves the attested key in a full handshake, so a
 	// client pins by comparing that key, never by tracking which session came from which handshake.
@@ -152,9 +186,21 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 	d := doc{Tier: "T0", Format: "none", TransportKey: base64.StdEncoding.EncodeToString(f.spki),
 		AppSha256: hex.EncodeToString(f.appSha), Nonce: hex.EncodeToString(nonce),
 		Reason: "T0 domain: an ordinary KVM guest with no hardware attestation; the host can read its memory"}
-	// The binding is the same in both shapes: sha256(this domain's TLS key SPKI || the verifier's nonce).
-	bind := sha256.Sum256(append(append([]byte{}, f.spki...), nonce...))
-	var rep, certs []byte // err is already in scope from parsing the nonce
+	// The binding is the same in both shapes - the M2 one-guest domain and the M3 monitor relay - and it
+	// covers this domain's TLS key and the verifier's nonce. Under ABI/2 it covers the runtime identity
+	// too, so a document naming another runtime, version, execution mode, ISA or feature policy than the
+	// one that asked for the report does not verify.
+	bind, err := f.bind(nonce)
+	if err != nil {
+		http.Error(w, "binding: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if f.rt != nil {
+		d.Abi, d.Runtime, d.RuntimeSelfTest = contract.ABI2, &f.rt.ID, f.rt.SelfTest
+	} else {
+		d.Abi = contract.ABI
+	}
+	var rep, certs []byte
 	var boundary, tier, format string
 	switch {
 	case f.monitor != "":
@@ -189,6 +235,16 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("content-type", "application/json")
 	json.NewEncoder(w).Encode(d)
+}
+
+// bind computes report_data[0:32] for this domain: contract.Bind under ABI/1, contract.Bind2 with the
+// runtime identity folded in under ABI/2. The contract module is the one place either is defined, so the
+// front and the verifier cannot drift apart in how they compute it.
+func (f *front) bind(nonce []byte) ([32]byte, error) {
+	if f.rt != nil {
+		return contract.Bind2(f.spki, nonce, f.rt.RID)
+	}
+	return contract.Bind(f.spki, nonce)
 }
 
 var errNoHardwareReport = errors.New("no hardware report on this tier")

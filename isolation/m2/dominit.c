@@ -89,8 +89,15 @@ int main(void) {
     }
     lo_up();
 
+    /* -C cache=n: the runtime compiles the verified component INSIDE this domain every time, and keeps no
+     * compiled artifact anywhere. wasmtime's module cache is ON by default (it writes under
+     * $HOME/.cache/wasmtime), and a compiled cache is only admissible under the portable-runtime contract
+     * if it is keyed by bundle hash + runtime identity AND authenticated (isolation/contract/RUNTIME.md
+     * rule 5, contract.CacheKey). We hold no such cache, so the domain states cache: "none" in its runtime
+     * identity - and this flag is what makes that statement true by construction rather than by the
+     * accident of HOME being unset in the guest. */
     char *app[] = {"/rt/ld-linux-x86-64.so.2", "--library-path", "/rt", "/rt/wasmtime", "serve", "-S", "cli",
-                   "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
+                   "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
     char *front[] = {"/front", "-port", "443", "-upstream", "127.0.0.1:8080", snp ? "-snp=true" : "-snp=false", NULL};
     pid_t app_pid = spawn(app), front_pid = spawn(front);
     printf("DOM started app=%d front=%d at_ms=%.0f\n", app_pid, front_pid, now_ms());
