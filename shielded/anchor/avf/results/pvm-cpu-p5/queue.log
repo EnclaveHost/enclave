@@ -1,0 +1,22 @@
+Q9 start 20:52:38
+== pt-01 (pvm-cpu-p5) 20:52:38
+LOCAL turn 1 STATS {status=eos, prefill_tokens=28, prefill_tok_s=96.71, decode_tokens=59, decode_tok_s=13.56, ctx_used=87, ctx=4096}
+big-core cap through the run: cpu2 min 2937000, cpu7 min 3168000 (19 samples)
+cpu turn 1 decode window 4.35 s (59 tokens): COMPLETE: the app's processes 24.73 core-s = 5.69 cores busy, 419 core-ms per decoded token (edge interpolation +-6.06 core-s) [crosvm_anchorlocal 24.63, host.enclave.anchor.avf 0.10, virtmgr_lave.anchor.avf 0.00] | 7.06 cores busy device-wide
+LANE-RUN OK pt-01
+LANE-CONDITIONS END
+== restart test 21:00:20
+killed crosvm_anchorlocal pid=32066 at boottime_ms=367848710
+ok   turn 2 is marked INTERRUPTED
+ok   no answer line for turn 2
+ok   an automatic restart
+ok   the new VM attested again (two ATTEST end)
+ok   the new VM re-verified the model (MODEL ok after the restart)
+ok   the engine was ready again
+ok   turn 3 finished after the restart
+ok   the conversation ended (LOCAL done)
+ok   the capture closed complete
+recovery: kill -> engine ready again 122.7 s
+recovery: kill -> turn 3's first token 123.1 s
+PASS restart-test rs-01
+Q9-END 21:04:41
