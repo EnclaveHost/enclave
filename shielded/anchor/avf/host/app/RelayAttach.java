@@ -31,7 +31,7 @@ public final class RelayAttach {
     /* opens a stream to a VM port; set once the VM serves https (TLS terminates IN the VM, this app never holds a key) */
     volatile java.util.function.IntFunction<android.os.ParcelFileDescriptor> vmConnect;
     /* the only stream kinds this app carries, and the VM port each goes to: the TLS app port and the evidence endpoint */
-    static int portOf(String kind) { return "pvm-app-tls".equals(kind) ? 7786 : "pvm-evidence".equals(kind) ? 7787 : -1; }
+    static int portOf(String kind) { return "pvm-app-tls".equals(kind) ? 7786 : "pvm-evidence".equals(kind) ? 7787 : "pvm-app-sealed".equals(kind) ? 7788 : -1; }
     private final java.util.concurrent.ConcurrentHashMap<Long, Pipe> pipes = new java.util.concurrent.ConcurrentHashMap<>();
     /* One relay raw stream spliced to one VM connection. The bytes are TLS ciphertext end to end: they are copied, counted
      * and never logged, parsed or kept. */

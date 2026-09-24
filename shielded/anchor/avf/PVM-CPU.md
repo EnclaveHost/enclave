@@ -375,6 +375,92 @@ published, so it trusted the relay's verdict. Here the client trusts no key or v
   wrong or relabelled app, restated or other runtime, expiry, closed shape, fail-closed pins); tunnel.test.mjs
   (`pvm-evidence` before app verification, unknown kinds refused).
 
+### The browser channel (LAB, 2026-09-24): a page verifies the VM and seals its request to it
+
+**Why a certificate is not the answer.** A page's JavaScript cannot see the TLS peer's certificate, so it cannot perform
+the native client's last step (pin the attested key). Changing the key type does not help:
+- a **self-signed** certificate, Ed25519 or P-256, is not browser-trusted, and a user clicking through the warning trusts
+  whoever answered;
+- a **Web PKI** certificate (ACME, any public CA) authenticates a *name*, not a VM. Whoever controls the name's DNS or its
+  ACME account can obtain a certificate for the same name, and the relay and platform are exactly the parties to exclude.
+  Certificate Transparency makes such issuance visible afterwards; it does not prevent it.
+
+An "approved certificate path" would make the browser's trust rest on the platform's issuance policy (issue only to a key
+found in verified evidence, keep the account and CAA locked to that service, and pass TLS through by SNI to the VM). That
+is a platform-trust design: sound for "the platform promises", not for "the relay is excluded". It is left as a
+production option (memory: in-enclave app TLS, app-zone SNI) and not built here.
+
+**What is built instead: an actually verified channel.** The page verifies the VM itself and encrypts to a key only that
+VM holds. The relay carries bytes both ways and can do nothing but deny service.
+1. **Evidence v2.** When the app is served (serve=https), pvm-rt makes an X25519 app key in the VM process
+   (`pvmrt_http_sealed_enable`; runtime/pvm-rt/src/sealed.rs). Each evidence answer becomes
+   `enclave-pvm-app-evidence/v2`: the v1 fields plus `appKey` and `appKeySig`. appKeySig is the attested transport key's
+   Ed25519 signature over `"enclave-pvm-app-key-v1\n" || nonce || AppID || appKey`. The two fields are mandatory in v2 and
+   forbidden in v1. A relay that strips them gets v1 evidence: it verifies, but it carries no key, so the page has nothing
+   to encrypt to and sends nothing.
+2. **The page verifies it on WebCrypto alone** (web/pvm-verify.js). The checks are the node verifier's, with parity
+   asserted case by case on the real Pixel chain and on synthetic chains (test/pvm-web-verify.test.mjs, including the
+   verifier session's adversarial cases):
+   - the chain arrives leaf first, each link is issued by the next, and the root is pinned to Google's roots;
+   - the challenge is recomputed from the page's own nonce and expected app;
+   - the runtime identity and self-test are checked;
+   - appKeySig verifies under the attested transport key.
+
+   A browser without Ed25519 or X25519 in SubtleCrypto is refused; there is no fallback.
+3. **Sealed requests** (web/pvm-sealed.js ↔ sealed.rs):
+   - HPKE (RFC 9180) base mode, X25519 / HKDF-SHA256 / AES-128-GCM;
+   - `info = "enclave-pvm-sealed-http/v1 request" || 0x00 || hdr || AppID || RuntimeID`, `aad = the evidence nonce`;
+   - the response takes the Oblivious HTTP shape (RFC 9458 section 4.4): exported secret, a fresh response nonce,
+     salt = enc || nonce;
+   - the plaintext is HTTP/1.1, fed to the same hyper service as TLS, so the app is unchanged.
+
+   The VM opens a request only under a nonce it answered this boot, within 600 s and 256 requests, and each (nonce, enc)
+   once: a replayed request is refused before it runs. When a nonce's window closes it is forgotten, so replay memory is
+   bounded by time. The app key lives for one boot. Any refusal (a one-byte, unauthenticated hint) means: fetch fresh
+   evidence and encrypt again, never re-send a ciphertext. The window constants are part of the v2 format; the verifier
+   returns them, so a client can expire its pin on its own clock.
+4. **Carriers.**
+   - The relay: tunnel.js raw stream kind `pvm-app-sealed`, allowed only for a verified app, like TLS.
+   - The phone's Android app: RelayAttach.portOf maps it to vsock 7788.
+   - The browser: the lab hub's carrier (cpu/web-carrier.mjs), `POST /evidence` and `POST /sealed`. It passes bytes, logs
+     sizes, and allows CORS for the site's origin only.
+   - The page and its pins come from the site (web/lab-site.mjs), an origin other than the relay's, under a CSP of
+     `script-src 'self'` and `connect-src` limited to the relays.
+
+Host evidence (before any device run):
+- RFC 9180's own test vector (A.1.1);
+- a cross-language vector: Rust opens the page's JS-sealed bytes, and its sealed response equals the page's expected
+  bytes (runtime/pvm-rt/tests/sealed-vectors.json, tests/sealed.rs);
+- admission, window, budget, replay, and wrong app/runtime/key/nonce;
+- a sealed request through a socketpair to the real ggml-probe component, with no plaintext on the wire or in the notes;
+- real headless Chromium 152 and Firefox 155 against a fake VM speaking the wire protocol (test/pvm-browser-lab.test.mjs).
+
+**Device evidence** (results/pvm-cpu-browser-channel, PASS, 35 checks, rt13, two boots):
+- Headless **Chromium 152** and **Firefox 155** each verified the Pixel's real v2 evidence and got 200 with 8 tokens:
+  0.7-0.8 s to fetch and verify, 1.5-1.8 s in all.
+- A malicious relay got nowhere:
+  - replayed evidence, its own app key, a v1 downgrade and a forged chain from its own CA were each refused by the page
+    before anything was sent;
+  - a flipped request was refused by the VM ("cannot open"); a flipped response did not open in the page;
+  - its second send of a page's request was refused by the VM before it ran ("replayed request");
+  - after a reconnect, the first boot's evidence and sealed request were refused (the latter by the VM: "unknown evidence
+    nonce"), and the new boot had a new app key.
+- Wrong app and wrong runtime were refused; after STOP there was no evidence and nothing was sent; the native TLS client
+  verified the same v2 evidence.
+- The apps counted only what reached them, and no log held the request or the response.
+
+Limits, exactly:
+- **Code delivery.** The page's verifier is only as trustworthy as whoever serves the page. In the lab that is a separate
+  origin. In production it must be something the relay cannot change: the site's pinned build, an extension, or an
+  installed app. That is the platform's call and not built.
+- **No per-request forward secrecy against the VM's own key.** The app key lives in VM memory for one boot. An attacker
+  who later learned it could open that boot's recorded requests.
+- **Whole-message sealing.** A response is sealed whole (up to 16 MiB), so tokens do not stream; a chunked sealed format
+  would be the next step.
+- One sealed connection at a time in the VM, as for TLS. Requests up to 1 MiB.
+- Refusal hints are unauthenticated: a relay can fake them, but that is only denial of service.
+- No client identity: the VM sees an anonymous page.
+
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 
 The Android app (the host) relays every line the VM prints; any field it relays is a claim until something the host cannot
@@ -392,6 +478,7 @@ produce binds it. Per claim:
 | `APP ran`, `APPOUT`, `nn digest`, `serve=http` bodies | nothing: that output reaches the host in the clear | could be faked to the owner's own screen; no admission depends on them (M3's parity is the owner's observation, the CAPS digest is the signed one) |
 | `serve=https` requests and responses (LAB) | TLS 1.3 terminating in the VM under the attested transport key; the client pins the key and checks the handshake signature before writing | sees ciphertext only (results/pvm-cpu-tls-serving: nothing in the Android or relay logs); a flipped byte is refused, a replay cannot complete a handshake |
 | the key a client pins (LAB) | the client's own verification: a fresh AVF certificate over Bind2(spki, the CLIENT's nonce, RuntimeID) \|\| AppID, checked with the client's own pins (`verifyPvmAppEvidence`); the relay-published key is no longer an input | a host or relay that swaps the key, replays evidence, forges a chain or terminates TLS itself is refused before a request is sent (results/pvm-cpu-client-verified) |
+| the key a page encrypts to (LAB, v2) | an X25519 key made in the VM process; the attested transport key signs it into the evidence with the page's nonce and the app; the page verifies chain, challenge and signature itself (web/pvm-verify.js) | a relay that swaps, strips (downgrade to v1) or forges it is refused before anything is sent; a flipped or replayed sealed request is refused by the VM before it runs; a flipped response does not open (results/pvm-cpu-browser-channel) |
 | the orange label (Tier.java, assets/tier) | display only; the relay admits from the chain + report, never the label or the device name | cannot change the relay's verdict |
 
 Two host-side attestation surfaces remain and are acceptable as stated: the attach path certifies any 32-byte challenge the
@@ -409,9 +496,9 @@ deny service (never deliver lines), which a verifier sees as missing evidence, n
      port stands in); relay deployment, the main merge and release-key custody are separate review items;
    - ~~clients trust the relay's verification~~ done for native clients (results/pvm-cpu-client-verified: the client
      verifies fresh evidence over its own nonce with its own pins, then pins the key itself);
-   - browsers: browser JS cannot see a TLS peer's certificate, and a self-signed certificate (Ed25519 or P-256) is not
-     trusted by a browser, so the native client's step 4 does not exist in a page; the browser channel is the next
-     increment;
+   - ~~browsers~~ a LAB verified channel for pages (above: v2 evidence verified on WebCrypto, HPKE-sealed requests,
+     results/pvm-cpu-browser-channel); left open: code delivery that the relay cannot change, streaming responses, and a
+     platform certificate path if the owner wants browser-native TLS on the platform's word;
    - one connection at a time in the VM (the payload accepts and serves serially); one app and one ABI/2 nonce per attach;
    - no client identity: the app sees an anonymous TLS client (app-level authorisation is the app's own, inside TLS).
 3. A release signing key and a non-debuggable manifest (the owner's decision; admission pins the authority).

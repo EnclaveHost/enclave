@@ -15,6 +15,7 @@
 
 pub mod httpd;
 pub mod nn;
+pub mod sealed;
 
 use sha2::{Digest, Sha256};
 use std::ffi::{c_char, c_int, CStr};
@@ -638,6 +639,71 @@ pub extern "C" fn pvmrt_http_serve_fd(
     }
     // SAFETY: srv came from pvmrt_http_open and has not been closed (caller's contract); fd is a connected stream it owns.
     match unsafe { (*srv).serve_fd(fd) } {
+        Ok(()) => 0,
+        Err(e) => {
+            put(err, errcap, &format!("{e:#}"));
+            -1
+        }
+    }
+}
+
+/// Enable the browser channel (sealed.rs): a fresh X25519 app key for this app and runtime, made and kept in this process.
+/// Writes its 32-byte public half to `pk_out`. Returns 0, or -1 on a null argument.
+#[no_mangle]
+pub extern "C" fn pvmrt_http_sealed_enable(
+    srv: *mut httpd::HttpServer,
+    app_id: *const u8,
+    runtime_id: *const u8,
+    pk_out: *mut u8,
+) -> c_int {
+    if srv.is_null() || app_id.is_null() || runtime_id.is_null() || pk_out.is_null() {
+        return -1;
+    }
+    let (mut a, mut r) = ([0u8; 32], [0u8; 32]);
+    // SAFETY: non-null, 32 bytes each by the caller's contract; srv came from pvmrt_http_open and is not being served yet.
+    unsafe {
+        std::ptr::copy_nonoverlapping(app_id, a.as_mut_ptr(), 32);
+        std::ptr::copy_nonoverlapping(runtime_id, r.as_mut_ptr(), 32);
+        let pk = (*srv).enable_sealed(&a, &r);
+        std::ptr::copy_nonoverlapping(pk.as_ptr(), pk_out, 32);
+    }
+    0
+}
+
+/// The payload answered `nonce` (32 bytes) with v2 evidence: sealed requests under it are admitted for the window. Safe to
+/// call from another thread while the server serves. Returns 0, or -1 when the channel is not enabled.
+#[no_mangle]
+pub extern "C" fn pvmrt_http_sealed_nonce(srv: *const httpd::HttpServer, nonce: *const u8) -> c_int {
+    if srv.is_null() || nonce.is_null() {
+        return -1;
+    }
+    let mut n = [0u8; 32];
+    // SAFETY: non-null, 32 bytes by the caller's contract; srv is live (HttpServer is Sync, the key's state is locked).
+    unsafe { std::ptr::copy_nonoverlapping(nonce, n.as_mut_ptr(), 32) };
+    if unsafe { (*srv).sealed_admit_nonce(&n) } { 0 } else { -1 }
+}
+
+/// Serve one sealed request on one connected stream (sealed.rs framing); `fd` is owned and closed by this call. Returns 0
+/// when a response or a refusal frame was written, -1 otherwise (the reason in `err`).
+#[no_mangle]
+pub extern "C" fn pvmrt_http_serve_sealed_fd(
+    srv: *mut httpd::HttpServer,
+    fd: c_int,
+    err: *mut c_char,
+    errcap: usize,
+) -> c_int {
+    if fd < 0 {
+        put(err, errcap, "no connection (fd < 0)");
+        return -1;
+    }
+    if srv.is_null() {
+        // SAFETY: the fd is ours to close by this function's contract.
+        unsafe { libc_close(fd) };
+        put(err, errcap, "no server");
+        return -1;
+    }
+    // SAFETY: srv came from pvmrt_http_open and has not been closed; fd is a connected stream it owns.
+    match unsafe { (*srv).serve_sealed_fd(fd) } {
         Ok(()) => 0,
         Err(e) => {
             put(err, errcap, &format!("{e:#}"));

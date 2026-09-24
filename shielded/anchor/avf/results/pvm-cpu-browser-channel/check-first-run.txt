@@ -1,0 +1,36 @@
+ok   chromium: verified v2 evidence itself, sealed, 200 with tokens (app key eb9b35f503b65d31..., 755 ms to verify, 1798 ms in all)
+ok   firefox: the same page, 200 with tokens (721 ms to verify, 1503 ms in all)
+ok   evil relay in pass mode (the control): 200 -- the refusals below are the page's and the VM's checks, not a broken path
+ok   evil-replay: refused at verify, nothing sent (the evidence answers another nonce (stale or replayed))
+ok   evil-swap-appkey: refused at verify, nothing sent (the appKey is not signed by the attested transport key for this nonce and app)
+ok   evil-downgrade: refused at verify, nothing sent (the evidence carries no app key (v1): a page cannot pin a TLS key, so nothing is sent)
+ok   evil-own-ca: refused at verify, nothing sent (attestation: root 0e9c10cedb951725efb63af48a6e14673355c293af80ab2cb1bc66e9c8c5c1b8 is not )
+ok   wrong-app: refused at verify, nothing sent (the evidence names another app)
+ok   wrong-runtime: refused at verify, nothing sent (runtime d3370878afa9d5ee… (wasmtime/49.0.0 interpreter pulley64) is not an admitted runtim)
+ok   after-termination: refused at evidence, nothing sent (no evidence: the carrier answered 502)
+ok   reconnect-old-evidence: refused at verify, nothing sent (the evidence answers another nonce (stale or replayed))
+ok   evil-tamper-request: no answer accepted (the VM refused (unauthenticated hint): cannot open: not sealed to this VM's app key for th)
+ok   evil-tamper-response: no answer accepted (the answer does not open under this request's keys (tampered, or not from the VM))
+ok   reconnect-old-sealed: no answer accepted (the VM refused (unauthenticated hint): unknown evidence nonce: fetch fresh evidence (the k)
+ok   evil replay-sealed: the page's own request answered (200)
+ok   evil replay-sealed: the VM refused the relay's second send of the same request before it ran
+ok   reconnect: the VM refused the first boot's sealed request (unknown evidence nonce)
+ok   no page ever sent a request sealed to the relay's key
+ok   native client on v2 evidence: TLS pinned to the attested key, 200 (781 ms to verify)
+ok   reconnect: a new boot, a new transport key and a NEW app key (1bb334c076a0aaa4 vs eb9b35f503b65d31)
+ok   launch 1: the app served exactly the 6 requests that reached it (requests=6)
+ok   launch 1: the VM made its app key and answered v2 evidence
+ok   launch 2: the app served exactly the 1 requests that reached it (requests=1)
+ok   launch 2: the VM made its app key and answered v2 evidence
+FAIL launch 1: the VM refused the flipped request (cannot open)
+FAIL launch 1: the VM refused the replayed request before it ran
+FAIL launch 2: the VM refused the first boot's request
+FAIL l1.log: no request or response in the clear (found graph=gemma)
+FAIL l2.log: no request or response in the clear (found graph=gemma)
+ok   hub.jsonl: no request or response in the clear
+ok   hub.err: no request or response in the clear
+ok   evil.jsonl: no request or response in the clear
+ok   evil.err: no request or response in the clear
+ok   site.jsonl: no request or response in the clear
+ok   site.err: no request or response in the clear
+FAIL (5)

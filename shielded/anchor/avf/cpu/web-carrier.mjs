@@ -1,0 +1,36 @@
+// web-carrier.mjs -- the LAB browser channel's carrier (PVM-CPU.md; NOT production). A page cannot open a raw stream, so
+// the relay offers two POST endpoints that carry a body to the VM and the VM's answer back, as bytes: /evidence (a nonce line
+// in, evidence out) and /sealed (a sealed request in, a sealed response out), each over one raw stream on the hub's local
+// ports (hub.spliceRaw kinds pvm-evidence, pvm-app-sealed). Nothing is parsed or kept; sizes are logged. CORS only for
+// `origin`, the page's site -- which is NOT the relay: the relay never serves the code that verifies it.
+import http from "node:http";
+import net from "node:net";
+
+export function createWebCarrier({ port, origin, evidencePort, sealedPort, emit = () => {}, host = "127.0.0.1" }) {
+  const up = { "/evidence": [evidencePort, 256, 256 << 10], "/sealed": [sealedPort, (1 << 20) + 4, (16 << 20) + 64] };
+  const web = http.createServer((req, res) => {
+    const cors = origin ? { "access-control-allow-origin": origin, vary: "origin" } : {};
+    if (req.method === "OPTIONS") { res.writeHead(204, { ...cors, "access-control-allow-methods": "POST", "access-control-allow-headers": "content-type", "access-control-max-age": "60" }); return res.end(); }
+    const u = up[req.url];
+    if (req.method !== "POST" || !u || !u[0]) { res.writeHead(404, cors); return res.end(); }
+    const [upPort, maxIn, maxOut] = u;
+    const inb = []; let nIn = 0;
+    req.on("data", (d) => { nIn += d.length; if (nIn > maxIn) { res.writeHead(413, cors); res.end(); req.destroy(); } else inb.push(d); });
+    req.on("end", () => {
+      if (res.headersSent) return;
+      const c = net.connect(upPort, host, () => c.write(Buffer.concat(inb)));
+      const out = []; let nOut = 0;
+      c.on("data", (d) => { nOut += d.length; if (nOut > maxOut) c.destroy(); else out.push(d); });
+      c.on("close", () => {
+        emit({ web: req.url, bytesIn: nIn, bytesOut: nOut });
+        if (!nOut) { res.writeHead(502, cors); return res.end(); }
+        res.writeHead(200, { ...cors, "content-type": req.url === "/evidence" ? "application/json" : "application/octet-stream", "cache-control": "no-store" });
+        res.end(Buffer.concat(out));
+      });
+      c.on("error", () => {});
+      c.setTimeout(120000, () => c.destroy());
+    });
+  });
+  web.listen(port, host, () => emit({ webListening: `http://${host}:${web.address().port} (POST /evidence, /sealed) for ${origin || "no origin"}` }));
+  return web;
+}

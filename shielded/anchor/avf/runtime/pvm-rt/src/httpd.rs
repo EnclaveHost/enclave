@@ -16,7 +16,7 @@
 //! self-signed certificate made in this process. A client pins that key from verified evidence and ignores names and
 //! dates; whatever carries the bytes (the phone's Android app, the relay) sees only ciphertext.
 
-use crate::{engine_config, nn, verify_and_compile, NnModel};
+use crate::{engine_config, nn, sealed, verify_and_compile, NnModel};
 use hyper::server::conn::http1;
 use std::os::fd::{FromRawFd, RawFd};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -109,6 +109,8 @@ pub struct HttpServer {
     tls: Option<Arc<rustls::ServerConfig>>,
     /// the DER SubjectPublicKeyInfo the TLS certificate carries (the transport key's), when TLS is on
     pub tls_spki: Option<Vec<u8>>,
+    /// the browser channel's app key (sealed.rs), when enabled
+    sealed: Option<sealed::SealedKey>,
 }
 
 /// Ed25519 PKCS#8 v1 prefix: a 32-byte seed follows (RFC 8410).
@@ -222,6 +224,7 @@ impl HttpServer {
             compile_ms,
             tls: None,
             tls_spki: None,
+            sealed: None,
         })
     }
 
@@ -231,6 +234,99 @@ impl HttpServer {
         self.tls = Some(cfg);
         self.tls_spki = Some(spki);
         Ok(self)
+    }
+
+    /// Enable the browser channel: a fresh X25519 app key for this app and runtime (sealed.rs). Returns its public half,
+    /// which the payload signs with the attested transport key into each v2 evidence answer.
+    pub fn enable_sealed(&mut self, app_id: &[u8; 32], runtime_id: &[u8; 32]) -> [u8; 32] {
+        let k = sealed::SealedKey::generate(app_id, runtime_id);
+        let public = k.public;
+        self.sealed = Some(k);
+        public
+    }
+    /// The payload answered this nonce with v2 evidence: sealed requests under it are admitted for the window.
+    pub fn sealed_admit_nonce(&self, nonce: &[u8; 32]) -> bool {
+        match &self.sealed {
+            Some(k) => {
+                k.admit_nonce(nonce);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// One sealed request on one connected stream: read the frame (bounded, 20 s), open it (sealed.rs: the nonce's
+    /// window, replay, the app key), serve the HTTP/1.1 request through the same service as every other connection, and
+    /// write the sealed response -- or a refusal frame. Takes ownership of `fd`.
+    ///
+    /// # Safety
+    /// `fd` must be an open, connected stream socket that nothing else owns.
+    pub unsafe fn serve_sealed_fd(&self, fd: RawFd) -> Result<()> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let std_stream = std::os::unix::net::UnixStream::from_raw_fd(fd);
+        std_stream.set_nonblocking(true)?;
+        let Some(key) = &self.sealed else {
+            wasmtime::bail!("the sealed channel is not enabled");
+        };
+        self.rt.block_on(async {
+            let mut stream = tokio::net::UnixStream::from_std(std_stream)?;
+            let body = tokio::time::timeout(TLS_HANDSHAKE, async {
+                let n = stream.read_u32().await? as usize;
+                if n > sealed::MAX_REQUEST {
+                    return Err(std::io::Error::other("sealed request too large"));
+                }
+                let mut b = vec![0u8; n];
+                stream.read_exact(&mut b).await?;
+                Ok(b)
+            })
+            .await
+            .map_err(|_| wasmtime::format_err!("sealed request: timed out reading the frame"))?
+            .map_err(|e| wasmtime::format_err!("sealed request: {e}"))?;
+            let opened = match key.open(&body) {
+                Ok(o) => o,
+                Err(why) => {
+                    self.note(&format!("SEALED refused: {why}"));
+                    let _ = stream.write_all(&sealed::refusal(&why)).await;
+                    let _ = stream.shutdown().await;
+                    return Ok(());
+                }
+            };
+            let response = self.serve_bytes(&opened.request).await?;
+            let out = sealed::SealedKey::seal_response(&opened, &response, None).map_err(|e| wasmtime::format_err!("sealing the response: {e}"))?;
+            self.note(&format!("SEALED served nonce={} ({} bytes in, {} out)", hex8(&opened.nonce), body.len(), out.len()));
+            stream.write_all(&out).await?;
+            stream.shutdown().await?;
+            Ok(())
+        })
+    }
+
+    /// One HTTP/1.1 request's bytes through the server's own service (hyper over an in-memory pipe): the response's bytes.
+    async fn serve_bytes(&self, request: &[u8]) -> Result<Vec<u8>> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let (server_end, mut client_end) = tokio::io::duplex(1 << 16);
+        let serve = http1::Builder::new()
+            .keep_alive(false)
+            .half_close(true)
+            .serve_connection(TokioIo::new(server_end), hyper::service::service_fn(|req| self.handle(req)));
+        let request = request.to_vec();
+        // the pipe's far end runs beside the server (a task on this runtime; it progresses while `serve` awaits)
+        let io = tokio::task::spawn(async move {
+            client_end.write_all(&request).await?;
+            client_end.shutdown().await?;
+            let mut out = Vec::new();
+            (&mut client_end).take(sealed::MAX_RESPONSE as u64 + 1).read_to_end(&mut out).await?;
+            Ok::<_, std::io::Error>(out) // client_end drops here: a response past the cap ends the connection
+        });
+        let served = serve.await;
+        let out = io
+            .await
+            .map_err(|e| wasmtime::format_err!("sealed request: {e}"))?
+            .map_err(|e| wasmtime::format_err!("sealed request: {e}"))?;
+        if out.len() > sealed::MAX_RESPONSE {
+            wasmtime::bail!("the response exceeds {} bytes", sealed::MAX_RESPONSE);
+        }
+        served.map_err(|e| wasmtime::format_err!("the sealed request's connection ended with an error: {e}"))?;
+        Ok(out)
     }
 
     pub fn requests(&self) -> u64 {
@@ -360,6 +456,16 @@ impl HttpServer {
         res
     }
 }
+
+fn hex8(b: &[u8; 32]) -> String {
+    b[..8].iter().map(|x| format!("{x:02x}")).collect()
+}
+
+// the payload's evidence thread admits nonces while the main thread serves: the server must be shareable
+const _: fn() = || {
+    fn sync<T: Sync + Send>() {}
+    sync::<HttpServer>();
+};
 
 impl Drop for HttpServer {
     fn drop(&mut self) {

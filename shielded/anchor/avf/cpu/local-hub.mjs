@@ -7,6 +7,7 @@
 //   node cpu/local-hub.mjs --port 18443 --code-hash H --authority A --model-sha S --selftest-sha R --min-tok-s F
 //                          [--min-mem-mib M] [--seconds N]
 //                          [--app-id <sha256> [--runtime-id <hex>] --app-port 18445 --app-name <tunnel name>] [--evidence-port 18446]
+//                          [--sealed-port 18448] [--web-port 18447 --web-origin http://127.0.0.1:18450]
 // With --app-id (the LAB serving prototype, NOT production): the hub issues each pVM attach a fresh ABI/2 nonce, verifies
 // the app's evidence itself (relay/pvm-app-attest.mjs; runtime pinned to --runtime-id, default the pVM runtime), publishes
 // the verified app at GET /pvm-app/<name> (the transport key a client pins), and splices each TCP connection on
@@ -18,6 +19,7 @@ import net from "node:net";
 import { createHash } from "node:crypto";
 import { createTunnelHub } from "../../../../relay/tunnel.js";
 import { pvmCpuPolicy } from "../../../../relay/pvm-cpu-tier.mjs";
+import { createWebCarrier } from "./web-carrier.mjs";
 
 const arg = (k, d = null) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const need = ["--code-hash", "--authority", "--model-sha", "--selftest-sha", "--min-tok-s"];
@@ -55,6 +57,16 @@ if (arg("--evidence-port")) {   // LAB: raw TCP -> the VM's evidence endpoint (a
   const appName = arg("--app-name");
   const ev = net.createServer((sock) => { const ok = hub.spliceRaw(appName, sock, "pvm-evidence"); emit({ raw: ok ? "evidence stream opened" : "evidence refused: no attested attach", name: appName }); });
   ev.listen(Number(arg("--evidence-port")), "127.0.0.1", () => emit({ evidenceListening: `tcp://127.0.0.1:${arg("--evidence-port")} -> ${appName}` }));
+}
+if (arg("--sealed-port")) {   // LAB, the browser channel: raw TCP -> one HPKE-sealed request to the verified app's key
+  const appName = arg("--app-name");
+  const se = net.createServer((sock) => { const ok = hub.spliceRaw(appName, sock, "pvm-app-sealed"); emit({ raw: ok ? "sealed stream opened" : "sealed refused: no verified app", name: appName }); });
+  se.listen(Number(arg("--sealed-port")), "127.0.0.1", () => emit({ sealedListening: `tcp://127.0.0.1:${arg("--sealed-port")} -> ${appName}` }));
+}
+// LAB, the browser channel's carrier (cpu/web-carrier.mjs): POST /evidence and /sealed, bytes to the VM and back.
+if (arg("--web-port")) {
+  createWebCarrier({ port: Number(arg("--web-port")), origin: arg("--web-origin"), evidencePort: Number(arg("--evidence-port")),
+                     sealedPort: Number(arg("--sealed-port")), emit });
 }
 setTimeout(() => { emit({ end: "time" }); console.log = log; process.exit(0); }, Number(arg("--seconds", "900")) * 1000).unref();
 process.on("SIGTERM", () => { emit({ end: "SIGTERM" }); process.exit(0); });

@@ -894,6 +894,8 @@ test("pvm-app (lab): ABI/2 over the hub's own fresh nonce verifies once; replay,
     // no verified app yet: no raw stream
     const s0 = await splice("pixel-app");
     assert.equal(s0.ok, false, "no stream before the app is verified"); s0.client.destroy();
+    const ss0 = await splice("pixel-app", "pvm-app-sealed");
+    assert.equal(ss0.ok, false, "no sealed stream before the app is verified"); ss0.client.destroy();
     // the evidence endpoint is reachable on any attested attach: a client verifies the VM itself, not through this hub
     const se = await splice("pixel-app", "pvm-evidence");
     assert.equal(se.ok, true, "evidence streams need only an attested attach");
@@ -946,6 +948,10 @@ test("pvm-app (lab): ABI/2 over the hub's own fresh nonce verifies once; replay,
     for (let i = 0; i < 40 && !rawOpens(c5); i++) await settle();
     assert.equal(rawOpens(c5), 1);
     s1.client.destroy();
+    const ss1 = await splice("pixel-app", "pvm-app-sealed");
+    assert.equal(ss1.ok, true, "a verified app takes sealed streams");
+    for (let i = 0; i < 40 && !c5.frames.some((x) => x.t === "s+" && x.kind === "pvm-app-sealed"); i++) await settle();
+    assert.ok(c5.frames.some((x) => x.t === "s+" && x.kind === "pvm-app-sealed")); ss1.client.destroy();
     // termination: the phone goes, the row and its app go, no stream opens
     c5.ws.close();
     for (let i = 0; i < 40 && row("pixel-app"); i++) await settle();

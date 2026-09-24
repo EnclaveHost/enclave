@@ -1285,7 +1285,12 @@ static size_t b64_encode(const uint8_t *in, size_t n, char *out) {
     }
     out[o] = 0; return o;
 }
-typedef struct { int ls; volatile int stop; const char *identity; uint8_t app[32]; int answered; } evidence_srv;
+/* v2 (the browser channel, PVM-CPU.md): with an app key, each answer also carries appKey (the X25519 key pvm-rt made in this
+ * process for sealed requests) and appKeySig, the transport key's Ed25519 signature over "enclave-pvm-app-key-v1\n" ||
+ * nonce || app || appKey; the answered nonce then admits sealed requests (pvm-rt sealed.rs: its window and budget). */
+typedef int (*pvmrt_http_sealed_nonce_fn)(const void *, const uint8_t *);
+typedef struct { int ls; volatile int stop; const char *identity; uint8_t app[32]; int answered;
+                 int sealed; uint8_t app_key[32]; const void *srv; pvmrt_http_sealed_nonce_fn admit; } evidence_srv;
 static void evidence_answer(evidence_srv *e, int c) {
     struct timeval tv = { 5, 0 }; setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
     char line[128]; size_t n = 0;
@@ -1304,7 +1309,14 @@ static void evidence_answer(evidence_srv *e, int c) {
     if (!js) { AVmAttestationResult_free(res); return; }
     char nh[65], ah[65], sh[89]; uint8_t spki[44]; memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
     sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(e->app, 32, ah); for (int i = 0; i < 44; i++) sprintf(sh + 2 * i, "%02x", spki[i]);
-    size_t o = (size_t)snprintf(js, cap, "{\"format\":\"enclave-pvm-app-evidence/v1\",\"nonce\":\"%s\",\"app\":\"%s\",\"spki\":\"%s\",\"identity\":\"", nh, ah, sh);
+    size_t o;
+    if (e->sealed) {   /* v2: the app key, vouched for by the attested transport key under THIS nonce and THIS app */
+        static const char dom[] = "enclave-pvm-app-key-v1\n"; uint8_t m[sizeof dom - 1 + 96], sig[64]; char kh[65], sg[129];
+        memcpy(m, dom, sizeof dom - 1); memcpy(m + sizeof dom - 1, nonce, 32); memcpy(m + sizeof dom - 1 + 32, e->app, 32); memcpy(m + sizeof dom - 1 + 64, e->app_key, 32);
+        { uint8_t sm[64 + sizeof m]; unsigned long long smlen = 0; crypto_sign(sm, &smlen, m, sizeof m, g_tsk); memcpy(sig, sm, 64); }   /* TweetNaCl: sig || m */
+        sh_pads_bin2hex(e->app_key, 32, kh); sh_pads_bin2hex(sig, 64, sg);
+        o = (size_t)snprintf(js, cap, "{\"format\":\"enclave-pvm-app-evidence/v2\",\"nonce\":\"%s\",\"app\":\"%s\",\"spki\":\"%s\",\"appKey\":\"%s\",\"appKeySig\":\"%s\",\"identity\":\"", nh, ah, sh, kh, sg);
+    } else o = (size_t)snprintf(js, cap, "{\"format\":\"enclave-pvm-app-evidence/v1\",\"nonce\":\"%s\",\"app\":\"%s\",\"spki\":\"%s\",\"identity\":\"", nh, ah, sh);
     for (const char *q = e->identity; *q && o + 4 < cap; q++) { if (*q == '"' || *q == '\\') js[o++] = '\\'; js[o++] = *q; }   /* the identity as a JSON string */
     o += (size_t)snprintf(js + o, cap - o, "\",\"selftest\":\"%s\",\"chain\":[", g_abi2_tuple);
     for (size_t i = 0; i < k; i++) {
@@ -1315,7 +1327,11 @@ static void evidence_answer(evidence_srv *e, int c) {
     }
     o += (size_t)snprintf(js + o, cap - o, "]}\n");
     AVmAttestationResult_free(res); free(der);
-    if (write_all(c, js, o) == 0) { e->answered++; OUT("EVIDENCE answered nonce=%.16s... (%zu certificates, answer %d)", nh, k, e->answered); }
+    if (write_all(c, js, o) == 0) {
+        e->answered++;
+        const int admitted = e->sealed && e->admit && e->admit(e->srv, nonce) == 0;
+        OUT("EVIDENCE answered nonce=%.16s... (%zu certificates, answer %d%s)", nh, k, e->answered, admitted ? ", v2: sealed requests admitted under it" : "");
+    }
     free(js);
 }
 static void *evidence_server(void *arg) {
@@ -1340,6 +1356,9 @@ typedef uint64_t (*pvmrt_http_requests_fn)(const void *);
 typedef void (*pvmrt_http_close_fn)(void *);
 typedef void *(*pvmrt_https_open_fn)(const uint8_t *, size_t, const uint8_t *, uint64_t, uint64_t, const char *, const pvmrt_nn_ops *,
                                      const uint8_t *, void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
+typedef int (*pvmrt_http_sealed_enable_fn)(void *, const uint8_t *, const uint8_t *, uint8_t *);
+typedef int (*pvmrt_http_serve_sealed_fd_fn)(void *, int, char *, size_t);
+#define SEALED_PORT 7788   /* LAB, the browser channel: one HPKE-sealed HTTP request per connection (pvm-rt sealed.rs) */
 static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     const anchor_app_plan *plan = a->plan;
     pvmrt_http_open_fn hopen = (pvmrt_http_open_fn)dlsym(a->rt, "pvmrt_http_open");
@@ -1362,6 +1381,19 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     const int ls = vs_bind(APP_HTTP_PORT);
     if (ls < 0) { hclose(srv); OUT("APP refused: cannot listen on the http port"); return 4; }
     evidence_srv ev = { .ls = -1, .stop = 0, .identity = a->identity, .answered = 0 }; pthread_t evt; int ev_on = 0;
+    int ls_sealed = -1;
+    pvmrt_http_serve_sealed_fd_fn hsealed_serve = NULL;
+    if (tls) {   /* LAB, the browser channel: an app key made in pvm-rt, signed into v2 evidence, and a sealed-request port */
+        pvmrt_http_sealed_enable_fn hsealed = (pvmrt_http_sealed_enable_fn)dlsym(a->rt, "pvmrt_http_sealed_enable");
+        pvmrt_http_sealed_nonce_fn hadmit = (pvmrt_http_sealed_nonce_fn)dlsym(a->rt, "pvmrt_http_sealed_nonce");
+        hsealed_serve = (pvmrt_http_serve_sealed_fd_fn)dlsym(a->rt, "pvmrt_http_serve_sealed_fd");
+        uint8_t rid[32]; sha256((const uint8_t *)a->identity, strlen(a->identity), rid);   /* the RuntimeID ABI/2 binds */
+        if (hsealed && hadmit && hsealed_serve && hsealed(srv, plan->sha256, rid, ev.app_key) == 0 && (ls_sealed = vs_bind(SEALED_PORT)) >= 0) {
+            ev.sealed = 1; ev.srv = srv; ev.admit = hadmit;
+            char kh[65]; sh_pads_bin2hex(ev.app_key, 32, kh);
+            OUT("APP sealed requests on vsock %d: app key %.16s... (X25519, made in this process; evidence is v2)", SEALED_PORT, kh);
+        } else OUT("APP sealed requests NOT available (evidence stays v1: no browser channel)");
+    }
     if (tls) {   /* LAB: the client-verified channel's evidence endpoint beside the TLS app port */
         memcpy(ev.app, plan->sha256, 32); ev.ls = vs_bind(EVIDENCE_PORT);
         if (ev.ls >= 0 && pthread_create(&evt, NULL, evidence_server, &ev) == 0) { ev_on = 1; OUT("APP evidence endpoint on vsock %d: a client's nonce gets a fresh ABI/2 certificate for this app and this VM's transport key", EVIDENCE_PORT); }
@@ -1369,8 +1401,8 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     }
     OUT("APP serving %s on vsock %d: %s compile_ms=%llu%s%s", tls ? "https (TLS 1.3, the attested transport key)" : "http", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "");
     for (;;) {
-        struct pollfd pf[2] = { { .fd = ls, .events = POLLIN }, { .fd = g_ctl, .events = POLLIN } };
-        const int r = poll(pf, 2, 3600 * 1000);
+        struct pollfd pf[3] = { { .fd = ls, .events = POLLIN }, { .fd = g_ctl, .events = POLLIN }, { .fd = ls_sealed, .events = POLLIN } };
+        const int r = poll(pf, ls_sealed >= 0 ? 3 : 2, 3600 * 1000);
         if (r < 0 && errno == EINTR) continue;
         if (r <= 0) { OUT("APP http: an hour without a connection or a word from the owner; stopping"); break; }
         if (pf[1].revents) { char l[64]; if (read_line(g_ctl, l, sizeof l) < 0 || !strcmp(l, "STOP")) { OUT("APP http: stopped by the owner"); break; } OUT("APP http: control line ignored while serving"); continue; }
@@ -1379,8 +1411,13 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
             char e[512] = ""; const int rc = hserve(srv, c, e, sizeof e);
             OUT("APP http connection closed%s%s (requests so far %llu)", rc ? ": " : "", rc ? e : "", (unsigned long long)hreqs(srv));
         }
+        if (ls_sealed >= 0 && (pf[2].revents & POLLIN)) {
+            const int c = accept(ls_sealed, NULL, NULL); if (c < 0) continue;
+            char e[512] = ""; const int rc = hsealed_serve(srv, c, e, sizeof e);
+            OUT("APP sealed connection closed%s%s (requests so far %llu)", rc ? ": " : "", rc ? e : "", (unsigned long long)hreqs(srv));
+        }
     }
-    close(ls);
+    close(ls); if (ls_sealed >= 0) close(ls_sealed);
     if (ev_on) { ev.stop = 1; pthread_join(evt, NULL); close(ev.ls); OUT("APP evidence endpoint closed after %d answers", ev.answered); }
     OUT("APP served %s requests=%llu%s%s", hh, (unsigned long long)hreqs(srv), ops ? " graph=" : "", ops ? plan->graph : "");
     hclose(srv);
