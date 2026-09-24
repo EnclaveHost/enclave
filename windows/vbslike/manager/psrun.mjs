@@ -8,7 +8,12 @@ export function powershellRunner({ exe = "powershell.exe", timeoutMs = 180_000, 
     return new Promise((resolve) => {
       // -EncodedCommand, because PowerShell's own quoting eats | and $ on the way in and this
       // manager sends scripts full of both.
-      const enc = Buffer.from(String(script), "utf16le").toString("base64");
+      // Progress records reach stderr as CLIXML (<Objs ...><Obj S="progress">...), and on a first
+      // run in a session "Preparing modules for first use" alone is kilobytes of it. It filled the
+      // output cap and buried the actual exception, so a real ModifySystemSettings failure arrived
+      // as code=1 with no readable reason. Silencing progress is a DIAGNOSTIC change only: errors,
+      // warnings and output are untouched.
+      const enc = Buffer.from("$ProgressPreference='SilentlyContinue'; " + String(script), "utf16le").toString("base64");
       const p = spawn(exe, ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", enc],
                       { windowsHide: true });
       let out = "", err = "", done = false, killed = false;
