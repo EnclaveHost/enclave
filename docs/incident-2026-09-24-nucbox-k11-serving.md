@@ -225,6 +225,12 @@ No intervention needed. Within one heartbeat interval (≤10 min) `warnLowGas` r
 and `gasRenewalsLeft` goes positive; on the next 30-second tick the ledger scan claims all five
 (the ledger already says `claimableBy` is true) and the apps start. Expected inside 11 minutes.
 
+One rule was checked specifically, because it would have silently blocked this. All five
+deployments were created *before* this box was listed on 2026-09-21 20:45 UTC — between 2026-08-11
+and 2026-09-04 — and `claimPolicy` normally refuses a stranger's older deployment unless its owner
+points at this box. The live node sets `CLAIM_LEGACY=1`, which waives exactly that rule, so the
+scan will take them without an invitation. Do not clear that setting while recovering.
+
 Verify with:
 
 ```
