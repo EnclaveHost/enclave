@@ -24,15 +24,19 @@ function host(over = {}) {
     pinFirmware: { returnValue: 0, jobState: null, firmwareFile: IMG, guestFeatureSet: GUEST_FEATURE_SET },
     attachConsole: { ok: true },
     start: { state: "Running" },
-    readConsole: { bytes: 128, head: "OpenHCL boot..." },
+    readConsole: { connected: true, bytes: 128, head: "OpenHCL boot..." },
     teardown: { found: 0, removed: [], failed: [] },
+    removeExact: { found: true, removed: true },
+    stop: { ok: true },
     survey: { vms: [] },
     ...over,
   };
   const key = (s) => s.includes("$r.vmms") ? "preflight" : s.includes("Get-FileHash") ? "imageHash"
     : s.includes("New-VM") ? "create" : s.includes("ModifySystemSettings") ? "pinFirmware"
     : s.includes("Set-VMComPort") ? "attachConsole" : s.includes("Start-VM") ? "start"
-    : s.includes("[IO.File]::Open") ? "readConsole" : s.includes("Remove-VM") ? "teardown"
+    : s.includes("already gone") ? "stop"
+    : s.includes("NamedPipeClientStream") ? "readConsole"
+    : s.includes("$_.Name -eq") ? "removeExact" : s.includes("$removed = @(); $failed = @();") ? "teardown"
     : s.includes("$vms = @(Get-VM") ? "survey" : "other";
   const run = async (s) => {
     seen.push(s);
@@ -84,8 +88,8 @@ test("REPRO+FIX: a VM that reports Off is a failure, not a handle", async () => 
 });
 
 test("Running with a silent guest is still a failure", async () => {
-  await assert.rejects(() => mk(host({ readConsole: { bytes: 0, head: "" } })).start(mapping, START),
-                       /the guest said nothing on .* is not a domain that came up/);
+  await assert.rejects(() => mk(host({ readConsole: { connected: true, bytes: 0, head: "" } })).start(mapping, START),
+                       /produced no output on .*: a silent partition is not a booted one/);
 });
 
 test("the manager reports running only when the guest spoke, and carries the evidence", async () => {
@@ -131,10 +135,10 @@ test("REPRO+FIX: New-VM succeeding and a later step failing cleans up in PowerSh
 test("a failure after create sweeps by the VM's own name, even when create returned nothing", async () => {
   const h = host({ attachConsole: new Error("no pipe") });
   await assert.rejects(() => mk(h).start(mapping, START));
-  // the create script now contains a Remove-VM of its own (its catch), so match the teardown COMMAND
-  const sweep = h.seen.filter((s) => s.includes("$removed = @(); $failed = @();"));
-  assert.equal(sweep.length, 1, "exactly one cleanup sweep");
-  assert.match(sweep[0], /StartsWith\('enclave-app-dep0001-708e6409'\)/, "scoped to THIS VM, not the whole prefix");
+  // the failure path removes by EXACT name now, not by a prefix sweep
+  const sweep = h.seen.filter((s) => s.includes("$_.Name -eq"));
+  assert.equal(sweep.length, 1, "exactly one cleanup, by exact name");
+  assert.match(sweep[0], /\$_\.Name -eq 'enclave-app-dep0001-708e6409'/, "scoped to THIS VM, not the whole prefix");
 });
 
 test("teardown reports what it could not remove, and refuses to call that success", async () => {
@@ -170,4 +174,88 @@ test("a manager with no launcher at all says so rather than throwing", async () 
   await m.probe();
   assert.equal(m.health().canStart, false);
   assert.match(JSON.stringify(m.health()), /no launcher configured/);
+});
+
+/* ---- a second review, on 6a8a2b2e: five more, each reproduced ---------------------------------- */
+
+test("REPRO+FIX: cleanup on failure matches the EXACT name, never a prefix", async () => {
+  // the defect: the failure path swept with StartsWith(name). A failed duplicate create would then
+  // remove the EXISTING domain of that name, and any neighbour whose name merely began with ours.
+  const h = host({ attachConsole: new Error("no pipe") });
+  const l = mk(h);
+  await assert.rejects(() => l.start(mapping, START));
+  const sweeps = h.seen.filter((s) => s.includes("$_.Name -eq"));
+  assert.equal(sweeps.length, 1, "one exact removal");
+  assert.match(sweeps[0], /\$_\.Name -eq 'enclave-app-dep0001-708e6409'/);
+  assert.equal(h.seen.some((s) => s.includes("StartsWith('enclave-app-dep0001-708e6409')")), false,
+               "a prefix sweep on the failure path is what could take a neighbour");
+});
+
+test("cleanup requires the ownership marker unless THIS attempt created the VM", async () => {
+  // create failed, so we never recorded it: only a marked VM may be removed
+  const h1 = host({ create: new Error("name already exists") });
+  await assert.rejects(() => mk(h1).start(mapping, START));
+  const s1 = h1.seen.find((s) => s.includes("$_.Name -eq"));
+  assert.match(s1, /Notes -eq/, "we did not make it, so it must prove it is ours before being removed");
+  // create succeeded and a later step failed: it is ours, marker or not
+  const h2 = host({ start: new Error("would not start") });
+  await assert.rejects(() => mk(h2).start(mapping, START));
+  const s2 = h2.seen.find((s) => s.includes("$_.Name -eq"));
+  assert.doesNotMatch(s2, /Notes -eq/, "we made this one; a missing Notes must not strand it");
+});
+
+test("REPRO+FIX: the console read is bounded by itself, not by the outer kill", () => {
+  const s = CMD.readConsole({ pipe: "\\\\.\\pipe\\x-com1", seconds: 12 });
+  assert.doesNotMatch(s, /\[IO\.File\]::Open/, "a synchronous Read on an idle pipe blocks past any deadline");
+  assert.match(s, /NamedPipeClientStream/);
+  assert.match(s, /\$cli\.Connect\(/, "a bounded connect, so an absent pipe is not an infinite wait");
+  assert.match(s, /ReadAsync/);
+  assert.match(s, /CancelAfter\(12 \* 1000\)/, "cancellation at the deadline");
+  assert.match(s, /connected=\$connected/, "and it always answers, even when nothing connected");
+});
+
+test("a console that never connects is a failure with a reason, not silent success", async () => {
+  await assert.rejects(() => mk(host({ readConsole: { connected: false, bytes: 0, head: "", note: "pipe not found" } })).start(mapping, START),
+                       /could not attach to the guest console.*pipe not found/);
+});
+
+test("REPRO+FIX: console bytes mean the guest BOOTED, never that the app is serving", async () => {
+  const h = mk(host({ readConsole: { connected: true, bytes: 512, head: "OpenHCL boot: ..." } }));
+  const r = await h.start(mapping, START);
+  assert.equal(r.guest.booted, true);
+  assert.equal(r.appReady, false, "no app-readiness handshake exists on this backend");
+  // and the manager must not translate that into "running"
+  const m = new Manager({ fetchComponent: async () => Buffer.alloc(0),
+                          backend: new HyperVPartitionBackend({ launch: async () => r }) });
+  const rec = await m.spawn({ derive: { derivation: "enclave-catalog-bundle/1", catalog: { app: "0x" + "ab".repeat(32), version: 7 },
+    cid: "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy", policy: { cpuPercent: 100, memMiB: 512, vcpus: 1 },
+    runtimeId: "cd".repeat(32) }, isPublic: true, hasSecrets: false })
+    .catch((e) => ({ state: "threw", reason: e.message }));
+  assert.notEqual(rec.state, "running", "a booted guest is not a serving app");
+});
+
+test("REPRO+FIX: a stop that failed is reported, not reported as ok", async () => {
+  const h = host({ stop: { ok: false, state: "Running", error: "the VM is busy" } });
+  await assert.rejects(() => mk(h).stop({ name: "enclave-app-x" }), /could not stop enclave-app-x: the VM is busy/);
+  const gone = host({ stop: { ok: true, note: "already gone" } });
+  assert.deepEqual(await mk(gone).stop({ name: "enclave-app-x" }), { stopped: true, name: "enclave-app-x" });
+});
+
+test("the stop command distinguishes a failure from a VM that is already gone", () => {
+  const s = CMD.stop({ name: "n" });
+  assert.match(s, /-ErrorAction Stop/, "SilentlyContinue reported ok whatever happened");
+  assert.match(s, /already gone/, "removed is not the same as could-not-stop");
+  assert.match(s, /ok=\$false/, "and a real failure says so");
+});
+
+test("teardown demands the marker by default, and still clears what we know we made", async () => {
+  const h = host();
+  const l = mk(h);
+  l.created.add("enclave-app-orphan");          // created, then the process died before Notes
+  await l.teardown();
+  const exact = h.seen.filter((s) => s.includes("$_.Name -eq 'enclave-app-orphan'"));
+  assert.equal(exact.length, 1, "the recorded name is removed exactly");
+  assert.doesNotMatch(exact[0], /Notes -eq/, "ours, so no marker needed");
+  const sweep = h.seen.find((s) => s.includes("$removed = @(); $failed = @();"));
+  assert.match(sweep, /Notes -eq/, "and the prefix sweep now REQUIRES the marker, so it cannot take a neighbour");
 });

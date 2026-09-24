@@ -131,30 +131,62 @@ export const CMD = {
   start: ({ name }) => ps(`$ErrorActionPreference='Stop'; Start-VM -Name ${q(name)}; @{state=[string](Get-VM -Name ${q(name)}).State} | ConvertTo-Json -Compress`),
 
   /**
-   * Did the GUEST say anything? A VM in state Running is a host-side fact; this is the only
-   * evidence that something is alive inside it. Reads the console pipe for a bounded window and
-   * reports how many bytes arrived and the first of them.
+   * Did the GUEST say anything, within a bound this function itself keeps?
+   *
+   * The first version opened the pipe with [IO.File]::Open and called a SYNCHRONOUS Read in a loop.
+   * A synchronous read on a named pipe with no data blocks indefinitely: the deadline was only
+   * consulted between reads, so the first one could outlive it, and the outer PowerShell kill then
+   * returned no JSON at all - a timeout that looked like a crash. This connects with a timeout and
+   * reads asynchronously, cancelling at the deadline, so it always answers.
+   *
+   * It reports BYTES, and says nothing about what they mean. Firmware banners are bytes.
    */
-  readConsole: ({ pipe, seconds = 20 }) => ps(`
+  readConsole: ({ pipe, seconds = 20, connectMs = 5000 }) => ps(`
     $ErrorActionPreference = 'Stop';
-    $deadline = (Get-Date).AddSeconds(${Math.max(1, Math.floor(seconds))});
-    $buf = New-Object byte[] 4096; $total = 0; $head = '';
+    $name = ${q(pipe)} -replace '^\\\\\\\\\.\\\\pipe\\\\', '';
+    $total = 0; $head = ''; $connected = $false; $why = '';
+    $cts = New-Object System.Threading.CancellationTokenSource;
+    $cts.CancelAfter(${Math.max(1, Math.floor(seconds))} * 1000);
+    $cli = $null;
     try {
-      $fs = [IO.File]::Open(${q(pipe)}, 'Open', 'Read', 'ReadWrite');
-      while ((Get-Date) -lt $deadline) {
-        if ($fs.CanRead) {
-          $n = 0;
-          try { $n = $fs.Read($buf, 0, $buf.Length) } catch { $n = 0 };
-          if ($n -gt 0) { $total += $n; if ($head.Length -lt 400) { $head += [Text.Encoding]::ASCII.GetString($buf, 0, [Math]::Min($n, 400)) } }
-          else { Start-Sleep -Milliseconds 200 }
-        }
-      };
-      $fs.Close()
-    } catch { };
-    @{bytes=$total; head=$head} | ConvertTo-Json -Compress`),
+      $cli = New-Object System.IO.Pipes.NamedPipeClientStream('.', $name, [System.IO.Pipes.PipeDirection]::In);
+      $cli.Connect(${Math.max(250, Math.floor(connectMs))});
+      $connected = $true;
+      $buf = New-Object byte[] 4096;
+      while (-not $cts.IsCancellationRequested) {
+        $t = $cli.ReadAsync($buf, 0, $buf.Length, $cts.Token);
+        if (-not $t.Wait(500)) { continue };
+        $n = $t.Result;
+        if ($n -le 0) { break };
+        $total += $n;
+        if ($head.Length -lt 400) { $head += [Text.Encoding]::ASCII.GetString($buf, 0, [Math]::Min($n, 400)) }
+      }
+    } catch { $why = [string]$_.Exception.Message } finally {
+      if ($cli) { try { $cli.Dispose() } catch {} };
+      $cts.Dispose()
+    };
+    @{connected=$connected; bytes=$total; head=$head; note=$why} | ConvertTo-Json -Compress`),
 
   state: ({ name }) => ps(`$v = Get-VM -Name ${q(name)} -ErrorAction SilentlyContinue; if ($v) { @{found=$true; state=[string]$v.State; uptime=[string]$v.Uptime} | ConvertTo-Json -Compress } else { @{found=$false} | ConvertTo-Json -Compress }`),
-  stop: ({ name }) => ps(`Stop-VM -Name ${q(name)} -TurnOff -Force -ErrorAction SilentlyContinue; @{ok=$true} | ConvertTo-Json -Compress`),
+
+  /** Stop, and report a failure AS one: SilentlyContinue used to answer ok whatever happened. */
+  stop: ({ name }) => ps(`
+    try { Stop-VM -Name ${q(name)} -TurnOff -Force -ErrorAction Stop; @{ok=$true} | ConvertTo-Json -Compress }
+    catch {
+      $v = Get-VM -Name ${q(name)} -ErrorAction SilentlyContinue;
+      if (-not $v) { @{ok=$true; note='already gone'} | ConvertTo-Json -Compress }
+      else { @{ok=$false; state=[string]$v.State; error=[string]$_.Exception.Message} | ConvertTo-Json -Compress }
+    }`),
+
+  /** Remove ONE VM by EXACT name. The failure path must never match by prefix. */
+  removeExact: ({ name, requireMarker = true }) => ps(`
+    $v = Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq ${q(name)}${requireMarker ? ` -and $_.Notes -eq ${q(OWNER_MARKER)}` : ""} };
+    if (-not $v) { @{found=$false; removed=$false} | ConvertTo-Json -Compress; exit 0 };
+    try {
+      Stop-VM -VM $v -TurnOff -Force -ErrorAction SilentlyContinue;
+      Remove-VM -VM $v -Force -ErrorAction Stop;
+      @{found=$true; removed=$true} | ConvertTo-Json -Compress
+    } catch { @{found=$true; removed=$false; error=[string]$_.Exception.Message} | ConvertTo-Json -Compress }`),
 
   /**
    * Remove ONLY what this owns. Scoped by the instance prefix, and by the marker when it is there -
@@ -199,6 +231,9 @@ export class WmiHyperVLauncher {
     // able to reconcile, the VMs its predecessor left behind.
     this.prefix = prefix;
     this.jobTimeoutSec = jobTimeoutSec;
+    // The names THIS launcher created. Cleanup and reconciliation work from this, not from a
+    // prefix match, so a duplicate name or a neighbour sharing the prefix is never removed by us.
+    this.created = new Set();
     this.pipeFor = pipeFor || ((name) => `\\\\.\\pipe\\${name}-com1`);
   }
 
@@ -263,6 +298,7 @@ export class WmiHyperVLauncher {
     let created = null;
     try {
       created = await this.#ps(CMD.create({ name, memMiB: mapping.record.policy.memMiB, vcpus: mapping.record.policy.vcpus }));
+      this.created.add(name);
       if (parseFloat(created.version) < MIN_VM_VERSION)
         throw new Error(`VM version ${created.version} is below ${MIN_VM_VERSION}, which the firmware field requires`);
 
@@ -282,28 +318,49 @@ export class WmiHyperVLauncher {
       if (started.state !== "Running")
         throw new Error(`the VM is ${JSON.stringify(started.state ?? null)} after Start-VM, not Running`);
 
-      // THE GUEST ITSELF. Running is the host's word for the partition; this is the only thing that
-      // says something inside it came up. No output, no running domain - the manager must never
-      // report an app as running on the strength of a VM state alone.
-      const console_ = await this.#ps(CMD.readConsole({ pipe, seconds: guestReadySec }));
-      if (!(Number(console_.bytes) > 0))
-        throw new Error(`the VM is Running but the guest said nothing on ${pipe} within ${guestReadySec}s: a partition that produced no output is not a domain that came up`);
+      // THE GUEST BOOTED - and that is ALL this establishes. Bytes on a serial port are bytes: a
+      // firmware banner is bytes, a kernel panic is bytes. It says something inside the partition
+      // executed, which is more than "Running" says, and it is NOT evidence that the component was
+      // delivered, compiled or served. There is no app-readiness handshake on this backend yet, so
+      // there is no state here that means "the app is up", and the launcher does not invent one.
+      const con = await this.#ps(CMD.readConsole({ pipe, seconds: guestReadySec }));
+      if (con.connected !== true)
+        throw new Error(`could not attach to the guest console at ${pipe}: ${con.note || "no connection"}`);
+      const booted = Number(con.bytes) > 0;
+      if (!booted)
+        throw new Error(`the VM is Running but the guest produced no output on ${pipe} within ${guestReadySec}s: a silent partition is not a booted one`);
 
-      return { instanceId, name, vmId: created.id, pipe, state: started.state, image,
-               appId: mapping.appId, guest: { bytes: console_.bytes, head: String(console_.head || "").slice(0, 400) },
-               stop: async () => { await this.#ps(CMD.stop({ name })).catch(() => {}); } };
+      return { instanceId, name, vmId: created.id, pipe, state: started.state, image, appId: mapping.appId,
+               // guestBooted: something executed. appReady: NOT established - no handshake exists.
+               guest: { booted, bytes: con.bytes, head: String(con.head || "").slice(0, 400) },
+               appReady: false,
+               stop: async () => await this.stop({ name }) };
     } catch (e) {
-      // Remove by THIS VM's exact name, whether or not `created` came back: the create script may
-      // have made it and failed before reporting, which is the leak the first version had.
-      const swept = await this.#ps(CMD.teardown({ prefix: name })).catch((x) => ({ error: x.message }));
+      // EXACT name, never a prefix. The first version swept with StartsWith(name), so a failure
+      // while creating a duplicate would have removed the EXISTING domain of that name, and any
+      // neighbour whose name merely began with ours. It also requires the ownership marker unless
+      // this attempt is the thing that made the VM.
+      const mine = this.created.has(name);
+      const swept = await this.#ps(CMD.removeExact({ name, requireMarker: !mine }))
+        .catch((x) => ({ found: null, removed: false, error: x.message }));
+      this.created.delete(name);
       e.cleanup = swept;
-      if (swept && Array.isArray(swept.failed) && swept.failed.length)
-        e.message += ` (cleanup left ${swept.failed.length} VM(s) behind: ${swept.failed.map((f) => f.name).join(", ")})`;
+      if (swept && swept.found === true && swept.removed !== true)
+        e.message += ` (cleanup could NOT remove ${name}: ${swept.error || "unknown"} - it is still on this host)`;
       throw e;
     }
   }
 
-  async stop(handle) { if (handle && handle.name) await this.#ps(CMD.stop({ name: handle.name })); }
+  /** Stop, and SAY when it did not: "ok" for a VM that is still running is how one gets orphaned. */
+  async stop(handle) {
+    if (!handle || !handle.name) return { stopped: false, reason: "no handle" };
+    const r = await this.#ps(CMD.stop({ name: handle.name }));
+    if (r && r.ok === false) {
+      const e = new Error(`could not stop ${handle.name}: ${r.error || "unknown"}`);
+      e.code = "stop_failed"; throw e;
+    }
+    return { stopped: true, name: handle.name };
+  }
   async state(name) { return await this.#ps(CMD.state({ name })); }
   /** What this prefix owns right now, including anything a previous run left behind. */
   async survey() { return await this.#ps(CMD.survey({ prefix: this.prefix })); }
@@ -312,7 +369,14 @@ export class WmiHyperVLauncher {
    * was left behind, because a teardown that reports success while an orphan survives is how a
    * host fills up with VMs nobody owns.
    */
-  async teardown({ requireMarker = false } = {}) {
+  async teardown({ requireMarker = true } = {}) {
+    // Marker-required by DEFAULT now: a prefix alone can collide with a VM this manager never made,
+    // and removing somebody else's domain is worse than leaving one of ours behind. The narrow gap
+    // - a VM that died between New-VM and its Notes - is closed by the exact names we recorded.
+    for (const name of [...this.created]) {
+      const one = await this.#ps(CMD.removeExact({ name, requireMarker: false })).catch(() => null);
+      if (one && one.removed) this.created.delete(name);
+    }
     const r = await this.#ps(CMD.teardown({ prefix: this.prefix, requireMarker }));
     if (Array.isArray(r.failed) && r.failed.length) {
       const e = new Error(`teardown could not remove ${r.failed.length} VM(s): `

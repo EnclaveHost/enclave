@@ -62,9 +62,11 @@ decides. Expect each to report `RestartNeeded: True`.
 `0xe64f7cba` (RISC Box), `0x7ae476a3` (the IPFS gateway behind `ipfs.enclave.host`), `0xd9798e4c`,
 `0xa77d0c57` (jot) and `0xa69dcbba` (the MCP adapter).
 
-- **Recovery is automatic and was measured today.** After the operator key was funded, the node
-  claimed all five and had them serving inside a minute, and the RISC Box took a further 13 minutes
-  to restore its 21.8 GiB guest.
+- **Recovery is automatic, and takes about 15 minutes for the full set.** Measured today: after the
+  operator key was funded the node claimed all five within a minute and four were answering, but the
+  RISC Box needed a further 13 minutes to restore its 21.8 GiB guest before its endpoint answered.
+  Quoting "about a minute" describes four apps out of five; the interruption to plan around is ~15
+  minutes.
 - **The lease is the risk.** Leases run in 30-minute quanta. If the box is down past a lease's end,
   `renew` reverts and only a fresh `claim` recovers it — which costs gas. The operator holds
   ~0.0019 ETH, enough for many claims, so this is a delay rather than a wall. **Do it just after a
@@ -90,45 +92,34 @@ Get-Command Get-VM
 Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform    # must still be Enabled
 ```
 
-Then, and only then, the adapter's own preflight, which asks the same questions through the code
-that will use the answers. Executable as written, from the manager directory:
+Then, and only then, the adapter's own preflight, through the code that will use the answers. The
+environment is set FIRST, because the launcher refuses to be constructed without the image and its
+hash, and the manager is started in the BACKGROUND, because it does not return:
 
 ```powershell
-node -e "const {WmiHyperVLauncher}=await import('./wmi-launcher.mjs');const {powershellRunner}=await import('./psrun.mjs');const l=new WmiHyperVLauncher({run:powershellRunner(),imagePath:process.env.ENCLAVE_GUEST_IGVM,imageSha256:process.env.ENCLAVE_GUEST_IGVM_SHA256});console.log(JSON.stringify(await l.preflight(),null,1));console.log(JSON.stringify(await l.survey(),null,1))" --input-type=module
-```
+cd C:\Users\claude\vbs\manager
+$env:ENCLAVE_GUEST_IGVM        = 'C:\Users\claude\vbs-like\openhcl-ownguest.bin'
+$env:ENCLAVE_GUEST_IGVM_SHA256 = '2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3'
+$env:ENCLAVE_CID_FETCHER       = 'C:\Users\claude\vbs\node\fetch-cid.py'
 
-`preflight().ok` must be true with every check passing, and `survey()` must list no leftover VMs
-under the prefix. Then start the manager itself, which probes before it answers anything:
+# 1. what the host has, and what this prefix already owns
+node -e "const {WmiHyperVLauncher}=await import('./wmi-launcher.mjs');const {powershellRunner}=await import('./psrun.mjs');const l=new WmiHyperVLauncher({run:powershellRunner(),imagePath:process.env.ENCLAVE_GUEST_IGVM,imageSha256:process.env.ENCLAVE_GUEST_IGVM_SHA256});console.log(JSON.stringify(await l.preflight()));console.log(JSON.stringify(await l.verifyImage()));console.log(JSON.stringify(await l.survey()))" --input-type=module
 
-```powershell
-$env:ENCLAVE_GUEST_IGVM='C:\Users\claude\vbs-like\openhcl-ownguest.bin'
-$env:ENCLAVE_GUEST_IGVM_SHA256='2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3'
-node main.mjs        # prints canStart=True when the host really can
+# 2. the manager, in the background, with its output kept
+Start-Process node -ArgumentList 'main.mjs' -RedirectStandardOutput winmgr.out -RedirectStandardError winmgr.err -WindowStyle Hidden
+Start-Sleep -Seconds 3
 curl.exe -s http://127.0.0.1:8091/health
+Get-Content winmgr.out -Tail 5
 ```
 
-And the node itself: the scheduled task Running, the enclave answering, the five deployments
-re-claimed, `ipfs.enclave.host/site-root` serving, and the shielded worker's card still present —
-the GPU path is the thing most likely to behave differently under the full role, and it is worth
-checking rather than assuming.
+`preflight` must be `"ok":true` with every check passing, `verifyImage` must return the expected
+sha256, and `survey` must list no VMs. `/health` must read `"canStart":true`.
 
-## Rolling back
-
-```powershell
-Disable-WindowsOptionalFeature -Online -NoRestart -FeatureName Microsoft-Hyper-V-Management-PowerShell
-Disable-WindowsOptionalFeature -Online -NoRestart -FeatureName Microsoft-Hyper-V-Services
-Disable-WindowsOptionalFeature -Online -NoRestart -FeatureName Microsoft-Hyper-V-Hypervisor
-```
-
-then a second reboot. Two implications worth saying out loud:
-
-1. **Rollback costs another reboot and another outage.** It is not free and not instant, so the
-   decision to enable should be taken as though it were one-way for the day.
-2. **Enabling the role changes the host partition's relationship to the hypervisor.** VBS already
-   runs here, so the hypervisor is not new, but the root partition under the full role is not
-   identical to the root partition under Virtualization Machine Platform alone. The enclave, the
-   shielded Vulkan worker and the existing HCS lab path are all things to re-verify rather than
-   assume, and any of them regressing is a reason to roll back.
+**What that proves, and what it does not.** All of it establishes that the host can be ASKED to run
+a partition. None of it is a domain running, and none of it is an app serving. The order after that
+is: a partition that starts, then a guest that produces console output, then - and this does not
+exist yet on this backend - an app-readiness handshake. The manager reports `guest-booted` for the
+middle one and will not say `running` without the last.
 
 ## Recovery, if the box does not come back cleanly
 
