@@ -17,11 +17,12 @@ export const keys = () => ({ policy: generateKeyPairSync("ed25519"), policy2: ge
 const iso = (t) => new Date(t).toISOString().replace(/\.\d{3}Z$/, "Z");
 
 // { policy: base64(exact bytes), sig: hex(Ed25519("enclave-pvm-client-policy-v1\n" || bytes)) }
-export function signedPolicy(K, serial, { key = K.policy, appIds = [APP], codeHash = "43".repeat(32), minClientVersion = "0.1.0", nextPolicyKey = null, tag = "", runtimeIds = [RID] } = {}) {
+export function signedPolicy(K, serial, { key = K.policy, appIds = [APP], codeHash = "43".repeat(32), minClientVersion = "0.1.0", nextPolicyKey = null, tag = "", runtimeIds = [RID], deployments = undefined, rawBody = null } = {}) {
   const now = Date.now();
   const body = { type: "enclave-pvm-client-policy", key: rawPub(key).toString("hex"), serial, notBefore: iso(now - 3600e3), notAfter: iso(now + 6 * 3600e3),
     codeHashes: [tag ? sha256(tag) : codeHash], authorityHashes: ["cd".repeat(64)], runtimeIds, appIds, googleRootPins: ROOTS, formats: ["enclave-pvm-app-evidence/v2"], sealedModes: ["chunked", "whole"], sealedWindow: { seconds: 600, maxRequests: 256 }, minClientVersion, nextPolicyKey };
-  const bytes = Buffer.from(JSON.stringify(body));
+  if (deployments !== undefined) body.deployments = deployments;
+  const bytes = Buffer.from(JSON.stringify(rawBody ? rawBody(body) : body));
   return { policy: bytes.toString("base64"), sig: edSign(null, Buffer.concat([Buffer.from("enclave-pvm-client-policy-v1\n"), bytes]), key.privateKey).toString("hex"), digest: sha256(bytes), serial };
 }
 // an artifact whose first line carries the version marker, and its manifest { manifest, releaseSig, policySig }

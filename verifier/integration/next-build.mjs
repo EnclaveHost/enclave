@@ -17,7 +17,9 @@ const opt = (n, d) => { const i = args.indexOf("--" + n); return i >= 0 ? args[i
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..");
 const ART = JSON.parse(fs.readFileSync(path.join(REPO, "verifier", "integration", "artifacts.json"), "utf8"))["pvm-client-artifact"];
 const recPath = path.join(REPO, "verifier", "integration", "next-builds.json");
-const REC = JSON.parse(fs.readFileSync(recPath, "utf8"));
+const FILE = JSON.parse(fs.readFileSync(recPath, "utf8"));
+const REC = FILE.bases && FILE.bases[FILE.current] ? { base: FILE.current, ...FILE.bases[FILE.current] } : null;
+if (!REC) { console.error("next-build: next-builds.json has no record for its current base"); process.exit(2); }
 const sha256 = (b) => createHash("sha256").update(b).digest("hex");
 class Refusal extends Error {}
 const die = (m) => { throw new Refusal(m); };
@@ -50,7 +52,7 @@ try {
   }
   if (args.includes("--record")) {
     for (const [v, got] of Object.entries(produced)) { if (REC.builds[v].sha256 && REC.builds[v].sha256 !== got.sha256) die(`${v} already recorded as ${REC.builds[v].sha256.slice(0, 16)}..., built ${got.sha256.slice(0, 16)}...: not overwriting`); REC.builds[v] = { ...REC.builds[v], ...got }; }
-    fs.writeFileSync(recPath, JSON.stringify(REC, null, 2) + "\n");
+    FILE.bases[FILE.current] = { baseVersion: REC.baseVersion, builds: REC.builds, derived: REC.derived, ...(FILE.bases[FILE.current].recordedWhenCurrent ? { recordedWhenCurrent: FILE.bases[FILE.current].recordedWhenCurrent } : { recordedWhenCurrent: new Date().toISOString().slice(0, 10) }) }; fs.writeFileSync(recPath, JSON.stringify(FILE, null, 2) + "\n");
   }
   for (const [v, got] of Object.entries(produced)) {
     const want = REC.builds[v];
@@ -77,7 +79,7 @@ try {
     const body = (b) => b.subarray(b.indexOf(10));
     if (!body(bytes).equals(body(rebuilt))) die(`derived ${version} differs from the source rebuild beyond the first line`);
     fs.mkdirSync(path.join(staging, "derived", version), { recursive: true }); fs.writeFileSync(path.join(staging, "derived", version, "pvm-client.mjs"), bytes);
-    if (args.includes("--record")) { if (want.sha256 && want.sha256 !== derived[version].sha256) die(`derived ${version} already recorded as ${want.sha256.slice(0, 16)}...: not overwriting`); REC.derived[version] = { ...want, ...derived[version] }; want = REC.derived[version]; fs.writeFileSync(recPath, JSON.stringify(REC, null, 2) + "\n"); }
+    if (args.includes("--record")) { if (want.sha256 && want.sha256 !== derived[version].sha256) die(`derived ${version} already recorded as ${want.sha256.slice(0, 16)}...: not overwriting`); REC.derived[version] = { ...want, ...derived[version] }; want = REC.derived[version]; FILE.bases[FILE.current].derived = REC.derived; fs.writeFileSync(recPath, JSON.stringify(FILE, null, 2) + "\n"); }
     if (!want.sha256) die(`derived ${version}: no recorded sha256 (run once with --record)`);
     if (want.sha256 !== derived[version].sha256 || want.size !== derived[version].size) die(`derived ${version}: ${derived[version].sha256.slice(0, 16)}... (${derived[version].size} bytes), recorded ${want.sha256.slice(0, 16)}... (${want.size}): NOT REPRODUCED`);
     console.log(`next-build: derived ${version} sha256 ${derived[version].sha256} (${derived[version].size} bytes) == record; equals the source rebuild beyond line 1`);

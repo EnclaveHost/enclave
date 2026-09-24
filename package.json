@@ -26,7 +26,8 @@
     "test:client-device-activation-3": "node --test test/verifier-pvm-client-device-activation-3.test.mjs",
     "test:client-device-activation-2": "node --test test/verifier-pvm-client-device-activation-2.test.mjs",
     "test:verdict": "node --test test/verifier-integration-verdict.test.mjs",
-    "test:collateral-cache": "node --test test/verifier-collateral-cache.test.mjs"
+    "test:collateral-cache": "node --test test/verifier-collateral-cache.test.mjs",
+    "test:policy-deployments": "node --test test/verifier-pvm-policy-deployments.test.mjs"
   },
   "engines": {
     "node": ">=20"

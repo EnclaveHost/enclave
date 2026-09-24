@@ -24,6 +24,7 @@ export { verifyReleaseAttestation, DEFAULT_RELEASE_POLICY } from "./provenance.m
 export { checkHostedCertificate, spkiOfCert, hashAttestationDocument } from "./tls-binding.mjs";
 export { fileCollateral, memoryCollateral, httpCollateral, layeredCollateral, AMD_KDS } from "./collateral.mjs";
 export { admit, createNonceRegistry, RELEASE, HOLD } from "./admission.mjs";
+export { verifyClientPolicy, selectDeployment, DEPLOYMENT_ID } from "./pvm-policy.mjs";
 export { verifyPvmEvidence, loadOwnerVerifier, loadOwnerModule, STRICT_INTEGRATION, PVM_EVIDENCE_FORMAT, PVM_EVIDENCE_FORMAT_V2, PVM_EVIDENCE_FORMATS } from "./pvm-evidence.mjs";
 import { verifyPvmEvidence, PVM_EVIDENCE_FORMATS } from "./pvm-evidence.mjs";
 

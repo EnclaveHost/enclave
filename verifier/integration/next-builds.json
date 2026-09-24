@@ -1,27 +1,54 @@
 {
-  "purpose": "reproducible NEXT versions of the real pinned client, built from the pinned source with only CLIENT_VERSION changed (verifier/integration/next-build.mjs): the activated client in the cases that need a delegated client able to commit policies. Lab artifacts, never shipped; signed only with lab keys inside a test.",
-  "base": "0f4c79fdc90d3bf80575a7822f18c3059fe481af",
-  "baseVersion": "0.3.0",
-  "builds": {
-    "0.3.1": {
-      "sha256": "ad8ff60b0b1b5b8439da8a320394956fb9cd296296fbce14237e8f7b68fa34f7",
-      "size": 137180
-    },
-    "0.3.2": {
-      "sha256": "4453598c7419ec0088493cfb3cbc5cc38e11ed3e2cb7bf120412987673248795",
-      "size": 137180
-    }
-  },
-  "derived": {
-    "0.3.1": {
-      "recipe": "the pVM owner's client/tools/lab-next.mjs, reimplemented: line 1 replaced by the banner below, the single var CLIENT_VERSION replaced, nothing else; the device validation artifact",
-      "banner": "/*! enclave-pvm-client <version> (LAB NEXT-VERSION TEST ARTIFACT, not production: derived by client/tools/lab-next.mjs from pvm-client.mjs <baseVersion> sha256 <baseSha256>) -- built by client/build.sh with esbuild 0.28.1",
-      "ownerReported": {
-        "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c",
-        "size": 137343
+  "purpose": "reproducible NEXT versions of the real pinned client, built from the pinned source with only CLIENT_VERSION changed (verifier/integration/next-build.mjs): the activated client in the cases that need a delegated client able to commit policies. Lab artifacts, never shipped; signed only with lab keys inside a test. Records are kept per base commit: `current` is rebuilt and compared on every strict run; older bases keep their recorded hashes (reproduced when they were current) so device-run reviews can identify the artifact those runs activated.",
+  "current": "28a6efbfabeb68d5080f0c21c754dc3de3041ad2",
+  "bases": {
+    "0f4c79fdc90d3bf80575a7822f18c3059fe481af": {
+      "baseVersion": "0.3.0",
+      "builds": {
+        "0.3.1": {
+          "sha256": "ad8ff60b0b1b5b8439da8a320394956fb9cd296296fbce14237e8f7b68fa34f7",
+          "size": 137180
+        },
+        "0.3.2": {
+          "sha256": "4453598c7419ec0088493cfb3cbc5cc38e11ed3e2cb7bf120412987673248795",
+          "size": 137180
+        }
       },
-      "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c",
-      "size": 137343
+      "derived": {
+        "0.3.1": {
+          "recipe": "the pVM owner's client/tools/lab-next.mjs, reimplemented: line 1 replaced by the banner below, the single var CLIENT_VERSION replaced, nothing else; the device validation artifact",
+          "banner": "/*! enclave-pvm-client <version> (LAB NEXT-VERSION TEST ARTIFACT, not production: derived by client/tools/lab-next.mjs from pvm-client.mjs <baseVersion> sha256 <baseSha256>) -- built by client/build.sh with esbuild 0.28.1",
+          "ownerReported": {
+            "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c",
+            "size": 137343
+          },
+          "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c",
+          "size": 137343
+        }
+      },
+      "recordedWhenCurrent": "2026-09-24"
+    },
+    "28a6efbfabeb68d5080f0c21c754dc3de3041ad2": {
+      "baseVersion": "0.4.0",
+      "builds": {
+        "0.4.1": {
+          "sha256": "58f0edddb0f7db85df7edf9e56bbab043194a19a8d4e5d903ef31a5b5705abc4",
+          "size": 140740
+        },
+        "0.4.2": {
+          "sha256": "51db8593173b94c11b0046e1448f7e0196e0105cd325da8fb6dfb210a6454e9f",
+          "size": 140740
+        }
+      },
+      "derived": {
+        "0.4.1": {
+          "recipe": "the pVM owner's client/tools/lab-next.mjs, reimplemented: line 1 replaced by the banner below, the single var CLIENT_VERSION replaced, nothing else; the device validation artifact",
+          "banner": "/*! enclave-pvm-client <version> (LAB NEXT-VERSION TEST ARTIFACT, not production: derived by client/tools/lab-next.mjs from pvm-client.mjs <baseVersion> sha256 <baseSha256>) -- built by client/build.sh with esbuild 0.28.1",
+          "sha256": "deda6347f6f469c3a3462c24289ce58200ae5e32cb3957d446df8f68aeeec4b5",
+          "size": 140903
+        }
+      },
+      "recordedWhenCurrent": "2026-09-24"
     }
   }
 }
