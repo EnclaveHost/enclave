@@ -109,8 +109,18 @@ pub struct Manifest {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub world: String,
     pub artifact: Artifact,
+    /// The port a `wasi:cli` command binds its own HTTP server on (enclave-catalog-bundle/2).
+    ///
+    /// It MUST be declared here or serde drops it on deserialize and `canonical(&m) != mb`, so
+    /// every /2 bundle is refused at load as "manifest is not in canonical form" - found by
+    /// enclave-5d by reading this file. In the canonical key order `http` sorts between `artifact`
+    /// and `policy`, which is where this field sits, so the order needs nothing else.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub http: i64,
     pub policy: Policy,
 }
+
+fn is_zero(v: &i64) -> bool { *v == 0 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct Artifact {
     pub kind: String,
@@ -181,6 +191,24 @@ pub fn parse(b: &[u8]) -> Result<(Manifest, &[u8]), ParseError> {
     }
     if m.artifact.sha256 != hex::encode(Sha256::digest(art)) {
         return Err(ParseError::Malformed("bundle manifest names a different artifact than it carries".into()));
+    }
+    // The world decides whether a port may be named, and mirrors isolation/contract/bundle.go Parse
+    // so a bundle reads the same on every backend. A /1 bundle that names a port and a /2 bundle
+    // that names none are each refused BY NAME rather than approximated.
+    match m.world.as_str() {
+        "" | "wasi:http" => {
+            if m.http != 0 {
+                return Err(ParseError::Malformed(format!(
+                    "world {:?} serves no port of its own, and this manifest names http {}", m.world, m.http)));
+            }
+        }
+        "wasi:cli" => {
+            if m.http < 1 || m.http > 49999 {
+                return Err(ParseError::Malformed(format!(
+                    "a wasi:cli command must name its http port in 1..=49999, not {}", m.http)));
+            }
+        }
+        other => return Err(ParseError::Malformed(format!("world {other:?} is not one this runtime serves"))),
     }
     Ok((m, art))
 }
