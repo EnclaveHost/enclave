@@ -96,8 +96,9 @@ test("the backend takes the REAL launcher, and a domain started through it is ru
   const answer = (script) => script.includes("$r.vmms") ? { vmms: true, namespace: true, module: true, firmwareField: true, hypervisor: true }
     : script.includes("Get-FileHash") ? { present: true, sha256: SHA, bytes: 124962164 }
     : script.includes("New-VM") ? { id: "GUID", version: "12.0", name: "x" }
-    : script.includes("ModifySystemSettings") ? { returnValue: 0 }
-    : script.includes("Start-VM") ? { state: "Running" } : { ok: true };
+    : script.includes("ModifySystemSettings") ? { returnValue: 0, jobState: null, firmwareFile: "C:\\img.bin", guestFeatureSet: 0x201 }
+    : script.includes("Start-VM") ? { state: "Running" }
+    : script.includes("[IO.File]::Open") ? { bytes: 42, head: "guest output" } : { ok: true };
   const launcher = new WmiHyperVLauncher({
     run: async (s) => ({ code: 0, stdout: JSON.stringify(answer(s)), stderr: "" }),
     imagePath: "C:\\img.bin", imageSha256: SHA, prefix: "enclave-app-t-" });

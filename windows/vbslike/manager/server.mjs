@@ -60,12 +60,20 @@ export class Manager {
       supports: { ...this.backend.supports },
       catalog: { derivations: [DERIVATION], runtimeId: this.runtimeId || null },
       policyRule: POLICY_RULE,
-      // Said plainly, because a manager that answers /health while it cannot start anything would
-      // otherwise read as ready. The supervisor's gate keys on backend and supports; this is for
-      // the human reading it.
-      canStart: !!this.backend.launch,
-      ...(this.backend.launch ? {} : { cannotStart: PREREQUISITES }),
+      // canStart is the HOST's answer, refreshed by probe(), not "a launcher object exists". A
+      // launcher wired to a box with no Hyper-V role is still a launcher, and reporting ready on
+      // that basis is exactly the kind of claim this manager is not allowed to make.
+      canStart: this._preflight ? this._preflight.ok === true : false,
+      ...(this._preflight ? { preflight: this._preflight } : {}),
+      ...(this._preflight && this._preflight.ok ? {} : { cannotStart: PREREQUISITES }),
     };
+  }
+
+  /** Ask the host what it has, and remember it. /health reports this rather than guessing. */
+  async probe() {
+    try { this._preflight = (await this.backend.preflight()) || { ok: false, checks: [{ name: "no launcher configured", ok: false }] }; }
+    catch (e) { this._preflight = { ok: false, checks: [{ name: "preflight", ok: false, detail: e.message }] }; }
+    return this._preflight;
   }
 
   async spawn(body = {}) {
@@ -81,14 +89,23 @@ export class Manager {
     const mapping = derive({ record: d, component });     // throws on anything the rule refuses
 
     const id = body.id || crypto.randomUUID();
-    const rec = { id, appId: mapping.appId, recordSha256: mapping.recordSha256,
+    // The domain's own name, unique per DEPLOYMENT rather than per app: two deployments of the
+    // same app derive the same AppID, and naming a VM after the AppID alone made the second one
+    // collide with the first. Short, stable, and safe in a VM name.
+    const instanceId = (String(id).replace(/[^A-Za-z0-9]/g, "").slice(0, 16) || crypto.randomBytes(8).toString("hex"))
+                     + "-" + String(mapping.appId).slice(0, 8);
+    const rec = { id, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
                   componentSha256: mapping.componentSha256, policy: mapping.record.policy,
                   catalog: mapping.record.catalog, cid: mapping.record.cid,
                   runtimeId: mapping.record.runtimeId, state: "starting", startedAt: null, reason: null };
     this.domains.set(id, rec);
     try {
-      const h = await this.backend.start(mapping);
+      const h = await this.backend.start(mapping, { instanceId });
+      // The launcher only returns when the VM is Running AND the guest produced output. Anything
+      // short of that threw, so this assignment is the one place "running" is earned.
       rec.state = "running"; rec.startedAt = Date.now(); rec.handle = h;
+      if (h && h.guest) rec.guest = { bytes: h.guest.bytes, head: h.guest.head };
+      if (h && h.name) rec.vmName = h.name;
     } catch (e) {
       // The identity is still real and worth keeping: it is what was asked for and what would run.
       rec.state = "failed";

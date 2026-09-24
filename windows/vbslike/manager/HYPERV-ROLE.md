@@ -90,10 +90,21 @@ Get-Command Get-VM
 Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform    # must still be Enabled
 ```
 
-Then, and only then, the adapter's own preflight, which asks the same questions and reports them:
+Then, and only then, the adapter's own preflight, which asks the same questions through the code
+that will use the answers. Executable as written, from the manager directory:
 
+```powershell
+node -e "const {WmiHyperVLauncher}=await import('./wmi-launcher.mjs');const {powershellRunner}=await import('./psrun.mjs');const l=new WmiHyperVLauncher({run:powershellRunner(),imagePath:process.env.ENCLAVE_GUEST_IGVM,imageSha256:process.env.ENCLAVE_GUEST_IGVM_SHA256});console.log(JSON.stringify(await l.preflight(),null,1));console.log(JSON.stringify(await l.survey(),null,1))" --input-type=module
 ```
-node -e "import('./windows/vbslike/manager/wmi-launcher.mjs').then(async m => { ... })"
+
+`preflight().ok` must be true with every check passing, and `survey()` must list no leftover VMs
+under the prefix. Then start the manager itself, which probes before it answers anything:
+
+```powershell
+$env:ENCLAVE_GUEST_IGVM='C:\Users\claude\vbs-like\openhcl-ownguest.bin'
+$env:ENCLAVE_GUEST_IGVM_SHA256='2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3'
+node main.mjs        # prints canStart=True when the host really can
+curl.exe -s http://127.0.0.1:8091/health
 ```
 
 And the node itself: the scheduled task Running, the enclave answering, the five deployments
@@ -118,6 +129,27 @@ then a second reboot. Two implications worth saying out loud:
    identical to the root partition under Virtualization Machine Platform alone. The enclave, the
    shielded Vulkan worker and the existing HCS lab path are all things to re-verify rather than
    assume, and any of them regressing is a reason to roll back.
+
+## Recovery, if the box does not come back cleanly
+
+```powershell
+# from another machine, once ZeroTier is up:  ssh minipc-zt
+Get-ScheduledTask EnclaveWindowsNode | Select-Object State      # Running?
+schtasks /run /tn EnclaveWindowsNode                            # if it is not
+Get-Process node,ee-host,shielded-worker | Select-Object Name,Id,StartTime
+Get-Content C:\Users\claude\vbs\node\agent.log -Tail 40      # claims and renewals
+```
+
+and from here, the fleet's own view:
+
+```bash
+curl -s https://api.enclave.host/enclaves | python3 -c "import sys,json;d=json.load(sys.stdin);[print(e.get('serving'),e.get('eligible'),(e.get('availability') or {}).get('claimEnabled'),((e.get('availability') or {}).get('apps') or {}).get('running')) for e in d['enclaves'] if e.get('name')=='nucbox-k11']"
+curl -s -o /dev/null -w "%{http_code}\n" https://ipfs.enclave.host/site-root
+```
+
+If a lease lapsed while the box was down, `renew` reverts and the node re-claims on its own; the
+operator key holds enough gas for that. If ZeroTier does not come back, there is no remote path and
+recovery is physical.
 
 ## What this does not decide
 
