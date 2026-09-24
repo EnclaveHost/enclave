@@ -65,8 +65,12 @@ async function barrierRun(bin, label) {   // the crash/stall and the overlap, wi
   await carrier.until(n0 + 1);
   const B = run(bin, args(policyFile(dir, P, 3)));
   const bFirst = await Promise.race([B.done.then((o) => ({ exited: o })), carrier.until(n0 + 2).then(() => ({ held: true }))]);
-  if (bFirst.held) { out.older = "reached the carrier"; carrier.answer(n0 + 1); } else out.older = result(bFirst.exited).refused;
-  carrier.answer(n0); await A.done; await B.done;
+  // deterministic write order: the newer run is answered and finishes FIRST, then the older one -- so an older run that
+  // was accepted writes last (never left to which process happens to finish writing first)
+  out.older = bFirst.held ? "reached the carrier" : result(bFirst.exited).refused;
+  carrier.answer(n0); await A.done;
+  if (bFirst.held) carrier.answer(n0 + 1);
+  await B.done;
   out.finalSerial = readSerial(st);
   carrier.srv.close();
   return out;
@@ -214,7 +218,7 @@ async function sameVersionRestage(bin) {
   const dir = tmp("pvm-restage-"), st = path.join(dir, "state"), inst = path.join(dir, "inst"), P = key(), R = key(); fs.mkdirSync(inst);
   await run(bin, ["install", "--state", st, "--policy-key-fp", P.fp, "--serial-floor", "1", "--release-key-fp", R.fp]).done;
   const upd = async (f) => (await run(bin, ["update", "--state", st, "--manifest", f.mf, "--artifact", f.af, "--install-dir", inst]).done);
-  const fa = updateFiles(dir, P, R, "0.3.0", {}, "build a"), fb = updateFiles(dir, P, R, "0.3.0", {}, "build b");
+  const fa = updateFiles(dir, P, R, "9.3.0", {}, "build a"), fb = updateFiles(dir, P, R, "9.3.0", {}, "build b");   // newer than any client under test
   const a = await upd(fa), b = await upd(fb), staged = (await run(bin, ["staged", "--state", st, "--install-dir", inst]).done);
   return { a: a.lines.at(-1).update, b: b.lines.at(-1).update, bCode: b.code, staged: staged.lines[0].staged, files: published(inst) };
 }
@@ -224,10 +228,10 @@ test("the update finding, reproduced on the shipped 0.2.0 artifact and refused b
   catch { t.skip("6784f671 not in this checkout"); return; }
   assert.equal(sha(fs.readFileSync(old)), "3782de92df2ecc0d13262fc94470b90e694654f35452211b68073468b3f1ded6");
   const o = await sameVersionRestage(old);
-  assert.equal(o.a.ok, true); assert.equal(o.b.ok, false); assert.notEqual(o.bCode, 0); assert.match(o.b.reasons[0], /already staged: 0\.3\.0 cannot replace it/);
+  assert.equal(o.a.ok, true); assert.equal(o.b.ok, false); assert.notEqual(o.bCode, 0); assert.match(o.b.reasons[0], /already staged: 9\.3\.0 cannot replace it/);
   assert.equal(o.staged.bytesMatch, false, "0.2.0: refused, yet its bytes replaced the staged file");
   const n = await sameVersionRestage(CLI);
-  assert.equal(n.a.ok, true); assert.equal(n.b.ok, false); assert.notEqual(n.bCode, 0); assert.match(n.b.reasons[0], /already staged: 0\.3\.0 cannot replace it/);
+  assert.equal(n.a.ok, true, JSON.stringify(n.a)); assert.equal(n.b.ok, false); assert.notEqual(n.bCode, 0); assert.match(n.b.reasons[0], /already staged: 9\.3\.0 cannot replace it/);
   assert.equal(n.staged.bytesMatch, true, "the staged bytes are the committed ones"); assert.equal(n.files.length, 1, "the refused stager published nothing");
 });
 

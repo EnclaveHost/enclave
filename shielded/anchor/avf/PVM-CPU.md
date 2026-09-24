@@ -549,6 +549,18 @@ agreed with the Enclave verifier session, all nine of its fail-closed refinement
     decides inside the store's compare-and-swap. A refused, crashed or uncommitted attempt cannot change what a
     committed state names. The same artifact again is idempotent.
   - Reproduced on the shipped 0.2.0 bytes and tested in client/DESIGN.md "State".
+- **0.3.0: explicit activation.** A staged update runs only after `pvm-client activate`. This is client/DESIGN.md
+  "Activation", agreed with the verifier session first.
+  - The installed artifact is the launcher. It runs all maintenance itself, and only `run` executes a newer active
+    version.
+  - The launcher reads those bytes once, verifies them, and runs exactly them from memory over stdin, never a path
+    twice. A start check runs first in a scrubbed environment.
+  - `active` is recorded through the compare-and-swap and only grows. A missing or changed file fails closed with no
+    fallback. One hop, never re-delegating.
+  - Tested with harmless canaries and real next builds in child processes, including a forced swap between
+    verification and execution, which a naive path-based launcher loses.
+  - Limits stay as they were: the first install and the launcher's own bytes are the out-of-band root, and
+    whole-machine power loss is untested.
 
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 
