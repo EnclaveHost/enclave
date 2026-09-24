@@ -117,6 +117,16 @@ FINDINGS
       guestd's per-instance admission are routing hygiene, not client evidence. Closing this needs an
       instance/deployment binding a client can check (the pVM tier is building one: INSTANCE-BINDING.md); it
       must not come from an unauthenticated host input.
+      CONFIRMED from the public side by enclave-99 at 19:53Z: A and E, verified under A's expectations, are identical
+      in every claim the verdict carries (product, report version, VMPL, measurement, AppID, chip fa11afcf54ae9c53,
+      TCB, policy, firmware, runtime binding, ARK/VCEK); only the served key, the report id (A ad130511ef9a8b49...,
+      E bb731bfeac83d5b1...) and the nonce/key-derived report_data differ.
+      PROPOSED FIX: launch each guest with SNP HOST_DATA = its 32-byte deployment id (QEMU sev-snp-guest host-data=).
+      HOST_DATA is signed into every report and fixed at launch, but not in the launch measurement, so the expected
+      measurement stays one per version; the judge gains an expected-deployment check (report.host_data == the
+      deployment id the client is visiting, which it knows from the hostname / chain). A host could still start a
+      second genuine instance labelled A, but it could no longer answer A's users from E's guest undetected. Any
+      per-deployment secret release must then bind to HOST_DATA as well. Not built yet.
   F2  The guest front's certificate is self-signed: a browser warns. Trust comes from attestation (the verifying
       client), not WebPKI. A CA certificate for the guest's own key (CSR from inside the guest) is not built.
   F3  The relay-terminated /x/<id>/ path answers 503 "state unknown" for this deployment instead of a clear refusal.
