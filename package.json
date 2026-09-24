@@ -4,7 +4,7 @@
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
-  "description": "Enclave supervisor \u2014 the whole service, running inside the Tinfoil enclave behind the shim. Control + data + per-use container launch. Nothing external touches a prompt.",
+  "description": "Enclave supervisor — the whole service, running inside the Tinfoil enclave behind the shim. Control + data + per-use container launch. Nothing external touches a prompt.",
   "main": "supervisor.js",
   "scripts": {
     "prepare": "node -e \"try{require('child_process').execFileSync('git',['config','core.hooksPath','.githooks'],{stdio:'ignore'})}catch{}\"",
@@ -24,7 +24,8 @@
     "test:client-device-activation": "node --test test/verifier-pvm-client-device-activation.test.mjs",
     "test:client-device-2-negative": "node verifier/integration/run-device-2-negative.mjs",
     "test:client-device-activation-3": "node --test test/verifier-pvm-client-device-activation-3.test.mjs",
-    "test:client-device-activation-2": "node --test test/verifier-pvm-client-device-activation-2.test.mjs"
+    "test:client-device-activation-2": "node --test test/verifier-pvm-client-device-activation-2.test.mjs",
+    "test:verdict": "node --test test/verifier-integration-verdict.test.mjs"
   },
   "engines": {
     "node": ">=20"
