@@ -126,6 +126,8 @@ Remote paths: `C:\Users\claude\vbs-like\{host,verify,apps,out}`, `wsl-kernel` (a
 
 ## 6. Open, in one line each
 
+- **Phase 2** (the isolated mode with an OpenHCL paravisor): see PHASE2.md and HOST-PREREQ.md.
+
 - **VBS-isolated partitions** (`IsolationType: VirtualizationBasedSecurity`, an OpenHCL IGVM as
   guest firmware): the one Hyper-V construct that would exclude the root partition from a domain's
   memory on this hardware. It needs the OpenHCL image and, on a client SKU, `AllowFirmwareLoadFromFile`
