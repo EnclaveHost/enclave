@@ -51,6 +51,11 @@ test("a real browser verifies the (fake) VM, seals its request, and refuses anot
     assert.equal(ok.verified.format, "enclave-pvm-app-evidence/v2");
     assert.match(ok.userAgent, /Chrome\//);
     assert.ok(vm.log.some((l) => l.served === "GET /?graph=g&steps=3 HTTP/1.1"), "the fake VM opened the page's request");
+    const st = await run("stream-honest", "&mode=stream&trace=1");
+    assert.equal(st.complete, true, JSON.stringify(st)); assert.equal(st.status, 200);
+    assert.equal(st.tokens, 3); assert.deepEqual(st.lines.map((l) => JSON.parse(l).token), [7, 8, 9]);
+    assert.match(st.trace.exported, /^[0-9a-f]{32}$/, "a lab trace carries the context to re-open the stream offline");
+    assert.ok(vm.log.some((l) => l.served && l.chunked), "the fake VM answered a chunked request");
     const n = vm.log.filter((l) => l.served).length;
     const wrong = await run("wrong-app", `&app=${"e".repeat(64)}`);
     assert.equal(wrong.sent, false); assert.equal(wrong.step, "verify"); assert.match(wrong.refused, /another app/);

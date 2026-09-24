@@ -455,11 +455,49 @@ Limits, exactly:
   installed app. That is the platform's call and not built.
 - **No per-request forward secrecy against the VM's own key.** The app key lives in VM memory for one boot. An attacker
   who later learned it could open that boot's recorded requests.
-- **Whole-message sealing.** A response is sealed whole (up to 16 MiB), so tokens do not stream; a chunked sealed format
-  would be the next step.
+- ~~Whole-message sealing~~ answers now stream (next section); the whole mode remains beside it.
 - One sealed connection at a time in the VM, as for TLS. Requests up to 1 MiB.
 - Refusal hints are unauthenticated: a relay can fake them, but that is only denial of service.
 - No client identity: the VM sees an anonymous page.
+
+### Streaming sealed responses (LAB, 2026-09-24): tokens as they are decoded, each piece authenticated
+
+The protocol is SEALED-STREAMING.md, agreed with the Enclave verifier session before it was built (its
+`docs/security/pvm-sealed-streaming-review.md` records the revision verbatim).
+- A page asks for a stream with request key id 1. The key id sits inside the HPKE info, so a flipped mode does not open.
+- The VM answers `0x00 || rn` and then chunks.
+  - Key schedule and counter nonces follow draft-ietf-ohai-chunked-ohttp-08.
+  - Each chunk is `type || varint(len) || AES-GCM`, with `aad = label || evidence nonce || rn || index || type`.
+  - Types are DATA, FIN (the authenticated end) and ABORT (an authenticated in-stream error). Nothing may follow FIN,
+    and a stream without FIN is incomplete.
+- The page (web/pvm-sealed.js `openStream`) releases a chunk's plaintext only after its tag verifies, in order.
+  Completion is a distinct signal. The error classes are refused, truncated, aborted, tamper, oversize, malformed,
+  trailing and cancelled.
+- Cancel is a closed connection: the VM stops the guest's decode and logs it, and nothing resumes.
+- Buffering is bounded on every hop. Only the hub's phone-to-client direction lacks real backpressure; it is capped at
+  1 MiB and fails closed.
+- Libraries: the page's HPKE is @hpke/core 1.9.0 (vendored, integrity-pinned, MIT) plus WebCrypto; the VM uses the hpke
+  crate and ring.
+- The lab app is runtime/conformance/stream-probe: ggml-probe's decode, one 128-byte padded NDJSON line per token.
+- Host evidence:
+  - cross-language vectors: Rust reproduces the page's stream and its ABORT byte for byte;
+  - the agreed adversarial list against the reader;
+  - a streamed request through the real component, and a cancelled 256-token stream that stops decoding;
+  - real headless Chromium on a fake VM.
+- **Device evidence** (rt14): results/pvm-cpu-streaming (34 of 35 checks) and results/pvm-cpu-streaming-cancel (PASS).
+  - Streaming: Chromium 152 and Firefox 155 each received 24 tokens chunk by chunk. The first token reached the page at
+    1.2-1.3 s (0.7 s of it the evidence), and the rest arrived over 1.7-1.8 s, complete only after FIN.
+  - A malicious relay's stream mutations were each refused with their class and never called complete: swap,
+    duplicate, drop, forged FIN, bit flip, FIN flag, forged chunk and replay (tamper); truncation (truncated, with an
+    authentic prefix); a byte after FIN (trailing). A flipped request mode did not open in the VM.
+  - All 13 traces re-check offline (test/pvm-stream-traces.test.mjs).
+  - Cancellation: the first run's page consumed one token past its cancel, a line inside the same authenticated chunk.
+    Fixed and re-run: exact cancels at 1, 4 and 10, the VM stopping after 2, 4 and 7 chunks and serving the next stream
+    at once.
+- Limits, beyond the browser channel's:
+  - the relay sees chunk sizes and timing, so it learns token count and cadence;
+  - it can always drop or stall the stream (denial of service);
+  - production code delivery remains unsolved.
 
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 

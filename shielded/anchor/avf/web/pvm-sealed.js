@@ -94,7 +94,8 @@ export function varint(v) {   // QUIC variable-length integer (RFC 9000 section 
  *       refused (the VM's unauthenticated pre-stream hint) | truncated (the stream ended with no FIN or ABORT) |
  *       aborted (an authenticated ABORT: the VM said the answer failed; what came before is an authentic prefix only) |
  *       tamper (a chunk did not open: altered, reordered, duplicated, dropped, spliced, replayed, or another key) |
- *       oversize | malformed | trailing (bytes after FIN) | cancelled (the caller aborted)
+ *       oversize | malformed (framing: an unknown type, a chunk shorter than a tag, an empty data chunk) |
+ *       trailing (bytes after FIN) | cancelled (the caller aborted)
  * Buffering is bounded: at most one chunk (16 KiB + 16 + 9) is held.
  */
 export async function openStream(ctx, source, { onData = () => {}, signal } = {}) {
@@ -115,10 +116,11 @@ export async function openStream(ctx, source, { onData = () => {}, signal } = {}
         rn = buf.slice(0, 16); buf = buf.subarray(16); keys = await responseKeys(ctx, rn); state = "chunk"; continue;
       }
       if (state === "done" || state === "aborted") return buf.length ? fail("trailing", `${buf.length} bytes after the ${state === "done" ? "FIN" : "ABORT"}`) : null;
+      if (signal && signal.aborted) return fail("cancelled", "the caller aborted");   // nothing is released after a cancel
       // state chunk: type(1) || varint(len) || ct(len)
       if (buf.length < 2) return null;
       const type = buf[0];
-      if (type > 2) return fail("tamper", `chunk ${i} has an unknown type ${type}`);
+      if (type > 2) return fail("malformed", `chunk ${i} has an unknown type ${type}`);
       const vl = 1 << (buf[1] >> 6);
       if (buf.length < 1 + vl) return null;
       let len = buf[1] & 0x3f;

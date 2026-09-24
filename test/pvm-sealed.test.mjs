@@ -164,7 +164,7 @@ test("stream reader: whole, split anywhere; every agreed attack refused with its
   await cls(join(head, [Uint8Array.of(0, 0x80, 0, 0x80, 0)]), "oversize", /refused, never truncated/);
   await cls(join(head, [Uint8Array.of(0, 16, ...new Uint8Array(16))]), "malformed", /empty data chunk/);
   await cls(join(head, [Uint8Array.of(0, 5, 1, 2, 3, 4, 5)]), "malformed", /shorter than a tag/);
-  await cls(join(head, [Uint8Array.of(3, 16, ...new Uint8Array(16))]), "tamper", /unknown type/);
+  await cls(join(head, [Uint8Array.of(3, 16, ...new Uint8Array(16))]), "malformed", /unknown type/);
   await cls(join(head, [...chunks, Uint8Array.of(0)]), "trailing", /after the FIN/);
   await cls(join(head, [...chunks, chunks[0]]), "trailing", /after the FIN/);
   // single-bit flips: ciphertext, tag, the type (FIN flag on a middle chunk), the response nonce, the length prefix
@@ -191,6 +191,10 @@ test("stream reader: whole, split anywhere; every agreed attack refused with its
   const src = (async function* () { yield join(head, chunks.slice(0, 2)); ac.abort(); yield join(new Uint8Array(0), chunks.slice(2)); })();
   const cv = await S.openStream(ctx, src, { signal: ac.signal, onData: (d) => seen.push(td.decode(d)) });
   assert.equal(cv.error, "cancelled"); assert.equal(cv.complete, false); assert.equal(seen.join(""), x.parts.slice(0, 2).join(""), "nothing released after the abort");
+  // a cancel raised by a released chunk (the page saw enough) stops the chunks already buffered behind it
+  const ac2 = new AbortController(), seen2 = [];
+  const cv2 = await S.openStream(ctx, (async function* () { yield x.stream; })(), { signal: ac2.signal, onData: (d) => { seen2.push(td.decode(d)); if (seen2.length === 2) ac2.abort(); } });
+  assert.equal(cv2.error, "cancelled"); assert.equal(seen2.length, 2, "chunks behind the cancel are not released");
 });
 
 test("the HTTP stream parser: NDJSON lines as they arrive, completeness only at the chunked terminator, bounded", async () => {
