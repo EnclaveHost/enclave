@@ -9,6 +9,11 @@
 import { createHash } from "node:crypto";
 
 export const PVM_EVIDENCE_FORMAT = "enclave-pvm-app-evidence/v1";
+// v2 (pVM owner, 2026-09-24, not yet pushed): the closed shape gains appKey (32-byte X25519, 64 hex) and appKeySig
+// (Ed25519 under the attested transport key over "enclave-pvm-app-key-v1\n" || nonce || appId || appKey); the
+// owner's result carries appKey only after that signature verifies. This is the browser path's key binding.
+export const PVM_EVIDENCE_FORMAT_V2 = "enclave-pvm-app-evidence/v2";
+export const PVM_EVIDENCE_FORMATS = new Set([PVM_EVIDENCE_FORMAT, PVM_EVIDENCE_FORMAT_V2]);
 export const PVM_EVIDENCE_MAX_BYTES = 256 * 1024;
 const hex = (b) => Buffer.from(b).toString("hex");
 const isHex = (s, n) => typeof s === "string" && s.length === n && /^[0-9a-f]+$/.test(s);
@@ -29,7 +34,12 @@ export async function verifyPvmEvidence(envelope, expect = {}, { verifyImpl = nu
   if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) return fail("evidence is not an object");
   let size = 0; try { size = Buffer.byteLength(JSON.stringify(envelope)); } catch { return fail("evidence is not serialisable"); }
   if (size > PVM_EVIDENCE_MAX_BYTES) return fail(`evidence exceeds ${PVM_EVIDENCE_MAX_BYTES} bytes`);
-  if (envelope.format !== PVM_EVIDENCE_FORMAT) return fail(`format ${JSON.stringify(envelope.format)} is not ${PVM_EVIDENCE_FORMAT}`);
+  if (!PVM_EVIDENCE_FORMATS.has(envelope.format)) return fail(`format ${JSON.stringify(envelope.format)} is not one of ${[...PVM_EVIDENCE_FORMATS].join(", ")}`);
+  const v2 = envelope.format === PVM_EVIDENCE_FORMAT_V2;
+  // consumer expectation of the closed shape: v2 carries the browser key and its signature, v1 must not (a relay
+  // that strips them from v2 or adds them to v1 produces a malformed envelope, never a silent downgrade)
+  if (v2 && (!isHex(envelope.appKey, 64) || !isHex(envelope.appKeySig, 128))) return fail("v2 evidence must carry appKey (64 hex) and appKeySig (128 hex); a stripped key is a malformed envelope, not a downgrade");
+  if (!v2 && ("appKey" in envelope || "appKeySig" in envelope)) return fail("v1 evidence must not carry appKey/appKeySig");
   const nonceHex = hex(expect.nonce), appHex = hex(expect.appId);
   if (!isHex(envelope.nonce, 64) || envelope.nonce !== nonceHex) return fail("the echoed nonce is not this client's challenge (a hostile relay, a replay, or another session's evidence)");
   if (!isHex(envelope.app, 64) || envelope.app !== appHex) return fail("the echoed app id is not the app this client expects");
@@ -48,8 +58,12 @@ export async function verifyPvmEvidence(envelope, expect = {}, { verifyImpl = nu
   // the transport key the CLIENT will pin is what the verifier says the evidence bound, never the raw echo
   const transportSpki = Buffer.isBuffer(r.transportSpki) ? hex(r.transportSpki) : typeof r.transportSpki === "string" ? r.transportSpki.toLowerCase() : null;
   if (!transportSpki || !/^[0-9a-f]{88}$/.test(transportSpki)) return fail("the evidence verifier returned no 44-byte Ed25519 transport SPKI to pin");
-  const appKey = typeof r.appKey === "string" && /^[0-9a-f]{64}$/.test(r.appKey) ? r.appKey : null;   // application-layer key for browsers (requested; absent in the v1 proposal)
+  // the application-layer key for browsers: taken from the owner's RESULT (present only once appKeySig verified), and
+  // it must equal the envelope's field so a relay cannot make the verifier vouch for one key and the client pin another
+  const appKey = typeof r.appKey === "string" && /^[0-9a-f]{64}$/.test(r.appKey) ? r.appKey : null;
+  if (v2 && (!appKey || appKey !== envelope.appKey)) return fail("v2: the verifier did not vouch for the envelope's appKey (signature not verified, or another key)");
+  if (!v2 && appKey) return fail("v1: the verifier returned an appKey the format cannot carry");
   const runtimeId = typeof r.runtimeId === "string" ? r.runtimeId.toLowerCase() : null;
-  return out("verified", { claims: { technology: "android-avf", format: PVM_EVIDENCE_FORMAT, family: "pvm-app", freshness: "client-nonce", nonce: nonceHex, appId: appHex,
+  return out("verified", { claims: { technology: "android-avf", format: envelope.format, family: "pvm-app", freshness: "client-nonce", nonce: nonceHex, appId: appHex,
     runtimeId, transportSpki, transportSpkiSha256: createHash("sha256").update(Buffer.from(transportSpki, "hex")).digest("hex"), appKey, tlsKey: r.tlsKey ?? null, measurement: r.measurement ?? null } });
 }
