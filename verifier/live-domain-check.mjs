@@ -35,6 +35,10 @@ const measurement = opt("measurement") || stated(/measurement\s+([0-9a-f]{96})/)
 let appId = opt("app-id") || stated(/AppID\s+([0-9a-f]{64})/), appIdSource = opt("app-id") ? "command line" : "the owner's README (stated, not reproduced)";
 const report = { host, at: new Date().toISOString(), contract: { path: contractPath, sha256: createHash("sha256").update(fs.readFileSync(contractPath)).digest("hex") }, expectations: { measurement, measurementSource: opt("measurement") ? "command line" : "the owner's README (expected-measurement.sh; release bytes not published)", identity, minTcb } };
 
+// the record's derivation names the rule (enclave-catalog-bundle/1: served wasi:http; /2: a wasi:cli command on ONE http port)
+report.expectations.derivation = record.derivation;
+if (record.http !== undefined) report.expectations.http = record.http;
+
 // 1. (optional) reproduce the AppID from the component by CID with the owner's pinned reference derivation
 if (flag("derive")) {
   const ref = path.join(path.dirname(contractPath), "catalog", "derive_reference.py");

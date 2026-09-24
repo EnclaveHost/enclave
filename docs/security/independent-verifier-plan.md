@@ -731,6 +731,24 @@ F2 measurement and the same keys (295ce2e0…, d590dd84…) and certificate wind
 `GET https://api.enclave.host/x/0x<deployment id>/` answers 421 from the lease holder, naming the guest's own origin (the
 bare-hex form is not an id there and is 404 "not_found"). So a node restart that leaves guestd alone keeps the guests'
 keys; only the F7 case above (guestd itself) and a guest relaunch were measured to change them.
+**F10, a wasi:cli command in its guest, and a TCB floor for issuance (owner's cf8b22bd; reviewed at that commit, not
+yet measured live).** The bundle manifest gains `world: wasi:cli` with one `http` port (1..49999); `wasi:http` (or no
+world) names no port and any other world is refused. The derivation `enclave-catalog-bundle/2` is v1 with that world
+and port, and the record gains `http`. Checked here rather than taken from the commit message: the pinned reference
+regenerates the committed vectors byte for byte, every v1 vector's bundle and AppID are identical under the 2db69f32
+and cf8b22bd scripts, and the owner's Go tests (the rule against the reference, the world/port table) pass at cf8b22bd.
+`isolation/contract/runtime.mjs` (Bind2, RuntimeID) is the same blob, so the verdict path is unchanged; the pin moved
+to cf8b22bd for the reference and its vectors, and `test/verifier-linux-derivation.test.mjs` replays the vectors
+through the pinned script and adds the record shapes a supervisor could send over JSON (a string, float, boolean, null
+or negative port; a v1 record carrying `http`), each refused. In run mode the guest's init passes wasmtime
+`-S tcp,udp,inherit-network`; the guest has no NIC and its only channel is vsock, so that reaches its own loopback and
+nothing else, and the front still proxies 127.0.0.1:N behind the attested TLS key. New guests built from this initrd
+have a new launch measurement; the owner sends it with the domain release. The TCB floor is a file measured into the
+node image (`/opt/metal/isolation-min-tcb.json`, the same Turin values as the canary's `min-tcb.json`), passed to the
+owner's judge as `minTcb`: with it only an "attested" verdict issues, a malformed floor is refused by `checkMinTcb`
+(so nothing issues), and a node image without the file still issues on "no-tcb-policy" (chain verified, TCB unjudged),
+which the supervisor logs. The expected guest measurement remains guestd's word. Open on the owner's side: DERIVE.md
+still describes only v1, though the reference claims to be written from it.
 
 ## 11. Open risks
 
