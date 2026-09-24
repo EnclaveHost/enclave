@@ -22,4 +22,7 @@ suite claim-gate "$repo" node --test test/isolation-claim-gate.test.mjs
 suite domain-release "$here" ./test-domain-release.sh "$G" "$W/domain-release"
 suite image-repro "$here" ./test-image-repro.sh "$G/A.bundle" "$W/image-repro"
 suite control "$here" ./test-guestd-control.sh "$W/control"
+# every repository test that drives supervisor.js: the flag-off behaviour must be unchanged
+suite supervisor "$repo" sh -c 'node --test --test-timeout=120000 $(grep -l supervisor.js test/*.test.mjs)'
+
 echo "results in $W"
