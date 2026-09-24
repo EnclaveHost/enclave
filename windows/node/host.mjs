@@ -1245,7 +1245,15 @@ export class Host {
       const { IsolationManagerClient } = await import("./isolation-client.mjs");
       const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
       const r = await retire({ client, deployment: { id }, ledger: null, instanceId: rec.isolation.instance });
-      if (r.removed) { this.log(`${id.slice(0, 10)} isolated domain retired (${why})`); return true; }
+      if (r.removed) {
+        // CLEARED ONLY ON A CONFIRMED REMOVAL (enclave-99). Dropping `isolation` on any other
+        // outcome would erase the only record of which instance is still out there: the domain
+        // would keep serving and nothing here would name it, so a later tick could neither retire
+        // it nor even report it. Keeping it is what makes an unconfirmed retire visible.
+        this.#record(id, { isolation: null, isolationRetireFailed: null });
+        this.log(`${id.slice(0, 10)} isolated domain retired (${why})`);
+        return true;
+      }
       this.log(`${id.slice(0, 10)} isolated domain NOT retired: ${r.reason}`);
       this.#record(id, { isolationRetireFailed: r.reason });
       return false;
