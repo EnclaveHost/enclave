@@ -1,0 +1,37 @@
+bt-2 pre: MemFree: 42098244 kB AnonHugePages: 1316864 kB  now:[picom:89]
+bt-2 rc=0 wall=99s foreign=1.46 refusalA=0 refusalB=0 splitrefused=0 INTRUDER: node:110
+  INVALID: intruder=node:110
+  plain 19.18 | spec k=1 19.61 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4 thp: t+30 Rss: 45389832 kB Anonymous: 28240380 kB AnonHugePages: 25044992 kB
+bt-3 pre: MemFree: 43000544 kB AnonHugePages: 1294336 kB  now:[picom:90 electron:11]
+bt-3 rc=0 wall=97s foreign=0.76 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=22.72 workload=(1, 17, 64, 64, 43118)
+  plain 20.22 | spec k=1 22.72 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4 thp: t+30 Rss: 45384608 kB Anonymous: 28235076 kB AnonHugePages: 25071616 kB
+bt-4 pre: MemFree: 43030196 kB AnonHugePages: 1325056 kB  now:[picom:90]
+bt-4 rc=0 wall=96s foreign=0.41 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.20 workload=(1, 17, 64, 64, 43118)
+  plain 17.96 | spec k=1 21.20 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4 thp: t+30 Rss: 45396984 kB Anonymous: 28247508 kB AnonHugePages: 25079808 kB
+bt-5 pre: MemFree: 42923344 kB AnonHugePages: 1333248 kB  now:[picom:92]
+bt-5 rc=0 wall=98s foreign=0.90 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.48 workload=(1, 17, 64, 64, 43118)
+  plain 18.76 | spec k=1 21.48 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4 thp: t+30 Rss: 45384552 kB Anonymous: 28235020 kB AnonHugePages: 25063424 kB
+bt-6 pre: MemFree: 42796492 kB AnonHugePages: 1402880 kB  now:[picom:91]
+bt-6 rc=0 wall=95s foreign=0.46 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.39 workload=(1, 17, 64, 64, 43118)
+  plain 19.23 | spec k=1 21.39 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4 thp: t+30 Rss: 45397480 kB Anonymous: 28248016 kB AnonHugePages: 25411584 kB
+bt-7 pre: MemFree: 42775012 kB AnonHugePages: 1366016 kB  now:[picom:91]
+bt-7 rc=0 wall=97s foreign=0.41 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=17.51 workload=(1, 17, 64, 64, 43118)
+  plain 20.61 | spec k=1 17.51 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4 thp: t+30 Rss: 45385964 kB Anonymous: 28236432 kB AnonHugePages: 25063424 kB
+QUEUE-DONE

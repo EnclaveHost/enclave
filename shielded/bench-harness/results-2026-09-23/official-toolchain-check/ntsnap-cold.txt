@@ -1,0 +1,8 @@
+ntsnap=1 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  138.2 us/call
+ntsnap=0 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  134.7 us/call
+ntsnap=0 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  164.5 us/call
+ntsnap=1 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  140.7 us/call
+ntsnap=1 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  138.0 us/call
+ntsnap=0 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  189.3 us/call
+ntsnap=0 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  174.9 us/call
+ntsnap=1 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  129.5 us/call

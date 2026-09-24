@@ -1,0 +1,20 @@
+kd1-1 rc=0 wall=97s foreign=0.81 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=19.59 workload=(1, 17, 64, 64, 43118)
+  plain 19.58 | spec k=1 19.59 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4
+kd2-1 rc=0 wall=97s foreign=0.44 refusalA=0 refusalB=0 splitrefused=0 INTRUDER: electron:52 node:108
+  INVALID: intruder=electron:52
+  plain 17.77 | spec k=2 19.67 tok/s, acc 0.643, identical=True
+[bench] shielded: offloaded=40026 local=0 GMAC=5299.40 verify_fail=0
+  plain-hash 0a1570d184a4
+kd2-2 rc=0 wall=98s foreign=0.58 refusalA=0 refusalB=0 splitrefused=0 INTRUDER: node:116
+  INVALID: intruder=node:116
+  plain 18.55 | spec k=2 18.75 tok/s, acc 0.643, identical=True
+[bench] shielded: offloaded=40026 local=0 GMAC=5299.40 verify_fail=0
+  plain-hash 0a1570d184a4
+kd1-2 rc=0 wall=96s foreign=0.81 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.26 workload=(1, 17, 64, 64, 43118)
+  plain 19.46 | spec k=1 21.26 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+PAUSED 19:06:18 for enclave-16's build window (queue loop stopped after kd1-2)
