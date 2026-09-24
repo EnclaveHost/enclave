@@ -15,7 +15,7 @@ THE CANDIDATE
           Arch packages no AmdSev OVMF variant
 
 BUILD DEVIATIONS, both in the GRUB image the AmdSev prebuild embeds, because Arch's GRUB ships neither module:
-  linuxefi   dropped: a Fedora/RHEL patch, merged upstream into , which remains in the list
+  linuxefi   dropped: a Fedora/RHEL patch, merged upstream into the "linux" module, which remains in the list
   sevsecret  dropped: reads an injected SEV secret to unlock an encrypted disk
 Both belong to the AmdSev encrypted-disk-with-secret-injection flow, not to the QEMU -kernel path this project
 boots, and BlobVerifierLibSevHashes is untouched by either. THIS FIRMWARE IS THEREFORE NOT SUITABLE FOR THAT
