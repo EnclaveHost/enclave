@@ -134,11 +134,11 @@ main:focus,main:focus-visible{outline:none;}
 .btn .arr{transition:transform .18s var(--ease);}
 .btn:hover .arr{transform:translateX(3px);}
 .btn-primary{
-  background:linear-gradient(180deg, rgba(47,230,168,.16), rgba(47,230,168,.06));
+  background:linear-gradient(180deg, rgba(47,230,168,.16), rgba(47,230,168,.06)),var(--surface);
   border-color:rgba(47,230,168,.4);color:var(--jade-2);
   box-shadow:0 0 0 1px rgba(47,230,168,.06), 0 10px 30px -12px rgba(47,230,168,.45);
 }
-.btn-primary:hover{border-color:var(--jade);background:linear-gradient(180deg, rgba(47,230,168,.24), rgba(47,230,168,.1));}
+.btn-primary:hover{border-color:var(--jade);background:linear-gradient(180deg, rgba(47,230,168,.24), rgba(47,230,168,.1)),var(--surface);}
 .btn-ghost{background:transparent;}
 .btn-sm{padding:.5em .8em;font-size:.78rem;}
 
@@ -179,7 +179,7 @@ section{padding:84px 0;position:relative;}
    textContent the run handler saves/restores around the "running…" state. */
 .runbtn{font-family:var(--font-mono);font-size:.7rem;line-height:1.5;color:var(--jade);border:1px solid var(--jade-dim);background:var(--jade-deep);padding:.32em .6em;border-radius:6px;cursor:pointer;transition:.15s;margin-left:auto;margin-right:6px;display:inline-flex;align-items:center;gap:.45em;min-height:24px;justify-content:center;}
 .runbtn::before{content:"\25B6\FE0E";font-size:.62em;line-height:1;}
-.runbtn:hover{border-color:var(--jade);background:rgba(47,230,168,.16);} .runbtn:disabled{opacity:.5;cursor:default;}
+.runbtn:hover{border-color:var(--jade);background:linear-gradient(rgba(47,230,168,.16),rgba(47,230,168,.16)),var(--jade-deep);} .runbtn:disabled{opacity:.5;cursor:default;}
 .runbtn:disabled::before{display:none;}
 
 

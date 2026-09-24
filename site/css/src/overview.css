@@ -83,7 +83,7 @@
 /* ---------- pricing example table (was runtime-injected) ---------- */
 .mig-table-wrap{max-width:760px;margin:0 auto;}
 .mig-scroll{overflow-x:auto;}
-.mig-table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:.82rem;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+.mig-table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:.82rem;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface);}
 .mig-table th,.mig-table td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--line-soft);}
 .mig-table thead th{font-size:.64rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);background:var(--bg-1);}
 /* money columns read as a ledger: right-aligned, digits in lockstep */
