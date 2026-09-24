@@ -310,8 +310,14 @@ static ssize_t result_show(struct kobject *k, struct kobj_attribute *a, char *bu
 /*
  * thaw: ask the SVSM to PVALIDATE(invalid) one page of the active slot. For an ADMITTED page it must be
  * REFUSED - that is the non-hanging way to show the artifact cannot be thawed, unlike writing to a frozen
- * page, which livelocks the vCPU. Write "<page index> <0|1>" where the second field is the action
- * (0 invalidate, 1 validate) and "<index> 1 2m" uses a 2 MiB entry.
+ * page, which livelocks the vCPU. Write "<page index> <0|1> [2m]": the second field is the action
+ * (0 invalidate, 1 validate), and index -1 means "the first page past what was staged", which is how the
+ * UNADMITTED control finds a page without assuming how large the artifact is.
+ *
+ * A 2 MiB entry is masked down to a 2 MiB boundary, because core_pvalidate_one checks alignment BEFORE the
+ * admitted-region hook and returns INVALID_PARAMETER (0x80000005) for a 2 MiB entry that is only 4 KiB
+ * aligned - which a vmalloc page almost always is. Without the mask the 2 MiB control printed "refused"
+ * without the hook ever running, and a scorer reading "refused" would pass it vacuously.
  *
  * If the SVSM's admitted-region hook were missing, the invalidate would SUCCEED and the next read of that page
  * would crash the guest with a #VC - loud, and acceptable for a test.
@@ -320,23 +326,35 @@ static ssize_t thaw_store(struct kobject *k, struct kobj_attribute *a, const cha
 {
 	struct pvalidate_req req = {};
 	struct slot *sl = &slots[active];
-	unsigned long idx;
+	long idx;
 	unsigned int action;
 	char size[8] = {0};
+	bool huge;
 	u64 gpa;
 	int ret;
 
-	if (!sl->mem || sscanf(buf, "%lu %u %7s", &idx, &action, size) < 2)
+	if (!sl->mem || sscanf(buf, "%ld %u %7s", &idx, &action, size) < 2)
 		return -EINVAL;
-	if (idx >= sl->cap / PAGE_SIZE || action > 1)
+	if (action > 1)
 		return -EINVAL;
+	if (idx < 0) {
+		/* the first page past what was staged: unadmitted whatever the artifact's size */
+		idx = (sl->len + PAGE_SIZE - 1) / PAGE_SIZE;
+		if ((size_t)idx >= sl->cap / PAGE_SIZE)
+			return -ENOSPC;
+	}
+	if ((size_t)idx >= sl->cap / PAGE_SIZE)
+		return -EINVAL;
+	huge = strcmp(size, "2m") == 0;
 	gpa = (u64)vmalloc_to_pfn((u8 *)sl->mem + idx * PAGE_SIZE) << PAGE_SHIFT;
+	/* a 2 MiB entry must be 2 MiB aligned or the alignment check refuses it before the hook runs */
+	gpa &= huge ? ~0x1fffffULL : ~0xfffULL;
 	req.num_entries = 1;
 	req.cur_index = 0;
-	req.entry[0] = (gpa & ~0xfffULL) | (action ? 4 : 0) | (strcmp(size, "2m") == 0 ? 1 : 0);
+	req.entry[0] = gpa | (action ? 4 : 0) | (huge ? 1 : 0);
 	ret = svsm_call(CORE_PVALIDATE, &req);
-	pr_info("appid: pvalidate gpa=0x%llx action=%u%s -> %d (rax_out=0x%llx, cur_index=%u)\n",
-		gpa, action, strcmp(size, "2m") == 0 ? " 2m" : "", ret, last_rax_out, req.cur_index);
+	pr_info("appid: pvalidate idx=%ld gpa=0x%llx action=%u%s -> %d (rax_out=0x%llx, cur_index=%u)\n",
+		idx, gpa, action, huge ? " 2m" : "", ret, last_rax_out, req.cur_index);
 	return ret ? -EACCES : n;
 }
 

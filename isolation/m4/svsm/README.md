@@ -110,13 +110,42 @@ the admission gate. Both of its report builders now stamp the plane the SVSM ser
 * The staging buffers are never freed. Once frozen they are read-only to the plane for the life of the guest,
   and returning them to the allocator would hand the kernel memory it cannot write.
 
+### Refusal codes, and the divergence from upstream COCONUT
+
+Each refusal has its own protocol-specific code (`SvsmReqError::protocol`, so `0x80001000 + code`), because
+`INVALID_REQUEST` alone covered eight different reasons and a harness could only report "refused" - which
+cannot tell a finding from a bug in our own staging:
+
+| code | refusal |
+|---|---|
+| `0x80001001` | the caller is not the plane this SVSM serves |
+| `0x80001002` | this image names no artifact for that plane and kind |
+| `0x80001003` | the plane has not admitted every artifact its identity covers |
+| `0x80001004` | the bytes do not hash to the expected digest |
+| `0x80001005` | that kind is already admitted for this plane |
+| `0x80001006` | the freeze failed (RMPADJUST: a 2 MiB RMP entry gives FAIL_SIZEMISMATCH here) |
+| `0x80001007` | the bytes changed between the first hash and the freeze |
+| `0x80001008` | the admitted-page record could not be extended |
+
+**Divergence worth recording:** both of protocol 1's report builders now stamp `GUEST_VMPL`, so an upstream
+consumer of COCONUT's attestation protocol that expects VMPL0-labelled reports would see VMPL2 from this
+build. The SVSM's own boot-time attestation (`kernel/src/attest.rs`) is untouched and still VMPL0.
+
 ### Scoring the run, so a pass cannot be vacuous
 
 * the GOOD path prints no `poke_result` at all; a scorer that looks for one will wrongly fail it;
 * the TAMPERED path must show `poke_result=WROTE` **and** `admit_bundle_result` carrying the SVSM's refusal,
   after a staging that really happened - a refusal over a zeroed buffer would pass for the wrong reason;
 * `thaw_admitted` refused **and** `thaw_unadmitted` allowed: without the second, "refused" only shows the probe
-  does not work.
+  does not work. Score the CODES, not the words: `thaw_admitted_result` must read `rax_out=0x80000006` (the
+  admitted-region hook) and `thaw_unadmitted_result` `0x0`. A `0x80000005` on the 2 MiB control means the
+  alignment check refused it before the hook ran, so that control did not run at all;
+* the expected good-path line set: `admit_bundle_result` and `admit_runtime_result` `rax_out=0x0`, `report
+  GRANTED` with `report_hex[0x30..0x34] = 02000000` (the plane, little-endian) and a measurement equal to
+  `igvmmeasure` of the launched IGVM, `admit_again_result 0x80001005`, `thaw_admitted_result 0x80000006`,
+  `thaw_unadmitted_result 0x0` then a successful re-validate, `thaw_admitted_2m_result 0x80000006`;
+* the expected tampered-path line set: `admit_bundle_result 0x80001004` after a staging that really happened,
+  `poke_result=WROTE`, and `whoami_final` and `report_final` both refused.
 
 ## Still open, and not to be written up as done
 

@@ -175,14 +175,18 @@ int main(void) {
     show("thaw_admitted_result", "result");
 
     /* CONTROL: a page of the SAME buffer beyond what was admitted must be invalidatable, or "refused" above
-     * would only mean the probe does not work. Page 12000 is past the 45 MiB runtime image. */
-    e = puts_("thaw", "12000 0");
+     * would only mean the probe does not work. Index -1 is the first page past what was staged, so this does
+     * not assume how large the runtime image is - a larger one would otherwise make the control hit an
+     * ADMITTED page, get refused, and read as "the probe does not reach PVALIDATE". */
+    e = puts_("thaw", "-1 0");
     say("thaw_unadmitted", e == 0 ? "allowed (the probe reaches PVALIDATE)" : "refused");
     show("thaw_unadmitted_result", "result");
-    e = puts_("thaw", "12000 1");
+    e = puts_("thaw", "-1 1");
     say("thaw_unadmitted_revalidate", e == 0 ? "ok" : strerror(-e));
 
-    /* CONTROL: a 2 MiB entry covering an admitted page must also be refused */
+    /* CONTROL: a 2 MiB entry covering an admitted page must also be refused - and the request is masked to a
+     * 2 MiB boundary in the module, because otherwise the alignment check refuses it before the hook runs and
+     * the "refused" would be vacuous. Score rax_out: 0x80000006 is the hook, 0x80000005 means it never ran. */
     e = puts_("thaw", "0 0 2m");
     say("thaw_admitted_2m", e == 0 ? "GRANTED (a huge entry thawed it)" : "refused");
     show("thaw_admitted_2m_result", "result");
