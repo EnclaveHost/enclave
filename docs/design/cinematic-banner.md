@@ -1,0 +1,11 @@
+# Cinematic banner asset
+
+Asset: `site/assets/compute-cinematic.webp` (203 KB). Generated with the built-in image generation tool, then encoded as WebP with FFmpeg. The original is retained under the local Codex generated-images directory. Motion is CSS camera drift and a moving light layer, not a video or a real-time hardware status visualization. No third-party imagery or animation library is used.
+
+## Generation prompt
+
+Use case: ads-marketing. Create one photorealistic cinematic 3D environment image for a premium confidential-computing company's full-width website banner. Extra wide landscape composition, 2560x1440 or wider landscape. A monumental black graphite processor and precision-machined server hardware landscape, macro low-angle camera gliding across a complex dark motherboard, layered metallic heatsinks, dense tiny capacitors, brushed aluminum, black ceramic, engraved circuit traces. A single broad rectangular chip sits right of center, its perimeter emitting restrained luminous emerald light, with thin luminous emerald pathways extending across the board toward foreground. Atmospheric depth and subtle volumetric light, physically based materials, dramatic rim lighting, deep blacks, silver metallic details. Perspective feels like a cinematic high-end GPU launch film or Unreal Engine product rendering, tactile and sophisticated. Main visual interest occupies right 55%, left 45% stays dark with low-contrast hardware receding to make large white web text legible. Fill entire frame with the environment, no separate floating diagram. No text, no lettering, no brand logos, no lock symbols, no padlocks, no shields, no outlined wireframe cubes, no UI, no infographic, no cartoon, no rounded illustration. High detail and sharp material realism with selective depth of field. This is a background plate for a slow cinematic camera-move animation.
+
+## Validation
+
+Built the production bundle. Checked home, Host, Develop and Apps at 390, 768 and 1440 pixels for image loading and overflow. Inspected desktop and mobile screenshots. Verified pause control and reduced-motion behavior. Animation pauses offscreen and when the document is hidden; listeners are removed on soft-navigation unmount.
