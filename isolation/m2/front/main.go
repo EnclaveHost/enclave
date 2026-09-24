@@ -31,6 +31,7 @@
 package main
 
 import (
+	"crypto"
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
@@ -95,6 +96,7 @@ type front struct {
 	plane        *appidPlane // M4b: the measured SVSM names this plane and computes the binding itself
 	boundary     string      // the self-test init produced; relayed verbatim, never composed here
 	app          http.Handler
+	certs        *certState // a CA certificate for this domain's own key and deployment name (certs.go)
 	tsmMu        sync.Mutex
 }
 
@@ -110,6 +112,7 @@ func main() {
 	appid := flag.String("appid", "", "ask the measured SVSM for reports through this plane sysfs dir (M4b): "+
 		"the SVSM computes the binding from a key registered here, so this domain cannot choose either half of report_data")
 	rtID := flag.String("runtime-identity", "/rt/runtime.json", "the runtime identity written into this image beside the runtime; absent means ABI/1")
+	certZone := flag.String("cert-zone", "app.enclave.host", "the app zone this domain's deployment name lives in (<first 4 bytes of its HOST_DATA, hex>.<zone>); empty = never certify a name")
 	flag.Parse()
 
 	raw, err := os.ReadFile(*appShaPath)
@@ -180,7 +183,18 @@ func main() {
 	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	// No session tickets: every connection then proves the attested key in a full handshake, so a
 	// client pins by comparing that key, never by tracking which session came from which handshake.
-	tl := tls.NewListener(l, &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS13,
+	// The name this domain may certify comes from its own HOST_DATA (certs.go); the key is the attested one either way.
+	f.certs = &certState{key: cert.PrivateKey.(crypto.Signer), spki: spki, self: &cert}
+	if f.plane == nil {
+		if hd, err := f.hostData(); err != nil {
+			fmt.Printf("DOM certificate: no HOST_DATA to name this domain (%v); self-signed only\n", err)
+		} else if f.certs.name = nameFromHostData(hd, *certZone); f.certs.name != "" {
+			fmt.Printf("DOM certificate: this domain may certify %s (HOST_DATA %x...)\n", f.certs.name, hd[:8])
+		} else {
+			fmt.Printf("DOM certificate: HOST_DATA names no deployment; self-signed only\n")
+		}
+	}
+	tl := tls.NewListener(l, &tls.Config{GetCertificate: f.certs.getCertificate, MinVersion: tls.VersionTLS13,
 		SessionTicketsDisabled: true})
 
 	// "serving" means both halves answer: TLS here, and the app behind it
@@ -201,8 +215,15 @@ func main() {
 }
 
 func (f *front) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == attestPath {
+	switch r.URL.Path {
+	case attestPath:
 		f.attest(w, r)
+		return
+	case csrPath:
+		f.certs.serveCSR(w, r)
+		return
+	case certPath:
+		f.certs.serveInstall(w, r)
 		return
 	}
 	f.app.ServeHTTP(w, r)
@@ -289,6 +310,28 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("content-type", "application/json")
 	json.NewEncoder(w).Encode(d)
+}
+
+// hostData is this domain's SEV-SNP HOST_DATA, read back from a report of its own (bytes 0xC0..0xE0): what the
+// launcher bound it to, signed by the PSP. The report asked for here binds nothing and is never served.
+func (f *front) hostData() ([]byte, error) {
+	var rep []byte
+	var err error
+	switch {
+	case f.monitor != "":
+		rep, _, _, _, _, err = f.askMonitor(make([]byte, 32))
+	case f.snp:
+		rep, _, err = f.report(make([]byte, 64))
+	default:
+		return nil, errors.New("no hardware report on this tier")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(rep) < 0xe0 {
+		return nil, errors.New("the report is too short to carry HOST_DATA")
+	}
+	return rep[0xc0:0xe0], nil
 }
 
 // bind computes report_data[0:32] for this domain: contract.Bind under ABI/1, contract.Bind2 with the
