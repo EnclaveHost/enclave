@@ -50,8 +50,8 @@ M=/lib/modules/$GUEST_KREL/kernel
 cp "$M/net/vmw_vsock/vsock.ko.zst" "$M/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko.zst" \
    "$M/net/vmw_vsock/vmw_vsock_virtio_transport.ko.zst" \
    "$M/drivers/virt/coco/guest/tsm_report.ko.zst" "$M/drivers/virt/coco/sev-guest/sev-guest.ko.zst" "$d/"
-find "$d" -exec touch -h -d @0 {} +
-(cd "$d" && find . -mindepth 1 | LC_ALL=C sort | cpio -o -H newc --reproducible 2>/dev/null | gzip -n -9) > "$out"
+# modes, ownership and times normalised, so the measurement depends on contents alone (pack-initrd.sh)
+"$here/pack-initrd.sh" "$d" "$out"
 echo "app_guest $out: app_id $app_id, $(stat -c %s "$out") bytes, vcpus $vcpus"
 
 # The launch digest this guest will have. vCPU count is part of the identity, so predict and boot with the
