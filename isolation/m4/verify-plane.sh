@@ -123,6 +123,30 @@ for id in 0 1 2 3; do
 done
 [ "$r" = no ] && echo "       ENODEV alone is consistent with a missing device or a kernel that sees no SNP, so it does NOT establish a withheld key"
 
+echo "== the runtime SET: admitted whole, and what the running runtime mapped"
+# 9 is scored from THREE places that do not share code: the guest's own list of what it staged, the SVSM's console
+# line counting the pages it froze, and the admission having succeeded at all - which it only does if the bytes
+# hash to the set digest compiled into this measured image. The page count is what distinguishes the set from the
+# wasmtime ELF alone (11137 pages in the 2026-09-24 handshake run), so a plane that silently staged the old thing
+# under a new label fails here even though "admitted" would read the same.
+set_line=$(pl "runtime_set=")
+nmem=$(echo "$set_line" | sed -n 's/.*members=\([0-9]*\) .*/\1/p')
+nelf=$(echo "$set_line" | sed -n 's/.* elf=\([0-9]*\) .*/\1/p')
+sbytes=$(echo "$set_line" | sed -n 's/.* bytes=\([0-9]*\) .*/\1/p')
+listed=$(tr -d '\000' < "$W/P.evidence" | sed 's/\x1b\[[0-9;=?]*[A-Za-z]//g' | grep -ac "PLANE runtime_member=")
+frozen=$(tr -d '\000' < "$W/P.serial" | grep -ao "admitted kind 1, [0-9]* pages" | head -1 | grep -o "[0-9]* pages" | cut -d' ' -f1)
+r=no
+if [ -n "$sbytes" ] && [ -n "$frozen" ] && [ "${nmem:-0}" -ge 5 ] && [ "$listed" = "$nmem" ] \
+   && [ "$frozen" = $(( (sbytes + 4095) / 4096 )) ] && pl "runtime=" | grep -q "runtime=admitted"; then r=ok; fi
+check "9 the SVSM admitted the runtime SET ($nmem members listed by the guest, $sbytes bytes, $frozen pages frozen by the SVSM)" $r
+tr -d '\000' < "$W/P.evidence" | sed 's/\x1b\[[0-9;=?]*[A-Za-z]//g' | grep -ao "PLANE runtime_member=.*" | sed 's/^/       /'
+# 10: the plane's maps check ran and passed, and it saw EVERY ELF the set holds - a pass over fewer would mean it
+# looked before the loader finished, which is exactly the vacuous pass it was built to refuse.
+maps=$(pl "runtime_maps=")
+echo "       $maps"
+echo "$maps" | grep -q "runtime_maps=ok elf_members_mapped=$nelf/$nelf " && [ "${nelf:-0}" -ge 5 ] && r=ok || r=no
+check "10 the running runtime mapped every admitted ELF ($nelf) and no executable file outside the set" $r
+
 echo
 echo "M4b-plane: $([ $fails -eq 0 ] && echo "all checks passed" || echo "$fails check(s) not passed")"
 echo "transcripts in $W: client.out neg-*.out P.serial P.evidence P.debugcon"
