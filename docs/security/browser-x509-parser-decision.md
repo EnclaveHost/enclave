@@ -80,8 +80,9 @@ resulting bundle is smaller than any alternative.
 | served certificate | DNS SANs read from the extension; host rule: exact, or one leftmost `*` label with at least two labels after it; no CN fallback, no partial wildcards; the same `decodeLabelledSans` (imported) | STRICTER (no CN fallback, no partial wildcards). Equal on the fixture host and its mismatch |
 | serial formatting | OpenSSL `BN_bn2hex` form for a non-zero serial (`020002`); a zero serial prints `00` where Node prints `0` (only the VCEK's serial is zero, and no reason prints it) | equal where it is printed |
 
-Every "stricter" entry is a refusal the Node build would not give, never an acceptance. There is no entry where the
-browser build accepts something the Node build refuses.
+Every "stricter" entry is a refusal the Node build would not give, never an acceptance. On every measured case (the
+suites below) and on every code path the table names, the browser build accepts nothing the Node build refuses. That is
+the claim's scope: measured documents and named paths, not a proof of universal equivalence.
 
 ## 6. How the verdict code is shared (no second verifier)
 
@@ -100,10 +101,12 @@ the bundle.
 | suite | cases | what it proves |
 |---|---|---|
 | `test/verifier-web-x509.test.mjs` | 6 | field-by-field agreement with `X509Certificate` on all three real chains and both real VCEKs; WebCrypto verifies every real AMD signature; the three DER encodings and the honest salt-32 certificate asserted on BOTH sides (Node accepts, browser refuses); the three real CRLs; the served certificate against `tls-binding.mjs` |
-| `test/verifier-web-differential.test.mjs` | 3 (81 documents) | the whole verdict (status, admissionSafe, omissions, checks, claims, reasons) equal between the builds over the Genoa, Turin and synthetic mutation matrices plus envelope cases; every check name fails in at least one case; every status class appears; the browser build answers "unsupported" for every non-SNP technology |
-| `test/verifier-web-browser.test.mjs` | 2 | the bundle builds from the pinned esbuild with no `node:` import surviving (128,673 bytes, 76 inputs, bound 512 KiB); Chrome for Testing 151 over the DevTools protocol runs a 12-case pack from the same fixtures with no global Buffer on the page and every verdict equals the Node build's; strict integration requires the browser |
+| `test/verifier-web-differential.test.mjs` | 3 (93 documents) | the whole verdict (status, admissionSafe, omissions, checks, claims, reasons) equal between the builds over the Genoa, Turin and synthetic mutation matrices plus envelope cases: oversized and over-wide documents, over-long bodies, all-zero and malformed reports, gzip over the cap, collateral adapters that throw, wrong and missing root pins, a wrong key type in the VCEK slot; every check name fails in at least one case; every status class appears; the browser build answers "unsupported" for every non-SNP technology |
+| `test/verifier-web-package.test.mjs` | 4 | the COMMITTED artifact reproduces byte for byte from the tree with the pinned esbuild; its manifest names every input with its hash and the build options; the notices are generated from those exact inputs with each LICENSE text; a changed artifact byte, an edited input record, other build options, a stale or missing notice and a package without a LICENSE file each fail closed |
+| `test/verifier-web-shadow.test.mjs` | 4 | the opt-in shadow adapter: disabled fetches nothing; enabled fetches exactly the five same-origin paths; the record never carries acceptance and states the transport binding is not claimed; every primary outcome is recorded; a hanging origin, an oversized answer, a refused or missing collateral piece, a bad certificate answer, a malformed document, a wrong or missing root pin each refuse with the reason |
+| `test/verifier-web-browser.test.mjs` | 3 | the COMMITTED artifact (hash checked against the manifest, no `node:` import surviving, bound 512 KiB) in Chrome for Testing 151 over the DevTools protocol: a 12-case pack from the same fixtures with no global Buffer on the page and every verdict equal to the Node build's; the shadow adapter run in the page against the same local origin with the same record as Node's; strict integration requires the browser |
 
-Strict command after this change: 224 of 224 cases (was 213). Nothing was skipped, and no case is TODO.
+Strict command after the packaging and shadow slices: see the plan's M2 row for the measured count. Nothing is skipped, and no case is TODO.
 
 ## 8. Limits, stated
 
@@ -111,9 +114,10 @@ Strict command after this change: 224 of 224 cases (was 213). Nothing was skippe
   (the Node build delegates those to relay modules that need Node). Never green.
 - The real-browser suite proves the runtime (WebCrypto, DecompressionStream, the Buffer stand-in) on twelve documents;
   breadth comes from the Node-side differential, which runs on Node's WebCrypto. The two together are the claim.
-- The bundle is built by tests into a temporary directory and is not committed, not served and not referenced by the
-  site. Same-origin delivery, the vendor notice regeneration (`buffer`, and the notice `sigstore-browser` already has)
-  and the site's shadow line are the rest of M2, not done here.
+- The bundle is committed under `verifier/web/dist/` with its manifest and notices and reproduces from the tree under
+  the strict command (`verifier/web/README.md`); it is not served and not referenced by the site. The shadow adapter is
+  opt-in and records, never decides. Same-origin delivery through the site's vendor rule and the site's shadow line are
+  the rest of M2, not done here.
 - The differential normalises two strings: the reader's own message after "unparseable:" and the decoder's message
   inside the gunzip parentheses. Everything else is compared verbatim.
 - The clock is the caller's in both builds; a browser without a trustworthy clock can only refuse more (windows and

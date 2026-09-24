@@ -87,6 +87,17 @@ export const CASES = [
   ["hosted body not gzip", G({ format: rad.format, body: report.toString("base64") })], ["metal body gzip", G({ format: "sev-snp-guest-metal-v1", body: rad.body })],
   ["missing body", G({ format: rad.format })], ["closed shape extra field", G({ ...rad, extra: 1 })], ["body under the other name", G({ format: rad.format, report: rad.body })],
   ["not strict base64", G({ format: rad.format, body: rad.body.slice(0, -1) + "!" })], ["gzip over the cap", G({ format: rad.format, body: gzipSync(Buffer.alloc(200 * 1024)).toString("base64") })],
+  // oversized and over-wide documents, an over-long body, and collateral adapters that fail (throw) rather than answer
+  ["document over 1 MiB", G({ format: "sev-snp-guest-metal-v1", body: report.toString("base64"), manifest: { pad: "x".repeat(1024 * 1024 + 64) } })],
+  ["document with too many fields", G({ format: "sev-snp-guest-metal-v1", body: report.toString("base64"), ...Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`f${i}`, i])) })],
+  ["body over the base64 cap", G({ format: "sev-snp-guest-metal-v1", body: Buffer.alloc(70 * 1024).toString("base64") })],
+  ["all-zero report", G({ format: "sev-snp-guest-metal-v1", body: Buffer.alloc(0x4a0).toString("base64") })],
+  ["chain adapter throws", G(rad, { collateral: { ...gCol(), chain: () => { throw new Error("mirror down"); } } })],
+  ["VCEK adapter throws", G(rad, { collateral: { ...gCol(), vcek: () => { throw new Error("mirror down"); } } })],
+  ["CRL adapter throws, required", G(rad, { collateral: { ...gCol(), crl: () => { throw new Error("mirror down"); } } })],
+  ["CRL adapter throws, stale-ok -> limited", G(rad, { policy: { crl: "stale-ok" }, collateral: { ...gCol(), crl: () => { throw new Error("mirror down"); } } })],
+  ["wrong Genoa pin", G(rad, { policy: { roots: new Map([["Genoa", "00".repeat(32)]]) } })], ["no pin for the product", G(rad, { policy: { roots: new Map([["Milan", "11".repeat(32)]]) } })],
+  ["VCEK slot holds the ASK (an RSA key named SEV-Genoa)", G(rad, { collateral: gCol({ vceks: { Genoa: Buffer.from(chains.Genoa.split(/(?=-----BEGIN CERTIFICATE-----)/).filter((x) => x.includes("CERTIFICATE"))[0].replace(/-----[^-]+-----|\s/g, ""), "base64") } }) })],
   // Turin ABI/2
   ["turin verified", T()], ["turin wrong nonce", T(tDoc, { context: { nonce: sha(tNonce), expectedBinding: bind2(sha(tNonce)) } })], ["turin wrong app", T(tDoc, { context: { expectedAppId: sha(tApp) } })],
   ["turin ABI/2 judged under ABI/1 (no silent downgrade)", T(tDoc, { context: { expectedBinding: undefined } })], ["turin floor above the part", T(tDoc, { policy: { minTcb: { Turin: { ...T_FLOOR.Turin, microcode: 255 } } } })],
@@ -122,7 +133,7 @@ test("every case: the browser build's verdict equals the Node build's (status, c
     assert.deepEqual(norm(w), norm(n), name);
     seen[n.status]++; for (const [k, v] of Object.entries(n.checks || {})) if (v === false) failing.add(k);
   }
-  assert.ok(CASES.length >= 80, `${CASES.length} cases`);
+  assert.ok(CASES.length >= 90, `${CASES.length} cases`);
   for (const [k, v] of Object.entries(seen)) assert.ok(v >= 2, `${k}: ${v} cases`);
   for (const k of ["chain", "crl", "signature", "vcek identity", "binding", "certificate binding", "app id", "measurement", "tcb policy", "guest policy", "vmpl", "report shape", "vcek"]) assert.ok(failing.has(k), `a case fails the ${k} check`);
 });

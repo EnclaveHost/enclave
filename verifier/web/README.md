@@ -26,9 +26,10 @@ The strict integration command runs it before any suite. `test/verifier-web-pack
 
 Two facts about the bundle's contents, from the manifest, worth knowing: the Sigstore package's index re-exports its
 TUF client, and its exports map forbids a deeper import, so `@freedomofpress/tuf-browser` is bundled although nothing on
-the verification path calls it; and the bundle carries `@noble/curves` 1.9.1 (the repository's copy) because the Sigstore
-package's `^2.0.1` range resolved to no nested copy in this lockfile. Neither is on the SNP path (no ECDSA goes through
-noble here: WebCrypto verifies the report), and both are recorded rather than hidden.
+the verification path calls it; and the bundle carries `@noble/curves` 1.9.1 (the repository's copy, reached through
+`crypto-browser`, which requires `^1.6.0`) and not the Sigstore package's own nested 2.2.0, because none of the Sigstore
+files that made it into the bundle import noble directly. Neither is on the SNP path (no ECDSA goes through noble here:
+WebCrypto verifies the report), and both are recorded rather than hidden.
 
 ## Licenses
 
@@ -44,12 +45,30 @@ such a bundle is never packaged.
 |---|---|
 | `test/verifier-web-package.test.mjs` | reproducibility, the manifest, the notices, and that each fails closed when tampered with |
 | `test/verifier-web-x509.test.mjs` | the reader against Node's own certificate object on the real AMD collateral; both sides of every strictness divergence |
-| `test/verifier-web-differential.test.mjs` | whole verdicts equal between the builds on the measured documents (81) |
+| `test/verifier-web-differential.test.mjs` | whole verdicts equal between the builds on the measured documents (93), incl. oversized and over-wide documents, adapter failures, wrong and missing pins |
 | `test/verifier-web-browser.test.mjs` | the COMMITTED artifact in Chrome for Testing 151: verdicts equal to Node's on a 12-document pack |
 
 The differential claim is scoped to the measured documents and the code paths the suites name; it is not a proof of
 universal equivalence. Where the browser build differs from Node it refuses more (non-canonical DER, the AMD PSS profile,
 the host rule) and, on every measured case, never accepts what Node refuses.
+
+## The shadow adapter: opt-in, same-origin, never a decision
+
+`shadow.mjs` (`createShadow({ enabled, origin, collateralBase, roots?, fetchImpl?, timeoutMs?, maxBytes? }).run({ host,
+expected, primary? })`) runs this verifier beside whatever a page's primary verifier decided and returns a RECORD. Rules,
+each asserted by `test/verifier-web-shadow.test.mjs` and, in Chrome, by the browser suite:
+
+- **Opt-in.** `enabled` defaults to false; disabled, `run()` fetches nothing and says so. Nothing in the site calls it.
+- **Never acceptance.** The record carries `acceptance: false` and `transportBindingClaimed: false` (a page cannot read
+  its own TLS peer certificate; the served certificate comes from the well-known endpoint). There is no hook into the
+  primary and no field a caller could read as a release; the consumer gate is `verifier/admission.mjs`, not this.
+- **No arbitrary fetch.** Only the two well-known paths under the explicit `origin` and the three KDS-shaped paths under
+  the explicit `collateralBase` (a same-origin mirror; KDS sends no CORS headers), each bounded in time and bytes, no
+  redirects, no credentials. Never code.
+- **Explicit roots.** The AMD ARK pins are the repository's Map or the caller's; the record names which (`rootsSource`),
+  and every collateral source is recorded as the adapter reports it (`sources`, from the verdict's `claims.collateral`).
+- **Comparison, recorded.** As the live differential: `agree`, `agree-refuse`, `disagree`, `primary-missing`, plus whether
+  the primary's measurement is the report's. A disagreement is a finding to read, not a switch that flips.
 
 ## Not done
 

@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-web.js",
-  "bytes": 128673,
-  "sha256": "64f78661296875155652cabfbf7b8c9717c856beed9218c997c4e8a6d6459921"
+  "bytes": 134343,
+  "sha256": "aa1ca45d760ebb1cfc45deca996e1de59ea0738c3aa23e18d553ccd7154c472e"
  },
  "build": {
   "tool": "esbuild",
@@ -368,18 +368,23 @@
   },
   {
    "path": "verifier/web/collateral.mjs",
-   "bytes": 981,
-   "sha256": "f085f2ad237f9ad8d145525e965e58b9796374e3a0adb79a31e4b52adcc9d2be"
+   "bytes": 3453,
+   "sha256": "4e97186431876c1a96c4a369b13ede68090d725286f99fcf2ff15849c8245414"
   },
   {
    "path": "verifier/web/index.mjs",
-   "bytes": 4437,
-   "sha256": "c6c20f6807a26d19c7e83010310666c1800f4b22bef3883ba7ed2a2b82cf6bb4"
+   "bytes": 4894,
+   "sha256": "19240762d0cb2ee24467a00ff1238d16f0ebd9f92a1c86a8e68b25fd31a38914"
   },
   {
    "path": "verifier/web/provider.mjs",
    "bytes": 7889,
    "sha256": "f8e3bbfe6756e25fc76fc69e90a230a3e373802a9fa57f67d9a74975cb0f77ef"
+  },
+  {
+   "path": "verifier/web/shadow.mjs",
+   "bytes": 8333,
+   "sha256": "6ec0e70a9bba39fedbfdcaae6a3e336d94496c628f34458d787e17ca280d7006"
   },
   {
    "path": "verifier/web/shims/buffer-global.mjs",

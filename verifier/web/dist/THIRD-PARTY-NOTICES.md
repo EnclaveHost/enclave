@@ -16,6 +16,7 @@ Build tool, not distributed in the bundle: esbuild 0.28.1 (MIT).
 - `verifier/web/collateral.mjs`
 - `verifier/web/index.mjs`
 - `verifier/web/provider.mjs`
+- `verifier/web/shadow.mjs`
 - `verifier/web/shims/buffer-global.mjs`
 - `verifier/web/shims/node-crypto.mjs`
 - `verifier/web/shims/node-zlib.mjs`
