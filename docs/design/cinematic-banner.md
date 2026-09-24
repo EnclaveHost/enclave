@@ -1,6 +1,6 @@
 # Cinematic banner asset
 
-Asset: `site/assets/compute-cinematic.webp` (203 KB). Generated with the built-in image generation tool, then encoded as WebP with FFmpeg. The original is retained under the local Codex generated-images directory. Motion is CSS camera drift and a moving light layer, not a video or a real-time hardware status visualization. No third-party imagery or animation library is used.
+Asset: `site/assets/compute-cinematic.webp` (203 KB). Generated with the built-in image generation tool, then encoded as WebP with FFmpeg. The original is retained under the local Codex generated-images directory. The still plates are the loading and reduced-motion fallbacks for the Gen-4.5 video loops described below. The scenes are decorative artwork, not a real-time hardware status visualization. No animation library is used.
 
 ## Generation prompt
 
@@ -12,7 +12,7 @@ Built the production bundle. Checked home, Host, Develop and Apps at 390, 768 an
 
 ## Page-specific scenes
 
-Three additional original images were generated with the built-in image tool and encoded as WebP with FFmpeg. Overview retains the original processor plate. Apps uses a sideways camera glide, Develop a diagonal approach with pulsing violet light, and Host a slow forward move down a server aisle. All share the same pause, visibility and reduced-motion behavior.
+Three additional original images were generated with the built-in image tool and encoded as WebP with FFmpeg. Overview retains the original processor plate. Each page now uses its corresponding generated video with motion inside the scene. All share the same pause, visibility and reduced-motion behavior.
 
 Assets:
 - `site/assets/apps-cinematic.webp`
@@ -30,3 +30,32 @@ Develop: A cinematic photoreal macro environment of an intricate black silicon w
 Host: A cinematic photoreal wide-angle view down a vast dark data-center aisle, sculptural black server racks on the RIGHT and in deep perspective, brushed metal ventilation grilles, tiny warm amber status lights and subtle overhead golden rim lighting, polished dark floor reflecting the lights. Premium architectural photography / hardware launch film, atmospheric depth, physically realistic. LEFT third stays dark low-detail open aisle negative space for white website headline. No people, no floating processor, no green motherboard.
 
 Suffix: Color palette almost-black graphite with restrained accent lighting. Fill the whole image with the environment, no framing. No text, no letters, no logos, no watermark, no UI, no infographic, no line-art or cartoon. Intended for slow animated camera movement behind website copy.
+
+
+## Gen-4.5 video banners
+
+All four source plates were animated with Runway Gen-4.5 (5 seconds, 16:9) on 2026-09-24 UTC. The source clips live in the Runway session “Emerald Circuit Macro Film”; source exports are retained locally in the Codex `work/banner-video` directory. Four generations consumed 240 credits; Runway awarded 300 quest credits during this work.
+
+The published `site/assets/{compute,apps,develop,host}-cinematic.mp4` files are silent H.264, 1280×720 at 24 fps. Each five-second generation is followed by its reverse for a continuous ten-second return loop, avoiding a hard cut between different camera positions. Source clips and one-second contact sheets were inspected for material/geometry stability. The hardware light pulses, illuminated interiors, optical activity and rack lighting are generated movement within the scene. Gen-4.5 also introduced camera movement despite the locked-off prompts.
+
+The video component requests the clip only when visible and reduced motion is off. It pauses when offscreen, when the page is hidden, or when the user pauses it. Reduced-motion and JavaScript-disabled visitors see the original still image; playback errors retain that image. No audio track is shipped. Video sources and listeners are released on unmount.
+
+### Motion prompts
+
+#### Overview
+
+Locked-off macro camera. Bright emerald electrical pulses travel in organized waves along the etched circuit traces toward the processor. The processor's edge lighting gently brightens as each wave arrives, then settles. Tiny specular reflections change across the brushed metal in response to the passing light. Solid hardware remains geometrically stable. Restrained premium hardware-film motion, dark left side remains calm for overlaid text, one continuous shot.
+
+#### Apps
+
+Locked-off product camera. Within the smoked-glass cartridges, the thin cyan energy rings rotate slowly around their internal cores. Soft luminous particles circulate inside each sealed chamber. Reflections slide naturally across the glass as the interior light changes. The metal bases and external shells remain stationary and rigid. Elegant restrained activity, dark left side stays quiet, one continuous shot.
+
+#### Develop
+
+Locked-off macro camera. Fine violet-white packets of light flow through the metallic circuit pathways into the optical junction. The fiber-optic strands shimmer in a coordinated gentle sequence, and the central junction pulses softly. Precise stable geometry, subtle changing reflections, no camera movement. The left side remains dark and readable, one continuous shot.
+
+#### Host
+
+Locked-off architectural camera. Small amber status lights on the server racks blink asynchronously and softly, in natural non-uniform patterns. Cooling fans visible behind ventilation grilles rotate slowly. Subtle reflections on the polished floor respond to the changing rack lights. Server cabinets remain rigid and stationary, calm premium data-center atmosphere, one continuous shot.
+
+Validation: production build passed. Browser checks passed for all four pages at 390px and 1440px: correct video, muted looping playback, pause/resume, offscreen pause and no horizontal overflow. Live reduced-motion changes stop playback; initial reduced motion makes no video request. JavaScript-disabled rendering retains the still image. Desktop and mobile screenshots were reviewed.
