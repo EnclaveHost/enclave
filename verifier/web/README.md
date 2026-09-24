@@ -70,7 +70,28 @@ each asserted by `test/verifier-web-shadow.test.mjs` and, in Chrome, by the brow
 - **Comparison, recorded.** As the live differential: `agree`, `agree-refuse`, `disagree`, `primary-missing`, plus whether
   the primary's measurement is the report's. A disagreement is a finding to read, not a switch that flips.
 
+## Delivered to the site (opt-in shadow, 2026-09-24)
+
+- `scripts/build-vendor.mjs` copies `dist/enclave-verifier-web.js` to `site/vendor/enclave-verifier.js` under the site's
+  same-origin vendor rule, refusing unless the bytes are the manifest's, and checks the exports the glue uses. It never
+  rebuilds the artifact: reproducibility stays with `reproduce.mjs`.
+- `site/js/core/verify-shadow.js` is the glue: OFF unless a viewer opts in (`?verifier-shadow=1`, or localStorage
+  `enclave.verifierShadow` = `1`); `site/js/core/verify.js` awaits it after the primary verdict and attaches the record as
+  `res.shadow` (and `globalThis.__enclaveVerifierShadow`), never touching `res.ok`, `res.doc` or `res.error`. The allowed
+  measurement is the primary's Sigstore-derived `codeMeasurement` (release provenance), never the enclave's reported one;
+  the TCB floor is a diagnostic constant; the roots are the verifier's pins; collateral comes from Tinfoil's KDS proxy
+  (CORS-allowed) and the document and certificate from the enclave's well-known paths, every source recorded.
+- `test/site-verifier-shadow.test.mjs` holds the vendored bytes to the manifest, the glue OFF by default and never
+  throwing, and the end-to-end record with the real vendored module against a local origin.
+- Rollback: revert the caller in `verify.js` (or the whole commit); no other file depends on it. No trust root of the
+  primary changes; the shadow cannot grant acceptance.
+- Notices: every package the bundle carries was already listed in `THIRD-PARTY-NOTICES.md` through the site's other vendor
+  bundles; `scripts/build-notices.mjs` now also walks this bundle's manifest so that stays true. Observed while checking:
+  the site's `scripts/.vendor-build/` tree has no lockfile, so a fresh vendor build resolves newer transitive versions
+  (crypto-browser 0.1.8, viem 2.56.8, ox 0.14.45) than the committed primary bundles embed; the committed bundles and
+  notices were left as they are. A lockfile for that tree would make the primary bundles reproducible too.
+
 ## Not done
 
-Same-origin delivery through the site's vendor rule, the site's shadow line, and any activation. See the parser decision
-document for the rest of M2.
+The site renders nothing from the record (design preserved; console and the result field only). Any activation beyond
+the viewer's own opt-in. See the parser decision document for the rest of M2.

@@ -39,6 +39,7 @@
    ============================================================ */
 import { build } from "esbuild";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -105,12 +106,27 @@ await build({
   outfile: path.join(OUT, "walletconnect.js"),
 });
 
+// site/vendor/enclave-verifier.js <- verifier/web/dist/enclave-verifier-web.js: the Enclave-owned browser verifier
+// (verifier/web/README.md), a REPRODUCIBLE artifact whose manifest names every input with its hash (verifier/web/reproduce.mjs
+// under the strict integration command). It is COPIED, never rebuilt here, and refused unless its bytes are the manifest's.
+// Loaded only by the opt-in shadow (site/js/core/verify-shadow.js); it grants nothing and changes no primary pin.
+{
+  const dist = path.join(ROOT, "verifier", "web", "dist");
+  const manifest = JSON.parse(fs.readFileSync(path.join(dist, "MANIFEST.json"), "utf8"));
+  const bytes = fs.readFileSync(path.join(dist, manifest.artifact.file));
+  const sha = createHash("sha256").update(bytes).digest("hex");
+  if (sha !== manifest.artifact.sha256) throw new Error(`verifier/web/dist/${manifest.artifact.file}: sha256 ${sha} is not the manifest's ${manifest.artifact.sha256}; run node verifier/web/build.mjs and verifier/web/reproduce.mjs`);
+  fs.writeFileSync(path.join(OUT, "enclave-verifier.js"), bytes);
+  console.log(`[vendor] enclave-verifier.js: ${bytes.length} bytes, sha256 ${sha.slice(0, 16)}… == verifier/web/dist/MANIFEST.json ✓`);
+}
+
 // Fail loud if an upgrade ever drops an export the callers destructure, so a
 // broken bundle can never ship silently to the verify/auth paths.
 const must = [
   ["verifier.js", ["Verifier", "assembleAttestationBundle"]],
   ["webauthn.js", ["startRegistration", "startAuthentication"]],
   ["walletconnect.js", ["EthereumProvider"]],
+  ["enclave-verifier.js", ["createShadow", "verifyEvidenceWeb"]],
 ];
 for (const [file, names] of must) {
   const src = fs.readFileSync(path.join(OUT, file), "utf8");

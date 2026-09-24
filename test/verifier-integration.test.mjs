@@ -103,7 +103,10 @@ test("non-strict, module absent: the acceptance cases skip with a stated reason 
   const r = node("test/verifier-pvm-device.test.mjs", [], { ENCLAVE_PVM_MODULE: "", ENCLAVE_STRICT_INTEGRATION: "" });
   assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /# SKIP owner module absent/);
 });
-test("the strict integration command passes end to end against the pinned revision, with zero skips", { skip: !havePinned && "pinned commit not in this repository" }, () => {
+// over a minute end to end (it runs every acceptance suite): behind an explicit switch so a plain `node --test` run of the
+// whole tree stays under the per-file limit; the strict command itself is the acceptance path and runs every suite anyway
+const E2E = process.env.ENCLAVE_INTEGRATION_E2E === "1";
+test("the strict integration command passes end to end against the pinned revision, with zero skips", { skip: !havePinned ? "pinned commit not in this repository" : !E2E && "ENCLAVE_INTEGRATION_E2E=1 runs it (over a minute; the strict command is the acceptance path)" }, () => {
   const r = node("verifier/integration/run.mjs", ["--dir", tmp, "--no-fetch"]);
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, new RegExp(`integration: PASS against ${pin.commit.slice(0, 12)}`)); assert.match(r.stdout, /# skipped 0|skipped 0/);

@@ -834,5 +834,27 @@
       "turn-50.rc": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
       "turns.jsonl": "20d2ebd72d51dabb6e45fed2f2932e3acd1b1649f8bc5e02c59ce7fd4534adff"
     }
+  },
+  "linux-canary-2026-09-24": {
+    "purpose": "the Linux isolation owner's first production canary of the per-app SNP guest tier (hello-world:1.0.4 at https://4e62e60d.app.enclave.host): the attestation document with its nonce, the served certificate, the VCEK, the TCB floor, the expected runtime identity, the derivation record and the release record; reviewed by test/verifier-linux-canary.test.mjs",
+    "branch": "isolation/portable-runtime-jit",
+    "commit": "aeddcfa19958015a9bca19fc75b104739f9292da",
+    "path": "isolation/m4/evidence/production-canary-2026-09-24",
+    "dir": "test/fixtures/verifier/linux-canary-2026-09-24",
+    "files": {
+      "README.txt": "559dde94113aba2b044fa351dac0da78de9d72c2435e77911027cdb529d191a9",
+      "deployment-txs.json": "dd00baec247af18ee93d033433236af596db23df439a6990c884b5872dfe29b2",
+      "domain-release.json": "ec0f713cebf03d601c6fab3a21394b6cf1447818a919b28bd47c527613689c6e",
+      "expected-runtime.json": "8044b26a6ef691e30ef21983829f7c0dfef34b3f15c009072c477e6ea5dd95b6",
+      "guestd-instance.json": "63dc625ed09da60548141bc8e55512bc5480c0a95112e7ebed881643db8ced86",
+      "min-tcb.json": "fe90824f469db17cad41a895f45803d66bef5058ff829e36302fe35328179d9c",
+      "node-availability.json": "78f218e757f740b4c42c3a54a09b93beedc3f11f527a46d354c38c0e1f82c178",
+      "node-image-manifest.json": "1f676cec2f4e690fe968f40f184e83d8cbaf114942e28c1af8ec63ee3994250b",
+      "prod-client.txt": "a72819be1d48bf4118d7a89da1724c7b4514d46be4109e1b42688d36ca0a5d1a",
+      "prod-doc.json": "fc96aa2dfcf45926f422e9b46f646a0b9c187cfd3218c35b2f62864148304c52",
+      "record.json": "a0cd6b43359e9328338caf7ebff75004bc1466dd4d00f7d325cf6546adcb7cf6",
+      "served-cert.pem": "b4df3c1f2b55abd18f40729e9da2af7090dca9d204ecd2801047274d7718ffce",
+      "vcek.der": "7370435c9f70be9fff3991b7a6dfff31d0a5f7f982eb74c89a90af1963a77835"
+    }
   }
 }

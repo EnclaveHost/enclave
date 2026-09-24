@@ -1,0 +1,19 @@
+{
+ "status": 200,
+ "body": {
+  "appId": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45",
+  "backend": "snp-guest-per-app",
+  "createdAt": 1790277319,
+  "hostPort": 33671,
+  "id": "gd9a34e856",
+  "measurement": "df03e2f66cbb0b70f9cf0c474a2e334727b3b276ac496cb93f8937497b7c973790699f02e207e0e2f73f0146add8840f",
+  "memMiB": 1024,
+  "name": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e",
+  "recordSha256": "bff33b951aade0a921edea4b0aca89712005d20cbb2c074c0f885d079e059d6c",
+  "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+  "status": "running",
+  "transportKeySha256": "b6230cb3948781c6c7fdf1f891f028c3a2fc99d59e726ef6462fe2bec06dbe91",
+  "vcpus": 1,
+  "verdict": "attested"
+ }
+}

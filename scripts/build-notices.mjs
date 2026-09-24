@@ -16,6 +16,8 @@
      • root production deps    -> supervisor/CLI (enclave images,
        installer builds)             [package-lock, dev filtered]
      • scripts/.vendor-build/  -> site/vendor bundles
+     • verifier/web/dist/MANIFEST.json -> site/vendor/enclave-verifier.js
+       (the Enclave-owned browser verifier: its exact bundled inputs)
    The .vendor-build tree is a gitignored npm workdir; run its
    builder first if missing (build-vendor.mjs).
 
@@ -95,6 +97,14 @@ for (const [k, v] of Object.entries(lock.packages || {})) {
 walkTree(path.join(ROOT, "node_modules"), (rel) => prodPaths.has(rel));
 walkTree(path.join(ROOT, "relay", "node_modules"));
 walkTree(path.join(ROOT, "scripts", ".vendor-build", "node_modules"));
+// the Enclave-owned browser verifier bundle (site/vendor/enclave-verifier.js, copied from verifier/web/dist by build-vendor.mjs):
+// exactly the packages its manifest records as bundled inputs (verifier/web/dist/MANIFEST.json), some of which are dev-only at
+// the root (the Buffer stand-in and its two dependencies) and so are not in the production walk above
+{
+  const { packagesOf } = await import("../verifier/web/notices.mjs");
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "verifier", "web", "dist", "MANIFEST.json"), "utf8"));
+  for (const p of packagesOf(manifest.inputs.map((i) => i.path), { repo: ROOT }).third) addPackage(path.join(ROOT, p.dir));
+}
 
 // group by license id
 const byLicense = new Map();
