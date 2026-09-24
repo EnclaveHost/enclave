@@ -14,7 +14,7 @@ import http from "node:http";
 import net from "node:net";
 import { spawn } from "node:child_process";
 import { createHash, generateKeyPairSync, sign as edSign } from "node:crypto";
-import { createPvmServing, windowLimiter } from "../relay/pvm-serving.mjs";
+import { createPvmServing, windowLimiter, pvmServingFromEnv } from "../relay/pvm-serving.mjs";
 import { initialState } from "../shielded/anchor/avf/client/src/trust.js";
 import { connect } from "../shielded/anchor/avf/client/src/client.js";
 import { FileStore } from "../shielded/anchor/avf/client/src/store-file.js";
@@ -201,7 +201,12 @@ test("the wiring review's cases: a hung ledger answers 504 and caps pending look
 
 // ---- the module on the REAL tunnel hub (relay/tunnel.js): a synthetic phone attaches with AVF evidence and verifies its app
 // over the hub's ABI/2 nonce (as in test/tunnel.test.mjs), then carries each spliced stream to a fake VM, frame by frame ----
-test("on the REAL tunnel hub: the module's streams go through tunnel.js spliceRaw to an attested phone -- evidence to any attested pVM tunnel, sealed only to a hub-verified app", { skip: !haveOpenssl && "no openssl", timeout: 180000 }, async () => {
+const PIXEL_ID = '{"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}';
+// a well-framed sealed request (u32 length || nonce || header || enc || ciphertext) under a nonce the VM never issued: the
+// VM answers it with its own refusal frame -- the point is that the bytes reached the VM and its answer came back
+const SEALED_PROBE = (() => { const body = Buffer.concat([Buffer.alloc(32, 7), Buffer.from([1, 0, 0, 0, 0, 0, 0]), Buffer.alloc(32, 9), Buffer.alloc(24, 5)]), frame = Buffer.alloc(4);
+  frame.writeUInt32BE(body.length); return Buffer.concat([frame, body]); })();
+async function realHub(pvmApp) {
   const { WebSocket } = await import("ws");
   const { createTunnelHub } = await import("../relay/tunnel.js");
   const { pvmCpuPolicy } = await import("../relay/pvm-cpu-tier.mjs");
@@ -211,22 +216,21 @@ test("on the REAL tunnel hub: the module's streams go through tunnel.js spliceRa
   const dir = tmpdir("pvm-rs3-"), ca = makeCa(dir);
   const vm = await startFakeVm({ dir, ca, code: Buffer.from(CODE, "hex"), appId: APP });
   const PVMCODE = createHash("sha256").update("pvm-cpu protected build").digest();
-  const PIXEL = '{"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}';
-  const RID = createHash("sha256").update(PIXEL).digest();
   const hub = createTunnelHub({ allow: [], attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")], rootPins: [ca.rootPin] },
     pvmCpu: pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")], models: [{ sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", name: "m", selftestSha256: "d".repeat(64), minDecodeTokS: 10 }] }),
-    pvmApp: { appIds: [APP], runtimeIds: [RID.toString("hex")] } } });
+    ...(pvmApp ? { pvmApp } : {}) } });
   const hubSrv = http.createServer((_q, s) => s.end("ok")); hubSrv.on("upgrade", (q, sock, head) => hub.handleUpgrade(q, sock, head));
   await new Promise((r) => hubSrv.listen(0, "127.0.0.1", r));
-  const hubUrl = `ws://127.0.0.1:${hubSrv.address().port}/v1/fleet-tunnel`;
+  const hubUrl = `ws://127.0.0.1:${hubSrv.address().port}/v1/fleet-tunnel`, phones = [];
   const wait = async (frames, pred, ms = 8000) => { const until = Date.now() + ms; while (Date.now() < until) { const f = frames.find(pred); if (f) return f; await new Promise((r) => setTimeout(r, 25)); } return null; };
-  // a phone: AVF attach (v2 pad transcript), optionally the ABI/2 app evidence; every spliced stream carried to the fake VM
-  const phone = async (name, verifyApp) => {
-    const frames = [], ws = new WebSocket(hubUrl, { headers: { "x-metal-name": name, "x-metal-attest": "1" } });
-    const streams = new Map();
+  // a phone: AVF attach (v2 pad transcript), then -- when asked -- the ABI/2 evidence for `app` under the runtime `identity`;
+  // every spliced stream is carried to the fake VM (or to the ports given). Returns the hub's abi2-result (null: not sent)
+  const phone = async (name, { app = null, identity = PIXEL_ID, evidencePort = vm.evidencePort, sealedPort = vm.sealedPort } = {}) => {
+    const frames = [], ws = new WebSocket(hubUrl, { headers: { "x-metal-name": name, "x-metal-attest": "1" } }), streams = new Map();
+    phones.push(ws);
     ws.on("message", (d) => {
       let f; try { f = JSON.parse(d); } catch { return; } frames.push(f);
-      if (f.t === "s+") { const c = net.connect(f.kind === "pvm-evidence" ? vm.evidencePort : vm.sealedPort, "127.0.0.1", () => ws.send(JSON.stringify({ t: "s=", sid: f.sid, ok: true })));
+      if (f.t === "s+") { const c = net.connect(f.kind === "pvm-evidence" ? evidencePort : sealedPort, "127.0.0.1", () => ws.send(JSON.stringify({ t: "s=", sid: f.sid, ok: true })));
         streams.set(f.sid, c); c.on("data", (b) => ws.send(JSON.stringify({ t: "sd", sid: f.sid, d: b.toString("base64") }))); c.on("close", () => { if (streams.delete(f.sid)) ws.send(JSON.stringify({ t: "sx", sid: f.sid })); }); c.on("error", () => {}); }
       else if (f.t === "sd") streams.get(f.sid)?.write(Buffer.from(f.d, "base64"));
       else if (f.t === "sx") { const c = streams.get(f.sid); streams.delete(f.sid); c?.destroy(); }
@@ -238,15 +242,19 @@ test("on the REAL tunnel hub: the module's streams go through tunnel.js spliceRa
     const bound = avfPadBinding(transport, padKey, nonce), leaf = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(bound).digest(), code: PVMCODE }) });
     ws.send(JSON.stringify({ t: "attest", rad: { format: AVF_PAD_FORMAT, body: Buffer.from(JSON.stringify({ chain: [leaf.leaf, ca.inter, ca.root].map((x) => x.toString("base64")), signature: leaf.sign(bound).toString("base64") })).toString("base64"), transportKey: transport.toString("base64"), padKey } }));
     assert.equal((await wait(frames, (x) => x.t === "attest-result"))?.ok, true);
+    if (!app) return null;
     const ch = await wait(frames, (x) => x.t === "abi2-challenge");
-    if (verifyApp) {
-      const appLeaf = issueLeaf(dir, { ext: extension({ challenge: Buffer.concat([bind2(transport, Buffer.from(ch.nonce, "base64"), RID), Buffer.from(APP, "hex")]), code: PVMCODE }) });
-      ws.send(JSON.stringify({ t: "abi2", chain: [appLeaf.leaf, ca.inter, ca.root].map((x) => x.toString("base64")), identity: PIXEL, selftest: "exec_pages=refused:EACCES wx=clean maps=1 scope=self", app: APP }));
-      assert.equal((await wait(frames, (x) => x.t === "abi2-result"))?.ok, true);
-    }
-    return { ws, frames };
+    const rid = createHash("sha256").update(identity).digest();
+    const appLeaf = issueLeaf(dir, { ext: extension({ challenge: Buffer.concat([bind2(transport, Buffer.from(ch.nonce, "base64"), rid), Buffer.from(app, "hex")]), code: PVMCODE }) });
+    ws.send(JSON.stringify({ t: "abi2", chain: [appLeaf.leaf, ca.inter, ca.root].map((x) => x.toString("base64")), identity, selftest: "exec_pages=refused:EACCES wx=clean maps=1 scope=self", app }));
+    return await wait(frames, (x) => x.t === "abi2-result");
   };
-  const verified = await phone("pixel-verified", true), unverified = await phone("pixel-evidence-only", false);
+  return { hub, vm, phone, close: () => { for (const ws of phones) ws.close(); hubSrv.close(); vm.close(); } };
+}
+
+test("on the REAL tunnel hub: the module's streams go through tunnel.js spliceRaw to an attested phone -- evidence to any attested pVM tunnel, sealed only to a hub-verified app", { skip: !haveOpenssl && "no openssl", timeout: 180000 }, async () => {
+  const rig = await realHub({ appIds: [APP], runtimeIds: [sha(PIXEL_ID)] }), { hub, vm } = rig;
+  assert.equal((await rig.phone("pixel-verified", { app: APP }))?.ok, true); assert.equal(await rig.phone("pixel-evidence-only"), null);
   const ledger = { [D1]: "tunnel://pixel-verified", [D2]: "tunnel://pixel-evidence-only" };
   const logs = [], handle = createPvmServing({ resolve: async (id) => ledger[id] || null, hub, emit: (o) => logs.push(o) });
   const srv = http.createServer((q, s) => { if (!handle(q, s)) { s.writeHead(404); s.end(); } });
@@ -262,16 +270,89 @@ test("on the REAL tunnel hub: the module's streams go through tunnel.js spliceRa
       assert.equal(r.step, "verify", JSON.stringify(r)); assert.match(r.refused, /not a pinned Google attestation root/); assert.doesNotMatch(r.refused, /another nonce/);
       assert.equal(ev(), n, "evidence streams reach any AVF-attested pVM tunnel");
     }
-    // sealed: carried to the hub-verified app (the fake VM refuses these bytes as a request -- the point is they reached it)
-    // a well-framed sealed request (u32 length || nonce || header || enc || ciphertext) under a nonce the VM never issued: the
-    // VM answers it with its own refusal frame, through the real hub and the phone
-    const body = Buffer.concat([Buffer.alloc(32, 7), Buffer.from([1, 0, 0, 0, 0, 0, 0]), Buffer.alloc(32, 9), Buffer.alloc(24, 5)]), frame = Buffer.alloc(4);
-    frame.writeUInt32BE(body.length);
-    const s1 = await raw(port, "POST", `/x/${D1}/pvm/sealed`, Buffer.concat([frame, body]));
+    // sealed: carried to the hub-verified app, and the VM itself answered
+    const s1 = await raw(port, "POST", `/x/${D1}/pvm/sealed`, SEALED_PROBE);
     assert.equal(s1.status, 200, "the real spliceRaw opened a sealed stream to the verified app"); assert.match(s1.body, /unknown evidence nonce/, "and the VM itself answered");
     assert.ok(vm.log.some((l) => /unknown evidence nonce/.test(l.refused || "")));
     const s2 = await raw(port, "POST", `/x/${D2}/pvm/sealed`, "x");
     assert.equal(s2.status, 404, "no sealed stream to a tunnel whose app the hub did not verify"); assert.equal(s2.body, "");
     assert.ok(logs.some((l) => l.tunnel === "pixel-verified" && l.pvm === "sealed" && l.bytesIn > 0), "sizes logged for the carried stream");
-  } finally { srv.close(); verified.ws.close(); unverified.ws.close(); hubSrv.close(); vm.close(); }
+  } finally { srv.close(); rig.close(); }
+});
+
+// ---- the relay's OWN wiring (pvmServingFromEnv, exactly as api-relay.js builds it: the env's app policy is the hub's
+// attest.pvmApp and handler() is the route) on the real hub. A synthetic phone cannot attach to a spawned api-relay.js (its
+// AVF verifier pins Google's roots, correctly, with no override), so this is where the splice is driven end to end ----
+test("the relay's wiring on the REAL hub: the env's app policy admits the CROSS PRODUCT; an unknown app, an unverified tunnel, a crossed envelope, a buyer leaving, an answer past the bound, a hung ledger and a missing policy all fail closed", { skip: !haveOpenssl && "no openssl", timeout: 240000 }, async () => {
+  const OTHER = "0b".repeat(32), UNKNOWN = "0c".repeat(32);
+  const PIXEL2 = PIXEL_ID.replace('"49.0.0"', '"49.0.1"'), RID = sha(PIXEL_ID), RID2 = sha(PIXEL2);
+  // the operator means APP on RID and OTHER on RID2; the lists do not pair them (tunnel.js checks app in appIds AND runtime in
+  // runtimeIds), so APP on RID2 is admitted too -- the stated predicate, pinned here so it cannot change silently
+  const served = pvmServingFromEnv({ PVM_SERVING: "on", PVM_APP_IDS: `${APP},${OTHER}`, PVM_APP_RUNTIME_IDS: `${RID}, ${RID2}` }, { avfOn: true, pvmCpuOn: true });
+  assert.deepEqual(served.missing, []); assert.deepEqual(served.attestPvmApp, { appIds: [APP, OTHER], runtimeIds: [RID, RID2] });
+  const rig = await realHub(served.attestPvmApp), { hub, vm } = rig;
+  let slowClosed = false;
+  const slow = net.createServer((c) => { const t = setInterval(() => c.write("x"), 20); c.on("close", () => { clearInterval(t); slowClosed = true; }); c.on("error", () => {}); });
+  const flood = net.createServer((c) => { c.on("error", () => {}); c.write(Buffer.alloc(512 << 10, 0x7b)); });   // 512 KiB: twice the evidence bound
+  await Promise.all([slow, flood].map((x) => new Promise((r) => x.listen(0, "127.0.0.1", r))));
+  const abi = {
+    ok: await rig.phone("p-ok", { app: APP }), cross: await rig.phone("p-cross", { app: APP, identity: PIXEL2 }),
+    unknown: await rig.phone("p-unknown", { app: UNKNOWN }), unverified: await rig.phone("p-unverified"),
+    slow: await rig.phone("p-slow", { app: APP, evidencePort: slow.address().port }), flood: await rig.phone("p-flood", { app: APP, evidencePort: flood.address().port }),
+  };
+  assert.equal(abi.ok?.ok, true); assert.equal(abi.cross?.ok, true, "APP on OTHER's runtime: admitted (the cross product)");
+  assert.equal(abi.unknown?.ok, false); assert.match(abi.unknown.reasons.join(" "), /not one this relay admits/); assert.equal(abi.unverified, null);
+  const D5 = "0x" + "d5".repeat(32), D6 = "0x" + "d6".repeat(32), D7 = "0x" + "d7".repeat(32);
+  const ledger = { [D1]: "tunnel://p-ok", [D2]: "tunnel://p-unverified", [D3]: "tunnel://p-unknown", [D4]: "tunnel://p-cross", [D5]: "tunnel://p-slow", [D6]: "tunnel://p-flood" };
+  const logs = [], handle = served.handler({ resolve: (id) => (id === D7 ? new Promise(() => {}) : Promise.resolve(ledger[id] || null)), hub, emit: (o) => logs.push(o) });
+  const srv = http.createServer((q, s) => { if (!handle(q, s)) { s.writeHead(404); s.end(); } });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const port = srv.address().port, dir2 = tmp("pvm-rs4-"), st = path.join(dir2, "state"), P = key(), R = key(), pf = path.join(dir2, "p.json");
+  fs.writeFileSync(pf, JSON.stringify(policy(P)));
+  // the relay path is the route; --deployment is the client's selection from its signed table (D1-D4). They are separate
+  // inputs: the client never learns which instance a route reaches (RELAY-SERVING.md "Not given")
+  const run = (route, select = D1) => cli(["run", "--state", st, "--policy", pf, "--relay", `http://127.0.0.1:${port}/x/${route}/pvm`, "--deployment", select]);
+  try {
+    assert.equal((await cli(["install", "--state", st, "--policy-key-fp", P.fp, "--serial-floor", "1", "--release-key-fp", R.fp])).code, 0);
+    // sealed: the verified app and the cross-product admission reach the VM; an unknown app and an unverified tunnel do not
+    for (const dep of [D1, D4]) { const r = await raw(port, "POST", `/x/${dep}/pvm/sealed`, SEALED_PROBE); assert.equal(r.status, 200, dep); assert.match(r.body, /unknown evidence nonce/); }
+    for (const dep of [D3, D2]) { const r = await raw(port, "POST", `/x/${dep}/pvm/sealed`, SEALED_PROBE); assert.equal(r.status, 404, dep); assert.equal(r.body, ""); }
+    assert.equal(logs.filter((l) => l.refused === "the tunnel does not take this stream").length, 2);
+    // two buyers at once on one instance: each gets the envelope for its own nonce (web/pvm-verify.js compares the nonce echo
+    // FIRST, so a crossed envelope would be refused as "another nonce", never reach the root check)
+    const before = vm.log.filter((l) => l.evidence).length;
+    for (const r of (await Promise.all([run(D1), run(D1)])).map((x) => x.result)) {
+      assert.equal(r.step, "verify", JSON.stringify(r)); assert.match(r.refused, /not a pinned Google attestation root/); assert.doesNotMatch(r.refused, /another nonce/);
+    }
+    assert.equal(vm.log.filter((l) => l.evidence).length - before, 2, "two evidence requests reached the VM through the real hub");
+    // an answer past the evidence bound (256 KiB): the stream is cut after the 200 went out; the client never takes it as evidence
+    const cut = (await run(D6)).result;
+    assert.equal(cut.step, "evidence", JSON.stringify(cut)); assert.match(cut.refused, /^no evidence/); assert.notEqual(cut.complete, true);
+    const rawCut = await new Promise((resolve) => { const q = http.request({ host: "127.0.0.1", port, method: "POST", path: `/x/${D6}/pvm/evidence` }, (r) => { let n = 0;
+      r.on("data", (d) => (n += d.length)); r.on("error", () => {}); r.on("close", () => resolve({ status: r.statusCode, n, complete: r.complete })); }); q.on("error", () => resolve({ status: 0, n: 0, complete: false })); q.end("EVIDENCE x\n"); });
+    assert.equal(rawCut.status, 200); assert.equal(rawCut.complete, false, "a cut answer is ABORTED, never a clean end"); assert.ok(rawCut.n <= 256 << 10, `never more than the bound (${rawCut.n})`);
+    assert.ok(logs.some((l) => l.tunnel === "p-flood" && l.cut), "the cut is logged");
+    // the buyer leaves in the middle of the answer: the hub closes the phone's stream to the VM
+    await new Promise((resolve) => {
+      const q = http.request({ host: "127.0.0.1", port, method: "POST", path: `/x/${D5}/pvm/evidence` }, (r) => { let n = 0; r.on("data", (d) => { n += d.length; if (n >= 5) q.destroy(); }); r.on("error", () => {}); });
+      q.on("error", () => {}); q.on("close", resolve); q.end("EVIDENCE z\n");
+    });
+    for (let i = 0; i < 200 && !slowClosed; i++) await new Promise((r) => setTimeout(r, 10));
+    assert.equal(slowClosed, true, "the VM side of the stream was closed through the real hub when the buyer left");
+    // a ledger that never answers: a plain 504 at the wiring's bound (5 s)
+    const t0 = Date.now(), hung = await raw(port, "POST", `/x/${D7}/pvm/evidence`, "EVIDENCE x\n");
+    assert.equal(hung.status, 504); assert.equal(hung.body, ""); assert.ok(Date.now() - t0 >= 4900 && Date.now() - t0 < 9000, `${Date.now() - t0} ms`);
+    assert.ok(logs.every((l) => !JSON.stringify(l).includes("EVIDENCE")), "the carrier's lines hold sizes and ids only");
+    // the SAME live, verified tunnels under a missing app policy: every pVM route is a plain 503, nothing reaches the hub
+    const n0 = vm.log.length;
+    for (const env of [{ PVM_SERVING: "1", PVM_APP_IDS: APP }, { PVM_SERVING: "1", PVM_APP_IDS: APP.toUpperCase(), PVM_APP_RUNTIME_IDS: RID }]) {
+      const none = pvmServingFromEnv(env, { avfOn: true, pvmCpuOn: true });
+      assert.equal(none.attestPvmApp, null); assert.match(none.missing.join(), /app admission policy/);
+      const h = none.handler({ resolve: async (id) => ledger[id] || null, hub }), s = http.createServer((q, r) => { if (!h(q, r)) { r.writeHead(404); r.end(); } });
+      await new Promise((r) => s.listen(0, "127.0.0.1", r));
+      for (const w of ["evidence", "sealed"]) { const r = await raw(s.address().port, "POST", `/x/${D1}/pvm/${w}`, w === "sealed" ? SEALED_PROBE : "EVIDENCE x\n"); assert.equal(r.status, 503, w); assert.equal(r.body, ""); }
+      s.close();
+    }
+    assert.equal(vm.log.length, n0, "nothing reached the VM");
+  } finally { srv.close(); slow.close(); flood.close(); rig.close(); }
 });
