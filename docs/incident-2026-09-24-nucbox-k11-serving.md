@@ -1,5 +1,12 @@
 # nucbox-k11 stopped serving apps — 2026-09-23 / 24
 
+> **RESOLVED 2026-09-24 18:02 UTC.** Steven authorised funding from the agent wallet. 0.002 ETH sent
+> from `0x29479Bf0…647C` to the operator key in tx
+> `0x2d3202f73790d25a027fe8ad7514ba7d9f26215658556af6eb5848fc46bab120` (Base block 51741818). The node
+> re-claimed all five deployments within 60 seconds with no intervention, and all five are running.
+> The balance is smaller than the recommendation below: 0.002 ETH is about 1.5 days with all five
+> leases live, longer as the small ones exhaust their USDC. See §9.
+
 **Status at the time of writing (2026-09-24 16:20 UTC):** the box is attached, healthy and
 answering; five deployments it was running are stopped; the single blocker is gas on its operator
 key. Everything else about the box checks out.
@@ -285,3 +292,46 @@ blocker — so it is left for a maintenance window.
    inside the window. It changes how earnings are proved, so it is a decision, not a repair.
 4. **`AllowFirmwareLoadFromFile`.** Unrelated, still pending, still unapplied. Nothing here touches
    it.
+
+---
+
+## 9. Resolution, 2026-09-24
+
+**Funded.** `0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C` (the agent wallet, which is also this box's
+payout wallet) held 0.002186869 ETH — less than the 0.01 ETH recommended above, so 0.002 ETH was
+sent and ~0.000187 ETH left behind for that wallet's own gas.
+
+```
+tx     0x2d3202f73790d25a027fe8ad7514ba7d9f26215658556af6eb5848fc46bab120
+block  51741818   status success   fee 0.000000163 ETH
+after  operator 0.001999522 ETH   agent wallet 0.000186707 ETH
+```
+
+The recipient was re-derived from `EnclaveRegistry.get()` inside the sending script rather than
+retyped, and the script refused to send unless the entry was active, its endpoint was exactly
+`https://api.enclave.host/t/nucbox-k11`, the address had no code, and the chain id was 8453.
+
+**Recovery was automatic and took under a minute.** The ledger scan claimed all five between
+18:03:13 and 18:03:41 UTC, each app loaded into the enclave, and leases now run to 18:33 UTC.
+
+| deployment | claim tx | state |
+|---|---|---|
+| `0xe64f7cba` | `0x07d21a13…` | running; its RISC-V guest restores from a snapshot, so the gateway 502s for a few minutes after a cold claim |
+| `0x7ae476a3` | (re-claimed) | running, HTTP 200 |
+| `0xd9798e4c` | (re-claimed) | running, HTTP 200 |
+| `0xa77d0c57` | `0xcc9223a8…` | running, HTTP 200 |
+| `0xa69dcbba` | `0xcc551c0a…` | running, HTTP 200 |
+
+**Two things this confirmed about the analysis above.** `CLAIM_LEGACY=1` did what §6 said it would:
+all five predate the listing and were taken without an invitation. And the live build claims through
+`consider()` without consulting `gasRenewalsLeft` — that flag only gates what the box *publishes* —
+so the apps came back before the next heartbeat had even refreshed it.
+
+**The retry loop is still there on the live build.** At 18:03:42, one second after `0xa69dcbba` was
+claimed, the tick still logged "the lease expired and renew failed" against it from a stale read,
+then reloaded it two seconds later. Harmless here, and exactly the path commit `8ab9f51c` rewrites.
+
+**What 0.002 ETH buys**, at the measured costs in §6: about 1.5 days with all five leases live, ~3.7
+days at two, ~7 days at one. Three of the five exhaust their USDC in about 44 hours anyway, so the
+burn falls on its own. This is a reprieve, not a month — §6's sizing and the `PROOF_MS` question
+both still stand.
