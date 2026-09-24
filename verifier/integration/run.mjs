@@ -29,7 +29,7 @@ for (const [name, pin] of Object.entries(pinsFile)) {
   env[pin.env] = manifest.entry;
   console.log(`integration: ${name} @ ${manifest.commit} (${manifest.branch}) -> ${path.relative(REPO, manifest.entry)} (manifest and hashes re-checked) as ${pin.env}`);
 }
-const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs"];
+const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs"];
 const t = spawnSync(process.execPath, ["--test", "--test-reporter=tap", "--test-timeout=120000", ...suites], { cwd: REPO, encoding: "utf8", env });
 const tail = (t.stdout || "").split("\n").filter((l) => /^# (tests|pass|fail|skipped)/.test(l)).join("  ");
 const failed = /^# fail (\d+)/m.exec(t.stdout || ""), skipped = /^# skipped (\d+)/m.exec(t.stdout || "");
