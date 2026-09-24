@@ -28,6 +28,9 @@ sh_() { "$ADB" shell "$@" </dev/null 2>/dev/null | tr -d '\r'; }
 [ -e "$OUT" ] && { echo "$OUT exists: refusing to mix runs"; exit 2; }
 mkdir -p "$OUT/policies" || exit 2
 log() { echo "$(date -u +%H:%M:%SZ) $*" | tee -a "$OUT/run.log"; }   # UTC, like the signed documents
+# ---- preflight, before anything touches the phone: the capture code this run sources must stop on a capture failure ----
+bash "$H/cpu/preflight-activation-capture.sh" "$OUT/preflight.txt" > /dev/null || { log "capture preflight FAILED (preflight.txt): not running"; exit 3; }
+log "capture preflight: $(tail -1 "$OUT/preflight.txt")"
 # ---- the launcher: the accepted 0.3.0, copied into a lab install directory ----
 [ "$(sha256sum "$DIST" | cut -c1-64)" = "$BASE_SHA" ] || { log "client/dist/pvm-client.mjs is not the accepted 0.3.0 ($BASE_SHA): refusing"; exit 2; }
 [ -e "$KEYS" ] && { log "$KEYS exists: refusing to reuse lab keys or an install directory"; exit 2; }
@@ -76,7 +79,7 @@ if [ "$want" != "$have" ]; then timeout 300 "$ADB" install -r "$APK" </dev/null 
     --min-tok-s 10 --app-id "$APPID" --app-port $APPPORT --evidence-port $EVPORT --sealed-port $SEALPORT --web-port $WEBPORT --app-name $NAME --seconds 2400 \
     --record-evidence "$OUT/evidence" > "$OUT/hub.jsonl" 2> "$OUT/hub.err" ) & HUB=$!
 RUN_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-echo "{\"evidence\":\"every /evidence exchange recorded as received in evidence/ (public; sealed traffic is not recorded)\",\"clock\":\"UTC\",\"runStart\":\"$RUN_START\"}" > "$OUT/capture.json"
+echo "{\"evidence\":\"every /evidence exchange recorded as received in evidence/ (public; sealed traffic is not recorded)\",\"clock\":\"UTC\",\"runStart\":\"$RUN_START\",\"preflight\":\"preflight.txt\"}" > "$OUT/capture.json"
 mkdir -p "$OUT/carrier"; ( exec python3 -m http.server $POLPORT --bind 127.0.0.1 --directory "$OUT/carrier" > "$OUT/carrier.log" 2>&1 ) & POL=$!
 ( exec python3 -m http.server $UPDPORT --bind 127.0.0.1 --directory "$UPD" > "$OUT/update-carrier.log" 2>&1 ) & UPC=$!
 sleep 2
@@ -85,37 +88,14 @@ cleanup() { kill $HUB $POL $UPC 2>/dev/null; "$ADB" reverse --remove tcp:$PORT >
 trap cleanup EXIT
 carry() { cp "$OUT/policies/$1.json" "$OUT/carrier/current.json"; }   # what the (untrusted) policy carrier serves now
 POLURL=http://127.0.0.1:$POLPORT/current.json; RELAY=http://127.0.0.1:$WEBPORT; UPDURL=http://127.0.0.1:$UPDPORT
-# cl <label> <command...>: the installed launcher, always with the isolated state and install directory; output, stderr, rc kept.
-# Each call's evidence exchanges (the carrier numbers them in arrival order) and the committed state right after it are
-# appended to exchanges.jsonl: which exchange belongs to which run, under which serial, policy key and active record.
-cl() { local label="$1"; shift; local e0 t0; e0=$(ls "$OUT/evidence" 2>/dev/null | grep -c '^evidence-[0-9]*\.json$' || true); t0=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)
-  node "$CLI" "$@" --state "$STATE" --install-dir "$INSTALL" > "$OUT/$label.jsonl" 2> "$OUT/$label.err"; local rc=$?; echo $rc > "$OUT/$label.rc"
-  # the state goes through a FILE: the heredoc below is python's stdin, so a pipe into it would be lost (run 2's defect)
-  local sf; sf=$(mktemp); node "$CLI" state --state "$STATE" > "$sf" 2>/dev/null
-  python3 - "$OUT/evidence" "$e0" "$label" "$rc" "$t0" "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$sf" >> "$OUT/exchanges.jsonl" <<'PY'
-import json, os, sys
-d, e0, label, rc, t0, t1, sf = sys.argv[1:8]
-ev = sorted(f for f in os.listdir(d) if f.endswith(".json") and not f.endswith(".meta.json")) if os.path.isdir(d) else []
-st = json.load(open(sf)); s = st["state"]   # no fallback: an unreadable state fails here, loudly, instead of recording nulls
-a = s.get("active") or {}
-print(json.dumps({"label": label, "rc": int(rc), "utcStart": t0, "utcEnd": t1, "exchanges": [int(f[9:12]) for f in ev[int(e0):]],
-                  "after": {"gen": st.get("gen"), "serial": s.get("serial"), "policyFp": s.get("policyFp"), "nextPolicyFp": s.get("nextPolicyFp"),
-                            "releaseFp": s.get("releaseFp"), "active": a.get("sha256") and {"version": a.get("version"), "sha256": a.get("sha256")}}}))
-PY
-  rm -f "$sf"
-  python3 - "$OUT/$label.jsonl" "$label" "$rc" <<'PY' | tee -a "$OUT/run.log"
-import json, sys
-lines = [json.loads(l) for l in open(sys.argv[1]) if l.startswith("{")]
-last = lines[-1] if lines else {}
-r = last.get("result") or last.get("update") or last.get("activate") or last
-keep = ["complete", "status", "tokens", "firstTokenMs", "ms", "step", "refused", "policySerial", "clientVersion", "ok", "already", "version", "sha256", "gen", "found", "reasons", "error"]
-print(json.dumps({"label": sys.argv[2], "rc": int(sys.argv[3]), **{k: r.get(k) for k in keep if k in r}})[:400])
-PY
-  return $rc; }
+# cl <label> <command...>: the installed launcher with the isolated state and install directory, and its per-call capture
+# (the committed state after every call, the evidence exchanges it made) -- cpu/activation-capture.sh, the file the preflight
+# above exercised. A capture failure stops the run with exit 3; the results so far are kept.
+source "$H/cpu/activation-capture.sh"
 R() { local label="$1"; shift; cl "$label" run --policy $POLURL --relay $RELAY --app "$APPID" --path "$REQ" "$@"; }
 UPDATE() { cl "$1" update --manifest "$UPDURL/${2:-manifest-$NEXT_V.json}" --artifact "$UPDURL/pvm-client-$NEXT_V-lab.mjs"; }   # UPDATE <label> [manifest]
 snap() {   # the committed state, `staged` (both records, bytesMatch), and the install directory with inodes
-  node "$CLI" state --state "$STATE" > "$OUT/state-$1.json"
+  node "$CLI" state --state "$STATE" > "$OUT/state-$1.json" || capture_fail "snap $1" "\`pvm-client state\` exited non-zero"
   node "$CLI" staged --state "$STATE" --install-dir "$INSTALL" > "$OUT/staged-$1.json"; echo $? > "$OUT/staged-$1.rc"
   ( cd "$INSTALL" && for f in $(ls -A | sort); do stat -c '%i %s %a %n' "$f"; done ) > "$OUT/install-$1.txt"; }
 pause() { sleep 3; }
@@ -168,9 +148,10 @@ python3 - "$OUT" "$RUN_START" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" <<'PY'
 import json, sys
 out, start, end = sys.argv[1:4]
 rows = [json.loads(l) for l in open(f"{out}/exchanges.jsonl")]
-json.dump({"evidence": "every /evidence exchange recorded as received in evidence/: evidence-NNN.request (the client's nonce line), "
+json.dump({"preflight": "preflight.txt", "evidence": "every /evidence exchange recorded as received in evidence/: evidence-NNN.request (the client's nonce line), "
            "evidence-NNN.json (the VM's envelope, byte for byte), evidence-NNN.meta.json (UTC times, sizes); nothing parsed, stripped or "
            "reordered; public; sealed traffic and session secrets are never recorded", "clock": "UTC", "runStart": start, "runEnd": end,
            "exchanges": [{"n": n, "label": r["label"], "stateAfter": r["after"]} for r in rows for n in r["exchanges"]]}, open(f"{out}/capture.json", "w"), indent=1)
 PY
+[ $? = 0 ] || { log "capture.json could not be assembled: stopping (exit 3)"; exit 3; }
 python3 "$V/check-app-activation.py" "$OUT" | tee "$OUT/check.txt"

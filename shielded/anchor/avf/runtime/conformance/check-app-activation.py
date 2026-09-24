@@ -152,6 +152,22 @@ if cap:
         if not (st.get("gen") == r.get("stateGen") and st.get("serial") == gs.get("serial") and st.get("policyFp") == gs.get("policyFp")
                 and st.get("releaseFp") == gs.get("releaseFp") and st.get("active") == (a and {"version": a.get("version"), "sha256": a.get("sha256")} or None)):
             ok_c = False; print(f"     exchange {x.get('n')} ({x.get('label')}): exchanges.jsonl recorded {json.dumps(st)[:120]}, the generation log says gen {g.get('gen')}")
+    # every call, not only those that made an exchange: a snapshot is present and IS the generation it names
+    if cap.get("preflight"):
+        expect(rd(cap["preflight"]).strip().splitlines()[-1:] and rd(cap["preflight"]).strip().splitlines()[-1].startswith("PASS"),
+               "the capture preflight passed before the run (a capture failure stops the shell with exit 3)")
+        rows = [json.loads(l) for l in rd("exchanges.jsonl").splitlines() if l.strip()]
+        bad = []
+        for row in rows:
+            a = row.get("after") or {}; g = js(os.path.join("cli-state.d", f"{a.get('gen')}.json")) if isinstance(a.get("gen"), int) else None
+            gs = (g or {}).get("state", {}); ga = gs.get("active") or None
+            want = g and {"gen": g.get("gen"), "serial": gs.get("serial"), "policyFp": gs.get("policyFp"), "nextPolicyFp": gs.get("nextPolicyFp"),
+                          "releaseFp": gs.get("releaseFp"), "active": ga and {"version": ga.get("version"), "sha256": ga.get("sha256")}}
+            if not g or a != want: bad.append(row.get("label"))
+        last_gen = max((int(f[:-5]) for f in os.listdir(os.path.join(d, "cli-state.d")) if f[:-5].isdigit()), default=None)
+        expect(len(rows) >= len(EXCH) and not bad and rows[-1].get("after", {}).get("gen") == last_gen,
+               f"every call's snapshot ({len(rows)} rows) is present and equals the generation it names in the log; the last is the final generation {last_gen}"
+               + (f" -- mismatched: {bad}" if bad else ""))
     expect(ok_a, "each envelope is the one its run verified (nonce, app, app key)")
     expect(ok_b, "each exchange ran under the state its run committed first (its stateGen in the generation log: the serial it reports; active none before activation, 0.3.1 after)")
     expect(ok_c, "the per-exchange state capture (exchanges.jsonl 'after') agrees with the generation log")
