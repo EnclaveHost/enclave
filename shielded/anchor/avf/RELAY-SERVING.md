@@ -170,7 +170,8 @@ Codex directed this slice under Steven's standing scope. Coding the disabled pat
   - An ordinary app's own paths of those names are not reachable through `/x`: they answer 404, never the app's answer.
     This is tested with a live ordinary deployment.
   - The same paths on the app's own subdomain still reach the app (tested).
-  - WebSocket upgrades on those paths are not intercepted: they take the ordinary `/x` upgrade path, as today.
+  - WebSocket upgrades on those paths are not intercepted: they take the ordinary `/x` upgrade path to the app, as when
+    OFF (tested both ways).
   - For the `/x` gateway doc: *"When the relay's pVM carrier is ON, `/x/<id>/pvm/evidence` and `/x/<id>/pvm/sealed` are
     reserved on the API host for every deployment; an app that serves paths of those names is reached on its own
     subdomain."*
@@ -180,6 +181,9 @@ Codex directed this slice under Steven's standing scope. Coding the disabled pat
     - another first hop with the same last hop is the same client;
     - another last hop is another client, with its own bucket;
     - with no header, the socket keys the bucket.
+  - **The condition it rests on (inherited, not new).** The last hop is trustworthy only while the relay's port is
+    reachable through the front alone. If the port is ever reachable directly, a caller can mint per-client buckets
+    by header, for the relay's WAF and this carrier alike.
   - **Buckets.** The relay's token buckets: 30 per client (refill 0.5/s) and 60 per deployment (refill 1/s). Neither
     number is measured on the device (review question 3).
   - **The per-deployment bucket is shared** by every client of the deployment, so one buyer's traffic can spend it
@@ -222,21 +226,26 @@ Codex directed this slice under Steven's standing scope. Coding the disabled pat
   - **Not driven through `api-relay.js`: the splice.** A synthetic phone cannot attach to the spawned relay: its AVF
     verifier pins Google's roots, correctly, with no override. So the splice itself is not driven through `api-relay.js`.
     The hub's app policy there is checked through the startup line, printed from the object the hub receives.
-  - **Mutation checks.** 14 deliberate breaks of the wiring were each caught by at least one test:
-    - a static import;
-    - the route unwired;
-    - the old placement ahead of app subdomains;
-    - the unconfigured path falling through;
-    - socket identity;
-    - no pending cap;
-    - lax app ids;
-    - no per-deployment bucket;
-    - OFF building the handler;
-    - a clean end on a cut answer;
-    - the hub not given the app policy;
-    - early refusals keeping the socket;
-    - a paired (not cross-product) hub;
-    - the wiring ignoring a missing policy.
+  - **Mutation checks, re-runnable.** `node test/mutate-pvm-serving.mjs` works on a temp copy of the tree, never the
+    checkout.
+    - It first runs a control: both suites must pass unmutated.
+    - It then applies 20 mutations, each breaking one property, and each must fail the test it names:
+      - the switch: another word accepted, OFF loading the module, a static import;
+      - the route: unwired, or placed ahead of app subdomains; WebSocket upgrades intercepted;
+      - admission: the hub not given the app policy, lax app ids, a paired (not cross-product) hub;
+      - identity and rates: socket identity, no per-deployment bucket, no pending cap;
+      - bounds: no request bound, a minute-long ledger wait;
+      - refusals: the unconfigured route falling through, the wiring ignoring a missing policy, early refusals or the
+        unconfigured 503 keeping the socket;
+      - the stream: a cut answer ending cleanly, a buyer leaving without closing the VM's stream.
+    - A mutation whose text is not found exactly once fails the run, so a renamed line cannot make one vacuous.
+    - **Run 1** (837187f5's tests plus the upgrade cases): the control passed and 19 of 20 mutations were caught.
+      The verdict was FAIL (rc 1).
+      - The survivor was M01, the relay's switch accepting another word. The lazy-import test booted the
+        broken-module relay only with the switch unset. The module's own switch check then kept `enabled` OFF, so
+        nothing visible changed: the module was simply loaded.
+      - The test now boots that relay under every OFF value.
+    - **Run 2** (this commit): control clean, 20 of 20 caught, `PASS` (rc 0).
 - **Not given, unchanged.** A genuine instance of the expected app is not proof of this deployment's specific instance
   ("What this does and does not give a buyer").
 - **Before any activation, the owner's:**
