@@ -6,7 +6,7 @@
 <meta name="color-scheme" content="dark" />
 <meta name="theme-color" content="#070A0F" />
 <title>Developer Guide, CLI & API Reference · Enclave</title>
-<meta name="description" content="Build and ship your first WebAssembly app for Enclave's confidential GPU cloud: the wasi:http developer guide, the enclave CLI, and the full CORS-enabled REST API reference with OpenAPI spec." />
+<meta name="description" content="Build a WebAssembly app once and understand where it runs: developer guide, architecture and protection levels, CLI, MCP server for agents, and the full REST API reference." />
 <link rel="canonical" href="https://enclave.host/develop" />
 <meta name="robots" content="index,follow,max-image-preview:large" />
 <meta property="og:site_name" content="Enclave" />
@@ -18,7 +18,7 @@
 <meta property="og:image" content="https://enclave.host/assets/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="Enclave: compute that cannot see your data. WebAssembly on attested GPU enclaves, paid per second." />
+<meta property="og:image:alt" content="Enclave: compute that cannot see your data. Portable apps, explicit protection, verifiable execution, independent infrastructure." />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:image" content="https://enclave.host/assets/og.png" />
 <link rel="icon" href="favicon.ico" sizes="48x48 32x32 16x16" />
@@ -50,7 +50,7 @@
   "@context": "https://schema.org",
   "@type": "WebAPI",
   "name": "Enclave API",
-  "description": "CORS-enabled REST API for deploying WebAssembly apps onto attested confidential GPU enclaves: create and fund deployments, stream logs, fetch attestation, all callable from front-end JavaScript.",
+  "description": "CORS-enabled REST API for deploying WebAssembly apps onto attested enclaves and other verifiable hosts: create and fund deployments, stream logs, fetch attestation, all callable from front-end JavaScript or an agent.",
   "documentation": "https://enclave.host/develop#api",
   "termsOfService": "https://enclave.host/terms",
   "provider": { "@type": "Organization", "name": "Enclave Host, Inc.", "url": "https://enclave.host/" }
@@ -60,18 +60,19 @@
 <body>
 <c-header current="develop"></c-header>
 <main id="main" tabindex="-1">
-<h1 class="sr-only">Develop for Enclave: WebAssembly app guide, CLI, and API reference</h1>
+<h1 class="sr-only">Develop for Enclave: WebAssembly app guide, architecture, CLI, MCP, and API reference</h1>
 <section id="develop-home" data-view="develop" aria-label="Developer documentation" style="padding:84px 0 0;">
   <a id="develop"></a>
   <div class="wrap">
     <c-section-head eyebrow="Develop" heading="From idea to enclave.">
-      <p>Everything needed to ship a confidential app: the guide takes you from an empty directory to an attested endpoint, the CLI drives every operation from a terminal, coding agents plug in over <a href="#mcp">MCP</a>, and the API reference documents every call the platform answers.</p>
+      <p>Everything needed to understand and ship a confidential app: follow the guide from an empty directory to an attested endpoint, inspect the architecture and protection levels, drive every operation with the CLI or <a href="#mcp">MCP</a>, and use the API reference for every call the platform answers.</p>
     </c-section-head>
     <nav class="dev-tabs" id="devTabs" aria-label="Developer documentation tabs">
       <a href="#docs" data-devtab="guide" class="on" aria-current="true">Guide</a>
       <a href="#cli" data-devtab="cli">CLI</a>
       <a href="#mcp" data-devtab="mcp">MCP</a>
       <a href="#api" data-devtab="api">API reference</a>
+      <a href="#architecture" data-devtab="architecture">Architecture</a>
     </nav>
   </div>
 </section>
@@ -79,7 +80,7 @@
   <div class="wrap">
     <article class="doc doc-lead">
       <h3>Build your first Wasm app.</h3>
-      <p>This guide takes you from an empty directory to a paid, attested, publicly reachable app: first the <b>Hello</b> walkthrough end to end, then a worked example for every capability the platform gives your code. That covers HTTP handling, the <span class="mono">/data</span> scratch filesystem, raw TCP/UDP service ports, GPU inference, user-held-key encrypted volumes, and attestation your users can check themselves. Everything here runs against the same <a href="#api">public API</a> the <a href="apps/deploy">Deploy console</a> uses.</p>
+      <p>This guide takes you from an empty directory to a paid, attested, publicly reachable app: first the <b>Hello</b> walkthrough end to end, then a worked example for every capability the platform gives your code. That covers HTTP handling, the <span class="mono">/data</span> scratch filesystem, raw TCP/UDP service ports, GPU inference, user-held-key encrypted volumes, and attestation your users can check themselves. Everything here runs against the same <a href="#api">public API</a> the store's Deploy button uses. The package you build is the same on every backend; the protection level belongs to the host it lands on, and the <a href="#protection">Architecture tab</a> says what each one guarantees.</p>
     </article>
 
     <div class="docs-layout">
@@ -144,7 +145,7 @@
           </ul>
           <div class="doc-note">
             <span class="nt">The contract</span>
-            <p>If <code>wasmtime serve</code> runs your <code>.wasm</code> locally, the enclave runs it too: the manager launches the identical command per tenant. That's the whole compatibility story, and it's why every chapter here ends with a local command you can verify before spending a cent.</p>
+            <p>If <code>wasmtime serve</code> runs your <code>.wasm</code> locally, the enclave runs it too: the manager launches the identical command per tenant. That's the whole compatibility story, and it's why every chapter here ends with a local command you can verify before spending a cent. The same component also runs, interpreted, inside the Windows host's enclave; a versioned domain contract shared by every backend is in development and described in the <a href="#package">Architecture tab</a>.</p>
           </div>
         </article>
 
@@ -156,7 +157,7 @@
 rustup target add wasm32-wasip2
 cargo install cargo-component
 
-# the runtime the enclave runs (wasmtime 45+), for local testing
+# the runtime the enclave runs (wasmtime 49 line), for local testing
 curl https://wasmtime.dev/install.sh -sSf | bash
 wasmtime --version</code></pre></c-code>
         </article>
@@ -224,12 +225,12 @@ wasmtime serve -Scli -Shttp -Sp3 -W component-model-async \
   --addr 127.0.0.1:8080 target/wasm32-wasip2/release/hello.wasm</code></pre></c-code>
 
           <h4>Going async: WASIp3 components</h4>
-          <p><b>wasm32-wasip3</b> is the component model's native-async target: one instance serves many in-flight requests, imports don't block it, and request/response bodies are first-class <code>stream</code>s - the right substrate for agent apps whose time goes to model and tool calls. The enclave serves both worlds side by side. The simplest guest route is the <b><code>wasip3</code> crate</b> - no WIT files in your repo at all. Pin it EXACTLY: <code>=0.6.0</code> targets <code>wasi:http@0.3.0-rc-2026-03-15</code>, the snapshot the fleet's wasmtime 45 serves; 0.7.x tracks 0.3.0-final and will <b>not</b> instantiate.</p>
+          <p><b>wasm32-wasip3</b> is the component model's native-async target: one instance serves many in-flight requests, imports don't block it, and request/response bodies are first-class <code>stream</code>s - the right substrate for agent apps whose time goes to model and tool calls. The enclave serves both worlds side by side. The simplest guest route is the <b><code>wasip3</code> crate</b> - no WIT files in your repo at all. Match the WIT the fleet serves: the pinned wasmtime (the 49 line) serves <code>wasi:http@0.3.0</code> final, so use a crate line whose build metadata reads <code>+wasi-0.3.0</code> (0.7.x and newer); <code>0.6.0</code> targets the older <code>0.3.0-rc-2026-03-15</code> snapshot and will <b>not</b> instantiate against it.</p>
           <c-code fn="Cargo.toml"><pre><code>[lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-wasip3 = { version = "=0.6.0", features = ["async-spawn"] }</code></pre></c-code>
+wasip3 = { version = "0.7", features = ["async-spawn"] }   # 0.7.x+ target wasi 0.3.0 final</code></pre></c-code>
           <c-code fn="src/lib.rs · the whole app"><pre><code>use wasip3::http::types::{ErrorCode, Fields, Request, Response};
 use wasip3::{wit_future, wit_stream};
 
@@ -617,7 +618,7 @@ printf 'ping' | socat -t2 - UDP:127.0.0.1:9053</code></pre></c-code>
             <li><b>GPU means GPU.</b> The platform's runtime is patched so target <code>gpu</code> either runs on CUDA or fails the <code>load()</code> - never a silent fallback to the CPU. On the ONNX path that means the CUDA provider initializes or the load fails (ONNX Runtime's default is a quiet CPU fallback); on the GGUF path the whole model offloads to your slice by default, and the backend refuses to run if the CUDA module didn't actually load; the diffusion backend is strict the same way. Want CPU inference? Ask for <code>cpu</code>.</li>
             <li><b>Isolation is the capability model again</b>: graphs and tensors are opaque handles scoped to your instance. Nothing like a device pointer or a raw kernel ever crosses the boundary.</li>
           </ul>
-          <p>Import the interfaces in your world (WIT deps vendored from wasmtime 45, wasi:nn <code>0.2.0-rc-2024-10-28</code>):</p>
+          <p>Import the interfaces in your world (WIT deps vendored from the wasmtime the fleet pins, the 49 line; wasi:nn <code>0.2.0-rc-2024-10-28</code>):</p>
           <c-code fn="wit/world.wit"><pre><code>package you:app;
 
 world app {
@@ -665,7 +666,7 @@ let out    = ctx.compute(vec![
           <p><b>Getting the model in.</b> Three routes. <b>Embed it</b> (<code>include_bytes!</code>) for anything small - it ships inside your published CID, so it's attested with your code; the ceilings are the ≤&nbsp;2&nbsp;GB wasm artifact and the ≤&nbsp;4&nbsp;GiB linear memory that <code>load()</code> passes bytes through. <b>Attach a model volume</b> (<a href="#docs-deploy">ch. 05</a>) for anything big: attested read-only weights mounted at <code>/models/&lt;name&gt;</code> - and a GGUF or image-checkpoint volume is additionally preloaded as a named wasi-nn graph for <code>load_by_name()</code>, skipping your linear memory entirely. Or <b>fetch at startup</b> over outbound HTTP into memory and check the hash yourself before loading - the platform verifies your <i>code</i> by CID, a fetched model is your responsibility.</p>
           <div class="doc-note">
             <span class="nt">Local testing</span>
-            <p>Stock <code>wasmtime</code> release binaries don't compile wasi-nn in - and the platform's runtime carries patches you'll want locally too (strict GPU target, the full tensor-dtype set, zero-size tensors, the GGUF and diffusion backends; unpatched wasmtime rejects everything but fp32 and has no ggml or sdcpp at all). Build the same runtime the enclave uses: in a wasmtime 45 checkout, <code>git apply wasm/wasmtime-onnx-gpu-strict.patch</code> (and <code>wasm/wasmtime-nn-ggml.patch</code> for GGUF, plus <code>wasm/wasmtime-nn-sdcpp.patch</code> on top of it for diffusion) from the Enclave repo, point <code>ORT_LIB_LOCATION</code> at the official Microsoft <code>onnxruntime-linux-x64-gpu</code> distribution, and <code>cargo build --release --features "wasi-nn,wasmtime-wasi-nn/onnx-cuda,wasmtime-wasi-nn/ggml"</code> - the <code>ggml</code> feature links the prebuilt <code>enclave-llamacpp</code> libraries from the repo's releases via <code>ELL_LIB_LOCATION</code> (add <code>wasmtime-wasi-nn/sdcpp</code>, linking <code>libenclave_sd</code> via <code>ESD_LIB_LOCATION</code>, for the diffusion backend); then <code>wasmtime serve -S nn app.wasm</code>, adding <code>-S nn-graph=ggml::&lt;dir&gt;</code> to preload a local GGUF (or <code>sd::&lt;dir&gt;</code> for an image checkpoint) under the directory's basename like the platform does with volumes. (Avoid the <code>onnx-download</code> feature: it pulls a prebuilt ONNX Runtime with precompiled kernels for consumer GPUs only - it works on a desktop card but JIT-hangs on datacenter parts. The MS build is exactly how the platform's own runtime is built - see <code>wasm/Dockerfile.wasmtime</code> in the repo.) Without CUDA libraries installed, target <code>gpu</code> fails (by design); test with <code>cpu</code> locally and <code>gpu</code> on the enclave.</p>
+            <p>Stock <code>wasmtime</code> release binaries don't compile wasi-nn in - and the platform's runtime carries patches you'll want locally too (strict GPU target, the full tensor-dtype set, zero-size tensors, the GGUF and diffusion backends; unpatched wasmtime rejects everything but fp32 and has no ggml or sdcpp at all). Build the same runtime the enclave uses: in a checkout of the wasmtime commit the fleet pins (the 49 line; the exact commit is <code>WASMTIME_VERSION</code> in <code>wasm/Dockerfile.wasmtime</code>), <code>git apply wasm/wasmtime-onnx-gpu-strict.patch</code> (and <code>wasm/wasmtime-nn-ggml.patch</code> for GGUF, plus <code>wasm/wasmtime-nn-sdcpp.patch</code> on top of it for diffusion) from the Enclave repo, point <code>ORT_LIB_LOCATION</code> at the official Microsoft <code>onnxruntime-linux-x64-gpu</code> distribution, and <code>cargo build --release --features "wasi-nn,wasmtime-wasi-nn/onnx-cuda,wasmtime-wasi-nn/ggml"</code> - the <code>ggml</code> feature links the prebuilt <code>enclave-llamacpp</code> libraries from the repo's releases via <code>ELL_LIB_LOCATION</code> (add <code>wasmtime-wasi-nn/sdcpp</code>, linking <code>libenclave_sd</code> via <code>ESD_LIB_LOCATION</code>, for the diffusion backend); then <code>wasmtime serve -S nn app.wasm</code>, adding <code>-S nn-graph=ggml::&lt;dir&gt;</code> to preload a local GGUF (or <code>sd::&lt;dir&gt;</code> for an image checkpoint) under the directory's basename like the platform does with volumes. (Avoid the <code>onnx-download</code> feature: it pulls a prebuilt ONNX Runtime with precompiled kernels for consumer GPUs only - it works on a desktop card but JIT-hangs on datacenter parts. The MS build is exactly how the platform's own runtime is built - see <code>wasm/Dockerfile.wasmtime</code> in the repo.) Without CUDA libraries installed, target <code>gpu</code> fails (by design); test with <code>cpu</code> locally and <code>gpu</code> on the enclave.</p>
           </div>
         </article>
 
@@ -735,7 +736,7 @@ envelope        = "encv1:" + base64( iv[16] || AES-256-CTR(encKey, iv, credsJSON
         <article class="doc" id="docs-domains">
           <h3><span class="n">14</span>Custom domains</h3>
           <p>Every deployment answers on its own subdomain, <code>&lt;label&gt;.app.enclave.host</code>. You can also attach <b>a domain you own</b>, and the app serves it under that name - same backend, no redirect, no frame - with a certificate <b>minted inside the enclave</b>. The private key for your domain is generated in the CVM and never leaves it, which is the same guarantee the platform subdomain already gives you.</p>
-          <p>Open <b>Domains</b> on the deployment in the <a href="apps/dashboard">dashboard</a>, type the hostname, and it shows you the exact records to create. There are three:</p>
+          <p>Open <b>Domains</b> on the deployment in the <a href="dashboard">dashboard</a>, type the hostname, and it shows you the exact records to create. There are three:</p>
           <c-code fn="your DNS provider"><pre><code># 1. routing - where the traffic goes
 shop.example.com.                    CNAME  cc1f4f3f.app.enclave.host.
 
@@ -776,7 +777,7 @@ _acme-challenge.shop.example.com.    CNAME  _acme-challenge.cc1f4f3f.app.enclave
         <!-- 15 ------------------------------------------------------------ -->
         <article class="doc" id="docs-attest">
           <h3><span class="n">15</span>Attestation for your users</h3>
-          <p>The platform's core promise extends to your app: a user can verify, cryptographically and before sending a byte of data, that they're talking to an attested enclave running exactly the code that was measured. For apps deployed by CID, the attestation includes <b>your app</b>: its <code>app.cid</code> field names the exact bytes that ran, hash-verified against the CID inside the enclave by the measured runtime, with a <code>coverage</code> note stating precisely what covers it (the boot measurement covers the runtime; the runtime pins your app).</p>
+          <p>On a confidential host the platform's core promise extends to your app: a user can verify, cryptographically and before sending a byte of data, that they're talking to an attested enclave running exactly the code that was measured. For apps deployed by CID, the attestation includes <b>your app</b>: its <code>app.cid</code> field names the exact bytes that ran, hash-verified against the CID inside the enclave by the measured runtime, with a <code>coverage</code> note stating precisely what covers it (the boot measurement covers the runtime; the runtime pins your app).</p>
           <c-code fn="verify.js · attested client"><pre><code>import { SecureClient } from "tinfoil";
 
 const c = new SecureClient({ baseURL: "https://&lt;enclave-host&gt;" });
@@ -1011,6 +1012,186 @@ enclave logs 0x3f2a9c1b -f               # watch it serve</code></pre></c-code>
     </div>
 
     <c-api-reference></c-api-reference>
+  </div>
+</section>
+<section id="architecture" data-view="develop" aria-label="Architecture, protection levels, and status" hidden>
+  <div class="wrap">
+    <c-section-head eyebrow="Architecture" heading="How it works, and how far each part has gotten.">
+      <p>This is the long version of the front page. It names mechanisms, says what each one protects against and from whom, and marks every capability as <b>available</b>, <b>experimental</b>, or <b>planned</b>. Where a result comes from one lab machine, it says so. Current as of 2026-09-23.</p>
+    </c-section-head>
+
+    <div class="hostdoc arch">
+
+      <div class="arch-legend" role="note" aria-label="Status vocabulary">
+        <span class="k">vocabulary</span>
+        <span class="lg"><span class="ap-badge ok">available</span> usable now on the hosted platform or a listed host</span>
+        <span class="lg"><span class="ap-badge warn">experimental</span> built and measured on a lab machine or one box; not something a deployment can choose yet</span>
+        <span class="lg"><span class="ap-badge plan">planned</span> designed or intended; not built, or built and not run</span>
+      </div>
+
+      <h2 id="package">One app package <span class="ap-badge ok">available</span></h2>
+      <p>An Enclave app is a <b>WebAssembly component</b> targeting <code>wasi:http</code>. Its bytes live on IPFS addressed by content hash, its listing lives in the <code>EnclaveAppCatalog</code> contract on Base, and the runtime inside the enclave refuses any bytes that do not hash to the CID in the deployment's on-chain record. The same component runs today on the confidential Linux fleet (compiled by wasmtime inside a confidential VM) and on the Windows host (interpreted by wasmtime's Pulley engine inside a virtualization-based enclave, because that enclave refuses every executable page a compiler would need). One build, no per-host binaries.</p>
+      <h3>The domain contract <span class="ap-badge warn">experimental</span></h3>
+      <p>Underneath the catalog, the backends are converging on one versioned agreement, <code>enclave-domain-abi/1</code>: a bundle is a canonical manifest plus the artifact, its identity is the hash of exactly those bytes, an attestation report binds the domain's transport key and nonce in its first half and the app's identity in its second, and every domain moves through the same starting, running, ending, ended lifecycle with reclamation exactly once. A Go reference implementation drives the Linux monitor; a Rust mirror drives the Windows partition launcher; both are checked against one set of conformance vectors. It runs in the lab on both operating systems. Nothing a deployment does today starts a domain through it yet.</p>
+      <div class="doc-note">
+        <span class="nt">What portable means here</span>
+        <p>The package is the same everywhere. The guarantees are not: they belong to the host. A bundle that runs on a confidential server and on a Windows PC gets the protection level of the machine it landed on, and that level is stated on the host's listing, in the attestation document, and on your dashboard. Portability is about your build, never about flattening the differences between hosts.</p>
+      </div>
+
+      <h2 id="protection">Protection levels, per host</h2>
+      <p>Two different questions hide inside "is it isolated": <b>from other apps</b>, and <b>from the machine's owner</b>. Every host answers both, and the answers differ. This table is what the badges on a host's listing mean. It describes the tiers the platform supports; which machines are attached at this moment is shown live <a href="#fleet">at the bottom of this page</a>, and at the time of writing no confidential GPU host and no self-hosted server was attached.</p>
+      <div class="tbl">
+        <table class="params">
+          <thead><tr><th scope="col">host</th><th scope="col">apps kept apart by</th><th scope="col">what the owner can see</th><th scope="col">attestation</th><th scope="col">status</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Confidential Linux server<br><small class="dim">hosted fleet, self-hosted metal</small></th>
+              <td>the Wasm sandbox and a separate OS process per app, inside one confidential VM (per-app hardware separation is in research, below)</td>
+              <td><b>Nothing in memory or traffic.</b> Guest RAM is encrypted and integrity-protected against the host's operating system, root included. TLS terminates inside the VM. The host can still stop or starve a deployment.</td>
+              <td>a report signed by the CPU's secure processor over the launch measurement, chained to the silicon vendor's root; the runtime pins the app's CID; the TLS key is bound into the report</td>
+              <td><span class="ap-badge ok">available</span></td></tr>
+            <tr><th scope="row">Confidential GPU<br><small class="dim">hosted GPU fleet</small></th>
+              <td>a separate OS process per tenant on a card in confidential-computing mode; software shares, not hardware partitions (the card disables partitioning in that mode)</td>
+              <td>nothing in VRAM: the card is walled off from the host and the CPU-to-GPU link is encrypted</td>
+              <td>the card signs its own report over your nonce, checked against the vendor's service</td>
+              <td><span class="ap-badge ok">available</span> <small class="dim">on GPU hosts; none attached at the time of writing</small></td></tr>
+            <tr><th scope="row">Windows PC, enclave tier<br><small class="dim">one node listed, development tier</small></th>
+              <td>one virtualization-based enclave shared by the box's apps, each app interpreted in its own instance</td>
+              <td><b>The owner's software is excluded from the enclave's memory; the owner is not.</b> There is no RAM encryption, the app's traffic and its TLS key are handled by the host side, and the build is test-signed. The listing says: protects against the owner's software, not physical possession.</td>
+              <td>a TPM quote, a measured-boot log, and the enclave's report, all verified by the relay when the box attaches; memory encryption is not attestable on this platform</td>
+              <td><span class="ap-badge ok">available</span> <small class="dim">labeled dev tier</small></td></tr>
+            <tr><th scope="row">Windows PC, partition per app<br><small class="dim">lab build</small></th>
+              <td>a separate Hyper-V child partition per app, under the hypervisor's second-level paging; every cross-partition reach was refused in the lab</td>
+              <td><b>Everything.</b> The launcher runs in the root partition and signs the reports, so the host is inside the trust boundary by construction.</td>
+              <td>launcher-signed; the strongest verdict a verifier can reach is "monitor-signed", never "attested"</td>
+              <td><span class="ap-badge warn">experimental</span></td></tr>
+            <tr><th scope="row">Ordinary Linux host<br><small class="dim">no confidential CPU</small></th>
+              <td>one ordinary VM per app (hardware virtualization)</td>
+              <td>everything: the host kernel and root can read the guest</td>
+              <td>none from hardware; such a host would be listed with a "no TEE CPU" badge</td>
+              <td><span class="ap-badge plan">planned</span> <small class="dim">no such host is listed</small></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="doc-note warn">
+        <span class="nt">The limit we state on purpose</span>
+        <p>A confidential CPU defends memory against <b>software</b>: the host operating system, its administrator, and everything running beside the VM. It does not defend against someone with physical access and lab equipment on the memory bus, and current processors say so themselves. On the hosted fleet the operator is remote from the machines; a self-hosted seller owns theirs. That difference is real, and it is why a host's listing names who runs it and how it attests rather than printing one green word for every box.</p>
+      </div>
+
+      <h2 id="isolation">Per-app hardware isolation inside the confidential VM <span class="ap-badge warn">experimental</span></h2>
+      <p>On a confidential Linux server today, apps are kept apart by the Wasm sandbox and the operating system inside one VM. The research line below moves that boundary into hardware, one app per domain, on the same confidential CPUs. Everything here was measured on <b>one</b> AMD EPYC host in the lab, and nothing in the product starts a domain this way yet.</p>
+      <ol class="ms-list">
+        <li><span class="n">M1 · M2</span><b class="t">One app per confidential guest, the app inside the launch measurement</b>Measured. The guest serves over TLS that terminates inside it, the key is bound into the signed report, and the report chains to the vendor's root under a caller-chosen firmware floor.</li>
+        <li><span class="n">M3a</span><b class="t">Several apps in one guest under a monitor</b>Measured. The monitor names each app in its report. The apps are separated by the guest kernel, which is weaker than hardware separation and is labeled that way wherever it appears.</li>
+        <li><span class="n">M3b</span><b class="t">A hardware privilege split between the monitor and the platform layer</b>Measured, with a limit. A measured firmware layer holds the most privileged level; the monitor and its apps run two levels below it and are refused the top level. The launch digest is derived independently and equals the live signed report. <b>The digest covers that firmware layer, not the monitor image</b>, so on this path the monitor's naming of apps is not authenticated by the report. That correction was measured on 2026-09-23 and is recorded in the plan, not papered over.</li>
+        <li><span class="n">M4a</span><b class="t">One confidential guest per app, driven by the domain contract <span class="ap-badge warn">measured</span></b>Demonstrated on 2026-09-23 and independently rechecked from the saved evidence: both app identities and all three launch measurements re-derived, the adversary's report verified through the real chain, seven negative fixtures refused, fourteen checks passed with none failing. Apps are separated by the guest boundary itself (own encryption key, own vCPU state), and because there is no monitor, the launch measurement is what names the app. An adversary with root in its own guest minted a fully signed, correctly bound report naming the other app, and it was rejected on the measurement alone. What this proves is exactly one confidential guest per app; the cost is a guest per app, and nothing in the product starts one yet.</li>
+        <li><span class="n">M4b</span><b class="t">One hardware plane per app inside one guest <span class="ap-badge plan">in progress</span></b>The dense shape, and the one that mirrors the Windows enclave model. It moves the app-naming and lifecycle authority into the measured firmware layer, so that the derivable digest covers the code that names apps. Design complete and implementation under way; nothing measured yet. Hardware caps it at two or three apps per guest, so density above that always means one guest per app, which is why the M4a shape stays the scalable path.</li>
+      </ol>
+      <p>The plan, the negative tests written before the code, the correction, and the evidence scripts are in <a href="https://github.com/EnclaveHost/enclave/tree/main/isolation" target="_blank" rel="noopener">the repository's isolation directory</a>.</p>
+
+      <h2 id="windows">Windows hosts</h2>
+      <p>A Windows PC has no confidential CPU, so it can never be a host that cannot see your data, and nothing on this site says otherwise. What it can be is a host that keeps apps apart and states its level plainly.</p>
+      <h3>The listed node <span class="ap-badge ok">available</span> <small class="dim">development tier</small></h3>
+      <p>One consumer PC is listed today. Its apps run as interpreted Wasm inside a virtualization-based enclave; the host operating system cannot read the enclave's memory, but the machine's owner ultimately controls the machine, there is no RAM encryption, and app traffic is carried by the host side. The relay verified its TPM quote, measured-boot log and enclave report when it attached. Its build is test-signed, so its tier reads <i>development</i>, and deployments created before the node was listed are not placed on it unless their owner chooses it.</p>
+      <h3>The partition-per-app backend <span class="ap-badge warn">experimental</span></h3>
+      <p>The direction for Windows is one Hyper-V child partition per app, created through the Host Compute Service with no feature or boot change, booting the <b>same guest image</b> the Linux research path uses (byte-identical) on the kernel Microsoft already ships, loading the same app bundle under the same contract. It passed 30 checks in the lab on 2026-09-23. It does not exclude the host: the launcher signs the reports from the root partition, and every document it produces says <code>hostExcluded:false</code>. Excluding the host on this hardware would need a paravisor-backed isolated partition, which is the next boundary to probe, not a promise.</p>
+
+      <h2 id="verify">What is measured, and by whom</h2>
+      <p>"Attested" on this site means one thing: a signature chain from the silicon vendor's root down to the bytes that are running, checked by <b>your</b> client. A field that is merely present in a document is unauthenticated until something signs it, and the copy says which is which.</p>
+      <div class="tbl">
+        <table class="params">
+          <thead><tr><th scope="col">link</th><th scope="col">confidential fleet</th><th scope="col">self-hosted metal</th><th scope="col">Windows enclave node</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">root of trust</th><td>the CPU vendor's fused key; the GPU vendor's, where a card is inside</td><td>the CPU vendor's fused key</td><td>the PC's TPM and the hypervisor's per-boot key; memory encryption not attestable</td></tr>
+            <tr><th scope="row">launch measurement covers</th><td>firmware, kernel, and the container image the platform provider measures; the release is logged to a public transparency log tying it to a commit of the public repository</td><td>kernel, initramfs and boot arguments of a self-launched VM, reproducible from the published release</td><td>the measured-boot log and the enclave's own report</td></tr>
+            <tr><th scope="row">your app</th><td colspan="2">not in the boot measurement on purpose: the measured runtime refuses bytes that do not hash to the CID in your deployment record, and the attestation says exactly that</td><td>same rule; the enclave holds the interpreted app</td></tr>
+            <tr><th scope="row">transport key</th><td colspan="2">generated inside the VM and bound into the report; the operator cannot sit in the middle</td><td>held on the host side today; a declared gap</td></tr>
+            <tr><th scope="row">who checks</th><td colspan="3">your browser (the verifier ships from this origin), the CLI, an agent's tool call, or a fully independent third-party tool; the API's self-check is a labeled diagnostic, never the verdict</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Run it now on the <a href="./#attest">front page's live check</a>, or read <a href="#docs-attest">how to embed it in your own client</a>.</p>
+
+      <h2 id="shielded">Shielded inference <span class="ap-badge warn">experimental</span></h2>
+      <p>Most GPUs are not confidential hardware. Shielded inference is the research line for using such a card <b>without trusting it</b>: the confidential VM keeps the tokenizer, sampling, attention and every nonlinear step, and only the large matrix multiplies leave it, each activation hidden under a one-time pad before it goes and checked against a fast probabilistic proof when it comes back. A wrong or tampered result aborts before any output. The weights are public; the host learns shapes and timing, and can refuse to serve, and that is all.</p>
+      <p>Status, exactly: the engine exists and runs on one self-hosted confidential server beside its GPU, and the same protocol runs on the Windows node's integrated card. It is not on the hosted fleet, only chat-model decoding has been measured, and throughput depends so heavily on model, hardware and protection mode that we publish no number here. When a figure is stable enough to stand behind, it will come with the model, the hardware, the mode and the test conditions attached. Work on anchoring the trusted half in a phone's protected VM, and on offloading to a phone's accelerator, is research at an earlier stage still.</p>
+
+      <h2 id="independent">Independent infrastructure</h2>
+      <p>The goal is a platform that does not stop working if this company, its servers, or its domain name go away. Hosts still supply hardware, connectivity, power and upkeep; the point is that no <b>indispensable</b> party sits between a deployer and a host. Part of that is built, part still runs on our machines, and the rest is a proposal. Each is listed under its own heading.</p>
+      <div class="arch-split">
+        <div>
+          <h3>Already independent <span class="ap-badge ok">available</span></h3>
+          <ul>
+            <li><b>The catalog, the deployment ledger, the host registry and payment routing</b> are contracts on a public chain. Funding a deployment is a transaction; a publisher's fee forwards to their wallet in the same one; nobody takes custody.</li>
+            <li><b>App bundles are content-addressed</b> and hash-checked inside the enclave, so any mirror that serves the right bytes is as good as ours.</li>
+            <li><b>The source, the measurements and the release provenance are public</b>, and the verifier runs on your side.</li>
+            <li><b>Confidential servers can be self-launched</b> on hardware you own, from the same published images, with no vendor control plane in the path. One such server ran on the platform earlier this year; none is attached at the time of writing.</li>
+            <li><b>Your own apps on your own box run free</b>: a zero-rate deployment needs no balance at all.</li>
+            <li><b>The CLI and the MCP server hold no keys.</b> State changes come back as unsigned transactions for your wallet, or an agent's, to sign.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Still runs on our servers <span class="ap-badge warn">today</span></h3>
+          <ul>
+            <li><b>Discovery and placement</b> at <code>api.enclave.host</code>, which also hubs the tunnels that make home machines behind carrier NAT reachable.</li>
+            <li><b>Traffic relays</b> that splice app connections to enclaves by name and carry TCP, UDP and outbound IPv6. They never hold a TLS key and see ciphertext, but they are ours.</li>
+            <li><b>The site and the IPFS gateway.</b> Availability only: the bytes are hash-checked in the enclave regardless of who served them.</li>
+            <li><b>The certificate service</b>, which sees only a signing request; the private key stays in the enclave.</li>
+            <li><b>Card and stablecoin checkout</b>, which creates and funds the on-chain record on your behalf.</li>
+            <li><b>The hosted fleet's container control plane</b>, run by the confidential-container provider, and a published measurement allowlist that admits new hosts while the permissionless attach path matures.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Where this is going <span class="ap-badge plan">proposal</span></h3>
+      <p>The candidate design removes the remaining indispensable parties one at a time: publisher-owned signatures over app bundles, a trust policy you keep locally instead of a list we publish, runtime measurements reproducible by anyone and verified on your side, several mirrors and peer transports for bundles, coordinators that are interchangeable or bypassed by talking to a host directly, and eventually secrets and state that recover without any party we run. These are proposals under discussion. The contracts and payment paths in use today are not being replaced by this page.</p>
+
+      <h2 id="status">Status board</h2>
+      <p>Everything above, sorted by the only three words this site uses for readiness.</p>
+      <div class="arch-status">
+        <div>
+          <h3><span class="ap-badge ok">available</span></h3>
+          <ul>
+            <li><a href="#package">Wasm apps on the confidential Linux fleet</a><small>compiled in the enclave, app pinned by CID</small></li>
+            <li><a href="#protection">GPU inference inside the confidential VM</a><small>ONNX, GGUF and image diffusion on a card in confidential mode; needs a GPU host attached, none at the time of writing</small></li>
+            <li><a href="#verify">Browser-side verification of the whole chain</a><small>also CLI, MCP, and an independent third-party tool</small></li>
+            <li><a href="#independent">On-chain catalog, ledger, registry and publisher fees</a><small>per-second metering, non-custodial</small></li>
+            <li><a href="#docs-domains">Custom domains with certificates minted in the enclave</a></li>
+            <li><a href="#docs-encvol">Encrypted volumes, secrets, per-deployment WAF</a></li>
+            <li><a href="#docs-tcp">Raw TCP and UDP services, dedicated IPv6</a></li>
+            <li><a href="host">Self-hosted confidential servers on your hardware</a><small>same images, no vendor control plane; none attached at the time of writing</small></li>
+            <li><a href="#windows">One Windows PC, enclave tier</a><small>labeled development tier; owner's software excluded, owner not</small></li>
+            <li><a href="#independent">Free self-hosting of your own apps</a></li>
+          </ul>
+        </div>
+        <div>
+          <h3><span class="ap-badge warn">experimental</span></h3>
+          <ul>
+            <li><a href="#package">The domain contract across backends</a><small>runs in the lab on Linux and Windows; not started by any deployment</small></li>
+            <li><a href="#isolation">Per-app hardware isolation in the confidential VM</a><small>M1 to M4a measured on one host and independently rechecked; not started by any deployment</small></li>
+            <li><a href="#windows">Hyper-V partition per app on Windows</a><small>30 lab checks; host not excluded</small></li>
+            <li><a href="#shielded">Shielded inference on untrusted GPUs</a><small>runs on one self-hosted server; not on the fleet; no public numbers</small></li>
+            <li><a href="#shielded">Phone-anchored hosts and phone accelerators</a><small>earlier-stage research</small></li>
+            <li><a href="#docs-toolchain">Async components and cooperative threads</a><small>served behind a per-box capability flag</small></li>
+            <li><a href="host">Permissionless host attach</a><small>code exists; admission is by a published measurement allowlist</small></li>
+          </ul>
+        </div>
+        <div>
+          <h3><span class="ap-badge plan">planned</span></h3>
+          <ul>
+            <li><a href="#protection">Ordinary Linux hosts, one VM per app</a><small>app separation only, no confidentiality claim</small></li>
+            <li><a href="#isolation">One hardware plane per app (M4b)</a><small>in progress; two or three apps per guest by hardware</small></li>
+            <li><a href="#windows">Host exclusion on Windows via isolated partitions</a></li>
+            <li><a href="#independent">Publisher-owned signatures and local trust policy</a></li>
+            <li><a href="#independent">Mirrors, peer transports, interchangeable coordinators</a></li>
+            <li><a href="#independent">Independent recovery of secrets and state</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <h2 id="fleet">What is serving right now</h2>
+      <p>The live fleet, with the badges the table above explains. A jade badge is hardware evidence the relay or the box's own attestation presented; the absence of one is the signal. This panel, not the tables above, is the answer to "what can I deploy on right now".</p>
+      <div class="arch-fleet"><c-fleet-list></c-fleet-list></div>
+
+    </div>
   </div>
 </section>
 </main>
