@@ -23,3 +23,12 @@ they need to know exactly which revision they ran against.
 Without the variables (plain `npm test`), the acceptance cases skip with a stated reason and every other suite
 runs; that is the clean-checkout default on this branch until the owner's module lands on main. Nothing here
 overwrites a tracked file: the module is only ever materialised under `.verifier-integration/`.
+
+## Build artifacts
+
+`artifacts.json` pins a build artifact by branch, full commit, the build tool's exact version, every output's sha256
+and size, and the allowlist of dynamic imports the bundle may contain. `reproduce.mjs` adds a detached temporary
+worktree of that commit, runs the recipe's own `--check` with the tool from this worktree's `node_modules` (refusing
+any other version), re-hashes every input and output, greps the bundle for code-loading constructs, and removes the
+worktree; any difference exits 2. `run.mjs` runs it before the acceptance suites. Reproducing the owner's artifact
+from the same commit is the lab stand-in for a transparency log (`docs/security/pvm-client-bootstrap-review.md`).

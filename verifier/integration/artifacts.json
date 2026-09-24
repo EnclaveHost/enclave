@@ -1,0 +1,18 @@
+{
+  "pvm-client-artifact": {
+    "purpose": "the pVM owner's installed client (CLI + MV3 extension), rebuilt from its commit and compared byte for byte; the lab stand-in for a transparency log (docs/security/pvm-client-bootstrap-review.md)",
+    "branch": "pvm-cpu/portable-runtime",
+    "commit": "4e55879b9329100bee8b70e61bd8b75ec7b43654",
+    "buildDir": "shielded/anchor/avf/client",
+    "buildScript": "build.sh",
+    "distDir": "dist",
+    "tool": { "name": "esbuild", "version": "0.28.1", "env": "ESBUILD" },
+    "outputs": {
+      "pvm-client.mjs": { "sha256": "52d4483245eeb4fa37f4f57eb2c7e416a9c5c57c54d1436dabffdae6f230897c", "size": 118395 },
+      "pvm-client-ext.zip": { "sha256": "8235d20cf437a58076556beea427e10caf8858668c8a894da5e1f7ae0687ac53", "size": 122003 }
+    },
+    "codeLoading": { "pvm-client.mjs": { "allowedDynamicImports": ["\"crypto\""] } },
+    "reproducedBy": "research/independent-verifier session, 2026-09-24",
+    "note": "version 0.1.0; the only dynamic import in the CLI bundle is @hpke/common's Node-builtin fallback import(\"crypto\"), unreachable where globalThis.crypto exists"
+  }
+}

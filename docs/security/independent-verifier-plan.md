@@ -427,9 +427,10 @@ Exact remaining integration gaps (nothing below is verified today):
    The device traces (owner's fbd87038, thirteen exchanges with a malicious relay) are fixtures on this branch
    and open or refuse exactly as the page reported, with the owner's reader agreeing on every one (strict
    integration 46/46, zero skips). Still open: the HPKE request side (encapsulation, the frame) is not on this
-   branch, the browser page's code delivery is not solved (the owner's text says so; a lab design for an
-   installed client with a signed policy and reproducible artifact is agreed with changes in
-   `docs/security/pvm-client-bootstrap-review.md`, nothing built yet), and no production use is claimed.
+   branch; the browser page's code delivery is addressed in the lab by an installed client with a signed policy
+   and a reproducible artifact (`docs/security/pvm-client-bootstrap-review.md`: the owner built it at 4e55879b
+   with all nine requested changes, this session reproduced both artifacts byte for byte, and the reproduction is
+   part of the strict command); production keys, provenance and store delivery remain unclaimed.
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial

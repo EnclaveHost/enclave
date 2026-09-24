@@ -1,7 +1,8 @@
 # Review: trusted client code delivery and bootstrap for the pVM channel (LAB)
 
-Status: the pVM owner's proposal (2026-09-24), AGREED by this session with the changes below; nothing built yet on
-either side. Production code delivery is still not claimed anywhere: this is the lab design that closes the gap the
+Status: the pVM owner's proposal (2026-09-24), AGREED by this session with the changes below; the owner built it at
+pvm-cpu/portable-runtime 4e55879b with all nine changes in (`shielded/anchor/avf/client/DESIGN.md`), and this session
+REPRODUCED the artifact (see "Reproduction" at the end). Production code delivery is still not claimed anywhere: this is the lab design that closes the gap the
 owner's SEALED-STREAMING.md names ("code delivery is not solved").
 
 ## The proposal, as received
@@ -53,3 +54,30 @@ the Pixel with the relay substituting policy, evidence or code.
 9. Extra tests: a policy signed by the right key for another anchor; a manifest for the right bytes under the wrong
    version; a valid policy replayed after a newer one was seen; a policy narrowing roots to a set without the real
    root.
+
+## Reproduction (2026-09-24, owner's commit 4e55879b9329100bee8b70e61bd8b75ec7b43654)
+
+In a detached temporary worktree of that commit, `ESBUILD=<esbuild 0.28.1> client/build.sh --check` reported the
+committed `dist/` equal to a fresh build byte for byte, and a second fresh build in a copied directory hashed
+independently to the same values:
+
+| output | sha256 | size |
+|---|---|---|
+| `pvm-client.mjs` (CLI) | `52d4483245eeb4fa37f4f57eb2c7e416a9c5c57c54d1436dabffdae6f230897c` | 118395 |
+| `pvm-client-ext.zip` (MV3 extension) | `8235d20cf437a58076556beea427e10caf8858668c8a894da5e1f7ae0687ac53` | 122003 |
+
+`BUILD.json` (every input's sha256, the tool version, the outputs) is identical to the committed one. The only
+dynamic `import(` in either bundle is `@hpke/common`'s Node-builtin fallback `import("crypto")`, unreachable where
+`globalThis.crypto` exists; no `eval`, `new Function` or `importScripts`. The extension zip is STORED with fixed
+1980-01-01 dates, sorted entries and mode 100644; its manifest declares `script-src 'self'; object-src 'none';
+base-uri 'none'; form-action 'none'`, permission `storage` only and host permission `http://127.0.0.1/*` only.
+
+The check is now part of this branch's strict command: `verifier/integration/artifacts.json` pins the commit, the
+tool version, the output hashes and the dynamic-import allowlist; `verifier/integration/reproduce.mjs` rebuilds in a
+temporary worktree, runs the recipe's own `--check`, re-hashes every listed input and output, greps the bundle, and
+removes the worktree; `run.mjs` refuses to run acceptance cases if it does not reproduce.
+
+Gate parity: the owner's `test/pvm-client-gate.test.mjs` replays this branch's `admission-vectors.json` (vendored as
+data at d760725b) against their `src/gate.js`: all 37 pVM and technology-neutral decisions match; the three AMD
+SEV-SNP releases hold in their client with the explicit reason "no admission rule in this client for technology
+amd-sev-snp", which is the correct statement for a pVM-only client.
