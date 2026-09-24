@@ -41,6 +41,8 @@
  *   bind      write      32 bytes of hex, the verifier's NONCE (the SVSM computes the binding over it)
  *   report    write any  fetch a report; read back as hex
  *   result    read       the SVSM's own return code for the last call, so a refusal can be scored by REASON
+ *   reclaim   write any  undo this plane's admission; the module also resets its own staged lengths
+ *   peek      read       the first 32 bytes of the active slot, to see that reclaim zeroed them
  *   thaw      write <n>  ask the SVSM to PVALIDATE(invalid) page n of the active slot, which it must REFUSE
  *   poke      write      "<offset> <byte>" - write into the active slot. Only meaningful where the pages were
  *                        NOT frozen (the tampered run); on frozen pages it livelocks, see above.
@@ -67,6 +69,7 @@
 #define CALL_ADMIT      APPID_CALL(2)
 #define CALL_STATUS     APPID_CALL(3)
 #define CALL_REGISTER_KEY APPID_CALL(4)
+#define CALL_RECLAIM      APPID_CALL(5)
 /* the SVSM core protocol, for the thaw probe */
 #define CORE_PVALIDATE  ((0ULL << 32) | 1)
 
@@ -252,8 +255,11 @@ static ssize_t status_show(struct kobject *k, struct kobj_attribute *a, char *bu
 	ret = appid_call(CALL_STATUS, &desc);
 	if (ret)
 		return sysfs_emit(buf, "error=%d rax_out=0x%llx\n", ret, last_rax_out);
-	return sysfs_emit(buf, "admitted=0x%02x required=0x%02x kinds=%u vmpl=%u\n",
-			  out[0], out[1], out[2], out[3]);
+	/* All SIX bytes the SVSM returns. The first version printed four, which left "the key was forgotten" as
+	 * something a reader had to take from the code rather than from the run - and the admission gate fires
+	 * before the key check, so a refused report does not evidence it either. */
+	return sysfs_emit(buf, "admitted=0x%02x required=0x%02x kinds=%u vmpl=%u key=%u runtime_id=%u\n",
+			  out[0], out[1], out[2], out[3], out[4], out[5]);
 }
 
 static ssize_t whoami_show(struct kobject *k, struct kobj_attribute *a, char *buf)
@@ -345,6 +351,38 @@ static ssize_t report_show(struct kobject *k, struct kobj_attribute *a, char *bu
 	return n;
 }
 
+/* Ask the SVSM to undo this plane's admission: unfreeze and zero the artifacts, forget the key and the naming. */
+static ssize_t reclaim_store(struct kobject *k, struct kobj_attribute *a, const char *buf, size_t n)
+{
+	struct appid_desc desc = {};
+	int ret = appid_call(CALL_RECLAIM, &desc);
+
+	pr_info("appid: reclaim -> %d (rax_out=0x%llx)\n", ret, last_rax_out);
+	if (!ret) {
+		/* The SVSM zeroed the pages under us, so this module's idea of how much is staged is now wrong.
+		 * Staging again without resetting would append at a stale offset and hash the wrong span - which is
+		 * bookkeeping of ours that survived a reclaim of memory that did not. */
+		int i;
+		for (i = 0; i < KIND_COUNT; i++)
+			slots[i].len = 0;
+	}
+	return ret ? -EACCES : n;
+}
+
+/* The first bytes of the active slot, so a caller can see that reclaim really zeroed them. */
+static ssize_t peek_show(struct kobject *k, struct kobj_attribute *a, char *buf)
+{
+	struct slot *sl = &slots[active];
+	size_t i, m = 0, n = 32;
+
+	if (!sl->mem)
+		return sysfs_emit(buf, "(no slot)\n");
+	for (i = 0; i < n && m + 2 < PAGE_SIZE; i++)
+		m += sysfs_emit_at(buf, m, "%02x", ((u8 *)sl->mem)[i]);
+	m += sysfs_emit_at(buf, m, "\n");
+	return m;
+}
+
 static ssize_t result_show(struct kobject *k, struct kobj_attribute *a, char *buf)
 {
 	return sysfs_emit(buf, "ret=%d rax_out=0x%llx\n", last_ret, last_rax_out);
@@ -426,13 +464,15 @@ static struct kobj_attribute bind_attr = __ATTR(bind, 0200, NULL, bind_store);
 static struct kobj_attribute key_attr = __ATTR(key, 0644, key_show, key_store);
 static struct kobj_attribute report_attr = __ATTR(report, 0644, report_show, report_store);
 static struct kobj_attribute result_attr = __ATTR(result, 0444, result_show, NULL);
+static struct kobj_attribute reclaim_attr = __ATTR(reclaim, 0200, NULL, reclaim_store);
+static struct kobj_attribute peek_attr = __ATTR(peek, 0444, peek_show, NULL);
 static struct kobj_attribute thaw_attr = __ATTR(thaw, 0200, NULL, thaw_store);
 static struct kobj_attribute poke_attr = __ATTR(poke, 0200, NULL, poke_store);
 
 static struct attribute *appid_attrs[] = {
 	&slot_attr.attr, &artifact_attr.attr, &admit_attr.attr, &status_attr.attr, &whoami_attr.attr,
 	&bind_attr.attr, &key_attr.attr, &report_attr.attr, &result_attr.attr, &thaw_attr.attr,
-	&poke_attr.attr, NULL,
+	&poke_attr.attr, &reclaim_attr.attr, &peek_attr.attr, NULL,
 };
 ATTRIBUTE_GROUPS(appid);
 
