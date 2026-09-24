@@ -126,7 +126,10 @@ FINDINGS
       measurement stays one per version; the judge gains an expected-deployment check (report.host_data == the
       deployment id the client is visiting, which it knows from the hostname / chain). A host could still start a
       second genuine instance labelled A, but it could no longer answer A's users from E's guest undetected. Any
-      per-deployment secret release must then bind to HOST_DATA as well. Not built yet.
+      per-deployment secret release must then bind to HOST_DATA as well.
+      BUILT AND LIVE (bc07f899, 20:06Z): see host-data/README.txt. The A/E misroute is now refused from the public
+      side; the copied-label case and owner/instance authorisation remain OPEN by design (F11 is narrowed, not
+      closed).
   F2  The guest front's certificate is self-signed: a browser warns. Trust comes from attestation (the verifying
       client), not WebPKI. A CA certificate for the guest's own key (CSR from inside the guest) is not built.
   F3  The relay-terminated /x/<id>/ path answers 503 "state unknown" for this deployment instead of a clear refusal.
