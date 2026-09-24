@@ -1,0 +1,16 @@
+{"t":"2026-09-24T10:13:31.739Z","evil":"swap-appkey","relaySpkiTail":"5bbf40d3d65c19cd","relayX25519Head":"ffeb3415eed78619"}
+{"t":"2026-09-24T10:13:31.743Z","evil":"swap-appkey","listening":18457}
+{"t":"2026-09-24T10:13:34.556Z","evil":"swap-appkey","evidence":"forwarded the GENUINE envelope with ITS OWN app key swapped in"}
+{"t":"2026-09-24T10:13:39.791Z","evil":"pass","relaySpkiTail":"686bdb08b707c01b","relayX25519Head":"51e8236214a68694"}
+{"t":"2026-09-24T10:13:39.797Z","evil":"pass","listening":18457}
+{"t":"2026-09-24T10:13:42.707Z","evil":"pass","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T10:13:44.790Z","evil":"pass","sealed":"forwarded","bytesIn":178,"bytesOut":3928}
+{"t":"2026-09-24T10:13:50.765Z","evil":"pass","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T10:13:52.889Z","evil":"pass","sealed":"forwarded","bytesIn":178,"bytesOut":3928}
+{"t":"2026-09-24T10:14:07.978Z","evil":"swap-appkey","relaySpkiTail":"58486359886eea5f","relayX25519Head":"35225c523f68a4af"}
+{"t":"2026-09-24T10:14:07.982Z","evil":"swap-appkey","listening":18457}
+{"t":"2026-09-24T10:14:10.834Z","evil":"swap-appkey","evidence":"forwarded the GENUINE envelope with ITS OWN app key swapped in"}
+{"t":"2026-09-24T10:14:15.528Z","evil":"stream-truncate","relaySpkiTail":"f85df0959a53e20f","relayX25519Head":"6f0789e78c931f0c"}
+{"t":"2026-09-24T10:14:15.533Z","evil":"stream-truncate","listening":18457}
+{"t":"2026-09-24T10:14:18.380Z","evil":"stream-truncate","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T10:14:20.465Z","evil":"stream-truncate","sealed":"stream-truncate: 15 chunks from the VM, 1017 bytes sent (of 3928)"}
