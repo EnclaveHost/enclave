@@ -17,6 +17,13 @@
 # commits to. The third case - serving different bytes than were hashed - needs a QEMU that hashes one file and
 # serves another, which is a test-only patch and is run by the review lane rather than here.
 #
+# OVMF_OVERRIDE IS FOR THIS TEST ONLY. It changes the firmware a LAUNCH uses; it does not change what
+# build-domain.sh and build-app-guest.sh hand to sev-snp-measure when they PREDICT a measurement, which comes
+# from m1/domain.env. So a suite run with the override would predict against one firmware and launch another, and
+# "measurement reproducible: live == predicted" would fail for a reason that has nothing to do with the property
+# under test. When the suites move to a verifying firmware, change domain.env so predictions and launches use the
+# same file - do not reach for this variable.
+#
 # usage: verify-firmware.sh <OVMF.fd> <domain.cpio.gz> [workdir]
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
@@ -31,28 +38,54 @@ booted() {   # booted <tag>: did the guest reach its own userspace?
   grep -aq "DOM serving\|DOM started" "$W/$1.serial" 2>/dev/null
 }
 
+# launched <tag>: did QEMU actually start? A launch that never happened produces the same empty serial log as a
+# firmware that refused, and scoring those alike is how a broken harness reports a refusal it never observed.
+# The first version of this script did exactly that: it copied run-domain.sh into the workdir, where the copy
+# could no longer resolve ../m1/domain.env, so nothing ran and BOTH cases were scored from silence.
+launched() {
+  grep -aq "^HOST mode=" "$W/$1.host" 2>/dev/null
+}
+
 run() {      # run <tag> <on|off>
   tag=$1; hashes=$2
-  sed "s/kernel-hashes=on/kernel-hashes=$hashes/" "$here/run-domain.sh" > "$here/.fwtest-run.sh"
-  OVMF_OVERRIDE=$FW sh "$here/.fwtest-run.sh" start "$IMG" snp "$tag" "$W" > "$W/$tag.host" 2>&1 || true
+  OVMF_OVERRIDE=$FW KERNEL_HASHES=$hashes sh "$here/run-domain.sh" start "$IMG" snp "$tag" "$W" \
+    > "$W/$tag.host" 2>&1 || true
   for _ in $(seq 40); do booted "$tag" && break; sleep 1; done
   sh "$here/run-domain.sh" stop "$tag" "$W" >/dev/null 2>&1 || true
-  rm -f "$here/.fwtest-run.sh"
+  if ! launched "$tag"; then
+    echo "INFRA  $tag: QEMU never launched, so this run says NOTHING about the firmware:"
+    sed 's/^/         /' "$W/$tag.host" | head -3
+    return 1
+  fi
+  return 0
 }
 
 fails=0
 check() { if [ "$2" = ok ]; then echo "PASS $1"; else echo "FAIL $1"; fails=$((fails + 1)); fi; }
 
-run control on
+if ! run control on; then
+  echo "ABORT: the control did not launch. Nothing below would mean anything."
+  exit 1
+fi
 booted control && r=ok || r=no
 check "1 control: kernel-hashes=on, the table matches what is served, the guest BOOTS" $r
+if [ "$r" = no ]; then
+  # A firmware that refuses its own control is not shown to verify: it may be refusing for a reason that has
+  # nothing to do with the table. Say so instead of collecting a pass from case 2.
+  echo "       The control did not boot, so case 2 below proves nothing: a firmware that never boots refuses"
+  echo "       everything. Diagnose the control first - serial at $W/control.serial."
+fi
 
-run notable off
+if ! run notable off; then
+  echo "ABORT: the no-table case did not launch."
+  exit 1
+fi
 booted notable && r=no || r=ok
 check "2 kernel-hashes=off: NO table in the measurement, the firmware must REFUSE to boot the guest" $r
+[ "$(cat /dev/null)" ] || true
 
 echo
-if [ "$fails" -eq 0 ]; then
+if [ "$fails" -eq 0 ] && booted control; then
   echo "FIRMWARE VERIFIES: it boots what matches the table and refuses when there is no table."
   echo "Still not shown here, and it needs a test-only QEMU that hashes one file while serving another:"
   echo "that a SUBSTITUTED initrd is refused. Without that case this says the firmware checks for a table,"
