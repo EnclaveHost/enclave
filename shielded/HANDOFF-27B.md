@@ -11,7 +11,10 @@
 > another recurrent-op kernel, and gate any candidate with
 > `wasm/llamacpp-conv-inplace/official-toolchain-check.sh` plus 27B round timing,
 > never the op profile alone. The bench harness lives in `shielded/bench-harness/`
-> (it used to live in a tmpfs scratchpad and was lost once).
+> (it used to live in a tmpfs scratchpad and was lost once). Merge readiness,
+> the open acceptance gaps (Freivalds rejections, no model-matched quality eval,
+> multi-sequence abort in the official graph-slot patch) and the next bounded
+> follow-up: `shielded/WRAPUP-27B-INTEGRATION.md`.
 
 You are picking up a performance campaign on Enclave's **shielded inference**
 tier. Read all of this before touching anything. It is written for an agent

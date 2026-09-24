@@ -28,8 +28,11 @@ any other compiler or flags before trusting the op there.
   with `n_rs_seq=1`, and cache lifetime (clear, full `seq_rm`, re-prefill,
   alternating ubatch sizes). Run once with `ENCLAVE_GGML_CONV_INPLACE=1` and
   once with `=0`; the two logit dumps must be byte-identical. The multi-sequence
-  scenario runs only when named: this fork aborts in context creation for
-  `n_seq_max > 1` with or without the op (a pre-existing limitation).
+  scenario runs only when named: it aborts on the fork AND on the official
+  llamacpp-toolchain tree, with or without the op, because `ensure_slot_alt`
+  (`llamacpp-graph-slot.patch`) reserves a 2-8 token single-sequence slot with
+  `n_seqs = 1` against a memory context sized for `n_seq_max`;
+  `LLAMA_GRAPH_SLOT_ALT=0` makes it complete (`shielded/WRAPUP-27B-INTEGRATION.md`).
 - `prod-toolchain-check.sh`: runs inside `ubuntu:22.04` (the toolchain
   runner's OS, stock GCC 11.4 / cmake 3.22), builds the CPU libraries with the
   workflow's CPU-relevant flags, and runs all three harnesses there, plus the
