@@ -102,10 +102,10 @@
 .about-cards .card.iris .tag{color:var(--iris);border-color:rgba(143,162,255,.4);}
 .about-cards h3{font-size:1.08rem;}
 .about-cards .card p{font-size:.92rem;line-height:1.62;}
-.founder-id{display:flex;align-items:center;gap:14px;margin:2px 0 12px;}
+.founder-id{display:flex;align-items:center;gap:20px;margin:2px 0 20px;}
 .founder-id h3{margin:0 0 .15em;}
 /* the photo carries its own baked-in radial fade - no frame, let it melt into the card */
-.f-ava{flex:none;width:56px;height:56px;border-radius:12px;object-fit:cover;}
+.f-ava{flex:none;width:88px;height:105px;border-radius:14px;object-fit:cover;}
 .f-role{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);}
 .about-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;}
 /* protection levels: exactly two wide cards (same grammar as .iso-cards) -
