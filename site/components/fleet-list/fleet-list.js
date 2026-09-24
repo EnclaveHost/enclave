@@ -12,7 +12,7 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf, appHostVisible } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -22,23 +22,21 @@ class FleetList extends EnclaveElement {
 
   renderedCallback() {
     const list = this.querySelector(".fleet-list"); if (!list) return;
-    // only enclaves that SERVE (take on-chain work) are shown: a live but
-    // non-claiming box (relay row serving:false) is operational truth, not
-    // sellable capacity - listing it would advertise hardware nobody can buy.
-    // Rows from an older relay carry no verdict and stay visible.
-    // A CONSUMER NODE (a PC attested as a VBS enclave, teeCpuOf) has two states. While it
-    // sells nothing the relay records serving:false, exactly as for a relay box, and hiding
-    // it would say the tier does not exist while a real attested node is attached - so it is
-    // shown as what it is, with no capacity bars and no price. Once it claims (claimEnabled)
-    // it is a seller like any other box and gets the ordinary row: pool, share, price.
-    // A relay row stays hidden either way: it sells nothing at all.
-    const consumerNode = (e) => e.relay !== true && teeCpuOf(e).consumer === true;
-    // A box SELLS only on hardware evidence for the contract it would be sold under
-    // (computeEligibleOf, the relay's rule mirrored): a box that merely says it claims,
-    // or that presents verified evidence for a different contract, draws no pools
-    // and no price here, because the relay will never route it a deployment.
-    const sells = (e) => (e.serving === true || e.availability?.claimEnabled === true) && computeEligibleOf(e);
-    const rows = (this.rows || []).filter((e) => e.serving !== false || consumerNode(e));
+    // THIS IS A PUBLIC INVENTORY OF APP HOSTS, so a row appears only when the relay's own
+    // current verdict says a deployment can land on it: serving AND eligible AND not stale
+    // (appHostVisible). Everything else is left out rather than explained.
+    //
+    // It used to carry two exceptions and both were wrong on this page. A relay-only row was
+    // rendered as "carries traffic", which sells nothing. And a consumer node was kept even at
+    // serving:false, with e.ineligible printed underneath - so for a day and a half the public
+    // list headed "what can I deploy on right now" showed a PC whose operator key had run out of
+    // gas, with a paragraph of security caveats where its capacity should be. Attached, honest,
+    // and not something anyone could buy.
+    //
+    // None of that evidence is lost: /enclaves carries status, eligible, ineligible and
+    // notClaiming for operators and for host management, and the architecture page says in prose
+    // what the consumer tier does and does not prove. It is just not a row in a sales list.
+    const rows = (this.rows || []).filter((e) => appHostVisible(e));
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright available amount, then the "≈"/"/ total" context and
     // the label in dim ink so the number is what the eye lands on
@@ -66,7 +64,9 @@ class FleetList extends EnclaveElement {
       + '<span class="fleet-stats">' + stats + '</span>'
       + '</div>';
     list.innerHTML = (!rows.length
-      ? '<div class="fleet-empty">no live enclaves right now</div>'
+      // Honest and short. It is said the same way whether the fleet is empty or every attached
+      // box is excluded, because from a buyer's side those are the same fact: nothing to deploy on.
+      ? '<div class="fleet-empty">No app hosts available right now</div>'
       : rows.map(e => {
           const a = e.availability || {};
           const gpu = a.gpu === true;
@@ -90,58 +90,6 @@ class FleetList extends EnclaveElement {
               + '. The relay verified this PC’s TPM quote, measured-boot log and enclave report when it attached.'
               + (tc.dev ? ' This build is ' + esc(tc.dev) + ': admitted by a development policy.' : '')
               + '">cpu</span>';
-          // Any host may also CARRY traffic; one with no resources at all only
-          // carries it, and that is what this badge reads — no capacity, so
-          // nothing to sell and nothing to meter. Empty CPU/GPU bars would say
-          // "full", which is the opposite of the truth, so the row lists the
-          // network services the box offers instead.
-          if (e.relay === true) {
-            const r = a.relay || {};
-            const svc = [["sni", "app traffic"], ["tcp", "tcp ports"], ["udp", "udp ports"],
-                         ["egress", "outbound ip"], ["tunnelHub", "tunnel hub"]]
-              .filter(([k]) => r[k] === true).map(([, label]) => label);
-            return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
-              + '<span class="fleet-head">'
-              + '<span class="ap-badge">relay</span>'
-              + '<span class="fleet-name">' + esc(name) + '</span>'
-              + (r.region ? '<span class="fleet-relay-region">' + esc(r.region) + '</span>' : '')
-              + '</span>'
-              + '<span class="fleet-relay-note">'
-              + (svc.length ? 'carries ' + svc.map(esc).join(" · ") : 'carries no declared services')
-              + (r.ports ? ' · ports ' + esc(r.ports) : '')
-              + (r.v6Prefix ? ' · ' + esc(r.v6Prefix) : '')
-              + '</span>'
-              + '</div>';
-          }
-          // The consumer node's row: what it RUNS, not what it sells. Empty share meters
-          // would read as "full", which is the opposite of the truth, so the row names the
-          // model it hosts and the card its enclave offloads to without trusting it.
-          if (consumerNode(e) && !sells(e)) {
-            const shn = a.shielded || {};
-            const parts = [];
-            if (a.model) parts.push('hosts ' + esc(String(a.model).replace(/\.gguf$/i, '')));
-            if (shn.device) parts.push('masked offload to ' + esc(shn.device)
-              + (shn.vramGiB || shn.vramGb ? ' (' + esc(String(shn.vramGiB || shn.vramGb)) + ' GiB)' : ''));
-            // Apps, when it hosts any. The residency is the point and is never implied: on this
-            // tier the enclave holds the model, while an app is a wasm component on the Windows
-            // host, which its owner can read. So the row says where, in those words.
-            const ap = a.apps;
-            if (ap && ap.running > 0)
-              parts.push(esc(String(ap.running)) + ' app' + (ap.running === 1 ? '' : 's')
-                + (ap.inTee === true ? ' inside its enclave' : ' on the host, outside the enclave'));
-            return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
-              + '<span class="fleet-head">'
-              + consumerBadge
-              + '<span class="fleet-name">' + esc(name) + '</span>'
-              + '</span>'
-              + '<span class="fleet-relay-note">'
-              + (parts.length ? parts.join(" \u00b7 ") : 'runs a model inside its enclave')
-              + (e.ineligible ? ' \u00b7 ' + esc(e.ineligible)
-                 : a.apps && a.apps.scope === 'owner-only' ? ' \u00b7 takes app work only from its own owner'
-                 : ' \u00b7 serves its own inference, not app deployments')
-              + '</span>'
-              + '</div>';
-          }
           // A card on the box's UNTRUSTED host, reached by masked offload — the
           // enclave uses it without trusting it, so the row must not read as an
           // in-enclave GPU. It gets its own badge and its own pool, and it is
@@ -216,20 +164,6 @@ class FleetList extends EnclaveElement {
           // untrusted host keeps the rest (on a desktop, an X server). Showing the
           // physical total here while the GPU pool showed the budget is what put
           // two differently-sized GPU rows on one single-card box.
-          // EVIDENCE WITHOUT ELIGIBILITY. A box the relay admitted but holds no hardware
-          // evidence for (a token-attached tunnel, a build that never named its CPU
-          // technology, a report for a different contract) is shown as what it is,
-          // attached, with no pools and no price. Drawing capacity for it would present
-          // as sellable a machine the relay will never route work to, and the reason
-          // is printed in the relay's own words (`ineligible`) when it gave one.
-          if (!sells(e)) {
-            return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
-              + '<span class="fleet-head">' + teeCpuBadge + '<span class="fleet-name">' + esc(name) + '</span></span>'
-              + '<span class="fleet-relay-note">attached, takes no tenant work: '
-              + esc(e.ineligible || (tc.real ? 'this box is not claiming' : 'no hardware evidence for the isolation contract'))
-              + '</span>'
-              + '</div>';
-          }
           const shPool = shieldedPoolOf(e);
           const shTotal = shPool ? shPool.total : 0;
           // LEASABLE, not resident. A shielded worker keeps only the model's
