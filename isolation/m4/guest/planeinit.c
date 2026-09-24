@@ -100,6 +100,49 @@ static int admit(const char *kind, const char *path, const char *key) {
     return 0;
 }
 
+/* Dump the kernel-log lines that explain a module's refusal.
+ *
+ * WHY THIS IS NECESSARY AND NOT A NICETY. finit_module gives ENODEV for sev-guest whatever the cause, because
+ * sev-guest registers with module_platform_driver_probe (sev-guest.c:711) and __platform_driver_probe returns
+ * -ENODEV whenever nothing ends up bound. At least three different things produce it: the one this test wants,
+ * snp_msg_init finding no key ("Empty VMPCK%d communication key", arch/x86/coco/sev/core.c:1569, probe returns
+ * -EINVAL so the device stays unbound); no sev-guest platform device existing at all; and the probe's own
+ * cc_platform_has check. So "No such device" is CONSISTENT with the SVSM withholding the keys and does not
+ * establish it - and this guest decides snp=1 from CPUID, which is the hardware's word, not the kernel's.
+ *
+ * The reason is in the ring buffer either way: pr_err is KERN_ERR, which loglevel=3 keeps off the console but
+ * never out of /dev/kmsg. So read it, and let the probe say why it failed instead of being interpreted.
+ * Raised by the independent reviewer (enclave-59, 2026-09-24) against exactly this inference.
+ */
+static void kmsg_reason(const char *key, const char *needle) {
+    int fd = open("/dev/kmsg", O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    if (fd < 0) { say(key, "no /dev/kmsg, so the refusal cannot state its own reason"); return; }
+    char rec[1024], last[1024];
+    int found = 0;
+    ssize_t n;
+    /* one read() is one record; EAGAIN means the buffer is drained.
+     *
+     * Keep the LAST match, not the first. /dev/kmsg is reopened for each probe and reads from the oldest
+     * record, so reporting the first match gave the SECOND probe the FIRST probe's line - the vmpck_id=2 run
+     * was labelled "Empty VMPCK0", which is a wrong attribution in an evidence line and exactly the kind of
+     * thing that reads as corroboration. The most recent matching record is the one this probe produced. */
+    while ((n = read(fd, rec, sizeof rec - 1)) > 0) {
+        rec[n] = 0;
+        char *msg = strchr(rec, ';');
+        if (!msg) continue;
+        msg++;
+        char *nl = strchr(msg, '\n');
+        if (nl) *nl = 0;
+        if (strstr(msg, needle)) {
+            snprintf(last, sizeof last, "%s", msg);
+            found = 1;
+        }
+    }
+    close(fd);
+    if (found) say(key, last);
+    else say(key, "the kernel log carries no line naming it, so the refusal is unexplained");
+}
+
 /* Can this plane mint its own reports? It must NOT be able to, and the way to show that is to TRY.
  *
  * The image carries tsm_report and sev-guest deliberately. Leaving them out would make the absence of a report
@@ -128,6 +171,9 @@ static int probe_no_vmpck(void) {
             if (r == 0) { say("vmpck0", "LOADED - this plane HOLDS VMPCK0 and is not confined"); held = 1; }
             else say("vmpck0", strerror(errno));
             close(fd);
+            /* The errno alone cannot say WHY. This must read "Empty VMPCK0 communication key" for the refusal
+             * to be about a withheld key rather than about a missing device or a kernel that sees no SNP. */
+            if (r != 0) kmsg_reason("vmpck0_reason", "VMPCK");
         }
         fd = open("/sev-guest.ko.zst", O_RDONLY | O_CLOEXEC);
         if (fd >= 0) {
@@ -135,6 +181,7 @@ static int probe_no_vmpck(void) {
             if (r == 0) { say("vmpck2", "LOADED - this plane can mint its own reports"); held = 1; }
             else say("vmpck2", strerror(errno));
             close(fd);
+            if (r != 0) kmsg_reason("vmpck2_reason", "VMPCK");
         }
     }
     return held ? -1 : 0;
