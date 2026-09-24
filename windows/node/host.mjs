@@ -59,6 +59,9 @@ export class Host {
     // other code path can half-enable it: the deployed build has no such config and is unaffected.
     this.cfg.isolationManager   = this.cfg.isolationManager   || process.env.ENCLAVE_ISOLATION_MANAGER || "";
     this.cfg.isolationRuntimeId = this.cfg.isolationRuntimeId || process.env.ENCLAVE_ISOLATION_RUNTIME_ID || "";
+    // host:port of the manager's data plane. Without it the app zone has no splicer, so an
+    // isolated deployment is refused at the route rather than served through this agent.
+    this.cfg.isolationDataAddr  = this.cfg.isolationDataAddr  || process.env.ENCLAVE_ISOLATION_DATA_ADDR || "";
     /// Secrets this box fetched for a lease it holds, in memory only: never written beside the
     /// state file, never logged, and dropped when the lease goes.
     this.secrets = new Map();
@@ -462,34 +465,52 @@ export class Host {
   async #isolationReconcile(id, d, v, { memMb, port }) {
     const { reconcile } = await import("./isolation-lifecycle.mjs");
     const { IsolationManagerClient } = await import("./isolation-client.mjs");
+    const { isolationPlan } = await import("../vbslike/datapath/node-bridge.mjs");
     const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
 
-    // WHETHER THIS DEPLOYMENT HAS SECRETS MUST BE KNOWN, NOT ASSUMED.
+    // THE BODY IS BUILT BY THE PLAN, NOT BY HAND.
     //
-    // I wrote the client to refuse a body that does not STATE hasSecrets - because staged secrets
-    // would cross this host in plaintext on this backend - and then hard-coded `false` here, which
-    // is the same assumption wearing the caller's clothes. enclave-5d caught it. A node that has
-    // not fetched a deployment's secrets cannot tell "none exist" from "not looked yet", and
-    // loadSecrets returns early with no secretsSign configured, so the answer can be genuinely
-    // UNKNOWN. Unknown is a refusal, never a false.
-    const hasSecrets = await this.#secretsState(id);
-    if (hasSecrets !== false) {
-      const why = hasSecrets === true
-        ? "this deployment has relay-stored secrets, and a per-app partition would carry them across this host in plaintext"
-        : "whether this deployment has secrets cannot be verified on this box (no secrets signer configured), and absent secrets must be KNOWN absent";
-      return await this.#giveUp(id, `isolation: ${why}`);
-    }
-    const body = IsolationManagerClient.spawnBody({
-      image: `ipfs://${v.cid}`, name: id, appPort: port,
-      cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000,
-      // stated from the LEDGER, never assumed: the manager refuses a spawn that does not say
-      isPublic: d.isPublic !== false,
-      hasSecrets,
-      derive: { derivation: "enclave-catalog-bundle/1", cid: v.cid,
-                catalog: { app: d.appRef, version: v.version },
-                policy: { cpuPercent: 100, memMiB: memMb, vcpus: 1 },
-                runtimeId: this.cfg.isolationRuntimeId || "" },
+    // enclave-5d checked my hand-built record against the live ones and it was WRONG in two ways
+    // that a test here would never have caught, because both produce a perfectly well-formed body:
+    //   - the policy's memMiB came from this node's memMb (nodeFloorOf, which applies the
+    //     publisher's cpuFallback). The rule takes the version's ON-CHAIN memMb. A different
+    //     number is a different AppID from the Linux tier's for the same app, so a verifier
+    //     recomputing from the catalog would not reproduce what ran here.
+    //   - catalog.app was d.appRef with version.version, where the rule wants the bytes32 app id
+    //     and the index.
+    // One implementation of the rule, shared with the tier that already runs it, is the only way
+    // these stay equal; the plan reproduces the live records exactly (hookbin 1fb9360d, hello
+    // bff33b95).
+    //
+    // WHAT IT REFUSES, and the distinction that matters: `unknown` means an input could not be
+    // established, which is NOT the same as an input that says no. Unknown holds the lease;
+    // a definite refusal gives it back with the reason.
+    let derivations = null;
+    try { derivations = (await client.health())?.catalog?.derivations ?? null; } catch { derivations = null; }
+
+    const plan = isolationPlan({
+      deploymentId: id,
+      deployment: d,
+      version: v,
+      appConfig: await this.appConfigResolved(d, v),
+      hasSecrets: await this.#secretsState(id),
+      // {} and [] ONLY when known to be none: this node parsed the envelope at claim time and
+      // recorded what it found, so an unparsed envelope must not read as "no rules".
+      waf: this.records.get(id)?.waf ?? null,
+      volumes: [],
+      runtimeId: this.cfg.isolationRuntimeId,
+      derivations,
     });
+    if (!plan.ok) {
+      const why = `isolation: ${plan.input}: ${plan.why}`;
+      if (plan.unknown) {
+        this.log(`${id.slice(0, 10)} ${why}`);
+        return this.#record(id, { status: "provisioning", reason: why });
+      }
+      return await this.#giveUp(id, why);
+    }
+
+    const body = IsolationManagerClient.spawnBody(plan.spawn);
     let r;
     try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
     catch (e) { return this.#record(id, { status: "failed", reason: `isolation: ${e.message}` }); }
@@ -508,6 +529,9 @@ export class Host {
     this.log(`${id.slice(0, 10)} isolation ${r.action}: ${inst.id} status=${inst.status} image=${inst.image || "?"}`);
     return this.#record(id, { status: "running", reason: null,
                               isolation: { backend: "hyperv-partition-per-app", instance: inst.id,
+                                           // appId is REQUIRED by isolatedTarget; without it the
+                                           // app-zone route cannot name what it is splicing to
+                                           appId: inst.appId ?? null,
                                            image: inst.image ?? null, tier: inst.tier ?? null,
                                            // carried up verbatim; this is NOT verified capacity
                                            hostExcluded: inst.hostExcluded === true,
@@ -1749,6 +1773,19 @@ export class Host {
       id = hit[0];
     }
     const rec = this.records.get(id);
+    // AN ISOLATED DEPLOYMENT HAS NO `app` HERE, AND MUST NOT NEED ONE.
+    //
+    // Its process is a partition, not an entry in this.apps, so the checks below - which want a
+    // port and a certificate this agent holds - are all wrong for it. Before this, an isolated
+    // record fell through to `!app` and answered null, which the app zone turns into a 503: the
+    // deployment would have been running and unreachable (enclave-5d, tracing the real route).
+    //
+    // Nothing here terminates TLS for it. The target says only WHICH domain to splice to; the
+    // guest holds the key and does the handshake, which is the entire point of the tier.
+    if (rec && rec.isolation) {
+      const { isolatedTarget } = await import("../vbslike/datapath/node-bridge.mjs");
+      return isolatedTarget(id, rec, this.cfg.appZone);
+    }
     const app = this.apps.get(id);
     if (!rec || rec.status !== "running" || !app) return null;
     // A server-shaped app has a port to proxy into. A GATE-SERVED app (wasi:http, enclave:app)
