@@ -12,12 +12,19 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
+import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 import { labServer, keys, signedPolicy, signedManifest, canaryArtifact, above, sha256, APP, cliRun, cliSync, committedState, install } from "./helpers/pvm-lab.mjs";
 
-const LAUNCHER = process.env.ENCLAVE_PVM_LAUNCHER || "";
+// the launcher IS the pinned installed artifact (pvm-client-dist) from 0.3.0 on; an explicit ENCLAVE_PVM_LAUNCHER overrides
+const LAUNCHER = process.env.ENCLAVE_PVM_LAUNCHER || process.env.ENCLAVE_PVM_CLIENT_CLI || "";
 const STRICT = process.env.ENCLAVE_STRICT_INTEGRATION === "1";
-if (STRICT && !(LAUNCHER && fs.existsSync(LAUNCHER))) throw new Error("strict integration: ENCLAVE_PVM_LAUNCHER (the pinned installed artifact with activate) is missing");
-const skip = !(LAUNCHER && fs.existsSync(LAUNCHER)) && !STRICT && "no launcher pinned yet (ENCLAVE_PVM_LAUNCHER: the owner's client with activate, 0.3.0 or later)";
+const semverGe = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number); for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i]; return true; };
+const versionOf = (cli) => { try { return JSON.parse(require("node:child_process").execFileSync(process.execPath, [cli, "version"], { encoding: "utf8" }).trim().split("\n").pop()).version; } catch { return null; } };
+const present = !!LAUNCHER && fs.existsSync(LAUNCHER), lv = present ? versionOf(LAUNCHER) : null, hasActivate = !!lv && semverGe(lv, "0.3.0");
+if (STRICT && !hasActivate) throw new Error(`strict integration: the pinned client must carry activate (0.3.0 or later); found ${lv || "none"} at ${LAUNCHER || "(unset)"}`);
+const skip = !hasActivate && !STRICT && (present ? `the pinned client ${lv} has no activate (0.3.0 or later needed)` : "no client pinned (ENCLAVE_PVM_CLIENT_CLI or ENCLAVE_PVM_LAUNCHER)");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "pvm-activate-"));
 const K = keys();
 let L, V;   // the lab, and the installed artifact's own version (lab artifacts sit above it)
@@ -37,7 +44,7 @@ function fresh(name) {
   const stateNow = () => committedState(cli, tmp, state);
   const listing = () => fs.readdirSync(install_).sort();
   const put = (n, version, opts = {}) => { const bytes = canaryArtifact(version, L.base, { token: `${n}-${randomBytes(4).toString("hex")}`, ...opts }); L.artifacts.set(n, { bytes, hold: !!opts.hold }); L.manifests.set(n, signedManifest(K, version, bytes)); return { bytes, token: /LAB CANARY (\S+):/.exec(bytes.toString())[1], sha256: sha256(bytes), file: `pvm-client-${version}-${sha256(bytes)}.mjs` }; };
-  const update = (n) => sync(["update", "--manifest", `${L.base}/manifest/${n}`, "--artifact", `${L.base}/artifact/${n}`]);
+  const update = (n) => run(["update", "--manifest", `${L.base}/manifest/${n}`, "--artifact", `${L.base}/artifact/${n}`]).done;   // async: it fetches from the lab, which a blocking spawn could not answer
   const activate = () => run(["activate"]).done;   // async: the start check posts to the lab, which a blocking spawn could not answer
   const activation = (r) => r.lines.find((l) => l.activate)?.activate ?? null;
   const posted = (token, cmd) => L.canaries.filter((c) => c.token === token && (cmd === undefined || c.cmd === cmd));
@@ -47,7 +54,7 @@ const isPath = (url) => /^file:\/\/\/.*\.mjs$/.test(url || "") && !/\[(eval|stdi
 
 test("activate: a valid staged canary becomes active after a start check on bytes handed over stdin; state.active equals the staged record; a second activate is idempotent", { skip }, async () => {
   const x = fresh("a1"); const c = x.put("a1", above(V));
-  assert.equal(x.update("a1").status, 0); const g0 = x.stateNow().gen;
+  assert.equal((await x.update("a1")).status, 0); const g0 = x.stateNow().gen;
   const r = await x.activate(); const a = x.activation(r);
   assert.equal(r.status, 0, r.stdout + r.stderr); assert.equal(a?.ok, true); assert.equal(a?.version, above(V)); assert.equal(a?.sha256, c.sha256);
   const st = x.stateNow(); assert.deepEqual({ version: st.active?.version, sha256: st.active?.sha256, file: st.active?.file }, { version: above(V), sha256: c.sha256, file: c.file }); assert.equal(st.gen, g0 + 1);
@@ -61,7 +68,7 @@ test("activate: a valid staged canary becomes active after a start check on byte
   const r2 = await x.activate(); assert.equal(r2.status, 0); assert.equal(x.activation(r2)?.already, true); assert.equal(x.stateNow().gen, g0 + 1, "idempotent: no new generation");
 });
 test("run delegates to the active bytes over stdin with the resolved directories and the one-hop marker; exit 0 passes through; run writes nothing", { skip }, async () => {
-  const x = fresh("a2"); const c = x.put("a2", above(V)); assert.equal(x.update("a2").status, 0); assert.equal((await x.activate()).status, 0);
+  const x = fresh("a2"); const c = x.put("a2", above(V)); assert.equal((await x.update("a2")).status, 0); assert.equal((await x.activate()).status, 0);
   const gen = x.stateNow().gen, files = x.listing();
   const r = await x.run(["run", "--policy", `${L.base}/policy/none`, "--relay", `${L.base}/r/a2`, "--app", APP, "--label", "a2"]).done;
   assert.equal(r.status, 0, r.out + r.err);
@@ -75,7 +82,7 @@ test("run delegates to the active bytes over stdin with the resolved directories
 });
 test("a delegated child's exit 7 passes through and a self-kill is an error with exit 2; neither falls back to the installed version's own run", { skip }, async () => {
   for (const [name, runMode, expect] of [["a3", "exit7", 7], ["a3k", "kill", 2]]) {
-    const x = fresh(name); const c = x.put(name, above(V), { runMode }); assert.equal(x.update(name).status, 0); assert.equal((await x.activate()).status, 0);
+    const x = fresh(name); const c = x.put(name, above(V), { runMode }); assert.equal((await x.update(name)).status, 0); assert.equal((await x.activate()).status, 0);
     const r = await x.run(["run", "--policy", `${L.base}/policy/none`, "--relay", `${L.base}/r/${name}`, "--app", APP]).done;
     assert.equal(r.status, expect, `${name}: ${r.out} ${r.err}`);
     if (runMode === "kill") { assert.match(r.lines.find((l) => l.error)?.error || "", /ended by signal SIGKILL/, `a signal death is reported as an error (${r.out})`); assert.equal(r.lines.some((l) => l.result?.sent === false), false, "no sent:false claim for a child that may have sent"); }
@@ -85,7 +92,7 @@ test("a delegated child's exit 7 passes through and a self-kill is an error with
   }
 });
 test("a replaced or missing active file: run refuses at launch with no fallback, the planted bytes never execute, the state is unchanged; then the repair path", { skip }, async () => {
-  const x = fresh("a4"); const c = x.put("a4", above(V)); assert.equal(x.update("a4").status, 0); assert.equal((await x.activate()).status, 0);
+  const x = fresh("a4"); const c = x.put("a4", above(V)); assert.equal((await x.update("a4")).status, 0); assert.equal((await x.activate()).status, 0);
   const before = x.stateNow();
   const planted = canaryArtifact(above(V), L.base, { token: "planted-" + randomBytes(4).toString("hex") }); const plantedToken = /LAB CANARY (\S+):/.exec(planted.toString())[1];
   fs.rmSync(path.join(x.install, c.file)); fs.writeFileSync(path.join(x.install, c.file), planted);
@@ -96,36 +103,42 @@ test("a replaced or missing active file: run refuses at launch with no fallback,
   assert.equal(x.posted(plantedToken).length, 0, "the planted bytes never executed"); assert.equal(x.posted(c.token, "run").length, 0, "no fallback ran anything");
   assert.equal(r.lines.some((l) => l.result && l.result.clientVersion === V), false, "no fallback to the installed version");
   assert.deepEqual(x.stateNow(), before, "the state is untouched by a refused launch");
-  assert.equal(x.update("a4").status, 1, "re-staging over a wrong file under the name is refused (the file is left untouched)");
+  assert.equal((await x.update("a4")).status, 1, "re-staging over a wrong file under the name is refused (the file is left untouched)");
   assert.equal(sha256(fs.readFileSync(path.join(x.install, c.file))), sha256(planted));
   fs.rmSync(path.join(x.install, c.file));                                    // the missing-file case, and the repair
   r = await x.run(["run", "--policy", `${L.base}/policy/none`, "--relay", `${L.base}/r/a4`, "--app", APP]).done; assert.equal(r.status, 2); assert.equal(r.result?.step, "launch"); assert.equal(r.result?.found, "missing");
-  const u = x.update("a4"); assert.equal(u.status, 0, u.stdout); assert.equal(sha256(fs.readFileSync(path.join(x.install, c.file))), c.sha256, "the same artifact re-published the file");
+  const u = await x.update("a4"); assert.equal(u.status, 0, u.out); assert.equal(sha256(fs.readFileSync(path.join(x.install, c.file))), c.sha256, "the same artifact re-published the file");
   r = await x.run(["run", "--policy", `${L.base}/policy/none`, "--relay", `${L.base}/r/a4`, "--app", APP]).done; assert.equal(r.status, 0); assert.equal(x.posted(c.token, "run").length, 1);
   assert.deepEqual({ ...x.stateNow(), gen: 0 }, { ...before, gen: 0 }, "repair changed no field");
 });
 test("activate refuses: nothing staged; a staged file replaced before activation is never executed; a start-check failure leaves active null and staged kept", { skip }, async () => {
   const x = fresh("a5");
   let r = await x.activate(); assert.equal(r.status, 1); assert.equal(x.activation(r)?.ok, false); assert.equal(x.activation(r)?.step, "nothing newer"); assert.equal(x.stateNow().active, null);
-  const c = x.put("a5", above(V)); assert.equal(x.update("a5").status, 0);
+  const c = x.put("a5", above(V)); assert.equal((await x.update("a5")).status, 0);
   const planted = canaryArtifact(above(V), L.base, { token: "planted-" + randomBytes(4).toString("hex") }); const plantedToken = /LAB CANARY (\S+):/.exec(planted.toString())[1];
   fs.rmSync(path.join(x.install, c.file)); fs.writeFileSync(path.join(x.install, c.file), planted);
   r = await x.activate(); assert.equal(r.status, 1); assert.equal(x.activation(r)?.step, "file", JSON.stringify(x.activation(r)));
   assert.equal(x.posted(plantedToken).length, 0, "rejected bytes were not executed, not even for a start check"); assert.equal(x.stateNow().active, null);
-  fs.rmSync(path.join(x.install, c.file)); assert.equal(x.update("a5").status, 0);   // repaired
-  const y = fresh("a5b"); const bad = y.put("a5b", above(V), { versionAnswer: "9.9.9" }); assert.equal(y.update("a5b").status, 0);
+  fs.rmSync(path.join(x.install, c.file)); assert.equal((await x.update("a5")).status, 0);   // repaired
+  const y = fresh("a5b"); const bad = y.put("a5b", above(V), { versionAnswer: "9.9.9" }); assert.equal((await y.update("a5b")).status, 0);
   r = await y.activate(); assert.equal(r.status, 1); assert.equal(y.activation(r)?.step, "start check", JSON.stringify(y.activation(r)));
   assert.equal(y.posted(bad.token, "version").length, 1, "the start check did run the verified bytes"); assert.equal(y.stateNow().active, null); assert.equal(y.stateNow().staged?.sha256, bad.sha256, "staged kept");
-  const z = fresh("a5c"); const dead = z.put("a5c", above(V), { versionExit: 1 }); assert.equal(z.update("a5c").status, 0);
+  const z = fresh("a5c"); const dead = z.put("a5c", above(V), { versionExit: 1 }); assert.equal((await z.update("a5c")).status, 0);
   r = await z.activate(); assert.equal(r.status, 1); assert.equal(z.activation(r)?.step, "start check"); assert.equal(z.stateNow().active, null); assert.equal(z.posted(dead.token, "version").length, 1);
 });
 test("one hop: a child started from a path ignores the marker (the base still delegates), and a delegated marker for another version is refused", { skip }, async () => {
-  const x = fresh("a6a"); const c = x.put("a6a", above(V)); assert.equal(x.update("a6a").status, 0); assert.equal((await x.activate()).status, 0);
+  const x = fresh("a6a"); const c = x.put("a6a", above(V)); assert.equal((await x.update("a6a")).status, 0); assert.equal((await x.activate()).status, 0);
   const r = await cliRun(x.cli, tmp, ["run", "--policy", `${L.base}/policy/none`, "--relay", `${L.base}/r/a6a`, "--app", APP, "--state", x.state, "--install-dir", x.install], { extraEnv: { ENCLAVE_PVM_CLIENT_DELEGATED: `${V}:${"0".repeat(64)}` } }).done;
   assert.equal(r.status, 0, r.out + r.err); assert.equal(x.posted(c.token, "run").length, 1, "the base, started from a file path, ignored the planted marker and delegated as usual");
+  // the launcher's own bytes fed over stdin (as a child would be): a marker naming another version is refused, and a
+  // delegated client refuses any command but run
+  const fed = (marker, cmd) => new Promise((resolve) => { const ch = spawn(process.execPath, ["--input-type=module", "-", cmd, "--state", x.state, "--install-dir", x.install], { env: { ...process.env, XDG_CONFIG_HOME: path.join(tmp, "xdg-unused"), ENCLAVE_PVM_CLIENT_DELEGATED: marker }, stdio: ["pipe", "pipe", "pipe"] }); let out = ""; ch.stdout.on("data", (d) => (out += d)); ch.on("exit", (status) => resolve({ status, out })); ch.stdin.end(fs.readFileSync(LAUNCHER)); });
+  const m1 = await fed(`9.9.9:${"0".repeat(64)}`, "run"); assert.equal(m1.status, 2); assert.match(m1.out, /delegated as 9\.9\.9, but this client is/);
+  const m2 = await fed(`${V}:${"0".repeat(64)}`, "state"); assert.equal(m2.status, 2); assert.match(m2.out, /a delegated client runs only `run`/);
+  assert.equal(x.posted(c.token, "run").length, 1, "neither refused start ran anything");
 });
 test("two activators at once: one activates, the other is idempotent; exactly one generation added", { skip }, async () => {
-  const x = fresh("a6"); const c = x.put("a6", above(V)); assert.equal(x.update("a6").status, 0); const g0 = x.stateNow().gen;
+  const x = fresh("a6"); const c = x.put("a6", above(V)); assert.equal((await x.update("a6")).status, 0); const g0 = x.stateNow().gen;
   const [r1, r2] = await Promise.all([x.run(["activate"]).done, x.run(["activate"]).done]);
   for (const r of [r1, r2]) assert.equal(r.status, 0, r.out + r.err);
   assert.equal(x.stateNow().gen, g0 + 1); assert.equal(x.stateNow().active?.sha256, c.sha256);
@@ -133,30 +146,33 @@ test("two activators at once: one activates, the other is idempotent; exactly on
 });
 test("activation against staging a newer version, both orders: run uses active and never staged; the next activate moves forward; nothing moves back", { skip }, async () => {
   const x = fresh("a7"); const a = x.put("a7-a", above(V, 1)), b = x.put("a7-b", above(V, 2));
-  assert.equal(x.update("a7-a").status, 0); assert.equal((await x.activate()).status, 0); assert.equal(x.update("a7-b").status, 0);
+  assert.equal((await x.update("a7-a")).status, 0); assert.equal((await x.activate()).status, 0); assert.equal((await x.update("a7-b")).status, 0);
   let st = x.stateNow(); assert.equal(st.active?.sha256, a.sha256); assert.equal(st.staged?.sha256, b.sha256);
   let r = await x.run(["run", "--policy", `${L.base}/policy/none`, "--relay", `${L.base}/r/a7`, "--app", APP]).done; assert.equal(r.status, 0);
   assert.equal(x.posted(a.token, "run").length, 1, "run used the active bytes"); assert.equal(x.posted(b.token, "run").length, 0, "never the merely staged ones");
   assert.equal((await x.activate()).status, 0); st = x.stateNow(); assert.equal(st.active?.sha256, b.sha256);
   r = await x.run(["run", "--policy", `${L.base}/policy/none`, "--relay", `${L.base}/r/a7`, "--app", APP]).done; assert.equal(r.status, 0); assert.equal(x.posted(b.token, "run").length, 1);
-  const older = x.put("a7-old", above(V, 1), {}); assert.equal(x.update("a7-old").status, 1, "an older version cannot be staged over the newer active one");
+  const older = x.put("a7-old", above(V, 1), {}); assert.equal((await x.update("a7-old")).status, 1, "an older version cannot be staged over the newer active one");
   assert.equal(x.activation(await x.activate())?.already, true); assert.equal(x.stateNow().active?.sha256, b.sha256, "active never moves back");
   const y = fresh("a7b"); const p = y.put("a7b-p", above(V, 1)), q = y.put("a7b-q", above(V, 2));   // the other order: two staged, then activate
-  assert.equal(y.update("a7b-p").status, 0); assert.equal(y.update("a7b-q").status, 0); assert.equal((await y.activate()).status, 0);
+  assert.equal((await y.update("a7b-p")).status, 0); assert.equal((await y.update("a7b-q")).status, 0); assert.equal((await y.activate()).status, 0);
   assert.equal(y.stateNow().active?.sha256, q.sha256, "activate takes the current staged record"); assert.equal(y.posted(p.token).length, 0, "the superseded staged bytes never ran");
 });
 test("activation and a policy commit, both orders, with the held-evidence barrier: serial, keys and active are all present afterwards", { skip }, async () => {
-  const x = fresh("a8"); const c = x.put("a8", above(V)); assert.equal(x.update("a8").status, 0);
+  const x = fresh("a8"); const c = x.put("a8", above(V)); assert.equal((await x.update("a8")).status, 0);
   L.policies.set("a8-3", signedPolicy(K, 3)); L.policies.set("a8-4", signedPolicy(K, 4));
   const pol = x.run(["run", "--policy", `${L.base}/policy/a8-3`, "--relay", `${L.base}/r/a8-3`, "--app", APP, "--label", "a8-3"]);   // the installed version runs (nothing active yet)
   await L.evidenceRequested("a8-3");                                          // serial 3 committed, the run held
   assert.equal((await x.activate()).status, 0); L.release("a8-3"); await pol.done;
   let st = x.stateNow(); assert.equal(st.serial, 3); assert.equal(st.active?.sha256, c.sha256, "activation after the policy commit kept both");
   const pol2 = x.run(["run", "--policy", `${L.base}/policy/a8-4`, "--relay", `${L.base}/r/a8-4`, "--app", APP, "--label", "a8-4"]);   // now delegated: the canary ignores the policy
-  await pol2.done; st = x.stateNow(); assert.equal(st.active?.sha256, c.sha256); assert.equal(st.policyFp, st.policyFp);
+  const r2 = await pol2.done; st = x.stateNow(); assert.equal(r2.status, 0); assert.equal(x.posted(c.token, "run").length, 1, "after activation, run is delegated to the active bytes");
+  assert.equal(st.serial, 3, "the canary commits no policy: the serial is the launcher's commit"); assert.equal(st.active?.sha256, c.sha256);
+  // the reverse order (a policy commit AFTER activation) needs a real client as the active bytes, since a canary commits
+  // nothing; the owner's own suite covers it with a "next" build, and this session's strict run does not claim it
 });
 test("swap stress: the active file replaced right after run starts; the swapped bytes never execute (evidence, not proof)", { skip }, async () => {
-  const x = fresh("a9"); const c = x.put("a9", above(V)); assert.equal(x.update("a9").status, 0); assert.equal((await x.activate()).status, 0);
+  const x = fresh("a9"); const c = x.put("a9", above(V)); assert.equal((await x.update("a9")).status, 0); assert.equal((await x.activate()).status, 0);
   const planted = canaryArtifact(above(V), L.base, { token: "swap-" + randomBytes(4).toString("hex") }); const plantedToken = /LAB CANARY (\S+):/.exec(planted.toString())[1];
   let ran = 0, refused = 0;
   for (let i = 0; i < 12; i++) {

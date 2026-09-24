@@ -153,6 +153,32 @@ above the installed artifact's own version at run time. The suite skips without 
 command once the owner's artifact is pinned and reproduced. It is written from the agreed interface, not from the
 implementation, and was not run against any implementation when written.
 
+**Results against 0.3.0 (owner's 0f4c79fd, 2026-09-24).** The two output hashes and every source hash the owner sent
+were recomputed here from the git objects and matched (`pvm-client.mjs`
+`fad5ba229c5dbbb339aa6d3d505e31c6a07eaaabadbe2431533cf882fb0f6aa4`, 137180 bytes; `pvm-client-ext.zip`
+`09efc6fc34292d39a0ebf3d677d075985537182f9032b2d09e227ac18808c140`, 128994 bytes; `src/activate.js`
+`16289f02…`); the pins `pvm-client-dist` and `pvm-client-src` and the artifact record moved there, and both artifacts
+reproduced under the strict command. First run of this harness against any implementation: two harness defects and no
+defect in the owner's code. Both harness defects were the same mistake, a synchronous spawn of a command that talks to
+the lab (the manifest fetch of `update`, the start-check post of `activate`), which starves the lab server hosted by
+the blocked test process; every such command is now driven asynchronously. Per case, all pass:
+
+| case | observed on 0.3.0 |
+|---|---|
+| activate | `ok`, the staged version and digest; `state.active` equals the staged record (version, digest, file) with `size`; one generation added; the start check executed the canary exactly once with `version`, `import.meta.url` not a path, `NODE_OPTIONS` absent, HOME, `XDG_CONFIG_HOME` and cwd one scratch directory that no longer exists afterwards, no `--state`; nothing executed `run`; a second `activate` is `already: true` with no new generation |
+| run delegates | the active canary executed once, not from a path; its arguments carry the resolved `--install-dir` and `--state`; the marker equals `<active version>:<active digest>`; `NODE_OPTIONS` absent, the real configuration directory kept; the child's own result names the active version; the generation and the directory listing unchanged |
+| exit and signal relay | exit 7 relayed as 7; a self-SIGKILL reported as `ended by signal SIGKILL` with exit 2 and no `sent: false`; the child ran exactly once; no result line of the installed version and no commit line: no fallback |
+| replaced or missing active file | `run` refused at step `launch` with the expected record and the planted file's digest (or `missing`), exit 2, the planted token never posted, no fallback, state untouched; `staged` exits 1 with `active.bytesMatch: false`; re-staging over the wrong file refused and the file left as it was; after removal, `update` with the same artifact re-published it and `run` worked; the repair changed no field |
+| activate refusals | nothing staged: step `nothing newer`; a replaced staged file: step `file`, the planted bytes never executed, `active` null; a wrong version answer and a non-zero exit: step `start check`, the fixture executed exactly once, `active` null, `staged` kept |
+| one hop | a marker planted on the installed artifact started from a file path is ignored and it delegates as usual; fed over stdin, a marker naming another version is refused (`delegated as 9.9.9, but this client is 0.3.0`) and a delegated client refuses `state` (`runs only run`), both exit 2 and neither ran anything |
+| two activators at once | both exit 0, one generation added, `active` equals `staged` |
+| activation and staging, both orders | after activating the first, staging a newer one leaves `active` at the first and `run` executes the active bytes, never the staged ones; the next `activate` moves to the newer; an older version cannot be staged over it and `activate` stays idempotent; two staged then one `activate` takes the current staged record and the superseded bytes never ran |
+| activation and a policy commit | a policy commit held at the evidence barrier, then `activate`, then release: serial and `active` both present; after activation `run` is delegated and the canary commits nothing. The reverse order (a policy commit after activation) needs a real client as the active bytes and is the owner's evidence, not this session's |
+| swap loop | twelve launches with the active file replaced right after each start: the swapped bytes never executed; each launch either ran the active bytes or was refused at `launch` (evidence, not proof) |
+
+Strict command with this suite included: 86 cases, 86 pass, 0 fail, 0 skipped, verdict PASS, against the six pins and
+both reproduced artifacts. The limits in section 6 are unchanged.
+
 ## 8. Asks sent to the owner (2026-09-24, answered with agreement on Q1 to Q5)
 
 1. One hop: a marker so a delegated child never delegates. 2. Explicit `--state` and `--install-dir` for the child; no

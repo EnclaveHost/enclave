@@ -38,7 +38,7 @@ for (const name of Object.keys(artifacts)) {
   if (a.status !== 0) { process.stderr.write(a.stderr || ""); console.error(`integration: artifact ${name} did NOT reproduce; refusing`); process.exit(2); }
   process.stdout.write(a.stdout.split("\n").filter((l) => /REPRODUCED|== pin/.test(l)).map((l) => `integration: ${l}\n`).join(""));
 }
-const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs", "test/verifier-pvm-client-persistence.test.mjs", "test/verifier-pvm-client-update.test.mjs", "test/verifier-pvm-client-supersede.test.mjs", "test/verifier-pvm-client-ext.test.mjs"];
+const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs", "test/verifier-pvm-client-persistence.test.mjs", "test/verifier-pvm-client-update.test.mjs", "test/verifier-pvm-client-supersede.test.mjs", "test/verifier-pvm-client-ext.test.mjs", "test/verifier-pvm-client-activation.test.mjs"];
 const t = spawnSync(process.execPath, ["--test", "--test-reporter=tap", "--test-timeout=180000", ...suites], { cwd: REPO, encoding: "utf8", env });
 const out = t.stdout || "";
 const num = (k) => { const m = new RegExp(`^# ${k} (\\d+)`, "m").exec(out); return m ? Number(m[1]) : null; };
