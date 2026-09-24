@@ -34,8 +34,6 @@
 #host .hostdoc{max-width:none;}
 #host .hostdoc>p,#host .hostdoc-list{max-width:82ch;}
 .store-hero{border:0;background:none;}
-.store-hero.visual-banner{align-items:center;}
-.store-hero>.featured-slot{position:relative;z-index:1;}
 .verification-stage{display:grid;grid-template-columns:1fr 1.15fr;gap:26px;align-items:start;margin-top:30px;}
 .verification-stage c-enclave-panel,.verification-stage c-live-verify{min-width:0;}
 @media(min-width:1450px){.hero-grid{max-width:1320px;}}

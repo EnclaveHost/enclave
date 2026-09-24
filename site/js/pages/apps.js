@@ -15,7 +15,7 @@ import { $, $$, esc, short, blen, fmtDur, fmtNum, showToast, on, tosAccepted, se
 import { APP_CATALOG_ADDRESS, APP_CATALOG_CHAIN, FEATURED_ADDRESS, REVIEWS_ADDRESS, USDC_BASE, IPFS_UPLOAD_URL, IPFS_IMAGE_UPLOAD_URL, IPFS_JSON_UPLOAD_URL, IPFS_GATEWAY, MAX_WASM_MB, MAX_WASM_BYTES, MAX_IMAGE_MB, MAX_IMAGE_BYTES, BASE_CHAIN, ACCOUNTS_ENABLED } from "../core/config.js";
 import { Enclave, EnclaveError } from "../core/api.js";
 import { catConfigured, catExplorer, encCall, CAT_SEL, CAT_MAX, ROUTING_KEYS, APPROVAL, depPrices6, depMaxGpuMilli, depSchemaRev, rate6Of, waitReceipt, catSchemaRev, catMaxFeePerSec6, catVersionFee, featConfigured, featMaxBid, FEAT_SEL, revConfigured, REV_SEL } from "../core/chain.js";
-import { FEATURED, loadCampaigns, pickFeatured, beaconView } from "../core/featured.js";
+import { FEATURED, loadCampaigns, featuredList, beaconView } from "../core/featured.js";
 import { loadTallies, loadReviews, confirmReceipt } from "../core/reviews.js";
 import { payForRuntime } from "../core/fund.js";
 import { connectWallet, authenticate, ensureBaseChain, sendTx, usdcBalanceOf, personalSign } from "../core/wallet.js";
@@ -29,6 +29,29 @@ import { navigate } from "../boot.js";
 const MAX_ROWS = 4;
 let storePage = 0;
 let forceTallies = false;   // set by the ↻ handler: the next paint re-reads ratings too
+/* appId -> the campaign that put it at the head of the Featured tab, or null for
+   the editorial pick. Rebuilt on every render of that tab and empty on every
+   other tab, so nothing downstream can mark a card gold on a page that has no
+   featured group. */
+const featuredIds = new Map();
+
+/* Is the store grid ACTUALLY on screen? The catalog page mounts all three views
+   (store, publish, one app's detail) and hides the others with [hidden], so the
+   grid element exists and has a parent even when nobody can see it. Two things
+   depend on the difference:
+   - a metered view must be a view. A promoted card rendered into a hidden grid,
+     or into a background tab, has not been shown to anybody and must not draw
+     down a publisher's budget.
+   - the paint itself. `enclave:featured` and a window resize used to re-render
+     the grid whatever was on screen, which is work nobody sees and, with the
+     featured head now inside the grid, a beacon nobody saw either.
+   offsetParent is null for a hidden subtree, which is exactly the question. */
+function storeVisible(){
+  const store = document.getElementById("storeView");
+  const grid = document.getElementById("storeGrid");
+  if (!store || !grid || store.hidden || grid.offsetParent === null) return false;
+  return typeof document.visibilityState !== "string" || document.visibilityState === "visible";
+}
 const gridCols = (grid) => Math.max(1, Math.floor((grid.clientWidth + 16) / (300 + 16)));
 function renderPager(total, pages){
   const pager = $("#storePager"); if (!pager) return;
@@ -73,21 +96,49 @@ function renderApps(){
     // Listing state doesn't matter here: a delisted app still shows.
     apps = STORE.apps.filter(a => appRejected(a) && (isOwner || myApp(a)));
   } else {
-    // Approved - the public store and the default tab: active apps with a
-    // release the owner approved (setApproval - the deploy gate), plus owner-
-    // endorsed/official ones, with something visible (an app whose every
-    // version is yanked/rejected has nothing to show a normal browser).
-    // `verified` stays a curation badge and the sort key below, not the
-    // membership test. Everything else lives in the moderation tabs above,
-    // each scoped to the owner + the affected publisher.
+    // Approved - the public store, and everything the FEATURED tab shows after
+    // its head group: active apps with a release the owner approved
+    // (setApproval - the deploy gate), plus owner-endorsed/official ones, with
+    // something visible (an app whose every version is yanked/rejected has
+    // nothing to show a normal browser). `verified` stays a curation badge and
+    // the sort key below, not the membership test. Everything else lives in the
+    // moderation tabs above, each scoped to the owner + the affected publisher.
     apps = STORE.apps.filter(a => a.versions.length && a.active && visibleVerIdxs(a).length && (appApproved(a) || appVerified(a)));
+  }
+  // THE FEATURED HEAD. Featured is the default tab and is NOT a featured-only
+  // filter: the same approved list, with the standing campaigns (or the
+  // editorial pick) lifted to the front and marked gold. It is built as a
+  // PARTITION of that one list, which is what keeps an app from appearing
+  // twice: membership is decided once, by the approved rule, and this only
+  // decides order. A featured app that is not currently approved and listed
+  // never enters - featuredList() already requires it, and the partition would
+  // drop it anyway.
+  featuredIds.clear();
+  if (STORE.filter === "featured"){
+    const inStore = new Set(apps.map(a => a.appId));
+    for (const f of featuredList()){
+      if (!f || !f.app || !inStore.has(f.app.appId) || featuredIds.has(f.app.appId)) continue;
+      featuredIds.set(f.app.appId, f.campaign || null);
+    }
   }
   // search matches only what the viewer can see - a yanked version's CID must
   // not surface an app to someone who'd then find no trace of that version
   if (q) apps = apps.filter(a => (a.name + " " + a.description + " " + a.slug + " " + a.publisher + " " + visibleVerIdxs(a).map(i => a.versions[i].cid + " " + a.versions[i].version).join(" ")).toLowerCase().includes(q));
-  apps.sort((x, y) => (Number(appVerified(y)) - Number(appVerified(x))) || (y.updatedAt - x.updatedAt));
+  // The store's sort, unchanged - applied WITHIN each group so the featured head
+  // keeps its bid order (highest per-view bid first, ties to the older campaign)
+  // and everything after it is the ordinary store order.
+  const byRank = (x, y) => (Number(appVerified(y)) - Number(appVerified(x))) || (y.updatedAt - x.updatedAt);
+  if (featuredIds.size){
+    const order = [...featuredIds.keys()];
+    const head = apps.filter(a => featuredIds.has(a.appId)).sort((x, y) => order.indexOf(x.appId) - order.indexOf(y.appId));
+    const rest = apps.filter(a => !featuredIds.has(a.appId)).sort(byRank);
+    apps = head.concat(rest);
+  } else {
+    apps.sort(byRank);
+  }
   if (!apps.length){
     renderPager(0, 1);
+    renderFeaturedNote(null);   // nothing on screen to describe: the note goes with it
     grid.innerHTML = '<div class="store-note">' + (STORE.apps.length ? "No apps match your filter." : "No apps published yet. Be the first with <b>+ Publish app</b>.") + '</div>';
     return;
   }
@@ -96,11 +147,28 @@ function renderApps(){
   storePage = Math.min(Math.max(storePage, 0), pages - 1);
   renderPager(apps.length, pages);
   const page = apps.slice(storePage * pageSize, (storePage + 1) * pageSize);
+  // the note describes what is on THIS page, so it is written after the slice
+  renderFeaturedNote(page.filter(a => featuredIds.has(a.appId)).map(a => featuredIds.get(a.appId)));
   grid.replaceChildren(...page.map(a => {
     const el = document.createElement("c-app-card");
     el.app = a;
+    if (featuredIds.has(a.appId)){
+      const camp = featuredIds.get(a.appId);
+      el.classList.add("is-featured");
+      // Truthful, and the two are different things: a PROMOTED card is one its
+      // publisher pays per view for; a FEATURED one is the editorial pick and
+      // bills nobody. The label must never say the first about the second.
+      el.dataset.featuredLabel = camp ? "\u2605 Promoted" : "\u2605 Featured";
+    }
     return el;
   }));
+  // ONE metered view per promoted app, and only for a card that is on this page
+  // AND on screen. Three ways a card can exist without having been seen, and
+  // none of them may bill a publisher: a later pager page, a grid inside a
+  // hidden view (an app's detail page or Publish, both mounted beside it), and a
+  // background browser tab. beaconView dedupes per app per page load on top, so
+  // a ratings repaint or a wallet connect re-render never counts twice.
+  if (storeVisible()) for (const a of page) if (featuredIds.get(a.appId)) beaconView(a.appId);
   // ratings for exactly the tiles on screen - one eth_call for the page
   // (`enclave:reviews` repaints them when it lands)
   loadTallies(page.map(a => a.appId), forceTallies);
@@ -111,41 +179,47 @@ function renderApps(){
 let _resizeT;
 addEventListener("resize", () => {
   clearTimeout(_resizeT);
-  _resizeT = setTimeout(() => { if (document.getElementById("storeGrid")) renderApps(); }, 200);
+  _resizeT = setTimeout(() => { if (storeVisible()) renderApps(); }, 200);
 });
 
-/* ---- featured slot (top-right of the section head) ----
-   The occupant comes from core/featured.js: the highest standing per-view
-   bid (EnclaveFeatured), or the editorial pick until the contract exists.
-   Paid occupants beacon a metered view; the editorial pick bills nobody. */
-function renderFeatured(){
-  const slot = $("#featuredSlot"); if (!slot) return;
-  const pick = pickFeatured();
-  if (!pick){ slot.hidden = true; delete slot.dataset.appid; return; }
-  slot.hidden = false;
-  const paid = !!pick.campaign;
-  if (slot.dataset.appid !== pick.app.appId || slot.dataset.paid !== String(paid)){
-    slot.dataset.appid = pick.app.appId; slot.dataset.paid = String(paid);
-    slot.textContent = "";
-    const tag = document.createElement("div");
-    tag.className = "featured-tag";
-    tag.innerHTML = "★ Featured" + (paid ? ' <span class="dim">· promoted</span>' : "");
-    slot.appendChild(tag);
-    const card = document.createElement("c-app-card");
-    card.app = pick.app;
-    slot.appendChild(card);
-    const foot = document.createElement("div");
-    foot.className = "featured-foot";
-    foot.innerHTML = '<span class="hint">' + (paid ? "promoted per view by its publisher" : "editorial pick") + '</span>'
-      + (featConfigured() ? '<button class="featured-promote" type="button">Promote your app →</button>' : "");
-    slot.appendChild(foot);
-    const pb = foot.querySelector(".featured-promote");
-    if (pb) pb.addEventListener("click", openPromote);
-  } else {
-    const card = slot.querySelector("c-app-card");
-    if (card) card.app = pick.app;   // same occupant, fresher record (badges follow wallet/catalog)
+/* ---- the Featured tab's one-line note, and the way in to promoting ----
+   What the aside's foot used to say, moved to where the group now is.
+
+   It describes THE CARDS ON THIS PAGE, not the tab in general. The head group
+   lives at the top of page one, so on page two, or under a search that matches
+   none of it, there is no gold card on screen and a note claiming "the first
+   card is promoted" would be pointing at somebody else's app. The wording also
+   never borrows a word it has not earned: a PROMOTED card is one its publisher
+   pays per view for, an editorial pick is FEATURED and bills nobody.
+
+   `onPage` is one entry per featured card actually rendered: its campaign, or
+   null for the editorial pick. */
+function renderFeaturedNote(onPage){
+  const note = $("#featuredNote"); if (!note) return;
+  const on = STORE.filter === "featured";
+  note.hidden = !on;
+  if (!on) return;
+  // null means the grid is showing no cards at all (a search that matches
+  // nothing): there is no list for this note to be about, so it goes too.
+  if (onPage === null){ note.hidden = true; return; }
+  const here = onPage;
+  const paid = here.filter(Boolean).length;
+  const hint = $("#featuredHint");
+  if (hint) hint.textContent =
+    !featuredIds.size ? "no featured app right now - the whole store follows"
+    : !here.length    ? "the featured apps are at the top of the first page"
+    : paid === here.length
+      ? (here.length === 1 ? "the gold card is promoted per view by its publisher"
+                           : "the " + here.length + " gold cards are promoted per view by their publishers")
+      : paid === 0
+        ? (here.length === 1 ? "the gold card is an editorial pick - nobody paid for it"
+                             : "the gold cards are editorial picks - nobody paid for them")
+        : "the gold cards are featured; the ones marked promoted are paid for per view by their publishers";
+  const pb = $("#featuredPromote");
+  if (pb){
+    pb.hidden = !featConfigured();
+    if (!pb.dataset.wired){ pb.dataset.wired = "1"; pb.addEventListener("click", openPromote); }
   }
-  if (paid) beaconView(pick.app.appId);
 }
 
 /* ---- promote modal: place a per-view bid + escrow a budget ---- */
@@ -175,11 +249,16 @@ function openPromote(){
   const topPerK = standing.length ? (standing[0].bidPerView6 * 1000) / 1e6 : 0;
   host.innerHTML =
     '<div class="qd-card" role="dialog" aria-modal="true" aria-label="Promote your app">' +
-      '<div class="qd-h">Promote <b>your app</b> in the featured slot</div>' +
-      '<p class="qd-sub">Name a price per <b>1,000 views</b> and escrow a budget (USDC). The highest funded bid holds the slot; views are metered by the gateway (deduped per visitor per day) and drawn from your escrow at your bid. <b>Withdraw the unspent balance anytime.</b></p>' +
+      '<div class="qd-h">Promote <b>your app</b> at the top of the store</div>' +
+      // There is no single slot any more: the store's default tab shows EVERY
+      // standing campaign at its head, highest bid first, above the rest of the
+      // catalogue. So a bid buys a place in that group and the rank inside it -
+      // not a winner-takes-all box - and the copy has to say so, because the old
+      // wording would read as "outbid them or get nothing".
+      '<p class="qd-sub">Name a price per <b>1,000 views</b> and escrow a budget (USDC). Every funded campaign is shown at the top of the store, <b>highest bid first</b>; views are metered by the gateway (deduped per visitor per day) and drawn from your escrow at your bid. <b>Withdraw the unspent balance anytime.</b></p>' +
       '<p class="qd-sub">' + (topPerK > 0
-        ? "Top standing bid right now: <b>$" + topPerK.toFixed(2) + " / 1k views</b> - bid above it to take the slot."
-        : "The slot is <b>open</b> - any funded bid takes it.") + '</p>' +
+        ? "Standing campaigns: <b>" + standing.length + "</b>, top bid <b>$" + topPerK.toFixed(2) + " / 1k views</b> - bid above it to lead the group."
+        : "No standing campaigns - <b>any funded bid leads the group.</b>") + '</p>' +
       '<label class="qd-lbl" for="prApp">Your app</label>' +
       '<select class="qd-amt" id="prApp"></select>' +
       '<label class="qd-lbl" for="prBid">Bid ($ per 1,000 views)</label>' +
@@ -229,7 +308,7 @@ function openPromote(){
     const dep6 = Math.round((parseFloat(dep.value) || 0) * 100) * 10000;
     const capPerK = (maxBid6 * 1000) / 1e6;
     let err = null;
-    if (!appId) err = "Pick one of your published apps (approved apps win the slot; pending ones queue until approved).";
+    if (!appId) err = "Pick one of your published apps (only approved, listed apps are shown; a pending one waits until the owner approves it).";
     else if (c && !mineC) err = "This app already has a campaign placed by another wallet.";
     else if (!(bid6 > 0)) err = "Bid at least $0.01 per 1k views.";
     else if (bid6 > maxBid6) err = "The bid cap is $" + capPerK.toFixed(2) + " per 1k views.";
@@ -267,8 +346,8 @@ function openPromote(){
         }, depUsd, "USDC", plog);
       }
       await loadCampaigns(true);
-      renderFeatured();
-      plog("ok", "[✓] campaign live - the slot follows the highest funded bid");
+      renderApps();                 // the head of the Featured tab reorders, not a single box
+      plog("ok", "[✓] campaign live - the featured group follows the highest funded bid");
     } catch(e){ plog("err", "[✗] " + (e && e.message || e)); }
     go.disabled = false; wd.disabled = false;
     refresh();
@@ -281,7 +360,7 @@ function openPromote(){
       await featTx(encCall(FEAT_SEL.withdraw, [{ t: "bytes32", v: appId }, { t: "uint", v: 0 }]), "withdrawing");
       plog("ok", "[✓] balance returned to your wallet");
       await loadCampaigns(true);
-      renderFeatured();
+      renderApps();
     } catch(e){ plog("err", "[✗] " + (e && e.message || e)); }
     go.disabled = false; wd.disabled = false;
     refresh();
@@ -325,10 +404,15 @@ function syncModTabs(me, isOwner){
   if (delisted) delisted.hidden = !(isOwner || hasOwnDelisted);
   if (pending) pending.hidden = !(isOwner || hasOwnPending);
   if (rejected) rejected.hidden = !(isOwner || hasOwnRejected);
+  // A tab that just became hidden (the wallet disconnected, the last own
+  // pending app cleared) falls back to the DEFAULT tab. That is Featured now,
+  // and Featured is never hidden, so this always lands somewhere real - the
+  // old fallback named Approved, which would leave the button row and
+  // STORE.filter disagreeing the moment the default changed.
   const cur = document.querySelector('#storeFilter button[data-filter="' + STORE.filter + '"]');
   if (cur && cur.hidden){
-    STORE.filter = "approved";
-    $$("#storeFilter button").forEach(x => { const on = x.dataset.filter === "approved"; x.classList.toggle("on", on); x.setAttribute("aria-pressed", String(on)); });
+    STORE.filter = "featured";
+    $$("#storeFilter button").forEach(x => { const on = x.dataset.filter === "featured"; x.classList.toggle("on", on); x.setAttribute("aria-pressed", String(on)); });
   }
 }
 
@@ -1606,7 +1690,7 @@ function renderActiveView(){
   // been waiting on this catalog read - idempotent via appliedPubKey
   if (sub === "publish") return void applyPrefillPublish().catch(() => {});
   const appId = new URLSearchParams(location.search).get("app");
-  if (appId) renderDetail(appId); else { renderApps(); renderFeatured(); }
+  if (appId) renderDetail(appId); else renderApps();   // renderApps owns the featured head and its note
 }
 /* the toolbar's ↻ - a real re-read of the catalog (past the 2-minute freshness
    window), with the BUTTON as the progress indicator: its glyph spins and the
@@ -1624,7 +1708,7 @@ async function refreshStore(){
     // a read already in flight (the boot one) is the same read this click wants;
     // loadCatalog() would return instantly on its guard, so ride that one instead
     const cat = STORE.loading ? nextEvent("enclave:catalog") : loadCatalog(true);
-    await Promise.all([cat, loadCampaigns(true)]);   // the featured slot rides the same refresh
+    await Promise.all([cat, loadCampaigns(true)]);   // the featured group rides the same refresh
   } finally {
     refreshing = false;
     btn.classList.remove("busy"); btn.disabled = false;
@@ -1700,7 +1784,6 @@ function initStore(){
   grid.addEventListener("card-action", onCardAction);
   const det = $("#appDetailView");
   if (det){ det.addEventListener("card-action", onCardAction); det.addEventListener("review-action", onReviewAction); }
-  const feat = $("#featuredSlot"); if (feat) feat.addEventListener("card-action", onCardAction);
 }
 function onCardAction(e){
   const { app, act, idx, verified } = e.detail;
@@ -1736,11 +1819,19 @@ on("enclave:catalog", (d) => {
   renderActiveView();
 });
 on("enclave:wallet", () => { if (STORE.loaded) renderActiveView(); });   // publisher/owner buttons follow the connected wallet
-on("enclave:featured", () => { if (STORE.loaded) renderFeatured(); });   // campaign reads land after the catalog
+// campaign reads land after the catalog. Repaint only a grid somebody is
+// looking at: on an app's detail page or Publish the store view is mounted but
+// hidden, and applyView() renders it when it comes back.
+on("enclave:featured", () => { if (STORE.loaded && storeVisible()) renderApps(); });
+// ...and when the tab returns to the foreground, so a promoted card that was
+// rendered into a background tab is metered when it is actually seen.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && STORE.loaded && storeVisible()) renderApps();
+});
 // ratings land after the grid paints (and after a review tx) - repaint the
 // tiles/detail so the stars appear without a navigation
 on("enclave:reviews", (d) => { if (d.type !== "error" && STORE.loaded) renderActiveView(); });
-// (the subscriptions are module-load-once; renderApps/renderFeatured null-guard
+// (the subscriptions are module-load-once; renderApps null-guards
 // their mounts, so they're inert while another page's <main> is mounted)
 
 /* called by the router every time this page's <main> is swapped in */
@@ -1749,7 +1840,7 @@ export function boot() {
   applyView();          // direct entries and soft-navs to apps.html#publish land on the publish view
   renderActiveView();   // grid, or a single app's page when apps?app=<appId>
   loadCatalog();
-  loadCampaigns();      // featured-slot bids (no-op until the contract is in the address book)
+  loadCampaigns();      // featured-group bids (no-op until the contract is in the address book)
   // adopt the fleet's real hardware into the share math before anyone opens
   // quick-deploy - minimum dials divide by these numbers (see core/pricing.js)
   Enclave.getAvailability().catch(() => {});
