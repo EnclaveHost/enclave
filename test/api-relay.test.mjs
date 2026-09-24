@@ -208,7 +208,8 @@ test("api-relay: a resourceless box reads as a relay, and never as capacity", as
   const hostBox = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
     if (req.url === "/availability") return res.end(JSON.stringify({
-      gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+      gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 8, nodeRamGb: 32,
+      teeCpu: "amd-sev-snp" }));   // a host needs hardware evidence to serve; its RAD named the CPU
     res.statusCode = 404; res.end("{}");
   });
   for (const s of [relayBox, hostBox]) { s.listen(0, "127.0.0.1"); await once(s, "listening"); }
@@ -245,8 +246,8 @@ test("api-relay: a resourceless box reads as a relay, and never as capacity", as
 test("api-relay: an enclave that omits its size is a host, not a relay", async (t) => {
   const terse = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability")               // no nodeVcpus, no nodeRamGb
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5 }));
+    if (req.url === "/availability")               // no nodeVcpus, no nodeRamGb (but a confidential CPU: size is unknown, evidence is not)
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, teeCpu: "amd-sev-snp" }));
     res.statusCode = 404; res.end("{}");
   });
   terse.listen(0, "127.0.0.1"); await once(terse, "listening");
@@ -256,6 +257,47 @@ test("api-relay: an enclave that omits its size is a host, not a relay", async (
   const { body } = await getJson(origin, "/enclaves");
   assert.equal(body.enclaves[0].relay, false, "silence is not a claim of emptiness");
   assert.equal(body.enclaves[0].serving, true, "and it keeps taking work");
+});
+
+/* Eligibility for tenant compute is derived from hardware EVIDENCE, never from a
+   box's own description of itself. A dialed box whose attestation document names
+   no confidential CPU (a metal dev launch, format dev-unattested-metal-v1), or an
+   older build that never said, is listed - it answers, it is a fleet member - but
+   it is never in the serving set, never counted as buyable capacity, and its row
+   says why. A box that SAYS claimEnabled:true changes none of that. */
+test("api-relay: a box without confidential evidence is listed but never serving, whatever it claims", async (t) => {
+  const box = (availability) => http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.url === "/availability") return res.end(JSON.stringify(availability));
+    res.statusCode = 404; res.end("{}");
+  });
+  const dev   = box({ gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 4,  nodeRamGb: 16, claimEnabled: true, teeCpu: "dev-unattested-metal-v1" });
+  const old   = box({ gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 6,  nodeRamGb: 24, claimEnabled: true });
+  const vbs   = box({ gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 12, nodeRamGb: 48, claimEnabled: true, fullService: false, teeCpu: "windows-vbs-enclave", tier: "vbs" });
+  const good  = box({ gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 8,  nodeRamGb: 32, claimEnabled: true, teeCpu: "amd-sev-snp" });
+  for (const s of [dev, old, vbs, good]) { s.listen(0, "127.0.0.1"); await once(s, "listening"); }
+  t.after(() => { for (const s of [dev, old, vbs, good]) s.close(); });
+  const origin = await startRelay(t, { enclaves: [dev, old, vbs, good].map((s) => `http://127.0.0.1:${s.address().port}`).join(",") });
+  const { status, body } = await getJson(origin, "/enclaves");
+  assert.equal(status, 200);
+  const rows = Object.fromEntries(body.enclaves.map((r) => [r.availability.nodeVcpus, r]));
+  assert.equal(body.enclaves.length, 4, "every answering box is listed");
+  assert.equal(rows[8].serving, true);  assert.equal(rows[8].eligible, true);  assert.equal(rows[8].ineligible, undefined);
+  for (const [vcpus, why] of [[4, /dev-unattested-metal-v1, not a confidential CPU/], [6, /never named its CPU technology/], [12, /windows-vbs-enclave, not a confidential CPU/]]) {
+    assert.equal(rows[vcpus].serving, false, `${vcpus}-vCPU box must not serve`);
+    assert.equal(rows[vcpus].eligible, false);
+    assert.equal(rows[vcpus].relay, false, "not a relay either: it has resources, it just proved nothing");
+    assert.match(String(rows[vcpus].ineligible), why);
+  }
+  assert.equal(body.aggregate.serving, 1, "one box can take work");
+  assert.equal(body.aggregate.totalCpuShareFree, 0.5, "and only its capacity is buyable");
+  // the fleet aggregate (sizing floors, capabilities, price) is computed over the same set
+  const { body: a } = await getJson(origin, "/availability");
+  assert.equal(a.specNodeVcpus, 8, "the no-evidence boxes never set the fleet's sizing floor");
+  // and a claim hint fans out to nobody but the eligible box
+  const r = await fetch(origin + "/v1/claim-hint", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: "0x" + "ab".repeat(32) }) });
+  const j = await r.json().catch(() => ({}));
+  assert.ok(!Array.isArray(j.results) || j.results.every((x) => !/127\.0\.0\.1:(?!${good.address().port})/.test(String(x.endpoint || ""))), "no hint reached an ineligible box");
 });
 
 // ---------- fleet UP: hosted rows win, ledger fills the gaps -----------------
@@ -615,7 +657,7 @@ test("api-relay: ?enclave= pins /v1/auth/* to that box; sticky otherwise", async
     const s = http.createServer((req, res) => {
       res.setHeader("content-type", "application/json");
       if (req.url === "/availability")
-        return res.end(JSON.stringify({ gpu, cpuShareFree: 0.5, gpuShareFree: gpu ? 0.5 : 0, nodeVcpus: 8, nodeRamGb: 32 }));
+        return res.end(JSON.stringify({ gpu, cpuShareFree: 0.5, gpuShareFree: gpu ? 0.5 : 0, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" }));   // sticky() picks among boxes with hardware evidence
       if (req.url.startsWith("/v1/auth/nonce")) return res.end(JSON.stringify({ nonce: "n", who: label }));
       if (req.url.startsWith("/v1/pricing")) return res.end(JSON.stringify({ who: label }));
       res.statusCode = 404; res.end("{}");

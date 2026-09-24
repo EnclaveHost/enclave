@@ -119,14 +119,14 @@
     <div class="hero-copy">
       <span class="eyebrow">Verifiable compute · API v1</span>
       <h1>Compute that <span class="hl">cannot</span><br>see your&nbsp;data.</h1>
-      <p class="lede">Package an app <b>once</b> and run it on independent hosts. On confidential hardware the host is <b>locked out</b> of your memory and traffic, and the proof reaches your browser before you send a byte. Everywhere else, the protection level is <b>stated on the listing</b>, never assumed. Pay <b>per second</b> from a wallet, whether you are a person or an agent.</p>
+      <p class="lede">Package an app <b>once</b>. It runs in a hardware-isolated domain that the machine's ordinary operating system <b>cannot see into</b>, its identity measured and its keys and traffic bound to that measurement, and you verify all of it before you send a byte. On confidential hardware the machine's <b>operator</b> is locked out too. Pay <b>per second</b> from a wallet, whether you are a person or an agent.</p>
       <div class="hero-cta">
         <a href="apps" class="btn btn-primary">Deploy an app <span class="arr" aria-hidden="true">→</span></a>
         <a href="develop#architecture" class="btn btn-ghost">How it works</a>
       </div>
       <div class="hero-foot">
-        <span>one app package · many hosts</span>
-        <span>protection level stated per host</span>
+        <span>one app bundle · every backend</span>
+        <span>host OS excluded by hardware</span>
         <span>verify before you connect</span>
         <span>wallet in, wallet out</span>
       </div>
@@ -142,21 +142,21 @@
 <!-- ===================== WHAT YOU GET ===================== -->
 <section id="why" data-view="overview" aria-label="What you get">
   <div class="wrap">
-    <c-section-head eyebrow="What you get" heading="Portable apps. Explicit protection. Verifiable execution. Independent infrastructure.">
-      <p>Four things, in the order a careful buyer asks about them. Each one is a fact you can check rather than a promise you have to take. The Architecture tab under Develop says how far each part has gotten. <a href="develop#architecture">The long version, with mechanisms and status ↗</a></p>
+    <c-section-head eyebrow="What you get" heading="Portable apps. One isolation contract. Verifiable execution. Independent infrastructure.">
+      <p>Enclave is building one way to run an app on hardware you do not control: one app bundle, one domain contract, and one security contract that a host must prove before it can run anything. Confidential hardware adds protection from the machine's operator on top, without changing what your app is. <a href="develop#architecture">The architecture, in full ↗</a></p>
     </c-section-head>
     <div class="cards">
       <div class="card jade">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></div>
-        <span class="tag">one package</span>
+        <span class="tag">one bundle</span>
         <h3>Portable</h3>
-        <p>Build a WebAssembly component once. The same package runs today on the confidential Linux fleet and on a Windows host, and a versioned execution contract shared by every backend is in development. No per-host builds, no rewrite when the hardware under you changes.</p>
+        <p>Build a WebAssembly component once. The architecture is one portable app bundle and one versioned domain contract, the same on every backend, so the host's operating system is an implementation detail and never a rewrite. Today that bundle runs on the confidential fleet; the shared domain contract is being brought under every backend.</p>
       </div>
       <div class="card iris">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M8 12h8M12 8v8"/></svg></div>
-        <span class="tag">stated, not assumed</span>
-        <h3>Explicit protection</h3>
-        <p>Every host listing says what it protects against: the machine's owner, other apps, or only other apps. Confidential hardware locks the host out and proves it. A partitioned host keeps apps apart and says the owner can still see in. You choose, knowing. <a href="#protection">The levels →</a></p>
+        <span class="tag">hardware-isolated</span>
+        <h3>Isolated by contract</h3>
+        <p>The security contract is independent of the operating system: each app in its own hardware-isolated domain, the machine's ordinary operating system excluded by a smaller measured trusted layer, identity measured, keys and traffic bound to it, verification that fails closed, cleanup that leaves nothing behind. We are building equivalent implementations on supported Windows and Linux hosts, and a host must prove the contract before it is listed. <a href="#protection">The contract →</a></p>
       </div>
       <div class="card jade">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></div>
@@ -193,7 +193,7 @@
       <div class="card jade">
         <span class="tag">hosts</span>
         <h3>Sell your hardware</h3>
-        <p>Register a machine you own, claim funded work, and be paid on chain for every lease you serve. Confidential hardware earns the strongest tier; other machines are listed at exactly the level they can prove. <a href="host">Host an enclave →</a></p>
+        <p>Register a machine you own, claim funded work, and be paid on chain for every lease you serve. A host must prove the isolation contract with verified evidence when it attaches, and confidential hardware is what proves it today. <a href="host">Host an enclave →</a></p>
       </div>
       <div class="card amber">
         <span class="tag">agents</span>
@@ -213,34 +213,29 @@
   </div>
 </section>
 
-<!-- ===================== PROTECTION LEVELS ===================== -->
-<section id="protection" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="Protection levels">
+<!-- ===================== THE CONTRACT ===================== -->
+<section id="protection" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="The isolation contract">
   <div class="wrap">
-    <c-section-head eyebrow="Protection levels" heading="What each host protects you from, in plain words.">
-      <p>Two questions hide inside "is it isolated": <b>from other apps</b>, and <b>from the machine's owner</b>. Hosts answer them differently, so each listing carries its answer as a badge. These are the levels that exist today and the one that is planned.</p>
+    <c-section-head eyebrow="The contract" heading="One isolation contract. Confidential hardware adds to it.">
+      <p>A protection level here is a set of guarantees a host proves with evidence, never a name for an operating system. The base contract is the same on every backend. Confidential hardware layers protection from the machine's operator on top of it, without changing what your app is or how it is verified.</p>
     </c-section-head>
 
     <div class="cards iso-cards lvl-cards">
-      <div class="card jade">
-        <span class="tag">confidential · available</span>
-        <h3>The host cannot see in</h3>
-        <p>The machine's operating system and its operator are locked out of the app's memory and traffic, and the processor signs a report you verify before connecting. Where a GPU is inside the boundary, it attests too. This is the hosted fleet and every self-hosted confidential server. Between apps on one such host, separation is a sandbox and a process today; moving it into hardware is in research.</p>
-      </div>
       <div class="card iris">
-        <span class="tag">partitioned · available on one host</span>
-        <h3>Apps kept apart; the owner can see in</h3>
-        <p>A Windows PC runs apps inside an enclave its own operating system cannot read, but the person who holds the machine ultimately controls it: no memory encryption, traffic carried by the host side, a test-signed build. Its listing says exactly that, it is marked as a development tier, and a deployment lands there only if you choose it.</p>
+        <span class="tag">the isolation contract</span>
+        <h3>The host's operating system cannot see in</h3>
+        <p>Every app runs in its own hardware-isolated domain. The machine's ordinary operating system is excluded from that domain by a smaller, measured trusted layer that the hardware's virtualization enforces. The app's identity is measured, its attestation names exactly that identity, its keys and traffic are bound to it, verification fails closed, and a domain that ends leaves nothing behind. We are building equivalent implementations of this contract on supported Windows and Linux hosts, to one set of acceptance tests, and no host is listed at this level until it proves every property.</p>
       </div>
-      <div class="card">
-        <span class="tag">plain · planned</span>
-        <h3>Apps kept apart; no other claim</h3>
-        <p>An ordinary Linux server without a confidential CPU would give each app its own virtual machine and nothing more: the host can read everything, and the listing would say "no TEE CPU". No such host is listed today, and none will be listed without that label.</p>
+      <div class="card jade">
+        <span class="tag">confidential hardware</span>
+        <h3>The machine's operator cannot see in either</h3>
+        <p>On a confidential processor the same contract gains memory that is encrypted and integrity-protected against the whole machine, operator included, and a report signed by the processor and chained to the silicon vendor that you verify before connecting; TLS terminates inside. This is what every host listed today proves. Between apps on one such host, separation is a sandbox and a process while per-app hardware domains are brought to this backend.</p>
       </div>
     </div>
 
     <div class="iso-honest">
       <h4>What we do <u>not</u> claim</h4>
-      <p>No host here is described as unable to see your data unless a confidential processor enforces it and attests it. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. On a shared confidential host, other tenants are kept out by the sandbox and the operating system, not by a hardware partition. Per-app hardware isolation, one confidential guest per app, has been demonstrated and rechecked in the lab; it is not shipped, and the denser one-plane-per-app shape is still being built. <a href="develop#protection">Every level, with its mechanism and its evidence →</a></p>
+      <p>Nothing here is described as unable to see your data unless hardware enforces it and a verified report says so. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. A machine that meets part of the contract, a test-signed trusted layer, a key or traffic path that still runs through the host, a report signed by software the host controls, is evidence of work in progress, not a level for sale, and it is not listed as available. There is no lower level: ordinary virtualization with the host operating system in charge is a lab baseline, never something we build, list, route work to, or sell. <a href="develop#contract">The contract, property by property →</a></p>
     </div>
   </div>
 </section>
@@ -304,34 +299,8 @@
         </tbody>
       </table>
       </div>
-      <p class="mig-note">Example points on a continuous scale, not a fixed menu: the dials move in whole-percent steps. A <b>Full GPU</b> deployment (100%) is the option when you want no co-tenants on the card at all; it is the only configuration where isolation from other tenants is also hardware-enforced. On a shared card, tenants are isolated from each other at the sandbox-and-process level, and on a confidential host they are always isolated from the operator by the processor. <a href="develop#protection">How, exactly →</a></p>
+      <p class="mig-note">Example points on a continuous scale, not a fixed menu: the dials move in whole-percent steps. A <b>Full GPU</b> deployment (100%) is the option when you want no co-tenants on the card at all; it is the only configuration where isolation from other tenants is also hardware-enforced. On a shared card, tenants are isolated from each other at the sandbox-and-process level, and on a confidential host they are always isolated from the operator by the processor. <a href="develop#contract">How, exactly →</a></p>
     </div>
-  </div>
-</section>
-<!-- ===================== STATUS ===================== -->
-<section id="status" data-view="overview" aria-label="Status">
-  <div class="wrap">
-    <c-section-head eyebrow="Status" heading="Available, experimental, planned. Labeled that way everywhere.">
-      <p>Three words, used the same way on every page: <b>available</b> means a deployment can have it now; <b>experimental</b> means built and measured on a lab machine or one box; <b>planned</b> means designed or intended and not yet run. The short list is here; the Architecture tab under Develop has the full board and evidence.</p>
-    </c-section-head>
-    <div class="cards status-cards">
-      <div class="card jade">
-        <span class="tag">available</span>
-        <h3>In use today</h3>
-        <p>Wasm apps on confidential Linux hosts · GPU inference inside the confidential VM, on GPU hosts · browser-side verification of the whole chain · on-chain catalog, ledger and publisher fees · custom domains with in-enclave certificates · encrypted volumes, secrets, WAF · TCP, UDP and dedicated IPv6 · self-hosted confidential servers · one Windows host, labeled as a development tier. Which hosts are attached right now is a live panel, not a promise: <a href="develop#fleet">see what is serving</a>.</p>
-      </div>
-      <div class="card amber">
-        <span class="tag">experimental</span>
-        <h3>Built, measured, not yet yours to pick</h3>
-        <p>A domain contract shared by every backend · per-app hardware isolation inside the confidential VM, one guest per app, demonstrated in the lab and independently rechecked · a Hyper-V partition per app on Windows · shielded inference on GPUs the enclave does not trust, run on one self-hosted server · permissionless host attach behind a published allowlist.</p>
-      </div>
-      <div class="card">
-        <span class="tag">planned</span>
-        <h3>Designed, not run</h3>
-        <p>Ordinary Linux hosts with one VM per app and no confidentiality claim · one hardware plane per app for density · host exclusion on Windows · publisher-owned signatures, local trust policy, mirrors and peer transports, interchangeable coordinators, independent recovery of secrets and state.</p>
-      </div>
-    </div>
-    <p class="mig-note" style="max-width:none;margin-top:18px;"><a href="develop#status">The full status board, with what each item rests on →</a></p>
   </div>
 </section>
 <!-- ===================== ABOUT ===================== -->

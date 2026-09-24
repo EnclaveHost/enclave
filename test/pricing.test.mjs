@@ -112,7 +112,10 @@ test("shareRates reads the adopted hardware, not constants", () => {
 
 /* ---- per-enclave targeting (the quick-deploy modal's "deploys to X" pick) ---- */
 
-const row = (name, a, extra) => ({ name, endpoint: "https://" + name + ".example", availability: a, ...(extra || {}) });
+// Hardware evidence is the fixture default (a dialed box whose RAD named a confidential CPU):
+// eligibility for tenant compute is derived from it (computeEligibleOf), so a row without it is
+// not a target at all. A test ABOUT missing evidence sets teeCpu: null explicitly.
+const row = (name, a, extra) => ({ name, endpoint: "https://" + name + ".example", availability: { teeCpu: "amd-sev-snp", ...a }, ...(extra || {}) });
 const GPU_BOX = { gpu: true, claimEnabled: true, ...H200, gpuShareFree: 0.4, cpuShareFree: 0.79 };
 const CPU_BOX = { gpu: false, claimEnabled: true, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, gpuShareFree: 0, cpuShareFree: 0.9 };
 const MC = { vramMb: 0, gpuGflops: 0, memMb: 512, cpuGflops: 10 };   // minecraft-shaped CPU app
@@ -151,10 +154,14 @@ test("pickEnclaveFor: only CLAIMING enclaves count (the relay's serving rule)", 
   // one that SAYS it claims (a Phase C seller) is a real target
   const demo = row("metal0", { gpu: false, nodeVcpus: 4, nodeRamGb: 3, nodeGflops: 250, cpuShareFree: 1 }, { tunnel: true });
   assert.ok(pickEnclaveFor(MC, [demo]).none, "a non-claiming tunnel box serves nobody");
-  const seller = row("seller0", { gpu: false, claimEnabled: true, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cpuShareFree: 0.5 }, { tunnel: true });
+  // ...and a seller is a target only on hardware EVIDENCE: the hub's verified attach mode
+  const seller = row("seller0", { gpu: false, claimEnabled: true, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cpuShareFree: 0.5 }, { tunnel: true, mode: "snp" });
   assert.equal(pickEnclaveFor(MC, [demo, seller]).name, "seller0");
-  const hosted = row("cpu1", { gpu: false, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cpuShareFree: 0.5 });
-  assert.equal(pickEnclaveFor(MC, [hosted]).name, "cpu1", "hosted boxes predate the flag and are grandfathered");
+  const unproven = row("seller1", { gpu: false, claimEnabled: true, teeCpu: "amd-sev-snp", nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cpuShareFree: 0.5 }, { tunnel: true, mode: "" });
+  assert.ok(pickEnclaveFor(MC, [demo, unproven]).none, "a token-attached tunnel that SAYS snp is not a target");
+  const hosted = row("cpu1", { gpu: false, teeCpu: "amd-sev-snp", nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cpuShareFree: 0.5 });
+  assert.equal(pickEnclaveFor(MC, [hosted]).name, "cpu1", "hosted boxes predate the claimEnabled flag and are grandfathered on it, but still need their RAD's technology");
+  assert.ok(pickEnclaveFor(MC, [row("cpu0", { gpu: false, teeCpu: null, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cpuShareFree: 0.5 })]).none, "a build that never named its CPU technology is not a target");
 });
 
 test("rankEnclavesFor: the dropdown's list — every host, recommended first, full ones queued at the tail", () => {
@@ -181,7 +188,7 @@ const LLM = { vramMb: 0, gpuGflops: 0, memMb: 512, cpuGflops: 10, volumes: ["qwe
 
 test("rankEnclavesFor: only boxes carrying the requested volume are targets", () => {
   const metal = row("metal0", { gpu: false, claimEnabled: true, nodeVcpus: 4, nodeRamGb: 28, nodeGflops: 250, cpuShareFree: 1,
-    ...vol("qwen3.6-27b-gguf", "qwen2.5-0.5b-gguf") }, { tunnel: true });
+    ...vol("qwen3.6-27b-gguf", "qwen2.5-0.5b-gguf") }, { tunnel: true, mode: "snp" });
   const kryptos = row("kryptos", { ...GPU_BOX, ...vol("qwen2.5-0.5b-gguf") });
   const ranked = rankEnclavesFor(LLM, [kryptos, metal, row("big", CPU_BOX)]);
   assert.deepEqual(ranked.map((c) => c.name), ["metal0"],
@@ -202,7 +209,7 @@ test("pickEnclaveFor: when the volume's box can't run the app, blame the box tha
   // carries. "no live enclave's hardware is big enough" points the reader at
   // kryptos, which is big enough and simply hasn't got the model.
   const metal = row("metal0", { gpu: false, claimEnabled: true, nodeVcpus: 4, nodeRamGb: 28, nodeGflops: 250, cpuShareFree: 1,
-    ...vol("qwen3.6-27b-gguf") }, { tunnel: true });
+    ...vol("qwen3.6-27b-gguf") }, { tunnel: true, mode: "snp" });
   const t = pickEnclaveFor({ ...IMAGE_GEN, volumes: ["qwen3.6-27b-gguf"] }, [row("kryptos", GPU_BOX), metal]);
   assert.ok(t.none && /metal0/.test(t.none) && /GPU/.test(t.none), t.none);
   // a CPU app too big for the carrier reads as a size problem ON THAT BOX
@@ -674,8 +681,10 @@ test("TEE CPU is badged from evidence, never from the box having no card", () =>
   t = teeCpuOf({ tunnel: true, mode: "vbs", tier: "vbs", availability: { gpu: true } });
   assert.equal(t.real, true); assert.equal(t.technology, "windows-vbs-enclave"); assert.equal(t.source, "relay");
   assert.equal(t.consumer, true); assert.match(t.note, /owner/); assert.equal(t.tier, "vbs"); assert.equal(t.dev, null);
+  // a tunnel's own teeCpu is never the source: the hub's verified mode is (its tier still fills in
+  // when the relay recorded none)
   t = teeCpuOf({ tunnel: true, mode: "vbs", availability: { gpu: true, teeCpu: "windows-vbs-enclave", tier: "vbs-dev" } });
-  assert.equal(t.real, true); assert.equal(t.consumer, true); assert.equal(t.source, "attestation"); assert.equal(t.tier, "vbs-dev"); assert.match(t.dev, /development/);
+  assert.equal(t.real, true); assert.equal(t.consumer, true); assert.equal(t.source, "relay"); assert.equal(t.tier, "vbs-dev"); assert.match(t.dev, /development/);
   // a node that claims a better tier than the relay verified is held to the relay's verdict
   t = teeCpuOf({ tunnel: true, mode: "vbs", tier: "vbs-dev", availability: { gpu: true, teeCpu: "windows-vbs-enclave", tier: "vbs" } });
   assert.equal(t.tier, "vbs-dev"); assert.match(t.dev, /development/);

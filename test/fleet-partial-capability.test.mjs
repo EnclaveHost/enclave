@@ -119,7 +119,7 @@ const FLEET_FLAGS = ["waf", "configOverride", "configEdit", "shareResize", "gpuO
 // the fleet's quoted floor must come from the box that can actually honour a
 // full deployment, even when a cheaper box is live.
 const FULL = {
-  gpu: false, type: "cpu", claimEnabled: true,
+  gpu: false, type: "cpu", claimEnabled: true, teeCpu: "amd-sev-snp",   // hardware evidence: a host serves only on it
   cpuShareFree: 0.25, maxShare: 0.25,
   nodeVcpus: 8, nodeRamGb: 32, nodeGflops: 500,
   askCpuPricePerSec6: 834,
@@ -132,9 +132,13 @@ const FULL = {
 // nodeGflops is deliberately LOWER than the full-service box's: that is the
 // axis on which it would collapse the fleet's sizing floor if it were counted
 // (vCPU and RAM it happens to win on, so those two cannot prove the rule).
+// A partial box is still a CONFIDENTIAL box: partial capability is about which features it
+// implements, never about its evidence. A box with weaker evidence (an enclave report whose
+// app-zone key and traffic still run through the host) is not a partial seller, it is not a seller
+// at all - see the last test.
 const PARTIAL = {
   fullService: false,
-  gpu: false, type: "cpu", claimEnabled: true,
+  gpu: false, type: "cpu", claimEnabled: true, teeCpu: "amd-sev-snp",
   cpuShareFree: 0.5, maxShare: 0.5,
   nodeVcpus: 16, nodeRamGb: 112, nodeGflops: 180,
   askCpuPricePerSec6: 120,
@@ -257,4 +261,27 @@ test("configMaxBytes: a box that publishes no ceiling does not cap the fleet at 
   assert.equal(a.cheapestCpuPricePerSec6, 400, "cheapest of two full-service boxes is still the cheaper one");
   assert.equal(a.specNodeVcpus, 8, "and the sizing floor is still the fleet minimum");
   assert.equal(a.specNodeRamGb, 32);
+});
+
+// ---------- 4. partial capability is not weaker evidence ----------------------
+// The isolation contract a box is sold under is proven by hardware evidence, and
+// `fullService: false` says nothing about that. A consumer machine that presents a
+// verified VBS enclave report but whose app-zone TLS key and traffic still run
+// through its host OS does not meet the contract: it is listed as attached, it
+// is not serving, it is not buyable capacity, and it does not fall back to being
+// "the fleet" when it is the only box up. Eligibility is derived from evidence,
+// never from OS identity, a self-reported tier or the claimEnabled flag.
+test("a partial box without confidential evidence is attached, not serving, and never the fleet's fallback", async (t) => {
+  const EVIDENCE_ONLY = { ...PARTIAL, teeCpu: "windows-vbs-enclave", tier: "vbs", claimEnabled: true };
+  const origin = await startRelay(t, [await fakeBox(t, EVIDENCE_ONLY)]);
+  const { body: list } = await getJson(origin, "/enclaves");
+  assert.equal(list.enclaves.length, 1, "it is attached and listed");
+  assert.equal(list.enclaves[0].serving, false, "but it takes no tenant work");
+  assert.equal(list.enclaves[0].eligible, false);
+  assert.match(String(list.enclaves[0].ineligible), /windows-vbs-enclave, not a confidential CPU/);
+  assert.equal(list.aggregate.serving, 0);
+  assert.equal(list.aggregate.totalCpuShareFree, 0, "none of its capacity is buyable");
+  const { body: a } = await getJson(origin, "/availability");
+  assert.ok(!(a.specNodeVcpus > 0), "the honest-fallback branch never elects an unproven box as the fleet");
+  assert.ok(!(a.cpuShareFree > 0), "and offers none of its capacity");
 });

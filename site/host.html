@@ -39,7 +39,7 @@
 <section id="host" data-view="host" aria-label="Host an enclave">
   <div class="wrap">
     <c-section-head eyebrow="Host an enclave" heading="Your hardware belongs on this list.">
-      <p>Enclave is a market for compute where the buyer can check what they are getting. A machine that proves it is confidential hardware sells the strongest tier. A machine that can prove less is listed at the level it can prove, with its price beside it. Either way the ledger pays your wallet for every lease you serve, and nobody holds your earnings on your behalf.</p>
+      <p>Enclave is a market for compute where the buyer can check what they are getting. A machine is listed at the protection level it proves, with its price beside it, and today only confidential hardware proves one. Either way the ledger pays your wallet for every lease you serve, and nobody holds your earnings on your behalf.</p>
     </c-section-head>
 
     <div class="hostdoc">
@@ -53,12 +53,12 @@
       <p>Every box below is attached right now, with the capacity it has left and the badges that say what it proved. Yours would appear here once it registers.</p>
       <div class="host-fleet"><c-fleet-list></c-fleet-list></div>
 
-      <h2>Two kinds of host</h2>
+      <h2>What can be listed</h2>
       <ul class="hostdoc-list">
-        <li><b>A confidential server</b>: Linux, a CPU with a hardware TEE, virtualisation available to the OS, optionally a GPU in confidential-computing mode. Tenants' memory is encrypted against your operating system and their TLS terminates inside the VM; the listing shows a jade <i>tee cpu</i> badge and the box sells the full service. This is the path the rest of this page describes.</li>
-        <li><b>A Windows PC</b>: a consumer machine whose apps run inside a virtualization-based enclave the host OS cannot read. The owner still controls the machine, there is no memory encryption, and app traffic is carried by the host side, so the listing says so in words and the tier reads <i>development</i> until the build is production-signed. One such node is listed today, run by us; the software is in the repository, and a supported install path for other Windows machines is not published yet.</li>
+        <li><b>A confidential server</b>: a CPU with a hardware TEE, virtualisation available to the OS, optionally a GPU in confidential-computing mode. Tenants' memory is encrypted against your operating system and their TLS terminates inside the VM; the listing shows a jade <i>tee cpu</i> badge and the box sells the full service. This is the only level a machine can be listed at today, and the rest of this page describes it.</li>
+        <li><b>A host-excluded enclave</b>: a machine whose apps run inside a smaller, measured trusted layer that its ordinary operating system cannot read, with keys and traffic terminating inside and a verified report. Two backends are being built to that contract. Until one passes the acceptance tests, no machine is listed at this level; a machine that meets part of the contract is attached as implementation evidence and takes no tenant work.</li>
       </ul>
-      <p>A machine with neither runs the stack in dev mode for your own use but is not listed for sale. Admission of a new box goes through a published allowlist of measurements while the permissionless attach path matures; the code for anonymous sellers exists and is switched on when that allowlist is curated. <a href="develop#protection">What each level protects against, exactly →</a></p>
+      <p>A machine that proves neither is not a host: it can run the stack in dev mode for your own use, but it is not listed and is never routed tenant work. Eligibility is derived from verified evidence at attach, never from what a machine says about itself or what operating system it runs. Admission of a new confidential box goes through a published allowlist of measurements while the permissionless attach path matures; the code for anonymous sellers exists and is switched on when that allowlist is curated. <a href="develop#contract">What each level guarantees, exactly →</a></p>
 
       <h2>What a confidential server needs</h2>
       <ul class="hostdoc-list">
@@ -94,7 +94,7 @@ enclave host status             <span class="c"># gas left, serving or not, earn
       <h2>What tenants get, and what you can see</h2>
       <p>Apps that land on a confidential server run inside the confidential VM, and the memory of that VM is encrypted by the processor against your operating system and every process on it, root included. You host the work without being able to read it. Their TLS terminates inside the enclave too, so traffic passes through your machine as ciphertext.</p>
       <p>That cuts both ways, and it is the point: buyers do not have to trust you, so they do not have to know who you are. What they check is the attestation your box produces, against the measurement of a published release.</p>
-      <p>One limit is stated to buyers rather than hidden from them: the processor defends memory against software, not against someone with physical access and lab equipment on the memory bus, and a seller does have physical access to their own machine. Buyers who need to exclude that adversary see who runs each host and choose accordingly. <a href="develop#protection">The limit, in the architecture notes →</a></p>
+      <p>One limit is stated to buyers rather than hidden from them: the processor defends memory against software, not against someone with physical access and lab equipment on the memory bus, and a seller does have physical access to their own machine. Buyers who need to exclude that adversary see who runs each host and choose accordingly. <a href="develop#contract">The limit, in the architecture notes →</a></p>
 
       <h2>Read the details</h2>
       <p>The full protocol, the trust argument and the operator notes live with the code:</p>
