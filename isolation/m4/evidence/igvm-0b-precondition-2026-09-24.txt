@@ -1,0 +1,44 @@
+Step 0b, THE PRE-CHANGE NEGATIVE: a verifying firmware inside today's IGVM refuses, and says why
+warden-host, 2026-09-24. Recorded BEFORE changing anything, so the change has something to invert.
+
+THE PREDICTION (from the independent review, read out of the kit's own code rather than run): igvmbuilder maps
+the OVMF SEV_META_DESC_TYPE_KERNEL_HASHES descriptor to a PRE-VALIDATED region, and the SVSM validates and
+ZEROES every pre-validated region when it launches the firmware. So an AmdSevX64 firmware inside the IGVM would
+find a zeroed hashes table, refuse, and boot no guest.
+
+THE RUN
+  IGVM      ~/enclave-bench/m4b-amdsev.igvm, digest
+            8EDCF64036A256BAD53EA4958F67C81D5CE89C4A8F5AE6C9B0D9C6A87242DCC8B8E3F7E95101884302543C79EA6B134E
+            built with FW_FILE=OVMF.amdsev.debug.fd (sha256 50c063542f9886f8b3ec67ebe698ae1d617b7691bef89bb6eff4a34566930ec2)
+  guest     the M4b admission guest, plane 2, on the planes QEMU
+  result    NO guest output at all - zero ADMIT lines
+
+THE FIRMWARE'S OWN WORDS, from I/O port 0x402 (run-domain.sh FW_DEBUGCON=1):
+
+  VerifyBlob: Verifier called but no hashes table discoverd in MEMFD
+
+That is the point of this fixture. "The guest did not boot" is silence and could mean anything; the verifier
+stating that it was called and found no table is the mechanism reporting itself.
+
+AND THE MECHANISM CONFIRMED FROM THE SVSM'S OWN LOG, not inferred from the symptom:
+
+  [SVSM] Validating 0x000000000080a000-0x0000000000830000
+  [SVSM] Firmware region 1 at [0x0000000000812000-0x00000000008120c0]
+
+Firmware region 1 is 192 bytes at 0x812000 - the SevHashTable area - and it lies INSIDE the range the SVSM
+validates at 0x80a000-0x830000. Validation zeroes, so the table is zeroed before the firmware ever reads it.
+
+WHAT MUST CHANGE, and both halves are needed together (step 2):
+  1. igvmbuilder emits the SevHashTable as MEASURED page data at the KERNEL_HASHES descriptor's base, and stops
+     listing that page as pre-validated.
+  2. the SVSM GRANTS the guest plane access to that page the way it does for the firmware image pages, and never
+     validates-and-zeroes it: a PVALIDATE on an already-launched page fails with FAIL_UNCHANGED, and the zeroing
+     would wipe the table.
+
+The acceptance after the change is the inversion of this file: the guest boots, the digest equals igvmmeasure of
+the launched IGVM, and an initrd that is not the one hashed into the IGVM is refused.
+
+A NOTE ON HOW THIS RUN WENT FIRST. The first attempt produced the same non-boot with an EMPTY debug channel,
+because FW_DEBUGCON existed only in isolation/m2/run-domain.sh and this path uses isolation/m3/run-domain.sh. The
+result would have been "it did not boot", which is exactly the silence this project keeps refusing to accept as
+evidence. The m3 runner now has the option too.

@@ -6,6 +6,12 @@
 #        run-domain.sh stop <tag> <workdir>
 #   snp   : T1, an SEV-SNP guest (host excluded from its memory; reports available to the monitor)
 #   plain : T0, the same image as an ordinary KVM guest (no confidentiality, no reports)
+# FW_DEBUGCON=1 captures the FIRMWARE's own DEBUG() output to <tag>.debugcon. OVMF writes DEBUG() to I/O port
+# 0x402, not to the serial console, unless built with DEBUG_ON_SERIAL_PORT - so without this a DEBUG firmware is
+# as silent as a RELEASE one, and a refusal cannot be told from a guest that never started. The m2 runner has the
+# same option; this one lacked it, which cost a 0b fixture run that produced silence where the verifier's own
+# words were the point.
+#
 # EVIDENCE_SERIAL=1 adds a SECOND serial port, captured to <workdir>/<tag>.evidence, for a guest that must
 # report results a harness will score. The first port carries the SVSM's console AND the guest's console with
 # no flow control between them, so concurrent writers DROP BYTES: an M4b run lost five consecutive result
@@ -71,7 +77,8 @@ start)
     "$QEMU" $MACH -cpu "host${CPUOPT}" -smp "$vcpus" -m "${mem}M" $BIOS \
       -kernel "$KERNEL" -initrd "$(realpath "$img")" -append "$APPEND" \
       -device "vhost-vsock-pci,guest-cid=$cid" \
-      -nodefaults -display none -serial "file:$W/$tag.serial" ${EVIDENCE_SERIAL:+-serial "file:$W/$tag.evidence"} -no-reboot
+      -nodefaults -display none -serial "file:$W/$tag.serial" ${EVIDENCE_SERIAL:+-serial "file:$W/$tag.evidence"} \
+      ${FW_DEBUGCON:+-debugcon "file:$W/$tag.debugcon" -global isa-debugcon.iobase=0x402} -no-reboot
   echo "HOST mode=$mode vcpus=$vcpus memMiB=$mem cpuQuota=${quota}% unit=$unit cid=$cid t0_ms=$t0${IGVM:+ igvm=$IGVM plane=$PLANE}"
   ;;
 stop)
