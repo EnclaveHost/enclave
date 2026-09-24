@@ -70,10 +70,19 @@ is evidence.
 non-zero VMPL, because at VMPL0 nothing is above the guest and under ABI/1 the binding folds in no runtime
 identity. The first run of the fixture was correctly rejected as an unknown format.
 
-**Still not established:** the three-field boundary tuple cannot express HOW `vmpl0=refused` was established.
-This plane's refusal is stronger than the M3 path's configurable floor - there is no key to configure around -
-but the tuple is identical either way, so a verifier still relies on the measurement. And it remains ONE app on
-ONE plane.
+The confinement is established in the KERNEL'S words, not from an errno: `sev-guest` refusing with ENODEV proves
+nothing by itself (`module_platform_driver_probe` returns it whenever nothing binds, including when no device
+exists or the kernel sees no SNP), so planeinit reads `/dev/kmsg` and the acceptance requires
+`Empty VMPCK0 communication key` and `Empty VMPCK2 communication key` verbatim, each naming its own key.
+
+**Still not established:** the boundary tuple was deliberately NOT extended with a VMPCK field, because any field
+the guest writes is a guest claim - a VMPL0 guest could write it as easily as it can set tsm-report's floor.
+Properties of the confining monitor belong to the DIGEST: under the digests pinned here, app planes hold no
+VMPCK, and the kmsg lines are the run evidence for that digest. The format LABEL is unauthenticated too - the
+same document relabelled `sev-snp-guest-domain-v1` still verifies, a weaker claim rather than a wider acceptance.
+The binding property holds because `judge.mjs` RECOMPUTES Bind2 over the handshake key, so
+`doc_key_matches_handshake` is informational and a swapped handshake key is rejected. A `domtls` key rotation
+implies a RECLAIM cycle, since REGISTER_KEY is once per admission. And it remains ONE app on ONE plane.
 
 ## A malformed hash table does not refuse - it disarms verification
 

@@ -264,6 +264,17 @@ export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mo
   // format is refused rather than judged by whichever rules happen to run next.
   //
   //   sev-snp-guest-domain-v1  the domain fetched its own report and composed report_data itself.
+  //
+  //   WHAT THE LABEL IS WORTH: nothing on its own. It is a field in an unauthenticated document, and the same
+  //   report relabelled sev-snp-guest-domain-v1 still verifies - a WEAKER claim, not a wider acceptance. What
+  //   establishes that the SVSM composed report_data is the MEASUREMENT the caller pins, because the digest
+  //   covers the SVSM and the tables it answers from. The same reasoning is why the boundary tuple was NOT
+  //   extended with a "this plane holds no VMPCK" field when that evidence became available: a VMPL0 guest
+  //   could write such a field as easily as it can set tsm-report's floor. Properties of the confining monitor
+  //   belong to the digest, and under the digests this repo pins, app planes hold no VMPCK - see
+  //   isolation/m4/evidence/plane-handshake-binding-2026-09-24.txt for the kernel's own words on that run
+  //   ("Empty VMPCK0/2 communication key"), which is run evidence FOR THAT DIGEST and not a document field.
+  //
   //   sev-snp-svsm-plane-v1    the measured SVSM composed report_data. The domain supplied only a nonce, so
   //                            report_data[0:32] is the SVSM's Bind2 over a key registered at plane start and a
   //                            RuntimeID compiled into the SVSM's measured image, and report_data[32:64] comes
