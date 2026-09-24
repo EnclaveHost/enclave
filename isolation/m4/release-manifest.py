@@ -6,9 +6,15 @@ front, runtime set, modules), the guest kernel, the verifying firmware, the kern
 parameters the SNP launch digest depends on. A verifier holding a release and an app's bundle reconstructs the
 expected measurement without this host's binaries (expected-measurement.sh).
 
-    release-manifest.py write <release dir> --cmdline <s>     writes <dir>/release.json, prints "release <id>"
-    release-manifest.py verify <release dir> [--expect <id>]  prints "release <id> verified <n> files", or refuses
-    release-manifest.py field <release dir> <key>             one value from a VERIFIED manifest
+    release-manifest.py write <release dir> --cmdline <s>          writes <dir>/release.json, prints "release <id>"
+    release-manifest.py verify <release dir> [--expect <id>]       prints "release <id> verified <n> files"
+    release-manifest.py field <release dir> <key> [--expect <id>]  one value from a VERIFIED manifest
+
+The arguments are parsed STRICTLY: anything but exactly these forms, and a pin that is not 64 lowercase hex, is a
+usage error (exit 2). An earlier version took any fourth argument as "--expect" was meant, so a typo such as
+--expct silently verified WITHOUT the pin. Verifying without a pin checks only that the release agrees with
+itself - self-consistency, which a rewritten manifest also has - and never that it is the release a verifier
+trusts. Acceptance needs the pin (expected-measurement.sh requires it).
 
 The release id is sha256 of release.json, and release.json must be CANONICAL (sorted keys, no whitespace): a
 manifest with the same meaning in another byte form is refused, so one release has exactly one id. Verification
@@ -94,22 +100,40 @@ def verify(root, expect=None):
     return rid, m, len(files)
 
 
+def usage(why):
+    print(f"release-manifest.py: {why}\n{__doc__}", file=sys.stderr)
+    return 2
+
+
+def pin_of(rest):
+    """[] -> None, ["--expect", <64 lowercase hex>] -> the pin, anything else -> a usage error."""
+    if not rest:
+        return None
+    if len(rest) == 2 and rest[0] == "--expect" and len(rest[1]) == 64 and all(c in "0123456789abcdef" for c in rest[1]):
+        return rest[1]
+    raise ValueError("expected nothing or --expect <64 lowercase hex release id>, got " + " ".join(rest))
+
+
 def main():
     a = sys.argv[1:]
-    if len(a) == 4 and a[0] == "write" and a[2] == "--cmdline":
-        write(a[1], a[3])
-    elif a[:1] == ["verify"] and len(a) in (2, 4):
-        rid, _, n = verify(a[1], a[3] if len(a) == 4 and a[2] == "--expect" else None)
-        print("release", rid, "verified", n, "files")
-    elif len(a) == 3 and a[0] == "field":
-        _, m, _ = verify(a[1])
-        v = m
-        for k in a[2].split("."):
-            v = v[k]
-        print(v)
-    else:
-        print(__doc__, file=sys.stderr)
-        return 2
+    try:
+        if len(a) == 4 and a[0] == "write" and a[2] == "--cmdline":
+            write(a[1], a[3])
+        elif len(a) >= 2 and a[0] == "verify":
+            rid, _, n = verify(a[1], pin_of(a[2:]))
+            print("release", rid, "verified", n, "files")
+        elif len(a) >= 3 and a[0] == "field":
+            _, m, _ = verify(a[1], pin_of(a[3:]))
+            v = m
+            for k in a[2].split("."):
+                v = v[k]
+            print(v)
+        else:
+            return usage("unknown command or arguments")
+    except ValueError as e:
+        return usage(str(e))
+    except KeyError as e:
+        return usage(f"no field {e}")
     return 0
 
 

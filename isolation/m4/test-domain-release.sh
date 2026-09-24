@@ -11,6 +11,12 @@
 #   D4  the vCPU count and the app each move the measurement
 #   D5  a catalog-derived bundle (contract/catalog) is reconstructed too, and a bare component is refused
 #   D6  the measured front does not link the catalog package (the regression that moved every measurement)
+#   D7  acceptance WITHOUT a pin is refused, and inspection output cannot be read as acceptance
+#   D8  a mistyped or malformed pin argument FAILS - it never silently verifies without the pin
+#   D9  one snapshot: the ORIGINAL bundle and release replaced right after the snapshot change nothing - the ID,
+#       the measurement and the runtime identity all come from what was snapshotted and verified
+#   D10 the runtime identity is emitted from the verified snapshot (document and RuntimeID), not as a path back
+#       into the caller's mutable release
 #
 #   usage: test-domain-release.sh <guestd run dir, e.g. ~/enclave-bench/guestd-test-091307> [workdir]
 set -e
@@ -22,6 +28,7 @@ fails=0
 check() { if [ "$2" = ok ]; then echo "PASS $1"; else echo "FAIL $1"; fails=$((fails + 1)); fi; }
 live() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["measurement"])' "$G/$1.vm.json"; }
 em() { "$here/expected-measurement.sh" "$@" 2> "$W/em.err"; }
+acc() { rel=$1; b=$2; v=$3; shift 3; em --pin "${PIN:-$R1}" "$rel" "$b" "$v" "$@"; }
 meas() { sed -n 's/^measurement //p'; }
 
 # D1 ------------------------------------------------------------------------------------------------------------
@@ -36,7 +43,7 @@ check "D1 the release is reproducible from this host's inputs: two creations, on
 # D2 ------------------------------------------------------------------------------------------------------------
 r=ok
 for x in A B; do
-  got=$(em "$W/rel1" "$G/$x.bundle" 1 "$R1" | meas); want=$(live "$x")
+  got=$(acc "$W/rel1" "$G/$x.bundle" 1 | meas); want=$(live "$x")
   echo "   $x reconstructed $(echo "$got" | cut -c1-24)  live $(echo "$want" | cut -c1-24)"
   [ ${#got} = 96 ] && [ "$got" = "$want" ] || r=no
 done
@@ -46,7 +53,8 @@ check "D2 reconstruction from the pinned release equals the LIVE measurement of 
 tamper() {   # tamper <name> <expected refusal> <shell run inside the copy>
   rm -rf "$W/t"; cp -a "$W/rel1" "$W/t"; chmod -R u+w "$W/t"
   (cd "$W/t" && sh -c "$3")
-  if em "$W/t" "$G/A.bundle" 1 "${PIN-$R1}" > /dev/null; then echo "     $1: ACCEPTED"; return 1; fi
+  if [ -n "${INSPECT:-}" ]; then em --inspect "$W/t" "$G/A.bundle" 1 > /dev/null && { echo "     $1: ACCEPTED"; return 1; }
+  elif acc "$W/t" "$G/A.bundle" 1 > /dev/null; then echo "     $1: ACCEPTED"; return 1; fi
   grep -q "$2" "$W/em.err" && { echo "     $1: $(head -1 "$W/em.err")"; return 0; }
   echo "     $1: refused for another reason: $(head -1 "$W/em.err")"; return 1
 }
@@ -62,17 +70,17 @@ for c in \
   n=$((n + 1)); name=${c%%|*}; rest=${c#*|}; want=${rest%%|*}; cmd=${rest#*|}
   tamper "$name" "$want" "$cmd" && ok=$((ok + 1))
 done
-# a consistent release with a firmware that does not verify: refused even WITHOUT a pin
+# a consistent release with a firmware that does not verify: refused even in INSPECTION, where no pin applies
 n=$((n + 1))
-PIN="" tamper "non-verifying firmware, manifest made consistent" "not pinned as verifying" \
+INSPECT=1 tamper "non-verifying firmware, manifest made consistent" "not pinned as verifying" \
   "cp /usr/share/edk2/x64/OVMF.4m.fd firmware.fd && rm release.json && python3 $here/release-manifest.py write . --cmdline 'console=ttyS0 rdinit=/init loglevel=3' > /dev/null" \
   && ok=$((ok + 1))
 [ $ok = $n ] && [ $n -ge 7 ] && r=ok || r=no
 check "D3 every tampering is refused ($ok of $n), the consistent rewrite only by the pinned id" $r
 
 # D4 ------------------------------------------------------------------------------------------------------------
-a1=$(em "$W/rel1" "$G/A.bundle" 1 "$R1" | meas); a2=$(em "$W/rel1" "$G/A.bundle" 2 "$R1" | meas)
-b1=$(em "$W/rel1" "$G/B.bundle" 1 "$R1" | meas)
+a1=$(acc "$W/rel1" "$G/A.bundle" 1 | meas); a2=$(acc "$W/rel1" "$G/A.bundle" 2 | meas)
+b1=$(acc "$W/rel1" "$G/B.bundle" 1 | meas)
 [ ${#a2} = 96 ] && [ "$a1" != "$a2" ] && [ "$a1" != "$b1" ] && r=ok || r=no
 check "D4 the vCPU count and the app each move the measurement" $r
 
@@ -84,10 +92,10 @@ rt=$(node -e 'import("'"$here"'/../contract/runtime.mjs").then(m=>process.stdout
 printf '{"derivation":"enclave-catalog-bundle/1","catalog":{"app":"0x%s","version":3},"cid":"%s","policy":{"cpuPercent":100,"memMiB":512,"vcpus":1},"runtimeId":"%s"}' \
   "$(printf 'ab%.0s' $(seq 32))" "$cid" "$rt" > "$W/derive.json"
 python3 "$here/../contract/catalog/derive_reference.py" bundle "$W/derive.json" "$W/A.component" "$W/A.derived.bundle" > "$W/derive.out"
-d1=$(em "$W/rel1" "$W/A.derived.bundle" 1 "$R1" | meas)
+d1=$(acc "$W/rel1" "$W/A.derived.bundle" 1 | meas)
 r=ok
 [ ${#d1} = 96 ] && [ "$d1" != "$a1" ] || r=no
-em "$W/rel1" "$W/A.component" 1 "$R1" > /dev/null && r=no
+acc "$W/rel1" "$W/A.component" 1 > /dev/null && r=no
 echo "   catalog-derived A: $(echo "$d1" | cut -c1-24) (AppID $(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["appId"][:16])' "$W/derive.out")...)"
 check "D5 a catalog-derived bundle is reconstructed (its own measurement), and a bare component is refused" $r
 
@@ -95,6 +103,50 @@ check "D5 a catalog-derived bundle is reconstructed (its own measurement), and a
 (cd "$here/../m2" && go list -deps ./front) > "$W/front-deps.txt"
 grep -q "isolation/contract$" "$W/front-deps.txt" && ! grep -q "contract/catalog" "$W/front-deps.txt" && r=ok || r=no
 check "D6 the measured front links the contract but NOT the catalog package" $r
+
+# D7 ------------------------------------------------------------------------------------------------------------
+r=ok
+em "$W/rel1" "$G/A.bundle" 1 > /dev/null && r=no                      # the old positional form, no pin
+grep -q "acceptance needs an explicit pinned release id" "$W/em.err" || r=no
+em --inspect "$W/rel1" "$G/A.bundle" 1 > "$W/inspect.out" || r=no
+grep -q "^measurement \|^app_id \|^release " "$W/inspect.out" && r=no         # no acceptance-shaped line at all
+[ "$(grep -c '^INSPECTION-ONLY ' "$W/inspect.out")" = 4 ] || r=no
+grep -q "^INSPECTION-ONLY unpinned_measurement $(live A)$" "$W/inspect.out" || r=no
+check "D7 acceptance without a pin is REFUSED; inspection is labelled on every line and has no acceptance-shaped line" $r
+
+# D8 ------------------------------------------------------------------------------------------------------------
+M="python3 $here/release-manifest.py"
+r=ok; n=0
+for args in "--expct $R1" "--expect $(echo "$R1" | tr a-f A-F)" "--expect ${R1%?}" "--expect" "extra" "--expect $R1 extra"; do
+  n=$((n + 1))
+  # shellcheck disable=SC2086
+  rc=0; $M verify "$W/rel1" $args > /dev/null 2> "$W/m.err" || rc=$?
+  [ $rc = 2 ] || { echo "     verify $args: rc=$rc"; r=no; }
+done
+em --pin "${R1%?}" "$W/rel1" "$G/A.bundle" 1 > /dev/null && r=no
+em --pin "$R1" "$W/rel1" "$G/A.bundle" 1 --runtime-oot x > /dev/null && r=no
+check "D8 every mistyped or malformed pin argument fails with a usage error ($n manifest forms, 2 tool forms)" $r
+
+# D9 + D10 ------------------------------------------------------------------------------------------------------
+rm -rf "$W/orig"; cp -a "$W/rel1" "$W/orig"; chmod -R u+w "$W/orig"; cp "$G/A.bundle" "$W/orig.bundle"
+before=$(cat "$W/orig/template/rt/runtime.json")
+want_rid=$(node -e 'import("'"$here"'/../contract/runtime.mjs").then(m=>process.stdout.write(m.runtimeId(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))).toString("hex")))' "$W/orig/template/rt/runtime.json")
+# right after the snapshot: swap the ORIGINAL bundle for B, and rewrite the ORIGINAL release's runtime identity
+EM_TEST_AFTER_SNAPSHOT="cp '$G/B.bundle' '$W/orig.bundle'; sed -i 's/48.0.1/99.9.9/' '$W/orig/template/rt/runtime.json'" \
+  acc "$W/orig" "$W/orig.bundle" 1 --runtime-out "$W/rt.out.json" > "$W/snap.out"
+idA=$("$here/.bundle" id "$G/A.bundle")
+r=ok
+grep -q "^app_id $idA$" "$W/snap.out" || r=no
+grep -q "^measurement $(live A)$" "$W/snap.out" || r=no
+cmp -s "$W/orig.bundle" "$G/B.bundle" || r=no                           # the hook really did swap the original
+grep -q 99.9.9 "$W/orig/template/rt/runtime.json" || r=no               # ... and really did rewrite it
+check "D9 the originals changed right after the snapshot change nothing: A's ID and A's LIVE measurement" $r
+r=ok
+grep -q "^runtime_id $want_rid$" "$W/snap.out" || r=no
+[ "$(sed -n 's/^runtime_identity_json //p' "$W/snap.out")" = "$(echo "$before" | tr -d '\n')" ] || r=no
+[ "$(cat "$W/rt.out.json")" = "$before" ] || r=no
+grep -q "$W/orig" "$W/snap.out" && r=no                                  # no path back into the mutable release
+check "D10 the runtime identity is emitted from the verified snapshot, not from the release rewritten after it" $r
 
 echo
 echo "domain-release: $([ $fails -eq 0 ] && echo "all checks passed" || echo "$fails check(s) not passed")  (workdir $W)"

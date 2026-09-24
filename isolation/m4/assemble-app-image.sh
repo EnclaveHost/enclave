@@ -17,14 +17,17 @@ done
 BUNDLETOOL=${BUNDLETOOL:-$here/.bundle}
 [ -x "$BUNDLETOOL" ] || (cd "$here/../contract" && CGO_ENABLED=0 go build -trimpath -buildvcs=false \
   -ldflags='-s -w -buildid=' -o "$BUNDLETOOL" ./cmd/bundle)
-app_id=$("$BUNDLETOOL" id "$bundle")
+d=$(mktemp -d); s=$(mktemp -d)
+trap 'rm -rf "$d" "$s"' EXIT
+# ONE read of the bundle: the AppID, the extracted component and the copy in the image all come from this private
+# snapshot, so a bundle file replaced while this runs cannot give the image one app's ID and another's bytes.
+cp "$bundle" "$s/app.bundle"
+app_id=$("$BUNDLETOOL" id "$s/app.bundle")
 [ ${#app_id} = 64 ] || { echo "not a contract bundle: $bundle" >&2; exit 1; }
-d=$(mktemp -d)
-trap 'rm -rf "$d"' EXIT
 cp -a "$t/." "$d/"
 # the artifact is what the runtime executes; the bundle is what the identity is taken over. Both measured.
-"$BUNDLETOOL" extract "$bundle" "$d/app.wasm"
-cp "$bundle" "$d/app.bundle"
+"$BUNDLETOOL" extract "$s/app.bundle" "$d/app.wasm"
+cp "$s/app.bundle" "$d/app.bundle"
 printf '%s\n' "$app_id" > "$d/app.sha256"
 # modes, ownership and times normalised, so the measurement depends on contents alone (pack-initrd.sh)
 "$here/pack-initrd.sh" "$d" "$out"
