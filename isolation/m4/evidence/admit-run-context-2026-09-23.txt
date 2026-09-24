@@ -40,3 +40,14 @@ A verifier demanding hardware app-vs-app isolation must accept dedicated planes 
 ever name this plane as ONE admitted app; it does NOT mean only that app's code runs here. The plane's kernel
 is unmeasured and could run anything. This report establishes the naming authority's word about the admitted
 bytes, the level and the freeze - nothing about what executed.
+
+ON THE 91-BYTE HEX IN admit-good-*.txt (ADMIT key_registered=...): it is a PUBLIC key slot and not a secret,
+and in this run not even a real key. It is the deterministic stand-in generated at isolation/m4/guest/
+admitinit.c:244 as (i*11+5)&0xff for i in 0..91, standing in for a domain's transport-key SPKI - which is
+public by definition, being the thing a verifier compares against its own TLS handshake. It is recorded in
+full because recomputing Bind2 over it is how the binding is checked:
+
+  bind2(spki, nonce, runtime_id) == report_data[0:32]
+
+A secret scanner flags it as a generic high-entropy string. That is a false positive; the proof is one line of
+source above, and the check is repeatable with isolation/contract/runtime.mjs.
