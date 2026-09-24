@@ -40,8 +40,8 @@ M=/lib/modules/$GUEST_KREL/kernel
 cp "$M/drivers/virt/coco/guest/tsm_report.ko.zst" "$M/drivers/virt/coco/sev-guest/sev-guest.ko.zst" "$d/"
 mkdir -p "$d/sys/kernel/config"
 
-find "$d" -exec touch -h -d @0 {} +
-(cd "$d" && find . -mindepth 1 | LC_ALL=C sort | cpio -o -H newc --reproducible 2>/dev/null | gzip -n -9) > "$out"
+# modes, ownership and times normalised, so the measurement depends on contents alone (pack-initrd.sh)
+"$here/pack-initrd.sh" "$d" "$out"
 
 # What the SVSM must have been built to expect, so a mismatch is a build error and not a mystery at runtime.
 BUNDLETOOL=${BUNDLETOOL:-$here/.bundle}
