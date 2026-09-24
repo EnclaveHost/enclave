@@ -13,8 +13,15 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG = path.join(HERE, "pkg.mjs");
-const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-5.json");        // the latest; older ones are kept below as refusals
+const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-6.json");        // the latest; older ones are kept below as refusals
 const V4 = path.join(HERE, "manifests/nucbox-ownguest-4.json");
+const V5 = path.join(HERE, "manifests/nucbox-ownguest-5.json");
+// a manifest derived from a committed one keeps that one's scripts: its `repo` sources become git pins at its commit
+const commitOf = (p) => spawnSync("git", ["-C", path.join(HERE, "../../.."), "log", "-1", "--format=%H", "--", path.relative(path.join(HERE, "../../.."), p)], { encoding: "utf8" }).stdout.trim();
+const committed = (p) => { const m = JSON.parse(fs.readFileSync(p, "utf8")), c = commitOf(p);
+  for (const e of [...m.files, ...m.inputs]) if (e.from && e.from.repo) e.from = { git: { commit: c, path: e.from.repo } };
+  return m; };
+const v5 = () => committed(V5);
 const V1 = path.join(HERE, "manifests/nucbox-ownguest-1.json");
 const V3 = path.join(HERE, "manifests/nucbox-ownguest-3.json");
 const SOURCES = path.join(os.homedir(), "enclave-bench/ownguest-pkg/sources");
@@ -132,7 +139,7 @@ test("v1 (committed, never edited) is refused by the current verifier at its uno
 });
 // enclave-99's readiness test (review/nucbox-manager-tests f6e9a6e7) pinned against v4's manager: at f4f10c84 it gives
 // 8 tests, 4 failing (3, 4, 5, 8 = defect 10). An expected result is exact in both directions.
-const withReadiness = (expect) => { const m = JSON.parse(fs.readFileSync(V4, "utf8"));
+const withReadiness = (expect) => { const m = committed(V4);
   m.inputs.push({ name: "readiness-rule.test.mjs", role: "input.test", sha256: "", bytes: 0,
                   from: { git: { commit: "f6e9a6e78f9b2f68b11127e4adcb61aa07d4e046", path: "windows/vbslike/review/readiness-rule.test.mjs" } } });
   m.tests = [{ name: "readiness-rule", owner: "enclave-99", input: "readiness-rule.test.mjs", requires: ["openssl"],
@@ -144,6 +151,7 @@ test("tests: the committed manifest's pinned tests give exactly their stated res
   assert.equal(r.code, 0, fails(r.out));
   assert.match(r.out, /ok   test readiness-rule \(enclave-99\) gives exactly its expected result \(8 tests, 8 pass, 0 fail\)/);
   assert.match(r.out, /ok   test datapath \(enclave-99\) gives exactly its expected result \(5 tests, 5 pass, 0 fail\)/);
+  assert.match(r.out, /ok   test record-to-route \(enclave-99\) gives exactly its expected result \(4 tests, 4 pass, 0 fail\)/);
 });
 test("tests: a pinned test re-pinned to another commit's bytes (consistent forgery) no longer gives its stated result", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
   const m = structuredClone(base), t = m.inputs.find((i) => i.name === "readiness-rule.test.mjs");
@@ -168,7 +176,7 @@ test("tests: claiming the readiness test passes on v4's manager is refused", { s
 // enclave-5d's own datapath suite (7f36992c) in the package tree: its interop case imports the node-side splice client,
 // which the package does not carry, so it SKIPS by name. The pin says so exactly: 4 pass + that one named skip.
 const DP_SKIP = { case: 5, reason: "the supervisor's splice client is not importable here (ERR_MODULE_NOT_FOUND)" };
-const with5dDatapath = (expect) => { const m = structuredClone(base);
+const with5dDatapath = (expect) => { const m = v5();
   m.inputs.push({ name: "datapath-5d.test.mjs", role: "input.test", sha256: "", bytes: 0,
                   from: { git: { commit: "7f36992cac3004076ccce840dff8b58463f39a52", path: "windows/vbslike/datapath/datapath.test.mjs" } } });
   m.tests = [...m.tests, { name: "datapath-5d", owner: "enclave-5d", input: "datapath-5d.test.mjs", requires: [],
@@ -193,7 +201,7 @@ test("tests: a skip the pin does not declare is refused, and so is a skip for an
 const R2R_MSG = {
   1: "image = the launcher's initrdSha256 from its ready line, carried by the manager\n+ actual - expected\n\n+ null\n- '44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf'\n",
   2: "NOT WIRED YET (expected until the spawn path calls judgeRunning): status=starting, transportKeySha256=null -> refused:not-running: the instance is starting" };
-const withRecordToRoute = (failing) => { const m = structuredClone(base), REV = "193c2338c90e700cd551402efebcc4414ccfc247";
+const withRecordToRoute = (failing) => { const m = v5(), REV = "193c2338c90e700cd551402efebcc4414ccfc247";
   m.files.push({ path: "control/windows/node/isolation-client.mjs", role: "control.manager", sha256: "", bytes: 0,
                  from: { git: { commit: "6d6c289eb594c7d337c066961de59134bdbad13b", path: "windows/node/isolation-client.mjs" } } });
   m.inputs.push({ name: "derive_vectors.json", role: "input.test-support", sha256: "", bytes: 0, from: { git: { commit: REV, path: "isolation/contract/catalog/derive_vectors.json" } } },
@@ -212,6 +220,13 @@ test("tests: the same failure pinned with another message is refused, naming wha
   const r = run(["verify", writeManifest(withRecordToRoute([{ case: 1, message: R2R_MSG[1] }, { case: 2, message: "refused:not-running" }])), "--tests"]);
   assert.equal(r.code, 1, "a failure pinned with the wrong message passed");
   assert.match(r.out, /FAIL test record-to-route \(enclave-99\) gives exactly its expected result: .*case 2 said "NOT WIRED YET/, fails(r.out));
+});
+test("committed manifests keep verifying after their scripts move on: v4 and v5 read win/* at their own commits", { skip }, () => {
+  for (const v of [V4, V5]) {
+    const r = run(["verify", v]);
+    assert.equal(r.code, 0, `${path.basename(v)}: ${fails(r.out)}`);
+    assert.match(r.out, /ok   source win\/check\.ps1 \(repo at the manifest's commit [0-9a-f]{12}\)/);
+  }
 });
 test("v3 (committed, never edited) is refused by the current verifier at its stale manager", { skip }, () => {
   const r = run(["verify", V3]);

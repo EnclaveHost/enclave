@@ -131,7 +131,9 @@ if ($Fetch) {
   $out = Join-Path $Dir 'fetched'; New-Item -ItemType Directory -Force -Path $out | Out-Null
   foreach ($a in @($M.apps | Where-Object { $_.servable })) {
     $dst = Join-Path $out "$($a.cid).wasm"
-    $line = & python $fetcher $a.cid $dst 2>&1 | Select-Object -Last 1
+    # -B: write no bytecode. Without it Python leaves __pycache__\ipfs_fetch.*.pyc inside the package, and the next check
+    # (correctly) fails the package for a file the manifest does not name.
+    $line = & python -B $fetcher $a.cid $dst 2>&1 | Select-Object -Last 1
     $ok = ($LASTEXITCODE -eq 0) -and (Test-Path -LiteralPath $dst) -and ((Get-Sha256 $dst) -eq $a.componentSha256)
     [void](Add-Result $R $ok "fetch $($a.name) $($a.version) by CID with the package's fetcher" $(if ($ok) { "$line" } else { "exit $LASTEXITCODE`: $line" }))
   }
@@ -157,7 +159,9 @@ $d = $Dir
 '# igvm profile: the manager, pinned to this package (run after the Hyper-V role is enabled; see README)'
 "`$env:ENCLAVE_GUEST_IGVM        = '$(Get-PkgFilePath $d $M.profiles.igvm.image)'"
 "`$env:ENCLAVE_GUEST_IGVM_SHA256 = '$(@($M.files | Where-Object { $_.path -eq $M.profiles.igvm.image })[0].sha256)'"
-"`$env:ENCLAVE_RUNTIME_ID        = '$($M.runtime.runtimeId)'"
+# the runtime IDENTITY (the image's runtime.json), never a hash: from 72c82fc6 main.mjs derives the RuntimeID from it,
+# and refuses to start when only ENCLAVE_RUNTIME_ID is set (a hash cannot pin a runtime field by field)
+"`$env:ENCLAVE_RUNTIME_IDENTITY  = '$(Get-PkgFilePath $d $M.runtime.file)'   # RuntimeID $($M.runtime.runtimeId)"
 "`$env:ENCLAVE_CID_FETCHER       = '$(Get-PkgFilePath $d $M.control.fetcher)'"
 "node $(Get-PkgFilePath $d $M.control.manager)"
 ''

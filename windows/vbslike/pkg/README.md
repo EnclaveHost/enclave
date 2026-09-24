@@ -28,10 +28,11 @@ two differ. `check.ps1` reports each profile's host state live. The manifest sta
 | 3 | `f0f516e4…` `manifests/nucbox-ownguest-3.json` | as v2; the launcher's provenance recorded (built from `ef1b2077`, one untracked uncompiled `monitor.rs` present; BEHIND `c5eb2f4a`, so `/2` bundles fail at its `load`); the image a judge expects is the initrd on hcs-dev and the IGVM on igvm | as v2 | `datapath.mjs` `b187da9e…` at `09b67414` (ids are any safe token) |
 | 4 | `10139942…` `manifests/nucbox-ownguest-4.json` | as v3; manager + judge at `f4f10c84` (the VM is created with `-GuestStateIsolationType OpenHCL`, Secure Boot off; `ready.mjs`); launcher `57d8c035…` from `55494efa` (loads `/2`), nightly toolchain and build root pinned; `AllowFirmwareLoadFromFile` is a gating igvm host check | as v3 | as v3 |
 | 5 | `ac8d68b2…` `manifests/nucbox-ownguest-5.json` | as v4; manager + judge at `6d6c289e` (`ready.mjs` without defect 10; `/vms` speaks guestd's contract: 201, `status`, `boundary`, `relay`, `domainId`, `guestPort`, `image`) | as v4 | `datapath.mjs` `2db32e0a…` at `b339e9d4` (admits on `transportKeySha256`); caveat: the manager does not populate `transportKeySha256` yet, so the datapath refuses to admit |
+| 6 | `ce02a547…` `manifests/nucbox-ownguest-6.json` | as v5; manager + judge + node client + lifecycle at `72c82fc6` (the spawn path judges readiness with the runtime IDENTITY, read by `main.mjs` from `ENCLAVE_RUNTIME_IDENTITY`; `image` from the launcher's ready line) | as v5; eight functional suites pinned (enclave-99's seven + enclave-5d's datapath suite), all measured green | as v5 |
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
-**v1 is defective. Use the latest (v5).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
+**v1 is defective. Use the latest (v6).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
 copied from a client that trims. The app answers `"Hello World!\n"`, so v1's serve checks would fail on a correct
 answer. The current verifier refuses v1 at that pin. `--serve`, which serves the component under the pinned runtime and
 compares the exact bytes, is the check that would have caught it. The rest of v1's pins stand for the old guest.
@@ -45,13 +46,15 @@ v3 at that check.
 ## Reproduce and verify (warden-host)
 
 ```
-node windows/vbslike/pkg/pkg.mjs verify windows/vbslike/pkg/manifests/nucbox-ownguest-5.json --rebuild --fetch https://ipfs.enclave.host --serve --tests
+node windows/vbslike/pkg/pkg.mjs verify windows/vbslike/pkg/manifests/nucbox-ownguest-6.json --rebuild --fetch https://ipfs.enclave.host --serve --tests
 node --test windows/vbslike/pkg/pkg.test.mjs
 ```
 
 `verify` derives every pin from its source. It does not take the pin from the manifest's say-so:
 - **Pinned bytes.** Git objects at their commits, the files on this host, and canonical JSON written from the manifest
-  itself.
+  itself. A `repo` source (the package's own scripts) is read at THE MANIFEST'S OWN COMMIT, because a manifest is
+  committed together with its scripts. So a committed manifest keeps verifying after the scripts move on. A manifest
+  still being authored reads the working tree.
 - **Apps.**
   - The component is the content its CID names.
   - The record hashes to its recordSha256 and names that CID and the guest's runtime.
@@ -83,7 +86,7 @@ repository data (contract vectors, the launcher's source) names it as `support`:
 paths for the run, never shipped. A test run under another test runner must
   strip `NODE_TEST_CONTEXT`, or the child reports in a binary protocol and no counts can be read.
 
-The test suite has 44 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
+The test suite has 45 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
 re-pinned to its new bytes. Each case must FAIL at the check that covers it, and the two controls must PASS. The
 sources live in `~/enclave-bench/ownguest-pkg/sources/`, and the tests skip without them.
 
@@ -93,7 +96,7 @@ reproduced here.
 ## Put it on the box (read `win/*.ps1` first: they state what they write)
 
 ```
-node windows/vbslike/pkg/pkg.mjs pack windows/vbslike/pkg/manifests/nucbox-ownguest-5.json ~/enclave-bench/ownguest-pkg/out
+node windows/vbslike/pkg/pkg.mjs pack windows/vbslike/pkg/manifests/nucbox-ownguest-6.json ~/enclave-bench/ownguest-pkg/out
 windows/vbslike/pkg/push.sh ~/enclave-bench/ownguest-pkg/out/<id16> minipc-zt
 ```
 
@@ -111,6 +114,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\vbs-like\pkg
   copy, only after that copy hashes to the pin;
 - it grants `S-1-5-83-0` read on the IGVM (without that grant the launch fails with 0x80070005);
 - it verifies everything and writes `staged.json`.
+
+**Environment.** From v6 on, the manager takes the runtime IDENTITY: `ENCLAVE_RUNTIME_IDENTITY` points at this
+package's `guest\runtime.json`, and `check.ps1` prints it. The manager (`72c82fc6`) refuses to start with only
+`ENCLAVE_RUNTIME_ID`. The env blocks printed by v1-v5 are for their own managers.
+
+**`-Fetch`, v1-v5.** Their `check.ps1 -Fetch` let Python write `control\windows\node\__pycache__\` into the package,
+so a later plain check failed for an extra file. v6 runs the fetcher with `python -B`. The stray directories were
+removed from every staged package on the box.
 
 **`check.ps1`** re-verifies the package and runs the self-test, which requires 9 cases to give their expected result.
 It reports each profile's host checks as ok or `BLOCKED`, never as a package failure. `HOST CHECKS PASS` is only what
