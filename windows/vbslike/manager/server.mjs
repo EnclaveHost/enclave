@@ -51,11 +51,58 @@ export function refuseUnsupported(req = {}) {
 }
 
 export class Manager {
-  constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "" } = {}) {
+  /**
+   * @param judgeReady  ({host, port, appId, launcherKey, expectRuntime, deadlineMs}) -> verdict.
+   *                    Injected so a test drives it; defaults to ready.mjs's judgeRunning.
+   * @param readyDeadlineMs  how long a domain has to become ready before it is failed.
+   */
+  constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
+                judgeReady = null, readyDeadlineMs = 120_000 } = {}) {
     this.backend = backend;
     this.fetchComponent = fetchComponent;       // (cid) -> Buffer, CID-verified by the caller's fetcher
     this.runtimeId = runtimeId;
+    this.judgeReady = judgeReady;
+    this.readyDeadlineMs = readyDeadlineMs;
     this.domains = new Map();
+    this.judging = new Map();                   // id -> the readiness promise, so tests can await it
+  }
+
+  /**
+   * Judge one domain's readiness and write the result into its record.
+   *
+   * WHY THIS IS NOT PART OF spawn(). Readiness takes as long as the guest takes, and the supervisor
+   * polls GET /vms/:id; blocking the spawn for two minutes would time out the caller and tell it
+   * nothing it could not learn by asking. So spawn answers `starting` immediately and this runs
+   * behind it, flipping the record to `running` only when the rule passes.
+   *
+   * WHAT IT WRITES, and why it matters: `transportKeySha256`, the key the document was verified on.
+   * 5d's splice admits a route on exactly that, so a record without it cannot be routed - which is
+   * what every record had until now. `running` and the key are written TOGETHER, from one verdict,
+   * because a status that says running without the key it was reached on is a route nobody can
+   * admit, and a key without a verdict is a key nobody checked.
+   */
+  async #judgeReadiness(rec, handle) {
+    const judge = this.judgeReady;
+    if (!judge) return;                                     // no rule wired: the record stays `starting`
+    if (!rec.relay || !rec.relay.port) {
+      rec.reason = "the backend exposed no relay port, so readiness cannot be judged and nothing can be routed";
+      return;
+    }
+    try {
+      const v = await judge({ host: rec.relay.host, port: rec.relay.port, appId: rec.appId,
+                              launcherKey: handle.launcherKey, expectRuntime: rec.runtimeId,
+                              deadlineMs: this.readyDeadlineMs });
+      if (!this.domains.has(rec.id)) return;                // removed while we were judging
+      rec.transportKeySha256 = v.transportKeySha256 ?? null;
+      rec.verdict = v.checks?.document?.verdict ?? null;
+      if (v.status === "running") { rec.status = "running"; rec.appReady = true; rec.reason = null; }
+      else { rec.status = "failed"; rec.appReady = false; rec.reason = v.reason || "not ready"; }
+      rec.readyChecks = v.checks ?? null;
+    } catch (e) {
+      if (!this.domains.has(rec.id)) return;
+      rec.status = "failed";
+      rec.reason = `readiness could not be judged: ${e.message}`;
+    }
   }
 
   health() {
@@ -167,7 +214,15 @@ export class Manager {
       if (h && h.tcpPort != null) rec.relay = { host: "127.0.0.1", port: h.tcpPort };
       else if (h && h.relay) rec.relay = h.relay;
       if (!rec.appReady)
-        rec.reason = "the guest booted and produced console output; this backend has no app-readiness handshake, so whether the app is serving is not established";
+        rec.reason = "the guest booted and produced console output; readiness has not been judged yet, so whether the app is serving is not established";
+      // Judge readiness BEHIND the answer, and after the placeholder reason above, which would
+      // otherwise overwrite whatever the verdict wrote. The caller gets `starting` now and asks
+      // again; this flips the record to `running` with the key it was verified on, or fails it.
+      if (!rec.appReady && rec.status !== "failed") {
+        const pj = this.#judgeReadiness(rec, h).finally(() => this.judging.delete(rec.id));
+        this.judging.set(rec.id, pj);
+        pj.catch(() => {});
+      }
     } catch (e) {
       // The identity is still real and worth keeping: it is what was asked for and what would run.
       rec.status = "failed";
