@@ -186,12 +186,36 @@ export function checkRuntimeSelfTest(selfTest, identity) {
   if (!Number.isInteger(maps) || maps < 1) {
     return { ok: false, reasons: [`REJECT: the runtime self-test scanned maps=${JSON.stringify(f.maps)} processes; a scan that saw nothing is not a clean scan`] };
   }
+  // The scope is a closed vocabulary, not free text. "wx=clean" means nothing without knowing WHAT was
+  // scanned, and if any word were accepted a domain could invent a scope that merely reads broad
+  // ("scope=everything") for a scan that covered one process. Each value says what coverage it claims:
+  //
+  //   all-processes   every process with an address space in this domain (M2/M4a: the domain is the guest)
+  //   cgroup:<path>   every process in this domain's cgroup (M3: several domains share a guest, and a scan
+  //                   reaching into a neighbour would let one domain fault another's attestation)
+  //   self            the reporting process alone. Complete coverage ONLY where the runtime executes in
+  //                   that same process - a library-embedded runtime, as in the Pixel pVM payload, rather
+  //                   than a separate `wasmtime serve`. A verifier cannot check in-process-ness, so this
+  //                   value carries a residual assumption and says so, and it must have scanned exactly one.
   const reasons = [];
+  if (f.scope === 'self') {
+    if (maps !== 1) {
+      return { ok: false, reasons: [`REJECT: scope=self scanned maps=${maps}; scanning the reporting process alone is exactly one process`] };
+    }
+    reasons.push('the scan covered the reporting process ALONE (scope=self), which is complete only because the runtime is a library in that process; a separate runtime process would be unscanned, and the hardware does not attest which it is');
+  } else if (f.scope === 'all-processes') {
+    reasons.push(`the scan covered every process with an address space in this domain (${maps})`);
+  } else if (f.scope.startsWith('cgroup:/')) {
+    reasons.push(`the scan covered this domain's own cgroup ${f.scope.slice(7)} (${maps} processes), and no neighbour's`);
+  } else {
+    return { ok: false, reasons: [`REJECT: scope=${JSON.stringify(f.scope)} is not one of all-processes, cgroup:/<path>, self; "wx=clean" says nothing without knowing what was scanned`] };
+  }
   if (identity.execution === EXEC_JIT) {
     if (f.exec_pages !== 'allowed') {
       return { ok: false, reasons: [`REJECT: the identity says execution=${EXEC_JIT} but the domain measured exec_pages=${JSON.stringify(f.exec_pages)}: no JIT can run where an executable page is refused`] };
     }
     reasons.push(`the domain measured that it may hold an executable page (exec_pages=allowed), which execution=${EXEC_JIT} requires, and found no writable-and-executable mapping among ${maps} processes in scope ${f.scope}`);
+
   } else {
     reasons.push(`the domain interprets ${identity.targetIsa} bytecode (exec_pages=${f.exec_pages}) and found no writable-and-executable mapping among ${maps} processes in scope ${f.scope}`);
   }
