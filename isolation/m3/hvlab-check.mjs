@@ -103,9 +103,14 @@ if (process.env.HVLAB_NAME_A) {
   const pem = r.body;
   // node has no CSR parser: the subject/SAN name is checked as text and the key by re-exporting it from the CSR's DER
   const der = Buffer.from((/-----BEGIN CERTIFICATE REQUEST-----([\s\S]+?)-----END/.exec(pem) || [, ""])[1].replace(/\s+/g, ""), "base64");
-  const { csrSpki } = await import("../m4/guestd/supervisor-guestcert.mjs");
+  // the CSR's SubjectPublicKeyInfo by a DER walk (no dependency: this runs from a bare checkout)
+  const csrSpki = (d) => {
+    const tlv = (o) => { let len = d[o + 1], h = 2; if (len & 0x80) { const n = len & 0x7f; len = 0; for (let i = 0; i < n; i++) len = (len << 8) | d[o + 2 + i]; h = 2 + n; } return { body: o + h, end: o + h + len }; };
+    const info = tlv(tlv(0).body), ver = tlv(info.body), subj = tlv(ver.end), spki = tlv(subj.end);
+    return d.subarray(subj.end, spki.end);
+  };
   let spkiOk = false;
-  try { spkiOk = Buffer.compare(csrSpki(pem), s.spki) === 0; } catch {}
+  try { spkiOk = Buffer.compare(csrSpki(der), s.spki) === 0; } catch {}
   record("A: a CSR for exactly the launcher's name, on the handshake key", r.status === 200 && der.includes(Buffer.from(process.env.HVLAB_NAME_A)) && spkiOk,
     `${r.status}, name in CSR ${der.includes(Buffer.from(process.env.HVLAB_NAME_A))}, key matches ${spkiOk}`);
   s.close();
