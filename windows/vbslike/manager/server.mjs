@@ -62,6 +62,10 @@ export class Manager {
     return {
       backend: this.backend.backend,
       supports: { ...this.backend.supports },
+      // DEFECT 4: /health had no boundary at all, so a reader could learn everything about this
+      // manager EXCEPT what its isolation actually is. It is carried verbatim from the backend,
+      // including hostExcluded:false, because that is the word that must never be lost.
+      boundary: this.backend.BOUNDARY ?? null,
       // `derivations` IS THE GATE. The supervisor reads it as "this manager can derive AND run",
       // and acts on it: a listed derivation means the claim gate passes and the node takes the
       // lease ON CHAIN before this process ever sees the spawn. So a rule we can compute but not
@@ -111,16 +115,36 @@ export class Manager {
     const component = await this.fetchComponent(d.cid);
     const mapping = derive({ record: d, component });     // throws on anything the rule refuses
 
-    const id = body.id || crypto.randomUUID();
+    // DEFECT 6: a second spawn for a live deployment is an ADOPTION, not a silent overwrite. The
+    // first version replaced the record and forgot the first handle, orphaning a running partition
+    // that the manager no longer listed. guestd answers 409 {error, id}; so do we.
+    const name = String(body.name || "");
+    if (!name) throw badRequest("a deployment id (name) is required");
+    const live = [...this.domains.values()].find((r) => r.name === name && r.status !== "failed" && r.status !== "stopped");
+    if (live) { const e = new Error(`an instance for ${name} is already live`); e.status = 409; e.id = live.id; throw e; }
+    if (body.id && this.domains.has(String(body.id))) {
+      const e = new Error(`instance ${body.id} already exists`); e.status = 409; e.id = String(body.id); throw e;
+    }
+    // "hv" + 8 hex, the shape 5d's supervisor and datapath expect; guestd uses "gd" + 8.
+    const id = body.id || ("hv" + crypto.randomBytes(4).toString("hex"));
     // The domain's own name, unique per DEPLOYMENT rather than per app: two deployments of the
     // same app derive the same AppID, and naming a VM after the AppID alone made the second one
     // collide with the first. Short, stable, and safe in a VM name.
     const instanceId = (String(id).replace(/[^A-Za-z0-9]/g, "").slice(0, 16) || crypto.randomBytes(8).toString("hex"))
                      + "-" + String(mapping.appId).slice(0, 8);
-    const rec = { id, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
+    // `status`, not `state`: guestd's vocabulary, which the supervisor reads (starting | running |
+    // failed | stopped). The old "guest-booted" was a fifth word no consumer knew, so a booted
+    // domain read as dead every tick and was respawned.
+    const rec = { id, name, instanceId, appId: mapping.appId, recordSha256: mapping.recordSha256,
                   componentSha256: mapping.componentSha256, policy: mapping.record.policy,
                   catalog: mapping.record.catalog, cid: mapping.record.cid,
-                  runtimeId: mapping.record.runtimeId, state: "starting", startedAt: null, reason: null };
+                  runtimeId: mapping.record.runtimeId, status: "starting", startedAt: null, reason: null,
+                  // DEFECT 4: what the data plane needs to route, and what the boundary IS. 5d's
+                  // splice admits on `image` + `transportKeySha256` and refuses without them, and
+                  // the boundary is the word this backend's own header says must never be lost.
+                  boundary: this.backend.BOUNDARY ?? null, tier: null, hostExcluded: false,
+                  verdict: null, image: null, transportKeySha256: null, relay: null,
+                  domainId: null, guestPort: null };
     this.domains.set(id, rec);
     try {
       const h = await this.backend.start(mapping, { instanceId });
@@ -129,16 +153,24 @@ export class Manager {
       // mean the component was delivered, compiled or served: there is no app-readiness handshake
       // on this backend, so there is no evidence for "running" and the record does not claim it.
       // "guest-booted" is a state a reader can act on; "running" would be a guess.
-      rec.state = h && h.appReady === true ? "running" : "guest-booted";
+      rec.status = h && h.appReady === true ? "running" : "starting";
       rec.appReady = !!(h && h.appReady === true);
       rec.startedAt = Date.now(); rec.handle = h;
       if (h && h.guest) rec.guest = { booted: h.guest.booted === true, bytes: h.guest.bytes, head: h.guest.head };
       if (h && h.name) rec.vmName = h.name;
+      // carried up verbatim rather than summarised away
+      if (h && h.boundary) { rec.boundary = h.boundary; rec.tier = h.boundary.tier ?? null;
+                             rec.hostExcluded = h.boundary.hostExcluded === true; }
+      if (h && h.domainId != null) rec.domainId = h.domainId;
+      if (h && h.guestPort != null) rec.guestPort = h.guestPort;
+      if (h && h.image) rec.image = h.image;
+      if (h && h.tcpPort != null) rec.relay = { host: "127.0.0.1", port: h.tcpPort };
+      else if (h && h.relay) rec.relay = h.relay;
       if (!rec.appReady)
         rec.reason = "the guest booted and produced console output; this backend has no app-readiness handshake, so whether the app is serving is not established";
     } catch (e) {
       // The identity is still real and worth keeping: it is what was asked for and what would run.
-      rec.state = "failed";
+      rec.status = "failed";
       rec.reason = e.message;
       if (e.prerequisites) rec.prerequisites = e.prerequisites;
     }
@@ -151,12 +183,25 @@ export class Manager {
   }
   list() { return [...this.domains.values()].map((r) => this.publicOf(r)); }
   get(id) { const r = this.domains.get(id); return r ? this.publicOf(r) : null; }
+  /**
+   * DEFECT 5: the first version swallowed the stop error and deleted the record regardless, so a
+   * DELETE answered "ok" while the VM (WMI: stop_failed) or partition (HCS: launcher error) was
+   * still running - an orphan the manager no longer listed and nobody could find. A stop that did
+   * not succeed leaves the record in place, marked, and reports the failure.
+   */
   async remove(id) {
     const r = this.domains.get(id);
-    if (!r) return false;
-    await this.backend.stop(r.handle).catch(() => {});
+    if (!r) return { removed: false, absent: true };
+    try {
+      await this.backend.stop(r.handle);
+    } catch (e) {
+      r.status = "failed";
+      r.reason = `stop failed, so this domain may still be RUNNING and is deliberately still listed: ${e.message}`;
+      const err = new Error(r.reason); err.status = 500; err.id = id; throw err;
+    }
+    r.status = "stopped";
     this.domains.delete(id);
-    return true;
+    return { removed: true, absent: false };
   }
 }
 
@@ -179,12 +224,22 @@ export function createServer(manager) {
         const chunks = []; for await (const c of req) chunks.push(c);
         let body; try { body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"); }
         catch { return send(400, { error: "body is not JSON" }); }
-        try { return send(200, await manager.spawn(body)); }
+        // 201, which is what guestd answers and what the supervisor checks for
+        try { return send(201, await manager.spawn(body)); }
         catch (e) { return send(e.status || 500, { error: e.message, ...(e.prerequisites ? { prerequisites: e.prerequisites } : {}) }); }
       }
       const m = p.match(/^\/vms\/([^/]+)$/);
       if (m && req.method === "GET") { const r = manager.get(decodeURIComponent(m[1])); return r ? send(200, r) : send(404, { error: "not_found" }); }
-      if (m && req.method === "DELETE") return send(await manager.remove(decodeURIComponent(m[1])) ? 200 : 404, { ok: true });
+      if (m && req.method === "DELETE") {
+        const id = decodeURIComponent(m[1]);
+        try {
+          const r = await manager.remove(id);
+          return r.absent ? send(404, { error: "not_found" }) : send(200, { ok: true });
+        } catch (e) {
+          // a stop that failed is NOT a removal: say so with the domain still listed
+          return send(e.status || 500, { error: e.message, id: e.id ?? id, stillListed: true });
+        }
+      }
       return send(404, { error: "not_found" });
     } catch (e) { return send(500, { error: e.message }); }
   });
