@@ -25,6 +25,8 @@ export async function enrollInstance({ relay, policyEnv, store, deployment, now 
     if (!r.ok) throw new Error(`the carrier answered ${r.status}`);
     env = JSON.parse(new TextDecoder().decode(new Uint8Array(await r.arrayBuffer())).split("\n")[0]);
   } catch (e) { return { ok: false, step: "evidence", refused: `no evidence: ${e.message}` }; }
+  if (env && typeof env === "object" && Object.keys(env).join() === "error" && typeof env.error === "string")   // the VM's own refusal (its pace, budget, an old build)
+    return { ok: false, step: "evidence", refused: `the VM answered with an error, not evidence: ${JSON.stringify(env.error.slice(0, 200))}` };
   if (!env || env.format !== PVM_APP_EVIDENCE_FORMAT_V3)
     return { ok: false, step: "verify", refused: `${JSON.stringify(env && env.format)} names no instance: only ${PVM_APP_EVIDENCE_FORMAT_V3} can be enrolled` };
   const v = await verifyPvmAppEvidence(env, { nonce, appId: sel.app, ...pol.pins, ...(now ? { now } : {}) });

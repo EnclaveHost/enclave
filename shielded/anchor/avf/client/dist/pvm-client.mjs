@@ -1109,11 +1109,13 @@ async function admit(verdict, expect = {}, { clientKind, observedPeerSpki = null
   if (!app || c.appId !== app) return hold("the verified app id is not the client's expected app");
   if (!expect.allowedRuntimeIds.includes(c.runtimeId)) return hold("the verified runtime id is not one the client admits");
   if (typeof c.transportSpki !== "string" || !/^302a300506032b6570032100[0-9a-f]{64}$/.test(c.transportSpki)) return hold("the verdict binds no transport key");
+  if (c.format === V3 && (typeof c.instanceId !== "string" || !HEX2(64).test(c.instanceId))) return hold("a v3 verdict without an InstanceID is malformed");
   if (expect.instanceIds !== void 0) {
-    if (!Array.isArray(expect.instanceIds) || !expect.instanceIds.length || !expect.instanceIds.every((i) => typeof i === "string" && HEX2(64).test(i)))
-      return hold("the client's instance expectation is malformed");
-    if (c.format !== V3) return hold("the deployment is bound to instances, and the evidence format names none: a downgrade");
-    if (typeof c.instanceId !== "string" || !expect.instanceIds.includes(c.instanceId)) return hold("the verified instance is not one bound to the selected deployment");
+    const ids = expect.instanceIds;
+    if (!Array.isArray(ids) || ids.length < 1 || ids.length > 8 || !ids.every((i) => typeof i === "string" && HEX2(64).test(i)) || new Set(ids).size !== ids.length)
+      return hold("the instance expectation is malformed: 1..8 unique InstanceIDs (64 lowercase hex), or none");
+    if (c.format !== V3) return hold("the selected deployment is bound to instances: only a v3 verdict naming the instance can release");
+    if (!ids.includes(c.instanceId)) return hold("the verified instance is not one bound to the selected deployment");
   }
   if (clientKind === "native") {
     const peer = hexOf(observedPeerSpki);
@@ -1122,7 +1124,7 @@ async function admit(verdict, expect = {}, { clientKind, observedPeerSpki = null
     return { decision: "release", reason: "RELEASE", pinned: { transportSpkiSha256: toHex(await sha256(fromHex(c.transportSpki))) } };
   }
   if (c.format !== "enclave-pvm-app-evidence/v2" && c.format !== V3 || typeof c.appKey !== "string" || !HEX2(64).test(c.appKey))
-    return hold("browser client: the evidence binds no application-layer public key, and browser code cannot read the peer TLS certificate, so nothing can be pinned");
+    return hold("browser client: the evidence binds no application-layer public key, and browser code cannot read the peer TLS certificate, so nothing here binds the transport");
   const s = c.sealed;
   if (!s || !Number.isSafeInteger(s.windowSeconds) || !Number.isSafeInteger(s.maxRequests) || s.windowSeconds < 1 || s.maxRequests < 1)
     return hold("browser client: the evidence states no sealed window");
@@ -3081,6 +3083,7 @@ var expectOf = (pins, nonce, now) => ({
 });
 var evidenceLine = (v3, nonce) => `${v3 ? "EVIDENCE3" : "EVIDENCE"} ${toHex(nonce)}
 `;
+var vmError = (env) => env && typeof env === "object" && !Array.isArray(env) && Object.keys(env).join() === "error" && typeof env.error === "string" ? `the VM answered with an error, not evidence: ${JSON.stringify(env.error.slice(0, 200))}` : null;
 async function post(url, body2, type) {
   const r = await fetch(url, { method: "POST", body: body2, headers: { "content-type": type }, cache: "no-store", credentials: "omit" });
   if (!r.ok) throw new Error(`the carrier answered ${r.status}`);
@@ -3098,6 +3101,7 @@ async function fetchVerified({ relay, pins, method = "GET", path: path5 = "/", b
   } catch (e) {
     return out2({ step: "evidence", refused: `no evidence: ${e.message}`, sent: false });
   }
+  if (vmError(env)) return out2({ step: "evidence", refused: vmError(env), sent: false });
   const v = await verifyPvmAppEvidence(env, expectOf(pins, nonce, now));
   const verifyMs = Math.round(performance.now() - t0);
   if (!v.ok) return out2({ step: "verify", refused: v.reasons.at(-1), sent: false, verifyMs });
@@ -3135,6 +3139,7 @@ async function fetchVerifiedStream({ relay, pins, path: path5 = "/", label = "ok
   } catch (e) {
     return out2({ step: "evidence", refused: `no evidence: ${e.message}`, sent: false });
   }
+  if (vmError(env)) return out2({ step: "evidence", refused: vmError(env), sent: false });
   const v = await verifyPvmAppEvidence(env, expectOf(pins, nonce, now));
   const verifyMs = Math.round(performance.now() - t0);
   if (!v.ok) return out2({ step: "verify", refused: v.reasons.at(-1), sent: false, verifyMs });
@@ -3302,6 +3307,8 @@ async function enrollInstance({ relay, policyEnv, store, deployment, now }) {
   } catch (e) {
     return { ok: false, step: "evidence", refused: `no evidence: ${e.message}` };
   }
+  if (env && typeof env === "object" && Object.keys(env).join() === "error" && typeof env.error === "string")
+    return { ok: false, step: "evidence", refused: `the VM answered with an error, not evidence: ${JSON.stringify(env.error.slice(0, 200))}` };
   if (!env || env.format !== PVM_APP_EVIDENCE_FORMAT_V3)
     return { ok: false, step: "verify", refused: `${JSON.stringify(env && env.format)} names no instance: only ${PVM_APP_EVIDENCE_FORMAT_V3} can be enrolled` };
   const v = await verifyPvmAppEvidence(env, { nonce, appId: sel.app, ...pol.pins, ...now ? { now } : {} });

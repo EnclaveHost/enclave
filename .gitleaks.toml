@@ -126,3 +126,18 @@ condition = "AND"
 paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/[a-z0-9]+-evidence\.json$''', '''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/evidence/evidence-[0-9]{3}\.json$''']   # the relay carrier's lab capture (cpu/web-carrier.mjs recordEvidence)
 regexTarget = "line"
 regexes = ['''^\{"format":"enclave-pvm-app-evidence/v[123]",''']
+
+# Ed25519 public keys in SubjectPublicKeyInfo form: the DER prefix 302a300506032b6570032100 followed by the 32-byte public
+# key. A private key is never encoded this way, so any match is public by construction. Seen as the pVM instance key and
+# transport key in verifier/admission-vectors.json (synthetic, generated from a label) and in the pVM owner's fixtures.
+[[allowlists]]
+description = "Ed25519 public keys in SPKI form (public by construction)"
+regexes = ['''302a300506032b6570032100[0-9a-f]{64}''']
+
+[[allowlists]]
+description = "a pVM instance ENROLLMENT record (client/src/enroll.js; INSTANCE-BINDING.md) keeps the evidence it enrolled under, pretty-printed: its appKeySig and instanceSig are Ed25519 SIGNATURES over public transcripts, not keys"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/enroll-[a-z0-9-]+\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"(?:appKeySig|instanceSig)": "[0-9a-f]{128}",?$''']

@@ -1,8 +1,8 @@
 // shielded/anchor/avf/client/src/gate.js held to the Enclave verifier session's admission rule, case by case
-// (test/fixtures/verifier-admission/admission-vectors.json, from research/independent-verifier d760725b). This client
-// serves android-avf pVM apps only: on every pVM case and every technology-neutral hold it must reach the vectors'
-// decision (and the vectors' pinned output on release); the vectors' AMD SEV-SNP releases are outside its scope and it
-// must HOLD them (fail closed), never release.
+// (test/fixtures/verifier-admission/admission-vectors.json, from research/independent-verifier 68250600: 49 cases, with the
+// v3 instance-binding cases). This client serves android-avf pVM apps only: on every case it must reach the vectors'
+// decision (and the vectors' pinned output on release), and on every pVM case their exact reason too; the vectors' AMD
+// SEV-SNP releases are outside its scope and it must HOLD them (fail closed), never release.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -20,12 +20,14 @@ test("the release rule matches the verifier session's admission vectors on every
       snpHeld++; continue;
     }
     assert.equal(got.decision, c.decision, `${c.name}: ${got.reason} vs ${c.reason}`);
+    if (tech === "android-avf") assert.equal(got.reason, c.reason, `${c.name}: the pVM rule's own reason`);
     if (c.decision === "release") assert.deepEqual(got.pinned, c.pinned, `${c.name}: pinned output`);
     same++;
   }
   assert.equal(same + snpHeld, V.cases.length);
   assert.equal(snpHeld, 3, "exactly the three SNP releases are held for scope");
-  assert.ok(same >= 37);
+  assert.ok(V.cases.length === 49 && same === 46);
+  assert.ok(V.cases.filter((c) => /pVM v3|deployment is bound/.test(c.name)).length >= 9, "the instance-binding cases are in the vectors");
 });
 
 test("the client's own verdict for a verified envelope passes through the same rule", async () => {

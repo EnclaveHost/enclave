@@ -4,7 +4,7 @@
 // production relay. The pins are the caller's: Google's attestation roots (the hub's defaults), the build's code hash (pins.py
 // computes it from the APK's v4 signature), the APK signing authority, the model and its self-test reference. Unlike
 // host/local-hub.mjs (the dealt-pads hub: the v1 list, no tier policy) this hub is configured for the pVM CPU tier alone.
-//   node cpu/local-hub.mjs --port 18443 --code-hash H --authority A --model-sha S --selftest-sha R --min-tok-s F
+//   node cpu/local-hub.mjs --port 18443 --code-hash H[,H2] --authority A --model-sha S --selftest-sha R --min-tok-s F
 //                          [--min-mem-mib M] [--seconds N]
 //                          [--app-id <sha256> [--runtime-id <hex>] --app-port 18445 --app-name <tunnel name>] [--evidence-port 18446]
 //                          [--sealed-port 18448] [--web-port 18447 --web-origin http://127.0.0.1:18450]
@@ -25,7 +25,8 @@ const arg = (k, d = null) => { const i = process.argv.indexOf(k); return i > 0 ?
 const need = ["--code-hash", "--authority", "--model-sha", "--selftest-sha", "--min-tok-s"];
 if (need.some((k) => !arg(k))) { console.error(`usage: local-hub.mjs ${need.map((k) => k + " X").join(" ")} [--port P] [--min-mem-mib M] [--seconds N]`); process.exit(2); }
 const emit = (o) => process.stdout.write(JSON.stringify({ t: new Date().toISOString(), ...o }) + "\n");
-const pvmCpu = pvmCpuPolicy({ codeHashes: [arg("--code-hash")], authorityHashes: [arg("--authority")],
+// --code-hash: one build, or a comma list (a same-key update: INSTANCE-BINDING.md)
+const pvmCpu = pvmCpuPolicy({ codeHashes: arg("--code-hash").split(","), authorityHashes: [arg("--authority")],
   models: [{ sha256: arg("--model-sha"), name: "e2b-q4_0", selftestSha256: arg("--selftest-sha"), minDecodeTokS: Number(arg("--min-tok-s")),
              minMemMib: Number(arg("--min-mem-mib", "0")) }] });
 // v2 (pad-binding transcript) attaches are judged against the pvm-cpu build's code hash; the APK authority is the avf pin.

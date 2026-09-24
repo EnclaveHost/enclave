@@ -19,6 +19,10 @@ const expectOf = (pins, nonce, now) => ({ nonce, appId: pins.app,
   ...(pins.instanceIds ? { instanceIds: pins.instanceIds } : {}) });
 // the evidence request: v3 (`EVIDENCE3`, bound to the VM instance) when asked, else v2 -- one line, never a fallback
 const evidenceLine = (v3, nonce) => `${v3 ? "EVIDENCE3" : "EVIDENCE"} ${toHex(nonce)}\n`;
+// the VM's own refusal is one JSON line, {"error": "..."} (payload evidence_answer: a malformed request, its 2 s pace, its
+// budget, an old build that does not know EVIDENCE3): no evidence, named as the VM's words -- never judged as a format
+const vmError = (env) => (env && typeof env === "object" && !Array.isArray(env) && Object.keys(env).join() === "error" && typeof env.error === "string"
+  ? `the VM answered with an error, not evidence: ${JSON.stringify(env.error.slice(0, 200))}` : null);
 
 async function post(url, body, type) {
   const r = await fetch(url, { method: "POST", body, headers: { "content-type": type }, cache: "no-store", credentials: "omit" });
@@ -37,6 +41,7 @@ export async function fetchVerified({ relay, pins, method = "GET", path = "/", b
     const line = new TextDecoder().decode(bytes).split("\n")[0];
     env = JSON.parse(line);
   } catch (e) { return out({ step: "evidence", refused: `no evidence: ${e.message}`, sent: false }); }
+  if (vmError(env)) return out({ step: "evidence", refused: vmError(env), sent: false });
   const v = await verifyPvmAppEvidence(env, expectOf(pins, nonce, now));
   const verifyMs = Math.round(performance.now() - t0);
   if (!v.ok) return out({ step: "verify", refused: v.reasons.at(-1), sent: false, verifyMs });
@@ -67,6 +72,7 @@ export async function fetchVerifiedStream({ relay, pins, path = "/", label = "ok
   let env;
   try { env = JSON.parse(new TextDecoder().decode(await post(`${relay}/evidence`, evidenceLine(v3, nonce), "text/plain")).split("\n")[0]); }
   catch (e) { return out({ step: "evidence", refused: `no evidence: ${e.message}`, sent: false }); }
+  if (vmError(env)) return out({ step: "evidence", refused: vmError(env), sent: false });
   const v = await verifyPvmAppEvidence(env, expectOf(pins, nonce, now));
   const verifyMs = Math.round(performance.now() - t0);
   if (!v.ok) return out({ step: "verify", refused: v.reasons.at(-1), sent: false, verifyMs });

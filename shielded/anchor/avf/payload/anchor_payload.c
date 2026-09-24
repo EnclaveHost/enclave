@@ -1335,8 +1335,12 @@ static void evidence_answer(evidence_srv *e, int c) {
     AVmAttestationStatus st; AVmAttestationResult *res = abi2_certify(e->identity, nonce, e->app, rid, bind, v3 ? &inst : NULL, &st);
     if (!res) { OUT("EVIDENCE unavailable: attestation status=%s", AVmAttestationStatus_toString(st)); write_all(c, "{\"error\":\"attestation unavailable\"}\n", strlen("{\"error\":\"attestation unavailable\"}\n")); return; }
     const size_t k = AVmAttestationResult_getCertificateCount(res);
-    size_t cap = 1024; for (size_t i = 0; i < k; i++) cap += AVmAttestationResult_getCertificateAt(res, i, NULL, 0) * 4 / 3 + 8;
-    char *js = malloc(cap + 1024); uint8_t *der = NULL;
+    /* the answer's size, exactly: 4 KiB for the fields, the escaped identity (<= 2 x its 1024-byte bound) and the tail, plus
+     * each certificate's exact base64 length and its quotes and comma. The old estimate (1 KiB + 4/3 of each certificate,
+     * integer division) left v3's two extra fields without room: snprintf cut the final "]}\n" to "]}" + NUL on some
+     * attestations (seen on the device, 2026-09-24: a v3 answer ending in 0x00, which the client refused as unparseable) */
+    size_t cap = 4096 + 2 * strlen(e->identity); for (size_t i = 0; i < k; i++) cap += (AVmAttestationResult_getCertificateAt(res, i, NULL, 0) + 2) / 3 * 4 + 4;
+    char *js = malloc(cap); uint8_t *der = NULL;
     if (!js) { AVmAttestationResult_free(res); return; }
     char nh[65], ah[65], sh[89]; uint8_t spki[44]; memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
     sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(e->app, 32, ah); for (int i = 0; i < 44; i++) sprintf(sh + 2 * i, "%02x", spki[i]);
@@ -1365,6 +1369,10 @@ static void evidence_answer(evidence_srv *e, int c) {
     }
     o += (size_t)snprintf(js + o, cap - o, "]}\n");
     AVmAttestationResult_free(res); free(der);
+    if (o >= cap || js[o - 1] != '\n') {   /* fail closed: a cut answer is never sent as evidence */
+        OUT("EVIDENCE refused: the answer (%zu bytes) did not fit its buffer (%zu)", o, cap);
+        write_all(c, "{\"error\":\"evidence answer did not fit\"}\n", strlen("{\"error\":\"evidence answer did not fit\"}\n")); free(js); return;
+    }
     if (write_all(c, js, o) == 0) {
         e->answered++;
         const int admitted = e->sealed && e->admit && e->admit(e->srv, nonce) == 0;
