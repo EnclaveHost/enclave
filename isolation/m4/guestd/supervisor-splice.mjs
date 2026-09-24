@@ -132,14 +132,17 @@ export async function routeFor(transport, instanceId, expectAppId, { timeoutMs =
   const b = r && r.body;
   if (!r || r.status !== 200 || !b) throw new SpliceRefused("no-route", `guestd answered ${r && r.status} for the instance`);
   if (b.status !== "running") throw new SpliceRefused("not-running", `the instance is ${b.status}`);
-  // Two instance shapes, one rule: a whole verified identity or no route. An SNP guest (guestd, "gd…") is named by
-  // its launch measurement; a NucBox partition (windows/vbslike manager, "hv…") has none and is named by the guest
-  // image it booted - carried as `image`, never as a measurement, so neither can be read as the other.
-  const hv = /^hv[0-9a-f]{8}$/.test(String(b.id || ""));
+  // Two instance shapes, one rule: a whole verified identity or no route. An SNP guest (guestd) is named by its launch
+  // measurement; a NucBox partition (the windows/vbslike manager, tier T0-hv) has none and is named by the guest image
+  // it booted - carried as `image`, never as a measurement, so neither can be read as the other. Which shape is the
+  // view's `tier`, not the id's spelling: no client depends on one backend's id format (the manager owns its ids).
+  const hv = b.tier === "T0-hv";
   const route = hv
     ? { id: b.id, appId: b.appId, image: b.image, runtimeId: b.runtimeId, key: b.transportKeySha256 }
     : { id: b.id, appId: b.appId, measurement: b.measurement, runtimeId: b.runtimeId, key: b.transportKeySha256 };
-  if (route.id !== instanceId || !(hv || /^gd[0-9a-f]{8}$/.test(route.id)) || !HEX(32).test(route.appId || "")
+  // the id travels as one token of the splice's first line: a safe token for a partition, guestd's own form for an SNP
+  // guest (guestd's data plane parses exactly that form)
+  if (route.id !== instanceId || !(hv ? /^[A-Za-z0-9-]{1,64}$/ : /^gd[0-9a-f]{8}$/).test(route.id) || !HEX(32).test(route.appId || "")
       || !(hv ? HEX(32).test(route.image || "") : HEX(48).test(route.measurement || ""))
       || !HEX(32).test(route.runtimeId || "") || !HEX(32).test(route.key || ""))
     throw new SpliceRefused("no-route", "guestd's answer does not state a whole verified identity for the instance");

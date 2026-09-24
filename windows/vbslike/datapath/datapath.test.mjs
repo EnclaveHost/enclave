@@ -49,7 +49,8 @@ test("the first line is strict", () => {
   assert.deepEqual(parsePreamble(line(good)), good);
   const bad = {
     "an SNP route (measurement=)": line(good).replace(`image=${good.image}`, `measurement=${H("b", 48)}`),
-    "a guestd instance id": line({ ...good, id: "gd0a1b2c3d" }),
+    "an id with a slash": line({ ...good, id: "hv/0a1b" }),
+    "an id of 65 characters": line({ ...good, id: "h".repeat(65) }),
     "uppercase hex": line({ ...good, app: H("A") }),
     "a short key": line({ ...good, key: H("d", 31) }),
     "reordered": `ENCLAVE-SPLICE/1 app=${good.app} id=${ID} image=${good.image} runtime=${good.runtime} key=${good.key}`,
@@ -121,7 +122,7 @@ test("busy, reclaim, idle and an unreachable domain", async () => {
 test("interop: the supervisor's own routeFor + openSplice reach a partition through this plane", async () => {
   const r = await relay();
   const dp = await plane({ [ID]: rec(r) });
-  const view = { id: ID, status: "running", appId: good.app, image: good.image, runtimeId: good.runtime, transportKeySha256: good.key };
+  const view = { id: ID, status: "running", tier: "T0-hv", appId: good.app, image: good.image, runtimeId: good.runtime, transportKeySha256: good.key };
   const transport = { request: async () => ({ status: 200, body: view }) };
   const route = await routeFor(transport, ID, good.app);
   assert.equal(route.image, good.image);
@@ -134,8 +135,10 @@ test("interop: the supervisor's own routeFor + openSplice reach a partition thro
   for (let i = 0; i < 50 && got !== "ping"; i++) await new Promise((x) => setTimeout(x, 20));
   assert.equal(got, "ping");
   s.destroy();
-  // a view that states a measurement for an hv instance, or no image, is no route at all
-  for (const bad of [{ ...view, image: undefined, measurement: H("b", 48) }, { ...view, image: "x" }, { ...view, id: "hv0a1b2c3" }]) {
+  // a T0-hv view that states a measurement instead of an image, a bad image, or an unsafe id is no route at all; and
+  // a view without the tier is judged as an SNP guest (guestd's shape), which this one is not
+  for (const bad of [{ ...view, image: undefined, measurement: H("b", 48) }, { ...view, image: "x" }, { ...view, id: "hv 1" },
+                     { ...view, tier: undefined }]) {
     await assert.rejects(routeFor({ request: async () => ({ status: 200, body: bad }) }, bad.id, good.app));
   }
   // and an SNP route sent to this plane is refused by it

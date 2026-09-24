@@ -8,8 +8,8 @@
 // It is the Hyper-V twin of isolation/m4/guestd/datapath.go and keeps its rules: a connection is admitted only if its
 // first line names an instance that is running and states, field for field, the identity the manager verified for it:
 //
-//   ENCLAVE-SPLICE/1 id=hv<8 hex> app=<AppID> image=<sha256 of the guest initrd> runtime=<RuntimeID> key=<sha256 of
-//   the TLS key the manager's verifying handshake saw>
+//   ENCLAVE-SPLICE/1 id=<the manager's instance id> app=<AppID> image=<sha256 of the guest initrd>
+//   runtime=<RuntimeID> key=<sha256 of the TLS key the manager's verifying handshake saw>
 //
 // answered "OK" (and from then on the connection is the domain's) or "NO <why>" and closed. The third field is
 // `image`, not `measurement`: a partition has no launch measurement, and a Hyper-V route must never read as an
@@ -33,7 +33,8 @@ const hex = (n) => new RegExp(`^[0-9a-f]{${2 * n}}$`);
 const FIELDS = [["id", 0], ["app", 32], ["image", 32], ["runtime", 32], ["key", 32]];
 
 // parsePreamble is strict: the protocol word, then exactly these five fields in this order, each lowercase hex of its
-// exact length (the id: "hv" + 8 hex). Anything else - missing, extra, repeated, reordered - is malformed.
+// exact length (the id: the manager's own instance id, one token of [A-Za-z0-9-], at most 64: no shape beyond that is
+// assumed, the manager owns its ids). Anything else - missing, extra, repeated, reordered - is malformed.
 export function parsePreamble(line) {
   const f = String(line).split(" ");
   if (f.length !== 6 || f[0] !== PROTO) throw new Error(`malformed: expected ${PROTO} id= app= image= runtime= key=`);
@@ -42,8 +43,8 @@ export function parsePreamble(line) {
     const p = name + "=";
     if (!f[i + 1].startsWith(p)) throw new Error(`malformed: field ${i + 1} is not ${p}`);
     const v = f[i + 1].slice(p.length);
-    if (n === 0 ? !/^hv[0-9a-f]{8}$/.test(v) : !hex(n).test(v))
-      throw new Error(n === 0 ? "malformed: id is not a partition instance id" : `malformed: ${name} is not ${n} bytes of lowercase hex`);
+    if (n === 0 ? !/^[A-Za-z0-9-]{1,64}$/.test(v) : !hex(n).test(v))
+      throw new Error(n === 0 ? "malformed: id is not one token of [A-Za-z0-9-], 1 to 64 long" : `malformed: ${name} is not ${n} bytes of lowercase hex`);
     w[name] = v;
   });
   return w;
