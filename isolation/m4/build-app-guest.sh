@@ -32,26 +32,10 @@ app_id=$("$BUNDLETOOL" id "$bundle")
 
 d=$(mktemp -d)
 trap 'rm -rf "$d"' EXIT
-gcc -static -O2 -o "$d/init" "$m2/dominit.c"
-# static and byte-reproducible for a given Go toolchain, so the measurement is predictable
-(cd "$m2" && CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o "$d/front" ./front)
-mkdir -p "$d/rt" "$d/proc" "$d/sys" "$d/dev" "$d/tmp"
-W=$(command -v wasmtime)
-cp -L "$W" "$d/rt/wasmtime"
-"$here/../contract/runtime-identity.sh" "$W" > "$d/rt/runtime.json"
-ldd "$W" | awk '/=>/ {print $3}' | while read -r lib; do cp -L "$lib" "$d/rt/"; done
-# the artifact is what the runtime executes; the bundle is what the identity is taken over. Both measured.
-"$BUNDLETOOL" extract "$bundle" "$d/app.wasm"
-cp "$bundle" "$d/app.bundle"
-printf '%s\n' "$app_id" > "$d/app.sha256"
-# The guest kernel's module tree is named after the GUEST kernel, not the host's: see ../m1/domain.env.
+# template + one app: the same two steps a verifier reassembles from a published release (domain-release.sh)
+"$here/app-image-template.sh" "$d/template"
+"$here/assemble-app-image.sh" "$d/template" "$bundle" "$out" > /dev/null
 . "$here/../m1/domain.env"
-M=/lib/modules/$GUEST_KREL/kernel
-cp "$M/net/vmw_vsock/vsock.ko.zst" "$M/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko.zst" \
-   "$M/net/vmw_vsock/vmw_vsock_virtio_transport.ko.zst" \
-   "$M/drivers/virt/coco/guest/tsm_report.ko.zst" "$M/drivers/virt/coco/sev-guest/sev-guest.ko.zst" "$d/"
-# modes, ownership and times normalised, so the measurement depends on contents alone (pack-initrd.sh)
-"$here/pack-initrd.sh" "$d" "$out"
 echo "app_guest $out: app_id $app_id, $(stat -c %s "$out") bytes, vcpus $vcpus"
 
 # The launch digest this guest will have. vCPU count is part of the identity, so predict and boot with the

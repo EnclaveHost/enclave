@@ -1,6 +1,6 @@
 # Deriving a contract bundle from a catalog version
 
-`derive.go` is the rule. `derive_reference.py` is an independent implementation written from this page. It
+`derive.go` (package `enclave.host/isolation/contract/catalog`) is the rule. `derive_reference.py` is an independent implementation written from this page. It
 generates `derive_vectors.json`, which `derive_test.go` must reproduce exactly.
 
 ## The rule, `enclave-catalog-bundle/1`
@@ -13,7 +13,7 @@ Inputs. Every one is explicit, and none has a default:
 | `catalog.app`, `catalog.version` | the catalog's bytes32 app id (`0x` + 64 lowercase hex) and version index | **no** |
 | `cid` | the component's CID as the catalog version names it | no; the component's sha256 is |
 | `policy.cpuPercent`, `policy.memMiB`, `policy.vcpus` | the domain's pinned share | **yes** |
-| `runtimeId` | the 64-hex RuntimeID (`runtime.go`) the mapping is pinned to | **no**; it is bound in `report_data` by Bind2 |
+| `runtimeId` | the 64-hex RuntimeID (`../runtime.go`) the mapping is pinned to | **no**; it is bound in `report_data` by Bind2 |
 
 The component bytes are fetched by CID and verified against it by the host's fetcher. On the M4a host that is
 `wasm/ipfs_fetch.py`, the platform's own CAR verifier. The bytes must begin with the component preamble
@@ -50,7 +50,7 @@ These are documented, not remapped:
 1. **The catalog CID is not the AppID and is not `sha256(component)`.** For a dag-pb CID it is a DAG hash. Nothing
    treats one as the other. The report names the derived AppID, and anyone can recompute it from the catalog
    version's bytes and the record. The chain is unchanged.
-2. **A backend that runs the BARE artifact names the same app differently.** `bundle.go` allows a bare artifact
+2. **A backend that runs the BARE artifact names the same app differently.** `../bundle.go` allows a bare artifact
    whose AppID is `sha256(bytes)` (M3a's monitor accepted one). The same catalog component would then carry two
    identities on two backends. The portable identity for a catalog app is the derived bundle's AppID, so a backend
    meant to be comparable must run the derived bundle and not the bare component. No backend was changed here.
