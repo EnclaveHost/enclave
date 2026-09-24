@@ -577,6 +577,12 @@ agreed with the Enclave verifier session, all nine of its fail-closed refinement
       recorded as null, because a heredoc took the pipe's stdin.
     - The correlation rests on the client's own stateGen and the generation log instead (split check: 48 ok, 1 FAIL).
       The script is fixed for future runs, and the failure is kept.
+  - Run 3, to close that (the verifier session's F3): results/pvm-cpu-client-activation-3, same bytes.
+    - The capture was first preflighted: every capture failure stops the run with exit 3. The earlier fix still
+      swallowed failures, and the preflight shows it.
+    - PASS, 51 checks: all 20 per-call state snapshots are present and equal the generation log, and the 10 raw
+      envelopes are captured and mapped.
+    - Closing F3 and re-verifying the chains offline are the verifier session's steps.
 
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 
