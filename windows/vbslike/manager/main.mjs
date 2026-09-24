@@ -85,6 +85,24 @@ const manager = new Manager({ judgeReady: judgeRunning,
   backend: new HyperVPartitionBackend({ launcher }),
 });
 
+// THE DATA PLANE. Without it a domain can be started and judged running and still have nothing to
+// carry its traffic: the record names a relay port and nobody listens on the other side. It admits
+// only a record that is `running` with appId, image, runtimeId, transportKeySha256 and relay all
+// present, which is why those had to be real before this was worth starting (enclave-5d's
+// createDataPlane, via dataPlaneFor).
+const dataPort = Number(env("ENCLAVE_DATAPLANE_PORT", "0"));
+let dp = null;
+if (dataPort > 0) {
+  const { dataPlaneFor } = await import("../datapath/node-bridge.mjs");
+  dp = dataPlaneFor(manager);
+  dp.server.listen(dataPort, "127.0.0.1", () => console.log(`[winmgr] data plane on 127.0.0.1:${dataPort}`));
+  // A reclaimed domain's sessions must not outlive it: closeInstance is what makes a stop actually
+  // stop carrying traffic, rather than leaving established connections to a partition that is gone.
+  manager.onReclaim = (id, why) => { try { dp.closeInstance(id, why); } catch {} };
+} else {
+  console.log("[winmgr] no ENCLAVE_DATAPLANE_PORT: no data plane, so a running domain carries no traffic");
+}
+
 await manager.probe();            // ask the host BEFORE answering anything about what it can do
 const h = manager.health();
 createServer(manager).listen(port, "127.0.0.1", () => {
