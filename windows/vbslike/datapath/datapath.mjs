@@ -8,8 +8,8 @@
 // It is the Hyper-V twin of isolation/m4/guestd/datapath.go and keeps its rules: a connection is admitted only if its
 // first line names an instance that is running and states, field for field, the identity the manager verified for it:
 //
-//   ENCLAVE-SPLICE/1 id=hv<8 hex> app=<AppID> image=<sha256 of the guest initrd> runtime=<RuntimeID> key=<sha256 of
-//   the TLS key the manager's verifying handshake saw>
+//   ENCLAVE-SPLICE/1 id=<the manager's instance id> app=<AppID> image=<sha256 of the guest initrd>
+//   runtime=<RuntimeID> key=<sha256 of the TLS key the manager's verifying handshake saw>
 //
 // answered "OK" (and from then on the connection is the domain's) or "NO <why>" and closed. The third field is
 // `image`, not `measurement`: a partition has no launch measurement, and a Hyper-V route must never read as an
@@ -33,7 +33,8 @@ const hex = (n) => new RegExp(`^[0-9a-f]{${2 * n}}$`);
 const FIELDS = [["id", 0], ["app", 32], ["image", 32], ["runtime", 32], ["key", 32]];
 
 // parsePreamble is strict: the protocol word, then exactly these five fields in this order, each lowercase hex of its
-// exact length (the id: "hv" + 8 hex). Anything else - missing, extra, repeated, reordered - is malformed.
+// exact length (the id: the manager's own instance id, one token of [A-Za-z0-9-], at most 64: no shape beyond that is
+// assumed, the manager owns its ids). Anything else - missing, extra, repeated, reordered - is malformed.
 export function parsePreamble(line) {
   const f = String(line).split(" ");
   if (f.length !== 6 || f[0] !== PROTO) throw new Error(`malformed: expected ${PROTO} id= app= image= runtime= key=`);
@@ -42,8 +43,8 @@ export function parsePreamble(line) {
     const p = name + "=";
     if (!f[i + 1].startsWith(p)) throw new Error(`malformed: field ${i + 1} is not ${p}`);
     const v = f[i + 1].slice(p.length);
-    if (n === 0 ? !/^hv[0-9a-f]{8}$/.test(v) : !hex(n).test(v))
-      throw new Error(n === 0 ? "malformed: id is not a partition instance id" : `malformed: ${name} is not ${n} bytes of lowercase hex`);
+    if (n === 0 ? !/^[A-Za-z0-9-]{1,64}$/.test(v) : !hex(n).test(v))
+      throw new Error(n === 0 ? "malformed: id is not one token of [A-Za-z0-9-], 1 to 64 long" : `malformed: ${name} is not ${n} bytes of lowercase hex`);
     w[name] = v;
   });
   return w;
@@ -56,13 +57,15 @@ export function admit(rec, want) {
   if (want.app !== rec.appId) return ["refused:identity", "the instance is not that app"];
   if (want.image !== rec.image) return ["refused:identity", "the instance was not booted from that guest image"];
   if (want.runtime !== rec.runtimeId) return ["refused:identity", "the instance does not carry that runtime"];
-  if (want.key !== rec.key) return ["refused:identity", "the instance's verified transport key is not that key"];
+  if (want.key !== rec.transportKeySha256) return ["refused:identity", "the instance's verified transport key is not that key"];
   if (!rec.relay || !rec.relay.port) return ["refused:no-relay", "the instance has no relay to its domain"];
   return ["", ""];
 }
 
 // createDataPlane({ lookup }) -> { server, closeInstance(id, why), stats() }
-//   lookup(id) -> null | { status, appId, image, runtimeId, key, relay: { host, port } }, read at admission time
+//   lookup(id) -> null | the manager's /vms view of that instance plus where its relay is, read at admission time:
+//                 { status, appId, image, runtimeId, transportKeySha256, relay: { host, port } } - the view's own field
+//                 names, so the manager passes its record through rather than mapping it
 export function createDataPlane({ lookup, preambleTimeoutMs = 5000, dialTimeoutMs = 5000, idleMs = 180_000,
                                   maxPerInstance = 256, maxTotal = 1024, log = () => {} }) {
   const open = new Map();       // instance id -> Set of splices
