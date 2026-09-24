@@ -61,8 +61,9 @@ export function synthChain({ crlDays = 30, extraCrlDays = [], revokeAsk = false,
     arkFp: new X509Certificate(read("ark.pem")).fingerprint256.replace(/:/g, "").toLowerCase() };
   fs.rmSync(dir, { recursive: true, force: true }); return out;
 }
-export function synthReport(S, { reportData, version = 3 }) {
+export function synthReport(S, { reportData, version = 3, hostData = null }) {
   const r = Buffer.alloc(0x4a0);
+  if (hostData) Buffer.from(hostData).copy(r, 0xc0);   // HOST_DATA: the host's launch-time word (deployment binding tests)
   r.writeUInt32LE(version, 0); r.writeBigUInt64LE(0x30000n, 8); r.writeUInt32LE(1, 0x34);
   const tcb = Buffer.from("0a00000000001754", "hex"); tcb.copy(r, 0x38); tcb.copy(r, 0x180); tcb.copy(r, 0x1e0); tcb.copy(r, 0x1f0);
   reportData.copy(r, 0x50); Buffer.from("77".repeat(48), "hex").copy(r, 0x90);

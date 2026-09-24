@@ -64,8 +64,8 @@ test("this branch's verifier: each table vector is accepted or refuses the WHOLE
 test("selection on a verified policy: by deployment the app is the table's; unknown, tableless, non-canonical, mismatched and empty selections are refused; nothing is implied", () => {
   const withTable = mine(pol(2, { deployments: [{ id: D1, app: APP }, { id: D2, app: APP2 }] })), noTable = mine(pol(2));
   assert.equal(withTable.ok, true); assert.equal(noTable.ok, true);
-  assert.deepEqual(selectDeployment(withTable.policy, { deployment: D1 }), { ok: true, app: APP, deployment: D1 });
-  assert.deepEqual(selectDeployment(withTable.policy, { deployment: D2, app: APP2 }), { ok: true, app: APP2, deployment: D2 });
+  assert.deepEqual(selectDeployment(withTable.policy, { deployment: D1 }), { ok: true, app: APP, deployment: D1, instances: null });
+  assert.deepEqual(selectDeployment(withTable.policy, { deployment: D2, app: APP2 }), { ok: true, app: APP2, deployment: D2, instances: null });
   assert.match(selectDeployment(withTable.policy, { deployment: D3 }).reason, /does not name deployment/);
   assert.match(selectDeployment(noTable.policy, { deployment: D1 }).reason, /names no deployments/);
   assert.match(selectDeployment(noTable.policy, { deployment: D1, app: APP }).reason, /names no deployments/, "no silent fallback to --app when --deployment was given");
@@ -74,7 +74,7 @@ test("selection on a verified policy: by deployment the app is the table's; unkn
   assert.match(selectDeployment(withTable.policy, { deployment: D1, app: APP2 }).reason, /not the app the signed policy expects/);
   assert.match(selectDeployment(withTable.policy, {}).reason, /no app or deployment selected/);
   assert.match(selectDeployment(withTable.policy, { app: "77".repeat(32) }).reason, /does not admit/);
-  assert.deepEqual(selectDeployment(withTable.policy, { app: APP }), { ok: true, app: APP, deployment: null }, "--app alone keeps its meaning when --deployment is absent");
+  assert.deepEqual(selectDeployment(withTable.policy, { app: APP }), { ok: true, app: APP, deployment: null, instances: null }, "--app alone keeps its meaning when --deployment is absent");
   const e = withTable.expectationsForSelection({ deployment: D2 }); assert.equal(e.ok, true); assert.equal(e.app, APP2); assert.equal(e.deployment, D2); assert.equal(e.expect.appId.toString("hex"), APP2);
   assert.equal(withTable.expectationsForSelection({ deployment: D3 }).ok, false);
 });

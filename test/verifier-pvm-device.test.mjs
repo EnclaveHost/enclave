@@ -106,7 +106,7 @@ test("v2 downgrade: stripping both fields and relabelling v1 verifies as v1 with
   assert.equal(admit(d, expectV2(), { clientKind: "native", observedPeerSpki: Buffer.from(v2.spki, "hex") }).decision, RELEASE, "a native client may still pin the transport key on v1");
   await refused(downgraded, expectV2({ formats: [V2_FORMAT] }), /downgrade, refused/, NOW_V2);
   await refused(v2, expectV2({ formats: [V1_FORMAT] }), /downgrade, refused/, NOW_V2);
-  await refused(v2, expectV2({ formats: ["enclave-pvm-app-evidence/v3"] }), /only known evidence formats/, NOW_V2);
+  await refused(v2, expectV2({ formats: ["enclave-pvm-app-evidence/v9"] }), /only known evidence formats/, NOW_V2);
 });
 test("v2 forgeries on the real envelope: swapped, half-stripped, grafted or re-signed app key, stale binding, foreign chain, expired leaf", { skip }, async () => {
   await refused({ ...v2, appKey: l1.spki.slice(-64) }, expectV2(), /not signed by the attested transport key|verifier refused/, NOW_V2);          // the relay's own key under the VM's signature

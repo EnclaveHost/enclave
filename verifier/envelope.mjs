@@ -48,6 +48,8 @@ export const FORMATS = Object.freeze({
   // by verifier/index.mjs to verifier/pvm-evidence.mjs before parseEnvelope, which is why it has no body here
   "enclave-pvm-app-evidence/v1": { technology: TECH.AVF, family: "pvm-app", binding: "abi2-client-nonce", gzip: false, supported: "delegate", jsonObject: true },
   "enclave-pvm-app-evidence/v2": { technology: TECH.AVF, family: "pvm-app", binding: "abi2-client-nonce", gzip: false, supported: "delegate", jsonObject: true, appKey: true },
+  // v3 (INSTANCE-BINDING.md, 2026-09-24): v2 plus the VM instance inside the challenge (Bind3) and an instance signature
+  "enclave-pvm-app-evidence/v3": { technology: TECH.AVF, family: "pvm-app", binding: "abi3-client-nonce-instance", gzip: false, supported: "delegate", jsonObject: true, appKey: true, instance: true },
   "windows-vbs-enclave/v1":     { technology: TECH.VBS, family: "consumer-node", binding: "vbs-transcript", gzip: false, supported: "delegate", shape: SHAPES.vbs },
   "hyperv-partition-domain/v1": { technology: TECH.HYPERV, family: "domain", binding: "domain", gzip: false, supported: "delegate", hostExcluded: false, shape: SHAPES.hyperv },
   "dev-unattested-metal-v1":    { technology: TECH.NONE, family: "dev", binding: null, gzip: false, supported: false, rejected: true, why: "development format: proves nothing about hardware by definition" },

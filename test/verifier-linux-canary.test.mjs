@@ -92,6 +92,15 @@ test("single-field forgeries: another nonce, another runtime identity, another a
   rejectedAt(await run({ ...doc, report: flipped.toString("base64") }), "signature", /invalid/);
 });
 
+test("deployment binding (F11 fix, HOST_DATA = deployment id): the capture's HOST_DATA is zero, so expecting the deployment REFUSES it today, in both builds; the owner's launcher change flips this", { skip }, async () => {
+  const DEP = Buffer.from("4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e", "hex");
+  assert.equal(report.subarray(0xc0, 0xe0).equals(Buffer.alloc(32)), true, "the canary guest was launched with all-zero HOST_DATA");
+  rejectedAt(await run(doc, { context: { expectedHostData: DEP } }), "host data", /all zero/);
+  const w = await verifyEvidenceWeb(doc, { policy: { snp: { allowedMeasurements: [OWNER_MEASUREMENT], minTcb } }, context: { transportKeySpki: spki, nonce, expectedBinding: bind2(), expectedAppId: Buffer.from(OWNER_APP_ID, "hex"), expectedHostData: DEP, now: NOW }, collateral: col() });
+  assert.equal(w.status, "rejected"); assert.equal(w.checks["host data"], false);
+  assert.equal((await run(doc)).checks["host data"], undefined, "without an expectation the check is not made (the verdict carries no such check)");
+});
+
 test("the browser build gives the same verdict on the capture and on a forgery", { skip }, async () => {
   const norm = (v) => JSON.parse(JSON.stringify(v));
   const inputs = (context = {}) => ({ policy: { snp: { allowedMeasurements: [OWNER_MEASUREMENT], minTcb } }, context: { transportKeySpki: spki, nonce, expectedBinding: bind2(), expectedAppId: Buffer.from(OWNER_APP_ID, "hex"), now: NOW, ...context }, collateral: col() });

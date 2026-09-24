@@ -2,17 +2,17 @@
  "pvm-app-attest": {
   "purpose": "the pVM owner's evidence verifier, judged against by the consumer adapter (verifier/pvm-evidence.mjs); never copied into this branch",
   "branch": "pvm-cpu/portable-runtime",
-  "commit": "afd437a25305ba32f83d0384eb30240a31cd4391",
+  "commit": "193cf823119657e5740696fc144033f658c3dcb7",
   "entry": "relay/pvm-app-attest.mjs",
   "files": {
-   "relay/pvm-app-attest.mjs": "9ad268685757c19f56e2c6ece739a000fd551751b9ff35168c535a4eae7b1eda",
+   "relay/pvm-app-attest.mjs": "25e20c3673a64138db026fcf6bf002cd51a257b4dd26898fafccf729964d457b",
    "relay/avf-verify.mjs": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd"
   },
   "mustMatchWorktree": [
    "relay/avf-verify.mjs"
   ],
   "pinnedAt": "2026-09-24",
-  "note": "v2 evidence (appKey, appKeySig, sealed window); the real fixtures under test/fixtures/verifier/pvm-evidence were produced by this revision's device runs",
+  "note": "v3 (INSTANCE-BINDING.md, agreed 2026-09-24): Bind3 over the instance, instanceSig, appKeySig v3, expect.instanceIds; v1 and v2 unchanged (the device and stability fixtures produced by afd437a2 re-verify through this revision)",
   "env": "ENCLAVE_PVM_MODULE"
  },
  "pvm-sealed": {
@@ -111,5 +111,43 @@
   "mustMatchWorktree": [],
   "pinnedAt": "2026-09-24",
   "note": "the commit of the corrected canary capture (expected-measurement.txt, KDS correction, DERIVE.md naming the gateway); the front that produced the document is isolation/m2/front/main.go at f5053f62 per the owner"
+ },
+ "pvm-client-src-v3": {
+  "purpose": "the 0.5.0 client SOURCES (trust.js type-2 policies with instances, gate.js instance rule), run as the DIFFERENTIAL reference beside verifier/pvm-policy.mjs and verifier/admission.mjs on the owner's v3 fixtures; the 0.4.1 source pin stays for the supersede suite",
+  "branch": "pvm-cpu/portable-runtime",
+  "commit": "193cf823119657e5740696fc144033f658c3dcb7",
+  "entry": "shielded/anchor/avf/client/src/trust.js",
+  "env": "ENCLAVE_PVM_CLIENT_SRC_V3",
+  "files": {
+   "shielded/anchor/avf/client/cli.mjs": "0f1d2af22c709021bdf46261f13e88890e6eeefacbb21a6de5d444eb0f1173f3",
+   "shielded/anchor/avf/client/src/activate.js": "16289f026e24d9e6ca0d978f85e228288cea99cdd0a6edcdab503044e1dfeaa7",
+   "shielded/anchor/avf/client/src/client.js": "9f2db29072ef6cb8ca327e4a055552751f781a06bd06c5fe5c688cb389c32967",
+   "shielded/anchor/avf/client/src/gate.js": "1462776a2f7db5f819ff4d56d14c5244f49715bf0e64f20425722f9d0d2f9252",
+   "shielded/anchor/avf/client/src/store-ext.js": "6d59acdc0a27bfed73ce37c1ef79c8946b89434271dac445782774a17034fe9f",
+   "shielded/anchor/avf/client/src/store-file.js": "6293fbcf26e2789bc44160f7ee6e33e3a69638153ea4f60ba6b3da73623c82b8",
+   "shielded/anchor/avf/client/src/trust.js": "bbefe2256f454dd709711d9f0181a22c80c6d49865233b7b81ba267cadbd66fd",
+   "shielded/anchor/avf/client/src/update.js": "23d37619318f96d38c248dae16440a3896f81024c242b140a6fe5a2a07e5ea9c",
+   "shielded/anchor/avf/web/pvm-client.js": "a3d1c20f20001033bdae70bae6d54a492d3391954963ef73a6d15ef0032cf976",
+   "shielded/anchor/avf/web/pvm-sealed.js": "be7d6ed088bed2fc0c70e8fd23d52ac06202ac188ba999b34e7095da58e5a175",
+   "shielded/anchor/avf/web/pvm-verify.js": "56afc6d528ad3a58ba36bdbbd455949f077b43e537f4d01db1f872a3ce5b14eb",
+   "shielded/anchor/avf/web/vendor/hpke-core-1.9.0.js": "a4302f89ae432a27c0476a21c4aa33be7cd94419b51eca8e71ef05b634db3e34"
+  },
+  "mustMatchWorktree": [],
+  "pinnedAt": "2026-09-24",
+  "note": "instance binding implemented; the built 0.4.1 artifact refuses a type-2 policy as 'not a pVM client policy' (owner's test)"
+ },
+ "pvm-v3-fixtures": {
+  "purpose": "the pVM owner's 23 static v3 cases (16 evidence, 7 policy) over a fixed synthetic CA with a fixed now, nonces, pins and the expected outcome per case, replayed here through verifier/pvm-evidence.mjs, verifier/pvm-policy.mjs and verifier/admission.mjs (test/verifier-pvm-v3.test.mjs); never edited here",
+  "branch": "pvm-cpu/portable-runtime",
+  "commit": "193cf823119657e5740696fc144033f658c3dcb7",
+  "entry": "test/fixtures/pvm-v3/fixtures.json",
+  "env": "ENCLAVE_PVM_V3_FIXTURES",
+  "files": {
+   "test/fixtures/pvm-v3/fixtures.json": "723119630011c90fca9aee909ba674c8260ffe9b504751d12a829641c78a340a",
+   "test/pvm-v3-fixtures.test.mjs": "65cbc1c2d541874c6f352b36f0b56d056dd016374e243c9e94d7bb21bc5ae943"
+  },
+  "mustMatchWorktree": [],
+  "pinnedAt": "2026-09-24",
+  "note": "the owner's own replay test is pinned beside the fixtures so the two readings of each case can be compared"
  }
 }

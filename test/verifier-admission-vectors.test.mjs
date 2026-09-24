@@ -30,7 +30,10 @@ test("the release set is exactly the rule's: verified, safe, omission-free, expe
     "pVM v1 verified, native",
     "pVM v2 verified, browser, app key + sealed window",
     "pVM v2 verified, native, own peer key is the transport key",
+    "pVM v3 verified, browser, deployment bound to this instance",
+    "pVM v3 verified, native, bound, own peer key is the transport key",
+    "pVM v3 verified, unbound deployment (no instance expectation)"
   ]);
-  assert.equal(file.cases.length, 40);
+  assert.equal(file.cases.length, 49);
   for (const c of file.cases.filter((x) => x.decision === "hold")) assert.equal(c.pinned, null, `${c.name}: a hold pins nothing`);
 });
