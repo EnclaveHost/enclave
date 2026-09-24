@@ -1,0 +1,29 @@
+debconf: delaying package configuration, since apt-utils is not installed
+gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+cmake version 3.22.1
+== conv-equiv (exit 0)
+d_inner=10240 n_t=17 K=1 threads=8: output IDENTICAL (0 differ), state (all 1 slots) IDENTICAL
+d_inner=10240 n_t=17 K=2 threads=8: output IDENTICAL (0 differ), state (all 2 slots) IDENTICAL
+d_inner=10245 n_t=2 K=2 threads=8: output IDENTICAL (0 differ), state (all 2 slots) IDENTICAL
+ALL IDENTICAL
+OK: conv-equiv
+== conv-equiv2 (exit 0)
+PASS width: d_inner=1031 d_conv=16 n_s=2 mem_size=3 kv_head=1 K=2 threads=4, 2 calls (2 fused, 0 fallback), signed zeros
+PASS width: d_inner=1031 d_conv=16 n_s=2 mem_size=3 kv_head=1 K=2 threads=4, 2 calls (2 fused, 0 fallback), signed zeros
+PASS width: d_inner=1031 d_conv=16 n_s=2 mem_size=3 kv_head=1 K=2 threads=4, 2 calls (2 fused, 0 fallback), signed zeros
+ALL PASS
+OK: conv-equiv2
+OK: graph test, fused on == off byte for byte (steps=71 rows=142 bytes=141045760 n_vocab=248320, 141045760 bytes)
+OK: gdn-equiv, ENCLAVE_GGML_GDN_REGROW=1 == =0 byte for byte (cases=72 bytes=448983256)
+OK: graph test, fused on == off byte for byte (steps=71 rows=142 bytes=141045760 n_vocab=248320, 141045760 bytes)
+OK: gdn-equiv, ENCLAVE_GGML_GDN_NTSNAP=1 == =0 byte for byte (cases=72 bytes=448983256)
+OK: graph test, fused on == off byte for byte (steps=71 rows=142 bytes=141045760 n_vocab=248320, 141045760 bytes)
+regrow=1 tokfuse=(default) n_t=2 threads=8 K=2 states=1 warm=0 calls=2000  116.3 us/call
+  anon=8 MB thp=6 MB
+regrow=0 tokfuse=(default) n_t=2 threads=8 K=2 states=1 warm=0 calls=2000  73.5 us/call
+  anon=7 MB thp=6 MB
+regrow=1 tokfuse=(default) n_t=2 threads=8 K=2 states=1 warm=0 calls=2000  113.5 us/call
+  anon=8 MB thp=6 MB
+regrow=0 tokfuse=(default) n_t=2 threads=8 K=2 states=1 warm=0 calls=2000  72.5 us/call
+  anon=8 MB thp=6 MB
+ALL CHECKS PASSED

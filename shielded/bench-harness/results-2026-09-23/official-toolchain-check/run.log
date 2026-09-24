@@ -1,0 +1,18 @@
+debconf: delaying package configuration, since apt-utils is not installed
+gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0
+cmake version 3.22.1
+OK: gdn-equiv, ENCLAVE_GGML_GDN_NTSNAP=1 == =0 byte for byte (cases=72 bytes=448983256)
+OK: graph test, fused on == off byte for byte (steps=71 rows=142 bytes=141045760 n_vocab=248320, 141045760 bytes)
+ntsnap=1 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  138.2 us/call
+ntsnap=0 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  134.7 us/call
+ntsnap=0 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  164.5 us/call
+ntsnap=1 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  140.7 us/call
+ntsnap=1 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  138.0 us/call
+ntsnap=0 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  189.3 us/call
+ntsnap=0 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  174.9 us/call
+ntsnap=1 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=2 states=48 warm=0 calls=1920  129.5 us/call
+ntsnap=1 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=1 states=48 warm=0 calls=1920  97.4 us/call
+ntsnap=0 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=1 states=48 warm=0 calls=1920  97.0 us/call
+ntsnap=0 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=1 states=48 warm=0 calls=1920  90.8 us/call
+ntsnap=1 regrow=(default) tokfuse=(default) n_t=2 threads=8 K=1 states=48 warm=0 calls=1920  91.2 us/call
+ALL CHECKS PASSED

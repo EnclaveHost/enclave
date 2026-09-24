@@ -1,0 +1,33 @@
+tk-off-1 rc=0 wall=86s foreign=0.54 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=20.80 workload=(1, 17, 64, 64, 43118)
+  plain 18.59 | spec k=1 20.80 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+tk-on-1 rc=0 wall=83s foreign=0.04 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.77 workload=(1, 17, 64, 64, 43118)
+  plain 20.46 | spec k=1 21.77 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+tk-on-2 rc=0 wall=83s foreign=0.07 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=23.83 workload=(1, 17, 64, 64, 43118)
+  plain 18.76 | spec k=1 23.83 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+tk-off-2 rc=0 wall=91s foreign=0.21 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=20.32 workload=(1, 17, 64, 64, 43118)
+  plain 19.56 | spec k=1 20.32 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+tk-off-3 rc=0 wall=84s foreign=0.05 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.95 workload=(1, 17, 64, 64, 43118)
+  plain 19.31 | spec k=1 21.95 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+tk-on-3 rc=0 wall=83s foreign=0.05 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=22.71 workload=(1, 17, 64, 64, 43118)
+  plain 21.12 | spec k=1 22.71 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+tk-on-4 rc=0 wall=85s foreign=0.07 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=23.09 workload=(1, 17, 64, 64, 43118)
+  plain 19.15 | spec k=1 23.09 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+tk-off-4 rc=0 wall=86s foreign=0.16 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.89 workload=(1, 17, 64, 64, 43118)
+  plain 18.47 | spec k=1 21.89 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+QUEUE-DONE

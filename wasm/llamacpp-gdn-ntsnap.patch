@@ -1,20 +1,30 @@
-# GATED_DELTA_NET rollback snapshots with streaming stores (ENCLAVE_GGML_GDN_NTSNAP,
-# default on while under test; =0 restores memcpy). A verify batch copies every
-# head's whole state into an older snapshot slot that is read again only if the
-# draft is rejected; ordinary stores first read each destination line for
-# ownership and then pollute the cache. Non-temporal stores write the same bytes
-# straight to memory (512-bit when the destination is 64-byte aligned, 256-bit
-# when 32-byte aligned, memcpy otherwise), and each thread's chunk ends with one
-# store fence so the snapshot is visible across the barrier. Bit-identical by
-# construction (same bytes); checked by wasm/llamacpp-conv-inplace/gdn-equiv.cpp
-# (whole cache dumped), a mutant per streaming branch, and the real-graph test's
-# rollback scenario. Applies AFTER llamacpp-gdn-regrow.patch.
---- a/ggml/src/ggml-cpu/ops.cpp	2026-09-23 17:35:02.744848350 -0700
-+++ b/ggml/src/ggml-cpu/ops.cpp	2026-09-23 17:35:02.745471373 -0700
-@@ -11066,6 +11066,45 @@
- #define GDN_HAVE_REGROW 1
- #endif
+# NOT APPLIED -- EXCLUDED at the official-path throughput check (shielded/REPORT.md 18.54).
+#
+# GATED_DELTA_NET rollback snapshots with streaming stores (ENCLAVE_GGML_GDN_NTSNAP;
+# =0 restores memcpy). A speculative verify batch copies every head's whole
+# recurrent state into an older snapshot slot that is read again only if a draft
+# token is rejected; non-temporal stores write the same bytes straight to memory
+# (512-bit on AVX-512, 256-bit on AVX/AVX2, memcpy otherwise) with one store fence
+# per thread chunk. Bit-identical by construction, and checked on the official
+# tree (the llamacpp-toolchain patches + this one, GCC 11.4, AVX2) by
+# wasm/llamacpp-conv-inplace/official-toolchain-check.sh: gdn-equiv on/off
+# byte-identical with every snapshot slot dumped, the 0.8B rollback graph identical.
+#
+# Why it is not in the workflow: the OP gets cheaper but the ROUND gets slower.
+# Cold-state op at the 27B verify shape on the AVX2 build: 129.5-140.7 us on
+# against 134.7-189.3 off. On the shielded 27B through that official build, two
+# valid ABBA pairs: verify 84.53 / 82.47 ms per round on against 78.25 / 77.22
+# off (spec 19.52 / 19.97 against 21.05 / 21.40 tok/s), with the plain phase,
+# which takes no snapshot, flat; the AVX-512 fork's profiled runs had pointed the
+# same way (verify 76.0 / 79.9 on against 67.6 / 75.7 off) behind a -14% op
+# profile. Diffed against the workflow's tree, so it applies AFTER
+# llamacpp-rs-inplace.patch if it is ever revisited.
+--- a/ggml/src/ggml-cpu/ops.cpp	2026-09-23 19:13:11.815102198 -0700
++++ b/ggml/src/ggml-cpu/ops.cpp	2026-09-23 19:13:11.815808781 -0700
+@@ -10822,6 +10822,45 @@
+ }
 
+ // ggml_compute_forward_gated_delta_net
 +// Rollback snapshots with streaming stores (ENCLAVE_GGML_GDN_NTSNAP=0 restores
 +// memcpy). A verify batch copies every head's whole state into an older slot
 +// that nothing reads again unless the draft is rejected; with ordinary stores
@@ -57,7 +67,7 @@
  static void ggml_compute_forward_gated_delta_net_one_chunk(
      const ggml_compute_params * params,
      ggml_tensor * dst,
-@@ -11145,6 +11184,7 @@
+@@ -10901,6 +10940,7 @@
      const int64_t rk3 = nev3 / nek3;
 
      const float scale = 1.0f / sqrtf((float) S_v);
@@ -65,7 +75,7 @@
 
      for (int64_t ir = ir0; ir < ir1; ++ir) {
          const int64_t iv1 = ir % H; // head_index
-@@ -11271,13 +11311,14 @@
+@@ -10985,13 +11025,14 @@
                      if (!inplace) {
                          float * curr_state_o = state_out_base + target_slot * state_size_per_snap +
                                           (iv3 * H + iv1) * S_v * S_v;

@@ -1,0 +1,7 @@
+bt-1 pre: MemFree: 42802220 kB AnonHugePages: 1325056 kB  now:[]
+bt-1 rc=0 wall=92s foreign=0.18 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.08 workload=(1, 17, 64, 64, 43118)
+  plain 19.03 | spec k=1 21.08 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4 thp: t+30 Rss: 45403416 kB Anonymous: 28256088 kB AnonHugePages: 25057280 kB
+STOPPED 18:31:46: waitquiet2 held on picom:89 with the cards idle; restarting with waitquiet3 (compositor exempt, recorded)

@@ -1,0 +1,28 @@
+rg-off-1 rc=0 wall=86s foreign=0.16 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=20.95 workload=(1, 17, 64, 64, 43118)
+  plain 18.68 | spec k=1 20.95 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+rg-on-1 rc=0 wall=84s foreign=0.08 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=22.06 workload=(1, 17, 64, 64, 43118)
+  plain 19.00 | spec k=1 22.06 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+rg-on-2 rc=0 wall=85s foreign=0.45 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=20.05 workload=(1, 17, 64, 64, 43118)
+  plain 18.53 | spec k=1 20.05 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+rg-off-2 rc=0 wall=87s foreign=0.20 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=20.35 workload=(1, 17, 64, 64, 43118)
+  plain 19.98 | spec k=1 20.35 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+rg-off-3 rc=0 wall=92s foreign=0.26 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=20.56 workload=(1, 17, 64, 64, 43118)
+  plain 19.20 | spec k=1 20.56 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+rg-on-3 rc=0 wall=85s foreign=0.09 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.68 workload=(1, 17, 64, 64, 43118)
+  plain 18.93 | spec k=1 21.68 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+rg-on-4 rc=0 wall=85s foreign=0.09 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=22.47 workload=(1, 17, 64, 64, 43118)
+  plain 21.09 | spec k=1 22.47 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
