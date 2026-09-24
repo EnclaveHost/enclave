@@ -17,10 +17,17 @@ Decided (Steven, 2026-09-22):
   SEV-SNP hardware, SNP adds the outer layer: guest memory confidentiality and integrity against the host,
   plus hardware attestation.
 - **If the Linux software for a piece does not exist, we build it.** Stock-kernel limits are design inputs.
+- **The app artifact is the portable WebAssembly component, compiled inside the domain** (decided
+  2026-09-23; `isolation/contract/RUNTIME.md`): JIT to the domain's own ISA, x86-64 or ARM64 (Pixel 10/11
+  pVM CPU tier, CPU only, no TPU tier), after the bundle is verified; W^X enforced; no host-supplied native
+  code; caches keyed by bundle hash + runtime version + ISA/feature policy and authenticated, or rebuilt;
+  the runtime identity bound into attestation (ABI/2). Native/AOT output is an internal optimisation at
+  most, never the app format.
 
 Open, deliberately NOT decided here:
-- **AOT vs JIT.** Inside a domain that owns its own page tables, both are possible (unlike VBS VTL1, see 4).
-  Milestone 1 uses whatever exists (Wasmtime's JIT inside the guest) and records the choice as provisional.
+- **AOT vs JIT: decided 2026-09-23** (see the last decided bullet above and `isolation/contract/RUNTIME.md`):
+  JIT inside the domain is the model; AOT output is an internal optimisation at most and never the app
+  format. Milestone 1's provisional choice is now the rule.
 - **Packaging per OS and architecture.** One artifact per (arch, domain type) behind the app's CID is the
   working assumption. A literal single cross-OS binary is not assumed.
 - **API shape.** No Microsoft-compatible enclave API is assumed for the Linux side.

@@ -45,8 +45,14 @@ type Manifest struct {
 	Policy   Policy   `json:"policy"`
 }
 
+// KindWasmComponent is the ONLY artifact kind a bundle may carry. The app is distributed as a portable
+// WebAssembly component and compiled INSIDE its domain to the local ISA (x86-64 in a Linux or Hyper-V
+// domain, ARM64 in a Pixel pVM). Native code and precompiled cwasm are never part of the app contract:
+// they would tie the artifact to one host, and a domain that compiles what it verified is the point.
+const KindWasmComponent = "wasm-component"
+
 type Artifact struct {
-	Kind   string `json:"kind"`   // "wasm-component" | "cwasm" (host-specific, discouraged) | "raw"
+	Kind   string `json:"kind"`   // must be KindWasmComponent
 	Sha256 string `json:"sha256"` // hex sha256 of the artifact bytes carried in the bundle
 }
 
@@ -82,6 +88,12 @@ func Canonical(v any) ([]byte, error) {
 // Build assembles a bundle from a manifest and the artifact it describes. The manifest's artifact
 // hash is set from the bytes, so a caller cannot build a bundle that lies about its artifact.
 func Build(m Manifest, artifact []byte) ([]byte, error) {
+	if m.Artifact.Kind == "" {
+		m.Artifact.Kind = KindWasmComponent
+	}
+	if m.Artifact.Kind != KindWasmComponent {
+		return nil, fmt.Errorf("artifact kind %q is not distributable: the contract carries %s only", m.Artifact.Kind, KindWasmComponent)
+	}
 	sum := sha256.Sum256(artifact)
 	m.Artifact.Sha256 = hex.EncodeToString(sum[:])
 	if m.ABI == "" {
@@ -153,6 +165,9 @@ func Parse(b []byte) (Manifest, []byte, error) {
 	}
 	if m.ABI != ABI {
 		return m, nil, fmt.Errorf("bundle abi %q is not %q", m.ABI, ABI)
+	}
+	if m.Artifact.Kind != KindWasmComponent {
+		return m, nil, fmt.Errorf("bundle artifact kind %q is not distributable: only %s is", m.Artifact.Kind, KindWasmComponent)
 	}
 	sum := sha256.Sum256(p)
 	if m.Artifact.Sha256 != hex.EncodeToString(sum[:]) {
