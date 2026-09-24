@@ -140,7 +140,7 @@ public final class RelayAttach {
             if (pfd == null) { sendFrame(new JSONObject().put("t", "s=").put("sid", sid).put("ok", false).put("err", "the VM's port " + port + " did not answer")); return; }
             Pipe p = new Pipe(pfd); pipes.put(sid, p);
             sendFrame(new JSONObject().put("t", "s=").put("sid", sid).put("ok", true));
-            Main.say("RELAY stream " + sid + " opened to the VM's " + (port == 7786 ? "TLS app port (the bytes are ciphertext" : "evidence endpoint (public evidence") + "; sizes only are logged)");
+            Main.say("RELAY stream " + sid + " opened to the VM's " + (port == 7786 ? "TLS app port (the bytes are ciphertext" : port == 7788 ? "sealed-request port (the bytes are HPKE ciphertext" : "evidence endpoint (public evidence") + "; sizes only are logged)");
             java.io.InputStream fromVm = new java.io.FileInputStream(pfd.getFileDescriptor()); byte[] buf = new byte[1 << 16]; int n;
             while ((n = fromVm.read(buf)) > 0) { p.out += n; sendFrame(new JSONObject().put("t", "sd").put("sid", sid).put("d", Base64.getEncoder().encodeToString(java.util.Arrays.copyOf(buf, n)))); }
         } catch (Exception ignored) { }

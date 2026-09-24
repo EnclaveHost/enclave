@@ -291,6 +291,9 @@ impl HttpServer {
                     return Ok(());
                 }
             };
+            if opened.chunked {
+                return self.serve_stream(stream, opened, body.len()).await;
+            }
             let response = self.serve_bytes(&opened.request).await?;
             let out = sealed::SealedKey::seal_response(&opened, &response, None).map_err(|e| wasmtime::format_err!("sealing the response: {e}"))?;
             self.note(&format!("SEALED served nonce={} ({} bytes in, {} out)", hex8(&opened.nonce), body.len(), out.len()));
@@ -298,6 +301,72 @@ impl HttpServer {
             stream.shutdown().await?;
             Ok(())
         })
+    }
+
+    /// A streamed sealed response (SEALED-STREAMING.md): the request's bytes into the server's own service over a bounded
+    /// in-memory pipe; the response's bytes sealed chunk by chunk as they come, each chunk written before the next is read
+    /// (so a slow page slows the pipe, hyper, and the guest's blocking writes). FIN only when the app's response completed;
+    /// ABORT (authenticated) when it did not, or a cap was reached; a failed write (the page cancelled) ends it at once --
+    /// the pipe closes, hyper's write fails, the guest's next write fails and the handler returns.
+    async fn serve_stream(&self, mut stream: tokio::net::UnixStream, opened: sealed::Opened, in_len: usize) -> Result<()> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let (head, mut sealer) = sealed::ChunkSealer::start(&opened, None).map_err(|e| wasmtime::format_err!("sealing the stream: {e}"))?;
+        let (server_end, mut client_end) = tokio::io::duplex(64 << 10);
+        let request = opened.request.clone();
+        let nonce = hex8(&opened.nonce);
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel::<bool>();
+        let t0 = Instant::now();
+        let pump = tokio::task::spawn(async move {
+            client_end.write_all(&request).await?;
+            client_end.shutdown().await?;
+            if stream.write_all(&head).await.is_err() {
+                return Ok::<_, std::io::Error>(("cancelled", 0u64, 0u64));
+            }
+            let mut buf = vec![0u8; sealed::CHUNK_PLAINTEXT];
+            loop {
+                let n = client_end.read(&mut buf).await?;
+                if n == 0 {
+                    let (chunks, bytes) = (sealer.chunks() + 1, sealer.bytes);
+                    let completed = done_rx.await.unwrap_or(false);
+                    let last = if completed { sealer.finish(&[]) } else { sealer.abort("the app's response ended with an error") };
+                    let last = last.map_err(std::io::Error::other)?;
+                    if stream.write_all(&last).await.is_err() {
+                        return Ok(("cancelled", chunks, bytes));
+                    }
+                    let _ = stream.shutdown().await;
+                    return Ok((if completed { "fin" } else { "abort" }, chunks, bytes));
+                }
+                match sealer.chunk(&buf[..n]) {
+                    Ok(c) => {
+                        if stream.write_all(&c).await.is_err() {
+                            return Ok(("cancelled", sealer.chunks(), sealer.bytes)); // client_end drops here
+                        }
+                    }
+                    Err(_) => {
+                        let (chunks, bytes) = (sealer.chunks() + 1, sealer.bytes);
+                        let a = sealer.abort("the response exceeds the stream's caps").map_err(std::io::Error::other)?;
+                        let _ = stream.write_all(&a).await;
+                        let _ = stream.shutdown().await;
+                        return Ok(("abort", chunks, bytes));
+                    }
+                }
+            }
+        });
+        let served = http1::Builder::new()
+            .keep_alive(false)
+            .half_close(true)
+            .serve_connection(TokioIo::new(server_end), hyper::service::service_fn(|req| self.handle(req)))
+            .await;
+        let _ = done_tx.send(served.is_ok());
+        let (how, chunks, bytes) = pump
+            .await
+            .map_err(|e| wasmtime::format_err!("sealed stream: {e}"))?
+            .map_err(|e| wasmtime::format_err!("sealed stream: {e}"))?;
+        self.note(&format!(
+            "SEALED stream nonce={nonce} {how} after {chunks} chunks ({in_len} bytes in, {bytes} plaintext bytes out, {} ms)",
+            t0.elapsed().as_millis()
+        ));
+        Ok(())
     }
 
     /// One HTTP/1.1 request's bytes through the server's own service (hyper over an in-memory pipe): the response's bytes.

@@ -16,7 +16,7 @@ const pins = { app: arg("--app"), codeHash: arg("--code-hash"), authority: arg("
                runtimeId: arg("--runtime-id") || createHash("sha256").update(PIXEL).digest("hex"),
                ...(arg("--root-pin") ? { rootPins: [arg("--root-pin")] } : {}) };   // --root-pin: synthetic-chain tests only (default: Google's roots)
 if (!pins.app || !pins.codeHash || !pins.authority) { console.error("usage: lab-site.mjs --app H --code-hash H --authority H [--runtime-id H] [--port P] [--results F] [--connect ORIGINS]"); process.exit(2); }
-const FILES = { "/lab.html": "text/html", "/pvm-client.js": "text/javascript", "/pvm-verify.js": "text/javascript", "/pvm-sealed.js": "text/javascript", "/lab.js": "text/javascript" };
+const FILES = { "/lab.html": "text/html", "/pvm-client.js": "text/javascript", "/pvm-verify.js": "text/javascript", "/pvm-sealed.js": "text/javascript", "/lab.js": "text/javascript", "/vendor/hpke-core-1.9.0.js": "text/javascript" };
 const csp = `default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self' ${arg("--connect", "")}; base-uri 'none'; form-action 'none'`;
 const log = (o) => process.stdout.write(JSON.stringify({ t: new Date().toISOString(), ...o }) + "\n");
 http.createServer((req, res) => {

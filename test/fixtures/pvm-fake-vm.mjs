@@ -34,7 +34,8 @@ export async function startFakeVm({ dir, ca, code, appId, identity = PIXEL, resp
     });
     c.on("error", () => {});
   });
-  const kemSuite = new Uint8Array([...te.encode("KEM"), 0x00, 0x20]);
+  const recipientKey = { privateKey: app.privateKey ? await crypto.subtle.importKey("pkcs8", app.privateKey.export({ type: "pkcs8", format: "der" }), { name: "X25519" }, true, ["deriveBits"]) : null,
+                         publicKey: await crypto.subtle.importKey("raw", appKey, { name: "X25519" }, true, []) };
   const sealed = net.createServer((c) => {
     let buf = Buffer.alloc(0);
     c.on("error", () => {});
@@ -42,21 +43,26 @@ export async function startFakeVm({ dir, ca, code, appId, identity = PIXEL, resp
       buf = Buffer.concat([buf, d]);
       if (buf.length < 4 || buf.length < 4 + buf.readUInt32BE(0)) return;
       const body = buf.subarray(4, 4 + buf.readUInt32BE(0)); buf = Buffer.alloc(0);
-      const nonce = body.subarray(0, 32), enc = body.subarray(39, 71), ct = body.subarray(71);
+      const nonce = body.subarray(0, 32), hdr = body.subarray(32, 39), enc = body.subarray(39, 71), ct = body.subarray(71);
+      const chunked = hdr[0] === 1;
       const refuse = (why) => { log.push({ refused: why }); c.end(Buffer.concat([Buffer.from([1]), Buffer.from(why)])); };
       const seen = nonces.get(nonce.toString("hex"));
       if (!seen) return refuse("unknown evidence nonce: fetch fresh evidence");
       if (seen.has(enc.toString("hex"))) return refuse("replayed request: refused before it runs");
       try {
-        const dh = diffieHellman({ privateKey: app.privateKey, publicKey: createPublicKey({ key: Buffer.concat([Buffer.from("302a300506032b656e032100", "hex"), enc]), format: "der", type: "spki" }) });
-        const prk = await S.extract(new Uint8Array(0), new Uint8Array([...te.encode("HPKE-v1"), ...kemSuite, ...te.encode("eae_prk"), ...dh]));
-        const shared = await S.expand(prk, new Uint8Array([0, 32, ...te.encode("HPKE-v1"), ...kemSuite, ...te.encode("shared_secret"), ...enc, ...appKey]), 32);
-        const ks = await S.keySchedule(shared, S.requestInfo(Buffer.from(appId, "hex"), rid));
-        const k = await crypto.subtle.importKey("raw", ks.key, "AES-GCM", false, ["decrypt"]);
-        const req = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: ks.baseNonce, additionalData: nonce }, k, ct));
-        seen.add(enc.toString("hex")); log.push({ served: new TextDecoder().decode(req).split("\r\n")[0] });
-        const resp = te.encode(`HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: ${te.encode(response).length}\r\n\r\n${response}`);
-        c.end(Buffer.from(await S.sealResponseForTest({ enc, exporterSecret: ks.exporterSecret }, resp, randomBytes(16))));
+        const rc = await S.suite.createRecipientContext({ recipientKey, enc, info: S.requestInfo(Buffer.from(appId, "hex"), rid, chunked) });
+        const req = new Uint8Array(await rc.open(ct, nonce));
+        const ctx = { enc, nonce, chunked, secret: new Uint8Array(await rc.export(new TextEncoder().encode(`${S.LABEL}${chunked ? " chunked" : ""} response`), 16)) };
+        seen.add(enc.toString("hex")); log.push({ served: new TextDecoder().decode(req).split("\r\n")[0], chunked });
+        if (!chunked) {
+          const resp = te.encode(`HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: ${te.encode(response).length}\r\n\r\n${response}`);
+          return c.end(Buffer.from(await S.sealResponseForTest(ctx, resp, randomBytes(16))));
+        }
+        // streamed: the head, then one NDJSON line per chunk (chunked transfer encoding), then FIN
+        const lines = [0, 1, 2].map((i) => `{"i":${i},"token":${7 + i}}\n`);
+        const parts = ["HTTP/1.1 200 OK\r\ncontent-type: application/x-ndjson\r\ntransfer-encoding: chunked\r\n\r\n",
+                       ...lines.map((l) => `${te.encode(l).length.toString(16)}\r\n${l}\r\n`), "0\r\n\r\n"];
+        c.end(Buffer.from(await S.sealStreamForTest(ctx, randomBytes(16), [...parts.map((p) => ({ type: S.CHUNK.DATA, pt: te.encode(p) })), { type: S.CHUNK.FIN, pt: new Uint8Array(0) }])));
       } catch { refuse("cannot open"); }
     });
   });
