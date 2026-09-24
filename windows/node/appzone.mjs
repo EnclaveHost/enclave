@@ -371,7 +371,33 @@ export function appZone({ send, resolve, pressure, serveHttp, maxBodyBytes = 0, 
           return abort("a private deployment is never spliced");
         }
         app = net.connect(target.port, "127.0.0.1");
-        app.on("error", (e) => abort(`app ${e.message}`));
+        // AN ANSWER, NOT A CLOSED SOCKET. Until the app has written its first byte this side owns
+        // the response, and destroying the TLS socket here is what a browser renders as
+        // ERR_EMPTY_RESPONSE: a blank tab with nothing to act on. It happened for real - two apps
+        // stopped accepting on their brokered port, this connect got ECONNREFUSED, and their own
+        // hostnames went blank while the deployments still read "running".
+        //
+        // So a failure BEFORE the app speaks becomes a plain 502 with a body saying which app and
+        // what happened. Once the app HAS written something the response belongs to it, and the
+        // only honest thing left is to drop the connection rather than append to its answer.
+        let spoke = false;
+        const refuse = (why) => {
+          log(`app-zone ${id.slice(0, 10)}: ${why}`);
+          const body = Buffer.from(JSON.stringify({ error: "app_unreachable", id,
+            message: `this deployment is not accepting connections on the node right now (${why})`,
+            hint: "the node holds the lease; the app inside the enclave is not answering" }) + "\n");
+          try {
+            tlsSock.end("HTTP/1.1 502 Bad Gateway\r\n"
+              + "content-type: application/json\r\n"
+              + `content-length: ${body.length}\r\n`
+              + "connection: close\r\ncache-control: no-store\r\n\r\n" + body.toString("utf8"));
+          } catch { try { tlsSock.destroy(); } catch {} }
+          try { if (app) app.destroy(); } catch {}
+          try { ws.close(); } catch {}
+          drop(st.sid);
+        };
+        app.on("error", (e) => (spoke ? abort(`app ${e.message}`) : refuse(`app ${e.message}`)));
+        app.once("data", () => { spoke = true; });
         tlsSock.pipe(app);                     // the client's request, into the app
         app.pipe(tlsSock);                     // the app's answer, ended when the app is done
         log(`app-zone ${id.slice(0, 10)}: ${target.cert.name} handshake done, serving from 127.0.0.1:${target.port}`);
