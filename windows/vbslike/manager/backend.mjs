@@ -16,9 +16,10 @@
      This host has none of that. Every Hyper-V optional feature is Disabled, only
      VirtualMachinePlatform is Enabled, the vmms service is not installed, Get-VM does not exist and
      root\virtualization\v2 answers "Invalid namespace". HCS is present (vmcompute) and accepts
-     SecuritySettings.Isolation.IgvmFilePath in a document without complaint - and the worker then
-     logs "Loading IGVM file from default location" for every partition, so that key is not what
-     this build reads and our image has never been loaded.
+     SecuritySettings.Isolation.IgvmFilePath, and the worker then logs "Loading IGVM file from
+     default location" for every partition. Acceptance is not indifference: an invented key in the
+     same object is refused as an invalid document, so this schema RECOGNISES IgvmFilePath and the
+     worker does not act on it here. Our image has never been loaded.
 
    So `start` fails closed with that reason rather than pretending. Nothing here fabricates an
    attestation, and a domain that never ran carries none.
@@ -56,8 +57,8 @@ export class HyperVPartitionBackend {
       const e = new Error(
         "this host cannot load a custom IGVM: the supported path is WMI (Msvm_VirtualSystemSettingData.FirmwareFile), "
         + "which needs the Hyper-V role; this box runs HCS on VirtualMachinePlatform alone, where "
-        + "SecuritySettings.Isolation.IgvmFilePath is accepted and ignored (the worker logs \"Loading IGVM file from "
-        + "default location\"). No partition has run our image.");
+        + "SecuritySettings.Isolation.IgvmFilePath is a recognised field the worker does not act on (it logs "
+        + "\"Loading IGVM file from default location\"). No partition has run our image.");
       e.code = "backend_cannot_start";
       e.prerequisites = PREREQUISITES;
       throw e;

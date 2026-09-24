@@ -38,9 +38,10 @@ and two gates in two processes is the point.
 - This host has none of it: every Hyper-V feature `Disabled`, only `VirtualMachinePlatform`
   enabled, `vmms` not installed, `Get-VM` absent, `root\virtualization\v2` answering
   "Invalid namespace".
-- HCS accepts `SecuritySettings.Isolation.IgvmFilePath` without complaint and the worker then logs
-  `Loading IGVM file from default location` for every partition, so that key is not what this build
-  reads. **Our image has never been loaded.**
+- HCS accepts `SecuritySettings.Isolation.IgvmFilePath` and the worker then logs
+  `Loading IGVM file from default location` for every partition. That acceptance is meaningful:
+  an invented key in the same object is refused as an invalid document, so the schema *recognises*
+  the field and the worker does not act on it here. **Our image has never been loaded.**
 
 So `start` throws with that reason and names the prerequisite. A domain that did not run is
 `failed` with the reason attached and **no `attestation` field at all** - not null, not "pending".
