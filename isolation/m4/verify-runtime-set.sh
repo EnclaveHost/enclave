@@ -73,9 +73,11 @@ neg() {   # neg <name> <RT_MUTATE>
 
   IGVM=$N/plane.igvm EVIDENCE_SERIAL=1 FW_DEBUGCON=1 sh "$here/../m3/run-domain.sh" start "$N/plane.cpio.gz" \
     snp P "$N" 2 2048 > "$N/P.host" 2>&1 || true
+  # Guard the files, not just the commands: `< missing` fails in the SHELL, before a 2>/dev/null on tr applies,
+  # so the unguarded form printed "No such file or directory" on every poll until QEMU created them.
   for _ in $(seq "${WAIT_S:-240}"); do
-    tr -d '\000' < "$N/P.evidence" 2>/dev/null | grep -aq "PLANE serving=NO" && break
-    tr -d '\000' < "$N/P.serial" 2>/dev/null | grep -aq "DOM serving" && break
+    [ -s "$N/P.evidence" ] && tr -d '\000' < "$N/P.evidence" | grep -aq "PLANE serving=NO" && break
+    [ -s "$N/P.serial" ] && tr -d '\000' < "$N/P.serial" | grep -aq "DOM serving" && break
     grep -aq "Hash comparison failed\|no hashes table" "$N/P.debugcon" 2>/dev/null && break
     sleep 1
   done
