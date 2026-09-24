@@ -23,14 +23,20 @@ two differ. `check.ps1` reports each profile's host state live. The manifest sta
 
 | version | id (sha256 of the file) | guest | apps | datapath |
 |---|---|---|---|---|
-| 1 | `manifests/nucbox-ownguest-1.json` | IGVM `2d735376…` around monitor `44abb52b…` (isolation/m3 at `3c077840`), WSL kernel `7fe3edb5…` | hello-world 1.0.4 (`/1`, AppID `9c3d10f1…`, servable), hookbin 0.1.4 (`/2`, pinned, not servable) | empty |
+| 1 | `6cdaf629…` `manifests/nucbox-ownguest-1.json` | IGVM `2d735376…` around monitor `44abb52b…` (isolation/m3 at `3c077840`), WSL kernel `7fe3edb5…`, manager `8327498e` | hello-world 1.0.4 (`/1`, AppID `9c3d10f1…`), hookbin 0.1.4 (`/2`, not servable) | empty |
+| 2 | `197a9e3d…` `manifests/nucbox-ownguest-2.json` | IGVM `7caf7408…` around monitor `4610d594…` (isolation/m3 at `aef54ff7`: `/2` run mode, readiness, a launcher-named certificate name), WSL kernel `7fe3edb5…`, manager + judge-hv at `261e5f03` | the same two; hello-world's answer pinned to the byte (`"Hello World!\n"`, `03ba204e…`) | `datapath.mjs` `d0a57f6a…` at `67354f3b` (nothing on the box imports it yet) |
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
+
+**v1 is defective. Use v2.** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
+copied from a client that trims. The app answers `"Hello World!\n"`, so v1's serve checks would fail on a correct
+answer. The current verifier refuses v1 at that pin. `--serve`, which serves the component under the pinned runtime and
+compares the exact bytes, is the check that would have caught it. The rest of v1's pins stand for the old guest.
 
 ## Reproduce and verify (warden-host)
 
 ```
-node windows/vbslike/pkg/pkg.mjs verify windows/vbslike/pkg/manifests/nucbox-ownguest-1.json --rebuild --fetch https://ipfs.enclave.host
+node windows/vbslike/pkg/pkg.mjs verify windows/vbslike/pkg/manifests/nucbox-ownguest-2.json --rebuild --fetch https://ipfs.enclave.host --serve
 node --test windows/vbslike/pkg/pkg.test.mjs
 ```
 
@@ -50,8 +56,11 @@ node --test windows/vbslike/pkg/pkg.test.mjs
   openvmm `a7b0bd4` VTL2 pieces, that vmlinux and the monitor initrd (`build-ownguest.sh`, igvmfilegen only). This
   takes seconds and starts no compiler.
 - **`--fetch`.** Fetches each component by CID.
+- **`--serve`.** Serves each servable `wasi:http` app with this host's wasmtime, which must be the version the runtime
+  identity names. The answer must be the pinned bytes.
+- **The judge.** It loads from the package's own files, laid out as shipped, and rejects a document that is not one.
 
-The test suite has 25 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
+The test suite has 33 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
 re-pinned to its new bytes. Each case must FAIL at the check that covers it, and the two controls must PASS. The
 sources live in `~/enclave-bench/ownguest-pkg/sources/`, and the tests skip without them.
 
@@ -61,7 +70,7 @@ reproduced here.
 ## Put it on the box (read `win/*.ps1` first: they state what they write)
 
 ```
-node windows/vbslike/pkg/pkg.mjs pack windows/vbslike/pkg/manifests/nucbox-ownguest-1.json ~/enclave-bench/ownguest-pkg/out
+node windows/vbslike/pkg/pkg.mjs pack windows/vbslike/pkg/manifests/nucbox-ownguest-2.json ~/enclave-bench/ownguest-pkg/out
 windows/vbslike/pkg/push.sh ~/enclave-bench/ownguest-pkg/out/<id16> minipc-zt
 ```
 
@@ -93,15 +102,25 @@ directory. They never touch `C:\Users\claude\vbs\node` or `\vbs\ee`.
 1. It verifies the package.
 2. It starts `vbslike-host lab` on the package's kernel and initrd. The launcher's ready line must name those two hashes.
 3. It `load`s the bundle. The monitor's own hash of what arrived must be the AppID.
-4. It GETs `https://127.0.0.1:<tcpPort>/` (TLS ends in the domain) and expects the manifest's answer, `200 "Hello World!"`.
-5. It always ends with `destroy` + `quit`.
+4. On its own TLS sessions to `127.0.0.1:<tcpPort>` it polls `/.well-known/enclave-ready` until the guest says ready for
+   this app.
+5. It fetches `/.well-known/enclave-attestation` for a fresh nonce. `win\judge-run.mjs` then judges the document with
+   the package's judge-hv, against THAT session's certificate key, the launcher key from the ready line, and the
+   `vmId` from the load answer.
+6. It GETs `/` until it receives exactly the pinned bytes.
+7. It requires every request to have seen ONE certificate.
+8. It always ends with `destroy` + `quit`.
 
-The record goes to `runs\hcs-<utc>\smoke.json`.
+"Running" is ready + `monitor-signed` + the pinned answer, all on one certificate (isolation/m3/HV-GUEST.md). On this
+tier, `monitor-signed` means the document is signed by the launcher in the root partition, and the host is NOT
+excluded. The record goes to `runs\hcs-<utc>\` (`smoke.json`, `evidence.json`, `transcript.txt`).
 
 **igvm.** Start the manager with the environment that `check.ps1` prints, then `POST
 apps\hello-world-1.0.4\spawn.json` to `127.0.0.1:8091/vms`. The console should say `MON ready control_port=9000`.
-Serving needs a datapath that loads the bundle into the IGVM guest. Until a manifest pins one, `check.ps1 -Phase serve
--Boot igvm` answers BLOCKED.
+Serving needs a datapath that loads the bundle into the IGVM guest. v2 pins enclave-5d's `datapath.mjs`, but nothing
+on the box imports it yet. The package ships judge-hv, `isolation/m2/judge.mjs`, `relay/snp-verify.mjs` and
+`isolation/contract/runtime.mjs` under `control/`, in the repository's own layout, so the manager's readiness judge
+resolves them from `control/windows/vbslike/manager/`.
 
 **Checking an answer from any stack.** `check.ps1 -Phase serve -Boot <profile> -Url <url> -LoadJson <launcher answer>`
 ties the answer to the package: it requires the guest's own `appSha256` to equal the pinned AppID, and the answer to

@@ -21,6 +21,7 @@ param(
   [int]$TcpBase = 19400,
   [int]$StartSec = 60,
   [int]$LoadSec = 120,
+  [int]$ReadySec = 90,               # the guest's readiness, then the app's first exact answer
   [string]$Dir = ''                 # default: the package directory this script sits in
 )
 $ErrorActionPreference = 'Stop'
@@ -72,7 +73,53 @@ function Read-Answer([int]$Sec) {
 }
 function Send-Line([string]$L) { [void]$transcript.Add("> $L"); $proc.StandardInput.WriteLine($L); $proc.StandardInput.Flush() }
 
-$loaded = $null; $served = $null
+# After a load the guest agreed on: ready, a document for OUR nonce judged against THIS session's key, and the app's
+# exact answer -- all on ONE certificate (isolation/m3/HV-GUEST.md: "running"). A guest that declares no readiness or
+# attestation surface (no `guest` in the manifest) gets only the answer, polled until the deadline.
+function Test-Served($loaded, $hello) {
+  $port = [int]$loaded.tcpPort; $certs = @{}
+  $G = if ($M.PSObject.Properties.Name -contains 'guest') { $M.guest } else { $null }
+  $deadline = (Get-Date).AddSeconds($ReadySec)
+  if ($G) {
+    $rd = $null; $why = 'no answer'
+    while ((Get-Date) -lt $deadline) {
+      try { $rd = Invoke-TlsRequest '127.0.0.1' $port $G.readyPath; $certs[$rd.CertB64] = 1; if ($rd.Status -eq 200) { break }; $why = "$($rd.Status) $($rd.Body)" }
+      catch { $why = $_.Exception.Message }
+      Start-Sleep -Milliseconds 500
+    }
+    $rj = $null; if ($rd -and $rd.Status -eq 200) { try { $rj = $rd.Body | ConvertFrom-Json } catch { } }
+    $okRd = $rj -and $rj.ready -eq $true -and [string]$rj.appId -eq $a.appId
+    [void](Add-Result $R $okRd "the guest says ready for this app ($($G.readyPath))" $(if ($okRd) { "200 mode=$($rj.mode) port=$($rj.port)" } else { $why }))
+    $nb = New-Object byte[] 32; $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create(); $rng.GetBytes($nb); $rng.Dispose()
+    $nonceHex = ([System.BitConverter]::ToString($nb) -replace '-', '').ToLower()
+    $att = $null
+    try { $att = Invoke-TlsRequest '127.0.0.1' $port "$($G.attestationPath)?nonce=$nonceHex"; $certs[$att.CertB64] = 1 } catch { $why = $_.Exception.Message }
+    if ($att -and $att.Status -eq 200) {
+      $ev = [ordered]@{ docRaw = $att.Body; certB64 = $att.CertB64; nonceHex = $nonceHex; expectedAppSha256 = $a.appId
+                        launcherKey = [string]$hello.launcherKey; expectedVmId = [string]$loaded.vmId; expectedImageSha256 = $pin[$P.initrd]
+                        runtimeRaw = [System.IO.File]::ReadAllText((Get-PkgFilePath $Dir $M.runtime.file)) }
+      $evFile = Join-Path $runs 'evidence.json'
+      [System.IO.File]::WriteAllText($evFile, ($ev | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding($false)))
+      $jline = & node (Get-PkgFilePath $Dir $G.judgeRun) $evFile 2>&1 | Select-Object -Last 1
+      $j = $null; try { $j = "$jline" | ConvertFrom-Json } catch { }
+      $okJ = $j -and $j.verdict -eq 'monitor-signed'
+      $script:verdict = if ($j) { [string]$j.verdict } else { 'reject' }
+      [void](Add-Result $R $okJ 'the document for our nonce, judged on this session''s key (judge-hv)' $(if ($okJ) { "monitor-signed (T0-hv: signed by the launcher in the root partition, host NOT excluded), spki $($j.spkiSha256.Substring(0, 16))" } else { "$jline" }))
+    } else { [void](Add-Result $R $false "attestation document ($($G.attestationPath))" $(if ($att) { "$($att.Status) $($att.Body)" } else { $why })) }
+  }
+  $g = $null; $why = 'no answer'
+  do {
+    try { $g = Invoke-TlsRequest '127.0.0.1' $port '/'; $certs[$g.CertB64] = 1; if ($g.Status -eq [int]$a.expect.status -and $g.BodySha256 -eq $a.expect.bodySha256) { break }; $why = "$($g.Status) '$($g.Body)'" }
+    catch { $why = $_.Exception.Message }
+    Start-Sleep -Milliseconds 500
+  } while ((Get-Date) -lt $deadline)
+  $okGet = $g -and $g.Status -eq [int]$a.expect.status -and $g.BodySha256 -eq $a.expect.bodySha256
+  $script:served = [ordered]@{ url = "https://127.0.0.1:$port/"; status = $(if ($g) { $g.Status } else { 0 }); body = $(if ($g) { $g.Body } else { '' }); bodySha256 = $(if ($g) { $g.BodySha256 } else { '' }) }
+  [void](Add-Result $R $okGet "GET https://127.0.0.1:$port/ answers exactly the pinned bytes" $(if ($okGet) { "$($g.Status) $($g.Body | ConvertTo-Json -Compress) ($($a.expect.bodySha256.Substring(0, 16)))" } else { "$why; want $($a.expect.status) $($a.expect.body | ConvertTo-Json -Compress)" }))
+  [void](Add-Result $R ($certs.Count -eq 1) 'every request saw the same certificate' "$($certs.Count) distinct")
+}
+
+$loaded = $null; $served = $null; $verdict = $null
 try {
   $proc = [System.Diagnostics.Process]::Start($psi)
   $errTask = $proc.StandardError.ReadToEndAsync()                     # drained, or the child blocks on a full pipe
@@ -86,13 +133,7 @@ try {
       $loaded = $ans.loaded
       $okApp = [string]$loaded.appSha256 -eq $a.appId
       [void](Add-Result $R $okApp "the monitor's hash of what arrived is the AppID" $(if ($okApp) { "$($a.appId) in partition $($loaded.vmId), relay 127.0.0.1:$($loaded.tcpPort)" } else { "the monitor computed $($loaded.appSha256), the package pins $($a.appId)" }))
-      if ($okApp) {
-        $url = "https://127.0.0.1:$($loaded.tcpPort)/"
-        $g = Invoke-PkgGet $url (Join-Path $runs 'body')
-        $okGet = $g.Status -eq [int]$a.expect.status -and $g.Body -eq $a.expect.body
-        $served = [ordered]@{ url = $url; status = $g.Status; body = $g.Body }
-        [void](Add-Result $R $okGet "GET $url" $(if ($okGet) { "$($g.Status) '$($g.Body)'" } else { "got $($g.Status) '$($g.Body)' (curl exit $($g.Exit)), want $($a.expect.status) '$($a.expect.body)'" }))
-      }
+      if ($okApp) { Test-Served $loaded $hello }
     } else { [void](Add-Result $R $false 'load' "the launcher refused: $($ans | ConvertTo-Json -Compress)") }
   }
 } catch {
@@ -115,7 +156,7 @@ $ok = Test-ResultsOk $R
 $rec = [ordered]@{
   type = 'enclave-vbslike-package-smoke/1'; manifestSha256 = $ManifestSha256.ToLower(); boot = 'hcs-dev'; ok = $ok; atUtc = $stamp
   app = "$($a.name) $($a.version)"; appId = $a.appId; guestAppId = $(if ($loaded) { [string]$loaded.appSha256 } else { $null })
-  vmId = $(if ($loaded) { [string]$loaded.vmId } else { $null }); served = $served
+  vmId = $(if ($loaded) { [string]$loaded.vmId } else { $null }); served = $served; verdict = $verdict
   tier = $M.tier.name; hostExcluded = $false; boundary = $P.boundary
   results = @($R | ForEach-Object { [ordered]@{ ok = $_.Ok; name = $_.Name; detail = $_.Detail } })
 }

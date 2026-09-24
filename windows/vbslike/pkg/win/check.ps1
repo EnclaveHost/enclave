@@ -96,10 +96,10 @@ if ($Phase -eq 'serve') {
       else {
         $runs = Join-Path $Dir "runs\serve-$stamp"; New-Item -ItemType Directory -Force -Path $runs | Out-Null
         $g = Invoke-PkgGet $Url (Join-Path $runs 'body')
-        $ok = $g.Status -eq [int]$a.expect.status -and $g.Body -eq $a.expect.body
-        [void](Add-Result $R $ok "GET $Url" $(if ($ok) { "$($g.Status) '$($g.Body)'" } else { "got $($g.Status) '$($g.Body)' (curl exit $($g.Exit)), want $($a.expect.status) '$($a.expect.body)'" }))
+        $ok = $g.Status -eq [int]$a.expect.status -and $g.BodySha256 -eq $a.expect.bodySha256
+        [void](Add-Result $R $ok "GET $Url answers exactly the pinned bytes" $(if ($ok) { "$($g.Status) $($g.Body | ConvertTo-Json -Compress)" } else { "got $($g.Status) $($g.Body | ConvertTo-Json -Compress) (curl exit $($g.Exit)), want $($a.expect.status) $($a.expect.body | ConvertTo-Json -Compress)" }))
         $rec = [ordered]@{ type = 'enclave-vbslike-package-serve/1'; manifestSha256 = $ManifestSha256.ToLower(); boot = $Boot; app = "$($a.name) $($a.version)"
-                           appId = $a.appId; guestAppId = $guestApp; url = $Url; status = $g.Status; body = $g.Body; atUtc = $stamp; tier = $M.tier.name; hostExcluded = $false }
+                           appId = $a.appId; guestAppId = $guestApp; url = $Url; status = $g.Status; body = $g.Body; bodySha256 = $g.BodySha256; atUtc = $stamp; tier = $M.tier.name; hostExcluded = $false }
         [System.IO.File]::WriteAllText((Join-Path $runs 'serve.json'), ($rec | ConvertTo-Json), (New-Object System.Text.UTF8Encoding($false)))
       }
     }

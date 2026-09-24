@@ -13,10 +13,12 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG = path.join(HERE, "pkg.mjs");
-const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-1.json");
+const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-2.json");        // the latest; v1 is kept below as a refusal
+const V1 = path.join(HERE, "manifests/nucbox-ownguest-1.json");
 const SOURCES = path.join(os.homedir(), "enclave-bench/ownguest-pkg/sources");
 const WORK = path.join(os.homedir(), "enclave-bench/ownguest-pkg/test-work");   // the IGVM is 125 MB: not a tmpfs
-const have = fs.existsSync(path.join(SOURCES, "guest/openhcl-ownguest.bin"));
+const have = fs.existsSync(path.join(SOURCES, "guest/openhcl-ownguest-4610d594.bin"));
+const haveWasmtime = spawnSync("wasmtime", ["--version"]).status === 0;
 const skip = !have && "no local sources";
 const base = JSON.parse(fs.readFileSync(MANIFEST, "utf8"));
 
@@ -81,12 +83,18 @@ const MANIFEST_CASES = [
   ["the tier claims SNP", (m) => { m.tier.snp = true; }, /FAIL tier states what this box is/],
   ["a path that leaves the package", (m) => { file(m, "win/check.ps1").path = "../check.ps1"; }, /FAIL manifest shape: .*not a plain relative path/],
   ["a path twice", (m) => { m.files.push({ ...file(m, "win/check.ps1") }); }, /FAIL manifest shape: .*appears twice/],
-  ["the datapath slot called pinned with no file", (m) => { m.slots[0].state = "pinned"; }, /FAIL slot control\.datapath/],
+  ["the datapath slot called empty while a datapath is shipped", (m) => { m.slots[0].state = "empty"; }, /FAIL slot control\.datapath/],
   ["hcs-dev boots another initrd than the IGVM's", (m) => { m.profiles["hcs-dev"].initrd = "guest/wsl-kernel"; },
    /FAIL profile hcs-dev names a kernel, the monitor initrd|FAIL both profiles boot the SAME monitor image/],
   ["the IGVM recipe reads another initrd than hcs-dev boots", (m) => { m.rebuild.igvm.initrd = "guest/runtime.json"; }, /FAIL both profiles boot the SAME monitor image/],
   ["no VM worker grant for the IGVM", (m) => { m.vmWorkerRead = []; }, /FAIL vmWorkerRead names the IGVM/],
   ["a box-only file with nowhere to stage it from", (m) => { delete file(m, "control/vbslike-host.exe").boxReuse; }, /FAIL manifest shape: .*needs boxReuse/],
+  ["an expected body whose sha256 is not its bytes", (m) => { app(m, "hello-world").expect.body = "Hello World!"; }, /FAIL hello-world 1\.0\.4: an expected answer, exact to the byte/],
+  ["the guest's judge named as a file that is not a judge", (m) => { m.guest.judge = "win/judge-run.mjs"; }, /FAIL guest declares its ready and attestation paths, a judge and its runner/],
+  ["judge-hv re-pinned to other bytes that export no judge (consistent forgery)", (m) => {
+     file(m, "control/windows/vbslike/verify/judge-hv.mjs").from.git.path = "isolation/contract/runtime.mjs"; repin(m, ["control/windows/vbslike/verify/judge-hv.mjs"]); },
+   /FAIL the pinned judge loads from the package's own files/],
+  ["the datapath slot pinned with its file removed", (m) => { m.files = m.files.filter((f) => f.role !== "control.datapath"); }, /FAIL slot control\.datapath/],
 ];
 for (const [name, mutate, want] of MANIFEST_CASES) {
   test(`manifest: ${name} -> FAIL at the check that covers it`, { skip }, () => {
@@ -96,6 +104,36 @@ for (const [name, mutate, want] of MANIFEST_CASES) {
     assert.match(r.out, want, fails(r.out));
   });
 }
+
+test("serve: an answer pinned without being observed (v1's defect, re-pinned consistently) is refused by serving the app", { skip: skip || (!haveWasmtime && "no wasmtime") }, () => {
+  const m = structuredClone(base), e = app(m, "hello-world").expect;
+  e.body = "Hello World!"; e.bodySha256 = "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069";   // sha256("Hello World!")
+  const r = run(["verify", writeManifest(m), "--serve"]);
+  assert.equal(r.code, 1, "a wrong expected answer passed --serve");
+  assert.match(r.out, /FAIL serve: hello-world 1\.0\.4 answers exactly the pinned bytes/, fails(r.out));
+  assert.match(r.out, /ok   hello-world 1\.0\.4: an expected answer, exact to the byte/, "the forgery must be self-consistent, so only serving catches it");
+});
+test("serve: the committed manifest's answer is what the pinned runtime serves", { skip: skip || (!haveWasmtime && "no wasmtime") }, () => {
+  const r = run(["verify", MANIFEST, "--serve"]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   serve: hello-world 1\.0\.4 answers exactly the pinned bytes/);
+});
+test("v1 (committed, never edited) is refused by the current verifier at its unobserved answer", { skip }, () => {
+  const r = run(["verify", V1]);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /FAIL hello-world 1\.0\.4: an expected answer, exact to the byte/, fails(r.out));
+});
+test("the packed judge runner refuses evidence that is not evidence", { skip }, () => {
+  const d = fs.mkdtempSync(path.join(WORK, "judge-"));
+  const cases = [["{}", /judge-run:/], [JSON.stringify({ certB64: "AAAA", nonceHex: "00".repeat(32), docRaw: "{}", runtimeRaw: "{}" }), /judge-run:/]];
+  for (const [ev, want] of cases) {
+    const f = path.join(d, "ev.json"); fs.writeFileSync(f, ev);
+    const r = spawnSync(process.execPath, [path.join(packed, "win/judge-run.mjs"), f], { encoding: "utf8" });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const j = JSON.parse(r.stdout.trim().split("\n").at(-1));
+    assert.equal(j.verdict, "reject"); assert.match(j.reasons.join(" "), want);
+  }
+});
 
 const monOther = path.join(SOURCES, "test/mon-30d8e344.cpio.gz");
 test("rebuild: another monitor initrd, re-pinned consistently, does not make the pinned IGVM", { skip: skip || (!fs.existsSync(monOther) && "no second initrd") }, () => {
