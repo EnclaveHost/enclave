@@ -104,7 +104,8 @@ const SVSM_APPID_GET_REPORT: u32 = 0;
 /// Ask which app ID this plane is, without a report. Refused until admitted.
 const SVSM_APPID_WHOAMI: u32 = 1;
 /// Admit one artifact for the calling plane: hash it, freeze it, hash it again (see the header).
-/// c selects the artifact: 0 the contract bundle, 1 the runtime image.
+/// c selects the artifact: 0 the contract bundle, 1 the runtime SET (every file the runtime executes from; see
+/// RUNTIME_TABLE).
 const SVSM_APPID_ADMIT: u32 = 2;
 /// Which artifacts this plane has admitted, so a guest can tell WHY it is refused. Never gated.
 const SVSM_APPID_STATUS: u32 = 3;
@@ -130,8 +131,16 @@ const APPID_LEN: usize = 32;
 /// is the scalable path and stays supported.
 static APP_TABLE: [[u8; APPID_LEN]; VMPL_MAX] = build_app_table();
 
-/// sha256 of the RUNTIME IMAGE for each plane, from ENCLAVE_RUNTIME_SHA256, same format and same
+/// sha256 of the RUNTIME SET for each plane, from ENCLAVE_RUNTIME_SHA256, same format and same
 /// measurement consequence as APP_TABLE.
+///
+/// The runtime SET, since 2026-09-24, and no longer the wasmtime ELF alone: the plane executes the runtime through
+/// its ELF interpreter with its shared libraries, so admitting the ELF alone left the interpreter, libc, libm and
+/// libgcc_s executing unadmitted. The set is one canonical byte string over EVERY file in the plane's runtime
+/// directory (isolation/m4/guest/rtset.h, "enclave-runtime-set-v1"), so a changed, missing, added or renamed file
+/// changes the digest and is refused here by the same comparison as any other artifact. Nothing below had to change
+/// to enforce that - this code hashes bytes and compares digests, and never parses an artifact. An image built with
+/// a digest of the bare ELF refuses a set, and the reverse, because an ELF cannot begin with the set's header.
 ///
 /// This is the digest of the runtime's BYTES, and it is a different thing from the RuntimeID that ABI/2
 /// binds into report_data[0:32]. RuntimeID is sha256 of a canonical JSON label - name, version, execution

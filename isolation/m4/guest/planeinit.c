@@ -4,12 +4,14 @@
  * It is dominit plus admission, and the order is the whole point:
  *
  *   1. mount, load vsock, bring up loopback - the domain has no NIC, vsock is its only channel
- *   2. load appidmod and ADMIT this plane's two artifacts: the app bundle and the runtime image. The SVSM
- *      compares each against the digest compiled into its own measured image and REFUSES a mismatch.
- *   3. only then start the app and the front, with -appid pointing at the plane's sysfs directory. The front
- *      registers its freshly minted TLS key with the SVSM and afterwards sends only a nonce; the SVSM computes
- *      report_data itself from that key, the nonce and its own compiled-in tables.
- *   4. if admission fails, POWER OFF instead of serving.
+ *   2. load appidmod and ADMIT this plane's two artifacts: the app bundle and the runtime SET - every file in
+ *      /rt, the interpreter and shared libraries included (rtset.h). The SVSM compares each against the digest
+ *      compiled into its own measured image and REFUSES a mismatch.
+ *   3. only then start the runtime, and check from its /proc maps that every executable file it mapped is an
+ *      admitted member and every admitted ELF was mapped. Then the front, with -appid pointing at the plane's
+ *      sysfs directory. The front registers its freshly minted TLS key with the SVSM and afterwards sends only a
+ *      nonce; the SVSM computes report_data itself from that key, the nonce and its own compiled-in tables.
+ *   4. if admission or the maps check fails, POWER OFF instead of serving.
  *
  * Step 4 is the fail-closed property and it is why this is a separate init rather than a flag on dominit. A
  * domain that served after a refused admission would answer /attest with no hardware report and a T0 document,
@@ -77,20 +79,16 @@ static double now_ms(void) {
     return t.tv_sec * 1e3 + t.tv_nsec / 1e6;
 }
 
-/* Admit one artifact: pick its slot, stage its bytes, ask the SVSM. Any failure is fatal to the domain. */
-static int admit(const char *kind, const char *path, const char *key) {
+/* The runtime set this plane admitted: what the maps check compares the running runtime against. */
+static struct rtset runtime_set;
+
+/* Ask the SVSM to admit the staged slot. Any failure is fatal to the domain. */
+static int admit_staged(const char *kind, const char *key) {
     char msg[256];
-    if (puts_("slot", kind) != 0) { say(key, "slot select failed"); return -1; }
-    int e = stage(path, 0);
-    if (e != 0) {
-        snprintf(msg, sizeof msg, "staging %s failed: %s", path, strerror(-e));
-        say(key, msg);
-        return -1;
-    }
     /* `admit` takes the KIND, not a flag. admit_store parses it with kstrtouint and refuses anything outside
      * the table, so writing "1" here admitted the RUNTIME slot while the bundle was selected - which came back
      * as EINVAL from the module with no SVSM call made at all, and `result` showing the previous success. */
-    e = puts_("admit", kind);
+    int e = puts_("admit", kind);
     if (e != 0) {
         /* The SVSM's own refusal code is in `result`; print it, because "admission failed" without the code
          * cannot be told from a harness that never staged anything. */
@@ -101,6 +99,32 @@ static int admit(const char *kind, const char *path, const char *key) {
     }
     say(key, "admitted");
     return 0;
+}
+
+/* Admit one file: pick its slot, stage its bytes, ask the SVSM. */
+static int admit(const char *kind, const char *path, const char *key) {
+    char msg[256];
+    if (puts_("slot", kind) != 0) { say(key, "slot select failed"); return -1; }
+    int e = stage(path, 0);
+    if (e != 0) {
+        snprintf(msg, sizeof msg, "staging %s failed: %s", path, strerror(-e));
+        say(key, msg);
+        return -1;
+    }
+    return admit_staged(kind, key);
+}
+
+/* Admit the runtime SET of `dir` - every file the runtime is executed from, not only its ELF. */
+static int admit_runtime_set(const char *dir, const char *key) {
+    char err[1024], msg[1100];
+    if (puts_("slot", KIND_RUNTIME) != 0) { say(key, "slot select failed"); return -1; }
+    if (stage_runtime_set(&runtime_set, dir, err, sizeof err) != 0) {
+        snprintf(msg, sizeof msg, "staging the runtime set failed: %s", err);
+        say(key, msg);
+        return -1;
+    }
+    say_runtime_set("runtime_member", &runtime_set);
+    return admit_staged(KIND_RUNTIME, key);
 }
 
 /* Dump the kernel-log lines that explain a module's refusal.
@@ -264,7 +288,7 @@ int main(void) {
     insmod("/appidmod.ko");
     show("status_before", "status");
     if (admit(KIND_BUNDLE, "/app.bundle", "bundle") != 0) power_off("the SVSM refused this plane's app bundle");
-    if (admit(KIND_RUNTIME, "/rt/wasmtime", "runtime") != 0) power_off("the SVSM refused this plane's runtime image");
+    if (admit_runtime_set("/rt", "runtime") != 0) power_off("the SVSM refused this plane's runtime set");
     show("status_after", "status");
     show("whoami", "whoami");
 
@@ -279,7 +303,32 @@ int main(void) {
                    "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
     char *front[] = {"/front", "-port", "443", "-upstream", "127.0.0.1:8080",
                      "-appid", "/sys/kernel/appid", "-boundary", BOUNDARY_PATH, NULL};
-    pid_t app_pid = spawn(app), front_pid = spawn(front);
+    char *app_env[] = {"HOME=/tmp", "PATH=/rt", NULL};
+    int se = 0;
+    pid_t app_pid = rtset_spawn(app, app_env, &se);
+    if (app_pid < 0) {
+        say("runtime_maps", strerror(se));
+        power_off("the runtime did not start");
+    }
+    /* The admitted set is what the SVSM hashed. Whether it is what RUNS is a separate question, answered from the
+     * running process's own maps before anything is served: every executable file it mapped must be an admitted
+     * member (the same file object, not merely the same path), and every admitted ELF must have been mapped, so
+     * the check cannot pass by looking before the loader finished. This covers what the loader mapped at start;
+     * a library opened later would not be seen here. */
+    {
+        char err[1024], outside[1024], msg[1400];
+        int polls = 0;
+        if (rtset_wait_coverage(&runtime_set, app_pid, 10000, outside, sizeof outside, err, sizeof err, &polls) != 1) {
+            say("runtime_maps", err);
+            kill(app_pid, SIGKILL);
+            power_off("the running runtime maps code outside the admitted set, or never finished loading it");
+        }
+        snprintf(msg, sizeof msg, "ok elf_members_mapped=%d/%d polls=%d outside_data=%s",
+                 rtset_elf_members(&runtime_set), rtset_elf_members(&runtime_set), polls,
+                 outside[0] ? outside : "none");
+        say("runtime_maps", msg);
+    }
+    pid_t front_pid = spawn(front);
     snprintf(line, sizeof line, "app=%d front=%d at_ms=%.0f", app_pid, front_pid, now_ms());
     say("started", line);
 

@@ -30,7 +30,9 @@ echo "== building the plane guest"
 "$here/build-plane-guest.sh" "$W/app.bundle" "$W/plane.cpio.gz" > "$W/build-guest.txt"
 sed 's/^/  /' "$W/build-guest.txt"
 appid=$(sed -n 's/.*app id  \([0-9a-f]*\) .*/\1/p' "$W/build-guest.txt")
-rtsha=$(sed -n 's/.*runtime sha256  \([0-9a-f]*\) .*/\1/p' "$W/build-guest.txt")
+# "runtime set", never "runtime sha256": the old label was the digest of the wasmtime ELF alone, and an SVSM built
+# with that would refuse this plane's set - so a stale build script must fail here, not at admission.
+rtsha=$(sed -n 's/.*runtime set     \([0-9a-f]*\) .*/\1/p' "$W/build-guest.txt")
 rtid=$(sed -n 's/.*runtime id      \([0-9a-f]*\) .*/\1/p' "$W/build-guest.txt")
 for v in "$appid" "$rtsha" "$rtid"; do
   [ ${#v} = 64 ] || { echo "the guest build did not print all three digests"; exit 1; }

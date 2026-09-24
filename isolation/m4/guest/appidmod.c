@@ -110,7 +110,7 @@ static struct slot slots[KIND_COUNT];
 static int active;
 static const size_t slot_cap[KIND_COUNT] = {
 	[KIND_BUNDLE] = 4UL * 1024 * 1024,        /* a contract bundle: tens of KiB in practice */
-	[KIND_RUNTIME] = 64UL * 1024 * 1024,      /* the runtime image: wasmtime 48.0.1 is 45,616,736 bytes */
+	[KIND_RUNTIME] = 64UL * 1024 * 1024,      /* the runtime SET (rtset.h): 49,546,136 bytes for wasmtime 48.0.1 */
 };
 
 static void *outbuf;                              /* two pages: replies, then the report buffer */

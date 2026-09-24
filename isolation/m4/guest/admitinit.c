@@ -42,6 +42,8 @@ static void stop(void) {
 
 /* the stand-in transport key, built once and reused when reclaim forgets it */
 static char keyhex[256 * 2 + 2];
+static struct rtset rt;
+static char rterr[1024];
 
 int main(void) {
     mkdir("/proc", 0555); mkdir("/sys", 0555);
@@ -125,8 +127,11 @@ int main(void) {
      * livelock rather than fail */
     e = puts_("slot", "1");
     say("select_runtime_slot", e == 0 ? "ok" : strerror(-e));
-    e = stage("/rt/wasmtime", 0);
-    say("stage_runtime", e == 0 ? "ok" : strerror(-e));
+    /* the runtime SET - every file in /rt, the interpreter and shared libraries included (rtset.h) - and not
+     * the wasmtime ELF alone, which is what the 2026-09-24 step-2 run staged */
+    e = stage_runtime_set(&rt, "/rt", rterr, sizeof rterr);
+    say("stage_runtime", e == 0 ? "ok" : rterr);
+    if (e == 0) say_runtime_set("runtime_member", &rt);
     show("runtime_staged", "artifact");
     e = puts_("admit", "1");
     say("admit_runtime", e == 0 ? "ok" : strerror(-e));
@@ -231,8 +236,8 @@ int main(void) {
     show("re_admit_bundle_result", "result");
     e = puts_("slot", "1");
     say("re_select_runtime", e == 0 ? "ok" : strerror(-e));
-    e = stage("/rt/wasmtime", 0);
-    say("re_stage_runtime", e == 0 ? "ok" : strerror(-e));
+    e = stage_runtime_set(&rt, "/rt", rterr, sizeof rterr);
+    say("re_stage_runtime", e == 0 ? "ok" : rterr);
     e = puts_("admit", "1");
     say("re_admit_runtime", e == 0 ? "ok" : strerror(-e));
     show("re_admit_runtime_result", "result");
