@@ -17,5 +17,17 @@
     "fixedIn": "pVM client 0.2.1: content-addressed immutable publish (link(), never replace) + the decision inside the commit; the same artifact again is idempotent",
     "closed": "2026-09-24",
     "closedBy": "the required cases pass on the pinned e7a2badc (strict 76/76) and the regression fixture still reproduces the defect on 6784f671"
+  },
+  "F3-run2-carrier-state-copy-missing": {
+    "title": "the repeat device run's carrier-side committed-state copies (exchanges.jsonl 'after', capture.json 'stateAfter') are null: the run script piped the client's state into a heredoc that consumed its stdin (a run-script defect, disclosed by the owner; not the client, not the device); the correlation holds through the client's primary data",
+    "status": "open",
+    "raised": "2026-09-24",
+    "raisedWith": "pVM owner (session enclave-53); disclosed by the owner with the results, fixed in their run script for future runs; no third run made (one bounded repeat was authorised)",
+    "pin": "fixture:pvm-client-activation-device-2",
+    "knownOn": "ae2094960b9bb2ad7756f71414b2aafc8521ff3a",
+    "cases": [
+      "repeat: the carrier-side committed-state copy (exchanges.jsonl 'after', capture.json 'stateAfter') equals the generation log for every exchange"
+    ],
+    "rule": "while the fixture is the recorded commit this case failing is NOT ACCEPTED (exit 3), never a pass; closed only by a run whose copies are present and equal, or by the user's explicit decision to accept primary-data correlation for this run (then the entry is closed with that decision recorded)"
   }
 }

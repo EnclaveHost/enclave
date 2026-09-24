@@ -312,3 +312,59 @@ edited because they are hashed here. Ask (2), a manifest-free repair: agreed sou
 as a candidate (`repair --artifact SRC`: never stages, never changes the state, lays back only bytes whose sha256,
 size and version line equal the committed record); it would change the accepted client and so needs a new version and
 review cycle, which nobody has asked for.
+
+## 12. The repeat run with raw evidence capture (owner's ae209496, `results/pvm-cpu-client-activation-2`): every chain re-verified offline; one capture defect, recorded as a finding
+
+One bounded repeat of the same sequence, directed by the user, with the lab carrier recording every `/evidence`
+exchange as received (d12e78c9). The first run's directory is byte-identical between a7d624c2 and ae209496, so its
+fixture and pin stand. The repeat's results were copied verbatim into `test/fixtures/verifier/pvm-client-activation-device-2/`
+(169 files) and pinned in `verifier/integration/fixtures.json` (commit, path, per-file sha256, compared with the
+owner's commit tree on every strict run); the owner's reported hashes for the capture files, the checker outputs, the
+generation log, the activate line, the notes and all ten envelopes match. Same launcher (0.3.0 `fad5ba22…`), same
+derived 0.3.1 (`ed82869d…`), same tampered bytes; new lab keys; run 12:51:19Z to 13:00:10Z.
+
+`test/verifier-pvm-client-device-activation-2.test.mjs` (in the strict command) repeats the first review's checks at
+the same strictness over the second run, all passing again (artifact identity and both manifests' signatures, the seven
+generations, every snapshot from the rotation on, the six policies replayed, running identity with ten 0.3.1 results
+and none 0.3.0, commit before request in every delegated run, refusals and repairs by record and inode, the VM capture
+decoded with 9 streams to FIN and 1 whole and one to one by nonce, no plaintext, no private key), and adds:
+
+- **The capture is complete.** Ten exchanges in the recorded order (base-stream, staged-not-active, active-stream,
+  active-whole, planted-marker, active-policy-2, rotate-3, successor-4, repaired-stream, repaired-2-stream); each
+  request is exactly `EVIDENCE <64-hex nonce>\n`, each envelope one JSON line answering that nonce; the per-exchange
+  UTC times lie inside the run and inside the CLI call that made them; the recorded sizes equal the files; the label
+  map agrees with the CLI rows and with each result's own nonce prefix; the four refusal rows fetched no evidence;
+  ten distinct nonces.
+- **Every exchange re-verifies offline** through the exact pinned adapter (`verifier/pvm-evidence.mjs` importing the
+  owner's `verifyPvmAppEvidence` at afd437a2) with the expectations of the policy committed before it (its app,
+  runtime, code hash, authority, root pins and formats), the nonce from the request and the exchange's own answer
+  time as the clock: status verified, admission-safe, no omissions, and the browser-kind gate releases on the v2 app
+  key with the policy's sealed window. The adapter's claims (format, app, runtime, code hash, transport key, app key,
+  nonce) equal the client's own verified summary for that run, exchange by exchange. All ten envelopes bind one
+  transport key and one app key: one VM boot. A clock far after the run refuses each chain; another code hash
+  refuses; an envelope under another exchange's nonce is refused as a replay. The control on the earlier real v2
+  envelope passes and fails loudly on a wrong policy, a foreign nonce, a stale clock, a malformed request and a v1
+  downgrade.
+- **The committed state each exchange ran under, from the client's primary data**: each result's `stateGen` names a
+  generation whose serial, policy key, successor, release key and active record are the expected ones for that step,
+  and the `committed` line, printed before the evidence request, names that generation.
+
+**The capture defect, finding F3.** The carrier-side copies of the committed state (`exchanges.jsonl` `after` and
+`capture.json` `stateAfter`) are null for every row: the owner's run script piped the client's state into a heredoc
+that consumed its stdin, a run-script defect disclosed by the owner with the results, not a client or device defect,
+fixed in their script for future runs, and not re-run (one bounded repeat was authorised). The run's own checker
+failed on it (FAIL (1), kept as produced; the corrected checker splits the check and fails on the copy alone with the
+other 48 passing). This review asserts the copy as agreed before the run, so that case FAILS, and the strict command's
+verdict is NOT ACCEPTED (exit 3) naming F3 in `verifier/integration/findings.json`, never a pass: the copy is recorded
+as MISSING. It closes only by a run whose copies are present and equal, or by the user's explicit decision to accept the
+primary-data correlation for this run, recorded in the entry. Nothing else on this branch is held back by it.
+
+**Evidence classes, stated apart.** Now on the device and re-verified here: the ten attestation chains (RKP-issued AVF
+chain to a pinned Google root, runtime identity, self-test, the challenge over the client's nonce and app, the app key
+signed by the attested transport key), each under the policy the activated client had committed first. Still the
+client's own claim plus the VM capture: that each request was sealed to that app key and each stream verified to FIN,
+since the installed CLI records no session secret and no trace can be re-opened here; stream authenticity remains the
+client's FIN verification plus the served count plus the per-nonce match. Host evidence only: the start check's
+environment, the swap races, one hop across a concurrent activation. Unchanged limits: the first install and the root
+of code trust, the Node binary, whole-machine power loss, the extension cannot activate, no unattended activation, no
+production keys, no merge or deploy.

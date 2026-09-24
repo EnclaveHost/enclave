@@ -47,7 +47,7 @@ const nb = spawnSync(process.execPath, [path.join(REPO, "verifier", "integration
 if (nb.status !== 0) { process.stderr.write(nb.stderr || ""); console.error("integration: the next builds did NOT reproduce; refusing"); process.exit(2); }
 process.stdout.write(nb.stdout.split("\n").filter((l) => /== record/.test(l)).map((l) => `integration: ${l}\n`).join(""));
 env.ENCLAVE_PVM_NEXT_DIR = nb.stdout.trim().split("\n").pop();
-const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs", "test/verifier-pvm-client-persistence.test.mjs", "test/verifier-pvm-client-update.test.mjs", "test/verifier-pvm-client-supersede.test.mjs", "test/verifier-pvm-client-ext.test.mjs", "test/verifier-pvm-client-activation.test.mjs", "test/verifier-pvm-client-next.test.mjs", "test/verifier-pvm-client-device-activation.test.mjs"];
+const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs", "test/verifier-pvm-client-persistence.test.mjs", "test/verifier-pvm-client-update.test.mjs", "test/verifier-pvm-client-supersede.test.mjs", "test/verifier-pvm-client-ext.test.mjs", "test/verifier-pvm-client-activation.test.mjs", "test/verifier-pvm-client-next.test.mjs", "test/verifier-pvm-client-device-activation.test.mjs", "test/verifier-pvm-client-device-activation-2.test.mjs"];
 const t = spawnSync(process.execPath, ["--test", "--test-reporter=tap", "--test-timeout=180000", ...suites], { cwd: REPO, encoding: "utf8", env });
 const out = t.stdout || "";
 const num = (k) => { const m = new RegExp(`^# ${k} (\\d+)`, "m").exec(out); return m ? Number(m[1]) : null; };
@@ -60,7 +60,10 @@ const failing = out.split("\n").map((l) => /^\s*not ok \d+ - (.*?)(?: # (?:SKIP|
 // The verdict is NOT ACCEPTED with exit 3 (distinct from FAILED 1 and from a dependency refusal 2). On any other pinned
 // revision the same case is plainly required, with no exemption; the entry is closed by hand once the case passes there.
 const findings = JSON.parse(fs.readFileSync(path.join(REPO, "verifier", "integration", "findings.json"), "utf8"));
-const appliesNow = (f) => f.status === "open" && pinsFile[f.pin] && pinsFile[f.pin].commit === f.knownOn;
+// a finding is recorded against a code pin (pins.json) or, prefixed "fixture:", against a device-run fixture pin (fixtures.json)
+const fixturesFile = JSON.parse(fs.readFileSync(path.join(REPO, "verifier", "integration", "fixtures.json"), "utf8"));
+const pinCommit = (p) => (p.startsWith("fixture:") ? fixturesFile[p.slice(8)] && fixturesFile[p.slice(8)].commit : pinsFile[p] && pinsFile[p].commit);
+const appliesNow = (f) => f.status === "open" && pinCommit(f.pin) === f.knownOn;
 const plain = failing.filter((n) => !Object.values(findings).some((f) => appliesNow(f) && f.cases.includes(n)));
 if (plain.length) {
   for (const n of plain) console.log(`integration: FAILED case: ${n}`);
@@ -71,10 +74,10 @@ if (num("skipped") > 0) { console.error(`integration: ${num("skipped")} acceptan
 let open = 0;
 for (const [id, f] of Object.entries(findings)) {
   if (f.status !== "open") continue;
-  if (!appliesNow(f)) { console.log(`integration: finding ${id} is recorded against ${f.knownOn.slice(0, 12)}, no longer pinned as ${f.pin}: its cases are required of ${pinsFile[f.pin] ? pinsFile[f.pin].commit.slice(0, 12) : "?"} with no exemption (they passed above); close the entry`); continue; }
+  if (!appliesNow(f)) { console.log(`integration: finding ${id} is recorded against ${f.knownOn.slice(0, 12)}, no longer pinned as ${f.pin}: its cases are required of ${(pinCommit(f.pin) || "?").slice(0, 12)} with no exemption (they passed above); close the entry`); continue; }
   const still = f.cases.filter((n) => failing.includes(n));
   if (still.length) { open++; console.log(`integration: NOT ACCEPTED: open finding ${id} still reproduces on ${f.knownOn.slice(0, 12)} (${f.title}):\n${still.map((n) => `integration:   still failing: ${n}`).join("\n")}`); }
   else { open++; console.log(`integration: NOT ACCEPTED: finding ${id} is recorded open against ${f.knownOn.slice(0, 12)} but its cases pass there: correct or close the entry`); }
 }
-if (open) { console.error(`integration: NOT ACCEPTED (${open} open finding(s) against the pinned owner code; this is not a clean pass)`); process.exit(3); }
+if (open) { console.error(`integration: NOT ACCEPTED (${open} open finding(s) against the pinned owner code or a pinned device-run fixture; this is not a clean pass)`); process.exit(3); }
 console.log(`integration: PASS against ${Object.values(pinsFile).map((p) => p.commit.slice(0, 12)).join(", ")}`);

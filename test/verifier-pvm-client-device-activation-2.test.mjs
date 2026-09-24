@@ -49,7 +49,8 @@ const ACTIVE_RUNS = ["active-stream", "active-whole", "planted-marker", "active-
 
 test("repeat: the fixture is the owner's results verbatim: every file hashes to SOURCES.json, and the five hashes the owner reported match", { skip }, () => {
   for (const [rel, want] of Object.entries(SRC.files)) assert.equal(sha256(rd(rel)), want, rel);
-  for (const [rel, want] of Object.entries(SRC.ownerReportedSha256)) assert.equal(sha256(rd(rel)), want, `owner-reported ${rel}`);
+  for (const [rel, want] of Object.entries(SRC.ownerReportedSha256Prefix)) assert.equal(sha256(rd(rel)).slice(0, want.length), want, `owner-reported ${rel}`);
+  SRC.ownerReportedEnvelopeSha256Prefix.forEach((want, i) => assert.equal(sha256(rd(`evidence/evidence-${String(i + 1).padStart(3, "0")}.json`)).slice(0, 16), want, `owner-reported envelope ${i + 1}`));
   assert.ok(Object.keys(SRC.files).length >= 137 + 10 * 3 + 2, "the second run carries every first-run file plus the evidence pairs, their meta, exchanges.jsonl and capture.json");
 });
 test("repeat: artifact identity: the activated 0.3.1 is this branch's reproduced derivation of the pinned 0.3.0 dist, and both manifests name exactly it", { skip }, () => {
@@ -115,10 +116,17 @@ test("repeat: running identity and order: before activation 0.3.0 answers; after
   const after = ACTIVE_RUNS.map((l) => result(l));
   assert.equal(after.length, 10); assert.equal(after.every((r) => r && r.clientVersion === V), true, "all ten post-activation results carry 0.3.1");
   assert.equal(after.filter((r) => r.step === "policy").length, 2, "two of them are policy refusals (retired-5, rollback), which the run's first checker did not count");
-  const c0 = rd("check.txt").toString();
+  const c0 = rd("check.txt").toString(), c1 = rd("check-corrected.txt").toString();
   assert.match(c0, /^ok   after activation every answered run was 0\.3\.1, never 0\.3\.0 \(10 results, want 10\)$/m, "the corrected count rule");
-  assert.match(c0, /^ok   the relay recorded one raw v2 evidence envelope per exchange, each answering the nonce the client sent \(10, want 10\)$/m);
-  assert.match(c0, /^PASS /m, "the repeat run's own checker passed (a failure here is examined, never explained away)"); assert.equal(/^FAIL/m.test(c0), false);
+  assert.match(c0, /^ok   the relay recorded one raw v2 evidence envelope per exchange, each answering the nonce its request carried \(10, want 10\)$/m);
+  // examined, not explained away: the run's own checker failed exactly once, on the combined envelope/state check whose
+  // carrier-side state copies are null (the run script's defect, disclosed by the owner); the corrected checker splits it
+  // and fails exactly once, on the carrier-side copy alone. Any other failure line here is a new failure.
+  const failLines = (t) => t.split("\n").filter((l) => /^FAIL /.test(l) && !/^FAIL \(\d+\)$/.test(l));   // the checks, not the summary line
+  const fails0 = failLines(c0), fails1 = failLines(c1);
+  assert.deepEqual(fails0, ["FAIL each envelope is the one its run verified (nonce, app, app key) under the serial and active record committed before it"]); assert.match(c0, /^FAIL \(1\)$/m);
+  assert.equal(fails1.length, 1, `the corrected checker fails exactly once: ${fails1.join(" | ")}`); assert.match(fails1[0], /per-exchange state capture|carrier|copy|null/i); assert.match(c1, /^FAIL \(1\)$/m);
+  assert.match(c1, /^ok   .*generation log/m, "the corrected checker's primary-data state check passed");
   for (const [label, serial] of [["active-stream", 1], ["planted-marker", 1], ["active-policy-2", 2], ["rotate-3", 3], ["successor-4", 4], ["repaired-stream", 4], ["repaired-2-stream", 4]]) {
     const ls = lines(label), ci = ls.findIndex((l) => l.committed), ri = ls.findIndex((l) => l.result), r = ls[ri].result;
     assert.ok(ci >= 0 && ci < ri, `${label}: committed before the result`); assert.equal(ls[ci].committed.serial, serial);
@@ -227,18 +235,28 @@ test("repeat: every exchange re-verifies offline through the pinned adapter unde
   const swapped = await reverifyExchange({ ...exs[2], nonce: exs[3].nonce, requestText: exs[3].requestText }, policyBody("policy-1"), { now: Date.parse(js("evidence/evidence-003.meta.json").answeredAt) });
   assert.equal(swapped.ok, false); assert.match(swapped.why, /not this client's challenge/);
 });
-test("repeat: the committed state each exchange ran under (exchanges.jsonl 'after') equals the generation log at that generation: serial, policy key, successor, release key and active record; the client's result names the same generation", { skip }, () => {
-  const cap = js("capture.json"), rows = rd("exchanges.jsonl").toString().split("\n").filter((l) => l.startsWith("{")).map((l) => JSON.parse(l));
-  for (const [i, e] of cap.exchanges.entries()) {
-    const row = rows.find((r) => r.label === e.label), a = row.after, g = gen(a.gen).state, res = result(e.label);
-    assert.deepEqual({ serial: a.serial, policyFp: a.policyFp, nextPolicyFp: a.nextPolicyFp, releaseFp: a.releaseFp, active: a.active ? { version: a.active.version, sha256: a.active.sha256 } : null },
-                     { serial: g.serial, policyFp: g.policyFp, nextPolicyFp: g.nextPolicyFp, releaseFp: g.releaseFp, active: g.active ? { version: g.active.version, sha256: g.active.sha256 } : null }, `${e.label}: the row's 'after' is generation ${a.gen}`);
-    assert.deepEqual(e.stateAfter ?? a, e.stateAfter ?? a);
-    assert.equal(a.serial, SERIAL_BEFORE[e.label], `${e.label}: the serial the exchange ran under`); assert.equal(res.policySerial, a.serial); assert.equal(res.stateGen, a.gen, `${e.label}: the client reports the generation it committed`);
+test("repeat: the committed state each exchange ran under, from the client's PRIMARY data: the result's stateGen names a generation whose serial, policy key, successor, release key and active record are the expected ones, and the committed line precedes the request", { skip }, () => {
+  const cap = js("capture.json");
+  for (const e of cap.exchanges) {
+    const res = result(e.label), ls = lines(e.label), g = gen(res.stateGen).state;
+    assert.equal(res.policySerial, SERIAL_BEFORE[e.label], `${e.label}: the serial the exchange ran under`); assert.equal(g.serial, res.policySerial, `${e.label}: generation ${res.stateGen} holds that serial`);
+    const ci = ls.findIndex((l) => l.committed), ri = ls.findIndex((l) => l.result); assert.ok(ci >= 0 && ci < ri, `${e.label}: committed before the result`); assert.equal(ls[ci].committed.gen, res.stateGen);
     const active = ["active-stream", "active-whole", "planted-marker", "active-policy-2", "rotate-3", "successor-4", "repaired-stream", "repaired-2-stream"].includes(e.label);
-    assert.equal(!!a.active, active, `${e.label}: active ${active ? "set" : "null"} at that time`); if (active) assert.equal(a.active.sha256, NX.sha256);
-    assert.equal(a.policyFp, ["successor-4", "repaired-stream", "repaired-2-stream"].includes(e.label) ? keys.successor.fingerprint : keys.policy.fingerprint, `${e.label}: the policy key at that time`);
-    assert.equal(a.releaseFp, keys.release.fingerprint);
+    assert.equal(!!g.active, active, `${e.label}: active ${active ? "set" : "null"} at that generation`); if (active) assert.equal(g.active.sha256, NX.sha256);
+    assert.equal(g.policyFp, ["successor-4", "repaired-stream", "repaired-2-stream"].includes(e.label) ? keys.successor.fingerprint : keys.policy.fingerprint, `${e.label}: the policy key at that generation`);
+    assert.equal(g.nextPolicyFp, e.label === "rotate-3" ? keys.successor.fingerprint : null); assert.equal(g.releaseFp, keys.release.fingerprint);
+  }
+});
+test("repeat: the carrier-side committed-state copy (exchanges.jsonl 'after', capture.json 'stateAfter') equals the generation log for every exchange", { skip }, () => {
+  // Asserted as agreed with the owner before the run. On ae209496 every copy is null (the run script piped the state into a
+  // heredoc that consumed its stdin; disclosed by the owner, not a client or device defect) and this case FAILS: the copy is
+  // MISSING, recorded as finding F3, never as a pass. The correlation itself holds through the client's primary data above.
+  const cap = js("capture.json"), rows = rd("exchanges.jsonl").toString().split("\n").filter((l) => l.startsWith("{")).map((l) => JSON.parse(l));
+  for (const e of cap.exchanges) {
+    const row = rows.find((r) => r.label === e.label), a = row.after, res = result(e.label), g = gen(res.stateGen).state;
+    const want = { gen: res.stateGen, serial: g.serial, policyFp: g.policyFp, nextPolicyFp: g.nextPolicyFp, releaseFp: g.releaseFp, active: g.active ? { version: g.active.version, sha256: g.active.sha256 } : null };
+    assert.deepEqual(a, want, `${e.label}: exchanges.jsonl 'after' is MISSING or wrong (carrier-side copy)`);
+    assert.deepEqual(e.stateAfter, want, `${e.label}: capture.json 'stateAfter' is MISSING or wrong (carrier-side copy)`);
   }
 });
 test("repeat: evidence classes, as this review states them: the attestation chains of all ten exchanges are re-verified offline here through the pinned adapter; stream authenticity remains the client's FIN plus the VM's served count plus the per-nonce match, with no stream secret replayed", { skip }, () => {

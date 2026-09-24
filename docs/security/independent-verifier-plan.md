@@ -489,7 +489,12 @@ Exact remaining integration gaps (nothing below is verified today):
    branch's reproduction, manifest signatures, the generation log, every snapshot, the six policies replayed, running
    identity with the checker's miscount confirmed from the raw files, refusals and repairs, the VM capture decoded and
    matched one to one by nonce). Device evidence is the activated client's own verified summaries plus the VM's
-   served count; the raw envelopes were not saved, so no chain was re-verified offline here. Strict 102 of 102.
+   served count; the raw envelopes were not saved, so no chain was re-verified offline there. The repeat run with raw
+   evidence capture (owner's ae209496, review section 12, fixture pinned) closed that gap: all ten exchanges re-verify
+   offline through the exact pinned adapter under the policy committed before each, correlated by label, nonce, time
+   and the client's primary state data; one capture defect (the carrier-side state copies null, a run-script fault
+   disclosed by the owner) is recorded as finding F3 and the strict verdict is NOT ACCEPTED (exit 3) until a run with
+   the copies present or the user's recorded decision; 115 of 116 cases pass, the one failure being that copy.
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial
