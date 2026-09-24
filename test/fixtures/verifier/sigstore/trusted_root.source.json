@@ -1,0 +1,10 @@
+{
+ "url": "https://tuf-repo-cdn.sigstore.dev/targets/6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66.trusted_root.json",
+ "tufTimestampVersion": 790,
+ "tufSnapshotVersion": 165,
+ "tufTargetsVersion": 14,
+ "sha256": "6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66",
+ "length": 6787,
+ "fetchedAt": "2026-09-24T04:48Z",
+ "note": "TUF metadata signatures were NOT verified by this capture (no TUF client here); the hash chain timestamp->snapshot->targets->target was followed and the target hash checked. A TUF-verified refresh is a follow-up (sigstore-js tuf-js)."
+}

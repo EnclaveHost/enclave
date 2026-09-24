@@ -1,0 +1,99 @@
+{
+ "genoa-tinfoil/rad.json": {
+  "url": "https://inference.tinfoil.sh/.well-known/tinfoil-attestation",
+  "fetchedAt": "2026-09-24T04:47Z",
+  "what": "authentic Tinfoil RAD (format sev-snp-guest/v2, gzip body): AMD Genoa, report version 3, VMPL0, PSP-signed for chip 1af1aa6c...",
+  "sha256": "d7d765c4795c8d26585bdba0b8f3ead4a7d4b1ac0c0c1a60160dd4563c0f2b63"
+ },
+ "genoa-tinfoil/report.bin": {
+  "derivedFrom": "rad.json body, base64 + gunzip",
+  "what": "raw 0x4a0-byte ATTESTATION_REPORT",
+  "sha256": "cb2939731a59188c5750e017065be0a923e23529985b8cc7fd664c0f45aba321"
+ },
+ "genoa-tinfoil/vcek-kds-amd.der": {
+  "url": "https://kdsintf.amd.com/vcek/v1/Genoa/1af1aa6c1f56037a05849a59b8815cf909583f9ba9ef2f053218c437f33ba183e4e415b039b37f8205250ad15f8b88a0a3add9f4c081c0779a48ed2214378e44?blSPL=10&teeSPL=0&snpSPL=23&ucodeSPL=84",
+  "fetchedAt": "2026-09-24T04:47Z",
+  "what": "VCEK for that chip+TCB from AMD KDS directly (notBefore 2026-09-23: KDS re-signs on demand)",
+  "sha256": "6319c7957879314b473684cbd5a362ae4ae040ad504edafd566b5a17f6ee8a02"
+ },
+ "genoa-tinfoil/vcek-kds-proxy-tinfoil.der": {
+  "url": "https://kds-proxy.tinfoil.sh/vcek/v1/Genoa/1af1aa6c1f56037a05849a59b8815cf909583f9ba9ef2f053218c437f33ba183e4e415b039b37f8205250ad15f8b88a0a3add9f4c081c0779a48ed2214378e44?blSPL=10&teeSPL=0&snpSPL=23&ucodeSPL=84",
+  "fetchedAt": "2026-09-24T04:47Z",
+  "what": "the same VCEK key from Tinfoil's proxy (older re-issue, notBefore 2026-08-24): same public key, same serial 00, different validity and signature bytes",
+  "sha256": "3c0d43f9abb25c6109f7fc8b36cf434fbbf047d2941de4d5f9a33b0e212c88e6"
+ },
+ "genoa-tinfoil/tinfoil-certificate.json": {
+  "url": "https://inference.tinfoil.sh/.well-known/tinfoil-certificate",
+  "fetchedAt": "2026-09-24T04:47Z",
+  "what": "the enclave TLS certificate the shim serves (Google Trust Services WR1; SANs carry the hpke/hatt encodings)",
+  "sha256": "db296ed66e6785cc4dc0aebcdab0977eee12bb427605e822edf7117218743242"
+ },
+ "genoa-tinfoil/tls-cert.pem": {
+  "derivedFrom": "tinfoil-certificate.json .certificate",
+  "what": "PEM of the same certificate; sha256(SPKI) == report_data[0:32]",
+  "sha256": "f8ba7853a0694d9dee4e0870ab7f72ddbb7590f3f5dde97b3aa53e7049693f34"
+ },
+ "turin-m4a/doc.json": {
+  "source": "~/enclave-bench/m4a-abi2-200003/A.doc.json (isolation M4a hardware run on warden-host, 2026-09-23 20:00 local)",
+  "what": "authentic domain document: format sev-snp-guest-domain-v1, report version 5, VMPL0, ABI/2 (Bind2 over transportKey, nonce, runtime identity), app id in report_data[32:64]",
+  "sha256": "312b8c700deab3ee8fa9ac171ab8e33a0e086b1d6f26ac8eddbbca5b3fd768c9"
+ },
+ "turin-m4a/vcek-kds-amd.der": {
+  "source": "~/enclave-bench/m4a-abi2-200003/vcek.der, fetched by isolation/m2/vcek-prep.mjs from https://kdsintf.amd.com/vcek/v1/Turin/fa11afcf54ae9c53?fmcSPL=01&blSPL=03&teeSPL=02&snpSPL=05&ucodeSPL=117",
+  "what": "VCEK for warden-host (EPYC 9115, Turin) at that TCB",
+  "sha256": "c74283d596919f36f0161e9527ebf6d3eccd452d4fd3b3aef2d85a258e41f471"
+ },
+ "amd/Genoa-crl.der": {
+  "url": "https://kdsintf.amd.com/vcek/v1/Genoa/crl",
+  "fetchedAt": "2026-09-24T04:47Z",
+  "what": "ARK-Genoa signed CRL (RSA-PSS SHA-384); revokes serial 020001 (the pre-2022-10-31 Genoa ASK); nextUpdate 2026-10-04",
+  "sha256": "31deeb4eef05a1c68d4807f37d8cc3918a966ef32fb02966d53f177cf1c73e72"
+ },
+ "amd/Turin-crl.der": {
+  "url": "https://kdsintf.amd.com/vcek/v1/Turin/crl",
+  "fetchedAt": "2026-09-24T04:47Z",
+  "what": "ARK-Turin signed CRL, no revocations; nextUpdate 2026-10-04",
+  "sha256": "49dd3fb3194c43fa7a703f1c67144574b458ca7b23d0a20a270e44678b29cb49"
+ },
+ "amd/Milan-crl.der": {
+  "url": "https://kdsintf.amd.com/vcek/v1/Milan/crl",
+  "fetchedAt": "2026-09-24T04:47Z",
+  "what": "ARK-Milan signed CRL, no revocations; nextUpdate 2026-10-04",
+  "sha256": "873efcf8c8cedc28c603cf50acdff8556a704658357a0d9daab297f483deb0df"
+ },
+ "release/releases-latest.json": {
+  "url": "https://api.github.com/repos/EnclaveHost/enclave/releases/latest",
+  "fetchedAt": "2026-09-24T04:45Z",
+  "what": "the release the fleet verifies against today (v0.5.841, published 2026-09-24T01:09:52Z)",
+  "sha256": "4bab49f75433e6ab78c382a31a947c1365b858b81acadffc6df0782b9e213f29"
+ },
+ "release/v0.5.841.tinfoil.hash": {
+  "url": "https://github.com/EnclaveHost/enclave/releases/download/v0.5.841/tinfoil.hash",
+  "fetchedAt": "2026-09-24T04:45Z",
+  "what": "sha256 of tinfoil-deployment.json, GPU flavor",
+  "sha256": "dec570385a6460003718bb11bcf48699c94f8a183b3ff9efce8327c579b4cad8"
+ },
+ "release/v0.5.841-cpu.tinfoil.hash": {
+  "url": "https://github.com/EnclaveHost/enclave/releases/download/v0.5.841-cpu/tinfoil.hash",
+  "fetchedAt": "2026-09-24T04:45Z",
+  "what": "sha256 of tinfoil-deployment.json, CPU flavor",
+  "sha256": "fe0bdd8de6ea2dafeaf8b643468055cd004452e8359492b2a0d383c222fb9228"
+ },
+ "release/v0.5.841.attestation.json": {
+  "url": "https://api.github.com/repos/EnclaveHost/enclave/attestations/sha256:d4c09c3945c93bc709d67ad8255fc4d906065af7590c64e0d490aa219ebddc3a",
+  "fetchedAt": "2026-09-24T04:45Z",
+  "what": "GitHub artifact attestation: Sigstore bundle v0.3, DSSE in-toto statement, predicate https://tinfoil.sh/predicate/snp-tdx-multiplatform/v1, Fulcio identity EnclaveHost/enclave .github/workflows/tinfoil-release-publish.yml@refs/tags/v0.5.841, Rekor v1 entry with inclusion proof + promise",
+  "sha256": "2158a6168f0f65993becf75ddfd5bcaa800a6f03706a4e0258c31aef48d9114c"
+ },
+ "release/v0.5.841-cpu.attestation.json": {
+  "url": "https://api.github.com/repos/EnclaveHost/enclave/attestations/sha256:a2607fd7d0f1c6ee66535d592eea4f089f6de3048e028cfe973aedfd9fbcfb55",
+  "fetchedAt": "2026-09-24T04:45Z",
+  "what": "same for the -cpu tag",
+  "sha256": "3e495a8ac88a8b2453333a234022983f4048d71dbbb35b366fde7f148ced6214"
+ },
+ "sigstore/trusted_root.json": {
+  "see": "trusted_root.source.json",
+  "what": "the Sigstore public-good trusted root (Fulcio CAs, Rekor v1 + v2 keys, CT logs, TSA) reached through TUF timestamp -> snapshot -> targets and hash-checked; JSON-identical to the copy @tinfoilsh/verifier 1.1.10 embeds",
+  "sha256": "6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66"
+ }
+}
