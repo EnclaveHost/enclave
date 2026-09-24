@@ -31,6 +31,12 @@ two differ. `check.ps1` reports each profile's host state live. The manifest sta
 | 6 | `ce02a547…` `manifests/nucbox-ownguest-6.json` | as v5; manager + judge + node client + lifecycle at `72c82fc6` (the spawn path judges readiness with the runtime IDENTITY, read by `main.mjs` from `ENCLAVE_RUNTIME_IDENTITY`; `image` from the launcher's ready line) | as v5; eight functional suites pinned (enclave-99's seven + enclave-5d's datapath suite), all measured green | as v5 |
 | 7 | `f4cbffee…` `manifests/nucbox-ownguest-7.json` | as v6 (manager `72c82fc6`; enclave-d1's later `0b49f6b6`/`5a8a33e7` are not pinned) | as v6; enclave-5d's datapath suite now RUNS its interop case (5/5, no skip) | + `node-bridge.mjs` `b1483afa…` and `supervisor-splice.mjs` `88e688cd…` at `e7ec6521` (ws loaded lazily); imported by nothing on the box until d1's appzone/host/main hooks land |
 
+**Drafts.** `drafts/` holds a prepared next version that is HELD (its `status` says why). It is verified like any
+manifest, but it is not a release and is not staged on the box. When it is released, it moves to `manifests/` unchanged.
+- **v8 draft** (`drafts/nucbox-ownguest-8.json`): enclave-d1's node at `d1f4b745`, enclave-5d's `node-bridge.mjs`
+  `4cb8d54f`, enclave-99's suites at `1d6d9b60`, and the catalog versions as read on-chain. It is held until enclave-5d's
+  phase 3 passes against the real node. 5d measured the real node path failing (d1's gate order). Nothing is served.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
@@ -96,7 +102,7 @@ lockfile's tarball, checked against its sha512 `integrity` as well as our sha256
 (`unpack: "npm-tgz"`) and never shipped. A test run under another test runner must
   strip `NODE_TEST_CONTEXT`, or the child reports in a binary protocol and no counts can be read.
 
-The test suite has 49 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
+The test suite has 50 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
 re-pinned to its new bytes. Each case must FAIL at the check that covers it, and the two controls must PASS. The
 sources live in `~/enclave-bench/ownguest-pkg/sources/`, and the tests skip without them.
 

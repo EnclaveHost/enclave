@@ -281,14 +281,15 @@ async function checkClaims(m, bytes, R) {
   // label for catalog.app: every field present and well-formed, two wrong -- derives another AppID than the Linux tier.
   if (m.catalogFacts) {
     const nb = m.files.find((f) => f.path.endsWith("/node-bridge.mjs"));
-    let plan = null, why = "";
+    let plan = null, why = "", backendName = null;
     const d = fs.mkdtempSync(path.join(os.tmpdir(), "vbspkg-plan-"));
     try {
       for (const f of m.files.filter((x) => x.path.startsWith("control/") && bytes.get(x))) {
         const p = path.join(d, ...f.path.split("/")); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes.get(f));
       }
       if (!nb) throw new Error("no node-bridge.mjs in the package");
-      plan = (await import(pathToFileURL(path.join(d, ...nb.path.split("/"))).href)).isolationPlan;
+      const mod = await import(pathToFileURL(path.join(d, ...nb.path.split("/"))).href);
+      plan = mod.isolationPlan; backendName = mod.BACKEND || "hyperv-partition-per-app";
       if (typeof plan !== "function") throw new Error("node-bridge.mjs exports no isolationPlan");
     } catch (e) { why = e.message; } finally { fs.rmSync(d, { recursive: true, force: true }); }
     const src = m.catalogFacts.source || {};
@@ -305,7 +306,11 @@ async function checkClaims(m, bytes, R) {
         const p = plan({ deploymentId: "0x" + "11".repeat(32), deployment: { cpuMilli: 250, gpuMilli: 0, isPublic: true, appPort: 8080 },
           version: { appId: a.catalog.app, index: a.catalog.version, cid: v.cid, memMb: v.memMb, ports: v.ports, config: v.config, configCid: v.configCid || "", yanked: v.yanked },
           appConfig: v.config ? JSON.parse(v.config) : null, hasSecrets: false, waf: {}, volumes: [], runtimeId: m.runtime.runtimeId,
-          derivations: ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2"] });
+          // the gate inputs (2a43239a on), stated as a correctly configured node states them: the tenant asked for this
+          // backend, the manager IS this backend and serves both derivations, no deployment config override. Older
+          // bridges ignore them (and took `derivations` directly).
+          require: backendName, manager: { backend: backendName, catalog: { derivations: ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2"] } },
+          appConfigCid: "", derivations: ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2"] });
         got = p && p.spawn ? p.spawn : null;
         if (!got) err = `the plan refused: ${JSON.stringify(p).slice(0, 200)}`;
       } catch (e) { err = e.message; }
