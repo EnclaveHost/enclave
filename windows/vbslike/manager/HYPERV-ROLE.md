@@ -49,30 +49,42 @@ decides. Expect each to report `RestartNeeded: True`.
    both. The incident log `agent-incident-20260923-24.log` is already preserved on the box and must
    not be deleted; note that the repository's `*.log` ignore rule would silently drop it if anyone
    tried to archive it by committing it.
-2. **App data is not on this box.** The five deployments keep their durable state in their own S3
+2. **App data is not on this box.** The six deployments keep their durable state in their own S3
    and R2 buckets, so a reboot does not risk it. Nothing here deletes anything.
 3. **No VMs to back up.** `Get-VM` does not exist and no Hyper-V VMs exist; the lab partitions are
    transient HCS compute systems, created and destroyed per probe. There is nothing to export.
-4. **Record the before state**: the feature table above, `vmms` absent, and the current five
+4. **The node's own bytes must survive this.** What runs on the box is NOT this branch's
+   `windows/node/`: it is the previously deployed build plus three fixes, recorded at `ef1b2077`
+   with hashes `host.mjs 170a0db0…`, `agent.mjs d2595f35…`, `appzone.mjs 6ec96d19…`. Shipping the
+   branch's files instead puts the node into **owner-only scope** and it silently stops taking the
+   governance wallet's deployments - measured today. So: **do not run `sync.sh` as part of this
+   change.** A reboot restarts the scheduled task against whatever is already in
+   `C:\Users\claude\vbs\node\`, which is correct. Verify the three hashes before and after.
+5. **Record the before state**: the feature table above, `vmms` absent, and the current six
    running deployments with their lease end times.
 
 ## What breaks, and for how long
 
-**The five apps stop.** A reboot stops the node, the enclave, the shielded worker and every app:
-`0xe64f7cba` (RISC Box), `0x7ae476a3` (the IPFS gateway behind `ipfs.enclave.host`), `0xd9798e4c`,
-`0xa77d0c57` (jot) and `0xa69dcbba` (the MCP adapter).
+**Six apps stop.** A reboot stops the node, the enclave, the shielded worker and every app:
+`0xe64f7cba` (RISC Box), `0x7ae476a3` (s3-ipfs-adapter), `0xd9798e4c` (ipns-publisher),
+`0xa77d0c57` (jot), `0xa69dcbba` (the MCP adapter) and `0xc34499ee`.
 
 - **Recovery is automatic, and takes about 15 minutes for the full set.** Measured today: after the
-  operator key was funded the node claimed all five within a minute and four were answering, but the
-  RISC Box needed a further 13 minutes to restore its 21.8 GiB guest before its endpoint answered.
-  Quoting "about a minute" describes four apps out of five; the interruption to plan around is ~15
-  minutes.
+  node restart at 21:19Z today, the other apps answered within about a minute and the RISC Box at
+  21:33:40Z - fourteen minutes later - once its 21.8 GiB guest had restored. **Plan for ~15
+  minutes**, not one.
 - **The lease is the risk.** Leases run in 30-minute quanta. If the box is down past a lease's end,
   `renew` reverts and only a fresh `claim` recovers it — which costs gas. The operator holds
   ~0.0019 ETH, enough for many claims, so this is a delay rather than a wall. **Do it just after a
   renewal**, not just before one.
-- **`ipfs.enclave.host` goes with it**, which is the site's publishing path. A site deploy during
-  the window would publish but the in-enclave IPNS publisher could not see the new root.
+- **`ipfs.enclave.host` does NOT go down.** That hostname is served from the site box's own gateway
+  (`/opt/enclave-gateway/pub`), not by the s3-ipfs-adapter on this node - verified while both node
+  apps were dead and the hostname still answered 200. An earlier version of this plan said the
+  opposite and was wrong. Site publishing is unaffected by this reboot.
+- **Two deployments are currently `blocked`** in `host-state.json` from earlier failures
+  (`0xda9e43f8`, `0xca141665`, `0x5c61595c`, `0x2215bad4` are long-standing; the two app ones were
+  cleared today by forced claims). Re-check the blocked list after the reboot before concluding
+  anything is wrong.
 
 ## The access risk, stated plainly
 
@@ -141,6 +153,76 @@ curl -s -o /dev/null -w "%{http_code}\n" https://ipfs.enclave.host/site-root
 If a lease lapsed while the box was down, `renew` reverts and the node re-claims on its own; the
 operator key holds enough gas for that. If ZeroTier does not come back, there is no remote path and
 recovery is physical.
+
+## THE POINT OF THE REBOOT: actually boot our image
+
+Everything above only establishes that the host can be ASKED. This is the step that answers whether
+the new isolation backend runs, and it is the reason to take the outage at all. Run it immediately
+after the verification block, from the manager directory with the environment already set:
+
+```powershell
+# One partition, our own IGVM, through the supported WMI path. It creates, pins the firmware,
+# verifies the pin READ BACK, starts, and waits for the guest to say something on its console.
+node -e "
+const {WmiHyperVLauncher}=await import('./wmi-launcher.mjs');
+const {powershellRunner}=await import('./psrun.mjs');
+const l=new WmiHyperVLauncher({run:powershellRunner(),imagePath:process.env.ENCLAVE_GUEST_IGVM,imageSha256:process.env.ENCLAVE_GUEST_IGVM_SHA256,prefix:'enclave-boot-'});
+const pre=await l.preflight(); console.log('preflight', JSON.stringify(pre));
+if(!pre.ok) process.exit(1);
+try {
+  const h=await l.start({appId:'0'.repeat(64),record:{policy:{cpuPercent:100,memMiB:4096,vcpus:2}}},{instanceId:'probe-0001',guestReadySec:90});
+  console.log('BOOTED', JSON.stringify({name:h.name,state:h.state,guestBytes:h.guest.bytes,head:h.guest.head}));
+} catch(e) { console.log('NOT BOOTED:', e.message); }
+finally { console.log('teardown', JSON.stringify(await l.teardown().catch(x=>({error:x.message})))); }
+" --input-type=module
+```
+
+Three outcomes, and they are different answers:
+
+| what it prints | what it means |
+|---|---|
+| `BOOTED` with `guestBytes > 0` and a recognisable head | **the new backend boots on this host.** This is the milestone. |
+| `NOT BOOTED: ... guest produced no output` | the partition started and the guest is silent - a paravisor/image problem, not a role problem |
+| `NOT BOOTED: ... FirmwareFile reads back as` / `ModifySystemSettings` | the WMI path itself is refusing the image; capture the text verbatim |
+
+`teardown` must print `removed` for the probe VM. It is scoped to the `enclave-boot-` prefix and the
+ownership marker, so it cannot touch anything else.
+
+**Do not chase a failure on the night.** Capture the output, tear down, leave the node serving, and
+report. The role stays enabled for a follow-up run unless the rollback below is taken.
+
+## Rolling back
+
+```powershell
+Disable-WindowsOptionalFeature -Online -NoRestart -FeatureName Microsoft-Hyper-V-Management-PowerShell
+Disable-WindowsOptionalFeature -Online -NoRestart -FeatureName Microsoft-Hyper-V-Services
+Disable-WindowsOptionalFeature -Online -NoRestart -FeatureName Microsoft-Hyper-V-Hypervisor
+Restart-Computer          # a SECOND reboot, and a second ~15 minute app interruption
+```
+
+Before disabling, remove anything the probe left:
+
+```powershell
+Get-VM | Where-Object { $_.Name -like 'enclave-boot-*' -or $_.Notes -eq 'enclave-vbslike-app-domain' } |
+  ForEach-Object { Stop-VM -VM $_ -TurnOff -Force -EA SilentlyContinue; Remove-VM -VM $_ -Force }
+```
+
+Three implications, said plainly:
+
+1. **Rollback costs a second reboot and a second ~15 minute outage.** Treat enabling as one-way for
+   the day.
+2. **`VirtualMachinePlatform` must stay enabled** through all of this. The existing enclave depends
+   on it, and disabling it would take the node down for good, not for fifteen minutes.
+3. **The root partition under the full role is not identical to the one under VMP alone.** The
+   enclave, the shielded Vulkan worker and the existing HCS lab path all need re-verifying rather
+   than assuming. Any of them regressing is a reason to roll back.
+
+## The minimal unavoidable prerequisite
+
+One: the Hyper-V role, because the supported way to give a VM a custom IGVM is
+`Msvm_VirtualSystemSettingData.FirmwareFile` through `Msvm_VirtualSystemManagementService`, which
+lives in `root\virtualization\v2` and does not exist without the role. Everything else in this
+document is verification, not a prerequisite, and none of it should delay the probe above.
 
 ## What this does not decide
 
