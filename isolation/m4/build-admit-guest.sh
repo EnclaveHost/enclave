@@ -25,10 +25,12 @@ gcc -static -O2 -o "$d/init" "$here/guest/admitinit.c"
 cp "$here/guest/appidmod.ko" "$d/appidmod.ko"
 mkdir -p "$d/rt" "$d/proc" "$d/sys"
 cp "$bundle" "$d/app.bundle"
-# The wasmtime ELF only. It is dynamically linked, so ld-linux, libc, libgcc_s and libm are NOT admitted and
-# the bytes that actually run include unadmitted code: this admits "the runtime image", not "the runtime".
-W=$(command -v wasmtime)
-cp -L "$W" "$d/rt/wasmtime"
+# The runtime SET, composed exactly as the serving plane's is (runtime-set.sh): the wasmtime ELF, its interpreter
+# and shared libraries, and runtime.json. This fixture never executes the runtime, but ENCLAVE_RUNTIME_SHA256 has
+# ONE meaning - the rtset digest of /rt - and a fixture admitting a different thing under the same name would be a
+# second meaning. The 2026-09-24 step-2 run (15/15) predates this and staged the wasmtime ELF alone.
+rmdir "$d/rt"
+"$here/runtime-set.sh" compose "$d/rt"
 printf '%s\n' "$mode" > "$d/admit.mode"
 # The report modules are carried so the guest can PROVE it cannot use them: with every VMPCK cleared from its
 # secrets page, sev-guest must refuse to probe, which is the key-absence evidence the forgeable vmpl0 tuple
@@ -47,5 +49,6 @@ BUNDLETOOL=${BUNDLETOOL:-$here/.bundle}
   -ldflags='-s -w -buildid=' -o "$BUNDLETOOL" ./cmd/bundle)
 echo "admit guest $out ($(stat -c %s "$out") bytes), mode $mode"
 echo "  bundle  app id  $("$BUNDLETOOL" id "$bundle")   <- ENCLAVE_APP_IDS entry for this plane"
-echo "  runtime sha256  $(sha256sum "$d/rt/wasmtime" | cut -c1-64)   <- ENCLAVE_RUNTIME_SHA256 entry"
-echo "  NOTE: the wasmtime ELF only; its shared libraries are not admitted (see svsm/README.md)"
+set -- $("$here/runtime-set.sh" digest "$d/rt")
+[ ${#2} = 64 ] || { echo "no runtime-set digest for $d/rt" >&2; exit 1; }
+echo "  runtime set     $2   <- ENCLAVE_RUNTIME_SHA256 entry (rtset v1, every file in /rt: $3 $4 $5)"

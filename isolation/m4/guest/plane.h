@@ -4,7 +4,9 @@
  *
  * EXTRACTED VERBATIM from admitinit.c after the step-2 fixture passed 15/15, and the extraction was checked by
  * diffing admitinit.c's PREPROCESSED source before and after - identical - so the fixture's behaviour cannot
- * have changed. Define EV_PREFIX before including to name the lines ("ADMIT", "PLANE"); it defaults to ADMIT.
+ * have changed. The runtime-set staging at the end was added LATER and is not covered by that 15/15: the step-2
+ * run staged the wasmtime ELF alone. Define EV_PREFIX before including to name the lines ("ADMIT", "PLANE"); it
+ * defaults to ADMIT.
  *
  * The two subtleties, both of which cost a debugging session:
  *   a SHORT sysfs write is a FAILURE. kernfs caps one write at PAGE_SIZE and returns the truncated length with
@@ -147,6 +149,36 @@ static int __attribute__((unused)) stage(const char *path, int flip_byte) {
     if (n < 0) { close(fd); return -errno; }
     close(fd);
     return total > 0 ? 0 : -EIO;
+}
+
+/* Added 2026-09-24, after the extraction above: the RUNTIME kind admits the runtime SET of a directory, not one
+ * file. See rtset.h for the format and for why a subdirectory refuses rather than being skipped. The encoder hands
+ * this sink at most RTSET_CHUNK bytes at a time, so every write is one whole sysfs write. */
+#include "rtset.h"
+
+static int __attribute__((unused)) rtset_sysfs_sink(void *ctx, const void *buf, size_t n) {
+    (void)ctx;
+    return put("artifact", buf, n);
+}
+
+/* Stage the runtime set of `dir` into the active slot, leaving in `s` what was staged - its members, their sizes
+ * and the file objects they were read from, which the maps check needs later. 0, or -1 with `err` set. */
+static int __attribute__((unused)) stage_runtime_set(struct rtset *s, const char *dir, char *err, size_t el) {
+    if (rtset_scan(s, dir, err, el)) return -1;
+    return rtset_encode(s, rtset_sysfs_sink, NULL, err, el);
+}
+
+/* Say what the set holds, one line per member, so the evidence names every file the SVSM was asked to hash. */
+static void __attribute__((unused)) say_runtime_set(const char *key, const struct rtset *s) {
+    char line[512];
+    for (int i = 0; i < s->n; i++) {
+        snprintf(line, sizeof line, "%s size=%llu elf=%d", s->m[i].name, (unsigned long long)s->m[i].size,
+                 s->m[i].elf);
+        say(key, line);
+    }
+    snprintf(line, sizeof line, "members=%d elf=%d bytes=%llu (rtset v1 over %.256s, every entry)", s->n,
+             rtset_elf_members(s), (unsigned long long)s->total, s->dir);
+    say("runtime_set", line);
 }
 
 
