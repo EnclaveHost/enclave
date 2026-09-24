@@ -39,7 +39,8 @@ export function testCert(dir) {
  * otherwise), signed by `signer`, and enclave-ready answering `ready`.
  */
 export class FakeDomain {
-  constructor({ appId = APP, ready = { status: 200 }, boundSpki = null, signer = null, docAppId = null, readyAppId = null } = {}) {
+  constructor({ appId = APP, ready = { status: 200 }, boundSpki = null, signer = null, docAppId = null, readyAppId = null, runtime = RUNTIME } = {}) {
+    this.runtime = runtime;
     this.dir = fs.mkdtempSync(path.join(os.tmpdir(), "fake-domain-"));
     const { cert, key, spki } = testCert(this.dir);
     this.spki = spki; this.appId = appId; this.ready = ready; this.boundSpki = boundSpki; this.signer = signer || launcherKey();
@@ -49,7 +50,7 @@ export class FakeDomain {
   async listen() { await new Promise((r) => this.server.listen(0, "127.0.0.1", r)); this.port = this.server.address().port; return this; }
   close() { this.server.close(); fs.rmSync(this.dir, { recursive: true, force: true }); }
   signedReport(nonceHex) {
-    const rd = Buffer.concat([Buffer.from(bind2(this.boundSpki || this.spki, Buffer.from(nonceHex, "hex"), runtimeId(RUNTIME))), Buffer.from(this.docAppId, "hex")]);
+    const rd = Buffer.concat([Buffer.from(bind2(this.boundSpki || this.spki, Buffer.from(nonceHex, "hex"), runtimeId(this.runtime))), Buffer.from(this.docAppId, "hex")]);
     const doc = { format: FORMAT, tier: TIER,
       platform: { os: "windows", hypervisor: "hyper-v", partition: "hcs-child-partition", isolation: "none", hostExcluded: false },
       launcher: { key: this.signer.keyB64, startedMs: 1 }, partition: { vmId: "GUID-1", guestImageSha256: "44".repeat(32), kernelSha256: "7f".repeat(32), vcpus: 2, memMiB: 1024 },
@@ -67,7 +68,7 @@ export class FakeDomain {
       const nonce = u.searchParams.get("nonce") || "";
       if (!/^[0-9a-f]{64}$/.test(nonce)) return json(400, { error: "nonce" });
       return json(200, { tier: TIER, format: FORMAT, report: b64(JSON.stringify(this.signedReport(nonce))), transportKey: b64(this.spki),
-                         appSha256: this.docAppId, nonce, abi: "enclave-domain-abi/2", runtime: RUNTIME, runtimeSelfTest: SELFTEST });
+                         appSha256: this.docAppId, nonce, abi: "enclave-domain-abi/2", runtime: this.runtime, runtimeSelfTest: SELFTEST });
     }
     if (u.pathname === "/.well-known/enclave-ready") {
       const r = typeof this.ready === "function" ? this.ready() : this.ready;

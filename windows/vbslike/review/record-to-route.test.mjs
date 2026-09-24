@@ -48,7 +48,9 @@ async function rig({ domain = null, judgeReady = null, readyDeadlineMs = 4000 } 
   for (const f of ["vbslike-host.exe", "wsl-kernel", "mon.cpio.gz"]) await fsp.writeFile(path.join(dir, f), "x");
   const L = labLauncher(domain ? { keyB64: domain.signer.keyB64, relayPort: domain.port } : {});
   const backend = new HcsPartitionBackend({ exe: path.join(dir, "vbslike-host.exe"), kernel: path.join(dir, "wsl-kernel"), initrd: path.join(dir, "mon.cpio.gz"), out: dir, spawnFn: L.make });
-  const m = new Manager({ backend, fetchComponent: async () => component, runtimeId: RECORD.runtimeId, judgeReady, readyDeadlineMs });
+  // the manager is given the runtime IDENTITY the image states (as main.mjs does from guest/runtime.json) and derives
+  // the RuntimeID it pins spawns to from it; the deployment record carries that RuntimeID
+  const m = new Manager({ backend, fetchComponent: async () => component, runtime: RUNTIME, judgeReady, readyDeadlineMs });
   const srv = createServer(m); await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   const client = new IsolationManagerClient({ base: `http://127.0.0.1:${srv.address().port}` });
   return { m, L, client, close: async () => { srv.close(); await backend.close().catch(() => {}); await fsp.rm(dir, { recursive: true, force: true }); } };
@@ -91,6 +93,21 @@ test("ROUTE ADMISSION, the real join: the manager judges a real TLS domain throu
     assert.equal(admit(view, { ...wantOf(view), key: "ff".repeat(32) })[0], "refused:identity");
     assert.equal(admit(view, { ...wantOf(view), app: "ee".repeat(32) })[0], "refused:identity");
     assert.equal(admit({ ...view, status: "stopped" }, wantOf(view))[0], "refused:not-running");
+  } finally { await r.close(); domain.close(); }
+});
+
+test("a domain stating ANOTHER runtime identity never reaches running: the readiness expectation is the identity, pinned, not a loose match", async () => {
+  const domain = await new FakeDomain({ appId: APPID, docAppId: APPID, readyAppId: APPID, runtime: { ...RUNTIME, version: "47.0.0" } }).listen();
+  const r = await rig({ domain, judgeReady: judgeRunning, readyDeadlineMs: 1500 });
+  try {
+    const first = await r.client.spawn(IsolationManagerClient.spawnBody({ image: `ipfs://${RECORD.cid}`, name: DEP, appPort: 8080, derive: RECORD, isPublic: true, hasSecrets: false }));
+    await r.m.judging.get(first.view.id);
+    const view = await r.client.get(first.view.id), rec = r.m.get(first.view.id);
+    assert.equal(view.status, "failed", `${view.status}: ${rec && rec.reason}`);
+    assert.match(String(rec && rec.reason), /runtime identity differs/, "refused on the identity, by name");
+    // the owner records the key of any handshake that got as far as a session, even on a failed verdict (it names which
+    // peer answered); that is acceptable ONLY because admission refuses on status first: the key must never make it routable
+    assert.equal(admit(view, wantOf(view))[0], "refused:not-running", "a failed record is not admitted even with a matching key");
   } finally { await r.close(); domain.close(); }
 });
 

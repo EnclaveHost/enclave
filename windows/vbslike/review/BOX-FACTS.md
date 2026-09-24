@@ -70,8 +70,19 @@ and no relay route or lease touched it. The IGVM (role) path does not boot yet. 
 reads back), `Start-VM` works (worker event 18500 "started successfully"), and then the guest never boots (worker event
 18603 "failed to boot an operating system", zero bytes on the COM pipe in 45 s); the launcher refused it as "the VM is
 Running but the guest produced no output: a silent partition is not a booted one". An earlier 0x80070057 was the owner's
-hand-built step sequence, not the launcher. `AllowFirmwareLoadFromFile` (unset) is a hypothesis with Steven, not a
-conclusion. The custom-IGVM milestone is NOT met.
+hand-built step sequence, not the launcher. The custom-IGVM milestone is NOT met.
+**Correction (owner's report, later the same evening):** the bounded, reversible custom-firmware experiment
+(`AllowFirmwareLoadFromFile` set per probe and restored to ABSENT) was ALREADY authorized as part of this deployment
+work (`windows/vbslike/evidence/isolated-firmware-approved-2026-09-24.md` records prior approved runs); the owner had
+treated it as an open decision and this file repeated that. Run on the WMI path, as the owner reports it: the firmware
+gate is PASSED (no event 5142; returnValue 0, GuestFeatureSet 513, FirmwareFile reads back), the partition is genuinely
+isolated (creation flags 0x6000040000020 against 0x20 before), the historical vmchipset 0xc0000005 fault did not
+reproduce (count unchanged at 24), and the start still fails at [12030] "failed to start" with no reason in Start-VM's
+message; the owner is starting via WMI to read the job's ErrorDescription. Setting restored to ABSENT and verified, the
+VM removed by exact name, the node's pid unchanged, the six apps identical before and after. (The owner's wrapper had
+used `Invoke-WebRequest -SkipCertificateCheck`, absent in Windows PowerShell 5.1, so an earlier before/after app check
+reported -1 for all six and could not tell healthy from dead; replaced by curl.exe, with an all-dead baseline now itself
+a failure.) None of this is measured by this lane; it is recorded as the owner stated it.
 
 ## What these facts do and do not say
 
