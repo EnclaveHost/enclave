@@ -3585,7 +3585,8 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     // deployment launched before. Adopt it only if it is starting or running AND was launched from exactly this
     // derivation record (same catalog version, component, policy and runtime); anything else under this name is
     // ended and launched again, never adopted.
-    if (r.status === 409 && r.body && /^gd[0-9a-f]{8}$/.test(String(r.body.id || ""))) {
+    // Adoption is by NAME (this deployment) and record digest, never by the id's spelling: the manager owns its ids.
+    if (r.status === 409 && r.body && /^[A-Za-z0-9-]{1,64}$/.test(String(r.body.id || ""))) {
       const cur = await vmReq("GET", `/vms/${encodeURIComponent(r.body.id)}`, null, 10_000);
       const v = cur && cur.status === 200 && cur.body;
       if (v && v.name === deploymentId && (v.status === "running" || v.status === "starting")
