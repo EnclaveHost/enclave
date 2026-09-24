@@ -49,6 +49,23 @@ pub(crate) fn rows() -> Vec<Row> {
         Row { name: "vbs-igvmpath-emptyvmgs", why: "VirtualizationBasedSecurity + IgvmFilePath + an EMPTY VMGS: our own paravisor image, with the guest runtime state device the isolated partition demands", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, ..base },
         Row { name: "vbs-igvmpath-emptyvmgs-tpm", why: "... plus EnableTpm, since the paravisor is what would host the vTPM", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, tpm: true, ..base },
         Row { name: "gso-igvmpath-emptyvmgs", why: "GuestStateOnly + IgvmFilePath + an EMPTY VMGS: the same shape one isolation class down, to tell a firmware-loading problem from a VBS-isolation one", isolation: Some("GuestStateOnly"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, ..base },
+        // THE CHIPSET, which every row above got wrong for this image. The file is named
+        // openhcl-x64-test-linux-DIRECT: the paravisor expects the host to hand VTL0 a kernel and
+        // initrd through LinuxKernelDirect and supplies the VTL2 environment itself. Asking for a
+        // Uefi chipset instead makes the worker look for a UEFI firmware element this IGVM does
+        // not carry, which is a good candidate for the "Element not found" at start.
+        Row { name: "vbs-igvmpath-direct-emptyvmgs", why: "VirtualizationBasedSecurity + LinuxKernelDirect + IgvmFilePath + an EMPTY VMGS: the paravisor's own boot shape rather than a UEFI chipset", isolation: Some("VirtualizationBasedSecurity"), uefi: false, use_igvm: true, use_empty_vmgs: true, overcommit: false, ..base },
+        Row { name: "vbs-igvmpath-direct-emptyvmgs-hcl", why: "... plus HclEnabled stated true", isolation: Some("VirtualizationBasedSecurity"), uefi: false, use_igvm: true, use_empty_vmgs: true, overcommit: false, hcl: Some(true), ..base },
+        Row { name: "vbs-igvmpath-direct-gs", why: "... with TRANSIENT in-memory guest state instead of a VMGS file, in case the file is what is not found", isolation: Some("VirtualizationBasedSecurity"), uefi: false, use_igvm: true, overcommit: false, transient_gs: true, ..base },
+        Row { name: "vbs-igvmpath-emptyvmgs-fwparams", why: "the UEFI shape plus FirmwareFile.Parameters, to vary the other axis", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, fw: Some("OPENHCL_BOOT_LOG=com3"), ..base },
+        // IT STARTS. `FirmwareFile.Parameters` was the missing element: without a FirmwareFile
+        // block the worker has no firmware element to attach the IGVM to and start returns
+        // 0x80070490, and with one the isolated partition runs our own paravisor image in 961 ms.
+        // What it did NOT do is say anything - the document models COM1 and COM2 only (more makes
+        // it invalid, 0x8037010d), so a boot log addressed to com3 went nowhere. These rows move
+        // it onto a port that exists, which is what turns "it started" into "it is our image".
+        Row { name: "vbs-igvm-boot-com2", why: "the shape that starts, with the paravisor's boot log on COM2 where this document actually has a port", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, fw: Some("OPENHCL_BOOT_LOG=com2"), ..base },
+        Row { name: "vbs-igvm-boot-com1", why: "... and on COM1, in case the paravisor numbers its ports from the guest's side", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, fw: Some("OPENHCL_BOOT_LOG=com1"), ..base },
         Row { name: "vbs-emptyvmgs-tpm", why: "... plus EnableTpm", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_empty_vmgs: true, overcommit: false, tpm: true, ..base },
         Row { name: "gso-emptyvmgs", why: "GuestStateOnly + the empty VMGS", isolation: Some("GuestStateOnly"), uefi: true, use_empty_vmgs: true, overcommit: false, ..base },
         Row { name: "vbs-vmgs", why: "VirtualizationBasedSecurity + a VMGS carrying an IGVM in file id 8: 'Loading IGVM file from VMGS file'", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_vmgs: true, overcommit: false, ..base },
