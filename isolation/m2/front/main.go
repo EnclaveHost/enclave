@@ -91,7 +91,8 @@ type front struct {
 	spki, appSha []byte
 	rt           *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
 	snp          bool
-	monitor      string // M3: the monitor's socket, and then this process never opens configfs at all
+	monitor      string      // M3: the monitor's socket, and then this process never opens configfs at all
+	plane        *appidPlane // M4b: the measured SVSM names this plane and computes the binding itself
 	app          http.Handler
 	tsmMu        sync.Mutex
 }
@@ -103,6 +104,8 @@ func main() {
 	upstream := flag.String("upstream", "127.0.0.1:8080", "the app on the guest loopback")
 	appShaPath := flag.String("app-sha", "/app.sha256", "hex sha256 of the app, written at build time")
 	snp := flag.Bool("snp", false, "this domain is an SEV-SNP guest: serve hardware reports")
+	appid := flag.String("appid", "", "ask the measured SVSM for reports through this plane sysfs dir (M4b): "+
+		"the SVSM computes the binding from a key registered here, so this domain cannot choose either half of report_data")
 	rtID := flag.String("runtime-identity", "/rt/runtime.json", "the runtime identity written into this image beside the runtime; absent means ABI/1")
 	flag.Parse()
 
@@ -142,6 +145,22 @@ func main() {
 	rp := httputil.NewSingleHostReverseProxy(&url.URL{Scheme: "http", Host: *upstream})
 	rp.Transport = &http.Transport{DialContext: (&net.Dialer{}).DialContext, MaxIdleConnsPerHost: 64}
 	f := &front{spki: spki, appSha: appSha, rt: rt, snp: *snp, monitor: *reportUnix, app: rp}
+	if *appid != "" {
+		// ABI/2 or nothing on this path. The SVSM computes Bind2, which folds in a RuntimeID; a domain with no
+		// runtime identity computes Bind, so the comparison below could never match and every /attest would
+		// fail at serve time with a confusing message. Refuse at startup, where the cause is visible.
+		if rt == nil {
+			die("-appid needs a runtime identity: the SVSM binds %s (Bind2, with a RuntimeID) and this image "+
+				"carries none, so no binding this domain computes could ever match", contract.ABI2)
+		}
+		// Register BEFORE serving, and die rather than serve without it. A front that answered /attest with
+		// reports bound to no key - or to a key some earlier admission registered and the reclaim forgot -
+		// would hand a verifier a document whose transport key it cannot match to this handshake. There is no
+		// retry: the plane is admitted once, by init, before this process starts.
+		f.plane = &appidPlane{dir: *appid}
+		must(f.plane.registerKey(spki))
+		fmt.Printf("DOM plane %s registered spki_sha256=%x\n", *appid, sha256.Sum256(spki))
+	}
 	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
 	// No session tickets: every connection then proves the attested key in a full handshake, so a
 	// client pins by comparing that key, never by tracking which session came from which handshake.
@@ -203,6 +222,25 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 	var rep, certs []byte
 	var boundary, tier, format string
 	switch {
+	case f.plane != nil:
+		// M4b: send the NONCE and nothing else. report_data[0:32] is Bind2(the key registered at startup,
+		// this nonce, the RuntimeID compiled into the measured SVSM) and report_data[32:64] comes from
+		// APP_TABLE indexed by the calling plane. Neither is a field of the request, so the binding this
+		// front computed above is used only to CHECK what came back - never to ask for it.
+		rep, err = f.plane.report(nonce)
+		if err == nil {
+			tier, format = "T1", "sev-snp-svsm-plane-v1"
+			boundary = "the measured SVSM at VMPL0 named this plane; this domain supplied only a nonce"
+			// Fail closed on disagreement. The SVSM's binding must equal the one this domain would have
+			// computed from its own key, this nonce and its own runtime identity; if it does not, either the
+			// SVSM holds a different key or its compiled RuntimeID is not the identity this image states,
+			// and serving the document would publish a binding this domain cannot honour at a handshake.
+			if got := reportData0(rep); got != bind {
+				http.Error(w, fmt.Sprintf("the SVSM's binding %x is not this domain's %x", got[:8], bind[:8]),
+					http.StatusInternalServerError)
+				return
+			}
+		}
 	case f.monitor != "":
 		// M3: send the binding and nothing else. The app half of report_data is the monitor's to write,
 		// from the hash it took when it loaded this domain's app. The monitor also says what kind of
@@ -245,6 +283,16 @@ func (f *front) bind(nonce []byte) ([32]byte, error) {
 		return contract.Bind2(f.spki, nonce, f.rt.RID)
 	}
 	return contract.Bind(f.spki, nonce)
+}
+
+// reportData0 is report_data[0:32] out of a signed SNP report. Used only to CHECK the SVSM's binding against
+// the one this domain would have computed - never to construct one.
+func reportData0(rep []byte) [32]byte {
+	var out [32]byte
+	if len(rep) >= 0x50+32 {
+		copy(out[:], rep[0x50:0x50+32])
+	}
+	return out
 }
 
 var errNoHardwareReport = errors.New("no hardware report on this tier")
