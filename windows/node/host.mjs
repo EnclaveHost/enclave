@@ -438,6 +438,20 @@ export class Host {
   }
 
   /**
+   * true / false / null for "does this deployment have relay-stored secrets?", where null means
+   * NOT KNOWABLE on this box rather than "no". The distinction is the whole point: a caller that
+   * turns null into false has assumed exactly what it was asked to establish.
+   */
+  async #secretsState(id) {
+    if (!this.cfg.secretsSign) return null;          // we cannot ask, so we do not know
+    try {
+      if (!this.secrets.has(id)) await this.loadSecrets(id);
+    } catch { return null; }                          // asking failed: still unknown, never "no"
+    const env = this.secrets.get(id);
+    return !!(env && Object.keys(env).length > 0);
+  }
+
+  /**
    * Run this deployment as an isolated domain through the manager, and translate the outcome into
    * this node's record vocabulary. Returns a record when it decided, or null to fall through to the
    * in-enclave path.
@@ -449,12 +463,28 @@ export class Host {
     const { reconcile } = await import("./isolation-lifecycle.mjs");
     const { IsolationManagerClient } = await import("./isolation-client.mjs");
     const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
+
+    // WHETHER THIS DEPLOYMENT HAS SECRETS MUST BE KNOWN, NOT ASSUMED.
+    //
+    // I wrote the client to refuse a body that does not STATE hasSecrets - because staged secrets
+    // would cross this host in plaintext on this backend - and then hard-coded `false` here, which
+    // is the same assumption wearing the caller's clothes. enclave-5d caught it. A node that has
+    // not fetched a deployment's secrets cannot tell "none exist" from "not looked yet", and
+    // loadSecrets returns early with no secretsSign configured, so the answer can be genuinely
+    // UNKNOWN. Unknown is a refusal, never a false.
+    const hasSecrets = await this.#secretsState(id);
+    if (hasSecrets !== false) {
+      const why = hasSecrets === true
+        ? "this deployment has relay-stored secrets, and a per-app partition would carry them across this host in plaintext"
+        : "whether this deployment has secrets cannot be verified on this box (no secrets signer configured), and absent secrets must be KNOWN absent";
+      return await this.#giveUp(id, `isolation: ${why}`);
+    }
     const body = IsolationManagerClient.spawnBody({
       image: `ipfs://${v.cid}`, name: id, appPort: port,
       cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000,
       // stated from the LEDGER, never assumed: the manager refuses a spawn that does not say
       isPublic: d.isPublic !== false,
-      hasSecrets: false,
+      hasSecrets,
       derive: { derivation: "enclave-catalog-bundle/1", cid: v.cid,
                 catalog: { app: d.appRef, version: v.version },
                 policy: { cpuPercent: 100, memMiB: memMb, vcpus: 1 },
