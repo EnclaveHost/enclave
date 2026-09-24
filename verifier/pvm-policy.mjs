@@ -19,6 +19,9 @@ export const POLICY_FIELDS = ["type", "key", "serial", "notBefore", "notAfter", 
 export const BUILTIN_GOOGLE_ROOTS = ["cedb1cb6dc896ae5ec797348bce9286753c2b38ee71ce0fbe34a9a1248800dfc", "6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0"];   // relay/avf-verify.mjs pins
 export const KNOWN_FORMATS = ["enclave-pvm-app-evidence/v2"], KNOWN_MODES = ["whole", "chunked"];
 export const MAX_POLICY_BYTES = 64 * 1024;
+// the optional deployment table (agreed with the pVM owner 2026-09-24, client 0.4.0): which app a deployment is expected to
+// run, signed like every other field; an id is the platform ledger's bytes32 in canonical form, 0x + 64 lowercase hex
+export const DEPLOYMENT_ID = /^0x[0-9a-f]{64}$/, MAX_DEPLOYMENTS = 64;
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 const sha256hex = (b) => createHash("sha256").update(b).digest("hex");
 const isHex = (s, n) => typeof s === "string" && s.length === n && /^[0-9a-f]+$/.test(s);
@@ -43,7 +46,8 @@ export function verifyClientPolicy(envelope, { anchorFp, serialFloor = 1, state 
   let p; try { p = JSON.parse(bytes.toString("utf8")); } catch { return no("the policy bytes are not JSON"); }
   if (!p || typeof p !== "object" || Array.isArray(p)) return no("the policy is not an object");
   if (Buffer.from(JSON.stringify(p), "utf8").compare(bytes) !== 0) return no("the policy bytes are not strict compact JSON (they do not round-trip unchanged: padding, duplicate keys or key order)");
-  if (Object.keys(p).join(",") !== POLICY_FIELDS.join(",")) return no(`the policy fields must be exactly ${POLICY_FIELDS.join(", ")} in that order (got ${Object.keys(p).join(", ")})`);
+  // the 15 fields in their order; the one optional field, deployments, may stand anywhere (the contract fixes no position for it)
+  if (Object.keys(p).filter((k) => k !== "deployments").join(",") !== POLICY_FIELDS.join(",")) return no(`the policy fields must be exactly ${POLICY_FIELDS.join(", ")} in that order, optionally with deployments (got ${Object.keys(p).join(", ")})`);
   if (p.type !== POLICY_TYPE) return no(`the policy type is ${JSON.stringify(p.type)}, not ${POLICY_TYPE}`);
   if (!isHex(p.key, 64)) return no("the policy key is not a raw 32-byte Ed25519 public key in hex");
   // 1. the key is the anchor (or the successor a previously accepted policy named)
@@ -80,6 +84,18 @@ export function verifyClientPolicy(envelope, { anchorFp, serialFloor = 1, state 
   const w = p.sealedWindow;
   if (!w || typeof w !== "object" || Object.keys(w).sort().join(",") !== "maxRequests,seconds" || !Number.isInteger(w.seconds) || w.seconds < 1 || !Number.isInteger(w.maxRequests) || w.maxRequests < 1) return no("sealedWindow must be { seconds, maxRequests } with positive integers");
   if (p.nextPolicyKey !== null && !isHex(p.nextPolicyKey, 64)) return no("nextPolicyKey must be null or a raw Ed25519 public key in hex");
+  // 5b. the deployment table, when present: a real table (never empty, at most 64), each entry exactly { id, app }, the id
+  // canonical (never normalised), the app one the policy admits, no id twice; any fault refuses the WHOLE policy
+  if ("deployments" in p) {
+    const d = p.deployments;
+    if (!Array.isArray(d) || d.length < 1 || d.length > MAX_DEPLOYMENTS) return no(`deployments must be a list of 1..${MAX_DEPLOYMENTS} entries (an empty table is never read as all, and absent means no table)`);
+    for (const e of d) {
+      if (!e || typeof e !== "object" || Array.isArray(e) || Object.keys(e).sort().join(",") !== "app,id") return no("each deployment must be exactly { id, app }");
+      if (typeof e.id !== "string" || !DEPLOYMENT_ID.test(e.id)) return no(`deployment id ${JSON.stringify(e.id)} is not canonical bytes32 (0x + 64 lowercase hex): refused, never normalised`);
+      if (!isHex(e.app, 64) || !p.appIds.includes(e.app)) return no(`deployment ${e.id.slice(0, 18)}... names an app the policy does not admit`);
+    }
+    if (new Set(d.map((e) => e.id)).size !== d.length) return no("a deployment id appears twice: ambiguous, the whole policy refused");
+  }
   // 6. the kill switch: an installed client below the minimum does not operate (the policy is still genuine)
   const minv = semver(p.minClientVersion), cv = semver(clientVersion);
   if (!minv) return no("minClientVersion is not a version");
@@ -91,5 +107,30 @@ export function verifyClientPolicy(envelope, { anchorFp, serialFloor = 1, state 
     expectationsFor(appIdHex) {
       if (!isHex(appIdHex, 64) || !p.appIds.includes(appIdHex)) return { ok: false, reason: "the policy does not admit this app" };
       return { ok: true, expect: { appId: Buffer.from(appIdHex, "hex"), allowedRuntimeIds: [...p.runtimeIds], allowedCodeHashes: [...p.codeHashes], allowedAuthorityHashes: [...p.authorityHashes], rootPins: [...p.googleRootPins], formats: [...p.formats], sealedModes: [...p.sealedModes], sealedWindow: { ...w } } };
-    } };
+    },
+    // the caller's selection: by deployment id (the expected app comes from the signed table, never from a catalog or a
+    // relay), or by app alone; the expectations are then those of the selected app
+    expectationsForSelection(sel) { const r = selectDeployment(p, sel); if (!r.ok) return r; const e = this.expectationsFor(r.app); return e.ok ? { ...e, app: r.app, deployment: r.deployment } : e; } };
+}
+
+/**
+ * selectDeployment(policy, { deployment?, app? }) -> { ok, app, deployment } | { ok: false, reason }, on a VERIFIED policy.
+ * With a deployment id: canonical or refused (never normalised); the policy must carry a table naming it exactly once; an
+ * app also given must be the one the table expects. Without one: the app alone, admitted by the policy. Never a default,
+ * never the table's first entry, never a catalog's or a relay's word.
+ */
+export function selectDeployment(policy, { deployment = null, app = null } = {}) {
+  const no = (reason) => ({ ok: false, reason });
+  if (!policy || !Array.isArray(policy.appIds)) return no("no verified policy to select from");
+  if (deployment === null || deployment === undefined) {
+    if (!app) return no("no app or deployment selected: nothing is implied");
+    if (!isHex(app, 64) || !policy.appIds.includes(app)) return no("the policy does not admit this app");
+    return { ok: true, app, deployment: null };
+  }
+  if (typeof deployment !== "string" || !DEPLOYMENT_ID.test(deployment)) return no(`deployment ${JSON.stringify(deployment)} is not canonical bytes32 (0x + 64 lowercase hex): refused, never normalised`);
+  if (!Array.isArray(policy.deployments)) return no("the policy names no deployments: select by app, or obtain a policy that names this deployment");
+  const hits = policy.deployments.filter((e) => e.id === deployment);
+  if (hits.length !== 1) return no(hits.length ? "the policy names this deployment more than once: ambiguous" : `the policy does not name deployment ${deployment.slice(0, 18)}...`);
+  if (app !== null && app !== undefined && app !== hits[0].app) return no("the app given is not the app the signed policy expects for this deployment");
+  return { ok: true, app: hits[0].app, deployment };
 }

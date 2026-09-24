@@ -24,7 +24,7 @@ const lines = (label) => rd(`${label}.jsonl`).toString().split("\n").filter((l) 
 const rc = (label) => Number(rd(`${label}.rc`).toString().trim());
 const result = (label) => lines(label).find((l) => l.result)?.result ?? null;
 const sha256 = (b) => createHash("sha256").update(b).digest("hex");
-const SRC = js("SOURCES.json"), PINS = JSON.parse(fs.readFileSync(path.join(REPO, "verifier", "integration", "pins.json"), "utf8")), NEXT = JSON.parse(fs.readFileSync(path.join(REPO, "verifier", "integration", "next-builds.json"), "utf8"));
+const SRC = js("SOURCES.json"), PINS = JSON.parse(fs.readFileSync(path.join(REPO, "verifier", "integration", "pins.json"), "utf8")), NEXTFILE = JSON.parse(fs.readFileSync(path.join(REPO, "verifier", "integration", "next-builds.json"), "utf8"));
 // the review clock: inside every document's validity window, derived from the run's own policies (notBefore is one hour before
 // they were signed) rather than from the notes' local times
 const NOW = Date.parse(JSON.parse(Buffer.from(JSON.parse(fs.readFileSync(path.join(F, "policies", "policy-1.json"), "utf8")).policy, "base64").toString()).notBefore) + 3600e3;
@@ -37,7 +37,8 @@ const inode = (snap, name) => { for (const l of rd(`install-${snap}.txt`).toStri
 const policyBytes = (n) => Buffer.from(js(`policies/${n}.json`).policy, "base64");
 const policyBody = (n) => JSON.parse(policyBytes(n).toString());
 const spki = (rawHex) => createPublicKey({ key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), Buffer.from(rawHex, "hex")]), format: "der", type: "spki" });
-const V = "0.3.1", BASE_SHA = PINS["pvm-client-dist"].files["shielded/anchor/avf/client/dist/pvm-client.mjs"], BASE_COMMIT = PINS["pvm-client-dist"].commit;
+// the run activated a next version of the 0.3.0 base (0f4c79fd): identified through THAT base's record, whatever is pinned now
+const BASE_COMMIT = "0f4c79fdc90d3bf80575a7822f18c3059fe481af", NEXT = { base: BASE_COMMIT, ...NEXTFILE.bases[BASE_COMMIT] }, V = "0.3.1", BASE_SHA = "fad5ba229c5dbbb339aa6d3d505e31c6a07eaaabadbe2431533cf882fb0f6aa4";
 const NX = js("lab-next.json"), REC = { version: V, sha256: NX.sha256, size: NX.size, file: `pvm-client-${V}-${NX.sha256}.mjs`, sourceCommit: BASE_COMMIT };
 const ACTIVE_RUNS = ["active-stream", "active-whole", "planted-marker", "active-policy-2", "rotate-3", "successor-4", "retired-5", "repaired-stream", "repaired-2-stream", "rollback"];
 
