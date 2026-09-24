@@ -1,0 +1,10 @@
+dp-01	d1	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 1	/home/steven/gguf-e2b/tpu/anchor-smp2.apk
+dp-02	d2	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 2	/home/steven/gguf-e2b/tpu/anchor-smp2.apk
+dp-03	d3	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 3	/home/steven/gguf-e2b/tpu/anchor-smp2.apk
+dp-04	d4	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 4	/home/steven/gguf-e2b/tpu/anchor-smp2.apk
+dp-05	nd	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft none --ei verify_threads 0	/home/steven/gguf-e2b/tpu/anchor-smp2.apk
+dp-06	nd	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft none --ei verify_threads 0	/home/steven/gguf-e2b/tpu/anchor-smp2.apk
+dp-07	d4	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 4	/home/steven/gguf-e2b/tpu/anchor-smp2.apk
+dp-08	d3	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 3	/home/steven/gguf-e2b/tpu/anchor-smp2.apk
+dp-09	d2	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 2	/home/steven/gguf-e2b/tpu/anchor-smp2.apk
+dp-10	d1	--ei decode_threads 2 --ei corr_threads 3 --ei tpu_bank 128 --es draft /data/user/0/host.enclave.anchor.avf/files/draft.gguf --ei verify_threads 4 --ei draft_max 1	/home/steven/gguf-e2b/tpu/anchor-smp2.apk
