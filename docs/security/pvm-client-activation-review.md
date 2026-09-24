@@ -431,3 +431,38 @@ per-nonce match; the start check, swap races and one hop host evidence; the firs
 out of band; production key distribution unsolved; whole-machine power loss untested; the extension unable to
 activate; no unattended activation). No further device run, client feature, merge, deploy, host setting or reboot is
 requested or made.
+
+## 15. The 50-turn stability run through the installed 0.4.1 client (owner's c003c388, `results/pvm-cpu-stability-50`)
+
+Target 9 of the pVM programme, met once on the Pixel 10 (2026-09-24 16:23 to 16:31Z): fifty consecutive mixed turns
+through the accepted 0.4.1 client, thirty-five streams and fifteen whole answers of 8 to 128 tokens, thirty selected by
+deployment from the signed table and twenty by app, fresh evidence every turn. Codex directed the run under Steven's
+standing validation scope. The results (325 files) are the fifth pinned fixture, compared with the owner's commit tree
+on every strict run; every hash the owner reported matches; the run script, capture and preflight are byte-identical
+at the freeze commit and at the run commit, and only the checker differs, the detach-rule correction below.
+
+`test/verifier-pvm-stability-50.test.mjs` (in the strict command) reviews it with this session's code only, all
+passing: the capture is complete (fifty exchanges in order, each request a nonce line, each envelope one v2 line
+answering it, UTC times inside the run and inside its turn, sizes as recorded, fifty distinct nonces, the committed
+state after every turn generation 2); all fifty chains re-verify offline through the exact pinned adapter under the one
+committed policy with each exchange's answer time as the clock, released by the browser-kind gate, claims equal to each
+turn's own verified summary, one transport key and one app key across the fifty (one boot), a replayed envelope
+refused; the fifty turns are valid by the client's own output (the commit before each request, every stream complete
+at its authenticated FIN, every whole answer 200, clientVersion 0.4.1, 2040 tokens, and every turn's token ids a
+prefix of one 128-token greedy sequence); selection is as the table says (thirty results name the table's entry and
+its app, twenty carry no deployment field; this branch's verifier accepts the policy and selects the same app); the
+committed state never moved (two generations, the final state equal to generation 2, nothing staged or active); the
+VM capture decoded here serves thirty-five streams to FIN and fifteen whole answers, one to one by nonce with the
+turns, nothing served that no turn answered, no plaintext, no private key.
+
+**The detach, confirmed from the raw logs as the owner asked.** One attach at 16:23:59.955Z, before the first turn;
+one detach at 16:31:34.686Z, after the last turn ended at 16:31:28.849Z and after the run had logged "attempted 50,
+valid 50" at 16:31:31Z; the hub ended by SIGTERM 49 ms after the detach, the script's planned stop; no turn started
+after the detach, so no reconnect. The run's own checker failed only on its "no detach" rule and that output is kept;
+the corrected checker counts detaches before the last turn's end only (zero) and passes.
+
+**Scope and evidence classes.** These are stream-probe turns on a fixed prompt, not the chat workload; there was no
+thermal stress (thermal status 0 at every sample, battery 31.5 to 35.8 C, host load 2.1 to 3.8, recorded as
+observations, not properties), and target 2 still fails. The chains are device evidence re-verified here; sealing and
+FIN remain the client's own claim plus the served count and the nonce match; the deployment-instance limit, the
+out-of-band root and whole-machine power loss are unchanged.
