@@ -100,14 +100,20 @@ FINDINGS
       loop has resumed the lease, sees an instance no record owns, and ends it; the resumed lease then launches a
       fresh guest (about a minute of downtime and a new transport key). The adoption path added in 39d2d138 never
       got to run. Fix: on the tier, no reaping before the claim loop's first pass.
-  F7  OPEN: restarting guestd ends every guest (its boot sweep stops guests a previous guestd left); guests do not
-      survive a manager restart, unlike a node restart. guestd's own upgrades therefore cost every app a relaunch.
+  F7  FIXED, verified live 20:46:03Z (cfd9e198 + 48ef955b): a guestd restart ADOPTS every guest that verifies again
+      as itself (recorded key, measurement, AppID, HOST_DATA) and ends only the rest; SIGTERM no longer ends guests.
+      The FIRST F7 deploy (20:43:45Z) FAILED to adopt: the restart ran the OLD binary's SIGTERM handler, which ended
+      both guests; the supervisor relaunched them (new keys; the relay reissued certificates for them at 20:45:29Z).
+      The fixed binary was then brought in with SIGKILL (so no old handler ran): "adopted 2 guest(s)", public keys and
+      ZeroSSL certificates unchanged (A 295ce2e0..., E d590dd84...), nothing respawned. Rollback now ends guests
+      explicitly (systemctl --user stop 'm2-gd*').
   F8  OPEN: the public edge (us-west) failed TLS (EOF) for one or both hostnames for 1-2 minutes after a change: A
       failed 6/6 at ~12:40 after B was claimed (cause not established; us-west is not reachable from this host), and
       both failed for ~2 min after the 12:43 restart (explained: the node restores its records only when its claim
       loop resumes the leases, ~70 s after boot). 0/28 failures in the 3 steady minutes measured.
-  F9  OPEN: a failed guest start scrubs its workdir, serial log included, so the reason is lost (hookbin had to be
-      reproduced by hand to find it).
+  F9  FIXED (cfd9e198): a failed start keeps its error, serial tail and build/launch/verify logs under
+      <root>/failed/<id>/ (bounded), and GET /vms/<id>/logs serves a running or failed guest's console in the
+      supervisor's (owner-gated) logs shape; live on A it shows the HOST_DATA-derived name and the certificate install.
   F10 OPEN: socket-server catalog apps (wasi:cli, http:N) cannot run on the tier; only wasi:http proxy components.
   F11 OPEN (raised with the enclave-99 verifier lane): the attestation evidence names the app (AppID), the image
       (measurement), the runtime and the TLS key, but NOT the deployment. Two live instances of one version, such
@@ -130,7 +136,7 @@ FINDINGS
       BUILT AND LIVE (bc07f899, 20:06Z): see host-data/README.txt. The A/E misroute is now refused from the public
       side; the copied-label case and owner/instance authorisation remain OPEN by design (F11 is narrowed, not
       closed).
-  F2  The guest front's certificate is self-signed: a browser warns. Trust comes from attestation (the verifying
+  F2  FIXED, live ~20:37Z (6757d139): see webpki/README.txt. Previously: the guest front's certificate was self-signed: a browser warned. Trust comes from attestation (the verifying
       client), not WebPKI. A CA certificate for the guest's own key (CSR from inside the guest) is not built.
   F3  The relay-terminated /x/<id>/ path answers 503 "state unknown" for this deployment instead of a clear refusal.
   F4  The node CVM itself boots from a measured image whose supervisor comes from a branch overlay, not a main release.
