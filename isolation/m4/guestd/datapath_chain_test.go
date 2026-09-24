@@ -188,7 +188,10 @@ func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, v
 				if hd, _ := hex.DecodeString(g.hostData); len(hd) == 32 {
 					copy(rep[0xc0:], hd) // HOST_DATA, fixed at launch
 				}
-				_ = json.NewEncoder(c).Encode(map[string]string{"report": base64.StdEncoding.EncodeToString(rep)})
+				// the tier and format the real m3 monitor states for an SNP report (the front reads HOST_DATA only
+				// from an SNP report, never from a launcher-signed document in the same field)
+				_ = json.NewEncoder(c).Encode(map[string]string{"report": base64.StdEncoding.EncodeToString(rep),
+					"tier": contract.TierSNP, "format": contract.FormatSNP})
 			}()
 		}
 	}()
