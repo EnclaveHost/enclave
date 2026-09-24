@@ -33,12 +33,16 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/sysinfo.h>
+#include <stdlib.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
 #define EV_PREFIX "PLANE"
 #include "plane.h"
+
+/* Where the boundary self-test is left for the front to relay. A tuple the VERIFIER can judge, not prose. */
+#define BOUNDARY_PATH "/tmp/boundary"
 
 /* the artifact kinds the SVSM's tables name, in the order this image admits them */
 #define KIND_BUNDLE  "0"
@@ -80,7 +84,10 @@ static int admit(const char *kind, const char *path, const char *key) {
         say(key, msg);
         return -1;
     }
-    e = puts_("admit", "1");
+    /* `admit` takes the KIND, not a flag. admit_store parses it with kstrtouint and refuses anything outside
+     * the table, so writing "1" here admitted the RUNTIME slot while the bundle was selected - which came back
+     * as EINVAL from the module with no SVSM call made at all, and `result` showing the previous success. */
+    e = puts_("admit", kind);
     if (e != 0) {
         /* The SVSM's own refusal code is in `result`; print it, because "admission failed" without the code
          * cannot be told from a harness that never staged anything. */
@@ -91,6 +98,78 @@ static int admit(const char *kind, const char *path, const char *key) {
     }
     say(key, "admitted");
     return 0;
+}
+
+/* Can this plane mint its own reports? It must NOT be able to, and the way to show that is to TRY.
+ *
+ * The image carries tsm_report and sev-guest deliberately. Leaving them out would make the absence of a report
+ * interface a property of the packaging, which a verifier cannot check; carrying them and having them REFUSE for
+ * want of a key is evidence. A guest that can load sev-guest with vmpck_id=0 demonstrably holds VMPCK0 and is
+ * therefore not confined beneath a VMPL0 monitor, whatever level its reports name - so if either load succeeds
+ * this domain must not serve.
+ *
+ * Returns 0 when both refused, which is the only acceptable outcome.
+ */
+static int probe_no_vmpck(void) {
+    int held = 0;
+    insmod_args("/tsm_report.ko.zst", "", "tsm_report_core",
+                "loaded (the generic report core holds no key; this says nothing about VMPCKs)",
+                "did not load: ");
+    /* vmpck_id EXPLICITLY, both the monitor's level and this plane's own: an unparameterised load would pick
+     * this guest's level and test the wrong key. */
+    if (access("/sev-guest.ko.zst", R_OK) != 0) {
+        say("vmpck_probe", "IMPOSSIBLE: /sev-guest.ko.zst is not in the image, so key absence is unproven");
+        return -1;
+    }
+    {
+        int fd = open("/sev-guest.ko.zst", O_RDONLY | O_CLOEXEC);
+        if (fd >= 0) {
+            long r = syscall(SYS_finit_module, fd, "vmpck_id=0", 4);
+            if (r == 0) { say("vmpck0", "LOADED - this plane HOLDS VMPCK0 and is not confined"); held = 1; }
+            else say("vmpck0", strerror(errno));
+            close(fd);
+        }
+        fd = open("/sev-guest.ko.zst", O_RDONLY | O_CLOEXEC);
+        if (fd >= 0) {
+            long r = syscall(SYS_finit_module, fd, "vmpck_id=2", 4);
+            if (r == 0) { say("vmpck2", "LOADED - this plane can mint its own reports"); held = 1; }
+            else say("vmpck2", strerror(errno));
+            close(fd);
+        }
+    }
+    return held ? -1 : 0;
+}
+
+/* The boundary self-test the front relays, in the k=v shape m2/judge.mjs checkBoundary judges.
+ *
+ * vmpl0=refused here means something stronger than it did on the M3 path, where the tuple came from
+ * tsm-report's privlevel_floor and could be produced by a command-line parameter alone. Here it records that
+ * sev-guest REFUSED TO LOAD for want of VMPCK0 - there is no key to configure around. */
+static int write_boundary(int vmpl) {
+    char buf[200];
+    int n = snprintf(buf, sizeof buf, "tier=t1 vmpl=%d vmpl_floor=%d vmpl0=refused", vmpl, vmpl);
+    int fd = open(BOUNDARY_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (fd < 0 || n <= 0) { say("boundary", strerror(errno)); return -1; }
+    int ok = write(fd, buf, n) == n;
+    close(fd);
+    say("boundary", ok ? buf : "write failed");
+    return ok ? 0 : -1;
+}
+
+/* This plane's own VMPL, read from the module's status line rather than assumed: the SVSM serves only the
+ * calling plane, so a tuple claiming a level this plane is not would be a false statement about confinement. */
+static int read_vmpl(void) {
+    char path[128], buf[512] = {0};
+    snprintf(path, sizeof path, SYS "status");
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) return -1;
+    ssize_t n = read(fd, buf, sizeof buf - 1);
+    close(fd);
+    if (n <= 0) return -1;
+    char *p = strstr(buf, "vmpl=");
+    if (!p) return -1;
+    int v = atoi(p + 5);
+    return (v >= 0 && v < 8) ? v : -1;
 }
 
 static void power_off(const char *why) {
@@ -120,9 +199,9 @@ int main(void) {
              sysconf(_SC_NPROCESSORS_ONLN), (unsigned long)(si.totalram * si.mem_unit >> 20), boot_ms);
     say("boot", line);
 
-    insmod("/vsock.ko.zst");
-    insmod("/vmw_vsock_virtio_transport_common.ko.zst");
-    insmod("/vmw_vsock_virtio_transport.ko.zst");
+    insmod_zst("/vsock.ko.zst");
+    insmod_zst("/vmw_vsock_virtio_transport_common.ko.zst");
+    insmod_zst("/vmw_vsock_virtio_transport.ko.zst");
     lo_up();
 
     /* The plane module, and then the two admissions. No report interface is loaded at all: this plane holds no
@@ -134,10 +213,17 @@ int main(void) {
     show("status_after", "status");
     show("whoami", "whoami");
 
+    /* Confinement, demonstrated rather than asserted, and fatal if it does not hold. A plane that can mint its
+     * own reports would serve documents whose VMPL field says 2 while nothing more privileged is above it. */
+    if (probe_no_vmpck() != 0) power_off("this plane holds a VMPCK, so it is not confined beneath the SVSM");
+    int vmpl = read_vmpl();
+    if (vmpl <= 0) power_off("could not read this plane's VMPL, so no boundary self-test can be stated");
+    if (write_boundary(vmpl) != 0) power_off("could not write the boundary self-test");
+
     char *app[] = {"/rt/ld-linux-x86-64.so.2", "--library-path", "/rt", "/rt/wasmtime", "serve", "-S", "cli",
                    "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
     char *front[] = {"/front", "-port", "443", "-upstream", "127.0.0.1:8080",
-                     "-appid", "/sys/kernel/appid", NULL};
+                     "-appid", "/sys/kernel/appid", "-boundary", BOUNDARY_PATH, NULL};
     pid_t app_pid = spawn(app), front_pid = spawn(front);
     snprintf(line, sizeof line, "app=%d front=%d at_ms=%.0f", app_pid, front_pid, now_ms());
     say("started", line);

@@ -71,6 +71,22 @@ static void __attribute__((unused)) insmod_args(const char *p, const char *args,
     close(fd);
 }
 
+/* A COMPRESSED module (.ko.zst) needs MODULE_INIT_COMPRESSED_FILE; without it the kernel sees the zstd frame and
+ * returns ENOEXEC, which reads as "Exec format error" and looks like a wrong-architecture build rather than a
+ * missing flag. Measured: planeinit loaded the three vsock modules with flags 0 and all three failed that way,
+ * leaving the domain with no transport at all. EEXIST is not a failure - the module is already in. */
+static void __attribute__((unused)) insmod_zst(const char *p) {
+    int fd = open(p, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) { say("insmod_zst", strerror(errno)); return; }
+    long r = syscall(SYS_finit_module, fd, "", 4 /* MODULE_INIT_COMPRESSED_FILE */);
+    if (r != 0 && errno != EEXIST) {
+        char msg[256];
+        snprintf(msg, sizeof msg, "%s: %s", p, strerror(errno));
+        say("insmod_zst", msg);
+    }
+    close(fd);
+}
+
 static void __attribute__((unused)) insmod(const char *p) {
     int fd = open(p, O_RDONLY | O_CLOEXEC);
     if (fd < 0) { say("insmod", strerror(errno)); return; }
