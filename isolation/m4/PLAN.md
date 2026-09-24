@@ -60,12 +60,41 @@ Each app gets its own SEV-SNP guest: its own ASID, its own memory-encryption key
 the strongest separation the hardware offers, stronger than two VMPLs in one guest, and it needs no SVSM work
 and no planes.
 
+**MEASURED CORRECTION, 2026-09-23: `kernel-hashes=on` commits to HASHES, and this firmware never checks the
+bytes it serves against them.** See the box below; read the rest of this section with that in mind.
+
 It also **closes requirement 2 for free**, which is the reason to do it first: without IGVM, `run-domain.sh`
 launches with `kernel-hashes=on`, so the guest image *is* in the launch measurement and the predicted digest
 moves with it - measured today, from both directions, when another session changed the monitor (the M3a
 predicted digest moved to `af898e78...` and live == predicted, while the M3b derived digest did not move).
 So on this path the code that names the app is measured, and one app per guest means the app itself is part
 of that image.
+
+> **AND THAT IS A STATEMENT ABOUT HASHES, NOT ABOUT WHAT EXECUTES.** `/usr/share/edk2-ovmf/x64/OVMF.4m.fd` is
+> the `OvmfPkgX64` platform, which upstream links with `BlobVerifierLibNull`: only `OvmfPkg/AmdSev/AmdSevX64.dsc`
+> links `BlobVerifierLibSevHashes`, the one that compares the served kernel, initrd and command line against the
+> hash table and fails closed. The reset-vector hash-table GUID is present, so `kernel-hashes=on` "works" - QEMU
+> writes the table and the launch digest commits to it - **but the firmware never verifies the bytes it is
+> served.**
+>
+> Measured here, independently: the same M2 domain image launched with `kernel-hashes=off`, so with **no hash
+> table in the measurement at all**, boots normally (`DOM started`, `DOM serving`). A firmware that verified
+> would refuse. Evidence `~/enclave-bench/f0-235238/`.
+>
+> A parallel review measured the consequence with a test-only QEMU that hashes one initrd while serving another:
+> the guest boots the SERVED image and its signed report carries the measurement predicted for the HASHED one
+> (`~/.cache/enclave-isolation/parallel-review-m4b/evidence/ovmf-hash-{control,substitution}/`).
+>
+> So on every `kernel-hashes` path in this repository - M1, M2 and M4a - "the app is in the measured image"
+> means the digest commits to hashes the host supplied, and a host that serves different bytes than it hashed
+> boots them under the intended measurement. **M4a's two-apps-two-measurements result does not show that the
+> measured app is the one running.** What it does show is unchanged and still worth having: two apps get two
+> different launch identities, an adversary in its own guest cannot forge the other's measurement, and the
+> guest boundary holds.
+>
+> The fix is firmware built from `AmdSevX64.dsc`, which Arch does not package (`edk2-ovmf 202608-1` ships no
+> AmdSev variant), so it needs a userspace edk2 build. That is step 0 of the dedicated-plane plan, and it is
+> **prior to M4b**: it sits under both layouts.
 
 Cost and what it is not: no VMPL boundary above the app's own kernel, so the guest kernel is still in that
 app's TCB - but it is in *only* that app's TCB, which is the point. Cross-app isolation is the SNP guest

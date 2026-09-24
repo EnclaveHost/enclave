@@ -80,7 +80,13 @@ A domain image is `[kernel] + [init + agent] + [runtime] + [one app .wasm] + [ma
 measured initramfs.
 
 - **Identity.** On T1 the SNP launch digest covers firmware, kernel, initramfs and command line (QEMU
-  `kernel-hashes=on`). The app's .wasm is inside the initramfs, so **the app is part of the measurement**.
+  `kernel-hashes=on`). The app's .wasm is inside the initramfs, so **the app's HASH is part of the
+  measurement** - and, measured 2026-09-23, that is all it is: the distro `OvmfPkgX64` firmware links
+  `BlobVerifierLibNull`, so it never compares the kernel, initrd or command line it is served against the hash
+  table, and a host serving different bytes than it hashed boots them under the intended digest. The same image
+  launched with `kernel-hashes=off`, with no table in the measurement at all, boots normally; a verifying
+  firmware would refuse. See `isolation/m4/PLAN.md` section 3 for the evidence and the fix (firmware from
+  `AmdSevX64.dsc`, which the distro does not package).
   metal0 already proved the reproducible-measurement half: `sev-snp-measure` predicts the live digest from
   the build inputs.
 - **Execution.** The guest owns its page tables, so a JIT is allowed, unlike VBS VTL1, where we measured
@@ -491,7 +497,9 @@ the forgery; on our own run the report request failed at that level, so we cite 
 
 Where the tuple still means something: on the **kernel-hashes path** (M1, M2, M3a) the command line and the
 initrd are inside the launch measurement, so `vmpck_id` cannot be changed without changing the measurement a
-verifier pins. On the **IGVM path** nothing measures the guest's command line, and there the tuple
+verifier pins - **with the caveat measured on 2026-09-23 that this firmware does not verify the hash table it
+is given**, so a host can serve a different command line than it hashed. That weakens this row too: it is the
+measurement a verifier pins that would change, not the bytes that boot. On the **IGVM path** nothing measures the guest's command line, and there the tuple
 distinguishes nothing at all - what identifies the SVSM there is the IGVM digest, which covers the SVSM and
 is derived with `igvmmeasure`. So the confinement claim on M3b rests on the MEASUREMENT, and the tuple is
 corroboration by measured code rather than proof.
