@@ -182,6 +182,16 @@ func (v *vm) public() map[string]any {
 	return m
 }
 
+// view is public() plus what is the same for every guest here: the runtime identity each image carries, so one
+// answer about an instance states the whole identity a splice is admitted for (datapath.go). Called with s.mu held.
+func (s *server) view(v *vm) map[string]any {
+	m := v.public()
+	if s.RuntimeID != "" {
+		m["runtimeId"] = s.RuntimeID
+	}
+	return m
+}
+
 // ServeHTTP is the channel policy (auth.go). With a pairing key, only the handshake is unauthenticated and every
 // other answer is signed; without one, this is the loopback-only LAB mode and the handshake endpoints refuse, so a
 // client that expects guestd-control/1 fails closed instead of falling back to an unauthenticated manager.
@@ -228,7 +238,7 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		out := []map[string]any{}
 		for _, v := range s.vms {
-			out = append(out, v.public())
+			out = append(out, s.view(v))
 		}
 		s.mu.Unlock()
 		sort.Slice(out, func(i, j int) bool { return out[i]["id"].(string) < out[j]["id"].(string) })
@@ -239,7 +249,7 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 		v := s.vms[id]
 		var pub map[string]any
 		if v != nil {
-			pub = v.public()
+			pub = s.view(v)
 		}
 		s.mu.Unlock()
 		if v == nil {

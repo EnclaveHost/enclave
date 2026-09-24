@@ -33,7 +33,7 @@ const TIER = "snp-guest-per-app";
 const REQ = JSON.stringify({ isolation: { require: TIER } });
 const GUESTD = { backend: TIER, supports: { gpu: false, secrets: false, egress: false, config: false, ports: false } };
 const clean = { require: TIER, manager: GUESTD, gpuMilli: 0, config: "", appConfigCid: "", hasSecrets: false,
-                firewall: [], volumes: [] };
+                firewall: [], volumes: [], isPublic: true, waf: null };
 
 test("flag UNSET: a deployment that requires isolation is refused, and saying so", async () => {
   const r = await seam({ parse: [REQ] });
@@ -88,6 +88,10 @@ test("flag SET: every feature the guest cannot honour is REFUSED", async () => {
     [{ hasSecrets: null }, /cannot verify the deployment has no staged secrets/],
     [{ firewall: ["tcp:5432"] }, /ports \(tcp:5432\)/],
     [{ volumes: ["gemma"] }, /model volumes/],
+    // enforced on the plaintext everywhere else; on this backend the plaintext exists only in the guest
+    [{ isPublic: false }, /private, and its owner gate needs the request's plaintext/],
+    [{ isPublic: undefined }, /private/],
+    [{ waf: { blockScanners: true } }, /protection rules \(waf\)/],
   ];
   const r = await seam({ verdicts: cases.map(([over]) => ({ ...clean, ...over })) }, TIER);
   cases.forEach(([over, re], i) => assert.match(String(r.verdicts[i]), re, JSON.stringify(over)));
@@ -104,7 +108,10 @@ test("changing the requirement of a RUNNING deployment is surfaced, never swappe
   const rec = { _onchain: true, status: "running", _envelope: REQ };
   const r = await seam({ edits: [{ rec, chainCid: "" }, { rec, chainCid: '{"isolation":{"require":"snp-guest-per-app"},"waf":{"blockScanners":true}}' },
                                  { rec: { ...rec, _envelope: "" }, chainCid: REQ }] }, TIER);
-  assert.deepEqual(r.edits, ["error", "waf", "error"]);
+  // the middle edit adds protection rules: on this tier they could never be applied, so it is surfaced too
+  assert.deepEqual(r.edits, ["error", "error", "error"]);
+  const wafOnly = await seam({ edits: [{ rec, chainCid: '{"isolation":{"require":"snp-guest-per-app"},"waf":{"blockScanners":true}}' }] });
+  assert.deepEqual(wafOnly.edits, ["error"], "without the flag the namespace does not parse at all, as before");
   // and on a box without the backend, adding the requirement to a running app is an error, as for any
   // namespace this runner cannot honour - not a live swap
   const off = await seam({ edits: [{ rec: { ...rec, _envelope: "" }, chainCid: REQ }] });

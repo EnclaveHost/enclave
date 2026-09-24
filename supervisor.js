@@ -384,6 +384,22 @@ function guestdTransport() {
   }
   return _guestdTransport;
 }
+// With ISOLATION_BACKEND set, an app's TLS never ends in this process. /x/<id>/https splices the client's session
+// UNOPENED to the deployment's own guest through guestd's data plane at GUESTD_DATA_ADDR
+// (isolation/m4/guestd/supervisor-splice.mjs), every plaintext path to a deployment is refused (the /x/:id proxy,
+// the tcp/tls/udp bridges), and this process requests no certificate for a deployment's names (desiredCertNames).
+// Without GUESTD_DATA_ADDR the https path refuses as well: there is no fallback to terminating here.
+const GUESTD_DATA_ADDR = (process.env.GUESTD_DATA_ADDR || "").trim();
+let _isolationSplice = null;
+function isolationSplice() {
+  if (!_isolationSplice) {
+    _isolationSplice = import(new URL("./isolation/m4/guestd/supervisor-splice.mjs", import.meta.url))
+      .catch((e) => { _isolationSplice = null; throw e; });
+  }
+  return _isolationSplice;
+}
+const isolationSpliceCounts = new Map();   // "<outcome>:<kind or why>" -> count, for logs
+let _isolationSpliceObserver = null;       // ISOLATION_DATAPATH_SELFTEST only
 function vmReq(method, path, body, timeoutMs = 120000) {
   if (ISOLATION_BACKEND) return guestdTransport().then((t) => t.request(method, path, body, timeoutMs));
   return new Promise((resolve, reject) => {
@@ -2208,6 +2224,10 @@ function envelopeEditVerdict(rec, chainCid) {
   // A change to what isolation the deployment REQUIRES cannot be applied to what already runs (only a box that
   // provides isolation parses the namespace at all): keep serving and surface it, never a silent live swap.
   if ((oldO.isolation || "") !== (newO.isolation || "")) return "error";
+  // On the isolation tier, protection rules cannot be applied at all (the plaintext exists only in the guest, and
+  // the claim gate refuses a deployment that sets them), so adding them to a running deployment is surfaced as an
+  // error rather than swapped in as rules that would silently never run.
+  if (ISOLATION_BACKEND && newO.waf && Object.keys(newO.waf).length) return "error";
   const cfg = (o) => ("config" in o || "configCid" in o)
     ? JSON.stringify([o.configCid || "", "config" in o ? o.config : null]) : null;
   return cfg(newO) === cfg(oldO) ? "waf" : "restart";
@@ -2234,7 +2254,7 @@ if (process.env.CFG_EDIT_SELFTEST) {
 //     is a leak, a dropped config is a wrong app. guestd refuses the same things at launch; refusing here keeps
 //     the lease from being taken for work that could only fail.
 function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, appConfigCid, hasSecrets,
-                                 firewall, volumes }) {
+                                 firewall, volumes, isPublic, waf }) {
   if (!backend) return null;
   if (!ISOLATION_BACKENDS.includes(backend))
     return `ISOLATION_BACKEND=${JSON.stringify(backend)} is not a backend this build knows; taking no tenant work`;
@@ -2257,6 +2277,14 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
     return `the version declares ports (${firewall.join(", ")}) beyond the attested TLS endpoint, which a per-app guest does not forward`;
   if ((volumes || []).length)
     return "the deployment needs model volumes, which are not mounted into a per-app guest";
+  // The next two are enforced in THIS process on every other backend, on the plaintext of each request. Here the
+  // plaintext exists only inside the guest (the session is spliced unopened), so neither could be applied: an
+  // owner gate that is not applied is a private app served to anyone, and a rule that is not applied is a
+  // promise the owner was sold and did not get.
+  if (isPublic !== true)
+    return "the deployment is private, and its owner gate needs the request's plaintext, which exists only inside the guest on this backend";
+  if (waf && Object.keys(waf).length)
+    return "the deployment sets protection rules (waf), which need the request's plaintext, which exists only inside the guest on this backend";
   return null;
 }
 
@@ -3487,7 +3515,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
               + ` vm=${r.body.id} hostPort=${r.body.hostPort} status=${r.body.status}`);
     // The VM boots asynchronously; the data path 502s until its server is up.
     // status carries the manager's state.
-    return { internalPort: r.body.hostPort || 0, vmId: r.body.id, hostPort: r.body.hostPort,
+    return { internalPort: r.body.hostPort || 0, vmId: r.body.id, hostPort: r.body.hostPort, appId: r.body.appId,
              portMap: r.body.portMap || {}, status: r.body.status };   // logical "tcp:5432" -> actual loopback bind
   }
 
@@ -4506,6 +4534,13 @@ app.use("/x/:id", async (req, res) => {
   // Answer bare-root HEADs here; HEAD on a real subpath still proxies.
   if (req.method === "HEAD" && (req.url === "/" || req.url === "")) {
     res.writeHead(204); return res.end();
+  }
+  // Per-app isolation tier: nothing is proxied in plaintext, to anyone. The only way in is TLS that ends in the
+  // deployment's own guest (/x/<id>/https, spliced). Refused before the WAF, the owner gate and the status check,
+  // because none of them could be applied to that path anyway (the plaintext exists only in the guest).
+  if (ISOLATION_BACKEND) {
+    res.writeHead(421, { "Content-Type": "text/plain", "Cache-Control": "no-store" });
+    return res.end(`This deployment is served only over TLS that ends in its own guest: https://${APP_CERT_DOMAIN ? appCertName(rec.id) : "<its app-zone name>"}/\n`);
   }
   // Deployer-enabled WAF (the options envelope): before auth so a flood on a
   // private deployment can't grind token verification either. The relay's
@@ -6338,7 +6373,7 @@ async function performTenantProvision(rec) {
   try {
     const sp = await spawnContainer(await launchSpec(rec));
     rec._port = sp.internalPort;
-    if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
+    if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; rec._vmAppId = sp.appId; }
     if (sp.portMap) rec.portMap = sp.portMap;   // logical -> actual (public: clients see their mapping)
     if (!rec.startedAt) rec.startedAt = Date.now();
     rec.status = "running"; rec.paused = false; rec.pauseReason = null; rec._lastTickAt = Date.now();
@@ -6514,7 +6549,7 @@ async function respawnTenant(rec) {
   try {
     const sp = await spawnContainer(await launchSpec(rec));
     rec._port = sp.internalPort;
-    if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; }
+    if (sp.vmId) { rec._vmId = sp.vmId; rec._vmHostPort = sp.hostPort; rec._vmAppId = sp.appId; }
     if (sp.portMap) rec.portMap = sp.portMap;
     rec._respawnAt = 0; rec._respawnBackoffMs = 0;
     console.log(`[bill] ${rec.id} instance respawned after outage`);
@@ -7182,6 +7217,10 @@ const appCertName  = (id) => `${appCertLabel(id)}.${APP_CERT_DOMAIN}`;
 // http:N entry; tcp/udp-only apps get no browser subdomain cert.
 const servesHttp   = (rec) => { const fw = rec.firewall || []; return fw.length === 0 || fw.some((x) => String(x).startsWith("http")); };
 const desiredCertNames = (rec) => {
+  // On the per-app isolation tier a deployment's TLS ends in ITS OWN GUEST, so this process must hold no
+  // certificate for any of its names: one here would let the node CVM answer as the app. The guest front's own
+  // certificate is not built yet (isolation/DEPLOYMENT-PATH.md, C4), so a browser has no CA-signed name for it.
+  if (ISOLATION_BACKEND) return [];
   const names = [];
   // ONE hostname per deployment: on <label>.APP_CERT_DOMAIN, port 443 is the
   // HTTP surface (unless the tenant declared tcp:443 — their socket wins) and
@@ -7832,6 +7871,23 @@ function wsUdpBridge(req, socket, head, port) {
   });
 }
 
+// /x/<id>/https on the per-app isolation tier: the relay's raw TLS bytes, spliced to the deployment's own guest.
+// Nothing here opens the session. See isolation/m4/guestd/supervisor-splice.mjs for what is checked and why none
+// of it is the client's trust.
+async function isolationHttps(req, socket, head, rec, deny) {
+  if (!GUESTD_DATA_ADDR || !APP_CERT_DOMAIN) return deny("503 Service Unavailable");
+  let mod, transport;
+  try { [mod, transport] = await Promise.all([isolationSplice(), guestdTransport()]); }
+  catch (e) { console.warn(`[isolation] ${rec.id.slice(0, 10)}: no splice (${e.message})`); return deny("503 Service Unavailable"); }
+  const o = await mod.handleIsolationHttps({ wss, req, socket, head, expectName: appCertName(rec.id),
+    instanceId: rec._vmId, expectAppId: rec._vmAppId, transport, dataAddr: GUESTD_DATA_ADDR });
+  const key = `${o.outcome}:${o.kind || o.why}`;
+  isolationSpliceCounts.set(key, (isolationSpliceCounts.get(key) || 0) + 1);
+  if (o.outcome !== "spliced") console.warn(`[isolation] ${rec.id.slice(0, 10)}: refused (${o.kind}) ${o.why}`);
+  if (_isolationSpliceObserver) _isolationSpliceObserver(rec.id, o);
+  return o;
+}
+
 server.on("upgrade", async (req, socket, head) => {
   const deny = (line) => { socket.write(`HTTP/1.1 ${line}\r\n\r\n`); socket.destroy(); };
 
@@ -7860,9 +7916,14 @@ server.on("upgrade", async (req, socket, head) => {
     const rec = depByIdOrPrefix(hx[1]);
     if (!rec)                                   return deny("404 Not Found");
     if (rec.status !== "running")               return deny("409 Conflict");
+    if (ISOLATION_BACKEND)                      return isolationHttps(req, socket, head, rec, deny);
     if (!TLS_BRIDGE_CTX && !acmeCerts.size)     return deny("503 Service Unavailable"); // no context could complete a handshake
     return wsHttpsBridge(req, socket, head, rec.id);
   }
+
+  // Per-app isolation tier: /x/<id>/https above is the ONLY way to a deployment. Its tcp/tls/udp bridges would
+  // carry bytes this process terminates or reads, and a tier deployment declares no ports (the claim gate).
+  if (ISOLATION_BACKEND && /^\/x\//.test(req.url || "")) return deny("403 Forbidden");
 
   // ---- app TCP ports: /x/:id/(tcp|tls)/:port — the declared-firewall data path ----
   // Auth follows the deployment's `public` flag (like the HTTP path). Two gates
@@ -7917,6 +7978,25 @@ server.on("upgrade", async (req, socket, head) => {
 
   socket.destroy();
 });
+
+// ISOLATION_DATAPATH_SELFTEST='{"deployments":[{"id","vmId","appId","status","public"}]}' - the per-app data path
+// through THIS process's own upgrade handler and /x/:id routes, for isolation/m4/guestd/datapath_chain_test.go.
+// It installs the given deployment records, serves on an ephemeral loopback port (printing
+// {"listening":<port>}), prints one "SPLICE {…}" line per /x/<id>/https outcome, and never returns: nothing after
+// this point (the claim loop, the registry, the chain) runs. ISOLATION_BACKEND, VMMGR_URL, GUESTD_KEY_FILE,
+// GUESTD_DATA_ADDR and APP_CERT_DOMAIN come from the environment, as in production.
+if (process.env.ISOLATION_DATAPATH_SELFTEST) {
+  const c = JSON.parse(process.env.ISOLATION_DATAPATH_SELFTEST);
+  for (const d of c.deployments || []) {
+    deployments.set(d.id, { id: d.id, owner: "0x" + "00".repeat(20), status: d.status || "running",
+      public: d.public !== false, firewall: [], _vmId: d.vmId, _vmAppId: d.appId });
+  }
+  _isolationSpliceObserver = (id, o) => console.log("SPLICE " + JSON.stringify({ id, ...o }));
+  // and which certificates this process would ask for on their behalf: none, on this tier
+  const certNames = Object.fromEntries([...deployments.values()].map((r) => [r.id, desiredCertNames(r)]));
+  server.listen(0, "127.0.0.1", () => console.log(JSON.stringify({ listening: server.address().port, certNames })));
+  await new Promise(() => {});
+}
 
 // ============================================================================
 // portable deployments — the EnclaveDeployments claim loop (see contracts/DEPLOYMENTS.md)
@@ -9547,7 +9627,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   if (ISOLATION_BACKEND) {
     const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
       manager: await vmHealth().catch(() => null), gpuMilli: d.gpuMilli, ...overrideConfigFields(claimOpts, g),
-      hasSecrets: await depHasSecrets(d.id), firewall, volumes: neededVolumes(d, g) });
+      hasSecrets: await depHasSecrets(d.id), firewall, volumes: neededVolumes(d, g), isPublic: d.isPublic === true,
+      waf: claimOpts.waf || null });
     if (isoWhy) return isoWhy;
   }
   // Staged secrets are injected at launch via a FLEET-secret-derived auth this
