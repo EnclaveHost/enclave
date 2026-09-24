@@ -316,11 +316,19 @@ retyped, and the script refused to send unless the entry was active, its endpoin
 
 | deployment | claim tx | state |
 |---|---|---|
-| `0xe64f7cba` | `0x07d21a13…` | running; its RISC-V guest restores from a snapshot, so the gateway 502s for a few minutes after a cold claim |
+| `0xe64f7cba` | `0x07d21a13…` | running, HTTP 200 from 18:16:11 UTC — 13 minutes after the claim, spent restoring its 21.8 GiB RISC-V guest from a snapshot (one core busy, working set climbing ~15 MB/s throughout, so a slow start rather than a hang) |
 | `0x7ae476a3` | (re-claimed) | running, HTTP 200 |
 | `0xd9798e4c` | (re-claimed) | running, HTTP 200 |
 | `0xa77d0c57` | `0xcc9223a8…` | running, HTTP 200 |
 | `0xa69dcbba` | `0xcc551c0a…` | running, HTTP 200 |
+
+All five answer through `https://api.enclave.host/x/<id>/`. Checked functionally, not just for a
+200: `0x7ae476a3` served a real content-addressed path and returned the current site root, which is
+the publishing path both of today's site deploys went through. The node's next heartbeat (18:11:51
+UTC) republished `claimEnabled: true` with 4,981 renewals of gas left.
+
+`serving` and `eligible` remain false, and that is correct. It is the isolation-contract exclusion
+described in §3, not the outage: this box runs its owner's five apps and is not sold to new tenants.
 
 **Two things this confirmed about the analysis above.** `CLAIM_LEGACY=1` did what §6 said it would:
 all five predate the listing and were taken without an invitation. And the live build claims through
