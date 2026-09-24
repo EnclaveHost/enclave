@@ -4,9 +4,9 @@ The Overview hero is followed by the approved headline:
 
 > Built on the hardware isolation enterprises trust.
 
-Google, Microsoft, AMD, and Intel appear as technology references, not as Enclave customers, sponsors, or endorsers. Keep this distinction when revising the copy.
+Google, Microsoft, AMD, Intel, NVIDIA, Arm, and AWS appear as technology references, not as Enclave customers, sponsors, or endorsers. Keep this distinction when revising the copy.
 
-The strip uses a 52-second continuous loop, pauses on hover and keyboard focus, includes a pause button, and stops when offscreen or the document is hidden. Reduced-motion and JavaScript-disabled visitors receive a static layout with all four logos. Duplicated animation content is hidden from assistive technology. Assets are served locally.
+The strip uses a 68-second continuous loop, pauses on hover and keyboard focus, includes a pause button, and stops when offscreen or the document is hidden. Reduced-motion and JavaScript-disabled visitors receive a static layout with all seven logos. Duplicated animation content is hidden from assistive technology. Assets are served locally.
 
 ## Asset sources
 
@@ -28,4 +28,18 @@ CSS renders the assets in monochrome to match the site.
 
 ## Validation
 
-Production build passed. Chromium checks at 1440px and 390px confirmed the exact headline, all four assets loading, no horizontal overflow, working pause controls, and no page errors. Reduced-motion and JavaScript-disabled mobile layouts show a static four-logo grid. Desktop and mobile screenshots were visually reviewed.
+Production build passed. Chromium checks at 1440px and 390px confirmed the exact headline, all seven assets loading, no horizontal overflow, working pause controls, and no page errors. Reduced-motion and JavaScript-disabled mobile layouts show a static seven-logo grid. Desktop and mobile screenshots were visually reviewed.
+
+## Expanded strip
+
+Logos reduced approximately 15%; NVIDIA, Arm, and AWS added. Additional locally served assets:
+
+- NVIDIA: horizontal logo SVG symbol from https://www.nvidia.com/en-us/ (original paths and viewBox preserved).
+- Arm: https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/arm.svg (viewBox cropped to the wordmark; path unchanged).
+- AWS: header SVG from https://aws.amazon.com/ec2/nitro/nitro-enclaves/ (paths and viewBox preserved).
+
+Technology references:
+
+- NVIDIA GPU confidential computing: https://docs.nvidia.com/nvidia-secure-ai-with-blackwell-and-hopper-gpus-whitepaper.pdf
+- Arm Confidential Compute Architecture: https://www.arm.com/architecture/security-features/arm-confidential-compute-architecture
+- AWS Nitro Enclaves: https://aws.amazon.com/ec2/nitro/nitro-enclaves/
