@@ -539,6 +539,9 @@ agreed with the Enclave verifier session, all nine of its fail-closed refinement
   - client/DESIGN.md "State" has the rules. test/pvm-client-durability and -ext-durability cover crash and stall,
     equivocation, concurrent old and new policies, failed persistence, rotation and update concurrency.
   - The 0.1.0 device evidence above is kept as it was.
+  - Device: results/pvm-cpu-client-0.2.0 (PASS, 36 checks: the 30 above, plus each accepted extension page's commit
+    before its outcome, and no refused policy committed). The verifier session ran its own 11 persistence cases
+    against the same reproduced bytes, and all passed.
 
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 

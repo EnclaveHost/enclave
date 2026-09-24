@@ -1,0 +1,1 @@
+{"result":{"label":"cli-min-version","step":"policy","refused":"this client (0.2.0) is below the policy's minimum 9.0.0: disabled until updated","sent":false}}
