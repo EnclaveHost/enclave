@@ -1,8 +1,12 @@
 # Review checklist: encrypted incremental response streaming on the pVM sealed channel
 
-Status: AGREED in principle with the pVM owner (2026-09-24, second revision of their proposal; see "Agreed
-revision" at the end); the protocol text and a recorded stream with the context to open it offline are still to
-come, and the consumer reader on this branch is built only against those. The owner has been directed to add encrypted
+Status: the protocol text (`shielded/anchor/avf/SEALED-STREAMING.md` at pvm-cpu/portable-runtime 36f040d1) and
+the offline fixture (`sealed-stream-vectors.json`, copied to `test/fixtures/verifier/pvm-sealed/`) exist, and the
+consumer reader on this branch (`verifier/sealed-stream.mjs`) is built from the text alone and tested against the
+fixture (`test/verifier-sealed-stream.test.mjs`, 12 cases) with the owner's reference reader run as a differential
+through the `pvm-sealed` pin: it agreed on accept/refuse and on the released prefix for every case. See "Results"
+at the end. The device traces (recorded streams and mutations) are still to come; acceptance of the protocol for any
+production use is not claimed here. The owner has been directed to add encrypted
 incremental response streaming to the sealed channel (HPKE base mode X25519 / HKDF-SHA256 / AES-128-GCM, RFC 9458
 shape, `info` bound to the format, AppID and RuntimeID, AAD = the evidence nonce). The consumer side on this branch
 (`verifier/admission.mjs`, `verifier/pvm-evidence.mjs`) will NOT accept a streamed response format until every item
@@ -99,3 +103,30 @@ exchange and never loops on a relay-induced refusal; an ABORT is a VM statement 
 fixture must include the recorded ciphertext, the plaintext, `enc`, `rn` and the client's ephemeral private key (or
 the exported secret) so this branch opens it offline; `@hpke/core` reaches the site only through the same-origin
 vendor build with its notice.
+
+## Results on this branch (2026-09-24)
+
+`verifier/sealed-stream.mjs` implements the wire from the protocol text with node:crypto HKDF-SHA256 and AES-128-GCM
+and no HPKE (the client's own HPKE sender supplies `secret` and `enc`; the fixture supplies them). Two layers:
+`readSealedStream` (the state machine) and `openSealedResponse` (policy: reads nothing unless the consumer gate
+released a BROWSER client with an application-layer key, the request was sealed to that pinned key, and the sealed
+window has not lapsed on the client's clock; a native TLS-pinned release is refused here because a sealed stream is
+the browser path). Outcomes are distinct: `complete` only after an authenticated FIN; `aborted` for an authenticated
+ABORT (an authentic prefix, never an answer); `incomplete` on EOF or carrier failure before an ending; `refused` for
+the pre-stream hint; `rejected` with `tamper | oversize | malformed | trailing | policy`; `cancelled`.
+
+On the fixture: the stream opens to the known plaintext (five chunks, 126 bytes) however the carrier splits it; the
+ABORT variant is an authentic two-chunk prefix. Refused with nothing released beyond the last authenticated chunk:
+swap, duplicate, drop, an ABORT moved to another index, a chunk of another exchange spliced in, an index restart;
+whole-stream and FIN-only replay under a fresh request, another evidence nonce or another boot's key; truncation at
+a boundary, mid-chunk, header only, status only, nothing, and a carrier failure (all `incomplete`); flips in
+ciphertext, tag, type, response nonce and length; a FIN forged on a middle chunk; a stream re-encrypted under
+another key; an oversized length, an empty data chunk, a chunk shorter than a tag, an unknown type, an over-long
+abort reason, a carrier sending more than a chunk ahead; bytes after FIN or ABORT; a cancellation after chunk k.
+Fixture caveat: both variants share one response nonce, so the fixture's own ABORT at index 2 opens as the aborted
+variant; a real VM chooses a fresh response nonce per response.
+
+Differential (strict integration, owner's reader at 36f040d1 through WebCrypto in Node): identical accept/refuse and
+identical released prefix on fourteen cases; classes identical except the documented mapping (an unknown chunk type
+is `malformed` here and `tamper` there). No mismatch between the protocol text, the fixture and the reference reader
+was found.
