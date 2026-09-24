@@ -161,3 +161,30 @@ test("a body over the cap is refused rather than buffered without limit", async 
     await assert.rejects(() => get(sess, "127.0.0.1", "/big", { timeoutMs: 5000, maxBytes: 4096 }), /cap/);
   } finally { sess.sock.destroy(); srv.close(); }
 });
+
+/* ---- the verdict carries the key it was reached on -------------------------------------------- *
+ *
+ * enclave-99's ask, and it closes a real gap: 5d's splice admits a route on `key=<64hex>` and the
+ * /vms view names transportKeySha256, so a manager that verifies a domain and forgets WHICH key it
+ * verified it on leaves the data plane nothing to compare against. Re-deriving it from a later
+ * handshake is not equivalent - a later handshake is a different session and could be a different
+ * peer - which is why one definition is exported and used by the verdict itself. */
+import crypto from "node:crypto";
+import { transportKeyOf } from "./ready.mjs";
+
+test("the transport key is sha256 of the DER SPKI, lowercase hex, and nothing else", () => {
+  const spki = Buffer.from("3059301306072a8648ce3d020106082a8648ce3d030107034200", "hex");
+  const want = crypto.createHash("sha256").update(spki).digest("hex");
+  assert.equal(transportKeyOf(spki), want);
+  assert.match(transportKeyOf(spki), /^[0-9a-f]{64}$/, "the splice preamble wants 64 lowercase hex");
+  // a different key is a different value: this is the whole point of carrying it
+  assert.notEqual(transportKeyOf(Buffer.from([1, 2, 3])), transportKeyOf(Buffer.from([1, 2, 4])));
+  assert.equal(transportKeyOf(new Uint8Array(spki)), want, "Uint8Array and Buffer agree");
+});
+
+test("an absent or empty SPKI is refused rather than hashed into a plausible-looking value", () => {
+  assert.throws(() => transportKeyOf(null), /must be bytes/);
+  assert.throws(() => transportKeyOf("30590313"), /must be bytes/, "a hex STRING is not the SPKI");
+  assert.throws(() => transportKeyOf(Buffer.alloc(0)), /empty/,
+    "sha256 of nothing is a valid-looking 64-hex value, and admitting a route on it would be a hole");
+});
