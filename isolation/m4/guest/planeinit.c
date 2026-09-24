@@ -45,6 +45,9 @@
 #define BOUNDARY_PATH "/tmp/boundary"
 
 /* the artifact kinds the SVSM's tables name, in the order this image admits them */
+/* The number of VMPCKs the kernel will hand out: get_vmpck switches on 0..3. */
+#define VMPL_MAX_KEYS 4
+
 #define KIND_BUNDLE  "0"
 #define KIND_RUNTIME "1"
 
@@ -164,25 +167,30 @@ static int probe_no_vmpck(void) {
         say("vmpck_probe", "IMPOSSIBLE: /sev-guest.ko.zst is not in the image, so key absence is unproven");
         return -1;
     }
-    {
+    /* EVERY key the kernel will accept, not just this plane's and the monitor's. get_vmpck switches on 0..3
+     * (arch/x86/coco/sev/core.c:1510) and vmpck_id is a plain module parameter, so a guest can ask for any of
+     * them - and the SVSM's copy_with_no_vmpck clears 0..VMPL_MAX for exactly that reason. An earlier version of
+     * this probe tried only 0 and 2, which evidenced half the space while the text claimed the plane holds no
+     * VMPCK at all. */
+    for (int id = 0; id < VMPL_MAX_KEYS; id++) {
+        char arg[32], key[32], rkey[32];
+        snprintf(arg, sizeof arg, "vmpck_id=%d", id);
+        snprintf(key, sizeof key, "vmpck%d", id);
+        snprintf(rkey, sizeof rkey, "vmpck%d_reason", id);
         int fd = open("/sev-guest.ko.zst", O_RDONLY | O_CLOEXEC);
-        if (fd >= 0) {
-            long r = syscall(SYS_finit_module, fd, "vmpck_id=0", 4);
-            if (r == 0) { say("vmpck0", "LOADED - this plane HOLDS VMPCK0 and is not confined"); held = 1; }
-            else say("vmpck0", strerror(errno));
-            close(fd);
-            /* The errno alone cannot say WHY. This must read "Empty VMPCK0 communication key" for the refusal
-             * to be about a withheld key rather than about a missing device or a kernel that sees no SNP. */
-            if (r != 0) kmsg_reason("vmpck0_reason", "VMPCK");
+        if (fd < 0) { say(key, strerror(errno)); held = 1; continue; }
+        long r = syscall(SYS_finit_module, fd, arg, 4);
+        close(fd);
+        if (r == 0) {
+            char msg[128];
+            snprintf(msg, sizeof msg, "LOADED - this plane HOLDS VMPCK%d and can mint its own reports", id);
+            say(key, msg);
+            held = 1;
+            continue;
         }
-        fd = open("/sev-guest.ko.zst", O_RDONLY | O_CLOEXEC);
-        if (fd >= 0) {
-            long r = syscall(SYS_finit_module, fd, "vmpck_id=2", 4);
-            if (r == 0) { say("vmpck2", "LOADED - this plane can mint its own reports"); held = 1; }
-            else say("vmpck2", strerror(errno));
-            close(fd);
-            if (r != 0) kmsg_reason("vmpck2_reason", "VMPCK");
-        }
+        say(key, strerror(errno));
+        /* The errno alone cannot say WHY. Each probe must name ITS OWN key, or the refusal is unexplained. */
+        kmsg_reason(rkey, "VMPCK");
     }
     return held ? -1 : 0;
 }

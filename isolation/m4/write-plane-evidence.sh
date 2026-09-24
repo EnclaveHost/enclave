@@ -57,10 +57,7 @@ document, substituting a weaker claim for a stronger one, which a client cannot 
 
 CONFINEMENT, IN THE KERNEL'S OWN WORDS - not inferred from an errno
 $(pl "tsm_report_core=")
-$(pl "vmpck0=")
-$(pl "vmpck0_reason=")
-$(pl "vmpck2=")
-$(pl "vmpck2_reason=")
+$(for id in 0 1 2 3; do pl "vmpck${id}="; pl "vmpck${id}_reason="; done)
 $(pl "boundary=")
 
 The image CARRIES tsm_report and sev-guest deliberately: leaving them out would make "no report interface" a
@@ -70,7 +67,10 @@ sev-guest registers with module_platform_driver_probe (sev-guest.c:711) and __pl
 kernel sees no SNP, and this guest decides snp=1 from CPUID, the hardware's word rather than the kernel's. So the
 probe reads /dev/kmsg and reports the reason: "Empty VMPCK%d communication key" is arch/x86/coco/sev/core.c:1569,
 printed at KERN_ERR, which loglevel=3 keeps off the console but never out of the ring buffer. Each probe names
-its OWN key. planeinit powers off if either load SUCCEEDS.
+its OWN key, and EVERY key the kernel will hand out is tried: get_vmpck switches on 0..3 and vmpck_id is a plain
+module parameter, so a guest can ask for any of them - which is why the SVSM's copy_with_no_vmpck clears
+0..VMPL_MAX. An earlier version of this probe tried only 0 and 2, evidencing half the space while the text
+claimed the plane holds none. planeinit powers off if ANY load succeeds.
 
 THE FRONT REGISTERS THE KEY IT WILL USE
 $(dom "runtime ")
