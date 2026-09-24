@@ -17,6 +17,7 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import { chromium } from "playwright";
 import { DIST, ARTIFACT, MANIFEST } from "../verifier/web/build.mjs";
 import { verifyEvidence, memoryCollateral, spkiOfCert } from "../verifier/index.mjs";
+import { createShadow, WELL_KNOWN } from "../verifier/web/shadow.mjs";
 import { synthChain, synthReport } from "./helpers/snp-synth.mjs";
 
 const CFT = process.env.CHROME_FOR_TESTING || path.join(os.homedir(), ".cache/ms-playwright/chromium-1232/chrome-linux64/chrome");
@@ -70,7 +71,7 @@ const nodeOpts = (e) => ({
 });
 // the page: the same materialisation, in the browser's own primitives
 const PAGE = `<!doctype html><meta charset="utf-8"><title>verifier web harness</title><script type="module">
-import { verifyEvidenceWeb, memoryCollateral } from "./bundle.js";
+import { verifyEvidenceWeb, memoryCollateral, createShadow } from "./bundle.js";
 const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0)), hex = (s) => Uint8Array.from(s.match(/../g).map((h) => parseInt(h, 16)));
 const mapB64 = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, b64(v)]));
 window.run = async () => {
@@ -84,6 +85,12 @@ window.run = async () => {
     out.push({ name: e.name, verdict });
   }
   return { userAgent: navigator.userAgent, hasBuffer: typeof Buffer, out };
+};
+// the shadow adapter in the page: same origin for the well-known paths and the collateral mirror; the fixed clock of the pack
+window.runShadow = async (expected, primary, roots) => {
+  const s = createShadow({ enabled: true, origin: location.origin, collateralBase: location.origin, now: () => new Date("${NOW}"), roots: roots ? new Map(Object.entries(roots)) : null });
+  const off = createShadow({ origin: location.origin, collateralBase: location.origin });
+  return { off: await off.run({ host: "inference.tinfoil.sh", expected }), on: await s.run({ host: "inference.tinfoil.sh", expected, primary }) };
 };
 window.ready = true;
 </script>`;
@@ -104,7 +111,16 @@ test("the COMMITTED artifact (verifier/web/dist, reproducible: test/verifier-web
 
 test("Chrome for Testing 151 runs the pack and every verdict equals the Node build's", { skip }, async (t) => {
   const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json" };
-  server = http.createServer((req, res) => { if (req.url === "/favicon.ico") { res.writeHead(204); return res.end(); } const f = path.join(tmp, path.basename(new URL(req.url, "http://x").pathname) || "index.html"); if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); } res.writeHead(200, { "content-type": types[path.extname(f)] || "application/octet-stream" }); fs.createReadStream(f).pipe(res); });
+  const CHIP = report.subarray(0x1a0, 0x1e0).toString("hex");
+  const wellKnown = (p, res) => {   // the shadow adapter's five paths, from the same fixtures
+    if (p === WELL_KNOWN.document) { res.setHeader("content-type", "application/json"); res.end(JSON.stringify(rad)); return true; }
+    if (p === WELL_KNOWN.certificate) { res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ certificate: certPem })); return true; }
+    if (p === "/vcek/v1/Genoa/cert_chain") { res.end(chains.Genoa); return true; }
+    if (p === `/vcek/v1/Genoa/${CHIP}`) { res.end(read(new URL("genoa-tinfoil/vcek-kds-amd.der", F))); return true; }
+    if (p === "/vcek/v1/Genoa/crl") { res.end(read(new URL("amd/Genoa-crl.der", F))); return true; }
+    return false;
+  };
+  server = http.createServer((req, res) => { if (req.url === "/favicon.ico") { res.writeHead(204); return res.end(); } if (wellKnown(req.url.split("?")[0], res)) return; const f = path.join(tmp, path.basename(new URL(req.url, "http://x").pathname) || "index.html"); if (!fs.existsSync(f)) { res.writeHead(404); return res.end(); } res.writeHead(200, { "content-type": types[path.extname(f)] || "application/octet-stream" }); fs.createReadStream(f).pipe(res); });
   await new Promise((r) => server.listen(0, "127.0.0.1", r)); port = server.address().port;
   const profile = path.join(tmp, "profile");
   chrome = spawn(CFT, ["--headless=new", "--no-first-run", "--no-default-browser-check", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"], { detached: true, stdio: ["ignore", "ignore", "pipe"] });
@@ -130,4 +146,20 @@ test("Chrome for Testing 151 runs the pack and every verdict equals the Node bui
   }
   t.diagnostic(`browser verdicts: ${JSON.stringify(seen)}`);
   for (const s of ["verified", "limited", "rejected", "unsupported"]) assert.ok(seen[s], `a ${s} verdict ran in the browser`);
+});
+
+test("the shadow adapter in the page: disabled fetches nothing; enabled fetches the five same-origin paths and returns the same record as the Node run against the same origin, never an acceptance", { skip }, async () => {
+  const page = await browser.contexts()[0].newPage(); await page.goto(`http://127.0.0.1:${port}/index.html`); await page.waitForFunction(() => window.ready === true, null, { timeout: 15000 });
+  const expected = { allowedMeasurements: [MEAS], minTcb: FLOOR }, primary = { ok: true, measurement: MEAS };
+  const cases = [["pinned roots, primary agrees", null, primary], ["a wrong caller pin", { Genoa: "00".repeat(32) }, primary]];
+  for (const [name, roots, prim] of cases) {
+    const r = await page.evaluate(([e, p, ro]) => window.runShadow(e, p, ro), [expected, prim, roots]);
+    assert.equal(r.off.ran, false); assert.equal(r.off.acceptance, false);
+    const n = await createShadow({ enabled: true, origin: `http://127.0.0.1:${port}`, collateralBase: `http://127.0.0.1:${port}`, now: () => new Date(NOW), roots: roots ? new Map(Object.entries(roots)) : null }).run({ host: "inference.tinfoil.sh", expected, primary: prim });
+    const strip = (x) => JSON.parse(JSON.stringify({ ...x, tookMs: null }, (k, v) => (k === "fetchedAt" ? null : v)));
+    assert.deepEqual(strip(r.on), strip(n), name);
+    assert.equal(r.on.acceptance, false); assert.equal(r.on.transportBindingClaimed, false);
+    assert.equal(r.on.verdict.status, roots ? "rejected" : "verified", r.on.verdict.reasons.join("\n")); assert.equal(r.on.comparison.outcome, roots ? "disagree" : "agree");
+  }
+  await page.close();
 });

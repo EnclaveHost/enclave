@@ -14,7 +14,7 @@ import { X509Certificate } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import * as X from "../verifier/web/x509.mjs";
 import { WEB_CRYPTO, checkHostedCertificate as webHosted, checkCrlAuthentic as webCrlAuthentic } from "../verifier/web/provider.mjs";
-import { parseReportStrict, checkCrlAuthentic as nodeCrlAuthentic, checkChain as nodeCheckChain } from "../verifier/snp.mjs";
+import { parseReportStrict, checkCrlAuthentic as nodeCrlAuthentic, checkChain as nodeCheckChain, verifyReportSignature as nodeReportSignature } from "../verifier/snp.mjs";
 import { checkHostedCertificate as nodeHosted } from "../verifier/tls-binding.mjs";
 import { parseCrl, tlv, children } from "../verifier/der.mjs";
 import { AMD_ARK_SHA256 } from "../relay/snp-verify.mjs";
@@ -68,6 +68,9 @@ test("the real VCEKs (Genoa, Turin): EC P-384, signed by the ASK, AMD extensions
     assert.equal((await X.verifyReportSignature(parseReportStrict(flipped), vcek)).why, "VCEK signature over the report is invalid");
     const big = Buffer.from(report); big.fill(0xff, 0x2a0, 0x2a0 + 48);
     assert.equal((await X.verifyReportSignature(parseReportStrict(big), vcek)).why, "signature r or s is out of range for P-384");
+    // a key of the wrong type as the signer (the ASK, RSA-4096): both builds refuse before any curve is asked, same words
+    const [askW] = await load(chains[product]), askN = new X509Certificate(chains[product].split(/(?=-----BEGIN CERTIFICATE-----)/).filter((x) => x.includes("CERTIFICATE"))[0]);
+    assert.equal((await X.verifyReportSignature(p, askW)).why, "VCEK public key is not EC P-384"); assert.equal(nodeReportSignature(p, askN).why, "VCEK public key is not EC P-384");
     // the WHOLE chain through the provider, against Node's checkChain: same outcome, same words
     const w = await WEB_CRYPTO.checkChain({ vcekDer, chainPem: chains[product], product, now: NOW, roots: AMD_ARK_SHA256 });
     const nd = nodeCheckChain({ vcekDer: Buffer.from(vcekDer), chainPem: chains[product], product, now: NOW, roots: AMD_ARK_SHA256 });
