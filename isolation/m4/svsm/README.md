@@ -32,13 +32,56 @@ named with zeros, because a null identity that verified would be worse than no s
 three apps per guest depending on whether a separate monitor plane is kept. That is a hardware ceiling, not a
 tuning parameter. Beyond it, the scalable path is M4a - one SNP guest per app - which stays supported.
 
+## Hardware evidence for this increment (2026-09-23, planes kernel 7.2.0-gbf5bafed3e6d)
+
+**The app table is inside a reproducible, derivable measurement.** Five IGVM builds:
+
+| build | `ENCLAVE_APP_IDS` | launch digest |
+|---|---|---|
+| 1 | `aa11…,bb22…` | `5462DDEB0D727305…` |
+| 2 | `aa11…,bb22…` | `5462DDEB0D727305…` |
+| 3 | `aa11…,cc33…` | `00DE2FCB1D982339…` |
+| 4 | `aa11…,bb22…` | `5462DDEB0D727305…` |
+
+Same table, identical digest three times; one plane's app ID changed, a completely different digest. So
+**changing which app runs on which plane changes the measurement**, and the same inputs reproduce it - which is
+what makes naming by the SVSM trustworthy rather than merely convenient. Note this also contradicts the
+parallel workstream's concern that an OpenSSL build stamp makes these digests per-build: for the qemu target
+the build is reproducible.
+
+**The modified SVSM boots and the boundary is unaffected.** Full M3b suite against the IGVM carrying this
+protocol: **31 PASS / 0 FAIL**, with
+
+    the expected digest was DERIVED by igvmmeasure from the launched IGVM: 5462ddeb0d7273058c…
+    boundary(s1): OK confined: refused a report at VMPL0 while running at VMPL2
+                  (tier=t1 vmpl=2 vmpl_floor=2 vmpl0=refused)
+    launch identity: the derived digest equals the live signed report
+
+So the authority is in measured firmware that still runs, and the digest a verifier derives now covers the
+plane-to-app assignment. The kit IGVM is this build; nothing needed repinning because the harness derives the
+expected digest from the IGVM it launches rather than from a recorded constant.
+
 ## What is NOT done yet
 
 This is the authority, not the plane-per-app boundary. `kernel/src/types.rs` still has
 `pub const GUEST_VMPL: usize = 2`, and `vmm/execloop.rs` does a single `switch_to_vmpl(GUEST_VMPL)`, so the
 SVSM still runs exactly one guest plane. Running one app per plane additionally needs: a VMSA registered per
 app plane (`register_guest_vmsa` already takes a VMPL, so the interface exists), per-plane RMP permissions and
-secrets pages, and a run loop that multiplexes planes. `requests.rs` therefore passes `GUEST_VMPL` today; when
+secrets pages, and a run loop that multiplexes planes.
+
+**Sized, not guessed: 75 call sites across 12 files assume a single guest plane.**
+
+    GUEST_VMPL 31 · PERCPU_VMSAS 14 · guest_vmsa_ref() 9 · switch_to_vmpl 7 · guest_caa 6
+    update_guest_vmsa 4 · alloc_guest_vmsa 2 · clear_guest_vmsa_if_match 2
+    cpu/percpu.rs · cpu/vmsa.rs · cpu/apic.rs · sev/ghcb.rs · sev/secrets_page.rs · vmm/execloop.rs
+    requests.rs · platform/snp_fw.rs · protocols/core.rs · types.rs · boot_params.rs · sev/utils.rs
+
+`PerCpuShared` holds exactly one `guest_vmsa` with its CAA, so per-app planes means that becomes per-VMPL along
+with the request loop, CAA handling, APIC routing and VMSA registration: a core refactor of COCONUT's
+guest-state model rather than a bounded patch. **No architectural blocker was found** - the spec's single
+`svsm_guest_vmpl` field is not a wall, because `copy_for_vmpl(vmpl)` already produces a per-plane secrets page
+with lower VMPCKs cleared. The reason not to start it inside this increment is that a half-finished version
+produces firmware that boots unpredictably, and the working IGVM is what M3b and M4a both depend on. `requests.rs` therefore passes `GUEST_VMPL` today; when
 the SVSM runs a plane per app it passes the caller's own level, and nothing in `appid.rs` changes.
 
 Measured on the VMM side, so it is not the blocker: QEMU accepts a **per-device** `plane=N` property (the
