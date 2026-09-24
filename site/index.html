@@ -72,7 +72,7 @@
         "@type": "Person",
         "name": "Steven Batchelor",
         "jobTitle": "Founder & CEO",
-        "image": "https://enclave.host/assets/steven.png",
+        "image": "https://enclave.host/assets/steven-clean.png",
         "sameAs": ["https://www.linkedin.com/in/steven-batchelor-50791627/"]
       }
     },
@@ -143,7 +143,7 @@
 <section id="why" data-view="overview" aria-label="What you get">
   <div class="wrap">
     <c-section-head eyebrow="What you get" heading="Portable apps. One isolation contract. Verifiable execution. Independent infrastructure.">
-      <p>Enclave is one way to run an app on hardware you do not control: one app bundle, one domain contract, and one security contract a host proves before it runs anything. On machines without confidential-computing hardware that contract is met by <b>Enclave Shield</b>, our protection technology: it keeps the ordinary operating system out of every app's domain and lets a GPU outside a confidential boundary compute without ever seeing plaintext. Confidential hardware adds protection from the machine's operator on top, without changing what your app is. <a href="develop#architecture">The architecture, in full ↗</a></p>
+      <p>One app bundle across independent hosts. <b>Enclave Shield</b> combines CPU isolation with protected GPU compute; confidential hardware adds protection from the machine’s operator. <a href="develop#architecture">The architecture, in full ↗</a></p>
     </c-section-head>
     <div class="cards">
       <div class="card jade">
@@ -154,9 +154,9 @@
       </div>
       <div class="card iris">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M8 12h8M12 8v8"/></svg></div>
-        <span class="tag">protection without a TEE</span>
+        <span class="tag">CPU + GPU protection</span>
         <h3>Enclave Shield</h3>
-        <p>Our proprietary protection technology for machines that lack confidential-computing hardware, in two components. Hardware-enforced per-app CPU isolation runs every app in its own domain and keeps the ordinary host operating system out of it, on every operating system; identity is measured, keys and traffic are bound to it, verification fails closed, cleanup leaves nothing behind. Masked, verified GPU offload lets a GPU outside a confidential boundary compute on masked inputs and return verified results, never plaintext, on any host. <a href="#protection">The contract →</a></p>
+        <p>Our proprietary CPU isolation keeps the host OS out. Masked, verified offload protects data on GPUs outside the confidential boundary. Across operating systems. <a href="#protection">The contract →</a></p>
       </div>
       <div class="card jade">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></div>
@@ -228,7 +228,7 @@
       <article class="protection-path protection-shield">
         <div class="protection-label"><span class="protection-dot"></span>Enclave Shield</div>
         <h3>Your app, isolated<br>from the host OS.</h3>
-        <p class="protection-description">Hardware-enforced app isolation across operating systems, including machines without a confidential-computing processor.</p>
+        <p class="protection-description">Hardware-enforced app isolation across operating systems, including CPUs without confidential-computing support.</p>
         <ul class="protection-features">
           <li>Each app runs in its own hardware domain.</li>
           <li>A measured trusted layer enforces the boundary.</li>
@@ -253,7 +253,7 @@
       <div class="protection-gpu-intro">
         <span class="eyebrow">Enclave Shield · GPU protection</span>
         <h3>GPU power.<br>Protected data.</h3>
-        <p>The GPU’s verified protection mode determines how it participates, even when the CPU is confidential.</p>
+        <p>The GPU’s verified mode determines its protection, independently of the CPU.</p>
       </div>
       <div class="protection-gpu-modes">
         <div class="protection-gpu-mode">
@@ -262,7 +262,7 @@
         </div>
         <div class="protection-gpu-mode">
           <span class="protection-mode-icon" aria-hidden="true">↳</span>
-          <div><h4>Other GPUs · Enclave Shield</h4><p>Masked inputs. Verified results. No plaintext protected state on the card. GPU access opens only after its Shield evidence verifies.</p></div>
+          <div><h4>Other GPUs · Enclave Shield</h4><p>Masked inputs. Verified results. No plaintext protected state. Access requires verified Shield evidence.</p></div>
         </div>
       </div>
     </div>
@@ -366,7 +366,7 @@
       <div class="card iris">
         <span class="tag">the founder</span>
         <div class="founder-id">
-          <img class="f-ava" src="assets/steven.png" alt="Steven Batchelor" width="322" height="385" loading="lazy" decoding="async" />
+          <img class="f-ava" src="assets/steven-clean.png" alt="Steven Batchelor" width="322" height="385" loading="lazy" decoding="async" />
           <div>
             <h3>Steven Batchelor</h3>
             <span class="f-role">Founder &amp; CEO</span>
