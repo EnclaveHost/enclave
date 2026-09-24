@@ -1,0 +1,13 @@
+# Kernel module build output. NEVER commit these: vermagic ties a .ko to one kernel release, and a checkout
+# with fresh timestamps can make `make` skip the rebuild and ship a STALE module that silently does not match
+# the guest kernel. Build it from appidmod.c with the Makefile here, which targets the GUEST kernel release
+# from ../../m1/domain.env.
+*.ko
+*.o
+*.mod
+*.mod.c
+*.cmd
+.*.cmd
+Module.symvers
+modules.order
+.module-common.o

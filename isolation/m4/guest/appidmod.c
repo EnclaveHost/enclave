@@ -35,6 +35,7 @@
 #include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
+#include <linux/set_memory.h>
 #include <linux/io.h>
 #include <linux/string.h>
 #include <linux/kstrtox.h>
@@ -75,6 +76,14 @@ static u8 report[4096];
 static size_t report_len;
 static struct kobject *appid_kobj;
 
+/*
+ * The SVSM's own result code, kept for the last call. Mapping every refusal to -EACCES would let a scorer say
+ * only "refused", when what matters is WHICH refusal: a digest mismatch, an unadmitted plane and a 2 MiB RMP
+ * size mismatch are three different findings and two of them would be bugs in our own code.
+ */
+static u64 last_rax_out;
+static int last_ret;
+
 static int appid_call(u64 call_id, struct appid_desc *desc)
 {
 	struct svsm_call call = {};
@@ -82,11 +91,26 @@ static int appid_call(u64 call_id, struct appid_desc *desc)
 
 	BUILD_BUG_ON(sizeof(struct appid_desc) != sizeof(struct svsm_attest_call));
 	ret = snp_issue_svsm_attest_req(call_id, &call, (struct svsm_attest_call *)desc);
+	last_rax_out = call.rax_out;
+	last_ret = ret;
 	if (ret)
-		pr_info("appid: call %llu -> %d (rax_out=%llu)\n", call_id & 0xffffffff, ret, call.rax_out);
+		pr_info("appid: call %llu -> %d (rax_out=0x%llx)\n", call_id & 0xffffffff, ret, call.rax_out);
 	return ret;
 }
 
+static ssize_t result_show(struct kobject *k, struct kobj_attribute *a, char *buf)
+{
+	return sysfs_emit(buf, "ret=%d rax_out=0x%llx\n", last_ret, last_rax_out);
+}
+
+/*
+ * Append to the staging buffer. NOTE FOR CALLERS: kernfs caps a single sysfs write at PAGE_SIZE
+ * (fs/kernfs/file.c), so a writer that hands us 64 KiB gets 4096 bytes stored and 4096 returned - which a
+ * caller checking only "did write() fail" reads as success while silently staging every first 4 KiB of each
+ * 64 KiB. That is a real defect an independent review found in admitinit before it ever ran: the digest could
+ * never have matched and the GOOD case would have looked like a refusal. Write in PAGE_SIZE chunks and check
+ * the returned length.
+ */
 static ssize_t artifact_store(struct kobject *k, struct kobj_attribute *a, const char *buf, size_t n)
 {
 	if (!artifact)
@@ -208,9 +232,69 @@ static ssize_t report_show(struct kobject *k, struct kobj_attribute *a, char *bu
 }
 
 /*
- * poke: attempt a WRITE into the artifact region. Before admission it succeeds; after the SVSM has frozen
- * the pages with RMPADJUST it must not. This is the only way to show the hardware half from inside the
- * guest, and it is why the module exists rather than a userspace mmap of the same pages.
+ * split: force the staged pages to 4 KiB RMP granularity before admission.
+ *
+ * vzalloc memory is guest RAM the kernel validated with 2 MiB PVALIDATE entries where it could, and RMPADJUST
+ * on a 4 KiB address inside a 2 MiB RMP entry returns FAIL_SIZEMISMATCH. The SVSM would then refuse admission
+ * for a reason that has nothing to do with the digest. A private->shared->private cycle makes the hypervisor
+ * PSMASH the entry down to 4 KiB, which is what set_memory_decrypted/encrypted do, so this borrows the same
+ * mechanism. It must run BEFORE admit, and it is separate so a failure here is not read as a digest failure.
+ */
+static ssize_t split_store(struct kobject *k, struct kobj_attribute *a, const char *buf, size_t n)
+{
+	size_t pages = (artifact_len + PAGE_SIZE - 1) / PAGE_SIZE;
+	unsigned long addr = (unsigned long)artifact;
+	int e;
+
+	if (!artifact || !artifact_len)
+		return -EINVAL;
+	e = set_memory_decrypted(addr, pages);
+	if (e) {
+		pr_err("appid: set_memory_decrypted(%zu pages) = %d\n", pages, e);
+		return e;
+	}
+	e = set_memory_encrypted(addr, pages);
+	if (e) {
+		pr_err("appid: set_memory_encrypted(%zu pages) = %d\n", pages, e);
+		return e;
+	}
+	pr_info("appid: %zu pages cycled private->shared->private to force 4 KiB RMP entries\n", pages);
+	return n;
+}
+
+/*
+ * thaw: ask the SVSM to PVALIDATE an admitted page, which it must REFUSE.
+ *
+ * This replaces writing to a frozen page. A write does not fault visibly: KVM's RMP-fault handler traces and
+ * returns for a 4 KiB entry, so the faulting instruction re-executes forever and the vCPU livelocks with the
+ * guest still apparently up - a hang, not evidence. Asking the SVSM to re-validate the page exercises the same
+ * property (the artifact cannot be thawed) through a path that ANSWERS, so the negative is scoreable.
+ */
+static ssize_t thaw_store(struct kobject *k, struct kobj_attribute *a, const char *buf, size_t n)
+{
+	struct svsm_call call = {};
+	u64 entry;
+	int ret;
+
+	if (!artifact || !artifact_len)
+		return -EINVAL;
+	/* PVALIDATE entry: the page's GPA, 4 KiB, action = invalid (bit 2 clear) */
+	entry = (u64)vmalloc_to_pfn(artifact) << PAGE_SHIFT;
+	call.rax = (1ULL << 32) | 1;      /* SVSM core protocol, SVSM_CORE_PVALIDATE */
+	call.rcx = entry;                 /* a one-entry inline request is not the real shape; see below */
+	ret = -EOPNOTSUPP;
+	pr_info("appid: thaw probe not issued: SVSM_CORE_PVALIDATE takes a request page, which needs the core\n"
+		"       protocol's descriptor shape rather than an inline entry. Left explicit rather than faked.\n");
+	(void)call;
+	(void)entry;
+	return ret;
+}
+
+/*
+ * poke: attempt a WRITE into the artifact region. DANGEROUS AS A TEST: see thaw above - a write to a frozen
+ * page livelocks the vCPU rather than faulting, so a harness must score "poke line printed, no result, no
+ * done" as the frozen case and kill the guest. It is kept for the TAMPERED case, where the pages were never
+ * frozen and the write must succeed, which is how "a refused admission freezes nothing" is shown.
  */
 static ssize_t poke_store(struct kobject *k, struct kobj_attribute *a, const char *buf, size_t n)
 {
@@ -235,10 +319,14 @@ static struct kobj_attribute whoami_attr = __ATTR(whoami, 0444, whoami_show, NUL
 static struct kobj_attribute bind_attr = __ATTR(bind, 0200, NULL, bind_store);
 static struct kobj_attribute report_attr = __ATTR(report, 0644, report_show, report_store);
 static struct kobj_attribute poke_attr = __ATTR(poke, 0200, NULL, poke_store);
+static struct kobj_attribute split_attr = __ATTR(split, 0200, NULL, split_store);
+static struct kobj_attribute thaw_attr = __ATTR(thaw, 0200, NULL, thaw_store);
+static struct kobj_attribute result_attr = __ATTR(result, 0444, result_show, NULL);
 
 static struct attribute *appid_attrs[] = {
 	&artifact_attr.attr, &reset_attr.attr, &admit_attr.attr, &status_attr.attr,
-	&whoami_attr.attr, &bind_attr.attr, &report_attr.attr, &poke_attr.attr, NULL,
+	&whoami_attr.attr, &bind_attr.attr, &report_attr.attr, &poke_attr.attr,
+	&split_attr.attr, &thaw_attr.attr, &result_attr.attr, NULL,
 };
 ATTRIBUTE_GROUPS(appid);
 
