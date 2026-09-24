@@ -48,7 +48,7 @@ launched() {
 
 run() {      # run <tag> <on|off>
   tag=$1; hashes=$2
-  OVMF_OVERRIDE=$FW KERNEL_HASHES=$hashes sh "$here/run-domain.sh" start "$IMG" snp "$tag" "$W" \
+  OVMF_OVERRIDE=$FW KERNEL_HASHES=$hashes FW_DEBUGCON=1 sh "$here/run-domain.sh" start "$IMG" snp "$tag" "$W" \
     > "$W/$tag.host" 2>&1 || true
   for _ in $(seq 40); do booted "$tag" && break; sleep 1; done
   sh "$here/run-domain.sh" stop "$tag" "$W" >/dev/null 2>&1 || true
@@ -61,7 +61,13 @@ run() {      # run <tag> <on|off>
 }
 
 fails=0
-check() { if [ "$2" = ok ]; then echo "PASS $1"; else echo "FAIL $1"; fails=$((fails + 1)); fi; }
+check() {
+  case "$2" in
+    ok) echo "PASS $1" ;;
+    inconclusive) echo "INCONCLUSIVE $1"; fails=$((fails + 1)) ;;
+    *) echo "FAIL $1"; fails=$((fails + 1)) ;;
+  esac
+}
 
 if ! run control on; then
   echo "ABORT: the control did not launch. Nothing below would mean anything."
@@ -80,9 +86,20 @@ if ! run notable off; then
   echo "ABORT: the no-table case did not launch."
   exit 1
 fi
-booted notable && r=no || r=ok
-check "2 kernel-hashes=off: NO table in the measurement, the firmware must REFUSE to boot the guest" $r
-[ "$(cat /dev/null)" ] || true
+if booted notable; then
+  r=no
+elif grep -aq "no hashes table\|Hash comparison failed" "$W/notable.debugcon" 2>/dev/null; then
+  r=ok                       # the firmware's own verdict, which is what a refusal should look like
+  echo "       the firmware said so itself: $(grep -ah "no hashes table\|Hash comparison failed" "$W/notable.debugcon" | head -1)"
+else
+  # NOT a pass on silence. A SIGTERMed QEMU exits 0 with an empty console, and so does a guest that never
+  # started, so "nothing happened" cannot be told from "the firmware refused" without positive evidence.
+  r=inconclusive
+  echo "       INCONCLUSIVE: the guest did not boot and the firmware said nothing. An empty console with rc 0"
+  echo "       is what a killed QEMU also looks like. Build the firmware with BUILD_TARGET=DEBUG so its verdict"
+  echo "       reaches $W/notable.debugcon, and score that rather than the absence."
+fi
+check "2 kernel-hashes=off: NO table in the measurement, the firmware must REFUSE to boot the guest, and SAY so" $r
 
 echo
 if [ "$fails" -eq 0 ] && booted control; then

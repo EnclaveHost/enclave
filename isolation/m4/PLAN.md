@@ -95,6 +95,35 @@ of that image.
 > The fix is firmware built from `AmdSevX64.dsc`, which Arch does not package (`edk2-ovmf 202608-1` ships no
 > AmdSev variant), so it needs a userspace edk2 build. That is step 0 of the dedicated-plane plan, and it is
 > **prior to M4b**: it sits under both layouts.
+>
+> **RESOLVED 2026-09-24, and here is exactly what it bought.** `isolation/m2/build-verifying-firmware.sh` builds
+> that firmware; `m1/domain.env` names it and fails closed if it is absent. On it, the review lane's substitution
+> fixture inverts: where the distro firmware booted a served initrd whose hash was NOT in the table, this one
+> refuses and says why - `QemuKernelFetchBlob: loading 383098 bytes for "initrd"` followed by `VerifyBlob: Hash
+> comparison failed for "initrd"`, after the kernel's own hash had succeeded. A missing table gives `VerifyBlob:
+> Verifier called but no hashes table discoverd in MEMFD`. M2 passes 24/24 and M4a 14/14 on it, with every
+> measurement moved by the firmware change.
+>
+> **The claim, stated to the limit of the evidence and no further.** With firmware sha256
+> `142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9` pinned, *the kernel, initrd and command line
+> that boot are the ones whose hashes the launch digest commits to* - enforced by the measured firmware,
+> demonstrated by the substitution refusal - *and the app's bytes are inside that initrd*. The firmware is itself
+> an input to the measurement (`sev-snp-measure --ovmf`), so a verifier pinning the digest pins the firmware that
+> did the enforcing.
+>
+> **"The measured app is the one running" is still not written without these beside it:**
+>
+> 1. **Host-supplied boot data is not measured.** The ACPI tables whose AML the guest kernel executes, SMBIOS, the
+>    memory map, every fw_cfg item other than the three hashed blobs, and the device model all come from the host
+>    and are outside the digest. So "no unmeasured byte in the TCB" is false even now.
+> 2. **What the guest does after boot rests on measured code behaving.** The runtime's W^X and execution-mode
+>    statements remain the guest's own word (`isolation/contract/RUNTIME.md`), not something the hardware attests.
+> 3. **Every prediction must name the firmware sha256**, because the digest depends on the firmware identity and
+>    the vCPU count - and this build deviates from stock `AmdSevX64` by two GRUB modules Arch does not ship
+>    (`linuxefi`, `sevsecret`), which the no-table run showed landing in the GRUB path and nowhere near a hash
+>    path.
+>
+> That is stronger than what M4a had this morning, and it names what step 0 did not buy.
 
 Cost and what it is not: no VMPL boundary above the app's own kernel, so the guest kernel is still in that
 app's TCB - but it is in *only* that app's TCB, which is the point. Cross-app isolation is the SNP guest
