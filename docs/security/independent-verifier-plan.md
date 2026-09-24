@@ -722,7 +722,15 @@ handler stopped both guests at 20:43:45Z and they relaunched with new keys (295c
 ZeroSSL certificates; the owner reported it as a failure of that deploy. The fixed guestd, restarted by SIGKILL so the old
 handler could not run, adopted both at 20:46:03Z. Measured from the public side at 20:46:44Z and 20:47:20Z: both VERIFIED
 with host data and the F2 measurement, keys unchanged across the transition. From here a guestd restart keeps guests and
-keys; a node-image or front change still relaunches them.
+keys; a guest relaunch (a guest image or front change) still gives new keys.
+**F3, the attested tunnel's registry id (owner's 99b0e3c0).** The relay-terminated `/x/<id>/` for A or E had been answered
+by another node's 503 through a fan-out, because the metal agent's only hello arrived before the hub bound the attested
+tunnel and the node's row stayed synthetic. The owner restarted the node at 20:51:41Z with guestd untouched; A and E were
+adopted at 20:52:56Z. Measured from the public side at 21:06:08Z and 21:06:14Z: both VERIFIED with host data, the
+F2 measurement and the same keys (295ce2e0…, d590dd84…) and certificate windows as before the restart, and
+`GET https://api.enclave.host/x/0x<deployment id>/` answers 421 from the lease holder, naming the guest's own origin (the
+bare-hex form is not an id there and is 404 "not_found"). So a node restart that leaves guestd alone keeps the guests'
+keys; only the F7 case above (guestd itself) and a guest relaunch were measured to change them.
 
 ## 11. Open risks
 
