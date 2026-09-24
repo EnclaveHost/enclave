@@ -89,6 +89,9 @@ identically to overwriting it with 513; the WMI job's error is a bare MessageID 
 useful control: OpenHCL isolation with NO FirmwareFile fails with "failed to load IGVM file … IGVM image file: ''", so
 the worker does try to load one and this build has no in-box image, while our image produces no load error at all.
 Still no vmchipset fault on any WMI run. Cause of the start failure: not yet named.
+**Later (owner's report, relayed by the monitor at 23:47Z):** the worker loaded the DEFAULT IGVM on every run despite
+FirmwareFile reading back as our image; no custom guest boot has been demonstrated on this box. The readback of the
+firmware field is therefore not evidence that the worker loads it (a check that reads what was written, not what ran).
 
 ## What these facts do and do not say
 
