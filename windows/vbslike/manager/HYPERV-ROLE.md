@@ -81,10 +81,12 @@ decides. Expect each to report `RestartNeeded: True`.
   (`/opt/enclave-gateway/pub`), not by the s3-ipfs-adapter on this node - verified while both node
   apps were dead and the hostname still answered 200. An earlier version of this plan said the
   opposite and was wrong. Site publishing is unaffected by this reboot.
-- **Two deployments are currently `blocked`** in `host-state.json` from earlier failures
-  (`0xda9e43f8`, `0xca141665`, `0x5c61595c`, `0x2215bad4` are long-standing; the two app ones were
-  cleared today by forced claims). Re-check the blocked list after the reboot before concluding
-  anything is wrong.
+- **Four deployments are `blocked`** in `host-state.json`, all long-standing and none of them the
+  six that serve: `0xda9e43f8` (needs wasi-nn), `0xca141665` and `0x5c61595c` (bytecode compiled
+  without epoch interruption), `0x2215bad4` (needs threads). The two app ones that were blocked
+  earlier today were cleared by forced claims and are serving. Re-read the list after the reboot
+  before concluding anything is wrong - a count from memory is how the previous version of this
+  sentence got it wrong.
 
 ## The access risk, stated plainly
 
@@ -181,7 +183,7 @@ Three outcomes, and they are different answers:
 
 | what it prints | what it means |
 |---|---|
-| `BOOTED` with `guestBytes > 0` and a recognisable head | **the new backend boots on this host.** This is the milestone. |
+| `BOOTED` with `guestBytes > 0` and a recognisable head | **the new backend boots on this host.** This is the milestone. Console bytes establish guest ACTIVITY and nothing else: not host exclusion, not app readiness. |
 | `NOT BOOTED: ... guest produced no output` | the partition started and the guest is silent - a paravisor/image problem, not a role problem |
 | `NOT BOOTED: ... FirmwareFile reads back as` / `ModifySystemSettings` | the WMI path itself is refusing the image; capture the text verbatim |
 
@@ -200,12 +202,24 @@ Disable-WindowsOptionalFeature -Online -NoRestart -FeatureName Microsoft-Hyper-V
 Restart-Computer          # a SECOND reboot, and a second ~15 minute app interruption
 ```
 
-Before disabling, remove anything the probe left:
+Before disabling, remove THE PROBE VM AND NOTHING ELSE. The probe prints the name it created
+(`enclave-boot-probe-0001`); use that exact name, and confirm it is the one this run made before
+removing it:
 
 ```powershell
-Get-VM | Where-Object { $_.Name -like 'enclave-boot-*' -or $_.Notes -eq 'enclave-vbslike-app-domain' } |
-  ForEach-Object { Stop-VM -VM $_ -TurnOff -Force -EA SilentlyContinue; Remove-VM -VM $_ -Force }
+$name = 'enclave-boot-probe-0001'          # as printed by the probe, not a guess
+$v = Get-VM -Name $name -ErrorAction SilentlyContinue
+if (-not $v) { "nothing named $name; nothing to remove" }
+elseif ($v.Notes -ne 'enclave-vbslike-app-domain') { "REFUSING: $name is not ours (Notes=$($v.Notes))" }
+else { Stop-VM -VM $v -TurnOff -Force -EA SilentlyContinue; Remove-VM -VM $v -Force; "removed $name" }
 ```
+
+An earlier version of this selected by prefix **or** the shared Notes marker. That `-or` is a
+hazard: the marker is shared by every domain this backend runs, so it would have removed live app
+domains alongside the probe. Exact name, ownership confirmed, one VM. The launcher's own
+`teardown()` follows the same rule - it removes the names it recorded creating, and requires the
+marker for anything it did not - so prefer running that and use the block above only if the probe
+process is gone.
 
 Three implications, said plainly:
 

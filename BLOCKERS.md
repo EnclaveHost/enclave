@@ -26,6 +26,19 @@ and `Get-VM` does not exist; only `VirtualMachinePlatform` is enabled.
   lane, to be defined against a real report rather than guessed.
 - `enclave-catalog-bundle/2` serving. Derived and matching; serving needs the partition first.
 
+## The no-role HCS path: a development vehicle, not the target
+
+`backend-hcs.mjs` drives the existing Rust launcher to run one Hyper-V child partition per app
+today, with no role and no reboot. It exists so the stack ABOVE the boundary - bundle delivery,
+readiness, the data plane, a real app on a real route - can be built and proven while the reboot
+decision is pending.
+
+It is **not** the completion target and must never be presented as one. An HCS child partition does
+not exclude the host; the guest says so itself (`boundary tier=t0-hv partition=hcs-child
+host_excluded=no`) and the backend carries that word up rather than letting it be lost. Nothing it
+runs may be advertised as eligible, verified or host-excluded capacity. The moment the role is
+approved, the custom IGVM boot takes priority over anything further on this path.
+
 ## What is ready and waiting on that one thing
 
 | piece | state |
