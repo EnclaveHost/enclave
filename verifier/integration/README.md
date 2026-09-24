@@ -13,7 +13,10 @@ they need to know exactly which revision they ran against.
   written to a staging directory with the manifest last, then renamed into place. Any mismatch exits 2 and leaves
   nothing: no partial entry, no manifest, and no stale prior materialisation of that pin. `run.mjs` re-hashes what
   is on disk against the manifest and the pin before running anything.
-- `run.mjs` resolves, then runs the acceptance suites with `ENCLAVE_PVM_MODULE=<resolved entry>` and
+- Each pin names the environment variable its entry is exported as (`env`): `pvm-app-attest` -> `ENCLAVE_PVM_MODULE`
+  (the evidence verifier), `pvm-sealed` -> `ENCLAVE_PVM_SEALED_MODULE` (the reference stream reader, run as a
+  differential beside `verifier/sealed-stream.mjs`).
+- `run.mjs` resolves EVERY pin, then runs the acceptance suites with those variables set and
   `ENCLAVE_STRICT_INTEGRATION=1`. Under strict mode an acceptance case that would skip for a missing module
   FAILS, and a skipped count is a failure. `npm run test:integration` is this command.
 

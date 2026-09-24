@@ -94,9 +94,10 @@ test("strict mode: a missing or wrong module FAILS the acceptance suites instead
   const bogus = path.join(tmp, "bogus.mjs"); fs.writeFileSync(bogus, "export const somethingElse = 1;\n");
   const wrong = node("test/verifier-pvm-device.test.mjs", [], { ENCLAVE_PVM_MODULE: bogus, ENCLAVE_STRICT_INTEGRATION: "1" });
   assert.notEqual(wrong.status, 0); assert.match(wrong.stdout + wrong.stderr, /no verifyPvmAppEvidence export/);
-  // and run.mjs refuses to run acceptance cases when the dependency cannot be resolved
-  const r = node("verifier/integration/run.mjs", ["--pin", "no-such-pin", "--dir", tmp, "--no-fetch"]);
-  assert.equal(r.status, 2); assert.match(r.stderr, /no pin named|NOT resolved/);
+  // and run.mjs refuses to run acceptance cases when a dependency cannot be resolved (here: the output path is blocked by a file)
+  const blocked = path.join(tmp, "blocked"); fs.writeFileSync(blocked, "not a directory");
+  const r = node("verifier/integration/run.mjs", ["--dir", path.join(blocked, "out"), "--no-fetch"]);
+  assert.equal(r.status, 2); assert.match(r.stderr, /could not materialise|NOT resolved/);
 });
 test("non-strict, module absent: the acceptance cases skip with a stated reason and the suite still passes", () => {
   const r = node("test/verifier-pvm-device.test.mjs", [], { ENCLAVE_PVM_MODULE: "", ENCLAVE_STRICT_INTEGRATION: "" });
