@@ -6,8 +6,8 @@
 //    exactly these bytes (an earlier attempt, or a concurrent stager of the same artifact); anything else there is
 //    refused and left untouched.
 // 2. COMMIT, monotonically: through the durable store, re-verified against the NEWEST state (keys may have rotated
-//    meanwhile), recording { version, sha256, file, sourceCommit } only if the version is newer than anything staged or
-//    running. The same artifact again is idempotent (nothing recorded, success); the same version with other bytes is
+//    meanwhile), recording { version, sha256, size, file, sourceCommit } only if the version is newer than anything
+//    staged, active or running. The same artifact again is idempotent (nothing recorded, success); the same version with other bytes is
 //    refused. Release-key rotation lands in the same commit as the staging, so a concurrent policy commit can never lose
 //    it (or be lost by it).
 // Before step 1 the same decision is taken against the newest state as it is now -- an optimization only: a stale or
@@ -49,13 +49,16 @@ export function publishArtifact(dir, name, bytes, sha) {
   return { ok: true, file, created };
 }
 
-// The monotonic rule, decided on one state: { stage } | { same } | { refuse }.
+// The monotonic rule, decided on one state: { stage } | { same } | { refuse }. The floor is max(staged, active) -- and the
+// running client's own version, which verifyUpdate holds -- except that the staged artifact itself, exactly, is the same
+// (idempotent: it re-publishes a missing file, which is how a missing active file is repaired).
 function decide(state, m, name) {
-  const v = m.version, s = state.staged;
-  if (!s || semverCmp(s.version, v) < 0) return { stage: true };
-  if (semverCmp(s.version, v) > 0) return { refuse: `update ${s.version} is already staged: ${v} cannot replace it` };
-  if (s.sha256 === m.artifactSha256 && s.file === name && s.sourceCommit === m.sourceCommit) return { same: true };
-  return { refuse: `update ${s.version} is already staged: ${v} cannot replace it (a second signed artifact under the same version: refused, the staged one stands)` };
+  const v = m.version, s = state.staged, a = state.active || null;
+  if (s && s.version === v && s.sha256 === m.artifactSha256 && s.file === name && s.sourceCommit === m.sourceCommit) return { same: true };
+  if (s && semverCmp(s.version, v) > 0) return { refuse: `update ${s.version} is already staged: ${v} cannot replace it` };
+  if (s && semverCmp(s.version, v) === 0) return { refuse: `update ${s.version} is already staged: ${v} cannot replace it (a second signed artifact under the same version: refused, the staged one stands)` };
+  if (a && semverCmp(a.version, v) >= 0) return { refuse: `update ${a.version} is active: ${v} cannot replace it` };
+  return { stage: true };
 }
 
 export async function stageUpdate(store, env, bytes, { dir, currentVersion = CLIENT_VERSION, hold = null } = {}) {
@@ -77,7 +80,7 @@ export async function stageUpdate(store, env, bytes, { dir, currentVersion = CLI
       const d = decide(state, u.manifest, name);
       if (d.refuse) return { refuse: d.refuse };
       if (d.same) return { same: true };
-      return { state: { ...u.state, staged: { version: u.manifest.version, sha256: u.manifest.artifactSha256, file: name, sourceCommit: u.manifest.sourceCommit } } };
+      return { state: { ...u.state, staged: { version: u.manifest.version, sha256: u.manifest.artifactSha256, size: u.manifest.size, file: name, sourceCommit: u.manifest.sourceCommit } } };
     });
   } catch (e) { return { ok: false, reason: `could not record the staged update durably (${e.message}): nothing staged` }; }
   if (!r.ok) return { ok: false, reason: r.reason };

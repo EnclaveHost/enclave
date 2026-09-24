@@ -1,4 +1,4 @@
-/*! enclave-pvm-client 0.2.1 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
+/*! enclave-pvm-client 0.3.0 (LAB, not production) -- built by client/build.sh with esbuild 0.28.1
 Contains @hpke/core 1.9.0 and @hpke/common 1.10.1 (MIT):
 @hpke/core 1.9.0:
 MIT License
@@ -48,10 +48,10 @@ SOFTWARE.
 */
 
 // cli.mjs
-import fs3 from "node:fs";
-import os from "node:os";
-import path3 from "node:path";
-import { createHash as createHash2 } from "node:crypto";
+import fs4 from "node:fs";
+import os2 from "node:os";
+import path4 from "node:path";
+import { createHash as createHash3 } from "node:crypto";
 
 // ../web/pvm-verify.js
 var PVM_APP_EVIDENCE_FORMAT = "enclave-pvm-app-evidence/v1";
@@ -517,7 +517,7 @@ async function verifyPvmAppEvidence(envelope, expect = {}) {
 }
 
 // src/trust.js
-var CLIENT_VERSION = "0.2.1";
+var CLIENT_VERSION = "0.3.0";
 var POLICY_DOMAIN = "enclave-pvm-client-policy-v1\n";
 var UPDATE_DOMAIN = "enclave-pvm-client-update-v1\n";
 var UPDATE_COUNTERSIGN_DOMAIN = "enclave-pvm-client-update-countersign-v1\n";
@@ -727,11 +727,12 @@ function publishArtifact(dir, name, bytes, sha) {
   return { ok: true, file, created };
 }
 function decide(state, m, name) {
-  const v = m.version, s = state.staged;
-  if (!s || semverCmp(s.version, v) < 0) return { stage: true };
-  if (semverCmp(s.version, v) > 0) return { refuse: `update ${s.version} is already staged: ${v} cannot replace it` };
-  if (s.sha256 === m.artifactSha256 && s.file === name && s.sourceCommit === m.sourceCommit) return { same: true };
-  return { refuse: `update ${s.version} is already staged: ${v} cannot replace it (a second signed artifact under the same version: refused, the staged one stands)` };
+  const v = m.version, s = state.staged, a = state.active || null;
+  if (s && s.version === v && s.sha256 === m.artifactSha256 && s.file === name && s.sourceCommit === m.sourceCommit) return { same: true };
+  if (s && semverCmp(s.version, v) > 0) return { refuse: `update ${s.version} is already staged: ${v} cannot replace it` };
+  if (s && semverCmp(s.version, v) === 0) return { refuse: `update ${s.version} is already staged: ${v} cannot replace it (a second signed artifact under the same version: refused, the staged one stands)` };
+  if (a && semverCmp(a.version, v) >= 0) return { refuse: `update ${a.version} is active: ${v} cannot replace it` };
+  return { stage: true };
 }
 async function stageUpdate(store, env, bytes, { dir, currentVersion = CLIENT_VERSION, hold: hold2 = null } = {}) {
   const cur = store.latest();
@@ -752,7 +753,7 @@ async function stageUpdate(store, env, bytes, { dir, currentVersion = CLIENT_VER
       const d = decide(state, u.manifest, name);
       if (d.refuse) return { refuse: d.refuse };
       if (d.same) return { same: true };
-      return { state: { ...u.state, staged: { version: u.manifest.version, sha256: u.manifest.artifactSha256, file: name, sourceCommit: u.manifest.sourceCommit } } };
+      return { state: { ...u.state, staged: { version: u.manifest.version, sha256: u.manifest.artifactSha256, size: u.manifest.size, file: name, sourceCommit: u.manifest.sourceCommit } } };
     });
   } catch (e) {
     return { ok: false, reason: `could not record the staged update durably (${e.message}): nothing staged` };
@@ -761,9 +762,149 @@ async function stageUpdate(store, env, bytes, { dir, currentVersion = CLIENT_VER
   return { ok: true, version: r.state.staged.version, file: path.join(dir, r.state.staged.file), gen: r.gen, ...r.same ? { already: true } : {} };
 }
 
-// src/store-file.js
+// src/activate.js
 import fs2 from "node:fs";
+import os from "node:os";
 import path2 from "node:path";
+import { spawn } from "node:child_process";
+import { createHash as createHash2 } from "node:crypto";
+var DELEGATED = "ENCLAVE_PVM_CLIENT_DELEGATED";
+var START_TIMEOUT_MS = 3e4;
+var START_OUTPUT_MAX = 65536;
+var sha2563 = (b2) => createHash2("sha256").update(b2).digest("hex");
+var recordOf = (s) => ({ version: s.version, sha256: s.sha256, size: s.size, file: s.file, sourceCommit: s.sourceCommit });
+var sameRecord = (a, b2) => !!a && !!b2 && ["version", "sha256", "size", "file", "sourceCommit"].every((k) => a[k] === b2[k]);
+function readRecorded(dir, rec) {
+  let bytes;
+  try {
+    bytes = fs2.readFileSync(path2.join(dir, rec.file));
+  } catch (e) {
+    return { ok: false, found: "missing", reason: `${rec.file} cannot be read (${e.code || e.message})` };
+  }
+  const h = sha2563(bytes);
+  if (h !== rec.sha256) return { ok: false, found: h, reason: `${rec.file} does not hold the recorded bytes (sha256 ${h}, recorded ${rec.sha256})` };
+  if (rec.size !== void 0 && bytes.length !== rec.size) return { ok: false, found: h, reason: `${rec.file} is ${bytes.length} bytes, recorded ${rec.size}` };
+  const first = bytes.subarray(0, 200).toString("utf8").split("\n")[0];
+  if (!first.startsWith(`${VERSION_MARKER}${rec.version} `)) return { ok: false, found: h, reason: `${rec.file}'s own version line is not ${rec.version}` };
+  return { ok: true, bytes };
+}
+function runBytes(bytes, args, { env, cwd, stdio = ["pipe", "inherit", "inherit"] } = {}) {
+  const c = spawn(process.execPath, ["--input-type=module", "-", ...args], { env, cwd, stdio });
+  c.stdin.on("error", () => {
+  });
+  c.stdin.end(bytes);
+  return c;
+}
+var ended = (c) => new Promise((r) => {
+  c.on("error", (e) => r({ error: e }));
+  c.on("close", (code, sig) => r({ code, sig }));
+});
+var childEnv = (over = {}) => {
+  const e = { ...process.env };
+  delete e.NODE_OPTIONS;
+  delete e[DELEGATED];
+  return { ...e, ...over };
+};
+async function startCheck(bytes, version) {
+  const scratch = fs2.mkdtempSync(path2.join(os.tmpdir(), "pvm-start-"));
+  try {
+    const c = runBytes(bytes, ["version"], { env: childEnv({ HOME: scratch, XDG_CONFIG_HOME: scratch }), cwd: scratch, stdio: ["pipe", "pipe", "pipe"] });
+    let out2 = "", timedOut = false;
+    c.stdout.on("data", (d) => {
+      out2 += d;
+      if (out2.length > START_OUTPUT_MAX) c.kill("SIGKILL");
+    });
+    c.stderr.on("data", () => {
+    });
+    const t = setTimeout(() => {
+      timedOut = true;
+      c.kill("SIGKILL");
+    }, START_TIMEOUT_MS);
+    const e = await ended(c);
+    clearTimeout(t);
+    if (e.error) return `it could not be started (${e.error.message})`;
+    if (e.sig) return timedOut ? `it did not answer within ${START_TIMEOUT_MS / 1e3} s` : `it ended by signal ${e.sig}`;
+    if (e.code !== 0) return `it exited ${e.code}`;
+    const lines = out2.split("\n").filter(Boolean);
+    let v = null;
+    try {
+      v = lines.length === 1 ? JSON.parse(lines[0]) : null;
+    } catch {
+    }
+    if (!v || typeof v !== "object" || v.client !== "enclave-pvm-client" || v.version !== version)
+      return `it answered ${JSON.stringify(out2.slice(0, 200))}, not exactly one line naming version ${version}`;
+    return null;
+  } finally {
+    fs2.rmSync(scratch, { recursive: true, force: true });
+  }
+}
+async function activateStaged(store, { dir, clientVersion = CLIENT_VERSION, hold: hold2 = null, afterVerify = null } = {}) {
+  const no = (step2, reason, extra = {}) => ({ ok: false, step: step2, reasons: [reason], ...extra });
+  const cur = store.latest();
+  if (!cur) return no("nothing newer", "no client installed");
+  const s = cur.state.staged, a = cur.state.active || null;
+  if (!s) return no("nothing newer", "nothing is staged");
+  const rec = recordOf(s);
+  if (a && sameRecord(a, rec)) return { ok: true, version: a.version, sha256: a.sha256, gen: cur.gen, already: true };
+  const floor = a && semverCmp(a.version, clientVersion) > 0 ? a.version : clientVersion;
+  if (semverCmp(rec.version, floor) <= 0) return no("nothing newer", `staged ${rec.version} is not newer than ${a ? `the active ${a.version} or ` : ""}this client ${clientVersion}: nothing to activate`);
+  const got = readRecorded(dir, rec);
+  if (!got.ok) return no("file", `${got.reason}: nothing activated, nothing run`, { expected: { version: rec.version, sha256: rec.sha256, file: rec.file }, found: got.found });
+  if (afterVerify) await afterVerify();
+  const why = await startCheck(got.bytes, rec.version);
+  if (why) return no("start check", `${rec.version} failed its start check: ${why}; nothing activated`);
+  let r, step = null;
+  try {
+    r = await store.update(async (state) => {
+      if (hold2) await hold2(state);
+      step = null;
+      const ns = state.staged ? recordOf(state.staged) : null, na = state.active || null;
+      if (na && sameRecord(na, rec)) return { same: true };
+      if (!sameRecord(ns, rec)) {
+        step = "changed while activating";
+        return { refuse: `the staged update changed while activating (staged is now ${ns ? `${ns.version} ${ns.sha256.slice(0, 12)}` : "nothing"}): nothing activated; run activate again` };
+      }
+      if (na && semverCmp(na.version, rec.version) >= 0) {
+        step = "nothing newer";
+        return { refuse: `${na.version} is already active: ${rec.version} cannot replace it` };
+      }
+      return { state: { ...state, active: rec } };
+    });
+  } catch (e) {
+    return no("commit", `could not record the activation durably (${e.message}): nothing activated`);
+  }
+  if (!r.ok) return no(step || "nothing newer", r.reason);
+  return { ok: true, version: rec.version, sha256: rec.sha256, gen: r.gen, ...r.same ? { already: true } : {} };
+}
+function withDirs(args, stateDir, installDir2) {
+  const out2 = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--state" || args[i] === "--install-dir") {
+      i++;
+      continue;
+    }
+    out2.push(args[i]);
+  }
+  return [...out2, "--state", stateDir, "--install-dir", installDir2];
+}
+async function launchActive(active, { dir, stateDir, args, hold: hold2 = null }) {
+  const got = readRecorded(dir, active);
+  if (!got.ok) return { refused: {
+    step: "launch",
+    refused: `the active client ${active.version} cannot start: ${got.reason}; nothing was run (no fallback to an older client)`,
+    sent: false,
+    expected: { version: active.version, sha256: active.sha256, file: active.file },
+    found: got.found
+  } };
+  if (hold2) await hold2();
+  const e = await ended(runBytes(got.bytes, ["run", ...withDirs(args, stateDir, dir)], { env: childEnv({ [DELEGATED]: `${active.version}:${active.sha256}` }) }));
+  if (e.error) return { error: `the active client ${active.version} could not be started (${e.error.message})` };
+  return { code: e.code, sig: e.sig };
+}
+
+// src/store-file.js
+import fs3 from "node:fs";
+import path3 from "node:path";
 import { randomBytes as randomBytes2 } from "node:crypto";
 var GEN = /^([1-9]\d{0,14})\.json$/;
 var canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((y) => [y, x[y]])) : x);
@@ -777,7 +918,7 @@ var FileStore = class {
   gens() {
     let names;
     try {
-      names = fs2.readdirSync(this.dir);
+      names = fs3.readdirSync(this.dir);
     } catch (e) {
       if (e.code === "ENOENT") return [];
       throw new StoreError(`the state directory is unreadable (${e.code})`);
@@ -791,7 +932,7 @@ var FileStore = class {
     const gen = g[g.length - 1];
     let doc;
     try {
-      doc = JSON.parse(fs2.readFileSync(path2.join(this.dir, `${gen}.json`), "utf8"));
+      doc = JSON.parse(fs3.readFileSync(path3.join(this.dir, `${gen}.json`), "utf8"));
     } catch (e) {
       throw new StoreError(`the newest state generation ${gen} is unreadable (${e.code || e.message}): refusing -- an older generation would itself be a rollback`);
     }
@@ -801,42 +942,42 @@ var FileStore = class {
   }
   /** Commit { gen, state } iff <gen>.json does not exist yet: true, false (lost the race), or StoreError (not durable). */
   commit(gen, state) {
-    const tmp = path2.join(this.dir, `.tmp-${process.pid}-${randomBytes2(8).toString("hex")}`);
+    const tmp = path3.join(this.dir, `.tmp-${process.pid}-${randomBytes2(8).toString("hex")}`);
     try {
-      fs2.mkdirSync(this.dir, { recursive: true, mode: 448 });
-      const fd = fs2.openSync(tmp, "wx", 384);
+      fs3.mkdirSync(this.dir, { recursive: true, mode: 448 });
+      const fd = fs3.openSync(tmp, "wx", 384);
       try {
-        fs2.writeSync(fd, JSON.stringify({ gen, state }) + "\n");
-        fs2.fsyncSync(fd);
+        fs3.writeSync(fd, JSON.stringify({ gen, state }) + "\n");
+        fs3.fsyncSync(fd);
       } finally {
-        fs2.closeSync(fd);
+        fs3.closeSync(fd);
       }
     } catch (e) {
       try {
-        fs2.rmSync(tmp, { force: true });
+        fs3.rmSync(tmp, { force: true });
       } catch {
       }
       throw new StoreError(`could not write state generation ${gen} (${e.code || e.message})`);
     }
     try {
-      fs2.linkSync(tmp, path2.join(this.dir, `${gen}.json`));
+      fs3.linkSync(tmp, path3.join(this.dir, `${gen}.json`));
     } catch (e) {
-      fs2.rmSync(tmp, { force: true });
+      fs3.rmSync(tmp, { force: true });
       if (e.code === "EEXIST") return false;
       throw new StoreError(`could not commit state generation ${gen} (${e.code || e.message})`);
     }
-    fs2.rmSync(tmp, { force: true });
+    fs3.rmSync(tmp, { force: true });
     try {
-      const dfd = fs2.openSync(this.dir, "r");
+      const dfd = fs3.openSync(this.dir, "r");
       try {
-        fs2.fsyncSync(dfd);
+        fs3.fsyncSync(dfd);
       } finally {
-        fs2.closeSync(dfd);
+        fs3.closeSync(dfd);
       }
     } catch (e) {
       throw new StoreError(`could not make generation ${gen} durable (${e.code || e.message})`);
     }
-    for (const g of this.gens()) if (g <= gen - KEEP) fs2.rmSync(path2.join(this.dir, `${g}.json`), { force: true });
+    for (const g of this.gens()) if (g <= gen - KEEP) fs3.rmSync(path3.join(this.dir, `${g}.json`), { force: true });
     return true;
   }
   /** The first generation (install): refused if any generation exists, including one a concurrent install committed. */
@@ -2689,10 +2830,10 @@ async function openStream(ctx, source, { onData = () => {
   if (state === "refusal") return fail("refused", `the VM refused (unauthenticated hint): ${td2.decode(buf.subarray(1, 300))}`);
   return fail("truncated", state === "chunk" && i > 0 ? `the stream ended after ${i} chunks with no FIN: INCOMPLETE` : "the stream ended before any chunk: INCOMPLETE");
 }
-function httpRequest(method, path4, body2 = null, headers = {}) {
-  if (!/^\/[\x21-\x7e]*$/.test(path4)) throw new Error("path must be an origin-form path");
+function httpRequest(method, path5, body2 = null, headers = {}) {
+  if (!/^\/[\x21-\x7e]*$/.test(path5)) throw new Error("path must be an origin-form path");
   const x = body2 == null ? null : typeof body2 === "string" ? te3.encode(body2) : body2;
-  let h = `${method} ${path4} HTTP/1.1\r
+  let h = `${method} ${path5} HTTP/1.1\r
 host: pvm-app\r
 connection: close\r
 `;
@@ -2859,7 +3000,7 @@ async function post(url, body2, type) {
   if (!r.ok) throw new Error(`the carrier answered ${r.status}`);
   return new Uint8Array(await r.arrayBuffer());
 }
-async function fetchVerified({ relay, pins, method = "GET", path: path4 = "/", body: body2 = null, label = "ok", now, gate }) {
+async function fetchVerified({ relay, pins, method = "GET", path: path5 = "/", body: body2 = null, label = "ok", now, gate }) {
   const t0 = performance.now();
   const nonce = crypto.getRandomValues(new Uint8Array(32));
   const out2 = (o2) => ({ label, ...o2 });
@@ -2881,7 +3022,7 @@ async function fetchVerified({ relay, pins, method = "GET", path: path4 = "/", b
     if (why) return out2({ step: "gate", refused: why, sent: false, verifyMs });
   }
   const verified = { format: env.format, app: v.appId, runtime: v.runtimeId, codeHash: v.measurement, key: v.transportSpki.slice(-16), appKey: v.appKey.slice(0, 16), nonce: toHex(nonce).slice(0, 16) };
-  const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest(method, path4, body2) });
+  const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest(method, path5, body2) });
   let answer;
   try {
     answer = await post(`${relay}/sealed`, frame, "application/octet-stream");
@@ -2898,7 +3039,7 @@ async function fetchVerified({ relay, pins, method = "GET", path: path4 = "/", b
     return out2({ step: "sealed", refused: `the opened answer is not HTTP: ${e.message}`, sent: true, verified, verifyMs, ms });
   }
 }
-async function fetchVerifiedStream({ relay, pins, path: path4 = "/", label = "ok", onLine = () => {
+async function fetchVerifiedStream({ relay, pins, path: path5 = "/", label = "ok", onLine = () => {
 }, cancelAfter = 0, trace = false, now, gate }) {
   const t0 = performance.now();
   const nonce = crypto.getRandomValues(new Uint8Array(32));
@@ -2919,7 +3060,7 @@ async function fetchVerifiedStream({ relay, pins, path: path4 = "/", label = "ok
     if (why) return out2({ step: "gate", refused: why, sent: false, verifyMs });
   }
   const verified = { format: env.format, app: v.appId, runtime: v.runtimeId, codeHash: v.measurement, key: v.transportSpki.slice(-16), appKey: v.appKey.slice(0, 16), nonce: toHex(nonce).slice(0, 16) };
-  const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest("GET", path4), chunked: true });
+  const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest("GET", path5), chunked: true });
   const traceCtx = trace ? { enc: toHex(ctx.enc), exported: toHex(ctx.secret), nonce: toHex(nonce) } : void 0;
   const ac = new AbortController();
   const lines = [], arrivals = [];
@@ -2992,7 +3133,7 @@ async function acceptPolicy(store, policyEnv, { now = Date.now(), clientVersion 
   if (!r.ok) return { ok: false, reason: r.reason };
   return { ok: true, policy: accepted.policy, pins: accepted.pins, gen: r.gen, serial: r.state.serial };
 }
-async function connect({ relay, policyEnv, store, appId, path: path4 = "/", stream = true, cancelAfter = 0, onLine = () => {
+async function connect({ relay, policyEnv, store, appId, path: path5 = "/", stream = true, cancelAfter = 0, onLine = () => {
 }, onCommitted = () => {
 }, usedNonces = /* @__PURE__ */ new Set(), now, label = "client" }) {
   const pol = await acceptPolicy(store, policyEnv, { now: now ?? Date.now() });
@@ -3023,7 +3164,7 @@ async function connect({ relay, policyEnv, store, appId, path: path4 = "/", stre
     usedNonces.add(nonceHex);
     return null;
   };
-  const args = { relay, pins, path: path4, label, gate, ...now ? { now } : {} };
+  const args = { relay, pins, path: path5, label, gate, ...now ? { now } : {} };
   const result = stream ? await fetchVerifiedStream({ ...args, onLine, cancelAfter }) : await fetchVerified(args);
   return { result: { ...result, policySerial: p.serial, stateGen: pol.gen, clientVersion: CLIENT_VERSION } };
 }
@@ -3042,20 +3183,24 @@ async function fetchBytes(src) {
     if (!r.ok) throw new Error(`${src}: ${r.status}`);
     return new Uint8Array(await r.arrayBuffer());
   }
-  return new Uint8Array(fs3.readFileSync(src));
+  return new Uint8Array(fs4.readFileSync(src));
 }
 var fetchJson = async (src) => JSON.parse(new TextDecoder().decode(await fetchBytes(src)));
+var fromFile = !!process.argv[1] && process.argv[1] !== "-";
+var installDir = () => arg("--install-dir") || (fromFile ? path4.dirname(process.argv[1]) : null);
+var NO_DIR = "--install-dir is required: this client was not started from a file";
+var marker = !fromFile && process.env[DELEGATED] ? process.env[DELEGATED].split(":")[0] : null;
 function openStore() {
-  const given = arg("--state", path3.join(process.env.XDG_CONFIG_HOME || path3.join(os.homedir(), ".config"), "enclave-pvm-client", "state.d"));
+  const given = arg("--state", path4.join(process.env.XDG_CONFIG_HOME || path4.join(os2.homedir(), ".config"), "enclave-pvm-client", "state.d"));
   let st = null;
   try {
-    st = fs3.statSync(given);
+    st = fs4.statSync(given);
   } catch {
   }
   if (st && st.isFile()) {
     const store = new FileStore(given + ".d");
     if (!store.latest()) {
-      const legacy = JSON.parse(fs3.readFileSync(given, "utf8"));
+      const legacy = JSON.parse(fs4.readFileSync(given, "utf8"));
       const r = store.init(legacy);
       out({ imported: given, into: store.dir, ok: r.ok || void 0 });
     }
@@ -3064,21 +3209,34 @@ function openStore() {
   return new FileStore(given);
 }
 async function main() {
+  if (marker !== null && marker !== CLIENT_VERSION) return out({ error: `delegated as ${marker}, but this client is ${CLIENT_VERSION}: refusing` }), 2;
+  if (marker !== null && cmd !== "run") return out({ error: `a delegated client runs only \`run\`, not ${JSON.stringify(cmd)}` }), 2;
   if (cmd === "version") return out({ client: "enclave-pvm-client", version: CLIENT_VERSION, lab: "NOT PRODUCTION" }), 0;
   const store = openStore();
   if (cmd === "install") {
     const s = initialState({ policyKeyFp: arg("--policy-key-fp"), serialFloor: Number(arg("--serial-floor")), releaseKeyFp: arg("--release-key-fp") });
-    const r = store.init({ ...s, staged: null });
+    const r = store.init({ ...s, staged: null, active: null });
     if (!r.ok) return out({ refused: r.reason }), 2;
     return out({ installed: store.dir, anchor: { policyKeyFp: s.policyFp, serialFloor: s.serial, releaseKeyFp: s.releaseFp } }), 0;
   }
-  if (!store.latest()) return out({ refused: `no client installed at ${store.dir} (run install with the anchors you were given out of band)` }), 2;
+  const cur = store.latest();
+  if (!cur) return out({ refused: `no client installed at ${store.dir} (run install with the anchors you were given out of band)` }), 2;
+  const active = cur.state.active || null;
   if (cmd === "run") {
+    if (marker === null && active && semverCmp(active.version, CLIENT_VERSION) > 0) {
+      const dir = installDir();
+      if (!dir) return out({ result: { step: "launch", refused: NO_DIR, sent: false } }), 2;
+      const r2 = await launchActive(active, { dir, stateDir: store.dir, args: argv.slice(1) });
+      if (r2.refused) return out({ result: r2.refused }), 2;
+      if (r2.error) return out({ error: r2.error }), 2;
+      if (r2.sig) return out({ error: `the active client ${active.version} ended by signal ${r2.sig}` }), 2;
+      return r2.code;
+    }
     let policyEnv;
     try {
       policyEnv = await fetchJson(arg("--policy"));
     } catch (e) {
-      return out({ result: { step: "policy", refused: `no policy: ${e.message}`, sent: false } }), 1;
+      return out({ result: { step: "policy", refused: `no policy: ${e.message}`, sent: false, clientVersion: CLIENT_VERSION } }), 1;
     }
     const r = await connect({
       relay: arg("--relay"),
@@ -3092,10 +3250,12 @@ async function main() {
       onLine: (line) => out({ line }),
       onCommitted: (c) => out({ committed: c })
     });
-    out({ result: { ...r.result, lines: void 0 } });
+    out({ result: { ...r.result, lines: void 0, clientVersion: CLIENT_VERSION } });
     return r.result.complete === true || r.result.status === 200 && r.result.mode !== "stream" ? 0 : 1;
   }
   if (cmd === "update") {
+    const dir = installDir();
+    if (!dir) return out({ update: { ok: false, reasons: [NO_DIR] } }), 2;
     let env, bytes;
     try {
       env = await fetchJson(arg("--manifest"));
@@ -3103,26 +3263,36 @@ async function main() {
     } catch (e) {
       return out({ update: { ok: false, reasons: [`not delivered: ${e.message}`] } }), 1;
     }
-    const r = await stageUpdate(store, env, bytes, { dir: arg("--install-dir", path3.dirname(process.argv[1])) });
+    const r = await stageUpdate(store, env, bytes, { dir });
     if (!r.ok) return out({ update: { ok: false, reasons: [r.reason] } }), 1;
     return out({ update: { ok: true, version: r.version, staged: r.file, gen: r.gen, ...r.already ? { already: true } : {} } }), 0;
   }
+  if (cmd === "activate") {
+    const dir = installDir();
+    if (!dir) return out({ activate: { ok: false, step: "file", reasons: [NO_DIR] } }), 2;
+    const r = await activateStaged(store, { dir });
+    return out({ activate: r }), r.ok ? 0 : 1;
+  }
   if (cmd === "state") {
-    const l = store.latest();
-    return out({ state: l.state, gen: l.gen, dir: store.dir }), 0;
+    return out({ state: cur.state, gen: cur.gen, dir: store.dir }), 0;
   }
   if (cmd === "staged") {
-    const s = store.latest().state.staged;
-    if (!s) return out({ staged: null }), 0;
-    const f = path3.join(arg("--install-dir", path3.dirname(process.argv[1])), s.file);
-    let ok = false;
-    try {
-      ok = createHash2("sha256").update(fs3.readFileSync(f)).digest("hex") === s.sha256;
-    } catch {
-    }
-    return out({ staged: { ...s, path: f, bytesMatch: ok } }), ok ? 0 : 1;
+    const dir = installDir();
+    if (!dir) return out({ refused: NO_DIR }), 2;
+    const check = (rec) => {
+      if (!rec) return null;
+      const f = path4.join(dir, rec.file);
+      let ok = false;
+      try {
+        ok = createHash3("sha256").update(fs4.readFileSync(f)).digest("hex") === rec.sha256;
+      } catch {
+      }
+      return { ...rec, path: f, bytesMatch: ok };
+    };
+    const s = check(cur.state.staged || null), a = check(active);
+    return out({ staged: s, active: a }), s && !s.bytesMatch || a && !a.bytesMatch ? 1 : 0;
   }
-  out({ refused: `unknown command ${JSON.stringify(cmd)}: install | run | update | staged | state | version` });
+  out({ refused: `unknown command ${JSON.stringify(cmd)}: install | run | update | activate | staged | state | version` });
   return 2;
 }
 main().then((rc) => process.exit(rc), (e) => {

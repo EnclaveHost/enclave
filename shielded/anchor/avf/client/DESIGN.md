@@ -93,9 +93,8 @@ The manifest travels as `{ manifest: base64(exact bytes), releaseSig, policySig 
 - **Order.** The version must be strictly newer: a downgrade or a replay is refused. The manifest also expires.
 - **Staging.** The CLI publishes the verified bytes **beside itself**, for the next start, and records them in its state
   (see State). The running process never imports what it fetched.
-- **A start with a staged update.** It must run the staged file only when `pvm-client staged` reports `bytesMatch:
-  true`. Otherwise it stays on the running version and says so: missing or changed bytes are never run. The lab has no
-  launcher; this is the rule a launcher must keep.
+- **Running an update.** Staging never runs anything. A staged update runs only after an explicit `pvm-client activate`
+  (see Activation); nothing activates by itself, and a network delivery never does.
 - **Rotation.** The release key rotates only by a signed `nextReleaseKey`.
 - **Production.** Toward production, the manifest becomes a **Sigstore bundle** under the release workflow's GitHub
   identity, which the verifier session's provenance module already verifies against a repo/workflow/tag policy. This
@@ -152,6 +151,54 @@ the floor back (reproduced on its shipped bytes by the tests below).
     same bytes.
   - `pvm-client staged` reports the staged update and whether its bytes still match.
 
+## Activation (`src/activate.js`; CLI only; since 0.3.0)
+
+Agreed with the verifier session before it was built (its five fail-closed rules are marked [v]).
+- **Roles.** The installed artifact, given out of band, is the LAUNCHER and the only root of code trust. It runs install,
+  state, staged, update, activate and version itself. Only `run` executes a newer active version.
+  - The code that verifies code is always the code installed out of band.
+  - A broken active file can never lock out repair.
+  - The price: the update and activation logic stays the installed version's until an out-of-band reinstall.
+- **State.** `active = {version, sha256, size, file, sourceCommit}`, null at install.
+  - It only grows, and active <= staged.
+  - Every writer spreads the newest state, so no commit drops it.
+  - There is no rollback command. Other code means staging and activating something newer, or reinstalling.
+- **Exact bytes.** An artifact is read ONCE into memory and held to its record: sha256, size, and its own version line.
+  Those very bytes go to `node --input-type=module -` over a pipe only the launcher writes. No path is opened twice, so a
+  file swapped after the read cannot change what runs.
+- **`activate`**, explicit only:
+  - The staged record must be newer than max(active, the launcher). If it is already the active record, the command is
+    idempotent.
+  - The staged bytes are read once and verified.
+  - START CHECK [v]: those bytes, from memory, answer `version` in a scrubbed environment:
+    - NODE_OPTIONS removed;
+    - HOME, XDG_CONFIG_HOME and the cwd set to a fresh scratch directory, removed afterwards;
+    - no --state; a 30 s limit.
+    They must exit 0 with exactly one line naming their recorded version.
+  - Then the store's compare-and-swap records `active`, only if on the NEWEST state the staged record is still exactly
+    the one verified and nothing newer is active. A concurrent policy commit or key rotation survives.
+  - A refusal names its step [v]: `nothing newer`, `file` (with expected and found), `start check`,
+    `changed while activating` or `commit`. It records nothing: a failed start check is an event, not a floor.
+- **`run` under a newer active version.**
+  - The active bytes are read once, verified and handed over with the user's args. The launcher replaces --state and
+    --install-dir with the resolved ones [v]: a child fed over stdin has no path of its own.
+  - The child also gets ENCLAVE_PVM_CLIENT_DELEGATED=<version>:<sha256> with NODE_OPTIONS removed.
+  - ONE HOP [v]: a client started over stdin whose marker names its own version runs `run` itself, whatever the state
+    says by then. It refuses any other command, and refuses a marker naming another version. A marker on a client
+    started from a file is ignored, so an environment variable cannot make the launcher skip delegation.
+  - The child's exit code is relayed as it is. A signal death is `{"error": "... ended by signal S"}`, exit 2, with no
+    claim about what was sent.
+  - The launcher never runs anything after the child ended.
+- **Fail closed.** A missing or changed active file means `run` is refused at step `launch`, exit 2, with
+  `{expected, found}` [v]. Nothing runs: there is NO fallback to the launcher's own older `run`, because a forced
+  downgrade is worse than a denial.
+  - `staged` reports both records with `bytesMatch` and exits 1 on a mismatch.
+  - Repair: remove a wrong file, then `update` with the same artifact, which is idempotent and re-publishes it.
+- **Crashes.** A crash before the activation commit activates nothing, and a retry works. A crash after it leaves the new
+  version active. Nothing moves backward: not the serial, the keys, staged or active.
+- **Scope.** The extension stages policies, not code. Its code updates are the browser's, through the store, which is not
+  published here.
+
 ## Tests
 
 - test/pvm-client-trust.test.mjs. Every case below is refused, with nothing adopted:
@@ -199,16 +246,36 @@ the floor back (reproduced on its shipped bytes by the tests below).
   - 0.2.0 commits before the evidence request and refuses it.
   - Two tabs with an older and a newer policy, in both orders: the floor ends at the newer, including after a kill.
   - Two tabs with the same serial but different bytes: equivocation. The identical policy in two tabs is one commit.
+- test/pvm-client-activation.test.mjs: the BUILT CLI in child processes. It uses harmless lab canaries that report each
+  execution (token, argv, import.meta.url, cwd, environment, one-hop marker) to a file in the test's own directory, and
+  real "next" builds of the client.
+  - Activation, its scrubbed start check, idempotence, and `run` executing exactly the active bytes, one hop, with the
+    resolved directories.
+  - Exit 7 and a SIGKILL relayed, never retried.
+  - A swap between verification and execution, by rename-over and in place, cannot change what runs. The naive "hash the
+    path, then run the path" launcher, under the same barrier, runs the swap.
+  - A swap loop of 24 launches, as evidence rather than proof: each runs the verified bytes or is refused, never the swap.
+  - A missing or tampered active file: refused, no fallback, diagnosed, repaired.
+  - Activation refusals: nothing staged, a tampered staged file never executed, three failing start checks.
+  - Processes: two activators; activation racing a newer staging, both orders; activation racing a policy-key rotation,
+    both orders; kills before the commit.
+  - The real client activated and run end to end against the fake VM, one hop across a concurrent activation, and
+    markers planted and mismatched.
 - Device: results/pvm-cpu-client-artifact (the CLI and the extension on the Pixel 10).
 
 ## What this does not solve
 
-- **The first install.** The user must get the artifact hash and the anchors out of band, once. Nothing here can
-  bootstrap trust from zero.
+- **The first install and the root of code trust.** The user must get the artifact (its hash) and the anchors out of
+  band, once. Nothing here can bootstrap trust from zero. The installed artifact is the launcher: its own bytes, and
+  the node binary that runs it, are trusted as installed. Changing the launcher, or the update and activation logic,
+  means reinstalling out of band.
 - **The host.** A compromised machine or browser can subvert any installed client.
-- **The extension store.** The store is trusted to deliver the bytes it is given (bounded by `minClientVersion`).
+- **The extension store.** The store is trusted to deliver the bytes it is given (bounded by `minClientVersion`). The
+  extension stages policies but cannot activate code. Nothing is published to a store.
 - **Production keys and provenance.** Custody of the production keys and the Sigstore provenance is the owner's.
 - **Traffic analysis and denial of service** by the relay, as in SEALED-STREAMING.md.
 - **Restoring the state from a backup** (a disk or profile snapshot) restores its older floor. Whoever can do that
-  controls the host. The tests kill the client or the browser, not the machine: durability across power loss rests on
-  fsync (CLI) and on Chrome's storage backend (extension), and has not been tested.
+  controls the host. The tests kill the client, the launcher or the browser, not the machine: durability across
+  whole-machine power loss rests on fsync (CLI) and on Chrome's storage backend (extension), and has not been tested.
+- **Production code delivery.** Updates are signed with lab keys. There is no unattended activation, no production
+  release key, and no Sigstore provenance.
