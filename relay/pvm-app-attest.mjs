@@ -287,3 +287,70 @@ export function abi2FromLog(text) {
   const chain = [...certs.keys()].sort((a, b) => a - b).map((i) => Buffer.from(certs.get(i).join(""), "hex"));
   return { chain, identity, selftest, binding, instance };
 }
+
+// ---- the lease proof key's attested statement (shielded/anchor/avf/PROOF-KEY.md; agreed with the verifier session and
+// the Linux isolation owner): a platform-neutral "enclave-proof-key/v1" document whose pVM form carries a v3 envelope. The
+// attested TRANSPORT key signs the proof key's address together with the exact domain and lease fields it will sign
+// checkpoints for; the envelope is verified by verifyPvmAppEvidence above -- the only evidence parser -- and the InstanceID
+// and AppID are taken from THAT verification, never from a field. ----
+export const PROOF_KEY_FORMAT = "enclave-proof-key/v1";
+export const PROOF_KEY_DOMAIN = "enclave-proof-key-v1\n";
+export const INSTANCE_TYPES = { "pvm-instance-id": 1, "snp-host-data": 2 };
+// the attested transport key's algorithm, typed and signed (the SNP tier's front key is ECDSA P-256; the pVM's is Ed25519)
+export const SIG_ALGS = { ed25519: 1, "ecdsa-p256-sha256": 2 };
+const PK_KEYS = ["chainId", "deployment", "enclaveId", "evidence", "format", "instance", "operator", "proofKey", "proofOfTime", "registry", "sig", "sigAlg"];
+const ADDR = /^0x[0-9a-f]{40}$/, B32 = /^0x[0-9a-f]{64}$/;
+/** A canonical u64 decimal in 1..2^64-1 -> BigInt, else null (no sign, no leading zero, digits only). */
+export function canonicalChainId(s) {
+  if (typeof s !== "string" || !/^(0|[1-9][0-9]{0,19})$/.test(s)) return null;
+  const v = BigInt(s);
+  return v >= 1n && v < 1n << 64n ? v : null;
+}
+/** The exact bytes the transport key signs. Every argument is already canonical (hex without 0x where raw). */
+export function proofKeyMessage({ nonce, appId, instanceType, instanceValue, sigAlg, proofKey, chainId, proofOfTime, registry, deployment, enclaveId, operator }) {
+  const u64 = Buffer.alloc(8); u64.writeBigUInt64BE(BigInt(chainId));
+  const h = (x) => Buffer.from(String(x).replace(/^0x/, ""), "hex");
+  return Buffer.concat([Buffer.from(PROOF_KEY_DOMAIN), h(nonce), h(appId), Buffer.from([instanceType]), h(instanceValue), Buffer.from([sigAlg]), h(proofKey), u64,
+                        h(proofOfTime), h(registry), h(deployment), h(enclaveId), h(operator)]);
+}
+/**
+ * verifyPvmProofKey(doc, expect) -> { ok, reasons, claims }
+ *   expect: the verifyPvmAppEvidence expectations (nonce, appId, pins, instanceIds for a bound deployment) PLUS
+ *           deployment (REQUIRED: the client's selected deployment, 0x + 64 lowercase hex).
+ *   claims: { proofKey, chainId, proofOfTime, registry, deployment, enclaveId, operator, instanceId, appId } -- the caller
+ *           compares chainId/proofOfTime/registry with its address book, operator/enclaveId with the ledger row, and
+ *           proofKey with EnclaveRegistry.get(enclaveId).proofKey, and releases nothing on a mismatch.
+ */
+export function verifyPvmProofKey(doc, expect = {}) {
+  const no = (m, reasons = []) => ({ ok: false, reasons: [...reasons, m], claims: null });
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) return no("the proof-key statement is not an object");
+  if (Object.keys(doc).sort().join() !== PK_KEYS.join()) return no(`the proof-key statement's fields must be exactly ${PK_KEYS.join(",")}`);
+  if (doc.format !== PROOF_KEY_FORMAT) return no(`the statement's format is not ${PROOF_KEY_FORMAT}`);
+  if (typeof expect.deployment !== "string" || !B32.test(expect.deployment)) return no("no expected deployment (0x + 64 lowercase hex): refusing (fail closed)");
+  const i = doc.instance;
+  if (!i || typeof i !== "object" || Array.isArray(i) || Object.keys(i).sort().join() !== "type,value") return no("the statement's instance must be exactly { type, value }");
+  if (i.type !== "pvm-instance-id") return no(`instance type ${JSON.stringify(i.type)} is not pvm-instance-id: this verifier reads pVM statements only`);
+  if (typeof i.value !== "string" || !/^[0-9a-f]{64}$/.test(i.value)) return no("the instance value is not 64 lowercase hex");
+  if (doc.sigAlg !== "ed25519") return no(`sigAlg ${JSON.stringify(doc.sigAlg)} is not ed25519: a pVM statement is signed by the Ed25519 transport key`);
+  for (const k of ["proofKey", "proofOfTime", "registry", "operator"]) if (typeof doc[k] !== "string" || !ADDR.test(doc[k])) return no(`${k} is not 0x + 40 lowercase hex`);
+  for (const k of ["deployment", "enclaveId"]) if (typeof doc[k] !== "string" || !B32.test(doc[k])) return no(`${k} is not 0x + 64 lowercase hex`);
+  if (/^0x0{40}$/.test(doc.proofKey)) return no("the proof key is the zero address");
+  const chainId = canonicalChainId(doc.chainId);
+  if (chainId === null) return no("chainId is not a canonical decimal in 1..2^64-1");
+  if (typeof doc.sig !== "string" || !/^[0-9a-f]{128}$/.test(doc.sig)) return no("the statement's sig is not 128 lowercase hex");
+  if (doc.deployment !== expect.deployment) return no(`the statement is for deployment ${doc.deployment.slice(0, 18)}…, not the selected ${expect.deployment.slice(0, 18)}…`);
+  const { deployment: _d, ...evExpect } = expect;
+  const v = verifyPvmAppEvidence(doc.evidence, evExpect);
+  if (!v.ok) return no(`the statement's evidence: ${v.reasons.at(-1)}`, v.reasons.slice(0, -1));
+  if (!v.instanceId) return no("the statement's evidence names no instance (v3 required)", v.reasons);
+  if (i.value !== v.instanceId) return no("the statement's instance is not the one its evidence proves", v.reasons);
+  const msg = proofKeyMessage({ nonce: hex32(expect.nonce, "nonce").toString("hex"), appId: v.appId, instanceType: INSTANCE_TYPES["pvm-instance-id"],
+    instanceValue: v.instanceId, sigAlg: SIG_ALGS.ed25519, proofKey: doc.proofKey, chainId, proofOfTime: doc.proofOfTime, registry: doc.registry, deployment: doc.deployment,
+    enclaveId: doc.enclaveId, operator: doc.operator });
+  let ok = false;
+  try { ok = cryptoVerify(null, msg, createPublicKey({ key: Buffer.from(v.transportSpki, "hex"), format: "der", type: "spki" }), Buffer.from(doc.sig, "hex")); } catch { ok = false; }
+  if (!ok) return no("the statement is not signed by the attested transport key over these fields", v.reasons);
+  return { ok: true, reasons: [...v.reasons, `the attested transport key vouches for proof key ${doc.proofKey} on chain ${chainId}, deployment ${doc.deployment.slice(0, 18)}…`],
+           claims: { proofKey: doc.proofKey, chainId: chainId.toString(), proofOfTime: doc.proofOfTime, registry: doc.registry, deployment: doc.deployment,
+                     enclaveId: doc.enclaveId, operator: doc.operator, instanceId: v.instanceId, appId: v.appId } };
+}

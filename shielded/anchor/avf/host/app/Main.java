@@ -131,6 +131,8 @@ public class Main extends Activity {
         int appTls = 0;                      // --ei app_tls 1: LAB serving prototype: APP serve=https (TLS in the VM), reached only through the relay
         int appServeS = 240;                 // --ei app_serve_s N: LAB: STOP the served app after N seconds
         String appAnnounced = "";            // the APP line's digest (the app's identity), for the ABI/2 evidence frame
+        String proofPins = "";               // --es proof_pins "<chainId> <proofOfTime> <registry> <deployment> <enclaveId> <operator>": the lease
+                                             // proof key's pins (PROOF-KEY.md), handed to the VM once; the VM parses them strictly
         /* the whole model runs in the VM's CPU engine: mode local, or an app over the model (PVM-CPU.md, milestone 3) */
         boolean localEngine() { return mode.equals("local") || (mode.equals("app") && !appGraph.isEmpty()); }
         String deviceProfile = "";           // mode local: what DeviceProfile read (capacities, RAM) and chose from it
@@ -218,6 +220,8 @@ public class Main extends Activity {
             if (i.getStringExtra("app_graph") != null) p.appGraph = i.getStringExtra("app_graph");
             if (i.getStringExtra("app_http") != null) p.appHttp = i.getStringExtra("app_http");
             p.appTls = i.getIntExtra("app_tls", 0); p.appServeS = i.getIntExtra("app_serve_s", p.appServeS);
+            if (i.getStringExtra("proof_pins") != null) p.proofPins = i.getStringExtra("proof_pins").trim();
+            if (!p.proofPins.matches("[0-9a-fx ]*")) p.configError = "proof_pins must be the six pins, lowercase, space-separated";
             if (p.mode.equals("app") && p.configError.isEmpty()) {
                 if (p.app.isEmpty() || !new java.io.File(p.app).isFile()) p.configError = "mode app needs --es app <component file>";
                 else if (!p.appSha.isEmpty() && !p.appSha.matches("[0-9a-f]{64}")) p.configError = "app_sha256 must be 64 lowercase hex";
@@ -694,6 +698,7 @@ public class Main extends Activity {
                     try { final String an = relay.abi2Nonce.get(20, java.util.concurrent.TimeUnit.SECONDS); cmd.append("APPNONCE ").append(an).append('\n'); say("APP evidence will bind the relay's nonce " + an.substring(0, 16) + "…"); }
                     catch (Exception e) { say("RELAY issued no ABI/2 nonce within 20 s: the app's evidence will not verify there (" + e + ")"); }
                 }
+                if (!plan.proofPins.isEmpty()) { cmd.append("PROOFPINS ").append(plan.proofPins).append('\n'); say("APP proof pins handed to the VM (it signs checkpoints for these only)"); }
                 cmd.append("APP bytes=").append(abytes).append(" sha256=").append(asha).append(aargs).append(plan.appGraph.isEmpty() ? "" : " graph=" + plan.appGraph)
                    .append(plan.appTls == 1 ? " serve=https" : plan.appHttp.isEmpty() ? "" : " serve=http").append('\n');
                 new Thread(() -> streamPublicFile(vm, APP_PORT, plan.app, "app bundle"), "vsock-app").start();

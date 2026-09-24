@@ -94,6 +94,25 @@ static unsigned char g_tpk[32], g_tsk[64];
  * addition, declared here because wasm/ggml-shielded/tweetnacl.h (same include guard) is the header in effect. */
 static unsigned char g_ipk[32], g_isk[64]; static int g_inst = 0;
 extern int crypto_sign_ed25519_tweet_seed_keypair(unsigned char *pk, unsigned char *sk, const unsigned char *seed);
+/* The lease proof key (PROOF-KEY.md): its seed is AVmPayload_getVmInstanceSecret("enclave-pvm-proof-key-v1") -- instance-bound
+ * like the instance key -- and pvm-rt (src/proof.rs) turns it into the secp256k1 key and signs ONLY EnclaveProofOfTime
+ * checkpoints built from typed fields. PROOFPINS (the owner's control channel, once per boot) fixes what it signs for. */
+typedef struct { int set; uint64_t chain_id; uint8_t pot[20], registry[20], deployment[32], enclave_id[32], operator_[20]; } proof_pins;
+static proof_pins g_pp;
+static uint8_t g_proof_seed[32]; static int g_proof_seed_set = 0;
+static size_t unhex(const char *hex, uint8_t *out, size_t cap);   /* defined below */
+/* strict forms: a canonical u64 decimal (no sign, no leading zero), and 0x + exactly 2*len lowercase hex */
+static int parse_u64_dec(const char *t, uint64_t *out) {
+    const size_t n = strlen(t); uint64_t v = 0;
+    if (!n || n > 20 || (n > 1 && t[0] == '0')) return 0;
+    for (size_t i = 0; i < n; i++) { if (t[i] < '0' || t[i] > '9') return 0; const uint64_t d = (uint64_t)(t[i] - '0'); if (v > (UINT64_MAX - d) / 10) return 0; v = v * 10 + d; }
+    *out = v; return 1;
+}
+static int parse_0x(const char *t, uint8_t *out, size_t len) {
+    if (strlen(t) != 2 + 2 * len || t[0] != '0' || t[1] != 'x') return 0;
+    for (size_t i = 2; t[i]; i++) if (!((t[i] >= '0' && t[i] <= '9') || (t[i] >= 'a' && t[i] <= 'f'))) return 0;
+    unhex(t + 2, out, len); return 1;
+}
 #endif
 #ifdef ANCHOR_TIER_PVM_CPU
 /* pVM CPU capability report (PVM-CPU.md, relay/pvm-cpu-tier.mjs): the nonce it answers and the VM clock at the attestation.
@@ -1318,16 +1337,56 @@ static size_t b64_encode(const uint8_t *in, size_t n, char *out) {
  * process for sealed requests) and appKeySig, the transport key's Ed25519 signature over "enclave-pvm-app-key-v1\n" ||
  * nonce || app || appKey; the answered nonce then admits sealed requests (pvm-rt sealed.rs: its window and budget). */
 typedef int (*pvmrt_http_sealed_nonce_fn)(const void *, const uint8_t *);
+typedef int (*pvmrt_pot_address_fn)(const uint8_t *, uint8_t *);
+typedef int (*pvmrt_pot_sign_fn)(const uint8_t *, uint64_t, const uint8_t *, const uint8_t *, const uint8_t *, const uint8_t *, uint64_t, uint64_t,
+                                 const uint8_t *, uint8_t *, uint8_t *);
 typedef struct { int ls; volatile int stop; const char *identity; uint8_t app[32]; int answered;
-                 int sealed; uint8_t app_key[32]; const void *srv; pvmrt_http_sealed_nonce_fn admit; } evidence_srv;
+                 int sealed; uint8_t app_key[32]; const void *srv; pvmrt_http_sealed_nonce_fn admit;
+                 /* the lease proof key (PROOF-KEY.md): on only with pins, a seed and pvm-rt's signer; serving: the app loop runs */
+                 int proof_on; volatile int serving; uint8_t proof_addr[20]; pvmrt_pot_sign_fn pot_sign;
+                 uint64_t last_upto, last_anchor, last_cp_ms; } evidence_srv;
+/* CHECKPOINT <upto> <anchorBlock> <anchorHash>: one EnclaveProofOfTime signature under the VM's policy, refusing in this order
+ * (the host tests' fake VM is held to the same): the request's form, the pins, the app serving, a strictly increasing upto, a
+ * non-decreasing anchor, one per 60 s. The digest is built in pvm-rt from THESE pins and the three values -- no other path
+ * signs anything with the proof key. */
+static void checkpoint_answer(evidence_srv *e, int c, const char *line) {
+#define CP_REFUSE(msg) do { const char *m_ = "{\"error\":\"" msg "\"}\n"; write_all(c, m_, strlen(m_)); OUT("CHECKPOINT refused: %s", msg); return; } while (0)
+    char buf[128], *sv = NULL; const char *tk[5]; int nt = 0; uint64_t upto = 0, anchor = 0; uint8_t ah[32];
+    snprintf(buf, sizeof buf, "%s", line);
+    for (char *t = strtok_r(buf, " ", &sv); t && nt < 5; t = strtok_r(NULL, " ", &sv)) tk[nt++] = t;
+    size_t hl = 0; if (nt == 4) while (tk[3][hl] && ((tk[3][hl] >= '0' && tk[3][hl] <= '9') || (tk[3][hl] >= 'a' && tk[3][hl] <= 'f'))) hl++;
+    if (nt != 4 || strcmp(tk[0], "CHECKPOINT") || !parse_u64_dec(tk[1], &upto) || !parse_u64_dec(tk[2], &anchor) || hl != 64 || tk[3][64])
+        CP_REFUSE("request is CHECKPOINT <upto> <anchorBlock> <64 lowercase hex>");
+    unhex(tk[3], ah, 32);
+    if (!e->proof_on) CP_REFUSE("no proof pins: this VM signs no checkpoint");
+    if (!e->serving) CP_REFUSE("the app is not serving: no checkpoint");
+    if (upto <= e->last_upto) CP_REFUSE("upto must strictly increase");
+    if (anchor < e->last_anchor) CP_REFUSE("anchorBlock must not decrease");
+    const uint64_t now = boot_ms();
+    if (e->last_cp_ms && now - e->last_cp_ms < 60000) CP_REFUSE("at most one checkpoint every 60 s");
+    uint8_t sig[65], dig[32];
+    if (e->pot_sign(g_proof_seed, g_pp.chain_id, g_pp.pot, g_pp.deployment, g_pp.enclave_id, g_pp.operator_, upto, anchor, ah, sig, dig) != 0) CP_REFUSE("signing failed");
+    e->last_upto = upto; e->last_anchor = anchor; e->last_cp_ms = now;
+    char po[41], rg[41], dp[65], en[65], op[41], hh[65], sg[131], dg[65]; char js[1024];
+    sh_pads_bin2hex(g_pp.pot, 20, po); sh_pads_bin2hex(g_pp.registry, 20, rg); sh_pads_bin2hex(g_pp.deployment, 32, dp); sh_pads_bin2hex(g_pp.enclave_id, 32, en);
+    sh_pads_bin2hex(g_pp.operator_, 20, op); sh_pads_bin2hex(ah, 32, hh); sh_pads_bin2hex(sig, 65, sg); sh_pads_bin2hex(dig, 32, dg);
+    const int n = snprintf(js, sizeof js, "{\"format\":\"enclave-pvm-checkpoint/v1\",\"chainId\":\"%llu\",\"proofOfTime\":\"0x%s\",\"registry\":\"0x%s\",\"deployment\":\"0x%s\",\"enclaveId\":\"0x%s\",\"operator\":\"0x%s\",\"upto\":\"%llu\",\"anchorBlock\":\"%llu\",\"anchorHash\":\"0x%s\",\"sig\":\"0x%s\"}\n",
+                         (unsigned long long)g_pp.chain_id, po, rg, dp, en, op, (unsigned long long)upto, (unsigned long long)anchor, hh, sg);
+    if (n > 0 && (size_t)n < sizeof js) { write_all(c, js, (size_t)n); OUT("CHECKPOINT signed upto=%llu anchorBlock=%llu digest=%.16s...", (unsigned long long)upto, (unsigned long long)anchor, dg); }
+#undef CP_REFUSE
+}
 static void evidence_answer(evidence_srv *e, int c) {
     struct timeval tv = { 5, 0 }; setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
     char line[128]; size_t n = 0;
     while (n + 1 < sizeof line) { char ch; ssize_t r = read(c, &ch, 1); if (r <= 0) break; if (ch == '\n') break; line[n++] = ch; }
     line[n] = 0;
-    const int v3 = strncmp(line, "EVIDENCE3 ", 10) == 0;   /* v3: bound to this VM instance (INSTANCE-BINDING.md) */
-    const char *h = line + (v3 ? 10 : 9); size_t hl = 0;
-    if (v3 || strncmp(line, "EVIDENCE ", 9) == 0) while (hl < 64 && ((h[hl] >= '0' && h[hl] <= '9') || (h[hl] >= 'a' && h[hl] <= 'f'))) hl++;
+    if (!strncmp(line, "CHECKPOINT", 10)) { checkpoint_answer(e, c, line); return; }
+    /* PROOFKEY <nonce>: the v3 envelope for that nonce, wrapped in the attested proof-key statement (PROOF-KEY.md) */
+    const int pk = strncmp(line, "PROOFKEY ", 9) == 0;
+    if (pk && !e->proof_on) { write_all(c, "{\"error\":\"no proof pins: no proof-key statement\"}\n", strlen("{\"error\":\"no proof pins: no proof-key statement\"}\n")); return; }
+    const int v3 = pk || strncmp(line, "EVIDENCE3 ", 10) == 0;   /* v3: bound to this VM instance (INSTANCE-BINDING.md) */
+    const char *h = line + (pk ? 9 : v3 ? 10 : 9); size_t hl = 0;
+    if (pk || v3 || strncmp(line, "EVIDENCE ", 9) == 0) while (hl < 64 && ((h[hl] >= '0' && h[hl] <= '9') || (h[hl] >= 'a' && h[hl] <= 'f'))) hl++;
     if (hl != 64 || h[64] != 0) { write_all(c, "{\"error\":\"request is EVIDENCE <64 lowercase hex> or EVIDENCE3 <64 lowercase hex>\"}\n", strlen("{\"error\":\"request is EVIDENCE <64 lowercase hex> or EVIDENCE3 <64 lowercase hex>\"}\n")); return; }
     if (v3 && (!g_inst || !e->sealed)) { write_all(c, "{\"error\":\"v3 evidence needs this VM's instance key and a sealed app key\"}\n", strlen("{\"error\":\"v3 evidence needs this VM's instance key and a sealed app key\"}\n")); return; }
     if (e->answered >= 120) { write_all(c, "{\"error\":\"evidence budget spent for this session\"}\n", strlen("{\"error\":\"evidence budget spent for this session\"}\n")); return; }
@@ -1372,6 +1431,29 @@ static void evidence_answer(evidence_srv *e, int c) {
     if (o >= cap || js[o - 1] != '\n') {   /* fail closed: a cut answer is never sent as evidence */
         OUT("EVIDENCE refused: the answer (%zu bytes) did not fit its buffer (%zu)", o, cap);
         write_all(c, "{\"error\":\"evidence answer did not fit\"}\n", strlen("{\"error\":\"evidence answer did not fit\"}\n")); free(js); return;
+    }
+    if (pk) {   /* the statement: the attested transport key vouches for the proof key, this instance, these pins (271 bytes) */
+        static const char dom[] = "enclave-proof-key-v1\n"; uint8_t m[sizeof dom - 1 + 250], isp[44], iid[32], sig[64]; size_t mo = 0;
+        instance_spki(isp); sha256(isp, 44, iid);
+        memcpy(m + mo, dom, sizeof dom - 1); mo += sizeof dom - 1; memcpy(m + mo, nonce, 32); mo += 32; memcpy(m + mo, e->app, 32); mo += 32;
+        m[mo++] = 0x01; memcpy(m + mo, iid, 32); mo += 32; m[mo++] = 0x01; memcpy(m + mo, e->proof_addr, 20); mo += 20;
+        for (int i = 7; i >= 0; i--) m[mo++] = (uint8_t)(g_pp.chain_id >> (8 * i));
+        memcpy(m + mo, g_pp.pot, 20); mo += 20; memcpy(m + mo, g_pp.registry, 20); mo += 20; memcpy(m + mo, g_pp.deployment, 32); mo += 32;
+        memcpy(m + mo, g_pp.enclave_id, 32); mo += 32; memcpy(m + mo, g_pp.operator_, 20); mo += 20;
+        { uint8_t *sm = malloc(64 + mo); unsigned long long smlen = 0; if (!sm) { free(js); return; } crypto_sign(sm, &smlen, m, mo, g_tsk); memcpy(sig, sm, 64); free(sm); }
+        char ih[65], pa[41], po[41], rg[41], dp[65], en[65], op[41], sg[129];
+        sh_pads_bin2hex(iid, 32, ih); sh_pads_bin2hex(e->proof_addr, 20, pa); sh_pads_bin2hex(g_pp.pot, 20, po); sh_pads_bin2hex(g_pp.registry, 20, rg);
+        sh_pads_bin2hex(g_pp.deployment, 32, dp); sh_pads_bin2hex(g_pp.enclave_id, 32, en); sh_pads_bin2hex(g_pp.operator_, 20, op); sh_pads_bin2hex(sig, 64, sg);
+        char *st = malloc(o + 1024);
+        if (!st) { free(js); return; }
+        size_t so = (size_t)snprintf(st, o + 1024, "{\"format\":\"enclave-proof-key/v1\",\"evidence\":");
+        memcpy(st + so, js, o - 1); so += o - 1;   /* the envelope, without its newline */
+        so += (size_t)snprintf(st + so, o + 1024 - so, ",\"instance\":{\"type\":\"pvm-instance-id\",\"value\":\"%s\"},\"sigAlg\":\"ed25519\",\"proofKey\":\"0x%s\",\"chainId\":\"%llu\",\"proofOfTime\":\"0x%s\",\"registry\":\"0x%s\",\"deployment\":\"0x%s\",\"enclaveId\":\"0x%s\",\"operator\":\"0x%s\",\"sig\":\"%s\"}\n",
+                               ih, pa, (unsigned long long)g_pp.chain_id, po, rg, dp, en, op, sg);
+        free(js);
+        if (so >= o + 1024 || st[so - 1] != '\n' || mo != 271) { OUT("PROOFKEY refused: the statement did not build (%zu, %zu)", so, mo); write_all(c, "{\"error\":\"proof-key statement did not build\"}\n", strlen("{\"error\":\"proof-key statement did not build\"}\n")); free(st); return; }
+        if (write_all(c, st, so) == 0) { e->answered++; OUT("PROOFKEY answered nonce=%.16s... proofKey=0x%s (answer %d)", nh, pa, e->answered); }
+        free(st); return;
     }
     if (write_all(c, js, o) == 0) {
         e->answered++;
@@ -1440,11 +1522,20 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
             OUT("APP sealed requests on vsock %d: app key %.16s... (X25519, made in this process; evidence is v2)", SEALED_PORT, kh);
         } else OUT("APP sealed requests NOT available (evidence stays v1: no browser channel)");
     }
+    if (tls && ev.sealed && g_pp.set && g_proof_seed_set) {   /* the lease proof key (PROOF-KEY.md): pvm-rt's typed signer, these pins */
+        pvmrt_pot_address_fn paddr = (pvmrt_pot_address_fn)dlsym(a->rt, "pvmrt_pot_address");
+        ev.pot_sign = (pvmrt_pot_sign_fn)dlsym(a->rt, "pvmrt_pot_sign");
+        if (paddr && ev.pot_sign && paddr(g_proof_seed, ev.proof_addr) == 0) {
+            ev.proof_on = 1; char pa[41]; sh_pads_bin2hex(ev.proof_addr, 20, pa);
+            OUT("PROOF key=0x%s (secp256k1, seeded from this VM instance's secret; signs EnclaveProofOfTime checkpoints for chain %llu only)", pa, (unsigned long long)g_pp.chain_id);
+        } else OUT("PROOF key NOT available: this runtime has no proof signer");
+    } else if (tls && g_pp.set) OUT("PROOF key NOT available (needs the sealed channel and the instance secret)");
     if (tls) {   /* LAB: the client-verified channel's evidence endpoint beside the TLS app port */
         memcpy(ev.app, plan->sha256, 32); ev.ls = vs_bind(EVIDENCE_PORT);
         if (ev.ls >= 0 && pthread_create(&evt, NULL, evidence_server, &ev) == 0) { ev_on = 1; OUT("APP evidence endpoint on vsock %d: a client's nonce gets a fresh ABI/2 certificate for this app and this VM's transport key", EVIDENCE_PORT); }
         else { if (ev.ls >= 0) close(ev.ls); OUT("APP evidence endpoint NOT available (a client cannot verify this VM itself)"); }
     }
+    ev.serving = 1;   /* checkpoints only while this loop runs (cleared before the evidence server stops) */
     OUT("APP serving %s on vsock %d: %s compile_ms=%llu%s%s", tls ? "https (TLS 1.3, the attested transport key)" : "http", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "");
     for (;;) {
         struct pollfd pf[3] = { { .fd = ls, .events = POLLIN }, { .fd = g_ctl, .events = POLLIN }, { .fd = ls_sealed, .events = POLLIN } };
@@ -1463,6 +1554,7 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
             OUT("APP sealed connection closed%s%s (requests so far %llu)", rc ? ": " : "", rc ? e : "", (unsigned long long)hreqs(srv));
         }
     }
+    ev.serving = 0;
     close(ls); if (ls_sealed >= 0) close(ls_sealed);
     if (ev_on) { ev.stop = 1; pthread_join(evt, NULL); close(ev.ls); OUT("APP evidence endpoint closed after %d answers", ev.answered); }
     OUT("APP served %s requests=%llu%s%s", hh, (unsigned long long)hreqs(srv), ops ? " graph=" : "", ops ? plan->graph : "");
@@ -1796,6 +1888,8 @@ int AVmPayload_main(void) {
         static const char ident[] = "enclave-pvm-instance-key-v1"; uint8_t seed[32];
         AVmPayload_getVmInstanceSecret(ident, sizeof ident - 1, seed, sizeof seed);
         crypto_sign_ed25519_tweet_seed_keypair(g_ipk, g_isk, seed); memset(seed, 0, sizeof seed); g_inst = 1;
+        static const char pident[] = "enclave-pvm-proof-key-v1";   /* the lease proof key's seed: pvm-rt derives the key from it */
+        AVmPayload_getVmInstanceSecret(pident, sizeof pident - 1, g_proof_seed, sizeof g_proof_seed); g_proof_seed_set = 1;
     }
 #endif
     AVmPayload_notifyPayloadReady();
@@ -1855,6 +1949,16 @@ int AVmPayload_main(void) {
             else if (!strncmp(l, "APP ", 4)) {   /* the portable component (anchor_app.h): strict, once; malformed or repeated refuses at RUN */
                 if (app || !anchor_app_parse(l, &app_plan)) { app_bad = 1; OUT("APP refused: %s", app ? "repeated" : "malformed (APP bytes=N sha256=<64 hex>[ args=<hex>])"); }
                 app = 1; }
+            else if (!strncmp(l, "PROOFPINS ", 10)) {   /* the lease proof key's pins (PROOF-KEY.md): once, strict, never changed */
+                char buf[512], *sv = NULL; const char *tk[7]; int nt = 0;
+                snprintf(buf, sizeof buf, "%s", l + 10);
+                for (char *t = strtok_r(buf, " ", &sv); t && nt < 7; t = strtok_r(NULL, " ", &sv)) tk[nt++] = t;
+                proof_pins pp = { 0 };
+                if (g_pp.set) OUT("PROOFPINS refused: repeated (the pins are fixed for this boot)");
+                else if (nt != 6 || !parse_u64_dec(tk[0], &pp.chain_id) || !pp.chain_id || !parse_0x(tk[1], pp.pot, 20) || !parse_0x(tk[2], pp.registry, 20)
+                         || !parse_0x(tk[3], pp.deployment, 32) || !parse_0x(tk[4], pp.enclave_id, 32) || !parse_0x(tk[5], pp.operator_, 20))
+                    OUT("PROOFPINS refused: malformed (<chainId> <proofOfTime> <registry> <deployment> <enclaveId> <operator>, canonical)");
+                else { pp.set = 1; g_pp = pp; OUT("PROOFPINS accepted: chain %llu, deployment %.18s..., for this boot", (unsigned long long)pp.chain_id, tk[3]); } }
             else if (!strncmp(l, "APPNONCE ", 9)) {   /* the relay's fresh nonce for this app's ABI/2 evidence: 64 lowercase hex, once */
                 const char *h = l + 9; size_t n = 0; while (n < 64 && ((h[n] >= '0' && h[n] <= '9') || (h[n] >= 'a' && h[n] <= 'f'))) n++;
                 if (g_app_nonce_set || n != 64 || h[64] != 0) { app_bad = 1; OUT("APP refused: APPNONCE %s", g_app_nonce_set ? "repeated" : "malformed (64 lowercase hex)"); }

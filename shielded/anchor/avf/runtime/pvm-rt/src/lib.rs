@@ -15,6 +15,7 @@
 
 pub mod httpd;
 pub mod nn;
+pub mod proof;
 pub mod sealed;
 
 use sha2::{Digest, Sha256};
