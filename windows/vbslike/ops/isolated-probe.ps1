@@ -90,6 +90,8 @@ Start-Transcript -Path (Join-Path $EvidenceDir 'transcript.txt') | Out-Null
 # $mutated is the ONLY thing that licenses a write in the cleanup block. It is set immediately before
 # the one Set-ItemProperty in this script and nowhere else.
 $mutated = $false
+$script:probeOutcome = $null   # non-null when the probe itself failed or had to be killed
+$script:runFailure = $null     # non-null when the try block threw: preserved for the exit status
 $before = $null
 $nodeBefore = $null
 $probePrefix = $null
@@ -153,12 +155,24 @@ try {
                         '--out', (Join-Path $EvidenceDir 'isoprobe'), '--seconds', '20')
   # the partitions this run may clean up, and no others: the launcher names them after its own pid
   $probePrefix = "vbslike-iso-$($p.Id)-"
+  $killed = $false
   if (-not $p.WaitForExit($TimeoutSeconds * 1000)) {
     Write-Warning "the probe exceeded ${TimeoutSeconds}s; killing it so the setting can be restored"
+    $killed = $true
     $p | Stop-Process -Force -ErrorAction SilentlyContinue
     $p.WaitForExit(15000) | Out-Null
   }
-  Note "probe exit code: $($p.ExitCode)"
+  # the probe's own outcome is part of this run's result: a non-zero exit, or a timeout that had to be
+  # killed, is a failure even when the cleanup afterwards is perfect
+  $script:probeOutcome = if ($killed) { "the probe exceeded ${TimeoutSeconds}s and was killed" }
+                         elseif ($p.ExitCode -ne 0) { "the probe exited $($p.ExitCode)" } else { $null }
+  Note "probe exit code: $($p.ExitCode)$(if ($killed) { ' (killed on timeout)' })"
+}
+catch {
+  # remembered, not rethrown: rethrowing here would run the cleanup and then lose to whatever the
+  # cleanup did. The exit status at the very end accounts for it.
+  $script:runFailure = $_.Exception.Message
+  Write-Host "=== run failed: $($script:runFailure)"
 }
 finally {
   Write-Host "=== cleanup"
@@ -201,8 +215,23 @@ finally {
   if ($result.NodeOk) { Note "live node unchanged" }
   $result | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $EvidenceDir 'cleanup.json')
   Note "evidence: $EvidenceDir"
+
+  # Everything that makes this run a failure, gathered AFTER restoration and the node check have each
+  # been attempted, so nothing above is skipped in order to report earlier.
+  $all = @()
+  if ($script:runFailure) { $all += $script:runFailure }
+  if ($script:probeOutcome) { $all += $script:probeOutcome }
+  $all += $result.Failures
+  foreach ($f in $all) { Write-Error $f -ErrorAction Continue }
+  if ($all.Count -gt 0) { Write-Host "RUN FAILED: $($all.Count) failure(s) above; state in $EvidenceDir\result.json" }
+  else { Write-Host "RUN OK: preflight passed, cleanup complete, nothing left changed" }
+  @{ Failures = $all; CleanupOk = $result.Ok; ProbeOutcome = $script:probeOutcome; RunFailure = $script:runFailure } |
+    ConvertTo-Json -Depth 4 | Set-Content (Join-Path $EvidenceDir 'result.json')
   Stop-Transcript | Out-Null
-  # reported last, after every step has been attempted
-  foreach ($f in $result.Failures) { Write-Error $f -ErrorAction Continue }
-  if (-not $result.Ok) { Write-Host "CLEANUP INCOMPLETE: $($result.Failures.Count) failure(s) above; the run's state is in $EvidenceDir\cleanup.json" }
+
+  # The PROCESS status has to say so as well. Write-Error with -ErrorAction Continue leaves the exit
+  # code at 0, so a caller checking status would read a failed run -- a probe that timed out, a
+  # restoration that did not take -- as a success. This is the last statement in the script, after
+  # every step above has run.
+  if ($all.Count -gt 0) { exit 1 } else { exit 0 }
 }
