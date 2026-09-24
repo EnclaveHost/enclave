@@ -57,13 +57,15 @@ export function admit(rec, want) {
   if (want.app !== rec.appId) return ["refused:identity", "the instance is not that app"];
   if (want.image !== rec.image) return ["refused:identity", "the instance was not booted from that guest image"];
   if (want.runtime !== rec.runtimeId) return ["refused:identity", "the instance does not carry that runtime"];
-  if (want.key !== rec.key) return ["refused:identity", "the instance's verified transport key is not that key"];
+  if (want.key !== rec.transportKeySha256) return ["refused:identity", "the instance's verified transport key is not that key"];
   if (!rec.relay || !rec.relay.port) return ["refused:no-relay", "the instance has no relay to its domain"];
   return ["", ""];
 }
 
 // createDataPlane({ lookup }) -> { server, closeInstance(id, why), stats() }
-//   lookup(id) -> null | { status, appId, image, runtimeId, key, relay: { host, port } }, read at admission time
+//   lookup(id) -> null | the manager's /vms view of that instance plus where its relay is, read at admission time:
+//                 { status, appId, image, runtimeId, transportKeySha256, relay: { host, port } } - the view's own field
+//                 names, so the manager passes its record through rather than mapping it
 export function createDataPlane({ lookup, preambleTimeoutMs = 5000, dialTimeoutMs = 5000, idleMs = 180_000,
                                   maxPerInstance = 256, maxTotal = 1024, log = () => {} }) {
   const open = new Map();       // instance id -> Set of splices
