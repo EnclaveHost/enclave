@@ -1,26 +1,19 @@
-/* ============================================================
-   <c-ticker> - facts marquee
-   ============================================================ */
-c-ticker{display:contents;}
-
-.ticker{border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);background:var(--bg-1);overflow:hidden;margin-top:34px;position:relative;}
-/* facts surface out of the band instead of clipping at the frame - the
-   fades resolve to the ticker's own ground, so no new color is introduced */
-.ticker::before,.ticker::after{content:"";position:absolute;top:0;bottom:0;width:56px;z-index:1;pointer-events:none;}
-.ticker::before{left:0;background:linear-gradient(90deg,var(--bg-1),transparent);}
-.ticker::after{right:0;background:linear-gradient(270deg,var(--bg-1),transparent);}
-.ticker-pause{position:absolute;right:10px;top:50%;transform:translateY(-50%);z-index:2;
-  min-width:28px;min-height:28px;display:inline-flex;align-items:center;justify-content:center;
-  font-size:.8rem;line-height:1;color:var(--text-muted);cursor:pointer;
-  background:var(--surface-2);border:1px solid var(--line-strong);border-radius:6px;}
-.ticker-pause:hover{color:var(--text);}
-/* width:max-content is load-bearing: translateX(-50%) is relative to the
-   track's own box, and a block-level flex container would size to the
-   viewport - the loop must wrap at exactly one content copy */
-.ticker-track{display:flex;gap:0;white-space:nowrap;width:max-content;animation:scrollx 80s linear infinite;}
-.ticker:hover .ticker-track,.ticker:focus-within .ticker-track,.ticker.paused .ticker-track{animation-play-state:paused;}
-.ticker-track .it{font-family:var(--font-mono);font-size:.78rem;color:var(--text-muted);padding:13px 26px;display:inline-flex;align-items:center;gap:.7em;}
-.ticker-track .it b{color:var(--text);font-weight:600;}
-.ticker-track .it::after{content:"/";color:var(--line);margin-left:26px;}
-@keyframes scrollx{to{transform:translateX(-50%);}}
-@media (prefers-reduced-motion:reduce){.ticker-track{animation:none;}}
+c-ticker{display:block;background:#070a0f;}
+.ticker{position:relative;padding:34px 0 30px;border-bottom:1px solid var(--line-soft);background:#070a0f;overflow:hidden;}
+.ticker-heading{margin:0 52px 26px;text-align:center;font-family:var(--font-sans);font-size:clamp(.95rem,1.5vw,1.2rem);font-weight:450;line-height:1.5;letter-spacing:-.015em;color:#aebcc4;}
+.ticker-window{position:relative;overflow:hidden;}
+.ticker-window::before,.ticker-window::after{content:"";position:absolute;inset-block:0;width:clamp(32px,7vw,120px);z-index:1;pointer-events:none;}
+.ticker-window::before{left:0;background:linear-gradient(90deg,#070a0f,transparent);}
+.ticker-window::after{right:0;background:linear-gradient(270deg,#070a0f,transparent);}
+.ticker-track{display:flex;width:100%;}
+.ticker-group{display:flex;flex-wrap:wrap;justify-content:space-around;align-items:center;gap:28px 32px;width:100%;padding:10px 50px;margin:0;list-style:none;}
+.ticker-group li{display:flex;align-items:center;justify-content:center;flex:1 0 160px;}
+.ticker-group img{display:block;object-fit:contain;filter:brightness(0) invert(1);opacity:.7;max-width:100%;}
+.ticker-group[aria-hidden="true"]{display:none;}
+.ticker-animated .ticker-track{width:max-content;animation:technology-scroll 68s linear infinite;animation-play-state:paused;}
+.ticker-animated .ticker-group{display:flex;flex-wrap:nowrap;flex-shrink:0;width:max(100vw,1470px);gap:0;padding-inline:0;}
+.ticker-running .ticker-track{animation-play-state:running;}
+.ticker:hover .ticker-track,.ticker:focus-within .ticker-track{animation-play-state:paused;}
+@keyframes technology-scroll{to{transform:translateX(-50%);}}
+@media(max-width:640px){.ticker{padding:28px 0 24px;}.ticker-heading{margin:0 52px 20px;max-width:30ch;justify-self:center;}.ticker-group{padding-inline:24px;gap:24px 16px;}.ticker-group li{flex-basis:128px;}.ticker-group img{max-width:126px;max-height:34px;}.ticker-animated .ticker-group{width:1260px;}}
+@media(prefers-reduced-motion:reduce){.ticker-animated .ticker-track{animation:none;width:100%;}.ticker-animated .ticker-group{width:100%;flex-wrap:wrap;gap:24px 16px;padding-inline:clamp(24px,3.5vw,50px);}.ticker-animated .ticker-group[aria-hidden="true"]{display:none;}.ticker-window::before,.ticker-window::after{display:none;}}

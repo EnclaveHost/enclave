@@ -48,25 +48,40 @@
 .store-pager .page-status{font-family:var(--font-mono);font-size:.74rem;color:var(--text-muted);}
 .store-pager button[disabled]{opacity:.4;cursor:default;}
 
-/* ---- hero row: section head left, featured slot top-right ---- */
-.store-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:28px;}
-.store-hero c-section-head{min-width:0;}
-.featured-slot{flex:0 0 320px;margin-top:6px;}
-.featured-tag{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:.72rem;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--amber);margin-bottom:8px;}
-.featured-tag .dim{color:var(--text-dim);text-transform:none;letter-spacing:0;}
-.featured-slot c-app-card{display:block;}
-.featured-slot .app-card{border-color:rgba(240,185,11,.35);}
-/* the one permitted gold holds on hover - the lift alone signals the card */
-.featured-slot .app-card:hover{border-color:rgba(240,185,11,.35);}
-.featured-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;min-height:20px;}
+/* ---- featured, in the grid rather than in the header ---------------------
+   The slot used to be a 320px aside beside the heading, which took a third of
+   the banner and made the cinematic hero narrower than every other page's. The
+   featured apps are now the head of the store's default tab, so the hero is an
+   ordinary full-width banner and a featured app is a CARD like the rest - the
+   gold border and the corner badge are what mark it.
+
+   c-app-card is display:contents, so the element itself draws no box. A
+   featured one becomes a one-cell grid instead: the card still stretches to the
+   row, and the wrapper gives the badge something to be positioned against. */
+.store-grid c-app-card.is-featured{display:grid;position:relative;min-width:0;}
+.store-grid c-app-card.is-featured .app-card{border-color:rgba(240,185,11,.5);
+  box-shadow:0 0 0 1px rgba(240,185,11,.14) inset;}
+/* the gold holds on hover - the lift alone signals the card, as before */
+.store-grid c-app-card.is-featured .app-card:hover{border-color:rgba(240,185,11,.7);
+  box-shadow:0 0 0 1px rgba(240,185,11,.2) inset;}
+.store-grid c-app-card.is-featured::after{content:attr(data-featured-label);
+  position:absolute;top:10px;right:10px;z-index:2;pointer-events:none;
+  font-family:var(--font-mono);font-size:.62rem;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--amber);background:rgba(7,10,15,.86);border:1px solid rgba(240,185,11,.5);
+  border-radius:999px;padding:3px 9px;line-height:1.5;}
+/* the tab's one-line note: what the gold means, and the way in to promoting.
+   The [hidden] rule is NOT redundant: the UA's `[hidden]{display:none}` is a
+   plain attribute selector and loses to a class, so `.featured-foot{display:flex}`
+   alone would keep the row on screen on every other tab with the attribute set. */
+.featured-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin:-4px 0 14px;min-height:20px;}
+.featured-foot[hidden]{display:none;}
 .featured-foot .hint{font-family:var(--font-mono);font-size:.68rem;color:var(--text-dim);}
 .featured-promote{font-family:var(--font-mono);font-size:.72rem;color:var(--text-muted);background:none;border:none;
   cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:3px;}
 .featured-promote:hover{color:var(--jade);}
-@media(max-width:980px){
-  .store-hero{flex-direction:column;}
-  .featured-slot{flex:1 1 auto;width:100%;max-width:420px;}
+@media(max-width:640px){
+  .featured-foot{flex-wrap:wrap;gap:6px;}
 }
 
 /* promote modal's inline narration (the qd-card is shared with quick-deploy) */

@@ -17,7 +17,10 @@ import { minPctsOf } from "./pricing.js";
 import { Enclave, EnclaveError } from "./api.js";
 import { connectWallet, personalSign } from "./wallet.js";
 
-export const STORE = { apps:[], byId:{}, sel:{}, owner:null, filter:"approved", loaded:false, loading:false, at:0 };
+/* `filter` is the store tab. It opens on "featured": the approved list with the
+   standing campaigns (or the editorial pick) lifted to the front, NOT a
+   featured-only view. "approved" is the same list without that head group. */
+export const STORE = { apps:[], byId:{}, sel:{}, owner:null, filter:"featured", loaded:false, loading:false, at:0 };
 
 // firewall entry: http (default web app) | http:N | tcp:N | udp:N, N in 1-49999 (labels; <1024 always remapped)
 // (1080/8080/8090/8091 are infra-reserved; the enclave enforces the same rules server-side)
