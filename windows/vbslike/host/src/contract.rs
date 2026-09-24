@@ -448,3 +448,91 @@ pub fn run_vectors(path: &str) -> Result<Vec<String>, String> {
     }
     Ok(fails)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Assemble a bundle the way Build does, so `parse` sees exactly what a real one carries.
+    fn bundle(m: &Manifest, art: &[u8]) -> Vec<u8> {
+        let mb = canonical(m);
+        let mut b = Vec::from(BUNDLE_MAGIC);
+        b.extend_from_slice(&(mb.len() as u32).to_le_bytes());
+        b.extend_from_slice(&mb);
+        b.extend_from_slice(&(art.len() as u32).to_le_bytes());
+        b.extend_from_slice(art);
+        b
+    }
+
+    fn manifest(world: &str, http: i64, art: &[u8]) -> Manifest {
+        Manifest {
+            abi: ABI.to_string(),
+            label: String::new(),
+            world: world.to_string(),
+            artifact: Artifact { kind: KIND_WASM_COMPONENT.to_string(), sha256: hex::encode(Sha256::digest(art)) },
+            http,
+            policy: Policy { cpu_percent: 100, mem_mib: 512, vcpus: 1 },
+        }
+    }
+
+    const ART: &[u8] = b"\x00asm\x0d\x00\x01\x00not-really-a-component";
+
+    /// The defect this whole field exists for: without `http` on Manifest, serde dropped it on
+    /// deserialize, `canonical(&m) != mb`, and EVERY /2 bundle was refused as non-canonical.
+    #[test]
+    fn a_wasi_cli_bundle_naming_a_port_round_trips() {
+        let b = bundle(&manifest("wasi:cli", 8080, ART), ART);
+        let (m, art) = parse(&b).expect("a /2 bundle must parse");
+        assert_eq!(m.http, 8080, "the port must survive the round trip");
+        assert_eq!(m.world, "wasi:cli");
+        assert_eq!(art, ART);
+    }
+
+    /// A /1 bundle must serialise byte-for-byte as it did before the field existed.
+    #[test]
+    fn a_proxy_bundle_omits_http_entirely() {
+        let m = manifest("wasi:http", 0, ART);
+        let mb = canonical(&m);
+        let s = String::from_utf8(mb.clone()).unwrap();
+        assert!(!s.contains("\"http\""), "http must be omitted when zero, or every /1 AppID changes: {s}");
+        parse(&bundle(&m, ART)).expect("a /1 bundle must still parse");
+        // and the canonical key order puts http between artifact and policy when it IS present
+        let s2 = String::from_utf8(canonical(&manifest("wasi:cli", 1, ART))).unwrap();
+        let (a, h, p) = (s2.find("\"artifact\"").unwrap(), s2.find("\"http\"").unwrap(), s2.find("\"policy\"").unwrap());
+        assert!(a < h && h < p, "http sorts between artifact and policy: {s2}");
+    }
+
+    #[test]
+    fn a_world_that_serves_no_port_may_not_name_one() {
+        for world in ["", "wasi:http"] {
+            let e = parse(&bundle(&manifest(world, 8080, ART), ART)).unwrap_err();
+            match e {
+                ParseError::Malformed(m) => assert!(m.contains("serves no port of its own"), "{m}"),
+                other => panic!("expected Malformed, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_command_must_name_a_port_in_range() {
+        for http in [0, -1, 50000, 65535] {
+            let e = parse(&bundle(&manifest("wasi:cli", http, ART), ART)).unwrap_err();
+            match e {
+                ParseError::Malformed(m) => assert!(m.contains("1..=49999"), "{http}: {m}"),
+                other => panic!("expected Malformed for {http}, got {other:?}"),
+            }
+        }
+        for http in [1, 49999] {
+            parse(&bundle(&manifest("wasi:cli", http, ART), ART)).unwrap_or_else(|e| panic!("{http} must be accepted: {e:?}"));
+        }
+    }
+
+    #[test]
+    fn an_unknown_world_is_refused_by_name() {
+        let e = parse(&bundle(&manifest("wasi:snake", 0, ART), ART)).unwrap_err();
+        match e {
+            ParseError::Malformed(m) => assert!(m.contains("wasi:snake"), "the refusal names the world: {m}"),
+            other => panic!("expected Malformed, got {other:?}"),
+        }
+    }
+}
