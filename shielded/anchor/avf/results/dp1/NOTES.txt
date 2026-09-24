@@ -1,0 +1,20 @@
+dp1 -- smp2 (edd595fa...), draft-depth sweep, ABBA over d1..d4 + no drafter, explicit profile (tpu_bank 128 named).
+STOPPED 2026-09-23 17:26 when the TPU campaign was closed (TPU.md, "Status"): dp-01..dp-08 complete (all rc 0), dp-09 was
+stopped while waiting at the cool gate (nothing launched on the phone), dp-10 never started. So d1 and d2 have ONE run each
+(their B halves were dp-09/dp-10); d3 and d4 have two; no drafter has two. Not a complete ABBA.
+
+  run   cond  decode tok/s  tokens/step  pads inline  verify bad/n (max LSB)  CPU core-ms/token (COMPLETE)  big-core min cap
+  dp-01 d1    1.51          1.70         0            2/38540 (1)             2205                          2.40/2.59 GHz
+  dp-02 d2    1.59          2.16         0            3/43460 (1)             1933                          3.05/3.40
+  dp-03 d3    1.58          2.22         0            1/44280 (1)             2033                          2.28/2.34
+  dp-04 d4    1.47          2.22         0            1/45100 (1)             2210                          1.94/2.21
+  dp-05 nd    0.90          1            0            3/32800 (1)             2276                          2.94/2.71
+  dp-06 nd    0.94          1            0            2/31160 (1)             2290                          2.84/2.71
+  dp-07 d4    1.41          2.29         0            1/45100 (1)             2216                          1.79/2.21
+  dp-08 d3    1.36          2.16         0            4/45510 (1)             2317                          1.79/2.21
+
+Every stage was slower than smp1's runs of the same profile earlier the same day (unmask 1.5-1.7 ms/exchange against 0.86,
+graph work between exchanges 1.7-2.1 against 1.24, link wait 5.5-6.0 against 4.75, TPU blocks loaded in 3.0-3.6 s against
+0.7-1.8), device-wide load ~2 cores above the app's own (0.7 in smp1), the cool gate waited up to 19 checks, and the phone
+reached thermal status 1 (BIG 87 C). The interleaved smp1-vs-smp2 control that would separate build from phone state
+(ab1) was queued but never run. Read these as the phone's state that evening, not as a depth verdict.

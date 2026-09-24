@@ -93,6 +93,11 @@ void randombytes(unsigned char *p, unsigned long long n) {
 }
 static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0x2b,0x65,0x70,0x03,0x21,0x00 };
 #define WORKER_PORT 7778
+#ifdef ANCHOR_TIER_PVM_CPU
+#define ANCHOR_TIER_NAME "pvm-cpu"   /* PVM-CPU.md: CPU-only, mode local only; the build's codeHash is what the relay admits */
+#else
+#define ANCHOR_TIER_NAME "research"  /* the combined build: local, split engine, TPU lane (closed, TPU.md); never admitted as pvm-cpu */
+#endif
 #define MODEL_PORT  7779
 #define PADS_PORT   7780     /* owner -> guest: dealt-pad shipments into the bank dir (PADS <name> <bytes>\n, bytes) */
 #define ECHO_PORT   7780
@@ -1366,8 +1371,9 @@ int AVmPayload_main(void) {
         if (anchor_pins_load("/mnt/apk/assets", &g_pins)) {
             if (g_pins.has_ledger) { memcpy(g_ledger_pk, g_pins.ledger_pk, 32); g_ledger_pinned = 1; g_have_ledger = 1; }
             if (g_pins.has_prefix) { sh_pads_bin2hex(g_pins.prefix_pk, 32, g_prefix_pk_hex); }
-            OUT("PINS mode=%s ledger=%s model=%s prefix=%s sha256=%s", g_pins.mode == ANCHOR_MODE_PROTECTED ? "protected" : "dev",
-                g_pins.has_ledger ? "pinned" : "app", g_pins.has_model ? "pinned" : "unpinned", g_pins.has_prefix ? "pinned" : "app", anchor_sha256_backend());
+            OUT("PINS mode=%s ledger=%s model=%s prefix=%s sha256=%s tier=%s", g_pins.mode == ANCHOR_MODE_PROTECTED ? "protected" : "dev",
+                g_pins.has_ledger ? "pinned" : "app", g_pins.has_model ? "pinned" : "unpinned", g_pins.has_prefix ? "pinned" : "app", anchor_sha256_backend(),
+                ANCHOR_TIER_NAME);
         } else OUT("PINS INVALID: %s - pads, prefix and the engine are refused", g_pins.err);
         storage_probe();
     }
@@ -1387,11 +1393,18 @@ int AVmPayload_main(void) {
     int maskbench = 0, maskbench_bad = 0;                     /* MASKBENCH: the sampler + cell-import speed probe; no model, seed, worker or shapes */
     int local = 0, local_bad = 0; anchor_local_plan local_plan; memset(&local_plan, 0, sizeof local_plan);   /* LOCAL: the whole model in this VM (run_local) */
     int prepare = 0, prep_seconds = 300, prep_bad = 0;        /* PREPARE [seconds]: artifacts preparation, no engine (run_prepare); malformed or repeated = refused at RUN */
+    int tier_bad = 0; (void)tier_bad;                         /* ANCHOR_TIER_PVM_CPU: a split-engine line arrived (refused at RUN) */
     if (g_ctl >= 0) {
         char l[2400]; static char bound[2100] = "";
         while (read_line(g_ctl, l, sizeof l) >= 0) {
             if (!strncmp(l, "BOUND ", 6)) { strncpy(bound, l + 6, sizeof bound - 1); bound[sizeof bound - 1] = 0; }
             else if (!strncmp(l, "CHAL ", 5)) attest(l + 5, bound);
+#ifdef ANCHOR_TIER_PVM_CPU
+            /* pads, the pad ledger and the shared prefix serve the split engine only: refused as they arrive, and the run is
+             * refused at RUN, so no line can make this build stage state the tier does not use */
+            else if (!strncmp(l, "PAD", 3) || !strncmp(l, "PREFIXPK ", 9) || !strncmp(l, "WORKER ", 7) || !strncmp(l, "SHAPE ", 6)) {
+                tier_bad = 1; OUT("TIER pvm-cpu refused: %.12s is split-engine machinery", l); }
+#endif
             else if (!strncmp(l, "PREFIXPK ", 9)) {    /* the platform's shared-prefix key (prefix-kv.h) */
                 char h[65] = ""; uint8_t pk[32];
                 if (g_pins.mode == ANCHOR_MODE_INVALID) OUT("PREFIXPK refused: pins invalid");
@@ -1573,6 +1586,23 @@ int AVmPayload_main(void) {
             else if (!strcmp(l, "RUN")) break;
         }
     }
+#ifdef ANCHOR_TIER_PVM_CPU
+    /* The pVM CPU build (PVM-CPU.md) runs ONE thing: the whole model on this VM's own vCPUs (mode local). Every other mode,
+     * the TPU tail, the link benchmark and the worker bridge are refused here, before any of them is judged; nothing is
+     * resolved by precedence. The build ships none of their libraries either, so this is the readable form of a refusal the
+     * loader would also make. */
+    {   const char *why = tier_bad ? "a split-engine control line was sent"
+                        : !local ? "only a LOCAL run is served by this build"
+                        : (maskbench || echo || prepare || engine || bridgebench || n_shapes || bridge) ? "a conflicting mode command was sent"
+                        : local_plan.tpu_bundle_bytes ? "the LOCAL line carries the TPU tail"
+                        : local_plan.links ? "the LOCAL line asks for benchmark links" : NULL;
+        if (why) {
+            OUT("TIER pvm-cpu refused: %s", why); OUT("END");
+            if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
+            ctl_close(); sleep(1); return 4;
+        }
+    }
+#endif
     if (maskbench) {   /* speed probe of the existing pad sampler and the 3-byte cell import; judged BEFORE every other mode so nothing else can win the dispatch */
         int mrc = 4;                                              /* failure unless both halves pass: the exit must agree with the status line (as BRIDGEBENCH) */
         if (maskbench_bad) OUT("MASKBENCH refused: repeated MASKBENCH line");

@@ -22,12 +22,20 @@ chmod 0555 "$OUTD/driver/tpu/lane-run2.sh"; DRV="$OUTD/driver/tpu/lane-run2.sh"
   printf '# driver_sha256\t%s\n' "$(sha256sum "$DRV" | cut -d' ' -f1)"
   printf '# label\tcondition\textra\tstatus\trc\tapk_sha256\n'; } > "$R"
 ADB="${ADB:-$HOME/Android/Sdk/platform-tools/adb}"; PKG="${PKG:-host.enclave.anchor.avf}"
-# install_apk <apk>: prints the installed sha256 on success; nothing (and non-zero) on any failure
-install_apk() { local want got path
-  want=$(sha256sum "$1" 2>/dev/null | cut -d' ' -f1) && [ -n "$want" ] || return 1
-  "$ADB" install -r "$1" </dev/null >/dev/null 2>&1 || return 1
+# install_apk <apk>: prints the installed sha256 on success; nothing (and non-zero) on any failure. A build the device
+# already holds (same sha256, hashed ON the device) is not reinstalled: on Android 17 every `install -r` of the running
+# app makes System UI relaunch it (the df-02 hang, 66975c2f) and can stop on a Play Protect prompt that waits for a
+# person (dp1 dp-02: 25 min). The row still names the build it measured, from the device's own hash.
+installed_sha() { local path
   path=$("$ADB" shell pm path "$PKG" </dev/null 2>/dev/null | tr -d '\r' | sed -n 's/^package://p' | head -1); [ -n "$path" ] || return 1
-  got=$("$ADB" shell sha256sum "$path" </dev/null 2>/dev/null | tr -d '\r' | cut -d' ' -f1)
+  "$ADB" shell sha256sum "$path" </dev/null 2>/dev/null | tr -d '\r' | cut -d' ' -f1; }
+install_apk() { local want got
+  want=$(sha256sum "$1" 2>/dev/null | cut -d' ' -f1) && [ -n "$want" ] || return 1
+  got=$(installed_sha) || got=""
+  if [ "$got" != "$want" ]; then
+    timeout "${INSTALL_TIMEOUT:-300}" "$ADB" install -r "$1" </dev/null >/dev/null 2>&1 || return 1
+    got=$(installed_sha) || return 1
+  else echo "   (already installed: $want, not reinstalled)" >&2; fi
   [ "$got" = "$want" ] || return 1; echo "$got"; }
 # Fields are split by hand: `IFS=$'\t' read` treats TAB as whitespace and COLLAPSES empty fields, so an empty EXTRA
 # followed by an APK moved the APK path into EXTRA (handed to am start, and nothing installed).

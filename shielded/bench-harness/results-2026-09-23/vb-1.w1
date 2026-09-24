@@ -1,0 +1,10 @@
+[shielded-worker] 127.0.0.1:38880 attached shm ring 0 (reply mapped for the device)
+[shielded-worker] [yield] owner active (turns 1.5x the solo floor; duty 25%) at +1891.850 s
+[shielded-worker] [yield] owner idle: full speed (turns back at the floor) at +1892.100 s
+[shielded-worker] 127.0.0.1:38880 closed: 17735 exchanges (17731 over the ring), 0 recomputes, 1652.3 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 17735 turns, 1558.7 ms on the card, 0.0 ms waiting for it, 66.9 ms yielded to the owner
+[shielded-worker] 127.0.0.1:38880 graph cache: limit=1024 high_water=515 hits=16963 misses=772 capacity_flushes=0 invalidations=4 capture=22.194 ms (host capture+instantiate, not GPU kernel time)
+[shielded-worker] 127.0.0.1:33730 attached shm ring 0 (reply mapped for the device)
+[shielded-worker] [yield] owner active (turns 1.6x the solo floor; duty 25%) at +1922.850 s
+[shielded-worker] [yield] owner idle: full speed (turns back at the floor) at +1923.050 s
+[shielded-worker] 127.0.0.1:33730 closed: 9905 exchanges (9904 over the ring), 0 recomputes, 1001.2 ms worker GEMM elapsed (includes lock/setup/sync); share 0.481: 9905 turns, 944.8 ms on the card, 0.0 ms waiting for it, 44.5 ms yielded to the owner
+[shielded-worker] 127.0.0.1:33730 graph cache: limit=1024 high_water=274 hits=9375 misses=530 capacity_flushes=0 invalidations=3 capture=16.109 ms (host capture+instantiate, not GPU kernel time)

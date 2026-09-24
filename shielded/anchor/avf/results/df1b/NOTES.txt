@@ -1,0 +1,6 @@
+df1b -- re-run of df1's df-02 after the reinstall-relaunch fix (66975c2f), same df.tsv.
+df-01: refused at once, "label df-01 is already used on the device" (it is df1's df-01): the driver's fail-closed label check.
+df-02: LANE-RUN OK. Its frozen driver predates b868345c, so like df1 df-01 it launched with tpu_bank 64 (not the app default):
+  the bank ran dry (pads inline 2800, bank_min 0), 1.63 tok/s. The app DID default everything else: corr_threads=3
+  decode_threads=2 draft=files/draft.gguf verify_threads=4 (its "defaulted:" line). The defaults-only check with the bank
+  left to the app is results/dfc.
