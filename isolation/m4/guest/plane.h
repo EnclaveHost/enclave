@@ -151,6 +151,21 @@ static int __attribute__((unused)) stage(const char *path, int flip_byte) {
     return total > 0 ? 0 : -EIO;
 }
 
+/* Stage bytes already in memory into the active slot, in whole-PAGE_SIZE sysfs writes. Used for the bundle, so the
+ * bytes the SVSM admits are the very buffer the component is later cut from (appbundle.h). */
+static int __attribute__((unused)) stage_bytes(const void *buf, size_t n) {
+    const char *p = buf;
+    if (n == 0) return -EIO;
+    while (n) {
+        size_t k = n < CHUNK ? n : CHUNK;
+        int e = put("artifact", p, k);
+        if (e != 0) return e;
+        p += k;
+        n -= k;
+    }
+    return 0;
+}
+
 /* Added 2026-09-24, after the extraction above: the RUNTIME kind admits the runtime SET of a directory, not one
  * file. See rtset.h for the format and for why a subdirectory refuses rather than being skipped. The encoder hands
  * this sink at most RTSET_CHUNK bytes at a time, so every write is one whole sysfs write. */

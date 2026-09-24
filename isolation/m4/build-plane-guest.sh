@@ -18,6 +18,11 @@
 # RT_MUTATE builds a NEGATIVE CONTROL and nothing else: flip:<name> flips one byte of /rt/<name>, drop:<name>
 # deletes it, add:<name> adds a file. The digest printed is of the MUTATED set, and verify-runtime-set.sh builds
 # the SVSM with the UNMUTATED one, so the plane must be refused. Never set it for an image anyone will serve.
+#
+# APP_MUTATE is the same for the app: decoy:<file.wasm> puts a DIFFERENT component at /app.wasm, where the old
+# planeinit ran it from (the plane must serve the admitted bundle's component anyway); truncate cuts the last 4 KiB
+# off /app.bundle; drop leaves /app.bundle out. The app id printed is ALWAYS the unmutated bundle's, because that is
+# what the SVSM is built to admit - verify-app-binding.sh relies on it.
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 m2=$here/../m2
@@ -51,9 +56,19 @@ if [ -n "${RT_MUTATE:-}" ]; then
   esac
   echo "RT_MUTATE=$RT_MUTATE: this image is a NEGATIVE CONTROL and must be refused" >&2
 fi
-# the bundle is what the SVSM admits; the extracted component is what the runtime executes
-"$BUNDLETOOL" extract "$bundle" "$d/app.wasm"
+# The bundle is what the SVSM admits AND what the runtime executes: planeinit cuts the component from the bundle
+# bytes it staged (guest/appbundle.h). No /app.wasm is extracted into the image any more - that separate file was
+# the executed copy, tied to the admitted one only by this build.
 cp "$bundle" "$d/app.bundle"
+if [ -n "${APP_MUTATE:-}" ]; then
+  case "$APP_MUTATE" in
+    decoy:*) cp "${APP_MUTATE#decoy:}" "$d/app.wasm" ;;
+    truncate) head -c "$(( $(stat -c %s "$d/app.bundle") - 4096 ))" "$bundle" > "$d/app.bundle" ;;
+    drop) rm -f "$d/app.bundle" ;;
+    *) echo "APP_MUTATE must be decoy:<file.wasm>, truncate or drop" >&2; exit 2 ;;
+  esac
+  echo "APP_MUTATE=$APP_MUTATE: this image is a NEGATIVE CONTROL" >&2
+fi
 printf '%s\n' "$app_id" > "$d/app.sha256"
 . "$here/../m1/domain.env"
 M=/lib/modules/$GUEST_KREL/kernel
@@ -87,3 +102,4 @@ echo "  bundle  app id  $app_id   <- ENCLAVE_APP_IDS entry for this plane"
 echo "  runtime set     $rt_sha   <- ENCLAVE_RUNTIME_SHA256 entry (rtset v1, every file in /rt: $rt_desc)"
 echo "  runtime id      $rid   <- ENCLAVE_RUNTIME_IDS entry"
 [ -z "${RT_MUTATE:-}" ] || echo "  NEGATIVE CONTROL: RT_MUTATE=$RT_MUTATE"
+[ -z "${APP_MUTATE:-}" ] || echo "  NEGATIVE CONTROL: APP_MUTATE=$APP_MUTATE"
