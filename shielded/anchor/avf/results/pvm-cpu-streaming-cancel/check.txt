@@ -1,0 +1,14 @@
+ok   cancel at 1: the page consumed exactly 1 tokens and stopped (1 tokens, cancelled, 1 chunks opened)
+ok   after cancel at 1: the next stream is served at once (first token at 1247 ms, 8 tokens, complete)
+ok   cancel at 4: the page consumed exactly 4 tokens and stopped (4 tokens, cancelled, 3 chunks opened)
+ok   after cancel at 4: the next stream is served at once (first token at 1189 ms, 8 tokens, complete)
+ok   cancel at 10: the page consumed exactly 10 tokens and stopped (10 tokens, cancelled, 6 chunks opened)
+ok   after cancel at 10: the next stream is served at once (first token at 1111 ms, 8 tokens, complete)
+ok   the VM logged 3 cancelled streams, after [2, 4, 7] chunks (200 tokens asked each)
+ok   the VM ended the 3 fresh streams with FIN
+ok   l1.log: no request or token in the clear
+ok   hub.jsonl: no request or token in the clear
+ok   hub.err: no request or token in the clear
+ok   site.jsonl: no request or token in the clear
+ok   site.err: no request or token in the clear
+PASS cancellation on the device

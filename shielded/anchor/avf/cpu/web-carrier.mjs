@@ -1,4 +1,4 @@
-// web-carrier.mjs -- the LAB browser channel's carrier (PVM-CPU.md; NOT production). A page cannot open a raw stream, so
+// web-carrier.mjs -- the LAB browser channel's carrier (PVM-CPU.md, SEALED-STREAMING.md; NOT production). A page cannot open a raw stream, so
 // the relay offers two POST endpoints that carry a body to the VM and the VM's answer back, as bytes: /evidence (a nonce line
 // in, evidence out) and /sealed (a sealed request in, a sealed response out), each over one raw stream on the hub's local
 // ports (hub.spliceRaw kinds pvm-evidence, pvm-app-sealed). Nothing is parsed or kept; sizes are logged. CORS only for
@@ -18,15 +18,24 @@ export function createWebCarrier({ port, origin, evidencePort, sealedPort, emit 
     req.on("data", (d) => { nIn += d.length; if (nIn > maxIn) { res.writeHead(413, cors); res.end(); req.destroy(); } else inb.push(d); });
     req.on("end", () => {
       if (res.headersSent) return;
+      // bytes to the VM, then its answer back AS IT ARRIVES (a streamed sealed answer shows token by token): the first byte
+      // sends the headers; a page that does not read pauses the upstream (bounded); a page that goes away closes the
+      // upstream, which is how a cancel reaches the VM
       const c = net.connect(upPort, host, () => c.write(Buffer.concat(inb)));
-      const out = []; let nOut = 0;
-      c.on("data", (d) => { nOut += d.length; if (nOut > maxOut) c.destroy(); else out.push(d); });
-      c.on("close", () => {
-        emit({ web: req.url, bytesIn: nIn, bytesOut: nOut });
-        if (!nOut) { res.writeHead(502, cors); return res.end(); }
-        res.writeHead(200, { ...cors, "content-type": req.url === "/evidence" ? "application/json" : "application/octet-stream", "cache-control": "no-store" });
-        res.end(Buffer.concat(out));
+      let nOut = 0, started = false;
+      const t0 = Date.now();
+      c.on("data", (d) => {
+        nOut += d.length;
+        if (nOut > maxOut) { c.destroy(); return; }
+        if (!started) { started = true; res.writeHead(200, { ...cors, "content-type": req.url === "/evidence" ? "application/json" : "application/octet-stream", "cache-control": "no-store", "x-content-type-options": "nosniff" }); }
+        if (!res.write(d)) { c.pause(); res.once("drain", () => c.resume()); }
       });
+      c.on("close", () => {
+        emit({ web: req.url, bytesIn: nIn, bytesOut: nOut, ms: Date.now() - t0 });
+        if (!started) { if (!res.headersSent) res.writeHead(502, cors); return res.end(); }
+        res.end();
+      });
+      res.on("close", () => { if (!res.writableFinished) { emit({ web: req.url, cancelled: "the page went away", bytesOut: nOut }); c.destroy(); } });
       c.on("error", () => {});
       c.setTimeout(120000, () => c.destroy());
     });

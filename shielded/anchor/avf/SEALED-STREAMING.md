@@ -120,11 +120,11 @@ the device (results/pvm-cpu-streaming):
 | replay a whole stream, or only its FIN, under a fresh request (fresh enc) or another evidence nonce | `tamper` |
 | truncate before FIN (at a boundary, mid-chunk, header only) | `truncated`; what arrived is an authentic prefix, never complete |
 | a forged FIN, a FIN flag on a middle chunk | `tamper` |
-| an oversized length prefix, a zero-length data chunk, a chunk shorter than a tag, an unknown type | `oversize` / `malformed` / `tamper`, refused without truncating |
+| an oversized length prefix, a zero-length data chunk, a chunk shorter than a tag, an unknown type | `oversize` / `malformed`, refused without truncating |
 | bytes after FIN or ABORT | `trailing` |
 | single-bit flips in ciphertext, tag, type, response nonce or length | `tamper` or `malformed` |
 | a chunk re-encrypted under the relay's own key | `tamper` |
-| the page aborts after chunk k | `cancelled`; nothing is released after the abort; the VM stops decoding |
+| the page aborts after chunk k | `cancelled`; no chunk after the abort is opened, and the page consumes no line after it (a line sharing the chunk that crossed the page's limit included); the VM stops decoding |
 | a relay replays the sealed REQUEST | the VM refuses it before it runs (per-(nonce, enc) rule) |
 | a relay flips the request's mode | the VM cannot open it |
 
