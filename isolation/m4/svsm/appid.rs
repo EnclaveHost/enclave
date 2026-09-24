@@ -211,6 +211,21 @@ const fn hex_val(c: u8) -> u8 {
     }
 }
 
+/// Protocol-specific result codes (SvsmReqError::protocol -> 0x80001000 + code).
+///
+/// INVALID_REQUEST alone covered eight different refusals - unadmitted plane, unassigned table entry, digest
+/// mismatch, double admit, a freeze that failed, bytes changed between hash and freeze, and a failed record -
+/// so a harness could only say "refused" and two of those would be bugs in our own code rather than findings.
+/// A distinct code per reason is what lets a negative test assert it was refused for the RIGHT reason.
+const E_NOT_OWNING_PLANE: u64 = 1;
+const E_PLANE_UNASSIGNED: u64 = 2;
+const E_NOT_ADMITTED: u64 = 3;
+const E_DIGEST_MISMATCH: u64 = 4;
+const E_ALREADY_ADMITTED: u64 = 5;
+const E_FREEZE_FAILED: u64 = 6;
+const E_CHANGED_UNDER_US: u64 = 7;
+const E_RECORD_FAILED: u64 = 8;
+
 /// The artifacts a plane's identity covers. Both must be admitted before this SVSM speaks for the plane.
 const KIND_BUNDLE: usize = 0;
 const KIND_RUNTIME: usize = 1;
@@ -268,7 +283,7 @@ pub fn region_is_admitted(paddr: PhysAddr, len: usize) -> bool {
 /// the honest state: a compiled-in table can NAME three planes, and this code will speak for one.
 fn require_owning_plane(vmpl: usize) -> Result<(), SvsmReqError> {
     if vmpl != GUEST_VMPL {
-        return Err(SvsmReqError::invalid_parameter());
+        return Err(SvsmReqError::protocol(E_NOT_OWNING_PLANE));
     }
     Ok(())
 }
@@ -289,7 +304,7 @@ fn expected_digest(vmpl: usize, kind: usize) -> Result<[u8; APPID_LEN], SvsmReqE
         _ => return Err(SvsmReqError::invalid_parameter()),
     };
     if d == [0u8; APPID_LEN] {
-        return Err(SvsmReqError::invalid_request());
+        return Err(SvsmReqError::protocol(E_PLANE_UNASSIGNED));
     }
     Ok(d)
 }
@@ -301,7 +316,7 @@ fn require_admitted(vmpl: usize) -> Result<(), SvsmReqError> {
         return Err(SvsmReqError::invalid_parameter());
     }
     if ADMITTED[vmpl].load(Ordering::Acquire) & KINDS_REQUIRED != KINDS_REQUIRED {
-        return Err(SvsmReqError::invalid_request());
+        return Err(SvsmReqError::protocol(E_NOT_ADMITTED));
     }
     Ok(())
 }
@@ -386,7 +401,7 @@ fn read_page_list(list_gpa: PhysAddr, len: usize) -> Result<Vec<PhysAddr>, SvsmR
         return Err(SvsmReqError::invalid_parameter());
     }
     let mut out = Vec::new();
-    out.try_reserve(pages).map_err(|_| SvsmReqError::invalid_request())?;
+    out.try_reserve(pages).map_err(|_| SvsmReqError::protocol(E_RECORD_FAILED))?;
     let mut raw = [0u8; 8];
     for i in 0..pages {
         let at = PhysAddr::from(list_gpa.bits() + i * 8);
@@ -451,7 +466,9 @@ fn freeze_pages(pages: &[PhysAddr], owner: usize, kind: usize) -> Result<usize, 
             // SAFETY: every branch here REMOVES permission from a guest plane. The owner loses write and
             // keeps what it needs to run; the others are denied. Nothing is granted that was not held.
             unsafe { rmp_adjust(vaddr, flags, PageSize::Regular) }
-                .map_err(|_| SvsmReqError::invalid_request())?;
+                // FAIL_SIZEMISMATCH lands here when a 4 KiB adjust meets a 2 MiB RMP entry, which is a
+            // staging problem and not a digest problem: it gets its own code so it cannot be misread.
+            .map_err(|_| SvsmReqError::protocol(E_FREEZE_FAILED))?;
             vmpl += 1;
         }
     }
@@ -484,7 +501,7 @@ fn plane_mask(level_bits: u64, owner: usize, kind: usize) -> u64 {
 fn record_admitted(pages: &[PhysAddr]) -> Result<(), SvsmReqError> {
     let mut held = ADMITTED_PAGES.lock();
     held.try_reserve(pages.len())
-        .map_err(|_| SvsmReqError::invalid_request())?;
+        .map_err(|_| SvsmReqError::protocol(E_RECORD_FAILED))?;
     for p in pages {
         held.push(p.page_align().bits() as u64);
     }
@@ -521,11 +538,11 @@ fn appid_admit(vmpl: usize, params: &mut RequestParams) -> Result<(), SvsmReqErr
     // Admitting the same kind twice would let a plane get a second region vouched for after the first, and
     // then run from whichever it liked. One admission per kind per plane, for the life of the guest.
     if ADMITTED[vmpl].load(Ordering::Acquire) & bit != 0 {
-        return Err(SvsmReqError::invalid_request());
+        return Err(SvsmReqError::protocol(E_ALREADY_ADMITTED));
     }
     let pages = read_page_list(PhysAddr::from(desc[0]), len)?;
     if hash_pages(&pages, len)? != expected {
-        return Err(SvsmReqError::invalid_request());
+        return Err(SvsmReqError::protocol(E_DIGEST_MISMATCH));
     }
     // freeze -> re-hash -> record, under the PVALIDATE write lock.
     //
@@ -540,7 +557,7 @@ fn appid_admit(vmpl: usize, params: &mut RequestParams) -> Result<(), SvsmReqErr
     if hash_pages(&pages, len)? != expected {
         // The bytes changed between the first hash and the freeze. That is an active attempt, not a mistake.
         log::error!("SVSM appid: plane {vmpl} kind {kind} changed between hash and freeze; REFUSED");
-        return Err(SvsmReqError::invalid_request());
+        return Err(SvsmReqError::protocol(E_CHANGED_UNDER_US));
     }
     // Recorded BEFORE the plane is marked admitted: if recording fails there is no point at which this SVSM
     // has named a plane whose pages the PVALIDATE path would still thaw.
@@ -790,6 +807,21 @@ mod tests {
     }
 
     // ---- freeze: what the owner keeps, and that neighbours are never granted anything ----
+
+    #[test]
+    fn every_refusal_has_its_own_code() {
+        // a harness that can only see "refused" cannot tell a finding from a bug in our own staging
+        let codes = [
+            E_NOT_OWNING_PLANE, E_PLANE_UNASSIGNED, E_NOT_ADMITTED, E_DIGEST_MISMATCH,
+            E_ALREADY_ADMITTED, E_FREEZE_FAILED, E_CHANGED_UNDER_US, E_RECORD_FAILED,
+        ];
+        for (i, a) in codes.iter().enumerate() {
+            assert_ne!(*a, 0, "0 would read as success");
+            for b in &codes[i + 1..] {
+                assert_ne!(a, b, "two refusals share a code");
+            }
+        }
+    }
 
     #[test]
     fn freeze_never_grants_a_neighbour_anything() {
