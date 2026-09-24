@@ -467,6 +467,17 @@ Exact remaining integration gaps (nothing below is verified today):
    same-version race that published before the winner committed leave immutable content-addressed files no state
    names; the owner keeps them deliberately (a shared install directory, no safe deletion without a lock), recorded as
    an observation, not a failure.
+9. Activation of a staged update (the launcher gap): nothing on 0.2.1 runs what `update` staged, and a launcher that
+   checked by path and then ran `node <path>` would read the file twice. Independent design review in
+   `docs/security/pvm-client-activation-review.md` (2026-09-24): twelve requirements, the design agreed with the owner
+   before coding (the installed artifact is the launcher and root of code trust; `activate` commits a monotonic
+   `active` record after a start check on bytes read once; `run` hands the active bytes over stdin with a one-hop
+   marker and explicit directories, refuses with no fallback, relays the child's exit; scrubbed start check; named
+   refusals), the failure and concurrency table, and the limits kept explicit (initial installation and the root of
+   trust out of band, production key distribution, whole-machine power loss, the extension cannot activate, no
+   unattended activation). The acceptance suite `verifier-pvm-client-activation` is written from the agreed interface
+   with canary artifacts and skips until the owner's 0.3.0 is pinned and reproduced; it has not run against any
+   implementation yet.
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial
