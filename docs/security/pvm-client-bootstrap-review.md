@@ -81,3 +81,33 @@ Gate parity: the owner's `test/pvm-client-gate.test.mjs` replays this branch's `
 data at d760725b) against their `src/gate.js`: all 37 pVM and technology-neutral decisions match; the three AMD
 SEV-SNP releases hold in their client with the explicit reason "no admission rule in this client for technology
 amd-sev-snp", which is the correct statement for a pVM-only client.
+
+## Device run and the offline policy differential (owner's e27091ac, 2026-09-24)
+
+The owner ran the installed client on the Pixel 10 (rt14) with the artifact reproduced above, unchanged since
+4e55879b (no pin bump): PASS 30/30. The CLI streamed 24 tokens complete under a signed policy fetched from an
+untrusted carrier, served a whole-mode answer, and followed policy 2; it refused, before sending anything, an
+attacker-signed policy, a rollback, a policy narrowing the roots to the 2022 root (the Pixel's real chain then
+refused at verify), a policy with minClientVersion 0.2.0 (client disabled), a policy not admitting the app, and a
+relay swapping the app key. The extension (Chrome for Testing 151, anchored from its own options page, always
+through a relay that could turn malicious) streamed complete and followed policy 2, refused an attacker policy, a
+rollback and a relay's app key, and called a truncated stream incomplete. The VM served exactly the released
+requests. Lab keys were made outside the repository; only public halves are committed.
+
+On this branch, `verifier/pvm-policy.mjs` is an independent check of the signed policy written from the design text
+(envelope `{ policy: base64(exact bytes), sig }`, strict compact JSON that round-trips unchanged, the closed
+fifteen-field shape in order, the anchor fingerprint as sha256 of the raw Ed25519 key, Ed25519 over
+`"enclave-pvm-client-policy-v1\n" || bytes`, the install serial floor and the rollback and equivocation rules
+against the client's recorded state, the validity window on the client's clock, non-empty pins, roots that may only
+narrow the built-in Google roots, known formats and modes, the kill switch, and the expectations it yields for
+the consumer gate for one admitted app). `test/verifier-pvm-policy.test.mjs` (7) runs it on the seven REAL signed
+policies (`test/fixtures/verifier/pvm-client/`) with the run's anchor and state: policies 1, 2 and 6 genuine in
+order; the attacker's refused before any field is read, and genuine only when the attacker's fingerprint is the
+anchor (the anchor is the root); the client's recorded state is the digest of policy-6's bytes, every lower serial
+is a rollback against it, the device's own rollback case (policy 1 after 2) refuses, equivocation refuses, and the
+install floor applies; narrow-roots is a genuine policy whose pins exclude the root the Pixel chains to;
+min-version is genuine but disables 0.1.0 and not 0.2.0; other-app is genuine but yields no expectations for the
+app; a genuine policy's expectations are exactly what `verifier/admission.mjs` takes, and the gate releases only on
+them; expired, not-yet-valid, a flipped signature, a flipped hex digit inside a pinned hash, a structural byte,
+padded bytes, an extra or reordered field, an envelope with a third field and non-strict base64 each refuse.
+Every outcome matches the device's recorded outcome for the same case.
