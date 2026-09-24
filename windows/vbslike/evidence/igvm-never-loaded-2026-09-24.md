@@ -12,8 +12,8 @@ including the ones whose document named our image in `SecuritySettings.Isolation
 [Virtual machine <id>] Loading IGVM file from default location.
 ```
 
-There is no event naming a path, and no event naming our file. So this build's worker does not read
-`IgvmFilePath`, the document is accepted with it present and silently ignores it, and **every**
+There is no event naming a path, and no event naming our file. So the worker does not act on
+`IgvmFilePath`, and **every**
 "create ok, start ok" result reported earlier was Microsoft's in-box paravisor. Our own-guest image
 `openhcl-ownguest.bin` (124,962,164 bytes, `2d735376…`) has never executed, and neither has the
 upstream test payload. The claim in `f3c3bb7d` and its correction in `09c15623` were both wrong
@@ -86,3 +86,26 @@ to the custom-IGVM goal is now unknown rather than established.
 
 No app runs on this backend. The five production apps run on the old path. Nothing here is verified
 protection and nothing is advertised as tenant capacity.
+
+
+## 5. The schema KNOWS `IgvmFilePath` - it is honoured nowhere, not unknown
+
+"Accepted in the document" would mean nothing if this schema ignored what it did not recognise, so I
+checked instead of assuming. A deliberately invented key beside it:
+
+```json
+"Isolation": { "IsolationType": "VirtualizationBasedSecurity", "VbslikeNoSuchKeyEverPlease": "x" }
+```
+
+is refused at Construct with `0x8037010d`, "the virtual machine or container JSON document is
+invalid". **Unknown keys are refused.** So `IgvmFilePath` being accepted is not indifference: this
+build's schema recognises the field, validates a document carrying it, and the worker then loads its
+default image anyway.
+
+That is a sharper statement than the one above, and it moves the question. It is not "HCS does not
+know how to take a custom IGVM". It is "HCS accepts a custom IGVM and does not act on it here",
+which is consistent with the supported path living in VMMS - the component that is not installed -
+and the HCS field being honoured only when that component is doing the work.
+
+I am not claiming which of those it is. What is established: the key is recognised, the image is not
+loaded, and the mechanism Microsoft documents and ships a script for is WMI on the Hyper-V role.
