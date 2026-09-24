@@ -67,7 +67,11 @@ async function fresh(zip, name) {
   const p = await br.open(installUrl(br.id, name)); await L.when(() => L.posts.filter((x) => x.installed === true).length > before, `the install post of ${name}`); await p.close();
   return { name, extDir, profile, br };
 }
-const relaunch = async (s) => { s.br = await launch(s.extDir, s.profile); return s.br; };
+// a relaunch on the same profile must not restore the killed browser's tabs (Chrome would re-run their pages and each
+// would send another evidence request, which the exact counts below would catch as an extra arrival): the session
+// files are removed first. The owner's extension suite met exactly that on a SIGKILLed profile.
+const clearSessions = (profile) => { for (const d of [profile, path.join(profile, "Default")]) { for (const n of ["Sessions", "Session Storage", "Current Session", "Last Session", "Current Tabs", "Last Tabs"]) fs.rmSync(path.join(d, n), { recursive: true, force: true }); } };
+const relaunch = async (s) => { clearSessions(s.profile); s.br = await launch(s.extDir, s.profile); return s.br; };
 
 test("pinned build: stall at evidence, then the whole browser SIGKILLed: the relaunch finds the committed serial and refuses a rollback", { skip: skipNew }, async () => {
   L.policies.set("e1-new", signedPolicy(K, 2)); L.policies.set("e1-old", signedPolicy(K, 1));
