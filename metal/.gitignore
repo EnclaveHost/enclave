@@ -11,3 +11,4 @@ dist.prev.bak/
 config.json
 config.*.json
 !config.example.json
+dist-iso*/
