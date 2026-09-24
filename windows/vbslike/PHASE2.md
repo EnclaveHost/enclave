@@ -44,6 +44,19 @@ isolation type is not the one requested (fail closed). Crash independence and li
 phase-1 ones. Evidence about the boundary itself would come from the paravisor reports and the service
 properties of the partition, recorded next to the phase-1 documents.
 
+## Cross-platform conformance (2026-09-23)
+
+`isolation/conformance/` takes ONE bundle set and ONE guest image and compares what each backend did:
+Linux SNP domain (T1) against a NucBox partition (T0-hv), image `44abb52b…` on both, bundles
+`603bb7a7…` and `bba82d56…`. **27 of 27 must-match fields agree**: app IDs, `report_data[32:64]`, the
+ABI/2 runtime identity, the binding, the app's answers, the refusals (wrong app, altered bundle,
+restated runtime version, unauthenticated cache, ABI/1 downgrade) and the lifecycle guarantees. The
+differences are stated rather than smoothed: T1 `attested` against T0-hv `monitor-signed`, a launch
+measurement against a launcher key and an image hash, and which layer refuses an altered bundle (the
+in-guest monitor on Linux, the launcher's contract mirror before a partition exists on Windows).
+Timings carry their contention and are never compared. Evidence: `evidence/linux-record-2026-09-23.json`,
+`evidence/windows-record-2026-09-23.json`, `evidence/conformance-2026-09-23.json`.
+
 ## Runtime direction (2026-09-23)
 
 The artifact stays the portable component and is compiled inside each partition by the guest image's
