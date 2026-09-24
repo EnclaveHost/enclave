@@ -13,8 +13,8 @@
 > never the op profile alone. The bench harness lives in `shielded/bench-harness/`
 > (it used to live in a tmpfs scratchpad and was lost once). Merge readiness,
 > the open acceptance gaps (Freivalds rejections, no model-matched quality eval,
-> multi-sequence abort in the official graph-slot patch) and the next bounded
-> follow-up: `shielded/WRAPUP-27B-INTEGRATION.md`.
+> multi-sequence abort in the official graph-slot patch, since FIXED on the branch,
+> REPORT 18.55): `shielded/WRAPUP-27B-INTEGRATION.md`.
 
 You are picking up a performance campaign on Enclave's **shielded inference**
 tier. Read all of this before touching anything. It is written for an agent

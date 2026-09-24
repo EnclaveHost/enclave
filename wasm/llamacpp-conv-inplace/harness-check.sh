@@ -15,23 +15,23 @@ run_equiv() {
     echo "OK: $name"
 }
 
-# run_graph BIN MODEL OUTDIR [SWITCH]   -- the fused op on and off must both finish,
+# run_graph BIN MODEL OUTDIR [SWITCH [SCENARIO]]   -- SWITCH=1 and =0 must both finish,
 # report the same nonzero step and byte counts, and dump byte-identical logits
 run_graph() {
-    local bin=$1 model=$2 dir=$3 sw=${4:-ENCLAVE_GGML_CONV_INPLACE} v rc out line1 line0
+    local bin=$1 model=$2 dir=$3 sw=${4:-ENCLAVE_GGML_CONV_INPLACE} scen=${5:-} v rc out line1 line0
     for v in 1 0; do
-        rc=0; out=$(env "$sw=$v" "$bin" "$model" "$dir/cgt-$v.bin" 2>&1) || rc=$?
+        rc=0; out=$(env "$sw=$v" "$bin" "$model" "$dir/cgt-$v.bin" $scen 2>&1) || rc=$?
         printf '%s\n' "$out" > "$dir/cgt-$v.log"
-        if [ "$rc" -ne 0 ]; then echo "FAIL: graph test inplace=$v exited $rc"; return 1; fi
+        if [ "$rc" -ne 0 ]; then echo "FAIL: graph test $sw=$v${scen:+ ($scen)} exited $rc"; return 1; fi
         line=$(printf '%s\n' "$out" | grep -E '^steps=[1-9][0-9]* rows=[1-9][0-9]* bytes=[1-9][0-9]* ' || true)
-        if [ -z "$line" ]; then echo "FAIL: graph test inplace=$v printed no nonzero steps/rows/bytes line"; return 1; fi
+        if [ -z "$line" ]; then echo "FAIL: graph test $sw=$v${scen:+ ($scen)} printed no nonzero steps/rows/bytes line"; return 1; fi
         eval "line$v=\$line"
     done
     if [ "$line1" != "$line0" ]; then echo "FAIL: on/off disagree: '$line1' vs '$line0'"; return 1; fi
     local sz; sz=$(stat -c %s "$dir/cgt-1.bin")
     if [ "$sz" -eq 0 ] || [ "$sz" -ne "$(stat -c %s "$dir/cgt-0.bin")" ]; then echo "FAIL: dump sizes differ or are empty"; return 1; fi
-    if ! cmp -s "$dir/cgt-1.bin" "$dir/cgt-0.bin"; then echo "FAIL: logits differ between fused on and off"; return 1; fi
-    echo "OK: graph test, fused on == off byte for byte ($line1, $sz bytes)"
+    if ! cmp -s "$dir/cgt-1.bin" "$dir/cgt-0.bin"; then echo "FAIL: logits differ between $sw=1 and =0${scen:+ ($scen)}"; return 1; fi
+    echo "OK: graph test${scen:+ ($scen)}, $sw=1 == =0 byte for byte ($line1, $sz bytes)"
 }
 
 # run_pair NAME BIN SWITCH OUTDIR   -- a dump harness (BIN OUT.bin) run with

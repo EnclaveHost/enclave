@@ -74,6 +74,9 @@ static llama_context * make_ctx(llama_model * m, uint32_t n_seq_max, uint32_t n_
     llama_context_params cp = llama_context_default_params();
     cp.n_ctx = 512; cp.n_batch = 512; cp.n_ubatch = 512;
     cp.n_seq_max = n_seq_max; cp.n_rs_seq = n_rs_seq;
+    // CONV_TEST_KV_UNIFIED=1: one KV stream for all sequences (as the engine's
+    // server contexts use); otherwise llama's default, one stream per sequence
+    { const char * u = getenv("CONV_TEST_KV_UNIFIED"); if (u && u[0] == '1') cp.kv_unified = true; }
     cp.n_threads = 8; cp.n_threads_batch = 8;
     llama_context * c = llama_init_from_model(m, cp);
     if (!c) { fprintf(stderr, "context failed\n"); exit(2); }

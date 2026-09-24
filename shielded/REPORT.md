@@ -5161,3 +5161,61 @@ and exempt, since it can only slow a run.
 multi-sequence limitation; no model-matched quality evaluation of the 27B
 shielded encoding; the run-to-run spread (whole-CPU slowdowns within a run, not
 huge pages, not the GPUs, not the CPU ops' work) is unexplained.
+
+### 18.55 The multi-sequence abort was the official graph-slot patch; fixed and validated
+
+The "multi-sequence limitation" carried since 18.46 as a property of the development
+fork is in the OFFICIAL build. On the llamacpp-toolchain workflow's own tree
+(LLAMA_COMMIT + its patches, host build with the workflow's CPU flags), a context
+with `n_seq_max = 3` and llama's default per-sequence KV cache aborts on its first
+2-8 token single-sequence decode:
+`process_ubatch -> ensure_slot_alt -> graph_reserve -> build_layer_attn (qwen35) ->
+ggml_mul: GGML_ASSERT(ggml_can_repeat(b, a))`. `ensure_slot_alt`, from
+`llamacpp-graph-slot.patch` (mm10's small-batch graph slot), reserved each slot with
+`n_seqs = 1` against `memory->init_full()`, which spans `n_seq_max` KV streams unless
+the cache is unified; stock `sched_reserve` never pairs a single-sequence reserve with
+a multi-stream memory context. `LLAMA_GRAPH_SLOT_ALT=0` made the scenario complete,
+which isolated the cause.
+
+**Fix** (in `llamacpp-graph-slot.patch`, two added lines of the patch become
+eleven): reserve with the stream count, `kv_unified ? 1 : n_seq_max`
+(`graph_reserve` rounds `n_tokens` up). Unified contexts, which is what the engine's
+server contexts create (`ell_new_server`, the MTP server: `kv_unified = true`), keep
+exactly the old reservation. The reservation only sizes the slot's buffers; the
+decode graph is built from the real ubatch, so numerics cannot change.
+
+**Validation** (0.8B qwen35 on the CPU, `graph-slot-check.sh`: plain, spec, lifetime
+and multi, each with the per-sequence and the unified KV cache, slot on vs
+`LLAMA_GRAPH_SLOT_ALT=0`, byte-identical logits required):
+
+| build | per-sequence KV | unified KV |
+|---|---|---|
+| official, before | plain / spec / lifetime PASS; **multi aborts** (slot-on arm, rc 134) | all 4 PASS |
+| official + fix, host | all 4 PASS | all 4 PASS |
+| official + fix, ubuntu 22.04 / GCC 11.4 / AVX2 (`official-graph-slot-check.sh`) | all 4 PASS | all 4 PASS |
+
+The fixed build's dumps equal the unfixed build's in all 7 cells the old code
+completed; in the aborting cell the unfixed partial dump (21,852,160 bytes) is an
+exact prefix of the fixed one (45,690,880). Every workflow patch after graph-slot
+still applies. Dump hashes, summaries and the backtrace:
+`bench-harness/results-2026-09-23/graph-slot/`. Masking, Freivalds verification and
+fail-closed behaviour are untouched (this is host-side scheduler buffer reservation).
+Production exposure before the fix is unverified: the engine's multi-session contexts
+are unified, which the old code handled.
+
+**Not live**: the fix reaches production only through a manual `llamacpp-toolchain`
+dispatch and a `WASMTIME_IMAGE` repin, each needing its own review and release window.
+
+**Deploy path.** Merging the branch still cuts a release (`deploy.yml`: any `wasm/`
+path -> image rebuild, release, `update-fleet`; seven harness/record pushes did so on
+2026-09-23). `shielded/proposals/` holds an UNAPPLIED, source-justified exclusion for
+benchmark sources and the CPU-kernel harness directory, simulated with deploy.yml's
+own detect block: those 8 paths stop triggering, every image input and backend source
+still triggers, and the branch's three `wasm/*.patch` records still trigger.
+
+**Checked, nothing to correct:** no shielded-lane document or source cites a VMPL0
+refusal as confinement evidence (the isolation lane's 2026-09-23 correction).
+
+**Still open:** both production Freivalds rejections (sterms-1, b-eq-1), unexplained;
+no model-matched quality evaluation of the 27B shielded encoding (token equality is
+not a quality measurement). No verified 25 tok/s.
