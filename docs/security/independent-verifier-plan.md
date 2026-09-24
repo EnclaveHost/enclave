@@ -359,15 +359,29 @@ and the transport key to pin. Absent the module the verdict is `unsupported`, an
 | suite | passing means |
 |---|---|
 | `verifier-admission` (7) | on the authentic Genoa verdict a native client releases only when its own peer key is the bound key, a browser client releases on the HPKE key with TLS pinning explicitly not claimed; a `limited` verdict (no floor, no CRL) never releases; missing or mismatched client expectations (measurements, floor, root pins, wrong product pin) hold; on the authentic Turin ABI/2 verdict the nonce, app id and peer key are each required; the same nonce holds the second time; every non-verified or inconsistent verdict shape holds |
-| `verifier-pvm-evidence` (9) | with an injected stand-in for the owner's verifier (modelling only that the certificate challenge covers nonce, app, transport key and identity): an honest exchange verifies and releases for a native client; a browser client holds until an application-layer key is present; a hostile relay rewriting the echoed nonce or app is caught by the consumer cross-check, and substituting the chain, transport key or identity, or pasting our echo onto another session's evidence, is caught by the challenge; stale evidence under a fresh challenge and a reused challenge hold; each empty pin list and a missing challenge or app id refuse; malformed envelopes refuse; without the owner's module the verdict is `unsupported` and holds. The last case runs against the owner's module once it is pushed |
+| `verifier-pvm-device` (7, skips without the owner's module) | on the two real Pixel 10 envelopes with client-held pins: both boots verify and release a native client on that boot's key only; a browser client holds on v1; replay of launch 1 against launch 2, a pasted nonce, a swapped key, a foreign chain, a fresh nonce over a genuine chain, wrong app/runtime/code hash/authority/root pins, empty pins, an expired or not-yet-valid leaf, stripped/extra fields, non-canonical base64 and another format each refuse |
+| `verifier-pvm-evidence` (10) | with an injected stand-in for the owner's verifier (modelling only that the certificate challenge covers nonce, app, transport key and identity): an honest exchange verifies and releases for a native client; a browser client holds until an application-layer key is present; a hostile relay rewriting the echoed nonce or app is caught by the consumer cross-check, and substituting the chain, transport key or identity, or pasting our echo onto another session's evidence, is caught by the challenge; stale evidence under a fresh challenge and a reused challenge hold; each empty pin list and a missing challenge or app id refuse; malformed envelopes refuse; without the owner's module the verdict is `unsupported` and holds. The last case runs against the owner's module once it is pushed |
+
+Contract and device results (2026-09-24, against the owner's pushed revision 31f0fe2c of
+`relay/pvm-app-attest.mjs`, staged untracked into the research worktree for the run, never committed here):
+the contract test passed (empty pins and unknown fields refused, the echoed nonce never used as the
+challenge); the adapter's field assumptions matched the owner's result shape without change; and the new
+`verifier-pvm-device` suite (7 cases) verified the two REAL Pixel 10 envelopes (`test/fixtures/verifier/
+pvm-evidence/`, boots l1 and l2) with client-held pins (app id, APK code hash, APK signing authority, the
+known identity's RuntimeID, Google's roots), released a native client only on that boot's transport key,
+held a browser client (v1 has no application-layer key), and refused, from the real envelopes: launch 1's
+evidence against launch 2's nonce, our nonce pasted onto old evidence, the other boot's key or chain under
+this boot's echo, a fresh nonce over a genuine chain, a wrong app, runtime, code hash, authority or root
+pin, each empty pin list, a clock a month later or before issuance (the RKP leaf is short-lived), a
+stripped or extra field, a non-canonical chain entry and another format string. These cases skip where the
+owner's module is absent (main, and a clean checkout of this branch) and run wherever both trees meet.
 
 Exact remaining integration gaps (nothing below is verified today):
-1. `verifyPvmAppEvidence` is not pushed (pVM branch head 816f88f1 exports only `verifyPvmAppAbi2`); the
-   adapter's contract test skips, and the substitution and replay detections that live in the owner's
-   verifier are exercised only through the stand-in until then.
-2. No authentic evidence fixture in the `enclave-pvm-app-evidence/v1` format exists; the real captures on
-   the pVM branch carry the owner's nonce and no transport SPKI, so a real-envelope fixture waits for the
-   owner's push.
+1. The owner's module lives on `pvm-cpu/portable-runtime`; until it lands on main (or this branch is
+   rebased onto it) the device and contract suites skip on this branch alone. No copy is kept here.
+2. The real envelopes carry the client's nonce of that exchange, so the device suite proves "binding
+   verified for that exchange"; a live exchange with a nonce chosen at test time is the owner's device run
+   (22/22 in their `check.txt`), not reproducible offline.
 3. The browser path: the owner's v2 (proposed 2026-09-24, not pushed) adds `appKey` (32-byte X25519) and
    `appKeySig` (Ed25519 under the attested transport key over the nonce, app id and key), with HPKE base
    mode (X25519, HKDF-SHA256, AES-128-GCM) requests in RFC 9458 shape to a sealed VM port. The adapter
