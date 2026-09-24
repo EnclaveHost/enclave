@@ -344,3 +344,43 @@ test("with NO rule wired the record stays starting and never invents a key", asy
   assert.equal(r.status, "starting");
   assert.equal(r.transportKeySha256, null, "a manager that cannot judge must not produce a routable record");
 });
+
+/* ---- defect 11: expectRuntime is an IDENTITY, not a hash --------------------------------------- *
+ *
+ * enclave-99, measured through the real join: judge-hv hands expectRuntime to the shared
+ * checkRuntime as `want.runtime`, which DIFFS IT FIELD BY FIELD against the identity the document
+ * states. Passing rec.runtimeId - a 64-hex hash with none of those fields - made every real
+ * document "differ in name, version, execution, targetIsa, hostIsa, cpuFeatures, wx, cache", so a
+ * manager with a rule wired could never say running. Both halves correct; the join carried the
+ * wrong kind of thing. */
+import { runtimeId as contractRuntimeId } from "../../../isolation/contract/runtime.mjs";
+
+const RUNTIME = { name: "wasmtime", version: "48.0.1", execution: "jit", targetIsa: "x86_64",
+                  hostIsa: "x86_64", cpuFeatures: "baseline", wx: "enforced", cache: "none" };
+
+test("the rule is given the runtime IDENTITY, and the id is derived from it", async () => {
+  let got = null;
+  const m = new Manager({ backend: relayBackend(), fetchComponent: async () => component,
+    runtime: RUNTIME,
+    judgeReady: async (a) => { got = a; return { status: "running", transportKeySha256: "ee".repeat(32),
+      checks: { document: { ok: true, verdict: "monitor-signed" } } }; } });
+  const expected = Buffer.from(contractRuntimeId(RUNTIME)).toString("hex");
+  assert.equal(m.runtimeId, expected, "the hash is DERIVED from the identity, not configured beside it");
+  const r = await m.spawn({ derive: { ...REC, runtimeId: expected }, name: DEP, isPublic: true, hasSecrets: false });
+  await m.judging.get(r.id);
+  assert.ok(got, "the rule was called");
+  assert.deepEqual(got.expectRuntime, RUNTIME,
+    "checkRuntime diffs this field by field: a hash here rejects every real document");
+  assert.notEqual(typeof got.expectRuntime, "string", "never the hash");
+  assert.equal(m.get(r.id).status, "running");
+});
+
+test("with no runtime identity configured, nothing is asserted about the runtime", async () => {
+  let got = null;
+  const m = mk({ backend: relayBackend(),
+    judgeReady: async (a) => { got = a; return { status: "running", transportKeySha256: "ff".repeat(32) }; } });
+  const r = await m.spawn(spawnBody());
+  await m.judging.get(r.id);
+  assert.equal(got.expectRuntime, undefined,
+    "undefined means ABI/1 is judged as before; a hash would have been a guaranteed rejection");
+});
