@@ -12,26 +12,49 @@ export const TECH = { SNP: "amd-sev-snp", TDX: "intel-tdx", AVF: "android-avf", 
 //   hosted-tinfoil  sha256(TLS SPKI); [32:64] = HPKE public key; freshness rests on the served certificate
 //   spki            sha256(SPKI), or sha256(SPKI || nonce) when the verifier issued a nonce (metal attach)
 //   domain          ABI/1 sha256(SPKI || nonce) or ABI/2 Bind2 (caller-supplied bytes); [32:64] = AppID
+// Field kinds for the per-format shapes below: b64(max chars), hex(n chars, lowercase), str(max), obj (a JSON object),
+// oneOf(values). A field marked required must be present; an absent optional field is simply absent.
+const b64 = (max, required = false) => ({ kind: "b64", max, required }), hexF = (n, required = false) => ({ kind: "hex", n, required });
+const str = (max, required = false) => ({ kind: "str", max, required }), obj = (required = false) => ({ kind: "obj", required }), oneOf = (values, required = false) => ({ kind: "oneOf", values, required });
+export const MAX_DOC_BYTES = 1024 * 1024, MAX_DOC_KEYS = 32;
+// The shapes, from the producers as they are (metal/guest/agent.mjs, isolation/m2/front, relay/tunnel.js, windows/node/agent.mjs,
+// windows/vbslike/verify/judge-hv.mjs) and the fields this verifier reads (snp.mjs: abi; index.mjs: padKey):
+//   hosted: exactly { format, body }, CLOSED, because the served certificate binds sha256(format + body) and nothing else;
+//   metal:  { format, body } plus the agent's transport key and its UNSIGNED informational fields (certs, name, manifest,
+//           volumes, padKey), open because those evolve; each declared field is validated when present, never trusted;
+//   domain: the report in `report` (never `body`), the domain's own claims (tier, transportKey, appSha256, nonce, abi,
+//           runtime, runtimeSelfTest, certs, boundary, reason) validated for shape only: the binding decides, not these;
+//   avf:    { format, body } plus transportKey and, for v2, the pad key the transcript binds (required, 32 bytes hex);
+//   vbs / hyperv: judged elsewhere; parsed here to a body so the verdict can say "unsupported" for a well-formed one.
+const SHAPES = {
+  hosted: { body: "body", closed: true, fields: {} },
+  metal: { body: "body", closed: false, fields: { transportKey: b64(4096), transportKeyFp: hexF(64), padKey: hexF(64), certs: b64(96 * 1024), name: str(128), manifest: obj(), volumes: obj() } },
+  domain: { body: "report", closed: false, fields: { tier: str(16), transportKey: b64(4096), appSha256: hexF(64), nonce: hexF(64), abi: oneOf(["enclave-domain-abi/1", "enclave-domain-abi/2"]), runtime: obj(), runtimeSelfTest: str(4096), certs: b64(96 * 1024), boundary: obj(), reason: str(1024) } },
+  avf1: { body: "body", closed: false, fields: { transportKey: b64(4096), padKey: hexF(64) } },
+  avf2: { body: "body", closed: false, fields: { transportKey: b64(4096), padKey: hexF(64, true) } },
+  vbs: { body: "body", closed: false, fields: { transportKey: b64(4096), padKey: hexF(64) } },
+  hyperv: { body: "report", closed: false, fields: { tier: str(16), nonce: hexF(64), appSha256: hexF(64), transportKey: b64(4096), reason: str(1024) } },
+};
 export const FORMATS = Object.freeze({
-  "https://tinfoil.sh/predicate/sev-snp-guest/v2": { technology: TECH.SNP, family: "hosted-tinfoil", binding: "hosted-tinfoil", gzip: true, supported: true },
+  "https://tinfoil.sh/predicate/sev-snp-guest/v2": { technology: TECH.SNP, family: "hosted-tinfoil", binding: "hosted-tinfoil", gzip: true, supported: true, shape: SHAPES.hosted },
   "https://tinfoil.sh/predicate/sev-snp-guest/v1": { technology: TECH.SNP, family: "hosted-tinfoil", binding: "hosted-tinfoil", gzip: false, supported: false, why: "legacy Tinfoil v1 predicate" },
-  "sev-snp-guest-metal-v1":     { technology: TECH.SNP, family: "metal",  binding: "spki",   gzip: false, supported: true },
-  "sev-snp-guest-domain-v1":    { technology: TECH.SNP, family: "domain", binding: "domain", gzip: false, supported: true },
+  "sev-snp-guest-metal-v1":     { technology: TECH.SNP, family: "metal",  binding: "spki",   gzip: false, supported: true, shape: SHAPES.metal },
+  "sev-snp-guest-domain-v1":    { technology: TECH.SNP, family: "domain", binding: "domain", gzip: false, supported: true, shape: SHAPES.domain },
   "tdx-guest-metal-v1":         { technology: TECH.TDX, family: "metal",  binding: "spki",   gzip: false, supported: false, why: "Intel TDX quote verification is not implemented (DCAP collateral, QE identity, TCB info)" },
   "https://tinfoil.sh/predicate/tdx-guest/v1": { technology: TECH.TDX, family: "hosted-tinfoil", binding: "hosted-tinfoil", gzip: true, supported: false, why: "Intel TDX quote verification is not implemented" },
-  "android-avf-pvm/v1":         { technology: TECH.AVF, family: "pvm", binding: "avf-transcript", gzip: false, supported: "delegate" },
-  "android-avf-pvm/v2":         { technology: TECH.AVF, family: "pvm", binding: "avf-pad-transcript", gzip: false, supported: "delegate" },
+  "android-avf-pvm/v1":         { technology: TECH.AVF, family: "pvm", binding: "avf-transcript", gzip: false, supported: "delegate", shape: SHAPES.avf1 },
+  "android-avf-pvm/v2":         { technology: TECH.AVF, family: "pvm", binding: "avf-pad-transcript", gzip: false, supported: "delegate", shape: SHAPES.avf2 },
   // client-verified pVM app evidence (pVM owner's proposal, 2026-09-24): a JSON object, not a base64 body; routed
   // by verifier/index.mjs to verifier/pvm-evidence.mjs before parseEnvelope, which is why it has no body here
   "enclave-pvm-app-evidence/v1": { technology: TECH.AVF, family: "pvm-app", binding: "abi2-client-nonce", gzip: false, supported: "delegate", jsonObject: true },
   "enclave-pvm-app-evidence/v2": { technology: TECH.AVF, family: "pvm-app", binding: "abi2-client-nonce", gzip: false, supported: "delegate", jsonObject: true, appKey: true },
-  "windows-vbs-enclave/v1":     { technology: TECH.VBS, family: "consumer-node", binding: "vbs-transcript", gzip: false, supported: "delegate" },
-  "hyperv-partition-domain/v1": { technology: TECH.HYPERV, family: "domain", binding: "domain", gzip: false, supported: "delegate", hostExcluded: false },
+  "windows-vbs-enclave/v1":     { technology: TECH.VBS, family: "consumer-node", binding: "vbs-transcript", gzip: false, supported: "delegate", shape: SHAPES.vbs },
+  "hyperv-partition-domain/v1": { technology: TECH.HYPERV, family: "domain", binding: "domain", gzip: false, supported: "delegate", hostExcluded: false, shape: SHAPES.hyperv },
   "dev-unattested-metal-v1":    { technology: TECH.NONE, family: "dev", binding: null, gzip: false, supported: false, rejected: true, why: "development format: proves nothing about hardware by definition" },
   "none":                       { technology: TECH.NONE, family: "t0", binding: null, gzip: false, supported: false, rejected: true, why: "a T0 domain has no hardware report" },
 });
 
-export const MAX_BODY_B64 = 64 * 1024, MAX_BODY_BYTES = 64 * 1024, MAX_GUNZIP_BYTES = 64 * 1024, MAX_EXTRA_FIELD = 8 * 1024 * 1024;
+export const MAX_BODY_B64 = 64 * 1024, MAX_BODY_BYTES = 64 * 1024, MAX_GUNZIP_BYTES = 64 * 1024;
 
 export class EnvelopeError extends Error { constructor(code, msg) { super(msg); this.code = code; } }   // code: malformed | unsupported | rejected
 
@@ -51,8 +74,30 @@ export function parseEnvelope(doc) {
   if (!spec) throw new EnvelopeError("unsupported", `unknown evidence format ${JSON.stringify(doc.format)}: nothing is known about what it proves`);
   if (spec.rejected) throw new EnvelopeError("rejected", `${doc.format}: ${spec.why}`);
   if (spec.supported === false) throw new EnvelopeError("unsupported", `${doc.format}: ${spec.why}`);
-  const bodyField = doc.body ?? doc.report;      // domain documents say "report", the shim says "body"
-  let body = strictBase64(bodyField, MAX_BODY_B64, `${doc.format} body`);
+  const shape = spec.shape || { body: "body", closed: false, fields: {} };
+  // the whole document, bounded: a verifier that parses an unbounded JSON object has already lost
+  const keys = Object.keys(doc);
+  if (keys.length > MAX_DOC_KEYS) throw new EnvelopeError("malformed", `${doc.format}: ${keys.length} top-level fields exceeds the cap of ${MAX_DOC_KEYS}`);
+  let size = 0; try { size = Buffer.byteLength(JSON.stringify(doc)); } catch { throw new EnvelopeError("malformed", `${doc.format}: the document is not serialisable`); }
+  if (size > MAX_DOC_BYTES) throw new EnvelopeError("malformed", `${doc.format}: ${size} bytes exceeds the document cap of ${MAX_DOC_BYTES}`);
+  // the body field is the one this format names, exactly: a document carrying the other name is another format's shape
+  const other = shape.body === "body" ? "report" : "body";
+  if (other in doc) throw new EnvelopeError("malformed", `${doc.format}: carries \`${other}\` but this format's body field is \`${shape.body}\` (no alias)`);
+  if (!(shape.body in doc)) throw new EnvelopeError("malformed", `${doc.format} ${shape.body}: missing`);
+  // a closed shape admits nothing beyond format, the body and its declared fields; an open one tolerates unknown fields,
+  // which nothing here ever reads, and validates every declared field it does read
+  const allowed = new Set(["format", shape.body, ...Object.keys(shape.fields)]);
+  if (shape.closed) for (const k of keys) if (!allowed.has(k)) throw new EnvelopeError("malformed", `${doc.format}: unexpected field \`${k}\` (the format's shape is closed: nothing outside it is bound or read)`);
+  for (const [name, f] of Object.entries(shape.fields)) {
+    if (!(name in doc)) { if (f.required) throw new EnvelopeError("malformed", `${doc.format}: ${name} is required by this format`); continue; }
+    const v = doc[name], bad = (why) => { throw new EnvelopeError("malformed", `${doc.format}: ${name} ${why}`); };
+    if (f.kind === "b64") { if (typeof v !== "string" || !v.length) bad("must be a non-empty base64 string"); if (v.length > f.max) bad(`exceeds ${f.max} chars`); if (!B64.test(v)) bad("is not strict base64"); }
+    else if (f.kind === "hex") { if (typeof v !== "string" || v.length !== f.n || !/^[0-9a-f]+$/.test(v)) bad(`must be ${f.n} lowercase hex chars`); }
+    else if (f.kind === "str") { if (typeof v !== "string" || v.length > f.max) bad(`must be a string of at most ${f.max} chars`); }
+    else if (f.kind === "obj") { if (!v || typeof v !== "object" || Array.isArray(v)) bad("must be a JSON object"); }
+    else if (f.kind === "oneOf") { if (!f.values.includes(v)) bad(`must be one of ${f.values.join(", ")}`); }
+  }
+  let body = strictBase64(doc[shape.body], MAX_BODY_B64, `${doc.format} ${shape.body}`);
   if (body.length > MAX_BODY_BYTES) throw new EnvelopeError("malformed", "body exceeds the byte cap");
   const gz = body.length >= 2 && body[0] === 0x1f && body[1] === 0x8b;
   if (spec.gzip) {
@@ -60,5 +105,5 @@ export function parseEnvelope(doc) {
     try { body = gunzipSync(body, { maxOutputLength: MAX_GUNZIP_BYTES }); }
     catch (e) { throw new EnvelopeError("malformed", `${doc.format}: gzip body unreadable or over the cap (${e.message})`); }
   } else if (gz) throw new EnvelopeError("malformed", `${doc.format}: body is gzip but the format is not`);
-  return { format: doc.format, spec, body, doc };
+  return { format: doc.format, spec, body, doc, shape };
 }
