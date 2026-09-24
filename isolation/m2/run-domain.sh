@@ -21,6 +21,10 @@ here=$(cd "$(dirname "$0")" && pwd)
 # reason. To move a SUITE to another firmware, change domain.env.
 OVMF=${OVMF_OVERRIDE:-$OVMF}
 
+# FW_DEBUGCON=1 captures the firmware's own DEBUG() output to <tag>.debugcon. It is NOT on the serial console:
+# OVMF writes DEBUG() to I/O port 0x402 unless built with DEBUG_ON_SERIAL_PORT, so without this a DEBUG firmware
+# looks as silent as a RELEASE one and its verdict - "Hash comparison failed for initrd" - is invisible.
+#
 # KERNEL_HASHES=off launches WITHOUT the SEV kernel hash table, which is how verify-firmware.sh asks whether a
 # firmware refuses to boot when there is nothing to verify against. Default on, so an ordinary run is unchanged.
 KERNEL_HASHES=${KERNEL_HASHES:-on}
@@ -54,7 +58,7 @@ start)
     qemu-system-x86_64 $MACH -cpu host -smp "$vcpus" -m "${mem}M" -bios "$OVMF" \
       -kernel "$KERNEL" -initrd "$(realpath "$img")" -append "$APPEND" \
       -device "vhost-vsock-pci,guest-cid=$cid" \
-      -nodefaults -display none -serial "file:$W/$tag.serial" -no-reboot
+      -nodefaults -display none -serial "file:$W/$tag.serial" ${FW_DEBUGCON:+-debugcon "file:$W/$tag.debugcon" -global isa-debugcon.iobase=0x402} -no-reboot
   echo "HOST mode=$mode vcpus=$vcpus memMiB=$mem cpuQuota=${quota}% unit=$unit cid=$cid t0_ms=$t0"
   ;;
 stop)

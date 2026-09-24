@@ -61,3 +61,24 @@ apart - all pass with that split.
 WHAT THE SUITE PASSING DOES NOT ADD. It shows nothing about hash enforcement on its own: the enforcement evidence
 is the review lane's substitution fixture against this firmware, and these 24 checks only show that moving to it
 broke nothing. A green suite on a verifying firmware is not evidence that the firmware verifies.
+
+THE TWO FIRMWARE DIGESTS IN PLAY, so a reader sees that T1 and T0 differ deliberately:
+  T1 (SNP launches, verifying)      142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9
+  T0 (plain launches, NOT verifying) 2a489a243844bc210f46c6d2093766830a97763ee1456ef83f8b3ae033f41f4c
+No claim rests on T0's firmware: it is the untrusted parity tier and the client's verdict says so.
+
+ENFORCEMENT EVIDENCE, from the review lane's DEBUG run against sha256
+50c063542f9886f8b3ec67ebe698ae1d617b7691bef89bb6eff4a34566930ec2 (the DEBUG build of the same source):
+  control       BOOTED. "BlobVerifierLibSevHashesConstructor: Found injected hashes table in secure location",
+                "VerifyBlob: Hash comparison succeeded for kernel"
+  substitution  REFUSED. "QemuKernelFetchBlob: loading 383098 bytes for \"initrd\"" then
+                "VerifyBlob: Hash comparison failed for \"initrd\"" - the verifier's own verdict on the
+                substituted bytes, after the kernel's hash had succeeded
+  no-table      REFUSED. "VerifyBlob: Verifier called but no hashes table discoverd in MEMFD"
+The same three launches on the distro firmware ALL BOOTED, which is the negative control.
+
+A NOTE FOR ANYONE EXTENDING THE HARNESS: OVMF writes DEBUG() to I/O port 0x402, not the serial console, unless
+built with DEBUG_ON_SERIAL_PORT - so a DEBUG firmware looks as silent as a RELEASE one without
+"-debugcon file:... -global isa-debugcon.iobase=0x402" (run-domain.sh FW_DEBUGCON=1). And a SIGTERMed QEMU exits
+0 with an empty console, exactly like a guest that never started, so "rc 0 and nothing on the console" must be
+scored INCONCLUSIVE and never as a refusal.
