@@ -26,9 +26,46 @@ plan was wrong about the feature tree and right about everything else.
 `preflight()` through the real PowerShell runner now answers `ok:true` with all five checks passing,
 and `verifyImage()` confirms `openhcl-ownguest.bin` at `2d735376…`, 124,962,164 bytes.
 
+## The custom IGVM: measured, and where it stops
+
+Run through the launcher's own `start()` on the real host, `enclave-boot-cmp-0001`:
+
+| step | result |
+|---|---|
+| `create` | **works** — a real VM, Gen 2, version 12.0, marker applied |
+| `pinFirmware` | **works** — `ModifySystemSettings` returnValue 0, `GuestFeatureSet` 513 (0x201), `FirmwareFile` reads back as `openhcl-ownguest.bin` |
+| `Start-VM` | **works** — worker event 18500 "started successfully" at 15:12:07 |
+| the guest | **does not boot.** Worker event 18603 "failed to boot an operating system"; no bytes on the COM pipe in 45 s |
+
+The launcher refuses to call that booted, in its own words: *"the VM is Running but the guest
+produced no output ... a silent partition is not a booted one."* That is the correct verdict and
+the milestone is NOT met.
+
+**A correction to an earlier reading.** I first reported the failure as `Start-VM` returning
+`0x80070057, failed to start worker process`, and passed that to both other lanes. That came from a
+hand-built step sequence of mine, not from the launcher's path — the controlled comparison shows
+the launcher's own create→pin→attachConsole→start starts the VM every time. The real failure is one
+step later and is entirely different: the VM starts and the image boots nothing.
+
+**The leading hypothesis, not a conclusion.**
+`HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\AllowFirmwareLoadFromFile`
+is **not set** (`bcdedit` testsigning is already Yes). That is the documented gate on loading a
+custom firmware image by path, and it fits the evidence exactly: the pin is accepted into the
+settings and reads back, and the image is never loaded, so the VM falls through to firmware that
+finds no boot device. A control VM with no pin starts and fails the same way, which is consistent.
+
+It is **not proven**, because nothing yet shows which firmware the worker actually loaded.
+
+**Why it is not set already.** Setting it permits Hyper-V to load firmware from an arbitrary file
+on this host. That is a host security change, it was not part of the approved HYPERV-ROLE plan, and
+the reboot authorization covered the role and machine reboots. It needs an explicit decision.
+
 ## The blocker
 
-**1. Nothing on the Windows node asks the manager to run anything.** Found by enclave-99 by reading
+**1. Nothing on the Windows node asks the manager to run anything.** *(now OWNED and started: the
+client is `windows/node/isolation-client.mjs` at `261e5f03`, 13 tests, additive and unwired so the
+live ef1b2077 baseline is unchanged. What remains is the `ensureApp` hook behind a default-off flag
+and the guest-certificate chain.)* Found by enclave-99 by reading
 the deployed bytes: neither `windows/node/deployed/*.mjs` at `ef1b2077` nor this branch's
 `windows/node/host.mjs` contains any `/vms`, `VMMGR`, `vmReq` or `guestd-control` client.
 `supervisor.js` — the consumer the manager was written against — runs on the Linux node CVM, not
