@@ -1,5 +1,5 @@
 diff --git a/kernel/src/protocols/attest.rs b/kernel/src/protocols/attest.rs
-index 3a3be24..e5de26a 100644
+index 3a3be24..95c77f8 100644
 --- a/kernel/src/protocols/attest.rs
 +++ b/kernel/src/protocols/attest.rs
 @@ -359,6 +359,33 @@ const _: () = assert!(
@@ -36,6 +36,40 @@ index 3a3be24..e5de26a 100644
  fn get_attestation_report_standard(nonce: &[u8]) -> Result<Box<SnpReportResponse>, SvsmReqError> {
      let mut resp = SnpReportResponse::new_box_zeroed()
          .map_err(|_| SvsmReqError::FatalError(SvsmError::Mem))?;
+@@ -366,9 +393,13 @@ fn get_attestation_report_standard(nonce: &[u8]) -> Result<Box<SnpReportResponse
+     // Cast error is infallibly discarded.
+     let (report_req, _) = SnpReportRequest::mut_from_prefix(resp_buffer)
+         .map_err(|_| SvsmReqError::invalid_parameter())?;
+-    // Zero initialized, so
+-    // vmpl=0
+-    // flags=0: Use VLEK if installed, otherwise VCEK.
++    // flags=0 (zero initialized): use VLEK if installed, otherwise VCEK.
++    //
++    // vmpl is NOT left at its zero default. The attestation protocol is callable by an app plane, and a report
++    // signed as VMPL0 for code running at GUEST_VMPL would break "every report carrying this measurement and
++    // vmpl=N was issued for plane N" - which is the invariant protocol 6's admission gate depends on, through
++    // a door beside it. The SVSM holds VMPCK0 and may name any level, so it names the plane it serves.
++    report_req.vmpl = crate::types::GUEST_VMPL as u32;
+     report_req.user_data = nonce
+         .try_into()
+         .map_err(|_| SvsmReqError::invalid_parameter())?;
+@@ -394,9 +425,13 @@ fn get_attestation_report_extended(
+         .map_err(|_| SvsmReqError::FatalError(SvsmError::Mem))?;
+     let certs_buffer = certs.as_mut_bytes();
+ 
+-    // Zero initialized, so
+-    // vmpl=0
+-    // flags=0: Use VLEK if installed, otherwise VCEK.
++    // flags=0 (zero initialized): use VLEK if installed, otherwise VCEK.
++    //
++    // vmpl is NOT left at its zero default. The attestation protocol is callable by an app plane, and a report
++    // signed as VMPL0 for code running at GUEST_VMPL would break "every report carrying this measurement and
++    // vmpl=N was issued for plane N" - which is the invariant protocol 6's admission gate depends on, through
++    // a door beside it. The SVSM holds VMPCK0 and may name any level, so it names the plane it serves.
++    report_req.vmpl = crate::types::GUEST_VMPL as u32;
+     report_req.user_data = nonce
+         .try_into()
+         .map_err(|_| SvsmReqError::invalid_parameter())?;
 diff --git a/kernel/src/protocols/core.rs b/kernel/src/protocols/core.rs
 index 0e428f2..3fe0397 100644
 --- a/kernel/src/protocols/core.rs

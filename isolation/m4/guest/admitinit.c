@@ -1,17 +1,22 @@
 /* admitinit: PID 1 for the M4b admission guest.
  *
- * It boots at VMPL2 under COCONUT-SVSM (the m3b IGVM path), loads appidmod, and walks the whole admission
- * sequence in one pass, printing `ADMIT <key>=<value>` for the harness to score. Silence is never a result:
- * every step prints, including the ones expected to fail.
+ * It boots at VMPL2 under COCONUT-SVSM (the m3b IGVM path), loads appidmod, and walks the admission sequence
+ * in one pass, printing `ADMIT <key>=<value>` for the harness to score. Silence is never a result: every step
+ * prints, including the ones expected to fail.
  *
- * The order is the test. Before anything is admitted the SVSM must refuse to NAME this plane and refuse to
- * fetch a report for it; after the bundle alone it must still refuse, because the runtime image is part of
- * what the identity covers; only with both must it speak. Then the artifact pages must be unwritable, which
- * is the hardware half and is attempted LAST because the fault may end the guest.
+ * The ORDER is the test. Before anything is admitted the SVSM must refuse to NAME this plane and refuse to
+ * fetch a report for it. After the bundle alone it must still refuse, because the runtime image is part of what
+ * the identity covers. Only with both may it speak. Then an admitted page must not be re-validatable, while a
+ * page of the same buffer that was never admitted must be - otherwise "refused" would only mean "the probe
+ * does not work".
  *
  * /admit.mode selects what to stage for kind 0:
  *   good      the bundle this image carries, whose sha256 is the AppID the SVSM expects for this plane
- *   tampered  the same bundle with one byte changed, which must be REFUSED and must leave the plane unnamed
+ *   tampered  the same bundle with one byte flipped, which must be REFUSED, must leave the plane unnamed, and
+ *             must leave the staging pages UNFROZEN - which the poke then demonstrates
+ *
+ * There is no poke in the good path: a write to a frozen page does not fault, it livelocks the vCPU (KVM's
+ * RMP-fault handler traces and returns for a 4 KiB entry), which would be a hang rather than evidence.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -24,6 +29,9 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#define SYS "/sys/kernel/appid/"
+#define CHUNK 4096            /* kernfs caps one sysfs write at PAGE_SIZE; more is silently truncated */
+
 static void say(const char *k, const char *v) { printf("ADMIT %s=%s\n", k, v); fflush(stdout); }
 
 static void insmod(const char *p) {
@@ -34,29 +42,24 @@ static void insmod(const char *p) {
     close(fd);
 }
 
-/* write one sysfs file; returns 0 on success, -errno on failure, so a REFUSAL is a result and not a crash.
- *
- * A SHORT write is a failure here, and saying so matters: kernfs caps one sysfs write at PAGE_SIZE, so a
- * caller that hands over 64 KiB gets 4096 bytes stored and 4096 RETURNED - no error, errno untouched. The
- * first version of this file staged in 64 KiB chunks and would have silently staged every first 4 KiB of each
- * 64 KiB, so the digest could never have matched and the GOOD case would have reported a refusal. An
- * independent review found it before the first run. -EIO, not "probably fine". */
-static int put(const char *path, const void *buf, size_t n) {
+/* A SHORT write is a failure: kernfs returns the truncated length with errno untouched, so a caller checking
+ * only "did write() fail" would stage every first 4 KiB of each chunk and blame the digest later. */
+static int put(const char *name, const void *buf, size_t n) {
+    char path[128];
+    snprintf(path, sizeof path, SYS "%s", name);
     int fd = open(path, O_WRONLY);
     if (fd < 0) return -errno;
     ssize_t w = write(fd, buf, n);
-    int e;
-    if (w == (ssize_t)n) e = 0;
-    else if (w < 0) e = -errno;
-    else e = -EIO;          /* short write: kernfs truncated it at PAGE_SIZE */
+    int e = w == (ssize_t)n ? 0 : (w < 0 ? -errno : -EIO);
     close(fd);
     return e;
 }
 
-static int puts_(const char *path, const char *s) { return put(path, s, strlen(s)); }
+static int puts_(const char *name, const char *s) { return put(name, s, strlen(s)); }
 
-static void show(const char *key, const char *path) {
-    char buf[8192] = {0};
+static void show(const char *key, const char *name) {
+    char path[128], buf[8192] = {0};
+    snprintf(path, sizeof path, SYS "%s", name);
     int fd = open(path, O_RDONLY);
     if (fd < 0) { say(key, strerror(errno)); return; }
     ssize_t n = read(fd, buf, sizeof buf - 1);
@@ -66,26 +69,30 @@ static void show(const char *key, const char *path) {
     say(key, buf[0] ? buf : "(empty)");
 }
 
-/* stage a file into the module's buffer in PAGE_SIZE chunks - the largest a single sysfs write keeps - and
- * fail on the first short or refused write rather than staging a truncated artifact. */
-#define CHUNK 4096
+/* stage a file into the active slot in PAGE_SIZE chunks, failing on the first short or refused write */
 static int stage(const char *path, int flip_byte) {
     static char buf[CHUNK];
     int fd = open(path, O_RDONLY);
     if (fd < 0) return -errno;
-    if (puts_("/sys/kernel/appid/reset", "1") != 0) { close(fd); return -EIO; }
     size_t total = 0;
     ssize_t n;
     int flipped = 0;
     while ((n = read(fd, buf, sizeof buf)) > 0) {
         if (flip_byte && !flipped) { buf[0] ^= 0xff; flipped = 1; }
-        int e = put("/sys/kernel/appid/artifact", buf, n);
+        int e = put("artifact", buf, n);
         if (e != 0) { close(fd); return e; }
         total += n;
     }
     if (n < 0) { close(fd); return -errno; }
     close(fd);
     return total > 0 ? 0 : -EIO;
+}
+
+static void stop(void) {
+    say("done", "ok");
+    sync();
+    reboot(RB_POWER_OFF);
+    for (;;) pause();
 }
 
 int main(void) {
@@ -100,81 +107,86 @@ int main(void) {
     say("mode", mode);
     int tampered = strcmp(mode, "tampered") == 0;
 
+    /* the module splits both staging buffers to 4 KiB RMP entries at load time and checks a canary; a failure
+     * here is a staging problem and must not be read as a digest problem later */
     insmod("/appidmod.ko");
+    show("slot0", "slot");
 
     /* 1. nothing admitted: the SVSM must not name this plane and must not fetch a report for it */
-    show("status_before", "/sys/kernel/appid/status");
-    show("whoami_before", "/sys/kernel/appid/whoami");
-    say("report_before", puts_("/sys/kernel/appid/report", "1") == 0 ? "GRANTED" : "refused");
+    show("status_before", "status");
+    show("whoami_before", "whoami");
+    say("report_before", puts_("report", "1") == 0 ? "GRANTED" : "refused");
 
-    /* 2. the bundle: staged from the bytes this image carries, hashed and frozen by the SVSM */
-    int e = stage("/app.bundle", tampered);
+    /* 2. the bundle */
+    int e = puts_("slot", "0");
+    say("select_bundle_slot", e == 0 ? "ok" : strerror(-e));
+    e = stage("/app.bundle", tampered);
     say("stage_bundle", e == 0 ? "ok" : strerror(-e));
-    show("bundle_staged", "/sys/kernel/appid/artifact");
-    /* 4 KiB RMP granularity first: RMPADJUST inside a 2 MiB RMP entry returns FAIL_SIZEMISMATCH, which would
-     * refuse admission for a reason that has nothing to do with the digest. */
-    e = puts_("/sys/kernel/appid/split", "1");
-    say("split_bundle", e == 0 ? "ok" : strerror(-e));
-    e = puts_("/sys/kernel/appid/admit", "0");
+    show("bundle_staged", "artifact");
+    e = puts_("admit", "0");
     say("admit_bundle", e == 0 ? "ok" : strerror(-e));
-    show("admit_bundle_result", "/sys/kernel/appid/result");
-    show("status_after_bundle", "/sys/kernel/appid/status");
+    show("admit_bundle_result", "result");
+    show("status_after_bundle", "status");
     /* the bundle alone must not be enough: the runtime image is part of what the identity covers */
-    show("whoami_after_bundle", "/sys/kernel/appid/whoami");
+    show("whoami_after_bundle", "whoami");
 
-    /* TAMPERED stops here, and the point is what did NOT happen: a refused admission must have frozen
-     * nothing, so this write must SUCCEED. Doing it now, before any other admission, is what makes it a test
-     * of hash-first - after a successful runtime admit the same buffer holds frozen pages and the write would
-     * hang instead (see appidmod.c thaw). */
     if (tampered) {
+        /* the point is what did NOT happen: a refused admission must have frozen nothing, so this write must
+         * SUCCEED. It is done here, before any successful admission, so the pages under it were never frozen. */
         say("poke", "writing to the region a REFUSED admission must not have frozen");
-        e = puts_("/sys/kernel/appid/poke", "0 255");
+        e = puts_("poke", "0 255");
         say("poke_result", e == 0 ? "WROTE" : strerror(-e));
-        show("status_final", "/sys/kernel/appid/status");
-        show("whoami_final", "/sys/kernel/appid/whoami");
-        say("report_final", puts_("/sys/kernel/appid/report", "1") == 0 ? "GRANTED" : "refused");
-        say("done", "ok");
-        sync();
-        reboot(RB_POWER_OFF);
-        for (;;) pause();
+        show("status_final", "status");
+        show("whoami_final", "whoami");
+        say("report_final", puts_("report", "1") == 0 ? "GRANTED" : "refused");
+        stop();
     }
 
-    /* 3. the runtime image, the bytes that will compile the component */
+    /* 3. the runtime image, in its own slot: the bundle's pages are frozen now, and staging into them would
+     * livelock rather than fail */
+    e = puts_("slot", "1");
+    say("select_runtime_slot", e == 0 ? "ok" : strerror(-e));
     e = stage("/rt/wasmtime", 0);
     say("stage_runtime", e == 0 ? "ok" : strerror(-e));
-    show("runtime_staged", "/sys/kernel/appid/artifact");
-    e = puts_("/sys/kernel/appid/split", "1");
-    say("split_runtime", e == 0 ? "ok" : strerror(-e));
-    e = puts_("/sys/kernel/appid/admit", "1");
+    show("runtime_staged", "artifact");
+    e = puts_("admit", "1");
     say("admit_runtime", e == 0 ? "ok" : strerror(-e));
-    show("admit_runtime_result", "/sys/kernel/appid/result");
-    show("status_after_runtime", "/sys/kernel/appid/status");
+    show("admit_runtime_result", "result");
+    show("status_after_runtime", "status");
 
     /* 4. now, and only now, the SVSM may speak for this plane */
-    show("whoami", "/sys/kernel/appid/whoami");
-    /* a bind a verifier would choose; the app half is the SVSM's and is not ours to supply */
-    say("bind", "put");
-    e = puts_("/sys/kernel/appid/bind",
-              "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90");
+    show("whoami", "whoami");
+    e = puts_("bind", "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90");
     say("bind_set", e == 0 ? "ok" : strerror(-e));
-    e = puts_("/sys/kernel/appid/report", "1");
+    e = puts_("report", "1");
     say("report", e == 0 ? "GRANTED" : strerror(-e));
-    show("report_hex", "/sys/kernel/appid/report");
+    show("report_hex", "report");
 
     /* 5. admitting a kind twice must be refused: a second region vouched for would let this plane choose */
-    e = puts_("/sys/kernel/appid/admit", "0");
+    e = puts_("admit", "0");
     say("admit_bundle_again", e == 0 ? "GRANTED" : "refused");
+    show("admit_again_result", "result");
 
-    /* 6. NO poke in the good path. A write to a frozen page does not fault visibly: KVM's RMP-fault handler
-     * traces and returns for a 4 KiB entry, so the instruction re-executes forever and the vCPU livelocks
-     * with the guest still apparently up. That is a hang, not evidence, and it would destroy every line after
-     * it. The freeze is shown instead by the TAMPERED run, where a refused admission froze nothing and the
-     * same write succeeds. A non-hanging positive probe - asking the SVSM to re-validate an admitted page and
-     * requiring the refusal - needs the core protocol's request-page shape and is not built yet. */
+    /* 6. an admitted page must not be re-validatable. PVALIDATE(invalid) through the SVSM, which answers -
+     * unlike writing to a frozen page, which livelocks. */
+    say("thaw", "asking the SVSM to invalidate page 0 of the admitted runtime");
+    e = puts_("thaw", "0 0");
+    say("thaw_admitted", e == 0 ? "GRANTED (the artifact can be thawed)" : "refused");
+    show("thaw_admitted_result", "result");
+
+    /* CONTROL: a page of the SAME buffer beyond what was admitted must be invalidatable, or "refused" above
+     * would only mean the probe does not work. Page 12000 is past the 45 MiB runtime image. */
+    e = puts_("thaw", "12000 0");
+    say("thaw_unadmitted", e == 0 ? "allowed (the probe reaches PVALIDATE)" : "refused");
+    show("thaw_unadmitted_result", "result");
+    e = puts_("thaw", "12000 1");
+    say("thaw_unadmitted_revalidate", e == 0 ? "ok" : strerror(-e));
+
+    /* CONTROL: a 2 MiB entry covering an admitted page must also be refused */
+    e = puts_("thaw", "0 0 2m");
+    say("thaw_admitted_2m", e == 0 ? "GRANTED (a huge entry thawed it)" : "refused");
+    show("thaw_admitted_2m_result", "result");
+
     say("poke", "skipped in the good path: a write to a frozen page livelocks the vCPU rather than faulting");
-
-    say("done", "ok");
-    sync();
-    reboot(RB_POWER_OFF);
-    for (;;) pause();
+    stop();
 }
