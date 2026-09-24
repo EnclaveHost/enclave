@@ -695,6 +695,29 @@ bug that cut the answer's final newline to a NUL on some attestations, which the
 closed) and which the v1/v2 path shared. Not measured, stated: re-provisioning (a new instance.img). Not done: the HPKE
 info (unchanged by agreement) and the client 0.5.0 artifact pin for the extension suites (the dist is now 251dd8fa…).
 
+**The lease proof key (owner's PROOF-KEY.md, agreed 2026-09-24; implemented and device-checked at 047f7739).** A pVM
+runner's `EnclaveProofOfTime` checkpoints are signed by a secp256k1 key minted inside the VM; the attested Ed25519
+transport key vouches for that key's address in an "enclave-proof-key/v1" statement over a 271-byte message (header,
+nonce, AppID, a typed instance, a typed signature algorithm, the proof key, the chain id, the two contract addresses, the
+deployment, the runner id and the operator), and the checkpoint is exactly the contract's EIP-712 digest. The pin moved
+to 047f7739: the module gained `verifyPvmProofKey` and `proofKeyMessage` as a pure append (the v1/v2/v3 evidence paths are
+the same bytes), plus `relay/pvm-checkpoint.mjs` and the Pixel 10 device fixtures (a real v3 envelope under Google's roots,
+25 statement negatives with exact reasons, 2 device-signed checkpoints accepted on a local chain, 5 negatives) with the
+owner's replay test, which passes against the pinned tree here (34/34). `verifier/pvm-proof-key.mjs` is the consumer's
+gate over both: it re-verifies the statement's evidence through this branch's consumer checks (v3 only), rebuilds the
+271-byte message from the spec and checks the Ed25519 signature under the transport SPKI that re-verification returned
+(the two readings of the spec give identical bytes), holds the statement to the CONSUMER'S PINS before any cryptography
+(chain id, proofOfTime and registry from the address book, deployment from the selected policy entry, operator and
+runner from the ledger row when known: the owner's verifier compares only the deployment, so Base's 8453 against the
+device's local 31337, another contract, operator or runner are refused here and only here), and recomputes a
+checkpoint's digest from `EnclaveProofOfTime.sol`'s own type strings by hand (domain separator and struct hash as the
+contract encodes them), recovers the signer and requires the owner's checker to agree on outcome and digest. A proof-key
+verdict admits nothing (`admissionSafe` is always false): it names the key a checkpoint must be signed by and the lease it
+may sign for. `test/verifier-pvm-proof-key.test.mjs` replays every fixture through the gate (outcomes equal the owner's
+record, claims equal theirs, digests equal the device's), holds the contract source to the hashed strings, and adds the
+pin and checkpoint negatives beyond the owner's list. Not built, by anyone: the owner-side posting agent; nothing is
+registered on a public chain. What a checkpoint means is the VM's own account of running and serving, not reachability.
+
 ## 10.3 Deployment binding for the Linux tier (F11 fix, verifier side, 2026-09-24)
 
 Agreed shape with the isolation owner: guestd launches each per-app guest with SNP `HOST_DATA` = the 32-byte
@@ -731,8 +754,8 @@ F2 measurement and the same keys (295ce2e0…, d590dd84…) and certificate wind
 `GET https://api.enclave.host/x/0x<deployment id>/` answers 421 from the lease holder, naming the guest's own origin (the
 bare-hex form is not an id there and is 404 "not_found"). So a node restart that leaves guestd alone keeps the guests'
 keys; only the F7 case above (guestd itself) and a guest relaunch were measured to change them.
-**F10, a wasi:cli command in its guest, and a TCB floor for issuance (owner's cf8b22bd; reviewed at that commit, not
-yet measured live).** The bundle manifest gains `world: wasi:cli` with one `http` port (1..49999); `wasi:http` (or no
+**F10, a wasi:cli command in its guest, and a TCB floor for issuance (owner's cf8b22bd; reviewed at that commit and
+measured live at 21:24Z, below).** The bundle manifest gains `world: wasi:cli` with one `http` port (1..49999); `wasi:http` (or no
 world) names no port and any other world is refused. The derivation `enclave-catalog-bundle/2` is v1 with that world
 and port, and the record gains `http`. Checked here rather than taken from the commit message: the pinned reference
 regenerates the committed vectors byte for byte, every v1 vector's bundle and AppID are identical under the 2db69f32
@@ -747,8 +770,18 @@ have a new launch measurement; the owner sends it with the domain release. The T
 node image (`/opt/metal/isolation-min-tcb.json`, the same Turin values as the canary's `min-tcb.json`), passed to the
 owner's judge as `minTcb`: with it only an "attested" verdict issues, a malformed floor is refused by `checkMinTcb`
 (so nothing issues), and a node image without the file still issues on "no-tcb-policy" (chain verified, TCB unjudged),
-which the supervisor logs. The expected guest measurement remains guestd's word. Open on the owner's side: DERIVE.md
-still describes only v1, though the reference claims to be written from it.
+which the supervisor logs. The expected guest measurement remains guestd's word. DERIVE.md describes v2 since the
+owner's 0181bce3 (the pin picks it up on its next move).
+**Measured (21:24Z), the owner's guestd restart and node restart (image dist-iso-c02a2c2e, relay allowlist af8a5d51…)
+and the first v2 deployment:** A and E VERIFIED with the same keys (295ce2e0…, d590dd84…) and certificate windows through
+both restarts (adopted by guestd at 21:17:59Z and by the new node at 21:19:36Z). hookbin 0.1.4 (deployment 0x0ddbd824…,
+`0ddbd824.app.enclave.host`) VERIFIED from the public side: the AppID was DERIVED here under v2 (`--derive`: the component
+fetched by CID from the platform gateway, 201,013 bytes, its sha256 equal to the CID's multihash digest, then the pinned
+reference on the chain's record with `http: 8000`) as d2c4dfc0…, the report names it, HOST_DATA equals the deployment id,
+the served SPKI b071a9c9… is the document's transport key, TCB at the floor, and the measurement be6b8644… was accepted
+as the command-line expectation (the owner's pinned-release reconstruction; not reproduced here until the release bytes
+are). The negative: the same record read as v1 (no port) derives 9add8960… and the report is REFUSED at the app-id
+check, so the port is in the identity, not beside it.
 
 ## 11. Open risks
 
