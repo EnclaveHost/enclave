@@ -30,16 +30,13 @@
 .visual-banner .cinema-shade{background:linear-gradient(90deg,rgba(5,8,10,.88),rgba(5,8,10,.6) 48%,rgba(5,8,10,.04));}
 #host .hostdoc{max-width:none;}
 #host .hostdoc>p,#host .hostdoc-list{max-width:82ch;}
-.store-hero{position:relative;isolation:isolate;overflow:hidden;padding:48px 38px 65px;border:1px solid var(--line);border-radius:12px;margin-bottom:30px;}
-.store-hero>c-section-head,.store-hero>.featured-slot{position:relative;z-index:1;}
-.store-hero .cinema-image{opacity:.7;}
-.store-hero .sec-head{position:relative;z-index:1;}
-.store-hero .sec-head p{color:#c5cfd1;}
-.store-hero .sec-head h2{font-family:var(--font-sans);font-size:clamp(2rem,3vw,2.9rem);line-height:1.06;letter-spacing:-.04em;color:#fff;}
+.store-hero{border:0;background:none;}
+.store-hero.visual-banner{align-items:center;}
+.store-hero>.featured-slot{position:relative;z-index:1;}
 .verification-stage{display:grid;grid-template-columns:1fr 1.15fr;gap:26px;align-items:start;margin-top:30px;}
 .verification-stage c-enclave-panel,.verification-stage c-live-verify{min-width:0;}
 @media(min-width:1450px){.hero-grid{max-width:1320px;}}
 @media(max-width:900px){.hero-grid{min-height:720px;}.hero-copy{max-width:520px;}.visual-banner{margin-left:0;margin-right:0;padding:45px 30px;}.verification-stage{grid-template-columns:1fr;}}
-@media(max-width:640px){.hero-grid{min-height:760px;padding-top:52px;padding-bottom:85px;}.hero h1{font-size:clamp(3.1rem,12vw,4.1rem);}.hero .lede{font-size:1rem;}.hero-foot{font-size:.59rem;}.hero-detail{font-size:.78rem;}.hero-cta{gap:8px;}.hero-cta .btn{padding:12px 15px;font-size:.78rem;}.visual-banner{padding:40px 24px 65px;min-height:540px;}.visual-banner .sec-head h2{font-size:2.65rem;}.visual-banner .sec-head p{font-size:.9rem;}.store-hero{padding:30px 24px 65px;}}
+@media(max-width:640px){.hero-grid{min-height:760px;padding-top:52px;padding-bottom:85px;}.hero h1{font-size:clamp(3.1rem,12vw,4.1rem);}.hero .lede{font-size:1rem;}.hero-foot{font-size:.59rem;}.hero-detail{font-size:.78rem;}.hero-cta{gap:8px;}.hero-cta .btn{padding:12px 15px;font-size:.78rem;}.visual-banner{padding:40px 24px 65px;min-height:540px;}.visual-banner .sec-head h2{font-size:2.65rem;}.visual-banner .sec-head p{font-size:.9rem;}}
 
 @media(max-width:640px){.hero-detail{color:#c6d1d4;}.hero .cinema-shade{background:linear-gradient(90deg,rgba(5,8,10,.78),rgba(5,8,10,.46)),linear-gradient(0deg,#070a0f,transparent 65%);}}
