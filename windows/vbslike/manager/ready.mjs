@@ -30,6 +30,17 @@ import { judge } from "../verify/judge-hv.mjs";
 const NONCE_LEN = 32;
 
 /**
+ * The transport key as the data plane names it: sha256 of the DER SPKI this handshake presented,
+ * lowercase hex. One definition, used by the verdict and by anything that compares against it, so a
+ * route can never be admitted on a differently-derived value.
+ */
+export function transportKeyOf(spki) {
+  if (!Buffer.isBuffer(spki) && !(spki instanceof Uint8Array)) throw new Error("the SPKI must be bytes");
+  if (!spki.length) throw new Error("the SPKI is empty");
+  return crypto.createHash("sha256").update(spki).digest("hex");
+}
+
+/**
  * One TLS session, reused for every request, so the document and the readiness answer share a key.
  *
  * The HTTP is node:http driven over that one socket through an Agent whose createConnection hands
@@ -119,6 +130,7 @@ export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKe
   const end = now() + deadlineMs;
   const checks = { document: null, ready: null };
   let last = "no attempt completed";
+  let transportKeySha256 = null;
 
   while (true) {
     let session = null;
@@ -134,7 +146,7 @@ export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKe
         try { doc = JSON.parse(r.body.toString("utf8")); } catch { doc = null; }
         if (!doc) {
           checks.document = { ok: false, reason: "the attestation answer is not JSON" };
-          return { status: "failed", reason: checks.document.reason, checks };
+          return { status: "failed", transportKeySha256, reason: checks.document.reason, checks };
         }
         const v = judge({ doc, spki: session.spki, nonce, expectedAppSha256: appId, launcherKey, expectRuntime });
         // judge-hv answers { verdict, reasons, checks } and has NO `ok` field: reading v.ok was
@@ -143,10 +155,17 @@ export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKe
         // "monitor-signed" is the ONLY acceptable verdict. "unsigned" means the signature did not
         // verify, and "reject" that something structural failed; neither is a weaker pass.
         const accepted = v.verdict === "monitor-signed";
-        checks.document = { ok: accepted, verdict: v.verdict ?? null, reasons: v.reasons ?? null };
+        // The key we judged ON. A manager that verifies a domain and forgets which key it verified
+        // it on leaves the data plane nothing to compare: 5d's splice admits a route on
+        // `key=<64hex>` and the /vms view names transportKeySha256, so the value has to travel with
+        // the verdict rather than be re-derived from a later handshake - a later handshake is a
+        // different session and could be a different peer.
+        transportKeySha256 = transportKeyOf(session.spki);
+        checks.document = { ok: accepted, verdict: v.verdict ?? null, reasons: v.reasons ?? null,
+                            transportKeySha256 };
         if (!accepted) {
           // a document that does not verify is terminal: we are not talking to what we meant to
-          return { status: "failed",
+          return { status: "failed", transportKeySha256,
                    reason: `the domain's attestation document was not accepted (verdict ${v.verdict}): `
                      + `${(v.reasons || []).join("; ") || "no reason given"}`,
                    checks };
@@ -155,8 +174,8 @@ export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKe
         const rr = await get(session, host, "/.well-known/enclave-ready", { timeoutMs: attemptTimeoutMs });
         const jr = judgeReadyBody(rr.status, rr.body, appId);
         checks.ready = { ok: jr.ok, status: rr.status, reason: jr.reason };
-        if (jr.ok) return { status: "running", reason: null, checks };
-        if (!jr.retry) return { status: "failed", reason: jr.reason, checks };
+        if (jr.ok) return { status: "running", reason: null, transportKeySha256, checks };
+        if (!jr.retry) return { status: "failed", transportKeySha256, reason: jr.reason, checks };
         last = jr.reason;
       }
     } catch (e) {
@@ -164,9 +183,9 @@ export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKe
     } finally {
       try { session && session.sock.destroy(); } catch {}
     }
-    if (now() >= end) return { status: "failed", reason: `not ready within ${deadlineMs} ms: ${last}`, checks };
+    if (now() >= end) return { status: "failed", transportKeySha256, reason: `not ready within ${deadlineMs} ms: ${last}`, checks };
     await sleep(Math.min(1000, Math.max(50, end - now())));
-    if (now() >= end) return { status: "failed", reason: `not ready within ${deadlineMs} ms: ${last}`, checks };
+    if (now() >= end) return { status: "failed", transportKeySha256, reason: `not ready within ${deadlineMs} ms: ${last}`, checks };
   }
 }
 
