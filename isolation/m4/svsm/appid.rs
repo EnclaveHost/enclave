@@ -237,6 +237,7 @@ const E_NO_KEY: u64 = 9;
 const E_KEY_ALREADY_SET: u64 = 10;
 const E_NO_RUNTIME_ID: u64 = 11;
 const E_NOTHING_TO_RECLAIM: u64 = 12;
+const E_UNFREEZE_FAILED: u64 = 13;
 
 /// The ABI/2 RuntimeID for each plane: sha256 of the canonical JSON runtime identity
 /// (isolation/contract/runtime.go RuntimeID), from ENCLAVE_RUNTIME_IDS, in plane order.
@@ -604,15 +605,18 @@ fn appid_admit(vmpl: usize, params: &mut RequestParams) -> Result<(), SvsmReqErr
     // a writable, zeroed artifact. The lock is taken in the same order core_pvalidate_one takes it, so there
     // is no inversion.
     let _pv = crate::protocols::core::pvalidate_write_lock();
+    // Recorded BEFORE the freeze, not after it. A freeze that fails partway, or a second hash that mismatches,
+    // used to leave pages FROZEN but unrecorded - so reclaim never unfroze them and the guest's only recovery was
+    // a PVALIDATE cycle. Recording first is conservative in the safe direction: the PVALIDATE hook starts
+    // refusing them a moment early, and every page this call freezes is reclaimable whatever happens next.
+    record_admitted(vmpl, &pages)?;
     let frozen = freeze_pages(&pages, vmpl, kind)?;
     if hash_pages(&pages, len)? != expected {
         // The bytes changed between the first hash and the freeze. That is an active attempt, not a mistake.
+        // The frames stay recorded on purpose: they are frozen, and reclaim is what unfreezes them.
         log::error!("SVSM appid: plane {vmpl} kind {kind} changed between hash and freeze; REFUSED");
         return Err(SvsmReqError::protocol(E_CHANGED_UNDER_US));
     }
-    // Recorded BEFORE the plane is marked admitted: if recording fails there is no point at which this SVSM
-    // has named a plane whose pages the PVALIDATE path would still thaw.
-    record_admitted(vmpl, &pages)?;
     ADMITTED[vmpl].fetch_or(bit, Ordering::Release);
     log::info!(
         "SVSM appid: plane {vmpl} admitted kind {kind}, {frozen} pages frozen read-only to every guest plane"
@@ -702,16 +706,27 @@ fn appid_reclaim(vmpl: usize, _params: &mut RequestParams) -> Result<(), SvsmReq
         // the second call did nothing, and a harness should be able to assert it.
         return Err(SvsmReqError::protocol(E_NOTHING_TO_RECLAIM));
     }
-    let count = frames.len();
-    for frame in frames.iter() {
-        let paddr = PhysAddr::from(*frame);
+
+    // UN-NAME FIRST. The first version erased pages and only then cleared the naming, so a failure partway left
+    // the plane NAMED with a half-erased artifact: frames already zeroed and unfrozen, ADMITTED still set, the
+    // key still registered, and GET_REPORT still answering for bytes that were partly gone. An independent
+    // review caught it before the first run. Clearing the naming first means every later failure leaves the
+    // plane unspoken-for, which is the direction a failure must fall.
+    ADMITTED[vmpl].store(0, Ordering::Release);
+    REGISTERED_KEY[vmpl].lock().1 = 0;
+
+    // Then erase, from the END, popping only after a frame is done: an error leaves the remaining frames
+    // RECORDED, so the PVALIDATE hook keeps refusing them and a later RECLAIM retries the remainder instead of
+    // being told there is nothing to do.
+    let total = frames.len();
+    while let Some(&frame) = frames.last() {
+        let paddr = PhysAddr::from(frame);
         let guard = PerCPUPageMappingGuard::create_4k(paddr)?;
         let vaddr = guard.virt_addr();
-        // 1. zero it while it is still frozen, so nothing observes the old bytes through a writable mapping.
-        // SAFETY: vaddr is a 4 KiB mapping this CPU holds for the life of `guard`, and the page is a guest page
-        // this SVSM froze itself, so writing zeroes over it cannot affect any other mapping's validity.
+        // zero while still frozen, so nothing observes the old bytes through a writable mapping
+        // SAFETY: vaddr is a 4 KiB mapping this CPU holds for the life of `guard`, over a guest page this SVSM
+        // froze itself, so writing zeroes cannot affect another mapping's validity.
         unsafe { zero_mem_region(vaddr, vaddr + PAGE_SIZE) };
-        // 2. then give the owner its page back
         let mut level = RMPFlags::VMPL1.bits();
         while level <= RMPFlags::VMPL3.bits() {
             let flags = if level as usize == vmpl {
@@ -719,19 +734,22 @@ fn appid_reclaim(vmpl: usize, _params: &mut RequestParams) -> Result<(), SvsmReq
             } else {
                 RMPFlags::from_bits_truncate(level | RMPFlags::NONE.bits())
             };
-            // SAFETY: this restores the OWNING plane's access to its own page, which it had before admission,
-            // and leaves every other plane denied. The page has just been zeroed, so nothing is exposed.
-            unsafe { rmp_adjust(vaddr, flags, PageSize::Regular) }
-                .map_err(|_| SvsmReqError::protocol(E_FREEZE_FAILED))?;
+            // SAFETY: this restores the OWNING plane's access to its own, just-zeroed page and leaves every
+            // other plane denied. Nothing is exposed that the plane did not have before admission.
+            if unsafe { rmp_adjust(vaddr, flags, PageSize::Regular) }.is_err() {
+                // This frame stays recorded and stays frozen. The plane is already un-named above, so the
+                // failure is contained: no report can be issued, and RECLAIM can be called again.
+                log::error!(
+                    "SVSM appid: plane {vmpl} reclaim failed unfreezing {frame:#x}; {} of {total} frames left recorded",
+                    frames.len()
+                );
+                return Err(SvsmReqError::protocol(E_UNFREEZE_FAILED));
+            }
             level += 1;
         }
+        frames.pop();
     }
-    // 3. forget all three together
-    frames.clear();
-    drop(frames);
-    ADMITTED[vmpl].store(0, Ordering::Release);
-    REGISTERED_KEY[vmpl].lock().1 = 0;
-    log::info!("SVSM appid: plane {vmpl} reclaimed: {count} pages zeroed and unfrozen, key and naming forgotten");
+    log::info!("SVSM appid: plane {vmpl} reclaimed: {total} pages zeroed and unfrozen, key and naming forgotten");
     Ok(())
 }
 
@@ -1133,6 +1151,59 @@ mod tests {
     }
 
     #[test]
+    fn a_reclaim_that_fails_partway_leaves_the_plane_unnamed() {
+        // R-a, the fail-open bug this ordering exists to prevent. The first version erased pages and cleared the
+        // naming afterwards, so an rmp_adjust failure on frame k left frames 0..k zeroed and unfrozen while
+        // ADMITTED was still set and the key still registered - and GET_REPORT would have answered for a plane
+        // whose admitted bytes were partly gone.
+        //
+        // The erase loop needs hardware, so what is asserted here is the ORDER: the naming is gone before any
+        // page is touched, and the frames that were not processed are still recorded.
+        let v = GUEST_VMPL;
+        ADMITTED[v].store(KINDS_REQUIRED, Ordering::Release);
+        set_key(v, &[7u8; 91]);
+        {
+            let mut f = ADMITTED_PAGES[v].lock();
+            f.clear();
+            f.extend_from_slice(&[0x7000_0000, 0x7000_1000, 0x7000_2000]);
+        }
+        // the first two statements of appid_reclaim after its precondition check
+        ADMITTED[v].store(0, Ordering::Release);
+        REGISTERED_KEY[v].lock().1 = 0;
+        // simulate the loop failing on the first frame it tries: nothing popped
+        assert!(require_admitted(v).is_err(), "the plane must be unnamed BEFORE any page is touched");
+        assert!(bind2_for_plane(v, &[0u8; BIND_LEN]).is_err(), "and no binding can be computed for it");
+        assert_eq!(ADMITTED_PAGES[v].lock().len(), 3, "unprocessed frames stay recorded so the hook refuses them");
+        assert!(page_is_admitted(PhysAddr::from(0x7000_1000u64)), "and the PVALIDATE hook still protects them");
+
+        // a later RECLAIM must retry the remainder rather than answer "nothing to reclaim"
+        let frames_left = !ADMITTED_PAGES[v].lock().is_empty();
+        let nothing_to_do = ADMITTED_PAGES[v].lock().is_empty()
+            && REGISTERED_KEY[v].lock().1 == 0
+            && ADMITTED[v].load(Ordering::Acquire) == 0;
+        assert!(frames_left && !nothing_to_do, "the retry path must not be mistaken for a no-op");
+        ADMITTED_PAGES[v].lock().clear();
+    }
+
+    #[test]
+    fn frames_are_recorded_before_the_freeze_so_a_failed_admission_is_still_reclaimable() {
+        // R-c: pages frozen by an admission that then failed used to be unrecorded, so reclaim never unfroze them
+        // and the guest's only recovery was a PVALIDATE cycle. Recording first means every page a call freezes is
+        // reclaimable however the call ends - and the plane is NOT named, because ADMITTED is set last.
+        let v = GUEST_VMPL;
+        ADMITTED[v].store(0, Ordering::Release);
+        ADMITTED_PAGES[v].lock().clear();
+        let pages = [PhysAddr::from(0x8000_0000u64), PhysAddr::from(0x8000_1000u64)];
+        record_admitted(v, &pages).expect("recording must succeed");
+        assert!(page_is_admitted(PhysAddr::from(0x8000_0000u64)));
+        assert!(
+            require_admitted(v).is_err(),
+            "recorded frames must NOT name the plane: that is what ADMITTED is for, and it is set last"
+        );
+        ADMITTED_PAGES[v].lock().clear();
+    }
+
+    #[test]
     fn a_plane_with_nothing_to_reclaim_gets_its_own_code() {
         // "reclaim twice" must be distinguishable from "reclaim succeeded", or a harness cannot assert either
         let v = GUEST_VMPL;
@@ -1198,7 +1269,7 @@ mod tests {
         let codes = [
             E_NOT_OWNING_PLANE, E_PLANE_UNASSIGNED, E_NOT_ADMITTED, E_DIGEST_MISMATCH,
             E_ALREADY_ADMITTED, E_FREEZE_FAILED, E_CHANGED_UNDER_US, E_RECORD_FAILED,
-            E_NO_KEY, E_KEY_ALREADY_SET, E_NO_RUNTIME_ID, E_NOTHING_TO_RECLAIM,
+            E_NO_KEY, E_KEY_ALREADY_SET, E_NO_RUNTIME_ID, E_NOTHING_TO_RECLAIM, E_UNFREEZE_FAILED,
         ];
         for (i, a) in codes.iter().enumerate() {
             assert_ne!(*a, 0, "0 would read as success");

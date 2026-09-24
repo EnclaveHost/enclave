@@ -409,6 +409,26 @@ get reports through configfs-tsm and the guest holds no key. M4a is unaffected -
 suites means building the SVSM without `copy_with_no_vmpck`, which reopens the bypass, so the two
 configurations cannot be conflated in any write-up.
 
+## Reclaim: which half of the lifecycle this is, and what it does not undo
+
+`SVSM_APPID_RECLAIM` undoes ADMISSION **at the plane's own request**. Named precisely because the distinction
+matters:
+
+* **It is not plane teardown.** VMSAs, every page the plane owns beyond its artifacts, the calling area and the
+  secrets copy are untouched. The SVSM-initiated half of A7 - reclaiming a plane that *crashed*, which never calls
+  anything - stays open, and a plane that dies takes its admission with it into the next boot of the guest.
+* **The caller must have stopped using the artifacts first.** `KIND_RUNTIME` pages are readable and executable and
+  may be mapped by a running runtime; reclaim zeroes them regardless and the SVSM cannot check whether anything is
+  still executing from them. So the guest sequence is: stop the runtime, then RECLAIM. A plane that reclaims under
+  its own running runtime has zeroed the code beneath it, and that is its own doing.
+* **It revokes naming, not evidence already issued.** A report fetched before reclaim stays a valid report: it is
+  signed, its measurement is unchanged, and only the verifier's own nonce expires it. Reclaim stops the SVSM
+  speaking for the plane from then on; it cannot reach back into reports already handed out.
+* **It fails closed.** The naming and the key are cleared BEFORE any page is touched, so a failure partway leaves
+  the plane unspoken-for rather than named over a half-erased artifact. Unprocessed frames stay recorded, the
+  PVALIDATE hook keeps refusing them, and a later RECLAIM retries the remainder instead of being told there is
+  nothing to do.
+
 ## Still open, and not to be written up as done
 
 * **A1, and it blocks plane-per-app outright.** `kernel/src/sev/secrets_page.rs` `copy_for_vmpl` clears only
