@@ -33,16 +33,16 @@
   "pvm-client-dist": {
     "purpose": "the pVM owner's BUILT installed client (CLI bundle) at the pinned commit, run black-box by test/verifier-pvm-client-persistence.test.mjs; never copied into this branch",
     "branch": "pvm-cpu/portable-runtime",
-    "commit": "28a6efbfabeb68d5080f0c21c754dc3de3041ad2",
+    "commit": "c1341ee32b301bd31ca7710ae428022a0fc9f254",
     "entry": "shielded/anchor/avf/client/dist/pvm-client.mjs",
     "env": "ENCLAVE_PVM_CLIENT_CLI",
     "files": {
-      "shielded/anchor/avf/client/dist/pvm-client.mjs": "a215992511f2bedd6ffb0d009d0198dd8ab99e8f395472dca9a63183c60ad53f",
-      "shielded/anchor/avf/client/dist/pvm-client-ext.zip": "f29be6199df1911d806d4ce19eb882ad8ee06ad167021c1744139f28ccbe1ee0"
+      "shielded/anchor/avf/client/dist/pvm-client.mjs": "58f0edddb0f7db85df7edf9e56bbab043194a19a8d4e5d903ef31a5b5705abc4",
+      "shielded/anchor/avf/client/dist/pvm-client-ext.zip": "e993c674283496e084505e4debdebcd9f8e723e6091325dd95902380f17ecdce"
     },
     "mustMatchWorktree": [],
     "pinnedAt": "2026-09-24",
-    "note": "client 0.4.0: deployment selection from the signed policy's optional table (never a catalog or relay); activation since 0.3.0; immutable staging since 0.2.1"
+    "note": "client 0.4.1: the extension selects deployments by the same signed table (CLI code as 0.4.0; its bytes equal this branch's source rebuild of 0.4.1 from the 0.4.0 base exactly)"
   },
   "pvm-client-dist-old": {
     "purpose": "the previous (0.1.0) BUILT client, kept so the old-client failures stay reproducible beside the fix (the persistence and extension suites preserve them where applicable)",
@@ -61,7 +61,7 @@
   "pvm-client-src": {
     "purpose": "the 0.2.0 client SOURCES, for the one check that cannot be reached black-box: the superseded-policy refusal at request release needs verifying evidence, so the evidence verifier alone is replaced through a Node loader hook and everything else (cli.mjs, the flow, the store, the gate, the sealing) is the owner's code at this commit",
     "branch": "pvm-cpu/portable-runtime",
-    "commit": "28a6efbfabeb68d5080f0c21c754dc3de3041ad2",
+    "commit": "c1341ee32b301bd31ca7710ae428022a0fc9f254",
     "entry": "shielded/anchor/avf/client/cli.mjs",
     "env": "ENCLAVE_PVM_CLIENT_SRC",
     "files": {
@@ -71,7 +71,7 @@
       "shielded/anchor/avf/client/src/gate.js": "610627d34d249080cc19fd4a5d4a59f3ff29598e2dc279102a426dd8aee2a330",
       "shielded/anchor/avf/client/src/store-ext.js": "6d59acdc0a27bfed73ce37c1ef79c8946b89434271dac445782774a17034fe9f",
       "shielded/anchor/avf/client/src/store-file.js": "6293fbcf26e2789bc44160f7ee6e33e3a69638153ea4f60ba6b3da73623c82b8",
-      "shielded/anchor/avf/client/src/trust.js": "3577c38986121bf77b39b44f703292b629198ea89ed9ff713d4016a80cfb3ac4",
+      "shielded/anchor/avf/client/src/trust.js": "c8c59a43d0e31bde970f2530b3cf5cf382c7130d0ad922752b3c74c3c5c24abf",
       "shielded/anchor/avf/client/src/update.js": "23d37619318f96d38c248dae16440a3896f81024c242b140a6fe5a2a07e5ea9c",
       "shielded/anchor/avf/web/pvm-client.js": "6516d646dd73d4e1c2af4c661c39ff3721af495017452486aeab06993560dd0d",
       "shielded/anchor/avf/web/pvm-sealed.js": "be7d6ed088bed2fc0c70e8fd23d52ac06202ac188ba999b34e7095da58e5a175",
@@ -80,7 +80,7 @@
     },
     "mustMatchWorktree": [],
     "pinnedAt": "2026-09-24",
-    "note": "same commit and bytes as the built 0.4.0 artifact (BUILD.json inputs)"
+    "note": "same commit and bytes as the built 0.4.1 artifact (BUILD.json inputs)"
   },
   "pvm-client-dist-f2": {
     "purpose": "the BUILT 0.2.0 client on which finding F2 (a refused same-version re-stage replaces the staged file's bytes) was found: kept as the regression fixture so the defect stays replayable after pvm-client-dist moves to a revision that fixes it (verifier/integration/findings.json)",

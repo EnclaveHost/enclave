@@ -2,7 +2,7 @@
   "pvm-client-artifact": {
     "purpose": "the pVM owner's installed client (CLI + MV3 extension), rebuilt from its commit and compared byte for byte; the lab stand-in for a transparency log (docs/security/pvm-client-bootstrap-review.md)",
     "branch": "pvm-cpu/portable-runtime",
-    "commit": "28a6efbfabeb68d5080f0c21c754dc3de3041ad2",
+    "commit": "c1341ee32b301bd31ca7710ae428022a0fc9f254",
     "buildDir": "shielded/anchor/avf/client",
     "buildScript": "build.sh",
     "distDir": "dist",
@@ -13,12 +13,12 @@
     },
     "outputs": {
       "pvm-client.mjs": {
-        "sha256": "a215992511f2bedd6ffb0d009d0198dd8ab99e8f395472dca9a63183c60ad53f",
+        "sha256": "58f0edddb0f7db85df7edf9e56bbab043194a19a8d4e5d903ef31a5b5705abc4",
         "size": 140740
       },
       "pvm-client-ext.zip": {
-        "sha256": "f29be6199df1911d806d4ce19eb882ad8ee06ad167021c1744139f28ccbe1ee0",
-        "size": 131707
+        "sha256": "e993c674283496e084505e4debdebcd9f8e723e6091325dd95902380f17ecdce",
+        "size": 132983
       }
     },
     "codeLoading": {
