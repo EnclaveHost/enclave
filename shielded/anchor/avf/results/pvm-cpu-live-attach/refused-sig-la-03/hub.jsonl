@@ -1,0 +1,3 @@
+{"t":"2026-09-24T04:40:58.018Z","listening":"ws://127.0.0.1:18443/v1/fleet-tunnel"}
+{"t":"2026-09-24T04:41:20.222Z","hub":"[tunnel] pixel10-pvm-cpu attest REJECTED: attested-key signature does not verify"}
+{"t":"2026-09-24T04:44:58.417Z","end":"SIGTERM"}

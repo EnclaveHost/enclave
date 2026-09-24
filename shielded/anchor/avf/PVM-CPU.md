@@ -300,7 +300,7 @@ kinds of bundle with vectors, each backend's record declaring the worlds it runs
 
 | piece | status |
 |---|---|
-| tier admission: AVF attach (chain to Google root, isVmSecure, pinned codeHash + authority) + one signed capability report -> `admitPvmCpu` | built on both sides and in the relay on main (tunnel.js caps frame; api-relay.js `PVM_CPU_*` env policy, computeEligible branch); verified OFFLINE on real captures; **never run against a live hub** |
+| tier admission: AVF attach (chain to Google root, isVmSecure, pinned codeHash + authority) + one signed capability report -> `admitPvmCpu` | **ADMITTED live** by the relay's own hub (results/pvm-cpu-live-attach la-04: relay nonce, codeHash = pins.py's, `tier: pvm-cpu`), after two fixes the live run found: the hub's attestation gate ignored the v2 build lists (401 for a tier-only relay; relay/tunnel.js), and the payload printed the attested-key signature with a trailing zero (rt9). The hub was local; production configuration and deployment are the owner's |
 | app attestation: second AVF certificate over `Bind2(transport SPKI, nonce, RuntimeID) \|\| AppID` + the self-test tuple | built; **binding verified on the Pixel 10** (results/app-m5, app-m2c) with the OWNER's challenge as the nonce, so it is "ABI/2 binding verified", not "attested to a relay" |
 | relay verification of an app's ABI/2 | `relay/pvm-app-attest.mjs` `verifyPvmAppAbi2` (contract vectors byte-exact; enclave-74 cross-checked 22/22); **not called by the relay yet** |
 | signing | spike key (keys/anchor.jks, debuggable); a release key and a non-debuggable manifest are required before any production admission (the owner's call: key custody) |
@@ -348,9 +348,9 @@ deny service (never deliver lines), which a verifier sees as missing evidence, n
 
 ### What remains, in order
 
-1. **A live relay attach** (blocks admission): run the real hub (`createTunnelHub`) with the tier's policy locally, the
-   phone over adb reverse, so the caps frame is admitted end to end and the ABI/2 nonce is the relay's. Then the relay
-   calls `verifyPvmAppAbi2` for apps.
+1. ~~A live relay attach~~ done (results/pvm-cpu-live-attach). Next on the admission path: the relay verifies an app's
+   ABI/2 evidence itself (`verifyPvmAppAbi2` on a `{t:"abi2"}` frame over the attached tunnel, with its own nonce), and
+   the relay fix (relay/tunnel.js attestOn) reaches main -- the owner's merge (a push to main restarts the workers).
 2. A release signing key and a non-debuggable manifest (the owner's decision; admission pins the authority).
 3. TLS for app traffic terminating in the VM (today the owner app sees requests and answers, as it sees the chat).
 4. Cold start and recovery (targets 3, 5): keep the stage's page cache so the load's second read comes from memory

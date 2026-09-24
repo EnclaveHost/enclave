@@ -1,0 +1,8 @@
+{"t":"2026-09-24T04:44:59.487Z","listening":"ws://127.0.0.1:18443/v1/fleet-tunnel"}
+{"t":"2026-09-24T04:45:24.246Z","hub":"[tunnel] pixel10-pvm-cpu attached via attestation(avf) (1 enclave)"}
+{"t":"2026-09-24T04:45:24.246Z","change":"attach","name":"pixel10-pvm-cpu","row":{"endpoint":"tunnel://pixel10-pvm-cpu","id":"tunnel:pixel10-pvm-cpu","name":"pixel10-pvm-cpu","repo":"EnclaveHost/enclave","lastSeen":1790225124,"tunnel":true,"mode":"avf","publicUrl":"","measurement":"8f0b8833819de244bc53281fb81bc9f33b5d4fa8dc2b00685624303c1180deb7"}}
+{"t":"2026-09-24T04:46:50.932Z","hub":"[tunnel] pixel10-pvm-cpu pvm-cpu ADMITTED (e2b-q4_0)"}
+{"t":"2026-09-24T04:46:50.933Z","change":"caps","name":"pixel10-pvm-cpu","row":{"endpoint":"tunnel://pixel10-pvm-cpu","id":"tunnel:pixel10-pvm-cpu","name":"pixel10-pvm-cpu","repo":"EnclaveHost/enclave","lastSeen":1790225210,"tunnel":true,"mode":"avf","publicUrl":"","measurement":"8f0b8833819de244bc53281fb81bc9f33b5d4fa8dc2b00685624303c1180deb7","tier":"pvm-cpu","pvmCpu":{"model":"e2b-q4_0","ctx":4096,"device":"","checkedAt":1790225210931}}}
+{"t":"2026-09-24T04:46:59.197Z","hub":"[tunnel] pixel10-pvm-cpu detached"}
+{"t":"2026-09-24T04:46:59.197Z","change":"detach","name":"pixel10-pvm-cpu","row":null}
+{"t":"2026-09-24T04:47:31.047Z","end":"SIGTERM"}
