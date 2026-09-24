@@ -32,6 +32,25 @@ index 201e1b1..3729830 100644
  
  /// The boot parameter block is a measured page constructed by the IGVM file
 
+diff --git a/boot/defs/src/firmware.rs b/boot/defs/src/firmware.rs
+index 76046e3..ec77a0e 100644
+--- a/boot/defs/src/firmware.rs
++++ b/boot/defs/src/firmware.rs
+@@ -10,6 +10,13 @@ pub const OVMF_TDX_METADATA_GUID: Uuid = uuid!("e47a6535-984a-4798-865e-4685a7bf
+ pub const OVMF_IGVM_METADATA_GUID: Uuid = uuid!("784fa70e-3176-4677-8a20-04b68699e374");
+ pub const OVMF_TABLE_FOOTER_GUID: Uuid = uuid!("96b582de-1fb2-45f7-baea-a366c55a082d");
+ pub const SEV_INFO_BLOCK_GUID: Uuid = uuid!("00f771de-1a7e-4fcb-890e-68c77e2fb44e");
++/// The footer entry whose first u32 is the SEV hash table's REAL guest physical address.
++///
++/// Distinct from the KERNEL_HASHES metadata descriptor, which gives the PAGE to validate. The descriptor is
++/// page-granular; the table itself sits at an offset inside that page (0xc00 in AmdSevX64, matching the
++/// firmware's FixedPcd PcdQemuHashTableBase), so a table written at the descriptor's base is invisible to the
++/// firmware.
++pub const SEV_HASH_TABLE_RV_GUID: Uuid = uuid!("7255371f-3a3b-4b04-927b-1da6efa8d454");
+ pub const SVSM_INFO_GUID: Uuid = uuid!("a789a612-0597-4c4b-a49f-cbb1fe9d1ddd");
+ 
+ pub const SEV_META_DESC_TYPE_MEM: u32 = 1;
+
 diff --git a/kernel/src/boot_params.rs b/kernel/src/boot_params.rs
 index e1fb44e..32f7657 100644
 --- a/kernel/src/boot_params.rs
@@ -176,7 +195,7 @@ index ca99b7b..dd6b373 100644
      } else {
 
 diff --git a/tools/igvmbuilder/src/ovmf_firmware.rs b/tools/igvmbuilder/src/ovmf_firmware.rs
-index f4ba4cf..a90b1fe 100644
+index f4ba4cf..70b65d0 100644
 --- a/tools/igvmbuilder/src/ovmf_firmware.rs
 +++ b/tools/igvmbuilder/src/ovmf_firmware.rs
 @@ -18,7 +18,10 @@ use igvm_defs::{IgvmPageDataFlags, IgvmPageDataType, PAGE_SIZE_4K};
@@ -190,7 +209,7 @@ index f4ba4cf..a90b1fe 100644
  use crate::firmware::Firmware;
  use crate::igvm_builder::{NATIVE_COMPATIBILITY_MASK, SNP_COMPATIBILITY_MASK};
  
-@@ -394,6 +397,221 @@ pub fn parse_ovmf(
+@@ -394,6 +397,253 @@ pub fn parse_ovmf(
      check_regions(fw_info)
  }
  
@@ -227,6 +246,32 @@ index f4ba4cf..a90b1fe 100644
 +const SEV_HASH_ENTRY_LEN: usize = 16 + 2 + 32;
 +const SEV_HASH_TABLE_LEN: usize = 16 + 2 + 3 * SEV_HASH_ENTRY_LEN;
 +const SEV_HASH_TABLE_PADDED_LEN: usize = SEV_HASH_TABLE_LEN.next_multiple_of(16);
++
++/// The table's real GPA, from the SEV_HASH_TABLE_RV_GUID footer entry.
++///
++/// Separate from `find_kernel_hashes_area` because they answer different questions: that one gives the page the
++/// SVSM must not validate, this one gives the address the FIRMWARE reads.
++fn find_sev_hash_table_gpa(data: &[u8]) -> Result<Option<u32>, Box<dyn Error>> {
++    if data.len() < FOOTER_OFFSET {
++        return Ok(None);
++    }
++    let (uuid, mut body, _) = read_table(&data[..data.len() - FOOTER_OFFSET])?;
++    if uuid != OVMF_TABLE_FOOTER_GUID {
++        return Ok(None);
++    }
++    while !body.is_empty() {
++        let (uuid, entry, remainder) = read_table(body)?;
++        body = remainder;
++        if uuid != SEV_HASH_TABLE_RV_GUID {
++            continue;
++        }
++        if entry.len() < 4 {
++            return Err("the SEV_HASH_TABLE_RV_GUID entry is shorter than the address it must hold".into());
++        }
++        return Ok(Some(u32::from_le_bytes([entry[0], entry[1], entry[2], entry[3]])));
++    }
++    Ok(None)
++}
 +
 +/// Find the KERNEL_HASHES descriptor's area without disturbing the existing parse.
 +///
@@ -325,7 +370,13 @@ index f4ba4cf..a90b1fe 100644
 +        fw_info.prevalidated_count = u32::try_from(regions.len())?;
 +        return Ok(());
 +    }
-+    Err(format!("the hash page {page:#x} is in no pre-validated area; refusing to emit a table the SVSM may zero").into())
++    // Not in any pre-validated area. Nothing would zero the table in that case, but the page would also never be
++    // GRANTED through this path, and an unexamined firmware layout is not something to emit a measured table for.
++    Err(format!(
++        "the hash page {page:#x} is in no pre-validated area, so this firmware's layout is not the one this \
++         feature was built for; refusing rather than emitting a table whose handling is unverified"
++    )
++    .into())
 +}
 +
 +/// Print the pre-validated region list as it was RECORDED in the block.
@@ -412,7 +463,7 @@ index f4ba4cf..a90b1fe 100644
  pub struct OvmfFirmware {
      fw_info: GuestFwInfoBlock,
      directives: Vec<IgvmDirectiveHeader>,
-@@ -404,6 +622,7 @@ impl OvmfFirmware {
+@@ -404,6 +654,7 @@ impl OvmfFirmware {
          filename: &String,
          _parameter_count: u32,
          compatibility_mask: u32,
@@ -420,7 +471,7 @@ index f4ba4cf..a90b1fe 100644
      ) -> Result<Box<dyn Firmware>, Box<dyn Error>> {
          let mut in_file = File::open(filename).inspect_err(|_| {
              eprintln!("Failed to open firmware file {filename}");
-@@ -449,6 +668,60 @@ impl OvmfFirmware {
+@@ -449,6 +700,100 @@ impl OvmfFirmware {
              gpa += PAGE_SIZE_4K;
          }
  
@@ -443,7 +494,43 @@ index f4ba4cf..a90b1fe 100644
 +                if base as u64 % PAGE_SIZE_4K != 0 {
 +                    return Err(format!("the KERNEL_HASHES area {base:#x} is not page aligned").into());
 +                }
-+                let table = sev_hash_table(kernel, initrd, cmdline, size)?;
++                // One page, and no more. Everything downstream is single-page: the table is emitted as ONE
++                // PageData directive, exactly one page is taken out of the pre-validated set, and one page is
++                // granted to the guest VMPL. A larger declared area would be truncated to 4096 by the resize
++                // below while its remaining pages stayed pre-validated - so they would be validated and ZEROED,
++                // and a table that straddled the boundary would be half blank. No firmware here declares more
++                // than a page; if one ever does, this must grow deliberately rather than silently.
++                if u64::from(size) > PAGE_SIZE_4K {
++                    return Err(format!(
++                        "this firmware declares a {size}-byte KERNEL_HASHES area at {base:#x}; only a single \
++                         4096-byte page is supported, and the rest would be validated and zeroed"
++                    )
++                    .into());
++                }
++                // WHERE the table goes is a different question from which page to validate, and getting it
++                // wrong costs a boot without a single failing check: the firmware reads its FixedPcd address,
++                // finds zeros, and reports "no hashes table discoverd in MEMFD". Measured 2026-09-24.
++                let table_gpa = find_sev_hash_table_gpa(&data)?.ok_or(
++                    "this firmware declares a KERNEL_HASHES area but no SEV_HASH_TABLE_RV_GUID entry, so where \
++                     the table belongs inside that area is unknown",
++                )?;
++                if table_gpa < base || u64::from(table_gpa) >= u64::from(base) + u64::from(size) {
++                    return Err(format!(
++                        "the firmware's hash table address {table_gpa:#x} is outside its KERNEL_HASHES area \
++                         [{base:#x}-{:#x}]",
++                        u64::from(base) + u64::from(size)
++                    )
++                    .into());
++                }
++                let in_page = (table_gpa - base) as usize;
++                if in_page + SEV_HASH_TABLE_PADDED_LEN > size as usize {
++                    return Err(format!(
++                        "a {SEV_HASH_TABLE_PADDED_LEN}-byte table at offset {in_page:#x} would run past the \
++                         {size}-byte KERNEL_HASHES area"
++                    )
++                    .into());
++                }
++                let table = sev_hash_table(kernel, initrd, cmdline, size - in_page as u32)?;
 +                // Out of the pre-validated set FIRST: if this fails, no table is emitted, rather than one being
 +                // emitted into a page the SVSM will zero.
 +                unvalidate_page(&mut fw_info, base)?;
@@ -452,11 +539,15 @@ index f4ba4cf..a90b1fe 100644
 +                // if the two ever disagree.
 +                fw_info.hash_table_address = base;
 +                fw_info.hash_table_size = size;
-+                let mut page = table;
++                // The page is the descriptor's base; the table sits at the firmware's offset within it, exactly
++                // as sev-snp-measure's construct_page(offset_in_page) builds it.
++                let mut page = vec![0u8; in_page];
++                page.extend(table);
 +                page.resize(PAGE_SIZE_4K as usize, 0);
 +                println!(
-+                    "Measured SEV hash table at {:#x}: a {}-byte table zeroed to the {size}-byte area, over kernel {kernel}, initrd {initrd}, cmdline {cmdline:?}",
-+                    base, SEV_HASH_TABLE_PADDED_LEN
++                    "Measured SEV hash table at {table_gpa:#x}: a {}-byte table at offset {in_page:#x} of the \
++                     {size}-byte area at {base:#x}, over kernel {kernel}, initrd {initrd}, cmdline {cmdline:?}",
++                    SEV_HASH_TABLE_PADDED_LEN
 +                );
 +                directives.push(IgvmDirectiveHeader::PageData {
 +                    gpa: base.into(),
