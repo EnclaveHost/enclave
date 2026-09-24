@@ -45,6 +45,10 @@ each needs its own review.
      authority hashes, and app ids the relay itself admits.
    - This is defence in depth for routing and for the relay's own accounting. It is NOT the client's trust. The client
      re-verifies everything and would refuse a wrong app whatever the relay decided.
+   - Conditions from the verifier session's review:
+     - it is never presented as client trust anywhere, whether a badge or a verdict;
+     - a relay refusal stays a plain HTTP status with no body the client could mistake for an envelope. The client
+       reports it honestly, as "no evidence: the carrier answered 404/503".
 3. **Rate and concurrency.**
    - Each `/evidence` makes the VM request an AVF attestation for that nonce, and the VM serves one connection at a
      time (PVM-CPU.md, gaps).
@@ -88,6 +92,26 @@ each needs its own review.
    production numbers.
 4. Registration (item 5): the owner's design.
 
+## Review (the verifier session, 2026-09-24): design accepted, with conditions
+
+- **Route placement.** It agreed with the routes and with the three rules: on-chain runner only with no fan-out; an
+  attested pVM tunnel or a 404 with no fallback; spliced bytes with only sizes logged.
+- **Policy 2.** Acceptable as routing hygiene, under the two conditions in item 2.
+- **The gate's properties.** None is weakened by routing:
+  - the nonce is the client's;
+  - the app id is the signed policy's;
+  - the transport and app keys come from evidence the client verified;
+  - the sealed channel derives from that app key;
+  - the relay sees ciphertext only.
+- **Kept explicit.**
+  - The relay's TLS terminates at the relay, so the transport is untrusted by design and only the app-key binding
+    carries trust.
+  - The id is a route only, so nothing at the relay can claim to bind an instance.
+- **More tests it asked for** (merged into the list below): a-h.
+- **Already true of today's client, and now tested** (test/pvm-client-deployments.test.mjs): a `--relay` URL naming
+  deployment X while `--deployment` names Y. The table's entry for Y decides, and the result names Y. A deployment is
+  never parsed from the carrier URL.
+
 ## Tests this would need before any activation
 
 The same pattern as the lab: a relay built from the branch with a fake runner row in a test ledger, a fake pVM tunnel
@@ -98,4 +122,14 @@ The same pattern as the lab: a relay built from the branch with a fake runner ro
 - a tunnel without the admitted app gets no sealed stream;
 - rate limits hold;
 - a hostile relay stand-in that routes D elsewhere is refused by the client if the app differs, and is NOT detected if
-  it is another instance of the same app (asserted, so the limit stays visible).
+  it is another instance of the same app (asserted, so the limit stays visible);
+- from the review:
+  - (a) a replayed envelope for another nonce: refused at verify;
+  - (b) a v1 envelope in place of v2: refused as a downgrade (the policy's formats);
+  - (c) two clients' sealed responses crossed by the relay: each refused by its own AAD and nonce, nothing decrypted;
+  - (d) the FIN dropped, or the stream truncated: incomplete, never complete;
+  - (e) a rate-limit refusal: never a verified result, never a stale mode;
+  - (f) a runner endpoint that is not `tunnel://`, or an on-chain runner that changes between two exchanges: each
+    exchange is judged from zero on a fresh nonce;
+  - (g) a deployment in the `--relay` URL never feeds selection (already tested today, above);
+  - (h) sizes-only logging, asserted on a real exchange: no nonce, envelope or ciphertext in the relay log.

@@ -92,6 +92,11 @@ test("the built CLI: a deployment's app comes from the signed table; unknown, mi
     assert.equal(good.result.step, "verify", JSON.stringify(good.result)); assert.match(good.result.refused, /not a pinned Google attestation root/);
     assert.deepEqual(good.result.deployment, { id: D1, app: APP }); assert.equal(good.result.clientVersion, CLIENT_VERSION);
     assert.equal(evidence(), e0 + 1, "it asked the VM for evidence, for the table's app");
+    // a relay URL that names ANOTHER deployment never feeds selection: --deployment decides, and the result names it (the
+    // carrier path does not exist on the lab carrier, so the exchange ends at evidence -- the selection is what is asserted)
+    const viaUrl = await cli(["run", "--state", st, "--policy", write(pol({ serial: 5 })), "--relay", `${relay}/x/${D2}/pvm`, "--deployment", D1]);
+    const vr = viaUrl.lines.at(-1).result;
+    assert.deepEqual(vr.deployment, { id: D1, app: APP }, JSON.stringify(vr)); assert.equal(vr.sent, false);
     // refused at "select", after the policy was verified and committed, before ANY evidence request
     e0 = evidence();
     // a table present (the committed serial 5, the same bytes), and neither --deployment nor --app: no default entry
