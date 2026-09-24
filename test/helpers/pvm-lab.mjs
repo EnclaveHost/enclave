@@ -42,8 +42,8 @@ export function signedManifest(K, version, bytes, { releaseKey = K.release, poli
 // COUNTED per key, so several tabs of one install (which share one relay URL) are told apart by arrival order, which the
 // tests make deterministic by waiting for each arrival before opening the next tab.
 export async function labServer() {
-  const policies = new Map(), artifacts = new Map(), manifests = new Map(), posts = [], held = new Map(), counts = new Map(), waiters = [];
-  const L = { policies, artifacts, manifests, posts, defaultPolicy: null, evidenceAnswer: null };
+  const policies = new Map(), artifacts = new Map(), manifests = new Map(), posts = [], canaries = [], held = new Map(), counts = new Map(), waiters = [];
+  const L = { policies, artifacts, manifests, posts, canaries, defaultPolicy: null, evidenceAnswer: null };
   const poke = () => { for (const w of [...waiters]) if (w.pred()) { waiters.splice(waiters.indexOf(w), 1); w.resolve(); } };
   const arrive = (key, h) => { counts.set(key, (counts.get(key) || 0) + 1); if (h) { if (!held.has(key)) held.set(key, []); held.get(key).push(h); } poke(); };
   const server = http.createServer((req, res) => {
@@ -60,6 +60,7 @@ export async function labServer() {
         const answer = () => { res.writeHead(200, { "content-type": "application/octet-stream" }); res.end(x.bytes); };
         if (x.hold) return arrive(`artifact:${m[1]}`, { res, answer }); return answer();
       }
+      if (u.pathname === "/canary") { try { canaries.push(JSON.parse(body)); } catch { canaries.push({ raw: body }); } poke(); res.writeHead(204); return res.end(); }
       if (u.pathname === "/result") { try { posts.push(JSON.parse(body)); } catch { posts.push({ raw: body }); } poke(); res.writeHead(204); return res.end(); }
       if ((m = /^\/r\/([^/]+)\/(evidence|sealed)$/.exec(u.pathname))) {
         const [, label, ep] = m;
@@ -79,22 +80,47 @@ export async function labServer() {
   L.sealedRequested = (label, n = 1) => L.when(() => L.count(`${label}:sealed`) >= n, `sealed request #${n} of ${label}`);
   L.artifactRequested = (name, n = 1) => L.when(() => L.count(`artifact:${name}`) >= n, `artifact download #${n} of ${name}`);
   L.waitPost = async (pred, what, ms) => { await L.when(() => posts.some(pred), what, ms); return posts.find(pred); };
+  L.waitCanary = async (pred, what, ms) => { await L.when(() => canaries.some(pred), what, ms); return canaries.find(pred); };
   L.release = (key, nth = 1) => { const h = (held.get(key) || [])[nth - 1]; if (!h) throw new Error(`nothing held as ${key} #${nth}`); if (!h.released) { h.released = true; h.answer(); } };
   L.close = () => { for (const q of held.values()) for (const h of q) if (!h.released) { h.released = true; try { h.res.writeHead(503); h.res.end(); } catch {} } server.close(); };
   return L;
 }
 
 // the CLI under test
-export function cliEnv(tmp) { const e = { ...process.env, XDG_CONFIG_HOME: path.join(tmp, "xdg-unused") }; delete e.NODE_TEST_CONTEXT; return e; }
+export function cliEnv(tmp, extraEnv = {}) { const e = { ...process.env, XDG_CONFIG_HOME: path.join(tmp, "xdg-unused"), ...extraEnv }; delete e.NODE_TEST_CONTEXT; return e; }
 const parseLines = (out) => out.trim().split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return { raw: l }; } });
-export function cliRun(CLI, tmp, args, { nodeArgs = [] } = {}) {
-  const child = spawn(process.execPath, [...nodeArgs, CLI, ...args], { env: cliEnv(tmp), stdio: ["ignore", "pipe", "pipe"] });
+export function cliRun(CLI, tmp, args, { nodeArgs = [], extraEnv = {} } = {}) {
+  const child = spawn(process.execPath, [...nodeArgs, CLI, ...args], { env: cliEnv(tmp, extraEnv), stdio: ["ignore", "pipe", "pipe"] });
   let out = "", err = "";
   child.stdout.on("data", (c) => (out += c)); child.stderr.on("data", (c) => (err += c));
   const done = new Promise((resolve) => child.on("exit", (status, signal) => { const lines = parseLines(out); resolve({ exited: true, status, signal, out, err, lines, result: lines.find((l) => l.result)?.result ?? null, committed: lines.find((l) => l.committed)?.committed ?? null, update: lines.find((l) => l.update)?.update ?? null }); }));
   return { child, done, out: () => out };
 }
-export const cliSync = (CLI, tmp, args, opts = {}) => { const r = spawnSync(process.execPath, [...(opts.nodeArgs || []), CLI, ...args], { encoding: "utf8", env: cliEnv(tmp) }); const lines = parseLines(r.stdout); return { ...r, lines, last: lines.at(-1) || null }; };
+export const cliSync = (CLI, tmp, args, opts = {}) => { const r = spawnSync(process.execPath, [...(opts.nodeArgs || []), CLI, ...args], { encoding: "utf8", env: cliEnv(tmp, opts.extraEnv || {}) }); const lines = parseLines(r.stdout); return { ...r, lines, last: lines.at(-1) || null }; };
 export function committedState(CLI, tmp, stateDir) { const r = cliSync(CLI, tmp, ["state", "--state", stateDir]); const j = r.lines.find((l) => l.state || l.error); return j ? (j.state ? { ...j.state, gen: j.gen, dir: j.dir } : { error: j.error }) : null; }
 export function install(CLI, tmp, stateDir, K, { serialFloor = 1 } = {}) { const r = cliSync(CLI, tmp, ["install", "--policy-key-fp", fpOf(K.policy), "--serial-floor", String(serialFloor), "--release-key-fp", fpOf(K.release), "--state", stateDir]); if (r.status !== 0) throw new Error(`install failed: ${r.stdout} ${r.stderr}`); return r; }
 export const unzipTo = (zip, dir) => { fs.mkdirSync(dir, { recursive: true }); const r = spawnSync("unzip", ["-q", "-o", zip, "-d", dir], { encoding: "utf8" }); if (r.status !== 0) throw new Error(`unzip failed: ${r.stderr}`); return dir; };
+
+// A CANARY artifact: a valid lab artifact (version marker first, signable like any other) whose body, whenever it executes,
+// posts its embedded token and how it was run to the lab, answers `version` (correctly, or wrongly for the start-check
+// fixture) and on `run` exits as told. Which bytes executed is then observable by token; a canary meant never to run
+// carries its own token, and "never posted" is the evidence. Not a client: it seals nothing and talks to no VM.
+export function canaryArtifact(version, labBase, { token, versionAnswer = version, versionExit = 0, runMode = "exit0" } = {}) {
+  return Buffer.from(`/*! enclave-pvm-client ${version} (LAB CANARY ${token}: not a client) */
+const TOKEN = ${JSON.stringify(token)}, LAB = ${JSON.stringify(labBase)}, cmd = process.argv[2] || null;
+await fetch(LAB + "/canary", { method: "POST", signal: AbortSignal.timeout(5000), body: JSON.stringify({ token: TOKEN, cmd, argv: process.argv, url: import.meta.url, cwd: process.cwd(),
+  nodeOptions: process.env.NODE_OPTIONS ?? null, xdg: process.env.XDG_CONFIG_HOME ?? null, home: process.env.HOME ?? null,
+  delegated: process.env.ENCLAVE_PVM_CLIENT_DELEGATED ?? null, pid: process.pid }) }).catch(() => {});
+if (cmd === "version") { process.stdout.write(JSON.stringify({ client: "enclave-pvm-client", version: ${JSON.stringify(versionAnswer)}, lab: "CANARY" }) + "\\n"); process.exit(${versionExit}); }
+if (cmd === "run") {
+  const mode = ${JSON.stringify(runMode)};
+  if (mode === "kill") process.kill(process.pid, "SIGKILL");
+  if (mode === "exit7") process.exit(7);
+  process.stdout.write(JSON.stringify({ result: { label: "canary", step: null, sent: false, clientVersion: ${JSON.stringify(version)}, canary: TOKEN } }) + "\\n");
+  process.exit(0);
+}
+process.stdout.write(JSON.stringify({ canary: TOKEN, cmd }) + "\\n");
+`);
+}
+// a version strictly above v (MAJOR.MINOR.PATCH) by k minors: lab artifacts must be newer than the installed client
+export const above = (v, k = 1) => { const [a, b] = String(v).split(".").map(Number); return `${a}.${b + k}.0`; };
