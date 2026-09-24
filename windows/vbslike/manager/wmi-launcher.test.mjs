@@ -150,3 +150,65 @@ test("a PowerShell non-zero exit is an error, not an empty success", async () =>
 test("a runner must be injected: this module never spawns anything by itself", () => {
   assert.throws(() => new WmiHyperVLauncher({ imagePath: IMG, imageSha256: SHA }), /runner must be injected/);
 });
+
+/* ---- defect 7: an unenumerable host is not an empty one -------------------------------------- *
+ *
+ * Measured on nucbox-k11 before the Hyper-V role existed (enclave-99, box-probe-2026-09-24T2155Z):
+ * survey() answered {"vms":[]} on a host where Get-VM does not exist, and teardown() would have
+ * answered "found 0, removed 0, failed []" - a CLEAN teardown - for the same reason. Both scripts
+ * used `Get-VM -ErrorAction SilentlyContinue`, which yields nothing whether the host owns no VMs or
+ * cannot enumerate at all.
+ *
+ * The fake below models a HOST, not a script: it is told whether Get-VM exists and which VMs are
+ * there, and it evaluates the guard the way PowerShell would (a `throw` on a missing cmdlet is a
+ * terminating error, so the run fails). That is what makes this a test of the mechanism rather than
+ * of the source text - a version of the guard that is present but ineffective fails these. */
+function enumHost({ hasGetVM = true, vms = [] } = {}) {
+  return async (script) => {
+    const wantsEnumeration = /Get-VM \|/.test(script);
+    if (wantsEnumeration) {
+      // the guard, evaluated as PowerShell would: Get-Command yields nothing, so the throw fires
+      if (/Get-Command Get-VM/.test(script) && !hasGetVM) {
+        return { code: 1, stdout: "", stderr: "Get-VM is absent: the Hyper-V PowerShell module is not installed, so VMs cannot be enumerated - this host is UNENUMERABLE, not empty" };
+      }
+      // an UNGUARDED enumeration on a module-less host: PowerShell yields nothing and succeeds,
+      // which is exactly the fail-open the defect describes
+      const live = hasGetVM ? vms : [];
+      const mine = live.filter((v) => v.name.startsWith("enclave-"));
+      if (/Remove-VM/.test(script)) {
+        return { code: 0, stdout: JSON.stringify({ found: mine.length, removed: mine.map((v) => v.name), failed: [] }) };
+      }
+      return { code: 0, stdout: JSON.stringify({ vms: mine }) };
+    }
+    return { code: 0, stdout: "{}" };
+  };
+}
+
+const enumLauncher = (run) => new WmiHyperVLauncher({ run, imagePath: IMG, imageSha256: SHA, prefix: "enclave-" });
+
+test("a host that cannot enumerate VMs is an ERROR, never an empty survey", async () => {
+  const l = enumLauncher(enumHost({ hasGetVM: false, vms: [{ name: "enclave-a", state: "Running" }] }));
+  await assert.rejects(() => l.survey(), /UNENUMERABLE|cannot be enumerated/,
+    "survey on a module-less host must refuse, not answer {vms:[]}");
+});
+
+test("a teardown that cannot enumerate does not read as a clean teardown", async () => {
+  const l = enumLauncher(enumHost({ hasGetVM: false, vms: [{ name: "enclave-orphan", state: "Running" }] }));
+  await assert.rejects(() => l.teardown(), /UNENUMERABLE|cannot be enumerated/,
+    "teardown must refuse rather than report found 0 / removed 0 / failed [] over an orphan it cannot see");
+});
+
+test("where Get-VM does exist, both still work and stay scoped to the prefix", async () => {
+  const vms = [{ name: "enclave-a", state: "Running" }, { name: "someone-elses-vm", state: "Running" }];
+  const s = await enumLauncher(enumHost({ hasGetVM: true, vms })).survey();
+  assert.deepEqual(s.vms.map((v) => v.name), ["enclave-a"], "only the prefix this instance owns");
+  const t = await enumLauncher(enumHost({ hasGetVM: true, vms })).teardown();
+  assert.equal(t.found, 1);
+  assert.deepEqual(t.removed, ["enclave-a"]);
+  assert.deepEqual(t.failed, []);
+});
+
+test("an enumerable host that genuinely owns nothing still reports an empty survey", async () => {
+  const s = await enumLauncher(enumHost({ hasGetVM: true, vms: [] })).survey();
+  assert.deepEqual(s.vms, [], "empty is a legitimate answer - only UNKNOWABLE is not");
+});

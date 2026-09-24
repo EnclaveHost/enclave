@@ -32,6 +32,17 @@ export const MIN_VM_VERSION = 12.0;            // their script throws below this
 export const OWNER_MARKER = "enclave-vbslike-app-domain";
 
 const ps = (s) => s.replace(/\r?\n\s*/g, " ").trim();
+/**
+ * Enumeration is only meaningful where `Get-VM` EXISTS. `Get-VM -ErrorAction SilentlyContinue` on a
+ * host without the Hyper-V module yields nothing, which is indistinguishable from a host that owns
+ * no VMs - so a survey read "no VMs" and a teardown read "found 0, removed 0, failed []", a CLEAN
+ * teardown, on a host that cannot enumerate at all. Measured on nucbox-k11 before the role existed.
+ * Reading a missing capability as an empty result is the same fail-open shape as a hash table that
+ * verifies nothing and boots anyway; both say PASS while covering no mechanism. So the two scripts
+ * that enumerate for action REFUSE rather than report an empty success.
+ */
+const ENUMERABLE = ps(`if (-not (Get-Command Get-VM -ErrorAction SilentlyContinue)) { throw 'Get-VM is absent: the Hyper-V PowerShell module is not installed, so VMs cannot be enumerated - this host is UNENUMERABLE, not empty' };`);
+
 /** PowerShell single-quoted literal: the only escape inside one is a doubled quote. */
 export function q(v) { return "'" + String(v).replace(/'/g, "''") + "'"; }
 
@@ -195,7 +206,8 @@ export const CMD = {
    * swallowed: a teardown that could not remove something must not read as a clean one.
    */
   teardown: ({ prefix, requireMarker = false }) => ps(`
-    $vms = @(Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith(${q(prefix)})${requireMarker ? ` -and $_.Notes -eq ${q(OWNER_MARKER)}` : ""} });
+    ${ENUMERABLE}
+    $vms = @(Get-VM | Where-Object { $_.Name.StartsWith(${q(prefix)})${requireMarker ? ` -and $_.Notes -eq ${q(OWNER_MARKER)}` : ""} });
     $removed = @(); $failed = @();
     foreach ($v in $vms) {
       try {
@@ -208,7 +220,8 @@ export const CMD = {
 
   /** Everything this prefix owns, whether or not we think we started it: the reconciliation read. */
   survey: ({ prefix }) => ps(`
-    $vms = @(Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith(${q(prefix)}) });
+    ${ENUMERABLE}
+    $vms = @(Get-VM | Where-Object { $_.Name.StartsWith(${q(prefix)}) });
     @{vms=@($vms | ForEach-Object { @{name=$_.Name; state=[string]$_.State; notes=[string]$_.Notes} })} | ConvertTo-Json -Compress -Depth 4`),
 };
 
