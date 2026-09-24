@@ -57,12 +57,23 @@ test("a probe failure records one bit and claims nothing more (pinned in source)
   assert.match(probe, /A no-cors rejection is one bit: no answer/);
 });
 
-test("an unanswered app still opens, and does not pulse as though something were in progress", () => {
+test("an unanswered app is amber and pulsing, and is still a real link", () => {
   const fn = src.slice(src.indexOf("function openCtl(d, ep, tls)"), src.indexOf("\n}", src.indexOf("function openCtl(d, ep, tls)")));
-  assert.doesNotMatch(fn, /<button[^>]*disabled/, "the link is offered rather than disabled");
+  assert.doesNotMatch(fn, /<button[^>]*disabled/, "offered, not disabled: the app may serve every path but its root");
   assert.match(fn, /enc-open-unknown/);
-  assert.match(css, /\.enc-open\.enc-open-unknown\{/, "and it is styled as unknown, not as amber-in-progress");
-  assert.match(css, /\.enc-open\[disabled\] \.enc-lock\{animation/, "the pulse stays only on a genuinely disabled control");
+  assert.match(css, /\.enc-open\.enc-open-unknown\{color:var\(--amber\)/, "Steven asked for the orange back");
+  assert.match(css, /\.enc-open\.enc-open-unknown \.enc-lock\{animation:encpulse/, "and the pulse with it");
+  assert.match(css, /prefers-reduced-motion:reduce\)\{\.enc-open\.enc-open-unknown \.enc-lock\{animation:none/,
+               "reduced motion still turns it off");
+});
+
+test("amber is a colour, not a claim: the meaning from e9fca58e is unchanged", () => {
+  const fn = src.slice(src.indexOf("function openCtl(d, ep, tls)"), src.indexOf("\n}", src.indexOf("function openCtl(d, ep, tls)")));
+  assert.doesNotMatch(fn, /waiting for/i, "amber must not go back to meaning a certificate is pending");
+  assert.doesNotMatch(src, /issued inside the enclave/, "nor to claiming where the key is held");
+  assert.match(fn, /no answer to a readiness check/i);
+  assert.match(css, /says "this browser\n   got no answer", not "a certificate is being issued"/,
+               "and the stylesheet says which of the two the colour means");
 });
 
 test("the repaint compares the state, not the tag, now that both render a link", () => {
