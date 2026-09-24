@@ -66,4 +66,11 @@ HVLAB_NAME_A="$NAME_A" HVLAB_JUDGE="$JUDGE" HVLAB_RUNTIME="$W/ex/plat/rt/runtime
 cat "$W/check-one.txt"
 [ "$rc" = 0 ] && tail -1 "$W/check-one.txt" | grep -q "^HVLAB-CHECK PASS WITH [0-9]* SKIPPED (one domain)$" \
   || { echo "TEST-HV-LOCAL FAILED (one-domain checker rc=$rc)"; exit 1; }
+# the whole caller path: relay splice half -> app zone -> node-bridge splicer -> the manager's data plane -> partition
+rc=0
+HVLAB_JUDGE="$JUDGE" HVLAB_RUNTIME="$W/ex/plat/rt/runtime.json" node "$here/hvlab-route.mjs" \
+  "$(python3 "$here/hvlab.py" pubkey "$S")" "$PA" "$appA" "$PB" "$appB" "$(sha256sum "$W/mon.cpio.gz" | cut -c1-64)" \
+  > "$W/route.txt" 2>&1 || rc=$?
+cat "$W/route.txt"
+[ "$rc" = 0 ] && [ "$(tail -1 "$W/route.txt")" = "HVLAB-ROUTE ALL PASS" ] || { echo "TEST-HV-LOCAL FAILED (route rc=$rc)"; exit 1; }
 echo "TEST-HV-LOCAL PASS"
