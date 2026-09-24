@@ -89,3 +89,22 @@ test("the lifecycle is readable: list, get, delete", async () => {
   assert.equal(m.get("d1"), null);
   assert.equal(await m.remove("d1"), false);
 });
+
+test("the backend takes the REAL launcher, and a domain started through it is running", async () => {
+  const { WmiHyperVLauncher } = await import("./wmi-launcher.mjs");
+  const SHA = "2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3";
+  const answer = (script) => script.includes("$r.vmms") ? { vmms: true, namespace: true, module: true, firmwareField: true, hypervisor: true }
+    : script.includes("Get-FileHash") ? { present: true, sha256: SHA, bytes: 124962164 }
+    : script.includes("New-VM") ? { id: "GUID", version: "12.0", name: "x" }
+    : script.includes("ModifySystemSettings") ? { returnValue: 0 }
+    : script.includes("Start-VM") ? { state: "Running" } : { ok: true };
+  const launcher = new WmiHyperVLauncher({
+    run: async (s) => ({ code: 0, stdout: JSON.stringify(answer(s)), stderr: "" }),
+    imagePath: "C:\\img.bin", imageSha256: SHA, prefix: "enclave-app-t-" });
+  const backend = new HyperVPartitionBackend({ launcher });
+  const r = await mk({ backend }).spawn(spawnBody());
+  assert.equal(r.state, "running");
+  assert.equal("attestation" in r, false, "a VM that started is still not an attested one");
+  const pre = await backend.preflight();
+  assert.equal(pre.ok, true, "and the backend can ask the host what it has");
+});
