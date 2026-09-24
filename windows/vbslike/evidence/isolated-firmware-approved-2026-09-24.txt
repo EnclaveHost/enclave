@@ -1,0 +1,397 @@
+##### iso-probe-20260924-113509
+##FILE transcript.txt
+**********************
+Windows PowerShell transcript start
+Start time: 20260924113510
+Username: NUCBOX_K11\claude
+RunAs User: NUCBOX_K11\claude
+Configuration Name: 
+Machine: NUCBOX_K11 (Microsoft Windows NT 10.0.26200.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\vbs-like\ops\isolated-probe.ps1 -Image C:\Users\claude\vbs-like\openhcl-x64-test-linux-direct.bin -ImageSha256 d240f40c53eb6fa016caaea9357dafbfea2048f18851a38f928fe25792df2864 -Approve
+Process ID: 23348
+PSVersion: 5.1.26100.9444
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9444
+BuildVersion: 10.0.26100.9444
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+=== preflight (reads only; this phase writes nothing)
+  elevated: yes
+PS>TerminatingError(Get-ItemProperty): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Property AllowFirmwareLoadFromFile does not exist at path HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Virtualization."
+  setting before: ABSENT
+  live node: task Running, processes ee-host node shielded-worker
+  no lab partitions exist (0 compute systems enumerated)
+  image sha256 verified: d240f40c53eb6fa016caaea9357dafbfea2048f18851a38f928fe25792df2864
+  image readable by the VM worker account (allowed: Read, Synchronize)
+=== applying the setting for the length of one probe
+=== probe (creates and destroys its own partitions only)
+  probe exit code:
+=== cleanup
+  reap: matched 0, terminated 0 (prefix vbslike-iso-4944-)
+PS>TerminatingError(Get-ItemProperty): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Property AllowFirmwareLoadFromFile does not exist at path HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Virtualization."
+  steps attempted: reap, restore, node
+  setting restored to ABSENT (status, value and type verified)
+  live node unchanged
+  evidence: C:\Users\claude\vbs-like\out\iso-probe-20260924-113509
+C:\Users\claude\vbs-like\ops\isolated-probe.ps1 : the probe exited 
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,isolated-probe.ps1
+C:\Users\claude\vbs-like\ops\isolated-probe.ps1 : the probe exited
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,isolated-probe.ps
+   1
+
+RUN FAILED: 1 failure(s) above; state in C:\Users\claude\vbs-like\out\iso-probe-20260924-113509\result.json
+**********************
+Windows PowerShell transcript end
+End time: 20260924113514
+**********************
+
+##FILE result.json
+{
+    "RunFailure":  null,
+    "CleanupOk":  true,
+    "ProbeOutcome":  "the probe exited ",
+    "Failures":  [
+                     "the probe exited "
+                 ]
+}
+
+##FILE setting-before.json
+{
+    "Status":  "Absent",
+    "Value":  null,
+    "Kind":  null,
+    "Error":  null
+}
+
+##FILE setting-after.json
+{
+    "Status":  "Absent",
+    "Value":  null,
+    "Kind":  null,
+    "Error":  null
+}
+
+##FILE node-before.json
+{
+    "TaskState":  "Running",
+    "Processes":  [
+                      "ee-host",
+                      "node",
+                      "shielded-worker"
+                  ]
+}
+
+##FILE node-after.json
+{
+    "TaskState":  "Running",
+    "Processes":  [
+                      "ee-host",
+                      "node",
+                      "shielded-worker"
+                  ]
+}
+
+##FILE isoprobe\isoprobe.json
+{
+  "igvm": "C:\\Users\\claude\\vbs-like\\openhcl-x64-test-linux-direct.bin",
+  "initrd": "C:\\Users\\claude\\vbs-like\\mon.cpio.gz",
+  "kernel": "C:\\Users\\claude\\vbs-like\\wsl-kernel",
+  "probe": "isoprobe",
+  "rows": [
+    {
+      "create": {
+        "detail": "{\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-4944-9\"},{\"Type\":\"String\",\"Value\":\"68B801C1-FBC1-582F-9EFF-F679694C7EFF\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-4944-9\"},{\"Type\":\"String\",\"Value\":\"68B801C1-FBC1-582F-9EFF-F679694C7EFF\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "error": "HcsCreateComputeSystem failed: 0x80070057 {\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-4944-9\"},{\"Type\":\"String\",\"Value\":\"68B801C1-FBC1-582F-9EFF-F679694C7EFF\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-4944-9\"},{\"Type\":\"String\",\"Value\":\"68B801C1-FBC1-582F-9EFF-F679694C7EFF\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "hr": "0x80070057",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso-probe-20260924-113509\\isoprobe\\isoprobe-vbs-igvmpath.hcs.json",
+      "name": "vbs-igvmpath",
+      "why": "VirtualizationBasedSecurity + IgvmFilePath: a custom IGVM by path (expected to be gated by AllowFirmwareLoadFromFile)"
+    }
+  ],
+  "vmgs": null,
+  "vmgsEmpty": null
+}
+##FILE isoprobe.out
+=== vbs-igvmpath : VirtualizationBasedSecurity + IgvmFilePath: a custom IGVM by path (expected to be gated by AllowFirmwareLoadFromFile)
+  create: HcsCreateComputeSystem failed: 0x80070057 {"Error":-2147024809,"ErrorMessage":"The parameter is incorrect.","ErrorEvents":[{"Message":"","Provider":"51ddfa29-d5c8-4803-be4b-2ecb715570fe","EventId":3040,"Flags":5,"Data":[{"Type":"String","Value":"vbslike-iso-4944-9"},{"Type":"String","Value":"68B801C1-FBC1-582F-9EFF-F679694C7EFF"}]},{"Message":"","Provider":"51ddfa29-d5c8-4803-be4b-2ecb715570fe","EventId":12000,"Flags":5,"Data":[{"Type":"String","Value":"vbslike-iso-4944-9"},{"Type":"String","Value":"68B801C1-FBC1-582F-9EFF-F679694C7EFF"},{"Type":"String","Value":"Microsoft Guest Runtime State"},{"Type":"String","Value":"%%2147942487"},{"Type":"String","Value":"0x80070057"},{"Type":"String","Value":"917BD8CB-3BB6-4124-9383-B7D21AC07F79"},{"Type":"String","Value":""}]}],"Attribution":[{"OperationFailure":{"Detail":"Construct"}},{"VirtualDeviceFailure":{"Detail":"Initialize","Name":"Microsoft Guest Runtime State","DeviceId":"917bd8cb-3bb6-4124-9383-b7d21ac07f79","InstanceId":"917bd8cb-3bb6-4124-9383-b7d21ac07f79"}}]}
+SUMMARY
+  vbs-igvmpath             create FAILED "0x80070057" "{\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-4944-9\"},{\"Type\":\"String\",\"Value\":\"68B801C1-FBC1-582F-9EFF-F679694C7EFF\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-4944-9\"},{\"Type\":\"String\",\"Value\":\"68B801C1-FBC1-582F-9EFF-F679694C7EFF\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}"
+
+##### iso-probe-20260924-113830
+##FILE transcript.txt
+**********************
+Windows PowerShell transcript start
+Start time: 20260924113830
+Username: NUCBOX_K11\claude
+RunAs User: NUCBOX_K11\claude
+Configuration Name: 
+Machine: NUCBOX_K11 (Microsoft Windows NT 10.0.26200.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\vbs-like\ops\isolated-probe.ps1 -Image C:\Users\claude\vbs-like\openhcl-x64-test-linux-direct.bin -ImageSha256 d240f40c53eb6fa016caaea9357dafbfea2048f18851a38f928fe25792df2864 -Only vbs-igvmpath-emptyvmgs,vbs-igvmpath-emptyvmgs-tpm,gso-igvmpath-emptyvmgs,vbs-emptyvmgs -VmgsEmpty C:\Users\claude\vbs-like\vmgs\empty.vmgs -Approve
+Process ID: 20228
+PSVersion: 5.1.26100.9444
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9444
+BuildVersion: 10.0.26100.9444
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+=== preflight (reads only; this phase writes nothing)
+  elevated: yes
+PS>TerminatingError(Get-ItemProperty): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Property AllowFirmwareLoadFromFile does not exist at path HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Virtualization."
+  setting before: ABSENT
+  live node: task Running, processes ee-host node shielded-worker
+  no lab partitions exist (0 compute systems enumerated)
+  image sha256 verified: d240f40c53eb6fa016caaea9357dafbfea2048f18851a38f928fe25792df2864
+  image readable by the VM worker account (allowed: Read, Synchronize)
+=== applying the setting for the length of one probe
+=== probe (creates and destroys its own partitions only)
+  probe args: isoprobe --only vbs-igvmpath-emptyvmgs,vbs-igvmpath-emptyvmgs-tpm,gso-igvmpath-emptyvmgs,vbs-emptyvmgs --kernel C:\Users\claude\vbs-like\wsl-kernel --initrd C:\Users\claude\vbs-like\mon.cpio.gz --igvm C:\Users\claude\vbs-like\openhcl-x64-test-linux-direct.bin --out C:\Users\claude\vbs-like\out\iso-probe-20260924-113830\isoprobe --seconds 20 --vmgs-empty C:\Users\claude\vbs-like\vmgs\empty.vmgs
+  probe exit code: <unreadable>
+=== cleanup
+  reap: matched 0, terminated 0 (prefix vbslike-iso-13820-)
+PS>TerminatingError(Get-ItemProperty): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Property AllowFirmwareLoadFromFile does not exist at path HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Virtualization."
+  steps attempted: reap, restore, node
+  setting restored to ABSENT (status, value and type verified)
+  live node unchanged
+  evidence: C:\Users\claude\vbs-like\out\iso-probe-20260924-113830
+C:\Users\claude\vbs-like\ops\isolated-probe.ps1 : the probe's exit code could not be read
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,isolated-probe.ps1
+C:\Users\claude\vbs-like\ops\isolated-probe.ps1 : the probe's exit code could not be read
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,isolated-probe.ps
+   1
+
+RUN FAILED: 1 failure(s) above; state in C:\Users\claude\vbs-like\out\iso-probe-20260924-113830\result.json
+**********************
+Windows PowerShell transcript end
+End time: 20260924113856
+**********************
+
+##FILE result.json
+{
+    "RunFailure":  null,
+    "CleanupOk":  true,
+    "ProbeOutcome":  "the probe\u0027s exit code could not be read",
+    "Failures":  [
+                     "the probe\u0027s exit code could not be read"
+                 ]
+}
+
+##FILE setting-before.json
+{
+    "Status":  "Absent",
+    "Value":  null,
+    "Kind":  null,
+    "Error":  null
+}
+
+##FILE setting-after.json
+{
+    "Status":  "Absent",
+    "Value":  null,
+    "Kind":  null,
+    "Error":  null
+}
+
+##FILE node-before.json
+{
+    "TaskState":  "Running",
+    "Processes":  [
+                      "ee-host",
+                      "node",
+                      "shielded-worker"
+                  ]
+}
+
+##FILE node-after.json
+{
+    "TaskState":  "Running",
+    "Processes":  [
+                      "ee-host",
+                      "node",
+                      "shielded-worker"
+                  ]
+}
+
+##FILE isoprobe\isoprobe.json
+{
+  "igvm": "C:\\Users\\claude\\vbs-like\\openhcl-x64-test-linux-direct.bin",
+  "initrd": "C:\\Users\\claude\\vbs-like\\mon.cpio.gz",
+  "kernel": "C:\\Users\\claude\\vbs-like\\wsl-kernel",
+  "probe": "isoprobe",
+  "rows": [
+    {
+      "consoles": {
+        "com1": {
+          "bytes": 0,
+          "head": ""
+        },
+        "com2": {
+          "bytes": 0,
+          "head": ""
+        }
+      },
+      "create": {
+        "ms": 121.7286,
+        "ok": true
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso-probe-20260924-113830\\isoprobe\\isoprobe-vbs-emptyvmgs.hcs.json",
+      "exitBeforeTerminate": {
+        "exited": true,
+        "how": "{\"Status\":-1070137082,\"ExitType\":\"UnexpectedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"UnexpectedExit\",\"Initiator\":\"Unknown\"}},{\"WorkerExit\":{\"ExitCode\":3221225477,\"Type\":\"UnexpectedStop\",\"Detail\":\"ProcessUnexpectedExit\",\"Initiator\":\"Unknown\"}}]}"
+      },
+      "name": "vbs-emptyvmgs",
+      "propertiesBeforeStart": {
+        "Id": "vbslike-iso-13820-10",
+        "Owner": "vbslike",
+        "RuntimeId": "d4c2506e-4fb8-5329-8b0a-944b813c3927",
+        "SystemType": "VirtualMachine"
+      },
+      "propertiesRunning": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-13820-10",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "start": {
+        "ms": 964.4226,
+        "ok": true
+      },
+      "statistics": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-13820-10",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "terminate": {
+        "error": "HcsTerminateComputeSystem failed: 0x80370110 ",
+        "ok": false
+      },
+      "why": "VirtualizationBasedSecurity + an EMPTY VMGS file the worker may open: the in-box paravisor from its default location, guest state on disk"
+    },
+    {
+      "consoles": {
+        "com1": {
+          "bytes": 0,
+          "head": ""
+        },
+        "com2": {
+          "bytes": 0,
+          "head": ""
+        }
+      },
+      "create": {
+        "ms": 233.4553,
+        "ok": true
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso-probe-20260924-113830\\isoprobe\\isoprobe-vbs-igvmpath-emptyvmgs.hcs.json",
+      "name": "vbs-igvmpath-emptyvmgs",
+      "propertiesBeforeStart": {
+        "Id": "vbslike-iso-13820-11",
+        "Owner": "vbslike",
+        "RuntimeId": "fd6d604f-df84-5ea1-b1ab-8ed03a3d17fe",
+        "SystemType": "VirtualMachine"
+      },
+      "start": {
+        "detail": "{\"Error\":-2147023728,\"ErrorMessage\":\"Element not found.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12030,\"Flags\":13,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-11\"},{\"Type\":\"String\",\"Value\":\"FD6D604F-DF84-5EA1-B1AB-8ED03A3D17FE\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3050,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-11\"},{\"Type\":\"String\",\"Value\":\"FD6D604F-DF84-5EA1-B1AB-8ED03A3D17FE\"},{\"Type\":\"String\",\"Value\":\"%%2147943568\"},{\"Type\":\"String\",\"Value\":\"0x80070490\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Start\"}}]}",
+        "error": "HcsStartComputeSystem failed: 0x80070490 {\"Error\":-2147023728,\"ErrorMessage\":\"Element not found.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12030,\"Flags\":13,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-11\"},{\"Type\":\"String\",\"Value\":\"FD6D604F-DF84-5EA1-B1AB-8ED03A3D17FE\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3050,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-11\"},{\"Type\":\"String\",\"Value\":\"FD6D604F-DF84-5EA1-B1AB-8ED03A3D17FE\"},{\"Type\":\"String\",\"Value\":\"%%2147943568\"},{\"Type\":\"String\",\"Value\":\"0x80070490\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Start\"}}]}",
+        "hr": "0x80070490",
+        "ok": false
+      },
+      "why": "VirtualizationBasedSecurity + IgvmFilePath + an EMPTY VMGS: our own paravisor image, with the guest runtime state device the isolated partition demands"
+    },
+    {
+      "consoles": {
+        "com1": {
+          "bytes": 0,
+          "head": ""
+        },
+        "com2": {
+          "bytes": 0,
+          "head": ""
+        }
+      },
+      "create": {
+        "ms": 252.22990000000001,
+        "ok": true
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso-probe-20260924-113830\\isoprobe\\isoprobe-vbs-igvmpath-emptyvmgs-tpm.hcs.json",
+      "name": "vbs-igvmpath-emptyvmgs-tpm",
+      "propertiesBeforeStart": {
+        "Id": "vbslike-iso-13820-12",
+        "Owner": "vbslike",
+        "RuntimeId": "1def7302-2410-5faf-b25f-a3b792192e04",
+        "SystemType": "VirtualMachine"
+      },
+      "start": {
+        "detail": "{\"Error\":-2147023728,\"ErrorMessage\":\"Element not found.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12030,\"Flags\":13,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-12\"},{\"Type\":\"String\",\"Value\":\"1DEF7302-2410-5FAF-B25F-A3B792192E04\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3050,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-12\"},{\"Type\":\"String\",\"Value\":\"1DEF7302-2410-5FAF-B25F-A3B792192E04\"},{\"Type\":\"String\",\"Value\":\"%%2147943568\"},{\"Type\":\"String\",\"Value\":\"0x80070490\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Start\"}}]}",
+        "error": "HcsStartComputeSystem failed: 0x80070490 {\"Error\":-2147023728,\"ErrorMessage\":\"Element not found.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12030,\"Flags\":13,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-12\"},{\"Type\":\"String\",\"Value\":\"1DEF7302-2410-5FAF-B25F-A3B792192E04\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3050,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-12\"},{\"Type\":\"String\",\"Value\":\"1DEF7302-2410-5FAF-B25F-A3B792192E04\"},{\"Type\":\"String\",\"Value\":\"%%2147943568\"},{\"Type\":\"String\",\"Value\":\"0x80070490\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Start\"}}]}",
+        "hr": "0x80070490",
+        "ok": false
+      },
+      "why": "... plus EnableTpm, since the paravisor is what would host the vTPM"
+    },
+    {
+      "consoles": {
+        "com1": {
+          "bytes": 0,
+          "head": ""
+        },
+        "com2": {
+          "bytes": 0,
+          "head": ""
+        }
+      },
+      "create": {
+        "ms": 244.6889,
+        "ok": true
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso-probe-20260924-113830\\isoprobe\\isoprobe-gso-igvmpath-emptyvmgs.hcs.json",
+      "name": "gso-igvmpath-emptyvmgs",
+      "propertiesBeforeStart": {
+        "Id": "vbslike-iso-13820-13",
+        "Owner": "vbslike",
+        "RuntimeId": "50172bc9-b184-5e4f-9bea-3f7cdf7d9f69",
+        "SystemType": "VirtualMachine"
+      },
+      "start": {
+        "detail": "{\"Error\":-2147023728,\"ErrorMessage\":\"Element not found.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12030,\"Flags\":13,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-13\"},{\"Type\":\"String\",\"Value\":\"50172BC9-B184-5E4F-9BEA-3F7CDF7D9F69\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3050,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-13\"},{\"Type\":\"String\",\"Value\":\"50172BC9-B184-5E4F-9BEA-3F7CDF7D9F69\"},{\"Type\":\"String\",\"Value\":\"%%2147943568\"},{\"Type\":\"String\",\"Value\":\"0x80070490\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Start\"}}]}",
+        "error": "HcsStartComputeSystem failed: 0x80070490 {\"Error\":-2147023728,\"ErrorMessage\":\"Element not found.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12030,\"Flags\":13,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-13\"},{\"Type\":\"String\",\"Value\":\"50172BC9-B184-5E4F-9BEA-3F7CDF7D9F69\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3050,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-13\"},{\"Type\":\"String\",\"Value\":\"50172BC9-B184-5E4F-9BEA-3F7CDF7D9F69\"},{\"Type\":\"String\",\"Value\":\"%%2147943568\"},{\"Type\":\"String\",\"Value\":\"0x80070490\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Start\"}}]}",
+        "hr": "0x80070490",
+        "ok": false
+      },
+      "why": "GuestStateOnly + IgvmFilePath + an EMPTY VMGS: the same shape one isolation class down, to tell a firmware-loading problem from a VBS-isolation one"
+    }
+  ],
+  "vmgs": null,
+  "vmgsEmpty": "C:\\Users\\claude\\vbs-like\\vmgs\\empty.vmgs"
+}
+##FILE isoprobe.out
+=== vbs-emptyvmgs : VirtualizationBasedSecurity + an EMPTY VMGS file the worker may open: the in-box paravisor from its default location, guest state on disk
+  start: ok (962 ms)
+  consoles: com1=0B com2=0B
+=== vbs-igvmpath-emptyvmgs : VirtualizationBasedSecurity + IgvmFilePath + an EMPTY VMGS: our own paravisor image, with the guest runtime state device the isolated partition demands
+  start: HcsStartComputeSystem failed: 0x80070490 {"Error":-2147023728,"ErrorMessage":"Element not found.","ErrorEvents":[{"Message":"","Provider":"51ddfa29-d5c8-4803-be4b-2ecb715570fe","EventId":12030,"Flags":13,"Data":[{"Type":"String","Value":"vbslike-iso-13820-11"},{"Type":"String","Value":"FD6D604F-DF84-5EA1-B1AB-8ED03A3D17FE"}]},{"Message":"","Provider":"51ddfa29-d5c8-4803-be4b-2ecb715570fe","EventId":3050,"Flags":5,"Data":[{"Type":"String","Value":"vbslike-iso-13820-11"},{"Type":"String","Value":"FD6D604F-DF84-5EA1-B1AB-8ED03A3D17FE"},{"Type":"String","Value":"%%2147943568"},{"Type":"String","Value":"0x80070490"}]}],"Attribution":[{"OperationFailure":{"Detail":"Start"}}]}
+  consoles: com1=0B com2=0B
+=== vbs-igvmpath-emptyvmgs-tpm : ... plus EnableTpm, since the paravisor is what would host the vTPM
+  start: HcsStartComputeSystem failed: 0x80070490 {"Error":-2147023728,"ErrorMessage":"Element not found.","ErrorEvents":[{"Message":"","Provider":"51ddfa29-d5c8-4803-be4b-2ecb715570fe","EventId":12030,"Flags":13,"Data":[{"Type":"String","Value":"vbslike-iso-13820-12"},{"Type":"String","Value":"1DEF7302-2410-5FAF-B25F-A3B792192E04"}]},{"Message":"","Provider":"51ddfa29-d5c8-4803-be4b-2ecb715570fe","EventId":3050,"Flags":5,"Data":[{"Type":"String","Value":"vbslike-iso-13820-12"},{"Type":"String","Value":"1DEF7302-2410-5FAF-B25F-A3B792192E04"},{"Type":"String","Value":"%%2147943568"},{"Type":"String","Value":"0x80070490"}]}],"Attribution":[{"OperationFailure":{"Detail":"Start"}}]}
+  consoles: com1=0B com2=0B
+=== gso-igvmpath-emptyvmgs : GuestStateOnly + IgvmFilePath + an EMPTY VMGS: the same shape one isolation class down, to tell a firmware-loading problem from a VBS-isolation one
+  start: HcsStartComputeSystem failed: 0x80070490 {"Error":-2147023728,"ErrorMessage":"Element not found.","ErrorEvents":[{"Message":"","Provider":"51ddfa29-d5c8-4803-be4b-2ecb715570fe","EventId":12030,"Flags":13,"Data":[{"Type":"String","Value":"vbslike-iso-13820-13"},{"Type":"String","Value":"50172BC9-B184-5E4F-9BEA-3F7CDF7D9F69"}]},{"Message":"","Provider":"51ddfa29-d5c8-4803-be4b-2ecb715570fe","EventId":3050,"Flags":5,"Data":[{"Type":"String","Value":"vbslike-iso-13820-13"},{"Type":"String","Value":"50172BC9-B184-5E4F-9BEA-3F7CDF7D9F69"},{"Type":"String","Value":"%%2147943568"},{"Type":"String","Value":"0x80070490"}]}],"Attribution":[{"OperationFailure":{"Detail":"Start"}}]}
+  consoles: com1=0B com2=0B
+SUMMARY
+  vbs-emptyvmgs            create ok, start ok, com1 0B com2 0B, exit "{\"Status\":-1070137082,\"ExitType\":\"UnexpectedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"UnexpectedExit\",\"Initiator\":\"Unknown\"}},{\"WorkerExit\":{\"ExitCode\":3221225477,\"Type\":\"UnexpectedStop\",\"Detail\":\"ProcessUnexpectedExit\",\"Initiator\":\"Unknown\"}}]}"
+  vbs-igvmpath-emptyvmgs   create ok, start FAILED "0x80070490" "{\"Error\":-2147023728,\"ErrorMessage\":\"Element not found.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12030,\"Flags\":13,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-11\"},{\"Type\":\"String\",\"Value\":\"FD6D604F-DF84-5EA1-B1AB-8ED03A3D17FE\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3050,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-11\"},{\"Type\":\"String\",\"Value\":\"FD6D604F-DF84-5EA1-B1AB-8ED03A3D17FE\"},{\"Type\":\"String\",\"Value\":\"%%2147943568\"},{\"Type\":\"String\",\"Value\":\"0x80070490\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Start\"}}]}"
+  vbs-igvmpath-emptyvmgs-tpm create ok, start FAILED "0x80070490" "{\"Error\":-2147023728,\"ErrorMessage\":\"Element not found.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12030,\"Flags\":13,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-12\"},{\"Type\":\"String\",\"Value\":\"1DEF7302-2410-5FAF-B25F-A3B792192E04\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3050,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-12\"},{\"Type\":\"String\",\"Value\":\"1DEF7302-2410-5FAF-B25F-A3B792192E04\"},{\"Type\":\"String\",\"Value\":\"%%2147943568\"},{\"Type\":\"String\",\"Value\":\"0x80070490\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Start\"}}]}"
+  gso-igvmpath-emptyvmgs   create ok, start FAILED "0x80070490" "{\"Error\":-2147023728,\"ErrorMessage\":\"Element not found.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12030,\"Flags\":13,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-13\"},{\"Type\":\"String\",\"Value\":\"50172BC9-B184-5E4F-9BEA-3F7CDF7D9F69\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3050,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-13820-13\"},{\"Type\":\"String\",\"Value\":\"50172BC9-B184-5E4F-9BEA-3F7CDF7D9F69\"},{\"Type\":\"String\",\"Value\":\"%%2147943568\"},{\"Type\":\"String\",\"Value\":\"0x80070490\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Start\"}}]}"
+

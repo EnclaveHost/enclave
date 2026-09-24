@@ -40,6 +40,15 @@ pub(crate) fn rows() -> Vec<Row> {
         Row { name: "vbs-direct", why: "VirtualizationBasedSecurity + LinuxKernelDirect: does an isolated partition take the host's kernel and initrd?", isolation: Some("VirtualizationBasedSecurity"), overcommit: false, transient_gs: true, ..base },
         Row { name: "vbs-igvmpath", why: "VirtualizationBasedSecurity + IgvmFilePath: a custom IGVM by path (expected to be gated by AllowFirmwareLoadFromFile)", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, overcommit: false, ..base },
         Row { name: "vbs-emptyvmgs", why: "VirtualizationBasedSecurity + an EMPTY VMGS file the worker may open: the in-box paravisor from its default location, guest state on disk", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_empty_vmgs: true, overcommit: false, ..base },
+        // OUR paravisor AND somewhere to keep guest state. The two were never tried together:
+        // `vbs-igvmpath` carried the IGVM with no VMGS and `vbs-emptyvmgs` a VMGS with no IGVM, so
+        // while the firmware path was refused outright (0x80070032) the combination had no reason
+        // to exist. With AllowFirmwareLoadFromFile set the refusal moved on to the next missing
+        // thing - "Microsoft Guest Runtime State" failed to Initialize with 0x80070057, a device
+        // the document never declared - which is what makes this the shape to try.
+        Row { name: "vbs-igvmpath-emptyvmgs", why: "VirtualizationBasedSecurity + IgvmFilePath + an EMPTY VMGS: our own paravisor image, with the guest runtime state device the isolated partition demands", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, ..base },
+        Row { name: "vbs-igvmpath-emptyvmgs-tpm", why: "... plus EnableTpm, since the paravisor is what would host the vTPM", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, tpm: true, ..base },
+        Row { name: "gso-igvmpath-emptyvmgs", why: "GuestStateOnly + IgvmFilePath + an EMPTY VMGS: the same shape one isolation class down, to tell a firmware-loading problem from a VBS-isolation one", isolation: Some("GuestStateOnly"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, ..base },
         Row { name: "vbs-emptyvmgs-tpm", why: "... plus EnableTpm", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_empty_vmgs: true, overcommit: false, tpm: true, ..base },
         Row { name: "gso-emptyvmgs", why: "GuestStateOnly + the empty VMGS", isolation: Some("GuestStateOnly"), uefi: true, use_empty_vmgs: true, overcommit: false, ..base },
         Row { name: "vbs-vmgs", why: "VirtualizationBasedSecurity + a VMGS carrying an IGVM in file id 8: 'Loading IGVM file from VMGS file'", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_vmgs: true, overcommit: false, ..base },
@@ -103,8 +112,11 @@ pub fn run(o: &Opts) -> i32 {
     let only = o.get("only").map(|s| s.to_string());
     let mut results = Vec::new();
     for (i, r) in rows().iter().enumerate() {
+        // `--only` takes a COMMA-SEPARATED list, not one name. One approved run of the host-wide
+        // setting should be able to answer more than one shape: the alternative is applying and
+        // restoring it once per row, which is more exposure for less evidence.
         if let Some(n) = &only {
-            if n != r.name {
+            if !n.split(',').map(str::trim).any(|want| want == r.name) {
                 continue;
             }
         }

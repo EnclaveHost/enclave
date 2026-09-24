@@ -28,6 +28,13 @@ param(
   [string] $Root = 'C:\Users\claude\vbs-like',
   [string] $EvidenceDir,
   [int]    $TimeoutSeconds = 180,
+  # WHICH shapes to try, and the guest-state files they need. The defaults are the original run:
+  # the IGVM path alone, no VMGS. They are parameters because the first approved run answered the
+  # question it was built for - the firmware path is no longer refused, it now fails on the next
+  # missing thing - and the shape that follows needs a different row and a file to point it at.
+  [string] $Only = 'vbs-igvmpath',
+  [string] $Vmgs,
+  [string] $VmgsEmpty,
   [switch] $Approve
 )
 
@@ -148,11 +155,16 @@ try {
   (Read-SettingState) | ConvertTo-Json | Set-Content (Join-Path $EvidenceDir 'setting-applied.json')
 
   Write-Host "=== probe (creates and destroys its own partitions only)"
+  # built here so the run's evidence can record exactly what was asked for
+  $probeArgs = @('isoprobe', '--only', $Only, '--kernel', (Join-Path $Root 'wsl-kernel'),
+                 '--initrd', (Join-Path $Root 'mon.cpio.gz'), '--igvm', $Image,
+                 '--out', (Join-Path $EvidenceDir 'isoprobe'), '--seconds', '20')
+  if ($Vmgs)      { $probeArgs += @('--vmgs', $Vmgs) }
+  if ($VmgsEmpty) { $probeArgs += @('--vmgs-empty', $VmgsEmpty) }
+  Note ("probe args: " + ($probeArgs -join ' '))
   $p = Start-Process -FilePath $HostExe -PassThru -NoNewWindow `
         -RedirectStandardOutput (Join-Path $EvidenceDir 'isoprobe.out') -RedirectStandardError (Join-Path $EvidenceDir 'isoprobe.err') `
-        -ArgumentList @('isoprobe', '--only', 'vbs-igvmpath', '--kernel', (Join-Path $Root 'wsl-kernel'),
-                        '--initrd', (Join-Path $Root 'mon.cpio.gz'), '--igvm', $Image,
-                        '--out', (Join-Path $EvidenceDir 'isoprobe'), '--seconds', '20')
+        -ArgumentList $probeArgs
   # the partitions this run may clean up, and no others: the launcher names them after its own pid
   $probePrefix = "vbslike-iso-$($p.Id)-"
   $killed = $false
@@ -164,9 +176,17 @@ try {
   }
   # the probe's own outcome is part of this run's result: a non-zero exit, or a timeout that had to be
   # killed, is a failure even when the cleanup afterwards is perfect
+  # ExitCode on a Start-Process handle reads back EMPTY unless the object is refreshed after the
+  # wait, which is how the first approved run reported "the probe exited " with no number and a
+  # bare FAILED. Refresh, then treat an exit code we STILL cannot read as a failure rather than a
+  # pass - an unreadable outcome is not a good one.
+  try { $p.Refresh() } catch {}
+  $code = $null
+  try { $code = $p.ExitCode } catch {}
   $script:probeOutcome = if ($killed) { "the probe exceeded ${TimeoutSeconds}s and was killed" }
-                         elseif ($p.ExitCode -ne 0) { "the probe exited $($p.ExitCode)" } else { $null }
-  Note "probe exit code: $($p.ExitCode)$(if ($killed) { ' (killed on timeout)' })"
+                         elseif ($null -eq $code) { "the probe's exit code could not be read" }
+                         elseif ($code -ne 0) { "the probe exited $code" } else { $null }
+  Note "probe exit code: $(if ($null -eq $code) { '<unreadable>' } else { $code })$(if ($killed) { ' (killed on timeout)' })"
 }
 catch {
   # remembered, not rethrown: rethrowing here would run the cleanup and then lose to whatever the
