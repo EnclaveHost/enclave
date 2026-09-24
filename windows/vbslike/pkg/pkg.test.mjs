@@ -282,6 +282,16 @@ test("tests: 99's node-bridge suite on v7's bridge: 3 pass, the 3 missing gate i
   assert.match(r.out, /ok   source ws-8\.21\.1\.tgz: npm integrity/);
   assert.match(r.out, /ok   test node-bridge \(enclave-99\) gives exactly its expected result \(6 tests, 3 pass, 3 fail \(failing 2, 3, 4\)\)/);
 });
+// the HELD v8 draft (drafts/, not a release): it verifies with every pin, and says it is held
+test("the held v8 draft verifies with its pins, and says it is not a release", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+  const D8 = path.join(HERE, "drafts/nucbox-ownguest-8.json"), d8 = JSON.parse(fs.readFileSync(D8, "utf8"));
+  assert.match(d8.status, /^HELD DRAFT: not a release, not staged/);
+  const r = run(["verify", D8, "--tests"]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   test node-bridge \(enclave-99\) gives exactly its expected result \(6 tests, 6 pass, 0 fail\)/);
+  assert.match(r.out, /ok   test appzone-hook \(enclave-99\) gives exactly its expected result \(3 tests, 3 pass, 0 fail\)/);
+  assert.match(r.out, /ok   hello-world 1\.0\.4: the node's isolationPlan builds exactly the pinned record from the on-chain version/);
+});
 test("v3 (committed, never edited) is refused by the current verifier at its stale manager", { skip }, () => {
   const r = run(["verify", V3]);
   assert.equal(r.code, 1);
