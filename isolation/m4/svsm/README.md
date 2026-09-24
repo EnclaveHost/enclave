@@ -203,6 +203,9 @@ build. The SVSM's own boot-time attestation (`kernel/src/attest.rs`) is untouche
 
 ### Scoring the run, so a pass cannot be vacuous
 
+* when a monitor port lands, its first acceptance check is **"every domain's report comes through protocol 6
+  AND names that domain's own admitted slot"** - a port that satisfies only the first half would collapse N
+  identities into one and still pass;
 * the GOOD path prints no `poke_result` at all; a scorer that looks for one will wrongly fail it;
 * the TAMPERED path must show `poke_result=WROTE` **and** `admit_bundle_result` carrying the SVSM's refusal,
   after a staging that really happened - a refusal over a zeroed buffer would pass for the wrong reason;
@@ -294,6 +297,15 @@ allowlist entry for a digest must carry the compiled-in layout, and a verifier t
 isolation must accept **dedicated planes only** - otherwise a shared-plane report can be presented as though it
 had M4b-strength identity.
 
+**"dedicated" is a statement about NAMING, not about execution.** While A4 is open,
+`"shape": "dedicated"` means *the SVSM will only ever name this plane as ONE admitted app* - which `slots: 1`
+enforces - and it does **not** mean that only that app's code runs in the plane. The plane's kernel is
+unmeasured and could run anything. So a dedicated-plane report tells a verifier the naming authority's word
+about the admitted bytes, the level, and the freeze, and **nothing about what executes**, until A4 or 4c lands.
+Anyone hardening the allowlist schema must carry that distinction into it, or a later reader will take
+"dedicated" for hardware isolation of the code, which is precisely the claim this project keeps having to
+correct.
+
 The layout of the IGVM measured in `isolation/m4/evidence/`, which an allowlist entry for that digest must
 state:
 
@@ -302,7 +314,8 @@ state:
       "apps": { "plane1": "8773d334...2685", "plane2": "ce52712f...0b91" },
       "guest_vmpck": "none", "report_paths": ["svsm protocol 6", "svsm protocol 1, gated on admission"] }
 
-`plane1` is named in the table but unreachable: `require_owning_plane` serves only `GUEST_VMPL`.
+`plane1` is named in the table but unreachable: `require_owning_plane` serves only `GUEST_VMPL`. The
+`"shape"` field is read per the paragraph above: one admitted app NAMED, not one app's code executing.
 
 ### The fourth options, and the non-options
 
