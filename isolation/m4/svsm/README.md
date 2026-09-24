@@ -217,6 +217,42 @@ build. The SVSM's own boot-time attestation (`kernel/src/attest.rs`) is untouche
 * the expected tampered-path line set: `admit_bundle_result 0x80001004` after a staging that really happened,
   `poke_result=WROTE`, and `whoami_final` and `report_final` both refused.
 
+## The monitor port is BLOCKED by a design fork, not by work
+
+The agreed next increment was "move the monitor to protocol 6, so every domain's report comes through it".
+That cannot be done as stated without destroying something M3a has today, and the reason is worth setting out
+before anyone writes the code.
+
+`monitor/main.go:877` builds `contract.ReportData(bind, d.appHash)`: `[32:64]` is the app **this monitor loaded
+for THIS domain**, and a plane holds many domains, each with its own bundle and its own hash. Protocol 6, by
+design, writes `[32:64]` from `APP_TABLE[plane]` and refuses to take it from the caller - which is the property
+that makes it an authority. So a monitor calling protocol 6 would give **every domain in the plane the same
+identity**: the reviewer's B6, and a straight loss of per-domain naming.
+
+The three ways out, and what each costs:
+
+1. **Many domains per plane, the SVSM vouches only for the PLANE.** Per-domain naming then comes from code
+   inside the plane - the monitor - which is unmeasured on the IGVM path. That is the original M3b defect
+   unchanged, so it is not a way out, it is giving up.
+2. **One app per plane.** The SVSM names each app, which is what M4b is for, but `vmpl_count=4` caps it at two
+   or three and it needs all five second-plane preconditions. It does not rescue the M3a shape.
+3. **The SVSM admits SEVERAL bundles per plane and names one by admitted index.** `APP_TABLE` becomes
+   `[plane][slot]`, admission takes a slot, and GET_REPORT names the digest of whichever admitted slot the
+   caller selects. A caller cannot invent an identity - only choose among ones this measured image already
+   expected and whose bytes it hashed and froze. A compromised monitor could choose the WRONG admitted slot for
+   a domain's traffic, but it already holds every domain's socket, and M3a documents the guest kernel as being
+   in the app-vs-app TCB for exactly this reason. So this preserves per-domain measured identity as far as a
+   shared plane can, and is strictly better than the monitor's own unmeasured hash.
+
+Option 3 is the recommendation, and it is a change to what the naming authority MEANS - the contract says
+`[32:64]` is "the monitor's app ID, never the caller's", and this makes it "an admitted app ID, chosen by the
+caller from a measured set". That is a contract-level decision and is flagged rather than taken unilaterally.
+
+Until it is settled: **M3a and M3b do not pass against an IGVM built from this SVSM**, because their domains
+get reports through configfs-tsm and the guest holds no key. M4a is unaffected - it has no SVSM. Running the M3
+suites means building the SVSM without `copy_with_no_vmpck`, which reopens the bypass, so the two
+configurations cannot be conflated in any write-up.
+
 ## Still open, and not to be written up as done
 
 * **A1, and it blocks plane-per-app outright.** `kernel/src/sev/secrets_page.rs` `copy_for_vmpl` clears only

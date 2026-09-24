@@ -1,5 +1,5 @@
 diff --git a/kernel/src/greq/services.rs b/kernel/src/greq/services.rs
-index d998c92..bdaacf5 100644
+index d998c92..655e666 100644
 --- a/kernel/src/greq/services.rs
 +++ b/kernel/src/greq/services.rs
 @@ -9,6 +9,7 @@
@@ -10,8 +10,23 @@ index d998c92..bdaacf5 100644
  use crate::greq::{
      driver::{send_extended_guest_request, send_regular_guest_request},
      msg::SnpGuestRequestMsgType,
-@@ -21,9 +22,18 @@ const REPORT_RESPONSE_SIZE: usize = size_of::<SnpReportResponse>();
+@@ -19,11 +20,33 @@ use core::mem::size_of;
+ const REPORT_REQUEST_SIZE: usize = size_of::<SnpReportRequest>();
+ const REPORT_RESPONSE_SIZE: usize = size_of::<SnpReportResponse>();
  
++/// Which VMPL a report request may name in this build: VMPL0, or the ONE guest plane this SVSM serves.
++///
++/// Exposed so the test asserts THIS function rather than a copy of the condition beside it - a test that
++/// recomputes the rule passes even when the rule in the code drifts, which is how an earlier version of the
++/// freeze test would have passed against a version that granted neighbours read and execute.
++///
++/// When planes multiply, the calling plane must be passed in and compared against, rather than this set
++/// widened: an admissible-set check cannot distinguish "plane 2 asking for plane 2" from "plane 1 asking for
++/// plane 2". See isolation/m4/svsm/README.md, the second-plane preconditions.
++pub fn report_vmpl_admissible(vmpl: u32) -> bool {
++    vmpl == 0 || vmpl == GUEST_VMPL as u32
++}
++
  fn get_report(buffer: &mut [u8], certs: Option<&mut [u8]>) -> Result<usize, SvsmError> {
      let request: &SnpReportRequest = SnpReportRequest::try_from_as_ref(buffer)?;
 -    // Non-VMPL0 attestation reports can be requested by the guest kernel
@@ -28,11 +43,11 @@ index d998c92..bdaacf5 100644
 +    // So a request naming VMPL0 or the one guest plane this SVSM serves is allowed, and nothing else is: a
 +    // caller cannot get a report for a plane that does not exist here, and no path lets a guest choose the
 +    // level, because the level is written by the SVSM and never taken from the request.
-+    if !request.is_vmpl0() && request.vmpl != GUEST_VMPL as u32 {
++    if !report_vmpl_admissible(request.vmpl) {
          return Err(SvsmError::InvalidParameter);
      }
      let response_len = if certs.is_none() {
-@@ -106,6 +116,29 @@ pub fn get_extended_report(buffer: &mut [u8], certs: &mut [u8]) -> Result<usize,
+@@ -106,6 +129,41 @@ pub fn get_extended_report(buffer: &mut [u8], certs: &mut [u8]) -> Result<usize,
      get_report(buffer, Some(certs))
  }
  
@@ -49,13 +64,25 @@ index d998c92..bdaacf5 100644
 +    /// substitution. When planes multiply, the calling plane must be passed in rather than this set widened.
 +    #[test]
 +    fn only_vmpl0_and_the_served_guest_plane_are_accepted() {
++        // asserts the function get_report itself calls, so this fails if that check drifts
++        assert!(report_vmpl_admissible(0), "VMPL0 is the SVSM's own level");
++        assert!(report_vmpl_admissible(GUEST_VMPL as u32), "the plane this SVSM serves");
 +        for vmpl in 0u32..4 {
-+            let mut req = SnpReportRequest::new_zeroed();
-+            req.vmpl = vmpl;
-+            let accepted = req.is_vmpl0() || req.vmpl == GUEST_VMPL as u32;
-+            let want = vmpl == 0 || vmpl == GUEST_VMPL as u32;
-+            assert_eq!(accepted, want, "vmpl {vmpl}: accepted={accepted}, expected={want}");
++            if vmpl == 0 || vmpl == GUEST_VMPL as u32 {
++                continue;
++            }
++            assert!(
++                !report_vmpl_admissible(vmpl),
++                "vmpl {vmpl} belongs to no plane here and must be refused: the relaxation is a substitution \
++                 for the upstream VMPL0-only rule, not a widening"
++            );
 +        }
++        // and the field the check reads is the one the request carries
++        let mut req = SnpReportRequest::new_zeroed();
++        req.vmpl = GUEST_VMPL as u32;
++        assert!(report_vmpl_admissible(req.vmpl));
++        req.vmpl = 3;
++        assert_eq!(report_vmpl_admissible(req.vmpl), GUEST_VMPL == 3);
 +    }
 +}
 +
