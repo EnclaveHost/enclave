@@ -1,0 +1,17 @@
+{
+  "owner": "0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C",
+  "at": "2026-09-24T18:55:32.161Z",
+  "versionFee6": "0",
+  "setPayoutWallet": {
+    "tx": "0x7ac65fa2a91cd062ecf6c404f867087ca226e2d201c503bb0d5beae83350fd0d",
+    "status": "success",
+    "gasUsed": "47796"
+  },
+  "envelope": "{\"isolation\":{\"require\":\"snp-guest-per-app\"}}",
+  "create": {
+    "tx": "0x6ceaeb0b31687149949014e9eb13f108886421c738e3aa62c1ff603750be4c10",
+    "status": "success",
+    "gasUsed": "411747"
+  },
+  "deploymentId": "0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e"
+}
