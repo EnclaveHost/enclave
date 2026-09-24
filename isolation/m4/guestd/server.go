@@ -122,8 +122,9 @@ type vm struct {
 
 type server struct {
 	L         Launcher
-	Store     *store // catalog mappings; nil = only file:// bundles are accepted
-	Root      string // per-guest workdirs live under here, and nothing else does
+	Auth      *controlAuth // guestd-control/1; nil = the unauthenticated, loopback-only lab mode
+	Store     *store       // catalog mappings; nil = only file:// bundles are accepted
+	Root      string       // per-guest workdirs live under here, and nothing else does
 	LeaseTTL  time.Duration
 	Silence   time.Duration
 	Now       func() time.Time
@@ -169,7 +170,28 @@ func (v *vm) public() map[string]any {
 	return m
 }
 
+// ServeHTTP is the channel policy (auth.go). With a pairing key, only the handshake is unauthenticated and every
+// other answer is signed; without one, this is the loopback-only LAB mode and the handshake endpoints refuse, so a
+// client that expects guestd-control/1 fails closed instead of falling back to an unauthenticated manager.
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	control := strings.HasPrefix(r.URL.Path, "/control/")
+	switch {
+	case s.Auth == nil && control:
+		writeJSON(w, 404, map[string]any{"error": "this guestd has no control credentials configured (unauthenticated lab mode)"})
+	case s.Auth == nil:
+		s.route(w, r)
+	case r.Method == http.MethodGet && r.URL.Path == "/control/hello":
+		s.Auth.hello(w)
+	case r.Method == http.MethodPost && r.URL.Path == "/control/session":
+		s.Auth.openSession(w, r)
+	case control:
+		writeJSON(w, 404, map[string]any{"error": "not found"})
+	default:
+		s.Auth.serve(w, r, s.route)
+	}
+}
+
+func (s *server) route(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/health":
 		s.mu.Lock()
