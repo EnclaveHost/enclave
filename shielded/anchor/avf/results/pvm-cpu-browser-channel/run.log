@@ -1,0 +1,22 @@
+00:24:38 apk 932874e2a5e244e07bc0f02824c6e157ae9f22c712c3f5d2afe35f59b024790e installed; the PAGE pins code hash 6fab3d4c43ef6df953d5102098203c0b8db58a162172e4b92fa26df0ca598990, app 1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339, the pVM runtime, Google's roots (served by the site, not the relay)
+00:24:40 == launch 1
+00:26:27 l1: the VM serves https + sealed and answers evidence (104 s)
+{"browser":"chromium","label":"honest","sent":true,"verified":{"format":"enclave-pvm-app-evidence/v2","app":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtime":"d3370878afa9d5
+{"browser":"chromium","label":"evil-pass","sent":true,"verified":{"format":"enclave-pvm-app-evidence/v2","app":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtime":"d3370878afa
+{"browser":"chromium","label":"evil-replay","step":"verify","refused":"the evidence answers another nonce (stale or replayed)","sent":false,"verifyMs":9,"userAgent":"Mozilla/5.0 (X11; Linux x86_64) Ap
+{"browser":"chromium","label":"evil-swap-appkey","step":"verify","refused":"the appKey is not signed by the attested transport key for this nonce and app","sent":false,"verifyMs":627,"userAgent":"Mozi
+{"browser":"chromium","label":"evil-downgrade","step":"verify","refused":"the evidence carries no app key (v1): a page cannot pin a TLS key, so nothing is sent","sent":false,"verifyMs":660,"userAgent"
+{"browser":"chromium","label":"evil-own-ca","step":"verify","refused":"attestation: root 0e9c10cedb951725efb63af48a6e14673355c293af80ab2cb1bc66e9c8c5c1b8 is not a pinned Google attestation root","sent
+{"browser":"chromium","label":"evil-tamper-request","step":"sealed","refused":"the VM refused (unauthenticated hint): cannot open: not sealed to this VM's app key for this app, runtime and nonce","sen
+{"browser":"chromium","label":"evil-tamper-response","step":"sealed","refused":"the answer does not open under this request's keys (tampered, or not from the VM)","sent":true,"verified":{"format":"enc
+{"browser":"chromium","label":"evil-replay-sealed","sent":true,"verified":{"format":"enclave-pvm-app-evidence/v2","app":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtime":"d3
+{"browser":"chromium","label":"wrong-app","step":"verify","refused":"the evidence names another app","sent":false,"verifyMs":761,"userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML,
+{"browser":"chromium","label":"wrong-runtime","step":"verify","refused":"runtime d3370878afa9d5ee… (wasmtime/49.0.0 interpreter pulley64) is not an admitted runtime","sent":false,"verifyMs":664,"userA
+{"browser":"firefox","label":"firefox-honest","sent":true,"verified":{"format":"enclave-pvm-app-evidence/v2","app":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtime":"d337087
+00:27:38 termination: waiting for the lab STOP and the run's end
+{"browser":"chromium","label":"after-termination","step":"evidence","refused":"no evidence: the carrier answered 502","sent":false,"userAgent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTM
+00:31:35 == launch 2 (reconnect)
+00:33:23 l2: the VM serves https + sealed and answers evidence (105 s)
+{"browser":"chromium","label":"reconnect-honest","sent":true,"verified":{"format":"enclave-pvm-app-evidence/v2","app":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","runtime":"d337
+{"browser":"chromium","label":"reconnect-old-evidence","step":"verify","refused":"the evidence answers another nonce (stale or replayed)","sent":false,"verifyMs":8,"userAgent":"Mozilla/5.0 (X11; Linux
+{"browser":"chromium","label":"reconnect-old-sealed","step":"sealed","refused":"the VM refused (unauthenticated hint): unknown evidence nonce: fetch fresh evidence (the key rotates with each boot)","s

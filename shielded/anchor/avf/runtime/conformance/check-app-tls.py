@@ -59,7 +59,9 @@ rok, rold = g("reconnect-ok"), g("reconnect-old-key")
 expect(rok.get("status") == 200, "reconnect: a new boot serves with its own key")
 expect(bool(rold.get("refused")) and rold.get("sent") is False, "reconnect: the first boot's key is refused before sending")
 expect(bool(apps[0].get("transportSpki")) and apps[0].get("transportSpki") != apps[1].get("transportSpki"), "reconnect: a new transport key per boot")
-L1, L2 = rd("l1.log"), rd("l2.log")
+def decoded(t):   # the log plus pvm-rt's notes, which the payload prints hex-encoded (APPOUT <stream> <hex>): a leak there counts too
+    return t + "\n" + "\n".join(bytes.fromhex(m.group(1)).decode("utf-8", "replace") for m in re.finditer(r"APPOUT \d+ ([0-9a-f]+)", t))
+L1, L2 = decoded(rd("l1.log")), decoded(rd("l2.log"))
 # each launch's app must have counted exactly the client requests that got a 200: an attack that reached the app would show
 cut = next((i for i, c in enumerate(client) if c["mode"] == "after-termination"), len(client))
 want1 = sum(1 for c in client[:cut] if c.get("status") == 200)
@@ -71,7 +73,7 @@ expect("APP http: stopped by the owner" in L1, "launch 1: terminated by the owne
 # the two places the plaintext must never be: the Android app's captures and the relay's own log
 markers = ["steps=8", "GET /?graph", '"tokens"', "tok_per_s", "prompt_tokens"]
 for n in ["l1.log", "l2.log", "hub.jsonl", "hub.err"]:
-    t = rd(n); hit = [m for m in markers if m in t]
+    t = decoded(rd(n)); hit = [m for m in markers if m in t]
     expect(not hit, f"{n}: no request or response in the clear{' (found ' + ', '.join(hit) + ')' if hit else ''}")
 expect(any("RELAY stream" in l and "closed" in l and "bytes" in l for l in L1.splitlines()), "the phone logged its streams by size only")
 print("PASS the lab serving prototype on the device" if not fails else f"FAIL ({len(fails)})"); sys.exit(1 if fails else 0)

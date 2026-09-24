@@ -612,10 +612,12 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   // LAB: a raw byte stream to a pVM, no request head replayed. kind "pvm-app-tls": the client's TLS goes straight to the
   // VM, where it terminates (httpd.rs with_tls) -- only to an app THIS hub verified (t.pvmApp; its own policy, which can
   // only deny). kind "pvm-evidence": the VM's evidence endpoint, which answers a CLIENT's nonce so the client verifies the
-  // VM itself -- any AVF-attested attach. The hub and the phone carry opaque {t:"sd"} chunks and log sizes only.
+  // VM itself -- any AVF-attested attach. kind "pvm-app-sealed": one HPKE-sealed request to the VM's app key (the browser
+  // channel; pvm-rt sealed.rs), under the same rule as TLS. The hub and the phone carry opaque {t:"sd"} chunks and log
+  // sizes only.
   function spliceRaw(name, socket, kind = "pvm-app-tls") {
     const t = tunnels.get(name);
-    const allowed = t && t.pvm && (kind === "pvm-evidence" || (kind === "pvm-app-tls" && t.pvmApp));
+    const allowed = t && t.pvm && (kind === "pvm-evidence" || ((kind === "pvm-app-tls" || kind === "pvm-app-sealed") && t.pvmApp));
     if (!allowed || t.streams.size >= MAX_STREAMS) { socket.destroy(); return false; }
     const sid = seq++;
     const sendF = (o) => { try { t.ws.send(JSON.stringify(o)); return true; } catch { return false; } };

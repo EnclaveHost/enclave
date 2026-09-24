@@ -41,7 +41,9 @@ expect(rk.get("status") == 200 and rk.get("verified", {}).get("key") and rk["ver
        f"reconnect: the new boot verifies with a new key ({rk.get('verified', {}).get('key')} vs {h.get('verified', {}).get('key')})")
 evil = rd("evil.jsonl")
 expect("was fooled" not in evil, "the malicious relay's own TLS never received a request")
-L1, L2 = rd("l1.log"), rd("l2.log")
+def decoded(t):   # the log plus pvm-rt's notes, which the payload prints hex-encoded (APPOUT <stream> <hex>): a leak there counts too
+    return t + "\n" + "\n".join(bytes.fromhex(m.group(1)).decode("utf-8", "replace") for m in re.finditer(r"APPOUT \d+ ([0-9a-f]+)", t))
+L1, L2 = decoded(rd("l1.log")), decoded(rd("l2.log"))
 cut = next((i for i, c in enumerate(client) if c["label"] == "after-termination"), len(client))
 for L, want, n in [(L1, sum(1 for c in client[:cut] if c.get("status") == 200), 1), (L2, sum(1 for c in client[cut:] if c.get("status") == 200), 2)]:
     m = re.search(r"APP served ([0-9a-f]{64}) requests=(\d+)", L)
@@ -50,6 +52,6 @@ for L, want, n in [(L1, sum(1 for c in client[:cut] if c.get("status") == 200), 
     expect(answers >= 1, f"launch {n}: the VM answered {answers} evidence requests with fresh certificates")
 markers = ["steps=8", "GET /?graph", '"tokens"', "tok_per_s", "prompt_tokens"]
 for n in ["l1.log", "l2.log", "hub.jsonl", "hub.err", "evil.jsonl", "evil.err"]:
-    t = rd(n); hit = [m for m in markers if m in t]
+    t = decoded(rd(n)); hit = [m for m in markers if m in t]
     expect(not hit, f"{n}: no request or response in the clear{' (found ' + ', '.join(hit) + ')' if hit else ''}")
 print("PASS the client-verified channel on the device" if not fails else f"FAIL ({len(fails)})"); sys.exit(1 if fails else 0)

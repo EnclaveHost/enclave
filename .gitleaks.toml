@@ -110,3 +110,11 @@ regexes = [
 description = "windows/vbslike evidence holds PUBLIC keys only: the launcher's Ed25519 verifying key (launcherKey / launcher.key) and each domain's P-256 SPKI (transportKey), plus signatures over them; the private halves are minted in memory per run and never written (windows/vbslike/README.md section 4)"
 targetRules = ["generic-api-key"]
 paths = ['''^windows/vbslike/evidence/''']
+
+[[allowlists]]
+description = "pVM app evidence envelopes (enclave-pvm-app-evidence/v1, /v2) hold PUBLIC material only: certificates, the transport key's SPKI, the X25519 app key and the transport key's signature over it (appKeySig); the private halves never leave the pVM (shielded/anchor/avf/PVM-CPU.md)"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/[a-z0-9]+-evidence\.json$''']
+regexTarget = "line"
+regexes = ['''^\{"format":"enclave-pvm-app-evidence/v[12]",''']

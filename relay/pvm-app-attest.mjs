@@ -13,7 +13,7 @@
 // RUNTIME.md; the same judge rules as isolation/m2/judge.mjs checkRuntimeSelfTest). The contract is not on main yet, so
 // they are restated here and pinned to the contract's vectors (test/pvm-app-attest.test.mjs, vectors from
 // isolation/contract/vectors.json at fb5e466c). When the contract lands on main, import runtime.mjs instead.
-import { createHash } from "node:crypto";
+import { createHash, createPublicKey, verify as cryptoVerify } from "node:crypto";
 import { verifyAvfEvidence } from "./avf-verify.mjs";
 
 export const BIND2_DOMAIN = "enclave-bind-v2\n";
@@ -132,6 +132,19 @@ export function verifyPvmAppAbi2(evidence = {}, opts = {}) {
 }
 
 export const PVM_APP_EVIDENCE_FORMAT = "enclave-pvm-app-evidence/v1";
+// v2 (the browser channel): the same evidence plus appKey, an X25519 key made in the VM for HPKE-sealed requests
+// (payload + runtime/pvm-rt sealed.rs), and appKeySig, the attested transport key's Ed25519 signature over
+// APP_KEY_DOMAIN || nonce || AppID || appKey. Both fields are mandatory in v2 and forbidden in v1: a relay that strips
+// them has malformed evidence, not a downgrade; a VM with no browser key answers v1.
+export const PVM_APP_EVIDENCE_FORMAT_V2 = "enclave-pvm-app-evidence/v2";
+export const APP_KEY_DOMAIN = "enclave-pvm-app-key-v1\n";
+// constants of the v2 format, enforced by the VM: a sealed request is accepted only under an evidence nonce the VM answered
+// this boot, for SEALED_WINDOW_SECONDS after the answer and at most SEALED_MAX_REQUESTS times, each (nonce, enc) once
+export const SEALED_WINDOW_SECONDS = 600, SEALED_MAX_REQUESTS = 256;
+/** The message appKeySig signs. */
+export function appKeyMessage(nonce, appId, appKey) {
+  return Buffer.concat([Buffer.from(APP_KEY_DOMAIN), hex32(nonce, "nonce"), hex32(appId, "appId"), hex32(appKey, "appKey")]);
+}
 
 /**
  * A CLIENT's verification of a pVM app's evidence envelope (LAB, PVM-CPU.md "client-verified channel"): the VM answered
@@ -139,18 +152,23 @@ export const PVM_APP_EVIDENCE_FORMAT = "enclave-pvm-app-evidence/v1";
  * envelope is untrusted input from whoever carried it (the relay, the phone's Android app): its `nonce` and `app` fields
  * are compared, never used -- the challenge is recomputed from the CALLER's nonce and the CALLER's expected app, so a
  * replayed, re-labelled or re-keyed envelope does not verify. Every pin is the caller's (roots, code hash, authority,
- * runtime IDs). Returns { ok, reasons, transportSpki (hex, the key to pin for TLS), runtimeId, measurement }.
- *   envelope: { format, nonce, app, spki, identity, selftest, chain: [b64 DER] }
+ * runtime IDs). v2 also carries appKey; it is returned only after appKeySig verifies under the attested transport key
+ * for the caller's nonce and app. Returns { ok, reasons, transportSpki (hex, the key to pin for TLS), runtimeId,
+ * measurement, freshness, appId, appKey (v2), sealedWindowSeconds, sealedMaxRequests (v2) }.
+ *   envelope: { format, nonce, app, spki, identity, selftest, chain: [b64 DER], (v2) appKey, appKeySig }
  *   expect:   { nonce (32 bytes), appId (hex), allowedRuntimeIds, allowedCodeHashes, allowedAuthorityHashes, rootPins?, now? }
+ * The browser's copy, on WebCrypto alone: shielded/anchor/avf/web/pvm-verify.js (test/pvm-web-verify.test.mjs: parity).
  */
 export function verifyPvmAppEvidence(envelope, expect = {}) {
-  const no = (m) => ({ ok: false, reasons: [m], transportSpki: null, runtimeId: null, measurement: null, freshness: "client-nonce", appId: null });
+  const base = { transportSpki: null, runtimeId: null, measurement: null, freshness: "client-nonce", appId: null, appKey: null, sealedWindowSeconds: null, sealedMaxRequests: null };
+  const no = (m, reasons = []) => ({ ok: false, reasons: [...reasons, m], ...base });
   const e = envelope;
-  // a closed shape: exactly these fields, each at its exact form (an unknown field is refused, never ignored)
-  const KEYS = ["app", "chain", "format", "identity", "nonce", "selftest", "spki"];
+  // a closed shape per version: exactly these fields, each at its exact form (an unknown field is refused, never ignored)
   if (!e || typeof e !== "object" || Array.isArray(e)) return no("the evidence is not an object");
+  const v2 = e.format === PVM_APP_EVIDENCE_FORMAT_V2;
+  const KEYS = v2 ? ["app", "appKey", "appKeySig", "chain", "format", "identity", "nonce", "selftest", "spki"] : ["app", "chain", "format", "identity", "nonce", "selftest", "spki"];
   if (Object.keys(e).sort().join() !== KEYS.join()) return no(`the evidence fields must be exactly ${KEYS.join(",")} (got ${Object.keys(e).sort().join(",")})`);
-  if (e.format !== PVM_APP_EVIDENCE_FORMAT) return no(`the evidence format is not ${PVM_APP_EVIDENCE_FORMAT}`);
+  if (!v2 && e.format !== PVM_APP_EVIDENCE_FORMAT) return no(`the evidence format is not ${PVM_APP_EVIDENCE_FORMAT} or ${PVM_APP_EVIDENCE_FORMAT_V2}`);
   for (const k of ["allowedRuntimeIds", "allowedCodeHashes", "allowedAuthorityHashes"])
     if (!Array.isArray(expect[k]) || !expect[k].length) return no(`no ${k}: refusing (fail closed)`);
   if (expect.rootPins !== undefined && (!Array.isArray(expect.rootPins) || !expect.rootPins.length)) return no("an empty rootPins: refusing (fail closed)");
@@ -163,6 +181,8 @@ export function verifyPvmAppEvidence(envelope, expect = {}) {
   if (typeof e.spki !== "string" || !/^302a300506032b6570032100[0-9a-f]{64}$/.test(e.spki)) return no("the evidence's transport key is not a 44-byte Ed25519 SPKI");
   if (typeof e.identity !== "string" || e.identity.length > 1024) return no("the evidence identity is not a string of at most 1024 bytes");
   if (typeof e.selftest !== "string" || e.selftest.length > 300) return no("the evidence self-test is not a string of at most 300 bytes");
+  if (v2 && (typeof e.appKey !== "string" || !/^[0-9a-f]{64}$/.test(e.appKey))) return no("the evidence appKey is not 64 lowercase hex (an X25519 key)");
+  if (v2 && (typeof e.appKeySig !== "string" || !/^[0-9a-f]{128}$/.test(e.appKeySig))) return no("the evidence appKeySig is not 128 lowercase hex (an Ed25519 signature)");
   if (!Array.isArray(e.chain) || e.chain.length < 2 || e.chain.length > 8) return no("the evidence chain is not 2..8 certificates");
   const chain = [];
   for (const c of e.chain) {
@@ -171,11 +191,24 @@ export function verifyPvmAppEvidence(envelope, expect = {}) {
     if (!der.length || der.length > 65536 || der.toString("base64") !== c) return no("a chain entry is not 1..65536 bytes of canonical base64 DER");
     chain.push(der);
   }
-  const v = verifyPvmAppAbi2({ chain, identity: e.identity, selftest: e.selftest, spki: Buffer.from(e.spki, "hex"), nonce, appId },
+  const spki = Buffer.from(e.spki, "hex");
+  const v = verifyPvmAppAbi2({ chain, identity: e.identity, selftest: e.selftest, spki, nonce, appId },
     { allowedRuntimeIds: expect.allowedRuntimeIds, allowedCodeHashes: expect.allowedCodeHashes, allowedAuthorityHashes: expect.allowedAuthorityHashes,
       ...(expect.rootPins ? { rootPins: expect.rootPins } : {}), ...(expect.now ? { now: expect.now } : {}) });
-  if (!v.ok) return { ok: false, reasons: v.reasons, transportSpki: null, runtimeId: null, measurement: null, freshness: "client-nonce", appId: appId.toString("hex") };
-  return { ok: true, reasons: v.reasons, transportSpki: e.spki, runtimeId: v.runtimeId, measurement: v.measurement, freshness: "client-nonce", appId: appId.toString("hex") };
+  if (!v.ok) return { ...base, ok: false, reasons: v.reasons, appId: appId.toString("hex") };
+  const reasons = [...v.reasons];
+  // v2: the attested transport key vouches for the app key, under THIS nonce and THIS app
+  let appKey = null;
+  if (v2) {
+    let ok = false;
+    try { ok = cryptoVerify(null, appKeyMessage(nonce, appId, e.appKey), createPublicKey({ key: spki, format: "der", type: "spki" }), Buffer.from(e.appKeySig, "hex")); }
+    catch { ok = false; }
+    if (!ok) return no("the appKey is not signed by the attested transport key for this nonce and app", reasons);
+    appKey = e.appKey;
+    reasons.push(`the app key ${appKey.slice(0, 16)}… is signed by the attested transport key for this nonce and app`);
+  }
+  return { ok: true, reasons, transportSpki: e.spki, runtimeId: v.runtimeId, measurement: v.measurement, freshness: "client-nonce", appId: appId.toString("hex"),
+           appKey, sealedWindowSeconds: v2 ? SEALED_WINDOW_SECONDS : null, sealedMaxRequests: v2 ? SEALED_MAX_REQUESTS : null };
 }
 
 /** The app attestation's pieces from a captured pVM log (ABI2_LINK<i>[k], ABI2 runtime, ABI2 selftest, ABI2 binding). */

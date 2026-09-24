@@ -1,0 +1,17 @@
+{"t":"2026-09-24T07:24:38.293Z","site":"http://127.0.0.1:18450/lab.html","pins":{"app":"1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339","codeHash":"6fab3d4c43ef6df953d5102098203c0b8db58a162172e4b92fa26df0ca598990","authority":"cd0a7823095d98f82d4787205f020a3f2784912b032eff4f4e6525bba5654df8baaa64c7bebf03ad074788db7b517d82f3c63513f5c39a381b629c26aba38c0f","runtimeId":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba"}}
+{"t":"2026-09-24T07:26:29.878Z","result":"honest","status":200,"step":null}
+{"t":"2026-09-24T07:26:36.870Z","result":"evil-pass","status":200,"step":null}
+{"t":"2026-09-24T07:26:42.206Z","result":"evil-replay","status":null,"step":"verify"}
+{"t":"2026-09-24T07:26:48.271Z","result":"evil-swap-appkey","status":null,"step":"verify"}
+{"t":"2026-09-24T07:26:54.327Z","result":"evil-downgrade","status":null,"step":"verify"}
+{"t":"2026-09-24T07:26:59.794Z","result":"evil-own-ca","status":null,"step":"verify"}
+{"t":"2026-09-24T07:27:06.031Z","result":"evil-tamper-request","status":null,"step":"sealed"}
+{"t":"2026-09-24T07:27:13.011Z","result":"evil-tamper-response","status":null,"step":"sealed"}
+{"t":"2026-09-24T07:27:19.953Z","result":"evil-replay-sealed","status":200,"step":null}
+{"t":"2026-09-24T07:27:24.070Z","result":"wrong-app","status":null,"step":"verify"}
+{"t":"2026-09-24T07:27:28.206Z","result":"wrong-runtime","status":null,"step":"verify"}
+{"t":"2026-09-24T07:27:33.867Z","result":"firefox-honest","status":200,"step":null}
+{"t":"2026-09-24T07:31:35.315Z","result":"after-termination","status":null,"step":"evidence"}
+{"t":"2026-09-24T07:33:25.792Z","result":"reconnect-honest","status":200,"step":null}
+{"t":"2026-09-24T07:33:31.097Z","result":"reconnect-old-evidence","status":null,"step":"verify"}
+{"t":"2026-09-24T07:33:37.352Z","result":"reconnect-old-sealed","status":null,"step":"sealed"}
