@@ -294,7 +294,7 @@ export function abi2FromLog(text) {
 // checkpoints for; the envelope is verified by verifyPvmAppEvidence above -- the only evidence parser -- and the InstanceID
 // and AppID are taken from THAT verification, never from a field. ----
 export const PROOF_KEY_FORMAT = "enclave-proof-key/v1";
-export const PROOF_KEY_DOMAIN = "enclave-proof-key-v1\n";
+export const PROOF_KEY_DOMAIN = "enclave-proof-key-v1\n";   // gitleaks:allow -- a public domain-separation string (PROOF-KEY.md), not a key
 export const INSTANCE_TYPES = { "pvm-instance-id": 1, "snp-host-data": 2 };
 // the attested transport key's algorithm, typed and signed (the SNP tier's front key is ECDSA P-256; the pVM's is Ed25519)
 export const SIG_ALGS = { ed25519: 1, "ecdsa-p256-sha256": 2 };
