@@ -43,3 +43,10 @@ the launcher gains an isolation option and must refuse to load an app into a par
 isolation type is not the one requested (fail closed). Crash independence and lifecycle checks are the
 phase-1 ones. Evidence about the boundary itself would come from the paravisor reports and the service
 properties of the partition, recorded next to the phase-1 documents.
+
+## Runtime direction (2026-09-23)
+
+The artifact stays the portable component and is compiled inside each partition by the guest image's
+runtime; `isolation/contract/RUNTIME.md` is the normative text and the launcher mirrors its runtime
+identity and ABI/2 binding (`host/src/contract.rs`, `vbslike-host vectors`). The Pulley interpreter of
+the earlier VBS-enclave work is not on this path.

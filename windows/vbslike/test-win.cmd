@@ -6,6 +6,8 @@ set ROOT=C:\Users\claude\vbs-like
 set CARGO_HOME=%ROOT%\cargo-home
 set CARGO_TARGET_DIR=%ROOT%\target
 cd /d %ROOT%\host || exit /b 1
+cargo build --release 2>&1 | findstr /c:"error" /c:"Finished"
+if errorlevel 1 exit /b 1
 cargo test --release 2>&1
 set RC=%ERRORLEVEL%
 if not "%RC%"=="0" exit /b %RC%
