@@ -3,14 +3,17 @@
 //
 //   node verifier/cli.mjs verify   --doc rad.json --spki cert.pem|spki.der [--host h --cert cert.pem] [--nonce hex] [--app-id hex]
 //                                  [--binding hex] --measurement hex [--measurement hex ...] [--vcek f] [--chain pem] [--crl der]
-//                                  [--collateral-dir DIR] [--kds] [--min-tcb json] [--vmpl n] [--crl-mode required|stale-ok|none] [--now iso] [--json]
+//                                  [--collateral-dir DIR] [--kds] [--cache-dir DIR] [--min-tcb json] [--vmpl n] [--crl-mode required|stale-ok|none] [--now iso] [--json]
+//   --cache-dir DIR: an authenticated, freshness-aware disk cache (verifier/collateral-cache.mjs) in front of the sources
+//   above; nothing unauthenticated is stored or served, a stale CRL is refreshed or flagged for the CRL policy, and the
+//   verdict's claims.collateral says where each piece came from
 //                                  [--admit native|browser --peer-spki cert.pem|spki.der]   (consumer gate; exit 5 = held)
 //   node verifier/cli.mjs release  --bundle attestation.json --digest hex [--trusted-root f] [--min-release v0.5.0] [--json]
 //   node verifier/cli.mjs capture  --host h --out DIR            (fetch RAD + certificate + VCEK/chain/CRL from AMD; network)
 //   node verifier/cli.mjs differential --doc rad.json --vcek f [--cert-json f --host h]   (runs @tinfoilsh/verifier on the same bytes, if installed)
 import fs from "node:fs";
 import path from "node:path";
-import { verifyEvidence, verifyReleaseAttestation, spkiOfCert, fileCollateral, memoryCollateral, httpCollateral, layeredCollateral, parseReportStrict } from "./index.mjs";
+import { verifyEvidence, verifyReleaseAttestation, spkiOfCert, fileCollateral, memoryCollateral, httpCollateral, layeredCollateral, cachedCollateral, parseReportStrict } from "./index.mjs";
 import { snpProductHint, kdsVcekUrl } from "../relay/snp-verify.mjs";
 
 const args = process.argv.slice(2); const cmd = args.shift();
@@ -44,7 +47,9 @@ async function cmdVerify() {
   const policy = { snp: { allowedMeasurements: opts("measurement"), expectedVmpl: opt("vmpl") !== undefined ? parseInt(opt("vmpl"), 10) : 0, crl: opt("crl-mode") || "required",
     ...(opt("min-tcb") ? { minTcb: JSON.parse(opt("min-tcb")) } : {}), ...(flag("no-cert-binding") ? { requireCertificateBinding: false } : {}),
     ...(flag("research-unjudged-versions") ? { researchAllowUnjudgedReportVersions: true } : {}) } };
-  const v = await verifyEvidence(doc, { policy, context, collateral: layeredCollateral(...layers) });
+  const sources = layeredCollateral(...layers);
+  const collateral = opt("cache-dir") ? cachedCollateral({ dir: opt("cache-dir"), upstream: sources, now: () => (opt("now") ? new Date(opt("now")) : new Date()) }) : sources;
+  const v = await verifyEvidence(doc, { policy, context, collateral });
   // --admit native|browser [--peer-spki f] [--app-id hex] [--roots-from-policy]: the consumer gate on this verdict
   if (opt("admit")) {
     const { admit } = await import("./admission.mjs"); const { AMD_ARK_SHA256 } = await import("../relay/snp-verify.mjs");
