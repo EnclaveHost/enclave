@@ -398,7 +398,10 @@ const supEnv = {
   PROVISION_BACKEND: 'vm',
   VMMGR_URL: ISO_BACKEND ? String(ISO_CFG.managerUrl || '') : 'http://127.0.0.1:8091',
   ...(ISO_BACKEND ? { ISOLATION_BACKEND: ISO_BACKEND, GUESTD_KEY_FILE: ISO_KEY_FILE,
-                      GUESTD_DATA_ADDR: String(ISO_CFG.dataAddr || '') } : {}),
+                      GUESTD_DATA_ADDR: String(ISO_CFG.dataAddr || ''),
+                      // the firmware floor for guest certificate issuance, from the MEASURED image (build-image.mjs)
+                      ...(() => { try { return { ISOLATION_MIN_TCB: fs.readFileSync('/opt/metal/isolation-min-tcb.json', 'utf8') }; }
+                                  catch { return {}; } })() } : {}),
   // metal-agent serves the Remote Attestation Document here; this override
   // replaces the Tinfoil shim's loopback endpoint with no supervisor changes.
   ATTESTATION_URL: 'http://127.0.0.1:8443/.well-known/enclave-attestation',

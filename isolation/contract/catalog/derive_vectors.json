@@ -156,6 +156,88 @@
     },
     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
    }
+  },
+  {
+   "bundleSha256": "54a99f7d52d7f4473b8ef06153c26aba99fce604637febea714d63342f3f5e60",
+   "mapping": {
+    "appId": "54a99f7d52d7f4473b8ef06153c26aba99fce604637febea714d63342f3f5e60",
+    "bundleBytes": 450,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/2",
+     "http": 8000,
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "19d4e4f435dedacea8de85d6b0e65b985d1b09c757a150e0abc19cbdaa965cc3"
+   },
+   "name": "v2: a command serving HTTP on its declared port: another world, another AppID",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/2",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "bundleSha256": "7bfd8bdc1e06ac8ac441e32b83709b8997903c49e80a96d60efaf4b05d9fd03f",
+   "mapping": {
+    "appId": "7bfd8bdc1e06ac8ac441e32b83709b8997903c49e80a96d60efaf4b05d9fd03f",
+    "bundleBytes": 450,
+    "componentBytes": 200,
+    "componentSha256": "2be7e87b844aa7ac2555e6a079370289965acaf08f1ad6bd0947cf3d2207e8dc",
+    "record": {
+     "catalog": {
+      "app": "0xabababababababababababababababababababababababababababababababab",
+      "version": 7
+     },
+     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+     "derivation": "enclave-catalog-bundle/2",
+     "http": 8001,
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 512,
+      "vcpus": 1
+     },
+     "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+    },
+    "recordSha256": "eb61c1bd14438b823116c85bf535a25cdf753c4781a7b5b243238ca4c3d0eec1"
+   },
+   "name": "v2: another port: another AppID",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/2",
+    "http": 8001,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
   }
  ],
  "refused": [
@@ -168,7 +250,82 @@
      "version": 7
     },
     "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/3",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v1 naming a port",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/1",
+    "http": 8000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v2 naming no port",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
     "derivation": "enclave-catalog-bundle/2",
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v2 port out of range",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/2",
+    "http": 50000,
+    "policy": {
+     "cpuPercent": 100,
+     "memMiB": 512,
+     "vcpus": 1
+    },
+    "runtimeId": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+   }
+  },
+  {
+   "component_hex": "0061736d0d000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+   "name": "v2 port zero",
+   "record": {
+    "catalog": {
+     "app": "0xabababababababababababababababababababababababababababababababab",
+     "version": 7
+    },
+    "cid": "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy",
+    "derivation": "enclave-catalog-bundle/2",
+    "http": 0,
     "policy": {
      "cpuPercent": 100,
      "memMiB": 512,

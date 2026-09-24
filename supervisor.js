@@ -2270,13 +2270,29 @@ function isolationPolicyFor(version) {
 // The derivation record guestd needs to turn a catalog version into the exact bundle it runs
 // (enclave-catalog-bundle/1): the catalog ref, the component CID, the policy above, and the runtime the host's
 // images carry (guestd's own /health states it; guestd refuses a record pinned to any other).
-function isolationDerivation(catalogRef, wasmRef, policy, runtimeId) {
+function isolationDerivation(catalogRef, wasmRef, policy, runtimeId, httpPort = 0) {
   const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(String(catalogRef || ""));
   const c = /^ipfs:\/\/([A-Za-z0-9]+)$/.exec(String(wasmRef || ""));
   if (!m || !c) throw new Error(`per-app isolation needs a catalog version and its component CID (got ${catalogRef} / ${wasmRef})`);
   if (!/^[0-9a-f]{64}$/.test(String(runtimeId || ""))) throw new Error("the per-app manager states no runtime identity");
-  return { derivation: "enclave-catalog-bundle/1", catalog: { app: m[1].toLowerCase(), version: Number(m[2]) },
-           cid: c[1], policy, runtimeId };
+  // a command that declares its HTTP port is enclave-catalog-bundle/2: the bundle states world wasi:cli and the port
+  return { derivation: httpPort ? "enclave-catalog-bundle/2" : "enclave-catalog-bundle/1",
+           catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: c[1], policy, runtimeId,
+           ...(httpPort ? { http: httpPort } : {}) };
+}
+
+// The ports a tier app may declare: none (a wasi:http component the runtime serves) or exactly ONE "http:N" (a wasi:cli
+// command that serves HTTP on N inside its own guest; enclave-catalog-bundle/2). Returns N, or 0 for none; throws for
+// anything else - raw tcp/udp ports and a second HTTP port are not offered on this tier.
+function isolationHttpPortOf(ports) {
+  const list = (Array.isArray(ports) ? ports : String(ports || "").split(","))
+    .map((p) => String(p).trim().toLowerCase()).filter(Boolean);
+  if (!list.length) return 0;
+  const m = list.length === 1 ? /^http:(\d{1,5})$/.exec(list[0]) : null;
+  const n = m ? Number(m[1]) : 0;
+  if (!m || n < 1 || n > 49999)
+    throw new Error(`the per-app guest tier serves at most one declared HTTP port (http:N); ${list.join(", ")} is not offered`);
+  return n;
 }
 
 // sha256 of the derivation record's canonical JSON (compact, keys sorted at every level): catalog.Derivation.Digest,
@@ -2290,7 +2306,8 @@ function derivationDigest(d) {
 // What the manager's /prefetch needs for a version: on the tier, the same derivation record the spawn will send (a
 // catalog CID alone names bytes, not a contract identity, and guestd refuses it).
 function isolationPrefetchBody(g, runtimeId) {
-  return { image: g.wasmRef, derive: isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min), runtimeId) };
+  return { image: g.wasmRef, derive: isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min), runtimeId,
+    isolationHttpPortOf(g.ports)) };
 }
 async function managerPrefetchBody(g) {
   if (!ISOLATION_BACKEND) return { image: g.wasmRef };
@@ -2329,8 +2346,16 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
     return hasSecrets === true
       ? "the deployment has staged secrets, and they would cross this host in plaintext (attested in-guest delivery is not built)"
       : "cannot verify the deployment has no staged secrets (relay probe unreachable)";
-  if ((firewall || []).length && sup.ports !== true)
-    return `the version declares ports (${firewall.join(", ")}) beyond the attested TLS endpoint, which a per-app guest does not forward`;
+  if ((firewall || []).length && sup.ports !== true) {
+    // ONE declared HTTP port is served: the app is a wasi:cli command listening on it inside its guest, and the guest
+    // front forwards the attested TLS endpoint there (enclave-catalog-bundle/2) - only if the manager derives that
+    let port = 0;
+    try { port = isolationHttpPortOf(firewall); }
+    catch { return `the version declares ports (${firewall.join(", ")}) beyond one HTTP port, which a per-app guest does not forward`; }
+    const derivations = (manager.catalog && manager.catalog.derivations) || [];
+    if (port && !derivations.includes("enclave-catalog-bundle/2"))
+      return `the version serves HTTP on its own port (http:${port}), and this box's per-app manager cannot derive such a bundle (enclave-catalog-bundle/2)`;
+  }
   if ((volumes || []).length)
     return "the deployment needs model volumes, which are not mounted into a per-app guest";
   // The next two are enforced in THIS process on every other backend, on the plaintext of each request. Here the
@@ -2357,7 +2382,7 @@ if (process.env.ISOLATION_SELFTEST) {
     appConfig: (c.appConfig || []).map((x) => isolationAppConfig(x)),
     recordDigest: (c.recordDigest || []).map((d) => derivationDigest(d)),
     prefetch: (c.prefetch || []).map((x) => { try { return isolationPrefetchBody(x.g, x.runtimeId); } catch (err) { return { error: err.message }; } }),
-    derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId); }
+    derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId, isolationHttpPortOf(d.ports)); }
                                           catch (err) { return { error: err.message }; } }),
   }));
   process.exit(0);
@@ -3543,14 +3568,15 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     // Per-app guest tier: guestd derives the bundle from the catalog version and runs it in its OWN SNP guest. It
     // refuses every feature it cannot honour inside the guest, so none is sent; the claim gate already refused
     // deployments that need one.
-    if (secrets || configCid || isolationAppConfig(config) || (ports && ports.length))
-      throw new Error("per-app isolation: this deployment carries config, secrets or ports the guest tier does not support");
+    if (secrets || configCid || isolationAppConfig(config))
+      throw new Error("per-app isolation: this deployment carries config or secrets the guest tier does not support");
+    const httpPort = isolationHttpPortOf(ports);   // throws for tcp/udp or a second port
     // The policy is the version's; a record that lost the version's memMb must not guess one (a different policy
     // is a different AppID and measurement for the same version).
     if (versionMemMb == null) throw new Error("per-app isolation: this record does not carry its version's on-chain memMb");
     const h = await vmHealth();
     const derive = isolationDerivation(catalogRef, image && image.reference,
-      isolationPolicyFor({ memMb: versionMemMb }), h && h.catalog && h.catalog.runtimeId);
+      isolationPolicyFor({ memMb: versionMemMb }), h && h.catalog && h.catalog.runtimeId, httpPort);
     const body = { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
       gpuShare: 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
       ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}) };
@@ -8111,6 +8137,11 @@ server.on("upgrade", async (req, socket, head) => {
 // certificate goes back into the guest - but only after the guest verified, over a session with guestd's verified
 // key, as this deployment's app (isolation/m4/guestd/supervisor-guestcert.mjs says exactly what is checked).
 let _guestCertMod = null, _guestCertJudgeMode = "trusted";
+// The firmware floor a guest's report must meet before its key is certified: from the node's MEASURED image (gsup,
+// ISOLATION_MIN_TCB). With it, only "attested" issues; without it, "no-tcb-policy" (chain verified, TCB unjudged)
+// still issues, and the log says which. Malformed = no issuance at all (the judge refuses a malformed floor).
+const ISOLATION_MIN_TCB = (() => { try { return process.env.ISOLATION_MIN_TCB ? JSON.parse(process.env.ISOLATION_MIN_TCB) : undefined; }
+                                     catch { return "malformed"; } })();
 const _guestCerts = new Map();         // deployment id -> { instanceId, key, notAfter, renewAt, issuer } | { backoffUntil, failures, why }
 async function issueGuestCsr(name, csrPem, spkiHash) {
   if (!CERTS_API) throw new Error("no platform certificate service (CERTS_API)");
@@ -8147,8 +8178,9 @@ async function guestCertPass() {
     try {
       const got = await mod.ensureGuestCert({ transport, dataAddr: GUESTD_DATA_ADDR, instanceId: rec._vmId,
         expectAppId: rec._vmAppId, deploymentId: rec.id, name, judge: judgeMod.judge, judgeMode: _guestCertJudgeMode,
-        judgeOk: _guestCertJudgeMode === "trusted" ? ["attested", "no-tcb-policy"] : ["attested", "no-tcb-policy", "unauthenticated"],
-        issue: issueGuestCsr });
+        judgeOk: _guestCertJudgeMode !== "trusted" ? ["attested", "no-tcb-policy", "unauthenticated"]
+          : ISOLATION_MIN_TCB !== undefined ? ["attested"] : ["attested", "no-tcb-policy"],
+        minTcb: ISOLATION_MIN_TCB, issue: issueGuestCsr });
       _guestCerts.set(rec.id, got);
       console.log(`[isolation] ${rec.id.slice(0, 10)}: certificate for ${name} installed in guest ${got.instanceId} `
                 + `(key ${got.key.slice(0, 16)}…, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; guest ${got.verdict})`);

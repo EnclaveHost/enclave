@@ -13,6 +13,8 @@ import hashlib, json, re, struct, sys
 MAGIC = b"ENCLAVE-BUNDLE/1\n"
 ABI = "enclave-domain-abi/1"
 V1 = "enclave-catalog-bundle/1"
+V2 = "enclave-catalog-bundle/2"   # V1 + ONE declared HTTP port: a wasi:cli command component that listens on it
+MAX_HTTP_PORT = 49999
 PREAMBLE = b"\x00asm\x0d\x00\x01\x00"
 
 
@@ -23,7 +25,10 @@ def canonical(obj):
 def validate(rec):
     p = rec.get("policy") or {}
     checks = [
-        (rec.get("derivation") == V1, "derivation"),
+        (rec.get("derivation") in (V1, V2), "derivation"),
+        ((rec.get("derivation") == V1 and "http" not in rec) or
+         (rec.get("derivation") == V2 and isinstance(rec.get("http"), int) and not isinstance(rec.get("http"), bool)
+          and 1 <= rec["http"] <= MAX_HTTP_PORT), "http"),
         (re.fullmatch(r"0x[0-9a-f]{64}", str((rec.get("catalog") or {}).get("app", ""))) is not None, "catalog.app"),
         (isinstance((rec.get("catalog") or {}).get("version"), int) and 0 <= rec["catalog"]["version"] < 2**32, "catalog.version"),
         (re.fullmatch(r"Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,120}|z[1-9A-HJ-NP-Za-km-z]{40,120}", str(rec.get("cid", ""))) is not None, "cid"),
@@ -45,10 +50,15 @@ def derive(rec, component):
                 "policy": {"cpuPercent": rec["policy"]["cpuPercent"], "memMiB": rec["policy"]["memMiB"],
                            "vcpus": rec["policy"]["vcpus"]},
                 "world": "wasi:http"}          # label is empty, and an empty label is omitted
+    if rec["derivation"] == V2:                   # a command that serves HTTP on its declared port
+        manifest["world"] = "wasi:cli"
+        manifest["http"] = rec["http"]
     m = canonical(manifest)
     bundle = MAGIC + struct.pack("<I", len(m)) + m + struct.pack("<I", len(component)) + component
     record = {"derivation": rec["derivation"], "catalog": {"app": rec["catalog"]["app"], "version": rec["catalog"]["version"]},
               "cid": rec["cid"], "policy": manifest["policy"], "runtimeId": rec["runtimeId"]}
+    if rec["derivation"] == V2:
+        record["http"] = rec["http"]
     mapping = {"record": record, "recordSha256": hashlib.sha256(canonical(record)).hexdigest(),
                "componentSha256": hashlib.sha256(component).hexdigest(), "componentBytes": len(component),
                "appId": hashlib.sha256(bundle).hexdigest(), "bundleBytes": len(bundle)}
@@ -71,8 +81,14 @@ def vectors():
        {**good, "catalog": {"app": good["catalog"]["app"], "version": 8}})
     ok("another pinned runtime: same AppID, different record", {**good, "runtimeId": "ef" * 32})
     ok("another policy: another AppID", {**good, "policy": {"cpuPercent": 200, "memMiB": 1024, "vcpus": 2}})
+    ok("v2: a command serving HTTP on its declared port: another world, another AppID", {**good, "derivation": V2, "http": 8000})
+    ok("v2: another port: another AppID", {**good, "derivation": V2, "http": 8001})
     for name, rec, comp_override in [
-        ("unknown derivation version", {**good, "derivation": "enclave-catalog-bundle/2"}, None),
+        ("unknown derivation version", {**good, "derivation": "enclave-catalog-bundle/3"}, None),
+        ("v1 naming a port", {**good, "http": 8000}, None),
+        ("v2 naming no port", {**good, "derivation": V2}, None),
+        ("v2 port out of range", {**good, "derivation": V2, "http": 50000}, None),
+        ("v2 port zero", {**good, "derivation": V2, "http": 0}, None),
         ("uppercase catalog app", {**good, "catalog": {"app": "0x" + "AB" * 32, "version": 7}}, None),
         ("policy not pinned", {**good, "policy": {"cpuPercent": 100, "memMiB": 512, "vcpus": 0}}, None),
         ("cid with a gateway prefix", {**good, "cid": "ipfs://" + good["cid"]}, None),

@@ -42,6 +42,11 @@ const V1 = "enclave-catalog-bundle/1"
 // serve`, so the component must be a wasi:http proxy; the contract's own builder uses the same default.
 const World = "wasi:http"
 
+// V2 is V1 for a catalog version that declares ONE HTTP port ("http:N"): its component is a wasi:cli command that
+// binds N itself, so the bundle states WorldCLI and HTTP N. Every other field and rule is V1's. The port comes from
+// the version's on-chain record, like the policy, so it is fixed per version.
+const V2 = "enclave-catalog-bundle/2"
+
 // The component-model preamble: magic, version 0x0d, layer 1. A core module carries 01 00 00 00 instead and is
 // not a distributable artifact (contract bundle.go KindWasmComponent).
 var componentPreamble = []byte{0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00}
@@ -60,7 +65,8 @@ type Derivation struct {
 	Catalog    Ref             `json:"catalog"`
 	CID        string          `json:"cid"`
 	Policy     contract.Policy `json:"policy"`
-	RuntimeID  string          `json:"runtimeId"` // hex RuntimeID the mapping is pinned to; recorded, not in the bundle
+	RuntimeID  string          `json:"runtimeId"`      // hex RuntimeID the mapping is pinned to; recorded, not in the bundle
+	HTTP       int             `json:"http,omitempty"` // V2 only: the port the command serves HTTP on
 }
 
 var (
@@ -73,8 +79,12 @@ var (
 // missing policy field defaulted here would be an identity nobody asked for.
 func (d Derivation) Validate() error {
 	switch {
-	case d.Derivation != V1:
-		return fmt.Errorf("derivation %q is not %q", d.Derivation, V1)
+	case d.Derivation != V1 && d.Derivation != V2:
+		return fmt.Errorf("derivation %q is not %q or %q", d.Derivation, V1, V2)
+	case d.Derivation == V1 && d.HTTP != 0:
+		return fmt.Errorf("%s names no port (http %d); a version that declares one is %s", V1, d.HTTP, V2)
+	case d.Derivation == V2 && (d.HTTP < 1 || d.HTTP > contract.MaxHTTPPort):
+		return fmt.Errorf("%s must name the port the command serves HTTP on (1-%d)", V2, contract.MaxHTTPPort)
 	case !catalogAppRE.MatchString(d.Catalog.App):
 		return errors.New("catalog.app must be 0x + 64 lowercase hex, as the catalog's bytes32 app id")
 	case !cidRE.MatchString(d.CID):
@@ -108,6 +118,9 @@ func DeriveBundle(d Derivation, component []byte) ([]byte, error) {
 	}
 	if !IsComponent(component) {
 		return nil, errors.New("the catalog bytes are not a WebAssembly component (a core module or something else)")
+	}
+	if d.Derivation == V2 {
+		return contract.Build(contract.Manifest{ABI: contract.ABI, World: contract.WorldCLI, HTTP: d.HTTP, Policy: d.Policy}, component)
 	}
 	return contract.Build(contract.Manifest{ABI: contract.ABI, World: World, Policy: d.Policy}, component)
 }

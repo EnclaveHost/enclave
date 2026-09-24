@@ -56,7 +56,11 @@ func TestDerivationMatchesTheIndependentReference(t *testing.T) {
 		}
 		// and the bundle is a bundle the contract itself accepts, naming this component
 		man, art, err := contract.Parse(b)
-		if err != nil || string(art) != string(comp) || man.World != World || man.Label != "" {
+		wantWorld, wantHTTP := World, 0
+		if c.Record.Derivation == V2 {
+			wantWorld, wantHTTP = contract.WorldCLI, c.Record.HTTP
+		}
+		if err != nil || string(art) != string(comp) || man.World != wantWorld || man.HTTP != wantHTTP || man.Label != "" {
 			t.Fatalf("%s: the derived bundle does not parse as the contract's own: %v", c.Name, err)
 		}
 	}

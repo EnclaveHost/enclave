@@ -243,7 +243,7 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		cat := map[string]any{"derivations": []string{}}
 		if s.Store != nil {
-			cat = map[string]any{"derivations": []string{catalog.V1}, "runtimeId": s.Store.RuntimeID}
+			cat = map[string]any{"derivations": []string{catalog.V1, catalog.V2}, "runtimeId": s.Store.RuntimeID}
 		}
 		s.json(w, 200, map[string]any{"ok": true, "backend": "snp-guest-per-app", "guests": n,
 			"firmware": s.Firmware, "catalog": cat,
