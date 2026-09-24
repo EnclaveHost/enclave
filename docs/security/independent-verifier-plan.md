@@ -597,7 +597,7 @@ No automatic cutover. Each stage is a reviewed change with a configuration flag 
 |---|---|---|
 | M0 (done on this branch) | map, fixtures, harness for SNP + provenance + hosted binding, differential run, CLI | done |
 | M1 | strict envelope for every format in the registry (DONE 2026-09-24: per-format shapes), CRL policy modes (done), collateral adapters with a disk cache (DONE 2026-09-24: the authenticated, slot-bound cache), Rekor v2 bundles (BLOCKED: no authentic v2 bundle located; see below), scheduled live differential job (PREPARED 2026-09-24 as a shadow job: `verifier/live-differential.mjs` and `.github/workflows/verifier-live-differential.yml`, dispatch-only and gated by a repository variable that is not set, read-only, tested offline on the fixtures) | 5 |
-| M2 | browser build: WebCrypto signatures, X.509 via a reviewed library (PROTOTYPE DONE 2026-09-24: `verifier/web/`, the same `snp.mjs` verdict code behind a crypto provider; see `browser-x509-parser-decision.md`); reproducible packaging with an input manifest and exact notices (DONE 2026-09-24: `verifier/web/dist/`, `reproduce.mjs` under the strict command); an opt-in same-origin shadow adapter that records and never decides (DONE 2026-09-24: `verifier/web/shadow.mjs`, proven in Node and in Chrome 151); same-origin delivery through the site's vendor rule and the site's shadow line (NOT done, and no activation) | 8 |
+| M2 | browser build: WebCrypto signatures, X.509 via a reviewed library (PROTOTYPE DONE 2026-09-24: `verifier/web/`, the same `snp.mjs` verdict code behind a crypto provider; see `browser-x509-parser-decision.md`); reproducible packaging with an input manifest and exact notices (DONE 2026-09-24: `verifier/web/dist/`, `reproduce.mjs` under the strict command); an opt-in same-origin shadow adapter that records and never decides (DONE 2026-09-24: `verifier/web/shadow.mjs`, proven in Node and in Chrome 151); same-origin delivery through the site's vendor rule and the site's opt-in shadow line (DONE 2026-09-24 under Steven's website authorization: `site/vendor/enclave-verifier.js` via `scripts/build-vendor.mjs`, `site/js/core/verify-shadow.js` awaited by `verify.js`, record only, viewer opt-in, no primary root or verdict change; `verifier/web/README.md`) | 8 |
 | M3 | CLI `--verifier both`, self-check both, relay re-verification of dialed rows | 5 |
 | M4 | signed release index in the release workflow, mirror at `enclave.host`, TUF refresh job, minimum-release policy | 5 |
 | M5 | independent review, cutover per consumer with fallback flags | 3 + review |
@@ -627,6 +627,28 @@ disagreement) AND only when the repository variable `VERIFIER_LIVE_DIFFERENTIAL`
 read-only permissions, no secret, pinned actions and the report as its only output.
 Enabling it is a recorded act in the repository's variables, not a merge. The offline test runs the same orchestrator
 on the fixtures with the installed reference.
+
+## 10.1 The Linux per-app SNP tier (2026-09-24, Steven's direction: verify the tier, defects to the owner directly)
+
+The isolation owner's first production canary (hello-world:1.0.4 on metal-iso0, `https://4e62e60d.app.enclave.host`,
+deployment `0x4e62e60d…`) serves the domain format exactly as registered here (`sev-snp-guest-domain-v1`, ABI/2, nine
+keys). Its capture is pinned at `test/fixtures/verifier/linux-canary-2026-09-24` (fixtures.json, owner's commit aeddcfa1)
+and the owner's runtime contract is pinned as `linux-domain-contract` (pins.json: `isolation/contract/runtime.mjs` for
+RuntimeID and Bind2, `catalog/DERIVE.md` and `derive_reference.py` for the AppID), imported and never restated.
+`test/verifier-linux-canary.test.mjs` (4, strict) verifies the capture offline through the domain path: the served
+certificate's key is the bound key, Turin v5 VMPL0, Bind2 over the served key, the nonce and RuntimeID, the chain through
+the captured VCEK with the CRL, the TCB floor, the AppID; every single-field forgery refused; the browser build equal.
+`verifier/live-domain-check.mjs` is the read-only live check (one TLS session, the peer certificate of that handshake, a
+fresh nonce, the pinned contract, explicit expectations): on 2026-09-24T19:33Z the live guest VERIFIED with its rotated
+transport key (the owner's F6: a node restart reaped and relaunched the guest), the VCEK fetched from AMD KDS and a fresh
+CRL. Limits, stated: the expected measurement is the reviewed capture's (the release bytes are unpublished, so it is
+continuity, not provenance); the expected AppID IS reproduced: the component (72,989 bytes) fetched by CID from the
+platform's gateway `ipfs.enclave.host` (public gateways do not hold it) and derived with the owner's pinned
+`derive_reference.py` gives `9c3d10f1…`, the value the live report and the capture name. Defects sent to the owner:
+served-cert.pem missing from 26c3cc86 (fixed at aeddcfa1); the README abbreviates the expected measurement; DERIVE.md
+should name the gateway a verifier fetches the component from; KDS does serve this chip's VCEK although the README says
+otherwise. Finding: the
+canary runs on the same Turin part as the M4a lab capture (the lab VCEK verifies the production report).
 
 ## 11. Open risks
 

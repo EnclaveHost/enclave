@@ -19,6 +19,8 @@
 // come from the same origin as the page — a third-party CDN with no integrity
 // pin could return code that reports verified:true for anything.
 export const LV_VERIFIER_URL = "/vendor/verifier.js";
+// Opt-in shadow verification beside this verdict (records, never decides): site/js/core/verify-shadow.js
+import { runShadow } from "./verify-shadow.js";
 
 // verification pointers: new shape (verification) with fallback to the
 // pre-selfCheck field name (verify) so older enclaves still work.
@@ -95,6 +97,10 @@ export function verifyEnclaveInBrowser(vspec) {
               : (doc && doc.steps && doc.steps.compareMeasurements && doc.steps.compareMeasurements.error)
               || (failure && (failure.message || String(failure))) || "verification failed";
     const res = { ok: !!(doc && doc.securityVerified), doc, repo, host, error: err };
+    // Opt-in shadow: the Enclave-owned verifier on the same enclave, recorded on the result (res.shadow) and on the page
+    // (globalThis.__enclaveVerifierShadow) for inspection. It never changes res.ok, res.doc or res.error, and it runs only
+    // for a viewer who opted in (verify-shadow.js), so nobody else's verification changes at all.
+    try { const shadow = await runShadow({ host, doc }); if (shadow) { res.shadow = shadow; globalThis.__enclaveVerifierShadow = shadow; } } catch (e) { /* the shadow never fails the primary */ }
     if (!res.ok) _encVerifyCache.delete(key);          // don't cache failures: allow retry
     return res;
   })().catch((e) => { _encVerifyCache.delete(key); throw e; }));

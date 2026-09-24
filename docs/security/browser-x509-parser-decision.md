@@ -115,9 +115,9 @@ Strict command after the packaging and shadow slices: see the plan's M2 row for 
 - The real-browser suite proves the runtime (WebCrypto, DecompressionStream, the Buffer stand-in) on twelve documents;
   breadth comes from the Node-side differential, which runs on Node's WebCrypto. The two together are the claim.
 - The bundle is committed under `verifier/web/dist/` with its manifest and notices and reproduces from the tree under
-  the strict command (`verifier/web/README.md`); it is not served and not referenced by the site. The shadow adapter is
-  opt-in and records, never decides. Same-origin delivery through the site's vendor rule and the site's shadow line are
-  the rest of M2, not done here.
+  the strict command (`verifier/web/README.md`), and is delivered to the site as `site/vendor/enclave-verifier.js` under
+  the vendor rule, loaded only by the opt-in shadow glue (`site/js/core/verify-shadow.js`), which records and never
+  decides. Nothing is rendered; the primary verdict and its roots are unchanged.
 - The differential normalises two strings: the reader's own message after "unparseable:" and the decoder's message
   inside the gunzip parentheses. Everything else is compared verbatim.
 - The clock is the caller's in both builds; a browser without a trustworthy clock can only refuse more (windows and
