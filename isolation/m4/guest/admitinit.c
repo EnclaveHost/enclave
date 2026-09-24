@@ -195,6 +195,7 @@ int main(void) {
     show("status_before", "status");
     show("whoami_before", "whoami");
     say("report_before", puts_("report", "1") == 0 ? "GRANTED" : "refused");
+    show("report_before_result", "result");
 
     /* 2. the bundle */
     int e = puts_("slot", "0");
@@ -235,8 +236,24 @@ int main(void) {
 
     /* 4. now, and only now, the SVSM may speak for this plane */
     show("whoami", "whoami");
+
+    /* 4a. Register this plane's transport key. A stand-in for a real domain TLS key: what matters is that the
+     * SVSM binds THE KEY THIS PLANE REGISTERED, which a verifier checks by recomputing Bind2 over the same
+     * bytes. The report cannot carry any other key afterwards, and a second registration must be refused. */
+    static char keyhex[256 * 2 + 2];
+    for (int i = 0; i < 91; i++) snprintf(keyhex + i * 2, 3, "%02x", (i * 11 + 5) & 0xff);
+    e = puts_("key", keyhex);
+    say("register_key", e == 0 ? "ok" : strerror(-e));
+    show("register_key_result", "result");
+    show("key_registered", "key");
+    e = puts_("key", keyhex);
+    say("register_key_again", e == 0 ? "GRANTED" : "refused");
+    show("register_key_again_result", "result");
+
+    /* 4b. the verifier's nonce. The SVSM computes the binding over the registered key, this nonce and the
+     * RuntimeID compiled into its measured image; the caller no longer supplies the binding at all. */
     e = puts_("bind", "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90");
-    say("bind_set", e == 0 ? "ok" : strerror(-e));
+    say("nonce_set", e == 0 ? "ok" : strerror(-e));
     e = puts_("report", "1");
     say("report", e == 0 ? "GRANTED" : strerror(-e));
     show("report_result", "result");          /* before anything else overwrites the SVSM's own code */

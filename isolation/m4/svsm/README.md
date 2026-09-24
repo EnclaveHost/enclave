@@ -220,7 +220,73 @@ build. The SVSM's own boot-time attestation (`kernel/src/attest.rs`) is untouche
 * the expected tampered-path line set: `admit_bundle_result 0x80001004` after a staging that really happened,
   `poke_result=WROTE`, and `whoami_final` and `report_final` both refused.
 
-## The monitor port is BLOCKED by a design fork, not by work
+## STEP 1 DONE: the SVSM computes the binding over a key registered at plane start
+
+Steven's direction of 2026-09-23 is the dedicated one-app-per-plane path (option 2), with M4a kept as the
+scalable layout and option 3 explicitly not to be built as equivalent per-app isolation. The requirement is
+measured authority binding **the actual executed app and the transport key**. The key half is closed; the
+executed half has a measured blocker, below.
+
+`SVSM_APPID_REGISTER_KEY` records a plane's transport-key SPKI **once**, and `GET_REPORT` now takes only the
+verifier's nonce. The SVSM computes
+
+    report_data[0:32] = sha256("enclave-bind-v2\n" || registered SPKI || nonce || RuntimeID)
+
+which is `isolation/contract` `Bind2` byte for byte, with the RuntimeID compiled into this measured image
+(`ENCLAVE_RUNTIME_IDS`). So all 64 bytes are now the SVSM's word: the binding over a key fixed at plane start,
+and the app ID from the measured table. A caller cannot present a different key later, cannot choose the runtime
+label, and gets nothing at all until its artifacts are admitted.
+
+That also closes **B5**, which had been open since the portable-runtime work: the runtime label in
+`report_data[0:32]` was previously computed by the front over an identity file inside an unmeasured image, so it
+was the guest's word. One mechanism, two findings.
+
+Verified on hardware (`isolation/m4/evidence/`, digest `796AD982…53F5`):
+
+| line | result |
+|---|---|
+| `register_key` | `rax_out=0x0`, 91-byte SPKI recorded |
+| `register_key_again` | refused, `0x8000100a`: a second key would re-point the binding after the first was vouched for |
+| `report_before_result` | `0x80001003`: no report before admission, whatever key is registered |
+| `report_data[0:32]` | `b303eadb…19e6`, **equal byte for byte** to `runtime.mjs bind2(registered SPKI, nonce, RuntimeID)` recomputed outside the guest |
+| `report_data[32:64]` | `ce52712f…0b91` from the measured table |
+| VMPL / measurement | 2 / equal to the `igvmmeasure` digest |
+
+An allowlist entry for a digest must therefore also carry the **RuntimeID**, or a verifier cannot recompute the
+binding. It is in the layout entry in the evidence file.
+
+## THE EXECUTED-ARTIFACT HALF IS BLOCKED, and this is the exact blocker
+
+Steven asked for the blocker stated exactly if a dedicated-plane step needs an architecture or host-security
+change outside this scope. It does, and the finding is from the sources rather than from reasoning:
+
+* `qemu/target/i386/sev.c:1707` - `if (!X86_MACHINE(qdev_get_machine())->igvm) { … snp_populate_metadata_pages(…) }`,
+  with the comment that an IGVM file "will be used to configure the metadata pages directly". So **with
+  `igvm-cfg`, QEMU never launch-updates the OVMF metadata pages**, and `SEV_DESC_TYPE_SNP_KERNEL_HASHES` is one
+  of them: `kernel-hashes=on` does nothing on this path.
+* `igvmbuilder`'s options are `--kernel` (the SVSM's own ELF) and `--filesystem` (the SVSM's archive). There is
+  **no option for a guest kernel or initrd**, so they cannot be embedded as measured IGVM page data.
+
+The measured chain on the IGVM path is therefore **SVSM (measured) → OVMF (measured) → guest kernel (NOT
+measured, loaded from the host through fw_cfg)**. M4a does not have this problem because it uses
+`kernel-hashes=on` with no IGVM, which is exactly why M4a stays the scalable layout.
+
+Three routes, and only the third is inside this scope:
+
+1. teach `igvmbuilder` to embed the plane's kernel and initrd as measured page data - an upstream tooling change;
+2. make QEMU populate the kernel-hashes page on the IGVM path and have OVMF verify it - a host-side change to
+   QEMU and firmware behaviour, i.e. host security code;
+3. **the SVSM loads the plane itself**: its measured FS archive carries the plane's kernel and initrd, the SVSM
+   places them in pages it validated and froze, and creates the plane's VMSA with RIP at the kernel entry. The
+   archive is already measured, the SVSM already unpacks it and already creates guest VMSAs, so no new
+   mechanism is needed - at the price of the SVSM becoming the plane's boot loader (zero page, boot params, the
+   kernel's entry conventions).
+
+Route 3 is proposed and is with the reviewer. Until it lands, **no document may say the admitted bytes are the
+bytes that executed**: what holds is that the bytes exist, are immutable to every plane, and that this SVSM
+speaks for the plane only once it has hashed and frozen them.
+
+## The monitor port: NOT the path, by direction
 
 The agreed next increment was "move the monitor to protocol 6, so every domain's report comes through it".
 That cannot be done as stated without destroying something M3a has today, and the reason is worth setting out
@@ -247,7 +313,11 @@ The three ways out, and what each costs:
    in the app-vs-app TCB for exactly this reason. So this preserves per-domain measured identity as far as a
    shared plane can, and is strictly better than the monitor's own unmeasured hash.
 
-Option 3 is the recommendation, and it is a change to what the naming authority MEANS - the contract says
+**Steven's direction: option 2, the dedicated plane. Option 3 is NOT to be implemented as equivalent per-app
+hardware isolation, and M3a/M3b compatibility is not to be rescued by weakening acceptance.** The analysis below
+is kept because it is the record of why a shared plane cannot give per-app identity, not as a plan.
+
+Option 3 was the recommendation before that direction, and it is a change to what the naming authority MEANS - the contract says
 `[32:64]` is "the monitor's app ID, never the caller's", and this makes it "an admitted app ID, chosen by the
 caller from a measured set". That is a contract-level decision and is flagged rather than taken unilaterally.
 

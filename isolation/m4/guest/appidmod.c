@@ -37,7 +37,8 @@
  *   admit     write 0|1  ADMIT that slot as that kind
  *   status    read       "admitted=0x.. required=0x.. kinds=N vmpl=N"
  *   whoami    read       the 32-byte app ID the SVSM names this plane, hex
- *   bind      write      32 bytes of hex, the binding a verifier chose
+ *   key       write      the transport key SPKI in hex, registered with the SVSM ONCE
+ *   bind      write      32 bytes of hex, the verifier's NONCE (the SVSM computes the binding over it)
  *   report    write any  fetch a report; read back as hex
  *   result    read       the SVSM's own return code for the last call, so a refusal can be scored by REASON
  *   thaw      write <n>  ask the SVSM to PVALIDATE(invalid) page n of the active slot, which it must REFUSE
@@ -65,6 +66,7 @@
 #define CALL_WHOAMI     APPID_CALL(1)
 #define CALL_ADMIT      APPID_CALL(2)
 #define CALL_STATUS     APPID_CALL(3)
+#define CALL_REGISTER_KEY APPID_CALL(4)
 /* the SVSM core protocol, for the thaw probe */
 #define CORE_PVALIDATE  ((0ULL << 32) | 1)
 
@@ -274,13 +276,54 @@ static ssize_t bind_store(struct kobject *k, struct kobj_attribute *a, const cha
 	return n;
 }
 
+/*
+ * Register this plane's transport key with the SVSM, once.
+ *
+ * After this the SVSM computes the report binding itself over the key recorded here, so a report for this plane
+ * can only ever carry this key - the module cannot present another one later, and the runtime identity in the
+ * binding comes from the SVSM's measured table rather than from anything in this guest.
+ */
+static u8 spki[256];
+static size_t spki_len;
+
+static ssize_t key_store(struct kobject *k, struct kobj_attribute *a, const char *buf, size_t n)
+{
+	struct appid_desc desc = {};
+	size_t hexlen = n;
+	int ret;
+
+	while (hexlen && (buf[hexlen - 1] == '\n' || buf[hexlen - 1] == ' '))
+		hexlen--;
+	if (!hexlen || hexlen % 2 || hexlen / 2 > sizeof(spki))
+		return -EINVAL;
+	if (hex2bin(spki, buf, hexlen / 2))
+		return -EINVAL;
+	spki_len = hexlen / 2;
+	memcpy(outbuf, spki, spki_len);
+	desc.a = virt_to_phys(outbuf);
+	desc.b = spki_len;
+	ret = appid_call(CALL_REGISTER_KEY, &desc);
+	pr_info("appid: register_key %zu bytes -> %d\n", spki_len, ret);
+	return ret ? -EACCES : n;
+}
+
+static ssize_t key_show(struct kobject *k, struct kobj_attribute *a, char *buf)
+{
+	size_t i, m = 0;
+
+	for (i = 0; i < spki_len && m + 2 < PAGE_SIZE; i++)
+		m += sysfs_emit_at(buf, m, "%02x", spki[i]);
+	m += sysfs_emit_at(buf, m, "\n");
+	return m;
+}
+
 static ssize_t report_store(struct kobject *k, struct kobj_attribute *a, const char *buf, size_t n)
 {
 	struct appid_desc desc = {};
 	int ret;
 
 	memcpy(outbuf, bind_val, sizeof(bind_val));
-	desc.a = virt_to_phys(outbuf);                  /* the 32-byte bind */
+	desc.a = virt_to_phys(outbuf);                  /* the verifier's 32-byte NONCE; the SVSM binds it */
 	desc.b = virt_to_phys(outbuf) + PAGE_SIZE;      /* the report buffer, the next page */
 	desc.c = PAGE_SIZE;
 	ret = appid_call(CALL_GET_REPORT, &desc);
@@ -380,6 +423,7 @@ static struct kobj_attribute admit_attr = __ATTR(admit, 0200, NULL, admit_store)
 static struct kobj_attribute status_attr = __ATTR(status, 0444, status_show, NULL);
 static struct kobj_attribute whoami_attr = __ATTR(whoami, 0444, whoami_show, NULL);
 static struct kobj_attribute bind_attr = __ATTR(bind, 0200, NULL, bind_store);
+static struct kobj_attribute key_attr = __ATTR(key, 0644, key_show, key_store);
 static struct kobj_attribute report_attr = __ATTR(report, 0644, report_show, report_store);
 static struct kobj_attribute result_attr = __ATTR(result, 0444, result_show, NULL);
 static struct kobj_attribute thaw_attr = __ATTR(thaw, 0200, NULL, thaw_store);
@@ -387,7 +431,8 @@ static struct kobj_attribute poke_attr = __ATTR(poke, 0200, NULL, poke_store);
 
 static struct attribute *appid_attrs[] = {
 	&slot_attr.attr, &artifact_attr.attr, &admit_attr.attr, &status_attr.attr, &whoami_attr.attr,
-	&bind_attr.attr, &report_attr.attr, &result_attr.attr, &thaw_attr.attr, &poke_attr.attr, NULL,
+	&bind_attr.attr, &key_attr.attr, &report_attr.attr, &result_attr.attr, &thaw_attr.attr,
+	&poke_attr.attr, NULL,
 };
 ATTRIBUTE_GROUPS(appid);
 
