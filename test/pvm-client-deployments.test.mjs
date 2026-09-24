@@ -163,3 +163,25 @@ test("in process, on the Pixel's REAL v2 evidence: the table's app for the deplo
     assert.deepEqual(right.result.deployment, { id: D1, app: env.app }); assert.equal(right.result.verified.app, env.app);
   } finally { crypto.getRandomValues = orig; srv.close(); }
 });
+
+test("the operator side: lab-sign.mjs writes a policy only if the client's own verifyPolicy accepts it (a table every client would refuse is an outage)", async () => {
+  const SIGN = new URL("../shielded/anchor/avf/client/tools/lab-sign.mjs", import.meta.url).pathname;
+  const keys = tmp("pvm-dep-keys-"), dir = tmp("pvm-dep-sign-");
+  const node = (args) => new Promise((resolve) => { const c = spawn(process.execPath, [SIGN, ...args]); let err = ""; c.stderr.on("data", (d) => (err += d)); c.on("close", (code) => resolve({ code, err })); });
+  assert.equal((await node(["keygen", "--keys", keys, "--name", "policy"])).code, 0);
+  const now = Date.now(), base = { type: "enclave-pvm-client-policy", key: "", serial: 3, notBefore: iso(now - 3600e3), notAfter: iso(now + 3600e3),
+    codeHashes: ["aa".repeat(32)], authorityHashes: ["bb".repeat(64)], runtimeIds: ["cc".repeat(32)], appIds: [APP], googleRootPins: ["6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0"],
+    formats: ["enclave-pvm-app-evidence/v2"], sealedModes: ["chunked"], sealedWindow: { seconds: 600, maxRequests: 256 }, minClientVersion: "0.1.0", nextPolicyKey: null };
+  for (const [name, body, ok, why] of [
+    ["good", { ...base, deployments: [{ id: D1, app: APP }] }, true],
+    ["unadmitted-app", { ...base, deployments: [{ id: D1, app: OTHER }] }, false, /not one of the policy's appIds/],
+    ["duplicate-id", { ...base, deployments: [{ id: D1, app: APP }, { id: D1, app: APP }] }, false, /deployment id twice/],
+    ["empty-table", { ...base, deployments: [] }, false, /1\.\.64 entries/],
+    ["expired", { ...base, notAfter: iso(now - 10e3) }, false, /expired/],
+  ]) {
+    fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(body));
+    const out = path.join(dir, `${name}.signed.json`), r = await node(["policy", "--keys", keys, "--body", path.join(dir, `${name}.json`), "--out", out]);
+    if (ok) { assert.equal(r.code, 0, r.err); assert.ok(fs.existsSync(out)); }
+    else { assert.equal(r.code, 2, name); assert.match(r.err, why); assert.equal(fs.existsSync(out), false, `${name}: nothing written`); }
+  }
+});
