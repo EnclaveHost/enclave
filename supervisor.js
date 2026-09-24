@@ -371,7 +371,21 @@ async function mgrHealth(timeoutMs = 3000) {
 // probe), which is why metal/build-image.mjs pins the two images in step.
 const VMMGR_TOKEN = process.env.VMMGR_TOKEN
   || (SECRET.length ? createHmac("sha256", SECRET).update("enclave vmmgr v1").digest("hex") : "");
+// With ISOLATION_BACKEND set, the manager is guestd on the HOST, and it is reached over guestd-control/1 ONLY
+// (isolation/m4/guestd/supervisor-transport.mjs): signed, replay-proof requests; answers verified; a mutating
+// request never repeated on an unsigned 401. Loaded only on that path, so without the flag nothing here changes.
+// Without a valid pairing key (GUESTD_KEY_FILE) every call fails - there is no fallback to plain HTTP.
+let _guestdTransport = null;
+function guestdTransport() {
+  if (!_guestdTransport) {
+    _guestdTransport = import(new URL("./isolation/m4/guestd/supervisor-transport.mjs", import.meta.url))
+      .then((m) => m.openGuestdTransport({ url: VMMGR_URL, keyFile: process.env.GUESTD_KEY_FILE || "" }))
+      .catch((e) => { _guestdTransport = null; throw e; });   // not cached: a key installed later is picked up
+  }
+  return _guestdTransport;
+}
 function vmReq(method, path, body, timeoutMs = 120000) {
+  if (ISOLATION_BACKEND) return guestdTransport().then((t) => t.request(method, path, body, timeoutMs));
   return new Promise((resolve, reject) => {
     const u = new URL(VMMGR_URL + path);
     const data = body != null ? Buffer.from(JSON.stringify(body)) : null;
@@ -392,6 +406,23 @@ async function vmHealth(timeoutMs = 3000) {
   // the wasm-manager holds the card this container can't see: adopt its probed VRAM
   if (r.body && r.body.gpuVramSource === "nvidia-smi") adoptCardVram(r.body.gpuVramGb, "manager");
   return r.body;
+}
+
+// GUESTD_TRANSPORT_SELFTEST='{"calls":[{"method","path","body"?,"timeoutMs"?}]}' sends each through vmReq - the
+// supervisor's own manager path, with ISOLATION_BACKEND/VMMGR_URL/GUESTD_KEY_FILE from the environment - and prints
+// one JSON line of {status, reconciled?, body} or {error, kind, mayHaveExecuted} per call, then exits
+// (isolation/m4/guestd/transport_test.go drives it against a real guestd server).
+if (process.env.GUESTD_TRANSPORT_SELFTEST) {
+  const c = JSON.parse(process.env.GUESTD_TRANSPORT_SELFTEST);
+  const out = [];
+  for (const k of c.calls || []) {
+    try {
+      const r = await vmReq(k.method, k.path, k.body ?? null, k.timeoutMs ?? 10_000);
+      out.push({ status: r.status, ...(r.reconciled ? { reconciled: true } : {}), body: r.body });
+    } catch (e) { out.push({ error: e.message, kind: e.kind ?? null, mayHaveExecuted: e.mayHaveExecuted ?? null }); }
+  }
+  console.log(JSON.stringify(out));
+  process.exit(0);
 }
 
 // ---- on-chain discovery: self-register in EnclaveRegistry (no trusted gateway) --
