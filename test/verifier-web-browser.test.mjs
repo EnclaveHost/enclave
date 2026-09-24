@@ -15,7 +15,7 @@ import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { chromium } from "playwright";
-import { buildWeb } from "../verifier/web/build.mjs";
+import { DIST, ARTIFACT, MANIFEST } from "../verifier/web/build.mjs";
 import { verifyEvidence, memoryCollateral, spkiOfCert } from "../verifier/index.mjs";
 import { synthChain, synthReport } from "./helpers/snp-synth.mjs";
 
@@ -92,14 +92,14 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "web-browser-"));
 let server, port, chrome, browser;
 test.after(async () => { try { await browser?.close(); } catch {} if (chrome) { try { process.kill(-chrome.pid, "SIGKILL"); } catch {} } server?.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
 
-test("the bundle builds from the pinned esbuild with no Node module on its path, within a size bound", { skip }, async (t) => {
-  const b = await buildWeb({ outfile: path.join(tmp, "bundle.js"), minify: true });
-  const src = fs.readFileSync(b.outfile, "utf8");
-  t.diagnostic(`bundle ${b.bytes} bytes from ${b.inputs.length} inputs`);
-  assert.ok(b.bytes < 512 * 1024, `bundle ${b.bytes} bytes`);
-  assert.ok(!/from\s*["']node:/.test(src) && !/require\(["']node:/.test(src), "no node: import survives in the bundle");
-  assert.ok(b.inputs.some((i) => i.includes("verifier/snp.mjs")) && b.inputs.some((i) => i.includes("relay/snp-verify.mjs")) && b.inputs.some((i) => i.includes("web/shims/node-crypto.mjs")), "the shared modules and the shim are in it");
-  fs.writeFileSync(path.join(tmp, "index.html"), PAGE); fs.writeFileSync(path.join(tmp, "pack.json"), JSON.stringify(PACK));
+test("the COMMITTED artifact (verifier/web/dist, reproducible: test/verifier-web-package.test.mjs) is what the page loads: its hash is the manifest's, no Node module survives in it, within a size bound", { skip }, async (t) => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(DIST, MANIFEST), "utf8")), src = fs.readFileSync(path.join(DIST, ARTIFACT));
+  assert.equal(createHash("sha256").update(src).digest("hex"), manifest.artifact.sha256, "the artifact on disk is the manifest's");
+  t.diagnostic(`artifact ${src.length} bytes, ${manifest.inputs.length} inputs, sha256 ${manifest.artifact.sha256.slice(0, 16)}`);
+  assert.ok(src.length < 512 * 1024, `bundle ${src.length} bytes`);
+  const text = src.toString("utf8");
+  assert.ok(!/from\s*["']node:/.test(text) && !/require\(["']node:/.test(text), "no node: import survives in the bundle");
+  fs.writeFileSync(path.join(tmp, "bundle.js"), src); fs.writeFileSync(path.join(tmp, "index.html"), PAGE); fs.writeFileSync(path.join(tmp, "pack.json"), JSON.stringify(PACK));
 });
 
 test("Chrome for Testing 151 runs the pack and every verdict equals the Node build's", { skip }, async (t) => {
