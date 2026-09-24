@@ -20,27 +20,48 @@ This is the review artifact for it. Nothing here has been run; the value is abse
 
 ## Why the exposure is bounded by procedure rather than by the setting
 
-The setting cannot be scoped to one VM, so the bounding is in how long it is set and what else is
-running. `ops/isolated-probe.ps1` is the reviewable procedure: it applies the value, runs one probe,
-and restores the prior state in a `finally` block that runs on success, on a failed preflight, on a
-probe timeout, on an unhandled error and on Ctrl-C; it verifies the restoration by reading the value
-back and reports loudly if it did not take. Without `-Approve` it performs the preflight, changes
-nothing, and prints what it would have done. That is how it has been run so far: two validation runs on
-2026-09-23 (`evidence/host-prereq-preflight-2026-09-23.txt`), one where the preflight passed all six
-checks and one where it was given a wrong image hash. Both ended with the setting verified ABSENT, zero
-lab partitions and the live node unchanged, and the second proves the restoration path runs when the
-preflight fails.
+The setting cannot be scoped to one VM, so the bounding is in how long it is set. `ops/isolated-probe.ps1`
+applies the value, runs one probe, and restores the prior state. `ops/isolated-probe.lib.ps1` holds the
+decisions it makes as pure functions, and `ops/isolated-probe.tests.ps1` exercises each failure path
+against mocked inputs: **29 cases, all passing** on the box.
 
-Its preflight refuses to go on unless: the session is elevated; the live node's task is Running and
-its processes are present; **no** compute system owned by `vbslike` already exists; the image is
-present and its SHA-256 equals the expected value; and the VM worker account can read the image
-(measured earlier: without that ACE a start fails `0x80070005`, which would look like a finding about
-the setting and would not be one). Afterwards it re-checks the live node and counts any lab partition
-left behind.
+What the preflight establishes, and why each is strict rather than convenient:
 
-What the script never does: it creates, modifies or deletes no VM other than the partitions the probe
-itself makes and destroys; it does not enumerate or inspect other VMs; it changes no Windows feature,
-boot, BitLocker or driver state; it reboots nothing; it does not touch the live node.
+| check | why it is written the way it is |
+|---|---|
+| elevated | otherwise the probe's own partition creation fails for an unrelated reason |
+| the setting reads as **Absent, Present or Error**, and Error stops the run | an unreadable value must never be mistaken for an absent one: "restoring" that would delete it |
+| the live node's task is Running with its processes present | the run must start from a healthy host and leave it that way |
+| the launcher's enumeration **exited 0, parsed, and reported success**, and every entry has a usable Id and Owner | counting owner strings in whatever came back would treat a crashed or malformed probe as "no partitions exist", which is the dangerous direction |
+| no compute system owned by `vbslike` exists | the probe starts from nothing of ours |
+| the image's SHA-256 equals the expected value | the bytes whose provenance PHASE2.md records, and no others |
+| the VM worker account is **allowed to read it, with no Deny covering read** | any ACE is not permission; without effective read a start fails `0x80070005`, which would look like a finding about the setting and would not be one |
+
+Restoration is equally strict. A write in the cleanup block is licensed **only by this run having made
+one**: without `-Approve` the script writes nothing at all, and instead verifies the state still matches
+what the preflight read, reporting if something else on the host changed it. When it did apply the
+value, restoration compares **status, value and registry type**, since a value restored as the wrong
+kind is a changed host.
+
+If a probe has to be killed on a timeout, the partition it created could outlive it. The cleanup runs
+`vbslike-host reap --prefix vbslike-iso-<pid>-`, which acts only on compute systems whose Owner is
+`vbslike` **and** whose Id carries that exact prefix, both checked in the launcher; it refuses a prefix
+that does not name one run, and a failure to reap is reported as a failure rather than passed over. No
+other virtual machine on the host is enumerated for action, opened or touched.
+
+## What the cleanup does NOT cover
+
+`finally` runs on a normal return, a thrown error, a failed preflight and a probe timeout. It does
+**not** run if the PowerShell process is killed (`Stop-Process`, `taskkill`, a crash) or on power loss,
+and Ctrl-C during a wait on a native child is not guaranteed either. With `-Approve`, that would leave
+the setting applied. The recovery is manual and is the reason this file names the value and its removal
+command explicitly: check `Get-ItemProperty ... -Name AllowFirmwareLoadFromFile` and remove it. That is
+a residual risk of approving the run, not a case the script handles.
+
+Run so far on the box, all without `-Approve` and all leaving the value ABSENT: the preflight passing
+every check, a deliberately wrong image hash, and the reap guards (a prefix that does not name one run
+is refused; a valid prefix with nothing to match returns an empty, successful result). Evidence:
+`evidence/host-prereq-preflight-2026-09-23.txt`.
 
 ## Commands, for review
 

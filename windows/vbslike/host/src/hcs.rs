@@ -94,6 +94,19 @@ pub fn service_properties(query: &str) -> Result<String, HcsError> {
 }
 
 impl Partition {
+    /// Open an EXISTING compute system by id. Used only by `reap`, which opens exactly the ids it was
+    /// told to and terminates those; nothing here searches, and an id that does not exist is an error
+    /// rather than a no-op.
+    pub fn open(id: &str) -> Result<Partition, HcsError> {
+        let wid = wide(id);
+        let mut handle: HCS_SYSTEM = null_mut();
+        let hr = unsafe { HcsOpenComputeSystem(wid.as_ptr(), 0, &mut handle) };
+        if hr < 0 || handle.is_null() {
+            return Err(HcsError { step: "HcsOpenComputeSystem", hr, detail: id.to_string() });
+        }
+        Ok(Partition { id: id.to_string(), handle })
+    }
+
     /// Create the partition from a schema-2.1 document. The compute system exists after this but is
     /// not running; nothing inside it has executed.
     pub fn create(id: &str, document: &str) -> Result<Partition, HcsError> {
