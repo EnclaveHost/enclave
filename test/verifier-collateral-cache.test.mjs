@@ -100,7 +100,7 @@ test("an unwritable cache directory is reported, never fatal and never a false h
 });
 
 // ---- synthetic chain: a CRL that can be stale, a fresher one under the same ARK, and one that revokes the ASK ----------
-const S = synthChain({ crlDays: 1, extraCrlDays: [400], revokeAsk: true });
+const S = synthChain({ crlDays: 1, extraCrlDays: [400], revokeAsk: true, extraVceks: 1 });
 const SP = Buffer.from("302a300506032b6570032100" + "11".repeat(32), "hex"), NONCE = Buffer.from("22".repeat(32), "hex");
 const synthDoc = { format: "sev-snp-guest-metal-v1", body: synthReport(S, { reportData: Buffer.concat([createHash("sha256").update(Buffer.concat([SP, NONCE])).digest(), Buffer.alloc(32)]) }).toString("base64") };
 const SYNTH_FLOOR = { Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } };
@@ -135,4 +135,38 @@ test("an authentic CRL that REVOKES the ASK is served by the cache, never quaran
   assert.equal(v.claims.collateral.crl.cached, true);
   // the same with the non-revoking CRL upstream and the revoking one cached and within its window: still the cached, revoking one
   u.serve.crl = S.crlDer; const w = await runSynth(c, { crl: "required" }, NOW_S); assert.equal(w.status, "rejected"); assert.equal(u.calls.crl, 0);
+});
+
+// ---- the slot binding (a finding of Codex's review, 2026-09-24): an authentic VCEK for another chip or TCB is not this slot's --
+test("Codex's reproduction: an authentic VCEK requested under another chip id is refused on the way in, nothing is stored, and the next request still asks the upstream (no availability poisoning)", async () => {
+  const dir = fresh("slot-repro"), u = upstream(REAL), c = cachedCollateral({ dir, upstream: u, now: () => new Date(NOW) });
+  const chip0 = "00".repeat(64), tcb0 = "00".repeat(8);
+  await assert.rejects(c.vcek("Genoa", chip0, tcb0, "unused"), /failed authentication: .*hardware ID does not match|SPL .* does not match/);
+  assert.equal(u.calls.vcek, 1); assert.equal(inspectCache(dir).some((e) => /vcek/.test(path.relative(dir, e.file))), false, "nothing stored under the requested slot");
+  await assert.rejects(c.vcek("Genoa", chip0, tcb0, "unused")); assert.equal(u.calls.vcek, 2, "the upstream is asked again: the slot was never poisoned");
+  assert.equal(c.events.filter((e) => e.kind === "upstream-refused").length, 2);
+  await assert.rejects(c.vcek("Genoa", "zz", tcb0, "unused"), /slot key malformed/);
+});
+test("a planted authentic VCEK for the wrong chip or the wrong TCB in the requested slot is quarantined on read; a healthy upstream then restores the right one and the verdict is verified; with the upstream down the verdict is rejected, never verified", async () => {
+  // real Genoa: the report's own slot is poisoned with the same product's certificate under a wrong TCB key, and with the Turin one
+  const dir = fresh("slot-planted"), u = upstream(REAL), c = cachedCollateral({ dir, upstream: u, now: () => new Date(NOW) });
+  await runReal(c); const slot = inspectCache(dir).find((e) => /\/vcek\/[^/]+\.der$/.test(e.file)).file;
+  const wrongTcbSlot = slot.replace(/-([0-9a-f]{16})\.der$/, "-ffffffffffffffff.der");
+  fs.copyFileSync(slot, wrongTcbSlot); fs.copyFileSync(`${slot}.meta.json`, `${wrongTcbSlot}.meta.json`);
+  await assert.rejects(c.vcek("Genoa", path.basename(slot).slice(0, 128), "ffffffffffffffff", "unused"), /SPL .* does not match/, "the same certificate under another TCB key is refused, not served");
+  assert.ok(fs.readdirSync(path.dirname(slot)).some((n) => n.startsWith(path.basename(wrongTcbSlot) + ".rejected-")), "the planted entry was quarantined");
+  // synthetic: chip A's report, chip B's authentic VCEK planted in A's slot
+  const dirS = fresh("slot-synth"), uS = upstream({ chain: S.chainPem, vcek: S.vcekDer, crl: S.crls[400] }), cS = cachedCollateral({ dir: dirS, upstream: uS, now: () => LATER, roots: new Map([["Genoa", S.arkFp]]) });
+  const B = S.otherVceks[0]; assert.notEqual(B.chip.toString("hex"), S.chip.toString("hex"));
+  plant(dirS, "Genoa", "chain.pem", Buffer.from(S.chainPem)); plant(dirS, "Genoa", path.join("vcek", `${S.chip.toString("hex")}-0a00000000001754.der`), B.der);
+  let v = await runSynth(cS, { crl: "required" }, LATER);
+  assert.equal(v.status, "verified", v.reasons.join("\n")); assert.equal(uS.calls.vcek, 1, "recovered from the healthy upstream"); assert.equal(v.claims.collateral.vcek.cached, false);
+  assert.match(cS.events.find((e) => e.kind === "quarantined").why, /hardware ID does not match/); assert.equal(v.claims.chipId, S.chip.toString("hex"));
+  const again = await runSynth(cS, { crl: "required" }, LATER); assert.equal(again.status, "verified"); assert.equal(again.claims.collateral.vcek.cached, true, "the right certificate now fills the slot"); assert.equal(uS.calls.vcek, 1);
+  plant(dirS, "Genoa", path.join("vcek", `${S.chip.toString("hex")}-0a00000000001754.der`), B.der); uS.down = true;
+  const down = await runSynth(cS, { crl: "required" }, LATER); assert.equal(down.status, "rejected"); assert.match(down.reasons.join("\n"), /VCEK unavailable|no VCEK/); assert.equal(down.admissionSafe, false);
+  // and the upstream itself serving chip B's certificate for chip A's request: refused, not cached, verdict rejected
+  const dirU = fresh("slot-upstream"), uU = upstream({ chain: S.chainPem, vcek: B.der, crl: S.crls[400] }), cU = cachedCollateral({ dir: dirU, upstream: uU, now: () => LATER, roots: new Map([["Genoa", S.arkFp]]) });
+  const w = await runSynth(cU, { crl: "required" }, LATER); assert.equal(w.status, "rejected"); assert.match(w.reasons.join("\n"), /VCEK unavailable: VCEK from stub:vcek failed authentication: .*hardware ID does not match/);
+  assert.equal(inspectCache(dirU).some((e) => /vcek/.test(path.relative(dirU, e.file))), false, "chip B's certificate was not stored under chip A's slot");
 });

@@ -8,7 +8,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { randomBytes, sign, X509Certificate } from "node:crypto";
 
-export function synthChain({ crlDays = 30, extraCrlDays = [], revokeAsk = false } = {}) {
+export function synthChain({ crlDays = 30, extraCrlDays = [], revokeAsk = false, extraVceks = 0 } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "synth-amd-"));
   const o = (args, input) => execFileSync("openssl", args, { cwd: dir, stdio: ["pipe", "pipe", "pipe"], input });
   const pss = ["-sha384", "-sigopt", "rsa_padding_mode:pss", "-sigopt", "rsa_pss_saltlen:48"];
@@ -31,6 +31,17 @@ export function synthChain({ crlDays = 30, extraCrlDays = [], revokeAsk = false 
     o(["crl", "-in", `${name}.pem`, "-outform", "DER", "-out", `${name}.der`]);
     return fs.readFileSync(path.join(dir, `${name}.der`));
   };
+  // more VCEKs under the same ASK for OTHER chips (the same SPLs): a cache must never serve one in another chip's slot
+  const others = [];
+  for (let i = 0; i < extraVceks; i++) {
+    const c2 = randomBytes(64);
+    fs.writeFileSync(path.join(dir, `vcek${i}.ext`), ["1.3.6.1.4.1.3704.1.3.1=DER:02:01:0a", "1.3.6.1.4.1.3704.1.3.2=DER:02:01:00", "1.3.6.1.4.1.3704.1.3.3=DER:02:01:17", "1.3.6.1.4.1.3704.1.3.8=DER:02:01:54",
+      "1.3.6.1.4.1.3704.1.4=DER:" + c2.toString("hex").match(/../g).join(":"), ""].join("\n"));
+    o(["ecparam", "-name", "secp384r1", "-genkey", "-noout", "-out", `vcek${i}.key`]);
+    o(["req", "-new", "-key", `vcek${i}.key`, "-out", `vcek${i}.csr`, "-subj", "/O=SYNTHETIC not AMD/CN=SEV-VCEK"]);
+    o(["x509", "-req", "-in", `vcek${i}.csr`, "-CA", "ask.pem", "-CAkey", "ask.key", "-set_serial", "0", "-days", "3650", ...pss, "-extfile", `vcek${i}.ext`, "-out", `vcek${i}.pem`]);
+    others.push({ chip: c2, der: Buffer.from(read(`vcek${i}.pem`).toString().replace(/-----[^-]+-----|\s/g, ""), "base64"), key: read(`vcek${i}.key`) });
+  }
   const crlDer = crlFor(crlDays, "crl");
   const crls = Object.fromEntries(extraCrlDays.map((d) => [d, crlFor(d, `crl-${d}`)]));
   // and, on request, a CRL under the same ARK that REVOKES the ASK (serial 0x020002): the database gets the ASK as valid,
@@ -46,7 +57,7 @@ export function synthChain({ crlDays = 30, extraCrlDays = [], revokeAsk = false 
     o(["crl", "-in", "crl-revoked.pem", "-outform", "DER", "-out", "crl-revoked.der"]);
     crlRevokingAsk = read("crl-revoked.der");
   }
-  const out = { crlRevokingAsk, chainPem: read("ask.pem").toString() + read("ark.pem").toString(), vcekDer: Buffer.from(read("vcek.pem").toString().replace(/-----[^-]+-----|\s/g, ""), "base64"), vcekKey: read("vcek.key"), crlDer, crls, chip,
+  const out = { crlRevokingAsk, otherVceks: others, chainPem: read("ask.pem").toString() + read("ark.pem").toString(), vcekDer: Buffer.from(read("vcek.pem").toString().replace(/-----[^-]+-----|\s/g, ""), "base64"), vcekKey: read("vcek.key"), crlDer, crls, chip,
     arkFp: new X509Certificate(read("ark.pem")).fingerprint256.replace(/:/g, "").toLowerCase() };
   fs.rmSync(dir, { recursive: true, force: true }); return out;
 }
