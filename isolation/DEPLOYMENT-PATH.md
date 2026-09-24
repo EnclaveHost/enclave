@@ -1,17 +1,21 @@
 # Per-app isolation on enclave.host: the path from this branch to a live deployment
 
 Written 2026-09-24 on `isolation/portable-runtime-jit`, from a read of the production code (supervisor.js, metal/,
-relay/, contracts/, site/, cli/, wasm/) and from what this branch has built and run. **Nothing here is deployed.**
-No production relay, registry, ledger or host was touched. Not independently reviewed.
+relay/, contracts/, site/, cli/, wasm/) and from what this branch has built and run. The plan below was written
+before anything was deployed; what is live now is under PRODUCTION STATUS. Not independently reviewed.
 
 ## PRODUCTION STATUS (2026-09-24): a canary is live
 
 At Steven's production-first direction, the per-app tier serves a real app on enclave.host. This does not
 make the tier proven secure; security testing and fixes follow it:
 
-- **App:** `https://4e62e60d.app.enclave.host`, running `hello-world:1.0.4`.
-  - Owner: the agent wallet. Public; rate 0 through the owner-declared payout wallet.
-  - It runs in its own SEV-SNP guest.
+- **Apps**, each in its own SEV-SNP guest, all owned by the agent wallet, public, rate 0 through the
+  owner-declared payout wallet:
+  - `https://4e62e60d.app.enclave.host` (A) and `https://395bed3e.app.enclave.host` (E): `hello-world:1.0.4`, a
+    wasi:http component (enclave-catalog-bundle/1).
+  - `https://0ddbd824.app.enclave.host`: `hookbin:0.1.4`, a wasi:cli socket server on http:8000
+    (enclave-catalog-bundle/2, F10). See `m4/evidence/production-canary-2026-09-24/f10-hookbin/README.txt`, which also
+    lists what the tier still refuses.
   - A client in trusted mode verifies it through the public relay: attested, with the measurement recomputed
     from a pinned domain release and the AppID from an independent derivation.
 - **Node:** `metal-iso0` on warden-host. Its CVM runs only the control plane, from a reproducible image: pinned
@@ -19,7 +23,10 @@ make the tier proven secure; security testing and fixes follow it:
   It is registered on chain, and the production api-relay admits it by SNP attestation (`METAL_ALLOWED_MEASUREMENTS`
   holds exactly its measurement).
 - **Host side:** `enclave-guestd.service` and `enclave-metal-iso.service` (user units) run from the pinned worktree
-  `~/enclave-prod/iso-03be27d6`, which holds the deployed commit despite its name.
+  `~/enclave-prod/iso-03be27d6`, which holds the deployed commit despite its name (0181bce3 since 21:17Z; guestd
+  built there). Node image `metal/dist-iso-8ed6231f` (measurement 04e953a4..., the relay allowlist's only entry),
+  with the firmware TCB floor for certificate issuance measured into it. Guest domain release
+  `~/enclave-prod/release-0181bce3` (id 5c3561f9...).
 - **Evidence, tests run and findings:** `m4/evidence/production-canary-2026-09-24/README.txt`.
 
 **Rollback** (nothing of metal0 was changed: `metal/config.json`, `metal/dist` and its units are untouched):
@@ -29,6 +36,14 @@ make the tier proven secure; security testing and fixes follow it:
    the two `metal-iso0` lines), then `systemctl restart enclave-api-relay.service`.
 3. The on-chain registration goes stale on its own when heartbeats stop. The owner can `setActive(false)` the
    deployment.
+
+**One step back** (the 2026-09-24 21:17-21:33Z round, F10 + TCB floor + certificate reuse), keeping the guests:
+- node: point `metal/config.iso.json` `dist` at `metal/dist-iso-99b0e3c0` (backup `config.iso.json.bak-99b0e3c0`),
+  restore the relay env from `api-relay.env.bak-iso-20260924-211818` (measurement bc7d0c27...), restart the relay,
+  then `systemctl --user restart enclave-metal-iso`. The node adopts running guests (F6). A /2 app (hookbin) is
+  then refused by the old gate, so `setActive(false)` it first.
+- guestd: `~/enclave-prod/bin/guestd.prev-99b0e3c0` back to `guestd`, the worktree back to 99b0e3c0, and
+  `systemctl --user restart enclave-guestd`. It adopts what verifies again (F7).
 
 ## The vehicle: one SNP guest per app (M4a), not planes (M4b)
 

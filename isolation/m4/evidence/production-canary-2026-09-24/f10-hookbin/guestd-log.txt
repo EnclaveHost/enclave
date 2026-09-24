@@ -1,0 +1,3 @@
+Sep 24 14:17:59 warden-host guestd[3819872]: 2026/09/24 14:17:59 exiting; guests keep running for the next guestd to adopt (end them with: systemctl --user stop 'm2-gd*')
+Sep 24 14:17:59 warden-host guestd[3883706]: 2026/09/24 14:17:59 adopted 2 guest(s) a previous guestd left, each verified again as the same guest: [gd6e734a97 gdebc9c709]
+Sep 24 14:17:59 warden-host guestd[3883706]: 2026/09/24 14:17:59 guestd serving the /vms contract on 127.0.0.1:8095 (firmware 142589cc4882f29a, root /home/steven/enclave-prod/guestd-root)

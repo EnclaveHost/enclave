@@ -1,0 +1,63 @@
+{
+ "supervisorOverlay": {
+  "commit": "c02a2c2e28938ab869006ed71ec80ba7c492998c",
+  "dirty": false,
+  "files": [
+   {
+    "path": "/app/supervisor.js",
+    "sha256": "cd7d77a35c8b381a0b0c54410a78bff1bf4bf67baf19d82d4ea089586e9a0b68"
+   },
+   {
+    "path": "/app/isolation/m4/guestd/supervisor-transport.mjs",
+    "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75"
+   },
+   {
+    "path": "/app/isolation/m4/guestd/control-client.mjs",
+    "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6"
+   },
+   {
+    "path": "/app/isolation/m4/guestd/supervisor-splice.mjs",
+    "sha256": "add93b673bfaad91ac00b461415cc3a46679244842d8d9ce58404cfb19f3ab69"
+   },
+   {
+    "path": "/app/isolation/m4/guestd/supervisor-guestcert.mjs",
+    "sha256": "0017ab77d7bbdc12890b855b79bd081db6df37d636d558c80a5c22695ca669c2"
+   },
+   {
+    "path": "/app/isolation/m2/judge.mjs",
+    "sha256": "24311fe8b4a5cc60ac48adfc660bdb98860ebb2c3bebc95fa9a5393166e01c0b"
+   },
+   {
+    "path": "/app/isolation/contract/runtime.mjs",
+    "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
+   },
+   {
+    "path": "/app/relay/snp-verify.mjs",
+    "sha256": "866a0946f5160049c8db29f0e63f107d532968c2428c55ffdccabead59b78206"
+   }
+  ]
+ },
+ "isolation": "snp-guest-per-app",
+ "isolationMinTcb": {
+  "path": "/opt/metal/isolation-min-tcb.json",
+  "sha256": "fe90824f469db17cad41a895f45803d66bef5058ff829e36302fe35328179d9c",
+  "policy": {
+   "Turin": {
+    "fmc": 1,
+    "bootloader": 3,
+    "tee": 2,
+    "snp": 5,
+    "microcode": 117
+   }
+  }
+ },
+ "kernel": {
+  "path": "/boot/vmlinuz-linux",
+  "kver": "7.2.3-arch1-2",
+  "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+ },
+ "initramfs": {
+  "sha256": "94837d7d004bbbc36394eacf2147c45a52b1fb3ebc07b168b7329e6fc6a70255",
+  "bytes": 279368178
+ }
+}
