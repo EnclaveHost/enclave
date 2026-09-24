@@ -6,12 +6,20 @@
 //
 // usage:
 //
-//	m3ctl -cid N [-port 9000] load <app.wasm> [-label A] [-cpu 100] [-mem 256]
+// EVERY FLAG COMES BEFORE THE SUBCOMMAND. Go's flag package stops parsing at the first non-flag argument,
+// so `m3ctl -cid N destroy -id 1` parsed -cid, took `destroy` as the subcommand, and left `-id 1` unparsed -
+// which meant -id kept its default of 0 and the command silently destroyed DOMAIN 0 instead of domain 1.
+// That was found by the Windows lane against a live guest. A flag after the subcommand is now refused with
+// the correct ordering shown, because the failure mode is destroying the wrong tenant's domain quietly.
+//
+// usage:
+//
+//	m3ctl -cid N [-port 9000] [-label A] [-cpu 100] [-mem 256] load <app.wasm>
 //	m3ctl -cid N [-port 9000] list
 //	m3ctl -cid N [-port 9000] state
-//	m3ctl -cid N [-port 9000] load <app.wasm> -probe      (the measured adversary, for isolation tests)
-//	m3ctl -cid N [-port 9000] stop -id 1                  (graceful: signal the front, let it wind down)
-//	m3ctl -cid N [-port 9000] destroy -id 1
+//	m3ctl -cid N [-port 9000] -probe load <app.wasm>      (the measured adversary, for isolation tests)
+//	m3ctl -cid N [-port 9000] -id 1 stop                  (graceful: signal the front, let it wind down)
+//	m3ctl -cid N [-port 9000] -id 1 destroy
 package main
 
 import (
@@ -20,6 +28,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/vsock"
@@ -36,8 +45,15 @@ func main() {
 	bundle := flag.Bool("bundle", false, "wrap the artifact in a contract bundle (label + policy in the manifest) before loading, so its ID covers the manifest")
 	flag.Parse()
 	args := flag.Args()
+	// A flag after the subcommand was never parsed, so it silently took its default. For -id that meant
+	// acting on domain 0 - someone else's domain - so this refuses rather than guessing.
+	if bad := misplacedFlag(args); bad != "" {
+		fmt.Fprintf(os.Stderr, "m3ctl: %s came after the subcommand, where flags are not parsed: it would have been IGNORED and its default used.\n", bad)
+		fmt.Fprintf(os.Stderr, "       put every flag before the subcommand: m3ctl -cid N %s %s\n", bad, strings.Join(withoutFlags(args), " "))
+		os.Exit(2)
+	}
 	if *cid == 0 || len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: m3ctl -cid N [-port 9000] load <app.wasm> | list | state | stop -id N | destroy -id N")
+		fmt.Fprintln(os.Stderr, "usage: m3ctl -cid N [-port 9000] [-id N] [-label A] [-cpu 100] [-mem 256] [-probe] [-bundle] <load <app.wasm> | list | state | stop | destroy>")
 		os.Exit(2)
 	}
 
@@ -90,4 +106,37 @@ func die(err error) {
 		fmt.Fprintln(os.Stderr, "m3ctl:", err)
 		os.Exit(1)
 	}
+}
+
+// misplacedFlag returns the first leftover argument that looks like a flag, or "". Anything starting with
+// "-" among the positionals is one: flag.Parse stopped before it, so it was never applied, and a caller who
+// wrote it meant it to take effect.
+func misplacedFlag(args []string) string {
+	for _, a := range args {
+		if len(a) > 1 && strings.HasPrefix(a, "-") {
+			return a
+		}
+	}
+	return ""
+}
+
+// withoutFlags is what the subcommand part should have been, for the corrected line in the error.
+func withoutFlags(args []string) []string {
+	var out []string
+	skip := false
+	for _, a := range args {
+		if skip {
+			skip = false
+			continue
+		}
+		if len(a) > 1 && strings.HasPrefix(a, "-") {
+			// "-id 1": the value that followed it is part of the flag, not a positional
+			if !strings.Contains(a, "=") {
+				skip = true
+			}
+			continue
+		}
+		out = append(out, a)
+	}
+	return out
 }
