@@ -160,3 +160,36 @@ test("the record digest a tier spawn compares is guestd's recordSha256 for the s
   assert.equal(r.recordDigest[0], "bff33b951aade0a921edea4b0aca89712005d20cbb2c074c0f885d079e059d6c");
   assert.notEqual(r.recordDigest[1], r.recordDigest[0]);
 });
+
+test("one declared HTTP port is served (enclave-catalog-bundle/2) when the manager derives it; nothing else is", async () => {
+  const v2 = { ...GUESTD, catalog: { derivations: ["enclave-catalog-bundle/1", "enclave-catalog-bundle/2"] } };
+  const v1only = { ...GUESTD, catalog: { derivations: ["enclave-catalog-bundle/1"] } };
+  const r = await seam({ verdicts: [
+    { ...clean, manager: v2, firewall: ["http:8000"] },
+    { ...clean, manager: v1only, firewall: ["http:8000"] },
+    { ...clean, manager: v2, firewall: ["http:8000", "http:8001"] },
+    { ...clean, manager: v2, firewall: ["http:8000", "tcp:5432"] },
+    { ...clean, manager: v2, firewall: ["udp:5353"] },
+  ] }, TIER);
+  assert.equal(r.verdicts[0], null);
+  assert.match(r.verdicts[1], /cannot derive such a bundle \(enclave-catalog-bundle\/2\)/);
+  for (const v of r.verdicts.slice(2)) assert.match(v, /beyond one HTTP port/);
+});
+
+test("a command's derivation and prefetch carry its HTTP port; tcp/udp never derive", async () => {
+  const app = "0x" + "ab".repeat(32), rt = "7e".repeat(32);
+  const g = { ref: `catalog://${app}/4`, wasmRef: "ipfs://bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee",
+              min: { memMb: 256 }, ports: "http:8000" };
+  const r = await seam({
+    derive: [{ catalogRef: g.ref, wasmRef: g.wasmRef, memMb: 256, runtimeId: rt, ports: ["http:8000"] },
+             { catalogRef: g.ref, wasmRef: g.wasmRef, memMb: 256, runtimeId: rt, ports: ["tcp:5432"] },
+             { catalogRef: g.ref, wasmRef: g.wasmRef, memMb: 256, runtimeId: rt, ports: [] }],
+    prefetch: [{ g, runtimeId: rt }] }, TIER);
+  assert.deepEqual(r.derive[0], { derivation: "enclave-catalog-bundle/2", catalog: { app, version: 4 },
+    cid: "bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee", policy: { cpuPercent: 100, memMiB: 256, vcpus: 1 },
+    runtimeId: rt, http: 8000 });
+  assert.match(r.derive[1].error, /at most one declared HTTP port/);
+  assert.equal(r.derive[2].derivation, "enclave-catalog-bundle/1");
+  assert.equal(r.derive[2].http, undefined);
+  assert.deepEqual(r.prefetch[0].derive, r.derive[0]);
+});

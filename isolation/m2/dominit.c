@@ -96,9 +96,40 @@ int main(void) {
      * rule 5, contract.CacheKey). We hold no such cache, so the domain states cache: "none" in its runtime
      * identity - and this flag is what makes that statement true by construction rather than by the
      * accident of HOME being unset in the guest. */
-    char *app[] = {"/rt/ld-linux-x86-64.so.2", "--library-path", "/rt", "/rt/wasmtime", "serve", "-S", "cli",
-                   "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
-    char *front[] = {"/front", "-port", "443", "-upstream", "127.0.0.1:8080", snp ? "-snp=true" : "-snp=false", NULL};
+    char *serve[] = {"/rt/ld-linux-x86-64.so.2", "--library-path", "/rt", "/rt/wasmtime", "serve", "-S", "cli",
+                     "-C", "cache=n", "--addr", "127.0.0.1:8080", "/app.wasm", NULL};
+    /* HOW the app runs is the bundle's own word, not the host's: /app.run exists only when the bundle's measured
+     * manifest states world wasi:cli, and holds the port it serves HTTP on (assemble-app-image.sh writes it from
+     * the bundle, so it is inside the launch measurement). Such an app is a command that binds that port itself
+     * through wasi:sockets, as the platform's run mode does (wasm/wasm_manager.py): -S tcp/udp/inherit-network,
+     * ENCLAVE_PORTS=http:N=N (logical = actual here: this domain holds one app), and a private scratch /data.
+     * inherit-network reaches nothing but this domain's own loopback: the domain has no NIC, and its only channel,
+     * vsock, is not an IP socket. No config, secrets, egress or other ports are granted. */
+    int port = 0;
+    FILE *rf = fopen("/app.run", "r");
+    if (rf) {
+        if (fscanf(rf, "%d", &port) != 1 || port < 1 || port > 49999) port = -1;
+        fclose(rf);
+    }
+    if (port < 0) {
+        printf("DOM ERROR /app.run does not name a port in 1-49999\n");
+        fflush(stdout);
+        reboot(RB_POWER_OFF);
+    }
+    char upstream[32], ports_env[64];
+    snprintf(upstream, sizeof upstream, "127.0.0.1:%d", port ? port : 8080);
+    snprintf(ports_env, sizeof ports_env, "ENCLAVE_PORTS=http:%d=%d", port, port);
+    char *run[] = {"/rt/ld-linux-x86-64.so.2", "--library-path", "/rt", "/rt/wasmtime", "run", "-S", "cli",
+                   "-S", "tcp", "-S", "udp", "-S", "inherit-network", "-S", "allow-ip-name-lookup",
+                   "-C", "cache=n", "--dir", "/data::/data", "--env", ports_env, "/app.wasm", NULL};
+    if (port) {
+        mkdir("/data", 0700);
+        mount("tmpfs", "/data", "tmpfs", 0, "size=64m,mode=0700");
+        printf("DOM app mode run: a wasi:cli command serving HTTP on %d (ENCLAVE_PORTS http:%d=%d, /data 64 MiB scratch)\n",
+               port, port, port);
+    }
+    char **app = port ? run : serve;
+    char *front[] = {"/front", "-port", "443", "-upstream", upstream, snp ? "-snp=true" : "-snp=false", NULL};
     pid_t app_pid = spawn(app), front_pid = spawn(front);
     printf("DOM started app=%d front=%d at_ms=%.0f\n", app_pid, front_pid, now_ms());
 

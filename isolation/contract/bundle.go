@@ -40,10 +40,22 @@ const MaxManifestBytes = 64 << 10
 type Manifest struct {
 	ABI      string   `json:"abi"`
 	Label    string   `json:"label,omitempty"`
-	World    string   `json:"world,omitempty"` // e.g. "wasi:http"
+	World    string   `json:"world,omitempty"` // WorldHTTP (served by the runtime) or WorldCLI (a command that listens itself)
+	HTTP     int      `json:"http,omitempty"`  // WorldCLI only: the port the app serves HTTP on inside its domain
 	Artifact Artifact `json:"artifact"`
 	Policy   Policy   `json:"policy"`
 }
+
+// The two worlds a bundle may state. WorldHTTP: a wasi:http proxy component the runtime SERVES (it owns the
+// listener). WorldCLI: a command component that binds its own port through wasi:sockets and serves HTTP there; the
+// bundle then names that port (HTTP), so the domain knows where its front forwards without asking anyone.
+// Absent world = WorldHTTP (every bundle before WorldCLI existed). A bundle that is not WorldCLI names no port, so
+// every bundle built before this field keeps exactly its bytes and its AppID.
+const (
+	WorldHTTP   = "wasi:http"
+	WorldCLI    = "wasi:cli"
+	MaxHTTPPort = 49999 // the platform's declarable port range (1-49999)
+)
 
 // KindWasmComponent is the ONLY artifact kind a bundle may carry. The app is distributed as a portable
 // WebAssembly component and compiled INSIDE its domain to the local ISA (x86-64 in a Linux or Hyper-V
@@ -165,6 +177,18 @@ func Parse(b []byte) (Manifest, []byte, error) {
 	}
 	if m.ABI != ABI {
 		return m, nil, fmt.Errorf("bundle abi %q is not %q", m.ABI, ABI)
+	}
+	switch m.World {
+	case "", WorldHTTP:
+		if m.HTTP != 0 {
+			return m, nil, fmt.Errorf("bundle world %q is served by the runtime and names no port (http %d)", m.World, m.HTTP)
+		}
+	case WorldCLI:
+		if m.HTTP < 1 || m.HTTP > MaxHTTPPort {
+			return m, nil, fmt.Errorf("bundle world %s must name the port it serves HTTP on (1-%d), not %d", WorldCLI, MaxHTTPPort, m.HTTP)
+		}
+	default:
+		return m, nil, fmt.Errorf("bundle world %q is not %s or %s", m.World, WorldHTTP, WorldCLI)
 	}
 	if m.Artifact.Kind != KindWasmComponent {
 		return m, nil, fmt.Errorf("bundle artifact kind %q is not distributable: only %s is", m.Artifact.Kind, KindWasmComponent)

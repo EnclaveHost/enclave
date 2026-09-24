@@ -12,8 +12,10 @@
 //   2. every TLS session to the guest (through guestd's data plane, like any client's) presents exactly that key;
 //   3. the guest's attestation, fetched over such a session with a fresh nonce, is judged by the same judge a client
 //      uses (isolation/m2/judge.mjs): AMD chain, report binding of THIS handshake's key and nonce, the AppID, and
-//      HOST_DATA = this deployment. The measurement it is held to is guestd's (host) word - the supervisor has no
-//      independent expected measurement - and this file says so rather than implying more;
+//      HOST_DATA = this deployment, and - when the node image carries one (ISOLATION_MIN_TCB, a file measured into the
+//      node's own image) - a firmware TCB floor, below which nothing is issued. The measurement it is held to is
+//      guestd's (host) word - the supervisor has no independent expected measurement - and this file says so rather
+//      than implying more;
 //   4. the CSR's public key is exactly that key, and the issued leaf is for that key and the deployment's name.
 // Any failure issues nothing and installs nothing.
 //
@@ -87,7 +89,7 @@ function exchange(dataAddr, route, servername, method, path, body, timeoutMs) {
 //   issue(name, csrPem, spkiHash)  the platform certificate service; resolves to the PEM chain
 export async function ensureGuestCert({ transport, dataAddr, instanceId, expectAppId, deploymentId, name, judge,
                                         judgeOk = ["attested", "no-tcb-policy"], judgeMode = "trusted", issue,
-                                        timeoutMs = 20_000 }) {
+                                        minTcb, timeoutMs = 20_000 }) {
   const route = await routeFor(transport, instanceId, expectAppId, { timeoutMs });
   // 3. the guest's attestation, over a session with the verified key
   const nonce = randomBytes(32);
@@ -96,7 +98,7 @@ export async function ensureGuestCert({ transport, dataAddr, instanceId, expectA
   let doc;
   try { doc = JSON.parse(a.body.toString()); } catch { throw new Error("the guest's attestation is not JSON"); }
   const v = await judge(doc, a.spki, nonce, { measurement: route.measurement, appSha: expectAppId, mode: judgeMode,
-    hostData: deploymentId });
+    hostData: deploymentId, ...(minTcb !== undefined ? { minTcb } : {}) });
   if (!judgeOk.includes(v.verdict))
     throw new Error(`the guest did not verify (${v.verdict}: ${String(v.reasons?.at(-1) || "").slice(0, 160)}); nothing issued`);
   // 4. its CSR, for exactly its key

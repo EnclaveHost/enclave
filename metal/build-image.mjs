@@ -205,6 +205,17 @@ if (OVERLAY_SRC) {
 // metal.isolation=<backend> to the measured cmdline; the expected measurement below uses the same cmdline.
 const ISOLATION = arg('isolation', '');
 if (ISOLATION && ISOLATION !== 'snp-guest-per-app') throw new Error('--isolation must be snp-guest-per-app');
+// --isolation-min-tcb <json file>: the firmware floor a per-app guest's report must meet before this node asks a CA
+// to certify the guest's key. INSIDE the measured image, so the host cannot lower it without changing the node's
+// measurement (the relay's allowlist pins that).
+const ISOLATION_MIN_TCB = arg('isolation-min-tcb', '');
+let isolationMinTcb = null;
+if (ISOLATION_MIN_TCB) {
+  isolationMinTcb = fs.readFileSync(ISOLATION_MIN_TCB);
+  JSON.parse(isolationMinTcb.toString());          // malformed = a build error, not a floor that refuses everything later
+  fs.mkdirSync(path.join(ROOT, 'opt/metal'), { recursive: true });
+  fs.writeFileSync(path.join(ROOT, 'opt/metal/isolation-min-tcb.json'), isolationMinTcb);
+}
 console.log('[build] pulling wasm-manager (chroot)…');
 const wasmDigest = pull(WASM_REF, WASM_ROOT);
 // A tag was resolved, not pinned: say so once, loudly, and hand over the exact
@@ -610,6 +621,8 @@ const manifest = {
                 && !(supervisorOverlay && supervisorOverlay.dirty),
   ...(supervisorOverlay ? { supervisorOverlay } : {}),
   ...(ISOLATION ? { isolation: ISOLATION } : {}),
+  ...(isolationMinTcb ? { isolationMinTcb: { path: '/opt/metal/isolation-min-tcb.json', sha256: createHash('sha256').update(isolationMinTcb).digest('hex'),
+                                             policy: JSON.parse(isolationMinTcb.toString()) } } : {}),
   kernel: { path: KERNEL, kver: KVER, sha256: kernelSha },
   modules: modList,
   // Every shielded file baked in, by hash. Empty on a box with no shielded card.
