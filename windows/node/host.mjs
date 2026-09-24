@@ -139,6 +139,9 @@ export class Host {
   /** Is this box running apps as isolated domains? False unless a manager is configured. */
   get isolation() { return !!this.cfg.isolationManager; }
 
+  /** The isolation backend this box runs, by name, or null. What a tenant's `require` must match. */
+  get isolationBackend() { return this.cfg.isolationManager ? "hyperv-partition-per-app" : null; }
+
   /** The wallet whose deployments this box will run: the on-chain declaration, else the config. */
   ownerAllow() {
     const ZERO = "0x0000000000000000000000000000000000000000";
@@ -259,7 +262,7 @@ export class Host {
     // catalog read that fails leaves them undeclared, which fails closed in both cases.
     let v = null;
     try { v = await chain.resolveAppRef(d.appRef); } catch (e) { this.#record(id, { reason: `catalog: ${e.message}` }); }
-    const refuse = chain.claimPolicy(d, { ownerAllow: this.ownerAllow(), enclaveId: this.enclaveId,
+    const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: this.ownerAllow(), enclaveId: this.enclaveId,
                                           appsEnabled: this.cfg.appsEnabled, scope: this.scope(),
                                           version: v, capacity: this.capacity(),
                                           listedAt: this.listedAt(), invited: invited || force,
@@ -485,8 +488,11 @@ export class Host {
     // WHAT IT REFUSES, and the distinction that matters: `unknown` means an input could not be
     // established, which is NOT the same as an input that says no. Unknown holds the lease;
     // a definite refusal gives it back with the reason.
-    let derivations = null;
-    try { derivations = (await client.health())?.catalog?.derivations ?? null; } catch { derivations = null; }
+    // The WHOLE /health object, not just its derivations list: the plan checks the manager's
+    // backend name too, so a manager of another backend that happens to list /1 is refused rather
+    // than used. null when it could not be asked, which the plan treats as unknown (held).
+    let managerHealth = null;
+    try { managerHealth = (await client.health()) ?? null; } catch { managerHealth = null; }
 
     // Which model volumes this version needs, from the version's own config rather than from a
     // literal. null when the config could not be read at all: unknown, not "none".
@@ -526,7 +532,16 @@ export class Host {
       // volumes the app needs; a config we could not read is UNKNOWN and holds the lease.
       volumes,
       runtimeId: this.cfg.isolationRuntimeId,
-      derivations,
+      // The tenant's requirement as a STRING, from the envelope this node parsed above. The plan
+      // refuses a deployment requiring another backend, or none - so the opt-in is now enforced in
+      // BOTH places: my gate above (which falls through to in-enclave) and the plan (which
+      // refuses). Steven asked for both, and they answer different questions: mine is "is this
+      // mine to run", the plan's is "may this be planned at all".
+      require: envOpts.isolationRequire ?? null,
+      manager: managerHealth,
+      // The deployment's config OVERRIDE cid. "" when known none; null when the envelope could not
+      // be read, which is unknown, not none.
+      appConfigCid: envRead ? String(envOpts.configCid || "") : null,
     });
     if (!plan.ok) {
       const why = `isolation: ${plan.input}: ${plan.why}`;
@@ -580,6 +595,71 @@ export class Host {
     // said no, so the guest's memory cap is the larger number.
     const floor = chain.nodeFloorOf(v);
     this.#record(id, { cid: v.cid, version: v.version, memMb: floor.memMb, cpuFallbackSized: floor.fromFallback });
+
+    // THE ENVELOPE, parsed ONCE and BEFORE the isolation branch, because the branch's opt-in gate
+    // reads what it records. It used to be parsed further down, so `isolationRequired` was written
+    // after the gate had already read it as absent - and nothing wrote it at all, which is the
+    // defect enclave-99 found: the gate could never be satisfied. Through the same parser
+    // claimPolicy used, so "accepted at claim" and "applied here" cannot drift.
+    let envOpts = {}, envRead = false;
+    try { envOpts = chain.parseEnvelope(d.configCid, d.gpuMilli) || {}; envRead = true; }
+    catch { envOpts = {}; envRead = false; }
+    this.#record(id, {
+      waf: envOpts.waf || null,
+      envelope: String(d?.configCid || ""),
+      // true only when the tenant asked for THIS box's backend by name. claimPolicy already
+      // refuses a deployment requiring a backend this box does not run, so a mismatch here means
+      // the config changed under a live lease.
+      isolationRequired: !!envOpts.isolationRequire && envOpts.isolationRequire === this.isolationBackend,
+    });
+
+    // A FORCED re-ensure retires the existing domain first. Without this the reconcile below
+    // ADOPTS the live one by name and the deployment keeps running its previous configuration
+    // while the record says the new one was applied - a config edit or an artifact override that
+    // silently did nothing (defect 15's third path).
+    if (force && this.records.get(id)?.isolation) {
+      const gone = await this.#retireIsolated(id, "forced relaunch");
+      if (!gone) return this.#record(id, { status: "provisioning",
+        reason: "the previous isolated domain could not be confirmed gone, so a new one is not started" });
+    }
+
+    // THE PER-APP ISOLATION BACKEND, decided HERE - before every gate that judges the IN-ENCLAVE
+    // runtime, and before anything that can give the lease back.
+    //
+    // It used to sit further down, after the artifact-layer, host-interface, appsInTee, world and
+    // engine-memory checks. Every one of those calls #giveUp, which RELEASES THE LEASE ON CHAIN
+    // when this enclave is the runner - so on a box configured for isolation with no in-enclave
+    // runtime, the first ensureApp handed back every isolated lease before the branch was ever
+    // reached. enclave-5d measured it end to end: hello-world and hookbin both died at
+    // appsInTee, then at the engine-memory check with the flags forced on, and hookbin's
+    // wasi:cli world would have died at the world check too.
+    //
+    // None of those gates is meaningful for this backend: they ask what THIS enclave's runtime can
+    // run, and an isolated deployment does not run in this enclave. The manager fetches the
+    // component by CID and derives from it itself. What IS needed first is the catalog version,
+    // the yanked check and the policy floor, which are above.
+    //
+    // The opt-in check lives inside the branch, so a deployment that did not ask for isolation
+    // returns null here and falls through to the in-enclave path unharmed.
+      //
+      // Default OFF. Without ENCLAVE_ISOLATION_MANAGER nothing below runs and this node behaves
+      // exactly as the deployed build does - which matters, because the bytes running on nucbox-k11
+      // are NOT this branch's, and a change that altered the default would take six live apps with
+      // it.
+      //
+      // When it IS set, the deployment's domain is a Hyper-V child partition managed by the
+      // manager rather than a process in this enclave, and `reconcile` owns the decision: it adopts
+      // a domain that is already there (so a node restart does not run a deployment twice), waits
+      // for the manager's own readiness verdict, and HOLDS the lease whenever the outcome is
+      // unknown. It never frees a lease on a guess.
+      //
+      // What it does NOT do: change what this box advertises. A T0-hv partition does not exclude
+      // the host, attestedCapacity() is false for it, and nothing here touches meetsIsolationContract().
+      if (this.isolation) {
+        const outcome = await this.#isolationReconcile(id, d, v, { memMb, port });
+        if (outcome) return outcome;
+      }
+
     let art;
     // An OPERATOR ARTIFACT OVERRIDE, when one is set for this deployment (see #artifactPatch). It
     // replaces only WHICH BYTES run; the lease, the config, the secrets and the checks below are
@@ -622,12 +702,8 @@ export class Host {
     // Did anybody with the standing to say so declare the card optional? The same two voices
     // claimPolicy listens to: the owner's envelope and the publisher's version config. When they
     // did, a card-dialled deployment runs here on cores and nothing below applies.
-    let gpuSoft = false, wafRules = null;
-    try {
-      const opts = chain.parseEnvelope(d.configCid, d.gpuMilli);
-      gpuSoft = opts.gpuOptional === true;
-      wafRules = opts.waf || null;
-    } catch {}
+    let gpuSoft = envOpts.gpuOptional === true;
+    const wafRules = envOpts.waf || null;
     // The owner's protection rules, kept beside the lease so every request can be checked against
     // them without re-parsing the envelope. claimPolicy already refused anything unreadable.
     this.#record(id, { waf: wafRules, envelope: String(d?.configCid || "") });
@@ -735,25 +811,6 @@ export class Host {
       // also what happens on a platform box.
       await this.refreshDomains(id, { forLaunch: true })
         .catch((e) => this.log(`domains ${id.slice(0, 10)}: ${e.message}`));
-      // THE PER-APP ISOLATION BACKEND, when this box is configured for it.
-      //
-      // Default OFF. Without ENCLAVE_ISOLATION_MANAGER nothing below runs and this node behaves
-      // exactly as the deployed build does - which matters, because the bytes running on nucbox-k11
-      // are NOT this branch's, and a change that altered the default would take six live apps with
-      // it.
-      //
-      // When it IS set, the deployment's domain is a Hyper-V child partition managed by the
-      // manager rather than a process in this enclave, and `reconcile` owns the decision: it adopts
-      // a domain that is already there (so a node restart does not run a deployment twice), waits
-      // for the manager's own readiness verdict, and HOLDS the lease whenever the outcome is
-      // unknown. It never frees a lease on a guess.
-      //
-      // What it does NOT do: change what this box advertises. A T0-hv partition does not exclude
-      // the host, attestedCapacity() is false for it, and nothing here touches meetsIsolationContract().
-      if (this.isolation) {
-        const outcome = await this.#isolationReconcile(id, d, v, { memMb, port });
-        if (outcome) return outcome;
-      }
       const env = this.appEnvFor(id, d, v, { memMb, port, world: want, declared,
                                              config: await this.appConfigResolved(d, v) });
       app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, memMb, world: want, port, env,
@@ -1042,7 +1099,7 @@ export class Host {
       if (!ours && live && !/^0x0+$/.test(String(d.runner || ""))) continue;   // somebody else is running it
       if (!ours && claimed >= 1) continue;
       let v = null; try { v = await chain.resolveAppRef(d.appRef); } catch {}
-      const refuse = chain.claimPolicy(d, { ownerAllow: owner, enclaveId: this.enclaveId, appsEnabled: true,
+      const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: owner, enclaveId: this.enclaveId, appsEnabled: true,
                                             scope, version: v, capacity: this.capacity(), listedAt: this.listedAt(),
                                             legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true,
                                             privateOk: !!this.cfg.sessionKid,
@@ -1144,6 +1201,9 @@ export class Host {
    * than by one that reads "running on nucbox-k11" over a restart loop.
    */
   async #giveUp(id, why) {
+    // An isolated domain first: handing the lease back while its partition still serves would
+    // leave the deployment answering with no lease behind it (defect 15).
+    await this.#retireIsolated(id, why);
     // Everything that belonged to the lease goes with it. The rate buckets and concurrency
     // counters are keyed by deployment id, and an id CAN come back - a lease handed back for one
     // reason is re-claimable once that reason changes. Leaving the counters behind would meet the
@@ -1167,7 +1227,39 @@ export class Host {
     } catch (e) { this.log(`release ${id.slice(0, 10)} failed: ${e.shortMessage || e.message}`); }
     return this.records.get(id);
   }
+  /**
+   * DEFECT 15 (enclave-99): nothing ever retired an isolated domain. #stopApp, #giveUp and the
+   * forced restart all stop `this.apps` entries, and a partition has none - so no DELETE ever
+   * reached the manager and a domain outlived its lease, still answering under a name whose lease
+   * was gone. Worse than a leak: it is a deployment served without a lease.
+   *
+   * Returns true when the domain is KNOWN gone. False means the manager could not confirm it, and
+   * the caller must not treat the deployment as finished - retire() already keeps the lease in
+   * that case, and this reports it so the record says why.
+   */
+  async #retireIsolated(id, why) {
+    const rec = this.records.get(id);
+    if (!rec || !rec.isolation || !this.cfg.isolationManager) return true;    // nothing to retire
+    try {
+      const { retire } = await import("./isolation-lifecycle.mjs");
+      const { IsolationManagerClient } = await import("./isolation-client.mjs");
+      const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
+      const r = await retire({ client, deployment: { id }, ledger: null, instanceId: rec.isolation.instance });
+      if (r.removed) { this.log(`${id.slice(0, 10)} isolated domain retired (${why})`); return true; }
+      this.log(`${id.slice(0, 10)} isolated domain NOT retired: ${r.reason}`);
+      this.#record(id, { isolationRetireFailed: r.reason });
+      return false;
+    } catch (e) {
+      this.log(`${id.slice(0, 10)} isolated domain retire failed: ${e.message}`);
+      this.#record(id, { isolationRetireFailed: e.message });
+      return false;
+    }
+  }
+
   async #stopApp(id, why) {
+    // BEFORE forgetting anything: a partition is not in this.apps, so without this the domain
+    // simply keeps running under a lease that has ended.
+    await this.#retireIsolated(id, why);
     waf.forget(id);
     this.secrets.delete(id);                           // they belong to the lease, not to this box
     this.appCerts.delete(id); this.appCertFails.delete(id);
