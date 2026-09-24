@@ -17,6 +17,6 @@
 #define TA_DATA_SIZE  (24 * 1024 * 1024)
 
 #define TA_VERSION "0.1"
-#define TA_DESCRIPTION "Enclave Shielded anchor spike: unmask+Freivalds+remask"
+#define TA_DESCRIPTION "Enclave Shield anchor spike: unmask+Freivalds+remask"
 
 #endif

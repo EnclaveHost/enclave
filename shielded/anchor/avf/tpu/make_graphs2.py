@@ -97,7 +97,7 @@ def chain_group(layer, kind, prev, names, gains1, gains2, osc, Lk):
 
 class Builder:
     def __init__(self):
-        self.m = S.ModelT(); self.m.version = 3; self.m.description = b'enclave shielded int16 lanes, chained'; self.m.operatorCodes = []; self.m.subgraphs = []
+        self.m = S.ModelT(); self.m.version = 3; self.m.description = b'Enclave Shield int16 lanes, chained'; self.m.operatorCodes = []; self.m.subgraphs = []
         self.m.buffers = [S.BufferT()]; self.m.signatureDefs = []; self.m.metadata = []; self.codes = {}
     def code(self, op, ver):
         if op not in self.codes:

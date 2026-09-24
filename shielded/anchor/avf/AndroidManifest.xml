@@ -36,7 +36,7 @@
             </intent-filter>
         </activity>
         <service android:name=".AnchorService" android:exported="true" android:foregroundServiceType="specialUse">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="hosts the Enclave Shielded anchor in a protected VM" />
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="hosts the Enclave Shield anchor in a protected VM" />
         </service>
     </application>
 </manifest>

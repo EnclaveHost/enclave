@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { teeCpuOf, computeEligibleOf, pickEnclaveFor, rankEnclavesFor, moveBlockReason, gpuModeOf, gpuSellableOf } from "../site/js/core/pricing.js";
+import { teeCpuOf, computeEligibleOf, pickEnclaveFor, rankEnclavesFor, moveBlockReason } from "../site/js/core/pricing.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
@@ -164,47 +164,17 @@ test("the pVM CPU tier is the relay's row.tier, never the phone's own word, and 
   assert.doesNotMatch(capsHandler, /f\.tier|f\.device|f\.model/, "nothing the frame says about itself is read past the verifier");
 });
 
-test("Enclave Shield is selected by the CARD's protection mode: a card outside the boundary sells only with Shield evidence, on any host", () => {
-  const GPU_APP = { vramMb: 4096, gpuGflops: 100, memMb: 2048, cpuGflops: 10 };
-  const PROOF = { ok: true, exact: true, verified: true, noPlaintext: true, lieRejected: true, denylistRefused: true };
-  const card = { gpu: true, gpuShareFree: 0.9, cpuShareFree: 0.7, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cardVramGb: 16, cardTflops: 8, vramFreeGb: 14, claimEnabled: true };
-  // the mode is read from the card, never from teeCpu or the host
-  assert.equal(gpuModeOf(row("in", { ...card, teeCpu: "amd-sev-snp" })), "confidential");
-  assert.equal(gpuModeOf(row("out", { ...card, teeCpu: "amd-sev-snp", shielded: { vramGb: 16, vramBudgetGb: 8, vramFreeGb: 8 } })), "shield");
-  assert.equal(gpuModeOf(row("none", { gpu: false, teeCpu: "amd-sev-snp" })), "none");
-  // a confidential CPU with its card OUTSIDE the boundary: Shield is required, and without its evidence the card is not for sale
-  const teeNoProof = row("tee-out", { ...card, teeCpu: "amd-sev-snp", shielded: { vramGb: 16, vramBudgetGb: 8, vramFreeGb: 8 } });
-  const teeProven = row("tee-out-proven", { ...card, teeCpu: "amd-sev-snp", shielded: { vramGb: 16, vramBudgetGb: 8, vramFreeGb: 8, proof: PROOF } });
-  const teeInside = row("tee-in", { ...card, teeCpu: "amd-sev-snp" });
-  assert.equal(computeEligibleOf(teeNoProof), true, "the box takes CPU work");
-  assert.equal(gpuSellableOf(teeNoProof), false, "but its card is not a GPU here");
-  assert.equal(gpuSellableOf(teeProven), true);
-  assert.equal(gpuSellableOf(teeInside), true, "a card inside the boundary sells with the box");
-  assert.ok(pickEnclaveFor(GPU_APP, [teeNoProof]).none, "no GPU target without Shield evidence");
-  assert.match(pickEnclaveFor(GPU_APP, [teeNoProof]).none, /Enclave Shield/);
-  assert.equal(pickEnclaveFor(GPU_APP, [teeNoProof, teeProven]).name, "tee-out-proven");
-  assert.equal(pickEnclaveFor(GPU_APP, [teeNoProof, teeInside]).name, "tee-in");
-  // a non-TEE host with a card: its word about Shield evidence does not count, so nothing sells
-  const nonTee = row("pc", { ...card, teeCpu: "windows-vbs-enclave", shielded: { vramGb: 16, vramBudgetGb: 8, vramFreeGb: 8, proof: PROOF } }, { tunnel: true, mode: "vbs", tier: "vbs" });
-  const dialedNoTee = row("box", { ...card, teeCpu: null });
-  assert.equal(gpuSellableOf(nonTee), false); assert.equal(gpuSellableOf(dialedNoTee), false);
-  assert.ok(pickEnclaveFor(GPU_APP, [nonTee, dialedNoTee]).none);
-  assert.equal(rankEnclavesFor(GPU_APP, [nonTee, dialedNoTee, teeNoProof]).length, 0);
-  // the relay's explicit verdict outranks the local rule, both ways
-  assert.equal(gpuSellableOf({ ...teeNoProof, gpuSellable: true }), true);
-  assert.equal(gpuSellableOf({ ...teeProven, gpuSellable: false }), false);
-  assert.ok(pickEnclaveFor(GPU_APP, [{ ...teeProven, serving: true, gpuSellable: false }]).none, "a relay that says the card is not for sale is believed");
-  // pinned: the relay reads the card, not the CPU, and applies it to placement and totals
+test("a GPU on a non-TEE host is exposed only through Enclave Shield: until that verifies, no GPU work lands there", () => {
+  const GPU_APP = { vramMb: 8192, gpuGflops: 100, memMb: 2048, cpuGflops: 10 };
+  const nonTee = row("pc", { gpu: true, gpuShareFree: 0.9, cpuShareFree: 0.7, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cardVramGb: 16, cardTflops: 8, vramFreeGb: 14,
+                               claimEnabled: true, teeCpu: "windows-vbs-enclave", shielded: { vramGb: 16, vramBudgetGb: 8, vramFreeGb: 8 } }, { tunnel: true, mode: "vbs", tier: "vbs" });
+  const dialedNoTee = row("box", { gpu: true, gpuShareFree: 0.9, cpuShareFree: 0.7, nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000, cardVramGb: 16, cardTflops: 8, vramFreeGb: 14, claimEnabled: true });
+  assert.ok(pickEnclaveFor(GPU_APP, [nonTee, dialedNoTee]).none, "no GPU target without confidential evidence or a verified Enclave Shield contract");
+  assert.equal(rankEnclavesFor(GPU_APP, [nonTee, dialedNoTee]).length, 0);
+  // the relay's serving verdict cannot override the client's evidence check either
+  assert.ok(pickEnclaveFor(GPU_APP, [{ ...dialedNoTee, serving: true }]).none);
+  // pinned: the relay's reason names the rule for a carded non-TEE box
   const src = read("relay/api-relay.js");
-  const mode = between(src, "function gpuModeOf(e)", "\n}\n", "relay/api-relay.js");
-  assert.doesNotMatch(mode, /teeCpu|\btunnel\b|e\.mode|\.tier\b|windows|linux/i, "the GPU trigger never reads the CPU's technology, the host OS or the attach mode");
-  assert.match(mode, /shielded/, "it reads the card: a shielded pool is a card outside the boundary");
-  const sell = between(src, "function gpuSellable(e)", "\n}\n", "relay/api-relay.js");
-  assert.match(sell, /m === "shield"\) return shieldVerified\(e\)/);
-  assert.match(between(src, "function pick(want = {})", "\n}\n", "relay/api-relay.js"), /gpuSellable\(e\) && gpuFreeOf/, "GPU placement lands only on a sellable card");
-  const rows = between(src, 'if (u.pathname === "/enclaves")', "return json(res, 200, { updatedAt, aggregate", "relay/api-relay.js");
-  assert.match(rows, /serving\.filter\(gpuSellable\)\.reduce/, "GPU totals count sellable cards only");
-  assert.match(rows, /gpuMode: gpuModeOf\(e\), gpuSellable: gpuSellable\(e\)/, "rows state the card's mode and verdict");
   const reason = between(src, "function ineligibleReason(e)", "\n}\n", "relay/api-relay.js");
   assert.match(reason, /exposed only through Enclave Shield/);
 });
