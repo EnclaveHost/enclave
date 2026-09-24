@@ -299,3 +299,16 @@ then needs a freshly countersigned manifest for bytes the state already names by
 that re-publishes only bytes hashing to the committed record is suggested, not required. (3) Future device runs should
 save the raw evidence envelopes (they are not secret) so the chains can be re-verified offline here. (4) The notes'
 times are local while the documents carry UTC; the review clock is derived from the policies' validity.
+
+**Follow-up (owner's d12e78c9, verified here).** The reviewed results are byte-identical between a7d624c2 and d12e78c9
+(`git diff` on the results path is empty), so the fixture hashes stand. Ask (3), raw envelopes: the lab carrier now
+records each `/evidence` exchange as received (the client's request line and the VM's answer, never sealed traffic),
+off by default and enabled by the device script, and the checker requires one v2 envelope per exchange answering the
+nonce the client sent; the a7d624c2 run is reported as predating that capture and its chains remain un-re-verified
+offline, as stated above; the next device run can go through this branch's adapter like l1 and l2. Ask (4), time
+zone: the run's local clock was MST (UTC-7), so 05:20-05:30 local is 12:20-12:30Z, consistent with the policies'
+`notBefore` of 11:20:27Z set one hour before signing; the script now logs UTC; the run's notes were deliberately not
+edited because they are hashed here. Ask (2), a manifest-free repair: agreed sound by the owner, not built, recorded
+as a candidate (`repair --artifact SRC`: never stages, never changes the state, lays back only bytes whose sha256,
+size and version line equal the committed record); it would change the accepted client and so needs a new version and
+review cycle, which nobody has asked for.
