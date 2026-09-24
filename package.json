@@ -29,7 +29,8 @@
     "test:collateral-cache": "node --test test/verifier-collateral-cache.test.mjs",
     "test:policy-deployments": "node --test test/verifier-pvm-policy-deployments.test.mjs",
     "test:live-differential": "node --test test/verifier-live-differential.test.mjs",
-    "live-differential": "node verifier/live-differential.mjs"
+    "live-differential": "node verifier/live-differential.mjs",
+    "test:stability-50": "node --test test/verifier-pvm-stability-50.test.mjs"
   },
   "engines": {
     "node": ">=20"

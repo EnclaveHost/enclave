@@ -1,0 +1,29 @@
+ok   the capture preflight passed before the run
+ok   one signed policy (serial 1) with one deployment in its table
+ok   the attempts are consecutive from turn 1 (50 attempted; nothing renumbered or dropped)
+ok   the run's own turns.jsonl agrees with the raw re-derivation on every attempt
+ok   50 consecutive mixed turns, every one a valid completed answer: 50 valid of 50 attempted
+ok   every answer is the same greedy decode: each turn's tokens are the first `steps` of one 128-token sequence
+ok   every turn fetched fresh evidence exactly once (50 exchanges for 50 turns)
+ok   each recorded envelope is v2 and answers the nonce its request carried
+ok   each turn's envelope is the one it verified (nonce, app), under the state committed before it (snapshot == generation log, serial 1)
+ok   one VM boot throughout the turns (1 transport/app key pair(s)), one attach, no detach before the last turn ended (0 mid-run; 1 after it: the scripted stop)
+ok   the VM served exactly the answered requests: 35 streams to FIN (want 35) + 15 whole (want 15)
+ok   no private key anywhere in the results
+ok   l1.log: no request or token in the clear
+ok   hub.jsonl: no request or token in the clear
+ok   hub.err: no request or token in the clear
+ok   carrier.log: no request or token in the clear
+-- observations (this run, this phone; not checks):
+   thermal status 0..0; battery 31.5..35.8 C over 51 samples
+   host load average: 2.83 3.76 3.28, 2.35 3.44 3.20, 2.61 3.31 3.18, 3.24 3.34 3.19, 2.09 3.02 3.10, 2.45 2.85 3.02, 2.45 2.85 3.02
+   stream   8 tokens x5: first token median 1155 ms, all median 1616 ms, max 1958 ms
+   stream  16 tokens x5: first token median 1265 ms, all median 2641 ms, max 2793 ms
+   stream  24 tokens x10: first token median 1247 ms, all median 3330 ms, max 3554 ms
+   stream  48 tokens x5: first token median 1220 ms, all median 5550 ms, max 6191 ms
+   stream  64 tokens x5: first token median 1219 ms, all median 7040 ms, max 7607 ms
+   stream 128 tokens x5: first token median 1166 ms, all median 12653 ms, max 14358 ms
+   whole   8 tokens x5: all median 1819 ms, max 1957 ms
+   whole  24 tokens x5: all median 3213 ms, max 3414 ms
+   whole  64 tokens x5: all median 7149 ms, max 7965 ms
+PASS 50 consecutive mixed turns on the device
