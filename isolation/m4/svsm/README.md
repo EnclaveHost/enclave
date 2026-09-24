@@ -26,6 +26,31 @@ Refusals are fail-closed and unit-tested (`cargo test -p svsm --lib appid`, 5 te
 VMPL0 is never an app; a plane at or beyond `VMPL_MAX` is refused; an unassigned plane is refused rather than
 named with zeros, because a null identity that verified would be worse than no service.
 
+## Open in this step: the runtime identity, not only the app ID
+
+`isolation/contract` now also binds **what compiled the app** into `report_data[0:32]` under ABI/2
+(`RUNTIME.md`): the app is one portable WebAssembly component compiled inside the domain, so the runtime,
+its version, its execution mode, the ISA it targets, its CPU-feature policy, its W^X statement and its
+cache mode are part of what a report vouches for. The Linux domains do this today and it is verified on
+hardware (M2 24/24, M3a 31/31, M4a 14/14, 2026-09-23).
+
+**On this path that identity has the problem this whole step exists to fix.** `appid.rs` moves the app half
+into the measured SVSM because, under IGVM, the guest image is outside the launch measurement. The runtime
+identity is a file in that same unmeasured image, so on the IGVM path it is asserted by code whose identity
+the report does not establish - the same defect, one field over.
+
+So whoever continues this step does one of two things, and says which:
+
+1. **compile the runtime identity into the SVSM** beside `APP_TABLE` (from the build, as `ENCLAVE_APP_IDS`
+   already is) and have the SVSM compute `contract.Bind2(spki, nonce, RuntimeID(identity))` for the calling
+   plane, so the binding is produced by measured code and changes the measurement when the runtime changes;
+   or
+2. **narrow the claim in writing** for the IGVM path: the runtime identity is the domain's own statement,
+   authenticated to the transport key but not measured, and no document may describe it otherwise.
+
+Option 1 is the one that matches what `appid.rs` already does for the app half, and it needs no new
+derivation path: the digest is derived with `igvmmeasure` and matched against the live report today.
+
 ## The honest ceiling
 
 `vmpl_count` is 4 on this hardware, so with the SVSM at VMPL0 there are **at most three app planes**: two or
