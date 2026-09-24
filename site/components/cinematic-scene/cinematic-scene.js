@@ -12,6 +12,12 @@ class CinematicScene extends EnclaveElement {
     let failed = false;
     let playing = false;
     video.muted = true;
+    const setPaused = (paused) => {
+      button.setAttribute("aria-pressed", String(paused));
+      const label = paused ? "Play motion" : "Pause motion";
+      button.setAttribute("aria-label", label);
+      button.title = label;
+    };
     const sync = () => {
       const running = visible && !document.hidden && !reduced.matches && !failed && button.getAttribute("aria-pressed") !== "true";
       button.hidden = reduced.matches || failed || !playing;
@@ -21,8 +27,7 @@ class CinematicScene extends EnclaveElement {
         video.play().catch(() => {
           if (video.paused && visible && !document.hidden && !reduced.matches && button.getAttribute("aria-pressed") !== "true") {
             button.hidden = false;
-            button.setAttribute("aria-pressed", "true");
-            button.textContent = "▶ Play motion";
+            setPaused(true);
           }
         });
       } else video.pause();
@@ -32,8 +37,7 @@ class CinematicScene extends EnclaveElement {
     video.onerror = () => { failed = true; sync(); };
     button.onclick = () => {
       const paused = button.getAttribute("aria-pressed") !== "true";
-      button.setAttribute("aria-pressed", String(paused));
-      button.textContent = paused ? "▶ Resume motion" : "Ⅱ Pause motion";
+      setPaused(paused);
       sync();
     };
     document.addEventListener("visibilitychange", sync);
