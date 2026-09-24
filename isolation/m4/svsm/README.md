@@ -43,9 +43,37 @@ output if the emitted page is not `construct_page(offset)`.
 
 **What step 2 does NOT establish:** this is ONE app on ONE plane. It demonstrates no isolation BETWEEN two
 apps, which is the actual requirement. The five second-plane preconditions below are untouched. The runtime
-image admitted is the wasmtime ELF only, so the executing bytes include unadmitted code. And the transport
-key registered is the guest's synthetic 91-byte value, not a real `domtls`-minted SPKI - the monitor
-integration is next.
+image admitted is the wasmtime ELF only, so the executing bytes include unadmitted code.
+
+## The monitor integration is CLOSED too (2026-09-24): the handshake key is the key the SVSM binds
+
+`evidence/plane-handshake-binding-2026-09-24.txt`. A serving plane domain: VERDICT attested, gate open, one real
+application request over the connection whose key the report binds. Until this ran, "the report binds this
+domain's transport key" was true of a 91-byte value `admitinit` made up.
+
+    build-plane-guest.sh <app.bundle> <out.cpio.gz>    # planeinit + front + the artifacts to admit
+    build-measured-igvm.sh -i <that image>             # the step-2 measured table over it
+    m2/fwd -cid <cid> -port 443                        # then m2/client.mjs --vmpl 2 --runtime ...
+
+`m2/front/appid.go` registers the minted SPKI once and afterwards sends only a nonce; the SVSM computes both
+halves of `report_data`. The front dies at startup without a runtime identity (the SVSM binds Bind2, so ABI/1
+could never match), reads its registered key BACK to check the SVSM holds what it minted, and REFUSES to serve a
+document whose `report_data[0:32]` differs from the binding it recomputes.
+
+`m4/guest/planeinit.c` admits both artifacts and POWERS OFF rather than serving if either is refused - a domain
+that served after a refusal would answer `/attest` with a T0 document, silently substituting a weaker claim. It
+also carries `tsm_report` and `sev-guest` ON PURPOSE and powers off if either loads: leaving them out would make
+"no report interface" a property of the packaging, which no verifier can check, whereas `vmpck0=No such device`
+is evidence.
+
+`m2/judge.mjs` now has a FORMAT TABLE rather than a condition. `sev-snp-svsm-plane-v1` requires ABI/2 and a
+non-zero VMPL, because at VMPL0 nothing is above the guest and under ABI/1 the binding folds in no runtime
+identity. The first run of the fixture was correctly rejected as an unknown format.
+
+**Still not established:** the three-field boundary tuple cannot express HOW `vmpl0=refused` was established.
+This plane's refusal is stronger than the M3 path's configurable floor - there is no key to configure around -
+but the tuple is identical either way, so a verifier still relies on the measurement. And it remains ONE app on
+ONE plane.
 
 ## A malformed hash table does not refuse - it disarms verification
 
