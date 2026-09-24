@@ -58,6 +58,16 @@
 
 static int (*g_ctl_writer)(const char *, size_t) = nullptr;
 extern "C" void engine_local_set_ctl_writer(int (*fn)(const char *, size_t)) { g_ctl_writer = fn; }
+/* pVM CPU capability self-test (PVM-CPU.md): when the payload registers a sink, the engine runs ONE fixed greedy generation
+ * before READY -- the same template, tokenizer, prefill and decode path every turn uses -- and hands the payload its measured
+ * prefill/decode rates and the SHA-256 of the produced token ids. The payload signs the report with the attested transport
+ * key; the relay compares the digest with the model's reference (parity) and the rate with the tier's floor. The app never
+ * chooses the prompt: it is this constant. */
+static void (*g_selftest_sink)(const char *id, int tokens, double prefill_tok_s, double decode_tok_s, const uint8_t digest[32]) = nullptr;
+extern "C" void engine_local_set_selftest(void (*fn)(const char *, int, double, double, const uint8_t *)) { g_selftest_sink = fn; }
+static const char *const SELFTEST_ID = "pvm-cpu-selftest-v1";
+static const char *const SELFTEST_PROMPT = "Write a Python function called factorial that returns n factorial for a non-negative integer n. Give only the code.";
+static const int SELFTEST_TOKENS = 64;
 static const anchor_gguf_table *g_table = nullptr;
 static const anchor_hash_ops *g_hops = nullptr;
 extern "C" void engine_local_set_model_table(const anchor_gguf_table *t, const anchor_hash_ops *h) { g_table = t; g_hops = h; }
@@ -255,6 +265,34 @@ extern "C" int engine_local_main(int chat_fd, int model_fd, const char *lib_dir,
                                   outf("LOCAL tpu: vsock credit window %llu -> %llu bytes", (unsigned long long)b, (unsigned long long)a); }
                               if (auto wmint = (void (*)(int, int))dlsym(th, "ggml_backend_tpu_window_mint")) { wmint(wtarget, 32);
                                   if (wtarget) outf("LOCAL tpu: minting inside the link window to a bank of %d positions", wtarget); } } }
+    if (g_selftest_sink) {   /* the fixed self-test, then a clean KV: the conversation starts exactly as without it */
+        const std::string text = std::string("<|turn>user\n") + SELFTEST_PROMPT + "<turn|>\n<|turn>model\n";
+        std::vector<llama_token> st_toks(text.size() + 16);
+        int nt = llama_tokenize(vocab, text.c_str(), (int)text.size(), st_toks.data(), (int)st_toks.size(), /*add_special=*/true, /*parse_special=*/true);
+        bool ok = nt > 0;
+        const int64_t a0 = ggml_time_us();
+        for (int i = 0; ok && i < nt; i += 512) { const int k = nt - i < 512 ? nt - i : 512; if (llama_decode(ctx, llama_batch_get_one(st_toks.data() + i, k))) ok = false; }
+        const double pf_s = (ggml_time_us() - a0) / 1e6;
+        std::vector<int32_t> ids; llama_sampler *g = llama_sampler_chain_init(llama_sampler_chain_default_params()); llama_sampler_chain_add(g, llama_sampler_init_greedy());
+        const int64_t a1 = ggml_time_us(); int past = nt;
+        for (int k = 0; ok && k < SELFTEST_TOKENS; k++) {
+            llama_token tok = llama_sampler_sample(g, ctx, -1); ids.push_back((int32_t)tok);
+            if (llama_vocab_is_eog(vocab, tok) || past + 1 >= n_ctx) break;
+            if (llama_decode(ctx, llama_batch_get_one(&tok, 1))) ok = false; else past++;
+        }
+        const double dc_s = (ggml_time_us() - a1) / 1e6;
+        llama_sampler_free(g); llama_memory_clear(llama_get_memory(ctx), true);
+        if (!ok || !g_hops) { outf("LOCAL selftest failed (tokenize/decode or no hash ops); no capability report"); }
+        else {   /* digest = SHA-256( id "\n" || count as u32 LE || each id as u32 LE ) */
+            uint8_t ctxbuf[512], dg[32]; g_hops->init(ctxbuf); g_hops->update(ctxbuf, (const uint8_t *)SELFTEST_ID, strlen(SELFTEST_ID)); g_hops->update(ctxbuf, (const uint8_t *)"\n", 1);
+            uint8_t le[4]; const uint32_t cnt = (uint32_t)ids.size(); for (int b = 0; b < 4; b++) le[b] = (uint8_t)(cnt >> (8 * b)); g_hops->update(ctxbuf, le, 4);
+            for (int32_t v : ids) { for (int b = 0; b < 4; b++) le[b] = (uint8_t)((uint32_t)v >> (8 * b)); g_hops->update(ctxbuf, le, 4); }
+            g_hops->final(ctxbuf, dg);
+            const double pf = pf_s > 0 ? nt / pf_s : 0, dc = dc_s > 0 ? (double)(ids.size() > 0 ? ids.size() - 1 : 0) / dc_s : 0;   /* the last sampled id is not decoded */
+            outf("LOCAL selftest %s: prompt %d tokens at %.2f tok/s, %zu tokens generated at %.2f tok/s", SELFTEST_ID, nt, pf, ids.size(), dc);
+            g_selftest_sink(SELFTEST_ID, (int)ids.size(), pf, dc, dg);
+        }
+    }
     { char l[256]; snprintf(l, sizeof l, "READY ctx=%d threads=%d vocab=%d model=%s load_s=%.1f", n_ctx, n_threads, llama_vocab_n_tokens(vocab), model_hex[0] ? model_hex : "-", load_s); chat_write(chat_fd, l); }
 
     /* the drafter: its own context in MTP mode, sharing the target's memory (llama.cpp's speculative helper does the rest) */

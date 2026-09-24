@@ -87,6 +87,13 @@
  * half never leaves the VM. TweetNaCl (public domain) does the arithmetic;
  * randombytes() below is the guest's getrandom. */
 static unsigned char g_tpk[32], g_tsk[64];
+#ifdef ANCHOR_TIER_PVM_CPU
+/* pVM CPU capability report (PVM-CPU.md, relay/pvm-cpu-tier.mjs): the nonce it answers and the VM clock at the attestation.
+ * kind 2 = the relay's nonce from this pVM's own v2 binding (admissible); 1 = the owner's bare challenge (evidence only). */
+static uint8_t g_caps_nonce[32]; static int g_caps_nonce_kind = 0; static uint64_t g_caps_attach_ms = 0;
+static int g_caps_threads = 0, g_caps_ctx = 0; static uint64_t g_caps_model_bytes = 0;
+static uint64_t boot_ms(void) { struct timespec ts; clock_gettime(CLOCK_BOOTTIME, &ts); return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u; }
+#endif
 static uint8_t g_ppk[32];   /* the pad key, defined with its secret half below; attest() checks the app's BOUND against it */
 void randombytes(unsigned char *p, unsigned long long n) {
     while (n) { ssize_t r = getrandom(p, (size_t)n, 0); if (r <= 0) abort(); p += r; n -= (unsigned long long)r; }
@@ -255,6 +262,11 @@ static void attest(const char *hex, const char *bound_hex) {
         if (!own) OUT("ATTEST refused to sign: BOUND is not this pVM's pad binding (v2 transcript over its own keys) or the challenge is not its sha256");
         else OUT("ATTEST binding: android-avf-pvm/v2 transcript over this pVM's own transport and pad keys, challenge = its sha256");
     } else OUT("ATTEST no BOUND: certificate only, nothing signed");
+#ifdef ANCHOR_TIER_PVM_CPU
+    if (own && blen >= 32) { memcpy(g_caps_nonce, bound + blen - 32, 32); g_caps_nonce_kind = 2; }   /* v2: the relay's nonce closes the transcript */
+    else { memcpy(g_caps_nonce, ch, 32); g_caps_nonce_kind = 1; }
+    g_caps_attach_ms = boot_ms();
+#endif
     AVmAttestationResult *res = NULL;
     AVmAttestationStatus st = AVmPayload_requestAttestation(ch, sizeof ch, &res);
     OUT("ATTEST status=%s code=%d", AVmAttestationStatus_toString(st), (int)st);
@@ -1085,6 +1097,35 @@ static void tpu_link_bench(int want) {
     close(ls);
 }
 
+#ifdef ANCHOR_TIER_PVM_CPU
+#define PVM_CPU_CAPS_DOMAIN "enclave-pvm-cpu-caps-v1\n"
+/* The engine's self-test result becomes the tier's capability report: strict JSON in exactly the relay parser's field set,
+ * signed by the attested transport key over DOMAIN || report, emitted as "CAPS <report hex> <signature hex>". */
+static void caps_sink(const char *id, int tokens, double pf, double dc, const uint8_t digest[32]) {
+    if (!g_caps_nonce_kind) { OUT("CAPS not emitted: no attestation in this session"); return; }
+    unsigned long long mem_kb = 0; { FILE *f = fopen("/proc/meminfo", "r"); char l[160];
+        if (f) { while (fgets(l, sizeof l, f)) if (sscanf(l, "MemTotal: %llu kB", &mem_kb) == 1) break; fclose(f); } }
+    char nh[65], mh[65], oh[65]; sh_pads_bin2hex(g_caps_nonce, 32, nh); sh_pads_bin2hex(g_model_digest, 32, mh); sh_pads_bin2hex(digest, 32, oh);
+    char rep[1400];
+    const int rn = snprintf(rep, sizeof rep,
+        "{\"v\":1,\"tier\":\"pvm-cpu\",\"nonce\":\"%s\",\"mode\":\"%s\",\"model\":{\"sha256\":\"%s\",\"bytes\":%llu,\"ctx\":%d},"
+        "\"vm\":{\"threads\":%d,\"mem_mib\":%llu},\"selftest\":{\"id\":\"%s\",\"tokens\":%d,\"prefill_tok_s\":%.2f,\"decode_tok_s\":%.2f,\"output_sha256\":\"%s\"},"
+        "\"vm_ms\":%llu,\"attach_vm_ms\":%llu,\"device\":\"\"}",
+        nh, g_pins.mode == ANCHOR_MODE_PROTECTED ? "protected" : "dev", mh, (unsigned long long)g_caps_model_bytes, g_caps_ctx,
+        g_caps_threads, mem_kb / 1024, id, tokens, pf, dc, oh, (unsigned long long)boot_ms(), (unsigned long long)g_caps_attach_ms);
+    if (rn <= 0 || rn >= (int)sizeof rep) { OUT("CAPS not emitted: report too long"); return; }
+    const size_t dl = strlen(PVM_CPU_CAPS_DOMAIN), n = dl + (size_t)rn;
+    unsigned char *m = malloc(n), *sm = malloc(n + 64); unsigned long long smlen = 0;
+    if (!m || !sm) { free(m); free(sm); OUT("CAPS not emitted: out of memory"); return; }
+    memcpy(m, PVM_CPU_CAPS_DOMAIN, dl); memcpy(m + dl, rep, (size_t)rn);
+    crypto_sign(sm, &smlen, m, n, g_tsk);
+    char sh[129]; sh_pads_bin2hex(sm, 64, sh); free(m); free(sm);
+    char *rh = malloc((size_t)rn * 2 + 1); if (!rh) { OUT("CAPS not emitted: out of memory"); return; }
+    sh_pads_bin2hex((const uint8_t *)rep, (size_t)rn, rh);
+    OUT("CAPS %s %s", rh, sh); free(rh);
+    OUT("CAPS summary: nonce=%s (%s) selftest %d tokens decode %.2f tok/s output %.16s...", nh, g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only", tokens, dc, oh);
+}
+#endif
 static void run_local(const anchor_local_plan *plan, int ls_wk) {
     const char *apk = AVmPayload_getApkContentsPath();
     char lib_dir[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk);
@@ -1120,6 +1161,14 @@ static void run_local(const anchor_local_plan *plan, int ls_wk) {
     void (*sett)(const anchor_gguf_table *, const anchor_hash_ops *) = (void (*)(const anchor_gguf_table *, const anchor_hash_ops *))dlsym(h, "engine_local_set_model_table");
     if (!em || !setw || !sett) { OUT("LOCAL refused: liblocalengine.so lacks engine_local_main / its setters"); close(ls_chat); return; }
     setw(anchor_ctl_write); sett(g_staged_table, &g_hash_ops);
+#ifdef ANCHOR_TIER_PVM_CPU
+    {   /* the tier's capability self-test is not optional: an engine that cannot run it does not serve this tier */
+        void (*setst)(void (*)(const char *, int, double, double, const uint8_t *)) =
+            (void (*)(void (*)(const char *, int, double, double, const uint8_t *)))dlsym(h, "engine_local_set_selftest");
+        if (!setst) { OUT("LOCAL refused: this engine cannot run the pVM CPU capability self-test"); close(ls_chat); return; }
+        g_caps_threads = plan->threads; g_caps_ctx = plan->ctx; g_caps_model_bytes = plan->model_bytes; setst(caps_sink);
+    }
+#endif
     if (draft[0]) {
         int (*setd)(const char *, int) = (int (*)(const char *, int))dlsym(h, "engine_local_set_draft");
         if (!setd || setd(draft, plan->draft_max) != 0) { OUT("LOCAL refused: this engine cannot take a drafter"); if (worker_fd >= 0) close(worker_fd); close(ls_chat); return; }

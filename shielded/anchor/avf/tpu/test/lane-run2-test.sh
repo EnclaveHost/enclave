@@ -64,6 +64,7 @@ c="$FAKE_HOME/files/capture"; mkdir -p "$c"; L="$c/$label.log"
   [ "${FAKE_NO_FOOTER:-0}" = 1 ] || echo "CAPTURE END label=$label lines=9 bytes=99 status=complete"; } > "$L"
 if [ "${FAKE_CPU_ONLY:-0}" = 1 ]; then printf 'CAPTURE BEGIN label=%s\nLOCAL ask sha256=%s bytes=1\nLOCAL turn 1 STATS {status=eos, decode_tokens=5}\nLOCAL done: 1 scripted turns\nCAPTURE END label=%s lines=4 bytes=9 status=complete\n' "$label" "$(printf '%s' "$ask" | sha256sum | cut -d' ' -f1)" "$label" > "$L"; : > "$c/$label.complete"; exit 0; fi
 [ "${FAKE_VM_DIES:-0}" = 1 ] && { printf 'CAPTURE BEGIN label=%s\nVM payload started\nVM payload finished exit=1\nVM stopped reason=3\n' "$label" > "$L"; exit 0; }
+[ "${FAKE_APP_FAILED:-0}" = 1 ] && { printf 'CAPTURE BEGIN label=%s\nLOCAL ready: {ctx=4096}\nCONTROL error java.io.IOException: read failed: ECONNRESET\nLOCAL failed: read failed: ECONNRESET\nCAPTURE END label=%s lines=4 bytes=9 status=failed:no-end\n' "$label" "$label" > "$L"; exit 0; }
 [ "${FAKE_NO_COMPLETE:-0}" = 1 ] || : > "$c/$label.complete"
 echo "Starting: Intent { cmp=host.enclave.anchor.avf/.Main }"
 EOF
@@ -111,6 +112,8 @@ run runasfail FAKE_RUNAS_FAIL="cat files/capture/runasfail.log"; ck "the remote 
 run amerr FAKE_AM_ERROR=1; ck "am start reports an error: refused" "$RC" 1
 run nobank; ck "BANK unset: the launch does not name tpu_bank (the app's default applies)" "$(grep -c '^tpu_bank$' "$W/home/received-args")" 0
 run bank128 BANK=128; ck "BANK=128: the launch names tpu_bank 128" "$(grep -A1 '^tpu_bank$' "$W/home/received-args" | tail -1)" 128
+run appfailed FAKE_APP_FAILED=1 LANE_TRIES=50; ck "a capture the app closed as failed (VM killed mid-turn): refused" "$RC" 1
+grep -q "stopped before the run completed: LOCAL failed" <<<"$OUT"; ck "... at once, naming it, not after the whole wait" "$?" 0
 run delivered FAKE_AM_DELIVERED=1; ck "am start delivered the intent to a running instance: refused" "$RC" 1
 grep -q "did not start the run" <<<"$OUT"; ck "... at the launch, naming it" "$?" 0
 run ignored FAKE_AM_IGNORED=1 LANE_TRIES=50 LANE_START_TRIES=2; ck "the app never opens a capture: refused" "$RC" 1
