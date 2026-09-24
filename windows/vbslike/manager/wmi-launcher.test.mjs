@@ -23,8 +23,10 @@ function host(over = {}) {
     pinFirmware: { returnValue: 0, jobState: null, firmwareFile: IMG, guestFeatureSet: GUEST_FEATURE_SET },
     attachConsole: { ok: true },
     start: { state: "Running" },
-    readConsole: { bytes: 64, head: "guest said something" },
+    readConsole: { connected: true, bytes: 64, head: "guest said something" },
     teardown: { found: 1, removed: ["x"], failed: [] },
+    removeExact: { found: true, removed: true },
+    stop: { ok: true },
     ...over,
   };
   const run = async (script) => {
@@ -35,7 +37,9 @@ function host(over = {}) {
       : script.includes("ModifySystemSettings") ? "pinFirmware"
       : script.includes("Set-VMComPort") ? "attachConsole"
       : script.includes("Start-VM") ? "start"
-      : script.includes("[IO.File]::Open") ? "readConsole"
+      : script.includes("already gone") ? "stop"
+      : script.includes("NamedPipeClientStream") ? "readConsole"
+      : script.includes("$_.Name -eq") ? "removeExact"
       : script.includes("$removed = @(); $failed = @();") ? "teardown"
       : script.includes("Stop-VM") ? "stop" : "unknown";
     const a = answers[key];
@@ -106,7 +110,7 @@ test("a good start does the steps in order and hands back a stoppable handle", a
   const order = h.seen.map((s) => s.includes("$r.vmms") ? "preflight" : s.includes("Get-FileHash") ? "image"
     : s.includes("New-VM") ? "create" : s.includes("ModifySystemSettings") ? "pin"
     : s.includes("Set-VMComPort") ? "console" : s.includes("Start-VM") ? "start"
-    : s.includes("[IO.File]::Open") ? "guest" : "?");
+    : s.includes("NamedPipeClientStream") ? "guest" : "?");
   assert.deepEqual(order, ["preflight", "image", "create", "pin", "console", "start", "guest"],
                    "firmware pinned before start, the console attached before that, and the guest heard last");
   assert.equal(r.state, "Running");
@@ -131,7 +135,7 @@ test("a failure after creation removes the half-built VM before rethrowing", asy
   for (const broken of [{ pinFirmware: new Error("wmi said no") }, { attachConsole: new Error("no pipe") }, { start: new Error("would not start") }]) {
     const h = host(broken);
     await assert.rejects(() => mk(h).start(mapping, ID));
-    assert.equal(h.seen.some((s) => s.includes("$removed = @(); $failed = @();")), true,
+    assert.equal(h.seen.some((s) => s.includes("$_.Name -eq")), true,
                  `a ${Object.keys(broken)[0]} failure must not leave a VM behind`);
   }
 });

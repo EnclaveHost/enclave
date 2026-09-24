@@ -53,12 +53,17 @@ test("a domain that did not start is failed, says why, and carries NO attestatio
   assert.equal(r.state === "running", false);
 });
 
-test("a domain that DOES start is running - the seam works when a host can launch", async () => {
-  const backend = new HyperVPartitionBackend({ launch: async () => ({ pid: 4242, stop: async () => {} }) });
-  const r = await mk({ backend }).spawn(spawnBody());
-  assert.equal(r.state, "running");
-  assert.equal(r.reason, null);
-  assert.equal("attestation" in r, false, "still none: running is not the same as attested");
+test("the seam works when a host can launch, and a booted guest is not a running app", async () => {
+  const booted = new HyperVPartitionBackend({ launch: async () => ({ pid: 4242, appReady: false, guest: { booted: true, bytes: 9, head: "hi" }, stop: async () => {} }) });
+  const r = await mk({ backend: booted }).spawn(spawnBody());
+  assert.equal(r.state, "guest-booted", "console output is not evidence the app is serving");
+  assert.equal(r.appReady, false);
+  assert.match(r.reason, /no app-readiness handshake/);
+  assert.equal("attestation" in r, false, "still none: booted is not attested either");
+  // and when a backend CAN prove the app is up, the word is earned
+  const ready = new HyperVPartitionBackend({ launch: async () => ({ pid: 1, appReady: true, guest: { booted: true, bytes: 9 }, stop: async () => {} }) });
+  const r2 = await mk({ backend: ready }).spawn(spawnBody());
+  assert.equal(r2.state, "running");
 });
 
 test("everything this backend cannot honour is refused again on this side of the wire", async () => {
@@ -98,13 +103,14 @@ test("the backend takes the REAL launcher, and a domain started through it is ru
     : script.includes("New-VM") ? { id: "GUID", version: "12.0", name: "x" }
     : script.includes("ModifySystemSettings") ? { returnValue: 0, jobState: null, firmwareFile: "C:\\img.bin", guestFeatureSet: 0x201 }
     : script.includes("Start-VM") ? { state: "Running" }
-    : script.includes("[IO.File]::Open") ? { bytes: 42, head: "guest output" } : { ok: true };
+    : script.includes("NamedPipeClientStream") ? { connected: true, bytes: 42, head: "guest output" } : { ok: true };
   const launcher = new WmiHyperVLauncher({
     run: async (s) => ({ code: 0, stdout: JSON.stringify(answer(s)), stderr: "" }),
     imagePath: "C:\\img.bin", imageSha256: SHA, prefix: "enclave-app-t-" });
   const backend = new HyperVPartitionBackend({ launcher });
   const r = await mk({ backend }).spawn(spawnBody());
-  assert.equal(r.state, "running");
+  assert.equal(r.state, "guest-booted", "the guest booted; no app-readiness handshake exists, so not \"running\"");
+  assert.equal(r.appReady, false);
   assert.equal("attestation" in r, false, "a VM that started is still not an attested one");
   const pre = await backend.preflight();
   assert.equal(pre.ok, true, "and the backend can ask the host what it has");

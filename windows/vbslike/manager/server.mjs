@@ -101,11 +101,18 @@ export class Manager {
     this.domains.set(id, rec);
     try {
       const h = await this.backend.start(mapping, { instanceId });
-      // The launcher only returns when the VM is Running AND the guest produced output. Anything
-      // short of that threw, so this assignment is the one place "running" is earned.
-      rec.state = "running"; rec.startedAt = Date.now(); rec.handle = h;
-      if (h && h.guest) rec.guest = { bytes: h.guest.bytes, head: h.guest.head };
+      // WHAT WAS ESTABLISHED, and no more. The launcher returns only when the VM is Running and the
+      // guest produced output, which means something inside the partition executed. It does NOT
+      // mean the component was delivered, compiled or served: there is no app-readiness handshake
+      // on this backend, so there is no evidence for "running" and the record does not claim it.
+      // "guest-booted" is a state a reader can act on; "running" would be a guess.
+      rec.state = h && h.appReady === true ? "running" : "guest-booted";
+      rec.appReady = !!(h && h.appReady === true);
+      rec.startedAt = Date.now(); rec.handle = h;
+      if (h && h.guest) rec.guest = { booted: h.guest.booted === true, bytes: h.guest.bytes, head: h.guest.head };
       if (h && h.name) rec.vmName = h.name;
+      if (!rec.appReady)
+        rec.reason = "the guest booted and produced console output; this backend has no app-readiness handshake, so whether the app is serving is not established";
     } catch (e) {
       // The identity is still real and worth keeping: it is what was asked for and what would run.
       rec.state = "failed";
