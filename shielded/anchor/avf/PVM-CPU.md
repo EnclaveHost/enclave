@@ -624,10 +624,11 @@ deny service (never deliver lines), which a verifier sees as missing evidence, n
    the relay fix (relay/tunnel.js attestOn) reaches main -- the owner's merge (a push to main restarts the workers).
 2. **The serving path: a LAB prototype works end to end** (results/pvm-cpu-tls-serving; section below). What it does not
    yet cover, exactly:
-   - production: api-relay.js neither sets `attest.pvmApp` nor routes client traffic to `spliceRaw` (the lab hub's raw TCP
-     port stands in); relay deployment, the main merge and release-key custody are separate review items. A scoped
-     design for review, not built: RELAY-SERVING.md (`/x/<id>/pvm/{evidence,sealed}` on the on-chain runner's pVM
-     tunnel; the deployment-instance limit unchanged);
+   - production: on main, api-relay.js neither sets `attest.pvmApp` nor routes client traffic to `spliceRaw` (the lab
+     hub's raw TCP port stands in). On this branch both are wired behind `PVM_SERVING`, OFF by default and set nowhere
+     (RELAY-SERVING.md "Wired behind a switch": `/x/<id>/pvm/{evidence,sealed}` on the on-chain runner's pVM tunnel, the
+     app policy from `PVM_APP_*`; the deployment-instance limit unchanged). Enabling it, the runner registration, relay
+     deployment, the main merge and release-key custody are the owner's, each its own review;
    - ~~clients trust the relay's verification~~ done for native clients (results/pvm-cpu-client-verified: the client
      verifies fresh evidence over its own nonce with its own pins, then pins the key itself);
    - ~~browsers~~ a LAB verified channel for pages, answers streamed, and an installed client (CLI + extension)

@@ -1,6 +1,7 @@
-# Relay serving integration for pVM deployments (DESIGN, reviewed; a lab module, NOT wired or deployed)
+# Relay serving integration for pVM deployments (DESIGN, reviewed; wired on the branch behind a switch that is OFF and set nowhere; NOT enabled or deployed)
 
-**Status.** A scoped design, not an implementation. Nothing here is deployed, activated or merged. It proposes how
+**Status.** A scoped design, now wired into `relay/api-relay.js` on this branch behind `PVM_SERVING`, which is OFF by
+default and set in no environment ("Wired behind a switch", below). Nothing here is deployed, enabled or merged. It proposes how
 the platform relay (`relay/api-relay.js`) would carry a buyer's traffic to a pVM deployment, using the client contract
 that exists today (client 0.4.x: a signed policy, the deployment table, `run --deployment`). It makes **no new evidence
 claim**: every property below is either something the client already verifies itself, or a limit stated as a limit. A
@@ -19,13 +20,14 @@ each needs its own review.
 - **The lab hub** (`cpu/local-hub.mjs`, `cpu/web-carrier.mjs`) offers exactly those two endpoints for ONE tunnel name.
   - It calls `tunnel.js spliceRaw(name, socket, kind)` with the kinds `pvm-evidence` and `pvm-app-sealed`.
   - The phone's host app carries the bytes as opaque `{t:"sd"}` chunks to the VM's vsock endpoints.
-- **The production relay** routes `/x/<id>` to the deployment's ON-CHAIN runner: the ledger row's `runner` must be a live,
+- **The production relay** (main) routes `/x/<id>` to the deployment's ON-CHAIN runner: the ledger row's `runner` must be a live,
   in-fleet endpoint (`runnerEndpointOf`, "fix 1c"). It then proxies HTTP.
   - Attested tunnels appear among the live endpoints as `tunnel://<name>`, including a pVM phone attached through
     `pvmCpu` admission.
   - It does NOT set `attest.pvmApp`, so it never verifies an app's ABI/2 evidence at attach, and nothing gets the
     sealed kind.
   - It has no route that splices a buyer's bytes into a pVM tunnel.
+  - On this branch, both exist behind the OFF switch (below).
 
 ## Proposal
 
@@ -126,11 +128,127 @@ each needs its own review.
   - a well-framed sealed request reaches the hub-verified app's VM, which answers it with its own refusal frame, under a
     nonce it never issued;
   - a tunnel whose app the hub did not verify gets no sealed stream: a plain 404.
-- **Not done.** Wiring into `api-relay.js` behind a switch, and `attest.pvmApp` from environment: both change
-  production code and wait for the owner. The review's (a)-(d) have not been run through the relay route; the client
-  already refuses each against the lab carrier.
+- **Wired since** behind an OFF switch (next section). The review's (a)-(d) have not been run through the relay route; the
+  client already refuses each against the lab carrier.
 - **The lab carrier.** `cpu/web-carrier.mjs` had the same defect: it reset the connection before its 413 was sent. It is
   fixed and tested.
+
+## Wired behind a switch (this branch, 2026-09-24): OFF by default, set nowhere
+
+Codex directed this slice under Steven's standing scope. Coding the disabled path does not authorize enabling it.
+
+- **The switch.** `PVM_SERVING`, read once at startup. `1`, `true`, `on` or `yes` (any case, trimmed) is ON. Anything
+  else is OFF, including unset, empty, `0` and `enabled`.
+- **OFF.**
+  - `relay/pvm-serving.mjs` is not even imported, and the tunnel hub's attest object is unchanged.
+  - `/x/<id>/pvm/*` is an ordinary `/x` path.
+  - Tested: the same status, body, response headers and forwarded headers as another `/x` path of the same live
+    deployment. An OFF relay with a deliberately broken module beside it boots and serves.
+- **ON.**
+  - The module is imported at startup. A broken module stops the relay: it never serves half-built.
+  - The carrier is a sub-route of the `/x` gateway on the API host only. It is checked after app subdomains, custom
+    domains, the MCP host, box hosts and `/t/`, so an app's own origin never reaches it.
+  - It needs three things: AVF attach (`METAL_AVF_*`), the pVM CPU policy (`PVM_CPU_*`) and the app admission policy
+    (`PVM_APP_IDS`, `PVM_APP_RUNTIME_IDS`). With any of them missing:
+    - both routes answer a plain, empty 503 for every deployment, with `connection: close` and no `Retry-After`;
+    - every other route answers exactly as it does OFF;
+    - the startup log names what is missing.
+  - Configured, the app policy becomes the hub's `attest.pvmApp`. The code and authority pins it is checked under are
+    the pVM CPU policy's and AVF's, as in item 2. The startup line is printed from the object the hub is given, so it
+    states what the hub will admit.
+- **Packaging.** `relay/deploy.sh` copies `pvm-serving.mjs` with the relay. No env file sets `PVM_SERVING`. No
+  production env, key, registry entry or lease was touched.
+- **The app admission policy.**
+  - Both variables are comma lists in the ABI/2 wire form exactly: 64 lowercase hex, no `0x`, whitespace only around
+    commas, no empty element, no duplicate.
+  - Anything else nulls the whole policy, which gives the 503 above. It is never repaired.
+  - Admission is the CROSS PRODUCT the hub checks (`tunnel.js`): any listed app on any listed runtime. The lists do not
+    pair an app with its runtimes. Tested on the real hub: app A on the runtime meant for B is admitted. An operator who
+    needs pairs needs a hub change.
+- **Reserved paths.** While ON, `POST /x/<id>/pvm/evidence` and `POST /x/<id>/pvm/sealed` on the API host belong to the
+  carrier for EVERY deployment.
+  - An ordinary app's own paths of those names are not reachable through `/x`: they answer 404, never the app's answer.
+    This is tested with a live ordinary deployment.
+  - The same paths on the app's own subdomain still reach the app (tested).
+  - WebSocket upgrades on those paths are not intercepted: they take the ordinary `/x` upgrade path, as today.
+  - For the `/x` gateway doc: *"When the relay's pVM carrier is ON, `/x/<id>/pvm/evidence` and `/x/<id>/pvm/sealed` are
+    reserved on the API host for every deployment; an app that serves paths of those names is reached on its own
+    subdomain."*
+- **Client identity and rates.**
+  - **Per client.** The identity is the relay's `clientIp`: the last `X-Forwarded-For` hop under `TRUSTED_PROXY` (the
+    default), otherwise the socket. It is the identity the relay's per-IP limits already use. Tested:
+    - another first hop with the same last hop is the same client;
+    - another last hop is another client, with its own bucket;
+    - with no header, the socket keys the bucket.
+  - **Buckets.** The relay's token buckets: 30 per client (refill 0.5/s) and 60 per deployment (refill 1/s). Neither
+    number is measured on the device (review question 3).
+  - **The per-deployment bucket is shared** by every client of the deployment, so one buyer's traffic can spend it
+    against the deployment's other buyers. Tested: two clients drain it, then a third, fresh client is refused. This is
+    the wiring's current choice, stated as such. A per-(client, deployment) bucket is the alternative.
+  - **Pending lookups.** 4 per client, and a hung ledger answers 504 after 5 s. Tested through the spawned relay:
+    - the fifth concurrent lookup is refused with a 429 at once;
+    - the four pending lookups answer 504;
+    - the client is admitted again afterwards.
+- **The sealed path is stateless at the relay.**
+  - The relay keeps nothing between `/evidence` and `/sealed`: each is routed from the ledger afresh.
+  - Only the client's own sealing to the attested app key binds a sealed request to the evidence it verified.
+  - A runner change between the two is judged from zero by the client (test f).
+- **Fixed while wiring.**
+  - **Over-bound answers are aborted.** An answer past its bound used to be ENDED cleanly after its 200: a truncated
+    body that looked complete, refused by the client only because it did not parse. It is now aborted (tested). The lab
+    carrier (`cpu/web-carrier.mjs`) still ends one cleanly. It is lab tooling behind recorded runs and was left as is.
+  - **Early refusals close the connection.** This covers a refusal before the body is read: 405, a bad id, 429 and the
+    unconfigured 503. The unread body is dropped, never drained, and a client cannot reuse a socket the server resets.
+    One could before: a GET with a body answered 503 left the next request on that socket reset.
+- **Where it is tested.**
+  - `test/api-relay-pvm-serving.test.mjs` spawns the REAL `api-relay.js` against a stub ledger. It covers:
+    - OFF equivalence and the lazy import;
+    - the unconfigured 503, and every other route unchanged;
+    - the strict parsing of the app policy (63 hex, `0x`, uppercase, duplicate, empty elements);
+    - the reservation and subdomains;
+    - client identity and both rate buckets;
+    - carrier log lines holding sizes and ids only;
+    - a hung ledger and the pending cap.
+  - `test/pvm-relay-serving.test.mjs` test 5 drives `pvmServingFromEnv`, the function `api-relay.js` calls, on the REAL
+    tunnel hub with synthetic phones and the BUILT client. It covers:
+    - the cross product;
+    - an unknown app, refused at the hub, with no sealed stream;
+    - an unverified tunnel, with no sealed stream;
+    - two buyers each getting their own envelope;
+    - a buyer leaving: the hub closes the phone's stream to the VM;
+    - an answer past the bound: aborted, and the client reports no evidence;
+    - a hung ledger: 504;
+    - a missing policy: 503 while verified tunnels are live, and nothing reaches the VM.
+  - **Not driven through `api-relay.js`: the splice.** A synthetic phone cannot attach to the spawned relay: its AVF
+    verifier pins Google's roots, correctly, with no override. So the splice itself is not driven through `api-relay.js`.
+    The hub's app policy there is checked through the startup line, printed from the object the hub receives.
+  - **Mutation checks.** 14 deliberate breaks of the wiring were each caught by at least one test:
+    - a static import;
+    - the route unwired;
+    - the old placement ahead of app subdomains;
+    - the unconfigured path falling through;
+    - socket identity;
+    - no pending cap;
+    - lax app ids;
+    - no per-deployment bucket;
+    - OFF building the handler;
+    - a clean end on a cut answer;
+    - the hub not given the app policy;
+    - early refusals keeping the socket;
+    - a paired (not cross-product) hub;
+    - the wiring ignoring a missing policy.
+- **Not given, unchanged.** A genuine instance of the expected app is not proof of this deployment's specific instance
+  ("What this does and does not give a buyer").
+- **Before any activation, the owner's:**
+  1. **Scheduling.** A pVM phone as a runner needs a registry entry whose endpoint is the phone's tunnel row, a lease,
+     and a ledger `runner` equal to that row's endpoint id. None is designed (item 5).
+  2. **Production values.** Production `PVM_APP_*`, `METAL_AVF_*` and `PVM_CPU_*` values, and the decision to set
+     `PVM_SERVING`: a production env change.
+  3. **Rates.** Measured on the device (review question 3).
+  4. **Instance identity.** Binding the deployment's instance needs a change to the evidence format, with its own review.
+  5. **The extension.** Its `host_permissions` for the relay origin: a change to the installed artifact.
+  6. **Cold start** (targets 3 and 5) for a runner.
+  7. **Review.** The verifier session's review of this exact wiring.
 
 ## Review questions
 

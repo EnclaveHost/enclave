@@ -153,7 +153,9 @@ echo "== api relay (site box)"
 # indexer, OFAC screen, provisioner) ship alongside; they self-disable without
 # StateDirectory/env, so shipping them is always safe. npm ci below installs
 # their deps (@simplewebauthn/server, jose) from the SHIPPED lockfile.
-scp api-relay.js mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs pvm-app-attest.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs pads.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json nan:/opt/nan-relay/
+scp api-relay.js mcp.js auth.js sso.js billing.js indexer.js ofac.js provisioner.js vaultsvc.js secrets.js fleet-auth.js certs.js domains.js store.js fleet.mjs net-guard.mjs tunnel.js pvm-cpu-tier.mjs pvm-app-attest.mjs pvm-serving.mjs snp-verify.mjs avf-verify.mjs avf-policy.mjs avf-binding.mjs vbs-verify.mjs vbs-policy.mjs vbs-credential.mjs vbs-tcglog.mjs pads.mjs pad-grant.mjs pad-state.mjs pad-shipment-store.mjs pad-ack.mjs boxhost.js package.json package-lock.json nan:/opt/nan-relay/
+# pvm-serving.mjs is the pVM deployment carrier: api-relay.js imports it only when PVM_SERVING is on, which no
+# environment file sets -- shipping it changes nothing (shielded/anchor/avf/RELAY-SERVING.md).
 # vbs-*.mjs is the Windows VBS-enclave attach (tunnel mode vbs, windows/vbs/EVIDENCE.md).
 # vbs-policy.mjs defaults METAL_VBS_EK_ROOTS to ./fixtures/tpm-roots.pem beside itself
 # (the pinned AMD fTPM roots) and THROWS at startup when the file is unreadable with
