@@ -1216,6 +1216,24 @@ static const char *errno_name(int e, char *buf, size_t cap) {
     switch (e) { case EACCES: return "EACCES"; case EPERM: return "EPERM"; case ENOMEM: return "ENOMEM"; case EINVAL: return "EINVAL"; }
     snprintf(buf, cap, "errno%d", e); return buf;
 }
+/* The W^X tuple measured when the app was received (app_attest_abi2), for every later answer (the evidence endpoint). */
+static char g_abi2_tuple[96] = "";
+/* One ABI/2 certificate: RuntimeID = SHA-256(identity as printed), Bind2 = SHA-256("enclave-bind-v2\n" || transport SPKI ||
+ * nonce || RuntimeID), challenge = Bind2 || AppID. Returns the result (the caller frees it) or NULL with *st set. */
+static AVmAttestationResult *abi2_certify(const char *identity, const uint8_t nonce[32], const uint8_t app_sha[32],
+                                          uint8_t rid[32], uint8_t bind[32], AVmAttestationStatus *st) {
+    uint8_t spki[44], ch[64];
+    sha256((const uint8_t *)identity, strlen(identity), rid);
+    memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
+    {   static const char dom[] = "enclave-bind-v2\n"; uint8_t m[sizeof dom - 1 + 44 + 32 + 32]; size_t o = 0;
+        memcpy(m + o, dom, sizeof dom - 1); o += sizeof dom - 1; memcpy(m + o, spki, 44); o += 44;
+        memcpy(m + o, nonce, 32); o += 32; memcpy(m + o, rid, 32); o += 32; sha256(m, o, bind); }
+    memcpy(ch, bind, 32); memcpy(ch + 32, app_sha, 32);
+    AVmAttestationResult *res = NULL;
+    *st = AVmPayload_requestAttestation(ch, sizeof ch, &res);
+    if (*st != ATTESTATION_OK || !res) { if (res) AVmAttestationResult_free(res); return NULL; }
+    return res;
+}
 static int app_attest_abi2(const char *identity, const uint8_t app_sha[32]) {
     char exec_pages[48], eb[16];
     void *pg = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -1228,23 +1246,18 @@ static int app_attest_abi2(const char *identity, const uint8_t app_sha[32]) {
     int wx = -1; { FILE *m = fopen("/proc/self/maps", "r"); char l[1024];
         if (m) { wx = 0; while (fgets(l, sizeof l, m)) { char perm[8] = ""; if (sscanf(l, "%*s %7s", perm) == 1 && strchr(perm, 'w') && strchr(perm, 'x')) wx++; } fclose(m); } }
     if (wx != 0) { OUT("APP refused: %s", wx < 0 ? "this process's mappings could not be read, so W^X cannot be stated" : "this process holds a writable+executable mapping"); return 4; }
-    OUT("ABI2 selftest exec_pages=%s wx=clean maps=1 scope=self", exec_pages);
+    snprintf(g_abi2_tuple, sizeof g_abi2_tuple, "exec_pages=%s wx=clean maps=1 scope=self", exec_pages);
+    OUT("ABI2 selftest %s", g_abi2_tuple);
     OUT("ABI2 runtime %s", identity);
     if (!g_caps_nonce_kind && !g_app_nonce_set) { OUT("ABI2 unavailable: no nonce in this session (the app runs; a verifier admits nothing without ABI/2 evidence)"); return 0; }
     const uint8_t *nonce = g_app_nonce_set ? g_app_nonce : g_caps_nonce;
     const char *nonce_kind = g_app_nonce_set ? "relay app nonce" : g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only";
-    uint8_t rid[32], spki[44], bind[32], ch[64];
-    sha256((const uint8_t *)identity, strlen(identity), rid);
-    memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
-    {   static const char dom[] = "enclave-bind-v2\n"; uint8_t m[sizeof dom - 1 + 44 + 32 + 32]; size_t o = 0;
-        memcpy(m + o, dom, sizeof dom - 1); o += sizeof dom - 1; memcpy(m + o, spki, 44); o += 44;
-        memcpy(m + o, nonce, 32); o += 32; memcpy(m + o, rid, 32); o += 32; sha256(m, o, bind); }
-    memcpy(ch, bind, 32); memcpy(ch + 32, app_sha, 32);
+    uint8_t rid[32], bind[32];
+    AVmAttestationStatus st;
+    AVmAttestationResult *res = abi2_certify(identity, nonce, app_sha, rid, bind, &st);
     char nh[65], ah[65], bh[65], rh[65]; sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(app_sha, 32, ah); sh_pads_bin2hex(bind, 32, bh); sh_pads_bin2hex(rid, 32, rh);
     OUT("ABI2 binding nonce=%s (%s) runtime_id=%s bind2=%s app=%s", nh, nonce_kind, rh, bh, ah);
-    AVmAttestationResult *res = NULL;
-    const AVmAttestationStatus st = AVmPayload_requestAttestation(ch, sizeof ch, &res);
-    if (st != ATTESTATION_OK || !res) { OUT("ABI2 unavailable: attestation status=%s (the app runs; a verifier admits nothing without ABI/2 evidence)", AVmAttestationStatus_toString(st)); return 0; }
+    if (!res) { OUT("ABI2 unavailable: attestation status=%s (the app runs; a verifier admits nothing without ABI/2 evidence)", AVmAttestationStatus_toString(st)); return 0; }
     const size_t n = AVmAttestationResult_getCertificateCount(res);
     for (size_t i = 0; i < n; i++) {
         const size_t sz = AVmAttestationResult_getCertificateAt(res, i, NULL, 0);
@@ -1255,6 +1268,67 @@ static int app_attest_abi2(const char *identity, const uint8_t app_sha[32]) {
     AVmAttestationResult_free(res);
     OUT("ABI2 end certs=%zu", n);
     return 0;
+}
+/* LAB, the client-verified channel (PVM-CPU.md): while the app is served over https, vsock EVIDENCE_PORT answers a CLIENT's
+ * nonce with a fresh ABI/2 certificate for this app and this VM's transport key, so a client verifies the VM itself and
+ * never takes a key or a verdict from the relay or the phone. One line in, `EVIDENCE <64 lowercase hex>`; one JSON line
+ * out (format enclave-pvm-app-evidence/v1: nonce, app, spki, identity, selftest, chain). Bounded: a 5 s read, one request
+ * per connection, at most one answer every 2 s and 120 per session. Logs public facts only (the nonce prefix, the count). */
+#define EVIDENCE_PORT 7787
+static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static size_t b64_encode(const uint8_t *in, size_t n, char *out) {
+    size_t o = 0;
+    for (size_t i = 0; i < n; i += 3) {
+        const uint32_t v = (uint32_t)in[i] << 16 | (i + 1 < n ? (uint32_t)in[i + 1] << 8 : 0) | (i + 2 < n ? in[i + 2] : 0);
+        out[o++] = B64[v >> 18 & 63]; out[o++] = B64[v >> 12 & 63];
+        out[o++] = i + 1 < n ? B64[v >> 6 & 63] : '='; out[o++] = i + 2 < n ? B64[v & 63] : '=';
+    }
+    out[o] = 0; return o;
+}
+typedef struct { int ls; volatile int stop; const char *identity; uint8_t app[32]; int answered; } evidence_srv;
+static void evidence_answer(evidence_srv *e, int c) {
+    struct timeval tv = { 5, 0 }; setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    char line[128]; size_t n = 0;
+    while (n + 1 < sizeof line) { char ch; ssize_t r = read(c, &ch, 1); if (r <= 0) break; if (ch == '\n') break; line[n++] = ch; }
+    line[n] = 0;
+    const char *h = line + 9; size_t hl = 0;
+    if (strncmp(line, "EVIDENCE ", 9) == 0) while (hl < 64 && ((h[hl] >= '0' && h[hl] <= '9') || (h[hl] >= 'a' && h[hl] <= 'f'))) hl++;
+    if (hl != 64 || h[64] != 0) { write_all(c, "{\"error\":\"request is EVIDENCE <64 lowercase hex>\"}\n", strlen("{\"error\":\"request is EVIDENCE <64 lowercase hex>\"}\n")); return; }
+    if (e->answered >= 120) { write_all(c, "{\"error\":\"evidence budget spent for this session\"}\n", strlen("{\"error\":\"evidence budget spent for this session\"}\n")); return; }
+    uint8_t nonce[32], rid[32], bind[32]; unhex(h, nonce, 32);
+    AVmAttestationStatus st; AVmAttestationResult *res = abi2_certify(e->identity, nonce, e->app, rid, bind, &st);
+    if (!res) { OUT("EVIDENCE unavailable: attestation status=%s", AVmAttestationStatus_toString(st)); write_all(c, "{\"error\":\"attestation unavailable\"}\n", strlen("{\"error\":\"attestation unavailable\"}\n")); return; }
+    const size_t k = AVmAttestationResult_getCertificateCount(res);
+    size_t cap = 1024; for (size_t i = 0; i < k; i++) cap += AVmAttestationResult_getCertificateAt(res, i, NULL, 0) * 4 / 3 + 8;
+    char *js = malloc(cap + 1024); uint8_t *der = NULL;
+    if (!js) { AVmAttestationResult_free(res); return; }
+    char nh[65], ah[65], sh[89]; uint8_t spki[44]; memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
+    sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(e->app, 32, ah); for (int i = 0; i < 44; i++) sprintf(sh + 2 * i, "%02x", spki[i]);
+    size_t o = (size_t)snprintf(js, cap, "{\"format\":\"enclave-pvm-app-evidence/v1\",\"nonce\":\"%s\",\"app\":\"%s\",\"spki\":\"%s\",\"identity\":\"", nh, ah, sh);
+    for (const char *q = e->identity; *q && o + 4 < cap; q++) { if (*q == '"' || *q == '\\') js[o++] = '\\'; js[o++] = *q; }   /* the identity as a JSON string */
+    o += (size_t)snprintf(js + o, cap - o, "\",\"selftest\":\"%s\",\"chain\":[", g_abi2_tuple);
+    for (size_t i = 0; i < k; i++) {
+        const size_t sz = AVmAttestationResult_getCertificateAt(res, i, NULL, 0);
+        uint8_t *nd = realloc(der, sz); if (!nd) break; der = nd;
+        AVmAttestationResult_getCertificateAt(res, i, der, sz);
+        js[o++] = i ? ',' : ' '; if (!i) o--; js[o++] = '"'; o += b64_encode(der, sz, js + o); js[o++] = '"';
+    }
+    o += (size_t)snprintf(js + o, cap - o, "]}\n");
+    AVmAttestationResult_free(res); free(der);
+    if (write_all(c, js, o) == 0) { e->answered++; OUT("EVIDENCE answered nonce=%.16s... (%zu certificates, answer %d)", nh, k, e->answered); }
+    free(js);
+}
+static void *evidence_server(void *arg) {
+    evidence_srv *e = (evidence_srv *)arg; uint64_t last = 0;
+    while (!e->stop) {
+        struct pollfd pf = { .fd = e->ls, .events = POLLIN };
+        if (poll(&pf, 1, 500) <= 0 || !(pf.revents & POLLIN)) continue;
+        const int c = accept(e->ls, NULL, NULL); if (c < 0) continue;
+        const uint64_t now = boot_ms();
+        if (last && now - last < 2000) { write_all(c, "{\"error\":\"one evidence answer every 2 s\"}\n", strlen("{\"error\":\"one evidence answer every 2 s\"}\n")); close(c); continue; }
+        last = now; evidence_answer(e, c); close(c);
+    }
+    return NULL;
 }
 /* A wasi:http app (APP ... serve=http; runtime/pvm-rt httpd.rs): verified, compiled and pre-instantiated once, then served
  * on APP_HTTP_PORT one connection at a time -- a fresh instance per request, 256 MiB and a deadline each -- until the owner
@@ -1287,6 +1361,12 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
     memcpy(g_app_sha256, plan->sha256, 32); g_app_have = 1;
     const int ls = vs_bind(APP_HTTP_PORT);
     if (ls < 0) { hclose(srv); OUT("APP refused: cannot listen on the http port"); return 4; }
+    evidence_srv ev = { .ls = -1, .stop = 0, .identity = a->identity, .answered = 0 }; pthread_t evt; int ev_on = 0;
+    if (tls) {   /* LAB: the client-verified channel's evidence endpoint beside the TLS app port */
+        memcpy(ev.app, plan->sha256, 32); ev.ls = vs_bind(EVIDENCE_PORT);
+        if (ev.ls >= 0 && pthread_create(&evt, NULL, evidence_server, &ev) == 0) { ev_on = 1; OUT("APP evidence endpoint on vsock %d: a client's nonce gets a fresh ABI/2 certificate for this app and this VM's transport key", EVIDENCE_PORT); }
+        else { if (ev.ls >= 0) close(ev.ls); OUT("APP evidence endpoint NOT available (a client cannot verify this VM itself)"); }
+    }
     OUT("APP serving %s on vsock %d: %s compile_ms=%llu%s%s", tls ? "https (TLS 1.3, the attested transport key)" : "http", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "");
     for (;;) {
         struct pollfd pf[2] = { { .fd = ls, .events = POLLIN }, { .fd = g_ctl, .events = POLLIN } };
@@ -1301,6 +1381,7 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
         }
     }
     close(ls);
+    if (ev_on) { ev.stop = 1; pthread_join(evt, NULL); close(ev.ls); OUT("APP evidence endpoint closed after %d answers", ev.answered); }
     OUT("APP served %s requests=%llu%s%s", hh, (unsigned long long)hreqs(srv), ops ? " graph=" : "", ops ? plan->graph : "");
     hclose(srv);
     return 0;

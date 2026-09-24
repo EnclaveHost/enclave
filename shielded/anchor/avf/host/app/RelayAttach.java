@@ -28,8 +28,10 @@ public final class RelayAttach {
     String padKey = "";                       // the VM's X25519 pad key (PADKEY), presented with the attestation
     /* LAB serving prototype (PVM-CPU.md): the relay's fresh nonce for the app's ABI/2 evidence, hex, from abi2-challenge */
     final java.util.concurrent.CompletableFuture<String> abi2Nonce = new java.util.concurrent.CompletableFuture<>();
-    /* opens a stream to the VM's app port; set once the VM serves https (TLS terminates IN the VM, this app never holds a key) */
-    volatile java.util.function.Supplier<android.os.ParcelFileDescriptor> vmConnect;
+    /* opens a stream to a VM port; set once the VM serves https (TLS terminates IN the VM, this app never holds a key) */
+    volatile java.util.function.IntFunction<android.os.ParcelFileDescriptor> vmConnect;
+    /* the only stream kinds this app carries, and the VM port each goes to: the TLS app port and the evidence endpoint */
+    static int portOf(String kind) { return "pvm-app-tls".equals(kind) ? 7786 : "pvm-evidence".equals(kind) ? 7787 : -1; }
     private final java.util.concurrent.ConcurrentHashMap<Long, Pipe> pipes = new java.util.concurrent.ConcurrentHashMap<>();
     /* One relay raw stream spliced to one VM connection. The bytes are TLS ciphertext end to end: they are copied, counted
      * and never logged, parsed or kept. */
@@ -104,11 +106,12 @@ public final class RelayAttach {
                     Main.say("RELAY caps " + (o.optBoolean("ok") ? "ADMITTED tier=" + o.optString("tier") : "REFUSED: " + o.optJSONArray("reasons"))); continue; }
                 if ("s+".equals(t)) {
                     final long sid = o.optLong("sid", -1);
-                    if (!"pvm-app-tls".equals(o.optString("kind")) || vmConnect == null || sid < 0) {
+                    final int port = portOf(o.optString("kind"));
+                    if (port < 0 || vmConnect == null || sid < 0) {
                         sendFrame(new JSONObject().put("t", "s=").put("sid", o.opt("sid")).put("ok", false).put("err", "phone anchor carries no streams"));
                         continue;
                     }
-                    new Thread(() -> openPipe(sid), "relay-stream-" + sid).start();   // connecting must not stall this loop
+                    new Thread(() -> openPipe(sid, port), "relay-stream-" + sid).start();   // connecting must not stall this loop
                     continue;
                 }
                 if ("sd".equals(t)) { Pipe pp = pipes.get(o.optLong("sid", -1)); if (pp != null) { byte[] b = Base64.getDecoder().decode(o.optString("d"));
@@ -130,14 +133,14 @@ public final class RelayAttach {
     /** The pVM's capability report (PVM-CPU.md): report hex -> base64 as the relay parses it, signature as hex. The app only
      *  carries these bytes; the relay verifies them against the key this VM attested (relay/pvm-cpu-tier.mjs). */
     /* LAB: one relay raw stream -> one connection to the VM's TLS app port; VM -> relay pumped here, relay -> VM in serve() */
-    private void openPipe(long sid) {
+    private void openPipe(long sid, int port) {
         android.os.ParcelFileDescriptor pfd = null;
-        try { java.util.function.Supplier<android.os.ParcelFileDescriptor> c = vmConnect; pfd = c == null ? null : c.get(); } catch (Exception ignored) { }
+        try { java.util.function.IntFunction<android.os.ParcelFileDescriptor> c = vmConnect; pfd = c == null ? null : c.apply(port); } catch (Exception ignored) { }
         try {
-            if (pfd == null) { sendFrame(new JSONObject().put("t", "s=").put("sid", sid).put("ok", false).put("err", "the VM's app port did not answer")); return; }
+            if (pfd == null) { sendFrame(new JSONObject().put("t", "s=").put("sid", sid).put("ok", false).put("err", "the VM's port " + port + " did not answer")); return; }
             Pipe p = new Pipe(pfd); pipes.put(sid, p);
             sendFrame(new JSONObject().put("t", "s=").put("sid", sid).put("ok", true));
-            Main.say("RELAY stream " + sid + " opened to the VM's TLS app port (the bytes are ciphertext; sizes only are logged)");
+            Main.say("RELAY stream " + sid + " opened to the VM's " + (port == 7786 ? "TLS app port (the bytes are ciphertext" : "evidence endpoint (public evidence") + "; sizes only are logged)");
             java.io.InputStream fromVm = new java.io.FileInputStream(pfd.getFileDescriptor()); byte[] buf = new byte[1 << 16]; int n;
             while ((n = fromVm.read(buf)) > 0) { p.out += n; sendFrame(new JSONObject().put("t", "sd").put("sid", sid).put("d", Base64.getEncoder().encodeToString(java.util.Arrays.copyOf(buf, n)))); }
         } catch (Exception ignored) { }

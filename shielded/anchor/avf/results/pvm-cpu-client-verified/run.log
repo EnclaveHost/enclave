@@ -1,0 +1,6 @@
+23:50:24 apk b3c00879746da0a6825249330a4b9b847fb8b6274f15ea5da57bd50fc434da5d installed; the CLIENT pins code hash e308895a8cc312c47824e974f256402d4d2aa678807de7b5adbab228deabe371, app 1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339, the pVM runtime, Google's roots
+23:50:26 == launch 1
+23:52:04 l1: the VM serves https and answers evidence (94 s)
+23:52:44 termination: waiting for the lab STOP and the run's end
+23:55:29 == launch 2 (reconnect)
+23:57:12 l2: the VM serves https and answers evidence (100 s)

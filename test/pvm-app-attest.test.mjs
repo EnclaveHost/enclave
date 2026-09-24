@@ -5,6 +5,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { abi2FromLog, bind2, canonical, checkRuntimeSelfTest, runtimeId, validateRuntimeIdentity, verifyPvmAppAbi2 } from "../relay/pvm-app-attest.mjs";
+import { haveOpenssl, tmpdir, makeCa, issueLeaf, extension, AUTH } from "./fixtures/avf-synthetic.mjs";
+import { verifyPvmAppEvidence, PVM_APP_EVIDENCE_FORMAT } from "../relay/pvm-app-attest.mjs";
+import { generateKeyPairSync, randomBytes } from "node:crypto";
 
 // isolation/contract/vectors.json at fb5e466c: "bind"[0] inputs and the "runtime" vectors
 const SPKI = Buffer.from("00191e172c253a334841465f546d627b70898e879c95aaa3b8b1b6cfc4ddd2ebe0f9fef70c051a132821263f344d425b50696e677c758a83989196afa4bdb2cbc0d9ded7ece5faf30801061f142d223b30494e475c556a63787176", "hex");
@@ -102,4 +105,60 @@ test("the capture's ABI2 lines are read apart from the attach chain", () => {
   assert.equal(e.identity, PIXEL); assert.equal(e.selftest, TUPLE);
   assert.deepEqual(e.chain.map((c) => c.toString("hex")), ["010203", "0405"]);
   assert.equal(e.binding.runtimeId, PIXEL_RID); assert.equal(e.binding.app, APP.toString("hex"));
+});
+
+// A CLIENT's own verification of an evidence envelope (verifyPvmAppEvidence): real chains from the synthetic CA, the
+// client's own nonce and pins; everything the carrier could change is refused.
+
+test("client-verified evidence: the client's nonce, app and pins decide; substitution, staleness and relabelling are refused",
+     { skip: !haveOpenssl && "openssl not installed" }, () => {
+  const dir = tmpdir("pvm-evidence-");
+  const ca = makeCa(dir);
+  const CODE = createHash("sha256").update("pvm-cpu protected build").digest();
+  const APP_ID = createHash("sha256").update("ggml-probe").digest("hex");
+  const vmKey = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
+  const relayKey = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
+  // the VM's answer to a nonce: a certificate over Bind2(spki, nonce, RID) || app
+  const answer = ({ nonce, spki = vmKey, app = APP_ID, identity = PIXEL, code = CODE }) => {
+    const challenge = Buffer.concat([bind2(spki, nonce, createHash("sha256").update(identity).digest()), Buffer.from(app, "hex")]);
+    const leaf = issueLeaf(dir, { ext: extension({ challenge, code }) });
+    return { format: PVM_APP_EVIDENCE_FORMAT, nonce: nonce.toString("hex"), app, spki: spki.toString("hex"), identity, selftest: TUPLE,
+             chain: [leaf.leaf, ca.inter, ca.root].map((d) => d.toString("base64")) };
+  };
+  const pins = (nonce, over = {}) => ({ nonce, appId: APP_ID, allowedRuntimeIds: [PIXEL_RID], allowedCodeHashes: [CODE.toString("hex")],
+                                        allowedAuthorityHashes: [AUTH.toString("hex")], rootPins: [ca.rootPin], ...over });
+  const n1 = randomBytes(32), n2 = randomBytes(32);
+  const good = answer({ nonce: n1 });
+  const r = verifyPvmAppEvidence(good, pins(n1));
+  assert.equal(r.ok, true, r.reasons.join(" | "));
+  assert.equal(r.transportSpki, vmKey.toString("hex"), "the key to pin is the attested one");
+  const refused = (env, p, why) => { const v = verifyPvmAppEvidence(env, p); assert.equal(v.ok, false, why); assert.equal(v.transportSpki, null); return v.reasons.join(" "); };
+  // a malicious carrier puts ITS key in the envelope: the challenge no longer matches
+  assert.match(refused({ ...good, spki: relayKey.toString("hex") }, pins(n1), "key swap"), /attestationChallenge/);
+  // ...or has a genuine-looking certificate over its own key (it cannot: only a VM running the pinned build attests) -- modelled by a leaf with another code hash
+  assert.match(refused(answer({ nonce: n1, spki: relayKey, code: createHash("sha256").update("not our build").digest() }), pins(n1), "other build"), /allowlisted codeHash/);
+  // stale: the previous session's evidence against a new nonce, as is and with the nonce field rewritten
+  assert.match(refused(good, pins(n2), "stale"), /another nonce/);
+  assert.match(refused({ ...good, nonce: n2.toString("hex") }, pins(n2), "stale relabelled"), /attestationChallenge/);
+  // wrong app: as is, and with the app field rewritten to the expected one
+  const other = answer({ nonce: n1, app: "e".repeat(64) });
+  assert.match(refused(other, pins(n1), "wrong app"), /another app/);
+  assert.match(refused({ ...other, app: APP_ID }, pins(n1), "app relabelled"), /attestationChallenge/);
+  // wrong runtime: a restated identity is not an admitted runtime; a client pinning another runtime refuses the real one
+  const restated = PIXEL.replace("49.0.0", "48.0.1");
+  assert.match(refused(answer({ nonce: n1, identity: restated }), pins(n1), "restated runtime"), /not an admitted runtime/);
+  assert.match(refused(good, pins(n1, { allowedRuntimeIds: ["a".repeat(64)] }), "other runtime pinned"), /not an admitted runtime/);
+  // freshness of the certificate itself, malformed envelopes, and a caller without pins
+  assert.match(refused(good, pins(n1, { now: Date.now() + 3 * 24 * 3600 * 1000 }), "expired"), /expired/);
+  assert.match(refused({ ...good, format: "x" }, pins(n1), "format"), /format/);
+  assert.match(refused({ ...good, spki: "00" }, pins(n1), "spki"), /Ed25519 SPKI/);
+  assert.match(refused(good, pins(n1, { allowedCodeHashes: [] }), "no code pins"), /fail closed/);
+  for (const k of ["allowedRuntimeIds", "allowedAuthorityHashes", "rootPins"]) assert.match(refused(good, pins(n1, { [k]: [] }), k), /fail closed/);
+  // a closed shape: an extra field, a padded chain entry, an uppercase nonce, a long identity -- each refused
+  assert.match(refused({ ...good, note: "x" }, pins(n1), "extra field"), /exactly/);
+  assert.match(refused({ ...good, chain: [good.chain[0] + "AA", ...good.chain.slice(1)] }, pins(n1), "padded der"), /canonical base64|attestation|DER/);
+  assert.match(refused({ ...good, nonce: good.nonce.toUpperCase() }, pins(n1), "uppercase"), /64 lowercase hex/);
+  assert.match(refused({ ...good, identity: " ".repeat(1025) }, pins(n1), "long identity"), /1024/);
+  assert.equal(r.freshness, "client-nonce");
+  assert.equal(r.appId, APP_ID, "the app compared is the caller's");
 });
