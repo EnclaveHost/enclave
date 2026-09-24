@@ -111,3 +111,52 @@ app; a genuine policy's expectations are exactly what `verifier/admission.mjs` t
 them; expired, not-yet-valid, a flipped signature, a flipped hex digit inside a pinned hash, a structural byte,
 padded bytes, an extra or reordered field, an envelope with a third field and non-strict base64 each refuse.
 Every outcome matches the device's recorded outcome for the same case.
+
+## Persistence gap in client 0.1.0 (independent audit, 2026-09-24): finding, reproduction, what the fix must pass
+
+**Finding (from the code at 4e55879b, confirmed here).** `src/client.js connect()` verifies the policy first and computes
+the advanced state (`pol.state`, the new serial and digest), but returns it only after the whole relay exchange;
+`cli.mjs` writes the state file after `await connect` through one fixed `state.json.tmp` name with a plain
+read-modify-write, and `ext/client.src.js` does the same with `chrome.storage.local` after `await connect`. So: (a) a
+carrier that stalls the evidence request after the client accepted a newer policy, followed by a kill or a tab close,
+leaves the OLD serial, and a later rollback to the older policy is accepted; (b) two CLI processes or two extension
+pages read the same old state, finish out of order, and the older completion overwrites the newer serial; (c) the fixed
+temp name adds a writer race. The pure policy check on this branch (`verifier/pvm-policy.mjs`, 7/7 on the device run's
+policies) does not test this orchestration and does not close it.
+
+**The owner's fix (0.2.0, agreed).** Policy acceptance becomes a durable monotonic COMMIT that completes before any
+evidence request, request or release, verifying against the latest committed state inside the commit: the CLI keeps a
+generation log (a unique temp file, fsync, `link()` to `<gen+1>.json` as a lock-free compare-and-swap, EEXIST means
+re-read and re-verify so a stale policy becomes a rollback or equivocation refusal, then a directory fsync; the newest
+generation is the state, a corrupt newest is fatal with no fallback, the old `state.json` is imported once); the
+extension does its read-verify-write inside a Web Locks exclusive lock and reads the written generation back; if the
+commit cannot be made durable nothing is sent; updates and key rotation go through the same commit. Semantics agreed:
+a refusal decided on a stale generation is retried once against the latest and is then final; the same serial with
+the same bytes is idempotent; the same serial with other bytes is equivocation and final. Asks sent with the
+agreement: keep `--state FILE` as the location and document the layout (or add `pvm-client state` to print the
+committed state), report a failed commit as `step: "commit"` with a non-zero exit, and have the extension refuse to
+proceed if the read-back generation is not the one written.
+
+**Independent black-box suite** (`test/verifier-pvm-client-persistence.test.mjs`, run by `npm run test:client-persistence`
+against the BUILT client pinned as `pvm-client-dist`): a fake carrier serves policies the test signs under a lab key it
+generates and installs as the anchor; a fake relay holds each client's `/evidence` request as the deterministic barrier
+"the client acted on the policy" (no evidence can verify offline, so releasing answers 503); every wait is a race between
+the client exiting and its request arriving, so a gap fails an assertion instead of hanging. Written from the design
+text and the finding, not from the client's code; the state is read by numeric generation independent of layout. It
+asserts the fixed behaviour, so against 0.1.0 it fails by design and the output is the reproduction:
+
+| case | required behaviour | on 0.1.0 (4e55879b) |
+|---|---|---|
+| 1 stall after acceptance, kill, rollback | serial 2 committed at the barrier, survives SIGKILL, serial 1 later refused with no request | `serial 2 must be committed before the client acts on the policy (committed: serial 1)` |
+| 2 concurrent old/new, new first | 6 committed before acting, the old one refused, no request | `the newer serial committed before acting 1 !== 6` |
+| 3 concurrent old/new, old starts first, finishes last | state 6 while both act, never overwritten | `both accepted in order; the state is the newer 1 !== 6` |
+| 3b lost update | after the newer completes the state is 6; the older completion must not overwrite it | `the older client's completion must not overwrite the newer serial (final 5) 5 !== 6` |
+| 4 equal serial, other bytes, concurrently | the second refused as equivocation, no request; same bytes idempotent | `equivocation must be refused without acting on it (its evidence request arrived instead)` |
+| 5 failed persistence (read-only store) | no evidence request, no sealed request, non-zero exit, floor unchanged | `the client must refuse before acting when its store is not writable (its evidence request arrived instead)` |
+| 6 corrupt state | fatal, no request | passes already |
+| 7 attacker policy then stall, then a genuine newer one | no trace of the attacker's; the genuine one committed before acting | `committed before acting 1 !== 2` |
+
+Result: 8 cases, 1 pass, 7 fail against 0.1.0 (`client-persistence: 7 case(s) FAILED against 4e55879b9329`). When the
+owner's 0.2.0 lands, the pin is bumped to its commit and hashes (both `pvm-client-dist` and `pvm-client-artifact`) and
+the same suite must pass unchanged; only then is the gap closed. Kept apart from `npm run test:integration` until then,
+so the other acceptance suites keep a meaningful PASS.

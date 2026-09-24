@@ -29,5 +29,18 @@
     "mustMatchWorktree": [],
     "pinnedAt": "2026-09-24",
     "note": "SEALED-STREAMING.md at 36f040d1 is the protocol text (unchanged since); this revision classifies an unknown chunk type as malformed (matching verifier/sealed-stream.mjs) and stops releasing on cancel; the device traces under test/fixtures/verifier/pvm-sealed/traces are from this commit"
+  },
+  "pvm-client-dist": {
+    "purpose": "the pVM owner's BUILT installed client (CLI bundle) at the pinned commit, run black-box by test/verifier-pvm-client-persistence.test.mjs; never copied into this branch",
+    "branch": "pvm-cpu/portable-runtime",
+    "commit": "4e55879b9329100bee8b70e61bd8b75ec7b43654",
+    "entry": "shielded/anchor/avf/client/dist/pvm-client.mjs",
+    "env": "ENCLAVE_PVM_CLIENT_CLI",
+    "files": {
+      "shielded/anchor/avf/client/dist/pvm-client.mjs": "52d4483245eeb4fa37f4f57eb2c7e416a9c5c57c54d1436dabffdae6f230897c"
+    },
+    "mustMatchWorktree": [],
+    "pinnedAt": "2026-09-24",
+    "note": "client 0.1.0; this revision has the persistence gap (policy acceptance persisted only after the exchange): the persistence suite FAILS against it by design until the owner's fix (0.2.0) is pinned; the same bytes the reproduce step rebuilds"
   }
 }
