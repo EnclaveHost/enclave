@@ -148,3 +148,15 @@ test("the prefetch a tier box asks for carries the same derivation record as its
   assert.deepEqual(r.prefetch[0], { image: g.wasmRef, derive: r.derive[0] });
   assert.match(r.prefetch[1].error, /needs a catalog version/);
 });
+
+test("the record digest a tier spawn compares is guestd's recordSha256 for the same record", async () => {
+  // the production canary's record, and the recordSha256 guestd and the independent reference both reported for it
+  const rec = { derivation: "enclave-catalog-bundle/1",
+    catalog: { app: "0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed", version: 4 },
+    cid: "bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza",
+    policy: { cpuPercent: 100, memMiB: 128, vcpus: 1 },
+    runtimeId: "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8" };
+  const r = await seam({ recordDigest: [rec, { ...rec, policy: { ...rec.policy, memMiB: 256 } }] }, TIER);
+  assert.equal(r.recordDigest[0], "bff33b951aade0a921edea4b0aca89712005d20cbb2c074c0f885d079e059d6c");
+  assert.notEqual(r.recordDigest[1], r.recordDigest[0]);
+});
