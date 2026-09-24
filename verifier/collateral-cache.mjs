@@ -3,9 +3,12 @@
 // collateral accepted; what this adapter adds is that a cache can never make VALID collateral unavailable either, and
 // that nothing unauthenticated is stored or served:
 //   - every entry is authenticated against the pinned AMD roots BEFORE it is served (the chain by parseAmdChain: the
-//     pinned ARK, the ASK signed by it, both valid now; the VCEK by its subject, issuer, validity and the ASK's signature;
-//     the CRL by checkCrlAuthentic: RSASSA-PSS, the pinned ARK as issuer and signer, not from the future). An entry that
-//     fails is quarantined (renamed aside, never served) and the next source is tried;
+//     pinned ARK, the ASK signed by it, both valid now; the VCEK by its subject, issuer, validity, the ASK's signature AND
+//     its AMD extensions naming exactly the chip id and TCB the slot is keyed by (vcekMatchesReport, the verifier's own
+//     matcher), so an authentic certificate for another chip or TCB can never occupy a slot and shadow a healthy upstream
+//     (a finding of Codex's review, 2026-09-24); the CRL by checkCrlAuthentic: RSASSA-PSS, the pinned ARK as issuer and
+//     signer, not from the future). An entry that fails is quarantined (renamed aside, never served) and the next source
+//     is tried;
 //   - only bytes that passed that authentication are written, atomically (temp + rename) with a sidecar of sha256,
 //     source, fetchedAt; a poisoned or garbage upstream answer is refused and not cached;
 //   - a CRL past its nextUpdate is not served while an upstream can answer: the upstream is tried first; only when no
@@ -18,7 +21,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, X509Certificate } from "node:crypto";
-import { AMD_ARK_SHA256 } from "../relay/snp-verify.mjs";
+import { AMD_ARK_SHA256, vcekMatchesReport } from "../relay/snp-verify.mjs";
 import { parseAmdChain, checkCrlAuthentic } from "./snp.mjs";
 import { parseCrl } from "./der.mjs";
 
@@ -64,21 +67,25 @@ export function cachedCollateral({ dir, upstream = null, now = () => new Date(),
     return { pem: r.pem, source: r.source ?? "upstream", fetchedAt: r.fetchedAt ?? null, cached: false };
   }
   async function askOf(product) { if (!chainMemo.has(product)) await chain(product); return chainMemo.get(product); }
-  const vcekWhy = (der, product, ask) => {
+  // a VCEK is authentic for a SLOT only if it is AMD's for this product AND its extensions name the slot's chip id and TCB
+  const vcekWhy = (der, product, ask, chipIdHex, tcbHex) => {
     let v; try { v = new X509Certificate(der); } catch (e) { return `VCEK unparseable: ${e.message}`; }
     if (cn(v.subject) !== "SEV-VCEK") return `VCEK subject CN is ${cn(v.subject)}`;
     if (cn(v.issuer) !== `SEV-${product}`) return `VCEK issuer CN is ${cn(v.issuer)}, expected SEV-${product}`;
     const t = now(); if (t < new Date(v.validFrom) || t > new Date(v.validTo)) return `VCEK not valid at ${t.toISOString()}`;
     if (v.publicKey.asymmetricKeyType !== "ec" || v.publicKey.asymmetricKeyDetails?.namedCurve !== "secp384r1") return "VCEK key is not EC P-384";
     if (!v.checkIssued(ask) || !v.verify(ask.publicKey)) return "VCEK is not signed by the ASK";
+    const mismatch = vcekMatchesReport(der, product, { chipId: Buffer.from(chipIdHex, "hex"), reportedTcb: Buffer.from(tcbHex, "hex") });
+    if (mismatch) return `${mismatch} (the slot ${chipIdHex.slice(0, 16)}.../${tcbHex}: an authentic certificate for another chip or TCB is not this slot's)`;
     return null;
   };
   async function vcek(product, chipIdHex, tcbHex, kdsPath) {
+    if (!/^[0-9a-f]{128}$/.test(chipIdHex || "") || !/^[0-9a-f]{16}$/.test(tcbHex || "")) throw new Error(`VCEK slot key malformed (chip id ${JSON.stringify(chipIdHex)}, TCB ${JSON.stringify(tcbHex)}): 64-byte and 8-byte lowercase hex are required`);
     const f = file(product, path.join("vcek", `${safe(chipIdHex)}-${safe(tcbHex)}.der`));
     const { ask } = await askOf(product);
     const cached = read(f);
     if (cached) {
-      const m = meta(f), why = vcekWhy(cached, product, ask);
+      const m = meta(f), why = vcekWhy(cached, product, ask, chipIdHex, tcbHex);
       if (!why && m && m.sha256 === sha256(cached)) { stats.hits++; return { der: cached, source: `cache:${f}`, fetchedAt: m.fetchedAt ?? null, cached: true }; }
       quarantine(f, why || "sidecar missing or its sha256 does not match the bytes");
     } else stats.misses++;
@@ -87,7 +94,7 @@ export function cachedCollateral({ dir, upstream = null, now = () => new Date(),
     const r = await upstream.vcek(product, chipIdHex, tcbHex, kdsPath);
     if (!r) return null;
     if (!Buffer.isBuffer(r.der)) throw new Error(`VCEK from ${r.source} is not bytes`);
-    const why = vcekWhy(r.der, product, ask);
+    const why = vcekWhy(r.der, product, ask, chipIdHex, tcbHex);
     if (why) { note("upstream-refused", `${product} VCEK ${chipIdHex.slice(0, 16)} from ${r.source}`, why); throw new Error(`VCEK from ${r.source} failed authentication: ${why}`); }
     write(f, r.der, { source: r.source ?? null, fetchedAt: r.fetchedAt ?? now().toISOString(), chipId: chipIdHex, tcb: tcbHex });
     return { der: r.der, source: r.source ?? "upstream", fetchedAt: r.fetchedAt ?? null, cached: false };

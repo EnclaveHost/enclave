@@ -246,9 +246,13 @@ which collateral was stale.
 
 **Built (2026-09-24, M1 slice): `verifier/collateral-cache.mjs`**, an authenticated, freshness-aware disk cache in
 front of any adapter (`cachedCollateral({ dir, upstream, now, roots })`; CLI `--cache-dir`). Every entry is
-authenticated against the pinned AMD roots before it is served (the chain through `parseAmdChain`, the VCEK by subject,
-issuer, validity and the ASK's signature, the CRL through `checkCrlAuthentic`, both extracted from the SNP verifier
-without changing its behaviour); an entry that fails is quarantined, never served, and the next source is tried; only
+authenticated against the pinned AMD roots before it is served (the chain through `parseAmdChain`; the VCEK by subject,
+issuer, validity, the ASK's signature and, since Codex's review of the first cut found it missing, its AMD extensions
+naming exactly the chip id and TCB the slot is keyed by, through the verifier's own `vcekMatchesReport`, so an authentic
+certificate for another chip or TCB can never occupy a slot and shadow a healthy upstream (finding F4, an availability
+poisoning of this cache, not an attestation bypass, closed in the same change with Codex's reproduction and the
+wrong-chip, wrong-TCB and recovery regressions); the CRL through `checkCrlAuthentic`; the two authenticators extracted
+from the SNP verifier without changing its behaviour); an entry that fails is quarantined, never served, and the next source is tried; only
 authenticated bytes are written, atomically with a sha256 sidecar; a poisoned or garbage upstream answer is refused
 and not cached; a CRL past `nextUpdate` is refreshed from the upstream first and served stale only when no upstream
 answers, flagged so the CRL policy decides (`required` rejects, `stale-ok` is limited within its bound); an authentic

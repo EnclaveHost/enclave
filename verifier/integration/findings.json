@@ -36,5 +36,17 @@
       "how": "closure path 1 of the rule: a run whose carrier-side copies are present and equal to the generation log for every exchange (20 rows, 0 null snapshots), executed with capture tooling committed before it (75a8ffca) and a preflight that fails loudly on a missing state. The additional bounded run was directed by Codex under Steven's standing validation scope; Steven sent no fresh approval message; that does not affect the run's technical validity and authorises no host setting or reboot."
     },
     "retainedRecord": "run 2 (ae209496) stays a RECORDED FAILED RUN, never relabelled accepted: its fixture and its own failed checker output are unchanged; the run-2 review carries an F2-style regression case that passes only when the precise null-copy defect reproduces (any other defect fails); and the original equality assertion (test/helpers/pvm-device-state-copy.mjs, the one run 3 must pass) is verified to fail on run 2 with its recorded reason by the separately invoked negative runner verifier/integration/run-device-2-negative.mjs (npm run test:client-device-2-negative). The strict acceptance command has no expected failure of any kind."
+  },
+  "F4-cache-vcek-slot-unbound": {
+    "title": "verifier/collateral-cache.mjs (first cut, 5522f542) authenticated a VCEK's issuer, signature and validity but not its chip id and TCB extensions against the requested slot: an authentic certificate for another chip could occupy the slot and shadow a healthy upstream (availability poisoning; the verifier still rejected the mismatch, so not a bypass)",
+    "status": "closed",
+    "raised": "2026-09-24",
+    "raisedWith": "found and reproduced by Codex's independent review of 5522f542 under Steven's standing scope; this session's own defect",
+    "pin": "self",
+    "knownOn": "5522f542",
+    "closedBy": {
+      "how": "the slot binding through the verifier's own vcekMatchesReport on cache hits and upstream answers, the slot key format validated; regressions: Codex's reproduction, planted wrong-TCB and wrong-chip entries quarantined then restored from a healthy upstream with the verdict verified, the upstream down giving rejected, an upstream serving another chip's certificate refused and not cached"
+    },
+    "closed": "2026-09-24"
   }
 }
