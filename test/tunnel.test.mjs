@@ -117,6 +117,27 @@ test("tunnel: the token binds a name; a wrong token or a bad name never attaches
   } finally { await h.close(); }
 });
 
+test("tunnel: a hello frame never sets the mode - a token-attached box that says snp stays unverified", async () => {
+  // The mode is the hub's verdict from attach ("snp"/"avf"/"vbs" after a verified quote or chain,
+  // "" for a token attach). `t.mode = f.mode || t.mode` in the hello handler let a token-attached
+  // metal box promote itself to "snp", which downstream read as "the relay verified a fresh SEV-SNP
+  // quote" (pricing.js teeCpuOf source "relay") and made it eligible for tenant work on its own word.
+  const h = await hubServer();
+  try {
+    const { ws } = await dial(h.url, { "x-metal-name": "metal0", "x-metal-token": TOKEN });
+    await settle();
+    assert.equal(h.hub.origins()[0].mode, "", "a token attach verified nothing");
+    for (const claimed of ["snp", "avf", "vbs", "tdx"]) {
+      ws.send(JSON.stringify({ t: "hello", mode: claimed, publicUrl: "https://api.enclave.host/t/metal0" }));
+      await settle();
+      assert.equal(h.hub.origins()[0].mode, "", `hello mode:${claimed} must not promote a token attach`);
+      assert.equal(h.hub.info("metal0").mode, "", "info() reads the same verdict");
+    }
+    assert.equal(h.hub.origins()[0].publicUrl, "https://api.enclave.host/t/metal0", "the rest of the hello still lands");
+    ws.close();
+  } finally { await h.close(); }
+});
+
 test("tunnel: only a SELF-ROUTED publicUrl is honored — a box cannot claim another enclave's endpoint", async () => {
   const h = await hubServer();
   try {
@@ -544,6 +565,10 @@ test("avf: a Google-rooted chain over (transportKey || nonce) attaches as mode a
     assert.ok(row, "the phone is a tunnel origin now");
     assert.equal(row.mode, "avf", "the badge path reads mode avf, not snp");
     assert.equal(row.measurement, CODE.toString("hex"));
+    // a verified phone cannot relabel itself as a confidential server in its hello
+    good.ws.send(JSON.stringify({ t: "hello", mode: "snp", publicUrl: "https://api.enclave.host/t/pixel-1" }));
+    await settle();
+    assert.equal(h.hub.origins().find((o) => o.name === "pixel-1").mode, "avf", "hello mode:snp must not override the verified avf verdict");
     assert.equal(h.hub.info("pixel-1").padKey, "", "v1 cannot authenticate a pad recipient, even when it supplies one");
     try { good.ws.close(); } catch {}
 

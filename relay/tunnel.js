@@ -197,7 +197,14 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       let f; try { f = JSON.parse(data); } catch { return; }
       if (f.t === "hello") {
         const had = t.publicUrl;
-        t.mode = f.mode || t.mode; t.transportKeyFp = f.transportKeyFp || "";
+        // The MODE is the hub's verdict from attach (bind: "snp" / "avf" / "vbs" after a verified
+        // quote or chain, "" for a token or operator attach) and only the hub may set it. A box
+        // used to be able to promote itself here - `t.mode = f.mode || t.mode` - so a token-attached
+        // metal box saying `mode:"snp"` in its hello read, downstream, as "the relay verified a fresh
+        // SEV-SNP quote" (site/js/core/pricing.js teeCpuOf, source "relay") and became eligible for
+        // tenant work on its own word. Eligibility is derived from verified evidence, never from a
+        // self-reported string, so the hello's mode is recorded as what it is: a declaration.
+        t.declaredMode = f.mode || ""; t.transportKeyFp = f.transportKeyFp || "";
         t.publicUrl = selfRoutedUrl(f.publicUrl, name);
         if (f.publicUrl && !t.publicUrl)
           console.error(`[tunnel] ${name} claimed publicUrl ${String(f.publicUrl).slice(0, 120)} — IGNORED (not this tunnel's own https://<relay>/t/${name} route); its on-chain runner id stays unstamped`);

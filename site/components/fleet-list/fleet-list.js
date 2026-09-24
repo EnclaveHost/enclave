@@ -12,7 +12,7 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -33,7 +33,11 @@ class FleetList extends EnclaveElement {
     // it is a seller like any other box and gets the ordinary row: pool, share, price.
     // A relay row stays hidden either way: it sells nothing at all.
     const consumerNode = (e) => e.relay !== true && teeCpuOf(e).consumer === true;
-    const sells = (e) => e.serving === true || e.availability?.claimEnabled === true;
+    // A box SELLS only on hardware evidence for the contract it would be sold under
+    // (computeEligibleOf, the relay's rule mirrored): a box that merely says it claims,
+    // or that presents verified evidence for a different contract, draws no pools
+    // and no price here, because the relay will never route it a deployment.
+    const sells = (e) => (e.serving === true || e.availability?.claimEnabled === true) && computeEligibleOf(e);
     const rows = (this.rows || []).filter((e) => e.serving !== false || consumerNode(e));
     const meter = (pct) => '<i class="fleet-meter" aria-hidden="true"><b style="width:' + Math.max(0, Math.min(100, pct)) + '%"></b></i>';
     // one stat cell: bright available amount, then the "≈"/"/ total" context and
@@ -132,7 +136,9 @@ class FleetList extends EnclaveElement {
               + '</span>'
               + '<span class="fleet-relay-note">'
               + (parts.length ? parts.join(" \u00b7 ") : 'runs a model inside its enclave')
-              + (a.apps && a.apps.scope === 'owner-only' ? ' \u00b7 takes app work only from its own owner' : ' \u00b7 serves its own inference, not app deployments')
+              + (e.ineligible ? ' \u00b7 ' + esc(e.ineligible)
+                 : a.apps && a.apps.scope === 'owner-only' ? ' \u00b7 takes app work only from its own owner'
+                 : ' \u00b7 serves its own inference, not app deployments')
               + '</span>'
               + '</div>';
           }
@@ -163,8 +169,19 @@ class FleetList extends EnclaveElement {
           // those boxes must not inherit a green pill they did not prove: amber
           // "NO TEE CPU" when the box reports a non-TEE document (a metal dev
           // box), plain "CPU" when it has not said.
-          const teeCpuBadge = tc.real && tc.consumer
+          // THE PHONE TIER reads amber "pvm cpu": the relay verified the protected VM's chain, and the
+          // tier is under construction - CPU-only inference inside the pVM, admission by proven
+          // capability - so the badge is its identity and the tooltip is future tense. Never the jade
+          // "tee cpu" of the server contract, which this is not.
+          const teeCpuBadge = tc.real && tc.phone
+            ? '<span class="ap-badge warn" title="' + esc(tc.note) + '. The relay verified this phone’s protected-VM attestation chain when it attached.'
+              + ' The tier is being built for Pixel 10 and Pixel 11 and is not available for deployments yet.">pvm cpu</span>'
+            : tc.real && tc.consumer
             ? consumerBadge
+            : tc.unverified
+            ? '<span class="ap-badge warn" title="This tunnel box says its CPU is ' + esc(tc.label)
+              + ', but the relay verified no hardware quote when it attached (token or operator attach). A self-report is not evidence:'
+              + ' the box is not eligible for tenant work until it attaches with a verified quote.">unverified cpu</span>'
             : tc.real
             ? '<span class="ap-badge ok" title="' + esc(tc.label) + ' confidential VM: '
               + (tc.source === "relay"
@@ -197,6 +214,20 @@ class FleetList extends EnclaveElement {
           // untrusted host keeps the rest (on a desktop, an X server). Showing the
           // physical total here while the GPU pool showed the budget is what put
           // two differently-sized GPU rows on one single-card box.
+          // EVIDENCE WITHOUT ELIGIBILITY. A box the relay admitted but holds no hardware
+          // evidence for (a token-attached tunnel, a build that never named its CPU
+          // technology, a report for a different contract) is shown as what it is,
+          // attached, with no pools and no price. Drawing capacity for it would present
+          // as sellable a machine the relay will never route work to, and the reason
+          // is printed in the relay's own words (`ineligible`) when it gave one.
+          if (!sells(e)) {
+            return '<div class="fleet-row" title="' + esc(e.endpoint || "") + '">'
+              + '<span class="fleet-head">' + teeCpuBadge + '<span class="fleet-name">' + esc(name) + '</span></span>'
+              + '<span class="fleet-relay-note">attached, takes no tenant work: '
+              + esc(e.ineligible || (tc.real ? 'this box is not claiming' : 'no hardware evidence for the isolation contract'))
+              + '</span>'
+              + '</div>';
+          }
           const shPool = shieldedPoolOf(e);
           const shTotal = shPool ? shPool.total : 0;
           // LEASABLE, not resident. A shielded worker keeps only the model's

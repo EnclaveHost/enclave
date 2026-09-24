@@ -108,20 +108,7 @@
 .f-ava{flex:none;width:56px;height:56px;border-radius:12px;object-fit:cover;}
 .f-role{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);}
 .about-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;}
-/* protection levels: three wide cards (same grammar as .iso-cards); the
-   unlit third card is the planned tier - no jade, no iris, a dashed border */
-.lvl-cards{grid-template-columns:repeat(3,1fr);}
-.lvl-cards .card:not(.jade):not(.iris){border-style:dashed;}
-.lvl-cards .card:not(.jade):not(.iris) .tag{color:var(--text-dim);border-style:dashed;}
-/* status: three cards, lit by readiness - jade available, amber experimental,
-   dashed planned - so the section reads as a legend for the whole site */
-.status-cards{grid-template-columns:repeat(3,1fr);}
-.status-cards .card{padding:24px 26px;}
-.status-cards .tag{position:static;display:inline-block;margin:0 0 12px;padding:.35em .75em;border:1px solid var(--line);border-radius:6px;background:var(--bg-1);}
-.status-cards .tag:first-child + h3{margin-top:0;}
-.status-cards .card.jade .tag{color:var(--jade);border-color:rgba(47,230,168,.35);}
-.status-cards .card.amber .tag{color:var(--amber);border-color:rgba(255,145,77,.4);}
-.status-cards .card:not(.jade):not(.amber){border-style:dashed;}
-.status-cards .card:not(.jade):not(.amber) .tag{color:var(--text-dim);border-style:dashed;}
-.status-cards .card p{font-size:.9rem;line-height:1.62;}
-@media(max-width:1000px){.lvl-cards,.status-cards{grid-template-columns:1fr;}}
+/* protection levels: exactly two wide cards (same grammar as .iso-cards) -
+   there is no third tier, so nothing here is dashed or dimmed */
+.lvl-cards{grid-template-columns:1fr 1fr;}
+@media(max-width:1000px){.lvl-cards{grid-template-columns:1fr;}}

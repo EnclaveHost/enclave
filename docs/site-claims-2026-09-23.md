@@ -1,57 +1,91 @@
 # Site refresh 2026-09-23: claim-to-evidence record
 
-Branch `site/architecture-positioning`. Every public claim the refreshed site makes that is not
-self-evident from the running product, with the evidence it rests on and the status word it carries.
-Status words: **available** (a deployment can have it now), **experimental** (built and measured on a
-lab machine or one box), **planned** (designed or intended, not run). "Lab" means warden-host (AMD
-EPYC 9115, SEV-SNP, `vmpl_count=4`) unless another machine is named.
+Branch `site/architecture-positioning`. This is the review record for the public copy and for the
+admission code that the copy depends on. It is an engineering document: the public site itself
+carries no readiness taxonomy (no available / experimental / planned labels, no status board), by
+the owner's direction; present and future are told apart by tense, and the dated note at
+Develop > Architecture > "Engineering progress and evidence" is the one public place that records
+what has been demonstrated.
 
-| claim on the site | where | evidence | status | limits stated beside it |
-|---|---|---|---|---|
-| Compute that cannot see your data (hero) | index hero, README | SNP CVM on the hosted fleet: TLS in enclave, launch measurement in the signed report (`site/js/core/verify.js`, `supervisor.js` attestation endpoints); metal: `metal/README.md`, `metal/PROTOCOL.md` | available | scoped in the lede to confidential hardware; every other host labeled; physical memory-bus attacks out of scope (`docs/physical-tee-attacks.md`) |
-| One package runs on the confidential Linux fleet and on a Windows host | index Portable card, ticker, develop ch.01 | `wasm/wasm_manager.py` (components only); Windows node runs market apps inside VTL1 via wasmtime-pulley (`windows/node/host.mjs:1187-1193`, commit 319ce155); live `/enclaves` row `apps.isolation:"vbs-enclave", inTee:true` on 2026-09-23 | available | Windows is interpreted, dev tier, owner not excluded |
-| A versioned execution contract shared by every backend is in development | index Portable card, architecture #package | `isolation/contract/` (Go, `enclave-domain-abi/1`, `vectors.json`), `windows/vbslike/host/src/contract.rs`; both on main since merge b3496a8b | experimental | "nothing a deployment does today starts a domain through it"; no vector count published (no captured vector output in evidence files) |
-| Protection level stated on every host listing | index, architecture #protection | fleet badges from evidence only: `site/js/core/pricing.js` `teeCpuOf`/`enclaveClassOf`; relay tier verdict (`row.tier`) wins over the box's self-report | available | unknown reads plain "cpu", never green |
-| Confidential Linux: host OS and operator excluded, attested to the vendor root | index, architecture table | Tinfoil-measured image + SNP report, Sigstore provenance (`verify.js`); metal self-launched CVM with kernel/initrd/cmdline measured (`metal/build-image.mjs`, `metal/PROTOCOL.md`) | available | host can stop or starve; physical access out of scope |
-| Confidential GPU: card walled off from host, attests to vendor service | architecture table | prior site copy retained; `worker/`, `mps-daemon/`, NVIDIA CC mode; README "How it works" | available | shares are software caps; MIG disabled under CC |
-| Windows enclave node: owner's software excluded, owner not; no RAM encryption; traffic and TLS key on host side; test-signed | index Partitioned card, architecture #windows, host page | `isolation/DESIGN.md:39` (tier T2), `windows/PARITY.md:45-47, 58-70`, `windows/vbs/REPORT.md:12-26, 438-475`, `pricing.js:347`; live row 2026-09-23: `mode:"vbs"`, `tier:"vbs-dev"`, `claimEnabled` gated on apps-in-TEE, `fullService:false` | available, labeled dev tier | deployments created before listing are refused unless the owner chooses it (`windows/node/chain.mjs:402-434`) |
-| Hyper-V partition per app on Windows, same guest image as Linux, 30 checks | architecture #windows, #protection | `windows/vbslike/README.md` (evidence/lab-2026-09-23.json, 30/30; image sha256 `30d8e344…` byte-identical; `tier=T0-hv`, `hostExcluded:false`, verdict `monitor-signed`) | experimental | not deployed; host inside the trust boundary; excluding the host needs a paravisor-backed isolated partition (open) |
-| Native CreateEnclave is not the Windows roadmap | architecture #windows | user direction; `windows/vbslike/README.md` states the direction; the live node still uses the enclave API and is not described as abandoned | n/a | the live node is described as what it is |
-| M1/M2: one app per SNP guest, app in launch measurement, VCEK-chained attestation, TLS key bound | architecture #isolation | `isolation/DESIGN.md` sections 8 and 11 (M1 12 checks; M2 run 3, 21 checks + 23 negatives) | experimental | TCB floors were test values from the box; no host-memory confidentiality measurement |
-| M3a: several apps under a monitor, guest-kernel separation, labeled weaker | architecture #isolation | `isolation/m3/PLAN.md` (31 checks), `isolation/DESIGN.md:433` ("weaker than VMPL isolation, never equivalent") | experimental | |
-| M3b: SVSM at VMPL0, monitor at VMPL2, VMPL0 refused, derived digest equals live report; digest does NOT cover the monitor image | architecture #isolation | commits f838fff3, 00f8c2b4; `isolation/DESIGN.md:482-490, 525-529`; `isolation/m3/PLAN.md:702-710, 843-851` | experimental, with the stated limit | the monitor's naming of apps is not authenticated on this path; not app-vs-app hardware isolation |
-| M4a: one SNP guest per app via the contract; adversary's fully signed, correctly bound report rejected on measurement; independently rechecked from the saved workdir | architecture #isolation, index status card | commits 8651212b and 773a7450 (`judge-adv.mjs` now verifies through the real chain; `adv-report-fixtures.sh` 7 negatives; RECHECK re-derives AppIDs and measurements); user-confirmed recheck 2026-09-23: 14 PASS / 0 FAIL | experimental (measured, rechecked) | proves exactly one confidential guest per app; cost one guest per app; N4 does not apply; nothing in the product starts a domain |
-| M4b: one plane per app, app-naming authority in the measured SVSM, capped at 2 or 3 apps per guest | architecture #isolation | `isolation/m4/PLAN.md` sections 2 and 3; user-stated 2026-09-23: in progress | planned (in progress, unmeasured) | density above that means one guest per app; the M4a shape stays the scalable path |
-| Ordinary Linux hosts, one VM per app, no confidentiality claim | index, architecture table | `isolation/DESIGN.md` tier T0 ("must not claim confidentiality from the operator"); no such host in `/enclaves` | planned | "no such host is listed" |
-| Shielded inference: engine exists, runs on one self-hosted confidential server, not on the fleet, no public numbers | architecture #shielded, README table | `shielded/worker-cuda/worker.cu`, `wasm/ggml-shielded/*`, `docs/shielded-inference.md:3` ("nothing on the fleet"), `shielded/REPORT.md` (numbers exist but are model/hardware/mode specific) | experimental | numbers deliberately omitted per user direction; only chat decode measured; the Windows node's `shielded` block runs the protocol on its integrated card (live row 2026-09-23) |
-| Phone-anchored hosts and phone accelerators: earlier-stage research | architecture #shielded | `shielded/anchor/`, `relay/avf-verify.mjs` (mode "avf"), memory of the Pixel work | experimental | no numbers, no parity claim |
-| Already independent: contracts, content-addressed bundles hash-checked in enclave, public source and measurements, self-launched CVMs, free self-hosting, keyless CLI/MCP | architecture #independent, index Independent card | `contracts/*.sol`, `wasm/ipfs_fetch.py:189-207`, `verify.js`, `metal/`, `supervisor.js:5049` (`selfHostFree`) + `contracts/DEPLOYMENTS.md:337` (rev 12), `relay/mcp.js:1-4` | available | |
-| Still runs on company servers: api.enclave.host, traffic relays, site + IPFS gateway, certificate service, checkout, Tinfoil control plane, measurement allowlist | architecture #independent | `relay/api-relay.js`, `relay/relay.js`, `relay/tunnel.js`, `relay/certs.js`, `relay/billing.js`, `docs/autoscale.md`, `relay/api-relay.js:121-127` (`METAL_ALLOWED_MEASUREMENTS`, empty = token-only) | today | relays hold no TLS keys; gateway is availability only |
-| Decentralization direction (publisher signatures, local trust policy, mirrors, interchangeable coordinators, independent recovery) | architecture #independent | user direction; no code | proposal | "The contracts and payment paths in use today are not being replaced by this page" |
-| Permissionless host attach: code exists, admission by allowlist | host page, architecture status | `metal/PROTOCOL.md`, `metal/HANDOFF.md:18-19` ("OFF until you curate a measurement allowlist"), `relay/api-relay.js:121-127` | experimental | host page no longer says "anyone… no application" without the qualifier |
-| Two independent pricing dials | index pricing | README "Resources" (ledger schema 13) | available | replaces the stale "GPU share must be at least CPU share" card |
-| List rates vs per-host asks | index pricing | `site/js/core/live-prices.js` reads `EnclaveDeployments`; `cli/enclave.mjs` `--price-cpu/--price-gpu`; fleet rows carry per-pool prices | available | |
-| Agents are first-class | index Who-it-is-for, footer | `relay/mcp.js` (unsigned transactions back to the caller), README "Coding agents" | available | |
+## How current-vs-future truth is communicated after the rewrite
 
-## Stale copy removed or corrected
+- **Tense.** "Is" and "runs" describe what a deployment gets today (confidential hosts, the
+  bundle on the catalog, client-side verification). "We are building", "the architecture is",
+  "hosts must prove", "is being brought under" describe the target. The hero, the four cards and
+  the contract section are written this way and never say a future capability is live.
+- **One contract, two ways to meet it.** Protection levels are OS-neutral sets of guarantees:
+  the isolation contract (per-app hardware isolation, ordinary host OS excluded by a smaller
+  measured trusted layer, measured identity, attestation, key and traffic binding, fail-closed
+  verification, lifecycle cleanup, portable operation) and confidential hardware, which is the
+  same contract plus memory encryption and protection from the machine's operator. The copy
+  says plainly that every host listed today is confidential hardware and that no host is listed
+  at the base level until a backend passes the common acceptance tests.
+- **Operating systems appear only as implementation detail.** "Equivalent VBS-style
+  implementations on supported Windows and Linux hosts" is the only place the names appear in
+  market copy; no level, badge or card is named after an OS.
+- **Partial evidence is not a level.** A machine that meets part of the contract (test-signed
+  trusted layer, key or traffic on the host side, launcher-signed report, host-readable memory)
+  is described as implementation evidence, is not presented as available, and is refused tenant
+  work by the relay and by its own claim gate.
+- **The evidence note.** Develop > Architecture > `#progress` lists, dated, what is in
+  production, what runs in the lab, and what is design, including the per-app isolation
+  milestones, the consumer machine's gaps, shielded inference, and the pVM CPU tier. Milestone
+  names (M1 to M4b) appear only there and in repository docs.
+- **The live panel is the authority on "now".** The fleet panel (Develop > Architecture
+  `#fleet`, Host page) shows what is attached, with evidence badges, and the copy points to it
+  wherever availability could be misread.
 
-- "flagship NVIDIA GPU" hero framing, "Fortune 500", "no sales calls, no gatekeepers" as the story: replaced by the four pillars.
-- "Anyone with a machine that has a hardware TEE can run an enclave… There is no application": qualified with the allowlist admission and the two kinds of host.
-- "A GPU app's GPU share must be at least its CPU share": replaced (shares independent since ledger schema 13).
-- Hero panel chrome "sev-snp + nvidia-cc": now "confidential vm · hosted fleet" (hardware names stay in proof sections).
-- develop.html lede linked to the retired `/apps/deploy` console: now the store's Deploy button.
-- README: "no engine code yet" for shielded inference (false since the CUDA/Vulkan workers and the ggml backend landed); repository table gains `isolation/` and `windows/`.
+## Claims and their evidence
 
-## Left as is, on purpose
+| claim on the site | where | evidence | limits stated beside it |
+|---|---|---|---|
+| Compute that cannot see your data | hero, README | SNP confidential VMs on the hosted fleet: TLS in enclave, launch measurement in the signed report (`site/js/core/verify.js`, `supervisor.js`); self-launched servers: `metal/README.md`, `metal/PROTOCOL.md` | the lede says what it means today (host OS excluded, identity measured, keys and traffic bound, verified before a byte) and adds the operator only "on confidential hardware"; physical memory-bus attacks out of scope (`docs/physical-tee-attacks.md`) |
+| One app bundle runs on the confidential fleet today | Portable card, architecture #package | `wasm/wasm_manager.py` (components only), the on-chain catalog, CID hash-check in the enclave (`wasm/ipfs_fetch.py:189-207`) | "the shared domain contract is being brought under every backend" (future tense) |
+| One versioned domain contract, `enclave-domain-abi/1` | architecture #package, #contract | `isolation/contract/` (Go, `vectors.json`), `windows/vbslike/host/src/contract.rs` (Rust mirror), both on main | "today the fleet's runtime still starts apps directly" |
+| The isolation contract, eight properties, OS-independent | index #protection, architecture #contract | owner's controlling requirement (2026-09-23); `isolation/DESIGN.md` (the T2 VBS row and the T0+ proposal row are the two backends' shapes); `isolation/contract/README.md` (bundle, report binding, lifecycle) | "we are building equivalent VBS-style implementations on supported Windows and Linux hosts ... a machine is listed only when it passes" |
+| Confidential hardware = the contract plus memory encryption and operator exclusion; every host listed today | index #protection, architecture #levels | SEV-SNP CVMs; Tinfoil-measured images + Sigstore provenance; NVIDIA CC on GPU hosts | "between apps on one such host, separation is a sandbox and a process while per-app hardware domains are brought to this backend"; no GPU host or self-hosted server attached at the time of writing (`/enclaves` 2026-09-23) |
+| No host is listed at the base level; partial evidence is not a level for sale | index callout, architecture #levels, host page | owner's requirement; the attached consumer node: verified VBS enclave report (`windows/vbs/REPORT.md`, `relay/vbs-verify.mjs`) but test-signed (`tier: vbs-dev` on the live row), app-zone TLS key and traffic on the host side (`windows/PARITY.md:45-70`), no RAM encryption (`isolation/DESIGN.md:39`) | enforced in code: `relay/api-relay.js computeEligible` (tunnel mode "vbs" not eligible), `windows/node/host.mjs meetsIsolationContract` (false by construction today) |
+| There is no lower level; ordinary virtualization with the host OS in charge is a lab control | index callout, architecture #levels, host page, PRODUCT.md, README | owner's requirement; `isolation/DESIGN.md` tier T0 is the research's own baseline run; enforced by `metal/guest/gsup.mjs SELLING` (MODE=dev never sells) and `supervisor.js teeOk` (no confidential CPU in the RAD, no claim) | |
+| Per-app hardware isolation research: what is demonstrated | architecture #progress | M1/M2 (`isolation/DESIGN.md` sections 8, 11), M3a/M3b (`isolation/m3/PLAN.md`; correction 00f8c2b4: IGVM digest covers SVSM + firmware, not the monitor), M4a (8651212b, 773a7450: adversary's fully signed, correctly bound report rejected on measurement; independent recheck 14 PASS / 0 FAIL), M4b in progress (`isolation/m4/PLAN.md` section 2: 2 to 3 apps per guest) | "nothing in the product starts a domain this way yet"; "the run of the same image on ordinary virtualization is a control, not a level" |
+| The consumer machine and the partition lab build | architecture #progress | `windows/vbs/REPORT.md`, `windows/PARITY.md`, `windows/vbslike/README.md` (30 lab checks; `hostExcluded:false`; launcher-signed) | "does not meet the contract and takes no tenant work"; "lab evidence only" |
+| Linux VBS-equivalent is a design | architecture #contract, #progress | `isolation/DESIGN.md` T0+ row ("proposal only"; nothing upstream on x86) | |
+| Shielded inference | architecture #shielded, #progress, README table | `shielded/worker-cuda/worker.cu`, `wasm/ggml-shielded/*`, `docs/shielded-inference.md:3` ("nothing on the fleet"); the live consumer row's `shielded` block | no numbers published; only chat decode measured |
+| The pVM CPU tier (amber "pvm cpu") | architecture #pvm-cpu, #progress, fleet badge | owner's direction 2026-09-23; pVM session (enclave-53): TPU closed at 3d7b64de (2.4 to 2.6 tok/s measured against a 15 tok/s floor); `relay/avf-verify.mjs` verifies the protected-VM chain at attach | future tense; no Pixel 11 runtime validation or availability claimed; "there is no accelerator tier"; a phone row is never sellable app capacity (`computeEligibleOf`) |
+| Verification chain | index #attest, architecture #verify | `site/js/core/verify.js` (same-origin verifier, Sigstore), `supervisor.js` attestation endpoints, `metal/` reproducible image | the API self-check is a labeled diagnostic |
+| Independent infrastructure: what is on public contracts vs on company servers | architecture #independent | contracts, `wasm/ipfs_fetch.py`, `relay/api-relay.js`, `relay/relay.js`, `relay/tunnel.js`, `relay/certs.js`, `relay/billing.js`, `docs/autoscale.md`, `METAL_ALLOWED_MEASUREMENTS` (api-relay.js:121-127) | the decentralization direction is "proposals under discussion"; existing payments and contracts are not replaced |
+| Live wasmtime and WASIp3 pin advice | develop guide | `wasm/Dockerfile.wasm:18` pins the toolchain build of wasmtime commit `ac077297` (repinned 2026-09-14), workspace `Cargo.toml` 49.0.0, WASIp3 WIT `wasi:http@0.3.0` final; crates.io: wasip3 0.7.0+ target `+wasi-0.3.0`, 0.6.0 targets the March rc | residual: the chapter's Rust sample was not recompiled against 0.7 |
+| Two independent pricing dials; list rates vs per-host asks | index pricing | README "Resources" (ledger schema 13), `live-prices.js`, `cli/enclave.mjs --price-cpu/--price-gpu` | "a GPU share can only be bought while a GPU host is attached" |
 
-- The attestation chain and live-verify components name AMD SEV-SNP, Intel TDX, NVIDIA and Tinfoil: they are proof surfaces, where PRODUCT.md permits specifics.
-- The pricing section's example table and live price marks: the contract list rates are still what `live-prices.js` reads; a sentence now says hosts may post their own ask.
-- develop.html chapter text about "wasmtime 45" and the WASIp3 snapshot: an engine-version claim this refresh did not verify against the running fleet; flagged below.
+## Admission, fleet display and routing: the audit and the fixes
 
-## Resolved from repository evidence (second pass, 2026-09-23)
+Rule: tenant compute is offered to, routed to, or claimed by a machine only on hardware evidence
+for the contract it would be sold under, derived from what the relay verified, never from OS
+identity, a self-reported tier string, or the machine's own `claimEnabled`. Today only a
+confidential CPU proves that contract. Verified evidence for a different contract (a phone's
+protected-VM chain, a VBS enclave report) is real evidence and still not eligibility.
 
-1. **Live wasmtime.** The wasm-manager image pins `WASMTIME_IMAGE` to the toolchain build of wasmtime commit `ac0772970b9ad2cd53866d95db69e26311fe3b75` (`wasm/Dockerfile.wasm:18`, repinned 2026-09-14 in 4a0c5c8b), the same commit `wasm/Dockerfile.wasmtime` builds. That commit's workspace `Cargo.toml` is `version = "49.0.0"` (a pre-release commit on the 49 line; `wasm/Dockerfile.wasmtime` says to move to the v49.0.0 tag when it exists), and its WASIp3 WIT (`crates/wasi-http/src/p3/wit/deps/http.wit`) is `package wasi:http@0.3.0;`, i.e. the final 0.3.0, not the March release candidate. The guide's "wasmtime 45" lines dated from 2026-07-31 (`docs/wasip3.md`). The guide now names the 49 line in its three version mentions and flips the WASIp3 pin advice: the `wasip3` crate line to use is one whose build metadata reads `+wasi-0.3.0` (crates.io: 0.7.0, 0.7.1, 0.8.0, 0.9.0), not `=0.6.0+wasi-0.3.0-rc-2026-03-15`. Residual technical caveat, not a copy question: the chapter's Rust sample was written against 0.6.0 and has not been recompiled against 0.7 in this pass; if the crate's API moved, the sample needs a code fix, which is outside a copy refresh.
-2. **Windows node.** Live row still `tier:"vbs-dev"`; no production-signing evidence in the repo. Copy keeps "development tier" and "test-signed".
-3. **M4a.** Settled by 773a7450 and the user-confirmed independent recheck (14 PASS / 0 FAIL). Copy now says measured and rechecked, scoped to one guest per app; M4b in progress.
-4. **Confidential GPU host.** None attached on 2026-09-23 (`/enclaves` lists the relay and the Windows node). The architecture table, the status board, the homepage status card and the pricing lede now say GPU shares need an attached GPU host and point at the live fleet panel as the authority.
-5. **metal0.** Off since 2026-09-14. Copy no longer implies a self-hosted server is online: "one such server ran on the platform earlier this year; none is attached at the time of writing".
+| gap found | fix | test |
+|---|---|---|
+| `relay/tunnel.js` hello handler let a box set its own attach mode (`t.mode = f.mode || t.mode`): a token-attached box saying `mode:"snp"` read downstream as relay-verified | the hello's mode is recorded as `t.declaredMode` only; `t.mode` is set by `bind()` alone | `test/tunnel.test.mjs`: token attach stays `""` through hello `snp/avf/vbs/tdx`; a verified `avf` attach cannot relabel itself `snp`; `test/tenant-compute-eligibility.test.mjs` pins it in source |
+| `relay/api-relay.js servingEnclaves()` keyed on the box's own `claimEnabled`; `/enclaves` totals, `pick()`, `sticky()` and `/v1/claim-hint` fan-out all inherited it | `computeEligible(e)`: tunnel rows only in hub-verified mode `snp`; dialed rows only with `teeCpu` in {amd-sev-snp, intel-tdx}; `servingEnclaves` ANDs it in; `/enclaves` rows carry `eligible` and an `ineligible` reason | `test/api-relay.test.mjs`: dev / old / VBS-evidence boxes listed, not serving, not counted, not hinted; `test/fleet-partial-capability.test.mjs`: partial capability is not weaker evidence; a VBS-evidence box is never the fleet's fallback |
+| `supervisor.js` claimed with no TEE term (`CLAIM_READY` = config + registry + backend) | `teeOk()` from `vmTech()` (detected from the box's own RAD, never config) gates `claimEnabled`, the claim-hint endpoint, and `considerClaim` | pinned in source (`test/tenant-compute-eligibility.test.mjs`) |
+| `metal/guest/gsup.mjs SELLING` ignored `MODE`: a plain-KVM dev launch with a registry key registered and claimed | `SELLING` requires `MODE !== 'dev'`, with a logged refusal | pinned in source |
+| `site/js/core/pricing.js teeCpuOf` believed a tunnel row's own `teeCpu`; `rankEnclavesFor` / `pickEnclaveFor` / `moveBlockReason` had no evidence filter | tunnel rows are judged by `row.mode` only (a self-report reads `unverified`); `computeEligibleOf(row)` (relay `eligible` verdict first, else confidential evidence) filters all three | `test/tenant-compute-eligibility.test.mjs`; `test/pricing.test.mjs` fixtures carry evidence by default and the missing-evidence cases say `teeCpu: null` |
+| `site/components/fleet-list/fleet-list.js` drew pools and a price for any row that said it claims | `sells` requires `computeEligibleOf`; an ineligible row renders as attached with the relay's reason and no capacity; an unverified self-report wears an amber "unverified cpu" badge; a phone row wears the amber "pvm cpu" badge | rendered in the browser pass |
+| `windows/node/host.mjs` claimed on `appsInTee()` alone; `teeCpu` hardcoded; the relay's tier never consulted | `meetsIsolationContract()` = apps in the enclave AND app traffic inside the enclave (false by construction today) AND relay-verified tier `vbs`; gates `scope()` (market vs owner-only) and `claimEnabled`; `agent.mjs` hands `relayTier` to the host; `/availability` reports `isolationContract` and `contractGap` | pinned in source (`test/tenant-compute-eligibility.test.mjs`); `test/windows-node-claim-policy.test.mjs` unchanged and green |
+
+Remaining gaps, stated rather than closed:
+
+1. **Dialed (first-party) rows are still self-reported.** The relay trusts `availability.teeCpu`
+   from a measured image run by an allowlisted operator and does not re-verify the quote; clients
+   verify at connect. Re-verifying the Tinfoil RAD relay-side is the next step.
+2. **On chain, any registered operator can claim** (`EnclaveRegistry.register` has no modifier,
+   `EnclaveDeployments.claim` checks operator and price only; `claimBond6 = 0`). The runner-side
+   and relay-side gates above are software; a modified runner bypasses them and is caught only by
+   clients verifying attestation. An attestation-bound registration or a bond is a contract change.
+3. **The live consumer node** runs code that predates `meetsIsolationContract`; until it is
+   redeployed, the relay-side rule (mode `vbs` not eligible) is what keeps it out of the serving
+   set. Its owner-only scope keeps working either way.
+4. **The develop guide's WASIp3 Rust sample** was not recompiled against the wasip3 0.7 line.
+5. **The pVM CPU tier** has no capability-based admission branch yet; the pVM session will supply
+   the verifier module and tests, and the branch is added to `computeEligible` on this branch.

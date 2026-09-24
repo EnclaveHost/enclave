@@ -132,7 +132,14 @@ const GGML_ENV = (() => {
 const REGISTRY_KEY = fw.registryKey || '';
 const PAYOUT_ADDR  = fw.payoutAddress || '';
 const FLEET_SECRET = fw.fleetSecret || '';             // first-party boxes only: joins the deployment-secrets plane
-const SELLING      = !!(REGISTRY_KEY && PUBLIC_URL);
+// A dev launch (MODE=dev: plain KVM, no attestation report, host root can read the
+// guest) never sells, whatever the config says: it is a lab control, not a host.
+// Selling needs a confidential launch (snp | tdx) as well as a key and a URL; the
+// supervisor re-checks its own RAD before every claim (supervisor.js teeOk), and
+// the relay checks its verified attach mode - three gates, all fail-closed.
+const SELLING      = !!(REGISTRY_KEY && PUBLIC_URL) && MODE !== 'dev';
+if (REGISTRY_KEY && PUBLIC_URL && MODE === 'dev')
+  console.error('[gsup] registryKey + publicUrl set but mode=dev: a dev launch is not a host and will not register or claim');
 
 // --- what this operator CHARGES ---------------------------------------------
 // config gives USD/hour for a FULL node / FULL card; the ledger prices in USDC
