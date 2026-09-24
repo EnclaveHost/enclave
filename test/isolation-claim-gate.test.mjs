@@ -60,7 +60,7 @@ test("flag SET: the namespace parses, strictly", async () => {
                                  '{"isolation":{"require":"snp-guest-per-app","x":1}}', '{"nope":{}}'] }, TIER);
   assert.deepEqual(r.parse[0], { ok: true, opts: { isolation: TIER } });
   assert.match(r.parse[1].error, /must be a JSON object/);
-  assert.match(r.parse[2].error, /isolation.require must be one of: snp-guest-per-app/);
+  assert.match(r.parse[2].error, /isolation.require must be one of: snp-guest-per-app, hyperv-partition-per-app/);
   assert.match(r.parse[3].error, /unknown isolation option "x"/);
   assert.match(r.parse[4].error, /this runner knows: waf, config, configCid, gpu, network, isolation/);
 });
@@ -138,4 +138,13 @@ test("the derivation record a spawn sends: the version's catalog ref, CID, pinne
   assert.deepEqual(r.derive[2].policy, { cpuPercent: 100, memMiB: 128, vcpus: 1 }, "an on-chain 0 takes the floor");
   assert.match(r.derive[3].error, /needs a catalog version/);
   assert.match(r.derive[4].error, /states no runtime identity/);
+});
+
+test("the prefetch a tier box asks for carries the same derivation record as its spawn", async () => {
+  const app = "0x" + "ab".repeat(32), rt = "7e".repeat(32);
+  const g = { ref: `catalog://${app}/4`, wasmRef: "ipfs://bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza", min: { memMb: 128 } };
+  const r = await seam({ prefetch: [{ g, runtimeId: rt }, { g: { ...g, ref: "ipfs://x" }, runtimeId: rt }],
+                         derive: [{ catalogRef: g.ref, wasmRef: g.wasmRef, memMb: 128, runtimeId: rt }] }, TIER);
+  assert.deepEqual(r.prefetch[0], { image: g.wasmRef, derive: r.derive[0] });
+  assert.match(r.prefetch[1].error, /needs a catalog version/);
 });
