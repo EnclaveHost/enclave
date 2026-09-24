@@ -41,7 +41,7 @@ export const TYPE = "enclave-vbslike-package/1";
 const HEX64 = /^[0-9a-f]{64}$/, HEX40 = /^[0-9a-f]{40}$/;
 const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.initrd", "guest.runtime",
   "app.component", "app.record", "app.bundle", "app.spawn", "control.manager", "control.fetcher", "control.launcher",
-  "control.datapath", "control.judge", "tool.windows",
+  "control.datapath", "control.judge", "control.node-client", "tool.windows",
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
   "input.recipe", "input.tree", "input.test", "input.test-support"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
@@ -84,8 +84,18 @@ function deriveRef(recordBytes, componentBytes) {
     return fs.readFileSync(path.join(d, "b"));
   } finally { fs.rmSync(d, { recursive: true, force: true }); }
 }
+// A `repo` source is a path IN THE SAME COMMIT AS THE MANIFEST: a manifest is committed together with its scripts, so
+// that commit holds exactly the bytes it pins, and a committed manifest keeps verifying after the scripts move on. A
+// manifest being authored (not committed, or modified since) reads the working tree.
+export function manifestCommit(manifestPath) {
+  const abs = path.resolve(manifestPath), rel = path.relative(REPO, abs);
+  if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
+  const c = spawnSync("git", ["-C", REPO, "log", "-1", "--format=%H", "--", rel], { encoding: "utf8" }).stdout.trim();
+  if (!c) return null;
+  return spawnSync("git", ["-C", REPO, "diff", "--quiet", c, "--", rel]).status === 0 ? c : null;
+}
 // resolve every entry's bytes; derive entries after the entries they name. Box-only entries have no bytes here.
-function resolveAll(m) {
+function resolveAll(m, atCommit = null) {
   const all = [...m.files, ...m.inputs], byPath = new Map(m.files.map((f) => [f.path, f]));
   const bytes = new Map(), errors = new Map();
   const one = (e) => {
@@ -94,7 +104,7 @@ function resolveAll(m) {
     try {
       let b = null;
       if (k === "git") b = gitBytes(v.commit, v.path);
-      else if (k === "repo") b = fs.readFileSync(path.join(REPO, v));
+      else if (k === "repo") b = atCommit ? gitBytes(atCommit, v) : fs.readFileSync(path.join(REPO, v));
       else if (k === "file") b = fs.readFileSync(home(v));
       else if (k === "canonical") b = canonical(v);
       else if (k === "derive") {
@@ -426,9 +436,11 @@ export async function verify(manifestPath, { out = null, rebuild: doRebuild = fa
   const mbytes = fs.readFileSync(manifestPath);
   let m; try { m = JSON.parse(mbytes.toString("utf8")); } catch (e) { R.add(false, "manifest is JSON", e.message); return { R, m: null, id: sha(mbytes) }; }
   if (!checkShape(m, R)) return { R, m, id: sha(mbytes) };
-  const { bytes, errors } = resolveAll(m);
+  const at = manifestCommit(manifestPath);
+  const { bytes, errors } = resolveAll(m, at);
   for (const e of [...m.files, ...m.inputs]) {
     const id = e.path || e.name, k = kindOf(e.from);
+    if (k === "repo" && at && bytes.get(e)) { R.add(sha(bytes.get(e)) === e.sha256 && bytes.get(e).length === e.bytes, `source ${id}`, sha(bytes.get(e)) === e.sha256 ? `repo at the manifest's commit ${at.slice(0, 12)}` : `repo at ${at.slice(0, 12)} gives ${sha(bytes.get(e))}, pinned ${e.sha256}`); continue; }
     if (k === "box") { R.add(true, `source ${id}`, `box-only, pinned by observation on the box (${e.boxReuse}); not reproducible here`); continue; }
     if (k === "dir") { R.add(fs.existsSync(home(e.from.dir)), `source ${id}`, fs.existsSync(home(e.from.dir)) ? `tree at ${home(e.from.dir)}` : `no tree at ${e.from.dir}`); continue; }
     const b = bytes.get(e);
@@ -471,7 +483,7 @@ async function main(argv) {
   }
   if (cmd === "pins" && manifest) {
     const m = JSON.parse(fs.readFileSync(manifest, "utf8"));
-    const { bytes, errors } = resolveAll(m);
+    const { bytes, errors } = resolveAll(m, manifestCommit(manifest));
     for (const e of [...m.files, ...m.inputs]) {
       const b = bytes.get(e);
       console.log(`${b ? sha(b) : "-".repeat(64)} ${String(b ? b.length : "").padStart(10)} ${e.path || e.name}${errors.has(e) ? `  (${errors.get(e)})` : ""}`);
