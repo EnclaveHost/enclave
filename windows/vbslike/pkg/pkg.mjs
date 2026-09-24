@@ -237,6 +237,30 @@ async function checkClaims(m, bytes, R) {
       R.add(v && v.verdict === "reject", "the pinned judge rejects a document that is not one", v ? v.verdict : "no answer");
     }
   }
+  // The igvm profile's manager must create its VM WITH a guest-state isolation type, or Hyper-V accepts the FirmwareFile
+  // pin and silently never loads it (measured, enclave-d1, 2026-09-24). Every file of a stale manager still hashes to
+  // its pin, so this asks the pinned manager's own start() on a recording host: win/manager-check.mjs, the verifier's
+  // copy, which the package also ships for the box.
+  if (ig?.manager) R.add(has(ig.manager.check, "tool.windows"), "profile igvm ships its manager check for the box", ig.manager.check);
+  if (ig) {
+    const mf = m.files.filter((f) => f.role === "control.manager");
+    const app = (m.apps || []).find((a) => a.servable);
+    const d = fs.mkdtempSync(path.join(os.tmpdir(), "vbspkg-mgr-"));
+    let res = null;
+    try {
+      for (const f of mf) { const p = path.join(d, ...f.path.split("/")); fs.mkdirSync(path.dirname(p), { recursive: true }); if (bytes.get(f)) fs.writeFileSync(p, bytes.get(f)); }
+      // the servable app's record and component, from their pinned bytes: the manager derives its own mapping from them
+      fs.writeFileSync(path.join(d, "record.json"), (app && bytes.get(file(`${app.dir}/record.json`))) || "");
+      fs.writeFileSync(path.join(d, "component.wasm"), (app && bytes.get(file(`${app.dir}/component.wasm`))) || "");
+      const mdir = path.join(d, ...(c.manager || "").split("/").slice(0, -1));
+      const r = spawnSync(process.execPath, [path.join(HERE, "win/manager-check.mjs"), mdir,
+        "--record", path.join(d, "record.json"), "--component", path.join(d, "component.wasm"), "--image-sha256", file(ig.image)?.sha256 || ""],
+        { encoding: "utf8", timeout: 60000 });
+      try { res = JSON.parse(r.stdout.trim().split("\n").at(-1)); } catch { res = { ok: false, reason: (r.stderr || r.stdout || "").trim().split("\n").at(-1) }; }
+    } finally { fs.rmSync(d, { recursive: true, force: true }); }
+    R.add(!!res?.ok, "the igvm manager creates its VM with a guest-state isolation type (its own start(), on a recording host)",
+          res?.ok ? `New-VM -GuestStateIsolationType ${res.isolation}${res.secureBootOff ? ", Secure Boot off" : ""}` : res?.reason || "no answer");
+  }
   // slots the package does not fill yet, and must not pretend to
   for (const s of m.slots || []) {
     const filled = m.files.filter((f) => f.role === s.role);

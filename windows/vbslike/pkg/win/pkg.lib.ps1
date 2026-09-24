@@ -127,6 +127,16 @@ function Test-HostProfile($R, $M, [string]$Boot) {
       [void](Add-Result $R $ok "[$Boot] command $c" $(if ($ok) { '' } else { 'absent' }) 'blocked')
     }
   }
+  # a host setting that was MEASURED to gate the profile (the manifest says how): absent or different = BLOCKED.
+  # Read here, never written: setting one is the host owner's decision, not a script's.
+  if ($hc.PSObject.Properties.Name -contains 'registry') {
+    foreach ($g in @($hc.registry)) {
+      $v = $null
+      try { $v = (Get-ItemProperty -LiteralPath $g.path -Name $g.name -ErrorAction Stop).($g.name) } catch { $v = $null }
+      $ok = ($null -ne $v) -and ([string]$v -eq [string]$g.value); if (-not $ok) { $ready = $false }
+      [void](Add-Result $R $ok "[$Boot] $($g.name)" $(if ($ok) { "= $v" } else { "$(if ($null -eq $v) { 'absent' } else { "= $v" }), needs $($g.value): $($g.why)" }) 'blocked')
+    }
+  }
   # recorded, never gating: a setting someone suspects matters, whose role is not established
   if ($hc.PSObject.Properties.Name -contains 'info') {
     foreach ($g in @($hc.info)) {
@@ -139,6 +149,18 @@ function Test-HostProfile($R, $M, [string]$Boot) {
 }
 
 function Get-PkgApp($M, [string]$Name) { return @($M.apps | Where-Object { $_.name -eq $Name })[0] }
+
+# Will the manager in $MgrDir create its VM so Hyper-V even considers our IGVM? win\manager-check.mjs runs that
+# manager's own start() on a recording fake host (nothing touches Hyper-V) and reads the New-VM it issued. A stale
+# manager passes every hash check and still reproduces the silent guest, which is why this is asked of its code.
+function Test-ManagerCreatesIsolated($R, [string]$Dir, $M, [string]$MgrDir, [string]$Name) {
+  $app = @($M.apps | Where-Object { $_.servable })[0]
+  $ig = @($M.files | Where-Object { $_.path -eq $M.profiles.igvm.image })[0]
+  $line = & node (Get-PkgFilePath $Dir $M.profiles.igvm.manager.check) $MgrDir --record (Get-PkgFilePath $Dir "$($app.dir)/record.json") --component (Get-PkgFilePath $Dir "$($app.dir)/component.wasm") --image-sha256 $ig.sha256 2>&1 | Select-Object -Last 1
+  $j = $null; try { $j = "$line" | ConvertFrom-Json } catch { }
+  $ok = $j -and $j.ok -eq $true
+  [void](Add-Result $R $ok $Name $(if ($ok) { "New-VM -GuestStateIsolationType $($j.isolation)$(if ($j.secureBootOff) { ', Secure Boot off' })" } elseif ($j) { $j.reason } else { "$line" }))
+}
 
 function Get-BytesSha256([byte[]]$B) {
   $h = [System.Security.Cryptography.SHA256]::Create()

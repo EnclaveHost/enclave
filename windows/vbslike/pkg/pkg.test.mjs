@@ -13,8 +13,9 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG = path.join(HERE, "pkg.mjs");
-const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-3.json");        // the latest; v1 is kept below as a refusal
+const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-4.json");        // the latest; older ones are kept below as refusals
 const V1 = path.join(HERE, "manifests/nucbox-ownguest-1.json");
+const V3 = path.join(HERE, "manifests/nucbox-ownguest-3.json");
 const SOURCES = path.join(os.homedir(), "enclave-bench/ownguest-pkg/sources");
 const WORK = path.join(os.homedir(), "enclave-bench/ownguest-pkg/test-work");   // the IGVM is 125 MB: not a tmpfs
 const have = fs.existsSync(path.join(SOURCES, "guest/openhcl-ownguest-4610d594.bin"));
@@ -83,6 +84,11 @@ const MANIFEST_CASES = [
   ["the tier claims SNP", (m) => { m.tier.snp = true; }, /FAIL tier states what this box is/],
   ["a path that leaves the package", (m) => { file(m, "win/check.ps1").path = "../check.ps1"; }, /FAIL manifest shape: .*not a plain relative path/],
   ["a path twice", (m) => { m.files.push({ ...file(m, "win/check.ps1") }); }, /FAIL manifest shape: .*appears twice/],
+  ["the manager's wmi-launcher re-pinned to the stale 261e5f03 bytes (consistent forgery)", (m) => {
+     file(m, "control/windows/vbslike/manager/wmi-launcher.mjs").from.git.commit = "261e5f033823f6de3cca5376d991e59965e110f5";
+     repin(m, ["control/windows/vbslike/manager/wmi-launcher.mjs"]); },
+   /FAIL the igvm manager creates its VM with a guest-state isolation type/],
+  ["the igvm manager check not shipped", (m) => { m.profiles.igvm.manager.check = "win/manager-check-absent.mjs"; }, /FAIL profile igvm ships its manager check for the box/],
   ["the datapath slot called empty while a datapath is shipped", (m) => { m.slots[0].state = "empty"; }, /FAIL slot control\.datapath/],
   ["hcs-dev boots another initrd than the IGVM's", (m) => { m.profiles["hcs-dev"].initrd = "guest/wsl-kernel"; },
    /FAIL profile hcs-dev names a kernel, the monitor initrd|FAIL both profiles boot the SAME monitor image/],
@@ -122,6 +128,11 @@ test("v1 (committed, never edited) is refused by the current verifier at its uno
   const r = run(["verify", V1]);
   assert.equal(r.code, 1);
   assert.match(r.out, /FAIL hello-world 1\.0\.4: an expected answer, exact to the byte/, fails(r.out));
+});
+test("v3 (committed, never edited) is refused by the current verifier at its stale manager", { skip }, () => {
+  const r = run(["verify", V3]);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /FAIL the igvm manager creates its VM with a guest-state isolation type/, fails(r.out));
 });
 test("the packed judge runner refuses evidence that is not evidence", { skip }, () => {
   const d = fs.mkdtempSync(path.join(WORK, "judge-"));

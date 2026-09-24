@@ -8,6 +8,8 @@
 #                                                           an app some launcher served: its AppID as the GUEST computed
 #                                                           it, and its answer, against the manifest
 #   check.ps1 -ManifestSha256 <id> -SelfTest                the checks themselves must FAIL on a tampered copy
+#   check.ps1 -ManifestSha256 <id> -ManagerDir C:\Users\claude\vbs\manager
+#                                                           ... and ask the manager actually being run the igvm question
 #
 # Writes only under this package directory (fetched\, runs\, .selftest\). Exit: 0 ok, 1 FAIL, 3 a -Require'd profile
 # is BLOCKED by its host. BLOCKED is never a package failure: the package can be right while the host is not ready.
@@ -22,6 +24,7 @@ param(
   [string]$LoadJson = '',
   [switch]$Fetch,
   [switch]$SelfTest,
+  [string]$ManagerDir = '',          # also ask a manager OUTSIDE the package (e.g. the one being run) the igvm question
   [string]$Dir = ''                 # default: the package directory this script sits in
 )
 $ErrorActionPreference = 'Stop'
@@ -73,6 +76,18 @@ if (-not $M) { Write-Results $R; 'FAIL check: the manifest is not the one named'
 Test-PkgFiles $R $Dir $M
 foreach ($p in @($M.vmWorkerRead)) { Test-VmWorkerRead $R (Get-PkgFilePath $Dir $p) $p }
 $tier = $M.tier
+if ($M.profiles.igvm.PSObject.Properties.Name -contains 'manager') {
+  $pm = Split-Path -Parent (Get-PkgFilePath $Dir $M.control.manager)
+  Test-ManagerCreatesIsolated $R $Dir $M $pm "[igvm] the package's manager creates its VM with a guest-state isolation type"
+  if ($ManagerDir) {
+    Test-ManagerCreatesIsolated $R $Dir $M $ManagerDir "[igvm] the manager at $ManagerDir creates its VM with a guest-state isolation type"
+    foreach ($f in @($M.files | Where-Object { $_.role -eq 'control.manager' })) {
+      $other = Join-Path $ManagerDir (Split-Path -Leaf ($f.path -replace '/', '\'))
+      $h = if (Test-Path -LiteralPath $other) { Get-Sha256 $other } else { 'absent' }
+      [void](Add-Result $R $true "manager at $ManagerDir\$(Split-Path -Leaf ($f.path -replace '/', '\'))" $(if ($h -eq $f.sha256) { 'the package''s bytes' } else { "differs from the package ($h)" }) 'info')
+    }
+  }
+}
 [void](Add-Result $R ($tier.name -eq 'T0-hv' -and $tier.hostExcluded -eq $false -and $tier.snp -eq $false) 'tier' "$($tier.name): host NOT excluded, no SNP, no VMPL" 'info')
 
 # ---- serve: an answer tied to these bytes -----------------------------------------------------------------------------
@@ -133,7 +148,9 @@ if (-not $pkgOk) { 'FAIL package: see the FAIL lines'; exit 1 }
 foreach ($p in @('hcs-dev', 'igvm')) {
   $pr = $M.profiles.$p
   # host checks passing is what this script can see; it is not a boot, which only the box owner's run shows
-  if ($ready[$p]) { "PROFILE $p HOST CHECKS PASS -- $($pr.status)" } else { "PROFILE $p BLOCKED -- $($pr.status)" }
+  # name what blocks it: a profile line that only restated what the profile needs read as if all of it were missing
+  $blockers = @($R | Where-Object { $_.Kind -eq 'blocked' -and -not $_.Ok -and $_.Name.StartsWith("[$p] ") } | ForEach-Object { $_.Name.Substring($p.Length + 3) })
+  if ($ready[$p]) { "PROFILE $p HOST CHECKS PASS -- $($pr.status)" } else { "PROFILE $p BLOCKED by $($blockers -join ', ') -- $($pr.status)" }
 }
 $d = $Dir
 ''
