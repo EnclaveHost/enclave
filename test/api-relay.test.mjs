@@ -275,7 +275,7 @@ test("api-relay: a box without confidential evidence is listed but never serving
   const old   = box({ gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 6,  nodeRamGb: 24, claimEnabled: true });
   const vbs   = box({ gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 12, nodeRamGb: 48, claimEnabled: true, fullService: false, teeCpu: "windows-vbs-enclave", tier: "vbs" });
   const good  = box({ gpu: false, type: "cpu", cpuShareFree: 0.5, maxShare: 0.5, nodeVcpus: 8,  nodeRamGb: 32, claimEnabled: true, teeCpu: "amd-sev-snp" });
-  // a non-TEE box WITH a card: its GPU is exposed only through Enclave Shielded, whose evidence it
+  // a non-TEE box WITH a card: its GPU is exposed only through Enclave Shield, whose evidence it
   // cannot present yet, so neither its card nor its masked-offload pool may be advertised or routed
   const gpuBox = box({ gpu: true, type: "gpu", cpuShareFree: 0.5, gpuShareFree: 0.8, maxShare: 0.8, nodeVcpus: 24, nodeRamGb: 64, vramFreeGb: 12, cardVramGb: 16,
                        claimEnabled: true, teeCpu: "windows-vbs-enclave", shielded: { vramGb: 16, vramBudgetGb: 8, vramFreeGb: 8, worker: "vulkan" } });
@@ -288,7 +288,7 @@ test("api-relay: a box without confidential evidence is listed but never serving
   assert.equal(body.enclaves.length, 5, "every answering box is listed");
   assert.equal(rows[24].serving, false, "a non-TEE box with a card takes no work");
   assert.equal(rows[24].eligible, false);
-  assert.match(String(rows[24].ineligible), /exposed only through Enclave Shielded/);
+  assert.match(String(rows[24].ineligible), /exposed only through Enclave Shield/);
   assert.equal(body.aggregate.totalGpuShareFree, 0, "its card is not advertised as buyable GPU capacity");
   assert.equal(body.aggregate.totalVramFreeGb, 0, "nor its VRAM");
   assert.equal(rows[8].serving, true);  assert.equal(rows[8].eligible, true);  assert.equal(rows[8].ineligible, undefined);

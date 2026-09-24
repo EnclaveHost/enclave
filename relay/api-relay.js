@@ -1387,11 +1387,11 @@ function sendForwarded(res, r, req) {
 // traffic (a relay row) or sit attached as evidence of work in progress, but it
 // is never presented as sellable capacity and never routed a deployment.
 // GPUs follow the same gate with one more word: on a host WITHOUT a confidential
-// processor, Enclave Shielded (the OS-neutral VBS-like isolation layer) is the only
+// processor, Enclave Shield (the OS-neutral VBS-like isolation layer) is the only
 // supported way a GPU is exposed at all, and until that contract and its evidence
 // verify, such a host neither advertises a card (its GPU / shielded pools never
 // reach the totals or the placement pool) nor receives GPU work. A verifier for the
-// Enclave Shielded contract does not exist yet, so today this is simply the
+// Enclave Shield contract does not exist yet, so today this is simply the
 // confidential-CPU rule above applied to every axis of the box.
 const TENANT_COMPUTE_MODES = new Set(["snp"]);
 const CONFIDENTIAL_CPU = new Set(["amd-sev-snp", "intel-tdx"]);
@@ -1421,7 +1421,7 @@ function ineligibleReason(e) {
   }
   const t = String(e.availability?.teeCpu || "");
   const gpu = (e.availability?.gpu === true || (e.availability?.shielded && e.availability.shielded.vramGb > 0))
-    ? "; its GPU is exposed only through Enclave Shielded, whose evidence it has not presented" : "";
+    ? "; its GPU is exposed only through Enclave Shield, whose evidence it has not presented" : "";
   return (t ? `its attestation document presents ${t}, not a confidential CPU` : "its build never named its CPU technology") + gpu;
 }
 function servingEnclaves() {
