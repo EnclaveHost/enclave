@@ -67,8 +67,9 @@ A verifier needs the component's bytes, fetched by its CID from any IPFS gateway
 `bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza` was NOT served by ipfs.io, dweb.link or Cloudflare, and
 WAS served by `https://trustless-gateway.link/ipfs/<cid>?format=raw` with `Accept: application/vnd.ipld.raw` (that
 gateway refuses Python's default user agent). Then `derive_reference.py bundle <record.json> <component> <out>` gives
-the bundle whose sha256 is the AppID. The platform's own gateway, ipfs.enclave.host, is hosted on metal0 and is down
-while metal0 is off.
+the bundle whose sha256 is the AppID. The platform's own gateway also serves it:
+`https://ipfs.enclave.host/ipfs/<cid>` (the verifier lane fetched the 72,989 bytes there, sha256 29090a8d..., and
+reproduced AppID 9c3d10f1... with derive_reference.py). A verifier should use either and check the CID itself.
 
 ## Production policy for the per-app tier: `enclave-isolation-policy/1` (2026-09-24)
 
