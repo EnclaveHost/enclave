@@ -54,7 +54,77 @@ custom firmware image by path, and it fits the evidence exactly: the pin is acce
 settings and reads back, and the image is never loaded, so the VM falls through to firmware that
 finds no boot device. A control VM with no pin starts and fails the same way, which is consistent.
 
-It is **not proven**, because nothing yet shows which firmware the worker actually loaded.
+**Evidence added since, read-only, no host change** (enclave-5d suggested the test).
+`Microsoft-Windows-Hyper-V-Worker-Operational` logs a line per VM that loads one:
+`[Virtual machine <id>] Loading IGVM file from default location.` Every such line on this box
+belongs to an **HCS** lab partition. There is **no firmware or IGVM load line at all** for
+`enclave-boot-cmp-0001` (`4D05C87C-…`) at 15:12:07.
+
+So the WMI-created VM never attempted to load an IGVM. The pin was accepted into the settings and
+read back, and the worker then started the VM on stock firmware, which found no boot device and
+logged 18603. That is now established.
+
+**CONFIRMED 22:18Z with a second, different image.** enclave-53 built a new IGVM around 5d's
+initrd — `7caf7408…`, 124,991,060 bytes — and it fails **identically**: `preflight ok`, VM started
+(event 18500), `failed to boot an operating system` (event 18603), and **no `Loading IGVM file`
+line at all** in `Worker-Operational`. Two different images, same failure, both before any load
+begins.
+
+**This rules out image content as the cause**, and with it my own first hypothesis. I had proposed
+that the image was an `openhcl-x64-test-linux-DIRECT` build expecting a kernel and initrd through
+LinuxKernelDirect that the VM never supplied. enclave-53 ruled it out twice over:
+
+1. Our own-guest images EMBED VTL0. `openhcl-ownguest.bin.map` places `linux-kernel` at
+   0x1000000–0x312e000 and 0x3200000–0x4600000, `linux-initrd` at 0x4600000–0x5ce6000, and
+   `manifest-ownguest.json` sets `OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux`. Only the VTL2 half comes
+   from the `-direct` recipe. They never wanted a host-supplied kernel.
+2. More basic, and the reasoning I should have reached from my own evidence: **the worker never
+   read the file.** A hypothesis about what is INSIDE an image cannot explain a failure that
+   happens before the image is opened. Content can only matter once a load begins.
+
+**PROVEN 22:27Z. Hyper-V names the key itself.** enclave-53 found the upstream guide
+(`Guide/src/user_guide/openhcl/run/hyperv.md` at our openvmm pin) and spotted that every documented
+flow creates the VM with `New-VM -GuestStateIsolationType`, which mine never did. Created that way,
+the worker stops being silent and says exactly what it wants — Worker-Admin event **5142**:
+
+> `failed to load custom IGVM file because AllowFirmwareLoadFromFile registry key is not set`
+> `Loading custom IGVM files is not allowed without a registry opt-in.` (0x80070032)
+
+Identical for `-GuestStateIsolationType OpenHCL` and `TrustedLaunch`.
+
+**Two independent gates, and this is the part that cost hours:**
+
+| gate | what it decides | kind |
+|---|---|---|
+| `New-VM -GuestStateIsolationType OpenHCL` | whether our image is **considered** at all | a VM setting — mine, fixed |
+| `AllowFirmwareLoadFromFile` = 1 (DWORD) | whether our image is **allowed** to load | a host registry key — Steven's |
+
+Without the first, the pin is accepted (`returnValue 0`), `FirmwareFile` reads back, the VM starts,
+and the guest is silent with **no diagnostic anywhere** — every symptom points at the image, and
+none of them is about the image. That is a fail-silent gate, and it is why two different IGVMs and
+a Secure Boot sweep all produced the same uninformative result.
+
+Secure Boot is NOT a factor: pinned VMs fail the same way with it on and off. `IsolationType` on
+`Msvm_VirtualSystemSettingData` reads EMPTY even when the VM was created with one, so it cannot be
+used to detect this.
+
+**Fixed in the launcher**: `CMD.create` now passes `-GuestStateIsolationType OpenHCL` and turns
+Secure Boot off (the guide does, for guest images that need it), with both as parameters. Three
+tests model the measured host and fail against the old `create`.
+
+**What remains is one line, and it is Steven's:**
+```powershell
+Set-ItemProperty "HKLM:/Software/Microsoft/Windows NT/CurrentVersion/Virtualization" `
+  -Name AllowFirmwareLoadFromFile -Value 1 -Type DWORD
+```
+Per the upstream guide it is run once before starting the VM and "enables loading unsigned images".
+It permits Hyper-V to load firmware from an arbitrary file, so it is a host security change and not
+covered by the role/reboot authorization.
+
+What is still NOT established is *which* — `AllowFirmwareLoadFromFile` is the
+leading candidate and is unset, but nothing yet proves that key is the gate rather than some other
+missing setting (the IGVM is an `openhcl-x64-test-linux-DIRECT` image, which expects the host to
+hand VTL0 a kernel and initrd through LinuxKernelDirect, and this VM supplied neither).
 
 **Why it is not set already.** Setting it permits Hyper-V to load firmware from an arbitrary file
 on this host. That is a host security change, it was not part of the approved HYPERV-ROLE plan, and
