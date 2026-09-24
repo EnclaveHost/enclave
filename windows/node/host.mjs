@@ -1105,6 +1105,31 @@ export class Host {
   }
 
   // ---- the surface the relay and the console call, over the tunnel -------------------------
+  /**
+   * Does this box HOLD this deployment? The relay asks every live box `HEAD /x/<id>` to find the
+   * one that owns a deployment and takes the first answer that is not 404, so this is a routing
+   * decision for the whole fleet, not a local status.
+   *
+   * It used to be `records.has(id)`, which is true of every deployment this box has ever
+   * CONSIDERED - including ones it refused by name. Measured 2026-09-24: this node answered 204 for
+   * a deployment running on metal-iso0, and for one it had refused for wanting a model volume it
+   * does not offer. A relay whose ledger lookup could not match then routed another box's tenant
+   * traffic here, and got a 503 from a node that never held the lease.
+   *
+   * The rule is the supervisor's: 404 means not here. "Here" is a lease this box holds and has not
+   * stopped - claiming and provisioning included, because the relay must not disown a box whose app
+   * is still coming up, which is why this answer exists before the app is consulted at all.
+   */
+  holdsLease(id) {
+    const key = String(id || "").toLowerCase();
+    // `tracked` is the set this box claims or is claiming; #stopApp removes an id from it, and
+    // consider() adds it only after the claim policy passed. A refusal never enters it.
+    if (!this.tracked.has(key)) return false;
+    const rec = this.records.get(key);
+    if (!rec) return false;
+    return ["claiming", "provisioning", "running"].includes(String(rec.status || ""));
+  }
+
   deployments() { return [...this.records.values()].map((r) => ({ ...r })); }
   /** The node pool this box has left, as a fraction: what the relay's placement reads. */
   cpuShareFree({ exclude = null } = {}) {

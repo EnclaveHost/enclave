@@ -472,10 +472,17 @@ async function handle(frame) {
   // holds the lease while its app is still starting disowns it (api-relay.js xOwnerOf).
   if (APPS && method === 'HEAD' && /^\/x\/0x[0-9a-fA-F]{64}\/?$/.test(p)) {
     const id = p.split('/')[2].toLowerCase();
-    return host.records.has(id) ? { status: 204, headers: {}, body: '' } : json(404, { error: 'not_found', id });
+    // host.holdsLease, NOT host.records.has: records carry every deployment this box ever
+    // considered, refusals included, and answering 204 for one of those told the relay's fan-out
+    // that another box's tenant belongs here.
+    return host.holdsLease(id) ? { status: 204, headers: {}, body: '' } : json(404, { error: 'not_found', id });
   }
   if (APPS && /^\/x\/0x[0-9a-fA-F]{64}(\/|$)/.test(p)) {
     const id = p.split('/')[2].toLowerCase();
+    // The same rule on the serving path. Without it this box answered a misrouted request with a
+    // 503 and a sentence about ITS OWN policy, which reads to the caller as "your app is broken
+    // here" when the truth is that it was never here. 404 is the only honest answer.
+    if (!host.holdsLease(id)) return json(404, { error: 'not_found', id });
     const rest = p.slice(('/x/' + id).length) || '/';
     // The caller's address, as the relay forwarded it. It is what the deployment's rate and
     // concurrency limits count, so it is passed explicitly rather than guessed at the far end.
