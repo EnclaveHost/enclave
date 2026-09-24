@@ -119,7 +119,8 @@
     <div class="hero-copy">
       <span class="eyebrow">Verifiable compute · API v1</span>
       <h1>Compute that <span class="hl">cannot</span><br>see your&nbsp;data.</h1>
-      <p class="lede">Package an app <b>once</b>. It runs in a hardware-isolated domain that the machine's ordinary operating system <b>cannot see into</b>, its identity measured and its keys and traffic bound to that measurement, and you verify all of it before you send a byte. On confidential hardware the machine's <b>operator</b> is locked out too. Pay <b>per second</b> from a wallet, whether you are a person or an agent.</p>
+      <p class="lede">Your apps. Your data. <b>Your boundary.</b><br>Run one portable app across independent hosts. Verify its protection before you connect. Pay only for the compute you use.</p>
+      <p class="hero-detail">Hardware isolation keeps the ordinary host OS out. Confidential hardware also protects against the machine’s operator.</p>
       <div class="hero-cta">
         <a href="apps" class="btn btn-primary">Deploy an app <span class="arr" aria-hidden="true">→</span></a>
         <a href="develop#architecture" class="btn btn-ghost">How it works</a>
@@ -133,7 +134,7 @@
     </div>
 
     <!-- signature: sealed enclave -->
-    <c-enclave-panel></c-enclave-panel>
+    <c-compute-art caption="Protected by design" label="COMPUTE"></c-compute-art>
   </div>
 
   <!-- facts marquee -->
@@ -251,7 +252,7 @@
       <p>"Verifiable" is a chain of measurements that ends in your browser. Walk each link to see what gets checked and why the operator cannot fake it, then run the check yourself against a live host.</p>
     </c-section-head>
     <c-attest-chain></c-attest-chain>
-    <c-live-verify></c-live-verify>
+    <div class="verification-stage"><c-enclave-panel></c-enclave-panel><c-live-verify></c-live-verify></div>
   </div>
 </section>
 
