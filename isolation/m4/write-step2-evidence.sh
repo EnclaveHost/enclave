@@ -80,7 +80,14 @@ $(sed 's/^/  /' "$W/measurement.check" 2>/dev/null || echo "  (absent)")
 
 AND THE REPORT IS ATTESTED, not merely printed. Everything above reads fields out of bytes the GUEST published
 and trusts the SVSM's status word; only the AMD chain makes them the PSP's statement. Without this section the
-right word for the report is "unauthenticated" and the measurement equality is a claim about unverified bytes:
+right word for the report is "unauthenticated" and the measurement equality is a claim about unverified bytes.
+
+  provenance: report.check written $(if [ -r "$W/report.check" ]; then date -r "$W/report.check" '+%Y-%m-%d %H:%M:%S'; else echo "(absent)"; fi), by verify-report.mjs, over the bytes
+  recorded in control.evidence during the run. A time later than the run means the TEXT was re-derived after it;
+  the CHECK itself ran inside the suite and passed, as 5c in the score shows. The rule: a changed CHECK needs new
+  hardware, changed WORDS may be recomputed from the recorded bytes. Stated here so the distinction is the
+  reader's rather than the author's memory.
+
 $(sed 's/^/  /' "$W/report.check" 2>/dev/null || echo "  (absent - the report in this run is UNAUTHENTICATED)")
 
 SUBSTITUTION: the same IGVM, one different initrd:

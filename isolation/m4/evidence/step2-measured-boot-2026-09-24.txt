@@ -68,7 +68,14 @@ THE MEASUREMENT LINK - the digest covering those artifacts is the digest in the 
 
 AND THE REPORT IS ATTESTED, not merely printed. Everything above reads fields out of bytes the GUEST published
 and trusts the SVSM's status word; only the AMD chain makes them the PSP's statement. Without this section the
-right word for the report is "unauthenticated" and the measurement equality is a claim about unverified bytes:
+right word for the report is "unauthenticated" and the measurement equality is a claim about unverified bytes.
+
+  provenance: report.check written 2026-09-24 02:23:09, by verify-report.mjs, over the bytes
+  recorded in control.evidence during the run. A time later than the run means the TEXT was re-derived after it;
+  the CHECK itself ran inside the suite and passed, as 5c in the score shows. The rule: a changed CHECK needs new
+  hardware, changed WORDS may be recomputed from the recorded bytes. Stated here so the distinction is the
+  reader's rather than the author's memory.
+
   published 2047 bytes; response status=0 report_size=1184
   report version=5 vmpl=2 policy=0x30000
   reported_tcb=0103020500000075 chip_id=fa11afcf54ae9c530000000000000000...
