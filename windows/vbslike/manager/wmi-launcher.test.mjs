@@ -212,3 +212,72 @@ test("an enumerable host that genuinely owns nothing still reports an empty surv
   const s = await enumLauncher(enumHost({ hasGetVM: true, vms: [] })).survey();
   assert.deepEqual(s.vms, [], "empty is a legitimate answer - only UNKNOWABLE is not");
 });
+
+/* ---- the VM must be created with a guest-state isolation type ---------------------------------- *
+ *
+ * Measured on nucbox-k11 2026-09-24. A Generation 2 VM created WITHOUT -GuestStateIsolationType
+ * takes the firmware pin (returnValue 0), reads FirmwareFile back, starts, and boots nothing: the
+ * worker never logs a "Loading IGVM file" line, because there is no paravisor to consume the field.
+ * Created WITH it, the worker tries and says what it wants (Worker-Admin 5142):
+ *   "failed to load custom IGVM file because AllowFirmwareLoadFromFile registry key is not set".
+ *
+ * The fake models THAT host: it looks at how the VM was created and answers the way Hyper-V did.
+ * A launcher that goes back to creating plain gen2 VMs gets a silent guest here, exactly as on the
+ * real box - which is the failure that cost hours, because every symptom pointed at the image. */
+function paravisorHost({ registryOptIn = false } = {}) {
+  let createdWithIsolation = null;
+  const run = async (script) => {
+    if (/\$r\.vmms/.test(script)) {
+      return { code: 0, stdout: JSON.stringify({ vmms: true, namespace: true, module: true, firmwareField: true, hypervisor: true }) };
+    }
+    if (/Get-FileHash/.test(script)) {
+      return { code: 0, stdout: JSON.stringify({ present: true, sha256: SHA, bytes: 124962164 }) };
+    }
+    if (/New-VM/.test(script)) {
+      createdWithIsolation = /-GuestStateIsolationType/.test(script);
+      return { code: 0, stdout: JSON.stringify({ id: "5DB6D4EB-1619-4936-9D60-C7E3CA67F3A8", version: "12.0", name: "x" }) };
+    }
+    if (/ModifySystemSettings/.test(script)) {
+      // the pin is accepted either way - this is why the defect was invisible
+      return { code: 0, stdout: JSON.stringify({ returnValue: 0, jobState: null, firmwareFile: IMG, guestFeatureSet: GUEST_FEATURE_SET }) };
+    }
+    if (/Set-VMComPort/.test(script)) return { code: 0, stdout: JSON.stringify({ ok: true }) };
+    if (/Start-VM/.test(script)) {
+      if (createdWithIsolation && !registryOptIn) {
+        return { code: 1, stdout: "", stderr: "failed to load custom IGVM file because AllowFirmwareLoadFromFile registry key is not set" };
+      }
+      return { code: 0, stdout: JSON.stringify({ state: "Running" }) };
+    }
+    if (/NamedPipeClientStream/.test(script)) {
+      // no isolation type => no paravisor => a Running VM that says nothing
+      return { code: 0, stdout: JSON.stringify({ connected: !!createdWithIsolation, bytes: 0, head: "" }) };
+    }
+    if (/Get-VM \|/.test(script)) return { code: 0, stdout: JSON.stringify({ found: 0, removed: [], failed: [], vms: [] }) };
+    return { code: 0, stdout: "{}" };
+  };
+  return { run, createdWith: () => createdWithIsolation };
+}
+
+test("create asks for a guest-state isolation type, or the firmware pin is inert", async () => {
+  const h = paravisorHost();
+  const l = new WmiHyperVLauncher({ run: h.run, imagePath: IMG, imageSha256: SHA, prefix: "enclave-" });
+  await l.start(mapping, { instanceId: "iso-1", guestReadySec: 1 }).catch(() => {});
+  assert.equal(h.createdWith(), true,
+    "New-VM must pass -GuestStateIsolationType: without it the worker never loads the IGVM and the guest is silent");
+});
+
+test("a host without the registry opt-in surfaces the reason Hyper-V gave, not a generic failure", async () => {
+  const h = paravisorHost({ registryOptIn: false });
+  const l = new WmiHyperVLauncher({ run: h.run, imagePath: IMG, imageSha256: SHA, prefix: "enclave-" });
+  await assert.rejects(() => l.start(mapping, { instanceId: "iso-2", guestReadySec: 1 }),
+    /AllowFirmwareLoadFromFile/,
+    "the operator must see the key named, rather than having to reconstruct it from a silent guest");
+});
+
+test("with the opt-in set, start proceeds (and readiness is still decided elsewhere)", async () => {
+  const h = paravisorHost({ registryOptIn: true });
+  const l = new WmiHyperVLauncher({ run: h.run, imagePath: IMG, imageSha256: SHA, prefix: "enclave-" });
+  // it may still refuse for want of guest output; what must NOT happen is a registry-key failure
+  const e = await l.start(mapping, { instanceId: "iso-3", guestReadySec: 1 }).then(() => null, (x) => x);
+  if (e) assert.doesNotMatch(e.message, /AllowFirmwareLoadFromFile/);
+});
