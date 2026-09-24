@@ -138,7 +138,14 @@ FINDINGS
       closed).
   F2  FIXED, live ~20:37Z (6757d139): see webpki/README.txt. Previously: the guest front's certificate was self-signed: a browser warned. Trust comes from attestation (the verifying
       client), not WebPKI. A CA certificate for the guest's own key (CSR from inside the guest) is not built.
-  F3  The relay-terminated /x/<id>/ path answers 503 "state unknown" for this deployment instead of a clear refusal.
+  F3  FIXED, live 20:53Z (99b0e3c0, node measurement bc7d0c27...): the relay-terminated /x/<id>/ path answered 503
+      "state unknown" - from nucbox-k11, not metal-iso0. Cause: on the ATTESTED attach path the agent's only hello (which
+      carries publicUrl = the registry id) arrived before the hub bound the tunnel, so metal-iso0's row stayed synthetic
+      ("tunnel:metal-iso0"), the relay's ledger rule could not match the lease holder, and its fan-out took nucbox, which
+      answered 204 to /x/<id> for ids it does not run (reported; fixed by the Windows owner at 78b3eb9f, to deploy in
+      their reboot window). Now the row carries 0xf7a1256d... and https://api.enclave.host/x/<id>/ answers metal-iso0's
+      421 "This deployment is served only over TLS that ends in its own guest: https://<label>.app.enclave.host/".
+      Node restart adopted both guests (keys and certificates unchanged).
   F4  The node CVM itself boots from a measured image whose supervisor comes from a branch overlay, not a main release.
   F5  The operator key is metal0's (shared between two nodes that do not run together).
 
