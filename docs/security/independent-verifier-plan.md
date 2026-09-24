@@ -717,6 +717,12 @@ function of the handshake's SPKI; the carrier chain is no trust input, and a pub
 nothing about key custody. Recorded from the owner: the node's issuance gate applies no TCB floor and holds the
 measurement to guestd's word; a still-valid certificate for the same key and name can be re-posted by anyone (200),
 another key or name is refused (422).
+**F7, guestd restarts adopt guests (owner's 48ef955b).** The first F7 deploy did not adopt: the old binary's SIGTERM
+handler stopped both guests at 20:43:45Z and they relaunched with new keys (295ce2e0… for A, d590dd84… for E) and new
+ZeroSSL certificates; the owner reported it as a failure of that deploy. The fixed guestd, restarted by SIGKILL so the old
+handler could not run, adopted both at 20:46:03Z. Measured from the public side at 20:46:44Z and 20:47:20Z: both VERIFIED
+with host data and the F2 measurement, keys unchanged across the transition. From here a guestd restart keeps guests and
+keys; a node-image or front change still relaunches them.
 
 ## 11. Open risks
 
