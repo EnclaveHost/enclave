@@ -137,9 +137,29 @@ const CERTS = certsCfg(cfg);
 // (name, public URL, relay, tunnel token) is delivered out-of-band via QEMU
 // fw_cfg — NOT measured — so a given image has ONE stable launch measurement
 // regardless of which relay/token it uses, and no secret ever enters the quote.
+// Per-app isolation tier (isolation/DEPLOYMENT-PATH.md, M4a): this node CVM runs the control plane only and every
+// app runs in its OWN SEV-SNP guest, launched on this host by isolation/m4/guestd. WHICH tier a node is belongs to
+// its identity, so it rides the measured cmdline (metal.isolation=<backend>) and changes the launch measurement;
+// WHERE guestd listens and the pairing key that authenticates the channel to it are host-side runtime config and
+// ride fw_cfg like the tunnel token. The key protects the channel from other processes on this host, not from the
+// host's operator, who holds it in any case.
+const ISOLATION_BACKENDS = ['snp-guest-per-app'];
+const ISO = (cfg.isolation && typeof cfg.isolation === 'object') ? cfg.isolation : null;
+let ISO_RUNTIME = null;
+if (ISO) {
+  if (!ISOLATION_BACKENDS.includes(ISO.backend)) throw new Error(`isolation.backend must be one of ${ISOLATION_BACKENDS.join(', ')}`);
+  const key = fs.readFileSync(String(ISO.pairingKeyFile || ''), 'utf8').trim();
+  if (!/^[0-9a-f]{64}$/.test(key)) throw new Error('isolation.pairingKeyFile must hold the 64-hex guestd pairing key (guestd -gen-key)');
+  const managerUrl = String(ISO.managerUrl || 'http://10.0.2.2:8095');
+  const dataAddr = String(ISO.dataAddr || '10.0.2.2:8096');
+  if (!/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}$/.test(managerUrl) || !/^(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}$/.test(dataAddr))
+    throw new Error('isolation.managerUrl / dataAddr must be IPv4 literals (http://10.0.2.2:8095, 10.0.2.2:8096)');
+  ISO_RUNTIME = { managerUrl, dataAddr, pairingKey: key };
+}
 const cmdline = [
   'console=ttyS0', 'root=/dev/ram0', 'rootfstype=ramfs', 'quiet',
   `metal.mode=${MODE}`,
+  ...(ISO ? [`metal.isolation=${ISO.backend}`] : []),
 ].join(' ');
 const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', relayUrl: cfg.relayUrl || '', tunnelToken: cfg.tunnelToken || '',
   // seller earning (metal/PROTOCOL.md Phase C): the operator EOA key that
@@ -184,7 +204,14 @@ const runtimeCfg = { name: NAME, mode: MODE, publicUrl: cfg.publicUrl || '', rel
   // — the guest hashes this table and refuses to mount unless it matches the
   // measured metal.vols digest above, so this is a delivery channel, not a
   // trusted one. The host path never crosses: only the serial the disk carries.
-  volumes: VOLUMES.map(({ image, ...v }) => v) };
+  volumes: VOLUMES.map(({ image, ...v }) => v),
+  // the per-app isolation tier's host-side endpoints and pairing key (see ISO above)
+  ...(ISO_RUNTIME ? { isolation: ISO_RUNTIME } : {}),
+  // This chip's VCEK (DER, base64), when the host attaches no certificate table to reports and AMD KDS has none
+  // for the part: the agent sends it with a tunnel quote so the relay can chain it to AMD's root. Public data,
+  // judged by the chain, never trusted as delivered.
+  ...(cfg.vcekFile ? { vcek: fs.readFileSync(cfg.vcekFile).toString('base64') } : {}) };
+if (ISO && VOLUMES.length) throw new Error('an isolation-tier node runs no apps itself, so it attaches no model volumes');
 
 // Optional egress helper. QEMU user-net (slirp) NATs outbound for a normal host,
 // but some sandboxed/dev hosts block slirp's EXTERNAL sockets while still routing
@@ -462,6 +489,8 @@ const haltpollFwCfg = (() => {
 // that are gone (a crash, a SIGKILL) are swept here rather than left in /tmp
 // forever -- 2026-08-27: three of them from earlier in the week, readable by
 // any local user. QEMU reads the file once at start-up.
+if (ISO && shieldedWorkers.length)
+  throw new Error('an isolation-tier node runs no apps itself, so it has no shielded GPU workers');
 const fwCfgPath = path.join(os.tmpdir(), `metal-fwcfg-${process.pid}.json`);
 for (const f of fs.readdirSync(os.tmpdir()).filter((n) => /^metal-fwcfg-\d+\.json$/.test(n))) {
   const pid = Number(n(f));

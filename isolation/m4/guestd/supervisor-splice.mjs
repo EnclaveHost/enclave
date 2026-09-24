@@ -172,9 +172,12 @@ export function openSplice(dataAddr, route, { timeoutMs = OPEN_MS } = {}) {
   });
 }
 
+// GUESTD_DATA_ADDR is an operator setting: the host's loopback when the supervisor runs beside guestd, or the
+// host's address as the node CVM sees it (QEMU user networking's 10.0.2.2). An IPv4 literal or localhost; no DNS,
+// so nothing outside the node's own configuration decides where the ciphertext goes.
 function splitAddr(a) {
-  const m = /^(127\.\d+\.\d+\.\d+|\[::1\]|localhost):(\d{1,5})$/.exec(String(a || ""));
-  if (!m) throw new SpliceRefused("config", `GUESTD_DATA_ADDR=${JSON.stringify(a)} is not a loopback host:port`);
+  const m = /^((?:\d{1,3}\.){3}\d{1,3}|\[::1\]|localhost):(\d{1,5})$/.exec(String(a || ""));
+  if (!m) throw new SpliceRefused("config", `GUESTD_DATA_ADDR=${JSON.stringify(a)} is not an IPv4 host:port`);
   return [m[1].replace(/^\[|\]$/g, ""), Number(m[2])];
 }
 
