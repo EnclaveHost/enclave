@@ -29,10 +29,11 @@ two differ. `check.ps1` reports each profile's host state live. The manifest sta
 | 4 | `10139942…` `manifests/nucbox-ownguest-4.json` | as v3; manager + judge at `f4f10c84` (the VM is created with `-GuestStateIsolationType OpenHCL`, Secure Boot off; `ready.mjs`); launcher `57d8c035…` from `55494efa` (loads `/2`), nightly toolchain and build root pinned; `AllowFirmwareLoadFromFile` is a gating igvm host check | as v3 | as v3 |
 | 5 | `ac8d68b2…` `manifests/nucbox-ownguest-5.json` | as v4; manager + judge at `6d6c289e` (`ready.mjs` without defect 10; `/vms` speaks guestd's contract: 201, `status`, `boundary`, `relay`, `domainId`, `guestPort`, `image`) | as v4 | `datapath.mjs` `2db32e0a…` at `b339e9d4` (admits on `transportKeySha256`); caveat: the manager does not populate `transportKeySha256` yet, so the datapath refuses to admit |
 | 6 | `ce02a547…` `manifests/nucbox-ownguest-6.json` | as v5; manager + judge + node client + lifecycle at `72c82fc6` (the spawn path judges readiness with the runtime IDENTITY, read by `main.mjs` from `ENCLAVE_RUNTIME_IDENTITY`; `image` from the launcher's ready line) | as v5; eight functional suites pinned (enclave-99's seven + enclave-5d's datapath suite), all measured green | as v5 |
+| 7 | `f4cbffee…` `manifests/nucbox-ownguest-7.json` | as v6 (manager `72c82fc6`; enclave-d1's later `0b49f6b6`/`5a8a33e7` are not pinned) | as v6; enclave-5d's datapath suite now RUNS its interop case (5/5, no skip) | + `node-bridge.mjs` `b1483afa…` and `supervisor-splice.mjs` `88e688cd…` at `e7ec6521` (ws loaded lazily); imported by nothing on the box until d1's appzone/host/main hooks land |
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
-**v1 is defective. Use the latest (v6).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
+**v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
 copied from a client that trims. The app answers `"Hello World!\n"`, so v1's serve checks would fail on a correct
 answer. The current verifier refuses v1 at that pin. `--serve`, which serves the component under the pinned runtime and
 compares the exact bytes, is the check that would have caught it. The rest of v1's pins stand for the old guest.
@@ -46,7 +47,7 @@ v3 at that check.
 ## Reproduce and verify (warden-host)
 
 ```
-node windows/vbslike/pkg/pkg.mjs verify windows/vbslike/pkg/manifests/nucbox-ownguest-6.json --rebuild --fetch https://ipfs.enclave.host --serve --tests
+node windows/vbslike/pkg/pkg.mjs verify windows/vbslike/pkg/manifests/nucbox-ownguest-7.json --rebuild --fetch https://ipfs.enclave.host --serve --tests
 node --test windows/vbslike/pkg/pkg.test.mjs
 ```
 
@@ -96,7 +97,7 @@ reproduced here.
 ## Put it on the box (read `win/*.ps1` first: they state what they write)
 
 ```
-node windows/vbslike/pkg/pkg.mjs pack windows/vbslike/pkg/manifests/nucbox-ownguest-6.json ~/enclave-bench/ownguest-pkg/out
+node windows/vbslike/pkg/pkg.mjs pack windows/vbslike/pkg/manifests/nucbox-ownguest-7.json ~/enclave-bench/ownguest-pkg/out
 windows/vbslike/pkg/push.sh ~/enclave-bench/ownguest-pkg/out/<id16> minipc-zt
 ```
 
