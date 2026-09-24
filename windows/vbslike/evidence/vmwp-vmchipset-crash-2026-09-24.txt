@@ -1,0 +1,22 @@
+vmwp.exe crashes in the last 3h: 6
+Faulting application name: vmwp.exe, version: 10.0.26100.9278, time stamp: 0xccafcc88
+Faulting module name: vmchipset.dll, version: 10.0.26100.9278, time stamp: 0x841f6d77
+Exception code: 0xc0000005
+Fault offset: 0x000000000006e31c
+Faulting process id: 0x3854
+Faulting application start time: 0x1DD4C55F7FE4FF8
+Faulting application path: C:\WINDOWS\System32\vmwp.exe
+Faulting module path: C:\WINDOWS\System32\vmchipset.dll
+Report Id: a82a5abb-9b02-4e49-a05f-320f95018f0d
+Faulting package full name: 
+Faulting package-relative application ID: 
+=== did any crash predate today's probes? ===
+total vmwp crashes in the log: 11
+
+TimeCreated         
+-----------         
+9/23/2026 4:06:20 PM
+9/23/2026 4:05:59 PM
+9/23/2026 4:05:38 PM
+
+

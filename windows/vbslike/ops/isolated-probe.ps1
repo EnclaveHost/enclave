@@ -35,6 +35,8 @@ param(
   [string] $Only = 'vbs-igvmpath',
   [string] $Vmgs,
   [string] $VmgsEmpty,
+  # 1024 MB is the launcher's default and is small for a VTL2 paravisor plus a VTL0 guest.
+  [int]    $MemMiB = 0,
   [switch] $Approve
 )
 
@@ -161,6 +163,8 @@ try {
                  '--out', (Join-Path $EvidenceDir 'isoprobe'), '--seconds', '20')
   if ($Vmgs)      { $probeArgs += @('--vmgs', $Vmgs) }
   if ($VmgsEmpty) { $probeArgs += @('--vmgs-empty', $VmgsEmpty) }
+  if ($MemMiB -gt 0) { $probeArgs += @('--mem', "$MemMiB") }
+  Note ("image: $Image sha256 $ImageSha256")
   Note ("probe args: " + ($probeArgs -join ' '))
   $p = Start-Process -FilePath $HostExe -PassThru -NoNewWindow `
         -RedirectStandardOutput (Join-Path $EvidenceDir 'isoprobe.out') -RedirectStandardError (Join-Path $EvidenceDir 'isoprobe.err') `
