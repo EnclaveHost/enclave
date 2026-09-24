@@ -51,10 +51,25 @@ export const MODES = ['trusted', 'lab-unsigned', 't0-diagnostic'];
 // Returns { ok, reasons }. The rules mirror boundaryFault in isolation/m3/monitor/main.go deliberately -
 // the monitor refuses to serve on a fault, and a verifier must not accept what the monitor would refuse.
 //
-// What this is worth: the monitor and the front that relays it are both inside the measured launch image,
-// and the monitor serves no report at all unless the tuple is coherent. What it is NOT: hardware proof.
-// The PSP does not attest "this guest cannot reach VMPL0"; a verifier relies on measured code truthfully
-// reporting its own local refusal, and that reliance is the residual assumption, not a checked fact.
+// What this is worth, CORRECTED 2026-09-23 after an independent review and two runs of our own: LESS than
+// this file used to say, and on some paths nothing.
+//
+// The refusal does not test key absence. tsm-report refuses a privlevel below `privlevel_floor` in its own
+// floor check, and the floor comes from `sev-guest`'s `vmpck_id` module parameter - the guest's command line -
+// so no VMPCK is ever consulted. Measured on ONE image, on a plain SNP guest with no SVSM, therefore at
+// VMPL0: with vmpck_id=0 it got a signed report naming vmpl=0 and level 0 was GRANTED (the control that
+// proves it is unconfined); with vmpck_id=2 the same guest reported privlevel_floor=2 and level 0 was
+// REFUSED with EINVAL. That is byte for byte the tuple below, produced by configuration alone.
+//
+// So this function cannot distinguish a confined guest from an unconfined one that sets a parameter, and it
+// does not claim to. What it still does, and what is still worth doing: it rejects an INCOHERENT tuple -
+// vmpl0=GRANTED, a probe that never ran, a claim that contradicts the signed report - which is a fault in
+// measured code whatever the topology. Confinement itself is established by the MEASUREMENT the caller pins:
+// on the IGVM path the digest covers the SVSM that holds VMPL0, and on the kernel-hashes path the command
+// line and initrd are measured, so vmpck_id cannot be changed without changing that digest.
+//
+// The probe that WOULD test key absence is loading sev-guest with vmpck_id=0 and requiring it to FAIL, since
+// a guest beneath a VMPL0 SVSM has no VMPCK0. That is isolation/DESIGN.md's replacement and is not yet wired.
 export function checkBoundary(boundary, expectedVmpl, reportVmpl) {
   const reasons = [];
   const want = expectedVmpl ?? 0;
@@ -94,8 +109,8 @@ export function checkBoundary(boundary, expectedVmpl, reportVmpl) {
   if (f.vmpl0 !== 'refused') {
     return { ok: false, reasons: [`REJECT: a report at VMPL0 must have been REFUSED to show this guest is confined, but the probe recorded vmpl0=${f.vmpl0}`] };
   }
-  reasons.push(`the monitor was REFUSED a report at VMPL0 and runs at VMPL${want} (vmpl=${f.vmpl} vmpl_floor=${f.vmpl_floor} vmpl0=refused), which is what distinguishes being confined from a VMPL0 guest naming a lower level`);
-  reasons.push('that refusal is the measured monitor\'s own word, relayed over this attested connection; the hardware does not attest it (see judge.mjs checkBoundary)');
+  reasons.push(`the monitor reports VMPL${want} and a refused level-0 probe (vmpl=${f.vmpl} vmpl_floor=${f.vmpl_floor} vmpl0=refused), coherent with the signed report`);
+  reasons.push('that refusal does NOT show this guest lacks VMPCK0: tsm-report refuses a level below its floor locally, and the floor is set by the sev-guest vmpck_id parameter, so a VMPL0 guest reproduces this tuple by configuration (measured 2026-09-23). What identifies the confining SVSM is the MEASUREMENT pinned above, not this tuple; see judge.mjs checkBoundary');
   return { ok: true, reasons };
 }
 // checkRuntime judges the ABI the domain used and, under ABI/2, the runtime identity it states - and
