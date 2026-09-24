@@ -186,3 +186,75 @@ only the outcome. `npm run test:client-persistence` now reports PASS against 678
 of `npm run test:integration`. Not covered on this branch: the extension's Web Locks path (the owner's own Chrome
 durability tests cover it), the supersede-at-sealing check (needs verifying evidence), and update staging races (the
 owner's durability tests). The gap is closed for the CLI as far as these black-box cases reach.
+
+## Extension in real Chromium, supersede at release, update staging and rotation (2026-09-24, owner's 6784f671)
+
+The three angles the previous section left to the owner's own tests are now covered on this branch, against the same
+pinned commit. Three more pins carry them (`verifier/integration/pins.json`): `pvm-client-dist` now also names the
+shipped extension zip (`800129d5c00072c4edb4570d2342f08ef37b2e7d586589e14bc9b349c7da7601`), `pvm-client-dist-old`
+keeps the 0.1.0 CLI and zip (4e55879b) so the old client's failures stay reproducible, and `pvm-client-src` holds the
+0.2.0 sources with the blob hashes `BUILD.json` lists. The lab side is one helper (`test/helpers/pvm-lab.mjs`: keys
+generated per run, policies and update manifests signed as `DESIGN.md` defines them, a carrier and relay whose held
+requests are the barriers). Nothing of the owner's code is copied; all of it is materialised from the pinned commit.
+
+**The shipped extension in Chrome for Testing 151** (`test/verifier-pvm-client-ext.test.mjs`, `npm run test:client-ext`).
+The pinned zip is unzipped and loaded unpacked (`--load-extension`, headless, a fresh profile per case) and driven over
+the DevTools protocol; the extension id is computed from the directory path and checked against the id the outcome
+posts carry, and every outcome's user agent must be Chrome 151. The barrier "the page acted on the policy" is the lab
+relay holding the page's `/evidence` request; the 0.2.0 extension's own `policy-committed` post is asserted to precede
+it. A tab is "decided" when it posted an outcome or sent a request, so a client that acts instead of refusing fails the
+count assertion at once rather than hanging. The kill is SIGKILL of the whole browser process group with no graceful
+shutdown, followed by a relaunch on the same profile.
+
+| case | 0.2.0 zip (800129d5) | 0.2.0 cases run against the 0.1.0 zip (negative control) | 0.1.0 zip (8235d20c) |
+|---|---|---|---|
+| stall at evidence, SIGKILL the browser, relaunch, rollback | pass: serial 2 found by the relaunch, serial 1 refused as rollback, no request | `after the kill the committed serial must be 2 ... 1 !== 2` | preserved failure: serial 1 remains, the rollback is acted on (second evidence request) |
+| stall at evidence, only the tab closed, rollback in a new tab | pass | `the serial committed by the closed tab remains 1 !== 3` | |
+| two tabs, new then old; then old then new with the old finishing last | pass: the old tab refused before acting; the state is 8 while both act and after the older completion | `the old tab must be refused, not act 2 !== 1` | |
+| equal serial, other bytes, across tabs; the same bytes again | pass: equivocation refused, no request; the same bytes acted on | `equivocation must be refused without acting on it 2 !== 1` | |
+
+What this proves: the 0.2.0 extension's commit is durable across browser process death and tab close on this machine,
+and the browser-wide lock keeps concurrent tabs monotonic. What it does not prove: persistence across whole-machine
+power loss. No test cuts power; a `chrome.storage.local` write that resolved has reached the browser process and the
+operating system's page cache, and nothing here says when it reaches the disk. The same limit applies to the CLI's
+`link()`-based log: its fsyncs are the design's claim, and this branch has not verified them against a power cut.
+
+**Superseded policy at request release** (`test/verifier-pvm-client-supersede.test.mjs`, `npm run test:client-supersede`).
+The refusal happens only after evidence verified, which no offline test can produce, so this one suite runs the
+owner's `cli.mjs` from the pinned SOURCES with a single import replaced through a Node module-customisation hook: the
+`./pvm-verify.js` that `web/pvm-client.js` imports is answered with a stub whose `verifyPvmAppEvidence` accepts the lab
+relay's fabricated envelope when it echoes the client's nonce and app (every other import, including `gate.js`'s and
+`trust.js`'s own, resolves to the real module). The store, the flow, the gate and the sealing are the owner's code.
+Cases: client A commits serial 5 and its evidence is held; client B commits 6; A's evidence is released and verifies;
+A refuses at step `gate` with `policy serial 5 was superseded by serial 6 committed meanwhile: nothing is sent` and the
+relay records no sealed request from A, while B goes on to its sealed request; the same when the supersession is a
+policy under the rotated key; a control without B reaches the sealed request (so the case is reachable); an envelope
+for another nonce is refused at `verify`. This is a source-level result: the built artifact was not exercised on this
+path, and the docs say so wherever the result is cited.
+
+**Update staging and key rotation** (`test/verifier-pvm-client-update.test.mjs`, `npm run test:client-update`), black-box
+against the built 0.2.0 CLI with lab-signed manifests (release key signs, policy key countersigns) and held artifact
+downloads as barriers: a valid update stages its exact bytes under `pvm-client-<version>.mjs`, the state records it,
+and tampered staged bytes are reported by `staged` as `bytesMatch: false`; a wrong countersignature, a stranger's
+release key and a version not newer than 0.2.0 are refused with nothing written; two stagers of different versions in
+both completion orders (the older is refused with `update 0.3.0 is already staged: 0.2.1 cannot replace it`, the newer
+replaces the older); a policy-key rotation by signed `nextPolicyKey` (recorded at commit, the anchor moves when the
+successor signs, then the retired key's policies and a rollback under it are refused without a request); a release-key
+rotation carried by an update and a policy commit in both orders, neither losing the other's fields, after which the
+successor release key signs and the retired key and a stranger do not; a storm of six concurrent updates (0.3.0 to
+0.3.5) and six policy commits (serials 10 to 15) that ends at 0.3.5 and serial 15 with every loser refused by the
+monotonic rule and exactly one generation per successful commit.
+
+Two findings, reported to the owner (session enclave-53):
+
+1. A refused stager's verified bytes remain beside the client under their own version name (the file is written
+   before the commit decides). Not staged, not named by `staged`; an operational leftover rather than a hole.
+2. A second manifest for the SAME version with other bytes, carrying both signatures (a re-signed build), is refused by
+   the monotonic rule but has already replaced `pvm-client-<version>.mjs`, so `staged` then reports `bytesMatch:
+   false` for the update the state names. Whoever can produce such a manifest holds both keys, so this is robustness,
+   not privilege; but a re-signed build breaks a staged update instead of being ignored. The required behaviour (the
+   refused stager leaves the staged bytes untouched) is asserted as a todo case, which the strict command names as a
+   known finding until it passes.
+
+Strict command after this increment: 73 cases, 72 pass, 0 fail, 0 skipped, 1 todo (the finding above), against the
+five pins and both reproduced artifacts.

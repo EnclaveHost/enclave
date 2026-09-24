@@ -15,7 +15,10 @@
     "test:client-persistence": "node verifier/integration/run-client-persistence.mjs",
     "build:vendor": "node scripts/build-vendor.mjs",
     "build:site": "node scripts/build-site.mjs",
-    "watch:site": "tailwindcss -i site/css/src/main.css -o site/css/site.css --watch"
+    "watch:site": "tailwindcss -i site/css/src/main.css -o site/css/site.css --watch",
+    "test:client-ext": "node --test --test-timeout=180000 test/verifier-pvm-client-ext.test.mjs",
+    "test:client-supersede": "node --test test/verifier-pvm-client-supersede.test.mjs",
+    "test:client-update": "node --test test/verifier-pvm-client-update.test.mjs"
   },
   "engines": {
     "node": ">=20"

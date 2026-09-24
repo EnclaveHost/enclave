@@ -37,10 +37,48 @@
     "entry": "shielded/anchor/avf/client/dist/pvm-client.mjs",
     "env": "ENCLAVE_PVM_CLIENT_CLI",
     "files": {
-      "shielded/anchor/avf/client/dist/pvm-client.mjs": "3782de92df2ecc0d13262fc94470b90e694654f35452211b68073468b3f1ded6"
+      "shielded/anchor/avf/client/dist/pvm-client.mjs": "3782de92df2ecc0d13262fc94470b90e694654f35452211b68073468b3f1ded6",
+      "shielded/anchor/avf/client/dist/pvm-client-ext.zip": "800129d5c00072c4edb4570d2342f08ef37b2e7d586589e14bc9b349c7da7601"
     },
     "mustMatchWorktree": [],
     "pinnedAt": "2026-09-24",
     "note": "client 0.2.0 (rollback durability): the persistence suite must PASS against it unchanged; --state names a directory (generation log), `pvm-client state --state DIR` prints {state, gen, dir}"
+  },
+  "pvm-client-dist-old": {
+    "purpose": "the previous (0.1.0) BUILT client, kept so the old-client failures stay reproducible beside the fix (the persistence and extension suites preserve them where applicable)",
+    "branch": "pvm-cpu/portable-runtime",
+    "commit": "4e55879b9329100bee8b70e61bd8b75ec7b43654",
+    "entry": "shielded/anchor/avf/client/dist/pvm-client.mjs",
+    "env": "ENCLAVE_PVM_CLIENT_OLD_CLI",
+    "files": {
+      "shielded/anchor/avf/client/dist/pvm-client.mjs": "52d4483245eeb4fa37f4f57eb2c7e416a9c5c57c54d1436dabffdae6f230897c",
+      "shielded/anchor/avf/client/dist/pvm-client-ext.zip": "8235d20cf437a58076556beea427e10caf8858668c8a894da5e1f7ae0687ac53"
+    },
+    "mustMatchWorktree": [],
+    "pinnedAt": "2026-09-24",
+    "note": "client 0.1.0: persists policy acceptance only after the exchange (the reproduced gap)"
+  },
+  "pvm-client-src": {
+    "purpose": "the 0.2.0 client SOURCES, for the one check that cannot be reached black-box: the superseded-policy refusal at request release needs verifying evidence, so the evidence verifier alone is replaced through a Node loader hook and everything else (cli.mjs, the flow, the store, the gate, the sealing) is the owner's code at this commit",
+    "branch": "pvm-cpu/portable-runtime",
+    "commit": "6784f67159e835c6ef4af113c5c4d1463d52b32d",
+    "entry": "shielded/anchor/avf/client/cli.mjs",
+    "env": "ENCLAVE_PVM_CLIENT_SRC",
+    "files": {
+      "shielded/anchor/avf/client/cli.mjs": "92b8db3622c58dc23c4f80f74aa9e45254c5b40a5490529165125181eceae908",
+      "shielded/anchor/avf/client/src/client.js": "fdc6ac59ff3eee651ca92cd26e0da540ce2eb16dacd993a9477073f3c33b6dd7",
+      "shielded/anchor/avf/client/src/gate.js": "610627d34d249080cc19fd4a5d4a59f3ff29598e2dc279102a426dd8aee2a330",
+      "shielded/anchor/avf/client/src/store-file.js": "6293fbcf26e2789bc44160f7ee6e33e3a69638153ea4f60ba6b3da73623c82b8",
+      "shielded/anchor/avf/client/src/store-ext.js": "6d59acdc0a27bfed73ce37c1ef79c8946b89434271dac445782774a17034fe9f",
+      "shielded/anchor/avf/client/src/trust.js": "514468bb3432261d3d2fec361f2607a8a884dc5c4c15694ceaf282590bd12cfd",
+      "shielded/anchor/avf/client/src/update.js": "790ad41f8460a3ea87a8b088ca2374eda056b0e1cfbc97340fbe571446cab454",
+      "shielded/anchor/avf/web/pvm-client.js": "6516d646dd73d4e1c2af4c661c39ff3721af495017452486aeab06993560dd0d",
+      "shielded/anchor/avf/web/pvm-verify.js": "6c962bc32cfe117e1b6f54b80ddc41f3be4eec8f090209875d0b6da3fbf4682a",
+      "shielded/anchor/avf/web/pvm-sealed.js": "be7d6ed088bed2fc0c70e8fd23d52ac06202ac188ba999b34e7095da58e5a175",
+      "shielded/anchor/avf/web/vendor/hpke-core-1.9.0.js": "a4302f89ae432a27c0476a21c4aa33be7cd94419b51eca8e71ef05b634db3e34"
+    },
+    "mustMatchWorktree": [],
+    "pinnedAt": "2026-09-24",
+    "note": "same commit and bytes as the built 0.2.0 artifact (BUILD.json inputs)"
   }
 }
