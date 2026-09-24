@@ -59,6 +59,7 @@ export function claimGasBlock(gasRenewals, operator) {
 }
 
 export class Host {
+  #deadSince = new Map();
   constructor(cfg) {
     this.cfg = cfg;                                  // { dir, endpoint, name, appsEnabled, ownerWallet, cpuPricePerSec6, vcpus, ramGb, wasmtime, python, gateway, portBase, inferenceUrl, log }
     this.log = cfg.log || (() => {});
@@ -67,6 +68,7 @@ export class Host {
     /// box has no card or its worker is down, which sells nothing.
     this.card = cfg.card || (() => null);
     this.apps = new Map();                           // id -> App
+    this.#deadSince = new Map();   // id -> when its port first stopped answering
     this.records = new Map();                        // id -> { id, status, reason, appRef, cid, version, leaseUntil, claimedAt, provenAt }
     this.enclaveId = chain.enclaveIdOf(cfg.endpoint);
     this.registered = null;                          // the registry entry as last read
@@ -1012,6 +1014,22 @@ export class Host {
       // THE OWNER'S EDIT, reaching an app that is already running. The envelope is mutable on the
       // ledger (setConfig) and used to be read only at claim time, so an owner who changed their
       // app's configuration or its protection rules saw nothing happen until the lease turned over.
+      // IS IT STILL ANSWERING? The node had `alive()` and asked it in one place only - proveAll,
+      // where a silent app just loses a checkpoint. So an app that stopped accepting stayed
+      // "running" in the records and on the console indefinitely, while its own hostname went
+      // blank: two did exactly that for two hours. A record that says running while the port
+      // refuses connections is the wrong answer to the only question a tenant is asking.
+      const live = this.apps.get(id);
+      if (live && rec.status === "running" && !(await live.alive().catch(() => false))) {
+        const since = this.#deadSince.get(id) || Date.now();
+        this.#deadSince.set(id, since);
+        // One tick of grace: a probe can lose a race with a busy app. Two in a row is a fact.
+        if (Date.now() - since >= TICK_MS) {
+          this.#record(id, { status: "unreachable",
+            reason: "the app stopped accepting connections on its port inside the enclave; the lease is still held" });
+          this.log(`${id.slice(0, 10)}: not answering on its port - recorded unreachable (lease still held)`);
+        }
+      } else if (live) { this.#deadSince.delete(id); }
       await this.#applyEnvelopeEdit(id, d).catch((e) => this.log(`config edit ${id.slice(0, 10)}: ${e.message}`));
       // ...and the owner's RESIZE (setShares), which the ledger bills from immediately. A box that
       // billed the new share while serving the old one would be charging for something it is not
