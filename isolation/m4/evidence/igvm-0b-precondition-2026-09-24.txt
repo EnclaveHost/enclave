@@ -22,25 +22,54 @@ stating that it was called and found no table is the mechanism reporting itself.
 
 AND THE MECHANISM CONFIRMED FROM THE SVSM'S OWN LOG, not inferred from the symptom:
 
+  [SVSM]   Secrets Page : 0x0080d000
+  [SVSM]   CPUID Page   : 0x0080e000
+  [SVSM]   CAA Page     : 0x0080f000
+  [SVSM]   Pre-Validated Region [0x0000000000800000-0x0000000000809000]
+  [SVSM]   Pre-Validated Region [0x000000000080a000-0x000000000080d000]
+  [SVSM]   Pre-Validated Region [0x0000000000810000-0x0000000000830000]
+  [SVSM] Validating 0x0000000000800000-0x0000000000809000
   [SVSM] Validating 0x000000000080a000-0x0000000000830000
+  [SVSM] Firmware region 0 at [0x00000000ffc00000-0x0000000100000000]
   [SVSM] Firmware region 1 at [0x0000000000812000-0x00000000008120c0]
 
-Firmware region 1 is 192 bytes at 0x812000 - the SevHashTable area - and it lies INSIDE the range the SVSM
-validates at 0x80a000-0x830000. Validation zeroes, so the table is zeroed before the firmware ever reads it.
+The hashes area is at 0x810000, 4096 bytes, and it is the third pre-validated region's first page. It therefore
+lies inside the second "Validating" range. Validation zeroes, so the table is zeroed before the firmware reads it.
+
+Two things in this log need saying because a first reading of it got both wrong (see CORRECTIONS below):
+
+  Firmware region 1 is NOT the hashes area. 0xc0 is 192 bytes, and it is the IGVM MEMORY MAP: kernel/src/
+  boot_params.rs `get_fw_regions` adds the memory map as its own region when it falls outside the firmware
+  ranges, which is exactly what this line reports. The "Firmware region" lines are `adjust_fw_mem` GRANTS
+  (rmp_adjust to GUEST_VMPL, no PVALIDATE, no zeroing), a different mechanism from the "Validating" lines.
+
+  Three pre-validated regions produce only TWO "Validating" lines because the secrets, CPUID and CAA pages are
+  pushed into the same list (`validate_fw_memory`) and occupy 0x80d000, 0x80e000 and 0x80f000 - they BRIDGE the
+  0x80d000-0x810000 gap, so `validate_fw_memory_vec` merges regions two and three into 0x80a000-0x830000. The
+  SVSM merges only genuinely contiguous regions; it did not coalesce across a gap.
 
 WHAT MUST CHANGE, and the halves are needed together (step 2):
   1. igvmbuilder emits the SevHashTable as MEASURED page data at the KERNEL_HASHES descriptor's base, AND SPLITS
-     the pre-validated range around that page. Dropping the descriptor from the list is NOT enough, and the two
-     log lines above are why: the hashes area at 0x812000 lies inside a larger MERGED pre-validated range
-     (0x80a000-0x830000), so the SVSM would still validate-and-zero it as part of the MEM region. The split is
-     0x80a000-0x812000 and 0x813000-0x830000.
+     the pre-validated range around that page. Dropping the descriptor from the list is NOT enough: the hashes
+     page is the first page of the [0x810000-0x830000] region, so without a split the SVSM validates and zeroes
+     it along with the rest. The split leaves [0x811000-0x830000] and excludes 0x810000.
   2. the SVSM GRANTS the guest plane access to that page the way it does for the firmware image pages, and never
      validates-and-zeroes it: a PVALIDATE on an already-launched page fails with FAIL_UNCHANGED, and the zeroing
-     would wipe the table.
+     would wipe the table. That grant is `adjust_fw_mem`, so the page has to reach `get_fw_regions` - which is
+     why GuestFwInfoBlock gains hash_table_address/size, following the memory_map_address/size precedent.
 
-  CHECK THE SPLIT IN THE SVSM LOG ON THE FIRST 0b+2 RUN. If "Validating ..." still reads 0x80a000-0x830000, the
-  page was zeroed again whatever the IGVM carried, and a "Hash comparison failed" would then be the harness's
-  fault rather than a finding.
+  WHAT THE SVSM LOG MUST READ ON THE FIRST 0b+2 RUN. Derived from the source and from the addresses logged above,
+  so it is a prediction and not a hope. The secrets/CPUID/CAA pages still bridge 0x80d000-0x810000, but the split
+  leaves a one-page hole at 0x810000, which breaks the merge chain and yields THREE lines where there were two:
+
+      [SVSM] Validating 0x0000000000800000-0x0000000000809000
+      [SVSM] Validating 0x000000000080a000-0x0000000000810000      <- stops AT the hash page
+      [SVSM] Validating 0x0000000000811000-0x0000000000830000      <- resumes AFTER it
+      [SVSM] Measured SEV hash table [0x810000-0x811000] excluded from validation
+
+  and NO "Validating" range may contain 0x810000. If one does, the page was zeroed whatever the IGVM carried, and
+  a "Hash comparison failed" would then be the harness's fault rather than a finding. The SVSM now refuses the
+  launch in that case rather than booting with a blank table, so this should be unreachable by accident.
 
 THE THREE HASHES ARE VERIFIED OFFLINE ALREADY, because a mismatch there is indistinguishable from a substituted
 artifact - the firmware would say "Hash comparison failed for initrd" and the cause would be ours.
@@ -49,12 +78,13 @@ isolation/m4/hash-table.py computes the table the way QEMU does and checks all t
   cmdline  hashed WITH its terminating NUL (an absent cmdline is a lone NUL, not an empty string)
   initrd   the file's bytes
   kernel   the file's bytes. A review warned QEMU may hash setup_data || kernel_data after patching the setup
-           header; sev-snp-measure hashes the file and its predictions equal live measurements on this box, so
-           for this kernel and QEMU the file is what is hashed. If that ever stops holding, the symptom is a
-           refusal on a kernel nobody touched.
+           header. Resolved, from QEMU's source rather than from agreement: QEMU skips the setup-header patch
+           for ANY confidential guest (hw/i386/x86-common.c:955-964), so under -object sev-snp-guest the file's
+           bytes are what is hashed as a rule, not as a coincidence of this kernel.
 
-  MATCH on all three, for /boot/vmlinuz-linux + the admission initrd + "console=ttyS0 rdinit=/init loglevel=3".
-  The table is 176 bytes, zero-padded to the 192-byte area, header GUID 9438d606-4f22-4cc9-b479-a793d411fd21.
+  The table is 176 bytes, zeroed to the 4096-byte area, header GUID 9438d606-4f22-4cc9-b479-a793d411fd21, and
+  it is now checked WHOLE against sev-snp-measure's construct_table() rather than digest by digest. See
+  CORRECTIONS: the digest-only check that stood here passed a table the firmware would have ignored.
 
 The acceptance after the change is the inversion of this file: the guest boots, the digest equals igvmmeasure of
 the launched IGVM, and an initrd that is not the one hashed into the IGVM is refused.
@@ -63,3 +93,44 @@ A NOTE ON HOW THIS RUN WENT FIRST. The first attempt produced the same non-boot 
 because FW_DEBUGCON existed only in isolation/m2/run-domain.sh and this path uses isolation/m3/run-domain.sh. The
 result would have been "it did not boot", which is exactly the silence this project keeps refusing to accept as
 evidence. The m3 runner now has the option too.
+
+
+CORRECTIONS TO THIS FILE, 2026-09-24
+Found by the independent reviewer (enclave-59) after this file was written, and verified here from the sources
+named. Both corrections are mine and both mattered.
+
+1. THE HASHES AREA IS AT 0x810000, 4096 BYTES - not at 0x812000, 192 bytes, as the first version of this file
+   said. I read "Firmware region 1 at [0x812000-0x8120c0]" as the hashes area because 0xc0 is 192 and a
+   SevHashTable is 176 bytes, which fits. It is the IGVM memory map, granted by a different mechanism. The
+   builder now prints the area and the recorded region list itself, so no future reading has to infer either:
+
+     Measured SEV hash table at 0x810000: a 176-byte table zeroed to the 4096-byte area, over kernel ...
+     Pre-validated regions recorded (3): [0x800000-0x809000] [0x80a000-0x80d000] [0x811000-0x830000]
+
+   The split instruction in the section above was derived from the wrong address and named the wrong pages
+   (0x812000/0x813000). It is corrected in place.
+
+2. "MATCH on all three" WAS TRUE AND WORTHLESS. It compared the three DIGESTS to sev-snp-measure's and said
+   nothing about the table that carries them. The table those digests sat in had six spurious pad bytes (header
+   length 174 rather than 168, first entry at byte 24 rather than 18) and three WRONG entry GUIDs. The
+   consequence, read out of the firmware this branch builds
+   (fwbuild/src/edk2/OvmfPkg/AmdSev/BlobVerifierLibSevHashes/BlobVerifierSevHashes.c at 2970e56):
+
+     - the constructor accepts the table: the header GUID matches and 174 is within the area's size, so it sets
+       mHashesTable = Ptr->Data and mHashesTableSize = 156
+     - VerifyBlob walks from there, matches no GUID, falls out of the loop, and reaches
+       "If the GUID is not in the hash table, execution can still continue" - returning EFI_SUCCESS
+     - for the kernel, the initrd AND the cmdline. The firmware boots whatever the host serves, and on a RELEASE
+       build the DEBUG lines that would have said so are compiled out.
+
+   So a malformed table does not refuse: it silently disarms verification, and the positive control would have
+   PASSED. This is the opposite of the failure mode this file assumed a hash mismatch always has.
+
+   Closed three ways rather than one:
+     - hash-table.py compares the WHOLE table, byte for byte, to construct_table(), and its GUIDs are derived
+       with uuid.bytes_le from the strings in the firmware's own header rather than transcribed as hex
+     - build-measured-igvm.sh extracts the table from the IGVM it just wrote, runs that comparison, and DELETES
+       the output if it differs. Verified by corrupting one byte: rc=1, file removed.
+     - the step-2 acceptance requires "Hash comparison succeeded" for kernel, initrd AND cmdline on the DEBUG
+       firmware. "Hash GUID not found in table" is now an INFRA failure, not a pass. A booting guest is not
+       evidence of verification and must never again be read as such.

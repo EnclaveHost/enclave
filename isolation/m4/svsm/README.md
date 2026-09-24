@@ -8,6 +8,38 @@ is a build tree, not version control. Apply them to coconut-svsm/svsm at d37095e
 |---|---|
 | `appid.rs` | `kernel/src/protocols/appid.rs`: the new SVSM protocol (number 6). A guest at a lower VMPL supplies ONLY a 32-byte bind; the SVSM fills `report_data[32:64]` from `APP_TABLE` indexed by the CALLING PLANE. The app half is not a field of the request, so no caller can reach it. |
 | `0001-wire-appid-protocol.diff` | registers the module and protocol number in `protocols/mod.rs`, adds `get_attestation_report_for_app` to `protocols/attest.rs` so there is one PSP call site, and dispatches from `requests.rs`. |
+| `0002-measured-guest-hash-table.diff` | step 0b+2: `igvmbuilder` gains `--guest-kernel/--guest-initrd/--guest-cmdline` and emits the SevHashTable as MEASURED page data, splits the pre-validated area around that page so the SVSM cannot zero it, and records `hash_table_address/size` in `GuestFwInfoBlock` so `adjust_fw_mem` grants it to the guest VMPL. The SVSM refuses to launch if the two ever disagree. |
+
+Apply in order; both touch `kernel/src/platform/snp_fw.rs`, in different functions. Verified by applying both to
+a pristine d37095e worktree and comparing every file against the tree that was built and tested - identical.
+`tools/igvmbuilder/src/gpa_map.rs` and `tools/igvmmeasure/` are PR 1209 and are deliberately not in either patch.
+
+## A malformed hash table does not refuse - it disarms verification
+
+Worth stating before anything else about step 2, because it inverts the intuition the rest of this file is
+built on. Everywhere else in M4b, getting a measurement wrong produces a refusal. The SEV hash table does not.
+
+`BlobVerifierSevHashes` SEARCHES the table for a per-blob GUID. Its constructor checks only that the header GUID
+matches and that the declared length fits the area; `VerifyBlob` then walks entries, and reaching the end without
+a match is not an error - the code says "If the GUID is not in the hash table, execution can still continue" and
+returns `EFI_SUCCESS`. So a table that passes the constructor but whose entries are malformed verifies NOTHING,
+for the kernel, the initrd and the cmdline alike, while the guest boots exactly as it should. On a RELEASE build
+the DEBUG lines that would have reported it are compiled out.
+
+This is not hypothetical. A revision of `isolation/m4/hash-table.py` emitted six spurious pad bytes and three
+wrong entry GUIDs, and its self-check compared only the three digests - which were correct. It would have
+produced a booting positive control over a firmware that checked nothing (found by enclave-59 before any hardware
+run; see the CORRECTIONS section of `evidence/igvm-0b-precondition-2026-09-24.txt`).
+
+Three consequences, all now in force:
+
+  - the offline check compares the WHOLE table to `sev-snp-measure`'s `construct_table()`, not the digests, and
+    the GUIDs are derived from the strings in the firmware's own header rather than transcribed
+  - `build-measured-igvm.sh` re-extracts the table from the IGVM it just wrote and DELETES the output on any
+    difference. There is no flag to skip it.
+  - **a booting guest is not evidence that verification happened.** Step 2 acceptance requires "Hash comparison
+    succeeded" for kernel, initrd AND cmdline on the DEBUG firmware; "Hash GUID not found in table" is an INFRA
+    failure, never a pass.
 
 ## Why this is the authority M3b lacked
 
