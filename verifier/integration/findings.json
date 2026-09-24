@@ -20,14 +20,21 @@
   },
   "F3-run2-carrier-state-copy-missing": {
     "title": "the repeat device run's carrier-side committed-state copies (exchanges.jsonl 'after', capture.json 'stateAfter') are null: the run script piped the client's state into a heredoc that consumed its stdin (a run-script defect, disclosed by the owner; not the client, not the device); the correlation holds through the client's primary data",
-    "status": "open",
+    "status": "closed",
     "raised": "2026-09-24",
-    "raisedWith": "pVM owner (session enclave-53); disclosed by the owner with the results, fixed in their run script for future runs; no third run made (one bounded repeat was authorised)",
+    "raisedWith": "pVM owner (session enclave-53); disclosed by the owner with the results, fixed in their run script for future runs. Runs 2 and 3 were both directed by Codex under Steven's standing validation scope; Steven sent no fresh approval message for either; neither authorised any host setting or reboot.",
     "pin": "fixture:pvm-client-activation-device-2",
     "knownOn": "ae2094960b9bb2ad7756f71414b2aafc8521ff3a",
     "cases": [
       "repeat: the carrier-side committed-state copy (exchanges.jsonl 'after', capture.json 'stateAfter') equals the generation log for every exchange"
     ],
-    "rule": "while the fixture is the recorded commit this case failing is NOT ACCEPTED (exit 3), never a pass; closed only by a run whose copies are present and equal, or by the user's explicit decision to accept primary-data correlation for this run (then the entry is closed with that decision recorded)"
+    "rule": "while the fixture is the recorded commit this case failing is NOT ACCEPTED (exit 3), never a pass; closed only by a run whose copies are present and equal, or by the user's explicit decision to accept primary-data correlation for this run (then the entry is closed with that decision recorded)",
+    "closed": "2026-09-24",
+    "closedBy": {
+      "fixture": "pvm-client-activation-device-3",
+      "commit": "75718b4b36273037f0d3694e7d335058fb9a4611",
+      "how": "closure path 1 of the rule: a run whose carrier-side copies are present and equal to the generation log for every exchange (20 rows, 0 null snapshots), executed with capture tooling committed before it (75a8ffca) and a preflight that fails loudly on a missing state. The additional bounded run was directed by Codex under Steven's standing validation scope; Steven sent no fresh approval message; that does not affect the run's technical validity and authorises no host setting or reboot."
+    },
+    "retainedRecord": "run 2 (ae209496) stays a RECORDED FAILED RUN, never relabelled accepted: its fixture and its own failed checker output are unchanged; the run-2 review carries an F2-style regression case that passes only when the precise null-copy defect reproduces (any other defect fails); and the original equality assertion (test/helpers/pvm-device-state-copy.mjs, the one run 3 must pass) is verified to fail on run 2 with its recorded reason by the separately invoked negative runner verifier/integration/run-device-2-negative.mjs (npm run test:client-device-2-negative). The strict acceptance command has no expected failure of any kind."
   }
 }
