@@ -16,6 +16,8 @@ let ownerMod = null; try { ownerMod = await import("../relay/pvm-app-attest.mjs"
 const skip = !owner && "relay/pvm-app-attest.mjs verifyPvmAppEvidence not in this tree";
 const F = new URL("./fixtures/verifier/pvm-evidence/", import.meta.url);
 const l1 = JSON.parse(fs.readFileSync(new URL("l1-evidence.json", F), "utf8")), l2 = JSON.parse(fs.readFileSync(new URL("l2-evidence.json", F), "utf8"));
+const v2 = JSON.parse(fs.readFileSync(new URL("l1-v2-evidence.json", F), "utf8"));
+const V2_FORMAT = "enclave-pvm-app-evidence/v2", V1_FORMAT = "enclave-pvm-app-evidence/v1", CODE_V2 = "6fab3d4c43ef6df953d5102098203c0b8db58a162172e4b92fa26df0ca598990", NOW_V2 = Date.parse("2026-09-24T07:26:36Z");
 const NOW = Date.parse("2026-09-24T06:52:00Z");
 // the CLIENT's own pins (SOURCE.md): none of these is read from an envelope
 const APP = Buffer.from("1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339", "hex");
@@ -80,4 +82,43 @@ test("malformed real envelopes: a stripped field, an extra field, a non-canonica
   await refused({ ...l1, chain: [l1.chain[0] + "=", ...l1.chain.slice(1)] }, expectFor(l1), /canonical base64|verifier refused/);
   await refused({ ...l1, format: "enclave-pvm-app-evidence/v0" }, expectFor(l1), /is not one of/);
   await refused({ ...l1, identity: l1.identity.replace('"version":"49.0.0"', '"version":"49.0.1"') }, expectFor(l1), /not an admitted runtime|challenge/);
+});
+
+// ---- v2: the browser channel, on the real envelope ------------------------------------------------------------------
+const expectV2 = (over = {}) => expectFor(v2, { allowedCodeHashes: [CODE_V2], ...over });
+test("v2 real envelope: verifies; a browser client releases on the signed app key with the sealed window; a native client on the transport key", { skip }, async () => {
+  const r = await run(v2, expectV2(), NOW_V2);
+  assert.equal(r.status, "verified", r.reasons.join("\n")); assert.equal(r.claims.format, V2_FORMAT); assert.equal(r.claims.appKey, v2.appKey);
+  assert.deepEqual(r.claims.sealed, { windowSeconds: 600, maxRequests: 256 }); assert.equal(r.claims.measurement, CODE_V2);
+  const b = admit(r, expectV2(), { clientKind: "browser" });
+  assert.equal(b.decision, RELEASE, b.reasons.join("\n")); assert.equal(b.pinned.appKey, v2.appKey); assert.deepEqual(b.pinned.sealed, { windowSeconds: 600, maxRequests: 256 }); assert.equal(b.pinned.transportSpkiSha256, undefined);
+  assert.match(b.reasons.join("\n"), /TLS certificate pinning is NOT claimed/);
+  const n = admit(r, expectV2(), { clientKind: "native", observedPeerSpki: Buffer.from(v2.spki, "hex") }); assert.equal(n.decision, RELEASE, n.reasons.join("\n"));
+  assert.equal(admit(r, expectV2(), { clientKind: "native", observedPeerSpki: Buffer.from(l1.spki, "hex") }).decision, HOLD);
+});
+test("v2 downgrade: stripping both fields and relabelling v1 verifies as v1 with no app key; a browser client holds, and a client that requires v2 refuses it as a downgrade", { skip }, async () => {
+  const { appKey, appKeySig, ...rest } = v2; const downgraded = { ...rest, format: V1_FORMAT };
+  const d = await run(downgraded, expectV2(), NOW_V2);
+  assert.equal(d.status, "verified", d.reasons.join("\n")); assert.equal(d.claims.appKey, null); assert.equal(d.claims.sealed, null);
+  const b = admit(d, expectV2(), { clientKind: "browser" }); assert.equal(b.decision, HOLD); assert.match(b.reasons.at(-1), /no application-layer public key/);
+  assert.equal(admit(d, expectV2(), { clientKind: "native", observedPeerSpki: Buffer.from(v2.spki, "hex") }).decision, RELEASE, "a native client may still pin the transport key on v1");
+  await refused(downgraded, expectV2({ formats: [V2_FORMAT] }), /downgrade, refused/, NOW_V2);
+  await refused(v2, expectV2({ formats: [V1_FORMAT] }), /downgrade, refused/, NOW_V2);
+  await refused(v2, expectV2({ formats: ["enclave-pvm-app-evidence/v3"] }), /only known evidence formats/, NOW_V2);
+});
+test("v2 forgeries on the real envelope: swapped, half-stripped, grafted or re-signed app key, stale binding, foreign chain, expired leaf", { skip }, async () => {
+  await refused({ ...v2, appKey: l1.spki.slice(-64) }, expectV2(), /not signed by the attested transport key|verifier refused/, NOW_V2);          // the relay's own key under the VM's signature
+  await refused({ ...v2, appKeySig: undefined }, expectV2(), /must carry appKey|verifier refused/, NOW_V2);                      // half-stripped
+  await refused({ ...v2, appKey: undefined }, expectV2(), /must carry appKey|verifier refused/, NOW_V2);
+  await refused({ ...l1, appKey: v2.appKey, appKeySig: v2.appKeySig }, expectFor(l1), /v1 evidence must not carry appKey|verifier refused/);          // grafted onto v1
+  await refused({ ...v2, format: V1_FORMAT }, expectV2(), /v1 evidence must not carry appKey|verifier refused/, NOW_V2);                        // v2 fields under a v1 label
+  const stale = { ...v2, nonce: l1.nonce }; await refused(stale, expectV2({ nonce: Buffer.from(l1.nonce, "hex") }), /attestationChallenge does not match|challenge|verifier refused/, NOW_V2);   // yesterday's key binding under another nonce
+  await refused({ ...v2, chain: l1.chain }, expectV2(), /attestationChallenge does not match|challenge|verifier refused/, NOW_V2);
+  await refused({ ...v2, spki: l1.spki }, expectV2(), /attestationChallenge does not match|challenge|verifier refused/, NOW_V2);
+  await refused(v2, expectV2(), /expired/, Date.parse("2026-10-24T07:26:36Z"));
+  await refused(v2, expectV2({ allowedCodeHashes: [CODE] }), /code|component|unpinned/i, NOW_V2);   // the v1 build's hash does not admit the v2 build
+});
+test("the sealed window is reported only by the verifier, never taken from the envelope", { skip }, async () => {
+  const r = await run({ ...v2, sealedWindowSeconds: 1 }, expectV2(), NOW_V2);   // an extra field: closed shape refuses it outright
+  assert.equal(r.status, "rejected");
 });

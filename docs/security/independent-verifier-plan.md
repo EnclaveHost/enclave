@@ -359,8 +359,8 @@ and the transport key to pin. Absent the module the verdict is `unsupported`, an
 | suite | passing means |
 |---|---|
 | `verifier-admission` (7) | on the authentic Genoa verdict a native client releases only when its own peer key is the bound key, a browser client releases on the HPKE key with TLS pinning explicitly not claimed; a `limited` verdict (no floor, no CRL) never releases; missing or mismatched client expectations (measurements, floor, root pins, wrong product pin) hold; on the authentic Turin ABI/2 verdict the nonce, app id and peer key are each required; the same nonce holds the second time; every non-verified or inconsistent verdict shape holds |
-| `verifier-pvm-device` (7, skips without the owner's module) | on the two real Pixel 10 envelopes with client-held pins: both boots verify and release a native client on that boot's key only; a browser client holds on v1; replay of launch 1 against launch 2, a pasted nonce, a swapped key, a foreign chain, a fresh nonce over a genuine chain, wrong app/runtime/code hash/authority/root pins, empty pins, an expired or not-yet-valid leaf, stripped/extra fields, non-canonical base64 and another format each refuse |
-| `verifier-pvm-evidence` (10) | with an injected stand-in for the owner's verifier (modelling only that the certificate challenge covers nonce, app, transport key and identity): an honest exchange verifies and releases for a native client; a browser client holds until an application-layer key is present; a hostile relay rewriting the echoed nonce or app is caught by the consumer cross-check, and substituting the chain, transport key or identity, or pasting our echo onto another session's evidence, is caught by the challenge; stale evidence under a fresh challenge and a reused challenge hold; each empty pin list and a missing challenge or app id refuse; malformed envelopes refuse; without the owner's module the verdict is `unsupported` and holds. The last case runs against the owner's module once it is pushed |
+| `verifier-pvm-device` (11, skips without the owner's module) | on the two real Pixel 10 envelopes with client-held pins: both boots verify and release a native client on that boot's key only; a browser client holds on v1; replay of launch 1 against launch 2, a pasted nonce, a swapped key, a foreign chain, a fresh nonce over a genuine chain, wrong app/runtime/code hash/authority/root pins, empty pins, an expired or not-yet-valid leaf, stripped/extra fields, non-canonical base64 and another format each refuse |
+| `verifier-pvm-evidence` (10; the stand-in returns the owner's v2 result shape) | with an injected stand-in for the owner's verifier (modelling only that the certificate challenge covers nonce, app, transport key and identity): an honest exchange verifies and releases for a native client; a browser client holds until an application-layer key is present; a hostile relay rewriting the echoed nonce or app is caught by the consumer cross-check, and substituting the chain, transport key or identity, or pasting our echo onto another session's evidence, is caught by the challenge; stale evidence under a fresh challenge and a reused challenge hold; each empty pin list and a missing challenge or app id refuse; malformed envelopes refuse; without the owner's module the verdict is `unsupported` and holds. The last case runs against the owner's module once it is pushed |
 
 Contract and device results (2026-09-24, against the owner's pushed revision 31f0fe2c of
 `relay/pvm-app-attest.mjs`, staged untracked into the research worktree for the run, never committed here):
@@ -382,14 +382,21 @@ Exact remaining integration gaps (nothing below is verified today):
 2. The real envelopes carry the client's nonce of that exchange, so the device suite proves "binding
    verified for that exchange"; a live exchange with a nonce chosen at test time is the owner's device run
    (22/22 in their `check.txt`), not reproducible offline.
-3. The browser path: the owner's v2 (proposed 2026-09-24, not pushed) adds `appKey` (32-byte X25519) and
-   `appKeySig` (Ed25519 under the attested transport key over the nonce, app id and key), with HPKE base
-   mode (X25519, HKDF-SHA256, AES-128-GCM) requests in RFC 9458 shape to a sealed VM port. The adapter
-   already accepts the v2 shape (closed: a stripped or grafted key is malformed, never a downgrade) and the
-   gate releases a browser client only on a key the owner's verifier vouched for. The sealed-request
-   contract is agreed (section 2.6). Until v2 is pushed and a real v2 fixture exists, every browser request
-   on pVM evidence holds; the HPKE client itself (encapsulation, the frame, the 600 s / 256-request window,
-   re-fetch on refusal) is not built on this branch.
+3. The browser path, v2: pushed by the owner at afd437a2 (`verifyPvmAppEvidence` accepts v1 and v2; the
+   result adds `appKey`, returned only after its signature verifies, and the sealed-channel constants
+   600 s / 256 requests; a WebCrypto copy lives at `shielded/anchor/avf/web/pvm-verify.js`, chain leaf-first,
+   same closed-shape rules; the owner's parity test runs this branch's adversarial cases in both). Against
+   that revision the device suite verifies the REAL v2 envelope (`pvm-evidence/l1-v2-evidence.json`, build
+   rt13, clock 2026-09-24T07:26:36Z): a browser client releases on the signed app key with the sealed
+   window pinned and TLS pinning explicitly not claimed, a native client on the transport key; refused:
+   the relay's own key under the VM's signature, a half-stripped or grafted key, v2 fields under a v1 label,
+   yesterday's key binding under another nonce, a foreign chain or key, an expired leaf, the v1 build's code
+   hash, an extra field. The known downgrade (both fields stripped, format relabelled v1) VERIFIES as v1 with
+   a null app key: a browser client holds on it, a native client may still pin the transport key, and a
+   client that requires v2 passes `formats: [v2]` so the adapter refuses it as a downgrade. The owner's
+   device run: 35/35 (Chromium 152, Firefox 155; replay, swapped app key, downgrade and a forged CA refused
+   before sending; tampered, replayed and cross-boot sealed requests refused by the VM). Still not built on
+   this branch: the HPKE client itself (encapsulation, the frame, re-fetch on refusal).
 4. The relay stream kind `pvm-evidence` and the `EVIDENCE <nonce>` request line are not wired anywhere on
    this branch; the adapter judges a JSON object it is handed.
 5. The gate's expectations come from the caller; the catalog-to-expectation step (which app id, which
