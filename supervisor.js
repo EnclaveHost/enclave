@@ -8182,8 +8182,12 @@ async function guestCertPass() {
           : ISOLATION_MIN_TCB !== undefined ? ["attested"] : ["attested", "no-tcb-policy"],
         minTcb: ISOLATION_MIN_TCB, issue: issueGuestCsr });
       _guestCerts.set(rec.id, got);
-      console.log(`[isolation] ${rec.id.slice(0, 10)}: certificate for ${name} installed in guest ${got.instanceId} `
-                + `(key ${got.key.slice(0, 16)}…, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; guest ${got.verdict})`);
+      console.log(got.reused
+        ? `[isolation] ${rec.id.slice(0, 10)}: guest ${got.instanceId} already serves a valid certificate for ${name} on its `
+          + `key ${got.key.slice(0, 16)}… (serial ${got.serial}, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}); `
+          + `nothing issued until ${new Date(got.renewAt).toISOString()}`
+        : `[isolation] ${rec.id.slice(0, 10)}: certificate for ${name} installed in guest ${got.instanceId} `
+          + `(key ${got.key.slice(0, 16)}…, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; guest ${got.verdict})`);
     } catch (e) {
       const failures = (st && st.failures || 0) + 1;
       const wait = e.retryMs || Math.min(3600_000, 300_000 * 2 ** (failures - 1));

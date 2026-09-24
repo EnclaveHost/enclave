@@ -84,13 +84,46 @@ function exchange(dataAddr, route, servername, method, path, body, timeoutMs) {
   }));
 }
 
-// ensureGuestCert runs the whole relay once. Returns what was installed, or throws with why nothing was.
+const renewAtOf = (leaf) => {
+  const nb = new Date(leaf.validFrom).getTime(), na = new Date(leaf.validTo).getTime();
+  return { notAfter: na, renewAt: nb + Math.round((na - nb) * 2 / 3) };
+};
+
+// What the guest ALREADY serves for the name, if it needs no new certificate: a chain that verifies against this
+// process's WebPKI roots (Node's store, plus NODE_EXTRA_CA_CERTS), for the name, on exactly the route's verified key,
+// and not yet at its renewal point. Found on a handshake the guest completed, so the guest proved it holds that key;
+// the host in between cannot present a CA leaf for a key it does not hold. Anything else (none installed, a
+// self-signed carrier, another key, due for renewal) is null, and the relay issues as before. A node restart used to
+// ask the CA for a new certificate for every guest, each time.
+export function servedReusable(dataAddr, route, name, { timeoutMs = 20_000, now = Date.now() } = {}) {
+  return openSplice(dataAddr, route, { timeoutMs }).then((sock) => new Promise((resolve) => {
+    const s = tls.connect({ socket: sock, servername: name, rejectUnauthorized: false });
+    const t = setTimeout(() => { s.destroy(); resolve(null); }, timeoutMs);
+    const done = (v) => { clearTimeout(t); s.destroy(); resolve(v); };
+    s.once("error", () => done(null));
+    s.once("secureConnect", () => {
+      const leaf = s.getPeerX509Certificate();
+      if (!s.authorized || !leaf) return done(null);
+      if (sha(leaf.publicKey.export({ type: "spki", format: "der" })) !== route.key || !leaf.checkHost(name)) return done(null);
+      const { notAfter, renewAt } = renewAtOf(leaf);
+      if (!(now < renewAt)) return done(null);
+      done({ serial: leaf.serialNumber, issuer: leaf.issuer.replace(/\n/g, ", "), notAfter, renewAt });
+    });
+  }), () => null);
+}
+
+// ensureGuestCert runs the whole relay once. Returns what was installed (or, with reuse, what the guest already
+// serves: reused true, nothing issued), or throws with why nothing was.
 //   judge(doc, spki, nonce, want)  isolation/m2/judge.mjs's judge; judgeOk: the verdicts that allow issuance
 //   issue(name, csrPem, spkiHash)  the platform certificate service; resolves to the PEM chain
 export async function ensureGuestCert({ transport, dataAddr, instanceId, expectAppId, deploymentId, name, judge,
                                         judgeOk = ["attested", "no-tcb-policy"], judgeMode = "trusted", issue,
-                                        minTcb, timeoutMs = 20_000 }) {
+                                        minTcb, reuse = true, timeoutMs = 20_000 }) {
   const route = await routeFor(transport, instanceId, expectAppId, { timeoutMs });
+  if (reuse) {
+    const have = await servedReusable(dataAddr, route, name, { timeoutMs });
+    if (have) return { instanceId: route.id, key: route.key, name, ...have, reused: true, verdict: "not judged: nothing issued" };
+  }
   // 3. the guest's attestation, over a session with the verified key
   const nonce = randomBytes(32);
   const a = await exchange(dataAddr, route, name, "GET", `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`, null, timeoutMs);
@@ -113,7 +146,6 @@ export async function ensureGuestCert({ transport, dataAddr, instanceId, expectA
   if (!leaf.checkHost(name)) throw new Error(`the issued certificate is not for ${name}; not installed`);
   const i = await exchange(dataAddr, route, name, "POST", "/.well-known/enclave-cert", chain, timeoutMs);
   if (i.status !== 200) throw new Error(`the guest refused the certificate (HTTP ${i.status}: ${i.body.toString().slice(0, 160)})`);
-  const nb = new Date(leaf.validFrom).getTime(), na = new Date(leaf.validTo).getTime();
   return { instanceId: route.id, key: route.key, name, serial: leaf.serialNumber, issuer: leaf.issuer.replace(/\n/g, ", "),
-           notAfter: na, renewAt: nb + Math.round((na - nb) * 2 / 3), verdict: v.verdict };
+           ...renewAtOf(leaf), verdict: v.verdict };
 }
