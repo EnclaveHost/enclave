@@ -1,0 +1,18 @@
+[package]
+name = "pvmrt-conformance-nn"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Model conformance component for the portable runtime: wasi:nn against the domain's verified model, same bytes on every host."
+
+[[bin]]
+name = "nn-cli"
+path = "src/main.rs"
+
+[dependencies]
+wit-bindgen = { version = "=0.41.0", default-features = false, features = ["macros", "realloc"] }
+sha2 = { version = "0.10", default-features = false }
+
+[profile.release]
+opt-level = "s"
+strip = true

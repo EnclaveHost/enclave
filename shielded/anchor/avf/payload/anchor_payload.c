@@ -109,6 +109,8 @@ static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0
 #define PADS_PORT   7780     /* owner -> guest: dealt-pad shipments into the bank dir (PADS <name> <bytes>\n, bytes) */
 #define ECHO_PORT   7780
 #define BUNDLE_PORT 7782     /* owner -> guest: the PUBLIC Shielded-TPU lane bundle (u64 size; 'K' = already stored at that size, 'S' = send) */
+#define APP_PORT    7785     /* owner -> guest: a portable WebAssembly component (the APP line; anchor_public_file.h framing) */
+#define APP_HTTP_PORT 7786   /* owner -> guest: HTTP/1.1 to a served wasi:http app (APP ... serve=http), one connection at a time */
 #define DRAFT_PORT  7783     /* owner -> guest: an optional drafter GGUF for speculative rows (same framing as the bundle port) */
 #define BENCH_PORT  7784     /* owner -> guest: link-scaling benchmark connections ONLY (tpu_link_bench). A SEPARATE
                               * port on purpose: the benchmark links were first opened on WORKER_PORT alongside the
@@ -460,6 +462,8 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
 #include "anchor_auth.h"
 #include "anchor_prepare.h"
 #include "anchor_local.h"
+#include "anchor_app.h"
+#include "pvmrt_nn.h"
 #include "anchor_rxctl.h"
 static uint8_t g_ppk[32], g_psk[32], g_ledger_pk[32], g_seed[32], g_seed_id[16];
 /* Authenticated bootstrap (PAD-BOOTSTRAP.md). The ledger key comes from the measured APK
@@ -1130,6 +1134,194 @@ static void caps_sink(const char *id, int tokens, double pf, double dc, const ui
     OUT("CAPS summary: nonce=%s (%s) selftest %d tokens decode %.2f tok/s output %.16s...", nh, g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only", tokens, dc, oh);
 }
 #endif
+#ifdef ANCHOR_TIER_PVM_CPU
+/* APP (PVM-CPU.md, "The app runtime"; runtime/pvm-rt): the portable component arrives on APP_PORT, is read into this VM's
+ * memory, and pvm-rt verifies those exact bytes against the APP line's sha256 BEFORE compiling them to Pulley here. Output
+ * comes back as APPOUT <stream> <hex> lines (1 = stdout, 2 = stderr), in 1 KiB chunks. The sha256 is the app's identity
+ * (AppID), kept for the attestation binding (report_data[32:64], milestone 5). */
+static uint8_t g_app_sha256[32]; static int g_app_have = 0;
+typedef int (*pvmrt_identity_fn)(char *, size_t);
+typedef int (*pvmrt_run_app_fn)(const uint8_t *, size_t, const uint8_t *, const char *const *, int, uint64_t, uint64_t,
+                                const char *, const pvmrt_nn_ops *, void (*)(int, const uint8_t *, size_t), int *, uint64_t *,
+                                uint64_t *, char *, size_t);
+static void app_emit(int stream, const uint8_t *p, size_t n) {
+    for (size_t off = 0; off < n; off += 1024) {
+        const size_t m = n - off < 1024 ? n - off : 1024; char hx[2049];
+        sh_pads_bin2hex(p + off, m, hx); OUT("APPOUT %d %s", stream, hx);
+    }
+}
+/* One received component and the runtime that will run it. */
+typedef struct { const anchor_app_plan *plan; uint8_t *bytes; pvmrt_run_app_fn run; void *rt; char identity[512]; } app_ready;
+/* The component into memory (refused unless exactly plan->bytes arrived) and the runtime from this APK, its identity said. */
+static int app_receive(const anchor_app_plan *plan, app_ready *a) {
+    char path[600];
+    memset(a, 0, sizeof *a); a->plan = plan;
+    int ls = vs_bind(APP_PORT);
+    if (ls < 0 || receive_public_file(ls, plan->bytes, "app.wasm", path, sizeof path) != 0) { if (ls >= 0) close(ls); OUT("APP refused: the component did not arrive whole"); return 4; }
+    close(ls);
+    FILE *f = fopen(path, "rb"); uint8_t *b = f ? malloc(plan->bytes) : NULL;
+    const int whole = f && b && fread(b, 1, plan->bytes, f) == plan->bytes && fgetc(f) == EOF;
+    if (f) fclose(f);
+    if (!whole) { free(b); OUT("APP refused: the stored component is not %llu bytes", (unsigned long long)plan->bytes); return 4; }
+    char lib[700]; snprintf(lib, sizeof lib, "%s/lib/arm64-v8a/libpvm_rt.so", AVmPayload_getApkContentsPath());
+    void *h = dlopen(lib, RTLD_NOW);
+    pvmrt_identity_fn idf = h ? (pvmrt_identity_fn)dlsym(h, "pvmrt_identity") : NULL;
+    pvmrt_run_app_fn run = h ? (pvmrt_run_app_fn)dlsym(h, "pvmrt_run_app") : NULL;
+    if (!idf || !run) { free(b); OUT("APP refused: the runtime is not in this APK (%s)", h ? "symbols" : dlerror()); return 4; }
+    if (idf(a->identity, sizeof a->identity) != 0) { free(b); OUT("APP refused: the runtime identity did not fit"); return 4; }
+    OUT("APP runtime %s", a->identity);
+    a->bytes = b; a->run = run; a->rt = h;
+    return 0;
+}
+/* Verify, compile, run (pvm-rt does all three, in that order), then free the component. With `ops`, wasi:nn serves the
+ * verified model under plan->graph; a run over the model gets 600 s, a component alone 60 s; both 256 MiB. */
+static int app_exec(app_ready *a, const pvmrt_nn_ops *ops) {
+    const anchor_app_plan *plan = a->plan;
+    const char *argv[64]; int argc = 0;
+    for (size_t i = 0; i < plan->args_len && argc < 64; ) { argv[argc++] = plan->args + i; i += strlen(plan->args + i) + 1; }
+    int exit_code = -1; uint64_t cms = 0, rms = 0; char err[1024] = "";
+    const int rc = a->run(a->bytes, plan->bytes, plan->sha256, argv, argc, 256ull << 20, ops ? 600000 : 60000,
+                          ops ? plan->graph : NULL, ops, app_emit, &exit_code, &cms, &rms, err, sizeof err);
+    free(a->bytes); a->bytes = NULL;
+    char hh[65]; sh_pads_bin2hex(plan->sha256, 32, hh);
+    if (rc != 0) { OUT("APP refused: %s", err); return 4; }
+    memcpy(g_app_sha256, plan->sha256, 32); g_app_have = 1;
+    OUT("APP ran %s exit=%d compile_ms=%llu run_ms=%llu%s%s", hh, exit_code, (unsigned long long)cms, (unsigned long long)rms, ops ? " graph=" : "", ops ? plan->graph : "");
+    return 0;
+}
+/* ABI/2 for the app (PVM-CPU.md, milestone 5; isolation/contract RUNTIME.md): once the component is here, and before it runs,
+ * the VM asks for a second AVF certificate whose 64-byte challenge is
+ *     Bind2 = SHA-256("enclave-bind-v2\n" || transport SPKI || attach nonce || RuntimeID)  ||  AppID (the component's SHA-256)
+ * RuntimeID = SHA-256 of the runtime identity exactly as printed (pvm-rt emits the contract's canonical JSON), so a verifier
+ * recomputes it from the ABI2 runtime line and a restated identity breaks the binding. The runtime self-test tuple says what
+ * this process may do with code pages, measured here: the W^X probe (map RW, then ask for R+X) and a scan of this process's
+ * mappings, which is complete coverage because the runtime is a library in this process (scope=self). A writable+executable
+ * mapping refuses the run. The chain is printed as ABI2_LINK<i>[k] lines, apart from the attach chain (CERT<i>[k]). Returns
+ * 0 to run, non-zero to refuse. */
+static const char *errno_name(int e, char *buf, size_t cap) {
+    switch (e) { case EACCES: return "EACCES"; case EPERM: return "EPERM"; case ENOMEM: return "ENOMEM"; case EINVAL: return "EINVAL"; }
+    snprintf(buf, cap, "errno%d", e); return buf;
+}
+static int app_attest_abi2(const char *identity, const uint8_t app_sha[32]) {
+    char exec_pages[48], eb[16];
+    void *pg = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (pg == MAP_FAILED) snprintf(exec_pages, sizeof exec_pages, "no-mapping:%s", errno_name(errno, eb, sizeof eb));
+    else {
+        if (mprotect(pg, 4096, PROT_READ | PROT_EXEC) == 0) snprintf(exec_pages, sizeof exec_pages, "allowed");
+        else snprintf(exec_pages, sizeof exec_pages, "refused:%s", errno_name(errno, eb, sizeof eb));
+        munmap(pg, 4096);
+    }
+    int wx = -1; { FILE *m = fopen("/proc/self/maps", "r"); char l[1024];
+        if (m) { wx = 0; while (fgets(l, sizeof l, m)) { char perm[8] = ""; if (sscanf(l, "%*s %7s", perm) == 1 && strchr(perm, 'w') && strchr(perm, 'x')) wx++; } fclose(m); } }
+    if (wx != 0) { OUT("APP refused: %s", wx < 0 ? "this process's mappings could not be read, so W^X cannot be stated" : "this process holds a writable+executable mapping"); return 4; }
+    OUT("ABI2 selftest exec_pages=%s wx=clean maps=1 scope=self", exec_pages);
+    OUT("ABI2 runtime %s", identity);
+    if (!g_caps_nonce_kind) { OUT("ABI2 unavailable: no attach nonce in this session (the app runs; a verifier admits nothing without ABI/2 evidence)"); return 0; }
+    uint8_t rid[32], spki[44], bind[32], ch[64];
+    sha256((const uint8_t *)identity, strlen(identity), rid);
+    memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
+    {   static const char dom[] = "enclave-bind-v2\n"; uint8_t m[sizeof dom - 1 + 44 + 32 + 32]; size_t o = 0;
+        memcpy(m + o, dom, sizeof dom - 1); o += sizeof dom - 1; memcpy(m + o, spki, 44); o += 44;
+        memcpy(m + o, g_caps_nonce, 32); o += 32; memcpy(m + o, rid, 32); o += 32; sha256(m, o, bind); }
+    memcpy(ch, bind, 32); memcpy(ch + 32, app_sha, 32);
+    char nh[65], ah[65], bh[65], rh[65]; sh_pads_bin2hex(g_caps_nonce, 32, nh); sh_pads_bin2hex(app_sha, 32, ah); sh_pads_bin2hex(bind, 32, bh); sh_pads_bin2hex(rid, 32, rh);
+    OUT("ABI2 binding nonce=%s (%s) runtime_id=%s bind2=%s app=%s", nh, g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only", rh, bh, ah);
+    AVmAttestationResult *res = NULL;
+    const AVmAttestationStatus st = AVmPayload_requestAttestation(ch, sizeof ch, &res);
+    if (st != ATTESTATION_OK || !res) { OUT("ABI2 unavailable: attestation status=%s (the app runs; a verifier admits nothing without ABI/2 evidence)", AVmAttestationStatus_toString(st)); return 0; }
+    const size_t n = AVmAttestationResult_getCertificateCount(res);
+    for (size_t i = 0; i < n; i++) {
+        const size_t sz = AVmAttestationResult_getCertificateAt(res, i, NULL, 0);
+        uint8_t *c = malloc(sz); if (!c) continue;
+        AVmAttestationResult_getCertificateAt(res, i, c, sz);
+        char label[24]; snprintf(label, sizeof label, "ABI2_LINK%zu", i); hexline(label, c, sz); free(c);
+    }
+    AVmAttestationResult_free(res);
+    OUT("ABI2 end certs=%zu", n);
+    return 0;
+}
+/* A wasi:http app (APP ... serve=http; runtime/pvm-rt httpd.rs): verified, compiled and pre-instantiated once, then served
+ * on APP_HTTP_PORT one connection at a time -- a fresh instance per request, 256 MiB and a deadline each -- until the owner
+ * sends STOP on the control channel, the channel closes, or an hour passes with neither a connection nor a word. */
+typedef void *(*pvmrt_http_open_fn)(const uint8_t *, size_t, const uint8_t *, uint64_t, uint64_t, const char *, const pvmrt_nn_ops *,
+                                    void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
+typedef int (*pvmrt_http_serve_fd_fn)(void *, int, char *, size_t);
+typedef uint64_t (*pvmrt_http_requests_fn)(const void *);
+typedef void (*pvmrt_http_close_fn)(void *);
+static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
+    const anchor_app_plan *plan = a->plan;
+    pvmrt_http_open_fn hopen = (pvmrt_http_open_fn)dlsym(a->rt, "pvmrt_http_open");
+    pvmrt_http_serve_fd_fn hserve = (pvmrt_http_serve_fd_fn)dlsym(a->rt, "pvmrt_http_serve_fd");
+    pvmrt_http_requests_fn hreqs = (pvmrt_http_requests_fn)dlsym(a->rt, "pvmrt_http_requests");
+    pvmrt_http_close_fn hclose = (pvmrt_http_close_fn)dlsym(a->rt, "pvmrt_http_close");
+    if (!hopen || !hserve || !hreqs || !hclose) { free(a->bytes); a->bytes = NULL; OUT("APP refused: this runtime cannot serve wasi:http"); return 4; }
+    uint64_t cms = 0; char err[1024] = "";
+    void *srv = hopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, app_emit, &cms, err, sizeof err);
+    free(a->bytes); a->bytes = NULL;
+    char hh[65]; sh_pads_bin2hex(plan->sha256, 32, hh);
+    if (!srv) { OUT("APP refused: %s", err); return 4; }
+    memcpy(g_app_sha256, plan->sha256, 32); g_app_have = 1;
+    const int ls = vs_bind(APP_HTTP_PORT);
+    if (ls < 0) { hclose(srv); OUT("APP refused: cannot listen on the http port"); return 4; }
+    OUT("APP serving http on vsock %d: %s compile_ms=%llu%s%s", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "");
+    for (;;) {
+        struct pollfd pf[2] = { { .fd = ls, .events = POLLIN }, { .fd = g_ctl, .events = POLLIN } };
+        const int r = poll(pf, 2, 3600 * 1000);
+        if (r < 0 && errno == EINTR) continue;
+        if (r <= 0) { OUT("APP http: an hour without a connection or a word from the owner; stopping"); break; }
+        if (pf[1].revents) { char l[64]; if (read_line(g_ctl, l, sizeof l) < 0 || !strcmp(l, "STOP")) { OUT("APP http: stopped by the owner"); break; } OUT("APP http: control line ignored while serving"); continue; }
+        if (pf[0].revents & POLLIN) {
+            const int c = accept(ls, NULL, NULL); if (c < 0) continue;
+            char e[512] = ""; const int rc = hserve(srv, c, e, sizeof e);
+            OUT("APP http connection closed%s%s (requests so far %llu)", rc ? ": " : "", rc ? e : "", (unsigned long long)hreqs(srv));
+        }
+    }
+    close(ls);
+    OUT("APP served %s requests=%llu%s%s", hh, (unsigned long long)hreqs(srv), ops ? " graph=" : "", ops ? plan->graph : "");
+    hclose(srv);
+    return 0;
+}
+static int run_app(const anchor_app_plan *plan) {
+    app_ready a; int r = app_receive(plan, &a);
+    if (!r && (r = app_attest_abi2(a.identity, plan->sha256)) != 0) free(a.bytes);
+    return r ? r : plan->http ? app_serve(&a, NULL) : app_exec(&a, NULL);
+}
+/* APP over LOCAL (milestone 3): the component first (small, and refused before any model work if it does not arrive), then
+ * the staged model loaded and self-tested by the CPU engine exactly as for a conversation; the engine then hands its model
+ * to app_nn_host instead of serving the chat port. The capability report (CAPS, with the self-test digest) is emitted
+ * before the app runs, so one capture holds both digests: the engine's own path and the app's path through wasi:nn. */
+static int app_nn_host(const pvmrt_nn_ops *ops, void *arg) { app_ready *a = (app_ready *)arg; return a->plan->http ? app_serve(a, ops) : app_exec(a, ops); }
+static int run_app_nn(const anchor_local_plan *lp, const anchor_app_plan *ap) {
+    app_ready a; int r = app_receive(ap, &a); if (r) return r;
+    if ((r = app_attest_abi2(a.identity, ap->sha256)) != 0) { free(a.bytes); return r; }
+    const char *apk = AVmPayload_getApkContentsPath();
+    char lib_dir[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk);
+    if (model_stage(lp->model_bytes) != 0) { free(a.bytes); return 4; }   /* hashed + judged after the last write, before any parse */
+    if (g_model_state != 1 || !g_staged_table || !g_staged_table->t) { free(a.bytes); OUT("APP refused: no staged model table"); return 4; }
+    static const char *libs[] = { "libc++_shared.so", "libggml-base.so", "libggml.so", "libllama.so", "libllama-common.so", "liblocalengine.so" };
+    void *h = NULL;
+    for (unsigned i = 0; i < sizeof libs / sizeof *libs; i++) {
+        char path[600]; snprintf(path, sizeof path, "%s/%s", lib_dir, libs[i]);
+        if (!(h = dlopen(path, RTLD_NOW | RTLD_GLOBAL))) { free(a.bytes); OUT("APP refused: dlopen %s: %s", libs[i], dlerror()); return 4; }
+    }
+    engine_local_main_fn em = (engine_local_main_fn)dlsym(h, "engine_local_main");
+    void (*setw)(int (*)(const char *, size_t)) = (void (*)(int (*)(const char *, size_t)))dlsym(h, "engine_local_set_ctl_writer");
+    void (*sett)(const anchor_gguf_table *, const anchor_hash_ops *) = (void (*)(const anchor_gguf_table *, const anchor_hash_ops *))dlsym(h, "engine_local_set_model_table");
+    void (*setst)(void (*)(const char *, int, double, double, const uint8_t *)) = (void (*)(void (*)(const char *, int, double, double, const uint8_t *)))dlsym(h, "engine_local_set_selftest");
+    void (*setnn)(pvmrt_nn_host_fn, void *) = (void (*)(pvmrt_nn_host_fn, void *))dlsym(h, "engine_local_set_nn_host");
+    if (!em || !setw || !sett || !setst || !setnn) { free(a.bytes); OUT("APP refused: liblocalengine.so lacks the engine, its self-test or its app-runtime hook"); return 4; }
+    setw(anchor_ctl_write); sett(g_staged_table, &g_hash_ops);
+    g_caps_threads = lp->threads; g_caps_ctx = lp->ctx; g_caps_model_bytes = lp->model_bytes; setst(caps_sink);   /* the tier's self-test is not optional */
+    setnn(app_nn_host, &a);
+    if (AVmPayload_getEncryptedStoragePath()) setenv("ANCHOR_ENCRYPTED_STORE", AVmPayload_getEncryptedStoragePath(), 1);
+    if (lp->dthreads > 0) { char dv[16]; snprintf(dv, sizeof dv, "%d", lp->dthreads); setenv("ANCHOR_DECODE_THREADS", dv, 1); }
+    if (lp->poll >= 0) { char pv[16]; snprintf(pv, sizeof pv, "%d", lp->poll); setenv("ANCHOR_POOL_POLL", pv, 1); }
+    OUT("APP over the model: %" PRIu64 " bytes, %d threads, ctx %d, graph %s", lp->model_bytes, lp->threads, lp->ctx, ap->graph);
+    r = em(-1, g_model_fd, lib_dir, lp->threads, lp->ctx);
+    if (a.bytes) { free(a.bytes); OUT("APP refused: the engine ended before the app ran (engine exit %d)", r); return 4; }
+    return r == 0 ? 0 : 4;
+}
+#endif
 static void run_local(const anchor_local_plan *plan, int ls_wk) {
     const char *apk = AVmPayload_getApkContentsPath();
     char lib_dir[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk);
@@ -1447,6 +1639,8 @@ int AVmPayload_main(void) {
     int local = 0, local_bad = 0; anchor_local_plan local_plan; memset(&local_plan, 0, sizeof local_plan);   /* LOCAL: the whole model in this VM (run_local) */
     int prepare = 0, prep_seconds = 300, prep_bad = 0;        /* PREPARE [seconds]: artifacts preparation, no engine (run_prepare); malformed or repeated = refused at RUN */
     int tier_bad = 0; (void)tier_bad;                         /* ANCHOR_TIER_PVM_CPU: a split-engine line arrived (refused at RUN) */
+    int app = 0, app_bad = 0; (void)app; (void)app_bad;       /* ANCHOR_TIER_PVM_CPU: APP, the portable component (run_app) */
+    static anchor_app_plan app_plan; memset(&app_plan, 0, sizeof app_plan);
     if (g_ctl >= 0) {
         char l[2400]; static char bound[2100] = "";
         while (read_line(g_ctl, l, sizeof l) >= 0) {
@@ -1457,6 +1651,9 @@ int AVmPayload_main(void) {
              * refused at RUN, so no line can make this build stage state the tier does not use */
             else if (!strncmp(l, "PAD", 3) || !strncmp(l, "PREFIXPK ", 9) || !strncmp(l, "WORKER ", 7) || !strncmp(l, "SHAPE ", 6)) {
                 tier_bad = 1; OUT("TIER pvm-cpu refused: %.12s is split-engine machinery", l); }
+            else if (!strncmp(l, "APP ", 4)) {   /* the portable component (anchor_app.h): strict, once; malformed or repeated refuses at RUN */
+                if (app || !anchor_app_parse(l, &app_plan)) { app_bad = 1; OUT("APP refused: %s", app ? "repeated" : "malformed (APP bytes=N sha256=<64 hex>[ args=<hex>])"); }
+                app = 1; }
 #endif
             else if (!strncmp(l, "PREFIXPK ", 9)) {    /* the platform's shared-prefix key (prefix-kv.h) */
                 char h[65] = ""; uint8_t pk[32];
@@ -1645,15 +1842,25 @@ int AVmPayload_main(void) {
      * resolved by precedence. The build ships none of their libraries either, so this is the readable form of a refusal the
      * loader would also make. */
     {   const char *why = tier_bad ? "a split-engine control line was sent"
-                        : !local ? "only a LOCAL run is served by this build"
+                        : app_bad ? "the APP line was malformed or repeated"
+                        : (app && local && !app_plan.graph[0]) ? "APP with LOCAL needs the APP line's graph= (the name the app loads the model by)"
+                        : (app && !local && app_plan.graph[0]) ? "the APP line names a graph but no LOCAL line brings the model"
+                        : (app && local && local_plan.draft_bytes) ? "APP over the model takes no drafter"
+                        : (!local && !app) ? "only a LOCAL or an APP run is served by this build"
                         : (maskbench || echo || prepare || engine || bridgebench || n_shapes || bridge) ? "a conflicting mode command was sent"
-                        : local_plan.tpu_bundle_bytes ? "the LOCAL line carries the TPU tail"
-                        : local_plan.links ? "the LOCAL line asks for benchmark links" : NULL;
+                        : (local && local_plan.tpu_bundle_bytes) ? "the LOCAL line carries the TPU tail"
+                        : (local && local_plan.links) ? "the LOCAL line asks for benchmark links" : NULL;
         if (why) {
             OUT("TIER pvm-cpu refused: %s", why); OUT("END");
             if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
             ctl_close(); sleep(1); return 4;
         }
+    }
+    if (app) {
+        const int arc = local ? run_app_nn(&local_plan, &app_plan) : run_app(&app_plan);
+        OUT("END");
+        if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
+        ctl_close(); sleep(1); return arc;
     }
 #endif
     if (maskbench) {   /* speed probe of the existing pad sampler and the 3-byte cell import; judged BEFORE every other mode so nothing else can win the dispatch */

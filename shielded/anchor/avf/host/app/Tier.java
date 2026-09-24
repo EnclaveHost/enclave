@@ -32,7 +32,7 @@ final class Tier {
     static String refusal(String tier, String mode, Intent i) {
         if (tier.startsWith("invalid:")) return "assets/tier holds an unknown tier '" + tier.substring(8) + "'";
         if (!PVM_CPU.equals(tier)) return null;
-        if (!"local".equals(mode)) return "a pVM CPU build runs mode local only (asked for mode " + mode + ")";
+        if (!"local".equals(mode) && !"app".equals(mode)) return "a pVM CPU build runs mode local or app only (asked for mode " + mode + ")";
         for (String k : new String[] { "tpu_graphs", "tpu_bundle", "tpu_bank", "tpu_refill", "tpu_layers", "tpu_links", "tpu_spin", "tpu_worker_spin", "tpu_prio", "corr_threads" })
             if (i.hasExtra(k)) return "a pVM CPU build has no TPU path (" + k + " was given)";
         for (String k : new String[] { "pads", "prefix", "prefix_name", "artifacts", "artifacts_url" })   // "relay" is allowed: the attach is how the tier is admitted

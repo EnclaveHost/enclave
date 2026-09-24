@@ -1,0 +1,13 @@
+ok   the protected pvm-cpu payload ran it
+ok   runtime identity {"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}
+ok   the engine handed its verified model to the runtime
+ok   serving bundles/ggml-probe.wasm (1ad17b45e12aabde...) over graph gemma-4-e2b-it-q4_0, compiled in 181 ms
+ok   1 /ping: 200 {"ok":true}
+ok   2 generation: 200 n_vocab=262144 tokens=16
+ok   3 the same request again: identical tokens (fresh instance, cleared sequence)
+     app path: prefill 148 ms for 9 tokens, decode 11.99 tok/s (16 steps), wall 1420 ms / 1645 ms
+ok   4 unknown route: the app's own 404
+ok   5 another graph: 500 ({"error":"load_by_name(\"other-model\"): ErrorCode::NotFound: failed to find gra)
+ok   stopped by the owner after 5 requests
+ok   capture complete
+PASS milestone 4 on the device
