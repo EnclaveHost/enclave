@@ -22,7 +22,8 @@ await step("tampered", async () => {
   return r.status;
 });
 await step("reauth", async () => {
-  c.session.id = crypto.randomBytes(16).toString("hex");      // a session guestd does not know: it asks for reauth
+  // a session guestd does not know (sessions are frozen, so substitute a copy with another id): it asks for reauth
+  c.session = Object.freeze({ ...c.session, id: crypto.randomBytes(16).toString("hex") });
   const before = c.instance;
   const r = await c.request("GET", "/vms");
   return r.status + (c.session && c.instance === before ? " reconnected" : " ?");

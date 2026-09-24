@@ -206,8 +206,9 @@ func (a *controlAuth) hello(w http.ResponseWriter) {
 	}
 	n := randHex(32)
 	a.nonces[n] = a.now()
+	instance := a.instance // read under the lock: a restart replaces it
 	a.mu.Unlock()
-	writeJSON(w, 200, map[string]any{"proto": controlProto, "instance": a.instance, "nonce": n, "kid": a.kid,
+	writeJSON(w, 200, map[string]any{"proto": controlProto, "instance": instance, "nonce": n, "kid": a.kid,
 		"nonceTtlSec": a.NonceTTL.Seconds()})
 }
 
