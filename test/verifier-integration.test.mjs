@@ -39,21 +39,54 @@ test("resolve: the pinned commit materialises exactly the pinned bytes into an i
   assert.ok(m.entry.startsWith(path.join(tmp, "pvm-app-attest-" + pin.commit.slice(0, 12))), "isolated under the given dir, never in the tree");
   assert.equal(fs.existsSync(path.join(REPO, "relay/pvm-app-attest.mjs")), false, "nothing was written into the tracked tree");
 });
-test("resolve: a wrong commit, a tampered blob hash, and a worktree mismatch each fail with exit 2 and write no entry", { skip: !havePinned && "pinned commit not in this repository" }, () => {
-  const withPins = (mut) => { const dir = fs.mkdtempSync(path.join(tmp, "pins-")); const p = JSON.parse(JSON.stringify(PINS)); mut(p["pvm-app-attest"]); fs.mkdirSync(path.join(dir, "verifier/integration"), { recursive: true });
-    fs.writeFileSync(path.join(dir, "verifier/integration/pins.json"), JSON.stringify(p)); fs.copyFileSync(path.join(REPO, "verifier/integration/resolve.mjs"), path.join(dir, "verifier/integration/resolve.mjs"));
-    // resolve.mjs reads pins relative to its own location and runs git in that root; point the copy's root at a git checkout by symlinking .git and the worktree file it must compare
-    for (const f of [".git", "relay"]) fs.symlinkSync(path.join(REPO, f), path.join(dir, f)); return dir; };
-  const wrong = withPins((q) => { q.commit = "0".repeat(40); });
-  const r1 = spawnSync(process.execPath, [path.join(wrong, "verifier/integration/resolve.mjs"), "--dir", path.join(tmp, "o1"), "--no-fetch"], { encoding: "utf8" });
-  assert.equal(r1.status, 2); assert.match(r1.stderr, /not in this repository|not reachable/);
-  const tampered = withPins((q) => { q.files["relay/pvm-app-attest.mjs"] = "f".repeat(64); });
-  const r2 = spawnSync(process.execPath, [path.join(tampered, "verifier/integration/resolve.mjs"), "--dir", path.join(tmp, "o2"), "--no-fetch"], { encoding: "utf8" });
-  assert.equal(r2.status, 2); assert.match(r2.stderr, /the pin and the commit disagree/);
-  assert.equal(fs.existsSync(path.join(tmp, "o2", `pvm-app-attest-${pin.commit.slice(0, 12)}`, "relay/pvm-app-attest.mjs")), false, "a mismatched pin leaves no usable entry");
-  const mixed = withPins((q) => { q.files["relay/avf-verify.mjs"] = "e".repeat(64); });   // the pin says avf-verify is something the worktree is not
-  const r3 = spawnSync(process.execPath, [path.join(mixed, "verifier/integration/resolve.mjs"), "--dir", path.join(tmp, "o3"), "--no-fetch"], { encoding: "utf8" });
-  assert.equal(r3.status, 2); assert.match(r3.stderr, /disagree|differs between/);
+// An isolated root that resolve.mjs treats as the repository: its own copy of the script and pins, .git pointing at
+// this repository (so the pinned commit is readable), and a REAL relay/ directory whose avf-verify.mjs bytes are
+// whatever the case needs. This is how a genuine worktree mismatch is produced, rather than a pin-hash mismatch.
+function isolatedRoot({ avfVerifyBytes = fs.readFileSync(path.join(REPO, "relay/avf-verify.mjs")), mutatePins = null } = {}) {
+  const dir = fs.mkdtempSync(path.join(tmp, "root-"));
+  const p = JSON.parse(JSON.stringify(PINS)); if (mutatePins) mutatePins(p["pvm-app-attest"]);
+  fs.mkdirSync(path.join(dir, "verifier/integration"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "verifier/integration/pins.json"), JSON.stringify(p));
+  fs.copyFileSync(path.join(REPO, "verifier/integration/resolve.mjs"), path.join(dir, "verifier/integration/resolve.mjs"));
+  fs.symlinkSync(path.join(REPO, ".git"), path.join(dir, ".git"));
+  fs.mkdirSync(path.join(dir, "relay")); fs.writeFileSync(path.join(dir, "relay/avf-verify.mjs"), avfVerifyBytes);
+  return dir;
+}
+const resolveIn = (root, out) => spawnSync(process.execPath, [path.join(root, "verifier/integration/resolve.mjs"), "--dir", out, "--no-fetch"], { encoding: "utf8", env: childEnv({}) });
+const leftovers = (out) => { try { return fs.readdirSync(out); } catch { return []; } };
+const entryOf = (out) => path.join(out, `pvm-app-attest-${pin.commit.slice(0, 12)}`, "relay/pvm-app-attest.mjs");
+const nothingLeft = (out, what) => { assert.deepEqual(leftovers(out), [], `${what}: the output directory must be empty (no entry, no manifest, no staging), got ${leftovers(out).join(", ")}`); };
+
+test("resolve: a wrong commit fails with exit 2 and leaves nothing", { skip: !havePinned && "pinned commit not in this repository" }, () => {
+  const out = path.join(tmp, "o-wrong"); const r = resolveIn(isolatedRoot({ mutatePins: (q) => { q.commit = "0".repeat(40); } }), out);
+  assert.equal(r.status, 2); assert.match(r.stderr, /not in this repository|not reachable/); nothingLeft(out, "wrong commit");
+});
+test("resolve: a REAL worktree mismatch (second file) fails after the first blob validated, and the first blob is NOT left behind", { skip: !havePinned && "pinned commit not in this repository" }, () => {
+  const real = fs.readFileSync(path.join(REPO, "relay/avf-verify.mjs"));
+  const out = path.join(tmp, "o-mismatch");
+  const r = resolveIn(isolatedRoot({ avfVerifyBytes: Buffer.concat([real, Buffer.from("\n// local edit: not the pinned bytes\n")]) }), out);
+  assert.equal(r.status, 2, r.stderr); assert.match(r.stderr, /avf-verify\.mjs differs between the pinned commit and this worktree/);
+  assert.equal(fs.existsSync(entryOf(out)), false, "the first blob (pvm-app-attest.mjs) must not have been written"); nothingLeft(out, "worktree mismatch");
+  // the same with the worktree file missing altogether
+  const gone = isolatedRoot(); fs.rmSync(path.join(gone, "relay/avf-verify.mjs"));
+  const r2 = resolveIn(gone, path.join(tmp, "o-missing")); assert.equal(r2.status, 2); assert.match(r2.stderr, /worktree has no such file/); nothingLeft(path.join(tmp, "o-missing"), "worktree file missing");
+});
+test("resolve: a tampered hash on the SECOND file leaves no entry for the first", { skip: !havePinned && "pinned commit not in this repository" }, () => {
+  const out = path.join(tmp, "o-second"); const r = resolveIn(isolatedRoot({ mutatePins: (q) => { q.files["relay/avf-verify.mjs"] = "f".repeat(64); } }), out);
+  assert.equal(r.status, 2); assert.match(r.stderr, /the pin and the commit disagree/); assert.equal(fs.existsSync(entryOf(out)), false); nothingLeft(out, "second-file hash");
+  const out1 = path.join(tmp, "o-first"); const r1 = resolveIn(isolatedRoot({ mutatePins: (q) => { q.files["relay/pvm-app-attest.mjs"] = "e".repeat(64); } }), out1);
+  assert.equal(r1.status, 2); nothingLeft(out1, "first-file hash");
+});
+test("resolve: a stale prior success does not survive a later refusal", { skip: !havePinned && "pinned commit not in this repository" }, () => {
+  const out = path.join(tmp, "o-stale");
+  const ok = resolveIn(isolatedRoot(), out); assert.equal(ok.status, 0, ok.stderr); assert.ok(fs.existsSync(entryOf(out))); assert.ok(fs.existsSync(path.join(path.dirname(entryOf(out)), "..", "MANIFEST.json")));
+  const real = fs.readFileSync(path.join(REPO, "relay/avf-verify.mjs"));
+  const bad = resolveIn(isolatedRoot({ avfVerifyBytes: Buffer.concat([real, Buffer.from("\n// drift\n")]) }), out);
+  assert.equal(bad.status, 2); nothingLeft(out, "stale prior success after a refusal");
+  // and a crashed run's staging directory is swept by the next successful run
+  fs.mkdirSync(path.join(out, `pvm-app-attest-${pin.commit.slice(0, 12)}.staging-99999`, "relay"), { recursive: true });
+  const again = resolveIn(isolatedRoot(), out); assert.equal(again.status, 0, again.stderr);
+  assert.deepEqual(leftovers(out), [`pvm-app-attest-${pin.commit.slice(0, 12)}`]);
 });
 test("strict mode: a missing or wrong module FAILS the acceptance suites instead of skipping them", () => {
   const missing = node("test/verifier-pvm-device.test.mjs", [], { ENCLAVE_PVM_MODULE: path.join(tmp, "nope.mjs"), ENCLAVE_STRICT_INTEGRATION: "1" });
