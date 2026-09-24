@@ -133,25 +133,27 @@ func (l *realLauncher) Forward(ctx context.Context, cid uint32, workdir string) 
 	}
 }
 
-func (l *realLauncher) Verify(ctx context.Context, port int, measurement, appID, workdir string) (string, error) {
+func (l *realLauncher) Verify(ctx context.Context, port int, measurement, appID, workdir string) (string, string, error) {
 	out, _ := l.run(ctx, workdir, "verify.txt", "node", filepath.Join(l.m2, "client.mjs"),
 		"https://127.0.0.1:"+strconv.Itoa(port), "--measurement", measurement, "--app-sha", appID, "--no-kds",
 		"--vcek", l.vcek, "--amd-chain", l.product+"="+l.chain, "--min-tcb", "@"+l.minTCB,
 		"--runtime", l.runtimeIdentity, "--save", filepath.Join(workdir, "doc.json"))
-	verdict := ""
+	verdict, keySha := "", ""
 	for _, ln := range strings.Split(out, "\n") {
-		if strings.HasPrefix(ln, "VERDICT ") {
+		if strings.HasPrefix(ln, "VERDICT ") && verdict == "" {
 			verdict = ln
-			break
+		}
+		if strings.HasPrefix(ln, "RESULT spki_sha256=") && keySha == "" {
+			keySha = strings.TrimPrefix(ln, "RESULT spki_sha256=")
 		}
 	}
 	if strings.HasPrefix(verdict, "VERDICT attested") && strings.Contains(out, "\nRESULT gate=open") {
-		return "attested", nil
+		return "attested", keySha, nil
 	}
 	if verdict == "" {
 		verdict = "no verdict"
 	}
-	return "", errors.New(verdict)
+	return "", "", errors.New(verdict)
 }
 
 func (l *realLauncher) Alive(unit string) bool {
@@ -236,6 +238,8 @@ func main() {
 	minTCB := flag.String("min-tcb", filepath.Join(home, ".cache/enclave-isolation/m3-clean/min-tcb.json"), "TCB floor JSON")
 	gateway := flag.String("gateway", "https://ipfs.enclave.host", "IPFS gateway for catalog components (untrusted: every block is verified)")
 	authKey := flag.String("auth-key", "", "pairing key file (guestd-control/1); without it guestd runs its unauthenticated loopback-only lab mode")
+	dataListen := flag.String("data-listen", "", "loopback address for the ciphertext data plane (enclave-splice/1, datapath.go); empty = none")
+	dataIdle := flag.Duration("data-idle", 180*time.Second, "close a spliced connection after this long with no bytes in either direction")
 	genKeyFile := flag.String("gen-key", "", "write a NEW pairing key to this file (mode 0600, never overwritten), print its kid, and exit")
 	flag.Parse()
 
@@ -258,6 +262,11 @@ func main() {
 	host, _, err := net.SplitHostPort(*listen)
 	if err != nil || !net.ParseIP(host).IsLoopback() {
 		log.Fatalf("-listen must be a loopback address: the /vms contract has no authentication of its own")
+	}
+	if *dataListen != "" {
+		if h, _, err := net.SplitHostPort(*dataListen); err != nil || !net.ParseIP(h).IsLoopback() {
+			log.Fatalf("-data-listen must be a loopback address: a bridge, not this process, decides who reaches it")
+		}
 	}
 	if *chain == "" {
 		*chain = filepath.Join(*iso, "..", "test/fixtures/amd", *product+"-cert_chain.pem")
@@ -329,6 +338,17 @@ func main() {
 		log.Fatal(err)
 	}
 	s.Store = st
+	s.RuntimeID = hex.EncodeToString(rtID[:])
+	if *dataListen != "" {
+		s.Data = newDataPlane(s)
+		s.Data.Idle = *dataIdle
+		dl, err := net.Listen("tcp", *dataListen)
+		if err != nil {
+			log.Fatalf("data plane: %v", err)
+		}
+		log.Printf("data plane (enclave-splice/1) on %s: ciphertext only, admitted per verified instance identity", dl.Addr())
+		go func() { log.Fatal(s.Data.Serve(dl)) }()
+	}
 	if *authKey != "" {
 		k, err := loadKey(*authKey)
 		if err != nil {
