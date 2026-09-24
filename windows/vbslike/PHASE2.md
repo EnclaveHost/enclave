@@ -66,19 +66,30 @@ and no build window. The manifest states, because it is otherwise easy to assume
 kernel-hashes shape and not a COCONUT-bearing configuration: the two have different digests and the m3
 monitor's report path differs between them.
 
-**It does not build yet, for one concrete reason.** OpenHCL's VTL0 direct path is given a minimum start
-address of 0, so a bzImage is placed at `0x0-0x10000` and collides with the VTL0 command-line page that
-the same loader puts at `0x1000`:
+**The VTL0 kernel has to be an ELF vmlinux, and no rebuild was needed to get one.** OpenHCL's VTL0
+direct path gives the loader a minimum start address of 0, so a bzImage is placed at `0x0-0x10000` and
+collides with the VTL0 command-line page the same loader puts at `0x1000`:
 
 ```
 underhill-vtl0-linux-command-line at 0x1000-0x2000 (Exclusive) overlaps linux-kernel at 0x0-0x10000
 ```
 
-An ELF `vmlinux` self-places at its link address and does not collide, which is why the project's own
-recipe uses one. Microsoft's WSL kernel, which the partitions boot today, and the distribution kernel the
-Linux domains boot are both bzImages. So the own-guest image needs an ELF build of a kernel carrying what
-the guest needs, and that is the next piece of work on this path. The build script checks the format
-up front and says so rather than failing inside the loader.
+A bzImage carries its vmlinux compressed inside it, so the kernel's own `scripts/extract-vmlinux`
+recovers the matching ELF from the very binary the partitions boot. `igvm/vtl0-vmlinux.sh` does that and
+prints what identifies the result, refusing an ELF that would still overlap:
+
+| | |
+|---|---|
+| input | the box's `wsl-kernel`, sha256 `7fe3edb5…` |
+| output | ELF vmlinux, sha256 `363b3553…`, GNU build id `188d2a2794aa2492a43e3e31f49f52b480833e34` |
+| version | `Linux version 6.6.87.2-microsoft-standard-WSL2`, the same kernel the partitions boot today |
+| load segments | `0x1000000`, `0x3200000`, `0x3581000`, `0x35b7000`; lowest is 16 MB, clear of the command-line page |
+| guest features | VMBus, hv_sock and vsock strings present, which is what a partition's only channel needs |
+
+**The image builds and is byte-reproducible**: two builds from the same inputs give sha256
+`2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3`, 125 MB, one supported platform
+(`VSM_ISOLATION`, highest VTL 2). It is staged on the box, readable by the VM worker, and the read-only
+preflight passes against it. It has never been launched: that needs the host setting.
 
 ## Runtime direction (2026-09-23)
 

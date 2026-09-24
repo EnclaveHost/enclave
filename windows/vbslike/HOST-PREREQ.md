@@ -24,7 +24,10 @@ The setting cannot be scoped to one VM, so the bounding is in how long it is set
 applies the value, runs one probe, and restores the prior state. `ops/isolated-probe.lib.ps1` holds the
 decisions AND the cleanup orchestration as functions over injected values, and
 `ops/isolated-probe.tests.ps1` exercises each failure path against mocked inputs: **47 cases, all
-passing** on the box, including the orchestration ones (a reap that throws, reports failure or returns
+passing** on the box, plus `ops/isolated-probe.exit.tests.ps1`, **6 cases**, which invoke the script
+itself and check its process exit status: a clean read-only run exits 0, a failed preflight exits
+non-zero, and a failing run is shown to have attempted its cleanup and verified the live node before
+exiting. They include the orchestration ones (a reap that throws, reports failure or returns
 nonsense; a restoration that throws or leaves the wrong state; all three steps failing at once; a
 read-only run proving it neither reaps nor writes).
 
@@ -44,7 +47,11 @@ Cleanup is ordered so that no step can prevent the next. A review found that wit
 `$ErrorActionPreference = 'Stop'` a `Write-Error` in the reap step terminated the whole `finally` block
 and the registry was never restored, which is the one outcome this script exists to prevent; restoration
 now runs in its own nested `finally`, every failure is collected rather than thrown, and all of them are
-reported only after restoration and the live-node check have each been attempted.
+reported only after restoration and the live-node check have each been attempted. The run's **exit
+status** then says what happened: `Write-Error -ErrorAction Continue` leaves the process status at 0, so
+a caller checking status would read a failed run as a success. The script's last statement exits
+non-zero when anything failed, counting the probe's own outcome -- a non-zero exit, or a timeout that
+had to be killed -- as a failure of the run even when the cleanup afterwards was perfect.
 
 Restoration is equally strict. A write in the cleanup block is licensed **only by this run having made
 one**: without `-Approve` the script writes nothing at all, and instead verifies the state still matches
@@ -90,12 +97,18 @@ Remove-ItemProperty "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Virtuali
 
 ## The image the probe would load
 
-`openhcl-x64-test-linux-direct.bin`, sha256
-`d240f40c53eb6fa016caaea9357dafbfea2048f18851a38f928fe25792df2864`, built from
-github.com/microsoft/openvmm at commit `a7b0bd4` (provenance in PHASE2.md); one supported platform,
-`VSM_ISOLATION`, highest VTL 2. Staged on the box at `C:\Users\claude\vbs-like\` with read access for
-the VM worker account. Its VTL0 is still the OpenVMM project's test kernel and initrd; an image whose
-VTL0 is our own guest is a separate `igvmfilegen` manifest run and is not built yet.
+Two images are staged on the box, both readable by the VM worker account and both hash-verified there.
+The probe should use the second: the first carries the OpenVMM project's test kernel in VTL0 and would
+say nothing about our guest.
+
+| | sha256 | VTL0 |
+|---|---|---|
+| `openhcl-x64-test-linux-direct.bin` | `d240f40c…` | the OpenVMM project's test kernel and initrd |
+| `openhcl-ownguest.bin` | `2d735376…` | **our own guest**: the isolation/m3 monitor image (`mon.cpio.gz`, `44abb52b…`) on the ELF vmlinux recovered from the box's own WSL kernel (build id `188d2a27…`, version 6.6.87.2-microsoft-standard-WSL2) |
+
+Both come from github.com/microsoft/openvmm at commit `a7b0bd4`; provenance and the build are in
+PHASE2.md and `igvm/`. The own-guest image is byte-reproducible across builds. Neither has been
+launched, which is what the setting would allow.
 
 ## What approving it would and would not establish
 

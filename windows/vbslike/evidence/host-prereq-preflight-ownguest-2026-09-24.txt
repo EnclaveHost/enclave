@@ -1,0 +1,43 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260924001410
+Username: NUCBOX_K11\claude
+RunAs User: NUCBOX_K11\claude
+Configuration Name: 
+Machine: NUCBOX_K11 (Microsoft Windows NT 10.0.26200.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\vbs-like\ops\isolated-probe.ps1 -Image C:\Users\claude\vbs-like\openhcl-ownguest.bin -ImageSha256 2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3
+Process ID: 20468
+PSVersion: 5.1.26100.9444
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9444
+BuildVersion: 10.0.26100.9444
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+=== preflight (reads only; this phase writes nothing)
+  elevated: yes
+PS>TerminatingError(Get-ItemProperty): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Property AllowFirmwareLoadFromFile does not exist at path HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Virtualization."
+  setting before: ABSENT
+  live node: task Running, processes ee-host node shielded-worker
+  no lab partitions exist (0 compute systems enumerated)
+  image sha256 verified: 2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3
+  image readable by the VM worker account (allowed: Read, Synchronize)
+=== preflight complete. Nothing was changed, and nothing will be written by this run.
+    With -Approve it would:
+      1. set AllowFirmwareLoadFromFile = 1 (REG_DWORD) under HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Virtualization  [HOST-WIDE, permits UNSIGNED guest firmware]
+      2. run: vbslike-host isoprobe --only vbs-igvmpath --igvm C:\Users\claude\vbs-like\openhcl-ownguest.bin
+      3. restore the setting to 'absent' and verify status, value and type
+    Evidence: C:\Users\claude\vbs-like\out\iso-probe-20260924-001410
+=== cleanup
+PS>TerminatingError(Get-ItemProperty): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Property AllowFirmwareLoadFromFile does not exist at path HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Virtualization."
+  steps attempted: verify-unchanged, node
+  setting unchanged by this run (verified, not rewritten): ABSENT (status, value and type verified)
+  live node unchanged
+  evidence: C:\Users\claude\vbs-like\out\iso-probe-20260924-001410
+RUN OK: preflight passed, cleanup complete, nothing left changed
+**********************
+Windows PowerShell transcript end
+End time: 20260924001413
+**********************

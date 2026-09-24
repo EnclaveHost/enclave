@@ -41,12 +41,16 @@ done
 # test recipe uses one. Microsoft's WSL kernel (what the partitions boot today) and the distribution's
 # /boot/vmlinuz-linux are both bzImages, so this path needs an ELF build of a kernel carrying what our
 # guest needs. Checked here rather than 400 lines into a loader.
-if head -c 2 "$K0" | grep -q 'MZ' || ! head -c 4 "$K0" | grep -q 'ELF'; then
+if ! head -c 4 "$K0" | grep -q 'ELF'; then
   echo "the VTL0 kernel $K0 is not an ELF vmlinux (first bytes: $(head -c 4 "$K0" | od -c -An | tr -s ' '))." >&2
-  echo "  OpenHCL's VTL0 direct path needs an ELF vmlinux: a bzImage loads at 0 and overlaps the" >&2
-  echo "  command-line page at 0x1000. See the comment above this check." >&2
+  echo "  No rebuild is needed: a bzImage carries its vmlinux compressed inside it. Recover it with" >&2
+  echo "    $here/vtl0-vmlinux.sh $K0 <out.vmlinux>" >&2
+  echo "  which also prints the provenance and refuses an ELF that would overlap the command-line page." >&2
   exit 3
 fi
+# ...and the same load-address check the recovery script makes, in case an ELF arrives another way
+low=$(readelf -lW "$K0" | awk '/^  LOAD/ { print strtonum($4) }' | sort -n | head -1)
+[ -n "$low" ] && [ "$low" -ge 8192 ] || { echo "the VTL0 kernel loads at $(printf '0x%x' "${low:-0}"), which overlaps the VTL0 command-line page at 0x1000-0x2000" >&2; exit 3; }
 
 IGVMFILEGEN=${IGVMFILEGEN:-$TREE/target-tools/release/igvmfilegen}
 [ -x "$IGVMFILEGEN" ] || { echo "igvmfilegen not built: cargo build -p igvmfilegen --release" >&2; exit 2; }
