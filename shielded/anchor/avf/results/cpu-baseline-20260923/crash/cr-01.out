@@ -1,0 +1,4 @@
+== cr-01 (killed) 18:00:06
+Terminated                 EXTRA="$extra" OUT="$OUTD" "$DRV" "$label" > "$OUTD/$label.driver" 2>&1 < /dev/null
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 28 check(s)
+LANE-CONDITIONS END

@@ -1,0 +1,6 @@
+== cr-02 (relaunch) 18:51:55
+cpu turn 2 decode window 48.71 s (512 tokens): COMPLETE: the app's processes 287.46 core-s = 5.90 cores busy, 561 core-ms per decoded token (edge interpolation +-7.17 core-s) [crosvm_anchorlocal 286.77, host.enclave.anchor.avf 0.69, virtmgr_lave.anchor.avf 0.00] | 7.59 cores busy device-wide
+cpu turn 3 decode window 75.73 s (512 tokens): COMPLETE: the app's processes 445.79 core-s = 5.89 cores busy, 871 core-ms per decoded token (edge interpolation +-8.25 core-s) [crosvm_anchorlocal 444.91, host.enclave.anchor.avf 0.88, virtmgr_lave.anchor.avf 0.00] | 7.59 cores busy device-wide
+cpu turn 4 decode window 77.62 s (512 tokens): COMPLETE: the app's processes 457.18 core-s = 5.89 cores busy, 893 core-ms per decoded token (edge interpolation +-4.53 core-s) [crosvm_anchorlocal 456.32, host.enclave.anchor.avf 0.86, virtmgr_lave.anchor.avf 0.00] | 7.53 cores busy device-wide
+LANE-RUN OK cr-02
+LANE-CONDITIONS END

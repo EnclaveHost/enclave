@@ -35,7 +35,7 @@ final class Tier {
         if (!"local".equals(mode)) return "a pVM CPU build runs mode local only (asked for mode " + mode + ")";
         for (String k : new String[] { "tpu_graphs", "tpu_bundle", "tpu_bank", "tpu_refill", "tpu_layers", "tpu_links", "tpu_spin", "tpu_worker_spin", "tpu_prio", "corr_threads" })
             if (i.hasExtra(k)) return "a pVM CPU build has no TPU path (" + k + " was given)";
-        for (String k : new String[] { "pads", "prefix", "prefix_name", "artifacts", "artifacts_url", "relay" })
+        for (String k : new String[] { "pads", "prefix", "prefix_name", "artifacts", "artifacts_url" })   // "relay" is allowed: the attach is how the tier is admitted
             if (i.hasExtra(k)) return "a pVM CPU build takes no split-engine input (" + k + " was given)";
         return null;
     }

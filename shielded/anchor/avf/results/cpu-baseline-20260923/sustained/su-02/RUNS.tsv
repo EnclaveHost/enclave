@@ -1,0 +1,5 @@
+# settings	graphs=none bundle= bundle_sha256= maxnew=512
+# ask	Explain in detail how a hash table works, including hashing, collisions, resizing and the cost of each operation.|Now write a complete Python implementation of a hash table with separate chaining, with comments.|Explain the difference between TCP and UDP in detail, with an example of when to use each.|Write a detailed step-by-step guide to creating a Python virtual environment and managing its dependencies.
+# driver_sha256	a753ec5d2daacc2eb5671f931a82f9d1a4cd5b439d17b0389f32c5e558dd5d0c
+# label	condition	extra	status	rc	apk_sha256
+su-02	sustained		ok	0	-

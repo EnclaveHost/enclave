@@ -1,0 +1,5 @@
+# settings	graphs=none bundle= bundle_sha256= maxnew=256
+# ask	Write a Python function called reverse_string that returns its argument reversed. Give only the code.
+# driver_sha256	a753ec5d2daacc2eb5671f931a82f9d1a4cd5b439d17b0389f32c5e558dd5d0c
+# label	condition	extra	status	rc	apk_sha256
+sh-01	short		ok	0	-
