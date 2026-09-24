@@ -17,6 +17,7 @@ provider-rejected caller/VMPL `CREATE_VCPU` investigation, any two-plane campaig
 | **new evidence, NOT reviewed** | the runtime SET admitted whole: interpreter + libc + libm + libgcc_s + wasmtime + runtime.json; good plane 10/10; a flipped libc byte and a missing libgcc_s each REFUSED `0x80001004` and powered off; running runtime maps only admitted code; local 14/14; SVSM unit tests 44/44 | `evidence/runtime-set-2026-09-24.txt`, run `~/enclave-bench/m4b-rtset-083233`; code `9d678395`, harness `f3825d92` |
 | **new documentation, NOT reviewed** | the read-only host change/recovery plan; README and this file reconciled | `HOST-CHANGE-PLAN.md`, `svsm/README.md` |
 | **new evidence, NOT reviewed** | the served component is cut from the ADMITTED bundle (sealed memfd, no `/app.wasm`): good 11/11, a planted decoy component never served, truncated and missing bundles refused | `evidence/app-binding-2026-09-24.txt`, run `~/enclave-bench/m4b-app-085652`; code `d094410c`, harness `14eb1104` |
+| **new, NOT reviewed: the deployment path** | `../DEPLOYMENT-PATH.md` maps enclave.host's real deployment path; the vehicle is M4a (one SNP guest per app), which is NOT gated by the second-plane blocker. Built: **guestd** (host-side `/vms` manager over M4a guests, off unless `GUESTD_ENABLE=1`): 12 unit tests, hardware 7/7 (`evidence/guestd-2026-09-24.txt`, run `guestd-test-091307`); **image reproducibility fix** (`pack-initrd.sh`, found when guestd's first run FAILED G3/G4, preserved); **supervisor claim gate** off unless `ISOLATION_BACKEND` is set (`test/isolation-claim-gate.test.mjs` 9/9, supervisor suites 452/454 with 2 pre-existing skips) | commits `e280abf3`, `61578689`, `5e1de672`, `69a4fe9b` |
 | **unresolved limitations** | ONE app on ONE plane; the maps check is one reading at load and is the plane's word; the step-2 fixture now stages the set but was NOT re-run on hardware; second-plane preconditions 2, 3 and 5 not started | `evidence/runtime-set-2026-09-24.txt` limits; `svsm/README.md` |
 | **provider-blocked** | the precondition-4 mechanism: what the SVSM's `core_create_vcpu` checks about the calling plane, and so whether the README's "the SVSM is not in that path" holds for our topology. Not continued, delegated or retried | "Unfinished investigation" below |
 | **needs Steven's decision** | whether the precondition-4 remedy needs a host change at all, and if so the window; the installer must first be parameterised or it would replace (or, on failure, delete) today's planes kernel; a second-plane campaign | `HOST-CHANGE-PLAN.md` |
@@ -31,7 +32,9 @@ Pending, in the order worth doing:
 2. ~~the same fix for the component~~ done: `evidence/app-binding-2026-09-24.txt`;
 3. re-running `verify-measured-boot.sh` against the current admission fixture, if the step-2 record should cover
    it rather than stay scoped to the ELF-only fixture;
-4. precondition 3 (the per-plane validated-page map), which is SVSM-local and was not part of this scope.
+4. precondition 3 (the per-plane validated-page map), which is SVSM-local and was not part of this scope;
+5. the deployment path's C2 and C4-C8 (`../DEPLOYMENT-PATH.md`); C2 needs a decision (bundles in the catalog, or
+   derived), C7 needs an authenticated CVM-to-host channel, and C8 is the staging acceptance run.
 
 ---
 
