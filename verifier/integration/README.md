@@ -37,6 +37,7 @@ from the same commit is the lab stand-in for a transparency log (`docs/security/
 
 `npm run test:client-persistence` (`run-client-persistence.mjs`) resolves the pin `pvm-client-dist` (the owner's BUILT
 CLI bundle at its commit) and runs `test/verifier-pvm-client-persistence.test.mjs` strictly. That suite asserts the
-behaviour the owner's persistence fix must have (a durable monotonic commit before any request), so against client 0.1.0
-it FAILS by design and its output is the reproduction of the gap. It is kept apart from `run.mjs` until the fix is
-pinned, so the other acceptance suites keep a meaningful PASS; the runner prints each failing assertion.
+behaviour the owner's persistence fix must have (a durable monotonic commit before any request): against client 0.1.0 it
+failed 7 of 8 by design (the reproduction, recorded in `docs/security/pvm-client-bootstrap-review.md`); against 0.2.0 it
+passes and is also part of `run.mjs`. The runner prints each failing assertion. The suite reads the client's state only
+through `pvm-client state`, never the layout, except to inject faults.

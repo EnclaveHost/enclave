@@ -33,14 +33,14 @@
   "pvm-client-dist": {
     "purpose": "the pVM owner's BUILT installed client (CLI bundle) at the pinned commit, run black-box by test/verifier-pvm-client-persistence.test.mjs; never copied into this branch",
     "branch": "pvm-cpu/portable-runtime",
-    "commit": "4e55879b9329100bee8b70e61bd8b75ec7b43654",
+    "commit": "6784f67159e835c6ef4af113c5c4d1463d52b32d",
     "entry": "shielded/anchor/avf/client/dist/pvm-client.mjs",
     "env": "ENCLAVE_PVM_CLIENT_CLI",
     "files": {
-      "shielded/anchor/avf/client/dist/pvm-client.mjs": "52d4483245eeb4fa37f4f57eb2c7e416a9c5c57c54d1436dabffdae6f230897c"
+      "shielded/anchor/avf/client/dist/pvm-client.mjs": "3782de92df2ecc0d13262fc94470b90e694654f35452211b68073468b3f1ded6"
     },
     "mustMatchWorktree": [],
     "pinnedAt": "2026-09-24",
-    "note": "client 0.1.0; this revision has the persistence gap (policy acceptance persisted only after the exchange): the persistence suite FAILS against it by design until the owner's fix (0.2.0) is pinned; the same bytes the reproduce step rebuilds"
+    "note": "client 0.2.0 (rollback durability): the persistence suite must PASS against it unchanged; --state names a directory (generation log), `pvm-client state --state DIR` prints {state, gen, dir}"
   }
 }
