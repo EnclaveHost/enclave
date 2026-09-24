@@ -1,7 +1,7 @@
 // Activation of a staged update and the launch of the active version (client/DESIGN.md "Activation"): the BUILT CLI in
 // child processes, harmless lab canaries (test/fixtures/pvm-client-canary.mjs) that report every execution to a file in
 // the test's own directory, and real "next" builds of the client itself. Interleavings are forced by deterministic
-// barriers (test/fixtures/pvm-client-store-driver.mjs: inside the compare-and-swap, between verifying bytes and the start
+// barriers (test versions are 9.3.x: newer than any client under test; test/fixtures/pvm-client-store-driver.mjs: inside the compare-and-swap, between verifying bytes and the start
 // check, between verifying bytes and handing them to the child) -- never timing -- except the one swap loop, which is
 // labelled as evidence, not proof.
 import test from "node:test";
@@ -93,19 +93,19 @@ const tokens = (L, cmd) => L.reports().filter((e) => !cmd || e.cmd === cmd).map(
 
 test("activation is explicit and recorded once: the staged bytes are start-checked from memory in a scrubbed environment; `run` then executes exactly them, one hop, with explicit directories", async () => {
   const L = await installed();
-  const A = L.canary("0.3.1", "tok-A");
+  const A = L.canary("9.3.1", "tok-A");
   assert.equal((await L.stage(A)).ok, true);
   const r0 = (await L.run()).lines.at(-1).result;   // staged, not active: the launcher runs `run` itself
   assert.equal(r0.clientVersion, CLIENT_VERSION); assert.equal(r0.step, "policy"); assert.deepEqual(L.reports(), [], "a staged update never runs before activation");
   const g0 = (await L.state()).gen;
   const a = await L.activate({ NODE_OPTIONS: "--no-deprecation" });
-  assert.equal(a.ok, true, JSON.stringify(a)); assert.equal(a.code, 0); assert.equal(a.version, "0.3.1"); assert.equal(a.sha256, A.sha); assert.equal(a.gen, g0 + 1);
+  assert.equal(a.ok, true, JSON.stringify(a)); assert.equal(a.code, 0); assert.equal(a.version, "9.3.1"); assert.equal(a.sha256, A.sha); assert.equal(a.gen, g0 + 1);
   const s1 = await L.state();
-  assert.deepEqual(s1.state.active, { version: "0.3.1", sha256: A.sha, size: A.bytes.length, file: A.name, sourceCommit: "ab".repeat(20) });
+  assert.deepEqual(s1.state.active, { version: "9.3.1", sha256: A.sha, size: A.bytes.length, file: A.name, sourceCommit: "ab".repeat(20) });
   assert.deepEqual(s1.state.active, s1.state.staged, "active is exactly the staged record");
   // the start check ran once: over stdin, `version` only, no NODE_OPTIONS, HOME == XDG_CONFIG_HOME == cwd == a scratch directory, gone now
   const [e] = L.reports(); assert.equal(L.reports().length, 1);
-  assert.equal(e.token, "tok-A"); assert.deepEqual(e.argv, ["version"]); assert.equal(e.argv1, "-"); assert.ok(!e.url.includes("pvm-client-0.3.1"), e.url);
+  assert.equal(e.token, "tok-A"); assert.deepEqual(e.argv, ["version"]); assert.equal(e.argv1, "-"); assert.ok(!e.url.includes("pvm-client-9.3.1"), e.url);
   assert.equal(e.nodeOptions, null); assert.equal(e.delegated, null); assert.equal(e.home, e.xdg); assert.equal(e.cwd, e.home); assert.notEqual(e.home, os.homedir());
   assert.equal(fs.existsSync(e.home), false, "the start check's scratch directory was removed");
   const again = await L.activate();
@@ -113,9 +113,9 @@ test("activation is explicit and recorded once: the staged bytes are start-check
   // run: exactly A's bytes, one hop, the resolved directories, NODE_OPTIONS removed, the real HOME; the launch writes nothing
   const before = L.listing();
   const r = await L.run({ NODE_OPTIONS: "--no-deprecation" });
-  assert.equal(r.code, 0); assert.deepEqual(r.lines, [{ canary: "tok-A", ran: "0.3.1" }], "only the child's own output: the launcher adds nothing");
+  assert.equal(r.code, 0); assert.deepEqual(r.lines, [{ canary: "tok-A", ran: "9.3.1" }], "only the child's own output: the launcher adds nothing");
   const e2 = L.reports()[1];
-  assert.equal(e2.cmd, "run"); assert.equal(e2.argv1, "-"); assert.equal(e2.delegated, `0.3.1:${A.sha}`); assert.equal(e2.nodeOptions, null); assert.equal(e2.home, process.env.HOME);
+  assert.equal(e2.cmd, "run"); assert.equal(e2.argv1, "-"); assert.equal(e2.delegated, `9.3.1:${A.sha}`); assert.equal(e2.nodeOptions, null); assert.equal(e2.home, process.env.HOME);
   assert.deepEqual([e2.argv.filter((x) => x === "--state").length, e2.argv.filter((x) => x === "--install-dir").length], [1, 1]);
   assert.equal(e2.argv[e2.argv.indexOf("--state") + 1], L.st); assert.equal(e2.argv[e2.argv.indexOf("--install-dir") + 1], L.inst);
   assert.equal((await L.state()).gen, g0 + 1, "a launch commits nothing"); assert.deepEqual(L.listing(), before, "a launch writes nothing");
@@ -123,21 +123,21 @@ test("activation is explicit and recorded once: the staged bytes are start-check
 
 test("the active client's own end is relayed: exit 7 as 7, a SIGKILL as an error -- never retried, nothing else run after it", async () => {
   const L = await installed();
-  const S = L.canary("0.3.1", "tok-7", { onRun: "exit7" });
+  const S = L.canary("9.3.1", "tok-7", { onRun: "exit7" });
   assert.equal((await L.stage(S)).ok, true); assert.equal((await L.activate()).ok, true);
   const r = await L.run();
-  assert.equal(r.code, 7); assert.deepEqual(r.lines, [{ canary: "tok-7", ran: "0.3.1" }]);
-  const K = L.canary("0.3.2", "tok-kill", { onRun: "sigkill" });
+  assert.equal(r.code, 7); assert.deepEqual(r.lines, [{ canary: "tok-7", ran: "9.3.1" }]);
+  const K = L.canary("9.3.2", "tok-kill", { onRun: "sigkill" });
   assert.equal((await L.stage(K)).ok, true); assert.equal((await L.activate()).ok, true);
   const k = await L.run();
-  assert.equal(k.code, 2); assert.equal(k.lines.length, 2); assert.deepEqual(k.lines[0], { canary: "tok-kill", ran: "0.3.2" });
-  assert.match(k.lines[1].error, /the active client 0\.3\.2 ended by signal SIGKILL/); assert.equal("sent" in k.lines[1], false, "no claim about what was sent");
+  assert.equal(k.code, 2); assert.equal(k.lines.length, 2); assert.deepEqual(k.lines[0], { canary: "tok-kill", ran: "9.3.2" });
+  assert.match(k.lines[1].error, /the active client 9\.3\.2 ended by signal SIGKILL/); assert.equal("sent" in k.lines[1], false, "no claim about what was sent");
   assert.deepEqual(tokens(L, "run"), ["tok-7", "tok-kill"], "one execution per launch, and the launcher's own `run` never ran");
 });
 
 test("exactly the verified bytes run: a file swapped between verification and execution cannot change what runs; a naive hash-the-path-then-run-the-path launcher runs the swap", async () => {
   const L = await installed();
-  const A = L.canary("0.3.1", "tok-A"), B = canary({ version: "0.3.1", token: "tok-B", report: L.report });
+  const A = L.canary("9.3.1", "tok-A"), B = canary({ version: "9.3.1", token: "tok-B", report: L.report });
   assert.equal((await L.stage(A)).ok, true); assert.equal((await L.activate()).ok, true);
   const file = L.file(A);
   for (const how of ["rename-over", "in-place"]) {
@@ -146,7 +146,7 @@ test("exactly the verified bytes run: a file swapped between verification and ex
     await reached(barrier, "go");               // A's bytes are read and verified; the child is not started yet
     put(file, B, how);                          // the path now holds B
     go(barrier, "go"); const o = await d.done;
-    assert.deepEqual(o.lines[0], { canary: "tok-A", ran: "0.3.1" }, `${how}: the verified bytes ran`);
+    assert.deepEqual(o.lines[0], { canary: "tok-A", ran: "9.3.1" }, `${how}: the verified bytes ran`);
     assert.equal(tokens(L).includes("tok-B"), false, `${how}: the swapped bytes never ran`);
   }
   // negative control: the same swap at the same point, in a launcher that verifies the path and then gives node the PATH
@@ -158,7 +158,7 @@ test("exactly the verified bytes run: a file swapped between verification and ex
   // and the launcher itself, meeting B at the path: refused, nothing run
   const r = await L.run();
   assert.equal(r.code, 2); assert.equal(r.lines.length, 1); const res = r.lines[0].result;
-  assert.equal(res.step, "launch"); assert.equal(res.sent, false); assert.equal(res.found, sha(B)); assert.deepEqual(res.expected, { version: "0.3.1", sha256: A.sha, file: A.name });
+  assert.equal(res.step, "launch"); assert.equal(res.sent, false); assert.equal(res.found, sha(B)); assert.deepEqual(res.expected, { version: "9.3.1", sha256: A.sha, file: A.name });
   assert.equal(tokens(L).filter((t) => t === "tok-B").length, 1, "only the naive control ever ran B");
   // evidence, not proof: 24 launches while another process keeps swapping A and B at the path -- each runs A or is refused, never B
   put(file, A.bytes, "rename-over");
@@ -173,13 +173,13 @@ test("exactly the verified bytes run: a file swapped between verification and ex
 
 test("a missing or tampered active file: `run` is refused at launch and nothing runs -- no fallback; `staged` diagnoses it; `update` with the same artifact repairs it", async () => {
   const L = await installed();
-  const A = L.canary("0.3.1", "tok-A"), T = canary({ version: "0.3.1", token: "tok-T", report: L.report });
+  const A = L.canary("9.3.1", "tok-A"), T = canary({ version: "9.3.1", token: "tok-T", report: L.report });
   assert.equal((await L.stage(A)).ok, true); assert.equal((await L.activate()).ok, true);
   const g = (await L.state()).gen, file = L.file(A);
   fs.rmSync(file);
   const m = await L.run();
   assert.equal(m.code, 2); assert.equal(m.lines.length, 1, "no result from the launcher's own `run`");
-  assert.deepEqual({ ...m.lines[0].result, refused: undefined }, { step: "launch", refused: undefined, sent: false, expected: { version: "0.3.1", sha256: A.sha, file: A.name }, found: "missing" });
+  assert.deepEqual({ ...m.lines[0].result, refused: undefined }, { step: "launch", refused: undefined, sent: false, expected: { version: "9.3.1", sha256: A.sha, file: A.name }, found: "missing" });
   assert.match(m.lines[0].result.refused, /no fallback/);
   const d = await L.staged(); assert.equal(d.code, 1); assert.equal(d.active.bytesMatch, false); assert.equal(d.staged.bytesMatch, false);
   const fix = await L.stage(A); assert.equal(fix.ok, true); assert.equal(fix.already, true, "the same artifact re-publishes the file");
@@ -199,21 +199,21 @@ test("activation refusals record nothing: nothing staged, a tampered staged file
   const L = await installed();
   const g0 = (await L.state()).gen;
   const n = await L.activate(); assert.equal(n.ok, false); assert.equal(n.code, 1); assert.equal(n.step, "nothing newer");
-  const C = L.canary("0.3.1", "tok-C"), T = canary({ version: "0.3.1", token: "tok-T", report: L.report });
+  const C = L.canary("9.3.1", "tok-C"), T = canary({ version: "9.3.1", token: "tok-T", report: L.report });
   assert.equal((await L.stage(C)).ok, true); put(L.file(C), T, "in-place");
   const f = await L.activate();
-  assert.equal(f.step, "file"); assert.equal(f.found, sha(T)); assert.deepEqual(f.expected, { version: "0.3.1", sha256: C.sha, file: C.name });
+  assert.equal(f.step, "file"); assert.equal(f.found, sha(T)); assert.deepEqual(f.expected, { version: "9.3.1", sha256: C.sha, file: C.name });
   assert.deepEqual(tokens(L), [], "neither the staged nor the tampered bytes executed");
-  const W = L.canary("0.3.2", "tok-W", { answer: "0.3.9" }), X = L.canary("0.3.3", "tok-X", { start: "exit3" }), Y = L.canary("0.3.4", "tok-Y", { start: "throw" });
-  for (const [c, why] of [[W, /not exactly one line naming version 0\.3\.2/], [X, /exited 3/], [Y, /exited 1/]]) {
+  const W = L.canary("9.3.2", "tok-W", { answer: "9.3.9" }), X = L.canary("9.3.3", "tok-X", { start: "exit3" }), Y = L.canary("9.3.4", "tok-Y", { start: "throw" });
+  for (const [c, why] of [[W, /not exactly one line naming version 9\.3\.2/], [X, /exited 3/], [Y, /exited 1/]]) {
     assert.equal((await L.stage(c)).ok, true);
     const s = await L.activate(); assert.equal(s.ok, false); assert.equal(s.step, "start check"); assert.match(s.reasons[0], why);
   }
   assert.deepEqual(tokens(L), ["tok-W", "tok-X", "tok-Y"], "each start-check fixture executed exactly once, with `version`");
   const st = await L.state(); assert.equal(st.state.active, null); assert.equal(st.gen, g0 + 4, "four stagings, no activation");
   assert.equal((await L.run()).lines.at(-1).result.clientVersion, CLIENT_VERSION, "nothing active: the launcher's own `run` -- the status quo, not a fallback");
-  const Z = L.canary("0.3.5", "tok-Z"); assert.equal((await L.stage(Z)).ok, true); assert.equal((await L.activate()).ok, true);
-  assert.equal((await L.stage(L.canary("0.3.4", "tok-old"))).ok, false, "monotonic: nothing older is staged after 0.3.5");
+  const Z = L.canary("9.3.5", "tok-Z"); assert.equal((await L.stage(Z)).ok, true); assert.equal((await L.activate()).ok, true);
+  assert.equal((await L.stage(L.canary("9.3.4", "tok-old"))).ok, false, "monotonic: nothing older is staged after 9.3.5");
 });
 
 const adrv = (name, L, where = "cas") => ({ name, args: (b) => ["activate", L.st, L.inst, b, name, where, CLIENT_VERSION] });
@@ -221,27 +221,27 @@ const udrv = (name, L, f) => ({ name, args: (b) => ["update", L.st, f.mf, f.af, 
 
 test("processes: two activators -- one commit, both succeed; activation racing a newer staging, both orders; a crash before the commit activates nothing", async () => {
   const L = await installed();
-  const A = L.canary("0.3.1", "tok-A"); assert.equal((await L.stage(A)).ok, true);
+  const A = L.canary("9.3.1", "tok-A"); assert.equal((await L.stage(A)).ok, true);
   const g = (await L.state()).gen;
   const two = await pair(adrv("x", L), adrv("y", L));
   assert.equal(two.x.ok, true); assert.equal(two.y.ok, true); assert.equal(two.y.already, true); assert.equal((await L.state()).gen, g + 1, "exactly one generation");
-  // activation first, then a newer staging: 0.3.1 active, 0.3.2 staged; `run` runs the active one
-  const M = await installed(), A1 = M.canary("0.3.1", "tok-A1"), B2 = M.canary("0.3.2", "tok-B2");
+  // activation first, then a newer staging: 9.3.1 active, 9.3.2 staged; `run` runs the active one
+  const M = await installed(), A1 = M.canary("9.3.1", "tok-A1"), B2 = M.canary("9.3.2", "tok-B2");
   assert.equal((await M.stage(A1)).ok, true);
   const p1 = await pair(adrv("act", M), udrv("upd", M, B2));
   assert.equal(p1.act.ok, true); assert.equal(p1.upd.ok, true, JSON.stringify(p1.upd));
-  const s1 = (await M.state()).state; assert.equal(s1.active.version, "0.3.1"); assert.equal(s1.staged.version, "0.3.2");
-  assert.deepEqual((await M.run()).lines, [{ canary: "tok-A1", ran: "0.3.1" }], "the active version runs, not the staged one");
+  const s1 = (await M.state()).state; assert.equal(s1.active.version, "9.3.1"); assert.equal(s1.staged.version, "9.3.2");
+  assert.deepEqual((await M.run()).lines, [{ canary: "tok-A1", ran: "9.3.1" }], "the active version runs, not the staged one");
   // the newer staging first: the activation of what it verified is refused, nothing activated
-  const N = await installed(), A2 = N.canary("0.3.1", "tok-A2"), B3 = N.canary("0.3.2", "tok-B3");
+  const N = await installed(), A2 = N.canary("9.3.1", "tok-A2"), B3 = N.canary("9.3.2", "tok-B3");
   assert.equal((await N.stage(A2)).ok, true);
   const p2 = await pair(udrv("upd", N, B3), adrv("act", N));
   assert.equal(p2.upd.ok, true); assert.equal(p2.act.ok, false); assert.equal(p2.act.step, "changed while activating");
   assert.equal((await N.state()).state.active, null);
-  assert.equal((await N.activate()).version, "0.3.2", "activated again, it takes the newest");
+  assert.equal((await N.activate()).version, "9.3.2", "activated again, it takes the newest");
   // a crash inside the commit, and one between the byte check and the start check: nothing active either way
   for (const where of ["cas", "verified"]) {
-    const K = await installed(); assert.equal((await K.stage(K.canary("0.3.1", "tok-K"))).ok, true);
+    const K = await installed(); assert.equal((await K.stage(K.canary("9.3.1", "tok-K"))).ok, true);
     const gk = (await K.state()).gen, barrier = tmp("pvm-bar-"), d = proc(DRIVER, adrv("k", K, where).args(barrier));
     await reached(barrier, "k"); d.kill("SIGKILL"); await d.done;
     assert.equal((await K.state()).state.active, null, `${where}: nothing active`); assert.equal((await K.state()).gen, gk);
@@ -252,13 +252,13 @@ test("processes: two activators -- one commit, both succeed; activation racing a
 test("processes: activation racing a policy commit that rotates the policy key, both orders -- neither loses the other's change", async () => {
   for (const order of ["activation-first", "policy-first"]) {
     const L = await installed(); const K2 = key();
-    assert.equal((await L.stage(L.canary("0.3.1", "tok-A"))).ok, true);
+    assert.equal((await L.stage(L.canary("9.3.1", "tok-A"))).ok, true);
     const pf = path.join(L.dir, "p2.json"); fs.writeFileSync(pf, JSON.stringify(policyDoc(L.P, 2, { nextPolicyKey: K2.pub })));
     const pol = { name: "pol", args: (b) => ["policy", L.st, pf, b, "pol"] };
     const r = await pair(...(order === "activation-first" ? [adrv("act", L), pol] : [pol, adrv("act", L)]));
     assert.equal(r.act.ok, true, JSON.stringify(r.act)); assert.equal(r.pol.ok, true, JSON.stringify(r.pol));
     const s = (await L.state()).state;
-    assert.equal(s.active.version, "0.3.1", `${order}: the activation survived`); assert.equal(s.serial, 2, `${order}: the policy survived`);
+    assert.equal(s.active.version, "9.3.1", `${order}: the activation survived`); assert.equal(s.serial, 2, `${order}: the policy survived`);
     assert.equal(s.nextPolicyFp, K2.fp, `${order}: the rotation survived`);
   }
 });
@@ -273,39 +273,46 @@ test("the real client, activated: runs `run` from memory end to end; one hop eve
   try {
     const L = await installed();
     const pol = (serial) => { const f = path.join(L.dir, `pol-${serial}.json`); fs.writeFileSync(f, JSON.stringify(policyDoc(L.P, serial))); return f; };
-    const R1 = L.real("0.3.1"); assert.equal((await L.stage(R1)).ok, true);
+    const R1 = L.real("9.3.1"); assert.equal((await L.stage(R1)).ok, true);
     const a1 = await L.activate(); assert.equal(a1.ok, true, JSON.stringify(a1));
     // end to end from memory: the activated real client takes the policy, verifies the VM itself and refuses its non-Google chain
     const e = (await L.runWith(["--policy", pol(7), "--relay", relay, "--app", APP])).lines.at(-1).result;
-    assert.equal(e.clientVersion, "0.3.1"); assert.equal(e.step, "verify"); assert.match(e.refused, /not a pinned Google attestation root/); assert.equal(e.sent, false);
+    assert.equal(e.clientVersion, "9.3.1"); assert.equal(e.step, "verify"); assert.match(e.refused, /not a pinned Google attestation root/); assert.equal(e.sent, false);
     assert.equal((await L.state()).state.serial, 7, "the delegated client committed the policy to the same state");
-    // one hop: a launch holds after verifying 0.3.1's bytes; meanwhile 0.3.2 is staged and activated; released, 0.3.1 runs itself
+    // one hop: a launch holds after verifying 9.3.1's bytes; meanwhile 9.3.2 is staged and activated; released, 9.3.1 runs itself
     const barrier = tmp("pvm-bar-"), d = proc(DRIVER, ["launch", L.st, L.inst, barrier, "hop", "--policy", pol(8), "--relay", relay, "--app", APP]);
     await reached(barrier, "hop");
-    const R2 = L.real("0.3.2"); assert.equal((await L.stage(R2)).ok, true); assert.equal((await L.activate()).version, "0.3.2");
+    const R2 = L.real("9.3.2"); assert.equal((await L.stage(R2)).ok, true); assert.equal((await L.activate()).version, "9.3.2");
     go(barrier, "hop"); const h = (await d.done).lines.find((l) => l.result).result;
-    assert.equal(h.clientVersion, "0.3.1", "the delegated child did not delegate again"); assert.equal(h.step, "verify");
-    assert.equal((await L.runWith(["--policy", pol(9), "--relay", relay, "--app", APP])).lines.at(-1).result.clientVersion, "0.3.2", "a new launch runs the newer active");
+    assert.equal(h.clientVersion, "9.3.1", "the delegated child did not delegate again"); assert.equal(h.step, "verify");
+    assert.equal((await L.runWith(["--policy", pol(9), "--relay", relay, "--app", APP])).lines.at(-1).result.clientVersion, "9.3.2", "a new launch runs the newer active");
     // a marker planted on the launcher, started from its file, is ignored: it still delegates
     const planted = await L.runWith(["--policy", pol(10), "--relay", relay, "--app", APP], { ENCLAVE_PVM_CLIENT_DELEGATED: `${CLIENT_VERSION}:${"00".repeat(32)}` });
-    assert.equal(planted.lines.at(-1).result.clientVersion, "0.3.2");
+    assert.equal(planted.lines.at(-1).result.clientVersion, "9.3.2");
     // over stdin: a marker naming another version is refused; a delegated client runs only `run`
     const viaStdin = (bytes, args, marker) => new Promise((resolve) => {
       const c = spawn(process.execPath, ["--input-type=module", "-", ...args], { env: { ...process.env, ENCLAVE_PVM_CLIENT_DELEGATED: marker } }); let out = "";
       c.stdout.on("data", (x) => (out += x)); c.on("close", (code) => resolve({ code, line: JSON.parse(out.split("\n")[0]) })); c.stdin.end(bytes);
     });
-    const wrong = await viaStdin(R1.bytes, ["run", "--state", L.st, "--install-dir", L.inst], `0.3.2:${R2.sha}`);
-    assert.equal(wrong.code, 2); assert.match(wrong.line.error, /delegated as 0\.3\.2, but this client is 0\.3\.1/);
-    const other = await viaStdin(R1.bytes, ["state", "--state", L.st], `0.3.1:${R1.sha}`);
+    const wrong = await viaStdin(R1.bytes, ["run", "--state", L.st, "--install-dir", L.inst], `9.3.2:${R2.sha}`);
+    assert.equal(wrong.code, 2); assert.match(wrong.line.error, /delegated as 9\.3\.2, but this client is 9\.3\.1/);
+    const other = await viaStdin(R1.bytes, ["state", "--state", L.st], `9.3.1:${R1.sha}`);
     assert.equal(other.code, 2); assert.match(other.line.error, /runs only `run`/);
+    // a deployment selection passes through the launcher unchanged: the delegated real client makes it from the signed table
+    const D = "0x" + "d1".repeat(32), tbl = path.join(L.dir, "pol-11-table.json");
+    fs.writeFileSync(tbl, JSON.stringify(policyDoc(L.P, 11, { deployments: [{ id: D, app: APP }] })));
+    const sel = (await L.runWith(["--policy", tbl, "--relay", relay, "--deployment", D])).lines.at(-1).result;
+    assert.equal(sel.clientVersion, "9.3.2", "the delegated child selected, not the launcher"); assert.deepEqual(sel.deployment, { id: D, app: APP });
+    assert.equal(sel.step, "verify"); assert.match(sel.refused, /not a pinned Google attestation root/);
     // no fallback for the real client either: its file gone, nothing runs
     fs.rmSync(L.file(R2));
     const gone = await L.runWith(["--policy", pol(11), "--relay", relay, "--app", APP]);
     assert.equal(gone.code, 2); assert.equal(gone.lines[0].result.step, "launch"); assert.equal(gone.lines[0].result.found, "missing");
-    assert.equal((await L.state()).state.serial, 10, "no launch refusal moved the floor");
-    // the carrier recorded each evidence exchange as received -- the four runs that fetched evidence, not the launch refusal
+    assert.equal((await L.state()).state.serial, 11, "no launch refusal moved the floor (serial 11 was the table policy's)");
+    // the carrier recorded each evidence exchange as received -- the five runs that fetched evidence (serials 7, 8, 9, 10 and
+    // the table policy's 11), not the launch refusal
     const ev = fs.readdirSync(recorded).filter((f) => /^evidence-\d{3}\.json$/.test(f)).sort();
-    assert.equal(ev.length, 4, JSON.stringify(fs.readdirSync(recorded)));
+    assert.equal(ev.length, 5, JSON.stringify(fs.readdirSync(recorded)));
     for (const f of ev) {
       const env = JSON.parse(fs.readFileSync(path.join(recorded, f), "utf8")), q = fs.readFileSync(path.join(recorded, f.replace(/\.json$/, ".request")), "utf8");
       assert.equal(env.format, "enclave-pvm-app-evidence/v2"); assert.equal(q, `EVIDENCE ${env.nonce}\n`, "each envelope answers the nonce the client sent");
@@ -317,15 +324,15 @@ test("the real client, activated: runs `run` from memory end to end; one hop eve
 });
 
 test("the lab next-version artifact (client/tools/lab-next.mjs): deterministic, labelled, the base's code with only the version moved; malformed bases refused", () => {
-  const a = deriveLabNext(DIST, "0.3.1"), b = deriveLabNext(DIST, "0.3.1");
+  const a = deriveLabNext(DIST, "9.3.1"), b = deriveLabNext(DIST, "9.3.1");
   assert.equal(a.sha256, b.sha256, "reproducible"); assert.deepEqual(a.base, { version: CLIENT_VERSION, sha256: sha(DIST) });
   const lines = a.bytes.toString("utf8").split("\n"), base = DIST.toString("utf8").split("\n");
-  assert.match(lines[0], new RegExp(`^/\\*! enclave-pvm-client 0\\.3\\.1 \\(LAB NEXT-VERSION TEST ARTIFACT, not production: derived by client/tools/lab-next\\.mjs from pvm-client\\.mjs ${CLIENT_VERSION.replace(/\./g, "\\.")} sha256 ${sha(DIST)}\\)`));
+  assert.match(lines[0], new RegExp(`^/\\*! enclave-pvm-client 9\\.3\\.1 \\(LAB NEXT-VERSION TEST ARTIFACT, not production: derived by client/tools/lab-next\\.mjs from pvm-client\\.mjs ${CLIENT_VERSION.replace(/\./g, "\\.")} sha256 ${sha(DIST)}\\)`));
   assert.equal(lines.length, base.length);
   const changed = lines.map((l, i) => (l === base[i] ? null : i)).filter((i) => i !== null);
   assert.equal(changed.length, 2, "the first line and the version constant, nothing else");
-  assert.equal(lines[changed[1]], 'var CLIENT_VERSION = "0.3.1";');
+  assert.equal(lines[changed[1]], 'var CLIENT_VERSION = "9.3.1";');
   assert.throws(() => deriveLabNext(DIST, CLIENT_VERSION), /must differ/);
-  assert.throws(() => deriveLabNext(Buffer.from("export const x = 1;\n"), "0.3.1"), /not a client version marker/);
-  assert.throws(() => deriveLabNext(Buffer.concat([DIST, Buffer.from(`\nvar CLIENT_VERSION = "${CLIENT_VERSION}";\n`)]), "0.3.1"), /exactly one/);
+  assert.throws(() => deriveLabNext(Buffer.from("export const x = 1;\n"), "9.3.1"), /not a client version marker/);
+  assert.throws(() => deriveLabNext(Buffer.concat([DIST, Buffer.from(`\nvar CLIENT_VERSION = "${CLIENT_VERSION}";\n`)]), "9.3.1"), /exactly one/);
 });
