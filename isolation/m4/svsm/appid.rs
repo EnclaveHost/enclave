@@ -311,7 +311,15 @@ fn expected_digest(vmpl: usize, kind: usize) -> Result<[u8; APPID_LEN], SvsmReqE
 
 /// Refuse to speak for a plane that has not admitted every artifact its identity covers. This is the gate
 /// that turns APP_TABLE from a label into a claim about bytes this code has hashed and frozen itself.
-fn require_admitted(vmpl: usize) -> Result<(), SvsmReqError> {
+///
+/// Public because the ATTESTATION protocol is gated on it too. Protocol 1 is callable by an app plane and
+/// returns a report carrying this measurement and, since the plane-stamping change, the plane's own level - so
+/// an ungated protocol 1 would let a plane obtain such a report BEFORE admitting anything. Its report_data is
+/// SHA-512(nonce||manifest) and cannot satisfy the contract's binding, so it is not a forgery of an app's
+/// evidence, but it would make "a report with this measurement and vmpl=N was issued for plane N only after
+/// admission" false as written. Nothing here needs a pre-admission services report, so the gate applies to
+/// both protocols and the sentence stays true.
+pub fn require_admitted(vmpl: usize) -> Result<(), SvsmReqError> {
     if vmpl == 0 || vmpl >= VMPL_MAX {
         return Err(SvsmReqError::invalid_parameter());
     }

@@ -89,10 +89,17 @@ which is the property hash-before-freeze exists for - and `whoami_final` and `re
 
 ### Two things the run cost, both worth recording
 
-* **`FW_FILE` and `RELEASE=1`.** Every IGVM built before this run was made by a bare `make igvm`, so it
-  carried NO firmware (3.69 MB against 4.83 MB) and could not boot a guest at all. The digests measured from
-  those builds were reproducible and moved with the app table, and both statements remain true, but they were
-  digests of an image that cannot run. A measurement is not evidence that anything works.
+* **`FW_FILE` and `RELEASE=1`.** Every IGVM built *in the session that produced this run* came from a bare
+  `make igvm`, so it carried NO firmware (3.69 MB against 4.83 MB) and could not boot a guest at all. The
+  digests taken from those builds - `C97F3D6A…`, `02D647AC…`, `00CE1F57…`, `B4BA1451…` and the rest above -
+  did establish that the tables are inside the measurement, reproducibly and sensitively, and that remains
+  true. **They are digests of images that cannot run**, and citing them as progress toward a working boundary
+  was wrong. A measurement is not evidence that anything works.
+
+  **This does NOT apply to the earlier 31/0 M3b run** (commit 67b699af, digests `5462DDEB…` and `00DE2FCB…`).
+  That run reported a derived digest equal to a **live signed report**, which a guest that never booted cannot
+  produce, so its IGVM carried firmware. The mistake above was confined to the builds in this session, and the
+  correction is to the over-broad sentence that first appeared here, not to that run.
 * **A shared serial port loses evidence.** The first complete run dropped five consecutive result lines and
   mangled a sixth into an SVSM console message: the guest and the SVSM write the same UART with no flow
   control. `run-domain.sh EVIDENCE_SERIAL=1` now gives the guest its own port, and the guest writes results
@@ -133,6 +140,16 @@ gets its report**, because they use configfs-tsm. The admission guest does not n
 directly - which is why this run was possible before the monitor was ported. The monitor's move to protocol 6
 is the next increment, and until it lands the M3a and M3b suites will not pass against an IGVM built from this
 SVSM.
+
+### The invariant, stated so it is true rather than nearly true
+
+**Every report carrying this measurement and `vmpl=N` was issued by this SVSM for plane N, and only after
+plane N's artifacts were hashed and frozen.** Protocol 1 was the hole in that sentence: it is callable by an
+app plane and, since it started naming the plane, would have returned such a report before anything was
+admitted. Its `report_data` is SHA-512(nonce‖manifest) and cannot satisfy the contract's binding, so it was
+never a forgery of an app's evidence - but "only after admission" was false as written. Protocol 1 is now
+gated on `require_admitted` as well, because nothing here needs a pre-admission services report. The sentence
+is now true of both protocols rather than narrowed to one.
 
 ### What a second plane requires, agreed with the reviewer
 

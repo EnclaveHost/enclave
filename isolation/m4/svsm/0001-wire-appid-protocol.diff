@@ -1,5 +1,5 @@
 diff --git a/kernel/src/greq/services.rs b/kernel/src/greq/services.rs
-index d998c92..27e7256 100644
+index d998c92..bdaacf5 100644
 --- a/kernel/src/greq/services.rs
 +++ b/kernel/src/greq/services.rs
 @@ -9,6 +9,7 @@
@@ -32,6 +32,36 @@ index d998c92..27e7256 100644
          return Err(SvsmError::InvalidParameter);
      }
      let response_len = if certs.is_none() {
+@@ -106,6 +116,29 @@ pub fn get_extended_report(buffer: &mut [u8], certs: &mut [u8]) -> Result<usize,
+     get_report(buffer, Some(certs))
+ }
+ 
++#[cfg(test)]
++mod vmpl_tests {
++    use super::*;
++    use crate::greq::pld_report::SnpReportRequest;
++    use zerocopy::FromZeros;
++
++    /// get_report accepts VMPL0 and the ONE guest plane this SVSM serves, and nothing else. The upstream check
++    /// refused every non-zero level on the grounds that a guest could ask the PSP itself; this build clears the
++    /// guest's VMPCKs so it cannot, which is why the level the SVSM serves had to be allowed. A level that
++    /// belongs to no plane here must still be refused, or the relaxation would be a widening rather than a
++    /// substitution. When planes multiply, the calling plane must be passed in rather than this set widened.
++    #[test]
++    fn only_vmpl0_and_the_served_guest_plane_are_accepted() {
++        for vmpl in 0u32..4 {
++            let mut req = SnpReportRequest::new_zeroed();
++            req.vmpl = vmpl;
++            let accepted = req.is_vmpl0() || req.vmpl == GUEST_VMPL as u32;
++            let want = vmpl == 0 || vmpl == GUEST_VMPL as u32;
++            assert_eq!(accepted, want, "vmpl {vmpl}: accepted={accepted}, expected={want}");
++        }
++    }
++}
++
+ #[cfg(test)]
+ mod tests {
+     #[allow(unused)]
 diff --git a/kernel/src/platform/snp_fw.rs b/kernel/src/platform/snp_fw.rs
 index c6ed036..f9615f7 100644
 --- a/kernel/src/platform/snp_fw.rs
@@ -49,7 +79,7 @@ index c6ed036..f9615f7 100644
      fw_secrets_page.set_svsm_data(
          kernel_region.start().into(),
 diff --git a/kernel/src/protocols/attest.rs b/kernel/src/protocols/attest.rs
-index 3a3be24..95c77f8 100644
+index 3a3be24..944b33c 100644
 --- a/kernel/src/protocols/attest.rs
 +++ b/kernel/src/protocols/attest.rs
 @@ -359,6 +359,33 @@ const _: () = assert!(
@@ -120,6 +150,18 @@ index 3a3be24..95c77f8 100644
      report_req.user_data = nonce
          .try_into()
          .map_err(|_| SvsmReqError::invalid_parameter())?;
+@@ -577,6 +612,11 @@ pub fn attest_protocol_request(
+     request: u32,
+     params: &mut RequestParams,
+ ) -> Result<(), SvsmReqError> {
++    // Gated on admission, exactly like protocol 6. A plane that has not had its artifacts hashed and frozen
++    // by this SVSM gets no report from it at all - not a contract-layout one, and not a services one either.
++    // Without this a plane could obtain a report carrying this measurement and its own level before admitting
++    // anything, which would falsify the invariant the admission gate exists to establish.
++    crate::protocols::appid::require_admitted(crate::types::GUEST_VMPL)?;
+     match request {
+         SVSM_ATTEST_SERVICES => attest_multiple_services(params),
+         SVSM_ATTEST_SINGLE_SERVICE => attest_single_service_handler(params),
 diff --git a/kernel/src/protocols/core.rs b/kernel/src/protocols/core.rs
 index 0e428f2..3fe0397 100644
 --- a/kernel/src/protocols/core.rs
