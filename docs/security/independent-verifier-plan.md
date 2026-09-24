@@ -594,12 +594,37 @@ No automatic cutover. Each stage is a reviewed change with a configuration flag 
 | milestone | content | days |
 |---|---|---|
 | M0 (done on this branch) | map, fixtures, harness for SNP + provenance + hosted binding, differential run, CLI | done |
-| M1 | strict envelope for every format in the registry, CRL policy modes, collateral adapters with a disk cache, Rekor v2 bundles, scheduled live differential job | 5 |
+| M1 | strict envelope for every format in the registry (DONE 2026-09-24: per-format shapes), CRL policy modes (done), collateral adapters with a disk cache (DONE 2026-09-24: the authenticated, slot-bound cache), Rekor v2 bundles (BLOCKED: no authentic v2 bundle located; see below), scheduled live differential job (PREPARED 2026-09-24 as a shadow job: `verifier/live-differential.mjs` and `.github/workflows/verifier-live-differential.yml`, dispatch-only and gated by a repository variable that is not set, read-only, tested offline on the fixtures) | 5 |
 | M2 | browser build: WebCrypto signatures, X.509 via a reviewed library, same-origin bundle, site shadow line | 8 |
 | M3 | CLI `--verifier both`, self-check both, relay re-verification of dialed rows | 5 |
 | M4 | signed release index in the release workflow, mirror at `enclave.host`, TUF refresh job, minimum-release policy | 5 |
 | M5 | independent review, cutover per consumer with fallback flags | 3 + review |
 | later | TDX (QVL-grade), NVIDIA GPU evidence, measurement recompute from archived image inputs, AVF ABI/2 relay frame | separate plans |
+
+**Rekor v2 (2026-09-24).** The pinned Sigstore trusted root already knows the v2 log (`log2025-1.rekor.sigstore.dev`,
+valid from 2025-09-23), so a v2 entry would verify through the same library once a bundle carries one. No authentic
+public bundle with a v2 entry was located to make a fixture of: our own latest release (v0.5.841, the pinned one) and
+cosign v3.1.3's release bundle are both on the original log (`rekor.sigstore.dev`, with an inclusion promise), and the
+GitHub artifact-attestation API returned no inline bundle for a recent gh release, only a framed binary blob that was
+not decoded here. Nothing is fabricated: the v2 path stays untested until a release of ours, or a public bundle with
+provenance, carries a v2 entry; the differential job will show it the day our release workflow moves.
+
+**The live differential job (2026-09-24), prepared, not enabled.** `verifier/live-differential.mjs` is glue over what
+exists: `cli.mjs capture` for the enclave's document, certificate and AMD collateral (bounded fetches), the release's
+Sigstore bundle verified by `verifier/provenance.mjs` for the expected measurement (never taken from the enclave or a
+proxy; latest and the sibling flavors tried), this branch's verifier on the document, the Tinfoil reference on the same
+bytes, and a comparison with four verdicts: agree, agree-refuse, disagree (exit 1), and reference-missing (exit 1: a
+differential that cannot compare has not run); provenance or capture failure exits 2 with nothing verified. The
+comparison is like with like: the reference checks the bytes and reports a measurement but applies no measurement
+policy, so the same provenance-derived policy is applied to its measurement, and the report says separately whether the
+two agree on the bytes and whether the measurement is one of ours. On the Genoa fixture, captured from Tinfoil's own
+public host, the honest outcome is agree-refuse: both accept the bytes, and the measurement is nobody's release of
+ours, which the offline test asserts as such. The workflow runs only on a manual dispatch with the host a REQUIRED
+input (a host that does not run one of this repository's releases yields a shared policy refusal, never a
+disagreement) AND only when the repository variable `VERIFIER_LIVE_DIFFERENTIAL` is set to `enabled` (it is not), with
+read-only permissions, no secret, pinned actions and the report as its only output.
+Enabling it is a recorded act in the repository's variables, not a merge. The offline test runs the same orchestrator
+on the fixtures with the installed reference.
 
 ## 11. Open risks
 

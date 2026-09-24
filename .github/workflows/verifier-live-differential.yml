@@ -1,0 +1,42 @@
+# The verifier's LIVE differential (docs/security/independent-verifier-plan.md, M1 "scheduled live differential job"), as a
+# SHADOW job: it is never scheduled, it runs only on a manual dispatch AND only when the repository variable
+# VERIFIER_LIVE_DIFFERENTIAL is set to "enabled" (it is not), it reads only (the hosted enclave's attestation endpoint,
+# AMD's KDS, GitHub's public release index and attestation API), it needs no secret and gets no write permission, and its
+# only output is the report artifact. Enabling it is a deliberate act recorded in the repository's variables, not a merge.
+# Authored 2026-09-24 on research/independent-verifier (Codex directed the work under Steven's standing scope); nothing here
+# dispatches, releases, deploys or changes a host.
+name: verifier live differential (shadow)
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: "the hosted enclave to capture (read-only); it must run one of THIS repository's releases, or the result is a shared policy refusal, not a disagreement"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  differential:
+    if: ${{ vars.VERIFIER_LIVE_DIFFERENTIAL == 'enabled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22
+      - name: install (lockfile, no scripts)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: capture, verify, compare (read-only; bounded fetches)
+        run: node verifier/live-differential.mjs --host "${{ inputs.host }}" --out live-differential
+      - name: keep the report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verifier-live-differential
+          path: live-differential/
+          retention-days: 14
