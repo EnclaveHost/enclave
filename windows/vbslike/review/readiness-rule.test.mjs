@@ -76,7 +76,9 @@ class FakeDomain {
   }
   handle(req, res) {
     const u = new URL(req.url, "https://x"); this.hits.push(u.pathname);
-    const json = (status, body) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
+    // framed as the real front (Go net/http) frames it: a body over Go's 2,048-byte buffer goes out chunked (the
+    // attestation document is ~2.2 KB), a small body carries Content-Length (the readiness document)
+    const json = (status, body) => { const b = Buffer.from(JSON.stringify(body)); const h = { "content-type": "application/json" }; if (b.length <= 2048) h["content-length"] = String(b.length); res.writeHead(status, h); res.end(b); };
     if (u.pathname === "/.well-known/enclave-attestation") {
       const nonce = u.searchParams.get("nonce") || "";
       if (!/^[0-9a-f]{64}$/.test(nonce)) return json(400, { error: "nonce" });
@@ -194,7 +196,7 @@ test("a 200 that is not the readiness document is NOT ready: on an initrd withou
   const d = await new FakeDomain({ ready: { status: 200 } }).listen();
   d.handle = ((orig) => function (req, res) {   // the front without the route: everything not attestation goes to the app
     const u = new URL(req.url, "https://x");
-    if (u.pathname === "/.well-known/enclave-ready") { this.hits.push(u.pathname); res.writeHead(200, { "content-type": "text/plain" }); return res.end("Hello World!\n"); }
+    if (u.pathname === "/.well-known/enclave-ready") { this.hits.push(u.pathname); res.writeHead(200, { "content-type": "text/plain", "content-length": "13" }); return res.end("Hello World!\n"); }
     return orig.call(this, req, res);
   })(d.handle);
   try {
