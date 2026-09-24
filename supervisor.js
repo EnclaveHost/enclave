@@ -2279,6 +2279,14 @@ function isolationDerivation(catalogRef, wasmRef, policy, runtimeId) {
            cid: c[1], policy, runtimeId };
 }
 
+// sha256 of the derivation record's canonical JSON (compact, keys sorted at every level): catalog.Derivation.Digest,
+// the key guestd files a mapping under and reports as recordSha256.
+function derivationDigest(d) {
+  const canon = (v) => Array.isArray(v) ? `[${v.map(canon).join(",")}]`
+    : v && typeof v === "object" ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canon(v[k])}`).join(",")}}`
+    : JSON.stringify(v);
+  return createHash("sha256").update(canon(d)).digest("hex");
+}
 // What the manager's /prefetch needs for a version: on the tier, the same derivation record the spawn will send (a
 // catalog CID alone names bytes, not a contract identity, and guestd refuses it).
 function isolationPrefetchBody(g, runtimeId) {
@@ -2347,6 +2355,7 @@ if (process.env.ISOLATION_SELFTEST) {
                                         catch (err) { return { ok: false, error: err.message }; } }),
     edits: (c.edits || []).map((r) => envelopeEditVerdict(r.rec || {}, r.chainCid)),
     appConfig: (c.appConfig || []).map((x) => isolationAppConfig(x)),
+    recordDigest: (c.recordDigest || []).map((d) => derivationDigest(d)),
     prefetch: (c.prefetch || []).map((x) => { try { return isolationPrefetchBody(x.g, x.runtimeId); } catch (err) { return { error: err.message }; } }),
     derive: (c.derive || []).map((d) => { try { return isolationDerivation(d.catalogRef, d.wasmRef, isolationPolicyFor({ memMb: d.memMb }), d.runtimeId); }
                                           catch (err) { return { error: err.message }; } }),
@@ -3530,9 +3539,27 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     const h = await vmHealth();
     const derive = isolationDerivation(catalogRef, image && image.reference,
       isolationPolicyFor({ memMb: versionMemMb }), h && h.catalog && h.catalog.runtimeId);
-    const r = await vmReq("POST", "/vms", { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
+    const body = { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
       gpuShare: 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
-      ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}) }, SPAWN_TIMEOUT_MS);
+      ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}) };
+    let r = await vmReq("POST", "/vms", body, SPAWN_TIMEOUT_MS);
+    // Guests live on the HOST and outlive this node CVM: after a node restart, guestd still runs the guest this
+    // deployment launched before. Adopt it only if it is starting or running AND was launched from exactly this
+    // derivation record (same catalog version, component, policy and runtime); anything else under this name is
+    // ended and launched again, never adopted.
+    if (r.status === 409 && r.body && /^gd[0-9a-f]{8}$/.test(String(r.body.id || ""))) {
+      const cur = await vmReq("GET", `/vms/${encodeURIComponent(r.body.id)}`, null, 10_000);
+      const v = cur && cur.status === 200 && cur.body;
+      if (v && v.name === deploymentId && (v.status === "running" || v.status === "starting")
+          && v.recordSha256 === derivationDigest(derive)) {
+        console.log(`[isolation] ${deploymentId.slice(0, 10)}: adopted guest ${v.id} (${v.status}), launched from this record before the node restarted`);
+        return { internalPort: 0, vmId: v.id, hostPort: 0, appId: v.appId };
+      }
+      console.warn(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} under this name is not this record's; ending it and launching again`);
+      const d = await vmReq("DELETE", `/vms/${encodeURIComponent(r.body.id)}`, null, 60_000);
+      if (d.status !== 200 && d.status !== 404) throw new Error(`guestd would not end the stale guest ${r.body.id} (HTTP ${d.status})`);
+      r = await vmReq("POST", "/vms", body, SPAWN_TIMEOUT_MS);
+    }
     if (r.status !== 201) throw new Error(`guestd refused the launch (HTTP ${r.status}): ${(r.body && r.body.error) || JSON.stringify(r.body)}`);
     console.log(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} app ${String(r.body.appId).slice(0, 16)}… `
               + `(${ISOLATION_POLICY_RULE} ${JSON.stringify(derive.policy)}, record ${String(r.body.recordSha256 || "").slice(0, 16)}…)${r.reconciled ? " [reconciled]" : ""}`);
@@ -5289,7 +5316,14 @@ app.get("/availability", async (_req, res) => {
     // A per-app isolation box serves ONLY deployments that require it, so it must stay out of the relay's
     // fleet-wide feature AND and default pricing (fullService:false, the Windows node's precedent) and say which
     // tier it is. Absent unless ISOLATION_BACKEND is set, so every other box's availability is unchanged.
-    ...(ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND, fullService: false } : {}),
+    //
+    // It must also not ADVERTISE what its claim gate refuses. The relay computes what the platform offers over the
+    // full-service boxes, but falls back to every serving box when none of those serves, so a tier box alone in
+    // the fleet would otherwise turn on controls (secrets, custom domains, config overrides, waf, private dev
+    // deploys, live resize) whose deployments it then refuses: Queued forever. Found on the production canary.
+    ...(ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND, fullService: false,
+      secrets: false, secretsInConfig: false, customDomains: false, configOverride: false, configEdit: false,
+      waf: false, gpuOptional: false, devDeploy: false, shareResize: false } : {}),
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {
