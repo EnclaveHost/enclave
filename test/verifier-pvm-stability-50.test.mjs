@@ -81,7 +81,7 @@ test("fifty valid turns re-derived from the client's own output: the policy comm
 });
 test("selection: thirty turns by deployment name the signed table's entry and its app, twenty by app carry no deployment; this session's verifier accepts the policy and selects the same app; the anchors are the install's", () => {
   const p = verifyClientPolicy({ policy: policyEnv.policy, sig: policyEnv.sig }, { anchorFp: anchor.policyKeyFp, serialFloor: anchor.serialFloor, now: NOW, clientVersion: "0.4.1" }); assert.equal(p.ok, true, p.reason);
-  const entry = policyBody.deployments[0]; assert.equal(policyBody.deployments.length, 1); assert.deepEqual(selectDeployment(p.policy, { deployment: entry.id }), { ok: true, app: entry.app, deployment: entry.id });
+  const entry = policyBody.deployments[0]; assert.equal(policyBody.deployments.length, 1); assert.deepEqual(selectDeployment(p.policy, { deployment: entry.id }), { ok: true, app: entry.app, deployment: entry.id, instances: null });
   let byDep = 0, byApp = 0;
   for (let i = 1; i <= 50; i++) { const r = resultOf(label(i)), t = turns[i - 1]; if (t.selection === "dep") { byDep++; assert.deepEqual(r.deployment, entry, `${label(i)}`); assert.equal(r.verified.app, entry.app); } else { byApp++; assert.equal("deployment" in r, false, `${label(i)}: no deployment field`); assert.equal(r.verified.app, policyBody.appIds[0]); } }
   assert.equal(byDep, 30); assert.equal(byApp, 20);

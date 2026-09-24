@@ -63,6 +63,6 @@ export async function verifyEvidenceWeb(doc, { policy = {}, context = {}, collat
   const env = d.env, technology = env.spec.technology;
   if (technology !== TECH.SNP) return unsupported(technology, `the browser build judges AMD SEV-SNP evidence only; ${technology} is judged by the Node verifier`);
   const ctx = { ...context, crypto: WEB_CRYPTO };
-  for (const k of ["transportKeySpki", "nonce", "expectedAppId", "expectedBinding", "auxblob"]) if (ctx[k] != null) ctx[k] = asBuffer(ctx[k]);
+  for (const k of ["transportKeySpki", "nonce", "expectedAppId", "expectedBinding", "expectedHostData", "auxblob"]) if (ctx[k] != null) ctx[k] = asBuffer(ctx[k]);
   return { technology, ...(await verifySnp(env, policy.snp || {}, ctx, collateral)) };
 }

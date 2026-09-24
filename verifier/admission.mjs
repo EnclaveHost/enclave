@@ -72,6 +72,14 @@ export function admit(verdict, expect = {}, { clientKind = "native", observedPee
     if (claims.appId !== hex(expect.appId)) return hold("the verified app id is not the client's expected app");
     if (!isHex(claims.runtimeId, 64) || !expect.allowedRuntimeIds.map((r) => r.toLowerCase()).includes(claims.runtimeId)) return hold("the verified runtime id is not one the client admits");
     if (claims.nonce !== undefined && claims.nonce !== nonceHex) return hold("the verifier compared a different challenge than the client's");
+    // instance binding (v3): with expect.instanceIds (from the signed policy's entry, never assembled by the caller) only a v3
+    // verdict naming a listed InstanceID releases; anything else holds, native and browser alike; a malformed expectation holds
+    if (expect.instanceIds !== undefined) {
+      if (!Array.isArray(expect.instanceIds) || !expect.instanceIds.length || expect.instanceIds.length > 8 || !expect.instanceIds.every((i) => isHex(i, 64)) || new Set(expect.instanceIds).size !== expect.instanceIds.length) return hold("the instance expectation is malformed: 1..8 unique InstanceIDs (64 lowercase hex), or none");
+      if (claims.format !== "enclave-pvm-app-evidence/v3" || !isHex(claims.instanceId, 64)) return hold("the selected deployment is bound to instances: only a v3 verdict naming the instance can release");
+      if (!expect.instanceIds.includes(claims.instanceId)) return hold("the verified instance is not one bound to the selected deployment");
+      reasons.push("instance: the verified InstanceID is one the signed policy binds to this deployment");
+    } else if (claims.format === "enclave-pvm-app-evidence/v3" && !isHex(claims.instanceId, 64)) return hold("a v3 verdict without an InstanceID is malformed");
     reasons.push("expectations met: app id, runtime id, code and authority hashes, root pins (all client-supplied)");
   } else return hold(`no admission rule for technology ${JSON.stringify(tech)}`);
 

@@ -21,6 +21,8 @@ import { AMD_ARK_SHA256 } from "../relay/snp-verify.mjs";
 const args = process.argv.slice(2), opt = (n, d) => { const i = args.indexOf("--" + n); return i >= 0 ? (args[i + 1] ?? true) : d; }, flag = (n) => args.includes("--" + n);
 const die = (m) => { console.error(m); process.exit(2); };
 const host = opt("host") || die("--host required"), expectDir = opt("expect") || die("--expect DIR required");
+// --deployment 0x<64 hex>: expect the report's HOST_DATA to be this deployment id (the F11 fix; a guest launched before it has zero and is refused)
+const deployment = opt("deployment") ? (/^0x[0-9a-f]{64}$/.test(opt("deployment")) ? Buffer.from(opt("deployment").slice(2), "hex") : die("--deployment must be 0x + 64 lowercase hex")) : null;
 const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const contractPath = process.env.ENCLAVE_DOMAIN_CONTRACT || die("ENCLAVE_DOMAIN_CONTRACT must point at the pinned isolation/contract/runtime.mjs (verifier/integration/resolve.mjs --pin linux-domain-contract)");
 const C = await import(pathToFileURL(contractPath).href);
@@ -91,7 +93,8 @@ if (fs.existsSync(path.join(expectDir, "vcek.der"))) layers.push(memoryCollatera
 if (opt("collateral-dir")) layers.push(fileCollateral(opt("collateral-dir")));
 layers.push(fileCollateral(path.join(REPO, "test/fixtures")));   // the CRL fixtures under verifier/amd are not at this layout; --kds fetches a fresh one
 const crlDir = path.join(REPO, "test/fixtures/verifier/amd"); if (fs.existsSync(crlDir)) layers.push(memoryCollateral({ crls: { Turin: fs.readFileSync(path.join(crlDir, "Turin-crl.der")) } }));
-const v = await verifyEvidence(doc, { policy: { snp: { allowedMeasurements: [measurement], minTcb } }, context: { transportKeySpki: spki, nonce, expectedBinding: bind, expectedAppId: Buffer.from(appId, "hex"), auxblob: doc.certs ? Buffer.from(doc.certs, "base64") : undefined, now: new Date().toISOString() }, collateral: layeredCollateral(...layers) });
+const v = await verifyEvidence(doc, { policy: { snp: { allowedMeasurements: [measurement], minTcb } }, context: { transportKeySpki: spki, nonce, expectedBinding: bind, expectedAppId: Buffer.from(appId, "hex"), ...(deployment ? { expectedHostData: deployment } : {}), auxblob: doc.certs ? Buffer.from(doc.certs, "base64") : undefined, now: new Date().toISOString() }, collateral: layeredCollateral(...layers) });
+if (v.claims) report.hostData = { reported: v.claims.hostData, expected: deployment ? deployment.toString("hex") : null };
 report.verdict = v; report.roots = "pinned: relay/snp-verify.mjs AMD_ARK_SHA256"; report.binding = { runtimeId: rid.toString("hex"), bind2: bind.toString("hex") };
 done();
 function done() {

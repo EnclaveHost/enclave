@@ -325,6 +325,16 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
     pass("binding", `report_data[0:32] equals the ${abi} binding`); pass("app id", "report_data[32:64] names the expected app");
   } else return fail("binding", `no binding rule for format ${env.format}`);
 
+  // 8. deployment binding (Linux per-app tier, finding F11, 2026-09-24): the report's HOST_DATA is the host's launch-time
+  // word, signed by the PSP into every report and outside the launch measurement; the client's expectation is the bytes32
+  // deployment id it resolved from the ledger. All-zero HOST_DATA is refused when an expectation is given, never read as
+  // unbound. What this cannot close: a host launching another genuine instance under the same id.
+  if (context.expectedHostData !== undefined) {
+    if (!Buffer.isBuffer(context.expectedHostData) || context.expectedHostData.length !== 32) return fail("host data", "expectedHostData must be exactly 32 bytes (the bytes32 deployment id)");
+    if (p.hostData.equals(Buffer.alloc(32))) return fail("host data", "report HOST_DATA is all zero: this guest was launched without a deployment binding, refused when one is expected (never read as unbound)");
+    if (!p.hostData.equals(context.expectedHostData)) return fail("host data", `report HOST_DATA names ${hex(p.hostData).slice(0, 16)}..., not the expected deployment ${hex(context.expectedHostData).slice(0, 16)}...`);
+    pass("host data", "report HOST_DATA equals the expected deployment id (the host's launch-time binding, PSP-signed)");
+  }
   claims.freshness = env.spec.binding === "hosted-tinfoil" ? (checks["certificate binding"] ? "served certificate window" : "none (certificate binding omitted)") : context.nonce || context.expectedBinding ? "verifier nonce" : "none (key possession only)";
   // The only way to "verified": every check true and nothing omitted. Anything relaxed by policy is "limited".
   return out(verdictStatus(omissions));

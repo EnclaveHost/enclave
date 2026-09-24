@@ -25,6 +25,9 @@ const domain = { status: "verified", admissionSafe: true, omissions: [], checks:
 const pvmV2 = { status: "verified", admissionSafe: true, omissions: [], checks: { "echo matches client": true, pvmEvidence: true },
   claims: { technology: "android-avf", family: "pvm-app", format: "enclave-pvm-app-evidence/v2", freshness: "client-nonce", nonce: hex(NONCE), appId: hex(APP), runtimeId: RID, transportSpki: hex(SPKI_T), transportSpkiSha256: sha256(SPKI_T), appKey: hex(bytes("app key")), sealed: { windowSeconds: 600, maxRequests: 256 } } };
 const pvmV1 = { ...pvmV2, claims: { ...pvmV2.claims, format: "enclave-pvm-app-evidence/v1", appKey: null, sealed: null } };
+// v3: the instance inside the challenge (INSTANCE-BINDING.md); InstanceID = sha256(instance SPKI), never a field
+const SPKI_I = Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), bytes("instance spki", 32)]), IID = sha256(SPKI_I), IID2 = sha256(Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), bytes("other instance", 32)]));
+const pvmV3 = { ...pvmV2, claims: { ...pvmV2.claims, format: "enclave-pvm-app-evidence/v3", instanceId: IID, instanceKey: hex(SPKI_I) } };
 const limited = { ...hosted, status: "limited", admissionSafe: false, omissions: ["tcb-floor-unjudged"], checks: { ...hosted.checks, "tcb policy": null } };
 const snpExpect = { allowedMeasurements: [MEAS], minTcb: { Genoa: { bootloader: 1, tee: 0, snp: 1, microcode: 1 } }, roots: ROOTS };
 const pvmExpect = { nonce: NONCE, appId: APP, allowedRuntimeIds: [RID], allowedCodeHashes: [hex(bytes("code"))], allowedAuthorityHashes: [hex(bytes("authority", 64))], rootPins: [hex(bytes("google root"))] };
@@ -62,6 +65,16 @@ const cases = [
   ["pVM: runtime id not admitted by the client", pvmV2, { ...pvmExpect, allowedRuntimeIds: [hex(bytes("other runtime"))] }, { clientKind: "browser" }],
   ["pVM: empty code hashes", pvmV2, { ...pvmExpect, allowedCodeHashes: [] }, { clientKind: "browser" }],
   ["pVM: empty authority hashes", pvmV2, { ...pvmExpect, allowedAuthorityHashes: [] }, { clientKind: "browser" }],
+  // v3 instance binding: the signed policy's instances for the selected deployment are the expectation
+  ["pVM v3 verified, browser, deployment bound to this instance", pvmV3, { ...pvmExpect, instanceIds: [IID] }, { clientKind: "browser" }],
+  ["pVM v3 verified, native, bound, own peer key is the transport key", pvmV3, { ...pvmExpect, instanceIds: [IID2, IID] }, { clientKind: "native", observedPeerSpki: SPKI_T }],
+  ["pVM v3 verified, unbound deployment (no instance expectation)", pvmV3, pvmExpect, { clientKind: "browser" }],
+  ["pVM v3: bound to another instance", pvmV3, { ...pvmExpect, instanceIds: [IID2] }, { clientKind: "browser" }],
+  ["pVM v3: malformed instance expectation (empty list)", pvmV3, { ...pvmExpect, instanceIds: [] }, { clientKind: "browser" }],
+  ["pVM v3: malformed instance expectation (uppercase)", pvmV3, { ...pvmExpect, instanceIds: [IID.toUpperCase()] }, { clientKind: "browser" }],
+  ["pVM v3: malformed instance expectation (nine)", pvmV3, { ...pvmExpect, instanceIds: Array.from({ length: 9 }, (_, i) => hex(bytes(`inst ${i}`))) }, { clientKind: "browser" }],
+  ["pVM v2 verdict where the deployment is bound (the adapter refuses this as a downgrade; the gate holds too)", pvmV2, { ...pvmExpect, instanceIds: [IID] }, { clientKind: "browser" }],
+  ["pVM v3 verdict lacking its InstanceID", { ...pvmV3, claims: { ...pvmV3.claims, instanceId: null } }, pvmExpect, { clientKind: "browser" }],
   ["pVM: empty root pins", pvmV2, { ...pvmExpect, rootPins: [] }, { clientKind: "browser" }],
   ["pVM: another app id expected", pvmV2, { ...pvmExpect, appId: bytes("other app") }, { clientKind: "browser" }],
   ["pVM: the verifier compared another challenge", { ...pvmV2, claims: { ...pvmV2.claims, nonce: hex(bytes("other nonce")) } }, pvmExpect, { clientKind: "browser" }],

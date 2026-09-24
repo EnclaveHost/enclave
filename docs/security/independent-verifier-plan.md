@@ -649,6 +649,53 @@ served-cert.pem missing from 26c3cc86 (fixed at aeddcfa1); the README abbreviate
 should name the gateway a verifier fetches the component from; KDS does serve this chip's VCEK although the README says
 otherwise. Finding: the
 canary runs on the same Turin part as the M4a lab capture (the lab VCEK verifies the production report).
+**F11, measured 2026-09-24T19:53Z.** A second live instance of the same app (E, `395bed3e.app.enclave.host`, guest
+gd6ee1b5cd) and A were checked under one set of expectations: both VERIFIED, and every claim in the two verdicts is
+identical (measurement, AppID, chip, TCB, runtime binding, roots); only the served key, the report id and report_data
+differ. The domain evidence names no deployment, so a misroute between two instances of one version is undetectable from
+the document alone; a client detects it only with a key pinned earlier (TOFU) or a deployment-bound field in the
+attested bytes, which the pVM tier is now adding as instance binding. The node's SNI and splice checks are host-side
+hygiene a client cannot verify. The owner records this as F11.
+
+## 10.2 pVM instance binding (v3), the verifier's side (2026-09-24)
+
+Bytes and trust source agreed with the pVM owner (INSTANCE-BINDING.md at 3be2ce0c; implemented at 193cf823): a v3
+closed envelope (v2 plus `instanceKey`, the instance key's Ed25519 SPKI, and `instanceSig`), the challenge
+`Bind3(spki, nonce, RuntimeID, InstanceID) || AppID` with `InstanceID = SHA-256(instanceKey)` never carried as a field,
+`appKeySig` under a v3 domain covering the InstanceID, a per-instance identity derived by AVF from the instance secret
+(stable across restart, new on re-provision; the transport key stays boot-fresh and is inside Bind3), and the signed
+policy as the trust source: type `enclave-pvm-client-policy/2`, entries `{ id, app, instances }`, 1..8 unique
+InstanceIDs, each bound to at most one deployment, v3 required in `formats`, rotation by re-sign under the existing
+serial rules; a type-1 policy carrying instances is refused by name and clients before 0.5.0 refuse type 2.
+
+Here: `verifier/pvm-evidence.mjs` accepts v3 through the owner's pinned module (pins.json `pvm-app-attest` at 193cf823;
+v1 and v2 re-verify unchanged), passes `expect.instanceIds`, refuses v1/v2 as a downgrade for a bound deployment before
+any certificate, cross-checks the returned InstanceID against SHA-256 of the envelope's key and against the bound list,
+and exposes `claims.instanceId`; `verifier/pvm-policy.mjs` verifies type 2 and its instance rules, `selectDeployment`
+returns the bound instances, and `expectationsForSelection` carries them as `instanceIds` with `formats` narrowed to v3,
+so a bound entry can never be run without the expectation; `verifier/admission.mjs` releases, with `expect.instanceIds`,
+only a v3 verdict naming a listed instance, native and browser alike, and holds a malformed expectation; the vectors
+(`verifier/admission-vectors.json`, 49 cases) carry the rule for the owner's gate mirror. `test/verifier-pvm-v3.test.mjs`
+replays the owner's 23 static cases (pins.json `pvm-v3-fixtures`) through the adapter, the policy verifier and the gate,
+with the owner's 0.5.0 `trust.js` (pins.json `pvm-client-src-v3`) as the differential reference on every policy outcome
+and every per-deployment instance list. Where this verifier's consumer pre-checks refuse before the owner's module (the
+echoed nonce, the echoed app, an empty instance list, a relabelled envelope), the reason is this verifier's own and the
+test says which. Not done: the device capture (the owner's campaign, running on the Pixel), the HPKE info (unchanged by
+agreement), and the client 0.5.0 artifact pin for the extension suites once it is built.
+
+## 10.3 Deployment binding for the Linux tier (F11 fix, verifier side, 2026-09-24)
+
+Agreed shape with the isolation owner: guestd launches each per-app guest with SNP `HOST_DATA` = the 32-byte
+deployment id (PSP-signed into every report, outside the launch measurement). `verifier/snp.mjs` gained
+`context.expectedHostData` (exactly 32 bytes): the report's HOST_DATA must equal it, all-zero is refused when an
+expectation is given and never read as unbound, and the check is absent when no expectation is given; the browser build
+shares it; `verifier/live-domain-check.mjs --deployment 0x…` passes it. The owner deployed it at bc07f899 (guestd
+restart 20:05:55Z, guests gd73150289 for A and gddbce9f8d for E relaunched 20:06:08Z with new keys 9848352b… and
+3cd10bfc…). **Measured from the public side at 20:07Z:** A under A VERIFIED with the host-data check true, E under E
+VERIFIED, E under A REJECTED at the host-data check naming E's id, measurement and AppID unchanged on all three; the
+owner's trusted-mode runs through the relay agree. The capture is at the owner's 2db69f32 (`host-data/` beside the
+first capture) and the canary suite carries the pre-change capture as the zero-HOST_DATA refusal. What it cannot close,
+stated: a host launching another genuine instance under the same id (the owner's A3).
 
 ## 11. Open risks
 

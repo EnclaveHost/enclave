@@ -52,7 +52,8 @@ const sCol = (over = {}) => memoryCollateral({ chains: { Genoa: S.chainPem }, vc
 const SP = randomBytes(91), NONCE = randomBytes(32), APP = randomBytes(32), SYNTH_NOW = new Date().toISOString();
 const Sy = (doc, { policy = {}, context = {}, collateral = sCol() } = {}) =>
   ({ doc, opts: { policy: { snp: { roots: new Map([["Genoa", S.arkFp]]), allowedMeasurements: ["77".repeat(48)], minTcb: FLOOR, ...policy } }, context: { transportKeySpki: SP, now: SYNTH_NOW, ...context }, collateral } });
-const metal = (rd, version) => ({ format: "sev-snp-guest-metal-v1", body: synthReport(S, { reportData: rd, version }).toString("base64") });
+const metal = (rd, version, hostData = null) => ({ format: "sev-snp-guest-metal-v1", body: synthReport(S, { reportData: rd, version, hostData }).toString("base64") });
+const DEP = Buffer.from("4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e", "hex"), OTHER_DEP = Buffer.from("395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595", "hex");
 const domain = (rd) => ({ format: "sev-snp-guest-domain-v1", report: synthReport(S, { reportData: rd }).toString("base64") });
 
 export const CASES = [
@@ -120,6 +121,12 @@ export const CASES = [
   // a sibling VCEK under the same ASK, for ANOTHER chip, signs a report that names this chip: the chain and the signature
   // pass, and only the VCEK's own extensions refuse it (the one way to reach the "vcek identity" check with a valid signature)
   ["synthetic sibling VCEK of another chip signs the report", Sy({ format: "sev-snp-guest-metal-v1", body: synthReport({ ...S, vcekKey: S.otherVceks[0].key }, { reportData: Buffer.concat([sha(SP, NONCE), Buffer.alloc(32)]) }).toString("base64") }, { context: { nonce: NONCE }, collateral: sCol({ vceks: { Genoa: S.otherVceks[0].der } }) })],
+  // HOST_DATA deployment binding (Linux tier F11): the host's launch-time word, PSP-signed; zero refused when expected
+  ["synthetic HOST_DATA equals the expected deployment -> verified", Sy(metal(Buffer.concat([sha(SP, NONCE), Buffer.alloc(32)]), 3, DEP), { context: { nonce: NONCE, expectedHostData: DEP } })],
+  ["synthetic HOST_DATA names another deployment", Sy(metal(Buffer.concat([sha(SP, NONCE), Buffer.alloc(32)]), 3, DEP), { context: { nonce: NONCE, expectedHostData: OTHER_DEP } })],
+  ["synthetic HOST_DATA zero but a deployment expected", Sy(metal(Buffer.concat([sha(SP, NONCE), Buffer.alloc(32)])), { context: { nonce: NONCE, expectedHostData: DEP } })],
+  ["synthetic HOST_DATA set but none expected -> verified (no check)", Sy(metal(Buffer.concat([sha(SP, NONCE), Buffer.alloc(32)]), 3, DEP), { context: { nonce: NONCE } })],
+  ["synthetic expectedHostData of the wrong length", Sy(metal(Buffer.concat([sha(SP, NONCE), Buffer.alloc(32)]), 3, DEP), { context: { nonce: NONCE, expectedHostData: DEP.subarray(1) } })],
   ["synthetic ASK revoked", Sy(metal(Buffer.concat([sha(SP, NONCE), Buffer.alloc(32)])), { context: { nonce: NONCE }, collateral: sCol({ crls: { Genoa: S.crlRevokingAsk } }) })],
   ["synthetic one-day CRL three days on, required", Sy(metal(Buffer.concat([sha(SP, NONCE), Buffer.alloc(32)])), { context: { nonce: NONCE, now: new Date(Date.now() + 3 * 86400000).toISOString() }, collateral: sCol({ crls: { Genoa: S.crls[1] } }) })],
   ["synthetic one-day CRL three days on, stale-ok 7 -> limited", Sy(metal(Buffer.concat([sha(SP, NONCE), Buffer.alloc(32)])), { context: { nonce: NONCE, now: new Date(Date.now() + 3 * 86400000).toISOString() }, policy: { crl: "stale-ok", crlMaxStaleDays: 7 }, collateral: sCol({ crls: { Genoa: S.crls[1] } }) })],
@@ -135,7 +142,7 @@ test("every case: the browser build's verdict equals the Node build's (status, c
   }
   assert.ok(CASES.length >= 90, `${CASES.length} cases`);
   for (const [k, v] of Object.entries(seen)) assert.ok(v >= 2, `${k}: ${v} cases`);
-  for (const k of ["chain", "crl", "signature", "vcek identity", "binding", "certificate binding", "app id", "measurement", "tcb policy", "guest policy", "vmpl", "report shape", "vcek"]) assert.ok(failing.has(k), `a case fails the ${k} check`);
+  for (const k of ["chain", "crl", "signature", "vcek identity", "binding", "certificate binding", "app id", "measurement", "tcb policy", "guest policy", "vmpl", "report shape", "vcek", "host data"]) assert.ok(failing.has(k), `a case fails the ${k} check`);
 });
 
 test("anchors: the green and the refused outcomes are what the SNP suites assert, in both builds", async () => {

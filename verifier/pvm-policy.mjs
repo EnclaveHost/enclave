@@ -15,9 +15,14 @@
 import { createHash, createPublicKey, verify as cryptoVerify } from "node:crypto";
 
 export const POLICY_TYPE = "enclave-pvm-client-policy", POLICY_DOMAIN = "enclave-pvm-client-policy-v1\n";
+// type 2 (INSTANCE-BINDING.md, client 0.5.0, 2026-09-24): the same fields, signature domain and serial space; a deployment
+// entry may bind the INSTANCES that serve it, { id, app, instances }. A type-1 policy carrying instances is refused by name,
+// never read as unbound; clients before 0.5.0 refuse type 2 as not a pVM client policy (the owner's test on the 0.4.1 build).
+export const POLICY_TYPE_V2 = "enclave-pvm-client-policy/2", INSTANCE_ID = /^[0-9a-f]{64}$/, MAX_INSTANCES = 8;
+export const PVM_EVIDENCE_FORMAT_V3 = "enclave-pvm-app-evidence/v3";
 export const POLICY_FIELDS = ["type", "key", "serial", "notBefore", "notAfter", "codeHashes", "authorityHashes", "runtimeIds", "appIds", "googleRootPins", "formats", "sealedModes", "sealedWindow", "minClientVersion", "nextPolicyKey"];
 export const BUILTIN_GOOGLE_ROOTS = ["cedb1cb6dc896ae5ec797348bce9286753c2b38ee71ce0fbe34a9a1248800dfc", "6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0"];   // relay/avf-verify.mjs pins
-export const KNOWN_FORMATS = ["enclave-pvm-app-evidence/v2"], KNOWN_MODES = ["whole", "chunked"];
+export const KNOWN_FORMATS = ["enclave-pvm-app-evidence/v2", "enclave-pvm-app-evidence/v3"], KNOWN_MODES = ["whole", "chunked"];
 export const MAX_POLICY_BYTES = 64 * 1024;
 // the optional deployment table (agreed with the pVM owner 2026-09-24, client 0.4.0): which app a deployment is expected to
 // run, signed like every other field; an id is the platform ledger's bytes32 in canonical form, 0x + 64 lowercase hex
@@ -48,7 +53,8 @@ export function verifyClientPolicy(envelope, { anchorFp, serialFloor = 1, state 
   if (Buffer.from(JSON.stringify(p), "utf8").compare(bytes) !== 0) return no("the policy bytes are not strict compact JSON (they do not round-trip unchanged: padding, duplicate keys or key order)");
   // the 15 fields in their order; the one optional field, deployments, may stand anywhere (the contract fixes no position for it)
   if (Object.keys(p).filter((k) => k !== "deployments").join(",") !== POLICY_FIELDS.join(",")) return no(`the policy fields must be exactly ${POLICY_FIELDS.join(", ")} in that order, optionally with deployments (got ${Object.keys(p).join(", ")})`);
-  if (p.type !== POLICY_TYPE) return no(`the policy type is ${JSON.stringify(p.type)}, not ${POLICY_TYPE}`);
+  if (p.type !== POLICY_TYPE && p.type !== POLICY_TYPE_V2) return no(`the policy type is ${JSON.stringify(p.type)}, not ${POLICY_TYPE} or ${POLICY_TYPE_V2}`);
+  const typeV2 = p.type === POLICY_TYPE_V2;
   if (!isHex(p.key, 64)) return no("the policy key is not a raw 32-byte Ed25519 public key in hex");
   // 1. the key is the anchor (or the successor a previously accepted policy named)
   const fp = keyFingerprint(p.key);
@@ -89,12 +95,21 @@ export function verifyClientPolicy(envelope, { anchorFp, serialFloor = 1, state 
   if ("deployments" in p) {
     const d = p.deployments;
     if (!Array.isArray(d) || d.length < 1 || d.length > MAX_DEPLOYMENTS) return no(`deployments must be a list of 1..${MAX_DEPLOYMENTS} entries (an empty table is never read as all, and absent means no table)`);
+    const boundTo = new Map();   // InstanceID -> deployment id: an instance serves at most one deployment
     for (const e of d) {
-      if (!e || typeof e !== "object" || Array.isArray(e) || Object.keys(e).sort().join(",") !== "app,id") return no("each deployment must be exactly { id, app }");
+      const keys = e && typeof e === "object" && !Array.isArray(e) ? Object.keys(e).sort().join(",") : null;
+      if (keys === "app,id,instances" && !typeV2) return no(`a deployment binds instances, which only a ${POLICY_TYPE_V2} policy may: this ${POLICY_TYPE} policy is refused, never read as unbound`);
+      if (keys !== "app,id" && !(typeV2 && keys === "app,id,instances")) return no(`each deployment must be exactly { id, app }${typeV2 ? " or { id, app, instances }" : ""}`);
       if (typeof e.id !== "string" || !DEPLOYMENT_ID.test(e.id)) return no(`deployment id ${JSON.stringify(e.id)} is not canonical bytes32 (0x + 64 lowercase hex): refused, never normalised`);
       if (!isHex(e.app, 64) || !p.appIds.includes(e.app)) return no(`deployment ${e.id.slice(0, 18)}... names an app the policy does not admit`);
+      if ("instances" in e) {
+        const inst = e.instances;
+        if (!Array.isArray(inst) || inst.length < 1 || inst.length > MAX_INSTANCES || !inst.every((i) => typeof i === "string" && INSTANCE_ID.test(i)) || new Set(inst).size !== inst.length) return no(`deployment ${e.id.slice(0, 18)}...'s instances must be 1..${MAX_INSTANCES} unique InstanceIDs, 64 lowercase hex (an empty list is never read as unbound)`);
+        for (const i of inst) { if (boundTo.has(i) && boundTo.get(i) !== e.id) return no(`InstanceID ${i.slice(0, 16)}... is bound to two deployments: ambiguous, the whole policy refused`); boundTo.set(i, e.id); }
+      }
     }
     if (new Set(d.map((e) => e.id)).size !== d.length) return no("a deployment id appears twice: ambiguous, the whole policy refused");
+    if (boundTo.size && !p.formats.includes(PVM_EVIDENCE_FORMAT_V3)) return no(`the policy binds instances but does not allow ${PVM_EVIDENCE_FORMAT_V3}, the only format that names one: incoherent, refused`);
   }
   // 6. the kill switch: an installed client below the minimum does not operate (the policy is still genuine)
   const minv = semver(p.minClientVersion), cv = semver(clientVersion);
@@ -110,7 +125,14 @@ export function verifyClientPolicy(envelope, { anchorFp, serialFloor = 1, state 
     },
     // the caller's selection: by deployment id (the expected app comes from the signed table, never from a catalog or a
     // relay), or by app alone; the expectations are then those of the selected app
-    expectationsForSelection(sel) { const r = selectDeployment(p, sel); if (!r.ok) return r; const e = this.expectationsFor(r.app); return e.ok ? { ...e, app: r.app, deployment: r.deployment } : e; } };
+    // a bound deployment (type 2, instances) narrows the expectation to v3 for one of its instances: a client can never run
+    // such an entry without the instance expectation, because it is produced here, never assembled by the caller
+    expectationsForSelection(sel) {
+      const r = selectDeployment(p, sel); if (!r.ok) return r;
+      const e = this.expectationsFor(r.app); if (!e.ok) return e;
+      const expect = r.instances ? { ...e.expect, instanceIds: [...r.instances], formats: e.expect.formats.filter((f) => f === PVM_EVIDENCE_FORMAT_V3) } : e.expect;
+      return { ...e, expect, app: r.app, deployment: r.deployment, instances: r.instances };
+    } };
 }
 
 /**
@@ -125,12 +147,13 @@ export function selectDeployment(policy, { deployment = null, app = null } = {})
   if (deployment === null || deployment === undefined) {
     if (!app) return no("no app or deployment selected: nothing is implied");
     if (!isHex(app, 64) || !policy.appIds.includes(app)) return no("the policy does not admit this app");
-    return { ok: true, app, deployment: null };
+    return { ok: true, app, deployment: null, instances: null };
   }
   if (typeof deployment !== "string" || !DEPLOYMENT_ID.test(deployment)) return no(`deployment ${JSON.stringify(deployment)} is not canonical bytes32 (0x + 64 lowercase hex): refused, never normalised`);
   if (!Array.isArray(policy.deployments)) return no("the policy names no deployments: select by app, or obtain a policy that names this deployment");
   const hits = policy.deployments.filter((e) => e.id === deployment);
   if (hits.length !== 1) return no(hits.length ? "the policy names this deployment more than once: ambiguous" : `the policy does not name deployment ${deployment.slice(0, 18)}...`);
   if (app !== null && app !== undefined && app !== hits[0].app) return no("the app given is not the app the signed policy expects for this deployment");
-  return { ok: true, app: hits[0].app, deployment };
+  // instances: the InstanceIDs a type-2 policy binds this deployment to, or null (unbound: any genuine instance of the app)
+  return { ok: true, app: hits[0].app, deployment, instances: Array.isArray(hits[0].instances) ? [...hits[0].instances] : null };
 }
