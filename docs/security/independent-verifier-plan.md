@@ -476,8 +476,10 @@ Exact remaining integration gaps (nothing below is verified today):
    refusals), the failure and concurrency table, and the limits kept explicit (initial installation and the root of
    trust out of band, production key distribution, whole-machine power loss, the extension cannot activate, no
    unattended activation). The acceptance suite `verifier-pvm-client-activation` is written from the agreed interface
-   with canary artifacts and skips until the owner's 0.3.0 is pinned and reproduced; it has not run against any
-   implementation yet.
+   with canary artifacts. The owner shipped 0.3.0 (0f4c79fd) to the agreed design the same day: the hashes were
+   recomputed from the git objects, the client pins and the artifact record moved there, both artifacts reproduced, and
+   all 10 activation cases pass (two harness defects fixed, none in the owner's code; results per case in the review);
+   strict command 86 of 86.
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial
