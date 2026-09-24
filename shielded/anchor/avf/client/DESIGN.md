@@ -84,8 +84,13 @@ is exactly what the client exists not to believe.
   - The client proves "a genuine instance of the app the signed policy expects for D". It does not prove "D's physical
     instance or its operator".
   - `--relay` stays the carrier, untrusted, and the id is not used to route.
-  - The extension keeps its install-time app and ignores the table. It still validates the table through the same trust
-    code, so a policy with a malformed table is refused there too.
+  - The extension follows the same rules on its own request page (`client.html`), through the same `connect` and
+    `selectDeployment` code:
+    - `?deployments=1` verifies and commits the policy, then shows its table as links;
+    - `?deployment=ID`, optionally with `&app=A`, selects;
+    - the install-time app is used only when neither `?deployment` nor `?app` is given;
+    - a repeated parameter is refused before anything runs.
+    Its pages are not web-accessible, so no site can open them with a chosen deployment.
 - **Agreed first.** The verifier session agreed this contract before the commit. Its independent policy replay adds the
   optional field under exactly these rules.
 
@@ -313,6 +318,10 @@ Agreed with the verifier session before it was built (its five fail-closed rules
     serial are all refused.
   In process, on the Pixel's real v2 evidence, the table's app releases, and a table naming another app for the same
   deployment is refused before anything is sealed.
+- test/pvm-client-extension.test.mjs, in Chrome for Testing: the extension's page lists the signed table, and a
+  selection reaches the VM's evidence with the table's app. An unknown id, a disagreeing `?app`, and a repeated
+  `?deployment` are each refused at `select` with no evidence request. Every page ran exactly once: the test clears
+  Chrome's session files before each launch, because a killed Chrome restores its tabs and re-runs them.
 - `client/tools/lab-next.mjs` derives a LAB next-version test artifact from a built base. Only two things change: the
   first line, labelled with the base's sha256, and the version constant. The derivation is deterministic, and apart from
   its first line it equals a source rebuild at the new version (the verifier session checked both). The activation test
