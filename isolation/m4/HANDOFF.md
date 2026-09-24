@@ -16,7 +16,8 @@ provider-rejected caller/VMPL `CREATE_VCPU` investigation, any two-plane campaig
 | **accepted evidence, reviewed** | step 2, measured boot 15/15; handshake-key binding 8/8 - one app, one plane, each scoped by its own "does not establish" section | `evidence/step2-measured-boot-2026-09-24.txt`, `evidence/plane-handshake-binding-2026-09-24.txt` (review boundary `39b5a5e4`) |
 | **new evidence, NOT reviewed** | the runtime SET admitted whole: interpreter + libc + libm + libgcc_s + wasmtime + runtime.json; good plane 10/10; a flipped libc byte and a missing libgcc_s each REFUSED `0x80001004` and powered off; running runtime maps only admitted code; local 14/14; SVSM unit tests 44/44 | `evidence/runtime-set-2026-09-24.txt`, run `~/enclave-bench/m4b-rtset-083233`; code `9d678395`, harness `f3825d92` |
 | **new documentation, NOT reviewed** | the read-only host change/recovery plan; README and this file reconciled | `HOST-CHANGE-PLAN.md`, `svsm/README.md` |
-| **unresolved limitations** | ONE app on ONE plane; `/app.wasm` is cut from the admitted bundle at build time, not admitted itself; the maps check is one reading at load and is the plane's word; the step-2 fixture now stages the set but was NOT re-run on hardware; second-plane preconditions 2, 3 and 5 not started | `evidence/runtime-set-2026-09-24.txt` limits; `svsm/README.md` |
+| **new evidence, NOT reviewed** | the served component is cut from the ADMITTED bundle (sealed memfd, no `/app.wasm`): good 11/11, a planted decoy component never served, truncated and missing bundles refused | `evidence/app-binding-2026-09-24.txt`, run `~/enclave-bench/m4b-app-085652`; code `d094410c`, harness `14eb1104` |
+| **unresolved limitations** | ONE app on ONE plane; the maps check is one reading at load and is the plane's word; the step-2 fixture now stages the set but was NOT re-run on hardware; second-plane preconditions 2, 3 and 5 not started | `evidence/runtime-set-2026-09-24.txt` limits; `svsm/README.md` |
 | **provider-blocked** | the precondition-4 mechanism: what the SVSM's `core_create_vcpu` checks about the calling plane, and so whether the README's "the SVSM is not in that path" holds for our topology. Not continued, delegated or retried | "Unfinished investigation" below |
 | **needs Steven's decision** | whether the precondition-4 remedy needs a host change at all, and if so the window; the installer must first be parameterised or it would replace (or, on failure, delete) today's planes kernel; a second-plane campaign | `HOST-CHANGE-PLAN.md` |
 | **blocker, unchanged** | no run is scored as isolation until precondition 4 is resolved AND a second plane is tested for the property | `svsm/README.md` precondition 4 |
@@ -27,8 +28,7 @@ M3b/M4b run then fails with `KVM plane 2 is not supported`. Select the planes en
 
 Pending, in the order worth doing:
 1. an independent review of `9d678395`, `f3825d92` and this documentation, when a reviewer is available;
-2. the same fix for the component: have planeinit hand the runtime the component cut from the bundle file it
-   admitted, instead of the build-time `/app.wasm` (the bundle format is magic + length + manifest + artifact);
+2. ~~the same fix for the component~~ done: `evidence/app-binding-2026-09-24.txt`;
 3. re-running `verify-measured-boot.sh` against the current admission fixture, if the step-2 record should cover
    it rather than stay scoped to the ELF-only fixture;
 4. precondition 3 (the per-plane validated-page map), which is SVSM-local and was not part of this scope.

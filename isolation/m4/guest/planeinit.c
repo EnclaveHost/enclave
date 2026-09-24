@@ -299,7 +299,10 @@ int main(void) {
      * VMPCK, so sev-guest could not serve a report even if it were present, and the SVSM is the only path. */
     insmod("/appidmod.ko");
     show("status_before", "status");
-    if (admit_bundle("/app.bundle", "bundle") != 0) power_off("the SVSM refused this plane's app bundle");
+    /* The bundle line above says WHICH failure it was. This reason used to read "the SVSM refused" whatever
+     * happened, including a bundle that was never read, so the SVSM was never asked - measured in the
+     * 2026-09-24 app-binding run's missing case. */
+    if (admit_bundle("/app.bundle", "bundle") != 0) power_off("this plane's app bundle was not admitted");
     if (admit_runtime_set("/rt", "runtime") != 0) power_off("the SVSM refused this plane's runtime set");
     show("status_after", "status");
     show("whoami", "whoami");
