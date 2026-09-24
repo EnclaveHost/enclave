@@ -1,0 +1,35 @@
+RESULT mode=trusted
+RESULT tier=T1
+RESULT spki_sha256=3cd10bfcf82219431b76a65d40dab2ab6e1e0ad28a8e1fe95d355b11b44dc1ac
+RESULT doc_key_matches_handshake=1
+evidence: the runtime identity is the expected one: wasmtime/48.0.1 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none
+evidence: the scan covered every process with an address space in this domain (3)
+evidence: the domain measured that it may hold an executable page (exec_pages=allowed), which execution=jit requires, and found no writable-and-executable mapping among 3 processes in scope all-processes
+evidence: that self-test is the measured front's own word, relayed over this attested connection; the hardware does not attest it (see judge.mjs checkRuntime)
+evidence: enclave-domain-abi/2: report_data[0:32] must bind the transport key, the nonce AND runtime id ccadb38a67796155…
+evidence: report is from VMPL0 (full privilege inside the CVM)
+evidence: guest policy 0x30000: DEBUG off, MIGRATE_MA off
+evidence: measurement on Metal release allowlist
+evidence: report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity)
+evidence: AMD signature chain verified (VCEK auxblob → ASK → ARK, Turin)
+evidence: VCEK chip ID and TCB extensions match the report
+evidence: reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)
+evidence: report_data[32:64] names the expected app
+evidence: REJECT: report host_data 395bed3e2e24efa0… is not the expected deployment 0x4e62e60da567ca6c…
+RESULT measurement=df03e2f66cbb0b70f9cf0c474a2e334727b3b276ac496cb93f8937497b7c973790699f02e207e0e2f73f0146add8840f
+RESULT report_data=be100642100df9018ebcad489c9bc29aefd9abcd4a68addc28b18c2c0c6de4d89c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45
+RESULT expected_vmpl=0
+RESULT host_data=395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595
+RESULT host_data_checked=1
+RESULT report_vmpl=0
+RESULT abi=enclave-domain-abi/2
+RESULT runtime_pinned=1
+RESULT runtime={"name":"wasmtime","version":"48.0.1","execution":"jit","targetIsa":"x86_64","hostIsa":"x86_64","cpuFeatures":"host-detected","wx":"enforced","cache":"none"}
+RESULT runtime_selftest="exec_pages=allowed wx=clean maps=3 scope=all-processes"
+RESULT tcb_product=Turin
+RESULT tcb_reported={"fmc":1,"bootloader":3,"tee":2,"snp":5,"microcode":117}
+RESULT tcb_checked=1
+VERDICT reject reason="REJECT: report host_data 395bed3e2e24efa0… is not the expected deployment 0x4e62e60da567ca6c…"
+RESULT gate=closed
+RESULT app_requests_sent=0
+RESULT refused_handshakes=0
