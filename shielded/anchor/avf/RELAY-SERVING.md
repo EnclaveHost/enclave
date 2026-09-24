@@ -119,9 +119,16 @@ each needs its own review.
     - the per-deployment bucket is a courtesy to the VM. The VM serves one connection at a time, and that is its real
       protection. Whether to key buckets per (client, deployment) with a higher deployment ceiling, so one buyer cannot
       starve a deployment's others, is the wiring's choice.
-- **Not done.** Wiring into `api-relay.js` behind a switch, `attest.pvmApp` from environment, the real `tunnel.js` hub
-  in these tests, and the review's (a)-(f) through the relay route. The first two change production code and wait for
-  the owner.
+- **On the REAL tunnel hub.** The module also runs on `relay/tunnel.js`, test 4. A synthetic phone attaches with AVF
+  evidence and verifies its app over the hub's ABI/2 nonce, then carries each spliced stream to a fake VM:
+  - the built client's evidence goes through the module and the real `spliceRaw` to any attested pVM tunnel, and is
+    judged on the client's own nonce;
+  - a well-framed sealed request reaches the hub-verified app's VM, which answers it with its own refusal frame, under a
+    nonce it never issued;
+  - a tunnel whose app the hub did not verify gets no sealed stream: a plain 404.
+- **Not done.** Wiring into `api-relay.js` behind a switch, and `attest.pvmApp` from environment: both change
+  production code and wait for the owner. The review's (a)-(d) have not been run through the relay route; the client
+  already refuses each against the lab carrier.
 - **The lab carrier.** `cpu/web-carrier.mjs` had the same defect: it reset the connection before its 413 was sent. It is
   fixed and tested.
 
