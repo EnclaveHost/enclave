@@ -26,7 +26,7 @@ $(grep -a "^PASS\|^FAIL\|^domain-release:" "$W/domain-release.out" | sed 's/^/  
   and is never presented as trust.
 
 2. guestd-control/1 (m4/guestd/auth.go), unit and interop tests under -race
-$(grep -a "^--- .*\(Credentials\|Unauthenticated\|Handshake\|Replay\|Tamper\|Instances\|Expire\|Bounded\|KeyFile\|JSClient\)" "$W/guestd.out" | sed 's/^/  /')
+$(grep -a "^--- .*\(Credentials\|Unauthenticated\|Handshake\|Replay\|TamperedRequest\|Instances\|Expire\|Bounded\|KeyFile\|JSClient\)" "$W/guestd.out" | sed 's/^/  /')
 $(grep -a "interop:" "$W/guestd.out" | sed 's/^ */  /' | cut -c1-600)
   (all guestd tests: $(grep -ac "^--- PASS" "$W/guestd.out") PASS, $(grep -ac "^--- FAIL" "$W/guestd.out") FAIL)
 
