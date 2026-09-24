@@ -49,7 +49,7 @@ export class HyperVPartitionBackend {
    */
   constructor({ launch = null, launcher = null } = {}) {
     this.launcher = launcher;
-    this.launch = launch || (launcher ? (mapping) => launcher.start(mapping) : null);
+    this.launch = launch || (launcher ? (mapping, opts) => launcher.start(mapping, opts) : null);
   }
   /** Ask the host itself, when there is a launcher to ask. Null when there is nothing to ask. */
   async preflight() { return this.launcher ? await this.launcher.preflight() : null; }
@@ -59,7 +59,7 @@ export class HyperVPartitionBackend {
    * Start a domain for an already-derived mapping. Resolves to { pid, endpoint } when a partition
    * really runs; throws otherwise. It never returns a partial success.
    */
-  async start(mapping) {
+  async start(mapping, opts) {
     if (!this.launch) {
       const e = new Error(
         "this host cannot load a custom IGVM: the supported path is WMI (Msvm_VirtualSystemSettingData.FirmwareFile), "
@@ -70,7 +70,7 @@ export class HyperVPartitionBackend {
       e.prerequisites = PREREQUISITES;
       throw e;
     }
-    return await this.launch(mapping);
+    return await this.launch(mapping, opts);
   }
   async stop(handle) {
     if (this.launcher) return await this.launcher.stop(handle);

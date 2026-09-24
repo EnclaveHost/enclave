@@ -53,16 +53,49 @@ export const CMD = {
     if (-not (Test-Path ${q(path)})) { @{present=$false} | ConvertTo-Json -Compress; exit 0 };
     @{present=$true; sha256=(Get-FileHash ${q(path)} -Algorithm SHA256).Hash.ToLower(); bytes=(Get-Item ${q(path)}).Length} | ConvertTo-Json -Compress`),
 
-  /** Create the VM. Generation 2 and an explicit version, because the firmware field needs >= 12.0. */
+  /**
+   * Create the VM, under a terminating-error policy, and remove it HERE if any step after New-VM
+   * fails. The first version returned JSON only on the happy path, so a failure between New-VM and
+   * that JSON left a VM on the host and `created` null in the caller, which then cleaned up
+   * nothing. The marker is applied inside the same try for the same reason: a VM that exists
+   * without it is invisible to a marker-scoped teardown.
+   */
   create: ({ name, memMiB, vcpus, version = "12.0" }) => ps(`
-    $vm = New-VM -Name ${q(name)} -Generation 2 -MemoryStartupBytes ${Math.round(memMiB)}MB -NoVHD -Version ${q(version)};
-    Set-VMProcessor -VM $vm -Count ${Math.max(1, Math.floor(vcpus))};
-    Set-VMMemory -VM $vm -DynamicMemoryEnabled $false;
-    Set-VM -VM $vm -AutomaticStartAction Nothing -AutomaticStopAction TurnOff -CheckpointType Disabled -Notes ${q(OWNER_MARKER)};
-    @{id=$vm.Id.Guid; version=[string]$vm.Version; name=$vm.Name} | ConvertTo-Json -Compress`),
+    $ErrorActionPreference = 'Stop';
+    $vm = $null;
+    try {
+      $vm = New-VM -Name ${q(name)} -Generation 2 -MemoryStartupBytes ${Math.round(memMiB)}MB -NoVHD -Version ${q(version)};
+      Set-VM -VM $vm -Notes ${q(OWNER_MARKER)};
+      Set-VMProcessor -VM $vm -Count ${Math.max(1, Math.floor(vcpus))};
+      Set-VMMemory -VM $vm -DynamicMemoryEnabled $false;
+      Set-VM -VM $vm -AutomaticStartAction Nothing -AutomaticStopAction TurnOff -CheckpointType Disabled;
+      @{id=$vm.Id.Guid; version=[string]$vm.Version; name=$vm.Name; notes=[string]$vm.Notes} | ConvertTo-Json -Compress
+    } catch {
+      if ($vm) { try { Remove-VM -VM $vm -Force -ErrorAction SilentlyContinue } catch {} };
+      throw
+    }`),
 
-  /** Pin the firmware. This is Set-OpenHCL-HyperV-VM.ps1's own sequence. */
-  pinFirmware: ({ vmId, imagePath }) => ps(`
+  /**
+   * Pin the firmware. Set-OpenHCL-HyperV-VM.ps1's own sequence, including the two things the first
+   * version of this file left out.
+   *
+   * ConvertTo-CimEmbeddedString is NOT a cmdlet. Their script defines it, and so does this: a
+   * CimSerializer round trip. Calling it without defining it is a command-not-found at runtime.
+   *
+   * ReturnValue 4096 means "a job was STARTED", not "it worked". Their Trace-CimMethodExecution
+   * polls Msvm_ConcreteJob while JobState is 4 (running) and treats anything other than 7
+   * (completed) as an error, surfacing ErrorDescription or ErrorCode. This does the same, bounded.
+   *
+   * Then it READS THE SETTINGS BACK. A job that completed is not the same as a field that holds
+   * what we asked for, and the whole point of this call is that the field holds our image.
+   */
+  pinFirmware: ({ vmId, imagePath, jobTimeoutSec = 120 }) => ps(`
+    $ErrorActionPreference = 'Stop';
+    function ConvertTo-CimEmbeddedString([Microsoft.Management.Infrastructure.CimInstance]$CimInstance) {
+      if ($null -eq $CimInstance) { return '' };
+      $s = [Microsoft.Management.Infrastructure.Serialization.CimSerializer]::Create();
+      return [System.Text.Encoding]::Unicode.GetString($s.Serialize($CimInstance, [Microsoft.Management.Infrastructure.Serialization.InstanceSerializationOptions]::None))
+    };
     $ns = 'root\\virtualization\\v2';
     $vm = Get-CimInstance -Namespace $ns -Query ("select * from Msvm_ComputerSystem where Name = '" + ${q(vmId)} + "'");
     if (-not $vm) { throw 'no Msvm_ComputerSystem for ' + ${q(vmId)} };
@@ -70,24 +103,81 @@ export const CMD = {
     $vssd.GuestFeatureSet = ${GUEST_FEATURE_SET};
     $vssd.FirmwareFile = ${q(imagePath)};
     $svc = Get-CimInstance -Namespace $ns -ClassName Msvm_VirtualSystemManagementService;
-    $txt = ($vssd | ConvertTo-CimEmbeddedString);
-    $res = Invoke-CimMethod -InputObject $svc -Name ModifySystemSettings -Arguments @{SystemSettings = $txt};
-    @{returnValue=$res.ReturnValue; job=[string]$res.Job} | ConvertTo-Json -Compress`),
+    $res = Invoke-CimMethod -InputObject $svc -Name ModifySystemSettings -Arguments @{SystemSettings = (ConvertTo-CimEmbeddedString $vssd)};
+    $rv = [int]$res.ReturnValue;
+    $jobState = $null; $jobError = $null;
+    if ($rv -eq 4096) {
+      if (-not $res.Job) { throw 'ReturnValue 4096 with no Job object' };
+      $job = $res.Job | Get-CimInstance;
+      $deadline = (Get-Date).AddSeconds(${Math.max(1, Math.floor(jobTimeoutSec))});
+      while ($job.JobState -eq 4) {
+        if ((Get-Date) -gt $deadline) { throw 'ModifySystemSettings job did not finish within ${Math.max(1, Math.floor(jobTimeoutSec))}s (JobState still 4)' };
+        Start-Sleep -Milliseconds 500;
+        $job = $job | Get-CimInstance
+      };
+      $jobState = [int]$job.JobState;
+      if ($jobState -ne 7) { $jobError = if ($job.ErrorDescription) { [string]$job.ErrorDescription } else { 'JobState ' + $jobState + ' ErrorCode ' + [string]$job.ErrorCode } }
+    } elseif ($rv -ne 0) { throw 'ModifySystemSettings returned ' + $rv };
+    if ($jobError) { throw $jobError };
+    $after = (Get-CimInstance -Namespace $ns -Query ("select * from Msvm_ComputerSystem where Name = '" + ${q(vmId)} + "'")) |
+             Get-CimAssociatedInstance -ResultClass Msvm_VirtualSystemSettingData -Association Msvm_SettingsDefineState;
+    @{returnValue=$rv; jobState=$jobState; firmwareFile=[string]$after.FirmwareFile; guestFeatureSet=[int]$after.GuestFeatureSet} | ConvertTo-Json -Compress`),
 
   /** A serial port to a named pipe: the only way this learns what the guest said. */
   attachConsole: ({ name, pipe }) => ps(`
     Set-VMComPort -VMName ${q(name)} -Number 1 -Path ${q(pipe)};
     @{ok=$true} | ConvertTo-Json -Compress`),
 
-  start: ({ name }) => ps(`Start-VM -Name ${q(name)}; @{state=[string](Get-VM -Name ${q(name)}).State} | ConvertTo-Json -Compress`),
+  start: ({ name }) => ps(`$ErrorActionPreference='Stop'; Start-VM -Name ${q(name)}; @{state=[string](Get-VM -Name ${q(name)}).State} | ConvertTo-Json -Compress`),
+
+  /**
+   * Did the GUEST say anything? A VM in state Running is a host-side fact; this is the only
+   * evidence that something is alive inside it. Reads the console pipe for a bounded window and
+   * reports how many bytes arrived and the first of them.
+   */
+  readConsole: ({ pipe, seconds = 20 }) => ps(`
+    $ErrorActionPreference = 'Stop';
+    $deadline = (Get-Date).AddSeconds(${Math.max(1, Math.floor(seconds))});
+    $buf = New-Object byte[] 4096; $total = 0; $head = '';
+    try {
+      $fs = [IO.File]::Open(${q(pipe)}, 'Open', 'Read', 'ReadWrite');
+      while ((Get-Date) -lt $deadline) {
+        if ($fs.CanRead) {
+          $n = 0;
+          try { $n = $fs.Read($buf, 0, $buf.Length) } catch { $n = 0 };
+          if ($n -gt 0) { $total += $n; if ($head.Length -lt 400) { $head += [Text.Encoding]::ASCII.GetString($buf, 0, [Math]::Min($n, 400)) } }
+          else { Start-Sleep -Milliseconds 200 }
+        }
+      };
+      $fs.Close()
+    } catch { };
+    @{bytes=$total; head=$head} | ConvertTo-Json -Compress`),
+
   state: ({ name }) => ps(`$v = Get-VM -Name ${q(name)} -ErrorAction SilentlyContinue; if ($v) { @{found=$true; state=[string]$v.State; uptime=[string]$v.Uptime} | ConvertTo-Json -Compress } else { @{found=$false} | ConvertTo-Json -Compress }`),
   stop: ({ name }) => ps(`Stop-VM -Name ${q(name)} -TurnOff -Force -ErrorAction SilentlyContinue; @{ok=$true} | ConvertTo-Json -Compress`),
 
-  /** Remove ONLY what this owns: the instance prefix AND the marker in Notes. Both, never one. */
-  teardown: ({ prefix }) => ps(`
-    $vms = @(Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith(${q(prefix)}) -and $_.Notes -eq ${q(OWNER_MARKER)} });
-    foreach ($v in $vms) { Stop-VM -VM $v -TurnOff -Force -ErrorAction SilentlyContinue; Remove-VM -VM $v -Force -ErrorAction SilentlyContinue };
-    @{removed=$vms.Count; names=@($vms | ForEach-Object { $_.Name })} | ConvertTo-Json -Compress`),
+  /**
+   * Remove ONLY what this owns. Scoped by the instance prefix, and by the marker when it is there -
+   * a VM that failed before its Notes were set still starts with the prefix, and leaving it behind
+   * because the marker is missing is how an orphan becomes permanent. Failures are REPORTED, not
+   * swallowed: a teardown that could not remove something must not read as a clean one.
+   */
+  teardown: ({ prefix, requireMarker = false }) => ps(`
+    $vms = @(Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith(${q(prefix)})${requireMarker ? ` -and $_.Notes -eq ${q(OWNER_MARKER)}` : ""} });
+    $removed = @(); $failed = @();
+    foreach ($v in $vms) {
+      try {
+        Stop-VM -VM $v -TurnOff -Force -ErrorAction SilentlyContinue;
+        Remove-VM -VM $v -Force -ErrorAction Stop;
+        $removed += $v.Name
+      } catch { $failed += @{name=$v.Name; error=[string]$_.Exception.Message} }
+    };
+    @{found=$vms.Count; removed=@($removed); failed=@($failed)} | ConvertTo-Json -Compress -Depth 4`),
+
+  /** Everything this prefix owns, whether or not we think we started it: the reconciliation read. */
+  survey: ({ prefix }) => ps(`
+    $vms = @(Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name.StartsWith(${q(prefix)}) });
+    @{vms=@($vms | ForEach-Object { @{name=$_.Name; state=[string]$_.State; notes=[string]$_.Notes} })} | ConvertTo-Json -Compress -Depth 4`),
 };
 
 function parse(out) {
@@ -102,10 +192,13 @@ export class WmiHyperVLauncher {
    * @param imagePath / imageSha256  the guest image and the hash it must have, checked on the host
    * @param prefix  every VM this instance creates starts with it, and teardown filters on it
    */
-  constructor({ run, imagePath, imageSha256, prefix = `enclave-app-${process.pid}-`, pipeFor = null }) {
+  constructor({ run, imagePath, imageSha256, prefix = "enclave-app-", pipeFor = null, jobTimeoutSec = 120 }) {
     if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
     this.run = run; this.imagePath = imagePath; this.imageSha256 = (imageSha256 || "").toLowerCase();
+    // A STABLE prefix, not one keyed to a pid: a restarted manager must still recognise, and be
+    // able to reconcile, the VMs its predecessor left behind.
     this.prefix = prefix;
+    this.jobTimeoutSec = jobTimeoutSec;
     this.pipeFor = pipeFor || ((name) => `\\\\.\\pipe\\${name}-com1`);
   }
 
@@ -145,10 +238,18 @@ export class WmiHyperVLauncher {
   }
 
   /**
-   * Create, pin, attach a console, start. Any failure after creation tears THIS VM down before
-   * rethrowing, so a half-built domain never outlives the attempt that made it.
+   * Create, pin, verify the pin, start, and require the guest to say something.
+   *
+   * `instanceId` is the caller's unique handle for THIS domain and is what the VM is named after.
+   * Naming by AppID alone meant two deployments of the same app collided on one VM name: the second
+   * New-VM fails, or worse, adopts the first. The AppID is carried in the notes, not in the name.
+   *
+   * Any failure after New-VM removes this VM before rethrowing, and the create script removes it
+   * itself if it fails before returning - both, because a leak here is a VM nobody owns.
    */
-  async start(mapping) {
+  async start(mapping, { instanceId, guestReadySec = 25 } = {}) {
+    if (!instanceId || !/^[A-Za-z0-9._-]{4,64}$/.test(String(instanceId)))
+      throw new Error("a unique instanceId is required: naming a domain by its AppID alone collides when the same app is deployed twice");
     const pre = await this.preflight();
     if (!pre.ok) {
       const missing = pre.checks.filter((c) => !c.ok).map((c) => c.name);
@@ -157,29 +258,68 @@ export class WmiHyperVLauncher {
       throw e;
     }
     const image = await this.verifyImage();
-    const name = `${this.prefix}${String(mapping.appId).slice(0, 12)}`;
+    const name = `${this.prefix}${instanceId}`;
     const pipe = this.pipeFor(name);
     let created = null;
     try {
       created = await this.#ps(CMD.create({ name, memMiB: mapping.record.policy.memMiB, vcpus: mapping.record.policy.vcpus }));
       if (parseFloat(created.version) < MIN_VM_VERSION)
         throw new Error(`VM version ${created.version} is below ${MIN_VM_VERSION}, which the firmware field requires`);
-      const pinned = await this.#ps(CMD.pinFirmware({ vmId: created.id, imagePath: this.imagePath }));
-      // 0 is done, 4096 is "job started" - Microsoft's script treats both as success and so does this
+
+      // The pin, the job, and then what the field ACTUALLY holds. A completed job is not a set field.
+      const pinned = await this.#ps(CMD.pinFirmware({ vmId: created.id, imagePath: this.imagePath, jobTimeoutSec: this.jobTimeoutSec }));
       if (pinned.returnValue !== 0 && pinned.returnValue !== 4096)
         throw new Error(`ModifySystemSettings returned ${pinned.returnValue}`);
+      if (pinned.returnValue === 4096 && pinned.jobState !== 7)
+        throw new Error(`ModifySystemSettings job ended in state ${pinned.jobState}, not 7 (completed)`);
+      if (String(pinned.firmwareFile || "").toLowerCase() !== String(this.imagePath).toLowerCase())
+        throw new Error(`FirmwareFile reads back as ${JSON.stringify(pinned.firmwareFile ?? null)}, not the image we pinned`);
+      if (Number(pinned.guestFeatureSet) !== GUEST_FEATURE_SET)
+        throw new Error(`GuestFeatureSet reads back as ${pinned.guestFeatureSet}, not ${GUEST_FEATURE_SET}`);
+
       await this.#ps(CMD.attachConsole({ name, pipe }));
       const started = await this.#ps(CMD.start({ name }));
-      return { name, vmId: created.id, pipe, state: started.state, image,
+      if (started.state !== "Running")
+        throw new Error(`the VM is ${JSON.stringify(started.state ?? null)} after Start-VM, not Running`);
+
+      // THE GUEST ITSELF. Running is the host's word for the partition; this is the only thing that
+      // says something inside it came up. No output, no running domain - the manager must never
+      // report an app as running on the strength of a VM state alone.
+      const console_ = await this.#ps(CMD.readConsole({ pipe, seconds: guestReadySec }));
+      if (!(Number(console_.bytes) > 0))
+        throw new Error(`the VM is Running but the guest said nothing on ${pipe} within ${guestReadySec}s: a partition that produced no output is not a domain that came up`);
+
+      return { instanceId, name, vmId: created.id, pipe, state: started.state, image,
+               appId: mapping.appId, guest: { bytes: console_.bytes, head: String(console_.head || "").slice(0, 400) },
                stop: async () => { await this.#ps(CMD.stop({ name })).catch(() => {}); } };
     } catch (e) {
-      if (created) await this.run(CMD.teardown({ prefix: name })).catch(() => {});
+      // Remove by THIS VM's exact name, whether or not `created` came back: the create script may
+      // have made it and failed before reporting, which is the leak the first version had.
+      const swept = await this.#ps(CMD.teardown({ prefix: name })).catch((x) => ({ error: x.message }));
+      e.cleanup = swept;
+      if (swept && Array.isArray(swept.failed) && swept.failed.length)
+        e.message += ` (cleanup left ${swept.failed.length} VM(s) behind: ${swept.failed.map((f) => f.name).join(", ")})`;
       throw e;
     }
   }
 
-  async stop(handle) { if (handle && handle.name) await this.#ps(CMD.stop({ name: handle.name })).catch(() => {}); }
+  async stop(handle) { if (handle && handle.name) await this.#ps(CMD.stop({ name: handle.name })); }
   async state(name) { return await this.#ps(CMD.state({ name })); }
-  /** Remove every VM THIS instance owns. Scoped by prefix and marker, both required. */
-  async teardown() { return await this.#ps(CMD.teardown({ prefix: this.prefix })); }
+  /** What this prefix owns right now, including anything a previous run left behind. */
+  async survey() { return await this.#ps(CMD.survey({ prefix: this.prefix })); }
+  /**
+   * Remove every VM under this prefix and SAY what could not be removed. It throws when anything
+   * was left behind, because a teardown that reports success while an orphan survives is how a
+   * host fills up with VMs nobody owns.
+   */
+  async teardown({ requireMarker = false } = {}) {
+    const r = await this.#ps(CMD.teardown({ prefix: this.prefix, requireMarker }));
+    if (Array.isArray(r.failed) && r.failed.length) {
+      const e = new Error(`teardown could not remove ${r.failed.length} VM(s): `
+        + r.failed.map((f) => `${f.name} (${f.error})`).join("; "));
+      e.code = "teardown_incomplete"; e.result = r;
+      throw e;
+    }
+    return r;
+  }
 }
