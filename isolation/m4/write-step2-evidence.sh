@@ -78,16 +78,21 @@ a launch-measured page needs.
 THE MEASUREMENT LINK - the digest covering those artifacts is the digest in the signed report:
 $(sed 's/^/  /' "$W/measurement.check" 2>/dev/null || echo "  (absent)")
 
+AND THE REPORT IS ATTESTED, not merely printed. Everything above reads fields out of bytes the GUEST published
+and trusts the SVSM's status word; only the AMD chain makes them the PSP's statement. Without this section the
+right word for the report is "unauthenticated" and the measurement equality is a claim about unverified bytes:
+$(sed 's/^/  /' "$W/report.check" 2>/dev/null || echo "  (absent - the report in this run is UNAUTHENTICATED)")
+
 SUBSTITUTION: the same IGVM, one different initrd:
 $(q substitution.debugcon "Hash comparison")
-  guest markers in the substituted run: $(grep -ac "ADMIT " "$W/substitution.evidence" 2>/dev/null || echo 0)
+  guest markers in the substituted run: $(grep -ac "ADMIT " "$W/substitution.evidence" 2>/dev/null || true)
 
 The kernel still verifies - it is the same kernel - and the initrd does not. No guest marker at all, because the
 verifier dead-loops rather than returning.
 
 NO-TABLE CONTROL: the same firmware, an IGVM with no measured table:
 $(q notable.debugcon "no hashes table")
-  guest markers: $(grep -ac "ADMIT " "$W/notable.evidence" 2>/dev/null || echo 0)
+  guest markers: $(grep -ac "ADMIT " "$W/notable.evidence" 2>/dev/null || true)
 
 This one is not redundant. Without it, the control passing is equally consistent with a firmware that checks
 nothing, and the substitution failing to boot is equally consistent with a broken image.

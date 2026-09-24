@@ -133,7 +133,7 @@ man="${OUT%.igvm}.manifest.json"
 sha() { sha256sum "$1" | cut -c1-64; }
 cat > "$man" <<JSON
 {
-  "igvm": {"path": "$OUT", "bytes": $sz, "launchDigest": "$dg", "sha256": "$(sha "$OUT")"},
+  "igvm": {"path": "$OUT", "bytes": $sz, "launchDigest": "$dg", "sha256": "$(sha "$OUT")", "policy": 196608},
   "guest": {
     "kernel":  {"path": "$GK", "sha256": "$(sha "$GK")"},
     "initrd":  {"path": "$GI", "sha256": "$(sha "$GI")"},

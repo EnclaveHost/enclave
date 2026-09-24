@@ -1,5 +1,5 @@
 Step 2: the launch measurement now covers the kernel, initrd and command line that ACTUALLY EXECUTE
-warden-host, 2026-09-24. Generated from /home/steven/enclave-bench/m4b-step2-020307 by m4/write-step2-evidence.sh; the quoted lines are cut from
+warden-host, 2026-09-24. Generated from /home/steven/enclave-bench/m4b-step2-020941 by m4/write-step2-evidence.sh; the quoted lines are cut from
 the run's own files. This is the inversion of evidence/igvm-0b-precondition-2026-09-24.txt, which recorded the
 same firmware inside the same kind of IGVM refusing every guest because the table was absent.
 
@@ -10,7 +10,7 @@ the IGVM digest. Three mechanisms have to hold together: emit the table where th
 SVSM from validating and zeroing that page, and grant the page to the guest VMPL.
 
 THE BUILD
-  IGVM            /home/steven/enclave-bench/m4b-step2-020307/measured.igvm
+  IGVM            /home/steven/enclave-bench/m4b-step2-020941/measured.igvm
                   4775896 bytes, sha256 0339333b19af29b77c20bbd5099bf0a0a1d2f2fc7fb7d64d8f46ff7368d4e859
   launch digest   AD876B1C230DF7B62A49580481476D145604AE795DA82D7DB05B151F0D6E212B10103893F98F6C5F8111720CBB986F86
   firmware        OVMF.amdsev.debug.fd, sha256 50c063542f9886f8b3ec67ebe698ae1d617b7691bef89bb6eff4a34566930ec2
@@ -21,10 +21,10 @@ THE BUILD
   SVSM            d37095e + 0001 + 0002 + appid.rs, FEATURES=vtpm,uefivars,enable-console-log, RELEASE
                   elf fe442951da5301971a7be0bc31c97bf8107f34a2f2d80ab26126d9cc32c5ee05
                   igvmbuilder cc78de9f84902c510df2bac982a9a0e1dede0928342dc52b1bb7ff6a42d89e75
-  app id, plane 2 
+  app id, plane 2 3458a52e477e3b658674e608af02678724bf578efed41f75690074c96242bd21
 
 WHERE THE TABLE GOES, which is the part that cost a hardware run:
-  Measured SEV hash table at 0x810c00: a 176-byte table in the firmware's 1024-byte slot at offset 0xc00 of the 4096-byte area at 0x810000, over kernel /boot/vmlinuz-linux, initrd /home/steven/enclave-bench/m4b-step2-020307/good.cpio.gz, cmdline "console=ttyS0 rdinit=/init loglevel=3"
+  Measured SEV hash table at 0x810c00: a 176-byte table in the firmware's 1024-byte slot at offset 0xc00 of the 4096-byte area at 0x810000, over kernel /boot/vmlinuz-linux, initrd /home/steven/enclave-bench/m4b-step2-020941/good.cpio.gz, cmdline "console=ttyS0 rdinit=/init loglevel=3"
   Pre-validated regions recorded (3): [0x800000-0x809000] [0x80a000-0x80d000] [0x811000-0x830000]
 
 The descriptor declares the PAGE, because that is what gets validated. The firmware reads the table at its own
@@ -63,13 +63,33 @@ THE MEASUREMENT LINK - the digest covering those artifacts is the digest in the 
   report      AD876B1C230DF7B62A49580481476D145604AE795DA82D7DB05B151F0D6E212B10103893F98F6C5F8111720CBB986F86
   report_data[0:32]  (the binding) b303eadb4d01cf19cc635e883e52e9542e9aff8aa6161040f121c93d4f4119e6
   report_data[32:64] (the app id)  3458a52e477e3b658674e608af02678724bf578efed41f75690074c96242bd21
+  expected app id for plane 2      3458a52e477e3b658674e608af02678724bf578efed41f75690074c96242bd21
   OK: measurement matches, and the app half is the one compiled into the SVSM
+
+AND THE REPORT IS ATTESTED, not merely printed. Everything above reads fields out of bytes the GUEST published
+and trusts the SVSM's status word; only the AMD chain makes them the PSP's statement. Without this section the
+right word for the report is "unauthenticated" and the measurement equality is a claim about unverified bytes:
+  published 2047 bytes; response status=0 report_size=1184
+  report version=5 vmpl=2 policy=0x30000
+  reported_tcb=0103020500000075 chip_id=fa11afcf54ae9c530000000000000000...
+  ok    the AMD chain verifies this report (VCEK -> ASK -> ARK), offline against the pinned root
+          report is from VMPL2, as the caller expected (VMPL0-1 of this guest are more privileged and in its TCB); guest policy 0x30000: DEBUG off, MIGRATE_MA off; measurement on Metal release allowlist; report_data binds the caller's expected binding (transport key + fresh challenge + runtime identity); AMD signature chain verified (VCEK auxblob → ASK → ARK, Turin); VCEK chip ID and TCB extensions match the report; reported TCB meets the supplied Turin minimum (fmc 1, bootloader 3, tee 2, snp 5, microcode 117)
+  ok    the signature was checked against a VCEK, not merely parsed
+  ok    the reported TCB meets the pinned floor (Turin)
+  ok    VMPL is 2: this report was fetched by the plane, not by a VMPL0 component
+  ok    POLICY is the launch policy 0x30000
+          report says 0x30000
+  ok    MEASUREMENT equals the manifest's launch digest
+  ok    report_data[32:64] is the app id the MANIFEST says was compiled in
+          report 3458a52e477e3b658674e608af02678724bf578efed41f75690074c96242bd21
+          manifest 3458a52e477e3b658674e608af02678724bf578efed41f75690074c96242bd21
+  ok    report_data[0:32] is Bind2(registered key, nonce, RuntimeID), recomputed with the contract implementation
+  ATTESTED: the chain verified, and every field equals what the build stated
 
 SUBSTITUTION: the same IGVM, one different initrd:
   VerifyBlob: Hash comparison succeeded for "kernel"
   VerifyBlob: Hash comparison failed for "initrd"
   guest markers in the substituted run: 0
-0
 
 The kernel still verifies - it is the same kernel - and the initrd does not. No guest marker at all, because the
 verifier dead-loops rather than returning.
@@ -77,7 +97,6 @@ verifier dead-loops rather than returning.
 NO-TABLE CONTROL: the same firmware, an IGVM with no measured table:
   VerifyBlob: Verifier called but no hashes table discoverd in MEMFD
   guest markers: 0
-0
 
 This one is not redundant. Without it, the control passing is equally consistent with a firmware that checks
 nothing, and the substitution failing to boot is equally consistent with a broken image.
