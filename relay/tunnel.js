@@ -109,6 +109,11 @@ function selfRoutedUrl(url, name) {
 //   and a row that claims capacity lands in the set that sizes the fleet and
 //   takes placement. A token needs a committed hash and a quote needs an
 //   allowlisted measurement; proving a name from chain has to clear a bar too.
+// The AVF builds that may receive dealt pads: attest.avf.padCodeHashes, lowercased. A
+// pVM CPU build (attest.pvmCpu.codeHashes) is deliberately NOT in this set unless it
+// is also listed there, so the tier routes but never provisions pads.
+const padBuildsOf = (attest) => new Set((Array.isArray(attest?.avf?.padCodeHashes) ? attest.avf.padCodeHashes : []).map((h) => String(h).toLowerCase()));
+
 export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 30000, onChange = () => {},
                                   operatorFor = null, operatorAttach = false,
                                   trustedOperators = [], operatorsUnrestricted = false } = {}) {
@@ -420,7 +425,14 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
               // Earlier measured payloads signed arbitrary app-supplied
               // transcripts. A v2 label alone cannot fix that oracle: only
               // explicitly admitted builds with own-key checks may get pads.
-              const codeHashes = avfV2 ? attest.avf?.padCodeHashes : attest.avf?.codeHashes;
+              // The pVM CPU build (relay/pvm-cpu-tier.mjs) always attaches with the v2
+              // transcript, because its VM mints a pad key and the v2 binding covers both
+              // keys. It is admitted on ITS code hashes for ROUTING ONLY: the tier must never
+              // receive dealt pads, so a pvm-cpu code hash that is not also a pad build keeps
+              // no pad key (below), exactly as a v1 attach routes without pad eligibility.
+              const padBuilds = Array.isArray(attest.avf?.padCodeHashes) ? attest.avf.padCodeHashes.map((h) => String(h).toLowerCase()) : [];
+              const pvmCpuBuilds = attest.pvmCpu && attest.pvmCpu.codeHashes ? [...attest.pvmCpu.codeHashes] : [];
+              const codeHashes = avfV2 ? [...new Set([...padBuilds, ...pvmCpuBuilds])] : attest.avf?.codeHashes;
               if (!Array.isArray(codeHashes) || !codeHashes.length)
                 return deny(avfV2 ? "AVF v2 pad attach is not enabled on this relay" : "AVF attach is not enabled on this relay");
               if (!spki) return deny("AVF attach must carry transportKey");
@@ -482,7 +494,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             try { ws.send(JSON.stringify({ t: "attest-result", ok: true, measurement: res.measurement, ...(isVbs && res.tier ? { tier: res.tier } : {}) })); } catch {}
             // A v1 padKey was outside the attested message. Never retain it
             // for seed issuance or for the dealer's consumer enumeration.
-            const padKey = (!isAvf || avfV2) && /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";
+            // ...and a v2 attach keeps its pad key only when the build is an admitted PAD build:
+            // a pVM CPU build routed through on its own code hash is never a pad consumer.
+            const padEligible = !isAvf || (avfV2 && padBuildsOf(attest).has(String(res.component?.codeHash || res.measurement || "").toLowerCase()));
+            const padKey = padEligible && /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";
             bind(name, ws, { via: isVbs ? `attestation(${res.tier})` : isAvf ? "attestation(avf)" : res.vcekVerified ? "attestation" : "attestation(measurement-only)",
                              measurement: res.measurement, mode: isVbs ? "vbs" : isAvf ? "avf" : "snp", keyFp, tier: isVbs ? res.tier : "",
                              spki: spki ? spki.toString("base64") : "", padKey,
