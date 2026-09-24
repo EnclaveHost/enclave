@@ -1,0 +1,483 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index f4858a6..f2aa5e5 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1356,6 +1356,7 @@ dependencies = [
+  "clap",
+  "igvm",
+  "igvm_defs",
++ "sha2",
+  "uuid",
+  "zerocopy",
+ ]
+
+diff --git a/boot/defs/src/boot_params.rs b/boot/defs/src/boot_params.rs
+index 201e1b1..3729830 100644
+--- a/boot/defs/src/boot_params.rs
++++ b/boot/defs/src/boot_params.rs
+@@ -90,6 +90,15 @@ pub struct GuestFwInfoBlock {
+ 
+     /// The prevalidated memory regions defined by the firmware.
+     pub prevalidated: [GuestFwMemInfo; 8],
++
++    /// The guest physical address of a MEASURED SEV hash table placed by the IGVM builder, or zero if there is
++    /// none. The table is emitted as measured page data, so unlike a prevalidated region it must NOT be
++    /// PVALIDATEd or zeroed - it only needs guest-VMPL permission, the way the firmware image itself does.
++    pub hash_table_address: u32,
++
++    /// The number of bytes of the measured SEV hash table area. Byte-level like `memory_map_size`, because the
++    /// firmware's KERNEL_HASHES descriptor is allowed to declare an area that is not page-sized.
++    pub hash_table_size: u32,
+ }
+ 
+ /// The boot parameter block is a measured page constructed by the IGVM file
+
+diff --git a/kernel/src/boot_params.rs b/kernel/src/boot_params.rs
+index e1fb44e..32f7657 100644
+--- a/kernel/src/boot_params.rs
++++ b/kernel/src/boot_params.rs
+@@ -396,9 +396,42 @@ impl BootParams<'_> {
+             }
+         }
+ 
++        // The measured SEV hash table needs guest-VMPL permission for exactly the same reason the firmware image
++        // does: it is measured page data placed by the IGVM builder, already validated at launch, so it must be
++        // granted and never PVALIDATEd or zeroed. Without this the firmware faults reading the table; with a
++        // prevalidated region instead, the table would be zeroed and the firmware would find nothing.
++        if fw_info.hash_table_size != 0 {
++            let hash_region = MemoryRegion::new(
++                PhysAddr::from(fw_info.hash_table_address as u64),
++                fw_info.hash_table_size as usize,
++            );
++            if !regions.iter().any(|region| {
++                if region.contains_region(&hash_region) {
++                    true
++                } else {
++                    assert!(!region.overlap(&hash_region));
++                    false
++                }
++            }) {
++                regions.push(hash_region);
++            }
++        }
++
+         regions
+     }
+ 
++    /// The measured SEV hash table region, if the IGVM builder placed one.
++    pub fn get_hash_table_region(&self) -> Option<MemoryRegion<PhysAddr>> {
++        let fw_info = &self.boot_param_block.firmware;
++        if fw_info.hash_table_size == 0 {
++            return None;
++        }
++        Some(MemoryRegion::new(
++            PhysAddr::from(fw_info.hash_table_address as u64),
++            fw_info.hash_table_size as usize,
++        ))
++    }
++
+     pub fn fw_in_low_memory(&self) -> bool {
+         self.boot_param_block.firmware.in_low_memory != 0
+     }
+
+diff --git a/kernel/src/platform/snp_fw.rs b/kernel/src/platform/snp_fw.rs
+index c6ed036..f66662a 100644
+--- a/kernel/src/platform/snp_fw.rs
++++ b/kernel/src/platform/snp_fw.rs
+@@ -145,6 +145,23 @@ pub fn validate_fw_memory(
+         }
+     }
+ 
++    // REFUSE to launch if a measured SEV hash table would be validated here. Everything in this list is about to
++    // be PVALIDATEd and ZEROED, so a measured table inside one of these regions is a table the firmware will
++    // find blank - and a blank table makes the firmware's verifier report no table and boot whatever the host
++    // serves. The builder splits the prevalidated area around the hash page precisely to avoid this; this check
++    // is here so that a builder that forgets stops the launch instead of quietly disarming verification.
++    if let Some(hash_region) = boot_params.get_hash_table_region() {
++        for region in regions.iter() {
++            if region.overlap(&hash_region) {
++                log::error!(
++                    "measured SEV hash table {hash_region:#018x} lies in pre-validated region {region:#018x}:                      validating it would zero the table and disarm firmware verification"
++                );
++                return Err(SvsmError::Firmware);
++            }
++        }
++        log::info!("Measured SEV hash table {hash_region:#018x} excluded from validation");
++    }
++
+     // SAFETY: we've just checked that the firmware regions do not overlap with
+     // the SVSM kernel
+     unsafe { validate_fw_memory_vec(boot_params, regions) }
+diff --git a/tools/igvmbuilder/Cargo.toml b/tools/igvmbuilder/Cargo.toml
+index 558704e..0443331 100644
+--- a/tools/igvmbuilder/Cargo.toml
++++ b/tools/igvmbuilder/Cargo.toml
+@@ -10,6 +10,8 @@ bootdefs.workspace = true
+ bootimg.workspace = true
+ clap = { workspace = true, default-features = true, features = ["derive"] }
+ igvm_defs.workspace = true
++# for the measured SEV hash table: the three blob digests QEMU would otherwise have written at launch
++sha2 = { workspace = true, features = ["default"] }
+ igvm.workspace = true
+ uuid.workspace = true
+ zerocopy.workspace = true
+
+diff --git a/tools/igvmbuilder/src/cmd_options.rs b/tools/igvmbuilder/src/cmd_options.rs
+index 4e31006..6a8d19d 100644
+--- a/tools/igvmbuilder/src/cmd_options.rs
++++ b/tools/igvmbuilder/src/cmd_options.rs
+@@ -28,6 +28,26 @@ pub struct CmdOptions {
+     #[arg(short, long)]
+     pub firmware: Option<String>,
+ 
++    /// The guest kernel to hash into a MEASURED SEV hash table (with --guest-initrd and --guest-cmdline).
++    ///
++    /// On the QEMU direct-boot path the kernel, initrd and command line reach the firmware through fw_cfg and are
++    /// NOT in the launch measurement: kernel-hashes=on writes a table for the firmware to check, but with an IGVM
++    /// present QEMU never populates the OVMF metadata pages (target/i386/sev.c: "the IGVM file will be used to
++    /// configure the metadata pages directly"), so the table is absent and a verifying firmware refuses. Passing
++    /// these three makes igvmbuilder emit the table itself as measured page data, which puts the guest's kernel,
++    /// initrd and command line inside the IGVM digest.
++    #[arg(long)]
++    pub guest_kernel: Option<String>,
++
++    /// The guest initrd to hash into the measured SEV hash table.
++    #[arg(long)]
++    pub guest_initrd: Option<String>,
++
++    /// The guest kernel command line to hash into the measured SEV hash table. Hashed WITH its terminating NUL,
++    /// which is what QEMU hashes; an absent command line hashes as a lone NUL and not as nothing.
++    #[arg(long, allow_hyphen_values = true)]
++    pub guest_cmdline: Option<String>,
++
+     /// Output filename for the generated IGVM file
+     #[arg(short, long)]
+     pub output: String,
+
+diff --git a/tools/igvmbuilder/src/firmware.rs b/tools/igvmbuilder/src/firmware.rs
+index ca99b7b..dd6b373 100644
+--- a/tools/igvmbuilder/src/firmware.rs
++++ b/tools/igvmbuilder/src/firmware.rs
+@@ -31,13 +31,13 @@ pub fn parse_firmware(
+     if let Some(filename) = &options.firmware {
+         match options.hypervisor {
+             crate::cmd_options::Hypervisor::Qemu => {
+-                OvmfFirmware::parse(filename, parameter_count, compatibility_mask)
++                OvmfFirmware::parse(filename, parameter_count, compatibility_mask, options)
+             }
+             crate::cmd_options::Hypervisor::HyperV => {
+                 IgvmFirmware::parse(filename, parameter_count, compatibility_mask)
+             }
+             crate::cmd_options::Hypervisor::Vanadium => {
+-                OvmfFirmware::parse(filename, parameter_count, compatibility_mask)
++                OvmfFirmware::parse(filename, parameter_count, compatibility_mask, options)
+             }
+         }
+     } else {
+
+diff --git a/tools/igvmbuilder/src/ovmf_firmware.rs b/tools/igvmbuilder/src/ovmf_firmware.rs
+index f4ba4cf..a90b1fe 100644
+--- a/tools/igvmbuilder/src/ovmf_firmware.rs
++++ b/tools/igvmbuilder/src/ovmf_firmware.rs
+@@ -18,7 +18,10 @@ use igvm_defs::{IgvmPageDataFlags, IgvmPageDataType, PAGE_SIZE_4K};
+ use uuid::Uuid;
+ use zerocopy::{FromBytes, KnownLayout};
+ 
++use sha2::{Digest, Sha256};
++
+ use crate::GpaMap;
++use crate::cmd_options::CmdOptions;
+ use crate::firmware::Firmware;
+ use crate::igvm_builder::{NATIVE_COMPATIBILITY_MASK, SNP_COMPATIBILITY_MASK};
+ 
+@@ -394,6 +397,221 @@ pub fn parse_ovmf(
+     check_regions(fw_info)
+ }
+ 
++/// The GUIDs of QEMU's SevHashTable, written exactly as the firmware's own literals are.
++///
++/// These are the four GUIDs in OvmfPkg/AmdSev/BlobVerifierLibSevHashes/BlobVerifierSevHashes.c, in the same
++/// (u32, u16, u16, [u8; 8]) shape as the EDK2 `(GUID) { ... }` initialisers there, so the two can be diffed line
++/// by line. `guid_le` then produces the mixed-endian on-the-wire form. An earlier revision stored the wire bytes
++/// directly and three of the four were wrong; because the verifier SEARCHES for a GUID and treats "not found" as
++/// success, that did not refuse anything - it silently verified nothing. Do not flatten these back to byte
++/// arrays.
++const SEV_HASH_TABLE_HEADER_GUID: Guid = (0x9438d606, 0x4f22, 0x4cc9, [0xb4, 0x79, 0xa7, 0x93, 0xd4, 0x11, 0xfd, 0x21]);
++const SEV_KERNEL_ENTRY_GUID: Guid = (0x4de79437, 0xabd2, 0x427f, [0xb8, 0x35, 0xd5, 0xb1, 0x72, 0xd2, 0x04, 0x5b]);
++const SEV_INITRD_ENTRY_GUID: Guid = (0x44baf731, 0x3a2f, 0x4bd7, [0x9a, 0xf1, 0x41, 0xe2, 0x91, 0x69, 0x78, 0x1d]);
++const SEV_CMDLINE_ENTRY_GUID: Guid = (0x97d02dd8, 0xbd20, 0x4c94, [0xaa, 0x78, 0xe7, 0x71, 0x4d, 0x36, 0xab, 0x2a]);
++
++type Guid = (u32, u16, u16, [u8; 8]);
++
++/// The mixed-endian form: the first three fields little-endian, the last eight bytes as written.
++fn guid_le(g: &Guid) -> [u8; 16] {
++    let mut b = [0u8; 16];
++    b[0..4].copy_from_slice(&g.0.to_le_bytes());
++    b[4..6].copy_from_slice(&g.1.to_le_bytes());
++    b[6..8].copy_from_slice(&g.2.to_le_bytes());
++    b[8..16].copy_from_slice(&g.3);
++    b
++}
++
++/// SevHashTable is packed: header GUID (16) + u16 length (2), then three 50-byte entries back to back, so the
++/// first entry is at offset 18 and the declared length is 168. PaddedSevHashTable then rounds the whole table up
++/// to a 16-byte boundary, adding eight trailing zero bytes that are OUTSIDE the declared length. The firmware
++/// walks Ptr->Len - 18 = 150 bytes, exactly three entries, so it never reads the padding - but the padding is
++/// measured, so it must be emitted.
++const SEV_HASH_ENTRY_LEN: usize = 16 + 2 + 32;
++const SEV_HASH_TABLE_LEN: usize = 16 + 2 + 3 * SEV_HASH_ENTRY_LEN;
++const SEV_HASH_TABLE_PADDED_LEN: usize = SEV_HASH_TABLE_LEN.next_multiple_of(16);
++
++/// Find the KERNEL_HASHES descriptor's area without disturbing the existing parse.
++///
++/// The area has to be known twice over: to emit the table at its base, and to take that page OUT of the
++/// pre-validated set. Re-scanning is deliberate - threading it out of `parse_metadata` would change three
++/// signatures for a value only this feature wants.
++fn find_kernel_hashes_area(data: &[u8]) -> Result<Option<(u32, u32)>, Box<dyn Error>> {
++    if data.len() < FOOTER_OFFSET {
++        return Ok(None);
++    }
++    let (uuid, mut body, _) = read_table(&data[..data.len() - FOOTER_OFFSET])?;
++    if uuid != OVMF_TABLE_FOOTER_GUID {
++        return Ok(None);
++    }
++    while !body.is_empty() {
++        let (uuid, entry, remainder) = read_table(body)?;
++        body = remainder;
++        if uuid != OVMF_SEV_METADATA_GUID {
++            continue;
++        }
++        // Same arithmetic as parse_metadata, deliberately: an offset from the END of the firmware image.
++        let offset_from_end = GuidBlockMetadata::read_from_bytes(entry)
++            .map_err(|e| format!("Cannot parse OVMF metadata descriptor: {e}"))?
++            .offset_from_end as usize;
++        let offset = data
++            .len()
++            .checked_sub(offset_from_end)
++            .ok_or("Cannot parse OVMF metadata descriptor: invalid offset")?;
++        let (desc, mut buf) = MetadataDesc::read_from_prefix(&data[offset..])
++            .map_err(|e| format!("Cannot parse OVMF metadata descriptor: {e}"))?;
++        for _ in 0..desc.num_desc as usize {
++            let (sev_entry, rest) = SevMetadataEntry::read_from_prefix(buf)
++                .map_err(|e| format!("Cannot parse SEV metadata entry: {e}"))?;
++            buf = rest;
++            if sev_entry.metadata_type == SEV_META_DESC_TYPE_KERNEL_HASHES {
++                return Ok(Some((sev_entry.base, sev_entry.len)));
++            }
++        }
++    }
++    Ok(None)
++}
++
++/// Take one page out of the pre-validated set, splitting the region that contains it.
++///
++/// Removing the KERNEL_HASHES descriptor from the list is NOT enough, and this is the whole reason the function
++/// exists: `add_preval_region` MERGES contiguous regions, so on a real OVMF the hashes area ends up inside a much
++/// larger MEM region - measured on this project's firmware as [0x80a000-0x830000] swallowing the hashes area at
++/// 0x812000. The SVSM validates and ZEROES every pre-validated region when it launches the firmware, so a table
++/// emitted as measured data would be wiped before the firmware ever read it, and the firmware would report
++/// "no hashes table discoverd in MEMFD" exactly as if nothing had been emitted.
++fn unvalidate_page(fw_info: &mut GuestFwInfoBlock, page: u32) -> Result<(), Box<dyn Error>> {
++    let count = fw_info.prevalidated_count as usize;
++    for i in 0..count {
++        let (base, size) = (fw_info.prevalidated[i].base, fw_info.prevalidated[i].size);
++        let end = base as u64 + size as u64;
++        if (page as u64) < base as u64 || (page as u64) + PAGE_SIZE_4K > end {
++            continue;
++        }
++        let before = (base, page - base);
++        let after = (
++            page + PAGE_SIZE_4K as u32,
++            u32::try_from(end - (page as u64 + PAGE_SIZE_4K))?,
++        );
++        println!(
++            "Pre-validated area [{:#x}-{:#x}] split around the measured hash page {:#x}",
++            base, end, page
++        );
++        // Replace this region with the part before the page, then append the part after. A zero-sized half is
++        // dropped rather than recorded, so a hash page at a region boundary does not leave an empty entry the
++        // SVSM would have to interpret.
++        let mut replacement: Vec<GuestFwMemInfo> = Vec::new();
++        if before.1 > 0 {
++            replacement.push(GuestFwMemInfo {
++                base: before.0,
++                size: before.1,
++            });
++        }
++        if after.1 > 0 {
++            replacement.push(GuestFwMemInfo {
++                base: after.0,
++                size: after.1,
++            });
++        }
++        if count - 1 + replacement.len() > fw_info.prevalidated.len() {
++            return Err("splitting the pre-validated area needs more regions than the block holds".into());
++        }
++        // rebuild the list: everything except region i, then the replacement halves
++        let mut regions: Vec<GuestFwMemInfo> = (0..count)
++            .filter(|&j| j != i)
++            .map(|j| fw_info.prevalidated[j])
++            .collect();
++        regions.extend(replacement);
++        for (j, r) in regions.iter().enumerate() {
++            fw_info.prevalidated[j] = *r;
++        }
++        fw_info.prevalidated_count = u32::try_from(regions.len())?;
++        return Ok(());
++    }
++    Err(format!("the hash page {page:#x} is in no pre-validated area; refusing to emit a table the SVSM may zero").into())
++}
++
++/// Print the pre-validated region list as it was RECORDED in the block.
++///
++/// Unconditional, so every IGVM build states its own list. This exists because a previous reading of these
++/// regions was inferred from two SVSM log lines and got the hash area wrong by 8 KiB and its size wrong by a
++/// factor of twenty; the builder can simply say what it wrote.
++fn print_prevalidated(fw_info: &GuestFwInfoBlock) {
++    let count = fw_info.prevalidated_count as usize;
++    let listed: Vec<String> = (0..count)
++        .map(|i| {
++            let (b, sz) = (fw_info.prevalidated[i].base, fw_info.prevalidated[i].size); // packed: copy out
++            format!("[{:#x}-{:#x}]", b, b as u64 + sz as u64)
++        })
++        .collect();
++    println!("Pre-validated regions recorded ({count}): {}", listed.join(" "));
++}
++
++/// The SevHashTable QEMU would have written, computed here instead.
++///
++/// TWO DIFFERENT FAILURE MODES, and the dangerous one is not the loud one.
++///
++/// Get a DIGEST wrong and the firmware refuses with "Hash comparison failed" on a file nobody touched, which
++/// looks exactly like the substitution a verifying firmware exists to catch. Loud, and self-announcing.
++///
++/// Get the STRUCTURE or a GUID wrong and the firmware verifies nothing and boots anyway. Its constructor only
++/// checks the header GUID and that the declared length is within the area, and its walk SEARCHES for a per-blob
++/// GUID; reaching the end without a match is "If the GUID is not in the hash table, execution can still
++/// continue" and EFI_SUCCESS - for the kernel, the initrd and the cmdline alike. On a RELEASE build the DEBUG
++/// lines that would have said so are compiled out. A revision of this function did exactly that, with three
++/// wrong entry GUIDs and six spurious pad bytes, and its offline check passed because the check compared the
++/// three digests and never the table.
++///
++/// So isolation/m4/hash-table.py now compares the WHOLE table, byte for byte, against sev-snp-measure's
++/// construct_table(), and the step-2 acceptance requires seeing "Hash comparison succeeded" for all three blobs
++/// on the DEBUG firmware: a booting positive control proves nothing on its own.
++///
++/// The three hash constructions are the command line WITH its terminating NUL, the initrd as-is, and the kernel
++/// as-is. The kernel is the file's bytes rather than a patched setup header because QEMU skips that patch for
++/// any confidential guest (hw/i386/x86-common.c:955-964).
++fn sev_hash_table(
++    kernel: &str,
++    initrd: &str,
++    cmdline: &str,
++    area_size: u32,
++) -> Result<Vec<u8>, Box<dyn Error>> {
++    fn entry(guid: &Guid, digest: &[u8]) -> Vec<u8> {
++        let mut e = guid_le(guid).to_vec();
++        e.extend_from_slice(&(SEV_HASH_ENTRY_LEN as u16).to_le_bytes()); // the length covers the whole entry
++        e.extend_from_slice(digest);
++        e
++    }
++    fn digest_of_file(path: &str) -> Result<Vec<u8>, Box<dyn Error>> {
++        let mut f = File::open(path).inspect_err(|_| eprintln!("Cannot open {path}"))?;
++        let mut d = Vec::new();
++        f.read_to_end(&mut d)?;
++        Ok(Sha256::digest(&d).to_vec())
++    }
++
++    let mut cmdline_bytes = cmdline.as_bytes().to_vec();
++    cmdline_bytes.push(0); // the terminating NUL is part of what QEMU hashes
++
++    let mut table = guid_le(&SEV_HASH_TABLE_HEADER_GUID).to_vec();
++    table.extend_from_slice(&(SEV_HASH_TABLE_LEN as u16).to_le_bytes());
++    table.extend(entry(&SEV_CMDLINE_ENTRY_GUID, &Sha256::digest(&cmdline_bytes)));
++    table.extend(entry(&SEV_INITRD_ENTRY_GUID, &digest_of_file(initrd)?));
++    table.extend(entry(&SEV_KERNEL_ENTRY_GUID, &digest_of_file(kernel)?));
++    if table.len() != SEV_HASH_TABLE_LEN {
++        return Err(format!("built a {}-byte SEV hash table, expected {SEV_HASH_TABLE_LEN}", table.len()).into());
++    }
++    table.resize(SEV_HASH_TABLE_PADDED_LEN, 0); // the 16-byte round-up, outside the declared length
++
++    if table.len() > area_size as usize {
++        return Err(format!(
++            "the SEV hash table is {} bytes and the firmware's area is {area_size}",
++            table.len()
++        )
++        .into());
++    }
++    table.resize(area_size as usize, 0);
++    Ok(table)
++}
++
+ pub struct OvmfFirmware {
+     fw_info: GuestFwInfoBlock,
+     directives: Vec<IgvmDirectiveHeader>,
+@@ -404,6 +622,7 @@ impl OvmfFirmware {
+         filename: &String,
+         _parameter_count: u32,
+         compatibility_mask: u32,
++        options: &CmdOptions,
+     ) -> Result<Box<dyn Firmware>, Box<dyn Error>> {
+         let mut in_file = File::open(filename).inspect_err(|_| {
+             eprintln!("Failed to open firmware file {filename}");
+@@ -449,6 +668,60 @@ impl OvmfFirmware {
+             gpa += PAGE_SIZE_4K;
+         }
+ 
++        // The MEASURED SEV hash table, when the guest's three inputs are given.
++        //
++        // This is what puts the guest kernel, initrd and command line inside the launch digest on the IGVM path.
++        // Fail closed rather than silently skip: if any one of the three is supplied, all three must be, and the
++        // firmware must declare a KERNEL_HASHES area - otherwise a build would quietly produce an IGVM whose
++        // guest is unmeasured while looking exactly like one whose guest is measured.
++        let guest_inputs = [
++            options.guest_kernel.as_deref(),
++            options.guest_initrd.as_deref(),
++            options.guest_cmdline.as_deref(),
++        ];
++        match guest_inputs {
++            [Some(kernel), Some(initrd), Some(cmdline)] => {
++                let (base, size) = find_kernel_hashes_area(&data)?.ok_or(
++                    "this firmware declares no SEV KERNEL_HASHES area, so a measured hash table cannot be placed",
++                )?;
++                if base as u64 % PAGE_SIZE_4K != 0 {
++                    return Err(format!("the KERNEL_HASHES area {base:#x} is not page aligned").into());
++                }
++                let table = sev_hash_table(kernel, initrd, cmdline, size)?;
++                // Out of the pre-validated set FIRST: if this fails, no table is emitted, rather than one being
++                // emitted into a page the SVSM will zero.
++                unvalidate_page(&mut fw_info, base)?;
++                // Tell the SVSM to GRANT this page to the guest VMPL without validating or zeroing it. Without
++                // this the firmware faults reading a page it has no permission for; the SVSM refuses the launch
++                // if the two ever disagree.
++                fw_info.hash_table_address = base;
++                fw_info.hash_table_size = size;
++                let mut page = table;
++                page.resize(PAGE_SIZE_4K as usize, 0);
++                println!(
++                    "Measured SEV hash table at {:#x}: a {}-byte table zeroed to the {size}-byte area, over kernel {kernel}, initrd {initrd}, cmdline {cmdline:?}",
++                    base, SEV_HASH_TABLE_PADDED_LEN
++                );
++                directives.push(IgvmDirectiveHeader::PageData {
++                    gpa: base.into(),
++                    compatibility_mask: fw_compat_mask,
++                    flags: IgvmPageDataFlags::new(),
++                    data_type: IgvmPageDataType::NORMAL,
++                    data: page,
++                });
++            }
++            [None, None, None] => {}
++            _ => {
++                return Err(
++                    "--guest-kernel, --guest-initrd and --guest-cmdline must be given together: a table over \
++                     only some of them would measure less than the guest that boots"
++                        .into(),
++                )
++            }
++        }
++
++        print_prevalidated(&fw_info);
++
+         Ok(Box::new(Self {
+             fw_info,
+             directives,
