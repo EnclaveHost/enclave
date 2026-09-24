@@ -70,3 +70,94 @@ test("appId matching is case-insensitive but not prefix-loose", () => {
   assert.equal(judgeReadyBody(200, Buffer.from(ok({ appId: APP.slice(0, 8) })), APP).ok, false,
     "a prefix is not the appId");
 });
+
+
+/* ---- the transport, against a server that frames answers the way the real front does ---------- *
+ *
+ * enclave-99 found this against the spec: the first get() was hand-rolled and understood only
+ * content-length and connection:close. The guest's front is Go net/http, which sends any body over
+ * its 2,048-byte buffer with `Transfer-Encoding: chunked`, and the attestation document is about
+ * 2,208 bytes. So every REAL document came back with the chunk framing still in it - reported as
+ * "the attestation answer is not JSON" - or hung to the attempt timeout on a keep-alive connection.
+ *
+ * judgeReadyBody tests could never catch it: the defect was in getting the bytes, not judging them.
+ * These drive the REAL get() over a real socket against a server that frames the way Go does. The
+ * session's agent is the seam, so this needs no TLS and no certificate fixture - and a get() that
+ * goes back to hand-rolled parsing fails them. */
+import net from "node:net";
+import http from "node:http";
+import { get } from "./ready.mjs";
+
+/** A session shaped like session_()'s, but over a plain socket. */
+function plainSession(port) {
+  const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+  const sock = net.connect(port, "127.0.0.1");
+  agent.createConnection = () => sock;
+  return { sock, agent, spki: null };
+}
+
+function goLikeServer({ big, small }) {
+  return net.createServer((sock) => {
+    let buf = "";
+    sock.on("data", (d) => {
+      buf += d.toString("latin1");
+      let i;
+      while ((i = buf.indexOf("\r\n\r\n")) >= 0) {
+        const path = (buf.slice(0, i).split("\r\n")[0] || "").split(" ")[1] || "";
+        buf = buf.slice(i + 4);
+        if (path.startsWith("/big")) {
+          // chunked, several pieces, NO content-length: Go net/http over its 2048-byte buffer
+          let out = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n";
+          for (let p = 0; p < big.length; p += 900) {
+            const part = big.slice(p, p + 900);
+            out += `${part.length.toString(16)}\r\n${part}\r\n`;
+          }
+          sock.write(out + "0\r\n\r\n");
+        } else {
+          sock.write(`HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(small)}\r\n\r\n${small}`);
+        }
+      }
+    });
+  });
+}
+
+const listen = (srv) => new Promise((r) => srv.listen(0, "127.0.0.1", () => r(srv.address().port)));
+
+test("a >2 KiB CHUNKED answer is read as JSON, not as chunk framing", async () => {
+  const doc = JSON.stringify({ report: { doc: "x".repeat(2400) }, abi: "enclave-domain-abi/2" });
+  assert.ok(doc.length > 2048, "the fixture must exceed Go's buffer or it would not be chunked");
+  const srv = goLikeServer({ big: doc, small: JSON.stringify({ ready: true }) });
+  const port = await listen(srv);
+  const sess = plainSession(port);
+  try {
+    const r = await get(sess, "127.0.0.1", "/big", { timeoutMs: 5000 });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.toString("utf8"), doc, "the body must be the document, with no chunk sizes in it");
+    JSON.parse(r.body.toString("utf8"));   // the thing that failed against the real domain
+    assert.doesNotMatch(r.body.toString("utf8"), /^[0-9a-f]+\r\n/i, "no chunk framing may survive");
+  } finally { sess.sock.destroy(); srv.close(); }
+});
+
+test("the readiness answer rides the SAME session, keep-alive, right after the big one", async () => {
+  const doc = JSON.stringify({ report: { doc: "y".repeat(2400) } });
+  const ready = JSON.stringify({ ready: true, appId: APP });
+  const srv = goLikeServer({ big: doc, small: ready });
+  const port = await listen(srv);
+  const sess = plainSession(port);
+  try {
+    const a = await get(sess, "127.0.0.1", "/big", { timeoutMs: 5000 });
+    const b = await get(sess, "127.0.0.1", "/.well-known/enclave-ready", { timeoutMs: 5000 });
+    assert.equal(a.status, 200);
+    assert.equal(b.body.toString("utf8"), ready, "a second request on one session must work: one key, one session");
+    assert.equal(judgeReadyBody(b.status, b.body, APP).ok, true);
+  } finally { sess.sock.destroy(); srv.close(); }
+});
+
+test("a body over the cap is refused rather than buffered without limit", async () => {
+  const srv = goLikeServer({ big: "z".repeat(60000), small: "{}" });
+  const port = await listen(srv);
+  const sess = plainSession(port);
+  try {
+    await assert.rejects(() => get(sess, "127.0.0.1", "/big", { timeoutMs: 5000, maxBytes: 4096 }), /cap/);
+  } finally { sess.sock.destroy(); srv.close(); }
+});
