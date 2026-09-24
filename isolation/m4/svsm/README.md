@@ -26,6 +26,63 @@ Refusals are fail-closed and unit-tested (`cargo test -p svsm --lib appid`, 5 te
 VMPL0 is never an app; a plane at or beyond `VMPL_MAX` is refused; an unassigned plane is refused rather than
 named with zeros, because a null identity that verified would be worse than no service.
 
+## Admission, and the independent review that shaped it
+
+`appid.rs` v3 does not merely NAME a plane from a compiled-in table. Before this SVSM will name a plane or
+fetch a report for it, the plane must present each artifact its identity covers - the contract bundle, whose
+sha256 IS the AppID, and the runtime image - and this code must have hashed those bytes itself at VMPL0, found
+the digest equal to one compiled into this measured image, made the pages immutable to the owning plane with
+RMPADJUST, and hashed them again. `hash, freeze, re-hash` in that order: freezing first would let a plane
+freeze pages by naming them, and hashing once would leave a swap window.
+
+An independent review (enclave-59, 2026-09-23) found real defects in v2, all fixed here:
+
+| finding | what was wrong | now |
+|---|---|---|
+| A2 | every protocol-6 report was signed as **VMPL0** - `get_attestation_report_for_app` left `SnpReportRequest.vmpl` at its zero default, so a verifier pinning the plane would reject it and one that did not would lose the level | the SVSM writes the CALLER's plane into the request |
+| A6 | `freeze_pages` **granted** `READ\|X_USER\|X_SUPER` to VMPL1, 2 and 3, handing every neighbour read and execute on the caller's memory | the owner keeps read (and execute only for code) and loses WRITE; every other plane is set to NONE. Nothing is ever granted |
+| A6 | no ownership check on any guest GPA, so with planes `write_out` is a cross-plane write primitive and ADMIT freezes a neighbour's runtime pages (same image on every plane, so hashing first does not stop it) | **every call is refused unless it comes from `GUEST_VMPL`.** See the precondition below |
+| A5 | frozen pages thaw through `SVSM_CORE_PVALIDATE` (invalidate, PSC, validate zeroes the page and restores guest RWX) while `ADMITTED` stayed set | admitted frames are recorded and `core_pvalidate_one` refuses any 4 KiB or 2 MiB entry intersecting them |
+| B1 | protocol 6 was absent from `core_query_protocol`, so the "version 2 is detectable" claim was false | protocol 6 answers QUERY_PROTOCOL. The lint also caught that the first attempt was a catch-all match arm swallowing every protocol |
+| B2 | the table parser silently mis-parsed: no comma became two planes, a space or semicolon dropped later planes, a short entry named a plane with a half-zero digest, a fourth entry was ignored, an odd length panicked with an index error | strict: 64 hex digits, one comma, at most three entries, or a `panic!` in a const fn - a BUILD error, which is the right outcome for an input that ends up in a launch measurement |
+| B4 | a bundle was frozen with execute | data gets READ only |
+| B9 | a 2-byte ELF delta between two builds was reported, against our "reproducible" claim | not reproduced here: two builds of identical source, with `appid.rs` touched to force a rebuild, gave a **byte-identical IGVM and a byte-identical ELF** and the digest `00CE1F57...` twice |
+
+### The ownership precondition: this protocol serves ONE plane
+
+Planes share one guest-physical address space partitioned by RMP permissions, and this SVSM cannot ask the
+hardware which plane owns a page: COCONUT has no RMPQUERY and records no per-plane validated-page map. Without
+that oracle a guest-supplied GPA cannot be attributed. So every call is refused unless it comes from
+`GUEST_VMPL`, and with one guest plane ownership holds by construction - there is no neighbour to attribute a
+page to. **A compiled-in table can NAME three planes; this code speaks for one.** Per-app planes stay
+unimplemented, and that is deliberate rather than pending.
+
+## Still open, and not to be written up as done
+
+* **A1, and it blocks plane-per-app outright.** `kernel/src/sev/secrets_page.rs` `copy_for_vmpl` clears only
+  `vmpck[0..vmpl]`, so a plane keeps the VMPCKs of less privileged planes. The reviewer measured a VMPL2 guest
+  minting a signed report naming **vmpl=3** with the shared measurement. With planes, plane 1 forges plane 2
+  completely - its own key bound, B's AppID, vmpl=2, the SVSM's measurement - over its own GHCB, and admission
+  never sees it. The fix is that app planes get NO VMPCK and protocol 6 becomes the only report path.
+* **A4: admitted bytes are not bound to what EXECUTES.** The loader is the unmeasured guest kernel: it can
+  present the genuine bundle and runtime, have them admitted, and execute a different copy. Closing it means
+  the SVSM owning the plane's initial image and entry - loading it from compiled-in digests into pages it
+  validated and froze, and creating the plane's VMSA with RIP inside them - after which KIND_RUNTIME admission
+  disappears because the SVSM launched it. That is the next increment and the decision to record.
+* **A7: no plane lifecycle.** `ADMITTED` is never cleared and there is no SVSM-side teardown (no scrub, no
+  permission revocation, no per-plane VMSA teardown), so `contract.Lifecycle`'s "exactly one reclamation" has
+  no SVSM counterpart.
+* **Protocol 6 has not run on hardware.** The guest caller exists (`isolation/m4/guest/appidmod.ko` +
+  `admitinit`, both building) and uses the exported `snp_issue_svsm_attest_req`, which is why the protocol
+  takes a descriptor rather than RDX/R8. No admission has been performed on the machine yet.
+* **B5: the runtime LABEL in `report_data[0:32]` is still the guest's word** under IGVM. Compile RuntimeID per
+  plane into the SVSM and compute Bind2 here, or narrow RUNTIME.md's IGVM row.
+* **B6:** if today's multi-domain monitor guest called protocol 6, every domain would be `APP_TABLE[2]`.
+* **B3:** `freeze_pages` adjusts 4 KiB at a time; a 2 MiB-validated page returns FAIL_SIZEMISMATCH and fails
+  admission after a partial freeze. Needs one hardware run to confirm.
+* **B7:** the vTPM and UEFI-vars protocols are guest-global state and would be a cross-tenant channel once
+  planes exist.
+
 ## Open in this step: the runtime identity, not only the app ID
 
 `isolation/contract` now also binds **what compiled the app** into `report_data[0:32]` under ABI/2

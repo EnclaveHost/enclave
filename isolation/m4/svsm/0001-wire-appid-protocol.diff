@@ -1,8 +1,8 @@
 diff --git a/kernel/src/protocols/attest.rs b/kernel/src/protocols/attest.rs
-index 3a3be24..818ec2c 100644
+index 3a3be24..e5de26a 100644
 --- a/kernel/src/protocols/attest.rs
 +++ b/kernel/src/protocols/attest.rs
-@@ -359,6 +359,17 @@ const _: () = assert!(
+@@ -359,6 +359,33 @@ const _: () = assert!(
          && core::mem::size_of::<AttestSingleServiceOp>() == 0x58
  );
  
@@ -11,15 +11,80 @@ index 3a3be24..818ec2c 100644
 +/// The 64 bytes are assembled by the SVSM - the caller's bind in the low half, the calling plane's measured
 +/// app ID in the high half - so this deliberately takes the whole report_data rather than a "nonce" a guest
 +/// could shape. Kept next to the standard path so there is one PSP call site, not two.
++/// A report for an app plane, naming THAT PLANE rather than VMPL0.
++///
++/// get_attestation_report_standard leaves SnpReportRequest.vmpl at its zero default, which is right for the
++/// SVSM's own reports and wrong for a plane's: a report signed as VMPL0 for code running at VMPL2 is either
++/// rejected by a verifier that pins the plane or, worse, accepted by one that does not, losing the only field
++/// that distinguishes the monitor's evidence from an app's. The SVSM holds VMPCK0 and may name any level, so
++/// this is its call to make and not the caller's.
 +pub fn get_attestation_report_for_app(
 +    report_data: &[u8; 64],
++    vmpl: u32,
 +) -> Result<Box<SnpReportResponse>, SvsmReqError> {
-+    get_attestation_report_standard(report_data)
++    let mut resp = SnpReportResponse::new_box_zeroed()
++        .map_err(|_| SvsmReqError::FatalError(SvsmError::Mem))?;
++    let resp_buffer = resp.as_mut_bytes();
++    let (report_req, _) = SnpReportRequest::mut_from_prefix(resp_buffer)
++        .map_err(|_| SvsmReqError::invalid_parameter())?;
++    report_req.user_data = *report_data;
++    report_req.vmpl = vmpl;
++    let _response_size = get_regular_report(resp_buffer)?;
++    Ok(resp)
 +}
 +
  fn get_attestation_report_standard(nonce: &[u8]) -> Result<Box<SnpReportResponse>, SvsmReqError> {
      let mut resp = SnpReportResponse::new_box_zeroed()
          .map_err(|_| SvsmReqError::FatalError(SvsmError::Mem))?;
+diff --git a/kernel/src/protocols/core.rs b/kernel/src/protocols/core.rs
+index 0e428f2..9be37e1 100644
+--- a/kernel/src/protocols/core.rs
++++ b/kernel/src/protocols/core.rs
+@@ -15,12 +15,13 @@ use crate::mm::{valid_phys_region, writable_phys_addr};
+ #[cfg(feature = "uefivars")]
+ use crate::protocols::SVSM_UEFI_MM_PROTOCOL;
+ use crate::protocols::apic::{APIC_PROTOCOL_VERSION_MAX, APIC_PROTOCOL_VERSION_MIN};
++use crate::protocols::appid::{APPID_PROTOCOL_VERSION_MAX, APPID_PROTOCOL_VERSION_MIN};
+ use crate::protocols::attest::{ATTEST_PROTOCOL_VERSION_MAX, ATTEST_PROTOCOL_VERSION_MIN};
+ use crate::protocols::errors::SvsmReqError;
+ #[cfg(feature = "uefivars")]
+ use crate::protocols::uefivars::{UEFI_MM_PROTOCOL_VERSION_MAX, UEFI_MM_PROTOCOL_VERSION_MIN};
+ use crate::protocols::{
+-    RequestParams, SVSM_APIC_PROTOCOL, SVSM_ATTEST_PROTOCOL, SVSM_CORE_PROTOCOL,
++    RequestParams, SVSM_APIC_PROTOCOL, SVSM_APPID_PROTOCOL, SVSM_ATTEST_PROTOCOL, SVSM_CORE_PROTOCOL,
+ };
+ #[cfg(feature = "vtpm")]
+ use crate::protocols::{
+@@ -265,6 +266,13 @@ fn core_query_protocol(params: &mut RequestParams) -> Result<(), SvsmReqError> {
+             ATTEST_PROTOCOL_VERSION_MIN,
+             ATTEST_PROTOCOL_VERSION_MAX,
+         ),
++        // Without this a guest cannot discover protocol 6 at all, so appid's "version 2 is detectable"
++        // claim was false: a caller could only find out by being refused.
++        SVSM_APPID_PROTOCOL => protocol_supported(
++            version,
++            APPID_PROTOCOL_VERSION_MIN,
++            APPID_PROTOCOL_VERSION_MAX,
++        ),
+         #[cfg(feature = "vtpm")]
+         SVSM_VTPM_PROTOCOL => protocol_supported(
+             version,
+@@ -334,6 +342,15 @@ fn core_pvalidate_one(entry: u64) -> Result<(), SvsmReqError> {
+         return Err(SvsmReqError::invalid_address());
+     }
+ 
++    // An admitted artifact must never be re-validated. PVALIDATE(invalid) followed by PVALIDATE(valid) zeroes
++    // the page and restores guest RWX, which would thaw bytes this SVSM has hashed, frozen and vouched for -
++    // while its admission record still said they were fine. Refused for the life of the guest, because that
++    // is exactly what admission promises; see protocols::appid.
++    if crate::protocols::appid::region_is_admitted(paddr, page_size_bytes) {
++        log::error!("PVALIDATE refused: {paddr:#x} belongs to an admitted artifact");
++        return Err(SvsmReqError::invalid_request());
++    }
++
+     let guard = PerCPUPageMappingGuard::create(paddr, paddr + page_size_bytes, valign)?;
+     let vaddr = guard.virt_addr();
+ 
 diff --git a/kernel/src/protocols/mod.rs b/kernel/src/protocols/mod.rs
 index 2c9a15c..64c0cf9 100644
 --- a/kernel/src/protocols/mod.rs
