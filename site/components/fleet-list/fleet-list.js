@@ -12,7 +12,7 @@ import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, 
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
 import { Enclave } from "../../js/core/api.js";
 import { connectWallet, ensureBaseChain, sendTx } from "../../js/core/wallet.js";
-import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf } from "../../js/core/pricing.js";
+import { serverSpec, enclavePriceOf, enclaveClassOf, shieldedPoolOf, teeCpuOf, computeEligibleOf, gpuSellableOf } from "../../js/core/pricing.js";
 import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
@@ -230,7 +230,14 @@ class FleetList extends EnclaveElement {
               + '</span>'
               + '</div>';
           }
-          const shPool = shieldedPoolOf(e);
+          // THE CARD SELLS ONLY WITH ITS EVIDENCE (gpuSellableOf, the relay's rule mirrored):
+          // a card inside the boundary on an eligible box, or a card outside it with verified
+          // Enclave Shield evidence. Otherwise neither GPU pool is drawn, and the row says why.
+          const cardSellable = gpuSellableOf(e);
+          const cardNote = !cardSellable && (sh || inTee)
+            ? '<span class="fleet-relay-note">card not for sale: ' + esc(e.gpuIneligible || 'outside the confidential boundary, no verified Enclave Shield evidence') + '</span>'
+            : '';
+          const shPool = cardSellable ? shieldedPoolOf(e) : null;
           const shTotal = shPool ? shPool.total : 0;
           // LEASABLE, not resident. A shielded worker keeps only the model's
           // encoded weights on the card, so the silicon reads nearly empty while
@@ -294,7 +301,7 @@ class FleetList extends EnclaveElement {
                              + "figure, so the two columns are not directly comparable.")
                       : stat(esc(sh.card || "gpu"), "", "", "card")),
                 price.shielded) : "")
-            + (!sh?.pooled && Array.isArray(a.shieldedCards) ? a.shieldedCards.filter(c => c.id !== sh?.id).map(c => {
+            + (cardSellable && !sh?.pooled && Array.isArray(a.shieldedCards) ? a.shieldedCards.filter(c => c.id !== sh?.id).map(c => {
                 const p = shieldedPoolOf({ availability: { shielded: c, gpuShareFree: c.gpuShareFree } });
                 if (!p) return "";
                 const badge = '<span class="ap-badge info" title="Masked GPU offload on the host\u2019s card: masked inputs and verified results.">'
@@ -309,7 +316,7 @@ class FleetList extends EnclaveElement {
             // ONLY when the card is in the enclave. A shielded card already drew its
             // pool above, from the numbers the probe actually measured; drawing
             // this one too would advertise one piece of silicon twice.
-            + (inTee ? pool(cardBadge, gPct,
+            + (inTee && cardSellable ? pool(cardBadge, gPct,
                 stat(fmtNum(a.vramFreeGb != null ? a.vramFreeGb : gFree * vramGb), fmtNum(vramGb), "GB", "vram available")
                 + stat(Math.round(gFree * tflops), Math.round(tflops), "", "tflops available"), price.full) : "")
             + pool(teeCpuBadge, cPct,
@@ -327,6 +334,7 @@ class FleetList extends EnclaveElement {
                 // CPU pool saying so. The field still crosses the wire, so bring the
                 // cell back if a box ever carries enough resident weight to need it.
                 price.node)
+            + cardNote
             + '<div class="fleet-rateform" data-form="' + esc(e.id || "") + '" hidden></div>'
             + '</div>';
         }).join(""));

@@ -406,6 +406,30 @@ export function computeEligibleOf(row){
   return t.real === true && CONFIDENTIAL_CPU.has(t.technology);
 }
 
+// May this box's CARD be offered as GPU capacity? The client-side twin of the relay's
+// gpuSellable (relay/api-relay.js), read from the card's protection mode and never
+// from teeCpu, the host OS or the CPU: a card the box presents as inside its
+// confidential boundary sells when the box itself is eligible; a card outside every
+// confidential boundary (a shielded pool) is reached only through Enclave Shield,
+// Enclave's protected GPU offload, and sells only with Shield evidence, which today
+// is the masked-offload proof the box's own measured image ran (and only from a box
+// whose word counts at all, i.e. a confidential CPU). The relay's explicit
+// `gpuSellable` verdict outranks the local rule; older rows fall back to it.
+const SHIELD_PROOF_KEYS = ["ok", "exact", "verified", "noPlaintext", "lieRejected", "denylistRefused"];
+export function gpuModeOf(row){
+  const a = (row && row.availability) || {};
+  if (a.shielded && Number(a.shielded.vramGb) > 0) return "shield";
+  return a.gpu === true ? "confidential" : "none";
+}
+export function gpuSellableOf(row){
+  if (!row || row.relay === true) return false;
+  if (typeof row.gpuSellable === "boolean") return row.gpuSellable;
+  const m = gpuModeOf(row);
+  if (m === "confidential") return computeEligibleOf(row);
+  if (m === "shield") { const p = row.availability?.shielded?.proof; return computeEligibleOf(row) && !!p && SHIELD_PROOF_KEYS.every((k) => p[k] === true); }
+  return false;
+}
+
 // The VRAM a shielded card actually sells: the worker's budget, not the physical
 // total. The untrusted host keeps the rest (on a desktop, an X server), and
 // quoting the physical number would advertise capacity no tenant can have.
@@ -526,7 +550,9 @@ export function rankEnclavesFor(v, rows){
   const wantVols = volsWanted(v);
   const cand = claiming.map((row) => {
     const a = row.availability, spec = enclaveSpecOf(row);
-    const gpu = a.gpu === true;
+    // the card counts only when it may be SOLD (gpuSellableOf): a card outside the
+    // confidential boundary without verified Enclave Shield evidence is not a GPU here
+    const gpu = a.gpu === true && gpuSellableOf(row);
     // structural fit: could this BOX ever run the app, at any share?
     // Model volumes are PER-BOX, like the card: they are attached to an enclave,
     // not fetched on demand, so a box that doesn't carry every volume this
@@ -637,12 +663,14 @@ export function pickEnclaveFor(v, rows){
   // OTHER box that hasn't got the model.
   if (wantVols.length && carriers.length !== claiming.length){
     const who = carriers.length <= 3 ? carriers.map(nameOf).join(", ") : `${carriers.length} enclaves`;
-    return { none: needsGpu && !carriers.some((e) => e.availability.gpu === true)
+    return { none: needsGpu && !carriers.some((e) => gpuSellableOf(e))
       ? `this app needs a GPU, and ${who} — the only enclave${carriers.length > 1 ? "s" : ""} carrying ${wantVols.join(" + ")} — ${carriers.length > 1 ? "have" : "has"} none`
       : `${who} carr${carriers.length > 1 ? "y" : "ies"} ${wantVols.join(" + ")}, but ${carriers.length > 1 ? "none has" : "its hardware is not"} big enough for this app's specs` };
   }
-  return { none: needsGpu && !claiming.some((e) => e.availability.gpu === true)
-    ? "this app needs a GPU and no live enclave has one"
+  return { none: needsGpu && !claiming.some((e) => gpuSellableOf(e))
+    ? (claiming.some((e) => gpuModeOf(e) !== "none")
+        ? "this app needs a GPU and the only cards live are outside a confidential boundary without verified Enclave Shield evidence"
+        : "this app needs a GPU and no live enclave has one")
     : "no live enclave's hardware is big enough for this app's specs" };
 }
 
