@@ -107,12 +107,18 @@ check "7 a different measurement REJECTS" $r
 echo "== the plane's own probe of its confinement"
 pl() { tr -d '\000' < "$W/P.evidence" | sed 's/\x1b\[[0-9;=?]*[A-Za-z]//g' | grep -ao "PLANE $1.*" | head -1; }
 # The errno alone cannot say why sev-guest refused; only the kernel log can. Require the KEY line verbatim.
-if pl "vmpck0_reason=" | grep -q "Empty VMPCK0 communication key" \
-   && pl "vmpck2_reason=" | grep -q "Empty VMPCK2 communication key"; then r=ok; else r=no; fi
-check "8 BOTH probes refused because that VMPCK is EMPTY, each in the kernel's own words" $r
-echo "       $(pl 'vmpck0=')"
-echo "       $(pl 'vmpck0_reason=')"
-echo "       $(pl 'vmpck2_reason=')"
+# EVERY key the kernel will hand out, each naming its own. Probing only 0 and 2 evidenced half the space while
+# the text claimed the plane holds none, and copy_with_no_vmpck clears 0..VMPL_MAX precisely because a guest can
+# ask for any of them.
+r=ok
+for id in 0 1 2 3; do
+  pl "vmpck${id}_reason=" | grep -q "Empty VMPCK${id} communication key" || r=no
+done
+check "8 EVERY VMPCK (0-3) refused because that key is EMPTY, each in the kernel's own words" $r
+for id in 0 1 2 3; do
+  echo "       $(pl "vmpck${id}=")"
+  echo "       $(pl "vmpck${id}_reason=")"
+done
 [ "$r" = no ] && echo "       ENODEV alone is consistent with a missing device or a kernel that sees no SNP, so it does NOT establish a withheld key"
 
 echo
