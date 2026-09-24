@@ -60,6 +60,24 @@ These are documented, not remapped:
 4. **Which policy a catalog version pins is not decided by this rule.** The rule takes it as an explicit input. The
    branch's working assumption is below. Production policy is a separate decision.
 
+## Reproducing an AppID from the catalog alone
+
+A verifier needs the component's bytes, fetched by its CID from any IPFS gateway and hash-checked against the CID
+(the gateway is untrusted: it decides availability, never content). On 2026-09-24 the canary's component
+`bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza` was NOT served by ipfs.io, dweb.link or Cloudflare, and
+WAS served by `https://trustless-gateway.link/ipfs/<cid>?format=raw` with `Accept: application/vnd.ipld.raw` (that
+gateway refuses Python's default user agent). Then `derive_reference.py bundle <record.json> <component> <out>` gives
+the bundle whose sha256 is the AppID. The platform's own gateway, ipfs.enclave.host, is hosted on metal0 and is down
+while metal0 is off.
+
+## Production policy for the per-app tier: `enclave-isolation-policy/1` (2026-09-24)
+
+The production canary pins each catalog version's policy by a published rule over the version's IMMUTABLE on-chain
+record, so it is explicit, fixed per version, recomputable by anyone, and never read from a deployment:
+`vcpus` 1, `memMiB` = the version's on-chain `memMb` (floor 128), `cpuPercent` 100 (supervisor.js
+`isolationPolicyFor`). A catalog field for a publisher-chosen policy remains possible later; it would be a new rule
+name, so it cannot silently remap an existing AppID.
+
 ## Branch design assumption: one fixed, explicit policy per catalog version
 
 Recorded 2026-09-24 as the assumption this branch builds on. It does NOT change the catalog, anything on chain,
