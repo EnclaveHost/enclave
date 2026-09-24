@@ -8,6 +8,7 @@
 #   missing state (no client installed) -> exit 3 (`pvm-client state` exits non-zero), no row
 #   an incomplete state / a null gen    -> exit 3, no row
 #   exchanges.jsonl cannot be written   -> exit 3
+#   a call that never ends, CL_TIMEOUT  -> killed (124/137), relayed as the call's code, one row, the run goes on
 # Exit 0 only if every case behaves so. Uses the built client (client/dist/pvm-client.mjs) and a fake one that answers only
 # `state` with the given bytes (everything else goes to the real client).
 set -uo pipefail
@@ -51,6 +52,15 @@ case_ missing 3 no 0 "$REAL" "$W/no-state-here.d" version
 FAKE_STATE='{"state":{},"gen":1}' case_ incomplete 3 no 0 "$W/fake.mjs" "$W/state.d" version
 FAKE_STATE="$(python3 -c 'import json,sys; st=json.loads(sys.argv[1]); st["gen"]=None; print(json.dumps(st))' "$REALSTATE")" case_ null-gen 3 no 0 "$W/fake.mjs" "$W/state.d" version
 FAKE_STATE="$REALSTATE" FAKE_STATE_RC=2 case_ state-exits-nonzero 3 no 0 "$W/fake.mjs" "$W/state.d" version
+# a call that never ends (its policy carrier accepts and never answers), under CL_TIMEOUT: killed, its code (124/137) relayed as
+# the call's own result -- the run goes on and records it; it is a timeout, never a pass
+node -e 'require("net").createServer(() => {}).listen(0, "127.0.0.1", function () { require("fs").writeFileSync(process.argv[1], String(this.address().port)); })' "$W/hold.port" & HOLD=$!
+for _ in $(seq 50); do [ -s "$W/hold.port" ] && break; sleep 0.1; done
+to=$(OUT="$W/out-timeout" CLI="$REAL" STATE="$W/state.d" INSTALL="$W" LIB="$LIB" CL_TIMEOUT=2 bash -c 'mkdir -p "$OUT/evidence"; log() { :; }; source "$LIB"; cl t run --policy "http://127.0.0.1:'"$(cat "$W/hold.port")"'/policy" --relay "http://127.0.0.1:'"$(cat "$W/hold.port")"'" --app x; echo "MARKER rc=$?"' 2>&1)
+kill $HOLD 2>/dev/null
+trows=$(grep -c . "$W/out-timeout/exchanges.jsonl" 2>/dev/null || echo 0)
+if grep -qE '^MARKER rc=(124|137)$' <<<"$to" && [ "$trows" = 1 ]; then say "ok   timeout: a call that never ends is killed under CL_TIMEOUT, its code ($(grep -oE 'rc=[0-9]+' <<<"$to")) relayed, one row, the run goes on"
+else say "FAIL timeout: $(tail -1 <<<"$to"), rows $trows"; fails=$((fails + 1)); fi
 mkdir -p "$W/out-unwritable/exchanges.jsonl"   # a directory where the row must be appended
 case_ unwritable 3 no 0 "$REAL" "$W/state.d" version
 [ "$fails" = 0 ] && say "PASS the capture preflight: a capture failure stops the shell with exit 3, nothing after it runs" || say "FAIL ($fails) the capture preflight"
