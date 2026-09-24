@@ -3,13 +3,15 @@
 // process: the keys it makes are lab test keys, kept in a directory OUTSIDE the repository (0700, files 0600), never
 // committed; production policy and release keys (and a Sigstore-based manifest) are the owner's, not built here.
 //   lab-sign.mjs keygen --keys DIR --name policy|release           -> DIR/<name>.key (PKCS#8 PEM), prints the fingerprint
-//   lab-sign.mjs policy --keys DIR --body FILE [--out FILE]         -> { policy: base64(exact bytes), sig }
+//   lab-sign.mjs policy --keys DIR --body FILE [--out FILE]         -> { policy: base64(exact bytes), sig }, written ONLY if
+//                                                                      the client's own verifyPolicy accepts it (below)
 //   lab-sign.mjs update --keys DIR --artifact FILE --version V --source-commit C --not-after ISO [--artifact-name N] [--out FILE]
 // A policy body's "key" is filled in from DIR/policy.key; an update's releaseKey and policyKey from DIR/release.key and
 // DIR/policy.key (both sign: release, then the policy countersignature).
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sign } from "node:crypto";
+import { verifyPolicy } from "../src/trust.js";
 
 const argv = process.argv.slice(2), cmd = argv[0];
 const arg = (k, d = null) => { const i = argv.indexOf(k); return i > 0 ? argv[i + 1] : d; };
@@ -34,7 +36,13 @@ if (cmd === "keygen") {
   const k = load("policy");
   const body = { ...JSON.parse(fs.readFileSync(arg("--body"), "utf8")), key: pubHex(k) };
   const text = JSON.stringify(body);
-  emit({ policy: Buffer.from(text).toString("base64"), sig: edsig(k, "enclave-pvm-client-policy-v1\n", text) });
+  const env = { policy: Buffer.from(text).toString("base64"), sig: edsig(k, "enclave-pvm-client-policy-v1\n", text) };
+  // the signer checks what it signs with the CLIENT's own rules (a client anchored on this key, below the serial, now):
+  // a policy every client would refuse -- a malformed deployment table, an unknown format, an expired window -- is an
+  // outage for everyone on this key, so it is never written
+  const v = await verifyPolicy(env, { state: { policyFp: fp(pubHex(k)), nextPolicyFp: null, serial: 1, digest: null }, clientVersion: "999.0.0" });
+  if (!v.ok) { console.error(`refusing to write a policy the client would refuse: ${v.reasons[0]}`); process.exit(2); }
+  emit(env);
 } else if (cmd === "update") {
   const r = load("release"), p = load("policy"), bytes = fs.readFileSync(arg("--artifact"));
   const body = { type: "enclave-pvm-client-update", artifact: arg("--artifact-name", "pvm-client.mjs"), version: arg("--version"),

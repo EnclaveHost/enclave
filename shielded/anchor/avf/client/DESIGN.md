@@ -91,6 +91,11 @@ is exactly what the client exists not to believe.
     - the install-time app is used only when neither `?deployment` nor `?app` is given;
     - a repeated parameter is refused before anything runs.
     Its pages are not web-accessible, so no site can open them with a chosen deployment.
+- **The signer checks first.** `tools/lab-sign.mjs policy` signs the body, then runs the client's own `verifyPolicy` on
+  the result, as a client anchored on that key would, below its serial, now. If the client would refuse it, nothing is
+  written and the tool exits 2: a malformed table, an unadmitted app, an expired window.
+  - A policy every client refuses is an outage for everyone on that key, so it never leaves the signer.
+  - The lab stand-in for the production signer only. Production signing is not built here.
 - **Agreed first.** The verifier session agreed this contract before the commit. Its independent policy replay adds the
   optional field under exactly these rules.
 
