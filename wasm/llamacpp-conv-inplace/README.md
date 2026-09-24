@@ -33,8 +33,8 @@ any other compiler or flags before trusting the op there.
 - `prod-toolchain-check.sh`: runs inside `ubuntu:22.04` (the toolchain
   runner's OS, stock GCC 11.4 / cmake 3.22), builds the CPU libraries with the
   workflow's CPU-relevant flags, and runs all three harnesses there, plus the
-  register-row and streaming-snapshot GATED_DELTA_NET checks below. (Those
-  additions have NOT been executed yet; the last executed run predates them.)
+  register-row and streaming-snapshot GATED_DELTA_NET checks below. Executed
+  2026-09-23 with both kernels: ALL CHECKS PASSED (GCC 11.4, `-mavx2 -mfma`).
 
 **Token-fused GATED_DELTA_NET: measured negative, not applied**
 (`../llamacpp-gdn-tokfuse.patch`, REPORT 18.50). `gdn-equiv.cpp` is its
@@ -59,7 +59,10 @@ the dump from before the change; a planted one-ulp mutant in the kernel
 changed exactly the 52 S_v=128 scalar-gate cases and no other; the 0.8B real
 graph (state_size 128, so the path is live) byte-identical on and off.
 `gdn-bench` alone at the 27B's shape: ~40% faster at 8 threads for 1 and 2
-tokens, ~2x at 1 thread. `gdn-bench [N_TOKENS] [THREADS] [ITERS] [K] [NSTATES]`
+tokens, ~2x at 1 thread, on AVX-512. **On the production AVX2 build it was ~55%
+slower** (116 against 73 us: a row is all 16 ymm registers and spills), so the
+kernel now compiles only at 16 floats per vector; on AVX2 the calls run, and
+the toolchain check's timing line shows on and off equal. `gdn-bench [N_TOKENS] [THREADS] [ITERS] [K] [NSTATES]`
 with NSTATES > 1 rotates per-layer states so they arrive cold, and
 `GDN_BENCH_WARM=1` warms each before its (timed) call; that mode is
 confounded (the warm-up lets the pool threads sleep and the timed call pays the
