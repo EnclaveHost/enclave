@@ -38,7 +38,12 @@ for (const name of Object.keys(artifacts)) {
   if (a.status !== 0) { process.stderr.write(a.stderr || ""); console.error(`integration: artifact ${name} did NOT reproduce; refusing`); process.exit(2); }
   process.stdout.write(a.stdout.split("\n").filter((l) => /REPRODUCED|== pin/.test(l)).map((l) => `integration: ${l}\n`).join(""));
 }
-const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs", "test/verifier-pvm-client-persistence.test.mjs", "test/verifier-pvm-client-update.test.mjs", "test/verifier-pvm-client-supersede.test.mjs", "test/verifier-pvm-client-ext.test.mjs", "test/verifier-pvm-client-activation.test.mjs"];
+// the reproducible NEXT versions of the real client (verifier/integration/next-build.mjs) must rebuild to their record
+const nb = spawnSync(process.execPath, [path.join(REPO, "verifier", "integration", "next-build.mjs")], { cwd: REPO, encoding: "utf8" });
+if (nb.status !== 0) { process.stderr.write(nb.stderr || ""); console.error("integration: the next builds did NOT reproduce; refusing"); process.exit(2); }
+process.stdout.write(nb.stdout.split("\n").filter((l) => /== record/.test(l)).map((l) => `integration: ${l}\n`).join(""));
+env.ENCLAVE_PVM_NEXT_DIR = nb.stdout.trim().split("\n").pop();
+const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs", "test/verifier-pvm-client-persistence.test.mjs", "test/verifier-pvm-client-update.test.mjs", "test/verifier-pvm-client-supersede.test.mjs", "test/verifier-pvm-client-ext.test.mjs", "test/verifier-pvm-client-activation.test.mjs", "test/verifier-pvm-client-next.test.mjs"];
 const t = spawnSync(process.execPath, ["--test", "--test-reporter=tap", "--test-timeout=180000", ...suites], { cwd: REPO, encoding: "utf8", env });
 const out = t.stdout || "";
 const num = (k) => { const m = new RegExp(`^# ${k} (\\d+)`, "m").exec(out); return m ? Number(m[1]) : null; };

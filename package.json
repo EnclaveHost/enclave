@@ -19,7 +19,8 @@
     "test:client-ext": "node --test --test-timeout=180000 test/verifier-pvm-client-ext.test.mjs",
     "test:client-supersede": "node --test test/verifier-pvm-client-supersede.test.mjs",
     "test:client-update": "node --test test/verifier-pvm-client-update.test.mjs",
-    "test:client-activation": "node --test test/verifier-pvm-client-activation.test.mjs"
+    "test:client-activation": "node --test test/verifier-pvm-client-activation.test.mjs",
+    "test:client-next": "node --test test/verifier-pvm-client-next.test.mjs"
   },
   "engines": {
     "node": ">=20"

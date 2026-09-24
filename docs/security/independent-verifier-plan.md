@@ -479,7 +479,12 @@ Exact remaining integration gaps (nothing below is verified today):
    with canary artifacts. The owner shipped 0.3.0 (0f4c79fd) to the agreed design the same day: the hashes were
    recomputed from the git objects, the client pins and the artifact record moved there, both artifacts reproduced, and
    all 10 activation cases pass (two harness defects fixed, none in the owner's code; results per case in the review);
-   strict command 86 of 86.
+   strict command 86 of 86. The one order a canary cannot reach, a policy commit after activation, is closed with the
+   REAL client as the activated version: reproducible next builds from the pinned source (`next-build.mjs`,
+   `next-builds.json`) and the owner's derived device artifact reproduced byte for byte and tied to the source rebuild;
+   7 more cases (rotations and one hop by the delegated real client) pass, strict 93 of 93. Host evidence only: the
+   delegated real client reaches "policy committed, evidence requested, refused: no evidence"; the real attestation and
+   sealed streams are the owner's device run, under independent review when it lands (review section 10).
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial

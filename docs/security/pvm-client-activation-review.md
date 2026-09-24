@@ -179,6 +179,45 @@ the blocked test process; every such command is now driven asynchronously. Per c
 Strict command with this suite included: 86 cases, 86 pass, 0 fail, 0 skipped, verdict PASS, against the six pins and
 both reproduced artifacts. The limits in section 6 are unchanged.
 
+## 10. The real client activated: closing the order a canary cannot reach, and the two evidence classes
+
+A canary commits nothing, so "a policy commit after activation" was left to the owner above. It is now closed on the
+host with the REAL client as the activated version. `verifier/integration/next-build.mjs` builds, reproducibly, a next
+version of the pinned client from the pinned source with exactly one line changed (`CLIENT_VERSION`), in a detached
+temporary worktree with the pinned esbuild, and records the bytes in `verifier/integration/next-builds.json` (0.3.1
+`ad8ff60b…`, 0.3.2 `4453598c…`, 137180 bytes each; the strict command rebuilds them and refuses on any difference). It
+also reimplements the owner's device recipe (`client/tools/lab-next.mjs`: from the pinned dist bytes, line 1 replaced by
+a banner that names the base and its sha256, the single `var CLIENT_VERSION` replaced, nothing else): the result is
+`ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c`, 137343 bytes, exactly what the owner reported, and
+beyond its first line it is byte-identical to the source rebuild at 0.3.1. That ties the device artifact to the pinned
+source; the strict command checks the tie on every run.
+
+`test/verifier-pvm-client-next.test.mjs` (`npm run test:client-next`), 7 cases on the pinned 0.3.0 as the launcher, all
+pass: staging the real 0.3.1 runs nothing (the launcher still answers with its own version and commits serial 3) and
+activation keeps the serial and both key anchors while the active record equals the staged one with its size; a policy
+commit AFTER activation is made by the delegated real client, its `committed` line printed before its evidence request,
+with serial, staged, active and keys all kept; a policy-key rotation is committed by the delegated client, the successor
+key is accepted (the anchor moves), the retired key and a rollback are refused without a request, and `active` is kept
+throughout; a release-key rotation carried by staging 0.3.2 after activation moves `staged` and `nextReleaseFp` while
+`active`, the serial and what `run` executes stay at 0.3.1; one hop under a concurrent activation (a 0.3.1 run held at
+the evidence barrier while 0.3.2 is activated finishes as 0.3.1, and the next run is 0.3.2, with serial, active,
+staged and all three key fields as expected); the owner's derived device artifact stages, activates, delegates and
+commits on the host exactly like the rebuild; a tampered active real file is refused at launch with what was found,
+nothing is requested, the state is unchanged, and re-staging the same artifact repairs it.
+
+**Evidence classes, stated apart.** Everything in this section and in section 7 is HOST evidence with lab keys: the
+relay is this session's, and it answers every evidence request with 503, so the delegated real client reaches "policy
+committed, evidence requested, refused: no evidence" and never a verified attestation or a sealed request (the sealed
+counter is asserted to be zero). Nothing here is a real attestation, and the owner's own host tests with a fake VM
+show refusals, not a successful end-to-end attestation either. What can only be real on the device: the delegated
+0.3.1 verifying the Pixel's evidence under a committed policy and sealing a request the VM answers, and the key
+rotation through the delegated client on that device. That is the owner's bounded Pixel 10 run
+(`results/pvm-cpu-client-activation`, pending at the time of writing), reviewed independently when it lands: the
+derived artifact rebuilt and compared, the generation log, the activate line, each delegated run's `committed` line
+before its evidence request, the refusals and repairs, and the served-count cross-check against the VM capture. Stream
+traces are not available from the installed CLI (it never writes session secrets), so the authenticity of the device
+streams rests on the client's own FIN verification plus the served count; that is a limit, recorded as such.
+
 ## 8. Asks sent to the owner (2026-09-24, answered with agreement on Q1 to Q5)
 
 1. One hop: a marker so a delegated child never delegates. 2. Explicit `--state` and `--install-dir` for the child; no
