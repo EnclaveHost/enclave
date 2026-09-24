@@ -1,0 +1,6 @@
+Q16 start 21:27:55
+== sr-01 (single-read) 21:27:55
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 1 check(s)
+LANE-RUN FAIL sr-01: the VM stopped before the run completed: VM payload finished exit=0
+LANE-CONDITIONS END
+Q16-END 21:29:38

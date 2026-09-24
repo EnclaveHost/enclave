@@ -1,0 +1,5 @@
+# settings	graphs=none bundle= bundle_sha256= maxnew=128
+# ask	Explain in about 100 words what a hash table is.
+# driver_sha256	5292d7ae516221712d160b52ebbbfe03aa4e9a76cbbf9dc014cbb54ea96bf079
+# label	condition	extra	status	rc	apk_sha256
+sr-01	single-read		failed	1	76b02383344db390ab83557ce3cacf3c227535f61a909bde79048dfd4134122e

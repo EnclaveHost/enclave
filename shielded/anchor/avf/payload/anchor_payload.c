@@ -1163,6 +1163,15 @@ static int app_receive(const anchor_app_plan *plan, app_ready *a) {
     const int whole = f && b && fread(b, 1, plan->bytes, f) == plan->bytes && fgetc(f) == EOF;
     if (f) fclose(f);
     if (!whole) { free(b); OUT("APP refused: the stored component is not %llu bytes", (unsigned long long)plan->bytes); return 4; }
+    {   /* the AppID the VM is about to attest (app_attest_abi2) must be these bytes' digest: checked HERE, before any certificate
+         * names it, not only by pvm-rt before compiling -- otherwise a host could obtain a genuine certificate naming an app the
+         * VM then refuses to run */
+        uint8_t got[32]; sha256(b, (size_t)plan->bytes, got);
+        if (memcmp(got, plan->sha256, 32) != 0) {
+            char gh[65], wh[65]; sh_pads_bin2hex(got, 32, gh); sh_pads_bin2hex(plan->sha256, 32, wh); free(b);
+            OUT("APP refused: bundle sha256 %s is not the expected %s: refusing to compile (and to attest it)", gh, wh); return 4;
+        }
+    }
     char lib[700]; snprintf(lib, sizeof lib, "%s/lib/arm64-v8a/libpvm_rt.so", AVmPayload_getApkContentsPath());
     void *h = dlopen(lib, RTLD_NOW);
     pvmrt_identity_fn idf = h ? (pvmrt_identity_fn)dlsym(h, "pvmrt_identity") : NULL;
