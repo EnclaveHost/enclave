@@ -624,7 +624,21 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
     // resolve(id): the app's loopback port and its certificate, or null. Both come from the host,
     // which is the half that holds leases; a deployment this box does not serve resolves to null
     // and the stream is refused with a status rather than a silent close.
+    // The splicer for ISOLATED deployments, built only when this box is configured for that
+    // backend. Null otherwise, and the app zone then has nothing to splice with and says so
+    // rather than terminating TLS for a partition, which it must never do.
+    let isolationSplicer = null;
+    if (host.cfg.isolationManager && host.cfg.isolationDataAddr) {
+      const { createIsolationSplicer } = await import("../vbslike/datapath/node-bridge.mjs");
+      const { IsolationManagerClient } = await import("./isolation-client.mjs");
+      isolationSplicer = createIsolationSplicer({
+        client: new IsolationManagerClient({ base: host.cfg.isolationManager }),
+        dataAddr: host.cfg.isolationDataAddr,
+        log: (m) => log(m),
+      });
+    }
     zone = appZone({
+      isolationSplicer,
       send: (o) => tunnelSend(o),
       resolve: (id) => host.appZoneTarget(id),
       // What the tunnel socket is still holding, so a streaming response applies backpressure

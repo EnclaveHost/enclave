@@ -33,6 +33,12 @@ param(
   # with -GuestStateIsolationType OpenHCL already carries GuestFeatureSet 1024, and overwriting it
   # with 513 may be removing the very bit the isolation type set. -1 means LEAVE IT ALONE.
   [int]    $GuestFeatureSet = 513,
+  # VTL2, where the paravisor lives. A VM created with -GuestStateIsolationType OpenHCL comes with
+  # Vtl2AddressRangeBase/Size/MmioSize and Vtl2AddressSpaceConfigurationMode ALL ZERO - i.e. the
+  # paravisor has no address space to be loaded into. -1 leaves each as it is.
+  [long]   $Vtl2RangeMiB = -1,
+  [long]   $Vtl2MmioMiB  = -1,
+  [int]    $Vtl2Mode     = -1,
   [switch] $Approve
 )
 
@@ -153,16 +159,37 @@ try {
   $vssd = $cs | Get-CimAssociatedInstance -ResultClass Msvm_VirtualSystemSettingData -Association Msvm_SettingsDefineState
   if ($GuestFeatureSet -ge 0) { $vssd.GuestFeatureSet = $GuestFeatureSet; Note "setting GuestFeatureSet=$GuestFeatureSet (was $($vssd.GuestFeatureSet))" }
   else { Note "leaving GuestFeatureSet as the isolation type set it: $($vssd.GuestFeatureSet)" }
+  if ($Vtl2Mode -ge 0)     { $vssd.Vtl2AddressSpaceConfigurationMode = [uint16]$Vtl2Mode; Note "Vtl2AddressSpaceConfigurationMode=$Vtl2Mode" }
+  # MEGABYTES, not bytes. Hyper-V said so itself: "The invalid value '268435456' was specified for
+  # the VTL2 size ... Please enter a value between 128 and 1048576". 268435456 was 256 MiB expressed
+  # in bytes, and the field wants 256.
+  if ($Vtl2RangeMiB -ge 0) { $vssd.Vtl2AddressRangeSize = [uint64]$Vtl2RangeMiB; Note "Vtl2AddressRangeSize=$Vtl2RangeMiB (MiB)" }
+  if ($Vtl2MmioMiB -ge 0)  { $vssd.Vtl2MmioAddressRangeSize = [uint64]$Vtl2MmioMiB; Note "Vtl2MmioAddressRangeSize=$Vtl2MmioMiB (MiB)" }
   $vssd.FirmwareFile    = $Image
   $ser  = [Microsoft.Management.Infrastructure.Serialization.CimSerializer]::Create()
   $emb  = [System.Text.Encoding]::Unicode.GetString($ser.Serialize($vssd, [Microsoft.Management.Infrastructure.Serialization.InstanceSerializationOptions]::None))
   $svc  = Get-CimInstance -Namespace $ns -ClassName Msvm_VirtualSystemManagementService
   $res  = Invoke-CimMethod -InputObject $svc -Name ModifySystemSettings -Arguments @{ SystemSettings = $emb }
-  Note "pin returnValue=$([int]$res.ReturnValue)"
+  $prv = [int]$res.ReturnValue
+  Note "pin returnValue=$prv"
+  # 4096 means a JOB, not success. Without waiting for it the settings may never be applied and the
+  # next line reads them back as they were - which is exactly what happened on the first VTL2 run:
+  # FirmwareFile read back EMPTY, the VM started with no image, and the failure looked like a
+  # finding about VTL2 when it was this script not waiting.
+  if ($prv -eq 4096) {
+    if (-not $res.Job) { throw "ModifySystemSettings returned 4096 with no Job" }
+    $pj = $res.Job | Get-CimInstance
+    $pdl = (Get-Date).AddSeconds(60)
+    while ($pj.JobState -eq 4 -and (Get-Date) -lt $pdl) { Start-Sleep -Milliseconds 300; $pj = $pj | Get-CimInstance }
+    Note "pin job state=$($pj.JobState) errorCode=$($pj.ErrorCode) desc=$(($pj.ErrorDescription -replace "`r?`n",' '))"
+    if ($pj.JobState -ne 7) { throw "the firmware pin FAILED: job state $($pj.JobState), $($pj.ErrorDescription)" }
+  } elseif ($prv -ne 0) { throw "ModifySystemSettings returned $prv" }
   $back = (Get-CimInstance -Namespace $ns -Query ("select * from Msvm_ComputerSystem where ElementName = '" + $name + "'")) |
           Get-CimAssociatedInstance -ResultClass Msvm_VirtualSystemSettingData -Association Msvm_SettingsDefineState
   Note "FirmwareFile reads back: $($back.FirmwareFile)"
+  if ("$($back.FirmwareFile)" -ne "$Image") { throw "the pin did not land: FirmwareFile reads back '$($back.FirmwareFile)', not '$Image'" }
   Note "GuestFeatureSet reads back: $($back.GuestFeatureSet)"
+  Note "Vtl2 reads back: mode=$($back.Vtl2AddressSpaceConfigurationMode) base=$($back.Vtl2AddressRangeBase) size=$($back.Vtl2AddressRangeSize) mmio=$($back.Vtl2MmioAddressRangeSize)"
 
   # serial console, so a booting paravisor can be heard
   $pipe = "\\.\pipe\$name-com1"
