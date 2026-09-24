@@ -74,11 +74,22 @@ export class IsolationManagerClient {
    * and 77 tests passed over a contract that could not execute.
    */
   static spawnBody({ id, image, name, cpuShare = 0, gpuShare = 0, appPort, ports = [], config = "",
-                     configCid = "", egress = "", derive, hosts }) {
+                     configCid = "", egress = "", derive, hosts, isPublic, hasSecrets }) {
     if (!name) throw new Error("a deployment id (name) is required");
     if (!image) throw new Error("an image reference is required");
     if (!derive) throw new Error("a derivation record is required: a CID without one is refused");
-    const b = { image, name, cpuShare, gpuShare, appPort, ports, config, configCid, egress, derive };
+    // The manager refuses a spawn that does not STATE these, and it is right to: "no secrets" has
+    // to be known, not assumed, and a private deployment's owner gate needs plaintext that exists
+    // only inside the domain. supervisor.js never sent them, so every real spawn 400'd - and the
+    // manager's own test invented them, which is why 77 tests passed over a contract that could
+    // not execute. The fix belongs HERE, in the caller that actually knows both facts from the
+    // ledger, rather than in a manager that would have to assume them.
+    if (isPublic !== true && isPublic !== false)
+      throw new Error("isPublic must be stated from the ledger: the manager refuses to assume it");
+    if (hasSecrets !== true && hasSecrets !== false)
+      throw new Error("hasSecrets must be stated: absent secrets must be KNOWN absent, not assumed");
+    const b = { image, name, cpuShare, gpuShare, appPort, ports, config, configCid, egress, derive,
+                isPublic, hasSecrets };
     if (id) b.id = id;
     if (hosts) b.hosts = hosts;
     return b;
