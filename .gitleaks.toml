@@ -115,3 +115,9 @@ paths = ['''^isolation/m4/evidence/''']
 description = "windows/vbslike evidence holds PUBLIC keys only: the launcher's Ed25519 verifying key (launcherKey / launcher.key) and each domain's P-256 SPKI (transportKey), plus signatures over them; the private halves are minted in memory per run and never written (windows/vbslike/README.md section 4)"
 targetRules = ["generic-api-key"]
 paths = ['''^windows/vbslike/evidence/''']
+
+# Ed25519 public keys in SubjectPublicKeyInfo form: the DER prefix 302a300506032b6570032100 followed by the 32-byte public
+# key. A private key is never encoded this way, so any match is public by construction. Seen as the pVM instance key and
+# transport key in verifier/admission-vectors.json (synthetic, generated from a label) and in the pVM owner's fixtures.
+[allowlist]
+regexes = ['''302a300506032b6570032100[0-9a-f]{64}''']
