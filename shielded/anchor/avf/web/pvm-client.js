@@ -11,6 +11,11 @@
 import { verifyPvmAppEvidence, toHex } from "./pvm-verify.js";
 import { sealRequest, openResponse, openStream, httpStream, httpRequest, parseHttpResponse } from "./pvm-sealed.js";
 
+// the verifier's expectations: single pins (the lab page) or a verified policy's lists (the installed client, client/)
+const expectOf = (pins, nonce, now) => ({ nonce, appId: pins.app,
+  allowedRuntimeIds: pins.allowedRuntimeIds || [pins.runtimeId], allowedCodeHashes: pins.allowedCodeHashes || [pins.codeHash],
+  allowedAuthorityHashes: pins.allowedAuthorityHashes || [pins.authority], ...(pins.rootPins ? { rootPins: pins.rootPins } : {}), ...(now ? { now } : {}) });
+
 async function post(url, body, type) {
   const r = await fetch(url, { method: "POST", body, headers: { "content-type": type }, cache: "no-store", credentials: "omit" });
   if (!r.ok) throw new Error(`the carrier answered ${r.status}`);
@@ -18,7 +23,7 @@ async function post(url, body, type) {
 }
 
 /** pins: { app, codeHash, authority, runtimeId, rootPins? } -- the page's own, never the relay's. */
-export async function fetchVerified({ relay, pins, method = "GET", path = "/", body = null, label = "ok", now }) {
+export async function fetchVerified({ relay, pins, method = "GET", path = "/", body = null, label = "ok", now, gate }) {
   const t0 = performance.now();
   const nonce = crypto.getRandomValues(new Uint8Array(32));
   const out = (o) => ({ label, ...o });
@@ -28,11 +33,11 @@ export async function fetchVerified({ relay, pins, method = "GET", path = "/", b
     const line = new TextDecoder().decode(bytes).split("\n")[0];
     env = JSON.parse(line);
   } catch (e) { return out({ step: "evidence", refused: `no evidence: ${e.message}`, sent: false }); }
-  const v = await verifyPvmAppEvidence(env, { nonce, appId: pins.app, allowedRuntimeIds: [pins.runtimeId], allowedCodeHashes: [pins.codeHash],
-                                              allowedAuthorityHashes: [pins.authority], ...(pins.rootPins ? { rootPins: pins.rootPins } : {}), ...(now ? { now } : {}) });
+  const v = await verifyPvmAppEvidence(env, expectOf(pins, nonce, now));
   const verifyMs = Math.round(performance.now() - t0);
   if (!v.ok) return out({ step: "verify", refused: v.reasons.at(-1), sent: false, verifyMs });
   if (!v.appKey) return out({ step: "verify", refused: "the evidence carries no app key (v1): a page cannot pin a TLS key, so nothing is sent", sent: false, verifyMs });
+  if (gate) { const why = await gate(v, env, toHex(nonce)); if (why) return out({ step: "gate", refused: why, sent: false, verifyMs }); }
   const verified = { format: env.format, app: v.appId, runtime: v.runtimeId, codeHash: v.measurement, key: v.transportSpki.slice(-16), appKey: v.appKey.slice(0, 16), nonce: toHex(nonce).slice(0, 16) };
   const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest(method, path, body) });
   let answer;
@@ -51,18 +56,18 @@ export async function fetchVerified({ relay, pins, method = "GET", path = "/", b
  * fetch after that many token lines -- the cancel reaches the VM as a closed connection. `trace` (lab) returns this
  * request's opening context (enc, the exported value, the nonce) so a recorded stream can be re-opened offline.
  */
-export async function fetchVerifiedStream({ relay, pins, path = "/", label = "ok", onLine = () => {}, cancelAfter = 0, trace = false, now }) {
+export async function fetchVerifiedStream({ relay, pins, path = "/", label = "ok", onLine = () => {}, cancelAfter = 0, trace = false, now, gate }) {
   const t0 = performance.now();
   const nonce = crypto.getRandomValues(new Uint8Array(32));
   const out = (o) => ({ label, mode: "stream", ...o });
   let env;
   try { env = JSON.parse(new TextDecoder().decode(await post(`${relay}/evidence`, `EVIDENCE ${toHex(nonce)}\n`, "text/plain")).split("\n")[0]); }
   catch (e) { return out({ step: "evidence", refused: `no evidence: ${e.message}`, sent: false }); }
-  const v = await verifyPvmAppEvidence(env, { nonce, appId: pins.app, allowedRuntimeIds: [pins.runtimeId], allowedCodeHashes: [pins.codeHash],
-                                              allowedAuthorityHashes: [pins.authority], ...(pins.rootPins ? { rootPins: pins.rootPins } : {}), ...(now ? { now } : {}) });
+  const v = await verifyPvmAppEvidence(env, expectOf(pins, nonce, now));
   const verifyMs = Math.round(performance.now() - t0);
   if (!v.ok) return out({ step: "verify", refused: v.reasons.at(-1), sent: false, verifyMs });
   if (!v.appKey) return out({ step: "verify", refused: "the evidence carries no app key (v1): a page cannot pin a TLS key, so nothing is sent", sent: false, verifyMs });
+  if (gate) { const why = await gate(v, env, toHex(nonce)); if (why) return out({ step: "gate", refused: why, sent: false, verifyMs }); }
   const verified = { format: env.format, app: v.appId, runtime: v.runtimeId, codeHash: v.measurement, key: v.transportSpki.slice(-16), appKey: v.appKey.slice(0, 16), nonce: toHex(nonce).slice(0, 16) };
   const { frame, ctx } = await sealRequest({ appKey: v.appKey, appId: v.appId, runtimeId: v.runtimeId, nonce, request: httpRequest("GET", path), chunked: true });
   const traceCtx = trace ? { enc: toHex(ctx.enc), exported: toHex(ctx.secret), nonce: toHex(nonce) } : undefined;

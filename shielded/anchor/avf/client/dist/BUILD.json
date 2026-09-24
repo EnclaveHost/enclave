@@ -1,0 +1,33 @@
+{
+ "client": "enclave-pvm-client",
+ "esbuild": "0.28.1",
+ "inputs": {
+  "../web/pvm-client.js": "6516d646dd73d4e1c2af4c661c39ff3721af495017452486aeab06993560dd0d",
+  "../web/pvm-sealed.js": "be7d6ed088bed2fc0c70e8fd23d52ac06202ac188ba999b34e7095da58e5a175",
+  "../web/pvm-verify.js": "6c962bc32cfe117e1b6f54b80ddc41f3be4eec8f090209875d0b6da3fbf4682a",
+  "../web/vendor/hpke-LICENSE.txt": "6c18618fc1fbd7d6b2a1a024813b6efa17d499455516c2e4b8bbaba29cc72537",
+  "../web/vendor/hpke-core-1.9.0.js": "a4302f89ae432a27c0476a21c4aa33be7cd94419b51eca8e71ef05b634db3e34",
+  "cli.mjs": "bb4f75594ec570b3437c8ae8dda82afab413ee2f86ba1858470daa863c86d3fe",
+  "ext/client.html": "959fd39b9838a965dae274b6c630a110262a6bca5d2ffec075ea2cf54d475bfc",
+  "ext/client.src.js": "bc720e64ac1a506b585fff2f20ca98f8e2c82a88e13b4d657ac230cb0ca36bae",
+  "ext/manifest.json": "dfa4038a1d3fadcb7dcf2aae037f71066db856aadba0494b3db65d84702af3b5",
+  "ext/options.html": "77a41f6e3e4dc9e376d2c5db4b22514ae4feb3fcb758fbb3bf52eecb516586c7",
+  "ext/options.src.js": "0392312e184df938eaa4f6354fcb22a6e0b6079c4d505e95df589db1af5640a4",
+  "ext/style.css": "e5569e35994377a0ea8a1375364eb2721ddafba55b97b2ea179f73f93778fdc9",
+  "src/client.js": "d6dc7741af8f972cfadb63ebb356e7409843ec7d8fd21e603bbe987adc2ab5e4",
+  "src/gate.js": "610627d34d249080cc19fd4a5d4a59f3ff29598e2dc279102a426dd8aee2a330",
+  "src/trust.js": "878f270e1120893fbc76c7f3ccbd0c63c1a381044f2b242d8ff6b5280192dd42"
+ },
+ "lab": "NOT PRODUCTION",
+ "outputs": {
+  "pvm-client-ext.zip": {
+   "sha256": "8235d20cf437a58076556beea427e10caf8858668c8a894da5e1f7ae0687ac53",
+   "size": 122003
+  },
+  "pvm-client.mjs": {
+   "sha256": "52d4483245eeb4fa37f4f57eb2c7e416a9c5c57c54d1436dabffdae6f230897c",
+   "size": 118395
+  }
+ },
+ "version": "0.1.0"
+}
