@@ -22,10 +22,15 @@ export { verifySnp, parseReportStrict, checkChain, checkCrl, verdictStatus, DEFA
 export { verifyReleaseAttestation, DEFAULT_RELEASE_POLICY } from "./provenance.mjs";
 export { checkHostedCertificate, spkiOfCert, hashAttestationDocument } from "./tls-binding.mjs";
 export { fileCollateral, memoryCollateral, httpCollateral, layeredCollateral, AMD_KDS } from "./collateral.mjs";
+export { admit, createNonceRegistry, RELEASE, HOLD } from "./admission.mjs";
+export { verifyPvmEvidence, loadOwnerVerifier, PVM_EVIDENCE_FORMAT } from "./pvm-evidence.mjs";
+import { verifyPvmEvidence, PVM_EVIDENCE_FORMAT } from "./pvm-evidence.mjs";
 
 const unsupported = (technology, why) => ({ status: "unsupported", admissionSafe: false, omissions: [], technology, reasons: [`UNSUPPORTED: ${why}`], checks: {}, claims: null });
 
 export async function verifyEvidence(doc, { policy = {}, context = {}, collateral = null } = {}) {
+  // the client-verified pVM evidence is a JSON object, not a base64 body: routed before the envelope parser
+  if (doc && doc.format === PVM_EVIDENCE_FORMAT) return verifyPvmEvidence(doc, { nonce: context.nonce, appId: context.expectedAppId, ...(policy.pvm || {}) }, { now: context.now ? new Date(context.now).getTime() : Date.now() });
   let env;
   try { env = parseEnvelope(doc); }
   catch (e) {
