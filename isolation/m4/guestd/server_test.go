@@ -26,6 +26,7 @@ type fake struct {
 	verifyErr error
 	startGate chan struct{} // when set, Start blocks until it is closed
 	startArgs [3]int
+	fwdPort   func(workdir string) int // when set, where each guest's forwarder listens (the data-plane tests)
 }
 
 func newFake() *fake { return &fake{stops: map[string]int{}, alive: map[string]bool{}} }
@@ -50,14 +51,20 @@ func (f *fake) Start(ctx context.Context, image, tag, workdir string, vcpus, mem
 	return "unit-" + tag, 99, nil
 }
 func (f *fake) Forward(ctx context.Context, cid uint32, workdir string) (int, func(), error) {
+	if f.fwdPort != nil {
+		return f.fwdPort(workdir), func() {}, nil
+	}
 	return 4443, func() {}, nil
 }
-func (f *fake) Verify(ctx context.Context, port int, m, id, workdir string) (string, error) {
+func (f *fake) Verify(ctx context.Context, port int, m, id, workdir string) (string, string, error) {
 	if f.verifyErr != nil {
-		return "", f.verifyErr
+		return "", "", f.verifyErr
 	}
-	return "attested", nil
+	return "attested", fakeKeySha, nil
 }
+
+var fakeKeySha = hex.EncodeToString(bytes.Repeat([]byte{0x6b}, 32))
+
 func (f *fake) Alive(unit string) bool { f.mu.Lock(); defer f.mu.Unlock(); return f.alive[unit] }
 func (f *fake) Stop(tag, workdir string) error {
 	f.mu.Lock()

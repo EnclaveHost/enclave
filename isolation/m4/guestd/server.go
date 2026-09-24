@@ -58,8 +58,10 @@ type Launcher interface {
 	Start(ctx context.Context, image, tag, workdir string, vcpus, memMiB, cpuPct int) (unit string, cid uint32, err error)
 	// Forward exposes the guest's attested TLS endpoint on a host port. stop ends the forwarder.
 	Forward(ctx context.Context, cid uint32, workdir string) (port int, stop func(), err error)
-	// Verify attests the guest over that port against the predicted measurement and the AppID.
-	Verify(ctx context.Context, port int, measurement, appID, workdir string) (verdict string, err error)
+	// Verify attests the guest over that port against the predicted measurement and the AppID, and returns the
+	// sha256 of the TLS key its OWN handshake saw (the key the verified report binds). The data plane admits a
+	// splice only to a guest still presenting that identity (datapath.go).
+	Verify(ctx context.Context, port int, measurement, appID, workdir string) (verdict, keySha256 string, err error)
 	// Alive reports whether the guest's unit is still active.
 	Alive(unit string) bool
 	// Stop tears the guest down.
@@ -111,6 +113,7 @@ func unsupported(r *Request) string {
 type vm struct {
 	ID, Name, AppID, Measurement, Status, Error, Verdict string
 	RecordSha256                                         string // the catalog derivation, when the app came from one
+	TransportKeySha256                                   string // the key the verifying handshake saw
 	HostPort                                             int
 	Vcpus, MemMiB, CPUPct                                int
 	Created                                              time.Time
@@ -118,6 +121,7 @@ type vm struct {
 	stopFwd                                              func()
 	lc                                                   *contract.Lifecycle
 	leaseUntil                                           time.Time
+	splices                                              map[*splice]struct{} // open data-plane connections
 }
 
 type server struct {
@@ -129,6 +133,8 @@ type server struct {
 	Silence   time.Duration
 	Now       func() time.Time
 	Firmware  map[string]any
+	RuntimeID string     // hex; the runtime identity every guest image here carries (the judge pins it)
+	Data      *dataPlane // nil = no data plane (the default)
 	mu        sync.Mutex
 	vms       map[string]*vm
 	lastBeat  time.Time // zero = never heard one: the lease is INERT
@@ -166,6 +172,12 @@ func (v *vm) public() map[string]any {
 	}
 	if v.RecordSha256 != "" {
 		m["recordSha256"] = v.RecordSha256
+	}
+	if v.TransportKeySha256 != "" {
+		m["transportKeySha256"] = v.TransportKeySha256
+	}
+	if s := len(v.splices); s > 0 {
+		m["openSplices"] = s
 	}
 	return m
 }
@@ -421,7 +433,10 @@ func (s *server) launch(v *vm) {
 		return
 	}
 	s.set(v, func() { v.HostPort = port })
-	verdict, err := s.L.Verify(ctx, port, meas, v.AppID, v.workdir)
+	verdict, keySha, err := s.L.Verify(ctx, port, meas, v.AppID, v.workdir)
+	if err == nil && !isHex(keySha, 32) {
+		err = fmt.Errorf("the verifier reported no transport key hash (%q)", keySha)
+	}
 	if err != nil {
 		s.fail(v, fmt.Errorf("the guest did not attest as this app: %w", err))
 		return
@@ -435,14 +450,20 @@ func (s *server) launch(v *vm) {
 		s.remove(v)
 		return
 	}
-	s.set(v, func() { v.Status, v.Verdict = "running", verdict })
+	s.set(v, func() { v.Status, v.Verdict, v.TransportKeySha256 = "running", verdict, keySha })
 }
 
 // reclaim is what an end DOES. The lifecycle decides when, exactly once.
 func (s *server) reclaim(v *vm) {
 	s.mu.Lock()
 	stop, unit := v.stopFwd, v.unit
+	open := v.splices
+	v.splices = nil
 	s.mu.Unlock()
+	// every spliced connection ends with its guest: nothing keeps talking to an instance that is gone
+	for sp := range open {
+		sp.close("the instance ended")
+	}
 	if stop != nil {
 		stop()
 	}
