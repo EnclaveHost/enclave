@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG = path.join(HERE, "pkg.mjs");
-const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-6.json");        // the latest; older ones are kept below as refusals
+const MANIFEST = path.join(HERE, "manifests/nucbox-ownguest-7.json");        // the latest; older ones are kept below as refusals
 const V4 = path.join(HERE, "manifests/nucbox-ownguest-4.json");
 const V5 = path.join(HERE, "manifests/nucbox-ownguest-5.json");
 // a manifest derived from a committed one keeps that one's scripts: its `repo` sources become git pins at its commit
@@ -152,6 +152,8 @@ test("tests: the committed manifest's pinned tests give exactly their stated res
   assert.match(r.out, /ok   test readiness-rule \(enclave-99\) gives exactly its expected result \(8 tests, 8 pass, 0 fail\)/);
   assert.match(r.out, /ok   test datapath \(enclave-99\) gives exactly its expected result \(5 tests, 5 pass, 0 fail\)/);
   assert.match(r.out, /ok   test record-to-route \(enclave-99\) gives exactly its expected result \(4 tests, 4 pass, 0 fail\)/);
+  // 5d's interop case RUNS against the shipped splice client: 5 pass, no skip (v6 pinned it as a named skip)
+  assert.match(r.out, /ok   test datapath-5d \(enclave-5d\) gives exactly its expected result \(5 tests, 5 pass, 0 fail\)/);
 });
 test("tests: a pinned test re-pinned to another commit's bytes (consistent forgery) no longer gives its stated result", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
   const m = structuredClone(base), t = m.inputs.find((i) => i.name === "readiness-rule.test.mjs");
