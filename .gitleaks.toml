@@ -107,6 +107,11 @@ regexes = [
 ]
 
 [[allowlists]]
+description = "isolation/m4 evidence holds a PUBLIC key slot and not a secret: the 91-byte value after ADMIT key_registered= is a domain transport-key SubjectPublicKeyInfo, which is what a verifier compares against its own TLS handshake. In these runs it is not even a real key - it is the deterministic stand-in generated at isolation/m4/guest/admitinit.c as (i*11+5)&0xff for i in 0..91 - and it is recorded in full because recomputing Bind2 over it is how the report binding is checked. Same class of value, and the same reasoning, as the windows/vbslike entry below."
+targetRules = ["generic-api-key"]
+paths = ['''^isolation/m4/evidence/''']
+
+[[allowlists]]
 description = "windows/vbslike evidence holds PUBLIC keys only: the launcher's Ed25519 verifying key (launcherKey / launcher.key) and each domain's P-256 SPKI (transportKey), plus signatures over them; the private halves are minted in memory per run and never written (windows/vbslike/README.md section 4)"
 targetRules = ["generic-api-key"]
 paths = ['''^windows/vbslike/evidence/''']
