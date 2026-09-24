@@ -1,6 +1,6 @@
-package contract
+package catalog
 
-// Catalog derivation: the ONE rule by which a catalog version's component becomes a contract bundle.
+// Package catalog: the ONE rule by which a catalog version's component becomes a contract bundle.
 //
 // WHY A RULE AND NOT A LOOKUP. The on-chain catalog names an app version's component by an IPFS CID - a hash of a
 // UnixFS DAG, which for a chunked file is not even a hash of the bytes. The contract names an app by its AppID,
@@ -10,7 +10,7 @@ package contract
 //
 //	the component bytes      fetched by CID and verified against it (the host's fetcher, not this code)
 //	the policy               cpuPercent, memMiB, vcpus - pinned in the record, never defaulted
-//	the derivation version   CatalogDerivationV1; a future rule is a new version, never a silent change
+//	the derivation version   V1; a future rule is a new version, never a silent change
 //
 // The bundle is exactly what `bundle build -cpu C -mem M -vcpus V <component>` builds (world "wasi:http", no
 // label), so a publisher, a verifier and every backend get the same bytes and the same AppID from the same
@@ -19,6 +19,11 @@ package contract
 //
 // What this does NOT change, deliberately: nothing on chain, and nothing about bundles published directly. It
 // adds a derivation; it does not remap any existing AppID. See DERIVE.md for the incompatibilities this exposes.
+//
+// WHY A SEPARATE PACKAGE. The guest's front links isolation/contract, and so does its measured image: when this
+// rule lived in the contract package its package-level state was linked into the front and moved EVERY per-app
+// measurement although no guest behaviour changed (measured 2026-09-24). Only the host-side manager derives
+// bundles; the measured front must not carry the code.
 
 import (
 	"bytes"
@@ -27,33 +32,35 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+
+	"enclave.host/isolation/contract"
 )
 
-const CatalogDerivationV1 = "enclave-catalog-bundle/1"
+const V1 = "enclave-catalog-bundle/1"
 
-// DerivedWorld is the world a derived bundle states. The per-app guest serves the component with `wasmtime
+// World is the world a derived bundle states. The per-app guest serves the component with `wasmtime
 // serve`, so the component must be a wasi:http proxy; the contract's own builder uses the same default.
-const DerivedWorld = "wasi:http"
+const World = "wasi:http"
 
 // The component-model preamble: magic, version 0x0d, layer 1. A core module carries 01 00 00 00 instead and is
-// not a distributable artifact (bundle.go KindWasmComponent).
+// not a distributable artifact (contract bundle.go KindWasmComponent).
 var componentPreamble = []byte{0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00}
 
 // IsComponent reports whether bytes begin as a WebAssembly component (not a core module, not anything else).
 func IsComponent(b []byte) bool { return bytes.HasPrefix(b, componentPreamble) }
 
-type CatalogRef struct {
+type Ref struct {
 	App     string `json:"app"`     // the catalog's bytes32 app id, 0x + 64 hex, as catalog:// refs carry it
 	Version uint32 `json:"version"` // the version index
 }
 
-// CatalogDerivation is the record of one derivation: everything it takes, and nothing it does not.
-type CatalogDerivation struct {
-	Derivation string     `json:"derivation"`
-	Catalog    CatalogRef `json:"catalog"`
-	CID        string     `json:"cid"`
-	Policy     Policy     `json:"policy"`
-	RuntimeID  string     `json:"runtimeId"` // hex RuntimeID the mapping is pinned to; recorded, not in the bundle
+// Derivation is the record of one derivation: everything it takes, and nothing it does not.
+type Derivation struct {
+	Derivation string          `json:"derivation"`
+	Catalog    Ref             `json:"catalog"`
+	CID        string          `json:"cid"`
+	Policy     contract.Policy `json:"policy"`
+	RuntimeID  string          `json:"runtimeId"` // hex RuntimeID the mapping is pinned to; recorded, not in the bundle
 }
 
 var (
@@ -64,10 +71,10 @@ var (
 
 // Validate refuses a record that is not a complete, well-formed v1 derivation. Every field is required: a
 // missing policy field defaulted here would be an identity nobody asked for.
-func (d CatalogDerivation) Validate() error {
+func (d Derivation) Validate() error {
 	switch {
-	case d.Derivation != CatalogDerivationV1:
-		return fmt.Errorf("derivation %q is not %q", d.Derivation, CatalogDerivationV1)
+	case d.Derivation != V1:
+		return fmt.Errorf("derivation %q is not %q", d.Derivation, V1)
 	case !catalogAppRE.MatchString(d.Catalog.App):
 		return errors.New("catalog.app must be 0x + 64 lowercase hex, as the catalog's bytes32 app id")
 	case !cidRE.MatchString(d.CID):
@@ -85,50 +92,50 @@ func (d CatalogDerivation) Validate() error {
 }
 
 // Digest is sha256 of the record's canonical JSON: the key a mapping is stored and looked up under.
-func (d CatalogDerivation) Digest() ([32]byte, error) {
-	b, err := Canonical(d)
+func (d Derivation) Digest() ([32]byte, error) {
+	b, err := contract.Canonical(d)
 	if err != nil {
 		return [32]byte{}, err
 	}
 	return sha256.Sum256(b), nil
 }
 
-// DeriveCatalogBundle builds the bundle for a verified component under a record. It refuses anything that is not
+// DeriveBundle builds the bundle for a verified component under a record. It refuses anything that is not
 // a component, and it never looks at the network: the caller has already verified the bytes against the CID.
-func DeriveCatalogBundle(d CatalogDerivation, component []byte) ([]byte, error) {
+func DeriveBundle(d Derivation, component []byte) ([]byte, error) {
 	if err := d.Validate(); err != nil {
 		return nil, err
 	}
 	if !IsComponent(component) {
 		return nil, errors.New("the catalog bytes are not a WebAssembly component (a core module or something else)")
 	}
-	return Build(Manifest{ABI: ABI, World: DerivedWorld, Policy: d.Policy}, component)
+	return contract.Build(contract.Manifest{ABI: contract.ABI, World: World, Policy: d.Policy}, component)
 }
 
-// CatalogMapping is what a backend stores for one record: immutable, and recomputable by anyone holding the
+// Mapping is what a backend stores for one record: immutable, and recomputable by anyone holding the
 // component bytes.
-type CatalogMapping struct {
-	Record          CatalogDerivation `json:"record"`
-	RecordSha256    string            `json:"recordSha256"`
-	ComponentSha256 string            `json:"componentSha256"`
-	ComponentBytes  int               `json:"componentBytes"`
-	AppID           string            `json:"appId"`
-	BundleBytes     int               `json:"bundleBytes"`
+type Mapping struct {
+	Record          Derivation `json:"record"`
+	RecordSha256    string     `json:"recordSha256"`
+	ComponentSha256 string     `json:"componentSha256"`
+	ComponentBytes  int        `json:"componentBytes"`
+	AppID           string     `json:"appId"`
+	BundleBytes     int        `json:"bundleBytes"`
 }
 
-// MapCatalog derives the bundle and the mapping together, so the two can never disagree.
-func MapCatalog(d CatalogDerivation, component []byte) (CatalogMapping, []byte, error) {
-	b, err := DeriveCatalogBundle(d, component)
+// Map derives the bundle and the mapping together, so the two can never disagree.
+func Map(d Derivation, component []byte) (Mapping, []byte, error) {
+	b, err := DeriveBundle(d, component)
 	if err != nil {
-		return CatalogMapping{}, nil, err
+		return Mapping{}, nil, err
 	}
 	rd, err := d.Digest()
 	if err != nil {
-		return CatalogMapping{}, nil, err
+		return Mapping{}, nil, err
 	}
 	cs := sha256.Sum256(component)
-	id := AppID(b)
-	return CatalogMapping{Record: d, RecordSha256: hex.EncodeToString(rd[:]),
+	id := contract.AppID(b)
+	return Mapping{Record: d, RecordSha256: hex.EncodeToString(rd[:]),
 		ComponentSha256: hex.EncodeToString(cs[:]), ComponentBytes: len(component),
 		AppID: hex.EncodeToString(id[:]), BundleBytes: len(b)}, b, nil
 }

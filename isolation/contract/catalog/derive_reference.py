@@ -3,7 +3,7 @@
 
 No backend uses this. It exists so that the Go rule every backend links is checked against a second reading of the
 same text: derive_vectors.json is generated HERE, and derive_test.go must reproduce it byte for byte, and guestd's
-stored mappings are reconstructed with it in m4/test-guestd-prefetch.sh.
+stored mappings are reconstructed with it in isolation/m4/guestd/store_test.go.
 
     derive_reference.py bundle <record.json> <component> <out.bundle>   prints the mapping as canonical JSON
     derive_reference.py vectors > derive_vectors.json

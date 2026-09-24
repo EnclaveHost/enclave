@@ -47,6 +47,7 @@ import (
 	"time"
 
 	"enclave.host/isolation/contract"
+	"enclave.host/isolation/contract/catalog"
 )
 
 // Launcher is everything guestd does to the machine. The real one shells out to the M4a scripts; tests use a fake.
@@ -85,9 +86,9 @@ type Request struct {
 	Secrets   map[string]any    `json:"secrets"`
 	Hosts     string            `json:"hosts"`
 	Shielded  json.RawMessage   `json:"shielded"`
-	// Derive is the catalog derivation record (contract/DERIVE.md) an ipfs:// image needs: the CID alone names
+	// Derive is the catalog derivation record (contract/catalog/DERIVE.md) an ipfs:// image needs: the CID alone names
 	// bytes, not a contract identity, and guestd will not invent one.
-	Derive *contract.CatalogDerivation `json:"derive"`
+	Derive *catalog.Derivation `json:"derive"`
 }
 
 // unsupported names the first feature this backend cannot honour inside the guest, or "".
@@ -176,7 +177,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		cat := map[string]any{"derivations": []string{}}
 		if s.Store != nil {
-			cat = map[string]any{"derivations": []string{contract.CatalogDerivationV1}, "runtimeId": s.Store.RuntimeID}
+			cat = map[string]any{"derivations": []string{catalog.V1}, "runtimeId": s.Store.RuntimeID}
 		}
 		s.json(w, 200, map[string]any{"ok": true, "backend": "snp-guest-per-app", "guests": n,
 			"firmware": s.Firmware, "catalog": cat,
@@ -297,7 +298,7 @@ func guestMemMiB(policy int) int {
 //   - ipfs://<cid>      a catalog component, ONLY with a derivation record naming that same CID: resolved through
 //     the immutable mapping store, which fetches and verifies at most once. The CID alone names
 //     bytes, not a contract identity, and guestd will not invent one.
-func (s *server) bundleFor(ctx context.Context, image string, d *contract.CatalogDerivation) ([]byte, string, int, error) {
+func (s *server) bundleFor(ctx context.Context, image string, d *catalog.Derivation) ([]byte, string, int, error) {
 	if p, ok := strings.CutPrefix(image, "file://"); ok && filepath.IsAbs(p) {
 		if d != nil {
 			return nil, "", 422, errors.New("a derivation record applies to an ipfs:// catalog component, not to a file bundle")
@@ -335,8 +336,8 @@ func (s *server) bundleFor(ctx context.Context, image string, d *contract.Catalo
 // that follows reads verified bytes and never the network.
 func (s *server) prefetch(w http.ResponseWriter, r *http.Request) {
 	var b struct {
-		Image  string                      `json:"image"`
-		Derive *contract.CatalogDerivation `json:"derive"`
+		Image  string              `json:"image"`
+		Derive *catalog.Derivation `json:"derive"`
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16))
 	dec.DisallowUnknownFields()

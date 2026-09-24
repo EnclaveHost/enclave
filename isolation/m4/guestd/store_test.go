@@ -17,6 +17,7 @@ import (
 	"testing"
 
 	"enclave.host/isolation/contract"
+	"enclave.host/isolation/contract/catalog"
 )
 
 var preamble = []byte{0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00}
@@ -69,13 +70,13 @@ func newStoreRig(t *testing.T, f Fetcher) *rig {
 	return r
 }
 
-func rec(cid string, version uint32) contract.CatalogDerivation {
-	return contract.CatalogDerivation{Derivation: contract.CatalogDerivationV1,
-		Catalog: contract.CatalogRef{App: "0x" + strings.Repeat("ab", 32), Version: version}, CID: cid,
+func rec(cid string, version uint32) catalog.Derivation {
+	return catalog.Derivation{Derivation: catalog.V1,
+		Catalog: catalog.Ref{App: "0x" + strings.Repeat("ab", 32), Version: version}, CID: cid,
 		Policy: contract.Policy{CPUPercent: 100, MemMiB: 512, Vcpus: 1}, RuntimeID: rtHex}
 }
 
-func (r *rig) prefetch(d contract.CatalogDerivation) (int, map[string]any) {
+func (r *rig) prefetch(d catalog.Derivation) (int, map[string]any) {
 	return r.do("POST", "/prefetch", map[string]any{"image": "ipfs://" + d.CID, "derive": d})
 }
 
@@ -93,7 +94,7 @@ func TestPrefetchMapsOnceAndTheLaunchUsesTheDerivedBundle(t *testing.T) {
 	f := &fakeFetch{by: map[string][]byte{rawCID(a): a}}
 	r := newStoreRig(t, f)
 	d := rec(rawCID(a), 7)
-	want, bundle, _ := contract.MapCatalog(d, a)
+	want, bundle, _ := catalog.Map(d, a)
 	code, got := r.prefetch(d)
 	if code != 200 || got["appId"] != want.AppID || got["recordSha256"] != want.RecordSha256 {
 		t.Fatalf("prefetch: %d %v, want AppID %s", code, got, want.AppID)
@@ -122,11 +123,11 @@ func TestMalformedRequestsAreRefusedAndLeaveNothing(t *testing.T) {
 	f := &fakeFetch{by: map[string][]byte{rawCID(a): a, rawCID(core): core}}
 	r := newStoreRig(t, f)
 	good := rec(rawCID(a), 1)
-	bad := func(m func(*contract.CatalogDerivation)) contract.CatalogDerivation { d := good; m(&d); return d }
+	bad := func(m func(*catalog.Derivation)) catalog.Derivation { d := good; m(&d); return d }
 	cases := map[string]map[string]any{
-		"unknown derivation":   {"image": "ipfs://" + good.CID, "derive": bad(func(d *contract.CatalogDerivation) { d.Derivation = "enclave-catalog-bundle/2" })},
-		"policy not pinned":    {"image": "ipfs://" + good.CID, "derive": bad(func(d *contract.CatalogDerivation) { d.Policy.MemMiB = 0 })},
-		"another runtime":      {"image": "ipfs://" + good.CID, "derive": bad(func(d *contract.CatalogDerivation) { d.RuntimeID = strings.Repeat("ef", 32) })},
+		"unknown derivation":   {"image": "ipfs://" + good.CID, "derive": bad(func(d *catalog.Derivation) { d.Derivation = "enclave-catalog-bundle/2" })},
+		"policy not pinned":    {"image": "ipfs://" + good.CID, "derive": bad(func(d *catalog.Derivation) { d.Policy.MemMiB = 0 })},
+		"another runtime":      {"image": "ipfs://" + good.CID, "derive": bad(func(d *catalog.Derivation) { d.RuntimeID = strings.Repeat("ef", 32) })},
 		"record for other cid": {"image": "ipfs://" + rawCID(core), "derive": good},
 		"no record":            {"image": "ipfs://" + good.CID},
 		"a core module":        {"image": "ipfs://" + rawCID(core), "derive": rec(rawCID(core), 1)},
@@ -252,7 +253,7 @@ func TestATamperedStoreIsQuarantinedRefusedAndRederived(t *testing.T) {
 	}
 	// a mapping that names a different AppID is caught too
 	mp := filepath.Join(r.s.Store.dir, "mappings", first["recordSha256"].(string)+".json")
-	var m contract.CatalogMapping
+	var m catalog.Mapping
 	raw, _ := os.ReadFile(mp)
 	_ = json.Unmarshal(raw, &m)
 	m.AppID = strings.Repeat("00", 32)
@@ -284,7 +285,7 @@ func TestATamperedComponentFileIsQuarantinedOnTheNextWrite(t *testing.T) {
 	}
 }
 
-// The mapping and bundle guestd stores are reconstructed by the INDEPENDENT reference (contract/derive_reference.py,
+// The mapping and bundle guestd stores are reconstructed by the INDEPENDENT reference (contract/catalog/derive_reference.py,
 // written from DERIVE.md, not from the Go code) from nothing but the record and the component bytes.
 func TestTheStoreIsReconstructedIndependently(t *testing.T) {
 	if _, err := exec.LookPath("python3"); err != nil {
@@ -293,7 +294,7 @@ func TestTheStoreIsReconstructedIndependently(t *testing.T) {
 	a, b := component("A"), component("B")
 	f := &fakeFetch{by: map[string][]byte{rawCID(a): a, rawCID(b): b}}
 	r := newStoreRig(t, f)
-	for i, d := range []contract.CatalogDerivation{rec(rawCID(a), 3), rec(rawCID(b), 4)} {
+	for i, d := range []catalog.Derivation{rec(rawCID(a), 3), rec(rawCID(b), 4)} {
 		d.Policy = contract.Policy{CPUPercent: 50 * (i + 1), MemMiB: 256 * (i + 1), Vcpus: i + 1}
 		code, got := r.prefetch(d)
 		if code != 200 {
@@ -303,7 +304,7 @@ func TestTheStoreIsReconstructedIndependently(t *testing.T) {
 		rp, cp, op := filepath.Join(r.dir, "rec.json"), filepath.Join(r.dir, "comp"), filepath.Join(r.dir, "ref.bundle")
 		_ = os.WriteFile(rp, rj, 0o600)
 		_ = os.WriteFile(cp, f.by[d.CID], 0o600)
-		out, err := exec.Command("python3", "../../contract/derive_reference.py", "bundle", rp, cp, op).Output()
+		out, err := exec.Command("python3", "../../contract/catalog/derive_reference.py", "bundle", rp, cp, op).Output()
 		if err != nil {
 			t.Fatal(err)
 		}

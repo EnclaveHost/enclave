@@ -5,7 +5,7 @@ package main
 //
 //	store/components/<sha256>        the component bytes, verified against the CID by the platform's own CAR
 //	                                 verifier (wasm/ipfs_fetch.py) before they are ever written here
-//	store/bundles/<appId>.bundle     contract.DeriveCatalogBundle of those bytes under the record
+//	store/bundles/<appId>.bundle     catalog.DeriveBundle of those bytes under the record
 //	store/mappings/<recordSha256>.json  the mapping: record, component sha, AppID. WRITTEN LAST: it is the commit
 //	                                 point, so a crash between writes leaves content files but no mapping, and the
 //	                                 next resolve derives again and finds them byte-identical
@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"enclave.host/isolation/contract"
+	"enclave.host/isolation/contract/catalog"
 )
 
 // MaxComponentBytes bounds a fetch; the CAR verifier enforces it while reconstructing.
@@ -58,7 +59,7 @@ func refuse(code int, f string, a ...any) error { return &storeErr{code, fmt.Spr
 
 type flight struct {
 	done   chan struct{}
-	m      contract.CatalogMapping
+	m      catalog.Mapping
 	bundle []byte
 	err    error
 }
@@ -83,17 +84,17 @@ func newStore(dir string, f Fetcher, runtimeID string) (*store, error) {
 
 // resolve returns the mapping and bundle for a record, deriving (and fetching) it at most once however many
 // callers ask at the same time.
-func (s *store) resolve(ctx context.Context, rec contract.CatalogDerivation) (contract.CatalogMapping, []byte, error) {
+func (s *store) resolve(ctx context.Context, rec catalog.Derivation) (catalog.Mapping, []byte, error) {
 	if err := rec.Validate(); err != nil {
-		return contract.CatalogMapping{}, nil, refuse(422, "derivation record refused: %v", err)
+		return catalog.Mapping{}, nil, refuse(422, "derivation record refused: %v", err)
 	}
 	if rec.RuntimeID != s.RuntimeID {
-		return contract.CatalogMapping{}, nil, refuse(422, "the mapping is pinned to runtime %s…, and this host runs %s…",
+		return catalog.Mapping{}, nil, refuse(422, "the mapping is pinned to runtime %s…, and this host runs %s…",
 			rec.RuntimeID[:16], s.RuntimeID[:min(16, len(s.RuntimeID))])
 	}
 	d, err := rec.Digest()
 	if err != nil {
-		return contract.CatalogMapping{}, nil, refuse(422, "%v", err)
+		return catalog.Mapping{}, nil, refuse(422, "%v", err)
 	}
 	key := hex.EncodeToString(d[:])
 	s.mu.Lock()
@@ -103,7 +104,7 @@ func (s *store) resolve(ctx context.Context, rec contract.CatalogDerivation) (co
 		case <-f.done:
 			return f.m, f.bundle, f.err
 		case <-ctx.Done():
-			return contract.CatalogMapping{}, nil, ctx.Err()
+			return catalog.Mapping{}, nil, ctx.Err()
 		}
 	}
 	f := &flight{done: make(chan struct{})}
@@ -119,7 +120,7 @@ func (s *store) resolve(ctx context.Context, rec contract.CatalogDerivation) (co
 
 func (s *store) path(kind, name string) string { return filepath.Join(s.dir, kind, name) }
 
-func (s *store) resolveOnce(ctx context.Context, rec contract.CatalogDerivation, key string) (contract.CatalogMapping, []byte, error) {
+func (s *store) resolveOnce(ctx context.Context, rec catalog.Derivation, key string) (catalog.Mapping, []byte, error) {
 	mp := s.path("mappings", key+".json")
 	if _, err := os.Stat(mp); err == nil {
 		return s.load(rec, key)
@@ -127,15 +128,15 @@ func (s *store) resolveOnce(ctx context.Context, rec contract.CatalogDerivation,
 	s.fetches.Add(1)
 	comp, err := s.F.Fetch(ctx, rec.CID, MaxComponentBytes)
 	if err != nil {
-		return contract.CatalogMapping{}, nil, refuse(502, "prefetch of %s failed, and nothing was stored: %v", rec.CID, err)
+		return catalog.Mapping{}, nil, refuse(502, "prefetch of %s failed, and nothing was stored: %v", rec.CID, err)
 	}
-	m, bundle, err := contract.MapCatalog(rec, comp)
+	m, bundle, err := catalog.Map(rec, comp)
 	if err != nil {
-		return contract.CatalogMapping{}, nil, refuse(422, "%s is not derivable: %v", rec.CID, err)
+		return catalog.Mapping{}, nil, refuse(422, "%s is not derivable: %v", rec.CID, err)
 	}
 	mj, err := contract.Canonical(m)
 	if err != nil {
-		return contract.CatalogMapping{}, nil, refuse(500, "%v", err)
+		return catalog.Mapping{}, nil, refuse(500, "%v", err)
 	}
 	// content first, the mapping last: the mapping is what makes the others reachable
 	for _, w := range []struct {
@@ -147,16 +148,16 @@ func (s *store) resolveOnce(ctx context.Context, rec contract.CatalogDerivation,
 		{mp, mj},
 	} {
 		if err := s.writeOnce(w.p, w.b); err != nil {
-			return contract.CatalogMapping{}, nil, err
+			return catalog.Mapping{}, nil, err
 		}
 	}
 	return m, bundle, nil
 }
 
 // load reads a stored mapping and verifies all of it again, against the rule and not merely against itself.
-func (s *store) load(rec contract.CatalogDerivation, key string) (contract.CatalogMapping, []byte, error) {
+func (s *store) load(rec catalog.Derivation, key string) (catalog.Mapping, []byte, error) {
 	mp := s.path("mappings", key+".json")
-	var m contract.CatalogMapping
+	var m catalog.Mapping
 	raw, err := os.ReadFile(mp)
 	if err == nil {
 		err = json.Unmarshal(raw, &m)
@@ -176,7 +177,7 @@ func (s *store) load(rec contract.CatalogDerivation, key string) (contract.Catal
 	if err != nil {
 		return s.quarantine("the stored bundle no longer parses: "+err.Error(), mp, bp)
 	}
-	again, rebuilt, err := contract.MapCatalog(rec, comp)
+	again, rebuilt, err := catalog.Map(rec, comp)
 	if err != nil || again != m || !bytes.Equal(rebuilt, bundle) {
 		return s.quarantine("the stored mapping does not re-derive under the rule", mp, bp)
 	}
@@ -184,12 +185,12 @@ func (s *store) load(rec contract.CatalogDerivation, key string) (contract.Catal
 }
 
 // quarantine moves the offending files aside and refuses. They are kept, not deleted: they are evidence.
-func (s *store) quarantine(why string, paths ...string) (contract.CatalogMapping, []byte, error) {
+func (s *store) quarantine(why string, paths ...string) (catalog.Mapping, []byte, error) {
 	stamp := time.Now().UTC().Format("20060102T150405.000000000")
 	for _, p := range paths {
 		_ = os.Rename(p, s.path("quarantine", stamp+"-"+filepath.Base(p)))
 	}
-	return contract.CatalogMapping{}, nil, refuse(409, "%s; quarantined, and this request refused - the next one derives afresh", why)
+	return catalog.Mapping{}, nil, refuse(409, "%s; quarantined, and this request refused - the next one derives afresh", why)
 }
 
 // writeOnce creates path with exactly b, or finds it already holding exactly b. An existing file with other
