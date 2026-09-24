@@ -561,6 +561,15 @@ agreed with the Enclave verifier session, all nine of its fail-closed refinement
     verification and execution, which a naive path-based launcher loses.
   - Limits stay as they were: the first install and the launcher's own bytes are the out-of-band root, and
     whole-machine power loss is untested.
+  - Device: results/pvm-cpu-client-activation, on the real Pixel 10 VM.
+    - The accepted 0.3.0 staged and explicitly activated a labelled LAB next-version artifact (0.3.1 `ed82869d…`,
+      client/tools/lab-next.mjs, reproduced independently by the verifier session).
+    - Every later run was answered by 0.3.1, which verified the real evidence and streamed sealed answers. That
+      includes a policy-key rotation it committed.
+    - The tampered and missing active files were refused and repaired; the repair needed a successor-countersigned
+      manifest. A final rollback was refused, and no state moved on any failure.
+    - The run's own checker failed on its own miscount (9 expected, 10 results, all 0.3.1). The kept check.txt shows
+      that; the corrected check passes 43/43 on the same results.
 
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 

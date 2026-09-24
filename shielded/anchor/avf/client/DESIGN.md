@@ -194,6 +194,9 @@ Agreed with the verifier session before it was built (its five fail-closed rules
   downgrade is worse than a denial.
   - `staged` reports both records with `bytesMatch` and exits 1 on a mismatch.
   - Repair: remove a wrong file, then `update` with the same artifact, which is idempotent and re-publishes it.
+  - A repair is still an update, verified under the CURRENT keys. After a policy-key rotation, the original manifest's
+    countersignature comes from a retired key and is refused. Repairing then needs the same artifact countersigned by
+    the successor, which the release process issues again.
 - **Crashes.** A crash before the activation commit activates nothing, and a retry works. A crash after it leaves the new
   version active. Nothing moves backward: not the serial, the keys, staged or active.
 - **Scope.** The extension stages policies, not code. Its code updates are the browser's, through the store, which is not
@@ -261,6 +264,10 @@ Agreed with the verifier session before it was built (its five fail-closed rules
     both orders; kills before the commit.
   - The real client activated and run end to end against the fake VM, one hop across a concurrent activation, and
     markers planted and mismatched.
+- `client/tools/lab-next.mjs` derives a LAB next-version test artifact from a built base. Only two things change: the
+  first line, labelled with the base's sha256, and the version constant. The derivation is deterministic, and apart from
+  its first line it equals a source rebuild at the new version (the verifier session checked both). The activation test
+  and the device run use it.
 - Device: results/pvm-cpu-client-artifact (the CLI and the extension on the Pixel 10).
 
 ## What this does not solve

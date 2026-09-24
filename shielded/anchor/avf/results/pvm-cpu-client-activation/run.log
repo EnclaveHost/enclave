@@ -1,0 +1,33 @@
+05:20:28 launcher {"client":"enclave-pvm-client","version":"0.3.0","lab":"NOT PRODUCTION"} sha256 fad5ba229c5dbbb339aa6d3d505e31c6a07eaaabadbe2431533cf882fb0f6aa4 (commit 0f4c79fdc90d3bf80575a7822f18c3059fe481af), install dir /home/steven/.cache/enclave-pvm-client-lab/0924052027/install, lab keys /home/steven/.cache/enclave-pvm-client-lab/0924052027 (not in the repository)
+05:20:28 lab next-version artifact: {"version":"0.3.1","sha256":"ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c","size":137343,"base":{"version":"0.3.0","sha256":"fad5ba229c5dbbb339aa6d3d505e31c6a07eaaabadbe2431533cf882fb0f6aa4"},"lab":"LAB NEXT-VERSION TEST ARTIFACT, not production"}
+05:20:30 == launch
+05:22:18 l1: the VM serves (104 s)
+05:22:18 -- 0.3.0, the launcher itself
+{"label": "base-stream", "rc": 0, "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 1599, "ms": 3276, "policySerial": 1, "clientVersion": "0.3.0"}
+05:22:24 -- stage the lab next-version artifact (from an untrusted carrier); nothing runs it yet
+{"label": "update", "rc": 0, "ok": true, "version": "0.3.1", "gen": 3}
+{"label": "staged-not-active", "rc": 0, "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 1093, "ms": 2788, "policySerial": 1, "clientVersion": "0.3.0"}
+05:22:30 -- activate (explicit)
+{"label": "activate", "rc": 0, "ok": true, "version": "0.3.1", "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c", "gen": 4}
+05:22:30 -- 0.3.1, delegated: real evidence verified by the activated bytes, sealed request, streamed answer
+{"label": "active-stream", "rc": 0, "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 1264, "ms": 2929, "policySerial": 1, "clientVersion": "0.3.1"}
+{"label": "active-whole", "rc": 0, "status": 200, "ms": 1466, "policySerial": 1, "clientVersion": "0.3.1"}
+{"label": "planted-marker", "rc": 0, "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 1117, "ms": 2814, "policySerial": 1, "clientVersion": "0.3.1"}
+{"label": "active-policy-2", "rc": 0, "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 959, "ms": 2653, "policySerial": 2, "clientVersion": "0.3.1"}
+05:22:53 -- a policy-key rotation, committed by the delegated 0.3.1
+{"label": "rotate-3", "rc": 0, "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 1108, "ms": 2834, "policySerial": 3, "clientVersion": "0.3.1"}
+{"label": "successor-4", "rc": 0, "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 1146, "ms": 2864, "policySerial": 4, "clientVersion": "0.3.1"}
+{"label": "retired-5", "rc": 1, "step": "policy", "refused": "the policy is signed by a key this client's anchor does not name", "clientVersion": "0.3.1"}
+05:23:05 -- the active file tampered IN PLACE
+{"label": "tampered", "rc": 2, "step": "launch", "refused": "the active client 0.3.1 cannot start: pvm-client-0.3.1-ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c.mjs does not hold the recorded bytes (sha256 4dfaa3278be3bab39c327b32f6287342217673d7efeceb19b3f69c5edffa51ad, recorded ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c); nothing was run (no fallback to
+{"label": "repair-refused", "rc": 1, "ok": false, "reasons": ["pvm-client-0.3.1-ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c.mjs already exists with bytes other than its name says: refusing; it is left untouched and nothing is staged"]}
+{"label": "repair-old-key", "rc": 1, "ok": false, "reasons": ["the update is countersigned by a policy key this client's anchor does not name"]}
+{"label": "repair-1", "rc": 0, "ok": true, "already": true, "version": "0.3.1", "gen": 7}
+{"label": "repaired-stream", "rc": 0, "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 1151, "ms": 2858, "policySerial": 4, "clientVersion": "0.3.1"}
+05:23:11 -- the active file missing
+{"label": "missing", "rc": 2, "step": "launch", "refused": "the active client 0.3.1 cannot start: pvm-client-0.3.1-ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c.mjs cannot be read (ENOENT); nothing was run (no fallback to an older client)", "found": "missing"}
+{"label": "repair-2", "rc": 0, "ok": true, "already": true, "version": "0.3.1", "gen": 7}
+{"label": "repaired-2-stream", "rc": 0, "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 1140, "ms": 2824, "policySerial": 4, "clientVersion": "0.3.1"}
+05:23:18 -- an older policy under the successor key, through 0.3.1: the floor held through every failure
+{"label": "rollback", "rc": 1, "step": "policy", "refused": "policy serial 3 is below the 4 this client holds (its install floor or a newer policy it accepted): a rollback, refused", "clientVersion": "0.3.1"}
+05:23:18 waiting for the lab STOP
