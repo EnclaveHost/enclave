@@ -500,6 +500,15 @@ Exact remaining integration gaps (nothing below is verified today):
    stays a recorded failed run, never accepted: an F2-style regression case asserts its precise null-copy defect
    inside the run-2 review, and a separately invoked negative runner verifies the original assertion fails on it with
    its recorded reason; the strict acceptance command itself has zero failed, skipped or todo cases (130 of 130).
+10. Runner defect, found by the user's source audit and fixed: the strict command dropped every not-ok entry whose name
+   looked like a test file before classifying, and never checked the child's exit status or the numeric counts, so a
+   file-level timeout with `fail 1` could reach PASS once findings were closed. The verdict is now a pure function
+   (`verifier/integration/verdict.mjs`) tested on real TAP (`test/verifier-integration-verdict.test.mjs`): every not-ok
+   entry at any level counts; cancelled, skipped and todo entries fail and are named; the report must carry a plan and
+   every count, the counts must add up and match the entries; the exit status must agree with the report and a
+   signal death fails; only an open finding recorded against the exact pinned revision can account for an exact
+   case-level `testCodeFailure` it names, never a file or path, giving NOT ACCEPTED (exit 3); a clean, complete,
+   consistent run with exit 0 is the only PASS. Nothing disappears by name.
 
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial
