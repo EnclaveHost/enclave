@@ -226,7 +226,14 @@ export function createServer(manager) {
         catch { return send(400, { error: "body is not JSON" }); }
         // 201, which is what guestd answers and what the supervisor checks for
         try { return send(201, await manager.spawn(body)); }
-        catch (e) { return send(e.status || 500, { error: e.message, ...(e.prerequisites ? { prerequisites: e.prerequisites } : {}) }); }
+        // `id` MUST cross the wire on a 409 or adoption cannot happen: the client is told a name is
+        // live and has nothing to adopt. Manager.spawn sets it and the client reads it; this catch
+        // dropped it, so both halves were written for an adoption that could never occur over HTTP
+        // (enclave-99, measured over real HTTP - which is why calling Manager.spawn directly in a
+        // test never showed it).
+        catch (e) { return send(e.status || 500, { error: e.message,
+                                                   ...(e.id ? { id: e.id } : {}),
+                                                   ...(e.prerequisites ? { prerequisites: e.prerequisites } : {}) }); }
       }
       const m = p.match(/^\/vms\/([^/]+)$/);
       if (m && req.method === "GET") { const r = manager.get(decodeURIComponent(m[1])); return r ? send(200, r) : send(404, { error: "not_found" }); }
