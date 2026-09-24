@@ -345,9 +345,15 @@ int main(void) {
     /* the key was forgotten with the naming, so a report needs it registered again */
     e = puts_("key", keyhex);
     say("re_register_key", e == 0 ? "ok" : strerror(-e));
+    show("key_registered_again", "key");
     e = puts_("report", "1");
     say("report_after_re_admit", e == 0 ? "GRANTED" : strerror(-e));
     show("report_after_re_admit_result", "result");
+    /* The BYTES, not just the success code. Without them the post-cycle report's binding over the RE-registered
+     * key, its level and its app ID are known only from the SVSM saying it worked - which is an inference about
+     * the mechanism rather than evidence of it, and the first report is checked from its bytes. With the same key
+     * and nonce this report_data should equal the first report's exactly, which is itself worth seeing. */
+    show("report_after_re_admit_hex", "report");
 
     stop();
 }
