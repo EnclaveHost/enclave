@@ -18,9 +18,23 @@ export const PVM_EVIDENCE_MAX_BYTES = 256 * 1024;
 const hex = (b) => Buffer.from(b).toString("hex");
 const isHex = (s, n) => typeof s === "string" && s.length === n && /^[0-9a-f]+$/.test(s);
 
-export async function loadOwnerVerifier() {
-  try { const m = await import("../relay/pvm-app-attest.mjs"); return typeof m.verifyPvmAppEvidence === "function" ? m.verifyPvmAppEvidence : null; } catch { return null; }
+// Where the owner's module comes from, in order: ENCLAVE_PVM_MODULE (an absolute path resolved by
+// verifier/integration/resolve.mjs from the pinned commit), else ../relay/pvm-app-attest.mjs in this tree (present
+// once the owner's branch lands on main). ENCLAVE_STRICT_INTEGRATION=1 turns "absent" into an error, so an
+// acceptance run can never pass by skipping.
+export const STRICT_INTEGRATION = process.env.ENCLAVE_STRICT_INTEGRATION === "1";
+export async function loadOwnerModule() {
+  const explicit = process.env.ENCLAVE_PVM_MODULE;
+  try {
+    const m = await import(explicit ? (await import("node:url")).pathToFileURL(explicit).href : "../relay/pvm-app-attest.mjs");
+    if (typeof m.verifyPvmAppEvidence !== "function") throw new Error("module has no verifyPvmAppEvidence export");
+    return m;
+  } catch (e) {
+    if (STRICT_INTEGRATION) throw new Error(`strict integration: the owner's module is missing or unusable (${explicit || "../relay/pvm-app-attest.mjs"}): ${e.message}`);
+    return null;
+  }
 }
+export async function loadOwnerVerifier() { const m = await loadOwnerModule(); return m ? m.verifyPvmAppEvidence : null; }
 
 // verifyPvmEvidence(envelope, expect, { verifyImpl?, now? }) -> harness verdict
 //   expect: { nonce: Buffer(32), appId: Buffer(32), allowedRuntimeIds, allowedCodeHashes, allowedAuthorityHashes, rootPins,

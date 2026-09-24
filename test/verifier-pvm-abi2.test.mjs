@@ -4,13 +4,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { verifyPvmAbi2 } from "../verifier/index.mjs";
-let mod = null; try { mod = await import("../relay/pvm-app-attest.mjs"); } catch {}
+import { verifyPvmAbi2, loadOwnerModule, STRICT_INTEGRATION } from "../verifier/index.mjs";
+const mod = await loadOwnerModule();
 const F = new URL("./fixtures/verifier/pvm-abi2/", import.meta.url);
-test("without the pVM module the harness says unsupported", { skip: !!mod }, async () => {
-  const v = await verifyPvmAbi2({}, {}); assert.equal(v.status, "unsupported"); assert.match(v.reasons[0], /pvm-app-attest/);
+test("the pVM module absent: the harness says unsupported; present: empty evidence is rejected, never unsupported", async () => {
+  const v = await verifyPvmAbi2({}, {});
+  if (mod) { assert.equal(v.status, "rejected"); } else { assert.equal(v.status, "unsupported"); assert.match(v.reasons[0], /pvm-app-attest/); }
 });
-test("ap-case1: binding verified (owner nonce, not a relay); ap-baddigest: refused by app policy", { skip: !mod && "relay/pvm-app-attest.mjs not in this tree" }, async () => {
+test("ap-case1: binding verified (owner nonce, not a relay); ap-baddigest: refused by app policy", { skip: !mod && !STRICT_INTEGRATION && "owner module absent (set ENCLAVE_PVM_MODULE via verifier/integration/resolve.mjs)" }, async () => {
+  assert.ok(mod, "strict integration: the owner's module must be present");
   const parse = (f) => mod.abi2FromLog(fs.readFileSync(new URL(f, F), "utf8"));
   const ok = parse("ap-case1.log"); assert.equal(ok.chain.length, 5); assert.ok(ok.binding);
   // the log records the payload's own view of the binding; a verifier recomputes it from the identity it reads

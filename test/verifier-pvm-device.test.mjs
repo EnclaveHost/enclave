@@ -9,11 +9,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { randomBytes } from "node:crypto";
-import { verifyPvmEvidence, loadOwnerVerifier, admit, createNonceRegistry, RELEASE, HOLD } from "../verifier/index.mjs";
+import { verifyPvmEvidence, loadOwnerModule, STRICT_INTEGRATION, admit, createNonceRegistry, RELEASE, HOLD } from "../verifier/index.mjs";
 
-const owner = await loadOwnerVerifier();
-let ownerMod = null; try { ownerMod = await import("../relay/pvm-app-attest.mjs"); } catch {}
-const skip = !owner && "relay/pvm-app-attest.mjs verifyPvmAppEvidence not in this tree";
+// the owner's module: ENCLAVE_PVM_MODULE (resolved from the pinned commit by verifier/integration/resolve.mjs) or the
+// tree's relay/pvm-app-attest.mjs; absent -> these cases SKIP, unless ENCLAVE_STRICT_INTEGRATION=1, where loadOwnerModule throws
+const ownerMod = await loadOwnerModule();
+const owner = ownerMod ? ownerMod.verifyPvmAppEvidence : null;
+const skip = !owner && !STRICT_INTEGRATION && "owner module absent (set ENCLAVE_PVM_MODULE via verifier/integration/resolve.mjs)";
 const F = new URL("./fixtures/verifier/pvm-evidence/", import.meta.url);
 const l1 = JSON.parse(fs.readFileSync(new URL("l1-evidence.json", F), "utf8")), l2 = JSON.parse(fs.readFileSync(new URL("l2-evidence.json", F), "utf8"));
 const v2 = JSON.parse(fs.readFileSync(new URL("l1-v2-evidence.json", F), "utf8"));

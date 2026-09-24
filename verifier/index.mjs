@@ -23,7 +23,7 @@ export { verifyReleaseAttestation, DEFAULT_RELEASE_POLICY } from "./provenance.m
 export { checkHostedCertificate, spkiOfCert, hashAttestationDocument } from "./tls-binding.mjs";
 export { fileCollateral, memoryCollateral, httpCollateral, layeredCollateral, AMD_KDS } from "./collateral.mjs";
 export { admit, createNonceRegistry, RELEASE, HOLD } from "./admission.mjs";
-export { verifyPvmEvidence, loadOwnerVerifier, PVM_EVIDENCE_FORMAT, PVM_EVIDENCE_FORMAT_V2, PVM_EVIDENCE_FORMATS } from "./pvm-evidence.mjs";
+export { verifyPvmEvidence, loadOwnerVerifier, loadOwnerModule, STRICT_INTEGRATION, PVM_EVIDENCE_FORMAT, PVM_EVIDENCE_FORMAT_V2, PVM_EVIDENCE_FORMATS } from "./pvm-evidence.mjs";
 import { verifyPvmEvidence, PVM_EVIDENCE_FORMATS } from "./pvm-evidence.mjs";
 
 const unsupported = (technology, why) => ({ status: "unsupported", admissionSafe: false, omissions: [], technology, reasons: [`UNSUPPORTED: ${why}`], checks: {}, claims: null });
@@ -69,7 +69,9 @@ async function verifyAvf(env, policy, context) {
 // The pVM ABI/2 app attestation (Bind2 || AppID as the AVF challenge) lives on branch pvm-cpu/portable-runtime
 // as relay/pvm-app-attest.mjs; imported when present, "unsupported" when not (never restated here).
 export async function verifyPvmAbi2(evidence, opts) {
-  let mod; try { mod = await import("../relay/pvm-app-attest.mjs"); } catch { return unsupported(TECH.AVF, "relay/pvm-app-attest.mjs is not in this tree (branch pvm-cpu/portable-runtime); the pVM ABI/2 app attestation cannot be judged here"); }
+  const { loadOwnerModule } = await import("./pvm-evidence.mjs");
+  const mod = await loadOwnerModule();
+  if (!mod) return unsupported(TECH.AVF, "relay/pvm-app-attest.mjs is not in this tree (branch pvm-cpu/portable-runtime; set ENCLAVE_PVM_MODULE via verifier/integration/resolve.mjs); the pVM ABI/2 app attestation cannot be judged here");
   const r = mod.verifyPvmAppAbi2(evidence, opts);
   // the pVM captures bind an OWNER nonce (fixtures/verifier/pvm-abi2/SOURCE.md): the module's ok is "binding verified"
   return { status: r.ok ? "verified" : "rejected", admissionSafe: !!r.ok, omissions: [], technology: TECH.AVF, reasons: r.reasons, checks: { pvmAbi2: r.ok }, claims: r.ok ? { runtimeId: r.runtimeId, bind2: r.bind2, measurement: r.measurement } : null };
