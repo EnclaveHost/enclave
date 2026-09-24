@@ -98,5 +98,5 @@
   textarea:not(:focus) { border-color: var(--line-strong); }
 }
 
-@import "../../components/compute-art/compute-art.css" layer(components);
+@import "../../components/cinematic-scene/cinematic-scene.css" layer(components);
 @import "./visual.css" layer(components);

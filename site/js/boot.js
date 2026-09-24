@@ -1,4 +1,4 @@
-import "../components/compute-art/compute-art.js";
+import "../components/cinematic-scene/cinematic-scene.js";
 /* ============================================================
    Soft-navigation router. Full-document navigations can't be
    made seamless when an extension injects content scripts

@@ -51,6 +51,7 @@
 </script>
 <link rel="preconnect" href="https://mainnet.base.org" crossorigin />
 <link rel="dns-prefetch" href="https://api.enclave.host" />
+<link rel="preload" as="image" href="assets/compute-cinematic.webp" fetchpriority="high" />
 <link rel="stylesheet" href="css/site.css" />
 <script type="module" blocking="render" src="js/boot.js"></script>
 <script type="application/ld+json">
@@ -115,10 +116,11 @@
 <!-- ===================== HERO ===================== -->
 <a id="top"></a>
 <section class="hero" data-view="overview" aria-label="Intro">
+  <c-cinematic-scene></c-cinematic-scene>
   <div class="wrap hero-grid">
     <div class="hero-copy">
       <span class="eyebrow">Verifiable compute · API v1</span>
-      <h1>Compute that <span class="hl">cannot</span><br>see your&nbsp;data.</h1>
+      <h1>Compute that<br><span class="hl">cannot see</span><br>your data.</h1>
       <p class="lede">Your apps. Your data. <b>Your boundary.</b><br>Run one portable app across independent hosts. Verify its protection before you connect. Pay only for the compute you use.</p>
       <p class="hero-detail">Hardware isolation keeps the ordinary host OS out. Confidential hardware also protects against the machine’s operator.</p>
       <div class="hero-cta">
@@ -133,8 +135,7 @@
       </div>
     </div>
 
-    <!-- signature: sealed enclave -->
-    <c-compute-art caption="Protected by design" label="COMPUTE"></c-compute-art>
+
   </div>
 
   <!-- facts marquee -->

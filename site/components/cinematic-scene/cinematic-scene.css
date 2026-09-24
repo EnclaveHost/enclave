@@ -1,0 +1,13 @@
+/* Original photographic plate with composited camera and lighting movement. */
+c-cinematic-scene{position:absolute;display:block;inset:0;overflow:hidden;z-index:0;isolation:isolate;background:#070a0c;}
+.cinema-media{position:absolute;inset:-3%;overflow:hidden;animation:cinema-drift 24s ease-in-out infinite alternate;animation-play-state:paused;transform:scale(1.04);}
+.cinema-image{display:block;width:100%;height:100%;object-fit:cover;object-position:70% center;}
+.cinema-light{position:absolute;inset:-50%;pointer-events:none;background:linear-gradient(115deg,transparent 43%,rgba(149,255,220,.09) 50%,transparent 57%);mix-blend-mode:screen;transform:translateX(-20%);animation:cinema-light 18s ease-in-out infinite alternate;animation-play-state:paused;}
+.cinema-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(5,8,10,.78),rgba(5,8,10,.45) 38%,rgba(5,8,10,.03) 75%),linear-gradient(0deg,#070a0f 0%,transparent 23%,transparent 85%,rgba(7,10,15,.25));}
+.cinema-running .cinema-media,.cinema-running .cinema-light{animation-play-state:running;}
+.cinema-pause{position:absolute;z-index:3;bottom:27px;right:32px;border:1px solid rgba(255,255,255,.25);border-radius:30px;padding:8px 12px;background:rgba(4,10,12,.7);color:#dce7e5;font:11px var(--font-mono);cursor:pointer;}
+.cinema-pause:hover{background:#172622;border-color:#58ebbb;}
+@keyframes cinema-drift{from{transform:scale(1.04) translate3d(0,0,0);}to{transform:scale(1.14) translate3d(-1.5%,1%,0);}}
+@keyframes cinema-light{from{transform:translateX(-20%);opacity:.3;}to{transform:translateX(20%);opacity:.85;}}
+@media(prefers-reduced-motion:reduce){.cinema-media,.cinema-light{animation:none!important;}.cinema-pause{display:none;}}
+@media(max-width:640px){.cinema-image{object-position:64% center;}.cinema-shade{background:linear-gradient(90deg,rgba(5,8,10,.7),rgba(5,8,10,.2)),linear-gradient(0deg,#070a0f,rgba(7,10,15,.15) 50%,rgba(7,10,15,.35));}.cinema-pause{right:22px;bottom:18px;}}
