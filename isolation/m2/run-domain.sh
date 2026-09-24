@@ -12,6 +12,10 @@
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/../m1/domain.env"
+# A caller may point this launch at a DIFFERENT firmware without editing domain.env, which is how
+# verify-firmware.sh tests whether a build actually verifies the SEV kernel hash table. domain.env stays the
+# default so an ordinary run is unchanged.
+OVMF=${OVMF_OVERRIDE:-$OVMF}
 cmd=$1; shift
 case "$cmd" in
 start)
