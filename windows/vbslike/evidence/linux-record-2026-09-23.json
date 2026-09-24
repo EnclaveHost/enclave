@@ -1,0 +1,113 @@
+{
+ "version": "enclave-conformance-record/1",
+ "platform": "linux-snp-guest",
+ "tier": "T1",
+ "format": "sev-snp-guest-domain-v1",
+ "abi": null,
+ "image": {
+  "sha256": "44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf",
+  "kernelSha256": null
+ },
+ "backend": {
+  "measurement": "483bd097aa45c05971ec230f5178eb8b1650fb4730aed136bf5e78e452fce40b4ae50f488f8874aad78e9ecec55ba0c2",
+  "vmpl": 0,
+  "chain": "AMD (test/fixtures/amd), VCEK held, min-TCB = the box's own"
+ },
+ "bundles": {
+  "A": {
+   "appId": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
+   "bytes": 59833
+  },
+  "B": {
+   "appId": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
+   "bytes": 59833
+  }
+ },
+ "attest": {
+  "A": {
+   "verdict": "attested",
+   "abi": "enclave-domain-abi/2",
+   "runtime": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "host-detected",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "selfTest": "exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom1",
+   "appIdInReport": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
+   "appIdFromMonitor": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
+   "bindingOk": true
+  },
+  "B": {
+   "verdict": "attested",
+   "abi": "enclave-domain-abi/2",
+   "runtime": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "host-detected",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "selfTest": "exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom2",
+   "appIdInReport": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
+   "appIdFromMonitor": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
+   "bindingOk": true
+  }
+ },
+ "app": {
+  "A": {
+   "hello": "APP AAAAA path=/hello?from=client",
+   "echoIntact": true,
+   "echoNote": "client.mjs --perf: 4 x 16 MiB"
+  },
+  "B": {
+   "hello": "APP BBBBB path=/hello?from=client",
+   "echoIntact": true,
+   "echoNote": "client.mjs --perf: 4 x 16 MiB"
+  }
+ },
+ "negatives": {
+  "wrongApp": "reject",
+  "tamperedBundle": "bundle refused: bundle manifest names a different artifact than it carries",
+  "restatedRuntimeVersion": "reject",
+  "unauthenticatedCache": "reject",
+  "abi1Downgrade": "reject"
+ },
+ "provenance": {
+  "tamperedBundleRefusedBy": "in-guest monitor (isolation/contract Parse, Go)",
+  "crash": "a bare artifact that is not wasm: the runtime fails and the domain's init exits",
+  "baselineVerdict": "attested"
+ },
+ "lifecycle": {
+  "crashRetiredOnce": true,
+  "crashLeavesNothing": true,
+  "otherUnaffectedAfterCrash": true,
+  "destroyRemovesFromTable": true,
+  "destroyClosesPort": true,
+  "otherUnaffectedAfterDestroy": true
+ },
+ "timings": {
+  "load_A_ms": 7,
+  "first_attestation_A_ms": null,
+  "first_app_response_A_ms": null,
+  "latency_p50_A_ms": 0.34,
+  "echo_A_mb_per_s": 714.8,
+  "load_B_ms": 8,
+  "first_attestation_B_ms": null,
+  "first_app_response_B_ms": null,
+  "latency_p50_B_ms": 0.35,
+  "echo_B_mb_per_s": 725.8,
+  "boot_to_monitor_ms": 3802,
+  "contention": "quiet box: the SNP-batch owner held SVSM/IGVM builds for this window; no other guest running (pgrep qemu-system = 0 before start)"
+ },
+ "notes": [
+  "T1: the report is PSP-signed and the AMD chain verified; the monitor image is in the launch measurement on this kernel-hashes path (plain SNP guest, VMPL0)"
+ ]
+}

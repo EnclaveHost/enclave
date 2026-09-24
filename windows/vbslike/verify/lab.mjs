@@ -178,11 +178,22 @@ if (A && B) {
   check("3f a report under a launcher key the client does not trust is not monitor-signed", J({ doc: aA.doc, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey: randomBytes(32).toString("base64") }).verdict !== "monitor-signed");
 
   console.log("\n4. the artifact that was hashed is the one that runs: the m2 test app answers with its compiled-in label");
-  const rA = (await get(A.tcpPort, aA.spki, "/hello")).body.toString(), rB = (await get(B.tcpPort, aB.spki, "/hello")).body.toString();
+  const rA = (await get(A.tcpPort, aA.spki, "/hello?from=client")).body.toString(), rB = (await get(B.tcpPort, aB.spki, "/hello?from=client")).body.toString();
+  evidence.hello = { A: rA, B: rB };
   check("4 app A answers with label AAAAA and app B with BBBBB, each on its own attested key", rA.startsWith(`APP ${appA.label} `) && rB.startsWith(`APP ${appB.label} `), JSON.stringify({ A: rA.trim(), B: rB.trim() }));
   const big = randomBytes(4 << 20);
   const back = await echo(A.tcpPort, aA.spki, big);
-  check("4b 4 MiB echoed intact through a partition (TLS ends inside it; the launcher relays ciphertext)", back.equals(big), `${back.length} bytes`);
+  const backB = await echo(B.tcpPort, aB.spki, big);
+  check("4b 4 MiB echoed intact through each partition (TLS ends inside it; the launcher relays ciphertext)", back.equals(big) && backB.equals(big), `${back.length} / ${backB.length} bytes`);
+  evidence.echoIntact = { A: back.equals(big), B: backB.equals(big) };
+  // a bundle with one bit flipped in its artifact after the manifest named the artifact's hash: refused
+  // by the launcher's contract mirror before a partition exists, with the contract's own words
+  const tamperedBundleFile = path.join(APPS, "appA-tampered.bundle");
+  if (fs.existsSync(tamperedBundleFile)) {
+    const t = await ask(`load T ${tamperedBundleFile}`);
+    evidence.tamperedBundle = t.error || "ACCEPTED";
+    check("4c a bundle whose artifact was altered after its manifest named it is refused with the contract's reason", typeof t.error === "string" && t.error.includes("bundle manifest names a different artifact than it carries"), t.error || JSON.stringify(t));
+  }
 
   console.log("\n5. the adversary inside a partition: native code as root, in the domain (isolation/m3 domprobe)");
   const P = (await ask(`load P ${appA.file} probe`)).loaded;
@@ -204,6 +215,7 @@ if (A && B) {
   const endedLines = (evidence.events.A = evA.events).filter((e) => e.includes("ended:"));
   check("6b it ended exactly once, by the partition's exit", endedLines.length === 1 && /partition exited/.test(endedLines[0] || ""), endedLines.join(" | "));
   check("6c A's relay port no longer answers", await portClosed(A.tcpPort));
+  evidence.stateBeforeKill = stateTwo; evidence.crashEndedLines = endedLines;
   const aB2 = await attest(B.tcpPort, aB.spki);
   const jB2 = J({ doc: aB2.doc, spki: aB2.spki, nonce: aB2.nonce, expectedAppSha256: appB.appId, launcherKey, expectedVmId: B.vmId });
   check("6d B still attests on the same key it had before A died, and still answers", jB2.verdict === "monitor-signed" && aB2.spki.equals(aB.spki) && (await get(B.tcpPort, aB.spki, "/x")).body.toString().startsWith(`APP ${appB.label} `), jB2.reasons.join("; "));
@@ -241,5 +253,27 @@ cp.stdin.end();
 await sleep(1000);
 evidence.results = results; evidence.failures = failures; evidence.hostLog = hostLog; evidence.imageSha256 = imageSha;
 fs.writeFileSync(path.join(OUT, "lab.json"), JSON.stringify(evidence, null, 1));
+// the conformance record (isolation/conformance/record.mjs), from what this run judged and observed
+if (args.record) {
+  const rec = { version: "enclave-conformance-record/1", platform: "windows-hcs-partition", tier: "T0-hv", format: "hyperv-partition-domain/v1", abi: null,
+    image: { sha256: imageSha, kernelSha256: ready.kernelSha256 }, backend: { launcherKey, imageSha256: imageSha, hostExcluded: false },
+    bundles: { A: { appId: appA.appId, bytes: appA.bytes }, B: { appId: appB.appId, bytes: appB.bytes } }, attest: {}, app: {}, negatives: {}, provenance: {}, lifecycle: {}, timings: {}, notes: [] };
+  const rdOf = (doc) => { try { return signedReportOf(doc).doc.reportData; } catch { return ""; } };
+  for (const [L, a, j, loaded] of [["A", evidence.attestA, evidence.verdicts.A, evidence.A], ["B", evidence.attestB, evidence.verdicts.B, evidence.B]]) {
+    rec.attest[L] = { verdict: j.verdict, abi: a.abi ?? null, runtime: a.runtime ?? null, selfTest: a.runtimeSelfTest ?? null, appIdInReport: rdOf(a).slice(64), appIdFromMonitor: loaded.guest.appSha256, bindingOk: j.checks["report_data[0:32] == the binding recomputed from the handshake key, our nonce and the stated runtime"] === true };
+    rec.app[L] = { hello: (evidence.hello || {})[L]?.trim() ?? null, echoIntact: (evidence.echoIntact || {})[L] ?? null, echoNote: "lab.mjs: 1 x 4 MiB" };
+    rec.timings[`load_${L}_ms`] = Math.round(loaded.ms.loaded - loaded.ms.monitor); rec.timings[`boot_to_monitor_${L}_ms`] = Math.round(loaded.ms.monitor);
+  }
+  rec.abi = rec.attest.A.abi;
+  const res = (name) => (results.find((x) => x.name.startsWith(name)) || {}).ok;
+  rec.negatives = { wrongApp: res("3 ") ? "reject" : "ACCEPTED", tamperedBundle: evidence.tamperedBundle ?? "not run",
+    restatedRuntimeVersion: res("2g") ? "reject" : "ACCEPTED", unauthenticatedCache: res("2h") ? "reject" : "ACCEPTED", abi1Downgrade: res("2i") ? "reject" : "ACCEPTED" };
+  rec.provenance = { tamperedBundleRefusedBy: "launcher (isolation/contract mirror, Rust) before the partition exists", crash: "the host terminates the partition without notice (HcsTerminateComputeSystem)", baselineVerdict: evidence.verdicts.A.verdict };
+  rec.lifecycle = { crashRetiredOnce: !!res("6b"), crashLeavesNothing: !!res("6e"), otherUnaffectedAfterCrash: !!res("6d"), destroyRemovesFromTable: !!res("7c"), destroyClosesPort: !!res("7b"), otherUnaffectedAfterDestroy: !!res("7d") };
+  rec.timings.contention = args.contention || "not stated";
+  rec.notes.push("T0-hv: the launcher in the root partition signs; the host is not excluded and the guest image is recorded by hash, not measured; 'crash' here is the host terminating the partition, on Linux a bad artifact ending the domain");
+  fs.writeFileSync(args.record, JSON.stringify(rec, null, 1));
+  console.log(`conformance record written: ${args.record}`);
+}
 console.log(`\n${failures === 0 ? "ALL PASS" : failures + " FAILURES"} (${results.length} checks); evidence in ${path.join(OUT, "lab.json")}`);
 process.exit(failures === 0 ? 0 : 1);

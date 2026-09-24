@@ -1,0 +1,106 @@
+{
+ "version": "enclave-conformance-record/1",
+ "platform": "windows-hcs-partition",
+ "tier": "T0-hv",
+ "format": "hyperv-partition-domain/v1",
+ "abi": "enclave-domain-abi/2",
+ "image": {
+  "sha256": "44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf",
+  "kernelSha256": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd"
+ },
+ "backend": {
+  "launcherKey": "IvzjeI2GWwCIt965CNGhnAcPO0YgVMMUcCTTC8494uo=",
+  "imageSha256": "44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf",
+  "hostExcluded": false
+ },
+ "bundles": {
+  "A": {
+   "appId": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
+   "bytes": 59833
+  },
+  "B": {
+   "appId": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
+   "bytes": 59833
+  }
+ },
+ "attest": {
+  "A": {
+   "verdict": "monitor-signed",
+   "abi": "enclave-domain-abi/2",
+   "runtime": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "host-detected",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "selfTest": "exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom1",
+   "appIdInReport": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
+   "appIdFromMonitor": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
+   "bindingOk": true
+  },
+  "B": {
+   "verdict": "monitor-signed",
+   "abi": "enclave-domain-abi/2",
+   "runtime": {
+    "name": "wasmtime",
+    "version": "48.0.1",
+    "execution": "jit",
+    "targetIsa": "x86_64",
+    "hostIsa": "x86_64",
+    "cpuFeatures": "host-detected",
+    "wx": "enforced",
+    "cache": "none"
+   },
+   "selfTest": "exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom1",
+   "appIdInReport": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
+   "appIdFromMonitor": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
+   "bindingOk": true
+  }
+ },
+ "app": {
+  "A": {
+   "hello": "APP AAAAA path=/hello?from=client",
+   "echoIntact": true,
+   "echoNote": "lab.mjs: 1 x 4 MiB"
+  },
+  "B": {
+   "hello": "APP BBBBB path=/hello?from=client",
+   "echoIntact": true,
+   "echoNote": "lab.mjs: 1 x 4 MiB"
+  }
+ },
+ "negatives": {
+  "wrongApp": "reject",
+  "tamperedBundle": "bundle refused: bundle manifest names a different artifact than it carries",
+  "restatedRuntimeVersion": "reject",
+  "unauthenticatedCache": "reject",
+  "abi1Downgrade": "reject"
+ },
+ "provenance": {
+  "tamperedBundleRefusedBy": "launcher (isolation/contract mirror, Rust) before the partition exists",
+  "crash": "the host terminates the partition without notice (HcsTerminateComputeSystem)",
+  "baselineVerdict": "monitor-signed"
+ },
+ "lifecycle": {
+  "crashRetiredOnce": true,
+  "crashLeavesNothing": true,
+  "otherUnaffectedAfterCrash": true,
+  "destroyRemovesFromTable": true,
+  "destroyClosesPort": true,
+  "otherUnaffectedAfterDestroy": true
+ },
+ "timings": {
+  "load_A_ms": 6,
+  "boot_to_monitor_A_ms": 5339,
+  "load_B_ms": 7,
+  "boot_to_monitor_B_ms": 5328,
+  "contention": "NucBox otherwise idle apart from the live node (ee-host, node agent); no other partitions"
+ },
+ "notes": [
+  "T0-hv: the launcher in the root partition signs; the host is not excluded and the guest image is recorded by hash, not measured; 'crash' here is the host terminating the partition, on Linux a bad artifact ending the domain"
+ ]
+}

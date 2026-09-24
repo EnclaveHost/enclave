@@ -180,7 +180,7 @@ pub fn parse(b: &[u8]) -> Result<(Manifest, &[u8]), ParseError> {
         return Err(ParseError::Malformed(format!("artifact kind {:?} is not distributable: only {KIND_WASM_COMPONENT} is", m.artifact.kind)));
     }
     if m.artifact.sha256 != hex::encode(Sha256::digest(art)) {
-        return Err(ParseError::Malformed("manifest names a different artifact than it carries".into()));
+        return Err(ParseError::Malformed("bundle manifest names a different artifact than it carries".into()));
     }
     Ok((m, art))
 }
