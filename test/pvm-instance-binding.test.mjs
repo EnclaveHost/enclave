@@ -98,8 +98,8 @@ test("IN PROCESS, the client's own code: a bound deployment is served by its ins
     // downgrade: v2 in answer to EVIDENCE3 -- refused by name before any certificate; an OLD VM that does not know EVIDENCE3 -- refused
     const dg = await run(D1, "down");
     assert.equal(dg.step, "verify"); assert.match(dg.refused, /unbound evidence format .* refused as a downgrade/); assert.equal(served(vm.down), 0);
-    const old = await run(D1, "old");
-    assert.equal(old.step, "verify"); assert.match(old.refused, /refused as a downgrade/); assert.equal(old.sent, false);
+    const old = await run(D1, "old");   // an OLD build answers EVIDENCE3 with its own error line: no evidence, in the VM's words
+    assert.equal(old.step, "evidence"); assert.match(old.refused, /the VM answered with an error, not evidence: "request is EVIDENCE/); assert.equal(old.sent, false);
     // an UNBOUND entry keeps the 0.4 rule: v2, and it says it is not bound
     const ub = await run(D3, "i3");
     assert.equal(ub.complete, true, JSON.stringify(ub)); assert.equal(ub.verified.format, V2); assert.deepEqual(ub.deployment, { id: D3, app: APP, instance: null, bound: false });

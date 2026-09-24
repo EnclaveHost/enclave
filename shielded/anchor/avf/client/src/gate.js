@@ -34,11 +34,14 @@ export async function admit(verdict, expect = {}, { clientKind, observedPeerSpki
   if (!app || c.appId !== app) return hold("the verified app id is not the client's expected app");
   if (!expect.allowedRuntimeIds.includes(c.runtimeId)) return hold("the verified runtime id is not one the client admits");
   if (typeof c.transportSpki !== "string" || !/^302a300506032b6570032100[0-9a-f]{64}$/.test(c.transportSpki)) return hold("the verdict binds no transport key");
+  // v3 always names its instance, bound deployment or not: a v3 verdict without one is malformed
+  if (c.format === V3 && (typeof c.instanceId !== "string" || !HEX(64).test(c.instanceId))) return hold("a v3 verdict without an InstanceID is malformed");
   if (expect.instanceIds !== undefined) {   // a bound deployment: the instance is part of what must match, never optional
-    if (!Array.isArray(expect.instanceIds) || !expect.instanceIds.length || !expect.instanceIds.every((i) => typeof i === "string" && HEX(64).test(i)))
-      return hold("the client's instance expectation is malformed");
-    if (c.format !== V3) return hold("the deployment is bound to instances, and the evidence format names none: a downgrade");
-    if (typeof c.instanceId !== "string" || !expect.instanceIds.includes(c.instanceId)) return hold("the verified instance is not one bound to the selected deployment");
+    const ids = expect.instanceIds;
+    if (!Array.isArray(ids) || ids.length < 1 || ids.length > 8 || !ids.every((i) => typeof i === "string" && HEX(64).test(i)) || new Set(ids).size !== ids.length)
+      return hold("the instance expectation is malformed: 1..8 unique InstanceIDs (64 lowercase hex), or none");
+    if (c.format !== V3) return hold("the selected deployment is bound to instances: only a v3 verdict naming the instance can release");
+    if (!ids.includes(c.instanceId)) return hold("the verified instance is not one bound to the selected deployment");
   }
   if (clientKind === "native") {
     const peer = hexOf(observedPeerSpki);
@@ -47,7 +50,7 @@ export async function admit(verdict, expect = {}, { clientKind, observedPeerSpki
     return { decision: "release", reason: "RELEASE", pinned: { transportSpkiSha256: toHex(await sha256(fromHex(c.transportSpki))) } };
   }
   if ((c.format !== "enclave-pvm-app-evidence/v2" && c.format !== V3) || typeof c.appKey !== "string" || !HEX(64).test(c.appKey))
-    return hold("browser client: the evidence binds no application-layer public key, and browser code cannot read the peer TLS certificate, so nothing can be pinned");
+    return hold("browser client: the evidence binds no application-layer public key, and browser code cannot read the peer TLS certificate, so nothing here binds the transport");
   const s = c.sealed;
   if (!s || !Number.isSafeInteger(s.windowSeconds) || !Number.isSafeInteger(s.maxRequests) || s.windowSeconds < 1 || s.maxRequests < 1)
     return hold("browser client: the evidence states no sealed window");

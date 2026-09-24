@@ -1,9 +1,13 @@
-# Instance binding for pVM deployments (AGREED with the verifier session; IMPLEMENTED on the branch; device capture pending)
+# Instance binding for pVM deployments (AGREED with the verifier session; IMPLEMENTED; CAPTURED on the Pixel 10)
 
 **Status.** The verifier session (enclave-99) agreed the bytes, the trust source and the release rule at 3be2ce0c,
 before either side wrote them. They are implemented on this branch in the client (0.5.0), the relay's hub, the VM
 payload and the phone's host app, and tested on synthetic fixtures. The verifier pins those fixtures.
-- **Not yet done:** a real device capture. The instance secret's device behaviour stays unmeasured until then.
+- **Captured on the device** (results/pvm-cpu-instance-binding, PASS):
+  - enrollment, bound, other-instance and unbound turns;
+  - a restart;
+  - two same-key APK updates.
+  Re-provisioning is still unmeasured.
 - LAB, not production. Nothing here is deployed.
 
 This slice was directed in this session, relaying Steven's ask to restart idle work. It is not a new approval for any
@@ -32,9 +36,13 @@ The transport key stays as in v2: made fresh at each VM boot.
 - AVF derives that secret from a device value known to the hypervisor, the VM's code and its non-modifiable
   configuration. The host OS never sees it (`avfref/vm_payload.h`).
 - AVF documents it as stable for the same instance across VM restarts and device reboots, and new for a new instance.
-- **Not yet measured here.** Two properties need a device measurement before anything relies on them: that it is stable
-  across restart, and that it changes on re-provisioning (a new `instance.img`). Its behaviour across an APK update
-  signed by the same key is also unmeasured.
+- **Measured on the Pixel 10** (results/pvm-cpu-instance-binding):
+  - the same InstanceID across 6 VM boots;
+  - the same across a same-key APK update that changed the payload code;
+  - the same across a same-key rebuild with other bytes and another code hash, with the bound deployment answering
+    after it.
+- **Not measured:** that it changes on re-provisioning (a new `instance.img`), because that wipes the lab app's data.
+  This is AVF's documented behaviour only.
 
 ## The bytes
 
@@ -180,8 +188,8 @@ instance's VM process holds `appKey`'s private half. So pvm-rt does not change.
 | **client** | web/pvm-verify.js | the WebCrypto copy, held equal to the node one on every fixture |
 | **client** | client/src/{trust,client,gate,enroll,carrier}.js, cli.mjs, ext/ | policy type 2, the v3 path for bound entries, the gate rule, enrollment, carriers |
 
-- **Compile checks.** The payload was checked with the NDK clang in both tier builds, and the host app with `javac`
-  against android-35. The APK itself was NOT built, and nothing ran on the device.
+- **Builds.** The payload was compile-checked with the NDK clang in both tier builds, and the host app with `javac`
+  against android-35. The APK was then built and run on the device (see "The device campaign").
 
 ## Tests
 
@@ -216,9 +224,19 @@ instance's VM process holds `appKey`'s private half. So pvm-rt does not change.
   - v3 checked over Bind2;
   - `connect()` without the instance expectation.
 
-## The device campaign (pending; coordinated with the isolation owner before it runs)
+## The device campaign (RAN 2026-09-24; results/pvm-cpu-instance-binding, `check.txt` PASS; the isolation owner cleared it)
 
-Until it runs, device behaviour is **unmeasured**, and the verifier marks it so. It needs:
+- **Measured.** Enrollment on real v3 evidence (Google's roots) proved the VM's logged InstanceID. Then:
+  - the bound deployment answered;
+  - a deployment bound to another instance was refused, against the same genuine VM;
+  - an unbound deployment answered over v2;
+  - a restart and two same-key updates all kept the InstanceID;
+  - the relay's hub verified every instance-bound attach over its own nonce.
+- **Three earlier attempts are kept.** One of them found a payload bug: the v3 answer's buffer estimate cut its final
+  newline to a NUL, and the client refused it as unparseable. It is fixed, and a cut answer is never sent.
+- **Still unmeasured:** re-provisioning.
+
+The campaign was planned as:
 - **A real capture with the instance bound.** A v3 evidence exchange and the attach frame from the Pixel.
 - **Restart.** A VM stop and start, and a device reboot: is the InstanceID the same?
 - **Re-provisioning.** A new `instance.img` (app data cleared, or a reinstall): is the InstanceID new?
@@ -233,5 +251,5 @@ the device session are heavier work, so they wait for the isolation owner's go-a
 - An InstanceID is a VM instance, not a place, an operator or a host. Who runs it is the lease and the ledger, which
   the client does not read.
 - The binding is only as good as the signer's enrollment. The signer vouches that instance X serves D.
-- On the device, the instance secret's stability across restarts and its change on re-provisioning must be measured
-  before any claim relies on them.
+- On the device, the instance secret's stability across restarts and same-key updates is MEASURED on one Pixel 10
+  (above). Its change on re-provisioning is not.

@@ -1,0 +1,11 @@
+19:56:25Z capture preflight: PASS the capture preflight: a capture failure stops the shell with exit 3, nothing after it runs
+19:56:26Z client {"client":"enclave-pvm-client","version":"0.5.0","lab":"NOT PRODUCTION"} sha256 6063e24ea3ed2075a143b1023fac9eabdc7a44185e475f740391f28ff6f5a82d; app 29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373; APK1 code 077d5c353aa4a44206e784dbe27b205194fa6aa5629bcc8d238902b76148bf90, APK2 code 49b9e3cb08734dcfbdda15656d69ff56556798033c5928ba1a87dfb32300ac18; lab keys /home/steven/.cache/enclave-pvm-client-lab/ib09241256 (not in the repository)
+19:56:26Z installed APK is already apk1.apk (ea36520954c7ea8e09d25034442082ff45f897bb5e1b531fa65bc87fb53e4aef)
+19:56:28Z == A: APK1
+19:58:10Z a: the VM serves (99 s)
+19:58:14Z A: the VM logged INSTANCE ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340
+{"label": "enroll-a", "rc": 0}
+19:58:14Z A: enrolled ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340 (the client's own v3 exchange, Google's roots) -- the VM logged ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340
+{"label": "bound-a", "rc": 1, "step": "verify", "refused": "undefined is an unbound evidence format for a deployment bound to instances: refused as a downgrade (v3 required)", "policySerial": 2, "clientVersion": "0.5.0"}
+19:58:15Z A: bound 0xe4e32b524ab125dd54e889537a92f0642f05d489ddaf89b6903e67d5c95153f0 -> {'complete': None, 'step': 'verify', 'refused': 'undefined is an unbound evidence format for a deployment bound to instances: refused as a downgrade (v3 required)', 'deployment': {'id': '0xe4e32b524ab125dd54e889537a92f0642f05d489ddaf89b6903e67d5c95153f0', 'app': '29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373', 'instance': None, 'bound': True}}
+19:58:15Z STOP: the bound deployment did not answer as bound

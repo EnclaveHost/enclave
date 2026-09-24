@@ -1,0 +1,27 @@
+20:02:53Z capture preflight: PASS the capture preflight: a capture failure stops the shell with exit 3, nothing after it runs
+20:02:54Z client {"client":"enclave-pvm-client","version":"0.5.0","lab":"NOT PRODUCTION"} sha256 32dad95102aebfafdc816b6f05420ca9d9a8a4de38adc6bbb2f9b14ffc0c580c; app 29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373; APK1 code fdfe8fd3831839d7fb7cacf189d2a258462284f1dae9085c82ba4df9c538128c, APK2 code 3be4b0d59e214c285fb836c9ae00c178d4ae22a5d797f18f457adb4cf486d236; lab keys /home/steven/.cache/enclave-pvm-client-lab/ib09241302 (not in the repository)
+20:02:56Z installed apk1.apk over the previous build, data kept (c51ad1036ff90a2219f0bf908f80d4eaed54a78fb382503b851b0c55d000334b)
+20:02:58Z == A: APK1
+20:04:46Z a: the VM serves (104 s)
+20:04:49Z A: the VM logged INSTANCE ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340
+{"label": "enroll-a", "rc": 0}
+20:04:53Z A: enrolled ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340 (the client's own v3 exchange, Google's roots) -- the VM logged ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340
+{"label": "bound-a", "rc": 0, "complete": true, "status": 200, "tokens": 8, "firstTokenMs": 1413, "ms": 1859, "policySerial": 2, "clientVersion": "0.5.0"}
+20:04:58Z A: bound 0xe4e32b524ab125dd54e889537a92f0642f05d489ddaf89b6903e67d5c95153f0 -> {'complete': True, 'step': None, 'refused': None, 'deployment': {'id': '0xe4e32b524ab125dd54e889537a92f0642f05d489ddaf89b6903e67d5c95153f0', 'app': '29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373', 'instance': 'ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340', 'bound': True}}
+{"label": "other-a", "rc": 1, "step": "verify", "refused": "instance ccd79db14e9f3a22\u2026 is a genuine instance of this app, but not one bound to the selected deployment: refused", "policySerial": 2, "clientVersion": "0.5.0"}
+20:05:02Z A: another deployment bound to another instance -> {'step': 'verify', 'refused': 'instance ccd79db14e9f3a22… is a genuine instance of this app, but not one bound to the selected deployment: refused', 'sent': False}
+{"label": "unbound-a", "rc": 0, "complete": true, "status": 200, "tokens": 8, "firstTokenMs": 1148, "ms": 1588, "policySerial": 2, "clientVersion": "0.5.0"}
+20:05:07Z A: unbound -> {'complete': True, 'deployment': {'id': '0x1dafcf2543b0bd29af974bef9b7ee2635d527dd617228d47fefa607c65640c97', 'app': '29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373', 'instance': None, 'bound': False}} enclave-pvm-app-evidence/v2
+20:05:07Z == B: restart
+20:06:55Z b: the VM serves (105 s)
+20:06:58Z B: the VM logged INSTANCE ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340 after the restart (SAME)
+{"label": "bound-b", "rc": 0, "complete": true, "status": 200, "tokens": 8, "firstTokenMs": 1320, "ms": 1770, "policySerial": 2, "clientVersion": "0.5.0"}
+20:07:03Z B: bound 0xe4e32b524ab125dd54e889537a92f0642f05d489ddaf89b6903e67d5c95153f0 -> {'complete': True, 'step': None, 'refused': None, 'deployment': {'id': '0xe4e32b524ab125dd54e889537a92f0642f05d489ddaf89b6903e67d5c95153f0', 'app': '29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373', 'instance': 'ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340', 'bound': True}}
+20:07:03Z == C: APK2 (same key, other bytes and code hash) installed over APK1, data kept
+20:07:05Z installed apk2.apk over the previous build, data kept (0de7b05738c3cb56e39d3d46b7c28bf3a88a8697442f197027f9d71f50da1ecf)
+20:08:52Z c: the VM serves (104 s)
+20:08:55Z C: the VM logged INSTANCE ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340 after the update (SAME)
+{"label": "bound-c", "rc": 0, "complete": true, "status": 200, "tokens": 8, "firstTokenMs": 1337, "ms": 1866, "policySerial": 2, "clientVersion": "0.5.0"}
+20:09:00Z C: bound 0xe4e32b524ab125dd54e889537a92f0642f05d489ddaf89b6903e67d5c95153f0 -> {'complete': True, 'step': None, 'refused': None, 'deployment': {'id': '0xe4e32b524ab125dd54e889537a92f0642f05d489ddaf89b6903e67d5c95153f0', 'app': '29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373', 'instance': 'ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340', 'bound': True}}
+20:09:01Z the lab app was stopped by the script (the VM ends with it)
+20:09:01Z done: A ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340 / B ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340 / C ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340
