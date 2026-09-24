@@ -64,7 +64,7 @@ test("the seam works when a host can launch, and a booted guest is not a running
   const r = await mk({ backend: booted }).spawn(spawnBody());
   assert.equal(r.status, "starting", "console output is not evidence the app is serving, and 'starting' is a word the supervisor knows");
   assert.equal(r.appReady, false);
-  assert.match(r.reason, /no app-readiness handshake/);
+  assert.match(r.reason, /readiness has not been judged yet/);
   assert.equal("attestation" in r, false, "still none: booted is not attested either");
   // and when a backend CAN prove the app is up, the word is earned
   const ready = new HyperVPartitionBackend({ launch: async () => ({ pid: 1, appReady: true, guest: { booted: true, bytes: 9 }, stop: async () => {} }) });
@@ -270,4 +270,77 @@ test("POST /vms answers 201, and /health carries the boundary, over the wire", a
     const h = await (await fetch(`http://127.0.0.1:${port}/health`)).json();
     assert.ok("boundary" in h, "a reader must be able to learn what this manager's isolation IS");
   } finally { srv.close(); }
+});
+
+/* ---- readiness reaches the record: `running` and the key it was reached on ------------------- *
+ *
+ * The gap 5d's datapath and enclave-99's record-to-route case both name: every record carried
+ * transportKeySha256: null, so a route could never be admitted. judgeRunning produced the value
+ * and nothing called it. These drive the injected rule. */
+
+const relayBackend = () => ({ supports: {}, backend: "hv",
+  boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
+  start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false,
+                        boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
+                        domainId: 1, guestPort: 40001, tcpPort: 19101, image: "ab".repeat(32),
+                        launcherKey: "LKEY" }),
+  stop: async () => {} });
+
+test("a domain that passes the rule becomes running AND carries the verified key", async () => {
+  const KEY = "cd".repeat(32);
+  const seen = [];
+  const m = mk({ backend: relayBackend(),
+    judgeReady: async (a) => { seen.push(a); return { status: "running", transportKeySha256: KEY,
+      checks: { document: { ok: true, verdict: "monitor-signed" }, ready: { ok: true } } }; } });
+  const r = await m.spawn(spawnBody());
+  assert.equal(r.status, "starting", "spawn answers at once; readiness is judged behind it");
+  await m.judging.get(r.id);
+  const after = m.get(r.id);
+  assert.equal(after.status, "running");
+  assert.equal(after.transportKeySha256, KEY, "the route is admitted on exactly this");
+  assert.equal(after.verdict, "monitor-signed", "and never anything stronger: no chain is verified here");
+  assert.equal(after.hostExcluded, false, "still not host-excluded, however ready it is");
+  // the rule was asked about the right domain, on the relay port, with the launcher's key
+  assert.equal(seen[0].port, 19101);
+  assert.equal(seen[0].appId, after.appId);
+  assert.equal(seen[0].launcherKey, "LKEY");
+});
+
+test("a domain that fails the rule is failed, and never running without the key", async () => {
+  const m = mk({ backend: relayBackend(),
+    judgeReady: async () => ({ status: "failed", reason: "the document was not accepted", transportKeySha256: null,
+                               checks: { document: { ok: false, verdict: "unsigned" } } }) });
+  const r = await m.spawn(spawnBody());
+  await m.judging.get(r.id);
+  const after = m.get(r.id);
+  assert.equal(after.status, "failed");
+  assert.equal(after.transportKeySha256, null);
+  assert.match(after.reason, /not accepted/);
+});
+
+test("a backend with no relay port cannot be judged, and says so instead of claiming running", async () => {
+  const noRelay = { ...relayBackend(),
+    start: async () => ({ name: "vm", state: "Running", guest: { booted: true }, appReady: false }) };
+  const m = mk({ backend: noRelay, judgeReady: async () => ({ status: "running", transportKeySha256: "x" }) });
+  const r = await m.spawn(spawnBody());
+  await m.judging.get(r.id);
+  const after = m.get(r.id);
+  assert.equal(after.status, "starting", "no port, no verdict: it must not become running");
+  assert.equal(after.transportKeySha256, null);
+  assert.match(after.reason, /no relay port/);
+});
+
+test("a rule that throws fails the domain rather than leaving it starting forever", async () => {
+  const m = mk({ backend: relayBackend(), judgeReady: async () => { throw new Error("boom"); } });
+  const r = await m.spawn(spawnBody());
+  await m.judging.get(r.id);
+  assert.equal(m.get(r.id).status, "failed");
+  assert.match(m.get(r.id).reason, /could not be judged: boom/);
+});
+
+test("with NO rule wired the record stays starting and never invents a key", async () => {
+  const m = mk({ backend: relayBackend() });          // judgeReady null
+  const r = await m.spawn(spawnBody());
+  assert.equal(r.status, "starting");
+  assert.equal(r.transportKeySha256, null, "a manager that cannot judge must not produce a routable record");
 });

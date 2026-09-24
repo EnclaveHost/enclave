@@ -8,6 +8,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Manager, createServer } from "./server.mjs";
+import { judgeRunning } from "./ready.mjs";
 import { HyperVPartitionBackend } from "./backend.mjs";
 import { WmiHyperVLauncher } from "./wmi-launcher.mjs";
 import { powershellRunner } from "./psrun.mjs";
@@ -34,7 +35,7 @@ const fetchComponent = cidFetcher({
 const launcher = imagePath && imageSha256
   ? new WmiHyperVLauncher({ run: powershellRunner(), imagePath, imageSha256 })
   : null;
-const manager = new Manager({
+const manager = new Manager({ judgeReady: judgeRunning,
   runtimeId,
   fetchComponent,
   backend: new HyperVPartitionBackend({ launcher }),
