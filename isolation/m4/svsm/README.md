@@ -112,9 +112,23 @@ must be an admitted member with the inode that was encoded, and every admitted E
     local    test-rtset.sh 14/14 (every member flipped, shortened and dropped; three maps-check negatives)
 
 Each negative ran under an IGVM whose table covers ITS image and whose SVSM is the good run's own binary, so only
-admission could refuse it. **Not established:** the component `/app.wasm` is extracted from the admitted bundle
-at BUILD time and is not itself admitted (the next gap of the same shape); the maps check is one reading at load and
-is the plane's own word, not the hardware's; ONE app on ONE plane, and the second-plane blocker is unchanged.
+admission could refuse it. **Not established:** the maps check is one reading at load and is the plane's own
+word, not the hardware's; ONE app on ONE plane, and the second-plane blocker is unchanged. (This run's plane still
+executed a build-time `/app.wasm`; that gap is closed in the next section.)
+
+## The app a plane serves is the component of the bundle it ADMITTED (2026-09-24)
+
+`evidence/app-binding-2026-09-24.txt`, run `~/enclave-bench/m4b-app-085652`. Not independently reviewed.
+planeinit reads `/app.bundle` once, stages exactly those bytes, and after the SVSM admits them cuts the component
+from the same buffer (`guest/appbundle.h`: the contract's framing, and the manifest must name this component's
+sha256) and hands it to the runtime as a sealed memfd at `/proc/self/fd/3`. The image carries no `/app.wasm`.
+
+    good       11/11; the plane's component hash == the contract extractor's; runtime maps the sealed memfd only
+    decoy      a DIFFERENT component planted at /app.wasm: every check passes, it serves exactly the good app,
+               and reports the decoy unused (the old planeinit would have served DECOY under the good AppID)
+    truncated  REFUSED 0x80001004, nothing admitted, powered off
+    missing    refused before any admission call, powered off
+    local      test-appbundle.sh 6/6 (13 malformed bundles refused by the plane AND the contract)
 
 ## A malformed hash table does not refuse - it disarms verification
 
@@ -601,9 +615,8 @@ matters:
   completely - its own key bound, B's AppID, vmpl=2, the SVSM's measurement - over its own GHCB, and admission
   never sees it. The fix is that app planes get NO VMPCK and protocol 6 becomes the only report path.
 * ~~**The admitted "runtime image" is the wasmtime ELF alone.**~~ Closed for the serving plane 2026-09-24: the
-  runtime kind admits the whole `/rt` set (section "The runtime SET is admitted whole"). What remains of the same
-  shape: the executed component `/app.wasm` is cut from the admitted bundle at build time rather than by the plane
-  from the file it admitted.
+  runtime kind admits the whole `/rt` set (section "The runtime SET is admitted whole"), and the executed component
+  is cut by the plane from the bundle bytes it admitted (section "The app a plane serves...").
 * **A4: admitted bytes are not bound to what EXECUTES.** The loader is the unmeasured guest kernel: it can
   present the genuine bundle and runtime, have them admitted, and execute a different copy. Closing it means
   the SVSM owning the plane's initial image and entry - loading it from compiled-in digests into pages it
