@@ -236,6 +236,23 @@ PY
   grep -q "^OK:" "$W/measurement.check" && r=ok || r=no
   check "5b and the report's MEASUREMENT equals igvmmeasure of the launched IGVM" $r
   sed 's/^/       /' "$W/measurement.check"
+
+  # 5c is the one that makes 5b mean anything. Everything above reads fields out of bytes the GUEST printed and
+  # trusts the SVSM's status word; only the AMD chain makes them the PSP's statement rather than the guest's.
+  # Until this passes the report is UNAUTHENTICATED and must be called that.
+  VCEK=${VCEK:-$HOME/.cache/enclave-isolation/m3-clean/vcek.der}
+  CHAIN=${CHAIN:-$here/../../test/fixtures/amd/Turin-cert_chain.pem}
+  MINTCB=${MINTCB:-$HOME/.cache/enclave-isolation/m3-clean/min-tcb.json}
+  if [ -r "$VCEK" ] && [ -r "$CHAIN" ] && [ -r "$MINTCB" ]; then
+    node "$here/verify-report.mjs" "$W" "$MAN" "$VCEK" "$CHAIN" "${PRODUCT:-Turin}" "$MINTCB" \
+      > "$W/report.check" 2>&1 && r=ok || r=no
+    check "5c and the AMD chain verifies it, at VMPL 2, with every field as the build stated" $r
+    sed 's/^/       /' "$W/report.check"
+  else
+    check "5c and the AMD chain verifies it, at VMPL 2, with every field as the build stated" infra
+    echo "       INFRA: no VCEK/chain/min-tcb at $VCEK, $CHAIN, $MINTCB - the report stays UNAUTHENTICATED,"
+    echo "       so nothing above may be called attested. Run m2/vcek-prep.mjs to produce one."
+  fi
 fi
 
 # ---- case 2, substitution ------------------------------------------------------------------------------------
