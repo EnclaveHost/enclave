@@ -245,7 +245,14 @@ Codex directed this slice under Steven's standing scope. Coding the disabled pat
         broken-module relay only with the switch unset. The module's own switch check then kept `enabled` OFF, so
         nothing visible changed: the module was simply loaded.
       - The test now boots that relay under every OFF value.
-    - **Run 2** (this commit): control clean, 20 of 20 caught, `PASS` (rc 0).
+    - **Run 2**, on the working tree: control clean, 20 of 20 caught, `PASS` (rc 0). The tree differed from e3d549d2
+      only by one test line's `gitleaks:allow` comment.
+    - **Run 3**, the verifier session's own run on the exact commit e3d549d2, in a detached worktree: control clean,
+      20 of 20 caught, `PASS` (rc 0).
+      - Its first attempt exited 2 on the harness's precondition, because a worktree has no `relay/node_modules`.
+        Nothing ran half-configured.
+      - With the modules linked in, it gave the result above.
+      - It reviewed and closed all three notes. Nothing further on the carrier.
 - **Not given, unchanged.** A genuine instance of the expected app is not proof of this deployment's specific instance
   ("What this does and does not give a buyer").
 - **Before any activation, the owner's:**
