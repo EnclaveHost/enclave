@@ -18,6 +18,7 @@
      absent rather than null-shaped or "pending". Nothing here produces a report.
    ============================================================ */
 import http from "node:http";
+import { runtimeId as runtimeId_ } from "../../../isolation/contract/runtime.mjs";
 import crypto from "node:crypto";
 import { derive, DERIVATION, DERIVATION_V2, DERIVATIONS } from "./derive.mjs";
 
@@ -57,10 +58,21 @@ export class Manager {
    * @param readyDeadlineMs  how long a domain has to become ready before it is failed.
    */
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
-                judgeReady = null, readyDeadlineMs = 120_000 } = {}) {
+                runtime = null, judgeReady = null, readyDeadlineMs = 120_000 } = {}) {
     this.backend = backend;
     this.fetchComponent = fetchComponent;       // (cid) -> Buffer, CID-verified by the caller's fetcher
-    this.runtimeId = runtimeId;
+    // THE RUNTIME IDENTITY, not just its hash. judge-hv hands `expectRuntime` to the shared
+    // checkRuntime as `want.runtime`, which DIFFS IT FIELD BY FIELD against the identity the
+    // document states (name, version, execution, targetIsa, hostIsa, cpuFeatures, wx, cache). A
+    // 64-hex RuntimeID has none of those fields, so passing one rejected every real document and
+    // the manager could never say running - both halves right, the join passing the wrong thing
+    // (enclave-99, defect 11, measured through the real join).
+    //
+    // So the identity is the input and the hash is DERIVED from it with the contract's own
+    // runtimeId(), rather than being configured separately: two independently-supplied values that
+    // must agree are two values that will eventually disagree.
+    this.runtime = runtime;
+    this.runtimeId = runtime ? Buffer.from(runtimeId_(runtime)).toString("hex") : runtimeId;
     this.judgeReady = judgeReady;
     this.readyDeadlineMs = readyDeadlineMs;
     this.domains = new Map();
@@ -90,7 +102,9 @@ export class Manager {
     }
     try {
       const v = await judge({ host: rec.relay.host, port: rec.relay.port, appId: rec.appId,
-                              launcherKey: handle.launcherKey, expectRuntime: rec.runtimeId,
+                              launcherKey: handle.launcherKey,
+                              // the IDENTITY object, which is what checkRuntime compares; never the hash
+                              expectRuntime: this.runtime ?? undefined,
                               deadlineMs: this.readyDeadlineMs });
       if (!this.domains.has(rec.id)) return;                // removed while we were judging
       rec.transportKeySha256 = v.transportKeySha256 ?? null;
