@@ -27,6 +27,27 @@
    field. A path is not an identity; two runs must be able to prove they booted the same bytes.
    ============================================================ */
 
+/*  THE VM MUST BE CREATED WITH A GUEST-STATE ISOLATION TYPE, or FirmwareFile is inert.
+ *
+ *  Measured on nucbox-k11 2026-09-24, and it is not obvious: a Generation 2 VM created WITHOUT
+ *  `-GuestStateIsolationType` accepts the firmware pin (ModifySystemSettings returnValue 0), reads
+ *  `FirmwareFile` back correctly, starts, and then boots nothing - the worker never logs a
+ *  "Loading IGVM file" line at all, because a VM with no guest-state isolation type has no
+ *  paravisor and nothing consumes the field. Every failure looks like a bad image; none of them is.
+ *
+ *  Created WITH `-GuestStateIsolationType OpenHCL`, the worker actually tries, and says what it
+ *  wants (Worker-Admin event 5142):
+ *      failed to load custom IGVM file because AllowFirmwareLoadFromFile registry key is not set
+ *
+ *  So the two are independent: the VM setting decides whether our image is CONSIDERED, the host
+ *  registry key decides whether it is ALLOWED. Upstream's Guide/src/user_guide/openhcl/run/hyperv.md
+ *  documents both; enclave-53 found it there. Secure Boot is NOT part of it - pinned VMs fail the
+ *  same way with it on and off - but the guide turns it off because a guest image may need that, so
+ *  the default here is off and it is a parameter rather than a decision baked in.
+ *
+ *  `IsolationType` on Msvm_VirtualSystemSettingData reads EMPTY even when the VM was created with
+ *  one, so do not detect this by reading that field back.
+ */
 export const GUEST_FEATURE_SET = 0x00000201;   // the value Microsoft's script writes, kept as theirs
 export const MIN_VM_VERSION = 12.0;            // their script throws below this
 export const OWNER_MARKER = "enclave-vbslike-app-domain";
@@ -71,11 +92,12 @@ export const CMD = {
    * nothing. The marker is applied inside the same try for the same reason: a VM that exists
    * without it is invisible to a marker-scoped teardown.
    */
-  create: ({ name, memMiB, vcpus, version = "12.0" }) => ps(`
+  create: ({ name, memMiB, vcpus, version = "12.0", isolation = "OpenHCL", secureBoot = false }) => ps(`
     $ErrorActionPreference = 'Stop';
     $vm = $null;
     try {
-      $vm = New-VM -Name ${q(name)} -Generation 2 -MemoryStartupBytes ${Math.round(memMiB)}MB -NoVHD -Version ${q(version)};
+      $vm = New-VM -Name ${q(name)} -Generation 2 -MemoryStartupBytes ${Math.round(memMiB)}MB -NoVHD -Version ${q(version)}${isolation ? ` -GuestStateIsolationType ${q(isolation)}` : ""};
+      ${secureBoot ? "" : "Set-VMFirmware -VM $vm -EnableSecureBoot Off;"}
       Set-VM -VM $vm -Notes ${q(OWNER_MARKER)};
       Set-VMProcessor -VM $vm -Count ${Math.max(1, Math.floor(vcpus))};
       Set-VMMemory -VM $vm -DynamicMemoryEnabled $false;

@@ -82,8 +82,44 @@ LinuxKernelDirect that the VM never supplied. enclave-53 ruled it out twice over
    read the file.** A hypothesis about what is INSIDE an image cannot explain a failure that
    happens before the image is opened. Content can only matter once a load begins.
 
-So the cause is host or VM CONFIGURATION: `AllowFirmwareLoadFromFile`, or some VM setting the
-worker checks before it honours `FirmwareFile`.
+**PROVEN 22:27Z. Hyper-V names the key itself.** enclave-53 found the upstream guide
+(`Guide/src/user_guide/openhcl/run/hyperv.md` at our openvmm pin) and spotted that every documented
+flow creates the VM with `New-VM -GuestStateIsolationType`, which mine never did. Created that way,
+the worker stops being silent and says exactly what it wants — Worker-Admin event **5142**:
+
+> `failed to load custom IGVM file because AllowFirmwareLoadFromFile registry key is not set`
+> `Loading custom IGVM files is not allowed without a registry opt-in.` (0x80070032)
+
+Identical for `-GuestStateIsolationType OpenHCL` and `TrustedLaunch`.
+
+**Two independent gates, and this is the part that cost hours:**
+
+| gate | what it decides | kind |
+|---|---|---|
+| `New-VM -GuestStateIsolationType OpenHCL` | whether our image is **considered** at all | a VM setting — mine, fixed |
+| `AllowFirmwareLoadFromFile` = 1 (DWORD) | whether our image is **allowed** to load | a host registry key — Steven's |
+
+Without the first, the pin is accepted (`returnValue 0`), `FirmwareFile` reads back, the VM starts,
+and the guest is silent with **no diagnostic anywhere** — every symptom points at the image, and
+none of them is about the image. That is a fail-silent gate, and it is why two different IGVMs and
+a Secure Boot sweep all produced the same uninformative result.
+
+Secure Boot is NOT a factor: pinned VMs fail the same way with it on and off. `IsolationType` on
+`Msvm_VirtualSystemSettingData` reads EMPTY even when the VM was created with one, so it cannot be
+used to detect this.
+
+**Fixed in the launcher**: `CMD.create` now passes `-GuestStateIsolationType OpenHCL` and turns
+Secure Boot off (the guide does, for guest images that need it), with both as parameters. Three
+tests model the measured host and fail against the old `create`.
+
+**What remains is one line, and it is Steven's:**
+```powershell
+Set-ItemProperty "HKLM:/Software/Microsoft/Windows NT/CurrentVersion/Virtualization" `
+  -Name AllowFirmwareLoadFromFile -Value 1 -Type DWORD
+```
+Per the upstream guide it is run once before starting the VM and "enables loading unsigned images".
+It permits Hyper-V to load firmware from an arbitrary file, so it is a host security change and not
+covered by the role/reboot authorization.
 
 What is still NOT established is *which* — `AllowFirmwareLoadFromFile` is the
 leading candidate and is unset, but nothing yet proves that key is the gate rather than some other
