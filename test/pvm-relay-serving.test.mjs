@@ -198,3 +198,80 @@ test("the wiring review's cases: a hung ledger answers 504 and caps pending look
     assert.deepEqual([await asClient("a"), await asClient("b"), await asClient("a")], [404, 404, 429]);
   } finally { for (const s of servers) s.close(); vm.close(); slow.close(); }
 });
+
+// ---- the module on the REAL tunnel hub (relay/tunnel.js): a synthetic phone attaches with AVF evidence and verifies its app
+// over the hub's ABI/2 nonce (as in test/tunnel.test.mjs), then carries each spliced stream to a fake VM, frame by frame ----
+test("on the REAL tunnel hub: the module's streams go through tunnel.js spliceRaw to an attested phone -- evidence to any attested pVM tunnel, sealed only to a hub-verified app", { skip: !haveOpenssl && "no openssl", timeout: 180000 }, async () => {
+  const { WebSocket } = await import("ws");
+  const { createTunnelHub } = await import("../relay/tunnel.js");
+  const { pvmCpuPolicy } = await import("../relay/pvm-cpu-tier.mjs");
+  const { AVF_PAD_FORMAT, avfPadBinding } = await import("../relay/avf-binding.mjs");
+  const { bind2 } = await import("../relay/pvm-app-attest.mjs");
+  const { issueLeaf, extension, AUTH } = await import("./fixtures/avf-synthetic.mjs");
+  const dir = tmpdir("pvm-rs3-"), ca = makeCa(dir);
+  const vm = await startFakeVm({ dir, ca, code: Buffer.from(CODE, "hex"), appId: APP });
+  const PVMCODE = createHash("sha256").update("pvm-cpu protected build").digest();
+  const PIXEL = '{"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}';
+  const RID = createHash("sha256").update(PIXEL).digest();
+  const hub = createTunnelHub({ allow: [], attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")], rootPins: [ca.rootPin] },
+    pvmCpu: pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")], models: [{ sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", name: "m", selftestSha256: "d".repeat(64), minDecodeTokS: 10 }] }),
+    pvmApp: { appIds: [APP], runtimeIds: [RID.toString("hex")] } } });
+  const hubSrv = http.createServer((_q, s) => s.end("ok")); hubSrv.on("upgrade", (q, sock, head) => hub.handleUpgrade(q, sock, head));
+  await new Promise((r) => hubSrv.listen(0, "127.0.0.1", r));
+  const hubUrl = `ws://127.0.0.1:${hubSrv.address().port}/v1/fleet-tunnel`;
+  const wait = async (frames, pred, ms = 8000) => { const until = Date.now() + ms; while (Date.now() < until) { const f = frames.find(pred); if (f) return f; await new Promise((r) => setTimeout(r, 25)); } return null; };
+  // a phone: AVF attach (v2 pad transcript), optionally the ABI/2 app evidence; every spliced stream carried to the fake VM
+  const phone = async (name, verifyApp) => {
+    const frames = [], ws = new WebSocket(hubUrl, { headers: { "x-metal-name": name, "x-metal-attest": "1" } });
+    const streams = new Map();
+    ws.on("message", (d) => {
+      let f; try { f = JSON.parse(d); } catch { return; } frames.push(f);
+      if (f.t === "s+") { const c = net.connect(f.kind === "pvm-evidence" ? vm.evidencePort : vm.sealedPort, "127.0.0.1", () => ws.send(JSON.stringify({ t: "s=", sid: f.sid, ok: true })));
+        streams.set(f.sid, c); c.on("data", (b) => ws.send(JSON.stringify({ t: "sd", sid: f.sid, d: b.toString("base64") }))); c.on("close", () => { if (streams.delete(f.sid)) ws.send(JSON.stringify({ t: "sx", sid: f.sid })); }); c.on("error", () => {}); }
+      else if (f.t === "sd") streams.get(f.sid)?.write(Buffer.from(f.d, "base64"));
+      else if (f.t === "sx") { const c = streams.get(f.sid); streams.delete(f.sid); c?.destroy(); }
+    });
+    await new Promise((r) => ws.on("open", r));
+    const nonce = Buffer.from((await wait(frames, (x) => x.t === "challenge")).nonce, "base64");
+    const transport = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
+    const padKey = generateKeyPairSync("x25519").publicKey.export({ type: "spki", format: "der" }).subarray(-32).toString("hex");
+    const bound = avfPadBinding(transport, padKey, nonce), leaf = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(bound).digest(), code: PVMCODE }) });
+    ws.send(JSON.stringify({ t: "attest", rad: { format: AVF_PAD_FORMAT, body: Buffer.from(JSON.stringify({ chain: [leaf.leaf, ca.inter, ca.root].map((x) => x.toString("base64")), signature: leaf.sign(bound).toString("base64") })).toString("base64"), transportKey: transport.toString("base64"), padKey } }));
+    assert.equal((await wait(frames, (x) => x.t === "attest-result"))?.ok, true);
+    const ch = await wait(frames, (x) => x.t === "abi2-challenge");
+    if (verifyApp) {
+      const appLeaf = issueLeaf(dir, { ext: extension({ challenge: Buffer.concat([bind2(transport, Buffer.from(ch.nonce, "base64"), RID), Buffer.from(APP, "hex")]), code: PVMCODE }) });
+      ws.send(JSON.stringify({ t: "abi2", chain: [appLeaf.leaf, ca.inter, ca.root].map((x) => x.toString("base64")), identity: PIXEL, selftest: "exec_pages=refused:EACCES wx=clean maps=1 scope=self", app: APP }));
+      assert.equal((await wait(frames, (x) => x.t === "abi2-result"))?.ok, true);
+    }
+    return { ws, frames };
+  };
+  const verified = await phone("pixel-verified", true), unverified = await phone("pixel-evidence-only", false);
+  const ledger = { [D1]: "tunnel://pixel-verified", [D2]: "tunnel://pixel-evidence-only" };
+  const logs = [], handle = createPvmServing({ resolve: async (id) => ledger[id] || null, hub, emit: (o) => logs.push(o) });
+  const srv = http.createServer((q, s) => { if (!handle(q, s)) { s.writeHead(404); s.end(); } });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const port = srv.address().port, dir2 = tmp("pvm-rs3c-"), st = path.join(dir2, "state"), P = key(), R = key(), pf = path.join(dir2, "p.json");
+  fs.writeFileSync(pf, JSON.stringify(policy(P)));
+  const ev = () => vm.log.filter((l) => l.evidence).length;
+  try {
+    assert.equal((await cli(["install", "--state", st, "--policy-key-fp", P.fp, "--serial-floor", "1", "--release-key-fp", R.fp])).code, 0);
+    // the BUILT client, through the module and the real hub, to the phone's VM: its own nonce answered, judged by the client
+    for (const [dep, n] of [[D1, 1], [D2, 2]]) {
+      const r = (await cli(["run", "--state", st, "--policy", pf, "--relay", `http://127.0.0.1:${port}/x/${dep}/pvm`, "--deployment", dep])).result;
+      assert.equal(r.step, "verify", JSON.stringify(r)); assert.match(r.refused, /not a pinned Google attestation root/); assert.doesNotMatch(r.refused, /another nonce/);
+      assert.equal(ev(), n, "evidence streams reach any AVF-attested pVM tunnel");
+    }
+    // sealed: carried to the hub-verified app (the fake VM refuses these bytes as a request -- the point is they reached it)
+    // a well-framed sealed request (u32 length || nonce || header || enc || ciphertext) under a nonce the VM never issued: the
+    // VM answers it with its own refusal frame, through the real hub and the phone
+    const body = Buffer.concat([Buffer.alloc(32, 7), Buffer.from([1, 0, 0, 0, 0, 0, 0]), Buffer.alloc(32, 9), Buffer.alloc(24, 5)]), frame = Buffer.alloc(4);
+    frame.writeUInt32BE(body.length);
+    const s1 = await raw(port, "POST", `/x/${D1}/pvm/sealed`, Buffer.concat([frame, body]));
+    assert.equal(s1.status, 200, "the real spliceRaw opened a sealed stream to the verified app"); assert.match(s1.body, /unknown evidence nonce/, "and the VM itself answered");
+    assert.ok(vm.log.some((l) => /unknown evidence nonce/.test(l.refused || "")));
+    const s2 = await raw(port, "POST", `/x/${D2}/pvm/sealed`, "x");
+    assert.equal(s2.status, 404, "no sealed stream to a tunnel whose app the hub did not verify"); assert.equal(s2.body, "");
+    assert.ok(logs.some((l) => l.tunnel === "pixel-verified" && l.pvm === "sealed" && l.bytesIn > 0), "sizes logged for the carried stream");
+  } finally { srv.close(); verified.ws.close(); unverified.ws.close(); hubSrv.close(); vm.close(); }
+});
