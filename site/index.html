@@ -143,7 +143,7 @@
 <section id="why" data-view="overview" aria-label="What you get">
   <div class="wrap">
     <c-section-head eyebrow="What you get" heading="Portable apps. One isolation contract. Verifiable execution. Independent infrastructure.">
-      <p>Enclave is building one way to run an app on hardware you do not control: one app bundle, one domain contract, and one security contract that a host must prove before it can run anything. Confidential hardware adds protection from the machine's operator on top, without changing what your app is. <a href="develop#architecture">The architecture, in full ↗</a></p>
+      <p>Enclave is building one way to run an app on hardware you do not control: one app bundle, one domain contract, and one security contract a host must prove before it can run anything. <b>Enclave Shielded</b> is the isolation layer that meets that contract on hosts without a confidential-computing processor; confidential hardware adds protection from the machine's operator on top, without changing what your app is. <a href="develop#architecture">The architecture, in full ↗</a></p>
     </c-section-head>
     <div class="cards">
       <div class="card jade">
@@ -154,9 +154,9 @@
       </div>
       <div class="card iris">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M8 12h8M12 8v8"/></svg></div>
-        <span class="tag">hardware-isolated</span>
-        <h3>Isolated by contract</h3>
-        <p>The security contract is independent of the operating system: each app in its own hardware-isolated domain, the machine's ordinary operating system excluded by a smaller measured trusted layer, identity measured, keys and traffic bound to it, verification that fails closed, cleanup that leaves nothing behind. We are building equivalent implementations on supported Windows and Linux hosts, and a host must prove the contract before it is listed. <a href="#protection">The contract →</a></p>
+        <span class="tag">the isolation layer</span>
+        <h3>Enclave Shielded</h3>
+        <p>Our OS-neutral, VBS-like isolation layer for hosts without a confidential-computing processor. Each app runs in its own hardware-isolated domain that the machine's ordinary operating system cannot see into; identity is measured, keys and traffic are bound to it, verification fails closed, cleanup leaves nothing behind. One contract, with backends on Windows and Linux, and the only supported way to expose a GPU on such a host. A host must prove it before it is listed. <a href="#protection">The contract →</a></p>
       </div>
       <div class="card jade">
         <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></div>
@@ -216,15 +216,15 @@
 <!-- ===================== THE CONTRACT ===================== -->
 <section id="protection" data-view="overview" style="background:var(--bg-1);border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);" aria-label="The isolation contract">
   <div class="wrap">
-    <c-section-head eyebrow="The contract" heading="One isolation contract. Confidential hardware adds to it.">
-      <p>A protection level here is a set of guarantees a host proves with evidence, never a name for an operating system. The base contract is the same on every backend. Confidential hardware layers protection from the machine's operator on top of it, without changing what your app is or how it is verified.</p>
+    <c-section-head eyebrow="The contract" heading="One isolation contract, two ways to meet it.">
+      <p>A protection level here is a set of guarantees a host proves with evidence, never a name for an operating system. <b>Enclave Shielded</b> is the isolation layer we are building to meet the contract on hosts without a confidential-computing processor. Confidential hardware meets the same contract and adds protection from the machine's operator, without changing what your app is or how it is verified.</p>
     </c-section-head>
 
     <div class="cards iso-cards lvl-cards">
       <div class="card iris">
-        <span class="tag">the isolation contract</span>
+        <span class="tag">Enclave Shielded</span>
         <h3>The host's operating system cannot see in</h3>
-        <p>Every app runs in its own hardware-isolated domain. The machine's ordinary operating system is excluded from that domain by a smaller, measured trusted layer that the hardware's virtualization enforces. The app's identity is measured, its attestation names exactly that identity, its keys and traffic are bound to it, verification fails closed, and a domain that ends leaves nothing behind. We are building equivalent implementations of this contract on supported Windows and Linux hosts, to one set of acceptance tests, and no host is listed at this level until it proves every property.</p>
+        <p>Enclave Shielded is our OS-neutral, VBS-like isolation layer for hosts without a confidential-computing TEE. Every app runs in its own hardware-isolated domain, kept out of the machine's ordinary operating system by a smaller, measured trusted layer that the hardware's virtualization enforces. The app's identity is measured, its attestation names exactly that identity, its keys and traffic are bound to it, verification fails closed, and a domain that ends leaves nothing behind. On Windows it maps the contract onto VBS and Hyper-V hardware isolation and the paravisor direction; a Linux backend is part of the product only if it enforces the same contract, and there is no software-only fallback. What it does not add is the separate guarantee a confidential processor gives, that the machine's owner cannot inspect the data. No host is listed on Enclave Shielded until a backend passes the common acceptance tests.</p>
       </div>
       <div class="card jade">
         <span class="tag">confidential hardware</span>
@@ -233,9 +233,14 @@
       </div>
     </div>
 
+    <div class="doc-note gpu-rule">
+      <span class="nt">GPUs on hosts without a TEE</span>
+      <p>In Enclave's architecture, <b>Enclave Shielded is the only supported way to expose a GPU on a host without a confidential-computing processor</b>. The card is used without being trusted: inputs are masked before they leave the app's domain and every result is verified before it is used. A host without a TEE neither advertises nor receives GPU work unless the Enclave Shielded contract and its required evidence verify, and admission fails closed.</p>
+    </div>
+
     <div class="iso-honest">
       <h4>What we do <u>not</u> claim</h4>
-      <p>Nothing here is described as unable to see your data unless hardware enforces it and a verified report says so. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. A machine that meets part of the contract, a test-signed trusted layer, a key or traffic path that still runs through the host, a report signed by software the host controls, is evidence of work in progress, not a level for sale, and it is not listed as available. There is no lower level: ordinary virtualization with the host operating system in charge is a lab baseline, never something we build, list, route work to, or sell. <a href="develop#contract">The contract, property by property →</a></p>
+      <p>Nothing here is described as unable to see your data unless hardware enforces it and a verified report says so. A confidential processor defends memory against <b>software</b>, not against someone with physical access and lab equipment on the memory bus, and a self-hosted seller does have physical access to their own machine. A machine that meets part of the Enclave Shielded contract, a test-signed trusted layer, a key or traffic path that still runs through the host, a report signed by software the host controls, is evidence of work in progress, not a level for sale, and it is not listed as available. There is no lower level: ordinary virtualization with the host operating system in charge is a lab baseline, never something we build, list, route work to, or sell. <a href="develop#contract">The contract, property by property →</a></p>
     </div>
   </div>
 </section>

@@ -297,7 +297,7 @@ class FleetList extends EnclaveElement {
             + (!sh?.pooled && Array.isArray(a.shieldedCards) ? a.shieldedCards.filter(c => c.id !== sh?.id).map(c => {
                 const p = shieldedPoolOf({ availability: { shielded: c, gpuShareFree: c.gpuShareFree } });
                 if (!p) return "";
-                const badge = '<span class="ap-badge info" title="Shielded inference on the host GPU; masked inputs and verified results.">'
+                const badge = '<span class="ap-badge info" title="Masked GPU offload on the host\u2019s card: masked inputs and verified results.">'
                   + esc(c.card || "gpu") + '</span>';
                 return pool(badge, Math.floor(p.frac * 100),
                   stat(fmtNum(p.leasableGb), fmtNum(p.total), "GB", "vram available",
