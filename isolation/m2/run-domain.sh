@@ -24,6 +24,7 @@ OVMF=${OVMF_OVERRIDE:-$OVMF}
 # KERNEL_HASHES=off launches WITHOUT the SEV kernel hash table, which is how verify-firmware.sh asks whether a
 # firmware refuses to boot when there is nothing to verify against. Default on, so an ordinary run is unchanged.
 KERNEL_HASHES=${KERNEL_HASHES:-on}
+
 cmd=$1; shift
 case "$cmd" in
 start)
@@ -32,7 +33,13 @@ start)
     snp)   MACH="-machine q35,accel=kvm,confidential-guest-support=sev0,memory-backend=ram1
                   -object sev-snp-guest,id=sev0,cbitpos=51,reduced-phys-bits=1,kernel-hashes=$KERNEL_HASHES
                   -object memory-backend-memfd,id=ram1,size=${mem}M,share=true" ;;
-    plain) MACH="-machine q35,accel=kvm" ;;
+    plain) MACH="-machine q35,accel=kvm"
+           # The verifying firmware refuses to boot a guest with no kernel hash table, and a plain guest has no
+           # SEV and therefore no table: an AmdSevX64 build meets that by refusing to load the kernel and falling
+           # through to its boot manager (measured: "Failed to mount root securely"). T0 is the explicitly
+           # untrusted tier, used for parity against T1, and no security claim rests on its firmware - so it
+           # launches on the distro one. See m1/domain.env.
+           OVMF=${OVMF_T0:-$OVMF} ;;
     *) echo "mode must be snp or plain"; exit 2 ;;
   esac
   # A vsock CID is global to the host: take one from a range nothing else here uses.

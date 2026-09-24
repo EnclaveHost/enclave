@@ -38,3 +38,26 @@ NOT YET DONE, and required before any suite claims this: m1/domain.env still nam
 SUITE to this one means changing domain.env, because build-domain.sh predicts with domain.env's OVMF while
 OVMF_OVERRIDE changes only the launch - predicting against one firmware and launching another would fail check 1
 for a reason unrelated to the property.
+
+THE SUITES NOW RUN ON IT (2026-09-24)
+
+m1/domain.env names this firmware and FAILS CLOSED if it is absent: it prints the build command and exits rather
+than falling back to one that does not verify, because a silent fallback is how this gap would return.
+
+M2: ALL PASS, 24 of 24, workdir m2-amdsev-002432. Every measurement moved with the firmware, which is the point -
+check 1 predicts from the firmware it launches, so anything quietly depending on the old digest would fail here:
+
+  predicted = live = 38f7738dee41bcfdc7f6e851de77a2ab0943a8ba7fd5a8ff084ee4fa308d1168d6f70d75eb77e56bfb53221acc46cf32
+
+THE T0 TIER LAUNCHES ON THE DISTRO FIRMWARE, deliberately. A plain non-SNP guest has no SEV and therefore no
+kernel hash table, and an AmdSevX64 build meets that by refusing to load the kernel and falling through to its
+boot manager - measured here first as a hang: the T0 guest printed "Failed to mount root securely" and "Failed to
+find any grub configuration on the encrypted volume" (the missing sevsecret module again) and the suite waited for
+a domain that would never serve. T0 is the explicitly untrusted parity tier and no security claim rests on its
+firmware, so run-domain.sh picks by mode: the distro firmware for plain, the verifying one for every SNP launch.
+Checks 7, 7b and 7c - tier parity, "T0 says it is not attested", and T0 being unable to tell a host in the middle
+apart - all pass with that split.
+
+WHAT THE SUITE PASSING DOES NOT ADD. It shows nothing about hash enforcement on its own: the enforcement evidence
+is the review lane's substitution fixture against this firmware, and these 24 checks only show that moving to it
+broke nothing. A green suite on a verifying firmware is not evidence that the firmware verifies.
