@@ -12,6 +12,11 @@ import path from "node:path";
 import readline from "node:readline";
 import tls from "node:tls";
 import { judge, signedReportOf } from "./judge-hv.mjs";
+import { ABI2 } from "../../../isolation/contract/runtime.mjs";
+// the guest image carries a runtime identity (isolation/contract/runtime-identity.sh), so every document
+// must state ABI/2 with a JIT identity for this partition tier, W^X enforced and no compiled cache
+const RT = { name: "wasmtime", execution: "jit", targetIsa: "x86_64", hostIsa: "x86_64", wx: "enforced", cache: "none" };
+const J = (o) => judge({ expectAbi: ABI2, expectRuntime: RT, ...o });
 
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, arr) => a.startsWith("--") ? [a.slice(2), arr[i + 1]] : []).filter((x) => x.length));
 const need = (k) => { if (!args[k]) { console.error(`--${k} required`); process.exit(2); } return args[k]; };
@@ -135,27 +140,34 @@ if (A && B) {
   console.log("\n2. each domain attests its own app on its own key, judged against the handshake, signed by the launcher");
   const aA = await attestFirst(A.tcpPort, null), aB = await attestFirst(B.tcpPort, null);
   evidence.attestA = aA.doc; evidence.attestB = aB.doc;
-  const jA = judge({ doc: aA.doc, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey, expectedVmId: A.vmId, expectedImageSha256: imageSha });
-  const jB = judge({ doc: aB.doc, spki: aB.spki, nonce: aB.nonce, expectedAppSha256: appB.appId, launcherKey, expectedVmId: B.vmId, expectedImageSha256: imageSha });
+  const jA = J({ doc: aA.doc, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey, expectedVmId: A.vmId, expectedImageSha256: imageSha });
+  const jB = J({ doc: aB.doc, spki: aB.spki, nonce: aB.nonce, expectedAppSha256: appB.appId, launcherKey, expectedVmId: B.vmId, expectedImageSha256: imageSha });
   evidence.verdicts.A = jA; evidence.verdicts.B = jB;
   check("2 domain A: monitor-signed; report_data binds the handshake key + our nonce and names app A, partition A and the shipped image", jA.verdict === "monitor-signed", jA.reasons.join("; "));
   check("2b domain B: the same for app B and partition B", jB.verdict === "monitor-signed", jB.reasons.join("; "));
   check("2c the two domains minted different keys, inside their partitions", !aA.spki.equals(aB.spki));
   const aA2 = await attest(A.tcpPort, aA.spki);
-  check("2d a second nonce on a new pinned connection is answered under the same key", judge({ doc: aA2.doc, spki: aA2.spki, nonce: aA2.nonce, expectedAppSha256: appA.appId, launcherKey }).verdict === "monitor-signed");
+  check("2d a second nonce on a new pinned connection is answered under the same key", J({ doc: aA2.doc, spki: aA2.spki, nonce: aA2.nonce, expectedAppSha256: appA.appId, launcherKey }).verdict === "monitor-signed");
+  check("2f the document states ABI/2 with the image's runtime identity (wasmtime, jit to x86_64, W^X enforced, cache none) and a coherent self-test", aA.doc.abi === ABI2 && aA.doc.runtime && aA.doc.runtime.execution === "jit" && aA.doc.runtime.cache === "none" && /exec_pages=allowed/.test(aA.doc.runtimeSelfTest || "") && /wx=clean/.test(aA.doc.runtimeSelfTest || ""), `${aA.doc.abi} ${JSON.stringify(aA.doc.runtime)} ${aA.doc.runtimeSelfTest}`);
+  const rtTamper = { ...aA.doc, runtime: { ...aA.doc.runtime, version: "0.0.0" } };
+  check("2g restating the report under another runtime version is rejected on the binding itself", J({ doc: rtTamper, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey }).verdict === "reject");
+  const rtCache = { ...aA.doc, runtime: { ...aA.doc.runtime, cache: "unauthenticated" } };
+  check("2h a document claiming an unauthenticated cache is refused before any binding is computed", J({ doc: rtCache, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey }).verdict === "reject");
+  const abi1 = { ...aA.doc, abi: "enclave-domain-abi/1" }; delete abi1.runtime;
+  check("2i a document that dropped to ABI/1 is rejected when ABI/2 is expected: no silent downgrade", J({ doc: abi1, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey }).verdict === "reject");
   check("2e the in-guest boundary tuple travels with the report and says t0-hv, host_excluded=no", typeof aA.doc.boundary === "string" && aA.doc.boundary.includes("tier=t0-hv") && aA.doc.boundary.includes("host_excluded=no"), aA.doc.boundary);
 
   console.log("\n3. crossed domains are refused: naming is the monitor's, keyed by the partition");
-  const jCross = judge({ doc: aA.doc, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appB.appId, launcherKey });
+  const jCross = J({ doc: aA.doc, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appB.appId, launcherKey });
   check("3 a client expecting app B is REJECTED by the domain running app A", jCross.verdict === "reject", jCross.reasons.join("; "));
-  check("3b A's report presented as B's partition is REJECTED", judge({ doc: aA.doc, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey, expectedVmId: B.vmId }).verdict === "reject");
-  check("3c a report does not satisfy a different nonce", judge({ doc: aA.doc, spki: aA.spki, nonce: randomBytes(32), expectedAppSha256: appA.appId, launcherKey }).verdict === "reject");
-  check("3d A's report does not bind B's key", judge({ doc: aA.doc, spki: aB.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey }).verdict === "reject");
+  check("3b A's report presented as B's partition is REJECTED", J({ doc: aA.doc, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey, expectedVmId: B.vmId }).verdict === "reject");
+  check("3c a report does not satisfy a different nonce", J({ doc: aA.doc, spki: aA.spki, nonce: randomBytes(32), expectedAppSha256: appA.appId, launcherKey }).verdict === "reject");
+  check("3d A's report does not bind B's key", J({ doc: aA.doc, spki: aB.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey }).verdict === "reject");
   const rep = signedReportOf(aA.doc); rep.doc.domain.appSha256 = appB.appId; rep.doc.reportData = rep.doc.reportData.slice(0, 64) + appB.appId;
   const tampered = { ...aA.doc, report: Buffer.from(JSON.stringify(rep)).toString("base64"), appSha256: appB.appId };
-  const jTamper = judge({ doc: tampered, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appB.appId, launcherKey });
+  const jTamper = J({ doc: tampered, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appB.appId, launcherKey });
   check("3e a host rewriting A's document to name B breaks the launcher's signature (never monitor-signed)", jTamper.verdict !== "monitor-signed" && jTamper.checks["launcher signature verifies"] === false, jTamper.verdict);
-  check("3f a report under a launcher key the client does not trust is not monitor-signed", judge({ doc: aA.doc, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey: randomBytes(32).toString("base64") }).verdict !== "monitor-signed");
+  check("3f a report under a launcher key the client does not trust is not monitor-signed", J({ doc: aA.doc, spki: aA.spki, nonce: aA.nonce, expectedAppSha256: appA.appId, launcherKey: randomBytes(32).toString("base64") }).verdict !== "monitor-signed");
 
   console.log("\n4. the artifact that was hashed is the one that runs: the m2 test app answers with its compiled-in label");
   const rA = (await get(A.tcpPort, aA.spki, "/hello")).body.toString(), rB = (await get(B.tcpPort, aB.spki, "/hello")).body.toString();
@@ -185,7 +197,7 @@ if (A && B) {
   check("6b it ended exactly once, by the partition's exit", endedLines.length === 1 && /partition exited/.test(endedLines[0] || ""), endedLines.join(" | "));
   check("6c A's relay port no longer answers", await portClosed(A.tcpPort));
   const aB2 = await attest(B.tcpPort, aB.spki);
-  const jB2 = judge({ doc: aB2.doc, spki: aB2.spki, nonce: aB2.nonce, expectedAppSha256: appB.appId, launcherKey, expectedVmId: B.vmId });
+  const jB2 = J({ doc: aB2.doc, spki: aB2.spki, nonce: aB2.nonce, expectedAppSha256: appB.appId, launcherKey, expectedVmId: B.vmId });
   check("6d B still attests on the same key it had before A died, and still answers", jB2.verdict === "monitor-signed" && aB2.spki.equals(aB.spki) && (await get(B.tcpPort, aB.spki, "/x")).body.toString().startsWith(`APP ${appB.label} `), jB2.reasons.join("; "));
   const stateAfter = (await ask("state")).state;
   check("6e the service lists exactly the one partition still alive", stateAfter.hcsOwnedByVbslike === 1 && stateAfter.domains === 1, JSON.stringify({ hcs: stateAfter.hcsOwnedByVbslike, domains: stateAfter.domains }));
@@ -205,7 +217,7 @@ if (A && B) {
   if (D) {
     evidence.timings.push({ domain: "D", ...D.ms });
     const aD = await attestFirst(D.tcpPort, null);
-    check("7d after those cycles a new partition loads, attests and answers", judge({ doc: aD.doc, spki: aD.spki, nonce: aD.nonce, expectedAppSha256: appB.appId, launcherKey, expectedVmId: D.vmId }).verdict === "monitor-signed");
+    check("7d after those cycles a new partition loads, attests and answers", J({ doc: aD.doc, spki: aD.spki, nonce: aD.nonce, expectedAppSha256: appB.appId, launcherKey, expectedVmId: D.vmId }).verdict === "monitor-signed");
     memorySample("one-partition-D");
     await ask(`destroy ${D.id}`); await ask(`wait ${D.id} 30`);
   } else check("7d after those cycles a new partition loads, attests and answers", false, "load failed");

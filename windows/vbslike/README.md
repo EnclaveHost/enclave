@@ -147,3 +147,20 @@ Remote paths: `C:\Users\claude\vbs-like\{host,verify,apps,out}`, `wsl-kernel` (a
   binding it to the box's existing attestation (the node's TPM/IDKS chain) is the production step.
 - **Windows Hypervisor Platform works here** (WHvCreatePartition succeeded), so OpenVMM as our own
   VMM on this box is a real option; not pursued in this pass.
+
+## 7. ABI/2 on this tier (2026-09-23, later the same day)
+
+The guest image was rebuilt from the merged tree (`isolation/portable-runtime-jit` wiring): it now
+carries the runtime identity beside the runtime (`plat/rt/runtime.json`: wasmtime 48.0.1, execution
+jit, target and host x86_64, CPU features host-detected, W^X enforced, cache none) and its domains run
+`wasmtime serve -C cache=n`, so "cache none" is true by construction inside a partition too. New image
+sha256 `44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf`, byte-identical on both
+machines and across two builds. `verify/lab.mjs` against it: **34/34** (`evidence/lab-abi2-2026-09-23.json`).
+
+What the extra checks establish: every attestation document states `enclave-domain-abi/2` with that
+identity and a self-test of `exec_pages=allowed wx=clean` taken inside the partition; the verdict
+(`judge-hv.mjs`, using `isolation/contract/runtime.mjs`) recomputes `Bind2` from the handshake key, its
+nonce and the stated identity; restating the report under another runtime version fails on the binding
+itself, a claimed unauthenticated cache is refused before any binding is computed, and a document that
+dropped to ABI/1 is rejected when ABI/2 is expected. The self-test remains the front's own word relayed
+over the attested connection, as on Linux; on this tier the launcher's signature is what vouches for it.

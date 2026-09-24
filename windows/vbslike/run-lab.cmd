@@ -6,5 +6,6 @@ setlocal
 set ROOT=C:\Users\claude\vbs-like
 cd /d %ROOT%
 if exist %ROOT%\out\lab.json del %ROOT%\out\lab.json
-node verify\lab.mjs --host %ROOT%\target\release\vbslike-host.exe --kernel %ROOT%\wsl-kernel --initrd %ROOT%\mon.cpio.gz --apps %ROOT%\apps --out %ROOT%\out %*
+rem the verifier tree mirrors the repository layout so its relative imports of isolation/contract resolve
+node windows\vbslike\verify\lab.mjs --host %ROOT%\target\release\vbslike-host.exe --kernel %ROOT%\wsl-kernel --initrd %ROOT%\mon.cpio.gz --apps %ROOT%\apps --out %ROOT%\out %*
 exit /b %ERRORLEVEL%

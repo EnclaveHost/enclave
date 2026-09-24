@@ -1,0 +1,567 @@
+{
+ "started": "2026-09-24T03:08:23.852Z",
+ "apps": {
+  "A": {
+   "file": "C:\\Users\\claude\\vbs-like\\apps\\appA.bundle",
+   "appId": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
+   "label": "AAAAA",
+   "bytes": 59833
+  },
+  "B": {
+   "file": "C:\\Users\\claude\\vbs-like\\apps\\appB.bundle",
+   "appId": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
+   "label": "BBBBB",
+   "bytes": 59833
+  }
+ },
+ "timings": [
+  {
+   "domain": "A",
+   "create": 41.464099999999995,
+   "loaded": 5350.2546,
+   "monitor": 5343.8754,
+   "start": 75.0217,
+   "total": 5350.6463
+  },
+  {
+   "domain": "B",
+   "create": 37.4054,
+   "loaded": 5344.0562,
+   "monitor": 5337.2597,
+   "start": 70.4959,
+   "total": 5344.304
+  },
+  {
+   "domain": "C",
+   "create": 38.4966,
+   "loaded": 5334.0124,
+   "monitor": 5327.842000000001,
+   "start": 71.6464,
+   "total": 5334.246
+  },
+  {
+   "domain": "D",
+   "create": 38.2192,
+   "loaded": 5329.0762,
+   "monitor": 5322.1755,
+   "start": 70.5849,
+   "total": 5329.367
+  }
+ ],
+ "memory": {
+  "before": {
+   "freeKiB": 104692296,
+   "vmmemWorkingSet": 0,
+   "vmwpWorkingSet": 0,
+   "hostPrivate": 1183744
+  },
+  "two-partitions": {
+   "freeKiB": 104191360,
+   "vmmemWorkingSet": 507535360,
+   "vmwpWorkingSet": 38109184,
+   "hostPrivate": 1966080
+  },
+  "after-kill": {
+   "freeKiB": 104407772,
+   "vmmemWorkingSet": 253767680,
+   "vmwpWorkingSet": 18980864,
+   "hostPrivate": 1937408
+  },
+  "one-partition-D": {
+   "freeKiB": 104416820,
+   "vmmemWorkingSet": 251670528,
+   "vmwpWorkingSet": 19009536,
+   "hostPrivate": 1990656
+  },
+  "end": {
+   "freeKiB": 104675068,
+   "vmmemWorkingSet": 0,
+   "vmwpWorkingSet": 0,
+   "hostPrivate": 1777664
+  }
+ },
+ "verdicts": {
+  "A": {
+   "verdict": "monitor-signed",
+   "reasons": [],
+   "checks": {
+    "format": true,
+    "tier": true,
+    "nonce echoed": true,
+    "report present": true,
+    "report format": true,
+    "report_data is 64 bytes": true,
+    "document states the expected ABI (enclave-domain-abi/2)": true,
+    "runtime identity is admissible": true,
+    "runtime self-test coherent with the identity": true,
+    "runtime.name == wasmtime": true,
+    "runtime.execution == jit": true,
+    "runtime.targetIsa == x86_64": true,
+    "runtime.hostIsa == x86_64": true,
+    "runtime.wx == enforced": true,
+    "runtime.cache == none": true,
+    "report_data[0:32] == the binding recomputed from the handshake key, our nonce and the stated runtime": true,
+    "report_data[32:64] == expected app": true,
+    "domain.appSha256 == report_data[32:64]": true,
+    "document appSha256 agrees": true,
+    "partition.vmId == expected partition": true,
+    "partition.guestImageSha256 == the image we shipped": true,
+    "launcher key is the trusted one": true,
+    "platform states host_excluded=false": true,
+    "boundary tuple says t0-hv and host_excluded=no": true,
+    "launcher signature verifies": true,
+    "abi": "enclave-domain-abi/2"
+   }
+  },
+  "B": {
+   "verdict": "monitor-signed",
+   "reasons": [],
+   "checks": {
+    "format": true,
+    "tier": true,
+    "nonce echoed": true,
+    "report present": true,
+    "report format": true,
+    "report_data is 64 bytes": true,
+    "document states the expected ABI (enclave-domain-abi/2)": true,
+    "runtime identity is admissible": true,
+    "runtime self-test coherent with the identity": true,
+    "runtime.name == wasmtime": true,
+    "runtime.execution == jit": true,
+    "runtime.targetIsa == x86_64": true,
+    "runtime.hostIsa == x86_64": true,
+    "runtime.wx == enforced": true,
+    "runtime.cache == none": true,
+    "report_data[0:32] == the binding recomputed from the handshake key, our nonce and the stated runtime": true,
+    "report_data[32:64] == expected app": true,
+    "domain.appSha256 == report_data[32:64]": true,
+    "document appSha256 agrees": true,
+    "partition.vmId == expected partition": true,
+    "partition.guestImageSha256 == the image we shipped": true,
+    "launcher key is the trusted one": true,
+    "platform states host_excluded=false": true,
+    "boundary tuple says t0-hv and host_excluded=no": true,
+    "launcher signature verifies": true,
+    "abi": "enclave-domain-abi/2"
+   }
+  }
+ },
+ "events": {
+  "A": [
+   "0 created 0bd4577b-4cbb-46b5-af66-517b7bf00966 runtime_id=0bd4577b-4cbb-46b5-af66-517b7bf00966 app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=A image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+   "33 started",
+   "5302 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":307,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
+   "5309 loaded: guest agrees on 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b; guest domain 1 on vsock port 40001",
+   "5309 running",
+   "11651 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind ca0bb1ca5a74044d583adcb8af572341e97aecffc3f69f60394c9c29a47ef156",
+   "11663 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind e9919a277cb6fb9959e1ab0537e446230a8169ad7e422be4d35390e3cc9b589c",
+   "19665 ended: partition exited: {\"Status\":0,\"ExitType\":\"ForcedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"Terminate\",\"Initiator\":\"Client\"}}]}"
+  ]
+ },
+ "guest": {
+  "A": {
+   "domains": [
+    {
+     "appSha256": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
+     "cpuPercent": 100,
+     "id": 1,
+     "label": "A",
+     "memMiB": 256,
+     "port": 40001,
+     "uid": 5001
+    }
+   ]
+  },
+  "B": {
+   "domains": [
+    {
+     "appSha256": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
+     "cpuPercent": 100,
+     "id": 1,
+     "label": "B",
+     "memMiB": 256,
+     "port": 40001,
+     "uid": 5001
+    }
+   ]
+  }
+ },
+ "launcher": {
+  "boundary": "tier=T0-hv partition=hcs-child isolation=none host_excluded=no signer=launcher-in-root-partition",
+  "initrdSha256": "44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf",
+  "kernelSha256": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+  "launcherKey": "2sffl8Nu99FQyrPirVJ21hmIMwqwt596IO40vRl9/Yk=",
+  "ready": true
+ },
+ "A": {
+  "appSha256": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
+  "guest": {
+   "appSha256": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
+   "cpuPercent": 100,
+   "id": 1,
+   "label": "A",
+   "memMiB": 256,
+   "port": 40001,
+   "uid": 5001
+  },
+  "guestId": 1,
+  "guestPort": 40001,
+  "id": 1,
+  "label": "A",
+  "ms": {
+   "create": 41.464099999999995,
+   "loaded": 5350.2546,
+   "monitor": 5343.8754,
+   "start": 75.0217,
+   "total": 5350.6463
+  },
+  "tcpPort": 45001,
+  "vmId": "0bd4577b-4cbb-46b5-af66-517b7bf00966"
+ },
+ "B": {
+  "appSha256": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
+  "guest": {
+   "appSha256": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
+   "cpuPercent": 100,
+   "id": 1,
+   "label": "B",
+   "memMiB": 256,
+   "port": 40001,
+   "uid": 5001
+  },
+  "guestId": 1,
+  "guestPort": 40001,
+  "id": 2,
+  "label": "B",
+  "ms": {
+   "create": 37.4054,
+   "loaded": 5344.0562,
+   "monitor": 5337.2597,
+   "start": 70.4959,
+   "total": 5344.304
+  },
+  "tcpPort": 45002,
+  "vmId": "cb612379-f2a4-4640-bb9d-1fc03c99ad8a"
+ },
+ "attestA": {
+  "tier": "T0-hv",
+  "format": "hyperv-partition-domain/v1",
+  "report": "eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiNjAzYmI3YTdjNTVkMTZhNjk4NTIxYmFmOWU5Y2QyYjA0MGRiYmFhYjRlZjk2NjZiZWUxZGE4NzQ0NmE5M2Q0YiIsImxhYmVsIjoiQSJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjE5MzE2Njc1LCJsYXVuY2hlciI6eyJrZXkiOiIyc2ZmbDhOdTk5RlF5clBpclZKMjFobUlNd3F3dDU5NklPNDB2Umw5L1lrPSIsInN0YXJ0ZWRNcyI6MTc5MDIxOTMwMzg4N30sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiIwYmQ0NTc3Yi00Y2JiLTQ2YjUtYWY2Ni01MTdiN2JmMDA5NjYifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiY2EwYmIxY2E1YTc0MDQ0ZDU4M2FkY2I4YWY1NzIzNDFlOTdhZWNmZmMzZjY5ZjYwMzk0YzljMjlhNDdlZjE1NjYwM2JiN2E3YzU1ZDE2YTY5ODUyMWJhZjllOWNkMmIwNDBkYmJhYWI0ZWY5NjY2YmVlMWRhODc0NDZhOTNkNGIiLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoiRURQeG5ob2c2MExKeUFOcGdqOFJtZ0pkUjQ3RkhJVUFqTFNWTWI1OGlGNTd3blEvRFFBQmxoYzAvTjZNK0FTVXFpYkRMb2U4RC9XUzRPdjRqdkplQWc9PSJ9",
+  "transportKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEQhJIcvsG9T7ZvVengsvjr4C1U0hFHMM+LMGbpaU5rYu7vTHzoTfabcyXIf4LV4dSC4Wx6wGbkgz6CO9brzIrvw==",
+  "appSha256": "603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b",
+  "nonce": "2e1b7cc5a4695ba3cb5074ada2a53c205ea0f97b61bff2752b66f2ba8ff93afc",
+  "boundary": "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no",
+  "abi": "enclave-domain-abi/2",
+  "runtime": {
+   "name": "wasmtime",
+   "version": "48.0.1",
+   "execution": "jit",
+   "targetIsa": "x86_64",
+   "hostIsa": "x86_64",
+   "cpuFeatures": "host-detected",
+   "wx": "enforced",
+   "cache": "none"
+  },
+  "runtimeSelfTest": "exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom1"
+ },
+ "attestB": {
+  "tier": "T0-hv",
+  "format": "hyperv-partition-domain/v1",
+  "report": "eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiYmJhODJkNTZlOTJiOTVhZmQ0ZTNkNDZiYzBkZTBkNzQyMmY5NjkwZTRlZWQ4M2NlNTg1YzhlNTVkNjEzODgzNyIsImxhYmVsIjoiQiJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjE5MzE2NjgxLCJsYXVuY2hlciI6eyJrZXkiOiIyc2ZmbDhOdTk5RlF5clBpclZKMjFobUlNd3F3dDU5NklPNDB2Umw5L1lrPSIsInN0YXJ0ZWRNcyI6MTc5MDIxOTMwMzg4N30sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiJjYjYxMjM3OS1mMmE0LTQ2NDAtYmI5ZC0xZmMwM2M5OWFkOGEifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiNjUzMGEyNjU2MDNmN2JlMDBmMDE2OTBjMTRhNjcwNmI2ZWM0ZmRiMzlhN2FlOGNiZWMzZmRhNDNlNmUxOWRiMmJiYTgyZDU2ZTkyYjk1YWZkNGUzZDQ2YmMwZGUwZDc0MjJmOTY5MGU0ZWVkODNjZTU4NWM4ZTU1ZDYxMzg4MzciLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoiQlFDNmRSb21Od2piaEVLR21ZdnMyT3ZLNU5meVVETTJsdEkyRkU3M2I1ZlB6Q2oxcFE5L0ErdGxVKzlaa3JpakF0LzlaUlp2cjcxT1djYlBqL0JNRGc9PSJ9",
+  "transportKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEV5bVTh/5uXwLacVitZIcCjcnA6ntKfXxl9ASZ4XNuyZlaxOYXtM9zwao3Btdo+ssvguK/b4E0U99mSVmudKtJg==",
+  "appSha256": "bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837",
+  "nonce": "3e3280946551b1b8e8abe83b81814874cda0cfa9db7f0d9f7424f720be34ab1f",
+  "boundary": "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no",
+  "abi": "enclave-domain-abi/2",
+  "runtime": {
+   "name": "wasmtime",
+   "version": "48.0.1",
+   "execution": "jit",
+   "targetIsa": "x86_64",
+   "hostIsa": "x86_64",
+   "cpuFeatures": "host-detected",
+   "wx": "enforced",
+   "cache": "none"
+  },
+  "runtimeSelfTest": "exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom1"
+ },
+ "probeConsole": [
+  "MON snp=0 vcpus=1 memMiB=395 boot_ms=314\r",
+  "MON insmod /vsock.ko.zst failed: Operation not supported\r",
+  "MON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\r",
+  "MON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\r",
+  "MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no\r",
+  "MON ready control_port=9000 snp=false\r",
+  "MON domain 1 loaded label=P app_sha256=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b port=40001 uid=5001 cpu=100% mem=256MiB\r",
+  "MON refused report request from uid 0 (not a domain)\r",
+  "DOM1 report_as_root=refused\r",
+  "DOM1 started adversary probe=2 (no app, no front)\r",
+  "PROBE1 uid=5001 euid=5001\r",
+  "PROBE1 other_app_absolute=No such file or directory\r",
+  "PROBE1 other_app_relative=No such file or directory\r",
+  "PROBE1 other_app_escape=No such file or directory\r",
+  "PROBE1 other_front_socket=No such file or directory\r",
+  "PROBE1 own_app=READABLE (16 bytes)\r",
+  "PROBE1 configfs_tsm=No such file or directory\r",
+  "PROBE1 sysfs=No such file or directory\r",
+  "PROBE1 create_tsm_entry=No such file or directory\r",
+  "PROBE1 visible_pids=2\r",
+  "PROBE1 signalable_pids=1\r",
+  "PROBE1 report=granted-for-this-domain\r",
+  "PROBE1 report_b64=eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiNjAzYmI3YTdjNTVkMTZhNjk4NTIxYmFmOWU5Y2QyYjA0MGRiYmFhYjRlZjk2NjZiZWUxZGE4NzQ0NmE5M2Q0YiIsImxhYmVsIjoiUCJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjE5MzIyMDkyLCJsYXVuY2hlciI6eyJrZXkiOiIyc2ZmbDhOdTk5RlF5clBpclZKMjFobUlNd3F3dDU5NklPNDB2Umw5L1lrPSIsInN0YXJ0ZWRNcyI6MTc5MDIxOTMwMzg4N30sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiJkYzc0MzE2MS0wNzg4LTQ3YTQtODgzYS1iYzY0YjQ4M2NhNjEifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjYwM2JiN2E3YzU1ZDE2YTY5ODUyMWJhZjllOWNkMmIwNDBkYmJhYWI0ZWY5NjY2YmVlMWRhODc0NDZhOTNkNGIiLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoicm95RGlMa3Y2dmVYRkFVT2ttS3Ztd055RlNpTzFUZjEzcVBuNjZnK0JVaTdzek90SFZXS3ZuN1dPcldVNUw5NzJrTmhzMjFBaVdaODNmdHZaVG9IQUE9PSJ9\r",
+  "PROBE1 vsock_local_domain1=Network is unreachable\r",
+  "PROBE1 vsock_local_domain2=Network is unreachable\r",
+  "PROBE1 vsock_own_control=Network is unreachable\r",
+  "DOM1 probe workload_uid=5001 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=2\r",
+  "PROBE1 vsock_host_control=timed out (no answer)\r",
+  "PROBE1 own_loopback_8080=Connection refused\r",
+  "PROBE1 host_gateway=Network is unreachable\r",
+  "PROBE1 done\r",
+  "PROBE1 eating memory: cap 256 MiB, will try 1024 MiB\r",
+  "PROBE1 memory_touched=16 MiB\r",
+  "PROBE1 memory_touched=32 MiB\r",
+  "PROBE1 memory_touched=48 MiB\r",
+  "PROBE1 memory_touched=64 MiB\r",
+  "PROBE1 memory_touched=80 MiB\r",
+  "PROBE1 memory_touched=96 MiB\r",
+  "PROBE1 memory_touched=112 MiB\r",
+  "PROBE1 memory_touched=128 MiB\r",
+  "PROBE1 memory_touched=144 MiB\r",
+  "PROBE1 memory_touched=160 MiB\r",
+  "PROBE1 memory_touched=176 MiB\r",
+  "PROBE1 memory_touched=192 MiB\r",
+  "PROBE1 memory_touched=208 MiB\r",
+  "PROBE1 memory_touched=224 MiB\r",
+  "PROBE1 memory_touched=240 MiB\r",
+  "DOM1 ERROR runtime exited status=137\r",
+  "DOM1 end\r",
+  "MON domain 1 ended: its process tree exited\r"
+ ],
+ "probe": {
+  "uid": "5001 euid=5001",
+  "other_app_absolute": "No such file or directory",
+  "other_app_relative": "No such file or directory",
+  "other_app_escape": "No such file or directory",
+  "other_front_socket": "No such file or directory",
+  "own_app": "READABLE (16 bytes)",
+  "configfs_tsm": "No such file or directory",
+  "sysfs": "No such file or directory",
+  "create_tsm_entry": "No such file or directory",
+  "visible_pids": "2",
+  "signalable_pids": "1",
+  "report": "granted-for-this-domain",
+  "report_b64": "eyJkb2MiOnsiYm91bmRhcnkiOiJ0aWVyPVQwLWh2IHBhcnRpdGlvbj1oY3MtY2hpbGQgaXNvbGF0aW9uPW5vbmUgaG9zdF9leGNsdWRlZD1ubyBzaWduZXI9bGF1bmNoZXItaW4tcm9vdC1wYXJ0aXRpb24iLCJkb21haW4iOnsiYXBwU2hhMjU2IjoiNjAzYmI3YTdjNTVkMTZhNjk4NTIxYmFmOWU5Y2QyYjA0MGRiYmFhYjRlZjk2NjZiZWUxZGE4NzQ0NmE5M2Q0YiIsImxhYmVsIjoiUCJ9LCJmb3JtYXQiOiJoeXBlcnYtcGFydGl0aW9uLWRvbWFpbi92MSIsImlzc3VlZE1zIjoxNzkwMjE5MzIyMDkyLCJsYXVuY2hlciI6eyJrZXkiOiIyc2ZmbDhOdTk5RlF5clBpclZKMjFobUlNd3F3dDU5NklPNDB2Umw5L1lrPSIsInN0YXJ0ZWRNcyI6MTc5MDIxOTMwMzg4N30sInBhcnRpdGlvbiI6eyJndWVzdEltYWdlU2hhMjU2IjoiNDRhYmI1MmIxNDg2ZGQyYWFlMzQ0ZTAyMWEwZDgwNDlkZmIyMDE1ZDEzN2MyMmE2ZTMzNjA1MWM0ZGI1YTBjZiIsImtlcm5lbFNoYTI1NiI6IjdmZTNlZGI1YjVkZDI0MzU1NDVmNjExNjA3YjFjODBlMGNiYzBlOTJiODNlMGNjMGEyNWMwN2RjN2Q1ZWNkZGQiLCJtZW1NaUIiOjUxMiwidmNwdXMiOjEsInZtSWQiOiJkYzc0MzE2MS0wNzg4LTQ3YTQtODgzYS1iYzY0YjQ4M2NhNjEifSwicGxhdGZvcm0iOnsiaG9zdEV4Y2x1ZGVkIjpmYWxzZSwiaHlwZXJ2aXNvciI6Imh5cGVyLXYiLCJpc29sYXRpb24iOiJub25lIiwib3MiOiJ3aW5kb3dzIiwicGFydGl0aW9uIjoiaGNzLWNoaWxkLXBhcnRpdGlvbiJ9LCJyZXBvcnREYXRhIjoiMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjYwM2JiN2E3YzU1ZDE2YTY5ODUyMWJhZjllOWNkMmIwNDBkYmJhYWI0ZWY5NjY2YmVlMWRhODc0NDZhOTNkNGIiLCJ0aWVyIjoiVDAtaHYifSwic2lnIjoicm95RGlMa3Y2dmVYRkFVT2ttS3Ztd055RlNpTzFUZjEzcVBuNjZnK0JVaTdzek90SFZXS3ZuN1dPcldVNUw5NzJrTmhzMjFBaVdaODNmdHZaVG9IQUE9PSJ9",
+  "vsock_local_domain1": "Network is unreachable",
+  "vsock_local_domain2": "Network is unreachable",
+  "vsock_own_control": "Network is unreachable",
+  "vsock_host_control": "timed out (no answer)",
+  "own_loopback_8080": "Connection refused",
+  "host_gateway": "Network is unreachable",
+  "memory_touched": "240 MiB"
+ },
+ "results": [
+  {
+   "name": "0 the guest image on this box is byte-identical to the one built beside the Linux path (sha256 of mon.cpio.gz)",
+   "ok": true,
+   "detail": "44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf"
+  },
+  {
+   "name": "1 partition A: the launcher's hash of the bundle it pushed equals the in-guest monitor's hash of what arrived, and it is appA's ID",
+   "ok": true,
+   "detail": "5351 ms, vm 0bd4577b-4cbb-46b5-af66-517b7bf00966, guest domain 1"
+  },
+  {
+   "name": "1b partition B: the same for appB, in a different partition",
+   "ok": true,
+   "detail": "5344 ms, vm cb612379-f2a4-4640-bb9d-1fc03c99ad8a"
+  },
+  {
+   "name": "1c the service lists exactly the two partitions this launcher owns",
+   "ok": true,
+   "detail": "{\"hcs\":2,\"domains\":2}"
+  },
+  {
+   "name": "1d each in-guest monitor holds exactly its one domain, naming its own app",
+   "ok": true,
+   "detail": "{\"A\":[{\"appSha256\":\"603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b\",\"cpuPercent\":100,\"id\":1,\"label\":\"A\",\"memMiB\":256,\"port\":40001,\"uid\":5001}],\"B\":[{\"appSha256\":\"bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837\",\"cpuPercent\":100,\"id\":1,\"label\":\"B\",\"memMiB\":256,\"port\":40001,\"uid\":5001}]}"
+  },
+  {
+   "name": "2 domain A: monitor-signed; report_data binds the handshake key + our nonce and names app A, partition A and the shipped image",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "2b domain B: the same for app B and partition B",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "2c the two domains minted different keys, inside their partitions",
+   "ok": true
+  },
+  {
+   "name": "2d a second nonce on a new pinned connection is answered under the same key",
+   "ok": true
+  },
+  {
+   "name": "2f the document states ABI/2 with the image's runtime identity (wasmtime, jit to x86_64, W^X enforced, cache none) and a coherent self-test",
+   "ok": true,
+   "detail": "enclave-domain-abi/2 {\"name\":\"wasmtime\",\"version\":\"48.0.1\",\"execution\":\"jit\",\"targetIsa\":\"x86_64\",\"hostIsa\":\"x86_64\",\"cpuFeatures\":\"host-detected\",\"wx\":\"enforced\",\"cache\":\"none\"} exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom1"
+  },
+  {
+   "name": "2g restating the report under another runtime version is rejected on the binding itself",
+   "ok": true
+  },
+  {
+   "name": "2h a document claiming an unauthenticated cache is refused before any binding is computed",
+   "ok": true
+  },
+  {
+   "name": "2i a document that dropped to ABI/1 is rejected when ABI/2 is expected: no silent downgrade",
+   "ok": true
+  },
+  {
+   "name": "2e the in-guest boundary tuple travels with the report and says t0-hv, host_excluded=no",
+   "ok": true,
+   "detail": "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no"
+  },
+  {
+   "name": "3 a client expecting app B is REJECTED by the domain running app A",
+   "ok": true,
+   "detail": "the report names a different app; the domain's own claim differs from the expected app (informational field)"
+  },
+  {
+   "name": "3b A's report presented as B's partition is REJECTED",
+   "ok": true
+  },
+  {
+   "name": "3c a report does not satisfy a different nonce",
+   "ok": true
+  },
+  {
+   "name": "3d A's report does not bind B's key",
+   "ok": true
+  },
+  {
+   "name": "3e a host rewriting A's document to name B breaks the launcher's signature (never monitor-signed)",
+   "ok": true,
+   "detail": "unsigned"
+  },
+  {
+   "name": "3f a report under a launcher key the client does not trust is not monitor-signed",
+   "ok": true
+  },
+  {
+   "name": "4 app A answers with label AAAAA and app B with BBBBB, each on its own attested key",
+   "ok": true,
+   "detail": "{\"A\":\"APP AAAAA path=/hello\",\"B\":\"APP BBBBB path=/hello\"}"
+  },
+  {
+   "name": "4b 4 MiB echoed intact through a partition (TLS ends inside it; the launcher relays ciphertext)",
+   "ok": true,
+   "detail": "4194304 bytes"
+  },
+  {
+   "name": "5 from inside the partition nothing beyond it is reachable: no other domain's files, no vsock port but its own monitor's, no host network",
+   "ok": true,
+   "detail": "other_app_absolute=No such file or directory; other_app_relative=No such file or directory; other_app_escape=No such file or directory; other_front_socket=No such file or directory; vsock_local_domain1=Network is unreachable; vsock_local_domain2=Network is unreachable; vsock_own_control=Network is unreachable; vsock_host_control=timed out (no answer)"
+  },
+  {
+   "name": "5b it cannot reach the report interface directly (no /sys, no configfs in the domain)",
+   "ok": true,
+   "detail": "No such file or directory / No such file or directory"
+  },
+  {
+   "name": "5c the report it obtained names ITS OWN app although its request also carried another app hash and id",
+   "ok": true,
+   "detail": "granted-for-this-domain"
+  },
+  {
+   "name": "6 a partition that dies is retired by the exit path and leaves the table",
+   "ok": true,
+   "detail": "0 ms after the kill"
+  },
+  {
+   "name": "6b it ended exactly once, by the partition's exit",
+   "ok": true,
+   "detail": "19665 ended: partition exited: {\"Status\":0,\"ExitType\":\"ForcedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"Terminate\",\"Initiator\":\"Client\"}}]}"
+  },
+  {
+   "name": "6c A's relay port no longer answers",
+   "ok": true
+  },
+  {
+   "name": "6d B still attests on the same key it had before A died, and still answers",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "6e the service lists exactly the one partition still alive",
+   "ok": true,
+   "detail": "{\"hcs\":1,\"domains\":1}"
+  },
+  {
+   "name": "7 a graceful stop winds the in-guest domain down (the monitor answers stopped) and the partition is ended",
+   "ok": true,
+   "detail": "{\"stopped\":1}"
+  },
+  {
+   "name": "7b destroying B removes its in-guest domain and stops its port answering",
+   "ok": true,
+   "detail": "{\"destroyed\":1}"
+  },
+  {
+   "name": "7c nothing left behind: no partitions in the table, none owned by this launcher at the service",
+   "ok": true,
+   "detail": "{\"hcs\":0,\"domains\":0}"
+  },
+  {
+   "name": "7d after those cycles a new partition loads, attests and answers",
+   "ok": true
+  }
+ ],
+ "failures": 0,
+ "hostLog": [
+  "LAUNCH partition 1 created 0bd4577b-4cbb-46b5-af66-517b7bf00966 runtime_id=0bd4577b-4cbb-46b5-af66-517b7bf00966 app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=A image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+  "LAUNCH partition 1 started",
+  "LAUNCH partition 1 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":307,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
+  "LAUNCH partition 1 loaded: guest agrees on 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b; guest domain 1 on vsock port 40001",
+  "LAUNCH partition 1 running",
+  "LAUNCH partition 2 created cb612379-f2a4-4640-bb9d-1fc03c99ad8a runtime_id=cb612379-f2a4-4640-bb9d-1fc03c99ad8a app_id=bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 label=B image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+  "LAUNCH partition 2 started",
+  "LAUNCH partition 2 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":307,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
+  "LAUNCH partition 2 loaded: guest agrees on bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837; guest domain 1 on vsock port 40001",
+  "LAUNCH partition 2 running",
+  "LAUNCH partition 1 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind ca0bb1ca5a74044d583adcb8af572341e97aecffc3f69f60394c9c29a47ef156",
+  "LAUNCH partition 2 signed a report: app bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 bind 6530a265603f7be00f01690c14a6706b6ec4fdb39a7ae8cbec3fda43e6e19db2",
+  "LAUNCH partition 1 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind e9919a277cb6fb9959e1ab0537e446230a8169ad7e422be4d35390e3cc9b589c",
+  "LAUNCH partition 3 created dc743161-0788-47a4-883a-bc64b483ca61 runtime_id=dc743161-0788-47a4-883a-bc64b483ca61 app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=P image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+  "LAUNCH partition 3 started",
+  "LAUNCH partition 3 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":307,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
+  "LAUNCH partition 3 loaded: guest agrees on 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b; guest domain 1 on vsock port 40001",
+  "LAUNCH partition 3 running",
+  "LAUNCH partition 3 signed a report: app 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b bind 2222222222222222222222222222222222222222222222222222222222222222",
+  "LAUNCH partition 3 terminate: partition told to stop",
+  "LAUNCH partition 3 ended: destroyed at lease end",
+  "LAUNCH partition 1 ended: partition exited: {\"Status\":0,\"ExitType\":\"ForcedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"Terminate\",\"Initiator\":\"Client\"}}]}",
+  "LAUNCH partition 2 signed a report: app bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 bind d9a178557ad500e7bafcae8c8f42c8e40b43a8ddc20d17de85901533f8733bb3",
+  "LAUNCH partition 4 created e325e81c-81f5-4a8a-9950-ea1326dd4ff8 runtime_id=e325e81c-81f5-4a8a-9950-ea1326dd4ff8 app_id=603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b label=C image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+  "LAUNCH partition 4 started",
+  "LAUNCH partition 4 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":308,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
+  "LAUNCH partition 4 loaded: guest agrees on 603bb7a7c55d16a698521baf9e9cd2b040dbbaab4ef9666bee1da87446a93d4b; guest domain 1 on vsock port 40001",
+  "LAUNCH partition 4 running",
+  "LAUNCH partition 4 terminate: partition told to stop",
+  "LAUNCH partition 4 ended: stopped at lease end",
+  "LAUNCH partition 2 terminate: partition told to stop",
+  "LAUNCH partition 2 ended: destroyed at lease end",
+  "LAUNCH partition 5 created 6f5a26f6-4377-499f-a4d2-88b574708015 runtime_id=6f5a26f6-4377-499f-a4d2-88b574708015 app_id=bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 label=D image=44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf kernel=7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+  "LAUNCH partition 5 started",
+  "LAUNCH partition 5 monitor up: {\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":308,\"mem_total_mib\":395,\"mounts\":0,\"userspace_procs\":1}",
+  "LAUNCH partition 5 loaded: guest agrees on bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837; guest domain 1 on vsock port 40001",
+  "LAUNCH partition 5 running",
+  "LAUNCH partition 5 signed a report: app bba82d56e92b95afd4e3d46bc0de0d7422f9690e4eed83ce585c8e55d6138837 bind 7925bcdddb53d5905e957f14861cd8b5c6e66701867bb013bde92200d7b8ec18",
+  "LAUNCH partition 5 terminate: partition told to stop",
+  "LAUNCH partition 5 ended: destroyed at lease end"
+ ],
+ "imageSha256": "44abb52b1486dd2aae344e021a0d8049dfb2015d137c22a6e336051c4db5a0cf"
+}
