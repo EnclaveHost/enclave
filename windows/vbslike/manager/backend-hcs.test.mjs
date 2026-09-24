@@ -139,3 +139,108 @@ test("an instanceId is required, and a mapping with no bundle is refused", async
     await assert.rejects(() => r.b.start({ appId: APPID }, { instanceId: "dep-8" }), /no bundle bytes/);
   } finally { await r.cleanup(); }
 });
+
+/* ---- defects 2 and 3, against a fake that keeps lab.rs's real facts ---------------------------- *
+ *
+ * enclave-99's point about the fake above: its `destroy` accepts ANY argument, so the cleanup
+ * assertion only ever proved a line was sent. lab.rs parses destroy/stop/kill arguments with
+ * s.parse::<u32>(), and answers are one JSON line per command, in order, with NO request ids.
+ * These two fakes keep both facts, so the tests can fail. */
+
+/** destroy/stop/kill take a NUMERIC id, exactly as lab.rs does. */
+function strictLauncher({ appSha256 = APPID } = {}) {
+  const sent = [];
+  const live = new Set();
+  const make = () => {
+    const p = new EventEmitter();
+    p.stdout = new EventEmitter(); p.stderr = new EventEmitter();
+    p.stdin = { write: (s) => {
+      sent.push(s.trim());
+      const [cmd, a1] = s.trim().split(/\s+/);
+      queueMicrotask(() => {
+        if (cmd === "load") {
+          live.add(7);
+          p.stdout.emit("data", JSON.stringify({ loaded: { id: 7, label: a1, vmId: "GUID-7",
+            appSha256, guestId: "g1", guestPort: 8080, tcpPort: 19007 } }) + "\n");
+        } else if (cmd === "destroy" || cmd === "stop" || cmd === "kill") {
+          if (!/^\d+$/.test(String(a1 ?? ""))) {
+            // the real lab.rs answer for a non-numeric argument
+            return p.stdout.emit("data", JSON.stringify({ error: "invalid digit found in string" }) + "\n");
+          }
+          live.delete(Number(a1));
+          p.stdout.emit("data", JSON.stringify({ destroyed: Number(a1), guest: { exit: 0 } }) + "\n");
+        } else p.stdout.emit("data", JSON.stringify({ ok: true }) + "\n");
+      });
+    }, end: () => {} };
+    queueMicrotask(() => p.stdout.emit("data", JSON.stringify({ ready: true, launcherKey: "k",
+      boundary: "t0-hv", initrdSha256: "i", kernelSha256: "k" }) + "\n"));
+    return p;
+  };
+  return { make, sent, live };
+}
+
+test("defect 2: after a hash mismatch the partition is destroyed BY ID, not by label", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "hcsb2-"));
+  const exe = path.join(dir, "e.exe"), kernel = path.join(dir, "k"), initrd = path.join(dir, "i");
+  for (const f of [exe, kernel, initrd]) await fs.writeFile(f, "x");
+  const L = strictLauncher({ appSha256: "ff".repeat(32) });   // disagrees with what we derived
+  const b = new HcsPartitionBackend({ exe, kernel, initrd, out: dir, spawnFn: L.make });
+  try {
+    await assert.rejects(() => b.start({ appId: APPID, bundle: Buffer.from("b") }, { instanceId: "dep0001-708e6409" }),
+      /refusing/);
+    const destroy = L.sent.find((l) => l.startsWith("destroy"));
+    assert.ok(destroy, "a loaded partition must be destroyed when we refuse it");
+    assert.equal(destroy, "destroy 7", "by the numeric id the load answer carried, not the label");
+    assert.equal(L.live.size, 0, "and the partition is actually gone, not just a line that was sent");
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
+});
+
+test("defect 2: a destroy that FAILS is reported, not swallowed", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "hcsb3-"));
+  const exe = path.join(dir, "e.exe"), kernel = path.join(dir, "k"), initrd = path.join(dir, "i");
+  for (const f of [exe, kernel, initrd]) await fs.writeFile(f, "x");
+  const L = strictLauncher({ appSha256: "ff".repeat(32) });
+  // a launcher that refuses every destroy
+  const make = () => { const p = L.make(); const w = p.stdin.write;
+    p.stdin.write = (s) => { if (s.trim().startsWith("destroy")) { queueMicrotask(() =>
+      p.stdout.emit("data", JSON.stringify({ error: "access denied" }) + "\n")); return; } return w(s); }; return p; };
+  const b = new HcsPartitionBackend({ exe, kernel, initrd, out: dir, spawnFn: make });
+  try {
+    const e = await b.start({ appId: APPID, bundle: Buffer.from("b") }, { instanceId: "i1" }).then(() => null, (x) => x);
+    assert.ok(e, "it must still refuse the mismatch");
+    assert.match(e.message, /could not be destroyed/,
+      "a live partition we failed to destroy must be SAID, or it is an orphan nobody knows about");
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
+});
+
+test("defect 3: after a timed-out command, later answers are NOT shifted onto other commands", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "hcsb4-"));
+  const exe = path.join(dir, "e.exe"), kernel = path.join(dir, "k"), initrd = path.join(dir, "i");
+  for (const f of [exe, kernel, initrd]) await fs.writeFile(f, "x");
+  let emit = null;
+  const make = () => {
+    const p = new EventEmitter();
+    p.stdout = new EventEmitter(); p.stderr = new EventEmitter();
+    emit = (o) => p.stdout.emit("data", JSON.stringify(o) + "\n");
+    p.stdin = { write: (s) => {
+      const [cmd, a1] = s.trim().split(/\s+/);
+      if (cmd === "load") return;                       // answer LATE, after the caller gives up
+      queueMicrotask(() => emit(cmd === "destroy" ? { destroyed: Number(a1), guest: { exit: 0 } } : { ok: true }));
+    }, end: () => {} };
+    queueMicrotask(() => emit({ ready: true, launcherKey: "k", boundary: "t0-hv", initrdSha256: "i", kernelSha256: "k" }));
+    return p;
+  };
+  const b = new HcsPartitionBackend({ exe, kernel, initrd, out: dir, spawnFn: make, loadTimeoutMs: 60 });
+  try {
+    await assert.rejects(() => b.start({ appId: APPID, bundle: Buffer.from("b") }, { instanceId: "i1" }),
+      /did not answer within/);
+    // the launcher's answer to that load arrives now, long after we gave up on it
+    emit({ loaded: { id: 7, label: "i1", vmId: "G", appSha256: APPID, guestPort: 8080, tcpPort: 19007 } });
+    await new Promise((r) => setTimeout(r, 20));
+    // a NEW command must get ITS OWN answer, not the stale "loaded" line
+    const r = await b.stop({ instanceId: "i1", domainId: 7 }).catch((e) => ({ error: e.message }));
+    assert.equal(r && r.loaded, undefined,
+      `the timed-out load's answer was delivered to stop(): ${JSON.stringify(r)}`);
+    assert.ok(r && (r.destroyed === 7 || r.guest || r.ok), `stop got no answer of its own: ${JSON.stringify(r)}`);
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
+});
