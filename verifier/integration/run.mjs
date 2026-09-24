@@ -2,7 +2,9 @@
 // verifier/integration/run.mjs: the STRICT integration command. Resolves the pinned owner revision (resolve.mjs),
 // then runs the acceptance suites with ENCLAVE_PVM_MODULE pointing at the resolved entry and
 // ENCLAVE_STRICT_INTEGRATION=1, under which an acceptance case that would otherwise skip FAILS. Exit codes:
-// 0 all acceptance cases passed; 2 the dependency could not be resolved; 1 a test failed or was skipped.
+// 0 all acceptance cases passed; 2 a dependency could not be resolved; 1 a test failed or was skipped;
+// 3 NOT ACCEPTED: an OPEN FINDING against the owner's code (verifier/integration/findings.json) still reproduces on the
+//   exact pinned revision it was found on. That is not a harness failure and never a pass: the verdict line says so.
 //   node verifier/integration/run.mjs [--pin pvm-app-attest] [--dir .verifier-integration] [--no-fetch]
 import fs from "node:fs";
 import path from "node:path";
@@ -25,7 +27,7 @@ for (const [name, pin] of Object.entries(pinsFile)) {
     let got; try { got = createHash("sha256").update(fs.readFileSync(path.join(outDir, rel))).digest("hex"); } catch { console.error(`integration: ${name}: ${rel} missing from the materialisation; refusing`); process.exit(2); }
     if (got !== want || onDisk.files[rel] !== want) { console.error(`integration: ${name}: ${rel} on disk does not match the pin; refusing`); process.exit(2); }
   }
-  if (typeof pin.env !== "string" || !/^[A-Z_]+$/.test(pin.env)) { console.error(`integration: ${name}: the pin names no environment variable`); process.exit(2); }
+  if (typeof pin.env !== "string" || !/^[A-Z][A-Z0-9_]*$/.test(pin.env)) { console.error(`integration: ${name}: the pin names no environment variable`); process.exit(2); }
   env[pin.env] = manifest.entry;
   console.log(`integration: ${name} @ ${manifest.commit} (${manifest.branch}) -> ${path.relative(REPO, manifest.entry)} (manifest and hashes re-checked) as ${pin.env}`);
 }
@@ -38,13 +40,32 @@ for (const name of Object.keys(artifacts)) {
 }
 const suites = ["test/verifier-pvm-device.test.mjs", "test/verifier-pvm-evidence.test.mjs", "test/verifier-pvm-abi2.test.mjs", "test/verifier-admission.test.mjs", "test/verifier-sealed-stream.test.mjs", "test/verifier-sealed-traces.test.mjs", "test/verifier-pvm-client-persistence.test.mjs", "test/verifier-pvm-client-update.test.mjs", "test/verifier-pvm-client-supersede.test.mjs", "test/verifier-pvm-client-ext.test.mjs"];
 const t = spawnSync(process.execPath, ["--test", "--test-reporter=tap", "--test-timeout=180000", ...suites], { cwd: REPO, encoding: "utf8", env });
-const tail = (t.stdout || "").split("\n").filter((l) => /^# (tests|pass|fail|skipped|todo)/.test(l)).join("  ");
-const failed = /^# fail (\d+)/m.exec(t.stdout || ""), skipped = /^# skipped (\d+)/m.exec(t.stdout || ""), todo = /^# todo (\d+)/m.exec(t.stdout || "");
-console.log(tail);
-// a todo case is a KNOWN FINDING reported to the owner: its required behaviour is asserted and does not hold yet. It never
-// passes silently: every one is named here, with whether it still fails (open) or now passes (fixed: drop the todo mark).
-if (todo && Number(todo[1]) > 0) for (const l of (t.stdout || "").split("\n").filter((l) => /^(not )?ok \d+ - .* # TODO/i.test(l)))
-  console.log(`integration: known finding (${l.startsWith("not ok") ? "still open" : "now passes: remove its todo mark"}): ${l.replace(/^(not )?ok \d+ - /, "").replace(/ # TODO.*$/i, "")}`);
-if (t.status !== 0 || !failed || Number(failed[1]) > 0) { process.stdout.write((t.stdout || "").split("\n").filter((l) => /^not ok|^\s+error|^\s+\+|^\s+-/.test(l)).join("\n") + "\n"); console.error("integration: FAILED"); process.exit(1); }
-if (skipped && Number(skipped[1]) > 0) { console.error(`integration: ${skipped[1]} acceptance case(s) SKIPPED under strict mode; a skip is a failure here`); process.exit(1); }
+const out = t.stdout || "";
+const num = (k) => { const m = new RegExp(`^# ${k} (\\d+)`, "m").exec(out); return m ? Number(m[1]) : null; };
+console.log(out.split("\n").filter((l) => /^# (tests|pass|fail|skipped|todo)/.test(l)).join("  "));
+if (num("fail") === null) { process.stdout.write(out.slice(-3000)); console.error("integration: the test run did not complete: FAILED"); process.exit(1); }
+if (num("todo") > 0) { console.error("integration: a todo mark is an exemption, and none is allowed in acceptance: FAILED"); process.exit(1); }
+const failing = out.split("\n").map((l) => /^\s*not ok \d+ - (.*?)(?: # (?:SKIP|TODO).*)?$/.exec(l)).filter(Boolean).map((m) => m[1]).filter((n) => !/^test\/.*\.mjs$/.test(n));
+// Open findings (verifier/integration/findings.json): a case a finding names, failing on EXACTLY the pinned revision the
+// finding was found on, is an open finding against the owner's code, not a harness failure; it is never a pass either.
+// The verdict is NOT ACCEPTED with exit 3 (distinct from FAILED 1 and from a dependency refusal 2). On any other pinned
+// revision the same case is plainly required, with no exemption; the entry is closed by hand once the case passes there.
+const findings = JSON.parse(fs.readFileSync(path.join(REPO, "verifier", "integration", "findings.json"), "utf8"));
+const appliesNow = (f) => f.status === "open" && pinsFile[f.pin] && pinsFile[f.pin].commit === f.knownOn;
+const plain = failing.filter((n) => !Object.values(findings).some((f) => appliesNow(f) && f.cases.includes(n)));
+if (plain.length) {
+  for (const n of plain) console.log(`integration: FAILED case: ${n}`);
+  process.stdout.write(out.split("\n").filter((l) => /^\s+error|^\s+\+|^\s+-/.test(l)).join("\n") + "\n");
+  console.error("integration: FAILED"); process.exit(1);
+}
+if (num("skipped") > 0) { console.error(`integration: ${num("skipped")} acceptance case(s) SKIPPED under strict mode; a skip is a failure here`); process.exit(1); }
+let open = 0;
+for (const [id, f] of Object.entries(findings)) {
+  if (f.status !== "open") continue;
+  if (!appliesNow(f)) { console.log(`integration: finding ${id} is recorded against ${f.knownOn.slice(0, 12)}, no longer pinned as ${f.pin}: its cases are required of ${pinsFile[f.pin] ? pinsFile[f.pin].commit.slice(0, 12) : "?"} with no exemption (they passed above); close the entry`); continue; }
+  const still = f.cases.filter((n) => failing.includes(n));
+  if (still.length) { open++; console.log(`integration: NOT ACCEPTED: open finding ${id} still reproduces on ${f.knownOn.slice(0, 12)} (${f.title}):\n${still.map((n) => `integration:   still failing: ${n}`).join("\n")}`); }
+  else { open++; console.log(`integration: NOT ACCEPTED: finding ${id} is recorded open against ${f.knownOn.slice(0, 12)} but its cases pass there: correct or close the entry`); }
+}
+if (open) { console.error(`integration: NOT ACCEPTED (${open} open finding(s) against the pinned owner code; this is not a clean pass)`); process.exit(3); }
 console.log(`integration: PASS against ${Object.values(pinsFile).map((p) => p.commit.slice(0, 12)).join(", ")}`);

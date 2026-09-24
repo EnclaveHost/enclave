@@ -1,4 +1,4 @@
-// Superseded-policy refusal at REQUEST RELEASE, against the owner's pinned 0.2.0 SOURCE (pin pvm-client-src): client A
+// Superseded-policy refusal at REQUEST RELEASE, against the owner's pinned SOURCE (pin pvm-client-src): client A
 // commits policy serial 5 and its evidence request is held; meanwhile client B commits serial 6; when A's evidence is
 // released with an envelope the (stubbed) verifier accepts, A must re-read the committed state just before sealing, find
 // itself superseded, refuse at step "gate" and send NO sealed request. Only web/pvm-verify.js as imported by
@@ -15,7 +15,7 @@ import { labServer, keys, signedPolicy, rawPub, APP, cliRun, committedState, ins
 
 const SRC = process.env.ENCLAVE_PVM_CLIENT_SRC || "";
 const STRICT = process.env.ENCLAVE_STRICT_INTEGRATION === "1";
-if (STRICT && !(SRC && fs.existsSync(SRC))) throw new Error("strict integration: ENCLAVE_PVM_CLIENT_SRC (the pinned 0.2.0 client source) is missing");
+if (STRICT && !(SRC && fs.existsSync(SRC))) throw new Error("strict integration: ENCLAVE_PVM_CLIENT_SRC (the pinned client source) is missing");
 const skip = !(SRC && fs.existsSync(SRC)) && !STRICT && "pinned client source absent (node verifier/integration/resolve.mjs --pin pvm-client-src, then ENCLAVE_PVM_CLIENT_SRC)";
 const HOOK = ["--import", new URL("./helpers/pvm-verify-stub-register.mjs", import.meta.url).href];
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "pvm-supersede-"));

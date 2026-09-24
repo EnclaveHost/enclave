@@ -1,0 +1,21 @@
+{
+  "F2-same-version-restage": {
+    "title": "a refused same-version re-stage replaces the staged file's bytes (update.js stageUpdate renames the verified file before the commit decides)",
+    "status": "closed",
+    "raised": "2026-09-24",
+    "raisedWith": "pVM owner (session enclave-53); receipt acknowledged by the owner 2026-09-24",
+    "pin": "pvm-client-dist",
+    "knownOn": "6784f67159e835c6ef4af113c5c4d1463d52b32d",
+    "fixture": "pvm-client-dist-f2",
+    "cases": [
+      "a refused same-version re-stage must leave the staged bytes untouched",
+      "concurrent same-version stagers with other bytes: the state's digest and the file on disk never disagree, whichever completes last"
+    ],
+    "reproduction": "regression fixture: on the pre-fix build (pin pvm-client-dist-f2) the refused same-version stager DOES replace the staged bytes",
+    "rule": "while pins[pin].commit === knownOn these cases failing is NOT ACCEPTED (exit 3), never a pass; on any other pinned revision they are plainly required; close the entry (status closed, fixedOn) once they pass on the new revision",
+    "fixedOn": "e7a2badc68ecca8facb9d63dc5592687bf74119a",
+    "fixedIn": "pVM client 0.2.1: content-addressed immutable publish (link(), never replace) + the decision inside the commit; the same artifact again is idempotent",
+    "closed": "2026-09-24",
+    "closedBy": "the required cases pass on the pinned e7a2badc (strict 76/76) and the regression fixture still reproduces the defect on 6784f671"
+  }
+}

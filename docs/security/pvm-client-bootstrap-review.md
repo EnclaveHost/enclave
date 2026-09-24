@@ -245,16 +245,48 @@ successor release key signs and the retired key and a stranger do not; a storm o
 0.3.5) and six policy commits (serials 10 to 15) that ends at 0.3.5 and serial 15 with every loser refused by the
 monotonic rule and exactly one generation per successful commit.
 
-Two findings, reported to the owner (session enclave-53):
+Two findings, raised with the pVM owner (session enclave-53; sent 2026-09-24, receipt acknowledged by the owner the same day):
 
 1. A refused stager's verified bytes remain beside the client under their own version name (the file is written
    before the commit decides). Not staged, not named by `staged`; an operational leftover rather than a hole.
 2. A second manifest for the SAME version with other bytes, carrying both signatures (a re-signed build), is refused by
    the monotonic rule but has already replaced `pvm-client-<version>.mjs`, so `staged` then reports `bytesMatch:
    false` for the update the state names. Whoever can produce such a manifest holds both keys, so this is robustness,
-   not privilege; but a re-signed build breaks a staged update instead of being ignored. The required behaviour (the
-   refused stager leaves the staged bytes untouched) is asserted as a todo case, which the strict command names as a
-   known finding until it passes.
+   not privilege; but a re-signed build breaks a staged update instead of being ignored. This is finding F2 in
+   `verifier/integration/findings.json`. The required behaviour is asserted with no exemption by three cases: the
+   sequential re-stage (the failing assertion, unchanged: the refused stager must not replace the staged file's
+   bytes), a concurrent one (a same-version stager held at download while another completes, then a burst of six
+   same-version stagers with different bytes: the state's digest and the file on disk never disagree, exactly one
+   wins), and a same-bytes re-stage (refused, staged bytes remain). The first two fail on 6784f671; the strict command
+   then reports NOT ACCEPTED with exit 3, a verdict distinct from FAILED (1) and from a dependency refusal (2), and
+   never a pass. The rule applies only while the pin is the revision the finding was found on: once `pvm-client-dist`
+   moves to a fixing revision the cases are plainly required, and the entry is closed by hand. 6784f671 stays pinned
+   as `pvm-client-dist-f2` with a regression fixture that requires the defect to still reproduce there, so the finding
+   remains replayable.
 
-Strict command after this increment: 73 cases, 72 pass, 0 fail, 0 skipped, 1 todo (the finding above), against the
-five pins and both reproduced artifacts.
+**Closure (same day, owner's 0.2.1 at e7a2badc).** The owner's fix publishes the verified bytes under a content-addressed
+name, `pvm-client-<version>-<sha256>.mjs`, through a read-only fsynced temp file `link()`ed to that name (a link never
+replaces a file; an existing name must hash to itself or the stager is refused and the file left untouched), takes the
+monotonic decision inside the store's compare-and-swap, and takes it once more on the newest state before publishing so
+a sequentially refused stager publishes nothing. One semantic change came with it: the same artifact again (same
+version, bytes and source commit) is idempotent, success with `already: true`, no new generation and the staged file
+untouched, and it re-publishes a staged file that went missing; the same bytes under another source commit are refused.
+The hashes the owner reported were recomputed here from the git objects before re-pinning (`pvm-client.mjs`
+`111a8db8a60dfc36bcee7e149b28909bd4726670ae9f5305298992f72a9e1dab`, 128361 bytes; `pvm-client-ext.zip`
+`483af80966518db0cda4f077ffb3e15044c35301a0d4f2bdec4c7d2d3e65141c`, 128994 bytes; the extension's code is unchanged
+apart from its version) and both artifacts reproduced from the commit under the strict command. Results against
+e7a2badc with every F2 assertion unchanged: the sequential re-stage and the concurrent one (held loser, then a burst of
+six) pass; the same-artifact case now asserts idempotence (gen, inode, mtime and size unchanged) after reading the rule
+in the source; the sequential different-version refusal now checks that nothing was published (F1); the extension suite
+passes against the 0.2.1 zip; the supersede suite passes against the re-pinned sources; the regression fixture still
+reproduces the defect on the 0.2.0 build pinned as `pvm-client-dist-f2`. The finding is closed in
+`verifier/integration/findings.json` with the fixing commit. Kept as an observation, not a failure: losers of a
+concurrent same-version race that published before the winner committed leave immutable content-addressed files no
+state names, which the client never deletes (a shared install directory, no safe deletion without a lock). The owner's
+design text now states the launcher rule: a start runs the staged file only when `staged` reports `bytesMatch: true`
+and otherwise stays on the running version; the lab has no launcher, so that rule is unverified here.
+
+Strict command: against 6784f671 it was 76 cases, 74 pass, 2 fail (F2's sequential and concurrent cases), 0 skipped,
+no todo marks, verdict NOT ACCEPTED (exit 3); as a control, with the finding recorded against another commit the same
+two failures gave FAILED (exit 1), so a new pinned revision gets no exemption. Against e7a2badc it is 76 cases, 76
+pass, 0 fail, 0 skipped, verdict PASS (exit 0), with the six pins and both reproduced artifacts.

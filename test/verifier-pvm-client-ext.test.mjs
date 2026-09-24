@@ -1,4 +1,4 @@
-// The SHIPPED extension (the pinned pvm-client-ext.zip, unzipped and loaded unpacked) in a real Chrome for Testing over the
+// The SHIPPED extension (the pinned pvm-client-ext.zip of the current pin, unzipped and loaded unpacked) in a real Chrome for Testing over the
 // DevTools protocol, with deterministic barriers: the extension's own "policy-committed" post to the lab result URL, and
 // the lab relay holding /evidence. Cases: a stall at evidence followed by SIGKILL of the whole browser, then a relaunch
 // that must find the committed serial and refuse a rollback; the same with only the tab closed; two tabs holding old and
@@ -6,7 +6,7 @@
 // preserved old-client failure. What passing proves: persistence across browser process death and tab close on this
 // machine. NOT proven here: persistence across whole-machine power loss (chrome.storage.local's write reaches the browser
 // process and the OS page cache; nothing here cuts power).
-//   run: ENCLAVE_PVM_CLIENT_CLI=<0.2.0 pvm-client.mjs> [ENCLAVE_PVM_CLIENT_OLD_CLI=<0.1.0 pvm-client.mjs>] node --test test/verifier-pvm-client-ext.test.mjs
+//   run: ENCLAVE_PVM_CLIENT_CLI=<pinned pvm-client.mjs> [ENCLAVE_PVM_CLIENT_OLD_CLI=<0.1.0 pvm-client.mjs>] node --test test/verifier-pvm-client-ext.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -22,8 +22,8 @@ const zipBeside = (cli) => (cli ? path.join(path.dirname(cli), "pvm-client-ext.z
 const NEW_ZIP = zipBeside(process.env.ENCLAVE_PVM_CLIENT_CLI), OLD_ZIP = zipBeside(process.env.ENCLAVE_PVM_CLIENT_OLD_CLI);
 const STRICT = process.env.ENCLAVE_STRICT_INTEGRATION === "1";
 const have = (p) => !!p && fs.existsSync(p);
-if (STRICT && !(have(CFT) && have(NEW_ZIP) && have(OLD_ZIP))) throw new Error("strict integration: Chrome for Testing, the pinned 0.2.0 extension zip or the pinned 0.1.0 extension zip is missing");
-const skipNew = !(have(CFT) && have(NEW_ZIP)) && "Chrome for Testing or the pinned 0.2.0 extension zip absent";
+if (STRICT && !(have(CFT) && have(NEW_ZIP) && have(OLD_ZIP))) throw new Error("strict integration: Chrome for Testing, the pinned extension zip or the pinned 0.1.0 extension zip is missing");
+const skipNew = !(have(CFT) && have(NEW_ZIP)) && "Chrome for Testing or the pinned extension zip absent";
 const skipOld = !(have(CFT) && have(OLD_ZIP)) && "the pinned 0.1.0 extension zip absent (ENCLAVE_PVM_CLIENT_OLD_CLI)";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "pvm-ext-"));
@@ -69,7 +69,7 @@ async function fresh(zip, name) {
 }
 const relaunch = async (s) => { s.br = await launch(s.extDir, s.profile); return s.br; };
 
-test("0.2.0: stall at evidence, then the whole browser SIGKILLed: the relaunch finds the committed serial and refuses a rollback", { skip: skipNew }, async () => {
+test("pinned build: stall at evidence, then the whole browser SIGKILLed: the relaunch finds the committed serial and refuses a rollback", { skip: skipNew }, async () => {
   L.policies.set("e1-new", signedPolicy(K, 2)); L.policies.set("e1-old", signedPolicy(K, 1));
   const s = await fresh(NEW_ZIP, "e1");
   await openTab(s, "e1-new"); await L.evidenceRequested("e1", 1);   // the page acted on the policy; the relay holds it
@@ -83,7 +83,7 @@ test("0.2.0: stall at evidence, then the whole browser SIGKILLed: the relaunch f
   assert.match(r.userAgent || "", /Chrome\/151\./, "the outcome came from the real browser"); assert.equal(r.extension, s.br.id, "under the computed unpacked-extension id");
   await s.br.quit();
 });
-test("0.2.0: stall at evidence, then only the TAB closed: the serial stays committed and a rollback in a new tab is refused", { skip: skipNew }, async () => {
+test("pinned build: stall at evidence, then only the TAB closed: the serial stays committed and a rollback in a new tab is refused", { skip: skipNew }, async () => {
   L.policies.set("e2-new", signedPolicy(K, 3)); L.policies.set("e2-old", signedPolicy(K, 2));
   const s = await fresh(NEW_ZIP, "e2");
   const p = await openTab(s, "e2-new"); await L.evidenceRequested("e2", 1);
@@ -93,7 +93,7 @@ test("0.2.0: stall at evidence, then only the TAB closed: the serial stays commi
   assert.equal(L.count("e2"), 1); const r = await outcome("e2-old"); assert.equal(r.step, "policy"); assert.match(r.refused, /rollback/);
   await s.br.quit();
 });
-test("0.2.0: two tabs; new first then old: the old tab is refused before acting; old first then new: the state ends new and the old completion cannot overwrite it", { skip: skipNew }, async () => {
+test("pinned build: two tabs; new first then old: the old tab is refused before acting; old first then new: the state ends new and the old completion cannot overwrite it", { skip: skipNew }, async () => {
   for (const [n, sr] of [["e3-new", 6], ["e3-old", 5], ["e3-old2", 7], ["e3-new2", 8]]) L.policies.set(n, signedPolicy(K, sr));
   const s = await fresh(NEW_ZIP, "e3");
   const pn = await openTab(s, "e3-new"); await L.evidenceRequested("e3", 1);
@@ -110,7 +110,7 @@ test("0.2.0: two tabs; new first then old: the old tab is refused before acting;
   assert.equal(committedBefore("e3-new") && committedBefore("e3-old2") && committedBefore("e3-new2"), true);
   await s.br.quit();
 });
-test("0.2.0: equal serial with other bytes across two tabs is refused as equivocation; the same bytes again are accepted and acted on", { skip: skipNew }, async () => {
+test("pinned build: equal serial with other bytes across two tabs is refused as equivocation; the same bytes again are accepted and acted on", { skip: skipNew }, async () => {
   L.policies.set("e4-a", signedPolicy(K, 9)); L.policies.set("e4-b", signedPolicy(K, 9, { tag: "other bytes" })); L.policies.set("e4-c", L.policies.get("e4-a"));
   const s = await fresh(NEW_ZIP, "e4");
   const pa = await openTab(s, "e4-a"); await L.evidenceRequested("e4", 1);
