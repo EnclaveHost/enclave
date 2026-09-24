@@ -74,6 +74,13 @@ node --test windows/vbslike/pkg/pkg.test.mjs
 - **The judge.** It loads from the package's own files, laid out as shipped, and rejects a document that is not one.
 - **The igvm manager.** Run on a recording host, its own `start()` must issue `New-VM -GuestStateIsolationType` OpenHCL
   or TrustedLaunch.
+- **The node's record builder, against the catalog** (manifests with `catalogFacts`, from v8). The manifest records each
+  app's catalog version as read from the chain, with the chain, block, address book and catalog. The shipped
+  `node-bridge.mjs`'s `isolationPlan` builds the derivation record from those facts, as the node does at spawn time. That
+  record must equal the pinned record as canonical bytes, not field by field. Field by field would miss a builder whose
+  fields are all present and well-formed but wrong: enclave-d1's hand-built record took `memMiB` from the node's
+  `cpuFallback` floor and `catalog.app` from a label, which gives another AppID than the Linux tier. The package's
+  records were never affected; they are the Linux tier's own.
 - **`--tests`.** Each functional test the manifest pins runs INSIDE the package's own `control/` tree, as shipped, so its
   relative imports resolve to the package's bytes. These are other lanes' tests, pinned by commit. Each must give
   exactly its stated result: the counts, and which cases fail. v5 pins enclave-99's `readiness-rule.test.mjs` against
@@ -87,7 +94,7 @@ repository data (contract vectors, the launcher's source) names it as `support`:
 paths for the run, never shipped. A test run under another test runner must
   strip `NODE_TEST_CONTEXT`, or the child reports in a binary protocol and no counts can be read.
 
-The test suite has 45 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
+The test suite has 48 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
 re-pinned to its new bytes. Each case must FAIL at the check that covers it, and the two controls must PASS. The
 sources live in `~/enclave-bench/ownguest-pkg/sources/`, and the tests skip without them.
 
