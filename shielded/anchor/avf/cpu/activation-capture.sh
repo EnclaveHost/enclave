@@ -1,7 +1,8 @@
 # activation-capture.sh -- SOURCED by cpu/app-activation-run.sh and cpu/preflight-activation-capture.sh (LAB): the one
 # implementation of an installed-client call with its per-call capture, so the preflight exercises exactly the code the
 # device run executes. The caller provides OUT, CLI, STATE, INSTALL and log().
-#   cl <label> <command...>   runs `node $CLI <command...> --state $STATE --install-dir $INSTALL`, keeps its output, stderr
+#   cl <label> <command...>   runs `node $CLI <command...> --state $STATE --install-dir $INSTALL` (under `timeout` when
+#                             CL_TIMEOUT is set), keeps its output, stderr
 #                             and exit code, then appends ONE row to $OUT/exchanges.jsonl: the evidence exchanges this call
 #                             made (the relay carrier numbers them in arrival order) and the committed state right after it
 #                             (gen, serial, policy key and successor, release key, active record). Returns the call's code.
@@ -37,7 +38,9 @@ PY
 cl() {
   local label="$1"; shift; local e0 t0 rc
   e0=$(ls "$OUT/evidence" 2>/dev/null | grep -c '^evidence-[0-9]*\.json$' || true); t0=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)
-  node "$CLI" "$@" --state "$STATE" --install-dir "$INSTALL" > "$OUT/$label.jsonl" 2> "$OUT/$label.err"; rc=$?; echo $rc > "$OUT/$label.rc"
+  # CL_TIMEOUT (seconds, optional): a call that does not end in time is killed -- exit 124 (or 137 after the grace), which
+  # the caller classifies as a timeout, never as a pass
+  ${CL_TIMEOUT:+timeout --kill-after=5 "$CL_TIMEOUT"} node "$CLI" "$@" --state "$STATE" --install-dir "$INSTALL" > "$OUT/$label.jsonl" 2> "$OUT/$label.err"; rc=$?; echo $rc > "$OUT/$label.rc"
   capture_row "$label" "$rc" "$e0" "$t0"
   python3 - "$OUT/$label.jsonl" "$label" "$rc" <<'PY' | tee -a "$OUT/run.log" || log "(the summary of $label could not be printed; its .jsonl is kept)"
 import json, sys
