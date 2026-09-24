@@ -313,12 +313,16 @@ relay/deploy.sh and relay/systemd/enclave-api-relay.service.
 3. **Proven time (ledger rev 9).**
    - A rev-9 ledger pays only for time the runner PROVES it served. The proof is checkpoints signed by the
      registry's `proofKey`, and metal boxes mint that key inside the CVM.
-   - For a phone, the proof key belongs inside the pVM: the VM would mint a secp256k1 key and sign "this app was running
-     here through T". That payload code does not exist.
+   - For a phone, the proof key belongs inside the pVM. It is BUILT and CHECKED on the Pixel (PROOF-KEY.md;
+     results/pvm-cpu-proof-key):
+     - the VM derives it from the instance secret;
+     - it attests it in an `enclave-proof-key/v1` statement;
+     - it signs EnclaveProofOfTime checkpoints for its pins only;
+     - the real contracts, on a local chain, accepted them.
+     The owner-side agent that posts them is the next piece.
    - It is a precondition, not a refinement. supervisor.js records that a rev-9 ledger refuses to sell work to a runner
      that published no proof key, so without it the phone cannot take a lease at all.
-   - It is the next VM-side piece to build, and a design choice for this tier (the same pattern as the transport and
-     instance keys).
+   - The VM side is now built (above). The pattern is the same as the transport and instance keys.
 4. **The relay's env.** Add these to `/etc/nan-relay/api-relay.env` (the unit's EnvironmentFile), then restart the relay:
    ```
    PVM_SERVING=1
@@ -342,8 +346,9 @@ relay/deploy.sh and relay/systemd/enclave-api-relay.service.
 - Which deployment id this is for.
 - The decision to set `PVM_SERVING` in production.
 
-The rest is implementation and is not blocked on anyone: the in-VM proof key (item 3, which a lease requires), the
-device campaign, and the owner-side runner agent's code (items 1 and 2) once there is a key to sign with.
+The in-VM proof key (item 3, which a lease requires) and the instance-binding device campaign are done. What remains is
+implementation and is not blocked on anyone: the owner-side runner agent (items 1 and 2: register, claim, heartbeat,
+and posting the VM's checkpoints). Its exact steps are in PROOF-KEY.md "Activation, exactly".
 
 ## Review questions
 

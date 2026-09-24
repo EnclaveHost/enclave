@@ -1,0 +1,6 @@
+{"label":"register","phase":"a","endpoint":"https://api.enclave.host/t/pixel10-pvm-cpu","enclaveId":"0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","operator":"0x70997970c51812dc3a010c7d01b50e0d17dc79c8"}
+{"label":"claim","phase":"a","deployment":"0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2","enclaveId":"0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658","provenUntil":1790283839}
+{"label":"checkpoint-a1","phase":"a","upto":"1790284139","anchorBlock":"12","digest":"0xc4701643058e368cb3ddd45a7000f3005c82e8a36a706a090fbb760d6bdca021","ok":true,"reason":null,"provenUntil":1790284139}
+{"label":"replay-a1","phase":"a","ok":false,"reason":"nothing to prove","provenUntil":1790284139}
+{"label":"checkpoint-a2","phase":"a","upto":"1790284509","anchorBlock":"14","digest":"0x1633a81c148b2555660a36b6f9430c48d7267125331e5c2d68dd799a0542542a","ok":true,"reason":null,"provenUntil":1790284509}
+{"label":"checkpoint-b1","phase":"b","upto":"1790284925","anchorBlock":"16","digest":"0xe065577bcfb263ee88b3ac16e3f1ce71db0204320bceb817e6ba9ac0ef45def9","ok":true,"reason":null,"provenUntil":1790284924}

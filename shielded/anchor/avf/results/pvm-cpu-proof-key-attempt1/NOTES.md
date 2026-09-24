@@ -1,0 +1,3 @@
+# Lease proof key, device attempt 1 (kept as it is)
+
+STOPPED at checkpoint-a1 (21:00:58Z). The statement verified and the device-signed checkpoint re-verified OFFLINE (the attested key, the right pins), but the transaction posted to the local chain with viem's default gas estimate was mined and REVERTED; the harness recorded only "checkpoint reverted" (it simulated after the fact). The harness now simulates first and posts with an explicit gas limit; the passing run (../pvm-cpu-proof-key) had all 3 device checkpoints accepted. The cause of this one revert is not established (see ../pvm-cpu-proof-key/NOTES.md).

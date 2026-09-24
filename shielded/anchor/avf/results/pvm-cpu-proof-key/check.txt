@@ -1,0 +1,36 @@
+ok   run.json names the lease the VM was pinned to
+-- the VM's logged facts: A {"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","pins":true}  B {"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","pins":true}
+ok   A: the VM took its pins and logged its instance and proof key
+ok   coverage: statement-a is recorded once, as a PROOFKEY request
+ok   coverage: checkpoint-a1 is recorded once, as a CHECKPOINT request
+ok   coverage: refuse-rate-a is recorded once, as a CHECKPOINT request
+ok   coverage: refuse-malformed-a is recorded once, as a CHECKPOINT request
+ok   coverage: checkpoint-a2 is recorded once, as a CHECKPOINT request
+ok   coverage: refuse-monotonic-a is recorded once, as a CHECKPOINT request
+ok   coverage: statement-b is recorded once, as a PROOFKEY request
+ok   coverage: checkpoint-b1 is recorded once, as a CHECKPOINT request
+ok   coverage: exactly the plan's 8 calls, in its order, numbered 1..8
+ok   coverage: the carrier recorded exactly 8 exchanges (8)
+ok   statement-a: exchange 001 carried exactly this request and this answer
+ok   checkpoint-a1: exchange 002 carried exactly this request and this answer
+ok   refuse-rate-a: exchange 003 carried exactly this request and this answer
+ok   refuse-malformed-a: exchange 004 carried exactly this request and this answer
+ok   checkpoint-a2: exchange 005 carried exactly this request and this answer
+ok   refuse-monotonic-a: exchange 006 carried exactly this request and this answer
+ok   statement-b: exchange 007 carried exactly this request and this answer
+ok   checkpoint-b1: exchange 008 carried exactly this request and this answer
+ok   statement-a: re-verifies over its own nonce (Google's roots, the build, deployment, boot A's instance), names the run's pins, and attests the proof key the VM logged
+ok   statement-b: re-verifies over its own nonce (Google's roots, the build, deployment, boot B's instance), names the run's pins, and attests the proof key the VM logged
+ok   the operator registered exactly the attested proof key for the runner
+ok   the operator claimed the lease (provenUntil starts at the claim)
+ok   checkpoint-a1: signed by the attested proof key for these pins, ACCEPTED by the chain, provenUntil 1790283839 -> 1790284139
+ok   checkpoint-a2: signed by the attested proof key for these pins, ACCEPTED by the chain, provenUntil 1790284139 -> 1790284509
+ok   checkpoint-b1: signed by the attested proof key for these pins, ACCEPTED by the chain, provenUntil 1790284509 -> 1790284924
+ok   the same checkpoint posted again: REFUSED by the chain (nothing to prove)
+ok   refuse-rate-a: the VM refused, in its words (at most one checkpoint every 60 s)
+ok   refuse-malformed-a: the VM refused, in its words (request is CHECKPOINT <upto> <anchorBlock> <64 lowercase hex>)
+ok   refuse-monotonic-a: the VM refused, in its words (upto must strictly increase)
+ok   restart: boot B logged and attested the SAME proof key (same)
+ok   restart: a new boot (another transport key) vouched for it
+ok   no private key anywhere in the results
+PASS the lease proof key on the device

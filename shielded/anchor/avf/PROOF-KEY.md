@@ -2,7 +2,14 @@
 
 **Status.** The wire format and signing policy were agreed with the verifier session (enclave-99) and the Linux
 isolation owner (enclave-5d) before the statement's bytes were written. The checkpoint bytes are the contract's own.
-LAB, not production. Nothing is registered, published or funded. This was directed in this session, continuing the pVM CPU host
+- **IMPLEMENTED:**
+  - the VM: payload PROOFPINS, PROOFKEY and CHECKPOINT, and pvm-rt `src/proof.rs`, which matches viem byte for byte;
+  - the phone: the `proof_pins` launch extra;
+  - the canonical verifiers: `verifyPvmProofKey` in relay/pvm-app-attest.mjs, and relay/pvm-checkpoint.mjs.
+- **CHECKED ON THE PIXEL 10** against the real contracts on a local chain (results/pvm-cpu-proof-key, PASS): the attested
+  key registered by a separate operator account, and device-signed checkpoints ACCEPTED by EnclaveProofOfTime across a
+  restart.
+- LAB, not production. Nothing is registered on a public chain, published or funded. This was directed in this session, continuing the pVM CPU host
 tier. It is not an approval for any transaction.
 
 ## Why
@@ -67,14 +74,33 @@ the deployment a required expectation.
 
 ```
 { "format": "enclave-proof-key/v1", "evidence": <the platform's attested evidence for this nonce: here an
-  enclave-pvm-app-evidence/v3 envelope>, "instance": { "type": "pvm-instance-id", "value": hex64 },
+  enclave-pvm-app-evidence/v3 envelope>, "instance": { "type": "pvm-instance-id", "value": hex64 }, "sigAlg": "ed25519",
   "proofKey": "0x" hex40, "chainId": "<u64 decimal>", "proofOfTime": "0x" hex40, "registry": "0x" hex40,
   "deployment": "0x" hex64, "enclaveId": "0x" hex64, "operator": "0x" hex40, "sig": hex128 }
 
-message = "enclave-proof-key-v1\n" || nonce (32) || AppID (32) || instanceType (1) || instanceValue (32) || proofKey (20)
-          || chainId (8, big-endian) || proofOfTime (20) || registry (20) || deployment (32) || enclaveId (32) || operator (20)
-sig     = Ed25519 by the ATTESTED transport key (pVM: the v3 envelope's spki) over message
-instanceType: 0x01 = "pvm-instance-id" (the v3 InstanceID), 0x02 = "snp-host-data" (reserved for the SNP tier)
+message = "enclave-proof-key-v1\n" || nonce (32) || AppID (32) || instanceType (1) || instanceValue (32) || sigAlg (1)
+          || proofKey (20) || chainId (8, big-endian) || proofOfTime (20) || registry (20) || deployment (32) || enclaveId (32)
+          || operator (20)
+sig     = by the ATTESTED transport key, with the algorithm sigAlg names (pVM: Ed25519, the v3 envelope's spki)
+instanceType: 0x01 = "pvm-instance-id" (the v3 InstanceID), 0x02 = "snp-host-data" (the SNP tier: the deployment id's 32 bytes)
+sigAlg:       0x01 = "ed25519",  0x02 = "ecdsa-p256-sha256" (the SNP tier's front key, per enclave-5d)
+```
+
+The algorithm is TYPED and signed, never implied. A pVM statement must be `pvm-instance-id` with `ed25519`.
+
+- **The message is exactly 271 bytes:** 21 + 32 + 32 + 1 + 32 + 1 + 20 + 8 + 20 + 20 + 32 + 32 + 20. The VM refuses to
+  send a statement whose message is any other length.
+- **`ed25519`** is RFC 8032 pure Ed25519 (no prehash, empty context) over those bytes. The signature is 64 bytes, hex128.
+- **`ecdsa-p256-sha256`** (the SNP tier) is ECDSA P-256 over SHA-256 of the same bytes. The signature is raw `r || s`
+  (64 bytes, hex128, r and s in 1..n-1), and DER is refused. That keeps the closed key set free of an encoding member.
+- **`sigAlg` must match the attested key's algorithm** as well as the tier rule. An Ed25519 SPKI with
+  `ecdsa-p256-sha256` is refused by name. For the pVM the tier rule already fixes both.
+- **The `instance.type` table is closed** at two rows. Any other string is refused before a byte is built.
+- **SNP-tier note** (from the verifier session, for enclave-5d): with F11 the guest's HOST_DATA IS the deployment id, so
+  on that tier `instance.value` duplicates `deployment`. The verifier there must still compare `instance.value` with the
+  VERIFIED HOST_DATA, not with the deployment field, or the check covers nothing.
+
+```
 ```
 
 - **Canonical forms, refused rather than normalized.**
@@ -147,3 +173,34 @@ The VM answers one JSON line:
 - **The device check (bounded).** The Pixel's VM signs checkpoints over anchors from the LOCAL chain (its pins name the
   local chain id and contracts). They are posted to the local contracts, and must be accepted, and refused when
   replayed.
+
+## Activation, exactly (the owner's steps; nothing here is done)
+
+1. **A production anchor build.** It needs the production APK signing key and a non-debuggable manifest; its code hash
+   `C` is from pins.py. The device checks here used the LAB key.
+2. **Launch the VM with the lease's pins:**
+   `--es proof_pins "8453 <EnclaveProofOfTime> <EnclaveRegistry> <deployment id> <runner id> <operator>"`
+   - The contract addresses come from the address book (EnclaveAddressBook `0xab214342d5A490150A4A977063A2f88E21F80907`,
+     keys `proofOfTime` and `registry`).
+   - The runner id is `keccak256("https://api.enclave.host/t/<name>")`.
+   - The operator is the operator EOA's address.
+3. **Read the attested proof key.** Send `PROOFKEY <fresh nonce>` over the carrier and verify it with
+   `verifyPvmProofKey`. Use the build's pins, the deployment and the policy's InstanceID. The result is `P`.
+4. **Operator transactions** (the owner's EOA, on Base):
+   - `EnclaveRegistry.register("https://api.enclave.host/t/<name>", repo, measurement, cpuPricePerSec6, 0, P)`, or
+     `setProofKey(runnerId, P)` if the entry already exists;
+   - then `EnclaveDeployments.claim(deployment, runnerId)`.
+5. **The posting agent (NOT BUILT: the next piece).** At most every `proofWindowSec`:
+   1. Take the anchor: the parent of Base's latest block.
+   2. Send `CHECKPOINT <min(now, leaseUntil)> <anchorBlock> <anchorHash>` to the VM. The VM allows 1 per 60 s.
+   3. Check the answer with `verifyPvmCheckpoint`.
+   4. Simulate, then post `EnclaveProofOfTime.checkpoint` with a gas margin, from any account (posting is
+      permissionless).
+6. **The relay's env and the buyers' type-2 policy** are as in RELAY-SERVING.md "Runner registration".
+
+**Inputs only the owner has:**
+- the operator EOA and its Base gas;
+- the production APK signing key;
+- which deployment;
+- the runner's price, and the registry's repo and measurement strings;
+- the decision to set `PVM_SERVING`.

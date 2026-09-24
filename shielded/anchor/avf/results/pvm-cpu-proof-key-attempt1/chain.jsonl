@@ -1,0 +1,3 @@
+{"label":"register","phase":"a","endpoint":"https://api.enclave.host/t/pixel10-pvm-cpu","enclaveId":"0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","operator":"0x70997970c51812dc3a010c7d01b50e0d17dc79c8"}
+{"label":"claim","phase":"a","deployment":"0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2","enclaveId":"0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658","provenUntil":1790283655}
+{"label":"checkpoint-a1","phase":"a","upto":"1790283955","anchorBlock":"12","digest":"0x5cb21f8d6386516ef6613655245a76cbfa18696994dad4df35e52144026abdca","ok":false,"reason":"checkpoint reverted","provenUntil":1790283655}

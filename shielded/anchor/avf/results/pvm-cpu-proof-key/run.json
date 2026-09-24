@@ -1,0 +1,34 @@
+{
+ "runId": "pk09242102",
+ "apk": "apk.apk",
+ "code": "fe734cb85f0eb4510d74f39ff4acb7fb34ba94c0f931f14e9c72f8ade4daa43a",
+ "app": "29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373",
+ "endpoint": "https://api.enclave.host/t/pixel10-pvm-cpu",
+ "pins": {
+  "chainId": "31337",
+  "proofOfTime": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
+  "registry": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+  "deployment": "0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2",
+  "enclaveId": "0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658",
+  "operator": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+ },
+ "accounts": {
+  "deployer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "operator": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+  "tenant": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+  "stranger": "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65"
+ },
+ "addresses": {
+  "registry": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+  "ledger": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+  "proofOfTime": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
+  "usdc": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
+ },
+ "chain": "anvil (local: no network, no funds)",
+ "googleRootPins": [
+  "cedb1cb6dc896ae5ec797348bce9286753c2b38ee71ce0fbe34a9a1248800dfc",
+  "6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0"
+ ],
+ "runtimeId": "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba",
+ "authority": "cd0a7823095d98f82d4787205f020a3f2784912b032eff4f4e6525bba5654df8baaa64c7bebf03ad074788db7b517d82f3c63513f5c39a381b629c26aba38c0f"
+}

@@ -1,0 +1,10 @@
+20:59:01Z local chain 31337: ledger 0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0, prover 0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9, registry 0x5fbdb2315678afecb367f032d93f642f64180aa3; deployment 0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2; runner 0xc6a1c08a638997e905d63b46de17896995a0c7be03b6d3f21f6a21c2db355658 (https://api.enclave.host/t/pixel10-pvm-cpu); operator 0x70997970c51812dc3a010c7d01b50e0d17dc79c8
+20:59:04Z installed apk.apk over the previous build, data kept (113ca8f8763b59b9bba1f5f064846fa5ca25d280eab723e4ddb43523a0b0563e)
+20:59:06Z == A: first boot
+21:00:52Z a: the VM serves (102 s)
+21:00:52Z A: the VM logged INSTANCE ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340 and PROOF key 0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc
+21:00:55Z statement-a: VERIFIED -- proof key 0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc, instance ccd79db14e9f3a22…
+21:00:55Z A: the operator registered 0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc (the attested key) and claimed 0x0999ac324ac31bf0…
+21:00:58Z checkpoint-a1: refused by the chain: checkpoint reverted
+21:00:58Z STOP: checkpoint-a1: not accepted (checkpoint reverted)
+rc=1

@@ -32,6 +32,10 @@ sha2 = "0.10"
 # pinned; the response's HKDF and AES-GCM are ring's (already here for TLS)
 hpke = { version = "=0.14.1", default-features = false, features = ["alloc", "x25519", "aes", "getrandom"] }
 ring = "0.17"
+# the lease proof key (PROOF-KEY.md): secp256k1 ECDSA with RFC 6979 nonces, recovery ids and low-s (k256), and keccak256
+# for the EIP-712 digest (sha3) -- pure Rust, no C to cross-build
+k256 = { version = "=0.13.4", default-features = false, features = ["ecdsa", "arithmetic", "std"] }
+sha3 = { version = "=0.10.9", default-features = false }
 
 [profile.release]
 opt-level = 3
