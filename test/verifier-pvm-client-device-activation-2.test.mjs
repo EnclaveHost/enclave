@@ -161,6 +161,27 @@ test("repeat: the VM capture, decoded here: the VM served exactly the released r
 });
 
 
+// ---- control: the re-verification path itself, on the earlier REAL v2 envelope (fixture pvm-evidence/l1-v2-evidence.json) --
+const E = new URL("./fixtures/verifier/pvm-evidence/", import.meta.url);
+const l1v2 = JSON.parse(fs.readFileSync(new URL("l1-v2-evidence.json", E), "utf8"));
+const IDENTITY = { name: "wasmtime", version: "49.0.0", execution: "interpreter", targetIsa: "pulley64", hostIsa: "aarch64", cpuFeatures: "baseline", wx: "enforced", cache: "none" };
+const CONTROL_POLICY = { appIds: ["1ad17b45e12aabdec8ca08538ce1d3a795a7e68c3b87d534b50305d5654ca339"], runtimeIds: [ownerMod ? ownerMod.runtimeId(IDENTITY).toString("hex") : "0".repeat(64)],
+  codeHashes: ["6fab3d4c43ef6df953d5102098203c0b8db58a162172e4b92fa26df0ca598990"],
+  authorityHashes: ["cd0a7823095d98f82d4787205f020a3f2784912b032eff4f4e6525bba5654df8baaa64c7bebf03ad074788db7b517d82f3c63513f5c39a381b629c26aba38c0f"],   // gitleaks:allow -- public: sha512 of the TEST APK signing certificate
+  googleRootPins: ["cedb1cb6dc896ae5ec797348bce9286753c2b38ee71ce0fbe34a9a1248800dfc", "6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0"], formats: ["enclave-pvm-app-evidence/v2"], sealedWindow: { seconds: 600, maxRequests: 256 } };
+const NOW_V2 = Date.parse("2026-09-24T07:26:36Z");
+test("control: the recorded-exchange path re-verifies the earlier real v2 envelope through the pinned adapter and releases a browser-kind client; the wrong committed policy, a foreign nonce, a stale clock, a malformed request and a v1 downgrade each fail loudly", { skip: skipOwner }, async () => {
+  const ex = { n: "001", nonce: l1v2.nonce, requestText: `EVIDENCE ${l1v2.nonce}\n`, envelope: l1v2, envelopeText: JSON.stringify(l1v2) + "\n", parseError: null };
+  const r = await reverifyExchange(ex, CONTROL_POLICY, { now: NOW_V2 });
+  assert.equal(r.ok, true, r.why); assert.equal(r.summary.appKey, l1v2.appKey.slice(0, 16)); assert.equal(r.summary.key, l1v2.spki.slice(-16)); assert.equal(r.summary.nonce, l1v2.nonce.slice(0, 16));
+  assert.equal(r.summary.codeHash, CONTROL_POLICY.codeHashes[0]); assert.deepEqual(r.sealed, { windowSeconds: 600, maxRequests: 256 });
+  const wrongPolicy = await reverifyExchange(ex, { ...CONTROL_POLICY, codeHashes: ["0".repeat(64)] }, { now: NOW_V2 }); assert.equal(wrongPolicy.ok, false); assert.match(wrongPolicy.why, /rejected/);
+  const foreign = await reverifyExchange({ ...ex, nonce: "1".repeat(64), requestText: `EVIDENCE ${"1".repeat(64)}\n` }, CONTROL_POLICY, { now: NOW_V2 }); assert.equal(foreign.ok, false); assert.match(foreign.why, /not this client's challenge/);
+  const stale = await reverifyExchange(ex, CONTROL_POLICY, { now: Date.parse("2026-10-24T00:00:00Z") }); assert.equal(stale.ok, false); assert.match(stale.why, /expired|rejected/);
+  const malformed = await reverifyExchange({ ...ex, requestText: "EVIDENCE nope\n", nonce: null }, CONTROL_POLICY, { now: NOW_V2 }); assert.equal(malformed.ok, false); assert.match(malformed.why, /not "EVIDENCE <nonce>"/);
+  const v1 = await verifyPvmEvidence({ ...l1v2, format: "enclave-pvm-app-evidence/v1", appKey: undefined, appKeySig: undefined }, expectFromPolicy(CONTROL_POLICY, l1v2.nonce), { now: NOW_V2 }); assert.equal(v1.status, "rejected", "a v1 answer is a downgrade under a v2-only policy");
+});
+
 // ---- the exchanges: re-verified through the pinned adapter, correlated with label, summary, time and committed state ----
 const ORDER = ["base-stream", "staged-not-active", "active-stream", "active-whole", "planted-marker", "active-policy-2", "rotate-3", "successor-4", "repaired-stream", "repaired-2-stream"];
 const SERIAL_BEFORE = { "base-stream": 1, "staged-not-active": 1, "active-stream": 1, "active-whole": 1, "planted-marker": 1, "active-policy-2": 2, "rotate-3": 3, "successor-4": 4, "repaired-stream": 4, "repaired-2-stream": 4 };
