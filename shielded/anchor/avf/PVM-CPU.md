@@ -123,6 +123,34 @@ cold start disappears for every turn after the first); restart a dead VM automat
 threads and a lower operating point that the phone can hold, and a smaller quantisation of the same model, each measured for
 quality against target 7 (2).
 
+## The app runtime: the same portable component, compiled inside the pVM (direction 2026-09-23)
+
+**The app artifact is the portable WebAssembly component**, the same bundle every Enclave host runs; no host compiles an app
+to x86-64 or ARM64 outside a protected domain, and native code is never part of the app contract. The llama.cpp engine
+measured above is not the app: it becomes the platform's in-VM **wasi-nn** inference backend (native, in the measured APK),
+which the component calls.
+
+**JIT to ARM64 is not possible in a stock Pixel pVM** (measured: results/jit-probe-20260923). The payload's SELinux domain
+`microdroid_app` is denied `execmem`, so neither an RWX page nor the W^X route (write RW, then mprotect R+X) is allowed;
+it may not write a memfd either, and every writable filesystem it has is `noexec`. The only executable code is what the
+measured APK carries. So inside the pVM the runtime **compiles the verified component to wasmtime's portable Pulley
+bytecode and interprets it**: compilation still happens inside the protected boundary, the output is data, never native
+code, and no executable page is ever created. Where a protected domain permits executable pages (Linux guests), the same
+runtime compiles to the local ISA with Cranelift; the Windows VBS enclave, like the pVM, runs Pulley. One runtime
+abstraction, the execution strategy chosen per domain by a measured capability probe, and the same component everywhere.
+
+Security contract for the runtime in the pVM (each item fail-closed):
+
+| requirement | how |
+|---|---|
+| runtime and compiler inside the measured boundary | wasmtime (Cranelift -> Pulley) and the Pulley interpreter are native libraries in the measured APK; the APK's codeHash is attested |
+| bundle verified before compilation | the component's SHA-256 (and its publisher signature, when the bundle is signed) is checked inside the VM against the pin or the signed manifest before wasmtime sees a byte; a mismatch refuses |
+| W^X | no executable page is created at all (Pulley); the platform's `execmem` denial enforces it, and the runtime also refuses to start if /proc/self/maps shows any writable+executable mapping |
+| no host-supplied native code, no unverified compiled cache | deserialising precompiled modules is disabled; every component is compiled inside the VM. A compiled-artifact cache, if added, is keyed by bundle hash + runtime version + target + CPU-feature policy and MACed with a key derived from the VM's instance secret, in the VM's encrypted store; anything else is recompiled |
+| identity bound into attestation | runtime name, version, config/policy digest, execution strategy (`pulley64`), the CPU-feature policy (hwcap/hwcap2) and the bundle's SHA-256 go into the capability report the attested transport key signs over the attach nonce (relay/pvm-cpu-tier.mjs) |
+| lifecycle and limits | a Store per session with memory limits and epoch/fuel deadlines; deterministic teardown at session end; the VM's supervised restart (target 5) on death |
+| cross-platform conformance | the same component and test vectors on the Linux host (Cranelift), Linux Pulley and the Pixel pVM (Pulley): identical outputs |
+
 ## On-device validation, Pixel 10 Pro XL, 2026-09-23
 
 results/pvm-cpu-p2: the protected pvm-cpu build **p2** (`out/anchor-pvm-cpu.apk` sha256 `2bca7b35…`, codeHash
