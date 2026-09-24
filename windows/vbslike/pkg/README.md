@@ -27,10 +27,11 @@ two differ. `check.ps1` reports each profile's host state live. The manifest sta
 | 2 | `197a9e3d…` `manifests/nucbox-ownguest-2.json` | IGVM `7caf7408…` around monitor `4610d594…` (isolation/m3 at `aef54ff7`: `/2` run mode, readiness, a launcher-named certificate name), WSL kernel `7fe3edb5…`, manager + judge-hv at `261e5f03` | the same two; hello-world's answer pinned to the byte (`"Hello World!\n"`, `03ba204e…`) | `datapath.mjs` `d0a57f6a…` at `67354f3b` (nothing on the box imports it yet) |
 | 3 | `f0f516e4…` `manifests/nucbox-ownguest-3.json` | as v2; the launcher's provenance recorded (built from `ef1b2077`, one untracked uncompiled `monitor.rs` present; BEHIND `c5eb2f4a`, so `/2` bundles fail at its `load`); the image a judge expects is the initrd on hcs-dev and the IGVM on igvm | as v2 | `datapath.mjs` `b187da9e…` at `09b67414` (ids are any safe token) |
 | 4 | `10139942…` `manifests/nucbox-ownguest-4.json` | as v3; manager + judge at `f4f10c84` (the VM is created with `-GuestStateIsolationType OpenHCL`, Secure Boot off; `ready.mjs`); launcher `57d8c035…` from `55494efa` (loads `/2`), nightly toolchain and build root pinned; `AllowFirmwareLoadFromFile` is a gating igvm host check | as v3 | as v3 |
+| 5 | `ac8d68b2…` `manifests/nucbox-ownguest-5.json` | as v4; manager + judge at `6d6c289e` (`ready.mjs` without defect 10; `/vms` speaks guestd's contract: 201, `status`, `boundary`, `relay`, `domainId`, `guestPort`, `image`) | as v4 | `datapath.mjs` `2db32e0a…` at `b339e9d4` (admits on `transportKeySha256`); caveat: the manager does not populate `transportKeySha256` yet, so the datapath refuses to admit |
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
-**v1 is defective. Use the latest (v4).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
+**v1 is defective. Use the latest (v5).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
 copied from a client that trims. The app answers `"Hello World!\n"`, so v1's serve checks would fail on a correct
 answer. The current verifier refuses v1 at that pin. `--serve`, which serves the component under the pinned runtime and
 compares the exact bytes, is the check that would have caught it. The rest of v1's pins stand for the old guest.
@@ -44,7 +45,7 @@ v3 at that check.
 ## Reproduce and verify (warden-host)
 
 ```
-node windows/vbslike/pkg/pkg.mjs verify windows/vbslike/pkg/manifests/nucbox-ownguest-4.json --rebuild --fetch https://ipfs.enclave.host --serve
+node windows/vbslike/pkg/pkg.mjs verify windows/vbslike/pkg/manifests/nucbox-ownguest-5.json --rebuild --fetch https://ipfs.enclave.host --serve --tests
 node --test windows/vbslike/pkg/pkg.test.mjs
 ```
 
@@ -69,8 +70,15 @@ node --test windows/vbslike/pkg/pkg.test.mjs
 - **The judge.** It loads from the package's own files, laid out as shipped, and rejects a document that is not one.
 - **The igvm manager.** Run on a recording host, its own `start()` must issue `New-VM -GuestStateIsolationType` OpenHCL
   or TrustedLaunch.
+- **`--tests`.** Each functional test the manifest pins runs INSIDE the package's own `control/` tree, as shipped, so its
+  relative imports resolve to the package's bytes. These are other lanes' tests, pinned by commit. Each must give
+  exactly its stated result: the counts, and which cases fail. v5 pins enclave-99's `readiness-rule.test.mjs` against
+  the manager's `ready.mjs` (8/8), and its `datapath.test.mjs` against 5d's datapath (5/5). The same readiness test on
+  v4's manager gives exactly 4 failures (cases 3, 4, 5 and 8 = defect 10). The suite holds that result too, and refuses
+  a green claim for it. A pinned test is a known result, not a green count. A test run under another test runner must
+  strip `NODE_TEST_CONTEXT`, or the child reports in a binary protocol and no counts can be read.
 
-The test suite has 36 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
+The test suite has 40 cases. It breaks one claim per case, including consistent forgeries where the edited entry is
 re-pinned to its new bytes. Each case must FAIL at the check that covers it, and the two controls must PASS. The
 sources live in `~/enclave-bench/ownguest-pkg/sources/`, and the tests skip without them.
 
@@ -80,7 +88,7 @@ reproduced here.
 ## Put it on the box (read `win/*.ps1` first: they state what they write)
 
 ```
-node windows/vbslike/pkg/pkg.mjs pack windows/vbslike/pkg/manifests/nucbox-ownguest-4.json ~/enclave-bench/ownguest-pkg/out
+node windows/vbslike/pkg/pkg.mjs pack windows/vbslike/pkg/manifests/nucbox-ownguest-5.json ~/enclave-bench/ownguest-pkg/out
 windows/vbslike/pkg/push.sh ~/enclave-bench/ownguest-pkg/out/<id16> minipc-zt
 ```
 
