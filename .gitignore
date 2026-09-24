@@ -131,5 +131,3 @@ windows/enclave-app-hello/target/
 # pinned cross-branch modules materialised by verifier/integration/resolve.mjs (never tracked here)
 .verifier-integration/
 
-# the browser verifier bundle is built by tests into a temp dir; the build script's default output is never committed
-verifier/web/dist/
