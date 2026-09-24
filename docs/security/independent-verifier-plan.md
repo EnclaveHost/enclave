@@ -321,6 +321,48 @@ policy relaxations reach `verified` with warnings. Both are closed: `verified` i
 omission list, every relaxation is an omission, and an unjudged report version is `unsupported` by default
 (`limited` at most under an explicit research flag). The CLI exits 0 only for `verified`, 4 for `limited`.
 
+### 8.1 Consumer admission gate and the pVM evidence adapter (bounded consumer integration, 2026-09-24)
+
+`verifier/admission.mjs` is the one function that may release a client request. It releases only when the
+verdict is `verified`, `admissionSafe`, has an empty omission list and every check `true`; when every
+expectation was supplied by the client and matches the claims (SNP: allowed measurements from provenance, a
+TCB floor, the root pin for the product the chain proved, the app id for a domain document; AVF/pVM: runtime
+ids, APK code and authority hashes, root pins, app id); when freshness is the client's own single-use
+32-byte challenge (or, for the hosted format only, the served certificate window); and when the transport
+is bound in a way the client can check: a **native** client compares the peer key its own TLS handshake saw
+with the key the evidence bound, a **browser** client releases only on an application-layer public key
+bound in the evidence and never claims TLS certificate pinning, because browser code cannot read the peer
+certificate. A nonce registry consumes the challenge before the verdict is read, so a replayed exchange
+holds whatever its verdict. Everything else holds and names its reason.
+
+`verifier/pvm-evidence.mjs` is the client side of the pVM owner's proposed interface (section 2.6). It
+imports the owner's `verifyPvmAppEvidence` when present and never parses the evidence itself: it only
+cross-checks the echoed nonce and app id against the client's own values (a hostile relay rewriting the
+echo is caught before any certificate work), refuses empty pin lists, calls the owner's verifier with the
+CALLER's nonce, app id and pins, and maps the result to the harness verdict with `freshness: "client-nonce"`
+and the transport key to pin. Absent the module the verdict is `unsupported`, and the gate holds it.
+
+| suite | passing means |
+|---|---|
+| `verifier-admission` (7) | on the authentic Genoa verdict a native client releases only when its own peer key is the bound key, a browser client releases on the HPKE key with TLS pinning explicitly not claimed; a `limited` verdict (no floor, no CRL) never releases; missing or mismatched client expectations (measurements, floor, root pins, wrong product pin) hold; on the authentic Turin ABI/2 verdict the nonce, app id and peer key are each required; the same nonce holds the second time; every non-verified or inconsistent verdict shape holds |
+| `verifier-pvm-evidence` (9) | with an injected stand-in for the owner's verifier (modelling only that the certificate challenge covers nonce, app, transport key and identity): an honest exchange verifies and releases for a native client; a browser client holds until an application-layer key is present; a hostile relay rewriting the echoed nonce or app is caught by the consumer cross-check, and substituting the chain, transport key or identity, or pasting our echo onto another session's evidence, is caught by the challenge; stale evidence under a fresh challenge and a reused challenge hold; each empty pin list and a missing challenge or app id refuse; malformed envelopes refuse; without the owner's module the verdict is `unsupported` and holds. The last case runs against the owner's module once it is pushed |
+
+Exact remaining integration gaps (nothing below is verified today):
+1. `verifyPvmAppEvidence` is not pushed (pVM branch head 816f88f1 exports only `verifyPvmAppAbi2`); the
+   adapter's contract test skips, and the substitution and replay detections that live in the owner's
+   verifier are exercised only through the stand-in until then.
+2. No authentic evidence fixture in the `enclave-pvm-app-evidence/v1` format exists; the real captures on
+   the pVM branch carry the owner's nonce and no transport SPKI, so a real-envelope fixture waits for the
+   owner's push.
+3. The browser path has no application-layer key in the v1 proposal; the gate holds every browser request
+   on pVM evidence until one is bound (requested change 3 in section 2.6).
+4. The relay stream kind `pvm-evidence` and the `EVIDENCE <nonce>` request line are not wired anywhere on
+   this branch; the adapter judges a JSON object it is handed.
+5. The gate's expectations come from the caller; the catalog-to-expectation step (which app id, which
+   runtime ids, which code hashes a client should expect for a deployment) is not built.
+6. A native client's `observedPeerSpki` must come from its own TLS handshake; only Node clients can do that
+   today, and no CLI command performs a live exchange.
+
 Findings the harness produced: AMD KDS re-signs a VCEK on request (two valid certificates for one key, one month
 apart, in the fixtures), so caching must key on the public key; Genoa's CRL revokes the pre-2022 ASK (serial
 020001) and the current ASK is 020002, so the CRL check is live rather than decorative; report version 5 carries
@@ -343,10 +385,13 @@ No automatic cutover. Each stage is a reviewed change with a configuration flag 
 4. **Shadow in the browser**: `site/js/core/verify.js` runs the new bundle beside `verifier.js` and renders
    the new verdict as a secondary line; the green state still comes from the Tinfoil result. Same-origin
    bundle built by `build-vendor.mjs` from this repository's code, so no CDN and no new host.
-5. **Relay**: dialed rows are re-verified with the new verifier (today `teeCpu` is self-reported);
+5. **Consumer gate**: clients (CLI, Node consumers, later the browser bundle) release requests only through
+   `verifier/admission.mjs`; pVM evidence enters through the owner's `verifyPvmAppEvidence` behind the
+   adapter; the gaps in section 8.1 close first.
+6. **Relay**: dialed rows are re-verified with the new verifier (today `teeCpu` is self-reported);
    permissionless attach keeps `relay/snp-verify.mjs` until the new module has replaced it behind the same
    tests, then `expectedBinding` and the pVM ABI/2 frame land with the isolation and pVM owners.
-6. **Cutover decision**: after an independent review of `verifier/` and at least four weeks of zero
+7. **Cutover decision**: after an independent review of `verifier/` and at least four weeks of zero
    unexplained divergence, the primary is switched per consumer (CLI, then self-check, then browser) with
    the Tinfoil path kept as the fallback flag for one release cycle. Rollback = flip the flag and rebuild
    the vendor bundle; the Tinfoil package stays pinned until the fallback is removed.

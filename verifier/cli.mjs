@@ -4,6 +4,7 @@
 //   node verifier/cli.mjs verify   --doc rad.json --spki cert.pem|spki.der [--host h --cert cert.pem] [--nonce hex] [--app-id hex]
 //                                  [--binding hex] --measurement hex [--measurement hex ...] [--vcek f] [--chain pem] [--crl der]
 //                                  [--collateral-dir DIR] [--kds] [--min-tcb json] [--vmpl n] [--crl-mode required|stale-ok|none] [--now iso] [--json]
+//                                  [--admit native|browser --peer-spki cert.pem|spki.der]   (consumer gate; exit 5 = held)
 //   node verifier/cli.mjs release  --bundle attestation.json --digest hex [--trusted-root f] [--min-release v0.5.0] [--json]
 //   node verifier/cli.mjs capture  --host h --out DIR            (fetch RAD + certificate + VCEK/chain/CRL from AMD; network)
 //   node verifier/cli.mjs differential --doc rad.json --vcek f [--cert-json f --host h]   (runs @tinfoilsh/verifier on the same bytes, if installed)
@@ -44,6 +45,15 @@ async function cmdVerify() {
     ...(opt("min-tcb") ? { minTcb: JSON.parse(opt("min-tcb")) } : {}), ...(flag("no-cert-binding") ? { requireCertificateBinding: false } : {}),
     ...(flag("research-unjudged-versions") ? { researchAllowUnjudgedReportVersions: true } : {}) } };
   const v = await verifyEvidence(doc, { policy, context, collateral: layeredCollateral(...layers) });
+  // --admit native|browser [--peer-spki f] [--app-id hex] [--roots-from-policy]: the consumer gate on this verdict
+  if (opt("admit")) {
+    const { admit } = await import("./admission.mjs"); const { AMD_ARK_SHA256 } = await import("../relay/snp-verify.mjs");
+    const peer = opt("peer-spki") ? (() => { const raw = fs.readFileSync(opt("peer-spki")); return /-----BEGIN CERTIFICATE-----/.test(raw.toString("latin1")) ? spkiOfCert(raw.toString("utf8")).spki : raw; })() : null;
+    const expect = { nonce: context.nonce, appId: context.expectedAppId, allowedMeasurements: opts("measurement"), minTcb: policy.snp.minTcb, roots: Object.fromEntries(AMD_ARK_SHA256) };
+    const g = admit(v, expect, { clientKind: opt("admit"), observedPeerSpki: peer });
+    if (flag("json")) console.log(JSON.stringify({ verdict: v, admission: g }, null, 2)); else { for (const r of v.reasons) console.log(`  ${r.startsWith("REJECT") ? "✗" : /^(OMITTED|UNSUPPORTED)/.test(r) ? "•" : "✓"} ${r}`); for (const r of g.reasons) console.log(`  ${r.startsWith("HOLD") ? "\x1b[31m⛔\x1b[0m" : "\x1b[32m→\x1b[0m"} ${r}`); }
+    process.exit(g.decision === "release" ? 0 : 5);   // 5: held by the consumer gate
+  }
   if (flag("json")) console.log(JSON.stringify(v, null, 2));
   else { for (const r of v.reasons) console.log(`  ${r.startsWith("REJECT") ? "\x1b[31m✗\x1b[0m" : /^(OMITTED|UNSUPPORTED)/.test(r) ? "\x1b[33m•\x1b[0m" : "\x1b[32m✓\x1b[0m"} ${r}`);
          console.log(`\n${v.status.toUpperCase()}  (${v.technology || "?"})${v.status === "limited" ? `  omissions: ${v.omissions.join(", ")}  [NOT admission-safe]` : v.status === "verified" ? "  [admission-safe]" : ""}`); }

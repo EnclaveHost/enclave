@@ -249,6 +249,7 @@ export async function verifySnp(env, policy = {}, context = {}, collateral = nul
   const rd0 = p.reportData.subarray(0, 32), rd1 = p.reportData.subarray(32, 64);
   const spki = context.transportKeySpki;
   if (!Buffer.isBuffer(spki) || spki.length < 44 || spki.length > 2048) return fail("binding", "no transport key SPKI from the verifier's own handshake: the binding cannot be checked (never skipped)");
+  claims.transportSpkiSha256 = hex(sha256(spki));   // the key THIS verifier bound; a consumer compares its own peer key to it (verifier/admission.mjs)
   if (env.spec.binding === "hosted-tinfoil") {
     if (!sha256(spki).equals(rd0)) return fail("binding", "report_data[0:32] != sha256(the TLS key this connection presented): the report belongs to another key");
     claims.hpkePublicKey = hex(rd1); claims.tlsSpkiSha256 = hex(sha256(spki));

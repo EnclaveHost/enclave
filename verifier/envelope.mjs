@@ -21,6 +21,9 @@ export const FORMATS = Object.freeze({
   "https://tinfoil.sh/predicate/tdx-guest/v1": { technology: TECH.TDX, family: "hosted-tinfoil", binding: "hosted-tinfoil", gzip: true, supported: false, why: "Intel TDX quote verification is not implemented" },
   "android-avf-pvm/v1":         { technology: TECH.AVF, family: "pvm", binding: "avf-transcript", gzip: false, supported: "delegate" },
   "android-avf-pvm/v2":         { technology: TECH.AVF, family: "pvm", binding: "avf-pad-transcript", gzip: false, supported: "delegate" },
+  // client-verified pVM app evidence (pVM owner's proposal, 2026-09-24): a JSON object, not a base64 body; routed
+  // by verifier/index.mjs to verifier/pvm-evidence.mjs before parseEnvelope, which is why it has no body here
+  "enclave-pvm-app-evidence/v1": { technology: TECH.AVF, family: "pvm-app", binding: "abi2-client-nonce", gzip: false, supported: "delegate", jsonObject: true },
   "windows-vbs-enclave/v1":     { technology: TECH.VBS, family: "consumer-node", binding: "vbs-transcript", gzip: false, supported: "delegate" },
   "hyperv-partition-domain/v1": { technology: TECH.HYPERV, family: "domain", binding: "domain", gzip: false, supported: "delegate", hostExcluded: false },
   "dev-unattested-metal-v1":    { technology: TECH.NONE, family: "dev", binding: null, gzip: false, supported: false, rejected: true, why: "development format: proves nothing about hardware by definition" },
