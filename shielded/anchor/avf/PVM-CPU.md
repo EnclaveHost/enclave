@@ -499,6 +499,37 @@ The protocol is SEALED-STREAMING.md, agreed with the Enclave verifier session be
   - it can always drop or stall the stream (denial of service);
   - production code delivery remains unsolved.
 
+### The installed client (LAB, 2026-09-24): trusted code delivery and bootstrap
+
+A web page cannot authenticate its own malicious replacement, so the lab page (web/lab.html) is not the trust path. The
+client is now an **artifact installed before first contact** that never evaluates fetched code (client/DESIGN.md,
+agreed with the Enclave verifier session, all nine of its fail-closed refinements adopted).
+- **Anchors.** The only anchors are the artifact's bytes, three values given out of band at install, and Google's
+  attestation roots built in.
+  - The artifact is built reproducibly by client/build.sh. The verifier session rebuilt 4e55879b independently and got
+    the same bytes, and re-runs that on every strict run.
+  - The install values are the policy key fingerprint, a policy serial floor, and a distinct release key fingerprint.
+  - A policy can only narrow Google's roots.
+- **Policy.** Signed over its exact bytes, with a closed shape and short validity. The serial is monotonic, and rollback
+  and equivocation are refused. The key rotates only by a signed next key, and `minClientVersion` disables a bad
+  version. The policy binds the gate's formats, modes and sealed window.
+- **Release rule.** The verifier session's admission rule, held to its 40 vectors (all 37 pVM and technology-neutral
+  decisions match; its 3 SNP releases are held here).
+- **Updates.** The release key signs and the policy key countersigns, and the delivered bytes must match. The version
+  lives inside the artifact's own bytes. A verified update is staged for the next start and never imported. The lab
+  manifest is the stand-in for a Sigstore bundle.
+- **Forms.** A CLI (one file) and an MV3 extension: CSP `script-src 'self'`, no web-accessible pages, so a site cannot
+  plant an anchor (tested in Chrome for Testing).
+- **Device evidence.** results/pvm-cpu-client-artifact (PASS, 30 checks). Under a signed lab policy fetched from an
+  untrusted carrier, both built clients streamed the Pixel's answer complete and followed a newer policy.
+  - Both refused an attacker-signed policy, a rollback, and a relay swapping the app key, before sending anything.
+  - The CLI also refused roots narrowed off the Pixel's own root (the real chain, at verify), a minimum version above
+    it, and a policy not admitting the app.
+  - The extension refused a truncated stream as incomplete.
+  - Run 1 (-run1) failed on run-script flaws, kept and explained.
+- **Not solved.** The first install's out-of-band channel; a compromised host or browser; the extension store's
+  delivery (bounded by `minClientVersion`); production keys and Sigstore provenance (the owner's).
+
 ### Audit: is the identity binding enforced by the attested path, or asserted by a host-controlled field?
 
 The Android app (the host) relays every line the VM prints; any field it relays is a claim until something the host cannot
@@ -534,9 +565,10 @@ deny service (never deliver lines), which a verifier sees as missing evidence, n
      port stands in); relay deployment, the main merge and release-key custody are separate review items;
    - ~~clients trust the relay's verification~~ done for native clients (results/pvm-cpu-client-verified: the client
      verifies fresh evidence over its own nonce with its own pins, then pins the key itself);
-   - ~~browsers~~ a LAB verified channel for pages (above: v2 evidence verified on WebCrypto, HPKE-sealed requests,
-     results/pvm-cpu-browser-channel); left open: code delivery that the relay cannot change, streaming responses, and a
-     platform certificate path if the owner wants browser-native TLS on the platform's word;
+   - ~~browsers~~ a LAB verified channel for pages, answers streamed, and an installed client (CLI + extension)
+     delivered reproducibly under install-time anchors and signed policy (sections above); left open: the first
+     install's out-of-band channel, production keys and Sigstore provenance, the extension store, and a platform
+     certificate path if the owner wants browser-native TLS on the platform's word;
    - one connection at a time in the VM (the payload accepts and serves serially); one app and one ABI/2 nonce per attach;
    - no client identity: the app sees an anonymous TLS client (app-level authorisation is the app's own, inside TLS).
 3. A release signing key and a non-debuggable manifest (the owner's decision; admission pins the authority).

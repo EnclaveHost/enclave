@@ -1,0 +1,16 @@
+{"t":"2026-09-24T09:19:04.994Z","evil":"swap-appkey","relaySpkiTail":"4cd7277cb5e372e6","relayX25519Head":"b526bfc9a311c6cd"}
+{"t":"2026-09-24T09:19:04.999Z","evil":"swap-appkey","listening":18457}
+{"t":"2026-09-24T09:19:07.792Z","evil":"swap-appkey","evidence":"forwarded the GENUINE envelope with ITS OWN app key swapped in"}
+{"t":"2026-09-24T09:19:13.015Z","evil":"pass","relaySpkiTail":"ff831a1d6a2a7eae","relayX25519Head":"824223c5f1fe6c9f"}
+{"t":"2026-09-24T09:19:13.020Z","evil":"pass","listening":18457}
+{"t":"2026-09-24T09:19:15.865Z","evil":"pass","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T09:19:17.924Z","evil":"pass","sealed":"forwarded","bytesIn":178,"bytesOut":3928}
+{"t":"2026-09-24T09:19:23.414Z","evil":"pass","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T09:19:25.551Z","evil":"pass","sealed":"forwarded","bytesIn":178,"bytesOut":3928}
+{"t":"2026-09-24T09:19:40.682Z","evil":"swap-appkey","relaySpkiTail":"7ae508a822975599","relayX25519Head":"70d72f2d38c0d1e6"}
+{"t":"2026-09-24T09:19:40.687Z","evil":"swap-appkey","listening":18457}
+{"t":"2026-09-24T09:19:43.756Z","evil":"swap-appkey","evidence":"forwarded the GENUINE envelope with ITS OWN app key swapped in"}
+{"t":"2026-09-24T09:19:48.729Z","evil":"stream-truncate","relaySpkiTail":"4038339ff35fde2f","relayX25519Head":"1f2979955c82dcb1"}
+{"t":"2026-09-24T09:19:48.734Z","evil":"stream-truncate","listening":18457}
+{"t":"2026-09-24T09:19:51.646Z","evil":"stream-truncate","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T09:19:54.017Z","evil":"stream-truncate","sealed":"stream-truncate: 15 chunks from the VM, 1017 bytes sent (of 3928)"}

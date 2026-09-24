@@ -1,0 +1,1 @@
+{"result":{"label":"cli-relay-swaps-key","mode":"stream","step":"verify","refused":"the appKey is not signed by the attested transport key for this nonce and app","sent":false,"verifyMs":780,"policySerial":6,"clientVersion":"0.1.0"}}

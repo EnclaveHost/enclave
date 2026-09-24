@@ -1,0 +1,23 @@
+02:16:41 lab anchors: policy key 866663d40452088bee4cbc14cbd0bcfa57fa8186cb8bbe892904c3be68195200, release key 880f23ed956fa961ea732215e012bddfaa22840a4ad1f0cb89a3b671cd072f10 (keys in /home/steven/.cache/enclave-pvm-client-lab/0924021641, not in the repository); client {"client":"enclave-pvm-client","version":"0.1.0","lab":"NOT PRODUCTION"}
+02:16:44 == launch
+02:18:31 l1: the VM serves (104 s)
+02:18:31 -- the CLI (state /home/steven/Projects/enclave-pvm/shielded/anchor/avf/results/pvm-cpu-client-artifact/cli-state.json)
+{"installed":"/home/steven/Projects/enclave-pvm/shielded/anchor/avf/results/pvm-cpu-client-artifact/cli-state.json","anchor":{"policyKeyFp":"866663d40452088bee4cbc14cbd0bcfa57fa8186cb8bbe892904c3be68195200","serialFloor":1,"releaseKeyFp":"880f23ed956fa961ea732215e012bddfaa22840a4ad1f0cb89a3b671cd072f10"}}
+{"label": "cli-stream", "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 1446, "ms": 3159, "step": null, "refused": null, "policySerial": 1}
+{"label": "cli-whole", "complete": null, "status": 200, "tokens": null, "firstTokenMs": null, "ms": 1538, "step": null, "refused": null, "policySerial": 1}
+{"label": "cli-attacker-policy", "complete": null, "status": null, "tokens": null, "firstTokenMs": null, "ms": null, "step": "policy", "refused": "the policy is signed by a key this client's anchor does not name", "policySerial": null}
+{"label": "cli-policy-2", "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 1189, "ms": 2959, "step": null, "refused": null, "policySerial": 2}
+{"label": "cli-rollback", "complete": null, "status": null, "tokens": null, "firstTokenMs": null, "ms": null, "step": "policy", "refused": "policy serial 1 is below the 2 this client holds (its install floor or a newer policy it accepted): a rollback, refused", "policySerial": nu
+{"label": "cli-narrow-roots", "complete": null, "status": null, "tokens": null, "firstTokenMs": null, "ms": null, "step": "verify", "refused": "attestation: root 6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0 is not a pinned Google attestation root", "policySeri
+{"label": "cli-min-version", "complete": null, "status": null, "tokens": null, "firstTokenMs": null, "ms": null, "step": "policy", "refused": "this client (0.1.0) is below the policy's minimum 0.2.0: disabled until updated", "policySerial": null}
+{"label": "cli-other-app", "complete": null, "status": null, "tokens": null, "firstTokenMs": null, "ms": null, "step": "policy", "refused": "the policy does not admit this app", "policySerial": null}
+{"label": "cli-relay-swaps-key", "complete": null, "status": null, "tokens": null, "firstTokenMs": null, "ms": null, "step": "verify", "refused": "the appKey is not signed by the attested transport key for this nonce and app", "policySerial": 6}
+02:19:10 -- the extension (kaojoajohpemnfkngancdifheimgkned, Chrome for Testing), through a relay that can turn malicious
+{"label": null, "installed": true, "complete": null, "status": null, "tokens": null, "firstTokenMs": null, "ms": null, "step": null, "refused": null, "policySerial": null}
+{"label": "ext-stream", "installed": null, "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 2781, "ms": 2782, "step": null, "refused": null, "policySerial": 1}
+{"label": "ext-policy-2", "installed": null, "complete": true, "status": 200, "tokens": 24, "firstTokenMs": 2864, "ms": 2865, "step": null, "refused": null, "policySerial": 2}
+{"label": "ext-attacker-policy", "installed": null, "complete": null, "status": null, "tokens": null, "firstTokenMs": null, "ms": null, "step": "policy", "refused": "the policy is signed by a key this client's anchor does not name", "policySerial": null}
+{"label": "ext-rollback", "installed": null, "complete": null, "status": null, "tokens": null, "firstTokenMs": null, "ms": null, "step": "policy", "refused": "policy serial 1 is below the 2 this client holds (its install floor or a newer policy it accepted): a rollback, refused",
+{"label": "ext-relay-swaps-key", "installed": null, "complete": null, "status": null, "tokens": null, "firstTokenMs": null, "ms": null, "step": "verify", "refused": "the appKey is not signed by the attested transport key for this nonce and app", "policySerial": 2}
+{"label": "ext-relay-truncates", "installed": null, "complete": false, "status": 200, "tokens": 5, "firstTokenMs": 3144, "ms": 3144, "step": "sealed", "refused": "the stream ended after 3 chunks with no FIN: INCOMPLETE", "policySerial": 2}
+02:19:58 waiting for the lab STOP
