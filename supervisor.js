@@ -322,6 +322,13 @@ const WORKER_TOKEN    = process.env.WORKER_TOKEN || "";
 // hosting via the app manager on VMMGR_URL (the wasm-manager runs each app as a
 // `wasmtime serve` process). The "vm"/VMMGR_URL names are legacy, kept for config compat.
 const PROVISION_BACKEND = (process.env.PROVISION_BACKEND || "worker").toLowerCase();
+// Per-app hardware isolation (isolation/DEPLOYMENT-PATH.md). OFF unless set, and nothing in production sets it.
+// The one backend that exists: each app in its OWN SEV-SNP guest, launched on the HOST by isolation/m4/guestd,
+// which speaks the /vms contract behind VMMGR_URL. A box with this set serves ONLY deployments whose envelope
+// requires it, and only while its manager's /health says it IS that backend; a box without it refuses every
+// deployment that requires it (parseDepOptions). An unknown value takes no tenant work at all.
+const ISOLATION_BACKEND = (process.env.ISOLATION_BACKEND || "").trim().toLowerCase();
+const ISOLATION_BACKENDS = ["snp-guest-per-app"];
 const VMMGR_URL = (process.env.VMMGR_URL || "http://127.0.0.1:8091").replace(/\/+$/, "");
 function mgrReq(method, path, body, timeoutMs = 120000) {
   return new Promise((resolve, reject) => {
@@ -1978,9 +1985,25 @@ function parseDepOptions(raw, gpuMilli) {
     throw new Error("configCid is retired: a CID names bytes nobody validated — this field may only carry a deployment-options JSON envelope like {\"waf\":{…},\"config\":{…}} (config = an inline app-config override for this deployment); recreate the deployment without a config reference");
   let o; try { o = JSON.parse(s); } catch (e) { throw new Error("options envelope is not valid JSON: " + e.message); }
   if (!o || Array.isArray(o) || typeof o !== "object") throw new Error("options envelope must be a JSON object");
-  const unknown = Object.keys(o).filter((k) => k !== "waf" && k !== "config" && k !== "configCid" && k !== "gpu" && k !== "network");
-  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: waf, config, configCid, gpu, network)`);
+  // `isolation` is a namespace ONLY on a box that provides it. Everywhere else it is refused exactly as an unknown
+  // namespace always was - at claim, and as a surfaced "error" (never a silent live swap) if an owner adds it to a
+  // deployment that is already serving here - with a message that says what the deployment asked for.
+  if ("isolation" in o && !ISOLATION_BACKEND)
+    throw new Error(`this deployment requires per-app hardware isolation (isolation.require=${JSON.stringify(o.isolation && o.isolation.require)}), which this runner does not provide`);
+  const known = ["waf", "config", "configCid", "gpu", "network", ...(ISOLATION_BACKEND ? ["isolation"] : [])];
+  const unknown = Object.keys(o).filter((k) => !known.includes(k));
+  if (unknown.length) throw new Error(`unknown option namespace ${JSON.stringify(unknown[0])} (this runner knows: ${known.join(", ")})`);
   const opts = {};
+  if ("isolation" in o) {
+    const iso = o.isolation;
+    if (!iso || Array.isArray(iso) || typeof iso !== "object")
+      throw new Error("isolation must be a JSON object like {\"require\":\"snp-guest-per-app\"}");
+    const badI = Object.keys(iso).filter((k) => k !== "require");
+    if (badI.length) throw new Error(`unknown isolation option ${JSON.stringify(badI[0])} (this runner knows: require)`);
+    if (!ISOLATION_BACKENDS.includes(iso.require))
+      throw new Error(`isolation.require must be one of: ${ISOLATION_BACKENDS.join(", ")}`);
+    opts.isolation = iso.require;
+  }
   if ("network" in o) {
     // WHICH RELAY carries this deployment's traffic. Unlike every other
     // namespace here, nothing in this CVM acts on it: the choice is consumed at
@@ -2151,6 +2174,9 @@ function envelopeEditVerdict(rec, chainCid) {
   // rides the same key: repointing it at a different pinned document is a config
   // change even when the inline manifest is byte-identical, and swapping an
   // inline override for a CID one is too.
+  // A change to what isolation the deployment REQUIRES cannot be applied to what already runs (only a box that
+  // provides isolation parses the namespace at all): keep serving and surface it, never a silent live swap.
+  if ((oldO.isolation || "") !== (newO.isolation || "")) return "error";
   const cfg = (o) => ("config" in o || "configCid" in o)
     ? JSON.stringify([o.configCid || "", "config" in o ? o.config : null]) : null;
   return cfg(newO) === cfg(oldO) ? "waf" : "restart";
@@ -2162,6 +2188,58 @@ function envelopeEditVerdict(rec, chainCid) {
 if (process.env.CFG_EDIT_SELFTEST) {
   const c = JSON.parse(process.env.CFG_EDIT_SELFTEST);
   console.log(JSON.stringify((c.records || []).map((r) => ({ verdict: envelopeEditVerdict(r.rec || {}, r.chainCid) }))));
+  process.exit(0);
+}
+
+// ---- per-app isolation claim gate (ISOLATION_BACKEND set) ------------------
+// PURE: every input is passed in, so ISOLATION_SELFTEST exercises exactly this decision. null = claimable here.
+// On a box WITHOUT the backend it never refuses anything itself: parseDepOptions has already refused every
+// deployment that requires isolation. On a box WITH it, in this order:
+//   - the deployment must ask for this backend: the box serves nothing else (an isolated box running unisolated
+//     work would be advertised as one thing and be another);
+//   - the app manager must BE that backend, by its own /health: a box whose VMMGR_URL still reached the in-CVM
+//     wasm-manager would otherwise run the deployment unisolated under an isolation lease;
+//   - the deployment must need nothing the guest cannot honour. Each is REFUSED, never dropped: a dropped secret
+//     is a leak, a dropped config is a wrong app. guestd refuses the same things at launch; refusing here keeps
+//     the lease from being taken for work that could only fail.
+function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, appConfigCid, hasSecrets,
+                                 firewall, volumes }) {
+  if (!backend) return null;
+  if (!ISOLATION_BACKENDS.includes(backend))
+    return `ISOLATION_BACKEND=${JSON.stringify(backend)} is not a backend this build knows; taking no tenant work`;
+  if (require !== backend)
+    return `this runner serves only deployments that require per-app isolation (isolation.require="${backend}"), and this one does not ask for it`;
+  if (!manager || manager.backend !== backend)
+    return `the app manager at VMMGR_URL is not the ${backend} manager (its /health says `
+         + `${manager ? "backend=" + JSON.stringify(manager.backend ?? null) : "nothing: unreachable"}); `
+         + "refusing rather than running this deployment without the isolation it requires";
+  const sup = manager.supports || {};
+  if (Number(gpuMilli) > 0 && sup.gpu !== true)
+    return "the deployment bought a GPU share, and a per-app SNP guest has no GPU path";
+  if ((config || appConfigCid) && sup.config !== true)
+    return "the deployment carries app config, which is not yet delivered into a per-app guest";
+  if (hasSecrets !== false && sup.secrets !== true)
+    return hasSecrets === true
+      ? "the deployment has staged secrets, and they would cross this host in plaintext (attested in-guest delivery is not built)"
+      : "cannot verify the deployment has no staged secrets (relay probe unreachable)";
+  if ((firewall || []).length && sup.ports !== true)
+    return `the version declares ports (${firewall.join(", ")}) beyond the attested TLS endpoint, which a per-app guest does not forward`;
+  if ((volumes || []).length)
+    return "the deployment needs model volumes, which are not mounted into a per-app guest";
+  return null;
+}
+
+// ISOLATION_SELFTEST='{"verdicts":[{…isolationClaimVerdict input…}],"parse":["<envelope>",…],
+//   "edits":[{"rec":{…},"chainCid":"…"}]}' prints {verdicts, parse, edits} as one JSON line and exits.
+// ISOLATION_BACKEND comes from the environment, as in production (test/isolation-claim-gate.test.mjs drives it).
+if (process.env.ISOLATION_SELFTEST) {
+  const c = JSON.parse(process.env.ISOLATION_SELFTEST);
+  console.log(JSON.stringify({
+    verdicts: (c.verdicts || []).map((v) => isolationClaimVerdict({ backend: ISOLATION_BACKEND, ...v })),
+    parse: (c.parse || []).map((e) => { try { return { ok: true, opts: parseDepOptions(e) }; }
+                                        catch (err) { return { ok: false, error: err.message }; } }),
+    edits: (c.edits || []).map((r) => envelopeEditVerdict(r.rec || {}, r.chainCid)),
+  }));
   process.exit(0);
 }
 
@@ -5067,6 +5145,10 @@ app.get("/availability", async (_req, res) => {
     askCpuPricePerSec6: SELL_CPU_PRICE6,
     ...(IS_GPU && SELL_GPU_PRICE6 > 0 ? { askGpuPricePerSec6: SELL_GPU_PRICE6 } : {}),
     claimEnabled: CLAIM_READY && !!_enclaveId && teeOk(),   // whether this enclave CLAIMS ledger work RIGHT NOW: configured for it, registered, AND its own RAD presents a confidential CPU (teeOk; a dev launch answers false here): configured for it AND its on-chain registration landed (_enclaveId is only set by a successful register tx — a staged seller with an unfunded gas EOA truthfully reports false until the first register confirms). The relay sizes app minimums, fleet capacity and the deploy target list over CLAIMING enclaves only
+    // A per-app isolation box serves ONLY deployments that require it, so it must stay out of the relay's
+    // fleet-wide feature AND and default pricing (fullService:false, the Windows node's precedent) and say which
+    // tier it is. Absent unless ISOLATION_BACKEND is set, so every other box's availability is unchanged.
+    ...(ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND, fullService: false } : {}),
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {
@@ -9194,7 +9276,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // doesn't recognize is refused, never ignored: silently dropping an option
   // would serve traffic the owner believes is filtered, or run the app on a
   // config the owner believes was overridden.
-  try { parseDepOptions(d.configCid, d.gpuMilli); }
+  let claimOpts;
+  try { claimOpts = parseDepOptions(d.configCid, d.gpuMilli); }
   catch (e) { return "deployment options refused: " + e.message; }
   // Routing: the deployment bought two shares. GPU work (gpuMilli > 0)
   // runs ONLY on GPU enclaves and must fit a card AND the node's cpu pool.
@@ -9428,6 +9511,14 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // heterogeneous fleet: a metal box carries no Modelwrap volumes.)
   const volWhy = await volumeGate(d, g, health);
   if (volWhy) return volWhy;
+  // Per-app isolation: on a box that provides it, the deployment must ask for it, the manager must be it, and
+  // nothing the guest cannot honour may be needed (isolationClaimVerdict). Inert when ISOLATION_BACKEND is unset.
+  if (ISOLATION_BACKEND) {
+    const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
+      manager: await vmHealth().catch(() => null), gpuMilli: d.gpuMilli, ...overrideConfigFields(claimOpts, g),
+      hasSecrets: await depHasSecrets(d.id), firewall, volumes: neededVolumes(d, g) });
+    if (isoWhy) return isoWhy;
+  }
   // Staged secrets are injected at launch via a FLEET-secret-derived auth this
   // box may not hold (SECRETS_CAPABLE=0: a metal enclave running its own
   // minted SECRET). The fetch fails SOFT — the app would launch WITHOUT its
