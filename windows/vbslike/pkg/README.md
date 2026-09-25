@@ -260,6 +260,20 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   directory from pinned inputs only. NOT booted; untested for VBS; does not cover the host-derived memory layout,
   ACPI/device tree, or the app. `host_excluded=no` unchanged.
 
+- **v27 draft** (`drafts/nucbox-ownguest-27.json`, STAGED; supersedes v26): **Steven's direction** (via d1): "We
+  should only be using Our new isolation implementation." — the custom type-1 path is the only target; the old
+  ee-engine VBS-enclave backend is marked LEGACY/UNSUPPORTED, not a recovery target (`legacy`, and notes on the two
+  shipped node files that speak or cite ee-host). **The host changed**: the box rebooted at 05:32:35Z with Secure Boot
+  ON (boot 68); v26's trust root is scoped to boot 67 and void for combination; boot 68's measured log shows
+  SecureBoot=01, TESTSIGNING=00, VSM and HVCI on, replays to PCRs 0–14, and a fresh nonce-bound TPM quote passes every
+  relay check with 7/7 negative controls refused (d1's quote session pinned file by file). **Under Secure Boot the
+  custom type-1 path boots and serves** (canary 054323: Hyper-V accepted our unsigned control IGVM with
+  AllowFirmwareLoadFromFile set), and the **inverse control** (054616) shows that setting gates loading our firmware
+  (Worker 5142 without it). The build-only candidate gains its **debug twin** (`726d3cb5…`, trusts the host command
+  line, build-only), and a finding for verifiers: igvmfilegen's identity document says `debug_build=false` even for
+  confidential-debug images, so only the exact launch digest tells them apart. Dev-boot script at `a891dfae`.
+  `host_excluded=no`; E2/E3 not re-run under Secure Boot; no isolation claim.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was

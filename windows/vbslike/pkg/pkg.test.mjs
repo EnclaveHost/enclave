@@ -670,3 +670,36 @@ test("draft v26 (staged) pins d1's trust root at its stated strength and a BUILD
   const x = run(["verify", writeManifest(m)]);
   assert.equal(x.code, 1); assert.match(x.out, /FAIL vbsLinux: the pinned IGVM carries exactly the required strings and none of the forbidden ones: carries 'OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux'/, fails(x.out));
 });
+
+test("draft v27 (staged) records the host change: boot 68 with Secure Boot ON, v26's trust root scoped to boot 67 and void for combination, every boot result marked pre-Secure-Boot", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-27.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, STAGED \(supersedes v26 as the staged package.*BOOT 68.*VOID for any same-boot combination/);
+  assert.match(d.tier.hostTrustRoot.boot, /^67 .*VOID for any same-boot combination with boot 68/);
+  const cur = d.tier.hostTrustRootCurrent;
+  assert.match(cur.boot, /^68: the NucBox rebooted at 2026-09-25T05:32:35Z with Secure Boot ON/);
+  assert.match(cur.verified.join(" "), /SecureBoot=01 in PCR 7, and TESTSIGNING=00.*read LOCALLY, NOT a signed quote/);
+  assert.match(cur.reading, /conditions, not a verdict.*UNTESTED.*host_excluded=no/);
+  assert.match(cur.customPathUnderSecureBoot, /^MEASURED .*WITH AllowFirmwareLoadFromFile set.*INVERSE CONTROL .*REFUSED: Worker-Admin 5142.*GATES loading our firmware/);
+  assert.match(d.profiles.vbs.measured[1], /^UNDER SECURE BOOT, BOOT 68 .*FIRST OBSERVABLE: Start-VM ACCEPTED.*INVERSE CONTROL, canary 054616 .*REFUSED.*recorded, not relaxed/);
+  assert.match(d.legacy.nodePackageNotes, /node-transport\.key .*NEVER packaged/);
+  assert.equal(d.files.find((f) => f.path === "control/windows/vbslike/ops/uefi-dev-boot.ps1").from.git.commit.slice(0, 8), "a891dfae");
+  for (const n of ["DIRECTION.md", "quote-20260925-053931/verdict.json", "quote-20260925-053931/quote.txt"]) assert.ok(d.inputs.some((i) => i.name === n && i.from.git.commit.startsWith("e97c967b")), n);
+  for (const n of ["boot68-2026-09-25.md", "PROOF-CHECKLIST-a891dfae.md"]) assert.ok(d.inputs.some((i) => i.name === n && i.from.git.commit.startsWith("a891dfae")), n);
+  assert.match(cur.serviceImpact, /ee-engine\.dll cannot load .*DOWN/);
+  assert.match(d.tier.hostTrustRoot.ruling, /BOOT 67 failed it/);
+  assert.match(d.profiles.vbs.measured[0], /^HOST CHANGED SINCE EVERY RESULT BELOW/);
+  assert.equal(d.direction.words, "We should only be using Our new isolation implementation.");
+  assert.match(d.legacy.status, /^LEGACY \/ UNSUPPORTED\. NOT A RECOVERY TARGET/);
+  assert.match(d.files.find((f) => f.path === "control/windows/node/apprun.mjs").note, /^LEGACY \/ UNSUPPORTED, NOT A RECOVERY TARGET/);
+  assert.match(cur.verified[0], /QUOTE with our own credential and nonce passes every relay TPM\/boot check, and 7\/7 negative controls are refused/);
+  const dbg = d.inputs.find((i) => i.name === "vbs-linux-candidate-DEBUG-TRUSTS-HOST.bin");
+  assert.ok(dbg && dbg.role === "probe.firmware" && dbg.sha256.startsWith("726d3cb5") && /^THIS FIRMWARE TRUSTS THE HOST COMMAND LINE/.test(dbg.note));
+  assert.ok(!d.files.some((f) => f.sha256 === dbg.sha256), "the debug twin is never shipped");
+  assert.deepEqual(d.rebuild.vbsLinuxDebug.args, ["--confidential-debug"]);
+  assert.match(d.profiles.vbs.measuredVtl0Candidate.debugBuildFlagFinding, /debug_build=false for the confidential-debug images too.*cannot use debug_build/);
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   vbsLinuxDebug: the pinned IGVM carries exactly the required strings/);
+  assert.match(r.out, /ok   vbsLinux: the pinned IGVM carries exactly the required strings and none of the forbidden ones/);
+});
