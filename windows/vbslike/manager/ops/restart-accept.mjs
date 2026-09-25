@@ -10,6 +10,9 @@
 //   A7 with serve (wmiserve per domain, --hold stdin): before the kill the domain is `running` with a relay that accepts
 //      TCP (A2s); after it, that relay REFUSES within a bound, because the manager's death closed wmiserve's stdin.
 //      Without serve, A7 is N/A.
+//   A8 with serve and ctl.turnOff: a SECOND domain whose VM is turned OFF from the host (by Id, marker-checked; the Off
+//      state G4 measured a dead monitor producing) is failed by the manager's liveness sweep within the bound, its relay
+//      refuses, and DELETE then removes the Off VM.
 // Last line: RESTART-ACCEPT ALL PASS | RESTART-ACCEPT <n> FAILED | RESTART-ACCEPT REFUSED <why>. An N/A is never a PASS.
 // It must run under manager-accept.ps1 (the run lock, the watchdog, the temporary firmware opt-in and its restore).
 // Nothing here is an isolation result: host_excluded=no throughout.
@@ -67,7 +70,7 @@ async function inventoryReady(base, waitMs) {
  * spawnBody: the POST body's derive (and flags); name: the deployment label this run owns.
  */
 export async function runRestartAccept({ ctl, spawnBody, name, say = console.log, readyWaitMs = 240_000, expectPartition = "wmi-openhcl-gen2-igvm-linux",
-                                         serve = false, relayGoneWaitMs = 20_000 }) {
+                                         serve = false, relayGoneWaitMs = 20_000, sweepWaitMs = 60_000 }) {
   let failed = 0; const na = [];
   const rec = (id, ok, detail) => { if (!ok) failed++; say(`${ok ? "PASS" : "FAIL"} ${id}: ${detail}`); return ok; };
   const mineIn = (s, id) => (s.vms || []).filter((v) => { const n = ctl.parseNotes(v.notes); return n.identity && n.identity.id === id; });
@@ -146,6 +149,30 @@ export async function runRestartAccept({ ctl, spawnBody, name, say = console.log
     if (r6.status === 200 && m6.length === 0) id = null;
 
     if (!serve) { na.push("A7"); say("N/A A7: the relay dies with the manager - this run did not serve (no wmiserve settings)"); }
+
+    if (serve && typeof ctl.turnOff === "function") {
+      const r8 = await call(base, "POST", "/vms", { ...spawnBody, name: name + "-a8" });
+      const id8 = r8.body && r8.body.id;
+      let v8 = null; const until = Date.now() + readyWaitMs;
+      while (id8 && Date.now() < until) { v8 = (await call(base, "GET", `/vms/${encodeURIComponent(id8)}`)).body; if (v8 && (v8.status === "running" || v8.status === "failed")) break; await sleep(2000); }
+      const vm8 = id8 ? mineIn(await ctl.survey(), id8)[0] : null;
+      const port8 = v8 && v8.relay && v8.relay.port;
+      if (!(v8 && v8.status === "running" && vm8)) {
+        rec("A8", false, `the second domain did not reach running (status ${v8 && v8.status}, VM ${vm8 ? vm8.state : "none"})`);
+      } else {
+        await ctl.turnOff(vm8.vmId);
+        const t8 = Date.now(); let g8 = null;
+        while (Date.now() - t8 < sweepWaitMs) { g8 = (await call(base, "GET", `/vms/${encodeURIComponent(id8)}`)).body; if (g8 && g8.status === "failed") break; await sleep(1000); }
+        const after = port8 ? await tcpAccepts(port8, 1000) : null;
+        const ms = Date.now() - t8;
+        rec("A8", !!g8 && g8.status === "failed" && /stopped by itself|no longer on this host/.test(String(g8.reason || "")) && after === false,
+          `after turning ${vm8.vmId} Off: status ${g8 && g8.status} within ${ms} ms, reason ${JSON.stringify(String(g8 && g8.reason || "").slice(0, 160))}, relay ${port8} ${after ? "STILL ACCEPTS" : "refuses"}`);
+      }
+      if (id8) {
+        const d8 = await call(base, "DELETE", `/vms/${encodeURIComponent(id8)}`);
+        say(`A8 cleanup: DELETE ${id8} -> ${d8.status}; VMs with this id ${mineIn(await ctl.survey(), id8).length}`);
+      }
+    }
   } catch (e) {
     failed++; say(`FAIL error: ${e.message}`);
   } finally {
@@ -171,6 +198,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const ctl = {
     parseNotes,
     survey: () => surveyor.survey(),
+    async turnOff(vmId) {
+      if (!/^[0-9a-f-]{36}$/i.test(String(vmId))) throw new Error(`not a VM Id: ${vmId}`);
+      const r = await powershellRunner({ timeoutMs: 120_000 })(`$ErrorActionPreference = 'Stop'; $v = Get-VM -Id '${vmId}';
+        if (-not ([string]$v.Notes).StartsWith('enclave-vbslike-app-domain/manager|')) { throw 'not a manager-owned VM: not touched' };
+        Stop-VM -VM $v -TurnOff -Force; @{ state = [string](Get-VM -Id '${vmId}').State } | ConvertTo-Json -Compress`);
+      if (r.code !== 0) throw new Error(`turnOff ${vmId}: ${r.stderr.trim().slice(0, 300)}`);
+      console.log(`A8: turned ${vmId} off from the host -> ${r.stdout.trim()}`);
+    },
     async startManager(extraEnv = {}) {
       n++;
       const log = fs.openSync(path.join(cfg.logDir, `manager-${n}.log`), "a");
@@ -180,7 +215,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
                ENCLAVE_BOOT_FORM: "linux-direct", ENCLAVE_GUEST_STATE_MASTER: cfg.gsMaster, ENCLAVE_GUEST_STATE_MASTER_SHA256: cfg.gsMasterSha256,
                ENCLAVE_GUEST_STATE_ARCHIVE_DIR: cfg.archiveDir, ENCLAVE_HYPERV_MODULE: cfg.hypervModule,
                ENCLAVE_RUNTIME_IDENTITY: cfg.runtimeIdentity, PYTHON_BIN: cfg.python, IPFS_GATEWAY: cfg.gateway,
-               PYTHONPATH: path.join(tree, "wasm"),
+               PYTHONPATH: path.join(tree, "wasm"), ENCLAVE_LIVENESS_MS: String(cfg.livenessMs || 5000),
                ...(cfg.wmiserveExe ? { ENCLAVE_WMISERVE_EXE: cfg.wmiserveExe, ENCLAVE_WMISERVE_EXE_SHA256: cfg.wmiserveSha256,
                                        ENCLAVE_BUNDLE_DIR: cfg.bundleDir } : {}), ...extraEnv } });
       console.log(`manager #${n} pid ${child.pid}`);
