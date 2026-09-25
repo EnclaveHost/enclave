@@ -1,7 +1,8 @@
 // A fake Base JSON-RPC for node tests, so nothing reaches a public RPC. windows/node/chain.mjs reads BASE_RPCS when it
 // LOADS, so a test calls fakeBaseRpc() and only then imports host.mjs / chain.mjs, dynamically (a static import is
 // evaluated before any of the test's own code). It answers eth_chainId and the deployments contract's get(id) from
-// `row.current`; every other call is an RPC error, which the node reads as a failed read, never as an answer.
+// `row.current`, and the app catalog's getVersion (at CATALOG) from `catalog.current`. Every other call is an RPC error,
+// which the node reads as a failed read, never as an answer.
 // (enclave-d1's reviewer found this seam: chain.addresses is writable, so no code change is needed.)
 import http from "node:http";
 import { encodeFunctionResult, decodeFunctionData, keccak256, toBytes } from "viem";
@@ -15,11 +16,19 @@ const GET_ABI = [{ type: "function", name: "get", stateMutability: "view", input
     { name: "spent6", type: "uint256" }, { name: "runner", type: "bytes32" }, { name: "runnerOperator", type: "address" },
     { name: "leaseUntil", type: "uint64" }] }] }];
 export const DEPLOYMENTS = "0x" + "d0".repeat(20);
+// the app catalog's getVersion, as windows/node/chain.mjs CATALOG_ABI declares it (a copy: that ABI is not exported)
+const CATALOG_ABI = [{ type: "function", name: "getVersion", stateMutability: "view", inputs: [{ name: "appId", type: "bytes32" }, { name: "index", type: "uint256" }],
+  outputs: [{ type: "tuple", components: [
+    { name: "cid", type: "string" }, { name: "version", type: "string" }, { name: "vramMb", type: "uint32" }, { name: "gpuGflops", type: "uint32" },
+    { name: "memMb", type: "uint32" }, { name: "cpuGflops", type: "uint32" }, { name: "createdAt", type: "uint64" }, { name: "verified", type: "bool" },
+    { name: "yanked", type: "bool" }, { name: "ports", type: "string" }, { name: "approval", type: "uint8" }, { name: "config", type: "string" }] }] }];
+export const CATALOG = "0x" + "ca".repeat(20);
 /** the enclave id a Host with this endpoint registers as */
 export const enclaveIdOf = (endpoint) => keccak256(toBytes(endpoint));
 
 export async function fakeBaseRpc() {
   const row = { current: null };
+  const catalog = { current: null };                 // what getVersion answers (a tuple per CATALOG_ABI); set per test
   const calls = [];
   const server = http.createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c);
@@ -33,6 +42,13 @@ export async function fakeBaseRpc() {
             return { jsonrpc: "2.0", id: m.id, result: encodeFunctionResult({ abi: GET_ABI, functionName: "get", result: row.current }) };
         } catch { /* not a get: an error below */ }
       }
+      if (m.method === "eth_call" && String(m.params?.[0]?.to || "").toLowerCase() === CATALOG && catalog.current) {
+        try {
+          const { functionName } = decodeFunctionData({ abi: CATALOG_ABI, data: m.params[0].data || m.params[0].input });
+          if (functionName === "getVersion")
+            return { jsonrpc: "2.0", id: m.id, result: encodeFunctionResult({ abi: CATALOG_ABI, functionName: "getVersion", result: catalog.current }) };
+        } catch { /* another catalog call (catalogSchema): an error below, read as an older catalog */ }
+      }
       return { jsonrpc: "2.0", id: m.id, error: { code: -32601, message: `fake rpc: ${m.method} is not served` } };
     };
     const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -41,5 +57,5 @@ export async function fakeBaseRpc() {
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   process.env.BASE_RPCS = `http://127.0.0.1:${server.address().port}`;
-  return { row, calls, close: () => server.close() };
+  return { row, catalog, calls, close: () => server.close() };
 }
