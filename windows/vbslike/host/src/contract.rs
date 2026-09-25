@@ -109,8 +109,18 @@ pub struct Manifest {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub world: String,
     pub artifact: Artifact,
+    /// The port a `wasi:cli` command binds its own HTTP server on (enclave-catalog-bundle/2).
+    ///
+    /// It MUST be declared here or serde drops it on deserialize and `canonical(&m) != mb`, so
+    /// every /2 bundle is refused at load as "manifest is not in canonical form" - found by
+    /// enclave-5d by reading this file. In the canonical key order `http` sorts between `artifact`
+    /// and `policy`, which is where this field sits, so the order needs nothing else.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub http: i64,
     pub policy: Policy,
 }
+
+fn is_zero(v: &i64) -> bool { *v == 0 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
 pub struct Artifact {
     pub kind: String,
@@ -180,7 +190,25 @@ pub fn parse(b: &[u8]) -> Result<(Manifest, &[u8]), ParseError> {
         return Err(ParseError::Malformed(format!("artifact kind {:?} is not distributable: only {KIND_WASM_COMPONENT} is", m.artifact.kind)));
     }
     if m.artifact.sha256 != hex::encode(Sha256::digest(art)) {
-        return Err(ParseError::Malformed("manifest names a different artifact than it carries".into()));
+        return Err(ParseError::Malformed("bundle manifest names a different artifact than it carries".into()));
+    }
+    // The world decides whether a port may be named, and mirrors isolation/contract/bundle.go Parse
+    // so a bundle reads the same on every backend. A /1 bundle that names a port and a /2 bundle
+    // that names none are each refused BY NAME rather than approximated.
+    match m.world.as_str() {
+        "" | "wasi:http" => {
+            if m.http != 0 {
+                return Err(ParseError::Malformed(format!(
+                    "world {:?} serves no port of its own, and this manifest names http {}", m.world, m.http)));
+            }
+        }
+        "wasi:cli" => {
+            if m.http < 1 || m.http > 49999 {
+                return Err(ParseError::Malformed(format!(
+                    "a wasi:cli command must name its http port in 1..=49999, not {}", m.http)));
+            }
+        }
+        other => return Err(ParseError::Malformed(format!("world {other:?} is not one this runtime serves"))),
     }
     Ok((m, art))
 }
@@ -419,4 +447,92 @@ pub fn run_vectors(path: &str) -> Result<Vec<String>, String> {
         }
     }
     Ok(fails)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Assemble a bundle the way Build does, so `parse` sees exactly what a real one carries.
+    fn bundle(m: &Manifest, art: &[u8]) -> Vec<u8> {
+        let mb = canonical(m);
+        let mut b = Vec::from(BUNDLE_MAGIC);
+        b.extend_from_slice(&(mb.len() as u32).to_le_bytes());
+        b.extend_from_slice(&mb);
+        b.extend_from_slice(&(art.len() as u32).to_le_bytes());
+        b.extend_from_slice(art);
+        b
+    }
+
+    fn manifest(world: &str, http: i64, art: &[u8]) -> Manifest {
+        Manifest {
+            abi: ABI.to_string(),
+            label: String::new(),
+            world: world.to_string(),
+            artifact: Artifact { kind: KIND_WASM_COMPONENT.to_string(), sha256: hex::encode(Sha256::digest(art)) },
+            http,
+            policy: Policy { cpu_percent: 100, mem_mib: 512, vcpus: 1 },
+        }
+    }
+
+    const ART: &[u8] = b"\x00asm\x0d\x00\x01\x00not-really-a-component";
+
+    /// The defect this whole field exists for: without `http` on Manifest, serde dropped it on
+    /// deserialize, `canonical(&m) != mb`, and EVERY /2 bundle was refused as non-canonical.
+    #[test]
+    fn a_wasi_cli_bundle_naming_a_port_round_trips() {
+        let b = bundle(&manifest("wasi:cli", 8080, ART), ART);
+        let (m, art) = parse(&b).expect("a /2 bundle must parse");
+        assert_eq!(m.http, 8080, "the port must survive the round trip");
+        assert_eq!(m.world, "wasi:cli");
+        assert_eq!(art, ART);
+    }
+
+    /// A /1 bundle must serialise byte-for-byte as it did before the field existed.
+    #[test]
+    fn a_proxy_bundle_omits_http_entirely() {
+        let m = manifest("wasi:http", 0, ART);
+        let mb = canonical(&m);
+        let s = String::from_utf8(mb.clone()).unwrap();
+        assert!(!s.contains("\"http\""), "http must be omitted when zero, or every /1 AppID changes: {s}");
+        parse(&bundle(&m, ART)).expect("a /1 bundle must still parse");
+        // and the canonical key order puts http between artifact and policy when it IS present
+        let s2 = String::from_utf8(canonical(&manifest("wasi:cli", 1, ART))).unwrap();
+        let (a, h, p) = (s2.find("\"artifact\"").unwrap(), s2.find("\"http\"").unwrap(), s2.find("\"policy\"").unwrap());
+        assert!(a < h && h < p, "http sorts between artifact and policy: {s2}");
+    }
+
+    #[test]
+    fn a_world_that_serves_no_port_may_not_name_one() {
+        for world in ["", "wasi:http"] {
+            let e = parse(&bundle(&manifest(world, 8080, ART), ART)).unwrap_err();
+            match e {
+                ParseError::Malformed(m) => assert!(m.contains("serves no port of its own"), "{m}"),
+                other => panic!("expected Malformed, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_command_must_name_a_port_in_range() {
+        for http in [0, -1, 50000, 65535] {
+            let e = parse(&bundle(&manifest("wasi:cli", http, ART), ART)).unwrap_err();
+            match e {
+                ParseError::Malformed(m) => assert!(m.contains("1..=49999"), "{http}: {m}"),
+                other => panic!("expected Malformed for {http}, got {other:?}"),
+            }
+        }
+        for http in [1, 49999] {
+            parse(&bundle(&manifest("wasi:cli", http, ART), ART)).unwrap_or_else(|e| panic!("{http} must be accepted: {e:?}"));
+        }
+    }
+
+    #[test]
+    fn an_unknown_world_is_refused_by_name() {
+        let e = parse(&bundle(&manifest("wasi:snake", 0, ART), ART)).unwrap_err();
+        match e {
+            ParseError::Malformed(m) => assert!(m.contains("wasi:snake"), "the refusal names the world: {m}"),
+            other => panic!("expected Malformed, got {other:?}"),
+        }
+    }
 }

@@ -15,6 +15,9 @@ pub(crate) struct Row {
     name: &'static str,
     why: &'static str,
     isolation: Option<&'static str>,
+    no_chipset: bool,
+    bogus_key: bool,
+    fw_path: bool,
     uefi: bool,
     use_igvm: bool,
     use_vmgs: bool,
@@ -27,7 +30,7 @@ pub(crate) struct Row {
 }
 
 pub(crate) fn rows() -> Vec<Row> {
-    let base = Row { name: "", why: "", isolation: None, uefi: false, use_igvm: false, use_vmgs: false, use_empty_vmgs: false, hcl: None, fw: None, overcommit: true, transient_gs: false, tpm: false };
+    let base = Row { name: "", why: "", isolation: None, no_chipset: false, bogus_key: false, fw_path: false, uefi: false, use_igvm: false, use_vmgs: false, use_empty_vmgs: false, hcl: None, fw: None, overcommit: true, transient_gs: false, tpm: false };
     vec![
         Row { name: "plain-direct", why: "the phase-1 document exactly (no SecuritySettings): the control", ..base },
         Row { name: "normal-direct", why: "phase-1 shape with IsolationType Normal stated explicitly", isolation: Some("Normal"), ..base },
@@ -40,6 +43,54 @@ pub(crate) fn rows() -> Vec<Row> {
         Row { name: "vbs-direct", why: "VirtualizationBasedSecurity + LinuxKernelDirect: does an isolated partition take the host's kernel and initrd?", isolation: Some("VirtualizationBasedSecurity"), overcommit: false, transient_gs: true, ..base },
         Row { name: "vbs-igvmpath", why: "VirtualizationBasedSecurity + IgvmFilePath: a custom IGVM by path (expected to be gated by AllowFirmwareLoadFromFile)", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, overcommit: false, ..base },
         Row { name: "vbs-emptyvmgs", why: "VirtualizationBasedSecurity + an EMPTY VMGS file the worker may open: the in-box paravisor from its default location, guest state on disk", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_empty_vmgs: true, overcommit: false, ..base },
+        // OUR paravisor AND somewhere to keep guest state. The two were never tried together:
+        // `vbs-igvmpath` carried the IGVM with no VMGS and `vbs-emptyvmgs` a VMGS with no IGVM, so
+        // while the firmware path was refused outright (0x80070032) the combination had no reason
+        // to exist. With AllowFirmwareLoadFromFile set the refusal moved on to the next missing
+        // thing - "Microsoft Guest Runtime State" failed to Initialize with 0x80070057, a device
+        // the document never declared - which is what makes this the shape to try.
+        Row { name: "vbs-igvmpath-emptyvmgs", why: "VirtualizationBasedSecurity + IgvmFilePath + an EMPTY VMGS: our own paravisor image, with the guest runtime state device the isolated partition demands", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, ..base },
+        Row { name: "vbs-igvmpath-emptyvmgs-tpm", why: "... plus EnableTpm, since the paravisor is what would host the vTPM", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, tpm: true, ..base },
+        Row { name: "gso-igvmpath-emptyvmgs", why: "GuestStateOnly + IgvmFilePath + an EMPTY VMGS: the same shape one isolation class down, to tell a firmware-loading problem from a VBS-isolation one", isolation: Some("GuestStateOnly"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, ..base },
+        // THE CHIPSET, which every row above got wrong for this image. The file is named
+        // openhcl-x64-test-linux-DIRECT: the paravisor expects the host to hand VTL0 a kernel and
+        // initrd through LinuxKernelDirect and supplies the VTL2 environment itself. Asking for a
+        // Uefi chipset instead makes the worker look for a UEFI firmware element this IGVM does
+        // not carry, which is a good candidate for the "Element not found" at start.
+        Row { name: "vbs-igvmpath-direct-emptyvmgs", why: "VirtualizationBasedSecurity + LinuxKernelDirect + IgvmFilePath + an EMPTY VMGS: the paravisor's own boot shape rather than a UEFI chipset", isolation: Some("VirtualizationBasedSecurity"), uefi: false, use_igvm: true, use_empty_vmgs: true, overcommit: false, ..base },
+        Row { name: "vbs-igvmpath-direct-emptyvmgs-hcl", why: "... plus HclEnabled stated true", isolation: Some("VirtualizationBasedSecurity"), uefi: false, use_igvm: true, use_empty_vmgs: true, overcommit: false, hcl: Some(true), ..base },
+        Row { name: "vbs-igvmpath-direct-gs", why: "... with TRANSIENT in-memory guest state instead of a VMGS file, in case the file is what is not found", isolation: Some("VirtualizationBasedSecurity"), uefi: false, use_igvm: true, overcommit: false, transient_gs: true, ..base },
+        Row { name: "vbs-igvmpath-emptyvmgs-fwparams", why: "the UEFI shape plus FirmwareFile.Parameters, to vary the other axis", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, fw: Some("OPENHCL_BOOT_LOG=com3"), ..base },
+        // IT STARTS. `FirmwareFile.Parameters` was the missing element: without a FirmwareFile
+        // block the worker has no firmware element to attach the IGVM to and start returns
+        // 0x80070490, and with one the isolated partition runs our own paravisor image in 961 ms.
+        // What it did NOT do is say anything - the document models COM1 and COM2 only (more makes
+        // it invalid, 0x8037010d), so a boot log addressed to com3 went nowhere. These rows move
+        // it onto a port that exists, which is what turns "it started" into "it is our image".
+        Row { name: "vbs-igvm-boot-com2", why: "the shape that starts, with the paravisor's boot log on COM2 where this document actually has a port", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, fw: Some("OPENHCL_BOOT_LOG=com2"), ..base },
+        Row { name: "vbs-igvm-boot-com1", why: "... and on COM1, in case the paravisor numbers its ports from the guest's side", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, fw: Some("OPENHCL_BOOT_LOG=com1"), ..base },
+        // NO CHIPSET. Every start so far ends the same way: HcsStartComputeSystem returns
+        // success and then vmwp.exe faults 0xc0000005 inside vmchipset.dll at offset 0x6e31c -
+        // eleven times, one fault bucket, the in-box paravisor included. So the partition never
+        // actually runs, and the module that crashes is the one describing a chipset this
+        // partition should not need: an isolated partition's firmware comes from its IGVM.
+        Row { name: "vbs-igvm-nochipset", why: "VirtualizationBasedSecurity + IgvmFilePath + empty VMGS and NO Chipset node at all: the IGVM is the firmware, and vmchipset.dll is what faults", isolation: Some("VirtualizationBasedSecurity"), no_chipset: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, ..base },
+        Row { name: "vbs-nochipset-emptyvmgs", why: "the same without our IGVM: does the in-box paravisor survive a start with no chipset described?", isolation: Some("VirtualizationBasedSecurity"), no_chipset: true, use_empty_vmgs: true, overcommit: false, ..base },
+        // THE PATH WE NEVER SENT. Worker-Operational logs "Loading IGVM file from default
+        // location" for every partition so far, including those whose
+        // SecuritySettings.Isolation.IgvmFilePath named our image: that key is not what this build
+        // reads, so our IGVM has never been loaded and every "start ok" so far was the in-box
+        // paravisor. FirmwareFile carries a Path as well as Parameters; the path is the candidate.
+        Row { name: "vbs-fwpath", why: "VirtualizationBasedSecurity + Chipset.FirmwareFile.Path pointing at our IGVM + empty VMGS: the firmware file where this worker looks for one", isolation: Some("VirtualizationBasedSecurity"), uefi: true, fw_path: true, use_empty_vmgs: true, overcommit: false, ..base },
+        Row { name: "vbs-fwpath-params", why: "... plus the paravisor command line on COM2, which is what made memory initialisation succeed for the default image", isolation: Some("VirtualizationBasedSecurity"), uefi: true, fw_path: true, use_empty_vmgs: true, overcommit: false, fw: Some("OPENHCL_BOOT_LOG=com2"), ..base },
+        Row { name: "vbs-fwpath-igvmpath-params", why: "... and with BOTH keys set, in case the worker wants the isolation key too", isolation: Some("VirtualizationBasedSecurity"), uefi: true, fw_path: true, use_igvm: true, use_empty_vmgs: true, overcommit: false, fw: Some("OPENHCL_BOOT_LOG=com2"), ..base },
+        // DOES THIS SCHEMA IGNORE WHAT IT DOES NOT KNOW? The claim "HCS accepts IgvmFilePath and
+        // ignores it" rests on one log line ("Loading IGVM file from default location"). If a
+        // deliberately invented key inside the same object is ALSO accepted, then acceptance there
+        // proves nothing at all and the log line is the only evidence that counts. If the invented
+        // key is refused while IgvmFilePath is not, the schema knows IgvmFilePath and the worker
+        // is dropping it later, which is a different bug in a different place.
+        Row { name: "vbs-bogus-isolation-key", why: "VirtualizationBasedSecurity + an INVENTED key beside IgvmFilePath: does this schema refuse what it does not know, or ignore it?", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_empty_vmgs: true, overcommit: false, bogus_key: true, ..base },
         Row { name: "vbs-emptyvmgs-tpm", why: "... plus EnableTpm", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_empty_vmgs: true, overcommit: false, tpm: true, ..base },
         Row { name: "gso-emptyvmgs", why: "GuestStateOnly + the empty VMGS", isolation: Some("GuestStateOnly"), uefi: true, use_empty_vmgs: true, overcommit: false, ..base },
         Row { name: "vbs-vmgs", why: "VirtualizationBasedSecurity + a VMGS carrying an IGVM in file id 8: 'Loading IGVM file from VMGS file'", isolation: Some("VirtualizationBasedSecurity"), uefi: true, use_vmgs: true, overcommit: false, ..base },
@@ -103,8 +154,11 @@ pub fn run(o: &Opts) -> i32 {
     let only = o.get("only").map(|s| s.to_string());
     let mut results = Vec::new();
     for (i, r) in rows().iter().enumerate() {
+        // `--only` takes a COMMA-SEPARATED list, not one name. One approved run of the host-wide
+        // setting should be able to answer more than one shape: the alternative is applying and
+        // restoring it once per row, which is more exposure for less evidence.
         if let Some(n) = &only {
-            if n != r.name {
+            if !n.split(',').map(str::trim).any(|want| want == r.name) {
                 continue;
             }
         }
@@ -124,7 +178,7 @@ pub fn run(o: &Opts) -> i32 {
         let pipe = format!(r"\\.\pipe\vbslike-iso-{}-{}-com1", std::process::id(), i);
         let cmdline = "console=ttyS0 rdinit=/init loglevel=3 report_host=9001";
         let base = DomainSpec { kernel: &kernel, initrd: &initrd, cmdline, mem_mib: o.num("mem", 1024), cpus: o.num("cpus", 2), console_pipe: &pipe, hvsock_sddl: crate::launcher::SDDL_ADMIN_SYSTEM };
-        let doc = isolated_document(&IsoSpec { base: &base, isolation: r.isolation, igvm_path: if r.use_igvm { igvm.as_deref() } else { None }, hcl_enabled: r.hcl, vmgs_path: vmgs_for_row, uefi: r.uefi, firmware_params: r.fw, extra_com_ports: 1, enable_tpm: r.tpm, overcommit: r.overcommit, transient_guest_state: r.transient_gs });
+        let doc = isolated_document(&IsoSpec { base: &base, isolation: r.isolation, igvm_path: if r.use_igvm { igvm.as_deref() } else { None }, hcl_enabled: r.hcl, vmgs_path: vmgs_for_row, no_chipset: r.no_chipset, bogus_key: r.bogus_key, firmware_path: if r.fw_path { igvm.as_deref() } else { None }, uefi: r.uefi, firmware_params: r.fw, extra_com_ports: 1, enable_tpm: r.tpm, overcommit: r.overcommit, transient_guest_state: r.transient_gs });
         let _ = std::fs::write(out.join(format!("isoprobe-{}.hcs.json", r.name)), &doc);
         println!("=== {} : {}", r.name, r.why);
         let id = format!("vbslike-iso-{}-{}", std::process::id(), i);
@@ -206,7 +260,7 @@ mod tests {
         let pipe = r"\\.\pipe\t-com1";
         let base = DomainSpec { kernel: "k", initrd: "i", cmdline: "c", mem_mib: 256, cpus: 1, console_pipe: pipe, hvsock_sddl: "D:P" };
         for r in rows() {
-            let doc = isolated_document(&IsoSpec { base: &base, isolation: r.isolation, igvm_path: if r.use_igvm { Some("igvm") } else { None }, hcl_enabled: r.hcl, vmgs_path: if r.use_vmgs || r.use_empty_vmgs { Some("vmgs") } else { None }, uefi: r.uefi, firmware_params: r.fw, extra_com_ports: 1, enable_tpm: r.tpm, overcommit: r.overcommit, transient_guest_state: r.transient_gs });
+            let doc = isolated_document(&IsoSpec { base: &base, isolation: r.isolation, igvm_path: if r.use_igvm { Some("igvm") } else { None }, hcl_enabled: r.hcl, vmgs_path: if r.use_vmgs || r.use_empty_vmgs { Some("vmgs") } else { None }, no_chipset: r.no_chipset, bogus_key: r.bogus_key, firmware_path: if r.fw_path { Some("igvm") } else { None }, uefi: r.uefi, firmware_params: r.fw, extra_com_ports: 1, enable_tpm: r.tpm, overcommit: r.overcommit, transient_guest_state: r.transient_gs });
             let v: serde_json::Value = serde_json::from_str(&doc).unwrap_or_else(|e| panic!("{}: {e}", r.name));
             let vm = &v["VirtualMachine"];
             match r.isolation {
