@@ -127,3 +127,6 @@ windows/enclave-app-hello/target/
 
 # isolation/m4 builds the contract's bundle tool into the tree; it is reproducible output
 /isolation/m4/.bundle
+
+# the release lab's per-run pins (isolation/m2/lab-release/run-lab.sh): generated, never committed
+isolation/m2/release/labpins/

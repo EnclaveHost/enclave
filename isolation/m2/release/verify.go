@@ -29,12 +29,6 @@ import (
 
 const responseDomain = "enclave-secrets-release-v1 response\n"
 
-// relayReleaseKeys is the PINNED set of the relay's release keys: Ed25519 public keys, hex, compiled into the
-// measured front (rule 4). It is EMPTY on purpose. The production key is generated on the api-relay host under the
-// custody rules (docs/security/attested-release.md, "Preconditions"), and until its public half is pinned here and the
-// image rebuilt, a front built from this source refuses every release - before it sends one, so no ticket is burned.
-var relayReleaseKeys = []string{}
-
 // PinnedRelayKeys is the pinned set, parsed. A malformed entry is an error, never skipped.
 func PinnedRelayKeys() ([]ed25519.PublicKey, error) {
 	var out []ed25519.PublicKey
