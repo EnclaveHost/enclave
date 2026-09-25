@@ -151,6 +151,39 @@ Both declare `VSM_ISOLATION` and `highest_vtl 2`, as ours does.
 | starts | starts | something specific to our image |
 | 12030 | 12030 | OpenHCL on this build |
 
+## E8. The controlled comparison (P2, run by enclave-d1; evidence at `windows/isolation-manager` `7c6bb15d`, BLOCKERS.md)
+
+All three runs used the same bounded procedure and the same VM definition. Only the pinned file changed. The
+definition: petri's `New-CustomVM`, `GuestStateIsolationType` 16, `-IncreaseVtl2Memory`, Secure Boot off, COM1, 1 GB,
+1 vCPU. `AllowFirmwareLoadFromFile` was set for the run and then restored.
+
+| pinned image | sha256 | result |
+|---|---|---|
+| Microsoft's `openhcl.bin`, STANDARD (UEFI in VTL0) | `48773995cfa2222c…` | **start OK, state Running**, Worker-Admin 18500 "started successfully" |
+| Microsoft's `openhcl-direct.bin`, their own LINUX-DIRECT | `2f640f33884e6538…` | **start FAILED**, Worker-Admin 12030, no underlying cause |
+| `openhcl-ownguest.bin`, ours (linux-direct) | `7caf7408…` | start FAILED, 12030, identical |
+
+**What this establishes on this host (Windows 11 Pro 10.0.26200.9457, `vmwp` 10.0.26100.8457, VM version 12.0):**
+- OpenHCL itself starts.
+- The custom-IGVM pin is honoured.
+- A linux-direct OpenHCL image does not start, Microsoft's included. Microsoft's image shares none of our VTL0
+  payload, command line or memory sizing, so nothing specific to our image is implicated. E3 (untested upstream) is
+  confirmed as "does not work here".
+
+**Limits, stated exactly.**
+- One host and one Windows build, under the settings above. It is not shown whether other settings would change the
+  linux-direct result.
+- "Start OK" for the standard image means the partition and OpenHCL started with UEFI in VTL0, and no disk was
+  attached. It is not evidence that OUR guest boots, which has not been tried.
+- It says nothing about host exclusion. The tier remains T0-hv.
+
+**What follows (Steven's direction, 2026-09-25 00:11):** adapt the existing guest to STANDARD UEFI boot on this
+machine. The IGVM becomes Microsoft's standard OpenHCL image. The guest (the same WSL kernel, which has an EFI stub, the
+same monitor initrd, the same runtime and app identity, and the same guest-held TLS) is delivered as a UEFI boot image
+on a Gen2 SCSI VHDX or a DVD ISO. Microsoft's docs: Gen2 boots "from a SCSI virtual hard disk (.VHDX) or virtual DVD
+(.ISO)". enclave-5d owns the guest's boot requirements, enclave-53 the reproducible image builder and packaging, and
+enclave-d1 the host and the VM definition.
+
 ## E7. OpenHCL's boot log has no serial route on this build
 
 This comes from source (`openhcl/openhcl_boot` at `a7b0bd4`); it corrects a guess in E4.
