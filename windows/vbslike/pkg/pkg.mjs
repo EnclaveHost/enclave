@@ -45,7 +45,7 @@ const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.in
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
   "input.recipe", "input.tree", "input.test", "input.test-support", "guest.uefi-firmware", "guest.uefi-medium", "guest.uefi-fallback",
   "input.efi-stub", "input.tool-source", "input.initrd", "control.node", "control.relay", "control.npm", "control.acceptance",
-  "probe.uefi-medium", "probe.module", "probe.firmware", "input.firmware-config"]);
+  "probe.uefi-medium", "probe.module", "probe.firmware", "input.firmware-config", "candidate.igvm"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
 const SERVED_BY_PINNED_MANAGER = ["enclave-catalog-bundle/1"];   // windows/vbslike/manager/server.mjs SERVES
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
@@ -409,6 +409,53 @@ function rebuild(m, bytes, R) {
   } finally { fs.rmSync(d, { recursive: true, force: true }); }
 }
 
+// An IGVM that igvmfilegen makes from pinned inputs alone: a manifest, a resource map naming pinned inputs, the pinned
+// igvmfilegen, all written to a scratch directory (nothing is read from any build tree). The output and its VBS identity
+// document must be the pinned bytes. A `twin` builds the same components under another manifest and must reproduce a
+// pinned VBS launch digest: that is how the components are shown to be the ones a booted image was built from.
+function rebuildIgvmfilegen(m, bytes, R) {
+  const ref = (x) => (String(x).startsWith("file:") ? m.files.find((f) => f.path === x.slice(5)) : m.inputs.find((i) => i.name === x));
+  const digest = (b) => { try { return JSON.parse(String(b)).series[0].reference.vbs_boot_digest; } catch { return null; } };
+  for (const [key, u] of Object.entries(m.rebuild || {})) {
+    if (!u || u.kind !== "igvmfilegen") continue;
+    const d = fs.mkdtempSync(path.join(os.homedir(), ".vbspkg-igvm-"));
+    try {
+      const put = (name, e) => { const p = path.join(d, name); fs.writeFileSync(p, bytes.get(e)); return p; };
+      const igp = put("igvmfilegen", ref(u.igvmfilegen)); fs.chmodSync(igp, 0o755);
+      const build = (tag, man, res) => {
+        const rmap = {};
+        for (const [t, n] of Object.entries(res)) { const e = ref(n); if (!e || !bytes.get(e)) return { err: `resource ${t} = ${n} is not a pinned input` }; rmap[t] = put(`${tag}-${t}`, e); }
+        const rp = path.join(d, `${tag}-resources.json`); fs.writeFileSync(rp, JSON.stringify({ resources: rmap }));
+        const out = path.join(d, `${tag}.bin`), vj = path.join(d, `${tag}-vbs.json`);
+        const r = spawnSync(igp, ["manifest", "-m", put(`${tag}-manifest.json`, ref(man)), "-r", rp, "-o", out], { encoding: "utf8" });
+        return { r, bin: fs.existsSync(out) ? sha(fs.readFileSync(out)) : null, vbs: fs.existsSync(vj) ? fs.readFileSync(vj) : null };
+      };
+      if (u.twin) {
+        const t = build("twin", u.twin.manifest, u.twin.resources), want = digest(bytes.get(ref(u.twin.expectVbsJson)));
+        const got = t.vbs ? digest(t.vbs) : null;
+        R.add(!!want && got === want, `rebuild ${key}: its components reproduce the booted image's VBS launch digest (a twin under the booted image's own manifest)`,
+              t.err || (got === want ? got : `twin gives ${got}, the booted image states ${want}`));
+      }
+      const c = build("out", u.manifest, u.resources), want = ref(u.output)?.sha256;
+      R.add(!c.err && c.r.status === 0 && c.bin === want, `rebuild ${key}: the IGVM from its pinned inputs with the pinned igvmfilegen`,
+            c.err || (c.bin === want ? c.bin.slice(0, 16) : `exit ${c.r.status}, got ${c.bin}: ${(c.r.stderr || "").trim().split("\n").at(-1)}`));
+      if (u.vbsJson) R.add(!!c.vbs && sha(c.vbs) === ref(u.vbsJson)?.sha256, `rebuild ${key}: its VBS identity document (the launch digest igvmfilegen computes)`, c.vbs ? digest(c.vbs) : "none produced");
+    } finally { fs.rmSync(d, { recursive: true, force: true }); }
+  }
+}
+// Byte rules on a pinned IGVM that hold with or without --rebuild: strings it must carry and strings it must never carry
+// (the confidential-debug flag makes OpenHCL trust the host's command line, so a non-debug candidate must not carry it).
+function checkIgvmStrings(m, bytes, R) {
+  const ref = (x) => m.inputs.find((i) => i.name === x) || m.files.find((f) => f.path === x);
+  for (const [key, u] of Object.entries(m.rebuild || {})) {
+    if (!u || u.kind !== "igvmfilegen") continue;
+    const b = bytes.get(ref(u.output)); if (!b) { R.add(false, `${key}: the pinned IGVM's bytes`, "not resolved"); continue; }
+    const bad = [...(u.mustNotContain || []).filter((x) => b.includes(Buffer.from(x))).map((x) => `carries '${x}'`),
+                 ...(u.mustContain || []).filter((x) => !b.includes(Buffer.from(x))).map((x) => `lacks '${x}'`)];
+    R.add(bad.length === 0, `${key}: the pinned IGVM carries exactly the required strings and none of the forbidden ones`, bad.length ? bad.join("; ") : `must: ${(u.mustContain || []).length}, never: ${(u.mustNotContain || []).join(", ")}`);
+  }
+}
+
 // Rebuild the UEFI boot medium from its pinned inputs with the pinned builder (pkg/uefi/build-uefi-image.sh), and
 // require the ISO and disk.raw to be the pinned bytes, and the shipped VHDX's payload to be that disk.raw.
 function rebuildUefi(m, bytes, R) {
@@ -632,7 +679,8 @@ export async function verify(manifestPath, { out = null, rebuild: doRebuild = fa
   }
   await checkClaims(m, bytes, R);
   if (out) checkOut(m, mbytes, out, bytes, R);
-  if (doRebuild) { rebuild(m, bytes, R); rebuildUefi(m, bytes, R); }
+  checkIgvmStrings(m, bytes, R);
+  if (doRebuild) { rebuild(m, bytes, R); rebuildUefi(m, bytes, R); rebuildIgvmfilegen(m, bytes, R); }
   if (fetchGw) await fetchCheck(m, fetchGw, R);
   if (serve) await serveCheck(m, bytes, R);
   if (tests) testsCheck(m, bytes, R);

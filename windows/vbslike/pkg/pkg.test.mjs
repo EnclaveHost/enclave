@@ -646,3 +646,27 @@ test("draft v25 (staged) corrects E2: NOT complete, VTL2's report an inference o
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
 });
+
+test("draft v26 (staged) pins d1's trust root at its stated strength and a BUILD-ONLY measured-VTL0 VBS candidate that never carries the confidential-debug flag and is never shipped", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-26.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, STAGED \(supersedes v25 as the staged package\)\. NEW IN v26/);
+  const tr = d.tier.hostTrustRoot;
+  assert.match(tr.verified[0], /replays to its TPM PCRs 0-14\. The PCRs were read LOCALLY, NOT in a signed quote/);
+  assert.match(tr.verifiedGap.join(" "), /Secure Boot is OFF.*Test signing is ON.*CN=EnclaveTestSigning.*UNKNOWN/);
+  assert.ok(tr.untested.some((x) => /HYPOTHESIS until real report bytes verify/.test(x)) && tr.untested.some((x) => /TPM quote/.test(x)));
+  assert.match(tr.ruling, /REJECTION condition.*rejects its reports/);
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const c = d.profiles.vbs.measuredVtl0Candidate;
+  assert.match(c.status, /^BUILD ONLY\. NOT BOOTED\. NOT ON THE BOX/);
+  assert.match(c.components, /reproduces the control image's VBS launch digest 77C66160/);
+  assert.ok(d.inputs.some((i) => i.name === "vbs-linux-candidate.bin" && i.role === "candidate.igvm" && i.sha256.startsWith("5562e71d")));
+  assert.ok(!d.files.some((f) => f.role === "candidate.igvm" || f.sha256 === "5562e71d9ef5c0a4d3b577c943388900de4fc6352ef6a59905afe3ac6ef345ce"), "the candidate is a build input, never a shipped file");
+  for (const f of ["windows/vbslike/verify/tcglog/tcglog.py", "windows/vbslike/ops/tpm-pcr-read.ps1"]) assert.ok(d.files.find((x) => x.path === `control/${f}`)?.from.git.commit.startsWith("6d4adb19"));
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   vbsLinux: the pinned IGVM carries exactly the required strings and none of the forbidden ones/);
+  // the flag must never be accepted into the candidate's rules as allowed, and a candidate that carried it is refused
+  const m = structuredClone(d); m.rebuild.vbsLinux.mustNotContain = ["OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux"];
+  const x = run(["verify", writeManifest(m)]);
+  assert.equal(x.code, 1); assert.match(x.out, /FAIL vbsLinux: the pinned IGVM carries exactly the required strings and none of the forbidden ones: carries 'OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux'/, fails(x.out));
+});
