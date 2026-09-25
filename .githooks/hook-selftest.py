@@ -10,7 +10,13 @@ so which config judged a push is visible in the push's result, not inferred:
   3. a pushed config that gitleaks cannot load + MAIN canary -> REFUSED (scanned again with the hook's own config)
   4. a generated, labelled private key under a config with no key rules -> REFUSED (the crypto scanner always runs)
   5. the main checkout pushes its own canary                 -> REFUSED (its own config governs)
-The canaries and the key are generated for this run and live only in the throwaway repository, which is deleted on exit.
+Every push runs with TMPDIR pointed at a directory of its own, which must be EMPTY afterwards: the hook's temporary copies of
+the pushed config and its logs are all removed (they once leaked, made inside a subshell the cleanup never saw).
+Then the hooks are run directly, each copied ALONE into a fresh repository (the review's reproduction, 2026-09-25):
+  6. no crypto-key scanner anywhere: pre-commit and pre-push REFUSE (a missing scanner once skipped every check, exit 0);
+     a delete-only push, with nothing to scan, still passes
+  7. the scanner only beside the hook, or only in the worktree's .githooks: a clean commit and push pass
+The canaries and the key are generated for this run and live only in the throwaway repositories, deleted on exit.
 
   python3 .githooks/hook-selftest.py [--gitleaks PATH]
 Exit status: 0 every case as expected; 1 a case was not; 2 gitleaks or git could not be used.
@@ -47,7 +53,9 @@ def main():
     tmp = tempfile.mkdtemp(prefix="hook-selftest-")
     gcfg = os.path.join(tmp, "gitconfig")
     open(gcfg, "w").close()
-    env = {**os.environ, "GIT_CONFIG_GLOBAL": gcfg, "GIT_CONFIG_NOSYSTEM": "1", "GITLEAKS": gl,
+    hook_tmp = os.path.join(tmp, "hook-tmpdir")   # the hooks' TMPDIR: must be empty after every run
+    os.makedirs(hook_tmp)
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": gcfg, "GIT_CONFIG_NOSYSTEM": "1", "GITLEAKS": gl, "TMPDIR": hook_tmp,
            "GIT_AUTHOR_NAME": "hook-selftest", "GIT_AUTHOR_EMAIL": "hook-selftest@example.invalid",
            "GIT_COMMITTER_NAME": "hook-selftest", "GIT_COMMITTER_EMAIL": "hook-selftest@example.invalid"}
 
@@ -94,6 +102,12 @@ def main():
             if not ok:
                 failures.append(f"{name}: expected {'REFUSED' if refused else 'allowed'}"
                                 f"{' mentioning ' + repr(stderr_has) if stderr_has else ''}; got exit {p.returncode}: {p.stderr.strip()[-500:]}")
+            left = os.listdir(hook_tmp)   # ANY leftover counts, whatever its name (the leaked copy was a default mktemp tmp.*)
+            if left:
+                failures.append(f"{name}: {len(left)} temporary file(s) left behind in TMPDIR ({', '.join(sorted(n.split('.')[0] for n in left))})")
+                for f in left:
+                    p = os.path.join(hook_tmp, f)
+                    shutil.rmtree(p, ignore_errors=True) if os.path.isdir(p) else os.remove(p)
 
         # 1. the branch's canary, from the linked worktree: the pushed commit's config governs
         commit(wt, {"a.txt": f"BRANCH-CANARY-{secrets.token_hex(8)}\n"}, "branch canary")
@@ -119,6 +133,44 @@ def main():
         # 5. the main checkout pushes its own canary: its own config governs
         commit(main_dir, {"e.txt": f"MAIN-CANARY-{secrets.token_hex(8)}\n"}, "main canary on main")
         expect("5 main canary from the main checkout", push(main_dir, "main"), True, ("the pushed commit's .gitleaks.toml", "main-canary"))
+
+        # 6-7. each hook copied ALONE into a fresh repository and run directly, as a reviewer would
+        def lone_repo(name, hook_has_scanner, worktree_has_scanner):
+            r = os.path.join(tmp, name)
+            git(tmp, "init", "-q", "-b", "main", r)
+            hooks = os.path.join(tmp, name + "-hooks")
+            os.makedirs(hooks)
+            for f in ("pre-commit", "pre-push"):
+                shutil.copy2(os.path.join(HERE, f), os.path.join(hooks, f))
+            if hook_has_scanner:
+                for f in ("scan-crypto-keys.py", "bip39-english.txt", "known-addresses.txt"):
+                    shutil.copy2(os.path.join(HERE, f), os.path.join(hooks, f))
+            if worktree_has_scanner:
+                os.makedirs(os.path.join(r, ".githooks"))
+                for f in ("scan-crypto-keys.py", "bip39-english.txt", "known-addresses.txt"):
+                    shutil.copy2(os.path.join(HERE, f), os.path.join(r, ".githooks", f))
+            with open(os.path.join(r, "clean.txt"), "w") as f:
+                f.write("nothing secret here\n")
+            git(r, "add", "clean.txt")   # the scanner copy stays untracked: the hook reads it as a file, and it is not what is pushed
+            return r, hooks
+
+        def run_hook(r, hooks, hook, stdin=""):
+            return subprocess.run(["bash", os.path.join(hooks, hook), *(["origin"] if hook == "pre-push" else [])], cwd=r, env=env,
+                                  input=stdin, capture_output=True, text=True)
+
+        z40 = "0" * 40
+        r, hooks = lone_repo("lone-none", False, False)
+        expect("6 pre-commit with no scanner anywhere", run_hook(r, hooks, "pre-commit"), True, ("no crypto-key scanner found",))
+        git(r, "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", "clean")
+        sha = git(r, "rev-parse", "HEAD").stdout.strip()
+        expect("6 pre-push with no scanner anywhere", run_hook(r, hooks, "pre-push", f"refs/heads/main {sha} refs/heads/main {z40}\n"), True, ("no crypto-key scanner found",))
+        expect("6 a delete-only push, nothing to scan", run_hook(r, hooks, "pre-push", f"(delete) {z40} refs/heads/gone {sha}\n"), False)
+        for label, hook_sc, wt_sc in (("7 scanner only beside the hook", True, False), ("7 scanner only in the worktree", False, True)):
+            r, hooks = lone_repo("lone-" + label.split()[-1], hook_sc, wt_sc)
+            expect(f"{label}: pre-commit on a clean change", run_hook(r, hooks, "pre-commit"), False)
+            git(r, "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", "clean")
+            sha = git(r, "rev-parse", "HEAD").stdout.strip()
+            expect(f"{label}: pre-push on a clean commit", run_hook(r, hooks, "pre-push", f"refs/heads/main {sha} refs/heads/main {z40}\n"), False)
     except RuntimeError as e:
         print(f"hook-selftest: could not set up: {e}", file=sys.stderr)
         return 2
@@ -129,7 +181,8 @@ def main():
         for m in failures:
             print(f"  {m}", file=sys.stderr)
         return 1
-    print("hook-selftest: 5 real pushes through an absolute core.hooksPath: the pushed commit's config governs a linked worktree, "
+    print("hook-selftest: 5 real pushes through an absolute core.hooksPath, no temporary file left behind; a missing scanner refuses in both hooks; "
+          "the scanner beside the hook or in the worktree suffices; "
           "an unloadable config falls back to the hook's own, and the crypto scanner refuses a generated key whatever the config")
     return 0
 

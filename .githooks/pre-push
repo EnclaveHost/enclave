@@ -39,17 +39,21 @@ if [ -f "$here/scan-crypto-keys.py" ] && { [ "${#scanners[@]}" -eq 0 ] || ! cmp 
 fi
 hook_cfg=""
 if [ -f "$here/../.gitleaks.toml" ]; then hook_cfg="$(cd "$here/.." && pwd)/.gitleaks.toml"; fi
+# every temporary file is made HERE, in this shell (never in a subshell, whose additions the EXIT cleanup would not see),
+# and named pre-push.* so a leftover would be recognisable
 tmpfiles=()
 cleanup() { if [ "${#tmpfiles[@]}" -gt 0 ]; then rm -f "${tmpfiles[@]}"; fi; }
 trap cleanup EXIT
-# config_for <pushed sha>: prints "<path>\t<what it is>"
+newtmp() { local f; f="$(mktemp "${TMPDIR:-/tmp}/pre-push.XXXXXXXX")" || return 1; tmpfiles+=("$f"); tmp_made="$f"; }
+# config_for <pushed sha>: sets cfg_path and cfg_what. Called directly, NOT in $(...) or <(...): a subshell's tmpfiles+=
+# would be lost and its temporary copy of the pushed config left behind.
+cfg_path=""; cfg_what=""; tmp_made=""
 config_for() {
-  local f
-  f="$(mktemp)"; tmpfiles+=("$f")
-  if git show "$1:.gitleaks.toml" >"$f" 2>/dev/null && [ -s "$f" ]; then printf '%s\t%s\n' "$f" "the pushed commit's .gitleaks.toml (${1:0:12})"; return; fi
-  if [ -f "$root/.gitleaks.toml" ]; then printf '%s\t%s\n' "$root/.gitleaks.toml" "the worktree's .gitleaks.toml ($root)"; return; fi
-  if [ -n "$hook_cfg" ]; then printf '%s\t%s\n' "$hook_cfg" "the hook's own .gitleaks.toml ($hook_cfg)"; return; fi
-  printf '\t%s\n' "no .gitleaks.toml (gitleaks default rules only)"
+  newtmp || { cfg_path="$hook_cfg"; cfg_what="the hook's own .gitleaks.toml (no temporary file could be made)"; return; }
+  if git show "$1:.gitleaks.toml" >"$tmp_made" 2>/dev/null && [ -s "$tmp_made" ]; then cfg_path="$tmp_made"; cfg_what="the pushed commit's .gitleaks.toml (${1:0:12})"; return; fi
+  if [ -f "$root/.gitleaks.toml" ]; then cfg_path="$root/.gitleaks.toml"; cfg_what="the worktree's .gitleaks.toml ($root)"; return; fi
+  if [ -n "$hook_cfg" ]; then cfg_path="$hook_cfg"; cfg_what="the hook's own .gitleaks.toml ($hook_cfg)"; return; fi
+  cfg_path=""; cfg_what="no .gitleaks.toml (gitleaks default rules only)"
 }
 # run_gitleaks <config path or empty> <range> <log>: 0 clean, 1 leaks found, 2 could not run
 run_gitleaks() {
@@ -71,15 +75,20 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
   scanned=$((scanned + 1))
 
+  # no scanner at all is a refusal, never a silent pass (the hook used to call its own copy unconditionally)
+  if [ "${#scanners[@]}" -eq 0 ]; then
+    echo "pre-push: no crypto-key scanner found (neither $root/.githooks/scan-crypto-keys.py nor $here/scan-crypto-keys.py): the push cannot be checked" >&2
+    fail=1
+  fi
   for sc in "${scanners[@]}"; do
     # shellcheck disable=SC2086  # $range is intentionally word-split
     if ! python3 "$sc" --range $range; then fail=1; fi
   done
 
   if [ -n "$gitleaks_bin" ]; then
-    IFS=$'\t' read -r cfg_path cfg_what < <(config_for "$local_sha")
+    config_for "$local_sha"
     echo "pre-push: gitleaks config: $cfg_what" >&2
-    log="$(mktemp)"; tmpfiles+=("$log")
+    if newtmp; then log="$tmp_made"; else log=/dev/null; fi
     run_gitleaks "$cfg_path" "$range" "$log"; rc=$?
     if [ "$rc" -eq 2 ] && [ -n "$hook_cfg" ] && [ "$cfg_path" != "$hook_cfg" ]; then
       { echo "pre-push: that config did not load (CI will fail on it too):"; tail -n 2 "$log"; echo "pre-push: scanning again with the hook's own config ($hook_cfg)"; } >&2
