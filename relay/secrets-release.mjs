@@ -107,6 +107,12 @@ export function verifyResponse({ publicKey, sig, ...fields }) {
 function signingKeyEnv() {
   const s = String(process.env.SECRETS_RELEASE_SIGNING_KEY || "").trim().toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(s)) return null;
+  // a SEPARATE key (enclave-d1): a release seed equal to any other key this relay holds is no separate key at all
+  for (const other of ["RELAY_TXT_KEY", "DNS_TXT_KEY", "SECRETS_KEY", "CERTS_KEY"])
+    if (String(process.env[other] || "").trim().toLowerCase() === s) {
+      console.error(`[secrets-release] SECRETS_RELEASE_SIGNING_KEY equals ${other}: refused (it must be its own key)`);
+      return null;
+    }
   try { return signingKeyFromSeed(Buffer.from(s, "hex")); } catch { return null; }
 }
 

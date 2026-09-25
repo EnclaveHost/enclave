@@ -51,6 +51,9 @@ keyId  = sha256(the raw 32-byte Ed25519 public key), hex, first 16 characters (a
 - The release key is relay-only: `SECRETS_RELEASE_SIGNING_KEY`, a 32-byte seed in hex. It is REQUIRED.
 - Its public key is compiled into the measured front as a pinned SET, so rotation is possible. There is no key-fetch endpoint: pinning only, never trust on first use.
 - The guest verifies `sig` BEFORE it opens the seal, and refuses on a missing or bad signature. A mis-issued certificate is then a DoS at worst.
+- The guest recomputes the digest from its OWN `id`, ticket and seal key, never from response fields.
+- The guest trusts only its PINNED keys. `keyId` may select one, but only if it names exactly one pinned key; otherwise the guest tries each pinned key. A key offered by the response is never used.
+- The signature covers `sha256(sealed)` (ephPub ‖ iv ‖ ciphertext ‖ tag), so with GCM it binds the plaintext exactly. The one-use ticket and the per-request seal key make an old signed response unreplayable for another request (enclave-d1).
 
 ## The binding (report_data)
 
@@ -121,7 +124,11 @@ CHIP_ID binds the **physical chip, not the endpoint**: two registered endpoints 
   - the enumeration of every report path;
   - the guest validating the relay's TLS;
   - the release document stating no `nonce`.
-- `SECRETS_RELEASE_SIGNING_KEY` set, and its public key pinned in the measured front.
+- `SECRETS_RELEASE_SIGNING_KEY` set, and its public key pinned in the measured front. Custody (enclave-d1):
+  - generated ON the api-relay host (nan), never copied through a workstation;
+  - its env file `chmod 600` and verified;
+  - a key of its own, distinct from `RELAY_TXT_KEY`, `DNS_TXT_KEY`, `SECRETS_KEY` and `CERTS_KEY`. The relay refuses a seed equal to any of them.
+  - **Revocation is only by a new measured front:** the pinned set is in the image, so a leaked release key stays valid for every deployed guest until those guests are re-imaged. Plan a rotation as "ship a front pinning {old, new}, switch the relay to new, ship a front pinning {new}".
 - Every provider below, wired and reviewed.
 
 Rate: a ticket request is limited per client IP. A release is limited per its ticket's ENDPOINT, looked up without being consumed, so many guests behind one host address don't share one bucket. An unknown ticket is limited per IP.
