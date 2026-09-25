@@ -1,15 +1,23 @@
 {
  "nucbox-vbs-reference.json": {
-  "sha256": "b0541f134945647bc9b80699973ffdd5010364e905e415374fa7442183327c01",
+  "sha256": "32569865d3f54ab5bb63fb06289f6406c911850c62ac31c2c2c73374c7893775",
   "origin": {
    "repository": "EnclaveHost/enclave",
    "branch": "windows/vbslike-pkg",
-   "commit": "840eb861",
+   "commit": "85d74c56",
    "path": "windows/vbslike/pkg/reference/nucbox-vbs-reference.json",
-   "owner": "enclave-53"
+   "owner": "enclave-63",
+   "packageVersion": "v29"
   },
   "what": "the reference values for the NucBox custom type-1 paravisor images (type enclave-nucbox-vbs-reference/1), re-derived by enclave-53's pkg.mjs verify from the pinned images and their VBS identity documents; imported by commit and hash, never edited here. A new commit of the file is a new pin, reviewed as such.",
   "use": "verifier/nucbox-reference.mjs eligibleDigestsOf: the exact vbsBootDigest allowlist for V3/V4 of docs/security/nucbox-custom-vm-verifier.md. NOT used by any verdict until the paravisor report format is registered with real report bytes.",
-  "laneOwner": "enclave-63 from 2026-09-25T06:29Z (was enclave-53, the author of this pinned version); the next version comes from enclave-63 as a new commit and hash"
+  "reviewed": "2026-09-25: the diff from 840eb861 is ONLY images[vbs-linux-candidate].booted and .reason (booted, canary 061934; served, canary 062450; the --igvm-sha256 report path NOT exercised; identity, report, chain and host exclusion NOT established); every digest, sha256, class, confidentialDebug, trustsHostCommandLine and eligible unchanged, so the derived allowlist is identical",
+  "previous": [
+   {
+    "commit": "840eb861",
+    "sha256": "b0541f134945647bc9b80699973ffdd5010364e905e415374fa7442183327c01",
+    "owner": "enclave-53"
+   }
+  ]
  }
 }
