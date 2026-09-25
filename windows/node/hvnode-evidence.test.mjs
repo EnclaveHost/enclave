@@ -22,6 +22,8 @@ const STMT = Buffer.from('{"stated":true}');
 // the real boot-64 log: Secure Boot OFF and TESTSIGNING on (relay's own fixture)
 const boot64 = JSON.parse(fs.readFileSync(path.join(HERE, "../../test/fixtures/vbs/boot64-evidence.json"), "utf8"));
 const BOOT64_LOG = Buffer.from(boot64.body.log, "base64");
+// the real boot-68 log: Secure Boot ON, TESTSIGNING 0 (enclave-d1 dbe615b0, sha256 8ee177c4...)
+const BOOT68_LOG = fs.readFileSync(path.join(HERE, "test-fixtures/boot68-measuredboot.tcglog"));
 
 test("binding: exact fixed-width layout domain || spki || nonce || sha256(statement)", () => {
   const { spki } = edKey();
@@ -116,4 +118,42 @@ test("frame: a refused boot state asks the TPM for NOTHING beyond the log (no ac
 test("frame: the format is windows-hv-node/v1 and says what it proves", () => {
   assert.equal(HV_NODE_FORMAT, "windows-hv-node/v1");
   assert.match(HV_NODE_PROVES, /proves nothing about isolation or host exclusion/);
+});
+
+test("log: the REAL boot-68 log (Secure Boot on, test signing off) is not refused by the node", () => {
+  assert.equal(sha256(BOOT68_LOG).toString("hex").slice(0, 16), "8ee177c4e05165c6");
+  assert.deepEqual(bootStateRefusals(BOOT68_LOG), []);
+});
+
+test("frame: on an accepted boot state, log first, then activation, then the quote over exactly sha256(bound); signed by the node key", async () => {
+  const { spki, privateKey } = edKey();
+  const health = { backend: "hyperv-partition-per-app", boundary: { tier: "t0-hv", hostExcluded: false }, catalog: { derivations: ["enclave-catalog-bundle/1"] } };
+  const asked = [];
+  let quotedOver = null;
+  const tpm = async (cmd) => {
+    asked.push(cmd.split(" ")[0]);
+    if (cmd === "log") return { log: "boot.log" };
+    if (cmd.startsWith("activate ")) return { credential: "aa".repeat(16) };
+    if (cmd.startsWith("quote ")) { quotedOver = cmd.split(" ")[1]; return { attest: "01", sig: "02", "aik-pub": "03" }; }
+    if (cmd === "pcr 0") return { pcr: "pcr 0 " + "cd".repeat(32) };
+    if (cmd === "keys") return { "ek-cert": "04" };
+    throw new Error("unexpected " + cmd);
+  };
+  const frame = await buildHvNodeFrame({ nonce: NONCE, credentialBlob: Buffer.alloc(8, 1), secret: Buffer.alloc(8, 2), spki, privateKey,
+                                         tpm, readLog: () => BOOT68_LOG, managerHealth: health, platform: { osBuild: "test" } });
+  assert.deepEqual(asked.slice(0, 3), ["log", "activate", "quote"]);
+  assert.equal(frame.t, "attest"); assert.equal(frame.rad.format, HV_NODE_FORMAT);
+  assert.deepEqual(Buffer.from(frame.rad.transportKey, "base64"), spki);
+  const body = JSON.parse(Buffer.from(frame.rad.body, "base64"));
+  const stmt = Buffer.from(body.statement, "base64");
+  assert.deepEqual(stmt, isolationStatementBytes(health));
+  const bound = hvNodeBinding(spki, NONCE, stmt);
+  assert.equal(quotedOver, sha256(bound).toString("hex"));
+  const pub = createPublicKey({ key: spki, format: "der", type: "spki" });
+  assert.ok(edVerify(null, bound, pub, Buffer.from(body.signature, "base64")), "the node key signs bound");
+  assert.ok(!edVerify(null, hvNodeBinding(spki, Buffer.alloc(32, 9), stmt), pub, Buffer.from(body.signature, "base64")), "not another nonce");
+  assert.equal(body.proves, HV_NODE_PROVES);
+  assert.equal(body.pcr0, "cd".repeat(32));
+  assert.equal(body.report, undefined, "no enclave report field");
+  assert.deepEqual(Buffer.from(body.log, "base64"), BOOT68_LOG);
 });
