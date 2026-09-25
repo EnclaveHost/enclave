@@ -458,16 +458,6 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   if (!d.isPublic && !privateOk)
     return "it is a private deployment, and this box has no session key to verify its owner with";
 
-  // A DEPLOYMENT THAT REQUIRES ISOLATION may only be claimed by a box that actually runs that
-  // backend. Taking it and running it in the shared enclave would give the tenant the opposite of
-  // what they asked for while looking like success, which is the worst available outcome; and
-  // refusing it here leaves it free for a box that can.
-  if (opts.isolationRequire) {
-    if (!isolationBackend)
-      return `it requires isolation backend ${opts.isolationRequire}, and this box runs no isolation backend`;
-    if (opts.isolationRequire !== isolationBackend)
-      return `it requires isolation backend ${opts.isolationRequire}, and this box runs ${isolationBackend}`;
-  }
   if (d.runner && !/^0x0+$/.test(String(d.runner)) && String(d.runner).toLowerCase() !== String(enclaveId).toLowerCase()
       && Number(d.leaseUntil) * 1000 > Date.now())
     return "another enclave holds a live lease on it";
@@ -481,6 +471,21 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   // version's gpuOptional.
   let opts;
   try { opts = parseEnvelope(d.configCid, d.gpuMilli); } catch (e) { return e.message; }
+  // A DEPLOYMENT THAT REQUIRES ISOLATION may only be claimed by a box that actually runs that
+  // backend. Taking it and running it in the shared enclave would give the tenant the opposite of
+  // what they asked for while looking like success; refusing here leaves it free for a box that can.
+  //
+  // THIS MUST STAY BELOW THE PARSE. I put it above, where `opts` is still in its temporal dead
+  // zone, so `opts.isolationRequire` threw "Cannot access 'opts' before initialization" for EVERY
+  // deployment that reached the line - opted in or not - and host.mjs calls claimPolicy outside any
+  // try, so consider() rejected and the deployment was recorded neither refused nor queued. That is
+  // a claim path broken for every tenant, from a check meant to affect a few (enclave-99).
+  if (opts.isolationRequire) {
+    if (!isolationBackend)
+      return `it requires isolation backend ${opts.isolationRequire}, and this box runs no isolation backend`;
+    if (opts.isolationRequire !== isolationBackend)
+      return `it requires isolation backend ${opts.isolationRequire}, and this box runs ${isolationBackend}`;
+  }
   if (opts.configCid && !fetchesConfigCid)
     return "its config rides at a CID and this box is not configured to fetch one";
   // What the VERSION says it needs, checked before the gas rather than after the compile. Without

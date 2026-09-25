@@ -378,13 +378,16 @@ export class Host {
     let opts = {};
     try { opts = chain.parseEnvelope(cur, d.gpuMilli); } catch { return; }
     if (verdict === "waf") {
-      this.#record(id, { envelope: cur, waf: opts.waf || null });
+      // {} not null: the envelope parsed, so "no rules" is KNOWN. null means "could not read",
+      // which isolationPlan holds on - so recording null after a live edit that REMOVED the rules
+      // would re-hold an isolated deployment forever (enclave-99).
+      this.#record(id, { envelope: cur, waf: opts.waf || {} });
       waf.forget(id);                          // new rules, new counters: an old bucket is not the owner's intent
       this.log(`config edit ${id.slice(0, 10)}: protection rules swapped live, no restart`);
       return;
     }
     // "restart": the app's own configuration changed.
-    this.#record(id, { envelope: cur, waf: opts.waf || null });
+    this.#record(id, { envelope: cur, waf: opts.waf || {} });
     waf.forget(id);
     this.log(`config edit ${id.slice(0, 10)}: the app's configuration changed, relaunching it in place`);
     await this.ensureApp(id, d, { force: true });
@@ -472,8 +475,14 @@ export class Host {
    * it for real). Neither was used: the policy's memMiB comes from the version's ON-CHAIN memMb
    * through isolationPlan, and the app port from the plan too. Removing them is the fix, not
    * hoisting the declarations, because taking a value you do not use is how it comes back.
+   *
+   * `envOpts` and `envRead` ARE taken, for the opposite reason: they are used here, they are
+   * ensureApp's locals, and reading them as free variables was the SAME ReferenceError one line
+   * apart (enclave-5d found it on the rerun after the memMb fix - I corrected one and did not look
+   * for the others in the block I had just moved). Passing them makes the dependency a parameter
+   * the reader can see instead of a scope accident.
    */
-  async #isolationReconcile(id, d, v) {
+  async #isolationReconcile(id, d, v, { envOpts = {}, envRead = false } = {}) {
     const { reconcile } = await import("./isolation-lifecycle.mjs");
     const { IsolationManagerClient } = await import("./isolation-client.mjs");
     const { isolationPlan } = await import("../vbslike/datapath/node-bridge.mjs");
@@ -621,7 +630,11 @@ export class Host {
     try { envOpts = chain.parseEnvelope(d.configCid, d.gpuMilli) || {}; envRead = true; }
     catch { envOpts = {}; envRead = false; }
     this.#record(id, {
-      waf: envOpts.waf || null,
+      // {} = the envelope was read and carries no rules; null = it could not be read at all.
+      // `envOpts.waf || null` conflated them, so an ordinary deployment with no WAF rules looked
+      // UNKNOWN to isolationPlan and was held forever - every WAF-less deployment permanently
+      // un-isolatable, from a line meant to be careful (enclave-99).
+      waf: envRead ? (envOpts.waf || {}) : null,
       envelope: String(d?.configCid || ""),
       // true only when the tenant asked for THIS box's backend by name. claimPolicy already
       // refuses a deployment requiring a backend this box does not run, so a mismatch here means
@@ -672,7 +685,7 @@ export class Host {
       // What it does NOT do: change what this box advertises. A T0-hv partition does not exclude
       // the host, attestedCapacity() is false for it, and nothing here touches meetsIsolationContract().
       if (this.isolation) {
-        const outcome = await this.#isolationReconcile(id, d, v);
+        const outcome = await this.#isolationReconcile(id, d, v, { envOpts, envRead });
         if (outcome) return outcome;
       }
 
