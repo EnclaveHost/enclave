@@ -1,0 +1,7 @@
+FAIL 0x0ddbd824: {"error":"no_serving_enclave","message":"No enclave in the fleet is taking work right now, so there is nowhere to serve this."}
+FAIL 0x395bed3e: {"error":"no_serving_enclave","message":"No enclave in the fleet is taking work right now, so there is nowhere to serve this."}
+FAIL 0x4e62e60d: {"error":"no_serving_enclave","message":"No enclave in the fleet is taking work right now, so there is nowhere to serve this."}
+FAIL release-ticket answered 404, expected 503
+FAIL unknown deployment 503
+FAIL malformed id 503
+rc=1

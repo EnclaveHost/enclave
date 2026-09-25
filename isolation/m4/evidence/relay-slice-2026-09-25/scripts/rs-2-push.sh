@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Step 2: push the reviewed slice to main as a FAST-FORWARD (main must still be the base the scope was judged on), then
+# follow the Deploy run: detect must say relay=true and nothing else; the relay job must deploy to nan-relay only
+# (enclave-d1's WATCH 1: "== data-plane relays: nan-relay"; us-west appearing = stop and investigate).
+set -euo pipefail; source ~/enclave-bench/relay-slice-20260925/lib.sh
+git -C $MAIN fetch -q origin main
+[ "$(git -C $MAIN rev-parse origin/main)" = "$BASE" ] || { say "REFUSING: main moved from $BASE: the CI scope must be judged again"; exit 2; }
+[ "$(git -C $MAIN rev-parse "$SLICE^")" = "$BASE" ] || { say "REFUSING: the slice is not a child of $BASE"; exit 2; }
+want="relay/api-relay.js relay/deploy.sh relay/measurement-predict.mjs relay/secrets-release.mjs relay/secrets.js relay/snp-verify.mjs relay/tunnel.js relay/vendor/enclave-verifier-node.MANIFEST.json relay/vendor/enclave-verifier-node.mjs test/fixtures/secrets-release-guest-vectors.json test/fixtures/secrets-release-vectors.json test/measurement-predict.test.mjs test/secrets-release.test.mjs test/tunnel.test.mjs verifier/consumer.mjs verifier/dist/MANIFEST.json verifier/dist/enclave-verifier-node.mjs verifier/web/dist/MANIFEST.json"
+[ "$(git -C $MAIN diff --name-only $BASE $SLICE | tr '\n' ' ' | sed 's/ $//')" = "$want" ] || { say "REFUSING: the slice's files are not the reviewed 18"; exit 2; }
+$NAN "tail -n 11 $ENVF | sha256sum | cut -c1-64; test -f $DROPIN && echo dropin" | tr '\n' ' ' | grep -q "^$LINES_SHA dropin" || { say "REFUSING: step 1 is not in place on nan"; exit 2; }
+[ -z "$(gh run list --repo EnclaveHost/enclave --workflow deploy.yml --status in_progress --json databaseId --jq '.[].databaseId')" ] || { say "REFUSING: a Deploy run is in progress"; exit 2; }
+say "step 2: pushing $SLICE to main (fast-forward from $BASE)"
+git -C $MAIN push origin "$SLICE:refs/heads/main" 2>&1 | tail -3
+for i in $(seq 1 60); do run=$(gh run list --repo EnclaveHost/enclave --workflow deploy.yml --json databaseId,headSha --jq ".[] | select(.headSha==\"$SLICE\") | .databaseId" | head -1); [ -n "$run" ] && break; sleep 5; done
+[ -n "${run:-}" ] || { say "STEP 2: no Deploy run appeared for $SLICE"; exit 3; }
+say "step 2: Deploy run $run"; echo "$run" > $RS/deploy-run.txt
+gh run watch "$run" --repo EnclaveHost/enclave --exit-status > $RS/deploy-watch.txt 2>&1 || true
+gh run view "$run" --repo EnclaveHost/enclave --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")' | tee $RS/deploy-jobs.txt
+gh run view "$run" --repo EnclaveHost/enclave --log > $RS/deploy-log.txt 2>&1 || true
+grep -E 'release=|site=|relay=|cpu_release=' $RS/deploy-log.txt | sed 's/.*\t//' | sort -u | head -12
+grep -q '== data-plane relays: nan-relay$' $RS/deploy-log.txt && ! grep -q 'data-plane relays:.*us-west' $RS/deploy-log.txt \
+  && say "WATCH 1 ok: the relay job deployed to nan-relay only" || { say "WATCH 1 FAILED: the data-plane relay line is not 'nan-relay' alone: STOP and investigate"; exit 4; }
+grep -qE "^(relay: success)$" $RS/deploy-jobs.txt || { say "STEP 2: the relay job did not succeed (deploy-jobs.txt): run rs-3 checks, then decide the rollback"; exit 5; }
+say "step 2 done: Deploy run $run, relay job success"
