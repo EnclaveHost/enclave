@@ -480,3 +480,17 @@ test("draft v16 withdraws v15's type-1 pin: STARTS, THEN FAILS WITHIN SECONDS, r
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
 });
+
+test("draft v17 is held and pins 5d's type-1 failure-point inference under its own label, never as a measurement", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-17.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, HELD, NOT STAGED \(v16 e554ad25 is the staged package/);
+  assert.match(d.profiles.vbs.inference.label, /^INFERENCE PENDING KMSG/);
+  assert.match(d.profiles.vbs.inference.claim, /validate_isolated_configuration \(underhill_core worker\.rs:2230\)/);
+  assert.equal(d.profiles.vbs.inference.reasons.length, 3);
+  assert.match(d.profiles.vbs.inference.discriminators.preCheck, /inspect -r vm\/init_data\/dps/);
+  assert.match(d.profiles.vbs.measured[2], /PRISTINE .*0x6d2eed28.*encryption NONE, no key protector, no files/);
+  assert.match(d.profiles.vbs.status, /^EXPERIMENT: STARTS, THEN FAILS WITHIN SECONDS; REASON NOT YET READABLE/, "v17 claims no more than v16");
+  assert.ok(!/MON (ready|boundary|hv)/.test(d.profiles.vbs.measured.join(" ")));
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});
