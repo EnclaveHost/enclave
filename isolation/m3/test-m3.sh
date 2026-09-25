@@ -483,17 +483,17 @@ ser s1 | grep -a '^PROBE' | sed 's/^/    /' || true
 probe_lines=$(ser s1 | grep -ac '^PROBE' || true)
 bad=0
 # every one of these must have FAILED. A line that says READABLE or CONNECTED is a broken boundary.
-for k in other_app_absolute other_app_relative other_app_escape other_front_socket configfs_tsm sysfs \
+for k in other_app_absolute other_app_relative other_app_escape other_front_socket configfs_tsm sysfs dev_tpm0 dev_tpmrm0 \
          vsock_local_domain1 vsock_local_domain2 vsock_own_control vsock_host_control host_gateway; do
   v=$(ser s1 | sed -n "s/^PROBE[0-9]* $k=//p" | head -1)
   case "$v" in
-    *READABLE*|*CONNECTED*) echo "    BROKEN: $k=$v"; bad=$((bad + 1)) ;;
+    *READABLE*|*CONNECTED*|*OPENED*) echo "    BROKEN: $k=$v"; bad=$((bad + 1)) ;;
     "") echo "    MISSING: $k never reported"; bad=$((bad + 1)) ;;
   esac
 done
 [ "$(ser s1 | sed -n 's/^PROBE[0-9]* create_tsm_entry=//p' | head -1)" = "CREATED" ] && bad=$((bad + 1))
-[ "${probe_lines:-0}" -ge 15 ] && [ "$bad" = 0 ] && r=ok || r=no
-check "10 a COMPROMISED domain (measured native code as the domain's uid) cannot read another domain's app or socket, cannot reach configfs or the report interface, cannot open another domain's vsock port or the host's, and cannot reach the host network" $r
+[ "${probe_lines:-0}" -ge 17 ] && [ "$bad" = 0 ] && r=ok || r=no
+check "10 a COMPROMISED domain (measured native code as the domain's uid) cannot read another domain's app or socket, cannot reach configfs, the report interface or the TPM devices (open only), cannot open another domain's vsock port or the host's, and cannot reach the host network" $r
 sig=$(ser s1 | sed -n 's/^PROBE[0-9]* signalable_pids=//p' | head -1)
 vis=$(ser s1 | sed -n 's/^PROBE[0-9]* visible_pids=//p' | head -1)
 echo "evidence: it could see $vis processes and signal $sig of the first 400 pids"

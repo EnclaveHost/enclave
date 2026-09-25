@@ -155,14 +155,22 @@ function session(s) {
 }
 // the verifier's judgement of a session: the document fetched ON that session, bound to its key and a fresh nonce, the
 // app, the runtime identity, the launcher's key, and the guest image the manager's record names
-let IMAGE;
+let IMAGE, STATEMENT;
+// The launcher's (partition, guestImageKind) statement from the manager's OWN record (the node client's view drops it).
+// A WMI partition's image is judged only as a pair with it (judge-hv, enclave-d1 + enclave-99 ae6e9147); the HCS lab's
+// records state none, and are judged on the image as before.
+async function statementOf(id) {
+  const raw = await fetch(`${MANAGER.replace(/\/+$/, "")}/vms/${encodeURIComponent(id)}`).then((r) => r.json()).catch(() => null);
+  const gi = raw && raw.guestIdentity;
+  return gi ? { partition: gi.partition, guestImageKind: gi.guestImageKind } : undefined;
+}
 async function judged(b, appId, { spki = b.spki, nonceFor = null } = {}) {
   const nonce = randomBytes(32);
   const at = await b.req("GET", `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`);
   let v, doc = null;
   try { doc = JSON.parse(at.body);
         v = judge({ doc, spki, nonce: nonceFor || nonce, expectedAppSha256: appId, launcherKey: LAUNCHER_KEY,
-                    expectedImageSha256: IMAGE, expectRuntime }); }
+                    expectedImageSha256: IMAGE, ...(STATEMENT ? { expectedStatement: STATEMENT } : {}), expectRuntime }); }
   catch (e) { v = { verdict: "reject", reasons: [e.message] }; }
   return { ...v, why: (v.reasons || []).join("; "), guestBoundary: doc && typeof doc.boundary === "string" ? doc.boundary : null };
 }
@@ -193,7 +201,8 @@ try {
   K1 = iso1.transportKeySha256; I1 = iso1.instance; APP = iso1.appId;
   const view1 = await client.get(I1);
   IMAGE = view1.image;
-  console.log(`the manager's view of ${I1}: ${JSON.stringify(view1).slice(0, 400)}`);
+  STATEMENT = await statementOf(I1);
+  console.log(`the manager's view of ${I1}: ${JSON.stringify(view1).slice(0, 400)}; statement ${JSON.stringify(STATEMENT ?? null)}`);
 
   // ---- 2. a browser through the relay's tunnel, the app zone and the data plane: TLS ends in the domain ---------------
   const b1 = await browser();
