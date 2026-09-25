@@ -103,6 +103,8 @@ let tunnelBuffered = () => 0;
 const host = new Host({
   dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
+  // No engine: only isolated deployments run, anything else is HELD (host.mjs heldReason), never released.
+  engineRetired: !LEGACY_ENGINE,
   cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 12),
   // What the whole CARD costs per second, USDC 6dp, and what a share of it buys here: the model
   // inside the enclave, whose linear algebra runs on this card by masked offload. The default is
@@ -370,7 +372,8 @@ async function operatorSig(nonceB64) {
  * so this retries on the tick rather than leaving a box that failed one probe permanently idle.
  */
 async function measureEngineHold() {
-  if (!APPS || host.cfg.engineHeldMb !== null) return;
+  // Only the retired engine has a hold to measure; on the isolated path capacity never waits on it (enclave-d1 F1).
+  if (!LEGACY_ENGINE || !APPS || host.cfg.engineHeldMb !== null) return;
   try {
     const [privB] = String(await hostCmd('mem')).trim().split(/\s+/).map(Number);
     if (!(privB > 0)) throw new Error(`the enclave reported ${privB} bytes`);
