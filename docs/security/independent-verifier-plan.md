@@ -600,7 +600,7 @@ No automatic cutover. Each stage is a reviewed change with a configuration flag 
 | M1 | strict envelope for every format in the registry (DONE 2026-09-24: per-format shapes), CRL policy modes (done), collateral adapters with a disk cache (DONE 2026-09-24: the authenticated, slot-bound cache), Rekor v2 bundles (BLOCKED: no authentic v2 bundle located; see below), scheduled live differential job (PREPARED 2026-09-24 as a shadow job: `verifier/live-differential.mjs` and `.github/workflows/verifier-live-differential.yml`, dispatch-only and gated by a repository variable that is not set, read-only, tested offline on the fixtures) | 5 |
 | M2 | browser build: WebCrypto signatures, X.509 via a reviewed library (PROTOTYPE DONE 2026-09-24: `verifier/web/`, the same `snp.mjs` verdict code behind a crypto provider; see `browser-x509-parser-decision.md`); reproducible packaging with an input manifest and exact notices (DONE 2026-09-24: `verifier/web/dist/`, `reproduce.mjs` under the strict command); an opt-in same-origin shadow adapter that records and never decides (DONE 2026-09-24: `verifier/web/shadow.mjs`, proven in Node and in Chrome 151); same-origin delivery through the site's vendor rule and the site's opt-in shadow line (DONE 2026-09-24 under Steven's website authorization: `site/vendor/enclave-verifier.js` via `scripts/build-vendor.mjs`, `site/js/core/verify-shadow.js` awaited by `verify.js`, record only, viewer opt-in, no primary root or verdict change; `verifier/web/README.md`) | 8 |
 | M3 | CLI `--verifier both`, self-check both, relay re-verification of dialed rows (BUILT 2026-09-25, section 10.4: every path behind a flag whose fallback is the previous behaviour; no live hosted enclave existed to show a `verified` end to end) | done, pending live data |
-| M4 | signed release index in the release workflow (BUILT 2026-09-25, section 10.5), minimum-release policy (BUILT: `verifier/release-policy.json`, the floor only rises), publication order from the signing run + persisted memory (BUILT, section 10.5), TUF-verified refresh of the pinned root with a weekly PR job (BUILT, section 10.6), the same-origin mirror on the relay and the per-consumer strict rollout criteria (BUILT/WRITTEN, section 10.7; the browser's own provenance from the mirror remains) | done; browser provenance remains |
+| M4 | signed release index in the release workflow (BUILT 2026-09-25, section 10.5), minimum-release policy (BUILT: `verifier/release-policy.json`, the floor only rises), publication order from the signing run + persisted memory (BUILT, section 10.5), TUF-verified refresh of the pinned root with a weekly PR job (BUILT, section 10.6), the same-origin mirror on the relay and the per-consumer strict rollout criteria (BUILT/WRITTEN, section 10.7), the browser's own release provenance from the mirror (BUILT 2026-09-25, section 10.7: verified in the browser against the pinned root, labelled fallback) | done |
 | M5 | independent review, cutover per consumer with fallback flags | 3 + review |
 | later | TDX (QVL-grade), NVIDIA GPU evidence, measurement recompute from archived image inputs, AVF ABI/2 relay frame | separate plans |
 
@@ -995,9 +995,54 @@ ITS memory, exactly as it would from GitHub, so the mirror cannot become an auth
 replayed or equivocating index out of it, and a refused or unavailable index is served as that status with no bytes.
 `test/relay-reverify.test.mjs`: what the mirror serves verifies client-side (index and both release bundles), altered
 bytes and a bundle served for another release's digest are refused by the client, a relay memory that saw a newer
-publication serves no bytes. The browser shadow (`site/js/core/verify-shadow.js`) still takes its expected measurement
-from the primary's own Sigstore step; making it verify release provenance itself, from this mirror, is the browser's
-next step (stage 4 becomes independent of the primary's provenance).
+publication serves no bytes.
+
+**The browser verifies release provenance itself (2026-09-25).** `verifier/web/provenance.mjs`
+`releaseExpectationsFromMirror({ mirrorUrl })` fetches the mirror (bounded: 8 s, 1 MiB, no redirect, no credentials)
+and then decides everything locally: the index's digest is computed in the browser, its Sigstore bundle is verified
+against the trusted root PINNED INTO THE BUNDLE (`verifier/roots/sigstore-trusted-root.json`, the same pin the Node
+consumers carry), the signing identity and run invocation are read from the certificate, the content checks of
+`verifier/release-index-core.mjs` run, freshness is the browser's own `verifier/index-memory.mjs` over `localStorage`
+(`enclave.verifierIndexMemory`), and each release the SIGNED index names is verified from its bundle against the
+index's digest for that tag, under the index's floor and the union of the index's and the caller's revocations. The
+mirror's `status`, `freshness`, `publication`, `indexSha256`, per-release `digest` and `index` fields are recorded
+under `mirror.said` and never read for a decision. The modules this needed are now free of Node imports:
+`verifier/provenance.mjs` (WebCrypto digest), `verifier/release-index-core.mjs` (the pure half of
+`release-index.mjs`, which keeps the builder, the policy file and the command) and `verifier/index-memory.mjs` (a
+store adapter: `fileStore` in `verifier/index-memory-file.mjs` for Node, `webStorageStore` for a page, `memoryStore`);
+the Node consumers' `createIndexMemory({ file })` is unchanged.
+
+The site shadow (`site/js/core/verify-shadow.js`) now takes its expected measurements from this path first and records
+`independent: true` with `expectedFrom` naming the index and its freshness; the primary's `codeMeasurement` is
+cross-checked against the verified index (`provenance.primaryMeasurementAttested`). When the mirror is unavailable or
+the index is refused, the shadow falls back to the primary's `codeMeasurement` and records `independent: false` with
+`expectedFrom` starting `FALLBACK, not independent:` and the provenance status, so a fallback can never be read as an
+independent result; with neither, nothing is allowed. Stage 4 of section 9 is therefore independent of the primary's
+provenance whenever the mirror answers; the record says which case applied.
+
+Evidence: `test/verifier-web-provenance.test.mjs` (7) on the REAL production mirror answer captured on 2026-09-25
+(`test/fixtures/verifier/release-index/mirror-2026-09-25.json`, run 36089632273, v0.5.848 and v0.5.848-cpu): a mirror
+that lies about its own run changes nothing; first-seen, then `same` after a reload over the same storage, `replay`
+when the storage remembers a newer publication, `equivocation` locked across reloads, a storage that cannot write
+reported as `memoryNotPersisted`; the index bundle of v0.5.847 over v0.5.848's bytes refused (unverified), one digit of
+a digest changed refused, the mirror's own `index` object ignored; the cpu bundle under the gpu tag refused on the
+index's digest while the other release verifies, a lying per-release digest ignored, a tag the mirror does not carry
+`unavailable`, a tag the index does not name not a candidate; HTTP 503, non-JSON, over the cap, a redirect, "verified"
+without bytes, a bad URL: `unavailable`, fail closed; a caller floor above the index refuses it, a remembered higher
+floor is a floor regression, a caller revocation survives the index. `test/site-verifier-shadow.test.mjs` (5) runs the
+REAL vendored bundle through the glue: `independent: true` from the mirror, `primaryMeasurementAttested: false` for
+Tinfoil's inference host (not an Enclave release, so the shadow's verdict is `rejected` and the comparison `disagree`,
+recorded, deciding nothing), the memory in the page's storage and `same` on reload, HTTP 503 giving the labelled
+fallback, and the older origin-only case now labelled fallback. `test/verifier-web-browser.test.mjs` (3) still passes
+in Chrome for Testing 151 with the enlarged bundle (243 KB minified; the Sigstore verifier and the pinned root are in
+it). The bundle's provenance is `verifier/web/dist/MANIFEST.json`, reproduced by `verifier/web/reproduce.mjs`.
+
+Limits, unchanged in kind: the mirror is the browser's only source (a down mirror means the labelled fallback, not an
+independent expectation); a browser profile's memory starts empty, so its first index is `first-seen` (authenticity,
+not freshness) and a genuine old index replayed to a fresh profile is not detectable until a newer one has been
+remembered; the built-in floor on the unavailable and refused paths is the library's (`v0.5.0`, as in the Node
+consumers); private windows and blocked storage give a per-page memory that the record reports as not persisted. The
+browser's own verdict remains a shadow: `acceptance: false`, no primary root or verdict changed.
 
 **Strict rollout criteria, per consumer.** Each strict switch stays OFF until every gate below has passed with
 recorded evidence; flipping one is a reviewed commit that names the evidence. Status on 2026-09-25 in brackets.
@@ -1011,7 +1056,7 @@ recorded evidence; flipping one is a reviewed commit that names the evidence. St
 | self-check | `SELF_CHECK_VERIFIERS=enclave` (own verdict decides `result`) | the above, plus the independent review of `verifier/` (M5) | NOT MET |
 | relay | `RELAY_REQUIRE_INDEX=1` | the relay's memory has history (`aggregate.reverify.indexMemory.remembered` set, persisted) and 14 days of `expectations.index.status = verified` | NOT MET: shadow live since 2026-09-25 01:52Z, no dialed rows to judge |
 | relay | `RELAY_REVERIFY=enforce` | the above, plus every dialed row `verified` for 14 days with zero unexplained `rejected`/`unavailable` | NOT MET |
-| browser | own verdict primary | provenance verified in the browser from the mirror (next step), then 14 days of `agree` in the site shadow with the primary | NOT MET |
+| browser | own verdict primary | provenance verified in the browser from the mirror (DONE 2026-09-25, above), then 14 days of `agree` with `independent: true` in the site shadow with the primary on hosted enclaves | NOT MET: no hosted enclave; the shadow is opt-in and records only |
 
 Until then Tinfoil is the primary everywhere, and every own verdict is published beside it.
 

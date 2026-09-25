@@ -126,7 +126,7 @@ const must = [
   ["verifier.js", ["Verifier", "assembleAttestationBundle"]],
   ["webauthn.js", ["startRegistration", "startAuthentication"]],
   ["walletconnect.js", ["EthereumProvider"]],
-  ["enclave-verifier.js", ["createShadow", "verifyEvidenceWeb"]],
+  ["enclave-verifier.js", ["createShadow", "verifyEvidenceWeb", "releaseExpectationsFromMirror", "createBrowserIndexMemory"]],
 ];
 for (const [file, names] of must) {
   const src = fs.readFileSync(path.join(OUT, file), "utf8");

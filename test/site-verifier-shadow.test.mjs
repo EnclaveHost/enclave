@@ -15,7 +15,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { shadowEnabled, runShadow, SHADOW_FLAG, SHADOW_QUERY, SHADOW_VERIFIER_URL, SHADOW_COLLATERAL_BASE, SHADOW_MIN_TCB } from "../site/js/core/verify-shadow.js";
+import { shadowEnabled, runShadow, SHADOW_FLAG, SHADOW_QUERY, SHADOW_VERIFIER_URL, SHADOW_COLLATERAL_BASE, SHADOW_MIN_TCB, SHADOW_MIRROR_URL } from "../site/js/core/verify-shadow.js";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const VENDORED = path.join(REPO, "site", "vendor", "enclave-verifier.js");
@@ -32,7 +32,9 @@ test("the vendored verifier is the reproducible artifact: its sha256 is the mani
   assert.equal(createHash("sha256").update(bytes).digest("hex"), manifest.artifact.sha256, "site/vendor/enclave-verifier.js == verifier/web/dist (run scripts/build-vendor.mjs)");
   assert.equal(bytes.length, manifest.artifact.bytes);
   const mod = await import(pathToFileURL(VENDORED).href);
-  for (const name of ["createShadow", "verifyEvidenceWeb", "memoryCollateral", "httpCollateral"]) assert.equal(typeof mod[name], "function", name);
+  for (const name of ["createShadow", "verifyEvidenceWeb", "memoryCollateral", "httpCollateral", "releaseExpectationsFromMirror", "createBrowserIndexMemory", "createIndexMemory", "webStorageStore"]) assert.equal(typeof mod[name], "function", name);
+  assert.equal(mod.MIRROR_PATH, "/v1/release-index"); assert.equal(new URL(SHADOW_MIRROR_URL).pathname, mod.MIRROR_PATH, "the glue asks the relay for the path the verifier defines");
+  assert.equal(typeof mod.TRUSTED_ROOT, "object"); assert.ok(Array.isArray(mod.TRUSTED_ROOT.certificateAuthorities) && mod.TRUSTED_ROOT.certificateAuthorities.length > 0, "the pinned Sigstore trusted root is IN the bundle");
   assert.equal(typeof mod.WEB_CRYPTO, "object"); assert.equal(typeof mod.WEB_CRYPTO.checkChain, "function");
   assert.ok(!/from\s*["']node:/.test(bytes.toString("utf8")), "no node: import in the vendored file");
 });
@@ -60,7 +62,7 @@ test("disabled, nothing is imported and null is returned; enabled, the shadow is
   assert.equal(calls[0].create.origin, `https://${HOST}`); assert.equal(calls[0].create.collateralBase, SHADOW_COLLATERAL_BASE); assert.equal(calls[0].create.enabled, true); assert.equal(calls[0].create.roots, undefined, "the verifier's own pins, not a site-supplied root");
   assert.deepEqual(calls[1].run.expected, { allowedMeasurements: ["ab".repeat(48)], minTcb: SHADOW_MIN_TCB }, "the allowed measurement is the primary's PROVENANCE-derived one, never the enclave's reported one");
   assert.deepEqual(calls[1].run.primary, { ok: true, measurement: "cd".repeat(48) });
-  assert.equal(r.acceptance, false); assert.equal(r.transportBindingClaimed, false); assert.match(r.expectedFrom, /Sigstore step/);
+  assert.equal(r.acceptance, false); assert.equal(r.transportBindingClaimed, false); assert.match(r.expectedFrom, /^FALLBACK, not independent: the primary's Sigstore step/); assert.equal(r.independent, false); assert.equal(r.provenance, null, "a verifier build without the mirror path: no provenance record, and the label says so");
   assert.ok(!("ok" in r) && !("release" in r), "no field reads as a release");
   // a primary that failed, and a primary with no code measurement: the shadow still runs, allowing nothing
   const r2 = await runShadow({ host: HOST, doc: null, enabled: true, importer: async () => fakeModule, log: quiet });
@@ -72,7 +74,7 @@ test("disabled, nothing is imported and null is returned; enabled, the shadow is
   assert.equal(r4.ran, false); assert.match(r4.reasonNotRun, /no host/);
 });
 
-test("end to end with the REAL vendored module: a local origin stands in for the enclave host and the KDS mirror; the record is the verifier's verdict on the Genoa fixtures, the comparison recorded, and only the five paths are fetched", async () => {
+test("end to end with the REAL vendored module: a local origin stands in for the enclave host and the KDS mirror (no release-index mirror: the FALLBACK path, labelled); the record is the verifier's verdict on the Genoa fixtures, the comparison recorded, and only the six paths are fetched", async () => {
   const seen = [];
   const srv = http.createServer((req, res) => {
     const p = req.url.split("?")[0]; seen.push((req.headers["x-shadow-logical-host"] || req.headers.host) + p);
@@ -96,9 +98,64 @@ test("end to end with the REAL vendored module: a local origin stands in for the
     assert.equal(r.verdict.status, "verified", r.verdict.reasons.join("\n")); assert.deepEqual(r.comparison, { outcome: "agree", oursVerified: true, primaryOk: true, sameMeasurement: true });
     assert.equal(r.rootsSource, "pinned: relay/snp-verify.mjs AMD_ARK_SHA256");
     assert.equal(r.sources.document.url, `https://${HOST}/.well-known/tinfoil-attestation`); assert.ok(r.sources.collateral.crl.source.startsWith(SHADOW_COLLATERAL_BASE + "/vcek/v1/Genoa/"));
-    assert.deepEqual(seen.map((s) => s.split("?")[0]).sort(), [`${HOST}/.well-known/tinfoil-attestation`, `${HOST}/.well-known/tinfoil-certificate`, `kds-proxy.tinfoil.sh/vcek/v1/Genoa/${CHIP}`, "kds-proxy.tinfoil.sh/vcek/v1/Genoa/cert_chain", "kds-proxy.tinfoil.sh/vcek/v1/Genoa/crl"].sort());
+    // this origin serves no release-index mirror (404): the expected measurement is the primary's, and the record says so
+    assert.equal(r.independent, false); assert.match(r.expectedFrom, /^FALLBACK, not independent: .*because the release index was unavailable/); assert.match(r.provenance.index.reasons.join(" "), /HTTP 404/);
+    assert.deepEqual(seen.map((s) => s.split("?")[0]).sort(), ["api.enclave.host/v1/release-index", `${HOST}/.well-known/tinfoil-attestation`, `${HOST}/.well-known/tinfoil-certificate`, `kds-proxy.tinfoil.sh/vcek/v1/Genoa/${CHIP}`, "kds-proxy.tinfoil.sh/vcek/v1/Genoa/cert_chain", "kds-proxy.tinfoil.sh/vcek/v1/Genoa/crl"].sort());
     // a primary that accepts a measurement the release did not attest: the shadow refuses and the disagreement is recorded, nothing more
     const other = await runShadow({ host: HOST, doc: { ...doc, codeMeasurement: { type: "sev-snp-guest", registers: ["00".repeat(48)] } }, enabled: true, importer: () => import(pathToFileURL(VENDORED).href), fetchImpl, now: () => new Date("2026-09-24T05:00:00Z"), log: quiet });
     assert.equal(other.verdict.status, "rejected"); assert.equal(other.verdict.checks.measurement, false); assert.equal(other.comparison.outcome, "disagree"); assert.equal(other.acceptance, false);
+  } finally { srv.close(); }
+});
+
+// the mirror capture the browser path verifies (the same fixture test/verifier-web-provenance.test.mjs proves the module on)
+const MIRROR = JSON.parse(text(new URL("release-index/mirror-2026-09-25.json", F)));
+const fakeStorage = () => { const m = new Map(); return { map: m, getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => { m.set(k, String(v)); }, removeItem: (k) => { m.delete(k); } }; };
+
+test("end to end with the REAL vendored module and the mirror: the expected measurements come from the signed release index verified IN THE BROWSER PATH (independent: true), the primary's codeMeasurement is cross-checked against it, the memory persists in the page's storage, and a mirror that is down falls back to the primary's measurement labelled not independent", async () => {
+  const seen = []; let mirrorStatus = 200;
+  const srv = http.createServer((req, res) => {
+    const p = req.url.split("?")[0]; seen.push((req.headers["x-shadow-logical-host"] || req.headers.host) + p);
+    if (p === "/v1/release-index") { res.writeHead(mirrorStatus, { "content-type": "application/json" }); return res.end(mirrorStatus === 200 ? JSON.stringify(MIRROR) : "{}"); }
+    if (p === "/.well-known/tinfoil-attestation") { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify(rad)); }
+    if (p === "/.well-known/tinfoil-certificate") { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify({ certificate: certPem })); }
+    if (p === "/vcek/v1/Genoa/cert_chain") return res.end(text(new URL("Genoa-cert_chain.pem", A)));
+    if (p === `/vcek/v1/Genoa/${CHIP}`) return res.end(read(new URL("genoa-tinfoil/vcek-kds-amd.der", F)));
+    if (p === "/vcek/v1/Genoa/crl") return res.end(read(new URL("amd/Genoa-crl.der", F)));
+    res.writeHead(404); res.end();
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  const fetchImpl = (url, init) => { const u = new URL(url); return fetch(base + u.pathname + u.search, { ...init, headers: { ...(init && init.headers), "x-shadow-logical-host": u.host } }); };
+  const importer = () => import(pathToFileURL(VENDORED).href), now = () => new Date("2026-09-25T05:00:00Z");
+  const storage = fakeStorage();
+  try {
+    // the primary's document says this host runs the fixture's measurement (Tinfoil's inference host, NOT an Enclave release)
+    const doc = { securityVerified: true, codeMeasurement: { type: "sev-snp-guest", registers: [MEAS] }, enclaveMeasurement: { measurement: { type: "sev-snp-guest", registers: [MEAS] } } };
+    const r = await runShadow({ host: HOST, doc, enabled: true, importer, fetchImpl, now, storage, log: quiet });
+    assert.equal(r.ran, true, JSON.stringify(r)); assert.equal(r.acceptance, false); assert.equal(r.transportBindingClaimed, false);
+    assert.equal(r.independent, true, JSON.stringify(r.provenance));
+    assert.match(r.expectedFrom, /^the signed release index \(first-seen\), verified in this browser against the pinned Sigstore root; bytes from https:\/\/api\.enclave\.host\/v1\/release-index/);
+    assert.equal(r.provenance.source, "mirror"); assert.equal(r.provenance.verifiedLocally, true); assert.equal(r.provenance.ok, true);
+    assert.equal(r.provenance.index.status, "verified"); assert.equal(r.provenance.index.authenticity, "signed"); assert.equal(r.provenance.index.freshness, "first-seen"); assert.equal(r.provenance.index.publication.runId, 36089632273);
+    assert.deepEqual(r.provenance.allowed.map((a) => a.tag), ["v0.5.848", "v0.5.848-cpu"]); assert.equal(r.provenance.latestTag, "v0.5.848");
+    assert.equal(r.provenance.mirror.said.status, "verified", "recorded"); assert.equal(r.provenance.mirror.url, SHADOW_MIRROR_URL);
+    // the cross-check: the primary's provenance-derived measurement is NOT one the signed index attests (a Tinfoil host is not an Enclave release)
+    assert.equal(r.provenance.primaryMeasurementAttested, false);
+    // and so the shadow, holding the index's measurements, refuses this host's measurement and records the disagreement; it decides nothing
+    assert.equal(r.verdict.status, "rejected", r.verdict.reasons.join("\n")); assert.equal(r.verdict.checks.measurement, false); assert.equal(r.comparison.outcome, "disagree");
+    assert.ok(seen.includes("api.enclave.host/v1/release-index"), seen.join(","));
+    assert.ok(storage.map.has("enclave.verifierIndexMemory"), "the index memory is in the page's storage under the documented key");
+    // reload: the same storage, the same index -> same (freshness, not first-use)
+    const again = await runShadow({ host: HOST, doc, enabled: true, importer, fetchImpl, now, storage, log: quiet });
+    assert.equal(again.provenance.index.freshness, "same"); assert.equal(again.independent, true);
+    // the mirror is down: the FALLBACK, labelled; the verdict then rests on the primary's own measurement and says so
+    mirrorStatus = 503;
+    const f = await runShadow({ host: HOST, doc, enabled: true, importer, fetchImpl, now, storage, log: quiet });
+    assert.equal(f.independent, false); assert.match(f.expectedFrom, /^FALLBACK, not independent: the primary's Sigstore step \(codeMeasurement\), because the release index was unavailable/);
+    assert.equal(f.provenance.ok, false); assert.equal(f.provenance.index.status, "unavailable"); assert.match(f.provenance.index.reasons.join(" "), /HTTP 503/);
+    assert.equal(f.verdict.status, "verified"); assert.equal(f.comparison.outcome, "agree"); assert.equal(f.acceptance, false);
+    // the mirror is down and the primary produced no code measurement: nothing is allowed at all
+    const g = await runShadow({ host: HOST, doc: { securityVerified: true }, enabled: true, importer, fetchImpl, now, storage, log: quiet });
+    assert.equal(g.independent, false); assert.match(g.expectedFrom, /^none/); assert.equal(g.verdict.status, "rejected");
   } finally { srv.close(); }
 });

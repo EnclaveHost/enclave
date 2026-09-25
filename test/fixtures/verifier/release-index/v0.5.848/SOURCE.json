@@ -8,5 +8,11 @@
  "attestation.json": {
   "url": "https://api.github.com/repos/EnclaveHost/enclave/attestations/sha256:9ef3346a0b2ec50d15fdba2521e1713914326bf23c860c336a1c474e1567ed5e",
   "what": "GitHub's attestation API answer: the Sigstore bundle (keyless, the publish workflow's identity at the release tag, predicate https://enclave.host/predicate/release-index/v1)"
+ },
+ "../mirror-2026-09-25.json": {
+  "url": "https://api.enclave.host/v1/release-index",
+  "fetchedAt": "2026-09-25T04:08Z",
+  "sha256": "3b43f6ed58c1dfd706fb2e39b646ff7ac496ceae4a88dc3885498007f0606703",
+  "what": "the production relay's same-origin mirror as it answered on 2026-09-25 after its first re-verification round (relay/reverify.mjs mirror): the v0.5.848 signed index bytes (base64) and attestation bundle, the release attestation bundles of v0.5.848 and v0.5.848-cpu, and the relay's own state; a REAL capture, used by the browser provenance tests as the mirror's answer"
  }
 }

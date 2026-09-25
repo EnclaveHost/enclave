@@ -15,6 +15,10 @@ export { WEB_CRYPTO } from "./provider.mjs";
 export * as x509 from "./x509.mjs";
 export { memoryCollateral, httpCollateral } from "./collateral.mjs";
 export { createShadow } from "./shadow.mjs";
+// release provenance verified in the browser from the signed index's bytes (verifier/web/provenance.mjs); the memory is
+// the same module the Node consumers use (verifier/index-memory.mjs), here over localStorage
+export { releaseExpectationsFromMirror, createBrowserIndexMemory, MIRROR_PATH, MEMORY_KEY, TRUSTED_ROOT } from "./provenance.mjs";
+export { createIndexMemory, webStorageStore, memoryStore } from "../index-memory.mjs";
 
 const unsupported = (technology, why) => ({ status: "unsupported", admissionSafe: false, omissions: [], technology, reasons: [`UNSUPPORTED: ${why}`], checks: {}, claims: null });
 const asBuffer = (x) => (x == null ? x : Buffer.isBuffer(x) ? x : Buffer.from(x.buffer ? new Uint8Array(x.buffer, x.byteOffset, x.byteLength) : x));

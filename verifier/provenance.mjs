@@ -106,8 +106,8 @@ export async function verifyReleaseAttestation({ bundle, digestHex, trustedRoot,
   return { ok: true, reasons, claims: {
     ...id, digest: digestHex.toLowerCase(),
     snpMeasurement: pr.snp_measurement, tdxMeasurement: pr.tdx_measurement ?? null, cmdline: pr.cmdline ?? null, imageHashes: pr.hashes ?? null,
-    configSha256: pr.config ? Buffer.from(require_sha256(Buffer.from(pr.config, "base64"))).toString("hex") : null,
+    configSha256: pr.config ? await sha256HexOf(Buffer.from(pr.config, "base64")) : null,
   } };
 }
-import { createHash } from "node:crypto";
-const require_sha256 = (b) => createHash("sha256").update(b).digest();
+// WebCrypto, so this module runs unchanged in the browser build (verifier/web) and under Node 22
+const sha256HexOf = async (bytes) => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes))).map((b) => b.toString(16).padStart(2, "0")).join("");

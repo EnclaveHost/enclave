@@ -7637,9 +7637,9 @@ function subjectNameDer(certDer) {
 }
 
 // verifier/tls-binding.mjs
-import { createHash, X509Certificate } from "node:crypto";
+import { createHash as createHash2, X509Certificate } from "node:crypto";
 var sha256 = (...parts) => {
-  const h = createHash("sha256");
+  const h = createHash2("sha256");
   for (const p of parts) h.update(p);
   return h.digest();
 };
@@ -8276,8 +8276,8 @@ function layeredCollateral(...adapters) {
 // verifier/collateral-cache.mjs
 import fs2 from "node:fs";
 import path2 from "node:path";
-import { createHash as createHash2, X509Certificate as X509Certificate3 } from "node:crypto";
-var sha2562 = (b) => createHash2("sha256").update(b).digest("hex");
+import { createHash as createHash3, X509Certificate as X509Certificate3 } from "node:crypto";
+var sha2562 = (b) => createHash3("sha256").update(b).digest("hex");
 var cn2 = (dn) => (/(?:^|\n)CN=([^\n]+)/.exec(dn || "") || [])[1] || null;
 var safe = (s) => String(s).replace(/[^A-Za-z0-9._-]/g, "_");
 function cachedCollateral({ dir, upstream = null, now = () => /* @__PURE__ */ new Date(), roots = AMD_ARK_SHA256 } = {}) {
@@ -8449,7 +8449,6 @@ function cachedCollateral({ dir, upstream = null, now = () => /* @__PURE__ */ ne
 
 // verifier/provenance.mjs
 init_dist2();
-import { createHash as createHash3 } from "node:crypto";
 var DEFAULT_RELEASE_POLICY = Object.freeze({
   repository: "EnclaveHost/enclave",
   workflowPath: ".github/workflows/tinfoil-release-publish.yml",
@@ -8588,16 +8587,19 @@ async function verifyReleaseAttestation({ bundle, digestHex, trustedRoot, policy
     tdxMeasurement: pr.tdx_measurement ?? null,
     cmdline: pr.cmdline ?? null,
     imageHashes: pr.hashes ?? null,
-    configSha256: pr.config ? Buffer.from(require_sha256(Buffer.from(pr.config, "base64"))).toString("hex") : null
+    configSha256: pr.config ? await sha256HexOf(Buffer.from(pr.config, "base64")) : null
   } };
 }
-var require_sha256 = (b) => createHash3("sha256").update(b).digest();
+var sha256HexOf = async (bytes2) => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes2))).map((b) => b.toString(16).padStart(2, "0")).join("");
 
 // verifier/release-index.mjs
 import fs3 from "node:fs";
 import path3 from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash as createHash4 } from "node:crypto";
+
+// verifier/release-index-core.mjs
+var sha256HexOf2 = async (bytes2) => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes2))).map((b) => b.toString(16).padStart(2, "0")).join("");
 var INDEX_SCHEMA = "enclave-release-index/v2";
 var INDEX_SCHEMA_V1 = "enclave-release-index/v1";
 var INDEX_SCHEMAS = Object.freeze([INDEX_SCHEMA, INDEX_SCHEMA_V1]);
@@ -8606,17 +8608,11 @@ var INDEX_ASSET = "release-index.json";
 var POLICY_SCHEMA = "enclave-release-policy/v1";
 var FLAVORS = Object.freeze(["gpu", "cpu", "gpu8"]);
 var TAG_RE = /^v(\d+)\.(\d+)\.(\d+)(-cpu|-gpu8)?$/;
-var sha256hex = (b) => createHash4("sha256").update(b).digest("hex");
 var parseTag = (tag) => {
   const m = TAG_RE.exec(String(tag || ""));
   return m ? { version: [+m[1], +m[2], +m[3]], flavor: m[4] ? m[4].slice(1) : "gpu" } : null;
 };
 var versionString = (v) => `v${v.join(".")}`;
-var REPO = path3.resolve(path3.dirname(fileURLToPath(import.meta.url)), "..");
-function readReleasePolicy(file = path3.join(REPO, "verifier", "release-policy.json")) {
-  const p = JSON.parse(fs3.readFileSync(file, "utf8"));
-  return normalizePolicy(p);
-}
 function normalizePolicy(p) {
   if (!p || p.schema !== POLICY_SCHEMA) throw new Error(`release policy schema must be ${POLICY_SCHEMA}`);
   const min = parseTag(p.minimumRelease);
@@ -8664,7 +8660,6 @@ function buildReleaseIndex({ releases, policy, repository, generatedAt = (/* @__
   };
 }
 var indexBytesOf = (index) => Buffer.from(JSON.stringify(index, null, 1) + "\n", "utf8");
-var indexPredicateOf = (indexBytes, index) => ({ schema: INDEX_PREDICATE, indexSha256: sha256hex(indexBytes), repository: index.repository, generatedAt: index.generatedAt, sequence: index.sequence, ...index.attempt !== void 0 ? { attempt: index.attempt } : {}, minimumRelease: index.minimumRelease, latest: index.latest });
 var RUN_RE = /\/actions\/runs\/(\d{1,15})\/attempts\/(\d{1,6})$/;
 function normalizePublication(p) {
   if (!p) return null;
@@ -8716,7 +8711,7 @@ function checkIndex({ index, digestHex, predicate, policy = DEFAULT_RELEASE_POLI
   return { ok: true, reasons, latest, minimumRelease: min.version, revoked: [...index.revoked], sequence: index.sequence, generatedAt: index.generatedAt, publication: pub, sequenceAuthenticated, schema: index.schema };
 }
 async function verifyReleaseIndex({ indexBytes, bundle, trustedRoot, policy = DEFAULT_RELEASE_POLICY }) {
-  const digestHex = sha256hex(indexBytes);
+  const digestHex = await sha256HexOf2(indexBytes);
   const s = await verifyStatementBundle({ bundle, digestHex, trustedRoot, policy, predicateTypes: [INDEX_PREDICATE], subjectName: "the index digest" });
   if (!s.ok) return { ok: false, signed: false, reasons: s.reasons, index: null, claims: null, digest: digestHex };
   let index;
@@ -8747,6 +8742,15 @@ async function verifyReleaseIndex({ indexBytes, bundle, trustedRoot, policy = DE
   };
 }
 var candidatesFromIndex = (v) => Object.values(v.latest || {}).map((l) => ({ tag: l.tag, digest: l.digest }));
+
+// verifier/release-index.mjs
+var sha256hex = (b) => createHash4("sha256").update(b).digest("hex");
+var REPO = path3.resolve(path3.dirname(fileURLToPath(import.meta.url)), "..");
+function readReleasePolicy(file = path3.join(REPO, "verifier", "release-policy.json")) {
+  const p = JSON.parse(fs3.readFileSync(file, "utf8"));
+  return normalizePolicy(p);
+}
+var indexPredicateOf = (indexBytes, index) => ({ schema: INDEX_PREDICATE, indexSha256: sha256hex(indexBytes), repository: index.repository, generatedAt: index.generatedAt, sequence: index.sequence, ...index.attempt !== void 0 ? { attempt: index.attempt } : {}, minimumRelease: index.minimumRelease, latest: index.latest });
 async function main() {
   const args = process.argv.slice(2), cmd = args.shift();
   const opt = (n, d = null) => {
@@ -8813,50 +8817,72 @@ if (process.argv[1] && path3.resolve(process.argv[1]) === fileURLToPath(import.m
   process.exit(2);
 });
 
-// verifier/index-memory.mjs
+// verifier/index-memory-file.mjs
 import fs4 from "node:fs";
 import path4 from "node:path";
+
+// verifier/index-memory.mjs
+var memoryStore = () => {
+  let v = null;
+  return { name: "memory", load: () => v, save: (o) => {
+    v = o;
+    return true;
+  } };
+};
+function webStorageStore(storage, key = "enclave.verifierIndexMemory") {
+  return {
+    name: `storage:${key}`,
+    load: () => {
+      try {
+        const raw = storage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    },
+    save: (o) => {
+      try {
+        storage.setItem(key, JSON.stringify(o));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  };
+}
 var cmpVersion = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 var cmpPub = (a, b) => a.runId - b.runId || a.attempt - b.attempt;
 var validPub = (p) => p && Number.isSafeInteger(p.runId) && p.runId > 0 && Number.isSafeInteger(p.attempt) && p.attempt > 0;
 var validVersion = (v) => Array.isArray(v) && v.length === 3 && v.every((n) => Number.isInteger(n) && n >= 0);
-function createIndexMemory({ file = null, now = () => /* @__PURE__ */ new Date(), log = () => {
+function createIndexMemory({ store = null, now = () => /* @__PURE__ */ new Date(), log = () => {
 } } = {}) {
+  const st = store ?? memoryStore();
   let state = null, note = null, durable = false;
-  if (file) {
-    try {
-      const raw = JSON.parse(fs4.readFileSync(file, "utf8"));
-      if (raw && raw.schema === "enclave-index-memory/v1" && validPub(raw.publication) && /^[0-9a-f]{64}$/.test(String(raw.digest || "")) && validVersion(raw.minimumRelease)) {
-        state = raw;
-        durable = true;
-      } else {
-        note = `the index memory at ${file} is not a record this version understands; starting without one`;
-        log(note);
-      }
-    } catch (e) {
-      if (e.code !== "ENOENT") {
-        note = `the index memory at ${file} is unreadable (${e.message}); starting without one`;
-        log(note);
-      }
+  try {
+    const raw = st.load();
+    if (raw === null || raw === void 0) {
+    } else if (raw && raw.schema === "enclave-index-memory/v1" && validPub(raw.publication) && /^[0-9a-f]{64}$/.test(String(raw.digest || "")) && validVersion(raw.minimumRelease)) {
+      state = raw;
+      durable = true;
+    } else {
+      note = `the index memory at ${st.name} is not a record this version understands; starting without one`;
+      log(note);
     }
+  } catch (e) {
+    note = `the index memory at ${st.name} is unreadable (${e.message}); starting without one`;
+    log(note);
   }
   const persist = () => {
-    if (!file) {
-      durable = true;
-      return true;
-    }
+    let ok = false;
     try {
-      fs4.mkdirSync(path4.dirname(file), { recursive: true });
-      const tmp = `${file}.${process.pid}.${Math.random().toString(16).slice(2)}.tmp`;
-      fs4.writeFileSync(tmp, JSON.stringify(state, null, 1) + "\n");
-      fs4.renameSync(tmp, file);
-      durable = true;
-      return true;
+      ok = st.save(state) === true;
     } catch (e) {
-      durable = false;
-      log(`the index memory could not be written to ${file}: ${e.message}`);
-      return false;
+      log(`the index memory could not be written to ${st.name}: ${e.message}`);
+      ok = false;
     }
+    if (!ok) log(`the index memory could not be written to ${st.name}`);
+    durable = ok;
+    return ok;
   };
   const remember = (rec) => {
     state = { schema: "enclave-index-memory/v1", ...rec, at: now().toISOString() };
@@ -8887,8 +8913,36 @@ function createIndexMemory({ file = null, now = () => /* @__PURE__ */ new Date()
     const persisted = remember(rec);
     return { ok: true, kind: "newest-seen", why: `newer publication: run ${rec.publication.runId} attempt ${rec.publication.attempt} after ${seen}`, persisted, remembered: state };
   }
-  return { consider, floor: () => state ? [...state.minimumRelease] : null, record: () => state ? structuredClone(state) : null, note: () => note, durable: () => durable, file };
+  return { consider, floor: () => state ? [...state.minimumRelease] : null, record: () => state ? structuredClone(state) : null, note: () => note, durable: () => durable, file: st.file ?? null, store: st.name };
 }
+
+// verifier/index-memory-file.mjs
+function fileStore(file) {
+  return {
+    name: file,
+    file,
+    load: () => {
+      try {
+        return JSON.parse(fs4.readFileSync(file, "utf8"));
+      } catch (e) {
+        if (e.code === "ENOENT") return null;
+        throw e;
+      }
+    },
+    save: (o) => {
+      try {
+        fs4.mkdirSync(path4.dirname(file), { recursive: true });
+        const tmp = `${file}.${process.pid}.${Math.random().toString(16).slice(2)}.tmp`;
+        fs4.writeFileSync(tmp, JSON.stringify(o, null, 1) + "\n");
+        fs4.renameSync(tmp, file);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  };
+}
+var createFileIndexMemory = ({ file = null, store = null, ...rest } = {}) => createIndexMemory({ store: store ?? (file ? fileStore(file) : null), ...rest });
 
 // verifier/roots/sigstore-trusted-root.json
 var sigstore_trusted_root_default = {
@@ -9124,7 +9178,7 @@ async function releaseExpectations({
             index = { status: "verified", ...base, freshness: m ? m.kind : "not-remembered", latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, ...m && m.persisted === false ? { memoryNotPersisted: true } : {} };
             list = candidatesFromIndex(v).map((c) => c.tag);
             latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
-            pol = { ...pol, minimumRelease: v.minimumRelease, revoked: v.revoked };
+            pol = { ...pol, minimumRelease: v.minimumRelease, revoked: [.../* @__PURE__ */ new Set([...Array.isArray(pol.revoked) ? pol.revoked.map(String) : [], ...v.revoked])] };
             if (keepArtifacts) indexArtifact = { bytes: bytes2.toString("base64"), sha256: v.digest, bundle };
           }
         } else index = { status: "refused", authenticity: v.signed ? "signed" : "unverified", ...v.publication ? { publication: v.publication } : {}, reasons: v.reasons.slice(-2) };
@@ -9443,13 +9497,14 @@ export {
   cachedCollateral,
   captureHosted,
   compareVerdicts,
-  createIndexMemory,
+  createFileIndexMemory as createIndexMemory,
   dualAgreement,
   fetchBounded,
   fileCollateral,
   httpCollateral,
   layeredCollateral,
   memoryCollateral,
+  memoryStore,
   referenceVerify,
   releaseExpectations,
   releaseExpectationsFrom,
@@ -9457,5 +9512,6 @@ export {
   selfCheckHosted,
   sha256Hex,
   verifyHost,
-  verifyHostedCapture
+  verifyHostedCapture,
+  webStorageStore
 };

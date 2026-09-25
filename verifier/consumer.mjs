@@ -24,8 +24,9 @@ export { httpCollateral, fileCollateral, memoryCollateral, layeredCollateral, ca
 import { verifyReleaseAttestation, DEFAULT_RELEASE_POLICY } from "./provenance.mjs";
 import { snpProductHint, kdsVcekUrl } from "../relay/snp-verify.mjs";
 import { verifyReleaseIndex, candidatesFromIndex, INDEX_ASSET } from "./release-index.mjs";
-import { createIndexMemory } from "./index-memory.mjs";
+import { createFileIndexMemory as createIndexMemory } from "./index-memory-file.mjs";
 export { createIndexMemory };
+export { webStorageStore, memoryStore } from "./index-memory.mjs";
 const cmpVersion = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 import PINNED_TRUSTED_ROOT from "./roots/sigstore-trusted-root.json" with { type: "json" };
 
@@ -109,7 +110,7 @@ export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fe
           else {
             index = { status: "verified", ...base, freshness: m ? m.kind : "not-remembered", latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, ...(m && m.persisted === false ? { memoryNotPersisted: true } : {}) };
             list = candidatesFromIndex(v).map((c) => c.tag); latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
-            pol = { ...pol, minimumRelease: v.minimumRelease, revoked: v.revoked };
+            pol = { ...pol, minimumRelease: v.minimumRelease, revoked: [...new Set([...(Array.isArray(pol.revoked) ? pol.revoked.map(String) : []), ...v.revoked])] };   // the index adds revocations; a caller's is never undone
             if (keepArtifacts) indexArtifact = { bytes: bytes.toString("base64"), sha256: v.digest, bundle };
           }
         } else index = { status: "refused", authenticity: v.signed ? "signed" : "unverified", ...(v.publication ? { publication: v.publication } : {}), reasons: v.reasons.slice(-2) };
