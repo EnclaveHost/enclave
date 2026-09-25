@@ -74,6 +74,7 @@ $R = New-Results
 $M = Read-PkgManifest $R $Dir $ManifestSha256
 if (-not $M) { Write-Results $R; 'FAIL check: the manifest is not the one named'; exit 1 }
 Test-PkgFiles $R $Dir $M
+Test-NpmTree $R $Dir $M
 foreach ($p in @($M.vmWorkerRead)) { Test-VmWorkerRead $R (Get-PkgFilePath $Dir $p) $p }
 $tier = $M.tier
 if ($M.profiles.igvm.PSObject.Properties.Name -contains 'manager') {
@@ -168,6 +169,20 @@ $d = $Dir
 ''
 '# hcs-dev profile: boot the same monitor image and serve the first app, end to end (development path, host NOT excluded)'
 "powershell -NoProfile -ExecutionPolicy Bypass -File $d\win\smoke-hcs.ps1 -ManifestSha256 $($ManifestSha256.ToLower())"
+if ($M.PSObject.Properties.Name -contains 'acceptance') {
+  $a = $M.acceptance
+  ''
+  '# the box acceptance run (enclave-5d''s harness against the running manager; it creates and retires ONE instance, and refuses'
+  '# if the manager already holds one). Run by the box owner. Fill in the manager port, the data-plane port and the launcher key:'
+  "`$env:HVACC_NODE_TREE    = '$(Get-PkgFilePath $d $a.nodeTree)'"
+  "`$env:HVACC_JUDGE        = '$(Get-PkgFilePath $d $a.judge)'"
+  "`$env:HVACC_RUNTIME      = '$(Get-PkgFilePath $d $M.runtime.file)'"
+  "`$env:HVACC_PYTHON       = 'python'"
+  "`$env:HVACC_MANAGER      = 'http://127.0.0.1:<manager port>'"
+  "`$env:HVACC_DATA         = '127.0.0.1:<ENCLAVE_DATAPLANE_PORT>'"
+  "`$env:HVACC_LAUNCHER_KEY = '<the launcher''s report key, as the report''s launcher.key carries it>'"
+  "node $(Get-PkgFilePath $d $a.harness)"
+}
 if ($M.profiles.PSObject.Properties.Name -contains 'uefi') {
   $u = $M.profiles.uefi
   ''

@@ -44,7 +44,7 @@ const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.in
   "control.datapath", "control.judge", "control.node-client", "tool.windows",
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
   "input.recipe", "input.tree", "input.test", "input.test-support", "guest.uefi-firmware", "guest.uefi-medium", "guest.uefi-fallback",
-  "input.efi-stub", "input.tool-source", "input.initrd"]);
+  "input.efi-stub", "input.tool-source", "input.initrd", "control.node", "control.relay", "control.npm", "control.acceptance"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
 const SERVED_BY_PINNED_MANAGER = ["enclave-catalog-bundle/1"];   // windows/vbslike/manager/server.mjs SERVES
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
@@ -458,6 +458,7 @@ function testsCheck(m, bytes, R) {
         const p = path.join(d, ...f.path.split("/")); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes.get(f));
       }
       const tp = path.join(d, ...t.layout.split("/")); fs.mkdirSync(path.dirname(tp), { recursive: true }); fs.writeFileSync(tp, bytes.get(inp));
+      if (m.npmTree && t.npmTree) { const pr = assembleNpmTree(m, bytes, d); if (pr.length) throw new Error(`npm tree: ${pr.join("; ")}`); }
       // data a test reads from the repository (contract sources, vectors): pinned inputs, placed for the run, never shipped
       for (const sp of t.support || []) {
         const si = m.inputs.find((i) => i.name === sp.input), p = path.join(d, ...sp.layout.split("/"));
@@ -493,6 +494,48 @@ function testsCheck(m, bytes, R) {
     } catch (err) { R.add(false, `test ${t.name} (${t.owner})`, err.message);
     } finally { fs.rmSync(d, { recursive: true, force: true }); }
   }
+}
+
+// The node tree the box acceptance harness imports (manifest.npmTree): the package's control/ files laid out as the
+// repository, plus node_modules assembled from the pinned npm tarballs (each in its lockfile position, nested where npm
+// nests it). Assembled in a temp dir here, and every entry module the harness imports must LOAD from it: that proves the
+// tree is complete (a missing relative import, or a viem that cannot resolve, fails here rather than on the box).
+// unpack each pinned npm tarball into its lockfile position under `d`; returns the problems (empty = every one placed)
+function assembleNpmTree(m, bytes, d) {
+  const t = m.npmTree, problems = [];
+  if (!t) return problems;
+  for (const pkg of t.packages) {
+    const f = m.files.find((x) => x.path === pkg.file), dir = path.join(d, ...t.root.split("/"), ...pkg.dir.replace(/^node_modules\//, "").split("/"));
+    if (!f || !bytes.get(f)) { problems.push(`${pkg.name}@${pkg.version}: no bytes for ${pkg.file}`); continue; }
+    const tgz = path.join(d, ".npm.tgz"); fs.writeFileSync(tgz, bytes.get(f)); fs.mkdirSync(dir, { recursive: true });
+    const x = spawnSync("tar", ["-xzf", tgz, "-C", dir, "--strip-components=1"], { encoding: "utf8" });
+    if (x.status !== 0) { problems.push(`${pkg.name}@${pkg.version}: ${x.stderr.trim()}`); continue; }
+    let v = null; try { v = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8")); } catch {}
+    if (!v || v.name !== pkg.name || v.version !== pkg.version) problems.push(`${pkg.name}@${pkg.version}: the tarball unpacks as ${v ? `${v.name}@${v.version}` : "no package.json"}`);
+  }
+  fs.rmSync(path.join(d, ".npm.tgz"), { force: true });
+  return problems;
+}
+async function nodeTreeCheck(m, bytes, R) {
+  const t = m.npmTree; if (!t) return;
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "vbspkg-tree-"));
+  try {
+    for (const f of m.files.filter((x) => x.path.startsWith("control/") && bytes.get(x))) {
+      const p = path.join(d, ...f.path.split("/")); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, bytes.get(f));
+    }
+    const problems = assembleNpmTree(m, bytes, d);
+    R.add(problems.length === 0, "npm tree: every pinned tarball unpacks to its lockfile position with its name and version", problems.length ? problems.join("; ") : `${t.packages.length}/${t.packages.length}`);
+    const tree = path.join(d, ...t.root.split("/").slice(0, -1));   // the tree is the parent of node_modules
+    const probe = path.join(d, ".load-check.mjs");
+    fs.writeFileSync(probe, `import { pathToFileURL } from "node:url"; import path from "node:path";
+      const T = ${JSON.stringify(tree)}; const out = [];
+      for (const rel of ${JSON.stringify(t.mustLoad)}) { try { await import(pathToFileURL(path.join(T, ...rel.split("/"))).href); out.push("ok " + rel); } catch (e) { out.push("FAIL " + rel + ": " + String(e.message).split("\\n")[0]); } }
+      console.log(out.join("\\n"));`);
+    const r = spawnSync(process.execPath, [probe], { encoding: "utf8", cwd: d, timeout: 120000 });
+    const lines = (r.stdout + r.stderr).trim().split("\n").filter(Boolean), bad = lines.filter((l) => !l.startsWith("ok "));
+    R.add(r.status === 0 && bad.length === 0 && lines.length === t.mustLoad.length, "npm tree: every module the acceptance harness imports LOADS from the assembled tree",
+          bad.length ? bad.join("; ").slice(0, 400) : `${lines.length} modules`);
+  } finally { fs.rmSync(d, { recursive: true, force: true }); }
 }
 
 // the files that exist on this host and are packed; box-only files are staged on the box from boxReuse
@@ -539,6 +582,7 @@ export async function verify(manifestPath, { out = null, rebuild: doRebuild = fa
   if (fetchGw) await fetchCheck(m, fetchGw, R);
   if (serve) await serveCheck(m, bytes, R);
   if (tests) testsCheck(m, bytes, R);
+  if (m.npmTree) await nodeTreeCheck(m, bytes, R);
   return { R, m, id: sha(mbytes), bytes };
 }
 
