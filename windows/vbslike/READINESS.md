@@ -85,7 +85,8 @@ Trees cited below:
 
 | # | Gap | Location | Owner |
 |---|---|---|---|
-| M1 | The manager does not pass `expectedVmId` to the judge, although judge-hv supports it [C `verify/judge-hv.mjs:92`]. It relies on one launcher key per VM. `recordSha256` is computed [C `manager/derive.mjs:105`] but never compared. | C `manager/server.mjs:147-152` | **enclave-63** (proposed §6); box check d1 |
+| M1 | **DONE, verified on hardware** (enclave-63 `62965126`; d1 run 115938, `evidence/m1-partition-judge-20260925/`). The manager passes `expectedVmId` (the launcher's own `vm`, already tied to the manager's VM) to judge-hv, and refuses a handle with none. A mutation check confirms the test. `recordSha256` is documented as informational. | C `manager/server.mjs` | done |
+| M6 | NEW (run 120744): the Python fetcher writes `__pycache__` into the control tree on first use. Run 094631 left one `.pyc` in v36's staged package directory. Fix: `PYTHONDONTWRITEBYTECODE=1` or `python -B` where the manager starts the fetcher. | C `windows/node/fetch-cid.py` via the manager's `PYTHON_BIN` | **enclave-63** (proposed) |
 | M2 | The node's isolation code is NOT on main: node-hv-identity is 186 commits ahead. main's node agent still sends the retired `windows-vbs-enclave/v1` [M `windows/node/agent.mjs:326`], which the relay refuses. | N `windows/node/*` vs M | enclave-5d (integration), 99 review. Merging to main is a production rollout: **Steven** |
 | M3 | Host prerequisites for serving outside the lab are undecided and not installed: a permanent `AllowFirmwareLoadFromFile` [C `wmi-launcher.mjs:184-193`, "OPEN OWNER DECISION"], and the 9001 `GuestCommunicationServices` GUID, which the runs register temporarily. | package hostChecks; `ops/manager-accept.ps1` | **Steven** decides; 63 packages it after |
 | M4 | Relaying a domain's certificate request to the platform certificate service. Until then the domain serves a self-signed certificate (§1.6). Not blocked by parked work, but gated by U7: `relay/certs.js` issues to any live lease holder's operator-signed request [M `relay/certs.js:888-912`]. Build it only behind U7's owner-only restriction. | G `HV-GUEST.md:65`; N `windows/node/*` | after the U7 decision |
@@ -94,7 +95,7 @@ Trees cited below:
 
 | # | Item | What would validate it | Owner / status |
 |---|---|---|---|
-| U1 | Several concurrent partitions on one node (density, per-instance routes and keys, teardown) | a functional acceptance with N pinned fixtures, no in-guest probes | **enclave-63** harness (proposed), d1 box run |
+| U1 | Several concurrent partitions on one node | **VALIDATED, functional** (d1 run 120744, `evidence/multi-partition-20260925/`): 3 at once, distinct VMs and keys, cross-routes refused, DELETE and Off each isolated to their own instance, teardown clean, about 2.1 GiB per VM | done (enclave-63 harness `0513ced0`) |
 | U2 | The package's OWN managerEnv (sweeps at 15 s / 30 s, firmware from the profile). 094631 used the harness env with 5 s sweeps and an override | restart-accept driven by v39's managerEnv values | d1, box run |
 | U3 | Hours-long serving stability with the sweeps running (soak) | a fixture soak with periodic answers | d1, box run |
 | U4 | Recovery after a HOST reboot (not a manager restart) | a planned reboot window | Steven's window; d1 |
@@ -126,7 +127,8 @@ Trees cited below:
   - turning on `RELAY_HVNODE_ATTACH`.
   Each is a **Steven decision**. Production attach stays
   OFF, and this review asks for none of them.
-- **Unblocked work now, which reduces risk without claiming anything:** M1 and U1 (enclave-63), U2 and U3 (d1),
+- **Unblocked work now, which reduces risk without claiming anything:** M1 and U1 are DONE on hardware (115938,
+  120744). M6 (enclave-63), U2 and U3 (d1),
   M2 merge preparation and review (5d, 99; not a deploy). M4 waits for the U7 decision. Respawn stays OFF (Steven), and recovered VMs stay HELD.
 
 Owners: d1 box, host lane and coordination. enclave-5d guest runtime and node integration. enclave-63 package,
