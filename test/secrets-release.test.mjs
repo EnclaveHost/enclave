@@ -596,6 +596,14 @@ test("AMD collateral is fetched BEFORE the ticket is consumed: an outage is 503 
     const t2 = await ticketFor(A), r3 = await release(A, t2.body.ticket, guest({ id: A, ticket: t2.body.ticket }));
     assert.equal(r3.code, 503); assert.match(r3.body.message, /crl \(stale\)/); assert.ok(R._internals.tickets.has(t2.body.ticket));
     staleCrl = false;
+    // a report naming a chip the ticket was NOT issued for gets no prewarm (no KDS call), and is refused after consumption
+    let calls = 0; ctx.prewarmCollateral = async (doc) => { calls++; return bundle.prewarmSnpCollateral(doc, flaky); };
+    chips = ["ab".repeat(64)];
+    const t3 = await ticketFor(A), r4 = await release(A, t3.body.ticket, guest({ id: A, ticket: t3.body.ticket }));
+    chips = [S.chip.toString("hex")];
+    assert.equal(r4.code, 403); assert.match(r4.body.message, /not from a chip the lease holder attested with/);
+    assert.equal(calls, 0, "no collateral fetch for another chip"); assert.equal(R._internals.tickets.has(t3.body.ticket), false);
+    ctx.prewarmCollateral = (doc) => bundle.prewarmSnpCollateral(doc, flaky);
     // junk evidence is not the prewarm's business: it passes it through and the verifier refuses it (a final 4xx)
     const w = await bundle.prewarmSnpCollateral({ format: "sev-snp-guest-domain-v1", report: "AAAA" }, flaky);
     assert.equal(w.ok, true); assert.match(w.skipped, /unparseable/);
