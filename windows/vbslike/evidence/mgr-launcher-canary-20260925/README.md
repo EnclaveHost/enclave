@@ -53,7 +53,7 @@ Findings:
 4. **Grants accumulate.** Like the recipe, the launcher grants the VM's own SID read on the IGVM and never revokes
    it, so ACEs for removed VMs accumulate on the staged file. Harmless, but unbounded.
 
-Status of the findings, 2026-09-25 ~07:45Z:
+Status of the findings, 2026-09-25 07:24Z (the commit time; an earlier version said "~07:45Z", an unmeasured guess):
 1. Fixed in isolation-manager `3cc68b87` (run 2 proves it).
 2. Fixed in `faaf381a`. The console read stops at `MON ready` and reports `readyLine`; "booted" still means bytes > 0.
    It parses in the box's PowerShell but has NOT run on hardware yet; the next manager canary covers it.
