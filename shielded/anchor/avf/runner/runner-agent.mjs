@@ -34,6 +34,10 @@ export function checkRunnerConfig(c) {
     if (typeof r.repo !== "string" || !r.repo.length || r.repo.length > 200) bad("lifecycle.register.repo must be a non-empty string");
     if (!/^0x[0-9a-f]{64}$/.test(r.measurement || "")) bad("lifecycle.register.measurement must be 0x + 64 lowercase hex");
     if (!/^[1-9][0-9]{0,18}$/.test(r.cpuPricePerSec6 || "") || BigInt(r.cpuPricePerSec6) >= 1n << 64n) bad("lifecycle.register.cpuPricePerSec6 must be a decimal price > 0 (the owner's)");
+    // the published measurement is the build the VM attests, not whatever the config says (enclave-99's review of e4ecc4aa):
+    // it must be one of the code hashes the evidence pins, and THE one when exactly one is pinned
+    const pinned = c.proof.evidence.allowedCodeHashes;
+    if (!pinned.includes(r.measurement.slice(2))) bad(`lifecycle.register.measurement must be one of the evidence's allowedCodeHashes (the attested build's code hash)${pinned.length === 1 ? `: ${pinned[0]}` : ""}`);
   }
   for (const k of ["claim", "syncProofKey"]) if (l[k] !== undefined && typeof l[k] !== "boolean") bad(`lifecycle.${k} must be true or false`);
   for (const k of ["renewMarginSec", "heartbeatSec", "finalProofWaitMs"]) if (l[k] !== undefined && (!Number.isInteger(l[k]) || l[k] < 60)) bad(`lifecycle.${k} must be an integer >= 60`);
@@ -54,14 +58,24 @@ export async function createRunnerAgent({ config, publicClient, account, stateDi
     if (!agent.attested) { const a = await agent.attest(); if (!a.ok) return { kind: "attest-failed", stop: true, reason: a.reason }; }
     const key = agent.attested.proofKey;
     // 1. the entry
-    const register = (why) => agent.sendCall({ op: `register (${why})`, contract: "registry", functionName: "register",
-      args: [cfg.endpoint, L.register.repo, L.register.measurement, BigInt(L.register.cpuPricePerSec6), 0n, key], event: "Registered|Updated", eventId: E });
+    // a key goes on-chain only from a statement over a FRESH nonce, taken right now: an attestation from an earlier tick may name
+    // a key a re-provisioned VM no longer holds (enclave-99's review of e4ecc4aa)
+    const freshKey = async () => { const a = await agent.attest(); return a.ok ? a.claims.proofKey : null; };
+    const register = async (why) => {
+      const k = await freshKey();
+      if (!k) return { kind: "attest-failed", stop: true, reason: "no fresh attested key to register" };
+      return agent.sendCall({ op: `register (${why})`, contract: "registry", functionName: "register",
+        args: [cfg.endpoint, L.register.repo, L.register.measurement, BigInt(L.register.cpuPricePerSec6), 0n, k], event: "Registered|Updated", eventId: E });
+    };
     if (!s.regExists) return L.register ? register("new") : { kind: "registry-missing", stop: true, reason: "no registry entry, and the config does not register (the owner's repo, measurement and price)" };
     if (s.regOperator !== me) return { kind: "endpoint-taken", stop: true, reason: `the entry for ${cfg.endpoint} belongs to ${s.regOperator}: never touched` };
     if (!s.regActive) return L.register ? register("re-activate") : { kind: "registry-inactive", stop: true, reason: "the entry is inactive and the config does not register: not revived (a heartbeat would re-activate it)" };
     if (s.regProofKey !== key) {
       if (!L.syncProofKey) return { kind: "proof-key-mismatch", stop: true, reason: `the entry publishes ${s.regProofKey}, the VM attests ${key}` };
-      return agent.sendCall({ op: "setProofKey", contract: "registry", functionName: "setProofKey", args: [E, key], event: "ProofKeySet", eventId: E });
+      const k = await freshKey();
+      if (!k) return { kind: "attest-failed", stop: true, reason: "no fresh attested key to set" };
+      if (k === s.regProofKey) return null;   // the fresh statement names the registered key: the earlier attestation was the stale one
+      return agent.sendCall({ op: "setProofKey", contract: "registry", functionName: "setProofKey", args: [E, k], event: "ProofKeySet", eventId: E });
     }
     // 2. the lease
     const ours = s.runner === E && s.runnerOperator === me, live = s.leaseUntil >= s.headTs;

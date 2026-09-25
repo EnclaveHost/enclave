@@ -26,10 +26,10 @@ const askVm = (port, line) => new Promise((resolve, reject) => {
   c.on("data", (d) => (b += d)); c.on("end", () => resolve(b)); c.on("error", reject);
 });
 function startCarrier(vm) {
-  const state = { lines: [] };
+  const state = { lines: [], target: vm };
   const srv = http.createServer((req, res) => {
     let body = ""; req.on("data", (d) => (body += d));
-    req.on("end", async () => { state.lines.push(body.trim()); const ans = await askVm(vm.evidencePort, body.trim()); res.writeHead(200); res.end(ans); });
+    req.on("end", async () => { state.lines.push(body.trim()); const ans = await askVm(state.target.evidencePort, body.trim()); res.writeHead(200); res.end(ans); });
   });
   return new Promise((r) => srv.listen(0, "127.0.0.1", () => r({ url: `http://127.0.0.1:${srv.address().port}/evidence`, state, close: () => srv.close() })));
 }
@@ -59,7 +59,7 @@ async function setup() {
     if (k === "sendRawTransaction") return async (a) => (h.swallow ? V.keccak256(a.serializedTransaction) : t.sendRawTransaction(a));
     return t[k]; } }); return h; };
   const stop = () => { try { carrier.close(); } catch {} try { vm.close(); } catch {} chain.stop(); };
-  return { V, dir, chain, D, enclaveId, vm, carrier, operator, operatorKeyHex, config, clock, runnerOf, count, nonceOf, later, lossy, stop };
+  return { V, dir, ca, pins, chain, D, enclaveId, vm, carrier, operator, operatorKeyHex, config, clock, runnerOf, count, nonceOf, later, lossy, stop };
 }
 
 test("runner config: strict; the owner's registration values are required to register and never defaulted", () => {
@@ -72,8 +72,12 @@ test("runner config: strict; the owner's registration values are required to reg
   assert.equal(ok.lifecycle.register, undefined, "no invented registration values");
   const refuse = (lifecycle, re, over = {}) => assert.throws(() => checkRunnerConfig({ format: RUNNER_CONFIG_FORMAT, proof, lifecycle, ...over }), re);
   refuse({ register: { repo: "x", measurement: "0x" + "12".repeat(32) } }, /exactly \{ repo, measurement, cpuPricePerSec6 \}/);
-  refuse({ register: { ...LAB_REGISTER, cpuPricePerSec6: "0" } }, /price > 0/);
+  refuse({ register: { ...LAB_REGISTER, cpuPricePerSec6: "0" } }, /price > 0/);   // (the price rule fires before the measurement rule)
   refuse({ register: { ...LAB_REGISTER, measurement: "0x12" } }, /measurement/);
+  const withPin = { ...proof, evidence: { ...proof.evidence, allowedCodeHashes: [CODE.toString("hex")] } };
+  assert.equal(checkRunnerConfig({ format: RUNNER_CONFIG_FORMAT, proof: withPin, lifecycle: { register: LAB_REGISTER } }).lifecycle.register.measurement, LAB_REGISTER.measurement);
+  assert.throws(() => checkRunnerConfig({ format: RUNNER_CONFIG_FORMAT, proof: withPin, lifecycle: { register: { ...LAB_REGISTER, measurement: "0x" + "12".repeat(32) } } }),
+                /measurement must be one of the evidence's allowedCodeHashes .*: [0-9a-f]{64}/, "a measurement that is not the attested build's code hash");
   refuse({ claim: "yes" }, /true or false/);
   refuse({ renewMarginSec: 10 }, />= 60/);
   refuse({ autoBond: true }, /unknown lifecycle key/);
@@ -167,6 +171,27 @@ test("the entry: another operator's endpoint is never touched; a missing or deac
     assert.equal(await S.nonceOf(), n0, "no heartbeat, no transaction");
     assert.equal(await S.count("registry", "Heartbeat"), 0);
   } finally { if (r) r.close(); S.stop(); }
+});
+
+test("a key goes on-chain only from a FRESH statement: after the VM is re-provisioned (new key, new instance), a re-registration carries the NEW key, never the stale attested one",
+     { skip, timeout: 180000 }, async () => {
+  const S = await setup();
+  let r, vm2;
+  try {
+    vm2 = await startFakeVm({ dir: S.dir, ca: S.ca, code: CODE, appId: APP, instance: newInstance(), proofSeed: Buffer.from(sha("re-provisioned instance"), "hex"), proofPins: S.pins, checkpointEveryMs: 10 });
+    // the owner's policy binds both instances (the re-provisioned one enrolled)
+    const cfg = S.config(); cfg.proof.evidence.instanceIds = [S.vm.instanceId, vm2.instanceId];
+    r = await S.runnerOf({ cfg }); await r.start();
+    assert.match((await r.tick()).lifecycle.op, /^register/);
+    assert.equal(await S.chain.registeredProofKey(S.enclaveId), S.vm.proofKey);
+    // re-provisioned: the carrier now reaches the new VM; the agent still holds its earlier attestation of the OLD key
+    S.carrier.state.target = vm2;
+    await S.chain.deregister(S.enclaveId);   // the entry needs re-registering (the owner's deactivation, reversed by the configured register)
+    const a = await r.tick();
+    assert.match(a.lifecycle.op, /^register \(re-activate\)/, JSON.stringify(a.lifecycle));
+    assert.equal(await S.chain.registeredProofKey(S.enclaveId), vm2.proofKey, "the re-registration carries the NEW key from a fresh statement");
+    assert.notEqual(vm2.proofKey, S.vm.proofKey);
+  } finally { if (r) r.close(); if (vm2) vm2.close(); S.stop(); }
 });
 
 test("a mined lifecycle call WITHOUT the event it must produce is recorded as a failure, never as landed",
