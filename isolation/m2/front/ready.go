@@ -90,15 +90,29 @@ func appProxyWithin(upstream string, headerTimeout time.Duration) *httputil.Reve
 			ResponseHeaderTimeout: headerTimeout},
 		// A client is told which it was: 504 when the app did not start answering in time, 502 when it could not be
 		// reached at all. Neither leaves the connection hanging.
+		//
+		// The log line goes to the console, which is the HOST's serial file, so it carries a bounded outcome and
+		// nothing of the request: no path, no query, no header, and the method only as one of a fixed set (a client
+		// chooses the method token). The same rule as the host's egress log (enclave-d1's review of aeb3d328).
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			var ne net.Error
 			if errors.As(err, &ne) && ne.Timeout() {
-				log.Printf("DOM proxy: %s %s: the app sent no response headers within %s", r.Method, r.URL.Path, headerTimeout)
+				log.Printf("DOM proxy: %s timeout (no response headers within %s)", methodClass(r.Method), headerTimeout)
 				http.Error(w, "the app did not start answering within "+headerTimeout.String(), http.StatusGatewayTimeout)
 				return
 			}
-			log.Printf("DOM proxy: %s %s: %v", r.Method, r.URL.Path, err)
+			log.Printf("DOM proxy: %s unreachable", methodClass(r.Method))
 			http.Error(w, "the app could not be reached", http.StatusBadGateway)
 		},
 	}
+}
+
+// methodClass is the request method as the console may show it: a standard method's name, else "other".
+func methodClass(m string) string {
+	switch m {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete,
+		http.MethodOptions, http.MethodConnect, http.MethodTrace:
+		return m
+	}
+	return "other"
 }

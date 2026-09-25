@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -129,5 +131,53 @@ func TestTheProductionProxyHasAHeaderDeadline(t *testing.T) {
 	tr := appProxy("127.0.0.1:1").Transport.(*http.Transport)
 	if tr.ResponseHeaderTimeout != appHeaderTimeout || appHeaderTimeout <= 0 {
 		t.Fatalf("the proxy the front serves with has header timeout %s", tr.ResponseHeaderTimeout)
+	}
+}
+
+// The proxy's log line reaches the HOST (the console is the serial file), so a failure logs a bounded outcome and
+// nothing of the request: not its path, its query or a header, and a non-standard method only as "other"
+// (enclave-d1's review of aeb3d328). Both failures are driven: a wedged app (504) and an unreachable one (502).
+func TestTheProxyLogsNoRequestData(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(io.Discard)
+	release := make(chan struct{})
+	wedged := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-release }))
+	defer wedged.Close()
+	defer close(release)
+	gone := httptest.NewServer(http.NotFoundHandler())
+	goneAddr := strings.TrimPrefix(gone.URL, "http://")
+	gone.Close() // nothing listens there now
+	const path, query, header = "/users/alice-7f3a/notes", "q=private-query-5d0c", "private-header-9e1b"
+	for _, c := range []struct {
+		upstream, method, want string
+		status                 int
+	}{
+		{strings.TrimPrefix(wedged.URL, "http://"), http.MethodGet, "DOM proxy: GET timeout", http.StatusGatewayTimeout},
+		{goneAddr, http.MethodPost, "DOM proxy: POST unreachable", http.StatusBadGateway},
+		{goneAddr, "PROPFIND-alice-7f3a", "DOM proxy: other unreachable", http.StatusBadGateway},
+	} {
+		buf.Reset()
+		front := httptest.NewServer(appProxyWithin(c.upstream, 200*time.Millisecond))
+		req, _ := http.NewRequest(c.method, front.URL+path+"?"+query, nil)
+		req.Header.Set("Authorization", header)
+		res, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+		front.Close()
+		if err != nil {
+			t.Fatalf("%s: %v", c.want, err)
+		}
+		res.Body.Close()
+		if res.StatusCode != c.status {
+			t.Fatalf("%s: status %d, want %d", c.want, res.StatusCode, c.status)
+		}
+		got := buf.String()
+		if !strings.Contains(got, c.want) {
+			t.Fatalf("the log line %q does not say %q", got, c.want)
+		}
+		for _, secret := range []string{"alice-7f3a", "notes", "private-query-5d0c", "private-header-9e1b", "/users", "127.0.0.1"} {
+			if strings.Contains(got, secret) {
+				t.Fatalf("the host-visible log line %q carries %q", got, secret)
+			}
+		}
 	}
 }
