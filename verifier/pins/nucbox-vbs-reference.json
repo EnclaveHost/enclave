@@ -1,0 +1,120 @@
+{
+ "type": "enclave-nucbox-vbs-reference/1",
+ "about": "Reference values for VBS (GuestStateIsolationType 1) paravisor images on nucbox-k11, for the custom-VM verifier (enclave-99, docs/security/nucbox-custom-vm-verifier.md check V4). Every value is derived from the pinned bytes and re-checked by windows/vbslike/pkg/pkg.mjs verify on every run; do not edit by hand.",
+ "rule": "Refuse by EXACT vbsBootDigest only. Never use debugBuild to exclude an image: it follows the manifest's enable_debug and is false for --confidential-debug images too. confidentialDebug is read from the image bytes (OPENHCL_CONFIDENTIAL_DEBUG=1 in the measured command line); such an image trusts the host command line.",
+ "eligible": "true only for the non-debug measured-VTL0 candidate, and only once the paravisor report format is registered and report bytes are pinned (enclave-99). Not an allowlist today. A report-level debug indication, if the report has one, is an extra refusal, never a substitute (enclave-99).",
+ "notAClaim": "No image here is an isolation claim; host_excluded=no.",
+ "images": [
+  {
+   "id": "vbs-linux-candidate",
+   "class": "candidate",
+   "imageSha256": "c567e43210ebd78c31273be47d9f4ca448f9a04cce276c40bc5d2abd6374d637",
+   "imageBytes": 77786140,
+   "vbsBootDigest": "A0FDAC0FC1EFB7B702D6DE1FACFAD8EB4E738DD35F3D3EE39AA0F5416BBCA244",
+   "vbsIsvsvn": 13,
+   "debugBuild": false,
+   "confidentialDebug": false,
+   "trustsHostCommandLine": false,
+   "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553), initrd 0d14db23 and command line as measured pages; static_command_line=true (the paravisor line is exactly the measured bytes)",
+   "booted": "no: build-only",
+   "eligible": true,
+   "reason": "the ONLY image eligible for an allowlist, and only once the paravisor report format is registered and report bytes are pinned (enclave-99); not booted yet",
+   "pin": {
+    "image": "guest/igvm-vbs/vbs-linux-candidate-c567e432.bin",
+    "identity": "vbs-linux-candidate-vbs.json"
+   }
+  },
+  {
+   "id": "vbs-linux-candidate-debug-twin",
+   "class": "debug",
+   "imageSha256": "24e7a1ffbd8a87244eecc12a4f34f98e80da2e1658bf5c50604f122bf20ce9d3",
+   "imageBytes": 77786140,
+   "vbsBootDigest": "A650C020838049BA0C431E72E0744606C0D55246F9BA8031E0797F724A35157E",
+   "vbsIsvsvn": 13,
+   "debugBuild": false,
+   "confidentialDebug": true,
+   "trustsHostCommandLine": true,
+   "vtl0": "linux, measured (the candidate's own VTL0)",
+   "booted": "no: build-only",
+   "eligible": false,
+   "reason": "REFUSE: carries OPENHCL_CONFIDENTIAL_DEBUG=1, so OpenHCL trusts the host command line; its debugBuild is false all the same",
+   "pin": {
+    "image": "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-DEBUG-TRUSTS-HOST-24e7a1ff.bin",
+    "identity": "vbs-linux-candidate-DEBUG-TRUSTS-HOST-vbs.json"
+   }
+  },
+  {
+   "id": "a7b0bd4-control",
+   "class": "control",
+   "imageSha256": "32d464cc0650d67f9efc82b9d1d68acf26602ef7a762a53678d9aeb788c47749",
+   "imageBytes": 21732876,
+   "vbsBootDigest": "77C6616040679733D26D561D861B9124191D8B08A4DB4C6626CF04CCAD9A2CE1",
+   "vbsIsvsvn": 13,
+   "debugBuild": false,
+   "confidentialDebug": false,
+   "trustsHostCommandLine": false,
+   "vtl0": "uefi: our boot medium is NOT measured",
+   "booted": "yes: type 1 boots and serves (boot 67; boot 68 under Secure Boot, canary 054323)",
+   "eligible": false,
+   "reason": "REFUSE: an experimental control image whose launch measurement does not cover our guest (UEFI VTL0; the medium is booted, not measured)",
+   "pin": {
+    "image": "guest/uefi/PROBE-FIRMWARE-never-a-serving-candidate/openhcl-cvm-a7b0bd4-CONTROL-32d464cc.bin",
+    "identity": "control-32d464cc-vbs.json"
+   }
+  },
+  {
+   "id": "a7b0bd4-debug",
+   "class": "debug",
+   "imageSha256": "81e163ee76228c7aa63a2f0f15ab4d584f79b458ed4ce346bc89ab930f1856b5",
+   "imageBytes": 21732876,
+   "vbsBootDigest": "4CE6EDC3089C5C8AE0F7560CBEC2162A4582D3B05EDCB3D3A245A9620D5103C1",
+   "vbsIsvsvn": 13,
+   "debugBuild": false,
+   "confidentialDebug": true,
+   "trustsHostCommandLine": true,
+   "vtl0": "uefi: our boot medium is NOT measured",
+   "booted": "yes: type 1 boots (boot 67, with the VBS opt-out)",
+   "eligible": false,
+   "reason": "REFUSE: carries OPENHCL_CONFIDENTIAL_DEBUG=1 (trusts the host command line); its debugBuild is false all the same",
+   "pin": {
+    "image": "guest/uefi/PROBE-FIRMWARE-never-a-serving-candidate/openhcl-cvm-VBS-DEBUG-TRUSTS-HOST-81e163ee.bin",
+    "identity": "debug-81e163ee-vbs.json"
+   }
+  },
+  {
+   "id": "stock-2511-openhcl-cvm",
+   "class": "stock",
+   "imageSha256": "cfd40ce2affb17e7663351de82afcb5f7bfbb2b3174bbc206a6ddd8de3b128df",
+   "imageBytes": 22385780,
+   "vbsBootDigest": "6FFB817FE26D1068ED3FC6055467685ECC504CB2EE147A3B71B62CD4F2BBF927",
+   "vbsIsvsvn": 10,
+   "debugBuild": false,
+   "confidentialDebug": false,
+   "trustsHostCommandLine": false,
+   "vtl0": "uefi: our boot medium is NOT measured",
+   "booted": "no: type 1 never boots on this host (control_state 'starting', boot 67)",
+   "eligible": false,
+   "reason": "REFUSE: Microsoft's release 2511 image; does not boot type 1 here and does not measure our guest",
+   "pin": {
+    "image": "guest/uefi/openhcl-cvm.bin",
+    "identity": "guest/uefi/openhcl-cvm-vbs.json"
+   }
+  }
+ ],
+ "superseded": [
+  {
+   "id": "vbs-linux-candidate-v27",
+   "vbsBootDigest": "246DEE1B6F2057F504EF3B0C422E081CB365B121E7D0C7BFE420B1A8946A89F0",
+   "imageSha256": "5562e71d9ef5c0a4d3b577c943388900de4fc6352ef6a59905afe3ac6ef345ce",
+   "eligible": false,
+   "reason": "REFUSE: the v26/v27 build-only candidate with static_command_line=false, superseded at enclave-5d's review (34fe3284) before any boot; never booted. It is exactly the current candidate's 'static_command_line=false' mutation."
+  },
+  {
+   "id": "vbs-linux-candidate-debug-twin-v27",
+   "vbsBootDigest": "0677F3C6B217794C0F70703C9C6E15EDAFE12E97DE1B5BAD520246E553E01698",
+   "imageSha256": "726d3cb52fb37aee444e6f4032fd5b1685d15701e0f187dd339d356265d1771c",
+   "eligible": false,
+   "reason": "REFUSE: the superseded candidate's debug twin (trusts the host command line); never booted."
+  }
+ ]
+}

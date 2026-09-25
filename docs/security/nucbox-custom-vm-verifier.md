@@ -58,7 +58,8 @@ controls (windows/vbslike/verify/tpmquote/quote-verify.mjs: replay under a new n
 credential never minted, one minted for another AK name, a PCR 12 record byte, an unpinned EK root) refused; a foreign
 spki, a missing or wrong possession signature, a truncated log, and a quote without PCR 0 refused. The real bytes:
 enclave-d1's boot-68 capture, `windows/vbslike/evidence/quote-20260925-053931/` on `windows/custom-vbs-like-hyperv`
-(e97c967b): EK certificate, transient AK public and name, the activation reply with the recovered credential, the quote,
+(e97c967b): EK certificate, the AK public and name (a NULL-hierarchy primary: the same name for every run within a boot,
+new each boot; enclave-d1), the activation reply with the recovered credential, the quote,
 PCR 0, the boot-68 log (8ee177c4...), and the nonce and minted credential published after the session. The module is
 shipped on `relay/deploy.sh`'s list and imported dynamically with an OFF fallback.
 
@@ -77,6 +78,16 @@ separation), Secure Boot off, test signing on (flag ignored), kernel debugging, 
 truncated log and a missing mint record. Five deliberate regressions (test signing or Secure Boot unchecked, possession
 skipped, PCR 0 not required, the statement unbound) each fail the suite.
 
+**The real full transcript (2026-09-25).** enclave-d1 ran enclave-5d's `windows/node/ops/hvnode-capture.mjs` on the box
+(boot 68, 06:11:16Z; pinned at `test/fixtures/hvnode/capture-20260925-061116` from c54eea70): the node's own
+`windows-hv-node/v1` frame with a throwaway capture key, verified by the relay module in NORMAL mode, all 31 checks passing
+and equal to the verdicts d1 recorded on the box, the boot-68 IDKS and the same NULL-hierarchy AK as the independent
+session; d1's six negatives (replay, a quote-body bit, a possession-signature bit, another transport key, a never-minted
+credential, a substituted statement) each refused (`test/hvnode-verify.test.mjs`). It is a CAPTURE: the nonce and the
+credential were generated in the same process on the box, so it is real-TPM evidence for the verifier, not an independent
+challenge. Every result now states its `scope`: "host attach only: a host-attested boot state; never tenant capacity,
+never an isolation or TEE label".
+
 **Wired, switch OFF (2026-09-25).** `relay/tunnel.js`: a `windows-vbs-enclave/v1` attest is refused by name before
 anything else (`retiredFormat`), whatever the relay's policy holds; the vbs-keys credential round and a
 `windows-hv-node/v1` attest run only when the hub has `attest.hvNode` (the relay sets it from `RELAY_HVNODE_ATTACH`, with
@@ -85,7 +96,12 @@ the pinned EK roots `relay/fixtures/tpm-roots.pem`; unset in production); a veri
 bootCounter, idksModulusSha256, verifiedAt }` while the node's statement stays in the hub. `relay/api-relay.js`: the
 retired `METAL_VBS_*` policy is no longer read (a startup line says so if set) and an hv-node row is ineligible with "host-
 attested boot state (TPM quote: Secure Boot on, test signing off); no isolation evidence, the host is not excluded".
-`relay/local-hub.mjs` attaches a node to a workstation on the same path. Tests: `test/tunnel.test.mjs` (the full
+`relay/local-hub.mjs` attaches a node to a workstation on the same path. `test/relay-hvnode-consumer.test.mjs` runs the
+REAL relay process with the switch on (EK roots from `RELAY_HVNODE_EK_ROOTS`, tests and labs only) and a synthetic node
+that claims capacity and the retired VBS-enclave TEE in its availability and "snp" in its hello: `/enclaves` lists it as
+mode hv-node, not serving, not eligible, with the host-attested reason, its capacity out of the aggregate, and the site's
+`teeCpuOf`/`computeEligibleOf` give it no TEE and no eligibility; the retired format and a relay without the switch refuse.
+Tests: `test/tunnel.test.mjs` (the full
 handshake, the retired format refused on a relay still holding the lab test-signing policy, the switch, and every
 refusal), `test/tenant-compute-eligibility.test.mjs` (an hv-node row is never capacity and never a verified TEE, even
 when its availability still names the VBS enclave), the deploy-closure guard (checked by mutation: the new module off the
@@ -102,7 +118,7 @@ Each line maps to the contract's requirement (R1-R7) and is NOT ESTABLISHED.
 | V1. The report's signature verifies under the IDKS public key taken from the host's replayed boot log, and that log comes from a quote accepted as above, in the SAME boot | R6, R7, trust root | real report bytes; IDKS-signs-the-VM-report is a hypothesis until they verify (d1 O3) |
 | V2. The boot state is accepted (Secure Boot on, test signing off, no debug), from the same quote | trust root | met on boot 68 for the host quote (d1, VERIFIED); never waived |
 | V3. The launch digest is one of the PINNED paravisor images with a measured Linux VTL0 (kernel, initrd, command line) from enclave-53's reproducible build; the probe firmwares and any debug image refused. Windows' own firmware-load policy is no identity: under Secure Boot, Hyper-V loaded our UNSIGNED control IGVM with AllowFirmwareLoadFromFile set (d1, boot 68), so the host can load any IGVM and only the launch digest names what ran | R4, R5 | a VBS IGVM with a measured Linux VTL0 (not built; d1 O2) |
-| V4. Debug and host-trusting images are refused by the EXACT pinned launch digest, never by a flag. enclave-53 measured (2026-09-25, three pinned images, package `windows/vbslike-pkg` 18f17084): igvmfilegen's VBS identity document says `endorsement.build_info.debug_build: false` for images built with `--confidential-debug` exactly as for non-debug ones (it follows the manifest's enable_debug, not `OPENHCL_CONFIDENTIAL_DEBUG=1`, which makes OpenHCL trust the host's command line and turns off confidential diagnostic filtering). Only `vbs_boot_digest` separates the measured-VTL0 candidate (246DEE1B...A89F0) from its debug twin (0677F3C6...01698). A report-level debug indication, if the report has one, is an additional refusal, never a substitute for the digest pin | R5 | the pin list from enclave-53's reproducible build; where debug is visible in the report (open question) |
+| V4. Debug and host-trusting images are refused by the EXACT pinned launch digest, never by a flag. enclave-53 measured (2026-09-25, three pinned images, package `windows/vbslike-pkg` 18f17084): igvmfilegen's VBS identity document says `endorsement.build_info.debug_build: false` for images built with `--confidential-debug` exactly as for non-debug ones (it follows the manifest's enable_debug, not `OPENHCL_CONFIDENTIAL_DEBUG=1`, which makes OpenHCL trust the host's command line and turns off confidential diagnostic filtering). Only `vbs_boot_digest` separates a candidate from its debug twin. The allowlist is therefore enclave-53's reference file, PINNED by commit and hash (`verifier/pins/nucbox-vbs-reference.json` from `windows/vbslike-pkg` 840eb861, sha256 b0541f13...; `verifier/nucbox-reference.mjs` `eligibleDigestsOf`): today exactly one digest, the rebuilt measured-VTL0 candidate A0FDAC0F...BCA244 (not booted yet); refused by exact digest are its confidential-debug twin A650C020... (debugBuild false), the a7b0bd4 control and debug images, the stock image, and the superseded pre-review pair 246DEE1B.../0677F3C6...; a file that marks any of those eligible is refused outright, and debugBuild is never read (`test/verifier-nucbox-reference.test.mjs`). A report-level debug indication, if the report has one, is an additional refusal, never a substitute for the digest pin | R5 | report bytes from a booted candidate; where debug is visible in the report (open question) |
 | V5. The report data binds, by measured code, the verifier's fresh nonce, the hash of the guest-held TLS key, the appId and the runtimeId (the ABI/2 binding), and the TLS key is the one of the verifier's own handshake | R1, R2 | the guest-to-paravisor report path over guest data (vTPM NV index candidate, parked) |
 | V6. The binding request is authenticated to the measured instance: a report over host-chosen data is refused | R3 | the same path, and a measured VTL0 (today's medium is unmeasured: d1 O4) |
 | V7. Replay and cross-VM refused: the nonce is this verifier's and fresh; a report of another partition (another ledger deployment) is refused | tests required | report bytes from two VMs; how the report names the partition (open) |

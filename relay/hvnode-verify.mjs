@@ -38,6 +38,8 @@ export const HVNODE_TECHNOLOGY = "windows-tpm-host";
 export const HVNODE_TIER = "hv-node";
 export const HVNODE_MAX_STATEMENT_BYTES = 16 * 1024;
 export const HVNODE_OMISSIONS = Object.freeze(["platform-firmware-unpinned"]);
+// what an admissible result admits, and nothing more (enclave-d1, 2026-09-25: never app capacity, never an isolation badge)
+export const HVNODE_SCOPE = "host attach only: a host-attested boot state; never tenant capacity, never an isolation or TEE label";
 // formats the relay must refuse outright for this node class, with the reason it states
 export const RETIRED_FORMATS = Object.freeze({
   [VBS_FORMAT]: "the Windows VBS-enclave backend (ee-engine) is retired (Steven, 2026-09-25): the custom type-1 partition is the only NucBox target, and a VBS-enclave report never stands in for a custom-VM report",
@@ -214,7 +216,7 @@ export function verifyHvNodeEvidence({ evidence, nonce, transportKeySpki = null,
   const failed = checks.filter((c) => !c.ok);
   const reasons = failed.map((c) => (c.detail ? `${c.name}: ${c.detail}` : c.name));
   const ok = !reasons.length;
-  return { ok, admissible: ok && !capture, capture: !!capture, format: HVNODE_FORMAT, tier: ok ? HVNODE_TIER : null, technology: HVNODE_TECHNOLOGY, hostExcluded: false, teeCpu: null, measurement: null,
+  return { ok, admissible: ok && !capture, scope: HVNODE_SCOPE, capture: !!capture, format: HVNODE_FORMAT, tier: ok ? HVNODE_TIER : null, technology: HVNODE_TECHNOLOGY, hostExcluded: false, teeCpu: null, measurement: null,
            omissions: [...HVNODE_OMISSIONS], reasons, checks, warnings,
            boot: ok ? { bootCounter: typeof bootCounter === "number" ? bootCounter : null, resetCount: quote ? quote.clockInfo.resetCount : null, idksModulusSha256, secureBoot, testSigning,
                         pcr0: pcr0Hex, pcrs: pcrs ? Object.fromEntries(VBS_REPLAYED_PCRS.map((p) => [p, pcrs.get(p) ? hexOf(pcrs.get(p)) : null])) : null,
