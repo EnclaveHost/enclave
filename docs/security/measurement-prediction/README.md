@@ -40,7 +40,7 @@ predictor is installed (nan) is that second machine: its known-answer test must 
 The sev-snp-measure digest differs between installations, because the entry script names its own venv's interpreter.
 Pin the digest of the installation the relay actually runs.
 
-Mean prediction time is about 12 to 26 s cold per catalog version (two admitted releases) and about 0.2 s cached.
+Prediction time: about 12 to 26 s cold per catalog version (two admitted releases), about 0.2 s cached.
 
 ## Rerunning
 
