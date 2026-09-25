@@ -89,6 +89,9 @@ const readCard = async () => {
 // what the relay's own open timeout already handles.
 let tunnelSend = () => {};
 let tunnelBuffered = () => 0;
+// The ee-host process generation, bumped on every (re)start (start.host). App ids reset to 1 each
+// ee-host boot, so an app carries the generation it was opened in and refuses commands once stale.
+let hostGen = 0;
 const host = new Host({
   dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
@@ -116,6 +119,7 @@ const host = new Host({
   // box advertises no claimEnabled, sells no app hosting, and runs only its owner's own apps.
   // the enclave gate, for an app that runs INSIDE it: host.mjs sends appopen/apphandle/appclose
   hostCmd: (line) => hostCmd(line),
+  hostGen: () => hostGen,   // the current ee-host generation; EnclaveApp stamps and checks it
   precompileExe: process.env.EE_PRECOMPILE || 'C:\\Users\\claude\\vbs\\enclave-rt\\ee-precompile.exe',
   // What an app may have of the enclave's own memory. The enclave is a fixed 2 GB (ee-main.cpp
   // EnclaveSize) and the model, its KV cache and the pads are in there first.
@@ -246,6 +250,10 @@ async function startHost() {
     // A restarted enclave is a NEW enclave: its keys are per boot and every app that was in it is
     // gone. The apps come back on the next tick from the leases this box still holds; the keys are
     // re-attested on the next tunnel handshake, which is what the relay's row already expects.
+    // Bump the generation FIRST: ee-host mints app ids from 1 each boot, so an app opened against
+    // the previous generation must never have its (now-reused) slot number sent to this new one.
+    // EnclaveApp stamps itself with this and refuses app-scoped commands once it is stale.
+    hostGen++;
     run('host', HOST_EXE, args, {});
     waitPort(HOST_PORT, 600_000).then(() => {
       log(`enclave host up on ${HOST_PORT}`);

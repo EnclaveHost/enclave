@@ -602,7 +602,8 @@ export class Host {
         .catch((e) => this.log(`domains ${id.slice(0, 10)}: ${e.message}`));
       const env = this.appEnvFor(id, d, v, { memMb, port, world: want, declared,
                                              config: await this.appConfigResolved(d, v) });
-      app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, memMb, world: want, port, env,
+      app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, hostGen: this.cfg.hostGen,
+                             memMb, world: want, port, env,
                              log: (m) => this.log(`${id.slice(0, 10)} ${m}`) });
       this.apps.set(id, app);
     }
