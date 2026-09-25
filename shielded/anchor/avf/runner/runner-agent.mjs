@@ -27,7 +27,13 @@ export function checkRunnerConfig(c) {
   checkAgentConfig(c.proof);
   const l = c.lifecycle;
   if (!l || typeof l !== "object" || Array.isArray(l)) bad("lifecycle must be an object");
-  for (const k of Object.keys(l)) if (!["register", ...Object.keys(LIFECYCLE_DEFAULTS)].includes(k)) bad(`unknown lifecycle key ${JSON.stringify(k)}`);
+  for (const k of Object.keys(l)) if (!["register", "payout", ...Object.keys(LIFECYCLE_DEFAULTS)].includes(k)) bad(`unknown lifecycle key ${JSON.stringify(k)}`);
+  if (l.payout !== undefined) {   // the owner's: where earnings go, and the least worth a transaction; absent = never withdraw
+    const w = l.payout;
+    if (!w || typeof w !== "object" || Object.keys(w).sort().join() !== "minWithdraw6,to") bad("lifecycle.payout must be exactly { to, minWithdraw6 } (the owner's values)");
+    if (!/^0x[0-9a-f]{40}$/.test(w.to || "") || /^0x0{40}$/.test(w.to)) bad("lifecycle.payout.to must be 0x + 40 lowercase hex, not zero");
+    if (!/^[1-9][0-9]{0,30}$/.test(w.minWithdraw6 || "")) bad("lifecycle.payout.minWithdraw6 must be a decimal > 0");
+  }
   if (l.register !== undefined) {
     const r = l.register;
     if (!r || typeof r !== "object" || Object.keys(r).sort().join() !== "cpuPricePerSec6,measurement,repo") bad("lifecycle.register must be exactly { repo, measurement, cpuPricePerSec6 } (the owner's values)");
@@ -108,6 +114,13 @@ export async function createRunnerAgent({ config, publicClient, account, stateDi
     // 3. the heartbeat
     if (s.regActive && s.headTs - s.regLastSeen >= BigInt(L.heartbeatSec))
       return agent.sendCall({ op: "heartbeat", contract: "registry", functionName: "heartbeat", args: [E], event: "Heartbeat", eventId: E });
+    // 4. earnings, to the owner's payout address, when they reach the owner's minimum (the operator key never keeps them)
+    if (L.payout) {
+      const earned = BigInt(await agent.readLedger("earned6", [me]));
+      if (earned >= BigInt(L.payout.minWithdraw6))
+        return agent.sendCall({ op: "withdrawEarnings", contract: "deployments", functionName: "withdrawEarnings", args: [L.payout.to], event: "EarningsWithdrawn",
+                                match: { operator: me, to: L.payout.to } });
+    }
     return null;
   }
 

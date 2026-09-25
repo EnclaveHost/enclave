@@ -77,6 +77,8 @@ const LEDGER_ABI = parseAbi([
   "function claim(bytes32 id, bytes32 enclaveId)",
   "function renew(bytes32 id)",
   "function release(bytes32 id)",
+  "function earned6(address operator) view returns (uint256)",
+  "function withdrawEarnings(address to)",
   "function get(bytes32 id) view returns ((bytes32 id, address owner, string appRef, string ports, string configCid, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, bool isPublic, bool active, uint64 createdAt, uint256 rate, uint256 balance6, uint256 spent6, bytes32 runner, address runnerOperator, uint64 leaseUntil))",
   "function provenUntil(bytes32 id) view returns (uint64)",
   "function prover() view returns (address)",
@@ -99,6 +101,7 @@ export const LIFECYCLE_EVENTS = parseAbi([
   "event Claimed(bytes32 indexed id, bytes32 indexed enclaveId, address indexed operator, uint64 leaseUntil, uint256 burned6)",
   "event Renewed(bytes32 indexed id, bytes32 indexed enclaveId, uint64 leaseUntil, uint256 burned6)",
   "event Released(bytes32 indexed id, bytes32 indexed enclaveId, uint256 refunded6)",
+  "event EarningsWithdrawn(address indexed operator, address indexed to, uint256 amount6)",
 ]);
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -389,7 +392,8 @@ export async function createProofAgent({ config, publicClient, account, stateDir
       if (r2.status !== "success") return done("reverted", { hash: t.hash, block: Number(r2.blockNumber) });
       if (!p.checkpoint) {   // a lifecycle call: the event it must produce, from the contract it called, for its id
         const want = p.call.event, evs = parseEventLogs({ abi: LIFECYCLE_EVENTS, logs: r2.logs, strict: false })
-          .filter((l) => lc(l.address) === lc(p.call.to) && want.split("|").includes(l.eventName) && (!p.call.eventId || lc(l.args.id) === lc(p.call.eventId)));
+          .filter((l) => lc(l.address) === lc(p.call.to) && want.split("|").includes(l.eventName) && (!p.call.eventId || lc(l.args.id) === lc(p.call.eventId))
+                         && Object.entries(p.call.match || {}).every(([k, v]) => lc(l.args[k]) === lc(v)));
         if (!evs.length) return done("reverted", { hash: t.hash, reason: `mined without its ${want} event` });
         const args = Object.fromEntries(Object.entries(evs.at(-1).args).map(([k, v]) => [k, typeof v === "bigint" ? String(v) : v]));
         return done("landed", { hash: t.hash, block: Number(r2.blockNumber), blockHash: r2.blockHash, event: evs.at(-1).eventName, args, gasUsed: String(r2.gasUsed), nonce: p.nonce });
@@ -531,7 +535,7 @@ export async function createProofAgent({ config, publicClient, account, stateDir
     const head = await publicClient.getBlock({ blockTag: "latest" });
     if (head.baseFeePerGas != null && head.baseFeePerGas > cap()) return { kind: "fee-cap", op: c.op, reason: `the base fee ${head.baseFeePerGas} is above the owner's cap ${cfg.maxFeePerGasWei}` };
     const fees = capped(await publicClient.estimateFeesPerGas());
-    const call = { op: c.op, to: lc(to), data, event: c.event, eventId: c.eventId || null,
+    const call = { op: c.op, to: lc(to), data, event: c.event, eventId: c.eventId || null, ...(c.match ? { match: c.match } : {}),
                    digest: keccak256(stringToBytes(`${c.op}|${lc(to)}|${data}|${randomBytes(16).toString("hex")}`)) };
     note({ ev: "intent", call, simulated: true });
     const nonce = await publicClient.getTransactionCount({ address: me, blockTag: "pending" });

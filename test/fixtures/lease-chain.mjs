@@ -114,6 +114,8 @@ export async function startLeaseChain({ port = 18545 + Math.floor(Math.random() 
     setActive: (id, active, from = tenant) => send(from, ledger, "EnclaveDeployments", "setActive", [id, active]),    // the owner's switch; the runner stays
     setClaimBond: (bond6) => send(deployer, ledger, "EnclaveDeployments", "setClaimBond", [BigInt(bond6), 3600n]),   // the ledger owner's anti-sybil gate
     deployment: (id) => read(ledger, "EnclaveDeployments", "get", [id]),
+    usdcBalance: (who) => read(usdc, "MockUSDC", "balanceOf", [who]),
+    earned6: (who) => read(ledger, "EnclaveDeployments", "earned6", [who]),
     events: (contract, eventName) => pub.getContractEvents({ address: contract === "registry" ? registry : contract === "prover" ? pot : ledger,
                                                               abi: C[contract === "registry" ? "EnclaveRegistry" : contract === "prover" ? "EnclaveProofOfTime" : "EnclaveDeployments"].abi, eventName, fromBlock: 0n }),
     async anchor() { const b = await pub.getBlock(); return { anchorBlock: Number(b.number) - 1, anchorHash: b.parentHash }; },

@@ -15,7 +15,8 @@ const SUITE = "test/pvm-runner-agent.test.mjs";
 const RA = "shielded/anchor/avf/runner/runner-agent.mjs", PA = "shielded/anchor/avf/runner/proof-agent.mjs";
 const T = { life: "the whole lifecycle on a local chain", entry: "the entry:", event: "a mined lifecycle call WITHOUT the event", claim: "the claim:",
             proven: "renew only what is proven", intr: "interrupted and restarted", fresh: "a key goes on-chain only from a FRESH statement", config: "runner config:",
-            fresh2: "setProofKey carries the FRESH statement's key", meas: "the registered measurement is EXACTLY the attested build" };
+            fresh2: "setProofKey carries the FRESH statement's key", meas: "the registered measurement is EXACTLY the attested build",
+            payout: "earnings go to the OWNER's payout address" };
 const MUTATIONS = [
   ["R01", "a lease is renewed whether or not its app is serving", [[RA, "if (!serving) note(", "if (false) note("]], T.proven],
   ["R02", "\"serving\" judged from provenUntil (which trails for the rest of a lease after an outage)", [[RA, "const serving = s.lastProofAt + 2n", "const serving = s.provenUntil + 2n"]], T.intr],
@@ -32,6 +33,8 @@ const MUTATIONS = [
   ["R12", "the registered measurement is not tied to the attested build's pinned code hashes", [[RA, "if (!pinned.includes(r.measurement.slice(2))) bad(", "if (false) bad("]], T.config],
   ["R13", "setProofKey writes the earlier attestation's key, not the fresh statement's (enclave-99's Q2)", [[RA, "args: [E, k], event: \"ProofKeySet\"", "args: [E, key], event: \"ProofKey"+"Set\""]], T.fresh2],
   ["R14", "the config's measurement is published instead of the attested build", [[RA, "      if (measurement !== L.register.measurement)\n", "      if (false)\n"], [RA, "args: [cfg.endpoint, L.register.repo, measurement,", "args: [cfg.endpoint, L.register.repo, L.register.measurement,"]], T.meas],
+  ["R15", "earnings withdrawn below the owner's minimum", [[RA, "if (earned >= BigInt(L.payout.minWithdraw6))", "if (earned > 0n)"]], T.payout],
+  ["R16", "earnings withdrawn to the operator, not the owner's payout address", [[RA, "functionName: \"withdrawEarnings\", args: [L.payout.to]", "functionName: \"withdrawEarnings\", args: [me]"]], T.payout],
   ["R10", "a renew decided from remembered state (the lease re-read skipped after a landing)", [[RA, "    const s = await agent.lease();\n    if (!agent.attested)", "    const s = globalThis.__lastLease || (globalThis.__lastLease = await agent.lease());\n    if (!agent.attested)"]], T.life],
 ];
 
