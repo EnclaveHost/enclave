@@ -34,8 +34,16 @@ Dated 2026-09-25.
    evidence of key custody.
 4. **Measured identity.** The report names the measured paravisor image, and the verifier pins it. How VTL0's own
    payload is bound to that identity is an open question (see below) that must be answered before any claim.
-5. **Debug rejection.** The verifier rejects any report whose policy allows debug, and any image outside the pins
-   (the probe firmwares are already refused by enclave-53's verifier rule).
+5. **Debug rejection.** The verifier accepts ONLY an exact pinned VBS launch digest. It rejects any report whose
+   `policy.debug_allowed` is set, and any image outside the pins (the probe firmwares are already refused by
+   enclave-53's verifier rule). Two debug switches exist, and only one of them shows up in a flag:
+   - `debug_allowed` (`hvdef/src/vbs.rs:93-95`) is the ISOLATION debug switch, the manifest's `enable_debug`;
+   - OpenHCL's confidential debug (`OPENHCL_CONFIDENTIAL_DEBUG=1` in the static line, which makes the paravisor trust
+     the host) does not set it. igvmfilegen's identity document also says `debug_build=false` for confidential-debug
+     images (enclave-53, measured on 726d3cb5 and 81e163ee).
+
+   So neither flag tells a host-trusting image from the candidate. Only the exact digest does, because the static
+   line is in measured bytes. The debug twin's digest (0677F3C6…) is listed by name as a rejection.
 6. **Signer and root.** The verifier checks the report signature against a key whose provenance a remote client can
    establish, and names that key and its root. That is established only by verifying real report bytes.
 7. **Same boot, non-debug.** Every result comes from one boot of the non-debug control platform. Debug-image results
@@ -47,9 +55,10 @@ Dated 2026-09-25.
 - The verifier replays the host's measured-boot log against a TPM quote and takes IDKS from that log.
 - It accepts the boot state only if Secure Boot is ON and test signing is OFF, as Microsoft's documented VBS chain
   requires ("Microsoft-signed components configured in a secure way").
-- **Secure Boot off, or TESTSIGNING measured on, is a rejection condition.** On this box today both hold (PCR 7
-  SecureBoot=00; TESTSIGNING=01 in PCRs 12/13), so a conforming verifier must reject any report from it. Changing that
-  is Steven's decision. It conflicts with the node as it runs now: its enclave engine is test-signed.
+- **Secure Boot off, or TESTSIGNING measured on, is a rejection condition.** On boot 67 both held (PCR 7
+  SecureBoot=00; TESTSIGNING=01 in PCRs 12/13), so a conforming verifier had to reject any report from it. Steven
+  changed that for boot 68 (below). The node's test-signed enclave engine is retired (Steven's direction); the node
+  now starts without it.
 - **"IDKS signs the VbsReport" is a HYPOTHESIS** until real report bytes verify under this boot's IDKS. The signature
   field's size (256 bytes) is consistent with RSA-2048 IDKS; that is all.
 - A signed TPM quote needs a host attestation key, which is also Steven's decision.
@@ -67,12 +76,13 @@ The two rejection conditions are **not present on boot 68**. That is not a pass 
 and earlier is void for same-boot purposes.
 - Service impact: the test-signed enclave engine no longer loads, so the old VBS-enclave service and its apps are
   down.
-- Whether our unsigned OpenHCL IGVM still loads under Secure Boot (`AllowFirmwareLoadFromFile`) is **untested**.
+- Under Secure Boot our unsigned control IGVM loads and serves on type 1 with `AllowFirmwareLoadFromFile` set
+  (enclave-d1 canary 054323), and without it the load is refused (054616, Worker 5142).
 
 From the TPM feasibility work (enclave-d1 878a3074): the host-side chain EK → quote → log → IDKS verifies on real
 bytes for a VBS **enclave** report. IDKS signing a VM report stays a hypothesis.
 
-## Measured VTL0 (source; nothing built or booted)
+## Measured VTL0 (source; one candidate built, none booted)
 
 - igvmfilegen can place our kernel, initrd and VTL0 command line inside the IGVM as measured (`Exclusive`) pages
   (`vm/loader/src/linux.rs:478, 531, 592`; `paravisor.rs:944-951`). The VBS digest hashes the full content of
@@ -84,6 +94,58 @@ bytes for a VBS **enclave** report. IDKS signing a VM report stays a hypothesis.
 - NOT covered: the host-derived memory layout, ACPI and device tree given to VTL0 (`loader/mod.rs:186-197`), and
   the app. The app is loaded at run time, so its identity is the measured monitor's statement, which must itself be
   carried in the report data.
+
+### Review of enclave-53's candidate 5562e71d (2026-09-25; build-only, not booted)
+
+The candidate is `vbs-linux-candidate.bin`, VBS launch digest 246DEE1B…89F0. Its VTL0 is our kernel 363b3553,
+initrd 0d14db23 and the line `console=ttyS0 rdinit=/init loglevel=3 report_host=9001`. The rulings below are from
+source at a7b0bd4. They are not a boot result.
+
+1. **`OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux` in the measured static line: required, and nothing else belongs there.**
+   - The load kind is picked in exactly two ways: this variable, or else the host's DPS (PCAT if
+     `firmware_mode_is_pcat`, UEFI otherwise) (`underhill_core/src/worker.rs:2078-2091`).
+   - The candidate carries no UEFI or PCAT image. Without the variable, the host picks a load path that has nothing
+     to load.
+   - With the variable in measured bytes, the host's DPS cannot send the paravisor to a different VTL0 image.
+   - Nothing else is needed. Microsoft's direct-release manifest adds `OPENHCL_BOOT_LOG=com3` and
+     `OPENHCL_IGVM_VTL2_GPA_POOL_CONFIG=debug`, and the candidate must carry neither, nor any
+     `OPENHCL_CONFIDENTIAL_DEBUG`.
+2. **`static_command_line`: set it to true for the candidate.** This changes the digest, and a not-yet-booted
+   candidate is the cheapest place to change it.
+   - The policy's only consumer is `openhcl_boot/src/host_params/dt/mod.rs:1026-1040`.
+   - With `APPEND_CHOSEN`, the host's line is dropped only when `can_trust_host` is false.
+     `can_trust_host = isolation_type == None || static confidential debug` (`openhcl_boot/src/main.rs:671-672`).
+   - On VBS, `isolation_type` is a RUNTIME read of the partition's isolation privilege (CPUID 0x40000003), not a
+     measured value (`openhcl_boot/src/arch/x86_64/vsm.rs:9-19`).
+   - `STATIC` makes the paravisor's kernel command line exactly the measured bytes on every launch, whatever that read
+     returns.
+   - It makes no difference on a type-1 launch, because the host's line is dropped there already.
+   - The same read still gates trust in the host's alias map (`dt/mod.rs:1158`) and COM3 logging (`main.rs:264`). So
+     the hypervisor's report of the partition privilege is in the trusted base. That is the trusted lower layer
+     Steven's bar assumes anyway.
+   - The debug twin can keep the same manifest plus `--confidential-debug`. It then only loses host-appended
+     arguments.
+3. **VTL2 memory: keep `memory_page_count` 16384 at `memory_page_base` 32768.**
+   - This is Microsoft's cvm-release value for all three CVM platforms.
+   - The VTL2 contents are the booted control's own components (the twin reproduces the control's digest).
+   - enclave-53's layout map places the paravisor's kernel, shim, initrd and tables at 0x8200000-0x9EAD000, about
+     29 MiB of the 64 MiB VTL2 range 0x8000000-0xC000000.
+   - Our Linux VTL0 is imported entirely below it, at 0x1000000-0x5CED000, plus the measured config and VTL0
+     command-line pages at 0x0-0x2000.
+   - Choosing Linux instead of UEFI changes only the measured VTL0 config page inside VTL2.
+   - Untested: VTL2's run-time heap with a Linux VTL0. If that fails, it fails at boot, and the debug twin reads it.
+   - The VM's memory must cover GPA 0xC000000 plus VTL0's working set.
+
+**Still host-supplied at run time, and so NOT in the digest** (enclave-d1's question (a)):
+- the VTL2 device tree and the topology it carries (CPUs, memory map, MMIO; an IGVM parameter area the host fills);
+- the ACPI tables and memory map that the paravisor builds for VTL0 from it;
+- the DPS, except the load kind, which ruling 1 fixes;
+- VMBus offers;
+- the vTPM's contents.
+
+The guest's identity is its digest alone. The monitor's boundary tuple must not gain anything from these inputs, and
+any of them that matters for safety (memory size, CPU count) is checked by the guest, never taken on trust. None of
+this gives the candidate a customer chain: requirements 2, 3 and 6 are untouched, and `host_excluded=no`.
 
 ## Tests required before any claim
 
