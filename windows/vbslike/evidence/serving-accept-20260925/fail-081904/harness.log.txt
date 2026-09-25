@@ -1,0 +1,36 @@
+08:19:04 === MANAGER ACCEPTANCE (windows\vbslike\manager\ops\restart-accept.mjs). Lifecycle and recovery only: NOT an isolation or attestation result; host_excluded=no. ===
+08:19:04 setting before: Absent; IGVM C:\Users\claude\vbs-like\pkg\69262a44e7e13901\guest\igvm-vbs\vbs-linux-candidate-g1-a44bb55a.bin verified a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4; tree C:\Users\claude\d1-hvacc-0b7652c8\tree
+08:19:04 watchdog armed (pid 10096, ceiling 1800s)
+08:19:04 SETTING APPLIED for this run
+08:19:04 hv_sock service 00002329-facb-11e6-bd58-64006a7986d3 registered for port 9001 (removed again in cleanup)
+08:19:04 config: {"gsMaster":"C:\\Users\\claude\\vbs-like\\type1.vmgs","name":"0xd1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55","hvlab":{"nodeTree":"C:\\Users\\claude\\d1-hvacc-0b7652c8\\tree","script":"C:\\Users\\claude\\d1-hvacc-0b7652c8\\hvlab-accept.mjs","dataPort":18092,"timeoutS":300},"igvmSha256":"a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4","gsMasterSha256":"4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d","tree":"C:\\Users\\claude\\d1-hvacc-0b7652c8\\tree","runtimeIdentity":"C:\\Users\\claude\\vbs-like\\pkg\\69262a44e7e13901\\guest\\runtime.json","wmiserveSha256":"15338081b81692a155130ec28e37fa654117a3e769427b621404fff3d6c6bca4","wmiserveExe":"C:\\Users\\claude\\vbs-like\\pkg\\69262a44e7e13901\\control\\candidate-launcher\\vbslike-host-15338081.exe","igvm":"C:\\Users\\claude\\vbs-like\\pkg\\69262a44e7e13901\\guest\\igvm-vbs\\vbs-linux-candidate-g1-a44bb55a.bin","hypervModule":"C:\\Users\\claude\\hyperv.psm1","python":"C:\\Python314\\python.exe","logDir":"C:\\Users\\claude\\vbs-evidence\\mgraccept-20260925-081904","archiveDir":"C:\\Users\\claude\\vbs-evidence","bundleDir":"C:\\Users\\claude\\vbs-evidence\\mgraccept-20260925-081904\\bundles","spawnJson":"C:\\Users\\claude\\vbs-like\\pkg\\69262a44e7e13901\\apps\\hello-world-1.0.4\\spawn.json","gateway":"https://ipfs.enclave.host","port":18091}
+08:20:35   DRIVER: manager #1 pid 15088
+08:20:35   DRIVER: PHASE 1: hvlab-accept against http://127.0.0.1:18091 (data plane 127.0.0.1:18092)
+08:20:35   DRIVER:   HVLAB: manager http://127.0.0.1:18091: backend=hyperv-partition-per-app canStart=true tier=T0-hv hostExcluded=false partition="wmi-openhcl-gen2-igvm-linux" derivations=["enclave-catalog-bundle/1"]
+08:20:35   DRIVER:   HVLAB: [tunnel] hvacc-node attached via token (1 enclave)
+08:20:35   DRIVER:   HVLAB-ERR: [tunnel] hvacc-node claimed publicUrl http://127.0.0.1:58653/t/hvacc-node — IGNORED (not this tunnel's own https://<relay>/t/hvacc-node route); its on-chain runner id stays unstamped
+08:20:35   DRIVER:   HVLAB: ensureApp: status=failed after 23.3 s, instance=undefined key= image= tier=undefined hostExcluded=undefined reason="isolation: 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e ended as failed: the domain's attestation document was not accepted (verdict reject): report format/tier"
+08:20:35   DRIVER:   HVLAB: FAIL ensureApp reaches running through the node's own path: status=failed instance=undefined
+08:20:35   DRIVER:   HVLAB: FAIL the record's labels are this tier's: T0-hv, the host NOT excluded: tier=undefined hostExcluded=undefined
+08:20:35   DRIVER:   HVLAB: FAIL the run: not running; nothing further can be exercised
+08:20:35   DRIVER:   HVLAB:   node: [node-1] 0x4e62e60d isolated domain retired (isolation: 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e ended as failed: the domain's attestation document was not accepted (verdict reject): report form
+08:20:35   DRIVER:   HVLAB:   node: [node-1] giving up on 0x4e62e60d: isolation: 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e ended as failed: the domain's attestation document was not accepted (verdict reject): report format/tier
+08:20:35   DRIVER:   HVLAB: HVLAB-ACCEPT 3 FAILED
+08:20:35   DRIVER: PHASE 1 RESULT: exit 1, HVLAB-ACCEPT 3 FAILED
+08:20:35   DRIVER: PHASE 2: restart recovery (serving: A2s and A7 apply)
+08:20:35   DRIVER: manager #2 pid 12992
+08:20:35   DRIVER: PASS A0: inventory ready and empty; no manager-owned VM on this host
+08:20:35   DRIVER: PASS A1: POST 201 in 8301 ms, id hvace40344dbd51644b65143a8d0784423, status starting, partition wmi-openhcl-gen2-igvm-linux, hostExcluded false
+08:20:35   DRIVER: PASS A2: 1 VM(s) carry id hvace40344dbd51644b65143a8d0784423: enclave-app-hvace40344dbd516-9c3d10f1 9536e78d-94f1-437a-937b-14c0b8048ff8 Running
+08:20:35   DRIVER: FAIL A2s: status failed, relay port 63348, TCP accepts, launcherKey named, image a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4, statement {"partition":"wmi-openhcl-gen2-igvm-linux","guestImageKind":"igvm-linux-direct"}, reason "the domain's attestation document was not accepted (verdict reject): report format/tier"
+08:20:35   DRIVER: PASS A3: manager gone; the VM is Running
+08:20:35   DRIVER: PASS A7: relay port 63348 refuses: the relay died with the manager
+08:20:35   DRIVER: manager #3 pid 14812
+08:20:35   DRIVER: PASS A4: GET 200: recovered true, status starting, appReady false, relay null, hostExcluded false
+08:20:35   DRIVER: PASS A5: second POST 409 naming hvace40344dbd51644b65143a8d0784423; VMs with this id 1, manager-owned VMs 1
+08:20:35   DRIVER: PASS A6: DELETE 200; VMs with this id 0; GET after 404
+08:20:35   DRIVER: RESTART-ACCEPT 1 FAILED
+08:20:35   DRIVER: ACCEPTANCE: phase 1 FAIL, phase 2 FAIL
+08:20:36 SETTING RESTORED to Absent (verified)
+08:20:36 hv_sock service 00002329-facb-11e6-bd58-64006a7986d3 removed (verified)
+08:20:36 === RESULT: driver exit 1, harness exit 2 (0 passed; 3 refused; 2 driver failed, cleanup clean; 1 cleanup failed). Evidence: C:\Users\claude\vbs-evidence\mgraccept-20260925-081904 ===

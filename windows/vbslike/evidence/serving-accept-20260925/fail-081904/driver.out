@@ -1,0 +1,27 @@
+manager #1 pid 15088
+PHASE 1: hvlab-accept against http://127.0.0.1:18091 (data plane 127.0.0.1:18092)
+  HVLAB: manager http://127.0.0.1:18091: backend=hyperv-partition-per-app canStart=true tier=T0-hv hostExcluded=false partition="wmi-openhcl-gen2-igvm-linux" derivations=["enclave-catalog-bundle/1"]
+  HVLAB: [tunnel] hvacc-node attached via token (1 enclave)
+  HVLAB-ERR: [tunnel] hvacc-node claimed publicUrl http://127.0.0.1:58653/t/hvacc-node — IGNORED (not this tunnel's own https://<relay>/t/hvacc-node route); its on-chain runner id stays unstamped
+  HVLAB: ensureApp: status=failed after 23.3 s, instance=undefined key= image= tier=undefined hostExcluded=undefined reason="isolation: 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e ended as failed: the domain's attestation document was not accepted (verdict reject): report format/tier"
+  HVLAB: FAIL ensureApp reaches running through the node's own path: status=failed instance=undefined
+  HVLAB: FAIL the record's labels are this tier's: T0-hv, the host NOT excluded: tier=undefined hostExcluded=undefined
+  HVLAB: FAIL the run: not running; nothing further can be exercised
+  HVLAB:   node: [node-1] 0x4e62e60d isolated domain retired (isolation: 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e ended as failed: the domain's attestation document was not accepted (verdict reject): report form
+  HVLAB:   node: [node-1] giving up on 0x4e62e60d: isolation: 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e ended as failed: the domain's attestation document was not accepted (verdict reject): report format/tier
+  HVLAB: HVLAB-ACCEPT 3 FAILED
+PHASE 1 RESULT: exit 1, HVLAB-ACCEPT 3 FAILED
+PHASE 2: restart recovery (serving: A2s and A7 apply)
+manager #2 pid 12992
+PASS A0: inventory ready and empty; no manager-owned VM on this host
+PASS A1: POST 201 in 8301 ms, id hvace40344dbd51644b65143a8d0784423, status starting, partition wmi-openhcl-gen2-igvm-linux, hostExcluded false
+PASS A2: 1 VM(s) carry id hvace40344dbd51644b65143a8d0784423: enclave-app-hvace40344dbd516-9c3d10f1 9536e78d-94f1-437a-937b-14c0b8048ff8 Running
+FAIL A2s: status failed, relay port 63348, TCP accepts, launcherKey named, image a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4, statement {"partition":"wmi-openhcl-gen2-igvm-linux","guestImageKind":"igvm-linux-direct"}, reason "the domain's attestation document was not accepted (verdict reject): report format/tier"
+PASS A3: manager gone; the VM is Running
+PASS A7: relay port 63348 refuses: the relay died with the manager
+manager #3 pid 14812
+PASS A4: GET 200: recovered true, status starting, appReady false, relay null, hostExcluded false
+PASS A5: second POST 409 naming hvace40344dbd51644b65143a8d0784423; VMs with this id 1, manager-owned VMs 1
+PASS A6: DELETE 200; VMs with this id 0; GET after 404
+RESTART-ACCEPT 1 FAILED
+ACCEPTANCE: phase 1 FAIL, phase 2 FAIL
