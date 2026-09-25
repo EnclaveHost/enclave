@@ -19,6 +19,8 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -27,7 +29,7 @@ import (
 
 func TestTheRelayRootsArePinned(t *testing.T) {
 	var got []string
-	for _, p := range [][]byte{isrgRootX1, isrgRootX2} {
+	for _, p := range embeddedRoots {
 		b, rest := pem.Decode(p)
 		if b == nil || len(bytes.TrimSpace(rest)) != 0 {
 			t.Fatal("an embedded root is not exactly one PEM certificate")
@@ -43,6 +45,45 @@ func TestTheRelayRootsArePinned(t *testing.T) {
 	}
 	if RelayHost != "api.enclave.host" {
 		t.Fatalf("the relay origin moved: %s", RelayHost)
+	}
+}
+
+// The pinned set covers both issuers AS SERVED: the Let's Encrypt chain api.enclave.host presented and the ZeroSSL
+// chain a *.app.enclave.host presented on 2026-09-25 (public certificates, captured with openssl s_client) each build
+// to a pinned root. Chain building is checked at a time inside the certificates' validity, and names are not.
+func TestThePinnedRootsCoverBothIssuersAsServed(t *testing.T) {
+	roots, err := RelayRoots()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"chain-letsencrypt-api.enclave.host-20260925.pem", "chain-zerossl-4e62e60d.app.enclave.host-20260925.pem"} {
+		raw, err := os.ReadFile(filepath.Join("testdata", f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var certs []*x509.Certificate
+		for b, rest := pem.Decode(raw); b != nil; b, rest = pem.Decode(rest) {
+			c, err := x509.ParseCertificate(b.Bytes)
+			if err != nil {
+				t.Fatal(err)
+			}
+			certs = append(certs, c)
+		}
+		if len(certs) < 2 {
+			t.Fatalf("%s: %d certificates", f, len(certs))
+		}
+		inter := x509.NewCertPool()
+		for _, c := range certs[1:] {
+			inter.AddCert(c)
+		}
+		at := certs[0].NotBefore.Add(24 * time.Hour)
+		if _, err := certs[0].Verify(x509.VerifyOptions{Roots: roots, Intermediates: inter, CurrentTime: at}); err != nil {
+			t.Fatalf("%s does not build to a pinned root: %v", f, err)
+		}
+		// and it does NOT build without the pinned set (the system pool is not what is being tested)
+		if _, err := certs[0].Verify(x509.VerifyOptions{Roots: x509.NewCertPool(), Intermediates: inter, CurrentTime: at}); err == nil {
+			t.Fatalf("%s built to an empty root pool", f)
+		}
 	}
 }
 
