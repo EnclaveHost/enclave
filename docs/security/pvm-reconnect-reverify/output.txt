@@ -1,0 +1,18 @@
+$ node reverify-reconnect.mjs results/pvm-cpu-relay-reconnect-u7 main-root-pins.txt
+ok   the run's root pins are exactly main's production pins (cedb1cb6dc89, 6d9db4ce6c5c)
+ok   every owner-co-signed attach re-verifies independently (10/10): chain to a production Google root, leaf signature over B, sha256(B) and the build attested, the owner's instance over B, the operator over name+nonce
+ok   ONE transport key across every attach (1)
+ok   no nonce co-signed twice
+ok   every chain (10 attaches + 5 statement chains) hangs off ONE AVF parent (e8306eadf4da)
+ok   R3: the wrong operator's signature recovers to that key; the stale one is an earlier owner signature that, over the new nonce, recovers to someone else
+PASS independent re-verification (pvm-cpu-relay-reconnect-u7)
+
+$ node reverify-reconnect.mjs results/pvm-cpu-relay-reconnect main-root-pins.txt
+ok   the run's root pins are exactly main's production pins (cedb1cb6dc89, 6d9db4ce6c5c)
+ok   every owner-co-signed attach re-verifies independently (10/10): chain to a production Google root, leaf signature over B, sha256(B) and the build attested, the owner's instance over B, the operator over name+nonce
+ok   ONE transport key across every attach (1)
+ok   no nonce co-signed twice
+ok   every chain (10 attaches + 5 statement chains) hangs off ONE AVF parent (e8306eadf4da)
+ok   R3: the wrong operator's signature recovers to that key; the stale one is an earlier owner signature that, over the new nonce, recovers to someone else
+PASS independent re-verification (pvm-cpu-relay-reconnect)
+
