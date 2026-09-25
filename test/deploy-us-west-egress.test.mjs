@@ -150,3 +150,23 @@ test("usage: an unknown flag, or two aliases, is refused before anything is cont
     assert.equal(r.code, 2, `${args}: ${r.out}`); assert.deepEqual(r.calls, []);
   }
 });
+
+test("the token reaches the remote ONLY on stdin: in no argv (local or remote), in no output, quoted so a quote cannot break out", () => {
+  for (const [host, args] of [["identical", []], ["absent", ["--bootstrap"]]]) {
+    const r = run(world({ host }), args);
+    assert.equal(r.code, 0, r.out);
+    for (const c of r.calls) assert.ok(!JSON.stringify(c).includes(TOKEN), `the token is in an argv: ${JSON.stringify(c).slice(0, 160)}`);
+    assert.ok(!r.out.includes(TOKEN), "nor in the script's output");
+    const remote = r.calls.find((c) => c.tool === "ssh" && c.cmd.includes("bash -s"));
+    assert.equal(remote.cmd, "bash -s", "the remote command is exactly `bash -s`");
+    assert.equal(r.stdin.split("\n")[0], `TOKEN=${TOKEN}`, "the token is the remote script's first line, on stdin");
+  }
+  // a token with a quote and a command substitution in it stays one inert assignment (bash's own %q, parsed by bash)
+  const W = world({ host: "absent" }), nasty = "t'o\"k$(touch /tmp/pwned)`id`";
+  const env = { PATH: `${W.bin}:${process.env.PATH}`, HOME: W.w, EGRESS_RELAY_TOKEN: nasty, STUB_LOG: W.log, STUB_ROOT: W.root, STUB_STDIN: W.stdin };
+  const r = spawnSync("bash", [path.join(W.co, "scripts/deploy-us-west-egress.sh"), "--bootstrap"], { encoding: "utf8", env, timeout: 60_000 });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const first = fs.readFileSync(W.stdin, "utf8").split("\n")[0];
+  const back = spawnSync("bash", ["-c", `${first}; printf %s "$TOKEN"`], { encoding: "utf8" });
+  assert.equal(back.stdout, nasty, "bash reads the line back as exactly the token, and runs nothing");
+});
