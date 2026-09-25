@@ -188,6 +188,7 @@ export function makePredictor(o) {
     !/^https:\/\//.test(String(gateway || "")) && "an https gateway", !sevSnpMeasure && "sev-snp-measure",
     !HEX(64).test(String(sevSnpMeasureSha256 || "")) && "sev-snp-measure's pinned digest", !work && "a work directory",
     !admit.length && "at least one admitted release",
+    ...[...(o.toolPath || []), ...(o.seedComponents || [])].filter((d) => d && !path.isAbsolute(d)).map((d) => `an absolute tool/seed directory (not ${d})`),
     ...admit.filter((id) => !HEX(64).test(id) || !releases.has(id)).map((id) => `admitted release ${id.slice(0, 12)} installed`),
   ].filter(Boolean);
 

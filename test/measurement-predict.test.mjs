@@ -458,6 +458,14 @@ test("read-only SEED components (verified against their CIDs, copied into the wr
   } finally { fs.chmodSync(seed, 0o755); }
 });
 
+test("tool-path and seed directories must be absolute (a relative PATH entry would resolve against a job's cwd)", () => {
+  for (const opts of [{ toolPath: ["go/bin"] }, { seedComponents: ["./components"] }]) {
+    const { p } = predictor({ opts });
+    assert.ok(p.problems.some((x) => /an absolute tool\/seed directory/.test(x)), JSON.stringify(opts));
+  }
+  assert.equal(predictor({ opts: { toolPath: ["/opt/x/go/bin"], seedComponents: ["/opt/x/components"] } }).p.problems.length, 0);
+});
+
 test("runBounded: a hung tool is killed with its whole process group at the timeout; output is capped", async () => {
   const t0 = Date.now();
   const r = await P.runBounded("sh", ["-c", "sleep 30 & sleep 30; echo never"], { env: { PATH: process.env.PATH }, timeoutMs: 300 });
