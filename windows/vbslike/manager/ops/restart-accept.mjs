@@ -161,7 +161,7 @@ export async function runRestartAccept({ ctl, spawnBody, name, say = console.log
 
 /* ---- the command line: the real main.mjs as a child process, the real launcher's survey ---------------------- */
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8").replace(/^﻿/, ""));
+  const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8").replace(/^\uFEFF/, ""));
   const tree = cfg.tree;
   const { WmiHyperVLauncher, parseNotes } = await import(pathToFileURL(path.join(tree, "windows/vbslike/manager/wmi-launcher.mjs")).href);
   const { powershellRunner } = await import(pathToFileURL(path.join(tree, "windows/vbslike/manager/psrun.mjs")).href);
@@ -171,7 +171,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const ctl = {
     parseNotes,
     survey: () => surveyor.survey(),
-    async startManager() {
+    async startManager(extraEnv = {}) {
       n++;
       const log = fs.openSync(path.join(cfg.logDir, `manager-${n}.log`), "a");
       child = spawn(process.execPath, [path.join(tree, "windows/vbslike/manager/main.mjs")], {
@@ -182,7 +182,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
                ENCLAVE_RUNTIME_IDENTITY: cfg.runtimeIdentity, PYTHON_BIN: cfg.python, IPFS_GATEWAY: cfg.gateway,
                PYTHONPATH: path.join(tree, "wasm"),
                ...(cfg.wmiserveExe ? { ENCLAVE_WMISERVE_EXE: cfg.wmiserveExe, ENCLAVE_WMISERVE_EXE_SHA256: cfg.wmiserveSha256,
-                                       ENCLAVE_BUNDLE_DIR: cfg.bundleDir } : {}) } });
+                                       ENCLAVE_BUNDLE_DIR: cfg.bundleDir } : {}), ...extraEnv } });
       console.log(`manager #${n} pid ${child.pid}`);
       return base;
     },
@@ -193,8 +193,44 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       await Promise.race([gone, sleep(15_000)]);
     },
   };
-  const spawnBody = JSON.parse(fs.readFileSync(cfg.spawnJson, "utf8").replace(/^﻿/, ""));
+  const spawnBody = JSON.parse(fs.readFileSync(cfg.spawnJson, "utf8").replace(/^\uFEFF/, ""));
   delete spawnBody.id;                                     // the manager mints ids; the package's label is not one
+
+  // PHASE 1 (optional, cfg.hvlab): enclave-5d's hvlab-accept.mjs against THIS manager, started with the data plane on.
+  // It drives the node's real ensureApp, app zone and tunnel hub to a browser TLS session inside the partition, with the
+  // refusals, a forced relaunch and a node restart. Its verdict is its own last line; a missing PASS is not a pass.
+  let phase1 = null;
+  if (cfg.hvlab) {
+    const h = cfg.hvlab;
+    const base1 = await ctl.startManager({ ENCLAVE_DATAPLANE_PORT: String(h.dataPort) });
+    await inventoryReady(base1, 240_000);
+    console.log(`PHASE 1: hvlab-accept against ${base1} (data plane 127.0.0.1:${h.dataPort})`);
+    const out = [];
+    const code = await new Promise((resolve) => {
+      const c = spawn(process.execPath, [h.script], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, HVACC_NODE_TREE: h.nodeTree, HVACC_MANAGER: base1, HVACC_DATA: `127.0.0.1:${h.dataPort}`,
+               HVACC_LAUNCHER_KEY: "record", HVACC_EXPECT_HV_ISOLATION: "vbs", HVACC_JUDGE: path.join(h.nodeTree, "windows/vbslike/verify/judge-hv.mjs"),
+               HVACC_RUNTIME: cfg.runtimeIdentity, HVACC_TIMEOUT_S: String(h.timeoutS || 300), PYTHONPATH: path.join(h.nodeTree, "wasm"),
+               HVACC_PYTHON: cfg.python, IPFS_GATEWAY: cfg.gateway } });
+      const line = (pre) => (d) => { for (const l of String(d).split(/\r?\n/)) if (l.trim()) { out.push(l); console.log(`${pre}${l}`); } };
+      c.stdout.on("data", line("  HVLAB: ")); c.stderr.on("data", line("  HVLAB-ERR: "));
+      c.on("close", resolve);
+    });
+    const last = out.filter((l) => /^HVLAB-ACCEPT /.test(l)).at(-1) || "(no HVLAB-ACCEPT line)";
+    phase1 = { code, last, pass: code === 0 && /^HVLAB-ACCEPT ALL PASS/.test(last) };
+    console.log(`PHASE 1 RESULT: exit ${code}, ${last}`);
+    await ctl.killManager();
+    const left = (await ctl.survey()).vms.filter((v) => ctl.parseNotes(v.notes).owned);
+    if (left.length) {
+      console.log(`PHASE 1 LEFT ${left.length} manager-owned VM(s): ${left.map((v) => v.name).join(", ")}`);
+      console.log("RESTART-ACCEPT REFUSED: phase 1 left VMs behind; phase 2 needs a clean start");
+      process.exit(1);
+    }
+  }
+
+  console.log("PHASE 2: restart recovery" + (cfg.wmiserveExe ? " (serving: A2s and A7 apply)" : ""));
   const r = await runRestartAccept({ ctl, spawnBody, name: cfg.name, serve: !!cfg.wmiserveExe });
-  process.exitCode = r.refused ? 3 : r.ok ? 0 : 1;
+  const ok = r.ok && (!phase1 || phase1.pass);
+  console.log(`ACCEPTANCE: phase 1 ${phase1 ? (phase1.pass ? "PASS" : "FAIL") : "not run"}, phase 2 ${r.refused ? "REFUSED" : r.ok ? "PASS" : "FAIL"}`);
+  process.exitCode = r.refused ? 3 : ok ? 0 : 1;
 }
