@@ -49,16 +49,22 @@ const RENEW_LEAD_MS = 15 * 60_000;
 export const RESPAWN_BUDGET = 3;
 export const RESPAWN_WINDOW_MS = 60 * 60 * 1000;
 
+// A manager-stated value, as it appears in a refusal reason: at most 64 characters. The reason is recorded, shown on the
+// console and persisted with a block (host-state.json), so a lying manager must not be able to grow any of them without
+// bound (enclave-99). Consumers escape it anyway: the node is not trusted by the tenant.
+const stated64 = (v) => { const t = JSON.stringify(v ?? null) ?? "null"; return t.length > 64 ? `${t.slice(0, 61)}...` : t; };
+
 export function isolationBoundaryRefusal(inst) {
   if (!inst || typeof inst !== "object") return "the manager returned no instance view";
+  const who = inst.id == null ? "the instance" : stated64(String(inst.id)).replace(/^"|"$/g, "");
   const stated = "hostExcludedAsStated" in inst ? inst.hostExcludedAsStated : inst.hostExcluded;
   if (inst.hostExcluded !== false || (stated !== undefined && stated !== false)) {
-    return `the manager's view of ${inst.id ?? "the instance"} states hostExcluded=${JSON.stringify(stated ?? null)}; `
+    return `the manager's view of ${who} states hostExcluded=${stated64(stated)}; `
          + "this backend is T0-hv with the host NOT excluded, and nothing here verifies more, so it is not served";
   }
   const tier = typeof inst.tier === "string" ? inst.tier.toUpperCase().replace(/^T0-HV$/, "T0-hv") : null;
   if (tier !== "T0-hv") {
-    return `the manager's view of ${inst.id ?? "the instance"} states tier ${JSON.stringify(inst.tier ?? null)}; `
+    return `the manager's view of ${who} states tier ${stated64(inst.tier)}; `
          + "this backend's tier is T0-hv, and a view stating another is not served";
   }
   return null;
