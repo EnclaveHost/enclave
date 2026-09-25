@@ -1,0 +1,19 @@
+20:56:36Z step 1 (20260925T205636Z): serving nodes before: 1
+20:56:37Z step 1 done: the env appended and the drop-in installed; the old relay is unchanged
+20:56:47Z step 2: pushing aeb345e649c432e7184d6fada6aef034529a6510 to main (fast-forward from 779e5944ad7b48b38aed0a9c2b9b37bb85518e21)
+20:56:58Z step 2: Deploy run 36188755371
+20:59:22Z step 2: jobs: contracts-notice=skipped contracts=skipped detect=success relay=success release=skipped site=skipped
+20:59:22Z step 2: detect flags: catalog=false contracts_any=false cpu_release=false deployments=false enclavepay=false mps=false paymentrouter=false registry=false relay=true release=false site=false wasm=false worker=false 
+20:59:22Z WATCH 1 ok: the relay job deployed to nan-relay only
+20:59:22Z step 2 done: Deploy run 36188755371, relay job success
+20:59:35Z api-relay: active, NRestarts 0, since Fri 2026-09-25 20:59:08 UTC, invocation d7a7d48710b6
+20:59:36Z ACCEPT FAIL: /v1/enclaves is not 200
+20:59:36Z KAT: [measurement-predict] known-answer test at start: PASS: 2 known answer(s) reproduced exactly
+20:59:36Z serving nodes: 1 (before 1)
+21:00:34Z MemoryPeak 731303936
+21:00:45Z RELAY SLICE NOT ACCEPTED: decide the rollback (rs-rollback-config.sh, then rs-rollback-code.sh)
+21:01:44Z api-relay: active, NRestarts 0, since Fri 2026-09-25 20:59:08 UTC, invocation d7a7d48710b6
+21:01:46Z KAT: [measurement-predict] known-answer test at start: PASS: 2 known answer(s) reproduced exactly
+21:01:47Z serving nodes: 1 (before 1)
+21:01:51Z MemoryPeak 731303936
+21:02:02Z RELAY SLICE ACCEPTED

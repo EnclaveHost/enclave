@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Post-activation acceptance, READ-ONLY, run from any host with curl + node (no key needed). Exits non-zero on any miss.
 #   accept.sh [API base, default https://api.enclave.host]
 # 1. each live canary's expected guest (the relay's PREDICTION) contains the canary's own chip-attested measurement and
@@ -9,7 +9,16 @@ API=${1:-https://api.enclave.host}
 fail=0
 # the canaries: deployment id, AppID and measurement from their chip-signed reports (docs/security/measurement-prediction/evidence)
 while read -r id app meas; do
-  body=$(curl -sS --max-time 40 "$API/v1/expected-guest?id=$id") || { echo "FAIL $id: unreachable"; fail=1; continue; }
+  # a fresh relay predicts COLD (the endpoint waits at most 3 s, then 503 warming + retryAfterSec): retry a 503 for up to
+  # 4 minutes, honouring retryAfterSec; any other answer is final
+  body=""; end=$(( $(date +%s) + 240 ))
+  while :; do
+    body=$(curl -sS --max-time 40 -w '\n%{http_code}' "$API/v1/expected-guest?id=$id") || body=$'\n000'
+    code=${body##*$'\n'}; body=${body%$'\n'*}
+    [ "$code" = 503 ] && [ "$(date +%s)" -lt "$end" ] || break
+    after=$(node -e 'try { const a = JSON.parse(process.argv[1]).retryAfterSec; process.stdout.write(String(Number.isInteger(a) && a > 0 && a <= 60 ? a : 5)); } catch { process.stdout.write("5"); }' "$body")
+    echo "..   ${id:0:10}: 503 (warming), retry in ${after}s" >&2; sleep "$after"
+  done
   node -e '
     const [b, app, meas] = process.argv.slice(1); let r; try { r = JSON.parse(b); } catch { r = {}; }
     const hit = r.appId === app && (r.images || []).find((i) => i.measurement === meas && i.runtimeId === "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8");
