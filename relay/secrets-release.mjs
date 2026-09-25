@@ -204,6 +204,9 @@ function missingFor(ctx, cfg) {
           ...(typeof ctx.predictorProblems === "function" ? ctx.predictorProblems() : [])].filter(Boolean);
 }
 // a prediction refusal as an answer: the relay's own inability (503) or the version's (403)
+// the supervisor's DEP_CONFIG_CID_RE and DEP_MANIFEST_KEYS (supervisor.js): what a config CID looks like, and the only keys
+// an inline config may carry beside one (the routing manifest)
+const CONFIG_CID_RE = /^[A-Za-z0-9]{10,100}$/, MANIFEST_KEYS = ["volumes"];
 const PREDICTION_503 = new Set(["warming", "busy", "prediction_unavailable", "catalog_unreachable", "component_unavailable", "prediction_failed", "predictor_unconfigured"]);
 // how long a release waits for a prediction still being computed before answering 503 warming (its ticket kept)
 const PREDICT_WAIT_MS = 10_000;
@@ -320,6 +323,21 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   let o;
   try { o = envelope ? JSON.parse(envelope) : {}; if (!o || typeof o !== "object" || Array.isArray(o)) throw new Error("x"); }
   catch { tickets.delete(tk); bad(422, "bad_envelope", "The deployment's options envelope is not a JSON object."); return true; }
+  // the envelope's config namespaces exactly as the supervisor's parseDepOptions admits them (enclave-d1): a present
+  // configCid is a bare CID; a present config is a plain object without _media and, beside a CID, only the routing manifest
+  // (volumes). Key PRESENCE decides, not truthiness: {"configCid":"", "config":{…}} is refused, never read as "no CID".
+  const envRefusal = (() => {
+    if ("configCid" in o && (typeof o.configCid !== "string" || !CONFIG_CID_RE.test(o.configCid)))
+      return "the envelope's configCid is not a bare CID (10-100 alphanumeric characters)";
+    if ("config" in o) {
+      const c = o.config;
+      if (!c || Array.isArray(c) || typeof c !== "object") return "the envelope's config is not a JSON object";
+      if ("_media" in c) return "the envelope's config carries the reserved _media key";
+      if ("configCid" in o) { const extra = Object.keys(c).filter((k) => !MANIFEST_KEYS.includes(k)); if (extra.length) return `beside a configCid the envelope's config may only carry ${MANIFEST_KEYS.join("/")}`; }
+    }
+    return null;
+  })();
+  if (envRefusal) { tickets.delete(tk); bad(422, "bad_envelope", `${envRefusal}.`); return true; }
   let config = null, source = null;
   const resolveCid = async (cid, whose) => {
     if (typeof ctx.resolveConfigCid !== "function") throw Object.assign(new Error("This relay cannot resolve a configCid."), { code: 503, error: "config_unresolvable" });
@@ -328,12 +346,16 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     return got;
   };
   try {
-    if (o.config !== undefined || o.configCid !== undefined) {
-      if (o.configCid) { config = await resolveCid(o.configCid, "The deployment's"); source = "the envelope's configCid"; }
-      else if (o.config !== undefined) { config = o.config; source = "the envelope's config"; }
+    if ("config" in o || "configCid" in o) {
+      if ("configCid" in o) { config = await resolveCid(o.configCid, "The deployment's"); source = "the envelope's configCid"; }
+      else { config = o.config; source = "the envelope's config"; }
     } else {
       const ver = await ctx.versionConfigFor(id);
-      if (ver && ver.configCid) { config = await resolveCid(ver.configCid, "The version's"); source = "the version's configCid"; }
+      if (ver && ver.configCid) {
+        if (typeof ver.configCid !== "string" || !CONFIG_CID_RE.test(ver.configCid))
+          throw Object.assign(new Error("The version's configCid is not a bare CID."), { code: 422, error: "bad_config" });
+        config = await resolveCid(ver.configCid, "The version's"); source = "the version's configCid";
+      }
       else if (ver && ver.config !== undefined && ver.config !== null && ver.config !== "") { config = ver.config; source = "the version's config"; }
     }
     if (source) config = configValue(config);
@@ -362,8 +384,7 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     report = Buffer.from(doc.report, "base64");
   } catch (e) { bad(422, "bad_evidence", e.message); return true; }
   const v = await ctx.verifyGuestEvidence(doc, { allowedMeasurements: measurements, minTcb: cfg.minTcb, expectedVmpl: cfg.vmpl,
-                                                 expectedBinding: binding, expectedAppId: appId, expectedHostData: idBytes(id),
-                                                 bindingDomain: BINDING_DOMAIN_LABEL });
+                                                 expectedBinding: binding, expectedAppId: appId, expectedHostData: idBytes(id) });
   if (!v || v.status !== "verified") {
     console.warn(`[secrets-release] ${id}: evidence REFUSED: ${(v && v.reasons && v.reasons.at(-1)) || "no verdict"}`);
     bad(403, "evidence_refused", (v && v.reasons && v.reasons.at(-1)) || "The guest's evidence did not verify."); return true;
