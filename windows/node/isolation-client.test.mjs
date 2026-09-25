@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { IsolationManagerClient, IsolationError, instanceAlive, instanceServing, attestedCapacity } from "./isolation-client.mjs";
+import { reconcile } from "./isolation-lifecycle.mjs";
 
 const DEP = "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b";
 const APPID = "9c3d10f1".padEnd(64, "0");
@@ -172,4 +173,38 @@ test("a manager that never answers is a timeout, not a hang", async () => {
   const hang = { fetchImpl: (url, init) => new Promise((_, rj) => init.signal.addEventListener("abort", () => rj(new Error("aborted")))) };
   const c = new IsolationManagerClient({ base: "http://127.0.0.1:8091", fetchImpl: hang.fetchImpl, timeoutMs: 40 });
   await assert.rejects(() => c.spawn(supervisorBody()), (e) => e.kind === "timeout");
+});
+
+// A domain a restarted manager RECOVERED from Hyper-V is alive and never serves under that manager (enclave-d1
+// 53672cbe). The node holds it: no second spawn, no removal, no release, whether it is found at the first look or
+// turns recovered while reconcile waits (a restart mid-wait, P1c).
+const noRelease = () => { const released = []; return { released, release: async (id, why) => { released.push([id, why]); } }; };
+const fast = { pollMs: 1, deadlineMs: 200, sleep: async () => {} };
+
+test("a recovered domain found at the first look is HELD: nothing spawned, removed or released", async () => {
+  const m = manager();
+  m.live.set("hv" + "7".repeat(32), view({ id: "hv" + "7".repeat(32), recovered: true, reason: "recovered after a manager restart" }));
+  const led = noRelease();
+  const r = await reconcile({ client: client(m), deployment: { id: DEP, body: supervisorBody() }, ledger: led, ...fast });
+  assert.equal(r.action, "held"); assert.equal(r.leaseFree, false);
+  assert.equal(r.instance.recovered, true, "the client carries recovered through");
+  assert.match(r.reason, /recovered from Hyper-V/);
+  assert.deepEqual(m.seen.filter((x) => x.method !== "GET"), [], "no POST and no DELETE");
+  assert.deepEqual(m.seen.filter((x) => x.path.startsWith("/vms/")), [], "held at the first look, before any poll");
+  assert.deepEqual(led.released, []);
+});
+
+test("a domain that turns recovered while reconcile waits is HELD at once, not retired at the deadline", async () => {
+  const id = "hv" + "8".repeat(32);
+  let gets = 0;
+  const m = manager({ routes: {
+    "GET /vms": async () => ({ status: 200, body: [view({ id })] }),
+    [`GET /vms/${id}`]: async () => ({ status: 200, body: view({ id, recovered: ++gets > 1 }) }),
+  } });
+  const led = noRelease();
+  const r = await reconcile({ client: client(m), deployment: { id: DEP, body: supervisorBody() }, ledger: led, ...fast });
+  assert.equal(r.action, "held", r.reason); assert.equal(r.leaseFree, false);
+  assert.equal(gets, 2, "held on the first recovered answer, not polled to the deadline");
+  assert.deepEqual(m.seen.filter((x) => x.method === "DELETE" || x.method === "POST"), []);
+  assert.deepEqual(led.released, []);
 });

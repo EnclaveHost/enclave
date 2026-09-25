@@ -172,6 +172,10 @@ export class IsolationManagerClient {
       verdict: o.verdict ?? null,
       relay: o.relay ?? (o.tcpPort ? { host: "127.0.0.1", port: o.tcpPort } : null),
       error: o.error ?? null,
+      // a domain a RESTARTED manager rebuilt from Hyper-V: alive, and never to serve under that manager
+      // (its relay and readiness belonged to the old process). The lifecycle holds it; see reconcile.
+      recovered: o.recovered === true,
+      reason: o.reason ?? null,
     };
   }
 }
