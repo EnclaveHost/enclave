@@ -1,0 +1,15 @@
+--- s4-guestd-install.sh.v4	2026-09-25 12:56:20.435426211 -0700
++++ s4-guestd-install.sh	2026-09-25 13:14:04.757694205 -0700
+@@ -18,10 +18,10 @@
+ [ "$avail" -ge 40960 ] || { say4 "REFUSING: MemAvailable ${avail} MiB is under the 40 GiB guard for a build beside the guests"; exit 6; }
+ awk 'BEGIN{f=1} /^some /{for(i=1;i<=NF;i++) if($i ~ /^avg60=/){split($i,a,"="); f=(a[2]+0==0)?0:1}} END{exit f}' /proc/pressure/memory || { say4 "REFUSING: memory PSI avg60 not 0"; exit 6; }
+ W=$(mktemp -d)
+-cleanup() { git -C $MAIN worktree list --porcelain | grep -qxF "worktree $W/src" && flock /tmp/enclave-git-cleanup.lock git -C $MAIN worktree remove --force "$W/src"; rm -rf "$W"; }
++cleanup() { local wl; wl=$(git -C $MAIN worktree list --porcelain 2>/dev/null || true); grep -qxF "worktree $W/src" <<<"$wl" && flock /tmp/enclave-git-cleanup.lock git -C $MAIN worktree remove --force "$W/src"; rm -rf "$W"; }
+ trap cleanup EXIT
+ flock /tmp/enclave-git-cleanup.lock git -C $MAIN worktree add -q --detach "$W/src" "$BINC"
+-gb() { ( cd "$W/src/isolation/m4/guestd" && systemd-run --user --scope --quiet -p MemoryMax=8G nice -n 10 env -u GOFLAGS "$@" go build -trimpath -o "$OUTB" . ); }
++gb() { ( cd "$W/src/isolation/m4/guestd" && systemd-run --user --scope --quiet -p MemoryMax=8G nice -n 10 env -u GOFLAGS GOENV=off "$@" go build -trimpath -o "$OUTB" . ); }
+ OUTB="$W/g1" gb || { say4 "1c FAILED: build 1"; exit 7; }
+ mkdir -p "$W/cache2"; OUTB="$W/g2" gb GOCACHE="$W/cache2" || { say4 "1c FAILED: build 2 (empty cache)"; exit 7; }
+ [ "$(sha256sum < "$W/g1")" = "$(sha256sum < "$W/g2")" ] || { say4 "1c FAILED: the guestd builds differ"; exit 7; }
