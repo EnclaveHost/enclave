@@ -38,6 +38,9 @@
    able to prove they booted the same bytes.
    ============================================================ */
 import path from "node:path";
+import { BOOT_STATEMENTS, bootFormOfStatement } from "../verify/boot-statements.mjs";
+import fs from "node:fs";
+import { runWmiserve, writeBundle, freePort } from "./wmiserve-run.mjs";
 
 /*  THE VM MUST BE CREATED WITH A GUEST-STATE ISOLATION TYPE, or FirmwareFile is inert.
  *
@@ -87,16 +90,9 @@ export const BOUNDARY = Object.freeze({
  *
  * Keyed by the boot-form strings themselves (BOOT_UEFI, BOOT_LINUX_DIRECT below), so no forward reference is needed.
  */
-export const BOOT_STATEMENTS = Object.freeze({
-  "uefi-medium": Object.freeze({ partition: "wmi-openhcl-gen2", guestImageKind: "uefi-medium" }),
-  "linux-direct": Object.freeze({ partition: "wmi-openhcl-gen2-igvm-linux", guestImageKind: "igvm-linux-direct" }),
-});
-/** The boot form a (partition, guestImageKind) pair states: EXACT equality with one row, else null. No prefixes. */
-export function bootFormOfStatement(partition, guestImageKind) {
-  for (const [form, st] of Object.entries(BOOT_STATEMENTS))
-    if (partition === st.partition && guestImageKind === st.guestImageKind) return form;
-  return null;
-}
+// The table itself lives in verify/boot-statements.mjs, shared with judge-hv and the data plane; re-exported here so
+// this module's API is unchanged.
+export { BOOT_STATEMENTS, bootFormOfStatement };
 /** The boundary word for one boot form: BOUNDARY with that form's canonical partition name. */
 export function boundaryFor(boot) {
   const st = BOOT_STATEMENTS[boot];
@@ -137,9 +133,12 @@ export function uefiImageIdentity({ mediumSha256, mediumPath, ukiSha256 = null, 
  *
  * The paravisor loads our kernel, initrd and VTL0 command line from INSIDE the IGVM, where they are
  * measured (the recipe's -LinuxDirect mode). So the IGVM is everything that booted - and it is NOT
- * a medium. It is deliberately NOT called `guestImageSha256`: judge-hv compares that field against
- * the MEDIUM it shipped and the datapath compares `image` as a medium hash, and an IGVM digest in
- * either place would be a different kind of identity answering a question it was not asked.
+ * a medium. Its hash is the handle's `image` (the same value wmiserve's signed report puts in
+ * partition.guestImageSha256 under platform.partition "wmi-openhcl-gen2-igvm-linux"), and it is only ever
+ * compared TOGETHER with the (partition, guestImageKind) statement (verify/boot-statements.mjs): judge-hv
+ * and the data plane refuse the same 64 hex under the other partition or kind, and never compare an
+ * image alone (enclave-d1 + enclave-99). A launcher statement, not identity: what ran is only the
+ * paravisor report's launch digest against the pinned allowlist.
  */
 export function linuxDirectIdentity({ igvmSha256, igvmPath = null }) {
   if (!/^[0-9a-f]{64}$/.test(String(igvmSha256 || "").toLowerCase()))
@@ -151,11 +150,6 @@ export function linuxDirectIdentity({ igvmSha256, igvmPath = null }) {
     igvmPath: igvmPath ?? null,
   });
 }
-/** Why a linux-direct handle's `image` is null, said on the handle so nobody has to infer it. */
-export const LINUX_DIRECT_IMAGE_ABSENT =
-  "linux-direct: no medium is attached. The guest's kernel, initrd and command line are inside the measured IGVM, "
-  + "so its identity is guestIdentity.igvmSha256 - which is NOT a medium hash, and is kept out of `image` so the "
-  + "datapath cannot compare it as one. The datapath therefore refuses this domain for want of a medium identity.";
 
 /** How the guest boots. STATED by whoever constructs the launcher, never inferred from what else is set. */
 export const BOOT_UEFI = "uefi-medium";
@@ -772,7 +766,7 @@ export class WmiHyperVLauncher {
   constructor({ run, imagePath, imageSha256, boot = null, medium = null, mediumSha256 = null,
                 guestStateMaster = null, guestStateMasterSha256 = null, guestStateRunDir = null, guestStateArchiveDir = null,
                 hypervModule = null, hypervModuleSha256 = HYPERV_MODULE_SHA256, hypervUtilitiesSha256 = null,
-                prefix = "enclave-app-", pipeFor = null }) {
+                prefix = "enclave-app-", pipeFor = null, serve = null }) {
     if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
     // THE BOOT FORM IS STATED. Inferring it from whether a medium happens to be set would let a
     // missing variable silently turn a medium boot into a linux-direct one, and the identity with it.
@@ -807,6 +801,9 @@ export class WmiHyperVLauncher {
     // prefix match, so a duplicate name or a neighbour sharing the prefix is never removed by us.
     this.created = new Set();
     this.pipeFor = pipeFor || ((name) => `\\\\.\\pipe\\${name}-com1`);
+    // THE APP AND ITS RELAY (wmiserve-run.mjs, enclave-5d), opt-in: { exe, bundleDir, portFor?, readyTimeoutMs?, run? }.
+    // Without it this launcher boots the VM and stops there, exactly as before (no relay, and the domain stays starting).
+    this.serve = serve;
   }
 
   async #ps(script) {
@@ -826,6 +823,8 @@ export class WmiHyperVLauncher {
     if (!this.hypervModule) miss.push("no hyperv.psm1 path: petri's New-CustomVM is what defines the VM");
     if (!this.guestStateMaster) miss.push("no guest-state master: this host refuses a type-1 VM without a VMGS, and New-CustomVM supplies none");
     if (!this.guestStateArchiveDir) miss.push("no guest-state archive directory: each run's VMGS copy is archived after its VM is removed");
+    if (this.serve && !this.serve.exe) miss.push("serve is set with no wmiserve executable: nothing could load the app");
+    if (this.serve && !this.serve.bundleDir) miss.push("serve is set with no bundle directory: the manager writes each instance's bundle there");
     return miss;
   }
   /** Retirement needs a run directory and an archive; without both, nothing is retired (and nothing was made). */
@@ -944,7 +943,7 @@ export class WmiHyperVLauncher {
     if (!guestStateRun) throw new Error(`no per-run guest-state path can be made for ${name}`);
     const vcpus = Math.max(1, Math.floor(mapping.record.policy.vcpus));
     const memMiB = type1VmMemMiB(mapping.record.policy.memMiB);   // the VM's RAM, not the app's share
-    let created = null;
+    let created = null, served = null;
     try {
       created = await this.#ps(CMD.defineType1({
         name, memMiB, vcpus, notes, pipe, boot: this.boot,
@@ -975,18 +974,21 @@ export class WmiHyperVLauncher {
       if (!booted)
         throw new Error(`the VM is Running but the guest produced no output on ${pipe} within ${guestReadySec}s: a silent partition is not a booted one`);
 
-      // `image` is the guest's identity as a 64-hex STRING, and ONLY for a medium boot: the medium's
-      // hash as it was hashed AT ATTACH TIME on the host (uefiImageIdentity), never the firmware's and
-      // never an object. For linux-direct there is no medium, so `image` is null WITH ITS REASON, and
-      // the identity is the IGVM's pinned sha256 under its own name (linuxDirectIdentity).
+      // `image` is a 64-hex STRING, never an object and never the firmware's hash on a medium boot: the
+      // medium's hash as hashed AT ATTACH TIME (uefiImageIdentity), or for linux-direct the IGVM's pinned
+      // sha256 (linuxDirectIdentity), because the IGVM is what booted. Either way it travels with
+      // guestIdentity's (partition, guestImageKind) statement, and judge-hv and the data plane compare the
+      // pair first and the image second, never the image alone.
       const uefi = this.boot === BOOT_UEFI;
+      // THE APP AND ITS RELAY, when this launcher was given wmiserve to run (enclave-5d, wmiserve-run.mjs): the bundle
+      // into the guest over hv_sock 9000, the report service for THIS VM, and a loopback TCP relay to the domain.
+      if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB });
       const guestIdentity = uefi
         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
         : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
       return { instanceId, name, vmId: created.id, pipe, state: started.state,
                boot: this.boot, isolationType: 1,
-               image: uefi ? guestIdentity.guestImageSha256 : null,
-               ...(uefi ? {} : { imageAbsentReason: LINUX_DIRECT_IMAGE_ABSENT }),
+               image: uefi ? guestIdentity.guestImageSha256 : guestIdentity.igvmSha256,
                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
                vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
                memory: { policyMiB: mapping.record.policy.memMiB, vmMiB: memMiB,
@@ -1000,13 +1002,14 @@ export class WmiHyperVLauncher {
                guest: { booted, bytes: con.bytes, head: String(con.head || "").slice(0, 400), readyLine: con.sawUntil === true,
                         attach: { early: con.early === true, ms: con.attachMs ?? null } },
                appReady: false,
-               // NO RELAY, and deliberately so for now. Nothing here loads the app into the guest or
-               // starts a host relay (in the dev recipe that is `vbslike-host wmiserve`: the bundle over
-               // hv_sock 9000, the report on 9001, a TCP relay to the guest). So this handle carries no
-               // `tcpPort`/`relay`, server.mjs sets no rec.relay, the data plane has nothing to route to,
-               // and the domain stays `starting`. That gap is known and is left exactly as it is here.
-               stop: async () => await this.stop({ name, vmId: created.id }) };
+               // THE RELAY, when served: the manager judges readiness through tcpPort with launcherKey (the report is
+               // judged against guestIdentity's pair and `image`), and routes to it. Without `serve` there is none, the
+               // domain stays `starting`, and nothing is routed, exactly as before.
+               ...(served ? { tcpPort: served.tcpPort, launcherKey: served.launcherKey, domainId: served.domainId,
+                              guestPort: served.guestPort, boot: served.boot, relayNote: served.note, wmiserve: served } : {}),
+               stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served }) };
     } catch (e) {
+      if (served) { e.relay = await this.#closeServed(served); }       // before its VM goes
       const vmId = created && GUID.test(String(created.id || "")) ? String(created.id) : null;
       let swept;
       if (vmId) {
@@ -1038,8 +1041,32 @@ export class WmiHyperVLauncher {
     }
   }
 
+  /** The app into the guest and a relay to it (wmiserve-run.mjs). Its bundle file is removed if this fails. */
+  async #serveApp({ mapping, instanceId, vmId, uefi, created, vcpus, memMiB }) {
+    const s = this.serve;
+    const bundleFile = writeBundle({ dir: s.bundleDir, instanceId, bundle: mapping.bundle, appId: mapping.appId });
+    try {
+      const tcpPort = await (s.portFor ? s.portFor(instanceId) : freePort());
+      const run = await (s.run || runWmiserve)({ exe: s.exe, vmId, bundleFile, appId: mapping.appId, tcpPort,
+        ...(uefi ? { mediumSha256: created.mediumSha256 } : { igvmSha256: created.firmwareSha256 }),
+        isolationType: 1, label: instanceId, vcpus, memMiB,
+        ...(s.readyTimeoutMs ? { readyTimeoutMs: s.readyTimeoutMs } : {}), ...(s.spawn ? { spawn: s.spawn } : {}) });
+      run.bundleFile = bundleFile;
+      return run;
+    } catch (e) { fs.rmSync(bundleFile, { force: true }); throw e; }
+  }
+  /** Close a relay and remove its bundle file; the outcome, never a throw. */
+  async #closeServed(run) {
+    const closed = await run.stop().catch((x) => ({ closed: false, how: `stop failed: ${x.message}` }));
+    try { if (run.bundleFile) fs.rmSync(run.bundleFile, { force: true }); } catch (x) { closed.bundle = `not removed: ${x.message}`; }
+    return closed;
+  }
+
   /** Stop, and SAY when it did not: "ok" for a VM that is still running is how one gets orphaned. */
   async stop(handle) {
+    // The relay and report service first (wmiserve closes on a stdin line), then the VM. Its outcome is REPORTED on the
+    // result and never blocks the removal: a relay that will not close is killed, and the VM must go either way.
+    const relay = handle && handle.wmiserve ? await this.#closeServed(handle.wmiserve) : null;
     if (handle && handle.vmId) {
       // BY ID, and removed, not just turned off: a stopped VM that keeps its identity notes would be
       // recovered as live by the next manager, and a VM left Off is one nobody owns (63's P2).
@@ -1051,7 +1078,7 @@ export class WmiHyperVLauncher {
       }
       if (handle.name) this.created.delete(handle.name);
       const out = { stopped: true, removed: r && r.removed === true, name: handle.name ?? null, vmId: handle.vmId,
-                    ...(r && r.found === false ? { note: "already gone" } : {}) };
+                    ...(r && r.found === false ? { note: "already gone" } : {}), ...(relay ? { relay } : {}) };
       // The VM is gone: archive and remove its per-run guest state. A failure here is REPORTED on the
       // result, not thrown - the domain has stopped, and saying otherwise would be the lie in reverse.
       if (this.#retires() && handle.name)
