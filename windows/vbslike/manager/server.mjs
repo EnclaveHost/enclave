@@ -83,6 +83,12 @@ export class Manager {
     this.readyDeadlineMs = readyDeadlineMs;
     this.domains = new Map();
     this.judging = new Map();                   // id -> the readiness promise, so tests can await it
+    // Called when a domain stops being ours to serve: the data plane closes its established
+    // sessions. main.mjs wires it to dataPlaneFor(...).closeInstance. It was SET there and never
+    // CALLED here (enclave-5d, by grepping the whole tree) - so a removed domain's sessions stayed
+    // open and kept carrying traffic to something that no longer existed. A stop that does not stop
+    // the traffic is not a stop.
+    this.onReclaim = null;
   }
 
   /**
@@ -120,7 +126,11 @@ export class Manager {
       rec.transportKeySha256 = v.transportKeySha256 ?? null;
       rec.verdict = v.checks?.document?.verdict ?? null;
       if (v.status === "running") { rec.status = "running"; rec.appReady = true; rec.reason = null; }
-      else { rec.status = "failed"; rec.appReady = false; rec.reason = v.reason || "not ready"; }
+      else {
+        rec.status = "failed"; rec.appReady = false; rec.reason = v.reason || "not ready";
+        // a domain that failed readiness must not keep serving established sessions either
+        this.#reclaim(rec.id, "failed readiness");
+      }
       rec.readyChecks = v.checks ?? null;
     } catch (e) {
       if (!this.domains.has(rec.id)) return;
@@ -268,6 +278,15 @@ export class Manager {
    * still running - an orphan the manager no longer listed and nobody could find. A stop that did
    * not succeed leaves the record in place, marked, and reports the failure.
    */
+  /**
+   * Tell the data plane a domain is no longer ours to serve, so its established sessions are
+   * closed. Never throws into the caller: by the time this runs the domain is already gone, and a
+   * data plane that is down must not turn a completed removal into a failure.
+   */
+  #reclaim(id, why) {
+    try { this.onReclaim?.(id, why); } catch { /* the domain is gone either way */ }
+  }
+
   async remove(id) {
     const r = this.domains.get(id);
     if (!r) return { removed: false, absent: true };
@@ -280,6 +299,9 @@ export class Manager {
     }
     r.status = "stopped";
     this.domains.delete(id);
+    // AFTER the stop is confirmed, never before: closing sessions for a domain that is still
+    // running would cut live traffic to something that is still there.
+    this.#reclaim(id, "removed");
     return { removed: true, absent: false };
   }
 }
