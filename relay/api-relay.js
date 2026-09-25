@@ -2286,23 +2286,32 @@ const predictorProblems = () => [...predictor().problems,
 // CRL, the caller's TCB floor and VMPL, report_data = the release binding and the AppID, HOST_DATA = the deployment. AMD
 // collateral comes from KDS through the reverify cache directory (a cached VCEK is re-verified to the pinned ARK on read).
 let _guestVerifier = null;
-async function verifyGuestEvidence(doc, { allowedMeasurements, minTcb, expectedVmpl, expectedBinding, expectedAppId, expectedHostData }) {
+async function guestVerifier() {
   if (!_guestVerifier) {
     const bundle = await import("./vendor/enclave-verifier-node.mjs");
     let collateral;
     try { fs.mkdirSync(RELAY_REVERIFY_CACHE_DIR, { recursive: true }); collateral = bundle.cachedCollateral({ dir: RELAY_REVERIFY_CACHE_DIR, upstream: bundle.httpCollateral({ timeoutMs: 8000 }) }); }
     catch { collateral = bundle.httpCollateral({ timeoutMs: 8000 }); }
-    _guestVerifier = { verify: bundle.verifyGuestDomainEvidence, collateral };
+    _guestVerifier = { verify: bundle.verifyGuestDomainEvidence, prewarm: bundle.prewarmSnpCollateral, collateral };
   }
-  return _guestVerifier.verify(doc, { policy: { snp: { allowedMeasurements, minTcb, expectedVmpl } },
+  return _guestVerifier;
+}
+async function verifyGuestEvidence(doc, { allowedMeasurements, minTcb, expectedVmpl, expectedBinding, expectedAppId, expectedHostData }) {
+  const g = await guestVerifier();
+  return g.verify(doc, { policy: { snp: { allowedMeasurements, minTcb, expectedVmpl } },
     context: { transportKeySpki: Buffer.from(doc.transportKey, "base64"), expectedBinding, expectedAppId, expectedHostData, now: new Date().toISOString() },
-    collateral: _guestVerifier.collateral });
+    collateral: g.collateral });
+}
+// the same collateral, fetched BEFORE a release ticket is consumed (secrets-release.mjs): unavailable = 503, ticket kept
+async function prewarmCollateral(doc) {
+  const g = await guestVerifier();
+  return g.prewarm(doc, g.collateral);
 }
 // the RuntimeID of the runtime identity a guest states (isolation/contract/runtime.go: sha256 of its canonical JSON); it
 // is admitted only when it equals an admitted domain release's own
 const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
 const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
-                   expectedGuestFor, predictorProblems, runtimeIdOf, confirmRow, verifyGuestEvidence, versionConfigFor, resolveConfigCid,
+                   expectedGuestFor, predictorProblems, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)
