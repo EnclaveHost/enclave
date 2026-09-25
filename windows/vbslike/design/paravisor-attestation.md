@@ -55,9 +55,72 @@ none of them.
 | T7 key custody | a report over a TLS key whose private half the guest never held |
 | T8 control | the non-debug control image produces an acceptable report; otherwise T1-T7 test nothing |
 
-## Candidate path (pending the source trace)
+## Candidate path: the vTPM guest-attestation interface (source-read, NOT run)
 
-To be filled from the a7b0bd4 source with file:line citations, then reviewed by enclave-5d.
+From the pinned openvmm a7b0bd4 tree. Citations were checked by enclave-d1 against that tree and
+are pending enclave-5d's review. SAYS means the code states it; INFER is reasoning. Nothing here
+has been executed on the box.
+
+**The interface exists and is guest-initiated (SAYS).**
+1. The guest creates NV index `0x01400002` (`TPM_NV_INDEX_GUEST_ATTESTATION_INPUT`,
+   `vm/devices/tpm/tpm_protocol/src/lib.rs:43-45`) under owner, and writes 64 bytes to it.
+2. The guest issues `NV_Read` of `0x01400001` (`TPM_NV_INDEX_ATTESTATION_REPORT`, `:39-41`) at
+   offset 0. The vTPM refreshes the report BEFORE executing that read
+   (`vm/devices/tpm/tpm_device/src/lib.rs:1644-1648`).
+3. The refresh reads the 64 bytes (`:1138-1153`, all zeros if the index is absent) and asks VTL2
+   for a VBS report through `HvCallVbsVmCallReport` (`openhcl/tee_call/src/lib.rs:375-391`).
+4. It is rate-limited to once per 2 s. A rate-limited read returns the PREVIOUS report with only a
+   log warning (`tpm_device/src/lib.rs:1398-1414`). A nonce check (T2) catches that.
+
+**What the report binds (SAYS).** `report_data[0..32]` is SHA-256 of a JSON document and
+`[32..64]` is zero (`openhcl/underhill_attestation/src/igvm_attest/mod.rs:173-179`). The JSON is
+`{keys: [HCLAkPub, HCLEkPub], vm-configuration, user-data: hex(the guest's 64 bytes)}`
+(`openhcl/openhcl_attestation_protocol/src/igvm_attest/get.rs:341-351, 369-388`).
+`vm-configuration` is host-supplied and must not be trusted.
+
+**What the guest reads back (SAYS).** A 2900-byte blob containing, in order:
+- an `HCLA` header;
+- the 0x230-byte `VbsReport`, holding `report_data[64]`, an identity (`measurement`, `signer`,
+  `owner_id`, `host_data`, `policy.debug_allowed`, SVN and IDs) and `signature[256]`
+  (`vm/hv1/hvdef/src/vbs.rs:13, 33-72, 88-97`);
+- request data;
+- the JSON.
+
+**Against the properties:**
+
+| # | property | this path | what is missing, precisely |
+|---|---|---|---|
+| P1 | supported path | yes: an existing guest-facing vTPM interface in our pinned paravisor | nothing, pending a run |
+| P2 | signer and root | **unknown** | Nothing in the tree verifies a `VbsReport` signature or names its key. The code calls it "software-attested" (`tpm_device/src/ak_cert.rs:19-25`). Needs real bytes plus the platform's documentation. |
+| P3 | freshness | yes, through `user-data` | the 2 s rate limit serves stale reports; the verifier must check the nonce |
+| P4 | app and runtime identity | yes, if the guest puts them in its 64 bytes | nothing, pending a run |
+| P5 | key custody | only if P6 holds | see P6 |
+| P6 | guest-to-paravisor association | **NO** (INFER) | The measurement covers VTL2 and the UEFI image in the IGVM (`vm/loader/src/uefi/mod.rs:439-457`), not the runtime UEFI config or what UEFI boots, which includes our medium. A host can boot the same measured IGVM with its own VTL0 and obtain a genuine report over data it chose. |
+| P7 | same-boot binding | capture the host TCG log in the same run (the boot script already does) | the link between the report's signer and that log is unknown until P2 |
+| P8 | debug rejection | pin the release measurement AND require `policy.debug_allowed == 0` (INFER) | what sets `debug_allowed` is not in the tree |
+
+**The vTPM's AK carries no trust here (INFER from SAYS).** The AK is re-derived each boot from
+the TPM seeds, so it is the same key every boot (`tpm_device/src/lib.rs:663-671`). With "No VMGS
+encryption used", the TPM NVRAM, seeds included, is written to the host-held VMGS in plaintext
+(`vm/vmgs/vmgs/src/vmgs_impl.rs:690-701`). So AK quotes and PCRs are host-forgeable, and trust can
+come only from the `VbsReport` signature.
+
+**Proposed order (pending enclave-5d):**
+1. Capture only. A PROBE medium on the non-debug control image creates `0x01400002`, writes a
+   verifier-chosen 64-byte value, reads `0x01400001` twice more than 2 s apart, and emits the raw
+   bytes over COM1, alongside the same-boot host TCG log. This turns E2 from inference into bytes
+   and gives P2 real material. It needs a TPM driver in our VTL0 kernel (asked of enclave-53).
+2. The P6 prerequisite, before any binding means anything: our VTL0 code must be inside the
+   measurement. The legitimate route to investigate is carrying our kernel, initrd and command
+   line inside the measured IGVM instead of on a medium UEFI boots. Whether igvmfilegen supports
+   that for VBS is not yet checked.
+
+## Reconciliation with enclave-5d's contract (`isolation/m3/PARAVISOR-ATTESTATION-CONTRACT.md`, dd31cada)
+
+- The contract requires the report to name the measured paravisor image and the verifier to pin
+  it, and to reject any image outside the pins. This draft adopts both, under P8 and P6.
+- This draft adds a key-custody refusal test (T7) and a positive control (T8), which the
+  contract's test list does not have. Sent to enclave-5d rather than edited into its file.
 
 ## Out of scope and still parked
 
