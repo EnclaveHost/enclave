@@ -1,0 +1,194 @@
+{
+  "generatedAt": "2026-09-25T19:39:53.633Z",
+  "block": "51787913",
+  "rpcs": [
+    "https://base-rpc.publicnode.com",
+    "https://base.drpc.org"
+  ],
+  "addressBook": "0xab214342d5A490150A4A977063A2f88E21F80907",
+  "deployments": "0xF9e71385C5cB49844F2457ba6567De0742f8B89a",
+  "appCatalog": "0x18419CA2b502D423A8de6269AEeE171a378626e3",
+  "deploymentsSchema": "13",
+  "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "poolMiB": 65536,
+  "relay": "https://api.enclave.host",
+  "note": "UNSIGNED. For the owner to sign LAST, after canary acceptance (S6). Each is setConfig(id, envelope) with only `isolation` added.",
+  "payloads": [
+    {
+      "deployment": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "short": "7ae476a3",
+      "chainId": 8453,
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0xF9e71385C5cB49844F2457ba6567De0742f8B89a",
+      "value": "0",
+      "function": "setConfig(bytes32,string)",
+      "args": {
+        "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+        "configCid": "{\"network\":{\"relay\":\"us-west\"},\"isolation\":{\"require\":\"snp-guest-per-app\"}}"
+      },
+      "data": "0xdf6e40ba7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce330000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000004b7b226e6574776f726b223a7b2272656c6179223a2275732d77657374227d2c2269736f6c6174696f6e223a7b2272657175697265223a22736e702d67756573742d7065722d617070227d7d000000000000000000000000000000000000000000",
+      "dataSha256": "ace5a28322bc3990d3a9c7708ae7d13c595a643fc2f76dbcbb4c0c627042ee2a",
+      "envelopeBefore": "{\"network\":{\"relay\":\"us-west\"}}",
+      "envelopeAfter": "{\"network\":{\"relay\":\"us-west\"},\"isolation\":{\"require\":\"snp-guest-per-app\"}}",
+      "envelopeAfterBytes": 75,
+      "simulation": {
+        "block": "51787913",
+        "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+        "results": {
+          "https://base-rpc.publicnode.com": "ok",
+          "https://base.drpc.org": "ok"
+        }
+      },
+      "preserved": {
+        "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+        "appRef": "catalog://0x4306e588755347dbb30b5e2090cacbc7e20b00afedff750fe352fe99d6d77a7c/11",
+        "ports": "http:8000",
+        "gpuMilli": 0,
+        "cpuMilli": 20,
+        "appPort": 8000,
+        "isPublic": true,
+        "active": true,
+        "createdAt": "1787090005",
+        "cap6": "17"
+      },
+      "ledgerAtBlock": {
+        "rate": "1",
+        "balance6": "362756",
+        "spent6": "1137244",
+        "leaseUntil": "1790315529"
+      }
+    },
+    {
+      "deployment": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "short": "d9798e4c",
+      "chainId": 8453,
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0xF9e71385C5cB49844F2457ba6567De0742f8B89a",
+      "value": "0",
+      "function": "setConfig(bytes32,string)",
+      "args": {
+        "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+        "configCid": "{\"config\":{\"ipnsKey\":\"$IPNS_ED25519_SK\",\"value\":\"https://ipfs.enclave.host/site-root\",\"lifetimeSecs\":604800,\"republishSecs\":14400,\"ttlSecs\":300,\"delegates\":[\"https://delegated-ipfs.dev\"],\"ipni\":{\"gatewayUrl\":\"https://ipfs.enclave.host\",\"publisherUrl\":\"https://d9798e4c.app.enclave.host\",\"indexers\":[\"https://cid.contact\"],\"announceAllBlocks\":false},\"dht\":true,\"api_key\":\"$API_KEY\"},\"isolation\":{\"require\":\"snp-guest-per-app\"}}"
+      },
+      "data": "0xdf6e40bad9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000001aa7b22636f6e666967223a7b2269706e734b6579223a222449504e535f454432353531395f534b222c2276616c7565223a2268747470733a2f2f697066732e656e636c6176652e686f73742f736974652d726f6f74222c226c69666574696d6553656373223a3630343830302c2272657075626c69736853656373223a31343430302c2274746c53656373223a3330302c2264656c656761746573223a5b2268747470733a2f2f64656c6567617465642d697066732e646576225d2c2269706e69223a7b226761746577617955726c223a2268747470733a2f2f697066732e656e636c6176652e686f7374222c227075626c697368657255726c223a2268747470733a2f2f64393739386534632e6170702e656e636c6176652e686f7374222c22696e646578657273223a5b2268747470733a2f2f6369642e636f6e74616374225d2c22616e6e6f756e6365416c6c426c6f636b73223a66616c73657d2c22646874223a747275652c226170695f6b6579223a22244150495f4b4559227d2c2269736f6c6174696f6e223a7b2272657175697265223a22736e702d67756573742d7065722d617070227d7d00000000000000000000000000000000000000000000",
+      "dataSha256": "9a13f8918f00bfb00a7670122c0330ab248806e30bda03b0497d590a848d6fe1",
+      "envelopeBefore": "{\"config\":{\"ipnsKey\":\"$IPNS_ED25519_SK\",\"value\":\"https://ipfs.enclave.host/site-root\",\"lifetimeSecs\":604800,\"republishSecs\":14400,\"ttlSecs\":300,\"delegates\":[\"https://delegated-ipfs.dev\"],\"ipni\":{\"gatewayUrl\":\"https://ipfs.enclave.host\",\"publisherUrl\":\"https://d9798e4c.app.enclave.host\",\"indexers\":[\"https://cid.contact\"],\"announceAllBlocks\":false},\"dht\":true,\"api_key\":\"$API_KEY\"}}",
+      "envelopeAfter": "{\"config\":{\"ipnsKey\":\"$IPNS_ED25519_SK\",\"value\":\"https://ipfs.enclave.host/site-root\",\"lifetimeSecs\":604800,\"republishSecs\":14400,\"ttlSecs\":300,\"delegates\":[\"https://delegated-ipfs.dev\"],\"ipni\":{\"gatewayUrl\":\"https://ipfs.enclave.host\",\"publisherUrl\":\"https://d9798e4c.app.enclave.host\",\"indexers\":[\"https://cid.contact\"],\"announceAllBlocks\":false},\"dht\":true,\"api_key\":\"$API_KEY\"},\"isolation\":{\"require\":\"snp-guest-per-app\"}}",
+      "envelopeAfterBytes": 426,
+      "simulation": {
+        "block": "51787913",
+        "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+        "results": {
+          "https://base-rpc.publicnode.com": "ok",
+          "https://base.drpc.org": "ok"
+        }
+      },
+      "preserved": {
+        "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+        "appRef": "catalog://0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef/3",
+        "ports": "http:8000",
+        "gpuMilli": 0,
+        "cpuMilli": 10,
+        "appPort": 8000,
+        "isPublic": true,
+        "active": true,
+        "createdAt": "1787129623",
+        "cap6": "9"
+      },
+      "ledgerAtBlock": {
+        "rate": "1",
+        "balance6": "118282",
+        "spent6": "1131718",
+        "leaseUntil": "1790315553"
+      }
+    },
+    {
+      "deployment": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "short": "a77d0c57",
+      "chainId": 8453,
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0xF9e71385C5cB49844F2457ba6567De0742f8B89a",
+      "value": "0",
+      "function": "setConfig(bytes32,string)",
+      "args": {
+        "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+        "configCid": "{\"config\":{\"endpoint\":\"$R2_ENDPOINT\",\"region\":\"auto\",\"bucket\":\"jot\",\"prefix\":\"notes/\",\"credentials\":{\"accessKeyId\":\"$JOT_ACCESS_KEY_ID\",\"secretAccessKey\":\"$JOT_SECRET_ACCESS_KEY\"},\"api_key\":\"$JOT_API_KEY\",\"master_key\":\"$JOT_MASTER_KEY\",\"sso\":{\"signer\":\"0x3394b4d24250F1657cB547975e77117454b3Cc6D\",\"audience\":\"0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371\",\"accept\":[\"0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c\"]},\"wasi\":\"0.2\"},\"isolation\":{\"require\":\"snp-guest-per-app\"}}"
+      },
+      "data": "0xdf6e40baa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000002047b22636f6e666967223a7b22656e64706f696e74223a222452325f454e44504f494e54222c22726567696f6e223a226175746f222c226275636b6574223a226a6f74222c22707265666978223a226e6f7465732f222c2263726564656e7469616c73223a7b226163636573734b65794964223a22244a4f545f4143434553535f4b45595f4944222c227365637265744163636573734b6579223a22244a4f545f5345435245545f4143434553535f4b4559227d2c226170695f6b6579223a22244a4f545f4150495f4b4559222c226d61737465725f6b6579223a22244a4f545f4d41535445525f4b4559222c2273736f223a7b227369676e6572223a22307833333934623464323432353046313635376342353437393735653737313137343534623343633644222c2261756469656e6365223a22307861373764306335373763316361343835313066663732353435663965303530646337643166633963366431313239663035363439346135313930636238333731222c22616363657074223a5b22307839656234653630303633616130373963656265643335356639366232643034393435376165373762646263643439303836303430323832653165346238373163225d7d2c2277617369223a22302e32227d2c2269736f6c6174696f6e223a7b2272657175697265223a22736e702d67756573742d7065722d617070227d7d00000000000000000000000000000000000000000000000000000000",
+      "dataSha256": "e8dda20749fed5f41f42653322311b41f7c9ad0d588a4ee95f010dce4306a9cd",
+      "envelopeBefore": "{\"config\":{\"endpoint\":\"$R2_ENDPOINT\",\"region\":\"auto\",\"bucket\":\"jot\",\"prefix\":\"notes/\",\"credentials\":{\"accessKeyId\":\"$JOT_ACCESS_KEY_ID\",\"secretAccessKey\":\"$JOT_SECRET_ACCESS_KEY\"},\"api_key\":\"$JOT_API_KEY\",\"master_key\":\"$JOT_MASTER_KEY\",\"sso\":{\"signer\":\"0x3394b4d24250F1657cB547975e77117454b3Cc6D\",\"audience\":\"0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371\",\"accept\":[\"0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c\"]},\"wasi\":\"0.2\"}}",
+      "envelopeAfter": "{\"config\":{\"endpoint\":\"$R2_ENDPOINT\",\"region\":\"auto\",\"bucket\":\"jot\",\"prefix\":\"notes/\",\"credentials\":{\"accessKeyId\":\"$JOT_ACCESS_KEY_ID\",\"secretAccessKey\":\"$JOT_SECRET_ACCESS_KEY\"},\"api_key\":\"$JOT_API_KEY\",\"master_key\":\"$JOT_MASTER_KEY\",\"sso\":{\"signer\":\"0x3394b4d24250F1657cB547975e77117454b3Cc6D\",\"audience\":\"0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371\",\"accept\":[\"0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c\"]},\"wasi\":\"0.2\"},\"isolation\":{\"require\":\"snp-guest-per-app\"}}",
+      "envelopeAfterBytes": 516,
+      "simulation": {
+        "block": "51787913",
+        "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+        "results": {
+          "https://base-rpc.publicnode.com": "ok",
+          "https://base.drpc.org": "ok"
+        }
+      },
+      "preserved": {
+        "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+        "appRef": "catalog://0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7/4",
+        "ports": "",
+        "gpuMilli": 0,
+        "cpuMilli": 10,
+        "appPort": 8080,
+        "isPublic": true,
+        "active": true,
+        "createdAt": "1788334447",
+        "cap6": "9"
+      },
+      "ledgerAtBlock": {
+        "rate": "1",
+        "balance6": "118600",
+        "spent6": "131400",
+        "leaseUntil": "1790316215"
+      }
+    },
+    {
+      "deployment": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "short": "a69dcbba",
+      "chainId": 8453,
+      "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+      "to": "0xF9e71385C5cB49844F2457ba6567De0742f8B89a",
+      "value": "0",
+      "function": "setConfig(bytes32,string)",
+      "args": {
+        "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+        "configCid": "{\"configCid\":\"bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi\",\"isolation\":{\"require\":\"snp-guest-per-app\"}}"
+      },
+      "data": "0xdf6e40baa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000777b22636f6e666967436964223a226261666b72656966786f6f736a76713536747561377933323563766c6661763536756e736b6d707077747364716778357361336234796279627069222c2269736f6c6174696f6e223a7b2272657175697265223a22736e702d67756573742d7065722d617070227d7d000000000000000000",
+      "dataSha256": "1337da31c963bcec4ce6fe94c67f8524ff201d4767d9e38117ec6503164247c5",
+      "envelopeBefore": "{\"configCid\":\"bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi\"}",
+      "envelopeAfter": "{\"configCid\":\"bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi\",\"isolation\":{\"require\":\"snp-guest-per-app\"}}",
+      "envelopeAfterBytes": 119,
+      "simulation": {
+        "block": "51787913",
+        "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+        "results": {
+          "https://base-rpc.publicnode.com": "ok",
+          "https://base.drpc.org": "ok"
+        }
+      },
+      "preserved": {
+        "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+        "appRef": "catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0",
+        "ports": "",
+        "gpuMilli": 0,
+        "cpuMilli": 10,
+        "appPort": 8080,
+        "isPublic": true,
+        "active": true,
+        "createdAt": "1788538881",
+        "cap6": "9"
+      },
+      "ledgerAtBlock": {
+        "rate": "1",
+        "balance6": "129400",
+        "spent6": "120600",
+        "leaseUntil": "1790315395"
+      }
+    }
+  ]
+}

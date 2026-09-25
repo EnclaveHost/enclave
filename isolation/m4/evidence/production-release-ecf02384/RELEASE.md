@@ -60,4 +60,8 @@ inventory: `isolation/restore/`). The per-app S5 checks:
 - enclave-d1 approved d1a38994 and signed off 0181bce3..aff21c73 (see `../production-release-d1a38994/RELEASE.md`).
 - enclave-e3 (for enclave-99) APPROVED 936ce3fe, 0e9a6f08/666674d7, 5b41db37, 020f76e7, 63b2b276, aef54ff7 and
   aeb3d328+d1a38994, with the medium above.
-- ecf02384 and this release: pending enclave-d1's and enclave-e3's review, and e3's predictor cross-check.
+- **enclave-d1: APPROVED ecf02384 and release 0839ac3a.** d1 reproduced it independently (a clean worktree, a fresh
+  GOCACHE, byte-identical `diff -r`). d1's own mutant (dropping the length check) is caught.
+- **enclave-e3 (for enclave-99): APPROVED ecf02384.** The image sign-off over 0181bce3..ecf02384 is COMPLETE. e3's
+  predictor (known-answer test first, the chain read through two agreeing RPCs, the component CAR-verified)
+  computes the same api-mcp-adapter measurement, 75317f83…da29. None of the recorded lows blocks.

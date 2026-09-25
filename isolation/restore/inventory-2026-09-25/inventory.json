@@ -1,0 +1,909 @@
+{
+  "generatedAt": "2026-09-25T19:39:53.633Z",
+  "block": "51787913",
+  "rpcs": [
+    "https://base-rpc.publicnode.com",
+    "https://base.drpc.org"
+  ],
+  "addressBook": "0xab214342d5A490150A4A977063A2f88E21F80907",
+  "deployments": "0xF9e71385C5cB49844F2457ba6567De0742f8B89a",
+  "appCatalog": "0x18419CA2b502D423A8de6269AEeE171a378626e3",
+  "deploymentsSchema": "13",
+  "owner": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
+  "poolMiB": 65536,
+  "relay": "https://api.enclave.host",
+  "apps": [
+    {
+      "id": "0xcc1f4f3fada6c3cd8ad0dc4ed03823470639ad2c59edf0a1e1be93ee20241352",
+      "short": "cc1f4f3f",
+      "appRef": "catalog://0x06a4ac8d5440fcfc3c9a6a028d1704c8f878d53555ed12016d3c81de062ecc13/146",
+      "catalogApp": "0x06a4ac8d5440fcfc3c9a6a028d1704c8f878d53555ed12016d3c81de062ecc13",
+      "versionIndex": 146,
+      "version": {
+        "version": "1.4.8",
+        "cid": "bafybeihpczc3eh3e7l65aes7irf6a6p43q3sfsp6rmd5jwp3koafbkoxnm",
+        "memMb": 2048,
+        "vramMb": 34816,
+        "ports": "",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 4092,
+        "configSha256": "7ece453f75c37eeec23557ee6aa03ddfe5c0555a6751462326312d8a980f0d6a"
+      },
+      "ledger": {
+        "active": false,
+        "isPublic": true,
+        "gpuMilli": 250,
+        "cpuMilli": 80,
+        "appPort": 8080,
+        "ports": "",
+        "rate": "484",
+        "balance6": "0",
+        "spent6": "728952027",
+        "cap6": "1114",
+        "leaseUntil": "0",
+        "runner": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "runnerOperator": "0x0000000000000000000000000000000000000000",
+        "createdAt": "1784471779"
+      },
+      "envelope": {
+        "kind": "empty",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "namespaces": [],
+        "configCid": null,
+        "inlineConfig": false
+      },
+      "relay": {
+        "secretsStaged": true,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "the catalog version's config",
+        "bytes": 4092,
+        "sha256": "7ece453f75c37eeec23557ee6aa03ddfe5c0555a6751462326312d8a980f0d6a",
+        "error": null,
+        "secretLike": [
+          "EXA_API_KEY",
+          "IMAGE_API_KEY",
+          "IMAGE_ENDPOINT"
+        ],
+        "appTokens": [],
+        "literalHttpsOrigins": [
+          "https://9f8947ec.app.enclave.host"
+        ]
+      },
+      "notes": [],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 4,
+        "sharePctBought": 8,
+        "shareFits": true
+      },
+      "blockers": [
+        "inactive (setActive(true) is a separate owner decision)",
+        "needs a GPU share or VRAM: a per-app SNP guest has no GPU path"
+      ]
+    },
+    {
+      "id": "0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9",
+      "short": "da09d0f2",
+      "appRef": "catalog://0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6/42",
+      "catalogApp": "0xefc67700f25204b843dadb224520bbc73ac9755d3b9c2aed9183443bccf5c8e6",
+      "versionIndex": 42,
+      "version": {
+        "version": "1.1.16",
+        "cid": "bafybeihtfqiwfkybyfrjcyspmdmuvbedyo4c3aewtt76oxybmw7pnw7lrq",
+        "memMb": 512,
+        "vramMb": 32768,
+        "ports": "",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 490,
+        "configSha256": "09d1123df625f03e76f2dd25be6d1c1757269275f89a44546e3d4d74eb49720b"
+      },
+      "ledger": {
+        "active": true,
+        "isPublic": true,
+        "gpuMilli": 230,
+        "cpuMilli": 30,
+        "appPort": 8080,
+        "ports": "",
+        "rate": "0",
+        "balance6": "301",
+        "spent6": "579776457",
+        "cap6": "481",
+        "leaseUntil": "1787890641",
+        "runner": "0xef72af43dfb392ad3ef635cca36fbb95555ec09bfbc40b02e2d47c1549e14575",
+        "runnerOperator": "0x390e2E0E0bC34b7F428f1e31C9b6770d5028eCC1",
+        "createdAt": "1784471875"
+      },
+      "envelope": {
+        "kind": "empty",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "namespaces": [],
+        "configCid": null,
+        "inlineConfig": false
+      },
+      "relay": {
+        "secretsStaged": false,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "the catalog version's config",
+        "bytes": 490,
+        "sha256": "09d1123df625f03e76f2dd25be6d1c1757269275f89a44546e3d4d74eb49720b",
+        "error": null,
+        "secretLike": [],
+        "appTokens": [],
+        "literalHttpsOrigins": []
+      },
+      "notes": [],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 1,
+        "sharePctBought": 3,
+        "shareFits": true
+      },
+      "blockers": [
+        "needs a GPU share or VRAM: a per-app SNP guest has no GPU path"
+      ]
+    },
+    {
+      "id": "0x9f8947ecf851683622cedbb0503cf864d4e0d8fd34905bf94ae1fac56c0ce6e8",
+      "short": "9f8947ec",
+      "appRef": "catalog://0x97371e0dc699c6582c37e74433f63f99401208990fed18158792c2e9caa92066/3",
+      "catalogApp": "0x97371e0dc699c6582c37e74433f63f99401208990fed18158792c2e9caa92066",
+      "versionIndex": 3,
+      "version": {
+        "version": "1.0.3",
+        "cid": "bafybeifvvzoddvqalyd2nyj22ggbc2z2l74inxzkjzyideeaywizsiif2e",
+        "memMb": 512,
+        "vramMb": 26624,
+        "ports": "",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 225,
+        "configSha256": "3e5a1e9243b76c03848f0849d63b55861abd20af69a710337fd70fab13aedeed"
+      },
+      "ledger": {
+        "active": false,
+        "isPublic": true,
+        "gpuMilli": 190,
+        "cpuMilli": 30,
+        "appPort": 8080,
+        "ports": "",
+        "rate": "0",
+        "balance6": "134",
+        "spent6": "233395164",
+        "cap6": "342",
+        "leaseUntil": "1787890941",
+        "runner": "0xef72af43dfb392ad3ef635cca36fbb95555ec09bfbc40b02e2d47c1549e14575",
+        "runnerOperator": "0x390e2E0E0bC34b7F428f1e31C9b6770d5028eCC1",
+        "createdAt": "1785370681"
+      },
+      "envelope": {
+        "kind": "empty",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "namespaces": [],
+        "configCid": null,
+        "inlineConfig": false
+      },
+      "relay": {
+        "secretsStaged": false,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "the catalog version's config",
+        "bytes": 225,
+        "sha256": "3e5a1e9243b76c03848f0849d63b55861abd20af69a710337fd70fab13aedeed",
+        "error": null,
+        "secretLike": [],
+        "appTokens": [],
+        "literalHttpsOrigins": []
+      },
+      "notes": [],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 1,
+        "sharePctBought": 3,
+        "shareFits": true
+      },
+      "blockers": [
+        "inactive (setActive(true) is a separate owner decision)",
+        "needs a GPU share or VRAM: a per-app SNP guest has no GPU path"
+      ]
+    },
+    {
+      "id": "0xd6041bab81f657bdfbb45b9a3f27b8a90268f2188851ebf5b23de8323f0588b3",
+      "short": "d6041bab",
+      "appRef": "catalog://0x06a4ac8d5440fcfc3c9a6a028d1704c8f878d53555ed12016d3c81de062ecc13/132",
+      "catalogApp": "0x06a4ac8d5440fcfc3c9a6a028d1704c8f878d53555ed12016d3c81de062ecc13",
+      "versionIndex": 132,
+      "version": {
+        "version": "1.3.27",
+        "cid": "bafybeifk5frx3ibi7qiq3mbfzqzfzac3yjdqbwb3pj5r6hiu2dmclmzmrq",
+        "memMb": 2048,
+        "vramMb": 34816,
+        "ports": "",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 3967,
+        "configSha256": "3be5da06a5561f8f7c0fd710875345279ef184f664c72e42246fb029b7ba5647"
+      },
+      "ledger": {
+        "active": false,
+        "isPublic": true,
+        "gpuMilli": 0,
+        "cpuMilli": 40,
+        "appPort": 8080,
+        "ports": "",
+        "rate": "34",
+        "balance6": "0",
+        "spent6": "51952",
+        "cap6": "34",
+        "leaseUntil": "0",
+        "runner": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "runnerOperator": "0x0000000000000000000000000000000000000000",
+        "createdAt": "1785807861"
+      },
+      "envelope": {
+        "kind": "empty",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "namespaces": [],
+        "configCid": null,
+        "inlineConfig": false
+      },
+      "relay": {
+        "secretsStaged": false,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "the catalog version's config",
+        "bytes": 3967,
+        "sha256": "3be5da06a5561f8f7c0fd710875345279ef184f664c72e42246fb029b7ba5647",
+        "error": null,
+        "secretLike": [
+          "EXA_API_KEY",
+          "IMAGE_API_KEY",
+          "IMAGE_ENDPOINT"
+        ],
+        "appTokens": [],
+        "literalHttpsOrigins": [
+          "https://9f8947ec.app.enclave.host"
+        ]
+      },
+      "notes": [],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 4,
+        "sharePctBought": 4,
+        "shareFits": true
+      },
+      "blockers": [
+        "inactive (setActive(true) is a separate owner decision)",
+        "needs a GPU share or VRAM: a per-app SNP guest has no GPU path"
+      ]
+    },
+    {
+      "id": "0xcbcaac8feb176888090f172a34920be7ae47e15cb0ebe7c258150ca6cb703d8a",
+      "short": "cbcaac8f",
+      "appRef": "catalog://0x06a4ac8d5440fcfc3c9a6a028d1704c8f878d53555ed12016d3c81de062ecc13/132",
+      "catalogApp": "0x06a4ac8d5440fcfc3c9a6a028d1704c8f878d53555ed12016d3c81de062ecc13",
+      "versionIndex": 132,
+      "version": {
+        "version": "1.3.27",
+        "cid": "bafybeifk5frx3ibi7qiq3mbfzqzfzac3yjdqbwb3pj5r6hiu2dmclmzmrq",
+        "memMb": 2048,
+        "vramMb": 34816,
+        "ports": "",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 3967,
+        "configSha256": "3be5da06a5561f8f7c0fd710875345279ef184f664c72e42246fb029b7ba5647"
+      },
+      "ledger": {
+        "active": false,
+        "isPublic": true,
+        "gpuMilli": 250,
+        "cpuMilli": 40,
+        "appPort": 8080,
+        "ports": "",
+        "rate": "451",
+        "balance6": "0",
+        "spent6": "297660",
+        "cap6": "451",
+        "leaseUntil": "0",
+        "runner": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "runnerOperator": "0x0000000000000000000000000000000000000000",
+        "createdAt": "1785812007"
+      },
+      "envelope": {
+        "kind": "empty",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "namespaces": [],
+        "configCid": null,
+        "inlineConfig": false
+      },
+      "relay": {
+        "secretsStaged": false,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "the catalog version's config",
+        "bytes": 3967,
+        "sha256": "3be5da06a5561f8f7c0fd710875345279ef184f664c72e42246fb029b7ba5647",
+        "error": null,
+        "secretLike": [
+          "EXA_API_KEY",
+          "IMAGE_API_KEY",
+          "IMAGE_ENDPOINT"
+        ],
+        "appTokens": [],
+        "literalHttpsOrigins": [
+          "https://9f8947ec.app.enclave.host"
+        ]
+      },
+      "notes": [],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 4,
+        "sharePctBought": 4,
+        "shareFits": true
+      },
+      "blockers": [
+        "inactive (setActive(true) is a separate owner decision)",
+        "needs a GPU share or VRAM: a per-app SNP guest has no GPU path"
+      ]
+    },
+    {
+      "id": "0x4c8c436586749f95edf041d1a5619ea57b0757fd1083c29c721cec910c5dfeb2",
+      "short": "4c8c4365",
+      "appRef": "catalog://0xa856a26bd6ab39807baa0b6d9a54eaa7b29eeda18be71cd6b75e4d1b65922094/15",
+      "catalogApp": "0xa856a26bd6ab39807baa0b6d9a54eaa7b29eeda18be71cd6b75e4d1b65922094",
+      "versionIndex": 15,
+      "version": {
+        "version": "0.6.15",
+        "cid": "bafybeifcgpwvnr26rmp2idhc4gmubqlkrhpmgslml2ptaqrrozlfmsoima",
+        "memMb": 2048,
+        "vramMb": 1024,
+        "ports": "http:8000,tcp:2222,tcp:47984,tcp:47989,tcp:48010,udp:47998,udp:47999,udp:48000",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 578,
+        "configSha256": "483c43081207877f939dc7fa5bacb9ed5693961ecb084e399b57d8efcd56030c"
+      },
+      "ledger": {
+        "active": false,
+        "isPublic": true,
+        "gpuMilli": 70,
+        "cpuMilli": 70,
+        "appPort": 8000,
+        "ports": "http:8000,tcp:2222",
+        "rate": "59",
+        "balance6": "12353226",
+        "spent6": "67646774",
+        "cap6": "176",
+        "leaseUntil": "0",
+        "runner": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "runnerOperator": "0x0000000000000000000000000000000000000000",
+        "createdAt": "1785971685"
+      },
+      "envelope": {
+        "kind": "empty",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "namespaces": [],
+        "configCid": null,
+        "inlineConfig": false
+      },
+      "relay": {
+        "secretsStaged": true,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "the catalog version's config",
+        "bytes": 578,
+        "sha256": "483c43081207877f939dc7fa5bacb9ed5693961ecb084e399b57d8efcd56030c",
+        "error": null,
+        "secretLike": [
+          "S3_ACCESS_KEY_ID",
+          "S3_ENDPOINT",
+          "S3_SECRET_ACCESS_KEY"
+        ],
+        "appTokens": [],
+        "literalHttpsOrigins": []
+      },
+      "notes": [
+        "serves HTTP on its own port (http:8000,tcp:2222,tcp:47984,tcp:47989,tcp:48010,udp:47998,udp:47999,udp:48000): the enclave-catalog-bundle/2 derivation"
+      ],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 4,
+        "sharePctBought": 7,
+        "shareFits": true
+      },
+      "blockers": [
+        "inactive (setActive(true) is a separate owner decision)",
+        "needs a GPU share or VRAM: a per-app SNP guest has no GPU path",
+        "declares ports http:8000, tcp:2222, tcp:47984, tcp:47989, tcp:48010, udp:47998, udp:47999, udp:48000: a per-app guest forwards at most one HTTP port"
+      ]
+    },
+    {
+      "id": "0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c",
+      "short": "9eb4e600",
+      "appRef": "catalog://0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737/66",
+      "catalogApp": "0xd8ec1d59a44ff4f76727a41759dab9e243d31675f27b09c3abdd31d416f4a737",
+      "versionIndex": 66,
+      "version": {
+        "version": "1.0.66",
+        "cid": "bafybeib4bacwqz7cx3xd7bby7qbakirfq5np52jkv5ozsiqbfwre4wjeia",
+        "memMb": 4096,
+        "vramMb": 51200,
+        "ports": "",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 312,
+        "configSha256": "745317a870360ce9acf5ffc5a5fb3094e6be9222ab23edd9a3c0f6666c0d8d6a"
+      },
+      "ledger": {
+        "active": true,
+        "isPublic": true,
+        "gpuMilli": 970,
+        "cpuMilli": 70,
+        "appPort": 8080,
+        "ports": "",
+        "rate": "1",
+        "balance6": "0",
+        "spent6": "100000000",
+        "cap6": "1389",
+        "leaseUntil": "1790047697",
+        "runner": "0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b",
+        "runnerOperator": "0x389C3f030a209D04D026228D2D053fEB75DbadcA",
+        "createdAt": "1786186081"
+      },
+      "envelope": {
+        "kind": "json",
+        "bytes": 157,
+        "sha256": "df252ee61285e46725363ffb9c61df85ce6e23ef327df64f16a23db9dc7ca0be",
+        "namespaces": [
+          "network",
+          "configCid",
+          "config"
+        ],
+        "configCid": "bafkreih662plyjjjqzgmla75stqdgl5situtmynfvhdgdtbt35gdlvzngm",
+        "inlineConfig": true
+      },
+      "relay": {
+        "secretsStaged": true,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "envelope configCid bafkreih662plyjjjqzgmla75stqdgl5situtmynfvhdgdtbt35gdlvzngm",
+        "bytes": 8169,
+        "sha256": "fef69ebc2529864cc583fd94e0332fb244e93661a5a9c661cc33df4c35d72d33",
+        "error": null,
+        "secretLike": [
+          "API_KEY_SEED",
+          "EXA_API_KEY",
+          "IMAGE_API_KEY",
+          "IMAGE_ENDPOINT",
+          "MCP_ADAPTER_API_KEY"
+        ],
+        "appTokens": [
+          "user"
+        ],
+        "literalHttpsOrigins": [
+          "https://a69dcbba.app.enclave.host"
+        ]
+      },
+      "notes": [
+        "routes through a named relay ({\"relay\":\"us-west\"}): confirm that relay serves this tier (U7) before the owner signs"
+      ],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 7,
+        "sharePctBought": 7,
+        "shareFits": true
+      },
+      "blockers": [
+        "needs a GPU share or VRAM: a per-app SNP guest has no GPU path",
+        "needs model volumes, which are not mounted into a per-app guest"
+      ]
+    },
+    {
+      "id": "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b",
+      "short": "e64f7cba",
+      "appRef": "catalog://0xa856a26bd6ab39807baa0b6d9a54eaa7b29eeda18be71cd6b75e4d1b65922094/54",
+      "catalogApp": "0xa856a26bd6ab39807baa0b6d9a54eaa7b29eeda18be71cd6b75e4d1b65922094",
+      "versionIndex": 54,
+      "version": {
+        "version": "0.6.54",
+        "cid": "bafybeig7dtbv66j5kmv4xaygujynnxodxajdofmc43rhte7ezx5e6hkfty",
+        "memMb": 3072,
+        "vramMb": 0,
+        "ports": "http:8000,tcp:2222,tcp:47984,tcp:47989,tcp:48010,udp:47998,udp:47999,udp:48000",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 944,
+        "configSha256": "fefcafdc9e6af10e570ab48c43963a194009e806a17830bad2e31bc14def7b6a"
+      },
+      "ledger": {
+        "active": true,
+        "isPublic": true,
+        "gpuMilli": 10,
+        "cpuMilli": 350,
+        "appPort": 8000,
+        "ports": "http:8000,tcp:2222,tcp:47984,tcp:47989,tcp:48010,udp:47998,udp:47999,udp:48000",
+        "rate": "5",
+        "balance6": "4560960",
+        "spent6": "439040",
+        "cap6": "556",
+        "leaseUntil": "1790316195",
+        "runner": "0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b",
+        "runnerOperator": "0x389C3f030a209D04D026228D2D053fEB75DbadcA",
+        "createdAt": "1786463431"
+      },
+      "envelope": {
+        "kind": "json",
+        "bytes": 31,
+        "sha256": "01a7e7fcec52d6ff141c0c4c680b056eef47dbc872c0925bbd6b95b9b8c80046",
+        "namespaces": [
+          "network"
+        ],
+        "configCid": null,
+        "inlineConfig": false
+      },
+      "relay": {
+        "secretsStaged": true,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "the catalog version's config",
+        "bytes": 944,
+        "sha256": "fefcafdc9e6af10e570ab48c43963a194009e806a17830bad2e31bc14def7b6a",
+        "error": null,
+        "secretLike": [
+          "RISCBOX_API_KEY",
+          "S3_ACCESS_KEY_ID",
+          "S3_ENDPOINT",
+          "S3_SECRET_ACCESS_KEY"
+        ],
+        "appTokens": [],
+        "literalHttpsOrigins": []
+      },
+      "notes": [
+        "routes through a named relay ({\"relay\":\"us-west\"}): confirm that relay serves this tier (U7) before the owner signs",
+        "serves HTTP on its own port (http:8000,tcp:2222,tcp:47984,tcp:47989,tcp:48010,udp:47998,udp:47999,udp:48000): the enclave-catalog-bundle/2 derivation"
+      ],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 5,
+        "sharePctBought": 35,
+        "shareFits": true
+      },
+      "blockers": [
+        "needs a GPU share or VRAM: a per-app SNP guest has no GPU path",
+        "declares ports http:8000, tcp:2222, tcp:47984, tcp:47989, tcp:48010, udp:47998, udp:47999, udp:48000: a per-app guest forwards at most one HTTP port"
+      ]
+    },
+    {
+      "id": "0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33",
+      "short": "7ae476a3",
+      "appRef": "catalog://0x4306e588755347dbb30b5e2090cacbc7e20b00afedff750fe352fe99d6d77a7c/11",
+      "catalogApp": "0x4306e588755347dbb30b5e2090cacbc7e20b00afedff750fe352fe99d6d77a7c",
+      "versionIndex": 11,
+      "version": {
+        "version": "1.0.11",
+        "cid": "bafybeicugecaxpc6yxxx3ntyfzfn22hvpae4cduarmqnlhbnbbgv24noky",
+        "memMb": 1024,
+        "vramMb": 0,
+        "ports": "http:8000",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 501,
+        "configSha256": "596117131998e514ec1e7e1cc73e5f9eac5af4a83f81d271a18c0008d82b3211"
+      },
+      "ledger": {
+        "active": true,
+        "isPublic": true,
+        "gpuMilli": 0,
+        "cpuMilli": 20,
+        "appPort": 8000,
+        "ports": "http:8000",
+        "rate": "1",
+        "balance6": "362756",
+        "spent6": "1137244",
+        "cap6": "17",
+        "leaseUntil": "1790315529",
+        "runner": "0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b",
+        "runnerOperator": "0x389C3f030a209D04D026228D2D053fEB75DbadcA",
+        "createdAt": "1787090005"
+      },
+      "envelope": {
+        "kind": "json",
+        "bytes": 31,
+        "sha256": "01a7e7fcec52d6ff141c0c4c680b056eef47dbc872c0925bbd6b95b9b8c80046",
+        "namespaces": [
+          "network"
+        ],
+        "configCid": null,
+        "inlineConfig": false
+      },
+      "relay": {
+        "secretsStaged": true,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "the catalog version's config",
+        "bytes": 501,
+        "sha256": "596117131998e514ec1e7e1cc73e5f9eac5af4a83f81d271a18c0008d82b3211",
+        "error": null,
+        "secretLike": [
+          "API_KEY",
+          "S3_ACCESS_KEY_ID",
+          "S3_ENDPOINT",
+          "S3_SECRET_ACCESS_KEY",
+          "UPLOAD_KEY"
+        ],
+        "appTokens": [],
+        "literalHttpsOrigins": [
+          "https://enclave.host"
+        ]
+      },
+      "notes": [
+        "routes through a named relay ({\"relay\":\"us-west\"}): confirm that relay serves this tier (U7) before the owner signs",
+        "serves HTTP on its own port (http:8000): the enclave-catalog-bundle/2 derivation"
+      ],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 2,
+        "sharePctBought": 2,
+        "shareFits": true
+      },
+      "blockers": []
+    },
+    {
+      "id": "0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a",
+      "short": "d9798e4c",
+      "appRef": "catalog://0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef/3",
+      "catalogApp": "0x9afdfb401d6f2cfea70c446f9f5874bbca8ce7dd116e2b15715312d8d32a65ef",
+      "versionIndex": 3,
+      "version": {
+        "version": "1.0.3",
+        "cid": "bafybeig3tq5ncywc2ttnewoal3xbkwzz2t5scsa7lypbuylomboa2hlyce",
+        "memMb": 128,
+        "vramMb": 0,
+        "ports": "http:8000",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 557,
+        "configSha256": "c681a628454c9ffef5522cd5e3fd570aab0480307a91d7afd735cec9fce2b2ee"
+      },
+      "ledger": {
+        "active": true,
+        "isPublic": true,
+        "gpuMilli": 0,
+        "cpuMilli": 10,
+        "appPort": 8000,
+        "ports": "http:8000",
+        "rate": "1",
+        "balance6": "118282",
+        "spent6": "1131718",
+        "cap6": "9",
+        "leaseUntil": "1790315553",
+        "runner": "0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b",
+        "runnerOperator": "0x389C3f030a209D04D026228D2D053fEB75DbadcA",
+        "createdAt": "1787129623"
+      },
+      "envelope": {
+        "kind": "json",
+        "bytes": 382,
+        "sha256": "8d2421d1b1ac49a3f49fb38d69912497a8020365dab497ccd5d4e5e4885f5fb8",
+        "namespaces": [
+          "config"
+        ],
+        "configCid": null,
+        "inlineConfig": true
+      },
+      "relay": {
+        "secretsStaged": true,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "envelope inline config",
+        "bytes": 371,
+        "sha256": "5fac3070fdcb21ec1259b61a66ca99fc02fba69e904aca2e0a95a9112ac760ba",
+        "error": null,
+        "secretLike": [
+          "API_KEY",
+          "IPNS_ED25519_SK"
+        ],
+        "appTokens": [],
+        "literalHttpsOrigins": [
+          "https://cid.contact",
+          "https://d9798e4c.app.enclave.host",
+          "https://delegated-ipfs.dev",
+          "https://ipfs.enclave.host"
+        ]
+      },
+      "notes": [
+        "serves HTTP on its own port (http:8000): the enclave-catalog-bundle/2 derivation"
+      ],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 1,
+        "sharePctBought": 1,
+        "shareFits": true
+      },
+      "blockers": []
+    },
+    {
+      "id": "0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371",
+      "short": "a77d0c57",
+      "appRef": "catalog://0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7/4",
+      "catalogApp": "0x550d4da98ad8ece07c0def18c095c7f01bc695727a35d953a2096c49713eaef7",
+      "versionIndex": 4,
+      "version": {
+        "version": "1.0.4",
+        "cid": "bafybeifzjpkwqv6b2ld63c5a4lz3jtxxk772a3c6x4wgomwokeryqejeiq",
+        "memMb": 128,
+        "vramMb": 0,
+        "ports": "",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 401,
+        "configSha256": "75ac7157aa5ea7a8deb2ff1839f652211516b529e7cd1edbef6bcde762681959"
+      },
+      "ledger": {
+        "active": true,
+        "isPublic": true,
+        "gpuMilli": 0,
+        "cpuMilli": 10,
+        "appPort": 8080,
+        "ports": "",
+        "rate": "1",
+        "balance6": "118600",
+        "spent6": "131400",
+        "cap6": "9",
+        "leaseUntil": "1790316215",
+        "runner": "0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b",
+        "runnerOperator": "0x389C3f030a209D04D026228D2D053fEB75DbadcA",
+        "createdAt": "1788334447"
+      },
+      "envelope": {
+        "kind": "json",
+        "bytes": 472,
+        "sha256": "51052dfcd1d0297afea49e86b7143eb853cd224a038394195fc4f2ed7c7e4003",
+        "namespaces": [
+          "config"
+        ],
+        "configCid": null,
+        "inlineConfig": true
+      },
+      "relay": {
+        "secretsStaged": true,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "envelope inline config",
+        "bytes": 461,
+        "sha256": "f4e57a2c9a568a97101a217e92df16ad5c7c53f95ab9e56b833c2fe1e27178f4",
+        "error": null,
+        "secretLike": [
+          "JOT_ACCESS_KEY_ID",
+          "JOT_API_KEY",
+          "JOT_MASTER_KEY",
+          "JOT_SECRET_ACCESS_KEY",
+          "R2_ENDPOINT"
+        ],
+        "appTokens": [],
+        "literalHttpsOrigins": []
+      },
+      "notes": [],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 1,
+        "sharePctBought": 1,
+        "shareFits": true
+      },
+      "blockers": []
+    },
+    {
+      "id": "0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77",
+      "short": "a69dcbba",
+      "appRef": "catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0",
+      "catalogApp": "0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc",
+      "versionIndex": 0,
+      "version": {
+        "version": "1.0.0",
+        "cid": "bafybeie5qxmirydhcjn2g4v23npfhrw3mskaxgdlddijksa7zpt56knq6i",
+        "memMb": 128,
+        "vramMb": 0,
+        "ports": "",
+        "approval": 1,
+        "yanked": false,
+        "configBytes": 2858,
+        "configSha256": "e0bbcc69bf50cba183e43a6e976991353cbc35dd6b4860999cf36dc1995ce1bc"
+      },
+      "ledger": {
+        "active": true,
+        "isPublic": true,
+        "gpuMilli": 0,
+        "cpuMilli": 10,
+        "appPort": 8080,
+        "ports": "",
+        "rate": "1",
+        "balance6": "129400",
+        "spent6": "120600",
+        "cap6": "9",
+        "leaseUntil": "1790315395",
+        "runner": "0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b",
+        "runnerOperator": "0x389C3f030a209D04D026228D2D053fEB75DbadcA",
+        "createdAt": "1788538881"
+      },
+      "envelope": {
+        "kind": "json",
+        "bytes": 75,
+        "sha256": "923598423d87be22ceda0ae164ff567e3dcd53e9e8ee38bbf827f39990a8f1d9",
+        "namespaces": [
+          "configCid"
+        ],
+        "configCid": "bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi",
+        "inlineConfig": false
+      },
+      "relay": {
+        "secretsStaged": true,
+        "secretsProbeStatus": 200,
+        "releaseStatus": 405,
+        "releaseListed": null
+      },
+      "config": {
+        "source": "envelope configCid bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi",
+        "bytes": 5551,
+        "sha256": "b773a49ac3be9d01fc6f5d15565057bea364a63df69c87035fb206c3cc07017a",
+        "error": null,
+        "secretLike": [
+          "IMAGE_ENDPOINT",
+          "JOT_API_KEY",
+          "JOT_ENDPOINT",
+          "MCP_ADAPTER_API_KEY",
+          "RISCBOX_API_KEY",
+          "RISCBOX_ENDPOINT"
+        ],
+        "appTokens": [
+          "cmd",
+          "content",
+          "factor",
+          "image",
+          "prompt",
+          "size",
+          "user"
+        ],
+        "literalHttpsOrigins": []
+      },
+      "notes": [],
+      "tier": {
+        "shareFloorPctAtPool64GiB": 1,
+        "sharePctBought": 1,
+        "shareFits": true
+      },
+      "blockers": []
+    }
+  ]
+}
