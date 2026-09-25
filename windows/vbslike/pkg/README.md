@@ -392,6 +392,18 @@ manifest, but it is not a release and is not staged on the box. When it is relea
     it also runs that binary as `wmiserve`: the 9000 load and the 9001 report signer. `-ProbeDomain` refuses `-Bundle`,
     so a probe run only dials.
   - Scope: T0-hv, host-signed, host not excluded; not isolation.
+- **v37 draft** (`drafts/nucbox-ownguest-37.json`; supersedes v36): **the candidate `b7ba7731` boots and serves in its
+  own canary, and is still not eligible** (enclave-d1, run 093904, `0bee8444`). It booted as a type-1 partition with
+  the host's Secure Boot on. It served the pinned fixture `03ba204e`, through the box's `target\release` wmiserve
+  `0160d835`, not the package's launcher. The TPM control reads `dev_tpm0` and `dev_tpmrm0` = No such file or
+  directory: **absent from the domain's view; existence in the root namespace not stated**. The live-neighbour probe
+  under enclave-99's rules is INCONCLUSIVE, as expected on this build. **No rollover:** a44bb55a stays the one eligible
+  image, until one version makes b7ba7731 eligible and supersedes a44bb55a after the package's own serving acceptance
+  on it. Also in v37:
+  - run 093326 re-judged INCONCLUSIVE (`ad61cb02`);
+  - `uefi-dev-boot.ps1` re-pinned at `ad61cb02`, the script the canary ran;
+  - **v36's `check.ps1` fixed**. Its env block threw under StrictMode after `PACKAGE OK`, so a plain check exited 1.
+    The box scripts now run under PowerShell 7 in `pkg.test.mjs`, and that test fails v36's script the way the box did.
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was

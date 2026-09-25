@@ -1092,3 +1092,89 @@ test("the manager check refuses the type-1 launcher once it stops asking for a g
   assert.notEqual(r.code, 0);
   assert.match(fails(r.out), /FAIL the igvm manager creates its VM with a guest-state isolation type/);
 });
+
+// The box scripts under a real PowerShell (v36 shipped an env block that threw under StrictMode on the box: nothing here
+// ran PowerShell). PowerShell 7 from its official release tarball (~/enclave-bench/tools/pwsh-7.6.6, sha256 ddbc4a2d, the
+// release's own hashes.sha256), or $PWSH; the box runs Windows PowerShell 5.1, so this is a parse-and-StrictMode check,
+// not a box run.
+const PWSH = [process.env.PWSH, path.join(os.homedir(), "enclave-bench/tools/pwsh-7.6.6/pwsh")].find((p) => p && fs.existsSync(p));
+const pwsh = (file, args = []) => { const r = spawnSync(PWSH, ["-NoProfile", "-NonInteractive", "-File", file, ...args], { encoding: "utf8", timeout: 120000 });
+  return { code: r.status, out: (r.stdout || "") + (r.stderr || "") }; };
+const PS_ENV = `param([string]$Check, [string]$Lib, [string]$Manifest, [string]$Dir)
+$ErrorActionPreference = 'Stop'
+. $Lib
+$M = Get-Content -LiteralPath $Manifest -Raw | ConvertFrom-Json
+$d = $Dir
+$src = Get-Content -LiteralPath $Check -Raw
+$i = $src.IndexOf("if ((\`$M.profiles.PSObject.Properties.Name -contains 'vbsLinux')")
+if ($i -lt 0) { throw 'no vbsLinux env block in the script' }
+$j = $src.IndexOf("\`n}", $i)
+& ([scriptblock]::Create($src.Substring($i, $j - $i + 2)))
+`;
+
+test("the box scripts parse under PowerShell, and check.ps1's vbsLinux env block and the boxFiles host check run under their StrictMode (and the harness fails v36's env block, as the box did)", { skip: (!PWSH && "no pwsh") || skip }, () => {
+  for (const f of fs.readdirSync(path.join(HERE, "win")).filter((x) => x.endsWith(".ps1"))) {
+    const t = path.join(fs.mkdtempSync(path.join(WORK, "ps-")), "parse.ps1");
+    fs.writeFileSync(t, `$e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile('${path.join(HERE, "win", f)}', [ref]$null, [ref]$e); if ($e.Count) { $e | ForEach-Object { $_.Message + ' @' + $_.Extent.StartLineNumber }; exit 1 }; 'parse ok'`);
+    const r = pwsh(t); assert.equal(r.code, 0, `${f}: ${r.out}`);
+  }
+  const dir = fs.mkdtempSync(path.join(WORK, "ps-")), h = path.join(dir, "env.ps1"); fs.writeFileSync(h, PS_ENV);
+  const drafts = fs.readdirSync(path.join(HERE, "drafts")).filter((x) => /^nucbox-ownguest-\d+\.json$/.test(x)).sort((a, b) => parseInt(a.match(/\d+/)) - parseInt(b.match(/\d+/)));
+  const D = path.join(HERE, "drafts", drafts.at(-1)), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  const r = pwsh(h, ["-Check", path.join(HERE, "win/check.ps1"), "-Lib", path.join(HERE, "win/pkg.lib.ps1"), "-Manifest", D, "-Dir", path.join(dir, "pkg")]);
+  assert.equal(r.code, 0, r.out);
+  const lines = r.out.split("\n").filter((l) => l.startsWith("$env:"));
+  assert.deepEqual(lines.map((l) => l.slice(5, l.indexOf(" "))), d.profiles.vbsLinux.managerEnv.map((e) => e.name), "one line per variable, in order");
+  assert.match(r.out, /\$env:ENCLAVE_BOOT_FORM = 'linux-direct'/);
+  assert.match(r.out, /\$env:ENCLAVE_HYPERV_MODULE_SHA256 = '17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c'/);
+  assert.match(r.out, /^node .*main\.mjs$/m);
+  // the same harness on v36's committed check.ps1 fails exactly as the box did
+  const old = path.join(dir, "check-v36.ps1"), top = path.join(HERE, "../../..");
+  fs.writeFileSync(old, spawnSync("git", ["-C", top, "show", "adea692b:windows/vbslike/pkg/win/check.ps1"], { encoding: "utf8" }).stdout);
+  const o = pwsh(h, ["-Check", old, "-Lib", path.join(HERE, "win/pkg.lib.ps1"), "-Manifest", D, "-Dir", path.join(dir, "pkg")]);
+  assert.notEqual(o.code, 0); assert.match(o.out, /property 'value' cannot be found/);
+  // boxFiles: the right bytes pass; other bytes, an absent file, and one with no `why` are each BLOCKED (and never throw)
+  const good = path.join(dir, "present.bin"); fs.writeFileSync(good, "box file bytes\n");
+  const gh = crypto.createHash("sha256").update(fs.readFileSync(good)).digest("hex"), bx = path.join(dir, "box.ps1");
+  fs.writeFileSync(bx, `$ErrorActionPreference = 'Stop'
+. '${path.join(HERE, "win/pkg.lib.ps1")}'
+$M = [pscustomobject]@{ hostChecks = [pscustomobject]@{ x = [pscustomobject]@{ boxFiles = @(
+  [pscustomobject]@{ name = 'good'; path = '${good}'; sha256 = '${gh}'; why = 'w' },
+  [pscustomobject]@{ name = 'wrong'; path = '${good}'; sha256 = ('ab' * 32); why = 'w' },
+  [pscustomobject]@{ name = 'absent'; path = '${path.join(dir, "nope.bin")}'; sha256 = '${gh}'; why = 'not supplied' },
+  [pscustomobject]@{ name = 'nowhy'; path = '${path.join(dir, "nope2.bin")}'; sha256 = '${gh}' }) } } }
+$R = New-Results; $ready = Test-HostProfile $R $M 'x'; Write-Results $R; "ready=$ready"`);
+  const b = pwsh(bx);
+  assert.equal(b.code, 0, b.out);
+  assert.match(b.out, /^ok +\[x\] box file good: /m);
+  for (const n of ["wrong", "absent", "nowhy"]) assert.match(b.out, new RegExp(`^BLOCKED \\[x\\] box file ${n}: `, "m"));
+  assert.match(b.out, /box file wrong: .* hashes [0-9a-f]{64}, not the pinned (ab){32}/);
+  assert.match(b.out, /ready=False/);
+});
+
+test("draft v37 records b7ba7731's canary 093904 (boots, serves, the TPM control absent from the domain's view) WITHOUT a rollover, re-judges 093326 INCONCLUSIVE, and ships the fixed check.ps1", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-37.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT \(supersedes v36, which is staged at pkg\\3384e097aa024b73\\\)\. THE NEXT PRODUCTION CANDIDATE b7ba7731 BOOTS AND SERVES IN ITS OWN CANARY, AND IS STILL NOT ELIGIBLE \(enclave-d1, run 093904, evidence 0bee8444/);
+  const c = d.profiles.vbsLinux.nextCandidate.canary;
+  assert.match(c, /'PROBE2 dev_tpm0=No such file or directory' and 'PROBE2 dev_tpmrm0=No such file or directory': absent from the domain's view; existence in the root namespace not stated/);
+  assert.match(c, /served by the box's target\\release wmiserve 0160d835, NOT this package's launcher 435717de/);
+  assert.match(c, /live-neighbour probe under enclave-99's rules: INCONCLUSIVE/);
+  assert.match(c, /NOT A ROLLOVER: a44bb55a stays the one eligible image/);
+  assert.match(d.status, /RUN 093326 \(a44bb55a, enclave-d1\) is recorded and re-judged INCONCLUSIVE: its printed PASS is superseded \(evidence ad61cb02/);
+  assert.match(d.status, /CHECK\.PS1 FIX: /);
+  const ref = JSON.parse(refRawFor(D)), e = ref.images.find((x) => x.id === "vbs-linux-candidate-1539");
+  assert.match(e.booted, /^yes: BOOTED and SERVED as a type-1 partition, host Secure Boot ON \(enclave-d1, canary 093904/);
+  assert.equal(e.eligible, false);
+  assert.deepEqual(ref.images.filter((x) => x.eligible).map((x) => x.vbsBootDigest.slice(0, 8)), ["58DFEBFE"]);
+  assert.equal(d.profiles.vbsLinux.firmware, "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin", "the candidate is still no profile's firmware");
+  const dev = [...d.files, ...d.inputs].find((x) => /uefi-dev-boot\.ps1/.test(x.path || x.from?.git?.path || ""));
+  assert.equal(dev.from.git.commit.slice(0, 8), "ad61cb02");
+  assert.match(dev.note, /only when given -Bundle, as `wmiserve` \(the 9000 load and the 9001 report signer; line 893 at ad61cb02\)/);
+  for (const [n, cm] of [["candidate-b7ba7731-canary-README.md", "0bee8444"], ["candidate-b7ba7731-canary-093904.log.txt", "0bee8444"], ["neighbour-probe-README.md", "ad61cb02"]])
+    assert.ok(d.inputs.some((i) => i.name === n && i.from.git.commit.startsWith(cm)), n);
+  const top = path.join(HERE, "../../.."), old = spawnSync("git", ["-C", top, "show", "adea692b:windows/vbslike/pkg/win/check.ps1"], { encoding: "utf8" }).stdout;
+  assert.notEqual(d.files.find((f) => f.path === "win/check.ps1").sha256, crypto.createHash("sha256").update(old).digest("hex"), "v37 ships a check.ps1 other than v36's");
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});
