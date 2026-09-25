@@ -223,14 +223,17 @@ export function instanceServing(view) {
 }
 
 /**
- * May this instance count as VERIFIED, HOST-EXCLUDED tenant capacity?
+ * May this instance count as VERIFIED, HOST-EXCLUDED tenant capacity? On this node: NEVER, from anything it reads.
  *
- * Only when the backend itself says the host is excluded AND it reached that by a chain-verified
- * route. A T0-hv Hyper-V child partition reports host_excluded=no and is a development vehicle, so
- * this is false for it however healthy it looks. Nothing in this file may make the box advertise
- * capacity it does not have; "attested" means chain-verified, and nothing here verifies a chain.
+ * The view is the MANAGER's word, and the manager is a host process: its `hostExcluded` and `verdict` fields are host
+ * statements, so `hostExcluded: true, verdict: "chain-verified"` in them is a claim, not a verification. This used to
+ * return true for exactly that pair, which let a manager's own word grant the strongest status there is. Verified
+ * capacity needs a verifier this node runs over evidence BYTES (the paravisor report, its signer and the report-data
+ * binding: the verifier contract's V5), and none exists here. So this is false whatever the view says. When a verifier
+ * exists, it takes that verifier's result, never a view. "Attested" means chain-verified, and nothing here verifies a
+ * chain.
  */
 export function attestedCapacity(view) {
-  if (!view || view.hostExcluded !== true) return false;
-  return view.verdict === "chain-verified";
+  void view;                                  // deliberately not read: see above
+  return false;
 }
