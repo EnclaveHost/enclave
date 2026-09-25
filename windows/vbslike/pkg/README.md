@@ -126,6 +126,15 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   plus 5d's expected `kmsg` output as UNMEASURED (the `microsoft-hcl` version line = VTL2; `microsoft-standard-WSL2`
   must never appear; on type 1 the line that matters is `failed to start VM`). Scripts at `3dbe444e`. E2/E3 NOT RUN.
 
+- **v17 draft** (`drafts/nucbox-ownguest-17.json`, HELD, not staged; v16 stays the staged package): v16 plus 5d's
+  inference on WHERE the type-1 start fails, pinned under its own label INFERENCE PENDING KMSG and never as a
+  measurement: before `get_derived_keys` (the donor VMGS is pristine, byte-identical to a fresh `vmgstool create`
+  header, so neither GSP branch applies; the host's GSP lines were absent on the type-1 run; the host renders
+  OpenHCL's GET events and no VMGS failure event appeared), leading candidate `validate_isolated_configuration`
+  (worker.rs:2230, emits no event). Discriminators for the next runs: the kmsg chain "invalid host-provided
+  configuration for isolated VM", and `ohcldiag-dev <VM> inspect -r vm/init_data/dps` on the type-16 control run for
+  the general.* values that check refuses. v17 is staged with d1's first kmsg run.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
