@@ -98,6 +98,10 @@ export class Manager {
     // asked Hyper-V: until recover() has run, "not in my memory" is UNKNOWN, never "absent", and every
     // /vms answer is 503. A backend with no launcher can run nothing, so there is nothing to recover.
     this.inventory = backend && backend.canSurvey ? { state: "pending" } : { state: "not-applicable" };
+    // Ids THIS process removed, each confirmed gone by the backend (the launcher removes by VM Id and checks the
+    // VM is no longer there). For these, "absent" is KNOWN even while an unattributed VM exists; without it a node
+    // could never confirm a retire on a box holding an orphan (the reviewer's follow-up finding 1).
+    this.removedIds = new Set();
     // Called when a domain stops being ours to serve: the data plane closes its established
     // sessions. main.mjs wires it to dataPlaneFor(...).closeInstance. It was SET there and never
     // CALLED here (enclave-5d, by grepping the whole tree) - so a removed domain's sessions stayed
@@ -164,7 +168,11 @@ export class Manager {
    * about may be exactly that VM, recorded under a previous manager (a reviewer's finding on the upgrade path,
    * where retire read 404 and "confirmed gone" over a running legacy-marked VM).
    */
-  mayAnswerAbsent() { return this.inventoryReady && this.unattributed().length === 0; }
+  mayAnswerAbsent(id = null) {
+    if (!this.inventoryReady) return false;
+    if (id !== null && this.removedIds.has(id)) return true;      // removed and confirmed gone by this process
+    return this.unattributed().length === 0;
+  }
 
   /**
    * REBUILD THE INVENTORY FROM HYPER-V (63's P1/P1b). Every VM this manager owns carries its identity
@@ -376,7 +384,7 @@ export class Manager {
     // UNKNOWN IS NOT ABSENT (63's P1): only a manager that has surveyed Hyper-V may say an id is gone.
     if (!r) {
       if (!this.inventoryReady) throw unavailable(this.inventory);
-      if (!this.mayAnswerAbsent()) throw unattributedUnknown(id, this.unattributed());
+      if (!this.mayAnswerAbsent(id)) throw unattributedUnknown(id, this.unattributed());
       return { removed: false, absent: true };
     }
     try {
@@ -388,6 +396,7 @@ export class Manager {
     }
     r.status = "stopped";
     this.domains.delete(id);
+    this.removedIds.add(id);
     // AFTER the stop is confirmed, never before: closing sessions for a domain that is still
     // running would cut live traffic to something that is still there.
     this.#reclaim(id, "removed");
@@ -453,7 +462,7 @@ export function createServer(manager) {
         const r = manager.get(decodeURIComponent(m[1]));
         if (r) return send(200, r);
         // "not found" only when absence can be asserted; otherwise it is UNKNOWN (an unattributed VM exists)
-        if (!manager.mayAnswerAbsent())
+        if (!manager.mayAnswerAbsent(decodeURIComponent(m[1])))
           return send(503, { error: "unknown_while_unattributed", unattributed: manager.unattributed().map((x) => x.id), managerEpoch: manager.epoch });
         return send(404, { error: "not_found" });
       }
