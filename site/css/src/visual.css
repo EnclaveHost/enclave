@@ -14,12 +14,11 @@
 .hero-cta .btn-ghost{background:var(--surface);border-color:#77817f;color:#fff;}
 .hero-benefits{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;list-style:none;padding:25px 0 0;margin:34px 0 0;max-width:570px;border-top:1px solid rgba(172,209,203,.2);}
 .hero-benefits li{position:relative;padding-top:11px;}
-.hero-benefits li::before{content:"";position:absolute;left:0;top:0;width:18px;height:2px;border-radius:2px;background:#69e4be;}
 .hero-benefits strong{display:block;font:550 1rem/1.4 var(--font-sans);letter-spacing:-.015em;color:#e3ece9;}
 .hero-benefits span{display:block;font:400 .77rem/1.6 var(--font-sans);letter-spacing:0;color:#b3c3c2;margin-top:5px;}
 /* the trust line sits in the banner's dark lower band, above the logo strip; the hero-grid's padding-bottom (85px) is its reserved room */
-.hero-trust{position:absolute;left:0;right:0;bottom:6px;z-index:1;margin:0;padding:0 24px;text-align:center;font-family:var(--font-sans);font-size:clamp(.95rem,1.5vw,1.2rem);font-weight:450;line-height:1.5;letter-spacing:-.015em;color:#aebcc4;}
-@media(max-width:640px){.hero-trust{max-width:30ch;margin-inline:auto;padding:0 16px;bottom:8px;}}
+.hero-trust{position:absolute;left:0;right:0;bottom:26px;z-index:1;margin:0;padding:0 24px;text-align:center;font-family:var(--font-sans);font-size:clamp(.95rem,1.5vw,1.2rem);font-weight:450;line-height:1.5;letter-spacing:-.015em;color:#fff;}
+@media(max-width:640px){.hero-trust{max-width:30ch;margin-inline:auto;padding:0 16px;bottom:28px;}}
 #why .sec-head h2{font-family:var(--font-sans);letter-spacing:-.035em;font-size:clamp(2rem,3.2vw,3rem);max-width:25ch;}
 #why .cards .card{min-height:275px;padding:28px 24px;background:linear-gradient(145deg,rgba(28,48,51,.3),rgba(10,16,25,.35)),var(--surface);}
 #why .cards .card .ic{width:48px;height:48px;margin:22px 0 28px;border-radius:13px;}
