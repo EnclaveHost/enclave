@@ -38,6 +38,12 @@ cleanup() {
   sleep 1
   systemctl --user list-units --plain --no-legend --all 'm2-lb*' | awk '{print $1}' | while read -r u; do
     [ -n "$u" ] && systemctl --user stop "$u"; done
+  # a lab guestd runs outside a unit, so a forwarder it started outlives it (production's unit is KillMode=control-group);
+  # end every process whose executable lives in THIS run's dir - matched by /proc/PID/exe, never by a command-line pattern
+  lab_procs() { for d in /proc/[0-9]*; do case "$(readlink "$d/exe" 2>/dev/null)" in "$L"/*) echo "${d#/proc/}";; esac; done; }
+  for p in $(lab_procs); do kill "$p" 2>/dev/null; done
+  sleep 1
+  if [ -n "$(lab_procs)" ]; then say "FAIL: lab processes outlived cleanup: $(lab_procs | tr '\n' ' ')"; exit 1; fi
   rm -rf "$LABPINS"
   [ -n "$LINKED_NM" ] && rm -f "$REPO/node_modules"
   systemctl --user list-units --plain --no-legend --all 'm2-gd*' | awk '{print $1, $3, $4}' > "$L/prod-units-after.txt"
