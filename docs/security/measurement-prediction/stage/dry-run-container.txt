@@ -1,0 +1,16 @@
+== the simulated host has its prerequisites; running stage-remote.sh
+stage: host: Linux 7.2.0-gbf5bafed3e6d x86_64; python 3.13.5; node v22.20.0; cpio (GNU cpio) 2.15; gzip 1.13
+stage: repo at 508841b3f2bbba3e81ab9a8785f40eb5adc75ad8; toolchain commit 0181bce3aac5fa03dfaf2928d834ecd04d2a4a73 present
+stage: go version go1.24.7 linux/amd64
+stage: venv: cffi==2.1.1 cryptography==50.0.1 pycparser==3.0 sev-snp-measure==0.0.13 
+release 5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2 verified 15 files
+release 6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb verified 15 files
+stage: sev-snp-measure digest 3e1af407bf2212ce6bcc878264d75f8e207bd6f445dbdc604228c5d634bad8c3 (pin this as SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256)
+{"knownAnswerTest":"PASS","reason":"2 known answer(s) reproduced exactly","ms":15060,"toolchain":"0181bce3aac5fa03dfaf2928d834ecd04d2a4a73"}
+stage: done: /opt/enclave-predict/508841b3f2bb (nothing outside it changed; no service, env or relay file touched)
+== second run (must refuse):
+stage: REFUSED: /opt/enclave-predict/508841b3f2bb exists (a version is staged once)
+refused as intended (exit 2)
+== outside BASE:
+enclave-predict
+686M	/opt/enclave-predict/508841b3f2bb
