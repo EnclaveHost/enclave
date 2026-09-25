@@ -1,5 +1,5 @@
 // The runner lifecycle agent's device checker (shielded/anchor/avf/runtime/conformance/check-runner-agent.mjs) held to
-// COVERAGE: on a copy of the committed run (results/pvm-cpu-proof-agent-lifecycle), each mutation removes, reorders or forges one record,
+// COVERAGE: on a copy of the committed run (results/pvm-cpu-proof-agent-lifecycle-2), each mutation removes, reorders or forges one record,
 // and the checker must FAIL at the check that covers it; the unmutated copy must PASS.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -9,7 +9,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const ROOT = new URL("..", import.meta.url).pathname;
-const RUN = path.join(ROOT, "shielded/anchor/avf/results/pvm-cpu-proof-agent-lifecycle");
+const RUN = path.join(ROOT, "shielded/anchor/avf/results/pvm-cpu-proof-agent-lifecycle-2");
 const CHECK = path.join(ROOT, "shielded/anchor/avf/runtime/conformance/check-runner-agent.mjs");
 const haveRun = fs.existsSync(path.join(RUN, "steps.jsonl"));
 const lines = (dir, f) => fs.readFileSync(path.join(dir, f), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
@@ -39,6 +39,8 @@ const CASES = [
   ["the undelivered renew is not the one recovered", (d) => edit(d, "chain.jsonl", (e) => e.label === "swallowed-send", (e) => { e.hash = "0x" + "cd".repeat(32); }), /FAIL renew: the transaction never delivered/],
   ["the tenant charged more than one renew", (d) => edit(d, "steps.jsonl", (s) => s.step === "renew-recovered", (s) => { s.balAfter = String(BigInt(s.balAfter) - 1n); }), /FAIL renew: the tenant's balance/],
   ["the recovery asked the VM for a proof", (d) => { const px = lines(d, "proxy.jsonl"), x = px.find((y) => y.request.startsWith("CHECKPOINT")); x.step = "renew-recovered"; write(d, "proxy.jsonl", px); }, /FAIL renew: the recovery asked the VM for no proof/],
+  ["the published measurement not the attested build", (d) => edit(d, "chain-events.jsonl", (e) => e.event === "Updated", (e) => { e.args.measurement = "0x" + "56".repeat(32); }), /FAIL registry: the published measurement/],
+  ["the earnings withdrawn to another address", (d) => edit(d, "chain-events.jsonl", (e) => e.event === "EarningsWithdrawn", (e) => { e.args.to = "0x" + "78".repeat(20); }), /FAIL payout: one withdrawal/],
   ["the run's own key scan missing", (d) => { const p = path.join(d, "run.log"); fs.writeFileSync(p, fs.readFileSync(p, "utf8").replace(/.*the operator key appears nowhere in the results.*\n/, "")); }, /FAIL the run scanned its own results/],
 ];
 test("the runner lifecycle checker: the committed run PASSES unmutated", { skip: !haveRun && "no committed run" }, () => {

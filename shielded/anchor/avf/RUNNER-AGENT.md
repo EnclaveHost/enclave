@@ -136,8 +136,10 @@ stop-with-release after a final proof. They share one journal with the checkpoin
   - after being stopped with a renew never delivered, delivered those SAME bytes once on restart (the tenant paid exactly
     one renew);
   - sent a final proof, then released.
-  17 chain events reconcile with 17 journaled landings, and the checker's own coverage test mutates the run 13 ways.
-  The run exercised cd939a7a. The attested-`codeHash` registration came after it and is covered by the local suites.
+  17 chain events reconcile with 17 journaled landings. That run exercised cd939a7a.
+  - **Run 2** (results/pvm-cpu-proof-agent-lifecycle-2) exercised **5d2d115d**. The registered measurement is exactly the
+    attested `codeHash`, and after the release an agent with the owner's payout config withdrew all earnings to the
+    payout address, once. Its check.txt PASSES, and the checker's coverage test mutates it 15 ways.
 
 ## What production still needs (the owner's; none of it is invented here)
 

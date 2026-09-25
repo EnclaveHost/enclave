@@ -10,7 +10,8 @@
 // Steps (each checked against its expectation; the run stops at the first that differs): start, register, claim, prove-1,
 // heartbeat, renew, approach-N (proofs moving the lease toward its margin), renew-interrupted (the renew is journaled and never
 // delivered; the agent stops), renew-recovered (a new agent delivers the SAME bytes once), after-renew (no second renew),
-// release (final proof, then release). Records as cpu/proof-agent-run.mjs, plus chain-events.jsonl (every lifecycle and
+// release (final proof, then release), payout (an agent with the owner's payout config -- claiming off -- withdraws the
+// earnings to that address, a fresh random one here). Records as cpu/proof-agent-run.mjs, plus chain-events.jsonl (every lifecycle and
 // proof event on the local chain, read before it stops) and balances in steps.jsonl.
 // runtime/conformance/check-runner-agent.mjs re-checks it offline.
 import fs from "node:fs";
@@ -44,6 +45,7 @@ const { startLeaseChain } = await import(path.join(REPO, "test/fixtures/lease-ch
 const { AGENT_CONFIG_FORMAT } = await import(path.join(H, "runner/proof-agent.mjs"));
 const { createRunnerAgent, RUNNER_CONFIG_FORMAT } = await import(path.join(H, "runner/runner-agent.mjs"));
 const V = await import("viem"), { privateKeyToAccount, generatePrivateKey } = await import("viem/accounts");
+const PAYOUT_TO = V.getAddress("0x" + (await import("node:crypto")).randomBytes(20).toString("hex")).toLowerCase();   // a fresh lab address
 const APPID = createHash("sha256").update(fs.readFileSync(BUNDLE)).digest("hex");
 let OPKEY = generatePrivateKey();
 const operator = privateKeyToAccount(OPKEY);
@@ -58,7 +60,7 @@ try {
   D = await chain.createFunded(); const pins = chain.pins(D, enclaveId);
   fs.writeFileSync(path.join(OUT, "run.json"), JSON.stringify({ runId: RUN_ID, apk: path.basename(APK), code: CODE, app: APPID, endpoint, pins, accounts: chain.accounts,
     addresses: chain.addresses, chain: `anvil (local: no network, no funds), a block every ${BLOCK_S} s; lease time moved with evm_increaseTime`, googleRootPins: ROOTS, runtimeId: RID,
-    authority: AUTH, policy: POLICY, labRegister: LAB_REGISTER, operatorKey: "a fresh random key for this run, held in memory only, never written" }, null, 1));
+    authority: AUTH, policy: POLICY, labRegister: LAB_REGISTER, labPayout: { to: PAYOUT_TO, minWithdraw6: "1" }, operatorKey: "a fresh random key for this run, held in memory only, never written" }, null, 1));
   log(`local chain ${chain.chainId}: book ${chain.addresses.addressBook}; deployment ${D}; runner ${enclaveId}; operator ${pins.operator} (fresh key); NOTHING registered or claimed`);
   const want = execFileSync("sha256sum", [APK], { encoding: "utf8" }).slice(0, 64), have = sh(`sha256sum $(pm path ${P} | sed s/package://)`).slice(0, 64);
   if (want !== have) { execFileSync(ADB, ["install", "-r", APK], { stdio: "ignore", timeout: 300000 }); log(`installed ${path.basename(APK)} over the previous build, data kept (${want})`); }
@@ -108,11 +110,11 @@ try {
     }
     fail(`${phase}: not serving within 400 s`);
   };
-  const config = (instanceIds, over = {}) => ({ format: RUNNER_CONFIG_FORMAT, lifecycle: { register: LAB_REGISTER, claim: true },
+  const config = (instanceIds, over = {}, lifecycle = { register: LAB_REGISTER, claim: true }) => ({ format: RUNNER_CONFIG_FORMAT, lifecycle,
     proof: { format: AGENT_CONFIG_FORMAT, chainId: String(chain.chainId), addressBook: chain.addresses.addressBook.toLowerCase(), deployment: D, endpoint,
       operator: operator.address.toLowerCase(), carrier: proxy.url, maxFeePerGasWei: "100000000000",
       evidence: { appId: APPID, allowedRuntimeIds: [RID], allowedCodeHashes: [CODE], allowedAuthorityHashes: [AUTH], rootPins: ROOTS, instanceIds }, policy: { ...POLICY, ...over } } });
-  const newRunner = (instanceIds, over) => createRunnerAgent({ config: config(instanceIds, over), publicClient: client, account: operator, stateDir: STATE,
+  const newRunner = (instanceIds, over, lifecycle) => createRunnerAgent({ config: config(instanceIds, over, lifecycle), publicClient: client, account: operator, stateDir: STATE,
     log: (o) => { if (["done", "stuck", "recover", "attest", "renew-withheld", "refused", "broadcast-failed"].includes(o.ev)) log(`  agent ${o.ev}${o.op ? " " + o.op : ""}${o.kind ? " " + o.kind : ""}${o.reason ? ": " + o.reason : ""}`); } });
   const state = async () => { const d = await chain.deployment(D), now = await chain.now(); return { leaseUntil: Number(d.leaseUntil), now, remaining: Number(d.leaseUntil) - now, balance6: String(d.balance6), runner: d.runner }; };
   const step = async (label, outcome, expect) => {
@@ -178,6 +180,13 @@ try {
   rec("steps.jsonl", { step: "release", outcome: rl, ok: rl.kind === "released" && rl.proof && rl.proof.kind === "landed", lease: await state() });
   log(`release: ${rl.kind} (final proof ${rl.proof && rl.proof.kind})`);
   if (rl.kind !== "released" || !rl.proof || rl.proof.kind !== "landed") fail(`release: ${JSON.stringify(rl).slice(0, 300)}`);
+  // the owner's payout: claiming OFF (the deployment is open again), earnings to the payout address
+  runner.close();
+  runner = await newRunner([A.instance], {}, { register: LAB_REGISTER, claim: false, payout: { to: PAYOUT_TO, minWithdraw6: "1" } });
+  await runner.start();
+  const earned = String(await chain.earned6(operator.address));
+  curStep = "payout"; await step("payout", await runner.tick(), ({ lk, lop }) => lk === "landed" && lop === "withdrawEarnings");
+  rec("chain.jsonl", { label: "payout", to: PAYOUT_TO, earnedBefore: earned, balanceAfter: String(await chain.usdcBalance(PAYOUT_TO)), earnedAfter: String(await chain.earned6(operator.address)) });
   sh(`am force-stop ${P}`); log("the lab app was stopped by the script (the VM ends with it)");
 } catch (e) { if (!stopped) log(`STOP: ${e.message}`); process.exitCode = 1; }
 finally {
@@ -192,7 +201,7 @@ finally {
     }
     if (chain) {
       const J = (x) => JSON.parse(JSON.stringify(x, (k, v) => (typeof v === "bigint" ? String(v) : v)));
-      for (const [contract, names] of [["registry", ["Registered", "Updated", "ProofKeySet", "Heartbeat", "Deregistered"]], ["ledger", ["Claimed", "Renewed", "Released"]], ["prover", ["Checkpointed"]]])
+      for (const [contract, names] of [["registry", ["Registered", "Updated", "ProofKeySet", "Heartbeat", "Deregistered"]], ["ledger", ["Claimed", "Renewed", "Released", "EarningsWithdrawn"]], ["prover", ["Checkpointed"]]])
         for (const n of names) for (const l of await chain.events(contract, n)) rec("chain-events.jsonl", J({ contract, event: n, block: l.blockNumber, tx: l.transactionHash, args: l.args }));
       if (D) { const d = await chain.deployment(D); rec("chain.jsonl", { label: "final", runner: d.runner, leaseUntil: String(d.leaseUntil), balance6: String(d.balance6), provenUntil: await chain.provenUntil(D) }); }
     }

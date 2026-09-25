@@ -34,7 +34,7 @@ const addr = { registry: run.addresses.registry.toLowerCase(), ledger: run.addre
 
 // ---- the steps, by this checker's own expectations ----
 const S = jl("steps.jsonl"), names = S.map((s) => s.step);
-const order = ["start", "register", "claim", "prove-1", "heartbeat", "renew"], tail = ["renew-interrupted", "renew-recovered", "after-renew", "release"];
+const order = ["start", "register", "claim", "prove-1", "heartbeat", "renew"], tail = ["renew-interrupted", "renew-recovered", "after-renew", "release", "payout"];
 const approaches = names.slice(order.length, names.length - tail.length);
 expect(order.every((n, i) => names[i] === n) && tail.every((n, i) => names[names.length - tail.length + i] === n) && approaches.every((n, i) => n === `approach-${i}`),
        `steps: ${order.join(", ")}, ${approaches.length} approach step(s), ${tail.join(", ")} -- in that order (${names.join(" ")})`);
@@ -53,6 +53,7 @@ const rr = st["renew-recovered"] || {};
 expect(rr.recovered && rr.recovered.op === "renew" && rr.recovered.kind === "landed", "renew-recovered: the restarted agent landed the journaled renew");
 expect(lop(st["after-renew"]) !== "renew" && pk(st["after-renew"]) === "landed", "after-renew: no second renew; the proof landed");
 expect(st.release && st.release.outcome && st.release.outcome.kind === "released" && st.release.outcome.proof && st.release.outcome.proof.kind === "landed", "release: a final proof, then released");
+expect(lk(st.payout) === "landed" && lop(st.payout) === "withdrawEarnings", "payout: the earnings were withdrawn");
 
 // ---- the carrier: the agent's exchanges are the hub's ----
 const px = jl("proxy.jsonl");
@@ -107,6 +108,13 @@ const hb = [...landed.values()].filter((e) => e.op === "heartbeat");
 expect(ofEvent("Renewed").length === 2 && ofEvent("Heartbeat").length === hb.length && hb.length >= 1, `exactly two Renewed (ordinary + recovered); ${hb.length} Heartbeat(s), one per journaled heartbeat`);
 const rel = ofEvent("Released"), cps = ofEvent("Checkpointed");
 expect(rel.length === 1 && cps.length >= 1 && BigInt(rel[0].block) > BigInt(cps.at(-1).block), "one Released, mined after the last Checkpointed");
+// the published measurement is EXACTLY the build the VM attests (register uses the fresh statement's claims.codeHash)
+expect(ofEvent("Updated").length >= 1 && ofEvent("Updated").every((e) => e.args.id === E && e.args.measurement === "0x" + run.code),
+       `registry: the published measurement is exactly the attested build 0x${run.code.slice(0, 16)}… (${ofEvent("Updated").length})`);
+const wd = ofEvent("EarningsWithdrawn"), po = jl("chain.jsonl").find((e) => e.label === "payout") || {};
+expect(wd.length === 1 && wd[0].args.operator.toLowerCase() === OP && wd[0].args.to.toLowerCase() === (run.labPayout || {}).to && String(wd[0].args.amount6) === po.earnedBefore
+       && po.balanceAfter === po.earnedBefore && po.earnedAfter === "0" && BigInt(po.earnedBefore || 0) > 0n,
+       `payout: one withdrawal of all ${po.earnedBefore} earned, from the operator to the owner's payout address`);
 const lifecycleEvents = EV.filter((e) => e.event !== "Updated" && e.event !== "ProofKeySet" && e.event !== "Deregistered");
 expect(lifecycleEvents.every((e) => landed.has(e.tx)) && [...landed.keys()].every((h) => EV.some((e) => e.tx === h)),
        `every event's transaction is a journaled landing, and every landing has its event (${lifecycleEvents.length} events, ${landed.size} landings)`);
