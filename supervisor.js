@@ -8471,6 +8471,7 @@ async function guestCertPass() {
       const got = await mod.ensureGuestCert({ transport, dataAddr: GUESTD_DATA_ADDR, instanceId: rec._vmId,
         expectAppId: rec._vmAppId, deploymentId: rec.id, name, judge: judgeMod.judge, judgeMode: _guestCertJudgeMode,
         expected: _expectedGuest || (_expectedGuest = mod.expectedGuestFetcher({ base: SECRETS_API })),
+        requirePrediction: ISOLATION_BACKEND === "snp-guest-per-app",   // the MEASURED cmdline's tier, never guestd's word
         judgeOk: _guestCertJudgeMode !== "trusted" ? ["attested", "no-tcb-policy", "unauthenticated"]
           : ISOLATION_MIN_TCB !== undefined ? ["attested"] : ["attested", "no-tcb-policy"],
         minTcb: ISOLATION_MIN_TCB, issue: issueGuestCsr });

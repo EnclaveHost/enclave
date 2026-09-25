@@ -20,8 +20,10 @@
 //      chain and its installed domain releases (GET /v1/expected-guest, the predictor the attested release admits
 //      against: no list of its own here), and the runtime the report binds must be the predicted image's;
 //   5. the CSR's public key is exactly that key, and the issued leaf is for that key and the deployment's name.
-// Any failure issues nothing and installs nothing. A NucBox partition (tier T0-hv) has no measurement and no relay
-// prediction; its route is judged as before.
+// Any failure issues nothing and installs nothing. Whether a guest must meet the prediction is the BOX's decision
+// (requirePrediction: the node's measured backend), never the route's shape: guestd states the tier, so on an SEV-SNP
+// box a route that claims to be a T0-hv partition (no measurement) is refused, not waved through (enclave-5d). A NucBox
+// box (tier T0-hv) has no measurement and no relay prediction; its routes are judged as before.
 //
 // A certificate says only "this key answers for this name", which a browser trusts on the platform's word. What a
 // VERIFYING client relies on is unchanged: the attestation over the same key.
@@ -182,9 +184,12 @@ export function expectedGuestFetcher({ base, fetchImpl = globalThis.fetch, timeo
 // serves: reused true, nothing issued), or throws with why nothing was.
 //   judge(doc, spki, nonce, want)  isolation/m2/judge.mjs's judge; judgeOk: the verdicts that allow issuance
 //   issue(name, csrPem, spkiHash)  the platform certificate service; resolves to the PEM chain
-//   expected(deploymentId)         the relay's expected guest (expectedGuestFetcher); REQUIRED for an SEV-SNP guest
+//   expected(deploymentId)         the relay's expected guest (expectedGuestFetcher)
+//   requirePrediction              this box is an SEV-SNP box (its measured backend): EVERY route must state a measurement
+//                                  and meet the prediction. Default true; only a NucBox (T0-hv) box passes false.
 export async function ensureGuestCert({ transport, dataAddr, instanceId, expectAppId, deploymentId, name, judge,
                                         judgeOk = ["attested", "no-tcb-policy"], judgeMode = "trusted", issue, expected,
+                                        requirePrediction = true,
                                         minTcb, reuse = true, timeoutMs = 20_000,
                                         _deps: { routeFor: rf = routeFor, servedReusable: sr = servedReusable, exchange: ex = exchange } = {} }) {
   const route = await rf(transport, instanceId, expectAppId, { timeoutMs });
@@ -192,8 +197,11 @@ export async function ensureGuestCert({ transport, dataAddr, instanceId, expectA
     const have = await sr(dataAddr, route, name, { timeoutMs });
     if (have) return { instanceId: route.id, key: route.key, name, ...have, reused: true, verdict: "not judged: nothing issued" };
   }
-  // 4 (before any exchange that could lead to issuing). An SNP route carries a measurement; a T0-hv partition does not.
+  // 4 (before any exchange that could lead to issuing). On an SEV-SNP box every route must carry a measurement: guestd
+  // chooses the route's shape, so a missing one is the host's claim, not a partition.
   let image = null;
+  if (requirePrediction && route.measurement === undefined)
+    throw new Error("this SEV-SNP box's route for the guest states no measurement; nothing issued");
   if (route.measurement !== undefined) {
     if (typeof expected !== "function") throw new Error("no source for the relay's expected guest; nothing issued");
     const held = holdToPrediction(await expected(deploymentId), { deploymentId, appId: expectAppId, measurement: route.measurement });

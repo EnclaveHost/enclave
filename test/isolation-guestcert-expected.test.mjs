@@ -6,8 +6,10 @@
 //     image's, and (after the judge) the runtime its report binds is that image's runtime;
 //   - no expected-guest source, a relay that is unreachable, answers 503 or is not the WebPKI-verified origin: nothing
 //     issued, with a retry hint the loop cannot outrun;
-//   - a certificate the guest already serves is kept (nothing fetched, nothing issued), and a T0-hv partition route,
-//     which has no measurement, is judged as before.
+//   - whether the prediction is required is the BOX's measured backend, not the route's shape guestd states: on an
+//     SEV-SNP box a route claiming to be a T0-hv partition issues nothing; on a NucBox box a partition route is judged
+//     as before;
+//   - a certificate the guest already serves is kept (nothing fetched, nothing issued).
 // Every key and certificate here is generated per run by openssl: throwaways.
 
 import { test } from "node:test";
@@ -45,7 +47,7 @@ assert.equal(sha(new X509Certificate(LEAF).publicKey.export({ type: "spki", form
 const doc = (over = {}) => ({ format: "sev-snp-guest-domain-v1", abi: ABI2, runtime: RUNTIME, ...over });
 // one run of the gate with every network step faked; returns what happened
 async function run({ route = { id: "gd0a0b0c0d", appId: APP, measurement: MEAS, runtimeId: RID, key: KEY }, expected = async () => expectedOk(),
-                     noExpected = false, reusable = null, attestation = doc(), verdict = "attested", expectAppId = APP } = {}) {
+                     noExpected = false, reusable = null, attestation = doc(), verdict = "attested", expectAppId = APP, requirePrediction } = {}) {
   const calls = { expected: 0, judge: [], issue: 0, exchanges: [] };
   const deps = {
     routeFor: async () => route,
@@ -64,6 +66,7 @@ async function run({ route = { id: "gd0a0b0c0d", appId: APP, measurement: MEAS, 
       judge: async (_d, _s, _n, want) => { calls.judge.push(want); return { verdict, reasons: [] }; },
       issue: async () => { calls.issue++; return LEAF; },
       ...(noExpected ? {} : { expected: async (id) => { calls.expected++; return expected(id); } }),
+      ...(requirePrediction === undefined ? {} : { requirePrediction }),
       _deps: deps });
   } catch (e) { err = e; }
   return { out, err, calls };
@@ -132,8 +135,19 @@ test("a certificate the guest already serves is kept: nothing fetched from the r
   assert.equal(r.calls.issue, 0);
 });
 
-test("a T0-hv partition route (no measurement) is judged as before and needs no relay prediction", async () => {
-  const r = await run({ route: { id: "p-1", appId: APP, image: "99".repeat(32), runtimeId: RID, key: KEY }, noExpected: true });
+test("on an SEV-SNP box a route that CLAIMS to be a T0-hv partition (no measurement) issues nothing, whatever the judge says", async () => {
+  // guestd states the tier; the box's measured backend decides whether the prediction is required (enclave-5d)
+  const r = await run({ route: { id: "gd0a0b0c0d", appId: APP, image: "99".repeat(32), runtimeId: RID, key: KEY },
+                        expected: async () => { throw new Error("must not be needed"); } });
+  assert.ok(r.err);
+  assert.match(r.err.message, /states no measurement; nothing issued/);
+  assert.equal(r.calls.issue, 0);
+  assert.equal(r.calls.expected, 0);
+  assert.equal(r.calls.judge.length, 0, "not even judged");
+});
+
+test("on a NucBox (T0-hv) box a partition route (no measurement) is judged as before and needs no relay prediction", async () => {
+  const r = await run({ route: { id: "p-1", appId: APP, image: "99".repeat(32), runtimeId: RID, key: KEY }, noExpected: true, requirePrediction: false });
   assert.equal(r.err, undefined, r.err && r.err.message);
   assert.equal(r.calls.issue, 1);
   assert.equal(r.calls.judge[0].measurement, undefined);
@@ -171,4 +185,14 @@ test("expectedGuestFetcher: only a WebPKI-verified https relay answers; 503 give
   await f200(DEP); assert.equal(n, 1, "kept within cacheMs");
   t += 11 * 60_000; await f200(DEP); assert.equal(n, 2, "asked again after cacheMs");
   await assert.rejects(() => f200("0xnot-an-id"), /not a deployment id/);
+});
+
+test("supervisor.js hands the gate its relay prediction and decides the requirement from the MEASURED backend", () => {
+  // the wiring is not reachable without a node; pin it at the source, so neither can be dropped quietly
+  const src = fs.readFileSync(new URL("../supervisor.js", import.meta.url), "utf8");
+  const call = src.slice(src.indexOf("mod.ensureGuestCert({"), src.indexOf("issue: issueGuestCsr"));
+  assert.ok(call.length > 0 && call.length < 2000, "the ensureGuestCert call site");
+  assert.match(call, /expected: _expectedGuest \|\| \(_expectedGuest = mod\.expectedGuestFetcher\(\{ base: SECRETS_API \}\)\)/);
+  assert.match(call, /requirePrediction: ISOLATION_BACKEND === "snp-guest-per-app"/);
+  assert.match(src, /const SECRETS_API = \(process\.env\.SECRETS_API \?\? "https:\/\/api\.enclave\.host"\)/, "the relay origin's measured default");
 });
