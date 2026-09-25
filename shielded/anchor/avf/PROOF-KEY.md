@@ -261,8 +261,9 @@ the carrier says, whether the carrier is the phone's Android host or the relay.
   in another block. The checker's own test mutates a copy of the run 15 ways, and each must fail.
   - Run 1 is kept with its checker FAIL: its reorganization hook fired before the agent saw the receipt
     (results/pvm-cpu-proof-agent-run1/NOTES.md).
-- **Not done by the agent (the owner's):** register and `setProofKey`, `claim`, `renew`, `release` (prove the final period
-  first), `heartbeat`, and `withdrawEarnings`.
+- **The rest of the lifecycle** (register or `setProofKey`, `claim`, `renew`, `release` after a final proof, and
+  `heartbeat`) is the runner lifecycle agent. It is built on this agent's transaction engine, in RUNNER-AGENT.md.
+  `withdrawEarnings` is not built.
 
 **Exactly what production still needs** (all the owner's; nothing here is set):
 1. `PROOF_AGENT_RPC`: a Base RPC URL.
