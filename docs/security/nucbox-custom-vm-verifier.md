@@ -62,6 +62,22 @@ enclave-d1's boot-68 capture, `windows/vbslike/evidence/quote-20260925-053931/` 
 PCR 0, the boot-68 log (8ee177c4...), and the nonce and minted credential published after the session. The module is
 shipped on `relay/deploy.sh`'s list and imported dynamically with an OFF fallback.
 
+**Built, not wired (2026-09-25).** `relay/hvnode-verify.mjs` `verifyHvNodeEvidence` implements the checks above on
+enclave-5d's frame (`windows/node-hv-identity` at 852f3c1d: `rad.transportKey`, body `{proves, statement, signature, log,
+quote, credential, ek, pcr0, platform}`, the statement being the exact UTF-8 JSON or the 4 bytes `null`), reusing the
+relay's EK, credential, quote and log primitives; `retiredFormat()` names `windows-vbs-enclave/v1` as retired.
+`test/hvnode-verify.test.mjs` (5): the REAL boot-68 session (`test/fixtures/hvnode/boot68-2026-09-25`, copied from
+enclave-d1's dbe615b0 with a hash-checked source record) passes every TPM and boot check in capture mode, is never
+admissible as a recording, records the boot-68 IDKS (402f2281...01a9), and refuses each of d1's seven negative controls at
+the named check; the real boot-64 legacy evidence re-presented as hv-node is refused on Secure Boot and test signing even
+with a test-signing flag; synthetic full transcripts verify and are admissible, with the statement bound and recorded,
+the "null" statement accepted, a statement claiming host exclusion changing nothing, and refusals for replay, a foreign
+key, a missing or wrong possession signature, a statement swapped after binding, the retired VBS transcript (domain
+separation), Secure Boot off, test signing on (flag ignored), kernel debugging, HVCI off, a quote without PCR 0, a
+truncated log and a missing mint record. Five deliberate regressions (test signing or Secure Boot unchecked, possession
+skipped, PCR 0 not required, the statement unbound) each fail the suite. The tunnel wiring and the refusal of the retired
+format at dispatch are the next change, a production relay deploy.
+
 ## The paravisor's VM report (per app partition): what the verifier will require
 
 Each line maps to the contract's requirement (R1-R7) and is NOT ESTABLISHED.

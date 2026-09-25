@@ -1,0 +1,23 @@
+{
+ "what": "enclave-d1's boot-68 TPM quote session on nucbox-k11 (2026-09-25 05:39Z, Secure Boot ON, test signing off), one run of the node's tpmattest.exe with a nonce and credential minted by the verifier; the quote carries the RAW nonce (it predates the windows-hv-node/v1 transcript), so it re-verifies in capture mode only",
+ "origin": {
+  "repository": "EnclaveHost/enclave",
+  "branch": "windows/custom-vbs-like-hyperv",
+  "commit": "dbe615b0",
+  "path": "windows/vbslike/evidence/quote-20260925-053931",
+  "owner": "enclave-d1"
+ },
+ "copiedAt": "2026-09-25T05:51Z",
+ "files": {
+  "README.md": "460228f3c9f26687dddc2b0b354fe811559307eeedb3f410f4c90937d5bab4e9",
+  "activate.txt": "f52b4c0c9e80b89c4f58502349e68d25f2173525ab71285f90e9b6f9cd730e82",
+  "keys.txt": "b40d06c7339b1d025590bafb155c89c16a68506ea07cad82b059d204d58d91f4",
+  "measuredboot-0000000068.log": "8ee177c4e05165c6e4dc4294f32fe38c1e279656c48b2df9db17cadf6ceecb0b",
+  "meta.txt": "206f0530ceba7dfd515056cbaa5e6e2d1369a6597b6fd2184cb1ab4363d35f6f",
+  "pcr0.txt": "69d7cbc097a485a31060349375b9bea581eed027ec81da93b1054d6cb17a2a38",
+  "quote.txt": "f6d83a4c0f709e4a2cd9867a304f782bd519701ae6787c0d5bc5c19003147923",
+  "verdict.json": "2eaedcb255a21266c757a3bac25d40938563a3554d4d2f1b5f8a588f8c0262fe",
+  "verifier-inputs-after-session.json": "637f8ff87418678449b766bde876369e9a18255b25f65d1ad5dad4f531fa83fe"
+ },
+ "negativeControls": "generated from these bytes as in-memory mutations, the list of windows/vbslike/verify/tpmquote/quote-verify.mjs (not stored)"
+}
