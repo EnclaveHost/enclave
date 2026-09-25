@@ -154,10 +154,24 @@ one node_modules.
 - **Not re-run:** the Pixel device and the local chain. The relay files are the ones the 48c6efb3 regression ran.
 
 ## Remaining prerequisites, in order
-1. **U7 on main.** This candidate merges 18772bf7 itself. If U7 lands in a different form, the candidate is rebased onto it,
-   and the carve-out is re-reviewed against that form.
-2. **enclave-99's review of this candidate**: the inventory, the adapted test files (the verifier-integration change is to
-   their own file), and the claim that the relay files are byte-identical to 48c6efb3.
+1. **enclave-99's review: the CONTENT is APPROVED** at e83bc6ac, including the two changes to their
+   test/verifier-integration.test.mjs. They checked independently:
+   - 4c8334cb equals a fresh merge of 164e7279 + 18772bf7;
+   - the 19 files are byte-identical to 48c6efb3;
+   - relay/vendor, verifier/, the verifier's web dist, .gitleaks.toml and .githooks are identical to main;
+   - the named suites pass 188 of 189, with 1 skip;
+   - the harness catches 41 of 42 by name. M19 was caught only as a whole-file failure: a race in the buyer-leaving
+     check. That check now names the one request's VM stream (2be4b644), and M19 is caught by name 3 of 3.
+2. **Landing lands U7**, so enclave-99's landing conditions come first. The candidate merges 18772bf7 itself. If U7 lands
+   in another form, the candidate is rebased onto it and the carve-out re-reviewed.
+   - **U7's rollout first (its preflight, rev 3):**
+     - `ELIGIBILITY_API=https://api.enclave.host` in nan-relay's tcp6-relay.env, udp-relay.env and dns.env, verified with
+       the redacted probe. Without it, the merge's relay deploy breaks dns-01 for every deployment name, and tcp6 and UDP
+       refuse everything;
+     - a decision on us-west, with its env and the CI key in place if it is added.
+   - **This is not a substitute for Steven's or Codex's decision to roll out U7.** That decision gates this merge.
+   - **Pushed ALONE, with a fresh deploy audit.** The deploy classifier gives relay=true: the relays and the api relay
+     restart.
 3. **Production facts: ANSWERED by enclave-5d**, redacted (set or unset, and counts only), read-only over the documented
    relay-admin route, with no new access attempt.
    - **The api relay** is on `nan` (unit enclave-api-relay), read 2026-09-25T15:14:27Z:
@@ -171,7 +185,8 @@ one node_modules.
      or udp-relay.env.
    - **us-west: NOT checked** (no existing access route). Its egress relay imports none of the pVM files (above).
    - These are the facts as of that read. A deploy audit re-reads them at landing time.
-4. **A landing decision with its own deploy audit.** A push to main that touches relay/** redeploys the api relay.
+4. **A landing decision with its own deploy audit.** A push to main that touches relay/** redeploys the relays and the
+   api relay (condition 2).
 5. **Separately, if pVM serving is ever wanted in production**, each of these is its own decision and none is made here:
    - a production `PVM_SERVING`;
    - an app and runtime admission list;
