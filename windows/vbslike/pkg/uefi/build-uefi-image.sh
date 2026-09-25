@@ -19,7 +19,13 @@
 #               no NVRAM variable needed). Fixed volume id and timestamps (mkfs.fat --invariant, SOURCE_DATE_EPOCH).
 #   disk.raw    GPT, fixed disk and partition GUIDs, one EFI System partition at 1 MiB = esp.img. THIS is the pinned
 #               identity of the disk.
-#   disk.vhdx   the Hyper-V container of disk.raw (Gen2 boots "from a SCSI virtual hard disk (.VHDX)"). Its header
+#   guest.iso   a UEFI El Torito ISO: esp.img is a file INSIDE the ISO 9660 volume and the El Torito EFI entry points at
+#               it. The catalog's 16-bit sector count cannot express an ESP over 32 MiB, so it is written as 0; EDK2
+#               firmware (OVMF, and Project Mu in Hyper-V) then takes the rest of the ISO 9660 VOLUME from the image's
+#               LBA, which holds the whole image only if the image is inside the volume. MEASURED: an ESP appended as a
+#               GPT partition OUTSIDE the volume fails ("Not Found" at the CD-ROM). READ-ONLY by construction: the Gen2
+#               boot medium enclave-d1 chose. Reproducible.
+#   disk.vhdx   the Hyper-V container of disk.raw, kept as the pinned FALLBACK medium (Gen2 boots "from a SCSI virtual hard disk (.VHDX)"). Its header
 #               GUIDs are random (qemu-img), so its bytes are NOT reproducible; the builder converts it back and
 #               requires the payload to be disk.raw byte for byte.
 #   build.json  every input, tool and output with its sha256.
@@ -35,7 +41,7 @@ while [ $# -gt 0 ]; do case "$1" in
 for v in KERNEL INITRD STUB OUT; do eval "[ -n \"\${$v}\" ]" || { echo "--$(echo $v | tr A-Z a-z) is required" >&2; exit 2; }; done
 [ -n "$CMDLINE" ] || { echo "--cmdline is required" >&2; exit 2; }
 [ -n "$MTOOLS" ] && PATH="$MTOOLS:$PATH"
-for t in objcopy objdump mkfs.fat mcopy mmd sfdisk qemu-img sha256sum; do command -v $t >/dev/null || { echo "missing tool: $t" >&2; exit 2; }; done
+for t in objcopy objdump mkfs.fat mcopy mmd sfdisk qemu-img xorriso sha256sum; do command -v $t >/dev/null || { echo "missing tool: $t" >&2; exit 2; }; done
 export SOURCE_DATE_EPOCH=$EPOCH TZ=UTC LC_ALL=C MTOOLS_SKIP_CHECK=1
 
 # --check: build twice into fresh directories and require the pinned outputs to be identical, then keep the first
@@ -46,7 +52,7 @@ if [ -n "$CHECK" ]; then
   [ -n "$RECIPE" ] && set -- "$@" --uki-recipe "$RECIPE"
   rm -rf "$OUT.check-a" "$OUT.check-b"
   "$self" "$@" --out "$OUT.check-a" >/dev/null; "$self" "$@" --out "$OUT.check-b" >/dev/null
-  rc=0; for f in uki.efi esp.img disk.raw; do
+  rc=0; for f in uki.efi esp.img disk.raw guest.iso; do
     a=$(sha256sum < "$OUT.check-a/$f" | cut -c1-64); b=$(sha256sum < "$OUT.check-b/$f" | cut -c1-64)
     if [ "$a" = "$b" ]; then echo "reproducible  $f  $a"; else echo "DIFFERS       $f  $a vs $b"; rc=1; fi; done
   rm -rf "$OUT.check-b"; rm -rf "$OUT"; mv "$OUT.check-a" "$OUT"; exit $rc
@@ -95,7 +101,16 @@ qemu-img convert -q -f raw -O vhdx -o subformat=dynamic "$W/disk.raw" "$W/disk.v
 qemu-img convert -q -f vhdx -O raw "$W/disk.vhdx" "$W/disk.back"
 [ "$(sha "$W/disk.back")" = "$(sha "$W/disk.raw")" ] || { echo "disk.vhdx does not carry disk.raw" >&2; exit 1; }
 
-for f in uki.efi esp.img disk.raw disk.vhdx; do cp "$W/$f" "$OUT/$f"; done
+# 5. the ISO: esp.img as the only file of the ISO 9660 tree, and the El Torito EFI no-emulation image
+mkdir -p "$W/isoroot"; cp "$W/esp.img" "$W/isoroot/efiboot.img"
+touch -d "@$EPOCH" "$W/isoroot" "$W/isoroot/efiboot.img"
+modstamp=$(date -u -d "@$EPOCH" +%Y%m%d%H%M%S00)
+xorriso -report_about SORRY -as mkisofs -o "$W/guest.iso" -V ENCLAVE_GUEST -iso-level 3 \
+  --modification-date="$modstamp" \
+  -e efiboot.img -no-emul-boot \
+  "$W/isoroot" 2>/dev/null
+
+for f in uki.efi esp.img disk.raw disk.vhdx guest.iso; do cp "$W/$f" "$OUT/$f"; done
 cat > "$OUT/build.json" <<JSON
 {
  "type": "enclave-vbslike-uefi-image/1",
@@ -111,13 +126,14 @@ cat > "$OUT/build.json" <<JSON
              "gptLabelId": "5E6C0D1A-7A0B-4C3E-9E0B-000000000001", "espPartUuid": "5E6C0D1A-7A0B-4C3E-9E0B-0000000000E5",
              "espPath": "/EFI/BOOT/BOOTX64.EFI" },
  "tools": { "objcopy": "$(objcopy --version | head -1)", "mtools": "$(mcopy --version | head -1)",
-            "sfdisk": "$(sfdisk --version)", "qemu-img": "$(qemu-img --version | head -1)", "mkfs.fat": "$(mkfs.fat --help 2>&1 | head -1)" },
+            "sfdisk": "$(sfdisk --version)", "xorriso": "$(xorriso -version 2>/dev/null | head -1)", "qemu-img": "$(qemu-img --version | head -1)", "mkfs.fat": "$(mkfs.fat --help 2>&1 | head -1)" },
  "outputs": {
   "uki.efi":   { "sha256": "$(sha "$OUT/uki.efi")", "bytes": $(stat -c%s "$OUT/uki.efi") },
   "esp.img":   { "sha256": "$(sha "$OUT/esp.img")", "bytes": $(stat -c%s "$OUT/esp.img") },
   "disk.raw":  { "sha256": "$(sha "$OUT/disk.raw")", "bytes": $(stat -c%s "$OUT/disk.raw"), "note": "the pinned identity of the disk" },
-  "disk.vhdx": { "sha256": "$(sha "$OUT/disk.vhdx")", "bytes": $(stat -c%s "$OUT/disk.vhdx"), "note": "container: header GUIDs are random, so NOT reproducible; its payload is disk.raw (checked)" }
+  "disk.vhdx": { "sha256": "$(sha "$OUT/disk.vhdx")", "bytes": $(stat -c%s "$OUT/disk.vhdx"), "note": "FALLBACK container: header GUIDs are random, so NOT reproducible; its payload is disk.raw (checked)" },
+  "guest.iso": { "sha256": "$(sha "$OUT/guest.iso")", "bytes": $(stat -c%s "$OUT/guest.iso"), "note": "the boot medium: El Torito EFI = /efiboot.img (= esp.img) inside the ISO 9660 volume; read-only" }
  }
 }
 JSON
-echo "uki.efi   $(sha "$OUT/uki.efi")"; echo "esp.img   $(sha "$OUT/esp.img")"; echo "disk.raw  $(sha "$OUT/disk.raw")"; echo "disk.vhdx $(sha "$OUT/disk.vhdx") (container; payload = disk.raw, checked)"
+echo "guest.iso $(sha "$OUT/guest.iso")"; echo "uki.efi   $(sha "$OUT/uki.efi")"; echo "esp.img   $(sha "$OUT/esp.img")"; echo "disk.raw  $(sha "$OUT/disk.raw")"; echo "disk.vhdx $(sha "$OUT/disk.vhdx") (container; payload = disk.raw, checked)"
