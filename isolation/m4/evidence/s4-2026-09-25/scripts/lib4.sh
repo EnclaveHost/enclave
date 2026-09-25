@@ -7,7 +7,7 @@ SRC=/home/steven/enclave-bench/prod-release-17e182a8/release-17e182a8
 T=$PROD/iso-17e182a8; R=$PROD/release-17e182a8; LEG=$PROD/iso-03be27d6/isolation; LEGC=0181bce3aac5fa03dfaf2928d834ecd04d2a4a73
 FLOOR=16384   # Codex: the host floor for THIS 64 GiB pool at its next coordinated guestd rollout, which 4d is
 # the reviewed host-memory floor (enclave-63): a 4d guestd must be built from a commit carrying both
-FLOORC="d67b0020c8fd58166392e85bf315e4bb15404183 1b5375c9f9718d346d4c5511d7a9bc3096d5551f d36e8da70b13e2fbb602a2ca9be9c85099efd631"
+FLOORC="d67b0020c8fd58166392e85bf315e4bb15404183 1b5375c9f9718d346d4c5511d7a9bc3096d5551f d36e8da70b13e2fbb602a2ca9be9c85099efd631 ee8dbbcd494229f843cf92b99ac542cdfd77d755"
 MAIN=/home/steven/Projects/enclave; S4=$EV/s4; LOG4=$S4/install.log
 # Logging NEVER fails (enclave-e3 A3): under set -e a failed log write (disk full, quota) would otherwise exit before a
 # rollback runs. The line always reaches the terminal; the file is best effort. S4 replaces lib.sh's say the same way.
