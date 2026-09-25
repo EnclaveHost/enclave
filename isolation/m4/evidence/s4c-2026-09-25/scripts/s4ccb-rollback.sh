@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 4c-c-b rollback: dist back to dist-iso-b3109929 and no release opt-in (the pre-4c-c config, byte-exact), one node CVM restart, checked. Gate: the 3 S0 canaries alone (chain +
 # guestd), a failed read unsafe, OVERRIDE=<reason> logged; the apply's own fail() passes its one-time token instead.
+# cc-v2: also removes 4c-c-b's launcher drop-in (only if it is exactly 4c-c-b's), so the node runs from iso-03be27d6 again.
 set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/s4c-20260925/lib4cc.sh
 TOK=$EV/secret/4cc-rollback-token
 if [ -n "${FROM_APPLY:-}" ] && [ -f "$TOK" ] && [ "$(cat "$TOK" 2>/dev/null)" = "$FROM_APPLY" ]; then
@@ -14,8 +15,16 @@ fi
 python3 -c "import json,sys; c=json.load(open('$CB4')); sys.exit(0 if c['dist']=='$OLDD' and 'release' not in c['isolation'] else 1)" || { say "the backup is not the 4c config"; exit 1; }
 cp -p "$CB4" "$EV/secret/config.iso.json.new" || { say "ROLLBACK FAILED: copying the backup"; exit 22; }
 mv "$EV/secret/config.iso.json.new" "$C" || { say "ROLLBACK FAILED: installing the backup"; exit 22; }
-say "4c-c-b ROLLBACK: dist -> dist-iso-b3109929, no release opt-in; restarting enclave-metal-iso"
+if [ -e "$DROP" ]; then
+  [ "$(cat "$DROP")" = "$DROP_BODY" ] || { say "ROLLBACK FAILED: $DROP is not 4c-c-b's drop-in (left in place; the config IS restored)"; exit 22; }
+  rm -f "$DROP" || { say "ROLLBACK FAILED: removing the launcher drop-in (the config IS restored)"; exit 22; }
+fi
+rm -f "$DI/.10-launcher.conf.new"; [ ! -d "$DI" ] || rmdir "$DI" 2>/dev/null || say "note: $DI is not empty (left in place)"
+systemctl --user daemon-reload || { say "ROLLBACK FAILED: daemon-reload (the config IS restored, the drop-in removed)"; exit 22; }
+[ "$(unit_wd)" = "$OLDW" ] || { say "ROLLBACK FAILED: WorkingDirectory is $(unit_wd), not iso-03be27d6"; exit 22; }
+say "4c-c-b ROLLBACK: dist -> dist-iso-b3109929, no release opt-in, launcher iso-03be27d6; restarting enclave-metal-iso"
 systemctl --user restart enclave-metal-iso.service || { say "ROLLBACK FAILED: the restart (the config IS restored)"; exit 22; }
+wait_for 30 node_runs_from "$OLDW" "$OLDLS" || { say "ROLLBACK CHECK FAILED: the node does not run the 0181bce3 launcher from iso-03be27d6"; exit 21; }
 attested_old() { [ "$(node_attested)" = "$OLDM $OLDC" ]; }
 wait_for 600 attested_old || { say "ROLLBACK CHECK FAILED: the node does not attest 8ab7a159 / b3109929 again"; exit 21; }
 wait_for 300 public_ok || { say "ROLLBACK CHECK FAILED: canaries"; exit 21; }

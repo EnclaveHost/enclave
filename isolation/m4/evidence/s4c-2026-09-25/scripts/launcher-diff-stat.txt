@@ -1,0 +1,4 @@
+ metal/enclave-metal.mjs                |  22 +++--
+ metal/guest/gsup.mjs                   |   8 +-
+ test/metal-launcher-isolation.test.mjs | 147 +++++++++++++++++++++++++++++++++
+ 3 files changed, 171 insertions(+), 6 deletions(-)

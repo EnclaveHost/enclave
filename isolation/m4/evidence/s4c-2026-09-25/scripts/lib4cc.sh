@@ -23,3 +23,34 @@ allowlist() { $NAN "grep '^METAL_ALLOWED_MEASUREMENTS=' /etc/nan-relay/api-relay
 # the published availability after 4c: the pool as before, and NOW the floor's verdict (the 4c supervisor mirrors it)
 avail4c() { curl -sS --max-time 20 https://api.enclave.host/t/metal-iso0/availability | python3 -c "import json,sys; a=json.load(sys.stdin); g=a.get('guestPool') or {}; sys.exit(0 if g.get('heard') and a.get('nodeRamGb')==64 and a.get('nodeVcpus')==16 and g.get('budget')=={'memMiB':65536,'cpuPct':1600} and g.get('free')=={'memMiB':60160,'cpuPct':1300} and abs(a.get('cpuShareFree',0)-0.7)<1e-9 and g.get('host')=={'floorMiB':16384,'admitsSmallestGuest':True} else 1)"; }
 avail_before() { avail4c; }   # since 4c the published availability already carries the floor verdict
+# ---- cc-v2 (after the 22:45Z rollback). The HOST launcher never forwarded isolation.release into the guest's fw_cfg
+# (metal/enclave-metal.mjs:157 built {managerUrl, dataAddr, pairingKey} only), so the new gsup logged "attested release
+# off". 4c-c-b now ALSO moves the node's WorkingDirectory to a detached worktree at 5d's reviewed launcher fix: a user
+# drop-in carrying WorkingDirectory only, ExecStart unchanged (enclave-d1's plan). The launcher imports node builtins only
+# and takes its config (--config) and image (cfg.dist) by absolute path, so the swap is like-for-like. iso-03be27d6 stays
+# as it is: guestd's -legacy-isolation reads its isolation/. The launcher is host code and unmeasured: 02f6e313 stands.
+OLDW=/home/steven/enclave-prod/iso-03be27d6; OLDWC=0181bce3aac5fa03dfaf2928d834ecd04d2a4a73
+OLDLS=e1bac93c81be3bcc7ef056b74b6e63c22009a2978ed6161e3eba1ae882f9d93a
+LAUNCH_C=$(cat $S4C/launcher-commit.txt 2>/dev/null || true); LAUNCH_SHA=$(cat $S4C/launcher-sha256.txt 2>/dev/null || true)
+LW=/home/steven/enclave-prod/metal-${LAUNCH_C:0:8}
+DI=/home/steven/.config/systemd/user/enclave-metal-iso.service.d; DROP=$DI/10-launcher.conf
+DROP_BODY=$'[Service]\nWorkingDirectory='"$LW"
+NODE_CMD='/usr/bin/node|metal/enclave-metal.mjs|--config|/home/steven/Projects/enclave/metal/config.iso.json|'
+# the reviewed fix: a 40-hex commit on top of 0181bce3, its worktree clean at it, its launcher = the reviewed blob
+check_launcher() {
+  local h st s
+  [[ "$LAUNCH_C" =~ ^[0-9a-f]{40}$ ]] && [[ "$LAUNCH_SHA" =~ ^[0-9a-f]{64}$ ]] && [ "$LAUNCH_SHA" != "$OLDLS" ] \
+    || { say "no reviewed launcher fix (launcher-commit.txt / launcher-sha256.txt)"; return 1; }
+  git -C "$LW" merge-base --is-ancestor "$OLDWC" "$LAUNCH_C" || { say "the launcher fix is not on top of 0181bce3"; return 1; }
+  h=$(git -C "$LW" rev-parse HEAD) && [ "$h" = "$LAUNCH_C" ] || { say "$LW is not a worktree at ${LAUNCH_C:0:8}"; return 1; }
+  st=$(git -C "$LW" status --porcelain) && [ -z "$st" ] || { say "$LW is not clean"; return 1; }
+  s=$(sha256sum "$LW/metal/enclave-metal.mjs") && [ "${s%% *}" = "$LAUNCH_SHA" ] || { say "$LW's launcher is not the reviewed blob"; return 1; }
+}
+# the RUNNING node: its cwd and argv (a failed read prints nothing, which matches no directory)
+node_pid() { local p; p=$(systemctl --user show enclave-metal-iso.service -p MainPID --value) && [[ "$p" =~ ^[1-9][0-9]*$ ]] && echo "$p"; }
+node_runs_from() {   # $1 = worktree, $2 = the launcher's expected sha256
+  local p c s; p=$(node_pid) || return 1
+  [ "$(readlink "/proc/$p/cwd")" = "$1" ] && c=$(tr '\0' '|' < "/proc/$p/cmdline") && [ "$c" = "$NODE_CMD" ] \
+    && s=$(sha256sum "$1/metal/enclave-metal.mjs") && [ "${s%% *}" = "$2" ]
+}
+unit_wd() { systemctl --user show enclave-metal-iso.service -p WorkingDirectory --value; }
