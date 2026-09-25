@@ -1178,3 +1178,26 @@ test("draft v37 records b7ba7731's canary 093904 (boots, serves, the TPM control
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
 });
+
+test("draft v38 records the package-owned functional acceptance of b7ba7731 (094631, 98782fbb) and nothing stronger: no rollover, the reference unchanged, the candidate reused from v36's staged copies", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-38.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT \(supersedes v37, which was committed and never staged; v36 is staged at pkg\\3384e097aa024b73\\\)\. PACKAGE-OWNED FUNCTIONAL ACCEPTANCE, 98782fbb \(enclave-d1, run 094631/);
+  const a = d.profiles.vbsLinux.nextCandidate.packageAcceptance;
+  assert.match(a, /the package's launcher control\\vbslike-host\.exe 435717de, NOT the box's target\\release 0160d835/);
+  assert.match(a, /HVLAB-ACCEPT ALL PASS \(28 checks\).*RESTART-ACCEPT ALL PASS, A0-A9/);
+  assert.match(a, /every one of v36's 52 pinned control\/ files appears in it with its pinned sha256/);
+  assert.match(a, /NOT an eligibility promotion: b7ba7731 stays eligible:false and a44bb55a stays the one eligible image/);
+  assert.match(a, /THE ROLLOVER IS ON HOLD \(enclave-d1, 09:57Z\): it needs enclave-99's verification review of 98782fbb and of b7ba7731, and then an explicit decision by Steven/);
+  assert.equal(d.inputs.find((i) => i.name === "tree-hashes-094631.txt").sha256, "842ba05613d0cac25662b487132c2879f56ad3950b381360108eb0b118c78be2");
+  // no rollover: the same firmware, the same reference bytes as v37, one eligible digest
+  assert.equal(d.profiles.vbsLinux.firmware, "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin");
+  assert.equal(d.profiles.vbsLinux.managerEnv.find((e) => e.name === "ENCLAVE_GUEST_IGVM").file, "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin");
+  const v37 = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-37.json"), "utf8"));
+  const refOf = (m) => m.files.find((f) => f.role === "reference.values").sha256;
+  assert.equal(refOf(d), refOf(v37), "v38 carries v37's reference unchanged");
+  assert.deepEqual(JSON.parse(refRawFor(D)).images.filter((x) => x.eligible).map((x) => x.vbsBootDigest.slice(0, 8)), ["58DFEBFE"]);
+  for (const f of d.files.filter((x) => /1539/.test(x.path))) assert.match(f.boxReuse, /^C:\\Users\\claude\\vbs-like\\pkg\\3384e097aa024b73\\guest\\igvm-vbs\\/, f.path);
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});
