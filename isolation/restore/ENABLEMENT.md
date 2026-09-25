@@ -15,6 +15,9 @@ one suggestion), all answered below:
 - L3: the ticket-burn path is noted at step 4, as the relay fix is e3's lane.
 - e3's suggestion (show the opt-in in availability) is listed as a follow-up.
 
+**Rev 6 (23:52Z):** step 4's proof 3 is CORRECTED (enclave-63, at hookbin's relaunch). The canaries' versions carry a
+`_media` config: 177 B for hookbin, 194 B for 395bed3e/4e62e60d. "1 allowed origin" (the relay's) is the minimum.
+
 **Rev 5 (23:31Z):** step 3 is DONE. 4c-c-b applied at 23:18:45Z, and observe.sh's 4cc gate PASSED at
 23:29:10Z.
 
@@ -214,9 +217,20 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
        (legacy today: be6b8644…);
      - 395bed3e and 4e62e60d must be `6de873656f88fa63e6f9aceed48951a42fb5703d08a643f2d250b343af178431c75dc7c4cb8454bffbec089bd92c9b25`
        (legacy today: c068f423…).
-  3. **Its serial:** `DOM release: deployment 0x… … 0 allowed origin(s), 0 refused, config 0 bytes`, then
-     `DOM app config: none` (the relay releases `config:null` and no secrets; the front maps null to none), then
-     `DOM serving`. And none of the app's own output (the stdio discard).
+  3. **Its serial** (CORRECTED at rev 6; enclave-63 found it at hookbin's relaunch):
+     - `DOM release: deployment 0x… … 1 allowed origin(s), 0 refused, config <n> bytes`;
+     - then `DOM app config: <n> bytes (ENCLAVE_CONFIG)`;
+     - then `DOM serving`, and none of the app's own output (the stdio discard).
+
+     The canaries' envelopes carry no config, so the relay falls back to the catalog VERSION's config
+     (versionConfigFor). For both apps that is one top-level key, `_media` (the catalog's media metadata), with no
+     https URL and no `$` reference. Read from the catalog 0x1841…26e3 on drpc and publicnode, which agreed:
+     - **0ddbd824** (hookbin, version 0.1.4): n = **177** bytes;
+     - **395bed3e and 4e62e60d** (version 1.0.4): n = **194** bytes.
+
+     The compact serialization equals the on-chain string, byte for byte. Neither has a versionConfigCid. "1 allowed
+     origin" is the relay's own pinned origin, always present, so 1 is the MINIMUM. The earlier "0 origins, config
+     0 bytes, app config: none" assumed a null config that these versions do not have.
   4. **Certificate:** the node's certificate pass issues for the NEW guest key only through the expected-guest gate.
      No `REFUSED`/`not an eligible` or "is no predicted image's" line for it. A new serial is served.
   5. **Public TLS:** `curl https://<label>.app.enclave.host/` gives 200 via us-west (the DNS path), with the NEW
@@ -235,8 +249,9 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
 - **Acceptance** = all three canaries pass the five proofs and serve for their observe windows. Only then step 4b.
 
 ## Step 4b: a config- and secret-bearing acceptance deployment (Codex: the null-config canaries don't show it)
-The three canaries carry no config and no secrets, so they prove the release, the attestation and the certificate, but
-not the customer path: config delivery, `$NAME` substitution and derived egress. This step proves that path on the
+The three canaries carry no config of their own (only their version's `_media` metadata, delivered as their config) and
+no secrets. So they prove the release, the attestation, the certificate and plain config delivery, but not the
+customer path: `$NAME` substitution, secrets and derived egress. This step proves that path on the
 same app and version as Steven's a69dcbba, with **non-sensitive test values**, on a deployment the agent wallet owns.
 - **The app:** api-mcp-adapter 1.0.0 (`catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0`),
   a69dcbba's exact app. So `/v1/expected-guest` for the test id must be a69dcbba's prediction (20319b02…ef47), and
@@ -448,5 +463,6 @@ serves at `https://<label>.app.enclave.host/`.
 4. **63/Codex:** confirm step 4b's refunded 0.01 USDC funding of the agent wallet's own test deployment (the CLI
    requires a funding amount; the host charge is waived and the fee is 0).
 5. **Not blockers** (checked): a null-config release is handled end to end: relay `config:null`, the front's
-   ConfigText treats null as none, init gets "N". `METAL_REQUIRE_VCEK` is already on. The signing seed file meets the
+   ConfigText treats null as none, init gets "N". The canaries do NOT exercise it: their versions carry a `_media`
+   config (step 4, proof 3). `METAL_REQUIRE_VCEK` is already on. The signing seed file meets the
    relay's rules. systemd keeps the JSON floor intact.
