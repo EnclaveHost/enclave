@@ -295,6 +295,33 @@ refusal is confirmed, and "not composable on 26200" is withdrawn.
   boot"). Not if it is V1/invalid, or encrypted for another VM. Whether the HOST binds the file to a VM is not in this
   source.
 
+**Narrowed** (enclave-d1's sweep and one refused test):
+- **The 120 s is confirmed from the host side.** Hypervisor-Operational has partition 51 created at 19:52:47 and
+  deleted at 19:54:47.
+- **No host channel carries the error text.** Every Microsoft-Windows-Hyper-V-* log was swept for 19:52:30-19:55:10.
+- **The host refuses an empty store.** A zero-filled 4,194,816 B store is rejected at realize time
+  (0x80070570, "corrupted and unreadable"), so "OpenHCL formats an empty VMGS" is unreachable on 26200.
+- **The donor store is pristine.** Its first 16 bytes, `GUESTRTS 00 00 03 00 28 ed 2e 6d`, are byte-identical to
+  header 1 of a fresh `vmgstool create` (checksum 0x6d2eed28): an untouched, unencrypted v3 store, which OpenHCL
+  opens and provisions. So a VMGS open failure is very unlikely.
+- **The leading candidate is `validate_isolated_configuration`**, or something else in `new_or_restart` before
+  attestation. It emits no host event; VMGS failures do (`vmgs_logger.rs`, `event_log_fatal(VMGS_*)`).
+
+**Surfaces for the reason on type 1:**
+- Crash dumps are disabled on a CVM (`underhill_crash/src/lib.rs:277`).
+- The host command line is ignored on an isolated VM unless the image's STATIC command line carries
+  `OPENHCL_CONFIDENTIAL_DEBUG=1` (`openhcl_boot/src/main.rs:671-672, 699`). No host setting can open a console or a
+  debug mode.
+- COM3 is absent.
+- What remains is `ohcldiag-dev <VM> kmsg -f -r -v` (enclave-53's build `5f25f2e7`, llvm-mingw, from a7b0bd4). The
+  "failed to start VM" line and its error chain are `CVM_ALLOWED`. The diagnostics server reads `/dev/kmsg` as-is:
+  filtering happens where the logs are produced, and kernel messages remain.
+- Its first line on a fresh type-16 boot should be OpenHCL's own kernel,
+  `Linux version 6.12.52-microsoft-hcl+ (runner@runnervmrw5os) ...` (openhcl-cvm.bin: `runnervmg397c`).
+- The fallback, only if kmsg does not settle it, is a **debug** VBS IGVM whose static command line carries
+  `OPENHCL_CONFIDENTIAL_DEBUG=1`: unfiltered, crash dumps on, the host command line trusted. It is a different
+  measured image and never a serving candidate.
+
 ## 5. Files
 
 - `monitor/hvisolation.go` and `cpuid_amd64.{go,s}`: the stated fields. `hvisolation_test.go`: the mapping, and
