@@ -288,7 +288,9 @@ func TestConfigTextIsTheConfigsValue(t *testing.T) {
 			t.Fatalf("%q: %q %v, want %q", raw, got, err, want)
 		}
 	}
-	if _, err := (&Release{Config: json.RawMessage(`"{\"a\":1}"`)}).ConfigText(); err == nil {
-		t.Fatal("a config delivered as a JSON string (unparsed text) was accepted")
+	for _, bad := range []string{`"{\"a\":1}"`, `42`, `true`, `false`, `-1.5`} {
+		if _, err := (&Release{Config: json.RawMessage(bad)}).ConfigText(); err == nil {
+			t.Fatalf("%s was accepted as a config (only an object or an array is one)", bad)
+		}
 	}
 }

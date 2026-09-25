@@ -112,16 +112,17 @@ func (r *Release) Attested() bool { return r != nil && r.opened }
 
 // ConfigText is the text ENCLAVE_CONFIG carries before placeholder substitution: the config's JSON VALUE exactly as
 // the relay serialized it - for a config inline in the envelope, byte-identical to the supervisor's
-// JSON.stringify(o.config) (overrideConfigFields) - or "" when the release carries none. A config that is a JSON
-// STRING is refused: the contract carries the config's value, and a string here is most likely a configCid's text
-// that was never parsed, which would reach the app as one quoted string instead of its config.
+// JSON.stringify(o.config) (overrideConfigFields) - or "" when the release carries none. A config is an object or
+// an array, as the relay requires (contract v1.2: anything else is its 422 bad_config), so both sides agree on what a
+// config IS. A JSON STRING in particular is most likely a configCid's text that was never parsed, which would reach
+// the app as one quoted string instead of its config.
 func (r *Release) ConfigText() (string, error) {
 	c := strings.TrimSpace(string(r.Config))
 	if c == "" || c == "null" {
 		return "", nil
 	}
-	if strings.HasPrefix(c, `"`) {
-		return "", errors.New("the release's config is a JSON string, not a config value (unparsed config text is refused)")
+	if !strings.HasPrefix(c, "{") && !strings.HasPrefix(c, "[") {
+		return "", errors.New("the release's config is not an object or an array (a string would be unparsed config text)")
 	}
 	return c, nil
 }
