@@ -18,7 +18,15 @@ Files: `inventory.json` (every owned deployment) and `payloads.json` (the unsign
 (`d.configCid = envelope`). The id, owner, app, ports, shares, balance, cap, rate and lease are not touched, by
 construction. The envelope is replaced whole, so each new one is the current envelope's BYTES with
 `,"isolation":{"require":"snp-guest-per-app"}` spliced in before the closing brace. Every existing namespace stays
-byte-for-byte; the script re-parses the result and checks it equals the old envelope plus `isolation`. The owner's procedure (enclave-d1's review):
+byte-for-byte; the script re-parses the result and checks it equals the old envelope plus `isolation`. **The S6 signing runbook** (enclave-d1 APPROVED the tooling at edd21868). For EACH payload, in this order:
+1. `node isolation/restore/owner-payloads.mjs --check isolation/restore/inventory-2026-09-25/payloads.json`,
+   immediately before the signature. ANYTHING BUT "OK to sign" for that payload is a STOP.
+2. Compare the `to` it prints with the Trezor screen.
+3. Sign.
+4. `node isolation/restore/owner-payloads.mjs --verify isolation/restore/inventory-2026-09-25/payloads.json
+   <id8>=0x<tx hash>` afterwards. Anything but "verified" is a stop, and a finding to raise.
+
+The owner's procedure (enclave-d1's review):
 1. **Immediately before the Trezor:** run `owner-payloads.mjs --check payloads.json`. It re-reads each deployment at a
    pinned block on both RPCs and REFUSES unless:
    - the payload says `to` = the ledger the address book names, `from` = the owner, `value` "0" and `chainId` 8453.
