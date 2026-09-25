@@ -1,0 +1,2061 @@
+{
+ "type": "enclave-vbslike-package/1",
+ "name": "nucbox-ownguest",
+ "version": 12,
+ "status": "DRAFT, HELD with v11 (enclave-d1's production incident, then transport=hv_sock on one boot before 7b9b04d6 replaces 4c387086). v11 plus the NODE TREE enclave-5d's box acceptance harness imports (27 repository files at cf640825, 15 npm packages by tarball with npm's integrity) and the harness itself. Not a release. NOT yet booted on the NucBox. The harness has NOT run on the box: it waits for load/relay/sign over hv_sock to work for WMI VMs (enclave-5d). Nothing is loaded into or served from any VM on this path.",
+ "about": "Everything nucbox-k11 needs to boot OUR guest (the isolation/m3 monitor image) and serve one small app: the OpenHCL IGVM (profile igvm, the target, blocked on the Hyper-V role) and the same monitor image on the WSL kernel under the box's own launcher (profile hcs-dev, runnable today, development only). Version 12 (draft) = version 11 plus the node tree (windows/node, relay/tunnel.js and the relay verifiers it imports, isolation/contract, wasm/ipfs_fetch.py at enclave-d1's cf640825) with node_modules assembled from 15 pinned npm tarballs, and enclave-5d's hvlab-accept.mjs (8bb7d111): the box acceptance run, one deployment through the node's own ensureApp to a browser's TLS ending in the partition. Version 11 (draft) = version 10 with the next medium: enclave-5d's initrd a1ff9864 (6f1a9aff), whose ready line is 'MON ready control_port=9000 transport=hv_sock|virtio' and which refuses to start with no vsock transport; UKI 20a0e18e, ISO 7b9b04d6, disk.raw 23c52ecc. Version 10 (draft) = version 9 re-pinned on enclave-d1's cf640825 (the launcher states the partition kind wmi-openhcl-gen2 and the UEFI identity is the MEDIUM's hash; defects 16, 18, 19 closed; the dev-boot script that reached MON ready) and enclave-99's c6554c6c, carrying d1's dev-boot script and petri's hyperv.psm1 pinned so the boot is reproducible from the package, and d1's boot evidence quoted exactly. Version 9 (draft) = version 8 plus the uefi profile: the same guest as a standard UEFI payload (a read-only El Torito ISO; a VHDX fallback) under Microsoft's standard OpenHCL image, which this build starts while it does not start a linux-direct one (research E8). Version 8 (draft) = version 7 with enclave-d1's node at d1f4b745 (the hooks that import the bridge, appzone.mjs's isolated branch, main.mjs's data plane), enclave-5d's node-bridge.mjs 4cb8d54f (isolationPlan takes require, manager and appConfigCid), enclave-99's suites at 1d6d9b60 (node-bridge 6/6, appzone-hook), and the catalog versions as read on-chain, rebuilt byte for byte by the shipped isolationPlan. Version 7 = version 6 with enclave-5d's node-side bridge (node-bridge.mjs) and the splice client it imports (supervisor-splice.mjs, ws loaded lazily), both at e7ec6521 and imported by nothing on the box yet; 5d's datapath suite now runs its interop case (5/5, no skip). The manager stays at 72c82fc6: enclave-d1 has newer commits (0b49f6b6, 5a8a33e7) that this version does not pin. Version 6 = version 5 with enclave-d1's manager at 72c82fc6: the spawn path judges readiness behind its answer and writes status running with the transportKeySha256 the document was verified on, judging with the runtime identity object (defect 11), which the entry point reads from ENCLAVE_RUNTIME_IDENTITY, the image's runtime.json (defect 12; ENCLAVE_RUNTIME_ID alone is refused); image comes from the launcher's ready line; the 409 carries its id; HCS destroy by numeric id and answer correlation; the boundary accessor. Six functional suites are pinned with exact results. Version 5 = version 4 with enclave-d1's manager at 6d6c289e (ready.mjs fixed: defect 10, and the verdict carries transportKeySha256; /vms speaks guestd's contract: 201, status, boundary, relay, domainId, guestPort, image), enclave-5d's datapath at b339e9d4 (its lookup record uses transportKeySha256), and enclave-99's readiness test pinned with its exact result. Version 4 = version 3 with enclave-d1's manager at f4f10c84 (it creates the VM with -GuestStateIsolationType OpenHCL; ready.mjs) and the launcher rebuilt at 55494efa (/2 bundles load); the Hyper-V registry opt-in is a gating host check. Version 3 = version 2 with enclave-5d's datapath at 09b67414 (route identity from the view's tier; any safe id, the manager owning its ids). Version 2: the guest is enclave-5d's initrd 4610d594 (aef54ff7: /2 run mode, readiness, a launcher-named certificate name) and the IGVM around it; the app's answer is pinned to the byte; the datapath is pinned; the domain's attestation document is judged with enclave-d1's judge-hv. Built from existing artifacts plus igvmfilegen (seconds). windows/vbslike/pkg/README.md.",
+ "owners": {
+  "package": "enclave-53",
+  "integration": "enclave-d1 (manager, launcher, igvm recipe, every NucBox host action)",
+  "guestRuntime": "enclave-5d (isolation/m3, the datapath)",
+  "tests": "enclave-99"
+ },
+ "tier": {
+  "name": "T0-hv",
+  "hostExcluded": false,
+  "snp": false,
+  "vmpl": "n/a",
+  "attested": false,
+  "note": "A Ryzen with no SEV-SNP. The root partition can read every guest's memory and the launcher signs the reports. Nothing served from this package is verified or host-excluded capacity."
+ },
+ "runtime": {
+  "file": "guest/runtime.json",
+  "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8"
+ },
+ "profiles": {
+  "hcs-dev": {
+   "status": "needs only Virtual Machine Platform and vmcompute: no role, no reboot; check.ps1 reports whether this host has them",
+   "boundary": "an HCS child partition: separated from other partitions, NOT from this host; development path only",
+   "launcher": "control/vbslike-host.exe",
+   "kernel": "guest/wsl-kernel",
+   "initrd": "guest/mon.cpio.gz",
+   "cmdline": "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
+  },
+  "igvm": {
+   "status": "needs the Hyper-V role (vmms, root\\virtualization\\v2 with Msvm_VirtualSystemSettingData.FirmwareFile, Get-VM) AND the host's AllowFirmwareLoadFromFile opt-in (bounded set-probe-restore procedure, authorized); check.ps1 reports whether this host has them",
+   "boundary": "not established: this image has never been loaded (windows/vbslike/evidence/igvm-never-loaded-2026-09-24.md on windows/custom-vbs-like-hyperv)",
+   "image": "guest/openhcl-ownguest.bin",
+   "launcher": "windows/vbslike/manager/wmi-launcher.mjs (Msvm_VirtualSystemSettingData.FirmwareFile over root\\virtualization\\v2)",
+   "manager": {
+    "check": "win/manager-check.mjs",
+    "must": "the manager's own start() issues New-VM with -GuestStateIsolationType OpenHCL or TrustedLaunch (checked on a recording host by pkg.mjs verify and by check.ps1)"
+   },
+   "measured": [
+    "A Generation 2 VM created WITHOUT -GuestStateIsolationType accepts the FirmwareFile pin (ModifySystemSettings returnValue 0), reads it back, starts, and boots nothing: the worker never logs an IGVM load and nothing anywhere says why (enclave-d1, nucbox-k11, 2026-09-24).",
+    "Created WITH -GuestStateIsolationType OpenHCL or TrustedLaunch, the worker tries, and Worker-Admin event 5142 says: failed to load custom IGVM file because AllowFirmwareLoadFromFile registry key is not set (0x80070032).",
+    "IsolationType does NOT EXIST in this build's Msvm_VirtualSystemSettingData (26200.9457; reading it gives null, which v4-v7 recorded as 'reads EMPTY'); the type lives in GuestStateIsolationType. Also absent here: GuestStateLifetime, DefaultBootAlwaysAttempt, ManagementVtlFeatureFlags, GuestStateEncryptionPolicy (research E6).",
+    "With the key set and isolation type OpenHCL, the worker LOADS the pinned file: the in-box DLL pinned by our path is refused by our path (0x80070057), and our IGVM loads with no complaint; the partition then fails to start with a bare Worker event 12030 carrying no cause. 'Loading IGVM file from default location' is not about the pinned paravisor (enclave-d1, 18d569ee; research correction).",
+    "OpenHCL's boot log has no serial route on this build: openhcl_boot logs to serial only when the host describes a COM3 (petri: build >= 27653; this host 26200); ohcldiag-dev (kmsg over hvsocket, VTL2 running) is the only way in, and building it here needs the Windows SDK (a resources question for Steven) (research E7).",
+    "Secure Boot is not a factor: pinned VMs fail identically with it on and off. The manager turns it off, as the upstream guide does, because a guest image may need that."
+   ]
+  },
+  "uefi": {
+   "status": "needs the Hyper-V role and the AllowFirmwareLoadFromFile opt-in (bounded set-probe-restore procedure, authorized); check.ps1 reports whether this host has them",
+   "boundary": "a DEV boot: a Gen2 VM under Microsoft's standard OpenHCL image. Host exclusion is NOT established, the tier stays T0-hv, and it must never be presented as final isolation",
+   "firmware": "guest/uefi/openhcl.bin",
+   "medium": "guest/uefi/guest.iso",
+   "fallbackMedium": "guest/uefi/disk.vhdx",
+   "uki": {
+    "sha256": "20a0e18e51a02ed78465b1234b979177e9aab2d74ba198dd6ccc3d1a8a241a33",
+    "bytes": 40045568,
+    "spec": "isolation/m3/UEFI-BOOT.md at 6f1a9aff (enclave-5d)",
+    "composition": {
+     "kernel": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+     "initrd": "a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f",
+     "stub": "2d9b80732fa76c29 (systemd 261.2)",
+     "cmdline": "console=ttyS0 rdinit=/init loglevel=3 report_host=9001",
+     "cmdlineSha256": "c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615",
+     "osrel": "NAME=\"enclave NucBox guest\"\\nID=enclave-nucbox-guest\\n",
+     "objcopy": "GNU objcopy (GNU Binutils) 2.47",
+     "sourceDateEpoch": 0
+    }
+   },
+   "vm": {
+    "generation": 2,
+    "secureBoot": false,
+    "bootDevice": "the ISO on a SCSI DVD (fallback: the VHDX on SCSI)",
+    "com1": "named pipe: the MON lines",
+    "vcpus": 1,
+    "memoryMiB": ">= 1024",
+    "hvSock": "guest listens 9000, host listens 9001, domain 40000+id",
+    "vTpm": "ABSENT, deliberately: nothing on this path reads PCRs, and a vTPM present but unread would look like attestation (enclave-d1). Measured 2026-09-25 01:10:51Z: Msvm_SecuritySettingData.TpmEnabled = False"
+   },
+   "identity": "partition.guestImageSha256 = the attached MEDIUM's sha256, hashed AT ATTACH (guest.iso's bytes on the DVD path, disk.raw's for the VHDX payload), with the UKI and its composition beside it; partition = wmi-openhcl-gen2, the LAUNCHER's word (isolation/m3/UEFI-BOOT.md at 4127789d; wmi-launcher.mjs uefiImageIdentity at fe56ad65). With Secure Boot off, systemd-stub honours ESP side-files and cmdline overrides; only a medium hash rules them out, and the guest's guards refuse them.",
+   "measured": [
+    "DEV only, QEMU q35 + OVMF on KVM (warden-host): this ISO (7b9b04d6) boots past the guards and then REFUSES by name, 'MON ERROR no vsock transport: neither Hyper-V's (hv_sock) nor virtio's is present', and powers off, because the pinned WSL kernel has no virtio vsock transport. That is the guard working on KVM, not a boot. On the NucBox the same medium is expected to print transport=hv_sock; not yet measured.",
+    "ON THE NUCBOX, DEV BOOT (enclave-d1, uefi-dev-boot.ps1, log uefi-dev-boot-20260925-011023.log, read by enclave-53): this medium 4c387086, hashed at attach, under openhcl.bin 48773995, in enclave-uefi-20260925-011023 (Gen2, isolation OpenHCL, Secure Boot Off, boot order Drive only, no LoadOptions, vTPM absent, 1 vCPU, 2048 MiB). COM1 attached 454 ms after start. Console: 'MON snp=0 vcpus=1 memMiB=1965 boot_ms=308', the vsock module insmods failing harmlessly, 'MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no', 'MON ready control_port=9000 snp=false'. Worker-Admin 18500 started successfully, 18601 successfully booted an operating system. Then the VM removed, the setting restored to Absent (verified), the live node unchanged (pid 8736), the six apps' answers identical before and after.",
+    "What that DEV boot does NOT show: host exclusion (the boundary line says host_excluded=no); attestation (no report was requested or signed); a bundle loaded or an app served; hv_sock reaching VTL0 through OpenHCL's relay. The control exchange (9000 load, 9001 signing, the 40000+id relay) for a WMI-created VM is the next blocker: the pinned launcher's `hvdial` (f45015c7) is its first host-side piece and is not yet measured against a VTL0 under OpenHCL; enclave-5d builds the guest side and a box acceptance harness. The manager has no hv_sock code.",
+    "Not measured on the NucBox: see windows/vbslike/pkg/uefi/README.md, 'Not yet measured under UEFI on the NucBox' (10 items, reviewed by enclave-99)."
+   ]
+  }
+ },
+ "console": {
+  "expect": [
+   "MON boundary tier=t0-hv",
+   "MON ready control_port=9000"
+  ],
+  "source": "enclave-d1, the monitor on an HCS child 2026-09-24"
+ },
+ "control": {
+  "manager": "control/windows/vbslike/manager/main.mjs",
+  "fetcher": "control/windows/node/fetch-cid.py"
+ },
+ "vmWorkerRead": [
+  "guest/openhcl-ownguest.bin",
+  "guest/uefi/openhcl.bin",
+  "guest/uefi/guest.iso",
+  "guest/uefi/disk.vhdx"
+ ],
+ "hostChecks": {
+  "hcs-dev": {
+   "features": {
+    "VirtualMachinePlatform": "Enabled"
+   },
+   "services": {
+    "vmcompute": "Running"
+   }
+  },
+  "igvm": {
+   "features": {
+    "Microsoft-Hyper-V-Hypervisor": "Enabled",
+    "Microsoft-Hyper-V-Services": "Enabled",
+    "Microsoft-Hyper-V-Management-PowerShell": "Enabled",
+    "VirtualMachinePlatform": "Enabled"
+   },
+   "services": {
+    "vmms": "Running"
+   },
+   "wmi": {
+    "namespace": "root\\virtualization\\v2",
+    "class": "Msvm_VirtualSystemSettingData",
+    "property": "FirmwareFile"
+   },
+   "commands": [
+    "Get-VM"
+   ],
+   "registry": [
+    {
+     "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization",
+     "name": "AllowFirmwareLoadFromFile",
+     "value": 1,
+     "why": "Hyper-V names it (Worker-Admin 5142, 0x80070032). Setting it lets Hyper-V load unsigned firmware from a file for any VM on this host. Bounded set-probe-restore runs are AUTHORIZED (production-first-windows.txt; windows/vbslike/evidence/isolated-firmware-approved-2026-09-24.md); leaving it set is a separate decision; no script here sets it"
+    }
+   ]
+  },
+  "uefi": {
+   "features": {
+    "Microsoft-Hyper-V-Hypervisor": "Enabled",
+    "Microsoft-Hyper-V-Services": "Enabled",
+    "Microsoft-Hyper-V-Management-PowerShell": "Enabled",
+    "VirtualMachinePlatform": "Enabled"
+   },
+   "services": {
+    "vmms": "Running"
+   },
+   "wmi": {
+    "namespace": "root\\virtualization\\v2",
+    "class": "Msvm_VirtualSystemSettingData",
+    "property": "FirmwareFile"
+   },
+   "commands": [
+    "Get-VM"
+   ],
+   "registry": [
+    {
+     "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization",
+     "name": "AllowFirmwareLoadFromFile",
+     "value": 1,
+     "why": "Hyper-V names it (Worker-Admin 5142, 0x80070032). Setting it lets Hyper-V load unsigned firmware from a file for any VM on this host. Bounded set-probe-restore runs are AUTHORIZED (production-first-windows.txt; windows/vbslike/evidence/isolated-firmware-approved-2026-09-24.md); leaving it set is a separate decision; no script here sets it"
+    }
+   ]
+  }
+ },
+ "apps": [
+  {
+   "name": "hello-world",
+   "version": "1.0.4",
+   "catalog": {
+    "app": "0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed",
+    "version": 4
+   },
+   "derivation": "enclave-catalog-bundle/1",
+   "cid": "bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza",
+   "componentSha256": "29090a8de8d54c47de2ce34661ecaf16c33d488a999e6a8e77b72d75b9e12dc8",
+   "recordSha256": "bff33b951aade0a921edea4b0aca89712005d20cbb2c074c0f885d079e059d6c",
+   "appId": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45",
+   "dir": "apps/hello-world-1.0.4",
+   "servable": true,
+   "expect": {
+    "status": 200,
+    "body": "Hello World!\n",
+    "bodySha256": "03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340"
+   },
+   "expectSource": "observed: wasmtime 48.0.1 serve of the pinned component (pkg.mjs verify --serve) and enclave-5d's hv-local check through the domain's TLS (hv-local-check-2026-09-24). Package v1 pinned \"Hello World!\" from a client that trims, and was wrong"
+  },
+  {
+   "name": "hookbin",
+   "version": "0.1.4",
+   "catalog": {
+    "app": "0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3",
+    "version": 4
+   },
+   "derivation": "enclave-catalog-bundle/2",
+   "cid": "bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee",
+   "componentSha256": "6e105176c17f5c5d850e76bf23a2b11d6fa5107169f87f53c8522c1bc30a6b21",
+   "recordSha256": "1fb9360ddfd50a25d4740d989e5ae5fd6b6f967bf017606f39b220bb84d3303e",
+   "appId": "d2c4dfc0ec475910aa509d1045ae4f2997346c1cd666a167cd5fc959c036aa24",
+   "dir": "apps/hookbin-0.1.4",
+   "servable": false,
+   "blockedOn": "/2 is not in the pinned manager's served list (SERVES = [enclave-catalog-bundle/1], enclave-d1). The guest runs /2 since 7eb1ded4, and the launcher loads /2 bundles since 55494efa, but hookbin has not been run through it end to end"
+  }
+ ],
+ "slots": [
+  {
+   "role": "control.datapath",
+   "owner": "enclave-5d",
+   "state": "pinned",
+   "for": "serving on the igvm profile: enclave-splice/1 to one partition's domain. Pinned, and imported by NOTHING on the box yet (the manager has no datapath client). On hcs-dev the box's launcher loads and relays itself.",
+   "caveats": [
+    "transportKeySha256 is populated WHEN a domain is judged ready: the spawn path judges readiness and writes status running with the key the document was verified on (82916eb8). A record may legitimately carry status starting with a null key, and the datapath refuses that (enclave-d1). Defect 11 (enclave-99): at 82916eb8 #judgeReadiness passed the runtimeId hash where judge-hv wants the runtime identity object, so no domain was ever judged ready; fixed at d9084612, where the Manager takes the identity and derives the id from it.",
+    "Defect 12 (found by enclave-53 reading d9084612): main.mjs constructed the Manager with runtimeId only, so a manager started the normal way pinned no runtime identity. Fixed at 72c82fc6: main.mjs reads the identity from ENCLAVE_RUNTIME_IDENTITY (point it at this package's guest/runtime.json; check.ps1 prints it) and refuses to start with only ENCLAVE_RUNTIME_ID. main-entry (enclave-99) is the pinned test of that entry point.",
+    "CORRECTION to v5, which said image was 'wired but unmeasured': it was ABSENT. server.mjs copied h.image from a handle start() never set it on (measured by enclave-99). Since 41148a3e it comes from the launcher's ready line (initrdSha256), with launcherKey beside it.",
+    "record-to-route (enclave-99, review d1236d16) is the pinned test of this seam: the real manager judging a real TLS domain (fake-domain.mjs) through the real judgeRunning behind the spawn answer, its record read through the node's client and admitted by the datapath; another identity and another key refused."
+   ]
+  }
+ ],
+ "guest": {
+  "abi": "enclave-domain-abi/2",
+  "readyPath": "/.well-known/enclave-ready",
+  "attestationPath": "/.well-known/enclave-attestation",
+  "judge": "control/windows/vbslike/verify/judge-hv.mjs",
+  "judgeRun": "win/judge-run.mjs",
+  "interfaces": "isolation/m3/HV-GUEST.md at aef54ff7",
+  "running": "ready 200 for this app, the document for OUR nonce judged monitor-signed on THIS session's key, and the pinned answer -- all on one certificate",
+  "imageSha256": {
+   "hcs-dev": "the initrd's sha256: vbslike-host's partition.guest_image_sha256 is sha_file(initrd) (launcher.rs, per enclave-5d)",
+   "igvm": "the IGVM's sha256 (enclave-d1: the WMI launcher reports what it pins and verifies with verifyImage()); no report exists on that path yet"
+  }
+ },
+ "files": [
+  {
+   "path": "guest/openhcl-ownguest.bin",
+   "role": "guest.igvm",
+   "sha256": "7caf7408e6198e4f0ebe95094a6bc425552fcafd534a9329f93a5a56f5c11a6d",
+   "bytes": 124991060,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/guest/openhcl-ownguest-4610d594.bin"
+   },
+   "boxReuse": "C:\\Users\\claude\\vbs-like\\pkg\\f99f16dc15a1933a\\guest\\openhcl-ownguest.bin",
+   "note": "built by enclave-53 with build-ownguest.sh (igvmfilegen only) from the inputs below, twice, byte-identical; `pkg.mjs verify --rebuild` makes it again. Not yet on the box: push.sh sends it"
+  },
+  {
+   "path": "guest/openhcl-ownguest.bin.map",
+   "role": "guest.igvm-map",
+   "sha256": "882d36f0f92d3fe7913250308a8ecae49c8949d292ae4501a8da862a7f59783f",
+   "bytes": 2178,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/guest/openhcl-ownguest-4610d594.bin.map"
+   },
+   "note": "igvmfilegen's layout of the image"
+  },
+  {
+   "path": "guest/uefi/openhcl.bin",
+   "role": "guest.uefi-firmware",
+   "sha256": "48773995cfa2222ca7bb40020a807dcb8ce155a244b0987ba55334caafe49075",
+   "bytes": 21446868,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/openhcl-release-2511/openhcl.bin"
+   },
+   "boxReuse": "C:\\Users\\claude\\vbs-like\\pkg\\f99f16dc15a1933a\\guest\\uefi\\openhcl.bin",
+   "source": {
+    "repo": "microsoft/openvmm",
+    "workflow": "openvmm-ci.yaml",
+    "branch": "release/1.7.2511",
+    "runId": 33556260031,
+    "commit": "29e15ab83bce",
+    "artifact": "x64-openhcl-igvm",
+    "file": "openhcl.bin",
+    "fetchedWith": "gh run download (the source petri's flowey download_release_igvm_files_from_gh.rs uses)",
+    "expires": "2026-11-30"
+   },
+   "note": "Microsoft's STANDARD OpenHCL image (UEFI in VTL0). STARTS on this build (enclave-d1, 7c6bb15d); the VM's FirmwareFile"
+  },
+  {
+   "path": "guest/uefi/guest.iso",
+   "role": "guest.uefi-medium",
+   "sha256": "7b9b04d699da2e5915df7c51c2464ba2bb18122380b197e1cbea2f24aa9a2ddd",
+   "bytes": 134594560,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/uefi/guest-7b9b04d6.iso"
+   },
+   "note": "THE BOOT MEDIUM: a read-only El Torito ISO whose EFI image holds exactly one file, \\EFI\\BOOT\\BOOTX64.EFI = UKI 20a0e18e (enclave-5d's spec at 6f1a9aff, reproduced by both assemblies). Reproducible: `verify --rebuild` makes it again. Its sha256 is the identity enclave-99 recommends the launcher sign"
+  },
+  {
+   "path": "guest/uefi/disk.vhdx",
+   "role": "guest.uefi-fallback",
+   "sha256": "80b33d33ffb97f9f843033c6d2990bfe2a6a2454115be47edf05a8ee9fecc283",
+   "bytes": 67108864,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/uefi/disk-23c52ecc.vhdx"
+   },
+   "note": "FALLBACK medium (enclave-d1): a Gen2 SCSI boot disk. The container's header GUIDs are random, so these bytes are pinned by observation; `verify --rebuild` checks that its payload is disk.raw 23c52ecc exactly"
+  },
+  {
+   "path": "guest/wsl-kernel",
+   "role": "guest.kernel",
+   "sha256": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
+   "bytes": 15876096,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/guest/wsl-kernel"
+   },
+   "boxReuse": "C:\\Users\\claude\\vbs-like\\wsl-kernel",
+   "note": "Microsoft's WSL kernel (6.6.87.2-microsoft-standard-WSL2, a bzImage) as installed on the box at C:\\Program Files\\WSL\\tools\\kernel; the hcs-dev kernel, and the source of the IGVM's VTL0 vmlinux"
+  },
+  {
+   "path": "guest/mon.cpio.gz",
+   "role": "guest.initrd",
+   "sha256": "4610d5944cc2d67a6510ece964915b6a90b20ecc27a0169d514a2701c9fc9f85",
+   "bytes": 24038133,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/guest/mon-4610d594.cpio.gz"
+   },
+   "boxReuse": "C:\\Users\\claude\\vbs-like\\pkg\\f99f16dc15a1933a\\guest\\mon.cpio.gz",
+   "source": {
+    "command": "isolation/m3/build-domain.sh <out> 1",
+    "commit": "aef54ff7beffb2ef663e1096f821350b55bc22c9",
+    "reproducedBy": "enclave-5d, 2026-09-24: 14367dd2 (test harness only) builds the same bytes from a clean worktree; evidence 51337e8e (15/15 on local KVM, not Hyper-V)",
+    "toolchain": "go1.27.0-X:nodwarf5, wasmtime 48.0.1 (7bac2c277), gcc -static, guest modules 7.2.3-arch1-2"
+   },
+   "note": "the isolation/m3 monitor image: the VTL0 initrd of the IGVM AND the hcs-dev initrd -- the same bytes on both profiles"
+  },
+  {
+   "path": "guest/runtime.json",
+   "role": "guest.runtime",
+   "sha256": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+   "bytes": 157,
+   "from": {
+    "canonical": {
+     "name": "wasmtime",
+     "version": "48.0.1",
+     "execution": "jit",
+     "targetIsa": "x86_64",
+     "hostIsa": "x86_64",
+     "cpuFeatures": "host-detected",
+     "wx": "enforced",
+     "cache": "none"
+    }
+   },
+   "note": "the runtime identity the monitor states; runtimeId = sha256 of its canonical form (isolation/contract/runtime.mjs)"
+  },
+  {
+   "path": "apps/hello-world-1.0.4/component.wasm",
+   "role": "app.component",
+   "sha256": "29090a8de8d54c47de2ce34661ecaf16c33d488a999e6a8e77b72d75b9e12dc8",
+   "bytes": 72989,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/components/29090a8de8d54c47de2ce34661ecaf16c33d488a999e6a8e77b72d75b9e12dc8.wasm"
+   },
+   "note": "fetched by CID; the CID is checked, not trusted"
+  },
+  {
+   "path": "apps/hello-world-1.0.4/record.json",
+   "role": "app.record",
+   "sha256": "bff33b951aade0a921edea4b0aca89712005d20cbb2c074c0f885d079e059d6c",
+   "bytes": 338,
+   "from": {
+    "canonical": {
+     "catalog": {
+      "app": "0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed",
+      "version": 4
+     },
+     "cid": "bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza",
+     "derivation": "enclave-catalog-bundle/1",
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 128,
+      "vcpus": 1
+     },
+     "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8"
+    }
+   }
+  },
+  {
+   "path": "apps/hello-world-1.0.4/app.bundle",
+   "role": "app.bundle",
+   "sha256": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45",
+   "bytes": 73228,
+   "from": {
+    "derive": {
+     "record": "apps/hello-world-1.0.4/record.json",
+     "component": "apps/hello-world-1.0.4/component.wasm"
+    }
+   }
+  },
+  {
+   "path": "apps/hello-world-1.0.4/spawn.json",
+   "role": "app.spawn",
+   "sha256": "523983d7711dbf27d1862ffdebe1b3973708c73ea9d9856802d68b4a0bb317f9",
+   "bytes": 410,
+   "from": {
+    "canonical": {
+     "id": "vbspkg-hello-world",
+     "derive": {
+      "catalog": {
+       "app": "0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed",
+       "version": 4
+      },
+      "cid": "bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza",
+      "derivation": "enclave-catalog-bundle/1",
+      "policy": {
+       "cpuPercent": 100,
+       "memMiB": 128,
+       "vcpus": 1
+      },
+      "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8"
+     },
+     "isPublic": true,
+     "hasSecrets": false
+    }
+   },
+   "note": "the body for the manager's POST /vms"
+  },
+  {
+   "path": "apps/hookbin-0.1.4/component.wasm",
+   "role": "app.component",
+   "sha256": "6e105176c17f5c5d850e76bf23a2b11d6fa5107169f87f53c8522c1bc30a6b21",
+   "bytes": 201013,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/components/6e105176c17f5c5d850e76bf23a2b11d6fa5107169f87f53c8522c1bc30a6b21.wasm"
+   }
+  },
+  {
+   "path": "apps/hookbin-0.1.4/record.json",
+   "role": "app.record",
+   "sha256": "1fb9360ddfd50a25d4740d989e5ae5fd6b6f967bf017606f39b220bb84d3303e",
+   "bytes": 350,
+   "from": {
+    "canonical": {
+     "catalog": {
+      "app": "0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3",
+      "version": 4
+     },
+     "cid": "bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee",
+     "derivation": "enclave-catalog-bundle/2",
+     "http": 8000,
+     "policy": {
+      "cpuPercent": 100,
+      "memMiB": 256,
+      "vcpus": 1
+     },
+     "runtimeId": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8"
+    }
+   }
+  },
+  {
+   "path": "apps/hookbin-0.1.4/app.bundle",
+   "role": "app.bundle",
+   "sha256": "d2c4dfc0ec475910aa509d1045ae4f2997346c1cd666a167cd5fc959c036aa24",
+   "bytes": 201263,
+   "from": {
+    "derive": {
+     "record": "apps/hookbin-0.1.4/record.json",
+     "component": "apps/hookbin-0.1.4/component.wasm"
+    }
+   }
+  },
+  {
+   "path": "control/windows/vbslike/manager/main.mjs",
+   "role": "control.manager",
+   "sha256": "d1c34964d1532657645eb6477bae114114154310fb9908976a8e3ec7f9f705ae",
+   "bytes": 6989,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/manager/main.mjs"
+    }
+   }
+  },
+  {
+   "path": "control/windows/vbslike/manager/server.mjs",
+   "role": "control.manager",
+   "sha256": "c6bba9dda0d10d010f8f9e2b607960f25a47820a827ebb8f3886cb627c226c1b",
+   "bytes": 20788,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/manager/server.mjs"
+    }
+   }
+  },
+  {
+   "path": "control/windows/vbslike/manager/backend.mjs",
+   "role": "control.manager",
+   "sha256": "73ba0f2f8a98ddfa1df55a383f1a5ce1f8643bf572ff8060ec3f7a6670f4cf60",
+   "bytes": 4782,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/manager/backend.mjs"
+    }
+   }
+  },
+  {
+   "path": "control/windows/vbslike/manager/backend-hcs.mjs",
+   "role": "control.manager",
+   "sha256": "b981428858e279cea576dd017803be975ccd5dd902c0eea918ff177f62cbf05d",
+   "bytes": 12765,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/manager/backend-hcs.mjs"
+    }
+   }
+  },
+  {
+   "path": "control/windows/vbslike/manager/control.mjs",
+   "role": "control.manager",
+   "sha256": "85cd2f51aa03b9fe969b2ff1406c53ce69b4ba84fbe4646ed42a3b3d12977813",
+   "bytes": 8109,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/manager/control.mjs"
+    }
+   }
+  },
+  {
+   "path": "control/windows/vbslike/manager/derive.mjs",
+   "role": "control.manager",
+   "sha256": "25b897e340c50561ec0cf4301f2e7f3b6474fd16463840f59f03039b65be0384",
+   "bytes": 6026,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/manager/derive.mjs"
+    }
+   }
+  },
+  {
+   "path": "control/windows/vbslike/manager/fetchcid.mjs",
+   "role": "control.manager",
+   "sha256": "e725f07d5be55e135eaff62c6d340991cdbd2545ed18d1b0ce93d1920ad50a3c",
+   "bytes": 4149,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/manager/fetchcid.mjs"
+    }
+   }
+  },
+  {
+   "path": "control/windows/vbslike/manager/psrun.mjs",
+   "role": "control.manager",
+   "sha256": "0b84efa3fb9c799f8f8135308775c5fa087941b992a94e4531d8c624e6e378c1",
+   "bytes": 2100,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/manager/psrun.mjs"
+    }
+   }
+  },
+  {
+   "path": "control/windows/vbslike/manager/ready.mjs",
+   "role": "control.manager",
+   "sha256": "dd71f64fd6fb8264e4d726ca450c3127b12f910eb00e4cb70271ba7c3094fbfd",
+   "bytes": 11729,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/manager/ready.mjs"
+    }
+   }
+  },
+  {
+   "path": "control/windows/vbslike/manager/wmi-launcher.mjs",
+   "role": "control.manager",
+   "sha256": "936e8f2d3ed6cafa5918ff7b19b5ad5ed9270b272bae3059527e0209152b9b5a",
+   "bytes": 28551,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/manager/wmi-launcher.mjs"
+    }
+   }
+  },
+  {
+   "path": "control/windows/vbslike/datapath/datapath.mjs",
+   "role": "control.datapath",
+   "sha256": "2db32e0a4fb1f7595acc34825ade4f7b81ffeae9cd9a79d89df6d1552783ba29",
+   "bytes": 8750,
+   "from": {
+    "git": {
+     "commit": "b339e9d4a0f33c53e13ec4ae2b32093942a4b25c",
+     "path": "windows/vbslike/datapath/datapath.mjs"
+    }
+   },
+   "note": "enclave-5d's; the lookup record uses the /vms view's field name transportKeySha256, so the manager passes its record straight through. Its client half is isolation/m4/guestd/supervisor-splice.mjs 6fdb3d4b (not shipped: it runs on the node). Imported by nothing on the box yet"
+  },
+  {
+   "path": "control/windows/vbslike/datapath/node-bridge.mjs",
+   "role": "control.datapath",
+   "sha256": "4cb8d54fb3754e046af5ffb09087419c89c9df64adadba7cae3274a0798e4334",
+   "bytes": 14650,
+   "from": {
+    "git": {
+     "commit": "6f1a9affe3287c5dfb07b5d01ff1a4ecbb65a27d",
+     "path": "windows/vbslike/datapath/node-bridge.mjs"
+    }
+   },
+   "note": "enclave-5d's node-side bridge; isolationPlan takes the claim gate's require, manager and appConfigCid (2a43239a). Imported by enclave-d1's hooks. enclave-5d's evidence (isolation/m3/hv-node-check-2026-09-24.txt @ bcaaef37), in their words: the node's OWN path (d1's ensureApp at ebc0ef27) serves hello-world end to end on local KVM, development evidence: hello-world /1 reaches running (planned, spawned, judged monitor-signed; record bff33b95), and a browser through the relay hub -> appzone -> bridge -> data plane -> guest gets TLS on the verified key, and the app answers; hookbin /2 is refused by name (the manager serves /1 only); the guests ran initrd 5bc06259. NOT deployed to the box (the box runs baseline ef1b2077), and the UEFI/OpenHCL boot on the box is not yet done. 'Served on the NucBox' waits for the first real partition boot there."
+  },
+  {
+   "path": "control/isolation/m4/guestd/supervisor-splice.mjs",
+   "role": "control.node-client",
+   "sha256": "c841ac7c0d1459c49630224e346890672358256b5616fe51c9d65795ff8072aa",
+   "bytes": 17131,
+   "from": {
+    "git": {
+     "commit": "6f1a9affe3287c5dfb07b5d01ff1a4ecbb65a27d",
+     "path": "isolation/m4/guestd/supervisor-splice.mjs"
+    }
+   },
+   "note": "enclave-5d's splice client, imported by node-bridge.mjs; node:net only, ws loaded lazily in the WebSocket half. c841ac7c (d5f1b953): routeFor matches the tier case-insensitively, since enclave-d1's HCS backend records 't0-hv' and the strict check made every partition unroutable. Supersedes 88e688cd"
+  },
+  {
+   "path": "control/windows/node/appzone.mjs",
+   "role": "control.node-client",
+   "sha256": "871d489bfae93bfb2f41d1da85c66b39bac2efa14c49ca287196a0fd0f09d232",
+   "bytes": 23371,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/appzone.mjs"
+    }
+   },
+   "note": "enclave-d1's app zone: an isolated target is spliced (101) before any certificate or port is read, and no TLSSocket is built (enclave-99's appzone-hook suite)"
+  },
+  {
+   "path": "control/windows/node/isolation-lifecycle.mjs",
+   "role": "control.node-client",
+   "sha256": "1d51b03a380268674cc040ca10496d81305821c4bc718620726da31294e974f0",
+   "bytes": 8721,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/isolation-lifecycle.mjs"
+    }
+   },
+   "note": "enclave-d1's node-side lifecycle (reconcile/retire) over the /vms client"
+  },
+  {
+   "path": "control/windows/node/isolation-client.mjs",
+   "role": "control.node-client",
+   "sha256": "1e10d1ece739ce2eb2bea5d55d07de9921673098cc30e64e67386f0b2815649c",
+   "bytes": 10215,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/isolation-client.mjs"
+    }
+   },
+   "note": "enclave-d1's node-side /vms client: what the node reads the manager's record through. Shipped so record-to-route and manager-contract run against the pinned bytes"
+  },
+  {
+   "path": "control/windows/vbslike/verify/judge-hv.mjs",
+   "role": "control.judge",
+   "sha256": "4a97e60ad4f79251a58edd1778bf7e8a887a4408ce06ee63ba2beced796cd94e",
+   "bytes": 7604,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/verify/judge-hv.mjs"
+    }
+   },
+   "note": "judge-hv and its imports, laid out as in the repository so its relative imports resolve"
+  },
+  {
+   "path": "control/isolation/m2/judge.mjs",
+   "role": "control.judge",
+   "sha256": "a984b2cd52e40b8299e6b0a1646427ee905dafc840aa39e9e5884b31c3bdf045",
+   "bytes": 26135,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "isolation/m2/judge.mjs"
+    }
+   },
+   "note": "judge-hv and its imports, laid out as in the repository so its relative imports resolve"
+  },
+  {
+   "path": "control/relay/snp-verify.mjs",
+   "role": "control.judge",
+   "sha256": "866a0946f5160049c8db29f0e63f107d532968c2428c55ffdccabead59b78206",
+   "bytes": 25257,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "relay/snp-verify.mjs"
+    }
+   },
+   "note": "judge-hv and its imports, laid out as in the repository so its relative imports resolve"
+  },
+  {
+   "path": "control/isolation/contract/runtime.mjs",
+   "role": "control.judge",
+   "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69",
+   "bytes": 6224,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "isolation/contract/runtime.mjs"
+    }
+   },
+   "note": "judge-hv and its imports, laid out as in the repository so its relative imports resolve"
+  },
+  {
+   "path": "control/windows/node/fetch-cid.py",
+   "role": "control.fetcher",
+   "sha256": "d3c76e3bd18dbb92742ebdf8bd9a29a8683a2224a62365c5e40af7f0f9a77a86",
+   "bytes": 1413,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/fetch-cid.py"
+    }
+   },
+   "note": "the same bytes as the live node's copy on the box"
+  },
+  {
+   "path": "control/windows/node/ipfs_fetch.py",
+   "role": "control.fetcher",
+   "sha256": "537e1afe7be857539acfcc85b9241f6ef8e3ddf74b8453f81e0ed45dabad8325",
+   "bytes": 8232,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "wasm/ipfs_fetch.py"
+    }
+   },
+   "note": "fetch-cid.py imports it from its own directory"
+  },
+  {
+   "path": "control/vbslike-host.exe",
+   "role": "control.launcher",
+   "sha256": "cddb70fdc927c7743bf1a8ea43f7526762d669b450e32d36fa935b8486cb5c31",
+   "bytes": 1020928,
+   "from": {
+    "box": "C:\\Users\\claude\\vbs-like\\target\\release\\vbslike-host.exe"
+   },
+   "boxReuse": "C:\\Users\\claude\\vbs-like\\target\\release\\vbslike-host.exe",
+   "source": {
+    "commit": "f45015c7216bbc613f781041317336032dacd9e4",
+    "branch": "windows/custom-vbs-like-hyperv",
+    "path": "windows/vbslike/host",
+    "toolchain": "cargo 1.100.0-nightly (495c385d0 2026-09-16): a nightly, not a stable input",
+    "command": "build-win.cmd, which sets CARGO_HOME=C:\\Users\\claude\\vbs-like\\cargo-home and CARGO_TARGET_DIR=C:\\Users\\claude\\vbs-like\\target",
+    "buildRootMatters": "the build root is part of the input: the same source built under another CARGO_TARGET_DIR gives another hash, because the target path is baked into debuginfo (enclave-d1)",
+    "builtBy": "enclave-d1 on the box, 2026-09-25 01:08:01Z"
+   },
+   "note": "Pinned by observation (box-only; not reproducible on Linux). Adds ONE subcommand over 55494efa's 57d8c035: `hvdial --vm <GUID> --port N [--seconds S] [--send LINE]`, an hv_sock dial to a VM named by its GUID: the first host-side piece of a control exchange with a WMI-created VM. Not yet measured against a VTL0 under OpenHCL. The previous binaries 57d8c035 and 6040fc6b (ef1b2077, kept at C:\\Users\\claude\\vbs-like\\vbslike-host-ef1b2077-6040fc6b.exe) are superseded"
+  },
+  {
+   "path": "control/windows/node/host.mjs",
+   "role": "control.node",
+   "sha256": "0f5e4bb25123ec37d07fbaa255874d4d97e628181ecd5854a5e7697506acf783",
+   "bytes": 137738,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/host.mjs"
+    }
+   },
+   "note": "enclave-d1's node, the file hvlab-accept.mjs's import closure reaches (host.mjs and what it pulls in)"
+  },
+  {
+   "path": "control/windows/node/chain.mjs",
+   "role": "control.node",
+   "sha256": "0da9ac51b445e930712b58681da976ffea3a2217899b7722cf8f089a9a973ff8",
+   "bytes": 41530,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/chain.mjs"
+    }
+   },
+   "note": "enclave-d1's node, the file hvlab-accept.mjs's import closure reaches (host.mjs and what it pulls in)"
+  },
+  {
+   "path": "control/windows/node/apprun.mjs",
+   "role": "control.node",
+   "sha256": "1bc1faec12dec811eae70ec7637687406830dc5ffc9f727b7cd705b05573f9f9",
+   "bytes": 20723,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/apprun.mjs"
+    }
+   },
+   "note": "enclave-d1's node, the file hvlab-accept.mjs's import closure reaches (host.mjs and what it pulls in)"
+  },
+  {
+   "path": "control/windows/node/appframe.mjs",
+   "role": "control.node",
+   "sha256": "fd02f5b9f221291357ca0491a81e3330013f6bcec8149b48d3a1463b4ce05681",
+   "bytes": 6435,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/appframe.mjs"
+    }
+   },
+   "note": "enclave-d1's node, the file hvlab-accept.mjs's import closure reaches (host.mjs and what it pulls in)"
+  },
+  {
+   "path": "control/windows/node/apptls.mjs",
+   "role": "control.node",
+   "sha256": "c08e884d88ea34b6a96fb5609ddc768c3d090b1d6caff70fff0098c324c04c25",
+   "bytes": 15218,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/apptls.mjs"
+    }
+   },
+   "note": "enclave-d1's node, the file hvlab-accept.mjs's import closure reaches (host.mjs and what it pulls in)"
+  },
+  {
+   "path": "control/windows/node/domains.mjs",
+   "role": "control.node",
+   "sha256": "2702c44a0e25c9197d44fba9c4a326d200cac6827a6e259b9bb00de72ba888ea",
+   "bytes": 7427,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/domains.mjs"
+    }
+   },
+   "note": "enclave-d1's node, the file hvlab-accept.mjs's import closure reaches (host.mjs and what it pulls in)"
+  },
+  {
+   "path": "control/windows/node/secrets.mjs",
+   "role": "control.node",
+   "sha256": "d264dfe1ea14ba8d9b6a922b0e58912be6bd08c02b137f91fbea0ac20802442a",
+   "bytes": 15403,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/secrets.mjs"
+    }
+   },
+   "note": "enclave-d1's node, the file hvlab-accept.mjs's import closure reaches (host.mjs and what it pulls in)"
+  },
+  {
+   "path": "control/windows/node/waf.mjs",
+   "role": "control.node",
+   "sha256": "d44da8feb6b55073e1f18264d028e3f854c85215ae3a97208ef329638c1ee94a",
+   "bytes": 12082,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/node/waf.mjs"
+    }
+   },
+   "note": "enclave-d1's node, the file hvlab-accept.mjs's import closure reaches (host.mjs and what it pulls in)"
+  },
+  {
+   "path": "control/relay/tunnel.js",
+   "role": "control.relay",
+   "sha256": "2475915a9ffc816f3c8dfce434c7efb0405b38cc086501f2e87f99e451a751c3",
+   "bytes": 43694,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "relay/tunnel.js"
+    }
+   },
+   "note": "relay/tunnel.js (the harness's own loopback tunnel hub) and the verifier modules it imports"
+  },
+  {
+   "path": "control/relay/avf-binding.mjs",
+   "role": "control.relay",
+   "sha256": "a0c53d387515cd46065e614274f3ab5374196edc193f0bcd88b4af4ef0816673",
+   "bytes": 1019,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "relay/avf-binding.mjs"
+    }
+   },
+   "note": "relay/tunnel.js (the harness's own loopback tunnel hub) and the verifier modules it imports"
+  },
+  {
+   "path": "control/relay/avf-verify.mjs",
+   "role": "control.relay",
+   "sha256": "081d826f674d8579f3636c28b4dbd6b62955bd0ff0b8f2710157980ecd9764fd",
+   "bytes": 18884,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "relay/avf-verify.mjs"
+    }
+   },
+   "note": "relay/tunnel.js (the harness's own loopback tunnel hub) and the verifier modules it imports"
+  },
+  {
+   "path": "control/relay/boxhost.js",
+   "role": "control.relay",
+   "sha256": "b9c9c891f231fef132f660d1d739600c660f480f47429ec294200882ff68e93c",
+   "bytes": 7139,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "relay/boxhost.js"
+    }
+   },
+   "note": "relay/tunnel.js (the harness's own loopback tunnel hub) and the verifier modules it imports"
+  },
+  {
+   "path": "control/relay/pvm-cpu-tier.mjs",
+   "role": "control.relay",
+   "sha256": "c39c99cc9cb9479699243826be01b57398123e3df51f7b0b1e05f1e3e37757c0",
+   "bytes": 11028,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "relay/pvm-cpu-tier.mjs"
+    }
+   },
+   "note": "relay/tunnel.js (the harness's own loopback tunnel hub) and the verifier modules it imports"
+  },
+  {
+   "path": "control/relay/vbs-credential.mjs",
+   "role": "control.relay",
+   "sha256": "b36a2d037323b1e145c82529faffb94a1ecbdc0658c5c5c5c4d08a29c5692a77",
+   "bytes": 9189,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "relay/vbs-credential.mjs"
+    }
+   },
+   "note": "relay/tunnel.js (the harness's own loopback tunnel hub) and the verifier modules it imports"
+  },
+  {
+   "path": "control/relay/vbs-policy.mjs",
+   "role": "control.relay",
+   "sha256": "0e915d95b6771db87e00cee5ef97b82459da0b43653629a2e03264c78a3901cc",
+   "bytes": 2717,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "relay/vbs-policy.mjs"
+    }
+   },
+   "note": "relay/tunnel.js (the harness's own loopback tunnel hub) and the verifier modules it imports"
+  },
+  {
+   "path": "control/relay/vbs-tcglog.mjs",
+   "role": "control.relay",
+   "sha256": "67880a519424de61db4f9deb855c8cc7751854a2194d7c35aef3fe07435e703c",
+   "bytes": 15157,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "relay/vbs-tcglog.mjs"
+    }
+   },
+   "note": "relay/tunnel.js (the harness's own loopback tunnel hub) and the verifier modules it imports"
+  },
+  {
+   "path": "control/relay/vbs-verify.mjs",
+   "role": "control.relay",
+   "sha256": "422b011f6aa3aad5158cb25329e31751a5c1fd1abd40213ba07a8869a075824b",
+   "bytes": 43389,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "relay/vbs-verify.mjs"
+    }
+   },
+   "note": "relay/tunnel.js (the harness's own loopback tunnel hub) and the verifier modules it imports"
+  },
+  {
+   "path": "control/wasm/ipfs_fetch.py",
+   "role": "control.fetcher",
+   "sha256": "537e1afe7be857539acfcc85b9241f6ef8e3ddf74b8453f81e0ed45dabad8325",
+   "bytes": 8232,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "wasm/ipfs_fetch.py"
+    }
+   },
+   "note": "the harness puts <tree>/wasm on PYTHONPATH; the manager, not the Host, does the component fetch"
+  },
+  {
+   "path": "control/isolation/m3/hvlab-accept.mjs",
+   "role": "control.acceptance",
+   "sha256": "0749acadb4470a561a7dd53b93b0d8dbacc3ade2b966fcc0f6908d33f0e513af",
+   "bytes": 20478,
+   "from": {
+    "git": {
+     "commit": "8bb7d1113ee82f70341251bd9440725495f44cd5",
+     "path": "isolation/m3/hvlab-accept.mjs"
+    }
+   },
+   "note": "enclave-5d's box acceptance harness: one deployment through the node's OWN ensureApp (d1's Host and app zone), a loopback tunnel hub, the data plane, into the partition; judge-hv monitor-signed on the browser's key equal to the manager's record; refusals; a forced relaunch; a node restart adopting; retire. Runs on the box against the running manager, creates at most one instance, refuses (exit 3) if the manager already holds one. Locally 27/27 on KVM (direct and UEFI) at cf640825 + a1ff9864 (5d, hv-accept-check-2026-09-25.txt): development evidence. NOT yet run on the box"
+  },
+  {
+   "path": "npm/adraffy-ens-normalize-1.11.1.tgz",
+   "role": "control.npm",
+   "sha256": "7578f2dbf456f0f602e18c478886a579ed657d246f51417df1033b894fbab389",
+   "bytes": 228910,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/adraffy-ens-normalize-1.11.1.tgz"
+   },
+   "integrity": "sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==",
+   "note": "@adraffy/ens-normalize@1.11.1 from https://registry.npmjs.org/@adraffy/ens-normalize/-/ens-normalize-1.11.1.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/noble-ciphers-1.3.0.tgz",
+   "role": "control.npm",
+   "sha256": "e02e7c03c26b8dd88ab0bd5e46f2996689e33f252bacb551a1cf504bc912501f",
+   "bytes": 121164,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/noble-ciphers-1.3.0.tgz"
+   },
+   "integrity": "sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==",
+   "note": "@noble/ciphers@1.3.0 from https://registry.npmjs.org/@noble/ciphers/-/ciphers-1.3.0.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/noble-curves-1.9.1.tgz",
+   "role": "control.npm",
+   "sha256": "182bea65005197c699c41f78ae2ebfbfad47e8bc31aea9f83818de080e262d00",
+   "bytes": 324978,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/noble-curves-1.9.1.tgz"
+   },
+   "integrity": "sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA==",
+   "note": "@noble/curves@1.9.1 from https://registry.npmjs.org/@noble/curves/-/curves-1.9.1.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/noble-hashes-1.8.0.tgz",
+   "role": "control.npm",
+   "sha256": "e8a765d92c04faaccba8776411c5038cb195f812ee629fce07e1d2e6aec80ea0",
+   "bytes": 155326,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/noble-hashes-1.8.0.tgz"
+   },
+   "integrity": "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==",
+   "note": "@noble/hashes@1.8.0 from https://registry.npmjs.org/@noble/hashes/-/hashes-1.8.0.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/scure-base-1.2.6.tgz",
+   "role": "control.npm",
+   "sha256": "09c1bdef467fd38e0d6a96dd56511c0b8d8d5cff6d4c6bd387dae6b31048e82c",
+   "bytes": 26735,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/scure-base-1.2.6.tgz"
+   },
+   "integrity": "sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==",
+   "note": "@scure/base@1.2.6 from https://registry.npmjs.org/@scure/base/-/base-1.2.6.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/scure-bip32-1.7.0.tgz",
+   "role": "control.npm",
+   "sha256": "0a459440b75c384be436e9d2b128510e1fd4ed0cb4abe7a31eafcb114c966ca4",
+   "bytes": 13578,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/scure-bip32-1.7.0.tgz"
+   },
+   "integrity": "sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw==",
+   "note": "@scure/bip32@1.7.0 from https://registry.npmjs.org/@scure/bip32/-/bip32-1.7.0.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/scure-bip39-1.6.0.tgz",
+   "role": "control.npm",
+   "sha256": "a55b9327570f4558494e3fc75227861a3bdcf1f401cdd9adc98dca617cba020e",
+   "bytes": 94686,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/scure-bip39-1.6.0.tgz"
+   },
+   "integrity": "sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A==",
+   "note": "@scure/bip39@1.6.0 from https://registry.npmjs.org/@scure/bip39/-/bip39-1.6.0.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/abitype-1.2.3.tgz",
+   "role": "control.npm",
+   "sha256": "658b22cf80a429ca68a37e21f3cb00c24422c1701e35b099dccfb847ca453704",
+   "bytes": 157384,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/abitype-1.2.3.tgz"
+   },
+   "integrity": "sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==",
+   "note": "abitype@1.2.3 from https://registry.npmjs.org/abitype/-/abitype-1.2.3.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/eventemitter3-5.0.1.tgz",
+   "role": "control.npm",
+   "sha256": "3188d3a05772c99cf0ccf44f6cd8530bcbaf02ce0addcc47c33f26daff0f952c",
+   "bytes": 12095,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/eventemitter3-5.0.1.tgz"
+   },
+   "integrity": "sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA==",
+   "note": "eventemitter3@5.0.1 from https://registry.npmjs.org/eventemitter3/-/eventemitter3-5.0.1.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/isows-1.0.7.tgz",
+   "role": "control.npm",
+   "sha256": "2505f30cc52bdc04a150ffe42075cc7b9434404e0f91b0b1b0c4ab52db62f46d",
+   "bytes": 3706,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/isows-1.0.7.tgz"
+   },
+   "integrity": "sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg==",
+   "note": "isows@1.0.7 from https://registry.npmjs.org/isows/-/isows-1.0.7.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/ox-0.14.45.tgz",
+   "role": "control.npm",
+   "sha256": "12b1617fd8a53c88370ecf5abaa29bf6ba88e7ebe3644f7d7ed65a91b84ba5ea",
+   "bytes": 1609477,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/ox-0.14.45.tgz"
+   },
+   "integrity": "sha512-jpsQ+p0JZh9mKCxxzxz0d5qFHZZg2/O9xW18IpEC/dNXXPVqmDJ0c//9RMz0CILkbSGPA42+cbU0fC/ghwJ03w==",
+   "note": "ox@0.14.45 from https://registry.npmjs.org/ox/-/ox-0.14.45.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/tweetnacl-1.0.3.tgz",
+   "role": "control.npm",
+   "sha256": "5f8dc49cb4483e206ba3ebb22abbccfc0218c59b60fc78cce24197ced5b9e102",
+   "bytes": 49790,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/tweetnacl-1.0.3.tgz"
+   },
+   "integrity": "sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw==",
+   "note": "tweetnacl@1.0.3 from https://registry.npmjs.org/tweetnacl/-/tweetnacl-1.0.3.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/viem-2.56.8.tgz",
+   "role": "control.npm",
+   "sha256": "c8cb066c8e86e2eb72fae2c6776dfd6a2865bc32cd55a49bd830b016ad8f728c",
+   "bytes": 3845394,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/viem-2.56.8.tgz"
+   },
+   "integrity": "sha512-vD1DsnYxySMml5/02m/+boWQYfZtWug2VYzm6+hdVT+VDmULBZfpoh9gPDAENdMMBmQKW/2QJ/1DuZaslBJDAg==",
+   "note": "viem@2.56.8 from https://registry.npmjs.org/viem/-/viem-2.56.8.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/ws-8.21.0.tgz",
+   "role": "control.npm",
+   "sha256": "d08b726b3aae3a0fed5218a0d9a4b2ac8d75d4ad453a9271db55fe38e94eb4cf",
+   "bytes": 34987,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/ws-8.21.0.tgz"
+   },
+   "integrity": "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==",
+   "note": "ws@8.21.0 from https://registry.npmjs.org/ws/-/ws-8.21.0.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "npm/ws-8.21.3.tgz",
+   "role": "control.npm",
+   "sha256": "df3454ef205791ce50b5b9241762dcf9bfe1aa9f7f01d3057229be7dac0c2dc3",
+   "bytes": 35016,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/ws-8.21.3.tgz"
+   },
+   "integrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==",
+   "note": "ws@8.21.3 from https://registry.npmjs.org/ws/-/ws-8.21.3.tgz; npm's sha512 integrity checked beside the sha256 pin"
+  },
+  {
+   "path": "control/windows/vbslike/ops/uefi-dev-boot.ps1",
+   "role": "tool.windows",
+   "sha256": "0187d9259437336edd724b3c00f0c36906dcc2ca95de4ef1313cc4eac92d2949",
+   "bytes": 16923,
+   "from": {
+    "git": {
+     "commit": "cf64082575f25a82960e03b018c0e847ab8d59f2",
+     "path": "windows/vbslike/ops/uefi-dev-boot.ps1"
+    }
+   },
+   "note": "enclave-d1's host side of the UEFI DEV boot (the script that reached MON ready): the bounded set-probe-restore of AllowFirmwareLoadFromFile, petri's New-CustomVM definition, the medium hashed at attach, the read-back (one boot entry, no LoadOptions, Secure Boot off, vTPM absent), COM1 held from start, a watchdog. Run by enclave-d1 only. enclave-53's review findings of 2026-09-25 are open against it"
+  },
+  {
+   "path": "control/openvmm/petri/hyperv.psm1",
+   "role": "tool.windows",
+   "sha256": "17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c",
+   "bytes": 38595,
+   "from": {
+    "file": "~/enclave-bench/vbslike-phase2/openvmm/petri/src/vm/hyperv/hyperv.psm1"
+   },
+   "note": "petri's Hyper-V module (microsoft/openvmm a7b0bd4; byte-identical on upstream main 2026-09-24): New-CustomVM, the reference VM definition uefi-dev-boot.ps1 imports. Pinned so the definition is the package's, not a hand-placed copy"
+  },
+  {
+   "path": "win/pkg.lib.ps1",
+   "role": "tool.windows",
+   "sha256": "682f673a04a1cf85a7be18f17c43c15e32cb412e45bfa9456cd8225c7255cf7c",
+   "bytes": 15404,
+   "from": {
+    "repo": "windows/vbslike/pkg/win/pkg.lib.ps1"
+   }
+  },
+  {
+   "path": "win/stage.ps1",
+   "role": "tool.windows",
+   "sha256": "eb25e2372e97e4087a3fb8e91589acd1567aff1e08a494e55198f147c2d5cc82",
+   "bytes": 5531,
+   "from": {
+    "repo": "windows/vbslike/pkg/win/stage.ps1"
+   }
+  },
+  {
+   "path": "win/check.ps1",
+   "role": "tool.windows",
+   "sha256": "01287f9a66095c034f414999dd2a95a3a47f2f0ea456b37fc923cf8ace915fe9",
+   "bytes": 14026,
+   "from": {
+    "repo": "windows/vbslike/pkg/win/check.ps1"
+   }
+  },
+  {
+   "path": "win/smoke-hcs.ps1",
+   "role": "tool.windows",
+   "sha256": "aac91255b5e30c356cf16ac61b7ddea9c7a4d785992c245b76abab77964f01e2",
+   "bytes": 11948,
+   "from": {
+    "repo": "windows/vbslike/pkg/win/smoke-hcs.ps1"
+   }
+  },
+  {
+   "path": "win/judge-run.mjs",
+   "role": "tool.windows",
+   "sha256": "0ae452bcf179c30213a7b7ce35b523d57be6e46af05120ee59c287e0f83d2030",
+   "bytes": 2091,
+   "from": {
+    "repo": "windows/vbslike/pkg/win/judge-run.mjs"
+   }
+  },
+  {
+   "path": "win/manager-check.mjs",
+   "role": "tool.windows",
+   "sha256": "8efc7a413fb1feaf18daf9bd84328dda9f6d42c7a1b8e15095a9ce6f9035c532",
+   "bytes": 3911,
+   "from": {
+    "repo": "windows/vbslike/pkg/win/manager-check.mjs"
+   }
+  }
+ ],
+ "inputs": [
+  {
+   "name": "openvmm",
+   "role": "input.tree",
+   "from": {
+    "dir": "~/enclave-bench/vbslike-phase2/openvmm"
+   },
+   "commit": "a7b0bd4a653ba1c9192497a9d3669b14e7f3bc58",
+   "note": "VTL2 built by `cargo xflowey build-igvm x64-test-linux-direct --release` (enclave-d1, 2026-09-23)"
+  },
+  {
+   "name": "openhcl_boot",
+   "role": "input.vtl2",
+   "sha256": "18dbeae950c1c143364638892ace4c2cf2128eb12d67f3de05bdbe37b2fd16bc",
+   "bytes": 388248,
+   "from": {
+    "file": "~/enclave-bench/vbslike-phase2/openvmm/flowey-out/artifacts/build-igvm/ship/x64-test-linux-direct/openhcl_boot"
+   }
+  },
+  {
+   "name": "sidecar",
+   "role": "input.vtl2",
+   "sha256": "6710421c5db9901d7b8a3707d8b6bd3465247a16f07ecbfb30e8294ac1d076e7",
+   "bytes": 71024,
+   "from": {
+    "file": "~/enclave-bench/vbslike-phase2/openvmm/flowey-out/artifacts/build-igvm/ship/x64-test-linux-direct/sidecar"
+   }
+  },
+  {
+   "name": "underhill-vmlinux",
+   "role": "input.vtl2",
+   "sha256": "2ce0f275ac0e29600b35551bab444721baf30360f013a90c582125aa8cff97af",
+   "bytes": 11979264,
+   "from": {
+    "file": "~/enclave-bench/vbslike-phase2/openvmm/flowey-persist/flowey_lib_hvlite__resolve_openhcl_kernel_package/extracted/Microsoft.OHCL.Kernel.6.18.37.5-x64.tar.gz/vmlinux"
+   }
+  },
+  {
+   "name": "openhcl.cpio.gz",
+   "role": "input.vtl2",
+   "sha256": "0cc13ad34c9e1fa4a3187f7e15c834d752c60d64dbcf4253d1f125facf7a418a",
+   "bytes": 56133158,
+   "from": {
+    "file": "~/enclave-bench/vbslike-phase2/openvmm/flowey-out/.work/flowey_lib_hvlite__build_openhcl_initrd_0/openhcl.cpio.gz"
+   }
+  },
+  {
+   "name": "igvmfilegen",
+   "role": "input.igvmfilegen",
+   "sha256": "81647f66a88559d68c4d7565dfdcc355305c00cc842b49403a3c5188c36e1a1c",
+   "bytes": 78773528,
+   "from": {
+    "file": "~/enclave-bench/vbslike-phase2/openvmm/target-tools/release/igvmfilegen"
+   }
+  },
+  {
+   "name": "wsl-vmlinux.elf",
+   "role": "input.vtl0-vmlinux",
+   "sha256": "363b355389a02803e27884023670c4a0f0d2f584f946b48ba87c3633a6cf025a",
+   "bytes": 62006104,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/inputs/wsl-vmlinux.elf"
+   },
+   "note": "recovered from guest/wsl-kernel by vtl0-vmlinux.sh; GNU build id 188d2a2794aa2492a43e3e31f49f52b480833e34"
+  },
+  {
+   "name": "vtl0-vmlinux.sh",
+   "role": "input.recipe",
+   "sha256": "bdec32a13507cb9740739943546b828266f4a7e4b71b33ef8b88a8f64d3ae30d",
+   "bytes": 2614,
+   "from": {
+    "git": {
+     "commit": "ef1b2077d51483f32df8b8e08e04e25da8946a14",
+     "path": "windows/vbslike/igvm/vtl0-vmlinux.sh"
+    }
+   }
+  },
+  {
+   "name": "build-ownguest.sh",
+   "role": "input.recipe",
+   "sha256": "2c7c47a1ec52218e23ce9f77f712bca49372568bad17fb12ab3184462d22d1d3",
+   "bytes": 4807,
+   "from": {
+    "git": {
+     "commit": "ef1b2077d51483f32df8b8e08e04e25da8946a14",
+     "path": "windows/vbslike/igvm/build-ownguest.sh"
+    }
+   }
+  },
+  {
+   "name": "readiness-rule.test.mjs",
+   "role": "input.test",
+   "sha256": "b110ccf61d604eddc5a9d82e52521a56fd9a57a1fdf415a33c64b23c1081ca2e",
+   "bytes": 9582,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "windows/vbslike/review/readiness-rule.test.mjs"
+    }
+   },
+   "note": "enclave-99's readiness spec: a fake domain over TLS serving a launcher-signed document framed as the Go front frames it, then judgeRunning through its cases"
+  },
+  {
+   "name": "datapath.test.mjs",
+   "role": "input.test",
+   "sha256": "2793e316212a8638bfde8f4ab26d32b65e9cb778b5d44f0b1d44a5f8868fd76a",
+   "bytes": 7676,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "windows/vbslike/review/datapath.test.mjs"
+    }
+   },
+   "note": "enclave-99's datapath spec against enclave-5d's datapath.mjs (imports ../datapath/datapath.mjs only)"
+  },
+  {
+   "name": "manager-contract.test.mjs",
+   "role": "input.test",
+   "sha256": "1911d6329eb7d0d27ff71c45edc53c32fff6fcc7fb986f2732118218b8f8d756",
+   "bytes": 10111,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "windows/vbslike/review/manager-contract.test.mjs"
+    }
+   }
+  },
+  {
+   "name": "hcs-cleanup.test.mjs",
+   "role": "input.test",
+   "sha256": "70cba80c79a14ccea99c1a39f48a9535b6b36df75a3bbfe624cbf85204f8279d",
+   "bytes": 8516,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "windows/vbslike/review/hcs-cleanup.test.mjs"
+    }
+   }
+  },
+  {
+   "name": "record-to-route.test.mjs",
+   "role": "input.test",
+   "sha256": "98a09b6e058d907e8dc855903c4ee7642150ef07d1cc2c9149574dcacf1ca7e4",
+   "bytes": 10711,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "windows/vbslike/review/record-to-route.test.mjs"
+    }
+   }
+  },
+  {
+   "name": "main-entry.test.mjs",
+   "role": "input.test",
+   "sha256": "8f6bad10b4d5f184f172bbcbb578a23c393a8e5dc9968762ef8dbe269cc784e6",
+   "bytes": 5876,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "windows/vbslike/review/main-entry.test.mjs"
+    }
+   }
+  },
+  {
+   "name": "node-bridge.test.mjs",
+   "role": "input.test",
+   "sha256": "62147c8c8a178ca29b294c12d5aa59273b934bbfe9c6ad13166a2827e8049ee7",
+   "bytes": 11636,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "windows/vbslike/review/node-bridge.test.mjs"
+    }
+   }
+  },
+  {
+   "name": "appzone-hook.test.mjs",
+   "role": "input.test",
+   "sha256": "f3850fc0ef63a2a458066c7970f292e8bf99249a35d54efd214cedf963aff596",
+   "bytes": 3963,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "windows/vbslike/review/appzone-hook.test.mjs"
+    }
+   }
+  },
+  {
+   "name": "ws-8.21.1.tgz",
+   "role": "input.test-support",
+   "sha256": "bb0f7e58ba1f64746672734d36175fe185f226491e336abc0743e2a8f4472ec1",
+   "bytes": 34995,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/npm/ws-8.21.1.tgz"
+   },
+   "integrity": "sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw==",
+   "note": "npm ws 8.21.1, the repository lockfile's tarball (registry.npmjs.org), for the suites that use a WebSocket app zone as the node does; unpacked for the run, never shipped"
+  },
+  {
+   "name": "host-activation.test.mjs",
+   "role": "input.test",
+   "sha256": "b8a63bddd32520d40e9ee0a8a139cbce027eea6231c0b7ccf8bcc3d2f06b5b7e",
+   "bytes": 13310,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "windows/vbslike/review/host-activation.test.mjs"
+    }
+   }
+  },
+  {
+   "name": "isolation-lifecycle.test.mjs",
+   "role": "input.test",
+   "sha256": "61633dd6ddac682bd836ce9d2cf2b34a046609fa2909ac0272f319236dbc5948",
+   "bytes": 11647,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "windows/node/isolation-lifecycle.test.mjs"
+    }
+   }
+  },
+  {
+   "name": "datapath-5d.test.mjs",
+   "role": "input.test",
+   "sha256": "c66a604424d2c9098c6f26d629fea0058c1baafe80db139982deffb5e2f04126",
+   "bytes": 8513,
+   "from": {
+    "git": {
+     "commit": "6f1a9affe3287c5dfb07b5d01ff1a4ecbb65a27d",
+     "path": "windows/vbslike/datapath/datapath.test.mjs"
+    }
+   },
+   "note": "enclave-5d's own datapath suite"
+  },
+  {
+   "name": "derive_vectors.json",
+   "role": "input.test-support",
+   "sha256": "765b21388fa0952862fddc4908e3442da29a902e9fdf8f18eaee9944762498c1",
+   "bytes": 17900,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "isolation/contract/catalog/derive_vectors.json"
+    }
+   }
+  },
+  {
+   "name": "supervisor.js",
+   "role": "input.test-support",
+   "sha256": "6da908c537779d9a7f3d3d0e9f1dab1ff1f12a8c9914b4912b49b5074d350ead",
+   "bytes": 660966,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "supervisor.js"
+    }
+   },
+   "note": "the node's supervisor: the /vms contract's consumer"
+  },
+  {
+   "name": "guestd-server.go",
+   "role": "input.test-support",
+   "sha256": "0d39027a9044d63a27982beb987ac6787267736cfd65a4ba3541fd3ffa78184d",
+   "bytes": 22781,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "isolation/m4/guestd/server.go"
+    }
+   },
+   "note": "guestd: the contract the manager speaks"
+  },
+  {
+   "name": "fake-domain.mjs",
+   "role": "input.test-support",
+   "sha256": "42b03c5005d3dbc40ce172a7fda7277a4c4053749f93b57a58ea0ffeb293b751",
+   "bytes": 7215,
+   "from": {
+    "git": {
+     "commit": "c6554c6ca72690cfdf582178afddec42b1256e83",
+     "path": "windows/vbslike/review/fake-domain.mjs"
+    }
+   },
+   "note": "enclave-99's fake domain over TLS: a launcher-signed document framed as the Go front frames it (needs openssl)"
+  },
+  {
+   "name": "lab.rs",
+   "role": "input.test-support",
+   "sha256": "03f53d95e9102568e6dfebc1e34d96981f2d5b55dd2a79a62b78f326398f4a97",
+   "bytes": 5454,
+   "from": {
+    "git": {
+     "commit": "55494efab7ae39aeebe35545c835412e6f1dd566",
+     "path": "windows/vbslike/host/src/lab.rs"
+    }
+   },
+   "note": "the pinned launcher's own source (55494efa)"
+  },
+  {
+   "name": "build-uefi-image.sh",
+   "role": "input.recipe",
+   "sha256": "34310d9d09315ec3b92855d11ab78361166fcb165e8403fd2d6995da1354c099",
+   "bytes": 10344,
+   "from": {
+    "repo": "windows/vbslike/pkg/uefi/build-uefi-image.sh"
+   },
+   "note": "enclave-53's reproducible UEFI image builder"
+  },
+  {
+   "name": "mon-a1ff9864.cpio.gz",
+   "role": "input.initrd",
+   "sha256": "a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f",
+   "bytes": 24038902,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/guest/mon-a1ff9864.cpio.gz"
+   },
+   "source": {
+    "command": "isolation/m3/build-domain.sh <out> 1",
+    "commit": "6f1a9affe3287c5dfb07b5d01ff1a4ecbb65a27d",
+    "owner": "enclave-5d"
+   },
+   "note": "the UEFI payload's initrd (inside the UKI): 5bc06259's guards plus a ready line that names the vsock transport (transport=hv_sock on Hyper-V, virtio on KVM), and 'MON ERROR no vsock transport' + power-off with none. enclave-5d's inference from the pinned kernel's binary: it carries hv_sock and hv_vmbus and no virtio vsock transport, so the box should read transport=hv_sock; that is not yet a boot. The linux-direct profiles keep guest/mon.cpio.gz 4610d594 (the IGVM 7caf7408 is built around it)"
+  },
+  {
+   "name": "build-uki.sh",
+   "role": "input.recipe",
+   "sha256": "a3e2748b5313ee2bc7e8b5a4e7c7265db782c0e7180f2bdb9eaa1f61ecafbbe4",
+   "bytes": 3562,
+   "from": {
+    "git": {
+     "commit": "4127789d60e2f3973691dcd4871b10bb81578434",
+     "path": "isolation/m3/build-uki.sh"
+    }
+   },
+   "note": "enclave-5d's UKI recipe (UEFI-BOOT.md); the builder refuses unless its own assembly and this agree byte for byte"
+  },
+  {
+   "name": "linuxx64.efi.stub",
+   "role": "input.efi-stub",
+   "sha256": "2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18",
+   "bytes": 134144,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/uefi/linuxx64.efi.stub"
+   },
+   "note": "systemd 261.2's systemd-stub (warden-host /usr/lib/systemd/boot/efi)"
+  },
+  {
+   "name": "mtools-4.0.49.tar.gz",
+   "role": "input.tool-source",
+   "sha256": "10cd1111da87bf2400a380c1639a6cba8bfb937a24f9c51f5f88d393ae5f6f76",
+   "bytes": 569054,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/uefi/mtools-4.0.49.tar.gz"
+   },
+   "note": "GNU mtools, built locally to populate the FAT without root. Its GPG signature was NOT verified (the signer's key is not in the local keyring)"
+  },
+  {
+   "name": "manifest-ownguest.json",
+   "role": "input.igvm-manifest",
+   "sha256": "2919c2b257e44ac6dc165849f76496d824fcfb19cb4377844bb36f3ee1c36a57",
+   "bytes": 1822,
+   "from": {
+    "git": {
+     "commit": "ef1b2077d51483f32df8b8e08e04e25da8946a14",
+     "path": "windows/vbslike/igvm/manifest-ownguest.json"
+    }
+   }
+  }
+ ],
+ "tests": [
+  {
+   "name": "readiness-rule",
+   "owner": "enclave-99",
+   "input": "readiness-rule.test.mjs",
+   "requires": [
+    "openssl"
+   ],
+   "layout": "control/windows/vbslike/review/readiness-rule.test.mjs",
+   "expect": {
+    "tests": 8,
+    "pass": 8,
+    "fail": 0,
+    "failing": []
+   },
+   "support": [
+    {
+     "input": "fake-domain.mjs",
+     "layout": "control/windows/vbslike/review/fake-domain.mjs"
+    }
+   ],
+   "why": "the manager's ready.mjs decides 'running'; this is its acceptance, run inside the package's own tree (pkg.mjs verify --tests)"
+  },
+  {
+   "name": "datapath",
+   "owner": "enclave-99",
+   "input": "datapath.test.mjs",
+   "requires": [],
+   "layout": "control/windows/vbslike/review/datapath.test.mjs",
+   "expect": {
+    "tests": 5,
+    "pass": 5,
+    "fail": 0,
+    "failing": []
+   },
+   "why": "the datapath the igvm profile will serve through; run against the package's pinned datapath.mjs"
+  },
+  {
+   "name": "datapath-5d",
+   "owner": "enclave-5d",
+   "input": "datapath-5d.test.mjs",
+   "requires": [],
+   "layout": "control/windows/vbslike/datapath/datapath.test.mjs",
+   "expect": {
+    "tests": 5,
+    "pass": 5,
+    "fail": 0,
+    "failing": []
+   },
+   "why": "enclave-5d's own datapath suite; its interop case (the splice client's preamble writer meeting the datapath's parser) runs against the package's shipped supervisor-splice.mjs"
+  },
+  {
+   "name": "manager-contract",
+   "owner": "enclave-99",
+   "input": "manager-contract.test.mjs",
+   "requires": [],
+   "layout": "control/windows/vbslike/review/manager-contract.test.mjs",
+   "expect": {
+    "tests": 6,
+    "pass": 6,
+    "fail": 0,
+    "failing": []
+   },
+   "support": [
+    {
+     "input": "supervisor.js",
+     "layout": "control/supervisor.js"
+    },
+    {
+     "input": "guestd-server.go",
+     "layout": "control/isolation/m4/guestd/server.go"
+    },
+    {
+     "input": "derive_vectors.json",
+     "layout": "control/isolation/contract/catalog/derive_vectors.json"
+    }
+   ],
+   "why": "the manager speaks the contract the node's supervisor and guestd speak"
+  },
+  {
+   "name": "hcs-cleanup",
+   "owner": "enclave-99",
+   "input": "hcs-cleanup.test.mjs",
+   "requires": [],
+   "layout": "control/windows/vbslike/review/hcs-cleanup.test.mjs",
+   "expect": {
+    "tests": 5,
+    "pass": 5,
+    "fail": 0,
+    "failing": []
+   },
+   "support": [
+    {
+     "input": "lab.rs",
+     "layout": "control/windows/vbslike/host/src/lab.rs"
+    },
+    {
+     "input": "derive_vectors.json",
+     "layout": "control/isolation/contract/catalog/derive_vectors.json"
+    }
+   ],
+   "why": "the HCS backend against the pinned launcher's own line protocol"
+  },
+  {
+   "name": "record-to-route",
+   "owner": "enclave-99",
+   "input": "record-to-route.test.mjs",
+   "requires": [
+    "openssl"
+   ],
+   "layout": "control/windows/vbslike/review/record-to-route.test.mjs",
+   "expect": {
+    "tests": 4,
+    "pass": 4,
+    "fail": 0,
+    "failing": []
+   },
+   "support": [
+    {
+     "input": "derive_vectors.json",
+     "layout": "control/isolation/contract/catalog/derive_vectors.json"
+    },
+    {
+     "input": "fake-domain.mjs",
+     "layout": "control/windows/vbslike/review/fake-domain.mjs"
+    }
+   ],
+   "why": "the seam: the manager's record, through the node's client, admitted by the datapath"
+  },
+  {
+   "name": "main-entry",
+   "owner": "enclave-99",
+   "input": "main-entry.test.mjs",
+   "requires": [],
+   "layout": "control/windows/vbslike/review/main-entry.test.mjs",
+   "expect": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0,
+    "failing": []
+   },
+   "support": [
+    {
+     "input": "fake-domain.mjs",
+     "layout": "control/windows/vbslike/review/fake-domain.mjs"
+    }
+   ],
+   "why": "the manager started the way it runs (main.mjs as a child process) pins the runtime identity it is given, derives the RuntimeID from it, and refuses to start with only ENCLAVE_RUNTIME_ID"
+  },
+  {
+   "name": "node-bridge",
+   "owner": "enclave-99",
+   "input": "node-bridge.test.mjs",
+   "requires": [
+    "openssl"
+   ],
+   "layout": "control/windows/vbslike/review/node-bridge.test.mjs",
+   "expect": {
+    "tests": 6,
+    "pass": 6,
+    "fail": 0,
+    "failing": []
+   },
+   "support": [
+    {
+     "input": "ws-8.21.1.tgz",
+     "layout": "node_modules/ws",
+     "unpack": "npm-tgz"
+    }
+   ],
+   "why": "the plan against the supervisor's claim gate, isolatedTarget, and the join through the bridge (paired with node-bridge.mjs 4cb8d54f)"
+  },
+  {
+   "name": "appzone-hook",
+   "owner": "enclave-99",
+   "input": "appzone-hook.test.mjs",
+   "requires": [],
+   "layout": "control/windows/vbslike/review/appzone-hook.test.mjs",
+   "expect": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0,
+    "failing": []
+   },
+   "support": [
+    {
+     "input": "ws-8.21.1.tgz",
+     "layout": "node_modules/ws",
+     "unpack": "npm-tgz"
+    }
+   ],
+   "why": "the app zone's two properties by mechanism: an isolated target is never terminated here"
+  },
+  {
+   "name": "host-activation",
+   "owner": "enclave-99",
+   "input": "host-activation.test.mjs",
+   "requires": [
+    "openssl"
+   ],
+   "npmTree": true,
+   "layout": "control/windows/vbslike/review/host-activation.test.mjs",
+   "expect": {
+    "tests": 6,
+    "pass": 6,
+    "fail": 0,
+    "failing": []
+   },
+   "support": [
+    {
+     "input": "fake-domain.mjs",
+     "layout": "control/windows/vbslike/review/fake-domain.mjs"
+    }
+   ],
+   "why": "the real ensureApp/activation acceptance, runnable in the package tree now that the node's npm tree is pinned"
+  },
+  {
+   "name": "lifecycle",
+   "owner": "enclave-99",
+   "input": "isolation-lifecycle.test.mjs",
+   "requires": [],
+   "layout": "control/windows/node/isolation-lifecycle.test.mjs",
+   "expect": {
+    "tests": 7,
+    "pass": 7,
+    "fail": 0,
+    "failing": []
+   },
+   "why": "the node's lifecycle over the manager: reconcile and retire"
+  }
+ ],
+ "catalogFacts": {
+  "source": {
+   "chainId": 8453,
+   "block": 51751542,
+   "rpc": "https://base-rpc.publicnode.com",
+   "addressBook": "0xab214342d5A490150A4A977063A2f88E21F80907",
+   "catalog": "0x18419CA2b502D423A8de6269AEeE171a378626e3",
+   "catalogSchema": 9,
+   "readBy": "enclave-53: getVersionsPage(appId, index, 1) at that block, the catalog resolved through the address book as cli/enclave.mjs resolves it"
+  },
+  "versions": {
+   "0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4": {
+    "cid": "bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza",
+    "version": "1.0.4",
+    "memMb": 128,
+    "ports": "",
+    "config": "{\"_media\":{\"thumbnail\":\"bafkreifwbdhx3sp7juo4fy3g47zmvik5lakqvte3okdnoij6gv5v5lnoue\",\"thumbnailSvg\":true,\"banner\":\"bafkreicr4ejprdyuwzise2oehjjy52in6zawoa2j6hwve2yad7nxejtaau\",\"bannerSvg\":true}}",
+    "yanked": false,
+    "approval": 1
+   },
+   "0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4": {
+    "cid": "bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee",
+    "version": "0.1.4",
+    "memMb": 256,
+    "ports": "http:8000",
+    "config": "{\"_media\":{\"thumbnail\":\"bafkreifzvpy3jk67jklyi3war6zzlz62hmj3dd7nblpllxcckwf6eoijzq\",\"thumbnailSvg\":true,\"banner\":\"bafkreiet6ftvptcqexzkn5657wivim7xeeodxruo3f7qoy52uf5wib2uxu\"}}",
+    "yanked": false,
+    "approval": 1
+   }
+  }
+ },
+ "notPinned": [
+  "enclave-99's host-activation.test.mjs (c6554c6c): the real ensureApp/activation acceptance. NOT packable, measured: host.mjs imports chain.mjs, which imports viem (with viem/accounts and viem/chains), and viem's dependency tree is dozens of npm packages that this package will not pin one by one. It stays a repo-side acceptance: enclave-99 measures 6 tests, 6 pass against enclave-d1's ebc0ef27 and later (defects 13, 14, 16, 18, 19 closed).",
+  "enclave-99's host-retire.test.mjs: it drives the real Host's tick read-only against the live Base ledger (network and the whole node's import closure), so it is a repo-side acceptance for enclave-d1's defect 15. Measured by enclave-99 against d1f4b745: 1 test, 0 pass ('no DELETE reached the manager on lease loss: the partition outlives the lease').",
+  "enclave-d1's 0b49f6b6 / 5a8a33e7 content is in d1f4b745; enclave-5d's node-bridge.test.mjs (it needs supervisor.js and ws in the repo tree).",
+  "The igvm profile does not boot on this host yet: see windows/vbslike/pkg/research/igvm-loading-2026-09-24.md (enclave-53's primary-source evidence and bounded probe, sent to enclave-d1)."
+ ],
+ "npmTree": {
+  "root": "control/node_modules",
+  "note": "assembled by stage.ps1 from npm/*.tgz into their lockfile positions (viem nests its own ws 8.21.0); windows/node/package-lock.json at cf640825 pins ws and tweetnacl only, so viem 2.56.8 is pinned HERE, as the box runs it",
+  "packages": [
+   {
+    "name": "@adraffy/ens-normalize",
+    "version": "1.11.1",
+    "dir": "node_modules/@adraffy/ens-normalize",
+    "file": "npm/adraffy-ens-normalize-1.11.1.tgz",
+    "sha256": "7578f2dbf456f0f602e18c478886a579ed657d246f51417df1033b894fbab389"
+   },
+   {
+    "name": "@noble/ciphers",
+    "version": "1.3.0",
+    "dir": "node_modules/@noble/ciphers",
+    "file": "npm/noble-ciphers-1.3.0.tgz",
+    "sha256": "e02e7c03c26b8dd88ab0bd5e46f2996689e33f252bacb551a1cf504bc912501f"
+   },
+   {
+    "name": "@noble/curves",
+    "version": "1.9.1",
+    "dir": "node_modules/@noble/curves",
+    "file": "npm/noble-curves-1.9.1.tgz",
+    "sha256": "182bea65005197c699c41f78ae2ebfbfad47e8bc31aea9f83818de080e262d00"
+   },
+   {
+    "name": "@noble/hashes",
+    "version": "1.8.0",
+    "dir": "node_modules/@noble/hashes",
+    "file": "npm/noble-hashes-1.8.0.tgz",
+    "sha256": "e8a765d92c04faaccba8776411c5038cb195f812ee629fce07e1d2e6aec80ea0"
+   },
+   {
+    "name": "@scure/base",
+    "version": "1.2.6",
+    "dir": "node_modules/@scure/base",
+    "file": "npm/scure-base-1.2.6.tgz",
+    "sha256": "09c1bdef467fd38e0d6a96dd56511c0b8d8d5cff6d4c6bd387dae6b31048e82c"
+   },
+   {
+    "name": "@scure/bip32",
+    "version": "1.7.0",
+    "dir": "node_modules/@scure/bip32",
+    "file": "npm/scure-bip32-1.7.0.tgz",
+    "sha256": "0a459440b75c384be436e9d2b128510e1fd4ed0cb4abe7a31eafcb114c966ca4"
+   },
+   {
+    "name": "@scure/bip39",
+    "version": "1.6.0",
+    "dir": "node_modules/@scure/bip39",
+    "file": "npm/scure-bip39-1.6.0.tgz",
+    "sha256": "a55b9327570f4558494e3fc75227861a3bdcf1f401cdd9adc98dca617cba020e"
+   },
+   {
+    "name": "abitype",
+    "version": "1.2.3",
+    "dir": "node_modules/abitype",
+    "file": "npm/abitype-1.2.3.tgz",
+    "sha256": "658b22cf80a429ca68a37e21f3cb00c24422c1701e35b099dccfb847ca453704"
+   },
+   {
+    "name": "eventemitter3",
+    "version": "5.0.1",
+    "dir": "node_modules/eventemitter3",
+    "file": "npm/eventemitter3-5.0.1.tgz",
+    "sha256": "3188d3a05772c99cf0ccf44f6cd8530bcbaf02ce0addcc47c33f26daff0f952c"
+   },
+   {
+    "name": "isows",
+    "version": "1.0.7",
+    "dir": "node_modules/isows",
+    "file": "npm/isows-1.0.7.tgz",
+    "sha256": "2505f30cc52bdc04a150ffe42075cc7b9434404e0f91b0b1b0c4ab52db62f46d"
+   },
+   {
+    "name": "ox",
+    "version": "0.14.45",
+    "dir": "node_modules/ox",
+    "file": "npm/ox-0.14.45.tgz",
+    "sha256": "12b1617fd8a53c88370ecf5abaa29bf6ba88e7ebe3644f7d7ed65a91b84ba5ea"
+   },
+   {
+    "name": "tweetnacl",
+    "version": "1.0.3",
+    "dir": "node_modules/tweetnacl",
+    "file": "npm/tweetnacl-1.0.3.tgz",
+    "sha256": "5f8dc49cb4483e206ba3ebb22abbccfc0218c59b60fc78cce24197ced5b9e102"
+   },
+   {
+    "name": "viem",
+    "version": "2.56.8",
+    "dir": "node_modules/viem",
+    "file": "npm/viem-2.56.8.tgz",
+    "sha256": "c8cb066c8e86e2eb72fae2c6776dfd6a2865bc32cd55a49bd830b016ad8f728c"
+   },
+   {
+    "name": "ws",
+    "version": "8.21.0",
+    "dir": "node_modules/viem/node_modules/ws",
+    "file": "npm/ws-8.21.0.tgz",
+    "sha256": "d08b726b3aae3a0fed5218a0d9a4b2ac8d75d4ad453a9271db55fe38e94eb4cf"
+   },
+   {
+    "name": "ws",
+    "version": "8.21.3",
+    "dir": "node_modules/ws",
+    "file": "npm/ws-8.21.3.tgz",
+    "sha256": "df3454ef205791ce50b5b9241762dcf9bfe1aa9f7f01d3057229be7dac0c2dc3"
+   }
+  ],
+  "mustLoad": [
+   "windows/node/host.mjs",
+   "windows/node/chain.mjs",
+   "windows/node/appzone.mjs",
+   "windows/node/isolation-client.mjs",
+   "windows/node/isolation-lifecycle.mjs",
+   "windows/vbslike/datapath/node-bridge.mjs",
+   "relay/tunnel.js",
+   "isolation/contract/runtime.mjs",
+   "windows/vbslike/verify/judge-hv.mjs",
+   "node_modules/ws/wrapper.mjs",
+   "node_modules/viem/_esm/accounts/index.js"
+  ]
+ },
+ "acceptance": {
+  "harness": "control/isolation/m3/hvlab-accept.mjs",
+  "nodeTree": "control",
+  "judge": "control/windows/vbslike/verify/judge-hv.mjs",
+  "env": [
+   "HVACC_NODE_TREE",
+   "HVACC_MANAGER",
+   "HVACC_DATA",
+   "HVACC_LAUNCHER_KEY",
+   "HVACC_JUDGE",
+   "HVACC_RUNTIME",
+   "HVACC_PYTHON"
+  ],
+  "contract": "isolation/m3/UEFI-BOOT.md at 8bb7d111, 'The box acceptance run'",
+  "runBy": "enclave-d1 (a box action)",
+  "status": "NOT run on the box"
+ },
+ "rebuild": {
+  "uefi": {
+   "builder": "build-uefi-image.sh",
+   "ukiRecipe": "build-uki.sh",
+   "kernel": "file:guest/wsl-kernel",
+   "initrd": "mon-a1ff9864.cpio.gz",
+   "stub": "linuxx64.efi.stub",
+   "cmdline": "console=ttyS0 rdinit=/init loglevel=3 report_host=9001",
+   "espMiB": 128,
+   "diskMiB": 256,
+   "epoch": 1758672000,
+   "mtoolsDir": "~/enclave-bench/ownguest-pkg/tools/mtools/bin",
+   "iso": "guest/uefi/guest.iso",
+   "fallback": "guest/uefi/disk.vhdx",
+   "diskRawSha256": "23c52ecc4bf5340a9c06a7fc102ff608fb424171a6e35a91afd8e2bab27d248f"
+  },
+  "vmlinux": {
+   "script": "vtl0-vmlinux.sh",
+   "bzImage": "file:guest/wsl-kernel",
+   "output": "wsl-vmlinux.elf"
+  },
+  "igvm": {
+   "script": "build-ownguest.sh",
+   "tree": "openvmm",
+   "igvmfilegen": "igvmfilegen",
+   "manifest": "manifest-ownguest.json",
+   "initrd": "guest/mon.cpio.gz",
+   "output": "guest/openhcl-ownguest.bin"
+  }
+ }
+}

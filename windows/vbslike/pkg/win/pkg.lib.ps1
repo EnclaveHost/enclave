@@ -76,6 +76,8 @@ function Test-PkgFiles($R, [string]$Dir, $M) {
     $rel = $x.FullName.Substring($Dir.Length + 1) -replace '\\', '/'
     $top = $rel.Split('/')[0]
     if ($rel -eq 'MANIFEST.json' -or $want.ContainsKey($rel) -or $script:ScratchTop -contains $top) { continue }
+    # the npm tree stage.ps1 assembles from the pinned tarballs lives under the manifest's npmTree.root
+    if (($M.PSObject.Properties.Name -contains 'npmTree') -and $rel.StartsWith($M.npmTree.root + '/')) { continue }
     $extra += $rel
   }
   [void](Add-Result $R ($extra.Count -eq 0) 'no file outside the manifest' $(if ($extra.Count) { 'extra: ' + ($extra -join ', ') } else { '' }))
@@ -146,6 +148,18 @@ function Test-HostProfile($R, $M, [string]$Boot) {
     }
   }
   return $ready
+}
+
+# The assembled npm tree: each pinned package present at its lockfile position with its name and version.
+function Test-NpmTree($R, [string]$Dir, $M) {
+  if (-not ($M.PSObject.Properties.Name -contains 'npmTree')) { return }
+  $t = $M.npmTree; $ok = 0
+  foreach ($p in $t.packages) {
+    $pj = Get-PkgFilePath $Dir ("$($t.root)/" + ($p.dir -replace '^node_modules/', '') + '/package.json')
+    $v = $null; if (Test-Path -LiteralPath $pj) { try { $v = Get-Content -LiteralPath $pj -Raw | ConvertFrom-Json } catch { } }
+    if ($v -and $v.name -eq $p.name -and $v.version -eq $p.version) { $ok++ } else { [void](Add-Result $R $false "npm tree: $($p.name)@$($p.version)" $(if ($v) { "found $($v.name)@$($v.version)" } else { 'absent: run stage.ps1' })) }
+  }
+  [void](Add-Result $R ($ok -eq @($t.packages).Count) 'npm tree: every pinned package at its lockfile position' "$ok/$(@($t.packages).Count)")
 }
 
 function Get-PkgApp($M, [string]$Name) { return @($M.apps | Where-Object { $_.name -eq $Name })[0] }

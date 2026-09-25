@@ -53,7 +53,25 @@ foreach ($f in @($M.files | Where-Object { $_.role -eq 'guest.uefi-medium' -or $
   if (Test-Path -LiteralPath $file) { Set-ItemProperty -LiteralPath $file -Name IsReadOnly -Value $true; [void](Add-Result $R $true "read-only attribute on $($f.path)") }
 }
 
+# The npm tree for the box acceptance harness: each pinned tarball unpacked to its lockfile position under npmTree.root
+# (nested where npm nests it), with tar.exe from System32. Inside this package directory only.
+if ($M.PSObject.Properties.Name -contains 'npmTree') {
+  $t = $M.npmTree; $n = 0
+  foreach ($p in $t.packages) {
+    $tgz = Get-PkgFilePath $Dir $p.file
+    $dst = Get-PkgFilePath $Dir ("$($t.root)/" + ($p.dir -replace '^node_modules/', ''))
+    if (-not (Test-Path -LiteralPath $tgz)) { [void](Add-Result $R $false "unpack $($p.name)@$($p.version)" "$($p.file) missing"); continue }
+    if ((Get-Sha256 $tgz) -ne $p.sha256) { [void](Add-Result $R $false "unpack $($p.name)@$($p.version)" 'the tarball does not hash to its pin: not unpacked'); continue }
+    New-Item -ItemType Directory -Force -Path $dst | Out-Null
+    & tar.exe -xzf $tgz -C $dst --strip-components=1 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { [void](Add-Result $R $false "unpack $($p.name)@$($p.version)" "tar exit $LASTEXITCODE"); continue }
+    $n++
+  }
+  [void](Add-Result $R ($n -eq @($t.packages).Count) 'npm tree unpacked from the pinned tarballs' "$n/$(@($t.packages).Count)")
+}
+
 Test-PkgFiles $R $Dir $M
+Test-NpmTree $R $Dir $M
 foreach ($p in @($M.vmWorkerRead)) { Test-VmWorkerRead $R (Get-PkgFilePath $Dir $p) $p }
 
 $ok = Test-ResultsOk $R

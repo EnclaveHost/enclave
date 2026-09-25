@@ -56,6 +56,14 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   Built and verified, NOT staged and NOT booted on the NucBox: it goes to a new directory when enclave-d1 asks, and
   d1 confirms `transport=hv_sock` on one boot before it replaces `4c387086`. Nothing is served.
 
+- **v12 draft** (`drafts/nucbox-ownguest-12.json`, held with v11): v11 plus the NODE TREE enclave-5d's box acceptance
+  harness imports and the harness itself (`hvlab-accept.mjs`, 8bb7d111). The tree is 27 repository files at d1's
+  `cf640825` under `control/` and 15 npm packages (`viem` 2.56.8 as the box runs it, `ws`, `tweetnacl`, and `viem`'s
+  own set) pinned as registry tarballs with npm's sha512 integrity; `stage.ps1` unpacks them into `control/node_modules`
+  at their lockfile positions, inside the package only. `verify` assembles the tree and requires every module the
+  harness imports to load from it. With that tree, enclave-99's host-activation runs in the package (6/6, pinned).
+  `check.ps1` prints the `HVACC_*` block. The harness has NOT run on the box: it waits for the hv_sock exchange.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
@@ -99,6 +107,10 @@ node --test windows/vbslike/pkg/pkg.test.mjs
 - **The judge.** It loads from the package's own files, laid out as shipped, and rejects a document that is not one.
 - **The igvm manager.** Run on a recording host, its own `start()` must issue `New-VM -GuestStateIsolationType` OpenHCL
   or TrustedLaunch.
+- **The npm tree** (manifests with `npmTree`). Each pinned tarball is checked against npm's sha512 `integrity` as well
+  as our sha256, unpacked into its lockfile position (nested where npm nests it), and every module in `mustLoad` must
+  import from the assembled tree. A pinned test marked `npmTree: true` gets the same tree, so a test that imports the
+  node's own dependency graph runs on the pinned bytes, with no stub.
 - **The node's record builder, against the catalog** (manifests with `catalogFacts`, from v8). The manifest records each
   app's catalog version as read from the chain, with the chain, block, address book and catalog. The shipped
   `node-bridge.mjs`'s `isolationPlan` builds the derivation record from those facts, as the node does at spawn time. That
