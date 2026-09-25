@@ -37,6 +37,12 @@ var refusedPrefixes = func() []netip.Prefix {
 		"fe80::/10",       // link-local
 		"ff00::/8",        // multicast
 		"2002::/16",       // 6to4: an IPv4 in disguise
+		"2001::/32",       // Teredo: an IPv4 in disguise
+		"64:ff9b:1::/48",  // local-use NAT64 (RFC 8215)
+		"2001:db8::/32",   // documentation
+		"192.0.2.0/24",    // TEST-NET-1
+		"198.51.100.0/24", // TEST-NET-2
+		"203.0.113.0/24",  // TEST-NET-3
 	} {
 		out = append(out, netip.MustParsePrefix(s))
 	}

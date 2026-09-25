@@ -102,7 +102,13 @@ type Release struct {
 	Config         json.RawMessage   `json:"config"`
 	Secrets        map[string]string `json:"secrets"`
 	IssuedAt       string            `json:"issuedAt"` // ISO-8601, as the relay writes it
+
+	opened bool // set ONLY by SealKey.Open: this release came through the attested channel
 }
+
+// Attested reports whether this Release was produced by SealKey.Open, i.e. decrypted from the relay's sealed reply.
+// Another package cannot set it, so a Release assembled from anything else (host-delivered config) is never trusted.
+func (r *Release) Attested() bool { return r != nil && r.opened }
 
 // Open decrypts a sealed release and checks it is for THIS deployment. A failure says why and never carries a
 // plaintext byte.
@@ -123,6 +129,7 @@ func (s *SealKey) Open(sealed []byte, id, ticket [32]byte) (*Release, error) {
 	if r.Secrets == nil {
 		r.Secrets = map[string]string{}
 	}
+	r.opened = true
 	return &r, nil
 }
 

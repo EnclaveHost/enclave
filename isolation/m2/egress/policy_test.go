@@ -69,7 +69,7 @@ func TestAtInThePathIsNotUserinfo(t *testing.T) {
 // string, so the authority it judges is the one the request will use.
 func TestSubstitutionThatChangesTheAuthorityIsJudgedAfter(t *testing.T) {
 	// "${EP}/v1" with EP = "https://images.example@evil.example" resolves to an @-authority: refused
-	p, err := Derive(`{"url":"https://images.example@evil.example/v1"}`, relay)
+	p, err := derive(`{"url":"https://images.example@evil.example/v1"}`, relay)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestDeriveFromTheResolvedConfig(t *testing.T) {
 	  {"url":"http://plain.example/"},
 	  {"note":"see https://docs.example for help"}
 	]}`
-	p, err := Derive(cfg, relay)
+	p, err := derive(cfg, relay)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestDeriveFromTheResolvedConfig(t *testing.T) {
 }
 
 func TestExplicitEgressReplacesDerivation(t *testing.T) {
-	p, err := Derive(`{"egress":["https://only.example"],"http":[{"url":"https://images.example/x"}]}`, relay)
+	p, err := derive(`{"egress":["https://only.example"],"http":[{"url":"https://images.example/x"}]}`, relay)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestExplicitEgressReplacesDerivation(t *testing.T) {
 		t.Fatalf("origins %+v", p.Origins)
 	}
 	for _, bad := range []string{`{"egress":"https://x.example"}`, `{"egress":[1]}`} {
-		if _, err := Derive(bad, relay); err == nil {
+		if _, err := derive(bad, relay); err == nil {
 			t.Fatalf("%s accepted", bad)
 		}
 	}
@@ -126,7 +126,7 @@ func TestExplicitEgressReplacesDerivation(t *testing.T) {
 // The relay origin is pinned by the platform: config cannot remove it, and listing it is harmless.
 func TestTheRelayOriginIsAlwaysThereAndCannotBeRedirected(t *testing.T) {
 	for _, cfg := range []string{``, `{}`, `{"egress":[]}`, `{"egress":["https://api.enclave.host"]}`} {
-		p, err := Derive(cfg, relay)
+		p, err := derive(cfg, relay)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,13 +134,13 @@ func TestTheRelayOriginIsAlwaysThereAndCannotBeRedirected(t *testing.T) {
 			t.Fatalf("%q removed the relay origin", cfg)
 		}
 	}
-	if _, err := Derive(`{}`, Origin{Host: "127.0.0.1"}); err == nil {
+	if _, err := derive(`{}`, Origin{Host: "127.0.0.1"}); err == nil {
 		t.Fatal("an IP relay origin was accepted")
 	}
 }
 
 func TestAllowsNormalizesLikeParse(t *testing.T) {
-	p, _ := Derive(`{"u":"https://Images.Example/x"}`, relay)
+	p, _ := derive(`{"u":"https://Images.Example/x"}`, relay)
 	for _, h := range []string{"images.example", "IMAGES.EXAMPLE", "images.example:443"} {
 		if !p.Allows(h) {
 			t.Fatalf("%q not allowed", h)

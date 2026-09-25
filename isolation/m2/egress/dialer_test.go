@@ -76,6 +76,10 @@ func TestRefusesNonPublicDestinations(t *testing.T) {
 		"nat64.example":            {"64:ff9b::7f00:1"},
 		"own.example":              {"203.0.113.9"},
 		"mixed.example":            {"93.184.216.34", "192.168.1.1"}, // a rebinding setup mixes public and private
+		"teredo.example":           {"2001:0:4136:e378:8000:63bf:3fff:fdd2"},
+		"nat64local.example":       {"64:ff9b:1::7f00:1"},
+		"doc6.example":             {"2001:db8::1"},
+		"testnet.example":          {"198.51.100.7"},
 	}
 	d, dialed := testDialer(res, nil)
 	for host := range res {
