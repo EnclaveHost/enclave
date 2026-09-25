@@ -64,6 +64,17 @@ static void try_read(const char *what, const char *path) {
     printf("PROBE%s %s=READABLE (%zd bytes)\n", id, what, n);
 }
 
+/* can this domain OPEN a device node? OPEN ONLY, closed at once: nothing is read, written, ioctl'd or sent. For a TPM
+ * this is a negative control that the domain cannot reach the device at all (enclave-d1's request); it must never
+ * become a command, an NV read or a capture in any other form. The expected answer is ENOENT: the domain is chrooted
+ * with no /dev (main.go, domexec.c), which is the SOURCE claim this measures. */
+static void try_open(const char *what, const char *path) {
+    int fd = open(path, O_RDONLY | O_CLOEXEC | O_NONBLOCK | O_NOCTTY);
+    if (fd < 0) { say(what, strerror(errno)); return; }
+    close(fd);
+    say(what, "OPENED");
+}
+
 /* ask the monitor for a report and print the app hash it came back with: a compromised domain must only
  * ever be able to name ITSELF */
 static void try_report(void) {
@@ -164,6 +175,9 @@ int main(int argc, char **argv) {
     int fd = open("/sys/kernel/config/tsm/report/probe", O_WRONLY | O_CREAT, 0644);
     say("create_tsm_entry", fd < 0 ? strerror(errno) : "CREATED");
     if (fd >= 0) close(fd);
+    /* the VBS/vTPM side of the report interface: the TPM character devices, open only (see try_open) */
+    try_open("dev_tpm0", "/dev/tpm0");
+    try_open("dev_tpmrm0", "/dev/tpmrm0");
 
     /* 3. other processes */
     int visible = 0;
