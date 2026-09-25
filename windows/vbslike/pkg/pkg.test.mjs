@@ -429,3 +429,16 @@ test("the stale manager pin (image as an object, pre-c067b446) is refused agains
   assert.equal(r.code, 1);
   assert.match(r.out, /FAIL the manager's UEFI serving path is exactly as pinned .*imageIsMediumHash: true \(pinned false\); imageType: "string" \(pinned "object"\)/, fails(r.out));
 });
+
+test("draft v14 is held, not staged, and records 5d's source reading: the type-1 VMGS is host-key-protected or unencrypted with no tenant key, and vTPM binding is not available here", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-14.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, HELD, NOT STAGED \(v13 cfa1249c is the staged package/);
+  assert.match(d.profiles.vbs.vm.guestState.vmgsProtection, /^host-key-protected \(GSP\) or unencrypted; NO tenant key/);
+  assert.match(d.profiles.vbs.vm.guestState.vmgsProtection, /NOT measured/, "a source reading is not a measurement");
+  assert.match(d.profiles.vbs.vm.guestState.vTpmBinding, /^NOT AVAILABLE on this host/);
+  assert.match(d.profiles.vbs.vm.diagnosticGap, /ohcldiag-dev <VM name> kmsg/);
+  assert.match(d.profiles.vbs.measured[0], /^CREATED AND STARTED, NOT BOOTED/, "v14 claims no more than v13 did");
+  assert.ok(d.inputs.some((i) => i.name === "VBS-ISOLATION-1e9fe97b.md" && i.from.git.commit.startsWith("1e9fe97b")), "5d's review at 1e9fe97b is pinned beside fa8b0ec2's");
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});

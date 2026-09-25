@@ -87,6 +87,15 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   bytes were staged for d1 as `pkg\type1-fa8b0ec2\` (a plain directory with `SHA256SUMS`, hashed on the box) before
   this manifest existed; v13's `boxReuse` points there, so staging v13 copies, never replaces.
 
+- **v14 draft** (`drafts/nucbox-ownguest-14.json`, HELD, not staged; v13 stays the staged package): v13 plus enclave-5d's
+  SOURCE reading of the type-1 guest-state path (`isolation/m3/VBS-ISOLATION.md` at `1e9fe97b`, section 2; openvmm
+  a7b0bd4; not measured): with no stateless option, no attestation agent, a real VMGS and a vTPM, the tenant-key path
+  fails non-fatally and the VMGS is host-key-protected (GSP) or unencrypted, so `vmgsProtection` says exactly that and
+  `vTpmBinding` is "NOT AVAILABLE on this host" (the host can read or forge the vTPM; our guest keeps no persistent
+  secret). The `diagnosticGap` gains the route without COM3: `ohcldiag-dev <VM name> kmsg` (a Windows build, d1's call;
+  not run here). v14 claims no more than v13: `measured[0]` is still "CREATED AND STARTED, NOT BOOTED". It is staged
+  when d1's type-1 MON lines arrive and are pinned.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
