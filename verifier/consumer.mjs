@@ -31,6 +31,48 @@ export { createIndexMemory };
 export { webStorageStore, memoryStore } from "./index-memory.mjs";
 import PINNED_TRUSTED_ROOT from "./roots/sigstore-trusted-root.json" with { type: "json" };
 
+// The attested-release relay's judgement of a per-app guest's release document (relay/secrets-release.mjs, ctx
+// verifyGuestEvidence): the SNP domain path only, exactly verifier/index.mjs verifyEvidence's SNP branch, so the relay (which
+// ships relay/** only) runs the same verdict as the harness. Anything but sev-snp-guest-domain-v1 is "unsupported", never
+// green; a malformed envelope is "rejected".
+export async function verifyGuestDomainEvidence(doc, { policy = {}, context = {}, collateral = null } = {}) {
+  let env;
+  try { env = parseEnvelope(doc); }
+  catch (e) {
+    if (!(e instanceof EnvelopeError)) throw e;
+    return { status: e.code === "unsupported" ? "unsupported" : "rejected", admissionSafe: false, omissions: [], technology: FORMATS[doc?.format]?.technology ?? null,
+             reasons: [`${e.code.toUpperCase()}: ${e.message}`], checks: {}, claims: null };
+  }
+  if (env.spec.technology !== TECH.SNP || env.format !== "sev-snp-guest-domain-v1")
+    return { status: "unsupported", admissionSafe: false, omissions: [], technology: env.spec.technology, reasons: [`UNSUPPORTED: a release document is sev-snp-guest-domain-v1, not ${env.format}`], checks: {}, claims: null };
+  return { technology: env.spec.technology, ...(await verifySnp(env, policy.snp || {}, context, collateral)) };
+}
+
+// Before a relay CONSUMES a release ticket (relay/secrets-release.mjs): the AMD collateral this report will need (its VCEK,
+// the product's ASK/ARK chain, the CRL), fetched through the SAME adapter verifyGuestDomainEvidence will use, so a KDS or
+// CRL outage is answered 503 with the ticket kept rather than a 403 that burns it (enclave-d1). It judges NOTHING: the
+// unverified report is parsed only to name the product, chip and TCB (exactly as verifySnp keys the VCEK), and anything it
+// cannot parse is left to the verifier ({ ok: true, skipped }). A CRL the adapter marks stale counts as missing: the
+// verifier's default policy allows no staleness.
+export async function prewarmSnpCollateral(doc, collateral) {
+  if (!collateral) return { ok: true, skipped: "no collateral adapter" };
+  let p;
+  try { p = parseReportStrict(parseEnvelope(doc).body); } catch { return { ok: true, skipped: "unparseable (the verifier refuses it)" }; }
+  const product = p.productHint;
+  if (!product) return { ok: true, skipped: "the report names no product line (the verifier refuses it)" };
+  const missing = [];
+  try {
+    const v = await collateral.vcek(product, hex(p.chipId), hex(p.reportedTcb), kdsVcekUrl(product, p).replace(/^https:\/\/[^/]+\//, ""));
+    if (!v || !v.der) missing.push("vcek");
+  } catch (e) { missing.push(`vcek (${e.message})`); }
+  try { const c = await collateral.chain(product); if (!c || !c.pem) missing.push("chain"); } catch (e) { missing.push(`chain (${e.message})`); }
+  if (typeof collateral.crl === "function") {
+    try { const c = await collateral.crl(product); if (!c || !c.der) missing.push("crl"); else if (c.stale === true) missing.push("crl (stale)"); }
+    catch (e) { missing.push(`crl (${e.message})`); }
+  }
+  return missing.length ? { ok: false, product, missing } : { ok: true, product };
+}
+
 export const RAD_PATH = "/.well-known/tinfoil-attestation";
 export const DEFAULT_REPO = DEFAULT_RELEASE_POLICY.repository;
 export const FLAVOR_SUFFIXES = Object.freeze(["", "-cpu", "-gpu8"]);

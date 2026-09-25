@@ -271,6 +271,16 @@ export function checkMinTcb(minTcb, product, p) {
 
 // kds: false never contacts AMD KDS: the VCEK must arrive in the auxblob and the chain must already be
 // held (seedCertChain). For callers that fetch once and verify many times; KDS answers 429 quickly.
+// The CHIP_ID a verified report PROVES, or null: only when the verdict checked the report's signature against the chip's
+// own VCEK (vcekVerified), the report says it is VCEK-signed (SIGNING_KEY = 0), and the CHIP_ID is not masked (zero). A
+// measurement-only verdict never checked the signature against the chip, so its CHIP_ID proves nothing.
+export function provenSnpChip(report, verdict) {
+  const r = Buffer.from(report || []);
+  if (!verdict || verdict.ok !== true || verdict.vcekVerified !== true || r.length < 0x1e0) return null;
+  const chip = r.subarray(0x1a0, 0x1e0), signingKey = (r.readUInt32LE(0x48) >> 2) & 0x7;
+  return signingKey === 0 && chip.some((x) => x !== 0) ? chip.toString("hex") : null;
+}
+
 export async function verifyQuote(report, { challenge, transportKeySpki, allowedMeasurements, auxblob = null, requireVcek = true, minTcb, kds = true, expectedVmpl = 0 } = {}) {
   const reasons = [];
   const fail = (m) => { reasons.push(m); return { ok: false, measurement: null, reasons }; };

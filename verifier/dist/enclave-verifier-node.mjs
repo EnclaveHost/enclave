@@ -9119,6 +9119,60 @@ var sigstore_trusted_root_default = {
 };
 
 // verifier/consumer.mjs
+async function verifyGuestDomainEvidence(doc, { policy = {}, context = {}, collateral = null } = {}) {
+  let env;
+  try {
+    env = parseEnvelope(doc);
+  } catch (e) {
+    if (!(e instanceof EnvelopeError)) throw e;
+    return {
+      status: e.code === "unsupported" ? "unsupported" : "rejected",
+      admissionSafe: false,
+      omissions: [],
+      technology: FORMATS[doc?.format]?.technology ?? null,
+      reasons: [`${e.code.toUpperCase()}: ${e.message}`],
+      checks: {},
+      claims: null
+    };
+  }
+  if (env.spec.technology !== TECH.SNP || env.format !== "sev-snp-guest-domain-v1")
+    return { status: "unsupported", admissionSafe: false, omissions: [], technology: env.spec.technology, reasons: [`UNSUPPORTED: a release document is sev-snp-guest-domain-v1, not ${env.format}`], checks: {}, claims: null };
+  return { technology: env.spec.technology, ...await verifySnp(env, policy.snp || {}, context, collateral) };
+}
+async function prewarmSnpCollateral(doc, collateral) {
+  if (!collateral) return { ok: true, skipped: "no collateral adapter" };
+  let p;
+  try {
+    p = parseReportStrict(parseEnvelope(doc).body);
+  } catch {
+    return { ok: true, skipped: "unparseable (the verifier refuses it)" };
+  }
+  const product = p.productHint;
+  if (!product) return { ok: true, skipped: "the report names no product line (the verifier refuses it)" };
+  const missing = [];
+  try {
+    const v = await collateral.vcek(product, hex2(p.chipId), hex2(p.reportedTcb), kdsVcekUrl(product, p).replace(/^https:\/\/[^/]+\//, ""));
+    if (!v || !v.der) missing.push("vcek");
+  } catch (e) {
+    missing.push(`vcek (${e.message})`);
+  }
+  try {
+    const c = await collateral.chain(product);
+    if (!c || !c.pem) missing.push("chain");
+  } catch (e) {
+    missing.push(`chain (${e.message})`);
+  }
+  if (typeof collateral.crl === "function") {
+    try {
+      const c = await collateral.crl(product);
+      if (!c || !c.der) missing.push("crl");
+      else if (c.stale === true) missing.push("crl (stale)");
+    } catch (e) {
+      missing.push(`crl (${e.message})`);
+    }
+  }
+  return missing.length ? { ok: false, product, missing } : { ok: true, product };
+}
 var RAD_PATH = "/.well-known/tinfoil-attestation";
 var DEFAULT_REPO = DEFAULT_RELEASE_POLICY.repository;
 var FLAVOR_SUFFIXES = Object.freeze(["", "-cpu", "-gpu8"]);
@@ -9552,12 +9606,14 @@ export {
   layeredCollateral,
   memoryCollateral,
   memoryStore,
+  prewarmSnpCollateral,
   referenceVerify,
   releaseExpectations,
   releaseExpectationsFrom,
   reportOf,
   selfCheckHosted,
   sha256Hex,
+  verifyGuestDomainEvidence,
   verifyHost,
   verifyHostedCapture,
   webStorageStore

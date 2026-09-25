@@ -343,8 +343,8 @@
   },
   {
    "path": "relay/snp-verify.mjs",
-   "bytes": 23901,
-   "sha256": "f6a32dfbe56d9050802c63819bef622d3800233e1e70d795cf98f6668a86e8de"
+   "bytes": 24620,
+   "sha256": "ee5a45f8e160fe48ca515dc9ed2ce21553dc0d47aac20923bc89d53f6414dbef"
   },
   {
    "path": "verifier/der.mjs",

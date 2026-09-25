@@ -97,12 +97,14 @@ import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
 import { handleCerts, initCerts } from "./certs.js";
+import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir } from "./store.js";
+import { expectedGuest } from "./secrets-release.mjs";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
 
@@ -392,6 +394,7 @@ function makeRateLimiter({ capacity, refillPerSec }) {
     b.tokens -= 1; return true;
   };
 }
+const rlExpected = makeRateLimiter({ capacity: 60, refillPerSec: 1 });   // per client IP: GET /v1/expected-guest
 const rlMiss = makeRateLimiter({ capacity: 60, refillPerSec: 10 });   // /x + app-subdomain owner misses
 const rlHint = makeRateLimiter({ capacity: 20, refillPerSec: 2 });    // /v1/claim-hint fan-out
 // Signed-upload authorization (/v1/apps/upload-token): per-wallet token-mint cap.
@@ -2096,7 +2099,125 @@ const deploymentExists = async (id) => !!(await xOwnerOf(id));
 // they reuse the relay's CORS, raw-body reader and cached ledger reader
 // without circular imports. deploymentsAddress is a thunk because the address
 // book live-updates the binding.
-const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView,
+// secrets-release.mjs: the chips the lease holder behind a registered endpoint has PROVED at its SNP tunnel attach. Only a
+// tunnel (the hub saw the report); a dialed row's chip is unknown here, so it gets none and the release fails closed.
+const leaseHolderChipIds = async (endpoint) => {
+  const ep = String(endpoint || "").replace(/\/+$/, "");
+  const o = tunnelHub.origins().find((x) => x.mode === "snp" && x.publicUrl && String(x.publicUrl).replace(/\/+$/, "") === ep);
+  return o ? tunnelHub.snpChipIdsOf(String(o.endpoint).replace(/^tunnel:\/\//, "")) : [];
+};
+// secrets-release.mjs: the guest a deployment must be running, PREDICTED for its catalog version (measurement-predict.mjs):
+// the version read from the address book's appCatalog, never from the lease holder. Built on first use from the
+// SECRETS_RELEASE_PREDICT_* env; what it lacks is reported by the release's own 503.
+// the catalog is read through TWO OR MORE independent RPCs, and they must agree (enclave-d1): one lying provider cannot make
+// the relay predict another app. SECRETS_RELEASE_CATALOG_RPCS: comma-separated https URLs, distinct hosts.
+const CATALOG_RPCS = [...new Set(String(process.env.SECRETS_RELEASE_CATALOG_RPCS || "").split(",").map((u) => u.trim()).filter((u) => /^https:\/\//.test(u)))];
+const catalogRpcHosts = new Set(CATALOG_RPCS.map((u) => { try { return new URL(u).host; } catch { return u; } }));
+const catalogClients = CATALOG_RPCS.map((url) => { let c = null; return { readContract: async (q) => {
+  if (!c) { const { createPublicClient, http: viemHttp } = await import("viem"); const { base } = await import("viem/chains");
+            c = createPublicClient({ chain: base, transport: viemHttp(url, { timeout: 6_000 }) }); }
+  return c.readContract(q);
+} }; });
+// WHICH catalog: APP_CATALOG_ADDRESS when the operator pins it, else the address book's appCatalog read through the SAME
+// agreeing RPCs (a single lying RPC could otherwise point every reader at a contract of its own)
+const BOOK_KEY_CATALOG = "0x" + Buffer.from("appCatalog", "ascii").toString("hex").padEnd(64, "0");
+let _catalogAddr = { addr: (process.env.APP_CATALOG_ADDRESS || "").trim(), pinned: !!(process.env.APP_CATALOG_ADDRESS || "").trim(), at: 0 };
+async function catalogAddress() {
+  if (!_catalogAddr.pinned && ADDRESS_BOOK && Date.now() - _catalogAddr.at > 600_000) {
+    if (!catalogClients.length) throw new Error("no catalog RPCs configured");
+    const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_CATALOG] })));
+    if (got.some((a) => String(a).toLowerCase() !== String(got[0]).toLowerCase())) throw new Error("the catalog RPCs disagree about the address book's appCatalog");
+    if (got[0] && !/^0x0{40}$/i.test(got[0])) _catalogAddr = { addr: got[0], pinned: false, at: Date.now() };
+  }
+  if (!_catalogAddr.addr) throw new Error("no appCatalog address (address book or APP_CATALOG_ADDRESS)");
+  return _catalogAddr.addr;
+}
+// The deployment's ledger record, read by id through the SAME agreeing RPCs: a release decision (the lease holder, the
+// catalog version, privacy, the config envelope) never rests on one provider's answer. Rev-2 ledgers only (the per-app tier).
+const DEP_GET_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: DEP_TUPLE }] }];
+// The ledger's address: pinned by DEPLOYMENTS_ADDRESS, else the address book's entry as the agreeing RPCs read it, kept for
+// 10 min (a release's budget is the guest's 25 s attempt: one agreed record read, 6 s per provider, plus the prediction).
+let _confirmedLedger = { addr: "", at: 0 };
+async function confirmedLedger() {
+  const pinned = (process.env.DEPLOYMENTS_ADDRESS || "").trim();
+  if (pinned) return pinned;
+  if (_confirmedLedger.addr && Date.now() - _confirmedLedger.at < 600_000) return _confirmedLedger.addr;
+  const books = await Promise.all(catalogClients.map((c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS] })));
+  if (books.some((a) => String(a).toLowerCase() !== String(books[0]).toLowerCase()) || /^0x0{40}$/i.test(String(books[0])))
+    throw new Error("the RPCs disagree about the deployments ledger");
+  _confirmedLedger = { addr: books[0], at: Date.now() };
+  return books[0];
+}
+async function confirmRow(id) {
+  if (catalogRpcHosts.size < 2) throw new Error("fewer than two independent RPCs are configured");
+  const ledger = await confirmedLedger();
+  const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: ledger, abi: DEP_GET_ABI, functionName: "get", args: [id] })));
+  const pick = (d) => ({ id: String(d.id).toLowerCase(), runner: String(d.runner).toLowerCase(), leaseUntil: String(d.leaseUntil), appRef: d.appRef,
+                         isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active });
+  const rows = got.map(pick);
+  if (rows.some((r) => JSON.stringify(r) !== JSON.stringify(rows[0]))) throw new Error("the RPCs disagree about the deployment's record");
+  if (rows[0].id !== String(id).toLowerCase()) throw Object.assign(new Error("the ledger holds no such deployment"), { code: "no_deployment" });
+  return rows[0];
+}
+let _predictor = null;
+const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(), readCatalog: catalogReader(catalogClients, catalogAddress) }));
+const expectedGuestFor = (row, o) => predictor().expectedFor(row && row.appRef, o);
+// the catalog VERSION's { config, configCid } for the deployment's CONFIRMED appRef, through the same agreeing RPCs
+const _versionConfig = { read: null };
+async function versionConfigFor(id) {
+  const row = await confirmRow(id);
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(String(row.appRef || ""));
+  if (!m) return null;
+  _versionConfig.read ||= versionConfigReader(catalogClients, catalogAddress);
+  return _versionConfig.read(m[1].toLowerCase(), Number(m[2]));
+}
+// a configCid's content, fetched and verified against the CID by the platform's own fetcher (the predictor's pinned
+// toolchain), returned as TEXT for the release to parse; null when it cannot be had now (the release answers 503 and keeps
+// the ticket). Immutable by construction, so kept per CID (LRU 64).
+const _configByCid = new Map();
+async function resolveConfigCid(cid) {
+  if (_configByCid.has(cid)) return _configByCid.get(cid);
+  const got = await predictor().fetchVerified(cid, 1 << 20);
+  if (!got.ok) { console.warn(`[secrets-release] configCid ${String(cid).slice(0, 16)}…: ${got.reason}`); return null; }
+  const text = got.bytes.toString("utf8");
+  _configByCid.set(cid, text);
+  while (_configByCid.size > 64) _configByCid.delete(_configByCid.keys().next().value);
+  return text;
+}
+const predictorSets = () => predictor().sets;
+const predictorProblems = () => [...predictor().problems,
+  ...(catalogRpcHosts.size < 2 ? ["SECRETS_RELEASE_CATALOG_RPCS (two or more independent Base RPCs)"] : [])];
+// A release document judged by the VENDORED verifier's SNP domain path (verifier/consumer.mjs verifyGuestDomainEvidence:
+// verifier/index.mjs verifyEvidence's SNP branch, bundled because the relay ships relay/** only): the pinned AMD roots, the
+// CRL, the caller's TCB floor and VMPL, report_data = the release binding and the AppID, HOST_DATA = the deployment. AMD
+// collateral comes from KDS through the reverify cache directory (a cached VCEK is re-verified to the pinned ARK on read).
+let _guestVerifier = null;
+async function guestVerifier() {
+  if (!_guestVerifier) {
+    const bundle = await import("./vendor/enclave-verifier-node.mjs");
+    let collateral;
+    try { fs.mkdirSync(RELAY_REVERIFY_CACHE_DIR, { recursive: true }); collateral = bundle.cachedCollateral({ dir: RELAY_REVERIFY_CACHE_DIR, upstream: bundle.httpCollateral({ timeoutMs: 8000 }) }); }
+    catch { collateral = bundle.httpCollateral({ timeoutMs: 8000 }); }
+    _guestVerifier = { verify: bundle.verifyGuestDomainEvidence, prewarm: bundle.prewarmSnpCollateral, collateral };
+  }
+  return _guestVerifier;
+}
+async function verifyGuestEvidence(doc, { allowedMeasurements, minTcb, expectedVmpl, expectedBinding, expectedAppId, expectedHostData }) {
+  const g = await guestVerifier();
+  return g.verify(doc, { policy: { snp: { allowedMeasurements, minTcb, expectedVmpl } },
+    context: { transportKeySpki: Buffer.from(doc.transportKey, "base64"), expectedBinding, expectedAppId, expectedHostData, now: new Date().toISOString() },
+    collateral: g.collateral });
+}
+// the same collateral, fetched BEFORE a release ticket is consumed (secrets-release.mjs): unavailable = 503, ticket kept
+async function prewarmCollateral(doc) {
+  const g = await guestVerifier();
+  return g.prewarm(doc, g.collateral);
+}
+// the RuntimeID of the runtime identity a guest states (isolation/contract/runtime.go: sha256 of its canonical JSON); it
+// is admitted only when it equals an admitted domain release's own
+const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
+const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, leaseHolderChipIds,
+                   expectedGuestFor, predictorProblems, predictorSets, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)
@@ -2302,6 +2423,13 @@ function handleRequest(req, res) {
   // billing — never proxied, answers with zero live enclaves (owners stage
   // secrets between create and the first claim; the fleet being down must not
   // block that).
+  // the guest a deployment must run, PREDICTED by this relay (secrets-release.mjs expectedGuest): the per-app certificate
+  // gate's independent trust root. Public, GET only, and independent of the secrets store and the release switch.
+  if (u.pathname === "/v1/expected-guest") {
+    if (req.method !== "GET") return json(res, 405, { error: "method_not_allowed", message: "GET only." }, req);
+    return expectedGuest(u, req, res, relayCtx, { bad: (code, error, message) => json(res, code, { error, message }, req),
+      rate: (k) => rlExpected(k) }).catch((e) => json(res, 500, { error: "expected_guest_error", message: e.message }, req));
+  }
   if (u.pathname === "/v1/secrets" || u.pathname.startsWith("/v1/secrets/"))
     return handleSecrets(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "secrets_error", message: e.message }, req));
@@ -2447,6 +2575,11 @@ await initAccounts();          // no data dir/deps => disabled with one log line
 await initSso();               // SSO_SIGNER_KEY unset => disabled with one log line
 await initBilling(relayCtx);   // needs accounts; degrades the same way
 await initSecrets();           // needs SECRETS_KEY + the same data dir; degrades the same way
+// attested release on: run the predictor's known-answer test now, in the background, so the first release after a restart
+// does not wait for it (a failure is logged and every release refused until a later test passes)
+// whenever the predictor is configured (it also serves /v1/expected-guest with the release OFF)
+if (process.env.SECRETS_RELEASE_PREDICT_COMMIT && !predictorProblems().length)
+  predictor().selfTest().then((k) => console.log(`[measurement-predict] known-answer test at start: ${k.ok ? "PASS" : "FAIL"}: ${k.reason}`)).catch(() => {});
 startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)
 await initDomains();           // custom domains: same data dir, CUSTOM_DOMAINS=0 opts out
 startDomainSweep(relayCtx);    // DNS re-check + demotion sweep (no-op while disabled)
