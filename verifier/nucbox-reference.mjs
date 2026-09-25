@@ -8,8 +8,9 @@
 // manifest's enable_debug and is false for --confidential-debug images too, so it is NEVER read here; `confidentialDebug`
 // is read from the image bytes by the package and means the image trusts the host's command line. An entry is eligible
 // only when the file says so AND it is a candidate that neither carries confidential debug nor trusts the host's command
-// line; a file that marks anything else eligible, marks a superseded image eligible, repeats a digest or has another
-// type is refused outright (throws): an inconsistent reference is a defect to fix at its source, not to interpret.
+// line; a file that marks anything else eligible, marks two images eligible, marks a superseded image eligible, repeats a
+// digest or has another type is refused outright (throws): an inconsistent reference is a defect to fix at its source, not
+// to interpret. A clean candidate may be listed eligible:false with a reason (a new candidate before its own canary).
 export const REFERENCE_TYPE = "enclave-nucbox-vbs-reference/1";
 const DIGEST = /^[0-9A-Fa-f]{64}$/;
 
@@ -32,6 +33,10 @@ export function eligibleDigestsOf(ref) {
     if (img.eligible) eligible.set(key, { id: img.id, imageSha256: String(img.imageSha256 || "").toLowerCase(), vbsIsvsvn: img.vbsIsvsvn ?? null, booted: img.booted ?? null });
     else refused.set(key, { id: img.id, class: img.class, reason: img.reason || "not eligible" });
   }
+  // ONE eligible digest at a time (agreed with enclave-63, 2026-09-25): a new candidate is listed eligible:false ("not booted
+  // yet") until its own canary boots and serves, and the version that flips it supersedes the previous one in the same
+  // change. Two eligible entries mean a rollover left half done: refused, so the mistake is loud rather than an allowlist.
+  if (eligible.size > 1) throw new Error(`reference: ${eligible.size} images are marked eligible (${[...eligible.values()].map((e) => e.id).join(", ")}): exactly one at a time`);
   for (const old of Array.isArray(ref.superseded) ? ref.superseded : []) {
     const key = take(old, "superseded");
     if (old.eligible !== false) throw new Error(`reference: superseded ${old.id} must say eligible:false`);
