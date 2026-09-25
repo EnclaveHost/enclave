@@ -1,0 +1,24 @@
+07:59:45 === MANAGER LAUNCHER CANARY. Not an isolation or attestation result; host_excluded=no. 
+===
+07:59:45 setting before: Absent
+07:59:45 watchdog armed (pid 8088, ceiling 900s)
+07:59:45 SETTING APPLIED for this run
+07:59:45 config: {"boot":"linux-direct","imagePath":"C:\\Users\\claude\\vbs-like\\pkg\\071f194b86a
+573ac\\guest\\igvm-vbs\\vbs-linux-candidate-g1-a44bb55a.bin","guestStateMasterSha256":"4f051697a74
+dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d","guestReadySec":25,"prefix":"enclave-mgrcan
+ary-","guestStateArchiveDir":"C:\\Users\\claude\\vbs-evidence","imageSha256":"a44bb55a89bb0e6d2757
+287032070662041a0952eaf3713901cedc92404717e4","hypervModule":"C:\\Users\\claude\\hyperv.psm1","gue
+stStateMaster":"C:\\Users\\claude\\vbs-like\\type1.vmgs","memMiB":128,"consoleDelayMs":4000,"vcpus
+":1}
+08:00:23   LAUNCHER: {"step":"preflight","ok":true,"failed":[]}
+08:00:23   LAUNCHER: {"step":"error","error":"the VM is Running but the guest produced no output 
+on \\\\.\\pipe\\enclave-mgrcanary-hvb43a4b9006fd1e-canary-com1 within 25s: a silent partition is 
+not a booted one","cleanup":{"removed":true,"found":true},"guestState":{"archive":"C:\\Users\\clau
+de\\vbs-evidence\\enclave-mgrcanary-hvb43a4b9006fd1e-canary-20260925-080022-937.vmgs","path":"C:\\
+Users\\claude\\vbs-like\\enclave-mgrcanary-hvb43a4b9006fd1e-canary.vmgs","retired":true,"sha256":"
+50a2e9e971d88eb63929e20526295d7c42fba13294b994ae2a6f77d55a1505c7","present":true}}
+08:00:23   LAUNCHER: {"step":"survey-after","ok":true,"left":[]}
+08:00:23   LAUNCHER: {"step":"result","ok":false}
+08:00:23 SETTING RESTORED to Absent (verified)
+08:00:23 === RESULT: launcher exit 1, harness exit 2 (0 all held; 2 a launcher step failed, 
+cleanup clean; 1 cleanup failed) ===
