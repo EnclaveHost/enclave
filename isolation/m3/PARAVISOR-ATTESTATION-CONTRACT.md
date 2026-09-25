@@ -41,6 +41,36 @@ Dated 2026-09-25.
 7. **Same boot, non-debug.** Every result comes from one boot of the non-debug control platform. Debug-image results
    are diagnostic only.
 
+## Trust root (ruled 2026-09-25, on enclave-d1's trust-root review 3b3e32d9 / 6d4adb19)
+
+**The accepted root is the host's TPM plus the secure kernel's IDKS key, under an ACCEPTED boot state.**
+- The verifier replays the host's measured-boot log against a TPM quote and takes IDKS from that log.
+- It accepts the boot state only if Secure Boot is ON and test signing is OFF, as Microsoft's documented VBS chain
+  requires ("Microsoft-signed components configured in a secure way").
+- **Secure Boot off, or TESTSIGNING measured on, is a rejection condition.** On this box today both hold (PCR 7
+  SecureBoot=00; TESTSIGNING=01 in PCRs 12/13), so a conforming verifier must reject any report from it. Changing that
+  is Steven's decision. It conflicts with the node as it runs now: its enclave engine is test-signed.
+- **"IDKS signs the VbsReport" is a HYPOTHESIS** until real report bytes verify under this boot's IDKS. The signature
+  field's size (256 bytes) is consistent with RSA-2048 IDKS; that is all.
+- A signed TPM quote needs a host attestation key, which is also Steven's decision.
+
+Verified by enclave-d1, read-only on the host: the boot log (sha256 0c23255a) replays to SHA-256 PCRs 0-14; negative
+controls are detected; the VSM_IDK and VSM_IDKS RSA-2048 keys are in PCR 12, event 37 (IDKS modulus sha256
+3d7304dd…77e75f).
+
+## Measured VTL0 (source; nothing built or booted)
+
+- igvmfilegen can place our kernel, initrd and VTL0 command line inside the IGVM as measured (`Exclusive`) pages
+  (`vm/loader/src/linux.rs:478, 531, 592`; `paravisor.rs:944-951`). The VBS digest hashes the full content of
+  measured pages (igvm `measurement/vbs.rs:140-162`). This is shown for an isolation-None config; a VBS config with
+  a Linux VTL0 is untested.
+- With no confidential-debug flag in the static command line, the whole VTL0 command line is fixed by measured bytes.
+  The paravisor's runtime append comes from its own measured command line, and the host's is ignored
+  (enclave-d1; `underhill_core/src/loader/mod.rs:159-185`, `openhcl_boot/src/main.rs:671-672`).
+- NOT covered: the host-derived memory layout, ACPI and device tree given to VTL0 (`loader/mod.rs:186-197`), and
+  the app. The app is loaded at run time, so its identity is the measured monitor's statement, which must itself be
+  carried in the report data.
+
 ## Tests required before any claim
 
 On real report bytes from the non-debug platform:
