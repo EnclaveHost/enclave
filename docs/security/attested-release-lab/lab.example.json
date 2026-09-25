@@ -43,12 +43,12 @@
     "dir": "<scratch>/meas/release2"
    },
    {
-    "id": "1428c0c4ff9a9238f96b9dd3c636351f65d2022dc201e3135bbbbf6dd585cdca",
-    "dir": "<5d session dir>/domain-release-020f76e7"
+    "id": "6d18f7ad8bcad9576cbcbf670bd347d7966bd6ccd65e017b238acab6c745ad0f",
+    "dir": "<5d session dir>/domain-release-5ce7ced6"
    }
   ],
   "admit": [
-   "1428c0c4ff9a9238f96b9dd3c636351f65d2022dc201e3135bbbbf6dd585cdca"
+   "6d18f7ad8bcad9576cbcbf670bd347d7966bd6ccd65e017b238acab6c745ad0f"
   ],
   "gateway": "https://trustless-gateway.link",
   "sevSnpMeasure": "<scratch>/meas/venv/bin/sev-snp-measure",
