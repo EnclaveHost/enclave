@@ -1,0 +1,56 @@
+# The TUF-verified refresh of the pinned Sigstore trusted root (verifier/tuf-refresh.mjs; docs/security/independent-verifier-plan.md
+# M4). Weekly and on dispatch: from the PINNED starting root (verifier/roots/sigstore-tuf-root.json) the client walks
+# Sigstore's root rotations, timestamp, snapshot and targets, and fetches trusted_root.json by hash and length. When the
+# verified target or the highest verified root differs from the pinned files, the job opens a PULL REQUEST carrying the
+# refreshed files and the TUF versions in its body; it never writes to main. A verification failure fails the job and
+# writes nothing. Read-only against the network, no secret, pinned actions; the job token may only push the PR branch
+# and open the PR. A CDN or mirror can refuse to serve; it cannot serve anything the chain from the pinned root does
+# not sign, so this job is never a new authority over what the consumers trust.
+name: verifier TUF refresh (pinned Sigstore root)
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "41 5 * * 1"   # weekly, Monday 05:41 UTC (Sigstore's timestamp role rolls more often; a week is a bounded staleness)
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write        # push the refresh branch
+      pull-requests: write   # open the pull request
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22
+      - name: install (lockfile, no scripts)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: refresh from the pinned root (verified; written only on success)
+        id: refresh
+        run: |
+          set -euo pipefail
+          node verifier/tuf-refresh.mjs refresh --state .tuf-state --out tuf-refresh-report.json --write
+          if git diff --quiet -- verifier/roots/; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+      - name: keep the report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verifier-tuf-refresh
+          path: tuf-refresh-report.json
+          retention-days: 30
+      - name: open a pull request with the refreshed pins (never a push to main)
+        if: steps.refresh.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BR="verifier/tuf-refresh-$(date -u +%Y%m%d-%H%M)"
+          git config user.name "verifier-tuf-refresh[bot]"; git config user.email "verifier-tuf-refresh@users.noreply.github.com"
+          git checkout -b "$BR"; git add verifier/roots/; git commit -m "verifier: TUF-verified refresh of the pinned Sigstore trusted root" -m "$(node -e 'const r=require("./tuf-refresh-report.json"); console.log(r.reasons.join("\n"))')"
+          git push origin "$BR"
+          gh pr create --base main --head "$BR" --title "verifier: TUF-verified refresh of the pinned Sigstore trusted root" --body-file <(printf '%s\n\n```\n%s\n```\n' "Opened by the weekly TUF refresh: the pinned trusted root and/or the highest verified root changed. The chain from the previously pinned root was verified by verifier/tuf-refresh.mjs; review the diff of verifier/roots/ and the report artifact before merging." "$(node -e 'console.log(JSON.stringify(require("./tuf-refresh-report.json"), null, 2))')")
