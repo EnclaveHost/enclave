@@ -922,9 +922,15 @@ freshness would refuse the first index. What is still not closed, stated: a cons
 cannot tell a replayed genuine index from the newest, and the unsigned fallback with no remembered floor is bounded only
 by the built-in floor; both are "not-remembered" in the result, never silence. A TUF-style timestamp role remains the
 complete answer, with the TUF refresh of the pinned Sigstore root and the mirror at `enclave.host`. Regression evidence:
-`test/verifier-index-memory.test.mjs` (successive publications past a hundred releases, replay, equivocation, retry and
-re-dispatch, floor regression, persistence) and the memory cases in `test/verifier-release-index.test.mjs` (the real
-index first-seen, then a replay under a memory that saw a newer one, with the fallback under the remembered floor). Tests
+`test/verifier-index-memory.test.mjs` (successive publications past a hundred releases, replay, equivocation with both
+values refused and the refusal surviving a reload, retry and re-dispatch, floor regression, persistence with an
+unwritable location reported as not durable) and the memory cases in `test/verifier-release-index.test.mjs` (the real
+index first-seen, then a replay under a memory that saw a newer one, with the fallback under the remembered floor). The
+first two schema-v2 indexes are real: the release cut by 7c694c41 published one per flavor (v0.5.848, run 36089632273;
+v0.5.848-cpu, run 36089622272), both pinned under `test/fixtures/verifier/release-index/`; each verifies with its
+`sequence` equal to its signing run (`sequenceAuthenticated: true`), the memory takes the later and refuses the earlier
+as a replay, and the live index-first path against GitHub with a fresh persisted memory reported signed, first-seen,
+then same from a second process. Tests
 (`test/verifier-release-index.test.mjs`): the build under a policy, every `checkIndex` refusal by name, the authentic
 v0.5.841 release bundle refused as an index attestation, the consumers' index-first path with its fallback and the strict
 switch through a local release index, revocations, the workflow job's pins and predicate. The first signed index exists:

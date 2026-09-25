@@ -200,3 +200,27 @@ test("concurrent flavors: two publications are two runs; the later-created one w
   assert.deepEqual(Object.keys(cpu.latest), ["cpu"], "the gap: the gpu release published in between is not in the cpu run's index");
   assert.equal(m.consider({ publication: { runId: gpu.sequence, attempt: gpu.attempt }, digest: sha(indexBytesOf(gpu)), minimumRelease: [0, 5, 840] }).kind, "replay", "and the earlier, fuller one cannot be re-served");
 });
+
+// The first TWO schema-v2 indexes: the concurrent flavor publications cut by one push (7c694c41), one run each.
+const FX2 = (tag) => path.join(REPO, "test", "fixtures", "verifier", "release-index", tag);
+const fx2Index = (tag) => fs.readFileSync(path.join(FX2(tag), "release-index.json")), fx2Bundle = (tag) => JSON.parse(fs.readFileSync(path.join(FX2(tag), "attestation.json"), "utf8")).attestations[0].bundle;
+test("schema v2, for real (v0.5.848 and v0.5.848-cpu): each index's sequence and attempt EQUAL its signing run's, so sequenceAuthenticated is true; the two concurrent publications are ordered by run id, the memory takes the later one and refuses the earlier as a replay; an index whose sequence field is edited is refused before any order is read", async () => {
+  const gpu = await verifyReleaseIndex({ indexBytes: fx2Index("v0.5.848"), bundle: fx2Bundle("v0.5.848"), trustedRoot: TRUSTED_ROOT });
+  const cpu = await verifyReleaseIndex({ indexBytes: fx2Index("v0.5.848-cpu"), bundle: fx2Bundle("v0.5.848-cpu"), trustedRoot: TRUSTED_ROOT });
+  for (const [name, r] of [["gpu", gpu], ["cpu", cpu]]) {
+    assert.equal(r.ok, true, `${name}: ${r.reasons.join(" | ")}`); assert.equal(r.schema, INDEX_SCHEMA); assert.equal(r.sequenceAuthenticated, true);
+    assert.equal(r.index.sequence, r.publication.runId, `${name}: the file's sequence IS the signing run`); assert.equal(r.index.attempt, r.publication.attempt); assert.equal(r.publication.attempt, 1);
+    assert.deepEqual(r.minimumRelease, [0, 5, 841]); assert.deepEqual(Object.values(r.latest).map((l) => l.tag), ["v0.5.848", "v0.5.848-cpu"]); assert.equal(r.index.releases.length, 20);
+  }
+  assert.equal(gpu.publication.runId, 36089632273); assert.equal(cpu.publication.runId, 36089622272); assert.equal(gpu.claims.tag, "v0.5.848"); assert.equal(cpu.claims.tag, "v0.5.848-cpu");
+  assert.ok(gpu.publication.runId > cpu.publication.runId, "two runs, two ids: the gpu publish was created later");
+  const m = createIndexMemory();
+  const c1 = m.consider({ publication: cpu.publication, digest: cpu.digest, minimumRelease: cpu.minimumRelease, tag: cpu.claims.tag }); assert.equal(c1.kind, "first-seen");
+  const g1 = m.consider({ publication: gpu.publication, digest: gpu.digest, minimumRelease: gpu.minimumRelease, tag: gpu.claims.tag }); assert.equal(g1.kind, "newest-seen");
+  const c2 = m.consider({ publication: cpu.publication, digest: cpu.digest, minimumRelease: cpu.minimumRelease, tag: cpu.claims.tag }); assert.equal(c2.kind, "replay", "the earlier flavor publication cannot be re-served over the later");
+  const v1 = await verifyReleaseIndex({ indexBytes: fxIndex(), bundle: fxBundle(), trustedRoot: TRUSTED_ROOT });
+  assert.equal(m.consider({ publication: v1.publication, digest: v1.digest, minimumRelease: v1.minimumRelease, tag: v1.claims.tag }).kind, "replay", "the first (v1) index is older than both");
+  const edited = JSON.parse(fx2Index("v0.5.848").toString("utf8")); edited.sequence = 36089622272;
+  const e = await verifyReleaseIndex({ indexBytes: Buffer.from(JSON.stringify(edited, null, 1) + "\n"), bundle: fx2Bundle("v0.5.848"), trustedRoot: TRUSTED_ROOT });
+  assert.equal(e.ok, false); assert.equal(e.signed, false, "other bytes: the signature does not cover them"); assert.match(e.reasons.at(-1), /Sigstore verification failed|not the index digest/);
+});
