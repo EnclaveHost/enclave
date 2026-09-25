@@ -13,6 +13,9 @@
 # guestd's rebuild of the template is held to the release's bytes by the install's reproduction gate (1d), so a gcc
 # that changed fails there, closed.
 set -e
+# the caller's environment must not reach musl's configure or the compiler (enclave-e3's L2): these are what configure and
+# gcc read; a stray one would change libc.a (which the install checks by hash, so it would fail closed, but not here)
+unset CC CFLAGS CPPFLAGS LDFLAGS CROSS_COMPILE LIBCC CPATH C_INCLUDE_PATH LIBRARY_PATH GCC_EXEC_PREFIX COMPILER_PATH
 V=1.2.6
 URL=https://musl.libc.org/releases/musl-$V.tar.gz
 SHA=d585fd3b613c66151fc3249e8ed44f77020cb5e6c1e635a616d3f9f82460512a

@@ -19,7 +19,10 @@ mkdir -p "$t"
 MUSL=${MUSL_PREFIX:-$HOME/.cache/enclave-isolation/musl-1.2.6}
 [ -r "$MUSL/lib/musl-gcc.specs" ] && [ -r "$MUSL/lib/libc.a" ] || {
   echo "app-image-template.sh: no musl at $MUSL (build it with: sh isolation/m2/build-musl.sh)" >&2; exit 2; }
-/usr/bin/gcc -specs "$MUSL/lib/musl-gcc.specs" -static -O2 -o "$t/init" "$m2/dominit.c"
+# gcc honours CPATH/C_INCLUDE_PATH/LIBRARY_PATH/GCC_EXEC_PREFIX/COMPILER_PATH from its environment, and CPATH acts as
+# -I, searched BEFORE the specs' musl headers: none of them may reach the measured init (enclave-e3's L1)
+env -u CPATH -u C_INCLUDE_PATH -u LIBRARY_PATH -u GCC_EXEC_PREFIX -u COMPILER_PATH \
+  /usr/bin/gcc -specs "$MUSL/lib/musl-gcc.specs" -static -O2 -o "$t/init" "$m2/dominit.c"
 # ...and it IS a static musl binary: no program interpreter, no shared library, nothing of glibc
 if readelf -lW "$t/init" | grep -q INTERP || readelf -dW "$t/init" | grep -q "(NEEDED)" \
    || strings -a "$t/init" | grep -qiE "glibc|GLIBC_"; then
