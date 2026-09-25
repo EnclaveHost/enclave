@@ -49,9 +49,11 @@ const BUNDLE = path.join(H, "runtime/conformance/bundles/stream-probe.wasm"), AP
 const DIST = path.join(H, "client/dist/pvm-client.mjs"), SIGN = path.join(H, "client/tools/lab-sign.mjs"), DIST_SHA = "251dd8fa7ec0a14f2c3fc11aef03a85b78fb29f992b1ea42e99d1bbc977d58e9";
 const POLICY = { confirmations: 2, receiptTimeoutMs: 10000, confirmTimeoutMs: 30000, pollMs: 1000, maxReplacements: 3, maxAnchorAgeBlocks: 20 };
 const LAB_REGISTER = { repo: "lab/pvm-relay-reconnect", measurement: "0x" + CODE, cpuPricePerSec6: "834" };   // synthetic LAB values
-const SCRATCH = path.join(process.env.HOME, "enclave-bench/pvm-reconnect", path.basename(OUT) + "-scratch");   // relay cwd and state, lab keys: outside the repository
-fs.mkdirSync(path.join(OUT, "vm"), { recursive: true }); fs.mkdirSync(path.join(OUT, "client"), { recursive: true }); fs.mkdirSync(SCRATCH, { recursive: true, mode: 0o700 });
 const RUN_ID = "rc" + new Date().toISOString().slice(5, 16).replace(/[-T:]/g, "");
+// relay cwd and state, lab keys: outside the repository, and one directory PER RUN (attempt 2 met attempt 1's lab keys)
+const SCRATCH = path.join(process.env.HOME, "enclave-bench/pvm-reconnect", `${path.basename(OUT)}-${RUN_ID}-scratch`);
+if (fs.existsSync(SCRATCH)) { console.error(`${SCRATCH} exists: refusing to reuse another run's scratch`); process.exit(2); }
+fs.mkdirSync(path.join(OUT, "vm"), { recursive: true }); fs.mkdirSync(path.join(OUT, "client"), { recursive: true }); fs.mkdirSync(SCRATCH, { recursive: true, mode: 0o700 });
 const log = (m) => { const l = `${new Date().toISOString().slice(11, 19)}Z ${m}`; console.log(l); fs.appendFileSync(path.join(OUT, "run.log"), l + "\n"); };
 const rec = (f, o) => fs.appendFileSync(path.join(OUT, f), JSON.stringify(o) + "\n");
 const sh = (cmd) => { try { return execFileSync(ADB, ["shell", cmd], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).replace(/\r/g, ""); } catch { return ""; } };
@@ -160,7 +162,8 @@ try {
   const TOOL_ENV = { PATH: process.env.PATH }; rec("tool-env.jsonl", { names: Object.keys(TOOL_ENV), note: "the built client and lab-sign: PATH only; keys and state in the scratch dir" });
   const node = (args, label) => new Promise((resolve) => { const c = spawn(process.execPath, args, { env: TOOL_ENV, stdio: ["ignore", "pipe", "pipe"] }); let o = "", e = ""; c.stdout.on("data", (d) => (o += d)); c.stderr.on("data", (d) => (e += d));
     c.on("exit", (code) => { if (label) fs.writeFileSync(path.join(OUT, "client", `${label}.jsonl`), o); resolve({ code, out: o, err: e }); }); });
-  const pkey = JSON.parse((await node([SIGN, "keygen", "--keys", KEYS, "--name", "policy"])).out), rkey = JSON.parse((await node([SIGN, "keygen", "--keys", KEYS, "--name", "release"])).out);
+  const keygen = async (name) => { const r = await node([SIGN, "keygen", "--keys", KEYS, "--name", name]); if (r.code !== 0) fail(`lab-sign keygen ${name}: ${r.err.trim().slice(0, 200)}`); return JSON.parse(r.out); };
+  const pkey = await keygen("policy"), rkey = await keygen("release");
   let current = null;
   policySrv = await new Promise((r) => { const s = http.createServer((q, res) => { res.writeHead(current ? 200 : 404, { "content-type": "application/json" }); res.end(current || ""); }); s.listen(0, "127.0.0.1", () => r({ port: s.address().port, close: () => s.close() })); });
   let serial = 0;
