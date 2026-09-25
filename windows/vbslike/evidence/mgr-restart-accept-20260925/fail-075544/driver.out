@@ -1,0 +1,12 @@
+manager #1 pid 3520
+PASS A0: inventory ready and empty; no manager-owned VM on this host
+FAIL A1: POST 201 in 35803 ms, id hvd5ae1997daaf21dbb209c9ad9ca362e1, status failed, partition wmi-openhcl-gen2-igvm-linux, hostExcluded false, reason "the VM is Running but the guest produced no output on \\\\.\\pipe\\enclave-app-hvd5ae1997daaf21-9c3d10f1-com1 within 25s: a silent partition is not a booted one", guest null
+FAIL A2: 0 VM(s) carry id hvd5ae1997daaf21dbb209c9ad9ca362e1: 
+FAIL A3: manager gone; the VM count is 0
+manager #2 pid 8648
+FAIL A4: GET 404: recovered undefined, status undefined, appReady undefined, relay null, hostExcluded undefined
+FAIL A5: second POST 201 naming hv8f2b4e76d39ef515dca7081664849964; VMs with this id 0, manager-owned VMs 0
+FAIL A6: DELETE 404; VMs with this id 0; GET after 404
+N/A A7: the relay dies with the manager - no per-domain wmiserve relay exists yet (enclave-5d's wmiserve-run.mjs)
+cleanup: DELETE hvd5ae1997daaf21dbb209c9ad9ca362e1 -> 404
+RESTART-ACCEPT 6 FAILED

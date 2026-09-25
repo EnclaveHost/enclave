@@ -1,0 +1,60 @@
+07:58:05 === MANAGER LAUNCHER CANARY. Not an isolation or attestation result; host_excluded=no. 
+===
+07:58:05 setting before: Absent
+07:58:05 watchdog armed (pid 16572, ceiling 900s)
+07:58:05 SETTING APPLIED for this run
+07:58:05 config: {"boot":"linux-direct","imagePath":"C:\\Users\\claude\\vbs-like\\pkg\\071f194b86a
+573ac\\guest\\igvm-vbs\\vbs-linux-candidate-g1-a44bb55a.bin","guestStateMasterSha256":"4f051697a74
+dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d","prefix":"enclave-mgrcanary-","guestStateAr
+chiveDir":"C:\\Users\\claude\\vbs-evidence","imageSha256":"a44bb55a89bb0e6d2757287032070662041a095
+2eaf3713901cedc92404717e4","hypervModule":"C:\\Users\\claude\\hyperv.psm1","guestStateMaster":"C:\
+\Users\\claude\\vbs-like\\type1.vmgs","memMiB":128,"vcpus":1}
+07:58:14   LAUNCHER: {"step":"preflight","ok":true,"failed":[]}
+07:58:14   LAUNCHER: {"step":"start","ok":true,"ms":6152,"handle":{"instanceId":"hvce378aebef9f3d-
+canary","name":"enclave-mgrcanary-hvce378aebef9f3d-canary","vmId":"95f63c7e-ccb0-4789-9c2b-b6af041
+dbbe3","pipe":"\\\\.\\pipe\\enclave-mgrcanary-hvce378aebef9f3d-canary-com1","state":"Running","boo
+t":"linux-direct","isolationType":1,"image":null,"imageAbsentReason":"linux-direct: no medium is 
+attached. The guest's kernel, initrd and command line are inside the measured IGVM, so its 
+identity is guestIdentity.igvmSha256 - which is NOT a medium hash, and is kept out of `image` so 
+the datapath cannot compare it as one. The datapath therefore refuses this domain for want of a 
+medium identity.","guestIdentity":{"partition":"wmi-openhcl-gen2-igvm-linux","guestImageKind":"igv
+m-linux-direct","igvmSha256":"a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4","i
+gvmPath":"C:\\Users\\claude\\vbs-like\\pkg\\071f194b86a573ac\\guest\\igvm-vbs\\vbs-linux-candidate
+-g1-a44bb55a.bin"},"firmware":{"sha256":"a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc924
+04717e4","bytes":77794396},"boundary":{"tier":"T0-hv","partition":"wmi-openhcl-gen2-igvm-linux","g
+uestStateIsolationType":1,"hostExcluded":false,"attested":false,"note":"a Gen2 OpenHCL partition 
+with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor is CONFIGURED to keep 
+VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be excluded and no 
+chain is verified: never advertise this as verified or host-excluded capacity."},"appId":"00000000
+00000000000000000000000000000000000000000000000000000000","vtpm":{"enabled":true,"pcrsRead":false,
+"note":"Windows makes a vTPM for a VBS VM and the guest-state key protector lives there. NOTHING 
+ON THIS PATH READS ITS PCRs: its presence is not attestation and must never be reported as 
+any."},"memory":{"policyMiB":128,"vmMiB":2048,"rule":"max(2048, policy + 
+640)"},"definition":{"recipe":"petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0
+de58cf)","hypervModuleSha256":"17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c","
+hypervUtilitiesSha256":"517766e996ddb021594c0ae2c7a60688d4293e2ee9459f558f2a436e6da30731","feature
+Set":513,"vtl2Mode":0,"vbsOptOut":true,"guestState":{"path":"C:\\Users\\claude\\vbs-like\\enclave-
+mgrcanary-hvce378aebef9f3d-canary.vmgs","masterSha256":"4f051697a74dc72d60e7b36d7cc80554493d64038e
+a6e146d72b454585ae930d"},"grants":["C:\\Users\\claude\\vbs-like\\pkg\\071f194b86a573ac\\guest\\igv
+m-vbs\\vbs-linux-candidate-g1-a44bb55a.bin"]},"guest":{"booted":true,"bytes":573,"head":"\r\nMON 
+snp=0 vcpus=1 memMiB=1833 boot_ms=317\r\nMON insmod /vsock.ko.zst failed: Operation not 
+supported\r\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not 
+supported\r\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\r\nMON 
+hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 
+config_b=0x1 (stated by the hypervisor, C","readyLine":true},"appReady":false}}
+07:58:14   LAUNCHER: {"step":"survey","ok":true,"vm":{"vmId":"95f63c7e-ccb0-4789-9c2b-b6af041dbbe3
+","name":"enclave-mgrcanary-hvce378aebef9f3d-canary","state":"Running"},"identity":{"v":1,"id":"hv
+ce378aebef9f3d4367a9291d1735f7cb","name":"0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0
+c0c0c0c0c0","instanceId":"hvce378aebef9f3d-canary","appId":"00000000000000000000000000000000000000
+00000000000000000000000000"}}
+07:58:14   LAUNCHER: {"step":"stop","ok":true,"result":{"stopped":true,"removed":true,"name":"encl
+ave-mgrcanary-hvce378aebef9f3d-canary","vmId":"95f63c7e-ccb0-4789-9c2b-b6af041dbbe3","guestState":
+{"archive":"C:\\Users\\claude\\vbs-evidence\\enclave-mgrcanary-hvce378aebef9f3d-canary-20260925-07
+5814-327.vmgs","path":"C:\\Users\\claude\\vbs-like\\enclave-mgrcanary-hvce378aebef9f3d-canary.vmgs
+","retired":true,"sha256":"4e73f01dccc913c6fc2b3b5eb2dd76fd86191c4b2334e1b1e94380dec1eb648f","pres
+ent":true}}}
+07:58:14   LAUNCHER: {"step":"survey-after","ok":true,"left":[]}
+07:58:14   LAUNCHER: {"step":"result","ok":true}
+07:58:14 SETTING RESTORED to Absent (verified)
+07:58:14 === RESULT: launcher exit 0, harness exit 0 (0 all held; 2 a launcher step failed, 
+cleanup clean; 1 cleanup failed) ===
