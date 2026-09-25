@@ -24,7 +24,12 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string] $VmId,      # the partition's GUID
-  [Parameter(Mandatory = $true)][string] $Marker,    # ASCII marker known to be in guest RAM
+  [Parameter(Mandatory = $true)][string] $Marker,    # ASCII marker pushed into the guest this run
+  # A CANARY: a string the GUEST ITSELF printed, so it is certainly resident in guest RAM. It
+  # separates the two ways a miss can happen. No canary and no marker means the reader cannot see
+  # guest memory at all; canary found and marker missing means the reader works and the marker
+  # simply is not there. Without this the first type-16 control was ambiguous and therefore useless.
+  [string] $Canary = "MON ready control_port=9000",
   [int] $MaxRegionMiB = 4096,
   [string] $Label = ''
 )
@@ -65,18 +70,28 @@ $h = [HR]::OpenProcess($PROCESS_VM_READ -bor $PROCESS_QUERY_INFORMATION, $false,
 if ($h -eq [IntPtr]::Zero) { throw "OpenProcess on pid $($wp.ProcessId) failed: $([ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()).Message) (the reader could not attach; NOT a negative result)" }
 
 $needle  = [Text.Encoding]::ASCII.GetBytes($Marker)
+$canaryText = $Canary
+$canaryBytes = if ($Canary) { [Text.Encoding]::ASCII.GetBytes($Canary) } else { $null }
 $MEM_COMMIT = 0x1000
 $mbiSize = [IntPtr][Runtime.InteropServices.Marshal]::SizeOf([type][HR+MBI])
 $addr = [IntPtr]::Zero
 $regions = 0; $scanned = 0L; $readFailed = 0; $largest = 0L
-$hits = @()
+$hits = @(); $canaryHits = @()
+$byType = @{}
+$needles = @{}
 try {
   while ($true) {
     $mbi = New-Object HR+MBI
     if ([HR]::VirtualQueryEx($h, $addr, [ref] $mbi, $mbiSize) -eq [IntPtr]::Zero) { break }
     $size = [int64] $mbi.RegionSize
     if ($size -le 0) { break }
+    # Every committed region, whatever its Type. The first version also required nothing else, but
+    # it is worth saying why Type is not filtered: guest RAM is mapped into the worker rather than
+    # privately allocated, so filtering to MEM_PRIVATE would exclude the only thing being looked for.
     if ($mbi.State -eq $MEM_COMMIT -and $size -le ($MaxRegionMiB * 1MB)) {
+      $tk = switch ($mbi.Type) { 0x20000 { 'PRIVATE' } 0x40000 { 'MAPPED' } 0x1000000 { 'IMAGE' } default { "0x$('{0:x}' -f $mbi.Type)" } }
+      if (-not $byType.ContainsKey($tk)) { $byType[$tk] = @{ n = 0; bytes = [int64]0 } }
+      $byType[$tk].n++; $byType[$tk].bytes += $size
       $regions++
       if ($size -gt $largest) { $largest = $size }
       # Chunked, with the needle length overlapped so a marker straddling a chunk is still found.
@@ -88,14 +103,21 @@ try {
         if ([HR]::ReadProcessMemory($h, [IntPtr]([int64]$mbi.BaseAddress + $off), $buf, [IntPtr]$n, [ref] $read)) {
           $got = [int]$read
           $scanned += $got
-          $idx = 0
-          while ($idx -ge 0 -and $idx -le ($got - $needle.Length)) {
-            $idx = [Array]::IndexOf($buf, $needle[0], $idx)
-            if ($idx -lt 0 -or $idx -gt ($got - $needle.Length)) { break }
-            $match = $true
-            for ($k = 1; $k -lt $needle.Length; $k++) { if ($buf[$idx + $k] -ne $needle[$k]) { $match = $false; break } }
-            if ($match) { $hits += ("0x{0:x}" -f ([int64]$mbi.BaseAddress + $off + $idx)) }
-            $idx++
+          foreach ($pair in @(@{ n = $needle; into = 'm' }, @{ n = $canaryBytes; into = 'c' })) {
+            $nd = $pair.n
+            if ($null -eq $nd -or $nd.Length -eq 0) { continue }
+            $idx = 0
+            while ($idx -ge 0 -and $idx -le ($got - $nd.Length)) {
+              $idx = [Array]::IndexOf($buf, $nd[0], $idx)
+              if ($idx -lt 0 -or $idx -gt ($got - $nd.Length)) { break }
+              $match = $true
+              for ($k = 1; $k -lt $nd.Length; $k++) { if ($buf[$idx + $k] -ne $nd[$k]) { $match = $false; break } }
+              if ($match) {
+                $at = "0x{0:x}" -f ([int64]$mbi.BaseAddress + $off + $idx)
+                if ($pair.into -eq 'm') { $hits += $at } else { $canaryHits += $at }
+              }
+              $idx++
+            }
           }
         } else { $readFailed++ }
         $off += $n - $needle.Length      # overlap
@@ -112,9 +134,12 @@ Note "regions scanned : $regions"
 Note "bytes read      : $scanned ($([math]::Round($scanned/1MB,1)) MiB); largest region $([math]::Round($largest/1MB,1)) MiB"
 Note "regions unread  : $readFailed"
 Note "marker          : '$Marker' ($($needle.Length) bytes)"
+foreach ($k in ($byType.Keys | Sort-Object)) { Note "  type $k : $($byType[$k].n) regions, $([math]::Round($byType[$k].bytes/1MB,1)) MiB" }
+Note "canary          : '$canaryText' -> $($canaryHits.Count) hit(s)"
 Note "HITS            : $($hits.Count)$(if($hits.Count){' at ' + (($hits | Select-Object -First 5) -join ', ')})"
 if ($scanned -eq 0) { Note "VERDICT: THE READER SCANNED NOTHING. This run is VOID, not a negative result." }
-elseif ($hits.Count -gt 0) { Note "VERDICT: FOUND. The host read this marker out of the worker's address space." }
-else { Note "VERDICT: NOT FOUND by this reader, after $([math]::Round($scanned/1MB,1)) MiB. Only meaningful beside a control run where the SAME reader DID find it." }
+elseif ($hits.Count -gt 0) { Note "VERDICT: MARKER FOUND. The host read it out of the worker's address space." }
+elseif ($canaryHits.Count -gt 0) { Note "VERDICT: marker not found, but the CANARY was, after $([math]::Round($scanned/1MB,1)) MiB. The reader can see guest-resident bytes; this marker was not among them." }
+else { Note "VERDICT: VOID - neither the marker NOR the canary was found after $([math]::Round($scanned/1MB,1)) MiB. A string the guest itself printed is certainly in guest RAM, so failing to find it means THIS READER CANNOT SEE GUEST MEMORY. It proves nothing about isolation and must not be reported as if it did." }
 Note "evidence: $script:Log"
-[pscustomobject]@{ vmId=$VmId; pid=$wp.ProcessId; regions=$regions; bytesScanned=$scanned; largestRegion=$largest; unreadRegions=$readFailed; hits=$hits.Count; log=$script:Log } | ConvertTo-Json -Compress
+[pscustomobject]@{ vmId=$VmId; pid=$wp.ProcessId; regions=$regions; bytesScanned=$scanned; largestRegion=$largest; unreadRegions=$readFailed; hits=$hits.Count; canaryHits=$canaryHits.Count; log=$script:Log } | ConvertTo-Json -Compress

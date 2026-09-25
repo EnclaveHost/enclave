@@ -42,6 +42,18 @@ param(
   #        page the guest has not shared. That is the hypervisor's claim FROM SOURCE; this script
   #        has not measured it, and a type-1 boot on its own does not establish host exclusion.
   [ValidateSet(1, 16)][int] $IsolationType = 16,
+  # THE MEMORY EXPERIMENT. A marker is pushed into the guest over the control channel and then
+  # looked for from the host, in the partition worker's own address space, while the VM is still
+  # running. It only means anything as a PAIR of runs: the identical reader must FIND it on type 16,
+  # where the root can map every guest page by construction, or the reader is broken and a type-1
+  # miss says nothing. Off by default; this never runs against anything but our own canary VM.
+  [switch] $HostRead,
+  # GuestFeatureSet, swept rather than assumed. MEASURED on this box, type 1 + openhcl-cvm.bin:
+  #   0x400 (what New-VM sets for VBS, OpenHCL feature OFF) -> starts, then triple-faults
+  #   0x601 (VBS bit kept, OpenHCL bits added)              -> refuses to start at all
+  # Two different stages, which is what says the bits interact rather than simply accumulate. 0 here
+  # means "keep what New-VM chose and add 0x201"; any other value is written exactly.
+  [uint32] $FeatureSet = 0,
   [string] $Bundle = '',
   [int]    $RelayPort = 19500,
   [switch] $Approve
@@ -182,6 +194,8 @@ if (-not $Approve) {
 
 $mutated = $false
 $created = $false
+$script:runFailed = $false
+$script:exitCode  = 0
 
 # THE WATCHDOG, launched BEFORE the setting is applied.
 #
@@ -191,8 +205,30 @@ $created = $false
 # guarantee: it waits past this run's own deadline and, if the sentinel file still exists, force
 # restores the setting and removes this run's VM. The main script deletes the sentinel on a clean
 # finish, so the watchdog then does nothing.
+# A STALE SENTINEL MEANS THE SETTING WE ARE ABOUT TO CALL "before" IS A PREVIOUS RUN'S.
+#
+# Without this the host can be left permitting unsigned firmware while the log says the opposite,
+# with no reboot needed (enclave-53): run A is killed with the key set; run B starts and records
+# Present/1 as the host's prior state; A's watchdog then removes the value under B; B's cleanup
+# faithfully restores it to 1 and verifies it. The setting is host-wide, so this is the one failure
+# here that outlives the experiment, and it is refused rather than reasoned about.
+$stale = @(Get-ChildItem "C:\Users\claude\uefi-probe-active-*.txt" -EA SilentlyContinue)
+if ($stale.Count) {
+  foreach ($f in $stale) { Write-Host "STALE SENTINEL: $($f.Name) -> $(Get-Content $f.FullName -Raw -EA SilentlyContinue)" }
+  throw ("another run's sentinel is still present, so the current AllowFirmwareLoadFromFile value is " +
+         "that run's and not this host's resting state. Refusing to start: restoring from a borrowed " +
+         "'before' is how a host gets left permitting unsigned firmware with a log that says otherwise.")
+}
 $sentinel = "C:\Users\claude\uefi-probe-active-$stamp.txt"
-Set-Content -Path $sentinel -Value "$name" -Force
+# The sentinel carries the state to restore TO and the owning pid, so a watchdog restores what this
+# run actually found rather than assuming Absent.
+Set-Content -Path $sentinel -Force -Value @"
+vm=$name
+pid=$PID
+before.S=$($before.S)
+before.V=$($before.V)
+before.K=$($before.K)
+"@
 $wdSeconds = $ReadySeconds + 120
 $wd = @"
 Start-Sleep -Seconds $wdSeconds
@@ -269,6 +305,14 @@ try {
     $vssdF = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemSettingData |
              Where-Object { $_.ConfigurationID -eq $vm.Id.Guid }
     $vssdF.FirmwareFile = $Firmware
+    # ENABLE OPENHCL BY FEATURE. Pinning FirmwareFile is not enough: petri sets GuestFeatureSet to
+    # 0x201 whenever a firmware file is given, commented in its source as "Enable OpenHCL by
+    # feature", and the working type-16 path goes through exactly that. New-VM leaves GuestFeatureSet
+    # at 0x400 for a VBS VM, so the first two type-1 boots had the OpenHCL image pinned and the
+    # OpenHCL feature off, and triple-faulted. The VBS bit Windows chose is KEPT and the OpenHCL bits
+    # are added to it rather than overwriting a value this host picked for its own reasons.
+    $featBefore = [uint32] $vssdF.GuestFeatureSet
+    $vssdF.GuestFeatureSet = $(if ($FeatureSet -ne 0) { $FeatureSet } else { $featBefore -bor 0x00000201 })
     # VTL2's address space, which OpenHCL itself runs in. petri's -IncreaseVtl2Memory sets exactly
     # these three on the type-16 path; New-VM sets none, and the first type-1 boot proved what that
     # costs: the VM started, then "a fatal virtual firmware error ... ErrorCode0..4: 0x0" and a
@@ -292,6 +336,9 @@ try {
     if ($vssdF.FirmwareFile -ne $Firmware) { throw "the VM's FirmwareFile reads '$($vssdF.FirmwareFile)', not the pinned $Firmware" }
     $gsf = "$($vssdF.GuestStateDataRoot)\$($vssdF.GuestStateFile)"
     Note "guest state: '$($vssdF.GuestStateFile)' $(if(Test-Path $gsf){"$((Get-Item $gsf).Length) bytes on disk"}else{'NOT ON DISK'}); GuestFeatureSet=$($vssdF.GuestFeatureSet)"
+    Note "GuestFeatureSet: 0x$('{0:x}' -f $featBefore) -> 0x$('{0:x}' -f [uint32]$vssdF.GuestFeatureSet) (OpenHCL enabled by feature; the VBS bit New-VM set is kept)"
+    if (([uint32]$vssdF.GuestFeatureSet -band 0x201) -ne 0x201) { throw "GuestFeatureSet read back as 0x$('{0:x}' -f [uint32]$vssdF.GuestFeatureSet); OpenHCL is not enabled by feature" }
+    Note "  (0x400 alone triple-faults; 0x601 refuses to start; this run uses 0x$('{0:x}' -f [uint32]$vssdF.GuestFeatureSet))"
     Note "VTL2: mode=$($vssdF.Vtl2AddressSpaceConfigurationMode) range=$($vssdF.Vtl2AddressRangeSize) MiB mmio=$($vssdF.Vtl2MmioAddressRangeSize) MiB (OpenHCL RAM = $([int]$vssdF.Vtl2AddressRangeSize - [int]$vssdF.Vtl2MmioAddressRangeSize) MiB)"
     if ([int]$vssdF.Vtl2AddressRangeSize -eq 0) { throw "VTL2 address range read back as 0: OpenHCL would have no address space to run in" }
     Set-VMFirmware -VM $vm -EnableSecureBoot Off
@@ -492,6 +539,24 @@ try {
       # is what `load` will need. {"cmd":"state"} is the cheapest command that carries no payload.
       $st = & C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send '{"cmd":"state"}' 2>&1 | Out-String
       Note "state exchange: $($st.Trim())"
+
+      # THE MARKER. Fresh per run, so a hit can never be last run's bytes still lying around, and
+      # long enough that a 48-byte ASCII run cannot occur by chance in a memory image.
+      #
+      # It reaches the guest by travelling THROUGH the host, which is a confound worth stating
+      # plainly: the worker may hold a copy of it in its own buffers whatever the guest does. That
+      # bias runs toward FINDING the marker, never toward missing it, so it can only make an
+      # isolated partition look non-isolated - the conservative direction. A hit on type 1 would
+      # therefore need a second look; a miss on type 1 beside a hit on type 16 is the real signal.
+      if ($HostRead) {
+        $marker = "ENCLAVE-HOSTREAD-MARKER/1-" + ([guid]::NewGuid().ToString('N')) + "-END"
+        Note "marker: $marker"
+        $mk = & C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send "{`"cmd`":`"echo`",`"marker`":`"$marker`"}" 2>&1 | Out-String
+        Note "marker pushed to the guest: $($mk.Trim())"
+        $hr = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\host-read-guest.ps1 `
+                -VmId $vmId -Marker $marker -Label "type$IsolationType" 2>&1 | Out-String
+        foreach ($l in ($hr -split "`n" | Where-Object { $_.Trim() })) { Note "  HOSTREAD: $($l.Trim())" }
+      }
       if ($st -match '"head"\s*:\s*"\S') { Note "PROTOCOL OK: the monitor answered a control command" }
       else { Note "PROTOCOL: connected but the monitor returned no answer to {cmd:state}" }
 
@@ -553,15 +618,39 @@ try {
     Where-Object { $_.TimeCreated -ge $t0 } | Sort-Object TimeCreated |
     ForEach-Object { Note ("  ADMIN [$($_.Id)] " + (($_.Message -replace "`r?`n",' ').Substring(0,[Math]::Min(150,($_.Message -replace "`r?`n",' ').Length)))) }
 }
-catch { Note "RUN FAILED: $($_.Exception.Message -replace "`r?`n",' ')" }
+catch {
+  # A FAILED RUN MUST NOT EXIT 0. It used to: the catch only logged, and `finally` exited 1 only for
+  # CLEANUP failures, so a hash mismatch, a firmware read-back mismatch, Secure Boot on, a vTPM
+  # where none is allowed, a silent guest or MON ERROR all ended in "RUN OK" and exit 0. Every
+  # type-1 failure tonight reported success to its caller (enclave-53).
+  $script:runFailed = $true
+  Note "RUN FAILED: $($_.Exception.Message -replace "`r?`n",' ')"
+}
 finally {
   $ErrorActionPreference = 'Continue'
   $fail = @()
   try {
     if ($created) {
       $v = Get-VM -Name $name -EA SilentlyContinue
-      if ($v -and $v.Notes -eq $MARKER) { Stop-VM -VM $v -TurnOff -Force -EA SilentlyContinue; Remove-VM -VM $v -Force; Note "removed $name" }
+      # WAIT FOR Off BEFORE REMOVING. Remove-VM on a VM still transitioning throws
+      # "InvalidState" - measured: a run left enclave-uefi-20260925-024136 behind exactly this way,
+      # and the old code announced "removed" over the top of it.
+      if ($v -and $v.Notes -eq $MARKER) {
+        Stop-VM -VM $v -TurnOff -Force -EA SilentlyContinue
+        $dlRm = (Get-Date).AddSeconds(20)
+        while ((Get-Date) -lt $dlRm -and (Get-VM -Name $name -EA SilentlyContinue).State -ne 'Off') { Start-Sleep -Milliseconds 500 }
+        for ($a = 0; $a -lt 5 -and (Get-VM -Name $name -EA SilentlyContinue); $a++) {
+          try { Remove-VM -VM (Get-VM -Name $name) -Force -EA Stop }
+          catch { Note "remove attempt $($a+1): $($_.Exception.Message -replace "`r?`n",' ')"; Start-Sleep -Seconds 2 }
+        }
+        Note "removed $name"
+      }
       elseif ($v) { $fail += "REFUSING to remove $name (Notes='$($v.Notes)')" }
+      # VERIFY, do not announce. finally runs with ErrorActionPreference Continue, so a Remove-VM
+      # that fails (a VM still Starting or Stopping) is non-terminating and uncaught, and the next
+      # line used to say "removed" regardless (enclave-53).
+      if (Get-VM -Name $name -EA SilentlyContinue) { $fail += "$name is STILL PRESENT after the removal" }
+      if ($IsolationType -eq 1 -and $gsf -and (Test-Path $gsf)) { $fail += "guest state left on disk: $gsf" }
     }
   } catch { $fail += "cleanup: $($_.Exception.Message)" }
   finally {
@@ -593,6 +682,19 @@ finally {
   Note "=== DEV BOOT. Host exclusion NOT established. Not verified capacity. ==="
   Remove-Item $sentinel -Force -EA SilentlyContinue        # disarm: this run cleaned up itself
   Remove-Item $wdFile   -Force -EA SilentlyContinue
-  if ($fail.Count) { foreach ($f in $fail) { Write-Host "FAILURE: $f" }; Write-Host "RUN FAILED"; exit 1 }
-  else { Write-Host "RUN OK"; exit 0 }
+  # Three outcomes, three codes, so a caller can tell them apart:
+  #   1  cleanup failed - the host may not be as this script found it. The loudest case.
+  #   2  the run failed but cleanup was clean - the host is fine, the experiment is not.
+  #   0  the guest came ready AND cleanup was clean.
+  # The verdict is DECIDED here and ACTED ON after the block. `exit` inside `finally` does not set
+  # the process exit code - measured: a run that printed "RUN FAILED (cleanup also failed)" still
+  # handed its caller 0, which is the very bug this was added to fix.
+  if ($fail.Count) { foreach ($f in $fail) { Write-Host "FAILURE: $f" }; Write-Host "RUN FAILED (cleanup also failed)"; $script:exitCode = 1 }
+  elseif ($script:runFailed -or -not $ready) {
+    Write-Host "RUN FAILED$(if(-not $script:runFailed){' (the guest never came ready)'}) - cleanup was clean"; $script:exitCode = 2
+  }
+  else { Write-Host "RUN OK"; $script:exitCode = 0 }
 }
+
+# The exit code, set inside `finally` and acted on here for the reason stated there.
+exit $script:exitCode
