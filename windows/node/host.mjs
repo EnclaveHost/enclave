@@ -602,7 +602,8 @@ export class Host {
         .catch((e) => this.log(`domains ${id.slice(0, 10)}: ${e.message}`));
       const env = this.appEnvFor(id, d, v, { memMb, port, world: want, declared,
                                              config: await this.appConfigResolved(d, v) });
-      app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, memMb, world: want, port, env,
+      app = new EnclaveApp({ id, cwasmPath: cwasm, hostCmd: this.cfg.hostCmd, hostGen: this.cfg.hostGen,
+                             memMb, world: want, port, env,
                              log: (m) => this.log(`${id.slice(0, 10)} ${m}`) });
       this.apps.set(id, app);
     }
@@ -1752,9 +1753,10 @@ export class Host {
         return { status: r.status, headers: r.headers, body: r.body };
       } catch (e) {
         // "no such app" means the enclave restarted under us and its memory went with it, which is
-        // the honest failure mode for an app that lives in there. Mark it for reload rather than
+        // the honest failure mode for an app that lives in there; "stale epoch" is ee-host refusing a
+        // command minted by a previous boot of itself. Either way, mark it for reload rather than
         // pretending the app is still up.
-        const gone = /no such app/i.test(e.message || "");
+        const gone = /no such app|stale epoch/i.test(e.message || "");
         if (gone) { app.state = "failed"; this.#record(String(id).toLowerCase(), { status: "failed", reason: "the enclave no longer carries this app (it restarted); reloading" }); }
         return { status: 502, headers: { "content-type": "application/json" },
                  body: JSON.stringify({ error: gone ? "app_gone" : "enclave_error", message: e.message }) };
