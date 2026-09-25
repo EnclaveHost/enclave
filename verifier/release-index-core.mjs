@@ -5,6 +5,8 @@
 // file and the command live in verifier/release-index.mjs; the design is written up there and in
 // docs/security/independent-verifier-plan.md, sections 10.5 and 10.6.
 import { verifyStatementBundle, identityClaimsOf, compareVersions, DEFAULT_RELEASE_POLICY } from "./provenance.mjs";
+import { POLICY_SCHEMA, parseTag, versionString, normalizePolicy } from "./release-policy.mjs";
+export { POLICY_SCHEMA, parseTag, versionString, normalizePolicy };
 
 const sha256HexOf = async (bytes) => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes))).map((b) => b.toString(16).padStart(2, "0")).join("");
 export const INDEX_SCHEMA = "enclave-release-index/v2";
@@ -12,22 +14,7 @@ export const INDEX_SCHEMA_V1 = "enclave-release-index/v1";     // the first inde
 export const INDEX_SCHEMAS = Object.freeze([INDEX_SCHEMA, INDEX_SCHEMA_V1]);
 export const INDEX_PREDICATE = "https://enclave.host/predicate/release-index/v1";
 export const INDEX_ASSET = "release-index.json";
-export const POLICY_SCHEMA = "enclave-release-policy/v1";
 export const FLAVORS = Object.freeze(["gpu", "cpu", "gpu8"]);
-const TAG_RE = /^v(\d+)\.(\d+)\.(\d+)(-cpu|-gpu8)?$/;
-const sha256hex = (b) => createHash("sha256").update(b).digest("hex");
-export const parseTag = (tag) => { const m = TAG_RE.exec(String(tag || "")); return m ? { version: [+m[1], +m[2], +m[3]], flavor: m[4] ? m[4].slice(1) : "gpu" } : null; };
-export const versionString = (v) => `v${v.join(".")}`;
-
-// ---- the policy file --------------------------------------------------------------------------------------------------
-export function normalizePolicy(p) {
-  if (!p || p.schema !== POLICY_SCHEMA) throw new Error(`release policy schema must be ${POLICY_SCHEMA}`);
-  const min = parseTag(p.minimumRelease);
-  if (!min || min.flavor !== "gpu") throw new Error(`release policy minimumRelease must be a bare vX.Y.Z tag, not ${JSON.stringify(p.minimumRelease)}`);
-  const revoked = Array.isArray(p.revoked) ? p.revoked.map(String) : null;
-  if (!revoked || revoked.some((t) => !parseTag(t))) throw new Error("release policy revoked must be a list of release tags");
-  return { minimumRelease: min.version, revoked };
-}
 
 // ---- 1. build (pure) --------------------------------------------------------------------------------------------------
 // releases: [{ tag, digest, publishedAt }], every digest the release's own tinfoil.hash. The latest per flavor is the

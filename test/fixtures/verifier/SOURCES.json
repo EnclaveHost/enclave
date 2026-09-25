@@ -95,5 +95,17 @@
   "see": "trusted_root.source.json",
   "what": "the Sigstore public-good trusted root (Fulcio CAs, Rekor v1 + v2 keys, CT logs, TSA) reached through TUF timestamp -> snapshot -> targets and hash-checked; JSON-identical to the copy @tinfoilsh/verifier 1.1.10 embeds",
   "sha256": "6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66"
+ },
+ "release/v0.5.840.tinfoil.hash": {
+  "url": "https://github.com/EnclaveHost/enclave/releases/download/v0.5.840/tinfoil.hash",
+  "fetchedAt": "2026-09-25T04:49Z",
+  "what": "sha256 of tinfoil-deployment.json, GPU flavor, the release published just BELOW the reviewed floor v0.5.841 (verifier/release-policy.json): genuine, so it verifies under a lower floor and is refused as a rollback under the policy floor",
+  "sha256": "4ee406f9682e81cc961e859da2571f513320a7544931415c5135774ec3f40d4a"
+ },
+ "release/v0.5.840.attestation.json": {
+  "url": "https://api.github.com/repos/EnclaveHost/enclave/attestations/sha256:5ee15b3a4866cc811560afe3e9fbf892035511b2ce761a6bc29c8becb3a84a60",
+  "fetchedAt": "2026-09-25T04:49Z",
+  "what": "GitHub artifact attestation for v0.5.840 (same identity policy as v0.5.841: tinfoil-release-publish.yml@refs/tags/v0.5.840)",
+  "sha256": "791d4007d44a2eb0344ffaf57ed3d71d79605daac930e3533b6bd0e6a0786f62"
  }
 }

@@ -12,6 +12,8 @@
 // inclusion proof/promise, the DSSE signature and the tlog body. This file owns the identity policy, the
 // statement shape, the predicate allowlist, the subject digest and the release-version floor.
 import { SigstoreVerifier, AllOf, OIDCIssuer, GitHubWorkflowRepository, GITHUB_OIDC_ISSUER } from "@freedomofpress/sigstore-browser";
+import { RELEASE_POLICY, compareVersions } from "./release-policy.mjs";
+export { compareVersions };
 
 export const DEFAULT_RELEASE_POLICY = Object.freeze({
   repository: "EnclaveHost/enclave",
@@ -19,7 +21,10 @@ export const DEFAULT_RELEASE_POLICY = Object.freeze({
   refPattern: "^refs/tags/v(\\d+)\\.(\\d+)\\.(\\d+)(-cpu|-gpu8)?$",
   issuer: GITHUB_OIDC_ISSUER,
   predicateTypes: ["https://tinfoil.sh/predicate/snp-tdx-multiplatform/v1"],
-  minimumRelease: [0, 5, 0],             // [major, minor, patch]: an older GENUINE release is a rollback, refused
+  // [major, minor, patch] and tags, from verifier/release-policy.json (verifier/release-policy.mjs): an older GENUINE release
+  // is a rollback and a revoked one is refused by name. A caller may pass its own floor; revocations only accumulate.
+  minimumRelease: RELEASE_POLICY.minimumRelease,
+  revoked: RELEASE_POLICY.revoked,
   allowedTriggers: ["workflow_dispatch"],
   requireVisibility: "public",
 });
@@ -87,7 +92,6 @@ export function identityClaimsOf(cert, pol, bundle) {
     trigger: ext(cert, "extBuildTrigger", "buildTrigger"), runInvocation: ext(cert, "extRunInvocationURI", "runInvocationURI"),
     signedAt: cert.notBefore?.toISOString?.() ?? null, integratedTime: integratedTime ? new Date(Number(integratedTime) * 1000).toISOString() : null };
 }
-export const compareVersions = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 
 // verifyReleaseAttestation({ bundle, digestHex, trustedRoot, policy }) -> { ok, reasons, claims }
 export async function verifyReleaseAttestation({ bundle, digestHex, trustedRoot, policy = DEFAULT_RELEASE_POLICY }) {
@@ -101,7 +105,8 @@ export async function verifyReleaseAttestation({ bundle, digestHex, trustedRoot,
   const id = identityClaimsOf(cert, pol, bundle);
   if (!id.version) return fail(`ref ${id.ref} did not yield a version`);
   if (compareVersions(id.version, pol.minimumRelease) < 0) return fail(`release v${id.version.join(".")} is below the minimum release v${pol.minimumRelease.join(".")} (a genuine but rolled-back release)`);
-  if (Array.isArray(pol.revoked) && pol.revoked.includes(id.tag)) return fail(`release ${id.tag} is revoked by the release index`);
+  if (RELEASE_POLICY.revoked.includes(id.tag)) return fail(`release ${id.tag} is revoked by the built-in release policy (${RELEASE_POLICY.source})`);
+  if (Array.isArray(pol.revoked) && pol.revoked.includes(id.tag)) return fail(`release ${id.tag} is revoked (by the release index or the caller's policy)`);
   reasons.push(`release v${id.version.join(".")} (${id.flavor}) meets the minimum v${pol.minimumRelease.join(".")}`);
   return { ok: true, reasons, claims: {
     ...id, digest: digestHex.toLowerCase(),

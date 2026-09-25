@@ -5674,11 +5674,11 @@ var init_localstorage = __esm({
       async read(key) {
         const value = localStorage.getItem(key);
         if (value) {
-          const parsed = JSON.parse(value);
-          if (isRawBytesWrapper(parsed)) {
-            return decodeRawBytesWrapper(parsed);
+          const parsed2 = JSON.parse(value);
+          if (isRawBytesWrapper(parsed2)) {
+            return decodeRawBytesWrapper(parsed2);
           }
-          return parsed;
+          return parsed2;
         }
       }
       async write(key, value) {
@@ -7245,7 +7245,7 @@ var init_dist2 = __esm({
 // verifier/consumer.mjs
 import https from "node:https";
 import { isIP } from "node:net";
-import { createHash as createHash5, X509Certificate as X509Certificate5 } from "node:crypto";
+import { createHash as createHash4, X509Certificate as X509Certificate5 } from "node:crypto";
 import { gunzipSync as gunzipSync2 } from "node:zlib";
 
 // verifier/envelope.mjs
@@ -7637,9 +7637,9 @@ function subjectNameDer(certDer) {
 }
 
 // verifier/tls-binding.mjs
-import { createHash as createHash2, X509Certificate } from "node:crypto";
+import { createHash, X509Certificate } from "node:crypto";
 var sha256 = (...parts) => {
-  const h = createHash2("sha256");
+  const h = createHash("sha256");
   for (const p of parts) h.update(p);
   return h.digest();
 };
@@ -8276,8 +8276,8 @@ function layeredCollateral(...adapters) {
 // verifier/collateral-cache.mjs
 import fs2 from "node:fs";
 import path2 from "node:path";
-import { createHash as createHash3, X509Certificate as X509Certificate3 } from "node:crypto";
-var sha2562 = (b) => createHash3("sha256").update(b).digest("hex");
+import { createHash as createHash2, X509Certificate as X509Certificate3 } from "node:crypto";
+var sha2562 = (b) => createHash2("sha256").update(b).digest("hex");
 var cn2 = (dn) => (/(?:^|\n)CN=([^\n]+)/.exec(dn || "") || [])[1] || null;
 var safe = (s) => String(s).replace(/[^A-Za-z0-9._-]/g, "_");
 function cachedCollateral({ dir, upstream = null, now = () => /* @__PURE__ */ new Date(), roots = AMD_ARK_SHA256 } = {}) {
@@ -8449,14 +8449,62 @@ function cachedCollateral({ dir, upstream = null, now = () => /* @__PURE__ */ ne
 
 // verifier/provenance.mjs
 init_dist2();
+
+// verifier/release-policy.json
+var release_policy_default = {
+  schema: "enclave-release-policy/v1",
+  minimumRelease: "v0.5.841",
+  revoked: [],
+  note: "The release floor and revocation list, in ONE place. The release workflow signs them into every release index (verifier/release-index.mjs, from this file at the tag), and every consumer built from this tree carries this same file as its BUILT-IN policy (verifier/release-policy.mjs, compiled into the Node and browser bundles, whose manifests pin this file's sha256). A consumer applies the highest of the built-in floor, its remembered floor and a verified index's floor; an index whose floor is below the built-in one is refused; revocations only accumulate. Raising minimumRelease or adding to revoked is a reviewed commit that rebuilds the bundles; until a release built from it publishes an index carrying the change, consumers built from it refuse the older index and take their recorded fallback under the new floor. The floor never falls: lowering it is not a supported change."
+};
+
+// verifier/release-policy.mjs
+var POLICY_SCHEMA = "enclave-release-policy/v1";
+var POLICY_FILE_PATH = "verifier/release-policy.json";
+var TAG_RE = /^v(\d+)\.(\d+)\.(\d+)(-cpu|-gpu8)?$/;
+var parseTag = (tag) => {
+  const m = TAG_RE.exec(String(tag || ""));
+  return m ? { version: [+m[1], +m[2], +m[3]], flavor: m[4] ? m[4].slice(1) : "gpu" } : null;
+};
+var versionString = (v) => `v${v.join(".")}`;
+var compareVersions = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+function normalizePolicy(p) {
+  if (!p || p.schema !== POLICY_SCHEMA) throw new Error(`release policy schema must be ${POLICY_SCHEMA}`);
+  const min = parseTag(p.minimumRelease);
+  if (!min || min.flavor !== "gpu") throw new Error(`release policy minimumRelease must be a bare vX.Y.Z tag, not ${JSON.stringify(p.minimumRelease)}`);
+  const revoked = Array.isArray(p.revoked) ? p.revoked.map(String) : null;
+  if (!revoked || revoked.some((t) => !parseTag(t))) throw new Error("release policy revoked must be a list of release tags");
+  return { minimumRelease: min.version, revoked };
+}
+var parsed = normalizePolicy(release_policy_default);
+var RELEASE_POLICY = Object.freeze({ minimumRelease: Object.freeze([...parsed.minimumRelease]), revoked: Object.freeze([...parsed.revoked]), source: POLICY_FILE_PATH });
+function floorOf({ caller = null, remembered = null, index = null } = {}) {
+  const valid = (v) => Array.isArray(v) && v.length === 3 && v.every((n) => Number.isInteger(n) && n >= 0);
+  let floor = valid(caller) ? [...caller] : [...RELEASE_POLICY.minimumRelease], source = valid(caller) ? "caller" : "built-in";
+  if (valid(remembered) && compareVersions(remembered, floor) >= 0) {
+    floor = [...remembered];
+    source = "remembered";
+  }
+  if (valid(index) && compareVersions(index, floor) >= 0) {
+    floor = [...index];
+    source = "signed index";
+  }
+  return { floor, source, builtin: [...RELEASE_POLICY.minimumRelease], callerBelowBuiltin: valid(caller) && compareVersions(caller, RELEASE_POLICY.minimumRelease) < 0 };
+}
+var revokedOf = (...lists) => [.../* @__PURE__ */ new Set([...RELEASE_POLICY.revoked, ...lists.flatMap((l) => Array.isArray(l) ? l.map(String) : [])])];
+var floorRecord = (f) => ({ floorApplied: versionString(f.floor), floorSource: f.source, builtinFloor: versionString(f.builtin), ...f.callerBelowBuiltin ? { callerBelowBuiltin: true } : {} });
+
+// verifier/provenance.mjs
 var DEFAULT_RELEASE_POLICY = Object.freeze({
   repository: "EnclaveHost/enclave",
   workflowPath: ".github/workflows/tinfoil-release-publish.yml",
   refPattern: "^refs/tags/v(\\d+)\\.(\\d+)\\.(\\d+)(-cpu|-gpu8)?$",
   issuer: GITHUB_OIDC_ISSUER,
   predicateTypes: ["https://tinfoil.sh/predicate/snp-tdx-multiplatform/v1"],
-  minimumRelease: [0, 5, 0],
-  // [major, minor, patch]: an older GENUINE release is a rollback, refused
+  // [major, minor, patch] and tags, from verifier/release-policy.json (verifier/release-policy.mjs): an older GENUINE release
+  // is a rollback and a revoked one is refused by name. A caller may pass its own floor; revocations only accumulate.
+  minimumRelease: RELEASE_POLICY.minimumRelease,
+  revoked: RELEASE_POLICY.revoked,
   allowedTriggers: ["workflow_dispatch"],
   requireVisibility: "public"
 });
@@ -8566,7 +8614,6 @@ function identityClaimsOf(cert, pol, bundle) {
     integratedTime: integratedTime ? new Date(Number(integratedTime) * 1e3).toISOString() : null
   };
 }
-var compareVersions = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 async function verifyReleaseAttestation({ bundle, digestHex, trustedRoot, policy = DEFAULT_RELEASE_POLICY }) {
   const s = await verifyStatementBundle({ bundle, digestHex, trustedRoot, policy });
   if (!s.ok) return { ok: false, reasons: s.reasons, claims: null };
@@ -8578,7 +8625,8 @@ async function verifyReleaseAttestation({ bundle, digestHex, trustedRoot, policy
   const id = identityClaimsOf(cert, pol, bundle);
   if (!id.version) return fail(`ref ${id.ref} did not yield a version`);
   if (compareVersions(id.version, pol.minimumRelease) < 0) return fail(`release v${id.version.join(".")} is below the minimum release v${pol.minimumRelease.join(".")} (a genuine but rolled-back release)`);
-  if (Array.isArray(pol.revoked) && pol.revoked.includes(id.tag)) return fail(`release ${id.tag} is revoked by the release index`);
+  if (RELEASE_POLICY.revoked.includes(id.tag)) return fail(`release ${id.tag} is revoked by the built-in release policy (${RELEASE_POLICY.source})`);
+  if (Array.isArray(pol.revoked) && pol.revoked.includes(id.tag)) return fail(`release ${id.tag} is revoked (by the release index or the caller's policy)`);
   reasons.push(`release v${id.version.join(".")} (${id.flavor}) meets the minimum v${pol.minimumRelease.join(".")}`);
   return { ok: true, reasons, claims: {
     ...id,
@@ -8596,7 +8644,7 @@ var sha256HexOf = async (bytes2) => Array.from(new Uint8Array(await globalThis.c
 import fs3 from "node:fs";
 import path3 from "node:path";
 import { fileURLToPath } from "node:url";
-import { createHash as createHash4 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 
 // verifier/release-index-core.mjs
 var sha256HexOf2 = async (bytes2) => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes2))).map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -8605,22 +8653,7 @@ var INDEX_SCHEMA_V1 = "enclave-release-index/v1";
 var INDEX_SCHEMAS = Object.freeze([INDEX_SCHEMA, INDEX_SCHEMA_V1]);
 var INDEX_PREDICATE = "https://enclave.host/predicate/release-index/v1";
 var INDEX_ASSET = "release-index.json";
-var POLICY_SCHEMA = "enclave-release-policy/v1";
 var FLAVORS = Object.freeze(["gpu", "cpu", "gpu8"]);
-var TAG_RE = /^v(\d+)\.(\d+)\.(\d+)(-cpu|-gpu8)?$/;
-var parseTag = (tag) => {
-  const m = TAG_RE.exec(String(tag || ""));
-  return m ? { version: [+m[1], +m[2], +m[3]], flavor: m[4] ? m[4].slice(1) : "gpu" } : null;
-};
-var versionString = (v) => `v${v.join(".")}`;
-function normalizePolicy(p) {
-  if (!p || p.schema !== POLICY_SCHEMA) throw new Error(`release policy schema must be ${POLICY_SCHEMA}`);
-  const min = parseTag(p.minimumRelease);
-  if (!min || min.flavor !== "gpu") throw new Error(`release policy minimumRelease must be a bare vX.Y.Z tag, not ${JSON.stringify(p.minimumRelease)}`);
-  const revoked = Array.isArray(p.revoked) ? p.revoked.map(String) : null;
-  if (!revoked || revoked.some((t) => !parseTag(t))) throw new Error("release policy revoked must be a list of release tags");
-  return { minimumRelease: min.version, revoked };
-}
 function buildReleaseIndex({ releases, policy, repository, generatedAt = (/* @__PURE__ */ new Date()).toISOString(), publication = null } = {}) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(repository || ""))) throw new Error("repository must be OWNER/NAME");
   const pub = normalizePublication(publication);
@@ -8744,7 +8777,7 @@ async function verifyReleaseIndex({ indexBytes, bundle, trustedRoot, policy = DE
 var candidatesFromIndex = (v) => Object.values(v.latest || {}).map((l) => ({ tag: l.tag, digest: l.digest }));
 
 // verifier/release-index.mjs
-var sha256hex = (b) => createHash4("sha256").update(b).digest("hex");
+var sha256hex = (b) => createHash3("sha256").update(b).digest("hex");
 var REPO = path3.resolve(path3.dirname(fileURLToPath(import.meta.url)), "..");
 function readReleasePolicy(file = path3.join(REPO, "verifier", "release-policy.json")) {
   const p = JSON.parse(fs3.readFileSync(file, "utf8"));
@@ -9073,7 +9106,6 @@ var sigstore_trusted_root_default = {
 };
 
 // verifier/consumer.mjs
-var cmpVersion2 = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 var RAD_PATH = "/.well-known/tinfoil-attestation";
 var DEFAULT_REPO = DEFAULT_RELEASE_POLICY.repository;
 var FLAVOR_SUFFIXES = Object.freeze(["", "-cpu", "-gpu8"]);
@@ -9082,7 +9114,7 @@ var USER_AGENT = "enclave-verifier";
 var GITHUB_API = "https://api.github.com";
 var GITHUB_DOWNLOADS = "https://github.com";
 var hex2 = (b) => Buffer.from(b).toString("hex");
-var sha256hex2 = (b) => createHash5("sha256").update(b).digest("hex");
+var sha256hex2 = (b) => createHash4("sha256").update(b).digest("hex");
 var TAG_RE2 = /^v\d+\.\d+\.\d+$/;
 async function fetchBounded(url, { fetchImpl = globalThis.fetch, timeoutMs = 2e4, maxBytes = 4 * 1024 * 1024, accept = "application/json" } = {}) {
   const ctrl = new AbortController();
@@ -9118,8 +9150,8 @@ async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO, truste
       out.candidates.push({ tag, digest: c.digest ?? null, provenance: "refused", why: "the release digest is not 64 hex characters" });
       continue;
     }
-    if (Array.isArray(policy.revoked) && policy.revoked.includes(tag)) {
-      out.candidates.push({ tag, digest, provenance: "refused", why: "revoked by the signed release index" });
+    if (revokedOf(policy.revoked).includes(tag)) {
+      out.candidates.push({ tag, digest, provenance: "refused", why: `revoked (${RELEASE_POLICY.revoked.includes(tag) ? `the built-in policy, ${RELEASE_POLICY.source}` : "by the signed release index or the caller's policy"})` });
       continue;
     }
     const r = await verifyReleaseAttestation({ bundle: c.bundle, digestHex: digest, trustedRoot, policy: { ...policy, repository: repo } });
@@ -9157,10 +9189,10 @@ async function releaseExpectations({
   let indexArtifact = null;
   const get = (url, accept) => fetchBounded(url, { fetchImpl, timeoutMs, maxBytes, accept });
   let latestTag = null, list = tags, index = { status: "not-consulted" };
-  let pol = { ...policy };
+  const callerFloor = Array.isArray(policy.minimumRelease) ? policy.minimumRelease : null;
   const remembered = indexMemory?.floor?.() ?? null;
-  const builtin = pol.minimumRelease ?? DEFAULT_RELEASE_POLICY.minimumRelease;
-  if (remembered && cmpVersion2(remembered, builtin) > 0) pol = { ...pol, minimumRelease: remembered };
+  let floor = floorOf({ caller: callerFloor, remembered });
+  let pol = { ...policy, minimumRelease: floor.floor, revoked: revokedOf(policy.revoked) };
   if (!list && useIndex) {
     try {
       const bytes2 = await get(`${downloadBase}/${repo}/releases/latest/download/${INDEX_ASSET}`, "application/json");
@@ -9178,7 +9210,8 @@ async function releaseExpectations({
             index = { status: "verified", ...base, freshness: m ? m.kind : "not-remembered", latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, ...m && m.persisted === false ? { memoryNotPersisted: true } : {} };
             list = candidatesFromIndex(v).map((c) => c.tag);
             latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
-            pol = { ...pol, minimumRelease: v.minimumRelease, revoked: [.../* @__PURE__ */ new Set([...Array.isArray(pol.revoked) ? pol.revoked.map(String) : [], ...v.revoked])] };
+            floor = floorOf({ caller: callerFloor, remembered, index: v.minimumRelease });
+            pol = { ...pol, minimumRelease: floor.floor, revoked: revokedOf(pol.revoked, v.revoked) };
             if (keepArtifacts) indexArtifact = { bytes: bytes2.toString("base64"), sha256: v.digest, bundle };
           }
         } else index = { status: "refused", authenticity: v.signed ? "signed" : "unverified", ...v.publication ? { publication: v.publication } : {}, reasons: v.reasons.slice(-2) };
@@ -9186,14 +9219,14 @@ async function releaseExpectations({
     } catch (e) {
       index = { status: "unavailable", reasons: [e.message] };
     }
-    if (index.status !== "verified" && requireIndex) return { ...await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol }), latestTag: null, index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` }, indexError: `the signed release index is required and was ${index.status}${index.freshness ? ` (${index.freshness})` : ""}: ${(index.reasons || []).join("; ")}` };
+    if (index.status !== "verified" && requireIndex) return { ...await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol }), latestTag: null, index: { ...index, ...floorRecord(floor) }, indexError: `the signed release index is required and was ${index.status}${index.freshness ? ` (${index.freshness})` : ""}: ${(index.reasons || []).join("; ")}` };
   }
   if (!list) {
     try {
       latestTag = JSON.parse((await get(`${apiBase}/repos/${repo}/releases/latest`)).toString("utf8"))?.tag_name;
       if (!TAG_RE2.test(String(latestTag))) throw new Error(`the release index named ${JSON.stringify(latestTag)}, not a vX.Y.Z tag`);
     } catch (e) {
-      return { ...await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol }), latestTag: null, index, indexError: e.message };
+      return { ...await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol }), latestTag: null, index: { ...index, ...floorRecord(floor) }, indexError: e.message };
     }
     list = FLAVOR_SUFFIXES.map((s) => latestTag + s);
   }
@@ -9213,7 +9246,7 @@ async function releaseExpectations({
     }
   }
   const from = await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag, keepArtifacts });
-  return { ...from, index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` }, ...keepArtifacts ? { artifacts: { index: indexArtifact, releases: from.artifacts?.releases ?? [] } } : {} };
+  return { ...from, index: { ...index, ...floorRecord(floor) }, ...keepArtifacts ? { artifacts: { index: indexArtifact, releases: from.artifacts?.releases ?? [] } } : {} };
 }
 function captureHosted({ host, port = 443, path: path5 = RAD_PATH, timeoutMs = 2e4, maxBytes = 1024 * 1024, tls = {}, now = () => /* @__PURE__ */ new Date() } = {}) {
   if (!host) return Promise.reject(new Error("captureHosted needs a host"));
@@ -9492,6 +9525,7 @@ export {
   GITHUB_API,
   GITHUB_DOWNLOADS,
   RAD_PATH,
+  RELEASE_POLICY,
   TRUSTED_ROOT,
   USER_AGENT,
   cachedCollateral,

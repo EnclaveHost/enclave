@@ -13,21 +13,23 @@
 // measurements from here instead of from the primary verifier's Sigstore step, which is the point: the browser obtains
 // the expected measurement independently of @tinfoilsh/verifier.
 //
-// Floors: the built-in floor is the library's (verifier/provenance.mjs DEFAULT_RELEASE_POLICY.minimumRelease, the same
-// built-in the Node consumers carry); the verified index's own floor (verifier/release-policy.json at release time, v0.5.841
-// since v0.5.847) applies once the index verifies, so `index.floorApplied` names the built-in floor on every unavailable
-// or refused path and the index's floor on the verified path, exactly as verifier/consumer.mjs reports it.
+// Floors and revocations follow verifier/release-policy.mjs, the same rules and the same compiled-in file as the Node
+// consumer (verifier/consumer.mjs): the built-in floor is verifier/release-policy.json's, raised by this browser's
+// remembered floor and by a verified index's, never lowered by anything fetched; every result carries `floorApplied`,
+// `floorSource` (built-in, remembered, signed index, or an explicit caller floor) and `builtinFloor`.
 // Limits, stated: the mirror is the only source here, so a mirror that is down means NO expectation (the caller falls
 // back and must say so); this client's memory is per browser profile and starts empty, so the first index a profile sees
 // is `first-seen` (authenticity, not freshness: a replayed genuine old index cannot be told from the newest until a newer
 // one has been remembered); the same limits as the Node consumers', docs/security/independent-verifier-plan.md 10.5-10.7.
 import PINNED_TRUSTED_ROOT from "../roots/sigstore-trusted-root.json" with { type: "json" };
 import { verifyReleaseIndex, candidatesFromIndex } from "../release-index-core.mjs";
-import { verifyReleaseAttestation, DEFAULT_RELEASE_POLICY } from "../provenance.mjs";
+import { verifyReleaseAttestation } from "../provenance.mjs";
+import { RELEASE_POLICY, floorOf, revokedOf, floorRecord } from "../release-policy.mjs";
 import { createIndexMemory, webStorageStore, memoryStore } from "../index-memory.mjs";
 import { base64ToBytes } from "./x509.mjs";
 
 export const DEFAULT_REPO = "EnclaveHost/enclave";
+export { RELEASE_POLICY };
 export const MIRROR_PATH = "/v1/release-index";
 export const MEMORY_KEY = "enclave.verifierIndexMemory";
 export const TRUSTED_ROOT = PINNED_TRUSTED_ROOT;
@@ -56,11 +58,12 @@ async function fetchBounded(url, { fetchImpl, timeoutMs, maxBytes }) {
 export async function releaseExpectationsFromMirror({ mirrorUrl, fetchImpl = globalThis.fetch, trustedRoot = PINNED_TRUSTED_ROOT, policy = {}, repo = DEFAULT_REPO, memory = null,
                                                       timeoutMs = 8000, maxBytes = 1024 * 1024, maxIndexBytes = 256 * 1024 } = {}) {
   const out = { source: "mirror", verifiedLocally: true, repo, ok: false, latestTag: null, candidates: [], allowed: [], reasons: [], index: { status: "unavailable" }, mirror: { url: mirrorUrl, fetched: false, said: null } };
-  const builtin = policy.minimumRelease ?? DEFAULT_RELEASE_POLICY.minimumRelease;
-  let pol = { ...policy, repository: repo };
-  const floorApplied = () => `v${(pol.minimumRelease ?? builtin).join(".")}`;
+  const callerFloor = Array.isArray(policy.minimumRelease) ? policy.minimumRelease : null;
+  const remembered = memory && typeof memory.floor === "function" ? memory.floor() : null;
+  let floor = floorOf({ caller: callerFloor, remembered });
+  let pol = { ...policy, repository: repo, minimumRelease: floor.floor, revoked: revokedOf(policy.revoked) };
   const failIndex = (status, reasons, extra = {}) => {
-    out.index = { status, ...extra, floorApplied: floorApplied(), reasons };
+    out.index = { status, ...extra, ...floorRecord(floor), reasons };
     out.reasons.push(`no release's provenance verified: the signed release index was ${status} (${reasons.join("; ")}); there is no expected measurement, so nothing can be verified (fail closed)`);
     return out;
   };
@@ -80,16 +83,17 @@ export async function releaseExpectationsFromMirror({ mirrorUrl, fetchImpl = glo
   if (indexBytes.length > maxIndexBytes) return failIndex("unavailable", [`the mirror's index is ${indexBytes.length} bytes, over the ${maxIndexBytes}-byte cap`]);
   // 2. the index: digest computed here, signature and identity verified here against the pinned root, content checked here
   let v;
-  try { v = await verifyReleaseIndex({ indexBytes, bundle: said.attestation.bundle, trustedRoot, policy: pol }); }
+  try { v = await verifyReleaseIndex({ indexBytes, bundle: said.attestation.bundle, trustedRoot, policy: { ...policy, repository: repo } }); }
   catch (e) { v = { ok: false, signed: false, reasons: [`REJECT: the index attestation could not be verified: ${e && e.message ? e.message : e}`] }; }
   if (!v.ok) return failIndex("refused", v.reasons.slice(-2), { authenticity: v.signed ? "signed" : "unverified", ...(v.publication ? { publication: v.publication } : {}), ...(v.digest ? { indexSha256: v.digest } : {}) });
   const base = { authenticity: "signed", indexSha256: v.digest, publication: v.publication, sequenceAuthenticated: v.sequenceAuthenticated, schema: v.schema, generatedAt: v.generatedAt, minimumRelease: `v${v.minimumRelease.join(".")}`, signedTag: v.claims?.tag ?? null };
   // 3. freshness: this client's memory (publication order from the certificate's run invocation; the floor only rises)
   const m = memory ? memory.consider({ publication: v.publication, digest: v.digest, minimumRelease: v.minimumRelease, tag: v.claims?.tag ?? null }) : null;
   if (m && !m.ok) return failIndex("refused", [m.why], { ...base, freshness: m.kind });
-  // the index sets the floor (it verified above the built-in one) and ADDS revocations: a caller's revocation is never undone by an index
-  pol = { ...pol, minimumRelease: v.minimumRelease, revoked: [...new Set([...(Array.isArray(policy.revoked) ? policy.revoked.map(String) : []), ...v.revoked])] };
-  out.index = { status: "verified", ...base, freshness: m ? m.kind : "not-remembered", latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, floorApplied: floorApplied(),
+  // the index raises the floor (it verified at or above the built-in one) and ADDS revocations: none is ever undone
+  floor = floorOf({ caller: callerFloor, remembered, index: v.minimumRelease });
+  pol = { ...pol, minimumRelease: floor.floor, revoked: revokedOf(pol.revoked, v.revoked) };
+  out.index = { status: "verified", ...base, freshness: m ? m.kind : "not-remembered", latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, ...floorRecord(floor),
                 ...(m && m.persisted === false ? { memoryNotPersisted: true } : {}), reasons: v.reasons.slice(-1) };
   out.mirror.indexSha256Claimed = said.indexSha256 === v.digest ? "matches" : "differs from the digest computed here (ignored)";
   out.latestTag = v.latest.gpu?.tag ?? candidatesFromIndex(v)[0]?.tag ?? null;
@@ -100,7 +104,7 @@ export async function releaseExpectationsFromMirror({ mirrorUrl, fetchImpl = glo
     const tag = c.tag, digest = String(c.digest || "").toLowerCase();
     const bundle = carried.get(tag);
     if (!bundle) { out.candidates.push({ tag, digest, provenance: "unavailable", why: "the mirror carried no attestation bundle for this tag" }); continue; }
-    if (pol.revoked.includes(tag)) { out.candidates.push({ tag, digest, provenance: "refused", why: "revoked (by the signed release index or this client's policy)" }); continue; }
+    if (pol.revoked.includes(tag)) { out.candidates.push({ tag, digest, provenance: "refused", why: `revoked (${RELEASE_POLICY.revoked.includes(tag) ? `the built-in policy, ${RELEASE_POLICY.source}` : "by the signed release index or this client's policy"})` }); continue; }
     let r;
     try { r = await verifyReleaseAttestation({ bundle, digestHex: digest, trustedRoot, policy: pol }); }
     catch (e) { r = { ok: false, reasons: [`REJECT: the release attestation could not be verified: ${e && e.message ? e.message : e}`], claims: null }; }

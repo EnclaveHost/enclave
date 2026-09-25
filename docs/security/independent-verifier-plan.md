@@ -1040,8 +1040,8 @@ it). The bundle's provenance is `verifier/web/dist/MANIFEST.json`, reproduced by
 Limits, unchanged in kind: the mirror is the browser's only source (a down mirror means the labelled fallback, not an
 independent expectation); a browser profile's memory starts empty, so its first index is `first-seen` (authenticity,
 not freshness) and a genuine old index replayed to a fresh profile is not detectable until a newer one has been
-remembered; the built-in floor on the unavailable and refused paths is the library's (`v0.5.0`, as in the Node
-consumers); private windows and blocked storage give a per-page memory that the record reports as not persisted. The
+remembered; the built-in floor on the unavailable and refused paths is `verifier/release-policy.json`'s (v0.5.841,
+section 10.8; until 2026-09-25 it was a separate library constant, v0.5.0); private windows and blocked storage give a per-page memory that the record reports as not persisted. The
 browser's own verdict remains a shadow: `acceptance: false`, no primary root or verdict changed.
 
 **Strict rollout criteria, per consumer.** Each strict switch stays OFF until every gate below has passed with
@@ -1059,6 +1059,55 @@ recorded evidence; flipping one is a reviewed commit that names the evidence. St
 | browser | own verdict primary | provenance verified in the browser from the mirror (DONE 2026-09-25, above), then 14 days of `agree` with `independent: true` in the site shadow with the primary on hosted enclaves | NOT MET: no hosted enclave; the shadow is opt-in and records only |
 
 Until then Tinfoil is the primary everywhere, and every own verdict is published beside it.
+
+## 10.8 One source for the release floor and revocations (2026-09-25, after Codex's audit)
+
+**The mismatch.** `verifier/release-policy.json` (reviewed, signed into every release index since v0.5.847) set the floor
+at v0.5.841, while the library's built-in `DEFAULT_RELEASE_POLICY.minimumRelease` was a separate constant, `[0, 5, 0]`,
+841 patch releases lower. Every path without a verified index inherited the constant: a fresh browser profile or a fresh
+Node memory whose index was unavailable or refused, the unsigned `/releases/latest` fallback, and `requireIndex` refusals
+all reported and applied v0.5.0. Section 10.5 already said the built-in floor is what bounds such a consumer; the
+constant made that bound meaningless. The intended product floor is the reviewed file's: v0.5.841 was the latest release
+when the index was designed (the plan's pinned release, section 8), and no host in service runs a tagged release below
+it (the relay's `/enclaves` on 2026-09-25: the traffic-only relay row, the Linux SNP tier box, whose measurements come
+from the isolation branch and are judged by the deployment-binding path, not release provenance, and the NucBox VBS
+row, unsupported). No compatibility exception is justified, so none is made.
+
+**The fix.** `verifier/release-policy.mjs` imports the JSON file and is the only definition of the built-in policy:
+`DEFAULT_RELEASE_POLICY.minimumRelease` and `.revoked` are the file's, and the Node bundle, its relay copy and the
+browser bundle carry the file as a bundled input whose sha256 their manifests pin (so the floor a shipped bundle
+applies is reproducible from the tree it was built from, and the reproduce checks refuse a bundle built from another
+policy). A malformed file fails the import: nothing loads without a floor. The rules every consumer applies, in one
+place (`floorOf`, `revokedOf`) and used by the Node consumer and the browser alike: the floor applied is the highest of
+the built-in one, the consumer's remembered floor and a verified index's floor; an index whose floor is below the
+built-in one is refused (`checkIndex`, unchanged); a mirror's own fields are never read; revocations are the UNION of
+the built-in list, a caller's and a verified index's, so no index or caller can un-revoke a tag. A caller may still pass
+an explicit floor (the offline CLI's `--min-release`, the tests), and the result then says `floorSource: "caller"` and
+`callerBelowBuiltin: true` beside `builtinFloor`: an explicitly lower floor is possible and never silent. Every result
+of `releaseExpectations` and `releaseExpectationsFromMirror` carries `floorApplied`, `floorSource` (built-in,
+remembered, signed index, caller) and `builtinFloor`.
+
+**Raising the floor.** A raise is a reviewed commit to the JSON file that rebuilds the bundles in the same commit. The
+consumers built from it refuse any index signed before it (its floor is below theirs) until a release built from that
+commit publishes an index carrying the new floor. In that window they take their recorded fallback: Node the unsigned
+pointer under the RAISED floor, the browser shadow its labelled fallback to the primary's measurement. The policy file
+alone cuts no release (deploy.yml releases on image inputs), so a raise that must take effect in the index at once
+should land with, or be followed by, a release; nothing is ever accepted below the new floor in the meantime.
+
+**Evidence.** `test/verifier-release-floor.test.mjs` (6): the file, the compiled-in module, the provenance default and
+all four shipped artifacts (Node bundle, relay copy, browser bundle, site vendor copy) carry the same floor and
+revocations, each manifest pinning the file's sha256; the genuine release v0.5.840 (pinned for this, published five
+minutes before v0.5.841) verifies under an explicit lower floor and is refused by default, while v0.5.841 verifies; the
+Node consumer and the browser on the same cases (verified index with and without a fresh memory, index unavailable,
+index refused, strict, a remembered higher floor, a caller revocation) give EQUAL floor fields, and Node's fallback
+refuses v0.5.840 under the built-in floor; a mirror that claims a lower floor, and a mirror with no bytes that says
+"verified" and v0.5.0, change nothing; the compiled bundles give the same results as the source on four cases; and a
+copy of the tree with the floor raised to v0.5.848 and v0.5.848-cpu revoked refuses the real signed index as below its
+floor, falls back under the raised floor, and keeps the revocation against a caller's empty list and a caller's lower
+floor, while a malformed file fails the import. Four deliberate regressions (the old constant restored, the built-in
+list dropped from the union, the built-in revocation check removed, the remembered floor ignored) each fail the suite.
+`test/site-verifier-shadow.test.mjs` asserts the fallback record's floor through the real vendored bundle, for a
+profile with history (remembered) and a fresh one (built-in).
 
 ## 11. Open risks
 

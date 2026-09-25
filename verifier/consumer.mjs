@@ -24,10 +24,11 @@ export { httpCollateral, fileCollateral, memoryCollateral, layeredCollateral, ca
 import { verifyReleaseAttestation, DEFAULT_RELEASE_POLICY } from "./provenance.mjs";
 import { snpProductHint, kdsVcekUrl } from "../relay/snp-verify.mjs";
 import { verifyReleaseIndex, candidatesFromIndex, INDEX_ASSET } from "./release-index.mjs";
+import { RELEASE_POLICY, floorOf, revokedOf, floorRecord } from "./release-policy.mjs";
+export { RELEASE_POLICY };
 import { createFileIndexMemory as createIndexMemory } from "./index-memory-file.mjs";
 export { createIndexMemory };
 export { webStorageStore, memoryStore } from "./index-memory.mjs";
-const cmpVersion = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 import PINNED_TRUSTED_ROOT from "./roots/sigstore-trusted-root.json" with { type: "json" };
 
 export const RAD_PATH = "/.well-known/tinfoil-attestation";
@@ -63,7 +64,7 @@ export async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO,
     if (!c || c.error || !c.bundle) { out.candidates.push({ tag, digest: c?.digest ?? null, provenance: "unavailable", why: c?.error || c?.note || "no attestation bundle" }); continue; }
     const digest = String(c.digest || "").trim().toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(digest)) { out.candidates.push({ tag, digest: c.digest ?? null, provenance: "refused", why: "the release digest is not 64 hex characters" }); continue; }
-    if (Array.isArray(policy.revoked) && policy.revoked.includes(tag)) { out.candidates.push({ tag, digest, provenance: "refused", why: "revoked by the signed release index" }); continue; }
+    if (revokedOf(policy.revoked).includes(tag)) { out.candidates.push({ tag, digest, provenance: "refused", why: `revoked (${RELEASE_POLICY.revoked.includes(tag) ? `the built-in policy, ${RELEASE_POLICY.source}` : "by the signed release index or the caller's policy"})` }); continue; }
     const r = await verifyReleaseAttestation({ bundle: c.bundle, digestHex: digest, trustedRoot, policy: { ...policy, repository: repo } });
     out.candidates.push({ tag, digest, provenance: r.ok ? "verified" : "refused", measurement: r.ok ? r.claims.snpMeasurement : null,
                           version: r.ok ? r.claims.version : null, flavor: r.ok ? r.claims.flavor : null, reasons: r.reasons.slice(-2) });
@@ -88,11 +89,13 @@ export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fe
   let indexArtifact = null;
   const get = (url, accept) => fetchBounded(url, { fetchImpl, timeoutMs, maxBytes, accept });
   let latestTag = null, list = tags, index = { status: "not-consulted" };
-  let pol = { ...policy };
-  // the remembered floor applies to EVERY path, the fallback included: a fallback never accepts below what a verified index established
+  // the floor (verifier/release-policy.mjs floorOf): the built-in one from verifier/release-policy.json, or the caller's
+  // explicit one, raised by the remembered floor on EVERY path, the fallback included (a fallback never accepts below what a
+  // verified index established), and by a verified index's; revocations only accumulate (built-in, caller, index)
+  const callerFloor = Array.isArray(policy.minimumRelease) ? policy.minimumRelease : null;
   const remembered = indexMemory?.floor?.() ?? null;
-  const builtin = pol.minimumRelease ?? DEFAULT_RELEASE_POLICY.minimumRelease;
-  if (remembered && cmpVersion(remembered, builtin) > 0) pol = { ...pol, minimumRelease: remembered };
+  let floor = floorOf({ caller: callerFloor, remembered });
+  let pol = { ...policy, minimumRelease: floor.floor, revoked: revokedOf(policy.revoked) };
   if (!list && useIndex) {
     try {
       const bytes = await get(`${downloadBase}/${repo}/releases/latest/download/${INDEX_ASSET}`, "application/json");
@@ -110,19 +113,20 @@ export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fe
           else {
             index = { status: "verified", ...base, freshness: m ? m.kind : "not-remembered", latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, ...(m && m.persisted === false ? { memoryNotPersisted: true } : {}) };
             list = candidatesFromIndex(v).map((c) => c.tag); latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
-            pol = { ...pol, minimumRelease: v.minimumRelease, revoked: [...new Set([...(Array.isArray(pol.revoked) ? pol.revoked.map(String) : []), ...v.revoked])] };   // the index adds revocations; a caller's is never undone
+            floor = floorOf({ caller: callerFloor, remembered, index: v.minimumRelease });
+            pol = { ...pol, minimumRelease: floor.floor, revoked: revokedOf(pol.revoked, v.revoked) };   // the index adds revocations; none is ever undone
             if (keepArtifacts) indexArtifact = { bytes: bytes.toString("base64"), sha256: v.digest, bundle };
           }
         } else index = { status: "refused", authenticity: v.signed ? "signed" : "unverified", ...(v.publication ? { publication: v.publication } : {}), reasons: v.reasons.slice(-2) };
       }
     } catch (e) { index = { status: "unavailable", reasons: [e.message] }; }
-    if (index.status !== "verified" && requireIndex) return { ...(await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol })), latestTag: null, index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` }, indexError: `the signed release index is required and was ${index.status}${index.freshness ? ` (${index.freshness})` : ""}: ${(index.reasons || []).join("; ")}` };
+    if (index.status !== "verified" && requireIndex) return { ...(await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol })), latestTag: null, index: { ...index, ...floorRecord(floor) }, indexError: `the signed release index is required and was ${index.status}${index.freshness ? ` (${index.freshness})` : ""}: ${(index.reasons || []).join("; ")}` };
   }
   if (!list) {
     try {
       latestTag = JSON.parse((await get(`${apiBase}/repos/${repo}/releases/latest`)).toString("utf8"))?.tag_name;
       if (!TAG_RE.test(String(latestTag))) throw new Error(`the release index named ${JSON.stringify(latestTag)}, not a vX.Y.Z tag`);
-    } catch (e) { return { ...(await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol })), latestTag: null, index, indexError: e.message }; }
+    } catch (e) { return { ...(await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol })), latestTag: null, index: { ...index, ...floorRecord(floor) }, indexError: e.message }; }
     list = FLAVOR_SUFFIXES.map((s) => latestTag + s);
   }
   const candidates = [];
@@ -136,7 +140,7 @@ export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fe
     } catch (e) { candidates.push({ tag, error: e.message }); }
   }
   const from = await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag, keepArtifacts });
-  return { ...from, index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` }, ...(keepArtifacts ? { artifacts: { index: indexArtifact, releases: from.artifacts?.releases ?? [] } } : {}) };
+  return { ...from, index: { ...index, ...floorRecord(floor) }, ...(keepArtifacts ? { artifacts: { index: indexArtifact, releases: from.artifacts?.releases ?? [] } } : {}) };
 }
 
 // ---- 2. the capture: the document and the certificate of ONE TLS connection --------------------------------------------

@@ -38,7 +38,7 @@ test("the production mirror capture verifies in the client: index signed by the 
   assert.equal(r.index.status, "verified"); assert.equal(r.index.authenticity, "signed"); assert.equal(r.index.freshness, "not-remembered", "no memory given: authenticity only, and it says so");
   assert.deepEqual(r.index.publication, { runId: RUN, attempt: 1, uri: `https://github.com/EnclaveHost/enclave/actions/runs/${RUN}/attempts/1` });
   assert.equal(r.index.sequenceAuthenticated, true); assert.equal(r.index.schema, "enclave-release-index/v2"); assert.equal(r.index.signedTag, GPU);
-  assert.equal(r.index.minimumRelease, "v0.5.841"); assert.equal(r.index.floorApplied, "v0.5.841"); assert.deepEqual(r.index.latest, { gpu: GPU, cpu: CPU }); assert.deepEqual(r.index.revoked, []);
+  assert.equal(r.index.minimumRelease, "v0.5.841"); assert.equal(r.index.floorApplied, "v0.5.841"); assert.equal(r.index.floorSource, "signed index"); assert.equal(r.index.builtinFloor, "v0.5.841"); assert.deepEqual(r.index.latest, { gpu: GPU, cpu: CPU }); assert.deepEqual(r.index.revoked, []);
   assert.equal(r.index.indexSha256, MIRROR.indexSha256); assert.equal(r.mirror.indexSha256Claimed, "matches");
   assert.equal(r.latestTag, GPU);
   assert.deepEqual(r.allowed.map((a) => a.tag), [GPU, CPU]);
@@ -118,7 +118,7 @@ test("swapped release bundle: the cpu bundle under the gpu tag is refused on the
 });
 
 test("mirror unavailable: HTTP 503, a non-JSON body, a body over the cap, a redirect, a mirror that says verified but carries no bytes, a bad URL: unavailable, nothing allowed, the reason names the cause", async () => {
-  const unavailable = async (opts, why) => { const r = await run(opts); assert.equal(r.ok, false); assert.equal(r.index.status, "unavailable"); assert.deepEqual(r.allowed, []); assert.match(r.index.reasons.join(" "), why); assert.equal(r.index.floorApplied, "v0.5.0", "no index verified: the BUILT-IN floor (the library's, as the Node consumers report it), not the index's"); return r; };
+  const unavailable = async (opts, why) => { const r = await run(opts); assert.equal(r.ok, false); assert.equal(r.index.status, "unavailable"); assert.deepEqual(r.allowed, []); assert.match(r.index.reasons.join(" "), why); assert.equal(r.index.floorApplied, "v0.5.841", "no index verified: the BUILT-IN floor, verifier/release-policy.json's"); assert.equal(r.index.floorSource, "built-in"); assert.equal(r.index.builtinFloor, "v0.5.841"); return r; };
   answer = { status: 503, body: { error: "down" } }; const a = await unavailable({}, /HTTP 503/); assert.equal(a.mirror.fetched, false);
   answer = { status: 200, body: "<html>not json" }; await unavailable({}, /could not be read/);
   answer = { status: 200, body: MIRROR }; await unavailable({ maxBytes: 1000 }, /exceeds 1000 bytes/);

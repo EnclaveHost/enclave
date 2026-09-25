@@ -153,6 +153,13 @@ test("end to end with the REAL vendored module and the mirror: the expected meas
     const f = await runShadow({ host: HOST, doc, enabled: true, importer, fetchImpl, now, storage, log: quiet });
     assert.equal(f.independent, false); assert.match(f.expectedFrom, /^FALLBACK, not independent: the primary's Sigstore step \(codeMeasurement\), because the release index was unavailable/);
     assert.equal(f.provenance.ok, false); assert.equal(f.provenance.index.status, "unavailable"); assert.match(f.provenance.index.reasons.join(" "), /HTTP 503/);
+    // the fallback's record still names the floor the bundle carries (verifier/release-policy.json), never a lower one
+    // (this page's storage remembers the index verified above, so its floor is the remembered one, equal to the built-in)
+    assert.equal(f.provenance.index.floorApplied, "v0.5.841"); assert.equal(f.provenance.index.floorSource, "remembered"); assert.equal(f.provenance.index.builtinFloor, "v0.5.841");
+    // a fresh profile (empty storage) on the same fallback: the built-in floor, named as such
+    const fresh = await runShadow({ host: HOST, doc, enabled: true, importer, fetchImpl, now, storage: fakeStorage(), log: quiet });
+    assert.equal(fresh.independent, false); assert.equal(fresh.provenance.index.floorApplied, "v0.5.841"); assert.equal(fresh.provenance.index.floorSource, "built-in");
+    assert.equal(r.provenance.index.floorApplied, "v0.5.841"); assert.equal(r.provenance.index.floorSource, "signed index");
     assert.equal(f.verdict.status, "verified"); assert.equal(f.comparison.outcome, "agree"); assert.equal(f.acceptance, false);
     // the mirror is down and the primary produced no code measurement: nothing is allowed at all
     const g = await runShadow({ host: HOST, doc: { securityVerified: true }, enabled: true, importer, fetchImpl, now, storage, log: quiet });
