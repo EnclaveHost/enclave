@@ -174,16 +174,16 @@ export function makePredictor(o) {
   const components = o.components || (work && path.join(work, "components"));
   const releases = new Map((o.releases || []).map((r) => [String(r.id).toLowerCase(), r.dir]));
   const admit = [...new Set((o.admit || []).map((s) => String(s).toLowerCase()))];
-  // the releases a guest CERTIFICATE may be judged against (GET /v1/expected-guest): the release's set plus the legacy
-  // images deployments still run; never used by the release itself
-  const certAdmit = [...new Set([...admit, ...(o.certAdmit || []).map((s) => String(s).toLowerCase())])];
+  // the releases a guest CERTIFICATE may be judged against (GET /v1/expected-guest): every INSTALLED release (installing
+  // one is itself the reviewed act, enclave-d1: no second allowlist). The release itself uses only `admit`.
+  const certAdmit = [...releases.keys()];
   const problems = [
     !HEX(40).test(String(commit || "")) && "the toolchain commit (40 hex)",
     !repo && "the toolchain repository", typeof readCatalog !== "function" && "the catalog reader",
     !/^https:\/\//.test(String(gateway || "")) && "an https gateway", !sevSnpMeasure && "sev-snp-measure",
     !HEX(64).test(String(sevSnpMeasureSha256 || "")) && "sev-snp-measure's pinned digest", !work && "a work directory",
     !admit.length && "at least one admitted release",
-    ...certAdmit.filter((id) => !HEX(64).test(id) || !releases.has(id)).map((id) => `admitted release ${id.slice(0, 12)} installed`),
+    ...admit.filter((id) => !HEX(64).test(id) || !releases.has(id)).map((id) => `admitted release ${id.slice(0, 12)} installed`),
   ].filter(Boolean);
 
   const cache = new Map();          // key -> { at, value } (LRU by insertion order)
@@ -514,8 +514,6 @@ export function versionConfigReader(clients, catalogAddress) {
 //   SECRETS_RELEASE_PREDICT_COMMIT     the toolchain commit, 40 hex
 //   SECRETS_RELEASE_PREDICT_RELEASES   id=dir,id=dir: every installed domain release (the known answers' included)
 //   SECRETS_RELEASE_DOMAIN_RELEASES    id,id: the releases whose images a release admits
-//   SECRETS_RELEASE_CERT_RELEASES      id,id: ADDITIONAL releases a guest certificate may be judged against (legacy images
-//                                      deployments still run); /v1/expected-guest predicts over both sets
 //   SECRETS_RELEASE_PREDICT_GATEWAY    https trustless gateway
 //   SECRETS_RELEASE_SEV_SNP_MEASURE    the pinned sev-snp-measure executable
 //   SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256  its sevSnpMeasureDigest (node relay/measurement-predict.mjs digest <exe> prints it)
@@ -527,7 +525,6 @@ export function predictorEnv(env = process.env) {
     .filter((r) => HEX(64).test(r.id) && r.dir);
   return { repo: env.SECRETS_RELEASE_PREDICT_REPO || "", commit: String(env.SECRETS_RELEASE_PREDICT_COMMIT || "").toLowerCase(),
            releases, admit: String(env.SECRETS_RELEASE_DOMAIN_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
-           certAdmit: String(env.SECRETS_RELEASE_CERT_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
            gateway: env.SECRETS_RELEASE_PREDICT_GATEWAY || "", sevSnpMeasure: env.SECRETS_RELEASE_SEV_SNP_MEASURE || "",
            sevSnpMeasureSha256: String(env.SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256 || "").toLowerCase(),
            work: env.SECRETS_RELEASE_PREDICT_WORK || "" };

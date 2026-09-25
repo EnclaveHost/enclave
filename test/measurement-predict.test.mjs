@@ -420,18 +420,15 @@ test("an installed release may be READ-ONLY: the predictor measures an owner-wri
   } finally { chmodAll(ro, 0o644, 0o755); }
 });
 
-test("two admitted sets: the release's, and the certificate set (release + legacy); the release never predicts a legacy-only image", async () => {
-  const { p } = predictor({ admit: [R1], opts: { certAdmit: [R2, R3] } });
-  assert.deepEqual(p.sets.release, [R1]); assert.deepEqual([...p.sets.cert].sort(), [R1, R2, R3].sort());
+test("two sets: the release's admitted releases, and every INSTALLED release for a certificate; the release never predicts outside its own", async () => {
+  const { p } = predictor({ admit: [R1] });
+  assert.deepEqual(p.sets.release, [R1]); assert.deepEqual([...p.sets.cert].sort(), Object.keys(REL).sort());
   const rel = await p.expectedFor(REF), cert = await p.expectedFor(REF, { set: "cert" });
   assert.equal(rel.ok, true); assert.equal(cert.ok, true);
   assert.deepEqual(rel.images.map((i) => i.release), [R1], "the release admits only its own set");
-  assert.deepEqual(cert.images.map((i) => i.release).sort(), [R1, R2, R3].sort(), "the certificate set adds the legacy releases");
+  assert.deepEqual(cert.images.map((i) => i.release).sort(), Object.keys(REL).sort(), "a certificate: every installed release");
   assert.equal(cert.appId, rel.appId);
   assert.equal((await p.expectedFor(REF, { set: "other" })).code, "predictor_unconfigured");
-  // a certificate release that is not installed is missing configuration
-  const bad = predictor({ admit: [R1], opts: { certAdmit: ["f1".repeat(32)] } });
-  assert.ok(bad.p.problems.some((x) => /f1f1f1f1f1f1 installed/.test(x)), bad.p.problems.join("; "));
 });
 
 test("runBounded: a hung tool is killed with its whole process group at the timeout; output is capped", async () => {
