@@ -281,3 +281,44 @@ test("with the opt-in set, start proceeds (and readiness is still decided elsewh
   const e = await l.start(mapping, { instanceId: "iso-3", guestReadySec: 1 }).then(() => null, (x) => x);
   if (e) assert.doesNotMatch(e.message, /AllowFirmwareLoadFromFile/);
 });
+
+/* ---- the partition kind and the UEFI image identity ------------------------------------------- *
+ *
+ * Both from enclave-99's UEFI review. The kind must be the LAUNCHER's word, because the guest
+ * cannot know it and the monitor stopped printing a fixed one; and the image identity must be the
+ * MEDIUM's hash, not the UKI's, because with Secure Boot off the stub reads addons, credentials
+ * and extensions from the ESP - so two media carrying the same UKI can boot different command
+ * lines, and only the medium hash tells them apart. */
+import { BOUNDARY as WMI_BOUNDARY, uefiImageIdentity } from "./wmi-launcher.mjs";
+
+test("the WMI launcher states its OWN partition kind, not the HCS one", async () => {
+  const { BOUNDARY: HCS } = await import("./backend-hcs.mjs");
+  assert.equal(WMI_BOUNDARY.partition, "wmi-openhcl-gen2");
+  assert.notEqual(WMI_BOUNDARY.partition, HCS.partition,
+    "a report copied from the HCS path would be a false statement about the boundary");
+  assert.equal(WMI_BOUNDARY.hostExcluded, false, "a Gen2 OpenHCL partition does not exclude the host");
+  assert.equal(WMI_BOUNDARY.attested, false);
+  assert.equal(WMI_BOUNDARY.tier, "T0-hv", "the contract's spelling, which routeFor and judge-hv use");
+});
+
+test("the UEFI identity is the MEDIUM's hash; the UKI rides beside it, never instead", () => {
+  const medium = "ab".repeat(32), uki = "cd".repeat(32);
+  const id = uefiImageIdentity({ mediumSha256: medium, mediumPath: "C:\\x\\boot.iso", ukiSha256: uki });
+  assert.equal(id.guestImageSha256, medium, "what booted is the medium, because the ESP can differ under one UKI");
+  assert.equal(id.ukiSha256, uki);
+  assert.notEqual(id.guestImageSha256, uki);
+  assert.equal(id.partition, "wmi-openhcl-gen2");
+});
+
+test("the HCS-only kernel and initrd fields are NOT filled on the UEFI path", () => {
+  const id = uefiImageIdentity({ mediumSha256: "ef".repeat(32) });
+  assert.equal(id.kernelSha256, undefined, "there is no host-supplied kernel on this path");
+  assert.equal(id.initrdSha256, undefined, "filling it would state an identity the boot never used");
+});
+
+test("a missing or malformed medium hash is refused rather than reported as unknown", () => {
+  for (const bad of [undefined, null, "", "not-hex", "ab".repeat(20)]) {
+    assert.throws(() => uefiImageIdentity({ mediumSha256: bad }), /medium's sha256 is required/,
+      `${JSON.stringify(bad)} must be refused: without it nothing says what booted`);
+  }
+});

@@ -48,6 +48,55 @@
  *  `IsolationType` on Msvm_VirtualSystemSettingData reads EMPTY even when the VM was created with
  *  one, so do not detect this by reading that field back.
  */
+/**
+ * THE PARTITION KIND IS THE LAUNCHER'S TO STATE, NOT THE GUEST'S.
+ *
+ * The monitor stopped printing a fixed `partition=hcs-child` (enclave-5d, 4127789d) for the right
+ * reason: a guest cannot know what kind of partition it is in. So whichever launcher started the
+ * domain says so, and the two launchers must NOT say the same thing - a report carrying no kind, or
+ * one copied from the HCS path, would be a false statement about the boundary (enclave-99).
+ *
+ * `hostExcluded` is false here for the same reason it is false on the HCS path: a Gen2 OpenHCL
+ * partition on this host does not exclude the host, and nothing this launcher produces may be
+ * advertised as verified or host-excluded capacity.
+ */
+export const BOUNDARY = Object.freeze({
+  tier: "T0-hv",
+  partition: "wmi-openhcl-gen2",   // NOT "hcs-child": a different launcher, a different kind
+  hostExcluded: false,
+  attested: false,
+  note: "a Gen2 OpenHCL partition started through WMI. The host is NOT excluded and no chain is "
+      + "verified: never advertise this as verified or host-excluded capacity.",
+});
+
+/**
+ * The image identity for a UEFI boot: the sha256 of the MEDIUM the launcher attached, hashed AT
+ * ATTACH TIME.
+ *
+ * Not the UKI's hash, and this is a security property rather than a preference. With Secure Boot
+ * off the pinned stub reads addons, credentials and extensions from the ESP, so TWO MEDIA CARRYING
+ * THE SAME UKI CAN BOOT DIFFERENT COMMAND LINES. Only the medium hash separates them, so only the
+ * medium hash can honestly answer "what booted". The UKI hash and the composition are published
+ * BESIDE it, never in place of it.
+ *
+ * The HCS-only fields are deliberately absent: on this path there is no host-supplied kernel or
+ * initrd file, and filling `kernelSha256`/`initrdSha256` would state an identity the boot never
+ * used. (enclave-99's review; adopted in 5d's UEFI-BOOT.md.)
+ */
+export function uefiImageIdentity({ mediumSha256, mediumPath, ukiSha256 = null, composition = null }) {
+  if (!/^[0-9a-f]{64}$/.test(String(mediumSha256 || "").toLowerCase()))
+    throw new Error("the medium's sha256 is required, hashed at attach time: without it nothing says WHAT booted");
+  const id = {
+    partition: BOUNDARY.partition,
+    guestImageSha256: String(mediumSha256).toLowerCase(),
+    guestImageKind: "uefi-medium",
+    guestImagePath: mediumPath ?? null,
+  };
+  if (ukiSha256) id.ukiSha256 = String(ukiSha256).toLowerCase();   // beside, never instead
+  if (composition) id.composition = composition;
+  return Object.freeze(id);
+}
+
 export const GUEST_FEATURE_SET = 0x00000201;   // the value Microsoft's script writes, kept as theirs
 export const MIN_VM_VERSION = 12.0;            // their script throws below this
 export const OWNER_MARKER = "enclave-vbslike-app-domain";
