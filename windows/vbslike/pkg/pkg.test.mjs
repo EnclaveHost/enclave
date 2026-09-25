@@ -36,6 +36,24 @@ const run = (args) => { const r = spawnSync(process.execPath, [PKG, ...args], { 
 const fails = (out) => out.split("\n").filter((l) => l.startsWith("FAIL")).join("\n");
 let n = 0;
 function writeManifest(m) { const p = path.join(WORK, `m-${process.pid}-${n++}.json`); fs.writeFileSync(p, JSON.stringify(m, null, 1) + "\n"); return p; }
+// The reference file AS A DRAFT PINS IT, resolved the way pkg.mjs resolves a `repo` source: at the draft's own commit when
+// the draft is committed and unchanged since, else the working tree. A test about an older draft must never read the
+// live file: a later version's rollover rewrites it (v31 moved c567e432 to superseded).
+const REF_REL = "windows/vbslike/pkg/reference/nucbox-vbs-reference.json";
+function refRawFor(draft) {
+  const top = spawnSync("git", ["-C", HERE, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).stdout.trim(), rel = path.relative(top, draft);
+  const c = spawnSync("git", ["-C", top, "log", "-1", "--format=%H", "--", rel], { encoding: "utf8" }).stdout.trim();
+  const clean = !!c && spawnSync("git", ["-C", top, "diff", "--quiet", c, "--", rel]).status === 0;
+  return clean ? spawnSync("git", ["-C", top, "show", `${c}:${REF_REL}`], { encoding: "utf8", maxBuffer: 1 << 26 }).stdout : fs.readFileSync(path.join(top, REF_REL), "utf8");
+}
+const refFor = (draft) => JSON.parse(refRawFor(draft));
+// A mutated manifest is written outside the repository, where a `repo` source reads the working tree: pin its reference
+// to exact bytes instead.
+function pinRef(m, raw) {
+  const p = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vbsref-")), "ref.json"); fs.writeFileSync(p, raw);
+  const f = m.files.find((x) => x.role === "reference.values"); f.from = { file: p };
+  f.sha256 = crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex"); f.bytes = fs.statSync(p).size; return m;
+}
 // re-pin the named entries to what their sources now give: a consistent forgery
 function repin(m, ids) {
   const r = run(["pins", writeManifest(m)]);
@@ -719,7 +737,7 @@ test("draft v28 (held; the handoff version) ships the static-line candidate and 
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
   assert.match(r.out, /ok   reference values reference\/nucbox-vbs-reference\.json: .*\(5 images, 1 eligible\)/);
-  const ref = JSON.parse(String(fs.readFileSync(path.join(HERE, "reference/nucbox-vbs-reference.json"))));
+  const ref = refFor(D);
   const withRef = (mut) => { const m = structuredClone(d), x = structuredClone(ref); mut(x); const p = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vbsref-")), "ref.json"); fs.writeFileSync(p, JSON.stringify(x)); const f = m.files.find((f) => f.role === "reference.values"); f.from = { file: p }; f.sha256 = sha256(fs.readFileSync(p)); f.bytes = fs.statSync(p).size; return run(["verify", writeManifest(m)]); };
   let x = withRef((j) => { j.images.find((e) => e.id === "vbs-linux-candidate-debug-twin").eligible = true; });
   assert.equal(x.code, 1); assert.match(x.out, /FAIL reference values .*vbs-linux-candidate-debug-twin is marked eligible but is a confidential-debug image/, fails(x.out));
@@ -759,7 +777,7 @@ test("draft v29 (staged) records the measured candidate's first boot AND first s
     assert.ok(d.inputs.some((i) => i.name === n && i.from.git.commit.startsWith("8f156c9a")), n);
   assert.ok(d.inputs.some((i) => i.name === "vbsdigest/src/main.rs" && i.from.git.commit.startsWith("5ae35c7d")));
   assert.match(d.owners.package, /^enclave-63 \(from enclave-53/);
-  const ref = JSON.parse(String(fs.readFileSync(path.join(HERE, "reference/nucbox-vbs-reference.json"))));
+  const ref = refFor(D);
   const c = ref.images.find((e) => e.id === "vbs-linux-candidate");
   assert.match(c.booted, /^yes: BOOTED .* SERVED .*NOT exercised; identity, any report or chain, and host exclusion are NOT established\.$/);
   assert.equal(c.eligible, true);
@@ -791,7 +809,7 @@ test("draft v30 ships the G1 measured-VTL0 candidate (a44bb55a, 58DFEBFE) and it
   assert.deepEqual(d.rebuild.vbsLinuxG1Debug.args, ["--confidential-debug"]);
   assert.ok(d.inputs.some((i) => i.name === "candidate-a44bb55a-review.md" && i.from.git.commit.startsWith("ce26bc6e")));
   // reference values: the G1 candidate listed but NOT eligible yet; exactly ONE eligible digest (c567e432's)
-  const ref = JSON.parse(String(fs.readFileSync(path.join(HERE, "reference/nucbox-vbs-reference.json"))));
+  const ref = refFor(D);
   const e = (id) => ref.images.find((x) => x.id === id);
   assert.equal(e("vbs-linux-candidate-g1").vbsBootDigest, "58DFEBFE5F46E5C0E371CE94C2AB947735EA618CF51F973FBBB58048D9C7343A"); assert.equal(e("vbs-linux-candidate-g1").eligible, false);
   assert.equal(e("vbs-linux-candidate-g1-debug-twin").confidentialDebug, true); assert.equal(e("vbs-linux-candidate-g1-debug-twin").eligible, false);
@@ -810,8 +828,54 @@ test("pkg.mjs: a not-yet-booted candidate IGVM cannot be a profile's firmware (t
   assert.equal(ok.code, 0, fails(ok.out));
   assert.match(ok.out, /ok   a candidate IGVM is a profile's firmware only once its reference entry records it booting \(1 profile use\(s\) of a candidate IGVM, each recorded as booted\)/);
   // the G1 candidate (reference: "no: ... not booted yet") made profile vbsLinux's firmware: refused by the rule
-  const m2 = structuredClone(d); m2.profiles.vbsLinux.firmware = "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin";
+  const m2 = pinRef(structuredClone(d), refRawFor(D)); m2.profiles.vbsLinux.firmware = "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin";
   const x = run(["verify", writeManifest(m2)]);
   assert.equal(x.code, 1);
   assert.match(x.out, /FAIL a candidate IGVM is a profile's firmware only once its reference entry records it booting: vbsLinux\.firmware guest\/igvm-vbs\/vbs-linux-candidate-g1-a44bb55a\.bin is a candidate IGVM whose reference entry says booted "no: built by enclave-63/, fails(x.out));
+});
+
+test("draft v31 records the G1 candidate's canary (boots, serves, the per-boot nonce holds) and rolls over: a44bb55a is vbsLinux's firmware and the one eligible entry, c567e432 superseded and not shipped", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-31.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT \(supersedes v30, which is staged at pkg\\c3ebd7940216581e\\\)\. THE G1 CANDIDATE a44bb55a BOOTS, SERVES, AND ITS PER-BOOT NONCE HOLDS/);
+  const CF = "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin";
+  const p = d.profiles.vbsLinux;
+  assert.equal(p.firmware, CF);
+  assert.equal(p.debugTwin, "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-G1-DEBUG-TRUSTS-HOST-4991b3e1.bin");
+  assert.match(p.identity, /^the VBS launch digest 58DFEBFE5F46E5C0E371CE94C2AB947735EA618CF51F973FBBB58048D9C7343A/);
+  // the canary, verbatim from enclave-d1's 7b509d16
+  const g = p.measured[0];
+  assert.match(g, /^G1 CANARY: .*canary 070020.*evidence 7b509d16/);
+  assert.match(g, /'CONSOLE: MON boot 39725c19e15c91afe488ce62251055f5'/);
+  assert.match(g, /"boot":"39725c19e15c91afe488ce62251055f5","guestPort":40001,"id":1,"ok":true,"step":"load"/);
+  assert.match(g, /'1\/3 destroy WITHOUT boot -> \{"bootRequired":true,.*app afterwards HTTP 200; '2\/3 destroy with a WRONG boot \(c76aeca5534a631588ded855f3242fc0\) -> \{"boot":"39725c19e15c91afe488ce62251055f5",.*"rebooted":true\}', app afterwards HTTP 200; '3\/3 destroy with the load answer's boot -> \{"destroyed":1\}', app afterwards HTTP 000/);
+  assert.match(g, /'07:00:55 APP ANSWERED: 13 raw bytes, sha256 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340'/);
+  assert.match(g, /NOT COVERED \(enclave-d1\): the launcher's own rebooted:true handling .*and G4/);
+  assert.match(g, /host_excluded=no\.$/);
+  // the superseded image is no longer shipped or rebuilt
+  assert.ok(!d.files.some((f) => /c567e432|24e7a1ff/.test(f.path)), "c567e432 and its twin are not shipped");
+  assert.ok(!("vbsLinux" in d.rebuild) && !("vbsLinuxDebug" in d.rebuild) && "vbsLinuxG1" in d.rebuild && "vbsLinuxG1Debug" in d.rebuild);
+  assert.equal(d.files.find((f) => f.path === "control/windows/vbslike/ops/uefi-dev-boot.ps1").from.git.commit.slice(0, 8), "95752533");
+  for (const n of ["candidate-a44bb55a-review-7b509d16.md", "g1-canary-070020-uefi-dev-boot.txt", "g1-canary-070020-wmiserve.txt"])
+    assert.ok(d.inputs.some((i) => i.name === n && i.from.git.commit.startsWith("7b509d16")), n);
+  assert.match(d.profiles.vbs.g1Candidate.status, /^BOOTED, SERVED, AND THE G1 NONCE HOLDS/);
+  assert.match(d.profiles.vbs.measuredVtl0Candidate.status, /^SUPERSEDED in v31 by the G1 candidate a44bb55a/);
+  // reference values: the rollover in ONE version (enclave-99's rule): exactly one eligible, the old one superseded
+  const ref = refFor(D);
+  assert.deepEqual(ref.images.filter((x) => x.eligible).map((x) => [x.id, x.vbsBootDigest]), [["vbs-linux-candidate-g1", "58DFEBFE5F46E5C0E371CE94C2AB947735EA618CF51F973FBBB58048D9C7343A"]]);
+  assert.match(ref.images.find((x) => x.id === "vbs-linux-candidate-g1").reason, /eligibility stays PROSPECTIVE/);
+  const sup = ref.superseded.find((x) => x.id === "vbs-linux-candidate-c567e432");
+  assert.equal(sup.vbsBootDigest, "A0FDAC0FC1EFB7B702D6DE1FACFAD8EB4E738DD35F3D3EE39AA0F5416BBCA244"); assert.equal(sup.eligible, false);
+  assert.match(sup.reason, /superseded in v31 by the G1 candidate vbs-linux-candidate-g1 \(a44bb55a…, 58DFEBFE…\)\. It booted \(canary 061934\) and served \(canary 062450\), but no report was ever verified for it/);
+  assert.ok(ref.superseded.some((x) => x.id === "vbs-linux-candidate-debug-twin-c567e432" && x.eligible === false));
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   a candidate IGVM is a profile's firmware only once its reference entry records it booting \(1 profile use\(s\) of a candidate IGVM, each recorded as booted\)/);
+  // the same manifest with the G1 entry's boot record withdrawn is refused by the rule
+  const sha256 = (b) => crypto.createHash("sha256").update(b).digest("hex");
+  const x = structuredClone(ref); x.images.find((e) => e.id === "vbs-linux-candidate-g1").booted = "no: withdrawn";
+  const rp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vbsref-")), "ref.json"); fs.writeFileSync(rp, JSON.stringify(x));
+  const m2 = structuredClone(d), f = m2.files.find((y) => y.role === "reference.values"); f.from = { file: rp }; f.sha256 = sha256(fs.readFileSync(rp)); f.bytes = fs.statSync(rp).size;
+  const y = run(["verify", writeManifest(m2)]);
+  assert.equal(y.code, 1); assert.match(y.out, /FAIL a candidate IGVM is a profile's firmware only once its reference entry records it booting: vbsLinux\.firmware /, fails(y.out));
 });

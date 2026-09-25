@@ -307,6 +307,19 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   firmware until a version records it booting. The reference file lists it `eligible: false` ("not booted yet") while
   `c567e432` stays the one eligible entry. The flip and `c567e432`'s supersession come in one version, after
   enclave-d1's canary, and enclave-99's verifier refuses two eligible images.
+- **v31 draft** (`drafts/nucbox-ownguest-31.json`; supersedes v30): **the G1 candidate boots and serves, and its per-boot
+  nonce holds** (enclave-d1, canary 070020, `7b509d16`, script at `95752533`). `a44bb55a…` was re-hashed at use and read
+  back as type 1 with no medium. The guest printed `MON boot 39725c19…`, and hello-world loaded under that boot and
+  served its 13 pinned bytes. Three raw destroys over hv_sock:
+  - with no boot: `bootRequired`, and the app is still 200;
+  - with a wrong boot: `rebooted:true`, nothing touched, and the app is still 200;
+  - with the load answer's own boot: `destroyed:1`, and the app is gone.
+
+  The launcher's own `rebooted` handling and G4 were not covered. **The rollover happens in this one version:**
+  `a44bb55a` becomes `vbsLinux`'s firmware (the `pkg.mjs` rule from `5a45e9c9` requires its reference entry to record
+  it booting) and the one eligible reference entry, still prospective. `c567e432` and its twin move to `superseded`
+  ("booted and served, no report was ever verified") and are no longer shipped; they remain in the staged v28–v30
+  packages for rollback. Served is not isolated or attested: `host_excluded=no`, no report, no chain.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
