@@ -229,12 +229,20 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
      `a44bb55a` with NO live neighbour. It shows the domain's own namespace and resource containment: an unprivileged
      uid, its own chroot, a pid namespace, no network route, and an enforced memory cap. It does NOT show denial
      against another live app: domprobe's "other" targets were its own or absent.
-   - NEXT (prepared, with enclave-5d): the live-neighbour acceptance. It runs a normal domain 1 serving the pinned
-     hello-world, verified through its relay before and after, then probe domain 2 against domain 1's exact targets. A
-     missing, dead or wrong target FAILS, and a timeout is INCONCLUSIVE. enclave-99 reviews the logic.
-   - NEXT: the canary for enclave-63's production candidate `b7ba7731` (digest `56FBB27F`, byte review `fd92d610`). It
-     includes a PROBE-mode domain that must read `dev_tpm0=No such file or directory`: the measured form of the
-     source claim that a tenant cannot reach the vTPM.
+   - DONE (runs 093326 and 093904; `neighbour-probe-20260925/`, `candidate-b7ba7731-canary-20260925/`): the
+     live-neighbour probe under enclave-99's rules (judge `ad61cb02`, 15 tests on the box). Both are INCONCLUSIVE.
+     - The neighbour was live before and after, own_app is positive, memory is CONTAINED at its cap, pids are 2 and 1,
+       and nothing was reached.
+     - Neighbour denial is NOT established: the file targets' existence in the root namespace is unstated, and vsock
+       to CID 1 is no in-guest route (no loopback transport).
+     - 093326 printed PASS; that is superseded.
+   - DONE (093904): candidate `b7ba7731` BOOTS under Secure Boot and SERVES the pinned fixture. Its TPM control reads
+     ENOENT: absent from the domain's view, existence in the root namespace not stated.
+   - OPEN (with Steven, via enclave-5d): stat-only root-namespace existence statements and printed probe targets.
+     PASS for the neighbour acceptance needs them.
+   - OPEN (hypothesis, untested): a domain appears able to start an hv_sock connection to the host. wmiserve's 9001
+     signer checks the VM, not the domain. Could a domain in a multi-domain VM get another app signed? Raised with
+     enclave-99 and 5d.
    - DONE (G4, run 082856, `g4-probe-20260925/`): a type-1 guest whose monitor dies panics, asks for a reset, and
      Hyper-V turns the partition OFF (18590, then 18515). It does not reboot. The manager's liveness sweep now fails such
      a domain (`d7d4fd1c`); that sweep is not yet run on hardware.
