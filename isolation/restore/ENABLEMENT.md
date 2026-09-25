@@ -1,7 +1,19 @@
 # From "queued" to serving: the attested release, the canaries, then Steven's apps (4b / 4c-c / 4e / S5 / S6)
 
 Prepared by enclave-5d, 2026-09-25, for review by enclave-e3 and enclave-d1; enclave-63 executes. Everything here was
-read from the code at the commits named, and from read-only probes. Nothing in it has been run. No secret value appears.
+read from the code at the commits named, and from read-only probes. Nothing in it has been run on a host. No secret value
+appears.
+
+**Rev 2 (22:23Z):** d1's review of 87e881a2 (must-fixes A, B, C and two should-adds) and e3's (one should-fix, lows L1-L3,
+one suggestion), all answered below:
+- A / e3's should-fix: `relay-release-off.sh` is now line-wise.
+- B / L1: `relay-release-on.sh` refuses an env without a final newline, and verifies its append.
+- L2: the seed is checked against the running relay's numeric uid, and read as that uid.
+- d1's should-add: the seed's keyId must be the pinned 06212e5df9c3779a before anything changes.
+- C: 4c-c builds from 90027a66 or later, which carries 63's prefix map.
+- d1's should-add: S6 has the funding decision as a precondition.
+- L3: the ticket-burn path is noted at step 4, as the relay fix is e3's lane.
+- e3's suggestion (show the opt-in in availability) is listed as a follow-up.
 
 ## Where we are (read 2026-09-25 ~21:40-22:10Z)
 - **Guest image.** Production guestd.4e78ba80 runs `-release`, and builds from **release 79c5ecf2** (the musl init,
@@ -24,11 +36,11 @@ read from the code at the commits named, and from read-only probes. Nothing in i
 |---|---|---|---|
 | 1 | U7 on nan (the release needs U7's `hostEligibility` provider: without it, `release_unconfigured` whatever the env) | 63 | **DONE**: U7 live on nan, nan-relay and us-west (enclave-63, 2026-09-25, per the preflight's §7) |
 | 2 (4b) | the relay's release ON, for the 3 canaries only | 63 runs `relay-release-on.sh` | step 1, e3/d1 review, **Codex go** |
-| 3 (4c-c) | the node passes `ISOLATION_RELEASE=1` (NEW IMAGE: the one real blocker) | 63 | the gsup change (prepared here), d1/e3 review, **Codex go** |
+| 3 (4c-c) | the node passes `ISOLATION_RELEASE=1` (NEW IMAGE: the one real blocker) | 63 | the gsup change (prepared here, approved by d1 and e3), a build from 90027a66 or later, **Codex go** |
 | 4 (4e) | the canaries relaunched as release guests, ONE at a time | 63 (the agent wallet signs the restart) | steps 2 and 3 |
 | 5 (S5) | per app: the staged secret NAMES equal the names its config references; the collision check | **Steven** (names only) | nothing technical |
 | 6 | the relay lists the app for the release | 63 (relay env and restart) | step 4 accepted, step 5 per app |
-| 7 (S6) | the owner's `setConfig` adds `isolation.require`: **THIS is the step that takes an app from queued to serving** | **Steven** (Trezor), via the runbook | step 6 for that app |
+| 7 (S6) | the owner's `setConfig` adds `isolation.require`: **THIS is the step that takes an app from queued to serving** | **Steven** (Trezor), via the runbook | step 6 for that app, and Steven's funding decision (top up, or accept about 4 h) |
 
 ## Step 2 (4b): the relay's release ON: `relay-release-on.sh` / `relay-release-off.sh`
 Run as root on nan. The script checks its preconditions, then makes ONE backup, appends FIVE lines, and does ONE
@@ -42,11 +54,25 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
 ```
 - **Refusal checks.** Before any change the script refuses if:
   - U7 isn't deployed: api-relay.js must hash to 2144fcb3's `1b823be6…`;
+  - the env file isn't mode 600 and owned by root, or doesn't end in a newline (d1's B, e3's L1: an append onto an
+    unterminated last line would fuse two keys);
   - any of the five keys, or the inline `SECRETS_RELEASE_SIGNING_KEY`, is already present;
   - `SECRETS_RELEASE_DOMAIN_RELEASES` is unset;
-  - the seed file isn't 600 and owned by enclave-api-relay (the relay itself refuses anything else, and refuses a seed
-    equal to `DNS_TXT_KEY`, `SECRETS_KEY` or `CERTS_KEY`);
+  - the seed file isn't a regular file, mode 600, owned by enclave-api-relay (the relay refuses anything else, and
+    refuses a seed equal to `RELAY_TXT_KEY`, `DNS_TXT_KEY`, `SECRETS_KEY` or `CERTS_KEY`);
+  - the seed's NUMERIC owner isn't the running relay's uid (MainPID's, via `ps`), or the seed can't be read as that uid
+    and gid (`setpriv … test -r`), which also proves /etc/nan-relay is traversable (e3's L2: the relay compares uids,
+    and its user is a DynamicUser whose name resolves only while it runs);
+  - the seed isn't the pinned key (d1's should-add): the script derives the public key's keyId with the relay's own
+    functions (`signingKeyFromSeed`, `ed25519RawPublic`, `keyIdOf` from /opt/nan-relay/secrets-release.mjs) and requires
+    `06212e5df9c3779a`, the key pinned in 79c5ecf2's front. It prints only the keyId. A wrong seed would otherwise
+    fail every release at the guest's signature check: closed, but it would burn the first canary cycle. (Tested
+    locally against 2144fcb3's module with a throwaway seed: the snippet's keyId equals an independent
+    sha256(raw public key)[:16]. The pinned public key from pins.go hashes to 06212e5df9c3779a.)
   - `release-status` isn't 503 before the change.
+- **The append is verified.** After it, the file must have exactly five more lines, the old lines byte-identical to the
+  backup (`head -n <old count>` against it), the last five equal to what was written, and mode 600/root. Otherwise the
+  script puts the backup back and restarts nothing.
 - **The JSON line.** systemd's EnvironmentFile keeps the single-quoted JSON exactly (tested with a transient unit), and
   a mis-parse would show up as `missingFor(SECRETS_RELEASE_MIN_TCB)`, a failed check below.
 - `METAL_REQUIRE_VCEK` needs NO line: it is unset on nan, and unset means on (`!== "0"`). The lease holder's chips come
@@ -56,10 +82,34 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   - `release-status` answers `listed:true` for each canary and `listed:false` for a69dcbba;
   - no `[secrets-release] … refused` line in the journal since the restart;
   - `/enclaves` is 200.
-- **Rollback:** `sh relay-release-off.sh <the backup>` restores the env and restarts. Then every release request is
-  refused (503 `release_off`). The supervisor reads that as "unlisted", so a canary relaunched later comes back on its
-  LEGACY image, and an app with config or secrets is refused at launch and stays queued. A running release guest keeps
-  the config it holds until relaunched. Turning the release off is fail-closed and changes nothing for legacy guests.
+- **DynamicUser (e3).** systemd prefers the uid that owns the unit's StateDirectory, so the relay's uid is stable across
+  restarts in practice but not guaranteed. If a later restart got a different uid, the relay would refuse the seed
+  and answer `release_off` for everything: closed, but silent. So after EVERY later api-relay restart (step 6,
+  a future rs-5, any deploy), re-check `release-status` = `listed:true` for a listed id.
+- **Rollback: `sh relay-release-off.sh`** (no argument; line-wise, d1's A and e3's should-fix). Between release-ON and
+  a rollback the same env gains other lines: 4c-c's node measurement in `METAL_ALLOWED_MEASUREMENTS`, a future
+  rs-5. Restoring the whole backup would silently drop them, and a dropped allowlist entry takes the node down. (Step
+  6's listings live on the `SECRETS_RELEASE_DEPLOYMENTS` line itself, so they go with it: release OFF unlists every
+  app, by design.) So the script:
+  - removes the four FIXED lines exactly as `relay-release-on.sh` wrote them, and the one
+    `SECRETS_RELEASE_DEPLOYMENTS` line by its key (step 6 edits it);
+  - refuses, changing nothing, if a fixed line is missing or doubled, if one of those keys holds another value (a hand
+    edit: decide by hand), or if there isn't exactly one `SECRETS_RELEASE_DEPLOYMENTS` line;
+  - requires the result to be the current file minus exactly those five lines, every other line byte-identical and
+    in order (computed twice, independently: awk, and grep, compared with `cmp`), with mode 600/root before and
+    after; it keeps a backup of the current file;
+  - reports, by key NAME only, which other keys changed since the pre-release backup (e3's "print which keys
+    differ"). It KEEPS those changes instead of refusing, because refusing on them would block the rollback in
+    exactly d1's case (after 4c-c's allowlist entry).
+  Tested locally with a harness (the paths redirected, no systemd): on then off gives the original file byte for byte;
+  a later `METAL_ALLOWED_MEASUREMENTS` edit survives the rollback and is reported, and a step-6-edited
+  `SECRETS_RELEASE_DEPLOYMENTS` line is removed by its key; a second run
+  and a hand-edited VMPL are refused, with the file unchanged. Both scripts are POSIX sh (nan's /bin/sh is dash, and
+  `setpriv` is present there).
+  After the rollback every release request is refused (503 `release_off`). The supervisor reads that as "unlisted", so
+  a canary relaunched later comes back on its LEGACY image, and an app with config or secrets is refused at launch and
+  stays queued. A running release guest keeps the config it holds until relaunched. Turning the release off is
+  fail-closed and changes nothing for legacy guests.
 
 ## Step 3 (4c-c): the node's `ISOLATION_RELEASE` needs a NEW measured node image
 - **Fact.**
@@ -81,8 +131,10 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   - d1/e3: say if you want it measured instead.
 - **The build** (63's 4c procedure): the same pinned supervisor and wasm refs, and `--supervisor-overlay` from
   b18f8989. The supervisor files are unchanged: none of the 8 overlay files changed after b18f8989. build-image runs
-  from a clean checkout of the commit carrying this gsup change, with the AmdSev `--ovmf` and the same min-tcb.
-  Predict, allowlist, roll out (S2 shape).
+  from a **clean checkout of 90027a66 or later** (d1's C): that merge carries BOTH this gsup change and 63's
+  b3109929 (`-ffile-prefix-map` in metal/build-image.mjs). Without the prefix map the image is path-dependent again.
+  Use the AmdSev `--ovmf` and the same min-tcb. Build from two checkout paths and compare; d1 reproduces from a third.
+  Then predict, allowlist, roll out (S2 shape).
 - **Flip:** config.iso.json gets `"release": true` in its `isolation` object, then the node CVM restarts. The image
   change and the flip can be ONE restart, after step 2 is verified.
 - **Inert for running guests.** On the restart the supervisor resumes the canaries. The spawn ADOPTS a running guest
@@ -90,6 +142,9 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   ticket only to a STARTING release guest. So nothing relaunches; the canaries stay legacy until step 4.
 - **Rollback:** `"release": false` (or the previous image) and a node restart. Running guests are again adopted as they
   are.
+- **Follow-up (e3's suggestion, not blocking):** also show the opt-in in the supervisor's availability/health, not only
+  in its startup log, so ops and the relay can see a box's opt-in. It would be a supervisor change, so it goes into a
+  later image, not 4c-c.
 
 ## Step 4 (4e): the canaries become release guests, one at a time
 - **Trigger:** the owner's restart. That is `POST /v1/deployments/<id>/restart` on the node: it DELETEs the guest at
@@ -124,6 +179,13 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   1. Take it OFF the relay's list: `SECRETS_RELEASE_DEPLOYMENTS` minus its id, then restart the api relay.
   2. Owner-restart it again. The spawn reads "unlisted" and launches the LEGACY image; its legacy measurement returns.
   Or turn the whole release off (step 2 rollback). Neither needs a node change.
+- **A known relay behaviour on this path (e3's L3; the relay fix is e3's lane, not blocking):** the canaries have no
+  envelope config, so the relay asks `versionConfigFor`. If that read fails (RPCs disagree, fewer than two RPCs, a read
+  error), the failure has no numeric code, so handleRelease answers **422 `bad_config`** and BURNS the ticket. The
+  guest then gets no release, its front powers the domain off after its wait, and the supervisor relaunches it.
+  Closed, but noisy. So a `422 bad_config` in the relay journal for a canary with no config is an RPC blip, not a
+  config problem: let the relaunch run, and count the cycle. e3's suggested fix is 503 `config_unresolvable`, which
+  keeps the ticket.
 - **Acceptance** = all three canaries pass the five proofs and serve for their observe windows. Only then step 6 for
   Steven's apps.
 
@@ -148,6 +210,7 @@ without `--show` prints names only, or the dashboard's secrets view.
   - egress is HTTPS on 443 only, to the origins the config names;
   - at 1% on this tier (8.34 µUSDC/s), the current balances fund only about **4 hours** each: a69dcbba 0.1294 USDC,
     d9798e4c 0.1183, a77d0c57 0.1186, at block 51787913. To keep serving, the owner tops up. We make no deposits.
+    This is Steven's decision, and a precondition of S6 (below).
 
 ## Step 6: list the app for the release
 After step 4's acceptance and that app's step 5:
@@ -156,6 +219,12 @@ After step 4's acceptance and that app's step 5:
 Nothing launches yet: the claim gate still refuses the app, because its envelope doesn't ask for isolation.
 
 ## Step 7 (S6): the owner's `setConfig`, LAST, which takes the app from queued to serving
+**Preconditions**, per app:
+- step 6 is done: `release-status` answers `listed:true`;
+- **Steven's funding decision (d1):** he tops the app up, or explicitly accepts that it serves for about 4 hours. A lease
+  that runs out stops the app right after it starts serving. Re-read the balance just before signing; don't reuse
+  the block-51787913 figures.
+
 Steven signs the payload for that app from `isolation/restore/inventory-2026-09-25/payloads.json` (eba0b308; tooling
 edd21868; runbook in INVENTORY.md):
 1. `--check`;
@@ -175,14 +244,14 @@ serves at `https://<label>.app.enclave.host/`.
   can't launch here: it has config or secrets).
 
 ## Blockers and decisions (named now)
-1. **A NEW NODE IMAGE (4c-c) for `ISOLATION_RELEASE`.** The code change is prepared (gsup.mjs, above); it needs d1/e3
-   review, 63's build, prediction and rollout, and Codex's go. The 4c image now rolling out (b18f8989) cannot run
-   release guests.
+1. **A NEW NODE IMAGE (4c-c) for `ISOLATION_RELEASE`.** The code change is prepared (gsup.mjs, above), and d1 and e3
+   approve the design. It needs 63's build from 90027a66 or later (two paths, with d1's third), prediction and
+   rollout, and Codex's go. The 4c image now rolling out (b18f8989) cannot run release guests.
 2. ~~U7 on nan before the release goes ON~~: **DONE** (live on nan, nan-relay and us-west).
 3. **Steven:**
    - the S5 names check per app;
    - the three `setConfig` signatures;
-   - top-ups if the apps are to serve beyond about 4 hours;
+   - the funding decision per app, BEFORE its S6: top up, or accept about 4 hours;
    - Codex's go for the release ON (step 2) and for 4c-c.
 4. **Not blockers** (checked): a null-config release is handled end to end: relay `config:null`, the front's
    ConfigText treats null as none, init gets "N". `METAL_REQUIRE_VCEK` is already on. The signing seed file meets the
