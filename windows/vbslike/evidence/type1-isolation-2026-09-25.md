@@ -473,14 +473,20 @@ attacking the protection under test rather than measuring it. That is out of sco
 The memmarker module stays parked as the type-16 control should a documented reader ever appear.
 **The claim a customer could check therefore rests on E2.**
 
-## The discriminator resolves E2: VTL2 GETS a VBS report; only VTL0 is turned away
+## What the debug kmsg supports about E2, stated at its actual strength
 
-`0x71` is `HV_STATUS_OPERATION_FAILED`. The hypervisor recognised `HvCallVbsVmCallReport` from VTL0,
-accepted its input, did not deny access, and produced no report.
+**Correction (2026-09-25, after the monitor's review).** This section was first headed "the
+discriminator resolves E2: VTL2 GETS a VBS report; only VTL0 is turned away". That overstated it.
+E2 is NOT complete and the customer report chain is NOT established. The evidence below is kept
+verbatim; what it supports is now stated separately from what it does not.
 
-The deciding evidence needed no new boot — it is in the debug image's kmsg from the opt-out run that
-BOOTED. OpenHCL requests its OWN VBS report from VTL2 during a type-1 boot, for key release, through
-the same hypercall. Verbatim:
+`0x71` is `HV_STATUS_OPERATION_FAILED`. It is not the access-denied status (6), and it is not
+"invalid hypercall" (2) or "invalid input" (3). That is all it says. It does not show that access
+was permitted, and one call with one input on one image does not show that VTL0 can never obtain a
+report on this host.
+
+The debug image's kmsg, from the opt-out run that BOOTED, shows OpenHCL's own VTL2 key-release path
+during a type-1 boot. Verbatim:
 
     [0.126504] underhill_attestation: Reading security profile tee_type=Some(Vbs) secure_boot=false
                tpm_enabled=true tpm_persisted=true hardware_sealing_supported=false
@@ -492,26 +498,35 @@ the same hypercall. Verbatim:
     [0.153616] GSP response request_data_length_in_vmgs=0x0 no_rpc_server=true requires_rpc_server=false
     [0.153813] No VMGS encryption used.
 
-**The failure is an IgvmAttest/agent failure, not a report-generation failure.** The error is in
-parsing a ZERO-length KEY_RELEASE response — the missing host attestation agent — which means the
-request was assembled and sent, and therefore the VBS report it carries was obtained. Had VTL2 been
-unable to get a report, this would have failed earlier and differently, as
-`GetAttestationReport(GetVbsReport(...))`.
+enclave-5d read the source order at openvmm a7b0bd4: `request_vmgs_encryption_keys` obtains the VBS
+report FIRST and returns early if that fails (`secure_key_release.rs:174-182`), and only then sends
+IGVM_ATTEST (`:185`). The logged failure is in parsing a zero-length KEY_RELEASE response, which is
+after the send.
 
-So, for this host and configuration:
+| claim | status |
+|---|---|
+| VTL2 obtained a VBS report during this boot | **Strongly supported, by inference**: the kmsg plus the source order. Not observed directly. |
+| on which image | the **DEBUG** image `81e163ee` (`OPENHCL_CONFIDENTIAL_DEBUG=1`, trusts the host). NOT shown on the non-debug control `32d464cc`. |
+| report bytes | **NOT captured.** None were in our hands. |
+| report signature, signing key, root of trust | **NOT identified and NOT verified.** Whether it chains to an IDKS in the host TCG log is untested. |
+| what that report binds | OpenHCL's own key-release claims (its transfer key), sent to the host. Not our nonce, app, runtime or TLS key. |
+| VTL0 `HvCallVbsVmCallReport` on the CONTROL image | returned `0x71` with no body, for one call with one input. |
+| "VTL0 can never get a report here" | **NOT shown.** |
+| E2 | **NOT complete.** |
+| customer-verifiable report chain | **NOT established.** |
 
-- the hypervisor DOES produce a VBS report for this partition — **to VTL2**;
-- **VTL0 is turned away** with `HV_STATUS_OPERATION_FAILED`;
-- therefore the report is reachable **only through the paravisor**.
+**The pairing caveat (enclave-5d).** The VTL2 inference comes from the debug image and the VTL0
+`0x71` from the control image. Both are a7b0bd4 code, but they are two images and two boots.
 
-That is NOT a NO-GO on the report chain. It relocates it: a client-verifiable binding on this host
-would have to be paravisor-mediated, which is a design change rather than a guest patch. Whether
-that is buildable here is the next question and is not answered.
+What this changes is where to work next, not what is proven. The route we can see today to a report
+runs through the paravisor, so the next milestone is a paravisor-mediated report on the NON-DEBUG
+a7b0bd4 platform, through an interface implemented in our own pinned paravisor, with its signer
+identified and its binding properties tested. See `../design/paravisor-attestation.md`.
 
 Two further facts from the same log, recorded because they bear on any such design: there is no host
 attestation agent (`no_rpc_server=true`), so key release cannot complete as configured; and the
 vTPM allocates an NV index for an attestation report (`nv_index="1400001" size=0xb54`). Neither is a
 claim about what is achievable, only about what this boot did.
 
-Unchanged: `host_excluded=no`, E3 NOT RUN with no instrument, no isolation proof, nothing here is
-verified capacity.
+Unchanged: `host_excluded=no`, E2 NOT complete, E3 NOT RUN with no instrument (and report testing
+does not replace its missing evidence), no isolation proof, nothing here is verified capacity.
