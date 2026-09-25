@@ -364,8 +364,8 @@
   },
   {
    "path": "verifier/release-index.mjs",
-   "bytes": 19868,
-   "sha256": "b4339a74fcc33ba50ab30587e8ea29d8721400413a5c2d684ae64f8605aa2f5e"
+   "bytes": 20274,
+   "sha256": "a18ba14b6906d5450d43d3f2f085a7aa3cf42dfde75194dbb1de3370a2b664bb"
   },
   {
    "path": "verifier/roots/sigstore-trusted-root.json",

@@ -11,6 +11,25 @@
    "length": 6787,
    "fetchedAt": "2026-09-24T04:48Z",
    "note": "TUF metadata signatures were NOT verified by this capture (no TUF client here); the hash chain timestamp->snapshot->targets->target was followed and the target hash checked. A TUF-verified refresh is a follow-up (sigstore-js tuf-js)."
+  },
+  "length": 6787,
+  "refreshedAt": "2026-09-25T03:35Z",
+  "tuf": {
+   "metadataUrl": "https://tuf-repo-cdn.sigstore.dev/",
+   "targetsUrl": "https://tuf-repo-cdn.sigstore.dev/targets/",
+   "target": "trusted_root.json",
+   "startingRootVersion": 1,
+   "rootVersion": 15,
+   "timestampVersion": 790,
+   "snapshotVersion": 165,
+   "targetsVersion": 14,
+   "note": "reached through TUF from the pinned starting root (verifier/tuf-refresh.mjs): root rotations, timestamp, snapshot and targets signatures verified to threshold, versions never lower than cached, expiry checked, the target by hash and length"
   }
+ },
+ "sigstore-tuf-root.json": {
+  "sha256": "c65fd9a35afde444a72c50f974915788674f7e128eb1aff8c59f808b0877266c",
+  "version": 15,
+  "refreshedAt": "2026-09-25T03:35Z",
+  "what": "the highest Sigstore TUF root metadata verified through the rotation chain: the starting root of the next refresh (pinned trust)"
  }
 }

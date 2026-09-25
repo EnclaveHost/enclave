@@ -1,0 +1,119 @@
+{
+ "1.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/1.root.json",
+  "sha256": "cd7549b15e7b4e660a89c950bca1bce262a524a5cf909952b66951b5c8667bc6",
+  "version": 1,
+  "expires": "2021-12-18T13:28:12.99008-06:00"
+ },
+ "10.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/10.root.json",
+  "sha256": "836bff947925edfc23eb9ce17af66fb1e43bb5e2bdd240520985ae52b585eae9",
+  "version": 10,
+  "expires": "2025-02-19T08:04:32Z"
+ },
+ "11.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/11.root.json",
+  "sha256": "641adcaddce7b4af7d7ce81d8b58fa5dc871f13af48097dbf543597677702587",
+  "version": 11,
+  "expires": "2025-08-05T08:37:20Z"
+ },
+ "12.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/12.root.json",
+  "sha256": "5fe1e509a47277183a004745942c0a116379297da9f1cca529774320f1a5dfab",
+  "version": 12,
+  "expires": "2025-08-19T14:33:09Z"
+ },
+ "13.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/13.root.json",
+  "sha256": "39277f1fbd482f84d924b6cb77748f62ab0f031b3b5b9b29e681dae056c32250",
+  "version": 13,
+  "expires": "2026-01-22T13:05:59Z"
+ },
+ "14.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/14.root.json",
+  "sha256": "c8c41ec13f06ccabf5b48541ee2550098b4c7b5349e1d180390c29a7d5c2642c",
+  "version": 14,
+  "expires": "2026-06-22T13:27:01Z"
+ },
+ "14.targets.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/14.targets.json",
+  "sha256": "6a697f7f8908c8ab26c11786ecb490b54acec97fa8c802e399f065f8a0cc1acd",
+  "version": 14,
+  "expires": "2036-05-09T09:00:52Z"
+ },
+ "15.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/15.root.json",
+  "sha256": "73747011d0857ada15479a16c4cae0f3ed03aac698b523b97e1de314ac9d9ca8",
+  "version": 15,
+  "expires": "2026-11-20T13:58:18Z"
+ },
+ "165.snapshot.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/165.snapshot.json",
+  "sha256": "8f784ab614ec62bfdd5f568eb2a2e3011668449ba235ed4eb7befa99f8469933",
+  "version": 165,
+  "expires": "2036-05-15T08:09:16Z"
+ },
+ "2.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/2.root.json",
+  "sha256": "f5ad897c9414cca99629f400ac3585e41bd8ebb44c5af07fb08dd636a9eced9c",
+  "version": 2,
+  "expires": "2022-05-11T19:09:02.663975009Z"
+ },
+ "3.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/3.root.json",
+  "sha256": "f612679ba5a4d31421e65068faa035ea363257edcaf22a555b9c49d189a2d4ef",
+  "version": 3,
+  "expires": "2022-11-10T21:58:09.733402317Z"
+ },
+ "4.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/4.root.json",
+  "sha256": "db9f88395e55e837c6926a5774f1031fd37faccdae828cc0e39304b63bb0378f",
+  "version": 4,
+  "expires": "2023-01-12T18:22:02Z"
+ },
+ "5.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/5.root.json",
+  "sha256": "e2a930b2d1d4053dd56e8faf66fd113658545d522e35d222ccf58fea87ccccf4",
+  "version": 5,
+  "expires": "2023-04-18T18:13:43Z"
+ },
+ "6.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/6.root.json",
+  "sha256": "62ec47d19857cb6cecf385ad72290c21f7600eea11b98576ea69dcadb1affea5",
+  "version": 6,
+  "expires": "2023-08-28T07:54:10Z"
+ },
+ "7.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/7.root.json",
+  "sha256": "c86f493b010dc9656004c86029570b2cf9b1f9ce2c57e2e0ce91fbb008067570",
+  "version": 7,
+  "expires": "2023-10-04T13:08:11Z"
+ },
+ "8.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/8.root.json",
+  "sha256": "1c86543d6777efe42d609b4e45f9fa1904c1c412bb5e2d3b64128e8b042fc641",
+  "version": 8,
+  "expires": "2024-03-26T04:38:55Z"
+ },
+ "9.root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/9.root.json",
+  "sha256": "d9a9799ffe80d937ef4a641e2111a71163712ca6298224dee7d60f57021cd403",
+  "version": 9,
+  "expires": "2024-09-12T06:53:10Z"
+ },
+ "timestamp.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/timestamp.json",
+  "sha256": "8c42d3ceb4629b473774b2d95555aaf5ce8eba424a6978d7e0500468d15457ef",
+  "version": 790,
+  "expires": "2026-09-29T13:28:12Z"
+ },
+ "targets/6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66.trusted_root.json": {
+  "url": "https://tuf-repo-cdn.sigstore.dev/targets/6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66.trusted_root.json",
+  "sha256": "6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66",
+  "length": 6787
+ },
+ "_": {
+  "what": "Sigstore's public-good TUF repository as served by tuf-repo-cdn.sigstore.dev on 2026-09-25 (~03:40Z): the whole root chain 1..15, the current timestamp (v790, expires 2026-09-29T13:28:12Z), its snapshot (v165) and targets (v14), and the trusted_root.json target they name (sha256 6494e21e..., the pinned verifier/roots/sigstore-trusted-root.json). 1.root.json is byte-identical to sigstore/root-signing metadata/root_history/1.root.json (sha256 cd7549b1...), an independent second source for the anchor. test/verifier-tuf-refresh.test.mjs walks this chain OFFLINE through the real client; after the timestamp's expiry the correct outcome is the freeze refusal, which the test asserts by the clock.",
+  "fetchedAt": "2026-09-25T03:33Z"
+ }
+}

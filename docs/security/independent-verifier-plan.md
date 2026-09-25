@@ -600,7 +600,7 @@ No automatic cutover. Each stage is a reviewed change with a configuration flag 
 | M1 | strict envelope for every format in the registry (DONE 2026-09-24: per-format shapes), CRL policy modes (done), collateral adapters with a disk cache (DONE 2026-09-24: the authenticated, slot-bound cache), Rekor v2 bundles (BLOCKED: no authentic v2 bundle located; see below), scheduled live differential job (PREPARED 2026-09-24 as a shadow job: `verifier/live-differential.mjs` and `.github/workflows/verifier-live-differential.yml`, dispatch-only and gated by a repository variable that is not set, read-only, tested offline on the fixtures) | 5 |
 | M2 | browser build: WebCrypto signatures, X.509 via a reviewed library (PROTOTYPE DONE 2026-09-24: `verifier/web/`, the same `snp.mjs` verdict code behind a crypto provider; see `browser-x509-parser-decision.md`); reproducible packaging with an input manifest and exact notices (DONE 2026-09-24: `verifier/web/dist/`, `reproduce.mjs` under the strict command); an opt-in same-origin shadow adapter that records and never decides (DONE 2026-09-24: `verifier/web/shadow.mjs`, proven in Node and in Chrome 151); same-origin delivery through the site's vendor rule and the site's opt-in shadow line (DONE 2026-09-24 under Steven's website authorization: `site/vendor/enclave-verifier.js` via `scripts/build-vendor.mjs`, `site/js/core/verify-shadow.js` awaited by `verify.js`, record only, viewer opt-in, no primary root or verdict change; `verifier/web/README.md`) | 8 |
 | M3 | CLI `--verifier both`, self-check both, relay re-verification of dialed rows (BUILT 2026-09-25, section 10.4: every path behind a flag whose fallback is the previous behaviour; no live hosted enclave existed to show a `verified` end to end) | done, pending live data |
-| M4 | signed release index in the release workflow (BUILT 2026-09-25, section 10.5; first signed index appears with the next release), minimum-release policy (BUILT: `verifier/release-policy.json`, the floor only rises), mirror at `enclave.host` and TUF refresh job (remaining) | 3 done, 2 remaining |
+| M4 | signed release index in the release workflow (BUILT 2026-09-25, section 10.5), minimum-release policy (BUILT: `verifier/release-policy.json`, the floor only rises), publication order from the signing run + persisted memory (BUILT, section 10.5), TUF-verified refresh of the pinned root with a weekly PR job (BUILT, section 10.6), mirror at `enclave.host` and the per-consumer strict rollout criteria (remaining) | 4 done, 2 remaining |
 | M5 | independent review, cutover per consumer with fallback flags | 3 + review |
 | later | TDX (QVL-grade), NVIDIA GPU evidence, measurement recompute from archived image inputs, AVF ABI/2 relay frame | separate plans |
 
@@ -939,6 +939,51 @@ install step, fixed at dc86269c), attestation 50058862, sequence 100, floor v0.5
 twenty releases listed; pinned at `test/fixtures/verifier/release-index/v0.5.847/` and verified positively (the claims name
 the publish workflow at refs/tags/v0.5.847), and the consumers' live index-first path against GitHub reported
 `index.status: verified` with both flavors' provenance verified from the index's pointers.
+
+## 10.6 M4: the TUF-verified refresh of the pinned Sigstore root (2026-09-25)
+
+The consumers verify release provenance against `verifier/roots/sigstore-trusted-root.json`. Until now that copy had
+been reached by following hashes through Sigstore's TUF metadata without verifying the metadata's signatures (its
+SOURCES entry said so). `verifier/tuf-refresh.mjs` now refreshes it as TUF prescribes, from pinned trust, through
+`@freedomofpress/tuf-browser` (MIT; already a dependency of the Sigstore library the site ships), reviewed here: root
+rotations exactly N+1, each signed to the threshold of both the old and the new root and not expired; timestamp,
+snapshot and targets signed to threshold, versions never lower than the cached ones, expiry against the clock, lengths
+and hashes from the role above; the target by hash and length. Two gaps found in the client and closed around it:
+its update returns early when the served timestamp equals the cached one, so after an update that stopped half-way
+(timestamp cached, snapshot or targets not) the cached chain would stay stale until the timestamp rolled; the wrapper
+checks the cached chain's consistency and re-runs the update once, re-verifying the same signatures. And the ECDSA
+signature check reads r and s out of the DER and ignores the framing, so a test that corrupts only the outer tag still
+verifies (the test helper corrupts the value). The starting root is `verifier/roots/sigstore-tuf-root.json`: root v15,
+reached on 2026-09-25 by walking v1 to v15 live (14 rotations, timestamp v790, snapshot v165, targets v14, the target
+byte-identical to the pinned copy). The anchor, root v1, is byte-identical from two independent sources (the CDN and
+`sigstore/root-signing` `metadata/root_history/1.root.json`, sha256 cd7549b1...). Every role is cached per file as it
+verifies; the pinned files are replaced only from a fully verified refresh, atomically, and only with `--write`; a
+refused refresh writes nothing. The weekly workflow (`verifier-tuf-refresh.yml`, dispatch too) refreshes from the pinned
+root and, when the verified target or the highest root differs, opens a PULL REQUEST with the files and the versions;
+it never writes to main; a verification failure fails the job. A CDN or mirror can only refuse to serve: nothing it
+serves verifies unless the chain from the pinned root signs it.
+
+Tests (`test/verifier-tuf-refresh.test.mjs`, through the real client against a repository minted per run with real
+keys): the happy path with a rotation, idempotence and a new target; a corrupted signature on each role, with the cached
+roles unchanged; a rotation signed below the old threshold; expired timestamp, snapshot, targets and root (the freeze
+refusals); a timestamp rolled back and a timestamp whose snapshot pointer went backwards; an update cut at the snapshot
+and its recovery with the last trusted target standing; a target whose bytes changed under its name; the pinned files
+written only from a verified refresh; a different repository served at the same URLs refused by the pinned root's keys.
+And Sigstore's real chain offline (fixture `sigstore-2026-09-25`: roots 1..15, timestamp v790, snapshot v165, targets v14
+and the target), verified while its timestamp is unexpired and asserted as the freeze refusal after 2026-09-29, which is
+the correct outcome for stale metadata.
+
+**What the publication order does and does not say (release index, section 10.5).** GitHub allocates a workflow run's
+id when the run is CREATED; observed ids on this repository increase with creation time across all workflows, and
+GitHub documents run ids as unique but publishes no ordering guarantee. So a higher run id says "created later", and
+nothing else: not "completed later" (a run created later can publish its index first; the two flavor publications of
+one push are exactly that), not "lists everything published before it" (a transient gap, section 10.5), and not
+"newer than what a consumer saw elsewhere" unless that consumer's own memory says so. The attempt number orders re-runs
+of one run. The index's `generatedAt` is the builder's clock, signed but self-asserted. Freshness in this design is
+therefore "the highest creation-ordered publication this consumer has verified", which refuses replays of anything it
+has seen and bounds the rest by the floor; it is not a proof that no newer index exists, and a consumer on its first
+use, or falling back to the unsigned pointer, has only the built-in floor. Those two cases are said in every result
+(`index.freshness`), and the TUF timestamp role above is the shape of the complete answer.
 
 ## 11. Open risks
 

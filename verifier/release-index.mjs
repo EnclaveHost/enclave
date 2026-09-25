@@ -15,8 +15,11 @@
 //
 // AUTHENTICITY versus FRESHNESS. The signature proves an index is ours; it does not by itself prove it is the newest.
 // The publication ORDER is taken from what the signature authenticates: the signing certificate's run invocation
-// (GitHub's OIDC claim, `.../actions/runs/<run_id>/attempts/<attempt>`), which GitHub assigns, which increases with every
-// run created on the platform, and which no builder can choose. The index file carries the same pair (`sequence` = the
+// (GitHub's OIDC claim, `.../actions/runs/<run_id>/attempts/<attempt>`), which GitHub assigns at run CREATION, which is
+// observed to increase with creation time, and which no builder can choose. What that order does NOT say: a higher run
+// id is "created later", not "completed later" and not "lists everything published before it"; GitHub documents run
+// ids as unique and publishes no ordering guarantee. A consumer's memory therefore refuses what it has already seen
+// superseded; it does not prove that nothing newer exists (docs/security/independent-verifier-plan.md, section 10.6). The index file carries the same pair (`sequence` = the
 // run id, `attempt`; schema v2) and the verifier requires them to EQUAL the certificate's; a v1 index (the first one,
 // v0.5.847, whose `sequence` was a bounded list count) is ordered by its certificate alone and marked as such. A consumer
 // that REMEMBERS the highest (run, attempt) it verified (verifier/index-memory.mjs) refuses an older publication
