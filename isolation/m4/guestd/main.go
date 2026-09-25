@@ -255,7 +255,12 @@ func main() {
 	dataListen := flag.String("data-listen", "", "loopback address for the ciphertext data plane (enclave-splice/1, datapath.go); empty = none")
 	dataIdle := flag.Duration("data-idle", 180*time.Second, "close a spliced connection after this long with no bytes in either direction")
 	genKeyFile := flag.String("gen-key", "", "write a NEW pairing key to this file (mode 0600, never overwritten), print its kid, and exit")
+	guestMem := flag.Int("guest-mem-mib", 0, "host RAM (MiB) set aside for guests: the guest pool's memory budget; unset = every create is refused (pool.go)")
+	guestCPUs := flag.Int("guest-cpus", 0, "host cores set aside for guests: the guest pool's CPU budget, against each guest's CPUQuota; unset = every create is refused")
 	flag.Parse()
+	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
+		log.Fatal("-guest-mem-mib and -guest-cpus are set together, both positive (or neither: then every create is refused)")
+	}
 
 	if *genKeyFile != "" {
 		kid, err := genKey(*genKeyFile)
@@ -323,6 +328,7 @@ func main() {
 	l := &realLauncher{m4: filepath.Join(*iso, "m4"), m2: filepath.Join(*iso, "m2"), fwd: fwd, vcek: *vcek,
 		chain: *chain, product: *product, minTCB: *minTCB, runtimeIdentity: rid, env: env}
 	s := newServer(l, *root)
+	s.Budget = poolBudget{MemMiB: *guestMem, CPUPct: *guestCPUs * 100}
 	// F7: a previous guestd's guests are ADOPTED when they verify again as the same guest (persist.go); every other
 	// guest unit is stopped and every other workdir scrubbed, as a boot sweep always did.
 	actx, acancel := context.WithTimeout(context.Background(), 10*time.Minute)
@@ -334,6 +340,7 @@ func main() {
 	for _, d := range dropped {
 		log.Printf("not adopted, ended: %s", d)
 	}
+	s.logPoolAfterRecovery() // adopted guests count against the budget, and may exceed it (pool.go: overcommitted)
 	if stopped, err := l.Sweep(keep); err != nil {
 		log.Fatalf("sweeping a previous run's guests: %v", err)
 	} else if len(stopped) > 0 {

@@ -45,6 +45,17 @@ make the tier proven secure; security testing and fixes follow it:
 - guestd: `~/enclave-prod/bin/guestd.prev-99b0e3c0` back to `guestd`, the worktree back to 99b0e3c0, and
   `systemctl --user restart enclave-guestd`. It adopts what verifies again (F7).
 
+**Rollout condition for the guest pool (TASK 4c, `m4/guestd/pool.go`; NOT deployed).** A guestd built with the pool
+admits a guest only inside a budget the operator sets, `-guest-mem-mib` and `-guest-cpus` (host RAM and cores set
+aside for guests). Without them it refuses EVERY create (`pool_unconfigured`, logged naming the flags), which includes
+a canary's recreate after a crash. It still adopts the guests that are running.
+- ORDER: add both flags to `enclave-guestd.service`'s ExecStart BEFORE this build runs on metal-iso0.
+- Each guest reserves its unit's ceilings: guest RAM (at least 1024 MiB) + 768 MiB, and its CPUQuota (100% = a core).
+  Today's three canaries hold 3 x 1792 MiB and 3 cores, so a budget under 5376 MiB / 3 cores leaves the pool
+  OVERCOMMITTED after the restart. Nothing is killed, but nothing is admitted until guests end.
+- warden-host is shared (32 threads, 125 GiB). B is the operator's choice of what guests may take, not the host's size.
+- Rollback: the previous binary. The flags are unknown to it, so drop them too.
+
 ## The vehicle: one SNP guest per app (M4a), not planes (M4b)
 
 The per-app isolation that is measured on this hardware today is **M4a**: each app in its own SEV-SNP guest, the
