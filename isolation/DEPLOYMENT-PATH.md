@@ -60,7 +60,7 @@ a canary's recreate after a crash. It still adopts the guests that are running.
 - The node's supervisor mirrors the pool (`supervisor.js`, `nodeSpec`/`guestPoolRefusal`; only with ISOLATION_BACKEND).
   Landing it is a SUPERVISOR RELEASE: a new measured control-CVM image, admitted through the normal measurement-pinning
   flow, and a reboot of the node CVM.
-- ORDER: guestd's flags, then the guestd pool build, then this supervisor release. Never earlier.
+- ORDER: the guestd pool build WITH its flags (one restart, S1), then this supervisor release. Never earlier.
   - A supervisor with it takes no NEW claim from a guestd without a readable pool.
   - A RESUME of a guest guestd already holds (the release's own reboot re-discovers every own lease) is judged with the
     room that guest holds. So the canaries resume on a pool at exactly its budget, and on an older guestd they are
