@@ -67,6 +67,8 @@ jobs:
       - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version: 22
+      - name: install (lockfile, no scripts; the index module imports the Sigstore library at load)
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: build the release index (this tag, the floor and revocations from verifier/release-policy.json)
         env:
           GH_TOKEN: ${{ github.token }}

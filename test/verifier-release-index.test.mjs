@@ -125,6 +125,8 @@ test("the release workflow carries the index job: its own job after the measure 
   assert.match(y, /^  release-index:\n    needs: measure-and-release/m); assert.match(y, /uses: actions\/attest@1e69f48acb82d1966a394da916b4c1698aa569d6/);
   assert.match(y, /predicate-type: https:\/\/enclave\.host\/predicate\/release-index\/v1/); assert.match(y, /subject-path: release-index\.json/);
   assert.match(y, /node verifier\/release-index\.mjs build --repo "\$\{\{ github\.repository \}\}" --out release-index\.json --predicate release-index\.predicate\.json/);
+  const job = y.slice(y.indexOf("  release-index:"), y.indexOf("  update-fleet:"));
+  assert.ok(job.indexOf("npm ci --ignore-scripts --no-audit --no-fund") < job.indexOf("node verifier/release-index.mjs build"), "the lockfile install precedes the build: the module imports the Sigstore library at load (the first run failed on ERR_MODULE_NOT_FOUND)");
   assert.match(y, /gh release upload "\$\{\{ github\.ref_name \}\}" release-index\.json --clobber/);
   for (const m of y.matchAll(/uses: ([^@\s]+)@([0-9a-f]{40})/g)) assert.ok(m[2], m[1]);
   assert.equal(/secrets\.(?!GITHUB_TOKEN|TINFOIL_API_KEY)/.test(y), false, "no new secret");
