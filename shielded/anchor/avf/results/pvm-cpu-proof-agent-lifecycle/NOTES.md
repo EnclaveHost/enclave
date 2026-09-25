@@ -57,3 +57,8 @@ the posting agent's runs, whose engine this agent uses.)
 - It does not use the relay route. The carrier was the lab hub; production needs the owner's route (RUNNER-AGENT.md,
   PROOF-KEY.md).
 - It covers one phone and one VM, the Pixel 10. A Pixel 11, and several app VMs at once, are not validated.
+
+**Superseded by run 2** (results/pvm-cpu-proof-agent-lifecycle-2). Run 2 exercises 5d2d115d: the registered measurement
+is exactly the attested `codeHash`, and it adds earnings withdrawal. This run's `check.txt` was produced by the checker
+as of 20054bab. The current checker adds the measurement and payout checks, which this run predates, so it is not run
+against this directory.
