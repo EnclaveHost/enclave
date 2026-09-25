@@ -45,7 +45,7 @@ const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.in
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
   "input.recipe", "input.tree", "input.test", "input.test-support", "guest.uefi-firmware", "guest.uefi-medium", "guest.uefi-fallback",
   "input.efi-stub", "input.tool-source", "input.initrd", "control.node", "control.relay", "control.npm", "control.acceptance",
-  "probe.uefi-medium", "probe.module", "probe.firmware", "input.firmware-config", "candidate.igvm"]);
+  "probe.uefi-medium", "probe.module", "probe.firmware", "input.firmware-config", "candidate.igvm", "reference.values"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
 const SERVED_BY_PINNED_MANAGER = ["enclave-catalog-bundle/1"];   // windows/vbslike/manager/server.mjs SERVES
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
@@ -422,12 +422,16 @@ function rebuildIgvmfilegen(m, bytes, R) {
     try {
       const put = (name, e) => { const p = path.join(d, name); fs.writeFileSync(p, bytes.get(e)); return p; };
       const igp = put("igvmfilegen", ref(u.igvmfilegen)); fs.chmodSync(igp, 0o755);
-      const build = (tag, man, res, args = []) => {
+      const build = (tag, man, res, args = [], over = {}) => {
         const rmap = {};
-        for (const [t, n] of Object.entries(res)) { const e = ref(n); if (!e || !bytes.get(e)) return { err: `resource ${t} = ${n} is not a pinned input` }; rmap[t] = put(`${tag}-${t}`, e); }
+        for (const [t, n] of Object.entries(res)) {
+          if (over[t]) { const p = path.join(d, `${tag}-${t}`); fs.writeFileSync(p, over[t]); rmap[t] = p; continue; }
+          const e = ref(n); if (!e || !bytes.get(e)) return { err: `resource ${t} = ${n} is not a pinned input` }; rmap[t] = put(`${tag}-${t}`, e);
+        }
         const rp = path.join(d, `${tag}-resources.json`); fs.writeFileSync(rp, JSON.stringify({ resources: rmap }));
         const out = path.join(d, `${tag}.bin`), vj = path.join(d, `${tag}-vbs.json`);
-        const r = spawnSync(igp, ["manifest", "-m", put(`${tag}-manifest.json`, ref(man)), "-r", rp, "-o", out, ...args], { encoding: "utf8" });
+        const mp = path.join(d, `${tag}-manifest.json`); fs.writeFileSync(mp, Buffer.isBuffer(man) ? man : bytes.get(ref(man)));
+        const r = spawnSync(igp, ["manifest", "-m", mp, "-r", rp, "-o", out, ...args], { encoding: "utf8" });
         return { r, bin: fs.existsSync(out) ? sha(fs.readFileSync(out)) : null, vbs: fs.existsSync(vj) ? fs.readFileSync(vj) : null };
       };
       if (u.twin) {
@@ -440,13 +444,62 @@ function rebuildIgvmfilegen(m, bytes, R) {
       R.add(!c.err && c.r.status === 0 && c.bin === want, `rebuild ${key}: the IGVM from its pinned inputs with the pinned igvmfilegen${(u.args || []).length ? ` (${u.args.join(" ")})` : ""}`,
             c.err || (c.bin === want ? c.bin.slice(0, 16) : `exit ${c.r.status}, got ${c.bin}: ${(c.r.stderr || "").trim().split("\n").at(-1)}`));
       if (u.vbsJson) R.add(!!c.vbs && sha(c.vbs) === ref(u.vbsJson)?.sha256, `rebuild ${key}: its VBS identity document (the launch digest igvmfilegen computes)`, c.vbs ? digest(c.vbs) : "none produced");
+      // Offline mutation evidence: each single change to a measured input must change the launch digest, to exactly the
+      // pinned value (the builds are deterministic), while the unchanged rebuild above reproduces the pinned one.
+      const pinned = digest(bytes.get(ref(u.vbsJson)));
+      const elfLoadMid = (b) => { const ph = Number(b.readBigUInt64LE(0x20)), sz = b.readUInt16LE(0x36), n = b.readUInt16LE(0x38);
+        for (let i = 0; i < n; i++) { const o = ph + i * sz; if (b.readUInt32LE(o) === 1) { const fz = b.readBigUInt64LE(o + 0x20); if (fz > 0n) return Number(b.readBigUInt64LE(o + 8) + fz / 2n); } } return -1; };
+      for (const mu of u.mutations || []) {
+        const over = {}; let man = Buffer.from(bytes.get(ref(u.manifest)));
+        if (mu.kind === "resourceByte") {
+          const b = Buffer.from(bytes.get(ref(u.resources[mu.resource]))), off = mu.at === "elfFirstLoadMiddle" ? elfLoadMid(b) : Math.floor(b.length / 2);
+          if (off < 0) { R.add(false, `rebuild ${key}: mutation '${mu.name}'`, "no loadable segment"); continue; }
+          b[off] ^= 1; over[mu.resource] = b;
+        } else if (mu.kind === "manifestEdit") {
+          const j = JSON.parse(String(man)); let o = j; for (const k of mu.path.slice(0, -1)) o = o[k];
+          const last = mu.path.at(-1); if ("append" in mu) o[last] = String(o[last]) + mu.append; else o[last] = mu.set;
+          man = Buffer.from(JSON.stringify(j));
+        }
+        const x = build(`mut-${mu.name}`, man, u.resources, u.args || [], over), got = x.vbs ? digest(x.vbs) : null;
+        R.add(!x.err && x.r.status === 0 && !!got && got !== pinned && got === mu.expectVbsBootDigest,
+              `rebuild ${key}: mutation '${mu.name}' changes the VBS launch digest, to exactly its pinned value`,
+              x.err || (got === pinned ? `UNCHANGED (${got}): this input is not measured` : got === mu.expectVbsBootDigest ? got : `got ${got}, pinned ${mu.expectVbsBootDigest}`));
+      }
     } finally { fs.rmSync(d, { recursive: true, force: true }); }
+  }
+}
+// The verifier's reference values (enclave-99 imports this file): every value re-derived from the pinned image and its
+// pinned VBS identity document, confidentialDebug read from the image bytes, eligibility only for a non-debug candidate,
+// and every pinned probe or candidate firmware present, so a new image cannot be pinned without its reference entry.
+function checkReferenceValues(m, bytes, R) {
+  const refs = m.files.filter((f) => f.role === "reference.values"); if (!refs.length) return;
+  const pinOf = (x) => m.files.find((f) => f.path === x) || m.inputs.find((i) => i.name === x);
+  for (const rf of refs) {
+    const bad = []; let doc;
+    try { doc = JSON.parse(String(bytes.get(rf))); } catch (e) { R.add(false, `reference values ${rf.path}`, `not JSON: ${e.message}`); continue; }
+    const imgs = Array.isArray(doc.images) ? doc.images : [];
+    if (doc.type !== "enclave-nucbox-vbs-reference/1") bad.push(`type ${JSON.stringify(doc.type)}`);
+    for (const e of imgs) {
+      const im = pinOf(e.pin?.image), id = pinOf(e.pin?.identity), b = im && bytes.get(im), jb = id && bytes.get(id);
+      if (!b || !jb) { bad.push(`${e.id}: its pinned image or identity document is not in this manifest`); continue; }
+      let v; try { v = JSON.parse(String(jb)).series[0]; } catch { bad.push(`${e.id}: identity document unreadable`); continue; }
+      const cd = b.includes(Buffer.from("OPENHCL_CONFIDENTIAL_DEBUG=1"));
+      for (const [k, want] of [["imageSha256", im.sha256], ["imageBytes", im.bytes], ["vbsBootDigest", v.reference?.vbs_boot_digest], ["vbsIsvsvn", v.endorsement?.vbs_isvsvn],
+                               ["debugBuild", v.endorsement?.build_info?.debug_build], ["confidentialDebug", cd], ["trustsHostCommandLine", cd]])
+        if (JSON.stringify(e[k]) !== JSON.stringify(want)) bad.push(`${e.id}.${k} is ${JSON.stringify(e[k])}, the pinned bytes give ${JSON.stringify(want)}`);
+      if (e.eligible && (cd || e.class !== "candidate" || !/^candidate\./.test(im.role || ""))) bad.push(`${e.id} is marked eligible but is ${cd ? "a confidential-debug image" : `class ${e.class}, role ${im.role}`}`);
+    }
+    for (const e of doc.superseded || []) if (e.eligible !== false) bad.push(`superseded ${e.id} must say eligible: false`);
+    const listed = new Set(imgs.map((e) => pinOf(e.pin?.image)?.sha256));
+    for (const x of [...m.files, ...m.inputs]) if (/^(probe\.firmware|candidate\.igvm)$/.test(x.role) && !listed.has(x.sha256)) bad.push(`${x.path || x.name} (${x.role}) has no reference entry`);
+    R.add(bad.length === 0, `reference values ${rf.path}: every value re-derived from the pinned bytes, eligibility only for a non-debug candidate, every probe/candidate firmware listed`,
+          bad.length ? bad.join("; ") : `${imgs.length} images, ${imgs.filter((e) => e.eligible).length} eligible`);
   }
 }
 // Byte rules on a pinned IGVM that hold with or without --rebuild: strings it must carry and strings it must never carry
 // (the confidential-debug flag makes OpenHCL trust the host's command line, so a non-debug candidate must not carry it).
 function checkIgvmStrings(m, bytes, R) {
-  const ref = (x) => m.inputs.find((i) => i.name === x) || m.files.find((f) => f.path === x);
+  const ref = (x) => { const k = String(x).replace(/^file:/, ""); return m.inputs.find((i) => i.name === k) || m.files.find((f) => f.path === k); };
   for (const [key, u] of Object.entries(m.rebuild || {})) {
     if (!u || u.kind !== "igvmfilegen") continue;
     const b = bytes.get(ref(u.output)); if (!b) { R.add(false, `${key}: the pinned IGVM's bytes`, "not resolved"); continue; }
@@ -680,6 +733,7 @@ export async function verify(manifestPath, { out = null, rebuild: doRebuild = fa
   await checkClaims(m, bytes, R);
   if (out) checkOut(m, mbytes, out, bytes, R);
   checkIgvmStrings(m, bytes, R);
+  checkReferenceValues(m, bytes, R);
   if (doRebuild) { rebuild(m, bytes, R); rebuildUefi(m, bytes, R); rebuildIgvmfilegen(m, bytes, R); }
   if (fetchGw) await fetchCheck(m, fetchGw, R);
   if (serve) await serveCheck(m, bytes, R);

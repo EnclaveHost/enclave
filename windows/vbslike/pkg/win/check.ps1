@@ -198,6 +198,10 @@ if ($M.profiles.PSObject.Properties.Name -contains 'vbs') {
   "firmware (FirmwareFile, the cvm build): $(Get-PkgFilePath $d $v.firmware)"
   "boot medium (the PRODUCTION medium, read-only): $(Get-PkgFilePath $d $v.medium)"
   "PROBE medium (NOT production; never serves an app): $(Get-PkgFilePath $d $v.probeMedium)"
+  if ($v.measuredVtl0Candidate -and $v.measuredVtl0Candidate.file) {
+    "measured-VTL0 candidate (FirmwareFile for a -LinuxDirect run; not booted when pinned): $(Get-PkgFilePath $d $v.measuredVtl0Candidate.file)"
+    "  its DEBUG TWIN (TRUSTS THE HOST COMMAND LINE; diagnosis only, never serving): $(Get-PkgFilePath $d $v.measuredVtl0Candidate.debugTwinFile)"
+  }
 }
 if ($Require -and -not $ready[$Require]) { "REQUIRED PROFILE $Require IS BLOCKED"; exit 3 }
 exit 0
