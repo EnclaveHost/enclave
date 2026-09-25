@@ -198,7 +198,65 @@ binding and TLS are unchanged.
 **Labels until then:** `host_excluded=no` everywhere, T0-hv, monitor-signed, never "attested". A type-1 partition
 earns a different label only after sections 1 and 3 both pass on the box.
 
-## 4. Files
+## 4. On the box (enclave-d1, 2026-09-25), and where type 1 stands
+
+**Type 16, MEASURED** on production medium `ca245eae` (initrd 0d14db23), openhcl.bin `48773995`, boot_ms 307:
+
+```
+MON hv hyperv=true max_leaf=0x4000000b priv_high=0x3b8030 isolation_priv=false config_a=0x0 config_b=0x0 (stated by the hypervisor, CPUID)
+MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=n/a paravisor=n/a
+MON ready control_port=9000 snp=false transport=hv_sock
+```
+
+- Leaf 0x4000000C is not defined on a type-16 partition (the maximum leaf is 0x4000000B), so the fields read `n/a`,
+  not `none`/`yes`.
+- The app served its 13 pinned bytes on that run.
+
+**Type 1 with an OpenHCL paravisor has not started.** d1's matrix, all on `ca245eae`:
+
+| firmware | type | GuestFeatureSet | result |
+|---|---|---|---|
+| openhcl.bin 48773995 (isolation None) | 16 | 0x201 | boots, hv_sock, app serves |
+| openhcl.bin 48773995 | 1 | 0x201 | refuses to start (Worker 12030) |
+| openhcl-cvm.bin cfd40ce2 | 16 | 0x201 | refuses to start (12030) |
+| openhcl-cvm.bin cfd40ce2 | 1 | 0x201 | refuses to start |
+| openhcl-cvm.bin cfd40ce2 | 1 | 0x601 | refuses to start |
+| openhcl-cvm.bin cfd40ce2 | 1 | 0x400 | starts, then 18610 "fatal virtual firmware error" and an 18560 triple fault |
+
+Those runs set `Vtl2AddressSpaceConfigurationMode 1` / `Vtl2AddressRangeSize 1024` / `Vtl2MmioAddressRangeSize 512`
+(needed for openhcl.bin on type 16) and used New-VM, then ModifySystemSettings. E2 and E3 are therefore NOT RUN, not
+failed: no type-1 guest has booted.
+
+**Reading from source: two of those refusals are expected, and the matrix has not yet tried Microsoft's recipe for
+type 1.**
+- `openhcl.bin` is an isolation-None build. Refusing to load it into a VBS partition is expected; it says nothing
+  about the CVM image.
+- `openhcl-cvm.bin` on type 16 is its VBS configuration in an unisolated partition. Refusing that is expected too.
+- For type 1, petri (Microsoft's test harness, which runs 28 `hyperv_openhcl_uefi_x64[vbs]` cases) differs from the
+  runs above in three ways:
+  1. **No VTL2 auto placement for isolated VMs.** `increase_vtl2_memory = is_openhcl && !is_isolated`
+     (`petri/src/vm/hyperv/powershell.rs:548`); the three Vtl2* properties are set only then (`hyperv.psm1:274-283`).
+     The images agree: `openhcl.bin` carries a RELOCATABLE_REGION and a PAGE_TABLE_RELOCATION_REGION (IGVM header
+     types 0x102/0x103), so it needs auto placement. `openhcl-cvm.bin` has **neither**. Its VBS configuration
+     (compatibility mask 0x4) requires VTL2 memory at the **fixed** GPA 0x8000000, 128 MiB (REQUIRED_MEMORY
+     0x305, flags 0x1). Auto placement of a 1 GiB VTL2 range, asked of a fixed image, is the likeliest refusal.
+  2. **No synthetic mouse, keyboard or display** on isolation types 1, 2 and 3: petri removes all three at creation
+     (`hyperv.psm1:448-461`).
+  3. **Isolation and OpenHCL defined together at creation**: `GuestStateIsolationType` 1 with
+     `GuestFeatureSet 0x201` and `FirmwareFile`, in one DefineSystem (`hyperv.psm1:230-268`, "Enable OpenHCL by
+     feature"), rather than New-VM followed by a modify.
+- A caution: petri's hosts are probably newer than 26200.
+  - It gates COM3 on build 27653 or later.
+  - It uses VSSD properties 26200 does not have (`GuestStateLifetime`, `GuestStateEncryptionPolicy`).
+  - It notes "Hyper-V VBS VMs don't work with COM3 enabled" (`mod.rs:361-380`), falling back to the diagnostics
+    client for VBS VMs.
+
+  So "VBS + OpenHCL is not composable on 26200" is possible, but NOT shown until the three differences above have
+  been tried. If they fail too, the host's own event channels (VMMS/Worker Admin and Operational) around the 12030
+  are the next evidence. `ohcldiag-dev` only helps once VTL2 runs; a partition that never starts has no diagnostics
+  server.
+
+## 5. Files
 
 - `monitor/hvisolation.go` and `cpuid_amd64.{go,s}`: the stated fields. `hvisolation_test.go`: the mapping, and
   reading them on the test machine.
