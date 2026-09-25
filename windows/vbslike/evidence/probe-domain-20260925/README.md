@@ -40,25 +40,36 @@ honoured.
     DOM1 ERROR runtime exited status=137
     MON domain 1 ended: its process tree exited
 
-**What this establishes, on this guest and host (app-versus-app containment inside the partition, by the guest
-kernel):**
-- **An unprivileged domain.** It runs as uid 5001, not root.
-- **No reach into another domain.** Its files are not reachable by an absolute, relative or escaping path, nor is its
-  front socket.
-- **No report interface.** The report-interface files (configfs tsm, sysfs) are absent, and no tsm entry can be
-  created.
-- **Almost no process visibility.** It sees 2 pids and can signal 1: its own.
-- **No other channels.** No vsock route to another domain, to its own control port or to the host answers, and the host
-  gateway is unreachable.
-- **Memory is capped.** The domain was killed (137) at its 64 MiB cap after touching 48 MiB: contained, not
-  UNCONTAINED.
+**CORRECTED 2026-09-25 (independent audit of 3c3dce3d): what this run does and does NOT establish.**
 
-**Expected and recorded as not passing:** `dev_tpm0` and `dev_tpmrm0` are MISSING. This image's domprobe predates
-that control, which is in candidate `b7ba7731` (review `fd92d610`). Its canary runs this same step, and those two lines
-must read `No such file or directory`.
+The probe was loaded as domain 1, and NO other domain was running. domprobe hard-codes its "other domain" targets to
+domain 1 (`/domains/1/app.wasm`, `/domains/1/run/front.sock`, vsock ports 40001 and 40002). In this run those targets
+were the probe's OWN domain or nothing at all. So the ENOENT and connection failures below are observations of what the
+probe's own view lacks. They are NOT denials against an existing, live neighbour.
 
-**What it does not establish.** Anything about the HOST: this is containment between domains inside the guest.
-host_excluded=no. `report=refused` is expected here: no report signer (wmiserve) was running in this run.
+Observed namespace and resource containment (valid as observations):
+- the workload runs unprivileged (uid 5001);
+- its filesystem view is its own chroot: the listed host-root paths are absent from it, and its own `/app.wasm` is
+  readable;
+- its pid namespace shows 2 pids, and it can signal 1;
+- its network namespace has no route to the QEMU-style gateway, and vsock is unreachable from it;
+- its memory cgroup cap was enforced: it was killed (137) at 64 MiB after touching 48.
+
+NOT established by this run:
+- **Denial against another app:** no live neighbour existed, and the hard-coded targets were its own or absent.
+- **Enforcement versus no service:** `vsock_host_control=timed out` means nothing answered. It is not a denial.
+  `host_gateway` 10.0.2.2 is a QEMU address with no target on Hyper-V.
+- **The report interfaces:** configfs_tsm, sysfs and create_tsm_entry are absent from the domain's view. Whether they
+  exist in the guest's root namespace on this VBS path was not shown.
+- **Signer authorization:** `report=refused` came with NO report signer (wmiserve) running, so it says nothing about
+  signer authorization. `DOM1 report_as_root=refused` is the monitor refusing uid 0, a monitor-side check.
+- **The TPM device:** dev_tpm0 and dev_tpmrm0 were MISSING here (this domprobe predates them). Even when present,
+  ENOENT will show only absence from the domain's view unless the device's existence in the root namespace is also
+  shown.
+
+The live-neighbour acceptance that replaces the "other app" claim is being built: a normal domain 1 serving the
+pinned hello-world fixture, verified through its legitimate route before and after, then the probe as domain 2 against
+those exact live targets. A missing, dead or wrong target fails; a timeout is inconclusive. See PROOF-CHECKLIST.
 
 **The mechanism, and two dry runs.** Runs 091020 and 091408 read NOTHING after the load. The COM1 client is
 disconnected after the ready wait on every run; G4 had to re-attach too. The probe block now re-attaches (`c16d785d`),
