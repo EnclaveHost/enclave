@@ -25,17 +25,19 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { pathToFileURL } from "node:url";
 import { createPublicClient, http, encodeFunctionData, decodeEventLog, getAddress } from "viem";
 import { base } from "viem/chains";
 
-const OWNER = getAddress("0x0b2d009c0c9Af05b12100D77F3c815fea822eE61");   // Steven's governance key (a Trezor)
+export const OWNER = getAddress("0x0b2d009c0c9Af05b12100D77F3c815fea822eE61");   // Steven's governance key (a Trezor)
 const ADDRESS_BOOK = getAddress("0xab214342d5A490150A4A977063A2f88E21F80907");
 // two independent Base RPCs, which must agree (mainnet.base.org refused reads on 09-25). --verify reads RECEIPTS, which
 // publicnode serves only with a personal token, so it uses its own pair. Either can be set: RPCS / VERIFY_RPCS=a,b
 const pair = (env, dflt) => { const l = String(process.env[env] || "").split(",").map((x) => x.trim()).filter(Boolean);
   return l.length === 2 ? l : dflt; };
 const RPCS = pair("RPCS", ["https://base-rpc.publicnode.com", "https://base.drpc.org"]);
-const VERIFY_RPCS = pair("VERIFY_RPCS", ["https://base.drpc.org", "https://1rpc.io/base"]);
+// 1rpc.io answered 410 "discontinued" mid-run on 09-25 (enclave-d1); blastapi serves receipts and historical reads
+const VERIFY_RPCS = pair("VERIFY_RPCS", ["https://base.drpc.org", "https://base-mainnet.public.blastapi.io"]);
 const RELAY = "https://api.enclave.host";
 const BACKEND = "snp-guest-per-app";
 const ENVELOPE_MAX = 4096;                  // EnclaveDeployments MAX_CFG (rev >= 5)
@@ -51,7 +53,7 @@ const DEP_TUPLE = [
   { name: "balance6", type: "uint256" }, { name: "spent6", type: "uint256" }, { name: "runner", type: "bytes32" },
   { name: "runnerOperator", type: "address" }, { name: "leaseUntil", type: "uint64" },
 ];
-const DEP_ABI = [
+export const DEP_ABI = [
   { type: "function", name: "deploymentsSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "count", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "getPage", stateMutability: "view",
@@ -112,7 +114,7 @@ async function relayJSON(method, url, body) {
   } catch (e) { return { status: 0, error: String(e.message || e) }; }
 }
 
-function parseEnvelope(raw) {
+export function parseEnvelope(raw) {
   const s = String(raw || "").trim();
   if (!s) return { kind: "empty", obj: {} };
   if (!s.startsWith("{")) return { kind: "legacy-string", obj: null };
@@ -169,7 +171,7 @@ function tokensAndOrigins(text) {
            literalHttpsOrigins: [...origins].sort() };
 }
 // the new envelope: the current bytes with isolation appended, so every namespace stays byte-for-byte
-function withIsolation(raw, env) {
+export function withIsolation(raw, env) {
   const add = `"isolation":{"require":"${BACKEND}"}`;
   const s = String(raw || "").trim();
   const next = env.kind === "empty" || !env.obj || !Object.keys(env.obj).length ? `{${add}}` : s.slice(0, -1) + "," + add + "}";
@@ -200,7 +202,7 @@ function blockers(d, v, env, secretsProbe) {
 
 // what setConfig must leave exactly as it was; rate included: only setShares changes it, so a change means someone else
 // acted in between (enclave-d1). balance6, spent6, runner and leaseUntil move on their own with leases.
-const preservedOf = (d, cap) => plain({ owner: d.owner, appRef: d.appRef, ports: d.ports, gpuMilli: d.gpuMilli,
+export const preservedOf = (d, cap) => plain({ owner: d.owner, appRef: d.appRef, ports: d.ports, gpuMilli: d.gpuMilli,
   cpuMilli: d.cpuMilli, appPort: d.appPort, isPublic: d.isPublic, active: d.active, createdAt: d.createdAt, rate: d.rate,
   cap6: cap });
 
@@ -290,6 +292,46 @@ async function inventory(outDir) {
   for (const p of payloads) console.log(`payload ${p.short}: ${p.envelopeAfterBytes} B envelope, simulation ${Object.values(p.simulation.results).join(" / ")}`);
 }
 
+// What a payload must say about WHERE it goes, whatever its data: the ledger, from the owner, no value, Base. The signer
+// copies these into the Trezor, so an edited payloads.json with the same data and another `to` must be refused
+// (enclave-d1).
+export function payloadHeaderReasons(p, ledger) {
+  const why = [];
+  let to = "", from = "";
+  try { to = getAddress(p.to); } catch {}
+  try { from = getAddress(p.from); } catch {}
+  if (to !== getAddress(ledger)) why.push(`its "to" is ${p.to}, not the ledger ${ledger}`);
+  if (from !== OWNER) why.push(`its "from" is ${p.from}, not the owner ${OWNER}`);
+  if (p.value !== "0") why.push(`its value is ${JSON.stringify(p.value)}, not "0"`);
+  if (p.chainId !== 8453) why.push(`its chainId is ${JSON.stringify(p.chainId)}, not 8453 (Base)`);
+  return why;
+}
+
+// The post-signing decision for ONE transaction, pure (tested without a chain): the transaction and receipt as each of
+// the two RPCs returned them, the payload, the ledger, and the deployment's state afterwards.
+export function txReasons({ tx, tx2, receipt, receipt2, payload: p, ledger, post }) {
+  const why = [...payloadHeaderReasons(p, ledger)];
+  if (!same(tx.input, tx2.input) || !same(receipt.logs, receipt2.logs) || receipt.status !== receipt2.status)
+    why.push("the two RPCs disagree about the transaction");
+  if (tx.input !== p.data) why.push("its input is NOT the reviewed calldata");
+  let txTo = "", txFrom = "";
+  try { txTo = getAddress(tx.to); } catch {}
+  try { txFrom = getAddress(tx.from); } catch {}
+  if (txTo !== getAddress(ledger)) why.push(`it went to ${tx.to}, not the ledger`);
+  if (txFrom !== OWNER) why.push(`it came from ${tx.from}, not the owner`);
+  if (BigInt(tx.value) !== 0n) why.push("it carried value");
+  if (receipt.status !== "success") why.push(`its receipt says ${receipt.status}`);
+  const sets = receipt.logs.filter((l) => { try { return getAddress(l.address) === getAddress(ledger); } catch { return false; } })
+    .map((l) => { try { return decodeEventLog({ abi: DEP_ABI, data: l.data, topics: l.topics }); } catch { return null; } })
+    .filter((e) => e && e.eventName === "ConfigSet");
+  if (sets.length !== 1 || sets[0].args.id.toLowerCase() !== p.deployment.toLowerCase() || sets[0].args.configCid !== p.envelopeAfter)
+    why.push(`the ledger emitted ${sets.length} ConfigSet event(s), not exactly one for this id and envelope`);
+  if (post.configCid !== p.envelopeAfter) why.push("the envelope now is not the signed one");
+  const moved = Object.keys(p.preserved).filter((k) => JSON.stringify(post.preserved[k]) !== JSON.stringify(p.preserved[k]));
+  if (moved.length) why.push(`preserved fields changed: ${moved.join(", ")}`);
+  return why;
+}
+
 // --check: the step immediately before the owner signs. Refuses unless every deployment is still what its payload was
 // built from (the same envelope bytes, the same preserved fields) and the calldata rebuilt from it NOW is identical.
 async function check(file) {
@@ -301,7 +343,7 @@ async function check(file) {
   for (const p of doc.payloads) {
     const d = await read2(blockNumber, doc.deployments, DEP_ABI, "get", [p.deployment]);
     const cap = await read2(blockNumber, doc.deployments, DEP_ABI, "capOf", [p.deployment]);
-    const why = [];
+    const why = payloadHeaderReasons(p, addr.deployments);
     if (String(d.configCid || "") !== p.envelopeBefore) why.push("its envelope CHANGED since the payload was built (signing would revert that change)");
     const now = preservedOf(d, cap);
     const moved = Object.keys(p.preserved).filter((k) => JSON.stringify(now[k]) !== JSON.stringify(p.preserved[k]));
@@ -314,7 +356,8 @@ async function check(file) {
     const sim = await Promise.all(clients.map((c) => c.call({ account: getAddress(p.from), to: getAddress(p.to), data: p.data, blockNumber })
       .then(() => "ok").catch((e) => "REVERT " + (e.shortMessage || e.message))));
     if (sim.some((r) => r !== "ok")) why.push(`simulation: ${sim.join(" / ")}`);
-    console.log(`${p.short}: ${why.length ? "REFUSED - " + why.join("; ") : "OK to sign (block " + blockNumber + ", calldata sha256 " + p.dataSha256 + ")"}`);
+    console.log(`${p.short}: ${why.length ? "REFUSED - " + why.join("; ")
+      : `OK to sign: to ${getAddress(p.to)} (compare with the Trezor screen), value 0, chainId 8453, calldata sha256 ${p.dataSha256} (block ${blockNumber})`}`);
     if (why.length) bad++;
   }
   process.exit(bad ? 1 : 0);
@@ -337,23 +380,10 @@ async function verify(file, txArgs) {
       [tx0, tx1] = await Promise.all(clients.map((c) => c.getTransaction({ hash: txh })));
       [rc0, rc1] = await Promise.all(clients.map((c) => c.getTransactionReceipt({ hash: txh })));
     } catch (e) { console.log(`${p.short}: FAILED - transaction ${txh} not found on both RPCs (${e.shortMessage || e.message})`); bad++; continue; }
-    if (!same(tx0.input, tx1.input) || !same(rc0.logs, rc1.logs) || rc0.status !== rc1.status) why.push("the two RPCs disagree about the transaction");
-    if (tx0.input !== p.data) why.push("its input is NOT the reviewed calldata");
-    if (getAddress(tx0.to) !== getAddress(p.to)) why.push(`it went to ${tx0.to}, not the ledger`);
-    if (getAddress(tx0.from) !== getAddress(p.from)) why.push(`it came from ${tx0.from}, not the owner`);
-    if (BigInt(tx0.value) !== 0n) why.push("it carried value");
-    if (rc0.status !== "success") why.push(`its receipt says ${rc0.status}`);
-    const sets = rc0.logs.filter((l) => getAddress(l.address) === getAddress(p.to)).map((l) => {
-      try { return decodeEventLog({ abi: DEP_ABI, data: l.data, topics: l.topics }); } catch { return null; } })
-      .filter((e) => e && e.eventName === "ConfigSet");
-    if (sets.length !== 1 || sets[0].args.id.toLowerCase() !== p.deployment.toLowerCase() || sets[0].args.configCid !== p.envelopeAfter)
-      why.push(`the ledger emitted ${sets.length} ConfigSet event(s), not exactly one for this id and envelope`);
     const d = await read2(blockNumber, doc.deployments, DEP_ABI, "get", [p.deployment]);
     const cap = await read2(blockNumber, doc.deployments, DEP_ABI, "capOf", [p.deployment]);
-    if (d.configCid !== p.envelopeAfter) why.push("the envelope now is not the signed one");
-    const now = preservedOf(d, cap);
-    const moved = Object.keys(p.preserved).filter((k) => JSON.stringify(now[k]) !== JSON.stringify(p.preserved[k]));
-    if (moved.length) why.push(`preserved fields changed: ${moved.join(", ")}`);
+    why.push(...txReasons({ tx: tx0, tx2: tx1, receipt: rc0, receipt2: rc1, payload: p, ledger: doc.deployments,
+      post: { configCid: d.configCid, preserved: preservedOf(d, cap) } }));
     console.log(`${p.short}: ${why.length ? "FAILED - " + why.join("; ") : `verified (tx ${txh} in block ${rc0.blockNumber}; balance6 ${d.balance6}, was ${p.ledgerAtBlock.balance6})`}`);
     if (why.length) bad++;
   }
@@ -361,7 +391,8 @@ async function verify(file, txArgs) {
 }
 
 const a = process.argv.slice(2);
-if (a[0] === "--check" && a[1]) await check(a[1]);
+if (import.meta.url !== pathToFileURL(process.argv[1] || "").href) { /* imported (the tests): no command */ }
+else if (a[0] === "--check" && a[1]) await check(a[1]);
 else if (a[0] === "--verify" && a[1]) await verify(a[1], a.slice(2));
 else if (a[0] && !a[0].startsWith("-")) await inventory(a[0]);
 else { console.error("usage: owner-payloads.mjs <out dir> | --check <payloads.json> | --verify <payloads.json> <id8=0xtx> …"); process.exit(2); }
