@@ -1,0 +1,9 @@
+--- s4ca-apply.sh.v2	2026-09-25 14:14:17.574813127 -0700
++++ s4ca-apply.sh	2026-09-25 15:07:18.959854935 -0700
+@@ -33,5 +33,5 @@
+ inv=$(grep -o 'invocation [0-9a-f]*' $S4C/4ca-remote.txt | cut -d' ' -f2)
+ end=$(( $(date +%s) + 600 )); kat=""; while [ $(date +%s) -lt $end ]; do kat=$($NAN "journalctl _SYSTEMD_INVOCATION_ID=$inv --no-pager -o cat | grep -m1 'known-answer test at start'" || true); [ -n "$kat" ] && break; sleep 15; done
+ [[ "$kat" == *"PASS: 2 known answer(s)"* ]] || fail "the predictor's KAT did not pass after the restart (${kat:-none})"
+-~/enclave-bench/relay-slice-20260925/accept.sh > $S4C/4ca-accept.txt 2>&1 || fail "the relay slice's acceptance fails after the restart (4ca-accept.txt)"
++ADMIT=79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4 bash ~/enclave-bench/rs4-20260925/pkg/accept.sh > $S4C/4ca-accept.txt 2>&1 || fail "the relay slice's acceptance fails after the restart (4ca-accept.txt)"
+ say "4c-a APPLIED and checked: the allowlist is 04e953a4,10622d98,${NEWM:0:12}; metal-iso0 re-attached on 10622d98; canaries serve; the predictor KAT PASS and accept.sh ok"

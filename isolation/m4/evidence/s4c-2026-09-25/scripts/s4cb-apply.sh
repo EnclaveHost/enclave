@@ -18,7 +18,7 @@ noncanary_empty || { say "REFUSING: a non-canary deployment is (or may be) on me
 avail_before || { say "REFUSING: the availability is not the pre-4c shape"; exit 7; }
 wait_for 60 public_ok || { say "REFUSING: the canaries do not serve now"; exit 7; }
 # the 4c supervisor's cert gate asks the relay for each canary's prediction: it must answer now (the relay slice)
-~/enclave-bench/relay-slice-20260925/accept.sh > $S4C/4cb-accept-before.txt 2>&1 || { say "REFUSING: the relay's expected-guest acceptance fails (4cb-accept-before.txt)"; exit 8; }
+ADMIT=79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4 bash ~/enclave-bench/rs4-20260925/pkg/accept.sh > $S4C/4cb-accept-before.txt 2>&1 || { say "REFUSING: the relay's expected-guest acceptance fails (4cb-accept-before.txt)"; exit 8; }
 # ---- the change: dist only, atomically; from here every failure rolls back with a one-time token
 TOK=$EV/secret/4c-rollback-token; TOKV=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
 ( umask 077; echo "$TOKV" > "$TOK" ) || { say "REFUSING: cannot write the rollback token"; exit 9; }
