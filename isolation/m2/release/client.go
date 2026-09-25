@@ -86,6 +86,14 @@ func RelayRoots() (*x509.CertPool, error) {
 // TicketPort is the host (vsock CID 2) port guestd hands each guest its ticket on.
 const TicketPort = 9444
 
+// TicketHold is how long guestd holds a booting guest's ticket connection waiting for the supervisor's ticket
+// (m4/guestd/release.go). The front's own wait for the ticket line is derived from it and outlasts it.
+const TicketHold = 5 * time.Minute
+
+// ReleaseWindow is how long after its ticket arrives a guest keeps presenting it to a relay that answers with a
+// ticket-keeping 503 (the ticket's TTL is 120 s from issue, and the supervisor fetches it only once the guest waits).
+const ReleaseWindow = 100 * time.Second
+
 const ticketProto = "ticket-v1"
 
 // Ticket is what the host hands the guest: the deployment the ticket was issued for, and the ticket.
@@ -151,7 +159,10 @@ type Client struct {
 	Host    string
 	Roots   *x509.CertPool
 	Keys    []ed25519.PublicKey // the relay's pinned release keys (PinnedRelayKeys); the reply must be signed by one
-	Timeout time.Duration
+	Timeout time.Duration       // one attempt; 0 = 25 s
+	// Retry: the wait between attempts after a ticket-keeping 503 or a 429; 0 = 5 s. RetryFor bounds all attempts when
+	// the caller's context has no deadline; 0 = 100 s.
+	Retry, RetryFor time.Duration
 }
 
 // MaxSealed bounds the relay's reply: a config of up to 1 MiB plus secrets, sealed and base64'd, with room.
@@ -178,12 +189,20 @@ func (c *Client) Release(ctx context.Context, id [32]byte, ticket [32]byte, sk *
 	if err != nil {
 		return nil, err
 	}
-	timeout := c.Timeout
-	if timeout <= 0 {
-		timeout = 60 * time.Second
+	// The relay KEEPS the ticket on its own 503-class answers (warming, busy, prediction_unavailable, ...: it may be
+	// predicting this image's measurement, 12-26 s for a cold catalog version) and on a 429, so those are retried with
+	// the SAME ticket and evidence - the report binds the ticket and the seal key, not a time - every Retry, until the
+	// caller's deadline (the provisioner sets ~100 s after the ticket arrived; its TTL is 120 s from issue). Any other
+	// answer is final: a 403 has burned the ticket, and a 200 is verified at once.
+	retry := c.Retry
+	if retry <= 0 {
+		retry = 5 * time.Second
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	if _, has := ctx.Deadline(); !has {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.retryFor())
+		defer cancel()
+	}
 	tr := &http.Transport{
 		Proxy: nil, // never an environment proxy
 		// the transport dials the egress path and runs TLS itself, with THIS config: the pinned roots and name
@@ -194,24 +213,61 @@ func (c *Client) Release(ctx context.Context, id [32]byte, ticket [32]byte, sk *
 		DisableCompression: true,
 	}
 	defer tr.CloseIdleConnections()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+c.Host+"/v1/secrets/release", bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("content-type", "application/json")
 	// no redirect is followed: the reply must come from the pinned origin's own answer
 	hc := &http.Client{Transport: tr, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	for {
+		sealed, status, err := c.attempt(ctx, hc, body, id)
+		if err == nil {
+			// rule 1: the digest is this guest's own id, ticket and seal key over the sealed bytes, not the reply's fields
+			return sk.Verify(c.Keys, id, ticket, sealed.sealed, sealed.sig, sealed.keyID)
+		}
+		if status != http.StatusServiceUnavailable && status != http.StatusTooManyRequests {
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("%w (the relay kept answering it; stopped at the deadline)", err)
+		case <-time.After(retry):
+		}
+	}
+}
+
+func (c *Client) retryFor() time.Duration {
+	if c.RetryFor > 0 {
+		return c.RetryFor
+	}
+	return ReleaseWindow
+}
+
+type reply struct {
+	sealed, sig []byte
+	keyID       string
+}
+
+// attempt is ONE POST of the same body. It returns the reply's parts, or the HTTP status (0 = no answer) and why.
+func (c *Client) attempt(ctx context.Context, hc *http.Client, body []byte, id [32]byte) (reply, int, error) {
+	timeout := c.Timeout
+	if timeout <= 0 {
+		timeout = 25 * time.Second // the relay waits at most 10 s for a cold prediction before its 503 warming
+	}
+	actx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(actx, http.MethodPost, "https://"+c.Host+"/v1/secrets/release", bytes.NewReader(body))
+	if err != nil {
+		return reply{}, 0, err
+	}
+	req.Header.Set("content-type", "application/json")
 	resp, err := hc.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("release: %w", tlsReason(err))
+		return reply{}, 0, fmt.Errorf("release: %w", tlsReason(err))
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, MaxSealed+1))
 	if err != nil {
-		return nil, fmt.Errorf("release: reading the reply: %w", err)
+		return reply{}, 0, fmt.Errorf("release: reading the reply: %w", err)
 	}
 	if len(raw) > MaxSealed {
-		return nil, errors.New("release: the reply is larger than any release")
+		return reply{}, 0, errors.New("release: the reply is larger than any release")
 	}
 	if resp.StatusCode != http.StatusOK {
 		var e struct {
@@ -221,7 +277,7 @@ func (c *Client) Release(ctx context.Context, id [32]byte, ticket [32]byte, sk *
 		if json.Unmarshal(raw, &e) == nil && errCodeRE.MatchString(e.Error) {
 			code = e.Error
 		}
-		return nil, fmt.Errorf("release refused: HTTP %d %s", resp.StatusCode, code)
+		return reply{}, resp.StatusCode, fmt.Errorf("release refused: HTTP %d %s", resp.StatusCode, code)
 	}
 	var out struct {
 		ID     string `json:"id"`
@@ -230,21 +286,20 @@ func (c *Client) Release(ctx context.Context, id [32]byte, ticket [32]byte, sk *
 		KeyID  string `json:"keyId"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, errors.New("release: the reply is not {id, sealed, sig, keyId}")
+		return reply{}, 200, errors.New("release: the reply is not {id, sealed, sig, keyId}")
 	}
 	if got, err := ID(out.ID); err != nil || got != id {
-		return nil, errors.New("release: the reply names another deployment")
+		return reply{}, 200, errors.New("release: the reply names another deployment")
 	}
 	sealed, err := base64.StdEncoding.DecodeString(out.Sealed)
 	if err != nil {
-		return nil, errors.New("release: the sealed blob is not base64")
+		return reply{}, 200, errors.New("release: the sealed blob is not base64")
 	}
 	sig, err := base64.StdEncoding.DecodeString(out.Sig)
 	if err != nil {
 		sig = nil // a signature that is not base64 is a missing one, and Verify refuses it
 	}
-	// rule 1: the digest is this guest's own id, ticket and seal key over the sealed bytes, not the reply's fields
-	return sk.Verify(c.Keys, id, ticket, sealed, sig, out.KeyID)
+	return reply{sealed: sealed, sig: sig, keyID: out.KeyID}, 200, nil
 }
 
 // tlsReason keeps a certificate failure recognisable without echoing the certificate's names or the peer.

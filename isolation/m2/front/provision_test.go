@@ -487,8 +487,8 @@ func TestHandToInit(t *testing.T) {
 // the wait for the ticket line outlasts guestd's hold (5 min), so a slow supervisor or relay is ended by guestd's
 // hold through the lifecycle, never cut short in the guest
 func TestTheTicketWaitOutlastsGuestdsHold(t *testing.T) {
-	if ticketWait <= 5*time.Minute {
-		t.Fatalf("the front waits %s for its ticket, not longer than guestd's 5-minute hold", ticketWait)
+	if ticketWait <= release.TicketHold {
+		t.Fatalf("the front waits %s for its ticket, not longer than guestd's hold (%s)", ticketWait, release.TicketHold)
 	}
 	// and a ticket that comes late, after the connection is open, is still read
 	w := newProvWorld(t)
