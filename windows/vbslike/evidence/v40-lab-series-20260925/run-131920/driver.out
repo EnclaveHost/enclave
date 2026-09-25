@@ -1,0 +1,17 @@
+M3 expects the pinned body sha256 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340
+MULTI: 3 serving domains at once, memMiB 128+16*i, data plane 127.0.0.1:18092. Functional serving only: no probe; host_excluded=no.
+sweeps: liveness 15000 ms (as configured)
+manager #1 pid 21760
+MEMORY before: 99953 MiB free of 114508 MiB
+PASS M0: inventory ready and empty; no manager-owned VM; 99953 MiB free
+PASS M1: 0xa0acce55… memMiB 128: 201 hv9b0a9fb4fb73219d1e705314d16f41c7 app 9c3d10f1; 0xa1acce55… memMiB 144: 201 hv843ba06867a46dfeff700cf4a83e04fd app 07f5cbd3; 0xa2acce55… memMiB 160: 201 hv00da26d608a2a7551158e2ddb56c8861 app 7fc1fbd9
+PASS M2: hv9b0a9fb4fb73219d1e705314d16f41c7: running, VM ce9bc7e8-8f49-439e-8c52-7fa2dfab7256 Running, launcherKey EzvbOzdy, key 1a6930c6; hv843ba06867a46dfeff700cf4a83e04fd: running, VM 0989ba3a-c192-4ef5-8455-24f0efc0ba88 Running, launcherKey pUZ5YEUb, key 8001edaf; hv00da26d608a2a7551158e2ddb56c8861: running, VM 99776faf-6f40-484c-a1c6-e096c9617a81 Running, launcherKey inGIA7gw, key 94944b2d
+MEMORY with 3 running: 93506 MiB free of 114508 MiB
+PASS M3: hv9b0a9fb4fb73219d1e705314d16f41c7: OK, 200 "Hello World!\n", TLS key 1a6930c647d87c8d; hv843ba06867a46dfeff700cf4a83e04fd: OK, 200 "Hello World!\n", TLS key 8001edaf5e3ded71; hv00da26d608a2a7551158e2ddb56c8861: OK, 200 "Hello World!\n", TLS key 94944b2d26636666
+PASS M4: A's key on B's route: "NO the instance's verified transport key is not that key"; A's id with B's app: "NO the instance is not that app"
+PASS M5: DELETE hv9b0a9fb4fb73219d1e705314d16f41c7 200, GET after 404, VMs 0, its route "NO no such instance"; others: hv843ba06867a46dfeff700cf4a83e04fd OK, 200 "Hello World!\n", TLS key 8001edaf5e3ded71; hv00da26d608a2a7551158e2ddb56c8861 OK, 200 "Hello World!\n", TLS key 94944b2d26636666
+M6: turned 0989ba3a-c192-4ef5-8455-24f0efc0ba88 off from the host -> {"state":"Off"}
+PASS M6: hv843ba06867a46dfeff700cf4a83e04fd after its VM 0989ba3a-c192-4ef5-8455-24f0efc0ba88 was turned Off: failed ("the partition is Off: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 082856); its VM is left for the nod"), its route "NO the instance is failed"; others: hv00da26d608a2a7551158e2ddb56c8861 OK, 200 "Hello World!\n", TLS key 94944b2d26636666
+MEMORY after teardown: 99923 MiB free of 114508 MiB
+PASS M7: DELETE hv843ba06867a46dfeff700cf4a83e04fd 200, hv00da26d608a2a7551158e2ddb56c8861 200; manager-owned VMs left 0; 99923 MiB free
+MULTI-ACCEPT ALL PASS

@@ -1,0 +1,34 @@
+13:13:45 === MANAGER ACCEPTANCE (windows\vbslike\manager\ops\multi-accept.mjs). Lifecycle and recovery only: NOT an isolation or attestation result; host_excluded=no. ===
+13:13:45 setting before: Absent; IGVM C:\Users\claude\d1-v40-lab\pkg\guest\igvm-vbs\vbs-linux-candidate-1539-b7ba7731.bin verified b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748; tree C:\Users\claude\d1-v40-lab\pkg\control
+13:13:58 HASHES AT USE: tree 12493 files, list sha256 819bed7da53e4c273f0def5e51e130318de9e6ebb17007ee0c804ce3011783b8 (C:\Users\claude\vbs-evidence\mgraccept-20260925-131345\tree-hashes.txt)
+13:13:58 HASH AT USE: 8be8bd2f2ae9e5cd4809f8c69c7bbc01bcbf4ad7f93cad30645780d84f9ec7d8  C:\Users\claude\d1-v40-lab\pkg\control\windows\vbslike\manager\ops\multi-accept.mjs
+13:13:58 HASH AT USE: ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8  C:\Users\claude\d1-v40-lab\pkg\guest\runtime.json
+13:13:58 HASH AT USE: 523983d7711dbf27d1862ffdebe1b3973708c73ea9d9856802d68b4a0bb317f9  C:\Users\claude\d1-v40-lab\pkg\apps\hello-world-1.0.4\spawn.json
+13:13:58 HASH AT USE: 9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45  C:\Users\claude\d1-v40-lab\pkg\apps\hello-world-1.0.4\app.bundle
+13:13:58 HASH AT USE: 4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d  C:\Users\claude\vbs-like\type1.vmgs
+13:13:58 HASH AT USE: 17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c  C:\Users\claude\hyperv.psm1
+13:13:58 watchdog armed (pid 12744, ceiling 1800s)
+13:13:58 SETTING APPLIED for this run
+13:13:58 hv_sock service 00002329-facb-11e6-bd58-64006a7986d3 registered for port 9001 (removed again in cleanup)
+13:13:58 config: {"gsMaster":"C:\\Users\\claude\\vbs-like\\type1.vmgs","name":"0xd1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55","gateway":"https://ipfs.enclave.host","igvmSha256":"b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748","gsMasterSha256":"4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d","tree":"C:\\Users\\claude\\d1-v40-lab\\pkg\\control","runtimeIdentity":"C:\\Users\\claude\\d1-v40-lab\\pkg\\guest\\runtime.json","wmiserveSha256":"435717def62bb5c9a632f80210b5c3fbcbeb7cb8c1047f9beef4ca578ebe99e7","wmiserveExe":"C:\\Users\\claude\\d1-v40-lab\\pkg\\control\\vbslike-host.exe","igvm":"C:\\Users\\claude\\d1-v40-lab\\pkg\\guest\\igvm-vbs\\vbs-linux-candidate-1539-b7ba7731.bin","hypervModule":"C:\\Users\\claude\\hyperv.psm1","python":"C:\\Python314\\python.exe","logDir":"C:\\Users\\claude\\vbs-evidence\\mgraccept-20260925-131345","archiveDir":"C:\\Users\\claude\\vbs-evidence","livenessMs":15000,"bundleDir":"C:\\Users\\claude\\vbs-evidence\\mgraccept-20260925-131345\\bundles","answerCheckMs":30000,"spawnJson":"C:\\Users\\claude\\d1-v40-lab\\pkg\\apps\\hello-world-1.0.4\\spawn.json","dataPort":18092,"port":18091}
+13:15:04   DRIVER: M3 expects the pinned body sha256 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340
+13:15:04   DRIVER: MULTI: 3 serving domains at once, memMiB 128+16*i, data plane 127.0.0.1:18092. Functional serving only: no probe; host_excluded=no.
+13:15:04   DRIVER: sweeps: liveness 15000 ms (as configured)
+13:15:04   DRIVER: manager #1 pid 3728
+13:15:04   DRIVER: MEMORY before: 99816 MiB free of 114508 MiB
+13:15:04   DRIVER: PASS M0: inventory ready and empty; no manager-owned VM; 99816 MiB free
+13:15:04   DRIVER: PASS M1: 0xa0acce55… memMiB 128: 201 hve5021804b9e50e315735ba9c988b4d80 app 9c3d10f1; 0xa1acce55… memMiB 144: 201 hv478f49f1b9aa71a3a1d50a4275e188da app 07f5cbd3; 0xa2acce55… memMiB 160: 201 hva31fae02fa9ca3b995e8adae0088eb48 app 7fc1fbd9
+13:15:04   DRIVER: PASS M2: hve5021804b9e50e315735ba9c988b4d80: running, VM f9c72b75-7986-4582-b482-8ebebffd9cae Running, launcherKey tCZsbHyl, key f66f0ee6; hv478f49f1b9aa71a3a1d50a4275e188da: running, VM 07eccf9f-2187-445a-8f65-86bbbe6ef1bb Running, launcherKey cXs/W0eJ, key dbe8b83f; hva31fae02fa9ca3b995e8adae0088eb48: running, VM 2cfb4e93-7fc8-410f-9526-ec9b23f73c77 Running, launcherKey lrWNQM2e, key 7462922a
+13:15:04   DRIVER: MEMORY with 3 running: 93476 MiB free of 114508 MiB
+13:15:04   DRIVER: PASS M3: hve5021804b9e50e315735ba9c988b4d80: OK, 200 "Hello World!\n", TLS key f66f0ee68d4481e0; hv478f49f1b9aa71a3a1d50a4275e188da: OK, 200 "Hello World!\n", TLS key dbe8b83fa0760769; hva31fae02fa9ca3b995e8adae0088eb48: OK, 200 "Hello World!\n", TLS key 7462922afd0afe73
+13:15:04   DRIVER: PASS M4: A's key on B's route: "NO the instance's verified transport key is not that key"; A's id with B's app: "NO the instance is not that app"
+13:15:04   DRIVER: PASS M5: DELETE hve5021804b9e50e315735ba9c988b4d80 200, GET after 404, VMs 0, its route "NO no such instance"; others: hv478f49f1b9aa71a3a1d50a4275e188da OK, 200 "Hello World!\n", TLS key dbe8b83fa0760769; hva31fae02fa9ca3b995e8adae0088eb48 OK, 200 "Hello World!\n", TLS key 7462922afd0afe73
+13:15:04   DRIVER: M6: turned 07eccf9f-2187-445a-8f65-86bbbe6ef1bb off from the host -> {"state":"Off"}
+13:15:04   DRIVER: PASS M6: hv478f49f1b9aa71a3a1d50a4275e188da after its VM 07eccf9f-2187-445a-8f65-86bbbe6ef1bb was turned Off: failed ("the partition is Off: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 082856); its VM is left for the nod"), its route "NO the instance is failed"; others: hva31fae02fa9ca3b995e8adae0088eb48 OK, 200 "Hello World!\n", TLS key 7462922afd0afe73
+13:15:04   DRIVER: MEMORY after teardown: 99918 MiB free of 114508 MiB
+13:15:04   DRIVER: PASS M7: DELETE hv478f49f1b9aa71a3a1d50a4275e188da 200, hva31fae02fa9ca3b995e8adae0088eb48 200; manager-owned VMs left 0; 99918 MiB free
+13:15:04   DRIVER: MULTI-ACCEPT ALL PASS
+13:15:04 SETTING RESTORED to Absent (verified)
+13:15:04 hv_sock service 00002329-facb-11e6-bd58-64006a7986d3 removed (verified)
+13:15:19 TREE UNCHANGED by the run: 12493 files, the same hashes as at use (no __pycache__)
+13:15:19 === RESULT: driver exit 0, harness exit 0 (0 passed; 3 refused; 2 driver failed, cleanup clean; 1 cleanup failed). Evidence: C:\Users\claude\vbs-evidence\mgraccept-20260925-131345 ===
