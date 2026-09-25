@@ -1760,7 +1760,7 @@ async function cmdDeploy(rest) {
   const account = loadKey();
   const f = flags(rest, {
     val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid", "--waf", "--config",
-          "--secrets", "--secrets-file", "--max-rate"],
+          "--secrets", "--secrets-file", "--max-rate", "--isolation"],
     bool: ["--private", "--public", "--no-wait", "--gpu-optional"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
@@ -1838,6 +1838,21 @@ async function cmdDeploy(rest) {
     envParts.waf = w;
     say(`protection: ${JSON.stringify({ waf: w })} (per requester IP, enforced by the enclave's proxy; needs a fleet that supports the options envelope)`);
   }
+  // --isolation <backend>: the deployment REQUIRES a per-app isolation tier (`{"isolation":{"require":…}}`, the same
+  // envelope namespace an owner's setConfig adds later). Set AT CREATION, so there is no window in which a runner
+  // without that tier can claim it: every other runner refuses the namespace. Refused unless some live host
+  // advertises that backend, because nothing else would ever claim it.
+  let isoBackend = null;
+  if (f.isolation !== undefined) {
+    isoBackend = String(f.isolation).trim();
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(isoBackend)) throw new Error("--isolation takes a backend name, e.g. --isolation snp-guest-per-app");
+    let hosts;
+    try { hosts = ((await api("GET", "/enclaves")).enclaves || []).filter((e) => e && e.availability && e.availability.isolation === isoBackend); }
+    catch (e) { throw new Error(`couldn't read the fleet to confirm a ${isoBackend} host: ${e.message}`); }
+    if (!hosts.length) throw new Error(`no live host advertises the ${isoBackend} tier; a deployment requiring it would never be claimed`);
+    envParts.isolation = { require: isoBackend };
+    say(`isolation: REQUIRES ${isoBackend} (hosts: ${hosts.map((h) => h.name || h.id).join(", ")}); every other runner refuses it`);
+  }
   if (f.config !== undefined) {
     let c; try { c = JSON.parse(f.config); } catch (e) { throw new Error("--config must be a JSON object, e.g. --config '{\"api_key\":\"…\"}': " + e.message); }
     if (!c || Array.isArray(c) || typeof c !== "object")
@@ -1849,7 +1864,10 @@ async function cmdDeploy(rest) {
     // config clear`) — refuse here instead. Only an unreachable aggregate
     // falls through (same information the --waf path has always had), with a
     // loud warning.
-    try {
+    // An isolation tier is not in the fleet-wide AND (its host advertises configOverride:false on purpose: it takes
+    // config only through the attested release), so the gate that matters there is the release, stated instead.
+    if (isoBackend) say(`config: delivered only INTO the ${isoBackend} guest, through the attested release; the deployment stays Queued until the relay lists it for the release and its host has opted in`);
+    else try {
       const av = await api("GET", "/availability");
       if (av && av.aggregate && av.configOverride !== true)
         throw new Error("the live fleet doesn't support per-deployment config overrides yet (availability.configOverride is not true) — a deployment carrying one would never be claimed. Drop --config or retry after the fleet updates.");
@@ -2891,6 +2909,8 @@ deployments
          [--secrets '{"NAME":"value"}'] [--secrets-file .env]
                                         PRIVATE env vars staged on the relay (never on-chain):
                                         the enclave injects them into the app at every start
+         [--isolation <backend>]        REQUIRE a per-app isolation tier (e.g. snp-guest-per-app),
+                                        set at creation so no other runner can ever claim it
   secrets set <id> KEY=VALUE… [--file .env] [--restart]
                              store/update private env vars for a deployment (S3
                              keys etc): relay-stored, encrypted at rest, injected

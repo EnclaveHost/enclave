@@ -20,6 +20,9 @@
 #   - a release guest caught STARTING (waiting for its ticket) at the switch-off gets none, and its front powers the
 #     domain off after its wait; the supervisor's next launch of it is legacy, per the first point.
 set -eu
+# every file this script writes holds the secret-bearing env (Codex): owner-only from the first write, all scratch in one
+# private 0700 directory, removed on every exit path; nothing prints a line's value
+umask 077
 ENV=/etc/nan-relay/api-relay.env
 SEED=/etc/nan-relay/secrets-release-signing.seed
 MINTCB='{"Turin":{"fmc":1,"bootloader":3,"tee":2,"snp":5,"microcode":117}}'
@@ -28,7 +31,9 @@ modeok() { [ "$(stat -c %a "$1")" = 600 ] && [ "$(stat -c %U "$1")" = root ]; }
 [ "$(id -u)" = 0 ] || die "run as root on nan"
 modeok "$ENV" || die "$ENV must be mode 600, owned by root"
 
-F=$(mktemp); trap 'rm -f "$F" "$F.expect" "$F.new" "$F.pre" "$F.now"' EXIT
+D=$(mktemp -d); F="$D/release-lines"
+trap 'rm -rf "$D"; rm -f "$ENV.tmp"' EXIT
+trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM   # dash runs the EXIT trap on exit, not on a signal
 printf '%s\n' "SECRETS_ATTESTED_RELEASE=1" "SECRETS_RELEASE_MIN_TCB='$MINTCB'" "SECRETS_RELEASE_VMPL=0" \
   "SECRETS_RELEASE_SIGNING_KEY_FILE=$SEED" > "$F"
 while IFS= read -r line; do
@@ -42,20 +47,21 @@ done
 
 BK="$ENV.pre-release-off-$(date -u +%Y%m%dT%H%M%SZ)"
 cp -p "$ENV" "$BK"
+modeok "$BK" || die "the backup $BK is not mode 600/root"
 echo "backup of the current file: $BK"
 # the expected result, computed independently of the edit below: every line but the five, in order
-awk -v f="$F" 'BEGIN { while ((getline l < f) > 0) drop[l] = 1 } !($0 in drop) && $0 !~ /^SECRETS_RELEASE_DEPLOYMENTS=/' "$ENV" > "$F.expect"
-grep -vxF -f "$F" "$ENV" | grep -v '^SECRETS_RELEASE_DEPLOYMENTS=' > "$F.new" || true
-[ "$(wc -l < "$F.new")" = $(( $(wc -l < "$ENV") - 5 )) ] && cmp -s "$F.new" "$F.expect" \
+awk -v f="$F" 'BEGIN { while ((getline l < f) > 0) drop[l] = 1 } !($0 in drop) && $0 !~ /^SECRETS_RELEASE_DEPLOYMENTS=/' "$ENV" > "$D/expect"
+grep -vxF -f "$F" "$ENV" | grep -v '^SECRETS_RELEASE_DEPLOYMENTS=' > "$D/new" || true
+[ "$(wc -l < "$D/new")" = $(( $(wc -l < "$ENV") - 5 )) ] && cmp -s "$D/new" "$D/expect" \
   || die "the edit would not be the current file minus exactly the five lines (nothing changed)"
 # what ELSE changed since release-ON, by key NAME only (enclave-e3): kept, and reported, never reverted
 PRE=$(ls -1 "$ENV".pre-release-2* 2>/dev/null | tail -1 || true)
 if [ -n "$PRE" ]; then
-  grep '^[A-Za-z_][A-Za-z0-9_]*=' "$PRE" | sort > "$F.pre"; grep '^[A-Za-z_][A-Za-z0-9_]*=' "$F.new" | sort > "$F.now"
-  other=$(diff "$F.pre" "$F.now" | sed -n 's/^[<>] \([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | sort -u | tr '\n' ' ')
+  grep '^[A-Za-z_][A-Za-z0-9_]*=' "$PRE" | sort > "$D/pre"; grep '^[A-Za-z_][A-Za-z0-9_]*=' "$D/new" | sort > "$D/now"
+  other=$(diff "$D/pre" "$D/now" | sed -n 's/^[<>] \([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | sort -u | tr '\n' ' ')
   echo "keys changed since release-ON (kept, not reverted): ${other:-none}"
 fi
-install -m 600 -o root -g root "$F.new" "$ENV.tmp" && mv "$ENV.tmp" "$ENV"
+install -m 600 -o root -g root "$D/new" "$ENV.tmp" && mv "$ENV.tmp" "$ENV"
 modeok "$ENV" || die "$ENV lost its mode 600/root (put back $BK by hand)"
 systemctl restart enclave-api-relay
 for _ in $(seq 1 60); do systemctl is-active --quiet enclave-api-relay && break; sleep 1; done

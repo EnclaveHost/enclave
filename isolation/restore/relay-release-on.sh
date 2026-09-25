@@ -16,6 +16,9 @@
 # Then: ONE backup of api-relay.env, FIVE appended lines (verified: exactly five added, every old line byte-identical, the
 # mode unchanged), ONE restart, and the checks. Rollback: relay-release-off.sh (line-wise).
 set -eu
+# the backup holds the secret-bearing env (Codex): owner-only from the first write; scratch in a private 0700 directory,
+# removed on every exit path; nothing prints a line's value
+umask 077
 ENV=/etc/nan-relay/api-relay.env
 SEED=/etc/nan-relay/secrets-release-signing.seed
 RELAY=/opt/nan-relay
@@ -56,9 +59,12 @@ echo "seed keyId: $KID (= the key pinned in release 79c5ecf2's front)"
 
 BK="$ENV.pre-release-$(date -u +%Y%m%dT%H%M%SZ)"
 cp -p "$ENV" "$BK"
+modeok "$BK" || die "the backup $BK is not mode 600/root"
 echo "backup: $BK"
 OLDN=$(wc -l < "$ENV")
-ADD=$(mktemp); trap 'rm -f "$ADD"' EXIT
+D=$(mktemp -d); ADD="$D/add"
+trap 'rm -rf "$D"' EXIT
+trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM   # dash runs the EXIT trap on exit, not on a signal
 { echo "SECRETS_ATTESTED_RELEASE=1"
   echo "SECRETS_RELEASE_DEPLOYMENTS=$CANARIES"
   echo "SECRETS_RELEASE_MIN_TCB='$MINTCB'"

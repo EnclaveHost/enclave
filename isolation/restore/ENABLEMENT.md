@@ -15,6 +15,15 @@ one suggestion), all answered below:
 - L3: the ticket-burn path is noted at step 4, as the relay fix is e3's lane.
 - e3's suggestion (show the opt-in in availability) is listed as a follow-up.
 
+**Rev 3 (22:38Z):** Codex's corrections, relayed by 63:
+- (1) Both relay scripts start with `umask 077`, keep all scratch in one private 0700 `mktemp -d`, remove it on
+  every exit path (EXIT, plus HUP/INT/TERM), and check that each backup is 600/root. Nothing prints a line's value.
+- (2) S5: where the staged-names evidence is, how fresh it is, and what it does NOT show (step 5).
+- (3) A separate config- and secret-bearing acceptance case, with non-sensitive test values (step 4b).
+- (4) Funding is funded runtime, not a top-up prerequisite. `owner-payloads.mjs --check` now rechecks, at signing
+  time, the tier host's price, the publisher fee, the cap and the balance, and prints the runtime the balance buys
+  for the signing request (step 7).
+
 ## Where we are (read 2026-09-25 ~21:40-22:10Z)
 - **Guest image.** Production guestd.4e78ba80 runs `-release`, and builds from **release 79c5ecf2** (the musl init,
   tree iso-aa6c985c, switched 21:57Z). The three canaries still run their LEGACY images, adopted unchanged.
@@ -25,9 +34,10 @@ one suggestion), all answered below:
     `SECRETS_RELEASE_DEPLOYMENTS`, `SECRETS_RELEASE_MIN_TCB`, `SECRETS_RELEASE_VMPL` and
     `SECRETS_RELEASE_SIGNING_KEY_FILE` are unset.
   - The seed file is present: mode 600, owner enclave-api-relay.
-- **Node (metal-iso0).** The 4c supervisor (b18f8989) is being rolled out. It has the ticket fetch and pump, the
-  release-aware claim gate, and the expected-guest certificate gate. **It never runs release guests**: its switch
-  `ISOLATION_RELEASE` is not passed by the node launcher (step 3).
+- **Node (metal-iso0).** The 4c supervisor (b18f8989, image 8ab7a159) is LIVE: 63's gate PASSED at 22:28:34Z, with
+  the canaries adopted and 0 released. It has the ticket fetch and pump, the release-aware claim gate, and the
+  expected-guest certificate gate. **It never runs release guests**: its switch `ISOLATION_RELEASE` is not passed
+  by the node launcher (step 3). 4c-c is building (63, from f6cbd75a).
 - **Steven's apps** (a69dcbba, d9798e4c, a77d0c57) are active, funded, unleased, and refused by metal-iso0's claim
   gate: their envelopes don't require isolation. 7ae476a3 stays held behind us-west (INVENTORY.md).
 
@@ -36,11 +46,12 @@ one suggestion), all answered below:
 |---|---|---|---|
 | 1 | U7 on nan (the release needs U7's `hostEligibility` provider: without it, `release_unconfigured` whatever the env) | 63 | **DONE**: U7 live on nan, nan-relay and us-west (enclave-63, 2026-09-25, per the preflight's §7) |
 | 2 (4b) | the relay's release ON, for the 3 canaries only | 63 runs `relay-release-on.sh` | step 1, e3/d1 review, **Codex go** |
-| 3 (4c-c) | the node passes `ISOLATION_RELEASE=1` (NEW IMAGE: the one real blocker) | 63 | the gsup change (prepared here, approved by d1 and e3), a build from 90027a66 or later, **Codex go** |
+| 3 (4c-c) | the node passes `ISOLATION_RELEASE=1` (NEW IMAGE: the one real blocker) | 63 | the gsup change (prepared here, approved by d1 and e3), a build from 90027a66's tree (63's f6cbd75a is tree-identical), **Codex go** |
 | 4 (4e) | the canaries relaunched as release guests, ONE at a time | 63 (the agent wallet signs the restart) | steps 2 and 3 |
-| 5 (S5) | per app: the staged secret NAMES equal the names its config references; the collision check | **Steven** (names only) | nothing technical |
-| 6 | the relay lists the app for the release | 63 (relay env and restart) | step 4 accepted, step 5 per app |
-| 7 (S6) | the owner's `setConfig` adds `isolation.require`: **THIS is the step that takes an app from queued to serving** | **Steven** (Trezor), via the runbook | step 6 for that app, and Steven's funding decision (top up, or accept about 4 h) |
+| 4b | a config- and secret-bearing acceptance deployment (test values; the agent wallet's own) | 63 (the agent wallet signs) | step 4 accepted (the hookbin canary serves) |
+| 5 (S5) | per app: the staged secret NAMES equal the names its config references; the collision check | **Steven** (names only: the one owner-only check still missing) | nothing technical |
+| 6 | the relay lists the app for the release | 63 (relay env and restart) | step 4b accepted, step 5 per app |
+| 7 (S6) | the owner's `setConfig` adds `isolation.require`: **THIS is the step that takes an app from queued to serving** | **Steven** (Trezor), via the runbook | step 6 for that app; `--check` OK at signing, with its runtime told to Steven |
 
 ## Step 2 (4b): the relay's release ON: `relay-release-on.sh` / `relay-release-off.sh`
 Run as root on nan. The script checks its preconditions, then makes ONE backup, appends FIVE lines, and does ONE
@@ -101,6 +112,9 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   - reports, by key NAME only, which other keys changed since the pre-release backup (e3's "print which keys
     differ"). It KEEPS those changes instead of refusing, because refusing on them would block the rollback in
     exactly d1's case (after 4c-c's allowlist entry).
+  Both scripts write every scratch file into one private directory (`umask 077`, `mktemp -d`), removed on every exit
+  path; each backup is checked 600/root (Codex). Tested with a caller umask of 022: the scratch was 0700 with 0600
+  files, and nothing was left after a success, a refusal, or a TERM mid-run.
   Tested locally with a harness (the paths redirected, no systemd): on then off gives the original file byte for byte;
   a later `METAL_ALLOWED_MEASUREMENTS` edit survives the rollback and is reported, and a step-6-edited
   `SECRETS_RELEASE_DEPLOYMENTS` line is removed by its key; a second run
@@ -131,8 +145,10 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   - d1/e3: say if you want it measured instead.
 - **The build** (63's 4c procedure): the same pinned supervisor and wasm refs, and `--supervisor-overlay` from
   b18f8989. The supervisor files are unchanged: none of the 8 overlay files changed after b18f8989. build-image runs
-  from a **clean checkout of 90027a66 or later** (d1's C): that merge carries BOTH this gsup change and 63's
+  from a **clean checkout of 90027a66's tree** (d1's C): that merge carries BOTH this gsup change and 63's
   b3109929 (`-ffile-prefix-map` in metal/build-image.mjs). Without the prefix map the image is path-dependent again.
+  63's f6cbd75a (87e881a2 + b3109929), which 63 is building from, has an IDENTICAL tree (`git diff f6cbd75a 90027a66`
+  is empty). gsup.mjs has not changed since 899196e8, and rev 2/3 touched only isolation/restore, cli/ and a test.
   Use the AmdSev `--ovmf` and the same min-tcb. Build from two checkout paths and compare; d1 reproduces from a third.
   Then predict, allowlist, roll out (S2 shape).
 - **Flip:** config.iso.json gets `"release": true` in its `isolation` object, then the node CVM restarts. The image
@@ -186,12 +202,122 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   Closed, but noisy. So a `422 bad_config` in the relay journal for a canary with no config is an RPC blip, not a
   config problem: let the relaunch run, and count the cycle. e3's suggested fix is 503 `config_unresolvable`, which
   keeps the ticket.
-- **Acceptance** = all three canaries pass the five proofs and serve for their observe windows. Only then step 6 for
-  Steven's apps.
+- **Acceptance** = all three canaries pass the five proofs and serve for their observe windows. Only then step 4b.
+
+## Step 4b: a config- and secret-bearing acceptance deployment (Codex: the null-config canaries don't show it)
+The three canaries carry no config and no secrets, so they prove the release, the attestation and the certificate, but
+not the customer path: config delivery, `$NAME` substitution and derived egress. This step proves that path on the
+same app and version as Steven's a69dcbba, with **non-sensitive test values**, on a deployment the agent wallet owns.
+- **The app:** api-mcp-adapter 1.0.0 (`catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0`),
+  a69dcbba's exact app. So `/v1/expected-guest` for the test id must be a69dcbba's prediction (20319b02…ef47), and
+  the test exercises the runtime and config path a69dcbba will take.
+- **What it costs:** the agent wallet 0x29479Bf0…647C owns it, and that wallet is metal-iso0's declared payout wallet,
+  so the host charge is waived (free self-hosting, like the canaries), and this version's publisher fee is 0.
+  `enclave deploy` still requires a funding amount, so it gets `--fund 0.01` (the wallet holds 11.43 USDC), and
+  `enclave refund` returns it at teardown. That is the only deposit: into the agent wallet's own test deployment,
+  refunded, nothing into Steven's apps. **63/Codex: confirm that is acceptable, or say "no".** Gas: three
+  transactions (create, fund, refund); the wallet holds 0.000171 ETH.
+- **The CLI's new `--isolation <backend>`** (cli/enclave.mjs, this commit) puts `{"isolation":{"require":…}}` in the
+  envelope AT CREATION. So no runner without the tier can claim the deployment even for a moment. That matters here:
+  the agent wallet's own deployments are free on any box that declares it as payout wallet, and every other runner
+  refuses the namespace. The flag refuses a backend no live host advertises. With it, `--config` skips the
+  fleet-wide `configOverride` gate: the isolation host advertises `configOverride:false` on purpose, and it takes
+  config only through the release.
+
+**The config** (inline; it holds only `$NAME` references and public URLs, so it can be committed as evidence):
+```json
+{
+  "title": "release acceptance (enclave-5d)",
+  "api_key": "$ACCEPT_API_KEY",
+  "egress": ["https://0ddbd824.app.enclave.host"],
+  "http": [
+    { "name": "hookbin_probe", "description": "acceptance: one GET to the hookbin canary, carrying the substituted test token",
+      "parameters": { "type": "object", "properties": {} },
+      "url": "https://0ddbd824.app.enclave.host/b/<BIN>/accept", "headers": { "x-accept-token": "$ACCEPT_TOKEN" } },
+    { "name": "egress_refused_probe", "description": "acceptance: a destination NOT on the egress list",
+      "parameters": { "type": "object", "properties": {} },
+      "url": "https://395bed3e.app.enclave.host/ping" }
+  ]
+}
+```
+- The explicit `"egress"` list replaces derivation (egress/policy.go), so the guest may reach the relay origin (always
+  pinned) and the hookbin canary, and nothing else. `egress_refused_probe`'s host is our own canary, which answers
+  `/ping` 200 from outside, so a refusal there can only be the guest's policy.
+- The test values: `ACCEPT_API_KEY` and `ACCEPT_TOKEN`, each `acc-` plus 24 random hex characters, generated on the
+  operator's machine into a 0600 file (`umask 077; d=$(mktemp -d)`), never on a host, never in argv. Only their sha256
+  goes into evidence. d1's collision check: this config has no `$tokens` of its own.
+- `<BIN>`: `accept-5d-` plus 8 random hex characters (hookbin's token rule).
+
+**Run** (63; the agent wallet signs; after step 4's acceptance, so the hookbin canary serves):
+1. Create the bin: `curl -X POST -H "x-bin-id: $BIN" https://0ddbd824.app.enclave.host/api/bins` gives `{ok}`.
+2. Create the deployment, with the secrets from the 0600 file, never argv:
+   `HOME=$(mktemp -d) ENCLAVE_KEY="$ETH_AGENT_WALLET" node cli/enclave.mjs deploy api-mcp-adapter:1.0.0 --cpu 0.01 --fund 0.01 --isolation snp-guest-per-app --config "$(cat config.json)" --secrets-file "$d/secrets.env" --no-wait --yes`
+   Then read the record: appRef = `catalog://0x5bca36b5…/0`, the envelope = `{"isolation":…,"config":…}` exactly, and
+   `enclave secrets ls <id>` lists the two NAMES.
+3. Wait for queued-and-refused: without a listing, metal-iso0 refuses it ("carries app config …"). That is the
+   negative control for "config only through the release".
+4. List it: append its id to `SECRETS_RELEASE_DEPLOYMENTS` (as step 6; one api-relay restart; then `listed:true` for
+   it and for the three canaries: e3's DynamicUser re-check).
+5. metal-iso0 claims it (about 60 s), spawns a release guest, and the relay releases the config and the two secrets.
+
+**Proofs** (all must hold):
+1. **Relay journal:** one `release-ticket` 200 and one `release` 200 for the test id.
+2. **guestd:** `release:true`, verdict `attested`, measurement = `/v1/expected-guest` for the test id = 20319b02…ef47.
+3. **Serial:** `DOM release: deployment 0x… 2 allowed origin(s), 0 refused, config <n> bytes` (the relay and the
+   hookbin), then `DOM app config: <m> bytes (ENCLAVE_CONFIG)`, then `DOM serving`, and none of the app's output.
+4. **Substitution into the app's own gate:** `POST /mcp` `tools/list` answers 200 with both tools when `x-api-key` is
+   the test key; 401 without it, and 401 with the LITERAL `$ACCEPT_API_KEY`. (Had substitution failed, the adapter
+   would be LOCKED, 503 everywhere: a different failure, easy to tell apart.) The header comes from a file (`curl -H @file`),
+   never argv.
+5. **Substitution + egress, end to end:** `tools/call hookbin_probe` returns without `isError`. Then
+   `GET https://0ddbd824.app.enclave.host/api/bins/$BIN/requests` holds exactly ONE capture:
+   - its target is `/b/$BIN/accept`;
+   - its `x-accept-token` header's sha256 equals the test token's, and is not the sha256 of the literal
+     `$ACCEPT_TOKEN`.
+   Compare locally, printing only hashes and booleans. The request left the guest over its derived egress, went
+   through the host's dialer as ciphertext, and reached another attested guest.
+6. **Egress refused off the list:** `tools/call egress_refused_probe` returns `isError` with the egress cause (the
+   name is not in the guest's /etc/hosts), while `curl https://395bed3e.app.enclave.host/ping` from outside is 200.
+7. **The host saw neither value:** pipe the two values over STDIN (never argv) into
+   `grep -cF -f /dev/stdin` over:
+   - warden-host's journal since the create;
+   - the test guest's serial;
+   - nan's api-relay journal.
+   Each count must be 0.
+8. **Public TLS:** the test label serves via us-west with a certificate issued through the expected-guest gate (step
+   4's proofs 4 and 5).
+
+**Teardown** (whatever the outcome):
+1. `DELETE https://0ddbd824.app.enclave.host/api/bins/$BIN`.
+2. Unlist the id (`SECRETS_RELEASE_DEPLOYMENTS` minus it; one api-relay restart; re-check `listed:true` for the
+   canaries).
+3. `enclave secrets clear <id>`.
+4. `enclave refund <id> --yes`: cancels, returns the unused 0.01, and stops the app. Check that the deployment is
+   inactive, and that guestd holds no guest for it.
+5. Remove the local value files.
+
+Evidence: the config, the sha256s, the counts, the relay and guestd lines. No value.
+- **Acceptance** = proofs 1-8. Only then step 6 for Steven's apps.
 
 ## Step 5 (S5): Steven's per-app check (names only; INVENTORY.md)
+**The evidence, and how fresh it is (Codex's question 2).** What we hold is in
+`isolation/restore/inventory-2026-09-25/inventory.json`: generated 2026-09-25T19:53:58Z at block 51788334, read from
+base-rpc.publicnode.com and base.drpc.org, which agreed. It holds two things.
+- **The names each config REFERENCES:** a69dcbba's from its envelope configCid (fetched and checked against the CID),
+  and the other two from their inline envelopes. These are the lists below.
+- **That secrets are STAGED:** the relay's public `POST /v1/secrets/exists` answered `true` for all four apps.
+
+Re-read at 2026-09-25T22:26:56Z: `exists:true` for all four. `--check` at block 51793009 (22:29Z) is OK for all four:
+envelopes and preserved fields are unchanged since the payloads were built.
+
+**What is NOT established: the staged NAMES.** The relay gives no names without the owner's signature:
+`/v1/secrets/:id/get` is owner-signed and returns names AND values. So "staged set = referenced set" has never been
+checked by anyone. My 19:36Z note to d1 said the parity decision holds IF they are equal, and that equality is the
+owner's check. It was never claimed as a match. This is the one genuinely missing owner-only check. We ask Steven for
+the NAMES only, never values.
+
 For each of a69dcbba, d9798e4c and a77d0c57, the owner lists the staged secret NAMES: `enclave secrets ls <id>`
-without `--show` prints names only, or the dashboard's secrets view.
+without `--show` prints names only (it masks the values it receives), or the dashboard's secrets view.
 - **(a) The staged set must EQUAL the names the config references:**
   - a69dcbba: MCP_ADAPTER_API_KEY · IMAGE_ENDPOINT · RISCBOX_ENDPOINT · RISCBOX_API_KEY · JOT_ENDPOINT · JOT_API_KEY
   - d9798e4c: API_KEY · IPNS_ED25519_SK
@@ -208,12 +334,16 @@ without `--show` prints names only, or the dashboard's secrets view.
 - **Also tell Steven:**
   - on this tier the app's stdout/stderr are discarded, so there are no app logs;
   - egress is HTTPS on 443 only, to the origins the config names;
-  - at 1% on this tier (8.34 µUSDC/s), the current balances fund only about **4 hours** each: a69dcbba 0.1294 USDC,
-    d9798e4c 0.1183, a77d0c57 0.1186, at block 51787913. To keep serving, the owner tops up. We make no deposits.
-    This is Steven's decision, and a precondition of S6 (below).
+  - the runtime his balances buy on this tier, from `--check` at signing time (step 7). At block 51793009 (22:29Z):
+    metal-iso0 asks 834 µUSDC/s for the full node. 1% is ceil(8.34) = **9 µUSDC/s**, since the host rounds up, which
+    is exactly the owner's cap of 9. The publisher fee is 0. So:
+    - a69dcbba: 0.129400 USDC, about 3.99 h;
+    - d9798e4c: 0.118282, about 3.65 h;
+    - a77d0c57: 0.118600, about 3.66 h.
+    This is funded runtime, not a prerequisite (Codex). He may top up; we make no deposits.
 
 ## Step 6: list the app for the release
-After step 4's acceptance and that app's step 5:
+After step 4b's acceptance and that app's step 5:
 - append its id to `SECRETS_RELEASE_DEPLOYMENTS` on nan (back up the env; ONE api-relay restart);
 - `release-status` for it answers `listed:true`.
 Nothing launches yet: the claim gate still refuses the app, because its envelope doesn't ask for isolation.
@@ -221,9 +351,15 @@ Nothing launches yet: the claim gate still refuses the app, because its envelope
 ## Step 7 (S6): the owner's `setConfig`, LAST, which takes the app from queued to serving
 **Preconditions**, per app:
 - step 6 is done: `release-status` answers `listed:true`;
-- **Steven's funding decision (d1):** he tops the app up, or explicitly accepts that it serves for about 4 hours. A lease
-  that runs out stops the app right after it starts serving. Re-read the balance just before signing; don't reuse
-  the block-51787913 figures.
+- **`--check` is OK at signing time, and its funding line goes into the signing request (Codex).** The ~4 h is funded
+  runtime, NOT a top-up prerequisite. `--check` rechecks at that moment:
+  - the tier host's price for the app's share (metal-iso0's published ask, rounded up as the host rounds it);
+  - the version's publisher fee;
+  - the owner's cap and the balance.
+  It REFUSES if the claim would be refused: the price above the cap, or a balance that buys less than one second. So
+  a rise in metal-iso0's ask above 900 per full node refuses these apps, whose price now sits exactly at their cap of 9.
+  Otherwise it prints the runtime, which the request to Steven states. Funds, caps and shares are untouched
+  (`--verify` proves it). No deposits.
 
 Steven signs the payload for that app from `isolation/restore/inventory-2026-09-25/payloads.json` (eba0b308; tooling
 edd21868; runbook in INVENTORY.md):
@@ -245,14 +381,17 @@ serves at `https://<label>.app.enclave.host/`.
 
 ## Blockers and decisions (named now)
 1. **A NEW NODE IMAGE (4c-c) for `ISOLATION_RELEASE`.** The code change is prepared (gsup.mjs, above), and d1 and e3
-   approve the design. It needs 63's build from 90027a66 or later (two paths, with d1's third), prediction and
-   rollout, and Codex's go. The 4c image now rolling out (b18f8989) cannot run release guests.
+   approve the design. 63 is building it from f6cbd75a, which is tree-identical to 90027a66 (two paths, with d1's
+   third). Then prediction, rollout, and Codex's go. The 4c image (b18f8989, live since 22:28:34Z) cannot run release
+   guests.
 2. ~~U7 on nan before the release goes ON~~: **DONE** (live on nan, nan-relay and us-west).
 3. **Steven:**
-   - the S5 names check per app;
-   - the three `setConfig` signatures;
-   - the funding decision per app, BEFORE its S6: top up, or accept about 4 hours;
+   - the S5 names check per app (the one owner-only check still missing);
+   - the three `setConfig` signatures, each request stating `--check`'s runtime for that app (a top-up is his option,
+     not a prerequisite);
    - Codex's go for the release ON (step 2) and for 4c-c.
-4. **Not blockers** (checked): a null-config release is handled end to end: relay `config:null`, the front's
+4. **63/Codex:** confirm step 4b's refunded 0.01 USDC funding of the agent wallet's own test deployment (the CLI
+   requires a funding amount; the host charge is waived and the fee is 0).
+5. **Not blockers** (checked): a null-config release is handled end to end: relay `config:null`, the front's
    ConfigText treats null as none, init gets "N". `METAL_REQUIRE_VCEK` is already on. The signing seed file meets the
    relay's rules. systemd keeps the JSON floor intact.

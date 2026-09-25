@@ -35,7 +35,12 @@ The owner's procedure (enclave-d1's review):
    - the current envelope is byte-identical to the payload's base;
    - the preserved fields are unchanged;
    - the calldata rebuilt from the chain NOW equals the payload's;
-   - the owner simulation passes.
+   - the owner simulation passes;
+   - the claim would not be refused on FUNDING at the tier host's price now (Codex, ENABLEMENT.md step 7). The price
+     is metal-iso0's published ask for the app's share, rounded up as the host rounds it, plus the version's
+     publisher fee. It must be within the owner's cap, and the balance must buy at least one second. The OK line then
+     states the runtime the balance buys, and the signing request tells Steven that runtime. It is funded runtime,
+     not a top-up prerequisite, and nothing deposits.
    setConfig replaces the whole envelope, so signing a STALE payload would silently revert any envelope edit made
    since it was built. Tested: a copy with one base envelope and one rate altered is refused for exactly those two.
 2. Sign each payload's `data`, to the ledger, from the owner, with value 0.

@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { encodeFunctionData, encodeEventTopics, encodeAbiParameters } from "viem";
-import { OWNER, DEP_ABI, txReasons, payloadHeaderReasons, withIsolation, parseEnvelope } from "../isolation/restore/owner-payloads.mjs";
+import { OWNER, DEP_ABI, txReasons, payloadHeaderReasons, withIsolation, parseEnvelope, fundingOf } from "../isolation/restore/owner-payloads.mjs";
 
 const LEDGER = "0xF9e71385C5cB49844F2457ba6567De0742f8B89a";
 const OTHER = "0x000000000000000000000000000000000000dEaD";
@@ -76,4 +76,18 @@ test("a payload is refused if it would send the signature anywhere but the ledge
   // and txReasons applies the same header rules
   assert.ok(txReasons({ tx: good().tx, tx2: good().tx, receipt: good().receipt, receipt2: good().receipt,
     payload: { ...payload, to: OTHER }, ledger: LEDGER, post: good().post }).some((r) => r.includes(`"to" is`)));
+});
+
+test("funding: the claim's rule as the host applies it (price rounded UP, cap, one second), and the runtime it buys", () => {
+  // metal-iso0 on 09-25: 834 µUSDC/s for the full node; 1% = ceil(8.34) = 9, exactly the owners' cap of 9
+  const at = (o) => fundingOf({ askCpu6: 834, cpuMilli: 10, cap6: 9, balance6: 129400, ...o });
+  assert.deepEqual(at({}), { mine6: 9, total6: 9, refusal: null, runtimeS: 14377 });
+  assert.equal(at({ askCpu6: 801 }).refusal, null);                                  // ceil(8.01) = 9: still within the cap
+  assert.equal(at({ askCpu6: 900 }).refusal, null);                                  // 9.00: the last ask the cap admits
+  assert.match(at({ askCpu6: 901 }).refusal, /above the owner's cap of 9/);
+  assert.match(at({ fee6: 1 }).refusal, /above the owner's cap/);                     // the publisher fee counts toward the cap
+  assert.equal(at({ cap6: 0, askCpu6: 5000 }).refusal, null);                         // 0 = uncapped (grandfathered)
+  assert.match(at({ balance6: 8 }).refusal, /less than one second/);
+  assert.deepEqual(at({ waived: true }), { mine6: 0, total6: 0, refusal: null, runtimeS: null });   // free self-hosting, no fee
+  assert.equal(at({ waived: true, fee6: 2 }).runtimeS, 64700);
 });

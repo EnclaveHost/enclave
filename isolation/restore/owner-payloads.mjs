@@ -5,7 +5,7 @@
 // READ-ONLY. Nothing is signed or sent:
 //   - every chain read goes to TWO independent Base RPCs at ONE pinned block, and they must agree;
 //   - the relay is asked only its public, unauthenticated questions (does a deployment have staged secrets; is it
-//     listed for the release), never for a secret or a secret's name;
+//     listed for the release; --check: the tier host's published price), never for a secret or a secret's name;
 //   - each payload is SIMULATED with eth_call from the owner at the pinned block, on both RPCs.
 //
 // setConfig(id, envelope) writes ONLY the deployment's options envelope (contracts/EnclaveDeployments.sol: d.configCid
@@ -18,7 +18,10 @@
 //        node isolation/restore/owner-payloads.mjs --check <payloads.json>    IMMEDIATELY BEFORE the owner signs: each
 //                                     deployment is still exactly as the payload was built from, and the calldata
 //                                     rebuilt from it now is byte-identical (enclave-d1: a stale payload would silently
-//                                     revert an envelope edit made since, because setConfig replaces the whole envelope)
+//                                     revert an envelope edit made since, because setConfig replaces the whole envelope);
+//                                     and its FUNDING at the tier host's price now: the claim's rule (price <= the
+//                                     owner's cap, balance >= one second) and the runtime the balance buys, for the
+//                                     signing request (Codex: funded runtime, told to Steven; nothing deposits)
 //        node isolation/restore/owner-payloads.mjs --verify <payloads.json> <0xid8…=0xtxhash> …   after signing: each
 //                                     transaction IS its payload (input, to, from, success, exactly one ConfigSet from
 //                                     the ledger for that id and envelope), and only the envelope changed
@@ -76,7 +79,10 @@ const VERSION_TUPLE = [
 ];
 const CAT_ABI = [{ type: "function", name: "getVersionsPage", stateMutability: "view",
   inputs: [{ name: "appId", type: "bytes32" }, { name: "start", type: "uint256" }, { name: "n", type: "uint256" }],
-  outputs: [{ type: "tuple[]", components: VERSION_TUPLE }] }];
+  outputs: [{ type: "tuple[]", components: VERSION_TUPLE }] },
+  { type: "function", name: "catalogSchema", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "versionFee", stateMutability: "view",
+    inputs: [{ name: "appId", type: "bytes32" }, { name: "index", type: "uint256" }], outputs: [{ type: "uint256" }] }];
 
 const clientsFor = (urls) => urls.map((u) => createPublicClient({ chain: base, transport: http(u, { retryCount: 2, retryDelay: 800 }) }));
 let clients = clientsFor(RPCS);
@@ -295,6 +301,43 @@ async function inventory(outDir) {
 // What a payload must say about WHERE it goes, whatever its data: the ledger, from the owner, no value, Base. The signer
 // copies these into the Trezor, so an edited payloads.json with the same data and another `to` must be refused
 // (enclave-d1).
+// The claim's funding rule, exactly as the tier host's supervisor applies it before claiming (supervisor.js hostRate6 +
+// capVerdict; the ledger's claim() enforces the same): the host's price for the deployment's shares, ROUNDED UP to a
+// whole µUSDC per second, plus the version's publisher fee, must not exceed the owner's cap, and the balance must buy at
+// least one second of it. runtimeS is what the balance buys at that price. waived = free self-hosting (the host's
+// payout wallet owns the deployment: the host charges nothing, the fee still applies).
+export function fundingOf({ askCpu6, askGpu6 = 0, cpuMilli, gpuMilli = 0, fee6 = 0, cap6, balance6, waived = false }) {
+  const mine6 = waived ? 0 : Math.ceil((askGpu6 * gpuMilli + askCpu6 * cpuMilli) / 1000);
+  const total6 = mine6 + fee6;
+  const refusal = cap6 > 0 && total6 > cap6 ? `the host's price ${total6} µUSDC/s is above the owner's cap of ${cap6}: it would not be claimed`
+    : balance6 < total6 ? `the balance ${balance6} µUSDC buys less than one second at ${total6} µUSDC/s: it would not be claimed`
+    : null;
+  return { mine6, total6, refusal, runtimeS: total6 > 0 ? Math.floor(balance6 / total6) : null };
+}
+
+// the tier's host, from the relay's public feed: its CPU ask (µUSDC per second for a FULL node) and payout wallet
+async function tierHost() {
+  const r = await relayJSON("GET", `${RELAY}/enclaves`);
+  const rows = (r.body && Array.isArray(r.body.enclaves)) ? r.body.enclaves : [];
+  const hosts = rows.filter((e) => e && e.availability && e.availability.isolation === BACKEND);
+  if (hosts.length !== 1) return { error: `the relay's feed names ${hosts.length} ${BACKEND} host(s), not one (HTTP ${r.status})` };
+  const a = hosts[0].availability, askCpu6 = Number(a.askCpuPricePerSec6);
+  if (!Number.isInteger(askCpu6) || askCpu6 <= 0) return { error: `${hosts[0].name} publishes no CPU ask` };
+  return { name: hosts[0].name, askCpu6, askGpu6: Number(a.askGpuPricePerSec6) || 0,
+           payout: /^0x[0-9a-fA-F]{40}$/.test(String(hosts[0].payoutWallet || "")) ? getAddress(hosts[0].payoutWallet) : null };
+}
+
+// the version's publisher fee, as the host reads it (catalog rev >= 5; before that there is none)
+async function versionFee6(blockNumber, catalog, appRef) {
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(appRef || "");
+  if (!m) throw new Error(`not a catalog app (${appRef})`);
+  const rev = Number(await read2(blockNumber, catalog, CAT_ABI, "catalogSchema"));
+  return rev >= 5 ? Number(await read2(blockNumber, catalog, CAT_ABI, "versionFee", [m[1], BigInt(m[2])])) : 0;
+}
+
+const usdc = (u6) => (u6 / 1e6).toFixed(6);
+const hours = (s) => (s / 3600).toFixed(2);
+
 export function payloadHeaderReasons(p, ledger) {
   const why = [];
   let to = "", from = "";
@@ -339,10 +382,27 @@ async function check(file) {
   const blockNumber = await pinBlock();
   const addr = await book(blockNumber);
   if (getAddress(addr.deployments) !== getAddress(doc.deployments)) { console.log(`the address book now names another ledger (${addr.deployments}); REFUSED`); process.exit(1); }
+  const host = await tierHost();
   let bad = 0;
   for (const p of doc.payloads) {
     const d = await read2(blockNumber, doc.deployments, DEP_ABI, "get", [p.deployment]);
     const cap = await read2(blockNumber, doc.deployments, DEP_ABI, "capOf", [p.deployment]);
+    // funding, for the signing request: at the tier host's price NOW, never a figure from the inventory
+    let funding = "";
+    const fwhy = [];
+    if (host.error) fwhy.push(`funding unknown: ${host.error}`);
+    else {
+      let fee6 = null;
+      try { fee6 = await versionFee6(blockNumber, addr.appCatalog, d.appRef); } catch (e) { fwhy.push(`funding unknown: the publisher fee is unreadable (${e.message})`); }
+      if (fee6 != null) {
+        const waived = host.payout != null && getAddress(d.owner) === host.payout;
+        const f = fundingOf({ askCpu6: host.askCpu6, askGpu6: host.askGpu6, cpuMilli: Number(d.cpuMilli), gpuMilli: Number(d.gpuMilli),
+                              fee6, cap6: Number(cap), balance6: Number(d.balance6), waived });
+        if (f.refusal) fwhy.push(f.refusal);
+        funding = `; funding at ${host.name}'s price now: ${f.total6} µUSDC/s (host ${waived ? "0, waived: its payout wallet owns it" : `${f.mine6} = ceil(${host.askCpu6} x ${d.cpuMilli}/1000)`}, publisher fee ${fee6}), `
+          + `cap ${cap}, balance ${usdc(Number(d.balance6))} USDC = about ${f.runtimeS == null ? "unlimited" : hours(f.runtimeS) + " h"} of serving (tell Steven; no deposit is made)`;
+      }
+    }
     const why = payloadHeaderReasons(p, addr.deployments);
     if (String(d.configCid || "") !== p.envelopeBefore) why.push("its envelope CHANGED since the payload was built (signing would revert that change)");
     const now = preservedOf(d, cap);
@@ -356,8 +416,9 @@ async function check(file) {
     const sim = await Promise.all(clients.map((c) => c.call({ account: getAddress(p.from), to: getAddress(p.to), data: p.data, blockNumber })
       .then(() => "ok").catch((e) => "REVERT " + (e.shortMessage || e.message))));
     if (sim.some((r) => r !== "ok")) why.push(`simulation: ${sim.join(" / ")}`);
+    why.push(...fwhy);
     console.log(`${p.short}: ${why.length ? "REFUSED - " + why.join("; ")
-      : `OK to sign: to ${getAddress(p.to)} (compare with the Trezor screen), value 0, chainId 8453, calldata sha256 ${p.dataSha256} (block ${blockNumber})`}`);
+      : `OK to sign: to ${getAddress(p.to)} (compare with the Trezor screen), value 0, chainId 8453, calldata sha256 ${p.dataSha256} (block ${blockNumber})${funding}`}`);
     if (why.length) bad++;
   }
   process.exit(bad ? 1 : 0);
