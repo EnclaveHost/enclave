@@ -28,6 +28,12 @@ param(
   [int]    $MemMiB     = 2048,
   [int]    $Vcpus      = 1,
   [int]    $ReadySeconds = 120,
+  # THE MODULE THAT DEFINES THE VM, pinned like the medium and the firmware. It was imported from a
+  # hand-placed path with no hash check, which is inconsistent: petri's New-CustomVM has more
+  # influence on what runs than either file I was verifying (enclave-53).
+  [string] $HypervModule = 'C:\Users\claude\hyperv.psm1',
+  [string] $HypervModuleSha256 = '17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c',
+  [switch] $SkipModulePin,
   [switch] $Approve
 )
 $ErrorActionPreference = 'Stop'
@@ -63,9 +69,16 @@ function App($h){ & curl.exe -s -o NUL -w "%{http_code}" --max-time 15 "https://
 $APPS = @('e64f7cba','d9798e4c','a77d0c57','7ae476a3','a69dcbba','c34499ee')
 
 # self-heal: a run killed with its SSH can leave a VM and the setting applied
-foreach ($v in (Get-VM -EA SilentlyContinue | Where-Object { $_.Name -like 'enclave-uefi-*' -and $_.Notes -eq $MARKER })) {
-  Stop-VM -VM $v -TurnOff -Force -EA SilentlyContinue; Remove-VM -VM $v -Force -EA SilentlyContinue
-  Note "self-heal: removed stale $($v.Name)"
+# THE ORPHAN WINDOW. The marker is applied AFTER New-CustomVM returns, so a kill in between leaves a
+# VM with EMPTY Notes - which a marker-only rule then refuses to remove, stranding the very VM the
+# cleanup exists for (enclave-53; wmi-launcher.mjs documents the same trap and I reintroduced it
+# here). `enclave-uefi-*` is this script's own namespace, so an empty-Notes VM under that name is
+# ours by construction. A VM under that name carrying SOMEBODY ELSE'S marker is still refused.
+foreach ($v in (Get-VM -EA SilentlyContinue | Where-Object { $_.Name -like 'enclave-uefi-*' })) {
+  if ($v.Notes -eq $MARKER -or [string]::IsNullOrWhiteSpace($v.Notes)) {
+    Stop-VM -VM $v -TurnOff -Force -EA SilentlyContinue; Remove-VM -VM $v -Force -EA SilentlyContinue
+    Note "self-heal: removed stale $($v.Name) (notes: $(if($v.Notes){'ours'}else{'EMPTY - killed before the marker was applied'}))"
+  } else { Note "self-heal: REFUSING $($v.Name), Notes='$($v.Notes)' is not ours" }
 }
 
 $before   = Read-Setting
@@ -114,10 +127,13 @@ $wd = @"
 Start-Sleep -Seconds $wdSeconds
 if (Test-Path '$sentinel') {
   `$m = '$MARKER'
-  foreach (`$v in (Get-VM -EA SilentlyContinue | Where-Object { `$_.Name -eq '$name' -and `$_.Notes -eq `$m })) {
+  foreach (`$v in (Get-VM -EA SilentlyContinue | Where-Object { `$_.Name -eq '$name' -and (`$_.Notes -eq `$m -or [string]::IsNullOrWhiteSpace(`$_.Notes)) })) {
     Stop-VM -VM `$v -TurnOff -Force -EA SilentlyContinue; Remove-VM -VM `$v -Force -EA SilentlyContinue
   }
-  Remove-ItemProperty '$RegPath' -Name '$RegName' -EA SilentlyContinue
+  # RESTORE TO WHAT WAS THERE, not unconditionally to absent. It is absent on this box today, which
+  # is why always-removing looked correct; it would be wrong the day the key is legitimately set.
+  if ('$($before.S)' -eq 'Present') { Set-ItemProperty '$RegPath' -Name '$RegName' -Value $($before.V) -Type '$($before.K)' }
+  else { Remove-ItemProperty '$RegPath' -Name '$RegName' -EA SilentlyContinue }
   Add-Content -Path '$script:logPath' -Value "`$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')) WATCHDOG fired: the run did not clean up; setting restored and `$('$name') removed" -EA SilentlyContinue
   Remove-Item '$sentinel' -Force -EA SilentlyContinue
 }
@@ -132,7 +148,13 @@ try {
   Set-ItemProperty -Path $RegPath -Name $RegName -Value 1 -Type DWORD; $mutated = $true
   Note "SETTING APPLIED (removed again in this run's cleanup)"
 
-  Import-Module C:\Users\claude\hyperv.psm1 -Force   # petri's New-CustomVM, the reference definition
+  if (-not $SkipModulePin) {
+    if (-not (Test-Path $HypervModule)) { throw "the Hyper-V module is not at $HypervModule" }
+    $mh = (Get-FileHash $HypervModule -Algorithm SHA256).Hash.ToLower()
+    if ($mh -ne $HypervModuleSha256.ToLower()) { throw "the module that DEFINES the VM hashes $mh, not the pinned $HypervModuleSha256" }
+    Note "hyperv.psm1 verified: $mh"
+  } else { Note "hyperv.psm1 pin SKIPPED by request (the VM definition is therefore unverified)" }
+  Import-Module $HypervModule -Force   # petri's New-CustomVM, the reference definition
   New-CustomVM -VMName $name -GuestStateIsolationEnabled $true -GuestStateIsolationType 16 `
     -GuestStateIsolationMode 0 -FirmwareFile $Firmware -IncreaseVtl2Memory `
     -SecureBootEnabled $false -Com1 $true -Memory ($MemMiB * 1MB) -VpCount $Vcpus | Out-Null
@@ -204,11 +226,18 @@ try {
   # every millisecond before the first connect is output that can never be recovered.
   $seen = ''; $ready = $false
   $pipeClient = $null
+  $script:pendingRead = $null; $script:readBuf = $null
   $t0 = Get-Date
   Start-VM -Name $name
   for ($i = 0; $i -lt 100 -and -not $pipeClient; $i++) {
     try {
-      $c = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipe, [System.IO.Pipes.PipeDirection]::In)
+      # Asynchronous, or .NET Framework turns ReadAsync into a blocking read on a thread and
+      # IGNORES the cancellation token - so a timed-out Wait leaves the read PENDING and the next
+      # iteration overlaps it on the same stream (enclave-53). It only worked because the guest
+      # spoke within one iteration, which is luck that would evaporate on the silent-guest case
+      # this reader exists for.
+      $c = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipe,
+             [System.IO.Pipes.PipeDirection]::In, [System.IO.Pipes.PipeOptions]::Asynchronous)
       $c.Connect(100)
       $pipeClient = $c
     } catch { Start-Sleep -Milliseconds 50 }
@@ -221,15 +250,18 @@ try {
     # Read from the ONE connection opened before the start, with a deadline so a silent guest can
     # never hang this the way Read() once did.
     try {
+      # ONE outstanding read at a time: a new one is issued only when the previous has completed.
       if ($pipeClient -and $pipeClient.IsConnected) {
-        $buf = New-Object byte[] 8192
-        $cts = New-Object System.Threading.CancellationTokenSource
-        $cts.CancelAfter(2500)
-        $task = $pipeClient.ReadAsync($buf, 0, $buf.Length, $cts.Token)
-        if ($task.Wait(3000) -and -not $task.IsFaulted -and $task.Result -gt 0) {
-          $seen += [System.Text.Encoding]::ASCII.GetString($buf, 0, $task.Result)
+        if ($null -eq $script:pendingRead) {
+          $script:readBuf = New-Object byte[] 8192
+          $script:pendingRead = $pipeClient.ReadAsync($script:readBuf, 0, $script:readBuf.Length)
         }
-        $cts.Dispose()
+        if ($script:pendingRead.Wait(2500)) {
+          if (-not $script:pendingRead.IsFaulted -and $script:pendingRead.Result -gt 0) {
+            $seen += [System.Text.Encoding]::ASCII.GetString($script:readBuf, 0, $script:pendingRead.Result)
+          }
+          $script:pendingRead = $null        # completed: the next iteration may issue another
+        }
       }
     } catch { }
     if ($seen -match 'MON ready')  { $ready = $true }
@@ -238,7 +270,30 @@ try {
   try { if ($pipeClient) { $pipeClient.Dispose() } } catch { }
   Note "console bytes: $($seen.Length)"
   if ($seen) { foreach ($l in ($seen -split "`n" | Where-Object { $_ -match 'MON|error|panic|refus' } | Select-Object -First 12)) { Note "  CONSOLE: $($l.Trim())" } }
-  if ($ready)                      { Note "RESULT: MON ready - the guest booted as a UEFI VTL0 (DEV BOOT; host exclusion NOT established)" }
+  if ($ready) {
+    Note "RESULT: MON ready - the guest booted as a UEFI VTL0 (DEV BOOT; host exclusion NOT established)"
+    # THE CONTROL CHANNEL. `MON ready` does NOT prove it: AF_VSOCK accepts a listen with no
+    # transport registered, so the monitor can say ready while nothing could ever reach it. The
+    # guest's virtio vsock modules fail to insert here (they are QEMU's); enclave-5d reports the
+    # pinned kernel has CONFIG_HYPERV_VSOCKETS=y built in, which would make those failures noise.
+    # This dial is what decides between the two readings.
+    $vmId = (Get-VM -Name $name).Id.Guid
+    Note "dialling hv_sock $vmId port 9000 ..."
+    $dial = & C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 2>&1 | Out-String
+    Note "hvdial: $($dial.Trim())"
+    if ($dial -match '"connected"\s*:\s*true') {
+      Note "CONTROL CHANNEL OK: the guest has a working vsock transport and is listening on 9000"
+      # A connect proves a listener. An EXCHANGE proves the monitor is speaking its protocol, which
+      # is what `load` will need. {"cmd":"state"} is the cheapest command that carries no payload.
+      $st = & C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send '{"cmd":"state"}' 2>&1 | Out-String
+      Note "state exchange: $($st.Trim())"
+      if ($st -match '"head"\s*:\s*"\S') { Note "PROTOCOL OK: the monitor answered a control command" }
+      else { Note "PROTOCOL: connected but the monitor returned no answer to {cmd:state}" }
+      Note "  (a connect proves the transport and the listener. It says NOTHING about identity, boundary or host exclusion.)"
+    } else {
+      Note "CONTROL CHANNEL FAILED: MON ready was printed but nothing answered on 9000"
+    }
+  }
   elseif ($seen -match 'MON ERROR'){ Note "RESULT: the guest REFUSED to start; the line above names the guard that fired" }
   elseif ($seen.Length -gt 0)      { Note "RESULT: the guest spoke but never said MON ready" }
   else                             { Note "RESULT: silent - no console bytes; a silent partition is not a booted one" }
@@ -275,5 +330,6 @@ finally {
   Note "=== DEV BOOT. Host exclusion NOT established. Not verified capacity. ==="
   Remove-Item $sentinel -Force -EA SilentlyContinue        # disarm: this run cleaned up itself
   Remove-Item $wdFile   -Force -EA SilentlyContinue
-  if ($fail.Count) { foreach ($f in $fail) { Write-Host "FAILURE: $f" }; Write-Host "RUN FAILED" } else { Write-Host "RUN OK" }
+  if ($fail.Count) { foreach ($f in $fail) { Write-Host "FAILURE: $f" }; Write-Host "RUN FAILED"; exit 1 }
+  else { Write-Host "RUN OK"; exit 0 }
 }
