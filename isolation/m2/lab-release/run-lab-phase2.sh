@@ -86,9 +86,12 @@ say "router -> 19480; paired lab guestd up (prefix lb, -release, lab ports)"
 SPEC=$(node -e 'console.log(JSON.stringify({ deploymentId: process.argv[1], image: { reference: "ipfs://bafybeie5qxmirydhcjn2g4v23npfhrw3mskaxgdlddijksa7zpt56knq6i" },
   catalogRef: "catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0", versionMemMb: 128, ports: [],
   config: "", configCid: "bafkreilabsyntheticconfigdonotuse", secrets: null, secretsStaged: true, cpuShare: 0.01, gpuShare: 0, appPort: 8080, hosts: [] }))' "$ID")
-( cd "$REPO" && env SECRET=lab-secret ENABLE_MPS=0 MOCK_SPAWN= ADDRESS_BOOK_ADDRESS= REGISTRY_ENABLED= CLAIM_ENABLED= \
+# the (synthetic) operator key reaches the supervisor through an EXPORT, never an argument
+( cd "$REPO"
+  export REGISTRY_PRIVATE_KEY; REGISTRY_PRIVATE_KEY=$(cat "$SES/operator.key")
+  env SECRET=lab-secret ENABLE_MPS=0 MOCK_SPAWN= ADDRESS_BOOK_ADDRESS= REGISTRY_ENABLED= CLAIM_ENABLED= \
     ISOLATION_BACKEND=snp-guest-per-app PROVISION_BACKEND=vm ISOLATION_RELEASE=1 VMMGR_URL=http://127.0.0.1:18095 \
-    GUESTD_KEY_FILE="$L/pair.key" SECRETS_API=http://127.0.0.1:19481 REGISTRY_PRIVATE_KEY="$(cat "$SES/operator.key")" \
+    GUESTD_KEY_FILE="$L/pair.key" SECRETS_API=http://127.0.0.1:19481 \
     RELEASE_SELFTEST="{\"spawnReal\":{\"endpoint\":\"$ENDPOINT\",\"spec\":$SPEC}}" node supervisor.js ) > "$L/spawn.txt" 2> "$L/supervisor.log" || true
 tail -1 "$L/spawn.txt" > "$L/spawn.json"
 v() { node -e 'const o=JSON.parse(require("fs").readFileSync(process.argv[1]));const p=process.argv[2].split(".");let x=o;for(const k of p)x=x?.[k];console.log(x??"")' "$L/spawn.json" "$1"; }
