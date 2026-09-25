@@ -1,18 +1,23 @@
 {
  "nucbox-vbs-reference.json": {
-  "sha256": "e4504dfa3eadb960c6563ec03036286976773b4971dd3cd03db7f15fd3aab976",
+  "sha256": "ba3f49a7dce5d73989e23b3ae8ac2b532131de61f49fe775c16e1ea1e1aea958",
   "origin": {
    "repository": "EnclaveHost/enclave",
    "branch": "windows/vbslike-pkg",
-   "commit": "adea692b",
+   "commit": "37673a05",
    "path": "windows/vbslike/pkg/reference/nucbox-vbs-reference.json",
    "owner": "enclave-63",
-   "packageVersion": "v36"
+   "packageVersion": "v37"
   },
   "what": "the reference values for the NucBox custom type-1 paravisor images (type enclave-nucbox-vbs-reference/1), re-derived by enclave-53's pkg.mjs verify from the pinned images and their VBS identity documents; imported by commit and hash, never edited here. A new commit of the file is a new pin, reviewed as such.",
   "use": "verifier/nucbox-reference.mjs eligibleDigestsOf: the exact vbsBootDigest allowlist for V3/V4 of docs/security/nucbox-custom-vm-verifier.md. NOT used by any verdict until the paravisor report format is registered with real report bytes.",
-  "reviewed": "2026-09-25: the diff from 75d4563e, checked by image id against the pinned v35 before re-pinning, is TWO inserted images (so the G4 probe moved from images[2] to images[4]; nothing here indexes by position): vbs-linux-candidate-1539 (class candidate, b7ba7731..., vbsBootDigest 56FBB27F..., enclave-5d's initrd 1539d5b2; confidentialDebug false, trustsHostCommandLine false, booted no: build-only; eligible FALSE, NOT YET ELIGIBLE until its own canary) and its twin vbs-linux-candidate-1539-debug-twin (class debug, 95de03cc..., 8E9D6ACB..., confidentialDebug true, trusts the host's command line; REFUSE). Every other image, the superseded list and every top-level field is byte-identical; the derived allowlist is still exactly 58DFEBFE... (8 images, 1 eligible, 11 refused).",
+  "reviewed": "2026-09-25: the diff from adea692b, checked by image id against the pinned v36 before re-pinning, is TWO fields of ONE image, vbs-linux-candidate-1539 (56FBB27F...): \"booted\" is now yes, BOOTED and SERVED as a type-1 partition with host Secure Boot on (enclave-d1 canary 093904, evidence 0bee8444; served by the box's wmiserve 0160d835, not the package's launcher; no report requested; identity, chain and host exclusion NOT established), and \"reason\" names the rollover conditions (one version that also supersedes a44bb55a, after the package's own serving acceptance and enclave-99's review). eligible is still FALSE; NO rollover. Every other image, the superseded list and every top-level field is byte-identical; the derived allowlist is still exactly 58DFEBFE... (8 images, 1 eligible, 11 refused).",
   "previous": [
+   {
+    "commit": "adea692b",
+    "sha256": "e4504dfa3eadb960c6563ec03036286976773b4971dd3cd03db7f15fd3aab976",
+    "owner": "enclave-63"
+   },
    {
     "commit": "75d4563e",
     "sha256": "a2114c29a5d730067f2167465b0898a105f82f7e8536c1ea81f1bec43aa2b899",
