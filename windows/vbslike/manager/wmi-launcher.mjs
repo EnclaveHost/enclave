@@ -159,6 +159,8 @@ export const LINUX_DIRECT_IMAGE_ABSENT =
 
 /** How the guest boots. STATED by whoever constructs the launcher, never inferred from what else is set. */
 export const BOOT_UEFI = "uefi-medium";
+/** Our monitor's ready line on COM1 (what uefi-dev-boot.ps1 watches for). The console reader may stop there. */
+export const GUEST_READY_LINE = "MON ready";
 export const BOOT_LINUX_DIRECT = "linux-direct";
 export const BOOT_FORMS = Object.freeze([BOOT_UEFI, BOOT_LINUX_DIRECT]);
 
@@ -480,9 +482,14 @@ export const CMD = {
    * which this one shared). So: Asynchronous, and at most ONE read pending, carried across waits.
    *
    * It reports BYTES, and says nothing about what they mean. Firmware banners are bytes.
+   *
+   * `until`: a line the reader may STOP at, so a start does not always wait the whole window (it took 46 s at
+   * 40 s on nucbox-k11, runs 070935/071140, though the guest spoke within ~3 s). Seeing it only shortens the wait
+   * and is reported as `sawUntil`; it is not a readiness judgement, and bytes > 0 is still all "booted" means.
    */
-  readConsole: ({ pipe, seconds = 20, connectMs = 5000 }) => ps(`
+  readConsole: ({ pipe, seconds = 20, connectMs = 5000, until = null }) => ps(`
     $ErrorActionPreference = 'Stop';
+    $until = ${until ? q(until) : "$null"}; $tail = ''; $sawUntil = $false;
     $name = ${q(pipe)} -replace '^\\\\\\\\\.\\\\pipe\\\\', '';
     $total = 0; $head = ''; $connected = $false; $why = '';
     $cts = New-Object System.Threading.CancellationTokenSource;
@@ -499,13 +506,18 @@ export const CMD = {
         $n = $pending.Result; $pending = $null;
         if ($n -le 0) { break };
         $total += $n;
-        if ($head.Length -lt 400) { $head += [Text.Encoding]::ASCII.GetString($buf, 0, [Math]::Min($n, 400)) }
+        if ($head.Length -lt 400) { $head += [Text.Encoding]::ASCII.GetString($buf, 0, [Math]::Min($n, 400)) };
+        if ($until) {
+          $tail += [Text.Encoding]::ASCII.GetString($buf, 0, $n);
+          if ($tail.Length -gt 4096) { $tail = $tail.Substring($tail.Length - 4096) };
+          if ($tail.Contains($until)) { $sawUntil = $true; break }
+        }
       }
     } catch { $why = [string]$_.Exception.Message } finally {
       if ($cli) { try { $cli.Dispose() } catch {} };
       $cts.Dispose()
     };
-    @{connected=$connected; bytes=$total; head=$head; note=$why} | ConvertTo-Json -Compress`),
+    @{connected=$connected; bytes=$total; head=$head; sawUntil=$sawUntil; note=$why} | ConvertTo-Json -Compress`),
 
   state: ({ name }) => ps(`$v = Get-VM -Name ${q(name)} -ErrorAction SilentlyContinue; if ($v) { @{found=$true; state=[string]$v.State; uptime=[string]$v.Uptime} | ConvertTo-Json -Compress } else { @{found=$false} | ConvertTo-Json -Compress }`),
 
@@ -870,7 +882,7 @@ export class WmiHyperVLauncher {
       // executed, which is more than "Running" says, and it is NOT evidence that the component was
       // delivered, compiled or served. There is no app-readiness handshake on this backend yet, so
       // there is no state here that means "the app is up", and the launcher does not invent one.
-      const con = await this.#ps(CMD.readConsole({ pipe, seconds: guestReadySec }));
+      const con = await this.#ps(CMD.readConsole({ pipe, seconds: guestReadySec, until: GUEST_READY_LINE }));
       if (con.connected !== true)
         throw new Error(`could not attach to the guest console at ${pipe}: ${con.note || "no connection"}`);
       const booted = Number(con.bytes) > 0;
@@ -897,7 +909,7 @@ export class WmiHyperVLauncher {
                              guestState: { path: created.guestStateFile, masterSha256: created.guestStateMasterSha256 },
                              grants: created.grants ?? [] },
                // guestBooted: something executed. appReady: NOT established - no handshake exists.
-               guest: { booted, bytes: con.bytes, head: String(con.head || "").slice(0, 400) },
+               guest: { booted, bytes: con.bytes, head: String(con.head || "").slice(0, 400), readyLine: con.sawUntil === true },
                appReady: false,
                // NO RELAY, and deliberately so for now. Nothing here loads the app into the guest or
                // starts a host relay (in the dev recipe that is `vbslike-host wmiserve`: the bundle over

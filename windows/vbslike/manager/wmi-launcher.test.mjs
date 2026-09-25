@@ -744,3 +744,30 @@ test("the handle's boundary and the launcher's own carry the stated form's name;
   assert.equal(mk(host()).boundary.partition, "wmi-openhcl-gen2-igvm-linux", "TYPE1 states linux-direct");
   assert.equal(mk(host(), { boot: null }).boundary, null, "a launcher with no stated form states no boundary");
 });
+
+/* ---- the console read stops at the monitor's ready line (46 s starts on nucbox-k11 at 40 s) ---------- */
+import { GUEST_READY_LINE } from "./wmi-launcher.mjs";
+
+test("the console reader stops at `until` when it is given, and never without it", () => {
+  const s = CMD.readConsole({ pipe: "\\\\.\\pipe\\x-com1", seconds: 40, until: GUEST_READY_LINE });
+  assert.match(s, /\$until = 'MON ready';/);
+  assert.match(s, /if \(\$tail\.Contains\(\$until\)\) \{ \$sawUntil = \$true; break \}/);
+  assert.match(s, /\$tail = \$tail\.Substring\(\$tail\.Length - 4096\)/, "bounded: a chatty guest cannot grow it");
+  assert.match(s, /sawUntil=\$sawUntil/);
+  assert.equal((s.match(/ReadAsync/g) || []).length, 1, "still ONE pending read");
+  const none = CMD.readConsole({ pipe: "\\\\.\\pipe\\x-com1", seconds: 40 });
+  assert.match(none, /\$until = \$null;/, "no marker: the whole window, as before");
+});
+
+test("start asks the reader to stop at the monitor's ready line, and reports it without changing what booted means", async () => {
+  const seen = [];
+  const h = host({ readConsole: (sc) => { seen.push(sc); return { connected: true, bytes: 613, head: "MON ...", sawUntil: true }; } });
+  const handle = await mk(h).start(mapping, ID);
+  assert.match(seen[0], /\$until = 'MON ready';/);
+  assert.equal(handle.guest.readyLine, true);
+  assert.equal(handle.guest.booted, true);
+  assert.equal(handle.appReady, false, "a ready LINE is not an app that is ready");
+  const quiet = await mk(host({ readConsole: { connected: true, bytes: 64, head: "firmware banner" } })).start(mapping, ID);
+  assert.equal(quiet.guest.readyLine, false, "bytes without the line: booted, and said so, and nothing more");
+  assert.equal(quiet.guest.booted, true);
+});
