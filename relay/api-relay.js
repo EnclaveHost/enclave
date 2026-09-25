@@ -83,7 +83,11 @@ import net from "node:net";
 import tls from "node:tls";
 import fs from "node:fs";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { createReverifier, modeOf as reverifyModeOf } from "./reverify.mjs";
+// relay/reverify.mjs is loaded at run time, not imported statically: the deploy copies NAMED files to the box, and a box
+// that does not have it yet must still start (2026-09-25: the first deploy of this crash-looped on a missing module).
+let createReverifier = null, reverifyModeOf = (raw) => (["off", "shadow", "enforce"].includes(String(raw || "")) ? String(raw) : "shadow");
+try { ({ createReverifier, modeOf: reverifyModeOf } = await import("./reverify.mjs")); }
+catch (e) { console.error(`[reverify] relay/reverify.mjs is not on this box (${e.message}); re-verification is OFF until a deploy ships it`); }
 import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
@@ -145,10 +149,12 @@ const METAL_MIN_TCB = (() => {
 //                  rows are logged; =enforce: a dialed row must have re-verified to be eligible; =off: nothing runs
 //                  (the fallback: the previous behaviour, byte for byte). RELAY_REVERIFY_SEC: the cadence (default 900).
 //   The TCB floor is METAL_MIN_TCB, the same floor the attach gate applies; without one a verdict is at best "limited".
-const RELAY_REVERIFY = reverifyModeOf(process.env.RELAY_REVERIFY);
+const RELAY_REVERIFY = createReverifier ? reverifyModeOf(process.env.RELAY_REVERIFY) : "off";
 const RELAY_REVERIFY_SEC = parseInt(process.env.RELAY_REVERIFY_SEC || "900", 10);
-const reverifier = createReverifier({ mode: RELAY_REVERIFY, minTcb: METAL_MIN_TCB && typeof METAL_MIN_TCB === "object" ? METAL_MIN_TCB : undefined,
-  cacheDir: process.env.RELAY_REVERIFY_CACHE_DIR || (typeof dataDir() === "string" && dataDir() ? `${dataDir()}/verifier-collateral` : "/tmp/enclave-relay-verifier-collateral"), log: (m) => console.log(`[reverify] ${m}`) });
+const reverifier = createReverifier
+  ? createReverifier({ mode: RELAY_REVERIFY, minTcb: METAL_MIN_TCB && typeof METAL_MIN_TCB === "object" ? METAL_MIN_TCB : undefined,
+      cacheDir: process.env.RELAY_REVERIFY_CACHE_DIR || (typeof dataDir() === "string" && dataDir() ? `${dataDir()}/verifier-collateral` : "/tmp/enclave-relay-verifier-collateral"), log: (m) => console.log(`[reverify] ${m}`) })
+  : { mode: "off", run: async () => new Map(), annotate: (r) => r, eligible: (r, base) => base, ineligibleReason: () => null, verdictOf: () => null, stats: () => ({}) };
 // Phone-anchored hosts (shielded/anchor/PLAN.md): the anchor APK builds admitted
 // (codeHash = the APK's v4 Merkle root) and the APK signing certificate(s) that
 // may sign them (authorityHash = sha512 of the certificate). Routing builds
