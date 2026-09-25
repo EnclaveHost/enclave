@@ -25,14 +25,19 @@ sections:
 |---|---|---|
 | stub | `linuxx64.efi.stub`, systemd 261.2 | `2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18` |
 | `.linux` | the WSL kernel 6.6.87.2, unchanged from the HCS path | `7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd` |
-| `.initrd` | the guest initrd, `build-domain.sh` (guards + the ready line's named transport) | `a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f` |
+| `.initrd` | the guest initrd, `build-domain.sh` (guards, the named transport, and the hypervisor-stated `hv_isolation=`/`paravisor=`) | `0d14db231b1485bfde352d9043437d27459278361153802e0fa42314732e67e1` |
 | `.cmdline` | `console=ttyS0 rdinit=/init loglevel=3 report_host=9001`, no trailing newline | `c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615` |
 | `.osrel` | `NAME="enclave NucBox guest"` / `ID=enclave-nucbox-guest` | `b6bca85d3e1933b36e542863b088667a56c8575de37f5e739d699d262d92d184` |
 | tool | GNU objcopy (Binutils) 2.47, `SOURCE_DATE_EPOCH=0` | (an input to the bytes) |
 
-- UKI for the box: `20a0e18e51a02ed78465b1234b979177e9aab2d74ba198dd6ccc3d1a8a241a33` (40,045,568 B), over initrd
-  a1ff9864. It supersedes 75ae6bcc (initrd 5bc06259: the guards, with a ready line that named no transport), which
-  was the first to boot on the box, and a1fdb5c3 (4610d594, from before the guards).
+- UKI for the box: `7af57aabbe5d8b5533892734a6cb8947085bad13dfdd89b918e2436cccd66f4a` (40,044,032 B), over initrd
+  0d14db23 (24,037,136 B).
+  - It adds the stated isolation fields (HV-GUEST.md, VBS-ISOLATION.md) and dominit's `/probe.ko` hook, which does
+    nothing on a production medium.
+  - It supersedes 20a0e18e (initrd a1ff9864: the named transport), 75ae6bcc (5bc06259: the guards, a ready line naming
+    no transport; the first to boot on the box) and a1fdb5c3 (4610d594, from before the guards).
+  - A PROBE UKI for the VBS report experiment, `f6ebbc0e...` over probe initrd `574ce802...`, is NOT a production
+    medium (VBS-ISOLATION.md section 1).
 - Deterministic on one toolchain. objcopy stamps the PE TimeDateStamp from the clock unless `SOURCE_DATE_EPOCH` is set,
   and the header checksum follows it. enclave-53's independent assembly reproduced the previous UKI byte for byte.
 - Why a UKI: the firmware starts `BOOTX64.EFI` with no command line and no initrd, and the UKI carries both. **With

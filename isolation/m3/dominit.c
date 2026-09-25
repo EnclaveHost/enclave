@@ -124,8 +124,9 @@ int main(void) {
          * (isolation/m3/UEFI-BOOT.md). systemd-stub always leaves /.extra/os-release (the UKI's own .osrel), which is how
          * a stub boot is recognised; on it, a line that is not exactly the pinned one, or anything under /.extra besides
          * os-release, and this guest does not start. A direct boot (HCS linux-direct, QEMU -kernel) makes no UKI claim:
-         * its loader supplies the line (OVMF prefixes "initrd=initrd"), so it is not pinned here. The host is inside this
-         * tier's trust boundary anyway (it can read the guest's memory): fail-closed hygiene, not a boundary. */
+         * its loader supplies the line (OVMF prefixes "initrd=initrd"), so it is not pinned here. On the partition types run so
+         * far (HCS, OpenHCL type 16) the host can read the guest's memory anyway: fail-closed hygiene, not a boundary
+         * (a VBS-isolated type 1 changes that premise; see VBS-ISOLATION.md). */
         struct stat st;
         if (p && stat("/.extra", &st) == 0) {
             static const char pinned[] = "console=ttyS0 rdinit=/init loglevel=3 report_host=9001";
@@ -147,6 +148,19 @@ int main(void) {
                 printf("\n");
                 fflush(stdout); sync(); reboot(RB_POWER_OFF);
             }
+        }
+    }
+    /* A PROBE image - never a production medium - may carry /probe.ko (isolation/m3/probe/): loaded once, uncompressed,
+     * after the guards above and before anything is served, and announced. The file is part of the initrd, so a probe
+     * image never has a production image's hash; a production image has no such file and this does nothing. */
+    {
+        int fd = open("/probe.ko", O_RDONLY | O_CLOEXEC);
+        if (fd >= 0) {
+            printf("MON PROBE IMAGE: loading /probe.ko (this is not a production medium)\n");
+            fflush(stdout);
+            long r = syscall(SYS_finit_module, fd, "", 0);
+            printf("MON PROBE finished: %s\n", r == 0 ? "loaded" : strerror(errno));
+            close(fd);
         }
     }
     char *argv[] = {"/monitor", snpflag, hostflag[0] ? hostflag : NULL, NULL};

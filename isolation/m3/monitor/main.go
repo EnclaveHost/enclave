@@ -1045,8 +1045,12 @@ func (m *monitor) selfTest() {
 		// so the same gate reads it. It names no partition KIND: this guest boots the same payload in an HCS
 		// child, a UEFI/OpenHCL partition or a KVM test guest and cannot tell which, so the kind is the
 		// launcher's to state in the report it signs (it used to print "partition=hcs-child" everywhere).
+		// hv_isolation/paravisor are the hypervisor's STATED configuration (hvisolation.go): they tell a
+		// VBS-isolated partition from an unisolated OpenHCL one, and never change host_excluded.
 		m.vmpl, m.vmplFloor, m.vmpl0 = -1, -1, "n/a"
-		m.boundary = "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no"
+		hv := readHvIsolation()
+		fmt.Printf("MON hv %s\n", hv.raw())
+		m.boundary = "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no " + hv.fields()
 		return
 	}
 	if !m.snp {
