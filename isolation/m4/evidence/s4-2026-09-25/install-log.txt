@@ -29,3 +29,9 @@ release a4f227482df4830ab69b52e38dc5d6e2abea9e5c5fb71f5469f0c30e6b1cb784
 20:14:52Z REFUSING: run 4d detached, through s4d-run.sh
 20:14:52Z 4D started DETACHED as s4d-apply-20260925T201452Z (exit code -> s4/4d-s4d-apply-20260925T201452Z.rc); follow: tail -f /home/steven/enclave-bench/pool-rollout-20260925/s4/install.log
 20:14:52Z REFUSING: /home/steven/enclave-prod/bin/guestd.aaaaaaaa is not the binary 0000000000000000000000000000000000000000000000000000000000000000
+20:17:08Z 1c: /home/steven/enclave-prod/bin/guestd.4e78ba80 sha256 0ee7ed91e5066a0cbe7a4b528250342c354722a84202d043d03c5ee6dbec3086 (built twice, from 4e78ba80db7ac14a2d27fd65d495b8feb036ca23)
+20:17:08Z S4 1c done and inert
+20:17:16Z adoption preflight: gd6e734a97 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key d590dd8456c9)
+20:17:16Z adoption preflight: gdb677d751 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key b071a9c9cbd7)
+20:17:16Z adoption preflight: gdebc9c709 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key 295ce2e0e8bf)
+20:17:16Z ADOPTION PREFLIGHT PASSED: guestd 4e78ba80db7ac14a2d27fd65d495b8feb036ca23 sha256 0ee7ed91e5066a0cbe7a4b528250342c354722a84202d043d03c5ee6dbec3086 tree 17e182a8ba192152a83feee4f79d63f8628094e8 at 2026-09-25T20:17:16Z epoch 1790367436: 3/3 canaries verify with the new tree's judge (gd6e734a97 gdb677d751 gdebc9c709); runtime identity byte-equal, fwd code equal (its VCS stamp aside)
