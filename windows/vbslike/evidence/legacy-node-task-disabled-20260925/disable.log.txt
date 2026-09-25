@@ -1,0 +1,5 @@
+15:56:31Z BEFORE: task \EnclaveWindowsNode state=Ready enabled=True lastRun=2026-09-25 05:33:55Z; definition sha256 b8ea54d34af84485d7223a4ebc589600acf81f750cce132f3a03178993087f2a (backup C:\Users\claude\d1-legacy-task-backup-20260925-155629\EnclaveWindowsNode.xml); file ACL O:BAG:S-1-5-21-<machine>-513D:AI(A;;FR;;;SY)(A;ID;0x1f019f;;;BA)(A;ID;0x1f019f;;;SY)(A;ID;FA;;;BA); registry SD sha256 96261ff13ec97eb25a23d6d09e52bc97848c437fbeb4610b271d469547afe456; 266 tasks snapshotted
+15:56:32Z AFTER: task \EnclaveWindowsNode state=Disabled enabled=False lastRun=2026-09-25 05:33:55Z; definition diff: => <Enabled>false</Enabled>; file ACL unchanged=True; registry SD unchanged=True
+15:56:32Z OTHER TASKS: state changes 2 line(s): => \EnclaveWindowsNode	Disabled | <= \EnclaveWindowsNode	Ready
+15:56:32Z LEGACY NODE processes: 0; Secure Boot True; v40 15f39ae4d1fab954 v39 61028ec33770f4d7 unchanged; VMs 0; no reboot
+15:56:32Z === RESULT: DISABLED and VERIFIED (backup and rollback: C:\Users\claude\d1-legacy-task-backup-20260925-155629) ===
