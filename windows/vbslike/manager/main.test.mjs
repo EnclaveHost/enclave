@@ -90,3 +90,40 @@ test("a contradictory launcher configuration is refused at startup: the boot for
 });
 
 test("cleanup", async () => { await fs.rm(dir, { recursive: true, force: true }); });
+
+/* ---- serving through wmiserve: all three settings, and the executable pinned by hash ------------------- */
+// their own fixture: the file's earlier cleanup removes `dir`
+async function serveFixture() {
+  const d = await fs.mkdtemp(path.join(os.tmpdir(), "winmgr-serve-"));
+  const id = path.join(d, "runtime.json"); await fs.writeFile(id, JSON.stringify(RUNTIME));
+  return { d, id };
+}
+test("a partial wmiserve configuration is refused at startup, naming what is missing", async () => {
+  const { d, id } = await serveFixture();
+  const r = await run({ ENCLAVE_RUNTIME_IDENTITY: id, ENCLAVE_WMISERVE_EXE: process.execPath });
+  await fs.rm(d, { recursive: true, force: true });
+  assert.equal(r.code, 2, r.err);
+  assert.match(r.err, /missing ENCLAVE_WMISERVE_EXE_SHA256 \(64 hex\), ENCLAVE_BUNDLE_DIR/);
+});
+
+test("a wmiserve executable that does not hash to its pin is refused at startup", async () => {
+  const { d, id } = await serveFixture();
+  const exe = path.join(d, "wmiserve.exe"); await fs.writeFile(exe, "not the pinned bytes");
+  const r = await run({ ENCLAVE_RUNTIME_IDENTITY: id, ENCLAVE_WMISERVE_EXE: exe, ENCLAVE_WMISERVE_EXE_SHA256: "ab".repeat(32),
+                        ENCLAVE_BUNDLE_DIR: path.join(d, "bundles") });
+  await fs.rm(d, { recursive: true, force: true });
+  assert.equal(r.code, 2, r.err);
+  assert.match(r.err, /hashes [0-9a-f]{64}, not the pinned abab/);
+});
+
+test("the pinned wmiserve executable is accepted and said, and the manager runs", async () => {
+  const { d, id } = await serveFixture();
+  const exe = path.join(d, "wmiserve-ok.exe"); await fs.writeFile(exe, "the pinned bytes");
+  const { createHash } = await import("node:crypto");
+  const sha = createHash("sha256").update("the pinned bytes").digest("hex");
+  const r = await run({ ENCLAVE_RUNTIME_IDENTITY: id, ENCLAVE_WMISERVE_EXE: exe, ENCLAVE_WMISERVE_EXE_SHA256: sha.toUpperCase(),
+                        ENCLAVE_BUNDLE_DIR: path.join(d, "bundles") });
+  await fs.rm(d, { recursive: true, force: true });
+  assert.ok(r.timedOut, `it must keep running; it exited ${r.code}: ${r.err.slice(0, 200)}`);
+  assert.match(r.out, new RegExp(`serving through wmiserve .* \\(sha256 ${sha}\\)`));
+});

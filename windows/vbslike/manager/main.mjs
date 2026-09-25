@@ -6,6 +6,7 @@
    fetcher. The manager then asks the host what it can actually do (probe) before it answers
    /health, so "canStart" is the host's answer rather than a configuration detail. */
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Manager, createServer, startManager } from "./server.mjs";
@@ -39,6 +40,32 @@ const fetchComponent = cidFetcher({
 // medium; the IGVM is the identity) - and never inferred from which variables happen to be set. A
 // launcher without it still surveys, stops and removes VMs, but refuses to start one, and /health
 // says why. AllowFirmwareLoadFromFile is NOT configured here: the manager only reports it.
+// THE APP AND ITS RELAY (enclave-5d's wmiserve-run.mjs): the Rust launcher's `wmiserve`, run per domain with
+// `--hold stdin`, loads the bundle over hv_sock 9000, signs reports on 9001 and relays TCP to the domain. Without these
+// three variables the manager boots VMs and serves nothing (the domain stays `starting`). The executable is PINNED BY
+// HASH like every other input: a path is not an identity. It is checked here, and the manager refuses to start on a
+// mismatch or a partial configuration rather than guessing which half was meant.
+const wmiserveExe = env("ENCLAVE_WMISERVE_EXE"), wmiserveSha = env("ENCLAVE_WMISERVE_EXE_SHA256").toLowerCase();
+const bundleDir = env("ENCLAVE_BUNDLE_DIR");
+let serve = null;
+if (wmiserveExe || wmiserveSha || bundleDir) {
+  const miss = [!wmiserveExe && "ENCLAVE_WMISERVE_EXE", !/^[0-9a-f]{64}$/.test(wmiserveSha) && "ENCLAVE_WMISERVE_EXE_SHA256 (64 hex)",
+                !bundleDir && "ENCLAVE_BUNDLE_DIR"].filter(Boolean);
+  if (miss.length) {
+    console.error(`[winmgr] REFUSING TO START: serving through wmiserve needs all three settings; missing ${miss.join(", ")}`);
+    process.exit(2);
+  }
+  let got = null;
+  try { got = createHash("sha256").update(fs.readFileSync(wmiserveExe)).digest("hex"); }
+  catch (e) { console.error(`[winmgr] REFUSING TO START: cannot read the wmiserve executable ${wmiserveExe}: ${e.message}`); process.exit(2); }
+  if (got !== wmiserveSha) {
+    console.error(`[winmgr] REFUSING TO START: the wmiserve executable ${wmiserveExe} hashes ${got}, not the pinned ${wmiserveSha}`);
+    process.exit(2);
+  }
+  serve = { exe: wmiserveExe, bundleDir };
+  console.log(`[winmgr] serving through wmiserve ${wmiserveExe} (sha256 ${got}); bundles in ${bundleDir}`);
+}
+
 let launcher = null;
 if (imagePath && imageSha256) {
   try {
@@ -54,6 +81,7 @@ if (imagePath && imageSha256) {
       hypervModule: env("ENCLAVE_HYPERV_MODULE") || null,
       hypervModuleSha256: env("ENCLAVE_HYPERV_MODULE_SHA256", HYPERV_MODULE_SHA256),
       hypervUtilitiesSha256: env("ENCLAVE_HYPERV_UTILITIES_SHA256") || null,
+      serve,
     });
   } catch (e) {
     // A contradictory launcher configuration (a medium with linux-direct, an unknown boot form, a
