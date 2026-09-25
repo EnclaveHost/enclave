@@ -678,6 +678,8 @@ test("with a medium (uefi-medium), handle.image is the MEDIUM's hash as a string
   assert.equal(handle.guestIdentity.guestImageKind, "uefi-medium");
   assert.equal(handle.guestIdentity.guestImagePath, MEDIUM, "the path the DVD reads back, not the argument");
   assert.equal("imageAbsentReason" in handle, false);
+  assert.equal(handle.guestIdentity.partition, "wmi-openhcl-gen2");
+  assert.equal(handle.boundary.partition, handle.guestIdentity.partition, "one name per handle, the signed report's");
   // the medium must be the pinned bytes before AND at attach time
   await assert.rejects(() => mk(uefiHost({ imageHash: { present: true, sha256: SHA, bytes: 1 } }), { boot: BOOT_UEFI, medium: MEDIUM, mediumSha256: MED })
     .start(mapping, ID), /boot medium sha256 is 2d73/);
@@ -693,8 +695,52 @@ test("with NO medium (linux-direct), image is null WITH ITS REASON, and the IGVM
   assert.match(handle.imageAbsentReason, /linux-direct/);
   assert.match(handle.imageAbsentReason, /NOT a medium hash/);
   assert.equal(handle.guestIdentity.guestImageKind, "igvm-linux-direct");
+  assert.equal(handle.guestIdentity.partition, "wmi-openhcl-gen2-igvm-linux", "the name wmiserve SIGNS for --igvm-sha256");
+  assert.equal(handle.boundary.partition, handle.guestIdentity.partition, "one name per handle, the signed report's");
+  assert.equal(handle.boundary.hostExcluded, false);
   assert.equal(handle.guestIdentity.igvmSha256, SHA, "the IGVM's pinned sha256");
   assert.equal("guestImageSha256" in handle.guestIdentity, false, "judge-hv reads that field as a MEDIUM hash");
   assert.ok(handle.firmware, "the firmware hash is still reported, under its own name");
   assert.throws(() => linuxDirectIdentity({ igvmSha256: "nope" }), /IGVM's sha256 is required/);
+});
+
+/* ---- the boot form has ONE name, the signed report's (enclave-99's contract, main ae6e9147) ----- */
+import { BOOT_STATEMENTS, bootFormOfStatement, boundaryFor, BOOT_FORMS } from "./wmi-launcher.mjs";
+
+test("the fixed pairing is exactly the contract's table, one row per boot form", () => {
+  assert.deepEqual(Object.keys(BOOT_STATEMENTS).sort(), [...BOOT_FORMS].sort(), "every boot form has a row, and nothing else does");
+  assert.deepEqual(BOOT_STATEMENTS["linux-direct"], { partition: "wmi-openhcl-gen2-igvm-linux", guestImageKind: "igvm-linux-direct" });
+  assert.deepEqual(BOOT_STATEMENTS["uefi-medium"], { partition: "wmi-openhcl-gen2", guestImageKind: "uefi-medium" });
+  assert.ok(Object.isFrozen(BOOT_STATEMENTS) && Object.isFrozen(BOOT_STATEMENTS["linux-direct"]));
+  const ld = linuxDirectIdentity({ igvmSha256: "ab".repeat(32) });
+  const ue = uefiImageIdentity({ mediumSha256: "cd".repeat(32) });
+  assert.equal(bootFormOfStatement(ld.partition, ld.guestImageKind), "linux-direct", "each identity states its own form");
+  assert.equal(bootFormOfStatement(ue.partition, ue.guestImageKind), "uefi-medium");
+});
+
+test("any other pairing, and any unknown value on either side, states NO boot form", () => {
+  const L = BOOT_STATEMENTS["linux-direct"], U = BOOT_STATEMENTS["uefi-medium"];
+  for (const [p, k, why] of [
+    [L.partition, U.guestImageKind, "crossed"], [U.partition, L.guestImageKind, "crossed the other way"],
+    ["wmi-openhcl-gen2-igvm-linux-x", L.guestImageKind, "a longer name (no prefix match)"],
+    ["wmi-openhcl-gen2-igvm", L.guestImageKind, "a shorter name (no prefix match)"],
+    ["WMI-OPENHCL-GEN2-IGVM-LINUX", L.guestImageKind, "another case"],
+    [" wmi-openhcl-gen2", U.guestImageKind, "whitespace"],
+    ["hcs-child", L.guestImageKind, "another launcher's kind"],
+    [L.partition, "igvm-linux", "a truncated kind"], [L.partition, undefined, "no kind"], [undefined, U.guestImageKind, "no partition"],
+    [null, null, "nothing"],
+  ]) assert.equal(bootFormOfStatement(p, k), null, why);
+});
+
+test("the handle's boundary and the launcher's own carry the stated form's name; no form, no boundary", () => {
+  assert.equal(boundaryFor("linux-direct").partition, "wmi-openhcl-gen2-igvm-linux");
+  assert.equal(boundaryFor("uefi-medium").partition, "wmi-openhcl-gen2");
+  for (const f of BOOT_FORMS) {
+    const b = boundaryFor(f);
+    assert.equal(b.hostExcluded, false); assert.equal(b.attested, false); assert.equal(b.tier, "T0-hv");
+    assert.ok(Object.isFrozen(b));
+  }
+  assert.throws(() => boundaryFor("uefi"), /unknown boot form/);
+  assert.equal(mk(host()).boundary.partition, "wmi-openhcl-gen2-igvm-linux", "TYPE1 states linux-direct");
+  assert.equal(mk(host(), { boot: null }).boundary, null, "a launcher with no stated form states no boundary");
 });

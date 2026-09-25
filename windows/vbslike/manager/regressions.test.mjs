@@ -274,3 +274,13 @@ test("teardown demands the marker by default, and still clears what we know we m
   const sweep = h.seen.find((s) => s.includes("$removed = @(); $failed = @();"));
   assert.match(sweep, /Notes -eq/, "and the prefix sweep now REQUIRES the marker, so it cannot take a neighbour");
 });
+
+test("the WMI backend exposes its launcher's boundary, so /health and every record carry it (not null)", () => {
+  const be = new HyperVPartitionBackend({ launcher: mk(host()) });
+  assert.ok(be.boundary, "server.mjs reads backend.boundary; without the getter it was null on the production path");
+  assert.equal(be.boundary.partition, "wmi-openhcl-gen2-igvm-linux");
+  assert.equal(be.boundary.hostExcluded, false);
+  assert.equal(new HyperVPartitionBackend({ launcher: null }).boundary, null);
+  const m = new Manager({ backend: be });
+  assert.equal(m.health().boundary.partition, "wmi-openhcl-gen2-igvm-linux", "and /health carries it");
+});
