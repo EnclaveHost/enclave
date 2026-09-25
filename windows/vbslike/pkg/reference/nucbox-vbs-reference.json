@@ -44,6 +44,25 @@
    }
   },
   {
+   "id": "g4-probe-72462737",
+   "class": "probe",
+   "imageSha256": "724627378d81b51f0c56d7b22120162c11025961c678d2f2952ce7bb87a2bc1b",
+   "imageBytes": 77835676,
+   "vbsBootDigest": "CF339BC5C89E5F160482553CFE61A2CD694B38EE7583A55B6B722DBA13271B0F",
+   "vbsIsvsvn": 13,
+   "debugBuild": false,
+   "confidentialDebug": false,
+   "trustsHostCommandLine": false,
+   "vtl0": "linux, measured: the G1 candidate's kernel and command line with the G4 PROBE initrd e3b68c92 (680d40fa plus one appended archive holding the probe module)",
+   "booted": "no: build-only; enclave-d1's byte review agrees (7ce0a5fa)",
+   "eligible": false,
+   "reason": "REFUSE: a PROBE image for enclave-d1's G4 run, never a serving candidate; refused by its exact digest. Its identity document says debug_build false, so only the digest identifies it.",
+   "pin": {
+    "image": "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/PROBE-g4panic-72462737.bin",
+    "identity": "PROBE-g4panic-igvm-vbs.json"
+   }
+  },
+  {
    "id": "a7b0bd4-control",
    "class": "control",
    "imageSha256": "32d464cc0650d67f9efc82b9d1d68acf26602ef7a762a53678d9aeb788c47749",

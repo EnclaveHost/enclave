@@ -921,3 +921,35 @@ test("pkg.mjs: a stated boot-form pair (profile.contract) must be exactly one of
     assert.equal(x.code, 1, why); assert.match(x.out, /FAIL every stated boot-form pair .*vbsLinux\.contract .* is not exactly one canonical pair/, `${why}: ${fails(x.out)}`);
   }
 });
+
+test("draft v33 ships the G4 PROBE image (never a profile's firmware, never eligible), records the manager restart-recovery acceptance as a manager result only, and states each profile's boot-form pair", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-33.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT \(supersedes v32, which is staged at pkg\\071f194b86a573ac\\\)\. THE G4 PROBE IMAGE, BUILT AND REVIEWED, NOT BOOTED/);
+  const PF = "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/PROBE-g4panic-72462737.bin";
+  const f = d.files.find((x) => x.path === PF);
+  assert.equal(f.role, "probe.firmware"); assert.equal(f.sha256, "724627378d81b51f0c56d7b22120162c11025961c678d2f2952ce7bb87a2bc1b");
+  for (const [n, p] of Object.entries(d.profiles)) for (const k of ["firmware", "image"]) assert.notEqual(p[k], PF, `${n}.${k}`);
+  assert.equal(d.rebuild.g4probe.resources.linux_initrd, "PROBE-g4panic-mon-e3b68c92.cpio.gz");
+  assert.deepEqual({ ...d.rebuild.g4probe.resources, linux_initrd: d.rebuild.vbsLinuxG1.resources.linux_initrd }, d.rebuild.vbsLinuxG1.resources, "only the initrd differs from the G1 candidate");
+  assert.equal(d.inputs.find((i) => i.name === "PROBE-g4panic-mon-e3b68c92.cpio.gz").sha256, "e3b68c926133aa62d7335bb49576417b65e32126d811971fc55cf9222b463898");
+  assert.ok(d.inputs.some((i) => i.name === "candidate-probe-g4-72462737-review.md" && i.from.git.commit.startsWith("7ce0a5fa")));
+  const ref = refFor(D), e = ref.images.find((x) => x.id === "g4-probe-72462737");
+  assert.equal(e.class, "probe"); assert.equal(e.eligible, false); assert.equal(e.vbsBootDigest, "CF339BC5C89E5F160482553CFE61A2CD694B38EE7583A55B6B722DBA13271B0F");
+  assert.deepEqual(ref.images.filter((x) => x.eligible).map((x) => x.id), ["vbs-linux-candidate-g1"], "still exactly one eligible image");
+  // the manager acceptance is recorded with its scope, and the candidate launcher is NOT re-roled by it
+  assert.match(d.profiles.vbsLinux.managerAcceptance, /^MANAGER RESTART-RECOVERY ACCEPTANCE on a44bb55a .*run 080420.*PASS A0-A6.*SCOPE \(enclave-d1\): a manager restart-recovery result only\. No vbslike-host\.exe ran/);
+  assert.equal(d.files.find((x) => x.role === "candidate.launcher").sha256.slice(0, 8), "15338081");
+  assert.equal(d.profiles["hcs-dev"].launcher, d.files.find((x) => x.role === "control.launcher").path);
+  // the boot-form pairs, in the contract's vocabulary
+  assert.deepEqual(Object.fromEntries(Object.entries(d.profiles).map(([n, p]) => [n, p.contract && [p.contract.partition, p.contract.guestImageKind]])),
+    { "hcs-dev": null, igvm: null, uefi: ["wmi-openhcl-gen2", "uefi-medium"], vbsLinux: ["wmi-openhcl-gen2-igvm-linux", "igvm-linux-direct"], vbs: ["wmi-openhcl-gen2", "uefi-medium"] });
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   every stated boot-form pair .* \(3 stated pair\(s\)\)/);
+  // the probe as a profile's firmware, or marked eligible, is refused
+  let x = run(["verify", writeManifest(((m) => { m.profiles.vbsLinux.firmware = PF; return m; })(pinRef(structuredClone(d), refRawFor(D))))]);
+  assert.equal(x.code, 1); assert.match(x.out, /a probe firmware is never a profile's firmware/, fails(x.out));
+  const bad = structuredClone(ref); bad.images.find((y) => y.id === "g4-probe-72462737").eligible = true;
+  x = run(["verify", writeManifest(pinRef(structuredClone(d), JSON.stringify(bad)))]);
+  assert.equal(x.code, 1); assert.match(x.out, /g4-probe-72462737 is marked eligible but is class probe/, fails(x.out));
+});
