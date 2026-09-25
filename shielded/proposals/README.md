@@ -1,7 +1,10 @@
 # Proposal: stop benchmark and test-harness files under `wasm/` from cutting releases
 
-**Status: PROPOSED, NOT APPLIED.** For the platform owner's review. Nothing here
-changes deployment behaviour; `.github/workflows/deploy.yml` on this branch and on
+**Status: PROPOSED, NOT APPLIED.** It now lives as its own reviewable change on branch
+`deploy/wasm-noninput-exclusion` (f6c85c84, draft PR) with
+`test/deploy-wasm-noninput.test.mjs`: positive and negative checks through deploy.yml's
+own detect block, and guards that fail if any Dockerfile, the metal build or a workflow
+starts reading an excluded path. `.github/workflows/deploy.yml` on this branch and on
 main is untouched.
 
 ## The problem
