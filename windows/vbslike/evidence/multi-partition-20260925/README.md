@@ -44,5 +44,14 @@ Python writes `__pycache__\ipfs_fetch.cpython-314.pyc` beside the fetcher on fir
 directly from v36's staged `pkg\3384e097aa024b73\control`, so it left that file there (written 09:48:34Z). That is a
 file v36's manifest does not name. The staged v38 and v39 directories are clean (checked read-only at 12:09:50Z).
 
-Fix: run the fetcher with `PYTHONDONTWRITEBYTECODE=1` or `python -B`. The stray file in v36 is d1's run artifact;
-whether to remove it is enclave-63's call, since the package directory is theirs.
+Fix: run the fetcher with `PYTHONDONTWRITEBYTECODE=1` or `python -B`. enclave-63 is taking it on
+windows/isolation-manager (READINESS.md M6).
+
+**The stray file is REMOVED** by enclave-63, in their own package directory, with scoped deletion:
+- Read at 12:12:18Z: exactly one file, 9207 bytes, sha256 `7d6bf9115c21b6f94925d8d67743a13f6639ec8fa493344dca8a36f99032d924`.
+- Removed only if the name and hash matched, then the empty `__pycache__`.
+- v36's plain `check.ps1`: "ok no file outside the manifest" and "PACKAGE OK … 3384e097…".
+- BOX FREE at 12:12:50Z.
+- d1 re-checked read-only at 12:13:07Z: no `__pycache__`, 12490 files in v36's control, 0 VMs.
+
+**Rule from now on:** box runs use a lab COPY of the tree, never a staged package directory.
