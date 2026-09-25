@@ -12,6 +12,11 @@ LIBC=4f72e098ed0562e8361f7c1713189c5cd7b3e6672dd8d9311d32c49201260959
 BEFORE=$(snap) || { say4 "REFUSING: guestd/unit state unreadable or not the 3 running canaries"; exit 2; }
 [ ! -e "$PFX" ] || { say4 "REFUSING: $PFX exists"; exit 3; }
 avail=$(awk '/^MemAvailable/{print int($2/1024)}' /proc/meminfo); [ "$avail" -ge 40960 ] || { say4 "REFUSING: MemAvailable ${avail} MiB < 40 GiB"; exit 4; }
+# build-musl.sh builds in mktemp -d (TMPDIR, default /tmp; ~50 MB). warden-host has had a /tmp QUOTA before (EDQUOT: every
+# write fails), so check the space AND an actual write first (5d's low)
+TD=${TMPDIR:-/tmp}; tfree=$(df --output=avail -m "$TD" | tail -1 | tr -d ' ')
+[ "$tfree" -ge 512 ] || { say4 "REFUSING: $TD has ${tfree} MiB free (< 512)"; exit 4; }
+tp=$(mktemp "$TD/s4-musl-probe.XXXXXX") && head -c 1048576 /dev/zero > "$tp" && rm -f "$tp" || { say4 "REFUSING: cannot write to $TD (quota?)"; exit 4; }
 W=$(mktemp -d); created=0
 cleanup() { rm -rf "$W"; if [ "$created" = 1 ] && [ -z "${DONE:-}" ]; then rm -rf "$PFX"; say4 "step 0: the partial prefix was removed"; fi; }
 trap cleanup EXIT
