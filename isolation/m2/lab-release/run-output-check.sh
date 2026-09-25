@@ -131,10 +131,20 @@ fail=0
 for s in "$TAG-STDOUT-START" "$TAG-STDERR-START" "$TAG-STDOUT-REQ /req-$TAG-old" "$TAG-PANIC /panic-$TAG-old"; do
   if grep -aq -- "$s" "$L/serial-old.txt"; then say "ok   control: the OLD image's serial shows \"$s\""; else say "FAIL control: \"$s\" is not in the OLD image's serial (the check would see nothing)"; fail=1; fi
 done
-# the NEW image: nothing tagged anywhere the host holds for it
+# the NEW image: nothing tagged anywhere the host holds for it. The serial file is the channel the control PROVES; the
+# journal and guestd's log are checked too, but on this host neither carries a guest's console at all (the control's
+# sentinels are not there either), so a clean result there is reported as such, not as a pass of its own
 for f in "$L/serial-new.txt" "$L/journal-new.txt" "$L/guestd-new-lines.txt" "$L/vm-new.json"; do
-  if grep -aq -- "$TAG" "$f"; then say "FAIL the tag reached the host in $(basename "$f")"; fail=1; else say "ok   no tag in $(basename "$f")"; fi
+  if grep -aq -- "$TAG" "$f"; then say "FAIL the tag reached the host in $(basename "$f")"; fail=1
+  elif [ "$f" != "$L/serial-new.txt" ] && [ "$f" != "$L/vm-new.json" ] && ! grep -aq -- "$TAG" "${f/new/old}" 2>/dev/null; then
+    say "ok   no tag in $(basename "$f") (not a channel here: the control's output is absent from it too)"
+  else say "ok   no tag in $(basename "$f")"; fi
 done
+# and the requests sent ONLY to the new guest appear nowhere the host keeps: the run dir or the whole user journal
+if grep -rlaq --exclude=app.wasm --exclude=app.bundle --exclude-dir=cargo --exclude-dir=legacy -- "req-$TAG-new\|panic-$TAG-new" "$L" \
+   || journalctl --user --since "$T0" --no-pager -o cat 2>/dev/null | grep -aq -- "req-$TAG-new\|panic-$TAG-new"; then
+  say "FAIL a request sent only to the new guest reached the host"; fail=1
+else say "ok   the new guest's requests appear nowhere on the host (run dir, whole user journal)"; fi
 # ... while its control lines are intact
 for s in "DOM serving" "DOM started app=" "DOM app config: none" "DOM ERROR app exited"; do
   if grep -aq -- "$s" "$L/serial-new.txt"; then say "ok   NEW serial keeps \"$s\""; else say "FAIL NEW serial lacks \"$s\""; fail=1; fi
