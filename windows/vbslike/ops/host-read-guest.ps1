@@ -21,6 +21,12 @@
 #                                     It is not proof of host exclusion: another path may exist,
 #                                     and the hypervisor, the root's VTL1, the firmware and physical
 #                                     access all remain trusted.
+#
+# EXIT CODES, so a caller never has to parse prose to tell a void run from a negative one:
+#   0  marker FOUND
+#   3  marker NOT found, by a reader that found the canary and skipped no committed region
+#   4  VOID: nothing scanned, neither string found, or committed memory was left unscanned
+#   1  the reader could not run at all (no VM, no worker, OpenProcess refused) - also not a negative
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string] $VmId,      # the partition's GUID
@@ -79,10 +85,13 @@ $canaryBytes = if ($Canary) { [Text.Encoding]::ASCII.GetBytes($Canary) } else { 
 $MEM_COMMIT = 0x1000
 $mbiSize = [IntPtr][Runtime.InteropServices.Marshal]::SizeOf([type][HR+MBI])
 $addr = [IntPtr]::Zero
-$regions = 0; $scanned = 0L; $readFailed = 0; $largest = 0L
+$regions = 0; $scanned = 0L; $readFailed = 0; $unreadBytes = 0L; $largest = 0L
+$skipped = 0; $skippedBytes = 0L
 $hits = @(); $canaryHits = @()
 $byType = @{}
-$needles = @{}
+# The chunk overlap must cover the LONGER needle. It used the marker's length only, so a canary
+# longer than the marker could straddle a chunk boundary and be missed.
+$overlap = [Math]::Max($needle.Length, $(if ($canaryBytes) { $canaryBytes.Length } else { 0 })) - 1
 try {
   while ($true) {
     $mbi = New-Object HR+MBI
@@ -92,7 +101,10 @@ try {
     # Every committed region, whatever its Type. The first version also required nothing else, but
     # it is worth saying why Type is not filtered: guest RAM is mapped into the worker rather than
     # privately allocated, so filtering to MEM_PRIVATE would exclude the only thing being looked for.
-    if ($mbi.State -eq $MEM_COMMIT -and $size -le ($MaxRegionMiB * 1MB)) {
+    # COUNTED, not silently passed over: a committed region over the cap is memory this run did not
+    # look at, and a "not found" beside unscanned memory is not a result (enclave-53).
+    if ($mbi.State -eq $MEM_COMMIT -and $size -gt ($MaxRegionMiB * 1MB)) { $skipped++; $skippedBytes += $size }
+    elseif ($mbi.State -eq $MEM_COMMIT) {
       $tk = switch ($mbi.Type) { 0x20000 { 'PRIVATE' } 0x40000 { 'MAPPED' } 0x1000000 { 'IMAGE' } default { "0x$('{0:x}' -f $mbi.Type)" } }
       if (-not $byType.ContainsKey($tk)) { $byType[$tk] = @{ n = 0; bytes = [int64]0 } }
       $byType[$tk].n++; $byType[$tk].bytes += $size
@@ -123,8 +135,8 @@ try {
               $idx++
             }
           }
-        } else { $readFailed++ }
-        $off += $n - $needle.Length      # overlap
+        } else { $readFailed++; $unreadBytes += $n }
+        $off += $n - $overlap            # overlap, so a needle across a chunk boundary is still whole in one chunk
         if ($n -lt $chunk) { break }
       }
     }
@@ -136,14 +148,18 @@ try {
 
 Note "regions scanned : $regions"
 Note "bytes read      : $scanned ($([math]::Round($scanned/1MB,1)) MiB); largest region $([math]::Round($largest/1MB,1)) MiB"
-Note "regions unread  : $readFailed"
+Note "chunks unread   : $readFailed ($([math]::Round($unreadBytes/1MB,1)) MiB that ReadProcessMemory refused; not searched)"
+Note "regions skipped : $skipped ($([math]::Round($skippedBytes/1MB,1)) MiB committed but over the $MaxRegionMiB MiB cap; not searched)"
 Note "marker          : '$Marker' ($($needle.Length) bytes)"
 foreach ($k in ($byType.Keys | Sort-Object)) { Note "  type $k : $($byType[$k].n) regions, $([math]::Round($byType[$k].bytes/1MB,1)) MiB" }
 Note "canary          : '$canaryText' -> $($canaryHits.Count) hit(s)"
 Note "HITS            : $($hits.Count)$(if($hits.Count){' at ' + (($hits | Select-Object -First 5) -join ', ')})"
+$code = 4
 if ($scanned -eq 0) { Note "VERDICT: THE READER SCANNED NOTHING. This run is VOID, not a negative result." }
-elseif ($hits.Count -gt 0) { Note "VERDICT: MARKER FOUND. The host read it out of the worker's address space." }
-elseif ($canaryHits.Count -gt 0) { Note "VERDICT: marker not found, but the CANARY was, after $([math]::Round($scanned/1MB,1)) MiB. The reader can see guest-resident bytes; this marker was not among them." }
+elseif ($hits.Count -gt 0) { $code = 0; Note "VERDICT: MARKER FOUND. The host read it out of the worker's address space." }
+elseif ($skipped -gt 0) { Note "VERDICT: VOID - the marker was not found, but $skipped committed region(s) ($([math]::Round($skippedBytes/1MB,1)) MiB) were never searched. Raise -MaxRegionMiB; a miss beside unscanned memory proves nothing." }
+elseif ($canaryHits.Count -gt 0) { $code = 3; Note "VERDICT: marker not found, but the CANARY was, after $([math]::Round($scanned/1MB,1)) MiB. The reader can see guest-resident bytes; this marker was not among them." }
 else { Note "VERDICT: VOID - neither the marker NOR the canary was found after $([math]::Round($scanned/1MB,1)) MiB. A string the guest itself printed is certainly in guest RAM, so failing to find it means THIS READER CANNOT SEE GUEST MEMORY. It proves nothing about isolation and must not be reported as if it did." }
 Note "evidence: $script:Log"
-[pscustomobject]@{ vmId=$VmId; pid=$wp.ProcessId; regions=$regions; bytesScanned=$scanned; largestRegion=$largest; unreadRegions=$readFailed; hits=$hits.Count; canaryHits=$canaryHits.Count; log=$script:Log } | ConvertTo-Json -Compress
+[pscustomobject]@{ vmId=$VmId; pid=$wp.ProcessId; regions=$regions; bytesScanned=$scanned; largestRegion=$largest; unreadChunks=$readFailed; unreadBytes=$unreadBytes; skippedRegions=$skipped; skippedBytes=$skippedBytes; hits=$hits.Count; canaryHits=$canaryHits.Count; exit=$code; log=$script:Log } | ConvertTo-Json -Compress
+exit $code
