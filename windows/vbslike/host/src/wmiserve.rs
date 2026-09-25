@@ -17,8 +17,15 @@
 //!   - `kernelSha256` is LEFT EMPTY and omitted. There is no host-supplied kernel here.
 //!   - `platform.partition` is stated by THIS launcher ("wmi-openhcl-gen2"), because the guest
 //!     cannot know what kind of partition it is in and the monitor no longer guesses.
-//!   - `hostExcluded` is FALSE. A type-16 OpenHCL child partition is documented as "OpenHCL but no
-//!     isolation"; the root can map its memory. Nothing here may be advertised otherwise.
+//!   - `platform.isolation` and the boundary line carry the partition's ACTUAL
+//!     GuestStateIsolationType, which `--isolation-type` supplies and which is refused rather than
+//!     defaulted. The old code hardcoded type 16 and printed it verbatim on type-1 runs.
+//!   - `hostExcluded` is FALSE ON BOTH TYPES. A type-16 OpenHCL child partition is documented as
+//!     "OpenHCL but no isolation"; the root can map its memory. A type-1 (VBS) partition is
+//!     CONFIGURED for hypervisor-enforced isolation and its guest even states hv_isolation=vbs, but
+//!     no host-side read has been shown to be refused on this host -- the documented instrument for
+//!     trying it, Save-VM plus a saved-state decoder, is itself refused on a type-1 VM. A
+//!     configuration is not a measurement, so nothing here may be advertised otherwise on either.
 use crate::contract;
 use crate::hvsock;
 use crate::report::{DomainId, LauncherId, LauncherKey, PartitionId, Platform, ReportDoc};
@@ -40,6 +47,10 @@ struct Serve {
     vm_str: String,
     key: LauncherKey,
     medium_sha: String,
+    /// The partition's GuestStateIsolationType, stated by the launcher that created it. Required:
+    /// a boundary statement that does not track the actual partition kind is wrong in whichever
+    /// direction it happens to err, so there is no default to guess with.
+    isolation_type: u16,
     vcpus: u64,
     mem_mib: u64,
     label: String,
@@ -82,9 +93,19 @@ impl Serve {
                 hypervisor: "hyper-v".into(),
                 // STATED BY THE LAUNCHER. The guest cannot know its partition kind.
                 partition: "wmi-openhcl-gen2".into(),
-                isolation: "openhcl-type16".into(),
-                // FALSE, and not negotiable here: type 16 is "OpenHCL but no isolation" in
-                // Microsoft's own source, so the root partition can map this guest's memory.
+                isolation: format!("openhcl-type{}", self.isolation_type),
+                // FALSE FOR BOTH TYPES, and not negotiable here.
+                //
+                // Type 16 is "OpenHCL but no isolation" in Microsoft's own source: the root
+                // partition can map this guest's memory, by construction.
+                //
+                // Type 16 is not the only case, though, and this is the part worth being careful
+                // about. A type-1 (VBS) partition is CONFIGURED for hypervisor-enforced isolation,
+                // and on this host its guest even states hv_isolation=vbs -- but no host-side read
+                // has ever been shown to be refused here, because the documented instrument for
+                // trying (Save-VM plus a saved-state decoder) is itself refused on a type-1 VM. A
+                // configuration is not a measurement. Until a host read is demonstrated to fail
+                // where it demonstrably succeeds on a control, this stays false for type 1 too.
                 host_excluded: false,
             },
             launcher: LauncherId { key: self.key.public_b64(), started_ms: self.key.started_ms },
@@ -99,7 +120,8 @@ impl Serve {
             },
             domain: DomainId { label: self.label.clone(), app_sha256: hex::encode(app) },
             report_data: hex::encode(rd),
-            boundary: format!("tier={TIER} partition=wmi-openhcl-gen2 host_excluded=no"),
+            boundary: format!("tier={TIER} partition=wmi-openhcl-gen2 isolation_type={} host_excluded=no",
+                              self.isolation_type),
             issued_ms: crate::util::unix_ms(),
         };
         let signed = self.key.sign(&doc);
@@ -162,6 +184,15 @@ pub fn run(o: &Opts) -> i32 {
     }
     let tcp: u16 = o.get("tcp").and_then(|s| s.parse().ok()).unwrap_or(0);
     let label = o.get("label").unwrap_or("canary").to_string();
+    // REQUIRED, and refused rather than defaulted: every boundary string below is derived from it.
+    let iso: u16 = match o.get("isolation-type").and_then(|s| s.parse().ok()) {
+        Some(v) if v == 1 || v == 16 => v,
+        _ => {
+            eprintln!("wmiserve: --isolation-type <1|16> is required: the report and the boundary \
+                       line state the partition kind, and guessing it would state it wrongly");
+            return 2;
+        }
+    };
     let vcpus: u64 = o.get("vcpus").and_then(|s| s.parse().ok()).unwrap_or(1);
     let mem_mib: u64 = o.get("mem").and_then(|s| s.parse().ok()).unwrap_or(2048);
 
@@ -174,6 +205,7 @@ pub fn run(o: &Opts) -> i32 {
     let our_app_sha = hex::encode(our_app_id);
 
     let s = Arc::new(Serve {
+        isolation_type: iso,
         vm, vm_str: hvsock::guid_string(&vm), key: LauncherKey::mint(), medium_sha,
         vcpus, mem_mib, label: label.clone(), loaded: Mutex::new(Vec::new()),
         closing: AtomicBool::new(false),
@@ -243,7 +275,16 @@ pub fn run(o: &Opts) -> i32 {
         });
     }
 
-    println!("{}", json!({"step": "ready", "note": "serving. This is a DEV path: type 16 is 'OpenHCL but no isolation', the root can map this guest's memory, and nothing here is host-excluded or verified capacity."}));
+    // The note states the partition it was actually given. The old text hardcoded type 16 and was
+    // printed verbatim on type-1 runs, where it was simply false - it under-claimed rather than
+    // over-claimed, but a boundary statement that does not track the partition is unreliable in
+    // either direction, and this one is quoted into packages.
+    let note = match iso {
+        16 => "serving. This is a DEV path: type 16 is 'OpenHCL but no isolation', the root can map this guest's memory, and nothing here is host-excluded or verified capacity.",
+        1  => "serving. This is a DEV path on a type-1 (VBS) partition: the hypervisor is CONFIGURED to keep VTL0 RAM host-private, which is a configuration and not a measurement. No host-side read has been shown to be refused here. Nothing here is host-excluded or verified capacity.",
+        _  => "serving. This is a DEV path. Nothing here is host-excluded or verified capacity.",
+    };
+    println!("{}", json!({"step": "ready", "isolationType": iso, "note": note}));
     // STAY ALIVE FOR A BOUNDED TIME, and do not depend on stdin.
     //
     // The first version waited only on a line from stdin, and the caller redirected stdin from an
