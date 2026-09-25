@@ -48,6 +48,12 @@
 //                                v1') as hex (NOT the raw fleet SECRET). HMAC auth
 //                                for the API (unset -> API answers 503). The old
 //                                `SECRET` env is a deprecated fallback.
+//   RELAY_TXT_KEY     optional   the relays' OWN push key (relay/certs.js signs
+//                                x-relay-txt-sig with it): 64 hex, NEVER derived
+//                                from the fleet SECRET. Same authority as the fleet
+//                                HMAC, held by the api relay and this daemon only.
+//   FLEET_TXT_HMAC    optional   on (default) | off: off, the fleet HMAC authorizes
+//                                nothing (relay key or operator signatures only)
 //   TXT_TTL_SEC       optional   challenge lifetime cap, seconds (default 600)
 //   REGISTRY_ADDRESS  required*  EnclaveRegistry on Base: on-chain fleet discovery
 //   ENCLAVES          required*  *instead: static comma list of enclave origins
@@ -112,6 +118,30 @@ if (TXT_KEY && !/^[0-9a-f]{64}$/i.test(TXT_KEY)) {
   console.error("[dns-relay] DNS_TXT_KEY is not a 64-hex derived key (looks like a raw fleet secret) — DISABLING the challenge-push API. Set DNS_TXT_KEY = HMAC(SECRET,'enclave dns-txt v1') hex.");
   TXT_KEY = "";
 }
+// The fleet HMAC above is a FLEET-WIDE credential: every first-party box derives it from the fleet SECRET (on metal that
+// secret sits in an operator-readable file), and it names no box. Two settings retire it without a supervisor release:
+//   RELAY_TXT_KEY    the platform certificate service's OWN push key (relay/certs.js signs x-relay-txt-sig with it): 64
+//                    hex, generated for the two relays and NEVER derived from the fleet SECRET. It carries the authority
+//                    the fleet HMAC has today, under the same U7 rules, and only the api relay and this daemon hold it.
+//   FLEET_TXT_HMAC   on (the default: today's behaviour) | off. Off, the fleet HMAC authorizes NOTHING here: a push is
+//                    authorized by the relay key, or by a box's operator signature for exactly what that operator's
+//                    lease or registered box name proves (operatorAuth). Only the exact word "off" turns it off.
+let RELAY_TXT_KEY = (process.env.RELAY_TXT_KEY || "").trim();
+if (RELAY_TXT_KEY && !/^[0-9a-f]{64}$/i.test(RELAY_TXT_KEY)) {
+  console.error("[dns-relay] RELAY_TXT_KEY is not 64 hex characters: the relay-key path is DISABLED");
+  RELAY_TXT_KEY = "";
+}
+if (RELAY_TXT_KEY && TXT_KEY && RELAY_TXT_KEY.toLowerCase() === TXT_KEY.toLowerCase()) {
+  console.error("[dns-relay] RELAY_TXT_KEY equals DNS_TXT_KEY, the fleet-derived key: it must be a SEPARATE key that no box can derive. The relay-key path is DISABLED");
+  RELAY_TXT_KEY = "";
+}
+const _fleetHmacSetting = (process.env.FLEET_TXT_HMAC || "on").trim().toLowerCase();
+if (!["on", "off"].includes(_fleetHmacSetting))
+  console.error(`[dns-relay] FLEET_TXT_HMAC=${_fleetHmacSetting.slice(0, 16)} is neither "on" nor "off": left ON (today's behaviour); set exactly "off" to retire the fleet HMAC`);
+const FLEET_HMAC_ON = _fleetHmacSetting !== "off";
+// which credential authorized each push, for the window before FLEET_TXT_HMAC=off: `fleetHmacOnly` counts pushes the
+// fleet HMAC alone could authorize (no relay key, no operator signature that verifies). It must stay 0 before the flip.
+const authStats = { relayKey: 0, operator: 0, fleetHmac: 0, fleetHmacOnly: 0, fleetHmacIgnored: 0 };
 const TXT_TTL_S = parseInt(process.env.TXT_TTL_SEC || "600", 10);
 // Per-source DNS response rate limit (fix 11): an authoritative server is a
 // reflection/amplification vector, so cap responses per client IP. Generous —
@@ -512,12 +542,13 @@ tcp.listen(DNS_PORT);
 // ---- challenge-push HTTP API --------------------------------------------------
 
 if (!TXT_KEY) console.error("[dns-relay] DNS_TXT_KEY unset — fleet-HMAC pushes answer 503 (operator-signed pushes still verify on-chain)");
+console.log(`[dns-relay] push auth: relay key ${RELAY_TXT_KEY ? "ON" : "unset"}; fleet HMAC ${!TXT_KEY ? "unset" : FLEET_HMAC_ON ? "ON" : "OFF (authorizes nothing)"}; operator signatures ON`);
 
 // hex HMAC-SHA256 over the RAW body with the DERIVED DNS_TXT_KEY (NOT the raw
 // fleet SECRET — the enclave derives HMAC(SECRET,'enclave dns-txt v1')), constant-time
-function checkSig(sig, raw) {
-  if (typeof sig !== "string" || !/^[0-9a-fA-F]{64}$/.test(sig)) return false;
-  const want = createHmac("sha256", TXT_KEY).update(raw).digest();
+function checkSig(sig, raw, key = TXT_KEY) {
+  if (!key || typeof sig !== "string" || !/^[0-9a-fA-F]{64}$/.test(sig)) return false;
+  const want = createHmac("sha256", key).update(raw).digest();
   const got = Buffer.from(sig, "hex");
   return got.length === want.length && timingSafeEqual(want, got);
 }
@@ -657,6 +688,8 @@ function apiHandler(req, res) {
     for (const name of [...txtStore.keys()]) txtRecords += txtValues(name).length;
     return json(200, { ok: true, zones: { ip: IP_ZONE, app: APP_ZONE, tcp: TCP_ZONE, box: BOX_ZONE },
                        deployments: deployments.length, txtRecords,
+                       pushAuth: { relayKey: !!RELAY_TXT_KEY, fleetHmac: !TXT_KEY ? "unset" : FLEET_HMAC_ON ? "on" : "off",
+                                   authorizedBy: { ...authStats } },
                        relayLabels: appRelays.size, relayMap: RELAY_MAP_URL || null });
   }
   if (u.pathname !== "/v1/txt" || (req.method !== "POST" && req.method !== "DELETE"))
@@ -689,28 +722,54 @@ function apiHandler(req, res) {
     if ([APP_ZONE, TCP_ZONE, BOX_ZONE].some((z) => z && name === "_acme-challenge." + z))
       return json(403, { error: "apex_refused", message: "no dns-01 answer at a zone apex: that would certify a wildcard over every name in the zone" });
 
-    // auth: the fleet HMAC (any name), else an operator signature whose
-    // authority is the on-chain lease for THIS deployment's subdomain only
-    let authed = !!TXT_KEY && checkSig(req.headers["x-relay-sig"], raw);
-    // U7: a new challenge value under the HMAC, for a deployment's name, needs that deployment's live, ELIGIBLE lease
-    // holder (removing a value is not issuance and keeps the HMAC's authority)
-    if (authed && req.method === "POST") {
+    // auth, strongest first: the relays' own key (the platform certificate service); the fleet HMAC while
+    // FLEET_TXT_HMAC is on (any name); else an operator signature whose authority is the on-chain lease for THIS
+    // deployment's subdomain, or the registered operator of THIS box name. U7: a new challenge value under either shared
+    // key, for a deployment's name, needs that deployment's live, ELIGIBLE lease holder (removing a value is not issuance)
+    const sharedKeyGate = async (label, error) => {
+      if (req.method !== "POST") return null;
       let why;
-      try { why = await hmacTenantRefusal(name); } catch (e) { console.error(`[dns-relay] hmac tenant check error: ${e.message}`); why = "verification error"; }
-      if (why) { console.log(`[dns-relay] txt POST ${name} under the fleet HMAC REFUSED: ${why}`); return json(403, { error: "hmac_auth_refused", message: why }); }
-    }
-    if (!authed && typeof req.headers["x-operator-sig"] === "string") {
-      if (!rlOperator(req.socket?.remoteAddress || "unknown"))
-        return json(429, { error: "rate_limited", message: "Too many operator-signed pushes; retry shortly." });
+      try { why = await hmacTenantRefusal(name); } catch (e) { console.error(`[dns-relay] ${label} tenant check error: ${e.message}`); why = "verification error"; }
+      if (why) { console.log(`[dns-relay] txt POST ${name} under the ${label} REFUSED: ${why}`); return { error, message: why }; }
+      return null;
+    };
+    const hasOpSig = typeof req.headers["x-operator-sig"] === "string";
+    const opAuth = async () => {
+      if (!rlOperator(req.socket?.remoteAddress || "unknown")) return { status: 429, error: "rate_limited", message: "Too many operator-signed pushes; retry shortly." };
       let why;
       try { why = await operatorAuth(req.headers["x-operator-sig"], raw, body, name); }
       catch (e) { console.error(`[dns-relay] operator auth error: ${e.message}`); why = "verification error"; }
-      if (why) return json(403, { error: "operator_auth_failed", message: why });
-      authed = true;
+      return why ? { status: 403, error: "operator_auth_failed", message: why } : null;
+    };
+    let authed = false;
+    if (checkSig(req.headers["x-relay-txt-sig"], raw, RELAY_TXT_KEY)) {
+      const refused = await sharedKeyGate("relay key", "relay_auth_refused");
+      if (refused) return json(403, refused);
+      authed = true; authStats.relayKey++;
+    } else if (checkSig(req.headers["x-relay-sig"], raw)) {
+      if (FLEET_HMAC_ON) {
+        const refused = await sharedKeyGate("fleet HMAC", "hmac_auth_refused");
+        if (refused) return json(403, refused);
+        authed = true; authStats.fleetHmac++;
+        // would anything BUT the fleet HMAC have authorized it? (the evidence the FLEET_TXT_HMAC=off flip needs)
+        if (!(hasOpSig && !(await opAuth()))) {
+          authStats.fleetHmacOnly++;
+          console.log(`[dns-relay] txt ${req.method} ${name} authorized by the fleet HMAC ALONE (no operator signature that verifies): FLEET_TXT_HMAC=off would refuse it`);
+        }
+      } else {
+        authStats.fleetHmacIgnored++;
+        console.log(`[dns-relay] txt ${req.method} ${name}: fleet HMAC presented and IGNORED (FLEET_TXT_HMAC=off)`);
+      }
+    }
+    if (!authed && hasOpSig) {
+      const refused = await opAuth();
+      if (refused) return json(refused.status, { error: refused.error, message: refused.message });
+      authed = true; authStats.operator++;
       console.log(`[dns-relay] txt ${req.method} ${name} authorized by operator signature (lease ${String(body.deploymentId).slice(0, 10)}…)`);
     }
-    if (!authed) return json(TXT_KEY ? 401 : 503, TXT_KEY ? { error: "bad_signature" }
-      : { error: "no_key", message: "DNS_TXT_KEY is not configured on this relay (and no operator signature was presented)." });
+    const anyKey = !!(RELAY_TXT_KEY || (TXT_KEY && FLEET_HMAC_ON));
+    if (!authed) return json(anyKey ? 401 : 503, anyKey ? { error: "bad_signature" }
+      : { error: "no_key", message: "no relay key and no fleet HMAC is accepted on this relay, and no operator signature was presented." });
 
     if (req.method === "POST") {
       let ttl = TXT_TTL_S;   // body ttlSec can only SHORTEN the cap, never extend it

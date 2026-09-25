@@ -78,9 +78,9 @@
 // same (name, spkiHash) instead of being abandoned for the next CA — the CVM
 // cannot do that (it has no persistent state); the relay can.
 //
-// Config (env): DNS_API, DNS_TXT_KEY, APP_ZONE and one of CERTS_KEY /
-// SECRETS_KEY (the at-rest sealing root) are REQUIRED (plus the AUTH_DATA_DIR
-// activation switch); TCP_ZONE optional; ACME_EAB_KID + ACME_EAB_HMAC (the
+// Config (env): DNS_API, APP_ZONE, one of RELAY_TXT_KEY / DNS_TXT_KEY (the
+// dns-01 push key, below) and one of CERTS_KEY / SECRETS_KEY (the at-rest
+// sealing root) are REQUIRED (plus the AUTH_DATA_DIR activation switch); TCP_ZONE optional; ACME_EAB_KID + ACME_EAB_HMAC (the
 // platform pair; without them the ZeroSSL slot is skipped and Let's Encrypt is
 // the only CA); ACME_CONTACT; ACME_DIRECTORY / ACME_DIRECTORY_2 override the
 // two CA directories (tests point them at mocks).
@@ -102,6 +102,11 @@ const CERTS_KEY   = env("CERTS_KEY");
 const SEAL_ROOT   = CERTS_KEY || env("SECRETS_KEY");
 const DNS_API     = env("DNS_API").replace(/\/+$/, "");
 const DNS_TXT_KEY = env("DNS_TXT_KEY");
+// The relays' OWN dns-01 push key (dns-relay's RELAY_TXT_KEY): 64 hex, generated for the api relay and the DNS relay and
+// NEVER derived from the fleet SECRET, so no box can hold it. When set it signs every push (x-relay-txt-sig), and
+// DNS_TXT_KEY, the fleet-derived key every first-party box also derives, is only a TRANSITION co-signature: it goes once
+// the DNS relay runs FLEET_TXT_HMAC=off. A relay key equal to DNS_TXT_KEY is no separate key at all and is ignored.
+let RELAY_TXT_KEY = env("RELAY_TXT_KEY");
 const APP_ZONE    = zone("APP_ZONE");
 const TCP_ZONE    = zone("TCP_ZONE");
 const _contactRaw = env("ACME_CONTACT");
@@ -553,12 +558,13 @@ async function withAccount(ca, run, { retried = false } = {}) {
   }
 }
 
-// dns-01 through the platform DNS daemon's authenticated API (the same call
-// supervisor.js makes): body HMAC with the DERIVED DNS_TXT_KEY.
+// dns-01 through the platform DNS daemon's authenticated API: the body HMAC'd with the relays' own RELAY_TXT_KEY and,
+// while it is still configured, with the fleet-derived DNS_TXT_KEY (the call supervisor.js makes).
 async function dnsTxt(method, name, value) {
   const body = JSON.stringify({ name, value, ttlSec: 300, ts: Math.floor(Date.now() / 1000) });
-  const headers = { "content-type": "application/json",
-                    "x-relay-sig": createHmac("sha256", DNS_TXT_KEY).update(body).digest("hex") };
+  const headers = { "content-type": "application/json" };
+  if (RELAY_TXT_KEY) headers["x-relay-txt-sig"] = createHmac("sha256", RELAY_TXT_KEY).update(body).digest("hex");
+  if (DNS_TXT_KEY) headers["x-relay-sig"] = createHmac("sha256", DNS_TXT_KEY).update(body).digest("hex");
   const r = await acmeFetch(`${DNS_API}/v1/txt`, { method, headers, body });
   if (!r.ok) throw new Error(`DNS_API ${method} ${name}: HTTP ${r.status}`);
 }
@@ -778,7 +784,7 @@ const warnedNoKey = new Set();
 
 export async function initCerts() {
   const dir = dataDir();
-  const missing = [["CERTS_KEY or SECRETS_KEY", SEAL_ROOT], ["DNS_API", DNS_API], ["DNS_TXT_KEY", DNS_TXT_KEY], ["APP_ZONE", APP_ZONE]]
+  const missing = [["CERTS_KEY or SECRETS_KEY", SEAL_ROOT], ["DNS_API", DNS_API], ["RELAY_TXT_KEY or DNS_TXT_KEY", RELAY_TXT_KEY || DNS_TXT_KEY], ["APP_ZONE", APP_ZONE]]
     .filter(([, v]) => !v).map(([k]) => k);
   if (missing.length || !dir) {
     console.log(`[certs] disabled (${missing.length ? missing.join(", ") + " unset" : "no writable AUTH_DATA_DIR"}) — /v1/certs/issue 503`);
@@ -786,7 +792,14 @@ export async function initCerts() {
   }
   if (CERTS_KEY && !HEX64.test(CERTS_KEY)) { console.error("[certs] CERTS_KEY must be 64 hex chars (HMAC(SECRET, \"enclave certs v1\")) — disabled"); return; }
   if (!HEX64.test(SEAL_ROOT)) { console.error("[certs] SECRETS_KEY (the sealing root without CERTS_KEY) must be 64 hex chars — disabled"); return; }
-  if (!HEX64.test(DNS_TXT_KEY)) { console.error("[certs] DNS_TXT_KEY must be the 64-hex DERIVED key — disabled"); return; }
+  if (DNS_TXT_KEY && !HEX64.test(DNS_TXT_KEY)) { console.error("[certs] DNS_TXT_KEY must be the 64-hex DERIVED key — disabled"); return; }
+  if (RELAY_TXT_KEY && !HEX64.test(RELAY_TXT_KEY)) { console.error("[certs] RELAY_TXT_KEY must be 64 hex characters — disabled"); return; }
+  if (RELAY_TXT_KEY && DNS_TXT_KEY && RELAY_TXT_KEY.toLowerCase() === DNS_TXT_KEY.toLowerCase()) {
+    console.error("[certs] RELAY_TXT_KEY equals DNS_TXT_KEY, the fleet-derived key: it is no separate key, so it is IGNORED (pushes carry the fleet HMAC only)");
+    RELAY_TXT_KEY = "";
+  }
+  if (!RELAY_TXT_KEY && !DNS_TXT_KEY) { console.error("[certs] no usable dns-01 push key — disabled"); return; }
+  console.log(`[certs] dns-01 pushes signed with ${[RELAY_TXT_KEY && "the relay key", DNS_TXT_KEY && "the fleet-derived DNS_TXT_KEY"].filter(Boolean).join(" and ")}`);
   buildSlots();
   store = new JsonStore(dataFile(dir, "certs.json"), { accounts: {}, certs: {}, failures: {}, orders: {} }, { durable: true });
   store.data.orders ||= {};

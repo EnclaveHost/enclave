@@ -60,7 +60,8 @@ every order in the zone and can pace them.
 | The platform EAB pair | `api-relay.env` `ACME_EAB_KID` / `ACME_EAB_HMAC` | host file permissions; no longer on any enclave |
 | Issued certificates | `certs.json` `certs` | public data; cache keyed by `(name, sha256(SPKI))` |
 | `CERTS_KEY` | `api-relay.env` | a **derived** key, `HMAC(SECRET, "enclave certs v1")`; the relay never holds the fleet `SECRET`. Optional: without it the relay cannot verify a fleet HMAC and refuses requests that carry one |
-| `DNS_TXT_KEY` | `api-relay.env` | the derived TXT-push key the DNS daemon already checks |
+| `RELAY_TXT_KEY` | `api-relay.env` and `dns.env` | the relays' OWN TXT-push key (64 hex, never derived from the fleet `SECRET`, so no box holds it); signs every push when set. See [security/dns-txt-credential-migration.md](security/dns-txt-credential-migration.md) |
+| `DNS_TXT_KEY` | `api-relay.env` | the fleet-derived TXT-push key every first-party box also derives; a transition co-signature once `RELAY_TXT_KEY` is set, removed after the DNS daemon runs `FLEET_TXT_HMAC=off` |
 
 Never: a certificate's private key, or the fleet `SECRET`.
 
@@ -143,8 +144,9 @@ Only then does an order start.
   `unauthorized`/`malformed` on `newOrder`, the first kid-bearing call — the
   persisted account is dropped, logged, re-registered once and the order
   retried; before that a dead account failed every name on its slot, silently.
-* **dns-01** goes through the DNS daemon's authenticated `/v1/txt` with
-  `DNS_TXT_KEY`, at `_acme-challenge.<name>`, and is deleted win or lose.
+* **dns-01** goes through the DNS daemon's authenticated `/v1/txt`, signed with
+  `RELAY_TXT_KEY` (and `DNS_TXT_KEY` while it is still configured), at
+  `_acme-challenge.<name>`, and is deleted win or lose.
 * **Cache**: `(name, sha256(SPKI))` → certificate, served with `cached: true`
   until two thirds of its lifetime; a re-ask with the same key costs no
   issuance. A new key for the same name replaces the record.
