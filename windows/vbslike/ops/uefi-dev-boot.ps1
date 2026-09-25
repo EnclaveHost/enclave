@@ -99,7 +99,13 @@ $RegName = 'AllowFirmwareLoadFromFile'
 # treatment - recorded, applied for one run, removed, and verified, with the watchdog covering it.
 $SvcPath  = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices'
 $ReportSvcGuid = '{0:x8}-facb-11e6-bd58-64006a7986d3' -f 9001
-$MARKER  = 'enclave-vbslike-app-domain'
+# THE VM OWNERSHIP MARKER. Named in full because PowerShell variable names are CASE-INSENSITIVE:
+# a `$marker` anywhere else in this script IS this variable. The host-read block used `$marker` for
+# its own per-run nonce, silently overwrote this, and cleanup then compared a VM's Notes against a
+# host-read nonce and REFUSED TO REMOVE ITS OWN VM - which is how every leaked canary VM tonight got
+# left behind. This is the second time this exact collision has bitten in this codebase today.
+$VM_OWNER_MARKER = 'enclave-vbslike-app-domain'
+$MARKER  = $VM_OWNER_MARKER
 $stamp   = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss')
 $name    = "enclave-uefi-$stamp"
 $pipe    = "$name-com1"
@@ -623,17 +629,17 @@ try {
       # isolated partition look non-isolated - the conservative direction. A hit on type 1 would
       # therefore need a second look; a miss on type 1 beside a hit on type 16 is the real signal.
       if ($HostRead) {
-        $marker = "ENCLAVE-HOSTREAD-MARKER/1-" + ([guid]::NewGuid().ToString('N')) + "-END"
-        Note "marker: $marker"
-        $mk = & C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send "{`"cmd`":`"echo`",`"marker`":`"$marker`"}" 2>&1 | Out-String
+        $hrMarker = "ENCLAVE-HOSTREAD-MARKER/1-" + ([guid]::NewGuid().ToString('N')) + "-END"
+        Note "marker: $hrMarker"
+        $mk = & C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send "{`"cmd`":`"echo`",`"marker`":`"$hrMarker`"}" 2>&1 | Out-String
         Note "marker pushed to the guest: $($mk.Trim())"
         # Both readers, because they fail in different ways and the comparison is the evidence.
         # vmwp first (it does not disturb the guest), then the saved-state path, which SUSPENDS the
         # VM - so it runs last, after the app has been served, and resumes afterwards.
         $hr = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\host-read-guest.ps1 `
-                -VmId $vmId -Marker $marker -Label "type$IsolationType" 2>&1 | Out-String
+                -VmId $vmId -Marker $hrMarker -Label "type$IsolationType" 2>&1 | Out-String
         foreach ($l in ($hr -split "`n" | Where-Object { $_.Trim() })) { Note "  HOSTREAD/vmwp: $($l.Trim())" }
-        $script:hostReadMarker = $marker
+        $script:hostReadMarker = $hrMarker
       }
       if ($st -match '"head"\s*:\s*"\S') { Note "PROTOCOL OK: the monitor answered a control command" }
       else { Note "PROTOCOL: connected but the monitor returned no answer to {cmd:state}" }
@@ -730,8 +736,12 @@ finally {
         Stop-VM -VM $v -TurnOff -Force -EA SilentlyContinue
         $dlRm = (Get-Date).AddSeconds(20)
         while ((Get-Date) -lt $dlRm -and (Get-VM -Name $name -EA SilentlyContinue).State -ne 'Off') { Start-Sleep -Milliseconds 500 }
-        for ($a = 0; $a -lt 5 -and (Get-VM -Name $name -EA SilentlyContinue); $a++) {
-          try { Remove-VM -VM (Get-VM -Name $name) -Force -EA Stop }
+        # Captured once per attempt: re-querying between the loop test and the call raced, and
+        # Remove-VM was handed $null - "You cannot call a method on a null-valued expression".
+        for ($a = 0; $a -lt 5; $a++) {
+          $vNow = Get-VM -Name $name -EA SilentlyContinue
+          if (-not $vNow) { break }
+          try { Remove-VM -VM $vNow -Force -EA Stop }
           catch { Note "remove attempt $($a+1): $($_.Exception.Message -replace "`r?`n",' ')"; Start-Sleep -Seconds 2 }
         }
         Note "removed $name"
