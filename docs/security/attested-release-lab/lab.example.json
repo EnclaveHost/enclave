@@ -1,0 +1,67 @@
+{
+ "label": "LAB phase 2 (enclave-99 relay side, enclave-5d guest side), 2026-09-25; synthetic keys, secrets and config",
+ "listen": "127.0.0.1:19480",
+ "tls": {
+  "cert": "<5d session dir>/relay.pem",
+  "key": "<5d session dir>/relay.key"
+ },
+ "deployment": {
+  "id": "0x1ab5feb710ec35a291d5c84f01142e2bfa4611b88a1e3e031eb49ecf80780503",
+  "endpoint": "https://lab-iso.enclave.test",
+  "appRef": "catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0",
+  "isPublic": true,
+  "configCid": "{\"configCid\": \"bafkreilabsyntheticconfigdonotuse\"}"
+ },
+ "operator": "0x34c89C78600493AA4FeA2B46dcF9bD9fFcEce2dA",
+ "chipReport": "/home/steven/Projects/enclave-release/docs/security/measurement-prediction/evidence/gd6e734a97.doc.json",
+ "signingSeedFile": "<5d session dir>/release.seed",
+ "minTcb": {
+  "Turin": {
+   "fmc": 1,
+   "bootloader": 3,
+   "tee": 2,
+   "snp": 5,
+   "microcode": 117
+  }
+ },
+ "secrets": {
+  "LAB_SYNTHETIC_TOKEN": "<synthetic value>"
+ },
+ "versionConfig": null,
+ "configCids": {
+  "bafkreilabsyntheticconfigdonotuse": {
+   "lab": true,
+   "token": "${LAB_SYNTHETIC_TOKEN}"
+  }
+ },
+ "rpcs": [
+  "https://base-rpc.publicnode.com",
+  "https://base.drpc.org"
+ ],
+ "predictor": {
+  "repo": "/home/steven/Projects/enclave",
+  "commit": "0181bce3aac5fa03dfaf2928d834ecd04d2a4a73",
+  "releases": [
+   {
+    "id": "5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2",
+    "dir": "<scratch>/meas/release"
+   },
+   {
+    "id": "6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb",
+    "dir": "<scratch>/meas/release2"
+   },
+   {
+    "id": "c5375c714e1f00c2ea580726346f51f3784e3cea8eae99ee6755f684de89d66f",
+    "dir": "<5d session dir>/domain-release"
+   }
+  ],
+  "admit": [
+   "c5375c714e1f00c2ea580726346f51f3784e3cea8eae99ee6755f684de89d66f"
+  ],
+  "gateway": "https://trustless-gateway.link",
+  "sevSnpMeasure": "<scratch>/meas/venv/bin/sev-snp-measure",
+  "sevSnpMeasureSha256": "86719f7000153f279634fbd2c48561cd29d5de254996024ab7dc5ecd82c0644e",
+  "components": "<scratch>/meas/lab-work2/components",
+  "work": "<scratch>/lab2/predict"
+ }
+}

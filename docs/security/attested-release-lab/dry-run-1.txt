@@ -1,0 +1,15 @@
+[secrets] enabled (0 deployments with stored secrets)
+18:02:38Z LAB relay for 0x1ab5feb710ec35a291d5c84f01142e2bfa4611b88a1e3e031eb49ecf80780503 (catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0, public); release signing public key 3b75834ea968e93dc7b950112dcc2a254614c35b81a03aff741fd37dfd4ae42f (keyId f344b10d700f7095; SYNTHETIC)
+18:02:38Z LAB (a): the ledger row and confirmRow come from the lab file; (b) the chip from a supplied report's AMD chain; (c) the ticket signer is the lab operator; (d) synthetic secrets and configs
+18:02:38Z (b) chip proven by its AMD chain (Turin): fa11afcf54ae9c53…
+18:02:50Z predictor: 2 known answer(s) reproduced exactly; toolchain 0181bce3aac5; admitted c5375c714e1f
+18:02:56Z prediction for catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0 (6217 ms): AppID 94c04c0edb6b4ca11b9bd0b6e4adfa98afdfa04692e6c10af79755e6db0ba0f2; release c5375c714e1f -> faee57d7ae944c298fffc43745bc0f8add994bfea2e001a2c7fd7041a78dd62471b3bbdeaa88d78100c5a0419382b7da
+18:02:56Z dry-run: a per-run operator key 0xe0de24cd862a4b88855e3b6c1024b6942a702bfe
+ok   release-status lists the lab deployment (200 {"id":"0x1ab5feb710ec35a291d5c84f01142e2bfa4611b88a1e3e031eb49ecf80780503","listed":true})
+ok   a ticket for the operator-signed request (200 )
+ok   evidence that is no guest's is refused and nothing is released (403 runtime_not_admitted: The guest's runtime is not the runtime of an admitted domain release.)
+ok   the ticket was consumed by that 403
+[secrets-release] 0x1ab5feb710ec35a291d5c84f01142e2bfa4611b88a1e3e031eb49ecf80780503: evidence REFUSED: REJECT: launch measurement c068f423578cda63... is not an allowed measurement
+ok   a real guest's report of another image is refused by the evidence verifier (403 evidence_refused: REJECT: launch measurement c068f423578cda63... is not an allowed measurement)
+ok   another deployment is not listed
+PASS lab relay dry run (wiring through the real handler, predictor and chip proof; no guest)
