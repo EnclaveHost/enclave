@@ -1,0 +1,14 @@
+build 1 start 21:08:22Z
+build 1 done 21:10:26Z
+build 2 start 21:10:26Z
+build 2 done 21:12:25Z
+vmlinuz: 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7 IDENTICAL-in-build-2
+initramfs.cpio.gz: 8035d6189dfce2bad60e5d3318b7ef84392ab3fa5c0763573efe7b8c7496ab64 IDENTICAL-in-build-2
+cmdline: d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8 IDENTICAL-in-build-2
+prediction 4 vCPU : e6b02e41aa8bee0d5d6a9e9aa53f69ae27f11a52850a4644f529d7971c4748f390d157aeb09c050c359e8764da87888c
+build 2 agrees    : True
+ovmf              : /home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd 142589cc4882f29a
+overlay           : b18f8989b8218baa5e0b07c26490e5f139c118c6 dirty False reproducible True
+images            : b59f69816d8131f4 1cf721aa25d994e4
+by hand           : e6b02e41aa8bee0d5d6a9e9aa53f69ae27f11a52850a4644f529d7971c4748f390d157aeb09c050c359e8764da87888c
+HAND == MANIFEST
