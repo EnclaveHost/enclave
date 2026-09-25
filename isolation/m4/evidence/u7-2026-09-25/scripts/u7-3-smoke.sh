@@ -15,7 +15,9 @@ since=$($NR "systemctl show enclave-tcp-relay -p ActiveEnterTimestamp --value")
 for u in tcp-relay tcp6-relay udp-relay dns; do j=$($NR "journalctl -u enclave-$u --since '$since' --no-pager -o cat" 2>/dev/null)
   grep -q 'eligibility: https://api.enclave.host/enclaves every 15s' <<<"$j" || bad "$u: no eligibility line"; ! grep -q 'unset: NO host is eligible' <<<"$j" || bad "$u: UNSET feed"; done
 jt=$($NR "journalctl -u enclave-tcp-relay --since '$since' --no-pager -o cat" 2>/dev/null)
-for l in $LABELS; do ! grep -q "REFUSED: not an eligible host (U7).*$l" <<<"$jt" || bad "tcp-relay refused canary $l"; done
+# relay.js logs "[relay] 0x<label> -> <origin> REFUSED: not an eligible host (U7)": the label comes FIRST (enclave-d1). The
+# only live leases are the canaries, so ANY such line is a failure
+! grep -q "REFUSED: not an eligible host (U7)" <<<"$jt" || bad "tcp-relay logged a U7 eligibility refusal: $(grep -m1 'REFUSED: not an eligible host (U7)' <<<"$jt" | cut -c1-160)"
 canary200 46.62.128.36 || bad "a canary is not 200 via nan-relay"
 for id in $IDS; do r=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://api.enclave.host/x/$id/); [ "$r" = 421 ] || bad "/x/${id:0:10}/ answered $r, not 421"; done
 r=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://api.enclave.host/x/0x$(printf 'cd%.0s' $(seq 32))/); [ "$r" = 404 ] || bad "a no-lease /x/ answered $r, not 404"

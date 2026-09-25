@@ -11,6 +11,7 @@ for f in tcp6-relay udp-relay dns; do F=/etc/nan-relay/$f.env
   [ -z "$(tail -c1 $F)" ] || { echo "REFUSING: $F does not end with a newline"; exit 3; }
 done
 [ -f /etc/nan-relay/tcp-relay.env ] || { echo "REFUSING: no tcp-relay.env"; exit 3; }
+for f in tcp-relay tcp6-relay udp-relay dns; do [ "$(stat -c %U /etc/nan-relay/$f.env)" = root ] || { echo "REFUSING: $f.env is not owned by root"; exit 3; }; done
 for f in tcp-relay tcp6-relay udp-relay dns; do F=/etc/nan-relay/$f.env; B=$F.bak-u7-$S; cp -p $F $B; chmod 600 $B; done
 for f in tcp6-relay udp-relay dns; do F=/etc/nan-relay/$f.env; n0=$(wc -l < $F); echo "ELIGIBILITY_API=https://api.enclave.host" >> $F
   [ $(( $(wc -l < $F) - n0 )) = 1 ] && head -n $n0 $F | cmp -s - $F.bak-u7-$S || { cp -p $F.bak-u7-$S $F; echo "FAILED on $F: restored"; exit 4; }; done
