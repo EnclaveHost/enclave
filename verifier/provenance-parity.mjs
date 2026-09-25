@@ -42,8 +42,14 @@ function knownArtifacts() {
     const commits = execFileSync("git", ["log", "--format=%H", "--", MANIFEST_PATH], { cwd: REPO, encoding: "utf8", maxBuffer: 16 << 20 }).split("\n").filter(Boolean);
     for (const c of commits) { try { const m = JSON.parse(execFileSync("git", ["show", `${c}:${MANIFEST_PATH}`], { cwd: REPO, encoding: "utf8" })); if (!shas.has(m.artifact.sha256)) shas.set(m.artifact.sha256, c); } catch {} }
   } catch (e) { report.reasons.push(`manifest history unreadable: ${e.message}`); }
+  // A SHALLOW checkout (CI's default fetch-depth 1) holds only this commit's manifest, so an older build the site still
+  // serves reads UNKNOWN there. Said, so that verdict is not mistaken for a foreign bundle; the scheduled job checks out
+  // full history (fetch-depth 0).
+  try { historyShallow = execFileSync("git", ["rev-parse", "--is-shallow-repository"], { cwd: REPO, encoding: "utf8" }).trim() === "true"; } catch { historyShallow = null; }
+  if (historyShallow) report.reasons.push("the checkout is shallow: only this commit's artifact is known, so an older deployed build reads UNKNOWN (run with full history)");
   return shas;
 }
+let historyShallow = null;
 
 const indexOpts = { ...(opt("api-base") ? { apiBase: opt("api-base") } : {}), ...(opt("download-base") ? { downloadBase: opt("download-base") } : {}) };
 try { report.legs.github = summary(await releaseExpectations({ ...indexOpts, timeoutMs: 20000 })); } catch (e) { report.legs.github = { error: e.message }; }
@@ -55,7 +61,7 @@ try {
   const r = await fetch(SITE + VENDOR_PATH, { signal: AbortSignal.timeout(20000), redirect: "error", cache: "no-store" });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const bytes = Buffer.from(await r.arrayBuffer()); const known = knownArtifacts(); const s = sha(bytes);
-  report.deployed = { url: SITE + VENDOR_PATH, bytes: bytes.length, sha256: s, known: known.has(s) ? (known.get(s) === "working tree" ? "this commit" : `built at ${known.get(s).slice(0, 12)}`) : "UNKNOWN", knownArtifacts: known.size };
+  report.deployed = { url: SITE + VENDOR_PATH, bytes: bytes.length, sha256: s, known: known.has(s) ? (known.get(s) === "working tree" ? "this commit" : `built at ${known.get(s).slice(0, 12)}`) : "UNKNOWN", knownArtifacts: known.size, historyShallow };
   if (known.has(s)) {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "parity-")); const f = path.join(tmp, "deployed.mjs"); fs.writeFileSync(f, bytes);
     const D = await import(pathToFileURL(f).href);

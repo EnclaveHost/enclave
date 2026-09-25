@@ -11,7 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import http from "node:http";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
@@ -71,7 +71,12 @@ test("the site serves a bundle this repository never built (one byte changed): u
   reset({ vendor: bad });
   const r = await run(["--now", "2026-09-25T04:00:00Z"]);
   assert.equal(r.status, 1, r.out); assert.equal(r.report.verdict, "unknown-artifact"); assert.equal(r.report.deployed.known, "UNKNOWN");
-  assert.match(r.report.legs.deployed.error, /not an artifact this repository built: not executed/); assert.ok(r.report.deployed.knownArtifacts >= 2, "the history holds earlier artifacts too");
+  assert.match(r.report.legs.deployed.error, /not an artifact this repository built: not executed/); // with full history the tool knows earlier artifacts too; a SHALLOW checkout (the Test workflow's default fetch-depth 1)
+  // knows only this commit's, and the report says so rather than passing that off as a foreign bundle
+  const shallow = execFileSync("git", ["rev-parse", "--is-shallow-repository"], { cwd: REPO, encoding: "utf8" }).trim() === "true";
+  assert.equal(r.report.deployed.historyShallow, shallow);
+  assert.ok(r.report.deployed.knownArtifacts >= (shallow ? 1 : 2), shallow ? "at least this commit's artifact" : "the history holds earlier artifacts too");
+  if (shallow) assert.match(r.report.reasons.join(" "), /checkout is shallow/);
 });
 
 test("the mirror serves a refused index (v0.5.847's signature over v0.5.848's bytes) or is down: not-verified, exit 1, naming the legs", async () => {
