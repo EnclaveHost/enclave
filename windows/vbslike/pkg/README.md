@@ -404,6 +404,14 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   - `uefi-dev-boot.ps1` re-pinned at `ad61cb02`, the script the canary ran;
   - **v36's `check.ps1` fixed**. Its env block threw under StrictMode after `PACKAGE OK`, so a plain check exited 1.
     The box scripts now run under PowerShell 7 in `pkg.test.mjs`, and that test fails v36's script the way the box did.
+- **v38 draft** (`drafts/nucbox-ownguest-38.json`; supersedes v37, which was never staged): **package-owned functional
+  acceptance, 98782fbb** (enclave-d1, run 094631). v36 as staged served the pinned fixture from the candidate
+  `b7ba7731`, with the package's own `control/` tree and its launcher `435717de`, not the box's `0160d835`. hvlab-accept
+  passed ALL (28 checks), and restart A0–A9 passed ALL. All 52 of v36's pinned `control/` files match enclave-d1's
+  hashes at use (list `842ba056`). Scope: functional serving and stability only. **This is not an eligibility
+  promotion:** a44bb55a stays the one eligible image, and the reference is unchanged. **The rollover is on hold**
+  until enclave-99's verification review and then an explicit decision by Steven. The candidate's two images are
+  reused from v36's staged copies.
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
