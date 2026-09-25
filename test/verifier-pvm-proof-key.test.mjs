@@ -65,6 +65,11 @@ test("every statement fixture gives its recorded outcome through this gate, and 
     assert.equal(v.admissionSafe, false, `${c.name}: a proof-key verdict admits nothing`);
     if (c.want.ok) {
       assert.deepEqual(pick(v.claims, NINE), c.want.claims, c.name);
+      // the attested build (pvm-app-attest pin 20054bab): bare lowercase 64-hex, one of the case's allowedCodeHashes, THE one
+      // when a single build is pinned; the owner's recorded claims predate the field, so it is checked here, not restated
+      const codes = c.expect.allowedCodeHashes.map((h) => String(h).toLowerCase());
+      assert.match(v.claims.codeHash, /^[0-9a-f]{64}$/, c.name); assert.ok(codes.includes(v.claims.codeHash), c.name);
+      if (codes.length === 1) assert.equal(v.claims.codeHash, codes[0], c.name);
       assert.equal(v.claims.evidenceFormat, "enclave-pvm-app-evidence/v3");
       assert.match(v.claims.transportSpkiSha256, /^[0-9a-f]{64}$/);
       for (const k of ["statement shape", "pins", "evidence", "signature", "owner"]) assert.equal(v.checks[k], true, `${c.name}: check ${k}`);
@@ -171,4 +176,15 @@ test("checkpoint negatives beyond the owner's list: another chain, a non-canonic
   assert.equal(v.status, "rejected"); assert.equal(v.checks.signature, false); assert.match(v.reasons.at(-1), /signed by 0x[0-9a-f]{40}, not the attested proof key/);
   const o = await mods.checkpoint.verifyPvmCheckpoint(edited, { pins: c.pins, proofKey: c.proofKey });
   assert.equal(o.ok, false);
+});
+
+test("the owner's claims must carry the SAME attested build this gate reads: a module reporting another codeHash, or none (a pre-20054bab module), is refused; the consumer's own allowedCodeHashes decide, not either module", { skip }, async () => {
+  const c = positive();
+  const good = await verifyProofKey(c.statement, { expect: c.expect, pins: pinsFor(c), now: c.expect.now, modules: mods });
+  assert.equal(good.status, "verified", good.reasons.at(-1)); assert.match(good.claims.codeHash, /^[0-9a-f]{64}$/);
+  const wrap = (edit) => ({ ...mods, statement: { ...mods.statement, verifyPvmProofKey: (doc, ex) => { const o = mods.statement.verifyPvmProofKey(doc, ex); return o.ok ? { ...o, claims: edit({ ...o.claims }) } : o; } } });
+  const other = await verifyProofKey(c.statement, { expect: c.expect, pins: pinsFor(c), now: c.expect.now, modules: wrap((cl) => ({ ...cl, codeHash: "ab".repeat(32) })) });
+  assert.equal(other.status, "rejected"); assert.equal(other.checks.owner, false); assert.match(other.reasons.at(-1), /owner's claims differ/);
+  const none = await verifyProofKey(c.statement, { expect: c.expect, pins: pinsFor(c), now: c.expect.now, modules: wrap((cl) => { delete cl.codeHash; return cl; }) });
+  assert.equal(none.status, "rejected"); assert.match(none.reasons.at(-1), /owner's claims differ/, "a module without codeHash no longer agrees with this reading");
 });

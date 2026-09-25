@@ -707,7 +707,12 @@ deployment, the runner id and the operator), and the checkpoint is exactly the c
 to 047f7739: the module gained `verifyPvmProofKey` and `proofKeyMessage` as a pure append (the v1/v2/v3 evidence paths are
 the same bytes), plus `relay/pvm-checkpoint.mjs` and the Pixel 10 device fixtures (a real v3 envelope under Google's roots,
 25 statement negatives with exact reasons, 2 device-signed checkpoints accepted on a local chain, 5 negatives) with the
-owner's replay test, which passes against the pinned tree here (34/34). `verifier/pvm-proof-key.mjs` is the consumer's
+owner's replay test, which passes against the pinned tree here (34/34). **Re-pinned to 20054bab on 2026-09-25:** the
+owner's `verifyPvmProofKey` claims gained `codeHash`, the attested build (bare lowercase 64-hex; an 8-line change; the
+evidence paths, `relay/pvm-checkpoint.mjs` and the device fixtures byte-identical), which the runner lifecycle agent now
+registers as its measurement. The gate derives the same value itself from the re-verified evidence, requires it to be one
+of the CONSUMER'S allowedCodeHashes, and still requires the owner's claims to equal its own reading field for field: a
+module reporting another code hash, or none (the 047f7739 module, checked), is refused. `verifier/pvm-proof-key.mjs` is the consumer's
 gate over both: it re-verifies the statement's evidence through this branch's consumer checks (v3 only), rebuilds the
 271-byte message from the spec and checks the Ed25519 signature under the transport SPKI that re-verification returned
 (the two readings of the spec give identical bytes), holds the statement to the CONSUMER'S PINS before any cryptography
