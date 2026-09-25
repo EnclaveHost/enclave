@@ -1,0 +1,14 @@
+	path	enclave.host/isolation/m4/guestd
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-trimpath=true
+	build	DefaultGODEBUG=containermaxprocs=0,cryptocustomrand=1,decoratemappings=0,tlssecpmlkem=0,tlssha1=1,tracebacklabels=0,updatemaxprocs=0,urlstrictcolons=0,x509sha256skid=0,x509sslcertoverrideplatform=0
+	build	CGO_ENABLED=1
+	build	GOARCH=amd64
+	build	GOEXPERIMENT=nodwarf5
+	build	GOOS=linux
+	build	GOAMD64=v1
+	build	vcs=git
+	build	vcs.revision=4e78ba80db7ac14a2d27fd65d495b8feb036ca23
+	build	vcs.time=2026-09-25T20:13:09Z
+	build	vcs.modified=false
