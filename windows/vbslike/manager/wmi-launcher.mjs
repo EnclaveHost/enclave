@@ -153,6 +153,26 @@ export function linuxDirectIdentity({ igvmSha256, igvmPath = null }) {
 
 /** How the guest boots. STATED by whoever constructs the launcher, never inferred from what else is set. */
 export const BOOT_UEFI = "uefi-medium";
+/**
+ * THE VM'S RAM, from the catalog policy's memMiB (the APP's share, fixed per version: DERIVE.md "enclave-isolation-policy/1").
+ *
+ * The policy is what the domain gets, not what the partition needs. The ported launcher gave the VM exactly the
+ * policy's memMiB, so a real hello-world spawn (memMiB 128) would have defined a 128 MiB type-1 VM. The canaries never
+ * hit that because they passed 2048 themselves.
+ * The rule: guestd's (policy + 384 for the guest kernel and runtime) plus 256 for VTL2 and the paravisor, with a floor
+ * of 2048. 2048 is the only size run on nucbox-k11, where the guest saw 1833 MiB, so VTL2 and the firmware took about
+ * 215. Like memMiB on every backend, this is an availability property the host controls, never an attested one.
+ */
+export const TYPE1_VM_MEM_FLOOR_MIB = 2048;
+export const TYPE1_VM_MEM_OVERHEAD_MIB = 384 + 256;
+export function type1VmMemMiB(policyMemMiB) {
+  const p = policyMemMiB;   // a JSON number from the derivation record; a string is refused, never coerced
+  if (typeof p !== "number" || !Number.isInteger(p) || p <= 0) throw new Error(`the policy's memMiB must be a positive integer, not ${JSON.stringify(policyMemMiB)}`);
+  return Math.max(TYPE1_VM_MEM_FLOOR_MIB, p + TYPE1_VM_MEM_OVERHEAD_MIB);
+}
+
+/** Our monitor's ready line on COM1 (what uefi-dev-boot.ps1 watches for). The console reader may stop there. */
+export const GUEST_READY_LINE = "MON ready";
 export const BOOT_LINUX_DIRECT = "linux-direct";
 export const BOOT_FORMS = Object.freeze([BOOT_UEFI, BOOT_LINUX_DIRECT]);
 
@@ -474,9 +494,81 @@ export const CMD = {
    * which this one shared). So: Asynchronous, and at most ONE read pending, carried across waits.
    *
    * It reports BYTES, and says nothing about what they mean. Firmware banners are bytes.
+   *
+   * `until`: a line the reader may STOP at, so a start does not always wait the whole window (it took 46 s at
+   * 40 s on nucbox-k11, runs 070935/071140, though the guest spoke within ~3 s). Seeing it only shortens the wait
+   * and is reported as `sawUntil`; it is not a readiness judgement, and bytes > 0 is still all "booted" means.
    */
-  readConsole: ({ pipe, seconds = 20, connectMs = 5000 }) => ps(`
+  /**
+   * START THE VM AND READ ITS CONSOLE IN ONE PROCESS (the manager's start path).
+   *
+   * The monitor prints its boot lines ONCE, about 3 s after Start-VM. A reader started afterwards in a NEW PowerShell
+   * process can attach after they are gone, and a silent partition is refused. That happened to every manager spawn
+   * on nucbox-k11 (runs 075126 and 075544: "no output ... within 25s", although the guest had written its guest
+   * state). A canary whose reader was delayed 4 s failed the same way (ca265b7d). So the reader begins connecting
+   * BEFORE Start-VM, on a thread-pool task (ConnectAsync), and attaches as soon as the worker creates the pipe. If that
+   * early attach is not possible, it retries in this same process straight after Start-VM (uefi-dev-boot.ps1's
+   * order). Everything after that is readConsole's loop: one pending read, bounded, stopping at `until`.
+   */
+  startAndRead: ({ vmId, pipe, seconds = 25, connectMs = 15000, until = null }) => {
+    if (!GUID.test(String(vmId))) throw new Error(`startAndRead: not a VM Id: ${vmId}`);
+    return ps(`
     $ErrorActionPreference = 'Stop';
+    $v = Get-VM -Id ${q(vmId)};
+    if (-not ${OWNED("$v")}) { throw 'not ours: the ownership marker is absent, so this VM is not started' };
+    $until = ${until ? q(until) : "$null"}; $tail = ''; $sawUntil = $false;
+    $name = ${q(pipe)} -replace '^\\\\\\\\\.\\\\pipe\\\\', '';
+    $total = 0; $head = ''; $connected = $false; $why = ''; $early = $false; $earlyNote = ''; $attachMs = -1;
+    $pd = [System.IO.Pipes.PipeDirection]::In; $po = [System.IO.Pipes.PipeOptions]::Asynchronous;
+    $cli = New-Object System.IO.Pipes.NamedPipeClientStream('.', $name, $pd, $po);
+    $pre = $null; try { $pre = $cli.ConnectAsync(${Math.max(1000, Math.floor(connectMs))}) } catch { $earlyNote = [string]$_.Exception.Message };
+    $t0 = Get-Date;
+    try { Start-VM -VM $v -ErrorAction Stop } catch {
+      if ($cli) { try { $cli.Dispose() } catch {} };
+      $msg = 'Start-VM refused: ' + [string]$_.Exception.Message;
+      $ev = @(Get-WinEvent -LogName 'Microsoft-Windows-Hyper-V-Worker-Admin' -MaxEvents 20 -ErrorAction SilentlyContinue | Where-Object { $_.TimeCreated -ge $t0.AddSeconds(-5) } | Sort-Object TimeCreated | ForEach-Object { '[' + $_.Id + '] ' + ([string]$_.Message -replace '\\r?\\n', ' ') });
+      if ($ev.Count) { $msg += ' | Worker-Admin: ' + ($ev -join ' | ') };
+      throw $msg
+    };
+    $state = [string](Get-VM -Id ${q(vmId)}).State;
+    try { if ($pre -and $pre.Wait(${Math.max(1000, Math.floor(connectMs))}) -and $cli.IsConnected) { $connected = $true; $early = $true } } catch { $earlyNote = [string]$_.Exception.Message };
+    if (-not $connected) {
+      try { $cli.Dispose() } catch {};
+      $cli = New-Object System.IO.Pipes.NamedPipeClientStream('.', $name, $pd, $po);
+      $dl = (Get-Date).AddMilliseconds(${Math.max(1000, Math.floor(connectMs))});
+      while (-not $connected -and (Get-Date) -lt $dl) { try { $cli.Connect(100); $connected = $true } catch { Start-Sleep -Milliseconds 20 } }
+    };
+    $attachMs = [int]((Get-Date) - $t0).TotalMilliseconds;
+    $cts = New-Object System.Threading.CancellationTokenSource;
+    $cts.CancelAfter(${Math.max(1, Math.floor(seconds))} * 1000);
+    $pending = $null;
+    try {
+      if ($connected) {
+        $buf = New-Object byte[] 4096;
+        while (-not $cts.IsCancellationRequested) {
+          if ($null -eq $pending) { $pending = $cli.ReadAsync($buf, 0, $buf.Length) };
+          if (-not $pending.Wait(500)) { continue };
+          $n = $pending.Result; $pending = $null;
+          if ($n -le 0) { break };
+          $total += $n;
+          if ($head.Length -lt 400) { $head += [Text.Encoding]::ASCII.GetString($buf, 0, [Math]::Min($n, 400)) };
+          if ($until) {
+            $tail += [Text.Encoding]::ASCII.GetString($buf, 0, $n);
+            if ($tail.Length -gt 4096) { $tail = $tail.Substring($tail.Length - 4096) };
+            if ($tail.Contains($until)) { $sawUntil = $true; break }
+          }
+        }
+      } else { $why = 'the console pipe could not be attached' }
+    } catch { $why = [string]$_.Exception.Message } finally {
+      if ($cli) { try { $cli.Dispose() } catch {} };
+      $cts.Dispose()
+    };
+    @{state=$state; console=@{connected=$connected; early=$early; earlyNote=$earlyNote; attachMs=$attachMs; bytes=$total; head=$head; sawUntil=$sawUntil; note=$why}} | ConvertTo-Json -Compress -Depth 4`);
+  },
+
+  readConsole: ({ pipe, seconds = 20, connectMs = 5000, until = null }) => ps(`
+    $ErrorActionPreference = 'Stop';
+    $until = ${until ? q(until) : "$null"}; $tail = ''; $sawUntil = $false;
     $name = ${q(pipe)} -replace '^\\\\\\\\\.\\\\pipe\\\\', '';
     $total = 0; $head = ''; $connected = $false; $why = '';
     $cts = New-Object System.Threading.CancellationTokenSource;
@@ -493,13 +585,18 @@ export const CMD = {
         $n = $pending.Result; $pending = $null;
         if ($n -le 0) { break };
         $total += $n;
-        if ($head.Length -lt 400) { $head += [Text.Encoding]::ASCII.GetString($buf, 0, [Math]::Min($n, 400)) }
+        if ($head.Length -lt 400) { $head += [Text.Encoding]::ASCII.GetString($buf, 0, [Math]::Min($n, 400)) };
+        if ($until) {
+          $tail += [Text.Encoding]::ASCII.GetString($buf, 0, $n);
+          if ($tail.Length -gt 4096) { $tail = $tail.Substring($tail.Length - 4096) };
+          if ($tail.Contains($until)) { $sawUntil = $true; break }
+        }
       }
     } catch { $why = [string]$_.Exception.Message } finally {
       if ($cli) { try { $cli.Dispose() } catch {} };
       $cts.Dispose()
     };
-    @{connected=$connected; bytes=$total; head=$head; note=$why} | ConvertTo-Json -Compress`),
+    @{connected=$connected; bytes=$total; head=$head; sawUntil=$sawUntil; note=$why} | ConvertTo-Json -Compress`),
 
   state: ({ name }) => ps(`$v = Get-VM -Name ${q(name)} -ErrorAction SilentlyContinue; if ($v) { @{found=$true; state=[string]$v.State; uptime=[string]$v.Uptime} | ConvertTo-Json -Compress } else { @{found=$false} | ConvertTo-Json -Compress }`),
 
@@ -845,7 +942,7 @@ export class WmiHyperVLauncher {
     const guestStateRun = this.guestStateRunFor(name);
     if (!guestStateRun) throw new Error(`no per-run guest-state path can be made for ${name}`);
     const vcpus = Math.max(1, Math.floor(mapping.record.policy.vcpus));
-    const memMiB = Math.round(mapping.record.policy.memMiB);
+    const memMiB = type1VmMemMiB(mapping.record.policy.memMiB);   // the VM's RAM, not the app's share
     let created = null, served = null;
     try {
       created = await this.#ps(CMD.defineType1({
@@ -860,7 +957,8 @@ export class WmiHyperVLauncher {
                                  hypervModuleSha256: this.hypervModuleSha256, hypervUtilitiesSha256: this.hypervUtilitiesSha256,
                                  guestStateRun, guestStateMaster: this.guestStateMaster, mediumSha256: this.mediumSha256 });
 
-      const started = await this.#ps(CMD.start({ vmId: created.id }));
+      // ONE process starts the VM and reads its console, the reader attaching before the guest can speak (startAndRead)
+      const started = await this.#ps(CMD.startAndRead({ vmId: created.id, pipe, seconds: guestReadySec, until: GUEST_READY_LINE }));
       if (started.state !== "Running")
         throw new Error(`the VM is ${JSON.stringify(started.state ?? null)} after Start-VM, not Running`);
 
@@ -869,7 +967,7 @@ export class WmiHyperVLauncher {
       // executed, which is more than "Running" says, and it is NOT evidence that the component was
       // delivered, compiled or served. There is no app-readiness handshake on this backend yet, so
       // there is no state here that means "the app is up", and the launcher does not invent one.
-      const con = await this.#ps(CMD.readConsole({ pipe, seconds: guestReadySec }));
+      const con = started.console || {};
       if (con.connected !== true)
         throw new Error(`could not attach to the guest console at ${pipe}: ${con.note || "no connection"}`);
       const booted = Number(con.bytes) > 0;
@@ -893,13 +991,16 @@ export class WmiHyperVLauncher {
                image: uefi ? guestIdentity.guestImageSha256 : guestIdentity.igvmSha256,
                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
                vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
+               memory: { policyMiB: mapping.record.policy.memMiB, vmMiB: memMiB,
+                         rule: `max(${TYPE1_VM_MEM_FLOOR_MIB}, policy + ${TYPE1_VM_MEM_OVERHEAD_MIB})` },
                definition: { recipe: "petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)",
                              hypervModuleSha256: created.hypervModuleSha256, hypervUtilitiesSha256: created.hypervUtilitiesSha256 ?? null,
                              featureSet: created.featureSet, vtl2Mode: created.vtl2Mode, vbsOptOut: created.vbsOptOut,
                              guestState: { path: created.guestStateFile, masterSha256: created.guestStateMasterSha256 },
                              grants: created.grants ?? [] },
                // guestBooted: something executed. appReady: NOT established - no handshake exists.
-               guest: { booted, bytes: con.bytes, head: String(con.head || "").slice(0, 400) },
+               guest: { booted, bytes: con.bytes, head: String(con.head || "").slice(0, 400), readyLine: con.sawUntil === true,
+                        attach: { early: con.early === true, ms: con.attachMs ?? null } },
                appReady: false,
                // THE RELAY, when served: the manager judges readiness through tcpPort with launcherKey (the report is
                // judged against guestIdentity's pair and `image`), and routes to it. Without `serve` there is none, the
