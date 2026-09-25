@@ -12,6 +12,18 @@ enclave-63's rule and enclave-99's verification review. It is **not** evidence o
   exit 0. The temporary AllowFirmwareLoadFromFile setting was restored to Absent (verified). The 9001 hv_sock service
   that the run registered was removed (verified).
 
+**enclave-99's verification review (2026-09-25): clean on everything checkable, and NOT a GO.**
+
+- 99 recomputed the launch digest from 63's staged v36 bytes and got `56FBB27F…`. The controls `a44bb55a` →
+  `58DFEBFE…` and twin `95de03cc` → `8E9D6ACB…` also match.
+- The tool was d1's vbsdigest (igvm `b7e717d`). The check is independent of igvmfilegen and of the package, but not
+  of d1.
+- `OPENHCL_CONFIDENTIAL_DEBUG=1` occurs only in the twin. That is a byte heuristic, and it agrees with review
+  `fd92d610`.
+- Two wording fixes are applied below: the key the manager STATES, and the lab judge.
+- Eligibility would be PROSPECTIVE only: no report verified, no signer, no binding, `host_excluded=no`. The rollover
+  is Steven's decision.
+
 ## What ran
 
 - **Package:** v36, `C:\Users\claude\vbs-like\pkg\3384e097aa024b73\` (windows/vbslike-pkg `adea692b`).
@@ -47,11 +59,47 @@ The harness hashed every input after the pre-run checks and before it applied th
 | `apps\hello-world-1.0.4\spawn.json` | `523983d7711dbf27d1862ffdebe1b3973708c73ea9d9856802d68b4a0bb317f9` |
 | `apps\hello-world-1.0.4\app.bundle` (appId) | `9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45` |
 | `restart-accept.mjs` (driver, outside the package) | `8d3bdf82f9affe60de7551a29016efeaeac458587e5d6b348a813d13c5267844` |
-| `C:\Users\claude\vbs-like\type1.vmgs` (guest-state master, box-local) | `4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d` |
-| `C:\Users\claude\hyperv.psm1` (petri module, box-local) | `17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c` |
+| `C:\Users\claude\vbs-like\type1.vmgs` (guest-state master; pinned by the run's config, not the package) | `4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d` |
+| `C:\Users\claude\hyperv.psm1` (petri module; pinned through the launcher source) | `17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c` |
 
-The guest-state master and the petri module come from the box, not from the package. The launcher also rechecks its
-own sha256 when the manager starts it: each manager log names `435717de`.
+Both of these files live on the box, but they are pinned differently:
+
+- **`hyperv.psm1`** is pinned by the package through source. Its hash at use equals the launcher's built-in pin,
+  `HYPERV_MODULE_SHA256` (`2c3a2873` wmi-launcher.mjs:181), and the launcher enforces that pin.
+- **`type1.vmgs`** is pinned only by the run's config (`gsMasterSha256`, which the launcher enforces), not by the
+  package. That is enough for a functional acceptance.
+
+Each manager log also names `435717de`: the manager rechecks the launcher's sha256 when it starts it.
+
+**Every file in the tree is tied to v36** (enclave-99's review):
+- v36's committed manifest (windows/vbslike-pkg `adea692b`) is byte-identical to the staged `MANIFEST.json`, whose
+  sha256 `3384e097aa024b73…` is the package directory's name.
+- The 51 other control files on the list, and the launcher `435717de`, match that manifest.
+- The 12438 node_modules files match, file for file, a re-staging from the 15 npm tarballs the manifest pins.
+
+### Where the guest-state master came from, and what it contains
+
+Every VM boots from a fresh byte-copy of this master. If the master held vTPM state, every partition would share its
+seeds and possibly its AK, which would undercut per-partition signer identity in V2 and V5 (enclave-99's question).
+
+**Measured on the box at 10:11:48Z, read-only.** The master at `4f051697…` is 4,194,816 bytes:
+- the first 4,194,304 bytes (the store body) are ALL ZERO;
+- the only 57 non-zero bytes are in the final 512-byte fixed-VHD footer, whose cookie is `conectix`;
+- there is no `GUESTRTS` header.
+
+So it is an empty store in a VHD container. There is no VMGS file table, so no vTPM state, seeds or AK exist in it
+for partitions to share. Each run's copy is formatted by that run's own OpenHCL: `GUESTRTS` appears only in used copies
+(`type1-isolation-2026-09-25.md`, "A fresh VMGS is an EMPTY store plus a VHD footer"). The footer's container metadata
+is the same in every copy; it is not guest state.
+
+**Recorded provenance.** Commits af7aab92, 27a527fc and 861656ad (2026-09-25 02:57Z-03:38Z) record the master as:
+- made by `New-VM -GuestStateIsolationType VBS`, with the file kept after the donor VM was removed;
+- replaced by a freshly minted, never-started store once the first donor was found mutated by runs;
+- never handed to a VM since: each run copies it and hash-checks the copy.
+
+The box's file times are created 02:50:29Z and last written 03:27:22Z. **Not recorded:** the exact mint command line,
+and the master's hash at mint. `4f051697` first appears in the 09-25 runs. The measured blankness above is what the
+per-partition question rests on, not the unrecorded history.
 
 ### Manager environment: the harness's, not the package's managerEnv
 
@@ -71,13 +119,18 @@ The managers ran with restart-accept's `startManager()` environment, not the pac
 
 - ensureApp reaches `running` in 21.3 s. The labels are T0-hv and `hostExcluded=false`. The guest's tuple states
   `hv_isolation=vbs` (stated by the hypervisor, not a proof) and `host_excluded=no`.
-- browser → tunnel → app zone → data plane → domain: a monitor-signed session on the manager-verified key
-  `1224c4f41f47f0b7`. The app answers `200 "Hello World!"`.
-- The verifier refuses another key, another nonce and another app. The data plane refuses another transport key,
+- browser → tunnel → app zone → data plane → domain: a monitor-signed session on the key the manager STATES
+  (`1224c4f41f47f0b7`). The app answers `200 "Hello World!"`.
+- The lab judge (judge-hv) refuses another key, another nonce and another app. The independent verifier still
+  treats `hyperv-partition-domain/v1` as unsupported. The data plane refuses another transport key,
   guest image, app, runtime and instance, and admits the exact record.
 - A forced relaunch reaches `running` on a new instance with a new key (`b1df7d2b5d0d624f`). The old instance, route
   and key are refused. A client pinned to the old key must refuse.
 - A node restart adopts the same instance and key. Cleanup retires the instance and confirms it is gone.
+- **Reading "verified" in `driver.out`.** hvlab-accept (`5830dedc`) prints "the key the manager verified" and
+  "the same verified key" (lines 10, 30 and 39). There, "verified" means CHECKED BY THE MANAGER. The manager is a
+  host process, so this is a host statement, not a chain-verified key ("attested means chain-verified"). The
+  recorded output is left unedited.
 - The `HVLAB-ERR ... publicUrl ... IGNORED` lines are the lab tunnel refusing a loopback URL as the node's public
   route, as in runs 084443 and 090327. No on-chain runner id is stamped.
 
