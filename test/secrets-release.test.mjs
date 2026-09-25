@@ -626,7 +626,7 @@ test("the relay's envelope constants are the supervisor's (DEP_CONFIG_CID_RE, DE
   if (!checked) t.skip("no supervisor.js with the constants in this clone");
 });
 
-test("GET /v1/expected-guest: the confirmed record's PREDICTED guest over the certificate set, labelled; public; independent of the release switch", async () => {
+test("GET /v1/expected-guest: the confirmed record's PREDICTED guest over the installed releases, labelled; public, leased deployments only; independent of the release switch", async () => {
   const { expectedGuest } = R;
   const call = async (id, over = {}) => {
     const res = { headers: {}, setHeader(k, v) { this.headers[k] = v; } };
@@ -646,10 +646,17 @@ test("GET /v1/expected-guest: the confirmed record's PREDICTED guest over the ce
     assert.deepEqual(r.body, { id: A, catalogRef: REF, appId: APP.toString("hex"), images: [
       { ...predicted.images[0], releaseAdmitted: true }, { ...legacy, releaseAdmitted: false }] });
     assert.equal(asked[0].set, "cert"); assert.equal(asked[0].forPrivate, false); assert.ok(asked[0].waitMs > 0 && asked[0].waitMs <= 5000);
-    // a private deployment is predicted as such
-    rows = [leaseRow(A, { isPublic: false })]; asked.length = 0;
-    await call(A, { expectedGuestFor: async (row, o) => { asked.push(o); return two; } });
-    assert.equal(asked[0].forPrivate, true); rows = [leaseRow(A)];
+    // a private deployment, or one without a live lease, is refused and never predicted
+    asked.length = 0;
+    rows = [leaseRow(A, { isPublic: false })];
+    const priv = await call(A, { expectedGuestFor: async (row, o) => { asked.push(o); return two; } });
+    assert.equal(priv.code, 403); assert.equal(priv.body.error, "not_public");
+    rows = [leaseRow(A, { leaseUntil: BigInt(Math.floor(Date.now() / 1000) - 5) })];
+    const lapsed = await call(A, { expectedGuestFor: async (row, o) => { asked.push(o); return two; } });
+    assert.equal(lapsed.code, 409); assert.equal(lapsed.body.error, "not_leased");
+    rows = [leaseRow(A, { runner: "0x" + "00".repeat(32) })];
+    assert.equal((await call(A, { expectedGuestFor: async (row, o) => { asked.push(o); return two; } })).code, 409);
+    assert.equal(asked.length, 0, "no prediction was asked for"); rows = [leaseRow(A)];
     // refusals
     assert.equal((await call("0x12")).code, 422);
     const unknown = await call("0x" + "9f".repeat(32));
@@ -657,7 +664,7 @@ test("GET /v1/expected-guest: the confirmed record's PREDICTED guest over the ce
     const disagree = await call(A, { confirmRow: async () => { throw new Error("the RPCs disagree"); } });
     assert.equal(disagree.code, 503); assert.equal(disagree.body.error, "ledger_unconfirmed");
     const warming = await call(A, { expectedGuestFor: async () => ({ ok: false, code: "warming", reason: "cold" }) });
-    assert.equal(warming.code, 503); assert.equal(warming.body.error, "warming"); assert.equal(warming.headers["Retry-After"], "5");
+    assert.equal(warming.code, 503); assert.equal(warming.body.error, "warming"); assert.equal(warming.headers["Retry-After"], "5"); assert.equal(warming.body.retryAfterSec, 5);
     const notCat = await call(A, { expectedGuestFor: async () => ({ ok: false, code: "not_catalog", reason: "x" }) });
     assert.equal(notCat.code, 404); assert.equal(notCat.body.error, "not_catalog");
     const yanked = await call(A, { expectedGuestFor: async () => ({ ok: false, code: "version_not_admitted", reason: "yanked" }) });

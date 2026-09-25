@@ -235,12 +235,13 @@ export function releaseStatus(u, req, res, ctx, { bad, rate }) {
 
 // GET /v1/expected-guest?id=0x<64 hex> -> { id, catalogRef, appId, images: [{ release, runtimeId, measurement,
 // releaseAdmitted }] }: the guest this deployment must be running, PREDICTED by the relay from the chain and the pinned
-// domain releases (enclave-d1, GUEST-POOL-ROLLOUT row 6: the per-app certificate gate's independent trust root). Over the
-// certificate set (the release's releases plus the legacy images deployments still run; `releaseAdmitted` says which the
-// release itself admits). Public and read-only: AppIDs and measurements are derivable from the chain. Independent of
-// SECRETS_ATTESTED_RELEASE and SECRETS_RELEASE_DEPLOYMENTS; needs only the predictor and the confirmed ledger read. A
-// guest matches only as a (measurement, runtimeId) PAIR of one image, with appId equal. Never waits long for a cold
-// prediction: 503 warming, Retry-After.
+// domain releases (enclave-d1, GUEST-POOL-ROLLOUT row 6: the per-app certificate gate's independent trust root). Over
+// every INSTALLED release (`releaseAdmitted` says which the release itself admits). Public and read-only: AppIDs and
+// measurements are derivable from the chain. Only for a PUBLIC deployment holding a live lease (the certificate gate
+// asks for nothing else), so a public request can trigger a prediction only for an approved version of a public, leased
+// deployment: a set the catalog owner governs, bounded further by the predictor's queue and cache and a per-IP rate.
+// Independent of SECRETS_ATTESTED_RELEASE and SECRETS_RELEASE_DEPLOYMENTS. A guest matches only as a (measurement,
+// runtimeId) PAIR of one image, with appId equal. Never waits long for a cold prediction: 503 warming, Retry-After.
 const EXPECTED_WAIT_MS = 3_000;
 export async function expectedGuest(u, req, res, ctx, { bad, rate }) {
   if (!rate(`expected:${ctx.clientIp(req)}`)) return bad(429, "rate_limited", "Too many expected-guest requests; retry shortly.");
@@ -255,14 +256,21 @@ export async function expectedGuest(u, req, res, ctx, { bad, rate }) {
     if (e && e.code === "no_deployment") return bad(404, "no_deployment", `The ledger holds no deployment ${id}.`);
     return bad(503, "ledger_unconfirmed", "The deployment's record could not be confirmed; retry shortly.");
   }
+  if (row.isPublic === false) return bad(403, "not_public", "Only a public deployment's expected guest is published here.");
+  if (/^0x0*$/.test(String(row.runner || "")) || !(Number(row.leaseUntil) * 1000 > Date.now()))
+    return bad(409, "not_leased", "The deployment holds no live lease, so no guest of it is expected now.");
   let p;
-  try { p = await ctx.expectedGuestFor(row, { forPrivate: row.isPublic === false, waitMs: EXPECTED_WAIT_MS, set: "cert" }); }
+  try { p = await ctx.expectedGuestFor(row, { forPrivate: false, waitMs: EXPECTED_WAIT_MS, set: "cert" }); }
   catch (e) { p = { ok: false, code: "prediction_failed", reason: e.message }; }
   if (!p || p.ok !== true || !Array.isArray(p.images) || !p.images.length) {
     const code = (p && p.ok === false && p.code) || "prediction_unavailable";
     if (code === "not_catalog") return bad(404, "not_catalog", "The deployment does not run a catalog version.");
     const [status, error, message] = predictionRefusal(p);
-    if (status === 503 && typeof res.setHeader === "function") res.setHeader("Retry-After", code === "warming" ? "5" : "30");
+    if (status === 503) {
+      const after = code === "warming" ? 5 : 30;
+      if (typeof res.setHeader === "function") res.setHeader("Retry-After", String(after));
+      return ctx.json(res, 503, { error, message, retryAfterSec: after }, req);
+    }
     return bad(status, error, message);
   }
   const releaseSet = new Set((typeof ctx.predictorSets === "function" && ctx.predictorSets().release) || []);
