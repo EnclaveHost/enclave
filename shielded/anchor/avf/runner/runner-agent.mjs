@@ -12,7 +12,9 @@
 //
 //   const runner = await createRunnerAgent({ config, publicClient, account, stateDir })
 //   await runner.start(); await runner.tick(); await runner.stop({ release: true }); runner.close()
+import path from "node:path";
 import { createProofAgent, checkAgentConfig } from "./proof-agent.mjs";
+import { createAttachCosigner, serveAttachCosigner } from "./attach-cosigner.mjs";
 
 export const RUNNER_CONFIG_FORMAT = "enclave-pvm-runner-agent/v1";
 export const LIFECYCLE_DEFAULTS = Object.freeze({ claim: false, syncProofKey: true, renewMarginSec: 600, heartbeatSec: 900, maxClaimBond6: "0", finalProofWaitMs: 70000 });
@@ -27,7 +29,13 @@ export function checkRunnerConfig(c) {
   checkAgentConfig(c.proof);
   const l = c.lifecycle;
   if (!l || typeof l !== "object" || Array.isArray(l)) bad("lifecycle must be an object");
-  for (const k of Object.keys(l)) if (!["register", "payout", ...Object.keys(LIFECYCLE_DEFAULTS)].includes(k)) bad(`unknown lifecycle key ${JSON.stringify(k)}`);
+  for (const k of Object.keys(l)) if (!["register", "payout", "attach", ...Object.keys(LIFECYCLE_DEFAULTS)].includes(k)) bad(`unknown lifecycle key ${JSON.stringify(k)}`);
+  if (l.attach !== undefined) {   // the owner's attach co-signer (attach-cosigner.mjs): loopback only; the relay origin as the PHONE dials it
+    const a = l.attach;
+    if (!a || typeof a !== "object" || Object.keys(a).sort().join() !== "listen,relay") bad("lifecycle.attach must be exactly { listen, relay }");
+    if (!/^(127\.0\.0\.1|localhost):\d{1,5}$/.test(a.listen || "")) bad("lifecycle.attach.listen must be a loopback host:port");
+    if (!/^https?:\/\/[^\s/]+$/.test(a.relay || "")) bad("lifecycle.attach.relay must be the relay origin the phone dials (scheme://host[:port])");
+  }
   if (l.payout !== undefined) {   // the owner's: where earnings go, and the least worth a transaction; absent = never withdraw
     const w = l.payout;
     if (!w || typeof w !== "object" || Object.keys(w).sort().join() !== "minWithdraw6,to") bad("lifecycle.payout must be exactly { to, minWithdraw6 } (the owner's values)");
@@ -57,6 +65,11 @@ export async function createRunnerAgent({ config, publicClient, account, stateDi
   const agent = await createProofAgent({ config: rc.proof, publicClient, account, stateDir, fetchImpl, now, sleep, log });
   const cfg = agent.config, E = cfg.enclaveId, D = cfg.deployment, me = cfg.operator;
   const note = (o) => agent.note({ ...o, layer: "lifecycle" });
+  // the attach co-signer: its name is the registered endpoint's, its pins are the SAME evidence pins the agents verify under
+  const cosigner = L.attach ? createAttachCosigner({ account, name: cfg.endpoint.split("/t/")[1], relay: L.attach.relay,
+    codeHashes: cfg.evidence.allowedCodeHashes, authorityHashes: cfg.evidence.allowedAuthorityHashes, rootPins: cfg.evidence.rootPins,
+    instanceIds: cfg.evidence.instanceIds, journalFile: path.join(stateDir, "attach-journal.jsonl") }) : null;
+  const serveAttach = async () => { if (!cosigner) return null; const [host, port] = L.attach.listen.split(":"); return serveAttachCosigner(cosigner, { host, port: Number(port) }); };
 
   // ---- at most ONE lifecycle transaction, chosen from the chain as it is now; null when nothing is due ----
   async function lifecycleStep() {
@@ -168,5 +181,5 @@ export async function createRunnerAgent({ config, publicClient, account, stateDi
     }
     return outs;
   }
-  return { start, tick, stop, run, lifecycleStep, agent, close: () => agent.close() };
+  return { start, tick, stop, run, lifecycleStep, agent, cosigner, serveAttach, close: () => { if (cosigner) cosigner.close(); agent.close(); } };
 }

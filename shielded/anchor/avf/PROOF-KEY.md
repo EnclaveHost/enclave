@@ -186,6 +186,13 @@ The VM answers one JSON line:
    - The operator is the operator EOA's address.
 3. **Read the attested proof key.** Send `PROOFKEY <fresh nonce>` over the carrier and verify it with
    `verifyPvmProofKey`. Use the build's pins, the deployment and the policy's InstanceID. The result is `P`.
+   - **Before a lease exists, the carrier is the relay's bootstrap route** `POST /t/<name>/pvm/evidence` (evidence only,
+     behind `PVM_SERVING`; RUNNER-AGENT.md "Before the lease"). The `/x/<id>/pvm` route exists only once the ledger names a
+     runner.
+   - **The InstanceID must come OUT OF BAND, from the owner's own device:** the VM's `INSTANCE id=` line over the owner's
+     app or host channel (the lab reads it over adb). It is never learned through the relay. Before registration a name is
+     first-come, so ANY same-build VM could attach under it, and the bootstrap route would serve ITS evidence. The agent
+     pins the out-of-band InstanceID and refuses a statement from any other instance (mutation A24).
 4. **Operator transactions** (the owner's EOA, on Base):
    - `EnclaveRegistry.register("https://api.enclave.host/t/<name>", repo, measurement, cpuPricePerSec6, 0, P)`, or
      `setProofKey(runnerId, P)` if the entry already exists;

@@ -131,6 +131,7 @@ public class Main extends Activity {
         int appTls = 0;                      // --ei app_tls 1: LAB serving prototype: APP serve=https (TLS in the VM), reached only through the relay
         int appServeS = 240;                 // --ei app_serve_s N: LAB: STOP the served app after N seconds
         String appAnnounced = "";            // the APP line's digest (the app's identity), for the ABI/2 evidence frame
+        String attachSigner = null;          // --es attach_signer <http(s) URL>: the owner's attach co-signer (RUNNER-AGENT.md "Attach")
         String proofPins = "";               // --es proof_pins "<chainId> <proofOfTime> <registry> <deployment> <enclaveId> <operator>": the lease
                                              // proof key's pins (PROOF-KEY.md), handed to the VM once; the VM parses them strictly
         /* the whole model runs in the VM's CPU engine: mode local, or an app over the model (PVM-CPU.md, milestone 3) */
@@ -221,6 +222,8 @@ public class Main extends Activity {
             if (i.getStringExtra("app_http") != null) p.appHttp = i.getStringExtra("app_http");
             p.appTls = i.getIntExtra("app_tls", 0); p.appServeS = i.getIntExtra("app_serve_s", p.appServeS);
             if (i.getStringExtra("proof_pins") != null) p.proofPins = i.getStringExtra("proof_pins").trim();
+            if (i.getStringExtra("attach_signer") != null) p.attachSigner = i.getStringExtra("attach_signer").trim();
+            if (p.attachSigner != null && !p.attachSigner.matches("https?://[^\\s]+/attach-sign")) p.configError = "attach_signer must be the owner's http(s) co-signer URL ending /attach-sign";
             if (!p.proofPins.matches("[0-9a-fx ]*")) p.configError = "proof_pins must be the six pins, lowercase, space-separated";
             if (p.mode.equals("app") && p.configError.isEmpty()) {
                 if (p.app.isEmpty() || !new java.io.File(p.app).isFile()) p.configError = "mode app needs --es app <component file>";
@@ -568,6 +571,7 @@ public class Main extends Activity {
             String chal, boundHex = "";
             if (plan.relay != null && spki != null) {
                 relay = new RelayAttach(plan.relay, plan.name, spki);
+                relay.attachSigner = plan.attachSigner;
                 relay.padKey = padKey;
                 try { chal = relay.challenge(); boundHex = RelayAttach.hex(relay.bound); }
                 catch (Exception e) { say("RELAY dial failed: " + e + " (continuing with a local challenge)"); relay = null; byte[] c = new byte[32]; new SecureRandom().nextBytes(c); chal = RelayAttach.hex(c); }
@@ -586,6 +590,8 @@ public class Main extends Activity {
                     certs.computeIfAbsent(Integer.parseInt(m.group(1)), (k) -> new TreeMap<>()).put(Integer.parseInt(m.group(2)), m.group(3));
                 else if ((m = java.util.regex.Pattern.compile("^SIG\\[(\\d+)\\] ([0-9a-f]+)$").matcher(line)).matches())
                     sig.put(Integer.parseInt(m.group(1)), m.group(2));
+                else if (relay != null && (m = java.util.regex.Pattern.compile("^INSTANCEATTACH key=(302a300506032b6570032100[0-9a-f]{64}) sig=([0-9a-f]{128})$").matcher(line)).matches()) {
+                    relay.instanceKey = m.group(1); relay.instanceSig = m.group(2); }
             }
             // 4. present it; a bound tunnel keeps serving the hub in its own thread
             if (relay != null) {
