@@ -42,10 +42,31 @@ async function waitHttp(url, { tries = 100, rpc = false } = {}) {
   }
   throw new Error(`never came up: ${url}`);
 }
+// the relay's /enclaves verdict on one endpoint: serving, or the reason it is not
+async function waitServing(relay, endpoint, { tries = 100 } = {}) {
+  let last = "no row for it yet";
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await fetch(`${relay}/enclaves`, { signal: AbortSignal.timeout(1000) });
+      const row = ((await r.json()).enclaves || []).find((e) => e.endpoint === endpoint);
+      if (row?.serving === true) return;
+      if (row) last = row.ineligible || `serving=${row.serving}`;
+    } catch (e) { last = e.message; }
+    await delay(100);
+  }
+  throw new Error(`the relay does not count the stub enclave ${endpoint} as serving: ${last}`);
+}
 
+// A setup that fails part-way kills what it already spawned: .stack.json (the
+// teardown's PID list) is written only at the end, so anvil and the relay
+// would otherwise outlive the run, holding the rig's ports for the next one.
 export default async function globalSetup() {
   const pids = [];
+  try { await boot(pids); }
+  catch (e) { for (const pid of pids) { try { process.kill(pid, "SIGKILL"); } catch {} } throw e; }
+}
 
+async function boot(pids) {
   // 1) anvil - Base's chain id so the site/wallet chain checks all pass.
   // --base-fee 0 --gas-price 0: anvil 1.5.x (CI's "stable") quotes fee
   // estimates below its own block base fee, so the provisioner's raw txs
@@ -86,11 +107,20 @@ export default async function globalSetup() {
   // testing against: one claiming enclave at the fleet's long-standing
   // $3.00/node-hr + $6.00/card-hr. Availability only - every other call still
   // goes to the relay's own handlers (accounts, billing, the ledger reads).
+  // Since 0e01901e the relay sells (and so prices) only a box with confidential-
+  // CPU evidence: for a DIALED row like this one, that is the technology its
+  // attestation document names (teeCpu). A stub that names none is live but
+  // ineligible ("its build never named its CPU technology"), the fleet has no
+  // ask, and every quote is refused - the credit specs' failure from 0e01901e
+  // on. So the stub names the CPU a sellable production box presents. The
+  // relay's re-verification (shadow by default) dials https:// rows only, so it
+  // never judges this http one; the rule itself is unit-tested
+  // (test/tenant-compute-eligibility.test.mjs).
   const enclave = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
     if ((req.url || "").split("?")[0] === "/availability")
       return res.end(JSON.stringify({
-        gpu: false, type: "cpu", claimEnabled: true,
+        gpu: false, type: "cpu", claimEnabled: true, teeCpu: "amd-sev-snp",
         cpuShareFree: 1, gpuShareFree: 0, maxShare: 1,
         nodeVcpus: 16, nodeRamGb: 64, nodeGflops: 1000,
         vcpusFree: 16, ramGbFree: 64, cpuGflopsFree: 1000,
@@ -142,6 +172,10 @@ export default async function globalSetup() {
   });
   pids.push(relay.pid);
   await waitHttp(`http://127.0.0.1:${RELAY_PORT}/health`);
+  // The rig's premise is ONE SERVING enclave. If the relay stops counting the
+  // stub (a tightened admission rule), say so here in the relay's own words,
+  // not three specs later as "Cannot quote right now".
+  await waitServing(`http://127.0.0.1:${RELAY_PORT}`, `http://127.0.0.1:${ENCLAVE_PORT}`);
 
   // 5) the site, unbundled
   const site = await serveSite(path.join(REPO, "site"), SITE_PORT);
