@@ -11,7 +11,94 @@ pub const ABI: &str = "enclave-domain-abi/1";
 pub const BUNDLE_MAGIC: &[u8] = b"ENCLAVE-BUNDLE/1\n";
 pub const MAX_MANIFEST: usize = 64 << 10;
 pub const NONCE_LEN: usize = 32;
+/// The only artifact kind a bundle may carry: the portable component, compiled inside the domain.
+pub const KIND_WASM_COMPONENT: &str = "wasm-component";
 pub const TIER_HYPERV: &str = "T0-hv";
+pub const ABI2: &str = "enclave-domain-abi/2";
+pub const WX_ENFORCED: &str = "enforced";
+pub const CACHE_NONE: &str = "none";
+pub const CACHE_AUTHENTICATED: &str = "authenticated";
+
+/// The runtime that compiles and runs the artifact inside the domain (isolation/contract/runtime.go):
+/// name, version, target ISA, CPU-feature policy, W^X and cache mode. Bound into the report by bind2.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct RuntimeIdentity {
+    pub name: String,
+    pub version: String,
+    /// "jit" (target == host ISA) or "interpreter" (target pulley64: a stock Pixel pVM allows no
+    /// executable page, so the component is compiled to Pulley bytecode inside it and interpreted)
+    pub execution: String,
+    #[serde(rename = "targetIsa")]
+    pub target_isa: String,
+    #[serde(rename = "hostIsa")]
+    pub host_isa: String,
+    #[serde(rename = "cpuFeatures")]
+    pub cpu_features: String,
+    pub wx: String,
+    pub cache: String,
+}
+
+impl RuntimeIdentity {
+    /// Fail closed: an identity that cannot state the requirements is refused.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.name.is_empty() || self.version.is_empty() {
+            return Err("runtime name and version are required".into());
+        }
+        if self.host_isa != "x86_64" && self.host_isa != "aarch64" {
+            return Err(format!("host ISA {:?} is not one of x86_64, aarch64", self.host_isa));
+        }
+        match self.execution.as_str() {
+            "jit" => {
+                if self.target_isa != self.host_isa {
+                    return Err(format!("a JIT emits the host's own ISA: target {:?} must equal host {:?}", self.target_isa, self.host_isa));
+                }
+            }
+            "interpreter" => {
+                if self.target_isa != "pulley64" {
+                    return Err(format!("an interpreter runs pulley64 bytecode, not {:?}", self.target_isa));
+                }
+            }
+            other => return Err(format!("execution {other:?} is not one of jit, interpreter")),
+        }
+        if self.cpu_features.is_empty() {
+            return Err("the CPU-feature policy must be stated".into());
+        }
+        if self.wx != WX_ENFORCED {
+            return Err("a runtime that cannot state W^X as enforced is not admissible".into());
+        }
+        if self.cache != CACHE_NONE && self.cache != CACHE_AUTHENTICATED {
+            return Err(format!("cache mode {:?} is not one of none, authenticated", self.cache));
+        }
+        Ok(())
+    }
+}
+
+pub fn runtime_id(r: &RuntimeIdentity) -> Result<[u8; 32], String> {
+    r.validate()?;
+    Ok(Sha256::digest(canonical(r)).into())
+}
+
+/// ABI/2: key, nonce and runtime identity in one binding for report_data[0:32].
+pub fn bind2(spki: &[u8], nonce: &[u8], runtime_id: &[u8; 32]) -> Option<[u8; 32]> {
+    if nonce.len() != NONCE_LEN {
+        return None;
+    }
+    let mut h = Sha256::new();
+    h.update(b"enclave-bind-v2\n");
+    h.update(spki);
+    h.update(nonce);
+    h.update(runtime_id);
+    Some(h.finalize().into())
+}
+
+/// A compiled artifact a domain may keep is named by the bundle AND the runtime identity.
+pub fn cache_key(app: &[u8; 32], runtime_id: &[u8; 32]) -> [u8; 32] {
+    let mut h = Sha256::new();
+    h.update(b"enclave-compiled-cache-v1\n");
+    h.update(app);
+    h.update(runtime_id);
+    h.finalize().into()
+}
 pub const FORMAT_HYPERV: &str = "hyperv-partition-domain/v1";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
@@ -88,6 +175,9 @@ pub fn parse(b: &[u8]) -> Result<(Manifest, &[u8]), ParseError> {
     }
     if m.abi != ABI {
         return Err(ParseError::Malformed(format!("abi {:?} is not {ABI:?}", m.abi)));
+    }
+    if m.artifact.kind != KIND_WASM_COMPONENT {
+        return Err(ParseError::Malformed(format!("artifact kind {:?} is not distributable: only {KIND_WASM_COMPONENT} is", m.artifact.kind)));
     }
     if m.artifact.sha256 != hex::encode(Sha256::digest(art)) {
         return Err(ParseError::Malformed("manifest names a different artifact than it carries".into()));
@@ -261,6 +351,42 @@ pub fn run_vectors(path: &str) -> Result<Vec<String>, String> {
             Err(_) => {
                 if ok {
                     fails.push(format!("request {j}: refused wrongly"));
+                }
+            }
+        }
+    }
+    if v["abi2"].as_str() != Some(ABI2) {
+        fails.push(format!("abi2: vectors say {:?}, this code is {ABI2}", v["abi2"]));
+    }
+    // runtime identities: validity, digest, binding and cache key, with the bind vector's key and nonce
+    // and the reference bundle's app id
+    let spki_v = hex::decode(v["bind"][0]["spki_hex"].as_str().unwrap_or("")).unwrap_or_default();
+    let nonce_v = hex::decode(v["bind"][0]["nonce_hex"].as_str().unwrap_or("")).unwrap_or_default();
+    let mut app_v = [0u8; 32];
+    app_v.copy_from_slice(&hex::decode(v["bundles"][0]["app_id"].as_str().unwrap_or("")).unwrap_or(vec![0; 32]));
+    for r in v["runtime"].as_array().cloned().unwrap_or_default() {
+        let note = r["note"].as_str().unwrap_or("?").to_string();
+        let id: RuntimeIdentity = serde_json::from_value(r["identity"].clone()).unwrap_or_default();
+        let valid = r["valid"].as_bool().unwrap_or(false);
+        match runtime_id(&id) {
+            Ok(rid) => {
+                if !valid {
+                    fails.push(format!("runtime {note}: accepted but must be refused"));
+                    continue;
+                }
+                if hex::encode(rid) != r["runtime_id"].as_str().unwrap_or("") {
+                    fails.push(format!("runtime {note}: id"));
+                }
+                if hex::encode(bind2(&spki_v, &nonce_v, &rid).unwrap_or([0; 32])) != r["bind2"].as_str().unwrap_or("") {
+                    fails.push(format!("runtime {note}: bind2"));
+                }
+                if hex::encode(cache_key(&app_v, &rid)) != r["cache_key"].as_str().unwrap_or("") {
+                    fails.push(format!("runtime {note}: cache key"));
+                }
+            }
+            Err(e) => {
+                if valid {
+                    fails.push(format!("runtime {note}: refused wrongly: {e}"));
                 }
             }
         }

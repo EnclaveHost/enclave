@@ -1,0 +1,465 @@
+{
+  "igvm": "C:\\Users\\claude\\vbs-like\\inbox.igvm",
+  "initrd": "C:\\Users\\claude\\vbs-like\\mon.cpio.gz",
+  "kernel": "C:\\Users\\claude\\vbs-like\\wsl-kernel",
+  "probe": "isoprobe",
+  "rows": [
+    {
+      "consoles": {
+        "com1": {
+          "bytes": 402,
+          "head": "\r\nMON snp=0 vcpus=2 memMiB=898 boot_ms=280\r\nMON insmod /vsock.ko.zst failed: Operation not supported\r\nMON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported\r\nMON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported\r\nMON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no\r\nMON ready control_port=9000 snp=false\r\n"
+        },
+        "com2": {
+          "bytes": 0,
+          "head": ""
+        }
+      },
+      "create": {
+        "ms": 39.794799999999995,
+        "ok": true
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-plain-direct.hcs.json",
+      "exitBeforeTerminate": {
+        "exited": false,
+        "wait": "HcsWaitForComputeSystemExit failed: 0x80070102 "
+      },
+      "name": "plain-direct",
+      "propertiesBeforeStart": {
+        "Id": "vbslike-iso-880-0",
+        "Owner": "vbslike",
+        "RuntimeId": "d4016504-4abe-5500-8505-98999a22c007",
+        "SystemType": "VirtualMachine"
+      },
+      "propertiesRunning": {
+        "Id": "vbslike-iso-880-0",
+        "Owner": "vbslike",
+        "RuntimeId": "d4016504-4abe-5500-8505-98999a22c007",
+        "State": "Running",
+        "SystemType": "VirtualMachine"
+      },
+      "start": {
+        "ms": 33.4417,
+        "ok": true
+      },
+      "statistics": {
+        "Id": "vbslike-iso-880-0",
+        "Memory": {
+          "VirtualMachineMemory": {
+            "AssignedMemory": 262144,
+            "AvailableMemory": 2147483647,
+            "AvailableMemoryBuffer": 2147483647,
+            "BalancingEnabled": false,
+            "DmOperationInProgress": false,
+            "ReservedMemory": 262144,
+            "SlpActive": false
+          },
+          "VirtualNodeCount": 1,
+          "VirtualNodes": [
+            {
+              "MemoryUsageInPages": 262144,
+              "PhysicalNodeNumber": 0,
+              "VirtualNodeIndex": 0,
+              "VirtualProcessorCount": 2
+            }
+          ]
+        },
+        "Owner": "vbslike",
+        "RuntimeId": "d4016504-4abe-5500-8505-98999a22c007",
+        "State": "Running",
+        "Statistics": {
+          "Memory": {
+            "MemoryUsageCommitBytes": 0,
+            "MemoryUsageCommitPeakBytes": 0,
+            "MemoryUsagePrivateWorkingSetBytes": 0
+          },
+          "Processor": {
+            "TotalRuntime100ns": 4668626
+          },
+          "Storage": {
+            "ReadCountNormalized": 0,
+            "ReadSizeBytes": 0,
+            "WriteCountNormalized": 0,
+            "WriteSizeBytes": 0
+          },
+          "Timestamp": "1601-01-01T00:00:00Z",
+          "Uptime100ns": 0
+        },
+        "SystemType": "VirtualMachine"
+      },
+      "terminate": {
+        "detail": "{\"Status\":0,\"ExitType\":\"ForcedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"Terminate\",\"Initiator\":\"Client\"}}]}",
+        "ok": true
+      },
+      "why": "the phase-1 document exactly (no SecuritySettings): the control"
+    },
+    {
+      "create": {
+        "detail": "{\"Error\":-1070137075,\"ErrorMessage\":\"The virtual machine or container JSON document is invalid.\"}",
+        "error": "HcsCreateComputeSystem failed: 0x8037010d {\"Error\":-1070137075,\"ErrorMessage\":\"The virtual machine or container JSON document is invalid.\"}",
+        "hr": "0x8037010d",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-normal-direct.hcs.json",
+      "name": "normal-direct",
+      "why": "phase-1 shape with IsolationType Normal stated explicitly"
+    },
+    {
+      "create": {
+        "detail": "{\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-2\"},{\"Type\":\"String\",\"Value\":\"C5269302-7F0C-5FE4-A64D-440FB7C320DF\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-2\"},{\"Type\":\"String\",\"Value\":\"C5269302-7F0C-5FE4-A64D-440FB7C320DF\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "error": "HcsCreateComputeSystem failed: 0x80070057 {\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-2\"},{\"Type\":\"String\",\"Value\":\"C5269302-7F0C-5FE4-A64D-440FB7C320DF\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-2\"},{\"Type\":\"String\",\"Value\":\"C5269302-7F0C-5FE4-A64D-440FB7C320DF\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "hr": "0x80070057",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-vbs-uefi-nocommit.hcs.json",
+      "name": "vbs-uefi-nocommit",
+      "why": "VirtualizationBasedSecurity + UEFI, memory not overcommitted (an isolated partition's memory is pinned)"
+    },
+    {
+      "create": {
+        "detail": "{\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-3\"},{\"Type\":\"String\",\"Value\":\"B2BE7B71-0092-593B-9B69-D80E03C6C74D\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-3\"},{\"Type\":\"String\",\"Value\":\"B2BE7B71-0092-593B-9B69-D80E03C6C74D\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "error": "HcsCreateComputeSystem failed: 0x80070057 {\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-3\"},{\"Type\":\"String\",\"Value\":\"B2BE7B71-0092-593B-9B69-D80E03C6C74D\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-3\"},{\"Type\":\"String\",\"Value\":\"B2BE7B71-0092-593B-9B69-D80E03C6C74D\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "hr": "0x80070057",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-vbs-uefi-nocommit-gs.hcs.json",
+      "name": "vbs-uefi-nocommit-gs",
+      "why": "... plus transient in-memory guest state declared"
+    },
+    {
+      "create": {
+        "detail": "{\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-4\"},{\"Type\":\"String\",\"Value\":\"C6E7C066-2C15-54CD-AE45-C8A80B61BEB8\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-4\"},{\"Type\":\"String\",\"Value\":\"C6E7C066-2C15-54CD-AE45-C8A80B61BEB8\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "error": "HcsCreateComputeSystem failed: 0x80070057 {\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-4\"},{\"Type\":\"String\",\"Value\":\"C6E7C066-2C15-54CD-AE45-C8A80B61BEB8\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-4\"},{\"Type\":\"String\",\"Value\":\"C6E7C066-2C15-54CD-AE45-C8A80B61BEB8\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "hr": "0x80070057",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-vbs-uefi-nocommit-gs-tpm.hcs.json",
+      "name": "vbs-uefi-nocommit-gs-tpm",
+      "why": "... plus EnableTpm (the paravisor hosts the vTPM)"
+    },
+    {
+      "create": {
+        "detail": "{\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-5\"},{\"Type\":\"String\",\"Value\":\"D1A76674-80E2-5FF8-B31F-5F4A7C3E6757\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-5\"},{\"Type\":\"String\",\"Value\":\"D1A76674-80E2-5FF8-B31F-5F4A7C3E6757\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "error": "HcsCreateComputeSystem failed: 0x80070057 {\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-5\"},{\"Type\":\"String\",\"Value\":\"D1A76674-80E2-5FF8-B31F-5F4A7C3E6757\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-5\"},{\"Type\":\"String\",\"Value\":\"D1A76674-80E2-5FF8-B31F-5F4A7C3E6757\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "hr": "0x80070057",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-gso-uefi-nocommit-gs.hcs.json",
+      "name": "gso-uefi-nocommit-gs",
+      "why": "GuestStateOnly (TrustedLaunch-like) + UEFI, pinned memory, transient guest state"
+    },
+    {
+      "create": {
+        "detail": "{\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-6\"},{\"Type\":\"String\",\"Value\":\"F8294FB7-3E03-59EC-B580-BF47342F47F2\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3110,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}}]}",
+        "error": "HcsCreateComputeSystem failed: 0x80070057 {\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-6\"},{\"Type\":\"String\",\"Value\":\"F8294FB7-3E03-59EC-B580-BF47342F47F2\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3110,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}}]}",
+        "hr": "0x80070057",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-vbs-uefi-overcommit.hcs.json",
+      "name": "vbs-uefi-overcommit",
+      "why": "VirtualizationBasedSecurity + UEFI with AllowOvercommit true (is overcommit what an isolated partition refuses?)"
+    },
+    {
+      "create": {
+        "detail": "{\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-7\"},{\"Type\":\"String\",\"Value\":\"6166144C-3BC1-594A-85F7-E9E34B17FC38\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-7\"},{\"Type\":\"String\",\"Value\":\"6166144C-3BC1-594A-85F7-E9E34B17FC38\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "error": "HcsCreateComputeSystem failed: 0x80070057 {\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-7\"},{\"Type\":\"String\",\"Value\":\"6166144C-3BC1-594A-85F7-E9E34B17FC38\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-7\"},{\"Type\":\"String\",\"Value\":\"6166144C-3BC1-594A-85F7-E9E34B17FC38\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "hr": "0x80070057",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-vbs-uefi-hcl.hcs.json",
+      "name": "vbs-uefi-hcl",
+      "why": "... HclEnabled stated true"
+    },
+    {
+      "create": {
+        "detail": "{\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-8\"},{\"Type\":\"String\",\"Value\":\"421C3A96-3FDF-5950-9F49-12DD44648D6C\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-8\"},{\"Type\":\"String\",\"Value\":\"421C3A96-3FDF-5950-9F49-12DD44648D6C\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "error": "HcsCreateComputeSystem failed: 0x80070057 {\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-8\"},{\"Type\":\"String\",\"Value\":\"421C3A96-3FDF-5950-9F49-12DD44648D6C\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-8\"},{\"Type\":\"String\",\"Value\":\"421C3A96-3FDF-5950-9F49-12DD44648D6C\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "hr": "0x80070057",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-vbs-direct.hcs.json",
+      "name": "vbs-direct",
+      "why": "VirtualizationBasedSecurity + LinuxKernelDirect: does an isolated partition take the host's kernel and initrd?"
+    },
+    {
+      "create": {
+        "detail": "{\"Error\":-2147024846,\"ErrorMessage\":\"The request is not supported.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-9\"},{\"Type\":\"String\",\"Value\":\"B5D86958-2D51-5D7E-B733-7272E3888BC2\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":5142,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-9\"},{\"Type\":\"String\",\"Value\":\"B5D86958-2D51-5D7E-B733-7272E3888BC2\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}}]}",
+        "error": "HcsCreateComputeSystem failed: 0x80070032 {\"Error\":-2147024846,\"ErrorMessage\":\"The request is not supported.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-9\"},{\"Type\":\"String\",\"Value\":\"B5D86958-2D51-5D7E-B733-7272E3888BC2\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":5142,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-9\"},{\"Type\":\"String\",\"Value\":\"B5D86958-2D51-5D7E-B733-7272E3888BC2\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}}]}",
+        "hr": "0x80070032",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-vbs-igvmpath.hcs.json",
+      "name": "vbs-igvmpath",
+      "why": "VirtualizationBasedSecurity + IgvmFilePath: a custom IGVM by path (expected to be gated by AllowFirmwareLoadFromFile)"
+    },
+    {
+      "consoles": {
+        "com1": {
+          "bytes": 0,
+          "head": ""
+        },
+        "com2": {
+          "bytes": 0,
+          "head": ""
+        }
+      },
+      "create": {
+        "ms": 130.7833,
+        "ok": true
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-vbs-emptyvmgs.hcs.json",
+      "exitBeforeTerminate": {
+        "exited": true,
+        "how": "{\"Status\":-1070137082,\"ExitType\":\"UnexpectedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"UnexpectedExit\",\"Initiator\":\"Unknown\"}},{\"WorkerExit\":{\"ExitCode\":3221226505,\"Type\":\"UnexpectedStop\",\"Detail\":\"ProcessUnexpectedExit\",\"Initiator\":\"Unknown\"}}]}"
+      },
+      "name": "vbs-emptyvmgs",
+      "propertiesBeforeStart": {
+        "Id": "vbslike-iso-880-10",
+        "Owner": "vbslike",
+        "RuntimeId": "13886a5a-27da-5ac3-8edb-b8fd085d6cc6",
+        "SystemType": "VirtualMachine"
+      },
+      "propertiesRunning": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-880-10",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "start": {
+        "ms": 1053.1991999999998,
+        "ok": true
+      },
+      "statistics": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-880-10",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "terminate": {
+        "error": "HcsTerminateComputeSystem failed: 0x80370110 ",
+        "ok": false
+      },
+      "why": "VirtualizationBasedSecurity + an EMPTY VMGS file the worker may open: the in-box paravisor from its default location, guest state on disk"
+    },
+    {
+      "consoles": {
+        "com1": {
+          "bytes": 0,
+          "head": ""
+        },
+        "com2": {
+          "bytes": 0,
+          "head": ""
+        }
+      },
+      "create": {
+        "ms": 127.9632,
+        "ok": true
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-vbs-emptyvmgs-tpm.hcs.json",
+      "exitBeforeTerminate": {
+        "exited": true,
+        "how": "{\"Status\":-1070137082,\"ExitType\":\"UnexpectedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"UnexpectedExit\",\"Initiator\":\"Unknown\"}},{\"WorkerExit\":{\"ExitCode\":3221225477,\"Type\":\"UnexpectedStop\",\"Detail\":\"ProcessUnexpectedExit\",\"Initiator\":\"Unknown\"}}]}"
+      },
+      "name": "vbs-emptyvmgs-tpm",
+      "propertiesBeforeStart": {
+        "Id": "vbslike-iso-880-11",
+        "Owner": "vbslike",
+        "RuntimeId": "9fc061f2-d014-53a5-aa03-a18d05cfd403",
+        "SystemType": "VirtualMachine"
+      },
+      "propertiesRunning": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-880-11",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "start": {
+        "ms": 932.5735000000001,
+        "ok": true
+      },
+      "statistics": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-880-11",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "terminate": {
+        "error": "HcsTerminateComputeSystem failed: 0x80370110 ",
+        "ok": false
+      },
+      "why": "... plus EnableTpm"
+    },
+    {
+      "consoles": {
+        "com1": {
+          "bytes": 0,
+          "head": ""
+        },
+        "com2": {
+          "bytes": 0,
+          "head": ""
+        }
+      },
+      "create": {
+        "ms": 124.3179,
+        "ok": true
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-gso-emptyvmgs.hcs.json",
+      "exitBeforeTerminate": {
+        "exited": true,
+        "how": "{\"Status\":-1070137082,\"ExitType\":\"UnexpectedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"UnexpectedExit\",\"Initiator\":\"Unknown\"}},{\"WorkerExit\":{\"ExitCode\":3221226505,\"Type\":\"UnexpectedStop\",\"Detail\":\"ProcessUnexpectedExit\",\"Initiator\":\"Unknown\"}}]}"
+      },
+      "name": "gso-emptyvmgs",
+      "propertiesBeforeStart": {
+        "Id": "vbslike-iso-880-12",
+        "Owner": "vbslike",
+        "RuntimeId": "91a24a7b-2503-51c6-9ccb-6375bf0bfaaf",
+        "SystemType": "VirtualMachine"
+      },
+      "propertiesRunning": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-880-12",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "start": {
+        "ms": 114.6845,
+        "ok": true
+      },
+      "statistics": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-880-12",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "terminate": {
+        "error": "HcsTerminateComputeSystem failed: 0x80370110 ",
+        "ok": false
+      },
+      "why": "GuestStateOnly + the empty VMGS"
+    },
+    {
+      "consoles": {
+        "com1": {
+          "bytes": 0,
+          "head": ""
+        },
+        "com2": {
+          "bytes": 0,
+          "head": ""
+        }
+      },
+      "create": {
+        "ms": 128.0421,
+        "ok": true
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-vbs-vmgs.hcs.json",
+      "exitBeforeTerminate": {
+        "exited": true,
+        "how": "{\"Status\":-1070137082,\"ExitType\":\"UnexpectedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"UnexpectedExit\",\"Initiator\":\"Unknown\"}},{\"WorkerExit\":{\"ExitCode\":3221225477,\"Type\":\"UnexpectedStop\",\"Detail\":\"ProcessUnexpectedExit\",\"Initiator\":\"Unknown\"}}]}"
+      },
+      "name": "vbs-vmgs",
+      "propertiesBeforeStart": {
+        "Id": "vbslike-iso-880-13",
+        "Owner": "vbslike",
+        "RuntimeId": "a34a7b08-0da8-5e20-8fb1-c7ae4a76f977",
+        "SystemType": "VirtualMachine"
+      },
+      "propertiesRunning": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-880-13",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "start": {
+        "ms": 922.3299000000001,
+        "ok": true
+      },
+      "statistics": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-880-13",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "terminate": {
+        "error": "HcsTerminateComputeSystem failed: 0x80370110 ",
+        "ok": false
+      },
+      "why": "VirtualizationBasedSecurity + a VMGS carrying an IGVM in file id 8: 'Loading IGVM file from VMGS file'"
+    },
+    {
+      "consoles": {
+        "com1": {
+          "bytes": 0,
+          "head": ""
+        },
+        "com2": {
+          "bytes": 0,
+          "head": ""
+        }
+      },
+      "create": {
+        "ms": 127.70799999999998,
+        "ok": true
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-gso-vmgs.hcs.json",
+      "exitBeforeTerminate": {
+        "exited": true,
+        "how": "{\"Status\":-1070137082,\"ExitType\":\"UnexpectedExit\",\"Attribution\":[{\"SystemExit\":{\"Detail\":\"UnexpectedExit\",\"Initiator\":\"Unknown\"}},{\"WorkerExit\":{\"ExitCode\":3221225477,\"Type\":\"UnexpectedStop\",\"Detail\":\"ProcessUnexpectedExit\",\"Initiator\":\"Unknown\"}}]}"
+      },
+      "name": "gso-vmgs",
+      "propertiesBeforeStart": {
+        "Id": "vbslike-iso-880-14",
+        "Owner": "vbslike",
+        "RuntimeId": "1a717ab1-4ba9-558a-aa41-c49b214aac60",
+        "SystemType": "VirtualMachine"
+      },
+      "propertiesRunning": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-880-14",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "start": {
+        "ms": 124.1332,
+        "ok": true
+      },
+      "statistics": {
+        "ExitType": "UnexpectedExit",
+        "Id": "vbslike-iso-880-14",
+        "Stopped": true,
+        "SystemType": "Container"
+      },
+      "terminate": {
+        "error": "HcsTerminateComputeSystem failed: 0x80370110 ",
+        "ok": false
+      },
+      "why": "GuestStateOnly + the same VMGS"
+    },
+    {
+      "create": {
+        "detail": "{\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-15\"},{\"Type\":\"String\",\"Value\":\"F6A2E311-8929-5848-9203-4CEB6412AC5F\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-15\"},{\"Type\":\"String\",\"Value\":\"F6A2E311-8929-5848-9203-4CEB6412AC5F\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "error": "HcsCreateComputeSystem failed: 0x80070057 {\"Error\":-2147024809,\"ErrorMessage\":\"The parameter is incorrect.\",\"ErrorEvents\":[{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":3040,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-15\"},{\"Type\":\"String\",\"Value\":\"F6A2E311-8929-5848-9203-4CEB6412AC5F\"}]},{\"Message\":\"\",\"Provider\":\"51ddfa29-d5c8-4803-be4b-2ecb715570fe\",\"EventId\":12000,\"Flags\":5,\"Data\":[{\"Type\":\"String\",\"Value\":\"vbslike-iso-880-15\"},{\"Type\":\"String\",\"Value\":\"F6A2E311-8929-5848-9203-4CEB6412AC5F\"},{\"Type\":\"String\",\"Value\":\"Microsoft Guest Runtime State\"},{\"Type\":\"String\",\"Value\":\"%%2147942487\"},{\"Type\":\"String\",\"Value\":\"0x80070057\"},{\"Type\":\"String\",\"Value\":\"917BD8CB-3BB6-4124-9383-B7D21AC07F79\"},{\"Type\":\"String\",\"Value\":\"\"}]}],\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}},{\"VirtualDeviceFailure\":{\"Detail\":\"Initialize\",\"Name\":\"Microsoft Guest Runtime State\",\"DeviceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\",\"InstanceId\":\"917bd8cb-3bb6-4124-9383-b7d21ac07f79\"}}]}",
+        "hr": "0x80070057",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-vbs-uefi-fwparams.hcs.json",
+      "name": "vbs-uefi-fwparams",
+      "why": "VirtualizationBasedSecurity + FirmwareFile.Parameters (the paravisor command line, OPENHCL_BOOT_LOG=com3)"
+    },
+    {
+      "create": {
+        "detail": "{\"Error\":-2147024846,\"ErrorMessage\":\"\",\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}}]}",
+        "error": "HcsCreateComputeSystem failed: 0x80070032 {\"Error\":-2147024846,\"ErrorMessage\":\"\",\"Attribution\":[{\"OperationFailure\":{\"Detail\":\"Construct\"}}]}",
+        "hr": "0x80070032",
+        "ok": false
+      },
+      "document": "C:\\Users\\claude\\vbs-like\\out\\iso\\isoprobe-snp-emulation.hcs.json",
+      "name": "snp-emulation",
+      "why": "SecureNestedPagingEmulation: what the emulated confidential mode says on a Ryzen"
+    }
+  ],
+  "vmgs": "C:\\Users\\claude\\vbs-like\\vmgs\\inbox.vmgs",
+  "vmgsEmpty": "C:\\Users\\claude\\vbs-like\\vmgs\\empty.vmgs"
+}

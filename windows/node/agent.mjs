@@ -32,6 +32,7 @@ import { clientIp as wafClientIp } from './waf.mjs';
 import { parseAbiReply } from './appframe.mjs';
 import { initSessionKey, mint as mintSession, addressFor } from './session.mjs';
 import { nonceStore, siweMessage, verifyLogin } from './siwe.mjs';
+import { HV_NODE_FORMAT, buildHvNodeFrame, loadOrCreateNodeKey } from './hvnode-evidence.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
 // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
@@ -65,6 +66,16 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), '[node
 // CLAIM_SCOPE=market (the default) takes any wallet's public deployment this box can honour;
 // CLAIM_SCOPE=owner-only narrows it to the box owner's own. chain.mjs claimPolicy has each rule.
 const APPS = /^(1|true|yes)$/i.test(String(process.env.APPS || ''));
+// THE LEGACY VBS-ENCLAVE ENGINE IS RETIRED (Steven, 2026-09-25): this node hosts only the isolated backend (a Hyper-V
+// type-1 partition per app, windows/vbslike). The engine (ee-host.exe + ee-engine.dll) and its worker start ONLY
+// under the explicit rollback setting ENCLAVE_ENGINE=legacy, and under Secure Boot its test-signed image does not
+// load anyway. Without it there are no enclave keys and no in-enclave apps (the host refuses them: appsInTee is
+// false). Enclave-held sessions and completions answer 503 with the reason. The node attests with
+// windows-hv-node/v1 (hvnode-evidence.mjs), which proves only that an admin-level process on this TPM's host, in
+// this measured boot state, chose and holds its transport key.
+const LEGACY_ENGINE = /^legacy$/i.test(String(process.env.ENCLAVE_ENGINE || ''));
+const NO_ENGINE = 'this node runs only the isolated backend: the VBS enclave engine is retired, so this service is unavailable';
+let nodeKey = null;          // windows-hv-node/v1: the agent's own Ed25519 transport key, a HOST key
 // The app-zone half: built once APPS is on, because it needs the host to know which deployment
 // runs where and which certificate belongs to it.
 let zone = null;
@@ -92,6 +103,12 @@ let tunnelBuffered = () => 0;
 const host = new Host({
   dir: DIR, endpoint: process.env.PUBLIC_URL || `https://api.enclave.host/t/${NAME}`, name: NAME,
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
+  // No engine: only isolated deployments run, anything else is HELD (host.mjs heldReason), never released.
+  engineRetired: !LEGACY_ENGINE,
+  // Respawn an isolated domain that ENDED instead of giving its lease up: a lease policy, OFF unless set to exactly "1"
+  // (host.mjs, RESPAWN_BUDGET per hour). The budget is counted IN MEMORY, so a node restart resets it: "3 an hour" is 3
+  // per hour of this process's life (enclave-d1's note for Steven's decision). Recovered VMs stay held either way.
+  isolationRespawn: process.env.ENCLAVE_ISOLATION_RESPAWN === '1',
   cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 12),
   // What the whole CARD costs per second, USDC 6dp, and what a share of it buys here: the model
   // inside the enclave, whose linear algebra runs on this card by masked offload. The default is
@@ -168,7 +185,7 @@ const host = new Host({
   inferenceUrl: `http://127.0.0.1:${process.env.LOCAL_HTTP_PORT || 9600}/v1/completions`,
   log: (m) => log('[host]', m),
 });
-if (!MODEL) { console.error('MODEL is required (the GGUF the enclave serves)'); process.exit(2); }
+if (LEGACY_ENGINE && !MODEL) { console.error('MODEL is required (the GGUF the legacy enclave serves)'); process.exit(2); }
 
 let gpuName = process.env.GPU_NAME || '', tier = '', attachedAt = 0, spkiFp = '';
 // ---- the three processes -----------------------------------------------------------------
@@ -284,6 +301,8 @@ function startTpm() {
     }
   });
   tpm.on('exit', (c) => { log(`tpm exited (${c})`); tpm = null; tpmReady?.rej(new Error('tpm tool exited')); });
+  // A tool that cannot start (missing, not executable) is "attestation unavailable", not a crash of the agent.
+  tpm.on('error', (e) => { log(`tpm tool did not start: ${e.message}`); tpm = null; tpmReady?.rej(e); });
   return new Promise((res, rej) => { tpmReady = { res, rej }; setTimeout(() => rej(new Error('tpm tool did not report ready')), 30_000); });
 }
 function tpmCmd(cmd) { return new Promise((res, rej) => { if (!tpm) return rej(new Error('tpm tool not running')); tpmWaiters.push({ lines: {}, res, rej }); tpm.stdin.write(cmd + '\n'); }); }
@@ -329,6 +348,14 @@ async function attestFrame(nonceB64, credentialBlobB64, secretB64) {
 // "enclave-tunnel-attach:<name>:<nonce>" recovering to the registry entry's operator, so a box
 // running the same enclave build cannot take a registered seller's name while it is down
 // (relay/tunnel.js). The key is the box's own operator key, the same one that registered it.
+// The isolation manager's health, carried in windows-hv-node/v1 as a host STATEMENT (never raised, never weighed).
+async function isolationHealth() {
+  if (!host.cfg.isolationManager) return null;
+  try {
+    const { IsolationManagerClient } = await import('./isolation-client.mjs');
+    return await new IsolationManagerClient({ base: host.cfg.isolationManager }).health();
+  } catch (e) { log(`isolation manager health unavailable: ${e.message}`); return null; }
+}
 async function operatorSig(nonceB64) {
   try {
     const { loadOperator } = await import('./chain.mjs');
@@ -349,7 +376,8 @@ async function operatorSig(nonceB64) {
  * so this retries on the tick rather than leaving a box that failed one probe permanently idle.
  */
 async function measureEngineHold() {
-  if (!APPS || host.cfg.engineHeldMb !== null) return;
+  // Only the retired engine has a hold to measure; on the isolated path capacity never waits on it (enclave-d1 F1).
+  if (!LEGACY_ENGINE || !APPS || host.cfg.engineHeldMb !== null) return;
   try {
     const [privB] = String(await hostCmd('mem')).trim().split(/\s+/).map(Number);
     if (!(privB > 0)) throw new Error(`the enclave reported ${privB} bytes`);
@@ -366,7 +394,7 @@ async function measureEngineHold() {
 async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
-  if (p === '/availability') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME,
+  if (p === '/availability') return json(200, { ok: true, role: LEGACY_ENGINE ? 'windows-vbs-node' : 'windows-hv-node', name: NAME,
     // gpu:false stays false, and it is not a statement about whether the card is for sale: on this
     // fleet that flag means the card is INSIDE the measured enclave, and this one is not. It sits
     // on the untrusted Windows host and the enclave uses it by masked offload. The card's facts,
@@ -391,14 +419,17 @@ async function handle(frame) {
       : Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
     machineRamGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
     nodeGflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),   // the fleet's convention (metal gsup.mjs)
-    teeCpu: 'windows-vbs-enclave', tier: tier || null,
+    // teeCpu names a CPU TEE this box's own attestation shows. An isolation-only node has none: its attach is a
+    // host-attested boot state (windows-hv-node/v1), so it says null rather than the retired engine's name.
+    teeCpu: LEGACY_ENGINE ? 'windows-vbs-enclave' : null, tier: tier || null,
     // THE CARD, as the worker itself reports it (shieldedcard.mjs), refreshed on a timer. The
     // fallback is what this box knows without asking - a worker that is down must not leave the
     // row advertising a card nobody can use.
-    shielded: (card ? { ...card, ...(cardProof ? { proof: cardProof } : {}) } : null) || { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), vramGb: Number(WORKER_VRAM_GB),
+    // An isolation-only node starts no worker, so it advertises no card at all.
+    shielded: !LEGACY_ENGINE ? null : (card ? { ...card, ...(cardProof ? { proof: cardProof } : {}) } : null) || { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), vramGb: Number(WORKER_VRAM_GB),
                         vramBudgetGb: Number(WORKER_VRAM_GB), vramFreeGb: 0, vramReservedGb: 0,
                         ...(gpuName ? { device: gpuName } : {}), note: 'the worker has not answered a HELLO yet' },
-    model: path.basename(MODEL), attachedAt, ...(APPS ? host.availability() : {}) });
+    model: MODEL ? path.basename(MODEL) : null, attachedAt, ...(APPS ? host.availability() : {}) });
   // ---- who is asking ---------------------------------------------------------------------
   // The public half of this box's session key. Anyone can verify a token it minted - and confirm
   // the operator did not mint it - holding no secret. On a confidential VM that last part is a
@@ -426,8 +457,10 @@ async function handle(frame) {
     return json(200, { token: mintSession(sessionKey, { subject: r.address, ttlSec: SESSION_TTL }),
                        address: r.address, expiresIn: SESSION_TTL, kid: sessionKey.kid });
   }
-  if (p === '/v1/health') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME, host: !!children.host, worker: !!children.worker, tpm: !!tpm });
+  if (p === '/v1/health') return json(200, { ok: true, role: LEGACY_ENGINE ? 'windows-vbs-node' : 'windows-hv-node', engine: LEGACY_ENGINE ? 'legacy' : 'retired',
+                                             name: NAME, host: !!children.host, worker: !!children.worker, tpm: !!tpm });
   if (p === '/v1/completions' && method === 'POST') {
+    if (!LEGACY_ENGINE) return json(503, { error: 'unavailable', reason: NO_ENGINE });
     let body = {}; try { body = JSON.parse(Buffer.from(frame.body || '', 'base64').toString('utf8')); } catch { return json(400, { error: 'bad json' }); }
     const prompt = String(body.prompt || ''); const n = Math.max(1, Math.min(512, Number(body.max_tokens || 16)));
     if (!prompt) return json(400, { error: 'prompt required' });
@@ -494,6 +527,7 @@ async function handle(frame) {
                                      ip });
     return { status: r.status, headers: r.headers, body: Buffer.isBuffer(r.body) ? r.body.toString('utf8') : r.body };
   }
+  if (!LEGACY_ENGINE && (p === '/v1/session/keys' || p === '/v1/session')) return json(503, { error: 'unavailable', reason: NO_ENGINE });
   if (p === '/v1/session/keys') { const [signPk, boxPk] = (await hostCmd('keys')).split(' '); return json(200, { transportKey: b64(Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(signPk, 'hex')])), padKey: boxPk, note: 'verify these against the attested tunnel row, not against this answer' }); }
   if (p === '/v1/session' && method === 'POST') {           // opaque bytes in, opaque bytes out: sealed to the enclave's attested pad key
     const blob = Buffer.from(frame.body || '', 'base64'); if (blob.length < 76) return json(400, { error: 'blob too short' });
@@ -525,14 +559,26 @@ function connect() {
         if (f.t === 'challenge') { pending = { nonce: f.nonce }; send(await keysFrame()); log('sent TPM keys'); }
         else if (f.t === 'vbs-credential') {
           if (!pending) return;
-          const { frame, spki } = await attestFrame(pending.nonce, f.credentialBlob, f.secret);
-          spkiFp = createHash('sha256').update(spki).digest('hex');
-          const sig = await operatorSig(pending.nonce); if (sig) frame.operatorSig = sig;
-          send(frame); log('sent evidence (report, quote, credential, log)');
+          if (LEGACY_ENGINE) {
+            const { frame, spki } = await attestFrame(pending.nonce, f.credentialBlob, f.secret);
+            spkiFp = createHash('sha256').update(spki).digest('hex');
+            const sig = await operatorSig(pending.nonce); if (sig) frame.operatorSig = sig;
+            send(frame); log('sent evidence (report, quote, credential, log)');
+          } else {
+            // windows-hv-node/v1: the TPM's quote over this node's own key and the relay's nonce. It refuses
+            // (throws) on a boot state the relay would refuse, and never sends an enclave-format frame.
+            const frame = await buildHvNodeFrame({ nonce: Buffer.from(pending.nonce, 'base64'),
+              credentialBlob: Buffer.from(f.credentialBlob, 'base64'), secret: Buffer.from(f.secret, 'base64'),
+              spki: nodeKey.spki, privateKey: nodeKey.privateKey, tpm: tpmCmd,
+              managerHealth: await isolationHealth(), platform: await platformInfo() });
+            spkiFp = createHash('sha256').update(nodeKey.spki).digest('hex');
+            const sig = await operatorSig(pending.nonce); if (sig) frame.operatorSig = sig;
+            send(frame); log(`sent ${HV_NODE_FORMAT} evidence (quote, credential, log, signed binding)`);
+          }
         } else if (f.t === 'attest-result') {
           if (f.ok) { tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
                       host.relayTier = tier;   // the host's contract gate reads the relay's verdict, not ours
-                      attachedAt = Date.now(); log(`attach ACCEPTED tier=${tier} measurement=${String(f.measurement || '').slice(0, 16)}`); send({ t: 'hello', name: NAME, mode: 'vbs', publicUrl: PUBLIC_URL, transportKeyFp: spkiFp }); }
+                      attachedAt = Date.now(); log(`attach ACCEPTED tier=${tier} measurement=${String(f.measurement || '').slice(0, 16)}`); send({ t: 'hello', name: NAME, mode: LEGACY_ENGINE ? 'vbs' : 'hv-node', publicUrl: PUBLIC_URL, transportKeyFp: spkiFp }); }
           else log(`attach REJECTED: ${f.reason}`);
         } else if (f.t === 'ping') send({ t: 'pong' });
         else if (f.t === 'req') { const r = await handle(f); send({ t: 'res', id: f.id, status: r.status, headers: r.headers, body: Buffer.from(r.body).toString('base64') }); }
@@ -543,7 +589,7 @@ function connect() {
           if (!zone) send({ t: 's=', sid: f.sid, ok: false, err: 'this node is not hosting apps (APPS=1)' });
           else zone.onFrame(f);
         }
-      } catch (e) { log(`frame ${f.t} failed: ${e.message}`); if (f.t === 'challenge' || f.t === 'vbs-credential') send({ t: 'attest', rad: { format: 'windows-vbs-enclave/v1', body: '' } }); }
+      } catch (e) { log(`frame ${f.t} failed: ${e.message}`); if (f.t === 'challenge' || f.t === 'vbs-credential') send({ t: 'attest', rad: { format: LEGACY_ENGINE ? 'windows-vbs-enclave/v1' : HV_NODE_FORMAT, body: '', refused: e.message } }); }
     });
     ws.on('unexpected-response', (_r, res) => { log(`handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
     ws.on('close', () => {
@@ -581,11 +627,16 @@ function localHttp(port) {
 }
 function requireHttp() { return createRequire(import.meta.url)('node:http'); }
 (async () => {
-  await startWorker();
-  await startHost();
+  if (LEGACY_ENGINE) { await startWorker(); await startHost(); }
+  else {
+    nodeKey = loadOrCreateNodeKey(DIR);
+    log(`isolation-only node: the VBS enclave engine is retired; transport key ${createHash('sha256').update(nodeKey.spki).digest('hex').slice(0, 16)}… `
+      + '(a host key: it proves only that an admin-level process on this host chose it)');
+  }
   await startTpm().catch((e) => log(`tpm: ${e.message} (attestation unavailable)`));
   const k = await tpmCmd('keys').catch((e) => { log(`tpm keys failed: ${e.message}`); return null; });
   if (k) log(`TPM ready: AIK name ${k['aik-name'].slice(0, 16)}…, EK cert ${k['ek-cert'].length / 2} bytes (${k['ek-cert-source']})`);
+  if (LEGACY_ENGINE) {
   const hk = await hostCmd('keys'); log(`enclave keys: transport ${hk.slice(0, 16)}…`);
   // Does the loaded enclave image carry an app runtime? The enclave answers, not a config file:
   // this is what decides whether the box hosts a tenant's app INSIDE the enclave, and therefore
@@ -612,6 +663,7 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
         + `${host.capacity().ramMbFree} MB for apps`
       : 'no app runtime in this enclave image: this box sells no app hosting');
   } catch (e) { log(`app runtime check failed: ${e.message}`); }
+  }
   if (APPS) {
     // The session key, before anything can be asked for one. Where it lives is published rather
     // than implied (host.features sessionKeyIn): on a confidential VM the operator never sees the
@@ -624,7 +676,21 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
     // resolve(id): the app's loopback port and its certificate, or null. Both come from the host,
     // which is the half that holds leases; a deployment this box does not serve resolves to null
     // and the stream is refused with a status rather than a silent close.
+    // The splicer for ISOLATED deployments, built only when this box is configured for that
+    // backend. Null otherwise, and the app zone then has nothing to splice with and says so
+    // rather than terminating TLS for a partition, which it must never do.
+    let isolationSplicer = null;
+    if (host.cfg.isolationManager && host.cfg.isolationDataAddr) {
+      const { createIsolationSplicer } = await import("../vbslike/datapath/node-bridge.mjs");
+      const { IsolationManagerClient } = await import("./isolation-client.mjs");
+      isolationSplicer = createIsolationSplicer({
+        client: new IsolationManagerClient({ base: host.cfg.isolationManager }),
+        dataAddr: host.cfg.isolationDataAddr,
+        log: (m) => log(m),
+      });
+    }
     zone = appZone({
+      isolationSplicer,
       send: (o) => tunnelSend(o),
       resolve: (id) => host.appZoneTarget(id),
       // What the tunnel socket is still holding, so a streaming response applies backpressure
