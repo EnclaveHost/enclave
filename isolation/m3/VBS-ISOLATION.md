@@ -322,6 +322,55 @@ refusal is confirmed, and "not composable on 26200" is withdrawn.
   `OPENHCL_CONFIDENTIAL_DEBUG=1`: unfiltered, crash dumps on, the host command line trusted. It is a different
   measured image and never a serving candidate.
 
+**ohcldiag-dev on type 1 (03:26): `Error: unknown service diag.UnderhillDiag`, 0 kmsg lines.** On type 16 the same
+tool read 354 VTL2 kmsg lines, including OpenHCL's own `6.12.52-microsoft-hcl` kernel. What the type-1 reply
+establishes, from source:
+- **It is a reply from a running OpenHCL diagnostics server.** `mesh_rpc` looks the requested service up in the
+  services it has registered and answers `Unimplemented` "unknown service <name>" (`support/mesh/mesh_rpc/src/server.rs:178-183, 568-575`).
+  - A server that never started gives a connect failure, not an RPC reply.
+  - Only a `mesh_rpc` server formats the error this way. Our VTL0 guest listens only on vsock 9000 and runs no
+    `mesh_rpc`; the diagnostics control port is vsock 1 in VTL2.
+  - The same binary works against the same OpenHCL release on type 16 (same kernel 6.12.52, release 2511). A protocol
+    mismatch would not produce a clean service-name error.
+- **Not registering that service is policy on a confidential VM.** `diag_server/src/lib.rs:101-111`: "Disable all
+  diag requests for CVMs". `UnderhillDiag` and `OpenhclDiag` are registered only when confidential filtering is off,
+  and Inspect and the profiler always. Filtering is on when `OPENHCL_CONFIDENTIAL=1` and there is no confidential
+  debug, and the boot shim writes that variable exactly when `isolation_type != None`
+  (`openhcl_boot/src/main.rs:274-280`).
+  - So the reply is **positive evidence** that the boot shim saw an isolated partition, and that the kernel and
+    OpenHCL userspace came up as far as the diagnostics worker.
+  - It does NOT place the failure earlier than the diagnostics server.
+- **The diagnostics server starts before the VM worker.** `run_control` starts it (`DiagState::new`) before
+  `launch_workers` (`underhill_core/src/lib.rs:490-510`). The VM worker's startup opens the VMGS (`worker.rs:1864`) and
+  later runs `validate_isolated_configuration` (`:2232`). So this reply rules out neither.
+- **Inspect is registered, but filtered to `Safe` fields, and it is served by `run_control`.** `run_control` is
+  blocked inside `launch_workers` for as long as the VM worker's startup has not returned: `launch_worker` "waits for
+  the worker to start running" (`mesh_worker/src/worker.rs:312-320`), and a failed startup sits in the 2-minute
+  CompleteStartVtl0 wait. So on type 1 an Inspect request is expected to **time out**, where type 16 answers at once.
+
+**The donor store, corrected** (enclave-d1). The file Hyper-V mints is 57 non-zero bytes with no GUESTRTS, and it
+changed across a type-1 run (01c2879b → 3e9630e1).
+- A fixed-VHD footer alone carries non-zero bytes (42 in a `vmgstool` store), so the fresh file is most likely a
+  footer around an **empty** store. A hand-made all-zero file has no footer, which by itself would make the host
+  call it corrupted.
+- OpenHCL formats an empty store on open (`try_open`, `format_on_empty`) with the same `vmgs` crate `vmgstool` uses,
+  which fits the byte-identical header 1.
+- After provisioning in a boot, OpenHCL writes a **provisioning marker** (file 18, JSON: `provisioner`, `reason`, and
+  its own build revision as `provisioner_version`) at `worker.rs:1909-1919`, before partition and memory setup. A
+  marker naming `openhcl` would prove its VM worker ran past line 1911 on type 1.
+- That would leave these candidates between there and the GSP request:
+  - prototype partition (1974);
+  - memory initialization (1996: VTL0 acceptance as host-private, specific to VBS);
+  - the DMA manager (2029);
+  - the guest-memory self test (2051);
+  - measured VTL0 info (2079);
+  - `validate_isolated_configuration` (2232);
+  - the attestation steps before GSP.
+- `probe/vmgs_check.py` prints the marker.
+
+**Still true:** no type-1 guest has booted, E2/E3 are NOT RUN, `host_excluded=no`, and nothing here is evidence of
+isolation.
+
 ## 5. Files
 
 - `monitor/hvisolation.go` and `cpuid_amd64.{go,s}`: the stated fields. `hvisolation_test.go`: the mapping, and
