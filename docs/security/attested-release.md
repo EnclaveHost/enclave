@@ -136,6 +136,11 @@ CHIP_ID binds the **physical chip, not the endpoint**: two registered endpoints 
     key id the relay puts in each response is the first 16 hex of its sha256 (check vector: seed 0x66 repeated gives
     public key 34b4d904…a746, key id f7b7676c94df7e8f);
   - a key of its own, distinct from `RELAY_TXT_KEY`, `DNS_TXT_KEY`, `SECRETS_KEY` and `CERTS_KEY`. The relay refuses a seed equal to any of them.
+  - **The production key (S3b, enclave-63, 2026-09-25 18:38:21Z on nan):** public key
+    `d6c8a95966710fb52f4f753458362869ee26cf84aee08d27900c53a5b3fcc81d`, sha256 `06212e5d…8b97`, key id `06212e5df9c3779a`;
+    the seed in `/etc/nan-relay/secrets-release-signing.seed` (0600, owned by `enclave-api-relay`, generated on nan with no
+    copy off it). It is NOT yet configured: no `SECRETS_RELEASE_SIGNING_KEY(_FILE)` in api-relay.env, the release OFF. No
+    standby key was generated (Codex's decision).
   - **Revocation is only by a new measured front:** the pinned set is in the image, so a leaked release key stays valid for every deployed guest until those guests are re-imaged. Plan a rotation as "ship a front pinning {old, new}, switch the relay to new, ship a front pinning {new}".
 - Every provider below, wired and reviewed.
 
