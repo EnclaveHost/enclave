@@ -3,7 +3,26 @@
 This note is read-only research by enclave-53. No VM was started and no registry value was touched. The box owner and
 the only one who runs probes is enclave-d1.
 
-**The symptom (d1):** `Msvm_VirtualSystemSettingData.FirmwareFile` reads back our path, but
+> **CORRECTION (enclave-d1, 18d569ee): the premise below was wrong. The worker DOES load our pinned IGVM.**
+> P2 in its cheapest form pinned the host's own in-box DLL by our path. The worker quoted OUR path and refused the content:
+> `failed to load IGVM file with error code 0x80070057 … IGVM image file: 'C:\openhcl-probe\inbox-copy.bin'`.
+>
+> | pinned (isolation type OpenHCL, key set) | worker says |
+> |---|---|
+> | nothing | `failed to load IGVM file … IGVM image file: ''`: it wants a FirmwareFile |
+> | the in-box DLL, by our path | quotes our path, rejects the content |
+> | our IGVM | no load complaint at all, then a bare Worker event 12030 |
+>
+> So our image is read and accepted, and the partition fails to start AFTER the load. `Loading IGVM file from default
+> location` is not about the pinned paravisor: it appears for TrustedLaunch too. What this changes below:
+> - E2 is answered "no", because the file was never unreadable; P1's framing (the definition path) is moot.
+> - E1 and E6 stand as facts about the harness and this build, but they explain nothing about the failure.
+> - E3 (our linux-direct image) and E4 (OpenHCL's own log, readable only with ohcldiag-dev on this build) are the live
+>   leads.
+> - The blocker, restated: **our IGVM loads; the partition then fails to start with a bare 12030 carrying no
+>   underlying cause.**
+
+**The symptom as first reported (d1; superseded by the correction above):** `Msvm_VirtualSystemSettingData.FirmwareFile` reads back our path, but
 `Microsoft-Windows-Hyper-V-Worker-Operational` logs `Loading IGVM file from default location`. That includes an
 apparently successful TrustedLaunch start. With `-GuestStateIsolationType OpenHCL` and `AllowFirmwareLoadFromFile`
 set, the start fails with a bare Worker event 12030.
@@ -111,7 +130,8 @@ Run it twice, varying only `<dir>`: (a) a tempdir under `C:\Users\claude`; (b) `
 | no | yes | traversal is the gate |
 | no | no | neither is the gate |
 
-**P2: only if our image is finally LOADED and the start still fails with 12030.** Run P1 again with Microsoft's
-standard x64 (UEFI) OpenHCL image. That separates "our linux-direct image" (E3) from "OpenHCL on this build".
+**P2: now the live probe, because our image IS loaded and the start still fails with 12030.** Run with Microsoft's
+standard x64 (UEFI) OpenHCL image in place of ours. That separates "our linux-direct image" (E3) from "OpenHCL on this
+build". Its cheapest form (the in-box DLL pinned by path) already showed that the pin is honoured.
 
 **Optional:** a Windows build of `ohcldiag-dev`, to read VTL2's kmsg (E4).
