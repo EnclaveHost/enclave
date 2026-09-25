@@ -879,3 +879,28 @@ test("draft v31 records the G1 candidate's canary (boots, serves, the per-boot n
   const y = run(["verify", writeManifest(m2)]);
   assert.equal(y.code, 1); assert.match(y.out, /FAIL a candidate IGVM is a profile's firmware only once its reference entry records it booting: vbsLinux\.firmware /, fails(y.out));
 });
+
+test("draft v32 ships enclave-d1's new launcher 15338081 BESIDE the pinned 0160d835 as a candidate.launcher (never a profile's launcher) and labels profile uefi pre-G1", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-32.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT \(supersedes v31, which is staged at pkg\\5e6b972e0451416a\\\)\. SHIPS enclave-d1's NEW LAUNCHER BUILD BESIDE THE PINNED ONE, AS A CANDIDATE/);
+  const cand = d.files.filter((f) => f.role === "candidate.launcher"), pinned = d.files.filter((f) => f.role === "control.launcher");
+  assert.equal(cand.length, 1); assert.equal(pinned.length, 1);
+  assert.equal(cand[0].sha256, "15338081b81692a155130ec28e37fa654117a3e769427b621404fff3d6c6bca4"); assert.equal(cand[0].bytes, 1128448);
+  assert.equal(cand[0].source.commit.slice(0, 8), "50010709");
+  assert.equal(pinned[0].sha256, "0160d83511ec8dee2ca2da0f180050561f21b7ac884e62c7d5efe2e78baefea0");
+  assert.match(pinned[0].note, /REPRODUCIBILITY \(enclave-d1, evidence 637b21c3\).*cc8707d7.*24 bytes different.*IDENTICAL/);
+  assert.equal(d.profiles["hcs-dev"].launcher, pinned[0].path, "the profile keeps the pinned launcher");
+  assert.equal(d.inputs.find((i) => i.name === "wmiserve-50010709.rs").sha256.slice(0, 16), "893f65bd773d50fa");
+  assert.equal(d.inputs.find((i) => i.name === "Cargo.lock-637b21c3").sha256, "5c0ee1b7f9d70d1b9d6973dea54e8d8f9b9563117d1a8f97a8172ce29c96ad3b");
+  assert.equal(d.profiles.uefi.label, "uefi-medium: pre-G1 monitor (initrd 0d14db23); no isolation claim possible (unmeasured medium); not a proof or serving candidate");
+  assert.match(d.status, /NOT exercised: the stdin LIFETIME/);
+  assert.equal(d.profiles.vbsLinux.firmware, "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin");
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   every profile's launcher is a control\.launcher \(a candidate\.launcher is never a profile's launcher\) \(1 profile launcher\(s\), 1 candidate launcher\(s\) shipped beside\)/);
+  // the candidate made a profile's launcher is refused by the rule
+  const m2 = pinRef(structuredClone(d), refRawFor(D)); m2.profiles["hcs-dev"].launcher = cand[0].path;
+  const x = run(["verify", writeManifest(m2)]);
+  assert.equal(x.code, 1);
+  assert.match(x.out, /FAIL every profile's launcher is a control\.launcher .*hcs-dev\.launcher control\/candidate-launcher\/vbslike-host-15338081\.exe is candidate\.launcher/, fails(x.out));
+});
