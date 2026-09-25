@@ -314,7 +314,7 @@ export function proofKeyMessage({ nonce, appId, instanceType, instanceValue, sig
                         h(proofOfTime), h(registry), h(deployment), h(enclaveId), h(operator)]);
 }
 /**
- * verifyPvmProofKey(doc, expect) -> { ok, reasons, claims }
+ * verifyPvmProofKey(doc, expect) -> { ok, reasons, claims }   (claims include codeHash: the attested build, bare lowercase 64-hex)
  *   expect: the verifyPvmAppEvidence expectations (nonce, appId, pins, instanceIds for a bound deployment) PLUS
  *           deployment (REQUIRED: the client's selected deployment, 0x + 64 lowercase hex).
  *   claims: { proofKey, chainId, proofOfTime, registry, deployment, enclaveId, operator, instanceId, appId } -- the caller
@@ -350,7 +350,11 @@ export function verifyPvmProofKey(doc, expect = {}) {
   let ok = false;
   try { ok = cryptoVerify(null, msg, createPublicKey({ key: Buffer.from(v.transportSpki, "hex"), format: "der", type: "spki" }), Buffer.from(doc.sig, "hex")); } catch { ok = false; }
   if (!ok) return no("the statement is not signed by the attested transport key over these fields", v.reasons);
+  // the build the VM attests (the AVF anchor's code hash, one of expect.allowedCodeHashes): bare lowercase 64-hex, the form the
+  // pins use, so a consumer (the runner agent's registered measurement; the verifier session's independent reading) compares
+  // it byte for byte
+  if (typeof v.measurement !== "string" || !/^[0-9a-f]{64}$/.test(v.measurement)) return no("the attested code hash is not 64 lowercase hex", v.reasons);
   return { ok: true, reasons: [...v.reasons, `the attested transport key vouches for proof key ${doc.proofKey} on chain ${chainId}, deployment ${doc.deployment.slice(0, 18)}…`],
            claims: { proofKey: doc.proofKey, chainId: chainId.toString(), proofOfTime: doc.proofOfTime, registry: doc.registry, deployment: doc.deployment,
-                     enclaveId: doc.enclaveId, operator: doc.operator, instanceId: v.instanceId, appId: v.appId } };
+                     enclaveId: doc.enclaveId, operator: doc.operator, instanceId: v.instanceId, appId: v.appId, codeHash: v.measurement } };
 }

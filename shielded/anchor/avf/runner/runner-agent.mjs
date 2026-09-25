@@ -60,12 +60,18 @@ export async function createRunnerAgent({ config, publicClient, account, stateDi
     // 1. the entry
     // a key goes on-chain only from a statement over a FRESH nonce, taken right now: an attestation from an earlier tick may name
     // a key a re-provisioned VM no longer holds (enclave-99's review of e4ecc4aa)
-    const freshKey = async () => { const a = await agent.attest(); return a.ok ? a.claims.proofKey : null; };
+    const fresh = async () => { const a = await agent.attest(); return a.ok ? a.claims : null; };
+    const freshKey = async () => { const c = await fresh(); return c ? c.proofKey : null; };
     const register = async (why) => {
-      const k = await freshKey();
+      const c = await fresh();
+      const k = c ? c.proofKey : null;
       if (!k) return { kind: "attest-failed", stop: true, reason: "no fresh attested key to register" };
+      // the measurement published is EXACTLY the build this statement attests (and the config's value must be that build)
+      const measurement = "0x" + c.codeHash;
+      if (measurement !== L.register.measurement)
+        return { kind: "measurement-mismatch", stop: true, reason: `the VM attests build ${c.codeHash}, the config says ${L.register.measurement}: nothing is registered` };
       return agent.sendCall({ op: `register (${why})`, contract: "registry", functionName: "register",
-        args: [cfg.endpoint, L.register.repo, L.register.measurement, BigInt(L.register.cpuPricePerSec6), 0n, k], event: "Registered|Updated", eventId: E });
+        args: [cfg.endpoint, L.register.repo, measurement, BigInt(L.register.cpuPricePerSec6), 0n, k], event: "Registered|Updated", eventId: E });
     };
     if (!s.regExists) return L.register ? register("new") : { kind: "registry-missing", stop: true, reason: "no registry entry, and the config does not register (the owner's repo, measurement and price)" };
     if (s.regOperator !== me) return { kind: "endpoint-taken", stop: true, reason: `the entry for ${cfg.endpoint} belongs to ${s.regOperator}: never touched` };

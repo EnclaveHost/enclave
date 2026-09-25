@@ -43,7 +43,7 @@ test("a LOCAL lease on the real contracts: the attested proof key registered by 
     const n1 = nonceHex(), st = await ask(vm.evidencePort, `PROOFKEY ${n1}`);
     const v = verifyPvmProofKey(st, expect(n1));
     assert.equal(v.ok, true, v.reasons.at(-1));
-    assert.deepEqual(v.claims, { proofKey: vm.proofKey, ...pins, instanceId: vm.instanceId, appId: APP });
+    assert.deepEqual(v.claims, { proofKey: vm.proofKey, ...pins, instanceId: vm.instanceId, appId: APP, codeHash: CODE.toString("hex") });
     // ---- verifier refusals ----
     const refused = (doc, e, re, what) => { const r = verifyPvmProofKey(doc, e); assert.equal(r.ok, false, what); assert.match(r.reasons.at(-1), re, what); };
     refused(st, expect(nonceHex()), /answers another nonce/, "the same statement under a NEW nonce fails at the nonce");

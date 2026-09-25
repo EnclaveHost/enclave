@@ -57,8 +57,9 @@ lifecycle transaction, settled before anything else:
      immediately before sending. An attestation from an earlier tick may name a key a re-provisioned VM no longer holds.
      (enclave-99's review of e4ecc4aa.)
    - **The published measurement is the attested build's.** The config is refused unless `register.measurement` is one
-     of the evidence's `allowedCodeHashes`, and THE one when exactly one is pinned. (Also enclave-99's review.) The next
-     step: the canonical verifier returns the attested code hash, and `register` uses exactly that value.
+     of the evidence's `allowedCodeHashes`, and THE one when exactly one is pinned. (Also enclave-99's review.)
+     `register` publishes EXACTLY the build the fresh statement attests: `verifyPvmProofKey`'s claims now carry
+     `codeHash` as bare lowercase 64-hex. A config naming a different pinned build stops with `measurement-mismatch`.
 2. **The lease.**
    - Ours and live, and within `renewMarginSec` of its end (default 600, as supervisor.js): `renew`, but ONLY if the
      proofs show the app serving, meaning the prover's `lastProofAt` is within `2 x intervalSec` of now. A dead app's
@@ -108,7 +109,9 @@ These are built and tested on the local chain, with synthetic operator keys: reg
 stop-with-release after a final proof. They share one journal with the checkpoints.
 - **The CLI.** `runner/proof-agent-cli.mjs` takes a runner config (format `enclave-pvm-runner-agent/v1`), with
   `--release` for a final proof then release. The key comes only from a 0600 file, and the RPC only from the environment.
-- **test/pvm-runner-agent.test.mjs, 9/9** (including a re-provisioned VM whose re-registration must carry the NEW key). The real contracts on anvil, a fake VM, and nothing pre-registered or
+- **test/pvm-runner-agent.test.mjs, 11/11.** This includes a re-provisioned VM: its re-registration, and its setProofKey
+  in the three-key case (registry K0, earlier attestation K1, VM K2), must carry the NEW key. It also includes a config
+  naming another pinned build, which registers nothing. The real contracts on anvil, a fake VM, and nothing pre-registered or
   pre-claimed. It covers:
   - the whole lifecycle;
   - another operator's endpoint, a missing or deactivated entry (not revived, no heartbeat), and an old key replaced by
@@ -119,10 +122,18 @@ stop-with-release after a final proof. They share one journal with the checkpoin
   - interruptions: a claim, a renew and a release each journaled but never delivered, each delivered ONCE after a
     restart (the tenant pays one quantum); a renew still in the mempool followed, never repeated;
   - the CLI.
-- **test/mutate-pvm-runner-agent.mjs.** A control plus 12 mutations, each caught by the test it names. The posting agent's
+- **test/mutate-pvm-runner-agent.mjs.** A control plus 14 mutations, each caught by the test it names. The posting agent's
   own harness still catches its 23.
-- **Next: the device check** (results/pvm-cpu-runner-agent). The lifecycle runs against the Pixel's real VM, as the
-  posting agent's did.
+- **The device check: PASS** (results/pvm-cpu-proof-agent-lifecycle, check.txt; cpu/runner-agent-run.mjs;
+  runtime/conformance/check-runner-agent.mjs). On the Pixel's real VM, with nothing pre-registered, the agent:
+  - registered exactly the attested key and claimed the lease;
+  - proved, and sent heartbeats when due;
+  - renewed once, inside the margin;
+  - after being stopped with a renew never delivered, delivered those SAME bytes once on restart (the tenant paid exactly
+    one renew);
+  - sent a final proof, then released.
+  17 chain events reconcile with 17 journaled landings, and the checker's own coverage test mutates the run 13 ways.
+  The run exercised cd939a7a. The attested-`codeHash` registration came after it and is covered by the local suites.
 
 ## What production still needs (the owner's; none of it is invented here)
 

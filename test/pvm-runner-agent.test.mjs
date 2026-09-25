@@ -194,6 +194,40 @@ test("a key goes on-chain only from a FRESH statement: after the VM is re-provis
   } finally { if (r) r.close(); if (vm2) vm2.close(); S.stop(); }
 });
 
+test("setProofKey carries the FRESH statement's key: the registry publishes K0, the agent holds an earlier attestation of K1, the VM is re-provisioned to K2 before any proof re-attests -> K2, never K1",
+     { skip, timeout: 180000 }, async () => {
+  const S = await setup();
+  let r, vm2;
+  try {
+    vm2 = await startFakeVm({ dir: S.dir, ca: S.ca, code: CODE, appId: APP, instance: newInstance(), proofSeed: Buffer.from(sha("re-provisioned K2"), "hex"), proofPins: S.pins, checkpointEveryMs: 10 });
+    const K0 = "0x" + "78".repeat(20);
+    await S.chain.register({ endpoint: ENDPOINT, proofKey: K0 });           // the owner set another key earlier
+    const cfg = S.config(); cfg.proof.evidence.instanceIds = [S.vm.instanceId, vm2.instanceId];
+    r = await S.runnerOf({ cfg });
+    assert.equal((await r.start()).attested.proofKey, S.vm.proofKey);       // the agent holds K1
+    S.carrier.state.target = vm2;                                            // re-provisioned to K2, before any tick
+    const a = await r.tick();
+    assert.equal(a.lifecycle.op, "setProofKey", JSON.stringify(a.lifecycle));
+    assert.equal(await S.chain.registeredProofKey(S.enclaveId), vm2.proofKey, "K2, from a fresh statement");
+    assert.notEqual(vm2.proofKey, S.vm.proofKey); assert.notEqual(vm2.proofKey, K0);
+  } finally { if (r) r.close(); if (vm2) vm2.close(); S.stop(); }
+});
+
+test("the registered measurement is EXACTLY the attested build: a config naming another pinned build registers nothing",
+     { skip, timeout: 120000 }, async () => {
+  const S = await setup();
+  let r;
+  try {
+    const OTHER = createHash("sha256").update("another pinned build").digest("hex");
+    const cfg = S.config({ register: { ...LAB_REGISTER, measurement: "0x" + OTHER }, claim: true });
+    cfg.proof.evidence.allowedCodeHashes = [CODE.toString("hex"), OTHER];   // both pinned; the VM attests CODE
+    r = await S.runnerOf({ cfg }); await r.start();
+    const a = await r.tick();
+    assert.equal(a.kind, "measurement-mismatch", JSON.stringify(a));
+    assert.equal(await S.nonceOf(), 0, "nothing registered");
+  } finally { if (r) r.close(); S.stop(); }
+});
+
 test("a mined lifecycle call WITHOUT the event it must produce is recorded as a failure, never as landed",
      { skip, timeout: 120000 }, async () => {
   const S = await setup();
