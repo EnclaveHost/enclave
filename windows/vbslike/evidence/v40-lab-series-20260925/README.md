@@ -27,7 +27,7 @@ firmware opt-in and the 9001 service were set only per run by manager-accept, an
 
 | Run | Driver | Result | Details |
 |---|---|---|---|
-| 1 (130943) | A: hvlab + restart A0-A9 | PASS | A9 failed after 70086 ms (3×30 s answer checks); A8 within 2023 ms |
+| 1 (130943) | A: hvlab + restart A0-A9 | PASS | A9 (app domain 1 stopped via the monitor's `stop`; VM Running) failed after 70086 ms; A8 within 2023 ms |
 | 2 (131345) | B: multi-accept M0-M7 | PASS | memory 99816 → 93476 (3 running) → 99918 MiB free |
 | 3 (131519) | A | PASS | A9 70127 ms; A8 2025 ms |
 | 4 (131920) | B | PASS | 99953 → 93506 → 99923 MiB |
@@ -44,8 +44,13 @@ After the series: 0 VMs, setting Absent.
 **Observations:**
 - About 2.1 GiB per type-1 VM. Free memory returns to within about 100 MiB of its starting point after every
   three-VM run: no growth across the series.
-- With the package's own sweeps, a monitor stopped inside a Running VM is failed in about 70 s (three answer
-  checks). A VM turned Off is failed within one liveness poll (≤ 15 s; 1-2 s measured).
+- A9, with the package's own sweeps: the harness sends the monitor's `stop` command for APP DOMAIN 1. The app domain
+  stops; the monitor and the VM stay Running. The manager fails the domain in about 70 s (three missed 30 s answer
+  checks). This is NOT evidence about the monitor dying: for that, see G4 (`../g4-probe-20260925/`), where a monitor
+  death turns the partition Off.
+- A8: a VM turned Off from the host is failed within one liveness poll (≤ 15 s; 1-2 s measured).
+- Scope of "stability": six passes in about 17 minutes (13:09:43Z-13:26:47Z). That is BOUNDED, REPEATED functional
+  stability, not an hours-long soak.
 
 ## Files
 
