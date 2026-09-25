@@ -1,0 +1,16 @@
+--- u7-3-smoke.sh.v2	2026-09-25 14:51:27.712146183 -0700
++++ u7-3-smoke.sh	2026-09-25 15:08:08.481853569 -0700
+@@ -22,7 +22,12 @@
+ for id in $IDS; do r=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://api.enclave.host/x/$id/); [ "$r" = 421 ] || bad "/x/${id:0:10}/ answered $r, not 421"; done
+ r=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://api.enclave.host/x/0x$(printf 'cd%.0s' $(seq 32))/); [ "$r" = 404 ] || bad "a no-lease /x/ answered $r, not 404"
+ [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://api.enclave.host/t/metal-iso0/availability)" = 200 ] || bad "/t/metal-iso0/availability not 200"
+-n=$($NAN "journalctl -u enclave-api-relay --since '-5min' --no-pager -o cat | grep -c 'U7: closed'" || echo 0); [ "${n:-0}" -le 3 ] || bad "the api relay logs U7: closed repeatedly ($n in 5 min)"
++# Codex: fetch the journal FIRST (an SSH or journal failure is a failure), then count locally, allowing ONLY grep's
++# no-match exit 1 ("grep -c ... || echo 0" printed "0" twice on no match, and the numeric test then failed falsely)
++if jr=$($NAN "journalctl -u enclave-api-relay --since '-5min' --no-pager -o cat"); then
++  n=$(grep -c 'U7: closed' <<<"$jr" || [ $? = 1 ])
++  [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -le 3 ] || bad "the api relay logs U7: closed repeatedly (${n:-unreadable} in 5 min)"
++else bad "the api relay's journal on nan could not be read"; fi
+ canary200 5.78.85.108 || bad "a canary is not 200 via us-west (old code)"
+ ~/enclave-bench/relay-slice-20260925/accept.sh > $U7/smoke-accept.txt 2>&1 || bad "the relay slice's accept.sh fails (smoke-accept.txt)"
+ wait_for 60 public_ok || bad "public_ok"
