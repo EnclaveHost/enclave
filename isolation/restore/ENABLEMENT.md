@@ -15,6 +15,9 @@ one suggestion), all answered below:
 - L3: the ticket-burn path is noted at step 4, as the relay fix is e3's lane.
 - e3's suggestion (show the opt-in in availability) is listed as a follow-up.
 
+**Rev 6.1 (23:58Z):** step 4b has its operator helper (accept-4b.sh). Proof 3's envelope-tag chain is verified on the
+live hookbin release guest. The 4b transactions are HELD by enclave-87, which now directs this work in place of Codex.
+
 **Rev 6 (23:52Z):** step 4's proof 3 is CORRECTED (enclave-63, at hookbin's relaunch). The canaries' versions carry a
 `_media` config: 177 B for hookbin, 194 B for 395bed3e/4e62e60d. "1 allowed origin" (the relay's) is the minimum.
 
@@ -63,7 +66,7 @@ precondition and serial grep, and e3's envelope-tag and one-ticket proofs, to st
 | 2 (4b) | the relay's release ON, for the 3 canaries only | 63 runs `relay-release-on.sh` | step 1, e3/d1 review, **Codex go** |
 | 3 (4c-c) | the node passes `ISOLATION_RELEASE=1` (new image + the launcher's fw_cfg forward) | 63 | **DONE**: 4c-c-b applied 23:18:45Z, gate PASSED 23:29:10Z (image 02f6e313 / f6cbd75a, launcher 578be084) |
 | 4 (4e) | the canaries relaunched as release guests, ONE at a time | 63 (the agent wallet signs the restart) | steps 2 and 3 |
-| 4b | a config- and secret-bearing acceptance deployment (test values; the agent wallet's own) | 63 (the agent wallet signs) | step 4 accepted, INCLUDING hookbin 0ddbd824 relaunched as a release guest on 79c5ecf2 (its stdio discarded); Codex's go for the test deployment's transactions |
+| 4b | a config- and secret-bearing acceptance deployment (test values; the agent wallet's own) | 63 (the agent wallet signs) | step 4 accepted, INCLUDING hookbin 0ddbd824 relaunched as a release guest on 79c5ecf2 (its stdio discarded); **enclave-87's** go for the test deployment's transactions (HELD by 87 while it confirms the target with Steven) |
 | 5 (S5) | per app: the staged secret NAMES equal the names its config references; the collision check | **Steven** (names only: the one owner-only check still missing) | nothing technical |
 | 6 | the relay lists the app for the release | 63 (relay env and restart) | step 4b accepted, step 5 per app |
 | 7 (S6) | the owner's `setConfig` adds `isolation.require`: **THIS is the step that takes an app from queued to serving** | **Steven** (Trezor), via the runbook | step 6 for that app; `--check` OK at signing, with its runtime told to Steven |
@@ -299,6 +302,22 @@ stdout/stderr are discarded in the guest. hookbin RECEIVES `x-accept-token`; on 
 would reach the host serial. Its serial is in proof 7 either way. Also Codex's explicit go for the agent wallet's
 create/fund/refund transactions.
 **Public (e3):** the deployment is public (the CLI's default; never `--private`); this backend refuses private ones.
+
+**The helper: `isolation/restore/accept-4b.sh`** (for 63's and d1's review). It covers prepare, bin, deploy,
+proofs and teardown, with values only in a 0700 run directory (never argv, a host or its output). Its proofs cover 3
+(the expected envelope tag and the serial lines), 4-6 (codes, hashes) and 7. Proof 7 counts value hits in the user
+journal, the test guest's and hookbin's serials, and nan's api-relay journal. Each channel must also be READABLE,
+checked by a marker count > 0, or the zero proves nothing.
+- Tested without touching a host:
+  - prepare: 0700/0600, no value in config.json or the output;
+  - the capture parser: a synthetic capture's sha matches, and a literal `$ACCEPT_TOKEN` is told apart;
+  - the grep counter: 0 on a real serial, 1 on a planted value.
+- Proof 3's chain, verified ON PRODUCTION (read-only): hookbin's release-guest serial states `envelope
+  42c6f115f763f544…`, and the helper's ledger read computes the same sha256 of the trimmed on-chain envelope.
+- NOT yet exercised: bin, deploy, the MCP proofs, nan's journal read and teardown. They run at 4b itself.
+- The bin token is in the public on-chain config, and hookbin shows a bin's captures to whoever names it. So while
+  the bin exists, the test token is publicly readable there. That is why the values are non-sensitive, per-run and
+  never reused, and why teardown deletes the bin first.
 
 **Run** (63; the agent wallet signs):
 1. Create the bin: `curl -X POST -H "x-bin-id: $BIN" https://0ddbd824.app.enclave.host/api/bins` gives `{ok}`.
