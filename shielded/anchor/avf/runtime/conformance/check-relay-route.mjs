@@ -5,8 +5,8 @@
 //   - steps.jsonl: the phases' steps, in order, each ok -- and the facts behind the load-bearing ones re-derived here;
 //   - relay-env.jsonl: every relay process started from an allowlisted environment with no secret-bearing name;
 //   - exchanges.jsonl: every proof-key statement RE-VERIFIED over its own nonce (Google's roots, the build, the owner's
-//     out-of-band instance, this deployment); the pre-lease statements came through the bootstrap route and the leased ones
-//     through /x; every checkpoint the agent accepted re-verified against the attested key and equal to its request;
+//     out-of-band instance, this deployment) and each rate refusal journaled as refused; the pre-lease exchanges came through
+//     the bootstrap route and every other through /x; every checkpoint the agent accepted re-verified against the attested key and equal to its request;
 //   - attach.jsonl: every co-signature the owner's co-signer gave is RE-VERIFIED offline -- the rad (AVF, the build, the
 //     authority, over this nonce and transport key), the instance (pinned, its signature over THIS transcript), and the
 //     operator signature recovers to the OWNER over exactly "enclave-tunnel-attach:<name>:<nonce>"; no nonce signed twice;
@@ -57,7 +57,7 @@ expect(Object.values(B).every((x) => x.instance === OWNER), `every boot logged t
 expect(B.a.accepted && !B.a.cosigned, "A: attached UNREGISTERED, first-come, without a co-signature");
 expect(!B.b1.accepted && /registered on chain; attach must carry operatorSig/.test(B.b1.rejected), `B1: the registered name refused an attach without a co-signature (${B.b1.rejected.slice(0, 80)})`);
 expect(!B.b2.accepted && new RegExp(`registered on chain to ${OP}, not ${run.wrongOperator}`).test(B.b2.rejected), `B2: refused: the name is the owner's, the signature another operator's`);
-expect(B.b3.accepted && B.b3.cosigned && B.d.accepted && B.d.cosigned, "B3, D: attached with the owner's co-signature");
+expect(B.b3.accepted && B.b3.cosigned && B.d.accepted && B.d.cosigned, "B3 and C's right relay (boot d): attached with the owner's co-signature");
 expect(!B.c.accepted && /allowlisted codeHash|codeHash/.test(B.c.rejected), `C: the relay that admits only another build refused the attach on its build (${B.c.rejected.slice(0, 80)})`);
 
 // ---- attach transcripts: every owner co-signature re-verified ----
@@ -87,7 +87,11 @@ expect(cj.length === okOwner.length && cj.every((l) => l.instanceId === OWNER &&
 
 // ---- statements and checkpoints over the relay ----
 const EX = jl("exchanges.jsonl"), first = (s) => { try { return JSON.parse(String(s).split("\n")[0]); } catch { return null; } };
-const statements = EX.filter((x) => x.request.startsWith("PROOFKEY ") && x.status === 200);
+// every 200 answer to PROOFKEY is either a statement or the payload's own one-line refusal ({"error"} alone: its evidence
+// budget, one answer per 2 s, is the VM's and every caller's); each statement must re-verify, and the agent must have
+// journaled exactly one accepted attest per statement and one refused attest per refusal (it never took a refusal as a key)
+const pk = EX.filter((x) => x.request.startsWith("PROOFKEY ") && x.status === 200), isRefusal = (x) => { const a = first(x.answer); return !!a && Object.keys(a).join() === "error"; };
+const statements = pk.filter((x) => !isRefusal(x)), refusals = pk.filter(isRefusal);
 let sOk = 0; const key = B.a.proofKey;
 for (const x of statements) {
   const v = verifyPvmProofKey(first(x.answer), { nonce: x.request.slice(9), appId: run.app, allowedRuntimeIds: [run.runtimeId], allowedCodeHashes: [run.code], allowedAuthorityHashes: [run.authority],
@@ -95,13 +99,19 @@ for (const x of statements) {
   if (v.ok && v.claims.proofKey === key && v.claims.codeHash === run.code && ["chainId", "proofOfTime", "registry", "deployment", "enclaveId", "operator"].every((k) => v.claims[k] === pins[k])) sOk++;
 }
 expect(statements.length >= 2 && sOk === statements.length, `statements: all ${statements.length} re-verify over their own nonces (the owner's instance, this deployment, codeHash = the lab build)`);
-expect(statements.some((x) => x.url === `/t/${NAME}/pvm/evidence` && x.step === "setup") || statements.some((x) => x.url === `/t/${NAME}/pvm/evidence`), "the first statement came through the BOOTSTRAP route, before any lease");
+const JA = jl("journal.jsonl").filter((e) => e.ev === "attest"), aYes = JA.filter((e) => e.ok === true), aNo = JA.filter((e) => e.ok === false);
+expect(aYes.length === statements.length && aYes.every((e) => e.proofKey === key && e.instanceId === OWNER) && aNo.length === refusals.length,
+       `the agent accepted exactly the ${statements.length} statements and refused the payload's ${refusals.length} rate refusal(s) (${refusals.map((x) => x.step).join(", ") || "none"}): never a refusal taken as a key`);
+// the carrier the harness gave the agent: the bootstrap route in exactly the steps before the lease route exists, /x in every other
+const BOOT_STEPS = ["A-bootstrap", "A-register", "A-claim"], TR = `/t/${NAME}/pvm/evidence`, XR = `/x/${D}/pvm/evidence`;
+expect(EX.length > 0 && EX.every((x) => x.url === (BOOT_STEPS.includes(x.step) ? TR : XR)), `carrier: the bootstrap route in ${BOOT_STEPS.join(", ")} only (${EX.filter((x) => x.url === TR).length}), /x in every other step (${EX.filter((x) => x.url === XR).length})`);
+expect(statements.length > 0 && statements[0].step === "A-bootstrap" && statements[0].url === TR, "the first statement came through the BOOTSTRAP route, before any lease");
 const J = jl("journal.jsonl"), signed = J.filter((e) => e.ev === "signed");
 let cOk = 0;
 for (const s of signed) { const c = s.checkpoint, xs = EX.filter((x) => x.request === `CHECKPOINT ${c.upto} ${c.anchorBlock} ${c.anchorHash.slice(2)}`);
   const doc = xs.length === 1 ? first(xs[0].answer) : null, v = doc ? await verifyPvmCheckpoint(doc, { pins, proofKey: key }) : { ok: false };
-  if (v.ok && doc.sig === c.sig && xs[0].url === `/x/${D}/pvm/evidence`) cOk++; }
-expect(signed.length >= 3 && cOk === signed.length, `checkpoints: each accepted one is one answer through /x to exactly its request, re-verified (${cOk}/${signed.length})`);
+  if (v.ok && doc.sig === c.sig) cOk++; }
+expect(signed.length >= 3 && cOk === signed.length, `checkpoints: each accepted one is one answer to exactly its request, re-verified (${cOk}/${signed.length})`);
 
 // ---- the client through /x ----
 const res = (label) => { const r = (rd(`client/${label}.jsonl`) || "").split("\n").filter((l) => l.startsWith("{")).map((l) => JSON.parse(l)).reverse().find((x) => x.result); return (r && r.result) || {}; };
@@ -112,7 +122,7 @@ for (const [l, re] of [["a-wrong-instance", /instance/i], ["a-wrong-build", /cod
 // ---- the chain ----
 const EV = jl("chain-events.jsonl"), of = (n) => EV.filter((e) => e.event === n), landed = new Map(J.filter((e) => e.ev === "done" && e.kind === "landed").map((e) => [e.hash, e]));
 expect(of("ProofKeySet").length === 1 && of("ProofKeySet")[0].args.proofKey.toLowerCase() === key && of("Registered").length === 1 && of("Claimed").length === 1, "registered once with the attested key; claimed once");
-expect(of("Checkpointed").length === signed.length - 0 || of("Checkpointed").every((e) => landed.has(e.tx)), `every Checkpointed is a journaled landing (${of("Checkpointed").length})`);
+expect(of("Checkpointed").length === signed.length && of("Checkpointed").every((e) => landed.has(e.tx)), `every Checkpointed is a journaled landing, one per signed checkpoint (${of("Checkpointed").length})`);
 const sw = jl("chain.jsonl").filter((e) => e.label === "swallowed-send"), rec = J.filter((e) => e.ev === "recover");
 expect(sw.length === 1 && rec.length >= 1 && of("Checkpointed").some((e) => e.tx === sw[0].hash), "exactly once: the checkpoint never delivered is the one the restarted agent landed");
 expect(of("Released").length === 1 && BigInt(of("Released")[0].block) > BigInt(of("Checkpointed").at(-1).block), "released once, after the last proof");
