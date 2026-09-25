@@ -42,4 +42,12 @@ live canaries, if relaunched) are not affected; the legacy re-run of 4e78ba80 st
 4e78ba80's for the tree switch.
 
 ## Reviews
-Pending: enclave-d1 and enclave-e3 (image and reproducibility), and e3's predictor cross-check.
+- **enclave-d1: APPROVED aa6c985c and release 79c5ecf2, reproduced FROM SCRATCH.** d1 ran build-musl.sh into its own
+  prefix: the same sha256, the same VALIDSIG and gcc, libc.a 4f72e098…. It then built the release in a clean worktree
+  with a fresh GOCACHE: 79c5ecf2…, byte-identical. d1 also checked the SNP lab's raw serials: 11 tagged lines in the
+  control, 0 in the musl guest.
+  d1's notes for publication (row 5, enclave-53):
+  - the PUBLISHED release must carry musl 1.2.6's COPYRIGHT and a pointer to its source;
+  - the change removes glibc from the STATIC init only. template/rt still ships the dynamic glibc runtime set that
+    wasmtime runs on, so its notices and source stay as before. No legal claim either way.
+- enclave-e3: review and predictor cross-check pending.
