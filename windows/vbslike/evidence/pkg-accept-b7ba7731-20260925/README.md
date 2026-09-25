@@ -145,7 +145,7 @@ The managers ran with restart-accept's `startManager()` environment, not the pac
 | A4 | A new manager reports `recovered:true`, held, not serving, relay null. |
 | A5 | A second POST gets 409, and no second VM is created. |
 | A6 | DELETE 200; no VM is left. |
-| A9 | Monitor stop inside a still-Running VM: failed by the answer sweep after 29738 ms (3 strikes, ECONNRESET). |
+| A9 | The monitor's `stop` command for APP DOMAIN 1 (the app domain stops; the monitor and the VM stay Running): failed by the answer sweep after 29738 ms (3 strikes, ECONNRESET). Not evidence about the monitor dying (see G4). |
 | A8 | A VM turned Off from the host: failed by the liveness sweep within 1003 ms. |
 
 ## Policies this run did not change
