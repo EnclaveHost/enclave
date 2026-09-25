@@ -771,3 +771,19 @@ test("start asks the reader to stop at the monitor's ready line, and reports it 
   assert.equal(quiet.guest.readyLine, false, "bytes without the line: booted, and said so, and nothing more");
   assert.equal(quiet.guest.booted, true);
 });
+
+/* ---- the VM's RAM is sized from the app's share, never equal to it ----------------------------- */
+import { type1VmMemMiB, TYPE1_VM_MEM_FLOOR_MIB } from "./wmi-launcher.mjs";
+
+test("the type-1 VM gets max(2048, policy + 640) MiB: a 128 MiB app never defines a 128 MiB partition", async () => {
+  assert.equal(type1VmMemMiB(128), 2048, "hello-world's catalog policy: the floor, the only size run on hardware");
+  assert.equal(type1VmMemMiB(1408), 2048);
+  assert.equal(type1VmMemMiB(1409), 2049);
+  assert.equal(type1VmMemMiB(4096), 4736);
+  for (const bad of [0, -1, 1.5, "128", null, undefined, NaN]) assert.throws(() => type1VmMemMiB(bad), /positive integer/, String(bad));
+  const seen = [];
+  const h = host({ define: (sc) => { seen.push(sc); return undefined; } });
+  const handle = await mk(h).start({ ...mapping, record: { policy: { cpuPercent: 100, memMiB: 128, vcpus: 1 } } }, ID);
+  assert.match(seen[0], /-Memory \(2048 \* 1MB\)/, "the define script asks for the VM's RAM, not the app's share");
+  assert.deepEqual(handle.memory, { policyMiB: 128, vmMiB: TYPE1_VM_MEM_FLOOR_MIB, rule: "max(2048, policy + 640)" });
+});

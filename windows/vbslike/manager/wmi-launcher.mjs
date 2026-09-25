@@ -159,6 +159,24 @@ export const LINUX_DIRECT_IMAGE_ABSENT =
 
 /** How the guest boots. STATED by whoever constructs the launcher, never inferred from what else is set. */
 export const BOOT_UEFI = "uefi-medium";
+/**
+ * THE VM'S RAM, from the catalog policy's memMiB (the APP's share, fixed per version: DERIVE.md "enclave-isolation-policy/1").
+ *
+ * The policy is what the domain gets, not what the partition needs. The ported launcher gave the VM exactly the
+ * policy's memMiB, so a real hello-world spawn (memMiB 128) would have defined a 128 MiB type-1 VM. The canaries never
+ * hit that because they passed 2048 themselves.
+ * The rule: guestd's (policy + 384 for the guest kernel and runtime) plus 256 for VTL2 and the paravisor, with a floor
+ * of 2048. 2048 is the only size run on nucbox-k11, where the guest saw 1833 MiB, so VTL2 and the firmware took about
+ * 215. Like memMiB on every backend, this is an availability property the host controls, never an attested one.
+ */
+export const TYPE1_VM_MEM_FLOOR_MIB = 2048;
+export const TYPE1_VM_MEM_OVERHEAD_MIB = 384 + 256;
+export function type1VmMemMiB(policyMemMiB) {
+  const p = policyMemMiB;   // a JSON number from the derivation record; a string is refused, never coerced
+  if (typeof p !== "number" || !Number.isInteger(p) || p <= 0) throw new Error(`the policy's memMiB must be a positive integer, not ${JSON.stringify(policyMemMiB)}`);
+  return Math.max(TYPE1_VM_MEM_FLOOR_MIB, p + TYPE1_VM_MEM_OVERHEAD_MIB);
+}
+
 /** Our monitor's ready line on COM1 (what uefi-dev-boot.ps1 watches for). The console reader may stop there. */
 export const GUEST_READY_LINE = "MON ready";
 export const BOOT_LINUX_DIRECT = "linux-direct";
@@ -858,7 +876,7 @@ export class WmiHyperVLauncher {
     const guestStateRun = this.guestStateRunFor(name);
     if (!guestStateRun) throw new Error(`no per-run guest-state path can be made for ${name}`);
     const vcpus = Math.max(1, Math.floor(mapping.record.policy.vcpus));
-    const memMiB = Math.round(mapping.record.policy.memMiB);
+    const memMiB = type1VmMemMiB(mapping.record.policy.memMiB);   // the VM's RAM, not the app's share
     let created = null;
     try {
       created = await this.#ps(CMD.defineType1({
@@ -903,6 +921,8 @@ export class WmiHyperVLauncher {
                ...(uefi ? {} : { imageAbsentReason: LINUX_DIRECT_IMAGE_ABSENT }),
                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
                vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
+               memory: { policyMiB: mapping.record.policy.memMiB, vmMiB: memMiB,
+                         rule: `max(${TYPE1_VM_MEM_FLOOR_MIB}, policy + ${TYPE1_VM_MEM_OVERHEAD_MIB})` },
                definition: { recipe: "petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)",
                              hypervModuleSha256: created.hypervModuleSha256, hypervUtilitiesSha256: created.hypervUtilitiesSha256 ?? null,
                              featureSet: created.featureSet, vtl2Mode: created.vtl2Mode, vbsOptOut: created.vbsOptOut,

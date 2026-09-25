@@ -21,7 +21,8 @@ export async function runCanary({ run, cfg, say, guestReadySec = 40 }) {
   const id = "hv" + crypto.randomBytes(16).toString("hex");
   const instanceId = id.slice(0, 16) + "-canary";
   const identity = { id, name: "0x" + "c0".repeat(32), instanceId, appId: "00".repeat(32) };
-  const mapping = { appId: identity.appId, record: { policy: { vcpus: cfg.vcpus || 1, memMiB: cfg.memMiB || 2048, cpuPercent: 100 } } };
+  // the CATALOG policy (hello-world pins memMiB 128): the launcher sizes the VM from it (type1VmMemMiB)
+  const mapping = { appId: identity.appId, record: { policy: { vcpus: cfg.vcpus || 1, memMiB: cfg.memMiB || 128, cpuPercent: 100 } } };
   let ok = true, handle = null;
   try {
     const pre = await launcher.preflight();
