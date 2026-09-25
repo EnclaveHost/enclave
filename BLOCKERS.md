@@ -2,24 +2,51 @@
 
 One list, kept current. Integration owner: this session (enclave-d1).
 
-## THE BLOCKER, and it is now external
+## CORRECTION, 2026-09-25: `FirmwareFile` IS honoured. I had this wrong.
 
-**On this host, the Hyper-V worker ignores `FirmwareFile` and loads the in-box IGVM instead.**
-Every run, whatever we set, logs:
+An earlier version of this file said the worker "ignores `FirmwareFile` and loads the in-box IGVM
+instead", on the strength of `Loading IGVM file from default location` appearing on every run. That
+conclusion was **wrong**, and the test that broke it was cheap: pin the host's OWN in-box image by
+explicit path and see which path the worker names.
 
-> `[Virtual machine <id>] Loading IGVM file from default location.`
+```
+failed to load IGVM file with error code 0x80070057 (The parameter is incorrect.).
+IGVM image file: 'C:\openhcl-probe\inbox-copy.bin'.
+```
 
-and then fails with a bare Worker-Admin event **12030** ("failed to start") carrying no underlying
-cause. The in-box image is `C:\Windows\System32\vmfirmwarehcl.dll` (36,177,440 B, 10.0.26100.9457).
+**The worker named our path.** So it opens the pinned file, validates it, and refuses an invalid one
+BY NAME. (`vmfirmwarehcl.dll` is not a raw IGVM, so 0x80070057 is the right answer there.)
 
-**Host:** Windows 11 Pro, 10.0.26200, UBR 9457. `vmwp` 10.0.26100.8457. VM version 12.0 (default and
-max). Hyper-V role installed and healthy; `vmms` running.
+Three runs together settle what that means:
+
+| pinned | result |
+|---|---|
+| nothing, isolation type OpenHCL | `failed to load IGVM file ... IGVM image file: ''` — the worker WANTS a FirmwareFile |
+| the in-box DLL, by our path | `failed to load IGVM file ... IGVM image file: 'C:\openhcl-probe\inbox-copy.bin'` — it reads OUR path and rejects bad content by name |
+| **our IGVM** | **no load error at all**, then a bare 12030 |
+
+So **our image is read and accepted**, and the failure is after the load. `Loading IGVM file from
+default location` is not about the pinned paravisor — it appears for TrustedLaunch too, where no
+custom firmware is involved — and reading it as "our file was ignored" was my error. It cost the
+evening's last several hypotheses, all of which were varying inputs to a load that was working.
+
+**The positive proof asked for is therefore obtained**: the worker demonstrably opens the pinned
+path (it quotes it when the content is bad) and raises no complaint about ours.
+
+## THE BLOCKER, restated correctly
+
+Our IGVM loads, and the partition then fails to start with Worker-Admin event **12030**, carrying no
+underlying cause. `RequestStateChange` returns a job whose `ErrorDescription` is the same bare
+sentence and whose `GetErrorEx` adds nothing.
+
+**Host:** Windows 11 Pro 10.0.26200, UBR 9457. `vmwp` 10.0.26100.8457. VM version 12.0.
 
 ### What has been ruled OUT, each by measurement
 
 | ruled out | evidence |
 |---|---|
-| the registry gate | `AllowFirmwareLoadFromFile=1` removes event 5142; without it the worker says the key is missing BY NAME, so it is read |
+| the registry gate | `AllowFirmwareLoadFromFile=1` removes event 5142; without it the worker says the key is missing BY NAME |
+| **the file being ignored** | **disproved above: the worker quotes our path when the content is bad** |
 | file permissions | image copied to `C:\openhcl-probe` with `ReadAndExecute` for `NT VIRTUAL MACHINE\Virtual Machines` on directory AND file, plus the per-VM SID on the file as petri does |
 | path traversal | same; and Microsoft's own CI grants on the file only, under `%TEMP%` in a user profile |
 | adding the pin AFTER create | petri sets `FirmwareFile` inside `DefineSystem`; done via petri's own `New-CustomVM`, same result |
