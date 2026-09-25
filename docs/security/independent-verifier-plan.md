@@ -1050,7 +1050,7 @@ recorded evidence; flipping one is a reviewed commit that names the evidence. St
 | consumer | switch | gates | status |
 |---|---|---|---|
 | all | (precondition) | a hosted enclave running one of our releases verified end to end by this verifier (`verified`, no omission) at least once, from the CLI, the self-check and the relay | NOT MET: the fleet has had no hosted enclave since before this work; every positive path is shown on the Genoa capture under a stated policy |
-| all | (precondition) | the live differential daily job green for 14 consecutive days with zero `disagree`; the TUF refresh job green for two cycles | NOT MET: enabled 2026-09-25 (one run, agree-refuse against Tinfoil's host); the TUF job has not yet run on schedule |
+| all | (precondition) | the live differential daily job green for 14 consecutive days with zero `disagree`, its three jobs included (section 10.9: the differential, the positive control, the provenance parity); the TUF refresh job green for two cycles | NOT MET: enabled 2026-09-25 (one dispatched run, agree-refuse against Tinfoil's host); the control and parity jobs first run on the 2026-09-25 06:17Z schedule; the TUF job has not yet run on schedule |
 | CLI | `--require-index` default | the user's memory has history (`persisted: true`, one index seen) is unknowable per user: the default stays opt-in; documented in `--help` | opt-in, by design |
 | self-check | `SELF_CHECK_REQUIRE_INDEX=1` | 14 days of `verification.selfCheck.enclave.index.status = verified` and `agreement` in {agree, agree-limited} on every hosted enclave, with `memoryNotPersisted` absent | NOT MET: no hosted enclave |
 | self-check | `SELF_CHECK_VERIFIERS=enclave` (own verdict decides `result`) | the above, plus the independent review of `verifier/` (M5) | NOT MET |
@@ -1108,6 +1108,50 @@ floor, while a malformed file fails the import. Four deliberate regressions (the
 list dropped from the union, the built-in revocation check removed, the remembered floor ignored) each fail the suite.
 `test/site-verifier-shadow.test.mjs` asserts the fallback record's floor through the real vendored bundle, for a
 profile with history (remembered) and a fresh one (built-in).
+
+## 10.9 Cutover evidence that needs no Enclave host (2026-09-25)
+
+Three gaps in the evidence the gates of section 10.7 rest on could be closed without a host running one of our releases.
+
+**The differential measured a path no consumer uses.** `verifier/live-differential.mjs` took its expected measurements
+from GitHub's unsigned `/releases/latest` pointer and checked them against a TEST-FIXTURE Sigstore root. Its provenance
+leg is now the consumers' own: `releaseExpectations` (the signed index first, the pinned root in `verifier/roots/`, the
+built-in floor, the unsigned pointer only as the recorded fallback) or `releaseExpectationsFrom` for explicit files, and
+the report records the source, the index record and the floor applied.
+
+**The differential could not score a positive case.** Its comparison had no `agree-limited` outcome, so a host running a
+matching release with no TCB floor stated (the workflow states none) fell through to `disagree`: the first day a host ran
+one of our releases the job would have gone red for that reason alone (shown by mutation: without the new rule the case
+exits 1). It now reports `agree-limited` when the only omission is `tcb-floor-unjudged` and the reference accepts the same
+measurement.
+
+**No live positive case existed.** Against Tinfoil's host the differential can only ever say `agree-refuse` (their image is
+not ours). A CONTROL now runs the accepting path daily on production hardware: `verifier/differential/tinfoil-model-router.json`
+names Tinfoil's host, Tinfoil's release repository (`tinfoilsh/confidential-model-router`), a floor for their version line
+and the Genoa TCB floor measured on that host; our identity rules are otherwise unchanged (same workflow name, trigger and
+visibility, which Tinfoil's releases share), and the floor is recorded as the caller's, below ours. Offline on real bytes
+(`test/fixtures/verifier/tinfoil-router/`, pinned with their sources): the 2026-09-24 capture against Tinfoil's v0.0.154,
+whose attested measurement is that capture's, is `agree` with our verdict `verified` and no omission; without the TCB
+floor `agree-limited`; the newer v0.0.155 against the old capture `agree-refuse`; Tinfoil's bundle under OUR policy
+`provenance-failed` (identity); a floor above the release `provenance-failed`. Live on 2026-09-25 (local run, read-only):
+`agree`, ours `verified` with every check true, the reference accepting the report and the certificate binding, the same
+measurement, matched v0.0.155. This is evidence about the verifier's accepting path on live AMD hardware, never about an
+Enclave host, and it does not satisfy the precondition that a host running OUR release verify end to end.
+
+**The provenance paths were not compared.** `verifier/provenance-parity.mjs` runs daily as its own job: the Node consumer
+against GitHub's signed index, the browser module from source and this commit's bundle against the relay mirror, the
+bundle the SITE SERVES (its sha256 must be an artifact this repository built, a `MANIFEST.json` in its history, or it is
+not executed) and that deployed bundle in the runner's Chrome on the live page. Each verifies for itself; the legs must
+agree on the publication, the index digest, the releases and measurements and the floor; a mirror still serving an older
+publication is `mirror-behind` within an hour of GitHub's and `mirror-stale` after. Offline tests
+(`test/verifier-provenance-parity.test.mjs`, 4): agree; a one-byte-changed served bundle is `unknown-artifact` and not run;
+a refused or down mirror `not-verified`; the CPU run's older index on the mirror `mirror-behind` then `mirror-stale`. Live
+on 2026-09-25 (local run, Chromium): all five legs verified run 36089632273 with digest 9ef3346a..., floor v0.5.841 from
+the signed index, v0.5.848 and v0.5.848-cpu allowed; the served bundle is this commit's.
+
+What stays open, unchanged: a host running one of our releases verified end to end by the CLI, the self-check and the
+relay; the 14-day windows; the TUF job's scheduled cycles; the independent review (M5). Tinfoil stays primary and every
+strict switch stays off.
 
 ## 11. Open risks
 

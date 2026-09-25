@@ -108,7 +108,7 @@ export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fe
         const v = await verifyReleaseIndex({ indexBytes: bytes, bundle, trustedRoot, policy: { ...policy, repository: repo } });
         if (v.ok) {
           const m = indexMemory ? indexMemory.consider({ publication: v.publication, digest: v.digest, minimumRelease: v.minimumRelease, tag: v.claims?.tag ?? null }) : null;
-          const base = { authenticity: "signed", publication: v.publication, sequenceAuthenticated: v.sequenceAuthenticated, schema: v.schema, generatedAt: v.generatedAt, minimumRelease: `v${v.minimumRelease.join(".")}`, signedTag: v.claims?.tag ?? null };
+          const base = { authenticity: "signed", indexSha256: v.digest, publication: v.publication, sequenceAuthenticated: v.sequenceAuthenticated, schema: v.schema, generatedAt: v.generatedAt, minimumRelease: `v${v.minimumRelease.join(".")}`, signedTag: v.claims?.tag ?? null };
           if (m && !m.ok) index = { status: "refused", ...base, freshness: m.kind, reasons: [m.why] };
           else {
             index = { status: "verified", ...base, freshness: m ? m.kind : "not-remembered", latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, ...(m && m.persisted === false ? { memoryNotPersisted: true } : {}) };

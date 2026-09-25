@@ -7,15 +7,25 @@
 //   live:    node verifier/live-differential.mjs --host inference.tinfoil.sh --out DIR [--repo EnclaveHost/enclave] [--now iso]
 //   offline: node verifier/live-differential.mjs --from DIR --release-bundle F[,F...] --release-digest HEX[,HEX...] --out DIR
 //            [--chain F] [--crl F] [--trusted-root F] [--no-reference] [--now iso]
-// Exit 0 when the two verifiers agree (both verified with the same measurement, or both refuse); 1 on a disagreement or a
-// missing reference (a differential that cannot compare has not run); 2 when the capture or the provenance step fails.
+//   control: node verifier/live-differential.mjs --host inference.tinfoil.sh --release-policy verifier/differential/tinfoil-model-router.json --out DIR
+// The expected measurements come from the PRODUCTION provenance path (verifier/consumer.mjs): for this repository the
+// signed release index first, under the pinned Sigstore root (verifier/roots/sigstore-trusted-root.json) and the built-in
+// release policy (verifier/release-policy.json), the unsigned pointer only as the recorded fallback; explicit bundle files
+// go through the same releaseExpectationsFrom. --release-policy names a CONTROL: another repository's releases, verified
+// under our identity rules with that file's repository, floor and TCB floor stated explicitly (recorded as the caller's
+// floor), so the positive path runs on live hardware even while no host runs one of our releases.
+// Exit 0 when the two verifiers agree (both verified with the same measurement, "agree"; the same with only our TCB floor
+// unstated, "agree-limited"; or both refuse, "agree-refuse"); 1 on a disagreement or a missing reference (a differential
+// that cannot compare has not run); 2 when the capture or the provenance step fails.
 // The report (DIR/report.json) carries every reason. The reference's own provenance leg (its GitHub proxy) is not run:
 // the comparison is on the attestation bytes, the collateral and the served certificate.
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
-import { verifyEvidence, verifyReleaseAttestation, spkiOfCert, memoryCollateral, parseReportStrict } from "./index.mjs";
+import { verifyEvidence, spkiOfCert, memoryCollateral, parseReportStrict } from "./index.mjs";
+import { releaseExpectations, releaseExpectationsFrom, TRUSTED_ROOT, DEFAULT_REPO } from "./consumer.mjs";
+import { parseTag, floorOf, floorRecord } from "./release-policy.mjs";
 import { snpProductHint } from "../relay/snp-verify.mjs";
 
 const args = process.argv.slice(2);
@@ -35,10 +45,19 @@ async function get(url, accept = "application/json") {
 const report = { at: now, mode: opt("from") ? "offline" : "live", host: opt("host") || null, capture: {}, release: { candidates: [], matched: null }, ours: null, reference: null, verdict: null, reasons: [] };
 const finish = (verdict, code) => { report.verdict = verdict; fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2) + "\n"); console.log(JSON.stringify({ verdict, host: report.host, matched: report.release.matched, ours: report.ours?.status, reference: report.reference?.attestationOk ?? null }, null, 0)); process.exit(code); };
 
+// 0. a control (another repository's releases, explicit policy): read first, it may name the host
+let control = null;
+if (opt("release-policy")) {
+  control = JSON.parse(fs.readFileSync(opt("release-policy"), "utf8"));
+  const floor = parseTag(control.minimumRelease);
+  if (!control.repository || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(control.repository) || !floor || floor.flavor !== "gpu") die("--release-policy: a JSON file with repository OWNER/NAME and a bare vX.Y.Z minimumRelease");
+  control = { ...control, floor: floor.version };
+}
+
 // 1. the capture: live through cli.mjs capture, or a directory laid out the same way (the fixtures)
 let cap = opt("from");
 if (!cap) {
-  const host = opt("host") || die("--host or --from required"); report.host = host;
+  const host = opt("host") || control?.host || die("--host or --from required (or a --release-policy naming a host)"); report.host = host;
   cap = path.join(out, "capture");
   const r = spawnSync(process.execPath, [path.join(REPO, "verifier", "cli.mjs"), "capture", "--host", host, "--out", cap], { encoding: "utf8", timeout: 6 * TIMEOUT });
   if (r.status !== 0) { report.reasons.push(`capture failed: ${(r.stderr || r.stdout).trim().split("\n").pop()}`); finish("capture-failed", 2); }
@@ -55,37 +74,35 @@ const chainPem = opt("chain") ? fs.readFileSync(opt("chain"), "utf8") : fs.readF
 const crlDer = opt("crl") ? fs.readFileSync(opt("crl")) : fs.readFileSync(fs.existsSync(path.join(cap, `${product}-crl.der`)) ? path.join(cap, `${product}-crl.der`) : path.join(REPO, "test", "fixtures", "verifier", "amd", `${product}-crl.der`));
 report.capture = { ...report.capture, dir: cap, product, reportVersion: p.version, measurement: Buffer.from(p.measurement).toString("hex") };
 
-// 2. the expected measurement, from verified release provenance only
-const trustedRoot = JSON.parse(fs.readFileSync(opt("trusted-root") || path.join(REPO, "test", "fixtures", "verifier", "sigstore", "trusted_root.json"), "utf8"));
-const candidates = [];
-if (opt("from")) {
-  const bundles = (opt("release-bundle") || die("--release-bundle required offline")).split(","), digests = (opt("release-digest") || die("--release-digest required offline")).split(",");
-  if (bundles.length !== digests.length) die("--release-bundle and --release-digest must pair up");
-  bundles.forEach((f, i) => { const j = JSON.parse(fs.readFileSync(f, "utf8")); candidates.push({ tag: path.basename(f), bundle: j.attestations ? j.attestations[0]?.bundle : j, digest: digests[i].trim().toLowerCase() }); });
-} else {
-  const repo = opt("repo", "EnclaveHost/enclave");
-  let tag; try { tag = JSON.parse((await get(`https://api.github.com/repos/${repo}/releases/latest`)).toString()).tag_name; } catch (e) { report.reasons.push(`release index: ${e.message}`); finish("provenance-failed", 2); }
-  for (const t of [tag, `${tag}-cpu`, `${tag}-gpu8`]) {
-    try {
-      const digest = (await get(`https://github.com/${repo}/releases/download/${t}/tinfoil.hash`, "text/plain")).toString().trim().toLowerCase();
-      const att = JSON.parse((await get(`https://api.github.com/repos/${repo}/attestations/sha256:${digest}`)).toString());
-      const bundle = att.attestations?.[0]?.bundle ?? null;
-      candidates.push({ tag: t, digest, bundle, note: bundle ? null : "the attestation API returned no inline bundle" });
-    } catch (e) { candidates.push({ tag: t, error: e.message }); }
+// 2. the expected measurement, from verified release provenance only, through the consumers' own code
+const trustedRoot = opt("trusted-root") ? JSON.parse(fs.readFileSync(opt("trusted-root"), "utf8")) : TRUSTED_ROOT;
+const repo = control?.repository ?? opt("repo", DEFAULT_REPO);
+const policy = control ? { minimumRelease: control.floor } : {};
+let exp;
+try {
+  if (opt("release-bundle") || opt("release-digest")) {
+    const bundles = (opt("release-bundle") || die("--release-bundle and --release-digest go together")).split(","), digests = (opt("release-digest") || die("--release-bundle and --release-digest go together")).split(",");
+    if (bundles.length !== digests.length) die("--release-bundle and --release-digest must pair up");
+    const candidates = bundles.map((f, i) => { const j = JSON.parse(fs.readFileSync(f, "utf8")); return { tag: path.basename(f).replace(/\.attestation\.json$/, ""), bundle: j.attestations ? j.attestations[0]?.bundle : j, digest: digests[i].trim().toLowerCase() }; });
+    exp = { ...(await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy })), index: { status: "not-consulted", source: "files" } };
+  } else {
+    exp = await releaseExpectations({ repo, trustedRoot, policy, useIndex: repo === DEFAULT_REPO && !flag("no-index"), timeoutMs: TIMEOUT,
+                                      ...(opt("api-base") ? { apiBase: opt("api-base") } : {}), ...(opt("download-base") ? { downloadBase: opt("download-base") } : {}) });
   }
-}
-const allowed = [];
-for (const c of candidates) {
-  if (!c.bundle) { report.release.candidates.push({ tag: c.tag, provenance: "unavailable", why: c.error || c.note }); continue; }
-  const r = await verifyReleaseAttestation({ bundle: c.bundle, digestHex: c.digest, trustedRoot });
-  report.release.candidates.push({ tag: c.tag, digest: c.digest, provenance: r.ok ? "verified" : "refused", measurement: r.ok ? r.claims.snpMeasurement : null, reasons: r.reasons.slice(-2) });
-  if (r.ok) allowed.push({ tag: c.tag, measurement: r.claims.snpMeasurement });
-}
+} catch (e) { report.reasons.push(`release provenance: ${e.message}`); finish("provenance-failed", 2); }
+report.release = { repo, source: exp.index?.source === "files" ? "files" : exp.index?.status === "verified" ? "signed index" : "unsigned pointer (recorded fallback)",
+                   control: control ? { file: opt("release-policy"), repository: control.repository, minimumRelease: control.minimumRelease } : null,
+                   index: exp.index, latestTag: exp.latestTag ?? null, candidates: exp.candidates, matched: null,
+                   // the floor the provenance leg applied: the consumer's record when it ran the index path, else the same rule
+                   floor: exp.index?.floorApplied ? { floorApplied: exp.index.floorApplied, floorSource: exp.index.floorSource, builtinFloor: exp.index.builtinFloor, ...(exp.index.callerBelowBuiltin ? { callerBelowBuiltin: true } : {}) } : floorRecord(floorOf({ caller: policy.minimumRelease ?? null })) };
+const allowed = exp.allowed.map((a) => ({ tag: a.tag, measurement: a.measurement }));
 if (!allowed.length) { report.reasons.push("no release's provenance verified: there is no expected measurement, so nothing can be verified (fail closed)"); finish("provenance-failed", 2); }
 
 // 3. ours, against the measurements provenance vouched for
 const { spki } = spkiOfCert(certPem);
-const ours = await verifyEvidence(rad, { policy: { snp: { allowedMeasurements: allowed.map((a) => a.measurement), minTcb: JSON.parse(opt("min-tcb") || "null") || undefined } },
+const minTcb = JSON.parse(opt("min-tcb") || "null") || control?.minTcb || undefined;
+report.minTcb = minTcb ?? null;
+const ours = await verifyEvidence(rad, { policy: { snp: { allowedMeasurements: allowed.map((a) => a.measurement), minTcb } },
   context: { transportKeySpki: spki, certPem, host: report.host || opt("host") || "inference.tinfoil.sh", now }, collateral: memoryCollateral({ chains: { [product]: chainPem }, vceks: { [product]: vcek }, crls: { [product]: crlDer } }) });
 report.ours = { status: ours.status, admissionSafe: ours.admissionSafe, omissions: ours.omissions, checks: ours.checks, measurement: ours.claims?.measurement ?? null, reasons: ours.reasons };
 report.release.matched = allowed.find((a) => a.measurement === ours.claims?.measurement)?.tag ?? null;
@@ -115,9 +132,13 @@ const theirsBytes = R.attestationOk === true && R.certificateOk === true;
 const inProvenance = (m) => !!m && allowed.some((a) => a.measurement === m);
 const theirsAccepts = theirsBytes && inProvenance(R.measurement);
 const failed = Object.entries(ours.checks || {}).filter(([, v]) => v === false).map(([k]) => k);
-const oursBytes = ours.status === "verified" || (ours.status === "rejected" && failed.length === 1 && failed[0] === "measurement");
+// "limited" is every check passing with an omission recorded (tcb-floor-unjudged when no TCB floor is stated): the bytes are
+// accepted, and the verdict is agree-limited when that is the ONLY omission; any other omission stays a disagreement
+const oursLimitedOnlyTcb = ours.status === "limited" && failed.length === 0 && (ours.omissions || []).length === 1 && ours.omissions[0] === "tcb-floor-unjudged";
+const oursBytes = ours.status === "verified" || oursLimitedOnlyTcb || (ours.status === "rejected" && failed.length === 1 && failed[0] === "measurement");
 report.comparison = { bytesAgree: oursBytes === theirsBytes, oursBytesOk: oursBytes, referenceBytesOk: theirsBytes, sameMeasurement: !!R.measurement && R.measurement === report.ours.measurement, measurementInProvenance: inProvenance(report.ours.measurement), oursFailedChecks: failed };
 if (ours.status === "verified" && theirsAccepts && R.measurement === report.ours.measurement) finish("agree", 0);
-if (ours.status !== "verified" && !theirsAccepts && report.comparison.bytesAgree) { report.reasons.push(oursBytes ? `both accept the bytes; the measurement ${report.ours.measurement?.slice(0, 16)}... is not one a verified release vouches for (${allowed.map((a) => a.tag).join(", ")}): a policy refusal on both sides` : "both refuse the bytes"); finish("agree-refuse", 0); }
+if (oursLimitedOnlyTcb && theirsAccepts && R.measurement === report.ours.measurement) { report.reasons.push("both accept the bytes and the measurement; ours is limited only because no TCB floor was stated (--min-tcb)"); finish("agree-limited", 0); }
+if (ours.status !== "verified" && ours.status !== "limited" && !theirsAccepts && report.comparison.bytesAgree) { report.reasons.push(oursBytes ? `both accept the bytes; the measurement ${report.ours.measurement?.slice(0, 16)}... is not one a verified release vouches for (${allowed.map((a) => a.tag).join(", ")}): a policy refusal on both sides` : "both refuse the bytes"); finish("agree-refuse", 0); }
 report.reasons.push(`disagreement: ours ${ours.status} (${report.ours.measurement?.slice(0, 16) ?? "-"}; failed ${failed.join(",") || "none"}), reference bytes ${theirsBytes ? "ok" : "refused"} (${R.measurement?.slice(0, 16) ?? R.attestationError ?? R.certificateError ?? "-"})`);
 finish("disagree", 1);

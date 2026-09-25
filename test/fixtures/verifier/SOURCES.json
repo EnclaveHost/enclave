@@ -107,5 +107,29 @@
   "fetchedAt": "2026-09-25T04:49Z",
   "what": "GitHub artifact attestation for v0.5.840 (same identity policy as v0.5.841: tinfoil-release-publish.yml@refs/tags/v0.5.840)",
   "sha256": "791d4007d44a2eb0344ffaf57ed3d71d79605daac930e3533b6bd0e6a0786f62"
+ },
+ "tinfoil-router/v0.0.154.tinfoil.hash": {
+  "url": "https://github.com/tinfoilsh/confidential-model-router/releases/download/v0.0.154/tinfoil.hash",
+  "fetchedAt": "2026-09-25T05:04Z",
+  "what": "Tinfoil's own release (a CONTROL for the live differential, not ours): the release whose snp_measurement (18293a9b...) is the one in genoa-tinfoil/rad.json, captured 2026-09-24T04:47Z from inference.tinfoil.sh",
+  "sha256": "842750a249d8b36e22b10d2ae4d1601397e29bdd5eace1a91723510e44be8c89"
+ },
+ "tinfoil-router/v0.0.154.attestation.json": {
+  "url": "https://api.github.com/repos/tinfoilsh/confidential-model-router/attestations/sha256:ff27926bfa0da345b1293510e19fb9b875dd9047edaf386a76b1d9ce23836dcc",
+  "fetchedAt": "2026-09-25T05:04Z",
+  "what": "GitHub artifact attestation for tinfoilsh/confidential-model-router v0.0.154: Fulcio identity .github/workflows/tinfoil-release-publish.yml@refs/tags/v0.0.154, trigger workflow_dispatch, predicate snp-tdx-multiplatform/v1",
+  "sha256": "84f5541e84fd821edcdf3d7cb9870d74a3bfd13745b914b74eca7a850aec69af"
+ },
+ "tinfoil-router/v0.0.155.tinfoil.hash": {
+  "url": "https://github.com/tinfoilsh/confidential-model-router/releases/download/v0.0.155/tinfoil.hash",
+  "fetchedAt": "2026-09-25T05:04Z",
+  "what": "Tinfoil's own release (a CONTROL for the live differential, not ours): the release inference.tinfoil.sh served on 2026-09-25 (snp_measurement b3be62c7...)",
+  "sha256": "48a7dc0958ba8e53dea4317809d2f1bbb900c2abef2c498bf0b19d8173a950cc"
+ },
+ "tinfoil-router/v0.0.155.attestation.json": {
+  "url": "https://api.github.com/repos/tinfoilsh/confidential-model-router/attestations/sha256:ad95d02b2e27b3c1d5c327f2ee9616634f841e4b2ed5a48f404e4e9f595a4876",
+  "fetchedAt": "2026-09-25T05:04Z",
+  "what": "GitHub artifact attestation for tinfoilsh/confidential-model-router v0.0.155: Fulcio identity .github/workflows/tinfoil-release-publish.yml@refs/tags/v0.0.155, trigger workflow_dispatch, predicate snp-tdx-multiplatform/v1",
+  "sha256": "e323d4fbb208d1061ae8fb45744610d684f42f511e288d023ad96dab6edd593f"
  }
 }

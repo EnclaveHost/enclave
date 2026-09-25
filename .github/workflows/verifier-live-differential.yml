@@ -43,3 +43,60 @@ jobs:
           name: verifier-live-differential
           path: live-differential/
           retention-days: 14
+  # The POSITIVE control (added 2026-09-25): Tinfoil's own host against Tinfoil's own release provenance, under the
+  # explicit control policy verifier/differential/tinfoil-model-router.json (their repository, their floor, the Genoa TCB
+  # floor measured on that host), so the verifier's accepting path runs daily on production AMD hardware while no host runs
+  # one of this repository's releases. Evidence about the verifier, never about an Enclave host. Its own job: a control
+  # that fails (Tinfoil renamed a workflow, rolled a release back) never masks the differential above, and vice versa.
+  positive-control:
+    if: ${{ vars.VERIFIER_LIVE_DIFFERENTIAL == 'enabled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22
+      - name: install (lockfile, no scripts)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: capture, verify against the control's provenance, compare (read-only; bounded fetches)
+        run: node verifier/live-differential.mjs --release-policy verifier/differential/tinfoil-model-router.json --out positive-control
+      - name: keep the report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verifier-positive-control
+          path: positive-control/
+          retention-days: 14
+  # The PROVENANCE PARITY check (added 2026-09-25, verifier/provenance-parity.mjs): the release-provenance paths the consumers
+  # use, each verifying for itself and compared: the Node consumer against GitHub's signed index, the browser module from
+  # source and this commit's bundle against the relay mirror, the bundle the SITE SERVES (which must be an artifact this
+  # repository built, a MANIFEST.json in its history, or it is not executed), and that deployed bundle in the runner's
+  # Chrome on the live page. Read-only; the full history is fetched without blobs so the manifest history can be read.
+  provenance-parity:
+    if: ${{ vars.VERIFIER_LIVE_DIFFERENTIAL == 'enabled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22
+      - name: install (lockfile, no scripts)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: verify every leg, compare (read-only; bounded fetches)
+        run: node verifier/provenance-parity.mjs --out provenance-parity --browser /usr/bin/google-chrome
+      - name: keep the report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verifier-provenance-parity
+          path: provenance-parity/
+          retention-days: 14
