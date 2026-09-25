@@ -119,6 +119,8 @@ try {
   $cfg = @{ tree = $treeFull; port = $Port; igvm = $igvm; igvmSha256 = $got; gsMaster = $GuestStateMaster; gsMasterSha256 = $GuestStateMasterSha256;
             archiveDir = 'C:\Users\claude\vbs-evidence'; hypervModule = $HypervModule; runtimeIdentity = (Join-Path $Pkg 'guest\runtime.json');
             python = $Python; gateway = $Gateway; spawnJson = (Join-Path $Pkg 'apps\hello-world-1.0.4\spawn.json'); name = $Name; logDir = $runDir }
+  # the data plane's port for a driver that serves traffic itself (multi-accept.mjs), whether or not phase 1 runs
+  $cfg.dataPort = $DataPort
   if ($Serve) { $cfg.wmiserveExe = $wmiserveExe; $cfg.wmiserveSha256 = $WmiserveSha256.ToLower(); $cfg.bundleDir = "$runDir\bundles" }
   if ($HvlabScript) { $cfg.hvlab = @{ script = $HvlabScript; nodeTree = $treeFull; dataPort = $DataPort; timeoutS = 300 } }
   $cfg = $cfg | ConvertTo-Json -Compress -Depth 4
