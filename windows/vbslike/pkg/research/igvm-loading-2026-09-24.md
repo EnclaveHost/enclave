@@ -134,4 +134,44 @@ Run it twice, varying only `<dir>`: (a) a tempdir under `C:\Users\claude`; (b) `
 standard x64 (UEFI) OpenHCL image in place of ours. That separates "our linux-direct image" (E3) from "OpenHCL on this
 build". Its cheapest form (the in-box DLL pinned by path) already showed that the pin is honoured.
 
-**Optional:** a Windows build of `ohcldiag-dev`, to read VTL2's kmsg (E4).
+**P2 is running (enclave-d1).** It uses Microsoft's own release images, fetched from the source the harness uses: flowey
+`download_release_igvm_files_from_gh.rs`, which takes the `x64-openhcl-igvm` artifact of the latest successful
+`openvmm-ci.yaml` run on `release/1.7.2511` (run 33556260031, commit `29e15ab83bce`, 2026-09-01, expiring 2026-11-30).
+
+| image | what it is | bytes | sha256 |
+|---|---|---|---|
+| `openhcl.bin` | the standard image (UEFI in VTL0) | 21,446,868 | `48773995cfa2222ca7bb40020a807dcb8ce155a244b0987ba55334caafe49075` |
+| `openhcl-direct.bin` | Microsoft's own linux-direct release | 38,618,676 | `2f640f33884e65389886a77212d20e712e49114a53563e53a395a5cf97e61821` |
+
+Both declare `VSM_ISOLATION` and `highest_vtl 2`, as ours does.
+
+| `openhcl.bin` | `openhcl-direct.bin` | reading |
+|---|---|---|
+| starts | 12030 | the linux-direct class is what this build cannot start (E3 on hardware) |
+| starts | starts | something specific to our image |
+| 12030 | 12030 | OpenHCL on this build |
+
+## E7. OpenHCL's boot log has no serial route on this build
+
+This comes from source (`openhcl/openhcl_boot` at `a7b0bd4`); it corrects a guess in E4.
+
+- The boot shim does not parse `OPENHCL_BOOT_LOG` at all. The string appears only in IGVM manifests, never in
+  `openhcl_boot`'s code. `boot_logger_runtime_init` logs to serial only when the HOST describes a COM3 in the device
+  tree (`partition_info.com3_serial` is `ComInfo::Ns16550`). Otherwise the logger is `Logger::None`, and the log stays
+  in memory.
+- So neither `FirmwareParameters` nor a rebuilt image can redirect it to COM1. On a build without COM3 support (petri:
+  below 27653; this host is 26200), VTL2's boot log is unreachable over serial.
+- The only way in is `ohcldiag-dev` (kmsg over hvsocket), and only while VTL2 is running.
+
+**ohcldiag-dev is a stated blocker, not something to route around.** openvmm's cross-compile guide builds Windows
+binaries against the Windows host's Visual Studio Build Tools and Windows SDK. warden-host has the
+`x86_64-pc-windows-msvc` Rust target and `lld-link`/`clang-cl`, but no Windows SDK or CRT. Fetching them with `xwin`
+would mean accepting Microsoft's license, and building on the box is the box owner's resources call. Both are therefore
+a resources question for Steven (enclave-d1 agrees). If P2 answers the question, the tool may not be needed.
+
+## The lesson (enclave-d1's, recorded at their request)
+
+The falsifying test was available all evening and cost one run: pin a file that is definitely readable and definitely
+wrong, and see what the worker says. Three observations each looked like "our file is ignored". Everything between the
+registry gate and P2 swept the parameters of a mechanism that had been misdiagnosed. Ask for the cheapest discriminator
+first.
