@@ -284,7 +284,8 @@ test("tests: 99's node-bridge suite on v7's bridge: 3 pass, the 3 missing gate i
 });
 // the HELD v8 draft (drafts/, not a release): it verifies with every pin, and says it is held
 // the drafts (drafts/, not releases): each verifies with every pin, and its status says what it is and is not
-for (const [n, statusRe] of [[8, /^HELD DRAFT: not a release, not staged/], [9, /^DRAFT staged for enclave-d1's UEFI DEV boot/], [10, /^DRAFT\. The UEFI DEV boot reached 'MON ready control_port=9000' on the NucBox/]]) {
+for (const [n, statusRe] of [[8, /^HELD DRAFT: not a release, not staged/], [9, /^DRAFT staged for enclave-d1's UEFI DEV boot/], [10, /^DRAFT\. The UEFI DEV boot reached 'MON ready control_port=9000' on the NucBox/],
+                            [11, /^DRAFT: the NEXT medium \(7b9b04d6.*NOT yet booted on the NucBox/]]) {
   test(`draft v${n} verifies with its pins, and its status says it is not a release`, { skip: skip || (!haveOpenssl && "no openssl") }, () => {
     const D = path.join(HERE, `drafts/nucbox-ownguest-${n}.json`), d = JSON.parse(fs.readFileSync(D, "utf8"));
     assert.match(d.status, statusRe);
@@ -296,6 +297,14 @@ for (const [n, statusRe] of [[8, /^HELD DRAFT: not a release, not staged/], [9, 
     if (n >= 9) assert.match(r.out, /ok   test appzone-hook \(enclave-99\) gives exactly its expected result \(3 tests, 3 pass, 0 fail\)/);
   });
 }
+test("draft v11 pins the NEXT medium and says it has not been booted on the NucBox", { skip }, () => {
+  const d = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-11.json"), "utf8"));
+  assert.equal(d.files.find((f) => f.path === "guest/uefi/guest.iso").sha256, "7b9b04d699da2e5915df7c51c2464ba2bb18122380b197e1cbea2f24aa9a2ddd");
+  assert.equal(d.profiles.uefi.uki.sha256, "20a0e18e51a02ed78465b1234b979177e9aab2d74ba198dd6ccc3d1a8a241a33");
+  assert.ok(!d.files.find((f) => f.path === "guest/uefi/guest.iso").boxReuse, "a medium not yet on the box must not claim a box copy");
+  assert.match(d.status, /NOT yet booted on the NucBox/);
+  assert.ok(d.profiles.uefi.measured.some((m) => /MON ERROR no vsock transport/.test(m)), "the KVM refusal is recorded as the guard, not a boot");
+});
 test("draft v10 pins the launcher the box runs and the UEFI medium d1 booted, and says nothing is served", { skip }, () => {
   const d = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-10.json"), "utf8"));
   assert.equal(d.files.find((f) => f.path === "control/vbslike-host.exe").sha256, "cddb70fdc927c7743bf1a8ea43f7526762d669b450e32d36fa935b8486cb5c31");
