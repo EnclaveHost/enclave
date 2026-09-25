@@ -89,14 +89,12 @@ identically to overwriting it with 513; the WMI job's error is a bare MessageID 
 useful control: OpenHCL isolation with NO FirmwareFile fails with "failed to load IGVM file … IGVM image file: ''", so
 the worker does try to load one and this build has no in-box image, while our image produces no load error at all.
 Still no vmchipset fault on any WMI run. Cause of the start failure: not yet named.
-**Later (owner's report, relayed by the monitor at 23:47Z):** the worker loaded the DEFAULT IGVM on every run despite
-FirmwareFile reading back as our image; no custom guest boot has been demonstrated on this box. The readback of the
-firmware field is therefore not evidence that the worker loads it (a check that reads what was written, not what ran).
+**Corrected (owner's BLOCKERS.md at 18d569ee and 7c6bb15d, relayed by the monitor 2026-09-25 00:11Z; NOT measured by this lane):** the earlier "worker loaded the DEFAULT IGVM despite FirmwareFile reading back" conclusion was WRONG (one worker log line misread). `FirmwareFile` IS honoured: an invalid-file probe makes the worker open, validate and refuse the pinned file by name, so the custom path is loaded. What fails is the IMAGE CLASS: on this build (10.0.26200.9457) a linux-direct OpenHCL image does not start, Microsoft's own linux-direct release image identically to ours (Worker-Admin 12030, no underlying cause), while a standard reference UEFI OpenHCL image (enclave-53's P2) boots. Still true: no custom GUEST (our VTL0 kernel+initrd) has booted on this box. Next bounded prototype, per the monitor: the existing guest adapted to standard UEFI boot on the current build (d1 host, 5d runtime, 53 image packaging); every boot input that is not measured under UEFI is to be named, not hidden.
 
 ## What these facts do and do not say
 
-- The WMI path cannot start a partition here, by the host's own answer, and the manager says so rather than pretending.
-  That is the single boot blocker (BLOCKERS.md), and its remedy is a role change plus one reboot, which is Codex's call.
+- The WMI path creates and pins a genuinely isolated partition (role enabled after the 21:57Z reboot) but our linux-direct image does not
+  start on this build, nor does Microsoft's; the boot blocker is the image class, not the role or the firmware pin (owner's finding, above).
 - The HCS path can run TODAY with these files; it does not exclude the host (t0-hv) and nothing about it is attested.
 - `survey()` answering `{"vms":[]}` on a host with no `Get-VM` is not "no VMs": `Get-VM -ErrorAction SilentlyContinue`
   yields nothing when the command does not exist, so survey and teardown read as clean on a host where they cannot
