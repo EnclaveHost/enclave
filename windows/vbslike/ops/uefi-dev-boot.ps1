@@ -663,7 +663,8 @@ try {
         $svOut = "C:\Users\claude\wmiserve-$stamp.out"
         $sv = Start-Process -FilePath 'C:\Users\claude\vbs-like\target\release\vbslike-host.exe' `
               -ArgumentList @('wmiserve','--vm',$vmId,'--bundle',$Bundle,'--medium-sha256',$attachedSha,
-                              '--tcp',"$RelayPort",'--label','canary','--vcpus',"$Vcpus",'--mem',"$MemMiB",'--hold','90') `
+                              '--tcp',"$RelayPort",'--label','canary','--vcpus',"$Vcpus",'--mem',"$MemMiB",
+                              '--isolation-type',"$IsolationType",'--hold','90') `
               -NoNewWindow -PassThru -RedirectStandardOutput $svOut -RedirectStandardError "$svOut.err" `
               -RedirectStandardInput 'C:\Users\claude\labin.txt'
         $dl = (Get-Date).AddSeconds(90); $served = $false
