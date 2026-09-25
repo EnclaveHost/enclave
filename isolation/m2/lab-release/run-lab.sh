@@ -61,6 +61,8 @@ fi
 # production guestd starting.
 ( cd "$ISO/m2" && go build -o "$L/portprobe" ./lab-release/portprobe )
 "$L/portprobe" 19443 19444 19445 || { echo "a lab vsock port is already held; refusing" >&2; exit 1; }
+# the lab relay's TCP port, too: a stale relay there would answer this run's guest
+[ -z "$(ss -ltnH 'sport = :18443' 2>/dev/null)" ] || { echo "127.0.0.1:18443 is already held (a stale lab relay?); refusing" >&2; exit 1; }
 # the lab pool (4096 MiB) sits outside production's pool accounting: leave the rollout's guard (40 GiB) intact
 avail=$(awk '/^MemAvailable:/ {print int($2/1024/1024)}' /proc/meminfo)
 [ "$avail" -ge 44 ] || { echo "MemAvailable ${avail} GiB: under the 40 GiB guard plus the lab's 4 GiB; refusing" >&2; exit 1; }
@@ -121,7 +123,9 @@ say "synthetic deployment $ID"
 ( cd "$REPO" && PORT=18443 LAB_RELEASE_MODULE="$MODCOPY" LAB_TLS_CERT="$L/relay.pem" LAB_TLS_KEY="$L/relay.key" \
   LAB_SIGNING_SEED="$L/release.seed" LAB_VCEK="$HOME/.cache/enclave-isolation/m3-clean/vcek.der" \
   LAB_CHAIN="$REPO/test/fixtures/amd/Turin-cert_chain.pem" LAB_MIN_TCB="$HOME/.cache/enclave-isolation/m3-clean/min-tcb.json" \
-  LAB_RELEASE_FILE="$L/release.json" node "$ISO/m2/lab-release/relay.mjs" > "$L/relay.log" 2>&1 ) &
+  LAB_RELEASE_FILE="$L/release.json" exec node "$ISO/m2/lab-release/relay.mjs" > "$L/relay.log" 2>&1 ) &
+# exec: $! is the relay itself, so cleanup ends IT (a plain subshell left node orphaned on 18443 after the first run,
+# and the next run's guest reached that stale relay)
 PIDS+=($!)
 ( cd "$ISO/m2" && go build -o "$L/lab-egress" ./lab-release/egress )
 "$L/lab-egress" -relay-addr 127.0.0.1:18443 > "$L/egress.log" 2>&1 &
