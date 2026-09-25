@@ -15,6 +15,9 @@ one suggestion), all answered below:
 - L3: the ticket-burn path is noted at step 4, as the relay fix is e3's lane.
 - e3's suggestion (show the opt-in in availability) is listed as a follow-up.
 
+**Rev 5 (23:31Z):** step 3 is DONE. 4c-c-b applied at 23:18:45Z, and observe.sh's 4cc gate PASSED at
+23:29:10Z.
+
 **Rev 4 (22:57Z):** step 3 gains its HOST half (the launcher's fw_cfg forward, 578be084); 4c-c-b found it missing.
 
 **Rev 3 (22:38Z):** Codex's corrections, relayed by 63 (d1 and e3 APPROVED rev 3; rev 3.1 adds d1's hookbin
@@ -37,10 +40,16 @@ precondition and serial grep, and e3's envelope-tag and one-ticket proofs, to st
     `SECRETS_RELEASE_DEPLOYMENTS`, `SECRETS_RELEASE_MIN_TCB`, `SECRETS_RELEASE_VMPL` and
     `SECRETS_RELEASE_SIGNING_KEY_FILE` are unset.
   - The seed file is present: mode 600, owner enclave-api-relay.
-- **Node (metal-iso0).** The 4c supervisor (b18f8989, image 8ab7a159) is LIVE: 63's gate PASSED at 22:28:34Z, with
-  the canaries adopted and 0 released. It has the ticket fetch and pump, the release-aware claim gate, and the
-  expected-guest certificate gate. **It never runs release guests**: its switch `ISOLATION_RELEASE` is not passed
-  by the node launcher (step 3). 4c-c is building (63, from f6cbd75a).
+- **Node (metal-iso0).** **Step 3 (4c-c) is DONE.** 4c-c-b applied at 23:18:45Z, and observe.sh's 4cc gate PASSED
+  at 23:29:10Z (6 rounds over 615 s; 3/3 canaries 200 with their keys; relay serving). State:
+  - the node attests 02f6e313 / f6cbd75a, and runs launcher 578be084 from ~/enclave-prod/metal-578be084 through the
+    drop-in enclave-metal-iso.service.d/10-launcher.conf;
+  - both halves logged "attested release OPTED IN" (the launcher first, then gsup);
+  - 3 canaries adopted, 0 released; public 3/3;
+  - rollback: s4ccb-rollback.sh (dist + opt-in + drop-in), then s4cca-rollback.sh.
+  The node ASKS for release guests now, but the relay's release is still OFF (step 2). So every deployment reads as
+  "unlisted", the canaries stay legacy, and config/secrets apps stay queued, as before. (The procedure first put step
+  3 after step 2. Opted in against a relay that is off is equally inert, so the order didn't matter.)
 - **Steven's apps** (a69dcbba, d9798e4c, a77d0c57) are active, funded, unleased, and refused by metal-iso0's claim
   gate: their envelopes don't require isolation. 7ae476a3 stays held behind us-west (INVENTORY.md).
 
@@ -49,7 +58,7 @@ precondition and serial grep, and e3's envelope-tag and one-ticket proofs, to st
 |---|---|---|---|
 | 1 | U7 on nan (the release needs U7's `hostEligibility` provider: without it, `release_unconfigured` whatever the env) | 63 | **DONE**: U7 live on nan, nan-relay and us-west (enclave-63, 2026-09-25, per the preflight's §7) |
 | 2 (4b) | the relay's release ON, for the 3 canaries only | 63 runs `relay-release-on.sh` | step 1, e3/d1 review, **Codex go** |
-| 3 (4c-c) | the node passes `ISOLATION_RELEASE=1` (NEW IMAGE: the one real blocker) | 63 | the gsup change (prepared here, approved by d1 and e3), a build from 90027a66's tree (63's f6cbd75a is tree-identical), **Codex go** |
+| 3 (4c-c) | the node passes `ISOLATION_RELEASE=1` (new image + the launcher's fw_cfg forward) | 63 | **DONE**: 4c-c-b applied 23:18:45Z, gate PASSED 23:29:10Z (image 02f6e313 / f6cbd75a, launcher 578be084) |
 | 4 (4e) | the canaries relaunched as release guests, ONE at a time | 63 (the agent wallet signs the restart) | steps 2 and 3 |
 | 4b | a config- and secret-bearing acceptance deployment (test values; the agent wallet's own) | 63 (the agent wallet signs) | step 4 accepted, INCLUDING hookbin 0ddbd824 relaunched as a release guest on 79c5ecf2 (its stdio discarded); Codex's go for the test deployment's transactions |
 | 5 (S5) | per app: the staged secret NAMES equal the names its config references; the collision check | **Steven** (names only: the one owner-only check still missing) | nothing technical |
@@ -128,7 +137,7 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   stays queued. A running release guest keeps the config it holds until relaunched. Turning the release off is
   fail-closed and changes nothing for legacy guests.
 
-## Step 3 (4c-c): the node's `ISOLATION_RELEASE` needs a NEW measured node image
+## Step 3 (4c-c): the node's `ISOLATION_RELEASE` needs a NEW measured node image (DONE, gate PASSED 23:29:10Z)
 - **Fact.**
   - supervisor.js reads `ISOLATION_RELEASE === "1"` from its environment.
   - The node launcher (metal/guest/gsup.mjs) builds that environment from the baked flavor env and NAMED keys only:
@@ -166,8 +175,8 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   Use the AmdSev `--ovmf` and the same min-tcb. Build from two checkout paths and compare; d1 reproduces from a third.
   Then predict, allowlist, roll out (S2 shape).
 - **Flip:** config.iso.json gets `"release": true` in its `isolation` object, the launcher runs from 578be084 or later,
-  then the node CVM restarts. The image change, the launcher move and the flip can be ONE restart, after step 2 is
-  verified. d1 APPROVED 578be084. The retry's checks (d1):
+  then the node CVM restarts. The image change, the launcher move and the flip were ONE restart (4c-c-b). They ran
+  BEFORE step 2, which is equally inert with the relay's release off. d1 APPROVED 578be084. The retry's checks (d1):
   - (a) before the restart, validate the edited config with node: `c.isolation.release === true`, a BOOLEAN. A
     non-boolean now makes the launcher exit, and under Restart=always that is a crash loop with the node down;
   - (b) after the start, BOTH halves, in order: the launcher's journal line
@@ -426,10 +435,10 @@ serves at `https://<label>.app.enclave.host/`.
   can't launch here: it has config or secrets).
 
 ## Blockers and decisions (named now)
-1. **A NEW NODE IMAGE (4c-c) for `ISOLATION_RELEASE`.** The code change is prepared (gsup.mjs, above), and d1 and e3
-   approve the design. 63 is building it from f6cbd75a, which is tree-identical to 90027a66 (two paths, with d1's
-   third). Then prediction, rollout, and Codex's go. The 4c image (b18f8989, live since 22:28:34Z) cannot run release
-   guests.
+1. ~~A NEW NODE IMAGE (4c-c) for `ISOLATION_RELEASE`~~: **DONE** (63: 4c-c-b applied 23:18:45Z, gate PASSED
+   23:29:10Z; image 02f6e313 / f6cbd75a plus launcher 578be084, both halves OPTED IN).
+   NEXT is step 2, the relay release ON: 63's wrapper release-on-20260925 v2 runs relay-release-on.sh f09f511c
+   unchanged under flock on nan. It waits for d1's re-check of two small wrapper diffs, and for Codex's go.
 2. ~~U7 on nan before the release goes ON~~: **DONE** (live on nan, nan-relay and us-west).
 3. **Steven:**
    - the S5 names check per app (the one owner-only check still missing);
