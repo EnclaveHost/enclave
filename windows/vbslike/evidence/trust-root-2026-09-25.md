@@ -72,8 +72,9 @@ signed or changed. No authorization value was read.
 
 **The supported route this host already uses.** The node's own `tpmattest.exe` (`windows/node/tpmattest.c`) does
 the following:
-- creates a fresh attestation key per process with `CreatePrimary` in the TPM's NULL hierarchy. It is restricted
-  RSA-2048, never persisted, flushed on exit, and changes no ownership, auth or hierarchy;
+- creates an attestation key with `CreatePrimary` in the TPM's NULL hierarchy: restricted RSA-2048, never persisted,
+  flushed on exit, and changing no ownership, auth or hierarchy. It is re-derived IDENTICALLY within one boot (the
+  NULL seed changes only at TPM reset), so it is the same key for every run in a boot and a new one each boot;
 - proves that key sits in the same TPM as the EK by `ActivateCredential` against a verifier's `MakeCredential`;
 - quotes SHA-256 PCRs 0, 7, 12, 13 and 14 with the verifier's challenge as `extraData`.
 
