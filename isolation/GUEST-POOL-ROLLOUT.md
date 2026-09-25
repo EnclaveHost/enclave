@@ -144,7 +144,8 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
   - Back up `/etc/nan-relay/api-relay.env` ON nan ONLY: it holds secrets, so the copy is chmod 600, stays on nan, and
     is never copied off the host. The S2 executor records the backup's path and deletes it at the soak's end step.
   - Then ADD the new measurement to `METAL_ALLOWED_MEASUREMENTS`, keeping 04e953a4, and restart
-    `enclave-api-relay.service`. That is a brief blip of the production API relay, so schedule it.
+    `enclave-api-relay.service`. That restart briefly drops EVERY tunnel node and the whole API, not only metal-iso0
+    (enclave-99), so schedule it.
 - Switch: back up `metal/config.iso.json`, point `dist` at `metal/dist-iso-<new>`, and
   `systemctl --user restart enclave-metal-iso` (the node CVM reboots). The guests keep running on the host, but the
   apps' public paths are down while the CVM reboots.
