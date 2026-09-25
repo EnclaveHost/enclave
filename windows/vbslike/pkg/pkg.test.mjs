@@ -389,3 +389,43 @@ outCase("one byte of the app bundle changed", (c, rep) => rep(`${H}/app.bundle`,
 outCase("a script removed", (c) => fs.rmSync(path.join(c, "win/check.ps1")), /FAIL out: exactly the packable files: missing win\/check\.ps1/);
 outCase("a file the manifest does not name", (c) => fs.writeFileSync(path.join(c, "win/extra.ps1"), "x"), /FAIL out: exactly the packable files: extra win\/extra\.ps1/);
 outCase("MANIFEST.json edited", (c, rep) => rep("MANIFEST.json", (b) => Buffer.concat([b, Buffer.from(" ")])), /FAIL out: MANIFEST\.json is this manifest/);
+
+test("draft v13 pins the type-1 material as an EXPERIMENT: the production medium ca245eae, the cvm firmware, a PROBE medium named so, the manager's image as a string, the harness at 484903f7", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-13.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  const f = (p) => d.files.find((x) => x.path === p);
+  assert.equal(f("guest/uefi/guest.iso").sha256, "ca245eaee1e9d5cadd046ca2ca0a0d3d572d2099d68fdf73906d5804e580732b");
+  assert.equal(d.profiles.uefi.uki.sha256, "7af57aabbe5d8b5533892734a6cb8947085bad13dfdd89b918e2436cccd66f4a");
+  assert.equal(f("guest/uefi/openhcl-cvm.bin").sha256, "cfd40ce2affb17e7663351de82afcb5f7bfbb2b3174bbc206a6ddd8de3b128df");
+  assert.equal(f(d.profiles.vbs.probeMedium).sha256, "8d1fea1fb5195046adc3c0839cefbfe8443680810aa2f4ed11ee776471d87fa1");
+  assert.equal(f(d.profiles.vbs.probeMedium).role, "probe.uefi-medium");
+  assert.match(d.profiles.vbs.probeMedium, /PROBE-NOT-PRODUCTION/);
+  assert.match(d.profiles.vbs.status, /^EXPERIMENT/);
+  assert.match(d.profiles.vbs.measured[0], /^CREATED AND STARTED, NOT BOOTED/, "no type-1 boot is claimed");
+  assert.ok(!/MON (ready|boundary|hv)/.test(d.profiles.vbs.measured.join(" ")), "no type-1 console line is quoted before one was seen");
+  assert.match(d.profiles.vbs.vm.vTpm, /^PRESENT/, "the type-1 vTPM is stated, not hidden");
+  assert.match(d.profiles.vbs.vm.guestState.statelessUnsupported, /^UNSUPPORTED ON THIS HOST/);
+  assert.equal(d.files.find((x) => x.path === "control/windows/vbslike/ops/uefi-dev-boot.ps1").from.git.commit, "714c4709a3701ec04bfcdfccb2ed088541abef87", "d1's type-1 sequence at 714c4709");
+  assert.match(d.profiles.vbs.expect.type16, /^NOT PINNED/, "5d's type-16 prediction is not a pin");
+  assert.deepEqual(d.profiles.uefi.managerServing.expect, { attachesMedium: false, setsBootDevice: false, readsBackBoot: false, imageIsMediumHash: true, imageType: "string", hasLauncherKey: false, hasRelay: false });
+  assert.equal(f("control/isolation/m3/hvlab-accept.mjs").sha256, "feae013ea649dfcaac38841093a0c29b4220a77d32a598c3dde6211f06079fab", "5d's harness at 484903f7");
+  assert.equal(d.acceptance.status, "NOT run on the box");
+  assert.match(d.status, /a created and started VM is not a boot of our guest/);
+  const r = run(["verify", D, "--tests"]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   no profile boots a PROBE medium as its medium, and every probe file is named PROBE on disk \(2 probe file\(s\)\)/);
+  assert.match(r.out, /ok   the manager's UEFI serving path is exactly as pinned .*imageIsMediumHash=true imageType="string"/);
+});
+test("a profile that boots the PROBE medium as its medium is refused, whatever its text says", { skip }, () => {
+  const m = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-13.json"), "utf8"));
+  m.profiles.vbs.medium = m.profiles.vbs.probeMedium;
+  const r = run(["verify", writeManifest(m)]);
+  assert.equal(r.code, 1, "a profile booting the probe medium passed");
+  assert.match(r.out, /FAIL no profile boots a PROBE medium as its medium.*vbs\.medium guest\/uefi\/PROBE-NOT-PRODUCTION\/PROBE-vbsreport\.iso is probe\.uefi-medium/, fails(r.out));
+});
+test("the stale manager pin (image as an object, pre-c067b446) is refused against the c067b446 manager", { skip }, () => {
+  const m = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-13.json"), "utf8"));
+  m.profiles.uefi.managerServing.expect.imageType = "object"; m.profiles.uefi.managerServing.expect.imageIsMediumHash = false;
+  const r = run(["verify", writeManifest(m)]);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /FAIL the manager's UEFI serving path is exactly as pinned .*imageIsMediumHash: true \(pinned false\); imageType: "string" \(pinned "object"\)/, fails(r.out));
+});

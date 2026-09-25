@@ -1,0 +1,23 @@
+{
+ "type": "enclave-vbslike-uefi-image/1",
+ "inputs": {
+  "kernel":  { "sha256": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd", "bytes": 15876096 },
+  "initrd":  { "sha256": "0d14db231b1485bfde352d9043437d27459278361153802e0fa42314732e67e1", "bytes": 24037136 },
+  "stub":    { "sha256": "2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18", "bytes": 134144 },
+  "cmdline": "console=ttyS0 rdinit=/init loglevel=3 report_host=9001",
+  "cmdlineSha256": "c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615",
+  "ukiRecipe": null
+ },
+ "params": { "espMiB": 128, "diskMiB": 256, "sourceDateEpoch": 1758672000, "fatVolumeId": "E5C1A7E5",
+             "gptLabelId": "5E6C0D1A-7A0B-4C3E-9E0B-000000000001", "espPartUuid": "5E6C0D1A-7A0B-4C3E-9E0B-0000000000E5",
+             "espPath": "/EFI/BOOT/BOOTX64.EFI" },
+ "tools": { "objcopy": "GNU objcopy (GNU Binutils) 2.47", "mtools": "mcopy (GNU mtools) 4.0.49",
+            "sfdisk": "sfdisk from util-linux 2.42.3", "xorriso": "xorriso 1.5.8.pl02", "qemu-img": "qemu-img version 11.1.1", "mkfs.fat": "Usage: mkfs.fat [OPTIONS] TARGET [BLOCKS]" },
+ "outputs": {
+  "uki.efi":   { "sha256": "7af57aabbe5d8b5533892734a6cb8947085bad13dfdd89b918e2436cccd66f4a", "bytes": 40044032 },
+  "esp.img":   { "sha256": "a6b19ffed78f7c80b09db8a9ceaf94275c1bda73d22fdcb09cd479bfbd215f3a", "bytes": 134217728 },
+  "disk.raw":  { "sha256": "dea1caf5ef52ad94e1000394b2f249549441996964edc3f4e30c8d473025c868", "bytes": 268435456, "note": "the pinned identity of the disk" },
+  "disk.vhdx": { "sha256": "d4d1c6060e420604a70ddb9049cbe557da1be5284d9abe870cfd0f29b5210ad1", "bytes": 67108864, "note": "FALLBACK container: header GUIDs are random, so NOT reproducible; its payload is disk.raw (checked)" },
+  "guest.iso": { "sha256": "ca245eaee1e9d5cadd046ca2ca0a0d3d572d2099d68fdf73906d5804e580732b", "bytes": 134594560, "note": "the boot medium: El Torito EFI = /efiboot.img (= esp.img) inside the ISO 9660 volume; read-only" }
+ }
+}

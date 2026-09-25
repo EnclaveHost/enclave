@@ -51,23 +51,41 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   STAGED at `pkg\b341dd1f5b53b97f\`, with the large files reused from v9's directory after hashing. Not a release. Nothing
   is loaded into or served from the booted VM: no control exchange for a WMI-created VM exists yet.
 
-- **v11 draft** (`drafts/nucbox-ownguest-11.json`): v10 with the NEXT medium, ISO `7b9b04d6…` (UKI `20a0e18e…` on
+- **v11 draft** (`drafts/nucbox-ownguest-11.json`, id `67da7c50…`): v10 with the NEXT medium, ISO `7b9b04d6…` (UKI `20a0e18e…` on
   enclave-5d's initrd `a1ff9864…`, whose ready line names the vsock transport and which refuses to start with none).
-  Built and verified, NOT staged and NOT booted on the NucBox: it goes to a new directory when enclave-d1 asks, and
-  d1 confirms `transport=hv_sock` on one boot before it replaces `4c387086`. STAGED at `pkg\515de1fa8596cafc\` (id
-  `515de1fa…`) with the launcher `c2cb0c10…` (`1ba73a20`: `hvdial` and `wmiserve`) and enclave-d1's served run
+  BOOTED on the NucBox by enclave-d1's E0 (2026-09-25 01:57Z, type 16, `isolation/m3/UEFI-BOOT.md` at `a02dddfb`):
+  `transport=hv_sock` measured for a1ff9864, bundle loaded with hash agreement, hello-world served its 13 pinned bytes
+  through the guest's TLS; a development boot, host NOT excluded. First STAGED at `pkg\515de1fa8596cafc\` (id
+  `515de1fa…`, which LACKED the `managerServing` pin: a generator guard of mine skipped it), re-cut with the pin as
+  `67da7c50…` at `pkg\67da7c509b296079\` (same medium bytes), with the launcher `c2cb0c10…` (`1ba73a20`: `hvdial` and `wmiserve`) and enclave-d1's served run
   recorded verbatim: with the previous medium `4c387086`, the dev-boot script drove `wmiserve` (9001 bound, `load` with
   hash agreement, a relay) and hello-world answered its 13 pinned bytes through the guest's own TLS. Limits, d1's:
   `curl -k`, so the app SERVES and identity is not verified; type 16 is OpenHCL with no isolation. The MANAGER cannot
   serve on this path yet (`managerServing`, pinned red as measured).
 
-- **v12 draft** (`drafts/nucbox-ownguest-12.json`, held with v11): v11 plus the NODE TREE enclave-5d's box acceptance
+- **v12 draft** (`drafts/nucbox-ownguest-12.json`, id `8dc6d5b9…`, held with v11): v11 plus the NODE TREE enclave-5d's box acceptance
   harness imports and the harness itself (`hvlab-accept.mjs`, 8bb7d111). The tree is 27 repository files at d1's
   `cf640825` under `control/` and 15 npm packages (`viem` 2.56.8 as the box runs it, `ws`, `tweetnacl`, and `viem`'s
   own set) pinned as registry tarballs with npm's sha512 integrity; `stage.ps1` unpacks them into `control/node_modules`
   at their lockfile positions, inside the package only. `verify` assembles the tree and requires every module the
   harness imports to load from it. With that tree, enclave-99's host-activation runs in the package (6/6, pinned).
   `check.ps1` prints the `HVACC_*` block. The harness has NOT run on the box: it waits for the hv_sock exchange.
+
+- **v13 draft** (`drafts/nucbox-ownguest-13.json`): the type-1 (VBS) material as an EXPERIMENT beside the type-16 DEV
+  path. The production medium is enclave-5d's `fa8b0ec2` guest: initrd `0d14db23…`, UKI `7af57aab…`, ISO `ca245eae…`
+  (the tuple now states `hv_isolation=` and `paravisor=` as the hypervisor says them, and a `MON hv` line), which
+  supersedes v11's `7b9b04d6` (ca245eae is NOT yet booted on the NucBox; boots on KVM+OVMF to the guard's refusal,
+  `uefi/evidence/ovmf-kvm-iso-smoke-ca245eae-2026-09-25.serial.txt`). New: Microsoft's `openhcl-cvm.bin` (`cfd40ce2…`,
+  the same release/1.7.2511 artifact) as the type-1 firmware; a PROBE medium (ISO `8d1fea1f…`, UKI `f6ebbc0e…`: the same
+  guest plus 5d's `/probe.ko` VBS-report probe) under `guest/uefi/PROBE-NOT-PRODUCTION/`, roles `probe.*`, which the
+  verifier refuses as any profile's `medium`; profile `vbs` (GuestStateIsolationType 1) whose `measured` is "Nothing";
+  the manager re-pinned at d1's `c067b446` (`handle.image` is the MEDIUM's hash as a string: `managerServing` moved to
+  `imageIsMediumHash=true imageType="string"`, the other five gaps still red, and `main.mjs:38` still constructs the
+  launcher without a medium); 5d's harness at `484903f7` (prints the guest's tuple; `HVACC_EXPECT_HV_ISOLATION` adds a
+  28th check). Both media rebuild from their pinned inputs (`--rebuild`). The type-16 `hv_isolation`/`paravisor` values
+  are NOT pinned (5d's none/yes is a prediction). NO isolation claim: type 1 has booted nothing of this package. The
+  bytes were staged for d1 as `pkg\type1-fa8b0ec2\` (a plain directory with `SHA256SUMS`, hashed on the box) before
+  this manifest existed; v13's `boxReuse` points there, so staging v13 copies, never replaces.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 

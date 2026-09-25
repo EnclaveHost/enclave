@@ -191,5 +191,13 @@ if ($M.profiles.PSObject.Properties.Name -contains 'uefi') {
   "boot medium (Gen2 SCSI DVD, read-only): $(Get-PkgFilePath $d $u.medium)"
   "fallback medium (Gen2 SCSI disk): $(Get-PkgFilePath $d $u.fallbackMedium)"
 }
+if ($M.profiles.PSObject.Properties.Name -contains 'vbs') {
+  $v = $M.profiles.vbs
+  ''
+  '# vbs profile (GuestStateIsolationType 1, an EXPERIMENT until enclave-d1''s evidence says what it did): the files its VM definition points at'
+  "firmware (FirmwareFile, the cvm build): $(Get-PkgFilePath $d $v.firmware)"
+  "boot medium (the PRODUCTION medium, read-only): $(Get-PkgFilePath $d $v.medium)"
+  "PROBE medium (NOT production; never serves an app): $(Get-PkgFilePath $d $v.probeMedium)"
+}
 if ($Require -and -not $ready[$Require]) { "REQUIRED PROFILE $Require IS BLOCKED"; exit 3 }
 exit 0
