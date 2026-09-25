@@ -143,10 +143,13 @@ type server struct {
 	RuntimeID string     // hex; the runtime identity every guest image here carries (the judge pins it)
 	Data      *dataPlane // nil = no data plane (the default)
 	Budget    poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
-	mu        sync.Mutex
-	vms       map[string]*vm
-	lastBeat  time.Time // zero = never heard one: the lease is INERT
-	launching sync.WaitGroup
+	// HostFloorMiB: a create must leave the host at least this much MemAvailable (pool.go); 0 = off
+	HostFloorMiB int
+	MemAvailable func() (int, error) // tests; nil = /proc/meminfo
+	mu           sync.Mutex
+	vms          map[string]*vm
+	lastBeat     time.Time // zero = never heard one: the lease is INERT
+	launching    sync.WaitGroup
 }
 
 func newServer(l Launcher, root string) *server {

@@ -2659,7 +2659,13 @@ function readGuestPool(p) {
   const budget = p && p.budget != null ? readRoom(p.budget) : null;
   if (!p || !allocated || !free || !g || !n(g.floorMiB) || !n(g.runtimeMiB) || !n(g.unitOverheadMiB)
       || (p.budget != null && !(budget && budget.memMiB > 0 && budget.cpuPct > 0))) return null;
-  return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true,
+  // host: guestd's LIVE memory floor (pool.go hostRefusal). An older guestd sends none, and nothing changes then.
+  let host = null;
+  if (p.host && typeof p.host === "object" && Number(p.host.floorMiB) > 0)
+    // null means guestd could not read it: Number(null) is 0, so null is checked first, never read as "0 MiB available"
+    host = { floorMiB: +p.host.floorMiB,
+             memAvailableMiB: p.host.memAvailableMiB !== null && p.host.memAvailableMiB !== undefined && n(p.host.memAvailableMiB) ? +p.host.memAvailableMiB : null };
+  return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true, host,
     perGuest: { floorMiB: +g.floorMiB, runtimeMiB: +g.runtimeMiB, unitOverheadMiB: +g.unitOverheadMiB } };
 }
 // Every answer replaces the mirror; one without a readable pool CLEARS it (never "keep the last pool"), so the tier
@@ -2689,9 +2695,16 @@ function guestReservationFor(policy, perGuest) {
 // unheard, unconfigured or overcommitted), so a full pool is never advertised as a sliver of free share.
 function guestPoolFreeFraction(pool = _guestPool) {
   if (!pool || !pool.budget || pool.overcommitted) return 0;
-  const g = pool.perGuest, f = pool.free, b = pool.budget;
-  if (f.memMiB < g.floorMiB + g.unitOverheadMiB || f.cpuPct < 1) return 0;
-  return Math.max(0, Math.min(f.memMiB / b.memMiB, f.cpuPct / b.cpuPct));
+  const g = pool.perGuest, f = pool.free, b = pool.budget, smallest = g.floorMiB + g.unitOverheadMiB;
+  if (f.memMiB < smallest || f.cpuPct < 1) return 0;
+  let frac = Math.min(f.memMiB / b.memMiB, f.cpuPct / b.cpuPct);
+  // the host's live room above guestd's floor caps it too: no share is advertised that guestd's floor would refuse
+  if (pool.host) {
+    const room = pool.host.memAvailableMiB === null ? -1 : pool.host.memAvailableMiB - pool.host.floorMiB;
+    if (room < smallest) return 0;
+    frac = Math.min(frac, room / b.memMiB);
+  }
+  return Math.max(0, frac);
 }
 // Why this version's guest cannot be admitted by the pool guestd reported, or null (PURE; isolationClaimVerdict).
 // `held` is the guest guestd ALREADY runs under this deployment's name (its GET /vms entry, starting or running): on a
@@ -2717,6 +2730,13 @@ function guestPoolRefusal(rawPool, policy, held = null) {
   if (r.memMiB > room.memMiB || r.cpuPct > room.cpuPct)
     return `the guest pool cannot fit this app's guest: it reserves ${r.memMiB} MiB / ${r.cpuPct}% CPU (its unit's ceilings), `
          + `and ${room.memMiB} MiB / ${room.cpuPct}% is free${heldRoom ? " counting the room its current guest holds" : ""}`;
+  // guestd's live host floor (pool.go): refused here too, so no lease is taken for a create guestd would refuse
+  if (pool.host) {
+    if (pool.host.memAvailableMiB === null) return "the host's available memory is unknown, and guestd admits no guest while it is";
+    const after = pool.host.memAvailableMiB - (r.memMiB - (heldRoom ? heldRoom.memMiB : 0));
+    if (after < pool.host.floorMiB)
+      return `the host is too low on memory: admitting this app's guest would leave ${after} MiB available, under guestd's ${pool.host.floorMiB} MiB floor`;
+  }
   return null;
 }
 // The guest guestd runs under this deployment's name (its GET /vms entry), or null: what a resume would adopt.

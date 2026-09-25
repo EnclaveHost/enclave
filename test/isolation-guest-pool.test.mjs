@@ -182,6 +182,26 @@ test("the claim path judges the pool with the version's policy and, on a resume,
   assert.match(src, /const resume = leaseLive && d\.runner === _enclaveId;/, "a resume is this runner's own live lease");
 });
 
+// guestd's live host floor (pool.go hostRefusal), mirrored: no claim or advertised share guestd's floor would refuse
+test("the host's live memory floor gates claims and caps the advertised share; without it nothing changes", async () => {
+  const host = (avail, floorMiB = 16384) => ({ floorMiB, memAvailableMiB: avail });
+  const r = await seam({ pool: { ...pool(B), host: host(16384 + 20000) }, verdicts: [
+    verdict(MGR({ ...pool(B), host: host(16384 + 1792) })),        // exactly room for one guest above the floor: claimable
+    verdict(MGR({ ...pool(B), host: host(16384 + 1791) })),        // one MiB short: refused
+    verdict(MGR({ ...pool(B), host: host(null) })),                // unreadable on guestd's side: refused
+    verdict(MGR({ ...pool(B), host: { floorMiB: 0, memAvailableMiB: null } })),   // floor off: no host check
+  ] });
+  assert.equal(r.verdicts[0], null);
+  assert.match(r.verdicts[1], /too low on memory: .* 16383 MiB available, under guestd's 16384 MiB floor/);
+  assert.match(r.verdicts[2], /available memory is unknown/);
+  assert.equal(r.verdicts[3], null);
+  // 20000 MiB above the floor caps the pool's own 1.0 at 20000/32768
+  assert.equal(r.maxFreeCpu, Math.round(20000 / 32768 * 1000) / 1000);
+  for (const [what, h] of [["below one guest", host(16384 + 1000)], ["unreadable", host(null)]])
+    assert.equal((await seam({ pool: { ...pool(B), host: h } })).maxFreeCpu, 0, `${what}: nothing is advertised`);
+  assert.equal((await seam({ pool: pool(B) })).maxFreeCpu, 1, "an older guestd (no host block) is unchanged");
+});
+
 test("off the tier nothing of the pool applies: the node is the NODE_* constants and free is the share ledger", async () => {
   const r = await seam({ pool: pool(B, { memMiB: 32000, cpuPct: 790 }), shares: [small], shareFree: 0.7 }, "");
   assert.equal(r.node.pool, false);
