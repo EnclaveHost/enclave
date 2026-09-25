@@ -15,7 +15,8 @@ one suggestion), all answered below:
 - L3: the ticket-burn path is noted at step 4, as the relay fix is e3's lane.
 - e3's suggestion (show the opt-in in availability) is listed as a follow-up.
 
-**Rev 3 (22:38Z):** Codex's corrections, relayed by 63:
+**Rev 3 (22:38Z):** Codex's corrections, relayed by 63 (d1 and e3 APPROVED rev 3; rev 3.1 adds d1's hookbin
+precondition and serial grep, and e3's envelope-tag and one-ticket proofs, to step 4b):
 - (1) Both relay scripts start with `umask 077`, keep all scratch in one private 0700 `mktemp -d`, remove it on
   every exit path (EXIT, plus HUP/INT/TERM), and check that each backup is 600/root. Nothing prints a line's value.
 - (2) S5: where the staged-names evidence is, how fresh it is, and what it does NOT show (step 5).
@@ -48,7 +49,7 @@ one suggestion), all answered below:
 | 2 (4b) | the relay's release ON, for the 3 canaries only | 63 runs `relay-release-on.sh` | step 1, e3/d1 review, **Codex go** |
 | 3 (4c-c) | the node passes `ISOLATION_RELEASE=1` (NEW IMAGE: the one real blocker) | 63 | the gsup change (prepared here, approved by d1 and e3), a build from 90027a66's tree (63's f6cbd75a is tree-identical), **Codex go** |
 | 4 (4e) | the canaries relaunched as release guests, ONE at a time | 63 (the agent wallet signs the restart) | steps 2 and 3 |
-| 4b | a config- and secret-bearing acceptance deployment (test values; the agent wallet's own) | 63 (the agent wallet signs) | step 4 accepted (the hookbin canary serves) |
+| 4b | a config- and secret-bearing acceptance deployment (test values; the agent wallet's own) | 63 (the agent wallet signs) | step 4 accepted, INCLUDING hookbin 0ddbd824 relaunched as a release guest on 79c5ecf2 (its stdio discarded); Codex's go for the test deployment's transactions |
 | 5 (S5) | per app: the staged secret NAMES equal the names its config references; the collision check | **Steven** (names only: the one owner-only check still missing) | nothing technical |
 | 6 | the relay lists the app for the release | 63 (relay env and restart) | step 4b accepted, step 5 per app |
 | 7 (S6) | the owner's `setConfig` adds `isolation.require`: **THIS is the step that takes an app from queued to serving** | **Steven** (Trezor), via the runbook | step 6 for that app; `--check` OK at signing, with its runtime told to Steven |
@@ -224,7 +225,8 @@ same app and version as Steven's a69dcbba, with **non-sensitive test values**, o
   fleet-wide `configOverride` gate: the isolation host advertises `configOverride:false` on purpose, and it takes
   config only through the release.
 
-**The config** (inline; it holds only `$NAME` references and public URLs, so it can be committed as evidence):
+**The config** (inline, so it goes ON CHAIN, public: it holds only `$NAME` references and public URLs, never a value;
+the values exist only as staged secrets, and the relay passes config and secrets separately; e3):
 ```json
 {
   "title": "release acceptance (enclave-5d)",
@@ -248,7 +250,13 @@ same app and version as Steven's a69dcbba, with **non-sensitive test values**, o
   goes into evidence. d1's collision check: this config has no `$tokens` of its own.
 - `<BIN>`: `accept-5d-` plus 8 random hex characters (hookbin's token rule).
 
-**Run** (63; the agent wallet signs; after step 4's acceptance, so the hookbin canary serves):
+**Precondition (d1):** hookbin 0ddbd824 is already a RELEASE guest on 79c5ecf2 (step 4 done for it), whose app
+stdout/stderr are discarded in the guest. hookbin RECEIVES `x-accept-token`; on its legacy image anything it printed
+would reach the host serial. Its serial is in proof 7 either way. Also Codex's explicit go for the agent wallet's
+create/fund/refund transactions.
+**Public (e3):** the deployment is public (the CLI's default; never `--private`); this backend refuses private ones.
+
+**Run** (63; the agent wallet signs):
 1. Create the bin: `curl -X POST -H "x-bin-id: $BIN" https://0ddbd824.app.enclave.host/api/bins` gives `{ok}`.
 2. Create the deployment, with the secrets from the 0600 file, never argv:
    `HOME=$(mktemp -d) ENCLAVE_KEY="$ETH_AGENT_WALLET" node cli/enclave.mjs deploy api-mcp-adapter:1.0.0 --cpu 0.01 --fund 0.01 --isolation snp-guest-per-app --config "$(cat config.json)" --secrets-file "$d/secrets.env" --no-wait --yes`
@@ -263,8 +271,13 @@ same app and version as Steven's a69dcbba, with **non-sensitive test values**, o
 **Proofs** (all must hold):
 1. **Relay journal:** one `release-ticket` 200 and one `release` 200 for the test id.
 2. **guestd:** `release:true`, verdict `attested`, measurement = `/v1/expected-guest` for the test id = 20319b02…ef47.
-3. **Serial:** `DOM release: deployment 0x… 2 allowed origin(s), 0 refused, config <n> bytes` (the relay and the
-   hookbin), then `DOM app config: <m> bytes (ENCLAVE_CONFIG)`, then `DOM serving`, and none of the app's output.
+3. **Serial:** `DOM release: deployment 0x… envelope <16 hex>… 2 allowed origin(s), 0 refused, config <n> bytes`
+   (the relay and the hookbin), then `DOM app config: <m> bytes (ENCLAVE_CONFIG)`, then `DOM serving`, and none of the
+   app's output. The `envelope` prefix must equal the first 16 hex of sha256(the ON-CHAIN envelope bytes, read from
+   the ledger) (e3). That value is the envelopeSha256 the relay states inside its signed, sealed release
+   (front/provision.go:182, release/client.go `EnvelopeTag`). The config and the egress list behind "2 allowed
+   origin(s)" come only from that attested release (egress/policy.go `FromRelease` requires `rel.Attested()`), never
+   from anything the host delivered, so a host cannot widen the egress.
 4. **Substitution into the app's own gate:** `POST /mcp` `tools/list` answers 200 with both tools when `x-api-key` is
    the test key; 401 without it, and 401 with the LITERAL `$ACCEPT_API_KEY`. (Had substitution failed, the adapter
    would be LOCKED, 503 everywhere: a different failure, easy to tell apart.) The header comes from a file (`curl -H @file`),
@@ -280,12 +293,18 @@ same app and version as Steven's a69dcbba, with **non-sensitive test values**, o
    name is not in the guest's /etc/hosts), while `curl https://395bed3e.app.enclave.host/ping` from outside is 200.
 7. **The host saw neither value:** pipe the two values over STDIN (never argv) into
    `grep -cF -f /dev/stdin` over:
-   - warden-host's journal since the create;
+   - warden-host's journal since the create (guestd's included);
+   - the node supervisor's log as warden-host holds it (metal-iso0's console);
    - the test guest's serial;
+   - **the hookbin canary's serial** (d1: it received the token);
    - nan's api-relay journal.
    Each count must be 0.
 8. **Public TLS:** the test label serves via us-west with a certificate issued through the expected-guest gate (step
    4's proofs 4 and 5).
+9. **One ticket, one release (e3):** the relay journal holds exactly ONE
+   `[secrets-release] <id>: released to a verified guest on <endpoint> (runtime ccadb38a…)` line for the test id, and
+   no `REFUSED` or `no prediction` line. If the consumed ticket is available to the operator without new
+   instrumentation, a re-POST of it must answer 403 `bad_ticket`, which is refused before anything is sealed.
 
 **Teardown** (whatever the outcome):
 1. `DELETE https://0ddbd824.app.enclave.host/api/bins/$BIN`.
@@ -297,7 +316,7 @@ same app and version as Steven's a69dcbba, with **non-sensitive test values**, o
 5. Remove the local value files.
 
 Evidence: the config, the sha256s, the counts, the relay and guestd lines. No value.
-- **Acceptance** = proofs 1-8. Only then step 6 for Steven's apps.
+- **Acceptance** = proofs 1-9 (9's re-POST only if the ticket is at hand). Only then step 6 for Steven's apps.
 
 ## Step 5 (S5): Steven's per-app check (names only; INVENTORY.md)
 **The evidence, and how fresh it is (Codex's question 2).** What we hold is in
