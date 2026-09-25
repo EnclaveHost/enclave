@@ -223,6 +223,11 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
        format name, so it must not be promoted.
    - DONE (run 084443): the same serving acceptance on enclave-63's v34 PACKAGE, whose one launcher is `435717de`: ALL
      PASS. A8 shows the liveness sweep failing a domain whose VM went Off, within 4 s, on hardware.
+   - DONE (run 090327): tree `2c3a2873` on v35 passes hvlab-accept and A0-A9. A9 shows enclave-5d's answer sweep failing
+     a domain stopped inside a still-Running VM, on hardware. v36 pins that tree as the package's control/.
+   - NEXT: the canary for enclave-63's production candidate `b7ba7731` (digest `56FBB27F`, byte review `fd92d610`). It
+     includes a PROBE-mode domain that must read `dev_tpm0=No such file or directory`: the measured form of the
+     source claim that a tenant cannot reach the vTPM.
    - DONE (G4, run 082856, `g4-probe-20260925/`): a type-1 guest whose monitor dies panics, asks for a reset, and
      Hyper-V turns the partition OFF (18590, then 18515). It does not reboot. The manager's liveness sweep now fails such
      a domain (`d7d4fd1c`); that sweep is not yet run on hardware.
