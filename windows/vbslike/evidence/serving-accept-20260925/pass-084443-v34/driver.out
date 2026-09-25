@@ -1,0 +1,67 @@
+manager #1 pid 13228
+PHASE 1: hvlab-accept against http://127.0.0.1:18091 (data plane 127.0.0.1:18092)
+  HVLAB: manager http://127.0.0.1:18091: backend=hyperv-partition-per-app canStart=true tier=T0-hv hostExcluded=false partition="wmi-openhcl-gen2-igvm-linux" derivations=["enclave-catalog-bundle/1"]
+  HVLAB: [tunnel] hvacc-node attached via token (1 enclave)
+  HVLAB-ERR: [tunnel] hvacc-node claimed publicUrl http://127.0.0.1:58352/t/hvacc-node — IGNORED (not this tunnel's own https://<relay>/t/hvacc-node route); its on-chain runner id stays unstamped
+  HVLAB: ensureApp: status=running after 21.0 s, instance=hv46e4fc9ce02b6e7d81013681c76b7c2f key=c6b165aebc2c92fe image=a44bb55a89bb0e6d tier=T0-hv hostExcluded=false reason=null
+  HVLAB: PASS ensureApp reaches running through the node's own path: status=running instance=hv46e4fc9ce02b6e7d81013681c76b7c2f
+  HVLAB: PASS the record's labels are this tier's: T0-hv, the host NOT excluded: tier=T0-hv hostExcluded=false
+  HVLAB: the manager's view of hv46e4fc9ce02b6e7d81013681c76b7c2f: {"id":"hv46e4fc9ce02b6e7d81013681c76b7c2f","name":"0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e","status":"running","appId":"9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45","runtimeId":"ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8","recordSha256":"bff33b951aade0a921edea4b0aca89712005d20cbb2c074c0f885d079e059d6c","image":"a44bb55a89bb0e6d2; statement {"partition":"wmi-openhcl-gen2-igvm-linux","guestImageKind":"igvm-linux-direct"}
+  HVLAB: PASS browser -> tunnel -> app zone -> data plane -> domain: the session's key is the one the manager verified: monitor-signed on the browser's handshake key c6b165aebc2c92fe, record c6b165aebc2c92fe
+  HVLAB: the guest's boundary tuple: "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=vbs paravisor=no"
+  HVLAB: PASS the guest states hv_isolation=vbs (stated by the hypervisor, not a proof), and host_excluded=no: hv_isolation=vbs paravisor=no host_excluded=no
+  HVLAB: PASS the app answers on its own name: 200 "Hello World!\n"
+  HVLAB: PASS a verifier that holds another key does not accept the document: reject (binding does not match the handshake)
+  HVLAB: PASS a document for another nonce is not accepted (no replay): reject (document nonce is not ours; binding does not match the handshake)
+  HVLAB: PASS a verifier expecting another app does not accept it: reject (the report names a different app; the domain's own claim differs from the expected app (informational field))
+  HVLAB: PASS data plane admission, the exact record (control: admitted): "OK"
+  HVLAB: PASS data plane admission, another transport key: "NO the instance's verified transport key is not that key"
+  HVLAB: PASS data plane admission, another guest image: "NO the instance was not booted from that guest image"
+  HVLAB: PASS data plane admission, another app: "NO the instance is not that app"
+  HVLAB: PASS data plane admission, another runtime: "NO the instance does not carry that runtime"
+  HVLAB: PASS data plane admission, an instance the manager does not hold: "NO no such instance"
+  HVLAB: ensureApp {force:true}: status=running after 22.6 s, instance=hvb65e08a261bd4bfb6fd73fcdb905641f key=91fc3ef55e79ac80 image=a44bb55a89bb0e6d tier=T0-hv hostExcluded=false reason=null
+  HVLAB: PASS the forced relaunch reaches running on a NEW instance with a NEW transport key: instance hv46e4fc9ce02b6e7d81013681c76b7c2f -> hvb65e08a261bd4bfb6fd73fcdb905641f, key c6b165aebc2c92fe -> 91fc3ef55e79ac80
+  HVLAB: PASS the manager no longer holds the old instance: null
+  HVLAB: PASS exactly one instance carries this deployment's name: hvb65e08a261bd4bfb6fd73fcdb905641f:running
+  HVLAB: PASS the session opened on the old domain has ended: closed
+  HVLAB: PASS the old route (old instance, old key) is refused: "NO no such instance"
+  HVLAB: PASS the new instance under the OLD key is refused: "NO the instance's verified transport key is not that key"
+  HVLAB: PASS the browser reconnects: monitor-signed on the NEW key the manager verified: monitor-signed on 91fc3ef55e79ac80, record 91fc3ef55e79ac80
+  HVLAB: PASS a client pinned to the old key sees a different key and must refuse: pinned c6b165aebc2c92fe, served 91fc3ef55e79ac80
+  HVLAB: PASS the app answers after the relaunch: 200
+  HVLAB: [tunnel] hvacc-node detached
+  HVLAB: [tunnel] hvacc-node attached via token (1 enclave)
+  HVLAB-ERR: [tunnel] hvacc-node claimed publicUrl http://127.0.0.1:58352/t/hvacc-node — IGNORED (not this tunnel's own https://<relay>/t/hvacc-node route); its on-chain runner id stays unstamped
+  HVLAB: ensureApp after a node restart: status=running after 0.3 s, instance=hvb65e08a261bd4bfb6fd73fcdb905641f key=91fc3ef55e79ac80 image=a44bb55a89bb0e6d tier=T0-hv hostExcluded=false reason=null
+  HVLAB: PASS after a node restart ensureApp adopts the SAME instance and key: instance hvb65e08a261bd4bfb6fd73fcdb905641f key 91fc3ef55e79ac80
+  HVLAB: PASS still exactly one instance for the deployment: hvb65e08a261bd4bfb6fd73fcdb905641f:running
+  HVLAB: PASS the browser reconnects through the restarted node, on the same verified key: monitor-signed on 91fc3ef55e79ac80
+  HVLAB: PASS the app answers through the restarted node: 200
+  HVLAB: PASS cleanup: instance hvb65e08a261bd4bfb6fd73fcdb905641f retired and confirmed gone: removed=true reason=null after=null
+  HVLAB:   node: [node-1] 0x4e62e60d isolation spawned: hv46e4fc9ce02b6e7d81013681c76b7c2f status=running image=a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4
+  HVLAB:   node: [node-1 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+  HVLAB:   node: [node-1] 0x4e62e60d isolated domain retired (forced relaunch)
+  HVLAB:   node: [node-1] 0x4e62e60d isolation spawned: hvb65e08a261bd4bfb6fd73fcdb905641f status=running image=a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4
+  HVLAB:   node: [node-2] 0x4e62e60d isolation adopted: hvb65e08a261bd4bfb6fd73fcdb905641f status=running image=a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4
+  HVLAB:   node: [node-1 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+  HVLAB:   node: [node-2 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+  HVLAB: HVLAB-ACCEPT ALL PASS
+PHASE 1 RESULT: exit 0, HVLAB-ACCEPT ALL PASS
+PHASE 2: restart recovery (serving: A2s and A7 apply)
+manager #2 pid 18656
+PASS A0: inventory ready and empty; no manager-owned VM on this host
+PASS A1: POST 201 in 8215 ms, id hv9df20c7e494debb8b687b6a2cc8f2339, status starting, partition wmi-openhcl-gen2-igvm-linux, hostExcluded false
+PASS A2: 1 VM(s) carry id hv9df20c7e494debb8b687b6a2cc8f2339: enclave-app-hv9df20c7e494deb-9c3d10f1 f2c34dd1-480f-4cfa-9c21-9412094bdafe Running
+PASS A2s: status running, relay port 58400, TCP accepts, launcherKey named, image a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4, statement {"partition":"wmi-openhcl-gen2-igvm-linux","guestImageKind":"igvm-linux-direct"}
+PASS A3: manager gone; the VM is Running
+PASS A7: relay port 58400 refuses: the relay died with the manager
+manager #3 pid 8480
+PASS A4: GET 200: recovered true, status starting, appReady false, relay null, hostExcluded false
+PASS A5: second POST 409 naming hv9df20c7e494debb8b687b6a2cc8f2339; VMs with this id 1, manager-owned VMs 1
+PASS A6: DELETE 200; VMs with this id 0; GET after 404
+A8: turned 8e5f4c71-95f9-4ca9-ae35-f1100fc4a337 off from the host -> {"state":"Off"}
+PASS A8: after turning 8e5f4c71-95f9-4ca9-ae35-f1100fc4a337 Off: status failed within 4022 ms, reason "the partition is Off: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 082856); its VM is left for the node to retire", relay 58425 refuses
+A8 cleanup: DELETE hv59fad4d6ccbc28c488939929c315a32c -> 200; VMs with this id 0
+RESTART-ACCEPT ALL PASS
+ACCEPTANCE: phase 1 PASS, phase 2 PASS
