@@ -14,86 +14,12 @@
 // through the funnel - i.e. that it is the host's refusal, not the test's timing, that saves the
 // other tenant.
 import { test } from "node:test";
+import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
-import net from "node:net";
 import { EnclaveApp } from "../windows/node/apprun.mjs";
 import { makeHostCmd } from "../windows/node/appframe.mjs";
-
-const RESP_200 = Buffer.concat([
-  (() => { const b = Buffer.alloc(2); b.writeUInt16LE(200, 0); return b; })(),
-  Buffer.alloc(4), Buffer.alloc(4),
-]).toString("hex");
-
-// One ee-host process. `port` 0 picks a free port; a restart passes the old one.
-async function emuHost({ port = 0, checkEpoch = true, avoidEpoch = 0 } = {}) {
-  let epoch; do { epoch = (Math.random() * 0xffffffff) >>> 0; } while (!epoch || epoch === avoidEpoch);
-  const apps = new Map();          // id -> world
-  const effects = [];              // side effects executed: { cmd, epoch, id }
-  const refused = [];              // commands refused for a stale epoch: { cmd, epoch, id }
-  const holds = [];
-  const conns = new Set();
-  let nextId = 0;
-  const answer = (line) => {
-    const [cmd, ...a] = line.split(" ");
-    if (cmd === "appabi") return "ok 5 7 0";
-    if (cmd === "appopen") { const id = ++nextId; apps.set(id, Number(a[0])); effects.push({ cmd, epoch, id }); return `ok ${id} 1000 ${epoch}`; }
-    if (["apphandle", "apprun", "appstop", "appclose"].includes(cmd)) {
-      // ee-host.c: apphandle needs "<epoch> <id> <hex>" ("bad request"), the rest "<epoch> <id>" ("bad id")
-      if (!/^\d+$/.test(a[0] || "") || !/^\d+$/.test(a[1] || "") || (cmd === "apphandle" && a.length < 3))
-        return cmd === "apphandle" ? "err bad request" : "err bad id";
-      const e = Number(a[0]), id = Number(a[1]);
-      if (checkEpoch && e !== epoch) { refused.push({ cmd, epoch: e, id }); return "err stale epoch"; }
-      if (!apps.has(id)) return "err no such app";
-      effects.push({ cmd, epoch: e, id });
-      if (cmd === "appstop" || cmd === "appclose") apps.delete(id);
-      return cmd === "apphandle" ? `ok ${RESP_200} 5` : "ok";
-    }
-    return "err unknown command";
-  };
-  const server = net.createServer((sock) => {
-    conns.add(sock); sock.on("close", () => conns.delete(sock)); sock.on("error", () => {});
-    let buf = "";
-    sock.on("data", (d) => {
-      buf += d; let i;
-      while ((i = buf.indexOf("\n")) >= 0) {
-        const line = buf.slice(0, i); buf = buf.slice(i + 1);
-        const reply = () => sock.write(answer(line) + "\n");
-        const h = holds.find((x) => !x.taken && x.pred(line));
-        if (h) { h.taken = true; h.arrive(reply); } else reply();
-      }
-    });
-  });
-  await new Promise((res, rej) => {
-    let tries = 0;
-    const go = () => {
-      const onErr = (e) => { if (e.code === "EADDRINUSE" && tries++ < 100) setTimeout(go, 10); else rej(e); };
-      server.once("error", onErr);
-      server.listen(port, "127.0.0.1", () => { server.off("error", onErr); res(); });
-    };
-    go();
-  });
-  return {
-    epoch, apps, effects, refused, port: server.address().port,
-    /** The next command matching `pred` is held: its processing and reply wait for release(). */
-    hold(pred) {
-      const h = { pred, taken: false };
-      h.arrived = new Promise((r) => { h.arrive = (reply) => { h.release = reply; r(); }; });
-      holds.push(h);
-      return h;
-    },
-    /** The process is going: it accepts nothing more; connections it already accepted live on. */
-    stopListening() { server.close(); },
-    close() { server.close(); for (const c of conns) c.destroy(); },
-  };
-}
-
-// An ee-host restart as the agent does it: the generation is bumped first (start.host), the old
-// process stops accepting, and a new one binds the same port with ids from 1 and a new epoch.
-async function restart(h1, bumpGen, opts = {}) {
-  bumpGen();
-  h1.stopListening();
-  return await emuHost({ port: h1.port, avoidEpoch: h1.epoch, ...opts });
-}
+import { RESP_200, emuHost, restart } from "./helpers/ee-host-emu.mjs";
 
 async function deferredOpen({ checkEpoch }) {
   const h1 = await emuHost();
@@ -222,4 +148,53 @@ test("every id-scoped command carrying a dead boot's epoch is refused through th
     assert.equal(await hostCmd(`appclose ${e2} 1`), "", "its own epoch is accepted");
     assert.ok(!h2.apps.has(1));
   } finally { h1.close(); h2.close(); }
+});
+
+// apptool.mjs, the hand tool, speaks the same grammar: it prints the epoch from appopen and its
+// get/close take "<epoch> <id>", so a hand-driven command against a restarted ee-host fails closed.
+const APPTOOL = fileURLToPath(new URL("../windows/node/apptool.mjs", import.meta.url));
+const tool = (port, ...args) => new Promise((resolve) => {
+  execFile(process.execPath, [APPTOOL, ...args], { env: { ...process.env, HOST_PORT: String(port) }, timeout: 20_000 },
+    (err, stdout, stderr) => resolve({ code: err ? err.code : 0, out: stdout + stderr }));
+});
+
+test("apptool: run/get/close carry the epoch; a dead boot's epoch and the old grammar are refused", async () => {
+  const h1 = await emuHost();
+  let h2;
+  try {
+    const run = await tool(h1.port, "run", "4", "x.cwasm", "K=V");
+    assert.equal(run.code, 0, run.out);
+    assert.match(run.out, new RegExp(`loaded as app 1 \\(epoch ${h1.epoch}\\)`));
+    assert.deepEqual(h1.effects.map((x) => [x.cmd, x.id]), [["appopen", 1], ["apprun", 1]], "apprun went out as apprun <epoch> <id> and was accepted");
+
+    const get = await tool(h1.port, "get", String(h1.epoch), "1", "/");
+    assert.equal(get.code, 0, get.out);
+    assert.match(get.out, /status 200/);
+
+    const old = await tool(h1.port, "close", "1");
+    assert.notEqual(old.code, 0, "close <id> without an epoch is refused as usage");
+    assert.ok(h1.apps.has(1));
+
+    h2 = await restart(h1, () => {});
+    await tool(h2.port, "open", "2", "y.cwasm");                        // the new boot's app 1
+    const stale = await tool(h2.port, "close", String(h1.epoch), "1");
+    assert.notEqual(stale.code, 0);
+    assert.match(stale.out, /stale epoch/);
+    assert.ok(h2.apps.has(1), "the new boot's app 1 survives a close under the old epoch");
+
+    const mine = await tool(h2.port, "close", String(h2.epoch), "1");
+    assert.equal(mine.code, 0, mine.out);
+    assert.ok(!h2.apps.has(1));
+  } finally { h1.close(); h2?.close(); }
+});
+
+test("apptool refuses an ee-host that answers appopen without an epoch", async () => {
+  const net = await import("node:net");
+  const srv = net.createServer((s) => s.on("data", () => s.write("ok 1 1000\n")));
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  try {
+    const r = await tool(srv.address().port, "run", "4", "x.cwasm");
+    assert.notEqual(r.code, 0);
+    assert.match(r.out, /no app epoch/);
+  } finally { srv.close(); }
 });
