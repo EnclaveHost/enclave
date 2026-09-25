@@ -59,7 +59,8 @@ type Launcher interface {
 	Build(ctx context.Context, bundle, workdir string, vcpus int) (image, measurement string, err error)
 	// Start boots the image as an SNP guest and returns its unit and vsock CID once its front serves. hostData (64 hex,
 	// or "") becomes the guest's SEV-SNP HOST_DATA: signed into every report, outside the measurement.
-	Start(ctx context.Context, image, tag, workdir string, vcpus, memMiB, cpuPct int, hostData string) (unit string, cid uint32, err error)
+	// cid is the vsock CID guestd chose for the guest (release.go), known before the guest boots.
+	Start(ctx context.Context, image, tag, workdir string, vcpus, memMiB, cpuPct int, hostData string, cid uint32) (unit string, err error)
 	// Forward exposes the guest's attested TLS endpoint on a host port. stop ends the forwarder.
 	Forward(ctx context.Context, cid uint32, workdir string) (port int, stop func(), err error)
 	// Verify attests the guest over that port against the predicted measurement and the AppID, and returns the
@@ -92,6 +93,9 @@ type Request struct {
 	Secrets   map[string]any    `json:"secrets"`
 	Hosts     string            `json:"hosts"`
 	Shielded  json.RawMessage   `json:"shielded"`
+	// Ticket is a release ticket (base64, 32 bytes) for the deployment this guest serves: accepted only with -release,
+	// and handed only to this guest (release.go). The config and secrets it releases never cross this host.
+	Ticket string `json:"ticket"`
 	// Derive is the catalog derivation record (contract/catalog/DERIVE.md) an ipfs:// image needs: the CID alone names
 	// bytes, not a contract identity, and guestd will not invent one.
 	Derive *catalog.Derivation `json:"derive"`
@@ -129,6 +133,8 @@ type vm struct {
 	leaseUntil                                           time.Time
 	splices                                              map[*splice]struct{} // open data-plane connections
 	reclaimed                                            bool                 // its reclaim has finished: it holds no reservation (pool.go)
+	ticket                                               chan [32]byte        // its one release ticket slot; nil = it takes none (release.go)
+	awaitingTicket                                       bool                 // its guest is connected and waiting for the ticket
 }
 
 type server struct {
@@ -143,10 +149,14 @@ type server struct {
 	RuntimeID string     // hex; the runtime identity every guest image here carries (the judge pins it)
 	Data      *dataPlane // nil = no data plane (the default)
 	Budget    poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
-	mu        sync.Mutex
-	vms       map[string]*vm
-	lastBeat  time.Time // zero = never heard one: the lease is INERT
-	launching sync.WaitGroup
+	// Release: deliver attested-release tickets and serve egress to deployment guests (release.go, -release).
+	Release    bool
+	TicketHold time.Duration // how long a guest's ticket connection is held; 0 = 5 minutes
+	drawCID    func() uint32 // tests; nil = crypto/rand
+	mu         sync.Mutex
+	vms        map[string]*vm
+	lastBeat   time.Time // zero = never heard one: the lease is INERT
+	launching  sync.WaitGroup
 }
 
 func newServer(l Launcher, root string) *server {
@@ -203,6 +213,9 @@ func (v *vm) public() map[string]any {
 	if v.HostData != "" {
 		m["hostData"] = v.HostData
 	}
+	if v.awaitingTicket {
+		m["awaitingTicket"] = true // its guest is booted and waiting: the supervisor fetches a ticket now (release.go)
+	}
 	if s := len(v.splices); s > 0 {
 		m["openSplices"] = s
 	}
@@ -254,14 +267,18 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 200, map[string]any{"ok": true, "backend": "snp-guest-per-app", "guests": n,
 			"firmware": s.Firmware, "catalog": cat, "pool": pool,
 			// what a tenant here does NOT get, so a claim gate can refuse deployments that need it
+			// release: config and secrets reach a DEPLOYMENT guest only through the attested release, sealed to it, with
+			// egress to its own allowlist (release.go); nothing of them crosses this host, so config/secrets stay false
 			"supports": map[string]bool{"gpu": false, "secrets": false, "egress": false, "config": false,
-				"ports": false, "configCid": false}})
+				"ports": false, "configCid": false, "release": s.Release}})
 	case r.Method == http.MethodPost && r.URL.Path == "/vms":
 		s.create(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/prefetch":
 		s.prefetch(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/vms/lease":
 		s.lease(w, r)
+	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/vms/") && strings.HasSuffix(r.URL.Path, "/ticket"):
+		s.postTicket(w, r, strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/vms/"), "/ticket"))
 	case r.Method == http.MethodGet && r.URL.Path == "/vms":
 		s.mu.Lock()
 		out := []map[string]any{}
@@ -325,6 +342,11 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 422, map[string]any{"error": "this backend refuses " + why})
 		return
 	}
+	tk, err := s.ticketFromRequest(&req, hostDataFor(req.Name))
+	if err != nil {
+		s.json(w, 422, map[string]any{"error": "this backend refuses " + err.Error()})
+		return
+	}
 	// The bundle is obtained and checked BEFORE anything is accepted, so a request for an app with no contract
 	// identity is refused synchronously instead of surfacing later as a failed boot.
 	raw, record, code, err := s.bundleFor(r.Context(), req.Image, req.Derive)
@@ -354,10 +376,22 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		s.json(w, http.StatusInsufficientStorage, refusal)
 		return
 	}
+	cid, err := s.pickCIDLocked()
+	if err != nil {
+		s.mu.Unlock()
+		s.json(w, 503, map[string]any{"error": err.Error()})
+		return
+	}
 	v := &vm{ID: newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting", RecordSha256: record,
 		HostData: hostDataFor(req.Name),
 		Vcpus:    pol.Vcpus, MemMiB: mem, CPUPct: pol.CPUPercent, Created: s.Now(),
-		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL)}
+		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL), cid: cid}
+	if s.Release && v.HostData != "" {
+		v.ticket = make(chan [32]byte, 1)
+		if tk != nil {
+			v.ticket <- *tk
+		}
+	}
 	v.workdir = filepath.Join(s.Root, v.ID)
 	s.vms[v.ID] = v
 	pub := v.public()
@@ -481,8 +515,9 @@ func (s *server) launch(v *vm) {
 		return
 	}
 	s.set(v, func() { v.Measurement = meas })
-	unit, cid, err := s.L.Start(ctx, image, v.ID, v.workdir, v.Vcpus, v.MemMiB, v.CPUPct, v.HostData)
-	s.set(v, func() { v.unit, v.cid = unit, cid })
+	unit, err := s.L.Start(ctx, image, v.ID, v.workdir, v.Vcpus, v.MemMiB, v.CPUPct, v.HostData, v.cid)
+	cid := v.cid // chosen at create (release.go), so the ticket service knows this guest before it serves
+	s.set(v, func() { v.unit = unit })
 	if err != nil {
 		s.fail(v, fmt.Errorf("start: %w", err))
 		return

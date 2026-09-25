@@ -102,6 +102,7 @@ const (
 	ReasonNonPublicAnswer Reason = "non-public-answer" // an answer is loopback, private, link-local, this host, ...
 	ReasonNonPublicPeer   Reason = "non-public-peer"   // the socket's actual peer is not public
 	ReasonConnect         Reason = "connect"           // no judged address accepted the connection
+	ReasonAdmit           Reason = "admit"             // (server) the stream is from a guest the host's manager did not launch
 	ReasonEmpty           Reason = "empty"             // (server) the stream closed before any header byte
 	ReasonHeader          Reason = "header"            // (server) a malformed or unfinished egress-v1 header
 	ReasonInternal        Reason = "internal"          // anything else

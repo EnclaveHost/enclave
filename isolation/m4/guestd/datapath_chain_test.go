@@ -128,7 +128,7 @@ func (l *chainLauncher) Build(ctx context.Context, bundle, workdir string, vcpus
 	return bundle, g.meas, nil
 }
 
-func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, vcpus, mem, cpu int, hostData string) (string, uint32, error) {
+func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, vcpus, mem, cpu int, hostData string, cid uint32) (string, error) {
 	g := l.guest(workdir)
 	g.launchedFor = hostData
 	if c, ok := l.copyLabel[hostData]; ok {
@@ -153,7 +153,7 @@ func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, v
 	})
 	al, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return "", 0, err
+		return "", err
 	}
 	g.app = &http.Server{Handler: mux}
 	go g.app.Serve(al)
@@ -162,7 +162,7 @@ func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, v
 	g.sock = filepath.Join(l.sockDir, tag)
 	g.mon, err = net.Listen("unix", g.sock+".mon")
 	if err != nil {
-		return "", 0, err
+		return "", err
 	}
 	go func() {
 		for {
@@ -197,7 +197,7 @@ func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, v
 	}()
 	shaFile := filepath.Join(workdir, "app.sha256")
 	if err := os.WriteFile(shaFile, []byte(g.appID+"\n"), 0o600); err != nil {
-		return "", 0, err
+		return "", err
 	}
 	// the real front, alone in a transient user scope: its W^X scan covers its own cgroup, which then holds
 	// only itself (this test's own cgroup holds browsers and editors with W+X JIT pages, and the front would
@@ -208,7 +208,7 @@ func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, v
 	out, _ := g.front.StdoutPipe()
 	g.front.Stderr = g.front.Stdout
 	if err := g.front.Start(); err != nil {
-		return "", 0, err
+		return "", err
 	}
 	serving := make(chan string, 1)
 	var log strings.Builder
@@ -231,11 +231,11 @@ func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, v
 	case <-g.frontDone:
 		logMu.Lock()
 		defer logMu.Unlock()
-		return "", 0, fmt.Errorf("the front exited: %s", log.String())
+		return "", fmt.Errorf("the front exited: %s", log.String())
 	case <-time.After(30 * time.Second):
-		return "", 0, errors.New("the front never served")
+		return "", errors.New("the front never served")
 	}
-	return "unit-" + tag, 7, nil
+	return "unit-" + tag, nil
 }
 
 // Forward relays a host TCP port to the front's socket, bytes untouched - or, once mitm is set, terminates TLS

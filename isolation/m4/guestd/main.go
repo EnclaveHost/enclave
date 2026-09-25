@@ -13,6 +13,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -24,6 +25,9 @@ import (
 	"time"
 
 	"enclave.host/isolation/contract"
+	"enclave.host/isolation/m2/egress"
+	"enclave.host/isolation/m2/release"
+	"enclave.host/isolation/m2/vsock"
 )
 
 // realLauncher drives the M4a scripts the hardware suite scores (isolation/m4/test-m4.sh), not a reimplementation
@@ -33,6 +37,7 @@ type realLauncher struct {
 	m4, m2, fwd                                   string
 	vcek, chain, product, minTCB, runtimeIdentity string
 	env                                           []string
+	bootWait                                      time.Duration // until "DOM serving"; 0 = 180 s (release mode waits for a ticket too)
 }
 
 func (l *realLauncher) run(ctx context.Context, dir, logName string, name string, args ...string) (string, error) {
@@ -66,28 +71,36 @@ func (l *realLauncher) Build(ctx context.Context, bundle, workdir string, vcpus 
 
 var hostLine = regexp.MustCompile(`unit=(\S+) cid=(\d+)`)
 
-func (l *realLauncher) Start(ctx context.Context, image, tag, workdir string, vcpus, memMiB, cpuPct int, hostData string) (string, uint32, error) {
-	out, err := l.runEnv(ctx, workdir, tag+".host", []string{"HOST_DATA=" + hostData}, "sh", filepath.Join(l.m2, "run-domain.sh"),
+func (l *realLauncher) Start(ctx context.Context, image, tag, workdir string, vcpus, memMiB, cpuPct int, hostData string, cid uint32) (string, error) {
+	out, err := l.runEnv(ctx, workdir, tag+".host", []string{"HOST_DATA=" + hostData, "GUEST_CID=" + strconv.FormatUint(uint64(cid), 10)},
+		"sh", filepath.Join(l.m2, "run-domain.sh"),
 		"start", image, "snp", tag, workdir, strconv.Itoa(vcpus), strconv.Itoa(memMiB), strconv.Itoa(cpuPct))
 	m := hostLine.FindStringSubmatch(out)
 	if err != nil || m == nil {
-		return "", 0, fmt.Errorf("run-domain.sh start: %v %s", err, strings.TrimSpace(out))
+		return "", fmt.Errorf("run-domain.sh start: %v %s", err, strings.TrimSpace(out))
 	}
 	unit := m[1]
-	cid, _ := strconv.ParseUint(m[2], 10, 32)
+	if got, _ := strconv.ParseUint(m[2], 10, 32); uint32(got) != cid {
+		// the ticket service and the egress server know this guest only by the CID guestd chose
+		return unit, fmt.Errorf("run-domain.sh launched the guest with CID %d, not the %d guestd chose", got, cid)
+	}
 	serial := filepath.Join(workdir, tag+".serial")
-	deadline := time.Now().Add(180 * time.Second)
+	wait := l.bootWait
+	if wait <= 0 {
+		wait = 180 * time.Second
+	}
+	deadline := time.Now().Add(wait)
 	for time.Now().Before(deadline) && ctx.Err() == nil {
 		b, _ := os.ReadFile(serial)
 		if bytes.Contains(bytes.ReplaceAll(b, []byte{0}, nil), []byte("DOM serving")) {
-			return unit, uint32(cid), nil
+			return unit, nil
 		}
 		if len(b) > 0 && !l.Alive(unit) {
-			return unit, 0, errors.New("the guest ended during boot (see its serial log)")
+			return unit, errors.New("the guest ended during boot (see its serial log)")
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return unit, 0, errors.New("the guest's front never served within 180s")
+	return unit, fmt.Errorf("the guest's front never served within %s", wait)
 }
 
 var fwdLine = regexp.MustCompile(`^FWD listening 127\.0\.0\.1:(\d+) `)
@@ -257,6 +270,7 @@ func main() {
 	genKeyFile := flag.String("gen-key", "", "write a NEW pairing key to this file (mode 0600, never overwritten), print its kid, and exit")
 	guestMem := flag.Int("guest-mem-mib", 0, "host RAM (MiB) set aside for guests: the guest pool's memory budget; unset = every create is refused (pool.go)")
 	guestCPUs := flag.Int("guest-cpus", 0, "host cores set aside for guests: the guest pool's CPU budget, against each guest's CPUQuota; unset = every create is refused")
+	releaseOn := flag.Bool("release", false, "deliver attested-release tickets (vsock host port 9444) and serve deployment guests' egress (9443) (release.go); off = neither, and /health says supports.release=false")
 	flag.Parse()
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
 		log.Fatal("-guest-mem-mib and -guest-cpus are set together, both positive (or neither: then every create is refused)")
@@ -377,6 +391,30 @@ func main() {
 		log.Printf("data plane (enclave-splice/1) on %s: ciphertext only, admitted per verified instance identity", dl.Addr())
 		go func() { log.Fatal(s.Data.Serve(dl)) }()
 	}
+	if *releaseOn {
+		// The attested release (release.go): tickets to the ONE guest guestd launched for each deployment, and egress
+		// to the origins that guest's own allowlist names. Both listen on vsock, where the peer's CID - set by this
+		// host for its guests, and unforgeable by another VM - is the only identity either service takes.
+		s.Release = true
+		l.bootWait = 10 * time.Minute // a deployment guest waits for its ticket before its front serves
+		tl, err := vsock.Listen(release.TicketPort)
+		if err != nil {
+			log.Fatalf("release tickets: %v", err)
+		}
+		go func() {
+			log.Fatal(s.serveTickets(context.Background(), tl, vsockCID, log.New(os.Stderr, "release: ", log.LstdFlags)))
+		}()
+		el, err := vsock.Listen(egressPort)
+		if err != nil {
+			log.Fatalf("egress: %v", err)
+		}
+		es := &egress.Server{
+			Dialer: &egress.Dialer{Resolver: net.DefaultResolver, Own: hostAddrs, MaxConcurrent: 32, MaxPerMinute: 600},
+			CIDOf:  vsockCID, Admit: s.admitCID, Log: log.New(os.Stderr, "egress: ", log.LstdFlags),
+		}
+		go func() { log.Fatal(es.Serve(context.Background(), el)) }()
+		log.Printf("attested release ON: tickets on vsock %d, egress on vsock %d (guests guestd launched only)", release.TicketPort, egressPort)
+	}
 	if *authKey != "" {
 		k, err := loadKey(*authKey)
 		if err != nil {
@@ -424,4 +462,28 @@ func (s *server) shutdown() {
 		}
 	}
 	s.launching.Wait()
+}
+
+// vsockCID is a vsock stream's peer CID: for a guest this host launched, the CID guestd chose for it. Anything that is
+// not a vsock stream has none (0), which neither release service admits.
+func vsockCID(c net.Conn) uint32 {
+	if a, ok := c.RemoteAddr().(vsock.Addr); ok {
+		return a.CID
+	}
+	return 0
+}
+
+// hostAddrs is this host's own addresses, read at each dial: the egress dialer refuses them as destinations.
+func hostAddrs() []netip.Addr {
+	as, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	var out []netip.Addr
+	for _, a := range as {
+		if p, err := netip.ParsePrefix(a.String()); err == nil {
+			out = append(out, p.Addr().Unmap())
+		}
+	}
+	return out
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -173,6 +174,22 @@ func TestEveryEndPathReturnsItsReservation(t *testing.T) {
 			close(r.f.startGate)
 			r.s.launching.Wait()
 			r.f.startGate = nil
+			return id
+		},
+		// the attested release (release.go): a deployment guest waits for its ticket before it serves, holding its room;
+		// a ticket that never comes ends it through the lifecycle, and the room comes back (enclave-63's invariant 2)
+		"a ticket that never arrives": func(r *rig, p string) string {
+			r.s.Release, r.s.TicketHold = true, 50*time.Millisecond
+			r.f.guest = func(ctx context.Context, cid uint32, _ string) error {
+				_, _, err := r.s.takeTicket(ctx, cid)
+				return err
+			}
+			_, b := r.create(name(1), p)
+			r.s.launching.Wait()
+			id := b["id"].(string)
+			if _, v := r.do("GET", "/vms/"+id, nil); v["status"] != "failed" || !strings.Contains(fmt.Sprint(v["error"]), "no ticket arrived") {
+				r.t.Fatalf("a guest whose ticket never came: %v", v)
+			}
 			return id
 		},
 		"a delete": func(r *rig, p string) string {
