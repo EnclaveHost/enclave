@@ -365,8 +365,15 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   }
   // the AMD collateral the evidence will need, fetched BEFORE the ticket is consumed (enclave-d1): a KDS or CRL outage is the
   // relay's own 503 and keeps the ticket, instead of a verifier "rejected" that would burn it. It judges nothing.
-  let warm;
-  try { warm = await ctx.prewarmCollateral(b.evidence); } catch (e) { warm = { ok: false, missing: [e.message] }; }
+  // Only for a report that names a chip the ticket was issued for (enclave-d1): a 503 keeps the ticket, so otherwise one ticket
+  // could drive a KDS fetch per retry for any CHIP_ID written into an unverified report. Anything else skips the prewarm
+  // and is refused below, after consumption, by the verifier and the relay's own CHIP_ID check.
+  let warm = { ok: true, skipped: "the report names no chip the ticket was issued for" };
+  let chip0 = null;
+  try { chip0 = reportFields(Buffer.from(String((b.evidence && b.evidence.report) || ""), "base64")).chipId.toString("hex"); } catch {}
+  if (chip0 && t.chips.includes(chip0)) {
+    try { warm = await ctx.prewarmCollateral(b.evidence); } catch (e) { warm = { ok: false, missing: [e.message] }; }
+  }
   if (!warm || warm.ok !== true) {
     const why = `AMD collateral is unavailable right now (${((warm && warm.missing) || ["no answer"]).join(", ")}); retry shortly`;
     console.warn(`[secrets-release] ${id}: ${why} (ticket kept)`); bad(503, "collateral_unavailable", `${why}.`); return true;
