@@ -42,6 +42,19 @@ wait for that final id. Everything below carries over, provided `check-third-par
 - **The rollback:** 5c3561f9 (0181bce3), which stays installed and pinned. Its publication artifact is
   release-0181bce3/.
 
+## The candidate final release: a4f22748 (17e182a8), checked; packaging HELD for e3's and d1's approval
+5d built it as the candidate final. It is pending e3's and d1's review, and 5d will confirm when it is approved. Checked
+read-only on 5d's artifact, ~/enclave-bench/prod-release-17e182a8/release-17e182a8, whose clean worktree is at
+17e182a8:
+- **`check-third-party.py` against 5c3561f9 prints SAME.** Only Enclave's own files differ:
+  - template/front bd066066…;
+  - template/init 3ae4c7e5….
+- **Against 0839ac3a, only template/init differs:** dominit.c now gives the app /dev/null for stdio. The front is
+  byte-identical to 0839ac3a's, so `front-embedded-data.md` stands.
+- **Nothing that shapes the release or the front changed since ecf02384:** isolation/m2/release, the go.mod files,
+  app-image-template.sh, runtime-set.sh and m1/domain.env are untouched.
+- **template/init is still `gcc -static`** against the same glibc and GCC, so the LGPL-2.1 section 6 note is unchanged.
+
 ## When the final id arrives
 1. `check-third-party.py <final release dir> --expect <id> ~/enclave-prod/release-0181bce3 --reference-id 5c3561f9…`
    must print SAME. If it does not, inventory the difference first.
