@@ -270,6 +270,8 @@ export class Host {
                                           privateOk: !!this.cfg.sessionKid,
                                           features: this.features() });
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
+    const retired = this.retiredEngineClaimRefusal(d);
+    if (retired) { this.#record(id, { status: "refused", reason: retired, appRef: d?.appRef || "" }); return { accepted: false, reason: retired }; }
     this.tracked.add(id); this.#saveTracked();
     const ours = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase();
     const live = Number(d.leaseUntil) * 1000 > Date.now();
@@ -575,9 +577,11 @@ export class Host {
     catch (e) { return this.#record(id, { status: "failed", reason: `isolation: ${e.message}` }); }
 
     if (r.action === "held") {
-      // NOT a failure and NOT a success: the lease is kept and this tick decided nothing.
+      // NOT a failure and NOT a success: the lease is kept and this tick decided nothing. The instance it holds is
+      // RECORDED (enclave-d1's review, finding 3) so a forced relaunch and the lease's end can retire it. It is kept
+      // apart from rec.isolation, which is what routes traffic: a held domain is not serving.
       this.log(`${id.slice(0, 10)} isolation held: ${r.reason}`);
-      return this.#record(id, { status: "provisioning", reason: r.reason });
+      return this.#record(id, { status: "provisioning", reason: r.reason, ...(r.instance?.id ? { isolationHeld: r.instance.id } : {}) });
     }
     if (r.action === "failed") {
       if (r.leaseFree) return await this.#giveUp(id, `isolation: ${r.reason}`);
@@ -586,7 +590,7 @@ export class Host {
     // adopted or spawned, and serving
     const inst = r.instance || {};
     this.log(`${id.slice(0, 10)} isolation ${r.action}: ${inst.id} status=${inst.status} image=${inst.image || "?"}`);
-    return this.#record(id, { status: "running", reason: null,
+    return this.#record(id, { status: "running", reason: null, isolationHeld: null,
                               isolation: { backend: "hyperv-partition-per-app", instance: inst.id,
                                            // appId is REQUIRED by isolatedTarget; without it the
                                            // app-zone route cannot name what it is splicing to
@@ -611,20 +615,15 @@ export class Host {
                                    cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000,
                                    // What the data-path gate needs, from the ledger and nowhere else.
                                    isPublic: d.isPublic !== false, owner: String(d.owner || "").toLowerCase() });
-    let v = version;
-    if (!v) try { v = await chain.resolveAppRef(d.appRef); } catch (e) { return this.#record(id, { status: "failed", reason: `catalog: ${e.message}` }); }
-    if (v.yanked) return await this.#giveUp(id, "the catalog version is yanked");
-    // The CORELESS floor, which is the only kind this box does: the version's own memMb, raised by
-    // the publisher's cpuFallback when they declared one. Sizing a fallback off the card-case
-    // figure is how a big model lands on a small slice and dies at weight-load with nothing having
-    // said no, so the guest's memory cap is the larger number.
-    const floor = chain.nodeFloorOf(v);
-    this.#record(id, { cid: v.cid, version: v.version, memMb: floor.memMb, cpuFallbackSized: floor.fromFallback });
-
-    // THE ENVELOPE, parsed ONCE and BEFORE the isolation branch, because the branch's opt-in gate
-    // reads what it records. It used to be parsed further down, so `isolationRequired` was written
-    // after the gate had already read it as absent - and nothing wrote it at all, which is the
-    // defect enclave-99 found: the gate could never be satisfied. Through the same parser
+    // HELD first, before the catalog read: a yanked version, like every later gate, would otherwise give the
+    // lease back on chain (heldReason).
+    const held = this.heldReason(d);
+    if (held) return this.#record(id, { status: "held", reason: held });
+    // THE ENVELOPE, parsed ONCE and BEFORE the catalog read and every gate that can give the lease back: #giveUp asks
+    // #retireIsolated, which must know whether this deployment is isolated at all (unknown means it asks the manager).
+    // And before the isolation branch, because the branch's opt-in gate reads what it records. It used to be parsed
+    // after that gate, so `isolationRequired` was written after the gate had already read it as absent - and nothing
+    // wrote it at all, which is the defect enclave-99 found: the gate could never be satisfied. Through the same parser
     // claimPolicy used, so "accepted at claim" and "applied here" cannot drift.
     let envOpts = {}, envRead = false;
     try { envOpts = chain.parseEnvelope(d.configCid, d.gpuMilli) || {}; envRead = true; }
@@ -639,14 +638,28 @@ export class Host {
       // true only when the tenant asked for THIS box's backend by name. claimPolicy already
       // refuses a deployment requiring a backend this box does not run, so a mismatch here means
       // the config changed under a live lease.
-      isolationRequired: !!envOpts.isolationRequire && envOpts.isolationRequire === this.isolationBackend,
+      // null when the envelope could not be read: UNKNOWN, which #isolationReconcile already treats as "not read" and
+      // #retireIsolated as "may have been isolated" (it asks the manager by name rather than assume nothing is there).
+      isolationRequired: envRead ? (!!envOpts.isolationRequire && envOpts.isolationRequire === this.isolationBackend) : null,
     });
+    let v = version;
+    if (!v) try { v = await chain.resolveAppRef(d.appRef); } catch (e) { return this.#record(id, { status: "failed", reason: `catalog: ${e.message}` }); }
+    if (v.yanked) return await this.#giveUp(id, "the catalog version is yanked");
+    // The CORELESS floor, which is the only kind this box does: the version's own memMb, raised by
+    // the publisher's cpuFallback when they declared one. Sizing a fallback off the card-case
+    // figure is how a big model lands on a small slice and dies at weight-load with nothing having
+    // said no, so the guest's memory cap is the larger number.
+    const floor = chain.nodeFloorOf(v);
+    this.#record(id, { cid: v.cid, version: v.version, memMb: floor.memMb, cpuFallbackSized: floor.fromFallback });
 
     // A FORCED re-ensure retires the existing domain first. Without this the reconcile below
     // ADOPTS the live one by name and the deployment keeps running its previous configuration
     // while the record says the new one was applied - a config edit or an artifact override that
     // silently did nothing (defect 15's third path).
-    if (force && this.records.get(id)?.isolation) {
+    // It retires the instance this node knows of (serving or held), or BY NAME for a deployment known to be isolated
+    // when it knows of none (a node that restarted beside a VM the manager recovered: probe H4 of enclave-d1's review).
+    const forcedRec = this.records.get(id) || {};
+    if (force && (forcedRec.isolation || forcedRec.isolationHeld || forcedRec.isolationRequired === true)) {
       const gone = await this.#retireIsolated(id, "forced relaunch");
       if (!gone) return this.#record(id, { status: "provisioning",
         reason: "the previous isolated domain could not be confirmed gone, so a new one is not started" });
@@ -1174,6 +1187,10 @@ export class Host {
         await this.consider(id).catch((e) => this.log(`re-claim ${id.slice(0, 10)}: ${e.message}`));
         continue;
       }
+      // HELD (a retired-engine node, a deployment it cannot run): before the renewal, the envelope edit and
+      // the resize, each of which can spend or give back the lease on chain. Recorded, and left alone.
+      const held = this.heldReason(d);
+      if (held) { this.#record(id, { status: "held", reason: held, leaseUntil: Number(d.leaseUntil) }); continue; }
       if (untilMs - Date.now() < RENEW_LEAD_MS) {
         try { await chain.renewDeployment(id); this.log(`renewed ${id.slice(0, 10)}`); d = await chain.readDeployment(id); }
         catch (e) {
@@ -1231,8 +1248,16 @@ export class Host {
    */
   async #giveUp(id, why) {
     // An isolated domain first: handing the lease back while its partition still serves would
-    // leave the deployment answering with no lease behind it (defect 15).
-    await this.#retireIsolated(id, why);
+    // leave the deployment answering with no lease behind it (defect 15). And if it could NOT be confirmed gone, the
+    // lease is not given back at all (enclave-d1's review, finding 4): no block, no release, still tracked, so the tick
+    // keeps the lease renewed while the domain may run and retries this on its next pass.
+    if (!(await this.#retireIsolated(id, why))) {
+      const rec = this.records.get(id) || {};
+      const held = `giving up (${why}) waits: the isolated domain could not be confirmed gone (${rec.isolationRetireFailed || "unconfirmed"}); `
+        + "the lease is kept and the retire is retried";
+      this.log(`${id.slice(0, 10)} ${held}`);
+      return this.#record(id, { status: "held", reason: held });
+    }
     // Everything that belonged to the lease goes with it. The rate buckets and concurrency
     // counters are keyed by deployment id, and an id CAN come back - a lease handed back for one
     // reason is re-claimable once that reason changes. Leaving the counters behind would meet the
@@ -1267,19 +1292,24 @@ export class Host {
    * that case, and this reports it so the record says why.
    */
   async #retireIsolated(id, why) {
-    const rec = this.records.get(id);
-    if (!rec || !rec.isolation || !this.cfg.isolationManager) return true;    // nothing to retire
+    if (!this.cfg.isolationManager) return true;                                // no backend: nothing can be out there
+    const rec = this.records.get(id) || {};
+    // The instance this node KNOWS of: serving (rec.isolation) or held (rec.isolationHeld). With neither, it retires BY
+    // NAME (enclave-d1's review, finding 3): a node that restarted, or that only ever held a recovered VM, does not
+    // know the id, and "I know of none" is not "there is none". Skipped only for a deployment KNOWN not to be isolated.
+    const instanceId = rec.isolation?.instance ?? rec.isolationHeld ?? null;
+    if (!instanceId && rec.isolationRequired === false) return true;
     try {
       const { retire } = await import("./isolation-lifecycle.mjs");
       const { IsolationManagerClient } = await import("./isolation-client.mjs");
       const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
-      const r = await retire({ client, deployment: { id }, ledger: null, instanceId: rec.isolation.instance });
+      const r = await retire({ client, deployment: { id }, ledger: null, instanceId });
       if (r.removed) {
         // CLEARED ONLY ON A CONFIRMED REMOVAL (enclave-99). Dropping `isolation` on any other
         // outcome would erase the only record of which instance is still out there: the domain
         // would keep serving and nothing here would name it, so a later tick could neither retire
         // it nor even report it. Keeping it is what makes an unconfirmed retire visible.
-        this.#record(id, { isolation: null, isolationRetireFailed: null });
+        this.#record(id, { isolation: null, isolationHeld: null, isolationRetireFailed: null });
         this.log(`${id.slice(0, 10)} isolated domain retired (${why})`);
         return true;
       }
@@ -1295,14 +1325,21 @@ export class Host {
 
   async #stopApp(id, why) {
     // BEFORE forgetting anything: a partition is not in this.apps, so without this the domain
-    // simply keeps running under a lease that has ended.
-    await this.#retireIsolated(id, why);
+    // simply keeps running under a lease that has ended. An unconfirmed retire keeps the deployment TRACKED, so the
+    // next tick (which reads the same ledger state and comes back here) retries it rather than forgetting a VM that
+    // may still run.
+    const gone = await this.#retireIsolated(id, why);
     waf.forget(id);
     this.secrets.delete(id);                           // they belong to the lease, not to this box
     this.appCerts.delete(id); this.appCertFails.delete(id);
     this.forgetDomains(id);
     const app = this.apps.get(id);
     if (app) { await app.stop(); this.apps.delete(id); }
+    if (!gone) {
+      this.#record(id, { status: "held", reason: `stopping (${why}) waits: the isolated domain could not be confirmed gone; retried each tick` });
+      this.log(`${id.slice(0, 10)} stop waits on the isolated domain's retire: ${why}`);
+      return;
+    }
     this.#record(id, { status: "stopped", reason: why });
     this.tracked.delete(id); this.#saveTracked();
     this.log(`stopped ${id.slice(0, 10)}: ${why}`);
@@ -1330,10 +1367,21 @@ export class Host {
 
   // ---- the surface the relay and the console call, over the tunnel -------------------------
   deployments() { return [...this.records.values()].map((r) => ({ ...r })); }
+  /**
+   * Does this record still occupy the box? A running app does; so does an isolated domain the node holds or could not
+   * confirm gone, whatever the record's status says (held, provisioning, failed): its VM may still run, and selling
+   * its share again would over-admit (enclave-d1's re-review, finding 5). So does an ISOLATED deployment that is
+   * provisioning with no instance id yet (a hold on a manager 503): a VM for it may exist unnamed (d1's acceptance of
+   * fb1db848, the residual).
+   */
+  static occupies(r) {
+    return r.status === "running" || !!r.isolation || !!r.isolationHeld || !!r.isolationRetireFailed
+      || (r.status === "provisioning" && r.isolationRequired === true);
+  }
   /** The node pool this box has left, as a fraction: what the relay's placement reads. */
   cpuShareFree({ exclude = null } = {}) {
     if (!this.cfg.appsEnabled) return 0;
-    const used = [...this.records.values()].filter((r) => r.status === "running")
+    const used = [...this.records.values()].filter((r) => Host.occupies(r))
       .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase())
       .reduce((a, r) => a + (r.cpuShare || 0), 0);
     return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25)));   // a quarter stays for the enclave, the worker and the owner
@@ -1351,7 +1399,7 @@ export class Host {
     if (!this.cfg.appsEnabled) return 0;
     const card = this.card && this.card();
     if (!card || !(Number(card.vramBudgetGb) > 0)) return 0;
-    const sold = [...this.records.values()].filter((r) => r.status === "running")
+    const sold = [...this.records.values()].filter((r) => Host.occupies(r))
       .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase())
       .reduce((a, r) => a + (r.gpuShare || 0), 0);
     const onCard = Number(card.vramFreeGb) / Number(card.vramBudgetGb);
@@ -1371,7 +1419,7 @@ export class Host {
     // RESIZE measures a tenant growing from 10% to 20% against a box that would otherwise still be
     // counting their first 10%. Either way, counting a deployment against itself refuses it for
     // asking for what it already has.
-    const running = [...this.records.values()].filter((r) => r.status === "running" || r.status === "provisioning")
+    const running = [...this.records.values()].filter((r) => r.status === "provisioning" || Host.occupies(r))
       .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase());
     const committedMb = running.reduce((a, r) => a + (Number(r.memMb) || 0), 0);
     // AN APP INSIDE THE ENCLAVE LIVES IN ENCLAVE MEMORY, and the enclave is a FIXED, DEDICATED
@@ -1429,6 +1477,34 @@ export class Host {
    * property is the whole basis on which the box sells app hosting at all.
    */
   appsInTee() { return Number(this.cfg.enclaveAppAbi || 0) >= 1; }
+  /**
+   * THE LEGACY BACKEND IS RETIRED on a node started without the VBS enclave engine (cfg.engineRetired;
+   * Steven, 2026-09-25). Only a deployment that requires THIS box's isolation backend by name runs here.
+   * isolatedForThisBox(d) -> true when the deployment's envelope asks for this.isolationBackend. An unreadable
+   * envelope, or a node with no isolation manager, is not that.
+   */
+  isolatedForThisBox(d) {
+    if (!this.isolationBackend) return false;
+    try { return (chain.parseEnvelope(d?.configCid, d?.gpuMilli) || {}).isolationRequire === this.isolationBackend; }
+    catch { return false; }
+  }
+  /**
+   * heldReason(d) -> the reason a deployment this node already holds is HELD, or null. A held deployment is
+   * refused and recorded, never started, never renewed (a tenant is not billed for a service this box cannot
+   * give), and NEVER released on chain automatically. Giving a lease back is an on-chain transaction and the
+   * operator's decision (enclave-d1 F2). A held lease simply lapses at leaseUntil.
+   */
+  heldReason(d) {
+    if (this.cfg.engineRetired !== true || this.isolatedForThisBox(d)) return null;
+    return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired) and this deployment "
+      + "does not require it: held - not started, not renewed, not released - pending the operator's decision";
+  }
+  /** claimRefusal(d) -> why a retired-engine node will not CLAIM a deployment, or null (see heldReason). */
+  retiredEngineClaimRefusal(d) {
+    if (this.cfg.engineRetired !== true || this.isolatedForThisBox(d)) return null;
+    return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired): "
+      + `it claims only deployments that require ${this.isolationBackend || "an isolation backend it does not have"}`;
+  }
   /**
    * Does this box meet the isolation contract it would be SOLD under (site: Develop > Architecture,
    * "The isolation contract")? Tenant work needs every property, and this box knows which it lacks
