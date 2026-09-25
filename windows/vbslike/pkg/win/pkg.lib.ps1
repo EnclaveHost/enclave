@@ -139,6 +139,16 @@ function Test-HostProfile($R, $M, [string]$Boot) {
       [void](Add-Result $R $ok "[$Boot] $($g.name)" $(if ($ok) { "= $v" } else { "$(if ($null -eq $v) { 'absent' } else { "= $v" }), needs $($g.value): $($g.why)" }) 'blocked')
     }
   }
+  # a file this HOST supplies, named and hash-pinned by the manifest but not shipped (the launcher hashes it again at
+  # use): absent or different = BLOCKED. Read here, never written.
+  if ($hc.PSObject.Properties.Name -contains 'boxFiles') {
+    foreach ($b in @($hc.boxFiles)) {
+      $h = $null
+      if (Test-Path -LiteralPath $b.path -PathType Leaf) { try { $h = Get-Sha256 $b.path } catch { $h = $null } }
+      $ok = ($null -ne $h) -and ($h -eq $b.sha256); if (-not $ok) { $ready = $false }
+      [void](Add-Result $R $ok "[$Boot] box file $($b.name)" $(if ($ok) { "$($b.path) sha256 $h" } elseif ($null -eq $h) { "absent at $($b.path): $($b.why)" } else { "$($b.path) hashes $h, not the pinned $($b.sha256)" }) 'blocked')
+    }
+  }
   # recorded, never gating: a setting someone suspects matters, whose role is not established
   if ($hc.PSObject.Properties.Name -contains 'info') {
     foreach ($g in @($hc.info)) {

@@ -44,6 +44,44 @@
    }
   },
   {
+   "id": "vbs-linux-candidate-1539",
+   "class": "candidate",
+   "imageSha256": "b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748",
+   "imageBytes": 77794396,
+   "vbsBootDigest": "56FBB27F363A7FEDC83FD56CB4FF39C5411140300BB8F8496C35893A061077E1",
+   "vbsIsvsvn": 13,
+   "debugBuild": false,
+   "confidentialDebug": false,
+   "trustsHostCommandLine": false,
+   "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553), enclave-5d's initrd 1539d5b2 (680d40fa with plat/domprobe rebuilt: the open-only TPM negative control) and command line as measured pages; static_command_line=true",
+   "booted": "no: build-only; enclave-d1's byte review agrees (fd92d610)",
+   "eligible": false,
+   "reason": "NOT YET ELIGIBLE: the next production candidate, before its first boot; eligibility is a later version's decision after its own canary (enclave-d1's rollover discipline), never this entry's",
+   "pin": {
+    "image": "guest/igvm-vbs/vbs-linux-candidate-1539-b7ba7731.bin",
+    "identity": "vbs-linux-candidate-1539-vbs.json"
+   }
+  },
+  {
+   "id": "vbs-linux-candidate-1539-debug-twin",
+   "class": "debug",
+   "imageSha256": "95de03cc46769023adb96ae973b38a2b76b9f3a8bd5c2d4f9c44764ae43b49f5",
+   "imageBytes": 77794396,
+   "vbsBootDigest": "8E9D6ACBDAAD01F79AAB4EC6FA964068DA992C40B32D110025570C46BD682F9A",
+   "vbsIsvsvn": 13,
+   "debugBuild": false,
+   "confidentialDebug": true,
+   "trustsHostCommandLine": true,
+   "vtl0": "linux, measured (the b7ba7731 candidate's own VTL0)",
+   "booted": "no: build-only",
+   "eligible": false,
+   "reason": "REFUSE: carries OPENHCL_CONFIDENTIAL_DEBUG=1, so OpenHCL trusts the host command line; its debugBuild is false all the same",
+   "pin": {
+    "image": "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-1539-DEBUG-TRUSTS-HOST-95de03cc.bin",
+    "identity": "vbs-linux-candidate-1539-DEBUG-TRUSTS-HOST-vbs.json"
+   }
+  },
+  {
    "id": "g4-probe-72462737",
    "class": "probe",
    "imageSha256": "724627378d81b51f0c56d7b22120162c11025961c678d2f2952ce7bb87a2bc1b",

@@ -54,6 +54,17 @@ function pinRef(m, raw) {
   const f = m.files.find((x) => x.role === "reference.values"); f.from = { file: p };
   f.sha256 = crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex"); f.bytes = fs.statSync(p).size; return m;
 }
+// A DRAFT as pkg.mjs reads it, for mutating and writing outside the repository: when the draft is committed and unchanged
+// since, its `repo` sources become git pins at that commit (where pkg.mjs resolves them), so a later version's changes
+// to the package's own scripts cannot fail an older draft's test; an uncommitted draft keeps reading the working tree.
+function draftFor(draft) {
+  const top = spawnSync("git", ["-C", HERE, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).stdout.trim(), rel = path.relative(top, draft);
+  const c = spawnSync("git", ["-C", top, "log", "-1", "--format=%H", "--", rel], { encoding: "utf8" }).stdout.trim();
+  const clean = !!c && spawnSync("git", ["-C", top, "diff", "--quiet", c, "--", rel]).status === 0;
+  const m = JSON.parse(fs.readFileSync(draft, "utf8"));
+  if (clean) for (const e of [...m.files, ...m.inputs]) if (e.from && e.from.repo) e.from = { git: { commit: c, path: e.from.repo } };
+  return m;
+}
 // re-pin the named entries to what their sources now give: a consistent forgery
 function repin(m, ids) {
   const r = run(["pins", writeManifest(m)]);
@@ -828,7 +839,7 @@ test("pkg.mjs: a not-yet-booted candidate IGVM cannot be a profile's firmware (t
   assert.equal(ok.code, 0, fails(ok.out));
   assert.match(ok.out, /ok   a candidate IGVM is a profile's firmware only once its reference entry records it booting \(1 profile use\(s\) of a candidate IGVM, each recorded as booted\)/);
   // the G1 candidate (reference: "no: ... not booted yet") made profile vbsLinux's firmware: refused by the rule
-  const m2 = pinRef(structuredClone(d), refRawFor(D)); m2.profiles.vbsLinux.firmware = "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin";
+  const m2 = draftFor(D); m2.profiles.vbsLinux.firmware = "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin";
   const x = run(["verify", writeManifest(m2)]);
   assert.equal(x.code, 1);
   assert.match(x.out, /FAIL a candidate IGVM is a profile's firmware only once its reference entry records it booting: vbsLinux\.firmware guest\/igvm-vbs\/vbs-linux-candidate-g1-a44bb55a\.bin is a candidate IGVM whose reference entry says booted "no: built by enclave-63/, fails(x.out));
@@ -899,7 +910,7 @@ test("draft v32 ships enclave-d1's new launcher 15338081 BESIDE the pinned 0160d
   assert.equal(r.code, 0, fails(r.out));
   assert.match(r.out, /ok   every profile's launcher is a control\.launcher \(a candidate\.launcher is never a profile's launcher\) \(1 profile launcher\(s\), 1 candidate launcher\(s\) shipped beside\)/);
   // the candidate made a profile's launcher is refused by the rule
-  const m2 = pinRef(structuredClone(d), refRawFor(D)); m2.profiles["hcs-dev"].launcher = cand[0].path;
+  const m2 = draftFor(D); m2.profiles["hcs-dev"].launcher = cand[0].path;
   const x = run(["verify", writeManifest(m2)]);
   assert.equal(x.code, 1);
   assert.match(x.out, /FAIL every profile's launcher is a control\.launcher .*hcs-dev\.launcher control\/candidate-launcher\/vbslike-host-15338081\.exe is candidate\.launcher/, fails(x.out));
@@ -907,7 +918,7 @@ test("draft v32 ships enclave-d1's new launcher 15338081 BESIDE the pinned 0160d
 
 test("pkg.mjs: a stated boot-form pair (profile.contract) must be exactly one of the verifier contract's canonical pairs (ae6e9147)", { skip }, () => {
   const D = path.join(HERE, "drafts/nucbox-ownguest-32.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
-  const verify = (mut) => { const m = pinRef(structuredClone(d), refRawFor(D)); mut(m); return run(["verify", writeManifest(m)]); };
+  const verify = (mut) => { const m = draftFor(D); mut(m); return run(["verify", writeManifest(m)]); };
   // canonical pairs, and null (not launched by wmiserve), pass
   let x = verify((m) => { m.profiles.vbsLinux.contract = { partition: "wmi-openhcl-gen2-igvm-linux", guestImageKind: "igvm-linux-direct", source: "ae6e9147" };
                           m.profiles.uefi.contract = { partition: "wmi-openhcl-gen2", guestImageKind: "uefi-medium" }; m.profiles["hcs-dev"].contract = null; });
@@ -947,10 +958,10 @@ test("draft v33 ships the G4 PROBE image (never a profile's firmware, never elig
   assert.equal(r.code, 0, fails(r.out));
   assert.match(r.out, /ok   every stated boot-form pair .* \(3 stated pair\(s\)\)/);
   // the probe as a profile's firmware, or marked eligible, is refused
-  let x = run(["verify", writeManifest(((m) => { m.profiles.vbsLinux.firmware = PF; return m; })(pinRef(structuredClone(d), refRawFor(D))))]);
+  let x = run(["verify", writeManifest(((m) => { m.profiles.vbsLinux.firmware = PF; return m; })(draftFor(D)))]);
   assert.equal(x.code, 1); assert.match(x.out, /a probe firmware is never a profile's firmware/, fails(x.out));
   const bad = structuredClone(ref); bad.images.find((y) => y.id === "g4-probe-72462737").eligible = true;
-  x = run(["verify", writeManifest(pinRef(structuredClone(d), JSON.stringify(bad)))]);
+  x = run(["verify", writeManifest(pinRef(draftFor(D), JSON.stringify(bad)))]);
   assert.equal(x.code, 1); assert.match(x.out, /g4-probe-72462737 is marked eligible but is class probe/, fails(x.out));
 });
 
@@ -1012,4 +1023,72 @@ test("draft v35 records v34's serving acceptance 084443 as staged (with enclave-
   assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
+});
+
+test("draft v36 re-pins control/ to hv-acceptance 2c3a2873 (what run 090327 ran), states the vbsLinux manager's environment and box files, and adds the next production candidate b7ba7731 as eligible:false", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-36.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT \(supersedes v35, which is staged at pkg\\1840b52f91e92cdd\\\)\. THE PACKAGE'S CONTROL TREE IS NOW THE ONE THAT RAN: control\/ = windows\/hv-acceptance 2c3a2873/);
+  assert.match(d.status, /V35'S INPUTS PASSED THE SERVING ACCEPTANCE ON THIS PACKAGE'S NEW CONTROL TREE \(enclave-d1, run 090327, evidence c5bb270d/);
+  assert.match(d.status, /this package ships the 15 its import closure needs/);
+  const TREE = "2c3a28736c3c3a13241f62e0f3490fab46cc4f14";
+  const ctl = d.files.filter((f) => /^control\./.test(f.role) && f.role !== "control.acceptance" && f.from?.git);
+  assert.ok(ctl.length >= 40 && ctl.every((f) => f.from.git.commit === TREE), "every control.* git pin is 2c3a2873");
+  assert.equal(d.files.find((f) => f.path === "control/windows/vbslike/manager/wmiserve-run.mjs").role, "control.manager");
+  assert.equal(d.files.find((f) => f.path === "control/windows/vbslike/verify/boot-statements.mjs").role, "control.judge");
+  assert.equal(d.files.find((f) => f.role === "control.acceptance").from.git.commit.slice(0, 8), "c192380c");
+  assert.equal(d.inputs.find((i) => i.name === "isolation-lifecycle.test.mjs").from.git.commit.slice(0, 8), "755b3f88");
+  assert.equal(d.npmTree.packages.length, 15);
+  const dev = [...d.files, ...d.inputs].find((x) => /uefi-dev-boot\.ps1/.test(x.path || x.from?.git?.path || ""));
+  assert.equal(dev.from.git.commit.slice(0, 8), "c16d785d");
+  assert.match(dev.note, /CORRECTION of v35's note: .* for hvdial, which signs nothing, AND, only when given -Bundle, as `wmiserve` \(the 9000 load and the 9001 report signer/);
+  const v = d.profiles.vbsLinux, env = Object.fromEntries(v.managerEnv.map((e) => [e.name, e]));
+  assert.equal(env.ENCLAVE_BOOT_FORM.value, "linux-direct");
+  assert.equal(env.ENCLAVE_GUEST_IGVM.file, v.firmware);
+  assert.equal(v.firmware, "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin");
+  assert.deepEqual(d.hostChecks.vbsLinux.boxFiles.map((b) => [b.name, b.sha256.slice(0, 8)]), [["hyperv.psm1", "17ca4352"], ["type1.vmgs", "4f051697"]]);
+  const c = d.files.find((f) => f.path === v.nextCandidate.file);
+  assert.equal(c.role, "candidate.igvm"); assert.equal(c.sha256.slice(0, 16), "b7ba7731240ec902");
+  assert.ok(!Object.values(d.profiles).some((p) => p && [p.firmware, p.image].includes(c.path)), "the candidate is no profile's firmware");
+  const ref = JSON.parse(refRawFor(D)), e = ref.images.find((x) => x.id === "vbs-linux-candidate-1539");
+  assert.equal(e.eligible, false); assert.match(e.booted, /^no: build-only; enclave-d1's byte review agrees \(fd92d610\)$/);
+  assert.equal(e.vbsBootDigest, "56FBB27F363A7FEDC83FD56CB4FF39C5411140300BB8F8496C35893A061077E1");
+  assert.deepEqual(ref.images.filter((x) => x.eligible).map((x) => x.vbsBootDigest.slice(0, 8)), ["58DFEBFE"]);
+  assert.deepEqual(d.profiles.uefi.managerServing.expect, { attachesMedium: true, setsBootDevice: true, readsBackBoot: true, imageIsMediumHash: true, imageType: "string", hasLauncherKey: false, hasRelay: false });
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   the igvm manager creates its VM with a guest-state isolation type .*\(New-CustomVM -GuestStateIsolationType 1, Secure Boot off\)/);
+  assert.match(r.out, /ok   the vbsLinux manager's environment is one the pinned manager reads, and agrees with this package .*\(19 variable\(s\), 2 box file\(s\)\)/);
+});
+
+test("the vbsLinux manager's environment is refused when it contradicts the package: a name the manager does not read, another boot form, another IGVM, another hyperv.psm1 pin, a box file it does not pin", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-36.json"), m = draftFor(D);
+  const env = m.profiles.vbsLinux.managerEnv, at = (n) => env.find((e) => e.name === n);
+  env.push({ name: "ENCLAVE_NOT_READ_BY_MAIN", value: "1" });
+  at("ENCLAVE_BOOT_FORM").value = "uefi-medium";
+  at("ENCLAVE_GUEST_IGVM").file = m.profiles.vbsLinux.nextCandidate.file;
+  m.hostChecks.vbsLinux.boxFiles.find((b) => b.name === "hyperv.psm1").sha256 = "ab".repeat(32);
+  at("ENCLAVE_GUEST_STATE_MASTER").boxFile = "other.vmgs";
+  const r = run(["verify", writeManifest(m)]), f = fails(r.out);
+  assert.notEqual(r.code, 0);
+  assert.match(f, /FAIL the vbsLinux manager's environment is one the pinned manager reads/);
+  for (const re of [/ENCLAVE_NOT_READ_BY_MAIN is not read by the pinned control\/windows\/vbslike\/manager\/main\.mjs/,
+                    /ENCLAVE_BOOT_FORM must be "linux-direct", the form of the contract's guestImageKind "igvm-linux-direct"/,
+                    /ENCLAVE_GUEST_IGVM\(_SHA256\) must be the profile's firmware/,
+                    /hyperv\.psm1 must be a box file pinned at the pinned launcher's own default 17ca4352/,
+                    /ENCLAVE_GUEST_STATE_MASTER names the box file other\.vmgs, which hostChecks\.vbsLinux\.boxFiles does not pin/])
+    assert.match(f, re);
+});
+
+test("the manager check refuses the type-1 launcher once it stops asking for a guest-state isolation type (2c3a2873's wmi-launcher.mjs, consistent forgery)", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-36.json"), m = draftFor(D);
+  const W = "control/windows/vbslike/manager/wmi-launcher.mjs", top = path.join(HERE, "../../..");
+  const src = spawnSync("git", ["-C", top, "show", `2c3a28736c3c3a13241f62e0f3490fab46cc4f14:windows/vbslike/manager/wmi-launcher.mjs`], { encoding: "utf8", maxBuffer: 1 << 26 }).stdout;
+  assert.equal((src.match(/-GuestStateIsolationType 1 /g) || []).length, 1, "the define script asks for type 1 exactly once");
+  const p = path.join(fs.mkdtempSync(path.join(WORK, "wl-")), "wmi-launcher.mjs");
+  fs.writeFileSync(p, src.replace("-GuestStateIsolationType 1 ", ""));
+  m.files.find((f) => f.path === W).from = { file: p }; repin(m, [W]);
+  const r = run(["verify", writeManifest(m)]);
+  assert.notEqual(r.code, 0);
+  assert.match(fails(r.out), /FAIL the igvm manager creates its VM with a guest-state isolation type/);
 });
