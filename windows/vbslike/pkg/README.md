@@ -274,6 +274,19 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   confidential-debug images, so only the exact launch digest tells them apart. Dev-boot script at `a891dfae`.
   `host_excluded=no`; E2/E3 not re-run under Secure Boot; no isolation claim.
 
+- **v28 draft** (`drafts/nucbox-ownguest-28.json`, HELD — the **handoff version**, staged only on d1's word): the
+  measured-VTL0 candidate rebuilt at 5d's review with `static_command_line=true` (the one requested change) and
+  **shipped** with its debug twin: candidate `c567e432…` (role `candidate.igvm`, never a profile's firmware until a
+  version records it booting), launch digest `A0FDAC0F…`; twin `24e7a1ff…` (`probe.firmware`, trusts the host,
+  diagnosis only), `A650C020…`. **Offline mutation evidence**, re-checked on every `--rebuild`: one byte of the
+  kernel, one byte of the initrd, the VTL0 command line, the static paravisor line and `static_command_line=false`
+  each change the launch digest to a pinned value (the last reproduces the superseded v27 candidate `246DEE1B…`
+  exactly). **Reference values** for 99's verifier ship as `reference/nucbox-vbs-reference.json`: every image's
+  digest, sha256, class, confidential-debug and eligibility, re-derived from the pinned bytes on every verify; only
+  the non-debug candidate is eligible, and every pinned probe/candidate firmware must be listed (mutation-tested).
+  The Linux VTL0's serial path is recorded from source (OpenHCL builds its ACPI COM1 UART over the host's vmbus COM1,
+  the route the UEFI runs used). Not booted; `host_excluded=no`; no chain claimed.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was

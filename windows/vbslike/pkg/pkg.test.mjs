@@ -7,6 +7,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
+import crypto from "node:crypto";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -702,4 +703,28 @@ test("draft v27 (staged) records the host change: boot 68 with Secure Boot ON, v
   assert.equal(r.code, 0, fails(r.out));
   assert.match(r.out, /ok   vbsLinuxDebug: the pinned IGVM carries exactly the required strings/);
   assert.match(r.out, /ok   vbsLinux: the pinned IGVM carries exactly the required strings and none of the forbidden ones/);
+});
+
+test("draft v28 (held; the handoff version) ships the static-line candidate and its debug twin, pins the offline mutation evidence, and carries the reference values; the rules refuse an eligible debug image, a wrong digest and a missing entry", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-28.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  const sha256 = (b) => crypto.createHash("sha256").update(b).digest("hex");
+  assert.match(d.status, /^DRAFT, HELD, NOT STAGED \(v27 7d1ff947 is the staged package; v28 is the HANDOFF version/);
+  const c = d.profiles.vbs.measuredVtl0Candidate, cf = d.files.find((f) => f.path === c.file), tf = d.files.find((f) => f.path === c.debugTwinFile);
+  assert.ok(cf && cf.role === "candidate.igvm" && cf.sha256 === "c567e43210ebd78c31273be47d9f4ca448f9a04cce276c40bc5d2abd6374d637");
+  assert.ok(tf && tf.role === "probe.firmware" && tf.sha256 === "24e7a1ffbd8a87244eecc12a4f34f98e80da2e1658bf5c50604f122bf20ce9d3" && /PROBE/.test(tf.path));
+  assert.ok(d.vmWorkerRead.includes(c.file) && d.vmWorkerRead.includes(c.debugTwinFile), "the VM worker may read both");
+  assert.equal(d.rebuild.vbsLinux.mutations.length, 5);
+  assert.equal(d.rebuild.vbsLinux.mutations.at(-1).expectVbsBootDigest, "246DEE1B6F2057F504EF3B0C422E081CB365B121E7D0C7BFE420B1A8946A89F0", "static_command_line=false reproduces the superseded candidate");
+  assert.ok(!Object.values(d.profiles).some((p) => p.firmware === c.file || p.medium === c.file), "the candidate is no profile's firmware until a version records it booting");
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   reference values reference\/nucbox-vbs-reference\.json: .*\(5 images, 1 eligible\)/);
+  const ref = JSON.parse(String(fs.readFileSync(path.join(HERE, "reference/nucbox-vbs-reference.json"))));
+  const withRef = (mut) => { const m = structuredClone(d), x = structuredClone(ref); mut(x); const p = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vbsref-")), "ref.json"); fs.writeFileSync(p, JSON.stringify(x)); const f = m.files.find((f) => f.role === "reference.values"); f.from = { file: p }; f.sha256 = sha256(fs.readFileSync(p)); f.bytes = fs.statSync(p).size; return run(["verify", writeManifest(m)]); };
+  let x = withRef((j) => { j.images.find((e) => e.id === "vbs-linux-candidate-debug-twin").eligible = true; });
+  assert.equal(x.code, 1); assert.match(x.out, /FAIL reference values .*vbs-linux-candidate-debug-twin is marked eligible but is a confidential-debug image/, fails(x.out));
+  x = withRef((j) => { j.images.find((e) => e.id === "vbs-linux-candidate").vbsBootDigest = "246DEE1B6F2057F504EF3B0C422E081CB365B121E7D0C7BFE420B1A8946A89F0"; });
+  assert.equal(x.code, 1); assert.match(x.out, /FAIL reference values .*vbs-linux-candidate\.vbsBootDigest is "246DEE1B.*the pinned bytes give "A0FDAC0F/, fails(x.out));
+  x = withRef((j) => { j.images = j.images.filter((e) => e.id !== "a7b0bd4-debug"); });
+  assert.equal(x.code, 1); assert.match(x.out, /FAIL reference values .*openhcl-cvm-VBS-DEBUG-TRUSTS-HOST-81e163ee\.bin \(probe\.firmware\) has no reference entry/, fails(x.out));
 });
