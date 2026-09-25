@@ -65,6 +65,9 @@ async function release(b, res) {
     expectedVmpl: 0, expectedBinding: binding });
   if (!v.ok) { log(`${short(id)}: evidence refused: ${v.reasons.at(-1)}`); return bad(res, 403, "evidence_refused"); }
   const f = R.reportFields(report);
+  // re-read what the verifier checked, as handleRelease does (enclave-99): report_data[0:32] IS the release binding.
+  // (verifyQuote compares expectedBinding byte for byte when it is given; the challenge must only be present.)
+  if (!Buffer.from(f.reportData.subarray(0, 32)).equals(Buffer.from(binding))) { log(`${short(id)}: not the release binding`); return bad(res, 403, "evidence_refused"); }
   if (f.hostData.toString("hex") !== id.slice(2)) return bad(res, 403, "evidence_refused");
   if (f.reportData.subarray(32, 64).toString("hex") !== want.appId) { log(`${short(id)}: another app`); return bad(res, 403, "evidence_refused"); }
   const plaintext = JSON.stringify({ id, envelopeSha256: createHash("sha256").update(envelope).digest("hex"),
