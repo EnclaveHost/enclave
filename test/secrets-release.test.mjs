@@ -59,7 +59,7 @@ const ctx = {
   confirmRow: async (id) => {
     if (confirm.fail) throw new Error(confirm.fail);
     const r = rows.find((x) => x.id === id);
-    if (!r) throw new Error("the ledger holds no such deployment");
+    if (!r) throw Object.assign(new Error("the ledger holds no such deployment"), { code: "no_deployment" });
     return { ...r, ...confirm.over };
   },
   prewarmCollateral: async () => ({ ok: true }),   // the real one (vendored prewarmSnpCollateral) is exercised in its own test
@@ -624,6 +624,50 @@ test("the relay's envelope constants are the supervisor's (DEP_CONFIG_CID_RE, DE
     checked++;
   }
   if (!checked) t.skip("no supervisor.js with the constants in this clone");
+});
+
+test("GET /v1/expected-guest: the confirmed record's PREDICTED guest over the certificate set, labelled; public; independent of the release switch", async () => {
+  const { expectedGuest } = R;
+  const call = async (id, over = {}) => {
+    const res = { headers: {}, setHeader(k, v) { this.headers[k] = v; } };
+    await expectedGuest(new URL(`http://x/v1/expected-guest?id=${id}`), { socket: {} }, res, { ...ctx, ...over },
+      { bad: (code, error, message) => ctx.json(res, code, { error, message }), rate: over.rate || (() => true) });
+    return res;
+  };
+  rows = [leaseRow(A)];
+  const legacy = { release: "5c".repeat(32), runtimeId: RID.toString("hex"), measurement: "88".repeat(48) };
+  const asked = [];
+  const two = { ok: true, appId: APP.toString("hex"), images: [predicted.images[0], legacy] };
+  const saved = process.env.SECRETS_ATTESTED_RELEASE;
+  try {
+    process.env.SECRETS_ATTESTED_RELEASE = "";   // the release OFF: this still answers
+    const r = await call(A, { expectedGuestFor: async (row, o) => { asked.push({ id: row.id, ...o }); return two; }, predictorSets: () => ({ release: [predicted.images[0].release], cert: [] }) });
+    assert.equal(r.code, 200, JSON.stringify(r.body));
+    assert.deepEqual(r.body, { id: A, catalogRef: REF, appId: APP.toString("hex"), images: [
+      { ...predicted.images[0], releaseAdmitted: true }, { ...legacy, releaseAdmitted: false }] });
+    assert.equal(asked[0].set, "cert"); assert.equal(asked[0].forPrivate, false); assert.ok(asked[0].waitMs > 0 && asked[0].waitMs <= 5000);
+    // a private deployment is predicted as such
+    rows = [leaseRow(A, { isPublic: false })]; asked.length = 0;
+    await call(A, { expectedGuestFor: async (row, o) => { asked.push(o); return two; } });
+    assert.equal(asked[0].forPrivate, true); rows = [leaseRow(A)];
+    // refusals
+    assert.equal((await call("0x12")).code, 422);
+    const unknown = await call("0x" + "9f".repeat(32));
+    assert.equal(unknown.code, 404); assert.equal(unknown.body.error, "no_deployment");
+    const disagree = await call(A, { confirmRow: async () => { throw new Error("the RPCs disagree"); } });
+    assert.equal(disagree.code, 503); assert.equal(disagree.body.error, "ledger_unconfirmed");
+    const warming = await call(A, { expectedGuestFor: async () => ({ ok: false, code: "warming", reason: "cold" }) });
+    assert.equal(warming.code, 503); assert.equal(warming.body.error, "warming"); assert.equal(warming.headers["Retry-After"], "5");
+    const notCat = await call(A, { expectedGuestFor: async () => ({ ok: false, code: "not_catalog", reason: "x" }) });
+    assert.equal(notCat.code, 404); assert.equal(notCat.body.error, "not_catalog");
+    const yanked = await call(A, { expectedGuestFor: async () => ({ ok: false, code: "version_not_admitted", reason: "yanked" }) });
+    assert.equal(yanked.code, 403); assert.equal(yanked.body.error, "version_not_admitted");
+    const empty = await call(A, { expectedGuestFor: async () => ({ ok: true, appId: APP.toString("hex"), images: [] }) });
+    assert.equal(empty.code, 503);
+    assert.equal((await call(A, { rate: () => false })).code, 429);
+    const unconf = await call(A, { predictorProblems: () => ["SECRETS_RELEASE_PREDICT_COMMIT"] });
+    assert.equal(unconf.code, 503); assert.doesNotMatch(JSON.stringify(unconf.body), /PREDICT/, "names nothing of the configuration");
+  } finally { process.env.SECRETS_ATTESTED_RELEASE = saved; rows = [leaseRow(A)]; }
 });
 
 test("rate keys: a ticket request by client IP; a release by its ticket's ENDPOINT (many guests behind one host address); an unknown ticket by IP", async () => {
