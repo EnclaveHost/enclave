@@ -1,0 +1,36 @@
+{
+  "title": "synthetic api-mcp-adapter config (same shape as a real deployment's; every value made up)",
+  "api_key": "$MCP_ADAPTER_API_KEY",
+  "timeout_s": 60,
+  "max_bytes": 1048576,
+  "http": [
+    {
+      "name": "generate_image",
+      "description": "Generate an image from a text prompt (synthetic).",
+      "group": "images",
+      "method": "POST",
+      "url": "${IMAGE_ENDPOINT}/v1/images/generations",
+      "parameters": { "type": "object", "properties": { "prompt": { "type": "string" } }, "required": ["prompt"] },
+      "body": { "prompt": "${prompt}" }
+    },
+    {
+      "name": "run_vm_command",
+      "description": "Run a shell command in a VM (synthetic).",
+      "group": "virtual_machine",
+      "method": "POST",
+      "url": "${VM_ENDPOINT}/exec",
+      "headers": { "x-api-key": "$VM_API_KEY" },
+      "parameters": { "type": "object", "properties": { "cmd": { "type": "string" } }, "required": ["cmd"] },
+      "body": { "cmd": "${cmd}" }
+    },
+    {
+      "name": "notes_read",
+      "description": "Read the caller's notes (synthetic; needs a signed-in user).",
+      "group": "notebook",
+      "method": "GET",
+      "url": "${NOTES_ENDPOINT}/api/notes/${user}",
+      "headers": { "x-api-key": "$NOTES_API_KEY", "x-user": "${user}" },
+      "parameters": { "type": "object", "properties": {} }
+    }
+  ]
+}
