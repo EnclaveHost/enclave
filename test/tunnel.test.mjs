@@ -26,6 +26,8 @@ import { AVF_PAD_FORMAT, avfPadBinding } from "../relay/avf-binding.mjs";
 import { avfPolicyFromEnv } from "../relay/avf-policy.mjs";
 import fs from "node:fs";
 import { haveOpenssl, tmpdir, makeCa, issueLeaf, extension, CODE, AUTH } from "./fixtures/avf-synthetic.mjs";
+import { bind2 } from "../relay/pvm-app-attest.mjs";
+import net from "node:net";
 import { makeVbsWorld, evidenceFor as vbsEvidenceFor, policyFor as vbsPolicyFor, nameOf as tpmName, tpmtPublicOf, buildLog, buildQuote } from "./fixtures/vbs-synthetic.mjs";
 import { VBS_FORMAT } from "../relay/vbs-verify.mjs";
 import { activateCredential } from "../relay/vbs-credential.mjs";
@@ -852,6 +854,146 @@ test("pvm-cpu: a signed capability report over the attach nonce sets the hub's t
 // ledger never lists it as a consumer and never issues it a seed - the same rule a
 // v1 attach lives under. A pad build on the same transcript keeps its key, and a
 // build in neither list is refused.
+// LAB serving prototype (PVM-CPU.md): a pVM app's ABI/2 evidence must bind a fresh, single-use nonce THIS hub issued at
+// bind, this attach's transport key, an admitted runtime and an admitted app; only then does the row carry pvmApp (the
+// TLS key to pin) and only then does the hub splice raw streams to it. Replays, reconnects with old evidence, other apps,
+// other keys and other runtimes are refused; a detach takes everything with it.
+test("pvm-app (lab): ABI/2 over the hub's own fresh nonce verifies once; replay, reconnect, substitution refused; raw streams only to a verified app",
+     { skip: !haveOpenssl && "openssl not installed" }, async () => {
+  const dir = tmpdir("pvm-app-");
+  const ca = makeCa(dir);
+  const PVMCODE = createHash("sha256").update("pvm-cpu protected build").digest();
+  const PIXEL = '{"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}';
+  const RID = createHash("sha256").update(PIXEL).digest();
+  const APP = createHash("sha256").update("ggml-probe").digest("hex"), OTHER_APP = "e".repeat(64);
+  const TUPLE = "exec_pages=refused:EACCES wx=clean maps=1 scope=self";
+  const policy = pvmCpuPolicy({ codeHashes: [PVMCODE.toString("hex")], authorityHashes: [AUTH.toString("hex")],
+    models: [{ sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", name: "m", selftestSha256: "d".repeat(64), minDecodeTokS: 10 }] });
+  const h = await hubServer({ attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")], rootPins: [ca.rootPin] },
+                                       pvmCpu: policy, pvmApp: { appIds: [APP, OTHER_APP], runtimeIds: [RID.toString("hex")] } } });
+  const attach = async (name, key) => {
+    const r = await dial(h.url, { "x-metal-name": name, "x-metal-attest": "1" });
+    assert.equal(r.state, "open");
+    await settle();
+    const nonce = Buffer.from(r.frames.find((f) => f.t === "challenge").nonce, "base64");
+    const transport = key.publicKey.export({ type: "spki", format: "der" });
+    const padKey = generateKeyPairSync("x25519").publicKey.export({ type: "spki", format: "der" }).subarray(-32).toString("hex");
+    const bound = avfPadBinding(transport, padKey, nonce);
+    const leaf = issueLeaf(dir, { ext: extension({ challenge: createHash("sha256").update(bound).digest(), code: PVMCODE }) });
+    const ev = { chain: [leaf.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), signature: leaf.sign(bound).toString("base64") };
+    r.ws.send(JSON.stringify({ t: "attest", rad: { format: AVF_PAD_FORMAT, body: Buffer.from(JSON.stringify(ev)).toString("base64"), transportKey: transport.toString("base64"), padKey } }));
+    const res = await waitResult(r.frames);
+    assert.equal(res?.ok, true, res?.reason);
+    for (let i = 0; i < 40 && !r.frames.some((x) => x.t === "abi2-challenge"); i++) await settle();
+    const ch = r.frames.find((x) => x.t === "abi2-challenge");
+    assert.ok(ch, "the hub issues its ABI/2 nonce at bind");
+    return { ws: r.ws, frames: r.frames, transport, appNonce: Buffer.from(ch.nonce, "base64") };
+  };
+  // the VM's ABI/2 evidence: a certificate whose challenge is Bind2(spki, nonce, RuntimeID) || AppID
+  const evidence = ({ transport, nonce, app = APP, identity = PIXEL, rid = RID, code = PVMCODE }) => {
+    const challenge = Buffer.concat([bind2(transport, nonce, rid), Buffer.from(app, "hex")]);
+    const leaf = issueLeaf(dir, { ext: extension({ challenge, code }) });
+    return { t: "abi2", chain: [leaf.leaf, ca.inter, ca.root].map((d) => d.toString("base64")), identity, selftest: TUPLE, app };
+  };
+  const result = async (c, n) => { for (let i = 0; i < 60 && c.frames.filter((x) => x.t === "abi2-result").length < n; i++) await settle(); return c.frames.filter((x) => x.t === "abi2-result")[n - 1]; };
+  const row = (name) => h.hub.origins().find((o) => o.name === name);
+  const rawOpens = (c) => c.frames.filter((x) => x.t === "s+" && x.kind === "pvm-app-tls").length;
+  const splice = async (name, kind) => { const [a, b] = await new Promise((res) => { const srv = net.createServer((s) => { res([s, cl]); srv.close(); }); let cl; srv.listen(0, "127.0.0.1", () => { cl = net.connect(srv.address().port, "127.0.0.1"); }); }); return { ok: h.hub.spliceRaw(name, a, kind), client: b }; };
+  try {
+    const kp = generateKeyPairSync("ed25519");
+    const c1 = await attach("pixel-app", kp);
+    // no verified app yet: no raw stream
+    const s0 = await splice("pixel-app");
+    assert.equal(s0.ok, false, "no stream before the app is verified"); s0.client.destroy();
+    const ss0 = await splice("pixel-app", "pvm-app-sealed");
+    assert.equal(ss0.ok, false, "no sealed stream before the app is verified"); ss0.client.destroy();
+    // the evidence endpoint is reachable on any attested attach: a client verifies the VM itself, not through this hub
+    const se = await splice("pixel-app", "pvm-evidence");
+    assert.equal(se.ok, true, "evidence streams need only an attested attach");
+    for (let i = 0; i < 40 && !c1.frames.some((x) => x.t === "s+" && x.kind === "pvm-evidence"); i++) await settle();
+    assert.ok(c1.frames.some((x) => x.t === "s+" && x.kind === "pvm-evidence")); se.client.destroy();
+    const sx = await splice("pixel-app", "something-else");
+    assert.equal(sx.ok, false, "no other kind"); sx.client.destroy();
+    // evidence over ANOTHER transport key (a substituted server key): refused, and the nonce is spent
+    const other = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
+    c1.ws.send(JSON.stringify(evidence({ transport: other, nonce: c1.appNonce })));
+    const r1 = await result(c1, 1);
+    assert.equal(r1.ok, false);
+    assert.match(r1.reasons.join(), /attestationChallenge/);
+    // the nonce was single-use: the right evidence now finds none
+    c1.ws.send(JSON.stringify(evidence({ transport: c1.transport, nonce: c1.appNonce })));
+    const r2 = await result(c1, 2);
+    assert.equal(r2.ok, false);
+    assert.match(r2.reasons.join(), /no outstanding ABI\/2 nonce/);
+    assert.equal(row("pixel-app").pvmApp, undefined);
+    // reconnect: a new attach, a NEW nonce; the first attach's evidence does not verify against it
+    const c2 = await attach("pixel-app", kp);
+    assert.notDeepEqual(c2.appNonce, c1.appNonce, "a reconnect gets a fresh nonce");
+    const stale = evidence({ transport: c2.transport, nonce: c1.appNonce });
+    c2.ws.send(JSON.stringify(stale));
+    assert.equal((await result(c2, 1)).ok, false, "evidence over an old nonce is refused");
+    // on a third attach: an unadmitted app, then a restated runtime, each spend that attach's one nonce
+    const c3 = await attach("pixel-app", kp);
+    c3.ws.send(JSON.stringify(evidence({ transport: c3.transport, nonce: c3.appNonce, app: "a".repeat(64) })));
+    assert.match((await result(c3, 1)).reasons.join(), /not one this relay admits/);
+    const c4 = await attach("pixel-app", kp);
+    const restated = PIXEL.replace("49.0.0", "48.0.1");
+    c4.ws.send(JSON.stringify(evidence({ transport: c4.transport, nonce: c4.appNonce, identity: restated, rid: createHash("sha256").update(restated).digest() })));
+    assert.match((await result(c4, 1)).reasons.join(), /not an admitted runtime/);
+    // and a clean attach verifies: the row carries the app, the runtime and the key to pin
+    const c5 = await attach("pixel-app", kp);
+    c5.ws.send(JSON.stringify(evidence({ transport: c5.transport, nonce: c5.appNonce })));
+    const ok = await result(c5, 1);
+    assert.equal(ok.ok, true, ok.reasons.join(" | "));
+    const pa = row("pixel-app").pvmApp;
+    assert.equal(pa.appId, APP);
+    assert.equal(pa.runtimeId, RID.toString("hex"));
+    assert.equal(pa.transportSpki, c5.transport.toString("hex"));
+    // a replay of the verified frame finds no nonce, and changes nothing
+    c5.ws.send(JSON.stringify(evidence({ transport: c5.transport, nonce: c5.appNonce })));
+    assert.equal((await result(c5, 2)).ok, false);
+    assert.equal(row("pixel-app").pvmApp.verifiedAt, pa.verifiedAt);
+    // raw streams now reach the phone as pvm-app-tls opens
+    const s1 = await splice("pixel-app");
+    assert.equal(s1.ok, true);
+    for (let i = 0; i < 40 && !rawOpens(c5); i++) await settle();
+    assert.equal(rawOpens(c5), 1);
+    s1.client.destroy();
+    const ss1 = await splice("pixel-app", "pvm-app-sealed");
+    assert.equal(ss1.ok, true, "a verified app takes sealed streams");
+    for (let i = 0; i < 40 && !c5.frames.some((x) => x.t === "s+" && x.kind === "pvm-app-sealed"); i++) await settle();
+    assert.ok(c5.frames.some((x) => x.t === "s+" && x.kind === "pvm-app-sealed")); ss1.client.destroy();
+    // termination: the phone goes, the row and its app go, no stream opens
+    c5.ws.close();
+    for (let i = 0; i < 40 && row("pixel-app"); i++) await settle();
+    assert.equal(row("pixel-app"), undefined);
+    const s2 = await splice("pixel-app");
+    assert.equal(s2.ok, false); s2.client.destroy();
+    for (const c of [c1, c2, c3, c4]) { try { c.ws.close(); } catch {} }
+  } finally { await h.close(); }
+});
+
+// The attestation gate counts every build list the v2 attach is judged against. A relay configured for the pVM CPU tier
+// alone (no v1 METAL_AVF_CODE_HASHES) or for pad builds alone answered 401 before reading any evidence -- found by the
+// first live attach from a Pixel (shielded/anchor/avf/results/pvm-cpu-live-attach).
+test("pvm-cpu: a relay with no v1 AVF list still opens the attest handshake for pvm-cpu or pad builds; nothing configured stays shut", async () => {
+  const policy = pvmCpuPolicy({ codeHashes: [createHash("sha256").update("pvm-cpu protected build").digest("hex")], authorityHashes: [AUTH.toString("hex")],
+    models: [{ sha256: "5bf274a5a82cc4fbb05d7a35d2566dc2074eaef8f64a2741ec812dc65089fc48", name: "m", selftestSha256: "d".repeat(64), minDecodeTokS: 10 }] });
+  const hPvm = await hubServer({ attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")] }, pvmCpu: policy } });
+  const hPad = await hubServer({ attest: { avf: avfPolicyFromEnv({ METAL_AVF_PAD_CODE_HASHES: "a".repeat(64), METAL_AVF_AUTHORITY_HASHES: AUTH.toString("hex") }) } });
+  const hNone = await hubServer({ attest: { avf: { codeHashes: [], padCodeHashes: [], authorityHashes: [AUTH.toString("hex")] } } });
+  try {
+    for (const [h, who] of [[hPvm, "pvm-cpu only"], [hPad, "pad builds only"]]) {
+      const r = await dial(h.url, { "x-metal-name": "pixel-z", "x-metal-attest": "1" });
+      assert.equal(r.state, "open", who);
+      await settle();
+      assert.ok(r.frames.find((f) => f.t === "challenge"), `${who}: the hub sends its challenge`);
+      r.ws.close();
+    }
+    assert.equal((await dial(hNone.url, { "x-metal-name": "pixel-z", "x-metal-attest": "1" })).state, 401, "no build list: no attest handshake");
+  } finally { await hPvm.close(); await hPad.close(); await hNone.close(); }
+});
+
 test("pvm-cpu: a v2 attach on a pvm-cpu code hash routes with no pad eligibility; a pad build keeps its key; a stranger is refused",
      { skip: !haveOpenssl && "openssl not installed" }, async () => {
   const dir = tmpdir("pvm-v2-");

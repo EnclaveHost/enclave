@@ -1,0 +1,12 @@
+# settings	graphs=none bundle= bundle_sha256= maxnew=512
+# ask	Explain in detail how a hash table works, including hashing, collisions, resizing and the cost of each operation.|Now write a complete Python implementation of a hash table with separate chaining, with comments.|Explain the difference between TCP and UDP in detail, with an example of when to use each.|Write a detailed step-by-step guide to creating a Python virtual environment and managing its dependencies.
+# driver_sha256	5292d7ae516221712d160b52ebbbfe03aa4e9a76cbbf9dc014cbb54ea96bf079
+# label	condition	extra	status	rc	apk_sha256
+ts-01	t6		ok	0	2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d
+ts-02	d4	--ei decode_threads 4	ok	0	2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d
+ts-03	d5	--ei decode_threads 5	ok	0	2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d
+ts-04	t4	--ei threads 4	ok	0	2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d
+ts-05	t4	--ei threads 4	ok	0	2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d
+ts-06	d5	--ei decode_threads 5	ok	0	2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d
+ts-07	d4	--ei decode_threads 4	ok	0	2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d
+ts-08	t6		ok	0	2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d

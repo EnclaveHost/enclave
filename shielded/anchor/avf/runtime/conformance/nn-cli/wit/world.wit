@@ -1,0 +1,10 @@
+// The model conformance component's world: a wasi:cli command that imports wasi:nn at the version the server's ggml
+// backend and the pVM's runtime both link (deps/nn is wasmtime-wasi-nn 49.0.0's wit/wasi-nn.wit, verbatim).
+package enclave:nn-conformance;
+
+world nn-cli {
+  import wasi:nn/tensor@0.2.0-rc-2024-10-28;
+  import wasi:nn/errors@0.2.0-rc-2024-10-28;
+  import wasi:nn/inference@0.2.0-rc-2024-10-28;
+  import wasi:nn/graph@0.2.0-rc-2024-10-28;
+}

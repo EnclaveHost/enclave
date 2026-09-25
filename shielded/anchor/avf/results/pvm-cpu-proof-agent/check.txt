@@ -1,0 +1,27 @@
+ok   run.json names the lease the VM was pinned to
+ok   steps: exactly the plan's 12 steps, in order, each with the outcome it names (start-a=attested unclaimed=not-our-lease a1=landed replay=checkpoint-refused replace=landed reorg=landed crash=stuck recover=landed stuck=stuck fresh=landed start-b=attested b1=landed)
+-- the VM's logged facts: A {"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","pins":true}  B {"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","pins":true}
+ok   both boots took the pins and logged the SAME instance and proof key
+ok   carrier: the agent's 12 exchanges and the hub's 12 recorded exchanges, numbered 1..n
+ok   carrier: each exchange carried exactly the request and the answer the hub recorded (12/12)
+ok   replay: exactly one answer was swapped, in the replay step, for an EARLIER genuine answer (not the VM's answer to that request)
+ok   statement 1 (start-a): re-verifies over its own nonce, names the run's pins, attests the key the VM logged
+ok   statement 6 (crash): re-verifies over its own nonce, names the run's pins, attests the key the VM logged
+ok   statement 8 (recover): re-verifies over its own nonce, names the run's pins, attests the key the VM logged
+ok   statement 11 (start-b): re-verifies over its own nonce, names the run's pins, attests the key the VM logged
+ok   restart: boot B's statement is vouched for by another transport key, for the SAME proof key
+ok   journal: every checkpoint the agent accepted is one carrier answer to exactly its request, re-verified under the attested key (7/7)
+ok   journal: the only CHECKPOINT answer the agent did not accept is the replayed one (replay)
+ok   transactions: each journaled hash is keccak256 of its bytes, signed by the operator at the journaled nonce, carrying exactly its checkpoint (11/11)
+ok   receipts: every journaled transaction was looked up before the chain stopped
+ok   landings: 6 (the plan's 6), each a successful canonical receipt from the operator with this deployment's Checkpointed event and the journal's provenUntil, strictly increasing
+ok   landings: no Checkpointed event on chain that the journal does not record as landed (6)
+ok   unclaimed: the VM was not asked for a proof while the lease was not the runner's
+ok   replay: refused as a replayed or crossed answer (the answer is a checkpoint for (1790320117, 83), not the one asked for (1790320183, 116): a replayed or crossed answer)
+ok   replace: 2 transactions at nonce 3, each bidding >= 25 % more than the last, exactly one mined
+ok   reorg: the block holding the proof was reorganized away, the agent noticed, and the SAME bytes landed in another block
+ok   crash/recover: the transaction in flight when the agent stopped (never delivered) is the one the next agent rebroadcast and landed, asking the VM for nothing new
+ok   stuck/fresh: a FRESH proof took the stuck nonce 6, outbidding the 4 undelivered transaction(s) there
+ok   no private key field anywhere in the results
+ok   the run scanned its own results for the operator key and found none
+PASS the posting agent on the device

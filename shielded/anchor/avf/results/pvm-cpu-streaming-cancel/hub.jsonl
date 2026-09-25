@@ -1,0 +1,53 @@
+{"t":"2026-09-24T08:37:06.337Z","listening":"ws://127.0.0.1:18443/v1/fleet-tunnel","lab":"serving prototype, NOT PRODUCTION"}
+{"t":"2026-09-24T08:37:06.337Z","rawListening":"tcp://127.0.0.1:18445 -> pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:37:06.337Z","evidenceListening":"tcp://127.0.0.1:18446 -> pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:37:06.337Z","sealedListening":"tcp://127.0.0.1:18448 -> pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:37:06.337Z","webListening":"http://127.0.0.1:18447 (POST /evidence, /sealed) for http://127.0.0.1:18450"}
+{"t":"2026-09-24T08:37:26.183Z","hub":"[tunnel] pixel10-pvm-cpu attached via attestation(avf) (1 enclave)"}
+{"t":"2026-09-24T08:37:26.183Z","change":"attach","name":"pixel10-pvm-cpu","row":{"endpoint":"tunnel://pixel10-pvm-cpu","id":"tunnel:pixel10-pvm-cpu","name":"pixel10-pvm-cpu","repo":"EnclaveHost/enclave","lastSeen":1790239046,"tunnel":true,"mode":"avf","publicUrl":"","measurement":"433dd3dfa08f5be8d77cefcc93cd5297acdf022d7fa9dfc9d584fe081f1c0dfd"}}
+{"t":"2026-09-24T08:37:46.064Z","hub":"[tunnel] pixel10-pvm-cpu abi2 VERIFIED: app 29e8942369846359… runtime d3370878afa9d5ee…"}
+{"t":"2026-09-24T08:37:46.064Z","change":"abi2","name":"pixel10-pvm-cpu","row":{"endpoint":"tunnel://pixel10-pvm-cpu","id":"tunnel:pixel10-pvm-cpu","name":"pixel10-pvm-cpu","repo":"EnclaveHost/enclave","lastSeen":1790239066,"tunnel":true,"mode":"avf","publicUrl":"","measurement":"433dd3dfa08f5be8d77cefcc93cd5297acdf022d7fa9dfc9d584fe081f1c0dfd","pvmApp":{"appId":"29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373","runtimeId":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","transportSpki":"302a300506032b657003210057b7674b7c4f425052dda30357d07e4a6043dbbc0ef41a26dc49dc09545ddae6","verifiedAt":1790239066064}}}
+{"t":"2026-09-24T08:38:56.677Z","hub":"[tunnel] pixel10-pvm-cpu pvm-cpu ADMITTED (e2b-q4_0)"}
+{"t":"2026-09-24T08:38:56.677Z","change":"caps","name":"pixel10-pvm-cpu","row":{"endpoint":"tunnel://pixel10-pvm-cpu","id":"tunnel:pixel10-pvm-cpu","name":"pixel10-pvm-cpu","repo":"EnclaveHost/enclave","lastSeen":1790239136,"tunnel":true,"mode":"avf","publicUrl":"","measurement":"433dd3dfa08f5be8d77cefcc93cd5297acdf022d7fa9dfc9d584fe081f1c0dfd","tier":"pvm-cpu","pvmCpu":{"model":"e2b-q4_0","ctx":4096,"device":"","checkedAt":1790239136676},"pvmApp":{"appId":"29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373","runtimeId":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba","transportSpki":"302a300506032b657003210057b7674b7c4f425052dda30357d07e4a6043dbbc0ef41a26dc49dc09545ddae6","verifiedAt":1790239066064}}}
+{"t":"2026-09-24T08:39:01.735Z","raw":"evidence stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:02.492Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-evidence stream 1 closed (closed by the phone): 74 bytes in, 4842 out"}
+{"t":"2026-09-24T08:39:02.493Z","web":"/evidence","bytesIn":74,"bytesOut":4842,"ms":759}
+{"t":"2026-09-24T08:39:02.506Z","raw":"sealed stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:03.044Z","web":"/sealed","cancelled":"the page went away","bytesOut":443}
+{"t":"2026-09-24T08:39:03.044Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-app-sealed stream 2 closed (client closed): 179 bytes in, 443 out"}
+{"t":"2026-09-24T08:39:03.044Z","web":"/sealed","bytesIn":179,"bytesOut":443,"ms":538}
+{"t":"2026-09-24T08:39:05.373Z","raw":"evidence stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:06.111Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-evidence stream 3 closed (closed by the phone): 74 bytes in, 4842 out"}
+{"t":"2026-09-24T08:39:06.112Z","web":"/evidence","bytesIn":74,"bytesOut":4842,"ms":740}
+{"t":"2026-09-24T08:39:06.123Z","raw":"sealed stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:07.117Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-app-sealed stream 4 closed (closed by the phone): 177 bytes in, 1632 out"}
+{"t":"2026-09-24T08:39:07.118Z","web":"/sealed","bytesIn":177,"bytesOut":1632,"ms":995}
+{"t":"2026-09-24T08:39:10.445Z","raw":"evidence stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:11.109Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-evidence stream 5 closed (closed by the phone): 74 bytes in, 4842 out"}
+{"t":"2026-09-24T08:39:11.109Z","web":"/evidence","bytesIn":74,"bytesOut":4842,"ms":664}
+{"t":"2026-09-24T08:39:11.120Z","raw":"sealed stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:11.820Z","web":"/sealed","cancelled":"the page went away","bytesOut":1017}
+{"t":"2026-09-24T08:39:11.820Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-app-sealed stream 6 closed (client closed): 179 bytes in, 1017 out"}
+{"t":"2026-09-24T08:39:11.820Z","web":"/sealed","bytesIn":179,"bytesOut":1017,"ms":700}
+{"t":"2026-09-24T08:39:14.280Z","raw":"evidence stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:14.983Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-evidence stream 7 closed (closed by the phone): 74 bytes in, 4842 out"}
+{"t":"2026-09-24T08:39:14.984Z","web":"/evidence","bytesIn":74,"bytesOut":4842,"ms":704}
+{"t":"2026-09-24T08:39:14.995Z","raw":"sealed stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:15.853Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-app-sealed stream 8 closed (closed by the phone): 177 bytes in, 1632 out"}
+{"t":"2026-09-24T08:39:15.853Z","web":"/sealed","bytesIn":177,"bytesOut":1632,"ms":858}
+{"t":"2026-09-24T08:39:19.136Z","raw":"evidence stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:19.772Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-evidence stream 9 closed (closed by the phone): 74 bytes in, 4842 out"}
+{"t":"2026-09-24T08:39:19.773Z","web":"/evidence","bytesIn":74,"bytesOut":4842,"ms":637}
+{"t":"2026-09-24T08:39:19.789Z","raw":"sealed stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:20.953Z","web":"/sealed","cancelled":"the page went away","bytesOut":1878}
+{"t":"2026-09-24T08:39:20.954Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-app-sealed stream 10 closed (client closed): 179 bytes in, 1878 out"}
+{"t":"2026-09-24T08:39:20.954Z","web":"/sealed","bytesIn":179,"bytesOut":1878,"ms":1166}
+{"t":"2026-09-24T08:39:23.383Z","raw":"evidence stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:23.999Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-evidence stream 11 closed (closed by the phone): 74 bytes in, 4842 out"}
+{"t":"2026-09-24T08:39:24.000Z","web":"/evidence","bytesIn":74,"bytesOut":4842,"ms":617}
+{"t":"2026-09-24T08:39:24.013Z","raw":"sealed stream opened","name":"pixel10-pvm-cpu"}
+{"t":"2026-09-24T08:39:24.935Z","hub":"[tunnel] pixel10-pvm-cpu raw pvm-app-sealed stream 12 closed (closed by the phone): 177 bytes in, 1632 out"}
+{"t":"2026-09-24T08:39:24.936Z","web":"/sealed","bytesIn":177,"bytesOut":1632,"ms":924}
+{"t":"2026-09-24T08:41:27.694Z","hub":"[tunnel] pixel10-pvm-cpu detached"}
+{"t":"2026-09-24T08:41:27.694Z","change":"detach","name":"pixel10-pvm-cpu","row":null}
+{"t":"2026-09-24T08:41:27.939Z","end":"SIGTERM"}

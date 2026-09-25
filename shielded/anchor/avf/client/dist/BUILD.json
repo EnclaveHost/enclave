@@ -1,0 +1,39 @@
+{
+ "client": "enclave-pvm-client",
+ "esbuild": "0.28.1",
+ "inputs": {
+  "../web/pvm-client.js": "ef82ee2b3829225bac1f8a0df64876a6c79d433cba67f804f2c0937ed4d6fb3d",
+  "../web/pvm-sealed.js": "be7d6ed088bed2fc0c70e8fd23d52ac06202ac188ba999b34e7095da58e5a175",
+  "../web/pvm-verify.js": "56afc6d528ad3a58ba36bdbbd455949f077b43e537f4d01db1f872a3ce5b14eb",
+  "../web/vendor/hpke-LICENSE.txt": "6c18618fc1fbd7d6b2a1a024813b6efa17d499455516c2e4b8bbaba29cc72537",
+  "../web/vendor/hpke-core-1.9.0.js": "a4302f89ae432a27c0476a21c4aa33be7cd94419b51eca8e71ef05b634db3e34",
+  "cli.mjs": "0f1d2af22c709021bdf46261f13e88890e6eeefacbb21a6de5d444eb0f1173f3",
+  "ext/client.html": "b94d1d73c6c5d738310c6a2dfaf2b53dd87738b7b54ac0eedc73540cab45cf2e",
+  "ext/client.src.js": "a908f13b5adad15a226301dd46b3c3f32a5944640184586fcbcd3125c888652d",
+  "ext/manifest.json": "f706b9991ff4b101913864f6746efbbcccd57361d098357f1092676ba58e2d8a",
+  "ext/options.html": "f359c70349d6d5ce66ba51b09046ad215ea9b5314e4164114198469dce1187b6",
+  "ext/options.src.js": "1f71aed66c6b24c6a9c5322c0f8330be8c37952a8c92bae7aef016a920bed1ec",
+  "ext/style.css": "e5569e35994377a0ea8a1375364eb2721ddafba55b97b2ea179f73f93778fdc9",
+  "src/activate.js": "16289f026e24d9e6ca0d978f85e228288cea99cdd0a6edcdab503044e1dfeaa7",
+  "src/carrier.js": "ceab393d931f77b77325145fc1ecc998ad0b68943f9b7e5b88dda571722d1161",
+  "src/client.js": "9f2db29072ef6cb8ca327e4a055552751f781a06bd06c5fe5c688cb389c32967",
+  "src/enroll.js": "d3e7f14c9c5a1e8c7fb64c45bd4e29219a3a018e6a4c878898c1a5ef1409d7a4",
+  "src/gate.js": "a6457899f489b2f51a75bcc947fecb64e76a2f41b39b1b093a0b90f9e085f2d7",
+  "src/store-ext.js": "6d59acdc0a27bfed73ce37c1ef79c8946b89434271dac445782774a17034fe9f",
+  "src/store-file.js": "6293fbcf26e2789bc44160f7ee6e33e3a69638153ea4f60ba6b3da73623c82b8",
+  "src/trust.js": "bbefe2256f454dd709711d9f0181a22c80c6d49865233b7b81ba267cadbd66fd",
+  "src/update.js": "23d37619318f96d38c248dae16440a3896f81024c242b140a6fe5a2a07e5ea9c"
+ },
+ "lab": "NOT PRODUCTION",
+ "outputs": {
+  "pvm-client-ext.zip": {
+   "sha256": "3c164f84dfcdd65f93bc2118177de341afaf8bcb41b4b708ed11884321a8a91c",
+   "size": 141049
+  },
+  "pvm-client.mjs": {
+   "sha256": "251dd8fa7ec0a14f2c3fc11aef03a85b78fb29f992b1ea42e99d1bbc977d58e9",
+   "size": 152320
+  }
+ },
+ "version": "0.5.0"
+}

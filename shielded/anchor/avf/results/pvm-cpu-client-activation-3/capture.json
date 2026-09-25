@@ -1,0 +1,153 @@
+{
+ "preflight": "preflight.txt",
+ "evidence": "every /evidence exchange recorded as received in evidence/: evidence-NNN.request (the client's nonce line), evidence-NNN.json (the VM's envelope, byte for byte), evidence-NNN.meta.json (UTC times, sizes); nothing parsed, stripped or reordered; public; sealed traffic and session secrets are never recorded",
+ "clock": "UTC",
+ "runStart": "2026-09-24T13:10:52Z",
+ "runEnd": "2026-09-24T13:19:48Z",
+ "exchanges": [
+  {
+   "n": 1,
+   "label": "base-stream",
+   "stateAfter": {
+    "gen": 2,
+    "serial": 1,
+    "policyFp": "c4f8eb4a0cd195cafdbc21048f60a219736e7de06715c7a4787667c2b60b95d8",
+    "nextPolicyFp": null,
+    "releaseFp": "78a14de131e0872223d989875525845b4e2bec0f78878f09c8f9c8b02c200a41",
+    "active": null
+   }
+  },
+  {
+   "n": 2,
+   "label": "staged-not-active",
+   "stateAfter": {
+    "gen": 3,
+    "serial": 1,
+    "policyFp": "c4f8eb4a0cd195cafdbc21048f60a219736e7de06715c7a4787667c2b60b95d8",
+    "nextPolicyFp": null,
+    "releaseFp": "78a14de131e0872223d989875525845b4e2bec0f78878f09c8f9c8b02c200a41",
+    "active": null
+   }
+  },
+  {
+   "n": 3,
+   "label": "active-stream",
+   "stateAfter": {
+    "gen": 4,
+    "serial": 1,
+    "policyFp": "c4f8eb4a0cd195cafdbc21048f60a219736e7de06715c7a4787667c2b60b95d8",
+    "nextPolicyFp": null,
+    "releaseFp": "78a14de131e0872223d989875525845b4e2bec0f78878f09c8f9c8b02c200a41",
+    "active": {
+     "version": "0.3.1",
+     "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c"
+    }
+   }
+  },
+  {
+   "n": 4,
+   "label": "active-whole",
+   "stateAfter": {
+    "gen": 4,
+    "serial": 1,
+    "policyFp": "c4f8eb4a0cd195cafdbc21048f60a219736e7de06715c7a4787667c2b60b95d8",
+    "nextPolicyFp": null,
+    "releaseFp": "78a14de131e0872223d989875525845b4e2bec0f78878f09c8f9c8b02c200a41",
+    "active": {
+     "version": "0.3.1",
+     "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c"
+    }
+   }
+  },
+  {
+   "n": 5,
+   "label": "planted-marker",
+   "stateAfter": {
+    "gen": 4,
+    "serial": 1,
+    "policyFp": "c4f8eb4a0cd195cafdbc21048f60a219736e7de06715c7a4787667c2b60b95d8",
+    "nextPolicyFp": null,
+    "releaseFp": "78a14de131e0872223d989875525845b4e2bec0f78878f09c8f9c8b02c200a41",
+    "active": {
+     "version": "0.3.1",
+     "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c"
+    }
+   }
+  },
+  {
+   "n": 6,
+   "label": "active-policy-2",
+   "stateAfter": {
+    "gen": 5,
+    "serial": 2,
+    "policyFp": "c4f8eb4a0cd195cafdbc21048f60a219736e7de06715c7a4787667c2b60b95d8",
+    "nextPolicyFp": null,
+    "releaseFp": "78a14de131e0872223d989875525845b4e2bec0f78878f09c8f9c8b02c200a41",
+    "active": {
+     "version": "0.3.1",
+     "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c"
+    }
+   }
+  },
+  {
+   "n": 7,
+   "label": "rotate-3",
+   "stateAfter": {
+    "gen": 6,
+    "serial": 3,
+    "policyFp": "c4f8eb4a0cd195cafdbc21048f60a219736e7de06715c7a4787667c2b60b95d8",
+    "nextPolicyFp": "b1fc116919cfac889c30006dc9659ae6e9cdea27c9d17879f9ec27e880dae436",
+    "releaseFp": "78a14de131e0872223d989875525845b4e2bec0f78878f09c8f9c8b02c200a41",
+    "active": {
+     "version": "0.3.1",
+     "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c"
+    }
+   }
+  },
+  {
+   "n": 8,
+   "label": "successor-4",
+   "stateAfter": {
+    "gen": 7,
+    "serial": 4,
+    "policyFp": "b1fc116919cfac889c30006dc9659ae6e9cdea27c9d17879f9ec27e880dae436",
+    "nextPolicyFp": null,
+    "releaseFp": "78a14de131e0872223d989875525845b4e2bec0f78878f09c8f9c8b02c200a41",
+    "active": {
+     "version": "0.3.1",
+     "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c"
+    }
+   }
+  },
+  {
+   "n": 9,
+   "label": "repaired-stream",
+   "stateAfter": {
+    "gen": 7,
+    "serial": 4,
+    "policyFp": "b1fc116919cfac889c30006dc9659ae6e9cdea27c9d17879f9ec27e880dae436",
+    "nextPolicyFp": null,
+    "releaseFp": "78a14de131e0872223d989875525845b4e2bec0f78878f09c8f9c8b02c200a41",
+    "active": {
+     "version": "0.3.1",
+     "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c"
+    }
+   }
+  },
+  {
+   "n": 10,
+   "label": "repaired-2-stream",
+   "stateAfter": {
+    "gen": 7,
+    "serial": 4,
+    "policyFp": "b1fc116919cfac889c30006dc9659ae6e9cdea27c9d17879f9ec27e880dae436",
+    "nextPolicyFp": null,
+    "releaseFp": "78a14de131e0872223d989875525845b4e2bec0f78878f09c8f9c8b02c200a41",
+    "active": {
+     "version": "0.3.1",
+     "sha256": "ed82869d033964081b2dcb45dd9ae8b238db79693f3ff10cf1cdfef510bde84c"
+    }
+   }
+  }
+ ]
+}

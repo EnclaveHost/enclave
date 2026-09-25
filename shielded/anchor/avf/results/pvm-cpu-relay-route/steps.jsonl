@@ -1,0 +1,25 @@
+{"step":"A-attach","ok":true,"facts":{"accepted":true,"rejected":null,"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","outOfBand":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","bootMs":102063},"utc":"2026-09-25T10:10:56.579Z"}
+{"step":"A-row","ok":true,"facts":{"mode":"avf","tier":"pvm-cpu","eligible":false,"ineligible":"pVM CPU tier: an inference lane on its owner's phone, not app deployments","serving":false,"publicUrl":"https://127.0.0.1:18443/t/pixel10-pvm-cpu","lane":"pvm-cpu"},"utc":"2026-09-25T10:10:59.586Z"}
+{"step":"A-bootstrap-attest","ok":true,"facts":{"via":"/t/<name>/pvm/evidence","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","reason":null},"utc":"2026-09-25T10:11:00.394Z"}
+{"step":"A-register","ok":true,"facts":{"lifecycle":{"kind":"landed","op":"register (new)","hash":"0xa7d4afd6d2dd3ee756d64f16f932793e98835495dba51ea912449aafd8f5d66b","block":82,"blockHash":"0xf0d4fa5d33e62eebe1d8beac09c7087edc99c950cd3dffcfc538c482c24c1aa0","event":"Updated","args":{"id":"0x0e43a5110cc29c646df19eb65b8ed13e96b632833acebf268327adbddf9dea9b","repo":"lab/pvm-relay-route","measurement":"0x58ec36752ca6c3024a89c3d835bbd0d337161323fac54d978cacbcab97e48d2a"},"gasUsed":"306259","nonce":0}},"utc":"2026-09-25T10:11:07.372Z"}
+{"step":"A-claim","ok":true,"facts":{"lifecycle":{"kind":"landed","op":"claim","hash":"0xa9ac63b6996a7c8ddc02723c8ccd1d2e28fb31017bf7012e129eabbf0c2f8e7c","block":86,"blockHash":"0x4d42ea33796deed4dfb0875825e3fa40df5c8ec22586e2623e70c8b66251f611","event":"Claimed","args":{"id":"0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2","enclaveId":"0x0e43a5110cc29c646df19eb65b8ed13e96b632833acebf268327adbddf9dea9b","operator":"0xbaE46ec45f50b7bA0248E5374A415DA6cEFE8445","leaseUntil":"1790332872","burned6":"151200"},"gasUsed":"188605","nonce":1}},"utc":"2026-09-25T10:11:18.584Z"}
+{"step":"A-route","ok":true,"facts":{"route":"/x/0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2/pvm/evidence"},"utc":"2026-09-25T10:11:19.374Z"}
+{"step":"A-prove","ok":true,"facts":{"via":"/x","proof":{"kind":"landed","provenUntil":"1790331171"}},"utc":"2026-09-25T10:12:28.517Z"}
+{"step":"A-client","ok":true,"facts":{"complete":true,"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340"},"utc":"2026-09-25T10:12:33.339Z"}
+{"step":"A-client-wrong-instance","ok":true,"facts":{"step":"verify","refused":"instance ccd79db14e9f3a22… is a genuine instance of this app, but not one bound to the selected deployment: refused","sent":false},"utc":"2026-09-25T10:12:37.248Z"}
+{"step":"A-client-wrong-build","ok":true,"facts":{"step":"verify","refused":"attestation: no APK component with an allowlisted codeHash (saw 58ec36752ca6c302…)","sent":false},"utc":"2026-09-25T10:12:41.088Z"}
+{"step":"A-client-stale","ok":true,"facts":{"step":"verify","refused":"the evidence answers another nonce (stale or replayed)","sent":false},"utc":"2026-09-25T10:12:48.749Z"}
+{"step":"A-crash","ok":true,"facts":{"kind":"stuck","proof":"stuck"},"utc":"2026-09-25T10:13:58.884Z"}
+{"step":"A-recover","ok":true,"facts":{"recovered":{"kind":"landed","hash":"0x2d8cd4c96d92730500a6fdc28ec48a386c2e370e1450124ca58f198c4295ec2c"}},"utc":"2026-09-25T10:14:03.606Z"}
+{"step":"B-disconnect","ok":true,"facts":{"kind":"carrier-failed","proof":"carrier-failed","reason":"the carrier failed: fetch failed"},"utc":"2026-09-25T10:15:07.130Z"}
+{"step":"B-gone","ok":true,"facts":{"note":"no in-place re-attach (gap B): the tunnel is gone until the VM restarts"},"utc":"2026-09-25T10:15:28.667Z"}
+{"step":"B1-no-cosigner","ok":true,"facts":{"rejected":"pixel10-pvm-cpu is registered on chain; attach must carry operatorSig (personal_sign of \"enclave-tunnel-attach:<name>:<nonce b64>\") — upgrade the agent"},"utc":"2026-09-25T10:15:47.166Z"}
+{"step":"B2-wrong-operator","ok":true,"facts":{"rejected":"pixel10-pvm-cpu is registered on chain to 0xbae46ec45f50b7ba0248e5374a415da6cefe8445, not 0x3ce55cc84ded33d25d54f7c0d7fcb825dc73eaa7","cosigned":true,"notCosigned":null},"utc":"2026-09-25T10:16:05.486Z"}
+{"step":"B3-owner-cosigner","ok":true,"facts":{"accepted":true,"cosigned":true,"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc"},"utc":"2026-09-25T10:17:50.828Z"}
+{"step":"B-route","ok":true,"facts":{"route":"back"},"utc":"2026-09-25T10:17:51.560Z"}
+{"step":"B-client","ok":true,"facts":{"complete":true},"utc":"2026-09-25T10:17:56.377Z"}
+{"step":"B-prove","ok":true,"facts":{"proof":"landed"},"utc":"2026-09-25T10:19:02.536Z"}
+{"step":"C-wrong-build-relay","ok":true,"facts":{"rejected":"no APK component with an allowlisted codeHash (saw 58ec36752ca6c302…)","cosigned":true},"utc":"2026-09-25T10:19:22.840Z"}
+{"step":"C-right-relay","ok":true,"facts":{"accepted":true,"cosigned":true},"utc":"2026-09-25T10:21:10.233Z"}
+{"step":"C-route","ok":true,"facts":{"route":"back"},"utc":"2026-09-25T10:21:10.993Z"}
+{"step":"D-release","ok":true,"facts":{"kind":"released","proof":"landed"},"utc":"2026-09-25T10:22:21.169Z"}

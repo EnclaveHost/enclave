@@ -1,0 +1,2 @@
+{"committed":{"serial":6,"gen":6}}
+{"result":{"label":"cli-relay-swaps-key","mode":"stream","step":"verify","refused":"the appKey is not signed by the attested transport key for this nonce and app","sent":false,"verifyMs":804,"policySerial":6,"stateGen":6,"clientVersion":"0.2.0"}}

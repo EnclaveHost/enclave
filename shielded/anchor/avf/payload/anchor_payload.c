@@ -71,6 +71,8 @@
 
 #include "vm_payload.h"
 #include "third_party/tweetnacl.h"
+#include "anchor_attach_instance.h"   /* after tweetnacl (crypto_sign) and shielded-avf-binding.h */
+#include "anchor_reattach.h"           /* after anchor_attach_instance.h (the instance proof over a re-attach transcript) */
 #include "anchor-core.h"
 #include "shielded-field.h"
 #include "shielded-simd.h"
@@ -87,6 +89,34 @@
  * half never leaves the VM. TweetNaCl (public domain) does the arithmetic;
  * randombytes() below is the guest's getrandom. */
 static unsigned char g_tpk[32], g_tsk[64];
+#ifdef ANCHOR_TIER_PVM_CPU
+/* The VM INSTANCE's key (INSTANCE-BINDING.md, evidence v3): Ed25519 seeded from AVmPayload_getVmInstanceSecret, so the same
+ * instance derives the same key after a restart or a reboot, a new instance another, and the host never sees the seed.
+ * InstanceID = SHA-256(its SPKI). g_inst: derived this boot. The seeded key pair is third_party/tweetnacl.c's Enclave
+ * addition, declared here because wasm/ggml-shielded/tweetnacl.h (same include guard) is the header in effect. */
+static unsigned char g_ipk[32], g_isk[64]; static int g_inst = 0;
+static void instance_spki(uint8_t spki[44]);   /* defined with the v3 evidence below; attest() needs it for INSTANCEATTACH */
+extern int crypto_sign_ed25519_tweet_seed_keypair(unsigned char *pk, unsigned char *sk, const unsigned char *seed);
+/* The lease proof key (PROOF-KEY.md): its seed is AVmPayload_getVmInstanceSecret("enclave-pvm-proof-key-v1") -- instance-bound
+ * like the instance key -- and pvm-rt (src/proof.rs) turns it into the secp256k1 key and signs ONLY EnclaveProofOfTime
+ * checkpoints built from typed fields. PROOFPINS (the owner's control channel, once per boot) fixes what it signs for. */
+typedef struct { int set; uint64_t chain_id; uint8_t pot[20], registry[20], deployment[32], enclave_id[32], operator_[20]; } proof_pins;
+static proof_pins g_pp;
+static uint8_t g_proof_seed[32]; static int g_proof_seed_set = 0;
+static size_t unhex(const char *hex, uint8_t *out, size_t cap);   /* defined below */
+/* strict forms: a canonical u64 decimal (no sign, no leading zero), and 0x + exactly 2*len lowercase hex */
+static int parse_u64_dec(const char *t, uint64_t *out) {
+    const size_t n = strlen(t); uint64_t v = 0;
+    if (!n || n > 20 || (n > 1 && t[0] == '0')) return 0;
+    for (size_t i = 0; i < n; i++) { if (t[i] < '0' || t[i] > '9') return 0; const uint64_t d = (uint64_t)(t[i] - '0'); if (v > (UINT64_MAX - d) / 10) return 0; v = v * 10 + d; }
+    *out = v; return 1;
+}
+static int parse_0x(const char *t, uint8_t *out, size_t len) {
+    if (strlen(t) != 2 + 2 * len || t[0] != '0' || t[1] != 'x') return 0;
+    for (size_t i = 2; t[i]; i++) if (!((t[i] >= '0' && t[i] <= '9') || (t[i] >= 'a' && t[i] <= 'f'))) return 0;
+    unhex(t + 2, out, len); return 1;
+}
+#endif
 #ifdef ANCHOR_TIER_PVM_CPU
 /* pVM CPU capability report (PVM-CPU.md, relay/pvm-cpu-tier.mjs): the nonce it answers and the VM clock at the attestation.
  * kind 2 = the relay's nonce from this pVM's own v2 binding (admissible); 1 = the owner's bare challenge (evidence only). */
@@ -109,6 +139,8 @@ static const uint8_t ED25519_SPKI_PREFIX[12] = { 0x30,0x2a,0x30,0x05,0x06,0x03,0
 #define PADS_PORT   7780     /* owner -> guest: dealt-pad shipments into the bank dir (PADS <name> <bytes>\n, bytes) */
 #define ECHO_PORT   7780
 #define BUNDLE_PORT 7782     /* owner -> guest: the PUBLIC Shielded-TPU lane bundle (u64 size; 'K' = already stored at that size, 'S' = send) */
+#define APP_PORT    7785     /* owner -> guest: a portable WebAssembly component (the APP line; anchor_public_file.h framing) */
+#define APP_HTTP_PORT 7786   /* owner -> guest: HTTP/1.1 to a served wasi:http app (APP ... serve=http), one connection at a time */
 #define DRAFT_PORT  7783     /* owner -> guest: an optional drafter GGUF for speculative rows (same framing as the bundle port) */
 #define BENCH_PORT  7784     /* owner -> guest: link-scaling benchmark connections ONLY (tpu_link_bench). A SEPARATE
                               * port on purpose: the benchmark links were first opened on WORKER_PORT alongside the
@@ -234,6 +266,17 @@ static int read_line(int fd, char *buf, size_t cap) {
     while (n + 1 < cap) { char c; ssize_t r = read(fd, &c, 1); if (r <= 0) return -1; if (c == '\n') break; buf[n++] = c; }
     buf[n] = 0; return (int)n;
 }
+/* one WHOLE control line: bytes past cap-1 are read and dropped to the newline (bounded), and *over says so, so a long line is
+ * refused as one line instead of being split into two; returns the bytes kept (embedded NULs included), or -1 at EOF */
+static int read_ctl_line(int fd, char *buf, size_t cap, int *over) {
+    size_t n = 0, dropped = 0; *over = 0;
+    for (;;) {
+        char c; const ssize_t r = read(fd, &c, 1); if (r <= 0) return -1;
+        if (c == '\n') break;
+        if (n + 1 < cap) buf[n++] = c; else { *over = 1; if (++dropped > 65536) return -1; }
+    }
+    buf[n] = 0; return (int)n;
+}
 
 /* ---- attestation: the certificate a verifier will check, bound to the owner's challenge ---- */
 static size_t unhex(const char *hex, uint8_t *out, size_t cap) {
@@ -252,23 +295,28 @@ static void sha256(const uint8_t *m, size_t n, uint8_t out[32]) { anchor_sha256(
  * certificate challenge is sha256 of it. Whatever the app forwards as BOUND is checked against the
  * keys generated in here; anything else gets a certificate over the app's challenge (routing only)
  * but NO signature - a measured payload must not be a signing oracle for keys it does not hold. */
-static void attest(const char *hex, const char *bound_hex) {
-    uint8_t ch[32] = {0}; unhex(hex, ch, 32);
-    uint8_t bound[1024]; size_t blen = unhex(bound_hex, bound, sizeof bound);
-    int own = 0;
-    if (blen) {
-        uint8_t want[32]; sha256(bound, blen, want);
-        own = sh_avf_pad_binding_valid(bound, blen, g_tpk, g_ppk) && memcmp(want, ch, 32) == 0;
-        if (!own) OUT("ATTEST refused to sign: BOUND is not this pVM's pad binding (v2 transcript over its own keys) or the challenge is not its sha256");
-        else OUT("ATTEST binding: android-avf-pvm/v2 transcript over this pVM's own transport and pad keys, challenge = its sha256");
-    } else OUT("ATTEST no BOUND: certificate only, nothing signed");
+/* Every AVF attestation request goes through here: the serving thread (REATTACH) and the evidence server's thread may both ask.
+ * The lock covers the request alone -- never the output (RUNNER-AGENT.md "Reconnect in place", enclave-99's condition (d)). */
+static pthread_mutex_t g_att_mu = PTHREAD_MUTEX_INITIALIZER;
+static AVmAttestationStatus request_attestation(const uint8_t *ch, size_t n, AVmAttestationResult **res) {
+    pthread_mutex_lock(&g_att_mu);
+    const AVmAttestationStatus st = AVmPayload_requestAttestation(ch, n, res);
+    pthread_mutex_unlock(&g_att_mu);
+    return st;
+}
 #ifdef ANCHOR_TIER_PVM_CPU
-    if (own && blen >= 32) { memcpy(g_caps_nonce, bound + blen - 32, 32); g_caps_nonce_kind = 2; }   /* v2: the relay's nonce closes the transcript */
-    else { memcpy(g_caps_nonce, ch, 32); g_caps_nonce_kind = 1; }
-    g_caps_attach_ms = boot_ms();
+/* INSTANCEATTACH for the owner's attach co-signer: the instance SPKI and the signature over this VM's own transcript, nothing else */
+static void instance_attach_out(const uint8_t isig[64]) {
+    uint8_t isp[44]; char isph[89], isigh[129];
+    instance_spki(isp); sh_pads_bin2hex(isp, 44, isph); sh_pads_bin2hex(isig, 64, isigh);
+    OUT("INSTANCEATTACH key=%s sig=%s", isph, isigh);
+}
 #endif
+/* The certificate over ch = sha256(bound) and, for this pVM's own transcript, the attested key's signature over it: CERTi and
+ * SIG lines, as the host collects them at boot and on a re-attach alike. */
+static void attest_certify(const uint8_t ch[32], const uint8_t *bound, size_t blen, int own) {
     AVmAttestationResult *res = NULL;
-    AVmAttestationStatus st = AVmPayload_requestAttestation(ch, sizeof ch, &res);
+    AVmAttestationStatus st = request_attestation(ch, 32, &res);
     OUT("ATTEST status=%s code=%d", AVmAttestationStatus_toString(st), (int)st);
     if (st == ATTESTATION_OK && res) {
         size_t n = AVmAttestationResult_getCertificateCount(res);
@@ -282,12 +330,56 @@ static void attest(const char *hex, const char *bound_hex) {
         if (own) {
             size_t ssz = AVmAttestationResult_sign(res, bound, blen, NULL, 0);
             uint8_t *sig = malloc(ssz);
-            if (sig) { AVmAttestationResult_sign(res, bound, blen, sig, ssz); hexline("SIG", sig, ssz); free(sig); }
+            /* print what THIS signing produced: the size query signs too, and an ECDSA P-256 DER signature is 70-72 bytes,
+             * so the second may be shorter than the first; printing the query's size appended a zero byte and the relay
+             * refused the signature (the first live attach, results/pvm-cpu-live-attach) */
+            if (sig) { const size_t n = AVmAttestationResult_sign(res, bound, blen, sig, ssz); hexline("SIG", sig, n < ssz ? n : ssz); free(sig); }
         }
         AVmAttestationResult_free(res);
     }
+}
+static void attest(const char *hex, const char *bound_hex) {
+    uint8_t ch[32] = {0}; unhex(hex, ch, 32);
+    uint8_t bound[1024]; size_t blen = unhex(bound_hex, bound, sizeof bound);
+    int own = 0;
+    if (blen) {
+        uint8_t want[32]; sha256(bound, blen, want);
+        own = sh_avf_pad_binding_valid(bound, blen, g_tpk, g_ppk) && memcmp(want, ch, 32) == 0;
+        if (!own) OUT("ATTEST refused to sign: BOUND is not this pVM's pad binding (v2 transcript over its own keys) or the challenge is not its sha256");
+        else OUT("ATTEST binding: android-avf-pvm/v2 transcript over this pVM's own transport and pad keys, challenge = its sha256");
+    } else OUT("ATTEST no BOUND: certificate only, nothing signed");
+#ifdef ANCHOR_TIER_PVM_CPU
+    if (own && g_inst) {   /* the boot-time INSTANCE proof for the owner's attach co-signer (anchor_attach_instance.h): the
+                            * instance SPKI and the signature only; the instance secret never leaves this function's callee */
+        uint8_t isig[64];
+        if (anchor_attach_instance_sign(bound, blen, g_tpk, g_ppk, g_isk, isig)) instance_attach_out(isig);
+    }
+#endif
+#ifdef ANCHOR_TIER_PVM_CPU
+    if (own && blen >= 32) { memcpy(g_caps_nonce, bound + blen - 32, 32); g_caps_nonce_kind = 2; }   /* v2: the relay's nonce closes the transcript */
+    else { memcpy(g_caps_nonce, ch, 32); g_caps_nonce_kind = 1; }
+    g_caps_attach_ms = boot_ms();
+#endif
+    attest_certify(ch, bound, blen, own);
     OUT("ATTEST end");
 }
+#ifdef ANCHOR_TIER_PVM_CPU
+/* REATTACH <nonce> while the app serves (RUNNER-AGENT.md "Reconnect in place"): the relay's NEW connection nonce is the only
+ * input; anchor_reattach.h builds this VM's own transcript from its boot keys (rate-bounded), and a NEW certificate over it
+ * follows, framed "REATTACH begin" .. "REATTACH end". The tier's caps state (the attach time, the caps nonce) is not touched. */
+static anchor_reattach_ctx g_reattach;   /* armed at boot, once the transport, pad and instance keys exist */
+static void reattach(const char *arg, size_t len) {
+    uint8_t B[SH_AVF_PAD_BINDING_LEN], isig[64], ch[32]; int has_isig = 0;
+    OUT("REATTACH begin");
+    const char *why = anchor_reattach_prepare(&g_reattach, arg, len, boot_ms(), B, isig, &has_isig);
+    if (why) { OUT("REATTACH refused: %s", why); OUT("REATTACH end"); return; }
+    OUT("REATTACH binding: android-avf-pvm/v2 transcript over this pVM's own boot keys and the relay's new nonce, challenge = its sha256");
+    if (has_isig) instance_attach_out(isig);
+    sha256(B, sizeof B, ch);
+    attest_certify(ch, B, sizeof B, 1);
+    OUT("REATTACH end");
+}
+#endif
 
 /* ---- the untrusted half: a real worker over the bridge, or the in-guest stand-in ---- */
 typedef struct {
@@ -460,6 +552,8 @@ static int receive_model(int ls_model, uint64_t bytes, int *out_fd) {
 #include "anchor_auth.h"
 #include "anchor_prepare.h"
 #include "anchor_local.h"
+#include "anchor_app.h"
+#include "pvmrt_nn.h"
 #include "anchor_rxctl.h"
 static uint8_t g_ppk[32], g_psk[32], g_ledger_pk[32], g_seed[32], g_seed_id[16];
 /* Authenticated bootstrap (PAD-BOOTSTRAP.md). The ledger key comes from the measured APK
@@ -1130,6 +1224,451 @@ static void caps_sink(const char *id, int tokens, double pf, double dc, const ui
     OUT("CAPS summary: nonce=%s (%s) selftest %d tokens decode %.2f tok/s output %.16s...", nh, g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only", tokens, dc, oh);
 }
 #endif
+#ifdef ANCHOR_TIER_PVM_CPU
+/* APP (PVM-CPU.md, "The app runtime"; runtime/pvm-rt): the portable component arrives on APP_PORT, is read into this VM's
+ * memory, and pvm-rt verifies those exact bytes against the APP line's sha256 BEFORE compiling them to Pulley here. Output
+ * comes back as APPOUT <stream> <hex> lines (1 = stdout, 2 = stderr), in 1 KiB chunks. The sha256 is the app's identity
+ * (AppID), kept for the attestation binding (report_data[32:64], milestone 5). */
+static uint8_t g_app_sha256[32]; static int g_app_have = 0;
+/* the relay's fresh nonce for the app's ABI/2 evidence (APPNONCE): used instead of the attach nonce when present */
+static uint8_t g_app_nonce[32]; static int g_app_nonce_set = 0;
+typedef int (*pvmrt_identity_fn)(char *, size_t);
+typedef int (*pvmrt_run_app_fn)(const uint8_t *, size_t, const uint8_t *, const char *const *, int, uint64_t, uint64_t,
+                                const char *, const pvmrt_nn_ops *, void (*)(int, const uint8_t *, size_t), int *, uint64_t *,
+                                uint64_t *, char *, size_t);
+static void app_emit(int stream, const uint8_t *p, size_t n) {
+    for (size_t off = 0; off < n; off += 1024) {
+        const size_t m = n - off < 1024 ? n - off : 1024; char hx[2049];
+        sh_pads_bin2hex(p + off, m, hx); OUT("APPOUT %d %s", stream, hx);
+    }
+}
+/* One received component and the runtime that will run it. */
+typedef struct { const anchor_app_plan *plan; uint8_t *bytes; pvmrt_run_app_fn run; void *rt; char identity[512]; } app_ready;
+/* The component into memory (refused unless exactly plan->bytes arrived) and the runtime from this APK, its identity said. */
+static int app_receive(const anchor_app_plan *plan, app_ready *a) {
+    char path[600];
+    memset(a, 0, sizeof *a); a->plan = plan;
+    int ls = vs_bind(APP_PORT);
+    if (ls < 0 || receive_public_file(ls, plan->bytes, "app.wasm", path, sizeof path) != 0) { if (ls >= 0) close(ls); OUT("APP refused: the component did not arrive whole"); return 4; }
+    close(ls);
+    FILE *f = fopen(path, "rb"); uint8_t *b = f ? malloc(plan->bytes) : NULL;
+    const int whole = f && b && fread(b, 1, plan->bytes, f) == plan->bytes && fgetc(f) == EOF;
+    if (f) fclose(f);
+    if (!whole) { free(b); OUT("APP refused: the stored component is not %llu bytes", (unsigned long long)plan->bytes); return 4; }
+    {   /* the AppID the VM is about to attest (app_attest_abi2) must be these bytes' digest: checked HERE, before any certificate
+         * names it, not only by pvm-rt before compiling -- otherwise a host could obtain a genuine certificate naming an app the
+         * VM then refuses to run */
+        uint8_t got[32]; sha256(b, (size_t)plan->bytes, got);
+        if (memcmp(got, plan->sha256, 32) != 0) {
+            char gh[65], wh[65]; sh_pads_bin2hex(got, 32, gh); sh_pads_bin2hex(plan->sha256, 32, wh); free(b);
+            OUT("APP refused: bundle sha256 %s is not the expected %s: refusing to compile (and to attest it)", gh, wh); return 4;
+        }
+    }
+    char lib[700]; snprintf(lib, sizeof lib, "%s/lib/arm64-v8a/libpvm_rt.so", AVmPayload_getApkContentsPath());
+    void *h = dlopen(lib, RTLD_NOW);
+    pvmrt_identity_fn idf = h ? (pvmrt_identity_fn)dlsym(h, "pvmrt_identity") : NULL;
+    pvmrt_run_app_fn run = h ? (pvmrt_run_app_fn)dlsym(h, "pvmrt_run_app") : NULL;
+    if (!idf || !run) { free(b); OUT("APP refused: the runtime is not in this APK (%s)", h ? "symbols" : dlerror()); return 4; }
+    if (idf(a->identity, sizeof a->identity) != 0) { free(b); OUT("APP refused: the runtime identity did not fit"); return 4; }
+    OUT("APP runtime %s", a->identity);
+    a->bytes = b; a->run = run; a->rt = h;
+    return 0;
+}
+/* Verify, compile, run (pvm-rt does all three, in that order), then free the component. With `ops`, wasi:nn serves the
+ * verified model under plan->graph; a run over the model gets 600 s, a component alone 60 s; both 256 MiB. */
+static int app_exec(app_ready *a, const pvmrt_nn_ops *ops) {
+    const anchor_app_plan *plan = a->plan;
+    const char *argv[64]; int argc = 0;
+    for (size_t i = 0; i < plan->args_len && argc < 64; ) { argv[argc++] = plan->args + i; i += strlen(plan->args + i) + 1; }
+    int exit_code = -1; uint64_t cms = 0, rms = 0; char err[1024] = "";
+    const int rc = a->run(a->bytes, plan->bytes, plan->sha256, argv, argc, 256ull << 20, ops ? 600000 : 60000,
+                          ops ? plan->graph : NULL, ops, app_emit, &exit_code, &cms, &rms, err, sizeof err);
+    free(a->bytes); a->bytes = NULL;
+    char hh[65]; sh_pads_bin2hex(plan->sha256, 32, hh);
+    if (rc != 0) { OUT("APP refused: %s", err); return 4; }
+    memcpy(g_app_sha256, plan->sha256, 32); g_app_have = 1;
+    OUT("APP ran %s exit=%d compile_ms=%llu run_ms=%llu%s%s", hh, exit_code, (unsigned long long)cms, (unsigned long long)rms, ops ? " graph=" : "", ops ? plan->graph : "");
+    return 0;
+}
+/* ABI/2 for the app (PVM-CPU.md, milestone 5; isolation/contract RUNTIME.md): once the component is here, and before it runs,
+ * the VM asks for a second AVF certificate whose 64-byte challenge is
+ *     Bind2 = SHA-256("enclave-bind-v2\n" || transport SPKI || attach nonce || RuntimeID)  ||  AppID (the component's SHA-256)
+ * RuntimeID = SHA-256 of the runtime identity exactly as printed (pvm-rt emits the contract's canonical JSON), so a verifier
+ * recomputes it from the ABI2 runtime line and a restated identity breaks the binding. The runtime self-test tuple says what
+ * this process may do with code pages, measured here: the W^X probe (map RW, then ask for R+X) and a scan of this process's
+ * mappings, which is complete coverage because the runtime is a library in this process (scope=self). A writable+executable
+ * mapping refuses the run. The chain is printed as ABI2_LINK<i>[k] lines, apart from the attach chain (CERT<i>[k]). Returns
+ * 0 to run, non-zero to refuse. */
+static const char *errno_name(int e, char *buf, size_t cap) {
+    switch (e) { case EACCES: return "EACCES"; case EPERM: return "EPERM"; case ENOMEM: return "ENOMEM"; case EINVAL: return "EINVAL"; }
+    snprintf(buf, cap, "errno%d", e); return buf;
+}
+/* The W^X tuple measured when the app was received (app_attest_abi2), for every later answer (the evidence endpoint). */
+static char g_abi2_tuple[96] = "";
+/* One ABI/2 certificate: RuntimeID = SHA-256(identity as printed), Bind2 = SHA-256("enclave-bind-v2\n" || transport SPKI ||
+ * nonce || RuntimeID), challenge = Bind2 || AppID. v3 (inst != NULL, INSTANCE-BINDING.md): the VM INSTANCE inside the first
+ * half, Bind3 = SHA-256("enclave-bind-v3-instance\n" || transport SPKI || nonce || RuntimeID || InstanceID) with InstanceID =
+ * SHA-256(instance SPKI), and inst->sig = the instance key's signature over "enclave-pvm-instance-sig-v1\n" || challenge.
+ * AppID stays whole as the second half. Returns the result (the caller frees it) or NULL with *st set. */
+typedef struct { uint8_t id[32]; uint8_t spki[44]; uint8_t sig[64]; } abi2_instance;
+static void instance_spki(uint8_t spki[44]) { memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_ipk, 32); }
+static AVmAttestationResult *abi2_certify(const char *identity, const uint8_t nonce[32], const uint8_t app_sha[32],
+                                          uint8_t rid[32], uint8_t bind[32], abi2_instance *inst, AVmAttestationStatus *st) {
+    uint8_t spki[44], ch[64];
+    sha256((const uint8_t *)identity, strlen(identity), rid);
+    memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
+    if (!inst) {
+        static const char dom[] = "enclave-bind-v2\n"; uint8_t m[sizeof dom - 1 + 44 + 32 + 32]; size_t o = 0;
+        memcpy(m + o, dom, sizeof dom - 1); o += sizeof dom - 1; memcpy(m + o, spki, 44); o += 44;
+        memcpy(m + o, nonce, 32); o += 32; memcpy(m + o, rid, 32); o += 32; sha256(m, o, bind);
+    } else {
+        static const char dom[] = "enclave-bind-v3-instance\n"; uint8_t m[sizeof dom - 1 + 44 + 32 + 32 + 32]; size_t o = 0;
+        instance_spki(inst->spki); sha256(inst->spki, 44, inst->id);
+        memcpy(m + o, dom, sizeof dom - 1); o += sizeof dom - 1; memcpy(m + o, spki, 44); o += 44;
+        memcpy(m + o, nonce, 32); o += 32; memcpy(m + o, rid, 32); o += 32; memcpy(m + o, inst->id, 32); o += 32; sha256(m, o, bind);
+    }
+    memcpy(ch, bind, 32); memcpy(ch + 32, app_sha, 32);
+    if (inst) {   /* the instance key endorses exactly this challenge (TweetNaCl: sm = sig || m) */
+        static const char dom[] = "enclave-pvm-instance-sig-v1\n"; uint8_t m[sizeof dom - 1 + 64], sm[64 + sizeof m]; unsigned long long smlen = 0;
+        memcpy(m, dom, sizeof dom - 1); memcpy(m + sizeof dom - 1, ch, 64);
+        crypto_sign(sm, &smlen, m, sizeof m, g_isk); memcpy(inst->sig, sm, 64);
+    }
+    AVmAttestationResult *res = NULL;
+    *st = request_attestation(ch, sizeof ch, &res);
+    if (*st != ATTESTATION_OK || !res) { if (res) AVmAttestationResult_free(res); return NULL; }
+    return res;
+}
+static int app_attest_abi2(const char *identity, const uint8_t app_sha[32]) {
+    char exec_pages[48], eb[16];
+    void *pg = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (pg == MAP_FAILED) snprintf(exec_pages, sizeof exec_pages, "no-mapping:%s", errno_name(errno, eb, sizeof eb));
+    else {
+        if (mprotect(pg, 4096, PROT_READ | PROT_EXEC) == 0) snprintf(exec_pages, sizeof exec_pages, "allowed");
+        else snprintf(exec_pages, sizeof exec_pages, "refused:%s", errno_name(errno, eb, sizeof eb));
+        munmap(pg, 4096);
+    }
+    int wx = -1; { FILE *m = fopen("/proc/self/maps", "r"); char l[1024];
+        if (m) { wx = 0; while (fgets(l, sizeof l, m)) { char perm[8] = ""; if (sscanf(l, "%*s %7s", perm) == 1 && strchr(perm, 'w') && strchr(perm, 'x')) wx++; } fclose(m); } }
+    if (wx != 0) { OUT("APP refused: %s", wx < 0 ? "this process's mappings could not be read, so W^X cannot be stated" : "this process holds a writable+executable mapping"); return 4; }
+    snprintf(g_abi2_tuple, sizeof g_abi2_tuple, "exec_pages=%s wx=clean maps=1 scope=self", exec_pages);
+    OUT("ABI2 selftest %s", g_abi2_tuple);
+    OUT("ABI2 runtime %s", identity);
+    if (!g_caps_nonce_kind && !g_app_nonce_set) { OUT("ABI2 unavailable: no nonce in this session (the app runs; a verifier admits nothing without ABI/2 evidence)"); return 0; }
+    const uint8_t *nonce = g_app_nonce_set ? g_app_nonce : g_caps_nonce;
+    const char *nonce_kind = g_app_nonce_set ? "relay app nonce" : g_caps_nonce_kind == 2 ? "relay-bound" : "owner challenge only";
+    uint8_t rid[32], bind[32];
+    AVmAttestationStatus st; abi2_instance inst;
+    AVmAttestationResult *res = abi2_certify(identity, nonce, app_sha, rid, bind, g_inst ? &inst : NULL, &st);
+    char nh[65], ah[65], bh[65], rh[65]; sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(app_sha, 32, ah); sh_pads_bin2hex(bind, 32, bh); sh_pads_bin2hex(rid, 32, rh);
+    OUT("ABI2 binding nonce=%s (%s) runtime_id=%s %s=%s app=%s", nh, nonce_kind, rh, g_inst ? "bind3" : "bind2", bh, ah);
+    if (g_inst) {   /* v3: the instance key and its signature, for the relay's hub to check at attach (public values) */
+        char kh[89], sg[129], ih[65]; sh_pads_bin2hex(inst.spki, 44, kh); sh_pads_bin2hex(inst.sig, 64, sg); sh_pads_bin2hex(inst.id, 32, ih);
+        OUT("ABI2 instance key=%s sig=%s id=%s", kh, sg, ih);
+    }
+    if (!res) { OUT("ABI2 unavailable: attestation status=%s (the app runs; a verifier admits nothing without ABI/2 evidence)", AVmAttestationStatus_toString(st)); return 0; }
+    const size_t n = AVmAttestationResult_getCertificateCount(res);
+    for (size_t i = 0; i < n; i++) {
+        const size_t sz = AVmAttestationResult_getCertificateAt(res, i, NULL, 0);
+        uint8_t *c = malloc(sz); if (!c) continue;
+        AVmAttestationResult_getCertificateAt(res, i, c, sz);
+        char label[24]; snprintf(label, sizeof label, "ABI2_LINK%zu", i); hexline(label, c, sz); free(c);
+    }
+    AVmAttestationResult_free(res);
+    OUT("ABI2 end certs=%zu", n);
+    return 0;
+}
+/* LAB, the client-verified channel (PVM-CPU.md): while the app is served over https, vsock EVIDENCE_PORT answers a CLIENT's
+ * nonce with a fresh ABI/2 certificate for this app and this VM's transport key, so a client verifies the VM itself and
+ * never takes a key or a verdict from the relay or the phone. One line in, `EVIDENCE <64 lowercase hex>`; one JSON line
+ * out (format enclave-pvm-app-evidence/v1: nonce, app, spki, identity, selftest, chain). Bounded: a 5 s read, one request
+ * per connection, at most one answer every 2 s and 120 per session. Logs public facts only (the nonce prefix, the count). */
+#define EVIDENCE_PORT 7787
+static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static size_t b64_encode(const uint8_t *in, size_t n, char *out) {
+    size_t o = 0;
+    for (size_t i = 0; i < n; i += 3) {
+        const uint32_t v = (uint32_t)in[i] << 16 | (i + 1 < n ? (uint32_t)in[i + 1] << 8 : 0) | (i + 2 < n ? in[i + 2] : 0);
+        out[o++] = B64[v >> 18 & 63]; out[o++] = B64[v >> 12 & 63];
+        out[o++] = i + 1 < n ? B64[v >> 6 & 63] : '='; out[o++] = i + 2 < n ? B64[v & 63] : '=';
+    }
+    out[o] = 0; return o;
+}
+/* v2 (the browser channel, PVM-CPU.md): with an app key, each answer also carries appKey (the X25519 key pvm-rt made in this
+ * process for sealed requests) and appKeySig, the transport key's Ed25519 signature over "enclave-pvm-app-key-v1\n" ||
+ * nonce || app || appKey; the answered nonce then admits sealed requests (pvm-rt sealed.rs: its window and budget). */
+typedef int (*pvmrt_http_sealed_nonce_fn)(const void *, const uint8_t *);
+typedef int (*pvmrt_pot_address_fn)(const uint8_t *, uint8_t *);
+typedef int (*pvmrt_pot_sign_fn)(const uint8_t *, uint64_t, const uint8_t *, const uint8_t *, const uint8_t *, const uint8_t *, uint64_t, uint64_t,
+                                 const uint8_t *, uint8_t *, uint8_t *);
+typedef struct { int ls; volatile int stop; const char *identity; uint8_t app[32]; int answered;
+                 int sealed; uint8_t app_key[32]; const void *srv; pvmrt_http_sealed_nonce_fn admit;
+                 /* the lease proof key (PROOF-KEY.md): on only with pins, a seed and pvm-rt's signer; serving: the app loop runs */
+                 int proof_on; volatile int serving; uint8_t proof_addr[20]; pvmrt_pot_sign_fn pot_sign;
+                 uint64_t last_upto, last_anchor, last_cp_ms; } evidence_srv;
+/* CHECKPOINT <upto> <anchorBlock> <anchorHash>: one EnclaveProofOfTime signature under the VM's policy, refusing in this order
+ * (the host tests' fake VM is held to the same): the request's form, the pins, the app serving, a strictly increasing upto, a
+ * non-decreasing anchor, one per 60 s. The digest is built in pvm-rt from THESE pins and the three values -- no other path
+ * signs anything with the proof key. */
+static void checkpoint_answer(evidence_srv *e, int c, const char *line) {
+#define CP_REFUSE(msg) do { const char *m_ = "{\"error\":\"" msg "\"}\n"; write_all(c, m_, strlen(m_)); OUT("CHECKPOINT refused: %s", msg); return; } while (0)
+    char buf[128], *sv = NULL; const char *tk[5]; int nt = 0; uint64_t upto = 0, anchor = 0; uint8_t ah[32];
+    snprintf(buf, sizeof buf, "%s", line);
+    for (char *t = strtok_r(buf, " ", &sv); t && nt < 5; t = strtok_r(NULL, " ", &sv)) tk[nt++] = t;
+    size_t hl = 0; if (nt == 4) while (tk[3][hl] && ((tk[3][hl] >= '0' && tk[3][hl] <= '9') || (tk[3][hl] >= 'a' && tk[3][hl] <= 'f'))) hl++;
+    if (nt != 4 || strcmp(tk[0], "CHECKPOINT") || !parse_u64_dec(tk[1], &upto) || !parse_u64_dec(tk[2], &anchor) || hl != 64 || tk[3][64])
+        CP_REFUSE("request is CHECKPOINT <upto> <anchorBlock> <64 lowercase hex>");
+    unhex(tk[3], ah, 32);
+    if (!e->proof_on) CP_REFUSE("no proof pins: this VM signs no checkpoint");
+    if (!e->serving) CP_REFUSE("the app is not serving: no checkpoint");
+    if (upto <= e->last_upto) CP_REFUSE("upto must strictly increase");
+    if (anchor < e->last_anchor) CP_REFUSE("anchorBlock must not decrease");
+    const uint64_t now = boot_ms();
+    if (e->last_cp_ms && now - e->last_cp_ms < 60000) CP_REFUSE("at most one checkpoint every 60 s");
+    uint8_t sig[65], dig[32];
+    if (e->pot_sign(g_proof_seed, g_pp.chain_id, g_pp.pot, g_pp.deployment, g_pp.enclave_id, g_pp.operator_, upto, anchor, ah, sig, dig) != 0) CP_REFUSE("signing failed");
+    e->last_upto = upto; e->last_anchor = anchor; e->last_cp_ms = now;
+    char po[41], rg[41], dp[65], en[65], op[41], hh[65], sg[131], dg[65]; char js[1024];
+    sh_pads_bin2hex(g_pp.pot, 20, po); sh_pads_bin2hex(g_pp.registry, 20, rg); sh_pads_bin2hex(g_pp.deployment, 32, dp); sh_pads_bin2hex(g_pp.enclave_id, 32, en);
+    sh_pads_bin2hex(g_pp.operator_, 20, op); sh_pads_bin2hex(ah, 32, hh); sh_pads_bin2hex(sig, 65, sg); sh_pads_bin2hex(dig, 32, dg);
+    const int n = snprintf(js, sizeof js, "{\"format\":\"enclave-pvm-checkpoint/v1\",\"chainId\":\"%llu\",\"proofOfTime\":\"0x%s\",\"registry\":\"0x%s\",\"deployment\":\"0x%s\",\"enclaveId\":\"0x%s\",\"operator\":\"0x%s\",\"upto\":\"%llu\",\"anchorBlock\":\"%llu\",\"anchorHash\":\"0x%s\",\"sig\":\"0x%s\"}\n",
+                         (unsigned long long)g_pp.chain_id, po, rg, dp, en, op, (unsigned long long)upto, (unsigned long long)anchor, hh, sg);
+    if (n > 0 && (size_t)n < sizeof js) { write_all(c, js, (size_t)n); OUT("CHECKPOINT signed upto=%llu anchorBlock=%llu digest=%.16s...", (unsigned long long)upto, (unsigned long long)anchor, dg); }
+#undef CP_REFUSE
+}
+static void evidence_answer(evidence_srv *e, int c) {
+    struct timeval tv = { 5, 0 }; setsockopt(c, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    char line[128]; size_t n = 0;
+    while (n + 1 < sizeof line) { char ch; ssize_t r = read(c, &ch, 1); if (r <= 0) break; if (ch == '\n') break; line[n++] = ch; }
+    line[n] = 0;
+    if (!strncmp(line, "CHECKPOINT", 10)) { checkpoint_answer(e, c, line); return; }
+    /* PROOFKEY <nonce>: the v3 envelope for that nonce, wrapped in the attested proof-key statement (PROOF-KEY.md) */
+    const int pk = strncmp(line, "PROOFKEY ", 9) == 0;
+    if (pk && !e->proof_on) { write_all(c, "{\"error\":\"no proof pins: no proof-key statement\"}\n", strlen("{\"error\":\"no proof pins: no proof-key statement\"}\n")); return; }
+    const int v3 = pk || strncmp(line, "EVIDENCE3 ", 10) == 0;   /* v3: bound to this VM instance (INSTANCE-BINDING.md) */
+    const char *h = line + (pk ? 9 : v3 ? 10 : 9); size_t hl = 0;
+    if (pk || v3 || strncmp(line, "EVIDENCE ", 9) == 0) while (hl < 64 && ((h[hl] >= '0' && h[hl] <= '9') || (h[hl] >= 'a' && h[hl] <= 'f'))) hl++;
+    if (hl != 64 || h[64] != 0) { write_all(c, "{\"error\":\"request is EVIDENCE <64 lowercase hex> or EVIDENCE3 <64 lowercase hex>\"}\n", strlen("{\"error\":\"request is EVIDENCE <64 lowercase hex> or EVIDENCE3 <64 lowercase hex>\"}\n")); return; }
+    if (v3 && (!g_inst || !e->sealed)) { write_all(c, "{\"error\":\"v3 evidence needs this VM's instance key and a sealed app key\"}\n", strlen("{\"error\":\"v3 evidence needs this VM's instance key and a sealed app key\"}\n")); return; }
+    if (e->answered >= 120) { write_all(c, "{\"error\":\"evidence budget spent for this session\"}\n", strlen("{\"error\":\"evidence budget spent for this session\"}\n")); return; }
+    uint8_t nonce[32], rid[32], bind[32]; unhex(h, nonce, 32); abi2_instance inst;
+    AVmAttestationStatus st; AVmAttestationResult *res = abi2_certify(e->identity, nonce, e->app, rid, bind, v3 ? &inst : NULL, &st);
+    if (!res) { OUT("EVIDENCE unavailable: attestation status=%s", AVmAttestationStatus_toString(st)); write_all(c, "{\"error\":\"attestation unavailable\"}\n", strlen("{\"error\":\"attestation unavailable\"}\n")); return; }
+    const size_t k = AVmAttestationResult_getCertificateCount(res);
+    /* the answer's size, exactly: 4 KiB for the fields, the escaped identity (<= 2 x its 1024-byte bound) and the tail, plus
+     * each certificate's exact base64 length and its quotes and comma. The old estimate (1 KiB + 4/3 of each certificate,
+     * integer division) left v3's two extra fields without room: snprintf cut the final "]}\n" to "]}" + NUL on some
+     * attestations (seen on the device, 2026-09-24: a v3 answer ending in 0x00, which the client refused as unparseable) */
+    size_t cap = 4096 + 2 * strlen(e->identity); for (size_t i = 0; i < k; i++) cap += (AVmAttestationResult_getCertificateAt(res, i, NULL, 0) + 2) / 3 * 4 + 4;
+    char *js = malloc(cap); uint8_t *der = NULL;
+    if (!js) { AVmAttestationResult_free(res); return; }
+    char nh[65], ah[65], sh[89]; uint8_t spki[44]; memcpy(spki, ED25519_SPKI_PREFIX, 12); memcpy(spki + 12, g_tpk, 32);
+    sh_pads_bin2hex(nonce, 32, nh); sh_pads_bin2hex(e->app, 32, ah); for (int i = 0; i < 44; i++) sprintf(sh + 2 * i, "%02x", spki[i]);
+    size_t o;
+    if (v3) {   /* v3: the app key vouched for under THIS nonce, THIS app and THIS instance; the instance key and its signature */
+        static const char dom[] = "enclave-pvm-app-key-v2\n"; uint8_t m[sizeof dom - 1 + 128], sig[64]; char kh[65], sg[129], ik[89], is[129];
+        memcpy(m, dom, sizeof dom - 1); memcpy(m + sizeof dom - 1, nonce, 32); memcpy(m + sizeof dom - 1 + 32, e->app, 32);
+        memcpy(m + sizeof dom - 1 + 64, inst.id, 32); memcpy(m + sizeof dom - 1 + 96, e->app_key, 32);
+        { uint8_t sm[64 + sizeof m]; unsigned long long smlen = 0; crypto_sign(sm, &smlen, m, sizeof m, g_tsk); memcpy(sig, sm, 64); }
+        sh_pads_bin2hex(e->app_key, 32, kh); sh_pads_bin2hex(sig, 64, sg); sh_pads_bin2hex(inst.spki, 44, ik); sh_pads_bin2hex(inst.sig, 64, is);
+        o = (size_t)snprintf(js, cap, "{\"format\":\"enclave-pvm-app-evidence/v3\",\"nonce\":\"%s\",\"app\":\"%s\",\"spki\":\"%s\",\"instanceKey\":\"%s\",\"instanceSig\":\"%s\",\"appKey\":\"%s\",\"appKeySig\":\"%s\",\"identity\":\"", nh, ah, sh, ik, is, kh, sg);
+    } else if (e->sealed) {   /* v2: the app key, vouched for by the attested transport key under THIS nonce and THIS app */
+        static const char dom[] = "enclave-pvm-app-key-v1\n"; uint8_t m[sizeof dom - 1 + 96], sig[64]; char kh[65], sg[129];
+        memcpy(m, dom, sizeof dom - 1); memcpy(m + sizeof dom - 1, nonce, 32); memcpy(m + sizeof dom - 1 + 32, e->app, 32); memcpy(m + sizeof dom - 1 + 64, e->app_key, 32);
+        { uint8_t sm[64 + sizeof m]; unsigned long long smlen = 0; crypto_sign(sm, &smlen, m, sizeof m, g_tsk); memcpy(sig, sm, 64); }   /* TweetNaCl: sig || m */
+        sh_pads_bin2hex(e->app_key, 32, kh); sh_pads_bin2hex(sig, 64, sg);
+        o = (size_t)snprintf(js, cap, "{\"format\":\"enclave-pvm-app-evidence/v2\",\"nonce\":\"%s\",\"app\":\"%s\",\"spki\":\"%s\",\"appKey\":\"%s\",\"appKeySig\":\"%s\",\"identity\":\"", nh, ah, sh, kh, sg);
+    } else o = (size_t)snprintf(js, cap, "{\"format\":\"enclave-pvm-app-evidence/v1\",\"nonce\":\"%s\",\"app\":\"%s\",\"spki\":\"%s\",\"identity\":\"", nh, ah, sh);
+    for (const char *q = e->identity; *q && o + 4 < cap; q++) { if (*q == '"' || *q == '\\') js[o++] = '\\'; js[o++] = *q; }   /* the identity as a JSON string */
+    o += (size_t)snprintf(js + o, cap - o, "\",\"selftest\":\"%s\",\"chain\":[", g_abi2_tuple);
+    for (size_t i = 0; i < k; i++) {
+        const size_t sz = AVmAttestationResult_getCertificateAt(res, i, NULL, 0);
+        uint8_t *nd = realloc(der, sz); if (!nd) break; der = nd;
+        AVmAttestationResult_getCertificateAt(res, i, der, sz);
+        js[o++] = i ? ',' : ' '; if (!i) o--; js[o++] = '"'; o += b64_encode(der, sz, js + o); js[o++] = '"';
+    }
+    o += (size_t)snprintf(js + o, cap - o, "]}\n");
+    AVmAttestationResult_free(res); free(der);
+    if (o >= cap || js[o - 1] != '\n') {   /* fail closed: a cut answer is never sent as evidence */
+        OUT("EVIDENCE refused: the answer (%zu bytes) did not fit its buffer (%zu)", o, cap);
+        write_all(c, "{\"error\":\"evidence answer did not fit\"}\n", strlen("{\"error\":\"evidence answer did not fit\"}\n")); free(js); return;
+    }
+    if (pk) {   /* the statement: the attested transport key vouches for the proof key, this instance, these pins (271 bytes) */
+        static const char dom[] = "enclave-proof-key-v1\n"; uint8_t m[sizeof dom - 1 + 250], isp[44], iid[32], sig[64]; size_t mo = 0;
+        instance_spki(isp); sha256(isp, 44, iid);
+        memcpy(m + mo, dom, sizeof dom - 1); mo += sizeof dom - 1; memcpy(m + mo, nonce, 32); mo += 32; memcpy(m + mo, e->app, 32); mo += 32;
+        m[mo++] = 0x01; memcpy(m + mo, iid, 32); mo += 32; m[mo++] = 0x01; memcpy(m + mo, e->proof_addr, 20); mo += 20;
+        for (int i = 7; i >= 0; i--) m[mo++] = (uint8_t)(g_pp.chain_id >> (8 * i));
+        memcpy(m + mo, g_pp.pot, 20); mo += 20; memcpy(m + mo, g_pp.registry, 20); mo += 20; memcpy(m + mo, g_pp.deployment, 32); mo += 32;
+        memcpy(m + mo, g_pp.enclave_id, 32); mo += 32; memcpy(m + mo, g_pp.operator_, 20); mo += 20;
+        { uint8_t *sm = malloc(64 + mo); unsigned long long smlen = 0; if (!sm) { free(js); return; } crypto_sign(sm, &smlen, m, mo, g_tsk); memcpy(sig, sm, 64); free(sm); }
+        char ih[65], pa[41], po[41], rg[41], dp[65], en[65], op[41], sg[129];
+        sh_pads_bin2hex(iid, 32, ih); sh_pads_bin2hex(e->proof_addr, 20, pa); sh_pads_bin2hex(g_pp.pot, 20, po); sh_pads_bin2hex(g_pp.registry, 20, rg);
+        sh_pads_bin2hex(g_pp.deployment, 32, dp); sh_pads_bin2hex(g_pp.enclave_id, 32, en); sh_pads_bin2hex(g_pp.operator_, 20, op); sh_pads_bin2hex(sig, 64, sg);
+        char *st = malloc(o + 1024);
+        if (!st) { free(js); return; }
+        size_t so = (size_t)snprintf(st, o + 1024, "{\"format\":\"enclave-proof-key/v1\",\"evidence\":");
+        memcpy(st + so, js, o - 1); so += o - 1;   /* the envelope, without its newline */
+        so += (size_t)snprintf(st + so, o + 1024 - so, ",\"instance\":{\"type\":\"pvm-instance-id\",\"value\":\"%s\"},\"sigAlg\":\"ed25519\",\"proofKey\":\"0x%s\",\"chainId\":\"%llu\",\"proofOfTime\":\"0x%s\",\"registry\":\"0x%s\",\"deployment\":\"0x%s\",\"enclaveId\":\"0x%s\",\"operator\":\"0x%s\",\"sig\":\"%s\"}\n",
+                               ih, pa, (unsigned long long)g_pp.chain_id, po, rg, dp, en, op, sg);
+        free(js);
+        if (so >= o + 1024 || st[so - 1] != '\n' || mo != 271) { OUT("PROOFKEY refused: the statement did not build (%zu, %zu)", so, mo); write_all(c, "{\"error\":\"proof-key statement did not build\"}\n", strlen("{\"error\":\"proof-key statement did not build\"}\n")); free(st); return; }
+        if (write_all(c, st, so) == 0) { e->answered++; OUT("PROOFKEY answered nonce=%.16s... proofKey=0x%s (answer %d)", nh, pa, e->answered); }
+        free(st); return;
+    }
+    if (write_all(c, js, o) == 0) {
+        e->answered++;
+        const int admitted = e->sealed && e->admit && e->admit(e->srv, nonce) == 0;
+        OUT("EVIDENCE answered nonce=%.16s... (%s, %zu certificates, answer %d%s)", nh, v3 ? "v3" : e->sealed ? "v2" : "v1", k, e->answered, admitted ? ": sealed requests admitted under it" : "");
+    }
+    free(js);
+}
+static void *evidence_server(void *arg) {
+    evidence_srv *e = (evidence_srv *)arg; uint64_t last = 0;
+    while (!e->stop) {
+        struct pollfd pf = { .fd = e->ls, .events = POLLIN };
+        if (poll(&pf, 1, 500) <= 0 || !(pf.revents & POLLIN)) continue;
+        const int c = accept(e->ls, NULL, NULL); if (c < 0) continue;
+        const uint64_t now = boot_ms();
+        if (last && now - last < 2000) { write_all(c, "{\"error\":\"one evidence answer every 2 s\"}\n", strlen("{\"error\":\"one evidence answer every 2 s\"}\n")); close(c); continue; }
+        last = now; evidence_answer(e, c); close(c);
+    }
+    return NULL;
+}
+/* A wasi:http app (APP ... serve=http; runtime/pvm-rt httpd.rs): verified, compiled and pre-instantiated once, then served
+ * on APP_HTTP_PORT one connection at a time -- a fresh instance per request, 256 MiB and a deadline each -- until the owner
+ * sends STOP on the control channel, the channel closes, or an hour passes with neither a connection nor a word. */
+typedef void *(*pvmrt_http_open_fn)(const uint8_t *, size_t, const uint8_t *, uint64_t, uint64_t, const char *, const pvmrt_nn_ops *,
+                                    void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
+typedef int (*pvmrt_http_serve_fd_fn)(void *, int, char *, size_t);
+typedef uint64_t (*pvmrt_http_requests_fn)(const void *);
+typedef void (*pvmrt_http_close_fn)(void *);
+typedef void *(*pvmrt_https_open_fn)(const uint8_t *, size_t, const uint8_t *, uint64_t, uint64_t, const char *, const pvmrt_nn_ops *,
+                                     const uint8_t *, void (*)(int, const uint8_t *, size_t), uint64_t *, char *, size_t);
+typedef int (*pvmrt_http_sealed_enable_fn)(void *, const uint8_t *, const uint8_t *, uint8_t *);
+typedef int (*pvmrt_http_serve_sealed_fd_fn)(void *, int, char *, size_t);
+#define SEALED_PORT 7788   /* LAB, the browser channel: one HPKE-sealed HTTP request per connection (pvm-rt sealed.rs) */
+static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
+    const anchor_app_plan *plan = a->plan;
+    pvmrt_http_open_fn hopen = (pvmrt_http_open_fn)dlsym(a->rt, "pvmrt_http_open");
+    pvmrt_https_open_fn hsopen = (pvmrt_https_open_fn)dlsym(a->rt, "pvmrt_https_open");
+    const int tls = plan->http == 2;
+    pvmrt_http_serve_fd_fn hserve = (pvmrt_http_serve_fd_fn)dlsym(a->rt, "pvmrt_http_serve_fd");
+    pvmrt_http_requests_fn hreqs = (pvmrt_http_requests_fn)dlsym(a->rt, "pvmrt_http_requests");
+    pvmrt_http_close_fn hclose = (pvmrt_http_close_fn)dlsym(a->rt, "pvmrt_http_close");
+    if (!hopen || !hserve || !hreqs || !hclose || (tls && !hsopen)) { free(a->bytes); a->bytes = NULL; OUT("APP refused: this runtime cannot serve wasi:http%s", tls ? " over TLS" : ""); return 4; }
+    uint64_t cms = 0; char err[1024] = "";
+    /* https: TLS 1.3 terminates in this process with the VM's Ed25519 transport key -- the key the attach transcript and the
+     * app's ABI/2 evidence bind -- so whatever carries the bytes (the phone's Android app, the relay) holds only ciphertext.
+     * The seed is libsodium's secret key's first half; pvm-rt copies it into its TLS config and zeroes its own copy. */
+    void *srv = tls ? hsopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, g_tsk, app_emit, &cms, err, sizeof err)
+                    : hopen(a->bytes, plan->bytes, plan->sha256, 256ull << 20, ops ? 600000 : 60000, ops ? plan->graph : NULL, ops, app_emit, &cms, err, sizeof err);
+    free(a->bytes); a->bytes = NULL;
+    char hh[65]; sh_pads_bin2hex(plan->sha256, 32, hh);
+    if (!srv) { OUT("APP refused: %s", err); return 4; }
+    memcpy(g_app_sha256, plan->sha256, 32); g_app_have = 1;
+    const int ls = vs_bind(APP_HTTP_PORT);
+    if (ls < 0) { hclose(srv); OUT("APP refused: cannot listen on the http port"); return 4; }
+    evidence_srv ev = { .ls = -1, .stop = 0, .identity = a->identity, .answered = 0 }; pthread_t evt; int ev_on = 0;
+    int ls_sealed = -1;
+    pvmrt_http_serve_sealed_fd_fn hsealed_serve = NULL;
+    if (tls) {   /* LAB, the browser channel: an app key made in pvm-rt, signed into v2 evidence, and a sealed-request port */
+        pvmrt_http_sealed_enable_fn hsealed = (pvmrt_http_sealed_enable_fn)dlsym(a->rt, "pvmrt_http_sealed_enable");
+        pvmrt_http_sealed_nonce_fn hadmit = (pvmrt_http_sealed_nonce_fn)dlsym(a->rt, "pvmrt_http_sealed_nonce");
+        hsealed_serve = (pvmrt_http_serve_sealed_fd_fn)dlsym(a->rt, "pvmrt_http_serve_sealed_fd");
+        uint8_t rid[32]; sha256((const uint8_t *)a->identity, strlen(a->identity), rid);   /* the RuntimeID ABI/2 binds */
+        if (hsealed && hadmit && hsealed_serve && hsealed(srv, plan->sha256, rid, ev.app_key) == 0 && (ls_sealed = vs_bind(SEALED_PORT)) >= 0) {
+            ev.sealed = 1; ev.srv = srv; ev.admit = hadmit;
+            char kh[65]; sh_pads_bin2hex(ev.app_key, 32, kh);
+            OUT("APP sealed requests on vsock %d: app key %.16s... (X25519, made in this process; evidence is v2)", SEALED_PORT, kh);
+        } else OUT("APP sealed requests NOT available (evidence stays v1: no browser channel)");
+    }
+    if (tls && ev.sealed && g_pp.set && g_proof_seed_set) {   /* the lease proof key (PROOF-KEY.md): pvm-rt's typed signer, these pins */
+        pvmrt_pot_address_fn paddr = (pvmrt_pot_address_fn)dlsym(a->rt, "pvmrt_pot_address");
+        ev.pot_sign = (pvmrt_pot_sign_fn)dlsym(a->rt, "pvmrt_pot_sign");
+        if (paddr && ev.pot_sign && paddr(g_proof_seed, ev.proof_addr) == 0) {
+            ev.proof_on = 1; char pa[41]; sh_pads_bin2hex(ev.proof_addr, 20, pa);
+            OUT("PROOF key=0x%s (secp256k1, seeded from this VM instance's secret; signs EnclaveProofOfTime checkpoints for chain %llu only)", pa, (unsigned long long)g_pp.chain_id);
+        } else OUT("PROOF key NOT available: this runtime has no proof signer");
+    } else if (tls && g_pp.set) OUT("PROOF key NOT available (needs the sealed channel and the instance secret)");
+    if (tls) {   /* LAB: the client-verified channel's evidence endpoint beside the TLS app port */
+        memcpy(ev.app, plan->sha256, 32); ev.ls = vs_bind(EVIDENCE_PORT);
+        if (ev.ls >= 0 && pthread_create(&evt, NULL, evidence_server, &ev) == 0) { ev_on = 1; OUT("APP evidence endpoint on vsock %d: a client's nonce gets a fresh ABI/2 certificate for this app and this VM's transport key", EVIDENCE_PORT); }
+        else { if (ev.ls >= 0) close(ev.ls); OUT("APP evidence endpoint NOT available (a client cannot verify this VM itself)"); }
+    }
+    ev.serving = 1;   /* checkpoints only while this loop runs (cleared before the evidence server stops) */
+    OUT("APP serving %s on vsock %d: %s compile_ms=%llu%s%s", tls ? "https (TLS 1.3, the attested transport key)" : "http", APP_HTTP_PORT, hh, (unsigned long long)cms, ops ? " graph=" : "", ops ? plan->graph : "");
+    for (;;) {
+        struct pollfd pf[3] = { { .fd = ls, .events = POLLIN }, { .fd = g_ctl, .events = POLLIN }, { .fd = ls_sealed, .events = POLLIN } };
+        const int r = poll(pf, ls_sealed >= 0 ? 3 : 2, 3600 * 1000);
+        if (r < 0 && errno == EINTR) continue;
+        if (r <= 0) { OUT("APP http: an hour without a connection or a word from the owner; stopping"); break; }
+        if (pf[1].revents) {   /* STOP, or REATTACH <the relay's new nonce> (anchor_reattach.h): the only two lines taken while serving */
+            char l[80]; int over = 0; const int ln = read_ctl_line(g_ctl, l, sizeof l, &over);
+            if (ln < 0 || (!over && !strcmp(l, "STOP"))) { OUT("APP http: stopped by the owner"); break; }
+#ifdef ANCHOR_TIER_PVM_CPU
+            if (ln >= 9 && !memcmp(l, ANCHOR_REATTACH_CMD, 9)) { reattach(l + 9, over ? (size_t)-1 : (size_t)ln - 9); continue; }
+#endif
+            OUT("APP http: control line ignored while serving"); continue;
+        }
+        if (pf[0].revents & POLLIN) {
+            const int c = accept(ls, NULL, NULL); if (c < 0) continue;
+            char e[512] = ""; const int rc = hserve(srv, c, e, sizeof e);
+            OUT("APP http connection closed%s%s (requests so far %llu)", rc ? ": " : "", rc ? e : "", (unsigned long long)hreqs(srv));
+        }
+        if (ls_sealed >= 0 && (pf[2].revents & POLLIN)) {
+            const int c = accept(ls_sealed, NULL, NULL); if (c < 0) continue;
+            char e[512] = ""; const int rc = hsealed_serve(srv, c, e, sizeof e);
+            OUT("APP sealed connection closed%s%s (requests so far %llu)", rc ? ": " : "", rc ? e : "", (unsigned long long)hreqs(srv));
+        }
+    }
+    ev.serving = 0;
+    close(ls); if (ls_sealed >= 0) close(ls_sealed);
+    if (ev_on) { ev.stop = 1; pthread_join(evt, NULL); close(ev.ls); OUT("APP evidence endpoint closed after %d answers", ev.answered); }
+    OUT("APP served %s requests=%llu%s%s", hh, (unsigned long long)hreqs(srv), ops ? " graph=" : "", ops ? plan->graph : "");
+    hclose(srv);
+    return 0;
+}
+static int run_app(const anchor_app_plan *plan) {
+    app_ready a; int r = app_receive(plan, &a);
+    if (!r && (r = app_attest_abi2(a.identity, plan->sha256)) != 0) free(a.bytes);
+    return r ? r : plan->http ? app_serve(&a, NULL) : app_exec(&a, NULL);
+}
+/* APP over LOCAL (milestone 3): the component first (small, and refused before any model work if it does not arrive), then
+ * the staged model loaded and self-tested by the CPU engine exactly as for a conversation; the engine then hands its model
+ * to app_nn_host instead of serving the chat port. The capability report (CAPS, with the self-test digest) is emitted
+ * before the app runs, so one capture holds both digests: the engine's own path and the app's path through wasi:nn. */
+static int app_nn_host(const pvmrt_nn_ops *ops, void *arg) { app_ready *a = (app_ready *)arg; return a->plan->http ? app_serve(a, ops) : app_exec(a, ops); }
+static int run_app_nn(const anchor_local_plan *lp, const anchor_app_plan *ap) {
+    app_ready a; int r = app_receive(ap, &a); if (r) return r;
+    if ((r = app_attest_abi2(a.identity, ap->sha256)) != 0) { free(a.bytes); return r; }
+    const char *apk = AVmPayload_getApkContentsPath();
+    char lib_dir[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk);
+    if (model_stage(lp->model_bytes) != 0) { free(a.bytes); return 4; }   /* hashed + judged after the last write, before any parse */
+    if (g_model_state != 1 || !g_staged_table || !g_staged_table->t) { free(a.bytes); OUT("APP refused: no staged model table"); return 4; }
+    static const char *libs[] = { "libc++_shared.so", "libggml-base.so", "libggml.so", "libllama.so", "libllama-common.so", "liblocalengine.so" };
+    void *h = NULL;
+    for (unsigned i = 0; i < sizeof libs / sizeof *libs; i++) {
+        char path[600]; snprintf(path, sizeof path, "%s/%s", lib_dir, libs[i]);
+        if (!(h = dlopen(path, RTLD_NOW | RTLD_GLOBAL))) { free(a.bytes); OUT("APP refused: dlopen %s: %s", libs[i], dlerror()); return 4; }
+    }
+    engine_local_main_fn em = (engine_local_main_fn)dlsym(h, "engine_local_main");
+    void (*setw)(int (*)(const char *, size_t)) = (void (*)(int (*)(const char *, size_t)))dlsym(h, "engine_local_set_ctl_writer");
+    void (*sett)(const anchor_gguf_table *, const anchor_hash_ops *) = (void (*)(const anchor_gguf_table *, const anchor_hash_ops *))dlsym(h, "engine_local_set_model_table");
+    void (*setst)(void (*)(const char *, int, double, double, const uint8_t *)) = (void (*)(void (*)(const char *, int, double, double, const uint8_t *)))dlsym(h, "engine_local_set_selftest");
+    void (*setnn)(pvmrt_nn_host_fn, void *) = (void (*)(pvmrt_nn_host_fn, void *))dlsym(h, "engine_local_set_nn_host");
+    if (!em || !setw || !sett || !setst || !setnn) { free(a.bytes); OUT("APP refused: liblocalengine.so lacks the engine, its self-test or its app-runtime hook"); return 4; }
+    setw(anchor_ctl_write); sett(g_staged_table, &g_hash_ops);
+    g_caps_threads = lp->threads; g_caps_ctx = lp->ctx; g_caps_model_bytes = lp->model_bytes; setst(caps_sink);   /* the tier's self-test is not optional */
+    setnn(app_nn_host, &a);
+    if (AVmPayload_getEncryptedStoragePath()) setenv("ANCHOR_ENCRYPTED_STORE", AVmPayload_getEncryptedStoragePath(), 1);
+    if (lp->dthreads > 0) { char dv[16]; snprintf(dv, sizeof dv, "%d", lp->dthreads); setenv("ANCHOR_DECODE_THREADS", dv, 1); }
+    if (lp->poll >= 0) { char pv[16]; snprintf(pv, sizeof pv, "%d", lp->poll); setenv("ANCHOR_POOL_POLL", pv, 1); }
+    OUT("APP over the model: %" PRIu64 " bytes, %d threads, ctx %d, graph %s", lp->model_bytes, lp->threads, lp->ctx, ap->graph);
+    r = em(-1, g_model_fd, lib_dir, lp->threads, lp->ctx);
+    if (a.bytes) { free(a.bytes); OUT("APP refused: the engine ended before the app ran (engine exit %d)", r); return 4; }
+    return r == 0 ? 0 : 4;
+}
+#endif
 static void run_local(const anchor_local_plan *plan, int ls_wk) {
     const char *apk = AVmPayload_getApkContentsPath();
     char lib_dir[512]; snprintf(lib_dir, sizeof lib_dir, "%s/lib/arm64-v8a", apk);
@@ -1411,6 +1950,16 @@ int AVmPayload_main(void) {
     g_ls_model = ls_model;
     crypto_sign_keypair(g_tpk, g_tsk);
     crypto_box_keypair(g_ppk, g_psk);                 /* the pad key: the platform's seed is boxed to it */
+#ifdef ANCHOR_TIER_PVM_CPU
+    {   /* the INSTANCE key (INSTANCE-BINDING.md): seeded from the VM instance's secret, the same for this instance every boot */
+        static const char ident[] = "enclave-pvm-instance-key-v1"; uint8_t seed[32];
+        AVmPayload_getVmInstanceSecret(ident, sizeof ident - 1, seed, sizeof seed);
+        crypto_sign_ed25519_tweet_seed_keypair(g_ipk, g_isk, seed); memset(seed, 0, sizeof seed); g_inst = 1;
+        static const char pident[] = "enclave-pvm-proof-key-v1";   /* the lease proof key's seed: pvm-rt derives the key from it */
+        AVmPayload_getVmInstanceSecret(pident, sizeof pident - 1, g_proof_seed, sizeof g_proof_seed); g_proof_seed_set = 1;
+    }
+    anchor_reattach_arm(&g_reattach, g_tpk, g_ppk, g_isk, g_inst);   /* the keys are final from here: a re-attach refuses if they ever change */
+#endif
     AVmPayload_notifyPayloadReady();
     g_ctl = vs_accept(ls_ctl, 20000);
     {   /* the first thing the owner hears is the transport key it will present to the relay */
@@ -1431,6 +1980,12 @@ int AVmPayload_main(void) {
         storage_probe();
     }
     OUT("ANCHOR start in pVM apk=%s control=%s", AVmPayload_getApkContentsPath(), g_ctl >= 0 ? "owner-connected" : "none");
+#ifdef ANCHOR_TIER_PVM_CPU
+    if (g_inst) {   /* public: the device campaign compares it across restarts and re-provisioning (INSTANCE-BINDING.md) */
+        uint8_t sp[44], id[32]; char ih[65]; instance_spki(sp); sha256(sp, 44, id); sh_pads_bin2hex(id, 32, ih);
+        OUT("INSTANCE id=%s (Ed25519, seeded from this VM instance's secret)", ih);
+    }
+#endif
     {
         FILE *f = fopen("/proc/cpuinfo", "r"); char line[1024]; char feats[1024] = "?";
         if (f) { while (fgets(line, sizeof line, f)) if (!strncmp(line, "Features", 8)) { strncpy(feats, line + 10, sizeof feats - 1); break; } fclose(f); }
@@ -1447,6 +2002,8 @@ int AVmPayload_main(void) {
     int local = 0, local_bad = 0; anchor_local_plan local_plan; memset(&local_plan, 0, sizeof local_plan);   /* LOCAL: the whole model in this VM (run_local) */
     int prepare = 0, prep_seconds = 300, prep_bad = 0;        /* PREPARE [seconds]: artifacts preparation, no engine (run_prepare); malformed or repeated = refused at RUN */
     int tier_bad = 0; (void)tier_bad;                         /* ANCHOR_TIER_PVM_CPU: a split-engine line arrived (refused at RUN) */
+    int app = 0, app_bad = 0; (void)app; (void)app_bad;       /* ANCHOR_TIER_PVM_CPU: APP, the portable component (run_app) */
+    static anchor_app_plan app_plan; memset(&app_plan, 0, sizeof app_plan);
     if (g_ctl >= 0) {
         char l[2400]; static char bound[2100] = "";
         while (read_line(g_ctl, l, sizeof l) >= 0) {
@@ -1457,6 +2014,23 @@ int AVmPayload_main(void) {
              * refused at RUN, so no line can make this build stage state the tier does not use */
             else if (!strncmp(l, "PAD", 3) || !strncmp(l, "PREFIXPK ", 9) || !strncmp(l, "WORKER ", 7) || !strncmp(l, "SHAPE ", 6)) {
                 tier_bad = 1; OUT("TIER pvm-cpu refused: %.12s is split-engine machinery", l); }
+            else if (!strncmp(l, "APP ", 4)) {   /* the portable component (anchor_app.h): strict, once; malformed or repeated refuses at RUN */
+                if (app || !anchor_app_parse(l, &app_plan)) { app_bad = 1; OUT("APP refused: %s", app ? "repeated" : "malformed (APP bytes=N sha256=<64 hex>[ args=<hex>])"); }
+                app = 1; }
+            else if (!strncmp(l, "PROOFPINS ", 10)) {   /* the lease proof key's pins (PROOF-KEY.md): once, strict, never changed */
+                char buf[512], *sv = NULL; const char *tk[7]; int nt = 0;
+                snprintf(buf, sizeof buf, "%s", l + 10);
+                for (char *t = strtok_r(buf, " ", &sv); t && nt < 7; t = strtok_r(NULL, " ", &sv)) tk[nt++] = t;
+                proof_pins pp = { 0 };
+                if (g_pp.set) OUT("PROOFPINS refused: repeated (the pins are fixed for this boot)");
+                else if (nt != 6 || !parse_u64_dec(tk[0], &pp.chain_id) || !pp.chain_id || !parse_0x(tk[1], pp.pot, 20) || !parse_0x(tk[2], pp.registry, 20)
+                         || !parse_0x(tk[3], pp.deployment, 32) || !parse_0x(tk[4], pp.enclave_id, 32) || !parse_0x(tk[5], pp.operator_, 20))
+                    OUT("PROOFPINS refused: malformed (<chainId> <proofOfTime> <registry> <deployment> <enclaveId> <operator>, canonical)");
+                else { pp.set = 1; g_pp = pp; OUT("PROOFPINS accepted: chain %llu, deployment %.18s..., for this boot", (unsigned long long)pp.chain_id, tk[3]); } }
+            else if (!strncmp(l, "APPNONCE ", 9)) {   /* the relay's fresh nonce for this app's ABI/2 evidence: 64 lowercase hex, once */
+                const char *h = l + 9; size_t n = 0; while (n < 64 && ((h[n] >= '0' && h[n] <= '9') || (h[n] >= 'a' && h[n] <= 'f'))) n++;
+                if (g_app_nonce_set || n != 64 || h[64] != 0) { app_bad = 1; OUT("APP refused: APPNONCE %s", g_app_nonce_set ? "repeated" : "malformed (64 lowercase hex)"); }
+                else { unhex(h, g_app_nonce, 32); g_app_nonce_set = 1; OUT("APPNONCE accepted: the app's ABI/2 evidence binds the relay's nonce"); } }
 #endif
             else if (!strncmp(l, "PREFIXPK ", 9)) {    /* the platform's shared-prefix key (prefix-kv.h) */
                 char h[65] = ""; uint8_t pk[32];
@@ -1645,15 +2219,25 @@ int AVmPayload_main(void) {
      * resolved by precedence. The build ships none of their libraries either, so this is the readable form of a refusal the
      * loader would also make. */
     {   const char *why = tier_bad ? "a split-engine control line was sent"
-                        : !local ? "only a LOCAL run is served by this build"
+                        : app_bad ? "the APP line was malformed or repeated"
+                        : (app && local && !app_plan.graph[0]) ? "APP with LOCAL needs the APP line's graph= (the name the app loads the model by)"
+                        : (app && !local && app_plan.graph[0]) ? "the APP line names a graph but no LOCAL line brings the model"
+                        : (app && local && local_plan.draft_bytes) ? "APP over the model takes no drafter"
+                        : (!local && !app) ? "only a LOCAL or an APP run is served by this build"
                         : (maskbench || echo || prepare || engine || bridgebench || n_shapes || bridge) ? "a conflicting mode command was sent"
-                        : local_plan.tpu_bundle_bytes ? "the LOCAL line carries the TPU tail"
-                        : local_plan.links ? "the LOCAL line asks for benchmark links" : NULL;
+                        : (local && local_plan.tpu_bundle_bytes) ? "the LOCAL line carries the TPU tail"
+                        : (local && local_plan.links) ? "the LOCAL line asks for benchmark links" : NULL;
         if (why) {
             OUT("TIER pvm-cpu refused: %s", why); OUT("END");
             if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
             ctl_close(); sleep(1); return 4;
         }
+    }
+    if (app) {
+        const int arc = local ? run_app_nn(&local_plan, &app_plan) : run_app(&app_plan);
+        OUT("END");
+        if (ls_model >= 0) close(ls_model); if (ls_wk >= 0) close(ls_wk); if (ls_pads >= 0) close(ls_pads); if (ls_ctl >= 0) close(ls_ctl);
+        ctl_close(); sleep(1); return arc;
     }
 #endif
     if (maskbench) {   /* speed probe of the existing pad sampler and the 3-byte cell import; judged BEFORE every other mode so nothing else can win the dispatch */

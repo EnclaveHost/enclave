@@ -1,0 +1,12 @@
+{"t":"2026-09-24T09:07:05.497Z","site":"http://127.0.0.1:18450/lab.html","pins":{"app":"29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373","codeHash":"433dd3dfa08f5be8d77cefcc93cd5297acdf022d7fa9dfc9d584fe081f1c0dfd","authority":"cd0a7823095d98f82d4787205f020a3f2784912b032eff4f4e6525bba5654df8baaa64c7bebf03ad074788db7b517d82f3c63513f5c39a381b629c26aba38c0f","runtimeId":"d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba"}}
+{"t":"2026-09-24T09:09:38.626Z","status":null,"step":null}
+{"t":"2026-09-24T09:09:45.673Z","result":"ext-stream","status":200,"step":null}
+{"t":"2026-09-24T09:09:51.373Z","result":"ext-policy-2","status":null,"step":"verify"}
+{"t":"2026-09-24T09:09:56.298Z","result":"ext-stream","status":null,"step":"policy"}
+{"t":"2026-09-24T09:09:56.301Z","result":"ext-attacker-policy","status":null,"step":"policy"}
+{"t":"2026-09-24T09:10:01.354Z","result":"ext-rollback","status":null,"step":"policy"}
+{"t":"2026-09-24T09:10:01.356Z","result":"ext-stream","status":null,"step":"policy"}
+{"t":"2026-09-24T09:10:09.257Z","result":"ext-relay-swaps-key","status":null,"step":"verify"}
+{"t":"2026-09-24T09:10:09.258Z","result":"ext-stream","status":null,"step":"verify"}
+{"t":"2026-09-24T09:10:17.191Z","result":"ext-stream","status":null,"step":"verify"}
+{"t":"2026-09-24T09:10:19.296Z","result":"ext-relay-truncates","status":200,"step":"sealed"}

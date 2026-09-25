@@ -1,0 +1,29 @@
+Q18 start 21:31:57
+apk 4b95f8a1bc86b0c03c10380c9339dcd354e695f9de99e25629452d06c544bf99 installed (hashed on the device)
+/home/steven/Projects/enclave-pvm/shielded/anchor/avf/runtime/conformance/bundles/hello-v1.wasm: 1 file pushed, 0 skipped. 160.2 MB/s (82693 bytes in 0.000s)
+ap-case0 (0923213201-ap-case0): 75 lines
+ap-case1 (0923213201-ap-case1): 75 lines
+ap-case2 (0923213201-ap-case2): 74 lines
+ap-baddigest (0923213201-ap-baddigest): 55 lines
+ok   case0: the protected pvm-cpu payload ran it
+ok   case0: runtime identity {"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}
+ok   case0 []: stdout byte-identical to the reference
+ok   case0: ran the vectors' bundle and exited 0
+ok   case0: capture complete
+ok   case1: the protected pvm-cpu payload ran it
+ok   case1: runtime identity {"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}
+ok   case1 ['a', 'b']: stdout byte-identical to the reference
+ok   case1: ran the vectors' bundle and exited 0
+ok   case1: capture complete
+ok   case2: the protected pvm-cpu payload ran it
+ok   case2: runtime identity {"cache":"none","cpuFeatures":"baseline","execution":"interpreter","hostIsa":"aarch64","name":"wasmtime","targetIsa":"pulley64","version":"49.0.0","wx":"enforced"}
+ok   case2 ['exit', '7']: stdout byte-identical to the reference
+ok   case2: ran the vectors' bundle and exited 1
+ok   case2: capture complete
+ok   a wrong announced digest: refused before compiling
+ok   ... and nothing ran or printed
+ok   ... and no ABI/2 certificate was requested for the refused app
+PASS milestone 2 on the device
+M2c rc=0 21:33:06
+M5 ap-case1 rc=0
+Q18-END 21:33:06

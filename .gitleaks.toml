@@ -119,9 +119,59 @@ description = "windows/vbslike evidence holds PUBLIC keys only: the launcher's E
 targetRules = ["generic-api-key"]
 paths = ['''^windows/vbslike/evidence/''']
 
+[[allowlists]]
+description = "the installed pVM client's own result lines carry a VERIFIED SUMMARY of public attestation values: the app, runtime and code hashes, and 16-hex prefixes of the attested transport key, app key and nonce, and since 0.5.0 the attested InstanceID, a SHA-256 of a public key (web/pvm-client.js); a prefix of a public key trips the entropy rule on some boots"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/(?:client/)?[a-z0-9-]+\.jsonl$''']
+regexTarget = "line"
+regexes = ['''"verified":\{"format":"enclave-pvm-app-evidence/v[123]","app":"[0-9a-f]{64}","runtime":"[0-9a-f]{64}","codeHash":"[0-9a-f]{64}","key":"[0-9a-f]{16}","appKey":"[0-9a-f]{16}","nonce":"[0-9a-f]{16}"(?:,"instance":(?:null|"[0-9a-f]{64}"))?\}''']
+
+[[allowlists]]
+description = "pVM app evidence envelopes (enclave-pvm-app-evidence/v1, /v2, /v3) hold PUBLIC material only: certificates, the transport key's SPKI, the X25519 app key and the transport key's signature over it (appKeySig), and in v3 the INSTANCE key's SPKI and its signature (instanceSig, INSTANCE-BINDING.md); the private halves never leave the pVM (shielded/anchor/avf/PVM-CPU.md)"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/[a-z0-9]+-evidence\.json$''', '''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/evidence/evidence-[0-9]{3}\.json$''']   # the relay carrier's lab capture (cpu/web-carrier.mjs recordEvidence)
+regexTarget = "line"
+regexes = ['''^\{"format":"enclave-pvm-app-evidence/v[123]",''']
+
 # Ed25519 public keys in SubjectPublicKeyInfo form: the DER prefix 302a300506032b6570032100 followed by the 32-byte public
 # key. A private key is never encoded this way, so any match is public by construction. Seen as the pVM instance key and
 # transport key in verifier/admission-vectors.json (synthetic, generated from a label) and in the pVM owner's fixtures.
 [[allowlists]]
 description = "Ed25519 public keys in SPKI form (public by construction)"
 regexes = ['''302a300506032b6570032100[0-9a-f]{64}''']
+
+# The same Ed25519 SPKI in standard base64 (the DER prefix encodes to MCowBQYDK2VwAyEA): the pVM transport key as the relay's
+# pad-bind rad carries it (android-avf-pvm/v2 transportKey), recorded by the owner's attach co-signer run (attach.jsonl).
+# Scoped to generic-api-key: it must never shadow a crypto rule.
+[[allowlists]]
+description = "Ed25519 public keys in SPKI form, base64 (public by construction)"
+targetRules = ["generic-api-key"]
+regexes = ['''^MCowBQYDK2VwAyEA[A-Za-z0-9+/]{43}=?$''']
+
+[[allowlists]]
+description = "a pVM instance ENROLLMENT record (client/src/enroll.js; INSTANCE-BINDING.md) keeps the evidence it enrolled under, pretty-printed: its appKeySig and instanceSig are Ed25519 SIGNATURES over public transcripts, not keys"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/enroll-[a-z0-9-]+\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"(?:appKeySig|instanceSig)": "[0-9a-f]{128}",?$''']
+
+[[allowlists]]
+description = "a pVM lease proof-key STATEMENT (enclave-proof-key/v1; shielded/anchor/avf/PROOF-KEY.md) embeds a v3 evidence envelope: its appKeySig/instanceSig and the statement's sig are Ed25519 SIGNATURES over public transcripts, the keys SPKIs or addresses; the device run records it in the carrier's exchange and in the run's call log"
+targetRules = ["generic-api-key"]
+condition = "AND"
+# (the posting agent's device runs, results/pvm-cpu-proof-agent*, record the same statements in the hub's exchanges)
+paths = ['''^shielded/anchor/avf/results/pvm-cpu-proof-(?:key|agent)[a-z0-9-]*/evidence/evidence-[0-9]{3}\.json$''', '''^shielded/anchor/avf/results/pvm-cpu-proof-key[a-z0-9-]*/calls\.jsonl$''']
+# the flagged values are signatures: exactly 128 lowercase hex, in these files only (gitleaks' line target did not
+# match one of two identical statement lines, so the rule keys on the value's shape, not the line)
+regexes = ['''^[0-9a-f]{128}$''']
+
+[[allowlists]]
+description = "a pVM device run's VM capture (results/pvm-cpu-*/vm/*.log) logs each proof-key statement it answers with a 16-hex PREFIX of the requester's public nonce and the public proof-key ADDRESS; the prefix trips the entropy rule on some runs"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/vm/[a-z0-9-]+\.log$''']
+regexTarget = "line"
+regexes = ['''VSOCK PROOFKEY answered nonce=[0-9a-f]{16}\.\.\. proofKey=0x[0-9a-f]{40} \(answer \d+\)''']   # gitleaks' line target is not the whole line: unanchored, exact shape

@@ -123,6 +123,19 @@ public class Main extends Activity {
         String draft = "";                   // --es draft <gguf>: mode local, a drafter model streamed into the VM for speculative rows (the target verifies every proposal); "none" = no drafter
         String laneDefaults = "";            // which Shielded-TPU profile values this launch took by default (logged in "LOCAL plan"), "" off the TPU lane
         int draftMax = 4;                    // --ei draft_max 1..4: proposals per step (the TPU graphs verify 5 rows at once)
+        String app = "";                     // mode app: the portable component file (PVM-CPU.md, "The app runtime")
+        String appArgs = "";                 // --es app_args "a|b": its arguments
+        String appSha = "";                  // --es app_sha256: TEST HOOK -- announce this digest instead of the file's (the VM must refuse)
+        String appGraph = "";                // --es app_graph <name>: the component runs over the staged model (LOCAL line + APP graph=), wasi:nn
+        String appHttp = "";                 // --es app_http "/ping|/?q=1": a wasi:http app (APP serve=http); these GETs are sent to it, then STOP
+        int appTls = 0;                      // --ei app_tls 1: LAB serving prototype: APP serve=https (TLS in the VM), reached only through the relay
+        int appServeS = 240;                 // --ei app_serve_s N: LAB: STOP the served app after N seconds
+        String appAnnounced = "";            // the APP line's digest (the app's identity), for the ABI/2 evidence frame
+        String attachSigner = null;          // --es attach_signer <http(s) URL>: the owner's attach co-signer (RUNNER-AGENT.md "Attach")
+        String proofPins = "";               // --es proof_pins "<chainId> <proofOfTime> <registry> <deployment> <enclaveId> <operator>": the lease
+                                             // proof key's pins (PROOF-KEY.md), handed to the VM once; the VM parses them strictly
+        /* the whole model runs in the VM's CPU engine: mode local, or an app over the model (PVM-CPU.md, milestone 3) */
+        boolean localEngine() { return mode.equals("local") || (mode.equals("app") && !appGraph.isEmpty()); }
         String deviceProfile = "";           // mode local: what DeviceProfile read (capacities, RAM) and chose from it
         int restarts = -1;                   // --ei restarts N (0..5): mode local restarts a VM that died mid-conversation; -1 = the tier's default (pvm-cpu 2, research 0)
         String ask = "";                     // --es ask "first|second": mode local, scripted turns logged with their counters (the host tunnel will drive the same session)
@@ -202,6 +215,27 @@ public class Main extends Activity {
             p.ctx = i.getIntExtra("ctx", p.ctx); p.maxNew = i.getIntExtra("max_new", p.maxNew); p.temperatureMilli = i.getIntExtra("temp_milli", p.temperatureMilli);
             if (i.getStringExtra("ask") != null) p.ask = i.getStringExtra("ask");
             p.restarts = i.getIntExtra("restarts", -1);
+            if (i.getStringExtra("app") != null) p.app = i.getStringExtra("app");
+            if (i.getStringExtra("app_args") != null) p.appArgs = i.getStringExtra("app_args");
+            if (i.getStringExtra("app_sha256") != null) p.appSha = i.getStringExtra("app_sha256");
+            if (i.getStringExtra("app_graph") != null) p.appGraph = i.getStringExtra("app_graph");
+            if (i.getStringExtra("app_http") != null) p.appHttp = i.getStringExtra("app_http");
+            p.appTls = i.getIntExtra("app_tls", 0); p.appServeS = i.getIntExtra("app_serve_s", p.appServeS);
+            if (i.getStringExtra("proof_pins") != null) p.proofPins = i.getStringExtra("proof_pins").trim();
+            if (i.getStringExtra("attach_signer") != null) p.attachSigner = i.getStringExtra("attach_signer").trim();
+            if (p.attachSigner != null && !p.attachSigner.matches("https?://[^\\s]+/attach-sign")) p.configError = "attach_signer must be the owner's http(s) co-signer URL ending /attach-sign";
+            if (!p.proofPins.matches("[0-9a-fx ]*")) p.configError = "proof_pins must be the six pins, lowercase, space-separated";
+            if (p.mode.equals("app") && p.configError.isEmpty()) {
+                if (p.app.isEmpty() || !new java.io.File(p.app).isFile()) p.configError = "mode app needs --es app <component file>";
+                else if (!p.appSha.isEmpty() && !p.appSha.matches("[0-9a-f]{64}")) p.configError = "app_sha256 must be 64 lowercase hex";
+                else if (p.appArgs.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 8192) p.configError = "app_args must be at most 8192 bytes";
+                else if (!p.appGraph.isEmpty() && !p.appGraph.matches("[a-z0-9][a-z0-9._-]{0,63}")) p.configError = "app_graph must be 1..64 of [a-z0-9._-], starting with a letter or digit";
+                else if (!p.appGraph.isEmpty() && !new java.io.File(p.model).isFile()) p.configError = "app_graph runs the app over the model, and model " + p.model + " is not a file";
+                else if (!p.appHttp.isEmpty() && !p.appArgs.isEmpty()) p.configError = "app_http serves the component over HTTP: it takes no app_args";
+                else if (p.appTls != 0 && (p.appTls != 1 || !p.appHttp.isEmpty() || !p.appArgs.isEmpty() || p.relay == null)) p.configError = "app_tls 1 (lab) serves the component over TLS through the relay: it needs --es relay and takes no app_http or app_args";
+                else if (p.appServeS < 10 || p.appServeS > 3600) p.configError = "app_serve_s must be 10..3600";
+                else if (!p.appHttp.isEmpty() && !p.appHttp.matches("(/[\\x21-\\x7e]{0,1023})(\\|/[\\x21-\\x7e]{0,1023}){0,7}")) p.configError = "app_http is 1..8 paths separated by |, each starting with / and holding no spaces or control bytes";
+            }
             if (p.restarts < -1 || p.restarts > 5) p.configError = "restarts must be 0..5";
             if (i.getStringExtra("draft") != null) p.draft = "none".equals(i.getStringExtra("draft")) ? "" : i.getStringExtra("draft");
             p.draftMax = i.getIntExtra("draft_max", p.draftMax);
@@ -212,7 +246,7 @@ public class Main extends Activity {
             if (i.getStringExtra("tpu_graphs") != null) p.tpuGraphs = i.getStringExtra("tpu_graphs");
             if (i.getStringExtra("tpu_bundle") != null) p.tpuBundle = i.getStringExtra("tpu_bundle");
             p.tpuBank = i.getIntExtra("tpu_bank", p.tpuBank); p.tpuRefill = i.getIntExtra("tpu_refill", p.tpuRefill); p.tpuLayers = i.getIntExtra("tpu_layers", p.tpuLayers);
-            if (p.mode.equals("local")) {                                          // the WHOLE model runs in the VM (LOCAL.md): no worker, pads, prefix, artifacts or catalog
+            if (p.localEngine()) {                                                 // the WHOLE model runs in the VM (LOCAL.md): no worker, pads, prefix, artifacts or catalog
                 /* sized from what the kernel reports, never from the device name (DeviceProfile; PVM-CPU.md, Devices): on a Pixel 10
                  * this is the measured 6 threads and 7,168 MiB */
                 final int[] caps = DeviceProfile.capacities(); final int big = DeviceProfile.bigCores(caps); final long ram = DeviceProfile.totalMib();
@@ -235,6 +269,11 @@ public class Main extends Activity {
                     if (!i.hasExtra("verify_threads") && !p.draft.isEmpty()) { p.verifyThreads = 4; d.append(" verify_threads=4"); }
                     p.laneDefaults = d.length() == 0 ? "none (every profile setting named by the launch)" : d.toString().trim();
                 }
+                // The CPU lane's MEASURED default (results/pvm-cpu-threads1, 8 runs): decode on its own pool of 4 when there are
+                // more threads. Sustained decode is the same with 4, 5 or 6 decode threads (the phone is thermally limited) and 4
+                // spends ~32 % less CPU per token; prefill keeps every thread, so time to first token is unchanged (4 threads for
+                // everything slowed prefill). Measured on a Pixel 10 only; a launch that names decode_threads keeps its value.
+                else if (!i.hasExtra("decode_threads") && p.threads > 4) { p.decodeThreads = 4; p.deviceProfile += "; decode on its own pool of 4 (measured default)"; }
                 if (p.configError.isEmpty()) {
                     if (!p.pads.isEmpty() || !p.prefix.isEmpty() || !p.prefixName.isEmpty() || !p.artifacts.isEmpty() || !p.artifactsUrl.isEmpty()) p.configError = "mode local takes no pads, prefix or artifacts: nothing leaves the VM, so nothing is blinded";
                     else if ("catalog".equals(p.modelAuth)) p.configError = "mode local stages with the whole-file digest; model_auth catalog is not wired into the local engine yet";
@@ -312,7 +351,7 @@ public class Main extends Activity {
         final String tierWhy = Tier.refusal(tier, plan.mode, getIntent());
         if (tierWhy != null) plan.configError = "tier " + tier + ": " + tierWhy;   /* the tier's refusal is named first, whatever else is wrong */
         /* mode local computes in the VM on THIS activity's scheduling class: a dark phone turns top-app into the background cpuset mid-run (LOCAL.md) */
-        if (plan.mode.equals("local")) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (plan.localEngine()) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (!plan.configError.isEmpty()) { say("HOST FAIL: " + plan.configError); return; }   /* an inconsistent plan never runs a VM */
         if (!captureOpen(this, getIntent())) { say("CAPTURE FAIL: launch refused"); return; }
         say("TIER " + tier + " (assets/tier)");
@@ -404,7 +443,7 @@ public class Main extends Activity {
             /* mode local: every vCPU is a full-utilization compute thread. Without the boost the host scheduler was measured stacking
              * two busy vCPU threads on one big core while another idled, and ggml's even split then runs at the slower pair's pace
              * (7 tok/s instead of 14, LOCAL.md). Fixed at instance creation: an existing instance keeps what it was created with. */
-            if (plan.mode.equals("local")) say("HOST vCPU uclamp boost: " + (tryCall(b, "setShouldBoostUclamp", true) != null ? "requested" : "not available (hidden API: settings put global hidden_api_policy 1)"));
+            if (plan.localEngine()) say("HOST vCPU uclamp boost: " + (tryCall(b, "setShouldBoostUclamp", true) != null ? "requested" : "not available (hidden API: settings put global hidden_api_policy 1)"));
             if (plan.hugepages > 0) say("HOST hugepages: " + (tryCall(b, "setShouldUseHugepages", true) != null ? "requested" : "not available"));
             if (plan.storageMib > 0) say("HOST encrypted storage " + plan.storageMib + " MiB: " + (tryCall(b, "setEncryptedStorageBytes", plan.storageMib << 20) != null ? "set" : "not available"));
             Object cfg = call(b, "build");
@@ -501,6 +540,7 @@ public class Main extends Activity {
         Thread localThread = null;                          /* mode local: joined (bounded) before the end is judged, so an interruption is known */
         if (plan.mode.equals("bridge") || plan.mode.equals("engine") || plan.mode.equals("bridgebench")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
         RelayAttach relay = null;
+        RelayKeeper keeper = null;   /* app + TLS through a relay: the one reconnector (RelayKeeper.java), armed once the app serves */
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
              BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(pfd.getFileDescriptor())))) {
             // Created ONLY for a quiet plan: an ordinary run allocates no queue and takes on none
@@ -532,6 +572,7 @@ public class Main extends Activity {
             String chal, boundHex = "";
             if (plan.relay != null && spki != null) {
                 relay = new RelayAttach(plan.relay, plan.name, spki);
+                relay.attachSigner = plan.attachSigner;
                 relay.padKey = padKey;
                 try { chal = relay.challenge(); boundHex = RelayAttach.hex(relay.bound); }
                 catch (Exception e) { say("RELAY dial failed: " + e + " (continuing with a local challenge)"); relay = null; byte[] c = new byte[32]; new SecureRandom().nextBytes(c); chal = RelayAttach.hex(c); }
@@ -550,17 +591,20 @@ public class Main extends Activity {
                     certs.computeIfAbsent(Integer.parseInt(m.group(1)), (k) -> new TreeMap<>()).put(Integer.parseInt(m.group(2)), m.group(3));
                 else if ((m = java.util.regex.Pattern.compile("^SIG\\[(\\d+)\\] ([0-9a-f]+)$").matcher(line)).matches())
                     sig.put(Integer.parseInt(m.group(1)), m.group(2));
+                else if (relay != null && (m = java.util.regex.Pattern.compile("^INSTANCEATTACH key=(302a300506032b6570032100[0-9a-f]{64}) sig=([0-9a-f]{128})$").matcher(line)).matches()) {
+                    relay.instanceKey = m.group(1); relay.instanceSig = m.group(2); }
             }
             // 4. present it; a bound tunnel keeps serving the hub in its own thread
+            if (plan.relay != null && spki != null && plan.mode.equals("app") && plan.appTls == 1) keeper = new RelayKeeper(vm, plan, spki, padKey, out);
             if (relay != null) {
                 JSONObject res = relay.present(certs, sig);
-                if (res != null && res.optBoolean("ok")) { final RelayAttach rr = relay; new Thread(() -> rr.serve(android.os.Build.MODEL), "relay-serve").start(); }
+                if (res != null && res.optBoolean("ok")) { final RelayAttach rr = relay; if (keeper != null) keeper.adopt(rr); new Thread(() -> rr.serve(android.os.Build.MODEL), "relay-serve").start(); }
                 else { relay.close(); relay = null; }
             }
             // 4a. the model stage: the VM receives (or finds cached) the model and judges the bytes it will parse
             //     BEFORE any seed is requested for it (PAD-BOOTSTRAP.md); a protected first boot needs this order
             boolean modelOk = false;
-            if (plan.mode.equals("engine") || plan.mode.equals("prepare") || plan.mode.equals("local")) {
+            if (plan.mode.equals("engine") || plan.mode.equals("prepare") || plan.localEngine()) {
                 String ml = modelStage(vm, plan, out, r, 0);
                 modelOk = ml != null && ml.startsWith("MODEL ok");
                 if (!modelOk) say("MODEL stage did not pass: " + ml + (plan.mode.equals("prepare") ? " (the artifact feed will NOT start; the VM refuses PREPARE and ends)" : " (pads bootstrap will be refused)"));
@@ -646,11 +690,33 @@ public class Main extends Activity {
                 if (tpu) say("LOCAL tpu lane: corr_threads " + plan.corrThreads + ", decode_threads " + plan.decodeThreads + ", verify_threads " + plan.verifyThreads + ", tpu_bank " + plan.tpuBank + ", drafter " + (plan.draft.isEmpty() ? "none" : plan.draft + " draft_max " + plan.draftMax) + " | defaulted: " + plan.laneDefaults);
                 if (modelOk) { localThread = new Thread(() -> localSession(vm, plan), "vsock-local"); localThread.start(); } else say("LOCAL not started: the model stage did not pass");
             }
+            if (plan.mode.equals("app")) {   // the portable component: its identity on the control line, its bytes on APP_PORT
+                final long abytes = new java.io.File(plan.app).length();
+                final String asha = plan.appSha.isEmpty() ? RelayAttach.hex(fileSha256Cached(plan.app)) : plan.appSha;
+                final String aargs = plan.appArgs.isEmpty() ? "" : " args=" + LocalChat.hex(plan.appArgs.replace('|', '\0').getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                if (!plan.appGraph.isEmpty()) {   // over the model: the engine's LOCAL line (no chat port is opened), the APP line names the graph
+                    String localLine = LocalChat.plan(new java.io.File(plan.model).length(), plan.threads, plan.ctx);
+                    if (plan.poolPoll >= 0) localLine = LocalChat.withPoll(localLine, plan.poolPoll);
+                    if (plan.decodeThreads > 0) localLine = LocalChat.withDecodeThreads(localLine, plan.decodeThreads);
+                    cmd.append(localLine).append('\n');
+                    say("APP over the model: " + plan.model + " (" + (new java.io.File(plan.model).length() >> 20) + " MiB), " + plan.threads + " threads, ctx " + plan.ctx + ", graph " + plan.appGraph + (modelOk ? "" : " -- the model stage did not pass; the VM will refuse"));
+                }
+                plan.appAnnounced = asha;
+                if (relay != null) {   // LAB: the relay's fresh nonce goes into the app's ABI/2 evidence (the VM binds it into Bind2)
+                    try { final String an = relay.abi2Nonce.get(20, java.util.concurrent.TimeUnit.SECONDS); cmd.append("APPNONCE ").append(an).append('\n'); say("APP evidence will bind the relay's nonce " + an.substring(0, 16) + "…"); }
+                    catch (Exception e) { say("RELAY issued no ABI/2 nonce within 20 s: the app's evidence will not verify there (" + e + ")"); }
+                }
+                if (!plan.proofPins.isEmpty()) { cmd.append("PROOFPINS ").append(plan.proofPins).append('\n'); say("APP proof pins handed to the VM (it signs checkpoints for these only)"); }
+                cmd.append("APP bytes=").append(abytes).append(" sha256=").append(asha).append(aargs).append(plan.appGraph.isEmpty() ? "" : " graph=" + plan.appGraph)
+                   .append(plan.appTls == 1 ? " serve=https" : plan.appHttp.isEmpty() ? "" : " serve=http").append('\n');
+                new Thread(() -> streamPublicFile(vm, APP_PORT, plan.app, "app bundle"), "vsock-app").start();
+                say("APP plan: " + plan.app + " (" + abytes + " bytes, sha256 " + asha + (plan.appSha.isEmpty() ? "" : ", ANNOUNCED BY THE TEST HOOK, not the file's") + "), args " + (plan.appArgs.isEmpty() ? "none" : plan.appArgs));
+            }
             if (plan.mode.equals("maskbench")) cmd.append("MASKBENCH\n");   // sampler + cell-import speed probe: no model stage, no seed, no worker, no shapes
             if (plan.mode.equals("echo")) { cmd.append("ECHO\n"); new Thread(() -> echoBench(vm), "vsock-echo").start(); }
             if (plan.mode.equals("bridgebench")) cmd.append("BRIDGEBENCH ").append(plan.benchSizes).append('\n');
-            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench") && !plan.mode.equals("local")) cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');   // preparation has no worker
-            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench") && !plan.mode.equals("local")) for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }   // preparation has no shapes (the VM refuses PREPARE with any)
+            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench") && !plan.mode.equals("local") && !plan.mode.equals("app")) cmd.append("WORKER ").append(plan.mode.equals("engine") || plan.mode.equals("bridgebench") ? "bridge" : plan.mode).append('\n');   // preparation has no worker
+            if (!plan.mode.equals("prepare") && !plan.mode.equals("maskbench") && !plan.mode.equals("local") && !plan.mode.equals("app")) for (String s : plan.shapes.split(";")) { String[] f = s.trim().split(","); if (f.length == 5) cmd.append("SHAPE ").append(String.join(" ", f)).append('\n'); }   // preparation has no shapes (the VM refuses PREPARE with any)
             cmd.append("RUN\n");
             out.write(cmd.toString().getBytes()); out.flush();
             if (plan.mode.equals("prepare") && modelOk) {   // the feed runs now; when it ends (complete, deadline, ended) the VM is told to STOP and reports what is present
@@ -659,11 +725,16 @@ public class Main extends Activity {
                 feedThread.start();
             }
             int n = 0;
+            // LAB: the app's ABI/2 evidence as the VM prints it, relayed whole on "ABI2 end" for the relay to verify
+            String abi2Id = null, abi2Tuple = null, abi2Inst = null; final TreeMap<Integer, TreeMap<Integer, String>> abi2Certs = new TreeMap<>();
             while ((line = r.readLine()) != null) {
                 // the pVM CPU capability report (PVM-CPU.md): the capture keeps it WHOLE (it is verifiable offline with the chain),
                 // and a bound relay tunnel receives it as the caps frame the relay admits the tier from
                 final boolean caps = line.startsWith("CAPS ") && line.split(" ").length == 3 && !line.startsWith("CAPS summary");
-                if (caps) sayEvidence("VSOCK " + line); else say("VSOCK " + line); n++;
+                // a re-attach's certificate lines, like the boot's, go to the capture whole and to logcat short
+                final boolean whole = caps || line.startsWith("CERT") || line.startsWith("SIG[") || line.startsWith("INSTANCEATTACH ");
+                if (whole) sayEvidence("VSOCK " + line); else say("VSOCK " + line); n++;
+                if (keeper != null) keeper.onVmLine(line);
                 if (caps && relay != null) { final String[] cf = line.split(" "); relay.sendCaps(cf[1], cf[2]); }
                 // The experiment measures ONE window. A child that did not inherit it has already stopped the VM's pads
                 // receiver, so the run can only stall: end it here instead, through the finally below.
@@ -673,6 +744,27 @@ public class Main extends Activity {
                 if (line.startsWith("RECEIPT ")) PadsClient.onReceipt(padSession, line);                 // the engine's signed usage
                 if (line.startsWith("PADACK ")) PadsClient.onAck(padSession, line, plan.name);       // the VM's signed delivery acknowledgment
                 if (line.startsWith("QUIETPADS v1 ") && quietControl != null) quietControl.offer(line);   // hand it to the worker and keep reading
+                if (line.startsWith("APP serving http") && !plan.appHttp.isEmpty()) { final OutputStream o = out; new Thread(() -> appHttpProbe(vm, plan.appHttp, o), "app-http").start(); }
+                if (line.startsWith("ABI2 runtime ")) abi2Id = line.substring(13);
+                else if (line.startsWith("ABI2 selftest ")) abi2Tuple = line.substring(14);
+                else if (line.startsWith("ABI2 instance ")) abi2Inst = line;   // v3: the VM instance's key + its signature (INSTANCE-BINDING.md)
+                else if (line.startsWith("ABI2_LINK")) { java.util.regex.Matcher m = java.util.regex.Pattern.compile("^ABI2_LINK(\\d+)\\[(\\d+)\\] ([0-9a-f]+)$").matcher(line);
+                    if (m.matches()) abi2Certs.computeIfAbsent(Integer.parseInt(m.group(1)), (k) -> new TreeMap<>()).put(Integer.parseInt(m.group(2)), m.group(3)); }
+                else if (line.startsWith("ABI2 end") && relay != null && abi2Id != null && abi2Tuple != null && !abi2Certs.isEmpty()) {
+                    final java.util.List<String> chain = new java.util.ArrayList<>();
+                    for (TreeMap<Integer, String> chunks : abi2Certs.values()) chain.add(RelayAttach.b64(RelayAttach.unhex(String.join("", chunks.values()))));
+                    relay.sendAbi2(chain, abi2Id, abi2Tuple, plan.appAnnounced, abi2Inst);
+                }
+                if (line.startsWith("APP serving https") && plan.appTls == 1 && relay != null) {
+                    // LAB: from now the relay may open raw streams; this app splices each to the VM's TLS port and never
+                    // sees plaintext (TLS terminates in the VM with the attested transport key); STOP after app_serve_s
+                    relay.vmConnect = (port) -> connect(vm, port, 50);   // RelayAttach.portOf: the TLS app port or the evidence endpoint
+                    final OutputStream o = out; final int secs = plan.appServeS;
+                    say("APP https: relay streams are forwarded to the VM as ciphertext; the lab run STOPs in " + secs + " s");
+                    new Thread(() -> { try { Thread.sleep(secs * 1000L); } catch (InterruptedException ignored) { }
+                        try { synchronized (o) { o.write("STOP\n".getBytes()); o.flush(); } say("APP https: STOP sent (lab time limit)"); } catch (Exception e) { say("APP https: STOP not sent: " + e); } }, "app-tls-stop").start();
+                }
+                if (line.startsWith("APP serving https") && keeper != null) keeper.arm();   // REATTACH is taken only while the app serves
                 if (line.equals("END")) { sawEnd = true; break; }
             }
             say("CONTROL closed after " + n + " lines");
@@ -686,6 +778,7 @@ public class Main extends Activity {
                 if (feedThread.isAlive()) say("PREPARE feed thread still running after a 5 s join: its terminal ARTIFACTS feed line is NOT in this capture");
             }
             burnersOn = false;   /* a finished leg leaves the app idle: the burners exist only while the VM decodes */
+            if (keeper != null) keeper.stop();   // before the channel closes: no re-attach outlives the VM's session
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();
             if (localThread != null) { try { localThread.join(10000); } catch (InterruptedException ignored) { } }
@@ -702,6 +795,28 @@ public class Main extends Activity {
     // accept order could not tell the roles apart -- a benchmark link could have been handed to the lane.
     static final int BENCH_PORT = 7784;
     static final int DRAFT_PORT = 7783;
+    static final int APP_PORT = 7785;       // the portable component (payload/anchor_app.h)
+    static final int APP_HTTP_PORT = 7786;  // HTTP/1.1 to a served wasi:http app (APP ... serve=http)
+    /* The test hook behind --es app_http: each path as its own GET on its own connection (Connection: close), the whole raw
+     * response into the capture as APPHTTP <i> ms=<wall> <hex>, then STOP on the control channel. The product path puts the
+     * relay tunnel where this loop is. */
+    static void appHttpProbe(Object vm, String paths, OutputStream ctl) {
+        int i = 0;
+        for (String path : paths.split("\\|")) {
+            i++;
+            final long t0 = System.nanoTime();
+            ParcelFileDescriptor pfd = connect(vm, APP_HTTP_PORT, 50);
+            if (pfd == null) { say("APPHTTP " + i + " connect failed"); continue; }
+            try (OutputStream o = new FileOutputStream(pfd.getFileDescriptor()); InputStream in = new FileInputStream(pfd.getFileDescriptor())) {
+                o.write(("GET " + path + " HTTP/1.1\r\nHost: app\r\nConnection: close\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.US_ASCII)); o.flush();
+                java.io.ByteArrayOutputStream got = new java.io.ByteArrayOutputStream(); byte[] b = new byte[1 << 16]; int n;
+                while ((n = in.read(b)) > 0 && got.size() < (4 << 20)) got.write(b, 0, n);
+                sayEvidence("APPHTTP " + i + " ms=" + (System.nanoTime() - t0) / 1_000_000 + " " + LocalChat.hex(got.toByteArray()));
+            } catch (Exception e) { say("APPHTTP " + i + " failed: " + e); }
+            finally { try { pfd.close(); } catch (Exception ignored) { } }
+        }
+        try { synchronized (ctl) { ctl.write("STOP\n".getBytes()); ctl.flush(); } } catch (Exception e) { say("APPHTTP STOP not sent: " + e); }
+    }
     /** A PUBLIC file into the VM's encrypted store (the lane bundle, a drafter): u64 size, the first 8 bytes and the file's
      *  SHA-256; then 'K' (the VM's cached copy IS that file, by its own recorded digest) or 'S' + the bytes, which the VM hashes
      *  as they arrive and refuses if they are not the digest announced here. Size and magic alone reused a stale int8 bundle

@@ -1,0 +1,128 @@
+{
+ "evidence": "every /evidence exchange recorded as received in evidence/: evidence-NNN.request (the client's nonce line), evidence-NNN.json (the VM's envelope, byte for byte), evidence-NNN.meta.json (UTC times, sizes); nothing parsed, stripped or reordered; public; sealed traffic and session secrets are never recorded",
+ "clock": "UTC",
+ "runStart": "2026-09-24T12:51:19Z",
+ "runEnd": "2026-09-24T13:00:10Z",
+ "exchanges": [
+  {
+   "n": 1,
+   "label": "base-stream",
+   "stateAfter": {
+    "gen": null,
+    "serial": null,
+    "policyFp": null,
+    "nextPolicyFp": null,
+    "releaseFp": null,
+    "active": null
+   }
+  },
+  {
+   "n": 2,
+   "label": "staged-not-active",
+   "stateAfter": {
+    "gen": null,
+    "serial": null,
+    "policyFp": null,
+    "nextPolicyFp": null,
+    "releaseFp": null,
+    "active": null
+   }
+  },
+  {
+   "n": 3,
+   "label": "active-stream",
+   "stateAfter": {
+    "gen": null,
+    "serial": null,
+    "policyFp": null,
+    "nextPolicyFp": null,
+    "releaseFp": null,
+    "active": null
+   }
+  },
+  {
+   "n": 4,
+   "label": "active-whole",
+   "stateAfter": {
+    "gen": null,
+    "serial": null,
+    "policyFp": null,
+    "nextPolicyFp": null,
+    "releaseFp": null,
+    "active": null
+   }
+  },
+  {
+   "n": 5,
+   "label": "planted-marker",
+   "stateAfter": {
+    "gen": null,
+    "serial": null,
+    "policyFp": null,
+    "nextPolicyFp": null,
+    "releaseFp": null,
+    "active": null
+   }
+  },
+  {
+   "n": 6,
+   "label": "active-policy-2",
+   "stateAfter": {
+    "gen": null,
+    "serial": null,
+    "policyFp": null,
+    "nextPolicyFp": null,
+    "releaseFp": null,
+    "active": null
+   }
+  },
+  {
+   "n": 7,
+   "label": "rotate-3",
+   "stateAfter": {
+    "gen": null,
+    "serial": null,
+    "policyFp": null,
+    "nextPolicyFp": null,
+    "releaseFp": null,
+    "active": null
+   }
+  },
+  {
+   "n": 8,
+   "label": "successor-4",
+   "stateAfter": {
+    "gen": null,
+    "serial": null,
+    "policyFp": null,
+    "nextPolicyFp": null,
+    "releaseFp": null,
+    "active": null
+   }
+  },
+  {
+   "n": 9,
+   "label": "repaired-stream",
+   "stateAfter": {
+    "gen": null,
+    "serial": null,
+    "policyFp": null,
+    "nextPolicyFp": null,
+    "releaseFp": null,
+    "active": null
+   }
+  },
+  {
+   "n": 10,
+   "label": "repaired-2-stream",
+   "stateAfter": {
+    "gen": null,
+    "serial": null,
+    "policyFp": null,
+    "nextPolicyFp": null,
+    "releaseFp": null,
+    "active": null
+   }
+  }
+ ]
+}

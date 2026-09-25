@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>pVM Client Anchor</title>
+<link rel="stylesheet" href="style.css"></head>
+<body><main>
+<h1><span class="tag">pVM CPU</span> client: install anchor (LAB)</h1>
+<p>Enter the anchors you were given out of band: the policy key fingerprint, the policy serial floor, the release key fingerprint. They are set once; a new anchor means reinstalling. The policy and relay URLs are only carriers.</p>
+<form id="f">
+<label>Policy key fingerprint <input id="policyKeyFp" size="70"></label>
+<label>Policy serial floor <input id="serialFloor" size="6"></label>
+<label>Release key fingerprint <input id="releaseKeyFp" size="70"></label>
+<label>Policy URL (a carrier) <input id="policyUrl" size="70"></label>
+<label>Relay URL (a carrier; the lab's) <input id="relayUrl" size="70"></label>
+<label>Or a platform relay base (https://api.enclave.host) <input id="relayBase" size="70"></label>
+<label>App ID <input id="appId" size="70"></label>
+<button id="save" type="submit">Install</button>
+</form>
+<pre id="out"></pre>
+</main><script type="module" src="options.js"></script></body></html>

@@ -1,0 +1,27 @@
+{
+ "capture": "results/app-m3/an-selftest.log",
+ "app": "c916cfc9efa7624653da23958f473c17e4e80ab3f8a3567455dfce9069321db5",
+ "codeHash": "77ff7e72ec47c78a277751cc1690dd4339159a3d8e7206d0b274f3d99bf3f38f",
+ "codeFrom": "taken from the same capture's attach chain",
+ "binding": {
+  "nonce": "6aa7dfbb7fcf8ab92ae1af51e014db50631df5b006780763da686c2683804bc5",
+  "runtimeId": "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba",
+  "bind2": "0e51c9a569335f6a0916176e80966e5763cd4f066a66c5863ca5f730ddd6f117",
+  "app": "c916cfc9efa7624653da23958f473c17e4e80ab3f8a3567455dfce9069321db5"
+ },
+ "identity": "{\"cache\":\"none\",\"cpuFeatures\":\"baseline\",\"execution\":\"interpreter\",\"hostIsa\":\"aarch64\",\"name\":\"wasmtime\",\"targetIsa\":\"pulley64\",\"version\":\"49.0.0\",\"wx\":\"enforced\"}",
+ "selftest": "exec_pages=refused:EACCES wx=clean maps=1 scope=self",
+ "abi2Certs": 5,
+ "verdict": {
+  "ok": true,
+  "reasons": [
+   "runtime wasmtime/49.0.0 execution=interpreter target=pulley64 host=aarch64 features=baseline cache=none",
+   "the scan covered the reporting process alone (scope=self): complete only because the runtime is a library in that process, which the hardware does not attest",
+   "exec_pages=refused:EACCES, wx=clean; the tuple is the measured payload's own word, not the hardware's",
+   "the AVF certificate's challenge is Bind2(transport key, nonce, runtime) || app c916cfc9efa76246…"
+  ],
+  "runtimeId": "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba",
+  "bind2": "0e51c9a569335f6a0916176e80966e5763cd4f066a66c5863ca5f730ddd6f117",
+  "measurement": "77ff7e72ec47c78a277751cc1690dd4339159a3d8e7206d0b274f3d99bf3f38f"
+ }
+}

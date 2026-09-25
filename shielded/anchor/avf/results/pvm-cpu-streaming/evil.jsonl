@@ -1,0 +1,51 @@
+{"t":"2026-09-24T08:18:38.215Z","evil":"stream-pass","relaySpkiTail":"4da58e166fede90c","relayX25519Head":"8f04a987e3c2cd97"}
+{"t":"2026-09-24T08:18:38.220Z","evil":"stream-pass","listening":18457}
+{"t":"2026-09-24T08:18:41.129Z","evil":"stream-pass","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:18:43.297Z","evil":"stream-pass","sealed":"stream-pass: 15 chunks from the VM, 3928 bytes sent (of 3928)"}
+{"t":"2026-09-24T08:18:46.480Z","evil":"stream-swap","relaySpkiTail":"8177b3c37ca1fce0","relayX25519Head":"f9ee1c6040a17017"}
+{"t":"2026-09-24T08:18:46.484Z","evil":"stream-swap","listening":18457}
+{"t":"2026-09-24T08:18:49.430Z","evil":"stream-swap","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:18:51.510Z","evil":"stream-swap","sealed":"stream-swap: 15 chunks from the VM, 3928 bytes sent (of 3928)"}
+{"t":"2026-09-24T08:18:54.742Z","evil":"stream-dup","relaySpkiTail":"2675ae5ab6ed6500","relayX25519Head":"deebfc7e18fb2a12"}
+{"t":"2026-09-24T08:18:54.746Z","evil":"stream-dup","listening":18457}
+{"t":"2026-09-24T08:18:57.770Z","evil":"stream-dup","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:18:59.943Z","evil":"stream-dup","sealed":"stream-dup: 15 chunks from the VM, 4215 bytes sent (of 3928)"}
+{"t":"2026-09-24T08:19:03.205Z","evil":"stream-drop","relaySpkiTail":"42225ac3b2f900d9","relayX25519Head":"9e106354a1dc523f"}
+{"t":"2026-09-24T08:19:03.210Z","evil":"stream-drop","listening":18457}
+{"t":"2026-09-24T08:19:06.099Z","evil":"stream-drop","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:19:08.257Z","evil":"stream-drop","sealed":"stream-drop: 15 chunks from the VM, 3641 bytes sent (of 3928)"}
+{"t":"2026-09-24T08:19:11.462Z","evil":"stream-truncate","relaySpkiTail":"58a224f435e9a14e","relayX25519Head":"9ff1f50948fc0bc9"}
+{"t":"2026-09-24T08:19:11.466Z","evil":"stream-truncate","listening":18457}
+{"t":"2026-09-24T08:19:14.418Z","evil":"stream-truncate","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:19:16.537Z","evil":"stream-truncate","sealed":"stream-truncate: 15 chunks from the VM, 1017 bytes sent (of 3928)"}
+{"t":"2026-09-24T08:19:19.722Z","evil":"stream-forge-fin","relaySpkiTail":"66913774212e49e0","relayX25519Head":"0624397340aa1d95"}
+{"t":"2026-09-24T08:19:19.727Z","evil":"stream-forge-fin","listening":18457}
+{"t":"2026-09-24T08:19:22.655Z","evil":"stream-forge-fin","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:19:24.758Z","evil":"stream-forge-fin","sealed":"stream-forge-fin: 15 chunks from the VM, 748 bytes sent (of 3928)"}
+{"t":"2026-09-24T08:19:27.984Z","evil":"stream-flip","relaySpkiTail":"acc2f4200b41e37a","relayX25519Head":"9360f7ad6558ae4a"}
+{"t":"2026-09-24T08:19:27.989Z","evil":"stream-flip","listening":18457}
+{"t":"2026-09-24T08:19:30.920Z","evil":"stream-flip","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:19:33.035Z","evil":"stream-flip","sealed":"stream-flip: 15 chunks from the VM, 3928 bytes sent (of 3928)"}
+{"t":"2026-09-24T08:19:36.235Z","evil":"stream-fin-flag","relaySpkiTail":"89dc826b569f072b","relayX25519Head":"03579d64a63e85dc"}
+{"t":"2026-09-24T08:19:36.240Z","evil":"stream-fin-flag","listening":18457}
+{"t":"2026-09-24T08:19:39.154Z","evil":"stream-fin-flag","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:19:41.262Z","evil":"stream-fin-flag","sealed":"stream-fin-flag: 15 chunks from the VM, 3928 bytes sent (of 3928)"}
+{"t":"2026-09-24T08:19:44.498Z","evil":"stream-forge-chunk","relaySpkiTail":"c473500cdb2094d5","relayX25519Head":"1dbe81e56f39f120"}
+{"t":"2026-09-24T08:19:44.503Z","evil":"stream-forge-chunk","listening":18457}
+{"t":"2026-09-24T08:19:47.511Z","evil":"stream-forge-chunk","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:19:49.683Z","evil":"stream-forge-chunk","sealed":"stream-forge-chunk: 15 chunks from the VM, 3928 bytes sent (of 3928)"}
+{"t":"2026-09-24T08:19:52.955Z","evil":"stream-trailing","relaySpkiTail":"63d07e7ad0593b84","relayX25519Head":"654ff2e70bb41943"}
+{"t":"2026-09-24T08:19:52.959Z","evil":"stream-trailing","listening":18457}
+{"t":"2026-09-24T08:19:55.941Z","evil":"stream-trailing","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:19:58.078Z","evil":"stream-trailing","sealed":"stream-trailing: 15 chunks from the VM, 3929 bytes sent (of 3928)"}
+{"t":"2026-09-24T08:20:01.216Z","evil":"mode-flip","relaySpkiTail":"7881bc8dbe94d79a","relayX25519Head":"a9139b2a06e8521a"}
+{"t":"2026-09-24T08:20:01.221Z","evil":"mode-flip","listening":18457}
+{"t":"2026-09-24T08:20:04.064Z","evil":"mode-flip","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:20:04.076Z","evil":"mode-flip","sealed":"turned the request's key id from stream (1) to whole (0)"}
+{"t":"2026-09-24T08:20:04.092Z","evil":"mode-flip","sealed":"mode-flip: the VM answered a refusal: cannot open: not sealed to this VM's app key for this app, runtime and nonce"}
+{"t":"2026-09-24T08:20:07.275Z","evil":"stream-replay","relaySpkiTail":"876344c1c769e65d","relayX25519Head":"6af77f4172e3201b"}
+{"t":"2026-09-24T08:20:07.280Z","evil":"stream-replay","listening":18457}
+{"t":"2026-09-24T08:20:10.217Z","evil":"stream-replay","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}
+{"t":"2026-09-24T08:28:20.031Z","evil":"stream-replay","relaySpkiTail":"b3fdb6f744ffc3d0","relayX25519Head":"85a16873477e1302"}
+{"t":"2026-09-24T08:28:20.036Z","evil":"stream-replay","listening":18457}
+{"t":"2026-09-24T08:28:22.928Z","evil":"stream-replay","evidence":"forwarded untouched","format":"enclave-pvm-app-evidence/v2"}

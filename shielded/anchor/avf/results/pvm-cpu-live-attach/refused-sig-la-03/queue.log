@@ -1,0 +1,9 @@
+Q19 start 21:41:00
+== la-03 (live-attach) 21:41:00
+   (already installed: 4b95f8a1bc86b0c03c10380c9339dcd354e695f9de99e25629452d06c544bf99, not reinstalled)
+LOCAL turn 1 STATS {status=eos, prefill_tokens=23, prefill_tok_s=96.15, decode_tokens=104, decode_tok_s=13.47, ctx_used=127, ctx=4096}
+big-core cap through the run: cpu2 min 3052000, cpu7 min 3398000 (20 samples)
+cpu turn 1 decode window 7.73 s (104 tokens): COMPLETE: the app's processes 31.91 core-s = 4.13 cores busy, 307 core-ms per decoded token (edge interpolation +-2.35 core-s) [crosvm_anchorlocal 31.76, host.enclave.anchor.avf 0.15, virtmgr_lave.anchor.avf 0.00] | 5.97 cores busy device-wide
+LANE-RUN OK la-03
+LANE-CONDITIONS END
+Q19-END 21:42:59

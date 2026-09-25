@@ -1,0 +1,51 @@
+Q8 start 19:11:57
+== ts-01 (t6) 19:11:57
+   (already installed: 2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d, not reinstalled)
+cpu turn 2 decode window 66.76 s (512 tokens): COMPLETE: the app's processes 396.21 core-s = 5.94 cores busy, 774 core-ms per decoded token (edge interpolation +-7.22 core-s) [crosvm_anchorlocal 395.22, host.enclave.anchor.avf 0.99, virtmgr_lave.anchor.avf 0.00] | 7.29 cores busy device-wide
+cpu turn 3 decode window 78.63 s (512 tokens): COMPLETE: the app's processes 466.87 core-s = 5.94 cores busy, 912 core-ms per decoded token (edge interpolation +-8.20 core-s) [crosvm_anchorlocal 465.88, host.enclave.anchor.avf 1.00, virtmgr_lave.anchor.avf 0.00] | 7.26 cores busy device-wide
+cpu turn 4 decode window 83.40 s (512 tokens): COMPLETE: the app's processes 493.85 core-s = 5.92 cores busy, 965 core-ms per decoded token (edge interpolation +-6.60 core-s) [crosvm_anchorlocal 492.79, host.enclave.anchor.avf 1.06, virtmgr_lave.anchor.avf 0.00] | 7.22 cores busy device-wide
+LANE-RUN OK ts-01
+== ts-02 (d4) 19:18:14
+   (already installed: 2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d, not reinstalled)
+cpu turn 2 decode window 70.93 s (512 tokens): COMPLETE: the app's processes 286.18 core-s = 4.03 cores busy, 559 core-ms per decoded token (edge interpolation +-5.66 core-s) [crosvm_anchorlocal 285.21, host.enclave.anchor.avf 0.97, virtmgr_lave.anchor.avf 0.00] | 5.20 cores busy device-wide
+cpu turn 3 decode window 75.27 s (512 tokens): COMPLETE: the app's processes 302.78 core-s = 4.02 cores busy, 591 core-ms per decoded token (edge interpolation +-6.01 core-s) [crosvm_anchorlocal 301.82, host.enclave.anchor.avf 0.96, virtmgr_lave.anchor.avf 0.00] | 5.08 cores busy device-wide
+cpu turn 4 decode window 79.40 s (512 tokens): COMPLETE: the app's processes 317.54 core-s = 4.00 cores busy, 620 core-ms per decoded token (edge interpolation +-3.13 core-s) [crosvm_anchorlocal 316.67, host.enclave.anchor.avf 0.88, virtmgr_lave.anchor.avf 0.00] | 5.11 cores busy device-wide
+LANE-RUN OK ts-02
+== ts-03 (d5) 19:30:44
+   (already installed: 2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d, not reinstalled)
+cpu turn 2 decode window 73.81 s (512 tokens): COMPLETE: the app's processes 365.35 core-s = 4.95 cores busy, 714 core-ms per decoded token (edge interpolation +-5.62 core-s) [crosvm_anchorlocal 364.61, host.enclave.anchor.avf 0.74, virtmgr_lave.anchor.avf 0.00] | 6.82 cores busy device-wide
+cpu turn 3 decode window 79.40 s (512 tokens): COMPLETE: the app's processes 397.33 core-s = 5.00 cores busy, 776 core-ms per decoded token (edge interpolation +-7.00 core-s) [crosvm_anchorlocal 396.39, host.enclave.anchor.avf 0.94, virtmgr_lave.anchor.avf 0.00] | 6.20 cores busy device-wide
+cpu turn 4 decode window 82.50 s (512 tokens): COMPLETE: the app's processes 411.21 core-s = 4.98 cores busy, 803 core-ms per decoded token (edge interpolation +-4.31 core-s) [crosvm_anchorlocal 410.24, host.enclave.anchor.avf 0.97, virtmgr_lave.anchor.avf 0.00] | 6.16 cores busy device-wide
+LANE-RUN OK ts-03
+== ts-04 (t4) 19:44:15
+   (already installed: 2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d, not reinstalled)
+cpu turn 2 decode window 71.13 s (512 tokens): COMPLETE: the app's processes 285.07 core-s = 4.01 cores busy, 557 core-ms per decoded token (edge interpolation +-4.11 core-s) [crosvm_anchorlocal 284.16, host.enclave.anchor.avf 0.92, virtmgr_lave.anchor.avf 0.00] | 5.22 cores busy device-wide
+cpu turn 3 decode window 74.56 s (512 tokens): COMPLETE: the app's processes 299.37 core-s = 4.02 cores busy, 585 core-ms per decoded token (edge interpolation +-3.52 core-s) [crosvm_anchorlocal 298.45, host.enclave.anchor.avf 0.92, virtmgr_lave.anchor.avf 0.00] | 5.06 cores busy device-wide
+cpu turn 4 decode window 82.04 s (512 tokens): COMPLETE: the app's processes 328.84 core-s = 4.01 cores busy, 642 core-ms per decoded token (edge interpolation +-2.79 core-s) [crosvm_anchorlocal 327.93, host.enclave.anchor.avf 0.91, virtmgr_lave.anchor.avf 0.00] | 5.12 cores busy device-wide
+LANE-RUN OK ts-04
+== ts-05 (t4) 19:58:23
+   (already installed: 2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d, not reinstalled)
+cpu turn 2 decode window 71.18 s (512 tokens): COMPLETE: the app's processes 286.67 core-s = 4.03 cores busy, 560 core-ms per decoded token (edge interpolation +-3.78 core-s) [crosvm_anchorlocal 285.78, host.enclave.anchor.avf 0.88, virtmgr_lave.anchor.avf 0.00] | 5.25 cores busy device-wide
+cpu turn 3 decode window 85.26 s (512 tokens): COMPLETE: the app's processes 335.10 core-s = 3.93 cores busy, 655 core-ms per decoded token (edge interpolation +-3.69 core-s) [crosvm_anchorlocal 334.38, host.enclave.anchor.avf 0.73, virtmgr_lave.anchor.avf 0.00] | 6.03 cores busy device-wide
+cpu turn 4 decode window 79.06 s (512 tokens): COMPLETE: the app's processes 316.77 core-s = 4.01 cores busy, 619 core-ms per decoded token (edge interpolation +-2.86 core-s) [crosvm_anchorlocal 315.87, host.enclave.anchor.avf 0.90, virtmgr_lave.anchor.avf 0.00] | 5.09 cores busy device-wide
+LANE-RUN OK ts-05
+== ts-06 (d5) 20:11:33
+   (already installed: 2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d, not reinstalled)
+cpu turn 2 decode window 68.86 s (512 tokens): COMPLETE: the app's processes 344.79 core-s = 5.01 cores busy, 673 core-ms per decoded token (edge interpolation +-5.81 core-s) [crosvm_anchorlocal 343.83, host.enclave.anchor.avf 0.96, virtmgr_lave.anchor.avf 0.00] | 6.26 cores busy device-wide
+cpu turn 3 decode window 78.10 s (512 tokens): COMPLETE: the app's processes 389.65 core-s = 4.99 cores busy, 761 core-ms per decoded token (edge interpolation +-7.39 core-s) [crosvm_anchorlocal 388.71, host.enclave.anchor.avf 0.93, virtmgr_lave.anchor.avf 0.00] | 6.20 cores busy device-wide
+cpu turn 4 decode window 82.75 s (512 tokens): COMPLETE: the app's processes 407.69 core-s = 4.93 cores busy, 796 core-ms per decoded token (edge interpolation +-3.17 core-s) [crosvm_anchorlocal 406.76, host.enclave.anchor.avf 0.93, virtmgr_lave.anchor.avf 0.00] | 6.29 cores busy device-wide
+LANE-RUN OK ts-06
+== ts-07 (d4) 20:24:56
+   (already installed: 2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d, not reinstalled)
+cpu turn 2 decode window 70.95 s (512 tokens): COMPLETE: the app's processes 285.48 core-s = 4.02 cores busy, 558 core-ms per decoded token (edge interpolation +-5.36 core-s) [crosvm_anchorlocal 284.56, host.enclave.anchor.avf 0.92, virtmgr_lave.anchor.avf 0.00] | 5.21 cores busy device-wide
+cpu turn 3 decode window 79.80 s (512 tokens): COMPLETE: the app's processes 320.32 core-s = 4.01 cores busy, 626 core-ms per decoded token (edge interpolation +-5.86 core-s) [crosvm_anchorlocal 319.37, host.enclave.anchor.avf 0.95, virtmgr_lave.anchor.avf 0.00] | 5.20 cores busy device-wide
+cpu turn 4 decode window 87.37 s (512 tokens): COMPLETE: the app's processes 344.55 core-s = 3.94 cores busy, 673 core-ms per decoded token (edge interpolation +-3.79 core-s) [crosvm_anchorlocal 343.87, host.enclave.anchor.avf 0.69, virtmgr_lave.anchor.avf 0.00] | 5.81 cores busy device-wide
+LANE-RUN OK ts-07
+== ts-08 (t6) 20:39:01
+   (already installed: 2bca7b35cdd0d86fc2d29567d7515ba7defd601a1c39eb512ee3fbc914855d7d, not reinstalled)
+cpu turn 2 decode window 70.23 s (512 tokens): COMPLETE: the app's processes 416.43 core-s = 5.93 cores busy, 813 core-ms per decoded token (edge interpolation +-7.59 core-s) [crosvm_anchorlocal 415.44, host.enclave.anchor.avf 0.99, virtmgr_lave.anchor.avf 0.00] | 7.34 cores busy device-wide
+cpu turn 3 decode window 76.89 s (512 tokens): COMPLETE: the app's processes 456.31 core-s = 5.93 cores busy, 891 core-ms per decoded token (edge interpolation +-6.83 core-s) [crosvm_anchorlocal 455.25, host.enclave.anchor.avf 1.06, virtmgr_lave.anchor.avf 0.00] | 7.23 cores busy device-wide
+cpu turn 4 decode window 84.36 s (512 tokens): COMPLETE: the app's processes 496.60 core-s = 5.89 cores busy, 970 core-ms per decoded token (edge interpolation +-4.74 core-s) [crosvm_anchorlocal 495.64, host.enclave.anchor.avf 0.96, virtmgr_lave.anchor.avf 0.00] | 7.27 cores busy device-wide
+LANE-RUN OK ts-08
+LANE-CONDITIONS END
+Q8-END 20:52:13

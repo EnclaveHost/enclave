@@ -1,0 +1,1 @@
+la-03	live-attach	--es relay ws://127.0.0.1:18443/v1/fleet-tunnel --es name pixel10-pvm-cpu	/home/steven/gguf-e2b/tpu/anchor-pvm-cpu-rt8.apk

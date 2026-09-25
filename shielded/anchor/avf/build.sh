@@ -153,6 +153,11 @@ case "$NAME" in
            "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm" -D "$E/libggml-shielded.so" | grep -E ' T (sh_pipe_adopt_fd|sh_pipe_open_hook|ggml_backend_shielded_stats)$' | sed 's/^/  /'
            echo "engine-pvm: $E/libggml-shielded.so ($(stat -c %s "$E/libggml-shielded.so") B), libengine.so ($(stat -c %s "$E/libengine.so") B)"; exit 0 ;;
   attest_probe) SRCS=("$HERE/payload/attest_probe.c") ;;
+  jit_probe)    SRCS=("$HERE/payload/jit_probe.c") ;;   # can the pVM payload JIT? (W^X executable pages; PVM-CPU.md, portable runtime)
+  rt_probe)     # the portable runtime (runtime/pvm-rt, built for aarch64-linux-android) running the conformance vectors inside the pVM
+                SRCS=("$HERE/payload/rt_probe.c"); EXTRA_LIBS=("${PVM_RT_LIB:-$HERE/out/pvm-rt-target/aarch64-linux-android/release/libpvm_rt.so}")
+                [ -f "${EXTRA_LIBS[0]}" ] || { echo "rt_probe: build runtime/pvm-rt for aarch64-linux-android first" >&2; exit 2; }
+                RT_ASSETS=("$HERE/runtime/conformance/bundles/hello-v1.wasm:conformance-hello-v1.wasm") ;;
   pvm_probe)    SRCS=("$HERE/payload/pvm_probe.c"); EXTRA_LIBS=("$HOME/Android/Sdk/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" "${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}/lib/libggml-base.so" "${GGML_ARM64:-$HERE/out/ggml-arm64-work/prefix}/lib/libggml.so") ;;
   anchor)       # the anchor + the harness's worker client over an fd (wire-fd.c wraps the shipped shielded-wire.c).
                 # shielded-simd.c is built twice, generic and -DSH_SIMD_NEON; the core's refill is pointed at SDOT.
@@ -172,6 +177,10 @@ case "$NAME" in
                   cp "$GR/lib/libggml-cpu.so" "$OUT/engine-pvm/libggml-cpu-repack.so"
                   EXTRA_LIBS=("$GA/lib/libc++_shared.so" "$GA/lib/libggml-base.so" "$GA/lib/libggml.so" "$GA/lib/libllama.so" "$OUT/engine-pvm/libllama-common.so"
                               "$OUT/engine-pvm/liblocalengine.so" "$OUT/engine-pvm/libggml-cpu-repack.so")
+                  # the portable app runtime (runtime/pvm-rt, wasmtime -> Pulley; PVM-CPU.md "The app runtime"): the APP line runs a component with it
+                  PVM_RT="${PVM_RT_LIB:-$HERE/out/pvm-rt-target/aarch64-linux-android/release/libpvm_rt.so}"
+                  [ -f "$PVM_RT" ] || { echo "pvm-cpu: build runtime/pvm-rt for aarch64-linux-android first (libpvm_rt.so)" >&2; exit 2; }
+                  EXTRA_LIBS+=("$PVM_RT")
                   CFLAGS+=(-DANCHOR_TIER_PVM_CPU)
                   echo "pvm-cpu: bundling the CPU engine only (${#EXTRA_LIBS[@]} libraries); no split engine, no TPU backend or worker"
                 # the engine rides along when it has been built (build.sh engine-pvm): six libraries + the calibration
@@ -217,6 +226,9 @@ fi
 # stripped copies: the dynamic symbol table (what dlopen/dlsym need) stays, the rest of libllama's 40 MB goes
 for x in "$STAGE"/lib/arm64-v8a/*.so; do "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded "$x"; done
 for x in "${EXTRA_ASSETS[@]:-}"; do [ -n "$x" ] && cp "$x" "$STAGE/assets/model.calib"; done
+rm -f "$STAGE"/assets/conformance-*
+for x in "${RT_ASSETS[@]:-}"; do [ -n "$x" ] || continue; src="${x%%:*}"; dst="${x##*:}"   # the bundle + its pin (measured with the APK)
+  cp "$src" "$STAGE/assets/$dst"; sha256sum "$src" | cut -c1-64 > "$STAGE/assets/${dst%.wasm}.sha256"; done
 # Measured pins (payload/anchor_pins.h): ANCHOR_MODE=dev|protected (default dev) is written to assets/anchor.mode;
 # ANCHOR_LEDGER_PK, ANCHOR_MODEL_SHA256 and ANCHOR_PREFIX_PK name files holding 64 hex each and land as
 # assets/ledger.pk, model.sha256, prefix.pk. A protected build refuses to package without all three.

@@ -1,0 +1,23 @@
+ok   honest: verified by the client itself (nonce 1c4de91ef7e3c532..., key ddc09cbd7ba849d4), 200 with tokens (723 ms to verify, 1165 ms to serve)
+ok   evil-replay: refused at verify before sending (the evidence answers another nonce (stale or replayed))
+ok   evil-swap-key: refused at verify before sending (attestation: attestationChallenge does not match ours)
+ok   evil-own-ca: refused at verify before sending (attestation: root 628adb4caff26ebb480afc9908cce97c8d0963b34e2557d57bb0df5578a28486 is not )
+ok   evil-mitm-tls: refused at tls before sending (the TLS server's key is not the key the VM's evidence attests)
+ok   wrong-app: refused at verify before sending (the evidence names another app)
+ok   wrong-runtime: refused at verify before sending (runtime d3370878afa9d5ee… (wasmtime/49.0.0 interpreter pulley64) is not an admitted runtim)
+ok   reconnect-old-evidence: refused at verify before sending (the evidence answers another nonce (stale or replayed))
+ok   evil relay in pass mode (the control): 200 -- the refusals above are the client's checks, not a broken path
+ok   after termination: no evidence, nothing sent (no evidence (the carrier gave nothing))
+ok   reconnect: the new boot verifies with a new key (5321e292c5aff885 vs ddc09cbd7ba849d4)
+ok   the malicious relay's own TLS never received a request
+ok   launch 1: the app served exactly the 2 requests that got a 200 (requests=2)
+ok   launch 1: the VM answered 6 evidence requests with fresh certificates
+ok   launch 2: the app served exactly the 1 requests that got a 200 (requests=1)
+ok   launch 2: the VM answered 1 evidence requests with fresh certificates
+ok   l1.log: no request or response in the clear
+ok   l2.log: no request or response in the clear
+ok   hub.jsonl: no request or response in the clear
+ok   hub.err: no request or response in the clear
+ok   evil.jsonl: no request or response in the clear
+ok   evil.err: no request or response in the clear
+PASS the client-verified channel on the device

@@ -1,0 +1,76 @@
+11:33:36Z installed APK is already apk.apk (955d7ebb1968f809ff5d29aba90c6889adfec79eb1f082745c922d148f11a546)
+11:33:37Z relay 1 (the lab build): up; admits build 15d9f8c785451451…
+11:35:20Z A-attach: ok {"accepted":true,"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","spki":"302a300506032b6570032100…","bootMs":99916}
+11:35:23Z A-row: ok {"rows":1,"tier":"pvm-cpu","eligible":false}
+11:35:23Z   agent attest
+11:35:23Z A-bootstrap-attest: ok {"proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","reason":null}
+11:35:27Z   agent attest
+11:35:30Z   agent done register (new) landed
+11:35:30Z A-register: ok {"lifecycle":{"kind":"landed","op":"register (new)","hash":"0x2ef694f7a3289432e52b1c688bae652c871d2cf14da1f1049b74581e819f7877","block":80,"blockHash":"0x8dc3b67313ecb47f22258d9b8b442dec862f10c07769174dc59520abcfe93b52","event":"Updated","args":{"id":"0x0e43a5110cc29c646df19eb65b8ed13e96b632833acebf
+11:35:38Z   agent done claim landed
+11:35:42Z   agent done landed
+11:35:42Z A-claim: ok {"lifecycle":{"kind":"landed","op":"claim","hash":"0x08a609a8fb341ef22b972dc256bb854ad700d262fe465a8beccdfabc72c696bd","block":84,"blockHash":"0x694f6b317fe3c49eff335d9d3b46f9cafb829cc108dda1a8f67065a6cc93ea62","event":"Claimed","args":{"id":"0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5e
+11:35:45Z A-route: ok {"route":"/x/0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2/pvm/evidence"}
+11:35:46Z   agent attest
+11:36:52Z   agent done landed
+11:36:52Z A-prove: ok {"proof":"landed"}
+11:36:57Z A-client: ok {"complete":true,"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340"}
+11:37:09Z relay 2 (back after a drop): up; admits build 15d9f8c785451451…
+11:37:12Z R1-back-1: ok {"reattached":1,"boots":{"starts":1,"spki":1,"instances":1}}
+11:37:14Z R1-route-1: ok {"route":"back"}
+11:37:14Z R1-row-1: ok {"rows":1,"tier":null}
+11:37:19Z R1-client-1: ok {"complete":true}
+11:38:25Z   agent done landed
+11:38:25Z R1-prove-1: ok {"proof":"landed"}
+11:38:42Z relay 3 (back after a drop): up; admits build 15d9f8c785451451…
+11:38:57Z R1-back-2: ok {"reattached":2,"boots":{"starts":1,"spki":1,"instances":1}}
+11:39:00Z R1-route-2: ok {"route":"back"}
+11:39:00Z R1-row-2: ok {"rows":1,"tier":null}
+11:39:05Z R1-client-2: ok {"complete":true}
+11:40:10Z   agent done landed
+11:40:10Z R1-prove-2: ok {"proof":"landed"}
+11:40:30Z relay 4 (back after a drop): up; admits build 15d9f8c785451451…
+11:40:43Z R1-back-3: ok {"reattached":3,"boots":{"starts":1,"spki":1,"instances":1}}
+11:40:45Z R1-route-3: ok {"route":"back"}
+11:40:45Z R1-row-3: ok {"rows":1,"tier":null}
+11:40:50Z R1-client-3: ok {"complete":true}
+11:41:56Z   agent done landed
+11:41:56Z R1-prove-3: ok {"proof":"landed"}
+11:41:56Z relay 4 FROZEN (SIGSTOP): no FIN reaches the phone
+11:43:30Z R2-watchdog: ok {"note":"the phone gave up on a silent tunnel (no frame for RelayAttach.SILENT_MS = 95 s)","afterMs":94432}
+11:43:50Z relay 4 THAWED (SIGCONT)
+11:44:00Z R2-one-tunnel: ok {"rows":1,"reattached":4,"relayLine":"[tunnel] pixel10-pvm-cpu attached via attestation(avf) (1 enclave)"}
+11:44:03Z R2-route: ok {"route":"back"}
+11:45:11Z relay 5 (back after a drop): up; admits build 15d9f8c785451451…
+11:46:11Z R3-refusals: ok {"refusals":["pixel10-pvm-cpu is registered on chain; attach must carry operatorSig (personal_sign of \"e","pixel10-pvm-cpu is registered on chain to 0x0db52145a071bbd2df2fd5672ac4b6c095e380f4, not ","pixel10-pvm-cpu is registered on chain to 0x0db52145a071bbd2df2fd5672ac4b6c095e380f4, not "],"reatt
+11:46:14Z R3-route: ok {"route":"back"}
+11:46:17Z R3-replay: ok {"reason":"attestationChallenge does not match ours","rows":1}
+11:46:21Z R3-client: ok {"complete":true}
+11:48:30Z   agent done heartbeat landed
+11:48:30Z R4-cut: ok {"kind":"carrier-failed","proof":"carrier-failed","lifecycle":"heartbeat","checkpointsSigned":0}
+11:48:31Z relay 6 (back after the cut): up; admits build 15d9f8c785451451…
+11:49:30Z R4-route: ok {"route":"back"}
+11:50:36Z   agent done landed
+11:50:36Z R4-pre: ok {"proof":"landed","lifecycle":null}
+11:51:39Z   agent attest
+11:51:46Z   agent stuck stuck: not mined after 0 replacements; kept for the next tick
+11:51:46Z R4-crash: ok {"kind":"stuck","proof":"stuck","lifecycle":null}
+11:51:57Z relay 7 (back after a drop): up; admits build 15d9f8c785451451…
+11:52:03Z R4-back: ok {"reattached":7}
+11:52:07Z R4-route-2: ok {"route":"back"}
+11:52:07Z   agent recover
+11:52:10Z   agent done landed
+11:52:10Z   agent attest
+11:52:10Z R4-recover: ok {"recovered":{"kind":"landed","hash":"0xa801e1cb63a62f9534ebf6b8c620705627c5627ebb51e79eee2e685ecce56fb1"}}
+11:53:15Z relay 8 (admits only the OLD build): up; admits build 58ec36752ca6c302…
+11:53:21Z R5-old-build: ok {"rejected":"no APK component with an allowlisted codeHash (saw 15d9f8c785451451…)","reattached":7}
+11:53:24Z relay 9 (the lab build again): up; admits build 15d9f8c785451451…
+11:53:31Z R5-right: ok {"reattached":8}
+11:53:34Z R5-route: ok {"route":"back"}
+11:53:46Z R5-no-tier: ok {"tier":null,"eligible":false,"serving":false,"servingEnclaves":503}
+11:54:52Z   agent done landed
+11:54:56Z   agent done release landed
+11:54:56Z D-release: ok {"kind":"released","proof":"landed"}
+11:54:56Z D-one-boot: ok {"boots":{"starts":1,"spki":1,"instances":1},"reattached":8}
+11:54:56Z the lab app was stopped by the script (the VM ends with it)
+11:54:57Z the operator keys appear nowhere in the results

@@ -1,0 +1,11 @@
+ok   valid: exit 0 (want 0), marker ran: yes (want yes), rows: 1 (want 1)
+ok   command-fails: exit 0 (want 0), marker ran: yes (want yes), rows: 1 (want 1)
+ok   command-fails: the call's own non-zero code is relayed to the caller
+ok   malformed: exit 3 (want 3), marker ran: no (want no), rows: 0 (want 0) -- CAPTURE FAILED after malformed: the committed state could not be read as a complete snapshot -- stopping (exit 3); the results so far are kept as they are
+ok   missing: exit 3 (want 3), marker ran: no (want no), rows: 0 (want 0) -- CAPTURE FAILED after missing: `pvm-client state` exited non-zero -- stopping (exit 3); the results so far are kept as they are
+ok   incomplete: exit 3 (want 3), marker ran: no (want no), rows: 0 (want 0) -- CAPTURE FAILED after incomplete: the committed state could not be read as a complete snapshot -- stopping (exit 3); the results so far are kept as they are
+ok   null-gen: exit 3 (want 3), marker ran: no (want no), rows: 0 (want 0) -- CAPTURE FAILED after null-gen: the committed state could not be read as a complete snapshot -- stopping (exit 3); the results so far are kept as they are
+ok   state-exits-nonzero: exit 3 (want 3), marker ran: no (want no), rows: 0 (want 0) -- CAPTURE FAILED after state-exits-nonzero: `pvm-client state` exited non-zero -- stopping (exit 3); the results so far are kept as they are
+ok   timeout: a call that never ends is killed under CL_TIMEOUT, its code (rc=124) relayed, one row, the run goes on
+ok   unwritable: exit 3 (want 3), marker ran: no (want no), rows: 0 (want 0) -- CAPTURE FAILED after unwritable: exchanges.jsonl could not be written -- stopping (exit 3); the results so far are kept as they are
+PASS the capture preflight: a capture failure stops the shell with exit 3, nothing after it runs
