@@ -436,6 +436,24 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   - `pkg.mjs` exports `deriveReferenceDigests`: at most one eligible digest, every other refused by its exact digest,
     and fail-closed on any error. Tests show every debug, probe, control, stock and superseded digest refused, and a
     reference with a debug or probe image eligible, or with two eligible images, refused outright.
+- **v40 draft** (`drafts/nucbox-ownguest-40.json`; supersedes v39): **the control tree moves to the reviewed manager
+  work.** `control/` = `pkg/control-v40-e63` `e3acc392`: v39's tree `2c3a2873`, plus windows/isolation-manager `76af33b4`,
+  plus M2's node revision `5d71b39f` for exactly `agent.mjs`, `host.mjs` and their boundary test. Nothing else changes.
+  - **What the manager work brings:**
+    - the manager judges the report's partition (M1, `62965126`, passed on hardware);
+    - `multi-accept.mjs`, several serving domains at once (U1, `0513ced0`, passed on hardware);
+    - the fetcher writes no bytecode into the tree (M6, `3919c18b`);
+    - the harness runs with the package's own sweep values and fails a run that changes the tree (`76af33b4`).
+  - **The node revision** is enclave-5d's M2 coordination answer: where the package and M2 overlap, M2's revision wins.
+    Its two fixes act only against a manager that states a boundary its backend cannot have.
+  - **The box harness now ships as tools**, so d1 can validate a copy of the package with its own manager
+    environment: `manager-accept.ps1`, `restart-accept.mjs` and `multi-accept.mjs`.
+  - **Unchanged:** the guest `b7ba7731` (the one eligible image, prospective), the launcher `435717de`, the reference
+    `b4d6675d` and the manager environment. Eligibility, the tier and the host policies are unchanged too.
+  - **Not yet run:** this tree has not run from this package; enclave-d1's validation of a lab copy is next.
+  - **Rollback:** v39 as staged. v39's own rollback record names v38.
+  - **Also:** `check.ps1 -SelfTest` removes its empty `.selftest` directory, and the acceptance status says which tree
+    and manager environment run 094631 used.
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
