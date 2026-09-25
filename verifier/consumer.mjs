@@ -23,6 +23,7 @@ import { cachedCollateral } from "./collateral-cache.mjs";
 export { httpCollateral, fileCollateral, memoryCollateral, layeredCollateral, cachedCollateral };
 import { verifyReleaseAttestation, DEFAULT_RELEASE_POLICY } from "./provenance.mjs";
 import { snpProductHint, kdsVcekUrl } from "../relay/snp-verify.mjs";
+import { verifyReleaseIndex, candidatesFromIndex, INDEX_ASSET } from "./release-index.mjs";
 import PINNED_TRUSTED_ROOT from "./roots/sigstore-trusted-root.json" with { type: "json" };
 
 export const RAD_PATH = "/.well-known/tinfoil-attestation";
@@ -58,6 +59,7 @@ export async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO,
     if (!c || c.error || !c.bundle) { out.candidates.push({ tag, digest: c?.digest ?? null, provenance: "unavailable", why: c?.error || c?.note || "no attestation bundle" }); continue; }
     const digest = String(c.digest || "").trim().toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(digest)) { out.candidates.push({ tag, digest: c.digest ?? null, provenance: "refused", why: "the release digest is not 64 hex characters" }); continue; }
+    if (Array.isArray(policy.revoked) && policy.revoked.includes(tag)) { out.candidates.push({ tag, digest, provenance: "refused", why: "revoked by the signed release index" }); continue; }
     const r = await verifyReleaseAttestation({ bundle: c.bundle, digestHex: digest, trustedRoot, policy: { ...policy, repository: repo } });
     out.candidates.push({ tag, digest, provenance: r.ok ? "verified" : "refused", measurement: r.ok ? r.claims.snpMeasurement : null,
                           version: r.ok ? r.claims.version : null, flavor: r.ok ? r.claims.flavor : null, reasons: r.reasons.slice(-2) });
@@ -70,15 +72,37 @@ export async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO,
 }
 // Live: the latest release from GitHub's public API (or explicit tags), each flavor's tinfoil.hash and its attestation
 // bundle from the attestation API; then releaseExpectationsFrom. Direct, not through a Tinfoil proxy.
+// The SIGNED index first (verifier/release-index.mjs): the latest release's release-index.json and its attestation by
+// the file's digest; verified, it names the tags to verify and raises the floor. Absent or refused, the unsigned pointer
+// (/releases/latest) is the recorded fallback (`index.status`), unless requireIndex, which fails closed.
 export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fetchImpl = globalThis.fetch, timeoutMs = 20000, maxBytes = 4 * 1024 * 1024,
-                                            apiBase = GITHUB_API, downloadBase = GITHUB_DOWNLOADS, trustedRoot = TRUSTED_ROOT, policy = {} } = {}) {
+                                            apiBase = GITHUB_API, downloadBase = GITHUB_DOWNLOADS, trustedRoot = TRUSTED_ROOT, policy = {}, useIndex = true, requireIndex = false } = {}) {
   const get = (url, accept) => fetchBounded(url, { fetchImpl, timeoutMs, maxBytes, accept });
-  let latestTag = null, list = tags;
+  let latestTag = null, list = tags, index = { status: "not-consulted" };
+  let pol = { ...policy };
+  if (!list && useIndex) {
+    try {
+      const bytes = await get(`${downloadBase}/${repo}/releases/latest/download/${INDEX_ASSET}`, "application/json");
+      const digest = sha256hex(bytes);
+      const att = JSON.parse((await get(`${apiBase}/repos/${repo}/attestations/sha256:${digest}`)).toString("utf8"));
+      const bundle = att?.attestations?.[0]?.bundle ?? null;
+      if (!bundle) index = { status: "unavailable", reasons: ["the attestation API returned no bundle for the index"] };
+      else {
+        const v = await verifyReleaseIndex({ indexBytes: bytes, bundle, trustedRoot, policy: { ...policy, repository: repo } });
+        if (v.ok) {
+          index = { status: "verified", sequence: v.sequence, generatedAt: v.generatedAt, minimumRelease: `v${v.minimumRelease.join(".")}`, latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, signedTag: v.claims?.tag ?? null };
+          list = candidatesFromIndex(v).map((c) => c.tag); latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
+          pol = { ...pol, minimumRelease: v.minimumRelease, revoked: v.revoked };
+        } else index = { status: "refused", reasons: v.reasons.slice(-2) };
+      }
+    } catch (e) { index = { status: "unavailable", reasons: [e.message] }; }
+    if (index.status !== "verified" && requireIndex) return { ...(await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol })), latestTag: null, index, indexError: `the signed release index is required and was ${index.status}: ${(index.reasons || []).join("; ")}` };
+  }
   if (!list) {
     try {
       latestTag = JSON.parse((await get(`${apiBase}/repos/${repo}/releases/latest`)).toString("utf8"))?.tag_name;
       if (!TAG_RE.test(String(latestTag))) throw new Error(`the release index named ${JSON.stringify(latestTag)}, not a vX.Y.Z tag`);
-    } catch (e) { return { ...(await releaseExpectationsFrom([], { repo, trustedRoot, policy })), latestTag: null, indexError: e.message }; }
+    } catch (e) { return { ...(await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol })), latestTag: null, index, indexError: e.message }; }
     list = FLAVOR_SUFFIXES.map((s) => latestTag + s);
   }
   const candidates = [];
@@ -91,7 +115,7 @@ export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fe
       candidates.push({ tag, digest, bundle, note: bundle ? null : "the attestation API returned no inline bundle" });
     } catch (e) { candidates.push({ tag, error: e.message }); }
   }
-  return releaseExpectationsFrom(candidates, { repo, trustedRoot, policy, latestTag });
+  return { ...(await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag })), index };
 }
 
 // ---- 2. the capture: the document and the certificate of ONE TLS connection --------------------------------------------

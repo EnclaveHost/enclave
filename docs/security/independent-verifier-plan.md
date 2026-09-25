@@ -600,7 +600,7 @@ No automatic cutover. Each stage is a reviewed change with a configuration flag 
 | M1 | strict envelope for every format in the registry (DONE 2026-09-24: per-format shapes), CRL policy modes (done), collateral adapters with a disk cache (DONE 2026-09-24: the authenticated, slot-bound cache), Rekor v2 bundles (BLOCKED: no authentic v2 bundle located; see below), scheduled live differential job (PREPARED 2026-09-24 as a shadow job: `verifier/live-differential.mjs` and `.github/workflows/verifier-live-differential.yml`, dispatch-only and gated by a repository variable that is not set, read-only, tested offline on the fixtures) | 5 |
 | M2 | browser build: WebCrypto signatures, X.509 via a reviewed library (PROTOTYPE DONE 2026-09-24: `verifier/web/`, the same `snp.mjs` verdict code behind a crypto provider; see `browser-x509-parser-decision.md`); reproducible packaging with an input manifest and exact notices (DONE 2026-09-24: `verifier/web/dist/`, `reproduce.mjs` under the strict command); an opt-in same-origin shadow adapter that records and never decides (DONE 2026-09-24: `verifier/web/shadow.mjs`, proven in Node and in Chrome 151); same-origin delivery through the site's vendor rule and the site's opt-in shadow line (DONE 2026-09-24 under Steven's website authorization: `site/vendor/enclave-verifier.js` via `scripts/build-vendor.mjs`, `site/js/core/verify-shadow.js` awaited by `verify.js`, record only, viewer opt-in, no primary root or verdict change; `verifier/web/README.md`) | 8 |
 | M3 | CLI `--verifier both`, self-check both, relay re-verification of dialed rows (BUILT 2026-09-25, section 10.4: every path behind a flag whose fallback is the previous behaviour; no live hosted enclave existed to show a `verified` end to end) | done, pending live data |
-| M4 | signed release index in the release workflow, mirror at `enclave.host`, TUF refresh job, minimum-release policy | 5 |
+| M4 | signed release index in the release workflow (BUILT 2026-09-25, section 10.5; first signed index appears with the next release), minimum-release policy (BUILT: `verifier/release-policy.json`, the floor only rises), mirror at `enclave.host` and TUF refresh job (remaining) | 3 done, 2 remaining |
 | M5 | independent review, cutover per consumer with fallback flags | 3 + review |
 | later | TDX (QVL-grade), NVIDIA GPU evidence, measurement recompute from archived image inputs, AVF ABI/2 relay frame | separate plans |
 
@@ -878,6 +878,37 @@ mechanism is shown on the Genoa capture under a policy naming its own measuremen
 every consumer's positive path is exercised with verdicts of the real shape. The first live hosted enclave will produce
 the first `agree` or the first disagreement, in the self-check's `enclave` field, the relay's `reverify` annotation and
 `enclave attest --verifier both`.
+
+## 10.5 M4: the signed release index and the release floor (2026-09-25)
+
+Until now a consumer learned which release is current from GitHub's unauthenticated `/releases/latest` and verified that
+release's provenance: every release it was pointed at was genuine, the pointer was not, and only the built-in floor
+(`DEFAULT_RELEASE_POLICY.minimumRelease`) stood between a verifier and an older genuine release. `verifier/release-index.mjs`
+closes that. The publish workflow gained its own `release-index` job after the measure step: it builds
+`release-index.json` from the published releases (this tag included; the latest tag and digest per flavor; the floor and
+the revocation list from `verifier/release-policy.json` at the tag, currently v0.5.841 and none), attests it keylessly
+under the SAME identity as the release (`actions/attest`, pinned; subject = the file's sha256; predicate
+`https://enclave.host/predicate/release-index/v1` carrying the index's digest and pointers), and attaches it to the
+release. Its failure leaves the release published and shows red on its own.
+
+Consumers (`releaseExpectations`) fetch the latest release's index and its attestation by the file's digest, verify it
+through the provenance module's shared statement check (`verifyStatementBundle`: Fulcio chain to the pinned root, SCT,
+Rekor, DSSE, the identity policy, exactly one subject that IS the digest, the index predicate), then apply `checkIndex`
+(schema, repository, the predicate's digest and pointers equal the index's, a floor that is at or ABOVE the built-in one,
+well-formed `latest` per flavor, nothing revoked or below the floor pointed at). Verified, the index names the tags to
+verify and raises the floor and the revocation list for that run; a revoked tag contributes no measurement whatever its
+provenance says. Absent or refused, the unsigned pointer is the recorded fallback (`index.status`: unavailable, refused);
+`requireIndex` fails closed and is the switch for a later cutover. Raising the floor is a reviewed commit to the policy
+file; the next release signs it.
+
+What the index does not solve, stated: an OLD genuine index re-served in place of a newer one is signed too. `sequence`
+and `generatedAt` let a consumer that remembers its last index refuse to go backwards (the relay and the self-check can;
+the CLI cannot), and the built-in floor bounds the damage. A TUF-style timestamp role is the complete answer and remains,
+with the TUF refresh of the pinned Sigstore root and the mirror at `enclave.host`. Tests
+(`test/verifier-release-index.test.mjs`): the build under a policy, every `checkIndex` refusal by name, the authentic
+v0.5.841 release bundle refused as an index attestation, the consumers' index-first path with its fallback and the strict
+switch through a local release index, revocations, the workflow job's pins and predicate. The positive signed case waits
+for the first real index, which this change's own release publishes; it is pinned as a fixture then.
 
 ## 11. Open risks
 

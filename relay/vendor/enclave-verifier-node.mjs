@@ -4681,12 +4681,12 @@ var init_chain = __esm({
       async sort() {
         const leafCert = this.untrustedCert;
         let paths = await this.buildPaths(leafCert);
-        paths = paths.filter((path4) => path4.some((cert) => this.trustedCerts.includes(cert)));
+        paths = paths.filter((path5) => path5.some((cert) => this.trustedCerts.includes(cert)));
         if (paths.length === 0) {
           throw new Error("no trusted certificate path found");
         }
-        const path3 = paths.reduce((prev, curr) => prev.length < curr.length ? prev : curr);
-        return [leafCert, ...path3].slice(0, -1);
+        const path4 = paths.reduce((prev, curr) => prev.length < curr.length ? prev : curr);
+        return [leafCert, ...path4].slice(0, -1);
       }
       async buildPaths(certificate) {
         const paths = [];
@@ -4742,21 +4742,21 @@ var init_chain = __esm({
         }
         return verifiedIssuers;
       }
-      checkPath(path3) {
-        if (path3.length < 1) {
+      checkPath(path4) {
+        if (path4.length < 1) {
           throw new Error("certificate chain must contain at least one certificate");
         }
-        const validCAs = path3.slice(1).every((cert) => cert.isCA);
+        const validCAs = path4.slice(1).every((cert) => cert.isCA);
         if (!validCAs) {
           throw new Error("intermediate certificate is not a CA");
         }
-        for (let i = path3.length - 2; i >= 0; i--) {
-          if (!uint8ArrayEqual(path3[i].issuer, path3[i + 1].subject)) {
+        for (let i = path4.length - 2; i >= 0; i--) {
+          if (!uint8ArrayEqual(path4[i].issuer, path4[i + 1].subject)) {
             throw new Error("incorrect certificate name chaining");
           }
         }
-        for (let i = 0; i < path3.length; i++) {
-          const cert = path3[i];
+        for (let i = 0; i < path4.length; i++) {
+          const cert = path4[i];
           if (cert.extBasicConstraints?.isCA) {
             const pathLength = cert.extBasicConstraints.pathLenConstraint;
             if (pathLength !== void 0 && pathLength < BigInt(i - 1)) {
@@ -7245,7 +7245,7 @@ var init_dist2 = __esm({
 // verifier/consumer.mjs
 import https from "node:https";
 import { isIP } from "node:net";
-import { createHash as createHash4, X509Certificate as X509Certificate5 } from "node:crypto";
+import { createHash as createHash5, X509Certificate as X509Certificate5 } from "node:crypto";
 import { gunzipSync as gunzipSync2 } from "node:zlib";
 
 // verifier/envelope.mjs
@@ -8506,9 +8506,10 @@ function releasePolicyRules(pol) {
     })
   ]);
 }
-async function verifyReleaseAttestation({ bundle, digestHex, trustedRoot, policy = DEFAULT_RELEASE_POLICY }) {
+async function verifyStatementBundle({ bundle, digestHex, trustedRoot, policy = DEFAULT_RELEASE_POLICY, predicateTypes = null, subjectName = "the release digest" }) {
   const pol = { ...DEFAULT_RELEASE_POLICY, ...policy };
-  const reasons = [], fail = (m2) => ({ ok: false, reasons: [...reasons, `REJECT: ${m2}`], claims: null });
+  const allowed = predicateTypes ?? pol.predicateTypes;
+  const reasons = [], fail = (m) => ({ ok: false, reasons: [...reasons, `REJECT: ${m}`], statement: null, cert: null });
   if (!bundle || typeof bundle !== "object") return fail("bundle is not an object");
   if (bundle.mediaType !== "application/vnd.dev.sigstore.bundle.v0.3+json") return fail(`bundle mediaType ${JSON.stringify(bundle.mediaType)} is not v0.3 (single-certificate form)`);
   if (bundle.verificationMaterial?.x509CertificateChain) return fail("bundle carries an x509CertificateChain (legacy form) and is refused");
@@ -8529,7 +8530,7 @@ async function verifyReleaseAttestation({ bundle, digestHex, trustedRoot, policy
   } catch (e) {
     return fail(`Sigstore verification failed: ${e.message}`);
   }
-  reasons.push(`Sigstore: Fulcio chain to the pinned root, SCT, Rekor inclusion, DSSE signature, and the identity policy (repo ${pol.repository}, workflow ${pol.workflowPath}, tag pattern, issuer ${pol.issuer}) all hold`);
+  reasons.push(`Sigstore: Fulcio chain to the pinned root, SCT, Rekor inclusion, DSSE signature, and the identity policy (repo ${pol.repository}, workflow ${pol.workflowPath}, tag pattern, issuer ${pol.issuer}, trigger, visibility)`);
   if (payloadType !== "application/vnd.in-toto+json") return fail(`payload type ${payloadType} is not an in-toto statement`);
   let st;
   try {
@@ -8541,35 +8542,48 @@ async function verifyReleaseAttestation({ bundle, digestHex, trustedRoot, policy
   if (extra.length) return fail(`statement carries unknown top-level fields ${extra.join(", ")}`);
   if (st._type !== IN_TOTO_STATEMENT_V1) return fail(`statement _type ${JSON.stringify(st._type)} is not ${IN_TOTO_STATEMENT_V1}`);
   if (!Array.isArray(st.subject) || st.subject.length !== 1 || !st.subject[0]?.digest?.sha256) return fail("statement must have exactly one subject with a sha256 digest");
-  if (st.subject[0].digest.sha256.toLowerCase() !== digestHex.toLowerCase()) return fail(`statement subject ${st.subject[0].digest.sha256.slice(0, 16)}... is not the release digest ${digestHex.slice(0, 16)}...`);
-  if (!pol.predicateTypes.includes(st.predicateType)) return fail(`predicate type ${JSON.stringify(st.predicateType)} is not accepted (${pol.predicateTypes.join(", ")})`);
-  const pr = st.predicate || {};
-  if (!/^[0-9a-f]{96}$/.test(String(pr.snp_measurement || ""))) return fail("predicate has no 48-byte snp_measurement");
-  reasons.push(`in-toto v1 statement: subject ${st.subject[0].name} sha256:${digestHex.slice(0, 16)}..., predicate ${st.predicateType}`);
-  const certB64 = bundle.verificationMaterial.certificate.rawBytes;
+  if (st.subject[0].digest.sha256.toLowerCase() !== digestHex.toLowerCase()) return fail(`statement subject ${st.subject[0].digest.sha256.slice(0, 16)}... is not ${subjectName} ${digestHex.slice(0, 16)}...`);
+  if (!allowed.includes(st.predicateType)) return fail(`predicate type ${JSON.stringify(st.predicateType)} is not accepted (${allowed.join(", ")})`);
   const { X509Certificate: X509Certificate6 } = await Promise.resolve().then(() => (init_dist2(), dist_exports));
-  const cert = X509Certificate6.parse(Uint8Array.from(Buffer.from(certB64, "base64")));
+  const cert = X509Certificate6.parse(Uint8Array.from(Buffer.from(bundle.verificationMaterial.certificate.rawBytes, "base64")));
+  return { ok: true, reasons, statement: st, cert, pol };
+}
+function identityClaimsOf(cert, pol, bundle) {
   const ref = ext(cert, "extGitHubWorkflowRef", "workflowRef");
   const m = new RegExp(pol.refPattern).exec(ref);
   const ver = m ? [+m[1], +m[2], +m[3]] : null, flavor = m ? m[4] ? m[4].slice(1) : "gpu" : null;
-  if (!ver) return fail(`ref ${ref} did not yield a version`);
-  const cmp = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
-  if (cmp(ver, pol.minimumRelease) < 0) return fail(`release v${ver.join(".")} is below the minimum release v${pol.minimumRelease.join(".")} (a genuine but rolled-back release)`);
-  reasons.push(`release v${ver.join(".")} (${flavor}) meets the minimum v${pol.minimumRelease.join(".")}`);
   const integratedTime = bundle.verificationMaterial.tlogEntries[0]?.integratedTime;
-  return { ok: true, reasons, claims: {
+  return {
     repository: pol.repository,
     ref,
-    tag: ref.replace(/^refs\/tags\//, ""),
+    tag: String(ref || "").replace(/^refs\/tags\//, ""),
     version: ver,
     flavor,
-    digest: digestHex.toLowerCase(),
     workflow: ext(cert, "extBuildConfigURI", "buildConfigURI"),
     sha: ext(cert, "extGitHubWorkflowSHA", "workflowSHA") ?? ext(cert, "extSourceRepositoryDigest", "sourceRepositoryDigest"),
     trigger: ext(cert, "extBuildTrigger", "buildTrigger"),
     runInvocation: ext(cert, "extRunInvocationURI", "runInvocationURI"),
     signedAt: cert.notBefore?.toISOString?.() ?? null,
-    integratedTime: integratedTime ? new Date(Number(integratedTime) * 1e3).toISOString() : null,
+    integratedTime: integratedTime ? new Date(Number(integratedTime) * 1e3).toISOString() : null
+  };
+}
+var compareVersions = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+async function verifyReleaseAttestation({ bundle, digestHex, trustedRoot, policy = DEFAULT_RELEASE_POLICY }) {
+  const s = await verifyStatementBundle({ bundle, digestHex, trustedRoot, policy });
+  if (!s.ok) return { ok: false, reasons: s.reasons, claims: null };
+  const { statement: st, cert, pol } = s;
+  const reasons = [...s.reasons], fail = (m) => ({ ok: false, reasons: [...reasons, `REJECT: ${m}`], claims: null });
+  const pr = st.predicate || {};
+  if (!/^[0-9a-f]{96}$/.test(String(pr.snp_measurement || ""))) return fail("predicate has no 48-byte snp_measurement");
+  reasons.push(`in-toto v1 statement: subject ${st.subject[0].name} sha256:${digestHex.slice(0, 16)}..., predicate ${st.predicateType}`);
+  const id = identityClaimsOf(cert, pol, bundle);
+  if (!id.version) return fail(`ref ${id.ref} did not yield a version`);
+  if (compareVersions(id.version, pol.minimumRelease) < 0) return fail(`release v${id.version.join(".")} is below the minimum release v${pol.minimumRelease.join(".")} (a genuine but rolled-back release)`);
+  if (Array.isArray(pol.revoked) && pol.revoked.includes(id.tag)) return fail(`release ${id.tag} is revoked by the release index`);
+  reasons.push(`release v${id.version.join(".")} (${id.flavor}) meets the minimum v${pol.minimumRelease.join(".")}`);
+  return { ok: true, reasons, claims: {
+    ...id,
+    digest: digestHex.toLowerCase(),
     snpMeasurement: pr.snp_measurement,
     tdxMeasurement: pr.tdx_measurement ?? null,
     cmdline: pr.cmdline ?? null,
@@ -8578,6 +8592,185 @@ async function verifyReleaseAttestation({ bundle, digestHex, trustedRoot, policy
   } };
 }
 var require_sha256 = (b) => createHash3("sha256").update(b).digest();
+
+// verifier/release-index.mjs
+import fs3 from "node:fs";
+import path3 from "node:path";
+import { fileURLToPath } from "node:url";
+import { createHash as createHash4 } from "node:crypto";
+var INDEX_SCHEMA = "enclave-release-index/v1";
+var INDEX_PREDICATE = "https://enclave.host/predicate/release-index/v1";
+var INDEX_ASSET = "release-index.json";
+var POLICY_SCHEMA = "enclave-release-policy/v1";
+var FLAVORS = Object.freeze(["gpu", "cpu", "gpu8"]);
+var TAG_RE = /^v(\d+)\.(\d+)\.(\d+)(-cpu|-gpu8)?$/;
+var sha256hex = (b) => createHash4("sha256").update(b).digest("hex");
+var parseTag = (tag) => {
+  const m = TAG_RE.exec(String(tag || ""));
+  return m ? { version: [+m[1], +m[2], +m[3]], flavor: m[4] ? m[4].slice(1) : "gpu" } : null;
+};
+var versionString = (v) => `v${v.join(".")}`;
+var REPO = path3.resolve(path3.dirname(fileURLToPath(import.meta.url)), "..");
+function readReleasePolicy(file = path3.join(REPO, "verifier", "release-policy.json")) {
+  const p = JSON.parse(fs3.readFileSync(file, "utf8"));
+  return normalizePolicy(p);
+}
+function normalizePolicy(p) {
+  if (!p || p.schema !== POLICY_SCHEMA) throw new Error(`release policy schema must be ${POLICY_SCHEMA}`);
+  const min = parseTag(p.minimumRelease);
+  if (!min || min.flavor !== "gpu") throw new Error(`release policy minimumRelease must be a bare vX.Y.Z tag, not ${JSON.stringify(p.minimumRelease)}`);
+  const revoked = Array.isArray(p.revoked) ? p.revoked.map(String) : null;
+  if (!revoked || revoked.some((t) => !parseTag(t))) throw new Error("release policy revoked must be a list of release tags");
+  return { minimumRelease: min.version, revoked };
+}
+function buildReleaseIndex({ releases, policy, repository, generatedAt = (/* @__PURE__ */ new Date()).toISOString(), sequence = null } = {}) {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(repository || ""))) throw new Error("repository must be OWNER/NAME");
+  const pol = normalizePolicy({ schema: POLICY_SCHEMA, minimumRelease: versionString(policy.minimumRelease), revoked: policy.revoked });
+  const rows = [];
+  for (const r of releases || []) {
+    const t = parseTag(r?.tag);
+    if (!t) continue;
+    if (!/^[0-9a-f]{64}$/.test(String(r.digest || "").toLowerCase())) continue;
+    rows.push({
+      tag: r.tag,
+      digest: String(r.digest).toLowerCase(),
+      publishedAt: r.publishedAt ?? null,
+      version: t.version,
+      flavor: t.flavor,
+      revoked: pol.revoked.includes(r.tag),
+      belowFloor: compareVersions(t.version, pol.minimumRelease) < 0
+    });
+  }
+  rows.sort((a, b) => compareVersions(b.version, a.version) || a.flavor.localeCompare(b.flavor));
+  const latest = {};
+  for (const f of FLAVORS) {
+    const c = rows.find((r) => r.flavor === f && !r.revoked && !r.belowFloor);
+    if (c) latest[f] = { tag: c.tag, digest: c.digest, publishedAt: c.publishedAt };
+  }
+  const seq = sequence ?? rows.length;
+  return {
+    schema: INDEX_SCHEMA,
+    repository,
+    generatedAt,
+    sequence: seq,
+    minimumRelease: versionString(pol.minimumRelease),
+    revoked: [...pol.revoked],
+    latest,
+    releases: rows.map((r) => ({ tag: r.tag, digest: r.digest, publishedAt: r.publishedAt, ...r.revoked ? { revoked: true } : {}, ...r.belowFloor ? { belowFloor: true } : {} }))
+  };
+}
+var indexBytesOf = (index) => Buffer.from(JSON.stringify(index, null, 1) + "\n", "utf8");
+var indexPredicateOf = (indexBytes, index) => ({ schema: INDEX_PREDICATE, indexSha256: sha256hex(indexBytes), repository: index.repository, generatedAt: index.generatedAt, sequence: index.sequence, minimumRelease: index.minimumRelease, latest: index.latest });
+function checkIndex({ index, digestHex, predicate, policy = DEFAULT_RELEASE_POLICY }) {
+  const pol = { ...DEFAULT_RELEASE_POLICY, ...policy };
+  const reasons = [], fail = (m) => ({ ok: false, reasons: [...reasons, `REJECT: ${m}`] });
+  if (!index || typeof index !== "object") return fail("index is not an object");
+  if (index.schema !== INDEX_SCHEMA) return fail(`index schema ${JSON.stringify(index.schema)} is not ${INDEX_SCHEMA}`);
+  if (index.repository !== pol.repository) return fail(`index names repository ${JSON.stringify(index.repository)}, the policy's is ${pol.repository}`);
+  if (!predicate || predicate.schema !== INDEX_PREDICATE) return fail("the statement's predicate is not a release-index predicate");
+  if (String(predicate.indexSha256 || "").toLowerCase() !== String(digestHex).toLowerCase()) return fail("the predicate's indexSha256 is not the digest of these index bytes");
+  if (predicate.repository !== index.repository || predicate.sequence !== index.sequence || predicate.minimumRelease !== index.minimumRelease) return fail("the predicate and the index disagree (repository, sequence or minimumRelease)");
+  const min = parseTag(index.minimumRelease);
+  if (!min || min.flavor !== "gpu") return fail(`index minimumRelease ${JSON.stringify(index.minimumRelease)} is not a bare vX.Y.Z tag`);
+  if (compareVersions(min.version, pol.minimumRelease) < 0) return fail(`index floor ${index.minimumRelease} is BELOW this verifier's built-in floor ${versionString(pol.minimumRelease)}: the floor only rises`);
+  if (!Number.isInteger(index.sequence) || index.sequence < 0) return fail("index sequence must be a non-negative integer");
+  const gen = Date.parse(index.generatedAt);
+  if (!Number.isFinite(gen)) return fail("index generatedAt is not a date");
+  if (!Array.isArray(index.revoked) || index.revoked.some((t) => !parseTag(t))) return fail("index revoked must be a list of release tags");
+  if (!index.latest || typeof index.latest !== "object") return fail("index has no latest pointers");
+  const latest = {};
+  for (const [f, e] of Object.entries(index.latest)) {
+    if (!FLAVORS.includes(f)) return fail(`index latest names an unknown flavor ${JSON.stringify(f)}`);
+    const t = parseTag(e?.tag);
+    if (!t || t.flavor !== f) return fail(`index latest.${f} tag ${JSON.stringify(e?.tag)} is not a ${f} release tag`);
+    if (!/^[0-9a-f]{64}$/.test(String(e.digest || ""))) return fail(`index latest.${f} carries no sha256 digest`);
+    if (index.revoked.includes(e.tag)) return fail(`index latest.${f} points at a revoked release ${e.tag}`);
+    if (compareVersions(t.version, min.version) < 0) return fail(`index latest.${f} ${e.tag} is below the index's own floor ${index.minimumRelease}`);
+    latest[f] = { tag: e.tag, digest: e.digest.toLowerCase(), version: t.version };
+  }
+  if (!Object.keys(latest).length) return fail("index points at no release at all");
+  reasons.push(`release index ${index.sequence} of ${index.generatedAt.slice(0, 19)}Z: floor ${index.minimumRelease}, latest ${Object.values(latest).map((l) => l.tag).join(", ")}${index.revoked.length ? `, revoked ${index.revoked.join(", ")}` : ""}`);
+  return { ok: true, reasons, latest, minimumRelease: min.version, revoked: [...index.revoked], sequence: index.sequence, generatedAt: index.generatedAt };
+}
+async function verifyReleaseIndex({ indexBytes, bundle, trustedRoot, policy = DEFAULT_RELEASE_POLICY }) {
+  const digestHex = sha256hex(indexBytes);
+  const s = await verifyStatementBundle({ bundle, digestHex, trustedRoot, policy, predicateTypes: [INDEX_PREDICATE], subjectName: "the index digest" });
+  if (!s.ok) return { ok: false, reasons: s.reasons, index: null, claims: null, digest: digestHex };
+  let index;
+  try {
+    index = JSON.parse(Buffer.from(indexBytes).toString("utf8"));
+  } catch {
+    return { ok: false, reasons: [...s.reasons, "REJECT: the index bytes are not JSON"], index: null, claims: null, digest: digestHex };
+  }
+  const c = checkIndex({ index, digestHex, predicate: s.statement.predicate, policy });
+  const claims = identityClaimsOf(s.cert, s.pol, bundle);
+  if (!c.ok) return { ok: false, reasons: [...s.reasons, ...c.reasons], index, claims, digest: digestHex };
+  return { ok: true, reasons: [...s.reasons, ...c.reasons], index, claims, digest: digestHex, latest: c.latest, minimumRelease: c.minimumRelease, revoked: c.revoked, sequence: c.sequence, generatedAt: c.generatedAt };
+}
+var candidatesFromIndex = (v) => Object.values(v.latest || {}).map((l) => ({ tag: l.tag, digest: l.digest }));
+async function main() {
+  const args = process.argv.slice(2), cmd = args.shift();
+  const opt = (n, d = null) => {
+    const i = args.indexOf("--" + n);
+    return i >= 0 ? args[i + 1] : d;
+  };
+  const die = (m) => {
+    console.error(`release-index: ${m}`);
+    process.exit(2);
+  };
+  if (cmd === "build") {
+    const repo = opt("repo") || process.env.GITHUB_REPOSITORY || die("--repo OWNER/NAME"), out = opt("out") || die("--out F"), limit = Number(opt("limit", "20"));
+    const policy = readReleasePolicy(opt("policy") || void 0);
+    const headers = { accept: "application/vnd.github+json", "user-agent": "enclave-release-index", ...process.env.GH_TOKEN || process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GH_TOKEN || process.env.GITHUB_TOKEN}` } : {} };
+    const get = async (url, accept) => {
+      const r = await fetch(url, { headers: { ...headers, ...accept ? { accept } : {} }, signal: AbortSignal.timeout(2e4), redirect: "follow" });
+      if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+      return Buffer.from(await r.arrayBuffer());
+    };
+    const list = JSON.parse((await get(`https://api.github.com/repos/${repo}/releases?per_page=100`)).toString("utf8")).filter((r) => !r.draft && parseTag(r.tag_name));
+    list.sort((a, b) => compareVersions(parseTag(b.tag_name).version, parseTag(a.tag_name).version));
+    const releases = [];
+    for (const r of list.slice(0, limit)) {
+      const asset = (r.assets || []).find((a) => a.name === "tinfoil.hash");
+      if (!asset) {
+        console.error(`release-index: ${r.tag_name}: no tinfoil.hash asset, listed without a digest`);
+        continue;
+      }
+      let digest = null;
+      try {
+        digest = (await get(asset.browser_download_url, "application/octet-stream")).toString("utf8").trim().toLowerCase();
+      } catch (e) {
+        console.error(`release-index: ${r.tag_name}: ${e.message}`);
+        continue;
+      }
+      releases.push({ tag: r.tag_name, digest, publishedAt: r.published_at });
+    }
+    const index = buildReleaseIndex({ releases, policy, repository: repo, sequence: list.length });
+    const bytes2 = indexBytesOf(index);
+    fs3.writeFileSync(out, bytes2);
+    if (opt("predicate")) fs3.writeFileSync(opt("predicate"), JSON.stringify(indexPredicateOf(bytes2, index), null, 1) + "\n");
+    console.log(`release index: ${releases.length} release(s) with digests of ${list.length}; floor ${index.minimumRelease}; latest ${JSON.stringify(index.latest)}; sha256 ${sha256hex(bytes2)} -> ${out}`);
+    return;
+  }
+  if (cmd === "verify") {
+    const indexBytes = fs3.readFileSync(opt("index") || die("--index F"));
+    const j = JSON.parse(fs3.readFileSync(opt("bundle") || die("--bundle F"), "utf8"));
+    const bundle = j.attestations ? j.attestations[0]?.bundle : j;
+    const trustedRoot = JSON.parse(fs3.readFileSync(opt("trusted-root") || path3.join(REPO, "verifier", "roots", "sigstore-trusted-root.json"), "utf8"));
+    const r = await verifyReleaseIndex({ indexBytes, bundle, trustedRoot, policy: opt("repo") ? { repository: opt("repo") } : void 0 });
+    if (args.includes("--json")) console.log(JSON.stringify(r, null, 2));
+    else {
+      for (const x of r.reasons) console.log(x);
+      console.log(r.ok ? `VERIFIED release index ${r.sequence} (floor ${versionString(r.minimumRelease)})` : "REFUSED");
+    }
+    process.exit(r.ok ? 0 : 1);
+  }
+  die("usage: release-index.mjs build|verify ...");
+}
+if (process.argv[1] && path3.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch((e) => {
+  console.error(`release-index: ${e.message}`);
+  process.exit(2);
+});
 
 // verifier/roots/sigstore-trusted-root.json
 var sigstore_trusted_root_default = {
@@ -8716,8 +8909,8 @@ var USER_AGENT = "enclave-verifier";
 var GITHUB_API = "https://api.github.com";
 var GITHUB_DOWNLOADS = "https://github.com";
 var hex2 = (b) => Buffer.from(b).toString("hex");
-var sha256hex = (b) => createHash4("sha256").update(b).digest("hex");
-var TAG_RE = /^v\d+\.\d+\.\d+$/;
+var sha256hex2 = (b) => createHash5("sha256").update(b).digest("hex");
+var TAG_RE2 = /^v\d+\.\d+\.\d+$/;
 async function fetchBounded(url, { fetchImpl = globalThis.fetch, timeoutMs = 2e4, maxBytes = 4 * 1024 * 1024, accept = "application/json" } = {}) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -8752,6 +8945,10 @@ async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO, truste
       out.candidates.push({ tag, digest: c.digest ?? null, provenance: "refused", why: "the release digest is not 64 hex characters" });
       continue;
     }
+    if (Array.isArray(policy.revoked) && policy.revoked.includes(tag)) {
+      out.candidates.push({ tag, digest, provenance: "refused", why: "revoked by the signed release index" });
+      continue;
+    }
     const r = await verifyReleaseAttestation({ bundle: c.bundle, digestHex: digest, trustedRoot, policy: { ...policy, repository: repo } });
     out.candidates.push({
       tag,
@@ -8777,16 +8974,40 @@ async function releaseExpectations({
   apiBase = GITHUB_API,
   downloadBase = GITHUB_DOWNLOADS,
   trustedRoot = TRUSTED_ROOT,
-  policy = {}
+  policy = {},
+  useIndex = true,
+  requireIndex = false
 } = {}) {
   const get = (url, accept) => fetchBounded(url, { fetchImpl, timeoutMs, maxBytes, accept });
-  let latestTag = null, list = tags;
+  let latestTag = null, list = tags, index = { status: "not-consulted" };
+  let pol = { ...policy };
+  if (!list && useIndex) {
+    try {
+      const bytes2 = await get(`${downloadBase}/${repo}/releases/latest/download/${INDEX_ASSET}`, "application/json");
+      const digest = sha256hex2(bytes2);
+      const att = JSON.parse((await get(`${apiBase}/repos/${repo}/attestations/sha256:${digest}`)).toString("utf8"));
+      const bundle = att?.attestations?.[0]?.bundle ?? null;
+      if (!bundle) index = { status: "unavailable", reasons: ["the attestation API returned no bundle for the index"] };
+      else {
+        const v = await verifyReleaseIndex({ indexBytes: bytes2, bundle, trustedRoot, policy: { ...policy, repository: repo } });
+        if (v.ok) {
+          index = { status: "verified", sequence: v.sequence, generatedAt: v.generatedAt, minimumRelease: `v${v.minimumRelease.join(".")}`, latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, signedTag: v.claims?.tag ?? null };
+          list = candidatesFromIndex(v).map((c) => c.tag);
+          latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
+          pol = { ...pol, minimumRelease: v.minimumRelease, revoked: v.revoked };
+        } else index = { status: "refused", reasons: v.reasons.slice(-2) };
+      }
+    } catch (e) {
+      index = { status: "unavailable", reasons: [e.message] };
+    }
+    if (index.status !== "verified" && requireIndex) return { ...await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol }), latestTag: null, index, indexError: `the signed release index is required and was ${index.status}: ${(index.reasons || []).join("; ")}` };
+  }
   if (!list) {
     try {
       latestTag = JSON.parse((await get(`${apiBase}/repos/${repo}/releases/latest`)).toString("utf8"))?.tag_name;
-      if (!TAG_RE.test(String(latestTag))) throw new Error(`the release index named ${JSON.stringify(latestTag)}, not a vX.Y.Z tag`);
+      if (!TAG_RE2.test(String(latestTag))) throw new Error(`the release index named ${JSON.stringify(latestTag)}, not a vX.Y.Z tag`);
     } catch (e) {
-      return { ...await releaseExpectationsFrom([], { repo, trustedRoot, policy }), latestTag: null, indexError: e.message };
+      return { ...await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol }), latestTag: null, index, indexError: e.message };
     }
     list = FLAVOR_SUFFIXES.map((s) => latestTag + s);
   }
@@ -8805,12 +9026,12 @@ async function releaseExpectations({
       candidates.push({ tag, error: e.message });
     }
   }
-  return releaseExpectationsFrom(candidates, { repo, trustedRoot, policy, latestTag });
+  return { ...await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag }), index };
 }
-function captureHosted({ host, port = 443, path: path3 = RAD_PATH, timeoutMs = 2e4, maxBytes = 1024 * 1024, tls = {}, now = () => /* @__PURE__ */ new Date() } = {}) {
+function captureHosted({ host, port = 443, path: path4 = RAD_PATH, timeoutMs = 2e4, maxBytes = 1024 * 1024, tls = {}, now = () => /* @__PURE__ */ new Date() } = {}) {
   if (!host) return Promise.reject(new Error("captureHosted needs a host"));
   return new Promise((resolve, reject) => {
-    const opts = { host, port, path: path3, method: "GET", agent: false, headers: { accept: "application/json", "user-agent": USER_AGENT, connection: "close" }, ...tls };
+    const opts = { host, port, path: path4, method: "GET", agent: false, headers: { accept: "application/json", "user-agent": USER_AGENT, connection: "close" }, ...tls };
     if (!isIP(host)) opts.servername = host;
     const req = https.request(opts, (res) => {
       let cert = null, tlsInfo = null;
@@ -8827,7 +9048,7 @@ function captureHosted({ host, port = 443, path: path3 = RAD_PATH, timeoutMs = 2
       res.on("data", (c) => {
         n += c.length;
         if (n > maxBytes) {
-          req.destroy(new Error(`${host}${path3}: body exceeds ${maxBytes} bytes`));
+          req.destroy(new Error(`${host}${path4}: body exceeds ${maxBytes} bytes`));
           return;
         }
         chunks.push(c);
@@ -8835,21 +9056,21 @@ function captureHosted({ host, port = 443, path: path3 = RAD_PATH, timeoutMs = 2
       res.on("error", reject);
       res.on("end", () => {
         try {
-          if (res.statusCode !== 200) throw new Error(`${host}${path3}: HTTP ${res.statusCode}`);
+          if (res.statusCode !== 200) throw new Error(`${host}${path4}: HTTP ${res.statusCode}`);
           if (!cert) throw new Error(`${host}: the TLS connection presented no certificate`);
           let rad;
           try {
             rad = JSON.parse(Buffer.concat(chunks).toString("utf8"));
           } catch {
-            throw new Error(`${host}${path3}: the body is not JSON`);
+            throw new Error(`${host}${path4}: the body is not JSON`);
           }
-          if (!rad || typeof rad !== "object" || typeof rad.format !== "string" || typeof rad.body !== "string") throw new Error(`${host}${path3}: the document is not { format, body }`);
+          if (!rad || typeof rad !== "object" || typeof rad.format !== "string" || typeof rad.body !== "string") throw new Error(`${host}${path4}: the document is not { format, body }`);
           const certPem = cert.toString();
           const { spki } = spkiOfCert(certPem);
           resolve({
             host,
             port,
-            path: path3,
+            path: path4,
             at: now().toISOString(),
             rad,
             certPem,
@@ -8978,7 +9199,7 @@ function dualAgreement({ reference, own }) {
 async function verifyHost({
   host,
   port = 443,
-  path: path3 = RAD_PATH,
+  path: path4 = RAD_PATH,
   timeoutMs = 2e4,
   tls = {},
   collateral = null,
@@ -9005,7 +9226,7 @@ async function verifyHost({
   };
   let cap;
   try {
-    cap = await captureHosted({ host, port, path: path3, timeoutMs, tls, now: () => new Date(at) });
+    cap = await captureHosted({ host, port, path: path4, timeoutMs, tls, now: () => new Date(at) });
   } catch (e) {
     out.enclave = { status: "unavailable", admissionSafe: false, reasons: [`capture: ${e.message}`], checks: {}, claims: null, failedChecks: [], matched: null, expected: exp.allowed.map((a) => a.tag) };
     out.comparison = { agreement: "reference-missing", reasons: ["no capture"] };
@@ -9073,7 +9294,7 @@ async function selfCheckHosted({
   }
   return brief(v, { latestTag: exp.latestTag ?? null, ...exp.indexError ? { indexError: exp.indexError } : {}, certificate: { subject: cap.certificate.subject, sha256: cap.certificate.sha256, notAfter: cap.certificate.notAfter } });
 }
-var sha256Hex = sha256hex;
+var sha256Hex = sha256hex2;
 export {
   DEFAULT_REPO,
   FLAVOR_SUFFIXES,

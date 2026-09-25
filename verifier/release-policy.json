@@ -1,0 +1,6 @@
+{
+ "schema": "enclave-release-policy/v1",
+ "minimumRelease": "v0.5.841",
+ "revoked": [],
+ "note": "The release floor and revocation list the signed release index carries (verifier/release-index.mjs). Raising minimumRelease is a reviewed commit; the next release signs it into the index, and every consumer that verifies the index refuses a GENUINE older release as a rollback. A tag in `revoked` is never named as latest and is refused by name. The floor can only rise: a consumer never accepts an index whose floor is below its own built-in one (verifier/provenance.mjs DEFAULT_RELEASE_POLICY.minimumRelease)."
+}

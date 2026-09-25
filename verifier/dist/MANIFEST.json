@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-node.mjs",
-  "bytes": 372564,
-  "sha256": "a98efbaf72cbacae658bf61d5477f76181cf049eb23582c93fc0ca896cd67ded"
+  "bytes": 387158,
+  "sha256": "ee44fbe82707c7b0000ca2624079e2029343947b3e65b16f20761d9f6cb51447"
  },
  "build": {
   "tool": "esbuild",
@@ -339,8 +339,8 @@
   },
   {
    "path": "verifier/consumer.mjs",
-   "bytes": 26397,
-   "sha256": "b2aef15c89d3c85a8da5a688d6b7c0d8a233bb61f4744919211c80afc154828a"
+   "bytes": 28735,
+   "sha256": "e64e73f79082d96b1ee894849dab3a471cc8ae14e73d3179fd8953c96eaefa2b"
   },
   {
    "path": "verifier/der.mjs",
@@ -354,8 +354,13 @@
   },
   {
    "path": "verifier/provenance.mjs",
-   "bytes": 9310,
-   "sha256": "3b8e00a66e269d3f3a1a0a274508757e326c175117880d3c7eb6aee02134cb62"
+   "bytes": 10716,
+   "sha256": "e6b7c5f679adb549bb1450ccd6a7b4f16e7527c14c812355ff6cf834bb0ceece"
+  },
+  {
+   "path": "verifier/release-index.mjs",
+   "bytes": 15011,
+   "sha256": "dd64fd53417720ff00b1cd8642b8a73344f254866346ea9eb0a7223e7b50a0c0"
   },
   {
    "path": "verifier/roots/sigstore-trusted-root.json",
