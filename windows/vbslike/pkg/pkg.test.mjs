@@ -329,7 +329,8 @@ test("draft v11 pins the NEXT medium and says it has not been booted on the NucB
   const d = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-11.json"), "utf8"));
   assert.equal(d.files.find((f) => f.path === "guest/uefi/guest.iso").sha256, "7b9b04d699da2e5915df7c51c2464ba2bb18122380b197e1cbea2f24aa9a2ddd");
   assert.equal(d.profiles.uefi.uki.sha256, "20a0e18e51a02ed78465b1234b979177e9aab2d74ba198dd6ccc3d1a8a241a33");
-  assert.ok(!d.files.find((f) => f.path === "guest/uefi/guest.iso").boxReuse, "a medium not yet on the box must not claim a box copy");
+  // on the box since the first v11 staging (515de1fa, which hashed it to the pin), but NOT booted there: reuse is a copy, not a boot
+  assert.equal(d.files.find((f) => f.path === "guest/uefi/guest.iso").boxReuse, "C:\\Users\\claude\\vbs-like\\pkg\\515de1fa8596cafc\\guest\\uefi\\guest.iso");
   assert.match(d.status, /NOT yet been booted on the NucBox/);
   assert.ok(d.profiles.uefi.measured.some((m) => /MON ERROR no vsock transport/.test(m)), "the KVM refusal is recorded as the guard, not a boot");
   assert.equal(d.files.find((f) => f.path === "control/vbslike-host.exe").sha256, "c2cb0c10945a35f8664368ee9fafcae7b4a1fceb315d7bca11a84b4f650a1f29", "the launcher the box runs (hvdial + wmiserve)");
