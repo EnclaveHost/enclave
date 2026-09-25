@@ -67,6 +67,9 @@ param(
   # DESIGN. Without this switch that empty baseline is refused, as before; with it the run proceeds and the harm
   # check rests on the node process and the host settings, which are still compared before and after.
   [switch] $LegacyBackendRetired,
+  # THE INVERSE CONTROL for Windows' firmware-load requirement: run WITHOUT applying AllowFirmwareLoadFromFile, so
+  # the first observable says whether Hyper-V loads this firmware file without the developer setting at all.
+  [switch] $WithoutFirmwarePolicy,
   # OpenHCL's own kmsg, over its diagnostics server on vsock. It is the ONLY readable source for a
   # type-1 start failure on this host: COM3 does not exist here, and a sweep of every Hyper-V event
   # channel across a failing run found no free-text error and no CompleteStartVtl0 entry at all.
@@ -365,8 +368,12 @@ Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
 Note "watchdog armed: it acts when pid $PID ends without cleaning up, or after ${wdCeiling}s if this run hangs"
 
 try {
-  Set-ItemProperty -Path $RegPath -Name $RegName -Value 1 -Type DWORD; $mutated = $true
-  Note "SETTING APPLIED (removed again in this run's cleanup)"
+  if ($WithoutFirmwarePolicy) {
+    Note "SETTING NOT APPLIED (-WithoutFirmwarePolicy): this run asks whether Hyper-V loads the firmware file WITHOUT AllowFirmwareLoadFromFile"
+  } else {
+    Set-ItemProperty -Path $RegPath -Name $RegName -Value 1 -Type DWORD; $mutated = $true
+    Note "SETTING APPLIED (removed again in this run's cleanup)"
+  }
   # the hv_sock service for the report port, if it is not already somebody else's
   $svcKey = Join-Path $SvcPath $ReportSvcGuid
   $script:svcAdded = $false
