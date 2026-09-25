@@ -52,6 +52,16 @@ need("minTcb", lab.minTcb && typeof lab.minTcb === "object");
 need("rpcs (two or more https URLs on distinct hosts)", Array.isArray(lab.rpcs) && new Set(lab.rpcs.map((u) => new URL(u).host)).size >= 2);
 need("predictor", lab.predictor && typeof lab.predictor === "object");
 
+// (d) a synthetic {config, secrets} file (enclave-5d's): the config is what resolveConfigCid serves for the envelope's CID,
+// the secrets are what the release carries. Values are never printed.
+if (lab.syntheticFile) {
+  const syn = JSON.parse(fs.readFileSync(lab.syntheticFile, "utf8"));
+  need("syntheticFile: {config, secrets}", syn && typeof syn.config === "object" && syn.secrets && typeof syn.secrets === "object");
+  const cid = (() => { try { return JSON.parse(D.configCid || "{}").configCid; } catch { return null; } })();
+  need("deployment.configCid: an envelope naming a configCid, for the synthetic config", typeof cid === "string" && cid);
+  lab.configCids = { ...(lab.configCids || {}), [cid]: syn.config };
+  lab.secrets = syn.secrets;
+}
 // the relay's configuration, as the api-relay reads it (set before the modules load)
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "attested-release-lab-"));
 Object.assign(process.env, {
@@ -116,6 +126,12 @@ say(`predictor: ${kat.reason}; toolchain ${lab.predictor.commit.slice(0, 12)}; a
 const t0 = Date.now(), pre = await predictor.expectedFor(D.appRef, { forPrivate: D.isPublic === false });
 if (!pre.ok) die(`the lab deployment's version has no prediction: ${pre.code}: ${pre.reason}`);
 say(`prediction for ${D.appRef} (${Date.now() - t0} ms): AppID ${pre.appId}; ${pre.images.map((i) => `release ${i.release.slice(0, 12)} -> ${i.measurement}`).join("; ")}`);
+{ // the derivation record(s) the prediction was made from, for the guest side to diff against the supervisor's own
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d+)$/.exec(D.appRef), cat = await M.catalogReader(clients, catalogAddr)(m[1].toLowerCase(), Number(m[2]));
+  const rids = [...new Set(pre.images.map((i) => i.runtimeId))];
+  for (const rid of rids) { const rec = M.derivationRecord(D.appRef, cat.version, rid); say(`derivation record (recordSha256 ${createHash("sha256").update(M.canonical(rec)).digest("hex")}): ${M.canonical(rec)}`); }
+  say(`the version on chain: cid ${cat.version.cid}, memMb ${cat.version.memMb}, ports ${JSON.stringify(cat.version.ports)}, approval ${cat.version.approval}, yanked ${cat.version.yanked}`);
+}
 
 // ---- (a) the ledger row: live lease, runner = the endpoint's registry id ----
 const runner = keccak256(stringToBytes(D.endpoint)).toLowerCase();
@@ -160,6 +176,17 @@ if (mode === "serve") {
   const [host, port] = String(lab.listen || "127.0.0.1:18443").split(":");
   const server = lab.tls ? https.createServer({ cert: fs.readFileSync(lab.tls.cert), key: fs.readFileSync(lab.tls.key) }, handle) : http.createServer(handle);
   server.listen(Number(port), host, () => say(`serving ${lab.tls ? "https" : "http"}://${host}:${port}/v1/secrets/* (LAB)`));
+  // optional plain HTTP on LOOPBACK for the supervisor half only: the ticket (its security is the operator signature and the
+  // live lease, not TLS) and the status. The release itself is served only over the TLS listener the guest pins.
+  if (lab.plainListen) {
+    const [ph, pp] = String(lab.plainListen).split(":");
+    if (!["127.0.0.1", "::1", "localhost"].includes(ph)) die("plainListen must be a loopback address");
+    http.createServer((req, res) => {
+      const p = new URL(req.url, "http://lab").pathname;
+      if (p !== "/v1/secrets/release-ticket" && p !== "/v1/secrets/release-status") { res.statusCode = 404; return res.end(JSON.stringify({ error: "tls_only", message: "only the ticket and status are served here" })); }
+      handle(req, res);
+    }).listen(Number(pp), ph, () => say(`serving http://${ph}:${pp}/v1/secrets/{release-ticket,release-status} (LAB, loopback, supervisor half only)`));
+  }
 } else {
   // dry-run: the handler in-process, a per-run operator, no guest. Proves the wiring up to evidence judgement.
   const call = async (method, p, body) => { const res = {}; await handleSecrets({ method, body, socket: { remoteAddress: "127.0.0.1" } }, res, new URL("http://lab" + p), ctx); return res; };

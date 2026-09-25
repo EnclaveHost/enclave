@@ -24,16 +24,8 @@
    "microcode": 117
   }
  },
- "secrets": {
-  "LAB_SYNTHETIC_TOKEN": "<synthetic value>"
- },
  "versionConfig": null,
- "configCids": {
-  "bafkreilabsyntheticconfigdonotuse": {
-   "lab": true,
-   "token": "${LAB_SYNTHETIC_TOKEN}"
-  }
- },
+ "configCids": {},
  "rpcs": [
   "https://base-rpc.publicnode.com",
   "https://base.drpc.org"
@@ -51,17 +43,19 @@
     "dir": "<scratch>/meas/release2"
    },
    {
-    "id": "c5375c714e1f00c2ea580726346f51f3784e3cea8eae99ee6755f684de89d66f",
-    "dir": "<5d session dir>/domain-release"
+    "id": "1428c0c4ff9a9238f96b9dd3c636351f65d2022dc201e3135bbbbf6dd585cdca",
+    "dir": "<5d session dir>/domain-release-020f76e7"
    }
   ],
   "admit": [
-   "c5375c714e1f00c2ea580726346f51f3784e3cea8eae99ee6755f684de89d66f"
+   "1428c0c4ff9a9238f96b9dd3c636351f65d2022dc201e3135bbbbf6dd585cdca"
   ],
   "gateway": "https://trustless-gateway.link",
   "sevSnpMeasure": "<scratch>/meas/venv/bin/sev-snp-measure",
   "sevSnpMeasureSha256": "86719f7000153f279634fbd2c48561cd29d5de254996024ab7dc5ecd82c0644e",
   "components": "<scratch>/meas/lab-work2/components",
   "work": "<scratch>/lab2/predict"
- }
+ },
+ "syntheticFile": "<5d session dir>/synthetic-release.json",
+ "plainListen": "127.0.0.1:19481"
 }
