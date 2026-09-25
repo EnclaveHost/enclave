@@ -111,6 +111,32 @@ the VM, while the manager adds it afterwards with `ModifySystemSettings`. That w
 is accepted and reads back, yet the worker loads the default, because firmware selection would already have been
 settled when the VM was defined. If P1(b) names our path, that is the gate, and E2 is answered "no" at the same time.
 
+## E9. hv_sock reach to VTL0 under OpenHCL: what the VM definition decides (source, not measurement)
+
+The next blocker after `MON ready` is the control exchange with a WMI-created VM over hv_sock: the host dials the
+monitor's port 9000, the monitor dials the host's 9001, and the domain's 40000+id port carries TLS. Whether those
+sockets reach VTL0 through OpenHCL is item 5 of the not-measured list. The source at `a7b0bd4` says this much:
+
+- OpenHCL starts a guest-facing VMBus server and the host-offer relay ONLY when the host's device platform settings say
+  `vmbus_redirection_enabled` (`openhcl/underhill_core/src/worker.rs:1731`: `with_vmbus`/`with_vmbus_relay` are set
+  inside `if dps.general.vmbus_redirection_enabled`). That flag reaches OpenHCL from the host (`dps_json.rs:229`,
+  `guest_emulation_transport/src/api.rs:125`), and on Hyper-V it is the VSSD property `VMBusMessageRedirection`, which
+  petri's `New-CustomVM` exposes and defaults to `$false`.
+- enclave-d1's `uefi-dev-boot.ps1` passes nothing for it, so the VM that reached `MON ready` had redirection OFF. With
+  it off, OpenHCL is not in the VMBus path: VTL0 talks to the host's VMBus directly, as a plain Gen2 VM does, and as
+  the HCS partitions already do. The COM1 console that worked is consistent with that (OpenHCL's own COM redirectors
+  are also off).
+- With redirection ON, OpenHCL's relay does carry hv_sock: host offers are re-offered to VTL0, and the guest's own
+  connect requests are forwarded (`vmbus_relay/src/lib.rs` `handle_hvsock_request` → `vmbus_client.connect_hvsock`).
+  So hv_sock is designed to work either way; the difference is whether OpenHCL sits between.
+
+**Expectation, stated as such:** with d1's current definition (redirection off), `vbslike-host hvdial --vm <GUID>
+--port 9000` after `MON ready` should reach the monitor exactly as it does for an HCS partition, and the guest's ready
+line on 5d's next initrd should say `transport=hv_sock`. If it fails, the alternative is one VSSD property
+(`VMBusMessageRedirection=$true`), not a host change. Two ordering constraints carry over from `lab`: the host's 9001
+listener must be bound to the VM's GUID BEFORE the VM starts (the GUID is known after `New-CustomVM`, before
+`Start-VM`), and the monitor's `load` answer's `appSha256` is the hash agreement the host must check.
+
 ## Bounded probe proposal (sent to enclave-d1, who runs it under the authorized set-probe-restore procedure)
 
 **P1: define the VM the reference way.**
