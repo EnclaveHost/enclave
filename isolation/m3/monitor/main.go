@@ -107,7 +107,10 @@ type domain struct {
 	ln      *vsock.Listener
 	appHash [32]byte
 
-	probe    bool          // run the measured adversary probe instead of the app, for the isolation tests
+	// Probe: this domain runs the measured adversary probe (/plat/domprobe) instead of the app, for the isolation tests.
+	// It is stated in the load answer, so a host knows which workload ran without reading the console (enclave-d1: a
+	// probe domain's `mode` still says "serve", because the mode describes the bundle, not the workload).
+	Probe    bool          `json:"probe,omitempty"`
 	exited   chan struct{} // closed when the process tree is gone
 	inFlight chan struct{} // this domain's share of concurrent report work
 
@@ -422,7 +425,7 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	d := &domain{ID: id, Boot: m.boot, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
 		Port: m.basePrt + uint32(id), UID: m.baseUID + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
-		probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
+		Probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
 	if err := m.start(d, artifact); err != nil {
 		return nil, err // start() has already released whatever it managed to take
 	}
@@ -500,7 +503,7 @@ func (m *monitor) start(d *domain, app []byte) error {
 	mode := "app"
 	args := []string{strconv.Itoa(d.ID), strconv.Itoa(d.UID), mode, strconv.Itoa(d.MemMiB)}
 	switch {
-	case d.probe:
+	case d.Probe:
 		args[2] = "probe"
 	case d.Mode == "run":
 		args[2] = "run"

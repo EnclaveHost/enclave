@@ -120,3 +120,24 @@ func TestListAndStateNameTheBootAndTheRightBootDestroys(t *testing.T) {
 		t.Fatal("the domain is still listed after its destroy")
 	}
 }
+
+// enclave-d1 (box run 091720): a probe domain's `mode` says "serve", because the mode describes the bundle, not the
+// workload, so the domain states `probe: true` itself and a host need not read the console to know which workload ran.
+func TestAProbeDomainSaysSoInItsAnswer(t *testing.T) {
+	m, _ := testMonitor(t, okReport)
+	probe := plantDomain(t, m, 1)
+	probe.Probe = true
+	plantDomain(t, m, 2)
+	got := control(t, m)(`{"cmd":"list"}`)
+	byID := map[float64]map[string]any{}
+	for _, d := range got["domains"].([]any) {
+		dm := d.(map[string]any)
+		byID[dm["id"].(float64)] = dm
+	}
+	if byID[1]["probe"] != true {
+		t.Fatalf("the probe domain must state probe:true, got %v", byID[1])
+	}
+	if _, has := byID[2]["probe"]; has {
+		t.Fatalf("an app domain states no probe field, got %v", byID[2])
+	}
+}
