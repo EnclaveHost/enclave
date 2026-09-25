@@ -34,6 +34,8 @@ param(
   [string] $HypervModule = 'C:\Users\claude\hyperv.psm1',
   [string] $HypervModuleSha256 = '17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c',
   [switch] $SkipModulePin,
+  [string] $Bundle = '',
+  [int]    $RelayPort = 19500,
   [switch] $Approve
 )
 $ErrorActionPreference = 'Stop'
@@ -41,6 +43,18 @@ $ProgressPreference    = 'SilentlyContinue'
 
 $RegPath = 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Virtualization'
 $RegName = 'AllowFirmwareLoadFromFile'
+# HV_SOCK SERVICE REGISTRATION. A host process may only BIND a partition's hv_sock service if that
+# service GUID is registered here. The HCS path never needed it: its compute-system document
+# carries HvSocket.HvSocketConfig with an SDDL granting SYSTEM and Administrators directly. A VM
+# defined through WMI has no such document and this build exposes no Msvm_HvSocket* class, so the
+# registry is the documented mechanism - measured: without it the bind fails with os error 10013,
+# "access forbidden".
+#
+# It is NOT a security-policy relaxation like AllowFirmwareLoadFromFile: it registers a
+# GUID-to-name mapping for a service endpoint. It is still host-wide, so it gets the same
+# treatment - recorded, applied for one run, removed, and verified, with the watchdog covering it.
+$SvcPath  = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices'
+$ReportSvcGuid = '{0:x8}-facb-11e6-bd58-64006a7986d3' -f 9001
 $MARKER  = 'enclave-vbslike-app-domain'
 $stamp   = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss')
 $name    = "enclave-uefi-$stamp"
@@ -134,6 +148,7 @@ if (Test-Path '$sentinel') {
   # is why always-removing looked correct; it would be wrong the day the key is legitimately set.
   if ('$($before.S)' -eq 'Present') { Set-ItemProperty '$RegPath' -Name '$RegName' -Value $($before.V) -Type '$($before.K)' }
   else { Remove-ItemProperty '$RegPath' -Name '$RegName' -EA SilentlyContinue }
+  Remove-Item -Path '$(Join-Path $SvcPath $ReportSvcGuid)' -Recurse -Force -EA SilentlyContinue
   Add-Content -Path '$script:logPath' -Value "`$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')) WATCHDOG fired: the run did not clean up; setting restored and `$('$name') removed" -EA SilentlyContinue
   Remove-Item '$sentinel' -Force -EA SilentlyContinue
 }
@@ -147,6 +162,15 @@ Note "watchdog armed for ${wdSeconds}s (it force-restores the setting if this ru
 try {
   Set-ItemProperty -Path $RegPath -Name $RegName -Value 1 -Type DWORD; $mutated = $true
   Note "SETTING APPLIED (removed again in this run's cleanup)"
+  # the hv_sock service for the report port, if it is not already somebody else's
+  $svcKey = Join-Path $SvcPath $ReportSvcGuid
+  $script:svcAdded = $false
+  if (-not (Test-Path $svcKey)) {
+    New-Item -Path $svcKey -Force | Out-Null
+    New-ItemProperty -Path $svcKey -Name 'ElementName' -Value 'enclave report signing (probe)' -PropertyType String -Force | Out-Null
+    $script:svcAdded = $true
+    Note "hv_sock service $ReportSvcGuid registered for port 9001 (removed again in cleanup)"
+  } else { Note "hv_sock service $ReportSvcGuid already registered by somebody else; left alone" }
 
   if (-not $SkipModulePin) {
     if (-not (Test-Path $HypervModule)) { throw "the Hyper-V module is not at $HypervModule" }
@@ -289,6 +313,38 @@ try {
       Note "state exchange: $($st.Trim())"
       if ($st -match '"head"\s*:\s*"\S') { Note "PROTOCOL OK: the monitor answered a control command" }
       else { Note "PROTOCOL: connected but the monitor returned no answer to {cmd:state}" }
+
+      # THE WHOLE PATH: report signer on 9001, load on 9000 with hash agreement, relay to 40000+id.
+      if ($Bundle -and (Test-Path $Bundle)) {
+        $bsha = (Get-FileHash $Bundle -Algorithm SHA256).Hash.ToLower()
+        Note "loading $Bundle (sha $($bsha.Substring(0,16))) through hv_sock ..."
+        $svOut = "C:\Users\claude\wmiserve-$stamp.out"
+        $sv = Start-Process -FilePath 'C:\Users\claude\vbs-like\target\release\vbslike-host.exe' `
+              -ArgumentList @('wmiserve','--vm',$vmId,'--bundle',$Bundle,'--medium-sha256',$attachedSha,
+                              '--tcp',"$RelayPort",'--label','canary','--vcpus',"$Vcpus",'--mem',"$MemMiB",'--hold','90') `
+              -NoNewWindow -PassThru -RedirectStandardOutput $svOut -RedirectStandardError "$svOut.err" `
+              -RedirectStandardInput 'C:\Users\claude\labin.txt'
+        $dl = (Get-Date).AddSeconds(90); $served = $false
+        while ((Get-Date) -lt $dl -and -not $served) {
+          Start-Sleep -Seconds 2
+          $o = Get-Content $svOut -Raw -EA SilentlyContinue
+          if ($o -match '"step":"ready"') { $served = $true }
+          elseif ($o -match '"ok":false') { break }
+        }
+        foreach ($l in (Get-Content $svOut -EA SilentlyContinue)) { Note "  WMISERVE: $l" }
+        if ($served) {
+          # The APP's own bytes, through the relay. curl -k accepts the guest's self-signed cert:
+          # this proves the app SERVES, not its identity. Identity is judge-hv's job on the
+          # handshake key, and is a separate check - a 200 here is not an attestation.
+          Start-Sleep -Seconds 2
+          $body = & curl.exe -sk --max-time 20 "https://127.0.0.1:$RelayPort/" 2>$null | Out-String
+          $bytes = [System.Text.Encoding]::UTF8.GetByteCount($body)
+          Note "APP ANSWERED: $bytes bytes: $($body -replace "`r?`n",'\n')"
+          if ($body -match 'Hello World') { Note "APP OK: the app served its content through the guest's own TLS (identity NOT verified here)" }
+          else { Note "APP: the relay answered but the body is not the expected content" }
+        } else { Note "WMISERVE did not reach ready" }
+        try { if (-not $sv.HasExited) { Stop-Process -Id $sv.Id -Force -EA SilentlyContinue } } catch {}
+      }
       Note "  (a connect proves the transport and the listener. It says NOTHING about identity, boundary or host exclusion.)"
     } else {
       Note "CONTROL CHANNEL FAILED: MON ready was printed but nothing answered on 9000"
@@ -322,6 +378,12 @@ finally {
       $after = Read-Setting
       if ($after.S -eq $before.S -and "$($after.V)" -eq "$($before.V)") { Note "SETTING RESTORED to $($before.S) (verified)" }
       else { $fail += "SETTING NOT RESTORED: now $($after.S), was $($before.S)" }
+      # only what THIS run added: a service registered by somebody else is never removed
+      if ($script:svcAdded) {
+        Remove-Item -Path (Join-Path $SvcPath $ReportSvcGuid) -Recurse -Force -EA SilentlyContinue
+        if (Test-Path (Join-Path $SvcPath $ReportSvcGuid)) { $fail += "hv_sock service $ReportSvcGuid NOT removed" }
+        else { Note "hv_sock service $ReportSvcGuid removed (verified)" }
+      }
     } catch { $fail += "RESTORE FAILED: $($_.Exception.Message)" }
   }
   $nodeAfter = @(Get-Process node -EA SilentlyContinue | ForEach-Object { $_.Id }) -join ','
