@@ -273,8 +273,9 @@ create/fund/refund transactions.
 2. **guestd:** `release:true`, verdict `attested`, measurement = `/v1/expected-guest` for the test id = 20319b02…ef47.
 3. **Serial:** `DOM release: deployment 0x… envelope <16 hex>… 2 allowed origin(s), 0 refused, config <n> bytes`
    (the relay and the hookbin), then `DOM app config: <m> bytes (ENCLAVE_CONFIG)`, then `DOM serving`, and none of the
-   app's output. The `envelope` prefix must equal the first 16 hex of sha256(the ON-CHAIN envelope bytes, read from
-   the ledger) (e3). That value is the envelopeSha256 the relay states inside its signed, sealed release
+   app's output. The `envelope` prefix must equal the first 16 hex of sha256(the ledger row's `configCid` field,
+   TRIMMED), which is exactly what the relay hashes (secrets-release.mjs:363, 474 at b7a3364c; d1). The CLI writes
+   the envelope with no surrounding whitespace, so it is the raw envelope in practice (e3). That value is the envelopeSha256 the relay states inside its signed, sealed release
    (front/provision.go:182, release/client.go `EnvelopeTag`). The config and the egress list behind "2 allowed
    origin(s)" come only from that attested release (egress/policy.go `FromRelease` requires `rel.Attested()`), never
    from anything the host delivered, so a host cannot widen the egress.
