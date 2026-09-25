@@ -113,6 +113,19 @@ test("the co-signer refuses, and signs nothing: another nonce, another build or 
   } finally { R.close(); }
 });
 
+test("never twice, under concurrency: two simultaneous requests for one nonce -- exactly one signature, one journal line", { skip, timeout: 60000 }, async () => {
+  const R = await rig();
+  try {
+    const p = R.phone(), N = createHash("sha256").update("concurrent nonce").digest(), x = R.radFor(p, N);
+    const req = { relay: R.relay, name: "pixel-owned", nonce: N.toString("base64"), rad: x.rad, ...R.instanceProof(R.owner, x.B) };
+    const both = await Promise.all([R.cosigner.sign(req), R.cosigner.sign(req)]);
+    assert.equal(both.filter((r) => r.ok).length, 1, JSON.stringify(both.map((r) => r.reason || "ok")));
+    assert.match(both.find((r) => !r.ok).reason, /never twice/);
+    const lines = fs.readFileSync(R.journalFile, "utf8").trim().split("\n");
+    assert.equal(lines.length, 1, "one journal line for the nonce");
+  } finally { R.close(); }
+});
+
 test("the hub: a co-signature for nonce N refused on a connection whose nonce is N'; a second attach with a VALID co-signature and another transport key refused while the owner's tunnel is live", { skip, timeout: 60000 }, async () => {
   const R = await rig();
   try {

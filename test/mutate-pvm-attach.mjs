@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SUITES = { cosign: "test/pvm-attach-cosigner.test.mjs", payload: "test/anchor-attach-instance.test.mjs" };
 const T = { ok: "a registered name: no operator signature, no attach", refuse: "the co-signer refuses, and signs nothing", hub: "the hub: a co-signature for nonce N",
-            http: "the HTTP wrapper", native: "anchor_attach_instance.h, natively", secret: "the instance SECRET never leaves the payload" };
+            http: "the HTTP wrapper", conc: "never twice, under concurrency", native: "anchor_attach_instance.h, natively", secret: "the instance SECRET never leaves the payload" };
 const CS = "shielded/anchor/avf/runner/attach-cosigner.mjs", H = "shielded/anchor/avf/payload/anchor_attach_instance.h", PL = "shielded/anchor/avf/payload/anchor_payload.c";
 const MUTATIONS = [
   ["C01", "a nonce signed twice", CS, [["if (signed.has(nonceSha256)) return no(", "if (false) return no("]], "cosign", T.refuse],
@@ -28,6 +28,7 @@ const MUTATIONS = [
   ["C10", "the configured relay not checked (the sanity check)", CS, [["if (req.relay !== relay) return no(", "if (false) return no("]], "cosign", T.refuse],
   ["C11", "the wrapper listens beyond loopback", CS, [["if (![\"127.0.0.1\", \"::1\", \"localhost\"].includes(host))", "if (false)"]], "cosign", T.http],
   ["C12", "the instance signature over B without its domain", CS, [["Buffer.concat([Buffer.from(ATTACH_INSTANCE_DOMAIN), B])", "B"]], "cosign", T.ok],
+  ["C13", "the nonce recorded only AFTER the signing await (two concurrent requests both signed)", CS, [["    signed.add(nonceSha256);\n    const operatorSig = await account.signMessage({ message });", "    const operatorSig = await account.signMessage({ message });\n    signed.add(nonceSha256);"]], "cosign", T.conc],
   ["P01", "the payload signs a transcript that is not its own", H, [["|| !sh_avf_pad_binding_valid(bound, blen, tpk, ppk)) return 0;", ") return 0;"]], "payload", T.native],
   ["P02", "the payload signs under another domain", H, [["#define ANCHOR_ATTACH_INSTANCE_DOMAIN \"enclave-pvm-attach-instance-v1\\n\"", "#define ANCHOR_ATTACH_INSTANCE_DOMAIN \"enclave-pvm-instance-sig-v1\\n\""]], "payload", T.native],
   ["P03", "the instance secret printed by the payload", PL, [["            OUT(\"INSTANCEATTACH key=%s sig=%s\", isph, isigh);", "            OUT(\"INSTANCEATTACH key=%s sig=%s\", isph, isigh); { char k[129]; sh_pads_bin2hex(g_isk, 64, k); OUT(\"DEBUG isk=%s\", k); }"]], "payload", T.secret],
