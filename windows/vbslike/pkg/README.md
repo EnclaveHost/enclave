@@ -135,6 +135,25 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   configuration for isolated VM", and `ohcldiag-dev <VM> inspect -r vm/init_data/dps` on the type-16 control run for
   the general.* values that check refuses. v17 is staged with d1's first kmsg run.
 
+- **v18 draft** (`drafts/nucbox-ownguest-18.json`, HELD; supersedes v17; v16 stays staged): d1's 03:26 `ohcldiag-dev`
+  runs pinned VERBATIM: type 16 read 354 VTL2 kmsg lines (`6.12.52-microsoft-hcl+`, `runner@runnervmrw5os`, the full
+  OpenHCL command line, no `microsoft-standard-WSL2`) so the tool is MEASURED working; type 1 answered exactly
+  `Error: unknown service diag.UnderhillDiag` (stderr; stdout empty), pinned with d1's and 5d's reading as a CVM-mode
+  reply from a RUNNING diagnostics server — positive evidence that VTL2 and OpenHCL userspace came up in an isolated
+  partition, localising nothing. The type-16 inspect baseline (`build_info`: release/1.7.2511, 29e15ab8; `control_state`
+  started). Two corrections: the all-zero VMGS was refused for lacking a VHD FOOTER (a fresh store is an empty 4 MiB
+  store + `conectix` footer), not for content; and OpenHCL's formatter wrote the `GUESTRTS` header on open, so the
+  worker DID open the guest state — v17's "pristine donor" inference reason is withdrawn (its other two stand). 5d's
+  `vmgs_check.py` (file 18, PROVISIONING_MARKER). The memmarker PROBE medium (ISO `f173f15c…`, UKI `265de2cc…`, initrd
+  `6dd5deeb…` reproduced byte-exact) as a second `probe.*` medium, rebuilt by `--rebuild` and refused as any profile's
+  medium. Probe initrd notes corrected per 5d: the module is archived at mode 0644 (cpio records the mode) and every
+  initrd pin carries builder uid/gid 1000 (caveat). The VTL2 inputs now come from durable read-only copies
+  (`sources/vtl2/`) with constant-hash asserts in the generator, after a flowey run in the pinned tree overwrote the
+  initrd pin on this machine and the phase-2 command restored it byte-exact; and the IGVM rebuild check now feeds d1's
+  `build-ownguest.sh` a SHADOW TREE of the pinned VTL2 bytes, because the real tree's second extracted kernel package
+  had made the script's `ls | head -1` pick the CVM kernel while every pin was right. E2/E3 NOT RUN; no MON line under
+  vbs.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
