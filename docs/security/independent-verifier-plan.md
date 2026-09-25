@@ -612,7 +612,10 @@ GitHub artifact-attestation API returned no inline bundle for a recent gh releas
 not decoded here. Nothing is fabricated: the v2 path stays untested until a release of ours, or a public bundle with
 provenance, carries a v2 entry; the differential job will show it the day our release workflow moves.
 
-**The live differential job (2026-09-24), prepared, not enabled.** `verifier/live-differential.mjs` is glue over what
+**The live differential job (2026-09-24), prepared; ENABLED and scheduled 2026-09-25 (Steven: repeatable live coverage): the repository
+variables `VERIFIER_LIVE_DIFFERENTIAL=enabled` and `VERIFIER_LIVE_HOST` are set, the workflow runs daily at 06:17 UTC against that host
+(Tinfoil's public host until a hosted enclave of ours is live, which yields agree-refuse on every run and a `disagree` on any drift in
+the bytes, the collateral or the reference; a dispatch names its own host).** `verifier/live-differential.mjs` is glue over what
 exists: `cli.mjs capture` for the enclave's document, certificate and AMD collateral (bounded fetches), the release's
 Sigstore bundle verified by `verifier/provenance.mjs` for the expected measurement (never taken from the enclave or a
 proxy; latest and the sibling flavors tried), this branch's verifier on the document, the Tinfoil reference on the same

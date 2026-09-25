@@ -43,9 +43,11 @@ test("no verified provenance means no expected measurement: provenance-failed, e
   const out = fs.mkdtempSync(path.join(tmp, "out-")); const r = spawnSync(process.execPath, [path.join(REPO, "verifier", "live-differential.mjs"), "--from", path.join(F, "genoa-tinfoil"), "--release-bundle", BUNDLES, "--release-digest", ["0".repeat(64), "1".repeat(64)].join(","), "--out", out, "--now", "2026-09-24T05:00:00Z"], { encoding: "utf8", env });
   assert.equal(r.status, 2, r.stdout + r.stderr); const report = JSON.parse(fs.readFileSync(path.join(out, "report.json"), "utf8")); assert.equal(report.verdict, "provenance-failed"); assert.equal(report.ours, null); assert.match(report.reasons.join(" "), /no release's provenance verified/);
 });
-test("the shadow workflow is dispatch-only, gated by a repository variable, read-only and pinned", () => {
+test("the shadow workflow runs on dispatch or the daily schedule, gated by the repository variable and a named host, read-only and pinned", () => {
   const y = fs.readFileSync(path.join(REPO, ".github", "workflows", "verifier-live-differential.yml"), "utf8");
-  assert.equal(/^\s+schedule:/m.test(y), false, "never scheduled"); assert.equal(/^\s+push:/m.test(y), false); assert.equal(/^\s+pull_request:/m.test(y), false);
+  assert.match(y, /^\s+schedule:\n\s+- cron: "17 6 \* \* \*"/m, "scheduled daily (2026-09-25), gated by the same variable and a host variable"); assert.equal(/^\s+push:/m.test(y), false); assert.equal(/^\s+pull_request:/m.test(y), false);
+  assert.match(y, /if: \$\{\{ vars\.VERIFIER_LIVE_DIFFERENTIAL == 'enabled' && \(inputs\.host != '' \|\| vars\.VERIFIER_LIVE_HOST != ''\) \}\}/, "the job runs only when enabled AND a host is named");
+  assert.match(y, /--host "\$\{\{ inputs\.host \|\| vars\.VERIFIER_LIVE_HOST \}\}"/, "the dispatch input wins; the schedule takes the variable");
   assert.match(y, /workflow_dispatch:/); assert.match(y, /vars\.VERIFIER_LIVE_DIFFERENTIAL == 'enabled'/); assert.match(y, /permissions:\n  contents: read/);
   assert.equal(/secrets\./.test(y), false, "no secret"); for (const m of y.matchAll(/uses: ([^@\s]+)@([0-9a-f]{40})/g)) assert.ok(m[2], m[1]); assert.equal((y.match(/uses: /g) || []).length, (y.match(/uses: [^@\s]+@[0-9a-f]{40}/g) || []).length, "every action pinned by commit");
   assert.match(y, /npm ci --ignore-scripts/); assert.match(y, /live-differential\.mjs --host/); assert.match(y, /host:\n\s+description:[^\n]*\n\s+required: true/, "the host is a required input with no default"); assert.equal(/default: "inference\.tinfoil\.sh"/.test(y), false);
