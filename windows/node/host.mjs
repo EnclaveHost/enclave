@@ -49,16 +49,22 @@ const RENEW_LEAD_MS = 15 * 60_000;
 export const RESPAWN_BUDGET = 3;
 export const RESPAWN_WINDOW_MS = 60 * 60 * 1000;
 
+// A manager-stated value, as it appears in a refusal reason: at most 64 characters. The reason is recorded, shown on the
+// console and persisted with a block (host-state.json), so a lying manager must not be able to grow any of them without
+// bound (enclave-99). Consumers escape it anyway: the node is not trusted by the tenant.
+const stated64 = (v) => { const t = JSON.stringify(v ?? null) ?? "null"; return t.length > 64 ? `${t.slice(0, 61)}...` : t; };
+
 export function isolationBoundaryRefusal(inst) {
   if (!inst || typeof inst !== "object") return "the manager returned no instance view";
+  const who = inst.id == null ? "the instance" : stated64(String(inst.id)).replace(/^"|"$/g, "");
   const stated = "hostExcludedAsStated" in inst ? inst.hostExcludedAsStated : inst.hostExcluded;
   if (inst.hostExcluded !== false || (stated !== undefined && stated !== false)) {
-    return `the manager's view of ${inst.id ?? "the instance"} states hostExcluded=${JSON.stringify(stated ?? null)}; `
+    return `the manager's view of ${who} states hostExcluded=${stated64(stated)}; `
          + "this backend is T0-hv with the host NOT excluded, and nothing here verifies more, so it is not served";
   }
   const tier = typeof inst.tier === "string" ? inst.tier.toUpperCase().replace(/^T0-HV$/, "T0-hv") : null;
   if (tier !== "T0-hv") {
-    return `the manager's view of ${inst.id ?? "the instance"} states tier ${JSON.stringify(inst.tier ?? null)}; `
+    return `the manager's view of ${who} states tier ${stated64(inst.tier)}; `
          + "this backend's tier is T0-hv, and a view stating another is not served";
   }
   return null;
@@ -1267,7 +1273,15 @@ export class Host {
       // LEASE END is still honoured, and before ensureApp, so a lapsed lease is neither kept running nor served again for
       // one tick by a manager that turned honest: the held domain is RETIRED here. That is a local retirement (#stopApp),
       // never an on-chain release, so it stays inside heldReason's "never released automatically" (enclave-99's re-review).
+      // And it is BLOCKED here (enclave-99's re-review of 99900b74): otherwise the next ledger scan re-claims the lapsed
+      // lease, spawning the tenant's app again under the same manager, and every lease period the claim takes gas and a
+      // quantum. That is the renew leak again, through the claim. blocked is exactly the needed state: scanLedger skips
+      // it, an unforced consider refuses it, the operator's forced claim clears it, and it persists across a restart.
+      // Nothing is released on chain: this is local state, as heldReason's doctrine requires.
       if (rec.boundaryHeld === true && untilMs < Date.now()) {
+        this.blocked.set(id, `the manager stated a boundary this backend cannot have (${rec.reason || "boundary-held"}); the lease `
+          + "lapsed unrenewed and the domain was retired here. It is not re-claimed until the operator forces it; nothing was released on chain");
+        this.#saveTracked();
         await this.#stopApp(id, "the lease lapsed while the deployment was boundary-held (not renewed)");
         continue;
       }
