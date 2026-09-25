@@ -146,6 +146,9 @@ test("interop: the supervisor's own routeFor + openSplice reach a partition thro
   const transport = { request: async () => ({ status: 200, body: view }) };
   const route = await routeFor(transport, ID, good.app);
   assert.equal(route.image, good.image);
+  // the NucBox HCS backend states its tier as the guest does, "t0-hv": the same tier, the same route shape
+  const lower = await routeFor({ request: async () => ({ status: 200, body: { ...view, tier: "t0-hv" } }) }, ID, good.app);
+  assert.equal(lower.image, good.image);
   assert.equal(route.measurement, undefined);
   const s = track(await openSplice(dp.addr, route));
   s.resume();

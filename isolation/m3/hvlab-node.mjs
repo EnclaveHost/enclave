@@ -58,7 +58,9 @@ await chain.resolveAddresses();
 const { appZone } = await imp("windows/node/appzone.mjs");
 const { IsolationManagerClient } = await imp("windows/node/isolation-client.mjs");
 const { Manager, createServer } = await imp("windows/vbslike/manager/server.mjs");
-const { createIsolationSplicer, dataPlaneFor } = await imp("windows/vbslike/datapath/node-bridge.mjs");
+// the splicer and the data plane from the PUBLISHED bridge (this checkout): if the tree's copy is stale that is named
+// above as a FAIL, and the path past it is still exercised with the bytes the tree is meant to carry
+const { createIsolationSplicer, dataPlaneFor } = await import(pathToFileURL(path.join(HERE, "..", "..", "windows/vbslike/datapath/node-bridge.mjs")).href);
 const { createTunnelHub } = await imp("relay/tunnel.js");
 const { runtimeId } = await imp("isolation/contract/runtime.mjs");
 const { WebSocket, createWebSocketStream } = await import(pathToFileURL(path.join(T, "node_modules", "ws", "wrapper.mjs")).href);
@@ -71,6 +73,9 @@ const image = sha(fs.readFileSync(imagePath));
 const guests = [Number(cidA), Number(cidB)];
 const relays = [];
 class KvmBackend {
+  // it stands in for the NucBox launch backend, so it answers to that backend's name; its boundary says what it is
+  get backend() { return "hyperv-partition-per-app"; }
+  get supports() { return { gpu: false, secrets: false, egress: false, config: false, ports: false }; }
   get boundary() { return { tier: "T0-hv", hostExcluded: false, partition: "kvm-plain-fixture (hvlab, NOT Hyper-V)" }; }
   async preflight() { return { ok: true, checks: [], boundary: this.boundary }; }
   async start(mapping, { instanceId }) {
@@ -86,8 +91,10 @@ class KvmBackend {
     const r = spawn("python3", ["-u", path.join(HERE, "hvlab.py"), "relay", String(cid), String(ans.port), String(tcpPort)], { stdio: "ignore" });
     relays.push(r);
     await new Promise((res) => setTimeout(res, 400));
+    // the handle the HCS backend returns carries its BOUNDARY verbatim (the manager takes the record's tier from it):
+    // d1's own constant, with only the partition label saying what this stand-in is
     return { name: instanceId, vmId: `hvlab-cid-${cid}`, appId: mapping.appId, tcpPort, guestPort: ans.port, image,
-             launcherKey, guest: { booted: true } };
+             launcherKey, guest: { booted: true }, boundary: { ...HCS_BOUNDARY, partition: "kvm-plain-fixture (hvlab, NOT Hyper-V)" } };
   }
   async stop() { return { stopped: true }; }
 }
@@ -98,7 +105,11 @@ for (const f of ["hello.wasm", "hookbin.wasm"]) {
 }
 const byCid = { bafkreibjbefi32gvjrd54lhdizq6zlywym6urcuztzvi455xfv23tyjnza: components["hello.wasm"],
                 bafkreidocbixnql7lroykdtwx4r2fmi5n6sra4lj7b7vhscsfqn4gctlee: components["hookbin.wasm"] };
-const manager = new Manager({ backend: new KvmBackend(), runtime: expectRuntime,
+// wired as the manager's main.mjs wires it: judgeReady is ready.mjs's judgeRunning (the constructor's own default is
+// null, which leaves every record `starting`)
+const { judgeRunning } = await imp("windows/vbslike/manager/ready.mjs");
+const { BOUNDARY: HCS_BOUNDARY } = await imp("windows/vbslike/manager/backend-hcs.mjs");
+const manager = new Manager({ backend: new KvmBackend(), runtime: expectRuntime, judgeReady: judgeRunning,
                               fetchComponent: async (cid) => { if (!byCid[cid]) throw new Error(`no local bytes for ${cid}`); return byCid[cid]; } });
 const mgrSrv = createServer(manager); mgrSrv.listen(0, "127.0.0.1"); await once(mgrSrv, "listening");
 const managerBase = `http://127.0.0.1:${mgrSrv.address().port}`;
@@ -169,6 +180,7 @@ async function drive(label) {
 }
 // PASS 1, the node as configured for isolation and nothing else: this is the real behaviour
 let results = await drive("[as configured]");
+for (const v of (manager.list ? manager.list() : [])) console.log(`manager record ${v.id} (${String(v.name).slice(0, 10)}): status=${v.status} verdict=${v.verdict} reason=${JSON.stringify(v.reason)}`);
 for (const [k] of Object.entries(deps))
   record(`ensureApp ${k} (${k === "A" ? "hello-world /1" : "hookbin /2"}) reaches running through the node's own path, AS CONFIGURED`,
     results[k] && results[k].status === "running", `status=${results[k] && results[k].status} reason=${JSON.stringify(results[k] && results[k].reason)}`);
@@ -182,6 +194,54 @@ if (Object.values(results).some((r) => /no app runtime|enclave has no socket|thi
   results = await drive("[workaround]");
   for (const [k] of Object.entries(deps))
     console.log(`${results[k] && results[k].status === "running" ? "PASS" : "FAIL"} (workaround) ensureApp ${k} reaches running: status=${results[k] && results[k].status} reason=${JSON.stringify(results[k] && results[k].reason)}`);
+}
+
+// PASS 3, the steps of host.mjs #isolationReconcile called directly, because at this tree ensureApp never reaches
+// them: the CURRENT plan (this checkout's node-bridge, with require/manager/appConfigCid) -> the node's real
+// IsolationManagerClient + isolation-lifecycle reconcile -> the real manager's spawn and readiness judgement -> the
+// record #isolationReconcile writes -> the real appZoneTarget/appzone below.
+if (Object.values(results).some((r) => !r || r.status !== "running")) {
+  console.log("PASS 3: #isolationReconcile's own steps, called directly (ensureApp does not reach them at this tree)");
+  const { reconcile } = await imp("windows/node/isolation-lifecycle.mjs");
+  const { fetchSecrets } = await imp("windows/node/secrets.mjs");
+  const { isolationPlan } = await import(pathToFileURL(path.join(MINE, "windows/vbslike/datapath/node-bridge.mjs")).href);
+  const client = new IsolationManagerClient({ base: managerBase });
+  for (const [k, d] of Object.entries(deps)) {
+    const led = ledgerOf(d);
+    const v = await chain.resolveAppRef(d.appRef);                                  // the real catalog version
+    const env = JSON.parse(led.configCid);                                          // the deployment's options envelope
+    const sec = await fetchSecrets({ id: d.id, endpoint: host.cfg.endpoint, sign: host.cfg.secretsSign, base: relayBase });
+    let volumes = null;
+    try { const c = v.config ? JSON.parse(v.config) : {}; volumes = Array.isArray(c.volumes) ? c.volumes : []; } catch {}
+    const plan = isolationPlan({ deploymentId: d.id, deployment: led, version: v, appConfig: await host.appConfigResolved(led, v),
+      hasSecrets: sec.count > 0, waf: env.waf || {}, volumes, runtimeId: host.cfg.isolationRuntimeId,
+      require: env.isolation && env.isolation.require, manager: await client.health().catch(() => null),
+      appConfigCid: env.configCid || "" });
+    record(`pass 3 plan ${k} (${k === "A" ? "hello-world /1" : "hookbin /2"})`,
+      k === "A" ? plan.ok : (plan.ok || plan.input === "manager.catalog.derivations"),
+      plan.ok ? `${plan.derivation}, record ${sha(JSON.stringify(plan.spawn.derive)).slice(0, 8)}` : `refused ${plan.input}: ${plan.why}`);
+    if (!plan.ok) { results[k] = { status: "refused", reason: `${plan.input}: ${plan.why}` }; continue; }
+    const body = IsolationManagerClient.spawnBody(plan.spawn);
+    let r;
+    for (let i = 0; i < 90; i++) {
+      r = await reconcile({ client, deployment: { id: d.id, body }, ledger: null });
+      if (r.action !== "held" && r.instance && r.instance.status === "running") break;
+      if (r.action === "failed") break;
+      await new Promise((res) => setTimeout(res, 1000));
+    }
+    const inst = (r && r.instance) || {};
+    console.log(`pass 3 reconcile ${k}: action=${r && r.action} instance=${inst.id} status=${inst.status} verdict=${inst.verdict} image=${String(inst.image || "").slice(0, 16)} key=${String(inst.transportKeySha256 || "").slice(0, 16)} reason=${JSON.stringify(r && r.reason)}`);
+    if (inst.id) console.log(`pass 3 the manager's own record for ${inst.id}: ${JSON.stringify(manager.get(inst.id)).slice(0, 600)}`);
+    if (inst.status === "running") {
+      // what #isolationReconcile's #record writes
+      host.records.set(d.id, { ...(host.records.get(d.id) || {}), id: d.id, status: "running", reason: null,
+        isolation: { backend: "hyperv-partition-per-app", instance: inst.id, appId: inst.appId ?? null, image: inst.image ?? null,
+                     tier: inst.tier ?? null, hostExcluded: inst.hostExcluded === true, transportKeySha256: inst.transportKeySha256 ?? null } });
+      results[k] = host.records.get(d.id);
+    } else results[k] = { status: inst.status || (r && r.action), reason: r && r.reason };
+    record(`pass 3 ${k}: the real manager spawns, judges readiness and reports running`, k === "B" || inst.status === "running",
+      `status=${inst.status} verdict=${inst.verdict} hostExcluded=${inst.hostExcluded}`);
+  }
 }
 
 // ---- a browser through the relay's tunnel to each app's own name ------------------------------------------------------
@@ -208,6 +268,7 @@ function browser(dep) {
   });
 }
 for (const [k, d] of Object.entries(deps)) {
+  if (results[k] && results[k].status === "refused") { console.log(`SKIP browser -> ${k}: the plan refused it (${results[k].reason})`); continue; }
   if (!results[k] || results[k].status !== "running") { record(`browser -> ${k}`, false, "not running; nothing to route"); continue; }
   const b = await browser(d.id);
   if (b.error) { record(`browser -> ${k} through relay tunnel -> app zone -> data plane -> partition`, false, b.error); continue; }
