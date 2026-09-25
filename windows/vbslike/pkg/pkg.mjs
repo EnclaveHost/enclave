@@ -422,12 +422,12 @@ function rebuildIgvmfilegen(m, bytes, R) {
     try {
       const put = (name, e) => { const p = path.join(d, name); fs.writeFileSync(p, bytes.get(e)); return p; };
       const igp = put("igvmfilegen", ref(u.igvmfilegen)); fs.chmodSync(igp, 0o755);
-      const build = (tag, man, res) => {
+      const build = (tag, man, res, args = []) => {
         const rmap = {};
         for (const [t, n] of Object.entries(res)) { const e = ref(n); if (!e || !bytes.get(e)) return { err: `resource ${t} = ${n} is not a pinned input` }; rmap[t] = put(`${tag}-${t}`, e); }
         const rp = path.join(d, `${tag}-resources.json`); fs.writeFileSync(rp, JSON.stringify({ resources: rmap }));
         const out = path.join(d, `${tag}.bin`), vj = path.join(d, `${tag}-vbs.json`);
-        const r = spawnSync(igp, ["manifest", "-m", put(`${tag}-manifest.json`, ref(man)), "-r", rp, "-o", out], { encoding: "utf8" });
+        const r = spawnSync(igp, ["manifest", "-m", put(`${tag}-manifest.json`, ref(man)), "-r", rp, "-o", out, ...args], { encoding: "utf8" });
         return { r, bin: fs.existsSync(out) ? sha(fs.readFileSync(out)) : null, vbs: fs.existsSync(vj) ? fs.readFileSync(vj) : null };
       };
       if (u.twin) {
@@ -436,8 +436,8 @@ function rebuildIgvmfilegen(m, bytes, R) {
         R.add(!!want && got === want, `rebuild ${key}: its components reproduce the booted image's VBS launch digest (a twin under the booted image's own manifest)`,
               t.err || (got === want ? got : `twin gives ${got}, the booted image states ${want}`));
       }
-      const c = build("out", u.manifest, u.resources), want = ref(u.output)?.sha256;
-      R.add(!c.err && c.r.status === 0 && c.bin === want, `rebuild ${key}: the IGVM from its pinned inputs with the pinned igvmfilegen`,
+      const c = build("out", u.manifest, u.resources, u.args || []), want = ref(u.output)?.sha256;
+      R.add(!c.err && c.r.status === 0 && c.bin === want, `rebuild ${key}: the IGVM from its pinned inputs with the pinned igvmfilegen${(u.args || []).length ? ` (${u.args.join(" ")})` : ""}`,
             c.err || (c.bin === want ? c.bin.slice(0, 16) : `exit ${c.r.status}, got ${c.bin}: ${(c.r.stderr || "").trim().split("\n").at(-1)}`));
       if (u.vbsJson) R.add(!!c.vbs && sha(c.vbs) === ref(u.vbsJson)?.sha256, `rebuild ${key}: its VBS identity document (the launch digest igvmfilegen computes)`, c.vbs ? digest(c.vbs) : "none produced");
     } finally { fs.rmSync(d, { recursive: true, force: true }); }
