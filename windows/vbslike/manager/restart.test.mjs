@@ -228,3 +228,23 @@ test("while an unattributed VM exists, an unknown id is UNKNOWN (503), never 'ab
     assert.deepEqual(await m.remove(heldByNode), { removed: false, absent: true });
   } finally { srv.close(); }
 });
+
+test("an id THIS manager removed (confirmed gone by VM Id) is absent even while an orphan exists, so retires can confirm", async () => {
+  // The reviewer's follow-up finding 1: with an orphan on the box, the node's post-DELETE re-read got 503 forever and
+  // no retire could ever be confirmed. An id this process removed and saw gone is KNOWN absent.
+  const host = fakeHost();
+  const m1 = mk(host.backend); await m1.recover();
+  const r = await m1.spawn(body());                     // one attributed VM...
+  host.vms.set("11111111-2222-3333-4444-555555555555", { vmId: "11111111-2222-3333-4444-555555555555", name: "enclave-app-legacy", state: "Running", notes: OWNER_MARKER });
+  const m = mk(host.backend); await m.recover();        // ...and, after a restart, one orphan beside it
+  assert.equal(m.inventory.unattributed, 1);
+  assert.deepEqual(await m.remove(r.id), { removed: true, absent: false });
+  assert.deepEqual(await m.remove(r.id), { removed: false, absent: true }, "removed by this process: absent is known");
+  const srv = createServer(m);
+  await new Promise((x) => srv.listen(0, "127.0.0.1", x));
+  const port = srv.address().port;
+  try {
+    assert.equal((await fetch(`http://127.0.0.1:${port}/vms/${r.id}`)).status, 404, "the node's confirming re-read gets 404");
+    assert.equal((await fetch(`http://127.0.0.1:${port}/vms/hv${"b".repeat(32)}`)).status, 503, "an id it never saw is still unknown");
+  } finally { srv.close(); }
+});
