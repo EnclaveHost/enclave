@@ -60,7 +60,11 @@ isolated path. Certificate reuse is supervisor-side and needs nothing from a man
   `openhcl/Set-OpenHCL-HyperV-VM.ps1` uses `root\virtualization\v2`, setting
   `Msvm_VirtualSystemSettingData.FirmwareFile` and `GuestFeatureSet = 0x00000201` and applying it
   through `Msvm_VirtualSystemManagementService.ModifySystemSettings`, on a VM of version >= 12.0
-  from the Hyper-V PowerShell module.
+  from the Hyper-V PowerShell module. **Superseded for type 1:** a VM made that way never started
+  as VBS on nucbox-k11, so `wmi-launcher.mjs` now defines the VM with the recipe that booted and
+  served there (`windows/vbslike/ops/uefi-dev-boot.ps1` e0de58cf, type-1 branch): petri's
+  `New-CustomVM` from a pinned `hyperv.psm1`, one DefineSystem, read back. Not yet run on Hyper-V
+  from the manager.
 - This host has none of it: every Hyper-V feature `Disabled`, only `VirtualMachinePlatform`
   enabled, `vmms` not installed, `Get-VM` absent, `root\virtualization\v2` answering
   "Invalid namespace".

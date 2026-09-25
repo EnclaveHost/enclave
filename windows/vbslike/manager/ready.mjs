@@ -114,7 +114,9 @@ export function judgeReadyBody(status, bodyBuf, appId) {
 }
 
 /**
- * judgeRunning({ host, port, appId, launcherKey, expectRuntime, deadlineMs })
+ * judgeRunning({ host, port, appId, launcherKey, expectRuntime, expectedStatement, expectedImageSha256, deadlineMs })
+ *   expectedStatement + expectedImageSha256: the record's launcher statement and image, judged as a PAIR (judge-hv);
+ *   absent, no image is compared (the HCS lab's records carry none).
  *   -> { status: "running" | "starting" | "failed", reason, checks: { document, ready } }
  *
  * The document is judged FIRST. A domain whose document does not verify is `failed` even when its
@@ -122,7 +124,7 @@ export function judgeReadyBody(status, bodyBuf, appId) {
  * about the thing we meant to ask.
  */
 export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKey, expectRuntime,
-                                     deadlineMs = 60_000, attemptTimeoutMs = 10_000, now = Date.now,
+                                     expectedStatement, expectedImageSha256, deadlineMs = 60_000, attemptTimeoutMs = 10_000, now = Date.now,
                                      sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   if (!port) throw new Error("a port is required");
   if (!appId) throw new Error("an appId is required");
@@ -148,7 +150,8 @@ export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKe
           checks.document = { ok: false, reason: "the attestation answer is not JSON" };
           return { status: "failed", transportKeySha256, reason: checks.document.reason, checks };
         }
-        const v = judge({ doc, spki: session.spki, nonce, expectedAppSha256: appId, launcherKey, expectRuntime });
+        const v = judge({ doc, spki: session.spki, nonce, expectedAppSha256: appId, launcherKey, expectRuntime,
+                          expectedStatement, expectedImageSha256 });
         // judge-hv answers { verdict, reasons, checks } and has NO `ok` field: reading v.ok was
         // always false, so a perfectly good monitor-signed document reported "was not accepted"
         // and this rule could never have said running (enclave-99, against the spec).

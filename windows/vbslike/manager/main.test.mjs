@@ -26,7 +26,9 @@ const RID = Buffer.from(runtimeIdOf(RUNTIME)).toString("hex");
 function run(env, { ms = 8000 } = {}) {
   return new Promise((resolve) => {
     const p = spawn(process.execPath, [MAIN],
-      { env: { ...process.env, ENCLAVE_MANAGER_PORT: "0", ...env }, stdio: ["ignore", "pipe", "pipe"] });
+      // VMMGR_PORT is the variable main.mjs reads; without it every run listened on 8091 and two
+      // concurrent runs (another worktree) failed with EADDRINUSE.
+      { env: { ...process.env, ENCLAVE_MANAGER_PORT: "0", VMMGR_PORT: "0", ...env }, stdio: ["ignore", "pipe", "pipe"] });
     let out = "", err = "";
     p.stdout.on("data", (d) => { out += d; });
     p.stderr.on("data", (d) => { err += d; });
@@ -70,6 +72,21 @@ test("with neither, it still starts: judging nothing is a choice an operator may
   const r = await run({ ENCLAVE_RUNTIME_ID: "", ENCLAVE_RUNTIME_IDENTITY: "" });
   assert.ok(r.timedOut, `expected it to run; exited ${r.code}: ${r.err.slice(0, 200)}`);
   assert.doesNotMatch(r.out, /RuntimeID/, "and it does not claim to pin one");
+});
+
+test("a contradictory launcher configuration is refused at startup: the boot form is stated, never guessed", async () => {
+  const base = { ENCLAVE_RUNTIME_IDENTITY: identityFile, ENCLAVE_GUEST_IGVM: "C:\\x\\openhcl-cvm.bin",
+                 ENCLAVE_GUEST_IGVM_SHA256: "2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3" };
+  for (const [extra, why] of [
+    [{ ENCLAVE_BOOT_FORM: "uefi" }, /boot must be one of uefi-medium, linux-direct/],
+    [{ ENCLAVE_BOOT_FORM: "linux-direct", ENCLAVE_GUEST_MEDIUM: "C:\\x\\guest.iso", ENCLAVE_GUEST_MEDIUM_SHA256: "ab".repeat(32) }, /no medium may be attached/],
+    [{ ENCLAVE_BOOT_FORM: "", ENCLAVE_GUEST_MEDIUM: "C:\\x\\guest.iso", ENCLAVE_GUEST_MEDIUM_SHA256: "ab".repeat(32) }, /never inferred/],
+  ]) {
+    const r = await run({ ...base, ...extra });
+    assert.equal(r.code, 2, `${JSON.stringify(extra)}: it must refuse to start, not run with a guessed boot form`);
+    assert.match(r.err, /REFUSING TO START: the launcher configuration is invalid/);
+    assert.match(r.err, why);
+  }
 });
 
 test("cleanup", async () => { await fs.rm(dir, { recursive: true, force: true }); });

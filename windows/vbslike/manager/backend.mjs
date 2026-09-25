@@ -33,7 +33,7 @@ export const SUPPORTS = Object.freeze({
 });
 
 export const PREREQUISITES = Object.freeze({
-  supportedPath: "WMI root\\virtualization\\v2: Msvm_VirtualSystemSettingData.FirmwareFile + GuestFeatureSet=0x201, applied via Msvm_VirtualSystemManagementService.ModifySystemSettings (microsoft/openvmm openhcl/Set-OpenHCL-HyperV-VM.ps1)",
+  supportedPath: "WMI root\\virtualization\\v2: ONE DefineSystem through petri's New-CustomVM (hyperv.psm1, pinned by hash) carrying GuestStateIsolationType 1, GuestFeatureSet=0x201 and Msvm_VirtualSystemSettingData.FirmwareFile together, on a host whose AllowFirmwareLoadFromFile is set (reported, never set, by this manager) - the type-1 recipe of windows/vbslike/ops/uefi-dev-boot.ps1 (e0de58cf), in wmi-launcher.mjs",
   needs: ["Microsoft-Hyper-V-Hypervisor", "Microsoft-Hyper-V-Services", "Microsoft-Hyper-V-Management-PowerShell"],
   presentHere: ["VirtualMachinePlatform"],
   absentHere: ["vmms service", "root\\virtualization\\v2", "Get-VM"],
@@ -55,6 +55,8 @@ export class HyperVPartitionBackend {
   async preflight() { return this.launcher ? await this.launcher.preflight() : null; }
   get backend() { return BACKEND; }
   get supports() { return SUPPORTS; }
+  /** The launcher's boundary word, which server.mjs carries on /health and every record (null with no launcher). */
+  get boundary() { return (this.launcher && this.launcher.boundary) ?? null; }
   /**
    * Start a domain for an already-derived mapping. Resolves to { pid, endpoint } when a partition
    * really runs; throws otherwise. It never returns a partial success.
