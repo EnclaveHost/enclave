@@ -196,13 +196,10 @@ test("INVARIANT P1b: retire(no id) after a restart never frees a lease while the
   assertInvariant(host, led, "retire(no id) after a restart");
 });
 
-// PENDING THE NODE SIDE (enclave-5d, windows/node/isolation-lifecycle.mjs): with the manager fix, a restarted
-// manager lists the surviving VM as `starting` + `recovered: true` (alive, not serving, never to become running
-// under the new process). The core invariants already hold here - one VM, no release while it runs - but
-// reconcile waits for readiness that cannot come, then retires it and releases the lease once it is gone.
-// "Adopt or HOLD" needs the lifecycle to recognise `recovered` and hold (or retire-without-release and respawn).
-const NODE_SIDE_TODO = "enclave-5d: isolation-lifecycle must treat a `recovered: true` instance as HELD, not wait for it and release";
-test("INVARIANT: reconcile after a restart adopts or holds, and never starts a second VM", { todo: NODE_SIDE_TODO }, async () => {
+// THE NODE SIDE LANDED (enclave-5d, windows/node/isolation-lifecycle.mjs RECOVERED): a restarted manager lists the
+// surviving VM as `starting` + `recovered: true` (alive, not serving, never to become running under the new
+// process), and reconcile now HOLDS it at once: the lease is kept, no second VM, nothing removed.
+test("INVARIANT: reconcile after a restart adopts or holds, and never starts a second VM", { todo: false }, async () => {
   const host = new FakeHost();
   const { m1, client } = await running(host);
   const before = host.running()[0].vmId;

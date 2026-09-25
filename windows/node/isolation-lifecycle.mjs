@@ -9,7 +9,7 @@
 // running twice - once here and once wherever the lease went next - and two live copies of an app
 // sharing one identity is worse than a lease held a little too long.
 //
-// ADOPTION IS BY NAME. The manager's id shape is its own business ("hv"+8hex here, "gd"+8hex on
+// ADOPTION IS BY NAME. The manager's id shape is its own business ("hv"+32hex here, "gd"+8hex on
 // guestd) and nothing in this file pattern-matches it. What identifies a deployment's domain is the
 // deploymentId the node sent as `name`, which every backend carries. A node that restarts finds its
 // domains by asking, not by remembering.
@@ -22,6 +22,15 @@ import { IsolationError, instanceAlive, instanceServing, attestedCapacity } from
 /** Why a lease is still held, in words an operator can act on. */
 const HELD = (why) => ({ leaseFree: false, reason: why });
 
+// A domain a RESTARTED manager recovered from Hyper-V (`recovered: true`) is alive and will never serve under that
+// manager: its relay and readiness belonged to the previous process. Waiting for it waits for nothing. Retiring it
+// here would stop a live app, and its data, because the manager restarted. So it is HELD: the lease is kept, no
+// second domain is started, and nothing is removed. It serves again only through a deliberate relaunch (a forced
+// re-ensure retires it by id first, and retire() confirms it is gone before a new one starts).
+const RECOVERED = (name, v) => ({ action: "held", instance: v, ...HELD(`${name} is ${v.id}, a VM a restarted manager recovered `
+  + "from Hyper-V: it is alive but cannot serve under this manager, so the lease is kept, no second domain is started "
+  + "and nothing is removed; a forced relaunch retires it and starts a fresh one") });
+
 /**
  * Bring a deployment to a running domain, or say precisely why not.
  *
@@ -30,6 +39,7 @@ const HELD = (why) => ({ leaseFree: false, reason: why });
  * @param ledger      { release(id, why) }  called ONLY when the lease is genuinely free
  * @param deadlineMs  how long a domain may stay `starting` before this gives up on it
  * @returns { action: "adopted" | "spawned" | "failed" | "held", instance, reason, leaseFree }
+ *   (a domain the manager marks `recovered` is always held: see RECOVERED)
  *
  *   adopted  a domain for this deployment was already there and is alive
  *   spawned  a new domain was started
@@ -74,6 +84,7 @@ export async function reconcile({ client, deployment, ledger = null, deadlineMs 
     }
   }
 
+  if (view.recovered) return RECOVERED(name, view);
   if (instanceServing(view)) return { action, instance: view, reason: null, leaseFree: false };
 
   // 2. Wait for it to become ready, and stop waiting at the deadline.
@@ -95,6 +106,8 @@ export async function reconcile({ client, deployment, ledger = null, deadlineMs 
                reason: `${name} disappeared from the manager while it was ${last.status}` };
     }
     last = cur;
+    // the manager restarted while we waited (P1c): the same VM, now recovered, will never become ready
+    if (cur.recovered) return RECOVERED(name, cur);
     if (instanceServing(cur)) return { action, instance: cur, reason: null, leaseFree: false };
     if (!instanceAlive(cur)) {
       return { action: "failed", instance: cur, leaseFree: true,
