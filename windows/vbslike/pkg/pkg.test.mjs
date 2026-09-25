@@ -579,3 +579,17 @@ test("draft v21 (staged) pins d1's type-1 BOOT AND SERVE on the a7b0bd4 control 
   assert.equal(x.code, 1, "a quoted boundary line claiming host_excluded=yes passed under a T0-hv tier");
   assert.match(x.out, /FAIL every quoted 'MON boundary' line says host_excluded=no .*host_excluded=yes/, fails(x.out));
 });
+
+test("draft v22 (staged) pins E2 as run and deciding nothing: VBSREPORT status=0x71 with no report body, neither go nor no-go; E3 not run; still host_excluded=no", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-22.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, STAGED \(supersedes v21 as the staged package\): E2 HAS RUN and decides NOTHING/);
+  const e2 = d.profiles.vbs.measured.find((m) => /^E2 RUN, DECIDES NOTHING/.test(m));
+  assert.ok(e2, "E2 is pinned as a measured entry");
+  assert.match(e2, /'VBSREPORT status=0x71 \(\.\.\.\)' then 'MON PROBE finished: No such device', with NO report body.*HV_STATUS_OPERATION_FAILED.*NEITHER GO nor NO-GO.*'VTL0 refused \/ vTPM only' does NOT follow.*E3 NOT RUN/);
+  assert.match(d.profiles.vbs.status, /E2 RUN and decides nothing .*E3 NOT RUN/);
+  assert.match(d.profiles.vbs.runs.E2, /NEITHER go nor no-go/);
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  assert.ok(d.inputs.some((i) => i.name === "VBS-ISOLATION-26eac9c2.md"));
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});
