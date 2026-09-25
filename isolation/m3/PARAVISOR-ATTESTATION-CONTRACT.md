@@ -58,6 +58,20 @@ Verified by enclave-d1, read-only on the host: the boot log (sha256 0c23255a) re
 controls are detected; the VSM_IDK and VSM_IDKS RSA-2048 keys are in PCR 12, event 37 (IDKS modulus sha256
 3d7304dd…77e75f).
 
+**Boot 68 (Steven, rebooted 05:32:35Z with Secure Boot ON).** Measured read-only by enclave-d1:
+- SecureBoot=01 in PCR 7, TESTSIGNING=00 in every section, all debug flags 00, VSM launched, HVCI on;
+- the log (8ee177c4…) replays to PCRs 0-14, and the negative controls are detected;
+- new IDKS modulus sha256 402f2281…01a9.
+
+The two rejection conditions are **not present on boot 68**. That is not a pass of anything else. Evidence from boot 67
+and earlier is void for same-boot purposes.
+- Service impact: the test-signed enclave engine no longer loads, so the old VBS-enclave service and its apps are
+  down.
+- Whether our unsigned OpenHCL IGVM still loads under Secure Boot (`AllowFirmwareLoadFromFile`) is **untested**.
+
+From the TPM feasibility work (enclave-d1 878a3074): the host-side chain EK → quote → log → IDKS verifies on real
+bytes for a VBS **enclave** report. IDKS signing a VM report stays a hypothesis.
+
 ## Measured VTL0 (source; nothing built or booted)
 
 - igvmfilegen can place our kernel, initrd and VTL0 command line inside the IGVM as measured (`Exclusive`) pages
