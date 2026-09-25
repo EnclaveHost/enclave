@@ -1,0 +1,53 @@
+--- scripts-v1/s1-apply.sh	2026-09-25 10:40:01.721285465 -0700
++++ s1-apply.sh	2026-09-25 10:43:23.010580550 -0700
+@@ -1,23 +1,31 @@
+ #!/usr/bin/env bash
+-# S1: guestd pool build AND its flags, in ONE restart (GUEST-POOL-ROLLOUT.md S1). Guarded; the live binary is never overwritten.
+-set -euo pipefail
+-EV=~/enclave-bench/pool-rollout-20260925; U=~/.config/systemd/user/enclave-guestd.service; BAK=$U.bak-pre-pool
+-NEWBIN=/home/steven/enclave-prod/bin/guestd.c42612c0; SHA=4a5f8bd94e487fcd71e80efe27d8961c8416ad33e288156938fd90baaee4bbc3
+-avail=$(awk '/^MemAvailable/{print int($2/1048576)}' /proc/meminfo); [ "$avail" -ge 40 ] || { echo "NO-GO: MemAvailable ${avail} GiB < 40"; exit 10; }
+-awk '/^some/{split($3,a,"=");exit !(a[2]+0==0)}' /proc/pressure/memory || { echo "NO-GO: memory PSI avg60 is not 0"; exit 11; }
+-[ -e "$BAK" ] && { echo "REFUSING: $BAK exists (an earlier S1 was not rolled back or cleared)"; exit 12; }
+-grep -qx 'ExecStart=/home/steven/enclave-prod/bin/guestd -isolation .*-gateway https://trustless-gateway.link' "$U" || { echo "REFUSING: ExecStart is not the expected pre-pool line"; exit 13; }
+-install -m 755 "$EV/build/guestd-1" "$NEWBIN.tmp" && mv "$NEWBIN.tmp" "$NEWBIN"; echo "$SHA  $NEWBIN" | sha256sum -c --quiet
+-cp -p "$U" "$BAK"
+-python3 - "$U" <<'PY'
++# S1: guestd pool build AND its flags, in ONE restart. v2 (enclave-99's review): exact-line guard, separate reload and
++# restart, and post-restart checks that roll back on failure.
++set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh
++OLD_LINE=$(cat $EV/s0-baseline/guestd-unit-execstart.line)
++NEW_LINE="${OLD_LINE/ExecStart=\/home\/steven\/enclave-prod\/bin\/guestd /ExecStart=$NEWBIN } -guest-mem-mib 16384 -guest-cpus 8"
++avail=$(awk '/^MemAvailable/{print int($2/1048576)}' /proc/meminfo); [ "$avail" -ge 40 ] || { say "NO-GO: MemAvailable ${avail} GiB < 40"; exit 10; }
++awk 'BEGIN{f=1} /^some /{for(i=1;i<=NF;i++) if($i ~ /^avg60=/){split($i,a,"="); f=(a[2]+0==0)?0:1}} END{exit f}' /proc/pressure/memory || { say "NO-GO: memory PSI avg60 not 0 (or unreadable)"; exit 11; }
++[ -e "$UBAK" ] && { say "REFUSING: $UBAK exists"; exit 12; }
++[ "$(grep -c '^ExecStart=' "$U")" = 1 ] && grep -Fxq "$OLD_LINE" "$U" || { say "REFUSING: the unit's ExecStart is not exactly the S0 line"; exit 13; }
++check_guestd nopool || { say "REFUSING: guestd is not in its S0 state"; exit 14; }
++install -m 755 "$EV/build/guestd-1" "$NEWBIN.tmp" && mv "$NEWBIN.tmp" "$NEWBIN"; echo "$NEWBIN_SHA  $NEWBIN" | sha256sum -c --quiet
++cp -p "$U" "$UBAK"; chmod 600 "$UBAK"
++python3 - "$U" "$OLD_LINE" "$NEW_LINE" <<'PY'
+ import sys,os
+-p=sys.argv[1]; s=open(p).read(); lines=s.split("\n"); n=0
+-for i,l in enumerate(lines):
+-    if l.startswith("ExecStart=/home/steven/enclave-prod/bin/guestd -isolation "):
+-        lines[i]=l.replace("ExecStart=/home/steven/enclave-prod/bin/guestd ","ExecStart=/home/steven/enclave-prod/bin/guestd.c42612c0 ",1)+" -guest-mem-mib 16384 -guest-cpus 8"; n+=1
+-assert n==1, n
++p,old,new=sys.argv[1:]; lines=open(p).read().split("\n"); idx=[i for i,l in enumerate(lines) if l==old]
++assert len(idx)==1, idx; lines[idx[0]]=new
+ open(p+".new","w").write("\n".join(lines)); os.replace(p+".new",p)
+ PY
+-date -u +%Y-%m-%dT%H:%M:%SZ > $EV/s1-restart-at.txt
+-systemctl --user daemon-reload && systemctl --user restart enclave-guestd.service
+-echo "S1 applied at $(cat $EV/s1-restart-at.txt)"; diff "$BAK" "$U" || true
++T0=$(date -u '+%Y-%m-%d %H:%M:%S'); say "S1: daemon-reload + restart (unit now: new binary + -guest-mem-mib 16384 -guest-cpus 8)"
++systemctl --user daemon-reload
++systemctl --user restart enclave-guestd.service
++fail() { say "S1 CHECK FAILED: $* -> rolling back"; $EV/s1-rollback.sh; exit 20; }
++systemctl --user show enclave-guestd.service -p ExecStart --value | grep -Fq "path=$NEWBIN ;" || fail "ExecStart is not the new binary"
++systemctl --user show enclave-guestd.service -p ExecStart --value | grep -Fq -- "-guest-mem-mib 16384 -guest-cpus 8" || fail "ExecStart lacks the flags"
++wait_for 240 check_guestd pool || fail "guestd did not come back with the pool and the 3 same canaries"
++[ "$(systemctl --user show enclave-guestd.service -p NRestarts --value)" = 0 ] && systemctl --user is-active --quiet enclave-guestd.service || fail "not active, or restarted"
++journalctl --user -u enclave-guestd.service --since "$T0" --no-pager -o cat > $EV/s1-guestd-journal.txt 2>&1 || true
++grep -q "adopted 3 guest(s)" $EV/s1-guestd-journal.txt && grep -q "guest pool: 3 guest(s) hold 5376 MiB / 300% CPU of 16384 MiB / 800% CPU" $EV/s1-guestd-journal.txt || fail "the journal lacks the adoption or pool line"
++wait_for 120 public_ok || fail "the canaries do not serve"
++say "S1 APPLIED and checked (restart at $T0 local)"

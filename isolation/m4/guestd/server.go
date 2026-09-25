@@ -167,10 +167,14 @@ type server struct {
 	drawCID    func() uint32        // tests; nil = crypto/rand
 	freedCIDs  map[uint32]time.Time // recently freed CIDs, quarantined (release.go)
 	held       int                  // ticket connections held now (release.go maxHeld)
-	mu         sync.Mutex
-	vms        map[string]*vm
-	lastBeat   time.Time // zero = never heard one: the lease is INERT
-	launching  sync.WaitGroup
+	// HostFloorMiB: a create must leave the host at least this much MemAvailable (pool.go); 0 = off
+	HostFloorMiB int
+	MemAvailable func() (int, error)            // tests; nil = /proc/meminfo
+	UnitMem      func(unit string) (int, error) // tests; nil = the unit's cgroup memory.current (pool.go)
+	mu           sync.Mutex
+	vms          map[string]*vm
+	lastBeat     time.Time // zero = never heard one: the lease is INERT
+	launching    sync.WaitGroup
 }
 
 func newServer(l Launcher, root string) *server {

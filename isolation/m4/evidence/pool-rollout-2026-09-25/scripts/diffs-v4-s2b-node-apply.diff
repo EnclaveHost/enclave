@@ -1,0 +1,11 @@
+--- scripts-v1/s2b-node-apply.v3.sh	2026-09-25 10:48:57.265412688 -0700
++++ s2b-node-apply.sh	2026-09-25 10:48:57.266826227 -0700
+@@ -17,7 +17,7 @@
+ a,b=json.loads(s),json.loads(t); assert b["dist"]==new and {k:v for k,v in a.items() if k!="dist"}=={k:v for k,v in b.items() if k!="dist"}
+ fd=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600); os.write(fd,t.encode()); os.close(fd); os.replace(tmp,p)   # same filesystem: atomic
+ PY
+-T0=$(date -u '+%Y-%m-%d %H:%M:%S'); say "S2b: dist -> dist-iso-c42612c0; restarting enclave-metal-iso (the node CVM reboots)"
++T0=$(date -u '+%Y-%m-%d %H:%M:%S UTC'); say "S2b: dist -> dist-iso-c42612c0; restarting enclave-metal-iso (the node CVM reboots)"
+ systemctl --user restart enclave-metal-iso.service || fail "restart"
+ attested_new() { [ "$(node_attested)" = "$NEWM c42612c0b814591497640aee2ad5113444254a9e" ]; }
+ wait_for 600 attested_new || fail "the node never attested the prediction with overlay c42612c0"

@@ -2311,6 +2311,23 @@ function isolationPrefetchBody(g, runtimeId) {
   return { image: g.wasmRef, derive: isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min), runtimeId,
     isolationHttpPortOf(g.ports)) };
 }
+// The derivation record the SPAWN sends for a catalog version (spawnContainer): the ONE function the resume's
+// same-record test and the self-test use too, so the three can never drift apart (enclave-e3).
+function isolationSpawnDerivation({ catalogRef, wasmRef, versionMemMb, runtimeId, ports }) {
+  return isolationDerivation(catalogRef, wasmRef, isolationPolicyFor({ memMb: versionMemMb }), runtimeId, isolationHttpPortOf(ports));
+}
+// Whether the guest guestd holds under this deployment's name was launched from exactly the record the spawn would
+// send for version g (PURE; considerClaim's resume credit). The spawn derives its port from the PARSED firewall
+// (rec.firewall), so this does too; anything missing or underivable is false: a replacement, the conservative side.
+function isolationHeldSameRecord(held, g, firewall, runtimeId) {
+  if (!held || typeof held.recordSha256 !== "string" || !/^[0-9a-f]{64}$/.test(held.recordSha256) || !g || !runtimeId) return false;
+  try {
+    // what the claim path would put on the record (rec.image = g.ref, rec.appWasm = g.wasmRef, rec._versionMemMb =
+    // g.min.memMb, rec.firewall = the parsed firewall), through the spawn's own derivation
+    return held.recordSha256 === derivationDigest(isolationSpawnDerivation({ catalogRef: g.ref, wasmRef: g.wasmRef,
+      versionMemMb: g.min && g.min.memMb, runtimeId, ports: firewall || [] }));
+  } catch { return false; }
+}
 async function managerPrefetchBody(g) {
   if (!ISOLATION_BACKEND) return { image: g.wasmRef };
   const h = await vmHealth();
@@ -2329,7 +2346,7 @@ async function managerPrefetchBody(g) {
 //     is a leak, a dropped config is a wrong app. guestd refuses the same things at launch; refusing here keeps
 //     the lease from being taken for work that could only fail.
 function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, appConfigCid, hasSecrets,
-                                 firewall, volumes, isPublic, waf, policy, held, listed }) {
+                                 firewall, volumes, isPublic, waf, policy, held, heldSameRecord, listed }) {
   if (!backend) return null;
   if (!ISOLATION_BACKENDS.includes(backend))
     return `ISOLATION_BACKEND=${JSON.stringify(backend)} is not a backend this build knows; taking no tenant work`;
@@ -2383,7 +2400,7 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
   // admits it at (its unit's ceilings), never by the share bought. guestd refuses the same at create (507
   // pool_full); refusing here keeps a lease from being taken for work that could only be refused. A create that still
   // meets a 507 (a race between two claims) is a failed provision like any other: noted, backed off, released once.
-  return guestPoolRefusal(manager.pool || null, policy, held || null);
+  return guestPoolRefusal(manager.pool || null, policy, held || null, heldSameRecord === true);
 }
 
 // ---- the attested release: this box's half (docs/security/attested-release.md) ------------------------------------
@@ -2790,7 +2807,19 @@ function readGuestPool(p) {
   const budget = p && p.budget != null ? readRoom(p.budget) : null;
   if (!p || !allocated || !free || !g || !n(g.floorMiB) || !n(g.runtimeMiB) || !n(g.unitOverheadMiB)
       || (p.budget != null && !(budget && budget.memMiB > 0 && budget.cpuPct > 0))) return null;
-  return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true,
+  // host: guestd's LIVE memory floor (pool.go hostRefusal). An older guestd sends none, and nothing changes then.
+  // The host fields must be JSON NUMBERS: Number() would read "", false, [] or " " as 0 and "0x10" as 16 (enclave-e3).
+  const num = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0;
+  let host = null;
+  if (p.host && typeof p.host === "object" && num(p.host.floorMiB) && p.host.floorMiB > 0)
+    host = { floorMiB: p.host.floorMiB,
+             // what the held guests may still draw beyond MemAvailable (pool.go pendingLocked: a starting guest's whole
+             // reservation, a running one's reservation minus what its unit holds). A MemAvailable or a pendingMiB that
+             // is not a number (null = guestd could not read it) makes the host UNKNOWN, never "0 available" or
+             // "nothing pending"
+             memAvailableMiB: num(p.host.memAvailableMiB) && num(p.host.pendingMiB) ? p.host.memAvailableMiB : null,
+             pendingMiB: num(p.host.pendingMiB) ? p.host.pendingMiB : 0 };
+  return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true, host,
     perGuest: { floorMiB: +g.floorMiB, runtimeMiB: +g.runtimeMiB, unitOverheadMiB: +g.unitOverheadMiB } };
 }
 // Every answer replaces the mirror; one without a readable pool CLEARS it (never "keep the last pool"), so the tier
@@ -2820,9 +2849,23 @@ function guestReservationFor(policy, perGuest) {
 // unheard, unconfigured or overcommitted), so a full pool is never advertised as a sliver of free share.
 function guestPoolFreeFraction(pool = _guestPool) {
   if (!pool || !pool.budget || pool.overcommitted) return 0;
-  const g = pool.perGuest, f = pool.free, b = pool.budget;
-  if (f.memMiB < g.floorMiB + g.unitOverheadMiB || f.cpuPct < 1) return 0;
-  return Math.max(0, Math.min(f.memMiB / b.memMiB, f.cpuPct / b.cpuPct));
+  const g = pool.perGuest, f = pool.free, b = pool.budget, smallest = g.floorMiB + g.unitOverheadMiB;
+  if (f.memMiB < smallest || f.cpuPct < 1) return 0;
+  let frac = Math.min(f.memMiB / b.memMiB, f.cpuPct / b.cpuPct);
+  // the host's live room above guestd's floor caps it too: no share is advertised that guestd's floor would refuse.
+  // Quantized DOWN to whole percent, so the advertised share does not jitter with every MiB of MemAvailable (enclave-99).
+  const room = hostRoom(pool);
+  if (room !== undefined) {
+    if (room < smallest) return 0;
+    frac = Math.min(frac, Math.floor(room / b.memMiB * 100) / 100);
+  }
+  return Math.max(0, frac);
+}
+// The host's live room above guestd's floor, net of starting guests: undefined without a floor, -1 when unreadable.
+function hostRoom(pool) {
+  if (!pool || !pool.host) return undefined;
+  if (pool.host.memAvailableMiB === null) return -1;
+  return pool.host.memAvailableMiB - pool.host.pendingMiB - pool.host.floorMiB;
 }
 // Why this version's guest cannot be admitted by the pool guestd reported, or null (PURE; isolationClaimVerdict).
 // `held` is the guest guestd ALREADY runs under this deployment's name (its GET /vms entry, starting or running): on a
@@ -2831,7 +2874,7 @@ function guestPoolFreeFraction(pool = _guestPool) {
 // is judged against free PLUS the room it holds, and never refused for the room it is itself using. A resume whose
 // guest guestd no longer holds is a new guest and needs real room. (enclave-99's review of 829ea21b: judged against
 // free alone, every canary's resume after the release's own reboot was refused.)
-function guestPoolRefusal(rawPool, policy, held = null) {
+function guestPoolRefusal(rawPool, policy, held = null, heldSameRecord = false) {
   const pool = readGuestPool(rawPool);
   const holds = !!held && (held.status === "running" || held.status === "starting");
   const heldRoom = holds ? readRoom(held.reserved) : null;
@@ -2840,14 +2883,36 @@ function guestPoolRefusal(rawPool, policy, held = null) {
     : "the per-app manager reports no readable guest pool (it predates admission by reservation), so this box claims no work it may not be able to place";
   if (!policy || !(Number(policy.memMiB) > 0) || !(Number(policy.cpuPercent) > 0)) return "the version has no isolation policy to size its guest by";
   const r = guestReservationFor(policy, pool.perGuest);
-  // it fits in the room its own running guest already holds: nothing new is taken, whatever the rest of the pool says
-  if (heldRoom && r.memMiB <= heldRoom.memMiB && r.cpuPct <= heldRoom.cpuPct) return null;
-  if (!pool.budget) return "this host's guest pool has no budget (guestd -guest-mem-mib/-guest-cpus), so it admits no guest";
-  if (pool.overcommitted) return "the guest pool is overcommitted (its recovered guests exceed the budget), so it admits no guest until guests end";
-  const room = { memMiB: pool.free.memMiB + (heldRoom ? heldRoom.memMiB : 0), cpuPct: pool.free.cpuPct + (heldRoom ? heldRoom.cpuPct : 0) };
-  if (r.memMiB > room.memMiB || r.cpuPct > room.cpuPct)
-    return `the guest pool cannot fit this app's guest: it reserves ${r.memMiB} MiB / ${r.cpuPct}% CPU (its unit's ceilings), `
-         + `and ${room.memMiB} MiB / ${room.cpuPct}% is free${heldRoom ? " counting the room its current guest holds" : ""}`;
+  // the POOL: a version that fits in the room its own running guest already holds takes no new room, whatever the rest
+  // of the pool says; anything else needs free room (crediting the held guest's reservation, which its replacement frees)
+  const fitsHeld = !!heldRoom && r.memMiB <= heldRoom.memMiB && r.cpuPct <= heldRoom.cpuPct;
+  if (!fitsHeld) {
+    if (!pool.budget) return "this host's guest pool has no budget (guestd -guest-mem-mib/-guest-cpus), so it admits no guest";
+    if (pool.overcommitted) return "the guest pool is overcommitted (its recovered guests exceed the budget), so it admits no guest until guests end";
+    const room = { memMiB: pool.free.memMiB + (heldRoom ? heldRoom.memMiB : 0), cpuPct: pool.free.cpuPct + (heldRoom ? heldRoom.cpuPct : 0) };
+    if (r.memMiB > room.memMiB || r.cpuPct > room.cpuPct)
+      return `the guest pool cannot fit this app's guest: it reserves ${r.memMiB} MiB / ${r.cpuPct}% CPU (its unit's ceilings), `
+           + `and ${room.memMiB} MiB / ${room.cpuPct}% is free${heldRoom ? " counting the room its current guest holds" : ""}`;
+  }
+  // the HOST (guestd's live floor, pool.go): ADOPTING the running guest of the SAME record takes no new memory. Anything
+  // else - a new guest, or a held guest replaced because its record differs (the spawn's 409 path deletes it first) -
+  // needs the host's room, crediting only what the replaced guest actually frees: its RAM, not the 768 allowance it
+  // never used (enclave-99). Refused here too, so no lease is taken, and no running guest is deleted, for a create
+  // guestd would refuse.
+  const hr = hostRoom(pool);
+  if (hr !== undefined && !(holds && heldSameRecord)) {
+    if (hr < 0 && pool.host.memAvailableMiB === null) return "the host's available memory is unknown, and guestd admits no guest while it is";
+    // the credit for the held guest the replacement deletes: a STARTING one is wholly in guestd's pending, so all of its
+    // reservation comes back; a running one only surely returns its reservation less the unit allowance (the rest of
+    // it is in MemAvailable, and is judged when guestd admits). Both err toward refusal, never toward a deleted guest
+    // whose successor guestd then refuses.
+    const credit = !heldRoom ? 0 : held.status === "starting" ? heldRoom.memMiB : Math.max(0, heldRoom.memMiB - pool.perGuest.unitOverheadMiB);
+    const after = hr - r.memMiB + credit;                          // room above the floor after this create
+    // no live number in the reason: it is returned by the public claim-hint and logged by the sweep on every change,
+    // so MemAvailable must not be reconstructable from it (enclave-e3). The floor is configuration.
+    if (after < 0)
+      return `the host is too low on memory: admitting this app's guest would take the host under guestd's ${pool.host.floorMiB} MiB floor`;
+  }
   return null;
 }
 // The guest guestd runs under this deployment's name (its GET /vms entry), or null: what a resume would adopt.
@@ -2861,7 +2926,11 @@ async function isolationHeldGuest(name) {
 // The pool as this box reports it (availability): reservations, stated as such, never observed use.
 function guestPoolReport() {
   if (!_guestPool) return { heard: false };
-  return { heard: true, ..._guestPool,
+  const { host, ...rest } = _guestPool;
+  const g = _guestPool.perGuest, room = hostRoom(_guestPool);
+  return { heard: true, ...rest,
+    // the floor's VERDICT, never the host's live MemAvailable (published availability must not carry, or jitter with, it)
+    host: host ? { floorMiB: host.floorMiB, admitsSmallestGuest: room !== undefined && room >= g.floorMiB + g.unitOverheadMiB } : null,
     basis: "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
     pricing: "a share is priced as a fraction of this pool's budget; an app's guest reserves its own reservation, which admission uses" };
 }
@@ -3417,6 +3486,10 @@ if (process.env.GUEST_POOL_SELFTEST) {
     shares: (c.shares || []).map((m) => minSharesOf(m)),
     reservations: (c.reservations || []).map((v) => _guestPool && guestReservationFor(isolationPolicyFor(v), _guestPool.perGuest)),
     verdicts: (c.verdicts || []).map((v) => isolationClaimVerdict({ backend: ISOLATION_BACKEND, ...v })),
+    sameRecord: (c.sameRecord || []).map((x) => isolationHeldSameRecord(x.held, x.g, x.firewall, x.runtimeId)),
+    // the digest the SPAWN would record for a version (its own derivation function), to compare the resume's test with
+    ...(c.recordOf ? { recordOf: derivationDigest(isolationSpawnDerivation({ catalogRef: c.recordOf.g.ref, wasmRef: c.recordOf.g.wasmRef,
+      versionMemMb: c.recordOf.g.min.memMb, runtimeId: c.recordOf.runtimeId, ports: c.recordOf.ports })) } : {}),
   }));
   process.exit(0);
 }
@@ -3841,12 +3914,13 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     // itself, and any other guest may not have any; `secretsStaged` is only whether some are staged
     const released = await isolationSpawnRelease(h, deploymentId,
       { config, configCid, staged: secrets ? true : (secretsStaged === undefined ? false : secretsStaged) });
-    const httpPort = isolationHttpPortOf(ports);   // throws for tcp/udp or a second port
+    isolationHttpPortOf(ports);                    // throws for tcp/udp or a second port
     // The policy is the version's; a record that lost the version's memMb must not guess one (a different policy
     // is a different AppID and measurement for the same version).
     if (versionMemMb == null) throw new Error("per-app isolation: this record does not carry its version's on-chain memMb");
-    const derive = isolationDerivation(catalogRef, image && image.reference,
-      isolationPolicyFor({ memMb: versionMemMb }), h && h.catalog && h.catalog.runtimeId, httpPort);
+    // ONE derivation for the spawn, the resume's same-record test and the self-test (isolationSpawnDerivation)
+    const derive = isolationSpawnDerivation({ catalogRef, wasmRef: image && image.reference, versionMemMb,
+      runtimeId: h && h.catalog && h.catalog.runtimeId, ports });
     const body = { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
       gpuShare: 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
       ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}),
@@ -10215,6 +10289,11 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   if (ISOLATION_BACKEND) {
     const cf = overrideConfigFields(claimOpts, g);
     const isoMgr = await vmHealth().catch(() => null);
+    // a resume after this CVM restarted: the guest guestd kept for it already holds its room (guestPoolRefusal)
+    const isoHeld = resume ? await isolationHeldGuest(d.id) : null;
+    // ...and whether the spawn would ADOPT it (the same derivation record) or replace it (a different one); only an
+    // adoption takes no new host memory. Unknown counts as a replacement (the conservative side).
+    const heldSameRecord = isolationHeldSameRecord(isoHeld, g, firewall, isoMgr && isoMgr.catalog && isoMgr.catalog.runtimeId);
     // the relay's list is read only for a deployment that passes the cheap checks first (it requires this tier, and
     // the manager IS this tier's) on an opted-in box: one status call per real candidate, not per sweep entry (L1)
     const isoAsk = claimOpts.isolation === ISOLATION_BACKEND && isoMgr && isoMgr.backend === ISOLATION_BACKEND && isolationReleaseOn(isoMgr);
@@ -10222,8 +10301,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
       manager: isoMgr, listed: isoAsk ? await releaseListedFor(d.id) : "unlisted",
       gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
       policy: isolationPolicyFor(g.min),
-      // a resume after this CVM restarted: the guest guestd kept for it already holds its room (guestPoolRefusal)
-      held: resume ? await isolationHeldGuest(d.id) : null,
+      held: isoHeld, heldSameRecord,
       hasSecrets: await depHasSecrets(d.id), firewall, volumes: neededVolumes(d, g), isPublic: d.isPublic === true,
       waf: claimOpts.waf || null });
     if (isoWhy) return isoWhy;

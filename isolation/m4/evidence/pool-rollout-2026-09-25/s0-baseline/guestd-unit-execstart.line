@@ -1,0 +1,1 @@
+ExecStart=/home/steven/enclave-prod/bin/guestd -isolation /home/steven/enclave-prod/iso-03be27d6/isolation -root /home/steven/enclave-prod/guestd-root -listen 127.0.0.1:8095 -data-listen 127.0.0.1:8096 -auth-key /home/steven/enclave-prod/guestd-pair.key -gateway https://trustless-gateway.link

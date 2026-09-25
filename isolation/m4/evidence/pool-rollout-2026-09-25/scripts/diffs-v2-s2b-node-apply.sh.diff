@@ -1,0 +1,46 @@
+--- scripts-v1/s2b-node-apply.sh	2026-09-25 10:40:01.721366765 -0700
++++ s2b-node-apply.sh	2026-09-25 10:44:11.041216206 -0700
+@@ -1,18 +1,31 @@
+ #!/usr/bin/env bash
+-# S2 (node): point dist at the new image, nothing else; the CVM restarts. Guests run on the host and are resumed.
+-set -euo pipefail
+-C=/home/steven/Projects/enclave/metal/config.iso.json; BAK=$C.bak-pre-pool; EV=~/enclave-bench/pool-rollout-20260925
+-OLDD=/home/steven/Projects/enclave/metal/dist-iso-8ed6231f; NEWD=/home/steven/Projects/enclave/metal/dist-iso-c42612c0
+-[ -e "$BAK" ] && { echo "REFUSING: $BAK exists"; exit 12; }
+-[ -f "$NEWD/manifest.json" ] || { echo "no new image at $NEWD"; exit 2; }
+-cp -p "$C" "$BAK"
+-python3 - "$C" "$OLDD" "$NEWD" <<'PY'
++# S2b: point dist at the new image, nothing else; the node CVM restarts. v2 (enclave-99): the image predicts exactly the
++# allowlisted value; the ATTACHED measurement is verified from the node's raw report; backups stay outside the repo.
++set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh
++check_prediction
++[ "$(python3 -c "import json;print(json.load(open('$C'))['cpus'])")" = 4 ] || { say "REFUSING: config cpus is not 4 (the prediction is for 4 vCPUs)"; exit 2; }
++$NAN "grep -qx 'METAL_ALLOWED_MEASUREMENTS=$OLDM,$NEWM' /etc/nan-relay/api-relay.env" || { say "REFUSING: the relay does not allowlist the prediction (run S2a first)"; exit 3; }
++[ -e "$CBAK" ] && { say "REFUSING: $CBAK exists"; exit 12; }
++check_guestd pool || { say "REFUSING: guestd is not in its S1 state"; exit 14; }
++cp -p "$C" "$CBAK"; chmod 600 "$CBAK"
++python3 - "$C" "$OLDD" "$NEWD" "$EV/secret/config.iso.json.new" <<'PY'
+ import sys,os,json
+-p,old,new=sys.argv[1:]; s=open(p).read(); q='"%s"'%old
++p,old,new,tmp=sys.argv[1:]; s=open(p).read(); q='"%s"'%old
+ assert s.count(q)==1, "dist is not exactly the live image"; t=s.replace(q,'"%s"'%new)
+ a,b=json.loads(s),json.loads(t); assert b["dist"]==new and {k:v for k,v in a.items() if k!="dist"}=={k:v for k,v in b.items() if k!="dist"}
+-fd=os.open(p+".new",os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600); os.write(fd,t.encode()); os.close(fd); os.replace(p+".new",p)
++fd=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600); os.write(fd,t.encode()); os.close(fd); os.replace(tmp,p)   # same filesystem: atomic
+ PY
+-date -u +%Y-%m-%dT%H:%M:%SZ > $EV/s2b-restart-at.txt
++T0=$(date -u '+%Y-%m-%d %H:%M:%S'); say "S2b: dist -> dist-iso-c42612c0; restarting enclave-metal-iso (the node CVM reboots)"
+ systemctl --user restart enclave-metal-iso.service
+-echo "S2 node restarted at $(cat $EV/s2b-restart-at.txt)"
++fail() { say "S2b CHECK FAILED: $* -> rolling back S2b"; $EV/s2b-node-rollback.sh; exit 20; }
++attested_new() { [ "$(node_attested)" = "$NEWM c42612c0b814591497640aee2ad5113444254a9e" ]; }
++wait_for 600 attested_new || fail "the node never attested the prediction with overlay c42612c0"
++say "S2b: the node ATTESTS $NEWM (raw report 0x90), overlay c42612c0"
++wait_for 120 relay_row_ok || fail "the relay does not list metal-iso0 serving"
++avail_ok() { curl -sS --max-time 20 https://api.enclave.host/t/metal-iso0/availability | python3 -c "import json,sys; a=json.load(sys.stdin); g=a.get('guestPool') or {}; sys.exit(0 if g.get('heard') and a.get('nodeRamGb')==16 and a.get('nodeVcpus')==8 and abs(a.get('cpuShareFree',0)-0.625)<1e-9 and g.get('budget')=={'memMiB':16384,'cpuPct':800} else 1)"; }
++wait_for 300 avail_ok || fail "availability does not show the pool (16 GiB / 8, free 0.625)"
++wait_for 300 public_ok || fail "the canaries do not serve"
++check_guestd pool || fail "guestd lost a canary"
++journalctl --user -u enclave-metal-iso.service --since "$T0" --no-pager -o cat > $EV/s2b-node-journal.txt 2>&1 || true
++say "S2b: journal resumes: $(grep -c 'adopted guest' $EV/s2b-node-journal.txt) adopted-guest lines, $(grep -ciE 'released|releaseLease' $EV/s2b-node-journal.txt) release lines"
++say "S2b APPLIED and checked"

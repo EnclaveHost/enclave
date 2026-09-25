@@ -1,0 +1,12 @@
+--- /home/steven/enclave-bench/pool-rollout-20260925/scripts-v1/collect.sh	2026-09-25 10:40:01.721402214 -0700
++++ /home/steven/enclave-bench/pool-rollout-20260925/collect.sh	2026-09-25 10:44:53.722387624 -0700
+@@ -44,7 +44,8 @@
+ done < canaries.tsv
+ # 99's S2 finding: any guest or claim on metal-iso0 that is NOT one of the three canaries makes a dist rollback unsafe
+ awk -F'\t' '{print $1}' canaries.tsv | while read -r n; do case "${n:0:10}" in 0x395bed3e|0x0ddbd824|0x4e62e60d) ;; *) echo "$n";; esac; done > noncanary.txt
+-echo "non-canary guests on metal-iso0: $(wc -l < noncanary.txt)"
++echo "non-canary guests on metal-iso0 (guestd): $(wc -l < noncanary.txt)"
++node $EV/noncanary.mjs > noncanary-chain.json 2>&1 || echo "  (chain read FAILED: treat as unsafe)" >> noncanary-chain.json
+ node $EV/chain.mjs $ids > chain.json 2> chain.err
+ date -u +%Y-%m-%dT%H:%M:%SZ >> at.txt
+ echo "collected $L into $D"

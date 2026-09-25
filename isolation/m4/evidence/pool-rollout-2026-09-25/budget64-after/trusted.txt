@@ -1,0 +1,3 @@
+395bed3e VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed" RESULT gate=open RESULT spki_sha256=d590dd8456c91b4b0413e6ec344b621259d54be3ae1f0c7bd8780d071bfa9cd7
+0ddbd824 VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed" RESULT gate=open RESULT spki_sha256=b071a9c9cbd72f3b2ebe1cb0663f965091aa07513021554105df349ed8299bab
+4e62e60d VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed" RESULT gate=open RESULT spki_sha256=295ce2e0e8bfecf17026bc0197ac838c13766eb1ab5922b283d4675d11913643

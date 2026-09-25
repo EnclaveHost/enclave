@@ -1,0 +1,3 @@
+{"nodeRamGb": 64, "nodeVcpus": 16, "nodeGflops": 1000, "cpuShareFree": 0.7, "usedCpuShare": 0.3, "claimEnabled": true} {"heard": true, "budget": {"memMiB": 65536, "cpuPct": 1600}, "allocated": {"memMiB": 5376, "cpuPct": 300}, "free": {"memMiB": 60160, "cpuPct": 1300}, "guests": 3, "overcommitted": false}
+guestd ok: pool64 3 canaries running, same keys
+relay row serving+eligible

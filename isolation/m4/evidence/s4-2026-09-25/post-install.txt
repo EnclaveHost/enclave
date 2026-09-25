@@ -1,0 +1,9 @@
+Post-install checks (read-only, enclave-63):
+  19:39:32Z independent re-run of domain-release.sh from ~/enclave-prod/iso-ecf02384 into a scratch dir: release 0839ac3a, 15 files, release.json identical to 5d's artifact, template/front bd066066 freshly built; tree status --porcelain: 0 lines
+  guestd MainPID 3590642, NRestarts 0; m2-gd* units:
+    m2-gd6e734a97-3817590.service active running
+    m2-gdb677d751-3886305.service active running
+    m2-gdebc9c709-3817546.service active running
+  ExecStart still references: iso-03be27d6 
+  drwxr-xr-x /home/steven/enclave-prod/iso-ecf02384
+  drwxr-xr-x /home/steven/enclave-prod/release-ecf02384

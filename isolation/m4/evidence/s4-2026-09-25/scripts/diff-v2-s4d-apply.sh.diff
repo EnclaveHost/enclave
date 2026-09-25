@@ -1,0 +1,20 @@
+--- s4d-apply.sh.v1	2026-09-25 12:28:03.621585738 -0700
++++ s4d-apply.sh	2026-09-25 12:31:04.661096617 -0700
+@@ -42,7 +42,7 @@
+ # process that may take them is the guestd this script starts next.
+ PP=$(mktemp -d); ( cd "$T/isolation/m2" && go build -o "$PP/portprobe" ./lab-release/portprobe )
+ "$PP/portprobe" 9443 9444 || { rm -rf "$PP"; say4 "REFUSING: vsock 9443 or 9444 is held"; exit 19; }; rm -rf "$PP"
+-UNITS_BEFORE=$(units)
++UNITS_BEFORE=$(units) || { say4 "REFUSING: the m2-gd* units are unreadable or not the 3 running canaries"; exit 19; }
+ # ---- the change: the ONE ExecStart line, atomically
+ cp -p "$U" "$BAK"; chmod 600 "$BAK"
+ # FROM_APPLY: the preflight above verified the 3 S0 canaries alone and an empty non-canary set seconds before, and the
+@@ -84,7 +84,7 @@
+   grep -qF "$l" $J || fail "the journal lacks: $l"
+ done
+ ! grep -qE "not adopted, ended|stopped [0-9]+ guest unit" $J || fail "the journal shows a guest dropped or stopped"
+-[ "$(units)" = "$UNITS_BEFORE" ] || fail "the m2-gd* units changed (FATAL diff)"
++UA=$(units) || fail "the m2-gd* units are unreadable after the restart"; [ "$UA" = "$UNITS_BEFORE" ] || fail "the m2-gd* units changed (FATAL diff)"
+ wait_for 120 public_ok || fail "the canaries do not serve"
+ avail64() { curl -sS --max-time 20 https://api.enclave.host/t/metal-iso0/availability | python3 -c "import json,sys; a=json.load(sys.stdin); g=a.get('guestPool') or {}; sys.exit(0 if g.get('heard') and a.get('nodeRamGb')==64 and a.get('nodeVcpus')==16 and g.get('budget')=={'memMiB':65536,'cpuPct':1600} and g.get('free')=={'memMiB':60160,'cpuPct':1300} and abs(a.get('cpuShareFree',0)-0.7)<1e-9 else 1)"; }
+ wait_for 180 avail64 || fail "the supervisor's availability changed (64 GiB / 16, free 0.7 expected)"

@@ -1,0 +1,3 @@
+[isolation] 0x4e62e60d: adopted guest gdebc9c709 (running), launched from this record before the node restarted
+[isolation] 0x395bed3e: adopted guest gd6e734a97 (running), launched from this record before the node restarted
+[isolation] 0x0ddbd824: adopted guest gdb677d751 (running), launched from this record before the node restarted
