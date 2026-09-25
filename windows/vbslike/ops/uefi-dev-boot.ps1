@@ -78,6 +78,12 @@ param(
   # answer rebooted:true and touch nothing, app still serving), then the load answer's own boot (must destroy, and
   # the app must stop answering). Needs -Bundle and a monitor that mints a boot.
   [switch] $G1Check,
+  # G4 ON HARDWARE (a PROBE image only: enclave-5d's g4panic.ko panics the guest on purpose ~120 s after it loads). After
+  # the boot, hold the partition and COM1 for this many seconds and record, with times: every console line, VM state
+  # changes, uptime resets, and the worker's events. If a SECOND "MON boot" appears (the guest rebooted), a destroy
+  # carrying the FIRST boot is sent raw over hv_sock 9000 and must answer rebooted:true naming the new boot (G1 across a
+  # real reboot). Never with -Bundle: a probe never serves an app.
+  [int] $G4WatchSeconds = 0,
   # THE INVERSE CONTROL for Windows' firmware-load requirement: run WITHOUT applying AllowFirmwareLoadFromFile, so
   # the first observable says whether Hyper-V loads this firmware file without the developer setting at all.
   [switch] $WithoutFirmwarePolicy,
@@ -827,6 +833,48 @@ try {
   elseif ($seen -match 'MON ERROR'){ Note "RESULT: the guest REFUSED to start; the line above names the guard that fired" }
   elseif ($seen.Length -gt 0)      { Note "RESULT: the guest spoke but never said MON ready" }
   else                             { Note "RESULT: silent - no console bytes; a silent partition is not a booted one" }
+
+  if ($G4WatchSeconds -gt 0) {
+    Note "G4 WATCH: holding the partition and COM1 for $G4WatchSeconds s. The PROBE panics on purpose about 120 s after /probe.ko loads; what Hyper-V then does is the measurement."
+    $gStart = Get-Date; $mark = 0; $lastState = ''; $lastUp = -1; $resets = 0; $reattach = 0; $g1Done = $false
+    while (((Get-Date) - $gStart).TotalSeconds -lt $G4WatchSeconds) {
+      Drain $con 1000
+      if ($con.text.Length -gt $mark) {
+        $new = $con.text.Substring($mark); $mark = $con.text.Length
+        foreach ($l in ($new -split "`n" | Where-Object { $_.Trim() })) { Note "  G4 CONSOLE: $($l.Trim())" }
+      }
+      $vmNow = Get-VM -Name $name -EA SilentlyContinue
+      $stKey = if ($vmNow) { [string]$vmNow.State } else { 'GONE' }
+      $up = if ($vmNow) { [int]$vmNow.Uptime.TotalSeconds } else { -1 }
+      if ($stKey -ne $lastState) { Note "  G4 VM state: $stKey (uptime ${up}s)"; $lastState = $stKey }
+      if ($lastUp -ge 0 -and $up -ge 0 -and ($up + 2) -lt $lastUp) { $resets++; Note "  G4 RESET OBSERVED: uptime fell from ${lastUp}s to ${up}s (state $stKey)" }
+      $lastUp = $up
+      if ($stKey -eq 'GONE') { break }
+      if (-not $con.c -or -not $con.c.IsConnected) {
+        try {
+          $c2 = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipe, [System.IO.Pipes.PipeDirection]::In, [System.IO.Pipes.PipeOptions]::Asynchronous)
+          $c2.Connect(200)
+          if ($con.c) { try { $con.c.Dispose() } catch {} }
+          $con.c = $c2; $con.pending = $null; $reattach++; Note "  G4 COM1 re-attached"
+        } catch { }
+      }
+      $bootsNow = @([regex]::Matches($con.text, 'MON boot ([0-9a-f]{32})') | ForEach-Object { $_.Groups[1].Value })
+      if (-not $g1Done -and $bootsNow.Count -ge 2 -and $con.text.Substring($con.text.LastIndexOf('MON boot')) -match 'MON ready') {
+        $g1Done = $true
+        if (-not $vmId) { $vmId = (Get-VM -Name $name).Id.Guid }
+        $j = '{"cmd":"destroy","id":1,"boot":"' + $bootsNow[0] + '"}'
+        $r = (& C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send ($j -replace '"','\"') 2>&1 | Out-String).Trim()
+        Note "G4 G1 ACROSS A REAL REBOOT: destroy with the FIRST boot ($($bootsNow[0])) after the guest came back as $($bootsNow[-1]) -> $r"
+      }
+    }
+    $bootsSeen = @([regex]::Matches($con.text, 'MON boot ([0-9a-f]{32})') | ForEach-Object { $_.Groups[1].Value })
+    $armed = ([regex]::Matches($con.text, 'MON PROBE G4: armed')).Count
+    $panics = ([regex]::Matches($con.text, 'Kernel panic')).Count
+    Note "G4 RESULT: $($bootsSeen.Count) 'MON boot' line(s) [$($bootsSeen -join ', ')], $armed arming line(s), $panics 'Kernel panic' line(s), $resets uptime reset(s), $reattach COM1 re-attach(es), final state $lastState"
+    Get-WinEvent -LogName 'Microsoft-Windows-Hyper-V-Worker-Admin' -MaxEvents 80 -EA SilentlyContinue |
+      Where-Object { $_.TimeCreated -ge $t0 } | Sort-Object TimeCreated |
+      ForEach-Object { Note ("  G4 ADMIN [$($_.Id)] $($_.TimeCreated.ToUniversalTime().ToString('HH:mm:ss')) " + (($_.Message -replace "`r?`n",' ').Substring(0,[Math]::Min(200,($_.Message -replace "`r?`n",' ').Length)))) }
+  }
 
   Get-WinEvent -LogName 'Microsoft-Windows-Hyper-V-Worker-Admin' -MaxEvents 15 -EA SilentlyContinue |
     Where-Object { $_.TimeCreated -ge $t0 } | Sort-Object TimeCreated |
