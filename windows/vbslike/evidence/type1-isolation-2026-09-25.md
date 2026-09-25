@@ -414,3 +414,21 @@ this guest's memory..."*. On this path that string is hardcoded and inaccurate â
 type 1. It under-claims here rather than over-claims, but a hardcoded boundary statement that does
 not track the actual partition type is exactly the kind of thing that makes a transcript unreliable
 in either direction. It needs to state the partition type it was given.
+
+## Save-VM is REFUSED on a type-1 VM, so the saved-state reader is unavailable there
+
+From the first type-1 run that got far enough to try it:
+
+    Save-VM REFUSED: '...' failed to save. Cannot perform the operation ... because the virtual
+    machine has security settings which do not allow it.
+    VERDICT: REFUSED - nothing was read, so this says NOTHING about whether the memory is readable.
+             A refusal to save is not evidence of isolation and must never be reported as any.
+
+This matters structurally, not just for one run. The documented host-side route to a guest's memory
+on this platform is Save-VM plus a saved-state decoder, and **that route does not exist for a type-1
+VM on this host.** So E3 needs a different instrument for the type-1 side, and the type-16 control
+cannot simply be repeated there.
+
+It is worth being explicit about the trap: a refusal to save is the easiest possible thing to
+mistake for protection, and it is not. Nothing was read, so nothing was established. The script
+says so in its own output rather than relying on a reader to remember.
