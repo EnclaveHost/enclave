@@ -141,6 +141,16 @@ jobs:
               # release and repoint the fleet (run 32983352553, cancelled) for a
               # file nothing in the image reads.
               wasm/.gitignore|wasm/*/.gitignore) ;;
+              # Benchmark tools and CPU-kernel test harnesses are not build
+              # inputs either. wasm/Dockerfile.wasm copies only
+              # llamacpp-parallel-copy.patch, apps/nn-demo.wasm, wasm_manager.py
+              # and ipfs_fetch.py out of its wasm/ context, and
+              # metal/build-image.mjs compiles a fixed source list from
+              # wasm/ggml-shielded (bench-*.cpp are non-default Makefile targets).
+              # 2026-09-23: seven pushes of exactly such files each cut a measured
+              # release and repointed the fleet (v0.5.832-835, 837-839).
+              wasm/llamacpp-conv-inplace/*) ;;
+              wasm/ggml-shielded/bench-spec.cpp|wasm/ggml-shielded/bench-batch.cpp) ;;
               wasm/*)                  wasm=true ;;
               # Metal guest/launcher code ships ONLY via tags: a metal box's
               # update flow (metal/update.mjs) builds the guest image at the
