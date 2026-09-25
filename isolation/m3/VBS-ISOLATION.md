@@ -381,6 +381,53 @@ changed across a type-1 run (01c2879b → 3e9630e1).
   2. the debug image, with `kmsg -f -r -v`.
 - Neither image is ever a serving candidate.
 
+**THE ERROR** (enclave-d1, the debug image on a live type-1 partition, 81173698):
+
+```
+[0.126263] underhill_core::worker: ERROR ... failed to start VM error=failed to initialize memory: cannot safely support VTL 1 without using the alias map
+[120.126490] [U] thread 'worker-UnderhillWorker' (45) panicked at vm/devices/get/guest_emulation_transport/src/client.rs:562:25
+```
+
+- It is memory initialization at 126 ms (`worker.rs:1996`), not the VMGS and not `validate_isolated_configuration`.
+- The panic at +120 s is the start-failure timer, to the millisecond.
+- It is proven for the a7b0bd4 debug build. For stock 2511 it is the strongest hypothesis; the control image decides.
+
+The same run shows the partition is isolated:
+- the kernel's `Hyper-V: Isolation Config: Group A 0x0, Group B 0x1` (type 1 = VBS);
+- `OPENHCL_CONFIDENTIAL=1` on OpenHCL's command line.
+
+**What the error requires, from source** (`underhill_mem/src/init.rs:559-582`, the branch for partitions that are not
+hardware-isolated, which includes VBS). OpenHCL bails when **both** hold:
+1. **Guest VSM is available**: `maximum_vtl = Vtl1` when `proto_partition.guest_vsm_available()`
+   (`worker.rs:1989`). That is the partition's `access_vsm` privilege AND the **host-set** guest VSM partition config
+   register allowing VTL 1 (`virt_mshv_vtl/src/lib.rs:2341-2350`).
+2. **There is no VTL0 alias map.** The boot shim enables it only if the **hypervisor** reports
+   `vtl0_alias_map_available` in its VSM capabilities register for a partition that is not hardware-isolated. Otherwise
+   it forces `None`, ignoring even a device-tree value (`openhcl_boot/src/main.rs:703-729`).
+
+The reason, from the source comment: without the alias map OpenHCL cannot enforce VTL0 access protections for a guest
+that has VTL1, and it cannot hide Guest VSM from the guest's secure kernel.
+
+**The levers:**
+- **The alias map** is a hypervisor capability. No documented host setting is known to turn it on, and OpenHCL ignores
+  a host-supplied value without the capability.
+- **Guest VSM** is host policy, and our guest (Linux, no secure kernel) does not use VTL 1. The documented host knob
+  is `Set-VMSecurity -VirtualizationBasedSecurityOptOut $true` (`Msvm_SecuritySettingData`). That it sets the guest VSM
+  config's maximum VTL to 0, and that the host permits it on a type-1 VM, is a PREDICTION to test.
+- Guest VSM is VTL 1 inside the guest. It is not the partition's isolation from the host (type 1, hypervisor host
+  visibility), so opting out does not touch what is being tested.
+
+**Discriminators:**
+- The type-16 kmsg should carry `enabling alias map` (`worker.rs:1933`) if the hypervisor offers it there; the type-1
+  kmsg should not. That would show this host withholds the alias map from VBS-isolated partitions.
+- In the debug kmsg, `empty vmgs file, formatting` and `failed to write vmgs provisioning marker` say who formatted
+  the store. The marker is written at `worker.rs:1909-1919`, BEFORE memory initialization (1996), so a store OpenHCL
+  formatted this boot and that stopped at 1996 should carry file 18.
+
+**My error, corrected:** OpenHCL starts the VM worker with `start_worker`, which does not wait (`lib.rs:446-457`).
+The blocking `launch_worker` calls I cited are the VNC and gdb workers. So `run_control` stays responsive and reports
+`control_state: starting`, as enclave-d1 measured on both images, while type 16 reports `started`.
+
 **Still true:** no type-1 guest has booted, E2/E3 are NOT RUN, `host_excluded=no`, and nothing here is evidence of
 isolation.
 
