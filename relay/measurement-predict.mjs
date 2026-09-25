@@ -199,10 +199,13 @@ export function makePredictor(o) {
   const unslot = () => { const next = queue.shift(); if (next) next(); else active--; };
 
   async function prepare() {
-    // the pinned sev-snp-measure, every time the toolchain is used: the known-answer test catches a broken tool, this a changed one
+    // the pinned sev-snp-measure, every time the toolchain MEASURES: the known-answer test catches a broken tool, this a changed one
     let got;
     try { got = await digestTool(sevSnpMeasure); } catch (e) { throw new Error(`sev-snp-measure: ${e.message}`); }
     if (got !== sevSnpMeasureSha256) throw new Error(`sev-snp-measure's digest ${String(got).slice(0, 12)} is not the pinned ${String(sevSnpMeasureSha256).slice(0, 12)}`);
+    return extract();
+  }
+  async function extract() {
     if (toolchain) return toolchain;
     fs.mkdirSync(work, { recursive: true, mode: 0o700 });
     fs.chmodSync(work, 0o700);
@@ -397,7 +400,30 @@ export function makePredictor(o) {
     return p;
   }
 
-  return { expectedFor, selfTest, problems, state: () => ({ kat: { ok: kat.ok, at: kat.at, reason: kat.reason }, toolchain: toolchain && toolchain.dir,
+  // the bytes a CID names, fetched and VERIFIED against it by the platform's own fetcher (guestd's fetch-cid.py ->
+  // wasm/ipfs_fetch.py, from the pinned toolchain), or a refusal. For a config CID (the release's resolveConfigCid); raw-CID
+  // answers are kept like components (re-verified on every read). Not gated on the known-answer test: it measures nothing.
+  async function fetchVerified(cid, maxBytes = 1 << 20) {
+    if (!/^[A-Za-z0-9]{10,100}$/.test(String(cid || ""))) return { ok: false, code: "bad_cid", reason: "not a CID" };
+    const digest = rawCidDigest(cid), kept = digest && components && path.join(components, cid);
+    try { const b = fs.readFileSync(kept); if (b.length <= maxBytes && sha256hex(b) === digest) return { ok: true, bytes: b }; } catch {}
+    let tc;
+    try { tc = await extract(); } catch (e) { return { ok: false, code: "unavailable", reason: e.message }; }
+    fs.mkdirSync(path.join(work, "tmp"), { recursive: true, mode: 0o700 });
+    const job = fs.mkdtempSync(path.join(work, "tmp", "cid-"));
+    try {
+      const out = path.join(job, "bytes");
+      const f = await run("python3", [path.join(tc.dir, "isolation/m4/guestd/fetch-cid.py"), tc.dir, cid, out, String(maxBytes), gateway], { env: tc.env, cwd: job, timeoutMs });
+      if (f.code !== 0) return { ok: false, code: "unavailable", reason: `${cid} did not fetch and verify: ${lastLine(f.err)}` };
+      const b = fs.readFileSync(out);
+      if (digest && sha256hex(b) === digest) {
+        try { fs.mkdirSync(components, { recursive: true, mode: 0o700 }); const tmp = `${kept}.${randomBytes(6).toString("hex")}`; fs.writeFileSync(tmp, b, { mode: 0o600 }); fs.renameSync(tmp, kept); } catch {}
+      }
+      return { ok: true, bytes: b };
+    } finally { fs.rmSync(job, { recursive: true, force: true }); }
+  }
+
+  return { expectedFor, selfTest, fetchVerified, problems, state: () => ({ kat: { ok: kat.ok, at: kat.at, reason: kat.reason }, toolchain: toolchain && toolchain.dir,
                                                          active, queued: queue.length, cached: cache.size, ...stats }) };
 }
 
@@ -435,6 +461,26 @@ export function catalogReader(clients, catalogAddress) {
   };
   read.sources = list.length;
   return read;
+}
+
+// the catalog VERSION's config as the chain states it, through the same agreeing clients: the inline `config` field and, on
+// catalog rev >= 7, versionConfigCid (a revert there means "no such field on this catalog", i.e. ""). { config, configCid }.
+const CONFIG_CID_ABI = [{ type: "function", name: "versionConfigCid", stateMutability: "view", inputs: [{ type: "bytes32" }, { type: "uint256" }], outputs: [{ type: "string" }] }];
+export function versionConfigReader(clients, catalogAddress) {
+  const list = Array.isArray(clients) ? clients : [clients];
+  const readOne = async (client, address, app, index) => {
+    const v = await client.readContract({ address, abi: CATALOG_READ_ABI, functionName: "getVersion", args: [app, BigInt(index)] });
+    let configCid = "";
+    try { configCid = await client.readContract({ address, abi: CONFIG_CID_ABI, functionName: "versionConfigCid", args: [app, BigInt(index)] }) || ""; }
+    catch (e) { if (!/revert/i.test(e && (e.shortMessage || e.message) || "")) throw e; }
+    return { config: String(v.config || ""), configCid: String(configCid) };
+  };
+  return async (app, index) => {
+    const address = typeof catalogAddress === "function" ? await catalogAddress() : catalogAddress;
+    const got = await Promise.all(list.map((c) => readOne(c, address, app, index)));
+    if (got.some((g) => canonical(g) !== canonical(got[0]))) throw new Error(`the ${list.length} catalog RPCs disagree about ${app}/${index}'s config`);
+    return got[0];
+  };
 }
 
 // configuration from the environment (all required when attested release is on; see attested-release.md)

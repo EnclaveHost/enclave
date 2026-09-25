@@ -97,7 +97,7 @@ import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
 import { handleCerts, initCerts } from "./certs.js";
-import { makePredictor, predictorEnv, catalogReader, runtimeIdOfJson } from "./measurement-predict.mjs";
+import { makePredictor, predictorEnv, catalogReader, versionConfigReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
@@ -2257,13 +2257,52 @@ async function confirmRow(id) {
 let _predictor = null;
 const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(), readCatalog: catalogReader(catalogClients, catalogAddress) }));
 const expectedGuestFor = (row, o) => predictor().expectedFor(row && row.appRef, o);
+// the catalog VERSION's { config, configCid } for the deployment's CONFIRMED appRef, through the same agreeing RPCs
+const _versionConfig = { read: null };
+async function versionConfigFor(id) {
+  const row = await confirmRow(id);
+  const m = /^catalog:\/\/(0x[0-9a-fA-F]{64})\/(\d{1,9})$/.exec(String(row.appRef || ""));
+  if (!m) return null;
+  _versionConfig.read ||= versionConfigReader(catalogClients, catalogAddress);
+  return _versionConfig.read(m[1].toLowerCase(), Number(m[2]));
+}
+// a configCid's content, fetched and verified against the CID by the platform's own fetcher (the predictor's pinned
+// toolchain), returned as TEXT for the release to parse; null when it cannot be had now (the release answers 503 and keeps
+// the ticket). Immutable by construction, so kept per CID (LRU 64).
+const _configByCid = new Map();
+async function resolveConfigCid(cid) {
+  if (_configByCid.has(cid)) return _configByCid.get(cid);
+  const got = await predictor().fetchVerified(cid, 1 << 20);
+  if (!got.ok) { console.warn(`[secrets-release] configCid ${String(cid).slice(0, 16)}…: ${got.reason}`); return null; }
+  const text = got.bytes.toString("utf8");
+  _configByCid.set(cid, text);
+  while (_configByCid.size > 64) _configByCid.delete(_configByCid.keys().next().value);
+  return text;
+}
 const predictorProblems = () => [...predictor().problems,
   ...(catalogRpcHosts.size < 2 ? ["SECRETS_RELEASE_CATALOG_RPCS (two or more independent Base RPCs)"] : [])];
+// A release document judged by the VENDORED verifier's SNP domain path (verifier/consumer.mjs verifyGuestDomainEvidence:
+// verifier/index.mjs verifyEvidence's SNP branch, bundled because the relay ships relay/** only): the pinned AMD roots, the
+// CRL, the caller's TCB floor and VMPL, report_data = the release binding and the AppID, HOST_DATA = the deployment. AMD
+// collateral comes from KDS through the reverify cache directory (a cached VCEK is re-verified to the pinned ARK on read).
+let _guestVerifier = null;
+async function verifyGuestEvidence(doc, { allowedMeasurements, minTcb, expectedVmpl, expectedBinding, expectedAppId, expectedHostData }) {
+  if (!_guestVerifier) {
+    const bundle = await import("./vendor/enclave-verifier-node.mjs");
+    let collateral;
+    try { fs.mkdirSync(RELAY_REVERIFY_CACHE_DIR, { recursive: true }); collateral = bundle.cachedCollateral({ dir: RELAY_REVERIFY_CACHE_DIR, upstream: bundle.httpCollateral({ timeoutMs: 8000 }) }); }
+    catch { collateral = bundle.httpCollateral({ timeoutMs: 8000 }); }
+    _guestVerifier = { verify: bundle.verifyGuestDomainEvidence, collateral };
+  }
+  return _guestVerifier.verify(doc, { policy: { snp: { allowedMeasurements, minTcb, expectedVmpl } },
+    context: { transportKeySpki: Buffer.from(doc.transportKey, "base64"), expectedBinding, expectedAppId, expectedHostData, now: new Date().toISOString() },
+    collateral: _guestVerifier.collateral });
+}
 // the RuntimeID of the runtime identity a guest states (isolation/contract/runtime.go: sha256 of its canonical JSON); it
 // is admitted only when it equals an admitted domain release's own
 const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
 const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
-                   expectedGuestFor, predictorProblems, runtimeIdOf, confirmRow,
+                   expectedGuestFor, predictorProblems, runtimeIdOf, confirmRow, verifyGuestEvidence, versionConfigFor, resolveConfigCid,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)

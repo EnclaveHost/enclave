@@ -88,7 +88,7 @@ report_data[32:64] = AppID          (filled by the monitor, never by the release
   - HOST_DATA = id;
   - CHIP_ID non-zero, and ∈ the ticket's chips.
 - The response is the deployment's config plus its secrets, sealed.
-  - The config follows the supervisor's precedence (`overrideConfigFields`): the envelope's `config`, else the envelope's `configCid`, else the catalog VERSION's config, else the version's `configCid`. It is null only when none of them names one.
+  - The config is what the tier delivers today: the supervisor's split (`overrideConfigFields`: the options envelope decides when it names `config` or `configCid`, else the catalog VERSION does) and, within that source, the manager's rule (`wasm_manager.py`: "if both arrive the CID wins and the inline field is ignored"; beside a CID the inline field is only the routing manifest). So: the envelope's `configCid`, else its `config`; else the version's `configCid`, else its inline `config`. It is null only when neither source names one. (Corrected 2026-09-25: the earlier text put an inline field before its CID, which on a rev-7 large-config version would have released the routing manifest as the app's config.)
   - `config` is the config's JSON VALUE (an object or array). The guest's `ENCLAVE_CONFIG` is its compact serialization.
   - Text fetched by CID, or a version's config text, is parsed here. A value that is itself a JSON string, or anything that isn't an object or array, is refused (422 `bad_config`), never passed on.
   - An unresolvable CID gives 503, never a partial answer.
@@ -174,12 +174,17 @@ Lab validation: `docs/security/measurement-prediction/` (the script, the canarie
 
 `GET /v1/secrets/release-status?id=0x…` answers `{id, listed}` from `SECRETS_RELEASE_DEPLOYMENTS` only, so a supervisor can choose the guest image without a second copy of the owner's decision (enclave-5d, d1's option (i)). It is public (deployment ids are public on chain), rate-limited, and 503 `release_off` while the release is off or not fully configured, without naming what is missing.
 
-## Not wired yet (the release answers 503 until these land)
+## Providers (all wired in `relay/api-relay.js`)
 
-- `verifyGuestEvidence`: the relay's vendored verifier (`relay/vendor/enclave-verifier-node.mjs`) exports the consumer API only. It needs a rebuild that also exports the domain-path `verifyEvidence`, with a `bindingDomain` field in the verdict, and KDS collateral fetched by CHIP_ID (the guest's `certs` are optional).
-- `resolveConfigCid`: a `configCid`, fetched and checked against its CID (returning text or a value; the relay parses it).
-- `versionConfigFor`: the catalog version's `{config, configCid}` for the deployment's version.
-- The predictor's host prerequisites on nan (below), and its env set and reviewed.
+- `verifyGuestEvidence`: the VENDORED verifier's `verifyGuestDomainEvidence` (`verifier/consumer.mjs`, bundled into `relay/vendor/enclave-verifier-node.mjs`): exactly `verifyEvidence`'s SNP branch, restricted to `sev-snp-guest-domain-v1` (anything else is `unsupported`); AMD collateral from KDS through the reverify cache directory. A parity test runs it against `verifyEvidence` on the synthetic release reports.
+- `expectedGuestFor` / `predictorProblems`: the measurement predictor (above).
+- `confirmRow`: the deployment's record by id through two or more agreeing RPCs.
+- `runtimeIdOf`: sha256 of the stated runtime identity's canonical JSON.
+- `versionConfigFor`: the confirmed `appRef`'s catalog version `{config, configCid}` (`versionConfigCid` on catalog rev ≥ 7; a revert there means none) through the same agreeing RPCs.
+- `resolveConfigCid`: the CID's bytes fetched and verified against the CID by the platform's own fetcher (the predictor's pinned toolchain: `fetch-cid.py` → `wasm/ipfs_fetch.py`), 1 MiB cap, returned as text for the release to parse; kept per CID.
+
+Before turning the release on:
+- The predictor's host prerequisites on nan (above), and its env set and reviewed.
 - Rollout condition: the lease holder must attach with VCEK verification (`METAL_REQUIRE_VCEK`), or it proves no chip.
 
 ## Tests
