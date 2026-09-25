@@ -1,4 +1,4 @@
-# The in-domain adversary probe on the measured type-1 guest (a44bb55a), on Hyper-V: run 091717 (2026-09-25)
+# The in-domain adversary probe on the measured type-1 guest (a44bb55a), on Hyper-V: run 091720 (2026-09-25)
 
 enclave-d1, nucbox-k11, boot 68, Secure Boot ON. Box-clock log lines. Script `uefi-dev-boot.ps1` at `c16d785d`, with
 `-LinuxDirect -IsolationType 1 -VbsOptOut -ProbeDomain`. There was no app. The image is `a44bb55a` from enclave-63's v35.
@@ -10,7 +10,7 @@ measured `/plat/domprobe`, which stands in for a compromised runtime and reports
 public `mode` still reads `serve`; the probe flag is private, and domexec's `started adversary probe` line shows it was
 honoured.
 
-**COM1, verbatim** ([uefi-dev-boot-20260925-091717.log.txt](uefi-dev-boot-20260925-091717.log.txt)):
+**COM1, verbatim** ([uefi-dev-boot-20260925-091720.log.txt](uefi-dev-boot-20260925-091720.log.txt)):
 
     MON domain 1 loaded label=PROBE ... port=40001 uid=5001 cpu=50% mem=64MiB mode=serve http=0
     MON refused report request from uid 0 (not a domain)
@@ -62,4 +62,4 @@ host_excluded=no. `report=refused` is expected here: no report signer (wmiserve)
 
 **The mechanism, and two dry runs.** Runs 091020 and 091408 read NOTHING after the load. The COM1 client is
 disconnected after the ready wait on every run; G4 had to re-attach too. The probe block now re-attaches (`c16d785d`),
-and 091717 is the first run with it.
+and 091720 is the first run with it.
