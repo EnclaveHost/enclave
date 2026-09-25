@@ -118,10 +118,13 @@ Part A passes. Round 4 `631915a2` makes an ineligible box's surfaces inert (nosn
 - every daemon dial is gated, and new flows only open to a fresh eligible origin;
 - the node-id join is consistent (both sides strip trailing slashes and hash the exact string), and every mismatch
   fails closed.
-Open with 99:
-- the dns-relay's fleet-HMAC path authorizes dns-01 for ANY name with no lease or eligibility check, so it is safe
-  only if every holder of the fleet secret is eligible;
-- established flows survive a loss of eligibility. |
+Round 5 `8f31a87e`, checked by d1 (100/100):
+- under the HMAC, a deployment name now needs a live lease with an eligible holder;
+- live sessions close within about one poll when their host loses eligibility.
+Still open with 99:
+- the ZONE APEX (`_acme-challenge.<zone>`, a wildcard over every tenant) keeps HMAC authority. enclave-5d found it;
+  d1 reproduced it; the fix is to refuse zone apexes;
+- the HMAC never names WHICH box: a Codex/Steven item. |
 
 ## 5. BLOCKED or PAUSED (parked; not rerouted, not rephrased)
 
