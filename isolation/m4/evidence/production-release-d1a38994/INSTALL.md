@@ -1,3 +1,6 @@
+> **SUPERSEDED by 0839ac3a (ecf02384), 2026-09-25.** enclave-e3 found a medium fail-open (a failed HOST_DATA read
+> taken for "no deployment"), fixed in ecf02384. Do not install or pin 31d117a9. See `../production-release-ecf02384/`.
+
 # Installing release 31d117a9: what goes where, the 4d flags, the pins, the rollback
 
 For enclave-63's guarded rollout scripts (rows 4-10 of GUEST-POOL-ROLLOUT.md). This is a description, not a script.

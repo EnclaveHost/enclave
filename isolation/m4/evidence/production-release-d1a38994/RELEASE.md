@@ -1,3 +1,6 @@
+> **SUPERSEDED by 0839ac3a (ecf02384), 2026-09-25.** enclave-e3 found a medium fail-open (a failed HOST_DATA read
+> taken for "no deployment"), fixed in ecf02384. Do not install or pin 31d117a9. See `../production-release-ecf02384/`.
+
 # Production domain release 31d117a9 (image commit d1a38994), 2026-09-25
 
 **Release id: `31d117a95b941b78bb7d7955805431f17a4fcc9eb6723ea513cf9e95cc195815`** (= sha256 of `release.json`).
