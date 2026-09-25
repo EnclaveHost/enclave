@@ -92,10 +92,20 @@ test("a wasm override beats the catalog reference", async () => {
 // spawn goes through it. A new launch path must join them, not fork them.
 test("every launch site builds its spec through launchSpec", () => {
   const src = fs.readFileSync(SUPERVISOR, "utf8");
-  const calls = [...src.matchAll(/await spawnContainer\((.*?)\);\s*$/gm)].map((m) => m[1].trim());
-  assert.ok(calls.length >= 2, "expected the provision and respawn launch sites");
-  for (const arg of calls)
-    assert.equal(arg, "await launchSpec(rec)", `a launch site builds its own spawn spec: ${arg}`);
+  // EVERY call, however it is laid out: an end-of-line anchor once let a `try { await spawnContainer(x); } catch` form
+  // go unseen
+  const calls = [...src.matchAll(/await spawnContainer\(([^;]*?)\);/g)].map((m) => ({ arg: m[1].trim(), at: m.index }));
+  assert.ok(calls.filter((c) => c.arg === "await launchSpec(rec)").length >= 2, "expected the provision and respawn launch sites");
+  // The one exception is the attested-release lab's RELEASE_SELFTEST seam, which spawns a LAB-built spec on purpose
+  // (phase 2 fixes what the relay says is staged) and only under that variable, in a block that ends the process. Its
+  // two call sites are named, and must sit inside that block; any other launch site must go through launchSpec.
+  const seam = src.indexOf("if (process.env.RELEASE_SELFTEST) {");
+  const seamEnd = seam < 0 ? -1 : src.indexOf("\n}\n", seam);
+  const seamArgs = new Set(["c.spawnReal.spec", "c.spawnSite.spec"]);
+  for (const { arg, at } of calls) {
+    if (arg === "await launchSpec(rec)") continue;
+    assert.ok(seamArgs.has(arg) && seam >= 0 && at > seam && at < seamEnd, `a launch site builds its own spawn spec: ${arg}`);
+  }
   // and launchSpec is the only production caller of the pure builder (the
   // other hit in the file is the LAUNCH_SPEC_SELFTEST seam this test drives)
   const builders = [...src.matchAll(/^\s*return launchSpecFrom\(/gm)];
