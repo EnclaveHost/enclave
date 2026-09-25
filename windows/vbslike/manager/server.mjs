@@ -342,6 +342,10 @@ export class Manager {
       if (h && h.domainId != null) rec.domainId = h.domainId;
       if (h && h.guestPort != null) rec.guestPort = h.guestPort;
       if (h && h.image) rec.image = h.image;
+      // The key this domain's reports are signed with, as the launcher stated it. wmiserve mints a NEW one per run, so a
+      // verifier holding one fixed key cannot judge a relaunched domain. It is public (it verifies, it cannot sign),
+      // and it is exactly what this manager's own readiness rule was given (handle.launcherKey).
+      if (h && h.launcherKey) rec.launcherKey = h.launcherKey;
       // the launcher's (partition, guestImageKind) statement, which the image is only ever compared with
       if (h && h.guestIdentity) rec.guestIdentity = { partition: h.guestIdentity.partition, guestImageKind: h.guestIdentity.guestImageKind };
       if (h && h.tcpPort != null) rec.relay = { host: "127.0.0.1", port: h.tcpPort };
