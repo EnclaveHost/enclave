@@ -21,7 +21,15 @@ param(
   [string] $Gateway = 'https://ipfs.enclave.host',
   [int] $Port = 18091,
   [string] $Name = '0xd1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55',
-  [int] $CeilingSeconds = 1800
+  [int] $CeilingSeconds = 1800,
+  # SERVING: the manager runs wmiserve per domain (ENCLAVE_WMISERVE_EXE, pinned), and the report service's hv_sock GUID
+  # (port 9001) is registered for the run only if absent, and removed again only if this run added it.
+  [switch] $Serve,
+  [string] $WmiserveRel = 'control\candidate-launcher\vbslike-host-15338081.exe',
+  [string] $WmiserveSha256 = '15338081b81692a155130ec28e37fa654117a3e769427b621404fff3d6c6bca4',
+  # PHASE 1: enclave-5d's hvlab-accept.mjs against the manager (data plane on $DataPort); empty = phase 2 only
+  [string] $HvlabScript = '',
+  [int] $DataPort = 18092
 )
 $ErrorActionPreference = 'Stop'
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss')
@@ -43,6 +51,15 @@ $igvm = Join-Path $Pkg $IgvmRel
 $got = (Get-FileHash $igvm -Algorithm SHA256).Hash.ToLower()
 if ($got -ne $IgvmSha256.ToLower()) { throw "the IGVM hashes $got, not the pinned $IgvmSha256" }
 $treeFull = (Resolve-Path $Tree).Path
+$SvcPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices'
+$ReportSvcGuid = '00002329-facb-11e6-bd58-64006a7986d3'
+$wmiserveExe = $null
+if ($Serve) {
+  $wmiserveExe = Join-Path $Pkg $WmiserveRel
+  $ws = (Get-FileHash $wmiserveExe -Algorithm SHA256).Hash.ToLower()
+  if ($ws -ne $WmiserveSha256.ToLower()) { throw "the wmiserve executable hashes $ws, not the pinned $WmiserveSha256" }
+}
+if ($HvlabScript -and -not (Test-Path $HvlabScript)) { throw "hvlab-accept not found at $HvlabScript" }
 
 $before = Read-Setting
 Note "=== MANAGER ACCEPTANCE ($Driver). Lifecycle and recovery only: NOT an isolation or attestation result; host_excluded=no. ==="
@@ -57,6 +74,8 @@ while ((Get-Date) -lt `$deadline) { `$p = Get-Process -Id $PID -EA SilentlyConti
 if (Test-Path '$sentinel') {
   Set-Content -Path '$fired' -Force -Value "fired=`$((Get-Date).ToUniversalTime().ToString('s'))"
   foreach (`$q in @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { `$_.CommandLine -match '$treeEsc' })) { Stop-Process -Id `$q.ProcessId -Force -EA SilentlyContinue }
+  foreach (`$q in @(Get-CimInstance Win32_Process -Filter "Name like 'vbslike-host%'" | Where-Object { `$_.CommandLine -match '$([regex]::Escape($runDir))' })) { Stop-Process -Id `$q.ProcessId -Force -EA SilentlyContinue }
+  if (@(Get-Content '$sentinel' -EA SilentlyContinue) -contains 'svcAdded=1') { Remove-Item -Path '$SvcPath\$ReportSvcGuid' -Recurse -Force -EA SilentlyContinue }
   foreach (`$v in @(Get-VM -EA SilentlyContinue | Where-Object { [string]`$_.Notes -eq '$MARKER' -or ([string]`$_.Notes).StartsWith('$MGR') })) {
     Stop-VM -VM `$v -TurnOff -Force -EA SilentlyContinue; Start-Sleep -Seconds 3; Remove-VM -VM `$v -Force -EA SilentlyContinue }
   if ('$($before.S)' -eq 'Present') { Set-ItemProperty '$RegPath' -Name '$RegName' -Value $($before.V) -Type '$($before.K)' } else { Remove-ItemProperty '$RegPath' -Name '$RegName' -EA SilentlyContinue }
@@ -72,9 +91,23 @@ $fail = @(); $driverExit = $null
 try {
   Set-ItemProperty -Path $RegPath -Name $RegName -Value 1 -Type DWORD
   Note "SETTING APPLIED for this run"
+  $script:svcAdded = $false
+  if ($Serve) {
+    $svcKey = Join-Path $SvcPath $ReportSvcGuid
+    if (-not (Test-Path $svcKey)) {
+      New-Item -Path $svcKey -Force | Out-Null
+      New-ItemProperty -Path $svcKey -Name 'ElementName' -Value 'enclave report signing (acceptance)' -PropertyType String -Force | Out-Null
+      $script:svcAdded = $true
+      Add-Content -Path $sentinel -Value 'svcAdded=1'
+      Note "hv_sock service $ReportSvcGuid registered for port 9001 (removed again in cleanup)"
+    } else { Note "hv_sock service $ReportSvcGuid already registered by somebody else; left alone" }
+  }
   $cfg = @{ tree = $treeFull; port = $Port; igvm = $igvm; igvmSha256 = $got; gsMaster = $GuestStateMaster; gsMasterSha256 = $GuestStateMasterSha256;
             archiveDir = 'C:\Users\claude\vbs-evidence'; hypervModule = $HypervModule; runtimeIdentity = (Join-Path $Pkg 'guest\runtime.json');
-            python = $Python; gateway = $Gateway; spawnJson = (Join-Path $Pkg 'apps\hello-world-1.0.4\spawn.json'); name = $Name; logDir = $runDir } | ConvertTo-Json -Compress
+            python = $Python; gateway = $Gateway; spawnJson = (Join-Path $Pkg 'apps\hello-world-1.0.4\spawn.json'); name = $Name; logDir = $runDir }
+  if ($Serve) { $cfg.wmiserveExe = $wmiserveExe; $cfg.wmiserveSha256 = $WmiserveSha256.ToLower(); $cfg.bundleDir = "$runDir\bundles" }
+  if ($HvlabScript) { $cfg.hvlab = @{ script = $HvlabScript; nodeTree = $treeFull; dataPort = $DataPort; timeoutS = 300 } }
+  $cfg = $cfg | ConvertTo-Json -Compress -Depth 4
   $cfgFile = "$runDir\config.json"; [System.IO.File]::WriteAllText($cfgFile, $cfg)
   Note "config: $cfg"
   $out = "$runDir\driver.out"
@@ -90,6 +123,8 @@ try {
 finally {
   foreach ($q in @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match $treeEsc })) {
     $fail += "a node process from this run's tree was still running (pid $($q.ProcessId)): killed"; Stop-Process -Id $q.ProcessId -Force -EA SilentlyContinue }
+  foreach ($q in @(Get-CimInstance Win32_Process -Filter "Name like 'vbslike-host%'" | Where-Object { $_.CommandLine -match [regex]::Escape($runDir) })) {
+    $fail += "a wmiserve of this run was still running (pid $($q.ProcessId)): killed"; Stop-Process -Id $q.ProcessId -Force -EA SilentlyContinue }
   foreach ($v in @(Get-VM -EA SilentlyContinue | Where-Object { Owned $_ })) {
     $fail += "manager-owned VM $($v.Name) ($($v.State)) was still present after the driver"
     Stop-VM -VM $v -TurnOff -Force -EA SilentlyContinue; Start-Sleep -Seconds 3; Remove-VM -VM $v -Force -EA SilentlyContinue }
@@ -99,6 +134,10 @@ finally {
   if ($before.S -eq 'Present') { Set-ItemProperty $RegPath -Name $RegName -Value $before.V -Type $before.K } else { Remove-ItemProperty $RegPath -Name $RegName -EA SilentlyContinue }
   $after = Read-Setting
   if ($after.S -eq $before.S -and "$($after.V)" -eq "$($before.V)") { Note "SETTING RESTORED to $($before.S) (verified)" } else { $fail += "SETTING NOT RESTORED: now $($after.S)" }
+  if ($script:svcAdded) {
+    Remove-Item -Path (Join-Path $SvcPath $ReportSvcGuid) -Recurse -Force -EA SilentlyContinue
+    if (Test-Path (Join-Path $SvcPath $ReportSvcGuid)) { $fail += "hv_sock service $ReportSvcGuid NOT removed" } else { Note "hv_sock service $ReportSvcGuid removed (verified)" }
+  }
   if (Test-Path $fired) { $fail += "the watchdog acted under this run" }
   Remove-Item $sentinel -Force -EA SilentlyContinue; Remove-Item $wdFile -Force -EA SilentlyContinue
   foreach ($f in $fail) { Note "FAILURE: $f" }
