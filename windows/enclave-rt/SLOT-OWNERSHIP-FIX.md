@@ -77,20 +77,65 @@ invalidation, but it leaves a narrow window: an in-flight request holding a pre-
 `EnclaveApp` object could still send its old slot after the new ee-host is up and has reused the
 number.
 
-Closed by construction at the node, which is the sole ee-host client: `agent.mjs` bumps a
-`hostGen` counter on every ee-host (re)start (before the process is even up), each `EnclaveApp`
-records the generation it was opened in, and `handle`/`stop`/`alive` refuse once the app's
-generation is stale — `stop` in particular sends NOTHING (an `appstop`/`appclose` under a reused
-slot would hit the new tenant). So a slot minted in generation N can never be sent in generation
-N+1. Tests: `test/enclave-app-host-generation.test.mjs` (3) — the audit's exact cross-generation
-scenario (A at slot 1 gen 1, restart, B at slot 1 gen 2: A's stale handle/stop reach nothing, B
-serves), backward compatibility when `hostGen` is not wired, and same-generation apps unaffected.
-The mutation that neuters the guard fails that test.
+**A node-only guard is not enough (correction).** The first version of this section (c8f18eea)
+claimed the boundary was "closed by construction at the node": `agent.mjs` bumps a `hostGen` on
+every ee-host (re)start, each `EnclaveApp` stamps the generation it was opened in, and
+`handle`/`stop` refuse once it is stale. An independent audit (Codex) showed two async races that
+guard cannot close, both reproduced against the real `EnclaveApp`:
 
-Optional defense-in-depth, NOT implemented here (a note for the owner): ee-host could also mint a
-per-boot epoch, return it from `appopen`, and reject an app-scoped command carrying a stale epoch,
-so the boundary holds even against a node bug. The node guard already makes a stale command
-unsendable by the only client, so this is belt-and-suspenders, not required.
+1. **Deferred open.** `start()` sampled the generation AFTER awaiting `appopen`. Open A in gen 1,
+   hold the reply, restart (gen 2), release the old reply: A was stamped gen 2, looked current, and
+   a later `stop()` sent `appclose 1` to the new ee-host — whose slot 1 was a different app.
+2. **Queued command.** `hostCmd` enqueues the job before `net.connect`, so an `appclose`/`appstop`/
+   `apphandle` already in the funnel when ee-host restarts connects to the NEW ee-host. A check at
+   `EnclaveApp` entry cannot recall a command already queued, and for `appstop`/`appclose` the side
+   effect happens at the receiver before any node-side check could run after it.
+
+A guard that only decides whether to SEND is a filter, not an authority. **The fix puts the check at
+the side-effecting end: a per-boot epoch in ee-host.** `ee-host.c` mints `g_app_epoch` (a random
+nonzero `u32`, `rand_s`) when it starts serving and logs it; `appopen` answers
+`ok <id> <load_us> <epoch>`; `apphandle`, `apprun`, `appstop` and `appclose` must carry it
+(`<cmd> <epoch> <id> ...`) and a mismatch is refused (`err stale epoch`) BEFORE any `do_app_*` call.
+A command minted under a dead boot carries that boot's epoch, so the next boot refuses it no matter
+how it was queued or when it connects. The node:
+
+- stores `this.epoch` from `appopen` and sends it on every id-scoped command;
+- samples the generation BEFORE the `appopen` await (race 1's stamp), and if a restart happened
+  during the open, releases the slot under the reply's OWN epoch (only the boot that minted it can
+  accept that, so it can only ever close the app this open created) and fails the start —
+  `host.tick` reloads the app from its lease;
+- treats `stale epoch` like `no such app` in `host.mjs` (the app is gone; reload it);
+- keeps the `hostGen` check as a local filter so a known-stale app sends nothing at all.
+
+So the node guard is NOT the only thing between a stale handle and a live tenant any more; ee-host's
+epoch check is the authority and the node guard is the first filter. An epoch collision across two
+boots (1 in 2^32) would only degrade to the node filter.
+
+**Fail-closed on a mismatched pair; deploy ee-host.exe and the node TOGETHER.** A new node refuses
+an `appopen` reply without an epoch (`the enclave host returned no app epoch`) rather than use an
+unbound id; a new ee-host refuses the old epoch-less grammar (`err bad id`/`bad request`). Either
+half alone therefore opens no app, and `host.mjs` gives a lease back after three failed starts —
+`windows/node/sync.sh` on its own (node files only, old `ee-host.exe`) would do exactly that.
+
+`hostCmd` moved verbatim into `appframe.mjs` as `makeHostCmd(port)` (already on `sync.sh`'s file
+list, already imported by `agent.mjs`) so the tests can drive the real funnel; `agent.mjs` delegates
+to it through its hoisted `hostCmd` function, so there is no behavior or ordering change.
+
+Tests:
+- `test/enclave-app-epoch-funnel.test.mjs` (5) — through the REAL funnel against a loopback server
+  speaking ee-host's app protocol with its epoch check, with a real restart (the old process stops
+  accepting, a new one binds the same port with ids from 1 and a new epoch): the deferred-open race
+  and the queued-appclose race each leave the new host having executed nothing under the old epoch
+  and the other tenant intact; each runs again with the emulator's epoch check OFF and shows the
+  cross-tenant close actually lands (the interleaving is real, so the tests are not vacuous); and
+  every id-scoped command with a dead boot's epoch, and the old grammar, is refused.
+- `test/enclave-app-host-generation.test.mjs` (5) — the audit's cross-generation scenario at the
+  node filter, the epoch on every command, fail-closed on an ee-host that returns no epoch, and
+  `appstop <epoch> <slot>` for a server-shaped app.
+- Mutations: stamping the generation after the await (race 1 exactly) fails 3 tests; dropping the
+  epoch from `stop` fails 4.
+- The emulator mirrors `ee-host.c`'s check; the C itself is compiled on the box (MSVC) and reviewed,
+  not executed by these tests.
 
 ## (a) Leaked host sockets on trap, and shared tenant ports
 
@@ -155,12 +200,14 @@ restart safe to target. They do not by themselves explain either wedge.
   guest-closed socket is not closed again; failed calls never enter the set; add is
   idempotent; drain leaves the set empty.
 
-Not built on this workstation: the full `enclave-rt` crate (needs the box's `wasmtime-set`
-path dep, nightly `-Zbuild-std`, no_std) and the `ee-host.c` change (box MSVC); both parse
-clean here (`rustc -Zunpretty=ast-tree`, 0 errors). The `lib.rs`/`wasihost.rs` wiring is
-mechanical over the tested modules. **d1 type-checked the branch on the box**
-(`cargo check --release --offline` against the real `wasmtime-set`, scratch copy, nothing
-deployed): 0 errors. Still not done: a link/DLL build and the `ee-host.c` MSVC build.
+Not buildable on this workstation: the full `enclave-rt` crate (needs the box's `wasmtime-set`
+path dep, nightly `-Zbuild-std`, no_std) and `ee-host.c` (MSVC). **d1 type-checked d93c7356 on the
+box** (`cargo check --release --offline` against the real `wasmtime-set`, scratch copy): 0 errors.
+**Full box build of c8f18eea** (enclave-63, 2026-09-25 04:24:38–04:26:08Z, scratch
+`C:\Users\claude\e63-build`, box's own toolchain, nothing deployed): `enclave_rt.lib`, then
+`ee-engine.dll` relinked from the prebuilt engine objects + that lib, and `ee-host.exe`; all exit 0.
+The epoch change touches only `ee-host.c` and the node, so `enclave_rt.lib`/`ee-engine.dll` are
+unaffected and only `ee-host.exe` is rebuilt for it (hashes in the build sentinel, below).
 
 ## Review asks d1 raised, addressed
 

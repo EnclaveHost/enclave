@@ -9,6 +9,7 @@
  *   session <blob hex>       -> ok <blob hex> <tokens> ... (a boxed request, see ee-rt.h; the host never sees the text)
  *   ping                     -> ok
  * It never sees an activation, a pad or a private key: those live in VTL1. */
+#define _CRT_RAND_S   /* enable rand_s (RtlGenRandom) for the per-boot app epoch; must precede <stdlib.h> */
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
@@ -49,6 +50,25 @@ static HANDLE park_sem(uint32_t token) {
     return mine;
 }
 static int g_quiet;
+
+/* A per-boot app epoch. App ids restart from 1 every time this process (re)starts, so across a
+ * process generation the same number names a different tenant's app. The node's own generation
+ * guard only decides whether to SEND a command; it cannot un-do a side effect that has already
+ * happened here if a queued appstop/appclose from the dead generation connects to this new host
+ * (agent.mjs enqueues the job before it connects). So the authoritative check lives HERE: every
+ * app is opened under g_app_epoch, and apphandle/appstop/appclose must carry the epoch they were
+ * opened under. A command from a dead generation carries the old epoch and is refused BEFORE any
+ * do_app_* side effect. Minted once at serve() start; a fresh random value each boot means a
+ * stale epoch practically never collides, and even a collision only degrades to the node guard. */
+static unsigned int g_app_epoch;
+static unsigned int mint_epoch(void) {
+    unsigned int e = 0;
+    if (rand_s(&e) != 0 || e == 0) {
+        LARGE_INTEGER qpc; QueryPerformanceCounter(&qpc);
+        e = (unsigned int)((unsigned long long)qpc.QuadPart ^ GetTickCount64() ^ ((unsigned long long)GetCurrentProcessId() << 16));
+    }
+    return e ? e : 1u;   /* never 0: 0 is the "no epoch" sentinel on the node side */
+}
 
 static void say(const char *fmt, ...) { va_list ap; va_start(ap, fmt); vfprintf(stderr, fmt, ap); va_end(ap); fflush(stderr); }
 static int64_t now_us(void) { static LARGE_INTEGER f; LARGE_INTEGER c; if (!f.QuadPart) QueryPerformanceFrequency(&f); QueryPerformanceCounter(&c); return (int64_t)(c.QuadPart * 1000000.0 / f.QuadPart); }
@@ -384,7 +404,8 @@ static void serve(int port) {
     SOCKET ls = socket(AF_INET, SOCK_STREAM, 0); struct sockaddr_in a; memset(&a, 0, sizeof a); a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(INADDR_LOOPBACK); a.sin_port = htons((u_short)port);
     BOOL one = TRUE; setsockopt(ls, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof one);
     if (bind(ls, (struct sockaddr *)&a, sizeof a) || listen(ls, 4)) { say("[host] cannot listen on 127.0.0.1:%d\n", port); return; }
-    say("[host] serving on 127.0.0.1:%d\n", port);
+    g_app_epoch = mint_epoch();
+    say("[host] serving on 127.0.0.1:%d (app epoch %u)\n", port, g_app_epoch);
     static char line[4u << 20]; static uint8_t bin[2u << 20]; static char outtext[1u << 20]; static char reply[8u << 20]; static uint8_t report[16384];
     for (;;) {
         SOCKET c = accept(ls, NULL, NULL); if (c == INVALID_SOCKET) continue;
@@ -470,16 +491,23 @@ static void serve(int port) {
                             int st = do_app_open(bytes, (size_t)n, world, env_len ? envbuf : NULL, env_len, &id, &load_us, err);
                             free(bytes);                       /* the enclave has its own copy */
                             if (st) snprintf(reply, sizeof reply, "err %s\n", err);
-                            else snprintf(reply, sizeof reply, "ok %u %lld\n", id, load_us);
+                            /* "ok <id> <load_us> <epoch>": the node stores the epoch and must echo it on
+                             * every app-scoped command for this id, so a command from a dead ee-host
+                             * generation (carrying that boot's epoch) is refused by the next boot. */
+                            else snprintf(reply, sizeof reply, "ok %u %lld %u\n", id, load_us, g_app_epoch);
                         }
                     }
                     app_open_done: ;
                 } else if (!strncmp(line, "apphandle ", 10)) {
-                    unsigned int id = 0; size_t rl = 0, ol = 0; long long us = 0;
-                    const char *sp = strchr(line + 10, ' ');
+                    /* apphandle <epoch> <id> <request hex> */
+                    unsigned int epoch = 0, id = 0; size_t rl = 0, ol = 0; long long us = 0;
+                    const char *a = line + 10;
+                    const char *sp1 = strchr(a, ' ');
+                    const char *sp2 = sp1 ? strchr(sp1 + 1, ' ') : NULL;
                     static uint8_t aout[4u << 20];
-                    if (!sp || sscanf(line + 10, "%u", &id) != 1) strcpy(reply, "err bad request\n");
-                    else if (unhex(bin, sizeof bin, sp + 1, &rl)) strcpy(reply, "err bad hex\n");
+                    if (!sp2 || sscanf(a, "%u %u", &epoch, &id) != 2) strcpy(reply, "err bad request\n");
+                    else if (epoch != g_app_epoch) strcpy(reply, "err stale epoch\n");
+                    else if (unhex(bin, sizeof bin, sp2 + 1, &rl)) strcpy(reply, "err bad hex\n");
                     else {
                         int st = do_app_handle(id, bin, rl, aout, sizeof aout, &ol, &us, err);
                         if (st == -5) snprintf(reply, sizeof reply, "err the response is %llu bytes, larger than this host carries\n", (unsigned long long)ol);
@@ -490,18 +518,24 @@ static void serve(int port) {
                 } else if (!strncmp(line, "apprun ", 7)) {
                     /* Returns as soon as the thread is started: the app itself runs for as long as
                      * it holds its lease, and its port is the one it binds through the broker. */
-                    unsigned int id = 0;
-                    if (sscanf(line + 7, "%u", &id) != 1) strcpy(reply, "err bad id\n");
+                    /* apprun <epoch> <id> */
+                    unsigned int epoch = 0, id = 0;
+                    if (sscanf(line + 7, "%u %u", &epoch, &id) != 2) strcpy(reply, "err bad id\n");
+                    else if (epoch != g_app_epoch) strcpy(reply, "err stale epoch\n");
                     else if (do_app_run(id, err)) snprintf(reply, sizeof reply, "err %s\n", err);
                     else strcpy(reply, "ok\n");
                 } else if (!strncmp(line, "appstop ", 8)) {
-                    unsigned int id = 0;
-                    if (sscanf(line + 8, "%u", &id) != 1) strcpy(reply, "err bad id\n");
+                    /* appstop <epoch> <id>: refused before any side effect if the epoch is stale */
+                    unsigned int epoch = 0, id = 0;
+                    if (sscanf(line + 8, "%u %u", &epoch, &id) != 2) strcpy(reply, "err bad id\n");
+                    else if (epoch != g_app_epoch) strcpy(reply, "err stale epoch\n");
                     else if (do_app_stop(id, err)) snprintf(reply, sizeof reply, "err %s\n", err);
                     else strcpy(reply, "ok\n");
                 } else if (!strncmp(line, "appclose ", 9)) {
-                    unsigned int id = 0;
-                    if (sscanf(line + 9, "%u", &id) != 1) strcpy(reply, "err bad id\n");
+                    /* appclose <epoch> <id>: refused before any side effect if the epoch is stale */
+                    unsigned int epoch = 0, id = 0;
+                    if (sscanf(line + 9, "%u %u", &epoch, &id) != 2) strcpy(reply, "err bad id\n");
+                    else if (epoch != g_app_epoch) strcpy(reply, "err stale epoch\n");
                     else if (do_app_close(id, err)) snprintf(reply, sizeof reply, "err %s\n", err);
                     else strcpy(reply, "ok\n");
                 } else if (!strcmp(line, "quit")) { closesocket(c); closesocket(ls); return; }

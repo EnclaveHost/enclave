@@ -9,7 +9,31 @@
 //   request : u32 method | u32 path | u32 nheaders | (u32 name, u32 value) * n | u32 body
 //   response: u16 status | u32 nheaders | (u32 name, u32 value) * n | u32 body
 
+import net from "node:net";
+
 const MAX_HEADERS = 256;          // the runtime refuses more; refuse here too rather than send them
+
+/**
+ * The agent's line protocol to ee-host on loopback: one line in, one line out, one connection per
+ * command, serialized. `ok <rest>` resolves with <rest>; anything else rejects with the line.
+ * Every app command crosses this funnel, so the tests drive it against a real loopback server.
+ * It carries no generation of its own - a command queued before an ee-host restart connects to
+ * the NEW host - which is why id-scoped app commands carry ee-host's per-boot epoch and ee-host
+ * refuses a stale one before any side effect (ee-host.c g_app_epoch).
+ */
+export function makeHostCmd(port, host = "127.0.0.1", timeoutMs = 600_000) {
+  let queue = Promise.resolve();
+  return function hostCmd(line) {
+    const job = () => new Promise((res, rej) => {
+      const s = net.connect(port, host); let buf = "";
+      s.setTimeout(timeoutMs, () => { s.destroy(); rej(new Error("host timeout")); });
+      s.once("connect", () => s.write(line + "\n"));
+      s.on("data", (d) => { buf += d; const i = buf.indexOf("\n"); if (i >= 0) { s.destroy(); const r = buf.slice(0, i); r.startsWith("ok") ? res(r.slice(3).trim()) : rej(new Error(r)); } });
+      s.once("error", rej);
+    });
+    return (queue = queue.then(job, job));
+  };
+}
 
 function lp(buf) {                // length-prefixed bytes
   const n = Buffer.alloc(4);

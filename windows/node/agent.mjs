@@ -29,7 +29,7 @@ import { Host } from './host.mjs';
 import { appZone } from './appzone.mjs';
 import { shieldedCard, shieldedProof } from './shieldedcard.mjs';
 import { clientIp as wafClientIp } from './waf.mjs';
-import { parseAbiReply } from './appframe.mjs';
+import { parseAbiReply, makeHostCmd } from './appframe.mjs';
 import { initSessionKey, mint as mintSession, addressFor } from './session.mjs';
 import { nonceStore, siweMessage, verifyLogin } from './siwe.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
@@ -263,18 +263,9 @@ async function startHost() {
   start.host();
   await waitPort(HOST_PORT, 600_000); log(`enclave host up on ${HOST_PORT}`);
 }
-// one line in, one line out, serialized
-let hostQueue = Promise.resolve();
-function hostCmd(line) {
-  const job = () => new Promise((res, rej) => {
-    const s = net.connect(HOST_PORT, '127.0.0.1'); let buf = '';
-    s.setTimeout(600_000, () => { s.destroy(); rej(new Error('host timeout')); });
-    s.once('connect', () => s.write(line + '\n'));
-    s.on('data', (d) => { buf += d; const i = buf.indexOf('\n'); if (i >= 0) { s.destroy(); const r = buf.slice(0, i); r.startsWith('ok') ? res(r.slice(3).trim()) : rej(new Error(r)); } });
-    s.once('error', rej);
-  });
-  return (hostQueue = hostQueue.then(job, job));
-}
+// one line in, one line out, serialized (appframe.mjs makeHostCmd, the funnel the tests drive)
+let hostFunnel = null;
+function hostCmd(line) { return (hostFunnel ??= makeHostCmd(HOST_PORT))(line); }
 // ---- the TPM tool ---------------------------------------------------------------------------
 let tpm = null, tpmBuf = '', tpmWaiters = [], tpmReady = null;
 function startTpm() {
