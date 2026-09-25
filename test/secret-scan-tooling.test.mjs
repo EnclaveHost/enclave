@@ -28,10 +28,10 @@ test("the gitleaks config finds generated private keys and tolerates the look-al
   assert.match(r.stdout, /8 generated secrets found by their rules, \d+ look-alikes tolerated/);
 });
 
-test("the pre-push hook judges a linked worktree's push by the pushed commit's config, falls back when it cannot load, and always runs the crypto scanner", { skip, timeout: 360000 }, () => {
+test("the pre-push hook judges a linked worktree's push by the pushed commit's config, falls back when it cannot load, always runs the crypto scanner, leaves no temporary file, and both hooks refuse when no scanner exists", { skip, timeout: 360000 }, () => {
   const r = run("hook-selftest.py");
   assert.equal(r.status, 0, r.stderr + r.stdout);
-  assert.match(r.stdout, /5 real pushes/);
+  assert.match(r.stdout, /5 real pushes .*no temporary file left behind; a missing scanner refuses in both hooks/);
 });
 
 test("CI runs both self-tests with the pinned gitleaks, and the hook states which config it used", () => {
