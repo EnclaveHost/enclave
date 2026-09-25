@@ -48,3 +48,10 @@ worktree ~/enclave-prod/metal-578be084; 4c-c-b adds the user drop-in enclave-met
 (release === true, dist f6cbd75a) before the restart; the node's /proc cwd, argv and launcher sha after it; BOTH opt-in
 lines, each anchored to its own prefix ([enclave-metal] then [gsup]). The rollback removes the drop-in only if it is
 exactly 4c-c-b's. The launcher is unmeasured host code, so 02f6e313 and the 4c-c-a allowlist stand.
+
+4c-c RUN 2 = cc-v2 (run-4cc/, s4ccb-apply-20260925T231653Z, rc 0): 23:17:14Z the restart (dist-iso-f6cbd75a,
+isolation.release=true, WorkingDirectory ~/enclave-prod/metal-578be084 through the drop-in); 23:17:30Z attests 02f6e313 /
+overlay f6cbd75a, the running launcher 578be084 (cwd, argv, sha 4620da5d); 23:18:45Z APPLIED: BOTH opt-in lines
+("[enclave-metal] isolation snp-guest-per-app: attested release OPTED IN (isolation.release: true)", then gsup's), 3
+adopted, 0 releases; observe.sh 4cc GATE PASSED 23:29:10Z (6 rounds over 615 s). Independently re-verified by enclave-d1
+(read-only). 4c-c DONE. The relay's release is still OFF (503), so every deployment reads "unlisted" and a respawn is legacy.

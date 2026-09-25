@@ -1,0 +1,47 @@
+--- lib-ro.sh.v1	2026-09-25 16:21:39.627094919 -0700
++++ lib-ro.sh	2026-09-25 16:30:06.430716026 -0700
+@@ -11,25 +11,34 @@
+ rstat_code() { curl -sS -o /dev/null -m 15 -w '%{http_code}' "https://api.enclave.host/v1/secrets/release-status?id=$1"; }
+ rstat_listed() { curl -sS -m 15 "https://api.enclave.host/v1/secrets/release-status?id=$1" | grep -q '"listed":true'; }
+ local_sha() { local s; s=$(sha256sum "$1") && echo "${s%% *}"; }
+-# copy $1 into a fresh 0700 dir on nan, require its sha256 there = $2, run it with sh as root, remove the dir; the
+-# script's own exit code is returned (2 = REFUSED, nothing changed); 90-92 = the copy itself failed (nothing ran)
++# copy $1 into a fresh 0700 dir on nan, require its sha256 there = $2, run it with sh as root UNDER ONE LOCK (enclave-d1: an
++# ssh drop leaves the remote script running, so on and off must never edit the env file at once), its output into a
++# file there (a dropped connection cannot EPIPE it mid-edit), then print that and remove the dir. Returns the script's
++# own code (2 = REFUSED, nothing changed); 75 = the lock was not free within 600 s (nothing ran); 90-92 = the copy
++# failed (nothing ran); 255 = ssh itself (the script may still be running: off waits on the lock)
++NANX="ssh -i $HOME/.ssh/nan-ci-deploy -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 nan"
+ nan_run() {
+   local d s
+-  d=$($NAN 'umask 077; mktemp -d') && [[ "$d" =~ ^/tmp/tmp\.[A-Za-z0-9]+$ ]] || return 90
+-  $NAN "cat > $d/s.sh" < "$1" || { $NAN "rm -rf $d" || true; return 91; }
+-  s=$($NAN "sha256sum $d/s.sh") && [ "${s:0:64}" = "$2" ] || { $NAN "rm -rf $d" || true; return 92; }
+-  $NAN "sh $d/s.sh; rc=\$?; rm -rf $d; exit \$rc"
++  d=$($NANX 'umask 077; mktemp -d') && [[ "$d" =~ ^/tmp/tmp\.[A-Za-z0-9]+$ ]] || return 90
++  $NANX "cat > $d/s.sh" < "$1" || { $NANX "rm -rf $d" || true; return 91; }
++  s=$($NANX "sha256sum $d/s.sh") && [ "${s:0:64}" = "$2" ] || { $NANX "rm -rf $d" || true; return 92; }
++  $NANX "flock -E 75 -w 600 /run/enclave-relay-release.lock sh $d/s.sh > $d/out 2>&1; rc=\$?; cat $d/out; rm -rf $d; exit \$rc"
+ }
++rprop() { $NANX "systemctl show enclave-api-relay -p $1 --value"; }
+ node_on_4cc() { [ "$(node_attested)" = "$NEWM $NEWC" ] && node_runs_from "$LW" "$LAUNCH_SHA"; }
+-# e3's accept.sh after release ON: every line passes EXCEPT its "release is OFF" line, which must be the ONE failure
++# e3's accept.sh (38000e62) after release ON: every line ok EXCEPT its release-OFF line, which must read EXACTLY
++# "answered 403" (enclave-d1, enclave-e3: an unsigned ticket for the unlisted 0xabab... passes the rate and id checks and
++# stops at the listing gate, 403 release_not_enabled: the positive proof the list is enforced). Returns 0 = that shape;
++# 2 = the release line answered anything but 403 (not the reviewed path: HOLD and look, no automatic rollback);
++# 1 = anything else failed
+ accept_after_on() {
+   local out nf
+   out=$(ADMIT=$ADMIT bash ~/enclave-bench/rs4-20260925/pkg/accept.sh 2>&1) || true
+   echo "$out" > $RO/accept-after-on.txt
++  [ "$(grep -c '^ok   0x' <<<"$out" || [ $? = 1 ])" = 3 ] && grep -qx 'ok   unknown deployment 404' <<<"$out" && grep -qx 'ok   malformed id 422' <<<"$out" || return 1
+   nf=$(grep -c '^FAIL' <<<"$out" || [ $? = 1 ])
+-  [ "$nf" = 1 ] && grep -q '^FAIL release-ticket answered [0-9]*, expected 503' <<<"$out" \
+-    && ! grep -qE '^FAIL release-ticket answered (000|5[0-9][0-9])' <<<"$out" \
+-    && [ "$(grep -c '^ok   0x' <<<"$out" || [ $? = 1 ])" = 3 ]
++  [ "$nf" = 1 ] && grep -q '^FAIL release-ticket answered [0-9]*, expected 503$' <<<"$out" || return 1
++  grep -qx 'FAIL release-ticket answered 403, expected 503' <<<"$out" || return 2
+ }
+ # the guests' identities from check_guestd's last read ($EV/.guestd.json): a relaunch changes the name, createdAt and key
+ guests_id() { python3 -c "import json,sys; v=json.load(open('$EV/.guestd.json'))[1]['body']['vms']; r=sorted([x['id'],x['name'],x['createdAt'],x['measurement'],x['transportKeySha256'],x['status']] for x in v); sys.exit(1) if len(r)!=3 or any(not all(a) for a in r) else print(json.dumps(r,separators=(',',':')))"; }
