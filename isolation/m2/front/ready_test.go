@@ -76,3 +76,58 @@ func TestTheProxySetsNoForwardedForAndKeepsTheHost(t *testing.T) {
 		t.Fatalf("host %q path %q query %q", got.Host, got.URL.Path, got.URL.RawQuery)
 	}
 }
+
+// enclave-63's G3: a wedged app (accepts, never answers) gets the client a 504 at the header deadline instead of a
+// connection held open forever; a slow stream that has sent its headers is not cut by that deadline.
+func TestAWedgedAppIsAnsweredWith504AtTheHeaderDeadline(t *testing.T) {
+	release := make(chan struct{})
+	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { <-release }))
+	defer app.Close()
+	defer close(release)
+	front := httptest.NewServer(appProxyWithin(strings.TrimPrefix(app.URL, "http://"), 200*time.Millisecond))
+	defer front.Close()
+	client := &http.Client{Timeout: 5 * time.Second}
+	start := time.Now()
+	res, err := client.Get(front.URL + "/wedged")
+	if err != nil {
+		t.Fatalf("the client was left waiting instead of answered: %v", err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusGatewayTimeout {
+		t.Fatalf("a wedged app must give 504, got %d", res.StatusCode)
+	}
+	if d := time.Since(start); d > 3*time.Second {
+		t.Fatalf("answered after %s, not at the header deadline", d)
+	}
+}
+
+func TestAStreamThatSentItsHeadersOutlivesTheHeaderDeadline(t *testing.T) {
+	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		for i := 0; i < 4; i++ {
+			time.Sleep(150 * time.Millisecond) // 600 ms in all, three times the header deadline
+			_, _ = w.Write([]byte("x"))
+			w.(http.Flusher).Flush()
+		}
+	}))
+	defer app.Close()
+	front := httptest.NewServer(appProxyWithin(strings.TrimPrefix(app.URL, "http://"), 200*time.Millisecond))
+	defer front.Close()
+	res, err := (&http.Client{Timeout: 5 * time.Second}).Get(front.URL + "/stream")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := io.ReadAll(res.Body)
+	res.Body.Close()
+	if err != nil || res.StatusCode != 200 || string(b) != "xxxx" {
+		t.Fatalf("a stream past the header deadline was cut: status %d body %q err %v", res.StatusCode, b, err)
+	}
+}
+
+func TestTheProductionProxyHasAHeaderDeadline(t *testing.T) {
+	tr := appProxy("127.0.0.1:1").Transport.(*http.Transport)
+	if tr.ResponseHeaderTimeout != appHeaderTimeout || appHeaderTimeout <= 0 {
+		t.Fatalf("the proxy the front serves with has header timeout %s", tr.ResponseHeaderTimeout)
+	}
+}
