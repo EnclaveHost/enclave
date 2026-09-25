@@ -98,8 +98,10 @@ const verdict = (family) => {
  *           rootPins, instanceIds for a bound deployment), as verifier/pvm-evidence.mjs takes them (hex or Buffer)
  *   pins:   { chainId, proofOfTime, registry, deployment, operator?, enclaveId? } -- the CONSUMER'S values (address book,
  *           policy selection, ledger row). Without them nothing is judged.
- *   claims: { proofKey, chainId, proofOfTime, registry, deployment, enclaveId, operator, instanceId, appId,
- *             transportSpkiSha256, evidenceFormat } -- the input to verifyCheckpoint
+ *   claims: { proofKey, chainId, proofOfTime, registry, deployment, enclaveId, operator, instanceId, appId, codeHash,
+ *             transportSpkiSha256, evidenceFormat } -- the input to verifyCheckpoint. codeHash (since the pvm-app-attest pin
+ *             20054bab) is the attested build, bare lowercase 64-hex, checked HERE to be one of the consumer's own
+ *             allowedCodeHashes, never taken from the owner's claims alone
  */
 export async function verifyProofKey(doc, { expect = {}, pins = null, now = Date.now(), modules = null } = {}) {
   const V = verdict("pvm-proof-key"), { reasons, checks, out, fail } = V;
@@ -161,7 +163,12 @@ export async function verifyProofKey(doc, { expect = {}, pins = null, now = Date
   try { o = mods.statement.verifyPvmProofKey(doc, { nonce: ev.nonce, appId: ev.appId, allowedRuntimeIds: ev.allowedRuntimeIds, allowedCodeHashes: ev.allowedCodeHashes, allowedAuthorityHashes: ev.allowedAuthorityHashes, rootPins: ev.rootPins, ...(ev.instanceIds ? { instanceIds: ev.instanceIds } : {}), now, deployment: pins.deployment }); }
   catch (err) { return fail("owner", `the owner's verifier threw: ${err.message}`); }
   if (!o || o.ok !== true) return fail("owner", `the owner's verifier refused: ${o && Array.isArray(o.reasons) ? o.reasons.at(-1) : "no result"}`);
-  const claims = { proofKey: doc.proofKey, chainId: chainId.toString(), proofOfTime: doc.proofOfTime, registry: doc.registry, deployment: doc.deployment, enclaveId: doc.enclaveId, operator: doc.operator, instanceId: e.claims.instanceId, appId: e.claims.appId };
+  // the attested build: the re-verified evidence's measurement, 64 lowercase hex, and one of the CONSUMER'S allowedCodeHashes
+  // (compared here, independently of both modules); the owner's claims.codeHash must then be exactly this value
+  const codeHash = typeof e.claims.measurement === "string" && HEX64.test(e.claims.measurement) ? e.claims.measurement : null;
+  const consumerCodes = (Array.isArray(expect.allowedCodeHashes) ? expect.allowedCodeHashes : []).map((h) => (Buffer.isBuffer(h) ? h.toString("hex") : String(h)).toLowerCase());
+  if (!codeHash || !consumerCodes.includes(codeHash)) return fail("owner", "the attested code hash is not 64 lowercase hex or not one of the consumer's allowedCodeHashes");
+  const claims = { codeHash, proofKey: doc.proofKey, chainId: chainId.toString(), proofOfTime: doc.proofOfTime, registry: doc.registry, deployment: doc.deployment, enclaveId: doc.enclaveId, operator: doc.operator, instanceId: e.claims.instanceId, appId: e.claims.appId };
   const canon = (x) => JSON.stringify(Object.fromEntries(Object.keys(x || {}).sort().map((k) => [k, x[k]])));
   if (canon(o.claims) !== canon(claims)) return fail("owner", "the owner's claims differ from this verifier's reading of the same statement");
   checks.owner = true;
