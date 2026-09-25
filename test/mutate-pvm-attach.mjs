@@ -11,10 +11,12 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SUITES = { cosign: "test/pvm-attach-cosigner.test.mjs", payload: "test/anchor-attach-instance.test.mjs" };
+const SUITES = { cosign: "test/pvm-attach-cosigner.test.mjs", payload: "test/anchor-attach-instance.test.mjs", reattach: "test/anchor-reattach.test.mjs" };
 const T = { ok: "a registered name: no operator signature, no attach", refuse: "the co-signer refuses, and signs nothing", hub: "the hub: a co-signature for nonce N",
-            http: "the HTTP wrapper", conc: "never twice, under concurrency", native: "anchor_attach_instance.h, natively", secret: "the instance SECRET never leaves the payload" };
+            http: "the HTTP wrapper", conc: "never twice, under concurrency", native: "anchor_attach_instance.h, natively", secret: "the instance SECRET never leaves the payload",
+            renative: "anchor_reattach.h, natively", resrc: "the payload source: reattach()" };
 const CS = "shielded/anchor/avf/runner/attach-cosigner.mjs", H = "shielded/anchor/avf/payload/anchor_attach_instance.h", PL = "shielded/anchor/avf/payload/anchor_payload.c";
+const RH = "shielded/anchor/avf/payload/anchor_reattach.h";
 const MUTATIONS = [
   ["C01", "a nonce signed twice", CS, [["if (signed.has(nonceSha256)) return no(", "if (false) return no("]], "cosign", T.refuse],
   ["C02", "a phone-supplied name signed", CS, [["if (req.name !== name) return no(", "if (false) return no("]], "cosign", T.refuse],
@@ -31,8 +33,19 @@ const MUTATIONS = [
   ["C13", "the nonce recorded only AFTER the signing await (two concurrent requests both signed)", CS, [["    signed.add(nonceSha256);\n    const operatorSig = await account.signMessage({ message });", "    const operatorSig = await account.signMessage({ message });\n    signed.add(nonceSha256);"]], "cosign", T.conc],
   ["P01", "the payload signs a transcript that is not its own", H, [["|| !sh_avf_pad_binding_valid(bound, blen, tpk, ppk)) return 0;", ") return 0;"]], "payload", T.native],
   ["P02", "the payload signs under another domain", H, [["#define ANCHOR_ATTACH_INSTANCE_DOMAIN \"enclave-pvm-attach-instance-v1\\n\"", "#define ANCHOR_ATTACH_INSTANCE_DOMAIN \"enclave-pvm-instance-sig-v1\\n\""]], "payload", T.native],
-  ["P03", "the instance secret printed by the payload", PL, [["            OUT(\"INSTANCEATTACH key=%s sig=%s\", isph, isigh);", "            OUT(\"INSTANCEATTACH key=%s sig=%s\", isph, isigh); { char k[129]; sh_pads_bin2hex(g_isk, 64, k); OUT(\"DEBUG isk=%s\", k); }"]], "payload", T.secret],
+  ["P03", "the instance secret printed by the payload", PL, [["    OUT(\"INSTANCEATTACH key=%s sig=%s\", isph, isigh);", "    OUT(\"INSTANCEATTACH key=%s sig=%s\", isph, isigh); { char k[129]; sh_pads_bin2hex(g_isk, 64, k); OUT(\"DEBUG isk=%s\", k); }"]], "payload", T.secret],
   ["P04", "INSTANCEATTACH carries more than the SPKI and the signature", PL, [["OUT(\"INSTANCEATTACH key=%s sig=%s\", isph, isigh);", "OUT(\"INSTANCEATTACH key=%s sig=%s bound=%s\", isph, isigh, bound_hex);"]], "payload", T.secret],
+  // the in-place RE-ATTACH (anchor_reattach.h + its wiring in anchor_payload.c; enclave-99's review of the design)
+  ["X01", "the nonce parser takes uppercase hex", RH, [["else if (ch >= 'a' && ch <= 'f') v = ch - 'a' + 10;", "else if (ch >= 'a' && ch <= 'f') v = ch - 'a' + 10; else if (ch >= 'A' && ch <= 'F') v = ch - 'A' + 10;"]], "reattach", T.renative],
+  ["X02", "the nonce parser takes a longer line (trailing bytes)", RH, [["if (!arg || !nonce || len != 64) return 0;", "if (!arg || !nonce || len < 64) return 0;"]], "reattach", T.renative],
+  ["X03", "no rate: a re-attach inside 5 s is certified", RH, [["if (c->any && (now_ms < c->last_ms || now_ms - c->last_ms < ANCHOR_REATTACH_MIN_MS))", "if (0 && c->any)"]], "reattach", T.renative],
+  ["X04", "a clock that went backwards reads as a long wait", RH, [["(now_ms < c->last_ms || now_ms - c->last_ms < ANCHOR_REATTACH_MIN_MS)", "(now_ms - c->last_ms < ANCHOR_REATTACH_MIN_MS)"]], "reattach", T.renative],
+  ["X05", "a key change after boot goes unnoticed", RH, [["if (memcmp(c->tpk, c->tpk0, 32) || memcmp(c->ppk, c->ppk0, 32)) return", "if (0) return"]], "reattach", T.renative],
+  ["X06", "B built from the LIVE keys instead of the boot copies, with the change check gone", RH, [["sh_avf_pad_binding(b, c->tpk0, c->ppk0, nonce);", "sh_avf_pad_binding(b, c->tpk, c->ppk, nonce);"], ["if (memcmp(c->tpk, c->tpk0, 32) || memcmp(c->ppk, c->ppk0, 32)) return", "if (0) return"]], "reattach", T.renative],
+  ["X07", "the instance proof skipped", RH, [["if (c->inst) { if (!anchor_attach_instance_sign(", "if (0) { if (!anchor_attach_instance_sign("]], "reattach", T.renative],
+  ["X08", "reattach() moves the tier's attach time", PL, [["    if (has_isig) instance_attach_out(isig);", "    if (has_isig) instance_attach_out(isig);\n    g_caps_attach_ms = boot_ms();"]], "reattach", T.resrc],
+  ["X09", "an attestation requested outside the lock", PL, [["AVmAttestationStatus st = request_attestation(ch, 32, &res);", "AVmAttestationStatus st = AVmPayload_requestAttestation(ch, 32, &res);"]], "reattach", T.resrc],
+  ["X10", "the serving loop splits a long control line in two", PL, [["const int ln = read_ctl_line(g_ctl, l, sizeof l, &over);", "const int ln = read_line(g_ctl, l, sizeof l);"]], "reattach", T.resrc],
 ];
 
 const pick = process.argv.slice(2);

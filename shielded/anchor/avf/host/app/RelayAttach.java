@@ -107,7 +107,8 @@ public final class RelayAttach {
                 final java.io.InputStream in = code == 200 ? c.getInputStream() : c.getErrorStream();
                 final String body = in == null ? "" : new String(in.readAllBytes(), "UTF-8");
                 final JSONObject ans = body.isEmpty() ? new JSONObject() : new JSONObject(body);
-                if (code == 200 && ans.optString("operatorSig").matches("0x[0-9a-f]{130}")) { attest.put("operatorSig", ans.getString("operatorSig")); Main.say("RELAY attach co-signed by the owner (instance proof accepted)"); }
+                // this app cannot know WHOSE key signed: it attaches what the configured signer returned, and the hub judges it
+                if (code == 200 && ans.optString("operatorSig").matches("0x[0-9a-f]{130}")) { attest.put("operatorSig", ans.getString("operatorSig")); Main.say("RELAY attach operatorSig attached (the hub judges it)"); }
                 else Main.say("RELAY attach NOT co-signed: " + code + " " + ans.optString("error"));
             } catch (Exception e) { Main.say("RELAY attach co-signer unreachable: " + e); }
         } else if (attachSigner != null) Main.say("RELAY attach NOT co-signed: the VM gave no INSTANCEATTACH proof");
@@ -120,9 +121,16 @@ public final class RelayAttach {
         return res;
     }
 
+    /* the reconnector (Main.RelayKeeper): told once, when this tunnel's serve loop has ended for any reason */
+    volatile Runnable onClosed = null;
+    /* the hub pings every 30 s and drops a silent tunnel after 90 s: 95 s without a frame means the relay is gone (a half-open
+     * socket never says so itself) */
+    static final int SILENT_MS = 95000;
+
     /** Bound: announce the identity, then answer the hub until the socket ends. */
     void serve(String phone) {
         try {
+            ws.setReadTimeout(SILENT_MS);
             // publicUrl: this tunnel's own relay route, https://<relay host>/t/<name> -- the only form the hub honors
             // (tunnel.js selfRoutedUrl). keccak256 of it is the registry id a lease records as `runner`, so without it the
             // phone could never be a deployment's runner. Stating it registers nothing: it matches a ledger row only once
@@ -164,7 +172,8 @@ public final class RelayAttach {
             }
             for (Long sid : pipes.keySet()) closePipe(sid, "tunnel closed");
             Main.say("RELAY tunnel closed");
-        } catch (Exception e) { Main.say("RELAY serve error " + e); }
+        } catch (Exception e) { for (Long sid : pipes.keySet()) closePipe(sid, "tunnel lost"); Main.say("RELAY serve error " + e); }
+        finally { close(); final Runnable r = onClosed; onClosed = null; if (r != null) r.run(); }
     }
 
     /** The pVM's capability report (PVM-CPU.md): report hex -> base64 as the relay parses it, signature as hex. The app only
@@ -205,6 +214,21 @@ public final class RelayAttach {
               sendFrame(f);
               Main.say("RELAY abi2 evidence sent (" + chainB64.size() + " certificates" + (instanceLine != null ? ", instance-bound" : "") + ")"); }
         catch (Exception e) { Main.say("RELAY abi2 not sent: " + e); }
+    }
+
+    /* A re-attached tunnel's ABI/2 (RUNNER-AGENT.md "Reconnect in place"): the VM's own v3 evidence for the HUB's fresh nonce,
+     * from its evidence endpoint, passed through field for field -- chain, identity, selftest, app, instance key and signature.
+     * Nothing is trusted here: the hub re-verifies all of it against ITS nonce and THIS tunnel's attested transport key, and any
+     * slip in the copy only fails. Returns false (and says why) when the answer is not a v3 statement for that nonce. */
+    boolean sendAbi2FromEvidence(JSONObject ev, String nonceHex) {
+        try {
+            if (!"enclave-pvm-app-evidence/v3".equals(ev.optString("format")) || !nonceHex.equals(ev.optString("nonce"))) { Main.say("RELAY abi2 not sent: the evidence is not v3 for the hub's nonce"); return false; }
+            final JSONObject f = new JSONObject().put("t", "abi2").put("chain", ev.getJSONArray("chain")).put("identity", ev.getString("identity"))
+                .put("selftest", ev.getString("selftest")).put("app", ev.getString("app")).put("instanceKey", ev.getString("instanceKey")).put("instanceSig", ev.getString("instanceSig"));
+            sendFrame(f);
+            Main.say("RELAY abi2 evidence sent (" + ev.getJSONArray("chain").length() + " certificates, instance-bound, from the VM's evidence endpoint)");
+            return true;
+        } catch (Exception e) { Main.say("RELAY abi2 not sent: " + e); return false; }
     }
 
     void sendCaps(String reportHex, String sigHex) {

@@ -127,7 +127,7 @@ try {
     if (!done) fail(`${phase}: no verdict and not serving within 400 s`);
     const c = fs.readFileSync(path.join(OUT, "vm", `${phase}.log`), "utf8");
     return { log: c, accepted: /RELAY attest ACCEPTED/.test(c), rejected: (/RELAY attest REJECTED: (.*)/.exec(c) || [])[1] || null, instance: (/INSTANCE id=([0-9a-f]{64})/.exec(c) || [])[1],
-             proofKey: (/PROOF key=(0x[0-9a-f]{40})/.exec(c) || [])[1], cosigned: /RELAY attach co-signed by the owner/.test(c), notCosigned: (/RELAY attach NOT co-signed: (.*)/.exec(c) || [])[1] || null,
+             proofKey: (/PROOF key=(0x[0-9a-f]{40})/.exec(c) || [])[1], cosigned: /RELAY attach (co-signed by the owner|operatorSig attached)/.test(c), notCosigned: (/RELAY attach NOT co-signed: (.*)/.exec(c) || [])[1] || null,
              ms: Date.now() - t0 };
   };
   const row = async () => { const j = await fetch(`${RELAY_HTTP}/enclaves`).then((r) => r.json()).catch(() => null); const rows = Array.isArray(j) ? j : (j && (j.enclaves || j.rows)) || [];

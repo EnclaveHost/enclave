@@ -540,6 +540,7 @@ public class Main extends Activity {
         Thread localThread = null;                          /* mode local: joined (bounded) before the end is judged, so an interruption is known */
         if (plan.mode.equals("bridge") || plan.mode.equals("engine") || plan.mode.equals("bridgebench")) new Thread(() -> bridge(vm, plan), "vsock-bridge").start();
         RelayAttach relay = null;
+        RelayKeeper keeper = null;   /* app + TLS through a relay: the one reconnector (RelayKeeper.java), armed once the app serves */
         try (OutputStream out = new FileOutputStream(pfd.getFileDescriptor());
              BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(pfd.getFileDescriptor())))) {
             // Created ONLY for a quiet plan: an ordinary run allocates no queue and takes on none
@@ -594,9 +595,10 @@ public class Main extends Activity {
                     relay.instanceKey = m.group(1); relay.instanceSig = m.group(2); }
             }
             // 4. present it; a bound tunnel keeps serving the hub in its own thread
+            if (plan.relay != null && spki != null && plan.mode.equals("app") && plan.appTls == 1) keeper = new RelayKeeper(vm, plan, spki, padKey, out);
             if (relay != null) {
                 JSONObject res = relay.present(certs, sig);
-                if (res != null && res.optBoolean("ok")) { final RelayAttach rr = relay; new Thread(() -> rr.serve(android.os.Build.MODEL), "relay-serve").start(); }
+                if (res != null && res.optBoolean("ok")) { final RelayAttach rr = relay; if (keeper != null) keeper.adopt(rr); new Thread(() -> rr.serve(android.os.Build.MODEL), "relay-serve").start(); }
                 else { relay.close(); relay = null; }
             }
             // 4a. the model stage: the VM receives (or finds cached) the model and judges the bytes it will parse
@@ -729,7 +731,10 @@ public class Main extends Activity {
                 // the pVM CPU capability report (PVM-CPU.md): the capture keeps it WHOLE (it is verifiable offline with the chain),
                 // and a bound relay tunnel receives it as the caps frame the relay admits the tier from
                 final boolean caps = line.startsWith("CAPS ") && line.split(" ").length == 3 && !line.startsWith("CAPS summary");
-                if (caps) sayEvidence("VSOCK " + line); else say("VSOCK " + line); n++;
+                // a re-attach's certificate lines, like the boot's, go to the capture whole and to logcat short
+                final boolean whole = caps || line.startsWith("CERT") || line.startsWith("SIG[") || line.startsWith("INSTANCEATTACH ");
+                if (whole) sayEvidence("VSOCK " + line); else say("VSOCK " + line); n++;
+                if (keeper != null) keeper.onVmLine(line);
                 if (caps && relay != null) { final String[] cf = line.split(" "); relay.sendCaps(cf[1], cf[2]); }
                 // The experiment measures ONE window. A child that did not inherit it has already stopped the VM's pads
                 // receiver, so the run can only stall: end it here instead, through the finally below.
@@ -759,6 +764,7 @@ public class Main extends Activity {
                     new Thread(() -> { try { Thread.sleep(secs * 1000L); } catch (InterruptedException ignored) { }
                         try { synchronized (o) { o.write("STOP\n".getBytes()); o.flush(); } say("APP https: STOP sent (lab time limit)"); } catch (Exception e) { say("APP https: STOP not sent: " + e); } }, "app-tls-stop").start();
                 }
+                if (line.startsWith("APP serving https") && keeper != null) keeper.arm();   // REATTACH is taken only while the app serves
                 if (line.equals("END")) { sawEnd = true; break; }
             }
             say("CONTROL closed after " + n + " lines");
@@ -772,6 +778,7 @@ public class Main extends Activity {
                 if (feedThread.isAlive()) say("PREPARE feed thread still running after a 5 s join: its terminal ARTIFACTS feed line is NOT in this capture");
             }
             burnersOn = false;   /* a finished leg leaves the app idle: the burners exist only while the VM decodes */
+            if (keeper != null) keeper.stop();   // before the channel closes: no re-attach outlives the VM's session
             try { pfd.close(); } catch (Exception ignored) { }
             if (relay != null) relay.close();
             if (localThread != null) { try { localThread.join(10000); } catch (InterruptedException ignored) { } }

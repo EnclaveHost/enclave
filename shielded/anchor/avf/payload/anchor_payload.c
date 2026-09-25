@@ -72,6 +72,7 @@
 #include "vm_payload.h"
 #include "third_party/tweetnacl.h"
 #include "anchor_attach_instance.h"   /* after tweetnacl (crypto_sign) and shielded-avf-binding.h */
+#include "anchor_reattach.h"           /* after anchor_attach_instance.h (the instance proof over a re-attach transcript) */
 #include "anchor-core.h"
 #include "shielded-field.h"
 #include "shielded-simd.h"
@@ -265,6 +266,17 @@ static int read_line(int fd, char *buf, size_t cap) {
     while (n + 1 < cap) { char c; ssize_t r = read(fd, &c, 1); if (r <= 0) return -1; if (c == '\n') break; buf[n++] = c; }
     buf[n] = 0; return (int)n;
 }
+/* one WHOLE control line: bytes past cap-1 are read and dropped to the newline (bounded), and *over says so, so a long line is
+ * refused as one line instead of being split into two; returns the bytes kept (embedded NULs included), or -1 at EOF */
+static int read_ctl_line(int fd, char *buf, size_t cap, int *over) {
+    size_t n = 0, dropped = 0; *over = 0;
+    for (;;) {
+        char c; const ssize_t r = read(fd, &c, 1); if (r <= 0) return -1;
+        if (c == '\n') break;
+        if (n + 1 < cap) buf[n++] = c; else { *over = 1; if (++dropped > 65536) return -1; }
+    }
+    buf[n] = 0; return (int)n;
+}
 
 /* ---- attestation: the certificate a verifier will check, bound to the owner's challenge ---- */
 static size_t unhex(const char *hex, uint8_t *out, size_t cap) {
@@ -283,33 +295,28 @@ static void sha256(const uint8_t *m, size_t n, uint8_t out[32]) { anchor_sha256(
  * certificate challenge is sha256 of it. Whatever the app forwards as BOUND is checked against the
  * keys generated in here; anything else gets a certificate over the app's challenge (routing only)
  * but NO signature - a measured payload must not be a signing oracle for keys it does not hold. */
-static void attest(const char *hex, const char *bound_hex) {
-    uint8_t ch[32] = {0}; unhex(hex, ch, 32);
-    uint8_t bound[1024]; size_t blen = unhex(bound_hex, bound, sizeof bound);
-    int own = 0;
-    if (blen) {
-        uint8_t want[32]; sha256(bound, blen, want);
-        own = sh_avf_pad_binding_valid(bound, blen, g_tpk, g_ppk) && memcmp(want, ch, 32) == 0;
-        if (!own) OUT("ATTEST refused to sign: BOUND is not this pVM's pad binding (v2 transcript over its own keys) or the challenge is not its sha256");
-        else OUT("ATTEST binding: android-avf-pvm/v2 transcript over this pVM's own transport and pad keys, challenge = its sha256");
-    } else OUT("ATTEST no BOUND: certificate only, nothing signed");
+/* Every AVF attestation request goes through here: the serving thread (REATTACH) and the evidence server's thread may both ask.
+ * The lock covers the request alone -- never the output (RUNNER-AGENT.md "Reconnect in place", enclave-99's condition (d)). */
+static pthread_mutex_t g_att_mu = PTHREAD_MUTEX_INITIALIZER;
+static AVmAttestationStatus request_attestation(const uint8_t *ch, size_t n, AVmAttestationResult **res) {
+    pthread_mutex_lock(&g_att_mu);
+    const AVmAttestationStatus st = AVmPayload_requestAttestation(ch, n, res);
+    pthread_mutex_unlock(&g_att_mu);
+    return st;
+}
 #ifdef ANCHOR_TIER_PVM_CPU
-    if (own && g_inst) {   /* the boot-time INSTANCE proof for the owner's attach co-signer (anchor_attach_instance.h): the
-                            * instance SPKI and the signature only; the instance secret never leaves this function's callee */
-        uint8_t isig[64], isp[44]; char isph[89], isigh[129];
-        if (anchor_attach_instance_sign(bound, blen, g_tpk, g_ppk, g_isk, isig)) {
-            instance_spki(isp); sh_pads_bin2hex(isp, 44, isph); sh_pads_bin2hex(isig, 64, isigh);
-            OUT("INSTANCEATTACH key=%s sig=%s", isph, isigh);
-        }
-    }
+/* INSTANCEATTACH for the owner's attach co-signer: the instance SPKI and the signature over this VM's own transcript, nothing else */
+static void instance_attach_out(const uint8_t isig[64]) {
+    uint8_t isp[44]; char isph[89], isigh[129];
+    instance_spki(isp); sh_pads_bin2hex(isp, 44, isph); sh_pads_bin2hex(isig, 64, isigh);
+    OUT("INSTANCEATTACH key=%s sig=%s", isph, isigh);
+}
 #endif
-#ifdef ANCHOR_TIER_PVM_CPU
-    if (own && blen >= 32) { memcpy(g_caps_nonce, bound + blen - 32, 32); g_caps_nonce_kind = 2; }   /* v2: the relay's nonce closes the transcript */
-    else { memcpy(g_caps_nonce, ch, 32); g_caps_nonce_kind = 1; }
-    g_caps_attach_ms = boot_ms();
-#endif
+/* The certificate over ch = sha256(bound) and, for this pVM's own transcript, the attested key's signature over it: CERTi and
+ * SIG lines, as the host collects them at boot and on a re-attach alike. */
+static void attest_certify(const uint8_t ch[32], const uint8_t *bound, size_t blen, int own) {
     AVmAttestationResult *res = NULL;
-    AVmAttestationStatus st = AVmPayload_requestAttestation(ch, sizeof ch, &res);
+    AVmAttestationStatus st = request_attestation(ch, 32, &res);
     OUT("ATTEST status=%s code=%d", AVmAttestationStatus_toString(st), (int)st);
     if (st == ATTESTATION_OK && res) {
         size_t n = AVmAttestationResult_getCertificateCount(res);
@@ -330,8 +337,49 @@ static void attest(const char *hex, const char *bound_hex) {
         }
         AVmAttestationResult_free(res);
     }
+}
+static void attest(const char *hex, const char *bound_hex) {
+    uint8_t ch[32] = {0}; unhex(hex, ch, 32);
+    uint8_t bound[1024]; size_t blen = unhex(bound_hex, bound, sizeof bound);
+    int own = 0;
+    if (blen) {
+        uint8_t want[32]; sha256(bound, blen, want);
+        own = sh_avf_pad_binding_valid(bound, blen, g_tpk, g_ppk) && memcmp(want, ch, 32) == 0;
+        if (!own) OUT("ATTEST refused to sign: BOUND is not this pVM's pad binding (v2 transcript over its own keys) or the challenge is not its sha256");
+        else OUT("ATTEST binding: android-avf-pvm/v2 transcript over this pVM's own transport and pad keys, challenge = its sha256");
+    } else OUT("ATTEST no BOUND: certificate only, nothing signed");
+#ifdef ANCHOR_TIER_PVM_CPU
+    if (own && g_inst) {   /* the boot-time INSTANCE proof for the owner's attach co-signer (anchor_attach_instance.h): the
+                            * instance SPKI and the signature only; the instance secret never leaves this function's callee */
+        uint8_t isig[64];
+        if (anchor_attach_instance_sign(bound, blen, g_tpk, g_ppk, g_isk, isig)) instance_attach_out(isig);
+    }
+#endif
+#ifdef ANCHOR_TIER_PVM_CPU
+    if (own && blen >= 32) { memcpy(g_caps_nonce, bound + blen - 32, 32); g_caps_nonce_kind = 2; }   /* v2: the relay's nonce closes the transcript */
+    else { memcpy(g_caps_nonce, ch, 32); g_caps_nonce_kind = 1; }
+    g_caps_attach_ms = boot_ms();
+#endif
+    attest_certify(ch, bound, blen, own);
     OUT("ATTEST end");
 }
+#ifdef ANCHOR_TIER_PVM_CPU
+/* REATTACH <nonce> while the app serves (RUNNER-AGENT.md "Reconnect in place"): the relay's NEW connection nonce is the only
+ * input; anchor_reattach.h builds this VM's own transcript from its boot keys (rate-bounded), and a NEW certificate over it
+ * follows, framed "REATTACH begin" .. "REATTACH end". The tier's caps state (the attach time, the caps nonce) is not touched. */
+static anchor_reattach_ctx g_reattach;   /* armed at boot, once the transport, pad and instance keys exist */
+static void reattach(const char *arg, size_t len) {
+    uint8_t B[SH_AVF_PAD_BINDING_LEN], isig[64], ch[32]; int has_isig = 0;
+    OUT("REATTACH begin");
+    const char *why = anchor_reattach_prepare(&g_reattach, arg, len, boot_ms(), B, isig, &has_isig);
+    if (why) { OUT("REATTACH refused: %s", why); OUT("REATTACH end"); return; }
+    OUT("REATTACH binding: android-avf-pvm/v2 transcript over this pVM's own boot keys and the relay's new nonce, challenge = its sha256");
+    if (has_isig) instance_attach_out(isig);
+    sha256(B, sizeof B, ch);
+    attest_certify(ch, B, sizeof B, 1);
+    OUT("REATTACH end");
+}
+#endif
 
 /* ---- the untrusted half: a real worker over the bridge, or the in-guest stand-in ---- */
 typedef struct {
@@ -1286,7 +1334,7 @@ static AVmAttestationResult *abi2_certify(const char *identity, const uint8_t no
         crypto_sign(sm, &smlen, m, sizeof m, g_isk); memcpy(inst->sig, sm, 64);
     }
     AVmAttestationResult *res = NULL;
-    *st = AVmPayload_requestAttestation(ch, sizeof ch, &res);
+    *st = request_attestation(ch, sizeof ch, &res);
     if (*st != ATTESTATION_OK || !res) { if (res) AVmAttestationResult_free(res); return NULL; }
     return res;
 }
@@ -1554,7 +1602,14 @@ static int app_serve(app_ready *a, const pvmrt_nn_ops *ops) {
         const int r = poll(pf, ls_sealed >= 0 ? 3 : 2, 3600 * 1000);
         if (r < 0 && errno == EINTR) continue;
         if (r <= 0) { OUT("APP http: an hour without a connection or a word from the owner; stopping"); break; }
-        if (pf[1].revents) { char l[64]; if (read_line(g_ctl, l, sizeof l) < 0 || !strcmp(l, "STOP")) { OUT("APP http: stopped by the owner"); break; } OUT("APP http: control line ignored while serving"); continue; }
+        if (pf[1].revents) {   /* STOP, or REATTACH <the relay's new nonce> (anchor_reattach.h): the only two lines taken while serving */
+            char l[80]; int over = 0; const int ln = read_ctl_line(g_ctl, l, sizeof l, &over);
+            if (ln < 0 || (!over && !strcmp(l, "STOP"))) { OUT("APP http: stopped by the owner"); break; }
+#ifdef ANCHOR_TIER_PVM_CPU
+            if (ln >= 9 && !memcmp(l, ANCHOR_REATTACH_CMD, 9)) { reattach(l + 9, over ? (size_t)-1 : (size_t)ln - 9); continue; }
+#endif
+            OUT("APP http: control line ignored while serving"); continue;
+        }
         if (pf[0].revents & POLLIN) {
             const int c = accept(ls, NULL, NULL); if (c < 0) continue;
             char e[512] = ""; const int rc = hserve(srv, c, e, sizeof e);
@@ -1903,6 +1958,7 @@ int AVmPayload_main(void) {
         static const char pident[] = "enclave-pvm-proof-key-v1";   /* the lease proof key's seed: pvm-rt derives the key from it */
         AVmPayload_getVmInstanceSecret(pident, sizeof pident - 1, g_proof_seed, sizeof g_proof_seed); g_proof_seed_set = 1;
     }
+    anchor_reattach_arm(&g_reattach, g_tpk, g_ppk, g_isk, g_inst);   /* the keys are final from here: a re-attach refuses if they ever change */
 #endif
     AVmPayload_notifyPayloadReady();
     g_ctl = vs_accept(ls_ctl, 20000);
