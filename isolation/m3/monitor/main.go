@@ -1032,9 +1032,11 @@ func (m *monitor) selfTest() {
 	if m.hostPort != 0 {
 		// A Hyper-V child partition under the Windows launcher. No hardware signer and no privilege
 		// levels: the launcher in the root partition signs, and says so. The tuple keeps the same shape
-		// so the same gate reads it.
+		// so the same gate reads it. It names no partition KIND: this guest boots the same payload in an HCS
+		// child, a UEFI/OpenHCL partition or a KVM test guest and cannot tell which, so the kind is the
+		// launcher's to state in the report it signs (it used to print "partition=hcs-child" everywhere).
 		m.vmpl, m.vmplFloor, m.vmpl0 = -1, -1, "n/a"
-		m.boundary = "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no"
+		m.boundary = "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no"
 		return
 	}
 	if !m.snp {

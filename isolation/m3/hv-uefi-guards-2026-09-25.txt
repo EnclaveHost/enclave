@@ -1,0 +1,33 @@
+# 2026-09-25 isolation/m3/test-uefi-guards.sh on warden-host: QEMU + OVMF, NOT Hyper-V. The UEFI-path guards (dominit.c) through the host's own channels.
+uki /home/steven/enclave-bench/hvuefi-guards4/clean/EFI/BOOT/BOOTX64.EFI sha256 1f1fbed64c4ffb83933081e96beabeab6bc0f2a506c54894b6007b02337bd656 bytes 41402880
+  stub    2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18  /usr/lib/systemd/boot/efi/linuxx64.efi.stub
+  kernel  1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  /boot/vmlinuz-linux
+  initrd  5bc062598212f1e509c4579ba76ab2e34ed090960fc6712d503c49ae427fb359  /home/steven/enclave-bench/hvuefi-guards4/mon.cpio.gz
+  cmdline c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615  "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
+  osrel   b6bca85d3e1933b36e542863b088667a56c8575de37f5e739d699d262d92d184  (fixed text: NAME="enclave NucBox guest" ID=enclave-nucbox-guest)
+  tool    GNU objcopy (GNU Binutils) 2.47
+PASS clean: MON ready control_port=9000 snp=false
+PASS smbios: MON ERROR refusing to start: the kernel command line is not the pinned one (got "console=ttyS0 rdinit=/init loglevel=3 report_host=9001 injected=1")
+PASS addon: MON ERROR refusing to start: the boot stub added files under /.extra (credentials or extensions): /.extra/os-release /.extra/credentials /.extra/credentials/x.cred
+PASS direct: MON ready control_port=9000 snp=false
+UEFI-GUARDS ALL PASS
+# full functional suite on the same initrd 5bc06259 (direct and BOOT=uefi):
+image 5bc062598212f1e509c4579ba76ab2e34ed090960fc6712d503c49ae427fb359
+HVLAB-CHECK ALL PASS
+HVLAB-CHECK PASS WITH 4 SKIPPED (one domain)
+HVLAB-ROUTE ALL PASS
+TEST-HV-LOCAL PASS
+image 5bc062598212f1e509c4579ba76ab2e34ed090960fc6712d503c49ae427fb359
+uki /home/steven/enclave-bench/hvfinal-uefi/esp/EFI/BOOT/BOOTX64.EFI sha256 1f1fbed64c4ffb83933081e96beabeab6bc0f2a506c54894b6007b02337bd656 bytes 41402880
+HVLAB-CHECK ALL PASS
+HVLAB-CHECK PASS WITH 4 SKIPPED (one domain)
+HVLAB-ROUTE ALL PASS
+TEST-HV-LOCAL PASS
+# the box's UKI (WSL kernel) from this initrd:
+uki /home/steven/enclave-bench/hvuefi/uki-wsl-5bc06259.efi sha256 75ae6bccf2cd663a85dc21562b06892800b2744aa90441a453fdf6aa613776b6 bytes 40046592
+  stub    2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18  /usr/lib/systemd/boot/efi/linuxx64.efi.stub
+  kernel  7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd  /home/steven/enclave-bench/ownguest-pkg/sources/guest/wsl-kernel
+  initrd  5bc062598212f1e509c4579ba76ab2e34ed090960fc6712d503c49ae427fb359  /home/steven/enclave-bench/hvfinal-uefi/mon.cpio.gz
+  cmdline c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615  "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
+  osrel   b6bca85d3e1933b36e542863b088667a56c8575de37f5e739d699d262d92d184  (fixed text: NAME="enclave NucBox guest" ID=enclave-nucbox-guest)
+  tool    GNU objcopy (GNU Binutils) 2.47

@@ -14,6 +14,7 @@
  * Nothing here is privileged beyond what a guest kernel grants its own PID 1. */
 #define _GNU_SOURCE
 #include <cpuid.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <net/if.h>
@@ -21,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/reboot.h>
 #include <sys/mount.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -58,6 +60,21 @@ static double now_ms(void) {
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
     return t.tv_sec * 1e3 + t.tv_nsec / 1e6;
+}
+
+/* list_tree names what is under a directory, a few levels deep, on the current console line */
+static void list_tree(const char *dir, int depth) {
+    DIR *d = opendir(dir);
+    if (!d) return;
+    struct dirent *e;
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        char p[512];
+        snprintf(p, sizeof p, "%s/%s", dir, e->d_name);
+        printf(" %s", p);
+        if (e->d_type == DT_DIR && depth < 3) list_tree(p, depth + 1);
+    }
+    closedir(d);
 }
 
 int main(void) {
@@ -100,6 +117,37 @@ int main(void) {
         if (f) { if (!fgets(line, sizeof line, f)) line[0] = 0; fclose(f); }
         char *p = strstr(line, "report_host=");
         if (p) snprintf(hostflag, sizeof hostflag, "-report-host=%d", atoi(p + 12));
+        /* ON THE UKI PATH the whole command line is pinned. Under UEFI with Secure Boot off the host can replace the
+         * UKI's .cmdline (LoadOptions from a boot entry) or extend it (SMBIOS type 11
+         * io.systemd.stub.kernel-cmdline-extra), and the stub can add an extra initrd from files beside it on the ESP
+         * (credentials, system/config extensions), unpacked under /.extra. None of that is measured
+         * (isolation/m3/UEFI-BOOT.md). systemd-stub always leaves /.extra/os-release (the UKI's own .osrel), which is how
+         * a stub boot is recognised; on it, a line that is not exactly the pinned one, or anything under /.extra besides
+         * os-release, and this guest does not start. A direct boot (HCS linux-direct, QEMU -kernel) makes no UKI claim:
+         * its loader supplies the line (OVMF prefixes "initrd=initrd"), so it is not pinned here. The host is inside this
+         * tier's trust boundary anyway (it can read the guest's memory): fail-closed hygiene, not a boundary. */
+        struct stat st;
+        if (p && stat("/.extra", &st) == 0) {
+            static const char pinned[] = "console=ttyS0 rdinit=/init loglevel=3 report_host=9001";
+            size_t n = strcspn(line, "\n");
+            if (n != sizeof pinned - 1 || memcmp(line, pinned, n) != 0) {
+                printf("MON ERROR refusing to start: the kernel command line is not the pinned one (got \"%.*s\")\n",
+                       (int)(n > 200 ? 200 : n), line);
+                fflush(stdout); sync(); reboot(RB_POWER_OFF);
+            }
+            int other = 0;
+            DIR *d = opendir("/.extra");
+            struct dirent *e;
+            while (d && (e = readdir(d)))
+                if (strcmp(e->d_name, ".") && strcmp(e->d_name, "..") && strcmp(e->d_name, "os-release")) other = 1;
+            if (d) closedir(d);
+            if (other) {
+                printf("MON ERROR refusing to start: the boot stub added files under /.extra (credentials or extensions):");
+                list_tree("/.extra", 0);
+                printf("\n");
+                fflush(stdout); sync(); reboot(RB_POWER_OFF);
+            }
+        }
     }
     char *argv[] = {"/monitor", snpflag, hostflag[0] ? hostflag : NULL, NULL};
     char *envp[] = {"HOME=/tmp", "PATH=/plat", NULL};

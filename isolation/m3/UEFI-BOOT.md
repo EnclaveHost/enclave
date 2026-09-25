@@ -3,17 +3,18 @@
 On the NucBox's Windows build, Microsoft's standard UEFI boots under OpenHCL. Two linux-direct OpenHCL images, ours and
 Microsoft's own release, both failed under the settings tested (worker event 12030; enclave-d1, 7c6bb15d). That is two
 images under those settings, not every linux-direct configuration. So the guest gains a UEFI boot, a reversible
-implementation detail of how VTL0 is loaded. **The payload does not change.** The initrd, monitor, front, runtime, app path, control and data channels
-and report binding are all the same. Only how the kernel and initrd get loaded changes.
+implementation detail of how VTL0 is loaded. **The payload's behaviour does not change**: the monitor, front, runtime,
+app path, control and data channels and report binding. Only how the kernel and initrd are loaded changes, plus two guest
+guards for the UEFI path (below).
 
 Ownership:
 
 | who | what |
 |---|---|
-| this lane (the guest runtime) | the boot requirements below, `build-uki.sh` (the UKI recipe), and the payload proof |
+| this lane (the guest runtime) | the boot requirements below, `build-uki.sh` (the UKI recipe), the guest's guards, and the payload proof |
 | enclave-53 | the image builder: deterministic ESP/media, exact hashes, staging |
 | enclave-d1 | the VM on the box: generation, firmware, Secure Boot, devices and hv_sock services, the launcher and its signed report |
-| enclave-99 | independent review of this document's claims, in particular the unmeasured-input list |
+| enclave-99 | independent review (its review of the first version: windows/vbslike/review/UEFI-BOOT-REVIEW.md) |
 
 ## The artifact: one UKI
 
@@ -23,90 +24,143 @@ sections:
 | section | content | sha256 (for the box) |
 |---|---|---|
 | stub | `linuxx64.efi.stub`, systemd 261.2 | `2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18` |
-| `.linux` | the WSL kernel 6.6.87.2 (EFI stub present, xloadflags 0x3b), unchanged from the HCS path | `7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd` |
-| `.initrd` | the guest initrd, `build-domain.sh` at aef54ff7, **unchanged** | `4610d5944cc2d67a6510ece964915b6a90b20ecc27a0169d514a2701c9fc9f85` |
+| `.linux` | the WSL kernel 6.6.87.2, unchanged from the HCS path | `7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd` |
+| `.initrd` | the guest initrd, `build-domain.sh` at the commit that adds this file's guards | `5bc062598212f1e509c4579ba76ab2e34ed090960fc6712d503c49ae427fb359` |
 | `.cmdline` | `console=ttyS0 rdinit=/init loglevel=3 report_host=9001`, no trailing newline | `c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615` |
-| `.osrel` | `NAME="enclave NucBox guest"` / `ID=enclave-nucbox-guest` | (fixed text) |
+| `.osrel` | `NAME="enclave NucBox guest"` / `ID=enclave-nucbox-guest` | `b6bca85d3e1933b36e542863b088667a56c8575de37f5e739d699d262d92d184` |
+| tool | GNU objcopy (Binutils) 2.47, `SOURCE_DATE_EPOCH=0` | (an input to the bytes) |
 
-- UKI for the box: `a1fdb5c3e973accc2f04bfecce7fb22cfdcfcf7568244350328ec6436a1a87b1` (40,045,056 B).
-- Deterministic: `SOURCE_DATE_EPOCH=0`. Without it objcopy stamps the PE TimeDateStamp from the clock, and the header
-  checksum follows it. Two builds three seconds apart are identical.
-- Why a UKI: the firmware starts `BOOTX64.EFI` with no command line and no initrd. A UKI carries both inside the one
-  file it loads, so nothing on the ESP or in NVRAM can add an argument or swap the initrd. The stub hands the initrd to
-  the kernel through `LINUX_EFI_INITRD_MEDIA_GUID` (seen with this kernel: "EFI stub: Loaded initrd from
-  LINUX_EFI_INITRD_MEDIA_GUID device path").
+- UKI for the box: `75ae6bccf2cd663a85dc21562b06892800b2744aa90441a453fdf6aa613776b6` (40,046,592 B). This
+  supersedes a1fdb5c3, which carried initrd 4610d594, from before the guards.
+- Deterministic on one toolchain. objcopy stamps the PE TimeDateStamp from the clock unless `SOURCE_DATE_EPOCH` is set,
+  and the header checksum follows it. enclave-53's independent assembly reproduced the previous UKI byte for byte.
+- Why a UKI: the firmware starts `BOOTX64.EFI` with no command line and no initrd, and the UKI carries both. **With
+  Secure Boot OFF it does not stop the host from changing either.** A boot entry's LoadOptions replace `.cmdline`,
+  SMBIOS type 11 can extend it, and files beside the UKI on the ESP become an extra initrd (items 8-10 below). What
+  the guest can detect, it refuses (the guards).
+
+## The guest's guards on the UEFI path (dominit.c)
+
+systemd-stub always leaves `/.extra/os-release`, the UKI's own `.osrel`. That is how the guest recognises a stub boot.
+On a stub boot the guest refuses to start (it powers off with `MON ERROR refusing to start: ...` on the console) when:
+- the kernel command line is not exactly the pinned one. This catches LoadOptions and SMBIOS
+  `io.systemd.stub.kernel-cmdline-extra`;
+- anything besides `os-release` is under `/.extra`. This catches credentials and system/config extensions the stub
+  unpacked from beside the UKI.
+
+A direct boot (HCS linux-direct, QEMU `-kernel`) makes no UKI claim: its loader supplies the line (OVMF prefixes
+`initrd=initrd`), so it is not pinned. On this tier the host can read the guest's memory anyway. These guards are
+**fail-closed hygiene against silent drift, not a boundary against the host.**
+
+`test-uefi-guards.sh` exercises them through the same channels, on QEMU + OVMF (NOT Hyper-V):
+- clean: MON ready;
+- SMBIOS type 11 extra: refused on the line;
+- a `BOOTX64.EFI.extra.d/x.cred`: refused on `/.extra/credentials`;
+- a direct boot with an extra argument: not pinned, MON ready, as scoped.
 
 ## The ESP and the media (for enclave-53)
 
 - The ESP holds exactly one file, `\EFI\BOOT\BOOTX64.EFI` (the UKI). There is no loader, no loader entries, no
-  `startup.nsh`, and no NVRAM boot entry is needed: removable-media fallback boots it.
-- Gen2 boots from a SCSI VHDX or a DVD ISO. Either works for the guest: it never writes to its boot medium (it runs
-  from the initrd in RAM).
-  - My preference is a read-only El Torito ISO, if d1's VM config boots it: byte-reproducible and immutable.
-  - Otherwise use 53's proposal: the pinned identity is the RAW GPT image (fixed GUIDs, FAT volume id and times), with
-    the VHDX a container verified by converting back to raw.
+  `startup.nsh`, no NVRAM entry, and nothing under `\loader\` or `BOOTX64.EFI.extra.d\`. Removable-media fallback
+  boots it.
+- Gen2 boots from a SCSI VHDX or a DVD ISO. Either works: the guest never writes to its boot medium.
+  - My preference is a read-only El Torito ISO, if d1's VM boots it.
+  - Otherwise use 53's raw-GPT pin (fixed GUIDs, FAT volume id and times), with the VHDX a container verified by
+    converting back to raw.
 
 ## Kernel requirements
 
-All already met by the pinned WSL kernel, as used on the HCS path on 09-23:
-- an EFI stub;
-- Hyper-V VMBus and hv_sock built in (the virtio vsock modules in the initrd fail to load, harmlessly);
-- a serial console on ttyS0 (COM1);
-- initrd via the LoadFile2 media GUID.
+Verified by enclave-99 from the pinned kernel's embedded config:
+- `CONFIG_EFI_STUB=y`;
+- `CONFIG_HYPERV_VSOCKETS=y` (the virtio vsock modules in the initrd fail to load, harmlessly);
+- `CONFIG_CMDLINE_BOOL` unset, so the kernel appends nothing itself;
+- a serial console on ttyS0;
+- initrd via `LINUX_EFI_INITRD_MEDIA_GUID`.
 
 ## The VM (for enclave-d1)
 
 - Generation 2, the OpenHCL standard-UEFI configuration that boots on this build, and 1 vCPU.
-- Memory at least 1 GiB (the monitor sees about 945 MiB at 1 GiB).
-- **Secure Boot OFF.** The UKI is unsigned. Signing needs a key in the VM's db, a later step. Until then the firmware
-  verifies nothing about the UKI: stated, not hidden.
-- The boot medium above as the first boot device.
-- COM1 to a named pipe (the console: `MON ready control_port=9000` is the boot signal).
+- Memory at least 1 GiB.
+- **Secure Boot OFF.** The UKI is unsigned; signing needs a key in the VM's db, a later step. Until then the firmware
+  verifies nothing about the boot medium.
+- The medium as the first boot device.
+- **No boot entries carrying LoadOptions for it, and no SMBIOS type 11 strings.** The guest refuses both, so either one
+  shows up as a failed boot, not a silent change.
+- COM1 to a named pipe: `MON ready control_port=9000` is the boot signal; `MON ERROR refusing to start` is a guard.
 - hv_sock services, the same as the HCS path:
-  - 9000: the guest listens (control, `load`);
+  - 9000: the guest listens;
   - 9001: the HOST listens (report signing);
-  - 40000+id: the guest listens (the domain's TLS, ciphertext).
-- The launcher's signed report states `partition.guestImageSha256`. On this path it is **the UKI's sha256**, the one
-  file the firmware loads (a1fdb5c3... for the box). The composition above is published beside it, so a verifier can
-  check that the initrd inside is 4610d594. enclave-53's package records the image expectation per path; for this
-  path it is the UKI.
+  - 40000+id: the guest listens.
+- A vTPM: state whether the VM has one (item 13).
+
+## The signed report's image field, per path
+
+`partition.guestImageSha256` means the thing the launcher attached, whole:
+
+| path | `guestImageSha256` | beside it |
+|---|---|---|
+| HCS linux-direct (dev) | the initrd file vbslike-host passes (launcher.rs) | the kernel file's hash |
+| UEFI | the **medium** attached read-only: the ISO's bytes, or disk.raw's sha256 for a VHDX whose payload equals it | the UKI's hash and the composition above |
+
+The medium, not the UKI: two media carrying the same UKI but different side-files would boot different command lines
+and initrds under one UKI hash (item 10). The launcher's HCS-only fields (initrd/kernel file hashes) are not filled on
+the UEFI path; that's d1's report code.
 
 ## What does NOT change: the payload's identity and runtime binding
 
-Identical bytes: the initrd, and in it the monitor, front, domexec, the wasmtime 48.0.1 runtime set and runtime.json.
-So these are unchanged:
+The monitor, front, domexec, the wasmtime 48.0.1 runtime set and runtime.json are the same code. The initrd's bytes
+changed only for:
+- the two guards in dominit;
+- the monitor's boundary line, which no longer names a partition kind. It used to print a fixed `partition=hcs-child`
+  even in a KVM test guest; the guest cannot tell which kind it is in, so the launcher states the kind.
+
+Unchanged:
 - `report_data[32:64]` = the AppID;
 - `report_data[0:32]` = Bind2 over the handshake key, the nonce and the runtime identity (RuntimeID ccadb38a...);
-- the readiness route, the run modes, and the refusals (HV-GUEST.md).
+- the readiness route, the run modes, and the refusals.
 
 A client verifies exactly what it did on the HCS path: the launcher-signed report at tier T0-hv, the verdict
 `monitor-signed`. The host is **not** excluded, and nothing here establishes that it is.
 
-## New inputs in the boot chain, NOT measured for any client
+## Inputs in the boot chain NOT measured for any client
 
-On the NucBox nothing measures the partition's image for a client. The launcher signs, and it is in the trust
-boundary. The UEFI path adds these inputs, each executing or deciding before or around the payload:
+On the NucBox nothing measures the partition's image for a client. The launcher signs, and it is in the trust boundary.
 
-1. **Microsoft's UEFI firmware**, the one the OpenHCL configuration boots: Microsoft's, host-selected.
-2. **The OpenHCL paravisor (VTL2)**: Microsoft's; its identity is not attested to a client here.
-3. **systemd-stub**, `2d9b8073...`: new code in the guest's own boot chain (it loads the kernel and the initrd).
-4. **The UKI layout**, from `build-uki.sh`: deterministic and recomputable from the four hashes above.
-5. **The boot medium** (ESP filesystem and ISO/VHDX container): enclave-53's builder. Its content is one file.
+1. **Microsoft's UEFI firmware**, the one the OpenHCL configuration boots: host-selected.
+2. **The OpenHCL image (VTL2)**, by hash, as enclave-53 pins it (openhcl.bin `48773995...`): its identity is not
+   attested to a client here.
+3. **systemd-stub** `2d9b8073...`: new code in the guest's boot chain.
+4. **The UKI layout**, from `build-uki.sh`: recomputable from the table above.
+5. **The boot medium** (ESP filesystem and ISO/VHDX container): pinned whole by enclave-53 (esp.img / disk.raw).
 6. **The VM configuration**: Secure Boot off, boot order, devices. The host's settings.
-7. The WSL kernel, `7fe3edb5...`: already an input on the HCS path, unchanged and not measured.
+7. **The WSL kernel** `7fe3edb5...`: already an input on the HCS path.
+8. **LoadOptions**: with Secure Boot off, a boot entry's options REPLACE `.cmdline`. NVRAM is the host's. The guard
+   refuses a changed line.
+9. **SMBIOS type 11 `io.systemd.stub.kernel-cmdline-extra`**: appended by the stub unless in a confidential VM, which
+   T0-hv is not. The guard refuses it (tested).
+10. **ESP side-files the stub consumes**:
+    - `BOOTX64.EFI.extra.d/*.addon.efi` (.cmdline/.dtb/.ucode), `*.cred`, `*.sysext.raw`, `*.confext.raw`;
+    - `\loader\addons`, `\loader\credentials`, `\loader\extensions`.
 
-None of these is covered by anything a client checks today. The launcher's signature vouches for them only as far as
-the launcher is trusted, and on this tier it can read the guest's memory anyway. Hardware host exclusion is NOT
-established by any of this and must not be advertised.
+    Unsigned addons load with Secure Boot off. Credentials and extensions arrive as an extra initrd under `/.extra`,
+    which the guard refuses (tested with a credential). An addon's `.cmdline` changes the line, which the guard
+    refuses. An addon's `.ucode` or `.dtb` would NOT be seen by the guard. Only pinning the whole medium (item 5)
+    covers it, never the UKI hash.
+11. **The EFI random seed** (`\loader\random-seed` plus the firmware RNG, into the kernel's seed table): host entropy
+    feeds the RNG that mints the handshake key and the nonces. The host is trusted on this tier anyway; stated, not
+    solved.
+12. **A vTPM**, if the VM has one: the stub measures into PCRs 9/11/12/13, and nothing reads them. d1 states presence.
+13. **The toolchain**: objcopy 2.47 (and the stub's systemd version), inputs to the UKI's bytes.
+14. **The report field's source**: the launcher's statement of what it attached (above), which is the host's word.
+
+None of these is covered by anything a client checks today. Hardware host exclusion is NOT established by any of
+this and must not be advertised.
 
 ## Local proof (warden-host, QEMU + OVMF: NOT Hyper-V)
 
-- `BOOT=uefi test-hv-local.sh` boots the guests from an ESP holding only the UKI (no `-kernel`/`-initrd`/`-append`).
-  With the Arch kernel as `.linux` (UKI `ba0335b0...`, the same initrd and command line) every phase passes:
-  - 15/15 with two domains;
-  - the one-domain mode;
-  - the route phase 13/13.
-  The payload behaves identically under a UEFI boot.
-- The box's own UKI (`a1fdb5c3...`, the WSL kernel) boots under OVMF: stub -> kernel -> initrd -> dominit -> `MON
-  ready control_port=9000`. Its channel cannot be exercised in QEMU. That kernel's vsock transport is Hyper-V's, so
-  the host's `load` gets no answer. That part is for the box.
+- `BOOT=uefi test-hv-local.sh`: the guests boot from an ESP holding only the UKI (the Arch kernel as `.linux`, initrd
+  5bc06259, UKI `1f1fbed6...`). Every phase passes: 15/15, the one-domain mode, and route 13/13. The direct boot also
+  passes on the same initrd.
+- `test-uefi-guards.sh`: 4/4, as listed above.
+- The box's own kernel boots from a UKI under OVMF to `MON ready`. Its hv_sock channel cannot be exercised in QEMU;
+  that part is for the box.
