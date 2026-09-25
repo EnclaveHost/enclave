@@ -432,3 +432,43 @@ cannot simply be repeated there.
 It is worth being explicit about the trap: a refusal to save is the easiest possible thing to
 mistake for protection, and it is not. Nothing was read, so nothing was established. The script
 says so in its own output rather than relying on a reader to remember.
+
+---
+
+# E2 RAN. The VTL0 report hypercall did NOT return a report
+
+First E2 run: PROBE medium `8d1fea1f…` (vbsreport probe) on the same type-1 definition — a7b0bd4
+CONTROL firmware `32d464cc…`, `GuestStateIsolationType 1` read back off the live VM,
+`VirtualizationBasedSecurityOptOut=True` read back. Run exited **RUN OK** (0), cleanup clean.
+
+The guest booted and reproduced the type-1 tuple on a third medium:
+
+    MON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1
+    MON boundary tier=t0-hv ... host_excluded=no hv_isolation=vbs paravisor=no
+    MON ready control_port=9000 snp=false transport=hv_sock
+
+The probe's entire output, verbatim (917 console bytes total, one VBSREPORT line, no report body):
+
+    [    0.335899] VBSREPORT status=0x71 (low 16 bits: 0 = success, 2 = invalid hypercall code, 3 = invalid input, 6 = access denied)
+    MON PROBE IMAGE: loading /probe.ko (this is not a production medium)
+    MON PROBE finished: No such device
+
+**So `HvCallVbsVmCallReport` did not return a report.** `0x71` is none of the three codes the probe
+names, and the module finished `ENODEV`. What that status means is for the probe's author to say;
+it is recorded here verbatim rather than interpreted.
+
+What this does and does not settle: it is NOT "status 0 + verifies under IDKS", so **the
+client-verifiable report chain is not demonstrated**. It is also not cleanly "VTL0 refused"
+(status 6/2), so the vTPM-route conclusion does not follow either. E2 has a result and the result is
+that this needs another look, not that the chain exists.
+
+The host's TCG log for the SAME host boot is captured beside it:
+`tcglog-20260925-042300-0000000067-0000000000.log`, 90,554 bytes, host boot log
+`0000000067-0000000000.log`. A VBS report can only be checked against the measured-boot log of the
+boot that produced it, so the capture is now part of the run rather than a later step.
+
+**E3 stays NOT RUN, deliberately and permanently on the current instrument question.** `Save-VM` is
+refused on a type-1 VM, and looking for an undocumented way into an isolated VM's memory would be
+attacking the protection under test rather than measuring it. That is out of scope for this lane.
+The memmarker module stays parked as the type-16 control should a documented reader ever appear.
+**The claim a customer could check therefore rests on E2.**

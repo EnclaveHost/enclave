@@ -576,6 +576,18 @@ try {
   }
   try { if ($pipeClient) { $pipeClient.Dispose() } } catch { }
   try { if ($pipe3Client) { $pipe3Client.Dispose() } } catch { }
+  # THE HOST'S TCG LOG, from the SAME host boot as this run. A VBS report can only be checked
+  # against the measured-boot log of the boot it was produced in, so capturing it later - or after a
+  # host reboot - would give a log that cannot verify anything. It is the host's own log, not this
+  # VM's: it is what carries the IDKS the report would be signed under.
+  try {
+    $tcg = Get-ChildItem C:\Windows\Logs\MeasuredBoot\*.log -EA SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($tcg) {
+      $tcgOut = "C:\Users\claude\vbs-evidence\tcglog-$stamp-$($tcg.Name)"
+      Copy-Item $tcg.FullName $tcgOut -Force
+      Note "host TCG log captured: $tcgOut ($((Get-Item $tcgOut).Length) bytes, host boot log $($tcg.Name))"
+    } else { Note "host TCG log: NONE found under C:\Windows\Logs\MeasuredBoot" }
+  } catch { Note "host TCG log could not be captured: $($_.Exception.Message -replace "`r?`n",' ')" }
   Note "console bytes: $($seen.Length) (COM1), $(if($pipe3){"$($seen3.Length) (COM3)"}else{'COM3 unsupported on this host'})"
   # OpenHCL's own words, whatever else happened.
   if ($kmsgOut) {
