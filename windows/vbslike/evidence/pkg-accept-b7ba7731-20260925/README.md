@@ -53,6 +53,18 @@ The harness hashed every input after the pre-run checks and before it applied th
 The guest-state master and the petri module come from the box, not from the package. The launcher also rechecks its
 own sha256 when the manager starts it: each manager log names `435717de`.
 
+### Manager environment: the harness's, not the package's managerEnv
+
+The managers ran with restart-accept's `startManager()` environment, not the package's 19-line `managerEnv` block
+(which enclave-63's `check.ps1` prints). The differences:
+
+- `ENCLAVE_GUEST_IGVM` was the `b7ba7731` override. The package's managerEnv names `a44bb55a`, the profile's firmware.
+- `ENCLAVE_LIVENESS_MS` and `ENCLAVE_ANSWER_CHECK_MS` were 5000. The package defaults are 15000 and 30000 (main.mjs
+  at `2c3a2873`). The A8 and A9 timings are at the harness's 5 s interval. At the defaults, A9's three strikes take
+  about 90 s.
+- `ENCLAVE_HYPERV_MODULE_SHA256` was not set, so the launcher used its built-in pin, `17ca4352…` (wmi-launcher.mjs at
+  `2c3a2873`). That is the same value the package's managerEnv sets.
+
 ## Results
 
 **Phase 1: hvlab-accept (the node's own path), ALL PASS.** See `driver.out`.
