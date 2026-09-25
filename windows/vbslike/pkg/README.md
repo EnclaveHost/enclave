@@ -51,6 +51,11 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   STAGED at `pkg\b341dd1f5b53b97f\`, with the large files reused from v9's directory after hashing. Not a release. Nothing
   is loaded into or served from the booted VM: no control exchange for a WMI-created VM exists yet.
 
+- **v11 draft** (`drafts/nucbox-ownguest-11.json`): v10 with the NEXT medium, ISO `7b9b04d6…` (UKI `20a0e18e…` on
+  enclave-5d's initrd `a1ff9864…`, whose ready line names the vsock transport and which refuses to start with none).
+  Built and verified, NOT staged and NOT booted on the NucBox: it goes to a new directory when enclave-d1 asks, and
+  d1 confirms `transport=hv_sock` on one boot before it replaces `4c387086`. Nothing is served.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
