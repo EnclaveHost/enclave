@@ -56,4 +56,14 @@ api-mcp-adapter 1.0.0, phase 2's derived bundle (AppID 94c04c0e…, runtime ccad
 - **enclave-d1: APPROVED 77cf2d78 and release a4f22748.** d1 checked the raw lab files: the control's serial has 11
   tagged lines, the new one's has 0, and the new-only paths appear in no host file and on no journal line. d1 also
   reproduced the release independently: a clean worktree, a fresh GOCACHE, byte-identical `diff -r`.
-- enclave-e3: review and predictor cross-check pending.
+- **enclave-e3 (for enclave-99): APPROVED 77cf2d78.** e3 found no other path from the app to the console:
+  - /app.run is closed before any spawn;
+  - the init pipe is O_CLOEXEC, and PID 1 closes both ends after reading;
+  - at the app's spawn, PID 1 holds only fds 0-2, and those become /dev/null;
+  - WASI grants only /data and loopback sockets.
+  The image diff ecf02384..17e182a8 is dominit.c alone.
+- **The relay's predictor agrees, ON NAN.** e3 ran it in a transient unit with the api-relay's own sandbox
+  (DynamicUser, ProtectSystem=strict, MemoryMax=768M), through the relay's predictorEnv path, with two agreeing RPCs:
+  known answers 2/2, then api-mcp-adapter under a4f22748 = 38b90458…2a93, the value above. It is staged at
+  /opt/enclave-predict/829c09adb176 on nan; nothing else changed there.
+- **So a4f22748 is fully reviewed** (d1 and e3), with the image sign-off over 0181bce3..17e182a8 complete.
