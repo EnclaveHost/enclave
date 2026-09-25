@@ -13,6 +13,9 @@
 //   A8 with serve and ctl.turnOff: a SECOND domain whose VM is turned OFF from the host (by Id, marker-checked; the Off
 //      state G4 measured a dead monitor producing) is failed by the manager's liveness sweep within the bound, its relay
 //      refuses, and DELETE then removes the Off VM.
+//   A9 with serve and ctl.stopDomain: a THIRD domain is stopped INSIDE the guest through the monitor's own control
+//      channel (stop, carrying the boot nonce), so its VM stays Running and only the manager's answer sweep can see it.
+//      It must be failed as "stopped answering" within the bound, while its VM is still Running.
 // Last line: RESTART-ACCEPT ALL PASS | RESTART-ACCEPT <n> FAILED | RESTART-ACCEPT REFUSED <why>. An N/A is never a PASS.
 // It must run under manager-accept.ps1 (the run lock, the watchdog, the temporary firmware opt-in and its restore).
 // Nothing here is an isolation result: host_excluded=no throughout.
@@ -70,7 +73,7 @@ async function inventoryReady(base, waitMs) {
  * spawnBody: the POST body's derive (and flags); name: the deployment label this run owns.
  */
 export async function runRestartAccept({ ctl, spawnBody, name, say = console.log, readyWaitMs = 240_000, expectPartition = "wmi-openhcl-gen2-igvm-linux",
-                                         serve = false, relayGoneWaitMs = 20_000, sweepWaitMs = 60_000 }) {
+                                         serve = false, relayGoneWaitMs = 20_000, sweepWaitMs = 60_000, answerWaitMs = 90_000 }) {
   let failed = 0; const na = [];
   const rec = (id, ok, detail) => { if (!ok) failed++; say(`${ok ? "PASS" : "FAIL"} ${id}: ${detail}`); return ok; };
   const mineIn = (s, id) => (s.vms || []).filter((v) => { const n = ctl.parseNotes(v.notes); return n.identity && n.identity.id === id; });
@@ -150,6 +153,28 @@ export async function runRestartAccept({ ctl, spawnBody, name, say = console.log
 
     if (!serve) { na.push("A7"); say("N/A A7: the relay dies with the manager - this run did not serve (no wmiserve settings)"); }
 
+    if (serve && typeof ctl.stopDomain === "function") {
+      const r9 = await call(base, "POST", "/vms", { ...spawnBody, name: name + "-a9" });
+      const id9 = r9.body && r9.body.id;
+      let v9 = null; const until9 = Date.now() + readyWaitMs;
+      while (id9 && Date.now() < until9) { v9 = (await call(base, "GET", `/vms/${encodeURIComponent(id9)}`)).body; if (v9 && (v9.status === "running" || v9.status === "failed")) break; await sleep(2000); }
+      const vm9 = id9 ? mineIn(await ctl.survey(), id9)[0] : null;
+      if (!(v9 && v9.status === "running" && vm9 && v9.domainId != null)) {
+        rec("A9", false, `the third domain did not reach running with a domain id (status ${v9 && v9.status}, domainId ${v9 && v9.domainId})`);
+      } else {
+        const st = await ctl.stopDomain(vm9.vmId, v9.domainId);
+        const t9 = Date.now(); let g9 = null;
+        while (Date.now() - t9 < answerWaitMs) { g9 = (await call(base, "GET", `/vms/${encodeURIComponent(id9)}`)).body; if (g9 && g9.status === "failed") break; await sleep(1000); }
+        const vmNow = mineIn(await ctl.survey(), id9)[0];
+        rec("A9", !!g9 && g9.status === "failed" && /stopped answering|no longer answers/.test(String(g9.reason || "")) && !!vmNow && vmNow.state === "Running",
+          `monitor stop -> ${JSON.stringify(st)}; status ${g9 && g9.status} after ${Date.now() - t9} ms, reason ${JSON.stringify(String(g9 && g9.reason || "").slice(0, 160))}, VM ${vmNow ? vmNow.state : "gone"}`);
+      }
+      if (id9) {
+        const d9 = await call(base, "DELETE", `/vms/${encodeURIComponent(id9)}`);
+        say(`A9 cleanup: DELETE ${id9} -> ${d9.status}; VMs with this id ${mineIn(await ctl.survey(), id9).length}`);
+      }
+    }
+
     if (serve && typeof ctl.turnOff === "function") {
       const r8 = await call(base, "POST", "/vms", { ...spawnBody, name: name + "-a8" });
       const id8 = r8.body && r8.body.id;
@@ -198,6 +223,18 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const ctl = {
     parseNotes,
     survey: () => surveyor.survey(),
+    async stopDomain(vmId, domainId) {
+      if (!/^[0-9a-f-]{36}$/i.test(String(vmId)) || !Number.isInteger(domainId)) throw new Error("stopDomain needs a VM Id and a domain id");
+      const hv = (j) => new Promise((res) => {
+        const c = spawn(cfg.wmiserveExe, ["hvdial", "--vm", vmId, "--port", "9000", "--seconds", "10", "--send", j], { windowsHide: true });
+        let o = ""; c.stdout.on("data", (d) => { o += d; }); c.stderr.on("data", (d) => { o += d; }); c.on("close", () => res(o.trim()));
+      });
+      const head = (out) => { try { return JSON.parse(JSON.parse(out).head); } catch { return { raw: out.slice(0, 300) }; } };
+      const st = head(await hv(JSON.stringify({ cmd: "state" })));
+      const r = head(await hv(JSON.stringify({ cmd: "stop", id: domainId, boot: st.boot })));
+      console.log(`A9: monitor stop of domain ${domainId} under boot ${st.boot} -> ${JSON.stringify(r)}`);
+      return r;
+    },
     async turnOff(vmId) {
       if (!/^[0-9a-f-]{36}$/i.test(String(vmId))) throw new Error(`not a VM Id: ${vmId}`);
       const r = await powershellRunner({ timeoutMs: 120_000 })(`$ErrorActionPreference = 'Stop'; $v = Get-VM -Id '${vmId}';
@@ -216,6 +253,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
                ENCLAVE_GUEST_STATE_ARCHIVE_DIR: cfg.archiveDir, ENCLAVE_HYPERV_MODULE: cfg.hypervModule,
                ENCLAVE_RUNTIME_IDENTITY: cfg.runtimeIdentity, PYTHON_BIN: cfg.python, IPFS_GATEWAY: cfg.gateway,
                PYTHONPATH: path.join(tree, "wasm"), ENCLAVE_LIVENESS_MS: String(cfg.livenessMs || 5000),
+               ENCLAVE_ANSWER_CHECK_MS: String(cfg.answerCheckMs || 5000),
                ...(cfg.wmiserveExe ? { ENCLAVE_WMISERVE_EXE: cfg.wmiserveExe, ENCLAVE_WMISERVE_EXE_SHA256: cfg.wmiserveSha256,
                                        ENCLAVE_BUNDLE_DIR: cfg.bundleDir } : {}), ...extraEnv } });
       console.log(`manager #${n} pid ${child.pid}`);
