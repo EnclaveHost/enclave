@@ -57,6 +57,10 @@ test("computeEligibleOf: confidential evidence only; other verified contracts, s
   assert.equal(computeEligibleOf(row("phone", BOX, { tunnel: true, mode: "avf" })), false);
   assert.equal(computeEligibleOf(row("pc", BOX, { tunnel: true, mode: "vbs", tier: "vbs" })), false);
   assert.equal(computeEligibleOf(row("pc-dev", BOX, { tunnel: true, mode: "vbs", tier: "vbs-dev" })), false);
+  // the NucBox node (mode hv-node, 2026-09-25): a host-attested boot state, never capacity, never a verified TEE,
+  // even when its own availability still names the retired VBS enclave
+  assert.equal(computeEligibleOf(row("nucbox", { ...BOX, teeCpu: "windows-vbs-enclave" }, { tunnel: true, mode: "hv-node", tier: "hv-node" })), false);
+  { const t = teeCpuOf({ tunnel: true, mode: "hv-node", tier: "hv-node", availability: { teeCpu: "windows-vbs-enclave" } }); assert.equal(t.real, false); assert.equal(t.source, "self-reported"); }
   // self-reports
   assert.equal(computeEligibleOf(row("token", { ...BOX, teeCpu: "amd-sev-snp" }, { tunnel: true, mode: "" })), false);
   assert.equal(computeEligibleOf(row("liar", { ...BOX, teeCpu: "amd-sev-snp", tier: "vbs", claimEnabled: true }, { tunnel: true, mode: "" })), false);
