@@ -334,6 +334,19 @@ export class Manager {
       rec.status = h && h.appReady === true ? "running" : "starting";
       rec.appReady = !!(h && h.appReady === true);
       rec.startedAt = Date.now(); rec.handle = h;
+      // THE RELAY IS A CHILD PROCESS (wmiserve-run.mjs). If it exits while this record stands and no stop is under way,
+      // the domain can no longer be reached and must not read as running (d1's review of 299ce3e9). The record fails,
+      // its sessions are reclaimed, and the VM is LEFT for the node to retire: only a stop removes a VM.
+      if (h && h.wmiserve && h.wmiserve.exited && typeof h.wmiserve.exited.then === "function") {
+        h.wmiserve.exited.then((ex) => {
+          if (this.domains.get(rec.id) !== rec || this.#stopping.has(rec)) return;
+          if (rec.status !== "running" && rec.status !== "starting") return;     // already failed or stopped: its reason stands
+          rec.status = "failed"; rec.appReady = false;
+          rec.reason = `the relay process exited (code ${ex?.code ?? null}${ex?.signal ? `, ${ex.signal}` : ""}): this domain `
+                     + "cannot be reached, and its VM is left for the node to retire";
+          this.#reclaim(rec.id, "the relay process exited");
+        });
+      }
       if (h && h.guest) rec.guest = { booted: h.guest.booted === true, bytes: h.guest.bytes, head: h.guest.head };
       if (h && h.name) rec.vmName = h.name;
       // carried up verbatim rather than summarised away
@@ -344,7 +357,8 @@ export class Manager {
       if (h && h.image) rec.image = h.image;
       // The key this domain's reports are signed with, as the launcher stated it. wmiserve mints a NEW one per run, so a
       // verifier holding one fixed key cannot judge a relaunched domain. It is public (it verifies, it cannot sign),
-      // and it is exactly what this manager's own readiness rule was given (handle.launcherKey).
+      // and it is exactly what this manager's own readiness rule was given (handle.launcherKey). It is a HOST STATEMENT,
+      // never a root: consistent with T0-hv, where the host launcher is trusted by definition and the host is not excluded.
       if (h && h.launcherKey) rec.launcherKey = h.launcherKey;
       // the launcher's (partition, guestImageKind) statement, which the image is only ever compared with
       if (h && h.guestIdentity) rec.guestIdentity = { partition: h.guestIdentity.partition, guestImageKind: h.guestIdentity.guestImageKind };
@@ -390,6 +404,9 @@ export class Manager {
     try { this.onReclaim?.(id, why); } catch { /* the domain is gone either way */ }
   }
 
+  // records a stop is under way for: their relay's exit is the stop's doing, not a failure
+  #stopping = new WeakSet();
+
   async remove(id) {
     const r = this.domains.get(id);
     // UNKNOWN IS NOT ABSENT (63's P1): only a manager that has surveyed Hyper-V may say an id is gone.
@@ -398,6 +415,7 @@ export class Manager {
       if (!this.mayAnswerAbsent(id)) throw unattributedUnknown(id, this.unattributed());
       return { removed: false, absent: true };
     }
+    this.#stopping.add(r);
     try {
       await this.backend.stop(r.handle);
     } catch (e) {

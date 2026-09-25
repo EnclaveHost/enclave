@@ -18,8 +18,9 @@ const bundle = Buffer.from("enclave-catalog-bundle/1 test bytes");
 const appId = crypto.createHash("sha256").update(bundle).digest("hex");
 const bundleFile = writeBundle({ dir, instanceId: "inst-1", bundle, appId });
 // every run spawns the fake under node, in the mode named, recording its argv
-const spawnAs = (mode, argsFile = null) => (exe, args, opts) =>
-  nodeSpawn(process.execPath, [FAKE, ...args], { ...opts, env: { ...process.env, FAKE_WMISERVE: mode, ...(argsFile ? { FAKE_WMISERVE_ARGS: argsFile } : {}) } });
+const spawnAs = (mode, argsFile = null, closedFile = null) => (exe, args, opts) =>
+  nodeSpawn(process.execPath, [FAKE, ...args], { ...opts, env: { ...process.env, FAKE_WMISERVE: mode, ...(argsFile ? { FAKE_WMISERVE_ARGS: argsFile } : {}),
+                                                             ...(closedFile ? { FAKE_WMISERVE_CLOSED: closedFile } : {}) } });
 // A refusal expected: the error, or - if the run was wrongly ACCEPTED - the run stopped (so the test process can exit)
 // and an assertion failure. A removed check then fails here instead of hanging on a live child.
 async function refusedBy(p) {
@@ -28,11 +29,11 @@ async function refusedBy(p) {
   return r;
 }
 const run = (mode, over = {}) => runWmiserve({ exe: "vbslike-host.exe", vmId: VM, bundleFile, appId, tcpPort: 19201, igvmSha256: IGVM,
-                                               readyTimeoutMs: 5_000, closeTimeoutMs: 1_000, spawn: spawnAs(mode, over.argsFile), ...over });
+                                               readyTimeoutMs: 5_000, closeTimeoutMs: 1_000, spawn: spawnAs(mode, over.argsFile, over.closedFile), ...over });
 
 test("a well-behaved run is ready with the loaded domain, and stop() closes it through stdin", async () => {
-  const argsFile = path.join(dir, "args.json");
-  const r = await run("ok", { argsFile });
+  const argsFile = path.join(dir, "args.json"), closedFile = path.join(dir, "closed-by-stop");
+  const r = await run("ok", { argsFile, closedFile });
   try {
   assert.equal(r.domainId, 1); assert.equal(r.guestPort, 40001); assert.equal(r.tcpPort, 19201);
   assert.equal(r.appSha256, appId); assert.equal(r.boot, "39725c19e15c91afe488ce62251055f5");
@@ -44,12 +45,14 @@ test("a well-behaved run is ready with the loaded domain, and stop() closes it t
   const s = await r.stop();
   assert.deepEqual(s, { closed: true, how: "closed" });
   assert.equal((await r.exited).code, 0);
+  assert.equal(fs.readFileSync(closedFile, "utf8"), "line", "stop() closes it through a NON-BLANK line, not only the EOF after it");
   } finally { try { process.kill(r.pid, "SIGKILL"); } catch { /* gone, as it should be */ } }
 });
 
 test("EOF on stdin with no line (the manager's pipe closing, as when it dies) ends serving with closed", async () => {
   let child = null;
-  const spawn = (exe, args, opts) => (child = spawnAs("ok")(exe, args, opts));
+  const closedFile = path.join(dir, "closed-by-eof");
+  const spawn = (exe, args, opts) => (child = spawnAs("ok", null, closedFile)(exe, args, opts));
   const r = await run("ok", { spawn });
   try {
     child.stdin.end();                                    // EOF, and no line was written
@@ -57,6 +60,7 @@ test("EOF on stdin with no line (the manager's pipe closing, as when it dies) en
     assert.notEqual(ex, "still serving", "EOF on stdin did not end serving: only --hold stdin does that");
     assert.equal(ex.code, 0);
     assert.deepEqual(await r.stop(), { closed: true, how: "already exited" }, "it said closed before exiting");
+    assert.equal(fs.readFileSync(closedFile, "utf8"), "eof");
   } finally { try { process.kill(r.pid, "SIGKILL"); } catch { /* gone */ } }
 });
 
