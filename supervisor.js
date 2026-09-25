@@ -2329,7 +2329,7 @@ async function managerPrefetchBody(g) {
 //     is a leak, a dropped config is a wrong app. guestd refuses the same things at launch; refusing here keeps
 //     the lease from being taken for work that could only fail.
 function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, appConfigCid, hasSecrets,
-                                 firewall, volumes, isPublic, waf, policy }) {
+                                 firewall, volumes, isPublic, waf, policy, held }) {
   if (!backend) return null;
   if (!ISOLATION_BACKENDS.includes(backend))
     return `ISOLATION_BACKEND=${JSON.stringify(backend)} is not a backend this build knows; taking no tenant work`;
@@ -2372,7 +2372,7 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
   // admits it at (its unit's ceilings), never by the share bought. guestd refuses the same at create (507
   // pool_full); refusing here keeps a lease from being taken for work that could only be refused. A create that still
   // meets a 507 (a race between two claims) is a failed provision like any other: noted, backed off, released once.
-  return guestPoolRefusal(manager.pool || null, policy);
+  return guestPoolRefusal(manager.pool || null, policy, held || null);
 }
 
 // ISOLATION_SELFTEST='{"verdicts":[{…isolationClaimVerdict input…}],"parse":["<envelope>",…],
@@ -2646,24 +2646,36 @@ const cpuShareOf = (memMb, cpuGflops = 0) => {
 //   - guestd is the authority: it refuses a guest that does not fit (507 pool_full). This process mirrors it only so
 //     it never CLAIMS work guestd must refuse (isolationClaimVerdict) and never advertises room there is not.
 let _guestPool = null;   // guestd's last /health.pool, checked; null = not heard (the tier then offers and claims nothing)
-function adoptGuestPool(p) {
+// A {memMiB, cpuPct} of non-negative numbers, or null.
+function readRoom(x) {
+  const n = (v) => Number.isFinite(Number(v)) && Number(v) >= 0;
+  return x && typeof x === "object" && n(x.memMiB) && n(x.cpuPct) ? { memMiB: +x.memMiB, cpuPct: +x.cpuPct } : null;
+}
+// guestd's /health.pool, checked and normalized, or null: an older guestd (no pool) or a malformed one is a pool we
+// cannot read, and nothing is offered or judged on it.
+function readGuestPool(p) {
   const n = (x) => Number.isFinite(Number(x)) && Number(x) >= 0;
-  const r = (x) => x && typeof x === "object" && n(x.memMiB) && n(x.cpuPct);
-  const g = p && p.perGuest;
-  if (!p || !r(p.allocated) || !r(p.free) || !g || !n(g.floorMiB) || !n(g.runtimeMiB) || !n(g.unitOverheadMiB)
-      || (p.budget != null && !(r(p.budget) && p.budget.memMiB > 0 && p.budget.cpuPct > 0))) {
-    _guestPool = null;   // an older guestd (no pool) or a malformed one: nothing is offered on a pool we cannot read
-    return;
-  }
-  _guestPool = { budget: p.budget ? { memMiB: +p.budget.memMiB, cpuPct: +p.budget.cpuPct } : null,
-    allocated: { memMiB: +p.allocated.memMiB, cpuPct: +p.allocated.cpuPct }, free: { memMiB: +p.free.memMiB, cpuPct: +p.free.cpuPct },
-    guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true,
+  const g = p && p.perGuest, allocated = p && readRoom(p.allocated), free = p && readRoom(p.free);
+  const budget = p && p.budget != null ? readRoom(p.budget) : null;
+  if (!p || !allocated || !free || !g || !n(g.floorMiB) || !n(g.runtimeMiB) || !n(g.unitOverheadMiB)
+      || (p.budget != null && !(budget && budget.memMiB > 0 && budget.cpuPct > 0))) return null;
+  return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true,
     perGuest: { floorMiB: +g.floorMiB, runtimeMiB: +g.runtimeMiB, unitOverheadMiB: +g.unitOverheadMiB } };
 }
+// Every answer replaces the mirror; one without a readable pool CLEARS it (never "keep the last pool"), so the tier
+// offers and claims nothing on a pool it cannot read. The BUDGET the last readable answer stated is kept for sizing
+// only (nodeSpec): the node does not shrink to this CVM because one answer failed. Sized against the CVM, floors
+// triple, and an owner's resize landing during a guestd restart would evict a deployment that fits (enclave-5d).
+let _guestPoolBudgetSeen = null;
+function adoptGuestPool(p) {
+  _guestPool = readGuestPool(p);
+  if (_guestPool && _guestPool.budget) _guestPoolBudgetSeen = _guestPool.budget;
+}
 // The node shares are fractions of: the guest pool's budget on the tier (its cores at this CVM's per-vCPU GFLOPS, the
-// same host CPU), the NODE_* constants everywhere else and before the pool is heard.
+// same host CPU), the last budget guestd stated while an answer is unreadable, and the NODE_* constants everywhere
+// else and before any budget is heard.
 function nodeSpec() {
-  const b = ISOLATION_BACKEND && _guestPool && _guestPool.budget;
+  const b = ISOLATION_BACKEND && ((_guestPool && _guestPool.budget) || _guestPoolBudgetSeen);
   if (!b) return { vcpus: NODE_VCPUS, ramGb: NODE_RAM_GB, gflops: NODE_GFLOPS, pool: false };
   const cores = b.cpuPct / 100;
   return { vcpus: cores, ramGb: b.memMiB / 1024, gflops: cores * (NODE_GFLOPS / NODE_VCPUS), pool: true };
@@ -2682,16 +2694,38 @@ function guestPoolFreeFraction(pool = _guestPool) {
   return Math.max(0, Math.min(f.memMiB / b.memMiB, f.cpuPct / b.cpuPct));
 }
 // Why this version's guest cannot be admitted by the pool guestd reported, or null (PURE; isolationClaimVerdict).
-function guestPoolRefusal(pool, policy) {
-  if (!pool) return "the per-app manager reports no guest pool (it predates admission by reservation), so this box claims no work it may not be able to place";
-  if (!pool.budget) return "this host's guest pool has no budget (guestd -guest-mem-mib/-guest-cpus), so it admits no guest";
-  if (pool.overcommitted) return "the guest pool is overcommitted (its recovered guests exceed the budget), so it admits no guest until guests end";
+// `held` is the guest guestd ALREADY runs under this deployment's name (its GET /vms entry, starting or running): on a
+// RESUME after this CVM restarted, guestd kept the guest, so its reservation is already in `allocated`. Adopting it
+// (the spawn path's 409-by-name) takes no new room, and relaunching it (another record) frees that room first, so it
+// is judged against free PLUS the room it holds, and never refused for the room it is itself using. A resume whose
+// guest guestd no longer holds is a new guest and needs real room. (enclave-99's review of 829ea21b: judged against
+// free alone, every canary's resume after the release's own reboot was refused.)
+function guestPoolRefusal(rawPool, policy, held = null) {
+  const pool = readGuestPool(rawPool);
+  const holds = !!held && (held.status === "running" || held.status === "starting");
+  const heldRoom = holds ? readRoom(held.reserved) : null;
+  // an older guestd (no pool, no `reserved`) admits unbudgeted, as before the pool: adopting what it runs is no worse
+  if (!pool) return holds ? null
+    : "the per-app manager reports no readable guest pool (it predates admission by reservation), so this box claims no work it may not be able to place";
   if (!policy || !(Number(policy.memMiB) > 0) || !(Number(policy.cpuPercent) > 0)) return "the version has no isolation policy to size its guest by";
   const r = guestReservationFor(policy, pool.perGuest);
-  if (r.memMiB > pool.free.memMiB || r.cpuPct > pool.free.cpuPct)
+  // it fits in the room its own running guest already holds: nothing new is taken, whatever the rest of the pool says
+  if (heldRoom && r.memMiB <= heldRoom.memMiB && r.cpuPct <= heldRoom.cpuPct) return null;
+  if (!pool.budget) return "this host's guest pool has no budget (guestd -guest-mem-mib/-guest-cpus), so it admits no guest";
+  if (pool.overcommitted) return "the guest pool is overcommitted (its recovered guests exceed the budget), so it admits no guest until guests end";
+  const room = { memMiB: pool.free.memMiB + (heldRoom ? heldRoom.memMiB : 0), cpuPct: pool.free.cpuPct + (heldRoom ? heldRoom.cpuPct : 0) };
+  if (r.memMiB > room.memMiB || r.cpuPct > room.cpuPct)
     return `the guest pool cannot fit this app's guest: it reserves ${r.memMiB} MiB / ${r.cpuPct}% CPU (its unit's ceilings), `
-         + `and ${pool.free.memMiB} MiB / ${pool.free.cpuPct}% is free`;
+         + `and ${room.memMiB} MiB / ${room.cpuPct}% is free${heldRoom ? " counting the room its current guest holds" : ""}`;
   return null;
+}
+// The guest guestd runs under this deployment's name (its GET /vms entry), or null: what a resume would adopt.
+async function isolationHeldGuest(name) {
+  try {
+    const r = await vmReq("GET", "/vms", null, 5000);
+    const list = (r.status === 200 && r.body && Array.isArray(r.body.vms)) ? r.body.vms : [];
+    return list.find((v) => v && v.name === name && (v.status === "running" || v.status === "starting")) || null;
+  } catch { return null; }
 }
 // The pool as this box reports it (availability): reservations, stated as such, never observed use.
 function guestPoolReport() {
@@ -3238,15 +3272,17 @@ if (process.env.GUEST_POOL_SELFTEST) {
   const c = JSON.parse(process.env.GUEST_POOL_SELFTEST);
   // viaHealth: the pool comes the production way, vmHealth() over guestd-control/1 from the guestd at VMMGR_URL, and
   // the claim verdict for a version (viaHealth.memMb) is judged on that same answer (isolation/m4/guestd/pool_test.go)
-  let health = null, healthError = null;
+  let health = null, healthError = null, held = null;
   if (c.viaHealth) { try { health = await vmHealth(); } catch (e) { healthError = e.message; } }
+  if (c.viaHealth && c.viaHealth.resumeOf) held = await isolationHeldGuest(c.viaHealth.resumeOf);
   if ("pool" in c) adoptGuestPool(c.pool);
+  for (const p of c.pools || []) adoptGuestPool(p);               // answers in order, as successive vmHealth() calls
   if (c.shareFree != null) cpuPool.shareFree = c.shareFree;
   console.log(JSON.stringify({
     node: nodeSpec(), maxFreeCpu: round3(maxFreeCpu()), guestPool: guestPoolReport(), sellCpuPrice6: SELL_CPU_PRICE6,
     ...(c.viaHealth ? { healthError, healthVerdict: health && isolationClaimVerdict({ backend: ISOLATION_BACKEND,
       require: ISOLATION_BACKEND, manager: health, gpuMilli: 0, config: "", appConfigCid: "", hasSecrets: false, firewall: [],
-      volumes: [], isPublic: true, waf: null, policy: isolationPolicyFor({ memMb: c.viaHealth.memMb }) }) } : {}),
+      volumes: [], isPublic: true, waf: null, policy: isolationPolicyFor({ memMb: c.viaHealth.memMb }), held }), held } : {}),
     shares: (c.shares || []).map((m) => minSharesOf(m)),
     reservations: (c.reservations || []).map((v) => _guestPool && guestReservationFor(isolationPolicyFor(v), _guestPool.perGuest)),
     verdicts: (c.verdicts || []).map((v) => isolationClaimVerdict({ backend: ISOLATION_BACKEND, ...v })),
@@ -9959,6 +9995,8 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
       manager: await vmHealth().catch(() => null), gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
       policy: isolationPolicyFor(g.min),
+      // a resume after this CVM restarted: the guest guestd kept for it already holds its room (guestPoolRefusal)
+      held: resume ? await isolationHeldGuest(d.id) : null,
       hasSecrets: await depHasSecrets(d.id), firewall, volumes: neededVolumes(d, g), isPublic: d.isPublic === true,
       waf: claimOpts.waf || null });
     if (isoWhy) return isoWhy;

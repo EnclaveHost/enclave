@@ -56,7 +56,17 @@ a canary's recreate after a crash. It still adopts the guests that are running.
 - warden-host is shared (32 threads, 125 GiB). B is the operator's choice of what guests may take, not the host's size.
 - Rollback: the previous binary. The flags are unknown to it, so drop them too.
 - The node's supervisor mirrors the pool (`supervisor.js`, `nodeSpec`/`guestPoolRefusal`; only with ISOLATION_BACKEND).
-  A supervisor with it CLAIMS NOTHING from a guestd without a pool ("reports no guest pool"), so guestd goes first.
+  Landing it is a SUPERVISOR RELEASE: a new measured control-CVM image, admitted through the normal measurement-pinning
+  flow, and a reboot of the node CVM.
+- ORDER: guestd's flags, then the guestd pool build, then this supervisor release. Never earlier.
+  - A supervisor with it takes no NEW claim from a guestd without a readable pool.
+  - A RESUME of a guest guestd already holds (the release's own reboot re-discovers every own lease) is judged with the
+    room that guest holds. So the canaries resume on a pool at exactly its budget, and on an older guestd they are
+    adopted as before (enclave-99's review of 829ea21b).
+- The BUDGET FLOOR is set by the cheapest capped app, not only by the guests that run.
+  - A 128 MB app needs the 1% share floor only while B >= 12800 MiB (ceil(128 / B) = 1%).
+  - At 12799 MiB it needs 2%, and 2% x 834 = 16.68 µUSDC/s is over a69dcbba's 9-µUSDC/s cap, so it is refused.
+  - So the minimum B is max(12800 MiB, the reservations of the guests that must run).
 - What changes in the node's `/availability` and `/v1/pricing` on the tier:
   - `nodeRamGb`/`nodeVcpus` are the pool's budget B, not the control CVM's 6 GiB / 4 vCPU. So "1% of the node" is
     1% of B, and relay quotes and the fleet's `cheapest` ask change meaning on this host.
@@ -64,7 +74,8 @@ a canary's recreate after a crash. It still adopts the guests that are running.
     so a 128 MB app still needs 1%, and 1% × 834 = 8.34 µUSDC/s stays under a69dcbba's 9
     (`test/isolation-guest-pool.test.mjs` pins it).
   - `cpuShareFree` is the smaller of the share ledger and the pool's free fraction, and 0 unless one smallest guest
-    (1792 MiB) still fits.
+    (1792 MiB) still fits. It promises room for a SMALLEST guest only: a bigger app can see free share that its
+    reservation does not fit, and the claim gate refuses it, so no lease is taken and nothing is charged.
   - `guestPool` states the pool's ledger as RESERVATIONS, separate from any utilization.
   - A claim is refused when the app's guest does not fit by its reservation, whatever share it bought. A share is priced
     against B while its guest reserves R (a 128 MB app: 1% of B vs ~1792 MiB). That gap is the operator's pricing

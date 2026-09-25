@@ -370,11 +370,15 @@ func TestTheUnitOverheadIsRunDomainsMemoryMax(t *testing.T) {
 
 // poolSeam runs the REAL supervisor's GUEST_POOL_SELFTEST against this guestd over guestd-control/1: the supervisor's
 // view of the pool comes from vmHealth(), the production path, so a field guestd renames or drops fails here.
-func poolSeam(t *testing.T, r *rig, memMb int) map[string]any {
+func poolSeam(t *testing.T, r *rig, memMb int, resumeOf string) map[string]any {
 	t.Helper()
 	key := filepath.Join(t.TempDir(), "pair.key")
 	_ = os.WriteFile(key, []byte(hex.EncodeToString(testKey)+"\n"), 0o600)
-	cj, _ := json.Marshal(map[string]any{"viaHealth": map[string]any{"memMb": memMb}})
+	via := map[string]any{"memMb": memMb}
+	if resumeOf != "" {
+		via["resumeOf"] = resumeOf // judged as a resume: the supervisor looks up the guest guestd holds for it
+	}
+	cj, _ := json.Marshal(map[string]any{"viaHealth": via})
 	cmd := exec.Command("node", "../../../supervisor.js")
 	cmd.Env = append(os.Environ(), "SECRET=test-secret", "GUEST_POOL_SELFTEST="+string(cj), "GUESTD_TRANSPORT_SELFTEST=",
 		"ISOLATION_SELFTEST=", "INSTANCE_SELFTEST=", "POOL_SELFTEST=", "SWEEP_SELFTEST=", "REACH_SELFTEST=",
@@ -409,7 +413,7 @@ func TestTheSupervisorMirrorsThePoolThisGuestdReports(t *testing.T) {
 	}
 	r.s.launching.Wait()
 	r.s.Auth = auth // ...and the supervisor's over guestd-control/1, as in production
-	got := poolSeam(t, r, 128)
+	got := poolSeam(t, r, 128, "")
 	node, _ := got["node"].(map[string]any)
 	gp, _ := got["guestPool"].(map[string]any)
 	if got["healthError"] != nil || node["pool"] != true || node["ramGb"] != float64(3*1792)/1024 || node["vcpus"] != float64(3) {
@@ -430,10 +434,17 @@ func TestTheSupervisorMirrorsThePoolThisGuestdReports(t *testing.T) {
 	}
 	r.s.launching.Wait()
 	r.s.Auth = auth
-	got = poolSeam(t, r, 128)
+	got = poolSeam(t, r, 128, "")
 	why, _ := got["healthVerdict"].(string)
 	if got["maxFreeCpu"] != float64(0) || !strings.Contains(why, "cannot fit this app's guest") {
 		t.Fatalf("a full pool: maxFreeCpu %v, verdict %q", got["maxFreeCpu"], why)
+	}
+	// ...but the RESUME of a guest it already holds passes (the CVM restarted, guestd kept the guest): the supervisor
+	// finds it by name in guestd's own listing and counts the room it holds (enclave-99's review of 829ea21b)
+	got = poolSeam(t, r, 128, name(1))
+	held, _ := got["held"].(map[string]any)
+	if got["healthVerdict"] != nil || held == nil || held["name"] != name(1) || res(held["reserved"]) != oneGuest {
+		t.Fatalf("the resume of a held guest on a full pool: verdict %v, held %v", got["healthVerdict"], held)
 	}
 }
 
