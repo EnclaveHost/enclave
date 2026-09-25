@@ -907,8 +907,12 @@ the CLI cannot), and the built-in floor bounds the damage. A TUF-style timestamp
 with the TUF refresh of the pinned Sigstore root and the mirror at `enclave.host`. Tests
 (`test/verifier-release-index.test.mjs`): the build under a policy, every `checkIndex` refusal by name, the authentic
 v0.5.841 release bundle refused as an index attestation, the consumers' index-first path with its fallback and the strict
-switch through a local release index, revocations, the workflow job's pins and predicate. The positive signed case waits
-for the first real index, which this change's own release publishes; it is pinned as a fixture then.
+switch through a local release index, revocations, the workflow job's pins and predicate. The first signed index exists:
+v0.5.847 (dispatched 2026-09-25 02:31Z to exercise the job; the first attempt, v0.5.846, failed on a missing
+install step, fixed at dc86269c), attestation 50058862, sequence 100, floor v0.5.841, latest v0.5.847 and v0.5.845-cpu,
+twenty releases listed; pinned at `test/fixtures/verifier/release-index/v0.5.847/` and verified positively (the claims name
+the publish workflow at refs/tags/v0.5.847), and the consumers' live index-first path against GitHub reported
+`index.status: verified` with both flavors' provenance verified from the index's pointers.
 
 ## 11. Open risks
 

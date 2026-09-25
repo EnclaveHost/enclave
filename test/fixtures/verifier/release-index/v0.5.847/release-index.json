@@ -1,0 +1,130 @@
+{
+ "schema": "enclave-release-index/v1",
+ "repository": "EnclaveHost/enclave",
+ "generatedAt": "2026-09-25T02:32:49.728Z",
+ "sequence": 100,
+ "minimumRelease": "v0.5.841",
+ "revoked": [],
+ "latest": {
+  "gpu": {
+   "tag": "v0.5.847",
+   "digest": "856455b6b59b0fcbacfc62ef4d7622f300eaef86a03f66d4bf38c2721da970ce",
+   "publishedAt": "2026-09-25T02:32:27Z"
+  },
+  "cpu": {
+   "tag": "v0.5.845-cpu",
+   "digest": "2efe5c5f8294e97c3c292cde4cb9b39a01793bfec1c0434ab33b191cb5eb6b76",
+   "publishedAt": "2026-09-25T01:52:18Z"
+  }
+ },
+ "releases": [
+  {
+   "tag": "v0.5.847",
+   "digest": "856455b6b59b0fcbacfc62ef4d7622f300eaef86a03f66d4bf38c2721da970ce",
+   "publishedAt": "2026-09-25T02:32:27Z"
+  },
+  {
+   "tag": "v0.5.846",
+   "digest": "61e0fba2b8f723c58f497889384c558d89765c70977d671152b909d1ed597545",
+   "publishedAt": "2026-09-25T02:28:46Z"
+  },
+  {
+   "tag": "v0.5.845-cpu",
+   "digest": "2efe5c5f8294e97c3c292cde4cb9b39a01793bfec1c0434ab33b191cb5eb6b76",
+   "publishedAt": "2026-09-25T01:52:18Z"
+  },
+  {
+   "tag": "v0.5.845",
+   "digest": "3be49e91aacf11e9010756ebe244bfe0006509e16c43dc0ec2d0abbb6a2c0651",
+   "publishedAt": "2026-09-25T01:52:21Z"
+  },
+  {
+   "tag": "v0.5.844-cpu",
+   "digest": "d09d38e51b927c9bb135e667976c3d0fbe37706f88bc272614a5ee560eba0419",
+   "publishedAt": "2026-09-25T01:48:13Z"
+  },
+  {
+   "tag": "v0.5.844",
+   "digest": "b037f286dbee7032bf181206067418559ee452e2104bb9bb7327ec70835188d6",
+   "publishedAt": "2026-09-25T01:48:23Z"
+  },
+  {
+   "tag": "v0.5.843-cpu",
+   "digest": "b57d4ae105e2e01ba00e10c3e15c40b059da61a9c8bf3fbfbae7a93b291dac28",
+   "publishedAt": "2026-09-25T01:43:22Z"
+  },
+  {
+   "tag": "v0.5.843",
+   "digest": "61fe6127ce2ef7ae4866ce86b3e369928a9fa681f869ad1cf8e3620436ac87e7",
+   "publishedAt": "2026-09-25T01:43:27Z"
+  },
+  {
+   "tag": "v0.5.842-cpu",
+   "digest": "ef51e4da5aebe93f248ee9a8978e586cf315d27e9c7fa83451ed5d959130f8a7",
+   "publishedAt": "2026-09-24T19:39:10Z"
+  },
+  {
+   "tag": "v0.5.842",
+   "digest": "4c375bc237eea15358284e77974fc56dd1df12e6cb88d0051109e99b39f09d33",
+   "publishedAt": "2026-09-24T19:39:25Z"
+  },
+  {
+   "tag": "v0.5.841-cpu",
+   "digest": "a2607fd7d0f1c6ee66535d592eea4f089f6de3048e028cfe973aedfd9fbcfb55",
+   "publishedAt": "2026-09-24T01:10:02Z"
+  },
+  {
+   "tag": "v0.5.841",
+   "digest": "d4c09c3945c93bc709d67ad8255fc4d906065af7590c64e0d490aa219ebddc3a",
+   "publishedAt": "2026-09-24T01:09:52Z"
+  },
+  {
+   "tag": "v0.5.840-cpu",
+   "digest": "428f34d4b88d5445c2d23c1d8e768dea38ba9cdb5b841bdbadb1d723e8e7a432",
+   "publishedAt": "2026-09-24T01:04:36Z",
+   "belowFloor": true
+  },
+  {
+   "tag": "v0.5.840",
+   "digest": "5ee15b3a4866cc811560afe3e9fbf892035511b2ce761a6bc29c8becb3a84a60",
+   "publishedAt": "2026-09-24T01:04:55Z",
+   "belowFloor": true
+  },
+  {
+   "tag": "v0.5.839-cpu",
+   "digest": "1bdb8f3fae410b68607322b36e4a3cec48b65c9f7f194038b681454be1974d8c",
+   "publishedAt": "2026-09-24T00:41:20Z",
+   "belowFloor": true
+  },
+  {
+   "tag": "v0.5.839",
+   "digest": "c9bbb62723eb08f7886cc5077c7d83aca0ea3f9e1b4f4aaa99591dc00c6fb100",
+   "publishedAt": "2026-09-24T00:41:07Z",
+   "belowFloor": true
+  },
+  {
+   "tag": "v0.5.838-cpu",
+   "digest": "c7e336951dedd786342725e159202b7149f6ad103d37a8368facd23c79ee333f",
+   "publishedAt": "2026-09-23T23:08:41Z",
+   "belowFloor": true
+  },
+  {
+   "tag": "v0.5.838",
+   "digest": "39d2bd586b0e34ee2290fa98445110b2c4c16e5055e990830e4db72047c6f537",
+   "publishedAt": "2026-09-23T23:09:06Z",
+   "belowFloor": true
+  },
+  {
+   "tag": "v0.5.837-cpu",
+   "digest": "1ac428369cf16bf96826d5f2f26b2a8165fc4c08b19f5b90b0d3c7c49652b4e1",
+   "publishedAt": "2026-09-23T23:04:57Z",
+   "belowFloor": true
+  },
+  {
+   "tag": "v0.5.837",
+   "digest": "ec646128e663d14446b06fd432aad0a0c943f00b25f7fb3f73187ca466a70ea3",
+   "publishedAt": "2026-09-23T23:05:01Z",
+   "belowFloor": true
+  }
+ ]
+}

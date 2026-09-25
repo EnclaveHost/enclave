@@ -1,8 +1,9 @@
 // verifier/release-index.mjs: the signed release index. Build (pure) from a release list under a policy; the checks a
 // consumer applies after the signature (pure); the attestation gate on authentic material (the v0.5.841 release bundle
 // presented AS an index attestation must be refused: right identity, wrong predicate and subject); and the consumers'
-// index-first path with its recorded fallback through a local release index. The positive signed case needs the first
-// real index, which the release workflow publishes from this change onward; it is pinned as a fixture then.
+// index-first path with its recorded fallback through a local release index; and the FIRST signed index (v0.5.847,
+// Publish release run 36086615986, attestation 50058862), pinned at test/fixtures/verifier/release-index/v0.5.847/,
+// verified positively and used by the consumers' index-first path with the real bytes.
 //   run: node --test test/verifier-release-index.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -130,4 +131,30 @@ test("the release workflow carries the index job: its own job after the measure 
   assert.match(y, /gh release upload "\$\{\{ github\.ref_name \}\}" release-index\.json --clobber/);
   for (const m of y.matchAll(/uses: ([^@\s]+)@([0-9a-f]{40})/g)) assert.ok(m[2], m[1]);
   assert.equal(/secrets\.(?!GITHUB_TOKEN|TINFOIL_API_KEY)/.test(y), false, "no new secret");
+});
+
+const FX = path.join(REPO, "test", "fixtures", "verifier", "release-index", "v0.5.847");
+const fxIndex = () => fs.readFileSync(path.join(FX, "release-index.json")), fxBundle = () => JSON.parse(fs.readFileSync(path.join(FX, "attestation.json"), "utf8")).attestations[0].bundle;
+test("the first signed index (v0.5.847) VERIFIES: Sigstore under the release identity at refs/tags/v0.5.847, the index predicate, the subject is the file's digest, floor v0.5.841, latest v0.5.847 (gpu) and v0.5.845-cpu (cpu); one changed byte or a built-in floor above the index's refuses", async () => {
+  const bytes = fxIndex(), bundle = fxBundle();
+  const r = await verifyReleaseIndex({ indexBytes: bytes, bundle, trustedRoot: TRUSTED_ROOT });
+  assert.equal(r.ok, true, r.reasons.join(" | ")); assert.equal(r.digest, "0d6ffeab4db91eefd06860610c8314c13a67768fc481b45809485ef70c2e3570"); assert.equal(r.sequence, 100);
+  assert.deepEqual(r.minimumRelease, [0, 5, 841]); assert.deepEqual(r.revoked, []); assert.equal(r.latest.gpu.tag, "v0.5.847"); assert.equal(r.latest.cpu.tag, "v0.5.845-cpu");
+  assert.equal(r.claims.tag, "v0.5.847"); assert.deepEqual(r.claims.version, [0, 5, 847]); assert.equal(r.claims.flavor, "gpu"); assert.match(r.claims.workflow, /tinfoil-release-publish\.yml@refs\/tags\/v0\.5\.847$/); assert.equal(r.claims.trigger, "workflow_dispatch");
+  assert.equal(r.index.releases.length, 20); assert.deepEqual(candidatesFromIndex(r), [{ tag: "v0.5.847", digest: r.latest.gpu.digest }, { tag: "v0.5.845-cpu", digest: r.latest.cpu.digest }]);
+  const flipped = Buffer.from(bytes); flipped[flipped.length - 3] ^= 0x01;
+  const m = await verifyReleaseIndex({ indexBytes: flipped, bundle, trustedRoot: TRUSTED_ROOT }); assert.equal(m.ok, false); assert.match(m.reasons.at(-1), /Sigstore verification failed|not the index digest/);
+  const above = await verifyReleaseIndex({ indexBytes: bytes, bundle, trustedRoot: TRUSTED_ROOT, policy: { minimumRelease: [0, 5, 842] } }); assert.equal(above.ok, false); assert.match(above.reasons.at(-1), /BELOW this verifier's built-in floor v0\.5\.842/);
+  const other = await verifyReleaseIndex({ indexBytes: bytes, bundle, trustedRoot: TRUSTED_ROOT, policy: { repository: "Someone/else" } }); assert.equal(other.ok, false);
+});
+test("consumers with the real signed index: index-first names v0.5.847 and v0.5.845-cpu, raises the floor to v0.5.841, records index.status verified and the signing tag; requireIndex is satisfied; the releases' own provenance is still verified (an unavailable bundle for one leaves it unavailable)", async () => {
+  const bytes = fxIndex(), bundle = fxBundle();
+  const idx = await fakeIndex({ indexBytes: bytes, indexBundle: bundle });
+  try {
+    const e = await releaseExpectations({ apiBase: idx.base, downloadBase: idx.base, requireIndex: true });
+    assert.equal(e.index.status, "verified"); assert.equal(e.index.sequence, 100); assert.equal(e.index.minimumRelease, "v0.5.841"); assert.deepEqual(e.index.latest, { gpu: "v0.5.847", cpu: "v0.5.845-cpu" }); assert.equal(e.index.signedTag, "v0.5.847");
+    assert.equal(e.latestTag, "v0.5.847"); assert.deepEqual(e.candidates.map((c) => c.tag), ["v0.5.847", "v0.5.845-cpu"]);
+    // this local index serves no attestation for those two releases (only the v0.5.841 fixtures), so their provenance is unavailable here: the index names them, it never vouches for their measurements
+    assert.deepEqual(e.candidates.map((c) => c.provenance), ["unavailable", "unavailable"]); assert.equal(e.ok, false);
+  } finally { await idx.close(); }
 });
