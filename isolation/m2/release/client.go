@@ -4,10 +4,10 @@ package release
 //
 // Neither step trusts the host. The ticket is useless outside this guest, because the relay checks it against a
 // report only this guest can produce. The relay's REPLY is a different matter: the seal is keyed by X25519 against
-// the guest's public sealKey, salted with a ticket the host carries, so anyone who can answer as the relay can seal a
-// config of their choosing to this guest. What makes the reply the relay's is the TLS connection alone, which is
-// why the relay's name is a constant of this (measured) package and its roots are pinned below rather than read
-// from anything the host or the image's filesystem supplies.
+// the guest's public sealKey, salted with a ticket the host carries, so anyone who can answer as the relay could seal
+// a config of their choosing to this guest. What makes the reply the relay's is its SIGNATURE under a release key
+// pinned in this image (contract v1.2, verify.go). TLS to the pinned name and roots below still keeps the exchange
+// to the relay, but it is no longer what the config's integrity rests on.
 
 import (
 	"bufio"
@@ -35,29 +35,42 @@ import (
 // different binary, and so a different launch measurement.
 const RelayHost = "api.enclave.host"
 
-// The roots the relay's certificate must chain to: Let's Encrypt's ISRG Root X1 and X2 (api.enclave.host served
-// YE1 -> Root YE -> ISRG Root X2 -> ISRG Root X1 on 2026-09-25). A system bundle would make every CA in it able to
-// forge a guest's config; this set makes a certificate from any other CA a refused release instead. If the relay's
-// ACME client ever issues from another CA (Caddy's default fallback is ZeroSSL), releases FAIL CLOSED until this set
-// and the measurement are updated: an outage, never a forgery.
+// The roots the relay's certificate must chain to, for the two issuers api.enclave.host's ACME client uses:
+//   - Let's Encrypt: ISRG Root X1 and X2 (served 2026-09-25: YE1 -> Root YE -> ISRG Root X2 -> ISRG Root X1);
+//   - ZeroSSL, Caddy's fallback issuer, whose failover a real Let's Encrypt outage has exercised: Sectigo Public Server
+//     Authentication Root E46 and USERTrust ECC (served 2026-09-25 on *.app.enclave.host: ZeroSSL ECC DV SSL CA 2 ->
+//     E46, cross-signed by USERTrust ECC).
+//
+// Since contract v1.2 TLS is NOT the config's integrity boundary: the relay signs every reply with a key pinned in
+// this image (verify.go), so a certificate from a wrong CA can at worst deny a release, never forge one. The set is
+// therefore sized for AVAILABILITY (both issuers, so one CA's outage does not stop every release), and kept to named
+// roots rather than a whole system bundle. An issuer outside it fails closed: an outage, never a forgery.
 var (
 	//go:embed roots/isrg-root-x1.pem
 	isrgRootX1 []byte
 	//go:embed roots/isrg-root-x2.pem
 	isrgRootX2 []byte
+	//go:embed roots/sectigo-public-server-root-e46.pem
+	sectigoE46 []byte
+	//go:embed roots/usertrust-ecc.pem
+	usertrustECC []byte
 )
+
+var embeddedRoots = [][]byte{isrgRootX1, isrgRootX2, sectigoE46, usertrustECC}
 
 // RootFingerprints pins the embedded roots by the SHA-256 of their DER, so a changed PEM file fails a test rather
 // than quietly widening what the guest trusts.
 var RootFingerprints = []string{
 	"96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6", // ISRG Root X1
 	"69729b8e15a86efc177a57afb7171dfc64add28c2fca8cf1507e34453ccb1470", // ISRG Root X2
+	"c90f26f0fb1b4018b22227519b5ca2b53e2ca5b3be5cf18efe1bef47380c5383", // Sectigo Public Server Authentication Root E46
+	"4ff460d54b9c86dabfbcfc5712e0400d2bed3fbc4d4fbdaa86e06adcd2a9ad7a", // USERTrust ECC Certification Authority
 }
 
 // RelayRoots is the pinned pool.
 func RelayRoots() (*x509.CertPool, error) {
 	p := x509.NewCertPool()
-	for _, pem := range [][]byte{isrgRootX1, isrgRootX2} {
+	for _, pem := range embeddedRoots {
 		if !p.AppendCertsFromPEM(pem) {
 			return nil, errors.New("an embedded relay root does not parse")
 		}
