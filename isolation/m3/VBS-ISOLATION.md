@@ -105,8 +105,48 @@ OpenHCL refuses these host settings on an isolated VM (`underhill_core/src/worke
 - firmware debugging together with Secure Boot;
 - additional PCRs not measured, or the SHA-384 PCR disabled.
 
-With no attestation agent on the host, `suppress_attestation` (stateless guest state) skips key release
-(`underhill_attestation/src/lib.rs:541-640`). A refusal shows in OpenHCL's boot log (COM3).
+**This host has no stateless option and no attestation agent** (measured by enclave-d1: `GuestStateLifetime` and
+`GuestStateEncryptionPolicy` do not exist in 26200's `Msvm_VirtualSystemSettingData`). A type-1 VM there has a real
+VMGS and a vTPM with a key protector, and `suppress_attestation` is off. OpenHCL's path then
+(`underhill_attestation/src/lib.rs`, `secure_key_release.rs`):
+
+1. `try_unlock_vmgs` (`lib.rs:313-470`) asks for the tenant key.
+   - It gets a VBS report from VTL2 (`secure_key_release.rs:174-182`, `HvCallVbsVmCallReport`).
+   - It sends that report as an IGVM_ATTEST KEY_RELEASE request over GET to the host's agent.
+   - With no agent that fails, and **any** failure there, including the report itself failing, is caught as
+     "Non-fatal, allowing for hardware-based recovery" (`lib.rs:386-398`). OpenHCL carries on with no tenant key.
+2. `get_derived_keys` asks the host for guest-state-protection seeds (GSP, and GSP by id) over GET
+   (`lib.rs:1026-1110`). Then:
+   - The host supplies GSP (expected with a vTPM key protector): the VMGS is encrypted with keys derived from a
+     **host-supplied** seed. The log says "Applying GSP." on a first boot and "Using existing GSP." after that.
+   - No GSP, VMGS not yet encrypted, policy Auto/None: "No VMGS encryption used.", and the boot continues
+     (`lib.rs:1364-1386`).
+   - No key but the VMGS already encrypted: `DisableVmgsEncryptionFailed` (`lib.rs:1367`), retried 10 times one
+     second apart (`lib.rs:721-760`), then fatal.
+   - A policy that requires encryption (GspKey/GspById) with none available: `EncryptionRequiredButNotFound`
+     (`lib.rs:1374`), fatal.
+     Which policy vmwp sends when the setting does not exist is unknown here.
+3. Each step needs the host to ANSWER on GET: host time, IGVM_ATTEST, GSP. vmwp's side is not in this source. A
+   request it never answers would stall VTL2, and VTL0 (COM1) would then never start.
+
+What this means for us:
+- The guest should boot.
+- The guest state (VMGS: vTPM seeds, UEFI variables) is protected, if at all, by a key the **host** supplies. So the
+  host can read or forge the vTPM. **The vTPM route to key binding (section 1, "VTL0 refused") is closed on this
+  host.**
+- The direct VTL0 report (the probe) does not touch the VMGS and is unaffected.
+- Our guest keeps no persistent secret: its TLS key is generated per boot, in RAM that is host-private on type 1.
+
+**OpenHCL's own log without COM3.** OpenHCL starts its diagnostics server unconditionally
+(`underhill_core/src/lib.rs:283-287`, `diag.rs:41-46`: vsock on `diag_proto::VSOCK_CONTROL_PORT`/`VSOCK_DATA_PORT`),
+and `ohcldiag-dev <VM name> kmsg` (openvmm `openhcl/ohcldiag-dev`) reads its `/dev/kmsg` from the host.
+- On a confidential VM the output is filtered to `CVM_ALLOWED` entries (`underhill_confidentiality`). Every
+  attestation line above is `CVM_ALLOWED`.
+- The line that matters most for section 1 is "Failed to retrieve key-encryption key", with its error:
+  - `GetAttestationReport(...)`: VTL2 itself could not get a VBS report, which bodes badly for the probe.
+  - an IGVM-attest or agent error: the report worked, and only the agent is missing.
+- Not yet run on this host. `ohcldiag-dev` has to be built for Windows (`cargo build -p ohcldiag-dev --release` at
+  a7b0bd4).
 
 **The guest kernel: no change needed (from source, unmeasured).** Under isolation, VTL0 must put its VMBus ring
 buffers in host-visible memory. OpenHCL does not even start its relay for a guest that hides isolation, "since it will
