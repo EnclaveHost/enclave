@@ -1,0 +1,1 @@
+nan: rs-4 apply: backup /etc/nan-relay/api-relay.env.bak-rs4-apply-20260925T212944Z; the two lines replaced (now sha 6f816b317664); api-relay restarted: invocation d7a7d48710b6 -> 7be8c99327bf4230b4cd87328b6ce206, NRestarts 0, MemoryMax 1536M; the release OFF

@@ -64,3 +64,14 @@ release 79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4
 21:07:18Z adoption preflight: gdb677d751 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key b071a9c9cbd7)
 21:07:18Z adoption preflight: gdebc9c709 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key 295ce2e0e8bf)
 21:07:18Z ADOPTION PREFLIGHT PASSED: guestd 4e78ba80db7ac14a2d27fd65d495b8feb036ca23 sha256 0ee7ed91e5066a0cbe7a4b528250342c354722a84202d043d03c5ee6dbec3086 tree aa6c985c688e73ffc2ec547b691c2d804e50ad69 at 2026-09-25T21:07:18Z epoch 1790370438: 3/3 canaries verify with the new tree's judge (gd6e734a97 gdb677d751 gdebc9c709); runtime identity byte-equal, fwd code equal (its VCS stamp aside)
+21:32:52Z 4T started DETACHED as s4t-apply-20260925T213252Z (exit code -> s4/4t-s4t-apply-20260925T213252Z.rc); follow: tail -f /home/steven/enclave-bench/pool-rollout-20260925/s4/install.log
+release 79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4
+21:32:59Z NO-GO: MemAvailable 74204 MiB leaves < 16384 MiB at the full 64 GiB ceiling
+21:46:28Z 4T started DETACHED as s4t-apply-20260925T214628Z (exit code -> s4/4t-s4t-apply-20260925T214628Z.rc); follow: tail -f /home/steven/enclave-bench/pool-rollout-20260925/s4/install.log
+release 79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4
+21:46:34Z adoption preflight: gd6e734a97 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key d590dd8456c9)
+21:46:34Z adoption preflight: gdb677d751 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key b071a9c9cbd7)
+21:46:34Z adoption preflight: gdebc9c709 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key 295ce2e0e8bf)
+21:46:34Z ADOPTION PREFLIGHT PASSED: guestd 4e78ba80db7ac14a2d27fd65d495b8feb036ca23 sha256 0ee7ed91e5066a0cbe7a4b528250342c354722a84202d043d03c5ee6dbec3086 tree aa6c985c688e73ffc2ec547b691c2d804e50ad69 at 2026-09-25T21:46:34Z epoch 1790372794: 3/3 canaries verify with the new tree's judge (gd6e734a97 gdb677d751 gdebc9c709); runtime identity byte-equal, fwd code equal (its VCS stamp aside)
+21:46:34Z 4T: daemon-reload + restart (guestd.4e78ba80, -isolation iso-17e182a8 -> iso-aa6c985c; all else unchanged)
+21:46:55Z 4T APPLIED and checked (restart at 2026-09-25 21:46:34 UTC): -isolation is iso-aa6c985c (release 79c5ecf2). Next: observe.sh 4t (the 10-min gate); rollback = s4/s4t-rollback.sh
