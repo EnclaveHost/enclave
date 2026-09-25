@@ -1,13 +1,16 @@
-# The publication artifact of release 17e182a8, the production release (for review; not published)
+# The publication artifact of release 17e182a8 (SUPERSEDED for publication by aa6c985c; HELD; not published)
+
+**HELD:** this release's init links glibc statically. Release aa6c985c (79c5ecf2), whose init links musl, replaces it
+for publication (../release-aa6c985c/).
 
 | | |
 |---|---|
 | release id | a4f227482df4830ab69b52e38dc5d6e2abea9e5c5fb71f5469f0c30e6b1cb784 (sha256 of release.json) |
 | build commit | 17e182a8ba192152a83feee4f79d63f8628094e8 (approved by d1 and e3; e3's review was at its ancestor 77cf2d78) |
-| release tarball | enclave-domain-release-a4f227482df4.tar.xz, sha256 **7955e736778d5cc8d9689eacdab570682f849351bc15164f4e0e32834a588107** |
-| its contents | release/ (the 16 release files), source/isolation/m2/dominit.c, PUBLICATION-MANIFEST.json, THIRD-PARTY-NOTICES.md (with the front's embedded data), INVENTORY.md, SOURCES.md, licenses/ (184 texts) |
-| corresponding source, distributed alongside it | enclave-guest-corresponding-source-d3cfd855be41.tar, sha256 **7509205f84a1d9110dabad000e4a28f0a12532bf6df030b82661ca8bd70b2fec**: the same bundle as 0181bce3's, since the third-party bytes are the same |
-| rollback | release 5c3561f9 (0181bce3); its artifact is in ../release-0181bce3/ARTIFACT.md |
+| release tarball | enclave-domain-release-a4f227482df4.tar.xz, sha256 **a0802a9759f6d0fca5f6c37216ecd33977eb20be2dd1a869bd5863580dbc0579** |
+| its contents | release/ (the 16 release files), source/isolation/m2/dominit.c, PUBLICATION-MANIFEST.json, THIRD-PARTY-NOTICES.md (with the front's embedded data), INVENTORY.md, SOURCES.md, licenses/ (187 texts) |
+| corresponding source, distributed alongside it | enclave-guest-corresponding-source-11b366ea5a41.tar, sha256 **21752b26d36f33198ffc8aadf3b8fdff235646dd35eaa694eb6d5473f6d093da**: the same bundle as 0181bce3's and 79c5ecf2's |
+| rollback | release 5c3561f9 (0181bce3) |
 
 Both are kept outside git. Where they are hosted, together, is the publisher's decision.
 

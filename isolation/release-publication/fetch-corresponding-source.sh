@@ -16,6 +16,9 @@
 #     PKGBUILD names, and its patches (in the packaging tarball);
 #   - grub 2:2.14-1 (the GRUB image in the firmware volume): tag grub-2.14, gnulib at the GNULIB_REVISION that tag's
 #     bootstrap.conf checks out, and Arch's patches (in the packaging tarball);
+#   - unifont (GRUB's widthspec.h) and the GRUB reverts Arch applies, as a patch;
+#   - rust-src 1.98.1: the kernel's CONFIG_RUST builds core from it;
+#   - musl 1.2.6: template/init's libc from release aa6c985c on (earlier releases link glibc's libc.a);
 #   - the packaging repositories themselves (PKGBUILD, patches, config) for those four and for wasmtime and go.
 # git trees are packed with `git archive | xz -9 -T1`; the SHA256SUMS line is what a reviewer checks, not the process.
 set -e
@@ -56,6 +59,17 @@ echo "== grub 2:2.14-1"
 pack https://git.savannah.gnu.org/git/grub.git d38d6a1a9b79427848976f53d474392cd29c2a71 grub-2.14
 pack https://git.savannah.gnu.org/git/gnulib.git 9f48fb992a3d7e96610c4ce8be969cff2d61a01b gnulib-9f48fb99
 pack $ARCH/grub.git 984cb119d9ecb39d692d4a4aa1741291278b5db0 arch-packaging-grub-2-2.14-1
+# unifont: Arch's build has a font source, so GRUB generates widthspec.h from it, which normal/charset.c compiles into
+# the `normal` module in the firmware (b2sum b824e469... as the PKGBUILD pins)
+get https://ftp.gnu.org/gnu/unifont/unifont-17.0.03/unifont-17.0.03.bdf.gz 30d50302daca631e2cf454d9747117d98c9f35c0b18af4f67d2fa5e116992033 unifont-17.0.03.bdf.gz
+get https://ftp.gnu.org/gnu/unifont/unifont-17.0.03/unifont-17.0.03.bdf.gz.sig - unifont-17.0.03.bdf.gz.sig
+# Arch's prepare() runs `git revert` of 1a5417f3 and ac042f3f, which a history-less tree cannot replay: the result of
+# those reverts on grub-2.14, as one patch (patches/arch-grub-2.14-1-reverts.patch), checked here to apply to the tarball
+cp "$here/patches/arch-grub-2.14-1-reverts.patch" arch-grub-2.14-1-reverts.patch
+t=$(mktemp -d -p "$w"); tar -xJf grub-2.14.tar.xz -C "$t"
+(cd "$t/grub-2.14" && git init -q && git apply --check "$out/arch-grub-2.14-1-reverts.patch") ||
+  { echo "fetch: the GRUB reverts patch does not apply to grub-2.14" >&2; exit 1; }
+rm -rf "$t"
 
 echo "== the GRUB image's own recipe inside the firmware (GPL-3.0 corresponding source includes the build scripts)"
 # edk2's OvmfPkg/AmdSev/Grub at the firmware's commit: grub.sh runs grub-mkimage with GRUB 2:2.14-1's modules and a
@@ -71,6 +85,13 @@ cp "$here/release-0181bce3/firmware-inputs/build.env" firmware-build.env
 echo "== go 1.27.0 (permissive; its LICENSE and PATENTS are read from here)"
 get https://go.dev/dl/go1.27.0.src.tar.gz 7002403d7cc44529ef6d26f69a44818263395ead7c16c05a5808ae047ebeb0e5 go1.27.0.src.tar.gz
 
+echo "== the kernel's Rust: CONFIG_RUST=y builds core from rustc 1.98.1's library source (48a229ce), outside the kernel tree"
+get https://static.rust-lang.org/dist/rust-src-1.98.1.tar.xz 5c846ebcebcc7e2e0777a4cdaa12051691593f16a7e94edbae5e6241cc62d98c rust-src-1.98.1.tar.xz
+
+echo "== musl 1.2.6: the libc template/init is linked with statically (releases from aa6c985c on); no patches"
+get https://musl.libc.org/releases/musl-1.2.6.tar.gz d585fd3b613c66151fc3249e8ed44f77020cb5e6c1e635a616d3f9f82460512a musl-1.2.6.tar.gz
+get https://musl.libc.org/releases/musl-1.2.6.tar.gz.asc - musl-1.2.6.tar.gz.asc
+
 echo "== the Rust standard library's notices (core, alloc and std are compiled into wasmtime; rustc 1.98.0 = 88d9e12a)"
 R=https://raw.githubusercontent.com/rust-lang/rust/88d9e12ae178fab0fb5cc050a94da85685d449ea
 get $R/COPYRIGHT 172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af rust-1.98.0-COPYRIGHT
@@ -82,5 +103,5 @@ pack $ARCH/wasmtime.git 72b41ee7146e59804c48252d1ff1fed9cb1ba6f7 arch-packaging-
 pack $ARCH/go.git 89d6ba9a28c195e249320031457a0dfb6694b6f6 arch-packaging-go-2-1.27.0-1
 
 rm -rf "$w"; trap - EXIT
-sha256sum $(ls | grep -v '^SHA256SUMS$' | sort) > SHA256SUMS
+sha256sum $(ls | grep -v '^SHA256SUMS$' | LC_ALL=C sort) > SHA256SUMS   # C collation: the same order, bundle name and hash in any locale
 cat SHA256SUMS

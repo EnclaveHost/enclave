@@ -41,10 +41,13 @@ Rules the scripts keep:
 - nothing is uploaded anywhere.
 
 ## Releases
-- [release-0181bce3/](release-0181bce3/): release id 5c3561f9…, the one deployed as ~/enclave-prod/release-0181bce3,
-  and the production release's rollback. [ARTIFACT.md](release-0181bce3/ARTIFACT.md) has the tarball, its hash and the
+- [release-0181bce3/](release-0181bce3/): release id 5c3561f9…, the rollback. Its publication is HELD (its init
+  links glibc statically). [ARTIFACT.md](release-0181bce3/ARTIFACT.md) has the tarball, its hash and the
   exact rebuild commands.
-- [release-17e182a8/](release-17e182a8/): release id a4f22748…, THE PRODUCTION RELEASE (approved by d1 and e3).
+- [release-aa6c985c/](release-aa6c985c/): release id 79c5ecf2…, THE PRODUCTION RELEASE: its init links musl.
+  [DRAFT-RELEASE.md](release-aa6c985c/DRAFT-RELEASE.md) is the draft release manifest, for review. NO release is
+  created or published.
+- [release-17e182a8/](release-17e182a8/): release id a4f22748…, superseded for publication (its init links glibc); HELD.
   [ARTIFACT.md](release-17e182a8/ARTIFACT.md) has the tarball and its hash. It shares its source bundle with 0181bce3.
 - [production/](production/): the production release (5d's): how it was tracked to its final id.
   - Its third-party content is checked identical to 0181bce3's.

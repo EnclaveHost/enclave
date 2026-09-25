@@ -44,7 +44,7 @@ A first rebuild without them differed in exactly those places, and in nothing el
 
 EDK2 also draws StackCookieValues at random for each build. They are not an input: AmdSevX64 links StackCheckLibNull
 into all 92 modules, so no cookie value is read, and none of the 200 occurs in any module or in the firmware. The
-first rebuild's differing cookie in StatusCodeHandlerPei's AutoGen.h is read by nothing (enclave-e3). A rebuild without
+first rebuild's differing cookie in StatusCodeHandlerPei's AutoGen.h is read by nothing. A rebuild without
 the original cookie files matches. (This firmware therefore has no working stack protector: upstream OVMF's
 default.)
 
@@ -127,7 +127,7 @@ Everything else is EDK2's own code. The Grub FFS file is `OvmfPkg/AmdSev/Grub/gr
   - That source is to be distributed ALONGSIDE the binaries, from the same place, as one bundle (SOURCES.md). Where
     both are hosted is the publisher's decision, and is not made here.
   - dominit.c is also inside the release tarball.
-- **template/init is linked statically with glibc (LGPL-2.1 section 6). A SPECIFIC FINDING, open (enclave-e3).**
+- **template/init is linked statically with glibc (LGPL-2.1 section 6). A SPECIFIC FINDING, open for THIS release.**
   - What is provided for relinking:
     - init's source (dominit.c, inside the tarball);
     - the exact link command (above);
@@ -137,14 +137,16 @@ Everything else is EDK2's own code. The Grub FFS file is `OvmfPkg/AmdSev/Grub/gr
   - The repository LICENSE, section 3, lifts section 2's restrictions for modifying the LGPL component and for that
     reverse engineering. It does not lift section 2(a) for USING the modified combined work. Section 1(b) permits
     non-production local runs only.
-  - So the LICENSE's text may not grant everything section 6 asks for this binary. Resolving it is a decision for
-    Steven, and nothing here changes the LICENSE. Options, none of them taken:
-    - a LICENSE addition;
-    - building init against a libc under non-copyleft terms, so that no LGPL code is statically linked into it. That
-      changes init, and so the measurement.
+  - So the LICENSE's text may not grant everything section 6 asks for this binary.
+  - **The decision:** the LICENSE stays as it is. Releases from image commit aa6c985c on link template/init
+    statically against musl (MIT) instead, so no LGPL code is statically linked into their init.
+  - This release's init still links glibc, and the rebuild does not change that. So THIS release's publication is held
+    while the point stays open.
   - Everything else in this release is shipped under its own license, unaffected by this point.
 - **GRUB (GPL-3.0+)** is a separate program aggregated in the firmware volume. The Installation Information clause
-  (GPL-3.0 section 6) concerns User Products; a modified firmware still runs. No conflict found.
+  (GPL-3.0 section 6) concerns User Products; a modified firmware still runs. No conflict found. GPL-3.0 section 6(d)
+  asks for clear directions NEXT TO the binaries saying where the source is, maintained for as long as the binaries
+  are offered, on every channel that offers them (SOURCES.md).
 - **Modules signed with Arch's per-build key:** the key is not part of the corresponding source, and GPL-2.0 does not
   require it. The kernel does not enforce module signatures. No conflict found.
 - **The Rust standard library** linked into wasmtime is MIT OR Apache-2.0; its texts are in the notices. No conflict

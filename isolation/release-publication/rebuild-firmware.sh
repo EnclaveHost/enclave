@@ -13,6 +13,8 @@
 #   - the AmdSev GRUB image's memdisk: grub.sh makes a FAT image with mkfs.msdos (volume ID from the clock) and copies
 #     grub.cfg into it with mcopy (directory-entry times from the clock, in LOCAL time). Pinned here by a volume ID, a
 #     SOURCE_DATE_EPOCH and a TZ (build.env).
+#     FAT stores local wall-clock time, so build.env uses TZ=UTC0 with the original's local time read as UTC:
+#     the same bytes, and no zone named.
 #   - the LENGTH of the edk2 tree's absolute path: GenFw zeroes each module's CodeView entry but keeps its size, which
 #     follows the .dll path, so a module whose section ends near an alignment boundary grows or shrinks by 64 bytes
 #     with it (StatusCodeHandlerPei did, between a 52- and a 54-character path). The tree is cloned at a padded name
@@ -83,7 +85,8 @@ diff "$here/edk2-submodules.txt" submodules.txt || { echo "rebuild-firmware.sh: 
 git -C "$E" apply "$here/patches/edk2-amdsev-grub-modules.patch"
 
 step "versions (the host tools the bytes also depend on)"
-{ echo "edk2 $EDK2_COMMIT"; echo "nasm $(nasm -v | sed 's/ compiled on .*//')";   # no build date: versions.txt goes into the manifest echo "iasl $(iasl -v 2>&1 | grep -o 'version [0-9]*')"
+# (nasm -v carries its own build date, "compiled on ...": stripped, since versions.txt goes into the manifest)
+{ echo "edk2 $EDK2_COMMIT"; echo "nasm $(nasm -v | sed 's/ compiled on .*//')"; echo "iasl $(iasl -v 2>&1 | grep -o 'version [0-9]*')"
   echo "mtools $(mcopy --version | head -1)"; echo "gcc $(gcc --version | head -1)"; echo "ld $(ld --version | head -1)"
   echo "python3 $(python3 --version)"; echo "make $(make --version | head -1)"
   echo "grub-mkimage $(grub-mkimage --version)"; echo "grub modules $(pacman -Qo /usr/lib/grub/x86_64-efi/linux.mod 2>/dev/null | sed 's/.* is owned by //')"
