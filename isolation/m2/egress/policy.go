@@ -25,6 +25,9 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"enclave.host/isolation/m2/appconfig"
+	"enclave.host/isolation/m2/release"
 )
 
 // Origin is one allowed destination: https, a normalized lowercase DNS name, port 443.
@@ -109,8 +112,9 @@ func ParseOrigin(raw string) (Origin, error) {
 			return Origin{}, errors.New("a hex label (an IPv4 spelling)")
 		}
 	}
-	// A second opinion: Go's parser must see the SAME host and port. Any disagreement is a parser differential and
-	// refused, whichever side is "right".
+	// A second opinion, BELT ONLY: Go's parser must see the SAME host and port, or the URL is refused. No input is
+	// known that passes the strict rules above and parses differently here (enclave-99 mutated this check away and no
+	// test noticed); it stays as a guard against a future loosening of the rules above, not as the defence.
 	u, err := url.Parse(raw)
 	if err != nil || !strings.EqualFold(u.Scheme, "https") || u.User != nil || strings.ToLower(u.Hostname()) != host ||
 		(u.Port() != "" && u.Port() != "443") {
@@ -125,10 +129,28 @@ type Policy struct {
 	Refused []string // the reasons config URLs were NOT allowed, for the guest's own log (no URL text: it may be secret)
 }
 
-// Derive builds the allowlist from the RESOLVED config (appconfig.Resolve output, from an attested release) and the
-// relay origin the measured image pins. An explicit top-level "egress" list replaces derivation; the relay origin is
-// always present and config can neither remove nor redirect it.
-func Derive(resolvedConfig string, relay Origin) (*Policy, error) {
+// FromRelease is the ONLY public way to build a guest's allowlist: from a release the release client OPENED (the
+// config the owner set on chain, sealed to this guest by the relay), resolved in-guest, plus the pinned relay origin.
+// A Release built any other way, e.g. from config the host handed over, is refused: the allowlist must be the
+// owner's, never the host's (enclave-99).
+func FromRelease(rel *release.Release, relay Origin) (*Policy, error) {
+	if rel == nil || !rel.Attested() {
+		return nil, errors.New("egress policy needs a release opened through the attested channel")
+	}
+	resolved := ""
+	if len(rel.Config) > 0 && string(rel.Config) != "null" {
+		var err error
+		if resolved, err = appconfig.Resolve(string(rel.Config), rel.Secrets); err != nil {
+			return nil, err
+		}
+	}
+	return derive(resolved, relay)
+}
+
+// derive builds the allowlist from the RESOLVED config and the relay origin the measured image pins. An explicit
+// top-level "egress" list replaces derivation; the relay origin is always present and config can neither remove
+// nor redirect it.
+func derive(resolvedConfig string, relay Origin) (*Policy, error) {
 	if _, err := ParseOrigin(relay.String()); err != nil {
 		return nil, fmt.Errorf("the pinned relay origin: %w", err)
 	}
