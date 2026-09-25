@@ -100,8 +100,8 @@ async function world(t) {
   let seq = 0;
   // one push: `keys` = { relay, fleet } (the key each header is signed with; absent = header absent), `op` = an operator
   // account whose EIP-191 signature rides along (the supervisor's dnsTxt sends the fleet HMAC AND this, with deploymentId)
-  const push = async (d, name, { relay, fleet, op, dep, method = "POST" } = {}) => {
-    const raw = JSON.stringify({ name, value: "v" + seq++, ts: Math.floor(Date.now() / 1000), ...(dep ? { deploymentId: dep } : {}) });
+  const push = async (d, name, { relay, fleet, op, dep, method = "POST", noTs = false } = {}) => {
+    const raw = JSON.stringify({ name, value: "v" + seq++, ...(noTs ? {} : { ts: Math.floor(Date.now() / 1000) }), ...(dep ? { deploymentId: dep } : {}) });
     const headers = { "content-type": "application/json" };
     if (relay) headers["x-relay-txt-sig"] = mac(relay, raw);
     if (fleet) headers["x-relay-sig"] = mac(fleet, raw);
@@ -130,6 +130,7 @@ test("relay key: the platform certificate service's own key authorizes like the 
   await expect(() => w.push(d, w.app(w.BAD), { relay: RELAY_KEY }), 403, "relay_auth_refused", "an INELIGIBLE holder's name (U7)");
   await expect(() => w.push(d, `_acme-challenge.${APP_ZONE}`, { relay: RELAY_KEY }), 403, "apex_refused", "the zone apex");
   await expect(() => w.push(d, w.app(w.GOOD), { relay: "3c".repeat(32) }), 401, "bad_signature", "signed with some other key");
+  await expect(() => w.push(d, w.app(w.GOOD), { relay: RELAY_KEY, noTs: true }), 401, "ts_required", "a relay-key body without ts (unbounded replay)");
   // the fleet HMAC, on by default: still authorizes; alone it is counted as the one credential the flip would refuse
   await expect(() => w.push(d, w.app(w.GOOD), { fleet: FLEET_KEY }), 200, null, "fleet HMAC alone (on)");
   await expect(() => w.push(d, w.app(w.GOOD), { fleet: FLEET_KEY, op: w.opA, dep: w.GOOD }), 200, null, "fleet HMAC + the holder's operator signature");
@@ -190,4 +191,21 @@ test("misconfiguration never widens anything: a relay key equal to the fleet-der
   assert.equal((await w.health(typo)).fleetHmac, "on");
   r = await w.push(typo, w.app(w.GOOD), { fleet: FLEET_KEY });
   assert.equal(r.status, 200, JSON.stringify(r.body));
+});
+
+test("the fleet-HMAC evidence probe spends no operator rate budget and never counts a verifiable push as fleet-HMAC-only", async (t) => {
+  const w = await world(t);
+  const d = await w.boot({});
+  // past the operator limiter's burst (30): every push is the supervisor's shape, fleet HMAC + a verifying signature
+  for (let i = 0; i < 35; i++) {
+    const r = await w.push(d, w.app(w.GOOD), { fleet: FLEET_KEY, op: w.opA, dep: w.GOOD });
+    assert.equal(r.status, 200, `push ${i}: ${JSON.stringify(r.body)}`);
+  }
+  const h = await w.health(d);
+  assert.equal(h.authorizedBy.fleetHmac, 35);
+  assert.equal(h.authorizedBy.fleetHmacOnly, 0, "no verifiable push was counted as fleet-only (a probe 429 would have)");
+  // and the probes left the real operator path's budget untouched
+  const r = await w.push(d, w.app(w.GOOD), { op: w.opA, dep: w.GOOD });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal((await w.health(d)).authorizedBy.operator, 1);
 });
