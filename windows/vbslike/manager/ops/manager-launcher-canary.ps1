@@ -20,7 +20,10 @@ param(
   [int] $CeilingSeconds = 900,
   # the APP's policy memMiB, as a catalog version pins it (hello-world: 128). The launcher sizes the VM from it
   # (type1VmMemMiB: max(2048, policy + 640)); it is not the VM's RAM.
-  [int] $PolicyMemMiB = 128
+  [int] $PolicyMemMiB = 128,
+  # DIAGNOSTIC: delay the console reader (ms) and the reader's window (s), to test the late-attach race
+  [int] $ConsoleDelayMs = 0,
+  [int] $GuestReadySec = 40
 )
 $ErrorActionPreference = 'Stop'
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss')
@@ -65,7 +68,7 @@ try {
   Note "SETTING APPLIED for this run"
   $cfg = @{ imagePath = $ImagePath; imageSha256 = $ImageSha256.ToLower(); boot = $Boot; guestStateMaster = $GuestStateMaster;
             guestStateMasterSha256 = $GuestStateMasterSha256; guestStateArchiveDir = 'C:\Users\claude\vbs-evidence';
-            hypervModule = $HypervModule; prefix = $Prefix; memMiB = $PolicyMemMiB; vcpus = 1 } | ConvertTo-Json -Compress
+            hypervModule = $HypervModule; prefix = $Prefix; memMiB = $PolicyMemMiB; vcpus = 1; consoleDelayMs = $ConsoleDelayMs; guestReadySec = $GuestReadySec } | ConvertTo-Json -Compress
   $out = "C:\Users\claude\vbs-evidence\mgrcanary-$stamp.out"
   $cfgFile = "C:\Users\claude\vbs-evidence\mgrcanary-$stamp.json"
   [System.IO.File]::WriteAllText($cfgFile, $cfg)   # no BOM; a file, because Windows re-quotes native arguments
