@@ -1,0 +1,8 @@
+observe 4cc from 23:18:55Z for 600 s
+r1 23:19:05Z 3/3 canaries 200+key, relay serving
+r2 23:21:16Z 3/3 canaries 200+key, relay serving
+r3 23:23:27Z 3/3 canaries 200+key, relay serving
+r4 23:25:38Z 3/3 canaries 200+key, relay serving
+r5 23:27:49Z 3/3 canaries 200+key, relay serving
+r6 23:29:10Z 3/3 canaries 200+key, relay serving
+GATE PASSED: 6 rounds over 615 s (read from the clock)

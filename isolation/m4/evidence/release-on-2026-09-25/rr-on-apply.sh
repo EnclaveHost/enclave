@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Step 2 (4b): the relay's attested release ON for the 3 canaries: relay-release-on.sh (f09f511c) as root on nan (its own
+# refusals, ONE backup, FIVE appended lines verified, ONE api-relay restart, its own checks), then OURS: metal-iso0
+# re-attached serving/eligible on the 4c-c node (02f6e313 / f6cbd75a, launcher 578be084), the canaries 200 with their S0
+# keys, guestd still the SAME 3 guests (none relaunched), each canary listed:true, and e3's accept.sh passing every line
+# but its "release OFF" line. Relay-side failure -> relay-release-off.sh (line-wise) automatically. A canary whose guest
+# CHANGED is NOT rolled back: with the release on it relaunched as a release guest = an early 4e (enclave-d1): hold, run
+# 4e's proofs on it. Run DETACHED via rr-run.sh on.
+set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/s4c-20260925/lib4cc.sh; source ~/enclave-bench/release-on-20260925/lib-ro.sh
+trap '' HUP PIPE
+trap 'say "release-on: terminated before any change"; exit 143' TERM INT
+grep -qE '^0::/.*/rr-on-apply-[0-9]{8}T[0-9]{6}Z\.service$' /proc/self/cgroup || { say "REFUSING: run it detached, through rr-run.sh on"; exit 2; }
+[ "$(local_sha $ON_SH)" = "$ON_SHA" ] && [ "$(local_sha $OFF_SH)" = "$OFF_SHA" ] || { say "REFUSING: the local release scripts are not the reviewed f09f511c / fef9905f"; exit 2; }
+grep -q '^GATE PASSED' $EV/4cc-observe.log 2>/dev/null && [ $EV/4cc-observe.log -nt $S4C/4ccb-s4ccb-apply-20260925T231653Z.rc ] || { say "REFUSING: observe.sh 4cc has not passed after the 4c-c-b retry"; exit 2; }
+node_on_4cc || { say "REFUSING: the node is not 02f6e313 / f6cbd75a on launcher 578be084"; exit 3; }
+check_guestd pool64 || { say "REFUSING: guestd is not at 65536/1600 with the 3 S0 canaries"; exit 3; }
+noncanary_empty || { say "REFUSING: a non-canary deployment is (or may be) on metal-iso0"; exit 3; }
+relay_row_ok || { say "REFUSING: the relay does not list metal-iso0 serving and eligible"; exit 3; }
+wait_for 60 public_ok || { say "REFUSING: the canaries do not serve now"; exit 3; }
+for id in $CAN; do [ "$(rstat_code $id)" = 503 ] || { say "REFUSING: release-status for ${id:0:10} is not 503 (release_off) now"; exit 3; }; done
+# the guests now, to prove none relaunches: guestd's /vms name + transport key per canary (check_guestd wrote .guestd.json)
+G0=$(guests_id) || { say "REFUSING: cannot read the 3 guests' identities"; exit 3; }
+echo "$G0" > $RO/guests-before.json
+# the api relay's process now (enclave-e3: the restart must be a NEW invocation that then stays up, KAT PASS)
+INV0=$(rprop InvocationID) && [[ "$INV0" =~ ^[0-9a-f]{32}$ ]] || { say "REFUSING: cannot read the api relay's InvocationID"; exit 3; }
+T0=$(date -u '+%Y-%m-%d %H:%M:%S UTC'); say "release-on: running relay-release-on.sh (f09f511c) as root on nan (one api-relay restart: every tunnel drops)"
+set +e; nan_run $ON_SH $ON_SHA > $RO/on-output.txt 2>&1; rc=$?; set -e
+say "release-on: relay-release-on.sh exited $rc (output: on-output.txt, no values)"
+case $rc in 0) ;; 2|75|90|91|92) say "release-on REFUSED or not run (rc $rc): nothing changed on nan"; exit 3;; *) ;; esac
+off() {   # the relay-side rollback, line-wise
+  set +e; trap '' TERM INT; say "release-on CHECK FAILED: $* -> relay-release-off.sh (line-wise) on nan"
+  nan_run $OFF_SH $OFF_SHA > $RO/off-output.txt 2>&1; local r=$?
+  if [ $r = 0 ] && wait_for 180 relay_row_ok && wait_for 300 public_ok; then local id; for id in $CAN; do [ "$(rstat_code $id)" = 503 ] || { say "ROLLBACK CHECK FAILED: ${id:0:10} not 503"; exit 24; }; done
+    say "release-on ROLLED BACK: release-status 503 again, metal-iso0 serving, canaries 200 (off-output.txt)"; exit 20; fi
+  say "ROLLBACK FAILED (rc $r, off-output.txt): ESCALATE to Codex"; exit 24; }
+trap 'off "terminated (TERM/INT) after the change"' TERM INT
+[ $rc = 0 ] || off "relay-release-on.sh's own checks (rc $rc)"
+INV1=$(rprop InvocationID) && [[ "$INV1" =~ ^[0-9a-f]{32}$ ]] && [ "$INV1" != "$INV0" ] || off "the api relay's InvocationID did not change (${INV1:-unreadable})"
+[ "$(rprop NRestarts)" = 0 ] || off "the api relay restarted again after the release-on restart (a crash loop?)"
+wait_for 180 relay_row_ok || off "metal-iso0 did not re-attach serving and eligible"
+wait_for 300 public_ok || off "the canaries do not serve with their S0 keys"
+node_on_4cc || off "the node is no longer 02f6e313 / f6cbd75a on launcher 578be084"
+for id in $CAN; do rstat_listed $id || off "release-status for ${id:0:10} is not listed:true"; done
+set +e; accept_after_on; ar=$?; set -e
+[ $ar = 2 ] && { say "HOLD: accept.sh's release-ticket line answered something other than 403 (accept-after-on.txt): not the reviewed path; NOT rolled back; look, then rr-run.sh off if needed"; exit 25; }
+[ $ar = 0 ] || off "accept.sh after release ON (accept-after-on.txt): a canary, 404 or 422 line failed"
+# the predictor's known-answer test of THIS relay process (its invocation's journal; cold: up to 15 min), as rs-3
+end=$(( $(date +%s) + 900 )); kat=""
+while [ $(date +%s) -lt $end ]; do
+  kat=$($NANX "journalctl _SYSTEMD_INVOCATION_ID=$INV1 --no-pager -o cat | grep -m1 'known-answer test at start'" || true)
+  [ -n "$kat" ] && break; sleep 15
+done
+say "release-on: KAT: ${kat:-none after 15 min}"; [[ "$kat" == *"PASS: 2 known answer(s)"* ]] || off "no predictor KAT PASS in the new relay process"
+check_guestd pool64 || { say "HOLD: guestd is not the 3 S0 canaries with the same keys: a canary RELAUNCHED (with the release on: a RELEASE guest = an early 4e). NOT rolled back; run 4e's proofs on it; relay rollback = rr-run.sh off"; exit 25; }
+G1=$(guests_id) || G1=unreadable
+[ "$G1" = "$G0" ] || { say "HOLD: a canary's guest changed (guests-before.json vs now): an early 4e; NOT rolled back; run 4e's proofs"; echo "$G1" > $RO/guests-after.json; exit 25; }
+journalctl --user -u enclave-metal-iso.service --since "$T0" --no-pager -o cat > $RO/node-journal-on.txt 2>&1 || true
+nr=$(grep -ciE 'released [0-9x]|\[claim\] release 0x|shutdown: releasing|releaseLease' $RO/node-journal-on.txt || [ $? = 1 ])
+[ "$nr" = 0 ] || { say "HOLD: the node journal has $nr lease-release lines since the relay restart (node-journal-on.txt); NOT rolled back; escalate"; exit 25; }
+[ "$(rprop InvocationID)" = "$INV1" ] && [ "$(rprop NRestarts)" = 0 ] || off "the api relay restarted during the checks (a crash loop?)"
+trap - TERM INT
+say "RELEASE ON and checked (restart at $T0): the 3 canaries listed:true, a69dcbba false; metal-iso0 serving on 02f6e313; canaries 200 on the SAME guests; accept.sh flips only its release-OFF line. Next: 4e (one canary at a time, hookbin 0ddbd824 first)"
