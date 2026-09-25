@@ -96,8 +96,8 @@ Trees cited below:
 | # | Item | What would validate it | Owner / status |
 |---|---|---|---|
 | U1 | Several concurrent partitions on one node | **VALIDATED, functional** (d1 run 120744, `evidence/multi-partition-20260925/`): 3 at once, distinct VMs and keys, cross-routes refused, DELETE and Off each isolated to their own instance, teardown clean, about 2.1 GiB per VM | done (enclave-63 harness `0513ced0`) |
-| U2 | The package's OWN managerEnv (sweeps at 15 s / 30 s, firmware from the profile). 094631 used the harness env with 5 s sweeps and an override | restart-accept driven by v39's managerEnv values | d1, box run |
-| U3 | Hours-long serving stability with the sweeps running (soak) | a fixture soak with periodic answers | d1, box run |
+| U2 | The package's OWN managerEnv (sweeps 15 s/30 s) | **VALIDATED, functional** (d1 v40 lab series, `evidence/v40-lab-series-20260925/`): 3 serving and lifecycle runs A0-A9 at 15000/30000 (A9 about 70 s, A8 ≤ 2 s) | done |
+| U3 | Serving stability with the sweeps running | **BOUNDED series PASS** (v40, 6/6: A,B,A,B,A,B over 17 min). Tree unchanged every run; memory flat, about 2.1 GiB per VM. An hours-long soak is still unrun | d1 (a longer soak if wanted) |
 | U4 | Recovery after a HOST reboot (not a manager restart) | a planned reboot window | Steven's window; d1 |
 | U5 | A domain's reach to the 9001 signer (from source, likely reachable, §1.5) | domprobe to CID 2:9001 DENIED while the monitor's own dial connects | needs B3; the fix is paused (§5) |
 | U6 | Per-partition AK distinctness (V5 "keys") | two partitions reporting different AKs | not requested; nothing uses the keys |
