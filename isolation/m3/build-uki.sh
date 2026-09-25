@@ -1,7 +1,7 @@
 #!/bin/sh
 # The NucBox guest as ONE UEFI application: a Unified Kernel Image (UKI) that the standard UEFI firmware a Hyper-V
-# partition boots (under OpenHCL) starts as \EFI\BOOT\BOOTX64.EFI. linux-direct does not start on this Windows build
-# (enclave-d1, 7c6bb15d); UEFI does. The payload is UNCHANGED: the same initrd (build-domain.sh), the same monitor,
+# partition boots (under OpenHCL) starts as \EFI\BOOT\BOOTX64.EFI. On the NucBox build, standard UEFI boots; two
+# linux-direct images (ours and Microsoft's) failed under the settings tested (enclave-d1, 7c6bb15d). The payload is UNCHANGED: the same initrd (build-domain.sh), the same monitor,
 # front, runtime and app path, the same command line. Only how it is loaded changes.
 #
 # A UKI is systemd's EFI stub with the kernel, the initrd and the command line as PE sections (.linux, .initrd,
