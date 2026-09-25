@@ -263,3 +263,52 @@ test("guestd refusing the ticket (already pending, or taken) counts as handed: o
     assert.ok(r.logs.some((l) => /did not take the release ticket .*HTTP 409/.test(l)));
   } finally { relay.close(); }
 });
+
+// enclave-99's L2 on 58a2a8f8: only the relay's deliberate secrets_disabled (or a 404) means "none staged"; any other
+// 503 - a relay restarting - is UNKNOWN, never none (an unknown read as none would start a deployment without them)
+test("depHasSecrets: only a clean answer is yes or no", async () => {
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => (body += c)).on("end", () => {
+      const id = JSON.parse(body || "{}").id;
+      res.setHeader("content-type", "application/json");
+      const a = { [hexId("a1")]: [503, { error: "secrets_disabled" }], [hexId("b2")]: [503, { error: "busy" }],
+                  [hexId("c3")]: [200, { exists: true }], [hexId("d4")]: [404, {}], [hexId("e5")]: [500, {}],
+                  [hexId("f6")]: [200, { exists: false }] }[id] || [500, {}];
+      res.statusCode = a[0]; res.end(JSON.stringify(a[1]));
+    });
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const ids = ["a1", "b2", "c3", "d4", "e5", "f6"].map(hexId);
+    const r = await run({ SECRETS_API: `http://127.0.0.1:${server.address().port}`, ISOLATION_BACKEND: TIER, RELEASE_SELFTEST: JSON.stringify({ staged: ids }) });
+    assert.deepEqual(r.staged, [false, null, true, false, null, false], "secrets_disabled / another 503 / exists / 404 / 500 / exists:false");
+  } finally { server.close(); }
+});
+
+// enclave-99's L1 on 58a2a8f8: the SPAWN SITE uses the decision (not only the decision function): the real
+// spawnContainer, against a scripted guestd and the fake relay, posts release:true and pumps a ticket only for a listed
+// deployment, and throws - posting nothing - when the list cannot be read
+test("the spawn site: release:true and a ticket pump only for a listed deployment; an unknown list posts nothing", async () => {
+  const relay = await statusRelay((id) => id === hexId("35") ? { code: 429, body: {} } : { body: { id, listed: id === hexId("11") } });
+  const health = { backend: TIER, pool: POOL, catalog: { runtimeId: "cd".repeat(32), derivations: ["enclave-catalog-bundle/1"] },
+    supports: { gpu: false, secrets: false, egress: false, config: false, ports: false, release: true, legacyImage: true } };
+  const spec = (id) => ({ deploymentId: id, image: { reference: "ipfs://bafylabcomponent" }, catalogRef: "catalog://0x" + "ab".repeat(32) + "/0",
+    versionMemMb: 128, ports: [], config: "", configCid: "", secrets: null, secretsStaged: false, cpuShare: 0.05, gpuShare: 0, appPort: 8080, hosts: [] });
+  const site = (id) => run({ SECRETS_API: relay.url, ISOLATION_BACKEND: TIER, ISOLATION_RELEASE: "1", PROVISION_BACKEND: "vm",
+    RELEASE_SELFTEST: JSON.stringify({ spawnSite: { health, spec: spec(id) } }) });
+  try {
+    const listed = await site(hexId("11"));
+    assert.equal(listed.error, null);
+    assert.equal(listed.posted.length, 1);
+    assert.equal(listed.posted[0].release, true, "a listed deployment is created as a release guest");
+    assert.deepEqual(listed.pumped, ["gd0a0b0c0d"], "and its ticket is pumped");
+    const unlisted = await site(hexId("22"));
+    assert.equal(unlisted.error, null);
+    assert.equal(unlisted.posted[0].release, undefined, "an unlisted deployment is not a release guest (the legacy image)");
+    assert.deepEqual(unlisted.pumped, []);
+    const unknown = await site(hexId("35"));
+    assert.match(String(unknown.error), /could not be read/);
+    assert.deepEqual(unknown.posted, [], "an unknown list creates nothing");
+  } finally { relay.close(); }
+});

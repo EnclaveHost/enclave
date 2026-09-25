@@ -486,6 +486,27 @@ func TestHandToInit(t *testing.T) {
 
 // the wait for the ticket line outlasts guestd's hold (5 min), so a slow supervisor or relay is ended by guestd's
 // hold through the lifecycle, never cut short in the guest
+// enclave-99's L1 on 891f7eb6: the provisioner keeps presenting its ticket to a relay that stays "warming" only for
+// its window after the ticket arrived - measured here with a short window, so a multiplied window shows as time
+func TestTheProvisionerStopsRetryingAtItsWindow(t *testing.T) {
+	w := newProvWorld(t)
+	w.mu.Lock()
+	w.status = 503 // the relay answers {"error":"evidence_refused"} with 503: ticket-keeping, retried
+	w.mu.Unlock()
+	w.p.window, w.p.retry = 400*time.Millisecond, 20*time.Millisecond
+	t0 := time.Now()
+	_, err := w.run(t)
+	if err == nil || !strings.Contains(err.Error(), "HTTP 503") {
+		t.Fatalf("%v", err)
+	}
+	if d := time.Since(t0); d < 350*time.Millisecond || d > 2*time.Second {
+		t.Fatalf("the provisioner retried for %s with a 400 ms window", d)
+	}
+	if n := w.relayN.Load(); n < 3 {
+		t.Fatalf("only %d attempts: a ticket-keeping refusal must be retried", n)
+	}
+}
+
 func TestTheTicketWaitOutlastsGuestdsHold(t *testing.T) {
 	if ticketWait <= release.TicketHold {
 		t.Fatalf("the front waits %s for its ticket, not longer than guestd's hold (%s)", ticketWait, release.TicketHold)

@@ -46,9 +46,6 @@ import (
 	"enclave.host/isolation/m2/release"
 )
 
-// EgressPort is the host (vsock CID 2) port of guestd's egress server.
-const EgressPort = 9443
-
 type provisioner struct {
 	ticket    func() (net.Conn, error) // a stream to guestd's ticket service
 	egress    func() (net.Conn, error) // a stream to guestd's egress server
@@ -59,6 +56,8 @@ type provisioner struct {
 	etc       string                            // "/etc" in a guest
 	fwdPort   int                               // 443 in a guest
 	audit     func(want []netip.AddrPort) error // auditListeners("/proc/net", …) in a guest
+	window    time.Duration                     // retry a ticket-keeping refusal this long after the ticket arrived; 0 = release.ReleaseWindow
+	retry     time.Duration                     // between those retries; 0 = the client's 5 s
 	logf      func(string, ...any)
 }
 
@@ -119,11 +118,15 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 		ev.Certs = base64.StdEncoding.EncodeToString(certs)
 	}
 	relay := egress.Origin{Host: p.relayHost}
-	cl := &release.Client{Host: p.relayHost, Roots: p.roots, Keys: p.keys,
+	cl := &release.Client{Host: p.relayHost, Roots: p.roots, Keys: p.keys, Retry: p.retry,
 		Dial: func(context.Context) (net.Conn, error) { return egress.DialOrigin(p.egress, relay) }}
 	// a relay that keeps the ticket (503 warming while it predicts this image's measurement, busy, 429) is retried with
 	// the same ticket and evidence for release.ReleaseWindow from the ticket's arrival, within its 120 s TTL
-	rctx, rcancel := context.WithDeadline(ctx, ticketAt.Add(release.ReleaseWindow))
+	window := p.window
+	if window <= 0 {
+		window = release.ReleaseWindow
+	}
+	rctx, rcancel := context.WithDeadline(ctx, ticketAt.Add(window))
 	defer rcancel()
 	resp, err := cl.Release(rctx, id, tk.Ticket, sk, ev) // VERIFIED against the pinned keys (contract v1.2) ...
 	if err != nil {
