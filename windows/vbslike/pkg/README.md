@@ -96,7 +96,8 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   not run here). v14 claims no more than v13: `measured[0]` is still "CREATED AND STARTED, NOT BOOTED". It is staged
   when d1's type-1 MON lines arrive and are pinned.
 
-- **v15 draft** (`drafts/nucbox-ownguest-15.json`, STAGED): the production medium `ca245eae` is BOOTED on the NucBox under
+- **v15 draft** (`drafts/nucbox-ownguest-15.json`, SUPERSEDED by v16: its type-1 pin REFUSED-TO-START is WITHDRAWN, see
+  v16): the production medium `ca245eae` is BOOTED on the NucBox under
   type 16 (enclave-d1: hashed at attach, firmware `48773995`, boot_ms 307, `transport=hv_sock`, hello-world's 13 bytes
   served; a development boot, host NOT excluded) and the three measured console lines are pinned verbatim: the tuple
   reads `hv_isolation=n/a paravisor=n/a` because leaf 0x4000000C is not defined on this host (max leaf 0xb), NOT the
@@ -110,6 +111,20 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   `x86_64-pc-windows-gnullvm` with llvm-mingw 20260922 (no Microsoft SDK) and `+crt-static`, imports system DLLs
   only, and sits on the box as `pkg\ohcldiag-dev-5f25f2e7\` with `BUILD.txt`; it is pinned in the next version with
   d1's first-run evidence, not before.
+
+- **v16 draft** (`drafts/nucbox-ownguest-16.json`, STAGED; supersedes v15): type 1 corrected to **STARTS, THEN FAILS
+  WITHIN SECONDS; reason not yet readable** (d1 `af7aab92`/`3dbe444e`): with petri's recipe (no VTL2 trio, since
+  `openhcl-cvm.bin` has no relocatable region and needs VTL2 at the fixed GPA 0x8000000; one DefineSystem; a real VMGS)
+  the live VM reads back `GuestStateIsolationType=1 enabled=True GuestFeatureSet=0x201 Vtl2Mode=0 Vtl2Range=0` and
+  starts, then the partition is deleted exactly 120 s later (OpenHCL's start-failure timer) with zero bytes on COM1.
+  Not a verdict on type 1 either way; v15's REFUSED-TO-START was d1's VTL2 auto placement, as 5d's §4 reading said.
+  d1's host facts pinned: an all-zero VMGS is refused by the host at realize (0x80070570), the donor VMGS is a valid
+  v3.0 store (`GUESTRTS` + 00 00 03 00), and no host event channel carries OpenHCL's error text. Two lines re-marked as
+  NOISE (`Loading IGVM file from default location`, `Create compute system, result 0xC0370103`: both appear on runs
+  that booted and served), here and in profile igvm. `ohcldiag-dev.exe` (`5f25f2e7…`) is pinned as `tool.windows`
+  with its BUILD.txt and d1's first run (`--help` exits 0, "CLI to interact with the Underhill diagnostics server"),
+  plus 5d's expected `kmsg` output as UNMEASURED (the `microsoft-hcl` version line = VTL2; `microsoft-standard-WSL2`
+  must never appear; on type 1 the line that matters is `failed to start VM`). Scripts at `3dbe444e`. E2/E3 NOT RUN.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 

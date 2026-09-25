@@ -461,3 +461,22 @@ test("draft v15 pins d1's measured type-16 lines on ca245eae (n/a, not the predi
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
 });
+
+test("draft v16 withdraws v15's type-1 pin: STARTS, THEN FAILS WITHIN SECONDS, reason not yet readable; pins ohcldiag-dev with its first run and d1's host facts; scripts at 3dbe444e", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-16.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, STAGED \(supersedes v15, whose type-1 pin REFUSED-TO-START is WITHDRAWN\)/);
+  assert.match(d.profiles.vbs.status, /^EXPERIMENT: STARTS, THEN FAILS WITHIN SECONDS; REASON NOT YET READABLE/);
+  assert.ok(!/REFUSED-TO-START on 26200/.test(d.profiles.vbs.status), "the withdrawn conclusion is not restated as a status");
+  assert.match(d.profiles.vbs.measured[0], /^STARTS, THEN FAILS WITHIN SECONDS; REASON NOT YET READABLE .*GuestStateIsolationType=1 enabled=True GuestFeatureSet=0x201 Vtl2Mode=0 Vtl2Range=0.*exactly 120 s.*Zero bytes on COM1/);
+  assert.match(d.profiles.vbs.measured[1], /^WITHDRAWN \(v15's pin\)/);
+  assert.match(d.profiles.vbs.measured[2], /^HOST FACTS .*0x80070570.*GUESTRTS.*no CompleteStartVtl0 entry/);
+  assert.match(d.profiles.vbs.measured[3], /^NOISE, not failure evidence .*Loading IGVM file from default location.*0xC0370103/);
+  assert.ok(!/MON (ready|boundary|hv)/.test(d.profiles.vbs.measured.join(" ")), "no type-1 console line is quoted: none has ever been seen");
+  assert.equal(d.files.find((x) => x.path === "control/ohcldiag-dev.exe").sha256, "5f25f2e7ffff169bd82b500b16257ad4bea6e40a6fc38e2d1aea274989ccb585");
+  assert.match(d.profiles.vbs.ohcldiag.firstRun, /^MEASURED .*--help` exits 0/);
+  assert.match(d.profiles.vbs.ohcldiag.expected.by, /UNMEASURED until d1's first run/);
+  for (const f of ["uefi-dev-boot.ps1", "host-read-guest.ps1"]) assert.equal(d.files.find((x) => x.path === `control/windows/vbslike/ops/${f}`).from.git.commit, "3dbe444e9351120cdf4a7905aaafee032e04e768", `${f} at 3dbe444e`);
+  assert.ok(d.inputs.some((i) => i.name === "type1-isolation-2026-09-25.md"));
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});
