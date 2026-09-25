@@ -25,8 +25,9 @@ param(
   # SERVING: the manager runs wmiserve per domain (ENCLAVE_WMISERVE_EXE, pinned), and the report service's hv_sock GUID
   # (port 9001) is registered for the run only if absent, and removed again only if this run added it.
   [switch] $Serve,
-  [string] $WmiserveRel = 'control\candidate-launcher\vbslike-host-15338081.exe',
-  [string] $WmiserveSha256 = '15338081b81692a155130ec28e37fa654117a3e769427b621404fff3d6c6bca4',
+  # NO DEFAULT: the launcher that signs reports is always named (the old default was 15338081, dropped since v34)
+  [string] $WmiserveRel = '',
+  [string] $WmiserveSha256 = '',
   # PHASE 1: enclave-5d's hvlab-accept.mjs against the manager (data plane on $DataPort); empty = phase 2 only
   [string] $HvlabScript = '',
   [int] $DataPort = 18092,
@@ -36,6 +37,8 @@ param(
   [int] $AnswerCheckMs = 0
 )
 $ErrorActionPreference = 'Stop'
+# checked before anything is created or locked: a serving run names its launcher, by path and sha256, every time
+if ($Serve -and (-not $WmiserveRel -or $WmiserveSha256 -notmatch '^[0-9a-fA-F]{64}$')) { throw '-Serve needs -WmiserveRel and -WmiserveSha256 (64 hex): the launcher that signs reports is named, never defaulted' }
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss')
 $runDir = "C:\Users\claude\vbs-evidence\mgraccept-$stamp"; New-Item -ItemType Directory $runDir -Force | Out-Null
 $log = "$runDir\harness.log"
