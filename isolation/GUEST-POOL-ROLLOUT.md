@@ -389,6 +389,16 @@ have bought as little as 1% each. That gap (the section 7 pricing question) is w
 3. The rollback to 16384/8 is simple only while the canaries alone run. It is gated like S2's dist rollback
    (`s3-budget64-rollback.sh`: the non-canary list must be empty, otherwise escalate).
 
+## 8b. Never delete (production-critical host state on warden-host, 2026-09-25)
+
+- `~/.cache/enclave-isolation/musl-1.2.6` (libc.a 4f72e098): after the tree switch, every guest's template build
+  links init against it; without it every new release guest fails closed (app-image-template.sh exit 2).
+- `~/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd` (142589cc): the verifying firmware of every guest and of the
+  node image; `~/.cache/enclave-isolation/m3-clean/{vcek.der,min-tcb.json}`: guestd's judge inputs.
+- `~/enclave-prod/iso-03be27d6` (0181bce3: the legacy tree non-release guests are built from), the installed
+  iso-17e182a8 / iso-aa6c985c trees and release-* dirs, `~/enclave-prod/bin/guestd.*`, and every
+  `~/enclave-bench/pool-rollout-20260925/secret/*.bak-*` (the rollback units) until their soak review.
+
 ## 9. Remaining prerequisites and owners (2026-09-25 19:57Z, read from the clock)
 
 | # | Prerequisite | Owner | Reviewer / decision |
