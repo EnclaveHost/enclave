@@ -11,6 +11,11 @@ listed and matching, nothing unlisted). Then every file is compared. The files b
 wasmtime, a library, or a file added or removed -- fails, because the prepared notices would not cover it. The kernel
 command line and the measurement parameters must match too: they are not third-party, but a change there is a
 different kind of release and should be reviewed as one.
+
+What this does NOT cover: third-party code statically linked INTO those own files. template/init carries a libc (glibc's
+libc.a before aa6c985c, musl's from then on) and GCC runtime objects; template/front carries the Go standard library and
+runtime. A SAME here says nothing about them; they are inventoried separately (the release's INVENTORY.md: link map,
+go version -m).
 """
 import argparse, hashlib, json, os, subprocess, sys
 

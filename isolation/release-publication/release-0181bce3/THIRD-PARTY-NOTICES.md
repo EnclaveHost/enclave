@@ -24,20 +24,20 @@ template/init is linked STATICALLY with glibc, so LGPL-2.1 section 6 applies to 
 
 ## GCC runtime libraries (libgcc_s, libgcc, libgcc_eh, crtbeginT.o, crtend.o)
 
-- **In the release:** template/rt/libgcc_s.so.1 (shared); template/init (static)
+- **In the release:** template/rt/libgcc_s.so.1 (shared); template/init (static: libgcc.a, libgcc_eh.a, crtbeginT.o, crtend.o)
 - **Version:** gcc 16.2.1+r23+gd564253eb6c8-1 / libgcc (Arch; commit d564253eb6c8)
 - **License:** GPL-3.0-or-later WITH GCC-exception-3.1
 - **Source:** gcc-d564253eb6c8.tar.xz + Arch's PKGBUILD and patches (SOURCES.md)
 - **Texts:** [licenses/gcc/COPYING3](licenses/gcc/COPYING3), [licenses/gcc/COPYING.RUNTIME](licenses/gcc/COPYING.RUNTIME)
 
-The GCC Runtime Library Exception covers the libgcc code compiled into template/init and wasmtime. libgcc_s.so.1 is also shipped as a file of its own, so its complete corresponding source is provided.
+The GCC Runtime Library Exception covers the GCC runtime code compiled into template/init and wasmtime. libgcc_s.so.1 is also shipped as a file of its own, so its complete corresponding source is provided.
 
 ## GNU GRUB (the AmdSev GRUB image inside the firmware volume)
 
 - **In the release:** firmware.fd (the Grub FFS file, grub.efi)
 - **Version:** grub 2:2.14-1 (Arch; tag grub-2.14, gnulib 9f48fb99)
 - **License:** GPL-3.0-or-later
-- **Source:** grub-2.14.tar.xz + gnulib-9f48fb99.tar.xz + Arch's PKGBUILD and patches; the image recipe is edk2's OvmfPkg/AmdSev/Grub/grub.sh with patches/edk2-amdsev-grub-modules.patch (SOURCES.md)
+- **Source:** grub-2.14.tar.xz + gnulib-9f48fb99.tar.xz + unifont-17.0.03.bdf.gz (the font source GRUB's widthspec.h is generated from, compiled into the normal module) + Arch's PKGBUILD, patches and reverts (arch-grub-2.14-1-reverts.patch); the image recipe is edk2's OvmfPkg/AmdSev/Grub grub.sh, grub.cfg and Grub.inf with edk2-amdsev-grub-modules.patch (all in the corresponding-source bundle; SOURCES.md)
 - **Texts:** [licenses/grub/COPYING](licenses/grub/COPYING)
 
 grub.efi is made by grub-mkimage from the build host's installed GRUB modules (part_msdos part_gpt cryptodisk luks gcry_rijndael gcry_sha256 ext2 btrfs xfs fat configfile memdisk sleep normal echo test regexp linux reboot and their dependencies) with a memdisk holding edk2's grub.cfg. It is a separate program aggregated in the firmware volume. On the project's -kernel boot path the firmware loads the served kernel itself; the boot manager reaches GRUB only when no kernel is served (isolation/m1/domain.env). GPL-3.0 section 6's Installation Information clause concerns User Products; this firmware is a cloud guest's, and a modified firmware runs (it is measured differently, which is what a measurement is for).
@@ -80,9 +80,17 @@ grub.efi is made by grub-mkimage from the build host's installed GRUB modules (p
 - **Version:** rustc 1.98.0 (88d9e12a; Arch rust 1:1.98.0-1, as wasmtime's .comment records)
 - **License:** MIT OR Apache-2.0 (COPYRIGHT lists the parts under other terms)
 - **Source:** rust-lang/rust at 88d9e12ae178fab0fb5cc050a94da85685d449ea
-- **Texts:** [licenses/rust/COPYRIGHT](licenses/rust/COPYRIGHT), [licenses/rust/LICENSE-APACHE](licenses/rust/LICENSE-APACHE), [licenses/rust/LICENSE-MIT](licenses/rust/LICENSE-MIT)
+- **Texts:** [licenses/rust/1.98.0/COPYRIGHT](licenses/rust/1.98.0/COPYRIGHT), [licenses/rust/1.98.0/LICENSE-APACHE](licenses/rust/1.98.0/LICENSE-APACHE), [licenses/rust/1.98.0/LICENSE-MIT](licenses/rust/1.98.0/LICENSE-MIT)
 
-cargo tree lists crates, not the standard library a Rust binary is linked with; these are its texts (enclave-e3).
+cargo tree lists crates, not the standard library a Rust binary is linked with; these are its texts.
+
+## Rust core library in the kernel (CONFIG_RUST=y)
+
+- **In the release:** kernel
+- **Version:** rustc 1.98.1 (48a229ce; Arch rust 1:1.98.1-1, as the kernel's IKCONFIG records)
+- **License:** MIT OR Apache-2.0 (COPYRIGHT lists the parts under other terms)
+- **Source:** rust-src-1.98.1.tar.xz (static.rust-lang.org, sha256 5c846ebc...; in the corresponding-source bundle): the kernel's rust/Makefile builds core from this library source, which is outside the kernel tree
+- **Texts:** [licenses/rust/1.98.1/COPYRIGHT](licenses/rust/1.98.1/COPYRIGHT), [licenses/rust/1.98.1/LICENSE-APACHE](licenses/rust/1.98.1/LICENSE-APACHE), [licenses/rust/1.98.1/LICENSE-MIT](licenses/rust/1.98.1/LICENSE-MIT)
 
 ## Wasmtime (template/rt/wasmtime)
 
@@ -507,7 +515,10 @@ Where a crate is offered under a choice of licenses ("X OR Y"), it is used under
 | licenses/linux/LICENSES/preferred/GPL-2.0 | 8780e78a1a737e127f25a65f6d95269bffd36158dc261114de7859b490bfc5aa | corresponding-source: linux-7.2.3.tar.xz: linux-7.2.3/LICENSES/preferred/GPL-2.0 |
 | licenses/lzma-sdk/LZMA-SDK-README.txt | 4f872a23afb2c30182182d639bcef958f7cdee84c86689645e4279c13423bdaf | edk2 2970e569: MdeModulePkg/Library/LzmaCustomDecompressLib/LZMA-SDK-README.txt |
 | licenses/openssl/LICENSE.txt | 7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a | edk2 2970e569: CryptoPkg/Library/OpensslLib/openssl/LICENSE.txt |
-| licenses/rust/COPYRIGHT | 172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af | corresponding-source: rust-1.98.0-COPYRIGHT |
-| licenses/rust/LICENSE-APACHE | 62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a | corresponding-source: rust-1.98.0-LICENSE-APACHE |
-| licenses/rust/LICENSE-MIT | b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1 | corresponding-source: rust-1.98.0-LICENSE-MIT |
+| licenses/rust/1.98.0/COPYRIGHT | 172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af | corresponding-source: rust-1.98.0-COPYRIGHT |
+| licenses/rust/1.98.0/LICENSE-APACHE | 62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a | corresponding-source: rust-1.98.0-LICENSE-APACHE |
+| licenses/rust/1.98.0/LICENSE-MIT | b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1 | corresponding-source: rust-1.98.0-LICENSE-MIT |
+| licenses/rust/1.98.1/COPYRIGHT | 172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af | corresponding-source: rust-src-1.98.1.tar.xz: rust-src-1.98.1/COPYRIGHT |
+| licenses/rust/1.98.1/LICENSE-APACHE | 62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a | corresponding-source: rust-src-1.98.1.tar.xz: rust-src-1.98.1/LICENSE-APACHE |
+| licenses/rust/1.98.1/LICENSE-MIT | b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1 | corresponding-source: rust-src-1.98.1.tar.xz: rust-src-1.98.1/LICENSE-MIT |
 | licenses/wasmtime/LICENSE | 268872b9816f90fd8e85db5a28d33f8150ebb8dd016653fb39ef1f94f2686bc5 | wasmtime v48.0.1: LICENSE |

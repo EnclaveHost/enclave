@@ -1,15 +1,21 @@
-# The production release's publication artifact: PACKAGED for review as release-17e182a8/ (not published)
+# The production release's publication artifact: now release-aa6c985c/ (79c5ecf2, musl init); DRAFT manifest for review
+
+**Where it ended:** release 79c5ecf2 (image commit aa6c985c), whose init links musl, approved by its reviewers. Its
+package and DRAFT release manifest are in ../release-aa6c985c/. The earlier ids below were intermediate. a4f22748
+(17e182a8) was packaged, but its publication is HELD with 0181bce3's: both inits link glibc statically.
+
+The history, kept for the record:
 
 **The target.** 5d's production domain release. Its id has moved as review fixes landed:
 - bca562cc (aff21c73);
 - 31d117a9 (d1a38994);
-- 0839ac3a (ecf02384), checked below. It is installed inert on warden-host.
+- 0839ac3a (ecf02384), checked below. It was installed inert.
 
 0839ac3a is itself about to be superseded. Codex decided that the app's stdout and stderr must not reach the host's serial
 console, and that is a change to dominit.c, so template/init changes again. The rebuild, the comparison and the tarball
 wait for that final id. Everything below carries over, provided `check-third-party.py` says SAME for the final id.
 
-## Checked on 0839ac3a (ecf02384; 5d's artifact ~/enclave-bench/prod-release-ecf02384/release-ecf02384, read only)
+## Checked on 0839ac3a (ecf02384; 5d's artifact 5d's artifact, read only)
 - **`check-third-party.py`** against 0181bce3's 5c3561f9 prints SAME. Both releases verify against their ids, and the
   only files that differ are Enclave's own:
   - template/front 282cb360… -> bd066066…;
@@ -49,7 +55,7 @@ wait for that final id. Everything below carries over, provided `check-third-par
 
 Earlier checks, still true:
 5d built it as the candidate final. It is pending e3's and d1's review, and 5d will confirm when it is approved. Checked
-read-only on 5d's artifact, ~/enclave-bench/prod-release-17e182a8/release-17e182a8, whose clean worktree is at
+read-only on 5d's artifact, 5d's artifact, whose clean worktree is at
 17e182a8:
 - **`check-third-party.py` against 5c3561f9 prints SAME.** Only Enclave's own files differ:
   - template/front bd066066…;

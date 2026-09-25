@@ -15,7 +15,9 @@
 # release/), so the notices travel with the binaries; the manifest lists their sha256 too.
 # The build uses a detached `git worktree` of this repository at <commit> (<outdir>/src) and a Go build cache of its own
 # (<outdir>/gocache, empty at the start); the worktree is removed afterwards, so nothing stays registered in the checkout.
-# The tarball also carries source/isolation/m2/dominit.c from <commit>: template/init links glibc statically, and
+# A release whose init links musl (image commits from aa6c985c on) needs MUSL_PREFIX: a prefix built by that commit's
+# isolation/m2/build-musl.sh; its SOURCE record goes into the manifest.
+# The tarball also carries source/isolation/m2/dominit.c from <commit>: template/init links a libc statically (glibc before aa6c985c, musl after), and
 # LGPL-2.1 section 6(a) wants the work that uses the library to accompany the binary.
 set -e
 umask 022   # the tarball records modes: the same on every builder
@@ -40,6 +42,8 @@ mkdir -p "$out"; out=$(cd "$out" && pwd)
 
 echo "== clean worktree at $full"
 git -C "$repo" worktree add -q --detach "$out/src" "$full"
+# a failed run must not leave a worktree registered in the shared checkout
+trap 'git -C "$repo" worktree remove --force "$out/src" 2>/dev/null || true' EXIT
 [ -z "$(git -C "$out/src" status --porcelain)" ] || { echo "make-artifact.sh: the worktree is not clean" >&2; exit 1; }
 
 echo "== domain-release.sh"
@@ -104,7 +108,7 @@ m = {
   "files": {("release/" + k): v for k, v in sorted(files.items())},
   "hostInputs": host,
   "source": {"source/isolation/m2/dominit.c": {"sha256": hashlib.sha256(subprocess.run(["git", "-C", os.path.join(os.path.dirname(rel), "src"), "show", commit + ":isolation/m2/dominit.c"], capture_output=True, check=True).stdout).hexdigest(),
-             "why": "template/init links glibc statically (LGPL-2.1 section 6(a)); build: gcc -static -O2 -o init isolation/m2/dominit.c"}},
+             "why": "template/init's own source: the program the release links a libc into statically (INVENTORY.md gives the command and the libc)"}},
   "toolchain": {
     "packages": {p: sh("pacman", "-Q", p) for p in ["linux", "glibc", "gcc", "gcc-libs", "libgcc", "go", "wasmtime", "grub", "dosfstools", "zstd", "python"]},
     "gcc": sh("gcc", "--version").splitlines()[0],
@@ -115,6 +119,8 @@ m = {
       [x for x in ("THIRD-PARTY-NOTICES.md", "INVENTORY.md", "SOURCES.md") if os.path.exists(os.path.join(notices, x))] +
       [os.path.relpath(os.path.join(dp, f), notices) for dp, _, fs in os.walk(os.path.join(notices, "licenses")) for f in fs])}
       if notices else {}),
+  "musl": (open(os.path.join(os.environ["MUSL_PREFIX"], "SOURCE")).read().replace(os.environ["MUSL_PREFIX"], "<prefix>").splitlines()
+           if os.environ.get("MUSL_PREFIX") else None),
   "firmware": {"source": "rebuilt from source (rebuild-firmware.sh)" if fw else "the build host's cached OVMF.amdsev.fd",
                **({"rebuildVersions": open(fwv).read().splitlines()} if fwv else {})},
 }
@@ -132,6 +138,6 @@ fi
 (cd "$out/pack" && tar --sort=name --mtime="@$epoch" --owner=0 --group=0 --numeric-owner --format=posix \
    --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime -cf - "$name") | xz -9 -T1 > "$out/$name.tar.xz"
 rm -rf "$out/pack" "$out/gocache"
-git -C "$repo" worktree remove --force "$out/src"
+git -C "$repo" worktree remove --force "$out/src"; trap - EXIT
 (cd "$out" && sha256sum "$name.tar.xz" > "$name.tar.xz.sha256" && cat "$name.tar.xz.sha256")
 echo "== rebuild: sh isolation/release-publication/make-artifact.sh $full <outdir>${expect:+ --expect <deployed release dir>}${fw:+ --firmware <rebuilt OVMF.amdsev.fd> --firmware-versions <its versions.txt>}${notices:+ --notices <notices dir>}"

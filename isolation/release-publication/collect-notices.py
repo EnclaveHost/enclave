@@ -15,6 +15,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("outdir"); ap.add_argument("--sources", required=True); ap.add_argument("--edk2", required=True)
 ap.add_argument("--wasmtime-src", required=True); ap.add_argument("--crates", required=True); ap.add_argument("--cargo-home", required=True)
 ap.add_argument("--title", default="domain release 0181bce3 (release id 5c3561f9...)")
+ap.add_argument("--init", choices=("glibc", "musl"), default="glibc",
+                help="the libc template/init links statically: glibc (releases before aa6c985c) or musl (aa6c985c on)")
 ap.add_argument("--extra-md", help="a release's own additions (e.g. public data embedded in its front), inserted before the crate table")
 a = ap.parse_args()
 L = os.path.join(a.outdir, "licenses")
@@ -74,29 +76,51 @@ section("Linux kernel (Arch Linux build)", "kernel; template/vsock.ko.zst, vmw_v
         "source run.")
 
 # --- glibc -------------------------------------------------------------------------------------------------------------
-section("GNU C Library (glibc)", "template/rt/libc.so.6, libm.so.6, ld-linux-x86-64.so.2 (shared); template/init (static: "
-        "libc.a and crt1.o/crti.o/crtn.o linked in)", "glibc 2.44+r24+g16be1518495f-1 (Arch; commit 16be1518495f)",
-        "LGPL-2.1-or-later, with the notices in LICENSES", "glibc-16be1518495f.tar.xz + Arch's PKGBUILD (SOURCES.md)",
-        from_tar("glibc-16be1518495f.tar.xz", ["glibc-16be1518495f/COPYING.LIB", "glibc-16be1518495f/COPYINGv2",
-                 "glibc-16be1518495f/LICENSES"], "glibc"),
-        "template/init is linked STATICALLY with glibc, so LGPL-2.1 section 6 applies to it. For relinking it with a "
-        "modified glibc, these are provided: its own source (source/isolation/m2/dominit.c in this tarball), the exact "
-        "link command (INVENTORY.md) and glibc's source. Whether the repository LICENSE's terms grant everything section "
-        "6 asks of the combined work is an open finding, recorded in INVENTORY.md.")
+GLIBC_TEXTS = lambda: from_tar("glibc-16be1518495f.tar.xz", ["glibc-16be1518495f/COPYING.LIB", "glibc-16be1518495f/COPYINGv2",
+                               "glibc-16be1518495f/LICENSES"], "glibc")
+if a.init == "glibc":
+    section("GNU C Library (glibc)", "template/rt/libc.so.6, libm.so.6, ld-linux-x86-64.so.2 (shared); template/init (static: "
+            "libc.a and crt1.o/crti.o/crtn.o linked in)", "glibc 2.44+r24+g16be1518495f-1 (Arch; commit 16be1518495f)",
+            "LGPL-2.1-or-later, with the notices in LICENSES", "glibc-16be1518495f.tar.xz + Arch's PKGBUILD (SOURCES.md)",
+            GLIBC_TEXTS(),
+            "template/init is linked STATICALLY with glibc, so LGPL-2.1 section 6 applies to it. For relinking it with a "
+            "modified glibc, these are provided: its own source (source/isolation/m2/dominit.c in this tarball), the exact "
+            "link command (INVENTORY.md) and glibc's source. Whether the repository LICENSE's terms grant everything section "
+            "6 asks of the combined work is an open finding, recorded in INVENTORY.md.")
+else:
+    section("GNU C Library (glibc)", "template/rt/libc.so.6, libm.so.6, ld-linux-x86-64.so.2 (shared, the runtime set wasmtime "
+            "is dynamically linked with). template/init contains NO glibc: it links musl (below)",
+            "glibc 2.44+r24+g16be1518495f-1 (Arch; commit 16be1518495f)", "LGPL-2.1-or-later, with the notices in LICENSES",
+            "glibc-16be1518495f.tar.xz + Arch's PKGBUILD (SOURCES.md)", GLIBC_TEXTS(),
+            "The shared glibc files are shipped as they are, with their complete corresponding source.")
+    section("musl libc (linked statically into template/init)", "template/init (static: Scrt1.o, crti.o, crtn.o and members "
+            "of libc.a)", "musl 1.2.6, no patches", "MIT (COPYRIGHT lists the files under other permissive terms)",
+            "musl-1.2.6.tar.gz from https://musl.libc.org/releases/, sha256 "
+            "d585fd3b613c66151fc3249e8ed44f77020cb5e6c1e635a616d3f9f82460512a, signed by musl's release key "
+            "836489290BB6B70F99FFDA0556BCDB593020450F (the tarball and its .asc are in the corresponding-source bundle)",
+            from_tar("musl-1.2.6.tar.gz", ["musl-1.2.6/COPYRIGHT"], "musl"))
 
 # --- GCC runtime -------------------------------------------------------------------------------------------------------
-section("GCC runtime libraries (libgcc_s, libgcc, libgcc_eh, crtbeginT.o, crtend.o)", "template/rt/libgcc_s.so.1 (shared); "
-        "template/init (static)", "gcc 16.2.1+r23+gd564253eb6c8-1 / libgcc (Arch; commit d564253eb6c8)",
+if a.init == "glibc":
+    gcc_title, gcc_where = ("GCC runtime libraries (libgcc_s, libgcc, libgcc_eh, crtbeginT.o, crtend.o)",
+                            "template/rt/libgcc_s.so.1 (shared); template/init (static: libgcc.a, libgcc_eh.a, crtbeginT.o, crtend.o)")
+else:
+    gcc_title, gcc_where = ("GCC runtime libraries (libgcc_s; crtbeginS.o and crtendS.o)",
+                            "template/rt/libgcc_s.so.1 (shared); template/init (static: crtbeginS.o and crtendS.o only; "
+                            "its link map takes no member of libgcc.a, libgcc_eh.a or libatomic)")
+section(gcc_title, gcc_where, "gcc 16.2.1+r23+gd564253eb6c8-1 / libgcc (Arch; commit d564253eb6c8)",
         "GPL-3.0-or-later WITH GCC-exception-3.1", "gcc-d564253eb6c8.tar.xz + Arch's PKGBUILD and patches (SOURCES.md)",
         from_tar("gcc-d564253eb6c8.tar.xz", ["gcc-d564253eb6c8/COPYING3", "gcc-d564253eb6c8/COPYING.RUNTIME"], "gcc"),
-        "The GCC Runtime Library Exception covers the libgcc code compiled into template/init and wasmtime. "
+        "The GCC Runtime Library Exception covers the GCC runtime code compiled into template/init and wasmtime. "
         "libgcc_s.so.1 is also shipped as a file of its own, so its complete corresponding source is provided.")
 
 # --- GRUB (inside the firmware) ----------------------------------------------------------------------------------------
 section("GNU GRUB (the AmdSev GRUB image inside the firmware volume)", "firmware.fd (the Grub FFS file, grub.efi)",
         "grub 2:2.14-1 (Arch; tag grub-2.14, gnulib 9f48fb99)", "GPL-3.0-or-later",
-        "grub-2.14.tar.xz + gnulib-9f48fb99.tar.xz + Arch's PKGBUILD and patches; the image recipe is edk2's "
-        "OvmfPkg/AmdSev/Grub/grub.sh with patches/edk2-amdsev-grub-modules.patch (SOURCES.md)",
+        "grub-2.14.tar.xz + gnulib-9f48fb99.tar.xz + unifont-17.0.03.bdf.gz (the font source GRUB's widthspec.h is "
+        "generated from, compiled into the normal module) + Arch's PKGBUILD, patches and reverts "
+        "(arch-grub-2.14-1-reverts.patch); the image recipe is edk2's OvmfPkg/AmdSev/Grub grub.sh, grub.cfg and Grub.inf "
+        "with edk2-amdsev-grub-modules.patch (all in the corresponding-source bundle; SOURCES.md)",
         from_tar("grub-2.14.tar.xz", ["grub-2.14/COPYING"], "grub"),
         "grub.efi is made by grub-mkimage from the build host's installed GRUB modules (part_msdos part_gpt cryptodisk "
         "luks gcry_rijndael gcry_sha256 ext2 btrfs xfs fat configfile memdisk sleep normal echo test regexp linux reboot "
@@ -128,8 +152,13 @@ W = a.wasmtime_src
 section("Rust standard library (core, alloc, std, and the runtime pieces rustc links)", "template/rt/wasmtime",
         "rustc 1.98.0 (88d9e12a; Arch rust 1:1.98.0-1, as wasmtime's .comment records)", "MIT OR Apache-2.0 (COPYRIGHT lists the parts under other terms)",
         "rust-lang/rust at 88d9e12ae178fab0fb5cc050a94da85685d449ea",
-        [from_file(os.path.join(a.sources, "rust-1.98.0-" + f), "rust/" + f) for f in ("COPYRIGHT", "LICENSE-APACHE", "LICENSE-MIT")],
-        "cargo tree lists crates, not the standard library a Rust binary is linked with; these are its texts (enclave-e3).")
+        [from_file(os.path.join(a.sources, "rust-1.98.0-" + f), "rust/1.98.0/" + f) for f in ("COPYRIGHT", "LICENSE-APACHE", "LICENSE-MIT")],
+        "cargo tree lists crates, not the standard library a Rust binary is linked with; these are its texts.")
+section("Rust core library in the kernel (CONFIG_RUST=y)", "kernel",
+        "rustc 1.98.1 (48a229ce; Arch rust 1:1.98.1-1, as the kernel's IKCONFIG records)", "MIT OR Apache-2.0 (COPYRIGHT lists the parts under other terms)",
+        "rust-src-1.98.1.tar.xz (static.rust-lang.org, sha256 5c846ebc...; in the corresponding-source bundle): the kernel's "
+        "rust/Makefile builds core from this library source, which is outside the kernel tree",
+        from_tar("rust-src-1.98.1.tar.xz", ["rust-src-1.98.1/COPYRIGHT", "rust-src-1.98.1/LICENSE-APACHE", "rust-src-1.98.1/LICENSE-MIT"], "rust/1.98.1"))
 wfiles = [from_file(os.path.join(W, "LICENSE"), "wasmtime/LICENSE")]
 section("Wasmtime (template/rt/wasmtime)", "template/rt/wasmtime", "wasmtime 48.0.1-1 (Arch; tag v48.0.1)",
         "Apache-2.0 WITH LLVM-exception (the wasmtime workspace crates); its crates below", "the tag v48.0.1 and its Cargo.lock",

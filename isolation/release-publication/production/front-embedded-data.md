@@ -13,9 +13,11 @@ for them.
 | sectigo-public-server-root-e46.pem | C=GB, O=Sectigo Limited, CN=Sectigo Public Server Authentication Root E46 | 2046-03-21 | 808130157f570b7640069852c88e256738007811a64c3aa9a4c31038347dc19c | c90f26f0fb1b4018b22227519b5ca2b53e2ca5b3be5cf18efe1bef47380c5383 |
 | usertrust-ecc.pem | C=US, ST=New Jersey, L=Jersey City, O=The USERTRUST Network, CN=USERTrust ECC Certification Authority | 2038-01-18 | 08fb40ba4144166f6ae80c7ab60be23e97e5083836d45fa85a33a5d0bfec10f8 | 4ff460d54b9c86dabfbcfc5712e0400d2bed3fbc4d4fbdaa86e06adcd2a9ad7a |
 
+Each certificate can be fetched by its DER sha256 from Certificate Transparency: `https://crt.sh/?q=<DER sha256>`.
+
 **Enclave's own public data**, listed so the whole embedded set is visible:
 - **The relay's release key:** Ed25519 public key d6c8a95966710fb52f4f753458362869ee26cf84aee08d27900c53a5b3fcc81d,
-  keyId 06212e5df9c3779a (= sha256(key)[:16]). It is generated on nan, and its seed never leaves that host.
+  keyId 06212e5df9c3779a (= sha256(key)[:16]). Its seed never leaves the relay host that generated it.
 - **RelayHost:** api.enclave.host.
 - **The ports:** TicketPort 9444 and EgressPort 9443.
 
