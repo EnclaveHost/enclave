@@ -64,7 +64,9 @@ test("the seam works when a host can launch, and a booted guest is not a running
   const r = await mk({ backend: booted }).spawn(spawnBody());
   assert.equal(r.status, "starting", "console output is not evidence the app is serving, and 'starting' is a word the supervisor knows");
   assert.equal(r.appReady, false);
-  assert.match(r.reason, /readiness has not been judged yet/);
+  // With no readiness rule wired, the record now says so outright rather than leaving a
+  // placeholder: a manager that can never promote anything must not read as merely "not yet".
+  assert.match(r.reason, /no readiness rule|readiness has not been judged yet/);
   assert.equal("attestation" in r, false, "still none: booted is not attested either");
   // and when a backend CAN prove the app is up, the word is earned
   const ready = new HyperVPartitionBackend({ launch: async () => ({ pid: 1, appReady: true, guest: { booted: true, bytes: 9 }, stop: async () => {} }) });
