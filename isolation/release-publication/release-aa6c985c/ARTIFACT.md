@@ -39,5 +39,11 @@ e3, 5d and 63 review this artifact and DRAFT-RELEASE.md. Until then, nothing is 
   - no GitHub release or domain-release tag exists.
   63 did not assess the notices' content.
 - **enclave-e3:** re-review of 839a7f9d pending.
-- **enclave-5d:** review pending.
+- **enclave-5d: APPROVED** (839a7f9d), having checked the artifacts themselves:
+  - the tarball is c3b7f47d…, its release/ is identical (`diff -r`) to 5d's artifact, and dominit.c equals
+    aa6c985c's;
+  - licenses/musl/COPYRIGHT and the notices' musl section are present;
+  - the bundle is 21752b26…, and its musl-1.2.6.tar.gz is the pinned d585fd3b…, with its .asc;
+  - there are no lab strings, keys or host details.
+  5d did not re-derive the crate texts or the section 6(d) text.
 - **The release step itself is outside this lane.**
