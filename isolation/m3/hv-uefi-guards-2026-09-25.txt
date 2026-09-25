@@ -31,3 +31,25 @@ uki /home/steven/enclave-bench/hvuefi/uki-wsl-5bc06259.efi sha256 75ae6bccf2cd66
   cmdline c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615  "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
   osrel   b6bca85d3e1933b36e542863b088667a56c8575de37f5e739d699d262d92d184  (fixed text: NAME="enclave NucBox guest" ID=enclave-nucbox-guest)
   tool    GNU objcopy (GNU Binutils) 2.47
+# rerun with channel 8 (LoadOptions, via the edk2 UEFI Shell's startup.nsh; enclave-99's method):
+uki /home/steven/enclave-bench/hvuefi-guards6/clean/EFI/BOOT/BOOTX64.EFI sha256 1f1fbed64c4ffb83933081e96beabeab6bc0f2a506c54894b6007b02337bd656 bytes 41402880
+  stub    2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18  /usr/lib/systemd/boot/efi/linuxx64.efi.stub
+  kernel  1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7  /boot/vmlinuz-linux
+  initrd  5bc062598212f1e509c4579ba76ab2e34ed090960fc6712d503c49ae427fb359  /home/steven/enclave-bench/hvuefi-guards6/mon.cpio.gz
+  cmdline c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615  "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
+  osrel   b6bca85d3e1933b36e542863b088667a56c8575de37f5e739d699d262d92d184  (fixed text: NAME="enclave NucBox guest" ID=enclave-nucbox-guest)
+  tool    GNU objcopy (GNU Binutils) 2.47
+isolation/m3/test-uefi-guards.sh: line 39: /home/steven/enclave-bench/hvuefi-guards6/clean.serial: No such file or directory
+PASS clean: MON ready control_port=9000 snp=false
+isolation/m3/test-uefi-guards.sh: line 39: /home/steven/enclave-bench/hvuefi-guards6/smbios.serial: No such file or directory
+PASS smbios: MON ERROR refusing to start: the kernel command line is not the pinned one (got "console=ttyS0 rdinit=/init loglevel=3 report_host=9001 injected=1")
+isolation/m3/test-uefi-guards.sh: line 39: /home/steven/enclave-bench/hvuefi-guards6/addon.serial: No such file or directory
+PASS addon: MON ERROR refusing to start: the boot stub added files under /.extra (credentials or extensions): /.extra/os-release /.extra/credentials /.extra/credentials/x.cred
+shell 412bd287a6753ecf7643b2b9061026573afd8b351264c903ce101c784d8be227 /home/steven/.cache/enclave-isolation/fwbuild/src/edk2/Build/Shell/RELEASE_GCC/X64/ShellPkg/Application/Shell/Shell/OUTPUT/Shell.efi
+isolation/m3/test-uefi-guards.sh: line 39: /home/steven/enclave-bench/hvuefi-guards6/loadopts.serial: No such file or directory
+PASS loadopts: MON ERROR refusing to start: the kernel command line is not the pinned one (got "console=ttyS0 rdinit=/init loglevel=3 report_host=9001 injected=1")
+isolation/m3/test-uefi-guards.sh: line 39: /home/steven/enclave-bench/hvuefi-guards6/loadpinned.serial: No such file or directory
+PASS loadpinned: MON ready control_port=9000 snp=false
+isolation/m3/test-uefi-guards.sh: line 39: /home/steven/enclave-bench/hvuefi-guards6/direct.serial: No such file or directory
+PASS direct: MON ready control_port=9000 snp=false
+UEFI-GUARDS ALL PASS
