@@ -37,6 +37,22 @@ handle — a safety bug, not just reliability.
   app's execution (an app is checked out of the table to run/serve and back in after). The
   old `static mut` access from the run thread and the gate thread was an unsynchronised
   data race.
+- The generation field is masked to its exact width (`GEN_MASK`) at mint time and the
+  counter advances within that space, so the value stored in an entry is byte-for-byte what
+  a handle carries. Without the mask a generation past `2^29` would be truncated by the
+  shift in `make_handle`, the stored and recovered generations would diverge, and a wrapped
+  counter could mint a handle equal to a live one — the one place the construction was
+  approximate (found in review, d1 2026-09-25). A compile-time assert pins the field widths
+  and a debug assert pins each minted generation into range.
+
+**Spinlock, no yield (deliberate).** The lock uses `spin_loop()` with no OS yield. Every
+critical section is a handful of array/field operations with no call-out, allocation, or app
+execution inside it, so the hold time is a few instructions and a waiter spins only that
+long. On a single-vCPU guest a spinner could burn the rest of its quantum if the holder is
+descheduled mid-section; that is acceptable here because the sections are that short and this
+runs on multi-vCPU enclaves, and a parking primitive (the enclave's park/unpark) would cost
+more than the work it guards. If the enclave ever runs pinned to one vCPU under heavy app
+churn, revisit.
 
 The handle is now opaque (slot in the low 3 bits, generation above) and the host only
 echoes it back. **Cosmetic:** the node's "loaded into the enclave as slot N" line now
@@ -86,20 +102,23 @@ restart safe to target. They do not by themselves explain why those two threads 
 `slots.rs` and `netset.rs` are dependency-free and unit-tested with `cargo test` /
 `rustc --test`:
 
-- `slots.rs` — 13 tests: two simultaneous apps get distinct slots; a running/busy app
+- `slots.rs` — 15 tests: two simultaneous apps get distinct slots; a running/busy app
   keeps its slot so open cannot reuse it; stop reaches only the named app; a stale handle
   after slot reuse resolves to nothing; a stale close cannot free the new occupant; an old
   completion racing a new occupant is a no-op; close-during-request frees on checkin; the
-  table fills and refuses a ninth app; handle 0 / out of range never valid; a 4-thread
-  open/run/stop churn stays consistent.
+  table fills and refuses a ninth app; handle 0 / out of range never valid; a generation at
+  the field maximum is still reachable; the generation wraps within its field and skips 0; a
+  4-thread open/run/stop churn stays consistent.
 - `netset.rs` — 6 tests: a listener left open by a trap is closed by teardown; a
   guest-closed socket is not closed again; failed calls never enter the set; add is
   idempotent; drain leaves the set empty.
 
-Not built here: the full `enclave-rt` crate (needs the box's `wasmtime-set` path dep,
-nightly `-Zbuild-std`, no_std) and the `ee-host.c` change (box MSVC). Both parse clean
-(`rustc -Zunpretty=ast-tree`, 0 errors); the type-check and the C build are d1's on the
-box. The wiring in `lib.rs`/`wasihost.rs` is mechanical over the tested modules.
+Not built on this workstation: the full `enclave-rt` crate (needs the box's `wasmtime-set`
+path dep, nightly `-Zbuild-std`, no_std) and the `ee-host.c` change (box MSVC); both parse
+clean here (`rustc -Zunpretty=ast-tree`, 0 errors). The `lib.rs`/`wasihost.rs` wiring is
+mechanical over the tested modules. **d1 type-checked the branch on the box**
+(`cargo check --release --offline` against the real `wasmtime-set`, scratch copy, nothing
+deployed): 0 errors. Still not done: a link/DLL build and the `ee-host.c` MSVC build.
 
 ## Review asks d1 raised, addressed
 

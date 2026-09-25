@@ -36,10 +36,26 @@ use core::sync::atomic::{AtomicBool, Ordering};
 pub const MAX_APPS: usize = 8;
 const SLOT_BITS: u32 = 3; // ceil(log2(MAX_APPS)); MAX_APPS must be <= 1 << SLOT_BITS
 const SLOT_MASK: u32 = (1 << SLOT_BITS) - 1;
+/// The generation occupies the rest of the handle. It is kept masked to exactly this width so that
+/// the value stored in an `Entry` is byte-for-byte what a handle carries -- otherwise a generation
+/// past `2^GEN_BITS` would be truncated by the shift in `make_handle`, the stored and recovered
+/// generations would diverge, and (once the counter wrapped) a reused slot could mint a handle
+/// equal to a live one: exactly the wrong-tenant reach this table exists to forbid. Found in review
+/// (d1, 2026-09-25).
+const GEN_BITS: u32 = u32::BITS - SLOT_BITS;
+const GEN_MASK: u32 = (1u32 << GEN_BITS) - 1;
 
 const _: () = assert!(MAX_APPS <= (1 << SLOT_BITS));
+// The generation field must not overlap the slot field, and a masked generation shifted into place
+// must stay within a u32.
+const _: () = assert!(SLOT_BITS + GEN_BITS == u32::BITS);
+const _: () = assert!(GEN_MASK <= (u32::MAX >> SLOT_BITS));
 
 fn make_handle(slot: usize, gen: u32) -> u32 {
+    // The generation is always minted within GEN_MASK (see `next_gen` in `insert`) and never 0, so
+    // handle 0 is never valid and the shift below never loses a generation bit.
+    debug_assert!(gen != 0 && gen <= GEN_MASK, "generation out of the handle's field");
+    debug_assert!((slot as u32) <= SLOT_MASK, "slot out of the handle's field");
     (gen << SLOT_BITS) | (slot as u32)
 }
 fn split_handle(handle: u32) -> (usize, u32) {
@@ -126,10 +142,14 @@ impl<T, E: Clone> SlotTable<T, E> {
         let g = self.lock();
         for (i, e) in g.inner.entries.iter_mut().enumerate() {
             if matches!(e, Entry::Empty) {
+                // `next_gen` lives in the masked generation space [1, GEN_MASK]: the value handed
+                // out is always what a handle can carry, and advancing wraps within that space and
+                // skips 0 so handle 0 stays invalid. Storing the SAME masked value is what keeps
+                // the comparisons in checkout/checkin/finish_run/running_engine exact.
                 let gen = g.inner.next_gen;
-                g.inner.next_gen = g.inner.next_gen.wrapping_add(1);
+                g.inner.next_gen = (g.inner.next_gen + 1) & GEN_MASK;
                 if g.inner.next_gen == 0 {
-                    g.inner.next_gen = 1; // gen 0 is reserved so handle 0 is never valid
+                    g.inner.next_gen = 1;
                 }
                 *e = Entry::Loaded { gen, val, engine };
                 return Some(make_handle(i, gen));
@@ -265,6 +285,13 @@ impl<T, E: Clone> SlotTable<T, E> {
                 Removed::NotClosable
             }
         }
+    }
+
+    /// Test-only: drive the generation counter near a wrap without 2^29 real inserts.
+    #[cfg(test)]
+    fn set_next_gen(&self, g: u32) {
+        let guard = self.lock();
+        guard.inner.next_gen = g;
     }
 
     /// True if the handle names an app that is currently running.
@@ -440,6 +467,39 @@ mod tests {
         let n = t.insert(1000, Eng::new()).expect("slot freed");
         assert_eq!(split_handle(n).0, split_handle(hs[3]).0);
         assert_ne!(n, hs[3]);
+    }
+
+    #[test]
+    fn a_generation_at_the_field_maximum_is_still_reachable() {
+        // The truncation bug (d1's finding): a generation past 2^GEN_BITS used to store one value
+        // and mint a handle carrying another, so the app became unreachable. At the exact maximum
+        // the stored and recovered generations must still agree.
+        let t: SlotTable<&str, Eng> = SlotTable::new();
+        t.set_next_gen(GEN_MASK);
+        let a = t.insert("A", Eng::new()).unwrap();
+        assert_eq!(split_handle(a).1, GEN_MASK, "the handle carries the full generation");
+        assert!(t.checkout(a).is_some(), "an app at the max generation is reachable");
+    }
+
+    #[test]
+    fn the_generation_wraps_within_its_field_and_skips_zero() {
+        let t: SlotTable<i32, Eng> = SlotTable::new();
+        // Sit one below the max and mint across the wrap; every minted handle must round-trip
+        // (stored gen == recovered gen, so it is reachable) and never carry generation 0.
+        t.set_next_gen(GEN_MASK - 1);
+        let mut gens = Vec::new();
+        for i in 0..5 {
+            let h = t.insert(i, Eng::new()).unwrap();
+            let g = split_handle(h).1;
+            assert!(g != 0 && g <= GEN_MASK, "generation {g} is in field and non-zero");
+            assert!(matches!(t.remove(h), Removed::Took(v) if v == i), "app at gen {g} is reachable");
+            gens.push(g);
+        }
+        // The sequence crossed the maximum: it includes GEN_MASK and then a low value, and 0 never
+        // appears.
+        assert!(gens.contains(&GEN_MASK), "the run passed through the maximum generation");
+        assert!(gens.iter().all(|&g| g != 0));
+        assert!(gens.iter().any(|&g| g < GEN_MASK / 2), "and wrapped back to a low generation");
     }
 
     #[test]
