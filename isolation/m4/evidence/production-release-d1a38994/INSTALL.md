@@ -37,6 +37,11 @@ silent acceptance. Re-run 1d after any host package upgrade.
 - `~/enclave-prod/release-d1a38994/` is `cp -a ~/enclave-bench/prod-release-d1a38994/release-d1a38994`.
 - Then `python3 ~/enclave-prod/iso-d1a38994/isolation/m4/release-manifest.py verify ~/enclave-prod/release-d1a38994
   --expect 31d117a9…` must print `verified 15 files`.
+- Keep every copy OWNER-WRITABLE. The manifest pins contents, not modes. `expected-measurement.sh` snapshots the
+  release with `cp -a`, so a read-only copy yields a read-only snapshot. The measurement then fails before it is
+  printed (assembling writes into it), and the cleanup cannot remove the snapshot. Found by enclave-e3 on the
+  artifact, which I had made read-only; it has been owner-writable since 2026-09-25 19:27Z, and the existing
+  `release-*` dirs are too.
 - No process on warden-host reads it. It is the copy that verifiers and `expected-measurement.sh --pin` use, and the
   source for nan's copy (3a).
 
