@@ -405,7 +405,12 @@ async function appOwnerOf(label) {
     console.log(`[relay] ${label} names more than one deployment on the ledger — refusing`);
     return null;
   }
-  const found = await Promise.all(fleet.origins().map(async (o) => {
+  // U7: an on-chain id is the ledger's lease holder or nothing. When the ledger could not name an in-fleet holder above,
+  // no box's own answer may stand in for it: that fallback is exactly how an unvetted box could take the name.
+  if (/^0x[0-9a-f]{8,64}$/.test(String(label).toLowerCase()) && (CFG.addressBook || CFG.deploymentsAddress)) return null;
+  // ...and the probe (non-ledger ids, or a relay without a ledger) asks ELIGIBLE hosts only
+  const candidates = (await Promise.all(fleet.origins().map(async (o) => ((await fleet.eligibleOrigin(o)) ? o : null)))).filter(Boolean);
+  const found = await Promise.all(candidates.map(async (o) => {
     try {
       const r = await fetch(`${o}/x/${encodeURIComponent(label)}`,
                             { method: "HEAD", signal: AbortSignal.timeout(4000) });
@@ -462,7 +467,17 @@ function httpsRedirect(client, head) {
   reply("301 Moved Permanently", `Location: https://${host}${target}\r\n`);
 }
 
+// U7: EVERY routed connection lands in splice, so this is the one gate: the destination must be a host the api-relay
+// holds ELIGIBLE right now (fleet.eligibleOrigin: its /enclaves verdict, fresh). Unknown or stale = no route. The client
+// is paused by every caller, so the ClientHello waits for the answer.
 function splice(client, origin, dep, path, hello) {
+  fleet.eligibleOrigin(origin).then((ok) => {
+    if (client.destroyed) return;
+    if (!ok) { console.log(`[relay] ${dep} -> ${origin} REFUSED: not an eligible host (U7)`); return client.destroy(); }
+    spliceRaw(client, origin, dep, path, hello);
+  }, () => client.destroy());
+}
+function spliceRaw(client, origin, dep, path, hello) {
   // Someone reached this app. Recorded HERE rather than at accept() because
   // this is the first point a connection has a deployment to belong to - before
   // the SNI is read it is just a socket, and an unroutable one is nobody's
@@ -500,6 +515,7 @@ function splice(client, origin, dep, path, hello) {
 // Learn the fleet + the dep->enclave index BEFORE accepting, so the first
 // connections can route; then keep both fresh.
 await fleet.start();
+await fleet.startEligibility();
 await poll();
 setInterval(poll, POLL_MS);
 // custom-domain map: same "keep the last good answer" rule as the net-map poll
