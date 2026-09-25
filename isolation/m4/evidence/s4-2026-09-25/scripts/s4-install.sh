@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# S4 install of release 0839ac3a on warden-host, INERT (5d's INSTALL.md 1a, 1b, 1d; production-release-ecf02384 at
-# 4e99148f): nothing references the new paths, nothing restarts. Runs only after 99 (now enclave-e3) reviews this script
-# and the image diff 0181bce3..ecf02384 is signed off (d1 and e3 review ecf02384, the fix of e3's HOST_DATA fail-open).
+# S4 install of release a4f22748 on warden-host, INERT (5d's INSTALL.md 1a, 1b, 1d; production-release-17e182a8 at
+# 3770f796): nothing references the new paths, nothing restarts. Runs only after 99 (now enclave-e3) reviews this script
+# and the image diff 0181bce3..17e182a8 is signed off (d1 and e3 review 17e182a8: ecf02384 plus init's stdio to /dev/null).
 # Codex authorized the inert install once those pass. The guestd binary (1c) is s4-guestd-install.sh, after the host
 # floor's merge.
 set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/pool-rollout-20260925/s4/lib4.sh
