@@ -396,14 +396,19 @@ func TestAGuestThatLeftTakesNothing(t *testing.T) {
 	x := r.vm(a["id"].(string))
 	gone := make(chan struct{})
 	close(gone)
-	if _, _, err := r.s.takeTicket(context.Background(), x.cid, gone); err == nil || !strings.Contains(err.Error(), "closed") {
-		t.Fatalf("a guest that had left: %v", err)
-	}
-	r.s.mu.Lock()
-	pending, taken, waiting := len(x.ticket), x.ticketTaken, x.awaitingTicket
-	r.s.mu.Unlock()
-	if pending != 1 || taken || waiting {
-		t.Fatalf("slot %d, taken %v, waiting %v: the ticket must stay in the slot and nothing wait", pending, taken, waiting)
+	// A ticket in the slot AND a closed connection are both ready at once, and a select picks among ready cases at
+	// random, so one call would catch a missing pre-check only by chance (enclave-d1: 14 of 20). Fifty calls must ALL
+	// refuse and leave the ticket where it is; without the pre-check that holds with probability about 2^-50.
+	for i := 0; i < 50; i++ {
+		if _, _, err := r.s.takeTicket(context.Background(), x.cid, gone); err == nil || !strings.Contains(err.Error(), "closed") {
+			t.Fatalf("call %d, a guest that had left: %v", i, err)
+		}
+		r.s.mu.Lock()
+		pending, taken, waiting := len(x.ticket), x.ticketTaken, x.awaitingTicket
+		r.s.mu.Unlock()
+		if pending != 1 || taken || waiting {
+			t.Fatalf("call %d: slot %d, taken %v, waiting %v: the ticket must stay in the slot and nothing wait", i, pending, taken, waiting)
+		}
 	}
 	// and a guest that leaves WHILE waiting ends its hold at once, not at TicketHold
 	gone2 := make(chan struct{})
