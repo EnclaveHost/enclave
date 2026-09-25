@@ -86,8 +86,9 @@ bytes for a VBS **enclave** report. IDKS signing a VM report stays a hypothesis.
 
 - igvmfilegen can place our kernel, initrd and VTL0 command line inside the IGVM as measured (`Exclusive`) pages
   (`vm/loader/src/linux.rs:478, 531, 592`; `paravisor.rs:944-951`). The VBS digest hashes the full content of
-  measured pages (igvm `measurement/vbs.rs:140-162`). This is shown for an isolation-None config; a VBS config with
-  a Linux VTL0 is untested.
+  measured pages (igvm `measurement/vbs.rs:140-162`). For our VBS candidate, enclave-53's build-time mutations show
+  that the kernel, initrd and VTL0 line each move the digest, and d1's canary shows the candidate boots as type 1
+  (below). No report has shown that digest yet.
 - With no confidential-debug flag in the static command line, the whole VTL0 command line is fixed by measured bytes.
   The paravisor's runtime append comes from its own measured command line, and the host's is ignored
   (enclave-d1; `underhill_core/src/loader/mod.rs:159-185`, `openhcl_boot/src/main.rs:671-672`).
