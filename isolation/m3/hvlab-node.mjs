@@ -181,9 +181,14 @@ async function drive(label) {
 // PASS 1, the node as configured for isolation and nothing else: this is the real behaviour
 let results = await drive("[as configured]");
 for (const v of (manager.list ? manager.list() : [])) console.log(`manager record ${v.id} (${String(v.name).slice(0, 10)}): status=${v.status} verdict=${v.verdict} reason=${JSON.stringify(v.reason)}`);
+// hookbin is /2: a manager that does not SERVE /2 must refuse it by name (manager.catalog.derivations), and the node
+// gives the lease back - that refusal is the correct outcome, not a failure; running is required only when it serves /2
+const servesV2 = ((await manager.health())?.catalog?.derivations || []).includes("enclave-catalog-bundle/2");
+const expectedRefusal = (k) => k === "B" && !servesV2 && /manager\.catalog\.derivations/.test(String(results[k] && results[k].reason));
 for (const [k] of Object.entries(deps))
-  record(`ensureApp ${k} (${k === "A" ? "hello-world /1" : "hookbin /2"}) reaches running through the node's own path, AS CONFIGURED`,
-    results[k] && results[k].status === "running", `status=${results[k] && results[k].status} reason=${JSON.stringify(results[k] && results[k].reason)}`);
+  record(`ensureApp ${k} (${k === "A" ? "hello-world /1" : "hookbin /2"}) ${k === "B" && !servesV2 ? "is refused by name (the manager serves /1 only)" : "reaches running"} through the node's own path, AS CONFIGURED`,
+    (results[k] && results[k].status === "running") || expectedRefusal(k),
+    `status=${results[k] && results[k].status} reason=${JSON.stringify(results[k] && results[k].reason)}`);
 // PASS 2, only if pass 1 stopped at the in-enclave runtime gates (appsInTee / the enclave's worlds), which should not
 // apply to a partition: set the flags that open those gates, CLEARLY A WORKAROUND - this box has no in-enclave app
 // runtime - so the rest of the chain is exercised anyway. The run still FAILS while pass 1 does.
@@ -202,7 +207,7 @@ if (Object.values(results).some((r) => /no app runtime|enclave has no socket|thi
 // The steps: the CURRENT plan (this checkout's node-bridge, with require/manager/appConfigCid) -> the node's real
 // IsolationManagerClient + isolation-lifecycle reconcile -> the real manager's spawn and readiness judgement -> the
 // record #isolationReconcile writes -> the real appZoneTarget/appzone below.
-if (Object.values(results).some((r) => !r || r.status !== "running")) {
+if (Object.entries(results).some(([k, r]) => (!r || r.status !== "running") && !expectedRefusal(k))) {
   console.log("PASS 3: #isolationReconcile's own steps, called directly (ensureApp does not reach them at this tree)");
   const { reconcile } = await imp("windows/node/isolation-lifecycle.mjs");
   const { fetchSecrets } = await imp("windows/node/secrets.mjs");
@@ -270,7 +275,7 @@ function browser(dep) {
   });
 }
 for (const [k, d] of Object.entries(deps)) {
-  if (results[k] && results[k].status === "refused") { console.log(`SKIP browser -> ${k}: the plan refused it (${results[k].reason})`); continue; }
+  if ((results[k] && results[k].status === "refused") || expectedRefusal(k)) { console.log(`SKIP browser -> ${k}: the plan refused it (${results[k].reason})`); continue; }
   if (!results[k] || results[k].status !== "running") { record(`browser -> ${k}`, false, "not running; nothing to route"); continue; }
   const b = await browser(d.id);
   if (b.error) { record(`browser -> ${k} through relay tunnel -> app zone -> data plane -> partition`, false, b.error); continue; }
