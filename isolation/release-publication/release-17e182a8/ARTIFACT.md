@@ -24,3 +24,17 @@ The same as [../release-0181bce3/ARTIFACT.md](../release-0181bce3/ARTIFACT.md), 
 - `make-artifact.sh 17e182a8 … --notices isolation/release-publication/release-17e182a8`;
 - the notices are made with `--title "domain release 17e182a8 (release id a4f227482df4830a..., the production
   release)" --extra-md isolation/release-publication/production/front-embedded-data.md`.
+
+## Reviews (before anything is published)
+- **enclave-5d: APPROVED** the package at 31d0bb46, having checked the tarball itself:
+  - its sha256 equals the table's;
+  - release/ is identical (`diff -r`) to 5d's artifact, and release.json hashes to a4f22748;
+  - source/isolation/m2/dominit.c equals 17e182a8's;
+  - no lab string, private key, host name, home path, private IP or e-mail appears in any of its 205 files.
+  5d did not re-derive licenses/ or the source bundle.
+- **enclave-e3:** re-review of 31d0bb46 requested.
+- **enclave-63:** review pending.
+- **Open decisions, not ours:**
+  - the LGPL-2.1 section 6 finding for the static init (INVENTORY.md). A non-copyleft libc for init would change
+    template/init, and so the release id, its review cycle, the lab and prediction checks, and the install;
+  - where the tarball and the source bundle are hosted, together.
