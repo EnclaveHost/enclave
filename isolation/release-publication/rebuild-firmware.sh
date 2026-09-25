@@ -9,10 +9,7 @@
 #            isolation/release-publication/release-0181bce3/firmware-inputs
 #
 # BUILD-TIME INPUTS that no source pins, found by rebuilding 0181bce3's firmware (the first rebuild differed in exactly
-# these, and in nothing else):
-#   - EDK2's stack-protector cookies: BaseTools draws StackCookieValues{32,64}.json at random for each build directory
-#     and compiles one value into each module that uses a cookie. They are constants in the published firmware (anyone
-#     holding firmware.fd can read them), so recording them discloses nothing the binary does not.
+# these two, and in nothing else):
 #   - the AmdSev GRUB image's memdisk: grub.sh makes a FAT image with mkfs.msdos (volume ID from the clock) and copies
 #     grub.cfg into it with mcopy (directory-entry times from the clock, in LOCAL time). Pinned here by a volume ID, a
 #     SOURCE_DATE_EPOCH and a TZ (build.env).
@@ -20,8 +17,11 @@
 #     follows the .dll path, so a module whose section ends near an alignment boundary grows or shrinks by 64 bytes
 #     with it (StatusCodeHandlerPei did, between a 52- and a 54-character path). The tree is cloned at a padded name
 #     so its path has EDK2_PATH_LEN characters (build.env); the directory NAME itself does not reach the bytes.
-# With a build-inputs dir, the build uses those; without one, it pins fresh ones (the cookies EDK2 draws, the volume
-# ID and time below) and saves them to <workdir>/build-inputs, so the firmware it makes can be rebuilt exactly later.
+# NOT an input, though EDK2 draws it at random per build: StackCookieValues{32,64}.json. AmdSevX64 links StackCheckLibNull
+# into every module, so no cookie value is read or reaches the firmware (enclave-e3; checked: none of the 200 values
+# occurs in any module or in OVMF.fd, and a rebuild without the original files matches).
+# With a build-inputs dir, the build uses its build.env; without one, it pins a fresh volume ID and time (below) and
+# saves them to <workdir>/build-inputs, so the firmware it makes can be rebuilt exactly later.
 #
 # What is pinned here, and why each matters to the bytes:
 #   - edk2 at a COMMIT (the edk2-stable202608 tag's), and every submodule at the commit that tree records
@@ -83,7 +83,7 @@ diff "$here/edk2-submodules.txt" submodules.txt || { echo "rebuild-firmware.sh: 
 git -C "$E" apply "$here/patches/edk2-amdsev-grub-modules.patch"
 
 step "versions (the host tools the bytes also depend on)"
-{ echo "edk2 $EDK2_COMMIT"; echo "nasm $(nasm -v)"; echo "iasl $(iasl -v 2>&1 | grep -o 'version [0-9]*')"
+{ echo "edk2 $EDK2_COMMIT"; echo "nasm $(nasm -v | sed 's/ compiled on .*//')";   # no build date: versions.txt goes into the manifest echo "iasl $(iasl -v 2>&1 | grep -o 'version [0-9]*')"
   echo "mtools $(mcopy --version | head -1)"; echo "gcc $(gcc --version | head -1)"; echo "ld $(ld --version | head -1)"
   echo "python3 $(python3 --version)"; echo "make $(make --version | head -1)"
   echo "grub-mkimage $(grub-mkimage --version)"; echo "grub modules $(pacman -Qo /usr/lib/grub/x86_64-efi/linux.mod 2>/dev/null | sed 's/.* is owned by //')"
@@ -92,18 +92,16 @@ step "versions (the host tools the bytes also depend on)"
 step "build-time inputs"
 mkdir -p "$out/build-inputs"
 if [ -n "$inputs" ]; then
-  cp "$inputs/StackCookieValues32.json" "$inputs/StackCookieValues64.json" "$inputs/build.env" "$out/build-inputs/"
+  cp "$inputs/build.env" "$out/build-inputs/"
 else
   now=$(date +%s)
-  printf 'FAT_VOLID=%08X\nSOURCE_DATE_EPOCH=%s\nTZ=UTC\nEDK2_PATH_LEN=%s\n' $((now & 0xFFFFFFFF)) $now $(printf %s "$out/src/edk2" | wc -c) > "$out/build-inputs/build.env"
+  printf 'FAT_VOLID=%08X\nSOURCE_DATE_EPOCH=%s\nTZ=UTC0\nEDK2_PATH_LEN=%s\n' $((now & 0xFFFFFFFF)) $now $(printf %s "$out/src/edk2" | wc -c) > "$out/build-inputs/build.env"
 fi
 . "$out/build-inputs/build.env"; export SOURCE_DATE_EPOCH TZ
 # mkfs.msdos takes the volume ID from the clock unless given one: a wrapper ahead of it on PATH passes -i
 real=$(command -v mkfs.msdos)
 printf '#!/bin/sh\nexec %s -i %s "$@"\n' "$real" "$FAT_VOLID" > "$out/tools/bin/mkfs.msdos"; chmod +x "$out/tools/bin/mkfs.msdos"
 echo "memdisk: volume ID $FAT_VOLID, SOURCE_DATE_EPOCH $SOURCE_DATE_EPOCH, TZ $TZ; mkfs.msdos $(pacman -Qo "$real" 2>/dev/null | sed 's/.* is owned by //')" | tee -a "$out/versions.txt"
-mkdir -p "$E/Build/AmdSev/RELEASE_GCC"
-[ -z "$inputs" ] || cp "$out/build-inputs/StackCookieValues32.json" "$out/build-inputs/StackCookieValues64.json" "$E/Build/AmdSev/RELEASE_GCC/"
 
 step "BaseTools"
 cd "$E"
@@ -113,7 +111,6 @@ step "AmdSevX64 RELEASE (with a build report: the libraries each module links)"
 build -p OvmfPkg/AmdSev/AmdSevX64.dsc -a X64 -t GCC -b RELEASE -n 8 -y "$out/build-report.txt" -Y LIBRARY -Y FLASH > "$out/build.log" 2>&1 ||
   { tail -30 "$out/build.log"; exit 1; }
 cp Build/AmdSev/RELEASE_GCC/FV/OVMF.fd "$out/OVMF.amdsev.fd"
-[ -n "$inputs" ] || cp Build/AmdSev/RELEASE_GCC/StackCookieValues32.json Build/AmdSev/RELEASE_GCC/StackCookieValues64.json "$out/build-inputs/"
 got=$(sha256sum "$out/OVMF.amdsev.fd" | cut -c1-64)
 echo "FIRMWARE $got $out/OVMF.amdsev.fd"
 if [ -n "$want" ]; then

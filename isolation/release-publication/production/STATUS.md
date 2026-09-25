@@ -1,4 +1,4 @@
-# The production release's publication artifact: inventory done, packaging HELD for the final id
+# The production release's publication artifact: PACKAGED for review as release-17e182a8/ (not published)
 
 **The target.** 5d's production domain release. Its id has moved as review fixes landed:
 - bca562cc (aff21c73);
@@ -42,7 +42,12 @@ wait for that final id. Everything below carries over, provided `check-third-par
 - **The rollback:** 5c3561f9 (0181bce3), which stays installed and pinned. Its publication artifact is
   release-0181bce3/.
 
-## The candidate final release: a4f22748 (17e182a8), checked; packaging HELD for e3's and d1's approval
+## The final release: a4f22748 (17e182a8), approved by d1 and e3, and packaged
+5d confirmed both approvals. The artifact is [../release-17e182a8/ARTIFACT.md](../release-17e182a8/ARTIFACT.md):
+- the tarball 7955e736…, deterministic, rebuilt byte-identical to 5d's artifact;
+- the corresponding-source bundle 7509205f…, shared with 0181bce3's.
+
+Earlier checks, still true:
 5d built it as the candidate final. It is pending e3's and d1's review, and 5d will confirm when it is approved. Checked
 read-only on 5d's artifact, ~/enclave-bench/prod-release-17e182a8/release-17e182a8, whose clean worktree is at
 17e182a8:

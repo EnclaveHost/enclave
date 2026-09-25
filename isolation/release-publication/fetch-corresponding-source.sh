@@ -20,6 +20,8 @@
 # git trees are packed with `git archive | xz -9 -T1`; the SHA256SUMS line is what a reviewer checks, not the process.
 set -e
 out=${1:?usage: fetch-corresponding-source.sh <outdir>}
+here=$(cd "$(dirname "$0")" && pwd)
+[ ! -e "$out" ] || [ -z "$(ls -A "$out")" ] || { echo "fetch-corresponding-source.sh: $out is not empty (SHA256SUMS lists every file in it)" >&2; exit 2; }
 mkdir -p "$out"; out=$(cd "$out" && pwd); cd "$out"
 w=$(mktemp -d -p "$out" .work.XXXX); trap 'rm -rf "$w"' EXIT
 get() { # url sha256|- file
@@ -55,8 +57,25 @@ pack https://git.savannah.gnu.org/git/grub.git d38d6a1a9b79427848976f53d474392cd
 pack https://git.savannah.gnu.org/git/gnulib.git 9f48fb992a3d7e96610c4ce8be969cff2d61a01b gnulib-9f48fb99
 pack $ARCH/grub.git 984cb119d9ecb39d692d4a4aa1741291278b5db0 arch-packaging-grub-2-2.14-1
 
+echo "== the GRUB image's own recipe inside the firmware (GPL-3.0 corresponding source includes the build scripts)"
+# edk2's OvmfPkg/AmdSev/Grub at the firmware's commit: grub.sh runs grub-mkimage with GRUB 2:2.14-1's modules and a
+# memdisk holding grub.cfg; Grub.inf puts the image into the firmware volume. The patch is the module-list change the
+# firmware was built with (rebuild-firmware.sh applies it); the memdisk's pinned volume ID and time are build.env.
+E=https://raw.githubusercontent.com/tianocore/edk2/2970e5699ba6267f3384ffab20f96647578aebc8/OvmfPkg/AmdSev/Grub
+get $E/grub.sh 95125420326d201e70822bf0ea5c3f8acc45f59a0e47f3bcf145a3e789772ecf edk2-2970e569-AmdSev-Grub-grub.sh
+get $E/grub.cfg 203a130207d7b65b6653a944cdc1f794a86bd5603bb665613f7690dfaf3c496f edk2-2970e569-AmdSev-Grub-grub.cfg
+get $E/Grub.inf 081ddb87524da56c402c5b4de74546fbf5b44b141cb4eb87a081ede21a259ee2 edk2-2970e569-AmdSev-Grub-Grub.inf
+cp "$here/patches/edk2-amdsev-grub-modules.patch" edk2-amdsev-grub-modules.patch
+cp "$here/release-0181bce3/firmware-inputs/build.env" firmware-build.env
+
 echo "== go 1.27.0 (permissive; its LICENSE and PATENTS are read from here)"
 get https://go.dev/dl/go1.27.0.src.tar.gz 7002403d7cc44529ef6d26f69a44818263395ead7c16c05a5808ae047ebeb0e5 go1.27.0.src.tar.gz
+
+echo "== the Rust standard library's notices (core, alloc and std are compiled into wasmtime; rustc 1.98.0 = 88d9e12a)"
+R=https://raw.githubusercontent.com/rust-lang/rust/88d9e12ae178fab0fb5cc050a94da85685d449ea
+get $R/COPYRIGHT 172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af rust-1.98.0-COPYRIGHT
+get $R/LICENSE-APACHE 62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a rust-1.98.0-LICENSE-APACHE
+get $R/LICENSE-MIT b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1 rust-1.98.0-LICENSE-MIT
 
 echo "== recipes of the permissive components (wasmtime, go)"
 pack $ARCH/wasmtime.git 72b41ee7146e59804c48252d1ff1fed9cb1ba6f7 arch-packaging-wasmtime-48.0.1-1

@@ -1,8 +1,8 @@
 # Inventory: domain release 0181bce3 (release id 5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2)
 
-The release is every input of a per-app guest's launch measurement except the app. It was built on warden-host on
-2026-09-24 by `isolation/m4/domain-release.sh` at commit 0181bce3aac5fa03dfaf2928d834ecd04d2a4a73, and is deployed as
-~/enclave-prod/release-0181bce3.
+The release is every input of a per-app guest's launch measurement except the app. It was built on 2026-09-24 by
+`isolation/m4/domain-release.sh` at commit 0181bce3aac5fa03dfaf2928d834ecd04d2a4a73, and it is the release deployed
+today, and the production release's rollback.
 
 Each row says what the file is, and how that was established from the BYTES and the build scripts, not from memory.
 The packages named are the build host's installed Arch Linux packages. The toolchain is unchanged since the release was
@@ -17,7 +17,7 @@ built: pacman.log shows no upgrade of any of them after 2026-09-04.
 | template/vsock.ko.zst, vmw_vsock_virtio_transport.ko.zst, vmw_vsock_virtio_transport_common.ko.zst, tsm_report.ko.zst, sev-guest.ko.zst | release.json | modules of that kernel build | GPL-2.0 (modinfo: "GPL v2" / "GPL") |
 | template/init | 30b660c4bb8d3cbf… | Enclave's `isolation/m2/dominit.c`, compiled `gcc -static -O2`: static glibc and GCC runtime | Enclave LICENSE; LGPL-2.1-or-later (glibc); GPL-3.0-or-later WITH GCC-exception-3.1 |
 | template/front | 282cb360aa98865a… | Enclave's `isolation/m2/front` (Go), with the Go standard library and runtime | Enclave LICENSE; BSD-3-Clause (Go) |
-| template/rt/wasmtime | b77aecdb33fbf026… | Wasmtime 48.0.1, Arch Linux's build: 217 crates.io crates and 38 wasmtime workspace crates, including the C of capstone, zstd 1.5.5 and ittnotify | Apache-2.0 WITH LLVM-exception; per crate (THIRD-PARTY-NOTICES.md) |
+| template/rt/wasmtime | b77aecdb33fbf026… | Wasmtime 48.0.1, Arch Linux's build: the Rust 1.98.0 standard library, 217 crates.io crates and 38 wasmtime workspace crates, including the C of capstone, zstd 1.5.5 and ittnotify | Apache-2.0 WITH LLVM-exception; the Rust standard library (MIT OR Apache-2.0); per crate (THIRD-PARTY-NOTICES.md) |
 | template/rt/libc.so.6, libm.so.6, ld-linux-x86-64.so.2 | release.json | glibc 2.44 | LGPL-2.1-or-later |
 | template/rt/libgcc_s.so.1 | e618cb9c90c2eb3a… | GCC 16.2.1 runtime | GPL-3.0-or-later WITH GCC-exception-3.1 |
 | template/rt/runtime.json | 8044b26a6ef691e3… | the runtime identity (`isolation/contract/runtime-identity.sh` over wasmtime) | Enclave LICENSE |
@@ -34,15 +34,19 @@ The empty directories template/dev, proc, sys, tmp and template/rt are mount poi
 - nasm cd37b81b, acpica (iasl 20260408) 98bbab7d, and mtools 4.0.43 (sha256-pinned);
 - the host toolchain: gcc 16.2.1, binutils 2.47, python 3.14.7 and make 4.4.1;
 - the host's GRUB 2:2.14-1 and dosfstools 4.2-5;
-- three BUILD-TIME inputs, recorded in `firmware-inputs/`:
-  - EDK2's per-build random stack-protector cookies;
+- two BUILD-TIME inputs, recorded in `firmware-inputs/build.env`:
   - the GRUB memdisk's FAT volume ID and time;
   - the length of the edk2 tree's path.
 
 A first rebuild without them differed in exactly those places, and in nothing else:
-- one module's cookie;
-- 10 bytes of the memdisk;
-- one module's 64-byte CodeView padding.
+- 10 bytes of the memdisk (its volume ID and grub.cfg's timestamps);
+- one module, StatusCodeHandlerPei: 64 bytes of zeroed CodeView padding, and the header fields that record its size.
+
+EDK2 also draws StackCookieValues at random for each build. They are not an input: AmdSevX64 links StackCheckLibNull
+into all 92 modules, so no cookie value is read, and none of the 200 occurs in any module or in the firmware. The
+first rebuild's differing cookie in StatusCodeHandlerPei's AutoGen.h is read by nothing (enclave-e3). A rebuild without
+the original cookie files matches. (This firmware therefore has no working stack protector: upstream OVMF's
+default.)
 
 The build report (`-Y LIBRARY`, 94 modules) is what names the third-party code that is linked:
 - OpenSSL's libcrypto (edk2 submodule 8cf17aae, VERSION.dat 3.5.7), only through BaseCryptLib into
@@ -97,6 +101,8 @@ Everything else is EDK2's own code. The Grub FFS file is `OvmfPkg/AmdSev/Grub/gr
   - 217 from crates.io, compiled in;
   - 38 wasmtime workspace crates;
   - 17 proc-macros, which run at build time and are not in the binary.
+- **The Rust standard library** (core, alloc, std) of rustc 1.98.0 is linked in as well. cargo tree does not list it;
+  its texts (COPYRIGHT, LICENSE-APACHE, LICENSE-MIT at rust-lang/rust 88d9e12a) are in the notices.
 - **Cross-check against the bytes:** the binary names 105 crates.io crates in its panic paths
   (`wasmtime-crates-in-binary.txt`), and every one is in that set.
 - **C compiled in by -sys crates:**
@@ -118,18 +124,31 @@ Everything else is EDK2's own code. The Grub FFS file is `OvmfPkg/AmdSev/Grub/gr
   (GPL-3.0+ with the runtime exception) and the GRUB image (GPL-3.0+).
   - The corresponding source of each is in SOURCES.md: exact tarballs or commits, Arch's recipes, the kernel config,
     patches, and the scripts that built these bytes.
-  - It is kept outside git, with its hashes recorded.
-- **template/init is linked statically with glibc (LGPL-2.1 section 6).** What is provided:
-  - init's source (dominit.c at the release commit);
-  - the exact link command (above);
-  - glibc's source.
-  So a recipient can relink it against a modified glibc. The repository LICENSE, section 3 (unchanged), states that its
-  restrictions do not prohibit modifying an LGPL component or reverse engineering the combined work to debug such
-  modifications. No conflict found.
+  - That source is to be distributed ALONGSIDE the binaries, from the same place, as one bundle (SOURCES.md). Where
+    both are hosted is the publisher's decision, and is not made here.
+  - dominit.c is also inside the release tarball.
+- **template/init is linked statically with glibc (LGPL-2.1 section 6). A SPECIFIC FINDING, open (enclave-e3).**
+  - What is provided for relinking:
+    - init's source (dominit.c, inside the tarball);
+    - the exact link command (above);
+    - glibc's source.
+  - Section 6 also requires that the terms for the combined work "permit modification of the work for the customer's
+    own use and reverse engineering for debugging such modifications".
+  - The repository LICENSE, section 3, lifts section 2's restrictions for modifying the LGPL component and for that
+    reverse engineering. It does not lift section 2(a) for USING the modified combined work. Section 1(b) permits
+    non-production local runs only.
+  - So the LICENSE's text may not grant everything section 6 asks for this binary. Resolving it is a decision for
+    Steven, and nothing here changes the LICENSE. Options, none of them taken:
+    - a LICENSE addition;
+    - building init against a libc under non-copyleft terms, so that no LGPL code is statically linked into it. That
+      changes init, and so the measurement.
+  - Everything else in this release is shipped under its own license, unaffected by this point.
 - **GRUB (GPL-3.0+)** is a separate program aggregated in the firmware volume. The Installation Information clause
   (GPL-3.0 section 6) concerns User Products; a modified firmware still runs. No conflict found.
 - **Modules signed with Arch's per-build key:** the key is not part of the corresponding source, and GPL-2.0 does not
   require it. The kernel does not enforce module signatures. No conflict found.
+- **The Rust standard library** linked into wasmtime is MIT OR Apache-2.0; its texts are in the notices. No conflict
+  found.
 - **Dual-licensed crates:** ittapi and ittapi-sys ("GPL-2.0-only OR BSD-3-Clause") are used under BSD-3-Clause.
   zstd-sys's bundled zstd ("BSD-3-Clause OR GPL-2.0") is used under BSD-3-Clause.
 - **Crates without a license file:** six crates.io crates ship none, and each gets the text of its declared license

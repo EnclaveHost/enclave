@@ -26,7 +26,10 @@ Enclave's own code in it stays under the repository LICENSE, unchanged.
    <checkout> --crates <crates.json> --cargo-home <dir>`. It copies every license text from the components' own sources
    into licenses/ and writes THIRD-PARTY-NOTICES.md. INVENTORY.md and SOURCES.md record how each component was
    established from the bytes.
-4. **The artifact:** `make-artifact.sh <commit> <outdir> --expect <deployed release dir> --firmware <rebuilt fd>
+4. **The source bundle:** `make-source-bundle.sh <sources dir> <outdir> <release id>…` packs the corresponding source
+   into one deterministic tar. It is to be distributed ALONGSIDE the release tarball, from the same place; a pointer
+   to upstream is not enough.
+5. **The artifact:** `make-artifact.sh <commit> <outdir> --expect <deployed release dir> --firmware <rebuilt fd>
    --firmware-versions <its versions.txt> --notices <release notes dir>`.
    - It builds the release from a clean worktree of <commit> with domain-release.sh, and verifies its manifest id.
    - It compares every file, the tree and the modes with the deployed release.
@@ -41,7 +44,9 @@ Rules the scripts keep:
 - [release-0181bce3/](release-0181bce3/): release id 5c3561f9…, the one deployed as ~/enclave-prod/release-0181bce3,
   and the production release's rollback. [ARTIFACT.md](release-0181bce3/ARTIFACT.md) has the tarball, its hash and the
   exact rebuild commands.
-- [production/](production/): the production release (5d's).
+- [release-17e182a8/](release-17e182a8/): release id a4f22748…, THE PRODUCTION RELEASE (approved by d1 and e3).
+  [ARTIFACT.md](release-17e182a8/ARTIFACT.md) has the tarball and its hash. It shares its source bundle with 0181bce3.
+- [production/](production/): the production release (5d's): how it was tracked to its final id.
   - Its third-party content is checked identical to 0181bce3's.
   - Packaging waits for the final id ([STATUS.md](production/STATUS.md)).
   - `check-third-party.py` decides whether a new release is covered by an already-prepared one.

@@ -23,6 +23,16 @@ os.makedirs(L)
 sha = lambda b: hashlib.sha256(b).hexdigest()
 written = {}   # relative path -> sha256
 
+def label(src):
+    """where a text came from, relative to its source (no build host paths in the published notices)"""
+    src = str(src)
+    for root, name in ((a.sources, "corresponding-source"), (a.edk2, "edk2 2970e569"), (a.wasmtime_src, "wasmtime v48.0.1")):
+        if src.startswith(os.path.abspath(root) + "/"): return f"{name}: {os.path.relpath(src, root)}"
+    m = re.search(r"/registry/src/index\.crates\.io-[0-9a-f]+/(.+)$", src)
+    if m: return "crates.io: " + m.group(1)
+    if src.startswith("/usr/share/licenses/spdx/"): return "the SPDX text (Arch package licenses): " + os.path.basename(src)
+    return src
+
 def put(rel, data, why):
     p = os.path.join(L, rel); os.makedirs(os.path.dirname(p), exist_ok=True)
     open(p, "wb").write(data); written[rel] = (sha(data), why)
@@ -33,18 +43,18 @@ def from_tar(tarname, members, dest):
     with tarfile.open(os.path.join(a.sources, tarname)) as t:
         for m in members:
             f = t.extractfile(t.getmember(m))
-            out.append(put(dest + "/" + m.split("/", 1)[1], f.read(), f"{tarname}:{m}"))
+            out.append(put(dest + "/" + m.split("/", 1)[1], f.read(), f"corresponding-source: {tarname}: {m}"))
     return out
 
 def from_file(src, dest):
-    return put(dest, open(src, "rb").read(), src)
+    return put(dest, open(src, "rb").read(), label(src))
 
 def crate_text(src, crate, fname):
     """a crate's license text, stored ONCE per content under licenses/crates/<sha256[:16]>-<name> (crates share texts)"""
     data = open(src, "rb").read(); h = sha(data)
     rel = f"crates/{h[:16]}-{fname.replace('/', '_')}"
-    if rel not in written: put(rel, data, src)
-    else: written[rel] = (written[rel][0], written[rel][1] + f"; also {src}")
+    if rel not in written: put(rel, data, label(src))
+    else: written[rel] = (written[rel][0], written[rel][1] + f"; also {label(src)}")
     return "licenses/" + rel
 
 sections = []
@@ -69,11 +79,10 @@ section("GNU C Library (glibc)", "template/rt/libc.so.6, libm.so.6, ld-linux-x86
         "LGPL-2.1-or-later, with the notices in LICENSES", "glibc-16be1518495f.tar.xz + Arch's PKGBUILD (SOURCES.md)",
         from_tar("glibc-16be1518495f.tar.xz", ["glibc-16be1518495f/COPYING.LIB", "glibc-16be1518495f/COPYINGv2",
                  "glibc-16be1518495f/LICENSES"], "glibc"),
-        "template/init is linked STATICALLY with glibc. LGPL-2.1 section 6 applies to it: its own source "
-        "(isolation/m2/dominit.c at the release commit), the exact link command (INVENTORY.md) and glibc's source are "
-        "provided, so a recipient can relink it with a modified glibc; the repository LICENSE, section 3, states that "
-        "its restrictions do not prohibit modifying an LGPL component or reverse engineering the combined work to debug "
-        "such modifications.")
+        "template/init is linked STATICALLY with glibc, so LGPL-2.1 section 6 applies to it. For relinking it with a "
+        "modified glibc, these are provided: its own source (source/isolation/m2/dominit.c in this tarball), the exact "
+        "link command (INVENTORY.md) and glibc's source. Whether the repository LICENSE's terms grant everything section "
+        "6 asks of the combined work is an open finding, recorded in INVENTORY.md.")
 
 # --- GCC runtime -------------------------------------------------------------------------------------------------------
 section("GCC runtime libraries (libgcc_s, libgcc, libgcc_eh, crtbeginT.o, crtend.o)", "template/rt/libgcc_s.so.1 (shared); "
@@ -116,6 +125,11 @@ section("Go standard library and runtime (compiled into template/front)", "templ
 
 # --- wasmtime and its crates -------------------------------------------------------------------------------------------
 W = a.wasmtime_src
+section("Rust standard library (core, alloc, std, and the runtime pieces rustc links)", "template/rt/wasmtime",
+        "rustc 1.98.0 (88d9e12a; Arch rust 1:1.98.0-1, as wasmtime's .comment records)", "MIT OR Apache-2.0 (COPYRIGHT lists the parts under other terms)",
+        "rust-lang/rust at 88d9e12ae178fab0fb5cc050a94da85685d449ea",
+        [from_file(os.path.join(a.sources, "rust-1.98.0-" + f), "rust/" + f) for f in ("COPYRIGHT", "LICENSE-APACHE", "LICENSE-MIT")],
+        "cargo tree lists crates, not the standard library a Rust binary is linked with; these are its texts (enclave-e3).")
 wfiles = [from_file(os.path.join(W, "LICENSE"), "wasmtime/LICENSE")]
 section("Wasmtime (template/rt/wasmtime)", "template/rt/wasmtime", "wasmtime 48.0.1-1 (Arch; tag v48.0.1)",
         "Apache-2.0 WITH LLVM-exception (the wasmtime workspace crates); its crates below", "the tag v48.0.1 and its Cargo.lock",
@@ -181,6 +195,6 @@ w("\nWhere a crate is offered under a choice of licenses (\"X OR Y\"), it is use
 w("## The texts, by sha256\n\n| file | sha256 | taken from |\n|---|---|---|\n")
 for rel in sorted(written):
     h, why = written[rel]
-    w(f"| licenses/{rel} | {h} | {os.path.relpath(why, a.sources) if why.startswith(a.sources) else why.replace(os.path.expanduser('~'), '~')} |\n")
+    w(f"| licenses/{rel} | {h} | {why} |\n")
 open(os.path.join(a.outdir, "THIRD-PARTY-NOTICES.md"), "w").write(md.getvalue())
 print(f"notices: {len(sections)} sections, {len(crate_rows)} crates, {len(written)} texts")
