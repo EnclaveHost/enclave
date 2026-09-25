@@ -42,9 +42,6 @@ func RelayRoots() (*x509.CertPool, error) {
 
 // ---- the ticket, from the host ----
 
-// TicketPort is the host (vsock CID 2) port guestd hands each guest its ticket on.
-const TicketPort = 9444
-
 // TicketHold is how long guestd holds a booting guest's ticket connection waiting for the supervisor's ticket
 // (m4/guestd/release.go). The front's own wait for the ticket line is derived from it and outlasts it.
 const TicketHold = 5 * time.Minute
@@ -185,7 +182,7 @@ func (c *Client) Release(ctx context.Context, id [32]byte, ticket [32]byte, sk *
 			// the deadline cut an attempt short: what the relay was actually answering is the useful error, not the cut
 			return nil, fmt.Errorf("%w (the relay kept answering it; stopped at the deadline)", last)
 		}
-		if status != http.StatusServiceUnavailable && status != http.StatusTooManyRequests {
+		if status != http.StatusServiceUnavailable && status != http.StatusTooManyRequests && status != statusTransport {
 			return nil, err
 		}
 		last = err
@@ -209,7 +206,14 @@ type reply struct {
 	keyID       string
 }
 
-// attempt is ONE POST of the same body. It returns the reply's parts, or the HTTP status (0 = no answer) and why.
+// statusTransport: the attempt got no answer for a reason that is not the relay's certificate (a reset, a relay
+// restarting). Retried with the same body inside the window like a 503 (enclave-d1): at worst the relay had consumed the
+// ticket and answers the retry 403, which is final. A certificate failure (status 0) is final at once: retrying a pin
+// that failed cannot help.
+const statusTransport = -1
+
+// attempt is ONE POST of the same body. It returns the reply's parts, or the HTTP status (0 = no answer that may be
+// retried, statusTransport = a transport failure that may) and why.
 func (c *Client) attempt(ctx context.Context, hc *http.Client, body []byte, id [32]byte) (reply, int, error) {
 	timeout := c.Timeout
 	if timeout <= 0 {
@@ -224,7 +228,13 @@ func (c *Client) attempt(ctx context.Context, hc *http.Client, body []byte, id [
 	req.Header.Set("content-type", "application/json")
 	resp, err := hc.Do(req)
 	if err != nil {
-		return reply{}, 0, fmt.Errorf("release: %w", tlsReason(err))
+		var ua x509.UnknownAuthorityError
+		var hn x509.HostnameError
+		var ci x509.CertificateInvalidError
+		if errors.As(err, &ua) || errors.As(err, &hn) || errors.As(err, &ci) || ctx.Err() != nil {
+			return reply{}, 0, fmt.Errorf("release: %w", tlsReason(err))
+		}
+		return reply{}, statusTransport, fmt.Errorf("release: %w", tlsReason(err))
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, MaxSealed+1))
