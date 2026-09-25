@@ -156,6 +156,15 @@ export class Manager {
 
   /** Is the inventory known well enough to answer "absent"? */
   get inventoryReady() { return this.inventory.state === "ready" || this.inventory.state === "not-applicable"; }
+  /** VMs that are ours but name no deployment: while any exists, an unknown id might be one of them. */
+  unattributed() { return [...this.domains.values()].filter((r) => r.unattributed); }
+  /**
+   * May this manager say an id it does not hold is ABSENT? Only once it has surveyed Hyper-V AND holds no
+   * unattributed VM. With an unattributed VM present the honest answer is "unknown": the id a caller asks
+   * about may be exactly that VM, recorded under a previous manager (a reviewer's finding on the upgrade path,
+   * where retire read 404 and "confirmed gone" over a running legacy-marked VM).
+   */
+  mayAnswerAbsent() { return this.inventoryReady && this.unattributed().length === 0; }
 
   /**
    * REBUILD THE INVENTORY FROM HYPER-V (63's P1/P1b). Every VM this manager owns carries its identity
@@ -365,7 +374,11 @@ export class Manager {
   async remove(id) {
     const r = this.domains.get(id);
     // UNKNOWN IS NOT ABSENT (63's P1): only a manager that has surveyed Hyper-V may say an id is gone.
-    if (!r) { if (!this.inventoryReady) throw unavailable(this.inventory); return { removed: false, absent: true }; }
+    if (!r) {
+      if (!this.inventoryReady) throw unavailable(this.inventory);
+      if (!this.mayAnswerAbsent()) throw unattributedUnknown(id, this.unattributed());
+      return { removed: false, absent: true };
+    }
     try {
       await this.backend.stop(r.handle);
     } catch (e) {
@@ -393,6 +406,11 @@ export async function startManager(manager) {
 }
 
 function badRequest(msg) { const e = new Error(msg); e.status = 400; return e; }
+function unattributedUnknown(id, orphans) {
+  const e = new Error(`${id} is not a known instance, but ${orphans.length} VM(s) on this host are ours and name no deployment `
+    + `(${orphans.map((r) => r.id).join(", ")}): this may be one of them, so its absence cannot be asserted`);
+  e.status = 503; e.unattributed = orphans.map((r) => r.id); return e;
+}
 function unavailable(inv) {
   const e = new Error(inv && inv.state === "failed" ? `the inventory is unavailable: ${inv.error}`
                                                     : "the manager has not yet surveyed Hyper-V, so it cannot say what exists");
@@ -431,14 +449,22 @@ export function createServer(manager) {
                                                    ...(e.prerequisites ? { prerequisites: e.prerequisites } : {}) }); }
       }
       const m = p.match(/^\/vms\/([^/]+)$/);
-      if (m && req.method === "GET") { const r = manager.get(decodeURIComponent(m[1])); return r ? send(200, r) : send(404, { error: "not_found" }); }
+      if (m && req.method === "GET") {
+        const r = manager.get(decodeURIComponent(m[1]));
+        if (r) return send(200, r);
+        // "not found" only when absence can be asserted; otherwise it is UNKNOWN (an unattributed VM exists)
+        if (!manager.mayAnswerAbsent())
+          return send(503, { error: "unknown_while_unattributed", unattributed: manager.unattributed().map((x) => x.id), managerEpoch: manager.epoch });
+        return send(404, { error: "not_found" });
+      }
       if (m && req.method === "DELETE") {
         const id = decodeURIComponent(m[1]);
         try {
           const r = await manager.remove(id);
           return r.absent ? send(404, { error: "not_found" }) : send(200, { ok: true });
         } catch (e) {
-          if (e.status === 503) return send(503, { error: e.message, inventory: e.inventory ?? manager.inventory, managerEpoch: manager.epoch });
+          if (e.status === 503) return send(503, { error: e.message, inventory: e.inventory ?? manager.inventory,
+                                                   ...(e.unattributed ? { unattributed: e.unattributed } : {}), managerEpoch: manager.epoch });
           // a stop that failed is NOT a removal: say so with the domain still listed
           return send(e.status || 500, { error: e.message, id: e.id ?? id, stillListed: true });
         }

@@ -199,3 +199,32 @@ test("the survey covers the prefix AND any VM carrying the manager's identity No
   assert.match(CMD.create({ name: "n", memMiB: 256, vcpus: 1, notes: notesFor({ id: "hvx", name: DEP, instanceId: "i-1" }) }),
                /Set-VM -VM \$vm -Notes 'enclave-vbslike-app-domain\/manager\|/);
 });
+
+test("while an unattributed VM exists, an unknown id is UNKNOWN (503), never 'absent': the upgrade path", async () => {
+  // A reviewer's finding: after an upgrade, a VM carrying only the bare legacy marker is recovered as unattributed.
+  // If the manager then answered 404 for the id a node still holds, retire would read "confirmed gone" while that
+  // VM - which may be exactly the one it means - is still running.
+  const host = fakeHost();
+  host.vms.set("11111111-2222-3333-4444-555555555555", { vmId: "11111111-2222-3333-4444-555555555555", name: "enclave-app-legacy", state: "Running", notes: OWNER_MARKER });
+  const m = mk(host.backend);
+  await m.recover();
+  const heldByNode = "hv" + "a".repeat(32);            // the id a node recorded under the previous manager
+  await assert.rejects(m.remove(heldByNode), (e) => e.status === 503 && /may be one of them/.test(e.message));
+  assert.equal(host.vms.size, 1, "nothing was removed on a guess");
+  const srv = createServer(m);
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const port = srv.address().port;
+  try {
+    for (const method of ["GET", "DELETE"]) {
+      const res = await fetch(`http://127.0.0.1:${port}/vms/${heldByNode}`, { method });
+      assert.equal(res.status, 503, `${method} of an unknown id must not answer 404 while an unattributed VM exists`);
+      const j = await res.json();
+      assert.deepEqual(j.unattributed, ["orphan-11111111-2222-3333-4444-555555555555"]);
+    }
+    // once the unattributed VM is removed, absence can be asserted again
+    const orphan = m.list().find((r) => r.unattributed);
+    assert.deepEqual(await m.remove(orphan.id), { removed: true, absent: false });
+    assert.equal((await fetch(`http://127.0.0.1:${port}/vms/${heldByNode}`)).status, 404);
+    assert.deepEqual(await m.remove(heldByNode), { removed: false, absent: true });
+  } finally { srv.close(); }
+});
