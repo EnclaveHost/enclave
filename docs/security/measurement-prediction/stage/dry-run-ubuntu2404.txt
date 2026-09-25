@@ -1,0 +1,13 @@
+ensurepip absent, as on nan
+stage: host: Linux 7.2.0-gbf5bafed3e6d x86_64; python 3.12.3; node v22.20.0; cpio (GNU cpio) 2.15; gzip 1.12
+stage: repo at 2cce09274d4a45523c7ab8ab189fc7a41479adf9; toolchain commit 0181bce3aac5fa03dfaf2928d834ecd04d2a4a73 present
+stage: go version go1.24.7 linux/amd64
+stage: venv: cffi==2.1.1 cryptography==50.0.1 pycparser==3.0 sev-snp-measure==0.0.13 
+release 5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2 verified 15 files
+release 6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb verified 15 files
+stage: sev-snp-measure digest 4c252b758c02dd296bc560783c2877a3e2ad89f3d04f5c16d02969fa1a8005ba (pin this as SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256)
+{"knownAnswerTest":"PASS","reason":"2 known answer(s) reproduced exactly","ms":14356,"toolchain":"0181bce3aac5fa03dfaf2928d834ecd04d2a4a73"}
+stage: done: /opt/enclave-predict/2cce09274d4a (nothing outside it changed; no service, env or relay file touched)
+== outside BASE:
+enclave-predict
+674M	/opt/enclave-predict/2cce09274d4a
