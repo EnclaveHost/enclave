@@ -126,8 +126,8 @@ fix, 33/33). **U7 parts A and B: reviewed, no open findings.** The one remaining
 WHICH box, is a Codex/Steven item. Not rolled out.
 The design for that residual is in review: `security/relay-txt-key` `ee707d67` (Codex's design, 99's code), which gives
 the relays a key of their own and a switch to retire the fleet HMAC. d1 reviewed it (37/37): no respond-then-continue
-path. Suggested: require `ts` on relay-key pushes (replay), and a stats-probe fix. Not deployed; the flip is
-Codex's/Steven's. |
+path. Round 2 `9db4d5b7` takes both of d1's suggestions (`ts` required on relay-key pushes; a probe that neither
+rate-limits nor forces a ledger read), verified 38/38. Not deployed; the flip is Codex's/Steven's. |
 
 ## 5. BLOCKED or PAUSED (parked; not rerouted, not rephrased)
 
