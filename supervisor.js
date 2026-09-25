@@ -8757,6 +8757,21 @@ if (process.env.RELEASE_SELFTEST) {
     console.log(JSON.stringify({ staged: await Promise.all(c.staged.map((id) => depHasSecrets(id))) }));
     process.exit(0);
   }
+  if (c.spawnReal) {               // {"spawnReal":{endpoint, spec}}: the REAL spawn, pump and signed fetch against the REAL
+    // guestd at VMMGR_URL (guestd-control/1, GUESTD_KEY_FILE) and the relay at SECRETS_API - the release lab's phase 2
+    // (isolation/m2/lab-release/run-lab-phase2.sh). Prints the instance id, the pump's result and guestd's view.
+    _advertisedEndpoint = c.spawnReal.endpoint;
+    let out = {};
+    try {
+      const r = await spawnContainer(c.spawnReal.spec);
+      out.vmId = r.vmId;
+      out.pump = await pumpReleaseTicket(c.spawnReal.spec.deploymentId, r.vmId);   // the running pump's own promise
+      const v = await vmReq("GET", `/vms/${encodeURIComponent(r.vmId)}`, null, 10_000);
+      out.view = v.body;
+    } catch (e) { out.error = e.message; }
+    console.log(JSON.stringify(out));
+    process.exit(0);
+  }
   if (c.spawnSite) {               // {"spawnSite":{health, spec}}: the REAL spawnContainer against a scripted guestd
     const posted = [], pumped = [];
     vmReq = async (method, path, body) => {
