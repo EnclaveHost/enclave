@@ -178,28 +178,52 @@ test("the claim path judges the pool with the version's policy and, on a resume,
   const src = fs.readFileSync(SUPERVISOR, "utf8");
   const call = src.slice(src.indexOf("const isoWhy = isolationClaimVerdict({"), src.indexOf("if (isoWhy) return isoWhy;"));
   assert.match(call, /policy: isolationPolicyFor\(g\.min\)/);
-  assert.match(call, /held: resume \? await isolationHeldGuest\(d\.id\) : null/);
+  assert.match(src, /const isoHeld = resume \? await isolationHeldGuest\(d\.id\) : null;/);
+  assert.match(call, /held: isoHeld, heldSameRecord,/);
+  assert.match(src, /heldSameRecord = isoHeld\.recordSha256 === derivationDigest\(isolationPrefetchBody\(g, /, "an adoption is the SAME record");
   assert.match(src, /const resume = leaseLive && d\.runner === _enclaveId;/, "a resume is this runner's own live lease");
 });
 
 // guestd's live host floor (pool.go hostRefusal), mirrored: no claim or advertised share guestd's floor would refuse
 test("the host's live memory floor gates claims and caps the advertised share; without it nothing changes", async () => {
-  const host = (avail, floorMiB = 16384) => ({ floorMiB, memAvailableMiB: avail });
-  const r = await seam({ pool: { ...pool(B), host: host(16384 + 20000) }, verdicts: [
+  const host = (avail, pendingMiB = 0, floorMiB = 16384) => ({ floorMiB, memAvailableMiB: avail, pendingMiB });
+  const r = await seam({ pool: { ...pool(B), host: host(16384 + 20500) }, verdicts: [
     verdict(MGR({ ...pool(B), host: host(16384 + 1792) })),        // exactly room for one guest above the floor: claimable
     verdict(MGR({ ...pool(B), host: host(16384 + 1791) })),        // one MiB short: refused
     verdict(MGR({ ...pool(B), host: host(null) })),                // unreadable on guestd's side: refused
     verdict(MGR({ ...pool(B), host: { floorMiB: 0, memAvailableMiB: null } })),   // floor off: no host check
+    verdict(MGR({ ...pool(B), host: host(16384 + 1792, 1792) })),  // enclave-99 #1: room for one, but one is still STARTING
   ] });
   assert.equal(r.verdicts[0], null);
-  assert.match(r.verdicts[1], /too low on memory: .* 16383 MiB available, under guestd's 16384 MiB floor/);
+  assert.match(r.verdicts[1], /too low on memory: .* 1 MiB under guestd's 16384 MiB floor/);
   assert.match(r.verdicts[2], /available memory is unknown/);
   assert.equal(r.verdicts[3], null);
-  // 20000 MiB above the floor caps the pool's own 1.0 at 20000/32768
-  assert.equal(r.maxFreeCpu, Math.round(20000 / 32768 * 1000) / 1000);
-  for (const [what, h] of [["below one guest", host(16384 + 1000)], ["unreadable", host(null)]])
-    assert.equal((await seam({ pool: { ...pool(B), host: h } })).maxFreeCpu, 0, `${what}: nothing is advertised`);
+  assert.match(r.verdicts[4], /1792 MiB under .*\(counting 1792 MiB of guests still starting\)/);
+  // 20500 MiB above the floor caps the pool's own 1.0 at 20500/32768 = 0.6256, quantized DOWN to 0.62 (enclave-99 #4)
+  assert.equal(r.maxFreeCpu, 0.62);
+  assert.deepEqual(r.guestPool.host, { floorMiB: 16384, admitsSmallestGuest: true }, "the report carries the verdict, not MemAvailable");
+  assert.ok(!JSON.stringify(r.guestPool).includes(String(16384 + 20500)), "the live MemAvailable is not published");
+  for (const [what, h] of [["below one guest", host(16384 + 1000)], ["unreadable", host(null)], ["starting guests take the room", host(16384 + 3000, 2000)]]) {
+    const x = await seam({ pool: { ...pool(B), host: h } });
+    assert.equal(x.maxFreeCpu, 0, `${what}: nothing is advertised`);
+    assert.equal(x.guestPool.host.admitsSmallestGuest, false, what);
+  }
   assert.equal((await seam({ pool: pool(B) })).maxFreeCpu, 1, "an older guestd (no host block) is unchanged");
+});
+
+// enclave-99 #2: on a RESUME, adopting the running guest of the SAME record takes no new memory; a held guest REPLACED
+// (another record: the spawn deletes it first) frees only its RAM, not the 768 allowance, so the host check applies.
+test("a resume adopting the same record skips the host check; a replacement is credited only its guest's RAM", async () => {
+  const held = { name: "0x" + "4e".repeat(32), status: "running", reserved: { memMiB: 1792, cpuPct: 100 } };
+  const near = { ...pool(B), host: { floorMiB: 16384, memAvailableMiB: 16384 + 700, pendingMiB: 0 } };   // ~700 MiB above the floor
+  const r = await seam({ verdicts: [
+    { ...verdict(MGR(near)), held, heldSameRecord: true },   // adoption: no new memory, claimable
+    { ...verdict(MGR(near)), held, heldSameRecord: false },  // replacement: 700 - 1792 + (1792 - 768) = -68 -> refused
+    { ...verdict(MGR({ ...near, host: { ...near.host, memAvailableMiB: 16384 + 768 } })), held, heldSameRecord: false },  // exactly 0 over: claimable
+  ] });
+  assert.equal(r.verdicts[0], null, "adopting the same record's running guest must pass (the resume path)");
+  assert.match(r.verdicts[1], /68 MiB under guestd's 16384 MiB floor/);
+  assert.equal(r.verdicts[2], null);
 });
 
 test("off the tier nothing of the pool applies: the node is the NODE_* constants and free is the share ledger", async () => {

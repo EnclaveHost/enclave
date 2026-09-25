@@ -538,10 +538,55 @@ func TestTheSupervisorMirrorsTheHostFloorThisGuestdReports(t *testing.T) {
 	gp, _ := got["guestPool"].(map[string]any)
 	h, _ := gp["host"].(map[string]any)
 	why, _ := got["healthVerdict"].(string)
-	if h["floorMiB"] != float64(16384) || h["memAvailableMiB"] != float64(16384+oneGuest.MemMiB-1) {
+	// the supervisor publishes the floor's VERDICT, never the host's live MemAvailable (enclave-99 #4)
+	if h["floorMiB"] != float64(16384) || h["admitsSmallestGuest"] != false || h["memAvailableMiB"] != nil {
 		t.Fatalf("the supervisor's host block: %v", gp)
 	}
 	if got["maxFreeCpu"] != float64(0) || !strings.Contains(why, "too low on memory") {
 		t.Fatalf("a host one MiB short: maxFreeCpu %v, verdict %q", got["maxFreeCpu"], why)
+	}
+}
+
+// enclave-99 #1: a guest admitted but still STARTING has not taken its RAM, so MemAvailable cannot show it. With room above
+// the floor for exactly one guest, two back-to-back creates must admit ONE: the second counts the first as pending.
+func TestAStartingGuestCountsAgainstTheFloorUntilItRuns(t *testing.T) {
+	r := newRig(t)
+	r.s.Budget = budgetFor(4)
+	r.s.HostFloorMiB = 16384
+	r.s.MemAvailable = func() (int, error) { return 16384 + oneGuest.MemMiB, nil } // the host does not see the first guest yet
+	r.f.startGate = make(chan struct{})                                            // the first guest stays starting
+	p, _ := r.bundle("A", contract.Policy{})
+	if code, body := r.create(name(1), p); code != 201 {
+		t.Fatalf("the first guest: %d %v", code, body)
+	}
+	code, body := r.create(name(2), p)
+	if code != 507 || body["error"] != "host_memory_low" || body["pendingMiB"] != float64(oneGuest.MemMiB) {
+		t.Fatalf("the second, while the first is starting: %d %v", code, body)
+	}
+	if h, _ := r.pool()["host"].(map[string]any); h["pendingMiB"] != float64(oneGuest.MemMiB) {
+		t.Fatalf("/health.pool.host pendingMiB: %v", h)
+	}
+	close(r.f.startGate)
+	r.s.launching.Wait()
+	r.f.startGate = nil
+	if h, _ := r.pool()["host"].(map[string]any); h["pendingMiB"] != float64(0) {
+		t.Fatalf("a running guest is no longer pending: %v", h)
+	}
+}
+
+// enclave-99 #3: MemAvailable is in kB (KiB): MiB = kB / 1024, rounded down. A /1000 slip would fail OPEN by ~2.4%.
+func TestParseMemAvailableIsKiBToMiBRoundedDown(t *testing.T) {
+	fixture := "MemTotal:       130876608 kB\nMemFree:        13456076 kB\nMemAvailable:   86030360 kB\nBuffers:         4473996 kB\n"
+	n, err := parseMemAvailableMiB(strings.NewReader(fixture))
+	if err != nil || n != 84014 { // 86030360 / 1024 = 84014.02; a /1000 slip would give 86030
+		t.Fatalf("parse: %d %v, want 84014", n, err)
+	}
+	if n, err := parseMemAvailableMiB(strings.NewReader("MemAvailable:   1023 kB\n")); err != nil || n != 0 {
+		t.Fatalf("under 1 MiB rounds down to 0: %d %v", n, err)
+	}
+	for _, bad := range []string{"MemTotal: 1 kB\n", "MemAvailable: lots kB\n", ""} {
+		if _, err := parseMemAvailableMiB(strings.NewReader(bad)); err == nil {
+			t.Fatalf("%q must be an error", bad)
+		}
 	}
 }
