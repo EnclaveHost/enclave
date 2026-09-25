@@ -56,8 +56,16 @@ start)
            OVMF=${OVMF_T0:-$OVMF} ;;
     *) echo "mode must be snp or plain"; exit 2 ;;
   esac
-  # A vsock CID is global to the host: take one from a range nothing else here uses.
-  cid=$(( 65536 + $(od -An -N2 -tu2 /dev/urandom) ))
+  # A vsock CID is global to the host: take one from a range nothing else here uses. GUEST_CID lets the caller choose
+  # it (guestd does, so its ticket service and egress server know the guest before it boots; m4/guestd/release.go).
+  # Host-side only: the CID is not part of the launch measurement.
+  if [ -n "${GUEST_CID:-}" ]; then
+    case "$GUEST_CID" in *[!0-9]*) echo "run-domain.sh: GUEST_CID must be a number" >&2; exit 2 ;; esac
+    [ "$GUEST_CID" -ge 65536 ] && [ "$GUEST_CID" -lt 131072 ] || { echo "run-domain.sh: GUEST_CID must be in 65536-131071" >&2; exit 2; }
+    cid=$GUEST_CID
+  else
+    cid=$(( 65536 + $(od -An -N2 -tu2 /dev/urandom) ))
+  fi
   unit="m2-$tag-$$"
   t0=$(date +%s%3N)
   # The domain's only device besides the console is its vsock (the one port). Devices are not part

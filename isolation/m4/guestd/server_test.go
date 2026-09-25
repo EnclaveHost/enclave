@@ -29,11 +29,13 @@ type fake struct {
 	startGate   chan struct{} // when set, Start blocks until it is closed
 	stopGate    chan struct{} // when set, Stop blocks until it is closed (a unit that takes its time to stop)
 	startArgs   [3]int
-	fwdPort     func(workdir string) int // when set, where each guest's forwarder listens (the data-plane tests)
-	hostData    []string                 // the HOST_DATA each Start was given, in order
-	keyOverride string                   // when set, Verify reports this key (a different guest answering)
-	serial      string                   // when set, Start writes it as the guest's serial console
-	verifyHD    []string                 // the host data each Verify was asked to require
+	fwdPort     func(workdir string) int                                     // when set, where each guest's forwarder listens (the data-plane tests)
+	hostData    []string                                                     // the HOST_DATA each Start was given, in order
+	keyOverride string                                                       // when set, Verify reports this key (a different guest answering)
+	serial      string                                                       // when set, Start writes it as the guest's serial console
+	verifyHD    []string                                                     // the host data each Verify was asked to require
+	cids        []uint32                                                     // the CID each Start was given
+	guest       func(ctx context.Context, cid uint32, hostData string) error // when set, the guest's boot (release tests)
 }
 
 func newFake() *fake { return &fake{stops: map[string]int{}, alive: map[string]bool{}} }
@@ -47,7 +49,7 @@ func (f *fake) Build(ctx context.Context, bundle, workdir string, vcpus int) (st
 	}
 	return filepath.Join(workdir, "guest.cpio.gz"), "ab" + hex.EncodeToString(make([]byte, 47)), nil
 }
-func (f *fake) Start(ctx context.Context, image, tag, workdir string, vcpus, mem, cpu int, hostData string) (string, uint32, error) {
+func (f *fake) Start(ctx context.Context, image, tag, workdir string, vcpus, mem, cpu int, hostData string, cid uint32) (string, error) {
 	if f.startGate != nil {
 		<-f.startGate
 	}
@@ -58,8 +60,16 @@ func (f *fake) Start(ctx context.Context, image, tag, workdir string, vcpus, mem
 	}
 	f.startArgs = [3]int{vcpus, mem, cpu}
 	f.hostData = append(f.hostData, hostData)
+	f.cids = append(f.cids, cid)
+	guest := f.guest
 	f.mu.Unlock()
-	return "unit-" + tag, 99, nil
+	if guest != nil {
+		// the guest's boot: a deployment guest's front reads its ticket before it serves (release.go); no ticket, no boot
+		if err := guest(ctx, cid, hostData); err != nil {
+			return "unit-" + tag, err
+		}
+	}
+	return "unit-" + tag, nil
 }
 func (f *fake) Forward(ctx context.Context, cid uint32, workdir string) (int, func(), error) {
 	if f.fwdPort != nil {

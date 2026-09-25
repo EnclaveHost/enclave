@@ -3,9 +3,9 @@ package release
 import (
 	"bytes"
 	"crypto/aes"
-	"crypto/ed25519"
 	"crypto/cipher"
 	"crypto/ecdh"
+	"crypto/ed25519"
 	"crypto/hkdf"
 	"crypto/sha256"
 	"encoding/hex"

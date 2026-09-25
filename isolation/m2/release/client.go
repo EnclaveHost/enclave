@@ -44,7 +44,10 @@ const RelayHost = "api.enclave.host"
 // Since contract v1.2 TLS is NOT the config's integrity boundary: the relay signs every reply with a key pinned in
 // this image (verify.go), so a certificate from a wrong CA can at worst deny a release, never forge one. The set is
 // therefore sized for AVAILABILITY (both issuers, so one CA's outage does not stop every release), and kept to named
-// roots rather than a whole system bundle. An issuer outside it fails closed: an outage, never a forgery.
+// roots rather than a whole system bundle. An issuer outside it fails closed: an outage, never a forgery. In particular
+// ZeroSSL's RSA chain (Sectigo Public Server Authentication Root R46 / USERTrust RSA) is NOT pinned: Caddy's default key
+// type is ECDSA, so its ZeroSSL fallback issues on the ECC chain above; an RSA certificate would fail every release
+// closed until its root is added here (enclave-99).
 var (
 	//go:embed roots/isrg-root-x1.pem
 	isrgRootX1 []byte

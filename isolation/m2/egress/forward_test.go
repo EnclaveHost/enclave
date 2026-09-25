@@ -74,6 +74,7 @@ type rig struct {
 	hostAddr string
 	mu       sync.Mutex
 	log      bytes.Buffer
+	admitCID uint32   // the one guest the host's manager "launched"
 	looked   []string // names the host resolved: the synthetic observer of which destination was chosen
 	dialed   []string // addresses the host dialed
 }
@@ -108,7 +109,7 @@ func (o observingResolver) LookupNetIP(ctx context.Context, network, host string
 // address with no route fails the way a real connect does, with an error naming the address.
 func newRig(t *testing.T, origins []string, route map[string]net.Listener, dns fakeResolver) *rig {
 	t.Helper()
-	r := &rig{}
+	r := &rig{admitCID: 42}
 	d := &Dialer{Resolver: observingResolver{r, dns}, Own: func() []netip.Addr { return nil }}
 	d.dial = func(ctx context.Context, addr string) (net.Conn, error) {
 		r.mu.Lock()
@@ -124,7 +125,7 @@ func newRig(t *testing.T, origins []string, route map[string]net.Listener, dns f
 		}
 		return fakeConn{c, net.TCPAddrFromAddrPort(netip.MustParseAddrPort(addr))}, nil // the peer the dialer judged
 	}
-	srv := &Server{Dialer: d, CIDOf: func(net.Conn) uint32 { return 42 },
+	srv := &Server{Dialer: d, CIDOf: func(net.Conn) uint32 { return 42 }, Admit: func(cid uint32) bool { r.mu.Lock(); defer r.mu.Unlock(); return cid == r.admitCID },
 		Log: log.New(writerFunc(func(p []byte) (int, error) { r.mu.Lock(); defer r.mu.Unlock(); return r.log.Write(p) }), "", 0)}
 	hl, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -239,11 +240,33 @@ func TestACertificateForAnotherAllowedHostIsRefused(t *testing.T) {
 	}
 }
 
-func TestTheServerRefusesToStartWithoutCIDOf(t *testing.T) {
+func TestTheServerRefusesToStartWithoutCIDOfOrAdmit(t *testing.T) {
 	l, _ := net.Listen("tcp", "127.0.0.1:0")
 	defer l.Close()
-	if err := (&Server{Dialer: &Dialer{}}).Serve(context.Background(), l); err == nil || !strings.Contains(err.Error(), "CIDOf") {
+	if err := (&Server{Dialer: &Dialer{}, Admit: func(uint32) bool { return true }}).Serve(context.Background(), l); err == nil || !strings.Contains(err.Error(), "CIDOf") {
 		t.Fatalf("a server with no CIDOf started: %v", err)
+	}
+	if err := (&Server{Dialer: &Dialer{}, CIDOf: func(net.Conn) uint32 { return 1 }}).Serve(context.Background(), l); err == nil || !strings.Contains(err.Error(), "Admit") {
+		t.Fatalf("a server with no Admit started: %v", err)
+	}
+}
+
+// a VM the host's manager did not launch (the control CVM, say) is refused before its header is read, and nothing is
+// resolved or dialed for it
+func TestAGuestTheManagerDidNotLaunchIsRefused(t *testing.T) {
+	ca := newCA(t)
+	a := ca.server(t, "images.example", "A")
+	r := newRig(t, []string{"images.example"}, map[string]net.Listener{"93.184.216.34:443": a},
+		fakeResolver{"images.example": {"93.184.216.34"}})
+	r.mu.Lock()
+	r.admitCID = 7 // the rig's streams all come from CID 42
+	r.mu.Unlock()
+	if _, err := tenantGet(t, r, ca, "images.example", nil); err == nil {
+		t.Fatal("an unadmitted guest reached an origin")
+	}
+	looked, dialed := r.observed()
+	if len(looked) != 0 || len(dialed) != 0 || r.logs() != "guest 42 egress refused:admit\n" {
+		t.Fatalf("resolved %v, dialed %v, log %q", looked, dialed, r.logs())
 	}
 }
 

@@ -176,7 +176,8 @@ func (f *Forwarder) logf(format string, a ...any) {
 type Server struct {
 	Dialer *Dialer
 	CIDOf  func(net.Conn) uint32
-	Log    *log.Logger // "guest <cid> egress open|refused:<reason>" and nothing else
+	Admit  func(cid uint32) bool // only guests the host's manager launched (guestd admitCID); anything else is refused
+	Log    *log.Logger           // "guest <cid> egress open|refused:<reason>" and nothing else
 }
 
 // Serve refuses to start without CIDOf: with no way to tell guests apart, every guest would share ONE set of caps
@@ -187,6 +188,10 @@ func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 	}
 	if s.Dialer == nil {
 		return errors.New("egress server: no dialer")
+	}
+	if s.Admit == nil {
+		// any VM on the host can reach this vsock port; only the manager's own guests may use it (enclave-99)
+		return errors.New("egress server: Admit is required (it serves only the guests the host's manager launched)")
 	}
 	go func() { <-ctx.Done(); l.Close() }()
 	for {
@@ -204,6 +209,11 @@ func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 func (s *Server) handle(ctx context.Context, g net.Conn) {
 	defer g.Close()
 	cid := s.CIDOf(g)
+	if !s.Admit(cid) {
+		s.outcome(cid, "refused:"+string(ReasonAdmit)) // before a byte of its header is read
+		io.WriteString(g, "refused\n")
+		return
+	}
 	g.SetReadDeadline(time.Now().Add(10 * time.Second))
 	br := bufio.NewReaderSize(g, maxHeader)
 	if _, err := br.Peek(1); err != nil {
