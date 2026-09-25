@@ -64,7 +64,10 @@ try {
             guestStateMasterSha256 = $GuestStateMasterSha256; guestStateArchiveDir = 'C:\Users\claude\vbs-evidence';
             hypervModule = $HypervModule; prefix = $Prefix; memMiB = 2048; vcpus = 1 } | ConvertTo-Json -Compress
   $out = "C:\Users\claude\vbs-evidence\mgrcanary-$stamp.out"
-  $p = Start-Process -FilePath 'C:\Program Files\nodejs\node.exe' -ArgumentList @("$Tree\windows\vbslike\manager\ops\launcher-canary.mjs", ($cfg -replace '"','\"')) `
+  $cfgFile = "C:\Users\claude\vbs-evidence\mgrcanary-$stamp.json"
+  [System.IO.File]::WriteAllText($cfgFile, $cfg)   # no BOM; a file, because Windows re-quotes native arguments
+  Note "config: $cfg"
+  $p = Start-Process -FilePath 'C:\Program Files\nodejs\node.exe' -ArgumentList @("$Tree\windows\vbslike\manager\ops\launcher-canary.mjs", $cfgFile) `
          -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError "$out.err"
   if (-not $p.WaitForExit(600000)) { try { $p.Kill() } catch {}; $fail += "the launcher canary did not finish in 600 s (killed)" }
   $launcherExit = $p.ExitCode
