@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 4c-b: point metal/config.iso.json's dist at the 4c image (dist-iso-b18f8989), nothing else; the node CVM restarts and
-# its NEW supervisor (b18f8989) resumes the 3 canaries' leases by ADOPTING their running guests (same record). guestd,
+# 4c-b: point metal/config.iso.json's dist at the 4c image (dist-iso-b3109929), nothing else; the node CVM restarts and
+# its NEW supervisor (b3109929 = b18f8989's 8 files) resumes the 3 canaries' leases by ADOPTING their running guests (same record). guestd,
 # the guests and the relay are untouched. After it the published availability carries the floor's verdict. The release
 # stays OFF (the supervisor never sets ISOLATION_RELEASE). Run DETACHED via s4c-run.sh b, after 4c-a.
 set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/s4c-20260925/lib4c.sh
@@ -33,17 +33,20 @@ assert s.count(q)==1, "dist is not exactly the live image"; t=s.replace(q,'"%s"'
 a,b=json.loads(s),json.loads(t); assert b["dist"]==new and {k:v for k,v in a.items() if k!="dist"}=={k:v for k,v in b.items() if k!="dist"}
 fd=os.open(tmp,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600); os.write(fd,t.encode()); os.close(fd); os.replace(tmp,p)   # same filesystem: atomic
 PY
-T0=$(date -u '+%Y-%m-%d %H:%M:%S UTC'); say "4c-b: dist -> dist-iso-b18f8989; restarting enclave-metal-iso (the node CVM reboots)"
+T0=$(date -u '+%Y-%m-%d %H:%M:%S UTC'); say "4c-b: dist -> dist-iso-b3109929; restarting enclave-metal-iso (the node CVM reboots)"
 systemctl --user restart enclave-metal-iso.service || fail "restart"
 attested_new() { [ "$(node_attested)" = "$NEWM $NEWC" ]; }
-wait_for 600 attested_new || fail "the node never attested ${NEWM:0:12} with overlay b18f8989"
-say "4c-b: the node ATTESTS ${NEWM:0:16} (raw report 0x90), overlay b18f8989"
+wait_for 600 attested_new || fail "the node never attested ${NEWM:0:12} with overlay b3109929"
+say "4c-b: the node ATTESTS ${NEWM:0:16} (raw report 0x90), overlay b3109929"
 wait_for 120 relay_row_ok || fail "the relay does not list metal-iso0 serving and eligible"
 wait_for 300 avail4c || fail "availability is not 64/16, free 0.7, with the floor verdict {16384, admitsSmallestGuest true}"
 wait_for 300 public_ok || fail "the canaries do not serve with their S0 keys"
 check_guestd pool64 || fail "guestd lost a canary or a key changed (a resume relaunched one?)"
 journalctl --user -u enclave-metal-iso.service --since "$T0" --no-pager -o cat > $S4C/4cb-node-journal.txt 2>&1 || true
-na=$(grep -c 'adopted guest' $S4C/4cb-node-journal.txt || true); nr=$(grep -ciE 'released [0-9x]|releaseLease' $S4C/4cb-node-journal.txt || true)
+# adopted = supervisor.js "adopted guest"; ANY release counts (enclave-d1): "[claim] released 0x", a failed "[claim] release
+# 0x... attempt", "shutdown: releasing" (releaseClaimsOnShutdown), releaseLease
+na=$(grep -c 'adopted guest' $S4C/4cb-node-journal.txt || true)
+nr=$(grep -ciE 'released [0-9x]|\[claim\] release 0x|shutdown: releasing|releaseLease' $S4C/4cb-node-journal.txt || true)
 say "4c-b: node journal: $na adopted-guest lines, $nr release lines"
 [ "$na" -ge 3 ] && [ "$nr" = 0 ] || fail "the resumes did not adopt the 3 canaries (adopted $na, released $nr)"
 rm -f "$TOK"; trap - TERM INT

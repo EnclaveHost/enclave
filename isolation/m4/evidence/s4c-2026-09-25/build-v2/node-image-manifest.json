@@ -1,0 +1,431 @@
+{
+  "builtWith": "metal/build-image.mjs",
+  "flavor": "cpu",
+  "images": {
+    "supervisor": {
+      "ref": "ghcr.io/enclavehost/enclave-supervisor@sha256:2f8e84f803eb058a9cff18aa4e44dcb236cf0d326cf1c95ab59f69816d8131f4",
+      "digest": "sha256:fa7aabd91d236e7d98608520f5cfd0e8198f9eec086e68d5244231a795e6e174",
+      "pinned": true
+    },
+    "wasmManager": {
+      "ref": "ghcr.io/enclavehost/enclave-wasm-manager@sha256:460240856a31722907514cbd6efe0c4ef2d1f58b23b0d9ac1cf721aa25d994e4",
+      "digest": "sha256:43fbb0e8c46acab6c6080c30775b5db636ca017562305bea0d57d63621afb9a2",
+      "pinned": true
+    }
+  },
+  "reproducible": true,
+  "supervisorOverlay": {
+    "commit": "b31099294b4916a32f9f43989044c525ca121d7a",
+    "dirty": false,
+    "files": [
+      {
+        "path": "/app/supervisor.js",
+        "sha256": "41fea84886ad611619b6171f31e93a6db6c6d0c744d4b2f5a255852f8659c70e"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/supervisor-transport.mjs",
+        "sha256": "bd8579ba7daae01f4160c72c6c937dacb151b3e9ffef21d1e9f93706e0fbcb75"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/control-client.mjs",
+        "sha256": "8cddbb9b5c1483330ac13cca0e206fd1c92af58a86e0dbb1db37675790498dc6"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/supervisor-splice.mjs",
+        "sha256": "c841ac7c0d1459c49630224e346890672358256b5616fe51c9d65795ff8072aa"
+      },
+      {
+        "path": "/app/isolation/m4/guestd/supervisor-guestcert.mjs",
+        "sha256": "5ff728174f6635b9b17c5587946a8e2f28848cb4ece66c44df90ca2aa18b6bc7"
+      },
+      {
+        "path": "/app/isolation/m2/judge.mjs",
+        "sha256": "24311fe8b4a5cc60ac48adfc660bdb98860ebb2c3bebc95fa9a5393166e01c0b"
+      },
+      {
+        "path": "/app/isolation/contract/runtime.mjs",
+        "sha256": "8bb7f911c32bd992db83e1884db3c6059044338aa06ee64f9207adda25fd4b69"
+      },
+      {
+        "path": "/app/relay/snp-verify.mjs",
+        "sha256": "866a0946f5160049c8db29f0e63f107d532968c2428c55ffdccabead59b78206"
+      }
+    ]
+  },
+  "isolation": "snp-guest-per-app",
+  "isolationMinTcb": {
+    "path": "/opt/metal/isolation-min-tcb.json",
+    "sha256": "fe90824f469db17cad41a895f45803d66bef5058ff829e36302fe35328179d9c",
+    "policy": {
+      "Turin": {
+        "fmc": 1,
+        "bootloader": 3,
+        "tee": 2,
+        "snp": 5,
+        "microcode": 117
+      }
+    }
+  },
+  "kernel": {
+    "path": "/boot/vmlinuz-linux",
+    "kver": "7.2.3-arch1-2",
+    "sha256": "1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7"
+  },
+  "modules": [
+    "kernel/drivers/firmware/qemu_fw_cfg.ko",
+    "kernel/net/core/failover.ko",
+    "kernel/drivers/net/net_failover.ko",
+    "kernel/drivers/net/virtio_net.ko",
+    "kernel/drivers/virt/coco/guest/tsm_report.ko",
+    "kernel/drivers/virt/coco/sev-guest/sev-guest.ko",
+    "kernel/drivers/virt/coco/tdx-guest/tdx-guest.ko",
+    "kernel/drivers/md/dm-mod.ko",
+    "kernel/drivers/md/dm-bufio.ko",
+    "kernel/lib/reed_solomon/reed_solomon.ko",
+    "kernel/drivers/md/dm-verity.ko",
+    "kernel/net/vmw_vsock/vsock.ko",
+    "kernel/net/vmw_vsock/vmw_vsock_virtio_transport_common.ko",
+    "kernel/net/vmw_vsock/vmw_vsock_virtio_transport.ko",
+    "kernel/drivers/cpuidle/cpuidle-haltpoll.ko"
+  ],
+  "shielded": [
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/libggml-shielded.so",
+      "tenantPath": "/opt/enclave/shielded/libggml-shielded.so",
+      "bytes": 613832,
+      "sha256": "bbcb5dd1b8f0ef451a2bc862874fdb3c182b93e504053c832b40ed2de7dad4a7"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/libenclave-omp-profile.so",
+      "tenantPath": "/opt/enclave/shielded/libenclave-omp-profile.so",
+      "bytes": 16720,
+      "sha256": "5584a61e136983539ae2a88a3ba8dd61ff3aefe6af6823177ea8005c97a3f58e"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen2.5-0.5b-q8-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen2.5-0.5b-q8-gguf.calib",
+      "bytes": 4346,
+      "sha256": "25698f09603838fbb840dfbf1b0eeb87883326130e85156bfc142805fff26ce7"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3-4b-q8-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen3-4b-q8-gguf.calib",
+      "bytes": 6987,
+      "sha256": "e6af35a3e1632e9566c06afb397dc556805fff4e2fa30a463acbafdf765d7760"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.5-0.8b-mtp-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen3.5-0.8b-mtp-gguf.calib",
+      "bytes": 4312,
+      "sha256": "dc4031281b7b7af07bece85651cd7591ed1c2834e045bcc70c8e93c184820c77"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.8-27b-mtp-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen3.8-27b-mtp-gguf.calib",
+      "bytes": 10214,
+      "sha256": "6e1cb90e61c365d6632612755fdbb473265b0b8134622b972215945442d3ac22"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q4-vl-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q4-vl-gguf.calib",
+      "bytes": 13597,
+      "sha256": "1220f83cb518e0354a6d554e517ceeeb83ee8bab44733fae1e4801ae1982ddbd"
+    },
+    {
+      "path": "/opt/roots/wasm/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q8-vl-gguf.calib",
+      "tenantPath": "/opt/enclave/shielded/calib/qwen3.8-27b-mtp-q8-vl-gguf.calib",
+      "bytes": 13006,
+      "sha256": "ab32618ebb813d2579e107a6c75d1dace7d0c4e8c6e32f1b02e89a5670d4645d"
+    }
+  ],
+  "shieldedBuild": {
+    "ggml": "0.18.0",
+    "cc": "cc (GCC) 16.2.1 20260810",
+    "cxx": "c++ (GCC) 16.2.1 20260810",
+    "sources": [
+      {
+        "name": "shielded-field.c",
+        "sha256": "ffe2655492c20c7a38758bdaf5df190b0a90e4b1bf151a6d8bd0f21ec5ff68f4"
+      },
+      {
+        "name": "shielded-wire.c",
+        "sha256": "1a1630b05baf229bcfb0a4ede3c430a4126a2abe3a3da5c1ac36e554875df11e"
+      },
+      {
+        "name": "shielded-tee.c",
+        "sha256": "eb9105ce6a3139d0f2b21093edce9cff349ffba25a9b7be319138fbece6db4e8"
+      },
+      {
+        "name": "shielded-parwork.c",
+        "sha256": "ee8acafb08e373647191505d5df6e9b6274cae56d1ab5544eb9b5f4e9962038a"
+      },
+      {
+        "name": "shielded-pads.c",
+        "sha256": "a1ca4b8f8d3d1acf1cd0d7ad0d980170a07c8c4b7c1f1f1075291d0e4406bfec"
+      },
+      {
+        "name": "shielded-bank.c",
+        "sha256": "9375e1ae4db84ed9b103068a05cd3d2754f606cce8aa9fc1e742d9a633d1054b"
+      },
+      {
+        "name": "shielded-http.c",
+        "sha256": "102e3640e0c07919ffa84d037c9b73e7d9f418838819feb7ea675933eaaf650e"
+      },
+      {
+        "name": "prefix-kv.c",
+        "sha256": "21fd87ce01afbca69c96e2f2a6a157a23c58fada0268207c20acad154800955c"
+      },
+      {
+        "name": "tweetnacl.c",
+        "sha256": "fdde1227f686ab94794798be51036f515694b165444b00d09e84bf971d5f2749"
+      },
+      {
+        "name": "poly1305-donna.c",
+        "sha256": "5b73b696330f991a62f8e6971eaf32f134533f9a374d7420c1f5bceb74691999"
+      },
+      {
+        "name": "shielded-simd.c",
+        "sha256": "5810f7dacd32711e2c624f9ae8498df6c47cee2ec79d401821e1e1e922c51d2e"
+      },
+      {
+        "name": "ggml-shielded.cpp",
+        "sha256": "ea3f5edaee3262c75fb139e57abc7c686ba18ab846c4061ca4638d0d82df425f"
+      },
+      {
+        "name": "ggml-shielded.h",
+        "sha256": "fcb74fc15280198325fd1734348c5d540fa8c1acd74e0a58f0372822a3590c90"
+      },
+      {
+        "name": "poly1305-donna-32.h",
+        "sha256": "85bc63c1a468fe31a896c242be1cb7afe0cc9a262e5042911abc2cc5dbd1bcb6"
+      },
+      {
+        "name": "poly1305-donna-64.h",
+        "sha256": "9911f24eef3da8af2daf153bd99b8c275bec9567194110262e5c6ac7f33b47df"
+      },
+      {
+        "name": "poly1305-donna.h",
+        "sha256": "db2194945f4aeb914e13efee982d365cd32cc16009febb6f68b51b6aaf17514e"
+      },
+      {
+        "name": "prefix-kv-llama.h",
+        "sha256": "5d53046ae08ef57d69c2d1683253783d8bc7b523e706cd0a09c3d8e485fbcffc"
+      },
+      {
+        "name": "prefix-kv.h",
+        "sha256": "3151a67e5ac152d134e703b38359067013b65d7d838c51d57220ca6c81cdae29"
+      },
+      {
+        "name": "prefix-mtp.h",
+        "sha256": "2149d915128d24753244f33d8578c58c9ef4cf2e2044d1c5e28a39910456e156"
+      },
+      {
+        "name": "shielded-avf-binding.h",
+        "sha256": "5bc3960b60e6595dfa85d39b5c5cc58f9ce91dc9c7096c9b70a1e963ece6eb46"
+      },
+      {
+        "name": "shielded-bank.h",
+        "sha256": "4ce0d4280f8c691fb1af1a17583a0419beed8edcd17b18263a723bdb6ac7f821"
+      },
+      {
+        "name": "shielded-dealer-stream.h",
+        "sha256": "04ccea7f68e1aa8cf8e13d90f4da066a55ebdbb066f5b3713dd5490bafa36dc3"
+      },
+      {
+        "name": "shielded-encoded-source.h",
+        "sha256": "c5b5accc0baa91b02895b7a9ec075f462e68e8f646a0803796cf39ff27bfc083"
+      },
+      {
+        "name": "shielded-field.h",
+        "sha256": "1693cae50a6e31ad6395fc90982b9ec2a10052e6ca5fbddb6d50be3b0341ef31"
+      },
+      {
+        "name": "shielded-fusion.h",
+        "sha256": "95d4d90846854eff53fbc873eb6a160313f3a54051724fb7fa4a60c40e6a0637"
+      },
+      {
+        "name": "shielded-http.h",
+        "sha256": "267bcac022946511b64f799652d43ec620ac5db47433e56bb87b1bdfcb4e6052"
+      },
+      {
+        "name": "shielded-idle.h",
+        "sha256": "c0507b1adcf8fd83fcf24137ec971b06b01a3bcb62a9167b3a4ce44a64ab3945"
+      },
+      {
+        "name": "shielded-latency.h",
+        "sha256": "67ddab93589916ffb32a9951294aacd6169b5f8cc8827abb857ee8066eecac5d"
+      },
+      {
+        "name": "shielded-mint-balance.h",
+        "sha256": "6afd5ac1fb35c41cf2a170cd18a617e1e41b57b6d8c44356dd272b446a68fbfd"
+      },
+      {
+        "name": "shielded-overlap.h",
+        "sha256": "5c5b8e4e4d3f5f117f70e8ad524b7f42f2f02d0561c50732bfa71f5012b0e090"
+      },
+      {
+        "name": "shielded-pad-budget.h",
+        "sha256": "a5d1409e4e1deb49c4f00de894be83a210b76dc3227623a40020544d995df70a"
+      },
+      {
+        "name": "shielded-pad-check.h",
+        "sha256": "046b2b174e9d20a1638f2867a54226c41de1423b569312baea52fdcea9b63ebc"
+      },
+      {
+        "name": "shielded-pad-grant.h",
+        "sha256": "763c5d49a233bdbdbedc635d4f41406fb13cd6338a675e89f189b37389d818c5"
+      },
+      {
+        "name": "shielded-pad-layout.h",
+        "sha256": "436216922faecbe1144d23653902ced98dceca8b4318ff7009fcaed6e3cc34dd"
+      },
+      {
+        "name": "shielded-pad-manifest.h",
+        "sha256": "a4c720a22f59cb55d2fee367d3d06ea4e9f263ee1be2f1f2014b3d23e034d6f1"
+      },
+      {
+        "name": "shielded-pad-mint-v3.h",
+        "sha256": "63ee01a17758ae18839df3fd9941378c743594105bec1a856d5a35054bb7097d"
+      },
+      {
+        "name": "shielded-pad-parallel.h",
+        "sha256": "1ad2b30cead53062a4c98a8364f9332a74f6287e12a3daaefbc9331e6763cbd0"
+      },
+      {
+        "name": "shielded-pad-r4.h",
+        "sha256": "ac5d551f754f9f037b34a6d53b93057b916e95836f2cd995f35d235946f6b9f2"
+      },
+      {
+        "name": "shielded-pad-sparse-plan.h",
+        "sha256": "e62db38ace0277ad5ea6535fa513be4b19010cf9d233ea038f5c23cea796fbd2"
+      },
+      {
+        "name": "shielded-pad-sparse-table.h",
+        "sha256": "eca4fd703329a7cbe5afdffb9e52dc9b926d15733fe3a56e4311cb48634d1dfc"
+      },
+      {
+        "name": "shielded-pads-v3.h",
+        "sha256": "54382dca27cd07e52799a9ef4b4b194ee8f169df2b340c90a258747b6d5afb8d"
+      },
+      {
+        "name": "shielded-pads.h",
+        "sha256": "782c67a8fed4f31d020275a2b5326a8013d17e2f695605a86a39b5602920bb50"
+      },
+      {
+        "name": "shielded-parwork.h",
+        "sha256": "62eebcf421528169da9b201a8f451d8b802a29a3bb66e77a3372342c827c8ce2"
+      },
+      {
+        "name": "shielded-recv-profile.h",
+        "sha256": "d5949d0353bc08868bc54dcd1ee69f28d36917d6132d60208c35ff96929c7894"
+      },
+      {
+        "name": "shielded-sha256.h",
+        "sha256": "d14ff2af54899a9d14b47fa838ba1f8f5d2ac0a3d7098f9f6fa942cb3ec8e90c"
+      },
+      {
+        "name": "shielded-simd.h",
+        "sha256": "a440b5b45aaf3ec0fe5c558de9bc34eabcf427210d9c197206fe5eb53d88f010"
+      },
+      {
+        "name": "shielded-source-prefetch.h",
+        "sha256": "98b7da83f84d676ff48c4f360afb34ea724ad9e03ac5f2c3a688bc5d55558ee8"
+      },
+      {
+        "name": "shielded-source-profile.h",
+        "sha256": "df936df021db0106d8d2a44d373f82d0943246988625e2d9223c36de48e32641"
+      },
+      {
+        "name": "shielded-source-quant.h",
+        "sha256": "cc5a00dfdb46cb7ab763c13c5d4a26cc5561d1fe0f49c60f14c65013e60d0f34"
+      },
+      {
+        "name": "shielded-tee.h",
+        "sha256": "0b157f46616238912d5b6d57451e1cb03e11bdebdca3a634e1c7641c8c7f5221"
+      },
+      {
+        "name": "shielded-weight-cache.h",
+        "sha256": "4b9210ebe85c701d99f9f174fbe816f5b22e2bc434b9073727394210a5cbdb32"
+      },
+      {
+        "name": "shielded-weight-source.h",
+        "sha256": "eab219b03446f4ce69691ad3b661b45af10cfc054895150537f00198b62a5dca"
+      },
+      {
+        "name": "shielded-wide.h",
+        "sha256": "5dc5ba2c59c4dacc58f413707bd95bdac94640d990977a93dd1d5e2160e4f352"
+      },
+      {
+        "name": "shielded-wire-sched.h",
+        "sha256": "0d999b52941bb1b486cccece6119d3aa90d961146534fba9f4a50a0918558796"
+      },
+      {
+        "name": "shielded-wire.h",
+        "sha256": "5c50c72084ccd6567d4651669c8cea307d84bbbb96c3a49d0ac946e215424156"
+      },
+      {
+        "name": "tweetnacl.h",
+        "sha256": "43f29ad721d9927b747b0100ab4160c119e7bb180c7c98a66e4bf79d31244287"
+      },
+      {
+        "name": "shielded-omp-profile.c",
+        "sha256": "4c26c608b616e88594bd69531312e2aa3a7e854cf4f1eb4d33bed242aa1255ee"
+      }
+    ],
+    "vendoredHeaders": [
+      {
+        "name": "ggml-alloc.h",
+        "sha256": "94e4cd069b9313b2ceb35dacec901981e0bb478d8bb31035b7126be091998c23"
+      },
+      {
+        "name": "ggml-backend-impl.h",
+        "sha256": "d9c62d72b13bff67ef7ada8feccf90c9cd1b6d176eae85df3ed1d4f3d2240e52"
+      },
+      {
+        "name": "ggml-backend.h",
+        "sha256": "a620e815b43a44cc72d5f216629a3a91980335b61bc37eb6b2d0813368c3704f"
+      },
+      {
+        "name": "ggml-impl.h",
+        "sha256": "2ed56e264202906d107e26d08eabb242d3107b026ebfb78096fa1e5f94bdbbb8"
+      },
+      {
+        "name": "ggml.h",
+        "sha256": "c65c30fdb4dce95eac71c26bb38ae8423fbc80d79db91d2b2ffaea8c4e46276a"
+      },
+      {
+        "name": "gguf.h",
+        "sha256": "e56714aab702e5ce62ee587a409643c08f7e93e8fbb77f48ef7cc85075f96fa4"
+      }
+    ]
+  },
+  "cmdlineTemplate": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=${MODE} metal.isolation=snp-guest-per-app",
+  "volumeBinding": {
+    "field": "HOST_DATA (SNP report offset 0xC0, 32 bytes); MRCONFIGID on TDX",
+    "canonicalLine": "name|alg|root|salt|dataBlockSize|hashBlockSize|dataBlocks|hashStartBlock|sd(1/0)|gguf",
+    "digest": "sha256(lines.sort().join(\"\\n\") + \"\\n\")",
+    "note": "Volume images are built by metal/volumes.mjs and are themselves reproducible: same source tree in, same verity root hash out. The guest reads HOST_DATA back from its own report and refuses to mount a table that does not hash to it."
+  },
+  "note": "The SEV-SNP launch measurement is a function of (OVMF, this kernel, the initramfs, and the final cmdline). Recompute it independently with sev-snp-measure using the sha256 fields here; metal/verify.mjs checks a live report against the pinned launch measurement.",
+  "initramfs": {
+    "sha256": "0036b0297e05884b642bd298c14423b5b11482ddd152cf2c980a2bf48d32816f",
+    "bytes": 279387029
+  },
+  "expectedMeasurement": {
+    "note": "SEV-SNP launch digest for the DEFAULT cmdline (empty public_url/relay/token), per vcpu count. A non-empty cmdline changes this — recompute with the values in dist/cmdline.",
+    "ovmf": "/home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd",
+    "ovmfSha256": "142589cc4882f29a419af34dde03ccda91faf313bd2c09b3a8b53c137df4f8a9",
+    "cpuSig": {
+      "family": 26,
+      "model": 2,
+      "stepping": 1
+    },
+    "vmmType": "QEMU",
+    "cmdline": "console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app",
+    "byVcpus": {
+      "4": "8ab7a1590fad444c53e8bec7a08ea44452e78ed68a30de2283d599879b69feb84cb7fd0bc1cc3aa903514ab7443c30bf",
+      "8": "0830f49259ddba4c9353219ceb15f7acf661e2e0b7ab5cd00540ca80b08cf89c2d601cb6bcfea68ad2131d72240c96e1",
+      "16": "f19a27abfa5bbd5f36d713956c6e26d9b3d39f31daeaeb4685b5ebb71d99e00e1ded7a77eb127c95751f7527be3e92ea"
+    }
+  }
+}
