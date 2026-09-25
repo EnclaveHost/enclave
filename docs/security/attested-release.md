@@ -115,7 +115,7 @@ CHIP_ID binds the **physical chip, not the endpoint**: two registered endpoints 
 ## Preconditions before `SECRETS_ATTESTED_RELEASE` may be turned on (enclave-d1)
 
 - The policy: `SECRETS_RELEASE_MIN_TCB`, `SECRETS_RELEASE_VMPL`, and a measurement allowlist holding reviewed, non-debug per-app guest images only.
-- Scope: this release serves **M2-path** per-app guests only. They have no SVSM, and the front reads its report through configfs-tsm at VMPL0, so `SECRETS_RELEASE_VMPL=0` (enclave-5d, from source).
+- Scope: this release serves the per-app guests guestd builds (M4a image assembly; AppID = the DERIVE.md bundle id) running the **M2 runtime shape**: dominit plus the front, with no SVSM, and a report read through configfs-tsm at VMPL0. So `SECRETS_RELEASE_VMPL=0` (enclave-5d, from source).
   - When M4b becomes a per-app path, the VMPL becomes per measurement: allowlist entries of the form `<measurement>@<vmpl>`, so each image is judged at its own level.
   - Re-check the guest POLICY value (0x30000: DEBUG off) against `run-domain.sh` at deploy time; the relay refuses DEBUG regardless.
 - The guest side landed and reviewed (enclave-5d):
@@ -137,10 +137,12 @@ Rate: a ticket request is limited per client IP. A release is limited per its ti
 
 - `verifyGuestEvidence`: the relay's vendored verifier (`relay/vendor/enclave-verifier-node.mjs`) exports the consumer API only. It needs a rebuild that also exports the domain-path `verifyEvidence`, with a `bindingDomain` field in the verdict, and KDS collateral fetched by CHIP_ID (the guest's `certs` are optional).
 - `runtimeIdOf`: `isolation/contract/runtime.mjs` `runtimeId`, bundled for the relay.
-- `appIdFor`: PER PATH. On the M2 path (the only one served today) the AppID is **sha256 of the raw component** (`isolation/m2/build-domain.sh`: `sha256sum app.wasm` into the measured initrd), so `appIdFor` = sha256 of the component bytes the deployment's catalog version names, fetched by CID and CAR-verified, and cached per version. DERIVE.md's `sha256(bundle)` is M4a's and would refuse every M2 release.
-- The measurement allowlist on M2 is PER APP VERSION: the app and its hash are inside the measured initrd, so each version's image has its own launch digest. This is a decision for Steven or Codex:
-  - (a) the operator lists every deployed version's image digest in `SECRETS_RELEASE_MEASUREMENTS`; or
-  - (b) the relay predicts the digest from the version, since `build-domain.sh` is reproducible and its launch digest predictable.
+- `appIdFor`: the **DERIVE.md bundle AppID**, `sha256(bundle)` (`bundletool id`), for the deployment's catalog version and shares, over component bytes fetched by CID and CAR-verified, and cached per version.
+  - guestd builds every production per-app guest with M4a's image assembly (`isolation/m4/assemble-app-image.sh`: `app.sha256 = bundletool id app.bundle`, the value guestd itself computes), and the front puts `/app.sha256` in report_data[32:64].
+  - (`isolation/m2/build-domain.sh`, which hashes the raw `app.wasm`, is a LAB script only. A correction of this doc's previous revision, from enclave-5d.)
+- The measurement allowlist is PER APP VERSION: the bundle is inside the measured initramfs, and the vCPU count is also a measurement input. This is a decision for Steven or Codex:
+  - (a) the operator lists every deployed version's image digest in `SECRETS_RELEASE_MEASUREMENTS`, one step per new version, keeping nan's footprint small; or
+  - (b) the relay pins ONE published domain release and predicts each version's digest with `isolation/m4/expected-measurement.sh --pin <release id> <release dir> <app.bundle> <vcpus>`, cached per (version, vCPUs). That reassembles the image from the published release plus the bundle, with no host binaries, but puts sev-snp-measure, cpio/gzip and the contract's bundletool on nan.
 - `resolveConfigCid`: a `configCid`, fetched and checked against its CID (returning text or a value; the relay parses it).
 - `versionConfigFor`: the catalog version's `{config, configCid}` for the deployment's version.
 - Config: `SECRETS_ATTESTED_RELEASE`, `SECRETS_RELEASE_MEASUREMENTS`, `SECRETS_RELEASE_RUNTIME_IDS`.
