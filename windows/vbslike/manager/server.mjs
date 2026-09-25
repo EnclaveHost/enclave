@@ -407,6 +407,46 @@ export class Manager {
   // records a stop is under way for: their relay's exit is the stop's doing, not a failure
   #stopping = new WeakSet();
 
+  /**
+   * LIVENESS: a partition can stop BY ITSELF, and nothing else here would notice.
+   *
+   * Measured on nucbox-k11 (G4, run 082856, enclave-63's probe 72462737): when the guest's PID 1 dies, the kernel
+   * panics and asks for an immediate reset. On a TYPE-1 partition Hyper-V answers "shut down for a reset initiated by
+   * the guest" (Worker-Admin 18515, after 18590), and the VM goes OFF. It does not reboot. wmiserve does not exit when
+   * its VM stops, so the relay-exit watch never fires, and the record would read `running` over a dead partition
+   * forever.
+   *
+   * So a periodic sweep surveys Hyper-V and FAILS every started or recovered domain whose VM is not Running, or is
+   * absent from a SUCCESSFUL survey. It stops that domain's relay, reclaims its sessions, and leaves the VM for the node
+   * to retire (only a stop removes a VM). Unknown is not gone: a survey that fails changes nothing. A record mid-start
+   * (no handle yet) or being stopped is left alone.
+   */
+  async sweepLiveness() {
+    if (!this.inventoryReady || !this.backend.canSurvey) return { checked: 0, failed: 0, skipped: "no inventory or no survey" };
+    let s;
+    try { s = await this.backend.survey(); } catch (e) { return { checked: 0, failed: 0, error: e.message }; }
+    if (!s || !Array.isArray(s.vms)) return { checked: 0, failed: 0, error: "the survey returned no list" };
+    const byId = new Map(s.vms.map((v) => [String(v.vmId || "").toLowerCase(), v]));
+    let checked = 0, failed = 0;
+    for (const rec of this.domains.values()) {
+      if (rec.status !== "running" && rec.status !== "starting") continue;
+      const vmId = rec.handle && rec.handle.vmId;
+      if (!vmId || this.#stopping.has(rec)) continue;
+      checked++;
+      const v = byId.get(String(vmId).toLowerCase());
+      if (v && v.state === "Running") continue;
+      rec.status = "failed"; rec.appReady = false;
+      rec.reason = v
+        ? `the partition is ${v.state}: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 082856); its VM is left for the node to retire`
+        : "the partition is no longer on this host (absent from a successful survey)";
+      const run = rec.handle && rec.handle.wmiserve;
+      if (run && typeof run.stop === "function") run.stop().catch(() => {});      // its relay has nothing to carry
+      this.#reclaim(rec.id, "the partition stopped");
+      failed++;
+    }
+    return { checked, failed };
+  }
+
   async remove(id) {
     const r = this.domains.get(id);
     // UNKNOWN IS NOT ABSENT (63's P1): only a manager that has surveyed Hyper-V may say an id is gone.
