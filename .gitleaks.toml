@@ -146,7 +146,8 @@ regexes = ['''^\s*"(?:appKeySig|instanceSig)": "[0-9a-f]{128}",?$''']
 description = "a pVM lease proof-key STATEMENT (enclave-proof-key/v1; shielded/anchor/avf/PROOF-KEY.md) embeds a v3 evidence envelope: its appKeySig/instanceSig and the statement's sig are Ed25519 SIGNATURES over public transcripts, the keys SPKIs or addresses; the device run records it in the carrier's exchange and in the run's call log"
 targetRules = ["generic-api-key"]
 condition = "AND"
-paths = ['''^shielded/anchor/avf/results/pvm-cpu-proof-key[a-z0-9-]*/evidence/evidence-[0-9]{3}\.json$''', '''^shielded/anchor/avf/results/pvm-cpu-proof-key[a-z0-9-]*/calls\.jsonl$''']
+# (the posting agent's device runs, results/pvm-cpu-proof-agent*, record the same statements in the hub's exchanges)
+paths = ['''^shielded/anchor/avf/results/pvm-cpu-proof-(?:key|agent)[a-z0-9-]*/evidence/evidence-[0-9]{3}\.json$''', '''^shielded/anchor/avf/results/pvm-cpu-proof-key[a-z0-9-]*/calls\.jsonl$''']
 # the flagged values are signatures: exactly 128 lowercase hex, in these files only (gitleaks' line target did not
 # match one of two identical statement lines, so the rule keys on the value's shape, not the line)
 regexes = ['''^[0-9a-f]{128}$''']

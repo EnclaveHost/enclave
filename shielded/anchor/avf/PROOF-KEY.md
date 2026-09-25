@@ -190,13 +190,98 @@ The VM answers one JSON line:
    - `EnclaveRegistry.register("https://api.enclave.host/t/<name>", repo, measurement, cpuPricePerSec6, 0, P)`, or
      `setProofKey(runnerId, P)` if the entry already exists;
    - then `EnclaveDeployments.claim(deployment, runnerId)`.
-5. **The posting agent (NOT BUILT: the next piece).** At most every `proofWindowSec`:
-   1. Take the anchor: the parent of Base's latest block.
-   2. Send `CHECKPOINT <min(now, leaseUntil)> <anchorBlock> <anchorHash>` to the VM. The VM allows 1 per 60 s.
-   3. Check the answer with `verifyPvmCheckpoint`.
-   4. Simulate, then post `EnclaveProofOfTime.checkpoint` with a gas margin, from any account (posting is
-      permissionless).
+5. **The posting agent: BUILT** (`runner/proof-agent.mjs`, CLI `runner/proof-agent-cli.mjs`; "The posting agent" below).
+   Run it as the owner's process, with the key file and RPC from the environment and a config holding only public values.
+   Every `intervalSec` (default 300) it does the following:
+   1. Reads the lease.
+   2. Takes the parent of the newest block as the anchor.
+   3. Sends `CHECKPOINT <min(head time, leaseUntil)> <anchorBlock> <anchorHash>` to the VM through the carrier.
+   4. Verifies the answer against the attested key and the exact request.
+   5. Simulates the transaction.
+   6. Signs it with the operator key, journals it, then sends it.
+   7. Follows it to a confirmed, canonical receipt.
 6. **The relay's env and the buyers' type-2 policy** are as in RELAY-SERVING.md "Runner registration".
+
+## The posting agent (built; device check PASS on the Pixel 10 against the real contracts on a local chain: results/pvm-cpu-proof-agent)
+
+`runner/proof-agent.mjs` is the owner-side process of step 5, and `runner/proof-agent-cli.mjs` runs it. It holds no proof
+key: the VM signs. It holds the operator key, as a local account, only to sign the transactions it sends. It trusts nothing
+the carrier says, whether the carrier is the phone's Android host or the relay.
+
+- **Pins, before anything is asked.**
+  - The RPC's chain id must be the configured one.
+  - The address book's `proofOfTime`, `registry` and `deployments` must equal any address the config also names.
+  - The contracts' own frozen bindings must agree: `prover.deployments()`, `prover.registry()` and `ledger.prover()`.
+- **The proof key** comes only from the VM's `enclave-proof-key/v1` statement, verified by the canonical `verifyPvmProofKey`
+  over the agent's own fresh nonce, under the owner's evidence pins (app, runtime, code, authority, Google roots, the bound
+  InstanceID) and the required deployment.
+  - The statement's pins must be exactly this lease's.
+  - The registry entry must publish exactly that key: active, this operator's, this endpoint's.
+  - Otherwise nothing is signed (`proof-key-mismatch`, `registry-mismatch`).
+- **The lease, every tick.** The ledger row must name this runner and operator, be active, and be within `leaseUntil`.
+  Otherwise the VM is not asked (`not-our-lease`, `inactive`, `lease-ended`). Nothing is asked either when there is nothing
+  to prove (`up-to-date`), or when the base fee is above the owner's cap (`fee-cap`).
+- **A checkpoint is accepted only if both hold:**
+  - `verifyPvmCheckpoint` passes (the pins, low s, v, the attested signer);
+  - it answers EXACTLY the request: the same `upto`, `anchorBlock` and `anchorHash`.
+  A carrier that hands back an older, genuinely signed checkpoint is refused before any chain sees it.
+- **Simulate first.** "nothing to prove" (someone already posted it) costs nothing: `already-proven`. A stale anchor is
+  retried on the next tick with a new one.
+- **Idempotency and recovery.** Each transaction is signed locally and journaled (the raw bytes and the hash) BEFORE any node
+  can see it, and the journal is fsynced. After a crash, the next start follows exactly what the journal says may be in
+  flight: it rebroadcasts the same bytes while the anchor is fresh, and asks the VM for nothing new first. There is one
+  agent per state directory (an O_EXCL lock).
+- **Bounded waits.** The carrier, the receipt wait, the confirmations (the receipt must still be canonical afterwards) and
+  the replacements are all bounded:
+  - A send that does not mine is REPLACED at the same nonce, bidding at least 25 % more on both fee fields, up to
+    `maxReplacements`, and never above the owner's `maxFeePerGasWei`.
+  - A nonce whose proof's anchor has aged out, or was reorganized away, is taken by the next tick's FRESH proof.
+  - When there is nothing to prove, such a nonce is CANCELLED with a 0-value self-transfer, so it never blocks the
+    operator's other transactions (claim, renew, heartbeat).
+  - A receipt reorganized away is rebroadcast while its anchor stands.
+- **Tests.**
+  - `test/pvm-proof-agent.test.mjs` runs on anvil with the real contracts, a fake VM speaking the device protocol, a
+    carrier that turns hostile, and a fresh random operator key per test. It covers every rule above, plus the CLI's
+    refusals and one real CLI tick.
+  - `node test/mutate-pvm-proof-agent.mjs` is the mutation check: a control, then 19 mutations, each caught by the test it
+    names.
+- **Device check.** `cpu/proof-agent-run.mjs` runs the real VM on the Pixel 10, through the real hub and web carrier, against
+  a local chain that mines a block every 2 s. The run plan covers:
+  - the first attestation, and an unclaimed lease;
+  - a landing;
+  - a hostile replay;
+  - a mempool replacement;
+  - a reorganization;
+  - a crash and its recovery;
+  - a stuck nonce taken by a fresh proof;
+  - a VM restart, followed by another landing.
+
+  `runtime/conformance/check-proof-agent.mjs` re-checks it offline from the run's own records (results/pvm-cpu-proof-agent).
+  It PASSES: 6 proofs landed, and the reorganization was noticed after the receipt was seen, with the same bytes landing
+  in another block. The checker's own test mutates a copy of the run 15 ways, and each must fail.
+  - Run 1 is kept with its checker FAIL: its reorganization hook fired before the agent saw the receipt
+    (results/pvm-cpu-proof-agent-run1/NOTES.md).
+- **Not done by the agent (the owner's):** register and `setProofKey`, `claim`, `renew`, `release` (prove the final period
+  first), `heartbeat`, and `withdrawEarnings`.
+
+**Exactly what production still needs** (all the owner's; nothing here is set):
+1. `PROOF_AGENT_RPC`: a Base RPC URL.
+2. `OPERATOR_KEY_FILE`: the operator EOA's key, in a 0600 file, with Base gas.
+   - The agent must be the only sender from that key, or run as a dedicated posting account.
+   - Posting is permissionless, but the lab ran it as the operator.
+3. The config (format `enclave-pvm-proof-agent/v1`):
+   - `chainId` "8453";
+   - `addressBook` `0xab214342d5a490150a4a977063a2f88e21f80907`;
+   - `deployment`;
+   - `endpoint` `https://api.enclave.host/t/<name>`;
+   - `operator`;
+   - `maxFeePerGasWei`, the owner's gas price cap;
+   - `evidence`: the PRODUCTION build's code hash and authority, the pvm-rt runtime id, the app id, and the InstanceID from
+     `pvm-client instance`. Google's roots are as in the client.
+4. `carrier`: a route to the VM's evidence port. The platform route `https://api.enclave.host/x/<deployment>/pvm/evidence`
+   exists only with `PVM_SERVING` set (RELAY-SERVING.md), which is the owner's decision. Otherwise the owner runs their own
+   carrier to the phone.
+5. The production anchor build (step 1), and steps 2-4 above.
 
 **Inputs only the owner has:**
 - the operator EOA and its Base gas;
