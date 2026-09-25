@@ -103,6 +103,24 @@ function Remove-OwnedVm([string]$name) {
   return "removed"
 }
 
+# SELF-HEAL FIRST. A previous run whose PowerShell died - or whose SSH connection went away with
+# the process - can leave a probe VM and the setting applied. The `finally` cannot cover that case
+# (it is stated in the header), so the NEXT run repairs it before doing anything else. Scoped to
+# this script's own name prefix AND the ownership marker: never a broad sweep.
+$stale = @(Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'enclave-fw-*' -and $_.Notes -eq $MARKER })
+foreach ($v in $stale) {
+  Stop-VM -VM $v -TurnOff -Force -ErrorAction SilentlyContinue
+  Remove-VM -VM $v -Force -ErrorAction SilentlyContinue
+  Write-Host "$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')) self-heal: removed stale probe VM $($v.Name)"
+}
+if (Test-Path $RegPath) {
+  $left = Get-ItemProperty -Path $RegPath -Name $RegName -ErrorAction SilentlyContinue
+  if ($left -and -not (Test-Path "$EvidenceDir\..\PRESERVE-SETTING")) {
+    Write-Host "$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')) self-heal: $RegName was left APPLIED by an earlier run; removing it before this one reads the baseline"
+    Remove-ItemProperty -Path $RegPath -Name $RegName -ErrorAction SilentlyContinue
+  }
+}
+
 $before      = Read-SettingState
 $nodeBefore  = Get-NodeHealth
 $appsBefore  = Get-AppHealth
