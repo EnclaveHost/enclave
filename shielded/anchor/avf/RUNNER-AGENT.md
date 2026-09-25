@@ -73,7 +73,9 @@ lifecycle transaction, settled before anything else:
    - A bond the owner did not authorize: `bond-required`, and no claim.
    - Another runner's live lease: nothing.
 3. **The heartbeat**, if the entry is active and `now - lastSeen >= heartbeatSec` (default 900, as supervisor.js).
-4. **The proof:** the posting agent's tick, unchanged, while the lease is ours.
+4. **Earnings:** `withdrawEarnings(payout.to)` once `earned6` reaches the owner's `payout.minWithdraw6`. The event must
+   name this operator and that address. With no `payout` configured, it never withdraws.
+5. **The proof:** the posting agent's tick, unchanged, while the lease is ours.
 
 **Stop and release.** `stop({ release: true })` takes these steps in order. Each is settled before the next, and each is
 journaled so a restart resumes at the right point:
@@ -109,7 +111,7 @@ These are built and tested on the local chain, with synthetic operator keys: reg
 stop-with-release after a final proof. They share one journal with the checkpoints.
 - **The CLI.** `runner/proof-agent-cli.mjs` takes a runner config (format `enclave-pvm-runner-agent/v1`), with
   `--release` for a final proof then release. The key comes only from a 0600 file, and the RPC only from the environment.
-- **test/pvm-runner-agent.test.mjs, 11/11.** This includes a re-provisioned VM: its re-registration, and its setProofKey
+- **test/pvm-runner-agent.test.mjs, 12/12.** This includes a re-provisioned VM: its re-registration, and its setProofKey
   in the three-key case (registry K0, earlier attestation K1, VM K2), must carry the NEW key. It also includes a config
   naming another pinned build, which registers nothing. The real contracts on anvil, a fake VM, and nothing pre-registered or
   pre-claimed. It covers:
@@ -122,7 +124,9 @@ stop-with-release after a final proof. They share one journal with the checkpoin
   - interruptions: a claim, a renew and a release each journaled but never delivered, each delivered ONCE after a
     restart (the tenant pays one quantum); a renew still in the mempool followed, never repeated;
   - the CLI.
-- **test/mutate-pvm-runner-agent.mjs.** A control plus 14 mutations, each caught by the test it names. The posting agent's
+- **Earnings withdrawal** (a local-chain slice after the device run): only to the owner's payout address, only at the
+  owner's minimum, and once.
+- **test/mutate-pvm-runner-agent.mjs.** A control plus 16 mutations, each caught by the test it names. The posting agent's
   own harness still catches its 23.
 - **The device check: PASS** (results/pvm-cpu-proof-agent-lifecycle, check.txt; cpu/runner-agent-run.mjs;
   runtime/conformance/check-runner-agent.mjs). On the Pixel's real VM, with nothing pre-registered, the agent:
@@ -142,4 +146,5 @@ Everything in PROOF-KEY.md "Exactly what production still needs", plus:
   These are the owner's.
 - **Whether to claim, and which deployment.**
 - **A bond ceiling,** if the ledger asks for a bond. The default is none: the agent then refuses to claim.
+- **Where earnings go:** `payout.to` and `payout.minWithdraw6`. The default is none: earnings stay on the ledger.
 - **The margins, only if the defaults do not suit:** `renewMarginSec` and `heartbeatSec`.

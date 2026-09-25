@@ -81,6 +81,10 @@ test("runner config: strict; the owner's registration values are required to reg
   refuse({ claim: "yes" }, /true or false/);
   refuse({ renewMarginSec: 10 }, />= 60/);
   refuse({ autoBond: true }, /unknown lifecycle key/);
+  refuse({ payout: { to: "0x" + "00".repeat(20), minWithdraw6: "1" } }, /payout.to/);
+  refuse({ payout: { to: "0x" + "ab".repeat(20) } }, /exactly \{ to, minWithdraw6 \}/);
+  refuse({ payout: { to: "0x" + "ab".repeat(20), minWithdraw6: "0" } }, /minWithdraw6/);
+  assert.equal(ok.lifecycle.payout, undefined, "no payout unless the owner names one");
   refuse({}, /exactly format, proof, lifecycle/, { extra: 1 });
   assert.throws(() => checkRunnerConfig({ format: RUNNER_CONFIG_FORMAT, proof: { ...proof, chainId: "0x2105" }, lifecycle: {} }), /chainId/);
 });
@@ -225,6 +229,41 @@ test("the registered measurement is EXACTLY the attested build: a config naming 
     const a = await r.tick();
     assert.equal(a.kind, "measurement-mismatch", JSON.stringify(a));
     assert.equal(await S.nonceOf(), 0, "nothing registered");
+  } finally { if (r) r.close(); S.stop(); }
+});
+
+test("earnings go to the OWNER's payout address, only once they reach the owner's minimum, and exactly once",
+     { skip, timeout: 180000 }, async () => {
+  const S = await setup();
+  let r;
+  try {
+    r = await S.runnerOf(); await r.start();
+    await r.tick(); await r.tick();                          // register, claim
+    for (let i = 0; i < 3; i++) { await S.later(300); assert.equal((await r.tick()).proof.kind, "landed"); }
+    await S.chain.advance(60); S.clock.t += 62_000;
+    assert.equal((await r.stop({ release: true })).kind, "released");   // the release credits the proven, held time
+    r.close();
+    const earned = await S.chain.earned6(S.operator.address);
+    assert.ok(earned > 0n, "the runner earned for its proven time");
+    const to = S.V.getAddress(S.V.keccak256(S.V.stringToBytes("payout wallet (test)")).slice(0, 42)).toLowerCase();   // a fresh address, not the operator
+    // below the owner's minimum: nothing is sent
+    const high = S.config({ register: LAB_REGISTER, payout: { to, minWithdraw6: String(earned + 1n) } });
+    r = await S.runnerOf({ cfg: high }); await r.start();
+    const n0 = await S.nonceOf();
+    const a = await r.tick();
+    assert.equal(a.lifecycle, null, JSON.stringify(a));
+    assert.equal(await S.nonceOf(), n0);
+    r.close();
+    // at the minimum: withdrawn to the payout address, once
+    const at = S.config({ register: LAB_REGISTER, payout: { to, minWithdraw6: String(earned) } });
+    r = await S.runnerOf({ cfg: at, stateDir: path.join(S.dir, "payout") }); await r.start();
+    const b = await r.tick();
+    assert.equal(b.lifecycle.op, "withdrawEarnings", JSON.stringify(b.lifecycle));
+    assert.equal(b.lifecycle.kind, "landed");
+    assert.equal(await S.chain.usdcBalance(to), earned, "the whole balance went to the owner's payout address");
+    assert.equal(await S.chain.earned6(S.operator.address), 0n);
+    const c = await r.tick();
+    assert.equal(c.lifecycle, null, "nothing left: no second withdrawal");
   } finally { if (r) r.close(); S.stop(); }
 });
 
