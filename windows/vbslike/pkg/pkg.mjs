@@ -44,7 +44,8 @@ const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.in
   "control.datapath", "control.judge", "control.node-client", "tool.windows",
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
   "input.recipe", "input.tree", "input.test", "input.test-support", "guest.uefi-firmware", "guest.uefi-medium", "guest.uefi-fallback",
-  "input.efi-stub", "input.tool-source", "input.initrd", "control.node", "control.relay", "control.npm", "control.acceptance"]);
+  "input.efi-stub", "input.tool-source", "input.initrd", "control.node", "control.relay", "control.npm", "control.acceptance",
+  "probe.uefi-medium", "probe.module", "input.firmware-config"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
 const SERVED_BY_PINNED_MANAGER = ["enclave-catalog-bundle/1"];   // windows/vbslike/manager/server.mjs SERVES
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
@@ -285,6 +286,19 @@ async function checkClaims(m, bytes, R) {
             diff.length ? diff.join("; ") : keys.map((k) => `${k}=${JSON.stringify(ms.expect[k])}`).join(" "));
     }
   }
+  // Media roles are structural, not textual: every profile's `medium` is a guest.uefi-medium, every `probeMedium` is a
+  // probe.uefi-medium whose path says PROBE, and no profile boots a probe.* file as its medium: a probe medium carries a
+  // kernel module that reports on the VM, and must never be the medium an app is served from.
+  {
+    const probes = m.files.filter((f) => /^probe\./.test(f.role)), bad = [];
+    for (const [name, p] of Object.entries(m.profiles || {})) {
+      if (p.medium && file(p.medium)?.role !== "guest.uefi-medium") bad.push(`${name}.medium ${p.medium} is ${file(p.medium)?.role || "not a file"}`);
+      if (p.fallbackMedium && file(p.fallbackMedium)?.role !== "guest.uefi-fallback") bad.push(`${name}.fallbackMedium ${p.fallbackMedium} is ${file(p.fallbackMedium)?.role || "not a file"}`);
+      if (p.probeMedium && (file(p.probeMedium)?.role !== "probe.uefi-medium" || !/PROBE/.test(p.probeMedium))) bad.push(`${name}.probeMedium ${p.probeMedium} is ${file(p.probeMedium)?.role || "not a file"}${/PROBE/.test(p.probeMedium) ? "" : " and is not named PROBE"}`);
+    }
+    for (const f of probes) if (!/PROBE/.test(f.path)) bad.push(`${f.path} (${f.role}) is not named PROBE on disk`);
+    if (probes.length || bad.length) R.add(bad.length === 0, "no profile boots a PROBE medium as its medium, and every probe file is named PROBE on disk", bad.length ? bad.join("; ") : `${probes.length} probe file(s)`);
+  }
   // The node's own record builder against the catalog. The manifest records each app's catalog version as READ FROM THE
   // CHAIN (catalogFacts, with the block, address book and catalog it came from); the shipped node-bridge.mjs's
   // isolationPlan builds the derivation record from those facts exactly as the node will at spawn time, and it must be
@@ -374,7 +388,10 @@ function rebuild(m, bytes, R) {
 // Rebuild the UEFI boot medium from its pinned inputs with the pinned builder (pkg/uefi/build-uefi-image.sh), and
 // require the ISO and disk.raw to be the pinned bytes, and the shipped VHDX's payload to be that disk.raw.
 function rebuildUefi(m, bytes, R) {
-  const u = m.rebuild && m.rebuild.uefi; if (!u) return;
+  for (const [key, label] of [["uefi", "the UEFI boot medium"], ["probe", "the PROBE medium (never an app's medium)"]]) rebuildOne(m, bytes, R, m.rebuild && m.rebuild[key], label);
+}
+function rebuildOne(m, bytes, R, u, label) {
+  if (!u) return;
   const ref = (x) => (String(x).startsWith("file:") ? m.files.find((f) => f.path === x.slice(5)) : m.inputs.find((i) => i.name === x));
   const d = fs.mkdtempSync(path.join(os.homedir(), ".vbspkg-uefi-"));
   try {
@@ -386,9 +403,9 @@ function rebuildUefi(m, bytes, R) {
       "--esp-mib", String(u.espMiB), "--disk-mib", String(u.diskMiB), "--epoch", String(u.epoch), "--out", path.join(d, "out"), ...(mt ? ["--mtools", mt] : [])], { encoding: "utf8" });
     const o = (f) => (fs.existsSync(path.join(d, "out", f)) ? sha(fs.readFileSync(path.join(d, "out", f))) : null);
     const want = (p) => m.files.find((f) => f.path === p)?.sha256;
-    R.add(r.status === 0 && o("guest.iso") === want(u.iso), "rebuild: the UEFI boot medium (ISO) from its pinned inputs, and 5d's recipe agrees on the UKI",
+    R.add(r.status === 0 && o("guest.iso") === want(u.iso), `rebuild: ${label} (ISO) from its pinned inputs, and 5d's recipe agrees on the UKI`,
           o("guest.iso") === want(u.iso) ? o("guest.iso").slice(0, 16) : `exit ${r.status}: ${(r.stderr || "").trim().split("\n").at(-1)}; got ${o("guest.iso")}`);
-    R.add(o("disk.raw") === u.diskRawSha256, "rebuild: disk.raw (the fallback's payload) from the same inputs", `${o("disk.raw")}`);
+    R.add(o("disk.raw") === u.diskRawSha256, `rebuild: ${label}'s disk.raw (the fallback's payload) from the same inputs`, `${o("disk.raw")}`);
     const vh = m.files.find((f) => f.path === u.fallback);
     if (vh && bytes.get(vh)) {
       fs.writeFileSync(path.join(d, "fb.vhdx"), bytes.get(vh));

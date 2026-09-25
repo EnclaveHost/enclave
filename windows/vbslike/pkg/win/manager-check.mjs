@@ -46,7 +46,9 @@ try {
   };
   const medium = val("--medium-sha256");
   const l = new WmiHyperVLauncher({ run, imagePath: IMG, imageSha256: sha, prefix: "manager-check-",
-                                    ...(medium ? { mediumPath: "C:\\manager-check\\medium.iso", mediumSha256: medium } : {}) });
+                                    // d1's launcher took `mediumPath` until 8d82f67f and `medium` from c067b446: both keys, so the same
+                                    // check measures either, and the pin says which shape it saw
+                                    ...(medium ? { medium: "C:\\manager-check\\medium.iso", mediumPath: "C:\\manager-check\\medium.iso", mediumSha256: medium } : {}) });
   let startErr = null, handle = null;
   handle = await l.start(mapping, { instanceId: "managercheck-0001", guestReadySec: 1 }).catch((e) => { startErr = e.message; return null; });
   const created = seen.find((s) => /New-VM/.test(s));
