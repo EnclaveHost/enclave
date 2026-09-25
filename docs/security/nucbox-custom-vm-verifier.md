@@ -237,6 +237,12 @@ The verifier's rule, AFTER V1 (the signature) and never before it:
 - treat `"keys"` (the vTPM's AK and EK: the vTPM state is host-readable on this box, enclave-5d's finding) and
   `"vm-configuration"` (host-supplied, including `current-time` from the HOST's clock: never a freshness proof) as
   statements only: nothing admits on them. Freshness is the verifier's nonce, and only the nonce.
+  There is a second reason the keys identify nothing (2026-09-25, enclave-63 and enclave-d1). On this box every
+  partition's guest state is a byte-copy of ONE master VMGS (`type1.vmgs`, 4f051697..., pinned only per run). Its
+  provenance is unrecorded: it came from a `New-VM` donor, and whether that donor ever started is not recorded. So the
+  vTPM's AK and EK may be the SAME in every partition, for a44bb55a and b7ba7731 alike. Before any future use of the vTPM
+  as a key (custody, or a TPM-backed report key), two things are required. The master must be BLANK, made by a recipe
+  the package pins, with a record that no donor ran. And two partitions must be shown to report different AKs.
 
 What a report binds, stated (`tpm_device/src/lib.rs:1141-1152, 1396-1411`, REPORT_TIMER_PERIOD 2 s at `:97`): the input
 index is read at RENEWAL, not at write. A renewal happens at the start of a read of the report index, only if more than
