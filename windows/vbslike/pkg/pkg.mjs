@@ -377,10 +377,22 @@ function rebuild(m, bytes, R) {
     const man = wr("manifest-ownguest.json", bytes.get(ref(g.manifest)));
     const initrd = wr("mon.cpio.gz", bytes.get(ref(`file:${g.initrd}`)));
     const out = path.join(d, "igvm.bin");
-    const r2 = spawnSync(gscript, [home(tree.from.dir), path.join(d, "vmlinux"), initrd, out, man],
+    // A SHADOW TREE for d1's script, built from the PINNED input bytes at the four paths it reads (ship/openhcl_boot,
+    // ship/sidecar, the kernel package's vmlinux, .work/.../openhcl.cpio.gz), so the rebuild depends on the pins and
+    // not on whatever a later flowey run left in the real tree. Measured 2026-09-25: two CVM builds in the real tree
+    // left a second extracted kernel package that sorts first for the script's `ls ... | head -1`, and the rebuild
+    // silently used the CVM kernel while every pin was right. The real tree is still checked at its commit above.
+    const vt = g.vtl2 || { openhcl_boot: "openhcl_boot", sidecar: "sidecar", kernel: "underhill-vmlinux", initrd: "openhcl.cpio.gz" };
+    const shadow = path.join(d, "tree"), ship = path.join(shadow, "flowey-out/artifacts/build-igvm/ship/x64-test-linux-direct");
+    const kdir = path.join(shadow, "flowey-persist/flowey_lib_hvlite__resolve_openhcl_kernel_package/extracted/pinned"), wdir = path.join(shadow, "flowey-out/.work/flowey_lib_hvlite__build_openhcl_initrd_0");
+    for (const [dir, name, input] of [[ship, "openhcl_boot", vt.openhcl_boot], [ship, "sidecar", vt.sidecar], [kdir, "vmlinux", vt.kernel], [wdir, "openhcl.cpio.gz", vt.initrd]]) {
+      const e = ref(input); if (!e || !bytes.get(e)) return R.add(false, "rebuild: the IGVM from its pinned inputs, on the rebuilt vmlinux", `VTL2 input ${input} is not a pinned input of this manifest`);
+      fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, name), bytes.get(e));
+    }
+    const r2 = spawnSync(gscript, [shadow, path.join(d, "vmlinux"), initrd, out, man],
                          { encoding: "utf8", env: { ...process.env, IGVMFILEGEN: home(ref(g.igvmfilegen).from.file) } });
     const gh = fs.existsSync(out) ? sha(fs.readFileSync(out)) : null, want = ref(`file:${g.output}`).sha256;
-    R.add(r2.status === 0 && gh === want, "rebuild: the IGVM from its pinned inputs, on the rebuilt vmlinux",
+    R.add(r2.status === 0 && gh === want, "rebuild: the IGVM from its pinned inputs, on the rebuilt vmlinux (a shadow tree of the pinned VTL2 bytes)",
           gh === want ? gh.slice(0, 16) : `exit ${r2.status}, got ${gh}: ${(r2.stderr || "").trim().split("\n").at(-1)}`);
   } finally { fs.rmSync(d, { recursive: true, force: true }); }
 }
@@ -388,7 +400,9 @@ function rebuild(m, bytes, R) {
 // Rebuild the UEFI boot medium from its pinned inputs with the pinned builder (pkg/uefi/build-uefi-image.sh), and
 // require the ISO and disk.raw to be the pinned bytes, and the shipped VHDX's payload to be that disk.raw.
 function rebuildUefi(m, bytes, R) {
-  for (const [key, label] of [["uefi", "the UEFI boot medium"], ["probe", "the PROBE medium (never an app's medium)"]]) rebuildOne(m, bytes, R, m.rebuild && m.rebuild[key], label);
+  // every builder-backed medium: rebuild.uefi is the boot medium; any other builder entry is a probe medium
+  for (const [key, u] of Object.entries(m.rebuild || {})) if (u && u.builder)
+    rebuildOne(m, bytes, R, u, key === "uefi" ? "the UEFI boot medium" : key === "probe" ? "the PROBE medium (never an app's medium)" : `the ${key} medium (never an app's medium)`);
 }
 function rebuildOne(m, bytes, R, u, label) {
   if (!u) return;
