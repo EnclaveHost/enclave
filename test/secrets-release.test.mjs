@@ -42,6 +42,8 @@ const REF = "catalog://0x" + "5a".repeat(32) + "/3";                    // the c
 // what the relay's measurement predictor answers for REF (relay/measurement-predict.mjs; its own suite covers it)
 let predicted = { ok: true, appId: APP.toString("hex"), images: [{ release: "e1".repeat(32), runtimeId: RID.toString("hex"), measurement: "77".repeat(48) }] };
 const predictedFor = [];   // the rows the predictor was asked about
+// the confirmed ledger read (ctx.confirmRow: the record by id through agreeing RPCs); by default it agrees with `rows`
+let confirm = { fail: null, over: {} };
 const leaseRow = (id, over = {}) => ({ id, owner: STRANGER.address, runner: EP_ID, configCid: envelopes[id] ?? "", appRef: REF,
                                        leaseUntil: BigInt(Math.floor(Date.now() / 1000) + 1800), ...over });
 const ctx = {
@@ -54,6 +56,12 @@ const ctx = {
   hostEligibility: () => (ineligible ? { eligible: false, reason: "evidence regressed" } : { eligible: true, reason: null }),
   leaseHolderChipIds: async (ep) => (ep === EP ? chips : []),
   runtimeIdOf: async (r) => (JSON.stringify(r) === JSON.stringify(RUNTIME) ? RID : sha(Buffer.from(JSON.stringify(r)))),
+  confirmRow: async (id) => {
+    if (confirm.fail) throw new Error(confirm.fail);
+    const r = rows.find((x) => x.id === id);
+    if (!r) throw new Error("the ledger holds no such deployment");
+    return { ...r, ...confirm.over };
+  },
   expectedGuestFor: async (row) => { predictedFor.push(row && row.id); return row && row.appRef === REF ? predicted : { ok: false, code: "version_not_admitted", reason: "not the synthetic version" }; },
   resolveConfigCid: async (cid) => (cid === "bafkreisyntheticcid" ? { resolved: true, key: "${JOT_API_KEY}" }
                                      : cid === "bafkreiversioncid" ? '{"fromVersionCid":true}' : null),   // a value, or fetched TEXT
@@ -236,15 +244,77 @@ test("release refusals: each releases NOTHING and consumes the ticket", async ()
     { release: "e1".repeat(32), runtimeId: RID.toString("hex"), measurement: "66".repeat(48) }] }; return { g: guest({ id: A, ticket: tk }) }; }, E);
   await refused("a deployment on another catalog version than the prediction's", async (tk) => { rows = [leaseRow(A, { appRef: "catalog://0x" + "5a".repeat(32) + "/4" }), leaseRow(B)]; return { g: guest({ id: A, ticket: tk }) }; }, { code: 403, error: "version_not_admitted" });
   rows = [leaseRow(A), leaseRow(B)];
-  for (const [code, status] of [["busy", 503], ["prediction_unavailable", 503], ["component_unavailable", 503], ["catalog_unreachable", 503], ["version_not_admitted", 403], ["underivable", 403], ["not_catalog", 403]])
-    await refused(`a prediction refused (${code})`, async (tk) => { predicted = { ok: false, code, reason: "synthetic" }; return { g: guest({ id: A, ticket: tk }) }; }, { code: status, error: code });
-  await refused("a prediction that answers nothing usable", async (tk) => { predicted = { ok: true, appId: APP.toString("hex"), images: [] }; return { g: guest({ id: A, ticket: tk }) }; }, { code: 503, error: "prediction_unavailable" });
+  // a version that cannot have a prediction is a final answer: the ticket is consumed like any refusal
+  for (const code of ["version_not_admitted", "underivable", "not_catalog"])
+    await refused(`a prediction refused (${code})`, async (tk) => { predicted = { ok: false, code, reason: "synthetic" }; return { g: guest({ id: A, ticket: tk }) }; }, { code: 403, error: code });
   predicted = keepPrediction;
   await refused("a report from another VMPL than the pinned one", async (tk) => { process.env.SECRETS_RELEASE_VMPL = "1"; return { g: guest({ id: A, ticket: tk }) }; }, E);
   process.env.SECRETS_RELEASE_VMPL = "0";
   await refused("a DEBUG-enabled guest policy", (tk) => ({ g: guest({ id: A, ticket: tk, debug: true }) }), E);
   await refused("a release document that states a nonce", (tk) => { const g = guest({ id: A, ticket: tk }); g.evidence.nonce = "00".repeat(32); return { g }; }, { code: 422, error: "bad_evidence", why: /must not state a nonce/ });
   await refused("a low-order seal key", (tk) => ({ g: guest({ id: A, ticket: tk, sealPriv: null, binding: ({ transport, t }) => R.releaseBinding({ id: A, transportSpki: transport, ticket: t, runtimeId: RID, sealKey: Buffer.alloc(32) }) }), over: { sealKey: Buffer.alloc(32).toString("base64") } }), { code: 422, error: "bad_seal_key" });
+});
+
+test("a prediction the relay cannot make YET keeps the ticket (enclave-d1): 503, then the same ticket releases once it can", async () => {
+  rows = [leaseRow(A)]; ineligible = false; chips = [S.chip.toString("hex")];
+  const keep = predicted;
+  try {
+    for (const [code, answer] of [["warming", { ok: false, code: "warming", reason: "synthetic" }], ["busy", { ok: false, code: "busy", reason: "synthetic" }],
+      ["prediction_unavailable", { ok: false, code: "prediction_unavailable", reason: "synthetic" }], ["component_unavailable", { ok: false, code: "component_unavailable", reason: "synthetic" }],
+      ["catalog_unreachable", { ok: false, code: "catalog_unreachable", reason: "synthetic" }], ["prediction_unavailable", { ok: true, appId: APP.toString("hex"), images: [] }]]) {
+      const t = await ticketFor(A), g = guest({ id: A, ticket: t.body.ticket });
+      predicted = answer;
+      const r = await release(A, t.body.ticket, g);
+      assert.equal(r.code, 503, code); assert.equal(r.body.error, code); assert.equal(r.body.sealed, undefined);
+      assert.ok(R._internals.tickets.has(t.body.ticket), `${code}: the ticket is kept`);
+      predicted = keep;
+      const again = await release(A, t.body.ticket, g);
+      assert.equal(again.code, 200, `${code}: the retry releases: ${JSON.stringify(again.body)}`);
+      assert.equal(R._internals.tickets.has(t.body.ticket), false, `${code}: now consumed`);
+    }
+    // a 403-class prediction burns it; so does a lease that moved, even while the prediction is unavailable
+    const t = await ticketFor(A);
+    rows = [leaseRow(A, { runner: "0x" + "99".repeat(32) })]; predicted = { ok: false, code: "busy", reason: "synthetic" };
+    const r = await release(A, t.body.ticket, guest({ id: A, ticket: t.body.ticket }));
+    assert.equal(r.code, 403); assert.equal(r.body.error, "not_lease_holder"); assert.equal(R._internals.tickets.has(t.body.ticket), false);
+  } finally { predicted = keep; rows = [leaseRow(A)]; }
+  // the prediction is asked for a PRIVATE deployment as such (a pending version is then allowed, as the supervisor runs it)
+  const seen = [];
+  const real = ctx.expectedGuestFor;
+  ctx.expectedGuestFor = async (row, o) => { seen.push({ id: row.id, ...o }); return predicted; };
+  try {
+    rows = [leaseRow(A, { isPublic: false })];
+    const t = await ticketFor(A);
+    assert.equal((await release(A, t.body.ticket, guest({ id: A, ticket: t.body.ticket }))).code, 200);
+    assert.ok(seen.some((s) => s.id === A && s.forPrivate === true && s.waitMs > 0), JSON.stringify(seen));
+  } finally { ctx.expectedGuestFor = real; rows = [leaseRow(A)]; }
+});
+
+test("the confirmed ledger read decides: a disagreement keeps the ticket (503), a confirmed other runner refuses, the confirmed appRef is predicted", async () => {
+  rows = [leaseRow(A)]; ineligible = false; chips = [S.chip.toString("hex")];
+  try {
+    confirm = { fail: "the RPCs disagree about the deployment's record", over: {} };
+    const tr = await ticketFor(A);
+    assert.equal(tr.code, 503); assert.equal(tr.body.error, "ledger_unconfirmed");
+    confirm = { fail: null, over: {} };
+    const t = await ticketFor(A), g = guest({ id: A, ticket: t.body.ticket });
+    confirm = { fail: "one RPC timed out", over: {} };
+    const r = await release(A, t.body.ticket, g);
+    assert.equal(r.code, 503); assert.equal(r.body.error, "ledger_unconfirmed"); assert.ok(R._internals.tickets.has(t.body.ticket), "kept");
+    confirm = { fail: null, over: {} };
+    assert.equal((await release(A, t.body.ticket, g)).code, 200, "the retry releases");
+    // the cached row says the endpoint holds the lease; the confirmed read says another runner
+    const t2 = await ticketFor(A);
+    confirm = { fail: null, over: { runner: "0x" + "99".repeat(32) } };
+    const r2 = await release(A, t2.body.ticket, guest({ id: A, ticket: t2.body.ticket }));
+    assert.equal(r2.code, 403); assert.equal(r2.body.error, "not_lease_holder"); assert.match(r2.body.message, /confirmed/);
+    // the cached row names REF, the confirmed record another version: the prediction is for the CONFIRMED one
+    confirm = { fail: null, over: {} };
+    const t3 = await ticketFor(A);
+    confirm = { fail: null, over: { appRef: "catalog://0x" + "5a".repeat(32) + "/9" } };
+    const r3 = await release(A, t3.body.ticket, guest({ id: A, ticket: t3.body.ticket }));
+    assert.equal(r3.code, 403); assert.equal(r3.body.error, "version_not_admitted");
+  } finally { confirm = { fail: null, over: {} }; rows = [leaseRow(A)]; }
 });
 
 test("a chip mismatch is caught at release: a ticket issued for chip X refuses a report from chip Y", async () => {
@@ -269,7 +339,7 @@ test("fail closed: OFF, a missing policy or a missing provider answers 503 and i
     assert.equal(r.code, 503, `${k}=${v}`); assert.equal(r.body.error, "release_unconfigured"); assert.match(r.body.message, new RegExp(k));
     Object.assign(process.env, saved);
   }
-  for (const p of ["verifyGuestEvidence", "expectedGuestFor", "runtimeIdOf", "leaseHolderChipIds", "versionConfigFor"]) {
+  for (const p of ["verifyGuestEvidence", "expectedGuestFor", "runtimeIdOf", "leaseHolderChipIds", "versionConfigFor", "confirmRow"]) {
     const keep = ctx[p]; delete ctx[p];
     const r = await ticketFor(A);
     assert.equal(r.code, 503, p); assert.equal(r.body.error, "release_unconfigured");

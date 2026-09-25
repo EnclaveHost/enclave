@@ -50,13 +50,27 @@ export function derivationRecord(catalogRef, version, runtimeId) {
            catalog: { app: m[1].toLowerCase(), version: Number(m[2]) }, cid: String(version.cid),
            policy: isolationPolicyFor(version), runtimeId, ...(http ? { http } : {}) };
 }
-// the supervisor's approvalVerdict, forPrivate never: a release is for approved, listed, unyanked versions only
-export function versionRefusal(app, v) {
+// the supervisor's approvalVerdict: an approved, unyanked version of a listed app; a PENDING one only for a private
+// deployment (forPrivate = !isPublic, as the supervisor runs it); a rejected one never
+export function versionRefusal(app, v, forPrivate = false) {
   if (!app || !app.active) return "the app is not listed in the catalog";
   if (!v) return "the catalog has no such version";
   if (v.yanked) return "the version was yanked by its publisher";
-  if (Number(v.approval) !== 1) return "the version is not approved";
+  if (Number(v.approval) === 2) return "the version was rejected by the catalog owner";
+  if (Number(v.approval) !== 1 && forPrivate !== true) return "the version is not approved (a pending version is released only to a private deployment)";
   return null;
+}
+// sha256 of the supervisor's three rule functions' source (isolationPolicyFor, isolationHttpPortOf, isolationDerivation),
+// identical at 0181bce3 and c42612c0. test/measurement-predict.test.mjs fails when a supervisor this repository holds (or
+// the working tree's) carries another rule, so the predictor is changed with it.
+export const SUPERVISOR_RULE_SHA256 = "2ad995d42e42988151b95f0c1dd70c57130ed9f245d49da7167b6a076664796a";
+export function supervisorRuleSha256(src) {
+  const parts = ["isolationPolicyFor", "isolationHttpPortOf", "isolationDerivation"].map((n) => {
+    const i = src.indexOf(`function ${n}(`);
+    if (i < 0) return null;
+    return src.slice(i, src.indexOf("\n}\n", i) + 2);
+  });
+  return parts.some((p) => p === null) ? null : sha256hex(parts.join("\n"));
 }
 // canonical JSON (keys sorted at every level, no whitespace): contract.Canonical / the record digest
 export function canonical(v) {
@@ -101,6 +115,26 @@ export const TOOLCHAIN_PATHS = ["isolation/m4/expected-measurement.sh", "isolati
   "isolation/m4/verifying-firmware.txt", "isolation/m4/assemble-app-image.sh", "isolation/m4/pack-initrd.sh",
   "isolation/m4/guestd/fetch-cid.py", "isolation/contract", "wasm/ipfs_fetch.py"];
 
+// the digest a pinned sev-snp-measure is checked against: its entry script and every file of the sevsnpmeasure package
+// it imports (found by the entry script's own interpreter), as sha256 over "relpath NUL sha256 LF" lines, sorted
+export async function sevSnpMeasureDigest(exe, run = runBounded) {
+  const entry = fs.realpathSync(exe), text = fs.readFileSync(entry);
+  const m = /^#!\s*(\S+)/.exec(text.toString("utf8", 0, 512));
+  if (!m) throw new Error(`${exe} is not a script with an interpreter line`);
+  const r = await run(m[1], ["-c", "import os, sevsnpmeasure; print(os.path.dirname(os.path.realpath(sevsnpmeasure.__file__)))"],
+    { env: { PATH: process.env.PATH || "/usr/bin:/bin" }, timeoutMs: 30_000 });
+  const dir = r.out.trim();
+  if (r.code !== 0 || !dir) throw new Error(`the sevsnpmeasure package of ${exe} is not importable`);
+  const lines = [`entry\0${sha256hex(text)}\n`];
+  const walk = (d, rel) => { for (const e of fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    if (e.name === "__pycache__") continue;
+    const p = path.join(d, e.name), q = rel ? `${rel}/${e.name}` : e.name;
+    if (e.isDirectory()) walk(p, q); else if (e.isFile()) lines.push(`${q}\0${sha256hex(fs.readFileSync(p))}\n`);
+  } };
+  walk(dir, "");
+  return sha256hex(lines.join(""));
+}
+
 // one child process: bounded time (the whole process group is killed), bounded output, a minimal environment
 export function runBounded(cmd, args, { env, cwd, timeoutMs, input }) {
   return new Promise((resolve) => {
@@ -124,15 +158,18 @@ export function runBounded(cmd, args, { env, cwd, timeoutMs, input }) {
 //   readCatalog          async (app, index) -> { app: { active }, version: { cid, memMb, ports, approval, yanked } }
 //   gateway              the trustless gateway the CAR is fetched from (availability only: every block is verified)
 //   sevSnpMeasure        the pinned sev-snp-measure executable (expected-measurement.sh runs ~/.local/bin/sev-snp-measure)
+//   sevSnpMeasureSha256  its sevSnpMeasureDigest, checked before the toolchain is used
 //   work                 a private directory (created 0700)
 //   components           (optional) where verified raw-CID components are kept; each is re-verified against its CID on read
 export function makePredictor(o) {
-  const { repo, commit, readCatalog, gateway, sevSnpMeasure } = o;
+  const { repo, commit, readCatalog, gateway, sevSnpMeasure, sevSnpMeasureSha256 } = o;
+  const digestTool = o.digestTool || ((exe) => sevSnpMeasureDigest(exe, run));
   const work = o.work ? path.resolve(o.work) : "";
   const run = o.run || runBounded, now = o.now || Date.now;
   const knownAnswers = o.knownAnswers || KNOWN_ANSWERS;
   const concurrency = o.concurrency ?? 1, maxQueue = o.maxQueue ?? 4, timeoutMs = o.timeoutMs ?? 240_000;
   const cacheMax = o.cacheMax ?? 256, negativeTtlMs = o.negativeTtlMs ?? 60_000, katEveryMs = o.katEveryMs ?? 6 * 3600_000;
+  const inconclusiveMaxMs = o.inconclusiveMaxMs ?? 24 * 3600_000;   // how long a pass survives inconclusive re-tests
   const maxComponentBytes = o.maxComponentBytes ?? 256 << 20;
   const components = o.components || (work && path.join(work, "components"));
   const releases = new Map((o.releases || []).map((r) => [String(r.id).toLowerCase(), r.dir]));
@@ -140,7 +177,8 @@ export function makePredictor(o) {
   const problems = [
     !HEX(40).test(String(commit || "")) && "the toolchain commit (40 hex)",
     !repo && "the toolchain repository", typeof readCatalog !== "function" && "the catalog reader",
-    !/^https:\/\//.test(String(gateway || "")) && "an https gateway", !sevSnpMeasure && "sev-snp-measure", !work && "a work directory",
+    !/^https:\/\//.test(String(gateway || "")) && "an https gateway", !sevSnpMeasure && "sev-snp-measure",
+    !HEX(64).test(String(sevSnpMeasureSha256 || "")) && "sev-snp-measure's pinned digest", !work && "a work directory",
     !admit.length && "at least one admitted release",
     ...admit.filter((id) => !HEX(64).test(id) || !releases.has(id)).map((id) => `admitted release ${id.slice(0, 12)} installed`),
   ].filter(Boolean);
@@ -161,6 +199,10 @@ export function makePredictor(o) {
   const unslot = () => { const next = queue.shift(); if (next) next(); else active--; };
 
   async function prepare() {
+    // the pinned sev-snp-measure, every time the toolchain is used: the known-answer test catches a broken tool, this a changed one
+    let got;
+    try { got = await digestTool(sevSnpMeasure); } catch (e) { throw new Error(`sev-snp-measure: ${e.message}`); }
+    if (got !== sevSnpMeasureSha256) throw new Error(`sev-snp-measure's digest ${String(got).slice(0, 12)} is not the pinned ${String(sevSnpMeasureSha256).slice(0, 12)}`);
     if (toolchain) return toolchain;
     fs.mkdirSync(work, { recursive: true, mode: 0o700 });
     fs.chmodSync(work, 0o700);
@@ -273,8 +315,11 @@ export function makePredictor(o) {
         if (!why && !inconclusive && !ran) why = "no known answer's release is installed, so the toolchain is unchecked";
       } catch (e) { why = `the known-answer test did not run: ${e.message}`; }
       if (inconclusive && !why) {
-        kat = { ...kat, at: kat.ok ? kat.at : now(), tried: now(), reason: kat.ok ? kat.reason : `the known-answer test was inconclusive: ${inconclusive}`, running: null };
-        return kat;
+        if (!kat.ok || now() - kat.at <= inconclusiveMaxMs) {
+          kat = { ...kat, at: kat.ok ? kat.at : now(), tried: now(), reason: kat.ok ? kat.reason : `the known-answer test was inconclusive: ${inconclusive}`, running: null };
+          return kat;
+        }
+        why = `the last passing known-answer test is older than ${Math.round(inconclusiveMaxMs / 3600_000)} h and re-tests are inconclusive: ${inconclusive}`;
       }
       kat = { ok: !why, at: now(), tried: now(), reason: why || `${ran} known answer(s) reproduced exactly`, running: null };
       if (!kat.ok) { cache.clear(); console.error(`[measurement-predict] DISABLED: ${kat.reason}`); }
@@ -297,8 +342,16 @@ export function makePredictor(o) {
   }
 
   // the expected guest for a deployment's catalog reference: { ok, appId, images: [{ release, runtimeId, measurement }] }
-  // or { ok: false, code, reason }. Never throws.
-  async function expectedFor(catalogRef) {
+  // or { ok: false, code, reason }. Never throws. `forPrivate`: the deployment is private (a pending version is allowed).
+  // `waitMs`: answer { ok: false, code: "warming" } rather than wait longer; the prediction continues and is cached.
+  async function expectedFor(catalogRef, { forPrivate = false, waitMs } = {}) {
+    const p = predict(catalogRef, forPrivate);
+    if (!(waitMs >= 0)) return p;
+    let timer;
+    const late = new Promise((resolve) => { timer = setTimeout(() => resolve({ ok: false, code: "warming", reason: "the prediction is still being computed; retry shortly" }), waitMs); });
+    try { return await Promise.race([p, late]); } finally { clearTimeout(timer); }
+  }
+  async function predict(catalogRef, forPrivate) {
     const refuse = (code, reason) => { stats.refusals++; return { ok: false, code, reason }; };
     if (problems.length) return refuse("predictor_unconfigured", `measurement prediction is not configured (missing: ${problems.join(", ")})`);
     const m = CATALOG_REF_RE.exec(String(catalogRef || ""));
@@ -310,7 +363,7 @@ export function makePredictor(o) {
     let cat;
     try { cat = await readCatalog(m[1].toLowerCase(), Number(m[2])); }
     catch (e) { return refuse("catalog_unreachable", `the catalog version could not be read: ${e.shortMessage || e.message}`); }
-    const vr = versionRefusal(cat && cat.app, cat && cat.version);
+    const vr = versionRefusal(cat && cat.app, cat && cat.version, forPrivate);
     if (vr) return refuse("version_not_admitted", vr);
     // one record per distinct runtime among the admitted releases (the AppID excludes the runtime; the record does not)
     const byRuntime = new Map();
@@ -362,14 +415,26 @@ export const CATALOG_READ_ABI = [
   { type: "function", name: "getApp", stateMutability: "view", inputs: [{ name: "appId", type: "bytes32" }], outputs: [tuple(APP_T)] },
   { type: "function", name: "getVersion", stateMutability: "view", inputs: [{ name: "appId", type: "bytes32" }, { name: "index", type: "uint256" }], outputs: [tuple(VER_T)] },
 ];
-export function catalogReader(client, catalogAddress) {
-  return async (app, index) => {
-    const address = typeof catalogAddress === "function" ? await catalogAddress() : catalogAddress;
+// `clients`: one client, or several INDEPENDENT ones (enclave-d1): every one is read and all must agree, so one lying RPC
+// cannot make the relay predict another app; a disagreement is an unreachable catalog (503), never a pick.
+export function catalogReader(clients, catalogAddress) {
+  const list = Array.isArray(clients) ? clients : [clients];
+  const readOne = async (client, address, app, index) => {
     const a = await client.readContract({ address, abi: CATALOG_READ_ABI, functionName: "getApp", args: [app] });
     if (!a || /^0x0{64}$/.test(a.appId) || index >= Number(a.versionCount)) return { app: a && { active: !!a.active }, version: null };
     const v = await client.readContract({ address, abi: CATALOG_READ_ABI, functionName: "getVersion", args: [app, BigInt(index)] });
     return { app: { active: !!a.active }, version: { cid: v.cid, memMb: Number(v.memMb), ports: v.ports, approval: Number(v.approval), yanked: !!v.yanked } };
   };
+  const read = async (app, index) => {
+    const address = typeof catalogAddress === "function" ? await catalogAddress() : catalogAddress;
+    // each provider gets one retry for a transient failure; a provider that still fails fails the read (all must answer)
+    const once = async (c) => { try { return await readOne(c, address, app, index); } catch { await new Promise((r) => setTimeout(r, 500)); return readOne(c, address, app, index); } };
+    const got = await Promise.all(list.map(once));
+    if (got.some((g) => canonical(g) !== canonical(got[0]))) throw new Error(`the ${list.length} catalog RPCs disagree about ${app}/${index}`);
+    return got[0];
+  };
+  read.sources = list.length;
+  return read;
 }
 
 // configuration from the environment (all required when attested release is on; see attested-release.md)
@@ -379,6 +444,8 @@ export function catalogReader(client, catalogAddress) {
 //   SECRETS_RELEASE_DOMAIN_RELEASES    id,id: the releases whose images a release admits
 //   SECRETS_RELEASE_PREDICT_GATEWAY    https trustless gateway
 //   SECRETS_RELEASE_SEV_SNP_MEASURE    the pinned sev-snp-measure executable
+//   SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256  its sevSnpMeasureDigest (node relay/measurement-predict.mjs digest <exe> prints it)
+//   SECRETS_RELEASE_CATALOG_RPCS       two or more independent Base RPC URLs for the catalog read (api-relay.js)
 //   SECRETS_RELEASE_PREDICT_WORK       private work directory
 export function predictorEnv(env = process.env) {
   const releases = String(env.SECRETS_RELEASE_PREDICT_RELEASES || "").split(",").map((s) => s.trim()).filter(Boolean)
@@ -387,5 +454,11 @@ export function predictorEnv(env = process.env) {
   return { repo: env.SECRETS_RELEASE_PREDICT_REPO || "", commit: String(env.SECRETS_RELEASE_PREDICT_COMMIT || "").toLowerCase(),
            releases, admit: String(env.SECRETS_RELEASE_DOMAIN_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
            gateway: env.SECRETS_RELEASE_PREDICT_GATEWAY || "", sevSnpMeasure: env.SECRETS_RELEASE_SEV_SNP_MEASURE || "",
+           sevSnpMeasureSha256: String(env.SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256 || "").toLowerCase(),
            work: env.SECRETS_RELEASE_PREDICT_WORK || "" };
+}
+
+// node relay/measurement-predict.mjs digest <sev-snp-measure>: the value SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256 pins
+if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname && process.argv[2] === "digest") {
+  sevSnpMeasureDigest(process.argv[3]).then((d) => console.log(d), (e) => { console.error(e.message); process.exit(1); });
 }

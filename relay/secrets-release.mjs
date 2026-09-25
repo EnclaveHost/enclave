@@ -182,10 +182,17 @@ function missingFor(ctx, cfg) {
           typeof ctx.versionConfigFor !== "function" && "the version-config lookup", typeof ctx.leaseHolderChipIds !== "function" && "the lease holder's chip ids",
           typeof ctx.verifyGuestEvidence !== "function" && "the guest-evidence verifier", typeof ctx.runtimeIdOf !== "function" && "the runtime-id function",
           typeof ctx.expectedGuestFor !== "function" && "the measurement predictor", typeof ctx.hostEligibility !== "function" && "the eligibility verdict",
+          typeof ctx.confirmRow !== "function" && "the confirmed ledger read",
           ...(typeof ctx.predictorProblems === "function" ? ctx.predictorProblems() : [])].filter(Boolean);
 }
 // a prediction refusal as an answer: the relay's own inability (503) or the version's (403)
-const PREDICTION_503 = new Set(["busy", "prediction_unavailable", "catalog_unreachable", "component_unavailable", "prediction_failed", "predictor_unconfigured"]);
+const PREDICTION_503 = new Set(["warming", "busy", "prediction_unavailable", "catalog_unreachable", "component_unavailable", "prediction_failed", "predictor_unconfigured"]);
+// how long a release waits for a prediction still being computed before answering 503 warming (its ticket kept)
+const PREDICT_WAIT_MS = 10_000;
+const predictionOf = async (ctx, row) => {
+  try { return await ctx.expectedGuestFor(row, { forPrivate: !!row && row.isPublic === false, waitMs: PREDICT_WAIT_MS }); }
+  catch (e) { return { ok: false, code: "prediction_failed", reason: e.message }; }
+};
 const predictionRefusal = (p) => {
   const code = p && p.ok === false && typeof p.code === "string" && p.code ? p.code : "prediction_unavailable";
   return [code === "prediction_unavailable" || PREDICTION_503.has(code) ? 503 : 403, code,
@@ -219,14 +226,20 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   if (!/^0x[0-9a-f]{64}$/.test(id)) { bad(422, "bad_id", "id must be a bytes32 deployment id."); return true; }
   if (cfg.deployments !== "*" && !cfg.deployments.has(id)) { bad(403, "release_not_enabled", `Attested release is not enabled for ${id} on this relay.`); return true; }
   const epIdOf = async (endpoint) => String(await ctx.endpointIdOf(endpoint)).toLowerCase();
-  // the lease holder: holds D's live lease NOW, and the relay holds it eligible NOW (U7)
-  const leaseHolder = async (endpoint, epId) => {   // → { refusal: [code, error, message] } or { row }
+  // the lease holder: holds D's live lease NOW, and the relay holds it eligible NOW (U7). The record the decision rests on
+  // is re-read by id through two or more AGREEING RPCs (ctx.confirmRow, enclave-d1); a disagreement or an unreachable
+  // provider is the relay's own inability (503, `retry`), never a pass.
+  const leaseHolder = async (endpoint, epId) => {   // → { refusal: [code, error, message], retry? } or { row }
     let row = await rowOf(ctx, id);
     if (!holdsLease(row, epId)) row = await rowOf(ctx, id, { fresh: true });
     if (!holdsLease(row, epId)) return { refusal: [403, "not_lease_holder", `${endpoint} does not hold a live lease for ${id}.`] };
+    let confirmed;
+    try { confirmed = await ctx.confirmRow(id); }
+    catch (e) { return { retry: true, refusal: [503, "ledger_unconfirmed", `The deployment's record could not be confirmed (${e.message}); retry shortly.`] }; }
+    if (!holdsLease(confirmed, epId)) return { refusal: [403, "not_lease_holder", `${endpoint} does not hold a live lease for ${id} (confirmed read).`] };
     const elig = ctx.hostEligibility(epId);
     if (!elig || !elig.eligible) return { refusal: [403, "host_ineligible", `the lease holder is not an eligible host (U7)${elig && elig.reason ? `: ${elig.reason}` : ""}.`] };
-    return { row };
+    return { row: confirmed };
   };
 
   if (path === "/v1/secrets/release-ticket") {
@@ -248,7 +261,7 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     const ticket = randomBytes(32).toString("base64"), exp = Math.floor(Date.now() / 1000) + TICKET_TTL_SEC;
     tickets.set(ticket, { id, endpoint, epId, chips, exp });
     // warm the prediction while the guest boots (a cold one derives and measures); its answer is judged at release
-    Promise.resolve().then(() => ctx.expectedGuestFor(holder.row)).catch(() => {});
+    Promise.resolve().then(() => ctx.expectedGuestFor(holder.row, { forPrivate: holder.row.isPublic === false })).catch(() => {});
     ctx.json(res, 200, { ticket, expiresAt: exp }, req);
     return true;
   }
@@ -257,15 +270,29 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   let ticket, sealKey;
   try { ticket = b32(Buffer.from(String(b.ticket || ""), "base64"), "ticket"); sealKey = b32(Buffer.from(String(b.sealKey || ""), "base64"), "sealKey"); }
   catch (e) { bad(422, "bad_request", e.message); return true; }
-  const t = tickets.get(ticket.toString("base64"));
-  tickets.delete(ticket.toString("base64"));   // consumed on first presentation, whatever the verdict (a burn is DoS only; logged)
+  // A ticket is consumed on its first presentation whatever the verdict (a burn is DoS only; logged), with ONE exception:
+  // when the relay itself cannot predict the expected guest yet (503: warming, busy, ...), the ticket is KEPT and the guest
+  // retries within its TTL (enclave-d1). The prediction depends only on the deployment's row, never on the ticket or the
+  // evidence, so answering it first is no oracle.
+  const tk = ticket.toString("base64"), t = tickets.get(tk);
   if (!t || t.exp < Date.now() / 1000 || t.id !== id) {
+    tickets.delete(tk);
     if (t) console.warn(`[secrets-release] ticket for ${t.id} presented ${t.id !== id ? `for ${id}` : "after expiry"}: burned`);
     bad(403, "bad_ticket", "Unknown, expired or already-used ticket, or one issued for another deployment."); return true;
   }
   const holder = await leaseHolder(t.endpoint, t.epId);
-  if (holder.refusal) { bad(...holder.refusal); return true; }
+  if (holder.refusal) { if (!holder.retry) tickets.delete(tk); bad(...holder.refusal); return true; }
   const row = holder.row;
+  // the guest this deployment must be running, predicted for its catalog version (never taken from the host or the guest)
+  const expected = await predictionOf(ctx, row);
+  if (!expected || expected.ok !== true || !/^[0-9a-f]{64}$/.test(String(expected.appId)) || !Array.isArray(expected.images) || !expected.images.length) {
+    const [code, error, message] = predictionRefusal(expected);
+    if (code !== 503 || tickets.get(tk) !== t) tickets.delete(tk);   // a 503 keeps the ticket for a retry within its TTL
+    console.warn(`[secrets-release] ${id}: no prediction (${code === 503 ? "ticket kept" : "ticket burned"}): ${message}`);
+    bad(code, error, message); return true;
+  }
+  if (tickets.get(tk) !== t) { bad(403, "bad_ticket", "Unknown, expired or already-used ticket, or one issued for another deployment."); return true; }
+  tickets.delete(tk);   // consumed: everything below judges the guest's evidence
   const doc = b.evidence;
   if (!doc || typeof doc !== "object" || doc.format !== "sev-snp-guest-domain-v1" || doc.abi !== "enclave-domain-abi/2"
       || typeof doc.report !== "string" || typeof doc.transportKey !== "string" || !doc.runtime || typeof doc.runtime !== "object") {
@@ -274,13 +301,6 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   // a release document states no verifier `nonce`: the ticket is committed in the binding, and a release report must never
   // pass for an ordinary nonce-bound attestation wherever it is logged or re-verified
   if (doc.nonce !== undefined) { bad(422, "bad_evidence", "a release document must not state a nonce (the ticket is bound in report_data)."); return true; }
-  // the guest this deployment must be running, predicted for its catalog version (never taken from the host or the guest)
-  let expected;
-  try { expected = await ctx.expectedGuestFor(row); } catch (e) { expected = { ok: false, code: "prediction_failed", reason: e.message }; }
-  if (!expected || expected.ok !== true || !/^[0-9a-f]{64}$/.test(String(expected.appId)) || !Array.isArray(expected.images) || !expected.images.length) {
-    const [code, error, message] = predictionRefusal(expected);
-    console.warn(`[secrets-release] ${id}: no prediction: ${message}`); bad(code, error, message); return true;
-  }
   let runtimeId, appId, binding, report, measurements;
   try {
     runtimeId = b32(await ctx.runtimeIdOf(doc.runtime), "runtime id");
