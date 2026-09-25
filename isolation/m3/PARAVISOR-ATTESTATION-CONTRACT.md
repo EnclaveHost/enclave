@@ -178,9 +178,20 @@ On real report bytes from the non-debug platform:
 
 ## Open questions (to be answered from cited source, then measured)
 
-- Which existing guest ↔ paravisor path, if any, lets the guest ask for a report over its own data. The candidate
-  under trace (enclave-d1) is the vTPM attestation-report NV index (`TPM_NV_INDEX_ATTESTATION_REPORT`).
-- What that path places in the report's report data, and in what format the guest reads it back.
+- ANSWERED FROM SOURCE ONLY (a7b0bd4; enclave-99's contract V5 at main a18ec469): the guest's path, and what it binds.
+  - It is the vTPM NV path. The guest writes 64 bytes to `TPM_NV_INDEX_GUEST_ATTESTATION_INPUT` (Bind2(SPKI, nonce,
+    runtimeId) || AppID for us).
+  - A read of `TPM_NV_INDEX_ATTESTATION_REPORT` renews the report, at most once per 2 s. A renewal that is rate-limited
+    or fails returns the previous report (tpm_device lib.rs:92, :97, :1141-1152, :1396-1411).
+  - report_data = SHA-256(runtime-claims JSON as serialised) || 32 zero bytes. The claims are {keys: the vTPM's AK/EK,
+    vm-configuration: host-supplied, user-data: hex of the 64 bytes} (get.rs:339-392; igvm_attest/mod.rs:146-185,
+    :357-362).
+  - The guest reads back IgvmAttestRequest VERSION_1: the hardware report plus the claims, with their length stated
+    twice (emuplat/tpm.rs:54-101; mod.rs:269-332).
+  - Stale is only ever a refusal, because the verifier's nonce makes a stale report fail.
+  - UNTESTED: whether a type-1 partition serves this path on the box; no report bytes have been seen.
+  - The keys and vm-configuration in the claims are statements only (the vTPM state is host-readable here), and nothing
+    admits on them.
 - Whether anything in the report binds VTL0's payload, or only the paravisor's image.
 - Whether debug is visible in the report.
 - Which key signs a VBS report, and what it chains to.
