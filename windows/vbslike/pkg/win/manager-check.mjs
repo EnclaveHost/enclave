@@ -8,6 +8,10 @@
 // recording fake host (the runner is injected; no PowerShell runs and no Hyper-V is touched), and reads the New-VM
 // command the launcher actually issued. Text search would pass a manager whose default leaves the flag off.
 //
+// It ALSO reports, from the same run, what the launcher does about a UEFI boot medium and the serving path (the
+// commands it issues and the handle it returns): attachesMedium, setsBootDevice, readsBackBoot, imageIsMediumHash,
+// hasLauncherKey, hasRelay. The package pins those as MEASURED (red today), so the day the manager gains them the pin
+// must move rather than the change passing unnoticed.
 // Prints one JSON line; exit 0 only when the issued New-VM names OpenHCL or TrustedLaunch as the isolation type.
 // Used by pkg.mjs verify (on the pinned bytes) and by check.ps1 on the box (on the package's copy, or -ManagerDir).
 import fs from "node:fs";
@@ -40,13 +44,25 @@ try {
     const a = answers.find(([re]) => re.test(script));
     return { code: 0, stdout: JSON.stringify(a ? a[1] : { ok: true, found: 0, removed: [], failed: [], vms: [] }), stderr: "" };
   };
-  const l = new WmiHyperVLauncher({ run, imagePath: IMG, imageSha256: sha, prefix: "manager-check-" });
-  let startErr = null;
-  await l.start(mapping, { instanceId: "managercheck-0001", guestReadySec: 1 }).catch((e) => { startErr = e.message; });
+  const medium = val("--medium-sha256");
+  const l = new WmiHyperVLauncher({ run, imagePath: IMG, imageSha256: sha, prefix: "manager-check-",
+                                    ...(medium ? { mediumPath: "C:\\manager-check\\medium.iso", mediumSha256: medium } : {}) });
+  let startErr = null, handle = null;
+  handle = await l.start(mapping, { instanceId: "managercheck-0001", guestReadySec: 1 }).catch((e) => { startErr = e.message; return null; });
   const created = seen.find((s) => /New-VM/.test(s));
   const m = created ? ISO.exec(created) : null;
+  const all = seen.join("\n");
+  const serving = {
+    attachesMedium: /Add-VMDvdDrive|Add-VMHardDiskDrive/.test(all),
+    setsBootDevice: /FirstBootDevice/.test(all),
+    readsBackBoot: /Get-VMFirmware/.test(all),
+    imageIsMediumHash: !!handle && typeof handle.image === "string" && /^[0-9a-f]{64}$/.test(handle.image) && (!medium || handle.image === medium),
+    imageType: handle ? (typeof handle.image === "string" ? "string" : handle.image === undefined ? "absent" : typeof handle.image) : null,
+    hasLauncherKey: !!handle && typeof handle.launcherKey === "string" && handle.launcherKey.length > 0,
+    hasRelay: !!handle && (handle.relay != null || handle.tcpPort != null),
+  };
   out = { ok: !!m, isolation: m ? m[1] : null, secureBootOff: !!created && /EnableSecureBoot\s+Off/.test(created),
-          appId: mapping.appId, issuedNewVm: !!created, startError: startErr,
+          serving, appId: mapping.appId, issuedNewVm: !!created, startError: startErr,
           reason: !created ? "the launcher issued no New-VM" : m ? "" : "the launcher's New-VM names no guest-state isolation type: the FirmwareFile pin would be accepted and silently unused" };
 } catch (e) {
   out = { ok: false, reason: `manager-check: ${e.message}` };

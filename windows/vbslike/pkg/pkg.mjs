@@ -266,13 +266,24 @@ async function checkClaims(m, bytes, R) {
       fs.writeFileSync(path.join(d, "record.json"), (app && bytes.get(file(`${app.dir}/record.json`))) || "");
       fs.writeFileSync(path.join(d, "component.wasm"), (app && bytes.get(file(`${app.dir}/component.wasm`))) || "");
       const mdir = path.join(d, ...(c.manager || "").split("/").slice(0, -1));
+      const ue = m.profiles?.uefi, mediumSha = ue && file(ue.medium)?.sha256;
       const r = spawnSync(process.execPath, [path.join(HERE, "win/manager-check.mjs"), mdir,
-        "--record", path.join(d, "record.json"), "--component", path.join(d, "component.wasm"), "--image-sha256", file(ig.image)?.sha256 || ""],
+        "--record", path.join(d, "record.json"), "--component", path.join(d, "component.wasm"), "--image-sha256", file(ig.image)?.sha256 || "",
+        ...(mediumSha ? ["--medium-sha256", mediumSha] : [])],
         { encoding: "utf8", timeout: 60000 });
       try { res = JSON.parse(r.stdout.trim().split("\n").at(-1)); } catch { res = { ok: false, reason: (r.stderr || r.stdout || "").trim().split("\n").at(-1) }; }
     } finally { fs.rmSync(d, { recursive: true, force: true }); }
     R.add(!!res?.ok, "the igvm manager creates its VM with a guest-state isolation type (its own start(), on a recording host)",
           res?.ok ? `New-VM -GuestStateIsolationType ${res.isolation}${res.secureBootOff ? ", Secure Boot off" : ""}` : res?.reason || "no answer");
+    // The manager's UEFI SERVING path, pinned as MEASURED: what start() does about the medium and the hv_sock exchange.
+    // Red today; the pin must move when the manager gains them, so a change never passes unnoticed.
+    const ms = m.profiles?.uefi?.managerServing;
+    if (ms && ms.expect) {
+      const got = res?.serving || null, keys = Object.keys(ms.expect);
+      const diff = got ? keys.filter((k) => JSON.stringify(got[k]) !== JSON.stringify(ms.expect[k])).map((k) => `${k}: ${JSON.stringify(got[k])} (pinned ${JSON.stringify(ms.expect[k])})`) : ["no measurement"];
+      R.add(diff.length === 0, "the manager's UEFI serving path is exactly as pinned (medium attach, boot device, read-back, image, launcher key, relay)",
+            diff.length ? diff.join("; ") : keys.map((k) => `${k}=${JSON.stringify(ms.expect[k])}`).join(" "));
+    }
   }
   // The node's own record builder against the catalog. The manifest records each app's catalog version as READ FROM THE
   // CHAIN (catalogFacts, with the block, address book and catalog it came from); the shipped node-bridge.mjs's

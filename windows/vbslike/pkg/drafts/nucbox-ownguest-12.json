@@ -80,6 +80,19 @@
     "hvSock": "guest listens 9000, host listens 9001, domain 40000+id",
     "vTpm": "ABSENT, deliberately: nothing on this path reads PCRs, and a vTPM present but unread would look like attestation (enclave-d1). Measured 2026-09-25 01:10:51Z: Msvm_SecuritySettingData.TpmEnabled = False"
    },
+   "managerServing": {
+    "expect": {
+     "attachesMedium": false,
+     "setsBootDevice": false,
+     "readsBackBoot": false,
+     "imageIsMediumHash": false,
+     "imageType": "object",
+     "hasLauncherKey": false,
+     "hasRelay": false
+    },
+    "measuredBy": "win/manager-check.mjs on the pinned manager's own start(), recording host, 2026-09-25",
+    "note": "RED AS MEASURED at cf640825 (sent to enclave-d1 with lines): start() attaches no medium and sets no boot device (only the dev-boot script does), returns verifyImage()'s {sha256, bytes} of the FIRMWARE as image (the datapath compares image as a 64-hex string, so every route would be refused), and has no 9001 signing bind, 9000 load or relay, so no launcherKey and no relay and readiness can never be judged. When the manager gains these, THIS PIN MOVES; until then no app can be served on the UEFI path through the manager."
+   },
    "identity": "partition.guestImageSha256 = the attached MEDIUM's sha256, hashed AT ATTACH (guest.iso's bytes on the DVD path, disk.raw's for the VHDX payload), with the UKI and its composition beside it; partition = wmi-openhcl-gen2, the LAUNCHER's word (isolation/m3/UEFI-BOOT.md at 4127789d; wmi-launcher.mjs uefiImageIdentity at fe56ad65). With Secure Boot off, systemd-stub honours ESP side-files and cmdline overrides; only a medium hash rules them out, and the guest's guards refuse them.",
    "measured": [
     "DEV only, QEMU q35 + OVMF on KVM (warden-host): this ISO (7b9b04d6) boots past the guards and then REFUSES by name, 'MON ERROR no vsock transport: neither Hyper-V's (hv_sock) nor virtio's is present', and powers off, because the pinned WSL kernel has no virtio vsock transport. That is the guard working on KVM, not a boot. On the NucBox the same medium is expected to print transport=hv_sock; not yet measured.",
@@ -1242,8 +1255,8 @@
   {
    "path": "win/manager-check.mjs",
    "role": "tool.windows",
-   "sha256": "8efc7a413fb1feaf18daf9bd84328dda9f6d42c7a1b8e15095a9ce6f9035c532",
-   "bytes": 3911,
+   "sha256": "d3b8df0862f2326d2b27d36afc25df2332b9f528e8e073de8c54edbb10d44739",
+   "bytes": 5216,
    "from": {
     "repo": "windows/vbslike/pkg/win/manager-check.mjs"
    }
