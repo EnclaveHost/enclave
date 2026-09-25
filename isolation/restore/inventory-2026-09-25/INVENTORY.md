@@ -21,6 +21,9 @@ construction. The envelope is replaced whole, so each new one is the current env
 byte-for-byte; the script re-parses the result and checks it equals the old envelope plus `isolation`. The owner's procedure (enclave-d1's review):
 1. **Immediately before the Trezor:** run `owner-payloads.mjs --check payloads.json`. It re-reads each deployment at a
    pinned block on both RPCs and REFUSES unless:
+   - the payload says `to` = the ledger the address book names, `from` = the owner, `value` "0" and `chainId` 8453.
+     The signer copies these into the Trezor, and an `eth_call` to a codeless address "succeeds", so the simulation
+     alone would not catch an edited `to`. Its OK line prints `to`, for comparison with the Trezor screen;
    - the current envelope is byte-identical to the payload's base;
    - the preserved fields are unchanged;
    - the calldata rebuilt from the chain NOW equals the payload's;
@@ -29,11 +32,16 @@ byte-for-byte; the script re-parses the result and checks it equals the old enve
    since it was built. Tested: a copy with one base envelope and one rate altered is refused for exactly those two.
 2. Sign each payload's `data`, to the ledger, from the owner, with value 0.
 3. **After:** run `owner-payloads.mjs --verify payloads.json a69dcbba=0x<tx> …`. It uses RPCs that serve receipts,
-   drpc + 1rpc.io by default, because publicnode requires a token for receipts. It fails unless each transaction IS
+   drpc + blastapi by default, because publicnode requires a token for receipts and 1rpc.io answered 410 mid-run. It fails unless each transaction IS
    its payload: input == `data`, to == the ledger, from == the owner, value 0, receipt success, and exactly one
    `ConfigSet(id, envelope)` from the ledger. It then checks the deployment differs only in its envelope.
-   Tested against a real unrelated transaction: all five mismatches are reported. The passing path can only be
-   exercised by the real signature.
+   The decision is a pure function (`txReasons`), tested without a chain in `test/restore-owner-payloads.test.mjs`:
+   - a synthetic transaction and ConfigSet receipt pass;
+   - 14 mutations are each named (input, to, from, value, reverted, zero or two ConfigSets, a ConfigSet from another
+     contract, for another id or with another envelope, the RPCs disagreeing on input or status, the envelope
+     afterwards, a preserved field afterwards);
+   - 4 code mutants of the checks themselves are caught.
+   Live against a real unrelated transaction, the mismatches are reported too.
 The preserved fields are owner, appRef, ports, gpuMilli, cpuMilli, appPort, isPublic, active, createdAt, rate and cap.
 `rate` changes only via setShares, so a change there means someone acted in between. balance6, spent6, runner and
 leaseUntil move on their own with leases, and are recorded, not required.
