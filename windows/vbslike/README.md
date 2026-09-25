@@ -1,5 +1,8 @@
 # Our own VBS-like isolation on Windows: one Hyper-V partition per app, the same guest as Linux
 
+> **DIRECTION (2026-09-25, Steven): the custom type-1 isolation path is the ONLY NucBox target. The legacy ee-engine.dll VBS-enclave backend is not a recovery target; Secure Boot stays on. See [DIRECTION.md](DIRECTION.md).**
+
+
 Status: **built and measured on the NucBox K11, 2026-09-23** (`evidence/lab-2026-09-23.json`: ALL PASS,
 30 checks). Branch `windows/custom-vbs-like-hyperv`. Nothing here touches the live node under
 `C:\Users\claude\vbs` or the `EnclaveWindowsNode` task; the lab lives in `C:\Users\claude\vbs-like`.
