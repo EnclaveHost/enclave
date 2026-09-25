@@ -7250,7 +7250,7 @@ import { gunzipSync as gunzipSync2 } from "node:zlib";
 
 // verifier/envelope.mjs
 import { gunzipSync } from "node:zlib";
-var TECH = { SNP: "amd-sev-snp", TDX: "intel-tdx", AVF: "android-avf", VBS: "windows-vbs-enclave", HYPERV: "hyperv-partition", NONE: "none" };
+var TECH = { SNP: "amd-sev-snp", TDX: "intel-tdx", AVF: "android-avf", VBS: "windows-vbs-enclave", HYPERV: "hyperv-partition", WINHOST: "windows-tpm-host", NONE: "none" };
 var b64 = (max, required = false) => ({ kind: "b64", max, required });
 var hexF = (n, required = false) => ({ kind: "hex", n, required });
 var str = (max, required = false) => ({ kind: "str", max, required });
@@ -7284,6 +7284,19 @@ var FORMATS = Object.freeze({
   "enclave-pvm-app-evidence/v3": { technology: TECH.AVF, family: "pvm-app", binding: "abi3-client-nonce-instance", gzip: false, supported: "delegate", jsonObject: true, appKey: true, instance: true },
   "windows-vbs-enclave/v1": { technology: TECH.VBS, family: "consumer-node", binding: "vbs-transcript", gzip: false, supported: "delegate", shape: SHAPES.vbs },
   "hyperv-partition-domain/v1": { technology: TECH.HYPERV, family: "domain", binding: "domain", gzip: false, supported: "delegate", hostExcluded: false, shape: SHAPES.hyperv },
+  // The NucBox node's attach evidence proposed by enclave-5d on 2026-09-25 for the custom type-1 path (Steven: the only NucBox
+  // target): the node's own transport key bound to its TPM's measured boot state (EK chain, credential round trip, quote, log
+  // replay, Secure Boot on, test signing off). The relay judges it; it is a HOST statement with no TEE claim and the host is
+  // not excluded, so it is never a confidential-compute verdict here (docs/security/nucbox-custom-vm-verifier.md).
+  "windows-hv-node/v1": {
+    technology: TECH.WINHOST,
+    family: "consumer-node",
+    binding: "hv-node-transcript",
+    gzip: false,
+    supported: false,
+    hostExcluded: false,
+    why: "a host-attested boot state (TPM quote over the measured boot, judged by the relay's module): no TEE claim, the host is not excluded, never a confidential-compute verdict"
+  },
   "dev-unattested-metal-v1": { technology: TECH.NONE, family: "dev", binding: null, gzip: false, supported: false, rejected: true, why: "development format: proves nothing about hardware by definition" },
   "none": { technology: TECH.NONE, family: "t0", binding: null, gzip: false, supported: false, rejected: true, why: "a T0 domain has no hardware report" }
 });

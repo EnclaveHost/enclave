@@ -45,7 +45,7 @@ export async function verifyEvidence(doc, { policy = {}, context = {}, collatera
     case TECH.SNP: return { technology, ...(await verifySnp(env, policy.snp || {}, context, collateral)) };
     case TECH.TDX: return unsupported(technology, "Intel TDX quotes are parsed elsewhere but not verified by this harness (DCAP: PCK chain to the Intel SGX Root CA, TCB info, QE identity)");
     case TECH.AVF: return { technology, ...(await verifyAvf(env, policy.avf || {}, context)) };
-    case TECH.VBS: return unsupported(technology, "a VBS-enclave attestation is judged by relay/vbs-verify.mjs with the relay's TPM credential round trip; it is not replayable offline here, and tier vbs-dev never reads as verified");
+    case TECH.VBS: return unsupported(technology, "the Windows VBS-enclave backend (ee-engine) is RETIRED (Steven, 2026-09-25: the custom type-1 partition is the only NucBox target): a VBS-enclave report is never verified here and never stands in for a custom-VM report, and tier vbs-dev never reads as verified");
     case TECH.HYPERV: return unsupported(technology, "a Hyper-V partition document is judged by windows/vbslike/verify/judge-hv.mjs against the launcher key; it has no hardware root (hostExcluded=false by contract) and is never a confidential-compute verdict");
     default: return unsupported(technology, `no verifier for ${technology}`);
   }

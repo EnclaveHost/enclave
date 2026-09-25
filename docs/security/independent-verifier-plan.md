@@ -1054,9 +1054,9 @@ recorded evidence; flipping one is a reviewed commit that names the evidence. St
 | CLI | `--require-index` default | the user's memory has history (`persisted: true`, one index seen) is unknowable per user: the default stays opt-in; documented in `--help` | opt-in, by design |
 | self-check | `SELF_CHECK_REQUIRE_INDEX=1` | 14 days of `verification.selfCheck.enclave.index.status = verified` and `agreement` in {agree, agree-limited} on every hosted enclave, with `memoryNotPersisted` absent | NOT MET: no hosted enclave |
 | self-check | `SELF_CHECK_VERIFIERS=enclave` (own verdict decides `result`) | the above, plus the independent review of `verifier/` (M5) | NOT MET |
-| relay | `RELAY_REQUIRE_INDEX=1` | the relay's memory has history (`aggregate.reverify.indexMemory.remembered` set, persisted) and 14 days of `expectations.index.status = verified` | NOT MET: shadow live since 2026-09-25 01:52Z, no dialed rows to judge |
+| relay | `RELAY_REQUIRE_INDEX=1` | the relay's memory has history (`aggregate.reverify.indexMemory.remembered` set, persisted) and 14 days of `expectations.index.status = verified`, the relay's mirror agreeing daily with GitHub's signed index (section 10.9 provenance parity) | NOT MET: shadow live since 2026-09-25 01:52Z; the memory persists across restarts (freshness `same` after the 04:28Z and 05:04Z redeploys); no dialed rows to judge |
 | relay | `RELAY_REVERIFY=enforce` | the above, plus every dialed row `verified` for 14 days with zero unexplained `rejected`/`unavailable` | NOT MET |
-| browser | own verdict primary | provenance verified in the browser from the mirror (DONE 2026-09-25, above), then 14 days of `agree` with `independent: true` in the site shadow with the primary on hosted enclaves | NOT MET: no hosted enclave; the shadow is opt-in and records only |
+| browser | own verdict primary | provenance verified in the browser from the mirror (DONE 2026-09-25, above; checked daily in a real Chrome on the live page by the provenance parity job, section 10.9), then 14 days of `agree` with `independent: true` in the site shadow with the primary on hosted enclaves | NOT MET: no hosted enclave; the shadow is opt-in and records only, so the verdict half has no collected evidence yet |
 
 Until then Tinfoil is the primary everywhere, and every own verdict is published beside it.
 
@@ -1162,6 +1162,18 @@ stray branch of that run (a timestamp-only commit) was deleted.
 What stays open, unchanged: a host running one of our releases verified end to end by the CLI, the self-check and the
 relay; the 14-day windows; the TUF job's scheduled cycles; the independent review (M5). Tinfoil stays primary and every
 strict switch stays off.
+
+## 10.10 NucBox: the custom type-1 path only (2026-09-25, Steven via enclave-d1)
+
+The custom type-1 partition with our measured paravisor is the ONLY NucBox target; the ee-engine VBS-enclave backend is
+retired and no legacy enclave report may stand in for a custom-VM report. This lane owns the verifier contract and the
+consumer integration for it: `docs/security/nucbox-custom-vm-verifier.md` states, check by check, what the verifier will
+require of the node's attach evidence (enclave-5d's proposed `windows-hv-node/v1`, a host-attested boot state with no TEE
+claim) and of the paravisor's VM report, each NOT ESTABLISHED until real bytes exist. Done now: the legacy format's verdict
+says the backend is retired; `windows-hv-node/v1` is registered as unsupported here (judged by the relay, host not
+excluded); `test/verifier-nucbox-legacy-refused.test.mjs` shows on the real boot-64 enclave evidence that no Windows or
+candidate custom-VM format name can be verified, and fails if any Windows format becomes supported. The relay's attach
+path waits for the real boot-68 frame from enclave-5d.
 
 ## 11. Open risks
 
