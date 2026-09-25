@@ -49,6 +49,39 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           mark-as-latest: ${{ inputs.mark-as-latest }}
 
+  # The SIGNED release index (verifier/release-index.mjs; docs/security/independent-verifier-plan.md M4): built from the
+  # published releases (this tag included) and verifier/release-policy.json at this tag, attested keylessly under the same
+  # identity as the release (subject = the file's sha256, predicate https://enclave.host/predicate/release-index/v1),
+  # attached to this release as release-index.json. Its own job: a failure here leaves the release published and
+  # verifiers on their unsigned fallback, and shows red on its own.
+  release-index:
+    needs: measure-and-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write       # attach the index to the release
+      id-token: write       # keyless attestation signing
+      attestations: write   # publish the attestation
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22
+      - name: build the release index (this tag, the floor and revocations from verifier/release-policy.json)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node verifier/release-index.mjs build --repo "${{ github.repository }}" --out release-index.json --predicate release-index.predicate.json
+      - name: attest the index (keyless, the release's identity)
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: release-index.json
+          predicate-type: https://enclave.host/predicate/release-index/v1
+          predicate-path: release-index.predicate.json
+      - name: attach the index to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.ref_name }}" release-index.json --clobber
+
   update-fleet:
     needs: measure-and-release
     runs-on: ubuntu-latest

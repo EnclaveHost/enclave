@@ -58,22 +58,34 @@ test("relay/deploy.sh ships every module its entrypoints import, transitively", 
   assert.ok(targets.some((t) => /\$RH/.test(t.host)),
     "the looped data-plane scp line must still be parsed - it ships to every relay");
 
+  // Per host, the box's tree: each scp line lands its files FLAT in its destination directory (scp keeps basenames,
+  // not source layout), and a host may have several lines into different directories under one install root
+  // (nan: /opt/nan-relay/ and /opt/nan-relay/vendor/ since 2026-09-25). A shipped file is therefore known by its path
+  // RELATIVE TO THAT ROOT (the shortest destination among the host's lines), and an import resolves against the
+  // importing file's own shipped path, exactly as Node will resolve it on the box.
+  const byHost = new Map();
+  for (const t of targets) { if (!byHost.has(t.host)) byHost.set(t.host, []); byHost.get(t.host).push(t); }
   const missing = [];
-  for (const { host, files } of targets) {
-    const shipped = new Set(files);
+  for (const [host, lines] of byHost) {
+    const dests = lines.map((l) => l.dest.replace(/\/+$/, "") + "/");
+    const root = dests.slice().sort((a, b) => a.length - b.length)[0];
+    const shipped = new Map();                     // shipped path on the box (relative to root) -> source path in relay/
+    for (const l of lines) {
+      const dir = path.posix.relative(root, l.dest.replace(/\/+$/, "") + "/");
+      assert.ok(!dir.startsWith(".."), `${host}: ${l.dest} is not under the install root ${root}`);
+      for (const f of l.files) shipped.set(path.posix.join(dir, path.posix.basename(f)), f);
+    }
     const seen = new Set();
-    const queue = [...files];
+    const queue = [...shipped.keys()];
     while (queue.length) {
       const rel = queue.shift();
       if (seen.has(rel)) continue;
       seen.add(rel);
-      const abs = path.join(RELAY, rel);
+      const abs = path.join(RELAY, shipped.get(rel));
       if (!fs.existsSync(abs)) continue;           // a stale list entry is a different problem
       for (const spec of relativeImports(abs)) {
-        // deploy.sh flattens: everything lands in one directory on the box, so
-        // the shipped name is the basename regardless of the source layout.
-        const dep = path.basename(spec);
-        if (!shipped.has(dep)) missing.push(`${host}: ${rel} imports ${spec} — add ${dep} to its scp line`);
+        const dep = path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec));
+        if (!shipped.has(dep)) missing.push(`${host}: ${rel} imports ${spec} — ship ${dep} (a scp line into ${root}${path.posix.dirname(dep) === "." ? "" : path.posix.dirname(dep) + "/"})`);
         else queue.push(dep);
       }
     }
