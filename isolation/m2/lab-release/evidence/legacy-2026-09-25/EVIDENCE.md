@@ -28,3 +28,15 @@ Run: `~/enclave-bench/lab-release/legacy-run-20260925a`, by `isolation/m2/lab-re
 
 So the new tree's boot path (the CID choice is its only change to run-domain.sh) leaves a legacy guest's launch
 measurement exactly as production's. A canary relaunched by a 4d guestd before rows 7-8 keeps its current measurement.
+
+## Independently confirmed (enclave-d1, 2026-09-25)
+- The legacy tree matches `git archive 0181bce3 isolation` exactly: 0 files differ, 0 are extra.
+- The boot path tested is the production candidate's: between 63ff0284 and d1a38994 there is no diff in m2/run-domain.sh,
+  m2/fwd, m2/client.mjs, m4/guestd or m1/.
+- d1 reconstructed the result without this harness:
+  - the component, CAR-verified from trustless-gateway.link (201013 B);
+  - `derive_reference.py` at 0181bce3, giving AppID d2c4dfc0… and record 1fb9360d…;
+  - `expected-measurement --pin 5c3561f9…`, giving be6b8644…da4d.
+- Production guestd's own record for the live canary gdb677d751 (read only) carries the same AppID and measurement, with
+  verdict attested.
+- Afterwards production still had the same 3 m2-gd* units, and no process was running from the lab dir.
