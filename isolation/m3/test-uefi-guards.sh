@@ -31,11 +31,14 @@ done
 printf '%s\r\n' 'fs0:\EFI\enclave\uki.efi console=ttyS0 rdinit=/init loglevel=3 report_host=9001 injected=1' > "$W/loadopts/startup.nsh"
 printf '%s\r\n' 'fs0:\EFI\enclave\uki.efi console=ttyS0 rdinit=/init loglevel=3 report_host=9001' > "$W/loadpinned/startup.nsh"
 failed=0
-boot() {   # boot <name> <expect-regex> <qemu args...>
+cid=70030
+boot() {   # boot <name> <expect-regex> <qemu args...>  (each guest gets a vsock device: without a transport the monitor
+           # refuses to claim ready, so a guard case must not fail for want of one)
   name=$1; want=$2; shift 2
-  rm -f "$W/$name.serial"
+  rm -f "$W/$name.serial"; cid=$((cid + 1))
   systemd-run --user --unit="hvlab-guard-$name" --collect -q -p MemoryMax=1792M qemu-system-x86_64 -machine q35,accel=kvm \
-    -cpu host -smp 1 -m 1024M -bios "$OVMF" "$@" -nodefaults -display none -serial "file:$W/$name.serial" -no-reboot
+    -cpu host -smp 1 -m 1024M -bios "$OVMF" "$@" -device "vhost-vsock-pci,guest-cid=$cid" \
+    -nodefaults -display none -serial "file:$W/$name.serial" -no-reboot
   t=0; until tr -d '\r' < "$W/$name.serial" 2>/dev/null | grep -a -q -E "MON ready|MON ERROR refusing"; do
     t=$((t + 1)); [ $t -lt 60 ] || break; sleep 1; done
   systemctl --user stop "hvlab-guard-$name" 2>/dev/null || true

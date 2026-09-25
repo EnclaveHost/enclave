@@ -206,7 +206,17 @@ func main() {
 	// ONE canonical record of the tuple, emitted exactly once. It used to appear on the MON ready line
 	// too, and two sources of the same fact is one more than a checker can safely believe.
 	fmt.Printf("MON boundary %s\n", m.boundary)
-	fmt.Printf("MON ready control_port=%d snp=%v\n", *control, m.snp)
+	// "ready" must mean the control channel can exist. AF_VSOCK accepts a listen with NO transport registered, so a
+	// guest whose kernel carries only another hypervisor's transport used to print ready and then never answer a
+	// load (enclave-d1, the first UEFI boot on the NucBox). Name the transport that can carry the channel, or stop.
+	transport := vsockTransport()
+	if transport == "" {
+		fmt.Printf("MON ERROR no vsock transport: neither Hyper-V's (hv_sock) nor virtio's is present, so no host can reach control port %d\n", *control)
+		syscall.Sync()
+		_ = syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
+		os.Exit(1)
+	}
+	fmt.Printf("MON ready control_port=%d snp=%v transport=%s\n", *control, m.snp, transport)
 	slots := make(chan struct{}, maxControlConns)
 	for {
 		c, err := cl.Accept()
@@ -1121,6 +1131,24 @@ func reportVmpl(rep []byte) int {
 		return -1
 	}
 	return int(binary.LittleEndian.Uint32(rep[0x30:0x34]))
+}
+
+// vsockTransport names the host-guest vsock transports this kernel can actually use, from sysfs: Hyper-V's hv_sock
+// driver (VMBus, built into the NucBox's kernel) and a device bound to virtio's (QEMU/KVM). "" when there is neither.
+func vsockTransport() string {
+	var t []string
+	if _, err := os.Stat("/sys/bus/vmbus/drivers/hv_sock"); err == nil {
+		t = append(t, "hv_sock")
+	}
+	if ents, err := os.ReadDir("/sys/bus/virtio/drivers/vmw_vsock_virtio_transport"); err == nil {
+		for _, e := range ents {
+			if strings.HasPrefix(e.Name(), "virtio") {
+				t = append(t, "virtio")
+				break
+			}
+		}
+	}
+	return strings.Join(t, "+")
 }
 
 func must(err error) {

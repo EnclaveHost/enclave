@@ -16,8 +16,14 @@ Kernel command line: `console=ttyS0 rdinit=/init loglevel=3 report_host=9001`. T
 
 ```
 MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no
-MON ready control_port=9000 snp=false
+MON ready control_port=9000 snp=false transport=hv_sock
 ```
+
+`transport=` names the host-guest vsock transport the kernel can actually use: `hv_sock` (Hyper-V's VMBus transport,
+built into the NucBox kernel) or `virtio` (QEMU/KVM). AF_VSOCK accepts a listen with NO transport registered, so
+without one the monitor prints `MON ERROR no vsock transport ...` and powers off instead of claiming ready (enclave-d1,
+2026-09-25: the old line printed identically whether or not the channel could exist). The virtio insmod lines on
+the box are the QEMU lane's modules, harmless.
 
 (No partition kind: the guest cannot tell an HCS child from a UEFI/OpenHCL partition or a KVM test guest, so the
 launcher states the kind in the report it signs. Initrds before 2026-09-25 printed a fixed `partition=hcs-child`.)
