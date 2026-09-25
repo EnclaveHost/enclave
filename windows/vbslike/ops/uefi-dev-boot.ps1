@@ -119,6 +119,29 @@ function Note($m){
   $script:notes += $l; Write-Host $l
   try { Add-Content -Path $script:logPath -Value $l -EA SilentlyContinue } catch { }
 }
+# DRAIN A CONSOLE PIPE, do not sample it. The first reader issued ONE 8 KiB read and then slept
+# 3 s, so it took at most 8 KiB per 3 s; a chatty boot fills the pipe faster than that and the line
+# the run is waiting for can be lost behind it (enclave-53). This waits up to $waitMs for the FIRST
+# chunk, then keeps reading for as long as data is already there, and leaves at most one read
+# pending - never two on one stream. $st is a hashtable, so what it reads survives the call.
+function Drain($st, [int]$waitMs) {
+  if (-not $st.c -or -not $st.c.IsConnected) { return }
+  $w = $waitMs
+  for ($n = 0; $n -lt 512; $n++) {
+    if ($null -eq $st.pending) {
+      $st.buf = New-Object byte[] 65536
+      $st.pending = $st.c.ReadAsync($st.buf, 0, $st.buf.Length)
+    }
+    $done = $false
+    try { $done = $st.pending.Wait($w) } catch { $st.pending = $null; return }   # faulted: the pipe went away
+    if (-not $done) { return }                  # still pending: it stays the one outstanding read
+    $got = if ($st.pending.IsFaulted) { 0 } else { $st.pending.Result }
+    $st.pending = $null
+    if ($got -le 0) { return }                  # end of stream
+    $st.text += [System.Text.Encoding]::ASCII.GetString($st.buf, 0, $got)
+    $w = 50                                     # after the first chunk: only what is already there
+  }
+}
 
 Note "=== DEV BOOT. Host exclusion is NOT established on this path. Nothing here is verified capacity. ==="
 Note "    partition kind: wmi-openhcl-gen2, GuestStateIsolationType $IsolationType (the LAUNCHER states it; the guest cannot know it)"
@@ -174,6 +197,32 @@ function Loopbacks {
 }
 $APPS = @('e64f7cba','d9798e4c','a77d0c57','7ae476a3','a69dcbba','c34499ee')
 
+# ONE RUN AT A TIME, ENFORCED - and checked BEFORE self-heal, which it protects.
+#
+# Self-heal removes every `enclave-uefi-*` VM carrying our marker or empty Notes. The stale-sentinel
+# refusal used to come AFTER it, so a second run started while a first was live removed the first
+# run's VM and only then refused (enclave-53's 4b, which the sentinel check did not actually close).
+# The lock is an open file handle with no sharing: the OS releases it when this process exits,
+# however it exits, so a killed run cannot leave it held.
+try { $script:runLock = [System.IO.File]::Open('C:\Users\claude\uefi-probe.lock', 'OpenOrCreate', 'ReadWrite', 'None') }
+catch { throw "another uefi-dev-boot run holds C:\Users\claude\uefi-probe.lock. Refusing to start: self-heal would remove that run's live VM." }
+# A STALE SENTINEL MEANS THE SETTING WE ARE ABOUT TO CALL "before" IS A PREVIOUS RUN'S.
+#
+# Without this the host can be left permitting unsigned firmware while the log says the opposite,
+# with no reboot needed (enclave-53): run A is killed with the key set; run B starts and records
+# Present/1 as the host's prior state; A's watchdog then removes the value under B; B's cleanup
+# faithfully restores it to 1 and verifies it. The setting is host-wide, so this is the one failure
+# here that outlives the experiment, and it is refused rather than reasoned about. A killed run's
+# watchdog removes its own sentinel within seconds of that run's process ending, so a sentinel that
+# is still here is either a run's watchdog about to act or one that died - both need a person.
+$stale = @(Get-ChildItem "C:\Users\claude\uefi-probe-active-*.txt" -EA SilentlyContinue)
+if ($stale.Count) {
+  foreach ($f in $stale) { Note "STALE SENTINEL: $($f.Name) -> $((Get-Content $f.FullName -Raw -EA SilentlyContinue) -replace "`r?`n",' ')" }
+  throw ("another run's sentinel is still present, so the current AllowFirmwareLoadFromFile value is " +
+         "that run's and not this host's resting state. Refusing to start: restoring from a borrowed " +
+         "'before' is how a host gets left permitting unsigned firmware with a log that says otherwise.")
+}
+
 # self-heal: a run killed with its SSH can leave a VM and the setting applied
 # THE ORPHAN WINDOW. The marker is applied AFTER New-CustomVM returns, so a kill in between leaves a
 # VM with EMPTY Notes - which a marker-only rule then refuses to remove, stranding the very VM the
@@ -204,11 +253,18 @@ if (@($appsBefore | Where-Object { $_ -match '=(200|401)$' }).Count -eq 0) {
   Note "      harmlessness comparison for this run therefore rests on the loopback layer."
 }
 
+# HELD, NOT JUST HASHED. A hash taken by path says what the file WAS; nothing stopped it changing
+# between this line and the moment the VM opened it (enclave-53). Each pinned input is opened here
+# sharing READ only - no writer, no delete, no rename can get in while the handle is held - hashed
+# through that handle, and held until the VM has been removed.
+$script:held = @()
 foreach ($f in @(@{p=$Iso;h=$IsoSha256;n='medium'}, @{p=$Firmware;h=$FirmwareSha256;n='firmware'})) {
   if (-not (Test-Path $f.p)) { throw "$($f.n) not found: $($f.p)" }
-  $got = (Get-FileHash $f.p -Algorithm SHA256).Hash.ToLower()
+  $fs = [System.IO.File]::Open($f.p, 'Open', 'Read', 'Read')
+  $script:held += $fs
+  $got = (Get-FileHash -InputStream $fs -Algorithm SHA256).Hash.ToLower()
   if ($got -ne $f.h.ToLower()) { throw "$($f.n) hashes $got, not the pinned $($f.h)" }
-  Note "$($f.n) verified: $($f.p) ($((Get-Item $f.p).Length) bytes) sha256 $got"
+  Note "$($f.n) verified: $($f.p) ($($fs.Length) bytes) sha256 $got - held open, write and delete denied, until the VM is gone"
 }
 
 if (-not $Approve) {
@@ -220,6 +276,8 @@ if (-not $Approve) {
   Write-Host "      3. read the boot configuration BACK and refuse if any LoadOptions appeared"
   Write-Host "      4. start it and watch COM1 for 'MON ready control_port=9000' for $ReadySeconds s"
   Write-Host "      5. remove that exact VM and restore the setting, verified"
+  foreach ($fs in $script:held) { try { $fs.Dispose() } catch { } }
+  try { $script:runLock.Dispose() } catch { }
   return
 }
 
@@ -236,34 +294,42 @@ $script:exitCode  = 0
 # guarantee: it waits past this run's own deadline and, if the sentinel file still exists, force
 # restores the setting and removes this run's VM. The main script deletes the sentinel on a clean
 # finish, so the watchdog then does nothing.
-# A STALE SENTINEL MEANS THE SETTING WE ARE ABOUT TO CALL "before" IS A PREVIOUS RUN'S.
-#
-# Without this the host can be left permitting unsigned firmware while the log says the opposite,
-# with no reboot needed (enclave-53): run A is killed with the key set; run B starts and records
-# Present/1 as the host's prior state; A's watchdog then removes the value under B; B's cleanup
-# faithfully restores it to 1 and verifies it. The setting is host-wide, so this is the one failure
-# here that outlives the experiment, and it is refused rather than reasoned about.
-$stale = @(Get-ChildItem "C:\Users\claude\uefi-probe-active-*.txt" -EA SilentlyContinue)
-if ($stale.Count) {
-  foreach ($f in $stale) { Write-Host "STALE SENTINEL: $($f.Name) -> $(Get-Content $f.FullName -Raw -EA SilentlyContinue)" }
-  throw ("another run's sentinel is still present, so the current AllowFirmwareLoadFromFile value is " +
-         "that run's and not this host's resting state. Refusing to start: restoring from a borrowed " +
-         "'before' is how a host gets left permitting unsigned firmware with a log that says otherwise.")
-}
 $sentinel = "C:\Users\claude\uefi-probe-active-$stamp.txt"
+$wdFired  = "C:\Users\claude\uefi-watchdog-fired-$stamp.txt"
 # The sentinel carries the state to restore TO and the owning pid, so a watchdog restores what this
-# run actually found rather than assuming Absent.
+# run actually found rather than assuming Absent. The pid's START TIME rides with it, because a pid
+# alone can be reused by an unrelated process after this one ends.
+$myStartTicks = (Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks
 Set-Content -Path $sentinel -Force -Value @"
 vm=$name
 pid=$PID
+pidStartTicks=$myStartTicks
 before.S=$($before.S)
 before.V=$($before.V)
 before.K=$($before.K)
 "@
-$wdSeconds = $ReadySeconds + 120
+# THE WATCHDOG WAITS FOR THIS PROCESS, NOT FOR A GUESSED BUDGET.
+#
+# It used to sleep ReadySeconds+120 and then act. A run that came ready late and went on to serve
+# (hv_sock dials, a 90 s wmiserve hold, the host reads, then cleanup and the public probes) outlived
+# that budget, and the watchdog removed the VM from under a LIVE run, whose cleanup then found
+# nothing to remove and reported a clean exit (enclave-53). Now it acts when this process ENDS - a
+# clean finish deletes the sentinel first, so it does nothing; a kill leaves the sentinel, so it
+# restores within seconds rather than minutes. The ceiling only exists for a run that HANGS, and it
+# leaves a mark that this run's own cleanup turns into a failure, so a watchdog that acted under a
+# live run can never read as a clean exit.
+$wdCeiling = $ReadySeconds + 1200
 $wd = @"
-Start-Sleep -Seconds $wdSeconds
+`$deadline = (Get-Date).AddSeconds($wdCeiling)
+while ((Get-Date) -lt `$deadline) {
+  `$p = Get-Process -Id $PID -EA SilentlyContinue
+  if (-not `$p -or `$p.StartTime.ToUniversalTime().Ticks -ne $myStartTicks) { break }
+  Start-Sleep -Seconds 5
+}
 if (Test-Path '$sentinel') {
+  `$p = Get-Process -Id $PID -EA SilentlyContinue
+  `$alive = [bool](`$p -and `$p.StartTime.ToUniversalTime().Ticks -eq $myStartTicks)
+  Set-Content -Path '$wdFired' -Force -Value "fired=`$((Get-Date).ToUniversalTime().ToString('s')) runStillAlive=`$alive"
   `$m = '$MARKER'
   foreach (`$v in (Get-VM -EA SilentlyContinue | Where-Object { `$_.Name -eq '$name' -and (`$_.Notes -eq `$m -or [string]::IsNullOrWhiteSpace(`$_.Notes)) })) {
     Stop-VM -VM `$v -TurnOff -Force -EA SilentlyContinue; Remove-VM -VM `$v -Force -EA SilentlyContinue
@@ -272,8 +338,13 @@ if (Test-Path '$sentinel') {
   # is why always-removing looked correct; it would be wrong the day the key is legitimately set.
   if ('$($before.S)' -eq 'Present') { Set-ItemProperty '$RegPath' -Name '$RegName' -Value $($before.V) -Type '$($before.K)' }
   else { Remove-ItemProperty '$RegPath' -Name '$RegName' -EA SilentlyContinue }
-  Remove-Item -Path '$(Join-Path $SvcPath $ReportSvcGuid)' -Recurse -Force -EA SilentlyContinue
-  Add-Content -Path '$script:logPath' -Value "`$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')) WATCHDOG fired: the run did not clean up; setting restored and `$('$name') removed" -EA SilentlyContinue
+  # ONLY IF THIS RUN ADDED IT. The main path records that in the sentinel at the moment it adds the
+  # key; the watchdog used to delete it unconditionally, so a killed run removed a registration that
+  # was somebody else's (enclave-53).
+  if (@(Get-Content '$sentinel' -EA SilentlyContinue) -contains 'svcAdded=1') {
+    Remove-Item -Path '$(Join-Path $SvcPath $ReportSvcGuid)' -Recurse -Force -EA SilentlyContinue
+  }
+  Add-Content -Path '$script:logPath' -Value "`$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')) WATCHDOG fired (run still alive: `$alive): setting restored to $($before.S) and `$('$name') removed" -EA SilentlyContinue
   Remove-Item '$sentinel' -Force -EA SilentlyContinue
 }
 "@
@@ -281,7 +352,7 @@ $wdFile = "C:\Users\claude\uefi-watchdog-$stamp.ps1"
 Set-Content -Path $wdFile -Value $wd -Force
 Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
   CommandLine = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File $wdFile" } | Out-Null
-Note "watchdog armed for ${wdSeconds}s (it force-restores the setting if this run is killed)"
+Note "watchdog armed: it acts when pid $PID ends without cleaning up, or after ${wdCeiling}s if this run hangs"
 
 try {
   Set-ItemProperty -Path $RegPath -Name $RegName -Value 1 -Type DWORD; $mutated = $true
@@ -293,6 +364,7 @@ try {
     New-Item -Path $svcKey -Force | Out-Null
     New-ItemProperty -Path $svcKey -Name 'ElementName' -Value 'enclave report signing (probe)' -PropertyType String -Force | Out-Null
     $script:svcAdded = $true
+    Add-Content -Path $sentinel -Value 'svcAdded=1'      # so the watchdog removes it only if it is ours
     Note "hv_sock service $ReportSvcGuid registered for port 9001 (removed again in cleanup)"
   } else { Note "hv_sock service $ReportSvcGuid already registered by somebody else; left alone" }
 
@@ -351,7 +423,6 @@ try {
       -Memory ($MemMiB * 1MB) -VpCount $Vcpus | Out-Null
     $created = $true
     $vm = Get-VM -Name $name
-    $pipe3 = $null
     # READ BACK what the VM actually IS, rather than reprinting the parameters it was asked for.
     $vssdR = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemSettingData |
              Where-Object { $_.ConfigurationID -eq $vm.Id.Guid }
@@ -385,8 +456,13 @@ try {
   Set-VM -VM $vm -Notes $MARKER
   Note "created $name (id $($vm.Id)) - Gen2, GuestStateIsolationType $IsolationType, Secure Boot off"
 
-  & icacls $Iso      /grant "NT VIRTUAL MACHINE\$($vm.Id):R" | Out-Null
-  & icacls $Firmware /grant "NT VIRTUAL MACHINE\$($vm.Id):R" | Out-Null
+  # CHECKED. A failed grant used to be discarded, and a VM that cannot read its own firmware fails
+  # to start with no content at all - indistinguishable from the start failures under study.
+  foreach ($gp in @($Iso, $Firmware)) {
+    & icacls $gp /grant "NT VIRTUAL MACHINE\$($vm.Id):R" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "icacls could not grant the VM read access to $gp (exit $LASTEXITCODE)" }
+  }
+  Note "read access granted to the VM's own SID on the medium and the firmware (icacls exit 0 for both)"
 
   # petri's New-CustomVM defines the VM through a single DefineSystem call and adds NO storage
   # controller, so there is nowhere to attach a boot medium: Add-VMDvdDrive fails with "no available
@@ -409,16 +485,17 @@ try {
   if ($attachedSha -ne $IsoSha256.ToLower()) { throw "the attached medium hashes $attachedSha, not the pinned $IsoSha256" }
   Set-VMFirmware -VM $vm -FirstBootDevice $dvd
   Set-VMComPort  -VM $vm -Number 1 -Path "\\.\pipe\$pipe"
-  # COM3 keeps the name petri gave it. Set-VMComPort only addresses ports 1 and 2, while COM3 exists
-  # only in the Msvm model, which is why New-CustomVM sets it through WMI and this reads it there.
-  # Probed rather than assumed, and its absence is recorded as unsupported, not as a failure.
-  $pipe3 = $null
+  # COM3 IS NEVER ATTACHED BY THIS SCRIPT, on any host. It would be OpenHCL's own VTL2 log, but
+  # Set-VMComPort only addresses ports 1 and 2, and the only thing that configured a third port's
+  # pipe was petri's -Com3, which this host cannot run. On a host with three ports the old code said
+  # "COM3 present" and then waited on a pipe nothing had created (enclave-53). A path that cannot be
+  # exercised here is not written; the count is recorded, and OpenHCL's log comes through kmsg.
   try {
     $vssd3  = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemSettingData |
               Where-Object { $_.ConfigurationID -eq $vm.Id.Guid }
     $ports3 = @($vssd3 | Get-CimAssociatedInstance -ResultClassName Msvm_SerialPortSettingData)
-    if ($ports3.Count -ge 3) { $pipe3 = "$($vm.Id)-3"; Note "COM3 present ($($ports3.Count) serial ports)" }
-    else { Note "COM3 UNSUPPORTED: this host's Gen2 VM exposes $($ports3.Count) serial ports, so OpenHCL's own log cannot be read. Recorded as unsupported, NOT as a pass or a failure." }
+    if ($ports3.Count -ge 3) { Note "COM3 NOT ATTACHED: this host exposes $($ports3.Count) serial ports, but nothing here configures the third one's pipe (untested path). Recorded as not attached, NOT as a pass or a failure." }
+    else { Note "COM3 UNSUPPORTED: this host's Gen2 VM exposes $($ports3.Count) serial ports, so OpenHCL's own log cannot be read there. Recorded as unsupported, NOT as a pass or a failure." }
   } catch { Note "COM3 UNSUPPORTED: $($_.Exception.Message)" }
   Note "DVD attached and set as the ONLY boot device; COM1 -> \\.\pipe\$pipe"
 
@@ -470,10 +547,8 @@ try {
   # fast as possible and HOLD the connection: a named pipe does not buffer for an absent client, so
   # every millisecond before the first connect is output that can never be recovered.
   $seen = ''; $ready = $false
-  $seen3 = ''
-  $pipeClient = $null; $pipe3Client = $null
-  $script:pendingRead = $null; $script:readBuf = $null
-  $script:pendingRead3 = $null; $script:readBuf3 = $null
+  $pipeClient = $null
+  $con = @{ c = $null; pending = $null; buf = $null; text = '' }
   $t0 = Get-Date
   Start-VM -Name $name
   for ($i = 0; $i -lt 100 -and -not $pipeClient; $i++) {
@@ -489,17 +564,7 @@ try {
       $pipeClient = $c
     } catch { Start-Sleep -Milliseconds 50 }
   }
-  # COM3 on the same terms: opened as fast as possible and HELD, because a named pipe keeps nothing
-  # for an absent client and OpenHCL says why it refused a configuration in its first moments.
-  for ($i = 0; $i -lt 100 -and $pipe3 -and -not $pipe3Client; $i++) {
-    try {
-      $c3 = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipe3,
-              [System.IO.Pipes.PipeDirection]::In, [System.IO.Pipes.PipeOptions]::Asynchronous)
-      $c3.Connect(100)
-      $pipe3Client = $c3
-    } catch { Start-Sleep -Milliseconds 50 }
-  }
-  if ($pipe3) { Note $(if ($pipe3Client) { "COM3 (OpenHCL's own log) attached" } else { "COM3 could NOT be attached: an OpenHCL refusal would be silent" }) }
+  $con.c = $pipeClient
   if ($pipeClient) { Note "COM1 attached $([int]((Get-Date)-$t0).TotalMilliseconds) ms after start" }
   else { Note "COM1 could NOT be attached after 100 tries: anything the guest says is unobservable" }
   # Start the kmsg reader immediately: the failure it exists to catch happens within SECONDS of the
@@ -539,43 +604,16 @@ try {
   }
   Note "started; watching COM1 for 'MON ready' for $ReadySeconds s"
   while (((Get-Date) - $t0).TotalSeconds -lt $ReadySeconds -and -not $ready) {
-    Start-Sleep -Seconds 3
-    # Read from the ONE connection opened before the start, with a deadline so a silent guest can
-    # never hang this the way Read() once did.
-    try {
-      # ONE outstanding read at a time: a new one is issued only when the previous has completed.
-      if ($pipeClient -and $pipeClient.IsConnected) {
-        if ($null -eq $script:pendingRead) {
-          $script:readBuf = New-Object byte[] 8192
-          $script:pendingRead = $pipeClient.ReadAsync($script:readBuf, 0, $script:readBuf.Length)
-        }
-        if ($script:pendingRead.Wait(2500)) {
-          if (-not $script:pendingRead.IsFaulted -and $script:pendingRead.Result -gt 0) {
-            $seen += [System.Text.Encoding]::ASCII.GetString($script:readBuf, 0, $script:pendingRead.Result)
-          }
-          $script:pendingRead = $null        # completed: the next iteration may issue another
-        }
-      }
-    } catch { }
-    try {
-      if ($pipe3Client -and $pipe3Client.IsConnected) {
-        if ($null -eq $script:pendingRead3) {
-          $script:readBuf3 = New-Object byte[] 8192
-          $script:pendingRead3 = $pipe3Client.ReadAsync($script:readBuf3, 0, $script:readBuf3.Length)
-        }
-        if ($script:pendingRead3.Wait(200)) {
-          if (-not $script:pendingRead3.IsFaulted -and $script:pendingRead3.Result -gt 0) {
-            $seen3 += [System.Text.Encoding]::ASCII.GetString($script:readBuf3, 0, $script:pendingRead3.Result)
-          }
-          $script:pendingRead3 = $null
-        }
-      }
-    } catch { }
+    # One connection, opened right after the start and held; drained, with a deadline, so a silent
+    # guest can never hang this the way Read() once did.
+    Drain $con 1000
+    $seen = $con.text
     if ($seen -match 'MON ready')  { $ready = $true }
     if ($seen -match 'MON ERROR')  { break }
+    if (-not $con.c -or -not $con.c.IsConnected) { Start-Sleep -Milliseconds 500 }
   }
+  Drain $con 200; $seen = $con.text               # whatever arrived with the line that ended the wait
   try { if ($pipeClient) { $pipeClient.Dispose() } } catch { }
-  try { if ($pipe3Client) { $pipe3Client.Dispose() } } catch { }
   # THE HOST'S TCG LOG, from the SAME host boot as this run. A VBS report can only be checked
   # against the measured-boot log of the boot it was produced in, so capturing it later - or after a
   # host reboot - would give a log that cannot verify anything. It is the host's own log, not this
@@ -588,7 +626,7 @@ try {
       Note "host TCG log captured: $tcgOut ($((Get-Item $tcgOut).Length) bytes, host boot log $($tcg.Name))"
     } else { Note "host TCG log: NONE found under C:\Windows\Logs\MeasuredBoot" }
   } catch { Note "host TCG log could not be captured: $($_.Exception.Message -replace "`r?`n",' ')" }
-  Note "console bytes: $($seen.Length) (COM1), $(if($pipe3){"$($seen3.Length) (COM3)"}else{'COM3 unsupported on this host'})"
+  Note "console bytes: $($seen.Length) (COM1); COM3 not attached (see above)"
   # OpenHCL's own words, whatever else happened.
   if ($kmsgOut) {
     Start-Sleep -Seconds 2
@@ -605,13 +643,6 @@ try {
     if ($wslKernel -gt 0) { Note "  KMSG WRONG CHANNEL: our VTL0 kernel appears here; this is not VTL2's kmsg." }
     Note "  (kept $(@($keep).Count) matching line(s) of $(@($km).Count))"
     foreach ($l in (@($keep) | Select-Object -First 40)) { Note "  KMSG: $l" }
-  }
-  # COM3 is printed whenever the guest did not come ready, and always on type 1, where the whole
-  # question is whether OpenHCL accepted the isolated configuration at all.
-  if ($seen3 -and (-not $ready -or $IsolationType -eq 1)) {
-    $keep = $seen3 -split "`n" | Where-Object { $_ -match 'isolat|refus|not supported|unsupported|error|panic|vtl|accept|attest|vbs' }
-    Note "  --- COM3 (OpenHCL), $(@($keep).Count) matching lines ---"
-    foreach ($l in ($keep | Select-Object -First 25)) { Note "  OPENHCL: $($l.Trim())" }
   }
   if ($seen) { foreach ($l in ($seen -split "`n" | Where-Object { $_ -match 'MON|error|panic|refus' } | Select-Object -First 12)) { Note "  CONSOLE: $($l.Trim())" } }
   if ($ready) {
@@ -650,7 +681,9 @@ try {
         # VM - so it runs last, after the app has been served, and resumes afterwards.
         $hr = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\host-read-guest.ps1 `
                 -VmId $vmId -Marker $hrMarker -Label "type$IsolationType" 2>&1 | Out-String
+        $hrExit = $LASTEXITCODE
         foreach ($l in ($hr -split "`n" | Where-Object { $_.Trim() })) { Note "  HOSTREAD/vmwp: $($l.Trim())" }
+        Note "  HOSTREAD/vmwp exit $hrExit ($(switch ($hrExit) { 0 {'marker FOUND'} 3 {'marker not found by a reader that saw guest-resident bytes'} 4 {'VOID'} default {'the reader could not run'} }))"
         $script:hostReadMarker = $hrMarker
       }
       if ($st -match '"head"\s*:\s*"\S') { Note "PROTOCOL OK: the monitor answered a control command" }
@@ -798,6 +831,8 @@ finally {
       }
     } catch { $fail += "RESTORE FAILED: $($_.Exception.Message)" }
   }
+  # The pinned inputs stay held until the VM that read them is gone (see "HELD, NOT JUST HASHED").
+  foreach ($fs in $script:held) { try { $fs.Dispose() } catch { } }
   $nodeAfter = @(Get-Process node -EA SilentlyContinue | ForEach-Object { $_.Id }) -join ','
   if ($nodeAfter -ne $nodeBefore) { $fail += "the live node changed: $nodeBefore -> $nodeAfter" } else { Note "live node unchanged ($nodeAfter)" }
   Note "apps after     : $(($APPS | ForEach-Object { "$_=$(App $_)" }) -join ' ')"
@@ -808,6 +843,9 @@ finally {
   if ($lost.Count) { Note "HARM: these answered on loopback before this run and do not now: $($lost -join ' ')" }
   else { Note "no app that answered on loopback before this run stopped answering" }
   Note "=== DEV BOOT. Host exclusion NOT established. Not verified capacity. ==="
+  # A watchdog that acted while this run was still alive (it hung past the ceiling) means this
+  # run's own cleanup raced it: never a clean exit, whatever the lines above say.
+  if (Test-Path $wdFired) { $fail += "the WATCHDOG acted under this run: $((Get-Content $wdFired -Raw) -replace "`r?`n",' ')" }
   Remove-Item $sentinel -Force -EA SilentlyContinue        # disarm: this run cleaned up itself
   Remove-Item $wdFile   -Force -EA SilentlyContinue
   # Three outcomes, three codes, so a caller can tell them apart:
@@ -825,6 +863,7 @@ finally {
     Note "RUN FAILED$(if(-not $script:runFailed){' (the guest never came ready)'}) - cleanup was clean"; $script:exitCode = 2
   }
   else { Note "RUN OK"; $script:exitCode = 0 }
+  try { $script:runLock.Dispose() } catch { }
 }
 
 # The exit code, set inside `finally` and acted on here for the reason stated there.
