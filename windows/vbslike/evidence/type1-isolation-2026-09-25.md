@@ -224,3 +224,47 @@ store with no key protector — "the VMGS will not open" is now poorly supported
 `validate_isolated_configuration` emits NO event, which matches the observed silence exactly. It is
 the leading candidate. **Still inference, pending OpenHCL's own kmsg** — it is not a finding, and
 the configuration-incompatibility hypothesis remains labelled as inference.
+
+## ohcldiag-dev: the tool works, and on type 1 there is nothing to read
+
+Validated on type 16 FIRST, as the tool's positive control, on a partition that booted and served:
+**354 kmsg lines**, 1 naming OpenHCL's own kernel (`6.12.52-microsoft-hcl`), 0 naming
+`microsoft-standard-WSL2` (which would mean it was reading OUR VTL0 kernel, not VTL2), including:
+
+    [0.084251] underhill_core:  INFO  boot loader times start=0x2239 end=0x848f elapsed=2.5174ms
+    [0.084393] diag_server:  INFO  control starting control_address=VmAddress(Address { cid: ffffffff, port: 1 })
+
+On type 1, the same reader on the same run definition minutes later:
+
+    Error: unknown service diag.UnderhillDiag        (0 kmsg lines)
+
+The connect reaches something and the service is not registered, so **VTL2's diagnostics server
+never starts**. That places the type-1 failure EARLIER than `diag_server` — earlier than 85 ms on
+the type-16 timeline, and so earlier than attestation and earlier than the VMGS handling. If
+`diag_server` starts before `validate_isolated_configuration`, it is earlier than that too, which
+would put the failure in `openhcl_boot` or the VTL2 kernel, before OpenHCL's Rust userspace.
+**Inference from one observation, flagged as such.**
+
+## CORRECTION: the donor VMGS was NOT pristine when I called it pristine
+
+I reported the donor's first bytes as `GUESTRTS 00 00 03 00` and that was used to argue the store
+was a valid v3 file. **I read those bytes after several type-1 runs had already used it.** Freshly
+minted and never started, `New-VM -GuestStateIsolationType VBS` produces a store with **57 non-zero
+bytes in 4,194,816 and no GUESTRTS anywhere** — the whole file was scanned for the magic. Polling a
+never-started donor for 60 s never produced the header. So Hyper-V creates an essentially empty
+store and the v3 header was written later, by something, during or after a type-1 run.
+
+Related and also measured: the donor's hash changed across a run (`01c2879b…` → `3e9630e1…`), so
+**every type-1 boot after the first started from a store a previous run had mutated** and my type-1
+runs were not identical to each other. Each run now takes a fresh byte-identical copy of a master
+that is never handed to a VM, and the copy's hash is compared before and after.
+
+Note the contrast with the host's own validation: a hand-made ALL-zero file is refused at realize
+with 0x80070570, while Hyper-V's 57-non-zero-byte store is accepted. Those 57 bytes carry whatever
+minimal structure the host requires.
+
+## A cleanup "failure" that was my own check being wrong
+
+A clean type-1 run reported `FAILURE: guest state left on disk`. The file it named was the donor
+supplied as INPUT, which must survive. The check was written for the earlier New-VM path where the
+VMGS lived inside the Hyper-V store. It now removes the per-run copy and leaves the master alone.

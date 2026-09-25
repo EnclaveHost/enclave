@@ -312,7 +312,18 @@ try {
   if ($IsolationType -eq 1) {
     if (-not $GuestStateFile) { throw "type 1 needs -GuestStateFile: this host refuses a VBS VM with no guest state, and petri supplies none" }
     if (-not (Test-Path $GuestStateFile)) { throw "the guest-state file is not at $GuestStateFile" }
-    Note "guest state: $GuestStateFile ($((Get-Item $GuestStateFile).Length) bytes, sha $((Get-FileHash $GuestStateFile -Algorithm SHA256).Hash.ToLower().Substring(0,16)))"
+    # A FRESH COPY PER RUN, because the store is WRITTEN TO. Measured: the donor's sha256 went from
+    # 01c2879b78... to 3e9630e120... across one type-1 boot, so every run after the first started
+    # from a store some previous run had mutated - and the "pristine v3, no key protector" property
+    # the analysis rests on held only for the first boot. Each run now gets a byte-identical copy of
+    # the master and the master is never handed to a VM.
+    $masterSha = (Get-FileHash $GuestStateFile -Algorithm SHA256).Hash.ToLower()
+    $runGsf = "C:\Users\claude\vbs-like\run-$stamp.vmgs"
+    Copy-Item $GuestStateFile $runGsf -Force
+    $copySha = (Get-FileHash $runGsf -Algorithm SHA256).Hash.ToLower()
+    if ($copySha -ne $masterSha) { throw "the guest-state copy hashes $copySha, not the master's $masterSha" }
+    Note "guest state: copy of $GuestStateFile -> $runGsf ($((Get-Item $runGsf).Length) bytes, master sha $masterSha)"
+    $GuestStateFile = $runGsf
     Note "VTL2: auto placement NOT set - openhcl-cvm.bin is a fixed-GPA image, and petri sets the trio only for non-isolated VMs"
     New-CustomVM -VMName $name -GuestStateIsolationEnabled $true -GuestStateIsolationType 1 `
       -GuestStateIsolationMode 0 -FirmwareFile $Firmware -GuestStateFilePath $GuestStateFile `
@@ -680,7 +691,14 @@ finally {
       # that fails (a VM still Starting or Stopping) is non-terminating and uncaught, and the next
       # line used to say "removed" regardless (enclave-53).
       if (Get-VM -Name $name -EA SilentlyContinue) { $fail += "$name is STILL PRESENT after the removal" }
-      if ($IsolationType -eq 1 -and $gsf -and (Test-Path $gsf)) { $fail += "guest state left on disk: $gsf" }
+      # The per-run COPY is ours to remove; the master is an input and must survive. The old check
+      # flagged the master and reported a cleanup failure on every clean type-1 run.
+      if ($IsolationType -eq 1 -and $runGsf -and (Test-Path $runGsf)) {
+        $endSha = (Get-FileHash $runGsf -Algorithm SHA256).Hash.ToLower()
+        Note "guest state after the run: $(if($endSha -eq $masterSha){'UNCHANGED'}else{"WRITTEN TO (now $endSha, was $masterSha)"})"
+        Remove-Item $runGsf -Force -EA SilentlyContinue
+        if (Test-Path $runGsf) { $fail += "the run's guest-state copy could not be removed: $runGsf" }
+      }
     }
   } catch { $fail += "cleanup: $($_.Exception.Message)" }
   finally {
