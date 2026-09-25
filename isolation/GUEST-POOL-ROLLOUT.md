@@ -184,11 +184,11 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
 - Rollback: revert and redeploy (CI deploys nan-relay; us-west is manual), and unset the envs. The code is
   reversible; the blockers are access, not risk.
 
-**S3b. Generate the relay's release signing key, BEFORE S4 (d1: an ordering dependency).**
+**S3b. Generate the relay's release signing key (the first link of S4's chain).**
 - The release key's PUBLIC half is compiled into the MEASURED front: `relayReleaseKeys` in
   isolation/m2/release/verify.go:32, empty today. An image built without it refuses every release ("no pinned
   release key") and needs another image cycle.
-- Generate `SECRETS_RELEASE_SIGNING_KEY` on its ONE named relay host, and never move it:
+- Generate `SECRETS_RELEASE_SIGNING_KEY` on its ONE named relay host (nan), and never move it:
   - its own key, distinct from RELAY_TXT_KEY (d1 on v1.2);
   - its env file chmod 600;
   - record the public key.
@@ -196,46 +196,75 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
 - Check: the public key is recorded, and the private half exists only on that host.
 - Rollback: discard the key before any image pins it. After S4, replacing it means re-imaging (see 6.5).
 
-**S4. Guest images carrying 5d's front (`isolation/app-config-m1`, once its guestd host services land).**
-- Build the images with `relayReleaseKeys` = exactly the S3b public key.
-- Build the new guest domain release, and PIN it for trusted-mode clients BEFORE any guest runs it.
-- Restart guestd with 5d's `-release` flag and the new release. It adopts the old-image canaries, which keep running.
-- New launches use the new image. Each canary moves on its next relaunch, because the supervisor's spawn compares
-  `recordSha256` and the derivation carries the runtime id.
-- What changes and what doesn't:
-  - the AppID and HOST_DATA are unchanged;
-  - the measurement and the transport key change (a new guest).
-- Room: a relaunch DELETEs first, which frees the old guest's room, then creates, so B holds.
-- The relay's release stays OFF, so no config or secret flows yet.
-- Check:
-  - the image pins EXACTLY the S3b public key, and no other;
-  - each relaunched canary attests with the new measurement from the pinned release, and verifies in trusted mode;
-  - AppIDs match the baseline.
-- Rollback: guestd back to the previous release, and relaunch the canaries on the old image. Keep the old release
-  pinned in clients through the window. Reversible: no secret has been released.
+**S4. The release chain, THEN guest images carrying 5d's front (`isolation/app-config-m1` with its guestd host
+services). One step, in this order (enclave-5d's correction of 14ccc893).**
+- Why it is one step. The new front REQUIRES the attested release for EVERY guest whose HOST_DATA names a deployment,
+  the three canaries included, although they have no config and no secrets. That is deliberate: otherwise a host
+  could downgrade a config app to "no config" by withholding its ticket.
+  - So a new-image guest boots only if all four links hold: the image pins the S3b key; the relay's release is ON;
+    the supervisor fetches a ticket and gives it to guestd (at create, or POST /vms/<id>/ticket while the instance
+    shows `awaitingTicket`); guestd runs with `-release`.
+  - With any link missing, the relaunch FAILS CLOSED at boot. That is an outage, not a leak.
+- Until 4e, guestd keeps launching from the OLD image source (`~/enclave-prod/iso-03be27d6`). Adoption keeps the
+  running canaries as they are, and a crash-relaunch still uses the old image.
+- 4a. Build the images with `relayReleaseKeys` = exactly the S3b public key. Build the new guest domain release, and
+  PIN it for trusted-mode clients BEFORE any guest runs it.
+  - Check: the image pins EXACTLY that key and no other; the prediction is recorded from a clean worktree (as S2 b).
+- 4b. Turn the relay's release ON with its full policy, before any guest can ask:
+  - SECRETS_ATTESTED_RELEASE and the S3b key;
+  - SECRETS_RELEASE_MEASUREMENTS and SECRETS_RELEASE_RUNTIME_IDS naming exactly the 4a images (non-debug, reviewed);
+  - the TCB floor (SECRETS_RELEASE_MIN_TCB) and VMPL 0 (SECRETS_RELEASE_VMPL).
+  - S5's preconditions (g) must hold here.
+  - GO/NO-GO (enclave-d1): from this moment, the staged secrets of ANY deployment whose guest runs a 4a image are
+    releasable, and `supports.secrets=false` does not cover deployments ALREADY leased on metal-iso0 (Steven's apps
+    included, if the recovery brings them there).
+    - So list every deployment on metal-iso0 and the image its guest runs or will run.
+    - Each one that will run a 4a image must be a canary, OR have no staged secrets, OR have its owner's explicit
+      agreement to release. Otherwise it stays on the old image (no relaunch) until S5.
+    - Re-check this before every relaunch or claim that puts a deployment on a 4a image, until S5.
+    - SECRETS_RELEASE_DEPLOYMENTS (99's lane) would make this a code gate, not a checklist.
+  - Check: the old-image canaries are unaffected (they never ask), and an asker outside the allowlist is refused.
+  - Nothing sensitive is staged yet.
+- 4c. Ship the supervisor with 5d's ticket fetch. This is a SECOND measured control-CVM image, following S2's whole
+  procedure: clean build, prediction equality, allowlist add, dist switch, resumes, and its own soak.
+- 4d. Restart guestd with `-release` and the new image source. The adopted canaries keep running their old image.
+- 4e. Relaunch the canaries ONE AT A TIME. Each boots THROUGH a release carrying null config and no secrets: the first
+  end-to-end test of the chain, with nothing sensitive in it.
+  - What changes: the measurement and the transport key (a new guest).
+  - What doesn't: the AppID (the DERIVE.md bundle id) and HOST_DATA.
+  - Room: a relaunch DELETEs first, which frees the old guest's room, then creates, so B holds.
+  - Rollback trigger: the relaunched canary is not serving and verifying within 10 minutes. Then stop and roll back
+    before the next one.
+- Check, per canary: it attests with the new measurement from the pinned release and verifies in trusted mode; its
+  release was served with null config; its AppID matches the baseline.
+- Rollback: guestd back to the old image source WITHOUT `-release`, and relaunch the affected canaries on the old
+  image. 4c rolls back by S2's dist switch. The relay's release can be switched off again: nothing has been released
+  that needs recalling.
 
-**S5. Switch attested release ON at the relay (a separate decision; the first HARD step).**
-- Preconditions (d1's, all required):
+**S5. Real secrets and config through the release (a separate decision; the first HARD step).**
+- The release has been ON since 4b, and the canaries have used it with null config. What becomes hard here is the
+  first release of anything real.
+- g. Preconditions (d1's, all required, and already checked at 4b):
   - a TCB floor the handler owns (SECRETS_RELEASE_MIN_TCB) and the VMPL pin (SECRETS_RELEASE_VMPL);
-  - the reviewed NON-debug allowlist of guest images (SECRETS_RELEASE_MEASUREMENTS, SECRETS_RELEASE_RUNTIME_IDS)
-    naming exactly the S4 image;
+  - the reviewed NON-debug image allowlist (SECRETS_RELEASE_MEASUREMENTS, SECRETS_RELEASE_RUNTIME_IDS);
   - 5d's guest side landed and reviewed: host_data = the deployment id, the measured release client,
     verify-then-open, TLS validation;
   - key custody as in S3b.
 - h. For each of Steven's apps, before anything real is released: WHICH secrets it has, and WHO can rotate each one.
   The owner is Steven (secrets are relay-stored and lease-holder-only; nobody else can read their names). "Rotate" is
   a rollback only for a secret someone can actually rotate.
-- f. Make the first release carry nothing worth rotating.
-  - Release ON for the CANARY deployments only, with DUMMY secrets.
+- The 4b go/no-go applies again here, in full: no deployment with real secrets runs a 4a image without its owner's
+  explicit agreement.
+- f. Stage DUMMY secrets on the CANARY deployments first, before any real app.
   - There is no per-deployment allowlist today; 99's relay gates by image only (the two envs above). So do it
-    operationally: stage dummy secrets on the canaries only, and keep the tier's `supports.secrets` false, so the claim
-    gate claims no real secret-bearing deployment onto the tier until the canary release has passed.
+    operationally: dummy secrets on the canaries only, and the tier's `supports.secrets` kept false, so the claim gate
+    claims no real secret-bearing deployment onto the tier until the canary release has passed.
   - A deployment allowlist in the relay (for example SECRETS_RELEASE_DEPLOYMENTS) would be new code in 99's lane, as
     defence in depth.
-- Check: a canary's release succeeds only for its own measurement, AppID and HOST_DATA; every other asker is
-  refused; and the dummy value arrives.
-- Rollback: unset it. But **a config or secret already released into a guest cannot be recalled**. The rollback for
-  a released secret is ROTATING it, which is why the first release carries dummies only.
+- Check: a canary's dummy secret arrives only for its own measurement, AppID and HOST_DATA, and every other asker is
+  refused.
+- Rollback: the release can be switched off. But **a config or secret already released into a guest cannot be
+  recalled**. The rollback for a released secret is ROTATING it, which is why the first ones are dummies.
 
 **S6. The owner setConfig transactions: LAST, and NOT part of this plan's execution.**
 - These are owner actions: the agent wallet for the canaries, and Steven for his apps. The tier must advertise
@@ -249,8 +278,9 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
 - **Ship the pool on its own first.** Fast-forward 4c (24dc334c..c42612c0) onto `isolation/portable-runtime-jit`; it
   applies cleanly to 77f789a6. Then build S1 (guestd) and S2 (the supervisor image) from that commit.
   - It is small, independently reviewed, and does not wait on 5d's host services.
-  - The cost is a SECOND supervisor release later, for 5d's supervisor ticket fetch (another CVM reboot, which the
-    resume fix handles).
+  - The pool needs nothing of the new front, while the new front cannot go live without the whole release chain (S4).
+  - The cost is a SECOND supervisor release, 4c's ticket fetch, which is another CVM reboot that the resume fix
+    handles.
 - **The alternative:** build from 5d's integration branch once complete. One release, but S1/S2 wait, and the blast
   radius grows.
 - **Holds that apply:**
@@ -264,7 +294,8 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
    permanent history.
 2. S5: a released secret or config cannot be recalled (rotate).
 3. S6: setConfig transactions are permanent and public (supersede only).
-4. Every CVM reboot (S2 and each rollback) and every relaunch (S4) is a short outage of the affected apps.
+4. Every CVM reboot (S2, 4c and each rollback) and every relaunch (4e) is a short outage of the affected apps. A 4e
+   relaunch with any link of the release chain missing fails closed: an outage until it is rolled back.
 5. The relay's release PUBLIC key is pinned in the measured guest images (S3b/S4). A leaked signing key stays trusted
    by deployed guests until they are re-imaged.
 6. The S4 client pins (the domain release in the release index or TUF) are public history: superseded, never erased.
