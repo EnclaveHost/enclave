@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-node.mjs",
-  "bytes": 402187,
-  "sha256": "fb091bb2e67ee1ffd07b1fe242b6867e0f7b3639cb0677ebd2d7bd49000fad88"
+  "bytes": 404408,
+  "sha256": "3bcc7a78f342a3b4469568598236d7b47b2d56e44f7f4baacbc7c030f39f13ba"
  },
  "build": {
   "tool": "esbuild",
@@ -324,8 +324,8 @@
   },
   {
    "path": "relay/snp-verify.mjs",
-   "bytes": 23901,
-   "sha256": "f6a32dfbe56d9050802c63819bef622d3800233e1e70d795cf98f6668a86e8de"
+   "bytes": 24620,
+   "sha256": "ee5a45f8e160fe48ca515dc9ed2ce21553dc0d47aac20923bc89d53f6414dbef"
   },
   {
    "path": "verifier/collateral-cache.mjs",
@@ -339,8 +339,8 @@
   },
   {
    "path": "verifier/consumer.mjs",
-   "bytes": 31957,
-   "sha256": "30c2bfb089ca1029fea7c79e44121e7d1be5088d319958ca4711b7b7898895f5"
+   "bytes": 35110,
+   "sha256": "066b6e1668c26358a8d9b1952577ba081922ea95a4458f7bc27cfa804c7c4b98"
   },
   {
    "path": "verifier/der.mjs",
