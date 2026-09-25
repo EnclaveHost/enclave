@@ -270,6 +270,8 @@ export class Host {
                                           privateOk: !!this.cfg.sessionKid,
                                           features: this.features() });
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
+    const retired = this.retiredEngineClaimRefusal(d);
+    if (retired) { this.#record(id, { status: "refused", reason: retired, appRef: d?.appRef || "" }); return { accepted: false, reason: retired }; }
     this.tracked.add(id); this.#saveTracked();
     const ours = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase();
     const live = Number(d.leaseUntil) * 1000 > Date.now();
@@ -611,6 +613,10 @@ export class Host {
                                    cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000,
                                    // What the data-path gate needs, from the ledger and nowhere else.
                                    isPublic: d.isPublic !== false, owner: String(d.owner || "").toLowerCase() });
+    // HELD first, before the catalog read: a yanked version, like every later gate, would otherwise give the
+    // lease back on chain (heldReason).
+    const held = this.heldReason(d);
+    if (held) return this.#record(id, { status: "held", reason: held });
     let v = version;
     if (!v) try { v = await chain.resolveAppRef(d.appRef); } catch (e) { return this.#record(id, { status: "failed", reason: `catalog: ${e.message}` }); }
     if (v.yanked) return await this.#giveUp(id, "the catalog version is yanked");
@@ -1174,6 +1180,10 @@ export class Host {
         await this.consider(id).catch((e) => this.log(`re-claim ${id.slice(0, 10)}: ${e.message}`));
         continue;
       }
+      // HELD (a retired-engine node, a deployment it cannot run): before the renewal, the envelope edit and
+      // the resize, each of which can spend or give back the lease on chain. Recorded, and left alone.
+      const held = this.heldReason(d);
+      if (held) { this.#record(id, { status: "held", reason: held, leaseUntil: Number(d.leaseUntil) }); continue; }
       if (untilMs - Date.now() < RENEW_LEAD_MS) {
         try { await chain.renewDeployment(id); this.log(`renewed ${id.slice(0, 10)}`); d = await chain.readDeployment(id); }
         catch (e) {
@@ -1429,6 +1439,34 @@ export class Host {
    * property is the whole basis on which the box sells app hosting at all.
    */
   appsInTee() { return Number(this.cfg.enclaveAppAbi || 0) >= 1; }
+  /**
+   * THE LEGACY BACKEND IS RETIRED on a node started without the VBS enclave engine (cfg.engineRetired;
+   * Steven, 2026-09-25). Only a deployment that requires THIS box's isolation backend by name runs here.
+   * isolatedForThisBox(d) -> true when the deployment's envelope asks for this.isolationBackend. An unreadable
+   * envelope, or a node with no isolation manager, is not that.
+   */
+  isolatedForThisBox(d) {
+    if (!this.isolationBackend) return false;
+    try { return (chain.parseEnvelope(d?.configCid, d?.gpuMilli) || {}).isolationRequire === this.isolationBackend; }
+    catch { return false; }
+  }
+  /**
+   * heldReason(d) -> the reason a deployment this node already holds is HELD, or null. A held deployment is
+   * refused and recorded, never started, never renewed (a tenant is not billed for a service this box cannot
+   * give), and NEVER released on chain automatically. Giving a lease back is an on-chain transaction and the
+   * operator's decision (enclave-d1 F2). A held lease simply lapses at leaseUntil.
+   */
+  heldReason(d) {
+    if (this.cfg.engineRetired !== true || this.isolatedForThisBox(d)) return null;
+    return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired) and this deployment "
+      + "does not require it: held - not started, not renewed, not released - pending the operator's decision";
+  }
+  /** claimRefusal(d) -> why a retired-engine node will not CLAIM a deployment, or null (see heldReason). */
+  retiredEngineClaimRefusal(d) {
+    if (this.cfg.engineRetired !== true || this.isolatedForThisBox(d)) return null;
+    return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired): "
+      + `it claims only deployments that require ${this.isolationBackend || "an isolation backend it does not have"}`;
+  }
   /**
    * Does this box meet the isolation contract it would be SOLD under (site: Develop > Architecture,
    * "The isolation contract")? Tenant work needs every property, and this box knows which it lacks

@@ -108,6 +108,8 @@ export async function buildHvNodeFrame({ nonce, credentialBlob, secret, spki, pr
   const n = Buffer.from(nonce);
   const statementBytes = isolationStatementBytes(managerHealth);
   const bound = hvNodeBinding(spki, n, statementBytes);
+  // The log is read BEFORE the quote. If PCRs 12-14 move in between, the relay's replay of this log against the
+  // quoted PCRs fails closed (enclave-d1 F3): a stale log can make a frame fail, never make a wrong one pass.
   const logPath = (await tpm("log")).log;
   const bootLog = readLog(logPath);
   const refusals = bootStateRefusals(bootLog);
