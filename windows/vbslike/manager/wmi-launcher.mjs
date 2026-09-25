@@ -1,72 +1,78 @@
 /* ============================================================
-   The supported launcher: WMI on the Hyper-V role.
+   The supported launcher: WMI on the Hyper-V role, defining a TYPE-1 (VBS) partition.
 
-   Microsoft's own openhcl/Set-OpenHCL-HyperV-VM.ps1 is the reference and this follows it step for
-   step. It does NOT go through the Host Compute Service. A VM is created with the Hyper-V module,
-   and its firmware is pinned by writing two fields on the VM's Msvm_VirtualSystemSettingData and
-   applying them through Msvm_VirtualSystemManagementService.ModifySystemSettings:
+   THE REFERENCE IS THE RECIPE THAT BOOTED AND SERVED on nucbox-k11 (2026-09-25):
+   windows/vbslike/ops/uefi-dev-boot.ps1 at e0de58cf on windows/custom-vbs-like-hyperv, its
+   `if ($IsolationType -eq 1)` branch, with the reason for every step in
+   windows/vbslike/evidence/type1-isolation-2026-09-25.md. It defines the VM with petri's
+   `New-CustomVM` (Microsoft's own OpenHCL test harness, openvmm petri/src/vm/hyperv/hyperv.psm1,
+   PINNED BY HASH) in ONE DefineSystem call that carries GuestStateIsolationType 1,
+   GuestFeatureSet 0x201 and FirmwareFile together, then removes the NICs, opts the GUEST out of its
+   own VBS, attaches a medium or none, sends COM1 to a named pipe and reads every one of those back.
 
-       $vssd.GuestFeatureSet = 0x00000201
-       $vssd.FirmwareFile    = <path to the IGVM>
+   WHAT IT REPLACES, AND WHY. This file used to follow openhcl/Set-OpenHCL-HyperV-VM.ps1: New-VM,
+   then GuestFeatureSet + FirmwareFile written on afterwards through ModifySystemSettings. On this
+   host a VM made that way never started as type 1 ("A New-VM VM patched afterwards through
+   ModifySystemSettings is NOT the same thing, and it never started" - the evidence doc). So there is
+   no New-VM here and no ModifySystemSettings firmware pin: the definition is the recipe's, whole.
 
-   Everything here is written against that, and every PowerShell fragment is produced by a pure
-   function so it can be read and tested without a host. `run` is injected: production passes a real
-   PowerShell runner, tests pass recorded answers. Nothing in this file executes anything by itself.
+   Every PowerShell fragment is produced by a pure function so it can be read and tested without a
+   host. `run` is injected: production passes a real PowerShell runner, tests pass recorded answers.
+   Nothing in this file executes anything by itself, and NONE OF IT HAS RUN ON HYPER-V: the recipe
+   ran on the box; this port of it has only run against the fakes in the tests.
 
    THREE RULES IT KEEPS.
 
-   Preflight refuses rather than improvises. If the Hyper-V role is absent, the namespace is missing
-   or the module has no Get-VM, `start` fails before it creates anything. A launcher that half-built
-   a VM and then discovered it could not pin firmware would leave the host dirtier than it found it.
+   Preflight refuses rather than improvises. If the Hyper-V role is absent, the namespace is missing,
+   the module has no Get-VM, the pinned hyperv.psm1 or the guest-state master is not there, or the
+   host's AllowFirmwareLoadFromFile opt-in is not set, `start` fails before it creates anything. The
+   opt-in is REPORTED, never touched: see FIRMWARE_OPT_IN.
 
    Ownership is scoped by construction. Every VM this creates is named with the instance prefix and
-   carries a Notes marker, and teardown filters on BOTH. It never enumerates VMs for action by any
-   other criterion, so a machine that also runs somebody else's VMs is not at risk from this code.
+   carries a Notes marker (with the deployment's identity), and teardown filters on BOTH. It never
+   enumerates VMs for action by any other criterion, so a machine that also runs somebody else's VMs
+   is not at risk from this code. A failure after the VM exists removes it BY ITS ID.
 
-   The image is pinned by hash, checked on the host immediately before it is handed to the firmware
-   field. A path is not an identity; two runs must be able to prove they booted the same bytes.
+   The image is pinned by hash, checked on the host immediately before it is handed to the VM, and
+   hashed AGAIN inside the script that defines the VM. A path is not an identity; two runs must be
+   able to prove they booted the same bytes.
    ============================================================ */
+import path from "node:path";
 
 /*  THE VM MUST BE CREATED WITH A GUEST-STATE ISOLATION TYPE, or FirmwareFile is inert.
  *
- *  Measured on nucbox-k11 2026-09-24, and it is not obvious: a Generation 2 VM created WITHOUT
- *  `-GuestStateIsolationType` accepts the firmware pin (ModifySystemSettings returnValue 0), reads
- *  `FirmwareFile` back correctly, starts, and then boots nothing - the worker never logs a
- *  "Loading IGVM file" line at all, because a VM with no guest-state isolation type has no
- *  paravisor and nothing consumes the field. Every failure looks like a bad image; none of them is.
- *
- *  Created WITH `-GuestStateIsolationType OpenHCL`, the worker actually tries, and says what it
- *  wants (Worker-Admin event 5142):
+ *  Measured on nucbox-k11 2026-09-24: a Generation 2 VM created WITHOUT a guest-state isolation type
+ *  accepts a firmware file, reads it back, starts, and boots nothing - no paravisor, so nothing
+ *  consumes the field. Created WITH one, the worker actually tries, and says what it wants
+ *  (Worker-Admin event 5142):
  *      failed to load custom IGVM file because AllowFirmwareLoadFromFile registry key is not set
  *
- *  So the two are independent: the VM setting decides whether our image is CONSIDERED, the host
- *  registry key decides whether it is ALLOWED. Upstream's Guide/src/user_guide/openhcl/run/hyperv.md
- *  documents both; enclave-53 found it there. Secure Boot is NOT part of it - pinned VMs fail the
- *  same way with it on and off - but the guide turns it off because a guest image may need that, so
- *  the default here is off and it is a parameter rather than a decision baked in.
- *
- *  `IsolationType` on Msvm_VirtualSystemSettingData reads EMPTY even when the VM was created with
- *  one, so do not detect this by reading that field back.
+ *  So the two are independent: the VM definition decides whether our image is CONSIDERED, the host
+ *  registry value decides whether it is ALLOWED. New-CustomVM carries the type in the definition
+ *  itself (GuestStateIsolationType 1); the registry value is the host's, and this file only reads it.
  */
 /**
  * THE PARTITION KIND IS THE LAUNCHER'S TO STATE, NOT THE GUEST'S.
  *
  * The monitor stopped printing a fixed `partition=hcs-child` (enclave-5d, 4127789d) for the right
  * reason: a guest cannot know what kind of partition it is in. So whichever launcher started the
- * domain says so, and the two launchers must NOT say the same thing - a report carrying no kind, or
- * one copied from the HCS path, would be a false statement about the boundary (enclave-99).
+ * domain says so, and the two launchers must NOT say the same thing (enclave-99).
  *
- * `hostExcluded` is false here for the same reason it is false on the HCS path: a Gen2 OpenHCL
- * partition on this host does not exclude the host, and nothing this launcher produces may be
- * advertised as verified or host-excluded capacity.
+ * TYPE 1 IS A CONFIGURATION, NOT A MEASUREMENT. The hypervisor is configured to keep VTL0 RAM
+ * host-private on a VBS partition, and the guest reports `hv_isolation=vbs` - but no host-side read
+ * has been shown to be refused (E3 NOT RUN) and no report chain is verified (E2 NOT complete). So
+ * `hostExcluded` and `attested` stay false, exactly as the recipe's own boot prints them, and
+ * nothing this launcher produces may be advertised as verified or host-excluded capacity.
  */
 export const BOUNDARY = Object.freeze({
   tier: "T0-hv",
   partition: "wmi-openhcl-gen2",   // NOT "hcs-child": a different launcher, a different kind
+  guestStateIsolationType: 1,      // VBS, as DEFINED and read back - a configuration, not a measurement
   hostExcluded: false,
   attested: false,
-  note: "a Gen2 OpenHCL partition started through WMI. The host is NOT excluded and no chain is "
-      + "verified: never advertise this as verified or host-excluded capacity.",
+  note: "a Gen2 OpenHCL partition with GuestStateIsolationType 1 (VBS), defined through WMI. The hypervisor "
+      + "is CONFIGURED to keep VTL0 RAM host-private; that is not a measurement. The host is NOT shown to be "
+      + "excluded and no chain is verified: never advertise this as verified or host-excluded capacity.",
 });
 
 /**
@@ -97,8 +103,58 @@ export function uefiImageIdentity({ mediumSha256, mediumPath, ukiSha256 = null, 
   return Object.freeze(id);
 }
 
-export const GUEST_FEATURE_SET = 0x00000201;   // the value Microsoft's script writes, kept as theirs
-export const MIN_VM_VERSION = 12.0;            // their script throws below this
+/**
+ * The identity for a LINUX-DIRECT boot: the IGVM's own pinned sha256, because there is no medium.
+ *
+ * The paravisor loads our kernel, initrd and VTL0 command line from INSIDE the IGVM, where they are
+ * measured (the recipe's -LinuxDirect mode). So the IGVM is everything that booted - and it is NOT
+ * a medium. It is deliberately NOT called `guestImageSha256`: judge-hv compares that field against
+ * the MEDIUM it shipped and the datapath compares `image` as a medium hash, and an IGVM digest in
+ * either place would be a different kind of identity answering a question it was not asked.
+ */
+export function linuxDirectIdentity({ igvmSha256, igvmPath = null }) {
+  if (!/^[0-9a-f]{64}$/.test(String(igvmSha256 || "").toLowerCase()))
+    throw new Error("the IGVM's sha256 is required: with no medium it is the only identity a linux-direct boot has");
+  return Object.freeze({
+    partition: BOUNDARY.partition,
+    guestImageKind: "igvm-linux-direct",
+    igvmSha256: String(igvmSha256).toLowerCase(),
+    igvmPath: igvmPath ?? null,
+  });
+}
+/** Why a linux-direct handle's `image` is null, said on the handle so nobody has to infer it. */
+export const LINUX_DIRECT_IMAGE_ABSENT =
+  "linux-direct: no medium is attached. The guest's kernel, initrd and command line are inside the measured IGVM, "
+  + "so its identity is guestIdentity.igvmSha256 - which is NOT a medium hash, and is kept out of `image` so the "
+  + "datapath cannot compare it as one. The datapath therefore refuses this domain for want of a medium identity.";
+
+/** How the guest boots. STATED by whoever constructs the launcher, never inferred from what else is set. */
+export const BOOT_UEFI = "uefi-medium";
+export const BOOT_LINUX_DIRECT = "linux-direct";
+export const BOOT_FORMS = Object.freeze([BOOT_UEFI, BOOT_LINUX_DIRECT]);
+
+export const GUEST_FEATURE_SET = 0x00000201;   // what New-CustomVM writes with a FirmwareFile; read back, never written here
+/** petri's hyperv.psm1 as the recipe pinned it: the module that DEFINES the VM has more say than any file it loads. */
+export const HYPERV_MODULE_SHA256 = "17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c";
+
+/**
+ * THE HOST'S OPT-IN TO CUSTOM FIRMWARE: REPORTED, NEVER SET, CHANGED OR REMOVED.
+ *
+ * Hyper-V refuses a custom IGVM unless HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\
+ * Virtualization\AllowFirmwareLoadFromFile is set (measured: Worker-Admin 5142, and the recipe's
+ * inverse control a891dfae). The dev recipe applies it for one run and restores it. A production
+ * manager must not do that: the value is host-wide and permits UNSIGNED guest firmware for every VM
+ * on the host, and whether a production host keeps it set permanently is an OPEN OWNER DECISION.
+ * So preflight reads it, `start` refuses without it and names it, and no script in this file writes
+ * to that key (a test scans every generated script for exactly that).
+ */
+export const FIRMWARE_OPT_IN = Object.freeze({
+  key: "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization",
+  psPath: "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization",
+  value: "AllowFirmwareLoadFromFile",
+  check: "AllowFirmwareLoadFromFile",
+});
+
 export const OWNER_MARKER = "enclave-vbslike-app-domain";
 /*
  * THE VM CARRIES ITS OWN IDENTITY (63's P1). The manager used to hold every record in memory only,
@@ -108,6 +164,9 @@ export const OWNER_MARKER = "enclave-vbslike-app-domain";
  * inventory from there before it answers anything (server.mjs recover()).
  *
  *   Notes = "enclave-vbslike-app-domain/manager|" + base64url(JSON {v:1, id, name, instanceId, appId})
+ *
+ * The recipe sets the bare OWNER_MARKER; this sets notesFor(identity) in its place, so the marker
+ * teardown filters on is still the prefix of what is written.
  *
  * A VM whose Notes are exactly OWNER_MARKER (older managers, the dev canary) is still OURS for
  * removal, but carries no identity: it is recovered as UNATTRIBUTED, and the manager refuses to
@@ -133,6 +192,7 @@ export function parseNotes(notes) {
   return { owned: t === OWNER_MARKER, identity: null };
 }
 const GUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
 
 const ps = (s) => s.replace(/\r?\n\s*/g, " ").trim();
 /** PowerShell: is VM expression `v` ours? The bare marker OR the manager's identity notes. */
@@ -143,7 +203,7 @@ const OWNED = (v) => `(${v}.Notes -eq ${q(OWNER_MARKER)} -or ([string]${v}.Notes
  * no VMs - so a survey read "no VMs" and a teardown read "found 0, removed 0, failed []", a CLEAN
  * teardown, on a host that cannot enumerate at all. Measured on nucbox-k11 before the role existed.
  * Reading a missing capability as an empty result is the same fail-open shape as a hash table that
- * verifies nothing and boots anyway; both say PASS while covering no mechanism. So the two scripts
+ * verifies nothing and boots anyway; both say PASS while covering no mechanism. So the scripts
  * that enumerate for action REFUSE rather than report an empty success.
  */
 const ENUMERABLE = ps(`if (-not (Get-Command Get-VM -ErrorAction SilentlyContinue)) { throw 'Get-VM is absent: the Hyper-V PowerShell module is not installed, so VMs cannot be enumerated - this host is UNENUMERABLE, not empty' };`);
@@ -151,18 +211,57 @@ const ENUMERABLE = ps(`if (-not (Get-Command Get-VM -ErrorAction SilentlyContinu
 /** PowerShell single-quoted literal: the only escape inside one is a doubled quote. */
 export function q(v) { return "'" + String(v).replace(/'/g, "''") + "'"; }
 
+/**
+ * One sha256 helper per script that hashes several files: the define script is the longest this
+ * manager sends, and -EncodedCommand must fit Windows' 32,767-char command line (a test holds it
+ * under 28,000). Not named `H`: that is Get-History's alias, and an alias outranks a function.
+ */
+const SHA_OF = "function ShaOf($p) { (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLower() };";
+
+/**
+ * Archive the per-run guest-state copy held in `$gsf`, verify the archive, then remove the copy.
+ * ONLY ever emitted after the script has established that the VM which used it is gone: OpenHCL
+ * writes the store during boot, and copying it while the worker holds it risks a torn read
+ * (enclave-5d). Sets $rsha and $dest.
+ */
+const RETIRE = (archiveDir) => `
+    $rsha = (ShaOf $gsf);
+    $arch = ${q(archiveDir)};
+    if (-not (Test-Path -LiteralPath $arch)) { New-Item -ItemType Directory -Path $arch -Force | Out-Null };
+    $dest = Join-Path $arch ([System.IO.Path]::GetFileNameWithoutExtension($gsf) + '-' + (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss-fff') + '.vmgs');
+    Copy-Item -LiteralPath $gsf -Destination $dest;
+    if ((ShaOf $dest) -ne $rsha) { throw ('the archived guest state at ' + $dest + ' does not hash to the run copy''s ' + $rsha + ': the run copy is kept') };
+    Remove-Item -LiteralPath $gsf -Force;
+    if (Test-Path -LiteralPath $gsf) { throw ('the run copy ' + $gsf + ' is still present after its removal') };`;
+
 /* ---- the commands, as pure functions so a test can read them ---------------------------------- */
 
 export const CMD = {
-  /** Is the role actually here? Each answer is a fact, not an inference. */
-  preflight: () => ps(`
+  /**
+   * Is the role actually here, and is everything the type-1 definition needs on this host? Each
+   * answer is a fact, not an inference. The firmware opt-in is READ with .NET's RegistryKey getters
+   * and nothing else: this script never writes the registry.
+   */
+  preflight: ({ hypervModule = null, guestStateMaster = null } = {}) => ps(`
     $r = [ordered]@{};
     $r.vmms = [bool](Get-Service vmms -ErrorAction SilentlyContinue);
     $r.namespace = [bool](Get-CimClass -Namespace 'root\\virtualization\\v2' -ClassName Msvm_VirtualSystemManagementService -ErrorAction SilentlyContinue);
     $r.module = [bool](Get-Command Get-VM -ErrorAction SilentlyContinue);
     $r.firmwareField = [bool]((Get-CimClass -Namespace 'root\\virtualization\\v2' -ClassName Msvm_VirtualSystemSettingData -ErrorAction SilentlyContinue).CimClassProperties.Name -contains 'FirmwareFile');
     $r.hypervisor = (Get-CimInstance Win32_ComputerSystem).HypervisorPresent;
-    $r | ConvertTo-Json -Compress`),
+    $fo = @{present=$false; value=$null; kind=$null; error=$null};
+    try {
+      $k = Get-Item -LiteralPath ${q(FIRMWARE_OPT_IN.psPath)} -ErrorAction Stop;
+      if ($k.GetValueNames() -contains ${q(FIRMWARE_OPT_IN.value)}) { $fo.present = $true; $fo.value = $k.GetValue(${q(FIRMWARE_OPT_IN.value)}); $fo.kind = [string]$k.GetValueKind(${q(FIRMWARE_OPT_IN.value)}) }
+    } catch { $fo.error = [string]$_.Exception.Message };
+    $r.firmwareOptIn = $fo;
+    ${hypervModule ? `$hm = @{path=${q(hypervModule)}; present=[bool](Test-Path -LiteralPath ${q(hypervModule)}); sha256=$null};
+    if ($hm.present) { $hm.sha256 = (Get-FileHash -LiteralPath ${q(hypervModule)} -Algorithm SHA256).Hash.ToLower() };
+    $r.hypervModule = $hm;` : ""}
+    ${guestStateMaster ? `$gm = @{path=${q(guestStateMaster)}; present=[bool](Test-Path -LiteralPath ${q(guestStateMaster)}); bytes=$null};
+    if ($gm.present) { $gm.bytes = (Get-Item -LiteralPath ${q(guestStateMaster)}).Length };
+    $r.guestStateMaster = $gm;` : ""}
+    $r | ConvertTo-Json -Compress -Depth 4`),
 
   /** The image, by hash, on the host that will load it. */
   imageHash: (path) => ps(`
@@ -170,91 +269,186 @@ export const CMD = {
     @{present=$true; sha256=(Get-FileHash ${q(path)} -Algorithm SHA256).Hash.ToLower(); bytes=(Get-Item ${q(path)}).Length} | ConvertTo-Json -Compress`),
 
   /**
-   * Create the VM, under a terminating-error policy, and remove it HERE if any step after New-VM
-   * fails. The first version returned JSON only on the happy path, so a failure between New-VM and
-   * that JSON left a VM on the host and `created` null in the caller, which then cleaned up
-   * nothing. The marker is applied inside the same try for the same reason: a VM that exists
-   * without it is invisible to a marker-scoped teardown.
+   * DEFINE THE TYPE-1 VM: uefi-dev-boot.ps1's `if ($IsolationType -eq 1)` branch, as one script
+   * under a terminating-error policy that removes what it created if any step fails.
+   *
+   * In the recipe's order, with the reason for each:
+   *  - hyperv.psm1 is hashed against its pin BEFORE it is imported: New-CustomVM has more say over
+   *    what runs than any file it is handed. utilities.psm1, which that module imports from beside
+   *    itself, is hashed and reported, and refused when a pin for it is configured (the recipe did
+   *    not pin it).
+   *  - the IGVM is hashed again here, at define time, not only by the earlier imageHash.
+   *  - the guest state is a FRESH COPY of the master per run, compared to the master's hash: the
+   *    store is written during boot, so a shared one makes every run start from a previous run's
+   *    state. The master is never handed to a VM.
+   *  - New-CustomVM with GuestStateIsolationEnabled/Type 1/Mode 0, the IGVM, the run copy,
+   *    TpmEnabled, Secure Boot off, COM1, memory and vCPUs - in ONE DefineSystem, as petri does.
+   *  - NO VTL2 trio (-IncreaseVtl2Memory): petri sets it only for non-isolated VMs, and the type-1
+   *    image is fixed-GPA; asking it to auto-place VTL2 was the bare Worker 12030.
+   *  - the Notes (our identity) go on FIRST, before anything else that can fail, so the VM is never
+   *    one a marker-scoped teardown cannot see.
+   *  - READ BACK: GuestStateIsolationType 1, enabled, GuestFeatureSet 0x201, VTL2 mode 0,
+   *    FirmwareFile, and the guest-state file (the run copy, never the master). Any mismatch throws.
+   *  - NICs removed, and the count read back as zero: this guest has no NIC.
+   *  - Set-VMSecurity -VirtualizationBasedSecurityOptOut, read back. REQUIRED on this host: without it
+   *    OpenHCL fails "cannot safely support VTL 1 without using the alias map". It declines Guest VSM
+   *    (VTL1 INSIDE the guest), which our guest never uses; the partition's isolation is untouched.
+   *  - icacls read grants for the VM's own SID on the IGVM (and the medium), exit codes checked: a VM
+   *    that cannot read its firmware fails with no content at all.
+   *  - uefi-medium: a SCSI controller (New-CustomVM makes none) and ONE DVD, hashed AT ATTACH TIME
+   *    from the path the VM is actually pointed at, and set as the first boot device.
+   *    linux-direct: nothing attached, and read back as no DVD and no disk.
+   *  - COM1 to our named pipe, read back.
+   *  - Secure Boot read back Off, one boot entry for uefi-medium, no LoadOptions on any entry.
+   *  - the vTPM Windows makes for a VBS VM is READ and REPORTED, never refused and never called
+   *    attestation: nothing on this path reads its PCRs.
    */
-  create: ({ name, memMiB, vcpus, version = "12.0", isolation = "OpenHCL", secureBoot = false, notes = OWNER_MARKER }) => ps(`
-    $ErrorActionPreference = 'Stop';
-    $vm = $null;
+  defineType1: ({ name, memMiB, vcpus, notes, firmware, firmwareSha256, hypervModule, hypervModuleSha256,
+                  hypervUtilitiesSha256 = null, guestStateMaster, guestStateMasterSha256 = null, guestStateRun,
+                  archiveDir, pipe, boot, medium = null, mediumSha256 = null }) => {
+    if (!BOOT_FORMS.includes(boot)) throw new Error(`defineType1: boot must be one of ${BOOT_FORMS.join(", ")}, stated rather than inferred`);
+    const uefi = boot === BOOT_UEFI;
+    if (uefi && (!medium || !SHA256.test(String(mediumSha256 || "")))) throw new Error("defineType1: a uefi-medium boot needs the medium and its sha256");
+    if (!uefi && (medium || mediumSha256)) throw new Error("defineType1: a linux-direct boot attaches no medium");
+    for (const [k, val] of Object.entries({ name, notes, firmware, hypervModule, guestStateMaster, guestStateRun, archiveDir, pipe }))
+      if (typeof val !== "string" || !val) throw new Error(`defineType1: ${k} is required`);
+    for (const [k, val] of Object.entries({ firmwareSha256, hypervModuleSha256 }))
+      if (!SHA256.test(String(val || ""))) throw new Error(`defineType1: ${k} must be a lowercase sha256`);
+    const mem = Math.round(memMiB), vp = Math.max(1, Math.floor(vcpus));
+    return ps(`
+    ${ENUMERABLE}
+    $ErrorActionPreference = 'Stop'; ${SHA_OF}
+    $name = ${q(name)}; $gsf = ${q(guestStateRun)}; $fw = ${q(firmware)}; $pipe = ${q(pipe)};
+    $vm = $null; $copied = $false;
+    if (@(Get-VM -Name $name -EA SilentlyContinue).Count) { throw ('a VM named ' + $name + ' already exists: refusing to define a second one under the same name') };
+    if (Test-Path -LiteralPath $gsf) { throw ('a guest-state run copy already exists at ' + $gsf + ': refusing to overwrite a previous run''s store') };
     try {
-      $vm = New-VM -Name ${q(name)} -Generation 2 -MemoryStartupBytes ${Math.round(memMiB)}MB -NoVHD -Version ${q(version)}${isolation ? ` -GuestStateIsolationType ${q(isolation)}` : ""};
-      ${secureBoot ? "" : "Set-VMFirmware -VM $vm -EnableSecureBoot Off;"}
+      $mod = ${q(hypervModule)}; $pin = ${q(hypervModuleSha256)};
+      $modSha = (ShaOf $mod);
+      if ($modSha -ne $pin) { throw ('the module that DEFINES the VM hashes ' + $modSha + ', not the pinned ' + $pin) };
+      $utl = Join-Path (Split-Path -Parent $mod) 'utilities.psm1';
+      $utlSha = $null;
+      if (Test-Path -LiteralPath $utl) { $utlSha = (ShaOf $utl) };
+      ${hypervUtilitiesSha256 ? `$pin = ${q(hypervUtilitiesSha256)}; if ($utlSha -ne $pin) { throw ('utilities.psm1, which New-CustomVM imports, hashes ' + [string]$utlSha + ', not the pinned ' + $pin) };` : ""}
+      Import-Module $mod -Force;
+      if (-not (Get-Command New-CustomVM -EA SilentlyContinue)) { throw ('New-CustomVM is not defined after importing ' + $mod) };
+      $pin = ${q(firmwareSha256)};
+      $fwSha = (ShaOf $fw);
+      if ($fwSha -ne $pin) { throw ('the IGVM hashes ' + $fwSha + ' at define time, not the pinned ' + $pin) };
+      $master = ${q(guestStateMaster)};
+      $masterSha = (ShaOf $master);
+      ${guestStateMasterSha256 ? `$pin = ${q(guestStateMasterSha256)}; if ($masterSha -ne $pin) { throw ('the guest-state master hashes ' + $masterSha + ', not the pinned ' + $pin) };` : ""}
+      Copy-Item -LiteralPath $master -Destination $gsf; $copied = $true;
+      $copySha = (ShaOf $gsf);
+      if ($copySha -ne $masterSha) { throw ('the guest-state copy hashes ' + $copySha + ', not the master''s ' + $masterSha) };
+      $ret = @(New-CustomVM -VMName $name -GuestStateIsolationEnabled $true -GuestStateIsolationType 1 -GuestStateIsolationMode 0 -FirmwareFile $fw -GuestStateFilePath $gsf -TpmEnabled $true -SecureBootEnabled $false -Com1 $true -Memory (${mem} * 1MB) -VpCount ${vp});
+      $found = @(Get-VM -Name $name -EA SilentlyContinue);
+      if ($found.Count -ne 1) { throw ('after New-CustomVM ' + $found.Count + ' VMs are named ' + $name + ', not exactly one') };
+      $vm = $found[0];
+      $retId = [string]($ret | Select-Object -Last 1);
+      if (($retId -match '^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') -and ($retId -ne $vm.Id.Guid)) { throw ('New-CustomVM returned ' + $retId + ' but the VM named ' + $name + ' has Id ' + $vm.Id.Guid) };
       Set-VM -VM $vm -Notes ${q(notes)};
-      Set-VMProcessor -VM $vm -Count ${Math.max(1, Math.floor(vcpus))};
-      Set-VMMemory -VM $vm -DynamicMemoryEnabled $false;
-      Set-VM -VM $vm -AutomaticStartAction Nothing -AutomaticStopAction TurnOff -CheckpointType Disabled;
-      @{id=$vm.Id.Guid; version=[string]$vm.Version; name=$vm.Name; notes=[string]$vm.Notes} | ConvertTo-Json -Compress
+      Set-VM -VM $vm -AutomaticStartAction Nothing -AutomaticStopAction TurnOff;
+      $ns = 'root\\virtualization\\v2';
+      $csq = "select * from Msvm_ComputerSystem where Name = '" + $vm.Id.Guid + "'";
+      $vssd = Get-CimInstance -Namespace $ns -Query $csq | Get-CimAssociatedInstance -ResultClass Msvm_VirtualSystemSettingData -Association Msvm_SettingsDefineState;
+      if (-not $vssd) { throw ('no Msvm_VirtualSystemSettingData for ' + $vm.Id.Guid) };
+      if ([int]$vssd.GuestStateIsolationType -ne 1) { throw ('GuestStateIsolationType reads back as ' + [string]$vssd.GuestStateIsolationType + ', not 1') };
+      if (-not [bool]$vssd.GuestStateIsolationEnabled) { throw 'GuestStateIsolationEnabled reads back False' };
+      if ([int64]$vssd.GuestFeatureSet -ne ${GUEST_FEATURE_SET}) { throw ('GuestFeatureSet reads back as 0x' + ('{0:x}' -f [int64]$vssd.GuestFeatureSet) + ', not 0x201') };
+      if ([int]$vssd.Vtl2AddressSpaceConfigurationMode -ne 0) { throw ('Vtl2AddressSpaceConfigurationMode reads back as ' + [string]$vssd.Vtl2AddressSpaceConfigurationMode + ': VTL2 auto placement on a fixed-GPA type-1 image') };
+      if ([string]$vssd.FirmwareFile -ne $fw) { throw ('FirmwareFile reads back as ' + [string]$vssd.FirmwareFile + ', not ' + $fw) };
+      $gsfBack = [System.IO.Path]::GetFullPath((Join-Path ([string]$vssd.GuestStateDataRoot) ([string]$vssd.GuestStateFile)));
+      if ($gsfBack -ne [System.IO.Path]::GetFullPath($gsf)) { throw ('the VM''s guest state reads back as ' + $gsfBack + ', not the per-run copy ' + $gsf) };
+      $nics = @(Get-VMNetworkAdapter -VM $vm -EA SilentlyContinue);
+      if ($nics.Count) { $nics | Remove-VMNetworkAdapter -Confirm:$false };
+      $nicsAfter = @(Get-VMNetworkAdapter -VM $vm -EA SilentlyContinue).Count;
+      if ($nicsAfter -ne 0) { throw ([string]$nicsAfter + ' network adapter(s) remain: this guest has no NIC') };
+      Set-VMSecurity -VM $vm -VirtualizationBasedSecurityOptOut $true -EA Stop;
+      $sec = $vssd | Get-CimAssociatedInstance -ResultClassName Msvm_SecuritySettingData;
+      if (-not $sec) { throw 'no Msvm_SecuritySettingData on a type-1 VM: Windows makes a vTPM for a VBS VM, so this VM is not what it should be' };
+      if (-not [bool]$sec.VirtualizationBasedSecurityOptOut) { throw 'VirtualizationBasedSecurityOptOut reads back False: the guest VBS opt-out did not take' };
+      $grant = 'NT VIRTUAL MACHINE\\' + $vm.Id.Guid + ':R';
+      $grants = @();
+      ${uefi ? `$medium = ${q(medium)};` : ""}
+      foreach ($gp in @($fw${uefi ? ", $medium" : ""})) {
+        & icacls $gp /grant $grant | Out-Null;
+        if ($LASTEXITCODE -ne 0) { throw ('icacls could not grant the VM read access to ' + $gp + ' (exit ' + $LASTEXITCODE + ')') };
+        $grants += $gp
+      };
+      $mediumPath = $null; $mediumSha = $null;
+      ${uefi ? `$mediumWant = ${q(mediumSha256)};
+      if (-not (Get-VMScsiController -VM $vm -EA SilentlyContinue)) { Add-VMScsiController -VM $vm };
+      Add-VMDvdDrive -VM $vm -Path $medium;
+      $dvds = @(Get-VMDvdDrive -VM $vm);
+      if ($dvds.Count -ne 1) { throw ([string]$dvds.Count + ' DVD drives after attaching the medium, not exactly one') };
+      $mediumPath = [string]$dvds[0].Path;
+      $mediumSha = (ShaOf $mediumPath);
+      if ($mediumSha -ne $mediumWant) { throw ('the attached medium hashes ' + $mediumSha + ', not the pinned ' + $mediumWant) };
+      Set-VMFirmware -VM $vm -FirstBootDevice $dvds[0];` : `if (@(Get-VMDvdDrive -VM $vm -EA SilentlyContinue).Count -ne 0) { throw 'linux-direct: a DVD drive is defined, and no medium may be attached' };`}
+      $dvdCount = @(Get-VMDvdDrive -VM $vm -EA SilentlyContinue).Count;
+      $diskCount = @(Get-VMHardDiskDrive -VM $vm -EA SilentlyContinue).Count;
+      if ($diskCount -ne 0) { throw ([string]$diskCount + ' hard disk(s) are defined: this definition attaches none') };
+      Set-VMComPort -VM $vm -Number 1 -Path $pipe;
+      $com1 = [string](Get-VMComPort -VM $vm -Number 1).Path;
+      if ($com1 -ne $pipe) { throw ('COM1 reads back as ' + $com1 + ', not ' + $pipe) };
+      $fwc = Get-VMFirmware -VM $vm;
+      if ([string]$fwc.SecureBoot -ne 'Off') { throw ('Secure Boot reads back ' + [string]$fwc.SecureBoot + ', not Off') };
+      $boot = @($fwc.BootOrder);
+      ${uefi ? `if ($boot.Count -ne 1) { throw ('the VM has ' + $boot.Count + ' boot entries; exactly one (the DVD) is expected') };` : ""}
+      foreach ($e in $boot) { if ($e.Device) { $lo = $e.Device.PSObject.Properties['LoadOptions']; if ($lo -and $lo.Value) { throw ('a boot entry carries LoadOptions: ' + [string]$lo.Value) } } };
+      $v2 = Get-VM -Id $vm.Id;
+      @{id=$v2.Id.Guid; name=$v2.Name; version=[string]$v2.Version; notes=[string]$v2.Notes;
+        isolationType=[int]$vssd.GuestStateIsolationType; isolationEnabled=[bool]$vssd.GuestStateIsolationEnabled;
+        featureSet=[int64]$vssd.GuestFeatureSet; vtl2Mode=[int]$vssd.Vtl2AddressSpaceConfigurationMode;
+        firmwareFile=[string]$vssd.FirmwareFile; firmwareSha256=$fwSha; hypervModuleSha256=$modSha; hypervUtilitiesSha256=$utlSha;
+        guestStateFile=$gsfBack; guestStateMasterSha256=$masterSha;
+        vbsOptOut=[bool]$sec.VirtualizationBasedSecurityOptOut; tpmEnabled=[bool]$sec.TpmEnabled;
+        nics=$nicsAfter; dvds=$dvdCount; disks=$diskCount; mediumPath=$mediumPath; mediumSha256=$mediumSha;
+        bootEntries=$boot.Count; secureBoot=[string]$fwc.SecureBoot; com1=$com1;
+        vcpus=[int]$v2.ProcessorCount; memBytes=[int64]$v2.MemoryStartup; dynamicMemory=[bool]$v2.DynamicMemoryEnabled;
+        automaticStartAction=[string]$v2.AutomaticStartAction; automaticStopAction=[string]$v2.AutomaticStopAction;
+        grants=@($grants)} | ConvertTo-Json -Compress -Depth 4
     } catch {
-      if ($vm) { try { Remove-VM -VM $vm -Force -ErrorAction SilentlyContinue } catch {} };
-      throw
-    }`),
+      $err = $_;
+      $victims = @();
+      if ($vm) { $victims = @($vm) } else { $victims = @(Get-VM -Name $name -EA SilentlyContinue | Where-Object { [string]::IsNullOrWhiteSpace([string]$_.Notes) -or ${OWNED("$_")} }) };
+      foreach ($v in $victims) { try { Stop-VM -VM $v -TurnOff -Force -EA SilentlyContinue; Remove-VM -VM $v -Force -EA Stop } catch {} };
+      if ($copied -and (@(Get-VM -Name $name -EA SilentlyContinue).Count -eq 0) -and (Test-Path -LiteralPath $gsf)) { try { ${RETIRE(archiveDir)} } catch {} };
+      throw $err
+    }`);
+  },
 
   /**
-   * Pin the firmware. Set-OpenHCL-HyperV-VM.ps1's own sequence, including the two things the first
-   * version of this file left out.
-   *
-   * ConvertTo-CimEmbeddedString is NOT a cmdlet. Their script defines it, and so does this: a
-   * CimSerializer round trip. Calling it without defining it is a command-not-found at runtime.
-   *
-   * ReturnValue 4096 means "a job was STARTED", not "it worked". Their Trace-CimMethodExecution
-   * polls Msvm_ConcreteJob while JobState is 4 (running) and treats anything other than 7
-   * (completed) as an error, surfacing ErrorDescription or ErrorCode. This does the same, bounded.
-   *
-   * Then it READS THE SETTINGS BACK. A job that completed is not the same as a field that holds
-   * what we asked for, and the whole point of this call is that the field holds our image.
+   * Start ONE VM, by its Id, only if it carries our marker. A refusal carries the Worker-Admin events
+   * from the moment it was asked, because on this host that is where the reason is (5142 for a missing
+   * firmware opt-in, 12030 for a definition the worker will not start): the recipe's FIRST OBSERVABLE.
    */
-  pinFirmware: ({ vmId, imagePath, jobTimeoutSec = 120 }) => ps(`
+  start: ({ vmId }) => {
+    if (!GUID.test(String(vmId))) throw new Error(`start: not a VM Id: ${vmId}`);
+    return ps(`
     $ErrorActionPreference = 'Stop';
-    function ConvertTo-CimEmbeddedString([Microsoft.Management.Infrastructure.CimInstance]$CimInstance) {
-      if ($null -eq $CimInstance) { return '' };
-      $s = [Microsoft.Management.Infrastructure.Serialization.CimSerializer]::Create();
-      return [System.Text.Encoding]::Unicode.GetString($s.Serialize($CimInstance, [Microsoft.Management.Infrastructure.Serialization.InstanceSerializationOptions]::None))
+    $v = Get-VM -Id ${q(vmId)};
+    if (-not ${OWNED("$v")}) { throw 'not ours: the ownership marker is absent, so this VM is not started' };
+    $t0 = Get-Date;
+    try { Start-VM -VM $v -ErrorAction Stop } catch {
+      $msg = 'Start-VM refused: ' + [string]$_.Exception.Message;
+      $ev = @(Get-WinEvent -LogName 'Microsoft-Windows-Hyper-V-Worker-Admin' -MaxEvents 20 -ErrorAction SilentlyContinue | Where-Object { $_.TimeCreated -ge $t0.AddSeconds(-5) } | Sort-Object TimeCreated | ForEach-Object { '[' + $_.Id + '] ' + ([string]$_.Message -replace '\\r?\\n', ' ') });
+      if ($ev.Count) { $msg += ' | Worker-Admin: ' + ($ev -join ' | ') };
+      throw $msg
     };
-    $ns = 'root\\virtualization\\v2';
-    $vm = Get-CimInstance -Namespace $ns -Query ("select * from Msvm_ComputerSystem where Name = '" + ${q(vmId)} + "'");
-    if (-not $vm) { throw 'no Msvm_ComputerSystem for ' + ${q(vmId)} };
-    $vssd = $vm | Get-CimAssociatedInstance -ResultClass Msvm_VirtualSystemSettingData -Association Msvm_SettingsDefineState;
-    $vssd.GuestFeatureSet = ${GUEST_FEATURE_SET};
-    $vssd.FirmwareFile = ${q(imagePath)};
-    $svc = Get-CimInstance -Namespace $ns -ClassName Msvm_VirtualSystemManagementService;
-    $res = Invoke-CimMethod -InputObject $svc -Name ModifySystemSettings -Arguments @{SystemSettings = (ConvertTo-CimEmbeddedString $vssd)};
-    $rv = [int]$res.ReturnValue;
-    $jobState = $null; $jobError = $null;
-    if ($rv -eq 4096) {
-      if (-not $res.Job) { throw 'ReturnValue 4096 with no Job object' };
-      $job = $res.Job | Get-CimInstance;
-      $deadline = (Get-Date).AddSeconds(${Math.max(1, Math.floor(jobTimeoutSec))});
-      while ($job.JobState -eq 4) {
-        if ((Get-Date) -gt $deadline) { throw 'ModifySystemSettings job did not finish within ${Math.max(1, Math.floor(jobTimeoutSec))}s (JobState still 4)' };
-        Start-Sleep -Milliseconds 500;
-        $job = $job | Get-CimInstance
-      };
-      $jobState = [int]$job.JobState;
-      if ($jobState -ne 7) { $jobError = if ($job.ErrorDescription) { [string]$job.ErrorDescription } else { 'JobState ' + $jobState + ' ErrorCode ' + [string]$job.ErrorCode } }
-    } elseif ($rv -ne 0) { throw 'ModifySystemSettings returned ' + $rv };
-    if ($jobError) { throw $jobError };
-    $after = (Get-CimInstance -Namespace $ns -Query ("select * from Msvm_ComputerSystem where Name = '" + ${q(vmId)} + "'")) |
-             Get-CimAssociatedInstance -ResultClass Msvm_VirtualSystemSettingData -Association Msvm_SettingsDefineState;
-    @{returnValue=$rv; jobState=$jobState; firmwareFile=[string]$after.FirmwareFile; guestFeatureSet=[int]$after.GuestFeatureSet} | ConvertTo-Json -Compress`),
-
-  /** A serial port to a named pipe: the only way this learns what the guest said. */
-  attachConsole: ({ name, pipe }) => ps(`
-    Set-VMComPort -VMName ${q(name)} -Number 1 -Path ${q(pipe)};
-    @{ok=$true} | ConvertTo-Json -Compress`),
-
-  start: ({ name }) => ps(`$ErrorActionPreference='Stop'; Start-VM -Name ${q(name)}; @{state=[string](Get-VM -Name ${q(name)}).State} | ConvertTo-Json -Compress`),
+    @{state=[string](Get-VM -Id ${q(vmId)}).State} | ConvertTo-Json -Compress`);
+  },
 
   /**
    * Did the GUEST say anything, within a bound this function itself keeps?
    *
-   * The first version opened the pipe with [IO.File]::Open and called a SYNCHRONOUS Read in a loop.
-   * A synchronous read on a named pipe with no data blocks indefinitely: the deadline was only
-   * consulted between reads, so the first one could outlive it, and the outer PowerShell kill then
-   * returned no JSON at all - a timeout that looked like a crash. This connects with a timeout and
-   * reads asynchronously, cancelling at the deadline, so it always answers.
+   * The first version opened the pipe with [IO.File]::Open and called a SYNCHRONOUS Read in a loop,
+   * which blocks past any deadline on an idle pipe. The second connected with a timeout and read with
+   * ReadAsync - but on a pipe opened WITHOUT PipeOptions.Asynchronous, .NET Framework turns ReadAsync
+   * into a blocking read on a thread that ignores the token, and the loop issued a NEW ReadAsync after
+   * every 500 ms wait, overlapping reads on one stream (enclave-53 found this in the recipe's reader,
+   * which this one shared). So: Asynchronous, and at most ONE read pending, carried across waits.
    *
    * It reports BYTES, and says nothing about what they mean. Firmware banners are bytes.
    */
@@ -264,16 +458,16 @@ export const CMD = {
     $total = 0; $head = ''; $connected = $false; $why = '';
     $cts = New-Object System.Threading.CancellationTokenSource;
     $cts.CancelAfter(${Math.max(1, Math.floor(seconds))} * 1000);
-    $cli = $null;
+    $cli = $null; $pending = $null;
     try {
-      $cli = New-Object System.IO.Pipes.NamedPipeClientStream('.', $name, [System.IO.Pipes.PipeDirection]::In);
+      $cli = New-Object System.IO.Pipes.NamedPipeClientStream('.', $name, [System.IO.Pipes.PipeDirection]::In, [System.IO.Pipes.PipeOptions]::Asynchronous);
       $cli.Connect(${Math.max(250, Math.floor(connectMs))});
       $connected = $true;
       $buf = New-Object byte[] 4096;
       while (-not $cts.IsCancellationRequested) {
-        $t = $cli.ReadAsync($buf, 0, $buf.Length, $cts.Token);
-        if (-not $t.Wait(500)) { continue };
-        $n = $t.Result;
+        if ($null -eq $pending) { $pending = $cli.ReadAsync($buf, 0, $buf.Length) };
+        if (-not $pending.Wait(500)) { continue };
+        $n = $pending.Result; $pending = $null;
         if ($n -le 0) { break };
         $total += $n;
         if ($head.Length -lt 400) { $head += [Text.Encoding]::ASCII.GetString($buf, 0, [Math]::Min($n, 400)) }
@@ -354,6 +548,34 @@ export const CMD = {
       if (Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue) { @{found=$true; removed=$false; error=('still present after removal: ' + $last)} | ConvertTo-Json -Compress }
       else { @{found=$true; removed=$true} | ConvertTo-Json -Compress }
     } catch { @{found=$true; removed=$false; error=[string]$_.Exception.Message} | ConvertTo-Json -Compress }`),
+
+  /**
+   * ARCHIVE AND REMOVE a per-run guest-state copy, once the VM that used it is GONE.
+   *
+   * Refuses anything that is not a .vmgs under the run directory, refuses the MASTER by name, and
+   * refuses while a VM of that Id (or that name) still exists - the worker may be holding the file.
+   * The archive is hashed against the copy before the copy is deleted.
+   */
+  retireGuestState: ({ path: gsPath, runDir, master = null, archiveDir, vmId = null, name = null }) => {
+    if (vmId && !GUID.test(String(vmId))) throw new Error(`retireGuestState: not a VM Id: ${vmId}`);
+    if (!vmId && !name) throw new Error("retireGuestState: a VM Id or name is required, to establish that its VM is gone");
+    for (const [k, val] of Object.entries({ gsPath, runDir, archiveDir }))
+      if (typeof val !== "string" || !val) throw new Error(`retireGuestState: ${k} is required`);
+    return ps(`
+    ${ENUMERABLE}
+    $ErrorActionPreference = 'Stop'; ${SHA_OF}
+    $gsf = [System.IO.Path]::GetFullPath(${q(gsPath)});
+    $dir = [System.IO.Path]::GetFullPath(${q(runDir)}).TrimEnd('\\') + '\\';
+    if (-not $gsf.StartsWith($dir, [System.StringComparison]::OrdinalIgnoreCase)) { throw ('refusing to retire ' + $gsf + ': it is not under the run directory ' + $dir) };
+    if (-not $gsf.EndsWith('.vmgs', [System.StringComparison]::OrdinalIgnoreCase)) { throw ('refusing to retire ' + $gsf + ': it is not a .vmgs') };
+    ${master ? `if ($gsf -eq [System.IO.Path]::GetFullPath(${q(master)})) { throw ('refusing to retire ' + $gsf + ': it is the MASTER, an input that is never handed to a VM') };` : ""}
+    ${vmId ? `$still = $null; try { $still = Get-VM -Id ${q(vmId)} -EA Stop } catch { $still = $null };
+    if ($still) { throw ('VM ' + ${q(vmId)} + ' is still present: its guest state is not retired while the worker may hold it') };` : ""}
+    ${name ? `if (@(Get-VM -Name ${q(name)} -EA SilentlyContinue).Count) { throw ('a VM named ' + ${q(name)} + ' is still present: its guest state is not retired while the worker may hold it') };` : ""}
+    if (-not (Test-Path -LiteralPath $gsf)) { @{present=$false; retired=$false; path=$gsf} | ConvertTo-Json -Compress; exit 0 };
+    ${RETIRE(archiveDir)}
+    @{present=$true; retired=$true; path=$gsf; sha256=$rsha; archive=$dest} | ConvertTo-Json -Compress`);
+  },
 };
 
 function parse(out) {
@@ -361,25 +583,100 @@ function parse(out) {
   if (!t) throw new Error("no output from PowerShell");
   try { return JSON.parse(t); } catch { throw new Error(`PowerShell output is not JSON: ${t.slice(0, 160)}`); }
 }
+const lc = (s) => String(s ?? "").toLowerCase();
+
+/**
+ * THE READ-BACK, asserted again on this side of the process boundary. The define script throws on
+ * each of these itself; this is the second statement of the same contract, over the values it
+ * returned, so a script that returned without checking (or a host that answered oddly) is still
+ * refused - and so the contract can be tested without a host.
+ */
+export function checkDefinition(d, want) {
+  const fail = (m) => { throw new Error(`the type-1 definition does not read back as asked: ${m}`); };
+  if (!d || !GUID.test(String(d.id || ""))) fail(`no VM Id came back (${JSON.stringify(d ? d.id ?? null : null)})`);
+  if (d.notes !== want.notes) fail("the Notes do not carry this domain's identity marker");
+  if (Number(d.isolationType) !== 1) fail(`GuestStateIsolationType is ${JSON.stringify(d.isolationType ?? null)}, not 1`);
+  if (d.isolationEnabled !== true) fail("GuestStateIsolationEnabled is not True");
+  if (Number(d.featureSet) !== GUEST_FEATURE_SET) fail(`GuestFeatureSet is ${JSON.stringify(d.featureSet ?? null)}, not ${GUEST_FEATURE_SET} (0x201)`);
+  if (Number(d.vtl2Mode) !== 0) fail(`Vtl2AddressSpaceConfigurationMode is ${JSON.stringify(d.vtl2Mode ?? null)}: VTL2 auto placement must not be set on type 1`);
+  if (lc(d.firmwareFile) !== lc(want.firmware)) fail(`FirmwareFile is ${JSON.stringify(d.firmwareFile ?? null)}, not the pinned IGVM`);
+  if (lc(d.firmwareSha256) !== lc(want.firmwareSha256)) fail(`the IGVM hashed ${JSON.stringify(d.firmwareSha256 ?? null)} at define time`);
+  if (lc(d.hypervModuleSha256) !== lc(want.hypervModuleSha256)) fail("hyperv.psm1 did not hash to its pin");
+  if (want.hypervUtilitiesSha256 && lc(d.hypervUtilitiesSha256) !== lc(want.hypervUtilitiesSha256)) fail("utilities.psm1 did not hash to its pin");
+  if (lc(d.guestStateFile) !== lc(want.guestStateRun)) fail(`the guest state is ${JSON.stringify(d.guestStateFile ?? null)}, not this run's copy`);
+  if (lc(d.guestStateFile) === lc(want.guestStateMaster)) fail("the VM was handed the MASTER guest state");
+  if (d.vbsOptOut !== true) fail("VirtualizationBasedSecurityOptOut is not True");
+  if (Number(d.nics) !== 0) fail(`${d.nics} network adapter(s) remain`);
+  if (lc(d.com1) !== lc(want.pipe)) fail(`COM1 is ${JSON.stringify(d.com1 ?? null)}, not ${want.pipe}`);
+  if (d.secureBoot !== "Off") fail(`Secure Boot is ${JSON.stringify(d.secureBoot ?? null)}, not Off`);
+  if (Number(d.disks) !== 0) fail(`${d.disks} hard disk(s) are defined`);
+  if (want.boot === BOOT_UEFI) {
+    if (Number(d.dvds) !== 1) fail(`${d.dvds} DVD drive(s), not exactly the one medium`);
+    if (Number(d.bootEntries) !== 1) fail(`${d.bootEntries} boot entries, not exactly the one medium`);
+    if (lc(d.mediumSha256) !== lc(want.mediumSha256)) fail(`the attached medium hashed ${JSON.stringify(d.mediumSha256 ?? null)} at attach time`);
+  } else {
+    if (Number(d.dvds) !== 0) fail(`linux-direct, and ${d.dvds} DVD drive(s) are defined`);
+    if (d.mediumSha256 != null || d.mediumPath != null) fail("linux-direct, and a medium came back");
+  }
+  if (Number(d.vcpus) !== want.vcpus) fail(`${d.vcpus} vCPUs, not ${want.vcpus}`);
+  if (Number(d.memBytes) !== want.memMiB * 1048576) fail(`${d.memBytes} bytes of memory, not ${want.memMiB} MiB`);
+  if (d.dynamicMemory !== false) fail("dynamic memory is on: a pinned share is not a dynamic one");
+  if (d.automaticStartAction !== "Nothing") fail(`AutomaticStartAction is ${JSON.stringify(d.automaticStartAction ?? null)}: it must not come back by itself after a reboot`);
+  if (d.automaticStopAction !== "TurnOff") fail(`AutomaticStopAction is ${JSON.stringify(d.automaticStopAction ?? null)}, not TurnOff`);
+  return true;
+}
+
+const VTPM_NOTE = "Windows makes a vTPM for a VBS VM and the guest-state key protector lives there. NOTHING ON THIS "
+  + "PATH READS ITS PCRs: its presence is not attestation and must never be reported as any.";
 
 export class WmiHyperVLauncher {
   /**
    * @param run  async (script) => { code, stdout, stderr }   injected; nothing here spawns anything
-   * @param imagePath / imageSha256  the guest image and the hash it must have, checked on the host
+   * @param imagePath / imageSha256  the IGVM the worker loads, and the hash it must have, checked on the host
+   * @param boot  BOOT_UEFI ("uefi-medium") or BOOT_LINUX_DIRECT ("linux-direct"). STATED, never inferred:
+   *              a launcher without it can still survey, stop and tear down, but refuses to start.
+   * @param medium / mediumSha256  the boot medium, for uefi-medium only (and refused with linux-direct)
+   * @param guestStateMaster  the master VMGS this host requires for type 1; copied per run, never handed to a VM
+   * @param guestStateArchiveDir  where each run's copy is archived after its VM is removed
+   * @param guestStateRunDir  where the per-run copies live (default: beside the master, as the recipe does)
+   * @param hypervModule / hypervModuleSha256  petri's hyperv.psm1, pinned (default: the recipe's pin)
+   * @param hypervUtilitiesSha256  optional pin for the utilities.psm1 hyperv.psm1 imports (always reported)
    * @param prefix  every VM this instance creates starts with it, and teardown filters on it
    */
-  constructor({ run, imagePath, imageSha256, medium = null, mediumSha256 = null, prefix = "enclave-app-", pipeFor = null, jobTimeoutSec = 120 }) {
+  constructor({ run, imagePath, imageSha256, boot = null, medium = null, mediumSha256 = null,
+                guestStateMaster = null, guestStateMasterSha256 = null, guestStateRunDir = null, guestStateArchiveDir = null,
+                hypervModule = null, hypervModuleSha256 = HYPERV_MODULE_SHA256, hypervUtilitiesSha256 = null,
+                prefix = "enclave-app-", pipeFor = null }) {
+    if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
+    // THE BOOT FORM IS STATED. Inferring it from whether a medium happens to be set would let a
+    // missing variable silently turn a medium boot into a linux-direct one, and the identity with it.
+    if (boot !== null && !BOOT_FORMS.includes(boot))
+      throw new Error(`boot must be one of ${BOOT_FORMS.join(", ")}; got ${JSON.stringify(boot)}`);
+    if (boot === null && (medium || mediumSha256))
+      throw new Error("a medium was given but no boot form: the boot form is stated, never inferred from a medium being set");
+    if (boot === BOOT_LINUX_DIRECT && (medium || mediumSha256))
+      throw new Error("linux-direct boots the kernel INSIDE the measured IGVM: no medium may be attached");
+    if (boot === BOOT_UEFI && (!medium || !SHA256.test(String(mediumSha256 || "").toLowerCase())))
+      throw new Error("a uefi-medium boot needs the medium's path and its sha256: a path is not an identity");
+    for (const [k, val] of Object.entries({ hypervModuleSha256, hypervUtilitiesSha256, guestStateMasterSha256 }))
+      if (val != null && !SHA256.test(String(val).toLowerCase())) throw new Error(`${k} must be a sha256`);
+    this.run = run; this.imagePath = imagePath; this.imageSha256 = (imageSha256 || "").toLowerCase();
+    this.boot = boot;
     // The boot medium, beside the firmware and never confused with it. The firmware is the
     // paravisor image the worker loads; the medium is what the guest BOOTS, and only the medium's
     // hash can answer "what ran" - with Secure Boot off the ESP can differ under one UKI.
     this.medium = medium;
     this.mediumSha256 = mediumSha256 ? String(mediumSha256).toLowerCase() : null;
-    if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
-    this.run = run; this.imagePath = imagePath; this.imageSha256 = (imageSha256 || "").toLowerCase();
+    this.guestStateMaster = guestStateMaster;
+    this.guestStateMasterSha256 = guestStateMasterSha256 ? String(guestStateMasterSha256).toLowerCase() : null;
+    this.guestStateRunDir = guestStateRunDir || (guestStateMaster ? path.win32.dirname(guestStateMaster) : null);
+    this.guestStateArchiveDir = guestStateArchiveDir;
+    this.hypervModule = hypervModule;
+    this.hypervModuleSha256 = String(hypervModuleSha256).toLowerCase();
+    this.hypervUtilitiesSha256 = hypervUtilitiesSha256 ? String(hypervUtilitiesSha256).toLowerCase() : null;
     // A STABLE prefix, not one keyed to a pid: a restarted manager must still recognise, and be
     // able to reconcile, the VMs its predecessor left behind.
     this.prefix = prefix;
-    this.jobTimeoutSec = jobTimeoutSec;
     // The names THIS launcher created. Cleanup and reconciliation work from this, not from a
     // prefix match, so a duplicate name or a neighbour sharing the prefix is never removed by us.
     this.created = new Set();
@@ -396,17 +693,64 @@ export class WmiHyperVLauncher {
     return parse(r.stdout);
   }
 
+  /** What is missing from this launcher's own configuration for a type-1 start. Empty when nothing is. */
+  unconfigured() {
+    const miss = [];
+    if (!this.boot) miss.push(`no boot form: it must be stated as ${BOOT_FORMS.map((b) => JSON.stringify(b)).join(" or ")}, never inferred`);
+    if (!this.hypervModule) miss.push("no hyperv.psm1 path: petri's New-CustomVM is what defines the VM");
+    if (!this.guestStateMaster) miss.push("no guest-state master: this host refuses a type-1 VM without a VMGS, and New-CustomVM supplies none");
+    if (!this.guestStateArchiveDir) miss.push("no guest-state archive directory: each run's VMGS copy is archived after its VM is removed");
+    return miss;
+  }
+  /** Retirement needs a run directory and an archive; without both, nothing is retired (and nothing was made). */
+  #retires() { return !!(this.guestStateRunDir && this.guestStateArchiveDir); }
+  /** The per-run copy for one VM name, or null when the name is not a plain file name. */
+  guestStateRunFor(name) {
+    const n = String(name ?? "");
+    if (!this.guestStateRunDir || !/^[A-Za-z0-9._-]+$/.test(n) || n === "." || n === "..") return null;
+    return path.win32.join(this.guestStateRunDir, `${n}.vmgs`);
+  }
+  async #retire({ vmId = null, name }) {
+    const p = this.guestStateRunFor(name);
+    if (!p) return { retired: false, note: `no per-run guest-state path for ${JSON.stringify(name ?? null)}` };
+    return await this.#ps(CMD.retireGuestState({ path: p, runDir: this.guestStateRunDir, master: this.guestStateMaster,
+                                                 archiveDir: this.guestStateArchiveDir, vmId, name }));
+  }
+
   /** Every prerequisite, each answered rather than assumed. Never throws: it reports. */
   async preflight() {
     let got;
-    try { got = await this.#ps(CMD.preflight()); }
+    try { got = await this.#ps(CMD.preflight({ hypervModule: this.hypervModule, guestStateMaster: this.guestStateMaster })); }
     catch (e) { return { ok: false, checks: [{ name: "preflight", ok: false, detail: e.message }] }; }
+    const fo = got.firmwareOptIn || {};
+    const optInOk = fo.present === true && Number(fo.value) === 1 && fo.kind === "DWord";
+    const hm = got.hypervModule || null, gm = got.guestStateMaster || null;
     const checks = [
       { name: "vmms service", ok: got.vmms === true, detail: "the Hyper-V Virtual Machine Management service" },
-      { name: "root\\virtualization\\v2", ok: got.namespace === true, detail: "the WMI namespace the firmware pin is written through" },
-      { name: "Hyper-V PowerShell module", ok: got.module === true, detail: "Get-VM, which creates and owns the VM" },
+      { name: "root\\virtualization\\v2", ok: got.namespace === true, detail: "the WMI namespace New-CustomVM defines the VM through" },
+      { name: "Hyper-V PowerShell module", ok: got.module === true, detail: "Get-VM, which owns, starts and removes the VM" },
       { name: "Msvm_VirtualSystemSettingData.FirmwareFile", ok: got.firmwareField === true, detail: "the field that carries a custom IGVM" },
       { name: "hypervisor present", ok: got.hypervisor === true, detail: "already true here: VBS runs on it" },
+      { name: FIRMWARE_OPT_IN.check, ok: optInOk,
+        detail: (optInOk ? `${FIRMWARE_OPT_IN.key}\\${FIRMWARE_OPT_IN.value} is DWORD 1`
+          : fo.present === true
+            ? `${FIRMWARE_OPT_IN.key}\\${FIRMWARE_OPT_IN.value} is present as ${fo.kind} ${JSON.stringify(fo.value)}, not DWORD 1`
+            : `${FIRMWARE_OPT_IN.key}\\${FIRMWARE_OPT_IN.value} is ABSENT`)
+          + ". Hyper-V refuses a custom IGVM without it (measured: Worker-Admin event 5142). REPORTED ONLY: this "
+          + "manager never sets, changes or removes it; permanent production use of it is an open owner decision." },
+      { name: "hyperv.psm1 (New-CustomVM), pinned",
+        ok: !!(hm && hm.present === true && lc(hm.sha256) === this.hypervModuleSha256),
+        detail: !this.hypervModule ? "not configured"
+          : !hm || hm.present !== true ? `not found at ${this.hypervModule}`
+          : lc(hm.sha256) === this.hypervModuleSha256 ? `sha256 ${hm.sha256}`
+          : `hashes ${hm.sha256}, not the pinned ${this.hypervModuleSha256}` },
+      { name: "type-1 guest-state master (VMGS)", ok: !!(gm && gm.present === true),
+        detail: !this.guestStateMaster ? "not configured: this host refuses a type-1 VM without guest state"
+          : gm && gm.present === true ? `${this.guestStateMaster} (${gm.bytes} bytes); each run gets a fresh copy`
+          : `not found at ${this.guestStateMaster}` },
+      { name: "boot form", ok: BOOT_FORMS.includes(this.boot),
+        detail: this.boot ? `${this.boot}${this.boot === BOOT_UEFI ? ` (medium ${this.medium})` : " (no medium; the IGVM is the identity)"}`
+                          : `not stated: ${BOOT_FORMS.join(" or ")}` },
     ];
     return { ok: checks.every((c) => c.ok), checks };
   }
@@ -420,55 +764,75 @@ export class WmiHyperVLauncher {
       throw new Error(`guest image sha256 is ${got.sha256}, expected ${this.imageSha256}`);
     return { sha256: this.imageSha256, bytes: got.bytes };
   }
+  /** The boot medium, likewise, before anything is created; it is hashed AGAIN at attach time. */
+  async verifyMedium() {
+    const got = await this.#ps(CMD.imageHash(this.medium));
+    if (got.present !== true) throw new Error(`boot medium not present at ${this.medium}`);
+    if (String(got.sha256).toLowerCase() !== this.mediumSha256)
+      throw new Error(`boot medium sha256 is ${got.sha256}, expected ${this.mediumSha256}`);
+    return { sha256: this.mediumSha256, bytes: got.bytes };
+  }
 
   /**
-   * Create, pin, verify the pin, start, and require the guest to say something.
+   * Define (the type-1 recipe, read back), start, and require the guest to say something.
    *
    * `instanceId` is the caller's unique handle for THIS domain and is what the VM is named after.
    * Naming by AppID alone meant two deployments of the same app collided on one VM name: the second
-   * New-VM fails, or worse, adopts the first. The AppID is carried in the notes, not in the name.
+   * definition fails, or worse, adopts the first. The AppID is carried in the notes, not in the name.
    *
-   * Any failure after New-VM removes this VM before rethrowing, and the create script removes it
-   * itself if it fails before returning - both, because a leak here is a VM nobody owns.
+   * Any failure after the VM exists removes it BY THE ID IT WAS DEFINED WITH before rethrowing, and
+   * the define script removes it itself if it fails before returning - both, because a leak here is a
+   * VM nobody owns.
    */
   async start(mapping, { instanceId, identity = null, guestReadySec = 25 } = {}) {
     if (!instanceId || !/^[A-Za-z0-9._-]{4,64}$/.test(String(instanceId)))
       throw new Error("a unique instanceId is required: naming a domain by its AppID alone collides when the same app is deployed twice");
+    const miss = this.unconfigured();
+    if (miss.length) {
+      const e = new Error(`this launcher cannot define a type-1 VM: ${miss.join("; ")}`);
+      e.code = "launcher_unconfigured"; throw e;
+    }
     const pre = await this.preflight();
     if (!pre.ok) {
-      const missing = pre.checks.filter((c) => !c.ok).map((c) => c.name);
-      const e = new Error(`the Hyper-V role is not usable on this host: missing ${missing.join(", ")}`);
-      e.code = "prerequisites_absent"; e.checks = pre.checks;
+      const failing = pre.checks.filter((c) => !c.ok);
+      const optIn = failing.find((c) => c.name === FIRMWARE_OPT_IN.check);
+      if (failing.some((c) => c !== optIn)) {
+        const e = new Error(`the Hyper-V role is not usable on this host: missing ${failing.map((c) => c.name).join(", ")}`);
+        e.code = "prerequisites_absent"; e.checks = pre.checks;
+        throw e;
+      }
+      // Only the host's firmware opt-in is missing. Refused BEFORE anything is created, and named,
+      // because the alternative is a VM that Hyper-V refuses at Start-VM with the reason in an event log.
+      const e = new Error(`refusing to start: ${optIn.detail}`);
+      e.code = "firmware_opt_in_absent"; e.checks = pre.checks;
       throw e;
     }
-    // THE FIRMWARE's hash, and it is NOT the image identity. Keeping the name `image` for it was
-    // the bug: it was returned as handle.image, server.mjs copied it to rec.image, and 5d's
-    // datapath compares `want.image !== rec.image` as 64-hex STRINGS - so an object could never
-    // match and EVERY route would be refused as "identity", never as a type error (enclave-53).
+    // THE FIRMWARE's hash, and it is NOT the image identity (enclave-53: an object in handle.image
+    // made the datapath refuse every route as "identity").
     const firmware = await this.verifyImage();
+    if (this.boot === BOOT_UEFI) await this.verifyMedium();
     const name = `${this.prefix}${instanceId}`;
     const pipe = this.pipeFor(name);
+    const notes = identity ? notesFor({ ...identity, instanceId }) : OWNER_MARKER;
+    const guestStateRun = this.guestStateRunFor(name);
+    if (!guestStateRun) throw new Error(`no per-run guest-state path can be made for ${name}`);
+    const vcpus = Math.max(1, Math.floor(mapping.record.policy.vcpus));
+    const memMiB = Math.round(mapping.record.policy.memMiB);
     let created = null;
     try {
-      created = await this.#ps(CMD.create({ name, memMiB: mapping.record.policy.memMiB, vcpus: mapping.record.policy.vcpus,
-                                           notes: identity ? notesFor({ ...identity, instanceId }) : OWNER_MARKER }));
+      created = await this.#ps(CMD.defineType1({
+        name, memMiB, vcpus, notes, pipe, boot: this.boot,
+        firmware: this.imagePath, firmwareSha256: this.imageSha256,
+        hypervModule: this.hypervModule, hypervModuleSha256: this.hypervModuleSha256, hypervUtilitiesSha256: this.hypervUtilitiesSha256,
+        guestStateMaster: this.guestStateMaster, guestStateMasterSha256: this.guestStateMasterSha256, guestStateRun,
+        archiveDir: this.guestStateArchiveDir,
+        ...(this.boot === BOOT_UEFI ? { medium: this.medium, mediumSha256: this.mediumSha256 } : {}) }));
       this.created.add(name);
-      if (parseFloat(created.version) < MIN_VM_VERSION)
-        throw new Error(`VM version ${created.version} is below ${MIN_VM_VERSION}, which the firmware field requires`);
+      checkDefinition(created, { notes, pipe, boot: this.boot, vcpus, memMiB, firmware: this.imagePath, firmwareSha256: this.imageSha256,
+                                 hypervModuleSha256: this.hypervModuleSha256, hypervUtilitiesSha256: this.hypervUtilitiesSha256,
+                                 guestStateRun, guestStateMaster: this.guestStateMaster, mediumSha256: this.mediumSha256 });
 
-      // The pin, the job, and then what the field ACTUALLY holds. A completed job is not a set field.
-      const pinned = await this.#ps(CMD.pinFirmware({ vmId: created.id, imagePath: this.imagePath, jobTimeoutSec: this.jobTimeoutSec }));
-      if (pinned.returnValue !== 0 && pinned.returnValue !== 4096)
-        throw new Error(`ModifySystemSettings returned ${pinned.returnValue}`);
-      if (pinned.returnValue === 4096 && pinned.jobState !== 7)
-        throw new Error(`ModifySystemSettings job ended in state ${pinned.jobState}, not 7 (completed)`);
-      if (String(pinned.firmwareFile || "").toLowerCase() !== String(this.imagePath).toLowerCase())
-        throw new Error(`FirmwareFile reads back as ${JSON.stringify(pinned.firmwareFile ?? null)}, not the image we pinned`);
-      if (Number(pinned.guestFeatureSet) !== GUEST_FEATURE_SET)
-        throw new Error(`GuestFeatureSet reads back as ${pinned.guestFeatureSet}, not ${GUEST_FEATURE_SET}`);
-
-      await this.#ps(CMD.attachConsole({ name, pipe }));
-      const started = await this.#ps(CMD.start({ name }));
+      const started = await this.#ps(CMD.start({ vmId: created.id }));
       if (started.state !== "Running")
         throw new Error(`the VM is ${JSON.stringify(started.state ?? null)} after Start-VM, not Running`);
 
@@ -484,31 +848,62 @@ export class WmiHyperVLauncher {
       if (!booted)
         throw new Error(`the VM is Running but the guest produced no output on ${pipe} within ${guestReadySec}s: a silent partition is not a booted one`);
 
-      // `image` is the guest's identity as a 64-hex STRING: the MEDIUM's hash when one was
-      // attached (uefiImageIdentity), never the firmware's, and never an object. Null when no
-      // medium was attached, so a caller can tell "no medium" from "wrong medium" - the datapath
-      // then refuses for want of an identity rather than on a mismatch it cannot explain.
+      // `image` is the guest's identity as a 64-hex STRING, and ONLY for a medium boot: the medium's
+      // hash as it was hashed AT ATTACH TIME on the host (uefiImageIdentity), never the firmware's and
+      // never an object. For linux-direct there is no medium, so `image` is null WITH ITS REASON, and
+      // the identity is the IGVM's pinned sha256 under its own name (linuxDirectIdentity).
+      const uefi = this.boot === BOOT_UEFI;
+      const guestIdentity = uefi
+        ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
+        : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
       return { instanceId, name, vmId: created.id, pipe, state: started.state,
-               image: this.mediumSha256 ? uefiImageIdentity({ mediumSha256: this.mediumSha256,
-                                                              mediumPath: this.medium }).guestImageSha256
-                                        : null,
-               firmware, boundary: BOUNDARY, appId: mapping.appId,
+               boot: this.boot, isolationType: 1,
+               image: uefi ? guestIdentity.guestImageSha256 : null,
+               ...(uefi ? {} : { imageAbsentReason: LINUX_DIRECT_IMAGE_ABSENT }),
+               guestIdentity, firmware, boundary: BOUNDARY, appId: mapping.appId,
+               vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
+               definition: { recipe: "petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)",
+                             hypervModuleSha256: created.hypervModuleSha256, hypervUtilitiesSha256: created.hypervUtilitiesSha256 ?? null,
+                             featureSet: created.featureSet, vtl2Mode: created.vtl2Mode, vbsOptOut: created.vbsOptOut,
+                             guestState: { path: created.guestStateFile, masterSha256: created.guestStateMasterSha256 },
+                             grants: created.grants ?? [] },
                // guestBooted: something executed. appReady: NOT established - no handshake exists.
                guest: { booted, bytes: con.bytes, head: String(con.head || "").slice(0, 400) },
                appReady: false,
+               // NO RELAY, and deliberately so for now. Nothing here loads the app into the guest or
+               // starts a host relay (in the dev recipe that is `vbslike-host wmiserve`: the bundle over
+               // hv_sock 9000, the report on 9001, a TCP relay to the guest). So this handle carries no
+               // `tcpPort`/`relay`, server.mjs sets no rec.relay, the data plane has nothing to route to,
+               // and the domain stays `starting`. That gap is known and is left exactly as it is here.
                stop: async () => await this.stop({ name, vmId: created.id }) };
     } catch (e) {
-      // EXACT name, never a prefix. The first version swept with StartsWith(name), so a failure
-      // while creating a duplicate would have removed the EXISTING domain of that name, and any
-      // neighbour whose name merely began with ours. It also requires the ownership marker unless
-      // this attempt is the thing that made the VM.
-      const mine = this.created.has(name);
-      const swept = await this.#ps(CMD.removeExact({ name, requireMarker: !mine }))
-        .catch((x) => ({ found: null, removed: false, error: x.message }));
+      const vmId = created && GUID.test(String(created.id || "")) ? String(created.id) : null;
+      let swept;
+      if (vmId) {
+        // BY THE ID THIS ATTEMPT DEFINED. A name is not unique in Hyper-V; the Id is the VM we made.
+        // removeById still checks the ownership marker on it - which the define script put on first.
+        swept = await this.#ps(CMD.removeById({ vmId }))
+          .catch((x) => ({ found: null, removed: false, error: x.message }));
+      } else {
+        // No Id came back, so the define script has already removed what it made (or never made
+        // anything). EXACT name, never a prefix, and the ownership marker unless THIS attempt made it.
+        const mine = this.created.has(name);
+        swept = await this.#ps(CMD.removeExact({ name, requireMarker: !mine }))
+          .catch((x) => ({ found: null, removed: false, error: x.message }));
+      }
       this.created.delete(name);
       e.cleanup = swept;
-      if (swept && swept.found === true && swept.removed !== true)
-        e.message += ` (cleanup could NOT remove ${name}: ${swept.error || "unknown"} - it is still on this host)`;
+      if (swept && swept.found === true && swept.removed !== true) {
+        e.message += ` (cleanup could NOT remove ${name}${vmId ? ` (${vmId})` : ""}: ${swept.error || "unknown"} - it is still on this host)`;
+      } else if (created && swept && swept.found === null) {
+        // The removal itself did not run: unknown is not absent, so it is said, and nothing is retired.
+        e.message += ` (cleanup of ${name}${vmId ? ` (${vmId})` : ""} did not run: ${swept.error || "unknown"} - it may still be on this host)`;
+      } else if (created && swept && (swept.removed === true || swept.found === false)) {
+        // The VM this attempt defined is gone, so its guest-state copy can be archived and removed.
+        const g = await this.#retire({ vmId, name }).catch((x) => ({ retired: false, error: x.message }));
+        e.guestState = g;
+        if (g && g.error) e.message += ` (its guest-state copy was NOT retired: ${g.error})`;
+      }
       throw e;
     }
   }
@@ -525,8 +920,13 @@ export class WmiHyperVLauncher {
         e.code = "stop_failed"; throw e;
       }
       if (handle.name) this.created.delete(handle.name);
-      return { stopped: true, removed: r && r.removed === true, name: handle.name ?? null, vmId: handle.vmId,
-               ...(r && r.found === false ? { note: "already gone" } : {}) };
+      const out = { stopped: true, removed: r && r.removed === true, name: handle.name ?? null, vmId: handle.vmId,
+                    ...(r && r.found === false ? { note: "already gone" } : {}) };
+      // The VM is gone: archive and remove its per-run guest state. A failure here is REPORTED on the
+      // result, not thrown - the domain has stopped, and saying otherwise would be the lie in reverse.
+      if (this.#retires() && handle.name)
+        out.guestState = await this.#retire({ vmId: handle.vmId, name: handle.name }).catch((x) => ({ retired: false, error: x.message }));
+      return out;
     }
     if (!handle || !handle.name) return { stopped: false, reason: "no handle" };
     const r = await this.#ps(CMD.stop({ name: handle.name }));
@@ -547,12 +947,19 @@ export class WmiHyperVLauncher {
   async teardown({ requireMarker = true } = {}) {
     // Marker-required by DEFAULT now: a prefix alone can collide with a VM this manager never made,
     // and removing somebody else's domain is worse than leaving one of ours behind. The narrow gap
-    // - a VM that died between New-VM and its Notes - is closed by the exact names we recorded.
+    // - a VM that died between its definition and its Notes - is closed by the exact names we recorded.
+    const gone = [];
     for (const name of [...this.created]) {
       const one = await this.#ps(CMD.removeExact({ name, requireMarker: false })).catch(() => null);
-      if (one && one.removed) this.created.delete(name);
+      if (one && one.removed) { this.created.delete(name); gone.push(name); }
     }
     const r = await this.#ps(CMD.teardown({ prefix: this.prefix, requireMarker }));
+    if (Array.isArray(r.removed)) gone.push(...r.removed);
+    // Each removed VM's guest-state copy, now that the VM is gone. Reported, never thrown: the VMs are gone.
+    if (this.#retires() && gone.length) {
+      r.guestState = [];
+      for (const name of gone) r.guestState.push({ name, ...(await this.#retire({ name }).catch((x) => ({ retired: false, error: x.message }))) });
+    }
     if (Array.isArray(r.failed) && r.failed.length) {
       const e = new Error(`teardown could not remove ${r.failed.length} VM(s): `
         + r.failed.map((f) => `${f.name} (${f.error})`).join("; "));

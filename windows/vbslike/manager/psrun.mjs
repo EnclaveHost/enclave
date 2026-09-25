@@ -3,19 +3,28 @@
    kill, an output cap - live in one reviewable place rather than at each call site. */
 import { spawn } from "node:child_process";
 
+/**
+ * The arguments a script is run with. -EncodedCommand, because PowerShell's own quoting eats | and $
+ * on the way in and this manager sends scripts full of both.
+ *
+ * Progress records reach stderr as CLIXML (<Objs ...><Obj S="progress">...), and on a first run in a
+ * session "Preparing modules for first use" alone is kilobytes of it. It filled the output cap and
+ * buried the actual exception, so a real ModifySystemSettings failure arrived as code=1 with no
+ * readable reason. Silencing progress is a DIAGNOSTIC change only: errors, warnings and output are
+ * untouched.
+ *
+ * Exported so a test can hold the longest script (the type-1 definition) under Windows' 32,767-char
+ * command-line limit: base64 of UTF-16 is ~2.7 characters per script character.
+ */
+export function powershellArgs(script) {
+  const enc = Buffer.from("$ProgressPreference='SilentlyContinue'; " + String(script), "utf16le").toString("base64");
+  return ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", enc];
+}
+
 export function powershellRunner({ exe = "powershell.exe", timeoutMs = 180_000, maxOutputBytes = 1 << 20 } = {}) {
   return function run(script) {
     return new Promise((resolve) => {
-      // -EncodedCommand, because PowerShell's own quoting eats | and $ on the way in and this
-      // manager sends scripts full of both.
-      // Progress records reach stderr as CLIXML (<Objs ...><Obj S="progress">...), and on a first
-      // run in a session "Preparing modules for first use" alone is kilobytes of it. It filled the
-      // output cap and buried the actual exception, so a real ModifySystemSettings failure arrived
-      // as code=1 with no readable reason. Silencing progress is a DIAGNOSTIC change only: errors,
-      // warnings and output are untouched.
-      const enc = Buffer.from("$ProgressPreference='SilentlyContinue'; " + String(script), "utf16le").toString("base64");
-      const p = spawn(exe, ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", enc],
-                      { windowsHide: true });
+      const p = spawn(exe, powershellArgs(script), { windowsHide: true });
       let out = "", err = "", done = false, killed = false;
       const cap = (s, add) => (s.length >= maxOutputBytes ? s : s + add);
       const timer = setTimeout(() => { killed = true; try { p.kill(); } catch {} }, timeoutMs);
