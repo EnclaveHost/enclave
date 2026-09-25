@@ -310,6 +310,13 @@ test("draft v12 carries the node tree and the acceptance harness, pins host-acti
   assert.match(r.out, /ok   test host-activation \(enclave-99\) gives exactly its expected result \(6 tests, 6 pass, 0 fail\)/);
   assert.match(r.out, /ok   npm tree: every module the acceptance harness imports LOADS from the assembled tree \(11 modules\)/);
 });
+test("the manager's UEFI serving gaps are pinned as measured: claiming the medium is attached is refused", { skip }, () => {
+  const m = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-12.json"), "utf8"));
+  m.profiles.uefi.managerServing.expect.attachesMedium = true;
+  const r = run(["verify", writeManifest(m)]);
+  assert.equal(r.code, 1, "a pin claiming the manager attaches a medium passed");
+  assert.match(r.out, /FAIL the manager's UEFI serving path is exactly as pinned .*attachesMedium: false \(pinned true\)/, fails(r.out));
+});
 test("a pinned npm tarball with other bytes is refused at npm's own integrity, not only at the sha256", { skip }, () => {
   const m = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-12.json"), "utf8"));
   const f = m.files.find((x) => x.path === "npm/isows-1.0.7.tgz"), g = m.files.find((x) => x.path === "npm/eventemitter3-5.0.1.tgz");
