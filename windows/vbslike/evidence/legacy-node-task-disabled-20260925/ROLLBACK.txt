@@ -1,0 +1,9 @@
+Rollback for the disabled legacy node boot task (enclave-d1, 20260925-155629 UTC).
+The task was DISABLED, not deleted: its definition, principal (SYSTEM), trigger (boot, 1-minute delay) and ACLs are unchanged.
+To re-enable exactly as before:   Enable-ScheduledTask -TaskName 'EnclaveWindowsNode' -TaskPath '\'
+  (re-enabling does not run it; its boot trigger starts the legacy node at the NEXT boot, 1 minute after startup)
+If the definition were ever lost, re-register it from this backup and compare:
+  Register-ScheduledTask -TaskName 'EnclaveWindowsNode' -TaskPath '\' -Xml (Get-Content 'C:\Users\claude\d1-legacy-task-backup-20260925-155629\EnclaveWindowsNode.xml' -Raw) -User 'SYSTEM'
+  its exported definition must hash to b8ea54d34af84485d7223a4ebc589600acf81f750cce132f3a03178993087f2a (sha256 of Export-ScheduledTask output, UTF-8)
+Backed-up state: file ACL O:BAG:S-1-5-21-<machine>-513D:AI(A;;FR;;;SY)(A;ID;0x1f019f;;;BA)(A;ID;0x1f019f;;;SY)(A;ID;FA;;;BA) ; registry SD sha256 96261ff13ec97eb25a23d6d09e52bc97848c437fbeb4610b271d469547afe456 ; last run 2026-09-25 05:33:55Z.
+Direction: Steven, "We should only be using Our new isolation implementation"; the retired legacy node must not restart automatically.
