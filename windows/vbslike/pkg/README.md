@@ -193,6 +193,18 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   tier is not host-excluded (mutation-tested). Scripts at `c9c8cdcc` (wmiserve's hard-coded type-16 boundary string
   noted as d1's pending fix). Next: E2 on the vbsreport probe on this definition, with the host's TCG log.
 
+- **v22 draft** (`drafts/nucbox-ownguest-22.json`, STAGED; supersedes v21): **E2 has run and decides nothing**. On the
+  booting type-1 definition (a7b0bd4 CONTROL `32d464cc…`, Guest VSM opted out) the vbsreport PROBE medium `8d1fea1f…`
+  reproduced the type-1 tuple and printed `VBSREPORT status=0x71 (…)` then `MON PROBE finished: No such device`, with
+  no report body; 0x71 = HV_STATUS_OPERATION_FAILED (recognised, accepted, not denied, no report). Verdict (5d,
+  `26eac9c2`): NEITHER GO nor NO-GO — the signing chain is not shown and "VTL0 refused / vTPM only" does not follow.
+  The same boot's host TCG log is captured on the box, needed only once a report exists. Next, no new code: the debug
+  image's kmsg on a type-1 + opt-out boot for OpenHCL's own VTL2 report attempt ("Failed to retrieve key-encryption
+  key" — a GetAttestationReport/GetVbsReport error means no report for this partition at all; an IGVM-attest/agent
+  error means VTL2 gets one and only VTL0 is turned away). E3 NOT RUN (no documented instrument on type 1). Unchanged:
+  `host_excluded=no`, no isolation proof; stock 2511 is a product decision for the monitor. d1's verbatim probe lines
+  pending.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
