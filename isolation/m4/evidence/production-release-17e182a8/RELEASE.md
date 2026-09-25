@@ -1,3 +1,7 @@
+> **Superseded FOR THE NEXT TREE SWITCH by 79c5ecf2 (aa6c985c, init links musl), 2026-09-25.** a4f22748 is
+> installed and is production guestd's -isolation tree since 4d; it stays live, and the rollback, until enclave-63's
+> reviewed switch. See `../production-release-aa6c985c/`.
+
 # Production domain release a4f22748 (image commit 17e182a8), 2026-09-25
 
 **Release id: `a4f227482df4830ab69b52e38dc5d6e2abea9e5c5fb71f5469f0c30e6b1cb784`** (= sha256 of `release.json`).

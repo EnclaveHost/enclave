@@ -1,0 +1,2588 @@
+Archive member included to satisfy reference by file (symbol)
+
+<musl>/lib/libc.a(sysconf.lo)
+                              <dominit.o> (sysconf)
+<musl>/lib/libc.a(__libc_start_main.lo)
+                              <musl>/lib/Scrt1.o (__libc_start_main)
+<musl>/lib/libc.a(__stack_chk_fail.lo)
+                              <dominit.o> (__stack_chk_fail)
+<musl>/lib/libc.a(__errno_location.lo)
+                              <dominit.o> (__errno_location)
+<musl>/lib/libc.a(strerror.lo)
+                              <dominit.o> (strerror)
+<musl>/lib/libc.a(exit.lo)
+                              <musl>/lib/libc.a(__libc_start_main.lo) (exit)
+<musl>/lib/libc.a(fcntl.lo)
+                              <dominit.o> (fcntl)
+<musl>/lib/libc.a(open.lo)
+                              <dominit.o> (open)
+<musl>/lib/libc.a(defsysinfo.lo)
+                              <musl>/lib/libc.a(__libc_start_main.lo) (__sysinfo)
+<musl>/lib/libc.a(libc.lo)
+                              <musl>/lib/libc.a(__libc_start_main.lo) (__progname_full)
+<musl>/lib/libc.a(syscall_ret.lo)
+                              <musl>/lib/libc.a(fcntl.lo) (__syscall_ret)
+<musl>/lib/libc.a(mount.lo)
+                              <dominit.o> (mount)
+<musl>/lib/libc.a(reboot.lo)
+                              <dominit.o> (reboot)
+<musl>/lib/libc.a(sysinfo.lo)
+                              <musl>/lib/libc.a(sysconf.lo) (__lsysinfo)
+<musl>/lib/libc.a(__lctrans.lo)
+                              <musl>/lib/libc.a(strerror.lo) (__lctrans)
+<musl>/lib/libc.a(free.lo)
+                              <dominit.o> (free)
+<musl>/lib/libc.a(lite_malloc.lo)
+                              <dominit.o> (malloc)
+<musl>/lib/libc.a(free.lo)
+                              <musl>/lib/libc.a(free.lo) (__libc_free)
+<musl>/lib/libc.a(malloc.lo)
+                              <musl>/lib/libc.a(free.lo) (__malloc_lock)
+<musl>/lib/libc.a(getauxval.lo)
+                              <musl>/lib/libc.a(sysconf.lo) (__getauxval)
+<musl>/lib/libc.a(getrlimit.lo)
+                              <musl>/lib/libc.a(sysconf.lo) (getrlimit)
+<musl>/lib/libc.a(ioctl.lo)
+                              <dominit.o> (ioctl)
+<musl>/lib/libc.a(syscall.lo)
+                              <dominit.o> (syscall)
+<musl>/lib/libc.a(mmap.lo)
+                              <musl>/lib/libc.a(lite_malloc.lo) (__mmap)
+<musl>/lib/libc.a(mprotect.lo)
+                              <musl>/lib/libc.a(malloc.lo) (mprotect)
+<musl>/lib/libc.a(munmap.lo)
+                              <musl>/lib/libc.a(free.lo) (munmap)
+<musl>/lib/libc.a(socket.lo)
+                              <dominit.o> (socket)
+<musl>/lib/libc.a(execve.lo)
+                              <dominit.o> (execve)
+<musl>/lib/libc.a(fork.lo)
+                              <dominit.o> (fork)
+<musl>/lib/libc.a(wait.lo)
+                              <dominit.o> (wait)
+<musl>/lib/libc.a(waitpid.lo)
+                              <musl>/lib/libc.a(wait.lo) (waitpid)
+<musl>/lib/libc.a(block.lo)
+                              <musl>/lib/libc.a(fork.lo) (__block_app_sigs)
+<musl>/lib/libc.a(mkdir.lo)
+                              <dominit.o> (mkdir)
+<musl>/lib/libc.a(dprintf.lo)
+                              <dominit.o> (dprintf)
+<musl>/lib/libc.a(fclose.lo)
+                              <dominit.o> (fclose)
+<musl>/lib/libc.a(fflush.lo)
+                              <dominit.o> (fflush)
+<musl>/lib/libc.a(fopen.lo)
+                              <dominit.o> (fopen)
+<musl>/lib/libc.a(fscanf.lo)
+                              <dominit.o> (fscanf)
+<musl>/lib/libc.a(ofl.lo)
+                              <musl>/lib/libc.a(fclose.lo) (__ofl_lock)
+<musl>/lib/libc.a(printf.lo)
+                              <dominit.o> (printf)
+<musl>/lib/libc.a(puts.lo)
+                              <dominit.o> (puts)
+<musl>/lib/libc.a(snprintf.lo)
+                              <dominit.o> (snprintf)
+<musl>/lib/libc.a(stdout.lo)
+                              <musl>/lib/libc.a(printf.lo) (__stdout_FILE)
+<musl>/lib/libc.a(vdprintf.lo)
+                              <musl>/lib/libc.a(dprintf.lo) (vdprintf)
+<musl>/lib/libc.a(vfprintf.lo)
+                              <musl>/lib/libc.a(printf.lo) (vfprintf)
+<musl>/lib/libc.a(vfscanf.lo)
+                              <musl>/lib/libc.a(fscanf.lo) (vfscanf)
+<musl>/lib/libc.a(vsnprintf.lo)
+                              <musl>/lib/libc.a(snprintf.lo) (vsnprintf)
+<musl>/lib/libc.a(explicit_bzero.lo)
+                              <dominit.o> (explicit_bzero)
+<musl>/lib/libc.a(memchr.lo)
+                              <dominit.o> (memchr)
+<musl>/lib/libc.a(strchr.lo)
+                              <musl>/lib/libc.a(fopen.lo) (strchr)
+<musl>/lib/libc.a(strchrnul.lo)
+                              <musl>/lib/libc.a(strchr.lo) (__strchrnul)
+<musl>/lib/libc.a(strcmp.lo)
+                              <dominit.o> (strcmp)
+<musl>/lib/libc.a(strlen.lo)
+                              <musl>/lib/libc.a(strchrnul.lo) (strlen)
+<musl>/lib/libc.a(strnlen.lo)
+                              <musl>/lib/libc.a(vfprintf.lo) (strnlen)
+<musl>/lib/libc.a(memcpy.lo)
+                              <dominit.o> (memcpy)
+<musl>/lib/libc.a(memset.lo)
+                              <musl>/lib/libc.a(__libc_start_main.lo) (memset)
+<musl>/lib/libc.a(__lock.lo)
+                              <musl>/lib/libc.a(lite_malloc.lo) (__lock)
+<musl>/lib/libc.a(__syscall_cp.lo)
+                              <musl>/lib/libc.a(fcntl.lo) (__syscall_cp)
+<musl>/lib/libc.a(lock_ptc.lo)
+                              <musl>/lib/libc.a(fork.lo) (__inhibit_ptc)
+<musl>/lib/libc.a(pthread_rwlock_rdlock.lo)
+                              <musl>/lib/libc.a(lock_ptc.lo) (pthread_rwlock_rdlock)
+<musl>/lib/libc.a(pthread_rwlock_timedrdlock.lo)
+                              <musl>/lib/libc.a(pthread_rwlock_rdlock.lo) (__pthread_rwlock_timedrdlock)
+<musl>/lib/libc.a(pthread_rwlock_tryrdlock.lo)
+                              <musl>/lib/libc.a(pthread_rwlock_timedrdlock.lo) (__pthread_rwlock_tryrdlock)
+<musl>/lib/libc.a(pthread_rwlock_unlock.lo)
+                              <musl>/lib/libc.a(lock_ptc.lo) (pthread_rwlock_unlock)
+<musl>/lib/libc.a(pthread_rwlock_wrlock.lo)
+                              <musl>/lib/libc.a(lock_ptc.lo) (pthread_rwlock_wrlock)
+<musl>/lib/libc.a(clock_gettime.lo)
+                              <dominit.o> (clock_gettime)
+<musl>/lib/libc.a(_exit.lo)
+                              <dominit.o> (_exit)
+<musl>/lib/libc.a(close.lo)
+                              <dominit.o> (close)
+<musl>/lib/libc.a(dup2.lo)
+                              <dominit.o> (dup2)
+<musl>/lib/libc.a(pipe2.lo)
+                              <dominit.o> (pipe2)
+<musl>/lib/libc.a(read.lo)
+                              <dominit.o> (read)
+<musl>/lib/libc.a(sync.lo)
+                              <dominit.o> (sync)
+<musl>/lib/libc.a(__environ.lo)
+                              <musl>/lib/libc.a(__libc_start_main.lo) (__environ)
+<musl>/lib/libc.a(__init_tls.lo)
+                              <musl>/lib/libc.a(__libc_start_main.lo) (__init_tls)
+<musl>/lib/libc.a(_Exit.lo)
+                              <musl>/lib/libc.a(exit.lo) (_Exit)
+<musl>/lib/libc.a(floatscan.lo)
+                              <musl>/lib/libc.a(vfscanf.lo) (__floatscan)
+<musl>/lib/libc.a(intscan.lo)
+                              <musl>/lib/libc.a(vfscanf.lo) (__intscan)
+<musl>/lib/libc.a(shgetc.lo)
+                              <musl>/lib/libc.a(vfscanf.lo) (__shlim)
+<musl>/lib/libc.a(vdso.lo)
+                              <musl>/lib/libc.a(clock_gettime.lo) (__vdsosym)
+<musl>/lib/libc.a(realloc.lo)
+                              <musl>/lib/libc.a(vfscanf.lo) (realloc)
+<musl>/lib/libc.a(__fpclassifyl.lo)
+                              <musl>/lib/libc.a(vfprintf.lo) (__fpclassifyl)
+<musl>/lib/libc.a(__signbitl.lo)
+                              <musl>/lib/libc.a(vfprintf.lo) (__signbitl)
+<musl>/lib/libc.a(copysignl.lo)
+                              <musl>/lib/libc.a(floatscan.lo) (copysignl)
+<musl>/lib/libc.a(frexpl.lo)
+                              <musl>/lib/libc.a(vfprintf.lo) (frexpl)
+<musl>/lib/libc.a(scalbn.lo)
+                              <musl>/lib/libc.a(vfprintf.lo) (scalbn)
+<musl>/lib/libc.a(scalbnl.lo)
+                              <musl>/lib/libc.a(floatscan.lo) (scalbnl)
+<musl>/lib/libc.a(fabsl.lo)
+                              <musl>/lib/libc.a(floatscan.lo) (fabsl)
+<musl>/lib/libc.a(fmodl.lo)
+                              <musl>/lib/libc.a(floatscan.lo) (fmodl)
+<musl>/lib/libc.a(mbrtowc.lo)
+                              <musl>/lib/libc.a(vfscanf.lo) (mbrtowc)
+<musl>/lib/libc.a(mbsinit.lo)
+                              <musl>/lib/libc.a(vfscanf.lo) (mbsinit)
+<musl>/lib/libc.a(wctomb.lo)
+                              <musl>/lib/libc.a(vfprintf.lo) (wctomb)
+<musl>/lib/libc.a(_Fork.lo)
+                              <musl>/lib/libc.a(fork.lo) (_Fork)
+<musl>/lib/libc.a(__fdopen.lo)
+                              <musl>/lib/libc.a(fopen.lo) (__fdopen)
+<musl>/lib/libc.a(__fmodeflags.lo)
+                              <musl>/lib/libc.a(fopen.lo) (__fmodeflags)
+<musl>/lib/libc.a(__lockfile.lo)
+                              <musl>/lib/libc.a(fclose.lo) (__lockfile)
+<musl>/lib/libc.a(__overflow.lo)
+                              <musl>/lib/libc.a(puts.lo) (__overflow)
+<musl>/lib/libc.a(__stdio_close.lo)
+                              <musl>/lib/libc.a(stdout.lo) (__stdio_close)
+<musl>/lib/libc.a(__stdio_read.lo)
+                              <musl>/lib/libc.a(__fdopen.lo) (__stdio_read)
+<musl>/lib/libc.a(__stdio_seek.lo)
+                              <musl>/lib/libc.a(stdout.lo) (__stdio_seek)
+<musl>/lib/libc.a(__stdio_write.lo)
+                              <musl>/lib/libc.a(vdprintf.lo) (__stdio_write)
+<musl>/lib/libc.a(__stdout_write.lo)
+                              <musl>/lib/libc.a(stdout.lo) (__stdout_write)
+<musl>/lib/libc.a(__toread.lo)
+                              <musl>/lib/libc.a(vfscanf.lo) (__toread)
+<musl>/lib/libc.a(__towrite.lo)
+                              <musl>/lib/libc.a(vfprintf.lo) (__towrite)
+<musl>/lib/libc.a(__uflow.lo)
+                              <musl>/lib/libc.a(shgetc.lo) (__uflow)
+<musl>/lib/libc.a(fputs.lo)
+                              <musl>/lib/libc.a(puts.lo) (fputs)
+<musl>/lib/libc.a(fwrite.lo)
+                              <musl>/lib/libc.a(vfprintf.lo) (__fwritex)
+<musl>/lib/libc.a(ofl_add.lo)
+                              <musl>/lib/libc.a(__fdopen.lo) (__ofl_add)
+<musl>/lib/libc.a(__timedwait.lo)
+                              <musl>/lib/libc.a(pthread_rwlock_timedrdlock.lo) (__timedwait)
+<musl>/lib/libc.a(default_attr.lo)
+                              <musl>/lib/libc.a(__init_tls.lo) (__default_stacksize)
+<musl>/lib/libc.a(pthread_rwlock_timedwrlock.lo)
+                              <musl>/lib/libc.a(pthread_rwlock_wrlock.lo) (__pthread_rwlock_timedwrlock)
+<musl>/lib/libc.a(pthread_rwlock_trywrlock.lo)
+                              <musl>/lib/libc.a(pthread_rwlock_timedwrlock.lo) (__pthread_rwlock_trywrlock)
+<musl>/lib/libc.a(pthread_setcancelstate.lo)
+                              <musl>/lib/libc.a(__timedwait.lo) (__pthread_setcancelstate)
+<musl>/lib/libc.a(__set_thread_area.lo)
+                              <musl>/lib/libc.a(__init_tls.lo) (__set_thread_area)
+<musl>/lib/libc.a(lseek.lo)
+                              <musl>/lib/libc.a(__stdio_seek.lo) (__lseek)
+<musl>/lib/libc.a(pipe.lo)
+                              <musl>/lib/libc.a(pipe2.lo) (pipe)
+<musl>/lib/libc.a(abort_lock.lo)
+                              <musl>/lib/libc.a(_Fork.lo) (__abort_lock)
+<musl>/lib/libc.a(realloc.lo)
+                              <musl>/lib/libc.a(realloc.lo) (__libc_realloc)
+<musl>/lib/libc.a(mremap.lo)
+                              <musl>/lib/libc.a(realloc.lo) (__mremap)
+<musl>/lib/libc.a(internal.lo)
+                              <musl>/lib/libc.a(mbrtowc.lo) (__fsmu8)
+<musl>/lib/libc.a(wcrtomb.lo)
+                              <musl>/lib/libc.a(wctomb.lo) (wcrtomb)
+<musl>/lib/libc.a(__stdio_exit.lo)
+                              <musl>/lib/libc.a(__toread.lo) (__stdio_exit_needed)
+
+Merging program properties
+
+Removed property 0xc0000002 to merge <musl>/lib/Scrt1.o (not found) and /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o (0x3)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x1) and <dominit.o> (0x9)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(__stack_chk_fail.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(__errno_location.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(strerror.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(exit.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(fcntl.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(open.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(defsysinfo.lo) (0x1)
+Updated property 0xc0010002 (0x1) to merge <musl>/lib/Scrt1.o (0x1) and <musl>/lib/libc.a(defsysinfo.lo) (0x0)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(libc.lo) (0x1)
+Updated property 0xc0010002 (0x1) to merge <musl>/lib/Scrt1.o (0x1) and <musl>/lib/libc.a(libc.lo) (0x0)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(syscall_ret.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(mount.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(reboot.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(sysinfo.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(__lctrans.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(free.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(lite_malloc.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(getauxval.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(getrlimit.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(ioctl.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(syscall.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(mmap.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(mprotect.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(munmap.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(socket.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(execve.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(fork.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(wait.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(waitpid.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(block.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(mkdir.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(fclose.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(fopen.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(ofl.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(puts.lo) (0x1)
+Updated property 0xc0010001 (0x9) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(stdout.lo) (0x1)
+Updated property 0xc0010002 (0x1) to merge <musl>/lib/Scrt1.o (0x1) and <musl>/lib/libc.a(stdout.lo) (0x0)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0x9) and <musl>/lib/libc.a(vfprintf.lo) (0xb)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(vfscanf.lo) (0x9)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(vsnprintf.lo) (0x9)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(explicit_bzero.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(memchr.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(strchr.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(strchrnul.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(strcmp.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(strlen.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(strnlen.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(memcpy.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(memset.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__lock.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__syscall_cp.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(lock_ptc.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(pthread_rwlock_rdlock.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(pthread_rwlock_timedrdlock.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(pthread_rwlock_tryrdlock.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(pthread_rwlock_unlock.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(pthread_rwlock_wrlock.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(clock_gettime.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(_exit.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(close.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(dup2.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(pipe2.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(read.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(sync.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__environ.lo) (0x1)
+Updated property 0xc0010002 (0x1) to merge <musl>/lib/Scrt1.o (0x1) and <musl>/lib/libc.a(__environ.lo) (0x0)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__init_tls.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(_Exit.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(intscan.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(shgetc.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(vdso.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(realloc.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__fpclassifyl.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__signbitl.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(copysignl.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(frexpl.lo) (0x3)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(scalbn.lo) (0x9)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(scalbnl.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(fabsl.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(fmodl.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(mbrtowc.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(mbsinit.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(wctomb.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(_Fork.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__fdopen.lo) (0x9)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__fmodeflags.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__lockfile.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__overflow.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__stdio_close.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__stdio_read.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__stdio_seek.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__stdio_write.lo) (0x9)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__stdout_write.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__toread.lo) (0x9)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__towrite.lo) (0x9)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__uflow.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(fputs.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(fwrite.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(ofl_add.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__timedwait.lo) (0x9)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(default_attr.lo) (0x1)
+Updated property 0xc0010002 (0x1) to merge <musl>/lib/Scrt1.o (0x1) and <musl>/lib/libc.a(default_attr.lo) (0x0)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(pthread_rwlock_timedwrlock.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(pthread_rwlock_trywrlock.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(pthread_setcancelstate.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__set_thread_area.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(lseek.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(pipe.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(abort_lock.lo) (0x1)
+Updated property 0xc0010002 (0x1) to merge <musl>/lib/Scrt1.o (0x1) and <musl>/lib/libc.a(abort_lock.lo) (0x0)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(realloc.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(mremap.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(internal.lo) (0x1)
+Updated property 0xc0010002 (0x1) to merge <musl>/lib/Scrt1.o (0x1) and <musl>/lib/libc.a(internal.lo) (0x0)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(wcrtomb.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/libc.a(__stdio_exit.lo) (0x1)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o (0x1)
+Updated property 0xc0010002 (0x1) to merge <musl>/lib/Scrt1.o (0x1) and /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o (0x0)
+Removed property 0xc0000002 to merge <musl>/lib/Scrt1.o (not found) and /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o (0x3)
+Updated property 0xc0010001 (0xb) to merge <musl>/lib/Scrt1.o (0xb) and <musl>/lib/crtn.o (0x1)
+
+Discarded input sections
+
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/crti.o
+ .note.gnu.property
+                0x0000000000000000       0x50 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o
+ .note.gnu.property
+                0x0000000000000000       0x30 <dominit.o>
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(sysconf.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__libc_start_main.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__stack_chk_fail.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__errno_location.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(strerror.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(exit.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(fcntl.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(open.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(defsysinfo.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(libc.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(syscall_ret.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(mount.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(reboot.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(sysinfo.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__lctrans.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(free.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(lite_malloc.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(free.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(malloc.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(getauxval.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(getrlimit.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(ioctl.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(syscall.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(mmap.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(mprotect.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(munmap.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(socket.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(execve.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(fork.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(wait.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(waitpid.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(block.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(mkdir.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(dprintf.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(fclose.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(fflush.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(fopen.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(fscanf.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(ofl.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(printf.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(puts.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(snprintf.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(stdout.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(vdprintf.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(vfprintf.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(vfscanf.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(vsnprintf.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(explicit_bzero.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(memchr.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(strchr.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(strchrnul.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(strcmp.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(strlen.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(strnlen.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(memcpy.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(memset.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__lock.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__syscall_cp.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(lock_ptc.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(pthread_rwlock_rdlock.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(pthread_rwlock_timedrdlock.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(pthread_rwlock_tryrdlock.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(pthread_rwlock_unlock.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(pthread_rwlock_wrlock.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(clock_gettime.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(_exit.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(close.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(dup2.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(pipe2.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(read.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(sync.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__environ.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__init_tls.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(_Exit.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(floatscan.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(intscan.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(shgetc.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(vdso.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(realloc.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__fpclassifyl.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__signbitl.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(copysignl.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(frexpl.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(scalbn.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(scalbnl.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(fabsl.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(fmodl.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(mbrtowc.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(mbsinit.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(wctomb.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(_Fork.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__fdopen.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__fmodeflags.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__lockfile.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__overflow.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__stdio_close.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__stdio_read.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__stdio_seek.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__stdio_write.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__stdout_write.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__toread.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__towrite.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__uflow.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(fputs.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(fwrite.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(ofl_add.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__timedwait.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(default_attr.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(pthread_rwlock_timedwrlock.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(pthread_rwlock_trywrlock.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(pthread_setcancelstate.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__set_thread_area.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(lseek.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(pipe.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(abort_lock.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(realloc.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(mremap.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(internal.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(wcrtomb.lo)
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/libc.a(__stdio_exit.lo)
+ .note.gnu.property
+                0x0000000000000000       0x50 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o
+ .note.gnu.property
+                0x0000000000000000       0x30 <musl>/lib/crtn.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x0000000000000000 0xffffffffffffffff
+
+Linker script and memory map
+
+LOAD <musl>/lib/Scrt1.o
+LOAD <musl>/lib/crti.o
+LOAD /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o
+LOAD <dominit.o>
+START GROUP
+LOAD /usr/lib/gcc/x86_64-pc-linux-gnu/16/libgcc.a
+LOAD /usr/lib/gcc/x86_64-pc-linux-gnu/16/libgcc_eh.a
+LOAD /usr/lib/gcc/x86_64-pc-linux-gnu/16/./libatomic_asneeded.a
+LOAD <musl>/lib/libc.a
+END GROUP
+LOAD /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o
+LOAD <musl>/lib/crtn.o
+                [!provide]                        PROVIDE (__executable_start = SEGMENT_START ("text-segment", 0x400000))
+                0x0000000000400200                . = (SEGMENT_START ("text-segment", 0x400000) + SIZEOF_HEADERS)
+
+.note.gnu.build-id
+ *(.note.gnu.build-id)
+
+.interp
+ *(.interp)
+
+.hash
+ *(.hash)
+
+.gnu.hash
+ *(.gnu.hash)
+
+.dynsym
+ *(.dynsym)
+
+.dynstr
+ *(.dynstr)
+
+.gnu.version
+ *(.gnu.version)
+
+.gnu.version_d
+ *(.gnu.version_d)
+
+.gnu.version_r
+ *(.gnu.version_r)
+
+.rela.dyn       0x0000000000400200        0x0
+ *(.rela.init)
+ *(.rela.text .rela.text.* .rela.gnu.linkonce.t.*)
+ .rela.text     0x0000000000400200        0x0 <musl>/lib/Scrt1.o
+ .rela.text.fork
+                0x0000000000400200        0x0 <musl>/lib/Scrt1.o
+ .rela.text.fflush
+                0x0000000000400200        0x0 <musl>/lib/Scrt1.o
+ .rela.text.__timedwait_cp
+                0x0000000000400200        0x0 <musl>/lib/Scrt1.o
+ .rela.text.__stdio_exit
+                0x0000000000400200        0x0 <musl>/lib/Scrt1.o
+ *(.rela.fini)
+ *(.rela.rodata .rela.rodata.* .rela.gnu.linkonce.r.*)
+ *(.rela.data .rela.data.* .rela.gnu.linkonce.d.*)
+ .rela.data.rel.ro.local.atfork_locks
+                0x0000000000400200        0x0 <musl>/lib/Scrt1.o
+ *(.rela.tdata .rela.tdata.* .rela.gnu.linkonce.td.*)
+ *(.rela.tbss .rela.tbss.* .rela.gnu.linkonce.tb.*)
+ *(.rela.ctors)
+ *(.rela.dtors)
+ *(.rela.got)
+ .rela.got      0x0000000000400200        0x0 <musl>/lib/Scrt1.o
+ *(.rela.tls)
+ *(.rela.bss .rela.bss.* .rela.gnu.linkonce.b.*)
+ *(.rela.ldata .rela.ldata.* .rela.gnu.linkonce.l.*)
+ *(.rela.lbss .rela.lbss.* .rela.gnu.linkonce.lb.*)
+ *(.rela.lrodata .rela.lrodata.* .rela.gnu.linkonce.lr.*)
+ *(.rela.ifunc)
+
+.rela.plt       0x0000000000400200        0x0
+ *(.rela.plt)
+                [!provide]                        PROVIDE (__rela_iplt_start = .)
+ *(.rela.iplt)
+ .rela.iplt     0x0000000000400200        0x0 <musl>/lib/Scrt1.o
+                [!provide]                        PROVIDE (__rela_iplt_end = .)
+
+.relr.dyn
+ *(.relr.dyn)
+                0x0000000000401000                . = ALIGN (CONSTANT (MAXPAGESIZE))
+
+.init           0x0000000000401000        0x3
+ *(SORT_NONE(.init))
+ .init          0x0000000000401000        0x1 <musl>/lib/crti.o
+                0x0000000000401000                _init
+ .init          0x0000000000401001        0x2 <musl>/lib/crtn.o
+
+.plt            0x0000000000401003        0x0
+ *(.plt)
+ *(.iplt)
+ .iplt          0x0000000000401003        0x0 <musl>/lib/Scrt1.o
+
+.plt.got
+ *(.plt.got)
+
+.plt.sec
+ *(.plt.sec)
+
+.text           0x0000000000401040     0xc914
+ *(.text.unlikely .text.*_unlikely .text.unlikely.*)
+ *(.text.exit .text.exit.*)
+ .text.exit     0x0000000000401040       0x43 <musl>/lib/libc.a(exit.lo)
+                0x0000000000401040                exit
+ *(.text.startup .text.startup.*)
+ *fill*         0x0000000000401083       0x1d 
+ .text.startup  0x00000000004010a0      0xb4c <dominit.o>
+                0x00000000004010a0                main
+ *(.text.hot .text.hot.*)
+ *(SORT_BY_NAME(.text.sorted.*))
+ *(.text .stub .text.* .gnu.linkonce.t.*)
+ .text          0x0000000000401bec       0x16 <musl>/lib/Scrt1.o
+                0x0000000000401bec                _start
+ .text._start_c
+                0x0000000000401c02       0x23 <musl>/lib/Scrt1.o
+                0x0000000000401c02                _start_c
+ .text          0x0000000000401c25        0x0 <musl>/lib/crti.o
+ *fill*         0x0000000000401c25        0xb 
+ .text          0x0000000000401c30       0xc9 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o
+ *fill*         0x0000000000401cf9        0x7 
+ .text          0x0000000000401d00      0x2c0 <dominit.o>
+ .text          0x0000000000401fc0        0x0 <musl>/lib/libc.a(sysconf.lo)
+ .text.sysconf  0x0000000000401fc0      0x20f <musl>/lib/libc.a(sysconf.lo)
+                0x0000000000401fc0                sysconf
+ .text          0x00000000004021cf        0x0 <musl>/lib/libc.a(__libc_start_main.lo)
+ .text.dummy    0x00000000004021cf        0x1 <musl>/lib/libc.a(__libc_start_main.lo)
+ .text.dummy1   0x00000000004021d0        0x1 <musl>/lib/libc.a(__libc_start_main.lo)
+ *fill*         0x00000000004021d1        0xf 
+ .text.__init_libc
+                0x00000000004021e0      0x1df <musl>/lib/libc.a(__libc_start_main.lo)
+                0x00000000004021e0                __init_libc
+ .text.libc_start_init
+                0x00000000004023bf       0x2d <musl>/lib/libc.a(__libc_start_main.lo)
+                0x00000000004023bf                __libc_start_init
+ .text.libc_start_main_stage2
+                0x00000000004023ec       0x32 <musl>/lib/libc.a(__libc_start_main.lo)
+ .text.__libc_start_main
+                0x000000000040241e       0x3a <musl>/lib/libc.a(__libc_start_main.lo)
+                0x000000000040241e                __libc_start_main
+ .text          0x0000000000402458        0x0 <musl>/lib/libc.a(__stack_chk_fail.lo)
+ .text.__init_ssp
+                0x0000000000402458       0x56 <musl>/lib/libc.a(__stack_chk_fail.lo)
+                0x0000000000402458                __init_ssp
+ .text.__stack_chk_fail
+                0x00000000004024ae        0x2 <musl>/lib/libc.a(__stack_chk_fail.lo)
+                0x00000000004024ae                __stack_chk_fail_local
+                0x00000000004024ae                __stack_chk_fail
+ .text          0x00000000004024b0        0x0 <musl>/lib/libc.a(__errno_location.lo)
+ .text.__errno_location
+                0x00000000004024b0        0xe <musl>/lib/libc.a(__errno_location.lo)
+                0x00000000004024b0                ___errno_location
+                0x00000000004024b0                __errno_location
+ .text          0x00000000004024be        0x0 <musl>/lib/libc.a(strerror.lo)
+ .text.__strerror_l
+                0x00000000004024be       0x2b <musl>/lib/libc.a(strerror.lo)
+                0x00000000004024be                strerror_l
+                0x00000000004024be                __strerror_l
+ .text.strerror
+                0x00000000004024e9       0x15 <musl>/lib/libc.a(strerror.lo)
+                0x00000000004024e9                strerror
+ .text          0x00000000004024fe        0x0 <musl>/lib/libc.a(exit.lo)
+ .text.dummy    0x00000000004024fe        0x1 <musl>/lib/libc.a(exit.lo)
+                0x00000000004024fe                __funcs_on_exit
+ .text.libc_exit_fini
+                0x00000000004024ff       0x30 <musl>/lib/libc.a(exit.lo)
+                0x00000000004024ff                __libc_exit_fini
+ .text          0x000000000040252f        0x0 <musl>/lib/libc.a(fcntl.lo)
+ .text.fcntl    0x000000000040252f      0x1c3 <musl>/lib/libc.a(fcntl.lo)
+                0x000000000040252f                fcntl
+ .text          0x00000000004026f2        0x0 <musl>/lib/libc.a(open.lo)
+ .text.open     0x00000000004026f2       0xb7 <musl>/lib/libc.a(open.lo)
+                0x00000000004026f2                open
+ .text          0x00000000004027a9        0x0 <musl>/lib/libc.a(defsysinfo.lo)
+ .text          0x00000000004027a9        0x0 <musl>/lib/libc.a(libc.lo)
+ .text          0x00000000004027a9        0x0 <musl>/lib/libc.a(syscall_ret.lo)
+ .text.__syscall_ret
+                0x00000000004027a9       0x25 <musl>/lib/libc.a(syscall_ret.lo)
+                0x00000000004027a9                __syscall_ret
+ .text          0x00000000004027ce        0x0 <musl>/lib/libc.a(mount.lo)
+ .text.mount    0x00000000004027ce       0x1b <musl>/lib/libc.a(mount.lo)
+                0x00000000004027ce                mount
+ .text.umount   0x00000000004027e9       0x1a <musl>/lib/libc.a(mount.lo)
+                0x00000000004027e9                umount
+ .text.umount2  0x0000000000402803       0x1b <musl>/lib/libc.a(mount.lo)
+                0x0000000000402803                umount2
+ .text          0x000000000040281e        0x0 <musl>/lib/libc.a(reboot.lo)
+ .text.reboot   0x000000000040281e       0x25 <musl>/lib/libc.a(reboot.lo)
+                0x000000000040281e                reboot
+ .text          0x0000000000402843        0x0 <musl>/lib/libc.a(sysinfo.lo)
+ .text.__lsysinfo
+                0x0000000000402843       0x18 <musl>/lib/libc.a(sysinfo.lo)
+                0x0000000000402843                __lsysinfo
+                0x0000000000402843                sysinfo
+ .text          0x000000000040285b        0x0 <musl>/lib/libc.a(__lctrans.lo)
+ .text.dummy    0x000000000040285b        0x4 <musl>/lib/libc.a(__lctrans.lo)
+                0x000000000040285b                __lctrans_impl
+ .text.__lctrans
+                0x000000000040285f        0x5 <musl>/lib/libc.a(__lctrans.lo)
+                0x000000000040285f                __lctrans
+ .text.__lctrans_cur
+                0x0000000000402864       0x19 <musl>/lib/libc.a(__lctrans.lo)
+                0x0000000000402864                __lctrans_cur
+ .text          0x000000000040287d        0x0 <musl>/lib/libc.a(free.lo)
+ .text.free     0x000000000040287d        0x5 <musl>/lib/libc.a(free.lo)
+                0x000000000040287d                free
+ .text          0x0000000000402882        0x0 <musl>/lib/libc.a(lite_malloc.lo)
+ *fill*         0x0000000000402882        0xe 
+ .text.__simple_malloc
+                0x0000000000402890      0x29d <musl>/lib/libc.a(lite_malloc.lo)
+ .text.__libc_malloc
+                0x0000000000402b2d        0x5 <musl>/lib/libc.a(lite_malloc.lo)
+                0x0000000000402b2d                __libc_malloc
+ .text.default_malloc
+                0x0000000000402b32        0x5 <musl>/lib/libc.a(lite_malloc.lo)
+                0x0000000000402b32                malloc
+ .text          0x0000000000402b37        0x0 <musl>/lib/libc.a(free.lo)
+ .text.get_meta
+                0x0000000000402b37       0xf9 <musl>/lib/libc.a(free.lo)
+ .text.nontrivial_free
+                0x0000000000402c30      0x37c <musl>/lib/libc.a(free.lo)
+ .text.__libc_free
+                0x0000000000402fac      0x1ac <musl>/lib/libc.a(free.lo)
+                0x0000000000402fac                __libc_free
+ .text          0x0000000000403158        0x0 <musl>/lib/libc.a(malloc.lo)
+ .text.__malloc_atfork
+                0x0000000000403158       0x33 <musl>/lib/libc.a(malloc.lo)
+                0x0000000000403158                __malloc_atfork
+ *fill*         0x000000000040318b       0x15 
+ .text.__malloc_alloc_meta
+                0x00000000004031a0      0x3e3 <musl>/lib/libc.a(malloc.lo)
+                0x00000000004031a0                __malloc_alloc_meta
+ *fill*         0x0000000000403583       0x1d 
+ .text.alloc_slot
+                0x00000000004035a0      0xa30 <musl>/lib/libc.a(malloc.lo)
+ .text.__libc_malloc_impl
+                0x0000000000403fd0      0x478 <musl>/lib/libc.a(malloc.lo)
+                0x0000000000403fd0                __libc_malloc_impl
+ .text.__malloc_allzerop
+                0x0000000000404448      0x16f <musl>/lib/libc.a(malloc.lo)
+                0x0000000000404448                __malloc_allzerop
+ .text          0x00000000004045b7        0x0 <musl>/lib/libc.a(getauxval.lo)
+ .text.__getauxval
+                0x00000000004045b7       0x50 <musl>/lib/libc.a(getauxval.lo)
+                0x00000000004045b7                getauxval
+                0x00000000004045b7                __getauxval
+ .text          0x0000000000404607        0x0 <musl>/lib/libc.a(getrlimit.lo)
+ .text.getrlimit
+                0x0000000000404607       0xa0 <musl>/lib/libc.a(getrlimit.lo)
+                0x0000000000404607                getrlimit
+ .text          0x00000000004046a7        0x0 <musl>/lib/libc.a(ioctl.lo)
+ .text.ioctl    0x00000000004046a7       0x63 <musl>/lib/libc.a(ioctl.lo)
+                0x00000000004046a7                ioctl
+ .text          0x000000000040470a        0x0 <musl>/lib/libc.a(syscall.lo)
+ .text.syscall  0x000000000040470a       0x89 <musl>/lib/libc.a(syscall.lo)
+                0x000000000040470a                syscall
+ .text          0x0000000000404793        0x0 <musl>/lib/libc.a(mmap.lo)
+ .text.dummy    0x0000000000404793        0x1 <musl>/lib/libc.a(mmap.lo)
+                0x0000000000404793                __vm_wait
+ .text.__mmap   0x0000000000404794       0xc1 <musl>/lib/libc.a(mmap.lo)
+                0x0000000000404794                __mmap
+                0x0000000000404794                mmap
+ .text          0x0000000000404855        0x0 <musl>/lib/libc.a(mprotect.lo)
+ .text.__mprotect
+                0x0000000000404855       0x37 <musl>/lib/libc.a(mprotect.lo)
+                0x0000000000404855                __mprotect
+                0x0000000000404855                mprotect
+ .text          0x000000000040488c        0x0 <musl>/lib/libc.a(munmap.lo)
+ .text.dummy    0x000000000040488c        0x1 <musl>/lib/libc.a(munmap.lo)
+ .text.__munmap
+                0x000000000040488d       0x2f <musl>/lib/libc.a(munmap.lo)
+                0x000000000040488d                munmap
+                0x000000000040488d                __munmap
+ .text          0x00000000004048bc        0x0 <musl>/lib/libc.a(socket.lo)
+ .text.socket   0x00000000004048bc       0x9f <musl>/lib/libc.a(socket.lo)
+                0x00000000004048bc                socket
+ .text          0x000000000040495b        0x0 <musl>/lib/libc.a(execve.lo)
+ .text.execve   0x000000000040495b       0x18 <musl>/lib/libc.a(execve.lo)
+                0x000000000040495b                execve
+ .text          0x0000000000404973        0x0 <musl>/lib/libc.a(fork.lo)
+ .text.dummy    0x0000000000404973        0x1 <musl>/lib/libc.a(fork.lo)
+                0x0000000000404973                __pthread_key_atfork
+                0x0000000000404973                __aio_atfork
+                0x0000000000404973                __ldso_atfork
+                0x0000000000404973                __fork_handler
+ .text.dummy_0  0x0000000000404974        0x1 <musl>/lib/libc.a(fork.lo)
+                0x0000000000404974                __tl_lock
+                0x0000000000404974                __tl_unlock
+ *fill*         0x0000000000404975        0xb 
+ .text.fork     0x0000000000404980      0x259 <musl>/lib/libc.a(fork.lo)
+                0x0000000000404980                fork
+ .text          0x0000000000404bd9        0x0 <musl>/lib/libc.a(wait.lo)
+ .text.wait     0x0000000000404bd9        0xf <musl>/lib/libc.a(wait.lo)
+                0x0000000000404bd9                wait
+ .text          0x0000000000404be8        0x0 <musl>/lib/libc.a(waitpid.lo)
+ .text.waitpid  0x0000000000404be8       0x2c <musl>/lib/libc.a(waitpid.lo)
+                0x0000000000404be8                waitpid
+ .text          0x0000000000404c14        0x0 <musl>/lib/libc.a(block.lo)
+ .text.__block_all_sigs
+                0x0000000000404c14       0x1a <musl>/lib/libc.a(block.lo)
+                0x0000000000404c14                __block_all_sigs
+ .text.__block_app_sigs
+                0x0000000000404c2e       0x1a <musl>/lib/libc.a(block.lo)
+                0x0000000000404c2e                __block_app_sigs
+ .text.__restore_sigs
+                0x0000000000404c48       0x18 <musl>/lib/libc.a(block.lo)
+                0x0000000000404c48                __restore_sigs
+ .text          0x0000000000404c60        0x0 <musl>/lib/libc.a(mkdir.lo)
+ .text.mkdir    0x0000000000404c60       0x1a <musl>/lib/libc.a(mkdir.lo)
+                0x0000000000404c60                mkdir
+ .text          0x0000000000404c7a        0x0 <musl>/lib/libc.a(dprintf.lo)
+ .text.dprintf  0x0000000000404c7a       0xb1 <musl>/lib/libc.a(dprintf.lo)
+                0x0000000000404c7a                dprintf
+ .text          0x0000000000404d2b        0x0 <musl>/lib/libc.a(fclose.lo)
+ .text.dummy    0x0000000000404d2b        0x1 <musl>/lib/libc.a(fclose.lo)
+                0x0000000000404d2b                __unlist_locked_file
+ .text.fclose   0x0000000000404d2c       0xd6 <musl>/lib/libc.a(fclose.lo)
+                0x0000000000404d2c                fclose
+ .text          0x0000000000404e02        0x0 <musl>/lib/libc.a(fflush.lo)
+ .text.fflush   0x0000000000404e02      0x151 <musl>/lib/libc.a(fflush.lo)
+                0x0000000000404e02                fflush
+                0x0000000000404e02                fflush_unlocked
+ .text          0x0000000000404f53        0x0 <musl>/lib/libc.a(fopen.lo)
+ .text.fopen    0x0000000000404f53       0xe2 <musl>/lib/libc.a(fopen.lo)
+                0x0000000000404f53                fopen
+ .text          0x0000000000405035        0x0 <musl>/lib/libc.a(fscanf.lo)
+ .text.fscanf   0x0000000000405035       0xb1 <musl>/lib/libc.a(fscanf.lo)
+                0x0000000000405035                fscanf
+                0x0000000000405035                __isoc99_fscanf
+ .text          0x00000000004050e6        0x0 <musl>/lib/libc.a(ofl.lo)
+ .text.__ofl_lock
+                0x00000000004050e6       0x1c <musl>/lib/libc.a(ofl.lo)
+                0x00000000004050e6                __ofl_lock
+ .text.__ofl_unlock
+                0x0000000000405102        0xc <musl>/lib/libc.a(ofl.lo)
+                0x0000000000405102                __ofl_unlock
+ .text          0x000000000040510e        0x0 <musl>/lib/libc.a(printf.lo)
+ .text.printf   0x000000000040510e       0xc0 <musl>/lib/libc.a(printf.lo)
+                0x000000000040510e                printf
+ .text          0x00000000004051ce        0x0 <musl>/lib/libc.a(puts.lo)
+ .text.puts     0x00000000004051ce       0xb4 <musl>/lib/libc.a(puts.lo)
+                0x00000000004051ce                puts
+ .text          0x0000000000405282        0x0 <musl>/lib/libc.a(snprintf.lo)
+ .text.snprintf
+                0x0000000000405282       0xac <musl>/lib/libc.a(snprintf.lo)
+                0x0000000000405282                snprintf
+ .text          0x000000000040532e        0x0 <musl>/lib/libc.a(stdout.lo)
+ .text          0x000000000040532e        0x0 <musl>/lib/libc.a(vdprintf.lo)
+ .text.vdprintf
+                0x000000000040532e       0xa2 <musl>/lib/libc.a(vdprintf.lo)
+                0x000000000040532e                vdprintf
+ .text          0x00000000004053d0        0x0 <musl>/lib/libc.a(vfprintf.lo)
+ .text.pop_arg  0x00000000004053d0      0x170 <musl>/lib/libc.a(vfprintf.lo)
+ .text.pad.part.0
+                0x0000000000405540       0xc0 <musl>/lib/libc.a(vfprintf.lo)
+ .text.printf_core
+                0x0000000000405600     0x28ef <musl>/lib/libc.a(vfprintf.lo)
+ .text.vfprintf
+                0x0000000000407eef      0x25b <musl>/lib/libc.a(vfprintf.lo)
+                0x0000000000407eef                vfprintf
+ .text          0x000000000040814a        0x0 <musl>/lib/libc.a(vfscanf.lo)
+ *fill*         0x000000000040814a       0x16 
+ .text.arg_n    0x0000000000408160       0xc9 <musl>/lib/libc.a(vfscanf.lo)
+ *fill*         0x0000000000408229       0x17 
+ .text.vfscanf  0x0000000000408240      0xeec <musl>/lib/libc.a(vfscanf.lo)
+                0x0000000000408240                __isoc99_vfscanf
+                0x0000000000408240                vfscanf
+ .text          0x000000000040912c        0x0 <musl>/lib/libc.a(vsnprintf.lo)
+ .text.sn_write
+                0x000000000040912c       0xb1 <musl>/lib/libc.a(vsnprintf.lo)
+ .text.vsnprintf
+                0x00000000004091dd       0xd7 <musl>/lib/libc.a(vsnprintf.lo)
+                0x00000000004091dd                vsnprintf
+ .text          0x00000000004092b4        0x0 <musl>/lib/libc.a(explicit_bzero.lo)
+ .text.explicit_bzero
+                0x00000000004092b4       0x13 <musl>/lib/libc.a(explicit_bzero.lo)
+                0x00000000004092b4                explicit_bzero
+ .text          0x00000000004092c7        0x0 <musl>/lib/libc.a(memchr.lo)
+ *fill*         0x00000000004092c7       0x39 
+ .text.memchr   0x0000000000409300       0xf9 <musl>/lib/libc.a(memchr.lo)
+                0x0000000000409300                memchr
+ .text          0x00000000004093f9        0x0 <musl>/lib/libc.a(strchr.lo)
+ .text.strchr   0x00000000004093f9       0x12 <musl>/lib/libc.a(strchr.lo)
+                0x00000000004093f9                strchr
+ .text          0x000000000040940b        0x0 <musl>/lib/libc.a(strchrnul.lo)
+ *fill*         0x000000000040940b       0x35 
+ .text.__strchrnul
+                0x0000000000409440       0xc3 <musl>/lib/libc.a(strchrnul.lo)
+                0x0000000000409440                __strchrnul
+                0x0000000000409440                strchrnul
+ .text          0x0000000000409503        0x0 <musl>/lib/libc.a(strcmp.lo)
+ *fill*         0x0000000000409503       0x1d 
+ .text.strcmp   0x0000000000409520       0x3e <musl>/lib/libc.a(strcmp.lo)
+                0x0000000000409520                strcmp
+ .text          0x000000000040955e        0x0 <musl>/lib/libc.a(strlen.lo)
+ *fill*         0x000000000040955e        0x2 
+ .text.strlen   0x0000000000409560       0x6d <musl>/lib/libc.a(strlen.lo)
+                0x0000000000409560                strlen
+ .text          0x00000000004095cd        0x0 <musl>/lib/libc.a(strnlen.lo)
+ .text.strnlen  0x00000000004095cd       0x2a <musl>/lib/libc.a(strnlen.lo)
+                0x00000000004095cd                strnlen
+ .text          0x00000000004095f7       0x32 <musl>/lib/libc.a(memcpy.lo)
+                0x00000000004095f7                memcpy
+                0x00000000004095f7                __memcpy_fwd
+ .text          0x0000000000409629       0xc4 <musl>/lib/libc.a(memset.lo)
+                0x0000000000409629                memset
+ .text          0x00000000004096ed        0x0 <musl>/lib/libc.a(__lock.lo)
+ .text.__lock   0x00000000004096ed       0xb1 <musl>/lib/libc.a(__lock.lo)
+                0x00000000004096ed                __lock
+ .text.__unlock
+                0x000000000040979e       0x3b <musl>/lib/libc.a(__lock.lo)
+                0x000000000040979e                __unlock
+ .text          0x00000000004097d9        0x0 <musl>/lib/libc.a(__syscall_cp.lo)
+ .text.sccp     0x00000000004097d9       0x1a <musl>/lib/libc.a(__syscall_cp.lo)
+                0x00000000004097d9                __syscall_cp_c
+ .text.__syscall_cp
+                0x00000000004097f3        0x5 <musl>/lib/libc.a(__syscall_cp.lo)
+                0x00000000004097f3                __syscall_cp
+ .text          0x00000000004097f8        0x0 <musl>/lib/libc.a(lock_ptc.lo)
+ .text.__inhibit_ptc
+                0x00000000004097f8        0xc <musl>/lib/libc.a(lock_ptc.lo)
+                0x00000000004097f8                __inhibit_ptc
+ .text.__acquire_ptc
+                0x0000000000409804        0xc <musl>/lib/libc.a(lock_ptc.lo)
+                0x0000000000409804                __acquire_ptc
+ .text.__release_ptc
+                0x0000000000409810        0xc <musl>/lib/libc.a(lock_ptc.lo)
+                0x0000000000409810                __release_ptc
+ .text          0x000000000040981c        0x0 <musl>/lib/libc.a(pthread_rwlock_rdlock.lo)
+ .text.__pthread_rwlock_rdlock
+                0x000000000040981c        0x7 <musl>/lib/libc.a(pthread_rwlock_rdlock.lo)
+                0x000000000040981c                pthread_rwlock_rdlock
+                0x000000000040981c                __pthread_rwlock_rdlock
+ .text          0x0000000000409823        0x0 <musl>/lib/libc.a(pthread_rwlock_timedrdlock.lo)
+ .text.__pthread_rwlock_timedrdlock
+                0x0000000000409823       0xa3 <musl>/lib/libc.a(pthread_rwlock_timedrdlock.lo)
+                0x0000000000409823                pthread_rwlock_timedrdlock
+                0x0000000000409823                __pthread_rwlock_timedrdlock
+ .text          0x00000000004098c6        0x0 <musl>/lib/libc.a(pthread_rwlock_tryrdlock.lo)
+ .text.__pthread_rwlock_tryrdlock
+                0x00000000004098c6       0x33 <musl>/lib/libc.a(pthread_rwlock_tryrdlock.lo)
+                0x00000000004098c6                __pthread_rwlock_tryrdlock
+                0x00000000004098c6                pthread_rwlock_tryrdlock
+ .text          0x00000000004098f9        0x0 <musl>/lib/libc.a(pthread_rwlock_unlock.lo)
+ .text.__pthread_rwlock_unlock
+                0x00000000004098f9       0x70 <musl>/lib/libc.a(pthread_rwlock_unlock.lo)
+                0x00000000004098f9                pthread_rwlock_unlock
+                0x00000000004098f9                __pthread_rwlock_unlock
+ .text          0x0000000000409969        0x0 <musl>/lib/libc.a(pthread_rwlock_wrlock.lo)
+ .text.__pthread_rwlock_wrlock
+                0x0000000000409969        0x7 <musl>/lib/libc.a(pthread_rwlock_wrlock.lo)
+                0x0000000000409969                __pthread_rwlock_wrlock
+                0x0000000000409969                pthread_rwlock_wrlock
+ .text          0x0000000000409970        0x0 <musl>/lib/libc.a(clock_gettime.lo)
+ .text.cgt_init
+                0x0000000000409970       0x4f <musl>/lib/libc.a(clock_gettime.lo)
+ .text.__clock_gettime
+                0x00000000004099bf       0x79 <musl>/lib/libc.a(clock_gettime.lo)
+                0x00000000004099bf                clock_gettime
+                0x00000000004099bf                __clock_gettime
+ .text          0x0000000000409a38        0x0 <musl>/lib/libc.a(_exit.lo)
+ .text._exit    0x0000000000409a38        0x9 <musl>/lib/libc.a(_exit.lo)
+                0x0000000000409a38                _exit
+ .text          0x0000000000409a41        0x0 <musl>/lib/libc.a(close.lo)
+ .text.dummy    0x0000000000409a41        0x3 <musl>/lib/libc.a(close.lo)
+                0x0000000000409a41                __aio_close
+ .text.close    0x0000000000409a44       0x3d <musl>/lib/libc.a(close.lo)
+                0x0000000000409a44                close
+ .text          0x0000000000409a81        0x0 <musl>/lib/libc.a(dup2.lo)
+ .text.dup2     0x0000000000409a81       0x23 <musl>/lib/libc.a(dup2.lo)
+                0x0000000000409a81                dup2
+ .text          0x0000000000409aa4        0x0 <musl>/lib/libc.a(pipe2.lo)
+ .text.pipe2    0x0000000000409aa4       0xc3 <musl>/lib/libc.a(pipe2.lo)
+                0x0000000000409aa4                pipe2
+ .text          0x0000000000409b67        0x0 <musl>/lib/libc.a(read.lo)
+ .text.read     0x0000000000409b67       0x2b <musl>/lib/libc.a(read.lo)
+                0x0000000000409b67                read
+ .text          0x0000000000409b92        0x0 <musl>/lib/libc.a(sync.lo)
+ .text.sync     0x0000000000409b92        0x8 <musl>/lib/libc.a(sync.lo)
+                0x0000000000409b92                sync
+ .text          0x0000000000409b9a        0x0 <musl>/lib/libc.a(__environ.lo)
+ .text          0x0000000000409b9a        0x0 <musl>/lib/libc.a(__init_tls.lo)
+ .text.__init_tp
+                0x0000000000409b9a       0x6b <musl>/lib/libc.a(__init_tls.lo)
+                0x0000000000409b9a                __init_tp
+ .text.__copy_tls
+                0x0000000000409c05       0x7f <musl>/lib/libc.a(__init_tls.lo)
+                0x0000000000409c05                __copy_tls
+ *fill*         0x0000000000409c84       0x1c 
+ .text.static_init_tls
+                0x0000000000409ca0      0x1df <musl>/lib/libc.a(__init_tls.lo)
+                0x0000000000409ca0                __init_tls
+ .text          0x0000000000409e7f        0x0 <musl>/lib/libc.a(_Exit.lo)
+ .text._Exit    0x0000000000409e7f       0x13 <musl>/lib/libc.a(_Exit.lo)
+                0x0000000000409e7f                _Exit
+ .text          0x0000000000409e92        0x0 <musl>/lib/libc.a(floatscan.lo)
+ .text.scanexp  0x0000000000409e92      0x1e3 <musl>/lib/libc.a(floatscan.lo)
+ *fill*         0x000000000040a075        0xb 
+ .text.decfloat
+                0x000000000040a080      0xb14 <musl>/lib/libc.a(floatscan.lo)
+ *fill*         0x000000000040ab94        0xc 
+ .text.__floatscan
+                0x000000000040aba0      0xb80 <musl>/lib/libc.a(floatscan.lo)
+                0x000000000040aba0                __floatscan
+ .text          0x000000000040b720        0x0 <musl>/lib/libc.a(intscan.lo)
+ *fill*         0x000000000040b720       0x20 
+ .text.__intscan
+                0x000000000040b740      0x58f <musl>/lib/libc.a(intscan.lo)
+                0x000000000040b740                __intscan
+ .text          0x000000000040bccf        0x0 <musl>/lib/libc.a(shgetc.lo)
+ .text.__shlim  0x000000000040bccf       0x3a <musl>/lib/libc.a(shgetc.lo)
+                0x000000000040bccf                __shlim
+ .text.__shgetc
+                0x000000000040bd09       0xb8 <musl>/lib/libc.a(shgetc.lo)
+                0x000000000040bd09                __shgetc
+ .text          0x000000000040bdc1        0x0 <musl>/lib/libc.a(vdso.lo)
+ *fill*         0x000000000040bdc1       0x3f 
+ .text.__vdsosym
+                0x000000000040be00      0x345 <musl>/lib/libc.a(vdso.lo)
+                0x000000000040be00                __vdsosym
+ .text          0x000000000040c145        0x0 <musl>/lib/libc.a(realloc.lo)
+ .text.realloc  0x000000000040c145        0x5 <musl>/lib/libc.a(realloc.lo)
+                0x000000000040c145                realloc
+ .text          0x000000000040c14a        0x0 <musl>/lib/libc.a(__fpclassifyl.lo)
+ .text.__fpclassifyl
+                0x000000000040c14a       0x4a <musl>/lib/libc.a(__fpclassifyl.lo)
+                0x000000000040c14a                __fpclassifyl
+ .text          0x000000000040c194        0x0 <musl>/lib/libc.a(__signbitl.lo)
+ .text.__signbitl
+                0x000000000040c194        0xd <musl>/lib/libc.a(__signbitl.lo)
+                0x000000000040c194                __signbitl
+ .text          0x000000000040c1a1        0x0 <musl>/lib/libc.a(copysignl.lo)
+ .text.copysignl
+                0x000000000040c1a1       0x2f <musl>/lib/libc.a(copysignl.lo)
+                0x000000000040c1a1                copysignl
+ .text          0x000000000040c1d0        0x0 <musl>/lib/libc.a(frexpl.lo)
+ .text.frexpl   0x000000000040c1d0       0x92 <musl>/lib/libc.a(frexpl.lo)
+                0x000000000040c1d0                frexpl
+ .text          0x000000000040c262        0x0 <musl>/lib/libc.a(scalbn.lo)
+ .text.scalbn   0x000000000040c262       0x86 <musl>/lib/libc.a(scalbn.lo)
+                0x000000000040c262                scalbn
+ .text          0x000000000040c2e8        0x0 <musl>/lib/libc.a(scalbnl.lo)
+ .text.scalbnl  0x000000000040c2e8       0x83 <musl>/lib/libc.a(scalbnl.lo)
+                0x000000000040c2e8                scalbnl
+ .text          0x000000000040c36b        0x0 <musl>/lib/libc.a(fabsl.lo)
+ .text.fabsl    0x000000000040c36b        0x7 <musl>/lib/libc.a(fabsl.lo)
+                0x000000000040c36b                fabsl
+ .text          0x000000000040c372        0x0 <musl>/lib/libc.a(fmodl.lo)
+ .text.fmodl    0x000000000040c372       0x14 <musl>/lib/libc.a(fmodl.lo)
+                0x000000000040c372                fmodl
+ .text          0x000000000040c386        0x0 <musl>/lib/libc.a(mbrtowc.lo)
+ .text.mbrtowc  0x000000000040c386      0x151 <musl>/lib/libc.a(mbrtowc.lo)
+                0x000000000040c386                mbrtowc
+ .text          0x000000000040c4d7        0x0 <musl>/lib/libc.a(mbsinit.lo)
+ .text.mbsinit  0x000000000040c4d7       0x14 <musl>/lib/libc.a(mbsinit.lo)
+                0x000000000040c4d7                mbsinit
+ .text          0x000000000040c4eb        0x0 <musl>/lib/libc.a(wctomb.lo)
+ .text.wctomb   0x000000000040c4eb       0x18 <musl>/lib/libc.a(wctomb.lo)
+                0x000000000040c4eb                wctomb
+ .text          0x000000000040c503        0x0 <musl>/lib/libc.a(_Fork.lo)
+ .text.dummy    0x000000000040c503        0x1 <musl>/lib/libc.a(_Fork.lo)
+ .text.__post_Fork
+                0x000000000040c504       0x98 <musl>/lib/libc.a(_Fork.lo)
+                0x000000000040c504                __post_Fork
+ .text._Fork    0x000000000040c59c       0x6f <musl>/lib/libc.a(_Fork.lo)
+                0x000000000040c59c                _Fork
+ .text          0x000000000040c60b        0x0 <musl>/lib/libc.a(__fdopen.lo)
+ .text.__fdopen
+                0x000000000040c60b      0x1b0 <musl>/lib/libc.a(__fdopen.lo)
+                0x000000000040c60b                fdopen
+                0x000000000040c60b                __fdopen
+ .text          0x000000000040c7bb        0x0 <musl>/lib/libc.a(__fmodeflags.lo)
+ .text.__fmodeflags
+                0x000000000040c7bb       0x8c <musl>/lib/libc.a(__fmodeflags.lo)
+                0x000000000040c7bb                __fmodeflags
+ .text          0x000000000040c847        0x0 <musl>/lib/libc.a(__lockfile.lo)
+ .text.__lockfile
+                0x000000000040c847       0x92 <musl>/lib/libc.a(__lockfile.lo)
+                0x000000000040c847                __lockfile
+ .text.__unlockfile
+                0x000000000040c8d9       0x3e <musl>/lib/libc.a(__lockfile.lo)
+                0x000000000040c8d9                __unlockfile
+ .text          0x000000000040c917        0x0 <musl>/lib/libc.a(__overflow.lo)
+ .text.__overflow
+                0x000000000040c917       0x96 <musl>/lib/libc.a(__overflow.lo)
+                0x000000000040c917                __overflow
+ .text          0x000000000040c9ad        0x0 <musl>/lib/libc.a(__stdio_close.lo)
+ .text.dummy    0x000000000040c9ad        0x3 <musl>/lib/libc.a(__stdio_close.lo)
+ .text.__stdio_close
+                0x000000000040c9b0       0x23 <musl>/lib/libc.a(__stdio_close.lo)
+                0x000000000040c9b0                __stdio_close
+ .text          0x000000000040c9d3        0x0 <musl>/lib/libc.a(__stdio_read.lo)
+ .text.__stdio_read
+                0x000000000040c9d3       0xe0 <musl>/lib/libc.a(__stdio_read.lo)
+                0x000000000040c9d3                __stdio_read
+ .text          0x000000000040cab3        0x0 <musl>/lib/libc.a(__stdio_seek.lo)
+ .text.__stdio_seek
+                0x000000000040cab3        0x8 <musl>/lib/libc.a(__stdio_seek.lo)
+                0x000000000040cab3                __stdio_seek
+ .text          0x000000000040cabb        0x0 <musl>/lib/libc.a(__stdio_write.lo)
+ .text.__stdio_write
+                0x000000000040cabb      0x149 <musl>/lib/libc.a(__stdio_write.lo)
+                0x000000000040cabb                __stdio_write
+ .text          0x000000000040cc04        0x0 <musl>/lib/libc.a(__stdout_write.lo)
+ .text.__stdout_write
+                0x000000000040cc04       0x76 <musl>/lib/libc.a(__stdout_write.lo)
+                0x000000000040cc04                __stdout_write
+ .text          0x000000000040cc7a        0x0 <musl>/lib/libc.a(__toread.lo)
+ .text.__toread
+                0x000000000040cc7a       0x6f <musl>/lib/libc.a(__toread.lo)
+                0x000000000040cc7a                __toread
+ .text.__toread_needs_stdio_exit
+                0x000000000040cce9        0x5 <musl>/lib/libc.a(__toread.lo)
+                0x000000000040cce9                __toread_needs_stdio_exit
+ .text          0x000000000040ccee        0x0 <musl>/lib/libc.a(__towrite.lo)
+ .text.__towrite
+                0x000000000040ccee       0x41 <musl>/lib/libc.a(__towrite.lo)
+                0x000000000040ccee                __towrite
+ .text.__towrite_needs_stdio_exit
+                0x000000000040cd2f        0x5 <musl>/lib/libc.a(__towrite.lo)
+                0x000000000040cd2f                __towrite_needs_stdio_exit
+ .text          0x000000000040cd34        0x0 <musl>/lib/libc.a(__uflow.lo)
+ .text.__uflow  0x000000000040cd34       0x5c <musl>/lib/libc.a(__uflow.lo)
+                0x000000000040cd34                __uflow
+ .text          0x000000000040cd90        0x0 <musl>/lib/libc.a(fputs.lo)
+ .text.fputs    0x000000000040cd90       0x3d <musl>/lib/libc.a(fputs.lo)
+                0x000000000040cd90                fputs_unlocked
+                0x000000000040cd90                fputs
+ .text          0x000000000040cdcd        0x0 <musl>/lib/libc.a(fwrite.lo)
+ *fill*         0x000000000040cdcd        0x3 
+ .text.__fwritex
+                0x000000000040cdd0       0xd9 <musl>/lib/libc.a(fwrite.lo)
+                0x000000000040cdd0                __fwritex
+ .text.fwrite   0x000000000040cea9       0xb2 <musl>/lib/libc.a(fwrite.lo)
+                0x000000000040cea9                fwrite_unlocked
+                0x000000000040cea9                fwrite
+ .text          0x000000000040cf5b        0x0 <musl>/lib/libc.a(ofl_add.lo)
+ .text.__ofl_add
+                0x000000000040cf5b       0x29 <musl>/lib/libc.a(ofl_add.lo)
+                0x000000000040cf5b                __ofl_add
+ .text          0x000000000040cf84        0x0 <musl>/lib/libc.a(__timedwait.lo)
+ .text.__timedwait_cp
+                0x000000000040cf84      0x174 <musl>/lib/libc.a(__timedwait.lo)
+                0x000000000040cf84                __timedwait_cp
+ .text.__timedwait
+                0x000000000040d0f8       0x77 <musl>/lib/libc.a(__timedwait.lo)
+                0x000000000040d0f8                __timedwait
+ .text          0x000000000040d16f        0x0 <musl>/lib/libc.a(default_attr.lo)
+ .text          0x000000000040d16f        0x0 <musl>/lib/libc.a(pthread_rwlock_timedwrlock.lo)
+ .text.__pthread_rwlock_timedwrlock
+                0x000000000040d16f       0x7b <musl>/lib/libc.a(pthread_rwlock_timedwrlock.lo)
+                0x000000000040d16f                pthread_rwlock_timedwrlock
+                0x000000000040d16f                __pthread_rwlock_timedwrlock
+ .text          0x000000000040d1ea        0x0 <musl>/lib/libc.a(pthread_rwlock_trywrlock.lo)
+ .text.__pthread_rwlock_trywrlock
+                0x000000000040d1ea       0x17 <musl>/lib/libc.a(pthread_rwlock_trywrlock.lo)
+                0x000000000040d1ea                __pthread_rwlock_trywrlock
+                0x000000000040d1ea                pthread_rwlock_trywrlock
+ .text          0x000000000040d201        0x0 <musl>/lib/libc.a(pthread_setcancelstate.lo)
+ .text.__pthread_setcancelstate
+                0x000000000040d201       0x25 <musl>/lib/libc.a(pthread_setcancelstate.lo)
+                0x000000000040d201                __pthread_setcancelstate
+                0x000000000040d201                pthread_setcancelstate
+ .text          0x000000000040d226       0x10 <musl>/lib/libc.a(__set_thread_area.lo)
+                0x000000000040d226                __set_thread_area
+ .text          0x000000000040d236        0x0 <musl>/lib/libc.a(lseek.lo)
+ .text.__lseek  0x000000000040d236       0x15 <musl>/lib/libc.a(lseek.lo)
+                0x000000000040d236                lseek
+                0x000000000040d236                __lseek
+ .text          0x000000000040d24b        0x0 <musl>/lib/libc.a(pipe.lo)
+ .text.pipe     0x000000000040d24b       0x18 <musl>/lib/libc.a(pipe.lo)
+                0x000000000040d24b                pipe
+ .text          0x000000000040d263        0x0 <musl>/lib/libc.a(abort_lock.lo)
+ .text          0x000000000040d263        0x0 <musl>/lib/libc.a(realloc.lo)
+ .text.__libc_realloc
+                0x000000000040d263      0x496 <musl>/lib/libc.a(realloc.lo)
+                0x000000000040d263                __libc_realloc
+ .text          0x000000000040d6f9        0x0 <musl>/lib/libc.a(mremap.lo)
+ .text.dummy    0x000000000040d6f9        0x1 <musl>/lib/libc.a(mremap.lo)
+ .text.__mremap
+                0x000000000040d6fa       0xc0 <musl>/lib/libc.a(mremap.lo)
+                0x000000000040d6fa                mremap
+                0x000000000040d6fa                __mremap
+ .text          0x000000000040d7ba        0x0 <musl>/lib/libc.a(internal.lo)
+ .text          0x000000000040d7ba        0x0 <musl>/lib/libc.a(wcrtomb.lo)
+ .text.wcrtomb  0x000000000040d7ba      0x109 <musl>/lib/libc.a(wcrtomb.lo)
+                0x000000000040d7ba                wcrtomb
+ .text          0x000000000040d8c3        0x0 <musl>/lib/libc.a(__stdio_exit.lo)
+ .text.close_file
+                0x000000000040d8c3       0x50 <musl>/lib/libc.a(__stdio_exit.lo)
+ .text.__stdio_exit
+                0x000000000040d913       0x41 <musl>/lib/libc.a(__stdio_exit.lo)
+                0x000000000040d913                __stdio_exit
+                0x000000000040d913                __stdio_exit_needed
+ .text          0x000000000040d954        0x0 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o
+ .text          0x000000000040d954        0x0 <musl>/lib/crtn.o
+ *(.gnu.warning)
+
+.fini           0x000000000040d954        0x3
+ *(SORT_NONE(.fini))
+ .fini          0x000000000040d954        0x1 <musl>/lib/crti.o
+                0x000000000040d954                _fini
+ .fini          0x000000000040d955        0x2 <musl>/lib/crtn.o
+                [!provide]                        PROVIDE (__etext = .)
+                [!provide]                        PROVIDE (_etext = .)
+                [!provide]                        PROVIDE (etext = .)
+                0x000000000040e000                . = ALIGN (CONSTANT (MAXPAGESIZE))
+                0x000000000040e000                . = SEGMENT_START ("rodata-segment", (ALIGN (CONSTANT (MAXPAGESIZE)) + (. & (CONSTANT (MAXPAGESIZE) - 0x1))))
+
+.rodata         0x000000000040e000     0x180c
+ *(.rodata .rodata.* .gnu.linkonce.r.*)
+ .rodata.str1.1
+                0x000000000040e000      0x305 <dominit.o>
+                                        0x2d8 (size before relaxing)
+ *fill*         0x000000000040e305        0x3 
+ .rodata.str1.8
+                0x000000000040e308      0x270 <dominit.o>
+                                        0x268 (size before relaxing)
+ .rodata.cst8   0x000000000040e578       0x40 <dominit.o>
+                                         0x10 (size before relaxing)
+ .rodata.sysconf
+                0x000000000040e5b8       0x38 <musl>/lib/libc.a(sysconf.lo)
+ *fill*         0x000000000040e5f0       0x10 
+ .rodata.values.0
+                0x000000000040e600      0x1f6 <musl>/lib/libc.a(sysconf.lo)
+ .rodata.__init_libc.str1.1
+                0x000000000040e7f6        0x0 <musl>/lib/libc.a(__libc_start_main.lo)
+                                          0xb (size before relaxing)
+ *fill*         0x000000000040e7f6        0xa 
+ .rodata.errmsgidx
+                0x000000000040e800      0x108 <musl>/lib/libc.a(strerror.lo)
+ *fill*         0x000000000040e908       0x18 
+ .rodata.errmsgstr
+                0x000000000040e920      0x7a8 <musl>/lib/libc.a(strerror.lo)
+ .rodata.med_cnt_tab
+                0x000000000040f0c8        0x4 <musl>/lib/libc.a(malloc.lo)
+ *fill*         0x000000000040f0cc        0x4 
+ .rodata.small_cnt_tab
+                0x000000000040f0d0       0x1b <musl>/lib/libc.a(malloc.lo)
+ *fill*         0x000000000040f0eb       0x15 
+ .rodata.__malloc_size_classes
+                0x000000000040f100       0x60 <musl>/lib/libc.a(malloc.lo)
+                0x000000000040f100                __malloc_size_classes
+ .rodata.dummy_lockptr
+                0x000000000040f160        0x8 <musl>/lib/libc.a(fork.lo)
+                0x000000000040f160                __atexit_lockptr
+                0x000000000040f160                __sem_open_lockptr
+                0x000000000040f160                __locale_lockptr
+                0x000000000040f160                __vmlock_lockptr
+                0x000000000040f160                __syslog_lockptr
+                0x000000000040f160                __at_quick_exit_lockptr
+                0x000000000040f160                __gettext_lockptr
+                0x000000000040f160                __random_lockptr
+                0x000000000040f160                __timezone_lockptr
+ .rodata.app_mask
+                0x000000000040f168        0x8 <musl>/lib/libc.a(block.lo)
+ .rodata.all_mask
+                0x000000000040f170        0x8 <musl>/lib/libc.a(block.lo)
+ .rodata.fopen.str1.1
+                0x000000000040f178        0x0 <musl>/lib/libc.a(fopen.lo)
+                                          0x4 (size before relaxing)
+ .rodata.pop_arg
+                0x000000000040f178       0x48 <musl>/lib/libc.a(vfprintf.lo)
+ .rodata.printf_core.str1.1
+                0x000000000040f1c0        0x0 <musl>/lib/libc.a(vfprintf.lo)
+                                         0x36 (size before relaxing)
+ .rodata.printf_core
+                0x000000000040f1c0      0x100 <musl>/lib/libc.a(vfprintf.lo)
+ .rodata.xdigits
+                0x000000000040f2c0       0x10 <musl>/lib/libc.a(vfprintf.lo)
+ *fill*         0x000000000040f2d0       0x10 
+ .rodata.states
+                0x000000000040f2e0      0x1d0 <musl>/lib/libc.a(vfprintf.lo)
+ .rodata.cst16  0x000000000040f4b0       0x60 <musl>/lib/libc.a(vfprintf.lo)
+                                         0x10 (size before relaxing)
+ .rodata.cst4   0x000000000040f510       0x28 <musl>/lib/libc.a(vfprintf.lo)
+                                         0x18 (size before relaxing)
+ .rodata.cst8   0x000000000040f538        0x0 <musl>/lib/libc.a(vfprintf.lo)
+                                          0x8 (size before relaxing)
+ .rodata.vfscanf
+                0x000000000040f538       0x84 <musl>/lib/libc.a(vfscanf.lo)
+ .rodata.cgt_init.str1.1
+                0x000000000040f5bc        0x0 <musl>/lib/libc.a(clock_gettime.lo)
+                                         0x1f (size before relaxing)
+ *fill*         0x000000000040f5bc        0x4 
+ .rodata.CSWTCH.17
+                0x000000000040f5c0        0xc <musl>/lib/libc.a(floatscan.lo)
+ *fill*         0x000000000040f5cc        0x4 
+ .rodata.CSWTCH.16
+                0x000000000040f5d0        0xc <musl>/lib/libc.a(floatscan.lo)
+ *fill*         0x000000000040f5dc        0x4 
+ .rodata.p10s.1
+                0x000000000040f5e0       0x20 <musl>/lib/libc.a(floatscan.lo)
+ .rodata.cst16  0x000000000040f600        0x0 <musl>/lib/libc.a(floatscan.lo)
+                                         0x20 (size before relaxing)
+ .rodata.cst4   0x000000000040f600        0x0 <musl>/lib/libc.a(floatscan.lo)
+                                         0x18 (size before relaxing)
+ .rodata.cst8   0x000000000040f600        0x0 <musl>/lib/libc.a(floatscan.lo)
+                                         0x20 (size before relaxing)
+ .rodata        0x000000000040f600        0x9 <musl>/lib/libc.a(intscan.lo)
+ *fill*         0x000000000040f609       0x17 
+ .rodata.table  0x000000000040f620      0x101 <musl>/lib/libc.a(intscan.lo)
+ .rodata.cst4   0x000000000040f721        0x0 <musl>/lib/libc.a(frexpl.lo)
+                                          0x4 (size before relaxing)
+ .rodata.cst8   0x000000000040f721        0x0 <musl>/lib/libc.a(scalbn.lo)
+                                         0x10 (size before relaxing)
+ .rodata.cst16  0x000000000040f721        0x0 <musl>/lib/libc.a(scalbnl.lo)
+                                         0x20 (size before relaxing)
+ .rodata.__fdopen.str1.1
+                0x000000000040f721        0x0 <musl>/lib/libc.a(__fdopen.lo)
+                                          0x4 (size before relaxing)
+ .rodata.cst16  0x000000000040f721        0x0 <musl>/lib/libc.a(__timedwait.lo)
+                                         0x10 (size before relaxing)
+ *fill*         0x000000000040f721       0x1f 
+ .rodata.__fsmu8
+                0x000000000040f740       0xcc <musl>/lib/libc.a(internal.lo)
+                0x000000000040f740                __fsmu8
+
+.rodata1
+ *(.rodata1)
+
+.eh_frame_hdr
+ *(.eh_frame_hdr)
+ *(.eh_frame_entry .eh_frame_entry.*)
+
+.eh_frame       0x000000000040f810       0xd8
+ *(.eh_frame)
+ .eh_frame      0x000000000040f810       0xd4 <dominit.o>
+                                         0xd8 (size before relaxing)
+ .eh_frame      0x000000000040f8e4        0x4 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o
+ *(.eh_frame.*)
+
+.sframe
+ *(.sframe)
+ *(.sframe.*)
+
+.gcc_except_table
+ *(.gcc_except_table .gcc_except_table.*)
+
+.gnu_extab
+ *(.gnu_extab*)
+
+.exception_ranges
+ *(.exception_ranges*)
+
+.note.build-id
+ *(.note.build-id)
+
+.note.GNU-stack
+                0x000000000040f8e8        0x0
+ *(.note.GNU-stack)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/Scrt1.o
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/crti.o
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <dominit.o>
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(sysconf.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__libc_start_main.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__stack_chk_fail.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__errno_location.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(strerror.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(exit.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(fcntl.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(open.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(defsysinfo.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(libc.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(syscall_ret.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(mount.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(reboot.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(sysinfo.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__lctrans.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(free.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(lite_malloc.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(free.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(malloc.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(getauxval.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(getrlimit.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(ioctl.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(syscall.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(mmap.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(mprotect.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(munmap.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(socket.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(execve.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(fork.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(wait.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(waitpid.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(block.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(mkdir.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(dprintf.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(fclose.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(fflush.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(fopen.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(fscanf.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(ofl.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(printf.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(puts.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(snprintf.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(stdout.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(vdprintf.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(vfprintf.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(vfscanf.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(vsnprintf.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(explicit_bzero.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(memchr.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(strchr.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(strchrnul.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(strcmp.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(strlen.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(strnlen.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(memcpy.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(memset.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__lock.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__syscall_cp.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(lock_ptc.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(pthread_rwlock_rdlock.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(pthread_rwlock_timedrdlock.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(pthread_rwlock_tryrdlock.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(pthread_rwlock_unlock.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(pthread_rwlock_wrlock.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(clock_gettime.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(_exit.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(close.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(dup2.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(pipe2.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(read.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(sync.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__environ.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__init_tls.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(_Exit.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(floatscan.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(intscan.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(shgetc.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(vdso.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(realloc.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__fpclassifyl.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__signbitl.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(copysignl.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(frexpl.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(scalbn.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(scalbnl.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(fabsl.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(fmodl.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(mbrtowc.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(mbsinit.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(wctomb.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(_Fork.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__fdopen.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__fmodeflags.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__lockfile.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__overflow.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__stdio_close.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__stdio_read.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__stdio_seek.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__stdio_write.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__stdout_write.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__toread.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__towrite.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__uflow.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(fputs.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(fwrite.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(ofl_add.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__timedwait.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(default_attr.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(pthread_rwlock_timedwrlock.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(pthread_rwlock_trywrlock.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(pthread_setcancelstate.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__set_thread_area.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(lseek.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(pipe.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(abort_lock.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(realloc.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(mremap.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(internal.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(wcrtomb.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/libc.a(__stdio_exit.lo)
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o
+ .note.GNU-stack
+                0x000000000040f8e8        0x0 <musl>/lib/crtn.o
+
+.note.gnu.property
+                0x000000000040f8e8       0x30
+ *(.note.gnu.property)
+ .note.gnu.property
+                0x000000000040f8e8       0x30 <musl>/lib/Scrt1.o
+
+.note.ABI-tag
+ *(.note.ABI-tag)
+
+.note.package
+ *(.note.package)
+
+.note.dlopen
+ *(.note.dlopen)
+
+.note.netbsd.ident
+ *(.note.netbsd.ident)
+
+.note.openbsd.ident
+ *(.note.openbsd.ident)
+                0x0000000000410eb0                . = DATA_SEGMENT_ALIGN (CONSTANT (MAXPAGESIZE), CONSTANT (COMMONPAGESIZE))
+
+.eh_frame
+ *(.eh_frame)
+ *(.eh_frame.*)
+
+.sframe
+ *(.sframe)
+ *(.sframe.*)
+
+.gnu_extab
+ *(.gnu_extab)
+
+.gcc_except_table
+ *(.gcc_except_table .gcc_except_table.*)
+
+.exception_ranges
+ *(.exception_ranges*)
+
+.tdata          0x0000000000410eb0        0x0
+                [!provide]                        PROVIDE (__tdata_start = .)
+ *(.tdata .tdata.* .gnu.linkonce.td.*)
+
+.tbss
+ *(.tbss .tbss.* .gnu.linkonce.tb.*)
+ *(.tcommon)
+
+.preinit_array  0x0000000000410eb0        0x0
+                [!provide]                        PROVIDE (__preinit_array_start = .)
+ *(.preinit_array)
+                [!provide]                        PROVIDE (__preinit_array_end = .)
+
+.init_array     0x0000000000410eb0        0x8
+                0x0000000000410eb0                PROVIDE (__init_array_start = .)
+ *(SORT_BY_INIT_PRIORITY(.init_array.*) SORT_BY_INIT_PRIORITY(.ctors.*))
+ *(.init_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .ctors)
+ .init_array    0x0000000000410eb0        0x8 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o
+                0x0000000000410eb8                PROVIDE (__init_array_end = .)
+
+.fini_array     0x0000000000410eb8        0x8
+                0x0000000000410eb8                PROVIDE (__fini_array_start = .)
+ *(SORT_BY_INIT_PRIORITY(.fini_array.*) SORT_BY_INIT_PRIORITY(.dtors.*))
+ *(.fini_array EXCLUDE_FILE(*crtend?.o *crtend.o *crtbegin?.o *crtbegin.o) .dtors)
+ .fini_array    0x0000000000410eb8        0x8 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o
+                0x0000000000410ec0                PROVIDE (__fini_array_end = .)
+
+.ctors
+ *crtbegin.o(.ctors)
+ *crtbegin?.o(.ctors)
+ *(EXCLUDE_FILE(*crtend?.o *crtend.o) .ctors)
+ *(SORT_BY_NAME(.ctors.*))
+ *(.ctors)
+
+.dtors
+ *crtbegin.o(.dtors)
+ *crtbegin?.o(.dtors)
+ *(EXCLUDE_FILE(*crtend?.o *crtend.o) .dtors)
+ *(SORT_BY_NAME(.dtors.*))
+ *(.dtors)
+
+.jcr
+ *(.jcr)
+
+.data.rel.ro    0x0000000000410ec0      0x108
+ *(.data.rel.ro.local* .gnu.linkonce.d.rel.ro.local.*)
+ .data.rel.ro.local
+                0x0000000000410ec0       0x88 <dominit.o>
+ .data.rel.ro.local.__bump_lockptr
+                0x0000000000410f48        0x8 <musl>/lib/libc.a(lite_malloc.lo)
+                0x0000000000410f48                __bump_lockptr
+ *fill*         0x0000000000410f50       0x10 
+ .data.rel.ro.local.atfork_locks
+                0x0000000000410f60       0x50 <musl>/lib/libc.a(fork.lo)
+ .data.rel.ro.local.__stdio_ofl_lockptr
+                0x0000000000410fb0        0x8 <musl>/lib/libc.a(ofl.lo)
+                0x0000000000410fb0                __stdio_ofl_lockptr
+ .data.rel.ro.local.stdout
+                0x0000000000410fb8        0x8 <musl>/lib/libc.a(stdout.lo)
+                0x0000000000410fb8                stdout
+ .data.rel.ro.local
+                0x0000000000410fc0        0x8 <musl>/lib/libc.a(__fdopen.lo)
+ *(.data.rel.ro .data.rel.ro.* .gnu.linkonce.d.rel.ro.*)
+
+.dynamic
+ *(.dynamic)
+
+.got            0x0000000000410fc8        0x8
+ *(.got)
+ .got           0x0000000000410fc8        0x8 <musl>/lib/Scrt1.o
+ *(.igot)
+                0x0000000000410fe8                . = DATA_SEGMENT_RELRO_END (., (SIZEOF (.got.plt) >= 0x18)?0x18:0x0)
+
+.got.plt        0x0000000000410fe8       0x18
+ *(.got.plt)
+ .got.plt       0x0000000000410fe8       0x18 <musl>/lib/Scrt1.o
+                0x0000000000410fe8                _GLOBAL_OFFSET_TABLE_
+ *(.igot.plt)
+ .igot.plt      0x0000000000411000        0x0 <musl>/lib/Scrt1.o
+
+.data           0x0000000000411000      0x118
+ *(.data .data.* .gnu.linkonce.d.*)
+ .data          0x0000000000411000        0x0 <musl>/lib/Scrt1.o
+ .data          0x0000000000411000        0x0 <musl>/lib/crti.o
+ .data          0x0000000000411000        0x0 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o
+ .data.rel.local
+                0x0000000000411000        0x8 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o
+                0x0000000000411000                __dso_handle
+ .data          0x0000000000411008        0x0 <dominit.o>
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(sysconf.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(__libc_start_main.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(__stack_chk_fail.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(__errno_location.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(strerror.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(exit.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(fcntl.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(open.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(defsysinfo.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(libc.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(syscall_ret.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(mount.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(reboot.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(sysinfo.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(__lctrans.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(free.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(lite_malloc.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(free.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(malloc.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(getauxval.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(getrlimit.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(ioctl.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(syscall.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(mmap.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(mprotect.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(munmap.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(socket.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(execve.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(fork.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(wait.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(waitpid.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(block.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(mkdir.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(dprintf.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(fclose.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(fflush.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(fopen.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(fscanf.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(ofl.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(printf.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(puts.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(snprintf.lo)
+ .data          0x0000000000411008        0x0 <musl>/lib/libc.a(stdout.lo)
+ .data.rel.local.__stdout_used
+                0x0000000000411008        0x8 <musl>/lib/libc.a(stdout.lo)
+                0x0000000000411008                __stdout_used
+ *fill*         0x0000000000411010       0x10 
+ .data.rel.local.__stdout_FILE
+                0x0000000000411020       0xe8 <musl>/lib/libc.a(stdout.lo)
+                0x0000000000411020                __stdout_FILE
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(vdprintf.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(vfprintf.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(vfscanf.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(vsnprintf.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(explicit_bzero.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(memchr.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(strchr.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(strchrnul.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(strcmp.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(strlen.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(strnlen.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(memcpy.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(memset.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(__lock.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(__syscall_cp.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(lock_ptc.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(pthread_rwlock_rdlock.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(pthread_rwlock_timedrdlock.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(pthread_rwlock_tryrdlock.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(pthread_rwlock_unlock.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(pthread_rwlock_wrlock.lo)
+ .data          0x0000000000411108        0x0 <musl>/lib/libc.a(clock_gettime.lo)
+ .data.rel.local.vdso_func
+                0x0000000000411108        0x8 <musl>/lib/libc.a(clock_gettime.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(_exit.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(close.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(dup2.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(pipe2.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(read.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(sync.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__environ.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__init_tls.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(_Exit.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(floatscan.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(intscan.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(shgetc.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(vdso.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(realloc.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__fpclassifyl.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__signbitl.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(copysignl.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(frexpl.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(scalbn.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(scalbnl.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(fabsl.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(fmodl.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(mbrtowc.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(mbsinit.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(wctomb.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(_Fork.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__fdopen.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__fmodeflags.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__lockfile.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__overflow.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__stdio_close.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__stdio_read.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__stdio_seek.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__stdio_write.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__stdout_write.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__toread.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__towrite.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__uflow.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(fputs.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(fwrite.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(ofl_add.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(__timedwait.lo)
+ .data          0x0000000000411110        0x0 <musl>/lib/libc.a(default_attr.lo)
+ .data.__default_guardsize
+                0x0000000000411110        0x4 <musl>/lib/libc.a(default_attr.lo)
+                0x0000000000411110                __default_guardsize
+ .data.__default_stacksize
+                0x0000000000411114        0x4 <musl>/lib/libc.a(default_attr.lo)
+                0x0000000000411114                __default_stacksize
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(pthread_rwlock_timedwrlock.lo)
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(pthread_rwlock_trywrlock.lo)
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(pthread_setcancelstate.lo)
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(__set_thread_area.lo)
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(lseek.lo)
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(pipe.lo)
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(abort_lock.lo)
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(realloc.lo)
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(mremap.lo)
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(internal.lo)
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(wcrtomb.lo)
+ .data          0x0000000000411118        0x0 <musl>/lib/libc.a(__stdio_exit.lo)
+ .data          0x0000000000411118        0x0 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o
+ .data          0x0000000000411118        0x0 <musl>/lib/crtn.o
+
+.tm_clone_table
+                0x0000000000411118        0x0
+ .tm_clone_table
+                0x0000000000411118        0x0 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o
+ .tm_clone_table
+                0x0000000000411118        0x0 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o
+
+.data1
+ *(.data1)
+                0x0000000000411118                _edata = .
+                [!provide]                        PROVIDE (edata = .)
+                0x0000000000411118                . = ALIGN (ALIGNOF (NEXT_SECTION))
+                0x0000000000411120                __bss_start = .
+
+.bss            0x0000000000411120    0x10ac8
+ *(.dynbss)
+ *(.bss .bss.* .gnu.linkonce.b.*)
+ .bss           0x0000000000411120        0x0 <musl>/lib/Scrt1.o
+ .bss           0x0000000000411120        0x0 <musl>/lib/crti.o
+ .bss           0x0000000000411120        0x1 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o
+ *fill*         0x0000000000411121       0x1f 
+ .bss           0x0000000000411140    0x10002 <dominit.o>
+ .bss           0x0000000000421142        0x0 <musl>/lib/libc.a(sysconf.lo)
+ .bss           0x0000000000421142        0x0 <musl>/lib/libc.a(__libc_start_main.lo)
+ .bss           0x0000000000421142        0x0 <musl>/lib/libc.a(__stack_chk_fail.lo)
+ *fill*         0x0000000000421142        0x6 
+ .bss.__stack_chk_guard
+                0x0000000000421148        0x8 <musl>/lib/libc.a(__stack_chk_fail.lo)
+                0x0000000000421148                __stack_chk_guard
+ .bss           0x0000000000421150        0x0 <musl>/lib/libc.a(__errno_location.lo)
+ .bss           0x0000000000421150        0x0 <musl>/lib/libc.a(strerror.lo)
+ .bss           0x0000000000421150        0x0 <musl>/lib/libc.a(exit.lo)
+ .bss.exit_lock.0
+                0x0000000000421150        0x4 <musl>/lib/libc.a(exit.lo)
+ .bss           0x0000000000421154        0x0 <musl>/lib/libc.a(fcntl.lo)
+ .bss           0x0000000000421154        0x0 <musl>/lib/libc.a(open.lo)
+ .bss           0x0000000000421154        0x0 <musl>/lib/libc.a(defsysinfo.lo)
+ *fill*         0x0000000000421154        0x4 
+ .bss.__sysinfo
+                0x0000000000421158        0x8 <musl>/lib/libc.a(defsysinfo.lo)
+                0x0000000000421158                __sysinfo
+ .bss           0x0000000000421160        0x0 <musl>/lib/libc.a(libc.lo)
+ .bss.__progname_full
+                0x0000000000421160        0x8 <musl>/lib/libc.a(libc.lo)
+                0x0000000000421160                program_invocation_name
+                0x0000000000421160                __progname_full
+ .bss.__progname
+                0x0000000000421168        0x8 <musl>/lib/libc.a(libc.lo)
+                0x0000000000421168                __progname
+                0x0000000000421168                program_invocation_short_name
+ .bss.__hwcap   0x0000000000421170        0x8 <musl>/lib/libc.a(libc.lo)
+                0x0000000000421170                __hwcap
+ *fill*         0x0000000000421178        0x8 
+ .bss.__libc    0x0000000000421180       0x68 <musl>/lib/libc.a(libc.lo)
+                0x0000000000421180                __libc
+ .bss           0x00000000004211e8        0x0 <musl>/lib/libc.a(syscall_ret.lo)
+ .bss           0x00000000004211e8        0x0 <musl>/lib/libc.a(mount.lo)
+ .bss           0x00000000004211e8        0x0 <musl>/lib/libc.a(reboot.lo)
+ .bss           0x00000000004211e8        0x0 <musl>/lib/libc.a(sysinfo.lo)
+ .bss           0x00000000004211e8        0x0 <musl>/lib/libc.a(__lctrans.lo)
+ .bss           0x00000000004211e8        0x0 <musl>/lib/libc.a(free.lo)
+ .bss           0x00000000004211e8        0x0 <musl>/lib/libc.a(lite_malloc.lo)
+ .bss.mmap_step.3
+                0x00000000004211e8        0x4 <musl>/lib/libc.a(lite_malloc.lo)
+ *fill*         0x00000000004211ec        0x4 
+ .bss.brk.2     0x00000000004211f0        0x8 <musl>/lib/libc.a(lite_malloc.lo)
+ .bss.end.1     0x00000000004211f8        0x8 <musl>/lib/libc.a(lite_malloc.lo)
+ .bss.cur.0     0x0000000000421200        0x8 <musl>/lib/libc.a(lite_malloc.lo)
+ .bss.lock      0x0000000000421208        0x4 <musl>/lib/libc.a(lite_malloc.lo)
+ .bss           0x000000000042120c        0x0 <musl>/lib/libc.a(free.lo)
+ .bss           0x000000000042120c        0x0 <musl>/lib/libc.a(malloc.lo)
+ *fill*         0x000000000042120c       0x14 
+ .bss.__malloc_context
+                0x0000000000421220      0x3a0 <musl>/lib/libc.a(malloc.lo)
+                0x0000000000421220                __malloc_context
+ .bss.__malloc_lock
+                0x00000000004215c0        0x4 <musl>/lib/libc.a(malloc.lo)
+                0x00000000004215c0                __malloc_lock
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(getauxval.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(getrlimit.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(ioctl.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(syscall.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(mmap.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(mprotect.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(munmap.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(socket.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(execve.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(fork.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(wait.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(waitpid.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(block.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(mkdir.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(dprintf.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(fclose.lo)
+ .bss           0x00000000004215c4        0x0 <musl>/lib/libc.a(fflush.lo)
+ *fill*         0x00000000004215c4        0x4 
+ .bss.dummy     0x00000000004215c8        0x8 <musl>/lib/libc.a(fflush.lo)
+                0x00000000004215c8                __stderr_used
+ .bss           0x00000000004215d0        0x0 <musl>/lib/libc.a(fopen.lo)
+ .bss           0x00000000004215d0        0x0 <musl>/lib/libc.a(fscanf.lo)
+ .bss           0x00000000004215d0        0x0 <musl>/lib/libc.a(ofl.lo)
+ .bss.ofl_lock  0x00000000004215d0        0x4 <musl>/lib/libc.a(ofl.lo)
+ *fill*         0x00000000004215d4        0x4 
+ .bss.ofl_head  0x00000000004215d8        0x8 <musl>/lib/libc.a(ofl.lo)
+ .bss           0x00000000004215e0        0x0 <musl>/lib/libc.a(printf.lo)
+ .bss           0x00000000004215e0        0x0 <musl>/lib/libc.a(puts.lo)
+ .bss           0x00000000004215e0        0x0 <musl>/lib/libc.a(snprintf.lo)
+ .bss           0x00000000004215e0        0x0 <musl>/lib/libc.a(stdout.lo)
+ .bss.buf       0x00000000004215e0      0x408 <musl>/lib/libc.a(stdout.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(vdprintf.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(vfprintf.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(vfscanf.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(vsnprintf.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(explicit_bzero.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(memchr.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(strchr.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(strchrnul.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(strcmp.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(strlen.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(strnlen.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(memcpy.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(memset.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(__lock.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(__syscall_cp.lo)
+ .bss           0x00000000004219e8        0x0 <musl>/lib/libc.a(lock_ptc.lo)
+ *fill*         0x00000000004219e8       0x18 
+ .bss.lock      0x0000000000421a00       0x38 <musl>/lib/libc.a(lock_ptc.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(pthread_rwlock_rdlock.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(pthread_rwlock_timedrdlock.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(pthread_rwlock_tryrdlock.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(pthread_rwlock_unlock.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(pthread_rwlock_wrlock.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(clock_gettime.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(_exit.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(close.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(dup2.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(pipe2.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(read.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(sync.lo)
+ .bss           0x0000000000421a38        0x0 <musl>/lib/libc.a(__environ.lo)
+ .bss.__environ
+                0x0000000000421a38        0x8 <musl>/lib/libc.a(__environ.lo)
+                0x0000000000421a38                _environ
+                0x0000000000421a38                __environ
+                0x0000000000421a38                environ
+                0x0000000000421a38                ___environ
+ .bss           0x0000000000421a40        0x0 <musl>/lib/libc.a(__init_tls.lo)
+ .bss.main_tls  0x0000000000421a40       0x30 <musl>/lib/libc.a(__init_tls.lo)
+ *fill*         0x0000000000421a70       0x10 
+ .bss.builtin_tls
+                0x0000000000421a80      0x150 <musl>/lib/libc.a(__init_tls.lo)
+ .bss.__thread_list_lock
+                0x0000000000421bd0        0x4 <musl>/lib/libc.a(__init_tls.lo)
+                0x0000000000421bd0                __thread_list_lock
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(_Exit.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(floatscan.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(intscan.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(shgetc.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(vdso.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(realloc.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(__fpclassifyl.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(__signbitl.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(copysignl.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(frexpl.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(scalbn.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(scalbnl.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(fabsl.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(fmodl.lo)
+ .bss           0x0000000000421bd4        0x0 <musl>/lib/libc.a(mbrtowc.lo)
+ .bss.internal_state.0
+                0x0000000000421bd4        0x4 <musl>/lib/libc.a(mbrtowc.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(mbsinit.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(wctomb.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(_Fork.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__fdopen.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__fmodeflags.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__lockfile.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__overflow.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__stdio_close.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__stdio_read.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__stdio_seek.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__stdio_write.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__stdout_write.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__toread.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__towrite.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__uflow.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(fputs.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(fwrite.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(ofl_add.lo)
+ .bss           0x0000000000421bd8        0x0 <musl>/lib/libc.a(__timedwait.lo)
+ .bss.dummy     0x0000000000421bd8        0x4 <musl>/lib/libc.a(__timedwait.lo)
+                0x0000000000421bd8                __eintr_valid_flag
+ .bss           0x0000000000421bdc        0x0 <musl>/lib/libc.a(default_attr.lo)
+ .bss           0x0000000000421bdc        0x0 <musl>/lib/libc.a(pthread_rwlock_timedwrlock.lo)
+ .bss           0x0000000000421bdc        0x0 <musl>/lib/libc.a(pthread_rwlock_trywrlock.lo)
+ .bss           0x0000000000421bdc        0x0 <musl>/lib/libc.a(pthread_setcancelstate.lo)
+ .bss           0x0000000000421bdc        0x0 <musl>/lib/libc.a(__set_thread_area.lo)
+ .bss           0x0000000000421bdc        0x0 <musl>/lib/libc.a(lseek.lo)
+ .bss           0x0000000000421bdc        0x0 <musl>/lib/libc.a(pipe.lo)
+ .bss           0x0000000000421bdc        0x0 <musl>/lib/libc.a(abort_lock.lo)
+ .bss.__abort_lock
+                0x0000000000421bdc        0x4 <musl>/lib/libc.a(abort_lock.lo)
+                0x0000000000421bdc                __abort_lock
+ .bss           0x0000000000421be0        0x0 <musl>/lib/libc.a(realloc.lo)
+ .bss           0x0000000000421be0        0x0 <musl>/lib/libc.a(mremap.lo)
+ .bss           0x0000000000421be0        0x0 <musl>/lib/libc.a(internal.lo)
+ .bss           0x0000000000421be0        0x0 <musl>/lib/libc.a(wcrtomb.lo)
+ .bss           0x0000000000421be0        0x0 <musl>/lib/libc.a(__stdio_exit.lo)
+ .bss.dummy_file
+                0x0000000000421be0        0x8 <musl>/lib/libc.a(__stdio_exit.lo)
+                0x0000000000421be0                __stdin_used
+ .bss           0x0000000000421be8        0x0 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o
+ .bss           0x0000000000421be8        0x0 <musl>/lib/crtn.o
+ *(COMMON)
+                0x0000000000421be8                . = ALIGN ((. != 0x0)?0x8:0x1)
+
+.lbss
+ *(.dynlbss)
+ *(.lbss .lbss.* .gnu.linkonce.lb.*)
+ *(LARGE_COMMON)
+                0x0000000000421be8                . = ALIGN (0x8)
+                0x0000000000421be8                . = SEGMENT_START ("ldata-segment", .)
+
+.lrodata
+ *(.lrodata .lrodata.* .gnu.linkonce.lr.*)
+
+.ldata          0x0000000000423be8        0x0
+ *(.ldata .ldata.* .gnu.linkonce.l.*)
+                0x0000000000423be8                . = ALIGN ((. != 0x0)?0x8:0x1)
+                0x0000000000423be8                . = ALIGN (0x8)
+                0x0000000000421be8                _end = .
+                [!provide]                        PROVIDE (end = .)
+                0x0000000000423be8                . = DATA_SEGMENT_END (.)
+
+.stab
+ *(.stab)
+
+.stabstr
+ *(.stabstr)
+
+.stab.excl
+ *(.stab.excl)
+
+.stab.exclstr
+ *(.stab.exclstr)
+
+.stab.index
+ *(.stab.index)
+
+.stab.indexstr
+ *(.stab.indexstr)
+
+.comment        0x0000000000000000       0x1b
+ *(.comment)
+ .comment       0x0000000000000000       0x1b <musl>/lib/Scrt1.o
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtbeginS.o
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <dominit.o>
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(sysconf.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__libc_start_main.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__stack_chk_fail.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__errno_location.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(strerror.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(exit.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(fcntl.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(open.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(defsysinfo.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(libc.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(syscall_ret.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(mount.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(reboot.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(sysinfo.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__lctrans.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(free.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(lite_malloc.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(free.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(malloc.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(getauxval.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(getrlimit.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(ioctl.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(syscall.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(mmap.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(mprotect.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(munmap.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(socket.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(execve.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(fork.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(wait.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(waitpid.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(block.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(mkdir.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(dprintf.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(fclose.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(fflush.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(fopen.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(fscanf.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(ofl.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(printf.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(puts.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(snprintf.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(stdout.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(vdprintf.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(vfprintf.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(vfscanf.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(vsnprintf.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(explicit_bzero.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(memchr.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(strchr.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(strchrnul.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(strcmp.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(strlen.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(strnlen.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__lock.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__syscall_cp.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(lock_ptc.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(pthread_rwlock_rdlock.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(pthread_rwlock_timedrdlock.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(pthread_rwlock_tryrdlock.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(pthread_rwlock_unlock.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(pthread_rwlock_wrlock.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(clock_gettime.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(_exit.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(close.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(dup2.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(pipe2.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(read.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(sync.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__environ.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__init_tls.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(_Exit.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(floatscan.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(intscan.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(shgetc.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(vdso.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(realloc.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__fpclassifyl.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__signbitl.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(copysignl.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(frexpl.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(scalbn.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(scalbnl.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(fabsl.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(fmodl.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(mbrtowc.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(mbsinit.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(wctomb.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(_Fork.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__fdopen.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__fmodeflags.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__lockfile.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__overflow.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__stdio_close.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__stdio_read.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__stdio_seek.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__stdio_write.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__stdout_write.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__toread.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__towrite.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__uflow.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(fputs.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(fwrite.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(ofl_add.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__timedwait.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(default_attr.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(pthread_rwlock_timedwrlock.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(pthread_rwlock_trywrlock.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(pthread_setcancelstate.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(lseek.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(pipe.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(abort_lock.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(realloc.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(mremap.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(internal.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(wcrtomb.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 <musl>/lib/libc.a(__stdio_exit.lo)
+                                         0x1c (size before relaxing)
+ .comment       0x000000000000001b        0x0 /usr/lib/gcc/x86_64-pc-linux-gnu/16/crtendS.o
+                                         0x1c (size before relaxing)
+
+.gnu.build.attributes
+ *(.gnu.build.attributes .gnu.build.attributes.*)
+
+.debug
+ *(.debug)
+
+.line
+ *(.line)
+
+.debug_srcinfo
+ *(.debug_srcinfo)
+
+.debug_sfnames
+ *(.debug_sfnames)
+
+.debug_aranges
+ *(.debug_aranges)
+
+.debug_pubnames
+ *(.debug_pubnames)
+
+.debug_info
+ *(.debug_info .gnu.linkonce.wi.*)
+
+.debug_abbrev
+ *(.debug_abbrev)
+
+.debug_line
+ *(.debug_line .debug_line.* .debug_line_end)
+
+.debug_frame
+ *(.debug_frame)
+
+.debug_str
+ *(.debug_str)
+
+.debug_loc
+ *(.debug_loc)
+
+.debug_macinfo
+ *(.debug_macinfo)
+
+.debug_weaknames
+ *(.debug_weaknames)
+
+.debug_funcnames
+ *(.debug_funcnames)
+
+.debug_typenames
+ *(.debug_typenames)
+
+.debug_varnames
+ *(.debug_varnames)
+
+.debug_pubtypes
+ *(.debug_pubtypes)
+
+.debug_ranges
+ *(.debug_ranges)
+
+.debug_addr
+ *(.debug_addr)
+
+.debug_line_str
+ *(.debug_line_str)
+
+.debug_loclists
+ *(.debug_loclists)
+
+.debug_macro
+ *(.debug_macro)
+
+.debug_names
+ *(.debug_names)
+
+.debug_rnglists
+ *(.debug_rnglists)
+
+.debug_str_offsets
+ *(.debug_str_offsets)
+
+.debug_sup
+ *(.debug_sup)
+
+.gnu.attributes
+ *(.gnu.attributes)
+
+/DISCARD/
+ *(.note.GNU-stack)
+ *(.gnu_debuglink)
+ *(.gnu.lto_*)
+ *(.gnu_object_only)
+OUTPUT(<template>/init elf64-x86-64)
