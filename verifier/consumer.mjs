@@ -24,6 +24,9 @@ export { httpCollateral, fileCollateral, memoryCollateral, layeredCollateral, ca
 import { verifyReleaseAttestation, DEFAULT_RELEASE_POLICY } from "./provenance.mjs";
 import { snpProductHint, kdsVcekUrl } from "../relay/snp-verify.mjs";
 import { verifyReleaseIndex, candidatesFromIndex, INDEX_ASSET } from "./release-index.mjs";
+import { createIndexMemory } from "./index-memory.mjs";
+export { createIndexMemory };
+const cmpVersion = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 import PINNED_TRUSTED_ROOT from "./roots/sigstore-trusted-root.json" with { type: "json" };
 
 export const RAD_PATH = "/.well-known/tinfoil-attestation";
@@ -73,13 +76,20 @@ export async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO,
 // Live: the latest release from GitHub's public API (or explicit tags), each flavor's tinfoil.hash and its attestation
 // bundle from the attestation API; then releaseExpectationsFrom. Direct, not through a Tinfoil proxy.
 // The SIGNED index first (verifier/release-index.mjs): the latest release's release-index.json and its attestation by
-// the file's digest; verified, it names the tags to verify and raises the floor. Absent or refused, the unsigned pointer
-// (/releases/latest) is the recorded fallback (`index.status`), unless requireIndex, which fails closed.
+// the file's digest; verified (authenticity) and, with an indexMemory, not older than the last one seen (freshness:
+// first-seen | newest-seen | same; replay, equivocation and floor-regression refuse), it names the tags to verify and
+// raises the floor. Absent or refused, the unsigned pointer (/releases/latest) is the recorded fallback (`index.status`)
+// under the REMEMBERED floor, unless requireIndex, which fails closed. `index.freshness: not-remembered` says a consumer
+// without a memory cannot tell a replayed genuine index from the newest: authenticity alone.
 export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fetchImpl = globalThis.fetch, timeoutMs = 20000, maxBytes = 4 * 1024 * 1024,
-                                            apiBase = GITHUB_API, downloadBase = GITHUB_DOWNLOADS, trustedRoot = TRUSTED_ROOT, policy = {}, useIndex = true, requireIndex = false } = {}) {
+                                            apiBase = GITHUB_API, downloadBase = GITHUB_DOWNLOADS, trustedRoot = TRUSTED_ROOT, policy = {}, useIndex = true, requireIndex = false, indexMemory = null } = {}) {
   const get = (url, accept) => fetchBounded(url, { fetchImpl, timeoutMs, maxBytes, accept });
   let latestTag = null, list = tags, index = { status: "not-consulted" };
   let pol = { ...policy };
+  // the remembered floor applies to EVERY path, the fallback included: a fallback never accepts below what a verified index established
+  const remembered = indexMemory?.floor?.() ?? null;
+  const builtin = pol.minimumRelease ?? DEFAULT_RELEASE_POLICY.minimumRelease;
+  if (remembered && cmpVersion(remembered, builtin) > 0) pol = { ...pol, minimumRelease: remembered };
   if (!list && useIndex) {
     try {
       const bytes = await get(`${downloadBase}/${repo}/releases/latest/download/${INDEX_ASSET}`, "application/json");
@@ -88,15 +98,21 @@ export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fe
       const bundle = att?.attestations?.[0]?.bundle ?? null;
       if (!bundle) index = { status: "unavailable", reasons: ["the attestation API returned no bundle for the index"] };
       else {
+        // verified against the caller's (built-in) policy; the REMEMBERED floor is the memory's to judge (floor-regression), not a signature check
         const v = await verifyReleaseIndex({ indexBytes: bytes, bundle, trustedRoot, policy: { ...policy, repository: repo } });
         if (v.ok) {
-          index = { status: "verified", sequence: v.sequence, generatedAt: v.generatedAt, minimumRelease: `v${v.minimumRelease.join(".")}`, latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, signedTag: v.claims?.tag ?? null };
-          list = candidatesFromIndex(v).map((c) => c.tag); latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
-          pol = { ...pol, minimumRelease: v.minimumRelease, revoked: v.revoked };
-        } else index = { status: "refused", reasons: v.reasons.slice(-2) };
+          const m = indexMemory ? indexMemory.consider({ publication: v.publication, digest: v.digest, minimumRelease: v.minimumRelease, tag: v.claims?.tag ?? null }) : null;
+          const base = { authenticity: "signed", publication: v.publication, sequenceAuthenticated: v.sequenceAuthenticated, schema: v.schema, generatedAt: v.generatedAt, minimumRelease: `v${v.minimumRelease.join(".")}`, signedTag: v.claims?.tag ?? null };
+          if (m && !m.ok) index = { status: "refused", ...base, freshness: m.kind, reasons: [m.why] };
+          else {
+            index = { status: "verified", ...base, freshness: m ? m.kind : "not-remembered", latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, ...(m && m.persisted === false ? { memoryNotPersisted: true } : {}) };
+            list = candidatesFromIndex(v).map((c) => c.tag); latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
+            pol = { ...pol, minimumRelease: v.minimumRelease, revoked: v.revoked };
+          }
+        } else index = { status: "refused", authenticity: v.signed ? "signed" : "unverified", ...(v.publication ? { publication: v.publication } : {}), reasons: v.reasons.slice(-2) };
       }
     } catch (e) { index = { status: "unavailable", reasons: [e.message] }; }
-    if (index.status !== "verified" && requireIndex) return { ...(await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol })), latestTag: null, index, indexError: `the signed release index is required and was ${index.status}: ${(index.reasons || []).join("; ")}` };
+    if (index.status !== "verified" && requireIndex) return { ...(await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol })), latestTag: null, index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` }, indexError: `the signed release index is required and was ${index.status}${index.freshness ? ` (${index.freshness})` : ""}: ${(index.reasons || []).join("; ")}` };
   }
   if (!list) {
     try {
@@ -115,7 +131,7 @@ export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fe
       candidates.push({ tag, digest, bundle, note: bundle ? null : "the attestation API returned no inline bundle" });
     } catch (e) { candidates.push({ tag, error: e.message }); }
   }
-  return { ...(await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag })), index };
+  return { ...(await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag })), index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` } };
 }
 
 // ---- 2. the capture: the document and the certificate of ONE TLS connection --------------------------------------------
@@ -260,10 +276,10 @@ export function dualAgreement({ reference, own }) {
 // expectations: a releaseExpectations() result (the caller may cache it); null fetches it live. reference: true runs the
 // Tinfoil reference beside ours; false records it as skipped. The result carries every reason and nothing secret.
 export async function verifyHost({ host, port = 443, path = RAD_PATH, timeoutMs = 20000, tls = {}, collateral = null, expectations = null, repo = DEFAULT_REPO,
-                                   reference = true, referenceLoad = undefined, minTcb = undefined, policy = {}, now = undefined, fetchImpl = globalThis.fetch } = {}) {
+                                   reference = true, referenceLoad = undefined, minTcb = undefined, policy = {}, now = undefined, fetchImpl = globalThis.fetch, indexMemory = null, requireIndex = false } = {}) {
   const at = (now ? new Date(now) : new Date()).toISOString();
-  const exp = expectations ?? await releaseExpectations({ repo, fetchImpl, timeoutMs });
-  const out = { verifier: "enclave", host, at, expectations: { repo: exp.repo, latestTag: exp.latestTag ?? null, ok: exp.ok, allowed: exp.allowed.map((a) => ({ tag: a.tag, measurement: a.measurement })), candidates: exp.candidates, ...(exp.indexError ? { indexError: exp.indexError } : {}) },
+  const exp = expectations ?? await releaseExpectations({ repo, fetchImpl, timeoutMs, indexMemory, requireIndex });
+  const out = { verifier: "enclave", host, at, expectations: { repo: exp.repo, latestTag: exp.latestTag ?? null, ok: exp.ok, allowed: exp.allowed.map((a) => ({ tag: a.tag, measurement: a.measurement })), candidates: exp.candidates, index: exp.index ?? null, ...(exp.indexError ? { indexError: exp.indexError } : {}) },
                 capture: null, enclave: null, reference: null, comparison: null };
   let cap;
   try { cap = await captureHosted({ host, port, path, timeoutMs, tls, now: () => new Date(at) }); }
@@ -282,14 +298,14 @@ export async function verifyHost({ host, port = 443, path = RAD_PATH, timeoutMs 
 // index may be GitHub directly or the github-proxy the enclave can reach: either only serves bytes that must verify against
 // the pinned Sigstore root. Everything failing degrades to a status, never a throw: a self-check is a diagnostic.
 export async function selfCheckHosted({ publicHost, loopback = { host: "127.0.0.1", port: 443 }, repo = DEFAULT_REPO, releaseIndex = null, expectations = null,
-                                        collateral = null, minTcb = undefined, timeoutMs = 15000, fetchImpl = globalThis.fetch, now = undefined } = {}) {
+                                        collateral = null, minTcb = undefined, timeoutMs = 15000, fetchImpl = globalThis.fetch, now = undefined, indexMemory = null, requireIndex = false } = {}) {
   const at = (now ? new Date(now) : new Date()).toISOString();
   const brief = (v, extra = {}) => ({ verifier: "enclave", status: v.status, at, release: v.matched ?? null, expected: v.expected ?? [], measurement: v.measurement ?? null,
                                       failedChecks: v.failedChecks ?? [], omissions: v.omissions ?? [], checks: v.checks ?? {}, reasons: (v.reasons ?? []).slice(-4), ...extra });
   if (!publicHost) return brief({ status: "unavailable", reasons: ["public origin not known yet"] });
   let exp = expectations;
   if (!exp) {
-    try { exp = await releaseExpectations({ repo, fetchImpl, timeoutMs, ...(releaseIndex ? { apiBase: releaseIndex.apiBase, downloadBase: releaseIndex.downloadBase ?? releaseIndex.apiBase } : {}) }); }
+    try { exp = await releaseExpectations({ repo, fetchImpl, timeoutMs, indexMemory, requireIndex, ...(releaseIndex ? { apiBase: releaseIndex.apiBase, downloadBase: releaseIndex.downloadBase ?? releaseIndex.apiBase } : {}) }); }
     catch (e) { return brief({ status: "unavailable", reasons: [`release provenance: ${e.message}`] }); }
   }
   let cap;
@@ -300,6 +316,6 @@ export async function selfCheckHosted({ publicHost, loopback = { host: "127.0.0.
   let v;
   try { v = await verifyHostedCapture(cap, { allowed: exp.allowed, minTcb, collateral, timeoutMs, now: at }); }
   catch (e) { return brief({ status: "unavailable", reasons: [`verifier: ${e.message}`] }, { expected: exp.allowed.map((a) => a.tag) }); }
-  return brief(v, { latestTag: exp.latestTag ?? null, ...(exp.indexError ? { indexError: exp.indexError } : {}), certificate: { subject: cap.certificate.subject, sha256: cap.certificate.sha256, notAfter: cap.certificate.notAfter } });
+  return brief(v, { latestTag: exp.latestTag ?? null, index: exp.index ?? null, ...(exp.indexError ? { indexError: exp.indexError } : {}), certificate: { subject: cap.certificate.subject, sha256: cap.certificate.sha256, notAfter: cap.certificate.notAfter } });
 }
 export const sha256Hex = sha256hex;

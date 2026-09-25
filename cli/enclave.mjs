@@ -337,7 +337,7 @@ const opt = { json: false, trace: false, base: null, rpc: null, yes: false,
               //   tinfoil (default): @tinfoilsh/verifier, exactly as before.
               //   both:              both run; both verdicts print; the EXIT CODE follows Tinfoil's until the cutover.
               //   enclave:           the Enclave-owned verifier alone decides (opt-in).
-              verifier: "tinfoil", minTcb: null, releaseBundle: null, releaseDigest: null, collateralDir: null };
+              verifier: "tinfoil", minTcb: null, releaseBundle: null, releaseDigest: null, collateralDir: null, requireIndex: false };
 const args = [];
 {
   const a = argv.slice(2);
@@ -363,6 +363,7 @@ const args = [];
     else if (a[i] === "--release-bundle") opt.releaseBundle = a[++i];   // offline release provenance: attestation bundle file(s), comma-separated,
     else if (a[i] === "--release-digest") opt.releaseDigest = a[++i];   //   paired with the release digest(s); default: GitHub's public release index
     else if (a[i] === "--collateral-dir") opt.collateralDir = a[++i];   // AMD collateral from a directory (amd/<product>-cert_chain.pem, amd/<product>-crl.der, vcek/<product>-<chip>-<tcb>.der) instead of KDS
+    else if (a[i] === "--require-index") opt.requireIndex = true;       // the strict switch: no verified, fresh signed release index = no expected measurement
     else args.push(a[i]);
   }
 }
@@ -962,18 +963,22 @@ async function verifyEnclaveOriginOwn(origin, repo) {
   if (opt.minTcb) { try { minTcb = JSON.parse(opt.minTcb); } catch { throw new Error("--min-tcb must be JSON like {\"Genoa\":{\"bootloader\":10,\"tee\":0,\"snp\":23,\"microcode\":84}}"); } }
   let collateral = null;
   if (opt.collateralDir) { const { fileCollateral } = await import(new URL("../verifier/collateral.mjs", import.meta.url).href); collateral = fileCollateral(path.resolve(opt.collateralDir)); }
-  trace(`verify ${origin} with the Enclave verifier (capture over this connection, release provenance from ${expectations ? "local bundles" : "GitHub"}, AMD collateral from ${collateral ? opt.collateralDir : "KDS"})`);
-  const r = await C.verifyHost({ host, port, repo, expectations, reference: false, minTcb, collateral });
+  // the highest signed release index seen so far is remembered beside the key: a replayed or equivocating index is refused
+  // and the unsigned fallback never accepts below the remembered floor (index.freshness says which case this run was)
+  const indexMemory = C.createIndexMemory({ file: path.join(CONF_DIR, "verifier-index-memory.json"), log: (m) => trace(m) });
+  trace(`verify ${origin} with the Enclave verifier (capture over this connection, release provenance from ${expectations ? "local bundles" : "GitHub, signed index first"}, AMD collateral from ${collateral ? opt.collateralDir : "KDS"})`);
+  const r = await C.verifyHost({ host, port, repo, expectations, reference: false, minTcb, collateral, indexMemory, requireIndex: opt.requireIndex });
   const v = r.enclave;
   return { verifier: "enclave", status: v.status, pass: v.status === "verified", admissionSafe: v.admissionSafe === true,
            release: v.matched ? { tag: v.matched, digest: r.expectations.allowed.find((a) => a.tag === v.matched)?.digest ?? null } : null,
-           expected: r.expectations.allowed.map((a) => a.tag), latestTag: r.expectations.latestTag ?? null, indexError: r.expectations.indexError ?? null,
+           expected: r.expectations.allowed.map((a) => a.tag), latestTag: r.expectations.latestTag ?? null, index: r.expectations.index ?? null, indexError: r.expectations.indexError ?? null,
            measurement: v.measurement ?? null, failedChecks: v.failedChecks ?? [], omissions: v.omissions ?? [], checks: v.checks ?? {},
            certificate: r.capture?.certificate ? { subject: r.capture.certificate.subject, sha256: r.capture.certificate.sha256, notAfter: r.capture.certificate.notAfter } : null,
            reasons: v.reasons ?? [] };
 }
 function printOwnVerdict(r) {
   kv([["verifier", "enclave (verifier/consumer.mjs)"], ["  status", r.status],
+      ["  index", r.index ? `${r.index.status}${r.index.freshness ? ` (${r.index.freshness})` : ""}${r.index.publication ? `, run ${r.index.publication.runId} attempt ${r.index.publication.attempt}` : ""}${r.index.floorApplied ? `, floor ${r.index.floorApplied}` : ""}` : null],
       ["  release", r.release ? `${r.release.tag}${r.release.digest ? ` sha256:${r.release.digest}` : ""}` : `none matched (expected ${r.expected.join(", ") || "nothing: no verified provenance"})`],
       ["  measurement", r.measurement], ["  failed", r.failedChecks.join(", ") || "-"], ["  omitted", r.omissions.join(", ") || "-"]]);
   const last = r.reasons.at(-1);

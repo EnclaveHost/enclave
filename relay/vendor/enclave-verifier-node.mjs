@@ -4681,12 +4681,12 @@ var init_chain = __esm({
       async sort() {
         const leafCert = this.untrustedCert;
         let paths = await this.buildPaths(leafCert);
-        paths = paths.filter((path5) => path5.some((cert) => this.trustedCerts.includes(cert)));
+        paths = paths.filter((path6) => path6.some((cert) => this.trustedCerts.includes(cert)));
         if (paths.length === 0) {
           throw new Error("no trusted certificate path found");
         }
-        const path4 = paths.reduce((prev, curr) => prev.length < curr.length ? prev : curr);
-        return [leafCert, ...path4].slice(0, -1);
+        const path5 = paths.reduce((prev, curr) => prev.length < curr.length ? prev : curr);
+        return [leafCert, ...path5].slice(0, -1);
       }
       async buildPaths(certificate) {
         const paths = [];
@@ -4742,21 +4742,21 @@ var init_chain = __esm({
         }
         return verifiedIssuers;
       }
-      checkPath(path4) {
-        if (path4.length < 1) {
+      checkPath(path5) {
+        if (path5.length < 1) {
           throw new Error("certificate chain must contain at least one certificate");
         }
-        const validCAs = path4.slice(1).every((cert) => cert.isCA);
+        const validCAs = path5.slice(1).every((cert) => cert.isCA);
         if (!validCAs) {
           throw new Error("intermediate certificate is not a CA");
         }
-        for (let i = path4.length - 2; i >= 0; i--) {
-          if (!uint8ArrayEqual(path4[i].issuer, path4[i + 1].subject)) {
+        for (let i = path5.length - 2; i >= 0; i--) {
+          if (!uint8ArrayEqual(path5[i].issuer, path5[i + 1].subject)) {
             throw new Error("incorrect certificate name chaining");
           }
         }
-        for (let i = 0; i < path4.length; i++) {
-          const cert = path4[i];
+        for (let i = 0; i < path5.length; i++) {
+          const cert = path5[i];
           if (cert.extBasicConstraints?.isCA) {
             const pathLength = cert.extBasicConstraints.pathLenConstraint;
             if (pathLength !== void 0 && pathLength < BigInt(i - 1)) {
@@ -8598,7 +8598,9 @@ import fs3 from "node:fs";
 import path3 from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash as createHash4 } from "node:crypto";
-var INDEX_SCHEMA = "enclave-release-index/v1";
+var INDEX_SCHEMA = "enclave-release-index/v2";
+var INDEX_SCHEMA_V1 = "enclave-release-index/v1";
+var INDEX_SCHEMAS = Object.freeze([INDEX_SCHEMA, INDEX_SCHEMA_V1]);
 var INDEX_PREDICATE = "https://enclave.host/predicate/release-index/v1";
 var INDEX_ASSET = "release-index.json";
 var POLICY_SCHEMA = "enclave-release-policy/v1";
@@ -8623,8 +8625,10 @@ function normalizePolicy(p) {
   if (!revoked || revoked.some((t) => !parseTag(t))) throw new Error("release policy revoked must be a list of release tags");
   return { minimumRelease: min.version, revoked };
 }
-function buildReleaseIndex({ releases, policy, repository, generatedAt = (/* @__PURE__ */ new Date()).toISOString(), sequence = null } = {}) {
+function buildReleaseIndex({ releases, policy, repository, generatedAt = (/* @__PURE__ */ new Date()).toISOString(), publication = null } = {}) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(repository || ""))) throw new Error("repository must be OWNER/NAME");
+  const pub = normalizePublication(publication);
+  if (!pub) throw new Error("publication { runId, attempt } is required: the index's order is the signing run's, never a count");
   const pol = normalizePolicy({ schema: POLICY_SCHEMA, minimumRelease: versionString(policy.minimumRelease), revoked: policy.revoked });
   const rows = [];
   for (const r of releases || []) {
@@ -8647,12 +8651,12 @@ function buildReleaseIndex({ releases, policy, repository, generatedAt = (/* @__
     const c = rows.find((r) => r.flavor === f && !r.revoked && !r.belowFloor);
     if (c) latest[f] = { tag: c.tag, digest: c.digest, publishedAt: c.publishedAt };
   }
-  const seq = sequence ?? rows.length;
   return {
     schema: INDEX_SCHEMA,
     repository,
     generatedAt,
-    sequence: seq,
+    sequence: pub.runId,
+    attempt: pub.attempt,
     minimumRelease: versionString(pol.minimumRelease),
     revoked: [...pol.revoked],
     latest,
@@ -8660,12 +8664,31 @@ function buildReleaseIndex({ releases, policy, repository, generatedAt = (/* @__
   };
 }
 var indexBytesOf = (index) => Buffer.from(JSON.stringify(index, null, 1) + "\n", "utf8");
-var indexPredicateOf = (indexBytes, index) => ({ schema: INDEX_PREDICATE, indexSha256: sha256hex(indexBytes), repository: index.repository, generatedAt: index.generatedAt, sequence: index.sequence, minimumRelease: index.minimumRelease, latest: index.latest });
-function checkIndex({ index, digestHex, predicate, policy = DEFAULT_RELEASE_POLICY }) {
+var indexPredicateOf = (indexBytes, index) => ({ schema: INDEX_PREDICATE, indexSha256: sha256hex(indexBytes), repository: index.repository, generatedAt: index.generatedAt, sequence: index.sequence, ...index.attempt !== void 0 ? { attempt: index.attempt } : {}, minimumRelease: index.minimumRelease, latest: index.latest });
+var RUN_RE = /\/actions\/runs\/(\d{1,15})\/attempts\/(\d{1,6})$/;
+function normalizePublication(p) {
+  if (!p) return null;
+  const runId = Number(p.runId), attempt = Number(p.attempt);
+  if (!Number.isSafeInteger(runId) || runId <= 0 || !Number.isSafeInteger(attempt) || attempt <= 0) return null;
+  return { runId, attempt };
+}
+function publicationOf(runInvocation) {
+  const m = RUN_RE.exec(String(runInvocation || ""));
+  return m ? { runId: Number(m[1]), attempt: Number(m[2]), uri: String(runInvocation) } : null;
+}
+function checkIndex({ index, digestHex, predicate, policy = DEFAULT_RELEASE_POLICY, publication = null }) {
   const pol = { ...DEFAULT_RELEASE_POLICY, ...policy };
   const reasons = [], fail = (m) => ({ ok: false, reasons: [...reasons, `REJECT: ${m}`] });
   if (!index || typeof index !== "object") return fail("index is not an object");
-  if (index.schema !== INDEX_SCHEMA) return fail(`index schema ${JSON.stringify(index.schema)} is not ${INDEX_SCHEMA}`);
+  if (!INDEX_SCHEMAS.includes(index.schema)) return fail(`index schema ${JSON.stringify(index.schema)} is not ${INDEX_SCHEMA} (or the first index's ${INDEX_SCHEMA_V1})`);
+  const pub = normalizePublication(publication);
+  if (!pub) return fail("the signing certificate names no run invocation: the index cannot be ordered, so it is not accepted");
+  let sequenceAuthenticated = false;
+  if (index.schema === INDEX_SCHEMA) {
+    if (index.sequence !== pub.runId || index.attempt !== pub.attempt) return fail(`the index names publication run ${index.sequence} attempt ${index.attempt}, the signing certificate says run ${pub.runId} attempt ${pub.attempt}`);
+    if (predicate && predicate.attempt !== index.attempt) return fail("the predicate and the index disagree (attempt)");
+    sequenceAuthenticated = true;
+  } else reasons.push(`index schema v1: its sequence ${index.sequence} is a bounded count, NOT an order; ordered by the signing run ${pub.runId} attempt ${pub.attempt} alone`);
   if (index.repository !== pol.repository) return fail(`index names repository ${JSON.stringify(index.repository)}, the policy's is ${pol.repository}`);
   if (!predicate || predicate.schema !== INDEX_PREDICATE) return fail("the statement's predicate is not a release-index predicate");
   if (String(predicate.indexSha256 || "").toLowerCase() !== String(digestHex).toLowerCase()) return fail("the predicate's indexSha256 is not the digest of these index bytes");
@@ -8689,23 +8712,39 @@ function checkIndex({ index, digestHex, predicate, policy = DEFAULT_RELEASE_POLI
     latest[f] = { tag: e.tag, digest: e.digest.toLowerCase(), version: t.version };
   }
   if (!Object.keys(latest).length) return fail("index points at no release at all");
-  reasons.push(`release index ${index.sequence} of ${index.generatedAt.slice(0, 19)}Z: floor ${index.minimumRelease}, latest ${Object.values(latest).map((l) => l.tag).join(", ")}${index.revoked.length ? `, revoked ${index.revoked.join(", ")}` : ""}`);
-  return { ok: true, reasons, latest, minimumRelease: min.version, revoked: [...index.revoked], sequence: index.sequence, generatedAt: index.generatedAt };
+  reasons.push(`release index of ${index.generatedAt.slice(0, 19)}Z (run ${pub.runId} attempt ${pub.attempt}): floor ${index.minimumRelease}, latest ${Object.values(latest).map((l) => l.tag).join(", ")}${index.revoked.length ? `, revoked ${index.revoked.join(", ")}` : ""}`);
+  return { ok: true, reasons, latest, minimumRelease: min.version, revoked: [...index.revoked], sequence: index.sequence, generatedAt: index.generatedAt, publication: pub, sequenceAuthenticated, schema: index.schema };
 }
 async function verifyReleaseIndex({ indexBytes, bundle, trustedRoot, policy = DEFAULT_RELEASE_POLICY }) {
   const digestHex = sha256hex(indexBytes);
   const s = await verifyStatementBundle({ bundle, digestHex, trustedRoot, policy, predicateTypes: [INDEX_PREDICATE], subjectName: "the index digest" });
-  if (!s.ok) return { ok: false, reasons: s.reasons, index: null, claims: null, digest: digestHex };
+  if (!s.ok) return { ok: false, signed: false, reasons: s.reasons, index: null, claims: null, digest: digestHex };
   let index;
   try {
     index = JSON.parse(Buffer.from(indexBytes).toString("utf8"));
   } catch {
-    return { ok: false, reasons: [...s.reasons, "REJECT: the index bytes are not JSON"], index: null, claims: null, digest: digestHex };
+    return { ok: false, signed: true, reasons: [...s.reasons, "REJECT: the index bytes are not JSON"], index: null, claims: null, digest: digestHex };
   }
-  const c = checkIndex({ index, digestHex, predicate: s.statement.predicate, policy });
   const claims = identityClaimsOf(s.cert, s.pol, bundle);
-  if (!c.ok) return { ok: false, reasons: [...s.reasons, ...c.reasons], index, claims, digest: digestHex };
-  return { ok: true, reasons: [...s.reasons, ...c.reasons], index, claims, digest: digestHex, latest: c.latest, minimumRelease: c.minimumRelease, revoked: c.revoked, sequence: c.sequence, generatedAt: c.generatedAt };
+  const publication = publicationOf(claims.runInvocation);
+  const c = checkIndex({ index, digestHex, predicate: s.statement.predicate, policy, publication });
+  if (!c.ok) return { ok: false, signed: true, reasons: [...s.reasons, ...c.reasons], index, claims, digest: digestHex, publication };
+  return {
+    ok: true,
+    signed: true,
+    reasons: [...s.reasons, ...c.reasons],
+    index,
+    claims,
+    digest: digestHex,
+    latest: c.latest,
+    minimumRelease: c.minimumRelease,
+    revoked: c.revoked,
+    sequence: c.sequence,
+    generatedAt: c.generatedAt,
+    publication,
+    sequenceAuthenticated: c.sequenceAuthenticated,
+    schema: c.schema
+  };
 }
 var candidatesFromIndex = (v) => Object.values(v.latest || {}).map((l) => ({ tag: l.tag, digest: l.digest }));
 async function main() {
@@ -8745,11 +8784,13 @@ async function main() {
       }
       releases.push({ tag: r.tag_name, digest, publishedAt: r.published_at });
     }
-    const index = buildReleaseIndex({ releases, policy, repository: repo, sequence: list.length });
+    const publication = normalizePublication({ runId: opt("run-id") ?? process.env.GITHUB_RUN_ID, attempt: opt("run-attempt") ?? process.env.GITHUB_RUN_ATTEMPT });
+    if (!publication) die("--run-id/--run-attempt (or GITHUB_RUN_ID/GITHUB_RUN_ATTEMPT) are required: the index's order is the signing run's, never a count");
+    const index = buildReleaseIndex({ releases, policy, repository: repo, publication });
     const bytes2 = indexBytesOf(index);
     fs3.writeFileSync(out, bytes2);
     if (opt("predicate")) fs3.writeFileSync(opt("predicate"), JSON.stringify(indexPredicateOf(bytes2, index), null, 1) + "\n");
-    console.log(`release index: ${releases.length} release(s) with digests of ${list.length}; floor ${index.minimumRelease}; latest ${JSON.stringify(index.latest)}; sha256 ${sha256hex(bytes2)} -> ${out}`);
+    console.log(`release index: run ${index.sequence} attempt ${index.attempt}; ${releases.length} release(s) with digests of ${list.length}; floor ${index.minimumRelease}; latest ${JSON.stringify(index.latest)}; sha256 ${sha256hex(bytes2)} -> ${out}`);
     return;
   }
   if (cmd === "verify") {
@@ -8761,7 +8802,7 @@ async function main() {
     if (args.includes("--json")) console.log(JSON.stringify(r, null, 2));
     else {
       for (const x of r.reasons) console.log(x);
-      console.log(r.ok ? `VERIFIED release index ${r.sequence} (floor ${versionString(r.minimumRelease)})` : "REFUSED");
+      console.log(r.ok ? `VERIFIED release index: publication run ${r.publication.runId} attempt ${r.publication.attempt} (floor ${versionString(r.minimumRelease)}${r.sequenceAuthenticated ? "" : "; schema v1, ordered by the certificate alone"})` : "REFUSED");
     }
     process.exit(r.ok ? 0 : 1);
   }
@@ -8771,6 +8812,83 @@ if (process.argv[1] && path3.resolve(process.argv[1]) === fileURLToPath(import.m
   console.error(`release-index: ${e.message}`);
   process.exit(2);
 });
+
+// verifier/index-memory.mjs
+import fs4 from "node:fs";
+import path4 from "node:path";
+var cmpVersion = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+var cmpPub = (a, b) => a.runId - b.runId || a.attempt - b.attempt;
+var validPub = (p) => p && Number.isSafeInteger(p.runId) && p.runId > 0 && Number.isSafeInteger(p.attempt) && p.attempt > 0;
+var validVersion = (v) => Array.isArray(v) && v.length === 3 && v.every((n) => Number.isInteger(n) && n >= 0);
+function createIndexMemory({ file = null, now = () => /* @__PURE__ */ new Date(), log = () => {
+} } = {}) {
+  let state = null, note = null, durable = false;
+  if (file) {
+    try {
+      const raw = JSON.parse(fs4.readFileSync(file, "utf8"));
+      if (raw && raw.schema === "enclave-index-memory/v1" && validPub(raw.publication) && /^[0-9a-f]{64}$/.test(String(raw.digest || "")) && validVersion(raw.minimumRelease)) {
+        state = raw;
+        durable = true;
+      } else {
+        note = `the index memory at ${file} is not a record this version understands; starting without one`;
+        log(note);
+      }
+    } catch (e) {
+      if (e.code !== "ENOENT") {
+        note = `the index memory at ${file} is unreadable (${e.message}); starting without one`;
+        log(note);
+      }
+    }
+  }
+  const persist = () => {
+    if (!file) {
+      durable = true;
+      return true;
+    }
+    try {
+      fs4.mkdirSync(path4.dirname(file), { recursive: true });
+      const tmp = `${file}.${process.pid}.${Math.random().toString(16).slice(2)}.tmp`;
+      fs4.writeFileSync(tmp, JSON.stringify(state, null, 1) + "\n");
+      fs4.renameSync(tmp, file);
+      durable = true;
+      return true;
+    } catch (e) {
+      durable = false;
+      log(`the index memory could not be written to ${file}: ${e.message}`);
+      return false;
+    }
+  };
+  const remember = (rec) => {
+    state = { schema: "enclave-index-memory/v1", ...rec, at: now().toISOString() };
+    return persist();
+  };
+  function consider({ publication, digest, minimumRelease, tag = null } = {}) {
+    if (!validPub(publication)) return { ok: false, kind: "invalid", why: "no publication (run id and attempt) to order by", remembered: state };
+    if (!/^[0-9a-f]{64}$/.test(String(digest || ""))) return { ok: false, kind: "invalid", why: "no digest to remember", remembered: state };
+    if (!validVersion(minimumRelease)) return { ok: false, kind: "invalid", why: "no floor to remember", remembered: state };
+    const rec = { publication: { runId: publication.runId, attempt: publication.attempt }, digest: String(digest).toLowerCase(), minimumRelease: [...minimumRelease], tag };
+    if (!state) {
+      const persisted2 = remember(rec);
+      return { ok: true, kind: "first-seen", why: `first index remembered: run ${rec.publication.runId} attempt ${rec.publication.attempt}`, persisted: persisted2, remembered: state };
+    }
+    const c = cmpPub(rec.publication, state.publication);
+    const seen = `run ${state.publication.runId} attempt ${state.publication.attempt}${state.tag ? ` (${state.tag})` : ""}`;
+    if (c < 0) return { ok: false, kind: "replay", why: `replay: publication run ${rec.publication.runId} attempt ${rec.publication.attempt} is older than the remembered ${seen}`, remembered: state };
+    if (c === 0) {
+      if (state.equivocation) return { ok: false, kind: "equivocation", why: `equivocation: publication ${seen} was verified with digest ${state.digest.slice(0, 16)}... and later seen with ${state.equivocation.digest.slice(0, 16)}...; nothing from it is taken (these bytes: ${rec.digest.slice(0, 16)}...)`, persisted: durable, remembered: state };
+      if (rec.digest === state.digest) return { ok: true, kind: "same", why: `the remembered publication ${seen}, same bytes`, persisted: durable, remembered: state };
+      const persisted2 = remember({ ...state, equivocation: { digest: rec.digest, tag, seenAt: now().toISOString() } });
+      return { ok: false, kind: "equivocation", why: `equivocation: publication ${seen} was verified with digest ${state.digest.slice(0, 16)}..., these bytes are ${rec.digest.slice(0, 16)}...; nothing from either is taken`, persisted: persisted2, remembered: state };
+    }
+    if (state.equivocation) {
+      log(`index memory: publication ${seen} had equivocated; superseded by run ${rec.publication.runId} attempt ${rec.publication.attempt}`);
+    }
+    if (cmpVersion(rec.minimumRelease, state.minimumRelease) < 0) return { ok: false, kind: "floor-regression", why: `floor regression: the remembered floor v${state.minimumRelease.join(".")} is above this index's v${rec.minimumRelease.join(".")}`, remembered: state };
+    const persisted = remember(rec);
+    return { ok: true, kind: "newest-seen", why: `newer publication: run ${rec.publication.runId} attempt ${rec.publication.attempt} after ${seen}`, persisted, remembered: state };
+  }
+  return { consider, floor: () => state ? [...state.minimumRelease] : null, record: () => state ? structuredClone(state) : null, note: () => note, durable: () => durable, file };
+}
 
 // verifier/roots/sigstore-trusted-root.json
 var sigstore_trusted_root_default = {
@@ -8901,6 +9019,7 @@ var sigstore_trusted_root_default = {
 };
 
 // verifier/consumer.mjs
+var cmpVersion2 = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 var RAD_PATH = "/.well-known/tinfoil-attestation";
 var DEFAULT_REPO = DEFAULT_RELEASE_POLICY.repository;
 var FLAVOR_SUFFIXES = Object.freeze(["", "-cpu", "-gpu8"]);
@@ -8976,11 +9095,15 @@ async function releaseExpectations({
   trustedRoot = TRUSTED_ROOT,
   policy = {},
   useIndex = true,
-  requireIndex = false
+  requireIndex = false,
+  indexMemory = null
 } = {}) {
   const get = (url, accept) => fetchBounded(url, { fetchImpl, timeoutMs, maxBytes, accept });
   let latestTag = null, list = tags, index = { status: "not-consulted" };
   let pol = { ...policy };
+  const remembered = indexMemory?.floor?.() ?? null;
+  const builtin = pol.minimumRelease ?? DEFAULT_RELEASE_POLICY.minimumRelease;
+  if (remembered && cmpVersion2(remembered, builtin) > 0) pol = { ...pol, minimumRelease: remembered };
   if (!list && useIndex) {
     try {
       const bytes2 = await get(`${downloadBase}/${repo}/releases/latest/download/${INDEX_ASSET}`, "application/json");
@@ -8991,16 +9114,21 @@ async function releaseExpectations({
       else {
         const v = await verifyReleaseIndex({ indexBytes: bytes2, bundle, trustedRoot, policy: { ...policy, repository: repo } });
         if (v.ok) {
-          index = { status: "verified", sequence: v.sequence, generatedAt: v.generatedAt, minimumRelease: `v${v.minimumRelease.join(".")}`, latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, signedTag: v.claims?.tag ?? null };
-          list = candidatesFromIndex(v).map((c) => c.tag);
-          latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
-          pol = { ...pol, minimumRelease: v.minimumRelease, revoked: v.revoked };
-        } else index = { status: "refused", reasons: v.reasons.slice(-2) };
+          const m = indexMemory ? indexMemory.consider({ publication: v.publication, digest: v.digest, minimumRelease: v.minimumRelease, tag: v.claims?.tag ?? null }) : null;
+          const base = { authenticity: "signed", publication: v.publication, sequenceAuthenticated: v.sequenceAuthenticated, schema: v.schema, generatedAt: v.generatedAt, minimumRelease: `v${v.minimumRelease.join(".")}`, signedTag: v.claims?.tag ?? null };
+          if (m && !m.ok) index = { status: "refused", ...base, freshness: m.kind, reasons: [m.why] };
+          else {
+            index = { status: "verified", ...base, freshness: m ? m.kind : "not-remembered", latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, ...m && m.persisted === false ? { memoryNotPersisted: true } : {} };
+            list = candidatesFromIndex(v).map((c) => c.tag);
+            latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
+            pol = { ...pol, minimumRelease: v.minimumRelease, revoked: v.revoked };
+          }
+        } else index = { status: "refused", authenticity: v.signed ? "signed" : "unverified", ...v.publication ? { publication: v.publication } : {}, reasons: v.reasons.slice(-2) };
       }
     } catch (e) {
       index = { status: "unavailable", reasons: [e.message] };
     }
-    if (index.status !== "verified" && requireIndex) return { ...await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol }), latestTag: null, index, indexError: `the signed release index is required and was ${index.status}: ${(index.reasons || []).join("; ")}` };
+    if (index.status !== "verified" && requireIndex) return { ...await releaseExpectationsFrom([], { repo, trustedRoot, policy: pol }), latestTag: null, index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` }, indexError: `the signed release index is required and was ${index.status}${index.freshness ? ` (${index.freshness})` : ""}: ${(index.reasons || []).join("; ")}` };
   }
   if (!list) {
     try {
@@ -9026,12 +9154,12 @@ async function releaseExpectations({
       candidates.push({ tag, error: e.message });
     }
   }
-  return { ...await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag }), index };
+  return { ...await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag }), index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` } };
 }
-function captureHosted({ host, port = 443, path: path4 = RAD_PATH, timeoutMs = 2e4, maxBytes = 1024 * 1024, tls = {}, now = () => /* @__PURE__ */ new Date() } = {}) {
+function captureHosted({ host, port = 443, path: path5 = RAD_PATH, timeoutMs = 2e4, maxBytes = 1024 * 1024, tls = {}, now = () => /* @__PURE__ */ new Date() } = {}) {
   if (!host) return Promise.reject(new Error("captureHosted needs a host"));
   return new Promise((resolve, reject) => {
-    const opts = { host, port, path: path4, method: "GET", agent: false, headers: { accept: "application/json", "user-agent": USER_AGENT, connection: "close" }, ...tls };
+    const opts = { host, port, path: path5, method: "GET", agent: false, headers: { accept: "application/json", "user-agent": USER_AGENT, connection: "close" }, ...tls };
     if (!isIP(host)) opts.servername = host;
     const req = https.request(opts, (res) => {
       let cert = null, tlsInfo = null;
@@ -9048,7 +9176,7 @@ function captureHosted({ host, port = 443, path: path4 = RAD_PATH, timeoutMs = 2
       res.on("data", (c) => {
         n += c.length;
         if (n > maxBytes) {
-          req.destroy(new Error(`${host}${path4}: body exceeds ${maxBytes} bytes`));
+          req.destroy(new Error(`${host}${path5}: body exceeds ${maxBytes} bytes`));
           return;
         }
         chunks.push(c);
@@ -9056,21 +9184,21 @@ function captureHosted({ host, port = 443, path: path4 = RAD_PATH, timeoutMs = 2
       res.on("error", reject);
       res.on("end", () => {
         try {
-          if (res.statusCode !== 200) throw new Error(`${host}${path4}: HTTP ${res.statusCode}`);
+          if (res.statusCode !== 200) throw new Error(`${host}${path5}: HTTP ${res.statusCode}`);
           if (!cert) throw new Error(`${host}: the TLS connection presented no certificate`);
           let rad;
           try {
             rad = JSON.parse(Buffer.concat(chunks).toString("utf8"));
           } catch {
-            throw new Error(`${host}${path4}: the body is not JSON`);
+            throw new Error(`${host}${path5}: the body is not JSON`);
           }
-          if (!rad || typeof rad !== "object" || typeof rad.format !== "string" || typeof rad.body !== "string") throw new Error(`${host}${path4}: the document is not { format, body }`);
+          if (!rad || typeof rad !== "object" || typeof rad.format !== "string" || typeof rad.body !== "string") throw new Error(`${host}${path5}: the document is not { format, body }`);
           const certPem = cert.toString();
           const { spki } = spkiOfCert(certPem);
           resolve({
             host,
             port,
-            path: path4,
+            path: path5,
             at: now().toISOString(),
             rad,
             certPem,
@@ -9199,7 +9327,7 @@ function dualAgreement({ reference, own }) {
 async function verifyHost({
   host,
   port = 443,
-  path: path4 = RAD_PATH,
+  path: path5 = RAD_PATH,
   timeoutMs = 2e4,
   tls = {},
   collateral = null,
@@ -9210,15 +9338,17 @@ async function verifyHost({
   minTcb = void 0,
   policy = {},
   now = void 0,
-  fetchImpl = globalThis.fetch
+  fetchImpl = globalThis.fetch,
+  indexMemory = null,
+  requireIndex = false
 } = {}) {
   const at = (now ? new Date(now) : /* @__PURE__ */ new Date()).toISOString();
-  const exp = expectations ?? await releaseExpectations({ repo, fetchImpl, timeoutMs });
+  const exp = expectations ?? await releaseExpectations({ repo, fetchImpl, timeoutMs, indexMemory, requireIndex });
   const out = {
     verifier: "enclave",
     host,
     at,
-    expectations: { repo: exp.repo, latestTag: exp.latestTag ?? null, ok: exp.ok, allowed: exp.allowed.map((a) => ({ tag: a.tag, measurement: a.measurement })), candidates: exp.candidates, ...exp.indexError ? { indexError: exp.indexError } : {} },
+    expectations: { repo: exp.repo, latestTag: exp.latestTag ?? null, ok: exp.ok, allowed: exp.allowed.map((a) => ({ tag: a.tag, measurement: a.measurement })), candidates: exp.candidates, index: exp.index ?? null, ...exp.indexError ? { indexError: exp.indexError } : {} },
     capture: null,
     enclave: null,
     reference: null,
@@ -9226,7 +9356,7 @@ async function verifyHost({
   };
   let cap;
   try {
-    cap = await captureHosted({ host, port, path: path4, timeoutMs, tls, now: () => new Date(at) });
+    cap = await captureHosted({ host, port, path: path5, timeoutMs, tls, now: () => new Date(at) });
   } catch (e) {
     out.enclave = { status: "unavailable", admissionSafe: false, reasons: [`capture: ${e.message}`], checks: {}, claims: null, failedChecks: [], matched: null, expected: exp.allowed.map((a) => a.tag) };
     out.comparison = { agreement: "reference-missing", reasons: ["no capture"] };
@@ -9254,7 +9384,9 @@ async function selfCheckHosted({
   minTcb = void 0,
   timeoutMs = 15e3,
   fetchImpl = globalThis.fetch,
-  now = void 0
+  now = void 0,
+  indexMemory = null,
+  requireIndex = false
 } = {}) {
   const at = (now ? new Date(now) : /* @__PURE__ */ new Date()).toISOString();
   const brief = (v2, extra = {}) => ({
@@ -9274,7 +9406,7 @@ async function selfCheckHosted({
   let exp = expectations;
   if (!exp) {
     try {
-      exp = await releaseExpectations({ repo, fetchImpl, timeoutMs, ...releaseIndex ? { apiBase: releaseIndex.apiBase, downloadBase: releaseIndex.downloadBase ?? releaseIndex.apiBase } : {} });
+      exp = await releaseExpectations({ repo, fetchImpl, timeoutMs, indexMemory, requireIndex, ...releaseIndex ? { apiBase: releaseIndex.apiBase, downloadBase: releaseIndex.downloadBase ?? releaseIndex.apiBase } : {} });
     } catch (e) {
       return brief({ status: "unavailable", reasons: [`release provenance: ${e.message}`] });
     }
@@ -9292,7 +9424,7 @@ async function selfCheckHosted({
   } catch (e) {
     return brief({ status: "unavailable", reasons: [`verifier: ${e.message}`] }, { expected: exp.allowed.map((a) => a.tag) });
   }
-  return brief(v, { latestTag: exp.latestTag ?? null, ...exp.indexError ? { indexError: exp.indexError } : {}, certificate: { subject: cap.certificate.subject, sha256: cap.certificate.sha256, notAfter: cap.certificate.notAfter } });
+  return brief(v, { latestTag: exp.latestTag ?? null, index: exp.index ?? null, ...exp.indexError ? { indexError: exp.indexError } : {}, certificate: { subject: cap.certificate.subject, sha256: cap.certificate.sha256, notAfter: cap.certificate.notAfter } });
 }
 var sha256Hex = sha256hex2;
 export {
@@ -9306,6 +9438,7 @@ export {
   cachedCollateral,
   captureHosted,
   compareVerdicts,
+  createIndexMemory,
   dualAgreement,
   fetchBounded,
   fileCollateral,

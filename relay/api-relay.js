@@ -151,9 +151,13 @@ const METAL_MIN_TCB = (() => {
 //   The TCB floor is METAL_MIN_TCB, the same floor the attach gate applies; without one a verdict is at best "limited".
 const RELAY_REVERIFY = createReverifier ? reverifyModeOf(process.env.RELAY_REVERIFY) : "off";
 const RELAY_REVERIFY_SEC = parseInt(process.env.RELAY_REVERIFY_SEC || "900", 10);
+//   The signed release index is consulted first and REMEMBERED (RELAY_REVERIFY_CACHE_DIR/index-memory.json): a replayed
+//   or equivocating index is refused and the fallback never accepts below the remembered floor. RELAY_REQUIRE_INDEX=1 is
+//   the strict switch: without a verified, fresh index nothing re-verifies (off by default until the memory has history).
+const RELAY_REVERIFY_CACHE_DIR = process.env.RELAY_REVERIFY_CACHE_DIR || (typeof dataDir() === "string" && dataDir() ? `${dataDir()}/verifier-collateral` : "/tmp/enclave-relay-verifier-collateral");
 const reverifier = createReverifier
   ? createReverifier({ mode: RELAY_REVERIFY, minTcb: METAL_MIN_TCB && typeof METAL_MIN_TCB === "object" ? METAL_MIN_TCB : undefined,
-      cacheDir: process.env.RELAY_REVERIFY_CACHE_DIR || (typeof dataDir() === "string" && dataDir() ? `${dataDir()}/verifier-collateral` : "/tmp/enclave-relay-verifier-collateral"), log: (m) => console.log(`[reverify] ${m}`) })
+      cacheDir: RELAY_REVERIFY_CACHE_DIR, indexMemoryFile: `${RELAY_REVERIFY_CACHE_DIR}/index-memory.json`, requireIndex: process.env.RELAY_REQUIRE_INDEX === "1", log: (m) => console.log(`[reverify] ${m}`) })
   : { mode: "off", run: async () => new Map(), annotate: (r) => r, eligible: (r, base) => base, ineligibleReason: () => null, verdictOf: () => null, stats: () => ({}) };
 // Phone-anchored hosts (shielded/anchor/PLAN.md): the anchor APK builds admitted
 // (codeHash = the APK's v4 Merkle root) and the APK signing certificate(s) that
