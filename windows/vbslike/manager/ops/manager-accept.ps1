@@ -29,7 +29,11 @@ param(
   [string] $WmiserveSha256 = '15338081b81692a155130ec28e37fa654117a3e769427b621404fff3d6c6bca4',
   # PHASE 1: enclave-5d's hvlab-accept.mjs against the manager (data plane on $DataPort); empty = phase 2 only
   [string] $HvlabScript = '',
-  [int] $DataPort = 18092
+  [int] $DataPort = 18092,
+  # the manager's sweeps: 0 = the driver's own default (5000 ms each). A package's own managerEnv states 15000 and 30000;
+  # give those to run the manager exactly as the package configures it, not with a harness's faster override.
+  [int] $LivenessMs = 0,
+  [int] $AnswerCheckMs = 0
 )
 $ErrorActionPreference = 'Stop'
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss')
@@ -121,6 +125,8 @@ try {
             python = $Python; gateway = $Gateway; spawnJson = (Join-Path $Pkg 'apps\hello-world-1.0.4\spawn.json'); name = $Name; logDir = $runDir }
   # the data plane's port for a driver that serves traffic itself (multi-accept.mjs), whether or not phase 1 runs
   $cfg.dataPort = $DataPort
+  if ($LivenessMs -gt 0) { $cfg.livenessMs = $LivenessMs }
+  if ($AnswerCheckMs -gt 0) { $cfg.answerCheckMs = $AnswerCheckMs }
   if ($Serve) { $cfg.wmiserveExe = $wmiserveExe; $cfg.wmiserveSha256 = $WmiserveSha256.ToLower(); $cfg.bundleDir = "$runDir\bundles" }
   if ($HvlabScript) { $cfg.hvlab = @{ script = $HvlabScript; nodeTree = $treeFull; dataPort = $DataPort; timeoutS = 300 } }
   $cfg = $cfg | ConvertTo-Json -Compress -Depth 4
@@ -155,6 +161,19 @@ finally {
     if (Test-Path (Join-Path $SvcPath $ReportSvcGuid)) { $fail += "hv_sock service $ReportSvcGuid NOT removed" } else { Note "hv_sock service $ReportSvcGuid removed (verified)" }
   }
   if (Test-Path $fired) { $fail += "the watchdog acted under this run" }
+  # THE TREE IS UNCHANGED BY THE RUN (READINESS.md M6): the same listing, hashed again, must equal the one hashed at use. A
+  # manager run from a staged package's tree must leave nothing behind in it (a __pycache__ was the case found).
+  try {
+    $thAfter = "$runDir\tree-hashes-after.txt"
+    $linesAfter = foreach ($f in @(Get-ChildItem $treeFull -Recurse -File | Sort-Object FullName)) { "$((Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower())  $($f.FullName.Substring($treeFull.Length + 1))" }
+    [System.IO.File]::WriteAllLines($thAfter, [string[]]$linesAfter)
+    $diff = @(Compare-Object -ReferenceObject @($lines) -DifferenceObject @($linesAfter))
+    if ($diff.Count) {
+      $added = @($diff | Where-Object { $_.SideIndicator -eq '=>' } | ForEach-Object { ([string]$_.InputObject).Substring(66) })
+      $gone = @($diff | Where-Object { $_.SideIndicator -eq '<=' } | ForEach-Object { ([string]$_.InputObject).Substring(66) })
+      $fail += "the run CHANGED the tree under test: new or changed $($added.Count) ($(($added | Select-Object -First 5) -join ', ')), removed or changed $($gone.Count) ($(($gone | Select-Object -First 5) -join ', '))$(if (@($added | Where-Object { $_ -match '__pycache__' }).Count) { '; a __pycache__ among them' })"
+    } else { Note "TREE UNCHANGED by the run: $($linesAfter.Count) files, the same hashes as at use (no __pycache__)" }
+  } catch { $fail += "the tree could not be re-hashed after the run: $($_.Exception.Message)" }
   Remove-Item $sentinel -Force -EA SilentlyContinue; Remove-Item $wdFile -Force -EA SilentlyContinue
   foreach ($f in $fail) { Note "FAILURE: $f" }
   $code = if ($fail.Count) { 1 } elseif ($driverExit -eq 3) { 3 } elseif ($driverExit -ne 0) { 2 } else { 0 }

@@ -302,7 +302,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
 
   console.log("PHASE 2: restart recovery" + (cfg.wmiserveExe ? " (serving: A2s and A7 apply)" : ""));
-  const r = await runRestartAccept({ ctl, spawnBody, name: cfg.name, serve: !!cfg.wmiserveExe });
+  // the bounds follow the sweeps the manager actually runs with: the package's own 15000/30000 need more than 5000's
+  const lv = Number(cfg.livenessMs || 5000), ac = Number(cfg.answerCheckMs || 5000);
+  console.log(`sweeps: liveness ${lv} ms, answer check ${ac} ms${cfg.livenessMs || cfg.answerCheckMs ? " (as configured)" : " (the driver's default)"}`);
+  const r = await runRestartAccept({ ctl, spawnBody, name: cfg.name, serve: !!cfg.wmiserveExe,
+                                     sweepWaitMs: Math.max(60_000, 4 * lv), answerWaitMs: Math.max(90_000, 5 * ac) });
   const ok = r.ok && (!phase1 || phase1.pass);
   console.log(`ACCEPTANCE: phase 1 ${phase1 ? (phase1.pass ? "PASS" : "FAIL") : "not run"}, phase 2 ${r.refused ? "REFUSED" : r.ok ? "PASS" : "FAIL"}`);
   process.exitCode = r.refused ? 3 : ok ? 0 : 1;

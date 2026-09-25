@@ -242,6 +242,9 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   }
   console.log(`M3 expects ${expectBodySha256 ? `the pinned body sha256 ${expectBodySha256}` : "status 200 and the verified key only (no pinned body found)"}`);
   console.log(`MULTI: ${m.n || 3} serving domains at once, memMiB ${m.memMiB || 128}+16*i, data plane 127.0.0.1:${cfg.dataPort}. Functional serving only: no probe; host_excluded=no.`);
-  const r = await runMultiAccept({ ctl, spawnBody, name: cfg.name, dataPort: Number(cfg.dataPort), n: m.n || 3, memMiB: m.memMiB || 128, expectBodySha256 });
+  const lv = Number(cfg.livenessMs || 5000);
+  console.log(`sweeps: liveness ${lv} ms${cfg.livenessMs ? " (as configured)" : " (the driver's default)"}`);
+  const r = await runMultiAccept({ ctl, spawnBody, name: cfg.name, dataPort: Number(cfg.dataPort), n: m.n || 3, memMiB: m.memMiB || 128, expectBodySha256,
+                                  sweepWaitMs: Math.max(60_000, 4 * lv) });
   process.exitCode = r.refused ? 3 : r.ok ? 0 : 1;
 }
