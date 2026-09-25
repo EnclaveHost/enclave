@@ -14,4 +14,10 @@ evidence of anything but the relay's own logic against a real guest.
   a ticket, junk evidence refused (ticket burned), a real chip-signed report of another image refused by the verifier.
 - `node lab-relay.mjs serve <lab.json>`: the same start-up checks, then HTTPS on the lab name.
 
-`lab.example.json` is the phase-2 file with paths elided (the synthetic config and secrets come from enclave-5d's file). `dry-run-1.txt` ran under the superseded LAB release `c5375c71…`; `dry-run-2.txt` under its replacement `1428c0c4…` (the lab ticket port moved off production's): the prediction for `catalog://0x5bca36b5…/0` is AppID `94c04c0e…` (unchanged: the AppID excludes the image), measurement `54ffacdd…f376`, from the derivation record printed there. Phase 2's pass condition is that the lab guest's own report equals it.
+`lab.example.json` is the phase-2 file with paths elided (the synthetic config and secrets come from enclave-5d's file).
+The LAB release moved twice before any phase-2 guest existed, and the prediction was re-recorded each time:
+`dry-run-1.txt` under `c5375c71…` (superseded: the lab ticket port moved), `dry-run-2.txt` under `1428c0c4…` (superseded: a
+client.go edit linked into the front), `dry-run-3.txt` under `6d18f7ad…` (built at 5ce7ced6; enclave-5d froze the
+image-affecting tree until both phases run). The CURRENT pass condition, recorded before the guest: for
+`catalog://0x5bca36b5…/0`, AppID `94c04c0e…` (unchanged throughout: the AppID excludes the image) and measurement
+`70194611…f709`, from derivation record `bc1ac3be…` (the supervisor's own `isolationDerivation` gives the same digest).
