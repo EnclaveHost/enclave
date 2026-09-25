@@ -211,19 +211,21 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
      `--hold stdin` for the manager's per-domain wmiserve. It was built and checked VM-less on the box
      (`wmiserve-hold-stdin-build-20260925/`). `0160d835` is shown reproducible modulo link metadata. The candidate
      ships beside `0160d835` until the acceptance run passes with it.
-   Next, with ONE box owner (d1) for each run:
-   - **The measured-G1 lifecycle and recovery acceptance run**, on `a44bb55a` with the candidate launcher:
-     - the manager's launcher starts the domain;
-     - enclave-5d's `wmiserve-run.mjs` loads it and relays with `--hold stdin`;
-     - hvlab-accept's applicable checks run, with its PASS, SKIP and FAIL expectations stated by 5d first;
-     - the manager restarts: `recovered:true` is HELD and never serves, and the relay dies with the old process;
-     - stop removes the VM;
-     - the domain negative control runs: no `/dev/tpm*` in a domain.
-     It is scheduled only when 5d's module is committed and reviewed.
-   - **G4 restart probe**, only if enclave-63 has a PROBE image, and never an app. The question is how Hyper-V handles
-     the type-1 guest kernel's panic restart request after the monitor (PID 1) dies. That is measured, not inferred:
-     does the partition reboot into a new monitor boot (G1 then reports `rebooted`), turn off, or hang?
-   - Still unexercised on hardware: the Rust launcher's own `rebooted:true` handling.
+   - DONE (run 080420, `mgr-restart-accept-20260925/`): the manager's restart recovery on real Hyper-V. The VM survives
+     a killed manager and is recovered as `recovered:true`, held and never serving, with a 409 and no second VM. Two
+     earlier failures were a console-attach race, fixed by `startAndRead`.
+   - DONE (run 082325, `serving-accept-20260925/`): the measured `a44bb55a` guest SERVES through the real manager, node,
+     app zone and data plane.
+     - enclave-5d's hvlab-accept ALL PASS: a browser TLS session on the manager-verified key; every refusal; a forced
+       relaunch; a node restart.
+     - Restart A0-A7 ALL PASS: the relay dies with the manager.
+     - The launcher is `435717de` (`1a6f1556`). The packaged candidate `15338081` FAILED the judge on a stray report
+       format name, so it must not be promoted.
+   - DONE (G4, run 082856, `g4-probe-20260925/`): a type-1 guest whose monitor dies panics, asks for a reset, and
+     Hyper-V turns the partition OFF (18590, then 18515). It does not reboot. The manager's liveness sweep now fails such
+     a domain (`d7d4fd1c`); that sweep is not yet run on hardware.
+   - OPEN, low value: the Rust launcher's own `rebooted:true` path. It has no WMI caller, and on type 1 there is no
+     reboot to meet. The monitor side of G1 is proven (070020).
    - **Every run above is app plumbing and lifecycle. None of them is evidence of host exclusion.**
 2. **enclave-5d and enclave-99:** the replacement node identity (windows-hv-node/v1), host-only and honest. A
    TPM-only node attach grants no app capacity and no isolation badge.

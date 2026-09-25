@@ -1,0 +1,156 @@
+08:28:56 === DEV BOOT. Host exclusion is NOT established on this path. Nothing here is verified capacity. ===
+08:28:56     partition kind: wmi-openhcl-gen2-igvm-linux (no medium; the guest is inside the IGVM), GuestStateIsolationType 1 (the LAUNCHER states it; the guest cannot know it)
+08:28:56     type 1 = VBS: the hypervisor is configured to keep VTL0 RAM host-private. That is a CONFIGURATION,
+08:28:56     not a measurement. Until a host-side memory read has been shown to find a guest marker on type 16
+08:28:56     and NOT on type 1, nothing from this run may be called host-excluded.
+08:29:20 setting before : Absent
+08:29:20 node pids      : 
+08:29:20 apps before    : e64f7cba=000 d9798e4c=000 a77d0c57=000 7ae476a3=000 a69dcbba=000 c34499ee=000
+08:29:20 loopback before: NONE - the node surface did not answer
+08:29:20 BASELINE: no legacy app answers on loopback because the legacy backend is RETIRED (DIRECTION.md; under Secure
+08:29:20           Boot its test-signed engine cannot load). There is no app to harm; the harm check for this run is
+08:29:20           the node process and the host settings, compared before and after.
+08:29:21 firmware (the measured IGVM: paravisor + our kernel/initrd/cmdline) verified: C:\Users\claude\vbs-like\pkg\69262a44e7e13901\guest\igvm-vbs\PROBE-FIRMWARE-never-a-serving-candidate\PROBE-g4panic-72462737.bin (77835676 bytes) sha256 724627378d81b51f0c56d7b22120162c11025961c678d2f2952ce7bb87a2bc1b - held open, write and delete denied, until the VM is gone
+08:29:21 watchdog armed: it acts when pid 464 ends without cleaning up, or after 1320s if this run hangs
+08:29:21 SETTING APPLIED (removed again in this run's cleanup)
+08:29:21 hv_sock service 00002329-facb-11e6-bd58-64006a7986d3 registered for port 9001 (removed again in cleanup)
+08:29:21 hyperv.psm1 verified: 17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c
+08:29:21 guest state: copy of C:\Users\claude\vbs-like\type1.vmgs -> C:\Users\claude\vbs-like\run-20260925-082856.vmgs (4194816 bytes, master sha 4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d)
+08:29:21 VTL2: auto placement NOT set - openhcl-cvm.bin is a fixed-GPA image, and petri sets the trio only for non-isolated VMs
+08:29:22 read back: GuestStateIsolationType=1 enabled=True GuestFeatureSet=0x201 Vtl2Mode=0 Vtl2Range=0 firmware='C:\Users\claude\vbs-like\pkg\69262a44e7e13901\guest\igvm-vbs\PROBE-FIRMWARE-never-a-serving-candidate\PROBE-g4panic-72462737.bin'
+08:29:22 no network adapter was defined; this guest has no NIC
+08:29:23 guest VBS opt-out read back: VirtualizationBasedSecurityOptOut=True (the GUEST will not run its own VBS in guest-VTL1; the partition's isolation is unaffected)
+08:29:23 created enclave-uefi-20260925-082856 (id 55c6b1fc-cc3e-4c13-a465-e000926d3768) - Gen2, GuestStateIsolationType 1, Secure Boot off
+08:29:23 read access granted to the VM's own SID on the firmware (icacls exit 0)
+08:29:23 NO MEDIUM (-LinuxDirect): our VTL0 kernel, initrd and command line are INSIDE the measured IGVM (sha256 724627378d81b51f0c56d7b22120162c11025961c678d2f2952ce7bb87a2bc1b);
+08:29:23           nothing is attached for UEFI to boot, and the guest's identity is the IGVM's launch digest, not a medium hash.
+08:29:23 COM3 UNSUPPORTED: this host's Gen2 VM exposes 2 serial ports, so OpenHCL's own log cannot be read there. Recorded as unsupported, NOT as a pass or a failure.
+08:29:23 NO medium attached; COM1 -> \\.\pipe\enclave-uefi-20260925-082856-com1
+08:29:23 boot order: 
+08:29:23 secure boot: Off
+08:29:23 boot entries: 0 (recorded only: with -LinuxDirect the IGVM carries no UEFI, so nothing reads the boot order)
+08:29:23 vTPM: PRESENT (TpmEnabled = True), because Windows makes one for a VBS VM and the guest-state
+08:29:23       key protector lives there. NOTHING ON THIS PATH READS ITS PCRs. Its presence is not
+08:29:23       attestation and must never be reported as any.
+08:29:23 read-back OK: no medium, no LoadOptions, Secure Boot off, vTPM as reported above
+08:29:24 FIRST OBSERVABLE: Start-VM ACCEPTED the partition (state now Running)
+08:29:25 COM1 attached 1326 ms after start
+08:29:25 ohcldiag-dev kmsg started (pid 9736) -> C:\Users\claude\vbs-evidence\kmsg-20260925-082856.txt
+08:29:25 inspect build_info (65 ms): {     crate_name: "build_info",     internal_scm_branch: "",     internal_scm_revision: "",     openhcl_version: "",     scm_branch: "main",     scm_revision: "a7b0bd4a653ba1c9192497a9d3669b14e7f3bc58", }
+08:29:25 inspect control_state (62 ms): "started"
+08:29:25   INSPECT/vm : {
+08:29:25   INSPECT/vm : partition: {
+08:29:25   INSPECT/vm : vp: {
+08:29:25   INSPECT/vm : 0: {
+08:29:25   INSPECT/vm : backing: {},
+08:29:25   INSPECT/vm : },
+08:29:25   INSPECT/vm : },
+08:29:25   INSPECT/vm : },
+08:29:25   INSPECT/vm : }
+08:29:25   INSPECT/proc : {
+08:29:25   INSPECT/proc : interrupts: {
+08:29:25   INSPECT/proc : CAL: {
+08:29:25   INSPECT/proc : actions: "",
+08:29:25   INSPECT/proc : cpu: {},
+08:29:25   INSPECT/proc : name: "Function call interrupts",
+08:29:25   INSPECT/proc : },
+08:29:25   INSPECT/proc : DFR: {
+08:29:25   INSPECT/proc : actions: "",
+08:29:25   INSPECT/proc : cpu: {},
+08:29:25   INSPECT/proc : name: "Deferred Error APIC interrupts",
+08:29:25   INSPECT/proc : },
+08:29:25 started; watching COM1 for 'MON ready' for 120 s
+08:29:25 host TCG log captured: C:\Users\claude\vbs-evidence\tcglog-20260925-082856-0000000068-0000000000.log (96414 bytes, host boot log 0000000068-0000000000.log)
+08:29:25 console bytes: 809 (COM1); COM3 not attached (see above)
+08:29:27 ohcldiag-dev kmsg: 0 line(s), 1 on stderr
+08:29:27   KMSG-ERR: Error: unknown service diag.UnderhillDiag
+08:29:27   kmsg control: 0 line(s) naming OpenHCL's own kernel (microsoft-hcl), 0 naming OUR VTL0 kernel
+08:29:27   (kept 0 matching line(s) of 0)
+08:29:27   CONSOLE: [    0.319260] MON PROBE G4: armed, this guest will panic on purpose in 120 s (panic_timeout=-1)
+08:29:27   CONSOLE: MON snp=0 vcpus=1 memMiB=1833 boot_ms=318
+08:29:27   CONSOLE: MON insmod /vsock.ko.zst failed: Operation not supported
+08:29:27   CONSOLE: MON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported
+08:29:27   CONSOLE: MON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported
+08:29:27   CONSOLE: MON PROBE IMAGE: loading /probe.ko (this is not a production medium)
+08:29:27   CONSOLE: MON PROBE finished: loaded
+08:29:27   CONSOLE: MON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, CPUID)
+08:29:27   CONSOLE: MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=vbs paravisor=no
+08:29:27   CONSOLE: MON boot 8acd91a83114a02883d575527056e971
+08:29:27   CONSOLE: MON ready control_port=9000 snp=false transport=hv_sock
+08:29:27 RESULT: MON ready - the guest booted as a Linux VTL0 loaded by the paravisor from the measured IGVM (DEV BOOT; host exclusion NOT established)
+08:29:27 dialling hv_sock 55c6b1fc-cc3e-4c13-a465-e000926d3768 port 9000 ...
+08:29:27 hvdial: {"connected":true,"head":"","ms":1,"note":"a connect proves the guest has a working vsock transport and is listening. It says NOTHING about the guest's identity, its boundary or host exclusion.","port":9000,"sent":0,"vm":"55c6b1fc-cc3e-4c13-a465-e000926d3768"}
+08:29:27 CONTROL CHANNEL OK: the guest has a working vsock transport and is listening on 9000
+08:29:27 state exchange: {"connected":true,"head":"{\"boot\":\"8acd91a83114a02883d575527056e971\",\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":1708,\"mem_total_mib\":1833,\"mounts\":0,\"userspace_procs\":1}","ms":1,"note":"a connect proves the guest has a working vsock transport and is listening. It says NOTHING about the guest's identity, its boundary or host exclusion.","port":9000,"sent":16,"vm":"55c6b1fc-cc3e-4c13-a465-e000926d3768"}
+08:29:27 PROTOCOL OK: the monitor answered a control command
+08:29:27   (a connect proves the transport and the listener. It says NOTHING about identity, boundary or host exclusion.)
+08:29:27 G4 WATCH: holding the partition and COM1 for 330 s. The PROBE panics on purpose about 120 s after /probe.ko loads; what Hyper-V then does is the measurement.
+08:29:27   G4 CONSOLE: [    0.319260] MON PROBE G4: armed, this guest will panic on purpose in 120 s (panic_timeout=-1)
+08:29:27   G4 CONSOLE: MON snp=0 vcpus=1 memMiB=1833 boot_ms=318
+08:29:27   G4 CONSOLE: MON insmod /vsock.ko.zst failed: Operation not supported
+08:29:27   G4 CONSOLE: MON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported
+08:29:27   G4 CONSOLE: MON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported
+08:29:27   G4 CONSOLE: MON PROBE IMAGE: loading /probe.ko (this is not a production medium)
+08:29:27   G4 CONSOLE: MON PROBE finished: loaded
+08:29:27   G4 CONSOLE: MON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, CPUID)
+08:29:27   G4 CONSOLE: MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=vbs paravisor=no
+08:29:27   G4 CONSOLE: MON boot 8acd91a83114a02883d575527056e971
+08:29:27   G4 CONSOLE: MON ready control_port=9000 snp=false transport=hv_sock
+08:29:27   G4 VM state: Running (uptime 3s)
+08:29:27   G4 COM1 re-attached
+08:31:26   G4 CONSOLE: [  121.848959] MON PROBE G4: panicking ON PURPOSE after 120 s: the path a dead PID 1 takes (panic, then panic_timeout)
+08:31:26   G4 CONSOLE: [  121.850243] Kernel panic - not syncing: G4 probe: deliberate panic standing in for the monitor's death
+08:31:26   G4 CONSOLE: [  121.850668] CPU: 0 PID: 53 Comm: kworker/0:2 Tainted: G           O       6.6.87.2-microsoft-standard-WSL2 #1
+08:31:26   G4 CONSOLE: [  121.851183] Hardware name: OpenHCL OpenHCL Virtual Machine, BIOS OpenHCL Direct 06/19/2026
+08:31:26   G4 CONSOLE: [  121.851601] Workqueue: events g4_fire [g4panic]
+08:31:26   G4 CONSOLE: [  121.851856] Call Trace:
+08:31:26   G4 CONSOLE: [  121.851999]  <TASK>
+08:31:26   G4 CONSOLE: [  121.852111]  dump_stack_lvl+0x4c/0x70
+08:31:26   G4 CONSOLE: [  121.852294]  dump_stack+0x14/0x20
+08:31:26   G4 CONSOLE: [  121.852496]  panic+0x24b/0x340
+08:31:26   G4 CONSOLE: [  121.852718]  g4_fire+0x2a/0xff0 [g4panic]
+08:31:26   G4 CONSOLE: [  121.852930]  process_one_work+0x189/0x3c0
+08:31:26   G4 CONSOLE: [  121.853132]  ? __pfx_worker_thread+0x10/0x10
+08:31:26   G4 CONSOLE: [  121.853349]  worker_thread+0x1f6/0x390
+08:31:26   G4 CONSOLE: [  121.853554]  ? _raw_spin_unlock_irqrestore+0x2b/0x50
+08:31:26   G4 CONSOLE: [  121.853823]  ? __pfx_worker_thread+0x10/0x10
+08:31:26   G4 CONSOLE: [  121.854041]  kthread+0x109/0x140
+08:31:26   G4 CONSOLE: [  121.854225]  ? __pfx_kthread+0x10/0x10
+08:31:26   G4 CONSOLE: [  121.854410]  ret_from_fork+0x40/0x60
+08:31:26   G4 CONSOLE: [  121.854598]  ? __pfx_kthread+0x10/0x10
+08:31:26   G4 CONSOLE: [  121.854778]  ret_from_fork_asm+0x1b/0x30
+08:31:26   G4 CONSOLE: [  121.854994]  </TASK>
+08:31:26   G4 CONSOLE: [  121.855451] Kernel Offset: disabled
+08:31:26   G4 RESET OBSERVED: uptime fell from 122s to 0s (state Running)
+08:31:27   G4 VM state: Off (uptime 0s)
+08:34:57 G4 RESULT: 1 'MON boot' line(s) [8acd91a83114a02883d575527056e971], 1 arming line(s), 1 'Kernel panic' line(s), 1 uptime reset(s), 1 COM1 re-attach(es), final state Off
+08:34:58   G4 ADMIN [18609] 08:29:23 'enclave-uefi-20260925-082856' properties were successfully initialized. (Virtual machine ID 55C6B1FC-CC3E-4C13-A465-E000926D3768)  Guest processor features: 0x6037FCB67F39FBF, 0x50A000018F Guest xsav
+08:34:58   G4 ADMIN [3086] 08:29:23 'enclave-uefi-20260925-082856' The -CC3E-4C13-A465-E000926D3768 repository has logged performance summary (Virtual machine ID {00350035-0043-0036-4200-310046004300}) [configuration]: Completed Virtual
+08:34:58   G4 ADMIN [3086] 08:29:23 'enclave-uefi-20260925-082856' The -CC3E-4C13-A465-E000926D3768 repository has logged performance summary (Virtual machine ID {00350035-0043-0036-4200-310046004300}) [runtime]: Completed VirtualMachin
+08:34:58   G4 ADMIN [18615] 08:29:24 'enclave-uefi-20260925-082856' VM guest state encryption key not released. (Virtual machine ID 55C6B1FC-CC3E-4C13-A465-E000926D3768)
+08:34:58   G4 ADMIN [18500] 08:29:24 'enclave-uefi-20260925-082856' started successfully. (Virtual machine ID 55C6B1FC-CC3E-4C13-A465-E000926D3768)
+08:34:58   G4 ADMIN [3086] 08:29:24 'enclave-uefi-20260925-082856' The -CC3E-4C13-A465-E000926D3768 repository has logged performance summary (Virtual machine ID {00350035-0043-0036-4200-310046004300}) [configuration]: Finished starting
+08:34:58   G4 ADMIN [3086] 08:29:24 'enclave-uefi-20260925-082856' The -CC3E-4C13-A465-E000926D3768 repository has logged performance summary (Virtual machine ID {00350035-0043-0036-4200-310046004300}) [runtime]: Finished starting the V
+08:34:58   G4 ADMIN [18590] 08:31:26 'enclave-uefi-20260925-082856' has encountered a fatal error.  The guest operating system reported that it failed with the following error codes: ErrorCode0: 0x0, ErrorCode1: 0x8100000606570000, Error
+08:34:58   G4 ADMIN [18515] 08:31:26 'enclave-uefi-20260925-082856' was shut down for a reset initiated by the guest operating system. (Virtual machine ID 55C6B1FC-CC3E-4C13-A465-E000926D3768)
+08:34:58   ADMIN [18609] 'enclave-uefi-20260925-082856' properties were successfully initialized. (Virtual machine ID 55C6B1FC-CC3E-4C13-A465-E000926D3768)  Guest processor fe
+08:34:58   ADMIN [3086] 'enclave-uefi-20260925-082856' The -CC3E-4C13-A465-E000926D3768 repository has logged performance summary (Virtual machine ID {00350035-0043-0036-4200
+08:34:58   ADMIN [3086] 'enclave-uefi-20260925-082856' The -CC3E-4C13-A465-E000926D3768 repository has logged performance summary (Virtual machine ID {00350035-0043-0036-4200
+08:34:58   ADMIN [18615] 'enclave-uefi-20260925-082856' VM guest state encryption key not released. (Virtual machine ID 55C6B1FC-CC3E-4C13-A465-E000926D3768)
+08:34:58   ADMIN [18500] 'enclave-uefi-20260925-082856' started successfully. (Virtual machine ID 55C6B1FC-CC3E-4C13-A465-E000926D3768)
+08:34:58   ADMIN [3086] 'enclave-uefi-20260925-082856' The -CC3E-4C13-A465-E000926D3768 repository has logged performance summary (Virtual machine ID {00350035-0043-0036-4200
+08:34:58   ADMIN [3086] 'enclave-uefi-20260925-082856' The -CC3E-4C13-A465-E000926D3768 repository has logged performance summary (Virtual machine ID {00350035-0043-0036-4200
+08:34:58   ADMIN [18590] 'enclave-uefi-20260925-082856' has encountered a fatal error.  The guest operating system reported that it failed with the following error codes: Erro
+08:34:58   ADMIN [18515] 'enclave-uefi-20260925-082856' was shut down for a reset initiated by the guest operating system. (Virtual machine ID 55C6B1FC-CC3E-4C13-A465-E000926D
+08:34:58 cleanup: VM present, state Off, notes 'enclave-vbslike-app-domain'
+08:34:59 removed enclave-uefi-20260925-082856
+08:34:59 guest state after the run: WRITTEN TO by the run (now 21c336b6f6535855ef6b8d0d90acd0361990b22e8bcf9f37dd4f0cf2809348c7, was 4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d)
+08:34:59 guest state archived for vmgs_check: C:\Users\claude\vbs-evidence\gueststate-20260925-082856.vmgs
+08:34:59 SETTING RESTORED to Absent (verified)
+08:34:59 hv_sock service 00002329-facb-11e6-bd58-64006a7986d3 removed (verified)
+08:34:59 live node unchanged ()
+08:35:23 apps after     : e64f7cba=000 d9798e4c=000 a77d0c57=000 7ae476a3=000 a69dcbba=000 c34499ee=000
+08:35:25 loopback after : NONE - the node surface did not answer
+08:35:25 no app that answered on loopback before this run stopped answering
+08:35:25 === DEV BOOT. Host exclusion NOT established. Not verified capacity. ===
+08:35:25 RUN OK
