@@ -12,6 +12,13 @@
 //     closes the stream to the VM.
 //   - A per-deployment and a per-client rate (every evidence request costs the VM an attestation): 429, plain.
 //   - Nothing is parsed or logged beyond sizes and timings.
+// The BOOTSTRAP route (RUNNER-AGENT.md "Before the lease"): POST /t/<name>/pvm/evidence carries the EVIDENCE kind only (never
+// sealed) to the pVM tunnel attached under <name> -- no ledger lookup, because it exists for the one moment the ledger cannot
+// answer: before a runner is registered and leased, its owner must read the VM's attested proof key over its own nonce, and
+// the relay is the only path to the VM. The same bounds, the same per-client rate, a per-tunnel rate, sizes-only logging and
+// plain refusals; the hub still gives the evidence kind only to an AVF-attested pVM tunnel (tunnel.js spliceRaw). api-relay.js
+// hands a /t/ path to this handler only when that name is an attached pVM (mode "avf") tunnel, so every other tunnel's /t/
+// proxy is untouched.
 // The relay is a CARRIER: none of this is the client's trust. The client verifies the VM itself, and the id is only a
 // route -- the evidence names no deployment, so a hostile relay could still route to another genuine instance of the same
 // app (RELAY-SERVING.md "Not given").
@@ -89,13 +96,14 @@ export function createPvmServing({ resolve, hub, emit = () => {}, perDeployment 
   // not reuse a socket the server is about to reset
   const early = (res, status) => { res.setHeader("connection", "close"); plain(res, status); };
   return function handle(req, res) {
-    const m = /^\/x\/([^/]+)\/pvm\/(evidence|sealed)$/.exec((req.url || "").split("?")[0]);
-    if (!m) return false;
-    const [, id, what] = m, [kind, maxIn, maxOut, type] = [...KINDS[what].slice(0, 1), ...(bounds[what] || KINDS[what].slice(1, 3)), KINDS[what][3]];
+    const path = (req.url || "").split("?")[0];
+    const m = /^\/x\/([^/]+)\/pvm\/(evidence|sealed)$/.exec(path), tn = !m && /^\/t\/([A-Za-z0-9_-]+)\/pvm\/evidence$/.exec(path);
+    if (!m && !tn) return false;
+    const [id, what] = m ? [m[1], m[2]] : [null, "evidence"], [kind, maxIn, maxOut, type] = [...KINDS[what].slice(0, 1), ...(bounds[what] || KINDS[what].slice(1, 3)), KINDS[what][3]];
     if (req.method !== "POST") return early(res, 405), true;
-    if (!ID.test(id)) return early(res, 404), true;                      // a full canonical id only: no prefix to be ambiguous
-    const who = clientOf(req);
-    if (!perClient(who) || !perDeployment(id)) { emit({ pvm: what, id, refused: "rate" }); return early(res, 429), true; }
+    if (m && !ID.test(id)) return early(res, 404), true;                 // a full canonical id only: no prefix to be ambiguous
+    const who = clientOf(req), bucket = m ? id : `t/${tn[1]}`;             // the bootstrap route: a per-TUNNEL bucket
+    if (!perClient(who) || !perDeployment(bucket)) { emit({ pvm: what, ...(m ? { id } : { tunnel: tn[1] }), refused: "rate" }); return early(res, 429), true; }
     if ((pending.get(who) || 0) >= maxPendingPerClient) { emit({ pvm: what, id, refused: "pending" }); return early(res, 429), true; }
     const inb = []; let nIn = 0, over = false;
     // over the bound: answer 413 first, then close the connection once the answer is out (destroying the request first
@@ -106,7 +114,7 @@ export function createPvmServing({ resolve, hub, emit = () => {}, perDeployment 
       // the ledger answer, bounded in time: a hung resolve answers a plain 504 instead of holding the request
       pending.set(who, (pending.get(who) || 0) + 1);
       let ep = null, timedOut = false, timer;
-      try { ep = await Promise.race([resolve(id), new Promise((r) => { timer = setTimeout(() => { timedOut = true; r(null); }, resolveTimeoutMs); })]); }
+      try { ep = tn ? `tunnel://${tn[1]}` : await Promise.race([resolve(id), new Promise((r) => { timer = setTimeout(() => { timedOut = true; r(null); }, resolveTimeoutMs); })]); }
       catch { ep = null; }
       finally { clearTimeout(timer); const n = (pending.get(who) || 1) - 1; if (n) pending.set(who, n); else pending.delete(who); }
       if (timedOut) { emit({ pvm: what, id, refused: "resolve timeout" }); return plain(res, 504); }

@@ -151,7 +151,7 @@ test("PVM_SERVING ON without its configuration: both pVM routes answer the same 
 
 test("PVM_SERVING ON and configured: the ledger runner only -- an ordinary app's own /pvm/evidence is RESERVED (404, never the app's answer) -- plain refusals, and the relay's own client identity", async (t) => {
   const app = await appEnclave(t); LEDGER = [LEDGER[0], app.row];
-  const { port, log } = await relay(t, { ...CONFIGURED, PVM_APP_IDS: `${"ee".repeat(32)} , ${"ab".repeat(32)}`, APP_DOMAIN: "app.test" }, {}, { enclaves: app.endpoint });
+  const { port, log } = await relay(t, { ...CONFIGURED, PVM_APP_IDS: `${"ee".repeat(32)} , ${"ab".repeat(32)}`, APP_DOMAIN: "app.test", METAL_TUNNEL_TOKENS: "box1:lab-box-attach" }, {}, { enclaves: app.endpoint });
   assert.match(log(), /\[pvm-serving\] ON: the tunnel hub admits 2 app\(s\) x 1 runtime\(s\)/, "the HUB's policy (whitespace around commas is allowed)");
   const post = (id, what = "evidence", body = "EVIDENCE " + "ab".repeat(32) + "\n", h = {}) => req(port, "POST", `/x/${id}/pvm/${what}`, body, h);
   // the reservation: deployment 66 runs an ordinary app on a live https enclave; its runner is not a pVM tunnel
@@ -173,6 +173,16 @@ test("PVM_SERVING ON and configured: the ledger runner only -- an ordinary app's
   assert.equal(up.status, 101); assert.match(up.head, /x-app: own/); assert.ok(app.seen.includes(`UPGRADE /x/${ID("66")}/pvm/evidence`), "the app answered the handshake itself");
   const g = await req(port, "GET", `/x/${ID("33")}/pvm/evidence`, "a body"); assert.equal(g.status, 405); assert.equal(g.headers.connection, "close");
   assert.equal((await req(port, "GET", "/health")).status, 200, "the next request after an early refusal is served");
+  // the BOOTSTRAP route /t/<name>/pvm/evidence is claimed ONLY for a name attached as a pVM (AVF) tunnel: a token-attached box's
+  // own path of that name is proxied to the box exactly as before, and a name with no tunnel gets the ordinary /t/ answer
+  const { WebSocket } = await import("ws");
+  const box = new WebSocket(`ws://127.0.0.1:${port}/v1/fleet-tunnel`, { headers: { "x-metal-name": "box1", "x-metal-token": "lab-box-attach" } });
+  box.on("message", (d) => { const f = JSON.parse(d); if (f.t === "req") box.send(JSON.stringify({ t: "res", id: f.id, status: 200, headers: { "content-type": "text/plain" }, body: Buffer.from(`BOX:${f.method} ${f.path}`).toString("base64") })); });
+  await new Promise((r) => box.on("open", r)); t.after(() => box.close());
+  let boxed = null; for (let i = 0; i < 40 && !(boxed && boxed.status === 200); i++) { boxed = await req(port, "POST", "/t/box1/pvm/evidence", "EVIDENCE " + "ab".repeat(32) + "\n"); if (boxed.status !== 200) await new Promise((r) => setTimeout(r, 100)); }
+  assert.equal(boxed.status, 200, JSON.stringify(boxed)); assert.equal(boxed.body, "BOX:POST /pvm/evidence", "a non-pVM tunnel's /t/<name>/pvm/evidence is its own, untouched");
+  const none = await req(port, "POST", "/t/no-pvm-tunnel/pvm/evidence", "EVIDENCE " + "ab".repeat(32) + "\n");
+  assert.equal(none.status, 404); assert.equal(JSON.parse(none.body).error, "no_tunnel", "no tunnel under that name: the ordinary /t/ answer, not the carrier's");
   assert.equal((await post("0x3333333333")).status, 404, "a prefix never resolves");
   assert.equal((await post(ID("33"), "evidence", "E".repeat(300))).status, 413);
   // identity = the relay's clientIp: the LAST X-Forwarded-For hop (TRUSTED_PROXY), the socket when there is none

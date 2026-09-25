@@ -71,6 +71,7 @@
 
 #include "vm_payload.h"
 #include "third_party/tweetnacl.h"
+#include "anchor_attach_instance.h"   /* after tweetnacl (crypto_sign) and shielded-avf-binding.h */
 #include "anchor-core.h"
 #include "shielded-field.h"
 #include "shielded-simd.h"
@@ -93,6 +94,7 @@ static unsigned char g_tpk[32], g_tsk[64];
  * InstanceID = SHA-256(its SPKI). g_inst: derived this boot. The seeded key pair is third_party/tweetnacl.c's Enclave
  * addition, declared here because wasm/ggml-shielded/tweetnacl.h (same include guard) is the header in effect. */
 static unsigned char g_ipk[32], g_isk[64]; static int g_inst = 0;
+static void instance_spki(uint8_t spki[44]);   /* defined with the v3 evidence below; attest() needs it for INSTANCEATTACH */
 extern int crypto_sign_ed25519_tweet_seed_keypair(unsigned char *pk, unsigned char *sk, const unsigned char *seed);
 /* The lease proof key (PROOF-KEY.md): its seed is AVmPayload_getVmInstanceSecret("enclave-pvm-proof-key-v1") -- instance-bound
  * like the instance key -- and pvm-rt (src/proof.rs) turns it into the secp256k1 key and signs ONLY EnclaveProofOfTime
@@ -291,6 +293,16 @@ static void attest(const char *hex, const char *bound_hex) {
         if (!own) OUT("ATTEST refused to sign: BOUND is not this pVM's pad binding (v2 transcript over its own keys) or the challenge is not its sha256");
         else OUT("ATTEST binding: android-avf-pvm/v2 transcript over this pVM's own transport and pad keys, challenge = its sha256");
     } else OUT("ATTEST no BOUND: certificate only, nothing signed");
+#ifdef ANCHOR_TIER_PVM_CPU
+    if (own && g_inst) {   /* the boot-time INSTANCE proof for the owner's attach co-signer (anchor_attach_instance.h): the
+                            * instance SPKI and the signature only; the instance secret never leaves this function's callee */
+        uint8_t isig[64], isp[44]; char isph[89], isigh[129];
+        if (anchor_attach_instance_sign(bound, blen, g_tpk, g_ppk, g_isk, isig)) {
+            instance_spki(isp); sh_pads_bin2hex(isp, 44, isph); sh_pads_bin2hex(isig, 64, isigh);
+            OUT("INSTANCEATTACH key=%s sig=%s", isph, isigh);
+        }
+    }
+#endif
 #ifdef ANCHOR_TIER_PVM_CPU
     if (own && blen >= 32) { memcpy(g_caps_nonce, bound + blen - 32, 32); g_caps_nonce_kind = 2; }   /* v2: the relay's nonce closes the transcript */
     else { memcpy(g_caps_nonce, ch, 32); g_caps_nonce_kind = 1; }

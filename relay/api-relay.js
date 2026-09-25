@@ -2336,6 +2336,9 @@ function handleRequest(req, res) {
   const tm = u.pathname.match(/^\/t\/([A-Za-z0-9_-]+)(\/.*|)$/);
   if (tm) {
     const origin = `tunnel://${tm[1]}`;
+    // the pVM carrier's BOOTSTRAP route (relay/pvm-serving.mjs): /t/<name>/pvm/evidence, and only for a name attached as a pVM
+    // (AVF) tunnel -- every other tunnel's /t/ path is proxied exactly as before
+    if (pvmServe && tm[2] === "/pvm/evidence" && tunnelHub.origins().some((o) => o.endpoint === origin && o.mode === "avf") && pvmServe(req, res)) return;
     if (!tunnelHub.origins().some((o) => o.endpoint === origin))
       return json(res, 404, { error: "no_tunnel", message: `No tunnel enclave named ${tm[1]} is attached.` }, req);
     return proxyTo(origin, req, res, { path: (tm[2] || "/") + (u.search || ""), setCors: true });

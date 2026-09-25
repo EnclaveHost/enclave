@@ -26,6 +26,11 @@ public final class RelayAttach {
     final String url, name; final byte[] spki;
     Ws ws; byte[] nonce, bound; String challengeHex;
     String padKey = "";                       // the VM's X25519 pad key (PADKEY), presented with the attestation
+    /* the owner's ATTACH CO-SIGNER (RUNNER-AGENT.md "Attach"): once this name is registered on chain, the hub takes the attach
+     * only with the registry operator's signature, which the owner's co-signer gives only for the owner's own INSTANCE -- the
+     * payload's INSTANCEATTACH proof over this very transcript. This app forwards bytes; it holds no key and signs nothing. */
+    String attachSigner = null;               // --es attach_signer http://127.0.0.1:<port>/attach-sign (the owner's; loopback in the lab)
+    String instanceKey = null, instanceSig = null;   // from the VM: INSTANCEATTACH key=<SPKI hex> sig=<hex>
     /* LAB serving prototype (PVM-CPU.md): the relay's fresh nonce for the app's ABI/2 evidence, hex, from abi2-challenge */
     final java.util.concurrent.CompletableFuture<String> abi2Nonce = new java.util.concurrent.CompletableFuture<>();
     /* opens a stream to a VM port; set once the VM serves https (TLS terminates IN the VM, this app never holds a key) */
@@ -88,7 +93,25 @@ public final class RelayAttach {
         JSONObject rad = new JSONObject().put("format", AVF_PAD_FORMAT).put("body", b64(ev.toString().getBytes("UTF-8")))
             .put("transportKey", b64(spki)).put("transportKeyFp", hex(sha256(spki))).put("name", name);
         if (!padKey.isEmpty()) rad.put("padKey", padKey);
-        ws.sendText(new JSONObject().put("t", "attest").put("rad", rad).toString());
+        final JSONObject attest = new JSONObject().put("t", "attest").put("rad", rad);
+        if (attachSigner != null && instanceKey != null && instanceSig != null) {
+            try {   // the co-signer answers only for the owner's own instance over THIS transcript and nonce; its refusal is final
+                final String origin = url.replaceFirst("^wss://", "https://").replaceFirst("^ws://", "http://").replaceFirst("^(https?://[^/]+).*$", "$1");
+                final JSONObject req = new JSONObject().put("relay", origin).put("name", name).put("nonce", b64(nonce)).put("rad", rad)
+                    .put("instanceKey", instanceKey).put("instanceSig", instanceSig);
+                final java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(attachSigner).openConnection();
+                c.setConnectTimeout(5000); c.setReadTimeout(15000); c.setRequestMethod("POST"); c.setDoOutput(true);
+                c.setRequestProperty("content-type", "application/json");
+                try (java.io.OutputStream o = c.getOutputStream()) { o.write(req.toString().getBytes("UTF-8")); }
+                final int code = c.getResponseCode();
+                final java.io.InputStream in = code == 200 ? c.getInputStream() : c.getErrorStream();
+                final String body = in == null ? "" : new String(in.readAllBytes(), "UTF-8");
+                final JSONObject ans = body.isEmpty() ? new JSONObject() : new JSONObject(body);
+                if (code == 200 && ans.optString("operatorSig").matches("0x[0-9a-f]{130}")) { attest.put("operatorSig", ans.getString("operatorSig")); Main.say("RELAY attach co-signed by the owner (instance proof accepted)"); }
+                else Main.say("RELAY attach NOT co-signed: " + code + " " + ans.optString("error"));
+            } catch (Exception e) { Main.say("RELAY attach co-signer unreachable: " + e); }
+        } else if (attachSigner != null) Main.say("RELAY attach NOT co-signed: the VM gave no INSTANCEATTACH proof");
+        ws.sendText(attest.toString());
         Main.say("RELAY presented chain=" + chain.length() + " certs signature=" + (sig.isEmpty() ? "none" : "yes"));
         String f; JSONObject res = null;
         while (res == null && (f = ws.receive()) != null) { JSONObject o = new JSONObject(f); if ("attest-result".equals(o.optString("t"))) res = o; }

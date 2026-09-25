@@ -43,6 +43,7 @@ const MUTATIONS = [
   ["A19", "recovery does not rebroadcast the journaled bytes", [["< P.maxAnchorAgeBlocks) for (const t of pending.txs) await broadcast(t);", "< P.maxAnchorAgeBlocks) {}"]], T.idem],
   // enclave-99's review of c9fd1d39: four checks no test failed without
   ["A20", "the proof-key statement is asked for over a constant nonce", [["const nonce = randomBytes(32).toString(\"hex\"), doc = await ask(`PROOFKEY ${nonce}`);", "const nonce = \"5a\".repeat(32), doc = await ask(`PROOFKEY ${nonce}`);"]], T.hostile],
+  ["A24", "the statement verified without the owner's instance pins (a C1-fetched statement from another instance would be taken)", [["rootPins: e.rootPins, instanceIds: e.instanceIds, deployment: D", "rootPins: e.rootPins, deployment: D"]], T.hostile],
   ["A21", "the answer's anchor hash is not compared with the request's", [["if (c.upto !== upto || c.anchorBlock !== anchorBlock || c.anchorHash !== anchorHash)", "if (c.upto !== upto || c.anchorBlock !== anchorBlock)"]], T.hostile],
   ["A22", "the registry entry is not checked (active, operator, endpoint)", [["if (!L.regActive || L.regOperator !== me || L.regEndpointId !== E) return out(", "if (false) return out("]], T.live],
   ["A23", "an inactive deployment is still proven", [["if (!L.active) return out(", "if (false) return out("]], T.live],

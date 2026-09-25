@@ -85,6 +85,9 @@ test("runner config: strict; the owner's registration values are required to reg
   refuse({ payout: { to: "0x" + "ab".repeat(20) } }, /exactly \{ to, minWithdraw6 \}/);
   refuse({ payout: { to: "0x" + "ab".repeat(20), minWithdraw6: "0" } }, /minWithdraw6/);
   assert.equal(ok.lifecycle.payout, undefined, "no payout unless the owner names one");
+  refuse({ attach: { listen: "0.0.0.0:18470", relay: "https://api.enclave.host" } }, /loopback host:port/);
+  refuse({ attach: { listen: "127.0.0.1:18470" } }, /exactly \{ listen, relay \}/);
+  assert.equal(checkRunnerConfig({ format: RUNNER_CONFIG_FORMAT, proof, lifecycle: { attach: { listen: "127.0.0.1:18470", relay: "https://api.enclave.host" } } }).lifecycle.attach.listen, "127.0.0.1:18470");
   refuse({}, /exactly format, proof, lifecycle/, { extra: 1 });
   assert.throws(() => checkRunnerConfig({ format: RUNNER_CONFIG_FORMAT, proof: { ...proof, chainId: "0x2105" }, lifecycle: {} }), /chainId/);
 });

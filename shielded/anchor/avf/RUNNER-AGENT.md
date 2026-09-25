@@ -94,6 +94,61 @@ A restart after step 2 goes straight to 3; the watermark already covers the serv
 - `Released`.
 A mined transaction without its event is a failure, not a success.
 
+## Before the lease, and attaching once registered (the real relay; reviewed with the verifier session)
+
+Running the runner through the REAL relay (relay/api-relay.js) instead of the lab hub exposed three gaps. All three are
+closed or bounded here, with no weakening of any check.
+
+**C, fixed: no pre-lease path to the VM.**
+- The problem: the relay's `/x/<id>/pvm` route resolves the deployment's ON-CHAIN runner, so it exists only after a claim.
+  A claim needs the attested proof key registered, and the relay is the only path to the VM. So nothing could fetch the
+  first statement.
+- The fix: `POST /t/<name>/pvm/evidence` (relay/pvm-serving.mjs), carrying the EVIDENCE kind only:
+  - it goes to the pVM tunnel attached under `<name>`, and api-relay.js claims the path only when the hub's own verdict
+    for that name is an AVF (pVM) tunnel. Every other tunnel's `/t/` is untouched;
+  - it has the /x route's bounds, a per-client rate, a per-TUNNEL rate, sizes-only logging and plain refusals;
+  - it never carries the sealed kind, which would be unpaid serving before a lease;
+  - it is behind `PVM_SERVING`.
+- **It is never a source of instance trust.** Before registration a name is first-come, so the agent's `instanceIds` come
+  out of band from the owner's own device (PROOF-KEY.md "Activation" step 3).
+- **Residual:** name squatting before registration is a bootstrap denial of service. A same-build VM holds the name, and
+  the owner's agent refuses its evidence. An unguessable name mitigates it.
+
+**A, fixed: a registered name could never be attached again.**
+- The problem: once https://<relay>/t/<name> is registered, the hub (relay/tunnel.js) takes an attach under it only with
+  the registry OPERATOR's signature over "enclave-tunnel-attach:<name>:<nonce b64>". The phone never holds that key, so
+  every VM restart would have lost the name.
+- The fix: the owner-side attach co-signer (runner/attach-cosigner.mjs), started by the CLI from `lifecycle.attach`
+  (loopback only). It signs only for the owner's OWN INSTANCE:
+  1. **The payload's instance proof.** At boot, before the app, the payload signs its OWN pad-bind transcript B (domain ||
+     its transport SPKI || its pad key || the relay's nonce) with its instance key, under "enclave-pvm-attach-instance-v1\n"
+     (payload/anchor_attach_instance.h). It prints `INSTANCEATTACH key=<SPKI> sig=<sig>` and nothing else. A foreign
+     transcript gets nothing, and the instance secret never leaves the payload (pinned natively and by a source scan,
+     mutations P01-P04).
+  2. **The co-signer's checks:**
+     - its own name only, and never a requested one;
+     - the nonce: exactly 32 bytes, canonical, and never signed twice (journaled with fsync, across restarts);
+     - the rad, checked with the hub's own `verifyAvfEvidence` over B under the owner's pinned build(s), authority and
+       Google's roots. The build pin is what separates the pinned build from any other build the same authority signs:
+       the instance secret is stable across same-key updates;
+     - sha256(instance SPKI) in the owner's out-of-band `instanceIds`;
+     - the instance signature over THIS B, which pairs the instance with this boot's transport key and nonce;
+     - a rate limit.
+     The `relay` field of a request is only a configuration sanity check. What binds a co-signature to one relay
+     connection is the nonce, which is single-use at the relay that issued it.
+  3. **The Android host** forwards the request (`--es attach_signer http(s)://…/attach-sign`) and puts the returned
+     `operatorSig` in its attest frame. It holds no key.
+- Tested on the real hub: a registered name without a signature is refused; a co-signed attach by the owner's instance
+  is accepted; a co-signature for nonce N is refused on a connection with nonce N'; a second, validly co-signed attach
+  with another transport key is refused while the owner's tunnel is live; every co-signer refusal leaves nothing signed
+  (test/pvm-attach-cosigner.test.mjs; test/mutate-pvm-attach.mjs, 16/16).
+
+**B, a gap, documented: no in-place re-attach.**
+- The attach certificate is made at VM boot. If the relay drops, the tunnel stays gone until the VM restarts, and the
+  restart re-attaches with the co-signature.
+- A true in-place re-attach needs a payload control path that certifies a NEW relay nonce while the app runs. That is
+  not built.
+
 ## Interruption: what a restart must never do
 
 | interrupted after | the journal holds | the restart does | never |
@@ -149,4 +204,11 @@ Everything in PROOF-KEY.md "Exactly what production still needs", plus:
 - **Whether to claim, and which deployment.**
 - **A bond ceiling,** if the ledger asks for a bond. The default is none: the agent then refuses to claim.
 - **Where earnings go:** `payout.to` and `payout.minWithdraw6`. The default is none: earnings stay on the ledger.
+- **The attach co-signer's channel** from the phone to the owner's agent (`lifecycle.attach`), which listens on loopback
+  only. The lab uses adb reverse. In production it is the owner's choice of transport (their LAN, a tunnel or the host
+  app), and the co-signer's own checks are what hold regardless.
+- **On the production relay (the relay owner's):**
+  - `PVM_SERVING` set;
+  - the production `METAL_AVF_*`, `PVM_CPU_*` and `PVM_APP_*` values;
+  - `TUNNEL_PUBLIC_ORIGIN` equal to the origin the runner registers under.
 - **The margins, only if the defaults do not suit:** `renewMarginSec` and `heartbeatSec`.

@@ -18,6 +18,7 @@ const SUITES = { api: "test/api-relay-pvm-serving.test.mjs", hub: "test/pvm-rela
 const T = {   // the tests, by a distinctive part of their titles
   off: "PVM_SERVING OFF (the default)", lazy: "OFF carries no new code", bare: "PVM_SERVING ON without its configuration",
   on: "PVM_SERVING ON and configured: the ledger runner only", hung: "a ledger that never answers", hub: "the relay's wiring on the REAL hub",
+  boot: "the BOOTSTRAP route on the REAL hub",
 };
 const AR = "relay/api-relay.js", PS = "relay/pvm-serving.mjs", TJ = "relay/tunnel.js";
 const PVM_LINE = "  if (pvmServe && pvmServe(req, res)) return;\n";
@@ -41,6 +42,10 @@ const MUTATIONS = [
   ["M17", "the wiring ignores a missing policy", PS, [["handler: (deps) => (missing.length ? refuseAll : createPvmServing(deps))", "handler: (deps) => createPvmServing(deps)"]], "hub", T.hub],
   ["M18", "a cut answer ends cleanly", PS, [["else if (cut) res.destroy(); else res.end();", "else res.end();"]], "hub", T.hub],
   ["M19", "a buyer leaving does not close the VM's stream", PS, [["res.on(\"close\", () => { if (!res.writableFinished) sock.destroy(); });", ""]], "hub", T.hub],
+  // the pre-lease BOOTSTRAP route (/t/<name>/pvm/evidence; RUNNER-AGENT.md "Before the lease")
+  ["M21", "the bootstrap route claims ANY tunnel's /t/<name>/pvm/evidence, not only an attached pVM tunnel's", AR, [["o.endpoint === origin && o.mode === \"avf\")", "o.endpoint === origin)"]], "api", T.on],
+  ["M22", "no per-tunnel rate on the bootstrap route", PS, [["if (!perClient(who) || !perDeployment(bucket))", "if (!perClient(who) || (m && !perDeployment(bucket)))"]], "hub", T.boot],
+  ["M23", "sealed routed by tunnel name", PS, [["\\/pvm\\/evidence$/.exec(path)", "\\/pvm\\/(?:evidence|sealed)$/.exec(path)"]], "hub", T.boot],
   ["M20", "the hub pairs app and runtime (not the cross product)", TJ, [["        t.pvmApp = { appId: app, runtimeId: v.runtimeId,", "        if (policy.appIds.indexOf(app) !== policy.runtimeIds.indexOf(v.runtimeId)) return reply(false, [\"paired\"]);\n        t.pvmApp = { appId: app, runtimeId: v.runtimeId,"]], "hub", T.hub],
 ];
 

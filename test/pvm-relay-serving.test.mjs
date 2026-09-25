@@ -288,6 +288,35 @@ test("on the REAL tunnel hub: the module's streams go through tunnel.js spliceRa
   } finally { srv.close(); rig.close(); }
 });
 
+test("the BOOTSTRAP route on the REAL hub: /t/<name>/pvm/evidence reaches that name's attested pVM tunnel with no ledger lookup -- evidence only, rate-limited per tunnel, plain refusals", { skip: !haveOpenssl && "no openssl", timeout: 180000 }, async () => {
+  const rig = await realHub({ appIds: [APP], runtimeIds: [sha(PIXEL_ID)] }), { hub, vm } = rig;
+  assert.equal(await rig.phone("pixel-unleased"), null);   // attested, evidence-capable; no ledger row names it
+  const logs = [], resolved = [];
+  const handle = createPvmServing({ resolve: async (id) => { resolved.push(id); return null; }, hub, emit: (o) => logs.push(o), perDeployment: windowLimiter({ max: 2, ms: 60000 }) });
+  let notOurs = 0;
+  const srv = http.createServer((q, s) => { if (!handle(q, s)) { notOurs++; s.writeHead(404); s.end(); } });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const port = srv.address().port, ev = () => vm.log.filter((l) => l.evidence).length;
+  try {
+    const n = createHash("sha256").update("bootstrap nonce").digest("hex");
+    const a = await raw(port, "POST", "/t/pixel-unleased/pvm/evidence", `EVIDENCE ${n}\n`);
+    assert.equal(a.status, 200, a.body); assert.equal(JSON.parse(a.body).nonce, n, "the VM answered the caller's own nonce");
+    assert.equal(ev(), 1); assert.equal(resolved.length, 0, "no ledger lookup on the bootstrap route");
+    const u = await raw(port, "POST", "/t/no-such-phone/pvm/evidence", `EVIDENCE ${n}\n`);
+    assert.equal(u.status, 404); assert.equal(u.body, "", "an unknown name: a plain 404, nothing that could pass for evidence");
+    const n0 = notOurs, sealed = await raw(port, "POST", "/t/pixel-unleased/pvm/sealed", "x");
+    assert.equal(sealed.status, 404); assert.equal(notOurs, n0 + 1, "sealed is never routed by name: not this module's path");
+    assert.equal((await raw(port, "GET", "/t/pixel-unleased/pvm/evidence", "")).status, 405);
+    assert.equal((await raw(port, "POST", "/t/pixel-unleased/pvm/evidence", `EVIDENCE ${n}\n`)).status, 200, "the bucket's second request");
+    assert.equal(ev(), 2);
+    const r3 = await raw(port, "POST", "/t/pixel-unleased/pvm/evidence", `EVIDENCE ${n}\n`);
+    assert.equal(r3.status, 429, "the per-TUNNEL bucket (2 in the window here) holds");
+    assert.equal(ev(), 2, "the refused request never reached the VM");
+    assert.ok(logs.some((l) => l.pvm === "evidence" && l.tunnel === "pixel-unleased" && l.bytesIn > 0), "sizes logged");
+    assert.ok(logs.some((l) => l.refused === "rate" && l.tunnel === "pixel-unleased"));
+  } finally { srv.close(); rig.close(); }
+});
+
 // ---- the relay's OWN wiring (pvmServingFromEnv, exactly as api-relay.js builds it: the env's app policy is the hub's
 // attest.pvmApp and handler() is the route) on the real hub. A synthetic phone cannot attach to a spawned api-relay.js (its
 // AVF verifier pins Google's roots, correctly, with no override), so this is where the splice is driven end to end ----

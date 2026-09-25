@@ -57,6 +57,8 @@ const ac = new AbortController();
 for (const s of ["SIGINT", "SIGTERM"]) process.on(s, () => { log({ ev: "signal", signal: s, note: "stopping after the current tick" }); ac.abort(); });
 let bad = 0;
 try {
+  const attach = runnerMode && !releaseNow ? await agent.serveAttach() : null;   // the owner's attach co-signer, loopback only
+  if (attach) log({ ev: "attach-cosigner", listen: `127.0.0.1:${attach.port}` });
   const st = await agent.start();
   log({ ev: "started", addresses: st.addresses, recovered: st.recovered && st.recovered.kind, proofKey: st.attested && st.attested.proofKey, attestReason: st.attestReason });
   if (releaseNow) {
@@ -68,5 +70,5 @@ try {
     bad = outs.filter((o) => o.kind === "error").length;
   }
 } catch (e) { log({ ev: "fatal", reason: e.shortMessage || e.message }); bad = 1; }
-finally { agent.close(); }
+finally { if (typeof attach !== "undefined" && attach) attach.close(); agent.close(); }
 process.exitCode = bad ? 1 : 0;

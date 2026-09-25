@@ -169,6 +169,13 @@ Codex directed this slice under Steven's standing scope. Coding the disabled pat
   - Admission is the CROSS PRODUCT the hub checks (`tunnel.js`): any listed app on any listed runtime. The lists do not
     pair an app with its runtimes. Tested on the real hub: app A on the runtime meant for B is admitted. An operator who
     needs pairs needs a hub change.
+- **The bootstrap route (added with the real-relay lab; RUNNER-AGENT.md "Before the lease").** While ON,
+  `POST /t/<name>/pvm/evidence` goes to the carrier, but ONLY when `<name>` is attached as a pVM (AVF) tunnel by the hub's
+  own verdict. Otherwise it is the ordinary `/t/` proxy, unchanged, which is tested with a token-attached box.
+  - It carries evidence only, never the sealed kind.
+  - It has the same bounds, a per-client rate, a per-tunnel rate, and sizes-only logging.
+  - It exists because the `/x` routes need a lease, and the lease needs the attested proof key first.
+  - It is never a source of instance trust.
 - **Reserved paths.** While ON, `POST /x/<id>/pvm/evidence` and `POST /x/<id>/pvm/sealed` on the API host belong to the
   carrier for EVERY deployment.
   - An ordinary app's own paths of those names are not reachable through `/x`: they answer 404, never the app's answer.
