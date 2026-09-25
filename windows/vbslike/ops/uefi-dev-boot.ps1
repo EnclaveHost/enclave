@@ -863,8 +863,9 @@ try {
     else {
       $pdl = (Get-Date).AddSeconds(90)
       while ((Get-Date) -lt $pdl -and $con.text.Substring($mark) -notmatch "PROBE$pid_ done") { Drain $con 1000 }
+      # EVERY console line in the window, not just the matches: a probe that printed nothing must be diagnosable
+      foreach ($l in @($con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })) { Note "  PROBE CONSOLE: $l" }
       $plines = @($con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -match "^PROBE$pid_ " })
-      foreach ($l in $plines) { Note "  PROBE LINE: $l" }
       $bad = @()
       $val = @{}; foreach ($l in $plines) { if ($l -match "^PROBE$pid_ ([a-z_0-9]+)=(.*)$") { $val[$matches[1]] = $matches[2] } }
       foreach ($k in @('other_app_absolute','other_app_relative','other_app_escape','other_front_socket','configfs_tsm','sysfs','dev_tpm0','dev_tpmrm0','vsock_local_domain1','vsock_local_domain2','vsock_own_control','vsock_host_control','host_gateway')) {
