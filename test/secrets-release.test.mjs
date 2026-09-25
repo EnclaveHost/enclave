@@ -492,6 +492,24 @@ test("config parity with the tier: the envelope decides when it names either, el
   // a version configCid that does not resolve: nothing rather than a partial answer
   const { r } = await releaseC("", { configCid: "bafkreinothere" });
   assert.equal(r.code, 503); assert.equal(r.body.error, "config_unresolvable");
+  // the version's config cannot be READ just now (the RPCs disagree, a timeout, a record not confirmable right now): the
+  // relay's own 503 config_unresolvable with the ticket KEPT, and the retry releases once the read works - never a 422
+  // bad_config that burns the ticket (enclave-e3 L3 / enclave-d1). A deployment whose envelope names no config (the
+  // canaries') takes exactly this path.
+  const savedVersionConfigFor = ctx.versionConfigFor;
+  for (const [label, err] of [["the RPCs disagree", new Error("the RPCs disagree about the deployment's record")],
+                              ["an error carrying a non-HTTP (string) code", Object.assign(new Error("the ledger holds no such deployment"), { code: "no_deployment" })]]) {
+    envelopes[C] = ""; versions[C] = null; rows = [leaseRow(C)];
+    ctx.versionConfigFor = async () => { throw err; };
+    const t = await ticketFor(C), g = guest({ id: C, ticket: t.body.ticket });
+    const r1 = await release(C, t.body.ticket, g);
+    assert.equal(r1.code, 503, `${label}: ${JSON.stringify(r1.body)}`); assert.equal(r1.body.error, "config_unresolvable", label);
+    assert.equal(r1.body.sealed, undefined, label); assert.ok(R._internals.tickets.has(t.body.ticket), `${label}: the ticket is kept`);
+    ctx.versionConfigFor = savedVersionConfigFor;
+    const r2 = await release(C, t.body.ticket, g);
+    assert.equal(r2.code, 200, `${label}, retried: ${JSON.stringify(r2.body)}`); assert.equal(opened(C, t.body.ticket, g, r2).config, null, label);
+  }
+  ctx.versionConfigFor = savedVersionConfigFor;
 });
 
 test("release-status: public, listed only by SECRETS_RELEASE_DEPLOYMENTS; 503 (not listed) while off or unconfigured", async () => {

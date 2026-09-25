@@ -395,7 +395,15 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
       if ("configCid" in o) { config = await resolveCid(o.configCid, "The deployment's"); source = "the envelope's configCid"; }
       else { config = o.config; source = "the envelope's config"; }
     } else {
-      const ver = await ctx.versionConfigFor(id);
+      // the version's config through the agreeing RPCs: a read that fails (a timeout, the RPCs disagreeing, a record that
+      // cannot be confirmed just now) is the relay's OWN inability, a 503 that keeps the ticket for the guest's retry,
+      // never a verdict on the config (enclave-e3 L3 / enclave-d1: it burned the ticket as 422 bad_config)
+      let ver;
+      try { ver = await ctx.versionConfigFor(id); }
+      catch (e) {   // the cause's first line only (a library's message can run to many lines of request detail)
+        const why = String((e && e.message) || e).split("\n")[0].slice(0, 200);
+        throw Object.assign(new Error(`The version's config could not be read just now (${why}).`), { code: 503, error: "config_unresolvable" });
+      }
       if (ver && ver.configCid) {
         if (typeof ver.configCid !== "string" || !CONFIG_CID_RE.test(ver.configCid))
           throw Object.assign(new Error("The version's configCid is not a bare CID."), { code: 422, error: "bad_config" });
@@ -405,7 +413,8 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     }
     if (source) config = configValue(config);
   } catch (e) {
-    if (e.code) { if (e.code !== 503) tickets.delete(tk); bad(e.code, e.error, e.message); return true; }   // a 503 keeps the ticket
+    // only an HTTP status of our own is answered as one (an error carrying another code, e.g. a library's string, is not)
+    if (Number.isInteger(e.code)) { if (e.code !== 503) tickets.delete(tk); bad(e.code, e.error, e.message); return true; }   // a 503 keeps the ticket
     tickets.delete(tk); bad(422, "bad_config", `${source || "The config"} is not a JSON object or array (${e.message}).`); return true;
   }
   // the AMD collateral the evidence will need, fetched BEFORE the ticket is consumed (enclave-d1): a KDS or CRL outage is the
