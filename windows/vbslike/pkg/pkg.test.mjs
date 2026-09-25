@@ -976,3 +976,40 @@ test("draft v34 records the serving acceptance 082325 and re-pins the launcher o
   assert.equal(r.code, 0, fails(r.out));
   assert.match(r.out, /ok   every profile's launcher is a control\.launcher .*\(1 profile launcher\(s\)\)/);
 });
+
+test("draft v35 records v34's serving acceptance 084443 as staged (with enclave-d1's manager tree, not the package's), G4 as a host-behaviour measurement on the probe, reuses the probe from the box, and notes the dev-boot script's hvdial use", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-35.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT \(supersedes v34, which is staged at pkg\\6c82ff93fd3e3718\\\)\. V34 PASSED THE SERVING ACCEPTANCE AS STAGED \(enclave-d1, run 084443, evidence 54627fa2/);
+  assert.match(d.status, /\. G4, A HOST-BEHAVIOUR MEASUREMENT ON THE PROBE \(enclave-d1, run 082856, evidence 4e314db7/);
+  const acc = d.profiles.vbsLinux.v34ServingAcceptance;
+  assert.match(acc, /control\\vbslike-host\.exe 435717de/);
+  assert.match(acc, /HVLAB-ACCEPT ALL PASS.*RESTART-ACCEPT ALL PASS\. The new A8: .*within 4022 ms/);
+  assert.match(acc, /NOT from the package: the manager, node and harness came from enclave-d1's tree windows\/hv-acceptance 4a51c13f .* not this package's control\/ tree at c067b446/);
+  assert.match(acc, /this package's own acceptance block \(its control\/ tree and harness\) is still not run on the box/);
+  assert.match(acc, /SCOPE \(enclave-d1\): a package-level acceptance of v34 at T0-hv; .*host_excluded=no; not isolation\.$/);
+  assert.equal(d.acceptance.status, "NOT run on the box");
+  for (const n of ["serving-accept-README-084443.md", "serving-accept-084443-driver.out", "serving-accept-084443-harness.log.txt", "serving-accept-084443-manager-3.log.txt"])
+    assert.ok(d.inputs.some((i) => i.name === n && i.from.git.commit.startsWith("54627fa2")), n);
+  assert.ok(d.files.filter((f) => f.role === "control.manager").every((f) => f.from.git.commit.startsWith("c067b446")), "v35 does not re-pin the manager tree");
+  const g4 = d.profiles.vbsLinux.g4HostBehaviour;
+  assert.match(g4, /MON PROBE G4: panicking ON PURPOSE after 120 s/);
+  assert.match(g4, /18590 .* 18515/);
+  assert.match(g4, /It did NOT reboot \(one 'MON boot' line in 330 s\) and did not wedge/);
+  assert.match(g4, /SCOPE: T0-hv, host_excluded=no; a measurement of what the host does, not isolation evidence\.$/);
+  const pr = d.files.find((f) => f.role === "probe.firmware" && /PROBE-g4panic/.test(f.path));
+  assert.equal(pr.sha256.slice(0, 16), "724627378d81b51f");
+  assert.equal(pr.boxReuse, "C:\\Users\\claude\\vbs-like\\pkg\\69262a44e7e13901\\guest\\igvm-vbs\\PROBE-FIRMWARE-never-a-serving-candidate\\PROBE-g4panic-72462737.bin");
+  assert.match(pr.note, /^RAN ONCE, in enclave-d1's G4 run 082856 \(4e314db7\)/);
+  for (const n of ["g4-probe-README.md", "g4-probe-082856.log.txt"])
+    assert.ok(d.inputs.some((i) => i.name === n && i.from.git.commit.startsWith("4e314db7")), n);
+  const dev = [...d.files, ...d.inputs].find((x) => /uefi-dev-boot\.ps1/.test(x.path || x.from?.git?.path || ""));
+  assert.match(dev.note, /only for hvdial, which signs nothing/);
+  const ref = JSON.parse(refRawFor(D)), e = ref.images.find((x) => x.id === "g4-probe-72462737");
+  assert.match(e.booted, /^yes, once: in enclave-d1's G4 run 082856/);
+  assert.equal(e.eligible, false);
+  assert.ok(!Object.values(d.profiles).some((p) => p && [p.firmware, p.image].includes(pr.path)), "the probe is no profile's firmware");
+  assert.equal(d.profiles.vbsLinux.firmware, "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin");
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});
