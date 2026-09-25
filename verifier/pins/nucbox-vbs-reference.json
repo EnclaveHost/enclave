@@ -6,44 +6,6 @@
  "notAClaim": "No image here is an isolation claim; host_excluded=no.",
  "images": [
   {
-   "id": "vbs-linux-candidate",
-   "class": "candidate",
-   "imageSha256": "c567e43210ebd78c31273be47d9f4ca448f9a04cce276c40bc5d2abd6374d637",
-   "imageBytes": 77786140,
-   "vbsBootDigest": "A0FDAC0FC1EFB7B702D6DE1FACFAD8EB4E738DD35F3D3EE39AA0F5416BBCA244",
-   "vbsIsvsvn": 13,
-   "debugBuild": false,
-   "confidentialDebug": false,
-   "trustsHostCommandLine": false,
-   "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553), initrd 0d14db23 and command line as measured pages; static_command_line=true (the paravisor line is exactly the measured bytes)",
-   "booted": "yes: BOOTED as a type-1 partition under Secure Boot (enclave-d1, canary 061934, 2026-09-25 06:19:34-06:20:30Z, evidence 0564ff8d): Start-VM accepted it, MON ready with hv_isolation=vbs paravisor=no host_excluded=no, the control channel answered on hv_sock 9000; that run loaded no app. SERVED (enclave-d1, canary 062450, 2026-09-25 06:24:50-06:25:49Z, evidence 88f444b3, launcher 0160d835, wmiserve --igvm-sha256): hello-world loaded with hash agreement and served its 13 pinned bytes through the guest's own TLS. The --igvm-sha256 report path was built but NOT exercised; identity, any report or chain, and host exclusion are NOT established.",
-   "eligible": true,
-   "reason": "the ONLY image eligible for an allowlist, and only once the paravisor report format is registered and report bytes are pinned (enclave-99). It has booted and served a pinned app (type 1, Secure Boot); no report exists. It stays the one eligible entry until the G1 candidate (vbs-linux-candidate-g1) boots and serves; then it is superseded as the current candidate, remaining the image canaries 061934 and 062450 ran.",
-   "pin": {
-    "image": "guest/igvm-vbs/vbs-linux-candidate-c567e432.bin",
-    "identity": "vbs-linux-candidate-vbs.json"
-   }
-  },
-  {
-   "id": "vbs-linux-candidate-debug-twin",
-   "class": "debug",
-   "imageSha256": "24e7a1ffbd8a87244eecc12a4f34f98e80da2e1658bf5c50604f122bf20ce9d3",
-   "imageBytes": 77786140,
-   "vbsBootDigest": "A650C020838049BA0C431E72E0744606C0D55246F9BA8031E0797F724A35157E",
-   "vbsIsvsvn": 13,
-   "debugBuild": false,
-   "confidentialDebug": true,
-   "trustsHostCommandLine": true,
-   "vtl0": "linux, measured (the candidate's own VTL0)",
-   "booted": "no: build-only",
-   "eligible": false,
-   "reason": "REFUSE: carries OPENHCL_CONFIDENTIAL_DEBUG=1, so OpenHCL trusts the host command line; its debugBuild is false all the same",
-   "pin": {
-    "image": "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-DEBUG-TRUSTS-HOST-24e7a1ff.bin",
-    "identity": "vbs-linux-candidate-DEBUG-TRUSTS-HOST-vbs.json"
-   }
-  },
-  {
    "id": "vbs-linux-candidate-g1",
    "class": "candidate",
    "imageSha256": "a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4",
@@ -54,9 +16,9 @@
    "confidentialDebug": false,
    "trustsHostCommandLine": false,
    "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553), the G1+G3 initrd 680d40fa and command line as measured pages; static_command_line=true (the paravisor line is exactly the measured bytes)",
-   "booted": "no: built by enclave-63 and byte-reviewed by enclave-d1 (ce26bc6e, digest agrees); not booted yet",
-   "eligible": false,
-   "reason": "NOT YET ELIGIBLE: a clean non-debug candidate that has not booted. It becomes the eligible entry, and vbs-linux-candidate moves to superseded (eligible: false), only in the version that records its own boot-and-serve canary (enclave-d1); one eligible digest at a time (enclave-99's verifier refuses two). Eligibility stays PROSPECTIVE in this file: nothing is accepted until the paravisor report format is registered and report bytes from the eligible image verify under the same boot's IDKS (enclave-99).",
+   "booted": "yes: BOOTED and SERVED as a type-1 partition under Secure Boot, and its per-boot nonce HOLDS (enclave-d1, canary 070020, 2026-09-25 07:00:44-07:01:24Z, evidence 7b509d16, script uefi-dev-boot.ps1 at 95752533): MON ready with hv_isolation=vbs paravisor=no host_excluded=no and 'MON boot 39725c19e15c91afe488ce62251055f5'; hello-world loaded with hash agreement under that boot and served its 13 pinned bytes through the guest's own TLS; a destroy without boot was refused (bootRequired) and one with a wrong boot answered rebooted:true, both touching nothing (app still 200); the load answer's own boot destroyed the domain. Not covered: the launcher's own rebooted:true handling, and G4. No report was requested; identity, any report or chain, and host exclusion are NOT established.",
+   "eligible": true,
+   "reason": "the ONLY image eligible for an allowlist (since v31), and only once the paravisor report format is registered and report bytes from this image verify under the same boot's IDKS (enclave-99): eligibility stays PROSPECTIVE. It has booted and served a pinned app (type 1, Secure Boot), with the G1 nonce holding; no report exists.",
    "pin": {
     "image": "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin",
     "identity": "vbs-linux-candidate-g1-vbs.json"
@@ -140,6 +102,20 @@
   }
  ],
  "superseded": [
+  {
+   "id": "vbs-linux-candidate-c567e432",
+   "vbsBootDigest": "A0FDAC0FC1EFB7B702D6DE1FACFAD8EB4E738DD35F3D3EE39AA0F5416BBCA244",
+   "imageSha256": "c567e43210ebd78c31273be47d9f4ca448f9a04cce276c40bc5d2abd6374d637",
+   "eligible": false,
+   "reason": "REFUSE: superseded in v31 by the G1 candidate vbs-linux-candidate-g1 (a44bb55a…, 58DFEBFE…). It booted (canary 061934) and served (canary 062450), but no report was ever verified for it, and its initrd predates the G1 per-boot nonce. No longer shipped; it stays in the staged v28-v30 packages for rollback."
+  },
+  {
+   "id": "vbs-linux-candidate-debug-twin-c567e432",
+   "vbsBootDigest": "A650C020838049BA0C431E72E0744606C0D55246F9BA8031E0797F724A35157E",
+   "imageSha256": "24e7a1ffbd8a87244eecc12a4f34f98e80da2e1658bf5c50604f122bf20ce9d3",
+   "eligible": false,
+   "reason": "REFUSE: the superseded c567e432 candidate's debug twin (trusts the host command line); never booted."
+  },
   {
    "id": "vbs-linux-candidate-v27",
    "vbsBootDigest": "246DEE1B6F2057F504EF3B0C422E081CB365B121E7D0C7BFE420B1A8946A89F0",

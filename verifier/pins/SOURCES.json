@@ -1,18 +1,23 @@
 {
  "nucbox-vbs-reference.json": {
-  "sha256": "4866679b39075e5eb4850316af537106f00db75f030a02114ffbf0b5861445a4",
+  "sha256": "a6bb5518ef9992f4b21c90d8b966b72ec48feacd585835e8e37585f068b3b425",
   "origin": {
    "repository": "EnclaveHost/enclave",
    "branch": "windows/vbslike-pkg",
-   "commit": "e94fc756",
+   "commit": "fb1bb0e6",
    "path": "windows/vbslike/pkg/reference/nucbox-vbs-reference.json",
    "owner": "enclave-63",
-   "packageVersion": "v30"
+   "packageVersion": "v31"
   },
   "what": "the reference values for the NucBox custom type-1 paravisor images (type enclave-nucbox-vbs-reference/1), re-derived by enclave-53's pkg.mjs verify from the pinned images and their VBS identity documents; imported by commit and hash, never edited here. A new commit of the file is a new pin, reviewed as such.",
   "use": "verifier/nucbox-reference.mjs eligibleDigestsOf: the exact vbsBootDigest allowlist for V3/V4 of docs/security/nucbox-custom-vm-verifier.md. NOT used by any verdict until the paravisor report format is registered with real report bytes.",
-  "reviewed": "2026-09-25: the diff from 85d74c56 is the vbs-linux-candidate reason (it stays the one eligible entry until the G1 candidate boots and serves) and two NEW images: vbs-linux-candidate-g1 (a44bb55a..., 58DFEBFE..., clean, eligible FALSE: not booted yet, staged per the one-eligible rollover) and its confidential-debug twin (4991b3e1..., 2A93ED16..., refused); superseded[] unchanged; the derived allowlist is identical (A0FDAC0F... only; 7 images, 1 eligible)",
+  "reviewed": "2026-09-25: THE ROLLOVER, in one change as agreed. Diff from e94fc756: vbs-linux-candidate-g1 (a44bb55a..., 58DFEBFE...) booted, served and its per-boot nonce held (enclave-d1 canary 070020, evidence 7b509d16) and is now eligible:true, still clean (candidate, confidentialDebug false, trustsHostCommandLine false); vbs-linux-candidate (c567e432..., A0FDAC0F...) and its debug twin (24e7a1ff..., A650C020...) removed from images[] and added to superseded[] with the SAME digests and image hashes, eligible:false; the v27 pair, the G1 twin, the a7b0bd4 control/debug and stock unchanged; derived allowlist exactly 58DFEBFE... (5 images, 1 eligible, 8 refused, no repeated digest). Eligibility stays PROSPECTIVE: nothing is accepted until paravisor report bytes from this image verify under the same boot's IDKS",
   "previous": [
+   {
+    "commit": "e94fc756",
+    "sha256": "4866679b39075e5eb4850316af537106f00db75f030a02114ffbf0b5861445a4",
+    "owner": "enclave-63"
+   },
    {
     "commit": "85d74c56",
     "sha256": "32569865d3f54ab5bb63fb06289f6406c911850c62ac31c2c2c73374c7893775",
