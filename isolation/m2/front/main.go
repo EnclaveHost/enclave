@@ -219,12 +219,15 @@ func main() {
 	// allowlist from them, BEFORE init starts the app (provision.go). Any failure ends the domain.
 	if *initFD > 0 {
 		initPipe := os.NewFile(uintptr(*initFD), "init-pipe")
-		config := ""
-		if f.snp && f.plane == nil && f.monitor == "" && hdErr == nil && !isZero(hd) {
+		err := f.releaseForInit(initPipe, hd, hdErr, func() (string, error) {
 			roots, err := release.RelayRoots()
-			must(err)
+			if err != nil {
+				return "", err
+			}
 			keys, err := release.PinnedRelayKeys()
-			must(err)
+			if err != nil {
+				return "", err
+			}
 			p := &provisioner{
 				ticket:    func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, release.TicketPort) },
 				egress:    func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, EgressPort) },
@@ -236,14 +239,13 @@ func main() {
 			}
 			prov, err := p.run(context.Background(), hd, spki, rt, appSha)
 			if err != nil {
-				die("release: %v", err)
+				return "", err
 			}
-			config = prov.config
-		} else {
-			fmt.Printf("DOM release: none (this guest serves no deployment's HOST_DATA on the M2 SNP path)\n")
+			return prov.config, nil
+		})
+		if err != nil {
+			die("release: %v", err)
 		}
-		must(handToInit(initPipe, config))
-		config = ""
 	}
 	tl := tls.NewListener(l, &tls.Config{GetCertificate: f.certs.getCertificate, MinVersion: tls.VersionTLS13,
 		SessionTicketsDisabled: true})
@@ -475,6 +477,37 @@ func monoMs() float64 {
 	var ts syscall.Timespec
 	syscall.Syscall(syscall.SYS_CLOCK_GETTIME, 1 /* CLOCK_MONOTONIC */, uintptr(unsafe.Pointer(&ts)), 0)
 	return float64(ts.Sec)*1e3 + float64(ts.Nsec)/1e6
+}
+
+// releaseForInit is the M2 release step: it decides whether this guest serves a deployment, runs the release through
+// provision if it does, and hands init its config ("" = none). Only a SUCCESSFUL report whose HOST_DATA is all zero
+// means "no deployment". A HOST_DATA read that FAILED is an error that ends the domain, never "none": a host that
+// failed the guest's first report request would otherwise start the app with no config, secrets or allowlist, while
+// the measurement and HOST_DATA a verifier reads later look right (enclave-e3's review of 7de792bc). Nothing is written
+// to init on an error, so init powers the guest off rather than start the app.
+func (f *front) releaseForInit(initPipe *os.File, hd []byte, hdErr error, provision func() (string, error)) error {
+	if !(f.snp && f.plane == nil && f.monitor == "") {
+		fmt.Printf("DOM release: none (not the M2 SNP path)\n")
+		return handToInit(initPipe, "")
+	}
+	if hdErr != nil {
+		initPipe.Close()
+		return fmt.Errorf("HOST_DATA unreadable, so whether this guest serves a deployment is unknown: %w", hdErr)
+	}
+	if len(hd) != 32 {
+		initPipe.Close()
+		return fmt.Errorf("HOST_DATA is %d bytes, not 32", len(hd))
+	}
+	if isZero(hd) {
+		fmt.Printf("DOM release: none (this guest's HOST_DATA names no deployment)\n")
+		return handToInit(initPipe, "")
+	}
+	config, err := provision()
+	if err != nil {
+		initPipe.Close()
+		return err
+	}
+	return handToInit(initPipe, config)
 }
 
 func must(err error) {
