@@ -10,7 +10,8 @@ package main
 //     never Bind/Bind2) and the AppID this image carries;
 //  3. present {id, ticket, sealKey, evidence} to the relay over TLS the guest runs itself, pinned to the relay's
 //     name and roots, through the host's egress path;
-//  4. open the sealed reply, derive the allowlist from it (egress.FromRelease: the owner's config, never the host's),
+//  4. verify the relay's signature over THIS request and the sealed reply against the PINNED release keys (contract
+//     v1.2), and only then open it; derive the allowlist from it (egress.FromRelease: the owner's config, never the host's),
 //     start one loopback listener per allowed origin and write /etc/hosts naming only those;
 //  5. audit the guest's listening sockets: before the app starts, the ONLY IP listeners may be those forwarders;
 //  6. hand init the resolved config (appconfig.Resolve, the standard runtime's substitution) for ENCLAVE_CONFIG.
@@ -23,6 +24,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
@@ -53,6 +55,7 @@ type provisioner struct {
 	report    func(rd []byte) (rep, certs []byte, err error)
 	relayHost string
 	roots     *x509.CertPool
+	keys      []ed25519.PublicKey               // the relay's pinned release keys (release.PinnedRelayKeys)
 	etc       string                            // "/etc" in a guest
 	fwdPort   int                               // 443 in a guest
 	audit     func(want []netip.AddrPort) error // auditListeners("/proc/net", …) in a guest
@@ -74,6 +77,10 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 	}
 	if len(appSha) != 32 {
 		return nil, errors.New("no AppID to put in report_data[32:64]")
+	}
+	if len(p.keys) == 0 {
+		// before the ticket is even read: this image cannot trust any reply (contract v1.2)
+		return nil, errors.New("no relay release key is pinned in this image, so no release can be trusted")
 	}
 	var id [32]byte
 	copy(id[:], hostData)
@@ -111,13 +118,13 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 		ev.Certs = base64.StdEncoding.EncodeToString(certs)
 	}
 	relay := egress.Origin{Host: p.relayHost}
-	cl := &release.Client{Host: p.relayHost, Roots: p.roots,
+	cl := &release.Client{Host: p.relayHost, Roots: p.roots, Keys: p.keys,
 		Dial: func(context.Context) (net.Conn, error) { return egress.DialOrigin(p.egress, relay) }}
-	sealed, err := cl.Release(ctx, id, tk.Ticket, sk.Public(), ev)
+	resp, err := cl.Release(ctx, id, tk.Ticket, sk, ev) // VERIFIED against the pinned keys (contract v1.2) ...
 	if err != nil {
 		return nil, err
 	}
-	rel, err := sk.Open(sealed, id, tk.Ticket)
+	rel, err := sk.Open(resp) // ... and only then opened
 	if err != nil {
 		return nil, fmt.Errorf("the relay's reply does not open under this guest's seal key: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdh"
+	"crypto/ed25519"
 	"crypto/hkdf"
 	"crypto/rand"
 	"crypto/sha256"
@@ -14,8 +15,8 @@ import (
 	"enclave.host/isolation/m2/release"
 )
 
-// sealTo seals a release plaintext to a guest's seal key exactly as the relay does (contract v1.1), using only
-// exported APIs, so this test exercises the real SealKey.Open.
+// sealTo seals a release plaintext to a guest's seal key exactly as the relay does (contract v1.1 seal, unchanged in
+// v1.2), so this test exercises the real SealKey.Verify and SealKey.Open through exported APIs only.
 func sealTo(t *testing.T, sealPub []byte, id, ticket [32]byte, pt []byte) []byte {
 	t.Helper()
 	eph, _ := ecdh.X25519().GenerateKey(rand.Reader)
@@ -56,7 +57,15 @@ func TestFromReleaseTakesOnlyAnAttestedRelease(t *testing.T) {
 	pt, _ := json.Marshal(map[string]any{"id": "0x" + strings.Repeat("11", 32), "envelopeSha256": strings.Repeat("00", 32),
 		"config": json.RawMessage(cfg), "secrets": map[string]string{"KEY": "k", "IMAGE_ENDPOINT": "https://images.example"},
 		"issuedAt": "2026-09-25T00:00:00.000Z"})
-	rel, err := sk.Open(sealTo(t, sk.Public(), id, ticket, pt), id, ticket)
+	// v1.2: the relay signs the reply, and only a verified reply can be opened
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	sealed := sealTo(t, sk.Public(), id, ticket, pt)
+	d, _ := release.ResponseDigest(id, ticket, sk.Public(), sealed)
+	resp, err := sk.Verify([]ed25519.PublicKey{pub}, id, ticket, sealed, ed25519.Sign(priv, d[:]), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rel, err := sk.Open(resp)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -223,11 +223,13 @@ func main() {
 		if f.snp && f.plane == nil && f.monitor == "" && hdErr == nil && !isZero(hd) {
 			roots, err := release.RelayRoots()
 			must(err)
+			keys, err := release.PinnedRelayKeys()
+			must(err)
 			p := &provisioner{
 				ticket:    func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, release.TicketPort) },
 				egress:    func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, EgressPort) },
 				report:    f.report,
-				relayHost: release.RelayHost, roots: roots,
+				relayHost: release.RelayHost, roots: roots, keys: keys,
 				etc: "/etc", fwdPort: 443,
 				audit: func(want []netip.AddrPort) error { return auditListeners("/proc/net", want) },
 				logf:  func(format string, a ...any) { fmt.Printf(format+"\n", a...) },
