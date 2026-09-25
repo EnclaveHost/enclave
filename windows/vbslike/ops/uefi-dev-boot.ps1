@@ -269,6 +269,14 @@ try {
     $vssdF = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemSettingData |
              Where-Object { $_.ConfigurationID -eq $vm.Id.Guid }
     $vssdF.FirmwareFile = $Firmware
+    # VTL2's address space, which OpenHCL itself runs in. petri's -IncreaseVtl2Memory sets exactly
+    # these three on the type-16 path; New-VM sets none, and the first type-1 boot proved what that
+    # costs: the VM started, then "a fatal virtual firmware error ... ErrorCode0..4: 0x0" and a
+    # triple fault, which is OpenHCL coming up with no address space to run in. Total OpenHCL RAM is
+    # Vtl2AddressRangeSize - Vtl2MmioAddressRangeSize, so 1024 - 512 = 512 MiB, petri's own numbers.
+    $vssdF.Vtl2AddressSpaceConfigurationMode = 1
+    $vssdF.Vtl2AddressRangeSize              = 1024
+    $vssdF.Vtl2MmioAddressRangeSize          = 512
     $svc = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemManagementService
     $r = Invoke-CimMethod -InputObject $svc -MethodName ModifySystemSettings `
            -Arguments @{ SystemSettings = ($vssdF | ConvertTo-CimEmbeddedString) }
@@ -284,7 +292,14 @@ try {
     if ($vssdF.FirmwareFile -ne $Firmware) { throw "the VM's FirmwareFile reads '$($vssdF.FirmwareFile)', not the pinned $Firmware" }
     $gsf = "$($vssdF.GuestStateDataRoot)\$($vssdF.GuestStateFile)"
     Note "guest state: '$($vssdF.GuestStateFile)' $(if(Test-Path $gsf){"$((Get-Item $gsf).Length) bytes on disk"}else{'NOT ON DISK'}); GuestFeatureSet=$($vssdF.GuestFeatureSet)"
+    Note "VTL2: mode=$($vssdF.Vtl2AddressSpaceConfigurationMode) range=$($vssdF.Vtl2AddressRangeSize) MiB mmio=$($vssdF.Vtl2MmioAddressRangeSize) MiB (OpenHCL RAM = $([int]$vssdF.Vtl2AddressRangeSize - [int]$vssdF.Vtl2MmioAddressRangeSize) MiB)"
+    if ([int]$vssdF.Vtl2AddressRangeSize -eq 0) { throw "VTL2 address range read back as 0: OpenHCL would have no address space to run in" }
     Set-VMFirmware -VM $vm -EnableSecureBoot Off
+    # New-VM gives a Gen2 VM a network adapter. This guest is not supposed to have one: it reaches
+    # nothing but its own loopback and the control channel, and a NIC on an isolation experiment is
+    # both an unnecessary surface and a way for a result to be quietly explained by the network.
+    $nics = @(Get-VMNetworkAdapter -VM $vm -ErrorAction SilentlyContinue)
+    if ($nics.Count) { $nics | Remove-VMNetworkAdapter -Confirm:$false; Note "removed $($nics.Count) network adapter(s) New-VM added; this guest has no NIC" }
     Set-VMComPort  -VM $vm -Number 1 -Path "\\.\pipe\$pipe"
   } else {
     New-CustomVM -VMName $name -GuestStateIsolationEnabled $true -GuestStateIsolationType $IsolationType `
