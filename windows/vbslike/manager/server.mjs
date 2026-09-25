@@ -73,7 +73,13 @@ export class Manager {
     // must agree are two values that will eventually disagree.
     this.runtime = runtime;
     this.runtimeId = runtime ? Buffer.from(runtimeId_(runtime)).toString("hex") : runtimeId;
+    // The code and the doc disagreed: the comment said this defaults to ready.mjs's judgeRunning
+    // and it actually defaulted to null, which leaves every record `starting` forever WITH NO
+    // REASON - a manager that looks healthy and never promotes anything (enclave-5d, whose harness
+    // it caught for a run). main.mjs passes the real rule, so production was fine, which is
+    // exactly why it could sit there. Null is now an explicit, stated refusal rather than silence.
     this.judgeReady = judgeReady;
+    this.noReadinessRule = !judgeReady;
     this.readyDeadlineMs = readyDeadlineMs;
     this.domains = new Map();
     this.judging = new Map();                   // id -> the readiness promise, so tests can await it
@@ -95,7 +101,11 @@ export class Manager {
    */
   async #judgeReadiness(rec, handle) {
     const judge = this.judgeReady;
-    if (!judge) return;                                     // no rule wired: the record stays `starting`
+    if (!judge) {
+      rec.reason = "this manager was built with no readiness rule, so no domain can ever become "
+                 + "running: it stays starting until something judges it";
+      return;
+    }
     if (!rec.relay || !rec.relay.port) {
       rec.reason = "the backend exposed no relay port, so readiness cannot be judged and nothing can be routed";
       return;

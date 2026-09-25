@@ -141,7 +141,10 @@ export async function routeFor(transport, instanceId, expectAppId, { timeoutMs =
   // measurement; a NucBox partition (the windows/vbslike manager, tier T0-hv) has none and is named by the guest image
   // it booted - carried as `image`, never as a measurement, so neither can be read as the other. Which shape is the
   // view's `tier`, not the id's spelling: no client depends on one backend's id format (the manager owns its ids).
-  const hv = b.tier === "T0-hv";
+  // The tier's spelling varies with who states it - "T0-hv" (the contract, judge-hv) and "t0-hv" (the guest's own
+  // boundary line, which the NucBox HCS backend's handle carries verbatim) - and must not split one tier into two
+  // route shapes: a partition read as an SNP guest is simply unroutable.
+  const hv = /^t0-hv$/i.test(String(b.tier || ""));
   const route = hv
     ? { id: b.id, appId: b.appId, image: b.image, runtimeId: b.runtimeId, key: b.transportKeySha256 }
     : { id: b.id, appId: b.appId, measurement: b.measurement, runtimeId: b.runtimeId, key: b.transportKeySha256 };
