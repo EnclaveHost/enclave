@@ -15,6 +15,7 @@
 mod contract;
 mod hcs;
 mod hvdial;
+mod wmiserve;
 mod hvsock;
 mod isoprobe;
 mod lab;
@@ -62,6 +63,7 @@ fn main() {
         "isoprobe" => isoprobe::run(&opts),
         "reap" => reap::run(&opts),
         "hvdial" => hvdial::run(&opts),
+        "wmiserve" => wmiserve::run(&opts),
         _ => usage(),
     };
     std::process::exit(rc);
