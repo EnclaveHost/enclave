@@ -205,6 +205,18 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   `host_excluded=no`, no isolation proof; stock 2511 is a product decision for the monitor. d1's verbatim probe lines
   pending.
 
+- **v23 draft** (`drafts/nucbox-ownguest-23.json`, STAGED; supersedes v22): E2 VERBATIM from d1 (run 042300, RUN OK;
+  every condition read back off the live VM; the probe's entire output is one line, `[0.335899] VBSREPORT status=0x71
+  (…)`, reconstructed from a console-interleaved raw line and said so; the guest's own type-1 tuple; the host TCG log
+  name and size) and **E2 RESOLVED** by the debug image's kmsg of the opt-out boot that booted: OpenHCL's own VTL2
+  report attempt fails at `IgvmAttest KEY_RELEASE … the size of the attestation response 0 is too small to parse`,
+  an agent failure on a zero-length response, not a report-generation failure — so the VBS report WAS obtained by
+  VTL2. Conclusion in d1's words: the hypervisor produces a VBS report for this partition TO VTL2 and turns VTL0
+  away; the chain is not absent but reachable only through the paravisor, which makes a client-verifiable binding a
+  DESIGN CHANGE rather than a guest patch, buildable here unanswered. Not an isolation claim: `host_excluded=no`,
+  nothing verified, E3 NOT RUN; stock 2511 is a product decision for the monitor. d1's `b0f20482` evidence is an
+  input. The box launcher's hash is NOT re-pinned until d1 gives the post-rebuild one.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
