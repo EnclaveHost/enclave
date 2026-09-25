@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Manager, createServer, startManager } from "./server.mjs";
-import { judgeRunning } from "./ready.mjs";
+import { judgeRunning, checkAnswer } from "./ready.mjs";
 import { runtimeId as runtimeIdOf } from "../../../isolation/contract/runtime.mjs";
 import { HyperVPartitionBackend } from "./backend.mjs";
 import { WmiHyperVLauncher, HYPERV_MODULE_SHA256 } from "./wmi-launcher.mjs";
@@ -131,7 +131,7 @@ if (runtimeIdentityPath) {
   process.exit(2);
 }
 
-const manager = new Manager({ judgeReady: judgeRunning,
+const manager = new Manager({ judgeReady: judgeRunning, answerCheck: checkAnswer,
   runtime,
   runtimeId,
   fetchComponent,
@@ -170,6 +170,21 @@ if (livenessMs > 0) {
     if (r && r.failed) console.log(`[winmgr] liveness: ${r.failed} domain(s) failed because their partition stopped`);
     if (r && r.error) console.error(`[winmgr] liveness survey failed (nothing changed): ${r.error}`);
   }, livenessMs);
+  t.unref?.();
+}
+// ANSWERS (server.mjs sweepAnswers): a Running partition whose domain wedged, or answers on another key, is invisible to
+// the VM-state sweep. Every ENCLAVE_ANSWER_CHECK_MS (default 30 s; 0 disables), each running domain is asked on one TLS
+// session: the verified key, and enclave-ready. 3 failures in a row, or one key change, fail it.
+const answerMs = Number(env("ENCLAVE_ANSWER_CHECK_MS", "30000"));
+if (answerMs > 0) {
+  let busy = false;                                    // one sweep at a time: a slow domain must not stack them up
+  const t = setInterval(async () => {
+    if (busy) return; busy = true;
+    const r = await manager.sweepAnswers().catch((e) => ({ error: e.message }));
+    busy = false;
+    if (r && r.failed) console.log(`[winmgr] answers: ${r.failed} domain(s) failed because they stopped answering on their verified key`);
+    if (r && r.error) console.error(`[winmgr] answer check could not run: ${r.error}`);
+  }, answerMs);
   t.unref?.();
 }
 console.log(`[winmgr] inventory ${inv.state}` + (inv.state === "ready" ? `: recovered ${inv.recovered}, unattributed ${inv.unattributed}` : inv.error ? `: ${inv.error}` : ""));
