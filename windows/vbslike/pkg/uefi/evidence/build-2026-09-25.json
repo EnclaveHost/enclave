@@ -2,11 +2,11 @@
  "type": "enclave-vbslike-uefi-image/1",
  "inputs": {
   "kernel":  { "sha256": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd", "bytes": 15876096 },
-  "initrd":  { "sha256": "4610d5944cc2d67a6510ece964915b6a90b20ecc27a0169d514a2701c9fc9f85", "bytes": 24038133 },
+  "initrd":  { "sha256": "5bc062598212f1e509c4579ba76ab2e34ed090960fc6712d503c49ae427fb359", "bytes": 24039932 },
   "stub":    { "sha256": "2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18", "bytes": 134144 },
   "cmdline": "console=ttyS0 rdinit=/init loglevel=3 report_host=9001",
   "cmdlineSha256": "c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615",
-  "ukiRecipe": { "sha256": "84ac435620556cd6d17a662fe05af89342b908ad5a9e48f64bdf59d557299dfb", "agrees": true }
+  "ukiRecipe": { "sha256": "a3e2748b5313ee2bc7e8b5a4e7c7265db782c0e7180f2bdb9eaa1f61ecafbbe4", "agrees": true }
  },
  "params": { "espMiB": 128, "diskMiB": 256, "sourceDateEpoch": 1758672000, "fatVolumeId": "E5C1A7E5",
              "gptLabelId": "5E6C0D1A-7A0B-4C3E-9E0B-000000000001", "espPartUuid": "5E6C0D1A-7A0B-4C3E-9E0B-0000000000E5",
@@ -14,10 +14,10 @@
  "tools": { "objcopy": "GNU objcopy (GNU Binutils) 2.47", "mtools": "mcopy (GNU mtools) 4.0.49",
             "sfdisk": "sfdisk from util-linux 2.42.3", "xorriso": "xorriso 1.5.8.pl02", "qemu-img": "qemu-img version 11.1.1", "mkfs.fat": "Usage: mkfs.fat [OPTIONS] TARGET [BLOCKS]" },
  "outputs": {
-  "uki.efi":   { "sha256": "a1fdb5c3e973accc2f04bfecce7fb22cfdcfcf7568244350328ec6436a1a87b1", "bytes": 40045056 },
-  "esp.img":   { "sha256": "9bea1b683845083383c2e08c94c5a5550d5e64d71fb20ac9ae3dee756ac9945e", "bytes": 134217728 },
-  "disk.raw":  { "sha256": "04898f098ab9e464ee5be9771926812a6f8236940403492019a7538aa6efe4a7", "bytes": 268435456, "note": "the pinned identity of the disk" },
-  "disk.vhdx": { "sha256": "b3c9e97006add991963729e48d0f4da87add13c88c8796d0fed6eb07e5cffb2e", "bytes": 67108864, "note": "FALLBACK container: header GUIDs are random, so NOT reproducible; its payload is disk.raw (checked)" },
-  "guest.iso": { "sha256": "b218a3290cfbc0932e3d406e17b8bc0fd2b5b83591fb99216b5c4c2a03d04cf0", "bytes": 134594560, "note": "the boot medium: El Torito EFI = /efiboot.img (= esp.img) inside the ISO 9660 volume; read-only" }
+  "uki.efi":   { "sha256": "75ae6bccf2cd663a85dc21562b06892800b2744aa90441a453fdf6aa613776b6", "bytes": 40046592 },
+  "esp.img":   { "sha256": "ae471838f131bec60a431ecbe0fb42ac0b981ffd3d56d50fe896f690a8e5e0fa", "bytes": 134217728 },
+  "disk.raw":  { "sha256": "a50fdd05663762f703353919620179ddbfab7b561788163429eed8e4146b0f72", "bytes": 268435456, "note": "the pinned identity of the disk" },
+  "disk.vhdx": { "sha256": "5c54470e0462da7f7b0115f895cb7fdc7ed4a619984144976126dc8e6568db52", "bytes": 67108864, "note": "FALLBACK container: header GUIDs are random, so NOT reproducible; its payload is disk.raw (checked)" },
+  "guest.iso": { "sha256": "4c387086d204c7064bf77a48c6e076b844ba5b429f2219c5e29cd988e23cdcb0", "bytes": 134594560, "note": "the boot medium: El Torito EFI = /efiboot.img (= esp.img) inside the ISO 9660 volume; read-only" }
  }
 }
