@@ -111,6 +111,7 @@ test("the backend takes the REAL launcher, and a domain started through it is ru
   // the type-1 definition (New-CustomVM), answered the way a compliant host reads it back
   const answer = (script) => ({ preflight: PREFLIGHT_OK, imageHash: { present: true, sha256: SHA, bytes: 124962164 },
     define: defineAnswer(script), start: { state: "Running" },
+    startAndRead: { state: "Running", console: { connected: true, bytes: 42, head: "guest output" } },
     readConsole: { connected: true, bytes: 42, head: "guest output" }, survey: { vms: [] } })[keyOf(script)] ?? { ok: true };
   const launcher = new WmiHyperVLauncher({
     run: async (s) => ({ code: 0, stdout: JSON.stringify(answer(s)), stderr: "" }),

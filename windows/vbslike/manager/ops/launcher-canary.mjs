@@ -21,7 +21,8 @@ export async function runCanary({ run, cfg, say, guestReadySec = 40 }) {
   const id = "hv" + crypto.randomBytes(16).toString("hex");
   const instanceId = id.slice(0, 16) + "-canary";
   const identity = { id, name: "0x" + "c0".repeat(32), instanceId, appId: "00".repeat(32) };
-  const mapping = { appId: identity.appId, record: { policy: { vcpus: cfg.vcpus || 1, memMiB: cfg.memMiB || 2048, cpuPercent: 100 } } };
+  // the CATALOG policy (hello-world pins memMiB 128): the launcher sizes the VM from it (type1VmMemMiB)
+  const mapping = { appId: identity.appId, record: { policy: { vcpus: cfg.vcpus || 1, memMiB: cfg.memMiB || 128, cpuPercent: 100 } } };
   let ok = true, handle = null;
   try {
     const pre = await launcher.preflight();
@@ -63,6 +64,12 @@ export async function runCanary({ run, cfg, say, guestReadySec = 40 }) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   // A FILE, not JSON on the command line: Windows re-quotes arguments, and a config is not worth that risk.
   const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8").replace(/^\uFEFF/, ""));
-  const ok = await runCanary({ run: powershellRunner({ timeoutMs: 240_000 }), cfg, say: (o) => console.log(JSON.stringify(o)) });
+  // DIAGNOSTIC ONLY (cfg.consoleDelayMs): delay the console reader's PowerShell by that much, to test whether a late
+  // attach loses the guest's one-time boot output. The launcher itself is unchanged.
+  const base = powershellRunner({ timeoutMs: 240_000 });
+  const run = cfg.consoleDelayMs > 0
+    ? async (script) => { if (script.includes("NamedPipeClientStream")) await new Promise((r) => setTimeout(r, cfg.consoleDelayMs)); return base(script); }
+    : base;
+  const ok = await runCanary({ run, cfg, say: (o) => console.log(JSON.stringify(o)), guestReadySec: cfg.guestReadySec || 40 });
   process.exitCode = ok ? 0 : 1;
 }
