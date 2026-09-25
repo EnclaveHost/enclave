@@ -439,6 +439,10 @@ manifest, but it is not a release and is not staged on the box. When it is relea
 - **v40 draft** (`drafts/nucbox-ownguest-40.json`; supersedes v39): **the control tree moves to the reviewed manager
   work.** `control/` = `pkg/control-v40-e63` `e3acc392`: v39's tree `2c3a2873`, plus windows/isolation-manager `76af33b4`,
   plus M2's node revision `5d71b39f` for exactly `agent.mjs`, `host.mjs` and their boundary test. Nothing else changes.
+  *Correction (enclave-99's review of `f4a0bf27`):* those three files are in the control TREE; the PACKAGE ships only
+  `host.mjs` of them. `agent.mjs` is not a package entry point (the box's node agent does not run from this package),
+  and its `9a39f28c` change is a comment. The lease-lapse BLOCK itself is in `host.mjs`, which ships. v40's manifest
+  status says the package takes all three; the next substantive version's status corrects it.
   - **What the manager work brings:**
     - the manager judges the report's partition (M1, `62965126`, passed on hardware);
     - `multi-accept.mjs`, several serving domains at once (U1, `0513ced0`, passed on hardware);
