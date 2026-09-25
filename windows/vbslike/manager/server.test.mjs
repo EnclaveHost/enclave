@@ -112,12 +112,16 @@ test("the backend takes the REAL launcher, and a domain started through it is ru
     : script.includes("New-VM") ? { id: "GUID", version: "12.0", name: "x" }
     : script.includes("ModifySystemSettings") ? { returnValue: 0, jobState: null, firmwareFile: "C:\\img.bin", guestFeatureSet: 0x201 }
     : script.includes("Start-VM") ? { state: "Running" }
-    : script.includes("NamedPipeClientStream") ? { connected: true, bytes: 42, head: "guest output" } : { ok: true };
+    : script.includes("NamedPipeClientStream") ? { connected: true, bytes: 42, head: "guest output" }
+    : script.includes("$vms = @(Get-VM | Where-Object") ? { vms: [] } : { ok: true };
   const launcher = new WmiHyperVLauncher({
     run: async (s) => ({ code: 0, stdout: JSON.stringify(answer(s)), stderr: "" }),
     imagePath: "C:\\img.bin", imageSha256: SHA, prefix: "enclave-app-t-" });
   const backend = new HyperVPartitionBackend({ launcher });
-  const r = await mk({ backend }).spawn(spawnBody());
+  const m = mk({ backend });
+  await assert.rejects(m.spawn(spawnBody()), (e) => e.status === 503, "a manager that can launch answers nothing before it has surveyed Hyper-V");
+  assert.equal((await m.recover()).state, "ready");
+  const r = await m.spawn(spawnBody());
   assert.equal(r.status, "starting", "the guest booted; no app-readiness handshake exists, so not \"running\"");
   assert.equal(r.appReady, false);
   assert.equal("attestation" in r, false, "a VM that started is still not an attested one");
@@ -173,7 +177,7 @@ test("defect 6: an explicit duplicate id is a 409 too, never an overwrite", asyn
 
 test("ids are the manager's own shape, and the record names the deployment", async () => {
   const r = await mk({ backend: bootedBackend() }).spawn(spawnBody());
-  assert.match(r.id, /^hv[0-9a-f]{8}$/, "hv + 8 hex, as 5d's supervisor and datapath expect");
+  assert.match(r.id, /^hv[0-9a-f]{32}$/, "hv + 128 bits, minted here (63's P4); the isolated route validator accepts [A-Za-z0-9-]{1,64}");
   assert.equal(r.name, DEP, "adoption after a restart matches on name");
 });
 
@@ -246,7 +250,7 @@ test("a 409 carries the id over the wire, so the node client can adopt", async (
       image: "ipfs://x", name: DEP, derive: REC, isPublic: true, hasSecrets: false, appPort: 8080 });
     const first = await client.spawn(body);
     assert.equal(first.adopted, false);
-    assert.match(first.view.id, /^hv[0-9a-f]{8}$/);
+    assert.match(first.view.id, /^hv[0-9a-f]{32}$/);
     assert.equal(first.view.status, "starting");
     // the same deployment again: the client must ADOPT, which needs the id in the 409 body
     const second = await client.spawn(body);

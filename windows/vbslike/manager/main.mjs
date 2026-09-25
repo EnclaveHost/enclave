@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Manager, createServer } from "./server.mjs";
+import { Manager, createServer, startManager } from "./server.mjs";
 import { judgeRunning } from "./ready.mjs";
 import { runtimeId as runtimeIdOf } from "../../../isolation/contract/runtime.mjs";
 import { HyperVPartitionBackend } from "./backend.mjs";
@@ -103,7 +103,16 @@ if (dataPort > 0) {
   console.log("[winmgr] no ENCLAVE_DATAPLANE_PORT: no data plane, so a running domain carries no traffic");
 }
 
-await manager.probe();            // ask the host BEFORE answering anything about what it can do
+// Ask the host BEFORE answering anything about what it can do, then THE INVENTORY, before any /vms
+// answer means anything (63's P1): the VMs a previous manager left running are recovered from their
+// Notes, so "not in my memory" is never answered as "absent". Until this completes every /vms request
+// is 503; a failed survey keeps it that way and is retried. (server.mjs startManager: shared with tests.)
+const inv = await startManager(manager);
+console.log(`[winmgr] inventory ${inv.state}` + (inv.state === "ready" ? `: recovered ${inv.recovered}, unattributed ${inv.unattributed}` : inv.error ? `: ${inv.error}` : ""));
+if (inv.state === "failed") {
+  const retry = setInterval(async () => { const r = await manager.recover(); if (r.state !== "failed") { clearInterval(retry); console.log(`[winmgr] inventory ${r.state} on retry`); } }, 30_000);
+  retry.unref?.();
+}
 const h = manager.health();
 createServer(manager).listen(port, "127.0.0.1", () => {
   console.log(`[winmgr] ${h.backend} on 127.0.0.1:${port} · canStart=${h.canStart}`
