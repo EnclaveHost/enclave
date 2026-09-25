@@ -315,7 +315,7 @@ test("api-relay: live enclave rows merge with ledger-only rows, deduped by id", 
                    resources: { gpuShare: 0, cpuShare: 0.01 } };
   const enclave = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     if (req.url === "/v1/deployments" && req.method === "GET") return res.end(JSON.stringify({ data: [hosted], cursor: null }));
     res.statusCode = 404; res.end("{}");
   });
@@ -408,7 +408,7 @@ test("api-relay: a free self-hosted row reads queued, never awaiting_payment or 
 test("api-relay: a fleet-wide 401 propagates instead of falling back to ledger rows", async (t) => {
   const enclave = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5 }));
+    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     res.statusCode = 401; res.end(JSON.stringify({ error: "unauthorized", message: "bad token" }));
   });
   enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
@@ -431,7 +431,7 @@ test("api-relay: a leased id missing from its live runner's own list downgrades 
                    resources: { gpuShare: 0.35, cpuShare: 0.01 } };
   const enclave = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: true, gpuShareFree: 0.14, cpuShareFree: 0.9 }));
+    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: true, gpuShareFree: 0.14, cpuShareFree: 0.9, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     if (req.url === "/v1/deployments" && req.method === "GET") return res.end(JSON.stringify({ data: [hosted], cursor: null }));
     res.statusCode = 404; res.end("{}");
   });
@@ -833,7 +833,7 @@ test("api-relay: two enclaves claiming one deployment yield ONE row, the on-chai
   const mk = (label, status) => http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
     if (req.url === "/availability")
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     if (req.url.split("?")[0] === "/v1/deployments")
       return res.end(JSON.stringify({ data: [{ id: ID66, status, enclave: label }], cursor: null }));
     res.statusCode = 404; res.end("{}");
