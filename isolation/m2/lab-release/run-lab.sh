@@ -56,9 +56,11 @@ if [ -n "$(systemctl --user list-units --plain --no-legend --all 'm2-lb*')" ]; t
   echo "m2-lb* units exist already: another lab is running; refusing" >&2; exit 1
 fi
 # the lab holds ONLY lab vsock ports (tickets 19444, its guestd's egress 19445, the router 19443), never production's
-# 9444/9443; refuse if any of them, or production's, is already held
-busy=$(ss --vsock -ln 2>/dev/null | awk '{print $5}' | grep -E ':(9443|9444|19443|19444|19445)$' || true)
-[ -z "$busy" ] || { echo "vsock port(s) already held: $busy; refusing" >&2; exit 1; }
+# 9444/9443. A BIND probe, not `ss --vsock` (which lists nothing without vsock_diag, so it passed vacuously on
+# warden-host; enclave-d1); production's ports are not probed, since binding them even for a moment could race a
+# production guestd starting.
+( cd "$ISO/m2" && go build -o "$L/portprobe" ./lab-release/portprobe )
+"$L/portprobe" 19443 19444 19445 || { echo "a lab vsock port is already held; refusing" >&2; exit 1; }
 # the lab pool (4096 MiB) sits outside production's pool accounting: leave the rollout's guard (40 GiB) intact
 avail=$(awk '/^MemAvailable:/ {print int($2/1024/1024)}' /proc/meminfo)
 [ "$avail" -ge 44 ] || { echo "MemAvailable ${avail} GiB: under the 40 GiB guard plus the lab's 4 GiB; refusing" >&2; exit 1; }
