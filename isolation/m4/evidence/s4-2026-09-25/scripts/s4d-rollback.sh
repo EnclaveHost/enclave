@@ -16,7 +16,8 @@ elif ! { check_guestd pool64 && noncanary_empty; }; then
 fi
 [ -f "$BAK" ] || { say4 "no $BAK"; exit 1; }
 grep -q "^ExecStart=$NEWBIN -isolation $PROD/iso-03be27d6/isolation .* -guest-mem-mib 65536 -guest-cpus 16\$" "$BAK" || { say4 "the backup is not the budget-64 unit"; exit 1; }
-cp -p "$BAK" "$U.new" && mv "$U.new" "$U"
+cp -p "$BAK" "$U.new"
+mv "$U.new" "$U"
 T0=$(date -u '+%Y-%m-%d %H:%M:%S UTC'); say4 "4D ROLLBACK: daemon-reload + restart to guestd.c42612c0 on the live tree"
 systemctl --user daemon-reload
 systemctl --user restart enclave-guestd.service
