@@ -245,6 +245,21 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   contract (`dd31cada`) is a design-only input; the pinned VTL0 kernel has `CONFIG_TCG_TPM=y`, `CONFIG_TCG_TIS=y`,
   `CONFIG_TCG_CRB=y` built in. Unchanged: `host_excluded=no`, E3 NOT RUN, no isolation claim.
 
+- **v26 draft** (`drafts/nucbox-ownguest-26.json`, STAGED; supersedes v25): **the host trust root** as d1 measured it
+  (`6d4adb19`), at its stated strength, under `tier.hostTrustRoot`: VERIFIED that the host's SRTM log (`0c23255a…`)
+  replays to its TPM PCRs 0–14 (read locally, not a signed quote) and that the VSM_IDK/IDKS public keys are in PCR 12;
+  VERIFIED GAP: Secure Boot off, test signing on, the production enclave engine signed only by a self-signed test
+  cert; UNTESTED: that IDKS signs the paravisor's report, and a TPM quote. 5d's ruling (`aebd6bd7`, design only):
+  Secure Boot off or test signing on is a rejection condition, so a conforming verifier rejects this box's reports
+  today — Steven's decision. d1's `tcglog.py` and `tpm-pcr-read.ps1` ship as tools. **A build-only candidate**: a VBS
+  IGVM with our kernel, initrd and VTL0 command line as a MEASURED Linux VTL0 (`5562e71d…`, VBS launch digest
+  `246DEE1B…`), built with the pinned igvmfilegen from exactly the booted control image's paravisor components — a
+  twin under the control's own vbs config reproduces its launch digest `77C66160…` — with the static paravisor
+  command line exactly `OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux` (required to load a Linux VTL0; no confidential-debug
+  flag, checked on every verify). It is a build INPUT, never shipped; `--rebuild` remakes it and the twin in a scratch
+  directory from pinned inputs only. NOT booted; untested for VBS; does not cover the host-derived memory layout,
+  ACPI/device tree, or the app. `host_excluded=no` unchanged.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
