@@ -1,8 +1,9 @@
 # Booting the NucBox guest under UEFI: requirements and interfaces
 
-The Windows build on the NucBox starts Microsoft's standard UEFI under OpenHCL, but not a linux-direct OpenHCL image,
-whether ours or Microsoft's (worker event 12030; enclave-d1, 7c6bb15d). So the guest moves from linux-direct to a UEFI
-application. **The payload does not change.** The initrd, monitor, front, runtime, app path, control and data channels
+On the NucBox's Windows build, Microsoft's standard UEFI boots under OpenHCL. Two linux-direct OpenHCL images, ours and
+Microsoft's own release, both failed under the settings tested (worker event 12030; enclave-d1, 7c6bb15d). That is two
+images under those settings, not every linux-direct configuration. So the guest gains a UEFI boot, a reversible
+implementation detail of how VTL0 is loaded. **The payload does not change.** The initrd, monitor, front, runtime, app path, control and data channels
 and report binding are all the same. Only how the kernel and initrd get loaded changes.
 
 Ownership:
