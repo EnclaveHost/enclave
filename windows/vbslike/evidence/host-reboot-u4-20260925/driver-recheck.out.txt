@@ -1,0 +1,3 @@
+REBOOT-ACCEPT RECHECK: liveness 15000 ms, answer check 30000 ms; pinned body 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340. Functional recovery only; host_excluded=no.
+PASS RC: after the setting and the 9001 key were restored, both armed domains still answer: hve2060f4b476dcc5b1b986fc7b6aae8b9: OK 200 key 592a5c68474f690d; hv0ba194f81a2732104ae1e135aefab9c0: OK 200 key fa96891f8bcbf00c
+REBOOT-ACCEPT RECHECK ALL PASS

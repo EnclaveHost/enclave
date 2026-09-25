@@ -1,0 +1,14 @@
+clock 2026-09-25 15:20:27Z  lastboot 2026-09-25 05:32:35Z
+setting: Absent
+9001 key: False
+secureboot: True
+bcd current testsigning/nointegritychecks: hypervisorlaunchtype    Auto
+pending: CBS=False WU=False PFRO=True
+svc sshd status=Running start=Automatic
+svc ZeroTierOneService status=Running start=Automatic
+svc vmms status=Running start=Automatic
+svc vmcompute status=Running start=Manual
+VMs: 
+free MiB: 100054
+procs: no node, ee-host, vbslike-host or python process (only the ZeroTier service)
+scheduled tasks: the enclave boot task \EnclaveWindowsNode (BootTrigger) is the only enclave-related task; the other, unrelated tasks and services are omitted from this public record (d1, redacted)

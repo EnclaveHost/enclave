@@ -1,0 +1,24 @@
+15:41:41Z === REBOOT ACCEPTANCE, VERIFY. Functional recovery only: NOT an isolation or attestation result; host_excluded=no. ===
+15:41:41Z PASS B0: integrity since the arm: prior-state.json 95468785016c792b4769ebe77d3183ce50db2b10acedde58c6871b7f82a56ebb (arm 95468785016c792b4769ebe77d3183ce50db2b10acedde58c6871b7f82a56ebb); restore-at-boot.ps1 ae15c8719b6cb32f258c2e3d70ab3dd868b8379d7b497599b02fb64a7cede342 (arm ae15c8719b6cb32f258c2e3d70ab3dd868b8379d7b497599b02fb64a7cede342)
+15:41:41Z PASS B1: a new boot: lastBoot 2026-09-25T15:38:44Z, armed 2026-09-25T15:36:30Z
+15:41:42Z PASS B2: Secure Boot True (prior True); BCD 'hypervisorlaunchtype Auto' (prior 'hypervisorlaunchtype Auto')
+15:44:12Z PASS B3: one-shot log: 2026-09-25T15:38:59Z START one-shot boot restore (SYSTEM; literals from the arm of 2026-09-25T15:36:30Z) | 2026-09-25T15:38:59Z setting already Absent (prior Absent) | 2026-09-25T15:38:59Z 9001 key present=False (prior False) | 2026-09-25T15:44:01Z node task EnclaveWindowsNode RE-ENABLED (not run) | 2026-09-25T15:44:02Z DONE; one-shot task unregistered
+15:44:13Z PASS B4: setting Absent (prior Absent); 9001 key False (prior False)
+15:44:13Z PASS B5: node task EnclaveWindowsNode enabled True (prior True); definition sha256 b8ea54d34af84485d7223a4ebc589600acf81f750cce132f3a03178993087f2a (prior b8ea54d34af84485d7223a4ebc589600acf81f750cce132f3a03178993087f2a)
+15:44:13Z PASS B6: node task last run 2026-09-25T05:33:55Z (prior 2026-09-25T05:33:55Z); legacy node processes 0
+15:44:14Z PASS B7: manager-owned VMs after the boot: enclave-app-hv0ba194f81a2732-07f5cbd3 d7ddf01e-03ea-47b0-a7ea-edbdca577fd3 Off, enclave-app-hve2060f4b476dcc-9c3d10f1 c235c66a-a590-44ee-a482-0e296d3fe317 Off
+15:46:08Z PASS B8: tree listing 819bed7da53e4c273f0def5e51e130318de9e6ebb17007ee0c804ce3011783b8 (arm 819bed7da53e4c273f0def5e51e130318de9e6ebb17007ee0c804ce3011783b8)
+15:46:46Z   DRIVER(verify): REBOOT-ACCEPT VERIFY: liveness 15000 ms, answer check 30000 ms; pinned body 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340. Functional recovery only; host_excluded=no.
+15:46:46Z   DRIVER(verify): PASS V0: the manager's env carries no respawn, attach or engine switch (defaults: OFF)
+15:46:46Z   DRIVER(verify): PASS V2a: before the manager starts: enclave-app-hv0ba194f81a2732-07f5cbd3 Off, enclave-app-hve2060f4b476dcc-9c3d10f1 Off; vbslike-host processes 0
+15:46:46Z   DRIVER(verify): manager (verify) pid 5312
+15:46:46Z   DRIVER(verify): PASS V1: inventory hv0ba194f81a2732104ae1e135aefab9c0, hve2060f4b476dcc5b1b986fc7b6aae8b9; hve2060f4b476dcc5b1b986fc7b6aae8b9: recovered true, status starting, relay null, appReady false; hv0ba194f81a2732104ae1e135aefab9c0: recovered true, status starting, relay null, appReady false
+15:46:46Z   DRIVER(verify): PASS V3: hve2060f4b476dcc5b1b986fc7b6aae8b9: failed (the partition is Off: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 08285); hv0ba194f81a2732104ae1e135aefab9c0: failed (the partition is Off: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 08285); after the liveness sweep: enclave-app-hv0ba194f81a2732-07f5cbd3 Off, enclave-app-hve2060f4b476dcc-9c3d10f1 Off; vbslike-host processes 0
+15:46:46Z   DRIVER(verify): PASS V2b: nothing came back by itself after the sweep: after the liveness sweep: enclave-app-hv0ba194f81a2732-07f5cbd3 Off, enclave-app-hve2060f4b476dcc-9c3d10f1 Off; vbslike-host processes 0
+15:46:46Z   DRIVER(verify): PASS V4: hve2060f4b476dcc5b1b986fc7b6aae8b9: old route "NO the instance is failed", old relay port 65451 refuses; hv0ba194f81a2732104ae1e135aefab9c0: old route "NO the instance is failed", old relay port 65455 refuses
+15:46:46Z   DRIVER(verify): PASS V5: DELETE hve2060f4b476dcc5b1b986fc7b6aae8b9 -> 200, hv0ba194f81a2732104ae1e135aefab9c0 -> 200; manager-owned VMs left 0
+15:46:46Z   DRIVER(verify): REBOOT-ACCEPT VERIFY ALL PASS
+15:46:46Z PASS DRIVER: reboot-accept.mjs verify exit 0
+15:47:01Z PASS B9: end: manager-owned VMs 0; setting Absent; 9001 key False; tree 819bed7da53e4c273f0def5e51e130318de9e6ebb17007ee0c804ce3011783b8; one-shot task present False
+15:47:01Z restore directory C:\ProgramData\d1-u4-restore removed: True
+15:47:01Z === VERIFY RESULT: ALL PASS ===

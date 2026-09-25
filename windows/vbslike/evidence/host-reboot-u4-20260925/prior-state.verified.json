@@ -1,0 +1,27 @@
+{
+    "armedAt":  "2026-09-25T15:36:30Z",
+    "lastBoot":  "2026-09-25T05:32:35Z",
+    "secureBoot":  true,
+    "bcd":  "hypervisorlaunchtype Auto",
+    "setting":  {
+                    "S":  "Absent",
+                    "K":  null,
+                    "V":  null
+                },
+    "svc9001Present":  false,
+    "svcAddedByUs":  true,
+    "nodeTask":  {
+                     "name":  "EnclaveWindowsNode",
+                     "exists":  true,
+                     "enabled":  true,
+                     "xmlSha256":  "b8ea54d34af84485d7223a4ebc589600acf81f750cce132f3a03178993087f2a",
+                     "xmlNormSha256":  "b8ea54d34af84485d7223a4ebc589600acf81f750cce132f3a03178993087f2a",
+                     "lastRun":  "2026-09-25T05:33:55Z",
+                     "disabledByUs":  true
+                 },
+    "tree":  "C:\\Users\\claude\\d1-v40-lab\\pkg\\control",
+    "treeDigest":  "819bed7da53e4c273f0def5e51e130318de9e6ebb17007ee0c804ce3011783b8",
+    "oneShot":  "d1-u4-restore-once",
+    "restoreDir":  "C:\\ProgramData\\d1-u4-restore",
+    "legacyNodeRunning":  false
+}

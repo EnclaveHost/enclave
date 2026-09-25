@@ -1,0 +1,10 @@
+REBOOT-ACCEPT VERIFY: liveness 15000 ms, answer check 30000 ms; pinned body 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340. Functional recovery only; host_excluded=no.
+PASS V0: the manager's env carries no respawn, attach or engine switch (defaults: OFF)
+PASS V2a: before the manager starts: enclave-app-hv0ba194f81a2732-07f5cbd3 Off, enclave-app-hve2060f4b476dcc-9c3d10f1 Off; vbslike-host processes 0
+manager (verify) pid 5312
+PASS V1: inventory hv0ba194f81a2732104ae1e135aefab9c0, hve2060f4b476dcc5b1b986fc7b6aae8b9; hve2060f4b476dcc5b1b986fc7b6aae8b9: recovered true, status starting, relay null, appReady false; hv0ba194f81a2732104ae1e135aefab9c0: recovered true, status starting, relay null, appReady false
+PASS V3: hve2060f4b476dcc5b1b986fc7b6aae8b9: failed (the partition is Off: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 08285); hv0ba194f81a2732104ae1e135aefab9c0: failed (the partition is Off: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 08285); after the liveness sweep: enclave-app-hv0ba194f81a2732-07f5cbd3 Off, enclave-app-hve2060f4b476dcc-9c3d10f1 Off; vbslike-host processes 0
+PASS V2b: nothing came back by itself after the sweep: after the liveness sweep: enclave-app-hv0ba194f81a2732-07f5cbd3 Off, enclave-app-hve2060f4b476dcc-9c3d10f1 Off; vbslike-host processes 0
+PASS V4: hve2060f4b476dcc5b1b986fc7b6aae8b9: old route "NO the instance is failed", old relay port 65451 refuses; hv0ba194f81a2732104ae1e135aefab9c0: old route "NO the instance is failed", old relay port 65455 refuses
+PASS V5: DELETE hve2060f4b476dcc5b1b986fc7b6aae8b9 -> 200, hv0ba194f81a2732104ae1e135aefab9c0 -> 200; manager-owned VMs left 0
+REBOOT-ACCEPT VERIFY ALL PASS

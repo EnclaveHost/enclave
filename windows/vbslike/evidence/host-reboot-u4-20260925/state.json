@@ -1,0 +1,41 @@
+{
+ "armedAt": "2026-09-25T15:37:20.990Z",
+ "base": "http://127.0.0.1:18091",
+ "dataPort": 18092,
+ "managerPid": 5092,
+ "expectBodySha256": "03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340",
+ "deployments": [
+  {
+   "id": "hve2060f4b476dcc5b1b986fc7b6aae8b9",
+   "name": "0xb0acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55",
+   "vmId": "c235c66a-a590-44ee-a482-0e296d3fe317",
+   "route": {
+    "id": "hve2060f4b476dcc5b1b986fc7b6aae8b9",
+    "app": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45",
+    "image": "b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748",
+    "runtime": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+    "key": "592a5c68474f690d258b9cd05511491815952fab7a7e1e3933c1903178fec7b7"
+   },
+   "relayPort": 65451,
+   "launcherKey": "Ted3MFKYIuFfFVoVKG9kh6zwSeJeJVmDslHQzPSyz+s=",
+   "transportKeySha256": "592a5c68474f690d258b9cd05511491815952fab7a7e1e3933c1903178fec7b7",
+   "appId": "9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45"
+  },
+  {
+   "id": "hv0ba194f81a2732104ae1e135aefab9c0",
+   "name": "0xb1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55",
+   "vmId": "d7ddf01e-03ea-47b0-a7ea-edbdca577fd3",
+   "route": {
+    "id": "hv0ba194f81a2732104ae1e135aefab9c0",
+    "app": "07f5cbd3c16b050369a311669f67ba78d642232310e791dceb79d1cd3638815f",
+    "image": "b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748",
+    "runtime": "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8",
+    "key": "fa96891f8bcbf00ccec4cc8b4f7e0a81b8d9b4b422238cc6155262628316fb61"
+   },
+   "relayPort": 65455,
+   "launcherKey": "ezHom/OTSnLlyC0rqnh28bh39DVdn/XsRDwwL1HQyrY=",
+   "transportKeySha256": "fa96891f8bcbf00ccec4cc8b4f7e0a81b8d9b4b422238cc6155262628316fb61",
+   "appId": "07f5cbd3c16b050369a311669f67ba78d642232310e791dceb79d1cd3638815f"
+  }
+ ]
+}

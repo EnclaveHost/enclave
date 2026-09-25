@@ -1,0 +1,6 @@
+now 15:49:36Z lastBoot 15:38:44Z
+VMs: 0; node.exe: 0; vbslike-host: 0
+setting: Absent; 9001: False
+secureboot: True; one-shot: False; restore dir: False
+node task: enabled=True lastRun=2026-09-25 05:33:55Z
+staged v40 MANIFEST: 15f39ae4d1fab954; v39 rollback MANIFEST: 61028ec33770f4d7
