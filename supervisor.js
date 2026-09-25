@@ -2346,6 +2346,8 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
   // guest, sealed to a key only that guest holds; nothing of them crosses this host or guestd's. Claimable only when
   // BOTH ends say so: guestd runs with -release (supports.release) and this box's operator opted in
   // (ISOLATION_RELEASE=1, once the relay's release is on and each already-leased deployment passed its go/no-go).
+  if (isolationReleaseOn(manager) && listed === "unknown")
+    return "the relay's release list could not be read for this deployment just now; not claiming it until it can be";
   const released = isolationReleaseGuest(manager, listed);
   if ((config || appConfigCid) && sup.config !== true && !released)
     return "the deployment carries app config, which is not yet delivered into a per-app guest";
@@ -2385,30 +2387,50 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
 }
 
 // ---- the attested release: this box's half (docs/security/attested-release.md) ------------------------------------
-// ISOLATION_RELEASE=1 is the operator's opt-in to CLAIM deployments with config or staged secrets on this tier: the
-// relay's release must be on, and each deployment already leased here must have passed its go/no-go (a guest on a
-// release image can have its staged secrets released). Tickets themselves are pumped for every guest of a guestd
-// that runs with -release, whatever this says: its images need one to boot.
+// ISOLATION_RELEASE=1 is the operator's opt-in to run RELEASE GUESTS on this box at all (isolationReleaseGuest): with
+// it, a deployment the relay lists is built from the release image and gets its ticket pumped, and its config and staged
+// secrets become claimable. Without it no deployment here is a release guest, and a -release guestd runs every one on
+// its legacy image (or refuses it, if it has none).
 const ISOLATION_RELEASE = process.env.ISOLATION_RELEASE === "1";
 function isolationReleaseOn(manager) {
   return ISOLATION_RELEASE && !!manager && !!manager.supports && manager.supports.release === true;
 }
 // A RELEASE GUEST: this box and its guestd are on (isolationReleaseOn) AND the relay lists the deployment for the
 // release. The relay's SECRETS_RELEASE_DEPLOYMENTS is the only place an owner's decision lives (d1); the spawn and the
-// claim gate both ask this, so they cannot disagree about which image a deployment gets.
+// claim gate both decide through this predicate.
 function isolationReleaseGuest(manager, listed) {
-  return isolationReleaseOn(manager) && listed === true;
+  return isolationReleaseOn(manager) && listed === "listed";
 }
-// Whether the relay lists this deployment for the release. Anything but a clear {id, listed: true} is FALSE: the
-// deployment then runs the legacy image, unchanged, never a release guest the relay would refuse to provision.
+// The relay's list for one deployment, in THREE states (enclave-99's review of e425947a):
+//   "listed"    exactly {id: <this id>, listed: true}
+//   "unlisted"  exactly {id: <this id>, listed: false}, or the relay's deliberate 503 release_off
+//   "unknown"   anything else: a 429, another 5xx, a timeout, a network error, a malformed answer
+// An unknown is NEVER read as unlisted: that would build a listed deployment from the legacy image on a transient
+// failure. The spawn throws on it (the provision backoff retries) and the claim gate refuses it for now.
 async function releaseListedFor(id) {
   const idL = String(id).toLowerCase();
   try {
     const r = await fetch(`${SECRETS_API}/v1/secrets/release-status?id=${encodeURIComponent(idL)}`, { signal: AbortSignal.timeout(5000) });
-    if (!r.ok) return false;
-    const b = await r.json();
-    return !!b && String(b.id || "").toLowerCase() === idL && b.listed === true;
-  } catch { return false; }
+    let b = null;
+    try { b = await r.json(); } catch { b = null; }
+    if (r.status === 503 && b && b.error === "release_off") return "unlisted";
+    if (!r.ok || !b || String(b.id || "") !== idL || typeof b.listed !== "boolean") return "unknown";
+    return b.listed ? "listed" : "unlisted";
+  } catch { return "unknown"; }
+}
+// The spawn's release decision, in one place (so a test can hold it): a release guest per isolationReleaseGuest; an
+// unknown list THROWS, never a fall back to the legacy image; config or staged secrets (known, or unknown) that no
+// guest here could receive also throw. `staged` is depHasSecrets' answer: true, false, or null (unknown).
+async function isolationSpawnRelease(h, deploymentId, { config, configCid, staged }, listedFor = releaseListedFor) {
+  const on = isolationReleaseOn(h);
+  const listed = on ? await listedFor(deploymentId) : "unlisted";
+  if (listed === "unknown")
+    throw new Error("per-app isolation: the relay's release list could not be read for this deployment; retrying rather than launching it on the legacy image");
+  const released = isolationReleaseGuest(h, listed);
+  if (!released && (staged !== false || configCid || isolationAppConfig(config)))
+    throw new Error("per-app isolation: this deployment carries config or secrets the guest tier does not support"
+      + (on ? " (it is not listed for the attested release)" : ""));
+  return released;
 }
 
 // One ticket, for this deployment, signed by the key that registered this endpoint (the relay checks it is the
@@ -2465,6 +2487,11 @@ async function releaseTicketPump(deploymentId, vmId, { req = vmReq, fetchTicket 
         if (p.status === 202) {
           handed = true;
           log.log(`[isolation] ${deploymentId.slice(0, 10)}: release ticket handed to guest ${vmId}`);
+        } else if (p.status === 409) {
+          // a ticket is already pending, or the guest already took one: nothing more to hand (enclave-99's L2); a
+          // guest that is no longer starting ends the pump at its next answer
+          handed = true;
+          log.warn(`[isolation] ${deploymentId.slice(0, 10)}: guestd did not take the release ticket for ${vmId} (HTTP 409: it holds or took one)`);
         } else {
           log.warn(`[isolation] ${deploymentId.slice(0, 10)}: guestd did not take the release ticket for ${vmId} (HTTP ${p.status})`);
           nextTry = Date.now() + retryMs;
@@ -3789,7 +3816,7 @@ if (process.env.LAUNCH_SPEC_SELFTEST) {
   })));
   process.exit(0);
 }
-async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVramGb, gpuCardsHeld, image, appPort, ports, config, configCid, secrets, hosts, catalogRef, versionMemMb }) {
+async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVramGb, gpuCardsHeld, image, appPort, ports, config, configCid, secrets, secretsStaged, hosts, catalogRef, versionMemMb }) {
   // Two backends. "vm": hand the app reference to the app manager on VMMGR_URL
   // (the wasm-manager runs it as a `wasmtime serve` process; cpuShare is its
   // admission unit and sets the guest memory cap — cpuShare × node RAM;
@@ -3810,9 +3837,10 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     // deployments that need one. With the attested release on, config and secrets are not sent EITHER: the guest
     // fetches them from the relay itself, sealed to it, with the ticket this process hands guestd (pumpReleaseTicket).
     const h = await vmHealth();
-    const released = isolationReleaseGuest(h, isolationReleaseOn(h) ? await releaseListedFor(deploymentId) : false);
-    if (!released && (secrets || configCid || isolationAppConfig(config)))
-      throw new Error("per-app isolation: this deployment carries config or secrets the guest tier does not support");
+    // on this tier launchSpec never pulls secret VALUES (enclave-99's L6): a release guest gets them from the relay
+    // itself, and any other guest may not have any; `secretsStaged` is only whether some are staged
+    const released = await isolationSpawnRelease(h, deploymentId,
+      { config, configCid, staged: secrets ? true : (secretsStaged === undefined ? false : secretsStaged) });
     const httpPort = isolationHttpPortOf(ports);   // throws for tcp/udp or a second port
     // The policy is the version's; a record that lost the version's memMb must not guess one (a different policy
     // is a different AppID and measurement for the same version).
@@ -6746,6 +6774,14 @@ function hostsFor(rec) {
 // so) — a relay outage must not take provisioning down with it.
 async function launchSpec(rec) {
   const relayHeld = PROVISION_BACKEND === "vm" && rec._onchain;
+  // The per-app isolation tier never takes secret VALUES into this node (enclave-99's L6): a release guest fetches
+  // them from the relay itself, sealed to it, and no other guest there may have any. It asks only WHETHER some are
+  // staged (true / false / null = unknown), which is what decides whether the guest may start.
+  if (relayHeld && ISOLATION_BACKEND) {
+    const staged = await depHasSecrets(rec.id);
+    await fetchDepDomains(rec.id).catch(() => {});
+    return { ...launchSpecFrom(rec, null, hostsFor(rec)), secretsStaged: staged };
+  }
   const sec = relayHeld ? await fetchDepSecrets(rec.id) : null;
   if (sec) { if (sec.rev > 0) rec.secretsRev = sec.rev; else delete rec.secretsRev; }
   if (relayHeld) await fetchDepDomains(rec.id).catch(() => {});
@@ -8717,6 +8753,15 @@ if (process.env.RELEASE_SELFTEST) {
     console.log(JSON.stringify({ listed: await Promise.all(c.listed.map((id) => releaseListedFor(id))) }));
     process.exit(0);
   }
+  if (Array.isArray(c.spawn)) {    // {"spawn":[{h, id, config, configCid, staged}]}: the spawn's release decision, against SECRETS_API
+    const out = [];
+    for (const x of c.spawn) {
+      try { out.push({ released: await isolationSpawnRelease(x.h, x.id, x) }); }
+      catch (e) { out.push({ error: e.message }); }
+    }
+    console.log(JSON.stringify({ spawn: out }));
+    process.exit(0);
+  }
   let i = 0;
   const posts = [], logs = [];
   const req = async (method, path, body) => {
@@ -10130,8 +10175,11 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   if (ISOLATION_BACKEND) {
     const cf = overrideConfigFields(claimOpts, g);
     const isoMgr = await vmHealth().catch(() => null);
+    // the relay's list is read only for a deployment that passes the cheap checks first (it requires this tier, and
+    // the manager IS this tier's) on an opted-in box: one status call per real candidate, not per sweep entry (L1)
+    const isoAsk = claimOpts.isolation === ISOLATION_BACKEND && isoMgr && isoMgr.backend === ISOLATION_BACKEND && isolationReleaseOn(isoMgr);
     const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
-      manager: isoMgr, listed: isolationReleaseOn(isoMgr) ? await releaseListedFor(d.id) : false,
+      manager: isoMgr, listed: isoAsk ? await releaseListedFor(d.id) : "unlisted",
       gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
       policy: isolationPolicyFor(g.min),
       // a resume after this CVM restarted: the guest guestd kept for it already holds its room (guestPoolRefusal)
