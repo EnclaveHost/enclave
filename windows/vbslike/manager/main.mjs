@@ -12,7 +12,7 @@ import { Manager, createServer, startManager } from "./server.mjs";
 import { judgeRunning } from "./ready.mjs";
 import { runtimeId as runtimeIdOf } from "../../../isolation/contract/runtime.mjs";
 import { HyperVPartitionBackend } from "./backend.mjs";
-import { WmiHyperVLauncher } from "./wmi-launcher.mjs";
+import { WmiHyperVLauncher, HYPERV_MODULE_SHA256 } from "./wmi-launcher.mjs";
 import { powershellRunner } from "./psrun.mjs";
 import { cidFetcher } from "./fetchcid.mjs";
 
@@ -34,9 +34,34 @@ const fetchComponent = cidFetcher({
   timeoutMs: Number(env("ENCLAVE_FETCH_TIMEOUT_MS", "240000")),
 });
 
-const launcher = imagePath && imageSha256
-  ? new WmiHyperVLauncher({ run: powershellRunner(), imagePath, imageSha256 })
-  : null;
+// THE TYPE-1 DEFINITION (wmi-launcher.mjs, ported from uefi-dev-boot.ps1). The boot form is STATED
+// here or not at all - "uefi-medium" (ENCLAVE_GUEST_MEDIUM + its sha256) or "linux-direct" (no
+// medium; the IGVM is the identity) - and never inferred from which variables happen to be set. A
+// launcher without it still surveys, stops and removes VMs, but refuses to start one, and /health
+// says why. AllowFirmwareLoadFromFile is NOT configured here: the manager only reports it.
+let launcher = null;
+if (imagePath && imageSha256) {
+  try {
+    launcher = new WmiHyperVLauncher({
+      run: powershellRunner(), imagePath, imageSha256,
+      boot: env("ENCLAVE_BOOT_FORM") || null,
+      medium: env("ENCLAVE_GUEST_MEDIUM") || null,
+      mediumSha256: env("ENCLAVE_GUEST_MEDIUM_SHA256") || null,
+      guestStateMaster: env("ENCLAVE_GUEST_STATE_MASTER") || null,
+      guestStateMasterSha256: env("ENCLAVE_GUEST_STATE_MASTER_SHA256") || null,
+      guestStateRunDir: env("ENCLAVE_GUEST_STATE_RUN_DIR") || null,
+      guestStateArchiveDir: env("ENCLAVE_GUEST_STATE_ARCHIVE_DIR") || null,
+      hypervModule: env("ENCLAVE_HYPERV_MODULE") || null,
+      hypervModuleSha256: env("ENCLAVE_HYPERV_MODULE_SHA256", HYPERV_MODULE_SHA256),
+      hypervUtilitiesSha256: env("ENCLAVE_HYPERV_UTILITIES_SHA256") || null,
+    });
+  } catch (e) {
+    // A contradictory launcher configuration (a medium with linux-direct, an unknown boot form, a
+    // medium with no boot form) is refused at startup rather than guessed at.
+    console.error(`[winmgr] REFUSING TO START: the launcher configuration is invalid: ${e.message}`);
+    process.exit(2);
+  }
+}
 // THE RUNTIME IDENTITY, read from the image's own runtime.json rather than configured as a hash.
 //
 // enclave-53 found that the defect-11 fix was not REACHED from here: this entry point passed only
