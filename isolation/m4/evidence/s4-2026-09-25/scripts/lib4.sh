@@ -1,14 +1,18 @@
-# Shared constants and checks for S4 (sourced AFTER ../lib.sh). The release 0839ac3a is built by 5d from image commit
-# ecf02384 (isolation/m4/evidence/production-release-ecf02384/ at 4e99148f). It supersedes 31d117a9 (d1a38994) with ONE
-# fix: a failed HOST_DATA read ends the domain (e3's review of 7de792bc). guestd and the boot path equal d1a38994's.
-REL=0839ac3a859b7025abe261c56449d72f19fc8c4ed19ee50c63ab290718dfdb02; IMG=ecf0238494190906da9166aede5b77f7cb69b46e
-SRC=/home/steven/enclave-bench/prod-release-ecf02384/release-ecf02384
-T=$PROD/iso-ecf02384; R=$PROD/release-ecf02384; LEG=$PROD/iso-03be27d6/isolation; LEGC=0181bce3aac5fa03dfaf2928d834ecd04d2a4a73
+# Shared constants and checks for S4 (sourced AFTER ../lib.sh). The release a4f22748 is built by 5d from image commit
+# 17e182a8 (isolation/m4/evidence/production-release-17e182a8/ at 3770f796). It supersedes 0839ac3a (ecf02384, installed
+# inert 09-25 19:39Z and never activated) with ONE change: init gives the app /dev/null for stdio, so nothing a tenant
+# prints reaches the host-read serial console (Codex, 09-25). guestd, the boot path, fwd and the judge equal d1a38994's.
+REL=a4f227482df4830ab69b52e38dc5d6e2abea9e5c5fb71f5469f0c30e6b1cb784; IMG=17e182a8ba192152a83feee4f79d63f8628094e8
+SRC=/home/steven/enclave-bench/prod-release-17e182a8/release-17e182a8
+T=$PROD/iso-17e182a8; R=$PROD/release-17e182a8; LEG=$PROD/iso-03be27d6/isolation; LEGC=0181bce3aac5fa03dfaf2928d834ecd04d2a4a73
 FLOOR=16384   # Codex: the host floor for THIS 64 GiB pool at its next coordinated guestd rollout, which 4d is
 # the reviewed host-memory floor (enclave-63): a 4d guestd must be built from a commit carrying both
-FLOORC="d67b0020c8fd58166392e85bf315e4bb15404183 1b5375c9f9718d346d4c5511d7a9bc3096d5551f"
+FLOORC="d67b0020c8fd58166392e85bf315e4bb15404183 1b5375c9f9718d346d4c5511d7a9bc3096d5551f d36e8da70b13e2fbb602a2ca9be9c85099efd631"
 MAIN=/home/steven/Projects/enclave; S4=$EV/s4; LOG4=$S4/install.log
-say4() { echo "$(date -u +%H:%M:%SZ) $*" | tee -a $LOG4; }
+# Logging NEVER fails (enclave-e3 A3): under set -e a failed log write (disk full, quota) would otherwise exit before a
+# rollback runs. The line always reaches the terminal; the file is best effort. S4 replaces lib.sh's say the same way.
+say4() { local m; m="$(date -u +%H:%M:%SZ) $*"; echo "$m"; { echo "$m" >> "$LOG4"; } 2>/dev/null || true; }
+say() { local m; m="$(date -u +%H:%M:%SZ) $*"; echo "$m"; { echo "$m" >> "$EV/rollout.log"; } 2>/dev/null || true; }
 # The production guest units: name, state and each unit's MainPID (a restart under the same name moves the PID). The
 # FATAL diff. FAILS CLOSED (enclave-e3): errexit does not reach into $(...), and a systemctl that cannot reach the user
 # bus prints nothing, so an unreadable state must never compare equal to itself. Exactly the 3 canary units, each
@@ -35,7 +39,7 @@ snap() {
   us=$(units) || return 1
   echo "$pid $ex|${us//$'\n'/;}"
 }
-# the installed tree is ecf02384 with no tracked change and no untracked file (ignored build products such as m4/.bundle
+# the installed tree is 17e182a8 with no tracked change and no untracked file (ignored build products such as m4/.bundle
 # are what guestd's own builds leave, as in the live tree) and no lab pins
 tree_ok() {
   [ "$(git -C "$T" rev-parse HEAD 2>/dev/null)" = "$IMG" ] || { say4 "tree: HEAD is not $IMG"; return 1; }
