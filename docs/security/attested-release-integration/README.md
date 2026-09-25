@@ -54,6 +54,16 @@ The supervisor's per-app certificate gate with enclave-d1's consumer (`d1/guestc
 prediction, that gate refuses (503 there is "unknown", never a pass). So: U7, then this relay code + predictor env, then
 the supervisor release carrying the 4c pool accounting and the consumer. The release itself (S5 / 4b) comes after both.
 
+**Option (Codex decides): the relay step WITHOUT U7.** `relay/expected-guest-slice` @ aeb345e6 (pushed, not merged) is
+this branch's own part (18772bf7..fc90d6b5) on `origin/main` with no U7 file. It serves the predictor and
+`/v1/expected-guest`; its attested release cannot be switched on (no U7 eligibility provider: `503 release_unconfigured`
+whatever the env). Tests 77/77 targeted, 218/218 across the 21 test files touching api-relay.js / secrets.js / tunnel.js;
+enclave-5d confirmed its answers match the 4c consumer's contract. With it: slice + `predict.env` + `predict.conf`, then the
+4c supervisor, with U7 later on its own gate; the env, drop-in, acceptance and rollback here are unchanged.
+
+A brand-new claim may see `409 not_leased` from `/v1/expected-guest` for the moment between the claim transaction and the
+agreeing RPCs seeing it; the consumer treats it as one failure (its 5 min backoff), nothing wedges (enclave-5d).
+
 ## Rollback
 
 Remove the appended lines (restore the backup line-wise, never the whole file), remove `predict.conf`, `daemon-reload`,
