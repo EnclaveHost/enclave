@@ -953,3 +953,26 @@ test("draft v33 ships the G4 PROBE image (never a profile's firmware, never elig
   x = run(["verify", writeManifest(pinRef(structuredClone(d), JSON.stringify(bad)))]);
   assert.equal(x.code, 1); assert.match(x.out, /g4-probe-72462737 is marked eligible but is class probe/, fails(x.out));
 });
+
+test("draft v34 records the serving acceptance 082325 and re-pins the launcher on it: 435717de is the one control.launcher; 15338081 and 0160d835 are no longer shipped", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-34.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT \(supersedes v33, which is staged at pkg\\69262a44e7e13901\\\)\. THE SERVING ACCEPTANCE PASSED \(enclave-d1, run 082325, evidence c9a67951/);
+  const launchers = d.files.filter((f) => /launcher/.test(f.role));
+  assert.deepEqual(launchers.map((f) => [f.role, f.sha256]), [["control.launcher", "435717def62bb5c9a632f80210b5c3fbcbeb7cb8c1047f9beef4ca578ebe99e7"]]);
+  assert.equal(launchers[0].source.commit.slice(0, 8), "1a6f1556");
+  assert.ok(!d.files.some((f) => /15338081|0160d835/.test(f.sha256) || /candidate-launcher/.test(f.path)), "neither earlier launcher is shipped");
+  assert.equal(d.inputs.find((i) => i.name === "wmiserve.rs").sha256.slice(0, 16), "009ce7f7ecfe6a2a");
+  for (const n of ["serving-accept-README.md", "serving-accept-082325-driver.out", "serving-accept-082325-harness.log.txt", "serving-accept-081904-driver.out"])
+    assert.ok(d.inputs.some((i) => i.name === n && i.from.git.commit.startsWith("c9a67951")), n);
+  const sa = d.profiles.vbsLinux.servingAcceptance;
+  assert.match(sa, /Phase 1, hvlab-accept against the manager and data plane: ALL PASS\. Phase 2, restart A0-A7: ALL PASS, including A7/);
+  assert.match(sa, /run 081904, on the then-packaged candidate 15338081, had the manager's judge refuse EVERY report as 'report format\/tier'/);
+  assert.match(sa, /SCOPE \(enclave-d1\): .*host NOT excluded.*never a root.*no hardware VM report exists; not an isolation claim; host_excluded=no\.$/);
+  assert.ok(!("candidateLauncher" in d.profiles.vbsLinux));
+  assert.equal(d.profiles["hcs-dev"].launcher, launchers[0].path);
+  assert.equal(d.profiles.vbsLinux.firmware, "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin");
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   every profile's launcher is a control\.launcher .*\(1 profile launcher\(s\)\)/);
+});

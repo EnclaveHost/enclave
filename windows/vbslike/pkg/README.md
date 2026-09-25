@@ -342,6 +342,16 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   candidate. **And** each profile states its boot form as `profile.contract` in the verifier contract's vocabulary
   (`vbsLinux` the Linux-direct pair, `uefi` and `vbs` the UEFI-medium pair, `hcs-dev` and `igvm` `null`). It is
   informational and never feeds eligibility.
+- **v34 draft** (`drafts/nucbox-ownguest-34.json`; supersedes v33): **the serving acceptance passed** (enclave-d1,
+  run 082325, `c9a67951`). The real manager ran one wmiserve per domain with `--hold stdin`. `hvlab-accept` passed ALL,
+  and restart A0–A7 passed ALL, including A7 (the relay dies with the manager). The run's launcher, whose hash was
+  recorded at use, is **`435717de…`**, built from `1a6f1556`: `wmiserve.rs` signs with the contract's report format
+  `hyperv-partition-domain/v1`. It is re-pinned as the one `control.launcher` in this version, since the run is the
+  acceptance the candidate discipline requires and it ran exactly this binary. Both earlier launchers leave the
+  package: the v32/v33 candidate `15338081` failed the judge in run 081904 on a stray local format name, and
+  `0160d835` carries the same name on its wmiserve path. Both remain in the staged v28–v33 packages. Scope
+  (enclave-d1): T0-hv, host NOT excluded, reports signed by the host's launcher key (a host statement, never a root),
+  no hardware VM report; not an isolation claim.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
