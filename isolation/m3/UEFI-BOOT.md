@@ -198,6 +198,34 @@ exclusion is NOT established, and the guest says so itself.
 - `MON ready` printed the same whether or not the channel could exist, so from initrd a1ff9864 the ready line names
   the transport, and the guest powers off with `MON ERROR no vsock transport` when there is none.
 
+## On the NucBox: E0, the named transport and the first app served (enclave-d1, 2026-09-25 01:57:44-01:58:08)
+
+The setup: VM 5cd4730e; medium `7b9b04d6` (UKI 20a0e18e, initrd a1ff9864); firmware openhcl.bin `48773995`;
+GuestStateIsolationType 16 (OpenHCL, no isolation). The console, verbatim:
+
+```
+MON snp=0 vcpus=1 memMiB=1965 boot_ms=313
+MON insmod /vsock.ko.zst failed: Operation not supported
+MON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported
+MON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported
+MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no
+MON ready control_port=9000 snp=false transport=hv_sock
+```
+
+- `transport=hv_sock` is **measured on the box** for initrd a1ff9864. The virtio insmod lines are the QEMU lane's
+  modules failing, as expected (this kernel carries no module decompression).
+- The rest of the chain on that boot:
+  - an hv_sock dial in 1 ms;
+  - the control protocol answered;
+  - bundle `9c3d10f1` loaded with hash agreement;
+  - the relay came up;
+  - the app served **exactly its 13 pinned bytes** (sha `03ba204e...`) through the guest's own TLS.
+- Afterwards the VM was removed, AllowFirmwareLoadFromFile was restored to Absent and the hv_sock service GUID was
+  removed (both verified), and the live node was untouched.
+- This is a development boot of a type-16 partition: the host is NOT excluded.
+- The stated `hv_isolation=`/`paravisor=` fields did not exist in this initrd, so their type-16 values are still
+  unmeasured. E0 is re-run on production medium `ca245eae` (initrd 0d14db23), which prints them.
+
 ## Local proof (warden-host, QEMU + OVMF: NOT Hyper-V)
 
 - `BOOT=uefi test-hv-local.sh`: the guests boot from an ESP holding only the UKI (the Arch kernel as `.linux`, initrd
