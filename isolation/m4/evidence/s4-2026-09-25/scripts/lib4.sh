@@ -8,9 +8,32 @@ FLOOR=16384   # Codex: the host floor for THIS 64 GiB pool at its next coordinat
 FLOORC="d67b0020c8fd58166392e85bf315e4bb15404183 1b5375c9f9718d346d4c5511d7a9bc3096d5551f"
 MAIN=/home/steven/Projects/enclave; S4=$EV/s4; LOG4=$S4/install.log
 say4() { echo "$(date -u +%H:%M:%SZ) $*" | tee -a $LOG4; }
-# the production guest units by name and state: the FATAL diff (a change here means a production guest moved)
-units() { systemctl --user list-units --plain --no-legend --all 'm2-gd*' | awk '{print $1, $3, $4}' | sort; }
-snap() { echo "$(systemctl --user show enclave-guestd.service -p MainPID -p ExecStart --value | tr '\n' ' ')|$(units | tr '\n' ';')"; }
+# The production guest units: name, state and each unit's MainPID (a restart under the same name moves the PID). The
+# FATAL diff. FAILS CLOSED (enclave-e3): errexit does not reach into $(...), and a systemctl that cannot reach the user
+# bus prints nothing, so an unreadable state must never compare equal to itself. Exactly the 3 canary units, each
+# active/running with a non-zero MainPID.
+units() {
+  local l u n=0 out="" pid
+  l=$(systemctl --user list-units --plain --no-legend --all 'm2-gd*') || return 1
+  while read -r u _ a s _; do
+    [ -n "$u" ] || continue
+    pid=$(systemctl --user show "$u" -p MainPID --value) || return 1
+    [ "$a $s" = "active running" ] && [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+    out+="$u $a $s $pid"$'\n'; n=$((n+1))
+  done <<<"$l"
+  [ $n = 3 ] || return 1
+  printf '%s' "$out" | sort
+}
+# guestd's MainPID (non-zero) and ExecStart (non-empty), then the units; any unreadable part fails the snapshot
+snap() {
+  local pid ex us
+  pid=$(systemctl --user show enclave-guestd.service -p MainPID --value) || return 1
+  [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+  ex=$(systemctl --user show enclave-guestd.service -p ExecStart --value) || return 1
+  [ -n "$ex" ] || return 1
+  us=$(units) || return 1
+  echo "$pid $ex|${us//$'\n'/;}"
+}
 # the installed tree is d1a38994 with no tracked change and no untracked file (ignored build products such as m4/.bundle
 # are what guestd's own builds leave, as in the live tree) and no lab pins
 tree_ok() {

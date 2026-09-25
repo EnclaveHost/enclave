@@ -61,3 +61,9 @@ REPRODUCE: scripts/ holds the exact scripts run (hashes in scripts-v2.sha256 plu
 for the evidence, and build/ holds the image manifest, file hashes and prediction. build/DISCARDED-wrong-ovmf-manifest.json
 is my first build: its prediction was against the distro OVMF because --ovmf was omitted. It was caught before
 anything was applied.
+
+ERRATUM (09-25, enclave-e3's review of the S4 scripts): the comment in scripts/s3-budget64-rollback.sh ("the apply's own
+immediate fail() runs with the canaries alone, so it passes this gate") was false when guestd is unreadable. The gate's
+noncanary_empty needs a readable guestd, so the apply's fail() would have been REFUSED had guestd not come back. The
+apply succeeded, so it never mattered. The as-run copy here stays byte-identical to what ran; the working copy's
+comment is corrected, and standalone use keeps the logged OVERRIDE. S4's 4d rollback uses FROM_APPLY instead.
