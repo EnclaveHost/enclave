@@ -8,6 +8,10 @@ at `6f9171a0` on 2026-09-24 (103 commits ahead of the branch's base):
 sides, and the branch uses no retired brand term. Full record: `REPORT.md`
 18.50-18.55.
 
+Review: this branch is draft PR #5. The `deploy.yml` exclusion is draft PR #3, and draft PR #4
+fixes the seven shielded unit fixtures that are red on every main CI run (test-only, most of them
+stale after this campaign's own changes: the graph-cache default, `sh_thread_create`, `refill_unit`).
+
 ## 1. Integrated, built, pinned: the state measured on 2026-09-24
 
 The production llama.cpp stack is the tarball `enclave-llamacpp-ddd4ec14-extra-bufts-20260914`
