@@ -43,7 +43,9 @@
    "measured": [
     "A Generation 2 VM created WITHOUT -GuestStateIsolationType accepts the FirmwareFile pin (ModifySystemSettings returnValue 0), reads it back, starts, and boots nothing: the worker never logs an IGVM load and nothing anywhere says why (enclave-d1, nucbox-k11, 2026-09-24).",
     "Created WITH -GuestStateIsolationType OpenHCL or TrustedLaunch, the worker tries, and Worker-Admin event 5142 says: failed to load custom IGVM file because AllowFirmwareLoadFromFile registry key is not set (0x80070032).",
-    "IsolationType on Msvm_VirtualSystemSettingData reads EMPTY even for a VM created with an isolation type, so it cannot detect this.",
+    "IsolationType does NOT EXIST in this build's Msvm_VirtualSystemSettingData (26200.9457; reading it gives null, which v4-v7 recorded as 'reads EMPTY'); the type lives in GuestStateIsolationType. Also absent here: GuestStateLifetime, DefaultBootAlwaysAttempt, ManagementVtlFeatureFlags, GuestStateEncryptionPolicy (research E6).",
+    "With the key set and isolation type OpenHCL, the worker LOADS the pinned file: the in-box DLL pinned by our path is refused by our path (0x80070057), and our IGVM loads with no complaint; the partition then fails to start with a bare Worker event 12030 carrying no cause. 'Loading IGVM file from default location' is not about the pinned paravisor (enclave-d1, 18d569ee; research correction).",
+    "OpenHCL's boot log has no serial route on this build: openhcl_boot logs to serial only when the host describes a COM3 (petri: build >= 27653; this host 26200); ohcldiag-dev (kmsg over hvsocket, VTL2 running) is the only way in, and building it here needs the Windows SDK (a resources question for Steven) (research E7).",
     "Secure Boot is not a factor: pinned VMs fail identically with it on and off. The manager turns it off, as the upstream guide does, because a guest image may need that."
    ]
   }
@@ -488,24 +490,24 @@
    "bytes": 14650,
    "from": {
     "git": {
-     "commit": "2a43239adb4497611775dd7042a7b01df5c31877",
+     "commit": "d5f1b9539bcebae4ebd1d83174ceed2a9066ab37",
      "path": "windows/vbslike/datapath/node-bridge.mjs"
     }
    },
-   "note": "enclave-5d's node-side bridge; isolationPlan takes the claim gate's require, manager and appConfigCid (2a43239a). IMPORTED by enclave-d1's hooks (5af19b19 on; d1f4b745 here), but the REAL node path does not reach it: enclave-5d measured ensureApp giving isolated deployments up at the in-enclave gates before its isolation branch (isolation/m3/hv-node-check-2026-09-24.txt, 2a43239a); reported to enclave-d1. The route phase (relay splice -> app-zone stand-in -> bridge -> data plane -> guest) is 13/13 on local KVM, NOT Hyper-V (isolation/m3/hv-route-check-2026-09-24.txt)."
+   "note": "enclave-5d's node-side bridge; isolationPlan takes the claim gate's require, manager and appConfigCid (2a43239a). Imported by enclave-d1's hooks. enclave-5d's evidence (isolation/m3/hv-node-check-2026-09-24.txt @ 2b09e9d8), against d1's REAL node at dc9da0e1 on local KVM, NOT Hyper-V: hello-world /1 spawned and judged ready (monitor-signed) by the real manager, record bff33b95; a browser through the relay hub -> d1's appzone -> the bridge -> the data plane -> the guest gets TLS on exactly the key the manager verified, and the app answers; hookbin /2 refused by the plan (the manager serves /1 only). NOT yet through the node's own ensureApp: at dc9da0e1 it throws 'memMb is not defined' (d1's), so that run drives #isolationReconcile's steps directly. Nothing is served until ensureApp itself passes."
   },
   {
    "path": "control/isolation/m4/guestd/supervisor-splice.mjs",
    "role": "control.node-client",
-   "sha256": "88e688cdfd341f46792a6b238a954991b0ad147b1c08461aa1983efc40a1deab",
-   "bytes": 16808,
+   "sha256": "c841ac7c0d1459c49630224e346890672358256b5616fe51c9d65795ff8072aa",
+   "bytes": 17131,
    "from": {
     "git": {
-     "commit": "2a43239adb4497611775dd7042a7b01df5c31877",
+     "commit": "d5f1b9539bcebae4ebd1d83174ceed2a9066ab37",
      "path": "isolation/m4/guestd/supervisor-splice.mjs"
     }
    },
-   "note": "enclave-5d's splice client, imported by node-bridge.mjs; node:net only, ws loaded lazily in the WebSocket half (28a728f8). Supersedes 6fdb3d4b and 36053926"
+   "note": "enclave-5d's splice client, imported by node-bridge.mjs; node:net only, ws loaded lazily in the WebSocket half. c841ac7c (d5f1b953): routeFor matches the tier case-insensitively, since enclave-d1's HCS backend records 't0-hv' and the strict check made every partition unroutable. Supersedes 88e688cd"
   },
   {
    "path": "control/windows/node/appzone.mjs",
@@ -913,11 +915,11 @@
   {
    "name": "datapath-5d.test.mjs",
    "role": "input.test",
-   "sha256": "5dbd36191ee7c2b8af83b159224969982934f33350293c81c01ba8fcef6e55b9",
-   "bytes": 8240,
+   "sha256": "c66a604424d2c9098c6f26d629fea0058c1baafe80db139982deffb5e2f04126",
+   "bytes": 8513,
    "from": {
     "git": {
-     "commit": "2a43239adb4497611775dd7042a7b01df5c31877",
+     "commit": "d5f1b9539bcebae4ebd1d83174ceed2a9066ab37",
      "path": "windows/vbslike/datapath/datapath.test.mjs"
     }
    },
