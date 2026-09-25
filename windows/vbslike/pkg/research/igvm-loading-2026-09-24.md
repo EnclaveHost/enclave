@@ -137,6 +137,24 @@ line on 5d's next initrd should say `transport=hv_sock`. If it fails, the altern
 listener must be bound to the VM's GUID BEFORE the VM starts (the GUID is known after `New-CustomVM`, before
 `Start-VM`), and the monitor's `load` answer's `appSha256` is the hash agreement the host must check.
 
+## E10. The first app served through a WMI OpenHCL VM on the NucBox (enclave-d1, 2026-09-25; integration, not isolation)
+
+With medium `4c387086` under `openhcl.bin` `48773995`, enclave-d1's `uefi-dev-boot.ps1` (423fca4e) drove the rebuilt
+launcher's `wmiserve` (`c2cb0c10`, from `1ba73a20`): the 9001 report-signing service bound to the VM's GUID, `load`
+over 9000 with hash agreement (`appSha256` 9c3d10f1, agreed), a relay from host TCP 19500 to guest port 40001, and
+hello-world answered its 13 pinned bytes (`03ba204e…`, confirmed raw on the box). Verbatim: `MON ready control_port=9000
+snp=false` / `{"step":"report-service","port":9001,"bound":true}` / `{"step":"load","ok":true,"id":1,
+"appSha256":"9c3d10f1…","agreed":true,"guestPort":40001}` / `{"step":"relay","ok":true,"tcp":19500,"guestPort":40001}`
+/ `APP ANSWERED: Hello World!`.
+
+So E9's expectation held: with `VMBusMessageRedirection` off, hv_sock reached VTL0 both ways (one prerequisite d1
+found: the hv_sock service GUID registration, without which the dial fails with `os error 10013`; the HCS document
+carried its SDDL, WMI VMs need the registry entry; `WMISERVE-PROTOCOL.md` at 8d82f67f).
+
+**Limits, d1's:** the guest's TLS was accepted with `curl -k`, so this shows the app serves and nothing about identity
+(judge-hv on the handshake key is that check, and was not run). Type 16 is OpenHCL with no isolation: the root can map
+the guest's memory. Integration progress, not the isolation goal. The manager does not drive `wmiserve` yet.
+
 ## Bounded probe proposal (sent to enclave-d1, who runs it under the authorized set-probe-restore procedure)
 
 **P1: define the VM the reference way.**
