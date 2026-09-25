@@ -743,3 +743,85 @@ test("the handle's boundary and the launcher's own carry the stated form's name;
   assert.equal(mk(host()).boundary.partition, "wmi-openhcl-gen2-igvm-linux", "TYPE1 states linux-direct");
   assert.equal(mk(host(), { boot: null }).boundary, null, "a launcher with no stated form states no boundary");
 });
+
+// ---- serve: the app and its relay through wmiserve (enclave-5d, wmiserve-run.mjs), opt-in ----
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import crypto from "node:crypto";
+import { spawn as nodeSpawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const FAKE_WMISERVE = path.join(path.dirname(fileURLToPath(import.meta.url)), "testdata/fake-wmiserve.mjs");
+const BUNDLE = Buffer.from("enclave-catalog-bundle/1 bytes for the launcher's serve tests");
+const served = { appId: crypto.createHash("sha256").update(BUNDLE).digest("hex"), bundle: BUNDLE,
+                 record: { policy: { cpuPercent: 100, memMiB: 512, vcpus: 1 } } };
+// a launcher that serves through the fake wmiserve in `mode`; `events` records the PowerShell steps and the relay's close
+function serving(mode = "ok", { over = {}, hostOver = {}, argsFile = null } = {}) {
+  const events = [];
+  const h = host(hostOver);
+  const run = async (script) => { events.push("ps:" + keyOf(script)); return h.run(script); };
+  const bundleDir = fs.mkdtempSync(path.join(os.tmpdir(), "wmi-serve-"));
+  const spawn = (exe, args, opts) => nodeSpawn(process.execPath, [FAKE_WMISERVE, ...args],
+    { ...opts, env: { ...process.env, FAKE_WMISERVE: mode, ...(argsFile ? { FAKE_WMISERVE_ARGS: argsFile } : {}) } });
+  const L = mk({ run, seen: h.seen }, { serve: { exe: "vbslike-host.exe", bundleDir, portFor: () => 19311, readyTimeoutMs: 5_000, spawn }, ...over });
+  const origStop = L.stop.bind(L);
+  L.stop = async (handle) => {
+    if (handle && handle.wmiserve) { const s = handle.wmiserve.stop; handle.wmiserve.stop = async () => { events.push("relay:close"); return s(); }; }
+    return origStop(handle);
+  };
+  return { L, events, bundleDir, h };
+}
+
+// a relay child a failing assertion left behind is killed, so a broken check FAILS instead of hanging the run
+const reap = (h) => { try { if (h && h.wmiserve && h.wmiserve.pid) process.kill(h.wmiserve.pid, "SIGKILL"); } catch { /* gone */ } };
+
+test("serve: the app is loaded and relayed; the handle carries the relay, the key, the boot and the IGVM image", async () => {
+  const { L, events, bundleDir } = serving("ok");
+  const handle = await L.start(served, ID);
+  try {
+  assert.equal(handle.tcpPort, 19311); assert.equal(handle.domainId, 1); assert.equal(handle.guestPort, 40001);
+  assert.equal(Buffer.from(handle.launcherKey, "base64").length, 32);
+  assert.equal(handle.boot, "39725c19e15c91afe488ce62251055f5", "the per-boot nonce, kept for the manager's own destroys");
+  assert.equal(handle.image, SHA); assert.equal(handle.guestIdentity.partition, "wmi-openhcl-gen2-igvm-linux");
+  assert.ok(fs.existsSync(path.join(bundleDir, `${ID.instanceId}.bundle`)), "the bundle is in the manager-owned directory, by instance id");
+  const out = await handle.stop();
+  assert.equal(out.relay.how, "closed", "wmiserve closed on the stdin line");
+  assert.ok(events.indexOf("relay:close") < events.lastIndexOf("ps:removeById"), `the relay closes BEFORE the VM goes: ${events.join(", ")}`);
+  assert.equal(fs.existsSync(path.join(bundleDir, `${ID.instanceId}.bundle`)), false, "and its bundle file goes with it");
+  } finally { reap(handle); }
+});
+
+test("serve: a wmiserve refusal fails the start, removes the VM and the bundle file, and serves nothing", async () => {
+  const { L, events, bundleDir } = serving("wrong-app");
+  const e = await L.start(served, ID).then(async (h) => { await h.stop(); return null; }, (x) => x);
+  assert.ok(e instanceof Error, "a start that must fail was accepted"); assert.match(e.message, /the guest loaded eeee.*not the AppID/);
+  assert.ok(events.includes("ps:removeById"), "the VM this attempt defined is removed");
+  assert.deepEqual(fs.readdirSync(bundleDir), [], "no bundle file is left behind");
+});
+
+test("serve: a mapping with no bundle bytes fails the start before anything is spawned, and the VM is removed", async () => {
+  const { L, events } = serving("ok");
+  await assert.rejects(() => L.start(mapping, ID), /no bundle bytes/);
+  assert.ok(events.includes("ps:removeById"));
+});
+
+test("serve: set without an executable or a bundle directory, nothing is defined", async () => {
+  for (const serve of [{ bundleDir: "/tmp/x" }, { exe: "vbslike-host.exe" }]) {
+    const h = host();
+    await assert.rejects(() => mk(h, { serve }).start(served, ID), (e) => e.code === "launcher_unconfigured");
+    assert.equal(h.keys().includes("define"), false);
+  }
+});
+
+test("serve: a UEFI-medium launcher hands wmiserve the MEDIUM's hash, never the IGVM's", async () => {
+  const argsFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "wmi-args-")), "args.json");
+  const { L } = serving("ok", { over: { boot: BOOT_UEFI, medium: MEDIUM, mediumSha256: MED },
+                               hostOver: { imageHash: (s) => ({ present: true, sha256: s.includes("guest-production") ? MED : SHA, bytes: 1 }) }, argsFile });
+  const handle = await L.start(served, ID);
+  try {
+    const argv = JSON.parse(fs.readFileSync(argsFile, "utf8"));
+    assert.equal(argv[argv.indexOf("--medium-sha256") + 1], MED); assert.equal(argv.includes("--igvm-sha256"), false);
+    await handle.stop();
+  } finally { reap(handle); }
+});
