@@ -55,6 +55,14 @@ test("attestedCapacity: a manager's own hostExcluded/chain-verified claim is not
   assert.equal(attestedCapacity({ status: "running", hostExcluded: true, verdict: "chain-verified", tier: "T2-snp" }), false);
 });
 
+test("a refusal names the manager's values, but at most 64 characters each: a lie cannot grow the reason or the state file", () => {
+  const huge = "x".repeat(100_000);
+  for (const inst of [{ id: huge, hostExcluded: false, hostExcludedAsStated: huge, tier: "T0-hv" }, { id: "hv1", hostExcluded: false, tier: huge }]) {
+    const why = isolationBoundaryRefusal(inst);
+    assert.ok(why && why.length < 400, `bounded: ${why.length}`);
+  }
+});
+
 test("isolationBoundaryRefusal: only T0-hv with the host NOT excluded is this backend's boundary", () => {
   for (const ok of [{ hostExcluded: false, tier: "t0-hv" }, { hostExcluded: false, tier: "T0-hv" }]) assert.equal(isolationBoundaryRefusal(ok), null);
   for (const bad of [{ hostExcluded: true, tier: "T0-hv" }, { hostExcluded: "false", tier: "T0-hv" }, { tier: "T0-hv" },
@@ -187,6 +195,11 @@ test("a boundary-held deployment whose lease LAPSED is retired locally (one DELE
   assert.equal(unforced.accepted, false); assert.match(unforced.reason, /not re-claimed until the operator forces it/);
   const persisted = JSON.parse(fs.readFileSync(path.join(h.cfg.dir, "host-state.json"), "utf8"));
   assert.ok(Object.keys(persisted.blocked || {}).includes(DEP), "the block survives a node restart");
+  // a fresh node on the same state directory (a restart) loads the block before any scan, and still refuses (99's probe)
+  const restarted = box({ dir: h.cfg.dir, isolationManager: h.cfg.isolationManager, isolationRuntimeId: REC.runtimeId });
+  restarted.chainReady = true;
+  assert.equal(restarted.blocked.has(DEP), true);
+  assert.match((await restarted.consider(DEP)).reason, /not re-claimed until the operator forces it/);
   await h.consider(DEP, { force: true }).catch(() => {});
   assert.equal(h.blocked.has(DEP), false, "the operator's forced claim is the way back");
 });
