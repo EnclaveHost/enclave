@@ -167,3 +167,11 @@ paths = ['''^shielded/anchor/avf/results/pvm-cpu-proof-(?:key|agent)[a-z0-9-]*/e
 # the flagged values are signatures: exactly 128 lowercase hex, in these files only (gitleaks' line target did not
 # match one of two identical statement lines, so the rule keys on the value's shape, not the line)
 regexes = ['''^[0-9a-f]{128}$''']
+
+[[allowlists]]
+description = "a pVM device run's VM capture (results/pvm-cpu-*/vm/*.log) logs each proof-key statement it answers with a 16-hex PREFIX of the requester's public nonce and the public proof-key ADDRESS; the prefix trips the entropy rule on some runs"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^shielded/anchor/avf/results/pvm-cpu-[a-z0-9-]+/vm/[a-z0-9-]+\.log$''']
+regexTarget = "line"
+regexes = ['''VSOCK PROOFKEY answered nonce=[0-9a-f]{16}\.\.\. proofKey=0x[0-9a-f]{40} \(answer \d+\)''']   # gitleaks' line target is not the whole line: unanchored, exact shape
