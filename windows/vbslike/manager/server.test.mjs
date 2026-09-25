@@ -509,3 +509,81 @@ test("a relay exiting after readiness already FAILED leaves that reason standing
   exit({ code: 1, signal: null }); await new Promise((res) => setImmediate(res));
   assert.match(m.get(r.id).reason, /document was not accepted/);
 });
+
+// ---- sweepAnswers: a Running partition whose domain wedged, or answers on another key (enclave-5d, d1's constraints) ----
+function answering({ stopBlocks = null } = {}) {
+  const relayStops = [];
+  const backend = { supports: {}, backend: "hv", boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
+    start: async () => ({ name: "vm", vmId: "3f1c0f6e-7a2b-4c3d-8e9f-0a1b2c3d4e5f", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false,
+                          boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
+                          domainId: 1, guestPort: 40001, tcpPort: 19104, image: "ab".repeat(32), launcherKey: "LKEY",
+                          wmiserve: { exited: new Promise(() => {}), stop: async () => { relayStops.push(1); return { closed: true }; } } }),
+    stop: async () => { if (stopBlocks) await stopBlocks; } };
+  return { backend, relayStops };
+}
+const VERIFIED = "cd".repeat(32);
+const judgeVerified = async () => ({ status: "running", transportKeySha256: VERIFIED, checks: { document: { ok: true, verdict: "monitor-signed" }, ready: { ok: true } } });
+async function runningWith(answers, opts) {
+  const { backend, relayStops } = answering(opts);
+  const asked = [];
+  const answerCheck = async (a) => { asked.push(a); return answers.length ? answers.shift() : { ok: true }; };
+  const m = mk({ backend, judgeReady: judgeVerified, answerCheck }); const seen = []; m.onReclaim = (id, why) => seen.push(why);
+  const r = await m.spawn(spawnBody()); await m.judging.get(r.id);
+  assert.equal(m.get(r.id).status, "running");
+  return { m, id: r.id, asked, seen, relayStops };
+}
+const WEDGED = { ok: false, keyChanged: false, reason: "no TLS session: connect ECONNREFUSED" };
+
+test("answers: a wedged domain fails after 3 checks in a row: relay stopped, sessions reclaimed, VM left", async () => {
+  const { m, id, asked, seen, relayStops } = await runningWith([WEDGED, WEDGED, WEDGED]);
+  await m.sweepAnswers(); await m.sweepAnswers();
+  assert.equal(m.get(id).status, "running", "two strikes are not three");
+  assert.deepEqual(await m.sweepAnswers(), { checked: 1, failed: 1 });
+  assert.equal(m.get(id).status, "failed"); assert.match(m.get(id).reason, /stopped answering \(3 checks in a row\): no TLS session/);
+  assert.deepEqual(seen, ["the domain stopped answering"]); assert.equal(relayStops.length, 1);
+  assert.equal(asked[0].transportKeySha256, VERIFIED, "it is asked about the key it was VERIFIED on"); assert.equal(asked[0].port, 19104);
+});
+
+test("answers: a key change fails the domain AT ONCE, naming both hashes", async () => {
+  const KEYCHANGE = { ok: false, keyChanged: true, reason: `the domain answers on key ${"ee".repeat(32)}, not the verified ${VERIFIED}` };
+  const { m, id } = await runningWith([KEYCHANGE]);
+  assert.deepEqual(await m.sweepAnswers(), { checked: 1, failed: 1 });
+  assert.match(m.get(id).reason, new RegExp(`no longer answers on its verified key: .*${"ee".repeat(32)}.*${VERIFIED}`));
+});
+
+test("answers: a single blip does not fail a domain; a good answer clears its strikes", async () => {
+  const { m, id } = await runningWith([WEDGED, WEDGED, { ok: true }, WEDGED, WEDGED]);
+  for (let i = 0; i < 5; i++) await m.sweepAnswers();
+  assert.equal(m.get(id).status, "running", "2 strikes, a good answer, then 2 strikes: never 3 in a row");
+});
+
+test("answers: a record being stopped is not asked, and not failed", async () => {
+  let release; const stopBlocks = new Promise((r) => { release = r; });
+  const { m, id, asked } = await runningWith([WEDGED, WEDGED, WEDGED], { stopBlocks });
+  const removing = m.remove(id);
+  await new Promise((r) => setImmediate(r));
+  for (let i = 0; i < 3; i++) await m.sweepAnswers();
+  assert.equal(asked.length, 0, "a domain mid-stop is not asked");
+  release(); assert.deepEqual(await removing, { removed: true, absent: false });
+});
+
+test("answers: nothing to compare means nothing is asked (no check configured, or not yet verified)", async () => {
+  const { backend } = answering();
+  const none = mk({ backend, judgeReady: judgeVerified });
+  const r = await none.spawn(spawnBody()); await none.judging.get(r.id);
+  assert.equal((await none.sweepAnswers()).skipped, "no answer check");
+  const { backend: b2 } = answering(); const asked = [];
+  const unjudged = mk({ backend: b2, answerCheck: async (a) => { asked.push(a); return WEDGED; } });   // no readiness rule: stays starting
+  await unjudged.spawn(spawnBody());
+  await unjudged.sweepAnswers(); assert.equal(asked.length, 0, "a starting record has no verified key to compare");
+});
+
+test("answers: a record removed WHILE it was being asked is left alone (no failure, no second reclaim)", async () => {
+  const { backend } = answering();
+  let m, id;
+  const answerCheck = async () => { await m.remove(id); return { ok: false, keyChanged: true, reason: "answered on another key" }; };
+  m = mk({ backend, judgeReady: judgeVerified, answerCheck }); const seen = []; m.onReclaim = (x, why) => seen.push(why);
+  const r = await m.spawn(spawnBody()); id = r.id; await m.judging.get(id);
+  assert.deepEqual(await m.sweepAnswers(), { checked: 1, failed: 0 });
+  assert.deepEqual(seen, ["removed"], "only the removal's own reclaim");
+});

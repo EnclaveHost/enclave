@@ -114,6 +114,33 @@ export function judgeReadyBody(status, bodyBuf, appId) {
 }
 
 /**
+ * checkAnswer({ host, port, appId, transportKeySha256, timeoutMs }) -> { ok: true } | { ok: false, keyChanged, reason }
+ *
+ * The cheap question a RUNNING domain is asked on a timer (Manager.sweepAnswers): is it still answering, and on the key
+ * it was verified on? ONE TLS session. First, the handshake's SPKI must hash to the verified key: another key means
+ * another boot or another domain (keyChanged), never a blip. Then GET /.well-known/enclave-ready is judged as a
+ * document for this app (judgeReadyBody). No attestation document is fetched: the key was verified once, and this checks
+ * that the same key still answers. Never throws: a connect or TLS error is an answer of its own (ok:false).
+ */
+export async function checkAnswer({ host = "127.0.0.1", port, appId, transportKeySha256, timeoutMs = 10_000 } = {}) {
+  let sess;
+  try { sess = await session_({ host, port, timeoutMs }); }
+  catch (e) { return { ok: false, keyChanged: false, reason: `no TLS session: ${e.message}` }; }
+  try {
+    const got = transportKeyOf(sess.spki), want = String(transportKeySha256 || "").toLowerCase();
+    if (got !== want) return { ok: false, keyChanged: true, reason: `the domain answers on key ${got}, not the verified ${want}` };
+    const r = await get(sess, host, "/.well-known/enclave-ready", { timeoutMs });
+    const j = judgeReadyBody(r.status, r.body, appId);
+    return j.ok ? { ok: true } : { ok: false, keyChanged: false, reason: j.reason };
+  } catch (e) {
+    return { ok: false, keyChanged: false, reason: e.message };
+  } finally {
+    try { sess.agent.destroy(); } catch { /* closed */ }
+    try { sess.sock.destroy(); } catch { /* closed */ }
+  }
+}
+
+/**
  * judgeRunning({ host, port, appId, launcherKey, expectRuntime, expectedStatement, expectedImageSha256, deadlineMs })
  *   expectedStatement + expectedImageSha256: the record's launcher statement and image, judged as a PAIR (judge-hv);
  *   absent, no image is compared (the HCS lab's records carry none).

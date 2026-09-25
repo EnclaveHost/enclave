@@ -25,6 +25,8 @@ import { derive, DERIVATION, DERIVATION_V2, DERIVATIONS } from "./derive.mjs";
 /* What this backend can actually SERVE, as opposed to derive. /2 needs a command's own socket
    inside the partition; when that exists, it moves into this list and the gate follows. */
 export const SERVES = [DERIVATION];
+// consecutive failed answer checks that fail a running domain (a key change fails it at once)
+export const ANSWER_STRIKES = 3;
 import { HyperVPartitionBackend, BACKEND, SUPPORTS, PREREQUISITES } from "./backend.mjs";
 import { parseNotes } from "./wmi-launcher.mjs";
 
@@ -65,7 +67,7 @@ export class Manager {
    * @param readyDeadlineMs  how long a domain has to become ready before it is failed.
    */
   constructor({ backend = new HyperVPartitionBackend(), fetchComponent = null, runtimeId = "",
-                runtime = null, judgeReady = null, readyDeadlineMs = 120_000 } = {}) {
+                runtime = null, judgeReady = null, readyDeadlineMs = 120_000, answerCheck = null } = {}) {
     this.backend = backend;
     this.fetchComponent = fetchComponent;       // (cid) -> Buffer, CID-verified by the caller's fetcher
     // THE RUNTIME IDENTITY, not just its hash. judge-hv hands `expectRuntime` to the shared
@@ -86,6 +88,8 @@ export class Manager {
     // it caught for a run). main.mjs passes the real rule, so production was fine, which is
     // exactly why it could sit there. Null is now an explicit, stated refusal rather than silence.
     this.judgeReady = judgeReady;
+    // ({host, port, appId, transportKeySha256}) -> {ok} | {ok:false, keyChanged, reason}; ready.mjs checkAnswer in main.mjs
+    this.answerCheck = answerCheck;
     this.noReadinessRule = !judgeReady;
     this.readyDeadlineMs = readyDeadlineMs;
     this.domains = new Map();
@@ -442,6 +446,48 @@ export class Manager {
       const run = rec.handle && rec.handle.wmiserve;
       if (run && typeof run.stop === "function") run.stop().catch(() => {});      // its relay has nothing to carry
       this.#reclaim(rec.id, "the partition stopped");
+      failed++;
+    }
+    return { checked, failed };
+  }
+
+  /**
+   * ANSWERS: a partition can stay Running while its domain no longer answers (G4's outcome (c), a wedge; or a domain
+   * answering on another key). sweepLiveness cannot see that, because it reads VM state. So every running domain with a
+   * relay and a verified key is asked, on ONE TLS session (ready.mjs checkAnswer), whether its handshake still presents
+   * the verified key and whether enclave-ready still answers for this app.
+   *   - A different key fails it AT ONCE, naming both hashes: another boot or another domain is not a blip.
+   *   - Any other failure, including a connect or TLS error, is a strike. ANSWER_STRIKES in a row fail it, and a single
+   *     blip does not.
+   *   - A good answer clears its strikes.
+   * Failing does what sweepLiveness does: stop the relay, reclaim, and leave the VM for the node. Records mid-start,
+   * being stopped, without a relay or without a verified key are skipped, and so is a record that changed while it was
+   * asked. (enclave-5d, d1's constraints; ENCLAVE_ANSWER_CHECK_MS in main.mjs.)
+   */
+  #strikes = new WeakMap();
+  async sweepAnswers() {
+    if (typeof this.answerCheck !== "function") return { checked: 0, failed: 0, skipped: "no answer check" };
+    let checked = 0, failed = 0;
+    for (const rec of [...this.domains.values()]) {
+      if (rec.status !== "running" || !rec.handle || this.#stopping.has(rec)) continue;
+      if (!rec.relay || !rec.relay.port || !/^[0-9a-f]{64}$/.test(String(rec.transportKeySha256 || ""))) continue;
+      checked++;
+      let a;
+      try { a = await this.answerCheck({ host: rec.relay.host, port: rec.relay.port, appId: rec.appId, transportKeySha256: rec.transportKeySha256 }); }
+      catch (e) { a = { ok: false, keyChanged: false, reason: e.message }; }
+      if (this.domains.get(rec.id) !== rec || this.#stopping.has(rec) || rec.status !== "running") continue;   // changed while asked
+      if (a && a.ok === true) { this.#strikes.delete(rec); continue; }
+      const why = (a && a.reason) || "no answer";
+      const n = a && a.keyChanged === true ? ANSWER_STRIKES : (this.#strikes.get(rec) || 0) + 1;
+      this.#strikes.set(rec, n);
+      if (n < ANSWER_STRIKES) continue;
+      rec.status = "failed"; rec.appReady = false;
+      rec.reason = a && a.keyChanged === true
+        ? `the domain no longer answers on its verified key: ${why}; its VM is left for the node to retire`
+        : `the domain stopped answering (${n} checks in a row): ${why}; its VM is left for the node to retire`;
+      const run = rec.handle && rec.handle.wmiserve;
+      if (run && typeof run.stop === "function") run.stop().catch(() => {});      // its relay has nothing to carry
+      this.#reclaim(rec.id, "the domain stopped answering");
       failed++;
     }
     return { checked, failed };
