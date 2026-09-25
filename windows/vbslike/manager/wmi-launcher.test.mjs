@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { WmiHyperVLauncher, CMD, OWNER_MARKER, HYPERV_MODULE_SHA256, FIRMWARE_OPT_IN, BOOT_UEFI, BOOT_LINUX_DIRECT,
-         LINUX_DIRECT_IMAGE_ABSENT, notesFor, q } from "./wmi-launcher.mjs";
+         notesFor, q } from "./wmi-launcher.mjs";
 import { TYPE1, PREFLIGHT_OK, VM_ID, defineAnswer, keyOf } from "./fake-hyperv.mjs";
 
 const IMG = "C:\\Users\\claude\\vbs-like\\openhcl-ownguest.bin";
@@ -688,18 +688,17 @@ test("with a medium (uefi-medium), handle.image is the MEDIUM's hash as a string
   assert.ok(h2.keys().includes("removeById"), "and a medium that changed under us is removed with its VM");
 });
 
-test("with NO medium (linux-direct), image is null WITH ITS REASON, and the IGVM is the identity under its own name", async () => {
+test("with NO medium (linux-direct), image is the IGVM's sha256, stated with the linux-direct (partition, kind) pair", async () => {
   const handle = await mk(host()).start(mapping, ID);
-  assert.equal(handle.image, null, "never an IGVM digest where a medium hash is compared");
-  assert.equal(handle.imageAbsentReason, LINUX_DIRECT_IMAGE_ABSENT);
-  assert.match(handle.imageAbsentReason, /linux-direct/);
-  assert.match(handle.imageAbsentReason, /NOT a medium hash/);
+  assert.equal(handle.image, SHA, "the IGVM is what booted; its hash is compared only with the pair below");
+  assert.equal(handle.image, handle.guestIdentity.igvmSha256);
+  assert.equal("imageAbsentReason" in handle, false);
   assert.equal(handle.guestIdentity.guestImageKind, "igvm-linux-direct");
   assert.equal(handle.guestIdentity.partition, "wmi-openhcl-gen2-igvm-linux", "the name wmiserve SIGNS for --igvm-sha256");
   assert.equal(handle.boundary.partition, handle.guestIdentity.partition, "one name per handle, the signed report's");
   assert.equal(handle.boundary.hostExcluded, false);
   assert.equal(handle.guestIdentity.igvmSha256, SHA, "the IGVM's pinned sha256");
-  assert.equal("guestImageSha256" in handle.guestIdentity, false, "judge-hv reads that field as a MEDIUM hash");
+  assert.equal("guestImageSha256" in handle.guestIdentity, false, "the IGVM hash keeps its own name in the identity; `image` carries it with the pair");
   assert.ok(handle.firmware, "the firmware hash is still reported, under its own name");
   assert.throws(() => linuxDirectIdentity({ igvmSha256: "nope" }), /IGVM's sha256 is required/);
 });

@@ -25,6 +25,7 @@
 // dialTimeoutMs; no bytes in either direction for idleMs closes the splice; at most maxPerInstance splices per
 // instance and maxTotal overall, beyond which a connection is refused rather than queued. Streams are piped, so a
 // reader that stops reading stops the writer.
+import { bootFormOfStatement, isStatedPartition } from "../verify/boot-statements.mjs";
 import net from "node:net";
 
 export const PROTO = "ENCLAVE-SPLICE/1";
@@ -55,6 +56,17 @@ export function admit(rec, want) {
   if (!rec) return ["refused:no-instance", "no such instance"];
   if (rec.status !== "running") return ["refused:not-running", `the instance is ${rec.status}`];
   if (want.app !== rec.appId) return ["refused:identity", "the instance is not that app"];
+  // THE PAIR BEFORE THE IMAGE (enclave-d1 + enclave-99, main ae6e9147): a record that states a WMI partition, in its
+  // boundary or its statement, is routed only if its (partition, guestImageKind) is a row of the fixed table and names
+  // the same partition as its boundary. Then the image. The same 64 hex under another partition or kind is another
+  // claim. The HCS lab's records state neither, and are compared on the image as before.
+  const gi = rec.guestIdentity;
+  const bp = rec.boundary && typeof rec.boundary === "object" ? rec.boundary.partition : null;
+  if (gi || isStatedPartition(bp)) {
+    if (!gi || bootFormOfStatement(gi.partition, gi.guestImageKind) === null)
+      return ["refused:identity", "the instance's launcher statement is not a known (partition, image kind) pair"];
+    if (bp !== gi.partition) return ["refused:identity", "the instance's boundary and its image statement name different partitions"];
+  }
   if (want.image !== rec.image) return ["refused:identity", "the instance was not booted from that guest image"];
   if (want.runtime !== rec.runtimeId) return ["refused:identity", "the instance does not carry that runtime"];
   if (want.key !== rec.transportKeySha256) return ["refused:identity", "the instance's verified transport key is not that key"];

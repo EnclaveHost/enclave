@@ -438,3 +438,30 @@ test("an onReclaim that throws does not break the removal", async () => {
   const r = await m.spawn(spawnBody());
   assert.deepEqual(await m.remove(r.id), { removed: true, absent: false }, "the domain is gone either way");
 });
+
+// The launcher's (partition, guestImageKind) statement travels to the readiness rule WITH the image, so judge-hv
+// compares the pair before the image (enclave-d1 + enclave-99, main ae6e9147); a record with no statement (the HCS lab)
+// passes neither, and its image is not compared.
+test("a linux-direct domain is judged on its (partition, kind) statement AND its image; the HCS lab's on neither", async () => {
+  const IGVM = "7c".repeat(32);
+  const ld = { tier: "t0-hv", partition: "wmi-openhcl-gen2-igvm-linux", hostExcluded: false, attested: false };
+  const wmi = { supports: {}, backend: "hv", boundary: ld,
+    start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false, boundary: ld,
+                          domainId: 1, guestPort: 40001, tcpPort: 19102, image: IGVM, launcherKey: "LKEY",
+                          guestIdentity: { partition: ld.partition, guestImageKind: "igvm-linux-direct", igvmSha256: IGVM, igvmPath: "x" } }),
+    stop: async () => {} };
+  for (const [backend, expectPair] of [[wmi, true], [relayBackend(), false]]) {
+    const seen = [];
+    const m = mk({ backend, judgeReady: async (a) => { seen.push(a); return { status: "running", transportKeySha256: "cd".repeat(32),
+      checks: { document: { ok: true, verdict: "monitor-signed" }, ready: { ok: true } } }; } });
+    const r = await m.spawn(spawnBody());
+    await m.judging.get(r.id);
+    if (expectPair) {
+      assert.deepEqual(seen[0].expectedStatement, { partition: ld.partition, guestImageKind: "igvm-linux-direct" });
+      assert.equal(seen[0].expectedImageSha256, IGVM);
+      assert.deepEqual(m.get(r.id).guestIdentity, { partition: ld.partition, guestImageKind: "igvm-linux-direct" }, "the view states the pair");
+    } else {
+      assert.equal(seen[0].expectedStatement, undefined); assert.equal(seen[0].expectedImageSha256, undefined);
+    }
+  }
+});
