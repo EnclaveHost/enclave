@@ -9,11 +9,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"io"
 	"log"
 	"math/big"
 	"net"
 	"net/netip"
+	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -67,20 +70,53 @@ func (ca *testCA) server(t *testing.T, name, body string) net.Listener {
 }
 
 type rig struct {
-	fwd     *Forwarder
-	hostLog *bytes.Buffer
-	ca      *testCA
+	fwd      *Forwarder
+	hostAddr string
+	mu       sync.Mutex
+	log      bytes.Buffer
+	looked   []string // names the host resolved: the synthetic observer of which destination was chosen
+	dialed   []string // addresses the host dialed
 }
 
-// A guest forwarder, a host egress server and two "internet" servers, all on loopback; TCP stands in for vsock.
-// `route` sends a judged public address to the local server that should answer for it (a DNS record, in effect).
+func (r *rig) logs() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.log.String()
+}
+
+func (r *rig) observed() (looked, dialed []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.looked...), append([]string(nil), r.dialed...)
+}
+
+// observingResolver records every name the host resolves, then answers from the fake zone
+type observingResolver struct {
+	r   *rig
+	dns fakeResolver
+}
+
+func (o observingResolver) LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error) {
+	o.r.mu.Lock()
+	o.r.looked = append(o.r.looked, host)
+	o.r.mu.Unlock()
+	return o.dns.LookupNetIP(ctx, network, host)
+}
+
+// A guest forwarder, a host egress server and "internet" servers, all on loopback; TCP stands in for vsock.
+// `route` sends a judged public address to the local server that should answer for it (a DNS record, in effect); an
+// address with no route fails the way a real connect does, with an error naming the address.
 func newRig(t *testing.T, origins []string, route map[string]net.Listener, dns fakeResolver) *rig {
 	t.Helper()
-	d := &Dialer{Resolver: dns, Own: func() []netip.Addr { return nil }}
+	r := &rig{}
+	d := &Dialer{Resolver: observingResolver{r, dns}, Own: func() []netip.Addr { return nil }}
 	d.dial = func(ctx context.Context, addr string) (net.Conn, error) {
+		r.mu.Lock()
+		r.dialed = append(r.dialed, addr)
+		r.mu.Unlock()
 		srv, ok := route[addr]
 		if !ok {
-			return nil, io.EOF
+			return nil, fmt.Errorf("dial tcp %s: connect: connection refused", addr)
 		}
 		c, err := net.Dial("tcp", srv.Addr().String())
 		if err != nil {
@@ -88,13 +124,13 @@ func newRig(t *testing.T, origins []string, route map[string]net.Listener, dns f
 		}
 		return fakeConn{c, net.TCPAddrFromAddrPort(netip.MustParseAddrPort(addr))}, nil // the peer the dialer judged
 	}
-	var buf bytes.Buffer
-	var mu sync.Mutex
-	srv := &Server{Dialer: d, CIDOf: func(net.Conn) uint32 { return 42 }, Log: log.New(writerFunc(func(p []byte) (int, error) { mu.Lock(); defer mu.Unlock(); return buf.Write(p) }), "", 0)}
+	srv := &Server{Dialer: d, CIDOf: func(net.Conn) uint32 { return 42 },
+		Log: log.New(writerFunc(func(p []byte) (int, error) { r.mu.Lock(); defer r.mu.Unlock(); return r.log.Write(p) }), "", 0)}
 	hl, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
+	r.hostAddr = hl.Addr().String()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go srv.Serve(ctx, hl)
@@ -106,11 +142,11 @@ func newRig(t *testing.T, origins []string, route map[string]net.Listener, dns f
 	pl, _ := net.Listen("tcp", "127.0.0.1:0") // a free port number for the guest listeners
 	port := pl.Addr().(*net.TCPAddr).Port
 	pl.Close()
-	f := &Forwarder{Policy: &Policy{Origins: os}, Port: port, Upstream: func() (net.Conn, error) { return net.Dial("tcp", hl.Addr().String()) }}
-	if err := f.Start(ctx); err != nil {
+	r.fwd = &Forwarder{Policy: &Policy{Origins: os}, Port: port, Upstream: func() (net.Conn, error) { return net.Dial("tcp", r.hostAddr) }}
+	if err := r.fwd.Start(ctx); err != nil {
 		t.Fatal(err)
 	}
-	return &rig{fwd: f, hostLog: &buf, ca: nil}
+	return r
 }
 
 type writerFunc func([]byte) (int, error)
@@ -153,8 +189,11 @@ func TestTheTenantReachesAnAllowedOriginWithTLSEndToEnd(t *testing.T) {
 	if got, err := tenantGet(t, r, ca, "other.example", nil); err != nil || got != "B" {
 		t.Fatalf("other.example: %q %v", got, err)
 	}
-	if !strings.Contains(r.hostLog.String(), "-> images.example:443 open") {
-		t.Fatalf("host log: %s", r.hostLog)
+	if _, dialed := r.observed(); strings.Join(dialed, ",") != "93.184.216.34:443,93.184.216.35:443" {
+		t.Fatalf("the host dialed %v", dialed)
+	}
+	if got := r.logs(); got != "guest 42 egress open\nguest 42 egress open\n" {
+		t.Fatalf("host log: %q", got)
 	}
 }
 
@@ -165,10 +204,8 @@ func TestTheTenantCannotChooseTheTarget(t *testing.T) {
 	r := newRig(t, []string{"images.example"}, map[string]net.Listener{"93.184.216.34:443": a},
 		fakeResolver{"images.example": {"93.184.216.34"}, "evil.example": {"93.184.216.66"}})
 	tenantGet(t, r, ca, "images.example", []byte("egress-v1 evil.example 443\n")) // the TLS handshake then fails: fine
-	time.Sleep(100 * time.Millisecond)
-	logs := r.hostLog.String()
-	if strings.Contains(logs, "evil.example") || !strings.Contains(logs, "images.example:443 open") {
-		t.Fatalf("the tenant's bytes chose a target: %s", logs)
+	if looked, dialed := r.observed(); strings.Join(looked, ",") != "images.example" || strings.Join(dialed, ",") != "93.184.216.34:443" {
+		t.Fatalf("the tenant's bytes chose a target: resolved %v, dialed %v", looked, dialed)
 	}
 }
 
@@ -178,9 +215,11 @@ func TestAGuestAllowedNameThatResolvesPrivateIsRefusedByTheHost(t *testing.T) {
 	if _, err := tenantGet(t, r, ca, "loop.example", nil); err == nil {
 		t.Fatal("a private destination was reached")
 	}
-	time.Sleep(50 * time.Millisecond)
-	if !strings.Contains(r.hostLog.String(), "loop.example:443 refused") {
-		t.Fatalf("host log: %s", r.hostLog)
+	if _, dialed := r.observed(); len(dialed) != 0 {
+		t.Fatalf("a private answer was dialed: %v", dialed)
+	}
+	if got := r.logs(); got != "guest 42 egress refused:non-public-answer\n" {
+		t.Fatalf("host log: %q", got)
 	}
 }
 
@@ -218,5 +257,65 @@ func TestHostsFileNamesOnlyTheAllowedOrigins(t *testing.T) {
 	}
 	if strings.Count(h, "\n") != 3 {
 		t.Fatalf("hosts file names more than the allowed origins:\n%s", h)
+	}
+}
+
+// Codex's review of f109bf8d: a destination can come from a SECRET, so the host's log records the guest and a bounded
+// outcome code only, never a hostname, an address or a raw network error - on success and on every failure. The names
+// here stand in for secret-derived endpoints; the dialer's raw connect error names the address, and must be dropped.
+func TestTheHostLogNeverRecordsADestinationOrARawError(t *testing.T) {
+	ca := newCA(t)
+	ok := ca.server(t, "tok-5ecret-a1.example", "A")
+	r := newRig(t, []string{"tok-5ecret-a1.example", "tok-5ecret-b2.example", "tok-5ecret-c3.example", "tok-5ecret-d4.example"},
+		map[string]net.Listener{"93.184.216.71:443": ok},
+		fakeResolver{
+			"tok-5ecret-a1.example": {"93.184.216.71"}, // success
+			// b2 does not resolve
+			"tok-5ecret-c3.example": {"93.184.216.73"}, // resolves, but nothing accepts: the raw error names the address
+			"tok-5ecret-d4.example": {"10.9.8.7"},      // a private answer
+		})
+	if got, err := tenantGet(t, r, ca, "tok-5ecret-a1.example", nil); err != nil || got != "A" {
+		t.Fatalf("the reachable origin: %q %v", got, err)
+	}
+	for _, h := range []string{"tok-5ecret-b2.example", "tok-5ecret-c3.example", "tok-5ecret-d4.example"} {
+		if _, err := tenantGet(t, r, ca, h, nil); err == nil {
+			t.Fatalf("%s was reached", h)
+		}
+	}
+	// a header the guest's forwarder never sends (a port other than 443, and garbage), straight to the host
+	for _, hdr := range []string{"egress-v1 tok-5ecret-e5.example 80\n", "tok-5ecret-f6.example\n"} {
+		c, err := net.Dial("tcp", r.hostAddr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.SetDeadline(time.Now().Add(5 * time.Second))
+		io.WriteString(c, hdr)
+		if b, _ := io.ReadAll(c); string(b) != "refused\n" {
+			t.Fatalf("%q: %q", hdr, b)
+		}
+		c.Close()
+	}
+	// the destinations WERE chosen (the observer saw them), and the log still names none of them
+	if looked, _ := r.observed(); len(looked) != 4 {
+		t.Fatalf("the host resolved %v", looked)
+	}
+	logs := r.logs()
+	line := regexp.MustCompile(`^guest 42 egress (open|refused:[a-z-]+)$`)
+	var codes []string
+	for _, l := range strings.Split(strings.TrimSuffix(logs, "\n"), "\n") {
+		if !line.MatchString(l) {
+			t.Fatalf("a host log line outside the bounded form: %q", l)
+		}
+		codes = append(codes, strings.TrimPrefix(l, "guest 42 egress "))
+	}
+	sort.Strings(codes)
+	want := "open,refused:connect,refused:header,refused:header,refused:non-public-answer,refused:resolve"
+	if strings.Join(codes, ",") != want {
+		t.Fatalf("outcomes %v, want %s", codes, want)
+	}
+	for _, leak := range []string{"5ecret", ".example", "93.184.216", "10.9.8.7", "connection refused", "dial tcp", ":443", ":80"} {
+		if strings.Contains(logs, leak) {
+			t.Fatalf("the host log records %q:\n%s", leak, logs)
+		}
 	}
 }

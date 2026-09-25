@@ -8,8 +8,11 @@
 //     relay origin compiled into the measured image;
 //   - only https:// origins on port 443 whose host is a plain DNS name; no IP literals in any spelling, no userinfo,
 //     no percent-encoding, no IDN (punycode ASCII is fine), no placeholder left in the authority;
-//   - TLS runs inside the guest (the runtime validates the real hostname's certificate); the host forwards
-//     ciphertext and learns only the destination hostname and port, timing and volume;
+//   - TLS runs inside the guest (the runtime validates the real hostname's certificate), so the host forwards
+//     ciphertext. It necessarily OBSERVES each connection's destination hostname (it resolves it, so its DNS
+//     resolver sees the query), the address it dials, the port, timing and volume: this is controlled egress, not
+//     traffic-analysis privacy. It does not RECORD the destination: its log holds the guest CID and a bounded
+//     outcome code only (forward.go), because a destination can come from a secret;
 //   - the host dials by name at connect time and refuses loopback, link-local (metadata), private, CGNAT,
 //     unspecified and its own addresses on the FINAL resolved IP (dialer.go).
 //
