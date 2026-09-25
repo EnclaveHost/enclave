@@ -39,6 +39,26 @@ const PROOF_MS = 5 * 60_000;         // the contract's window is 15 min; the pla
 // 15 minutes gives three attempts inside a ~30-minute lease, for twice the renewals' gas (cents).
 const RENEW_LEAD_MS = 15 * 60_000;
 
+/**
+ * Why an isolated instance's stated boundary is not this backend's, or null when it is. hyperv-partition-per-app is T0-hv
+ * with the host NOT excluded (a launcher-signed statement tier). A view saying otherwise is refused, never recorded: a
+ * self-asserted hostExcluded or a stronger tier from the manager (a host process) must not reach this node's record,
+ * which the console and the relay read.
+ */
+export function isolationBoundaryRefusal(inst) {
+  if (!inst || typeof inst !== "object") return "the manager returned no instance view";
+  if (inst.hostExcluded !== false) {
+    return `the manager's view of ${inst.id ?? "the instance"} states hostExcluded=${JSON.stringify(inst.hostExcluded ?? null)}; `
+         + "this backend is T0-hv with the host NOT excluded, and nothing here verifies more, so it is not served";
+  }
+  const tier = inst.tier == null ? null : String(inst.tier).toUpperCase().replace(/^T0-HV$/, "T0-hv");
+  if (tier !== "T0-hv") {
+    return `the manager's view of ${inst.id ?? "the instance"} states tier ${JSON.stringify(inst.tier ?? null)}; `
+         + "this backend's tier is T0-hv, and a view stating another is not served";
+  }
+  return null;
+}
+
 export class Host {
   constructor(cfg) {
     this.cfg = cfg;                                  // { dir, endpoint, name, appsEnabled, ownerWallet, cpuPricePerSec6, vcpus, ramGb, wasmtime, python, gateway, portBase, inferenceUrl, log }
@@ -589,6 +609,16 @@ export class Host {
     }
     // adopted or spawned, and serving
     const inst = r.instance || {};
+    // THIS BACKEND'S BOUNDARY, NEVER A STRONGER ONE READ FROM THE MANAGER. The manager is a host process, so the tier and
+    // hostExcluded in its view are host statements. hyperv-partition-per-app is T0-hv with the host NOT excluded, and
+    // nothing on this node can verify more. A view claiming host exclusion or another tier is a contract violation, from
+    // a manager that is wrong or lying: nothing is routed to it, and the lease is HELD with the instance recorded so it
+    // can be retired. The record never carries a boundary stronger than this tier's.
+    const boundaryWrong = isolationBoundaryRefusal(inst);
+    if (boundaryWrong) {
+      this.log(`${id.slice(0, 10)} isolation held: ${boundaryWrong}`);
+      return this.#record(id, { status: "provisioning", reason: boundaryWrong, ...(inst.id ? { isolationHeld: inst.id } : {}) });
+    }
     this.log(`${id.slice(0, 10)} isolation ${r.action}: ${inst.id} status=${inst.status} image=${inst.image || "?"}`);
     return this.#record(id, { status: "running", reason: null, isolationHeld: null,
                               isolation: { backend: "hyperv-partition-per-app", instance: inst.id,
@@ -604,8 +634,9 @@ export class Host {
                                            // They made routeFor case-insensitive; this makes the record
                                            // say the contract's word in the first place.
                                            tier: inst.tier ? String(inst.tier).toUpperCase().replace(/^T0-HV$/, "T0-hv") : null,
-                                           // carried up verbatim; this is NOT verified capacity
-                                           hostExcluded: inst.hostExcluded === true,
+                                           // this tier's own word, never the manager's (isolationBoundaryRefusal
+                                           // has refused any view claiming more); this is NOT verified capacity
+                                           hostExcluded: false,
                                            transportKeySha256: inst.transportKeySha256 ?? null } });
   }
 
