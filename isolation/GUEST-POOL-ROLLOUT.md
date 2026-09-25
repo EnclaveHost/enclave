@@ -40,10 +40,11 @@ runs 0181bce3. 4c's branch fast-forwards onto 77f789a6.
 - **Fits the canaries with room.** They reserve 5376 MiB / 300%, which leaves room for 5 more default guests: memory
   would allow 6, CPU allows 5. At full occupancy the CPU axis binds at 8 guests, memory at 9.
 - **Host memory at a full pool.**
-  - The ceilings reserve 16 GiB, 12.8% of RAM, of which about 57% is pinned guest RAM.
+  - At full occupancy the CPU axis binds first: 8 guests reserve 14336 MiB (8 x 1792, 11.0% of RAM). Of each
+    reservation, 1024/1792 = 57% is guest RAM, and about 54% (962/1792) is pinned.
   - Measured use is about 1.05 GiB per guest, so 8 guests really hold about 8.4 GiB (today's 3 hold 3.1 GiB), and
     MemAvailable would drop to about 77 GiB.
-  - Even with every guest at its ceilings (16384 MiB, 13180 MiB beyond today's canaries), it would be about 69 GiB.
+  - Even with all 8 guests at their ceilings (14336 MiB, 11132 MiB beyond today's canaries), it would be about 71 GiB.
 - **CPU at a full pool.** 800% of quota is 8 of 32 threads. It is a quota CAP, not dedicated cores (no cpuset), so
   guests share cores with host work. Measured guests use 0.4-1.5% of a core each.
 - **Risks, and why not larger.**
@@ -52,8 +53,8 @@ runs 0181bce3. 4c's branch fast-forwards onto 77f789a6.
   - `/tmp` is RAM-backed and can grow to 62 GiB.
   - warden-host is a shared development workstation whose heavy jobs come and go.
   - So B stays modest, and is raised only after re-measuring.
-- **Why not smaller.** Under 12800 MiB, a69dcbba is refused by its own cap. 14 GiB would also work, but leaves room
-  for only 4 more guests.
+- **Why not smaller.** Under 12800 MiB, a69dcbba is refused by its own cap. 14336 MiB would also work, and gives the
+  same 5 more default guests (8960 = 5 x 1792, and CPU allows 5). 16384 adds 2 GiB of room for a larger guest.
 
 **Recommendation:** 16384 MiB / 8, with a go/no-go guard at S1: re-measure, and go only if MemAvailable >= 40 GiB and
 memory PSI avg60 is 0. Lowering B later is safe: below `allocated`, the pool freezes (overcommitted) and nothing is
@@ -159,6 +160,15 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
 - Rollback: point `dist` back at `metal/dist-iso-8ed6231f` and restart. The old supervisor adopts the same guests,
   because 4c does not change the derivation, so `recordSha256` matches. Then remove the new measurement from the
   allowlist.
+- NON-CANARY CLAIMS (enclave-99): the pool supervisor's floor for a 128 MB app is 1%, the old one's 3%. A deployment
+  claimed onto metal-iso0 during the soak at under 3% would, after a dist rollback, be refused at its resume ("below
+  the app's minimum shares") and sit Queued.
+  - Anyone can create an isolation.require deployment, so this is possible.
+  - So the soak lists every guestd `/vms` name and every on-chain runner = metal-iso0 that is NOT one of the three
+    canaries, at every soak check.
+  - A dist rollback is performed ONLY while that list is empty. If it is not empty, the rollback holds and is
+    escalated to Codex with the list, rather than stranding those deployments.
+  - The same applies to a rollback of S4's ticket-fetch supervisor.
 - Reversibility: operationally reversible ONLY while `dist-iso-8ed6231f` and its allowlist entry are KEPT. What cannot
   be undone: that the new measurement was admitted (relay history). Revoking it means removing it from the allowlist.
 - d. The soak. Proposed: 72 h, including at least one guestd restart and one supervisor resume, owned by the S2
