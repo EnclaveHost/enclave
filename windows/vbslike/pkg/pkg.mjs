@@ -286,6 +286,43 @@ async function checkClaims(m, bytes, R) {
     R.add(bad.length === 0, "the vbsLinux manager's environment is one the pinned manager reads, and agrees with this package (its IGVM, launcher, boot form and hyperv.psm1 pin)",
           bad.length ? bad.join("; ") : `${env.length} variable(s), ${bf.length} box file(s)`);
   }
+  // A box file's blank-master property (from v39, enclave-d1's measurement 3e3ad330): stated completely, so check.ps1 can
+  // refuse a used or re-minted guest-state master by its structure as well as by its hash.
+  { const bad = []; let n = 0;
+    for (const [p, hc] of Object.entries(m.hostChecks || {})) for (const b of (hc && Array.isArray(hc.boxFiles) ? hc.boxFiles : [])) {
+      if (!b || b.blankVmgs === undefined) continue; n++;
+      const v = b.blankVmgs || {};
+      if (!Number.isInteger(v.bytes) || !Number.isInteger(v.zeroBytes) || v.bytes - v.zeroBytes !== 512 || v.zeroBytes <= 0 ||
+          typeof v.footerCookie !== "string" || !/^[\x21-\x7e]{8}$/.test(v.footerCookie) || typeof v.notMagic !== "string" || !/^[\x21-\x7e]{8}$/.test(v.notMagic))
+        bad.push(`${p} box file ${b.name}: blankVmgs needs integer bytes and zeroBytes with a 512-byte footer between them, and an 8-character footerCookie and notMagic`);
+    }
+    if (n) R.add(bad.length === 0, "every blank-master box file states its structure completely (size, zero body, footer cookie, the magic it must not carry)", bad.length ? bad.join("; ") : `${n} box file(s)`); }
+  // The rollback record (from v39): the version it names is committed, its manifest hashes to its id, and every file
+  // and the reference it lists are exactly that version's pins, so check.ps1's read-only hashes of the staged copies
+  // check the right bytes.
+  if (m.rollback !== undefined) {
+    const rb = m.rollback || {}, bad = [];
+    let rm = null;
+    try {
+      const mb = gitBytes(String(rb.commit || ""), String(rb.manifest || ""));
+      if (sha(mb) !== rb.manifestSha256) bad.push(`${rb.manifest} at ${String(rb.commit).slice(0, 8)} hashes ${sha(mb).slice(0, 16)}, not ${String(rb.manifestSha256).slice(0, 16)}`);
+      rm = JSON.parse(String(mb));
+    } catch (e) { bad.push(`the rollback manifest: ${e.message}`); }
+    if (rm && rm.version !== rb.version) bad.push(`the rollback manifest is version ${rm.version}, not ${rb.version}`);
+    if (!/^[A-Za-z]:\\.*\\pkg\\([0-9a-f]{16})\\$/.test(String(rb.stagedAt || "")) || String(rb.stagedAt).slice(-17, -1) !== String(rb.manifestSha256 || "").slice(0, 16))
+      bad.push(`stagedAt ${JSON.stringify(rb.stagedAt)} must be the package directory pkg\\<first 16 hex of the id>\\`);
+    const files = Array.isArray(rb.files) ? rb.files : [];
+    if (!files.length) bad.push("no rollback files");
+    for (const f of files) {
+      const pin = rm && rm.files.find((x) => x.path === f.path);
+      if (!pin) bad.push(`${f.path} is not a file of the rollback version`);
+      else if (pin.sha256 !== f.sha256) bad.push(`${f.path} is ${String(f.sha256).slice(0, 16)} here, ${pin.sha256.slice(0, 16)} in the rollback version`);
+    }
+    const ref = rm && rm.files.find((x) => x.role === "reference.values");
+    if (!ref || !files.some((f) => f.path === ref.path)) bad.push("the rollback version's reference is not among the rollback files");
+    R.add(bad.length === 0, `the rollback record names a committed version and exactly its pins (v${rb.version}, ${String(rb.commit || "").slice(0, 8)})`,
+          bad.length ? bad.join("; ") : `${files.length} file(s) under ${rb.stagedAt}`);
+  }
   R.add(!!ig && has(ig.image, "guest.igvm"), "profile igvm names the image of this package", ig ? ig.image : "no igvm profile");
   R.add(!!ig && m.rebuild?.igvm?.initrd === hcs?.initrd, "both profiles boot the SAME monitor image",
         m.rebuild?.igvm?.initrd === hcs?.initrd ? `${hcs.initrd} is the IGVM's VTL0 initrd` : "the IGVM's VTL0 initrd is not the hcs-dev initrd");
@@ -538,6 +575,30 @@ function rebuildIgvmfilegen(m, bytes, R) {
 // The verifier's reference values (enclave-99 imports this file): every value re-derived from the pinned image and its
 // pinned VBS identity document, confidentialDebug read from the image bytes, eligibility only for a non-debug candidate,
 // and every pinned probe or candidate firmware present, so a new image cannot be pinned without its reference entry.
+// The digest sets a verifier derives from a reference document (enclave-99's one-eligible rule): every image and every
+// superseded entry by its EXACT vbsBootDigest, each once; AT MOST ONE eligible, which must be a non-debug candidate in
+// images[] (never superseded); every other digest refused. Any error empties `eligible`: it fails closed, never guesses.
+export function deriveReferenceDigests(doc) {
+  const errors = [], all = [], eligible = [], refused = [], D = /^[0-9A-F]{64}$/;
+  const lists = [["images", Array.isArray(doc?.images) ? doc.images : null], ["superseded", Array.isArray(doc?.superseded) ? doc.superseded : []]];
+  if (!lists[0][1]) errors.push("no images list");
+  for (const [where, list] of lists) for (const e of list || []) {
+    const d = String(e?.vbsBootDigest ?? "");
+    if (!D.test(d)) { errors.push(`${where} ${e?.id}: vbsBootDigest ${JSON.stringify(d)} is not 64 upper-case hex`); continue; }
+    if (all.includes(d)) errors.push(`${where} ${e.id}: digest ${d.slice(0, 8)} appears twice`);
+    all.push(d);
+    if (e.eligible === true) {
+      if (where === "superseded") errors.push(`superseded ${e.id} is marked eligible`);
+      else if (e.class !== "candidate" || e.confidentialDebug !== false || e.trustsHostCommandLine !== false)
+        errors.push(`${e.id} is marked eligible but is class ${e.class}${e.confidentialDebug !== false ? ", confidential-debug" : ""}${e.trustsHostCommandLine !== false ? ", trusts the host command line" : ""}`);
+      else eligible.push(d);
+    } else if (e.eligible === false) refused.push(d);
+    else errors.push(`${where} ${e?.id}: eligible must be true or false, is ${JSON.stringify(e?.eligible)}`);
+  }
+  if (eligible.length > 1) errors.push(`${eligible.length} eligible digests (${eligible.map((d) => d.slice(0, 8)).join(", ")}): at most one, so a rollover supersedes the old image in the same version`);
+  return { all, eligible: errors.length ? [] : eligible, refused, errors };
+}
+
 function checkReferenceValues(m, bytes, R) {
   const refs = m.files.filter((f) => f.role === "reference.values"); if (!refs.length) return;
   const pinOf = (x) => m.files.find((f) => f.path === x) || m.inputs.find((i) => i.name === x);
@@ -561,6 +622,9 @@ function checkReferenceValues(m, bytes, R) {
     for (const x of [...m.files, ...m.inputs]) if (/^(probe\.firmware|candidate\.igvm)$/.test(x.role) && !listed.has(x.sha256)) bad.push(`${x.path || x.name} (${x.role}) has no reference entry`);
     R.add(bad.length === 0, `reference values ${rf.path}: every value re-derived from the pinned bytes, eligibility only for a non-debug candidate, every probe/candidate firmware listed`,
           bad.length ? bad.join("; ") : `${imgs.length} images, ${imgs.filter((e) => e.eligible).length} eligible`);
+    const dv = deriveReferenceDigests(doc);
+    R.add(dv.errors.length === 0, `reference values ${rf.path}: at most one eligible digest, every other refused by its exact digest (a rollover supersedes in the same version)`,
+          dv.errors.length ? dv.errors.join("; ") : `${dv.all.length} digests: ${dv.eligible.length} eligible${dv.eligible.length ? ` (${dv.eligible[0].slice(0, 8)})` : ""}, ${dv.refused.length} refused`);
     // A candidate IGVM ships as role candidate.igvm so a canary can boot it, and becomes a profile's firmware only in a
     // version that records it booting: its reference entry's `booted` must say "yes". (Before this rule it was a
     // convention a test asserted for one version.)

@@ -11,6 +11,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { deriveReferenceDigests } from "./pkg.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG = path.join(HERE, "pkg.mjs");
@@ -1200,4 +1201,112 @@ test("draft v38 records the package-owned functional acceptance of b7ba7731 (094
   assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
+});
+
+test("draft v39 is the b7ba7731 ROLLOVER: the one eligible image and vbsLinux firmware, a44bb55a and its twin superseded and unshipped, a rollback record to v38, and the blank-master property on type1.vmgs", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-39.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  const CF = "guest/igvm-vbs/vbs-linux-candidate-1539-b7ba7731.bin", OC = "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin";
+  assert.match(d.status, /^DRAFT \(supersedes v38, which is staged at pkg\\88c18259137a5ba1\\\)\. THE ROLLOVER, in this one version/);
+  assert.match(d.status, /'Eligible' means ONLY the one permitted measured-image reference, prospective .*no production app capacity, no verified or attested status, no badge and no protected-host admission\. Custom-report verification stays unsupported and fail-closed: no report format is registered, and no verdict uses the allowlist\. T0-hv; host_excluded=no\. Production attach OFF, respawn OFF, recovered VMs HELD\./);
+  assert.match(d.status, /not a production-policy change/);
+  const v = d.profiles.vbsLinux, env = Object.fromEntries(v.managerEnv.map((e) => [e.name, e]));
+  assert.equal(v.firmware, CF); assert.equal(env.ENCLAVE_GUEST_IGVM.file, CF); assert.equal(env.ENCLAVE_GUEST_IGVM_SHA256.sha256Of, CF);
+  assert.ok(!d.files.some((f) => /a44bb55a|4991b3e1/.test(f.path)), "a44bb55a and its twin are no longer shipped");
+  assert.ok(!Object.keys(d.rebuild).some((k) => /^vbsLinuxG1/.test(k)));
+  assert.ok(!/booted no/.test(v.firmwareRecord.record), "the stale 'booted no' is gone");
+  // the reference: one eligible, the old pair superseded, the same 12 digests
+  const ref = JSON.parse(refRawFor(D)), dv = deriveReferenceDigests(ref);
+  assert.deepEqual(dv.errors, []); assert.deepEqual(dv.eligible, ["56FBB27F363A7FEDC83FD56CB4FF39C5411140300BB8F8496C35893A061077E1"]);
+  assert.equal(dv.all.length, 12); assert.equal(dv.refused.length, 11);
+  const e = ref.images.find((x) => x.id === "vbs-linux-candidate-1539");
+  assert.equal(e.eligible, true); assert.equal(e.class, "candidate"); assert.equal(e.confidentialDebug, false); assert.equal(e.trustsHostCommandLine, false);
+  assert.match(e.reason, /^ELIGIBLE from v39, and PROSPECTIVE: .*093904 .*094631 \(98782fbb\).*fd92d610/);
+  for (const [id, dg] of [["vbs-linux-candidate-g1", "58DFEBFE"], ["vbs-linux-candidate-g1-debug-twin", "2A93ED16"]]) {
+    const x = ref.superseded.find((y) => y.id === id);
+    assert.ok(x && x.eligible === false && x.vbsBootDigest.startsWith(dg) && /^REFUSE: .*b7ba7731/.test(x.reason), id);
+    assert.ok(!ref.images.some((y) => y.id === id), `${id} left images[]`);
+  }
+  assert.match(ref.eligible, /PROSPECTIVE .*no production app capacity, no verified or attested status, no badge and no protected-host admission\. Custom-report verification stays unsupported and fail-closed: no report format is registered, and no verdict uses this allowlist/);
+  assert.match(ref.notAClaim, /T0-hv, host_excluded=no\. .*production attach OFF, respawn OFF, recovered VMs HELD/);
+  const v38 = refFor(path.join(HERE, "drafts/nucbox-ownguest-38.json")), d38 = deriveReferenceDigests(v38);
+  assert.deepEqual([...dv.all].sort(), [...d38.all].sort(), "the same digest set as v38; only which one is eligible changed");
+  // the rollback record: v38 as staged, its a44bb55a, 4991b3e1 and reference
+  const rb = d.rollback, v38m = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-38.json"), "utf8"));
+  assert.equal(rb.version, 38); assert.equal(rb.commit.slice(0, 8), "0f328a18"); assert.equal(rb.stagedAt, "C:\\Users\\claude\\vbs-like\\pkg\\88c18259137a5ba1\\");
+  assert.equal(rb.manifestSha256, crypto.createHash("sha256").update(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-38.json"))).digest("hex"));
+  assert.deepEqual(rb.files.map((f) => [f.path, f.sha256]), [OC, "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-G1-DEBUG-TRUSTS-HOST-4991b3e1.bin", "reference/nucbox-vbs-reference.json"]
+    .map((p) => [p, v38m.files.find((f) => f.path === p).sha256]));
+  assert.equal(rb.files[2].sha256.slice(0, 8), "ba3f49a7");
+  const vm = d.hostChecks.vbsLinux.boxFiles.find((b) => b.name === "type1.vmgs");
+  assert.deepEqual(vm.blankVmgs, { bytes: 4194816, zeroBytes: 4194304, footerCookie: "conectix", notMagic: "GUESTRTS" });
+  assert.equal(vm.sha256.slice(0, 8), "4f051697");
+  assert.equal(d.tier.name, "T0-hv"); assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   reference values .*at most one eligible digest, every other refused by its exact digest .*\(12 digests: 1 eligible \(56FBB27F\), 11 refused\)/);
+  assert.match(r.out, /ok   the rollback record names a committed version and exactly its pins \(v38, 0f328a18\)/);
+});
+
+test("deriveReferenceDigests refuses every debug, probe, control, stock and superseded digest of v39's reference, and refuses outright a reference that marks a debug or probe image eligible, or two images", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-39.json"), ref = JSON.parse(refRawFor(D)), dv = deriveReferenceDigests(ref);
+  const refusedWant = ["8E9D6ACB", "2A93ED16", "CF339BC5", "4CE6EDC3", "77C66160", "6FFB817F", "58DFEBFE", "A0FDAC0F", "A650C020", "246DEE1B", "0677F3C6"];
+  for (const p of refusedWant) {
+    assert.ok(dv.refused.some((d) => d.startsWith(p)), `${p} is refused`);
+    assert.ok(!dv.eligible.some((d) => d.startsWith(p)), `${p} is not eligible`);
+  }
+  assert.equal(dv.refused.length, refusedWant.length);
+  const mut = (f) => { const x = structuredClone(ref); f(x); return deriveReferenceDigests(x); };
+  const byId = (x, id) => [...x.images, ...x.superseded].find((e) => e.id === id);
+  for (const id of ["vbs-linux-candidate-1539-debug-twin", "g4-probe-72462737", "a7b0bd4-debug", "a7b0bd4-control", "stock-2511-openhcl-cvm"]) {
+    const r = mut((x) => { byId(x, id).eligible = true; });
+    assert.ok(r.errors.length > 0, `${id} marked eligible is refused`); assert.deepEqual(r.eligible, [], `${id}: nothing is eligible once the reference is refused`);
+  }
+  let r = mut((x) => { byId(x, "vbs-linux-candidate-g1").eligible = true; });
+  assert.ok(r.errors.some((e) => /superseded vbs-linux-candidate-g1 is marked eligible/.test(e))); assert.deepEqual(r.eligible, []);
+  r = mut((x) => { x.images.push({ ...byId(x, "vbs-linux-candidate-g1"), class: "candidate", confidentialDebug: false, trustsHostCommandLine: false, eligible: true });
+                   x.superseded = x.superseded.filter((e) => e.id !== "vbs-linux-candidate-g1"); });
+  assert.ok(r.errors.some((e) => /^2 eligible digests \(56FBB27F, 58DFEBFE\)/.test(e)), r.errors.join("; ")); assert.deepEqual(r.eligible, []);
+  r = mut((x) => { byId(x, "vbs-linux-candidate-1539").eligible = "yes"; });
+  assert.ok(r.errors.some((e) => /eligible must be true or false/.test(e)));
+  // and pkg.mjs verify refuses such a reference too
+  for (const [what, f, re] of [["the G4 probe eligible", (x) => { byId(x, "g4-probe-72462737").eligible = true; }, /g4-probe-72462737 is marked eligible/],
+                               ["the superseded a44bb55a eligible beside b7ba7731", (x) => { byId(x, "vbs-linux-candidate-g1").eligible = true; }, /superseded vbs-linux-candidate-g1 is marked eligible/]]) {
+    const bad = structuredClone(ref); f(bad);
+    const vr = run(["verify", writeManifest(pinRef(draftFor(D), JSON.stringify(bad, null, 1) + "\n"))]);
+    assert.notEqual(vr.code, 0, what); assert.match(fails(vr.out), re, what);
+  }
+});
+
+test("the rollback record is refused when it does not name exactly the rollback version's pins, and a blank-master spec must be complete", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-39.json");
+  for (const [what, f, re] of [
+    ["a rollback file at other bytes", (m) => { m.rollback.files[0].sha256 = "ab".repeat(32); }, /the rollback record names a committed version and exactly its pins .*is abababababababab here/],
+    ["another manifest id", (m) => { m.rollback.manifestSha256 = "cd".repeat(32); }, /hashes 88c18259137a5ba1, not cdcdcdcdcdcdcdcd/],
+    ["a staged directory that is not the id's", (m) => { m.rollback.stagedAt = "C:\\Users\\claude\\vbs-like\\pkg\\3384e097aa024b73\\"; }, /stagedAt .* must be the package directory/],
+    ["no reference among the files", (m) => { m.rollback.files = m.rollback.files.slice(0, 2); }, /the rollback version's reference is not among the rollback files/],
+    ["a blank-master spec whose footer is not 512 bytes", (m) => { m.hostChecks.vbsLinux.boxFiles.find((b) => b.name === "type1.vmgs").blankVmgs.zeroBytes = 4194000; }, /FAIL every blank-master box file states its structure completely/]]) {
+    const m = draftFor(D); f(m);
+    const r = run(["verify", writeManifest(m)]);
+    assert.notEqual(r.code, 0, what); assert.match(fails(r.out), re, what);
+  }
+});
+
+test("the blank-master check under PowerShell: a synthetic master passes, and each of SelfTest's seven corruptions is refused for its own reason, the structure and the hash reported apart", { skip: (!PWSH && "no pwsh") || skip }, () => {
+  const dir = fs.mkdtempSync(path.join(WORK, "vmgs-")), master = path.join(dir, "master.vmgs"), work = path.join(dir, "work"); fs.mkdirSync(work);
+  const foot = Buffer.alloc(512); foot.write("conectix", 0, "ascii"); foot.writeUInt32BE(0x30772a11, 24);
+  fs.writeFileSync(master, Buffer.concat([Buffer.alloc(4194304), foot]));
+  const h = crypto.createHash("sha256").update(fs.readFileSync(master)).digest("hex"), t = path.join(dir, "t.ps1");
+  fs.writeFileSync(t, `$ErrorActionPreference = 'Stop'
+. '${path.join(HERE, "win/pkg.lib.ps1")}'
+$spec = [pscustomobject]@{ bytes = 4194816; zeroBytes = 4194304; footerCookie = 'conectix'; notMagic = 'GUESTRTS' }
+foreach ($c in (Invoke-BlankVmgsSelfTest '${work}' '${master}' $spec '${h}')) { "{0}|{1}|{2}|{3}" -f $c.Pass, $c.Name, $c.Want, $c.Got }
+$M = [pscustomobject]@{ hostChecks = [pscustomobject]@{ vbsLinux = [pscustomobject]@{ boxFiles = @([pscustomobject]@{ name = 'type1.vmgs'; path = '${master}'; sha256 = '${h}'; why = 'w'; blankVmgs = $spec }) } } }
+$R = New-Results; [void](Test-HostProfile $R $M 'vbsLinux'); Write-Results $R`);
+  const r = pwsh(t); assert.equal(r.code, 0, r.out);
+  const rows = r.out.split("\n").filter((l) => /^(True|False)\|/.test(l)).map((l) => l.split("|"));
+  assert.deepEqual(rows.map((x) => [x[0], x[2]]), [["True", "blank, hash pinned"], ["True", "body not zero, hash refused"], ["True", "size, hash refused"], ["True", "size, hash refused"],
+    ["True", "footer, hash refused"], ["True", "formatted, hash refused"], ["True", "blank, hash refused"], ["True", "missing, hash refused"]]);
+  assert.match(r.out, /^ok +\[vbsLinux\] box file type1\.vmgs: /m);
+  assert.match(r.out, /^ok +\[vbsLinux\] box file type1\.vmgs is a blank guest-state master \(structure\): blank: /m);
+  assert.deepEqual(fs.readFileSync(master).length, 4194816, "the master itself was only read");
 });

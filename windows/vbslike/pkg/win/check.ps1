@@ -63,8 +63,22 @@ if ($SelfTest) {
     $r = New-Results; Test-VmWorkerRead $r $a 'a.txt'; Case 'after the grant' $true $r
     $r = New-Results; [void](Read-PkgManifest $r $Dir ('0' * 64)); Case 'another manifest id' $false $r
     $r = New-Results; [void](Read-PkgManifest $r $Dir $ManifestSha256); Case 'control: this manifest id' $true $r
+    # a blank guest-state master the manifest pins as a box file: each corruption refused for its own reason
+    $Ms = Read-PkgManifest (New-Results) $Dir $ManifestSha256
+    $bvs = @()
+    if ($Ms -and ($Ms.hostChecks.PSObject.Properties.Name -contains 'vbsLinux') -and ($Ms.hostChecks.vbsLinux.PSObject.Properties.Name -contains 'boxFiles')) {
+      $bvs = @($Ms.hostChecks.vbsLinux.boxFiles | Where-Object { @($_.PSObject.Properties.Name) -contains 'blankVmgs' }) }
+    foreach ($bv in $bvs) {
+      if (-not (Test-Path -LiteralPath $bv.path -PathType Leaf)) {
+        [void]$cases.Add([pscustomobject]@{ Name = "box file $($bv.name): the master to copy"; Pass = $false; Want = 'present'; Got = "absent at $($bv.path)" }); continue }
+      $vr = Join-Path $root 'vmgs'; New-Item -ItemType Directory -Force -Path $vr | Out-Null
+      foreach ($c in (Invoke-BlankVmgsSelfTest $vr $bv.path $bv.blankVmgs $bv.sha256)) {
+        [void]$cases.Add([pscustomobject]@{ Name = "box file $($bv.name) $($c.Name)"; Pass = $c.Pass; Want = $c.Want; Got = $c.Got }) }
+    }
   } finally { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue }
-  foreach ($c in $cases) { "{0} {1} (want ok={2}, got ok={3})" -f $(if ($c.Pass) { 'ok  ' } else { 'FAIL' }), $c.Name, $c.Want, $c.Got }
+  foreach ($c in $cases) {
+    $w = if ($c.Want -is [bool]) { "ok=$($c.Want)" } else { [string]$c.Want }; $g = if ($c.Got -is [bool]) { "ok=$($c.Got)" } else { [string]$c.Got }
+    "{0} {1} (want {2}, got {3})" -f $(if ($c.Pass) { 'ok  ' } else { 'FAIL' }), $c.Name, $w, $g }
   $bad = @($cases | Where-Object { -not $_.Pass }).Count
   if ($bad -eq 0) { "SELFTEST PASS $($cases.Count)/$($cases.Count)"; exit 0 }
   "SELFTEST FAIL $bad of $($cases.Count)"; exit 1
@@ -75,6 +89,17 @@ $M = Read-PkgManifest $R $Dir $ManifestSha256
 if (-not $M) { Write-Results $R; 'FAIL check: the manifest is not the one named'; exit 1 }
 Test-PkgFiles $R $Dir $M
 Test-NpmTree $R $Dir $M
+# the rollback version's staged files (from v39), hashed read-only and reported: a missing or changed one is BLOCKED, never
+# a failure of THIS package
+if ($M.PSObject.Properties.Name -contains 'rollback') {
+  $rb = $M.rollback
+  foreach ($f in @($rb.files)) {
+    $p = Join-Path $rb.stagedAt ($f.path -replace '/', '\')
+    $h = $null; if (Test-Path -LiteralPath $p -PathType Leaf) { $h = Get-Sha256 $p }
+    $ok = ($null -ne $h) -and ($h -eq $f.sha256)
+    [void](Add-Result $R $ok "rollback to v$($rb.version): $($f.path)" $(if ($ok) { "$p sha256 $h" } elseif ($null -eq $h) { "absent at $p" } else { "$p hashes $h, not $($f.sha256)" }) 'blocked')
+  }
+}
 foreach ($p in @($M.vmWorkerRead)) { Test-VmWorkerRead $R (Get-PkgFilePath $Dir $p) $p }
 $tier = $M.tier
 if ($M.profiles.igvm.PSObject.Properties.Name -contains 'manager') {
@@ -217,7 +242,7 @@ if ($M.profiles.PSObject.Properties.Name -contains 'vbs') {
   "firmware (FirmwareFile, the cvm build): $(Get-PkgFilePath $d $v.firmware)"
   "boot medium (the PRODUCTION medium, read-only): $(Get-PkgFilePath $d $v.medium)"
   "PROBE medium (NOT production; never serves an app): $(Get-PkgFilePath $d $v.probeMedium)"
-  if ($v.measuredVtl0Candidate -and $v.measuredVtl0Candidate.file) {
+  if ($v.measuredVtl0Candidate -and $v.measuredVtl0Candidate.file -and @($M.files | Where-Object { $_.path -eq $v.measuredVtl0Candidate.file }).Count) {
     "measured-VTL0 candidate (FirmwareFile for a -LinuxDirect run; not booted when pinned): $(Get-PkgFilePath $d $v.measuredVtl0Candidate.file)"
     "  its DEBUG TWIN (TRUSTS THE HOST COMMAND LINE; diagnosis only, never serving): $(Get-PkgFilePath $d $v.measuredVtl0Candidate.debugTwinFile)"
   }
