@@ -215,19 +215,30 @@ services). One step, in this order (enclave-5d's correction of 14ccc893).**
   - SECRETS_RELEASE_MEASUREMENTS and SECRETS_RELEASE_RUNTIME_IDS naming exactly the 4a images (non-debug, reviewed);
   - the TCB floor (SECRETS_RELEASE_MIN_TCB) and VMPL 0 (SECRETS_RELEASE_VMPL).
   - S5's preconditions (g) must hold here.
-  - GO/NO-GO (enclave-d1): from this moment, the staged secrets of ANY deployment whose guest runs a 4a image are
-    releasable, and `supports.secrets=false` does not cover deployments ALREADY leased on metal-iso0 (Steven's apps
-    included, if the recovery brings them there).
-    - So list every deployment on metal-iso0 and the image its guest runs or will run.
-    - Each one that will run a 4a image must be a canary, OR have no staged secrets, OR have its owner's explicit
-      agreement to release. Otherwise it stays on the old image (no relaunch) until S5.
-    - Re-check this before every relaunch or claim that puts a deployment on a 4a image, until S5.
-    - SECRETS_RELEASE_DEPLOYMENTS (99's lane) would make this a code gate, not a checklist.
+  - PRECONDITION, a CODE gate (enclave-d1): the relay releases ONLY for listed deployment ids
+    (SECRETS_RELEASE_DEPLOYMENTS). It is new code in 99's lane, and 4b WAITS until it has landed and been reviewed.
+    - Why not a checklist: from this moment the staged secrets of any deployment whose guest runs a 4a image are
+      releasable. `supports.secrets=false` does not cover deployments ALREADY leased on metal-iso0 (Steven's apps
+      included, if the recovery brings them there). And the supervisor claims, relaunches (version or record change)
+      and resumes (CVM reboot) on its own, with no human in that loop to run a list.
+    - 4b turns the release on with the list = the canaries only.
+    - Adding a deployment id is that deployment owner's explicit decision.
+    - An unlisted deployment's guest gets a refusal, so it cannot boot the new front with anyone's config: it fails
+      closed.
   - Check: the old-image canaries are unaffected (they never ask), and an asker outside the allowlist is refused.
   - Nothing sensitive is staged yet.
 - 4c. Ship the supervisor with 5d's ticket fetch. This is a SECOND measured control-CVM image, following S2's whole
   procedure: clean build, prediction equality, allowlist add, dist switch, resumes, and its own soak.
 - 4d. Restart guestd with `-release` and the new image source. The adopted canaries keep running their old image.
+  - PRECONDITION (5d's lane, named here): what an UNLISTED deployment does once launches use a 4a image. Its guest is
+    refused its release, so the front fails closed at boot: guestd reports the start failed (it never attests), and the
+    supervisor backs off (respawn 15 s up to 300 s; a claim's failed provision 5 m up to 1 h, the lease released once).
+    That is bounded, but it is an OUTAGE for that deployment, repeated on every retry.
+  - So one of these must hold, defined and implemented by 5d, before 4d:
+    - (i) guestd picks the image per deployment: 4a images only for listed ids, the old image for everyone else; or
+    - (ii) 4d happens only while EVERY deployment leased on metal-iso0 is listed, AND the claim gate refuses to claim
+      an unlisted deployment onto a box that launches only 4a images, so none arrives afterwards.
+  - Neither may fall back to booting the new front without its release.
 - 4e. Relaunch the canaries ONE AT A TIME. Each boots THROUGH a release carrying null config and no secrets: the first
   end-to-end test of the chain, with nothing sensitive in it.
   - What changes: the measurement and the transport key (a new guest).
@@ -253,14 +264,13 @@ services). One step, in this order (enclave-5d's correction of 14ccc893).**
 - h. For each of Steven's apps, before anything real is released: WHICH secrets it has, and WHO can rotate each one.
   The owner is Steven (secrets are relay-stored and lease-holder-only; nobody else can read their names). "Rotate" is
   a rollback only for a secret someone can actually rotate.
-- The 4b go/no-go applies again here, in full: no deployment with real secrets runs a 4a image without its owner's
-  explicit agreement.
+- The 4b list is the gate here too: a deployment with real secrets is released anything only once its owner has had it
+  added to SECRETS_RELEASE_DEPLOYMENTS.
 - f. Stage DUMMY secrets on the CANARY deployments first, before any real app.
   - There is no per-deployment allowlist today; 99's relay gates by image only (the two envs above). So do it
     operationally: dummy secrets on the canaries only, and the tier's `supports.secrets` kept false, so the claim gate
     claims no real secret-bearing deployment onto the tier until the canary release has passed.
-  - A deployment allowlist in the relay (for example SECRETS_RELEASE_DEPLOYMENTS) would be new code in 99's lane, as
-    defence in depth.
+  - The deployment list (4b) is the code gate that makes this safe.
 - Check: a canary's dummy secret arrives only for its own measurement, AppID and HOST_DATA, and every other asker is
   refused.
 - Rollback: the release can be switched off. But **a config or secret already released into a guest cannot be
