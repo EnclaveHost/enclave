@@ -25,6 +25,7 @@
 // OFF unless SECRETS_ATTESTED_RELEASE is set, and then only with its policy and every provider wired (fail closed).
 import { createHash, createPublicKey, createPrivateKey, generateKeyPairSync, diffieHellman, hkdfSync, randomBytes,
          createCipheriv, createDecipheriv, sign as edSign, verify as edVerify } from "node:crypto";
+import fs from "node:fs";
 import { endpointOperator, recoverOp, makeReplayCache, rowOf, holdsLease } from "./fleet-auth.js";
 
 export const RELEASE_DOMAIN = Buffer.from("enclave-secrets-release-v1\n");
@@ -108,9 +109,26 @@ export function verifyResponse({ publicKey, sig, ...fields }) {
     return edVerify(null, responseDigest(fields), pub, Buffer.from(sig));
   } catch { return false; }
 }
+// The release signing seed: SECRETS_RELEASE_SIGNING_KEY_FILE (preferred: the seed stays in its own file, out of the env file
+// and out of every copy of it), or SECRETS_RELEASE_SIGNING_KEY. The file must be a regular file readable by its owner only
+// (no group or other bits), owned by this process's user or root, holding one line of 64 hex. Setting both is refused.
+function signingSeedHex() {
+  const file = String(process.env.SECRETS_RELEASE_SIGNING_KEY_FILE || "").trim(), inline = String(process.env.SECRETS_RELEASE_SIGNING_KEY || "").trim();
+  if (file && inline) { console.error("[secrets-release] both SECRETS_RELEASE_SIGNING_KEY_FILE and SECRETS_RELEASE_SIGNING_KEY are set: refused"); return null; }
+  if (!file) return inline.toLowerCase();
+  try {
+    const st = fs.statSync(file);
+    const uid = typeof process.getuid === "function" ? process.getuid() : 0;
+    if (!st.isFile() || (st.mode & 0o077) !== 0 || (st.uid !== uid && st.uid !== 0)) {
+      console.error(`[secrets-release] ${file}: must be a regular file, mode 0600 or stricter, owned by this user or root: refused`);
+      return null;
+    }
+    return fs.readFileSync(file, "utf8").trim().toLowerCase();
+  } catch (e) { console.error(`[secrets-release] ${file}: unreadable (${e.code || e.message})`); return null; }
+}
 function signingKeyEnv() {
-  const s = String(process.env.SECRETS_RELEASE_SIGNING_KEY || "").trim().toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(s)) return null;
+  const s = signingSeedHex();
+  if (!/^[0-9a-f]{64}$/.test(s || "")) return null;
   // a SEPARATE key (enclave-d1): a release seed equal to any other key this relay holds is no separate key at all
   for (const other of ["RELAY_TXT_KEY", "DNS_TXT_KEY", "SECRETS_KEY", "CERTS_KEY"])
     if (String(process.env[other] || "").trim().toLowerCase() === s) {
@@ -178,7 +196,7 @@ export const _internals = { tickets };
 // provider check: every piece the release needs, or a 503 that names what is missing
 function missingFor(ctx, cfg) {
   return [!cfg.on && "SECRETS_ATTESTED_RELEASE", !cfg.deployments && "SECRETS_RELEASE_DEPLOYMENTS", !cfg.minTcb && "SECRETS_RELEASE_MIN_TCB",
-          cfg.vmpl === null && "SECRETS_RELEASE_VMPL", !cfg.signingKey && "SECRETS_RELEASE_SIGNING_KEY",
+          cfg.vmpl === null && "SECRETS_RELEASE_VMPL", !cfg.signingKey && "SECRETS_RELEASE_SIGNING_KEY(_FILE)",
           typeof ctx.versionConfigFor !== "function" && "the version-config lookup", typeof ctx.leaseHolderChipIds !== "function" && "the lease holder's chip ids",
           typeof ctx.verifyGuestEvidence !== "function" && "the guest-evidence verifier", typeof ctx.runtimeIdOf !== "function" && "the runtime-id function",
           typeof ctx.expectedGuestFor !== "function" && "the measurement predictor", typeof ctx.hostEligibility !== "function" && "the eligibility verdict",
