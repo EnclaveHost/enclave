@@ -34,7 +34,7 @@ import path from "node:path";
 import http from "node:http";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createHash, createHmac, createPublicKey, verify as cryptoVerify, X509Certificate } from "node:crypto";
+import { createHash, createHmac, createPublicKey, randomBytes, verify as cryptoVerify, X509Certificate } from "node:crypto";
 import { privateKeyToAccount } from "viem/accounts";
 
 const pexec = promisify(execFile);
@@ -64,10 +64,15 @@ async function csrFor(name, { key, cn = name, san = name, extra = [] } = {}) {
 const CA_KEY = path.join(DIR, "ca.key"), CA_PEM = path.join(DIR, "ca.pem");
 await pexec("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256", "-nodes",
                         "-keyout", CA_KEY, "-out", CA_PEM, "-subj", "/CN=Mock CA", "-days", "1"]);
+// Each leaf gets its own random serial, as a real CA assigns them. Not -CAcreateserial: that reads and rewrites ONE ca.srl
+// beside the CA, and concurrent finalizes (the renewal-wave test signs three at once) race on it, so openssl fails
+// "Unable to load number from ca.srl" and the mock turns the order invalid. The relay then rightly falls over to the next
+// CA, and a test pinning "no fallover" fails for the mock's sake (Test run 36126592481).
 async function signLeaf(csrDer) {
   const csr = path.join(DIR, `f${++_n}.csr`), leaf = path.join(DIR, `f${_n}.pem`);
   fs.writeFileSync(csr, csrDer);
-  await pexec("openssl", ["x509", "-req", "-in", csr, "-inform", "DER", "-CA", CA_PEM, "-CAkey", CA_KEY, "-CAcreateserial",
+  await pexec("openssl", ["x509", "-req", "-in", csr, "-inform", "DER", "-CA", CA_PEM, "-CAkey", CA_KEY,
+                          "-set_serial", "0x" + randomBytes(16).toString("hex"),
                           "-days", "90", "-copy_extensions", "copy", "-out", leaf]);
   return fs.readFileSync(leaf, "utf8") + fs.readFileSync(CA_PEM, "utf8");
 }
@@ -679,6 +684,16 @@ test("a persisted order is resumed FIRST on its own CA even when an earlier slot
   assert.equal(ca2.calls.newOrder, o2 + 1, "the Let's Encrypt order was collected, not re-placed");
   assert.equal(_internals.store().data.orders[`${NAME}|${h}`], undefined);
   ca2.slowFinalizeMs = 0; await settle();
+});
+
+// The wave below pins "no fallover", so the mock CA must never fail a concurrent finalize on its own account. The race
+// itself is rare (about 1 signing in 300 at 8 at once, on a dev box), but its cause is deterministic: a shared serial file.
+test("the mock CA signs concurrent finalizes independently: a serial of its own per leaf, no shared serial file", async () => {
+  const derOf = (pem) => Buffer.from(pem.replace(/-----[^-]+-----/g, "").replace(/\s+/g, ""), "base64");
+  const csrs = await Promise.all([0, 1, 2, 3].map(() => csrFor(NAME)));
+  const serials = (await Promise.all(csrs.map((c) => signLeaf(derOf(c))))).map((pem) => new X509Certificate(pem).serialNumber);
+  assert.equal(new Set(serials).size, serials.length, serials.join(" "));
+  assert.equal(fs.existsSync(path.join(DIR, "ca.srl")), false, "a ca.srl is shared state every concurrent signing rewrites");
 });
 
 test("a purged account during a renewal wave: concurrent names re-register ONE account and all issue on the same CA", async () => {
