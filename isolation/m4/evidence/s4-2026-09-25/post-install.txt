@@ -17,3 +17,9 @@ Second install, release a4f22748 (image 17e182a8), 20:09:57-20:09:58Z, s4-instal
 1c, 20:17:35Z (s4-guestd-install.sh 03967f0b, e3-approved v5): ~/enclave-prod/bin/guestd.4e78ba80 sha256 0ee7ed91e5066a0cbe7a4b528250342c354722a84202d043d03c5ee6dbec3086, built twice (the second from an empty Go cache), equal to the sha reproduced independently by enclave-5d, enclave-e3 and enclave-63; it lists -release -legacy-isolation -instance-prefix -guest-host-floor-mib -guest-mem-mib -guest-cpus. INERT: nothing references it.
 Adoption preflight for THAT binary, 20:17:16Z: 3/3 canaries verify with the 17e182a8 tree's judge (adoption-check-4e78ba80.txt).
 guestd still MainPID 3590642, NRestarts 0, ExecStart guestd.c42612c0 on iso-03be27d6; the 3 canary units running.
+
+Musl-init release 79c5ecf2 (image aa6c985c), approved by d1 and e3, installed INERT beside iso-17e182a8:
+  21:06:21-21:06:55Z step 0 s4-musl.sh 98509555 (e3-approved): musl 1.2.6 at ~/.cache/enclave-isolation/musl-1.2.6, tarball sha256 d585fd3b pinned, VALIDSIG by 836489290BB6..., libc.a 4f72e098 (= 5d's and e3's). NEVER DELETE: guestd's template build reads it after the tree switch.
+  21:07:04-21:07:05Z s4-install.sh 3bade55a with lib4.sh v6 9ab024f9: ~/enclave-prod/iso-aa6c985c + release-aa6c985c, 1d reproduces 79c5ecf2 on this host; re-checked independently (release.json identical to 5d's, init ba7f7ff0; tree clean).
+  21:07:17-18Z adoption preflight for guestd.4e78ba80 on iso-aa6c985c: 3/3 canaries verify with the new tree's judge.
+  guestd unchanged: MainPID 4104830, NRestarts 0, -isolation iso-17e182a8. The tree switch waits for e3's rs-4 (the relay admits 79c5ecf2) and Codex's go.
