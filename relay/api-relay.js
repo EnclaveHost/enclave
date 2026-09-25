@@ -2193,7 +2193,14 @@ const deploymentExists = async (id) => !!(await xOwnerOf(id));
 // they reuse the relay's CORS, raw-body reader and cached ledger reader
 // without circular imports. deploymentsAddress is a thunk because the address
 // book live-updates the binding.
-const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility,
+// secrets-release.mjs: the chips the lease holder behind a registered endpoint has PROVED at its SNP tunnel attach. Only a
+// tunnel (the hub saw the report); a dialed row's chip is unknown here, so it gets none and the release fails closed.
+const leaseHolderChipIds = async (endpoint) => {
+  const ep = String(endpoint || "").replace(/\/+$/, "");
+  const o = tunnelHub.origins().find((x) => x.mode === "snp" && x.publicUrl && String(x.publicUrl).replace(/\/+$/, "") === ep);
+  return o ? tunnelHub.snpChipIdsOf(String(o.endpoint).replace(/^tunnel:\/\//, "")) : [];
+};
+const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)

@@ -225,6 +225,25 @@ async function attestAttach(h, name, { signer = null, quoteNonceFrom = (n) => n 
   return { state: "open", ok: !!res?.ok, reason: res?.reason || "(no verdict)" };
 }
 
+test("tunnel: a measurement-only SNP attach PROVES no chip (secrets-release gets none), and no chip id is ever in a row", async () => {
+  const h = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false } });
+  try {
+    const r = await dial(h.url, { "x-metal-name": "seller9", "x-metal-attest": "1" });
+    assert.equal(r.state, "open");
+    await settle();
+    const nonce = Buffer.from(r.frames.find((f) => f.t === "challenge").nonce, "base64");
+    r.ws.send(JSON.stringify({ t: "attest", rad: radFor(nonce) }));
+    const res = await waitResult(r.frames);
+    assert.equal(res?.ok, true, JSON.stringify(res));
+    const row = h.hub.origins().find((o) => o.endpoint === "tunnel://seller9");
+    assert.equal(row?.mode, "snp");
+    assert.deepEqual(h.hub.snpChipIdsOf("seller9"), [], "requireVcek false: the report's CHIP_ID was never checked against its chip");
+    assert.ok(!JSON.stringify(h.hub.origins()).includes("snpChip"), "chip ids stay internal to the hub");
+    assert.deepEqual(h.hub.snpChipIdsOf("nobody"), []);
+    r.ws.close();
+  } finally { await h.close(); }
+});
+
 // Wait for the hub's verdict rather than sleeping at it: the owner check runs a
 // dynamic `import("viem")`, and the FIRST one in a process is slow enough that a
 // fixed settle() read an empty frame list and called it a refusal.

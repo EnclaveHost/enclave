@@ -65,6 +65,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 import { JsonStore, dataDir, dataFile, makeRateLimiter } from "./store.js";
 // the fleet-route primitives shared with certs.js (one spelling per rule)
 import { endpointOperator, recoverOp, makeReplayCache, rowOf, holdsLease } from "./fleet-auth.js";
+import { handleRelease } from "./secrets-release.mjs";
 
 // One env key, two derived subkeys: labels keep the fetch-auth MAC and the
 // at-rest cipher cryptographically independent even though they share a root.
@@ -136,6 +137,7 @@ const sigFresh = makeReplayCache();
 
 const rlOwner = makeRateLimiter({ capacity: 30, refillPerSec: 30 / 60 });   // per recovered wallet
 const rlFetch = makeRateLimiter({ capacity: 120, refillPerSec: 10 });       // per source ip (fleet-only traffic)
+const rlRelease = makeRateLimiter({ capacity: Math.max(1, parseInt(process.env.SECRETS_RELEASE_BURST || "30", 10) || 30), refillPerSec: 1 });   // per source ip: attested release (secrets-release.mjs)
 
 export async function initSecrets() {
   const dir = dataDir();
@@ -226,6 +228,11 @@ export async function handleSecrets(req, res, u, ctx) {
     return bad(ctx, res, req, 405, "method_not_allowed", "Secrets endpoints are POST-only (signatures never belong in URLs).");
   let raw; try { raw = await ctx.readBody(req, 32768); } catch (e) { return bad(ctx, res, req, 413, "too_large", e.message); }
   let b; try { b = JSON.parse(raw.toString() || "{}"); } catch { return bad(ctx, res, req, 400, "bad_json", "Body must be JSON."); }
+
+  // attested release to a per-app SNP guest (secrets-release.mjs; OFF unless SECRETS_ATTESTED_RELEASE and its policy)
+  if (await handleRelease(u.pathname, b, req, res, ctx, {
+    envOf: (id) => { const rec = recOf(id); return rec ? open(id, rec.blob) : {}; },
+    bad: (code, error, message) => bad(ctx, res, req, code, error, message), rate: rlRelease })) return;
 
   // fleet fetch — the lease-holding enclave pulls right before it (re)starts the app
   if (u.pathname === "/v1/secrets/fetch") {
