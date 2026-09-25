@@ -154,7 +154,8 @@ if (ISO_BACKEND) {
     fs.chmodSync(ISO_KEY_FILE, 0o600);
   }
   log(`per-app isolation tier ${ISO_BACKEND}: manager ${ISO_CFG.managerUrl || '(none)'}, data plane ${ISO_CFG.dataAddr || '(none)'}, `
-    + `pairing key ${ISO_KEY_FILE ? 'present' : 'MISSING - every deployment will be refused'}; no app runs in this CVM`);
+    + `pairing key ${ISO_KEY_FILE ? 'present' : 'MISSING - every deployment will be refused'}, `
+    + `attested release ${ISO_CFG.release === true ? 'OPTED IN (relay-listed deployments launch as release guests)' : 'off'}; no app runs in this CVM`);
 }
 if (REGISTRY_KEY && PUBLIC_URL && MODE === 'dev')
   console.error('[gsup] registryKey + publicUrl set but mode=dev: a dev launch is not a host and will not register or claim');
@@ -399,6 +400,11 @@ const supEnv = {
   VMMGR_URL: ISO_BACKEND ? String(ISO_CFG.managerUrl || '') : 'http://127.0.0.1:8091',
   ...(ISO_BACKEND ? { ISOLATION_BACKEND: ISO_BACKEND, GUESTD_KEY_FILE: ISO_KEY_FILE,
                       GUESTD_DATA_ADDR: String(ISO_CFG.dataAddr || ''),
+                      // the operator's opt-in to run RELEASE GUESTS (supervisor.js ISOLATION_RELEASE), from host config like the
+                      // pairing key. On, it only lets the attested release run for deployments the RELAY itself lists, and a
+                      // guest's config and secrets still reach only a guest whose report the relay verified; off refuses them,
+                      // which costs availability, never confidentiality. A running guest is adopted either way (never relaunched).
+                      ...(ISO_CFG.release === true ? { ISOLATION_RELEASE: '1' } : {}),
                       // the firmware floor for guest certificate issuance, from the MEASURED image (build-image.mjs)
                       ...(() => { try { return { ISOLATION_MIN_TCB: fs.readFileSync('/opt/metal/isolation-min-tcb.json', 'utf8') }; }
                                   catch { return {}; } })() } : {}),
