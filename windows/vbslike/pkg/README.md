@@ -297,6 +297,16 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   reference file's candidate entry says it served. **Served is not isolated or attested:** the `--igvm-sha256` report
   path was built but NOT exercised; identity (judge-hv), any report or chain, and host exclusion are NOT established;
   `host_excluded=no`, T0-hv.
+- **v30 draft** (`drafts/nucbox-ownguest-30.json`; supersedes v29): the **G1 measured-VTL0 candidate**, built and
+  reviewed, **not booted**. `a44bb55a…` (launch digest `58DFEBFE…`) is v29's candidate recipe with ONLY the VTL0
+  initrd swapped for enclave-5d's G1+G3 initrd `680d40fa…` (`e8b91efd`: the per-boot nonce that stop/destroy require,
+  and the front's 504 after 180 s). enclave-63 reproduced the initrd byte-exact twice. The candidate is rebuilt by
+  `rebuild.vbsLinuxG1`, which is proven in the same run by reproducing `c567e432`/`A0FDAC0F…` and the twin proof
+  `77C66160…`. Its debug twin `4991b3e1…` (`2A93ED16…`) is a named rejection. Mutation evidence is against the G1
+  baseline. enclave-d1's independent byte review agrees (`ce26bc6e`). Role `candidate.igvm`: no profile uses it as
+  firmware until a version records it booting. The reference file lists it `eligible: false` ("not booted yet") while
+  `c567e432` stays the one eligible entry. The flip and `c567e432`'s supersession come in one version, after
+  enclave-d1's canary, and enclave-99's verifier refuses two eligible images.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 

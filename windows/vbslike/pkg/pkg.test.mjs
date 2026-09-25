@@ -768,3 +768,38 @@ test("draft v29 (staged) records the measured candidate's first boot AND first s
   assert.equal(r.code, 0, fails(r.out));
   assert.match(r.out, /ok   every quoted 'MON boundary' line says host_excluded=no/);
 });
+
+test("draft v30 ships the G1 measured-VTL0 candidate (a44bb55a, 58DFEBFE) and its debug twin, reviewed and NOT booted: no profile's firmware, not yet eligible", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-30.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT \(supersedes v29, which is staged at pkg\\dccc74a5135bf9c1\\\)\. THE G1 MEASURED-VTL0 CANDIDATE, BUILT AND REVIEWED, NOT BOOTED/);
+  const CF = "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin", DF = "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-G1-DEBUG-TRUSTS-HOST-4991b3e1.bin";
+  const c = d.files.find((f) => f.path === CF), t = d.files.find((f) => f.path === DF);
+  assert.equal(c.role, "candidate.igvm"); assert.equal(c.sha256, "a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4");
+  assert.equal(t.role, "probe.firmware"); assert.equal(t.sha256, "4991b3e13c7a6d4d75ac24ea3d68d7db7ded86ba14c2a25bb6773bd2e755505e");
+  // not booted: no profile boots it, and the booted c567e432 stays profile vbsLinux's firmware
+  for (const [n, p] of Object.entries(d.profiles)) for (const k of ["firmware", "image"]) assert.notEqual(p[k], CF, `${n}.${k}`);
+  assert.equal(d.profiles.vbsLinux.firmware, "guest/igvm-vbs/vbs-linux-candidate-c567e432.bin");
+  assert.match(d.profiles.vbs.g1Candidate.status, /^BUILT AND REVIEWED, NOT BOOTED/);
+  // the recipe: c567e432's manifest and resources with ONLY linux_initrd swapped for 5d's G1+G3 initrd
+  const a = d.rebuild.vbsLinux, g = d.rebuild.vbsLinuxG1;
+  assert.equal(g.manifest, a.manifest); assert.deepEqual(g.twin, a.twin);
+  assert.deepEqual({ ...g.resources, linux_initrd: a.resources.linux_initrd }, a.resources);
+  assert.equal(g.resources.linux_initrd, "mon-680d40fa.cpio.gz");
+  assert.equal(d.inputs.find((i) => i.name === "mon-680d40fa.cpio.gz").sha256, "680d40fa5c181e5434d8a44c0e8935914eb85347698b8799603cc5d4f6f3e35b");
+  assert.deepEqual(g.mutations.map((m) => m.expectVbsBootDigest), ["C634A3347081D1A81E1711905CB5BA7C95925F88FD5EA70046B7369AD762F966", "CE9683FDC084F8FB4CD571439DDAB0C9D735ABDF28655DB60F839722D238CB72",
+    "949562CF529E0E5CE0E9138B1D0E574082167681A9DFE2B225D429FCBC2D48E6", "0A2D658076E443C6EAC1A84BC9DFF7F1C047F94059A19F89AD70EDF829CE1DD2", "476F8FEAFA156BF84AFBF46EA5A505840D99752EC2E3507C6D9C6ED55C0E518C"]);
+  assert.deepEqual(d.rebuild.vbsLinuxG1Debug.args, ["--confidential-debug"]);
+  assert.ok(d.inputs.some((i) => i.name === "candidate-a44bb55a-review.md" && i.from.git.commit.startsWith("ce26bc6e")));
+  // reference values: the G1 candidate listed but NOT eligible yet; exactly ONE eligible digest (c567e432's)
+  const ref = JSON.parse(String(fs.readFileSync(path.join(HERE, "reference/nucbox-vbs-reference.json"))));
+  const e = (id) => ref.images.find((x) => x.id === id);
+  assert.equal(e("vbs-linux-candidate-g1").vbsBootDigest, "58DFEBFE5F46E5C0E371CE94C2AB947735EA618CF51F973FBBB58048D9C7343A"); assert.equal(e("vbs-linux-candidate-g1").eligible, false);
+  assert.equal(e("vbs-linux-candidate-g1-debug-twin").confidentialDebug, true); assert.equal(e("vbs-linux-candidate-g1-debug-twin").eligible, false);
+  assert.deepEqual(ref.images.filter((x) => x.eligible).map((x) => x.id), ["vbs-linux-candidate"]);
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  // the G1 debug twin as a profile's firmware is refused (a probe firmware is never a profile's firmware)
+  const m2 = structuredClone(d); m2.profiles.vbsLinux.firmware = DF; const x = run(["verify", writeManifest(m2)]);
+  assert.equal(x.code, 1); assert.match(x.out, /vbsLinux\.firmware .*4991b3e1\.bin is probe\.firmware: a probe firmware is never a profile's firmware/, fails(x.out));
+});
