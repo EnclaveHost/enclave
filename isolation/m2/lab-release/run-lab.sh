@@ -64,15 +64,22 @@ if [ ! -e "$REPO/node_modules" ]; then
   ln -s "$MAIN/node_modules" "$REPO/node_modules"; LINKED_NM=1
 fi
 
-# ---- 1. per-run lab pins: a CA and the relay's certificate for the lab name, and a release key ----
-( cd "$L" && umask 077
-  openssl ecparam -name prime256v1 -genkey -noout -out ca.key 2>/dev/null
-  openssl req -x509 -new -key ca.key -days 2 -subj "/CN=release lab CA $(date -u +%s)" -out ca.pem 2>/dev/null
-  openssl ecparam -name prime256v1 -genkey -noout -out relay.key 2>/dev/null
-  openssl req -new -key relay.key -subj "/CN=release-lab.enclave.test" -out relay.csr 2>/dev/null
-  printf 'subjectAltName=DNS:release-lab.enclave.test\nextendedKeyUsage=serverAuth\n' > relay.ext
-  openssl x509 -req -in relay.csr -CA ca.pem -CAkey ca.key -set_serial 0x$(openssl rand -hex 8) -days 2 -extfile relay.ext -out relay.pem 2>/dev/null
-  openssl rand -hex 32 > release.seed )
+# ---- 1. lab pins: a CA and the relay's certificate for the lab name, and a release key ----
+# LAB_SESSION=<dir> reuses a session's pins (ca.pem, relay.pem, relay.key, release.seed): the pins are COMPILED into the
+# image, so a lab domain release built from them (phase 2's) predicts this run's image only with the same pins
+if [ -n "${LAB_SESSION:-}" ]; then
+  for f in ca.pem relay.pem relay.key release.seed; do install -m 600 "$LAB_SESSION/$f" "$L/$f"; done
+  say "lab pins from the session $LAB_SESSION"
+else
+  ( cd "$L" && umask 077
+    openssl ecparam -name prime256v1 -genkey -noout -out ca.key 2>/dev/null
+    openssl req -x509 -new -key ca.key -days 2 -subj "/CN=release lab CA $(date -u +%s)" -out ca.pem 2>/dev/null
+    openssl ecparam -name prime256v1 -genkey -noout -out relay.key 2>/dev/null
+    openssl req -new -key relay.key -subj "/CN=release-lab.enclave.test" -out relay.csr 2>/dev/null
+    printf 'subjectAltName=DNS:release-lab.enclave.test\nextendedKeyUsage=serverAuth\n' > relay.ext
+    openssl x509 -req -in relay.csr -CA ca.pem -CAkey ca.key -set_serial 0x$(openssl rand -hex 8) -days 2 -extfile relay.ext -out relay.pem 2>/dev/null
+    openssl rand -hex 32 > release.seed )
+fi
 git -C "$REPO" show origin/security/attested-release:relay/secrets-release.mjs > "$MODCOPY"
 PUB=$(cd "$REPO" && node -e 'import(process.argv[1]).then(R=>console.log(R.ed25519RawPublic(R.signingKeyFromSeed(Buffer.from(require("fs").readFileSync(process.argv[2],"utf8").trim(),"hex"))).toString("hex")))' "$MODCOPY" "$L/release.seed")
 mkdir -p "$LABPINS"
@@ -140,6 +147,14 @@ for _ in $(seq 1 900); do
   sleep 1
 done
 say "instance status: $st $(field error)"
+# LAB_DOMAIN_RELEASE=<dir> and LAB_DOMAIN_RELEASE_ID=<id>: the image guestd built must be the one a verifier
+# reconstructs from that published release and this bundle (expected-measurement.sh --pin) - what the relay's
+# predictor relies on (phase 2)
+if [ -n "${LAB_DOMAIN_RELEASE:-}" ]; then
+  EM=$(sh "$ISO/m4/expected-measurement.sh" --pin "$LAB_DOMAIN_RELEASE_ID" "$LAB_DOMAIN_RELEASE" "$L/app.bundle" 1 | sed -n 's/^measurement //p')
+  if [ -n "$EM" ] && [ "$EM" = "$(field measurement)" ]; then say "ok   guestd's image measurement equals the pinned lab domain release's reconstruction ($EM)"
+  else say "FAIL the image does not reproduce from the pinned domain release: guestd $(field measurement) vs release ${EM:-none}"; exit 1; fi
+fi
 [ "$st" = running ] || { say "FAIL: the release guest did not reach running"; exit 1; }
 
 # ---- 6. the app serves on the RELEASED config: the synthetic key admits, anything else is refused ----
