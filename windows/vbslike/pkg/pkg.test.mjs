@@ -283,14 +283,26 @@ test("tests: 99's node-bridge suite on v7's bridge: 3 pass, the 3 missing gate i
   assert.match(r.out, /ok   test node-bridge \(enclave-99\) gives exactly its expected result \(6 tests, 3 pass, 3 fail \(failing 2, 3, 4\)\)/);
 });
 // the HELD v8 draft (drafts/, not a release): it verifies with every pin, and says it is held
-test("the held v8 draft verifies with its pins, and says it is not a release", { skip: skip || (!haveOpenssl && "no openssl") }, () => {
-  const D8 = path.join(HERE, "drafts/nucbox-ownguest-8.json"), d8 = JSON.parse(fs.readFileSync(D8, "utf8"));
-  assert.match(d8.status, /^HELD DRAFT: not a release, not staged/);
-  const r = run(["verify", D8, "--tests"]);
-  assert.equal(r.code, 0, fails(r.out));
-  assert.match(r.out, /ok   test node-bridge \(enclave-99\) gives exactly its expected result \(6 tests, 6 pass, 0 fail\)/);
-  assert.match(r.out, /ok   test appzone-hook \(enclave-99\) gives exactly its expected result \(3 tests, 3 pass, 0 fail\)/);
-  assert.match(r.out, /ok   hello-world 1\.0\.4: the node's isolationPlan builds exactly the pinned record from the on-chain version/);
+// the drafts (drafts/, not releases): each verifies with every pin, and its status says what it is and is not
+for (const [n, statusRe] of [[8, /^HELD DRAFT: not a release, not staged/], [9, /^DRAFT staged for enclave-d1's UEFI DEV boot/], [10, /^DRAFT\. The UEFI DEV boot reached 'MON ready control_port=9000' on the NucBox/]]) {
+  test(`draft v${n} verifies with its pins, and its status says it is not a release`, { skip: skip || (!haveOpenssl && "no openssl") }, () => {
+    const D = path.join(HERE, `drafts/nucbox-ownguest-${n}.json`), d = JSON.parse(fs.readFileSync(D, "utf8"));
+    assert.match(d.status, statusRe);
+    assert.match(d.status, /[Nn]ot a release/);
+    const r = run(["verify", D, "--tests"]);
+    assert.equal(r.code, 0, fails(r.out));
+    assert.match(r.out, /ok   test node-bridge \(enclave-99\) gives exactly its expected result \(6 tests, 6 pass, 0 fail\)/);
+    assert.match(r.out, /ok   hello-world 1\.0\.4: the node's isolationPlan builds exactly the pinned record from the on-chain version/);
+    if (n >= 9) assert.match(r.out, /ok   test appzone-hook \(enclave-99\) gives exactly its expected result \(3 tests, 3 pass, 0 fail\)/);
+  });
+}
+test("draft v10 pins the launcher the box runs and the UEFI medium d1 booted, and says nothing is served", { skip }, () => {
+  const d = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-10.json"), "utf8"));
+  assert.equal(d.files.find((f) => f.path === "control/vbslike-host.exe").sha256, "cddb70fdc927c7743bf1a8ea43f7526762d669b450e32d36fa935b8486cb5c31");
+  assert.equal(d.files.find((f) => f.path === "guest/uefi/guest.iso").sha256, "4c387086d204c7064bf77a48c6e076b844ba5b429f2219c5e29cd988e23cdcb0");
+  assert.match(d.status, /Nothing is loaded into or served/);
+  assert.match(d.profiles.uefi.vm.vTpm, /^ABSENT/);
+  assert.ok(d.profiles.uefi.measured.some((m) => /MON ready control_port=9000 snp=false/.test(m) && /host_excluded=no/.test(m)), "the boot is recorded from the log, with host_excluded=no");
 });
 test("v3 (committed, never edited) is refused by the current verifier at its stale manager", { skip }, () => {
   const r = run(["verify", V3]);
