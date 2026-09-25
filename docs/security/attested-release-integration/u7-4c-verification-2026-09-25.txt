@@ -22,3 +22,10 @@ us-west: relay.js e0cb218f, fleet.mjs 384a1ef1 = 2144fcb3's; enclave-tcp-relay a
 node (4c): attestation measurement 8ab7a1590fad…30bf, supervisor overlay b3109929; metal-iso0 serving + eligible in /enclaves;
   the 3 canaries 200 over public TLS with their S0 keys; availability 64 GB / 16 vCPU, cpuShareFree 0.7, guest pool budget
   65536 MiB / 1600 %, free 60160 / 1300, floor {floorMiB 16384, admitsSmallestGuest true}
+
+# 22:49:12Z, after the L3 deploy (b7a3364c, Deploy 36197419879) and 4c-c-b's clean rollback (22:47:01Z), read-only:
+main = b7a3364c; nan secrets-release.mjs 2781d7be = b7a3364c's (the L3 fix), api-relay.js 1b823be6 unchanged; api-relay active
+  since 22:40:51Z, NRestarts 0, MemoryPeak 537 MB; 0 release-setting lines (the release OFF); METAL_ALLOWED_MEASUREMENTS =
+  04e953a4, 10622d98, 8ab7a159, 02f6e313 (the last kept for the 4c-c retry)
+ADMIT=79c5ecf2 accept.sh: rc 0 (all 3 canaries: own measurement predicted, 79c5ecf2 predicted + admitted; release 503; 404/422)
+node still 8ab7a159…/b3109929 (the 4c state); 3 canaries 200 with their S0 keys; metal-iso0 serving + eligible
