@@ -79,17 +79,22 @@ async function signLeaf(csrDer) {
 
 // ---- mock DNS_API: the challenge-push daemon's /v1/txt, HMAC-checked --------
 const DNS_TXT_KEY = "cd".repeat(32);
+// the relays' own push key (RELAY_TXT_KEY): synthetic, and deliberately NOT derivable from any fleet secret
+const RELAY_TXT_KEY = "7e".repeat(32);
 // `cnames`: the customer's delegation records the mock CA follows (a custom
 // domain's _acme-challenge CNAMEs to the alias in our zone); `posted`: every
 // TXT name pushed, in order.
-const dns = { records: new Map(), cnames: new Map(), posted: [], posts: 0, deletes: 0, badSig: 0 };
+const dns = { records: new Map(), cnames: new Map(), posted: [], posts: 0, deletes: 0, badSig: 0, sigs: [] };
 const dnsServer = http.createServer((req, res) => {
   const chunks = [];
   req.on("data", (d) => chunks.push(d));
   req.on("end", () => {
     const raw = Buffer.concat(chunks);
-    const want = createHmac("sha256", DNS_TXT_KEY).update(raw).digest("hex");
-    if (req.url !== "/v1/txt" || req.headers["x-relay-sig"] !== want) { dns.badSig++; res.writeHead(401); return res.end("{}"); }
+    // which key(s) signed it: null = header absent, true/false = present and (not) verifying
+    const check = (h, key) => (req.headers[h] === undefined ? null : req.headers[h] === createHmac("sha256", key).update(raw).digest("hex"));
+    const seen = { fleet: check("x-relay-sig", DNS_TXT_KEY), relay: check("x-relay-txt-sig", RELAY_TXT_KEY) };
+    dns.sigs.push(seen);
+    if (req.url !== "/v1/txt" || !(seen.fleet || seen.relay)) { dns.badSig++; res.writeHead(401); return res.end("{}"); }
     const { name, value } = JSON.parse(raw.toString());
     if (req.method === "POST") { dns.posts++; dns.posted.push(name); if (!dns.records.has(name)) dns.records.set(name, new Set()); dns.records.get(name).add(value); }
     else { dns.deletes++; dns.records.get(name)?.delete(value); }
@@ -769,6 +774,54 @@ test("a failure that lands after the 202 went out is still recorded: the next as
   assert.equal(res2.code, 202); assert.ok(res2.body.retryAfterSec >= 1 && res2.body.retryAfterSec <= 60, JSON.stringify(res2.body));
   assert.equal(ca1.calls.newOrder, o1 + 1, "the backoff answered first: no new order");
   ca1.slowInvalidMs = 0; ca2.slowInvalidMs = 0;
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("RELAY_TXT_KEY signs every dns-01 push; DNS_TXT_KEY becomes an optional co-signature and can be removed", async () => {
+  const saved = { ...process.env };
+  const run = async (tag, envOver, drop = []) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), `enclave-certs-${tag}-`));
+    Object.assign(process.env, { AUTH_DATA_DIR: dir, ...envOver });
+    for (const k of drop) delete process.env[k];
+    const m = await import(`../relay/certs.js?${tag}=1`);
+    await m.initCerts();
+    Object.assign(process.env, saved);
+    return { m, dir };
+  };
+  const issue = async (m, name) => {
+    rows = [leaseRow()];
+    const from = dns.sigs.length, res = {};
+    await m.handleCerts({ method: "POST", body: await body({ name, csr: await csrFor(name) }) }, res, new URL("http://x/v1/certs/issue"), ctx);
+    for (let i = 0; i < 40 && dns.sigs.length - from < 2; i++) await new Promise((z) => setTimeout(z, 50));   // the cleanup DELETE follows the reply
+    return { res, sigs: dns.sigs.slice(from) };
+  };
+  // the relay key alone (DNS_TXT_KEY removed): enabled, and every push carries ONLY the relay key's signature
+  let { m, dir } = await run("relayonly", { RELAY_TXT_KEY }, ["DNS_TXT_KEY"]);
+  assert.equal(m.certsEnabled(), true);
+  let r = await issue(m, "cdcdcdcdc.app.enclave.host");
+  assert.equal(r.res.code, 200, JSON.stringify(r.res.body));
+  assert.ok(r.sigs.length >= 2, "POST and DELETE both went out");
+  for (const sg of r.sigs) assert.deepEqual(sg, { fleet: null, relay: true }, "no fleet HMAC on the wire");
+  fs.rmSync(dir, { recursive: true, force: true });
+  // both keys (the transition): every push carries both, and both verify
+  ({ m, dir } = await run("bothkeys", { RELAY_TXT_KEY }));
+  r = await issue(m, "cdcdcdcdcdc.app.enclave.host");
+  assert.equal(r.res.code, 200, JSON.stringify(r.res.body));
+  for (const sg of r.sigs) assert.deepEqual(sg, { fleet: true, relay: true });
+  fs.rmSync(dir, { recursive: true, force: true });
+  // a "relay key" equal to the fleet-derived key is no separate key: ignored, and the service still issues on the fleet HMAC
+  ({ m, dir } = await run("samekey", { RELAY_TXT_KEY: DNS_TXT_KEY }));
+  assert.equal(m.certsEnabled(), true);
+  r = await issue(m, "cdcdcdcdcdcdc.app.enclave.host");
+  assert.equal(r.res.code, 200, JSON.stringify(r.res.body));
+  for (const sg of r.sigs) assert.deepEqual(sg, { fleet: true, relay: null });
+  fs.rmSync(dir, { recursive: true, force: true });
+  // a malformed relay key, and no push key at all: disabled (fail closed), nothing issued
+  ({ m, dir } = await run("badrelay", { RELAY_TXT_KEY: "not-hex" }));
+  assert.equal(m.certsEnabled(), false);
+  fs.rmSync(dir, { recursive: true, force: true });
+  ({ m, dir } = await run("nopushkey", {}, ["DNS_TXT_KEY", "RELAY_TXT_KEY"]));
+  assert.equal(m.certsEnabled(), false);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

@@ -150,9 +150,12 @@ test("U7 dns-relay: the fleet HMAC alone gets a dns-01 answer for a deployment's
   };
   await delay(1500);                                          // the first eligibility poll
   const ok = async (label, opts, why) => { const r = await push(dns.apiPort, label, opts); assert.equal(r.status, 200, `${label}: ${why}: ${JSON.stringify(r.body)}\n${dns.log()}`); };
+  const records = async () => (await (await fetch(`http://127.0.0.1:${dns.apiPort}/health`)).json()).txtRecords;
   const refused = async (label, re, opts) => {
+    const before = await records();
     const r = await push(dns.apiPort, label, opts);
     assert.equal(r.status, 403, `${label}: ${JSON.stringify(r.body)}`); assert.equal(r.body.error, "hmac_auth_refused"); assert.match(r.body.message, re, label);
+    assert.equal(await records(), before, `${label}: a refused push stored a record`);
   };
   const h8 = (id) => id.slice(2, 10);
   await ok(h8(GOOD), {}, "the eligible holder's deployment");

@@ -2570,7 +2570,7 @@ await initSecrets();           // needs SECRETS_KEY + the same data dir; degrade
 startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)
 await initDomains();           // custom domains: same data dir, CUSTOM_DOMAINS=0 opts out
 startDomainSweep(relayCtx);    // DNS re-check + demotion sweep (no-op while disabled)
-await initCerts();             // platform certs: CERTS_KEY + DNS_API + DNS_TXT_KEY + APP_ZONE + the data dir
+await initCerts();             // platform certs: CERTS_KEY + DNS_API + RELAY_TXT_KEY (or DNS_TXT_KEY) + APP_ZONE + the data dir
 setInterval(pollRegistry, REGISTRY_POLL_SEC * 1000);
 setInterval(resolveDeployments, REGISTRY_POLL_SEC * 1000);
 setInterval(pollAvailability, AVAIL_POLL_SEC * 1000);
