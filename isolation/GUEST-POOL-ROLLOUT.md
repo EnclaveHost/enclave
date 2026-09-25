@@ -17,7 +17,7 @@ Components, as reviewed:
 The deployed lineage is `isolation/portable-runtime-jit` at 77f789a6. The live tree `~/enclave-prod/iso-03be27d6`
 runs 0181bce3. 4c's branch fast-forwards onto 77f789a6.
 
-## 1. Budget recommendation: `-guest-mem-mib 16384 -guest-cpus 8` (the candidate is SAFE)
+## 1. Budget recommendation: `-guest-mem-mib 16384 -guest-cpus 8` (the candidate is SAFE; SUPERSEDED on 2026-09-25 by Steven's 65536 / 16, see section 8)
 
 ### Measured, read-only
 
@@ -328,6 +328,51 @@ services). One step, in this order (enclave-5d's correction of 14ccc893).**
 6. The S4 client pins (the domain release in the release index or TUF) are public history: superseded, never erased.
 7. S3's U7 deploy is reversible as code, but it FAILS CLOSED. A missing or stale ELIGIBILITY_API or DOMAINS_API on any
    daemon host cuts tenant traffic. Rollback trigger: ANY canary URL stops serving after S3.
+
+## 8. Rollout record, 2026-09-25 (S0-S2, then Steven's 64 GiB / 16)
+
+Executed by enclave-63 under Codex's authorization, with enclave-99's technical verdicts (the artifact independently
+reproduced; scripts v3/v4) and enclave-5d holding all lab work. Full evidence and the exact scripts:
+`m4/evidence/pool-rollout-2026-09-25/`.
+- S0 17:18Z: green.
+- S1 17:49Z: attempt 1 was correct but rolled back on my journal-timezone check bug; the re-run passed its gate.
+- S2a 18:00Z and S2b 18:01Z: the node attests 10622d98... = the prediction; 3 leases resumed, 0 released; gate passed.
+- The budget then went to **65536 MiB / 16** at Steven's request, changing only the two guestd flags. No CVM restart:
+  the supervisor's nodeSpec follows /health.pool.
+Unchanged throughout: guests, keys, measurements, all on-chain record fields but leaseUntil, prices, shares, caps.
+
+**Capacity as advertised now:** cpuShareFree = min(two constraints):
+- the share ledger: 1 - 3 x 0.100 = 0.700;
+- the pool's free fraction: min(60160/65536, 1300/1600) = 0.8125.
+So 0.700 is advertised. Physical CPU free is 81.25%. Neither number is forced.
+
+**What an app costs on this tier now** (floor = ceil(memMb / B), rate = floor x 834):
+
+| App memMb | its guest reserves | share floor at B=64 GiB | at 16 GiB | vs the control CVM (6 GiB) | rate at 64 GiB (834 x share) |
+|---|---|---|---|---|---|
+| 128 MB | 1792 MiB / 100% CPU | 1% | 1% | 3% | 8.34 µUSDC/s ($0.030/h) |
+| 512 MB | 1792 MiB / 100% CPU | 1% | 4% | 9% | 8.34 µUSDC/s ($0.030/h) |
+| 1024 MB | 2176 MiB / 100% CPU | 2% | 7% | 17% | 16.68 µUSDC/s ($0.060/h) |
+| 2048 MB | 3200 MiB / 100% CPU | 4% | 13% | 34% | 33.36 µUSDC/s ($0.120/h) |
+| 4096 MB | 5248 MiB / 100% CPU | 7% | 25% | 67% | 58.38 µUSDC/s ($0.210/h) |
+| 8192 MB | 9344 MiB / 100% CPU | 13% | 50% | 134% | 108.42 µUSDC/s ($0.390/h) |
+
+Every guest reserves a whole core's quota (enclave-isolation-policy/1), so CPU binds at 16 guests while those guests may
+have bought as little as 1% each. That gap (the section 7 pricing question) is wider at 64 GiB. No price was changed.
+
+**Open, each needing an owner (enclave-99's flags on the 64 GiB change):**
+1. Memory headroom was checked once, at apply time.
+   - Measured: MemAvailable 82096 MiB; with the whole axis reserved, about 21.4 GiB would remain.
+   - The risks: SNP guest RAM is pinned, the swap device is fully held by zswap, and `/tmp` is a 63 GiB tmpfs.
+   - Follow-ups:
+     - (a) guestd admission also checks LIVE MemAvailable >= the reservation + a 16 GiB floor at each create (a code
+       change in the 4c lane);
+     - (b) OOMScoreAdjust on enclave-guestd and the m2-gd* units, so builds die first;
+     - (c) an alert on MemAvailable < 16 GiB or memory PSI avg60 > 0 during the soak.
+2. 1600% is ALL 16 physical cores of the EPYC 9115 (32 SMT threads), not "half the machine". The quotas are caps: a full
+   pool contends with the node CVM's 4 vCPUs and host work, it does not fail.
+3. The rollback to 16384/8 is simple only while the canaries alone run. It is gated like S2's dist rollback
+   (`s3-budget64-rollback.sh`: the non-canary list must be empty, otherwise escalate).
 
 ## 7. Decisions for Steven / Codex
 

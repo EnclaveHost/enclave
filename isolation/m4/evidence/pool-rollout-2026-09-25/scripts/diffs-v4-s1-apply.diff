@@ -1,0 +1,17 @@
+--- scripts-v1/s1-apply.v3.sh	2026-09-25 10:48:57.264324406 -0700
++++ s1-apply.sh	2026-09-25 10:48:57.268010488 -0700
+@@ -19,7 +19,7 @@
+ assert len(idx)==1, idx; lines[idx[0]]=new
+ open(p+".new","w").write("\n".join(lines)); os.replace(p+".new",p)
+ PY
+-T0=$(date -u '+%Y-%m-%d %H:%M:%S'); say "S1: daemon-reload + restart (unit now: new binary + -guest-mem-mib 16384 -guest-cpus 8)"
++T0=$(date -u '+%Y-%m-%d %H:%M:%S UTC'); say "S1: daemon-reload + restart (unit now: new binary + -guest-mem-mib 16384 -guest-cpus 8)"
+ systemctl --user daemon-reload || fail "daemon-reload"
+ systemctl --user restart enclave-guestd.service || fail "restart"
+ systemctl --user show enclave-guestd.service -p ExecStart --value | grep -Fq "path=$NEWBIN ;" || fail "ExecStart is not the new binary"
+@@ -29,4 +29,4 @@
+ journalctl --user -u enclave-guestd.service --since "$T0" --no-pager -o cat > $EV/s1-guestd-journal.txt 2>&1 || true
+ grep -q "adopted 3 guest(s)" $EV/s1-guestd-journal.txt && grep -q "guest pool: 3 guest(s) hold 5376 MiB / 300% CPU of 16384 MiB / 800% CPU" $EV/s1-guestd-journal.txt || fail "the journal lacks the adoption or pool line"
+ wait_for 120 public_ok || fail "the canaries do not serve"
+-say "S1 APPLIED and checked (restart at $T0 local)"
++say "S1 APPLIED and checked (restart at $T0)"
