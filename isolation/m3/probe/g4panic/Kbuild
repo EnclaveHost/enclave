@@ -1,0 +1,1 @@
+obj-m := g4panic.o
