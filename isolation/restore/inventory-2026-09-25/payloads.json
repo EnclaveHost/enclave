@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-25T19:39:53.633Z",
-  "block": "51787913",
+  "generatedAt": "2026-09-25T19:53:58.625Z",
+  "block": "51788334",
   "rpcs": [
     "https://base-rpc.publicnode.com",
     "https://base.drpc.org"
@@ -32,7 +32,7 @@
       "envelopeAfter": "{\"network\":{\"relay\":\"us-west\"},\"isolation\":{\"require\":\"snp-guest-per-app\"}}",
       "envelopeAfterBytes": 75,
       "simulation": {
-        "block": "51787913",
+        "block": "51788334",
         "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
         "results": {
           "https://base-rpc.publicnode.com": "ok",
@@ -49,10 +49,10 @@
         "isPublic": true,
         "active": true,
         "createdAt": "1787090005",
+        "rate": "1",
         "cap6": "17"
       },
       "ledgerAtBlock": {
-        "rate": "1",
         "balance6": "362756",
         "spent6": "1137244",
         "leaseUntil": "1790315529"
@@ -76,7 +76,7 @@
       "envelopeAfter": "{\"config\":{\"ipnsKey\":\"$IPNS_ED25519_SK\",\"value\":\"https://ipfs.enclave.host/site-root\",\"lifetimeSecs\":604800,\"republishSecs\":14400,\"ttlSecs\":300,\"delegates\":[\"https://delegated-ipfs.dev\"],\"ipni\":{\"gatewayUrl\":\"https://ipfs.enclave.host\",\"publisherUrl\":\"https://d9798e4c.app.enclave.host\",\"indexers\":[\"https://cid.contact\"],\"announceAllBlocks\":false},\"dht\":true,\"api_key\":\"$API_KEY\"},\"isolation\":{\"require\":\"snp-guest-per-app\"}}",
       "envelopeAfterBytes": 426,
       "simulation": {
-        "block": "51787913",
+        "block": "51788334",
         "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
         "results": {
           "https://base-rpc.publicnode.com": "ok",
@@ -93,10 +93,10 @@
         "isPublic": true,
         "active": true,
         "createdAt": "1787129623",
+        "rate": "1",
         "cap6": "9"
       },
       "ledgerAtBlock": {
-        "rate": "1",
         "balance6": "118282",
         "spent6": "1131718",
         "leaseUntil": "1790315553"
@@ -120,7 +120,7 @@
       "envelopeAfter": "{\"config\":{\"endpoint\":\"$R2_ENDPOINT\",\"region\":\"auto\",\"bucket\":\"jot\",\"prefix\":\"notes/\",\"credentials\":{\"accessKeyId\":\"$JOT_ACCESS_KEY_ID\",\"secretAccessKey\":\"$JOT_SECRET_ACCESS_KEY\"},\"api_key\":\"$JOT_API_KEY\",\"master_key\":\"$JOT_MASTER_KEY\",\"sso\":{\"signer\":\"0x3394b4d24250F1657cB547975e77117454b3Cc6D\",\"audience\":\"0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371\",\"accept\":[\"0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c\"]},\"wasi\":\"0.2\"},\"isolation\":{\"require\":\"snp-guest-per-app\"}}",
       "envelopeAfterBytes": 516,
       "simulation": {
-        "block": "51787913",
+        "block": "51788334",
         "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
         "results": {
           "https://base-rpc.publicnode.com": "ok",
@@ -137,10 +137,10 @@
         "isPublic": true,
         "active": true,
         "createdAt": "1788334447",
+        "rate": "1",
         "cap6": "9"
       },
       "ledgerAtBlock": {
-        "rate": "1",
         "balance6": "118600",
         "spent6": "131400",
         "leaseUntil": "1790316215"
@@ -164,7 +164,7 @@
       "envelopeAfter": "{\"configCid\":\"bafkreifxoosjvq56tua7y325cvlfav56unskmppwtsdqgx5sa3b4ybybpi\",\"isolation\":{\"require\":\"snp-guest-per-app\"}}",
       "envelopeAfterBytes": 119,
       "simulation": {
-        "block": "51787913",
+        "block": "51788334",
         "from": "0x0b2d009c0c9Af05b12100D77F3c815fea822eE61",
         "results": {
           "https://base-rpc.publicnode.com": "ok",
@@ -181,10 +181,10 @@
         "isPublic": true,
         "active": true,
         "createdAt": "1788538881",
+        "rate": "1",
         "cap6": "9"
       },
       "ledgerAtBlock": {
-        "rate": "1",
         "balance6": "129400",
         "spent6": "120600",
         "leaseUntil": "1790315395"

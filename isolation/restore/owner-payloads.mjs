@@ -15,16 +15,27 @@
 // (GUEST-POOL-ROLLOUT.md S6): once a deployment requires isolation, every runner without it refuses it.
 //
 // usage: node isolation/restore/owner-payloads.mjs <out dir>                 inventory.json + payloads.json
-//        node isolation/restore/owner-payloads.mjs --verify <payloads.json>   after signing: only the envelope changed
+//        node isolation/restore/owner-payloads.mjs --check <payloads.json>    IMMEDIATELY BEFORE the owner signs: each
+//                                     deployment is still exactly as the payload was built from, and the calldata
+//                                     rebuilt from it now is byte-identical (enclave-d1: a stale payload would silently
+//                                     revert an envelope edit made since, because setConfig replaces the whole envelope)
+//        node isolation/restore/owner-payloads.mjs --verify <payloads.json> <0xid8…=0xtxhash> …   after signing: each
+//                                     transaction IS its payload (input, to, from, success, exactly one ConfigSet from
+//                                     the ledger for that id and envelope), and only the envelope changed
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { createPublicClient, http, encodeFunctionData, getAddress } from "viem";
+import { createPublicClient, http, encodeFunctionData, decodeEventLog, getAddress } from "viem";
 import { base } from "viem/chains";
 
 const OWNER = getAddress("0x0b2d009c0c9Af05b12100D77F3c815fea822eE61");   // Steven's governance key (a Trezor)
 const ADDRESS_BOOK = getAddress("0xab214342d5A490150A4A977063A2f88E21F80907");
-const RPCS = ["https://base-rpc.publicnode.com", "https://base.drpc.org"];   // mainnet.base.org refused reads on 09-25
+// two independent Base RPCs, which must agree (mainnet.base.org refused reads on 09-25). --verify reads RECEIPTS, which
+// publicnode serves only with a personal token, so it uses its own pair. Either can be set: RPCS / VERIFY_RPCS=a,b
+const pair = (env, dflt) => { const l = String(process.env[env] || "").split(",").map((x) => x.trim()).filter(Boolean);
+  return l.length === 2 ? l : dflt; };
+const RPCS = pair("RPCS", ["https://base-rpc.publicnode.com", "https://base.drpc.org"]);
+const VERIFY_RPCS = pair("VERIFY_RPCS", ["https://base.drpc.org", "https://1rpc.io/base"]);
 const RELAY = "https://api.enclave.host";
 const BACKEND = "snp-guest-per-app";
 const ENVELOPE_MAX = 4096;                  // EnclaveDeployments MAX_CFG (rev >= 5)
@@ -52,6 +63,8 @@ const DEP_ABI = [
     outputs: [{ name: "maxRate6", type: "uint256" }] },
   { type: "function", name: "setConfig", stateMutability: "nonpayable",
     inputs: [{ name: "id", type: "bytes32" }, { name: "configCid", type: "string" }], outputs: [] },
+  { type: "event", name: "ConfigSet", inputs: [{ name: "id", type: "bytes32", indexed: true },
+    { name: "configCid", type: "string", indexed: false }] },
 ];
 const VERSION_TUPLE = [
   { name: "cid", type: "string" }, { name: "version", type: "string" }, { name: "vramMb", type: "uint32" },
@@ -63,7 +76,8 @@ const CAT_ABI = [{ type: "function", name: "getVersionsPage", stateMutability: "
   inputs: [{ name: "appId", type: "bytes32" }, { name: "start", type: "uint256" }, { name: "n", type: "uint256" }],
   outputs: [{ type: "tuple[]", components: VERSION_TUPLE }] }];
 
-const clients = RPCS.map((u) => createPublicClient({ chain: base, transport: http(u, { retryCount: 2, retryDelay: 800 }) }));
+const clientsFor = (urls) => urls.map((u) => createPublicClient({ chain: base, transport: http(u, { retryCount: 2, retryDelay: 800 }) }));
+let clients = clientsFor(RPCS);
 const plain = (x) => JSON.parse(JSON.stringify(x, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
 const same = (a, b) => JSON.stringify(plain(a)) === JSON.stringify(plain(b));
 const sha256 = (s) => crypto.createHash("sha256").update(s, "utf8").digest("hex");
@@ -184,6 +198,12 @@ function blockers(d, v, env, secretsProbe) {
   return b;
 }
 
+// what setConfig must leave exactly as it was; rate included: only setShares changes it, so a change means someone else
+// acted in between (enclave-d1). balance6, spent6, runner and leaseUntil move on their own with leases.
+const preservedOf = (d, cap) => plain({ owner: d.owner, appRef: d.appRef, ports: d.ports, gpuMilli: d.gpuMilli,
+  cpuMilli: d.cpuMilli, appPort: d.appPort, isPublic: d.isPublic, active: d.active, createdAt: d.createdAt, rate: d.rate,
+  cap6: cap });
+
 async function inventory(outDir) {
   const blockNumber = await pinBlock();
   const addr = await book(blockNumber);
@@ -254,9 +274,8 @@ async function inventory(outDir) {
       envelopeBefore: String(d.configCid || ""), envelopeAfter: envelope, envelopeAfterBytes: Buffer.byteLength(envelope),
       simulation: { block: blockNumber, from: OWNER, results: Object.fromEntries(RPCS.map((u, i) => [u, sim[i]])) },
       // what --verify requires unchanged after the owner signs
-      preserved: plain({ owner: d.owner, appRef: d.appRef, ports: d.ports, gpuMilli: d.gpuMilli, cpuMilli: d.cpuMilli,
-        appPort: d.appPort, isPublic: d.isPublic, active: d.active, createdAt: d.createdAt, cap6: cap }),
-      ledgerAtBlock: plain({ rate: d.rate, balance6: d.balance6, spent6: d.spent6, leaseUntil: d.leaseUntil }),
+      preserved: preservedOf(d, cap),
+      ledgerAtBlock: plain({ balance6: d.balance6, spent6: d.spent6, leaseUntil: d.leaseUntil }),
     });
   }
   const head = { generatedAt: new Date().toISOString(), block: blockNumber.toString(), rpcs: RPCS, addressBook: ADDRESS_BOOK,
@@ -271,24 +290,78 @@ async function inventory(outDir) {
   for (const p of payloads) console.log(`payload ${p.short}: ${p.envelopeAfterBytes} B envelope, simulation ${Object.values(p.simulation.results).join(" / ")}`);
 }
 
-async function verify(file) {
+// --check: the step immediately before the owner signs. Refuses unless every deployment is still what its payload was
+// built from (the same envelope bytes, the same preserved fields) and the calldata rebuilt from it NOW is identical.
+async function check(file) {
   const doc = JSON.parse(fs.readFileSync(file, "utf8"));
   const blockNumber = await pinBlock();
+  const addr = await book(blockNumber);
+  if (getAddress(addr.deployments) !== getAddress(doc.deployments)) { console.log(`the address book now names another ledger (${addr.deployments}); REFUSED`); process.exit(1); }
   let bad = 0;
   for (const p of doc.payloads) {
     const d = await read2(blockNumber, doc.deployments, DEP_ABI, "get", [p.deployment]);
     const cap = await read2(blockNumber, doc.deployments, DEP_ABI, "capOf", [p.deployment]);
-    const now = plain({ owner: d.owner, appRef: d.appRef, ports: d.ports, gpuMilli: d.gpuMilli, cpuMilli: d.cpuMilli,
-      appPort: d.appPort, isPublic: d.isPublic, active: d.active, createdAt: d.createdAt, cap6: cap });
-    const changed = Object.keys(p.preserved).filter((k) => JSON.stringify(now[k]) !== JSON.stringify(p.preserved[k]));
-    const envOk = d.configCid === p.envelopeAfter;
-    console.log(`${p.short}: envelope ${envOk ? "= the signed one" : "NOT the signed one"}; preserved fields ${changed.length ? "CHANGED: " + changed.join(", ") : "unchanged"}; balance6 ${d.balance6} (was ${p.ledgerAtBlock.balance6})`);
-    if (!envOk || changed.length) bad++;
+    const why = [];
+    if (String(d.configCid || "") !== p.envelopeBefore) why.push("its envelope CHANGED since the payload was built (signing would revert that change)");
+    const now = preservedOf(d, cap);
+    const moved = Object.keys(p.preserved).filter((k) => JSON.stringify(now[k]) !== JSON.stringify(p.preserved[k]));
+    if (moved.length) why.push(`preserved fields changed: ${moved.join(", ")}`);
+    const env = parseEnvelope(d.configCid);
+    let data = "";
+    try { data = encodeFunctionData({ abi: DEP_ABI, functionName: "setConfig", args: [d.id, withIsolation(d.configCid, env)] }); }
+    catch (e) { why.push(`cannot rebuild: ${e.message}`); }
+    if (data && data !== p.data) why.push("the calldata rebuilt now differs from the payload's");
+    const sim = await Promise.all(clients.map((c) => c.call({ account: getAddress(p.from), to: getAddress(p.to), data: p.data, blockNumber })
+      .then(() => "ok").catch((e) => "REVERT " + (e.shortMessage || e.message))));
+    if (sim.some((r) => r !== "ok")) why.push(`simulation: ${sim.join(" / ")}`);
+    console.log(`${p.short}: ${why.length ? "REFUSED - " + why.join("; ") : "OK to sign (block " + blockNumber + ", calldata sha256 " + p.dataSha256 + ")"}`);
+    if (why.length) bad++;
+  }
+  process.exit(bad ? 1 : 0);
+}
+
+// --verify: after signing. Each named transaction must BE its payload, and the deployment afterwards must differ only in
+// its envelope.
+async function verify(file, txArgs) {
+  clients = clientsFor(VERIFY_RPCS);
+  const doc = JSON.parse(fs.readFileSync(file, "utf8"));
+  const txs = Object.fromEntries(txArgs.map((a) => a.split("=")).filter((x) => x.length === 2).map(([k, v]) => [k.toLowerCase().replace(/^0x/, ""), v]));
+  const blockNumber = await pinBlock();
+  let bad = 0;
+  for (const p of doc.payloads) {
+    const why = [];
+    const txh = txs[p.short] || txs[p.deployment.slice(2)];
+    if (!txh) { console.log(`${p.short}: no transaction named (pass ${p.short}=0x<tx hash>); not verified`); bad++; continue; }
+    let tx0, tx1, rc0, rc1;
+    try {
+      [tx0, tx1] = await Promise.all(clients.map((c) => c.getTransaction({ hash: txh })));
+      [rc0, rc1] = await Promise.all(clients.map((c) => c.getTransactionReceipt({ hash: txh })));
+    } catch (e) { console.log(`${p.short}: FAILED - transaction ${txh} not found on both RPCs (${e.shortMessage || e.message})`); bad++; continue; }
+    if (!same(tx0.input, tx1.input) || !same(rc0.logs, rc1.logs) || rc0.status !== rc1.status) why.push("the two RPCs disagree about the transaction");
+    if (tx0.input !== p.data) why.push("its input is NOT the reviewed calldata");
+    if (getAddress(tx0.to) !== getAddress(p.to)) why.push(`it went to ${tx0.to}, not the ledger`);
+    if (getAddress(tx0.from) !== getAddress(p.from)) why.push(`it came from ${tx0.from}, not the owner`);
+    if (BigInt(tx0.value) !== 0n) why.push("it carried value");
+    if (rc0.status !== "success") why.push(`its receipt says ${rc0.status}`);
+    const sets = rc0.logs.filter((l) => getAddress(l.address) === getAddress(p.to)).map((l) => {
+      try { return decodeEventLog({ abi: DEP_ABI, data: l.data, topics: l.topics }); } catch { return null; } })
+      .filter((e) => e && e.eventName === "ConfigSet");
+    if (sets.length !== 1 || sets[0].args.id.toLowerCase() !== p.deployment.toLowerCase() || sets[0].args.configCid !== p.envelopeAfter)
+      why.push(`the ledger emitted ${sets.length} ConfigSet event(s), not exactly one for this id and envelope`);
+    const d = await read2(blockNumber, doc.deployments, DEP_ABI, "get", [p.deployment]);
+    const cap = await read2(blockNumber, doc.deployments, DEP_ABI, "capOf", [p.deployment]);
+    if (d.configCid !== p.envelopeAfter) why.push("the envelope now is not the signed one");
+    const now = preservedOf(d, cap);
+    const moved = Object.keys(p.preserved).filter((k) => JSON.stringify(now[k]) !== JSON.stringify(p.preserved[k]));
+    if (moved.length) why.push(`preserved fields changed: ${moved.join(", ")}`);
+    console.log(`${p.short}: ${why.length ? "FAILED - " + why.join("; ") : `verified (tx ${txh} in block ${rc0.blockNumber}; balance6 ${d.balance6}, was ${p.ledgerAtBlock.balance6})`}`);
+    if (why.length) bad++;
   }
   process.exit(bad ? 1 : 0);
 }
 
 const a = process.argv.slice(2);
-if (a[0] === "--verify" && a[1]) await verify(a[1]);
+if (a[0] === "--check" && a[1]) await check(a[1]);
+else if (a[0] === "--verify" && a[1]) await verify(a[1], a.slice(2));
 else if (a[0] && !a[0].startsWith("-")) await inventory(a[0]);
-else { console.error("usage: owner-payloads.mjs <out dir> | --verify <payloads.json>"); process.exit(2); }
+else { console.error("usage: owner-payloads.mjs <out dir> | --check <payloads.json> | --verify <payloads.json> <id8=0xtx> …"); process.exit(2); }
