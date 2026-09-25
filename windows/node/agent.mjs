@@ -105,6 +105,9 @@ const host = new Host({
   appsEnabled: APPS, ownerWallet: process.env.OWNER_WALLET || '',
   // No engine: only isolated deployments run, anything else is HELD (host.mjs heldReason), never released.
   engineRetired: !LEGACY_ENGINE,
+  // Respawn an isolated domain that ENDED instead of giving its lease up: a lease policy, OFF unless set to exactly "1"
+  // (host.mjs, RESPAWN_BUDGET per hour). Recovered VMs stay held either way.
+  isolationRespawn: process.env.ENCLAVE_ISOLATION_RESPAWN === '1',
   cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 12),
   // What the whole CARD costs per second, USDC 6dp, and what a share of it buys here: the model
   // inside the enclave, whose linear algebra runs on this card by masked offload. The default is

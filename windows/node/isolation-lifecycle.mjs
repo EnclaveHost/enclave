@@ -43,7 +43,9 @@ const RECOVERED = (name, v) => ({ action: "held", instance: v, ...HELD(`${name} 
  *
  *   adopted  a domain for this deployment was already there and is alive
  *   spawned  a new domain was started
- *   failed   the domain will not serve; the lease IS freed and the ledger was told
+ *   failed   the domain will not serve; the lease IS freed and the ledger was told. `refused` when the manager
+ *            answered no (a 4xx: it never will), `ended` when a domain existed and ended, disappeared or missed the
+ *            readiness deadline (a crash on this backend, which a caller MAY choose to respawn)
  *   held     the outcome is unknown; the lease is NOT freed and the ledger was not told
  */
 export async function reconcile({ client, deployment, ledger = null, deadlineMs = 180_000,
@@ -83,7 +85,7 @@ export async function reconcile({ client, deployment, ledger = null, deadlineMs 
         return { action: "held", instance: null, ...HELD(`the launch of ${name} did not end in a known state `
           + `(${e.kind || "error"}: ${e.message}); nothing is retried and the lease is kept - reconcile before repeating it`) };
       }
-      return { action: "failed", instance: null, leaseFree: true,
+      return { action: "failed", instance: null, leaseFree: true, refused: true,
                reason: `the manager refused to run ${name}: ${e.message}` };
     }
   }
@@ -106,7 +108,7 @@ export async function reconcile({ client, deployment, ledger = null, deadlineMs 
     }
     if (cur === null) {
       // it is gone and we did not remove it: that IS known, and the lease is free
-      return { action: "failed", instance: null, leaseFree: true,
+      return { action: "failed", instance: null, leaseFree: true, ended: true,
                reason: `${name} disappeared from the manager while it was ${last.status}` };
     }
     last = cur;
@@ -114,7 +116,7 @@ export async function reconcile({ client, deployment, ledger = null, deadlineMs 
     if (cur.recovered) return RECOVERED(name, cur);
     if (instanceServing(cur)) return { action, instance: cur, reason: null, leaseFree: false };
     if (!instanceAlive(cur)) {
-      return { action: "failed", instance: cur, leaseFree: true,
+      return { action: "failed", instance: cur, leaseFree: true, ended: true,
                reason: `${name} ended as ${cur.status}: ${cur.error || cur.reason || "no reason given"}` };
     }
   }
@@ -128,7 +130,7 @@ export async function reconcile({ client, deployment, ledger = null, deadlineMs 
       + "a domain that may still be running keeps its lease") };
   }
   if (ledger) await ledger.release(name, why);
-  return { action: "failed", instance: last, leaseFree: true, reason: why };
+  return { action: "failed", instance: last, leaseFree: true, ended: true, reason: why };
 }
 
 /**
