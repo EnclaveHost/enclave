@@ -1,0 +1,24 @@
+old ba3f49a7dce5d739: 1 eligible 58DFEBFE, 11 refused
+new b4d6675dd9b78eaf: 1 eligible 56FBB27F, 11 refused
+digest set equal: true (old 12, new 12)
+  refused 8E9D6ACB debug vbs-linux-candidate-1539-debug-twin: REFUSE: carries OPENHCL_CONFIDENTIAL_DEBUG=1, so OpenHCL trusts the host command line; its
+  refused CF339BC5 probe g4-probe-72462737: REFUSE: a PROBE image for enclave-d1's G4 run, never a serving candidate; refused by its e
+  refused 77C66160 control a7b0bd4-control: REFUSE: an experimental control image whose launch measurement does not cover our guest (U
+  refused 4CE6EDC3 debug a7b0bd4-debug: REFUSE: carries OPENHCL_CONFIDENTIAL_DEBUG=1 (trusts the host command line); its debugBuil
+  refused 6FFB817F stock stock-2511-openhcl-cvm: REFUSE: Microsoft's release 2511 image; does not boot type 1 here and does not measure our
+  refused 58DFEBFE superseded vbs-linux-candidate-g1: REFUSE: superseded in v39 by vbs-linux-candidate-1539 (b7ba7731..., 56FBB27F...). It boote
+  refused 2A93ED16 superseded vbs-linux-candidate-g1-debug-twin: REFUSE: the superseded a44bb55a candidate's debug twin (OPENHCL_CONFIDENTIAL_DEBUG=1: it t
+  refused A0FDAC0F superseded vbs-linux-candidate-c567e432: REFUSE: superseded in v31 by the G1 candidate vbs-linux-candidate-g1 (a44bb55a…, 58DFEBFE…
+  refused A650C020 superseded vbs-linux-candidate-debug-twin-c567e432: REFUSE: the superseded c567e432 candidate's debug twin (trusts the host command line); nev
+  refused 246DEE1B superseded vbs-linux-candidate-v27: REFUSE: the v26/v27 build-only candidate with static_command_line=false, superseded at enc
+  refused 0677F3C6 superseded vbs-linux-candidate-debug-twin-v27: REFUSE: the superseded candidate's debug twin (trusts the host command line); never booted
+  ELIGIBLE 56FBB27F363A7FEDC83FD56CB4FF39C5411140300BB8F8496C35893A061077E1 vbs-linux-candidate-1539 image b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+  changed vbs-linux-candidate-1539 (image -> image): eligible, reason
+  changed vbs-linux-candidate-g1 (image -> superseded): class, imageBytes, vbsIsvsvn, debugBuild, confidentialDebug, trustsHostCommandLine, vtl0, booted, eligible, reason, pin
+  changed vbs-linux-candidate-g1-debug-twin (image -> superseded): class, imageBytes, vbsIsvsvn, debugBuild, confidentialDebug, trustsHostCommandLine, vtl0, booted, reason, pin
+top-level fields changed: eligible, notAClaim
+  two-eligible mutation: n/a (1 clean candidate in images[]; the half-done-rollover case is tested separately)
+single-image eligible mutations on non-eligible images: 5/5 refused
+superseded entries marked eligible: 6/6 refused
+half-done rollover (G1 restored eligible beside 1539): refused: reference: 2 images are marked eligible (vbs-linux-candidate-1539, vbs-linux-candidate-g1): exactly one at a time
+duplicate digest: refused: reference: digest 58DFEBFE5F46E5C0... appears twice
