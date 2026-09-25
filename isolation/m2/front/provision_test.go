@@ -483,3 +483,29 @@ func TestHandToInit(t *testing.T) {
 		}
 	}
 }
+
+// the wait for the ticket line outlasts guestd's hold (5 min), so a slow supervisor or relay is ended by guestd's
+// hold through the lifecycle, never cut short in the guest
+func TestTheTicketWaitOutlastsGuestdsHold(t *testing.T) {
+	if ticketWait <= 5*time.Minute {
+		t.Fatalf("the front waits %s for its ticket, not longer than guestd's 5-minute hold", ticketWait)
+	}
+	// and a ticket that comes late, after the connection is open, is still read
+	w := newProvWorld(t)
+	l, _ := net.Listen("tcp", "127.0.0.1:0")
+	defer l.Close()
+	go func() {
+		c, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		time.Sleep(300 * time.Millisecond) // the supervisor is still fetching
+		release.WriteTicket(c, w.ticket)
+	}()
+	w.p.ticket = func() (net.Conn, error) { return net.Dial("tcp", l.Addr().String()) }
+	tk, err := w.p.readTicket(context.Background())
+	if err != nil || tk != w.ticket {
+		t.Fatalf("a late ticket: %v %v", tk, err)
+	}
+}

@@ -176,6 +176,12 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 	return out, nil
 }
 
+// ticketWait bounds the wait for the ticket line once connected. guestd HOLDS this connection until the supervisor
+// has fetched a ticket (it asks the relay only once guestd reports the guest waiting, and retries a refusal), for up
+// to its own 5-minute hold; waiting a little longer than that means it is always guestd's hold, not this deadline,
+// that ends a guest whose ticket never comes (m4/guestd/release.go).
+var ticketWait = 6 * time.Minute
+
 // readTicket waits for guestd's ticket service: the guest may boot before guestd accepts, so the dial is retried for
 // a bounded time, and one line is read.
 func (p *provisioner) readTicket(ctx context.Context) (release.Ticket, error) {
@@ -183,7 +189,7 @@ func (p *provisioner) readTicket(ctx context.Context) (release.Ticket, error) {
 	for {
 		c, err := p.ticket()
 		if err == nil {
-			c.SetDeadline(time.Now().Add(30 * time.Second))
+			c.SetDeadline(time.Now().Add(ticketWait))
 			t, rerr := release.ReadTicket(c)
 			c.Close()
 			return t, rerr
