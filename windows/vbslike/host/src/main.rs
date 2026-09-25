@@ -14,6 +14,7 @@
 //! What it does NOT claim: the host is not excluded on this hardware. README.md states the trust.
 mod contract;
 mod hcs;
+mod hvdial;
 mod hvsock;
 mod isoprobe;
 mod lab;
@@ -25,7 +26,7 @@ mod util;
 
 fn usage() -> ! {
     eprintln!(
-        "usage:\n  vbslike-host probe [--out FILE]\n  vbslike-host vectors <vectors.json>\n  vbslike-host lab --kernel K --initrd I --out DIR [--mem MiB] [--cpus N] [--tcp-base PORT]\n  vbslike-host isoprobe --kernel K --initrd I --out DIR [--igvm PATH] [--vmgs PATH] [--seconds N] [--only NAME]\n  vbslike-host reap --prefix vbslike-iso-<pid>-   (terminate ONLY the probe partitions of one run)"
+        "usage:\n  vbslike-host probe [--out FILE]\n  vbslike-host vectors <vectors.json>\n  vbslike-host lab --kernel K --initrd I --out DIR [--mem MiB] [--cpus N] [--tcp-base PORT]\n  vbslike-host isoprobe --kernel K --initrd I --out DIR [--igvm PATH] [--vmgs PATH] [--seconds N] [--only NAME]\n  vbslike-host reap --prefix vbslike-iso-<pid>-   (terminate ONLY the probe partitions of one run)\n  vbslike-host hvdial --vm GUID --port N [--seconds S] [--send LINE]"
     );
     std::process::exit(2)
 }
@@ -60,6 +61,7 @@ fn main() {
         "lab" => lab::run(&opts),
         "isoprobe" => isoprobe::run(&opts),
         "reap" => reap::run(&opts),
+        "hvdial" => hvdial::run(&opts),
         _ => usage(),
     };
     std::process::exit(rc);
