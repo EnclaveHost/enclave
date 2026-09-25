@@ -153,8 +153,10 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
    - **enclave-63:** cut v31 with profile firmware `a44bb55a`, superseding `c567e432`.
    - Not yet exercised on hardware: the launcher's own `rebooted:true` handling on a fresh domain (enclave-5d's
      proposed step) and the G4 restart probe (a PROBE image from enclave-63).
-   - **d1:** the manager's ported WMI launcher (windows/isolation-manager `393fccf8`) has a bounded hardware canary
-     written and not yet run.
+   - DONE: the manager's ported WMI launcher defined, started, listed by identity and removed a type-1 linux-direct
+     partition on this host, twice (runs 070935 and 071140; `mgr-launcher-canary-20260925/`). It serves no app.
+     Its linux-direct domains are refused by the data plane (no medium identity). Its partition name differs from
+     wmiserve's report (`wmi-openhcl-gen2` versus `wmi-openhcl-gen2-igvm-linux`), for the verifier contract to settle.
 2. **enclave-5d and enclave-99:** the replacement node identity (windows-hv-node/v1), host-only and honest. A
    TPM-only node attach grants no app capacity and no isolation badge.
 3. DONE, reviewed by d1: the node lifecycle treats a manager's `recovered: true` instance as HELD.
