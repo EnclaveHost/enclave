@@ -18,7 +18,7 @@ const SUITES = { api: "test/api-relay-pvm-serving.test.mjs", hub: "test/pvm-rela
 const T = {   // the tests, by a distinctive part of their titles
   off: "PVM_SERVING OFF (the default)", lazy: "OFF carries no new code", bare: "PVM_SERVING ON without its configuration",
   on: "PVM_SERVING ON and configured: the ledger runner only", hung: "a ledger that never answers", hub: "the relay's wiring on the REAL hub",
-  boot: "the BOOTSTRAP route on the REAL hub",
+  boot: "the BOOTSTRAP route on the REAL hub", route: "carrierRoute: only the EXACT raw routes",
   // the carrier's own resolver (pvm-serving.mjs pvmRunnerResolver; enclave-99's refusals)
   rTier: "routed: the ledger's live runner", rCanon: "a full canonical id only", rMiss: "a miss gets exactly ONE fresh ledger read",
   rFail: "a ledger read that fails is NO route", rLapse: "a lease that lapses mid-session", rHub: "only the hub's avf tunnel for THAT runner",
@@ -37,7 +37,7 @@ const MUTATIONS = [
   ["M08", "per-client identity from the socket", AR, [["clientOf: (req) => clientIp(req)", "clientOf: (req) => req.socket.remoteAddress"]], "api", T.on],
   ["M09", "no per-deployment bucket", AR, [["perDeployment: makeRateLimiter({ capacity: 60, refillPerSec: 1 })", "perDeployment: () => true"]], "api", T.on],
   ["M10", "unconfigured routes fall through to the /x proxy", PS, [["    res.writeHead(503, {", "    return false; res.writeHead(503, {"]], "api", T.bare],
-  ["M11", "the unconfigured 503 keeps the socket", PS, [["\"cache-control\": \"no-store\", connection: \"close\" }); res.end(); return true;", "\"cache-control\": \"no-store\" }); res.end(); return true;"]], "api", T.bare],
+  ["M11", "the unconfigured 503 keeps the socket", PS, [["...CARRIER_HEADERS, connection: \"close\" }); res.end(); return true;", "...CARRIER_HEADERS }); res.end(); return true;"]], "api", T.bare],
   ["M12", "lax app ids (0x, uppercase, 63 hex)", PS, [["const HEX64 = /^[0-9a-f]{64}$/;", "const HEX64 = /^(0x)?[0-9a-fA-F]{63,64}$/;"]], "api", T.bare],
   ["M13", "early refusals keep the socket", PS, [["const early = (res, status) => { res.setHeader(\"connection\", \"close\"); plain(res, status); };", "const early = (res, status) => plain(res, status);"]], "api", T.on],
   ["M14", "no request bound (413)", PS, [["if (nIn > maxIn) {", "if (nIn > maxIn * 100) {"]], "api", T.on],
@@ -57,7 +57,14 @@ const MUTATIONS = [
   ["M29", "the hub's mode is not required", PS, [["o.tunnel !== true || o.mode !== \"avf\" ||", "o.tunnel !== true ||"]], "resolver", T.rHub],
   ["M30", "any avf tunnel is taken, not the runner's", PS, [["      if (eid === runner) return o.endpoint;", "      return o.endpoint;"]], "resolver", T.rHub],
   ["M31", "pvm-serving resolves through the app router's runnerEndpointOf", AR, [["  resolve: PVM_SERVING.pvmRunnerResolver({ ledgerRows, expire: () => { _ledger.at = 0; }, origins: () => tunnelHub.origins(), endpointId }),", "  resolve: (id) => runnerEndpointOf(id),"]], "resolver", T.rWire],
-  ["M23", "sealed routed by tunnel name", PS, [["\\/pvm\\/evidence$/.exec(path)", "\\/pvm\\/(?:evidence|sealed)$/.exec(path)"]], "hub", T.boot],
+  ["M23", "sealed routed by tunnel name", PS, [["\\/pvm\\/evidence$/.exec(raw)", "\\/pvm\\/(?:evidence|sealed)$/.exec(raw)"]], "hub", T.boot],
+  // the carve-out AHEAD of U7's refusals (enclave-99's conditions): exact, raw, POST, no query; carrier answers sandboxed
+  ["M32", "the carve-out claims another method", PS, [["  if (!req || req.method !== \"POST\") return null;", "  if (!req) return null;"]], "hub", T.route],
+  ["M33", "the carve-out ignores a query", PS, [["  const raw = String(req.url || \"\");", "  const raw = String(req.url || \"\").split(\"?\")[0];"]], "hub", T.route],
+  ["M34", "the carve-out claims any /x segment, not a canonical id", PS, [["/^\\/x\\/(0x[0-9a-f]{64})\\/pvm\\/(evidence|sealed)$/", "/^\\/x\\/([^/]+)\\/pvm\\/(evidence|sealed)$/"]], "hub", T.route],
+  ["M35", "the carve-out matches case-insensitively", PS, [["(evidence|sealed)$/.exec(raw)", "(evidence|sealed)$/i.exec(raw)"]], "hub", T.route],
+  ["M36", "the carve-out judges the DECODED path, not the raw one", PS, [["  const raw = String(req.url || \"\");", "  const raw = decodeURIComponent(String(req.url || \"\"));"]], "hub", T.route],
+  ["M37", "carrier answers lose the sandbox CSP", PS, [[", \"content-security-policy\": \"sandbox; default-src 'none'\" };", " };"]], "api", T.bare],
   ["M20", "the hub pairs app and runtime (not the cross product)", TJ, [["        t.pvmApp = { appId: app, runtimeId: v.runtimeId,", "        if (policy.appIds.indexOf(app) !== policy.runtimeIds.indexOf(v.runtimeId)) return reply(false, [\"paired\"]);\n        t.pvmApp = { appId: app, runtimeId: v.runtimeId,"]], "hub", T.hub],
 ];
 
