@@ -76,7 +76,8 @@ export async function runRestartAccept({ ctl, spawnBody, name, say = console.log
     rec("A1", r1.status === 201 && /^hv[0-9a-f]{32}$/.test(String(id)) && v1 && v1.status === "starting"
       && v1.boundary && v1.boundary.partition === expectPartition && v1.hostExcluded === false,
       `POST ${r1.status} in ${Date.now() - t0} ms, id ${id}, status ${v1 && v1.status}, partition ${v1 && v1.boundary && v1.boundary.partition}, hostExcluded ${v1 && v1.hostExcluded}`
-      + (r1.status !== 201 ? `, error ${r1.text.slice(0, 300)}` : ""));
+      + (r1.status !== 201 ? `, error ${r1.text.slice(0, 300)}` : "")
+      + (v1 && v1.status !== "starting" ? `, reason ${JSON.stringify(String(v1.reason ?? "").slice(0, 600))}, guest ${JSON.stringify(v1.guest ?? null)}` : ""));
     if (!id) throw new Error("no instance was created; the remaining checks cannot run");
 
     const m2 = mineIn(await ctl.survey(), id);
