@@ -204,8 +204,11 @@ test("NEW, client-free: the carrier's bounds and a stream's life -- a hung ledge
   const cadir = tmpdir("pvm-cand-life-"), ca = makeCa(cadir);
   const vm = await startFakeVm({ dir: cadir, ca, code: Buffer.from(CODE, "hex"), appId: APP });
   // a "VM" that answers one byte every 20 ms, forever -- to be cut, and to be left in the middle of
-  let slowClosed = 0;
-  const slow = net.createServer((c) => { const t = setInterval(() => c.write("x"), 20); c.on("close", () => { clearInterval(t); slowClosed++; }); c.on("error", () => {}); });
+  // every stream the carrier opens to it, in order, so a check names ONE request's stream (not a count another stream's
+  // late close could satisfy)
+  const slowConns = [];
+  const slow = net.createServer((c) => { const s = { c, closed: false }; slowConns.push(s); const t = setInterval(() => c.write("x"), 20);
+    c.on("close", () => { clearInterval(t); s.closed = true; }); c.on("error", () => {}); });
   await new Promise((r) => slow.listen(0, "127.0.0.1", r));
   const hub = fakeHub({ "pvm-a": { vm, appVerified: true }, "pvm-slow": { vm: { evidencePort: slow.address().port, sealedPort: slow.address().port }, appVerified: true } });
   const servers = [];
@@ -230,11 +233,20 @@ test("NEW, client-free: the carrier's bounds and a stream's life -- a hung ledge
     const [a, b] = await Promise.all([post(both.port, `/x/${D3}/pvm/evidence`, `EVIDENCE ${n1}\n`), post(both.port, `/x/${D3}/pvm/evidence`, `EVIDENCE ${n2}\n`)]);
     assert.equal(a.status, 200); assert.equal(b.status, 200); assert.ok(a.complete && b.complete);
     assert.equal(JSON.parse(a.body.toString().split("\n")[0]).nonce, n1); assert.equal(JSON.parse(b.body.toString().split("\n")[0]).nonce, n2);
-    // a buyer leaving in the middle of an answer: the stream to the VM is closed
-    const before = slowClosed, lv = await serve({ resolve: async () => "tunnel://pvm-slow" });
-    await post(lv.port, `/x/${D4}/pvm/evidence`, "EVIDENCE x\n", { abortAfter: 10 });
-    assert.ok(await until(() => slowClosed > before), "the buyer went away: the carrier closed the VM's stream");
-  } finally { for (const s of servers) s.close(); slow.close(); vm.close(); }
+    // a buyer leaving in the middle of an answer: THAT request's stream to the VM is closed, within a bounded wait. The
+    // earlier streams (the cut one) must be closed first, so a late close of one of them cannot stand in for this one.
+    assert.ok(await until(() => slowConns.every((x) => x.closed)), "the earlier VM streams are closed before this step");
+    const lv = await serve({ resolve: async () => "tunnel://pvm-slow" }), mine = slowConns.length;
+    const left = await post(lv.port, `/x/${D4}/pvm/evidence`, "EVIDENCE x\n", { abortAfter: 10 });
+    assert.equal(left.status, 200); assert.ok(left.body.length >= 10, "the buyer read part of the answer, then left");
+    assert.equal(slowConns.length, mine + 1, "this request opened exactly one stream to the VM");
+    assert.ok(await until(() => slowConns[mine].closed), "the buyer went away: the carrier closed THAT request's VM stream");
+  } finally {
+    // a mutant may leave streams open: end them all, so the file exits and a failure is reported by this test's name
+    for (const x of slowConns) x.c.destroy();
+    for (const s of servers) { s.closeAllConnections(); s.close(); }
+    slow.close(); vm.close();
+  }
 });
 
 test("NEW, client-free: the REAL hub's stream rule -- evidence reaches any AVF-attested pVM tunnel; a sealed stream only a hub-verified app", { skip: !haveOpenssl && "no openssl", timeout: 180000 }, async () => {
