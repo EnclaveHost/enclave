@@ -15,6 +15,8 @@ one suggestion), all answered below:
 - L3: the ticket-burn path is noted at step 4, as the relay fix is e3's lane.
 - e3's suggestion (show the opt-in in availability) is listed as a follow-up.
 
+**Rev 4 (22:57Z):** step 3 gains its HOST half (the launcher's fw_cfg forward, 578be084); 4c-c-b found it missing.
+
 **Rev 3 (22:38Z):** Codex's corrections, relayed by 63 (d1 and e3 APPROVED rev 3; rev 3.1 adds d1's hookbin
 precondition and serial grep, and e3's envelope-tag and one-ticket proofs, to step 4b):
 - (1) Both relay scripts start with `umask 077`, keep all scratch in one private 0700 `mktemp -d`, remove it on
@@ -134,9 +136,20 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   - `ISOLATION_RELEASE` is not among them, and nothing else can set it. 63's s4cb-apply.sh says the same ("the
     supervisor never sets ISOLATION_RELEASE").
   - So **without a new node image, no release guest can ever launch on metal-iso0.**
-- **The prepared change** (metal/guest/gsup.mjs; commit on isolation/app-config-m1, for d1/e3 review): gsup passes
-  `ISOLATION_RELEASE=1` when the node's host config (`fw_cfg`, config.iso.json) has `"isolation": { …, "release": true }`,
-  exactly as it takes the pairing key. Its startup log line says whether the release is opted in.
+- **The change has TWO halves** (the host half was missed at first; 4c-c-b's own gsup-line check found it and rolled
+  back cleanly at 22:47:01Z):
+  - GUEST (measured, in the 4c-c image; 899196e8): gsup passes `ISOLATION_RELEASE=1` when fw_cfg's `isolation` has
+    `release === true`, exactly as it takes the pairing key. Its startup line says "attested release OPTED IN | off".
+  - HOST (not measured; `isolation/launcher-release-forward` @ 578be084, on top of the production launcher's 0181bce3;
+    metal/enclave-metal.mjs sha256 4620da5d…): the launcher's `isoRuntimeOf` forwards config.iso.json's
+    `isolation.release` into fw_cfg ONLY for a boolean true. Absent or false forwards nothing. Any other value
+    refuses the launch. The launcher logs the same OPTED IN | off. test/metal-launcher-isolation.test.mjs runs the
+    REAL launcher with a fake QEMU and pins the gsup contract.
+  - The launcher runs from `~/enclave-prod/iso-03be27d6` (the unit's WorkingDirectory; guestd's -legacy-isolation
+    tree, which stays untouched). It moves to a detached worktree at 578be084 through a user drop-in that changes only
+    WorkingDirectory, effective at the node restart (63). It imports only Node builtins. Its own-path defaults
+    (config, dist, shielded workers) are overridden by config.iso.json (`--config`, `dist`) or refused on an isolation
+    node, so the move changes nothing else.
 - **Why host config and not the measured cmdline.**
   - `ISOLATION_RELEASE` is the operator's opt-in (d1's rollout option (i)), and on it grants nothing by itself: a
     deployment becomes a release guest only if the relay lists it, and its config and secrets reach only a guest whose
@@ -152,8 +165,9 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   is empty). gsup.mjs has not changed since 899196e8, and rev 2/3 touched only isolation/restore, cli/ and a test.
   Use the AmdSev `--ovmf` and the same min-tcb. Build from two checkout paths and compare; d1 reproduces from a third.
   Then predict, allowlist, roll out (S2 shape).
-- **Flip:** config.iso.json gets `"release": true` in its `isolation` object, then the node CVM restarts. The image
-  change and the flip can be ONE restart, after step 2 is verified.
+- **Flip:** config.iso.json gets `"release": true` in its `isolation` object, the launcher runs from 578be084 or later,
+  then the node CVM restarts. The image change, the launcher move and the flip can be ONE restart, after step 2 is
+  verified. The check is BOTH log lines: the launcher's "attested release OPTED IN", and gsup's in the guest.
 - **Inert for running guests.** On the restart the supervisor resumes the canaries. The spawn ADOPTS a running guest
   launched from the same derivation record whether it is legacy or release (supervisor.js's 409 branch), and pumps a
   ticket only to a STARTING release guest. So nothing relaunches; the canaries stay legacy until step 4.
