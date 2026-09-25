@@ -1149,6 +1149,16 @@ a refused or down mirror `not-verified`; the CPU run's older index on the mirror
 on 2026-09-25 (local run, Chromium): all five legs verified run 36089632273 with digest 9ef3346a..., floor v0.5.841 from
 the signed index, v0.5.848 and v0.5.848-cpu allowed; the served bundle is this commit's.
 
+**The TUF refresh job's first CI run (dispatched once, 2026-09-25 05:11Z, run 36097509275) found two defects the local
+tests could not.** The refresh verified (root v15, no rotation, `trusted_root.json` equal to the pin), but `--write`
+rewrote `verifier/roots/SOURCES.json` with a new `refreshedAt` and `startingRootVersion`, so the job saw a change every
+week; and the repository does not let GitHub Actions create pull requests, so the job pushed a branch and failed on
+`gh pr create`. Fixed: `writePinned` writes only when the verified trusted root or the verified TUF root differs from the
+pinned file (a verified unchanged refresh writes nothing, tested, and the live refresh reported "nothing written"); on a
+real change the job pushes a `verifier/tuf-refresh-*` branch, puts the compare link and the report in the run summary and
+fails the run for a maintainer to review and open the pull request; it no longer asks for `pull-requests: write`. The
+stray branch of that run (a timestamp-only commit) was deleted.
+
 What stays open, unchanged: a host running one of our releases verified end to end by the CLI, the self-check and the
 relay; the 14-day windows; the TUF job's scheduled cycles; the independent review (M5). Tinfoil stays primary and every
 strict switch stays off.

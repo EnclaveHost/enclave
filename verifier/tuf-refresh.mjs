@@ -101,10 +101,19 @@ export async function refreshTrustedRoot({ metadataUrl = SIGSTORE_METADATA_URL, 
 
 // Replace the pinned files only from a fully verified refresh: the trusted root, the starting root (the highest root
 // verified), and the SOURCES entries. Atomic per file; nothing is written unless r.ok.
+// Writes only a CHANGE of pinned trust: the verified trusted root differs from the pinned file, or the verified TUF root
+// (the next refresh's starting root) differs from the pinned one. A refresh that verified the same trust writes nothing,
+// not even a timestamp, so the weekly job's "changed" means the pins changed (found 2026-09-25: the first CI run rewrote
+// only refreshedAt and startingRootVersion and tried to publish that as a change).
 export function writePinned(r, { rootsDir = ROOTS_DIR, metadataUrl = SIGSTORE_METADATA_URL, targetsUrl = SIGSTORE_TARGETS_URL, target = TARGET_NAME, now = new Date() } = {}) {
   if (!r?.ok) throw new Error("only a verified refresh is written");
   const write = (file, bytes) => { const tmp = `${file}.${process.pid}.tmp`; fs.writeFileSync(tmp, bytes); fs.renameSync(tmp, file); };
   const sourcesFile = path.join(rootsDir, "SOURCES.json");
+  const pinnedOf = (name) => { try { return fs.readFileSync(path.join(rootsDir, name)); } catch { return null; } };
+  const pinnedTrusted = pinnedOf("sigstore-trusted-root.json"), pinnedTuf = pinnedOf("sigstore-tuf-root.json");
+  const trustedChanged = !pinnedTrusted || sha256hex(pinnedTrusted) !== r.sha256;
+  const tufChanged = !!r.rootRaw && (!pinnedTuf || sha256hex(pinnedTuf) !== sha256hex(r.rootRaw));
+  if (!trustedChanged && !tufChanged) return { written: false, trustedRoot: path.join(rootsDir, "sigstore-trusted-root.json"), startingRoot: path.join(rootsDir, "sigstore-tuf-root.json"), sources: sourcesFile };
   let sources = {}; try { sources = JSON.parse(fs.readFileSync(sourcesFile, "utf8")); } catch {}
   const at = now.toISOString().slice(0, 16) + "Z";
   write(path.join(rootsDir, "sigstore-trusted-root.json"), r.bytes);
@@ -116,7 +125,7 @@ export function writePinned(r, { rootsDir = ROOTS_DIR, metadataUrl = SIGSTORE_ME
     sources["sigstore-tuf-root.json"] = { ...(sources["sigstore-tuf-root.json"] || {}), sha256: sha256hex(r.rootRaw), version: r.versions.root?.version ?? r.startingRootVersion, refreshedAt: at, what: "the highest Sigstore TUF root metadata verified through the rotation chain: the starting root of the next refresh (pinned trust)" };
   }
   write(sourcesFile, JSON.stringify(sources, null, 1) + "\n");
-  return { trustedRoot: path.join(rootsDir, "sigstore-trusted-root.json"), startingRoot: path.join(rootsDir, "sigstore-tuf-root.json"), sources: sourcesFile };
+  return { written: true, trustedChanged, tufChanged, trustedRoot: path.join(rootsDir, "sigstore-trusted-root.json"), startingRoot: path.join(rootsDir, "sigstore-tuf-root.json"), sources: sourcesFile };
 }
 
 async function main() {
@@ -129,7 +138,7 @@ async function main() {
   if (opt("out")) fs.writeFileSync(opt("out"), JSON.stringify(report, null, 2) + "\n");
   for (const x of r.reasons) console.log(x);
   if (!r.ok) { console.log("tuf-refresh: REFUSED; the pinned files are untouched"); process.exit(1); }
-  if (args.includes("--write")) { const w = writePinned(r); console.log(`tuf-refresh: written ${path.relative(REPO, w.trustedRoot)}, ${path.relative(REPO, w.startingRoot)}, ${path.relative(REPO, w.sources)}`); }
+  if (args.includes("--write")) { const w = writePinned(r); console.log(w.written ? `tuf-refresh: written ${path.relative(REPO, w.trustedRoot)}, ${path.relative(REPO, w.startingRoot)}, ${path.relative(REPO, w.sources)} (trusted root ${w.trustedChanged ? "changed" : "same"}, TUF root ${w.tufChanged ? "changed" : "same"})` : "tuf-refresh: verified; the pinned trust is current; nothing written"); }
   else console.log(`tuf-refresh: verified; ${r.changed ? "the pinned trusted root DIFFERS (run with --write to update it)" : "the pinned trusted root is current"}; not written`);
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch((e) => { console.error(`tuf-refresh: ${e.message}`); process.exit(2); });
