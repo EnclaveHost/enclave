@@ -13,7 +13,9 @@
 //   HVACC_MANAGER        the manager's base URL, e.g. http://127.0.0.1:7071
 //   HVACC_DATA           the manager's data plane, e.g. 127.0.0.1:7072
 //   HVACC_LAUNCHER_KEY   the key the launcher signs domain reports with (what the manager's judge was given), or
-//                        "record": each instance's own, from the manager's record (wmiserve mints a new key per run)
+//                        "record": each instance's own, from the manager's record (wmiserve mints a new key per run).
+//                        That key is a HOST STATEMENT, never a root: T0-hv trusts the host launcher by definition, and the
+//                        host is not excluded. A run with =record proves the path works, not that anyone is excluded.
 //   HVACC_JUDGE          judge-hv.mjs;  HVACC_RUNTIME  the image's runtime.json
 //   optional: HVACC_DEPLOYMENT (default hello-world 0x4e62e60d...), HVACC_APPREF, HVACC_APPPORT, HVACC_PYTHON,
 //             HVACC_TIMEOUT_S (per wait, default 300), IPFS_GATEWAY,
