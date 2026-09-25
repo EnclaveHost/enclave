@@ -26,6 +26,13 @@ import { derive, DERIVATION, DERIVATION_V2, DERIVATIONS } from "./derive.mjs";
    inside the partition; when that exists, it moves into this list and the gate follows. */
 export const SERVES = [DERIVATION];
 import { HyperVPartitionBackend, BACKEND, SUPPORTS, PREREQUISITES } from "./backend.mjs";
+import { parseNotes } from "./wmi-launcher.mjs";
+
+/* ids: server-minted "hv" + 128 bits (63's P4: 32 bits collide, and a minted id was never checked against the
+   records). A caller may still name one, but only in the shape the isolated route validator accepts
+   (isolation/m4/guestd/supervisor-splice.mjs: /^[A-Za-z0-9-]{1,64}$/). */
+export const ID_RE = /^[A-Za-z0-9-]{1,64}$/;
+export const mintId = () => "hv" + crypto.randomBytes(16).toString("hex");
 
 export const POLICY_RULE = "enclave-isolation-policy/1";
 
@@ -83,6 +90,14 @@ export class Manager {
     this.readyDeadlineMs = readyDeadlineMs;
     this.domains = new Map();
     this.judging = new Map();                   // id -> the readiness promise, so tests can await it
+    // THIS PROCESS's epoch (128 bits), stated on /health and every record so a client can tell that the
+    // manager it is talking to is not the one that answered before. Ids survive a restart (they are in
+    // the VMs' Notes); the epoch says a restart happened.
+    this.epoch = crypto.randomBytes(16).toString("hex");
+    // THE INVENTORY GATE (63's P1). A manager that can launch VMs cannot know what exists until it has
+    // asked Hyper-V: until recover() has run, "not in my memory" is UNKNOWN, never "absent", and every
+    // /vms answer is 503. A backend with no launcher can run nothing, so there is nothing to recover.
+    this.inventory = backend && backend.canSurvey ? { state: "pending" } : { state: "not-applicable" };
     // Called when a domain stops being ours to serve: the data plane closes its established
     // sessions. main.mjs wires it to dataPlaneFor(...).closeInstance. It was SET there and never
     // CALLED here (enclave-5d, by grepping the whole tree) - so a removed domain's sessions stayed
@@ -122,7 +137,7 @@ export class Manager {
                               // the IDENTITY object, which is what checkRuntime compares; never the hash
                               expectRuntime: this.runtime ?? undefined,
                               deadlineMs: this.readyDeadlineMs });
-      if (!this.domains.has(rec.id)) return;                // removed while we were judging
+      if (this.domains.get(rec.id) !== rec) return;         // removed, or replaced, while we were judging (63's P3: identity, not presence)
       rec.transportKeySha256 = v.transportKeySha256 ?? null;
       rec.verdict = v.checks?.document?.verdict ?? null;
       if (v.status === "running") { rec.status = "running"; rec.appReady = true; rec.reason = null; }
@@ -133,14 +148,63 @@ export class Manager {
       }
       rec.readyChecks = v.checks ?? null;
     } catch (e) {
-      if (!this.domains.has(rec.id)) return;
+      if (this.domains.get(rec.id) !== rec) return;
       rec.status = "failed";
       rec.reason = `readiness could not be judged: ${e.message}`;
     }
   }
 
+  /** Is the inventory known well enough to answer "absent"? */
+  get inventoryReady() { return this.inventory.state === "ready" || this.inventory.state === "not-applicable"; }
+
+  /**
+   * REBUILD THE INVENTORY FROM HYPER-V (63's P1/P1b). Every VM this manager owns carries its identity
+   * in its Notes (wmi-launcher.mjs notesFor), so a restarted manager recovers each one as a record:
+   * listed, blocking a second spawn for its deployment, and removable by its VM Id. It is NOT serving:
+   * its relay and readiness belong to the previous process. Its status is `starting` (alive, not
+   * serving) with `recovered: true`, and NEVER `failed`: to the node, failed means the domain ENDED and
+   * its lease is free, which for a VM that is still running on this host is exactly the P1 lie (measured
+   * by 63's restart regression, which freed the lease over a live VM when this said failed). Nor
+   * `running`: nothing here verified it. A VM that is ours but names no deployment is UNATTRIBUTED, and
+   * spawning is refused while one exists. A survey that fails leaves the gate shut: unknown is not absent.
+   */
+  async recover() {
+    if (!this.backend || !this.backend.canSurvey) { this.inventory = { state: "not-applicable" }; return this.inventory; }
+    let s;
+    try { s = await this.backend.survey(); }
+    catch (e) { this.inventory = { state: "failed", error: `the Hyper-V survey failed: ${e.message}` }; return this.inventory; }
+    if (!s || !Array.isArray(s.vms)) { this.inventory = { state: "failed", error: "the Hyper-V survey returned no VM list" }; return this.inventory; }
+    let recovered = 0, unattributed = 0;
+    for (const vm of s.vms) {
+      const { owned, identity } = parseNotes(vm.notes);
+      const vmId = String(vm.vmId || "");
+      if (!identity) {
+        // Under our prefix without our identity, or marked ours without one: never guessed at.
+        const id = "orphan-" + (vmId || String(vm.name || "unknown")).replace(/[^A-Za-z0-9-]/g, "").slice(0, 57);
+        this.domains.set(id, { id, name: null, unattributed: true, recovered: true, owned, vmName: vm.name ?? null,
+          status: "starting", appReady: false, hostExcluded: false, boundary: this.backend.boundary ?? null,
+          reason: `a VM ${owned ? "marked as ours" : "under this manager's prefix"} (${vm.name}, ${vm.state}) carries no deployment identity: `
+                + "spawning is refused until it is removed (DELETE this id)",
+          handle: vmId ? { name: vm.name ?? null, vmId, recovered: true } : null });
+        unattributed++; continue;
+      }
+      const rec = { id: identity.id, name: identity.name, instanceId: identity.instanceId, appId: identity.appId ?? null,
+        recovered: true, status: "starting", appReady: false, hostExcluded: false, boundary: this.backend.boundary ?? null,
+        vmName: vm.name ?? null, vmState: vm.state ?? null, relay: null, transportKeySha256: null, image: null,
+        reason: `recovered after a manager restart: the VM (${vm.state}) is still on this host, but its relay and `
+              + "readiness belonged to the previous manager, so it is not serving and will NOT become running under "
+              + "this manager. It blocks a second spawn for this deployment; remove it (DELETE) to stop and delete the VM.",
+        handle: { name: vm.name ?? null, vmId, recovered: true } };
+      this.domains.set(rec.id, rec); recovered++;
+    }
+    this.inventory = { state: "ready", recovered, unattributed, at: new Date().toISOString() };
+    return this.inventory;
+  }
+
   health() {
     return {
+      managerEpoch: this.epoch,
+      inventory: this.inventory,
       backend: this.backend.backend,
       supports: { ...this.backend.supports },
       // DEFECT 4: /health had no boundary at all, so a reader could learn everything about this
@@ -179,6 +243,13 @@ export class Manager {
   }
 
   async spawn(body = {}) {
+    if (!this.inventoryReady) throw unavailable(this.inventory);
+    const orphans = [...this.domains.values()].filter((r) => r.unattributed);
+    if (orphans.length) {
+      const e = new Error(`${orphans.length} VM(s) on this host are ours but name no deployment (${orphans.map((r) => r.id).join(", ")}): `
+        + "spawning is refused until they are removed, rather than guessing whether one of them is this deployment");
+      e.status = 503; throw e;
+    }
     const d = body.derive || {};
     if (!DERIVATIONS.includes(d.derivation)) throw badRequest(`unknown derivation ${JSON.stringify(d.derivation ?? null)}`);
     // Refuse rather than approximate. The identity is right either way - derive() proves that -
@@ -201,13 +272,17 @@ export class Manager {
     // that the manager no longer listed. guestd answers 409 {error, id}; so do we.
     const name = String(body.name || "");
     if (!name) throw badRequest("a deployment id (name) is required");
-    const live = [...this.domains.values()].find((r) => r.name === name && r.status !== "failed" && r.status !== "stopped");
+    // A RECOVERED record blocks too, whatever its status: its VM is still on this host.
+    const live = [...this.domains.values()].find((r) => r.name === name && (r.recovered || (r.status !== "failed" && r.status !== "stopped")));
     if (live) { const e = new Error(`an instance for ${name} is already live`); e.status = 409; e.id = live.id; throw e; }
+    if (body.id !== undefined && body.id !== null && body.id !== "" && !ID_RE.test(String(body.id)))
+      throw badRequest(`an instance id must match ${ID_RE}`);
     if (body.id && this.domains.has(String(body.id))) {
       const e = new Error(`instance ${body.id} already exists`); e.status = 409; e.id = String(body.id); throw e;
     }
-    // "hv" + 8 hex, the shape 5d's supervisor and datapath expect; guestd uses "gd" + 8.
-    const id = body.id || ("hv" + crypto.randomBytes(4).toString("hex"));
+    // "hv" + 32 hex (128 bits), minted here and checked against what is held (63's P4).
+    let id = body.id ? String(body.id) : mintId();
+    while (!body.id && this.domains.has(id)) id = mintId();
     // The domain's own name, unique per DEPLOYMENT rather than per app: two deployments of the
     // same app derive the same AppID, and naming a VM after the AppID alone made the second one
     // collide with the first. Short, stable, and safe in a VM name.
@@ -228,7 +303,7 @@ export class Manager {
                   domainId: null, guestPort: null };
     this.domains.set(id, rec);
     try {
-      const h = await this.backend.start(mapping, { instanceId });
+      const h = await this.backend.start(mapping, { instanceId, identity: { id, name, instanceId, appId: mapping.appId } });
       // WHAT WAS ESTABLISHED, and no more. The launcher returns only when the VM is Running and the
       // guest produced output, which means something inside the partition executed. It does NOT
       // mean the component was delivered, compiled or served: there is no app-readiness handshake
@@ -268,7 +343,7 @@ export class Manager {
 
   publicOf(r) {
     const { handle, ...rest } = r;
-    return rest;    // no attestation field: a domain that did not run has no evidence to show
+    return { ...rest, managerEpoch: this.epoch };    // no attestation field: a domain that did not run has no evidence to show
   }
   list() { return [...this.domains.values()].map((r) => this.publicOf(r)); }
   get(id) { const r = this.domains.get(id); return r ? this.publicOf(r) : null; }
@@ -289,7 +364,8 @@ export class Manager {
 
   async remove(id) {
     const r = this.domains.get(id);
-    if (!r) return { removed: false, absent: true };
+    // UNKNOWN IS NOT ABSENT (63's P1): only a manager that has surveyed Hyper-V may say an id is gone.
+    if (!r) { if (!this.inventoryReady) throw unavailable(this.inventory); return { removed: false, absent: true }; }
     try {
       await this.backend.stop(r.handle);
     } catch (e) {
@@ -306,7 +382,22 @@ export class Manager {
   }
 }
 
+/**
+ * THE STARTUP SEQUENCE, in one place so main.mjs and the restart regression (63's
+ * test/windows-isolation-manager-restart.test.mjs) boot a manager identically: ask the host what it
+ * can do, then rebuild the inventory from Hyper-V before any /vms answer means anything.
+ */
+export async function startManager(manager) {
+  await manager.probe();
+  return await manager.recover();
+}
+
 function badRequest(msg) { const e = new Error(msg); e.status = 400; return e; }
+function unavailable(inv) {
+  const e = new Error(inv && inv.state === "failed" ? `the inventory is unavailable: ${inv.error}`
+                                                    : "the manager has not yet surveyed Hyper-V, so it cannot say what exists");
+  e.status = 503; e.inventory = inv; return e;
+}
 
 /** The HTTP surface. Bound to loopback: the supervisor reaches it over guestd-control/1. */
 export function createServer(manager) {
@@ -320,7 +411,10 @@ export function createServer(manager) {
       const u = new URL(req.url, "http://127.0.0.1");
       const p = u.pathname.replace(/\/+$/, "") || "/";
       if (req.method === "GET" && p === "/health") return send(200, manager.health());
-      if (req.method === "GET" && p === "/vms") return send(200, { vms: manager.list() });
+      // Until the inventory is known every /vms answer is 503: "not listed" must never read as "absent".
+      if (p.startsWith("/vms") && !manager.inventoryReady)
+        return send(503, { error: "inventory_unavailable", inventory: manager.inventory, managerEpoch: manager.epoch });
+      if (req.method === "GET" && p === "/vms") return send(200, { vms: manager.list(), managerEpoch: manager.epoch });
       if (req.method === "POST" && p === "/vms") {
         const chunks = []; for await (const c of req) chunks.push(c);
         let body; try { body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"); }
@@ -344,6 +438,7 @@ export function createServer(manager) {
           const r = await manager.remove(id);
           return r.absent ? send(404, { error: "not_found" }) : send(200, { ok: true });
         } catch (e) {
+          if (e.status === 503) return send(503, { error: e.message, inventory: e.inventory ?? manager.inventory, managerEpoch: manager.epoch });
           // a stop that failed is NOT a removal: say so with the domain still listed
           return send(e.status || 500, { error: e.message, id: e.id ?? id, stillListed: true });
         }

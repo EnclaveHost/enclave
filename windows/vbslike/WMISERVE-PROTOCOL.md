@@ -10,9 +10,14 @@ Source: `windows/vbslike/host/src/wmiserve.rs` at `1ba73a20`
 ## Invocation
 
 ```
-vbslike-host wmiserve --vm <GUID> --bundle <file> --medium-sha256 <64 hex>
+vbslike-host wmiserve --vm <GUID> --bundle <file> --medium-sha256 <64 hex> --isolation-type <1|16>
                       [--tcp <port>] [--label <name>] [--vcpus N] [--mem MiB] [--hold SECONDS]
 ```
+
+`--isolation-type` is **required** (since `daa61749` on windows/custom-vbs-like-hyperv; launcher `da16c20f`): the
+partition kind the launcher actually created, 1 (VBS) or 16 (no isolation). It is refused rather than defaulted,
+because the ready note and the boundary line state it and guessing would state it wrongly. `hostExcluded` stays
+false on BOTH types.
 
 `--medium-sha256` is **required**: without it the signed report cannot say what the guest booted
 from. It is the hash of the medium **as attached**, taken by the caller from the VM's own DVD/disk

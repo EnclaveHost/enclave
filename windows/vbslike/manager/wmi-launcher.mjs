@@ -100,8 +100,43 @@ export function uefiImageIdentity({ mediumSha256, mediumPath, ukiSha256 = null, 
 export const GUEST_FEATURE_SET = 0x00000201;   // the value Microsoft's script writes, kept as theirs
 export const MIN_VM_VERSION = 12.0;            // their script throws below this
 export const OWNER_MARKER = "enclave-vbslike-app-domain";
+/*
+ * THE VM CARRIES ITS OWN IDENTITY (63's P1). The manager used to hold every record in memory only,
+ * so a restarted manager answered "absent" for a VM that was still running: the node then released
+ * the lease and spawned a second VM for the same deployment. Hyper-V outlives this process, so the
+ * identity is written where Hyper-V keeps it - the VM's Notes - and a restarted manager rebuilds its
+ * inventory from there before it answers anything (server.mjs recover()).
+ *
+ *   Notes = "enclave-vbslike-app-domain/manager|" + base64url(JSON {v:1, id, name, instanceId, appId})
+ *
+ * A VM whose Notes are exactly OWNER_MARKER (older managers, the dev canary) is still OURS for
+ * removal, but carries no identity: it is recovered as UNATTRIBUTED, and the manager refuses to
+ * spawn while one exists rather than guess which deployment it belonged to.
+ */
+export const MANAGER_NOTES_PREFIX = OWNER_MARKER + "/manager|";
+export function notesFor({ id, name, instanceId, appId }) {
+  for (const [k, val] of Object.entries({ id, name, instanceId }))
+    if (typeof val !== "string" || !val) throw new Error(`notesFor: ${k} must be a non-empty string`);
+  return MANAGER_NOTES_PREFIX + Buffer.from(JSON.stringify({ v: 1, id, name, instanceId, appId: appId ?? null })).toString("base64url");
+}
+/** -> { owned, identity }: owned means the ownership marker is present; identity only when it parses completely. */
+export function parseNotes(notes) {
+  const t = String(notes ?? "");
+  if (t.startsWith(MANAGER_NOTES_PREFIX)) {
+    try {
+      const o = JSON.parse(Buffer.from(t.slice(MANAGER_NOTES_PREFIX.length), "base64url").toString("utf8"));
+      if (o && o.v === 1 && typeof o.id === "string" && o.id && typeof o.name === "string" && o.name
+          && typeof o.instanceId === "string" && o.instanceId) return { owned: true, identity: o };
+    } catch { /* owned, but the identity is unreadable: unattributed */ }
+    return { owned: true, identity: null };
+  }
+  return { owned: t === OWNER_MARKER, identity: null };
+}
+const GUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 const ps = (s) => s.replace(/\r?\n\s*/g, " ").trim();
+/** PowerShell: is VM expression `v` ours? The bare marker OR the manager's identity notes. */
+const OWNED = (v) => `(${v}.Notes -eq ${q(OWNER_MARKER)} -or ([string]${v}.Notes).StartsWith(${q(MANAGER_NOTES_PREFIX)}))`;
 /**
  * Enumeration is only meaningful where `Get-VM` EXISTS. `Get-VM -ErrorAction SilentlyContinue` on a
  * host without the Hyper-V module yields nothing, which is indistinguishable from a host that owns
@@ -141,13 +176,13 @@ export const CMD = {
    * nothing. The marker is applied inside the same try for the same reason: a VM that exists
    * without it is invisible to a marker-scoped teardown.
    */
-  create: ({ name, memMiB, vcpus, version = "12.0", isolation = "OpenHCL", secureBoot = false }) => ps(`
+  create: ({ name, memMiB, vcpus, version = "12.0", isolation = "OpenHCL", secureBoot = false, notes = OWNER_MARKER }) => ps(`
     $ErrorActionPreference = 'Stop';
     $vm = $null;
     try {
       $vm = New-VM -Name ${q(name)} -Generation 2 -MemoryStartupBytes ${Math.round(memMiB)}MB -NoVHD -Version ${q(version)}${isolation ? ` -GuestStateIsolationType ${q(isolation)}` : ""};
       ${secureBoot ? "" : "Set-VMFirmware -VM $vm -EnableSecureBoot Off;"}
-      Set-VM -VM $vm -Notes ${q(OWNER_MARKER)};
+      Set-VM -VM $vm -Notes ${q(notes)};
       Set-VMProcessor -VM $vm -Count ${Math.max(1, Math.floor(vcpus))};
       Set-VMMemory -VM $vm -DynamicMemoryEnabled $false;
       Set-VM -VM $vm -AutomaticStartAction Nothing -AutomaticStopAction TurnOff -CheckpointType Disabled;
@@ -262,7 +297,7 @@ export const CMD = {
 
   /** Remove ONE VM by EXACT name. The failure path must never match by prefix. */
   removeExact: ({ name, requireMarker = true }) => ps(`
-    $v = Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq ${q(name)}${requireMarker ? ` -and $_.Notes -eq ${q(OWNER_MARKER)}` : ""} };
+    $v = Get-VM -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq ${q(name)}${requireMarker ? ` -and ${OWNED("$_")}` : ""} };
     if (-not $v) { @{found=$false; removed=$false} | ConvertTo-Json -Compress; exit 0 };
     try {
       Stop-VM -VM $v -TurnOff -Force -ErrorAction SilentlyContinue;
@@ -278,7 +313,7 @@ export const CMD = {
    */
   teardown: ({ prefix, requireMarker = false }) => ps(`
     ${ENUMERABLE}
-    $vms = @(Get-VM | Where-Object { $_.Name.StartsWith(${q(prefix)})${requireMarker ? ` -and $_.Notes -eq ${q(OWNER_MARKER)}` : ""} });
+    $vms = @(Get-VM | Where-Object { $_.Name.StartsWith(${q(prefix)})${requireMarker ? ` -and ${OWNED("$_")}` : ""} });
     $removed = @(); $failed = @();
     foreach ($v in $vms) {
       try {
@@ -292,8 +327,33 @@ export const CMD = {
   /** Everything this prefix owns, whether or not we think we started it: the reconciliation read. */
   survey: ({ prefix }) => ps(`
     ${ENUMERABLE}
-    $vms = @(Get-VM | Where-Object { $_.Name.StartsWith(${q(prefix)}) });
-    @{vms=@($vms | ForEach-Object { @{name=$_.Name; state=[string]$_.State; notes=[string]$_.Notes} })} | ConvertTo-Json -Compress -Depth 4`),
+    $vms = @(Get-VM | Where-Object { $_.Name.StartsWith(${q(prefix)}) -or ([string]$_.Notes).StartsWith(${q(MANAGER_NOTES_PREFIX)}) });
+    @{vms=@($vms | ForEach-Object { @{vmId=$_.Id.Guid; name=$_.Name; state=[string]$_.State; notes=[string]$_.Notes} })} | ConvertTo-Json -Compress -Depth 4`),
+
+  /**
+   * Stop and REMOVE one VM by its Id (63's P2). Names are not unique in Hyper-V, so acting by name
+   * could stop somebody else's VM of the same name. The ownership marker is checked on the VM the Id
+   * resolves to before anything is done to it. Waits for Off before Remove-VM, because removing a VM
+   * that is still stopping throws InvalidState (measured on nucbox-k11 in uefi-dev-boot.ps1).
+   */
+  removeById: ({ vmId }) => ps(`
+    ${ENUMERABLE}
+    $v = $null; try { $v = Get-VM -Id ${q(vmId)} -ErrorAction Stop } catch { $v = $null };
+    if (-not $v) { @{found=$false; removed=$false} | ConvertTo-Json -Compress; exit 0 };
+    if (-not ${OWNED("$v")}) { @{found=$true; removed=$false; error='not ours: the ownership marker is absent'} | ConvertTo-Json -Compress; exit 0 };
+    try {
+      Stop-VM -VM $v -TurnOff -Force -ErrorAction SilentlyContinue;
+      $dl = (Get-Date).AddSeconds(20);
+      while ((Get-Date) -lt $dl -and [string](Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue).State -ne 'Off') { Start-Sleep -Milliseconds 500 };
+      $last = '';
+      for ($a = 0; $a -lt 5; $a++) {
+        $now = Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue;
+        if (-not $now) { break };
+        try { Remove-VM -VM $now -Force -ErrorAction Stop } catch { $last = [string]$_.Exception.Message; Start-Sleep -Seconds 2 }
+      };
+      if (Get-VM -Id ${q(vmId)} -ErrorAction SilentlyContinue) { @{found=$true; removed=$false; error=('still present after removal: ' + $last)} | ConvertTo-Json -Compress }
+      else { @{found=$true; removed=$true} | ConvertTo-Json -Compress }
+    } catch { @{found=$true; removed=$false; error=[string]$_.Exception.Message} | ConvertTo-Json -Compress }`),
 };
 
 function parse(out) {
@@ -371,7 +431,7 @@ export class WmiHyperVLauncher {
    * Any failure after New-VM removes this VM before rethrowing, and the create script removes it
    * itself if it fails before returning - both, because a leak here is a VM nobody owns.
    */
-  async start(mapping, { instanceId, guestReadySec = 25 } = {}) {
+  async start(mapping, { instanceId, identity = null, guestReadySec = 25 } = {}) {
     if (!instanceId || !/^[A-Za-z0-9._-]{4,64}$/.test(String(instanceId)))
       throw new Error("a unique instanceId is required: naming a domain by its AppID alone collides when the same app is deployed twice");
     const pre = await this.preflight();
@@ -390,7 +450,8 @@ export class WmiHyperVLauncher {
     const pipe = this.pipeFor(name);
     let created = null;
     try {
-      created = await this.#ps(CMD.create({ name, memMiB: mapping.record.policy.memMiB, vcpus: mapping.record.policy.vcpus }));
+      created = await this.#ps(CMD.create({ name, memMiB: mapping.record.policy.memMiB, vcpus: mapping.record.policy.vcpus,
+                                           notes: identity ? notesFor({ ...identity, instanceId }) : OWNER_MARKER }));
       this.created.add(name);
       if (parseFloat(created.version) < MIN_VM_VERSION)
         throw new Error(`VM version ${created.version} is below ${MIN_VM_VERSION}, which the firmware field requires`);
@@ -435,7 +496,7 @@ export class WmiHyperVLauncher {
                // guestBooted: something executed. appReady: NOT established - no handshake exists.
                guest: { booted, bytes: con.bytes, head: String(con.head || "").slice(0, 400) },
                appReady: false,
-               stop: async () => await this.stop({ name }) };
+               stop: async () => await this.stop({ name, vmId: created.id }) };
     } catch (e) {
       // EXACT name, never a prefix. The first version swept with StartsWith(name), so a failure
       // while creating a duplicate would have removed the EXISTING domain of that name, and any
@@ -454,6 +515,19 @@ export class WmiHyperVLauncher {
 
   /** Stop, and SAY when it did not: "ok" for a VM that is still running is how one gets orphaned. */
   async stop(handle) {
+    if (handle && handle.vmId) {
+      // BY ID, and removed, not just turned off: a stopped VM that keeps its identity notes would be
+      // recovered as live by the next manager, and a VM left Off is one nobody owns (63's P2).
+      if (!GUID.test(String(handle.vmId))) throw Object.assign(new Error(`not a VM Id: ${handle.vmId}`), { code: "stop_failed" });
+      const r = await this.#ps(CMD.removeById({ vmId: handle.vmId }));
+      if (r && r.found === true && r.removed !== true) {
+        const e = new Error(`could not stop and remove ${handle.name || handle.vmId}: ${r.error || "unknown"}`);
+        e.code = "stop_failed"; throw e;
+      }
+      if (handle.name) this.created.delete(handle.name);
+      return { stopped: true, removed: r && r.removed === true, name: handle.name ?? null, vmId: handle.vmId,
+               ...(r && r.found === false ? { note: "already gone" } : {}) };
+    }
     if (!handle || !handle.name) return { stopped: false, reason: "no handle" };
     const r = await this.#ps(CMD.stop({ name: handle.name }));
     if (r && r.ok === false) {
