@@ -1,3 +1,7 @@
+> **SUPERSEDED by a4f22748 (17e182a8), 2026-09-25.** Codex decided that the app's output (PID 1's serial console,
+> which the host reads) must not reach the host; 77cf2d78 gives the app /dev/null. 0839ac3a is installed inert and stays
+> inactive. See `../production-release-17e182a8/`.
+
 # Production domain release 0839ac3a (image commit ecf02384), 2026-09-25
 
 **Release id: `0839ac3a859b7025abe261c56449d72f19fc8c4ed19ee50c63ab290718dfdb02`** (= sha256 of `release.json`).

@@ -1,3 +1,7 @@
+> **SUPERSEDED by a4f22748 (17e182a8), 2026-09-25.** Codex decided that the app's output (PID 1's serial console,
+> which the host reads) must not reach the host; 77cf2d78 gives the app /dev/null. 0839ac3a is installed inert and stays
+> inactive. See `../production-release-17e182a8/`.
+
 # Installing release 0839ac3a: what goes where, the 4d flags, the pins, the rollback
 
 For enclave-63's guarded rollout scripts (rows 4-10 of GUEST-POOL-ROLLOUT.md). This is a description, not a script.
