@@ -65,6 +65,10 @@ $wp = Get-CimInstance Win32_Process -Filter "Name='vmwp.exe'" |
 if (-not $wp) { throw "no vmwp.exe carrying $VmId (the reader has nothing to read; this is NOT a negative result)" }
 Note "worker vmwp.exe pid=$($wp.ProcessId)"
 
+# SeDebugPrivilege, or OpenProcess fails on the worker and EVERY run is VOID for a reason that has
+# nothing to do with isolation (enclave-53).
+try { [Diagnostics.Process]::EnterDebugMode(); Note "debug privilege enabled" }
+catch { Note "could not enable the debug privilege: $($_.Exception.Message) - OpenProcess may fail, and that would be a VOID run, not a negative one" }
 $PROCESS_VM_READ = 0x0010; $PROCESS_QUERY_INFORMATION = 0x0400
 $h = [HR]::OpenProcess($PROCESS_VM_READ -bor $PROCESS_QUERY_INFORMATION, $false, $wp.ProcessId)
 if ($h -eq [IntPtr]::Zero) { throw "OpenProcess on pid $($wp.ProcessId) failed: $([ComponentModel.Win32Exception]::new([Runtime.InteropServices.Marshal]::GetLastWin32Error()).Message) (the reader could not attach; NOT a negative result)" }
