@@ -58,7 +58,9 @@ async function release(b, res) {
   const spki = Buffer.from(doc.transportKey, "base64");
   const report = Buffer.from(doc.report, "base64");
   const binding = R.releaseBinding({ id, transportSpki: spki, ticket, runtimeId: rid, sealKey });
-  const v = await verifyQuote(report, { transportKeySpki: spki, allowedMeasurements: [want.measurement],
+  // the challenge is the TICKET: the fresh, one-use value the release binding commits to (verifyQuote requires the
+  // inputs an expectedBinding was derived from, so nothing passes over inputs this request never carried)
+  const v = await verifyQuote(report, { challenge: ticket, transportKeySpki: spki, allowedMeasurements: [want.measurement],
     auxblob: doc.certs ? Buffer.from(doc.certs, "base64") : vcekTable(vcek), kds: false, requireVcek: true, minTcb,
     expectedVmpl: 0, expectedBinding: binding });
   if (!v.ok) { log(`${short(id)}: evidence refused: ${v.reasons.at(-1)}`); return bad(res, 403, "evidence_refused"); }
