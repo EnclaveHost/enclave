@@ -23,7 +23,9 @@ three live canaries' chip-attested (measurement, AppID) is one predicted image.
 
 ## The change set
 
-1. **Relay code**, `origin/main` (= nan's deployed relay/, byte-compared file by file) to `security/attested-release`:
+1. **Relay code**, `origin/main` (= nan's deployed relay/, byte-compared file by file) to `security/attested-release` at
+   **fc90d6b5** or later (enclave-d1 approved 0aa2c36f + fc90d6b5; `git diff --stat origin/main fc90d6b5 -- relay/
+   verifier/consumer.mjs` is exactly the entries below; every file of api-relay.js's import closure is on deploy.sh's list):
    - the U7 part (ba565c57..18772bf7): api-relay.js, certs.js, dns-relay.js, fleet.mjs, relay.js, secrets.js,
      tcp6-relay.js, udp-relay.js. This IS the U7 rollout and carries its own preflight and gate.
    - the attested-release part (18772bf7..HEAD): api-relay.js, secrets.js, secrets-release.mjs (new),
@@ -44,6 +46,13 @@ same one-line-guard pattern as S2a), install `predict.conf`, `daemon-reload`, re
 shows `[measurement-predict] known-answer test at start: PASS: 2 known answer(s) reproduced exactly`; `accept.sh` passes
 (each canary's measurement predicted, release-ticket 503, 404/422 answers); `MemoryPeak` stays under 1536M; the relay
 serves as before.
+
+## Order against the supervisor side
+
+The supervisor's per-app certificate gate with enclave-d1's consumer (`d1/guestcert-expected`, which asks
+`/v1/expected-guest` before relaying a guest's CSR) ships AFTER this relay step: until the relay answers with a
+prediction, that gate refuses (503 there is "unknown", never a pass). So: U7, then this relay code + predictor env, then
+the supervisor release carrying the 4c pool accounting and the consumer. The release itself (S5 / 4b) comes after both.
 
 ## Rollback
 
