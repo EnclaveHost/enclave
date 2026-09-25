@@ -295,6 +295,14 @@ func TestTheHostLogNeverRecordsADestinationOrARawError(t *testing.T) {
 		}
 		c.Close()
 	}
+	// a stream opened and closed with nothing said is "empty", not a malformed header
+	if c, err := net.Dial("tcp", r.hostAddr); err == nil {
+		c.Close()
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(r.logs(), "refused:empty") && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
 	// the destinations WERE chosen (the observer saw them), and the log still names none of them
 	if looked, _ := r.observed(); len(looked) != 4 {
 		t.Fatalf("the host resolved %v", looked)
@@ -309,7 +317,7 @@ func TestTheHostLogNeverRecordsADestinationOrARawError(t *testing.T) {
 		codes = append(codes, strings.TrimPrefix(l, "guest 42 egress "))
 	}
 	sort.Strings(codes)
-	want := "open,refused:connect,refused:header,refused:header,refused:non-public-answer,refused:resolve"
+	want := "open,refused:connect,refused:empty,refused:header,refused:header,refused:non-public-answer,refused:resolve"
 	if strings.Join(codes, ",") != want {
 		t.Fatalf("outcomes %v, want %s", codes, want)
 	}
