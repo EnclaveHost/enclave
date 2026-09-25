@@ -76,6 +76,9 @@ export class HyperVPartitionBackend {
     if (this.launcher) return await this.launcher.stop(handle);
     if (this.launch && handle && handle.stop) await handle.stop();
   }
+  /** What Hyper-V holds that is ours, or null when there is no launcher to ask (nothing can run). */
+  async survey() { return this.launcher && typeof this.launcher.survey === "function" ? await this.launcher.survey() : null; }
+  get canSurvey() { return !!(this.launcher && typeof this.launcher.survey === "function"); }
   /** Remove every domain this backend owns. Scoped inside the launcher, by prefix and marker. */
   async teardown() { return this.launcher ? await this.launcher.teardown() : { removed: 0 }; }
 }
