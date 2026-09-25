@@ -901,10 +901,30 @@ provenance says. Absent or refused, the unsigned pointer is the recorded fallbac
 `requireIndex` fails closed and is the switch for a later cutover. Raising the floor is a reviewed commit to the policy
 file; the next release signs it.
 
-What the index does not solve, stated: an OLD genuine index re-served in place of a newer one is signed too. `sequence`
-and `generatedAt` let a consumer that remembers its last index refuse to go backwards (the relay and the self-check can;
-the CLI cannot), and the built-in floor bounds the damage. A TUF-style timestamp role is the complete answer and remains,
-with the TUF refresh of the pinned Sigstore root and the mirror at `enclave.host`. Tests
+**Authenticity and freshness, separated (2026-09-25, after Codex's audit of the first index).** The first index's
+`sequence` was the length of a page of releases (100), which is not an order: later releases could carry the same number.
+The order now comes from what the signature already authenticates, the signing certificate's run invocation (GitHub's
+`.../actions/runs/<run_id>/attempts/<attempt>`, assigned by GitHub, increasing with every run created on the platform,
+chosen by no builder). The index file carries the same pair (`sequence` = the run id, `attempt`; schema v2, from the next
+release) and the verifier requires them to equal the certificate's; the v1 index is ordered by its certificate alone and
+marked `sequenceAuthenticated: false`. Freshness is then a consumer's MEMORY (`verifier/index-memory.mjs`: the highest
+publication verified, the digest that carried it, the highest floor), which refuses an older publication (replay), the
+same publication with other bytes (equivocation, remembered as such until a later publication supersedes it) and a floor
+below the remembered one; a re-run is the same run's next attempt and a re-dispatch a new run, both newer. Concurrent
+CPU and GPU publications are two runs: the later-created one wins and lists what existed when it was built, so a sibling
+published in between is a transient gap, never a downgrade. The remembered floor applies to EVERY path, the unsigned
+fallback included. Every consumer states which case a run was (`index.freshness`: first-seen, newest-seen, same,
+not-remembered, or the refusal), and each has a strict switch that fails closed without a verified, fresh index: the
+relay `RELAY_REQUIRE_INDEX=1` (memory at `RELAY_REVERIFY_CACHE_DIR/index-memory.json`), the self-check
+`SELF_CHECK_REQUIRE_INDEX=1` (memory under `SELF_CHECK_STATE_DIR`, the instance's life unless a volume is named), the
+CLI `--require-index` (memory beside its key). All three switches are OFF: until a memory has history, refusing on
+freshness would refuse the first index. What is still not closed, stated: a consumer with no memory (or a fresh one)
+cannot tell a replayed genuine index from the newest, and the unsigned fallback with no remembered floor is bounded only
+by the built-in floor; both are "not-remembered" in the result, never silence. A TUF-style timestamp role remains the
+complete answer, with the TUF refresh of the pinned Sigstore root and the mirror at `enclave.host`. Regression evidence:
+`test/verifier-index-memory.test.mjs` (successive publications past a hundred releases, replay, equivocation, retry and
+re-dispatch, floor regression, persistence) and the memory cases in `test/verifier-release-index.test.mjs` (the real
+index first-seen, then a replay under a memory that saw a newer one, with the fallback under the remembered floor). Tests
 (`test/verifier-release-index.test.mjs`): the build under a policy, every `checkIndex` refusal by name, the authentic
 v0.5.841 release bundle refused as an index attestation, the consumers' index-first path with its fallback and the strict
 switch through a local release index, revocations, the workflow job's pins and predicate. The first signed index exists:

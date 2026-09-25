@@ -3628,6 +3628,12 @@ const SELF_CHECK_KDS = process.env.SELF_CHECK_KDS === "amd" ? "https://kdsintf.a
 // A TCB floor per product line, JSON (e.g. {"Genoa":{"bootloader":10,"tee":0,"snp":23,"microcode":84}}); without one the
 // own verdict is at best "limited" (tcb-floor-unjudged), which is reported as such and never as a pass.
 const SELF_CHECK_MIN_TCB = (() => { const raw = process.env.SELF_CHECK_MIN_TCB; if (!raw) return undefined; try { return JSON.parse(raw); } catch { return raw; } })();
+// Where the own verifier remembers the highest signed release index it verified (verifier/index-memory.mjs), so a replayed
+// or equivocating index is refused and the fallback never accepts below the remembered floor. Inside the CVM this lives for
+// the instance's life unless SELF_CHECK_STATE_DIR names a persistent volume; stated in the result as index.freshness.
+// SELF_CHECK_REQUIRE_INDEX=1 is the strict switch: no verified, fresh index means the own leg has no expected measurement.
+const SELF_CHECK_STATE_DIR = process.env.SELF_CHECK_STATE_DIR || "/tmp/enclave-self-check";
+const SELF_CHECK_REQUIRE_INDEX = process.env.SELF_CHECK_REQUIRE_INDEX === "1";
 const SELF_CHECK_WAIT_MS = parseInt(process.env.SELF_CHECK_WAIT_MS || "8000", 10);  // max time one request waits on a fresh run
 const SELF_CHECK_NOTE = "Run by the enclave itself as a diagnostic: it proves this deployment is configured "
                       + "to verify, not that you should trust it. Reproduce it on your side with `cli`, `npm`, "
@@ -3681,16 +3687,18 @@ async function verifyMatchingRelease(host, repo) {
 // the shim over loopback (the trusted in-CVM source fetchEnclaveRad uses, with SNI for the public name so the shim presents
 // the public certificate), the expected measurement comes from release provenance verified against the pinned Sigstore
 // root, the AMD chain and CRL from the collateral source above. Anything missing or failing is a status, never a throw.
-let _ownVerifier = null;
+let _ownVerifier = null, _ownIndexMemory = null;
 async function runOwnSelfCheck(origin) {
   if (!ENCLAVE_REPO) return { verifier: "enclave", status: "unavailable", reasons: ["ENCLAVE_REPO not configured"] };
   if (!origin)       return { verifier: "enclave", status: "unavailable", reasons: ["public origin not known yet (no external request seen)"] };
   try { _ownVerifier ||= await import("./verifier/dist/enclave-verifier-node.mjs"); }
   catch (e) { return { verifier: "enclave", status: "unavailable", reasons: [`the verifier bundle is not in this image: ${e.message}`] }; }
   const C = _ownVerifier;
+  if (!_ownIndexMemory && typeof C.createIndexMemory === "function") _ownIndexMemory = C.createIndexMemory({ file: `${SELF_CHECK_STATE_DIR}/verifier-index-memory.json`, log: (m) => console.log(`[self-check] ${m}`) });
   const loopback = ATTESTATION_URL ? { host: new URL(ATTESTATION_URL).hostname, port: Number(new URL(ATTESTATION_URL).port) || (new URL(ATTESTATION_URL).protocol === "https:" ? 443 : 80) } : { host: "127.0.0.1", port: 443 };
   return C.selfCheckHosted({ publicHost: new URL(origin).hostname, loopback, repo: ENCLAVE_REPO, releaseIndex: SELF_CHECK_RELEASE_INDEX,
-                             collateral: C.httpCollateral({ base: SELF_CHECK_KDS, timeoutMs: 8000 }), minTcb: SELF_CHECK_MIN_TCB, timeoutMs: 15000 });
+                             collateral: C.httpCollateral({ base: SELF_CHECK_KDS, timeoutMs: 8000 }), minTcb: SELF_CHECK_MIN_TCB, timeoutMs: 15000,
+                             indexMemory: _ownIndexMemory, requireIndex: SELF_CHECK_REQUIRE_INDEX });
 }
 // The two legs agree or not, in words a reader can act on (verifier/consumer.mjs dualAgreement: descriptive, each leg
 // fetched for itself; a refusal never becomes a pass). Without the bundle there is nothing to compare with.

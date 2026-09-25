@@ -2,8 +2,8 @@
  "copiedFrom": "verifier/dist/enclave-verifier-node.mjs",
  "artifact": {
   "file": "enclave-verifier-node.mjs",
-  "bytes": 387158,
-  "sha256": "ee44fbe82707c7b0000ca2624079e2029343947b3e65b16f20761d9f6cb51447"
+  "bytes": 396231,
+  "sha256": "99cd09d961d4b6ff16b75a472503ff52440a9efe0f220fff77cd7e7a67e113a2"
  },
  "build": {
   "tool": "esbuild",
