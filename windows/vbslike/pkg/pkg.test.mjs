@@ -593,3 +593,16 @@ test("draft v22 (staged) pins E2 as run and deciding nothing: VBSREPORT status=0
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
 });
+
+test("draft v23 (staged) pins E2 verbatim from d1 with the interleaving note, and its resolution by the debug kmsg: VTL2 obtains the report, VTL0 is turned away, a client-verifiable binding is a design change; still no isolation claim", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-23.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, STAGED \(supersedes v22 as the staged package\): E2 RUN \(enclave-d1, verbatim/);
+  const e2 = d.profiles.vbs.measured.find((m) => /^E2 RUN \(enclave-d1, verbatim/.test(m)), res = d.profiles.vbs.measured.find((m) => /^E2 RESOLVED/.test(m));
+  assert.ok(e2 && res);
+  assert.match(e2, /hashed AT ATTACH.*'\[    0\.335899\] VBSREPORT status=0x71 \(low 16 bits: 0 = success, 2 = invalid hypercall code, 3 = invalid input, 6 = access denied\)'.*INTERLEAVED.*not an edit.*tcglog-20260925-042300-0000000067-0000000000\.log \(90,554 bytes/);
+  assert.match(res, /the size of the attestation response 0 is too small to parse.*No VMGS encryption used\..*WAS obtained.*TO VTL2 and turns VTL0 away.*DESIGN CHANGE rather than a guest patch.*NOT an isolation claim: host_excluded=no/);
+  assert.ok(!d.profiles.vbs.measured.some((m) => /^E2 RUN, DECIDES NOTHING/.test(m)), "the superseded verdict is gone from the live list");
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});
