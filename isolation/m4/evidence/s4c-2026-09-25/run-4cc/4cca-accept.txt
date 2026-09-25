@@ -1,0 +1,14 @@
+..   0x0ddbd824: 503 (warming), retry in 5s
+..   0x0ddbd824: 503 (warming), retry in 5s
+..   0x0ddbd824: 503 (warming), retry in 5s
+..   0x0ddbd824: 503 (warming), retry in 5s
+ok   0x0ddbd824: measurement be6b8644384e predicted under release 5c3561f91bc7; release 79c5ecf24eb4 predicted (2317370df656) and admitted
+..   0x395bed3e: 503 (warming), retry in 5s
+..   0x395bed3e: 503 (warming), retry in 5s
+..   0x395bed3e: 503 (warming), retry in 5s
+..   0x395bed3e: 503 (warming), retry in 5s
+ok   0x395bed3e: measurement c068f423578c predicted under release 6f14ce753708; release 79c5ecf24eb4 predicted (6de873656f88) and admitted
+ok   0x4e62e60d: measurement c068f423578c predicted under release 6f14ce753708; release 79c5ecf24eb4 predicted (6de873656f88) and admitted
+ok   the release is OFF (release-ticket 503)
+ok   unknown deployment 404
+ok   malformed id 422

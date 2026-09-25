@@ -1,0 +1,11 @@
+21:15:47Z REFUSING: run 4c-a detached, through s4c-run.sh a
+21:15:47Z REFUSING: run 4c-b detached, through s4c-run.sh b
+22:14:04Z 4c-a started DETACHED as s4ca-apply-20260925T221404Z (exit code -> 4ca-s4ca-apply-20260925T221404Z.rc); follow: tail -f /home/steven/enclave-bench/s4c-20260925/rollout.log
+22:14:15Z 4c-a: adding 8ab7a1590fad444c to the allowlist on nan (api-relay restart: every tunnel and the API blip)
+22:14:41Z public 395bed3e recovered on its one retry
+22:16:00Z 4c-a APPLIED and checked: the allowlist is 04e953a4,10622d98,8ab7a1590fad; metal-iso0 re-attached on 10622d98; canaries serve; the predictor KAT PASS and accept.sh ok
+22:16:14Z 4c-b started DETACHED as s4cb-apply-20260925T221614Z (exit code -> 4cb-s4cb-apply-20260925T221614Z.rc); follow: tail -f /home/steven/enclave-bench/s4c-20260925/rollout.log
+22:16:35Z 4c-b: dist -> dist-iso-b3109929; restarting enclave-metal-iso (the node CVM reboots)
+22:16:51Z 4c-b: the node ATTESTS 8ab7a1590fad444c (raw report 0x90), overlay b3109929
+22:18:06Z 4c-b: node journal: 3 adopted-guest lines, 0 release lines
+22:18:06Z 4c-b APPLIED and checked (restart at 2026-09-25 22:16:35 UTC). Next: observe.sh 4c (the 10-min gate); rollback = s4cb-rollback.sh, then s4ca-rollback.sh

@@ -1,0 +1,17 @@
+22:40:39Z 4c-c-a started DETACHED as s4cca-apply-20260925T224039Z (exit code -> 4cca-s4cca-apply-20260925T224039Z.rc); follow: tail -f /home/steven/enclave-bench/s4c-20260925/rollout-cc.log
+22:40:50Z 4c-c-a: adding 02f6e313a2c03f7f to the allowlist on nan (api-relay restart: every tunnel and the API blip)
+22:42:26Z 4c-c-a APPLIED and checked: the allowlist is 04e953a4,10622d98,8ab7a159,02f6e313a2c0; metal-iso0 re-attached on 8ab7a159; canaries serve; the predictor KAT PASS and ADMIT accept.sh ok
+22:42:40Z 4c-c-b started DETACHED as s4ccb-apply-20260925T224240Z (exit code -> 4ccb-s4ccb-apply-20260925T224240Z.rc); follow: tail -f /home/steven/enclave-bench/s4c-20260925/rollout-cc.log
+22:43:56Z 4c-c-b: dist -> dist-iso-f6cbd75a + isolation.release=true; restarting enclave-metal-iso (the node CVM reboots)
+22:44:13Z 4c-c-b: the node ATTESTS 02f6e313a2c03f7f (raw report 0x90), overlay f6cbd75a
+22:45:28Z 4c-c-b: node journal: 3 adopted-guest lines, 0 release lines
+22:45:28Z 4c-c-b CHECK FAILED: gsup did not report the attested-release opt-in -> rolling back to dist-iso-b3109929 without the release opt-in
+22:45:28Z 4c-c-b ROLLBACK from the apply's own check: 4c-c-b at 2026-09-25 22:43:56 UTC: gsup did not report the attested-release opt-in
+22:45:28Z 4c-c-b ROLLBACK: dist -> dist-iso-b3109929, no release opt-in; restarting enclave-metal-iso
+22:45:56Z public FAIL 395bed3e http=000/1 key=e3b0c44298fc (after one retry)
+22:46:15Z public FAIL 395bed3e http=000/1 key=e3b0c44298fc (after one retry)
+22:46:34Z public FAIL 395bed3e http=000/1 key=e3b0c44298fc (after one retry)
+22:46:54Z public 395bed3e recovered on its one retry
+22:47:01Z 4c-c-b ROLLED BACK and checked (the node attests 8ab7a159, overlay b3109929)
+22:53:56Z no reviewed launcher fix (launcher-commit.txt / launcher-sha256.txt)
+23:14:08Z launcher worktree READY (inert): /home/steven/enclave-prod/metal-578be084 at 578be084, launcher 4620da5da0b4; diff from 0181bce3 in launcher-diff-stat.txt
