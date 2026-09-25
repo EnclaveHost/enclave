@@ -112,10 +112,12 @@ case "${CHECK:-systemd}" in
     # the api-relay's own sandbox (DynamicUser, ProtectSystem=strict, ProtectHome, PrivateTmp, NoNewPrivileges, MemoryMax=768M,
     # TasksMax=512), a TRANSIENT unit with its own dynamic user and state directory, removed afterwards
     U=enclave-predict-check
+    # the check's own copy of predict.env with the work dir in ITS state directory (EnvironmentFile= overrides -E)
+    sed "s#^SECRETS_RELEASE_PREDICT_WORK=.*#SECRETS_RELEASE_PREDICT_WORK=/var/lib/$U/work#" "$BASE/predict.env" > "$BASE/check.env"
     # its summary (result, runtime, CPU, MEMORY PEAK) goes to CHECK.run
     if systemd-run --wait --pipe --collect --unit="$U-$(date +%s)" -p DynamicUser=yes -p User=$U -p StateDirectory=$U \
       -p ProtectSystem=strict -p ProtectHome=yes -p PrivateTmp=yes -p NoNewPrivileges=yes -p MemoryMax=768M -p TasksMax=512 \
-      -p EnvironmentFile="$BASE/predict.env" -E SECRETS_RELEASE_PREDICT_WORK=/var/lib/$U/work -E CHECK_BASE="$BASE" -E VIEM="$VIEM" \
+      -p EnvironmentFile="$BASE/check.env" -E CHECK_BASE="$BASE" -E VIEM="$VIEM" \
       -E CROSSCHECK="${CROSSCHECK:-}" /usr/bin/node "$BASE/check.mjs" > "$BASE/CHECK.json" 2> "$BASE/CHECK.run"; then rc=0; else rc=$?; fi
     cat "$BASE/CHECK.json" "$BASE/CHECK.run"
     rm -rf "/var/lib/private/$U" "/var/lib/$U" ;;
