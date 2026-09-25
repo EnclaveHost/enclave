@@ -1,0 +1,15 @@
+18:34:11Z phase 2: lab dir /home/steven/enclave-bench/lab-release/phase2-run-20260925b; production units before: 3; MemAvailable 79 GiB
+18:34:11Z 99's lab relay serving: TLS 19480 (the guest's pinned path) and loopback 19481 (tickets), 0x1ab5feb710ec35a291d5c84f01142e2bfa4611b88a1e3e031eb49ecf80780503 listed
+18:34:12Z router -> 19480; paired lab guestd up (prefix lb, -release, lab ports)
+18:34:27Z supervisor spawn: vm lbbbb8202b, pump running, status running 
+18:34:27Z ok   AppID = the relay's prediction (94c04c0edb6b4ca11b9bd0b6e4adfa98afdfa04692e6c10af79755e6db0ba0f2)
+18:34:27Z ok   guestd's measurement = the relay's prediction
+18:34:33Z ok   expected-measurement.sh --pin 6d18f7ad8bcad9576cbcbf670bd347d7966bd6ccd65e017b238acab6c745ad0f reproduces it from the release and the derived bundle
+18:34:33Z ok   tools/list with the released synthetic key: 200
+18:34:33Z ok   tools/list with no key: 401
+18:34:33Z ok   tools/list with synthetic-wrong key: 401
+DOM release: deployment 0x1ab5feb7... envelope dd938909ccec21c2... 4 allowed origin(s), 0 refused, config 1119 bytes
+DOM app config: 1119 bytes (ENCLAVE_CONFIG)
+18:34:33Z ok   no synthetic secret value in any host-side file (guestd root and logs, serial, the units' journal, supervisor, router)
+18:34:33Z PHASE 2 PASS: admitted by the relay's own prediction, released, and serving on the released config
+18:34:35Z cleanup done; production m2-gd* units unchanged

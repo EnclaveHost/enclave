@@ -1,0 +1,2 @@
+[isolation] 0x1ab5feb7: guest lbbbb8202b app 94c04c0edb6b4ca1… (enclave-isolation-policy/1 {"cpuPercent":100,"memMiB":128,"vcpus":1}, record bc1ac3be7625a1f4…)
+[isolation] 0x1ab5feb7: release ticket handed to guest lbbbb8202b
