@@ -106,17 +106,15 @@ test("the lifecycle is readable: list, get, delete", async () => {
 
 test("the backend takes the REAL launcher, and a domain started through it is running", async () => {
   const { WmiHyperVLauncher } = await import("./wmi-launcher.mjs");
+  const { TYPE1, PREFLIGHT_OK, defineAnswer, keyOf } = await import("./fake-hyperv.mjs");
   const SHA = "2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3";
-  const answer = (script) => script.includes("$r.vmms") ? { vmms: true, namespace: true, module: true, firmwareField: true, hypervisor: true }
-    : script.includes("Get-FileHash") ? { present: true, sha256: SHA, bytes: 124962164 }
-    : script.includes("New-VM") ? { id: "GUID", version: "12.0", name: "x" }
-    : script.includes("ModifySystemSettings") ? { returnValue: 0, jobState: null, firmwareFile: "C:\\img.bin", guestFeatureSet: 0x201 }
-    : script.includes("Start-VM") ? { state: "Running" }
-    : script.includes("NamedPipeClientStream") ? { connected: true, bytes: 42, head: "guest output" }
-    : script.includes("$vms = @(Get-VM | Where-Object") ? { vms: [] } : { ok: true };
+  // the type-1 definition (New-CustomVM), answered the way a compliant host reads it back
+  const answer = (script) => ({ preflight: PREFLIGHT_OK, imageHash: { present: true, sha256: SHA, bytes: 124962164 },
+    define: defineAnswer(script), start: { state: "Running" },
+    readConsole: { connected: true, bytes: 42, head: "guest output" }, survey: { vms: [] } })[keyOf(script)] ?? { ok: true };
   const launcher = new WmiHyperVLauncher({
     run: async (s) => ({ code: 0, stdout: JSON.stringify(answer(s)), stderr: "" }),
-    imagePath: "C:\\img.bin", imageSha256: SHA, prefix: "enclave-app-t-" });
+    imagePath: "C:\\img.bin", imageSha256: SHA, prefix: "enclave-app-t-", ...TYPE1 });
   const backend = new HyperVPartitionBackend({ launcher });
   const m = mk({ backend });
   await assert.rejects(m.spawn(spawnBody()), (e) => e.status === 503, "a manager that can launch answers nothing before it has surveyed Hyper-V");
@@ -439,4 +437,31 @@ test("an onReclaim that throws does not break the removal", async () => {
   m.onReclaim = () => { throw new Error("data plane is down"); };
   const r = await m.spawn(spawnBody());
   assert.deepEqual(await m.remove(r.id), { removed: true, absent: false }, "the domain is gone either way");
+});
+
+// The launcher's (partition, guestImageKind) statement travels to the readiness rule WITH the image, so judge-hv
+// compares the pair before the image (enclave-d1 + enclave-99, main ae6e9147); a record with no statement (the HCS lab)
+// passes neither, and its image is not compared.
+test("a linux-direct domain is judged on its (partition, kind) statement AND its image; the HCS lab's on neither", async () => {
+  const IGVM = "7c".repeat(32);
+  const ld = { tier: "t0-hv", partition: "wmi-openhcl-gen2-igvm-linux", hostExcluded: false, attested: false };
+  const wmi = { supports: {}, backend: "hv", boundary: ld,
+    start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false, boundary: ld,
+                          domainId: 1, guestPort: 40001, tcpPort: 19102, image: IGVM, launcherKey: "LKEY",
+                          guestIdentity: { partition: ld.partition, guestImageKind: "igvm-linux-direct", igvmSha256: IGVM, igvmPath: "x" } }),
+    stop: async () => {} };
+  for (const [backend, expectPair] of [[wmi, true], [relayBackend(), false]]) {
+    const seen = [];
+    const m = mk({ backend, judgeReady: async (a) => { seen.push(a); return { status: "running", transportKeySha256: "cd".repeat(32),
+      checks: { document: { ok: true, verdict: "monitor-signed" }, ready: { ok: true } } }; } });
+    const r = await m.spawn(spawnBody());
+    await m.judging.get(r.id);
+    if (expectPair) {
+      assert.deepEqual(seen[0].expectedStatement, { partition: ld.partition, guestImageKind: "igvm-linux-direct" });
+      assert.equal(seen[0].expectedImageSha256, IGVM);
+      assert.deepEqual(m.get(r.id).guestIdentity, { partition: ld.partition, guestImageKind: "igvm-linux-direct" }, "the view states the pair");
+    } else {
+      assert.equal(seen[0].expectedStatement, undefined); assert.equal(seen[0].expectedImageSha256, undefined);
+    }
+  }
 });
