@@ -62,6 +62,11 @@ param(
   # VTL1, the requirement should not arise.
   [switch] $VbsOptOut,
   [switch] $HostRead,
+  # THE LEGACY BACKEND IS RETIRED (windows/vbslike/DIRECTION.md, Steven 2026-09-25). Under Secure Boot the old
+  # test-signed enclave engine cannot load, so no legacy app answers on loopback and the node surface is down BY
+  # DESIGN. Without this switch that empty baseline is refused, as before; with it the run proceeds and the harm
+  # check rests on the node process and the host settings, which are still compared before and after.
+  [switch] $LegacyBackendRetired,
   # OpenHCL's own kmsg, over its diagnostics server on vsock. It is the ONLY readable source for a
   # type-1 start failure on this host: COM3 does not exist here, and a sweep of every Hyper-V event
   # channel across a failing run found no free-text error and no CompleteStartVtl0 entry at all.
@@ -245,7 +250,12 @@ Note "node pids      : $nodeBefore"
 Note "apps before    : $($appsBefore -join ' ')"
 Note "loopback before: $(if($loopBefore.Count){$loopBefore -join ' '}else{'NONE - the node surface did not answer'})"
 if (@($loopBefore | Where-Object { $_ -match '=(200|401)$' }).Count -eq 0) {
-  throw "no app answered on its own loopback port before this run: the health check cannot show this boot was harmless, so it is refused"
+  if (-not $LegacyBackendRetired) {
+    throw "no app answered on its own loopback port before this run: the health check cannot show this boot was harmless, so it is refused"
+  }
+  Note "BASELINE: no legacy app answers on loopback because the legacy backend is RETIRED (DIRECTION.md; under Secure"
+  Note "          Boot its test-signed engine cannot load). There is no app to harm; the harm check for this run is"
+  Note "          the node process and the host settings, compared before and after."
 }
 if (@($appsBefore | Where-Object { $_ -match '=(200|401)$' }).Count -eq 0) {
   Note "NOTE: every public probe FROM THIS BOX failed while the loopback layer is healthy. That is this box's"
@@ -550,7 +560,17 @@ try {
   $pipeClient = $null
   $con = @{ c = $null; pending = $null; buf = $null; text = '' }
   $t0 = Get-Date
-  Start-VM -Name $name
+  # THE FIRST OBSERVABLE, recorded on its own before anything about the guest: does Hyper-V accept this
+  # (unsigned) firmware file and start the partition? Under Secure Boot an outright refusal is a real
+  # possibility, and it must read as a refusal to load the firmware, never as a guest failure (enclave-5d).
+  try { Start-VM -Name $name -ErrorAction Stop; Note "FIRST OBSERVABLE: Start-VM ACCEPTED the partition (state now $((Get-VM -Name $name).State))" }
+  catch {
+    Note "FIRST OBSERVABLE: Start-VM REFUSED: $($_.Exception.Message -replace "`r?`n",' ')"
+    Get-WinEvent -LogName 'Microsoft-Windows-Hyper-V-Worker-Admin' -MaxEvents 10 -EA SilentlyContinue |
+      Where-Object { $_.TimeCreated -ge $t0 } | Sort-Object TimeCreated |
+      ForEach-Object { Note ("  FIRST-OBSERVABLE ADMIN [$($_.Id)] " + (($_.Message -replace "`r?`n",' ').Substring(0,[Math]::Min(220,($_.Message -replace "`r?`n",' ').Length)))) }
+    throw
+  }
   for ($i = 0; $i -lt 100 -and -not $pipeClient; $i++) {
     try {
       # Asynchronous, or .NET Framework turns ReadAsync into a blocking read on a thread and
