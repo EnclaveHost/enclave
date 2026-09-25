@@ -56,6 +56,12 @@ export function fleetConfig(env = process.env) {
     // the origin-following daemons never touch it.
     deploymentsAddress: (env.DEPLOYMENTS_ADDRESS || "").trim(),
     baseRpc: env.BASE_RPC || DEFAULTS.baseRpc,
+    // U7: the api-relay whose /enclaves verdicts say which hosts are ELIGIBLE to serve tenant apps. A tenant-routing daemon
+    // (relay.js, udp-relay, tcp6-relay, dns-relay) dials only an eligible host; unset, it dials none (fail closed).
+    // DOMAINS_API (the SNI relay's custom-domain map source, the same api-relay) serves as the default.
+    eligibilityApi: (env.ELIGIBILITY_API || env.DOMAINS_API || "").trim().replace(/\/+$/, ""),
+    eligibilityPollSec: parseInt(env.ELIGIBILITY_POLL_SEC || "", 10) || 15,
+    eligibilityMaxAgeSec: parseInt(env.ELIGIBILITY_MAX_AGE_SEC || "", 10) || 60,
     registryPollSec: parseInt(env.REGISTRY_POLL_SEC || "", 10) || DEFAULTS.registryPollSec,
     staleAfterSec: parseInt(env.STALE_AFTER_SEC || "", 10) || DEFAULTS.staleAfterSec,
     // Operator allowlist. Comma-separated, lowercased EnclaveRegistry operator
@@ -351,15 +357,56 @@ export function createFleet(cfg, log = () => {}) {
     if (hits.length !== 1) return null;
     const d = hits[0];
     return { id: String(d.id).toLowerCase(),
+             runner: String(d.runner || "").toLowerCase(),
              runnerOperator: String(d.runnerOperator || "").toLowerCase(),
              leaseLive: !ZERO32.test(String(d.runner)) && Number(d.leaseUntil) * 1000 > Date.now() };
   }
+
+  // ---- U7: ELIGIBILITY, as the api-relay decides it -------------------------------------------------------------------
+  // The api-relay computes eligibility from verified evidence (computeEligible, the rule placement and its own routing
+  // use) and publishes it per row in /enclaves: `id` = keccak256(the registered endpoint), `eligible`. A tenant-routing
+  // daemon dials a host only while that verdict is FRESH and says eligible. A failed poll keeps the last verdict until it
+  // is older than eligibilityMaxAgeSec, and then nothing is eligible. Unconfigured, nothing is. Unknown is not permission.
+  let _elig = { ids: new Set(), at: 0 }, _eligOrigins = new Set(), _eligTimer = null;
+  const eligibilityFresh = () => !!cfg.eligibilityApi && Date.now() - _elig.at <= cfg.eligibilityMaxAgeSec * 1000;
+  async function recomputeEligibleOrigins() {
+    const next = new Set();
+    for (const o of new Set([...origins, ..._anyEndpoints]))
+      if (_elig.ids.has(await endpointId(o))) next.add(o);
+    _eligOrigins = next;
+  }
+  async function refreshEligibility() {
+    if (!cfg.eligibilityApi) return;
+    const j = await fetchJson(cfg.eligibilityApi + "/enclaves", 5000).catch(() => null);
+    if (!j || !Array.isArray(j.enclaves)) { log(`eligibility poll failed (${cfg.eligibilityApi}/enclaves): keeping the last verdict until it ages out`); return; }
+    const ids = new Set(j.enclaves.filter((e) => e && e.eligible === true && /^0x[0-9a-f]{64}$/i.test(String(e.id || "")))
+                                   .map((e) => String(e.id).toLowerCase()));
+    _elig = { ids, at: Date.now() };
+    await recomputeEligibleOrigins();
+  }
+  const eligibility = {
+    // is this registered endpoint (an origin this daemon would dial) an eligible host right now? Synchronous: a daemon
+    // asks it at the moment it dials. An origin first seen since the last poll is not yet in the set: refused until then.
+    eligibleOriginSync: (origin) => eligibilityFresh() && _eligOrigins.has(String(origin || "").replace(/\/+$/, "")),
+    // the same, computing the id on demand (an origin the last poll has not mapped yet)
+    async eligibleOrigin(origin) { return eligibilityFresh() && _elig.ids.has(await endpointId(String(origin || "").replace(/\/+$/, ""))); },
+    // is this endpoint id (keccak256 of a registered endpoint, e.g. a ledger row's runner) an eligible host right now?
+    eligibleId: (id) => eligibilityFresh() && _elig.ids.has(String(id || "").toLowerCase()),
+    async startEligibility() {
+      if (!cfg.eligibilityApi) { log("ELIGIBILITY_API (or DOMAINS_API) unset: NO host is eligible, so tenant traffic is REFUSED (U7)"); return; }
+      log(`eligibility: ${cfg.eligibilityApi}/enclaves every ${cfg.eligibilityPollSec}s (stale after ${cfg.eligibilityMaxAgeSec}s = nothing eligible)`);
+      await refreshEligibility();
+      _eligTimer = setInterval(refreshEligibility, cfg.eligibilityPollSec * 1000);
+      _eligTimer.unref?.();
+    },
+    stopEligibility() { if (_eligTimer) { clearInterval(_eligTimer); _eligTimer = null; } },
+  };
 
   if (cfg.staticList.length) {
     // Static mode has no registry to read, so nobody is provably the operator
     // of anything. null (not "unknown, allow") keeps every operator-authorized
     // path fail-closed here rather than silently open.
-    return { origins: () => origins, runnerEndpointFor, leaseEndpointFor, leaseFor, prefixAmbiguous,
+    return { origins: () => origins, runnerEndpointFor, leaseEndpointFor, leaseFor, prefixAmbiguous, ...eligibility,
              operatorForEndpoint: () => null,
              async start() { log(`static fleet: ${origins.join(", ")}`); } };
   }
@@ -438,6 +485,7 @@ export function createFleet(cfg, log = () => {}) {
       if (next.join(",") !== origins.join(","))
         log(`fleet: ${next.length ? next.join(", ") : "(empty)"}`);
       origins = next;
+      await recomputeEligibleOrigins().catch(() => {});   // a new origin is mapped at once, not at the next eligibility poll
     } catch (e) {
       // keep the last known fleet — a flaky RPC must not unbind live relays
       log(`registry read failed (keeping ${origins.length} known): ${e.message}`);
@@ -450,6 +498,7 @@ export function createFleet(cfg, log = () => {}) {
     leaseEndpointFor,
     leaseFor,
     prefixAmbiguous,
+    ...eligibility,
     operatorForEndpoint: (ep) => _endpointOperators.get(String(ep || "").replace(/\/+$/, "").toLowerCase()) || null,
     async start() {
       log(`on-chain fleet: ${cfg.addressBook ? "EnclaveAddressBook " + cfg.addressBook + " -> registry" : "EnclaveRegistry " + cfg.registryAddress}`

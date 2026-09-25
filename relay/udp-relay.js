@@ -109,6 +109,8 @@ function openListener(origin, id, address, port) {
     let f = L.flows.get(fk);
     if (!f) {
       if (flowCount >= MAX_FLOWS) return;                 // shed load rather than sprawl
+      // U7: a flow opens only toward a host the api-relay holds ELIGIBLE right now; the datagram is dropped otherwise
+      if (!fleet.eligibleOriginSync(L.origin)) return;
       f = { ws: null, buf: [], bufBytes: 0, caddr: rinfo.address, cport: rinfo.port, timer: null, hsTimer: null };
       L.flows.set(fk, f); flowCount++;
       const ws = new WebSocket(`${wsOrigin(L.origin)}/x/${encodeURIComponent(id)}/udp/${port}`, { perMessageDeflate: false });
@@ -184,6 +186,7 @@ async function poll() {
 }
 
 await fleet.start();
+await fleet.startEligibility();
 await poll();
 setInterval(poll, POLL_MS);
 console.log(`[udp-relay] polling /v1/udp-map across the fleet every ${POLL_MS / 1000}s`);

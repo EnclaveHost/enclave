@@ -596,6 +596,9 @@ async function operatorAuth(sig, raw, body, name) {
     lease = await fleet.leaseFor(depId, { fresh: true });
   }
   if (!ok(lease)) return "signer does not hold the live lease for this deployment";
+  // U7: a dns-01 answer is a certificate for a tenant's name, so it is given only to a lease holder the api-relay holds
+  // ELIGIBLE (fleet.eligibleId: its /enclaves verdict, fresh). The chain names the holder; it never makes it eligible.
+  if (!fleet.eligibleId(lease.runner)) return "the lease holder is not an eligible host (U7): no dns-01 answer for its names";
   // the label must name ONLY this deployment: a prefix shared with another
   // ledger row authorizes neither holder (leaseFor is null on ambiguity)
   if (!(await fleet.leaseFor("0x" + label))) return "label does not uniquely name this deployment";
@@ -709,6 +712,7 @@ api.listen(API_PORT, API_BIND, () => console.log(`[dns-relay] challenge-push api
 // ---- boot ---------------------------------------------------------------------
 
 await fleet.start();
+await fleet.startEligibility();
 await poll();
 setInterval(poll, POLL_MS);
 console.log(`[dns-relay] authoritative for ${IP_ZONE} + ${APP_ZONE}${TCP_ZONE ? " + " + TCP_ZONE : ""} (ns ${NS_NAME}, serial ${SERIAL}); ` +
