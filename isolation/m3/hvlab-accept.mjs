@@ -15,7 +15,10 @@
 //   HVACC_LAUNCHER_KEY   the key the launcher signs domain reports with (what the manager's judge was given)
 //   HVACC_JUDGE          judge-hv.mjs;  HVACC_RUNTIME  the image's runtime.json
 //   optional: HVACC_DEPLOYMENT (default hello-world 0x4e62e60d...), HVACC_APPREF, HVACC_APPPORT, HVACC_PYTHON,
-//             HVACC_TIMEOUT_S (per wait, default 300), IPFS_GATEWAY
+//             HVACC_TIMEOUT_S (per wait, default 300), IPFS_GATEWAY,
+//             HVACC_EXPECT_HV_ISOLATION (none|vbs|snp|tdx|n/a): when set, the guest's own boundary tuple, served in
+//             the attestation document, must state exactly that hv_isolation (a STATED configuration: it records
+//             which partition type the run was on, it proves nothing and it never changes host_excluded=no)
 //   usage: node hvlab-accept.mjs          last line: HVLAB-ACCEPT ALL PASS | HVLAB-ACCEPT <n> FAILED | HVLAB-ACCEPT REFUSED ...
 import http from "node:http";
 import net from "node:net";
@@ -156,11 +159,12 @@ let IMAGE;
 async function judged(b, appId, { spki = b.spki, nonceFor = null } = {}) {
   const nonce = randomBytes(32);
   const at = await b.req("GET", `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`);
-  let v;
-  try { v = judge({ doc: JSON.parse(at.body), spki, nonce: nonceFor || nonce, expectedAppSha256: appId, launcherKey: LAUNCHER_KEY,
+  let v, doc = null;
+  try { doc = JSON.parse(at.body);
+        v = judge({ doc, spki, nonce: nonceFor || nonce, expectedAppSha256: appId, launcherKey: LAUNCHER_KEY,
                     expectedImageSha256: IMAGE, expectRuntime }); }
   catch (e) { v = { verdict: "reject", reasons: [e.message] }; }
-  return { ...v, why: (v.reasons || []).join("; ") };
+  return { ...v, why: (v.reasons || []).join("; "), guestBoundary: doc && typeof doc.boundary === "string" ? doc.boundary : null };
 }
 // the data plane's own admission, asked directly: one preamble line, its answer
 function preamble(fields) {
@@ -198,6 +202,14 @@ try {
     const v = await judged(b1, APP);
     record("browser -> tunnel -> app zone -> data plane -> domain: the session's key is the one the manager verified",
       v.verdict === "monitor-signed" && b1.keySha === K1, `${v.verdict} on the browser's handshake key ${b1.keySha.slice(0, 16)}, record ${K1.slice(0, 16)}`);
+    // the guest's own tuple (the monitor's, relayed by the front): printed always, checked only when asked
+    console.log(`the guest's boundary tuple: ${JSON.stringify(v.guestBoundary)}`);
+    const wantIso = process.env.HVACC_EXPECT_HV_ISOLATION;
+    if (wantIso) {
+      const f = Object.fromEntries(String(v.guestBoundary || "").split(/\s+/).filter((x) => x.includes("=")).map((x) => x.split("=", 2)));
+      record(`the guest states hv_isolation=${wantIso} (stated by the hypervisor, not a proof), and host_excluded=no`,
+        f.hv_isolation === wantIso && f.host_excluded === "no", `hv_isolation=${f.hv_isolation} paravisor=${f.paravisor} host_excluded=${f.host_excluded}`);
+    }
     const a = await b1.req("GET", "/");
     record("the app answers on its own name", a.status === 200, `${a.status} ${JSON.stringify(a.body.slice(0, 40))}`);
 

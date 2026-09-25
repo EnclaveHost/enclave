@@ -251,7 +251,15 @@ $env:HVACC_PYTHON       = "python"
 node isolation\m3\hvlab-accept.mjs
 ```
 
-It passes with 27 PASS lines and a last line of `HVLAB-ACCEPT ALL PASS`. Defaults: hello-world, the representative
+It passes with 27 PASS lines and a last line of `HVLAB-ACCEPT ALL PASS`.
+
+With `HVACC_EXPECT_HV_ISOLATION=<none|vbs|n/a>` it passes with 28. The extra check requires the guest's own tuple
+(served in the attestation document) to state that `hv_isolation` with `host_excluded=no`. It records which partition
+type the run was on, and it is the hypervisor's statement, not a proof. The tuple is printed on every run.
+- Expected on type 1: `vbs`.
+- On type 16, set it only after E0 has shown what that partition states (`none` is expected; `n/a` if the hypervisor
+  defines no leaf 0x4000000C there).
+- `test-hv-accept.sh` sets `n/a` (KVM). Expecting `vbs` there fails exactly that one check (checked). Defaults: hello-world, the representative
 record `0x4e62e60d...`, whose derive record is `bff33b95`. Override them with `HVACC_DEPLOYMENT`, `HVACC_APPREF`
 and `HVACC_APPPORT`. `HVACC_TIMEOUT_S` (default 300) bounds each wait for running.
 

@@ -56,7 +56,7 @@ head -1 "$W/manager.log"
 j() { head -1 "$W/manager.log" | python3 -c "import json,sys;print(json.load(sys.stdin)['$1'])"; }
 rc=0
 HVACC_NODE_TREE="$NODE_TREE" HVACC_MANAGER="$(j manager)" HVACC_DATA="$(j data)" HVACC_LAUNCHER_KEY="$(j launcherKey)" \
-  HVACC_JUDGE="$JUDGE" HVACC_RUNTIME="$W/ex/plat/rt/runtime.json" node "$here/hvlab-accept.mjs" > "$W/accept.txt" 2>&1 || rc=$?
+  HVACC_EXPECT_HV_ISOLATION="${HVACC_EXPECT_HV_ISOLATION-n/a}" HVACC_JUDGE="$JUDGE" HVACC_RUNTIME="$W/ex/plat/rt/runtime.json" node "$here/hvlab-accept.mjs" > "$W/accept.txt" 2>&1 || rc=$?
 cat "$W/accept.txt"
 kill "$mgr" 2>/dev/null; wait "$mgr" 2>/dev/null || true; mgr=""
 tail -1 "$W/manager.log"
