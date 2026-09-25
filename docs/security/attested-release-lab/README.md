@@ -24,7 +24,7 @@ image-affecting tree until both phases run). The CURRENT pass condition, recorde
 
 ## Phase 2 result: PASS (2026-09-25, 18:34:11Z to 18:34:35Z)
 
-Relay side (`phase2-relay.log`, this harness at 415995e7, `serve`):
+Relay side (`phase2-relay.txt`, this harness at 415995e7, `serve`):
 - 18:33:04Z listening; start-up: the known-answer test reproduced 2 answers exactly; toolchain 0181bce3; admitted only
   `6d18f7ad…`; prediction AppID `94c04c0e…`, measurement `70194611…f709`, derivation `bc1ac3be…`.
 - 18:34:25Z `POST /v1/secrets/release-ticket` 200 (the supervisor's real ticket pump, signed by the lab operator).

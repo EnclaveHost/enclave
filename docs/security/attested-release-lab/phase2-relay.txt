@@ -1,0 +1,21 @@
+[secrets] enabled (0 deployments with stored secrets)
+18:32:46Z LAB relay for 0x1ab5feb710ec35a291d5c84f01142e2bfa4611b88a1e3e031eb49ecf80780503 (catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0, public); release signing public key 3b75834ea968e93dc7b950112dcc2a254614c35b81a03aff741fd37dfd4ae42f (keyId f344b10d700f7095; SYNTHETIC)
+18:32:46Z LAB (a): the ledger row and confirmRow come from the lab file; (b) the chip from a supplied report's AMD chain; (c) the ticket signer is the lab operator; (d) synthetic secrets and configs
+18:32:46Z (b) chip proven by its AMD chain (Turin): fa11afcf54ae9c53…
+18:32:58Z predictor: 2 known answer(s) reproduced exactly; toolchain 0181bce3aac5; admitted 6d18f7ad8bca
+18:33:04Z prediction for catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0 (6128 ms): AppID 94c04c0edb6b4ca11b9bd0b6e4adfa98afdfa04692e6c10af79755e6db0ba0f2; release 6d18f7ad8bca -> 701946112b68fabcf5fc41982eacf17bac91c8f204c0b7178af84fa301ebe550d13444be421cb7b672544d335441f709
+18:33:04Z derivation record (recordSha256 bc1ac3be7625a1f4ca5751444da1519dd3449555d522b14f573f5e705432a3a0): {"catalog":{"app":"0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc","version":0},"cid":"bafybeie5qxmirydhcjn2g4v23npfhrw3mskaxgdlddijksa7zpt56knq6i","derivation":"enclave-catalog-bundle/1","policy":{"cpuPercent":100,"memMiB":128,"vcpus":1},"runtimeId":"ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8"}
+18:33:04Z the version on chain: cid bafybeie5qxmirydhcjn2g4v23npfhrw3mskaxgdlddijksa7zpt56knq6i, memMb 128, ports "", approval 1, yanked false
+18:33:04Z serving https://127.0.0.1:19480/v1/secrets/* (LAB)
+18:33:04Z serving http://127.0.0.1:19481/v1/secrets/{release-ticket,release-status} (LAB, loopback, supervisor half only)
+18:33:11Z GET /v1/secrets/release-status -> 200 ok (2 ms)
+18:33:11Z GET /v1/secrets/release-status -> 200 ok (0 ms)
+18:33:29Z GET /v1/secrets/release-status -> 200 ok (0 ms)
+18:33:29Z GET /v1/secrets/release-status -> 200 ok (1 ms)
+18:33:31Z GET /v1/secrets/release-status -> 200 ok (0 ms)
+18:34:11Z GET /v1/secrets/release-status -> 200 ok (1 ms)
+18:34:11Z GET /v1/secrets/release-status -> 200 ok (0 ms)
+18:34:13Z GET /v1/secrets/release-status -> 200 ok (0 ms)
+18:34:25Z POST /v1/secrets/release-ticket -> 200 ok (113 ms)
+[secrets-release] 0x1ab5feb710ec35a291d5c84f01142e2bfa4611b88a1e3e031eb49ecf80780503: released to a verified guest on https://lab-iso.enclave.test (runtime ccadb38a6779…)
+18:34:26Z POST /v1/secrets/release -> 200 ok (878 ms)
