@@ -19,7 +19,7 @@ const S = synthChain();
 const RID = sha(Buffer.from("synthetic runtime identity"));   // what runtimeIdOf answers for RUNTIME below
 const RUNTIME = { synthetic: "runtime" };
 Object.assign(process.env, { SECRETS_KEY: "ab".repeat(32), AUTH_DATA_DIR: DIR, SECRETS_ATTESTED_RELEASE: "1",
-  SECRETS_RELEASE_MEASUREMENTS: "77".repeat(48), SECRETS_RELEASE_RUNTIME_IDS: RID.toString("hex"),
+  SECRETS_RELEASE_DEPLOYMENTS: "*",
   SECRETS_RELEASE_BURST: "1000",      // the suite asks far more often than a real guest may
   SECRETS_RELEASE_MIN_TCB: JSON.stringify({ Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } }), SECRETS_RELEASE_VMPL: "0",
   SECRETS_RELEASE_SIGNING_KEY: "5a".repeat(32) });   // a synthetic release signing seed (v1.2)
@@ -38,7 +38,11 @@ let rows = [], ineligible = false, chips = [S.chip.toString("hex")];
 const versions = {};   // the catalog version's config per deployment (versionConfigFor)
 const envelopes = { [A]: JSON.stringify({ isolation: { require: "snp-guest-per-app" }, config: { endpoint: "$IMAGE_ENDPOINT", n: 1 } }),
                     [B]: JSON.stringify({ isolation: { require: "snp-guest-per-app" }, configCid: "bafkreisyntheticcid" }) };
-const leaseRow = (id, over = {}) => ({ id, owner: STRANGER.address, runner: EP_ID, configCid: envelopes[id] ?? "",
+const REF = "catalog://0x" + "5a".repeat(32) + "/3";                    // the catalog version all three run
+// what the relay's measurement predictor answers for REF (relay/measurement-predict.mjs; its own suite covers it)
+let predicted = { ok: true, appId: APP.toString("hex"), images: [{ release: "e1".repeat(32), runtimeId: RID.toString("hex"), measurement: "77".repeat(48) }] };
+const predictedFor = [];   // the rows the predictor was asked about
+const leaseRow = (id, over = {}) => ({ id, owner: STRANGER.address, runner: EP_ID, configCid: envelopes[id] ?? "", appRef: REF,
                                        leaseUntil: BigInt(Math.floor(Date.now() / 1000) + 1800), ...over });
 const ctx = {
   json: (res, code, body) => { res.code = code; res.body = body; },
@@ -50,7 +54,7 @@ const ctx = {
   hostEligibility: () => (ineligible ? { eligible: false, reason: "evidence regressed" } : { eligible: true, reason: null }),
   leaseHolderChipIds: async (ep) => (ep === EP ? chips : []),
   runtimeIdOf: async (r) => (JSON.stringify(r) === JSON.stringify(RUNTIME) ? RID : sha(Buffer.from(JSON.stringify(r)))),
-  appIdFor: async (id) => (id === A || id === B || id === C ? APP : null),
+  expectedGuestFor: async (row) => { predictedFor.push(row && row.id); return row && row.appRef === REF ? predicted : { ok: false, code: "version_not_admitted", reason: "not the synthetic version" }; },
   resolveConfigCid: async (cid) => (cid === "bafkreisyntheticcid" ? { resolved: true, key: "${JOT_API_KEY}" }
                                      : cid === "bafkreiversioncid" ? '{"fromVersionCid":true}' : null),   // a value, or fetched TEXT
   versionConfigFor: async (id) => versions[id] ?? null,
@@ -143,8 +147,11 @@ test("the release binding: fixed layout, every field matters, and it can never e
 // ---- the endpoints ----
 test("the flow: a ticket for the eligible lease holder, then a verified guest gets its config and secrets, sealed to it", async () => {
   rows = [leaseRow(A), leaseRow(B)]; ineligible = false; chips = [S.chip.toString("hex")];
+  predictedFor.length = 0;
   const t = await ticketFor(A);
   assert.equal(t.code, 200, JSON.stringify(t.body));
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(predictedFor, [A], "the ticket warms the lease holder's prediction");
   const g = guest({ id: A, ticket: t.body.ticket });
   const r = await release(A, t.body.ticket, g);
   assert.equal(r.code, 200, JSON.stringify(r.body));
@@ -221,8 +228,18 @@ test("release refusals: each releases NOTHING and consumes the ticket", async ()
   await refused("the holder turned ineligible", async (tk) => { ineligible = true; return { g: guest({ id: A, ticket: tk }) }; }, { code: 403, error: "host_ineligible" });
   ineligible = false;
   await refused("a ticket for A presented for B", (tk) => ({ g: guest({ id: B, ticket: tk }), id: B }), { code: 403, error: "bad_ticket" });
-  await refused("a measurement outside the allowlist", async (tk) => { process.env.SECRETS_RELEASE_MEASUREMENTS = "66".repeat(48); return { g: guest({ id: A, ticket: tk }) }; }, E);
-  process.env.SECRETS_RELEASE_MEASUREMENTS = "77".repeat(48);
+  const keepPrediction = predicted;
+  await refused("a measurement other than the predicted one", async (tk) => { predicted = { ...keepPrediction, images: [{ ...keepPrediction.images[0], measurement: "66".repeat(48) }] }; return { g: guest({ id: A, ticket: tk }) }; }, E);
+  // the runtime and the measurement are ONE pair: the guest's runtime is admitted only with ITS release's measurement
+  await refused("a predicted measurement under another release's runtime", async (tk) => { predicted = { ...keepPrediction, images: [
+    { release: "e2".repeat(32), runtimeId: sha(Buffer.from("another runtime")).toString("hex"), measurement: "77".repeat(48) },
+    { release: "e1".repeat(32), runtimeId: RID.toString("hex"), measurement: "66".repeat(48) }] }; return { g: guest({ id: A, ticket: tk }) }; }, E);
+  await refused("a deployment on another catalog version than the prediction's", async (tk) => { rows = [leaseRow(A, { appRef: "catalog://0x" + "5a".repeat(32) + "/4" }), leaseRow(B)]; return { g: guest({ id: A, ticket: tk }) }; }, { code: 403, error: "version_not_admitted" });
+  rows = [leaseRow(A), leaseRow(B)];
+  for (const [code, status] of [["busy", 503], ["prediction_unavailable", 503], ["component_unavailable", 503], ["catalog_unreachable", 503], ["version_not_admitted", 403], ["underivable", 403], ["not_catalog", 403]])
+    await refused(`a prediction refused (${code})`, async (tk) => { predicted = { ok: false, code, reason: "synthetic" }; return { g: guest({ id: A, ticket: tk }) }; }, { code: status, error: code });
+  await refused("a prediction that answers nothing usable", async (tk) => { predicted = { ok: true, appId: APP.toString("hex"), images: [] }; return { g: guest({ id: A, ticket: tk }) }; }, { code: 503, error: "prediction_unavailable" });
+  predicted = keepPrediction;
   await refused("a report from another VMPL than the pinned one", async (tk) => { process.env.SECRETS_RELEASE_VMPL = "1"; return { g: guest({ id: A, ticket: tk }) }; }, E);
   process.env.SECRETS_RELEASE_VMPL = "0";
   await refused("a DEBUG-enabled guest policy", (tk) => ({ g: guest({ id: A, ticket: tk, debug: true }) }), E);
@@ -243,7 +260,7 @@ test("a chip mismatch is caught at release: a ticket issued for chip X refuses a
 test("fail closed: OFF, a missing policy or a missing provider answers 503 and issues nothing; an expired ticket is refused", async () => {
   rows = [leaseRow(A)];
   const saved = { ...process.env };
-  for (const [k, v] of [["SECRETS_ATTESTED_RELEASE", ""], ["SECRETS_RELEASE_MEASUREMENTS", ""], ["SECRETS_RELEASE_RUNTIME_IDS", "zz"],
+  for (const [k, v] of [["SECRETS_ATTESTED_RELEASE", ""], ["SECRETS_RELEASE_DEPLOYMENTS", ""], ["SECRETS_RELEASE_DEPLOYMENTS", "0x12,all"],
                         ["SECRETS_RELEASE_MIN_TCB", ""], ["SECRETS_RELEASE_MIN_TCB", "{}"], ["SECRETS_RELEASE_VMPL", ""], ["SECRETS_RELEASE_VMPL", "4"],
                         ["SECRETS_RELEASE_SIGNING_KEY", ""], ["SECRETS_RELEASE_SIGNING_KEY", "zz"],
                         ["SECRETS_RELEASE_SIGNING_KEY", "ab".repeat(32)]]) {   // equal to this suite's SECRETS_KEY: no separate key
@@ -252,12 +269,20 @@ test("fail closed: OFF, a missing policy or a missing provider answers 503 and i
     assert.equal(r.code, 503, `${k}=${v}`); assert.equal(r.body.error, "release_unconfigured"); assert.match(r.body.message, new RegExp(k));
     Object.assign(process.env, saved);
   }
-  for (const p of ["verifyGuestEvidence", "appIdFor", "runtimeIdOf", "leaseHolderChipIds", "versionConfigFor"]) {
+  for (const p of ["verifyGuestEvidence", "expectedGuestFor", "runtimeIdOf", "leaseHolderChipIds", "versionConfigFor"]) {
     const keep = ctx[p]; delete ctx[p];
     const r = await ticketFor(A);
     assert.equal(r.code, 503, p); assert.equal(r.body.error, "release_unconfigured");
     ctx[p] = keep;
   }
+  // a predictor that names its own missing configuration is missing configuration
+  ctx.predictorProblems = () => ["SECRETS_RELEASE_PREDICT_COMMIT"];
+  { const r = await ticketFor(A); assert.equal(r.code, 503); assert.match(r.body.message, /SECRETS_RELEASE_PREDICT_COMMIT/); }
+  delete ctx.predictorProblems;
+  // a staged rollout: a deployment outside SECRETS_RELEASE_DEPLOYMENTS gets neither a ticket nor a release
+  process.env.SECRETS_RELEASE_DEPLOYMENTS = B;
+  { const r = await ticketFor(A); assert.equal(r.code, 403); assert.equal(r.body.error, "release_not_enabled"); }
+  process.env.SECRETS_RELEASE_DEPLOYMENTS = "*";
   const t = await ticketFor(A);
   R._internals.tickets.get(t.body.ticket).exp = Math.floor(Date.now() / 1000) - 1;
   const r = await release(A, t.body.ticket, guest({ id: A, ticket: t.body.ticket }));
@@ -280,6 +305,11 @@ test("the relay's OWN checks hold even when the verifier says verified: VCEK sig
       ["another deployment's HOST_DATA", (tk) => guest({ id: A, ticket: tk, hostData: B }), /HOST_DATA is not this deployment/],
       ["a DEBUG-enabled guest policy", (tk) => guest({ id: A, ticket: tk, debug: true }), /allows DEBUG/],
     ];
+    // the measurement is re-read from the report: a verifier that passed another image does not release
+    { const keep = predicted; predicted = { ...keep, images: [{ ...keep.images[0], measurement: "66".repeat(48) }] };
+      const t = await ticketFor(A), r = await release(A, t.body.ticket, guest({ id: A, ticket: t.body.ticket }));
+      predicted = keep;
+      assert.equal(r.code, 403); assert.match(r.body.message, /not the one predicted/); assert.equal(r.body.sealed, undefined); }
     for (const [label, mk, why] of cases) {
       const t = await ticketFor(A);
       const r = await release(A, t.body.ticket, mk(t.body.ticket));
@@ -367,6 +397,30 @@ test("config parity with the supervisor: envelope config, then its configCid, th
   // a version configCid that does not resolve: nothing rather than a partial answer
   const { r } = await releaseC("", { configCid: "bafkreinothere" });
   assert.equal(r.code, 503); assert.equal(r.body.error, "config_unresolvable");
+});
+
+test("release-status: public, listed only by SECRETS_RELEASE_DEPLOYMENTS; 503 (not listed) while off or unconfigured", async () => {
+  const status = async (id) => { const res = {}; await handleSecrets({ method: "GET" }, res, new URL(`http://x/v1/secrets/release-status?id=${id}`), ctx); return res; };
+  const saved = process.env.SECRETS_RELEASE_DEPLOYMENTS;
+  try {
+    process.env.SECRETS_RELEASE_DEPLOYMENTS = "*";
+    assert.deepEqual((await status(A.toUpperCase().replace("0X", "0x"))).body, { id: A, listed: true });
+    process.env.SECRETS_RELEASE_DEPLOYMENTS = `${B},${C}`;
+    assert.deepEqual((await status(A)).body, { id: A, listed: false });
+    assert.deepEqual((await status(C)).body, { id: C, listed: true });
+    assert.equal((await status("0x1234")).code, 422);
+    process.env.SECRETS_ATTESTED_RELEASE = "";
+    const off = await status(C);
+    assert.equal(off.code, 503); assert.equal(off.body.error, "release_off"); assert.equal(off.body.listed, undefined);
+    process.env.SECRETS_ATTESTED_RELEASE = "1";
+    ctx.predictorProblems = () => ["SECRETS_RELEASE_PREDICT_COMMIT"];
+    const unc = await status(C);
+    assert.equal(unc.code, 503); assert.doesNotMatch(JSON.stringify(unc.body), /PREDICT/, "a public answer does not name the relay's configuration");
+    delete ctx.predictorProblems;
+    // any other GET is still refused
+    const res = {}; await handleSecrets({ method: "GET" }, res, new URL("http://x/v1/secrets/release?id=" + A), ctx);
+    assert.equal(res.code, 405);
+  } finally { process.env.SECRETS_RELEASE_DEPLOYMENTS = saved; process.env.SECRETS_ATTESTED_RELEASE = "1"; }
 });
 
 test("rate keys: a ticket request by client IP; a release by its ticket's ENDPOINT (many guests behind one host address); an unknown ticket by IP", async () => {
