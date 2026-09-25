@@ -1,0 +1,295 @@
+diff --git a/shielded/anchor/avf/payload/anchor_gguf.c b/shielded/anchor/avf/payload/anchor_gguf.c
+index 5ee5fdd9..b39e4d90 100644
+--- a/shielded/anchor/avf/payload/anchor_gguf.c
++++ b/shielded/anchor/avf/payload/anchor_gguf.c
+@@ -4,6 +4,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <sys/mman.h>
+ #include <sys/stat.h>
+ #include <unistd.h>
+
+@@ -40,6 +41,7 @@ typedef struct {
+     int fd; const uint8_t *private_header; size_t private_header_len; uint64_t pos, size; uint8_t *buf; size_t have, at;
+     const anchor_hash_ops *h; void *whole;
+     uint8_t *hdr; size_t hdr_len, hdr_cap; int keep_hdr;
++    uint8_t *keep;                                  /* stage_keep: every byte read also lands here, at its file offset */
+     char *err; size_t errcap;
+ } rd;
+ #define CHUNK (1u << 20)
+@@ -56,6 +58,7 @@ static int fill(rd *r) {
+         do { n = pread(r->fd, r->buf, want, (off_t)r->pos); } while (n < 0 && errno == EINTR);
+     }
+     if (n <= 0) { snprintf(r->err, r->errcap, n < 0 ? "read error at %llu" : "file shrank at %llu", (unsigned long long)r->pos); return 0; }
++    if (r->keep) memcpy(r->keep + r->pos, r->buf, (size_t)n);
+     if (r->h) r->h->update(r->whole, r->buf, (size_t)n);
+     /* hashed ranges leave the page cache 64 MiB at a time: a guest that keeps 27 GB of cache gets its app killed */
+     if (r->h && ((r->pos + (uint64_t)n) >> 26) != (r->pos >> 26) && r->pos >= (64u << 20)) posix_fadvise(r->fd, (off_t)(((r->pos >> 26) << 26) - (64u << 20)), 64 << 20, POSIX_FADV_DONTNEED);
+@@ -107,7 +110,8 @@ static int skip_value(rd *r, uint32_t type, uint64_t *u64_out, int in_array) {
+ static int cmp_off(const void *a, const void *b) { const anchor_gguf_tensor *x = a, *y = b; return x->offset < y->offset ? -1 : x->offset > y->offset; }
+ static int cmp_name(const void *a, const void *b) { return strcmp(((const anchor_gguf_tensor *)a)->name, ((const anchor_gguf_tensor *)b)->name); }
+
+-void anchor_gguf_free(anchor_gguf_table *t) { if (t) { free(t->t); free(t->header); t->t = NULL; t->header = NULL; t->n = 0; t->header_len = 0; } }
++void anchor_gguf_drop_mem(anchor_gguf_table *t) { if (t && t->mem) { munmap(t->mem, (size_t)t->mem_len); t->mem = NULL; t->mem_len = 0; } }
++void anchor_gguf_free(anchor_gguf_table *t) { if (t) { anchor_gguf_drop_mem(t); free(t->t); free(t->header); t->t = NULL; t->header = NULL; t->n = 0; t->header_len = 0; } }
+ const anchor_gguf_tensor *anchor_gguf_find(const anchor_gguf_table *t, const char *name) {
+     if (!t || !name) return NULL;
+     for (size_t i = 0; i < t->n; i++) if (!strcmp(t->t[i].name, name)) return &t->t[i];
+@@ -115,12 +119,16 @@ const anchor_gguf_tensor *anchor_gguf_find(const anchor_gguf_table *t, const cha
+ }
+
+ static int stage_impl(int fd, const uint8_t *private_header, size_t private_header_len,
+-        uint64_t file_size, anchor_gguf_table *t, const anchor_hash_ops *h, uint8_t pin[32], char *err, size_t errcap) {
++        uint64_t file_size, anchor_gguf_table *t, const anchor_hash_ops *h, uint8_t pin[32], int keep, char *err, size_t errcap) {
+     memset(t, 0, sizeof *t); if (errcap) err[0] = 0;
+     struct stat st; memset(&st, 0, sizeof st); if (!private_header && (fd < 0 || fstat(fd, &st) != 0 || st.st_size <= 0)) { snprintf(err, errcap, "not a readable file"); return 0; }
+     rd r; memset(&r, 0, sizeof r); r.fd = fd; r.private_header = private_header; r.private_header_len = private_header_len; r.size = private_header ? file_size : (uint64_t)st.st_size; r.err = err; r.errcap = errcap; r.h = h; r.keep_hdr = 1;
+     r.buf = (uint8_t *)malloc(CHUNK); uint8_t whole[256]; r.whole = whole;
+     if (!r.buf) { snprintf(err, errcap, "no memory"); return 0; }
++    if (keep && h && !private_header && r.size <= (uint64_t)SIZE_MAX) {   /* no mapping = no keep; the stage itself goes on */
++        void *m = mmap(NULL, (size_t)r.size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
++        if (m != MAP_FAILED) r.keep = (uint8_t *)m;
++    }
+     if (h) h->init(whole);
+     uint8_t magic[4]; if (!take(&r, magic, 4)) goto bad;
+     if (memcmp(magic, "GGUF", 4)) { snprintf(err, errcap, "not a GGUF file"); goto bad; }
+@@ -188,15 +196,21 @@ static int stage_impl(int fd, const uint8_t *private_header, size_t private_head
+     if (r.pos != r.size) { snprintf(err, errcap, "size changed under the read"); goto bad; }
+     h->final(whole, pin);
+     memcpy(t->whole_digest, pin, 32); t->has_whole = 1;
++    if (r.keep) { t->mem = r.keep; t->mem_len = r.size; }
+     free(r.buf);
+     return 1;
+ bad:
++    if (r.keep) munmap(r.keep, (size_t)r.size);
+     free(r.buf); free(r.hdr); anchor_gguf_free(t); return 0;
+ }
+
+ int anchor_gguf_stage(int fd, anchor_gguf_table *t, const anchor_hash_ops *h,
+         uint8_t pin[32], char *err, size_t errcap) {
+-    return stage_impl(fd, NULL, 0, 0, t, h, pin, err, errcap);
++    return stage_impl(fd, NULL, 0, 0, t, h, pin, 0, err, errcap);
++}
++int anchor_gguf_stage_keep(int fd, anchor_gguf_table *t, const anchor_hash_ops *h,
++        uint8_t pin[32], char *err, size_t errcap) {
++    return stage_impl(fd, NULL, 0, 0, t, h, pin, 1, err, errcap);
+ }
+
+ /* Internal catalog helper: input is an already authenticated private buffer.
+@@ -207,7 +221,7 @@ int anchor_gguf_private_header(const uint8_t *header, size_t n, uint64_t file_si
+     if (!header || !n || n > (256u << 20) || n > file_size || file_size > INT64_MAX) {
+         memset(t, 0, sizeof *t); snprintf(err, errcap, "invalid private header bounds"); return 0;
+     }
+-    if (!stage_impl(-1, header, n, file_size, t, NULL, NULL, err, errcap)) return 0;
++    if (!stage_impl(-1, header, n, file_size, t, NULL, NULL, 0, err, errcap)) return 0;
+     if (t->header_len != n) {
+         anchor_gguf_free(t); snprintf(err, errcap, "catalog header length differs from parser"); return 0;
+     }
+diff --git a/shielded/anchor/avf/payload/anchor_gguf.h b/shielded/anchor/avf/payload/anchor_gguf.h
+index 2e4315f9..fd0a38a1 100644
+--- a/shielded/anchor/avf/payload/anchor_gguf.h
++++ b/shielded/anchor/avf/payload/anchor_gguf.h
+@@ -18,6 +18,9 @@ typedef struct {
+     uint8_t *header; size_t header_len;         /* the exact header bytes (magic .. last tensor info), verified */
+     uint8_t whole_digest[32]; int has_whole;    /* the whole-file digest (the pin) from the same read; a consumer binding
+                                                  * an artifact to THIS model (the prefix sidecar v2) uses it, not the calib */
++    uint8_t *mem; uint64_t mem_len;             /* anchor_gguf_stage_keep: the file's bytes AS READ, in private anonymous
++                                                 * memory (mem_len == file_size), or NULL. They are the very bytes the digests
++                                                 * judged, so a loader builds tensors from them without reading the file again */
+ } anchor_gguf_table;
+ /* Incremental SHA-256 as the pins module provides it (ctx is opaque storage of at least 256 bytes). */
+ typedef struct { void (*init)(void *ctx); void (*update)(void *ctx, const uint8_t *m, size_t n); void (*final)(void *ctx, uint8_t out[32]); } anchor_hash_ops;
+@@ -33,6 +36,12 @@ int anchor_gguf_private_header(const uint8_t *header, size_t bytes, uint64_t fil
+ /* The same, reporting progress: `progress(ctx, done, total)` after every 1 GiB and at the end (NULL = silent). */
+ typedef void (*anchor_gguf_progress)(void *ctx, uint64_t done, uint64_t total);
+ int  anchor_gguf_stage_p(int fd, anchor_gguf_table *t, const anchor_hash_ops *h, uint8_t pin[32], anchor_gguf_progress progress, void *pctx, char *err, size_t errcap);
++/* The stage, also keeping every byte it read in a private anonymous mapping (t->mem): the loader then builds the tensors
++ * from the bytes the pin judged, with no second read of the file. When the mapping cannot be made the stage still runs and
++ * t->mem is NULL (the loader reads the file, as before). The pages leave with anchor_gguf_free or anchor_gguf_drop_mem. */
++int  anchor_gguf_stage_keep(int fd, anchor_gguf_table *t, const anchor_hash_ops *h, uint8_t pin[32], char *err, size_t errcap);
++/* Unmap t->mem (a loader that consumed it may already have released its pages); the rest of the table stays. */
++void anchor_gguf_drop_mem(anchor_gguf_table *t);
+ void anchor_gguf_free(anchor_gguf_table *t);
+ const anchor_gguf_tensor *anchor_gguf_find(const anchor_gguf_table *t, const char *name);
+ #ifdef __cplusplus
+diff --git a/shielded/anchor/avf/payload/anchor_payload.c b/shielded/anchor/avf/payload/anchor_payload.c
+index edb6d867..85d79589 100644
+--- a/shielded/anchor/avf/payload/anchor_payload.c
++++ b/shielded/anchor/avf/payload/anchor_payload.c
+@@ -959,14 +959,21 @@ static int model_stage(uint64_t bytes) {
+      * form) and each tensor's digest from the same pass; then the pin and the grant's frozen digest */
+     char why[256] = "";
+     struct timespec st0; clock_gettime(CLOCK_MONOTONIC, &st0);
++#ifdef ANCHOR_TIER_PVM_CPU
++    /* the pVM CPU engine builds its tensors from the bytes this read judged (anchor_gguf_stage_keep): no second read of the
++     * model through the encrypted store at load (results/pvm-cpu-p5: that read was 36.8 of the 59.5 s load) */
++    const int staged_ok = anchor_gguf_stage_keep(fd, &g_model_table, &g_hash_ops, g_model_digest, why, sizeof why);
++#else
+     const int staged_ok = anchor_gguf_stage(fd, &g_model_table, &g_hash_ops, g_model_digest, why, sizeof why);
++#endif
+     { struct timespec st1; clock_gettime(CLOCK_MONOTONIC, &st1);
+       OUT("MODEL stage timing: whole-file and per-tensor SHA-256 in one read, %.1f s", (st1.tv_sec - st0.tv_sec) + (st1.tv_nsec - st0.tv_nsec) / 1e9); }
+     if (!staged_ok) { close(fd); OUT("MODEL fail not a usable GGUF: %s", why); model_cache_purge(); return -1; }
+     if (g_pins.has_model && memcmp(g_model_digest, g_pins.model_sha256, 32) != 0) { anchor_gguf_free(&g_model_table); close(fd); OUT("MODEL fail model differs from the measured pin"); model_cache_purge(); return -1; }
+     if (g_have_seed && memcmp(g_model_digest, g_grant_model, 32) != 0) { anchor_gguf_free(&g_model_table); close(fd); OUT("MODEL fail model differs from the one the seed was granted for"); model_cache_purge(); return -1; }
+     g_model_fd = fd; g_model_fd_bytes = bytes; g_model_state = 1; g_auth_mode = 1; g_staged_table = &g_model_table;
+-    OUT("MODEL table: %zu tensors, header %zu bytes retained, data at %llu, digests from the pin's own read (%s)", g_model_table.n, g_model_table.header_len, (unsigned long long)g_model_table.data_start, anchor_sha256_backend());
++    OUT("MODEL table: %zu tensors, header %zu bytes retained, data at %llu, digests from the pin's own read (%s)%s", g_model_table.n, g_model_table.header_len, (unsigned long long)g_model_table.data_start, anchor_sha256_backend(),
++        g_model_table.mem ? "; the judged bytes kept in private memory for the load" : "");
+     char dh[65]; sh_pads_bin2hex(g_model_digest, 32, dh);
+     OUT("MODEL ok %s (%s)", dh, g_pins.has_model ? "matches the pin" : g_have_seed ? "matches the grant" : "unpinned: hashed only");
+     return 0;
+@@ -1163,6 +1170,15 @@ static int app_receive(const anchor_app_plan *plan, app_ready *a) {
+     const int whole = f && b && fread(b, 1, plan->bytes, f) == plan->bytes && fgetc(f) == EOF;
+     if (f) fclose(f);
+     if (!whole) { free(b); OUT("APP refused: the stored component is not %llu bytes", (unsigned long long)plan->bytes); return 4; }
++    {   /* the AppID the VM is about to attest (app_attest_abi2) must be these bytes' digest: checked HERE, before any certificate
++         * names it, not only by pvm-rt before compiling -- otherwise a host could obtain a genuine certificate naming an app the
++         * VM then refuses to run */
++        uint8_t got[32]; sha256(b, (size_t)plan->bytes, got);
++        if (memcmp(got, plan->sha256, 32) != 0) {
++            char gh[65], wh[65]; sh_pads_bin2hex(got, 32, gh); sh_pads_bin2hex(plan->sha256, 32, wh); free(b);
++            OUT("APP refused: bundle sha256 %s is not the expected %s: refusing to compile (and to attest it)", gh, wh); return 4;
++        }
++    }
+     char lib[700]; snprintf(lib, sizeof lib, "%s/lib/arm64-v8a/libpvm_rt.so", AVmPayload_getApkContentsPath());
+     void *h = dlopen(lib, RTLD_NOW);
+     pvmrt_identity_fn idf = h ? (pvmrt_identity_fn)dlsym(h, "pvmrt_identity") : NULL;
+@@ -1318,6 +1334,7 @@ static int run_app_nn(const anchor_local_plan *lp, const anchor_app_plan *ap) {
+     if (lp->poll >= 0) { char pv[16]; snprintf(pv, sizeof pv, "%d", lp->poll); setenv("ANCHOR_POOL_POLL", pv, 1); }
+     OUT("APP over the model: %" PRIu64 " bytes, %d threads, ctx %d, graph %s", lp->model_bytes, lp->threads, lp->ctx, ap->graph);
+     r = em(-1, g_model_fd, lib_dir, lp->threads, lp->ctx);
++    anchor_gguf_drop_mem(&g_model_table);   /* the engine built its tensors from these bytes and released them */
+     if (a.bytes) { free(a.bytes); OUT("APP refused: the engine ended before the app ran (engine exit %d)", r); return 4; }
+     return r == 0 ? 0 : 4;
+ }
+@@ -1383,6 +1400,7 @@ static void run_local(const anchor_local_plan *plan, int ls_wk) {
+     int chat = vs_accept(ls_chat, 120000); close(ls_chat);
+     if (chat < 0) { OUT("LOCAL no chat connection from the owner within 120 s"); return; }
+     int rc = em(chat, model_fd, lib_dir, plan->threads, plan->ctx);
++    anchor_gguf_drop_mem(&g_model_table);   /* the engine built its tensors from these bytes and released them */
+     close(chat);
+     OUT("LOCAL exit %d", rc);
+ }
+diff --git a/shielded/anchor/avf/payload/engine_local.cpp b/shielded/anchor/avf/payload/engine_local.cpp
+index ceee2043..126bd039 100644
+--- a/shielded/anchor/avf/payload/engine_local.cpp
++++ b/shielded/anchor/avf/payload/engine_local.cpp
+@@ -41,6 +41,7 @@
+ #include <dlfcn.h>
+ #include <fcntl.h>
+ #include <string>
++#include <sys/mman.h>
+ #include <sys/resource.h>
+ #include <unistd.h>
+ #include <vector>
+@@ -166,6 +167,15 @@ static llama_model *load_verified(int model_fd, std::vector<ggml_backend_buffer_
+     int src; do { src = fcntl(model_fd, F_DUPFD_CLOEXEC, 0); } while (src < 0 && errno == EINTR);
+     if (src < 0) { outf("LOCAL refused: cannot hold the staged model: %s", strerror(errno)); llama_model_free(model); return nullptr; }
+     std::vector<uint8_t> tmp; size_t n_repack = 0, n_cpu = 0; uint64_t vbytes = 0; bool ok = true;
++    /* The stage kept the bytes it judged (anchor_gguf_stage_keep): the tensors are built from them, with no second read of the
++     * file, and each tensor's pages are released once it is placed, so the model is held about once, not twice. They are
++     * still hashed against the table before use, as the file's bytes are. */
++    const uint8_t *mem = g_table->mem && g_table->mem_len == g_table->file_size ? g_table->mem : nullptr;
++    const long page = sysconf(_SC_PAGESIZE);
++    auto release = [&](uint64_t off, uint64_t len) {   /* the whole pages inside [off, off+len) of the kept bytes */
++        const uint64_t a = (off + (uint64_t)page - 1) / (uint64_t)page * (uint64_t)page, b = (off + len) / (uint64_t)page * (uint64_t)page;
++        if (b > a) madvise((void *)(mem + a), (size_t)(b - a), MADV_DONTNEED);
++    };
+     int64_t us_read = 0, us_hash = 0, us_place = 0;   /* where the cold start's load goes (PVM-CPU.md, target 3) */
+     for (const auto &kv : llama_internal_get_tensor_map(model)) {
+         ggml_tensor *t = kv.second; const std::string &name = kv.first;
+@@ -176,19 +186,25 @@ static llama_model *load_verified(int model_fd, std::vector<ggml_backend_buffer_
+         for (int i = 0; i < 4 && same; i++) same = (uint64_t)t->ne[i] == e->ne[i];
+         if (!same) { outf("LOCAL refused: %s: type/dims/size differ between the verified header and the table", name.c_str()); ok = false; break; }
+         ggml_backend_buffer_type_t buft = t->buffer ? ggml_backend_buffer_get_type(t->buffer) : ggml_backend_cpu_buffer_type();   /* llama's choice */
+-        tmp.resize((size_t)e->size);
+         int64_t tq = ggml_time_us();
+-        const bool whole = anchor_striped_pread(src, g_table->data_start + e->offset, tmp.data(), e->size, read_threads, (uint64_t)16 << 20) == 0;
++        const uint8_t *bytes;
++        if (mem) bytes = mem + g_table->data_start + e->offset;
++        else {
++            tmp.resize((size_t)e->size);
++            const bool whole = anchor_striped_pread(src, g_table->data_start + e->offset, tmp.data(), e->size, read_threads, (uint64_t)16 << 20) == 0;
++            posix_fadvise(src, (off_t)(g_table->data_start + e->offset), (off_t)e->size, POSIX_FADV_DONTNEED);   /* read once, then out of the guest's cache */
++            if (!whole) { outf("LOCAL refused: %s: short read from the staged model", name.c_str()); ok = false; break; }
++            bytes = tmp.data();
++        }
+         us_read += ggml_time_us() - tq; tq = ggml_time_us();
+-        posix_fadvise(src, (off_t)(g_table->data_start + e->offset), (off_t)e->size, POSIX_FADV_DONTNEED);   /* read once, then out of the guest's cache */
+-        if (!whole) { outf("LOCAL refused: %s: short read from the staged model", name.c_str()); ok = false; break; }
+-        if (!digest_matches(e, tmp.data(), (size_t)e->size)) { outf("LOCAL refused: %s: bytes in the staged model differ from its digest at stage time", name.c_str()); ok = false; break; }
++        if (!digest_matches(e, bytes, (size_t)e->size)) { outf("LOCAL refused: %s: bytes in the staged model differ from its digest at stage time", name.c_str()); ok = false; break; }
+         us_hash += ggml_time_us() - tq; tq = ggml_time_us();
+         ggml_backend_buffer_t buf = ggml_backend_buft_alloc_buffer(buft, ggml_backend_buft_get_alloc_size(buft, t));
+         if (!buf) { outf("LOCAL refused: %s: no memory for %zu bytes", name.c_str(), (size_t)e->size); ok = false; break; }
+         t->buffer = nullptr;
+         if (ggml_backend_tensor_alloc(buf, t, ggml_backend_buffer_get_base(buf)) != GGML_STATUS_SUCCESS) { outf("LOCAL refused: %s: tensor placement failed", name.c_str()); ggml_backend_buffer_free(buf); ok = false; break; }
+-        ggml_backend_tensor_set(t, tmp.data(), 0, (size_t)e->size);        /* a repack type repacks FROM the verified bytes here */
++        ggml_backend_tensor_set(t, bytes, 0, (size_t)e->size);             /* a repack type repacks FROM the verified bytes here */
++        if (mem) release(g_table->data_start + e->offset, e->size);
+         ggml_backend_buffer_set_usage(buf, GGML_BACKEND_BUFFER_USAGE_WEIGHTS); owned.push_back(buf);
+         us_place += ggml_time_us() - tq;
+         const char *bname = ggml_backend_buft_name(buft);
+@@ -196,11 +212,12 @@ static llama_model *load_verified(int model_fd, std::vector<ggml_backend_buffer_
+         vbytes += e->size;
+     }
+     close(src);
++    if (mem) release(0, g_table->file_size);   /* the header and every gap too: the kept copy is spent */
+     if (!ok) { llama_model_free(model); for (ggml_backend_buffer_t b : owned) ggml_backend_buffer_free(b); owned.clear(); return nullptr; }
+     model->hparams.no_alloc = false;   /* the pinned fork's flag: every tensor is real now, contexts may allocate */
+     outf("LOCAL verified loader: %zu tensors (%.1f MiB) hashed against the staged table before use: %zu repacked from verified bytes, %zu plain CPU",
+          n_repack + n_cpu, vbytes / 1048576.0, n_repack, n_cpu);
+-    outf("LOCAL verified loader timing: read %.1f s (%d threads), hash %.1f s, place+repack %.1f s", us_read / 1e6, read_threads, us_hash / 1e6, us_place / 1e6);
++    outf("LOCAL verified loader timing: %s %.1f s, hash %.1f s, place+repack %.1f s", mem ? "from the stage's kept bytes (no second read)" : "read", us_read / 1e6, us_hash / 1e6, us_place / 1e6);
+     if (n_repack == 0) outf("LOCAL WARNING: nothing was repacked: the CPU module is not the repacking build, decode will run on the generic kernels");
+     return model;
+ }
+diff --git a/shielded/anchor/avf/runtime/conformance/check-app.py b/shielded/anchor/avf/runtime/conformance/check-app.py
+index e1b86224..8a6c2456 100644
+--- a/shielded/anchor/avf/runtime/conformance/check-app.py
++++ b/shielded/anchor/avf/runtime/conformance/check-app.py
+@@ -28,4 +28,6 @@ for i, c in enumerate(v["cases"]):
+ B = lines("ap-baddigest.log")
+ expect(any("APP refused:" in l and "refusing to compile" in l for l in B), "a wrong announced digest: refused before compiling")
+ expect(not any("APP ran " in l for l in B) and not any("APPOUT " in l for l in B), "... and nothing ran or printed")
++if os.environ.get("ABI2_BEFORE_DIGEST") != "1":   # builds before the fix attested the announced AppID before checking the bytes
++    expect(not any("ABI2 " in l or "ABI2_LINK" in l for l in B), "... and no ABI/2 certificate was requested for the refused app")
+ print("PASS milestone 2 on the device" if not fails else f"FAIL ({len(fails)})"); sys.exit(1 if fails else 0)
+diff --git a/test/fixtures/anchor-gguf.c b/test/fixtures/anchor-gguf.c
+index 816ccfdb..0b02282c 100644
+--- a/test/fixtures/anchor-gguf.c
++++ b/test/fixtures/anchor-gguf.c
+@@ -53,12 +53,30 @@ int main(void) {
+     assert(anchor_gguf_stage(fd, &t, &OPS, pin, err, sizeof err) == 1 && t.header_len > 0 && t.header[0] == 'G');
+     hex(pin, 32, h); printf("synthetic %s size %llu data_start %llu pin %s\n", p, (unsigned long long)t.file_size, (unsigned long long)t.data_start, h);
+     for (size_t i = 0; i < t.n; i++) { hex(t.t[i].digest, 32, h); printf("tensor %s offset %llu size %llu digest %s\n", t.t[i].name, (unsigned long long)t.t[i].offset, (unsigned long long)t.t[i].size, h); }
++    assert(t.mem == NULL);                                            /* the plain stage keeps nothing */
++    {   /* stage_keep: the same digests, and the kept memory IS the file, byte for byte; drop_mem releases it */
++        anchor_gguf_table k; uint8_t kpin[32];
++        assert(anchor_gguf_stage_keep(fd, &k, &OPS, kpin, err, sizeof err) == 1);
++        assert(!memcmp(kpin, pin, 32) && k.n == t.n);
++        for (size_t i = 0; i < k.n; i++) assert(!memcmp(k.t[i].digest, t.t[i].digest, 32));
++        assert(k.mem && k.mem_len == k.file_size);
++        uint8_t *file = malloc((size_t)k.file_size); assert(file && pread(fd, file, (size_t)k.file_size, 0) == (ssize_t)k.file_size);
++        assert(!memcmp(file, k.mem, (size_t)k.file_size)); free(file);
++        anchor_gguf_drop_mem(&k); assert(k.mem == NULL && k.mem_len == 0 && k.n == t.n);   /* the table itself stays */
++        anchor_gguf_free(&k);                                         /* freed before the slot is staged again */
++        assert(anchor_gguf_stage_keep(fd, &k, &OPS, kpin, err, sizeof err) == 1 && k.mem);
++        anchor_gguf_free(&k); assert(k.mem == NULL);                  /* free releases the mapping too */
++        assert(anchor_gguf_stage_keep(fd, &k, NULL, NULL, err, sizeof err) == 1 && k.mem == NULL);   /* nothing is kept unauthenticated */
++        anchor_gguf_free(&k);
++        printf("keep: the kept bytes equal the file (%llu bytes)\n", (unsigned long long)t.file_size);
++    }
+     anchor_gguf_free(&t); close(fd);
+     /* malformed: overlapping offsets, unknown type, wrong magic, truncated */
+     write_synthetic(p, 8, 0); fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "overlaps")); close(fd);
+     write_synthetic(p, 99, 32); fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "unknown tensor type")); close(fd);
+     write_synthetic(p, 8, 32); { FILE *f = fopen(p, "r+b"); fputs("GGUX", f); fclose(f); } fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "not a GGUF")); close(fd);
+-    long size = write_synthetic(p, 8, 32); assert(truncate(p, size - 20) == 0); fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "past the end")); close(fd);
++    long size = write_synthetic(p, 8, 32); assert(truncate(p, size - 20) == 0); fd = open(p, O_RDONLY); assert(!anchor_gguf_stage(fd, &t, NULL, NULL, err, sizeof err) && strstr(err, "past the end"));
++    assert(!anchor_gguf_stage_keep(fd, &t, &OPS, pin, err, sizeof err) && t.mem == NULL); close(fd);   /* a refused keep leaves no mapping */
+     /* a file that shrinks while it is being read is not trusted either */
+     write_synthetic(p, 8, 32); fd = open(p, O_RDONLY); assert(truncate(p, size - 20) == 0);
+     assert(!anchor_gguf_stage(fd, &t, &OPS, pin, err, sizeof err)); close(fd);

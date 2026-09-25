@@ -1,0 +1,10 @@
+01:37:06 apk 10c59696fc35af4ddde0bc96a8bc7aade947426c59195020666bb37eb1513d25 installed; the PAGE pins code hash 433dd3dfa08f5be8d77cefcc93cd5297acdf022d7fa9dfc9d584fe081f1c0dfd, app 29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373 (stream-probe), the pVM runtime, Google's roots (served by the site)
+01:37:08 == launch 1
+01:39:01 l1: the VM serves and answers evidence (110 s)
+{"label": "cancel-1", "browser": "chromium", "complete": false, "status": 200, "tokens": 1, "firstTokenMs": 1307, "ms": 1307, "step": "sealed", "error": "cancelled", "refused": "the caller aborted"}
+{"label": "after-cancel-1", "browser": "chromium", "complete": true, "status": 200, "tokens": 8, "firstTokenMs": 1247, "ms": 1747, "step": null, "error": null, "refused": null}
+{"label": "cancel-4", "browser": "chromium", "complete": false, "status": 200, "tokens": 4, "firstTokenMs": 1057, "ms": 1373, "step": "sealed", "error": "cancelled", "refused": "the caller aborted"}
+{"label": "after-cancel-4", "browser": "chromium", "complete": true, "status": 200, "tokens": 8, "firstTokenMs": 1189, "ms": 1576, "step": null, "error": null, "refused": null}
+{"label": "cancel-10", "browser": "chromium", "complete": false, "status": 200, "tokens": 10, "firstTokenMs": 1010, "ms": 1815, "step": "sealed", "error": "cancelled", "refused": "the caller aborted"}
+{"label": "after-cancel-10", "browser": "chromium", "complete": true, "status": 200, "tokens": 8, "firstTokenMs": 1111, "ms": 1555, "step": null, "error": null, "refused": null}
+01:39:28 termination: waiting for the lab STOP and the run's end

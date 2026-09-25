@@ -1,0 +1,9 @@
+file:///home/steven/Projects/enclave-pvm/relay/pvm-cpu-tier.mjs:51
+  return { codeHashes: new Set(codeHashes.map((h) => String(h).toLowerCase())), authorityHashes: new Set(authorityHashes.map((h) => String(h).toLowerCase())),
+                                                                                                                         ^
+
+TypeError: Cannot read properties of undefined (reading 'map')
+    at pvmCpuPolicy (file:///home/steven/Projects/enclave-pvm/relay/pvm-cpu-tier.mjs:51:122)
+    at file:///home/steven/Projects/enclave-pvm/shielded/anchor/avf/cpu/local-hub.mjs:28:16
+
+Node.js v22.23.2

@@ -1,0 +1,5 @@
+cool gate: OK Thermal Status: 0 cap=3052000/3052000 after 1 check(s)
+LOCAL turn 1 STATS {status=eos, prefill_tokens=23, prefill_tok_s=84.49, decode_tokens=104, decode_tok_s=13.67, ctx_used=127, ctx=4096}
+big-core cap through the run: cpu2 min 2937000, cpu7 min 3398000 (20 samples)
+cpu turn 1 decode window 7.53 s (104 tokens): COMPLETE: the app's processes 30.52 core-s = 4.05 cores busy, 293 core-ms per decoded token (edge interpolation +-3.71 core-s) [crosvm_anchorlocal 30.38, host.enclave.anchor.avf 0.14, virtmgr_lave.anchor.avf 0.00] | 6.22 cores busy device-wide
+LANE-RUN OK la-02

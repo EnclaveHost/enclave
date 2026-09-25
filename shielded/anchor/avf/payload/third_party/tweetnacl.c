@@ -653,6 +653,29 @@ sv scalarbase(gf p[4],const u8 *s)
   scalarmult(p,q,s);
 }
 
+/* Enclave addition (not upstream TweetNaCl): the same key pair from a CALLER's 32-byte seed (RFC 8032: sk = seed || pk),
+ * for a key that must be the same every time it is derived -- the pVM's instance key, seeded from
+ * AVmPayload_getVmInstanceSecret (INSTANCE-BINDING.md). crypto_sign_keypair below is this with a random seed. */
+int crypto_sign_ed25519_tweet_seed_keypair(u8 *pk, u8 *sk, const u8 *seed)
+{
+  u8 d[64];
+  gf p[4];
+  int i;
+
+  FOR(i,32) sk[i] = seed[i];
+  crypto_hash(d, sk, 32);
+  d[0] &= 248;
+  d[31] &= 127;
+  d[31] |= 64;
+
+  scalarbase(p,d);
+  pack(pk,p);
+
+  FOR(i,32) sk[32 + i] = pk[i];
+  FOR(i,64) d[i] = 0;
+  return 0;
+}
+
 int crypto_sign_keypair(u8 *pk, u8 *sk)
 {
   u8 d[64];
