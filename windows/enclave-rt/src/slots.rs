@@ -1,4 +1,4 @@
-//! A generational slot table for the apps this enclave runs at once.
+//! The table of apps this enclave runs at once, addressed by a handle that is NEVER reused.
 //!
 //! The bug this replaces (found 2026-09-25 on nucbox-k11, two tenants sharing "slot 3"):
 //! `ee_rt_run` used to `APPS[id-1].take()` the running app OUT of its slot so the run thread could
@@ -9,58 +9,41 @@
 //! DIFFERENT tenant's app. A cross-tenant action from an in-bounds handle is a tenant-safety bug,
 //! not a reliability one.
 //!
-//! The fix is the standard generational-index pattern, made safe by construction rather than by
-//! caller discipline:
-//!   * an app that is running, or checked out to serve a request, KEEPS its slot, so `insert` can
-//!     never reuse a live slot and hand out a duplicate handle;
-//!   * every handle carries the generation of the occupancy it was minted for, so a handle for an
-//!     app that has since stopped no longer resolves to whatever app took the slot next; and
-//!   * the run thread's `finish_run` (and the request path's `checkin`) only act when the
-//!     generation still matches, so an app's teardown racing a new occupant of the same slot
-//!     cannot free the newcomer.
+//! ## Why a monotonic id and not a generational index
 //!
-//! Handle layout (u32, opaque to the host, which only echoes it back):
-//!   bits 0..SLOT_BITS  = slot index (0..MAX_APPS-1)
-//!   bits SLOT_BITS..   = generation, monotonic from 1, so handle 0 is never valid.
+//! The first fix kept the array-index idea and tagged each slot with a generation packed into the
+//! handle. Review (d1, then an independent audit, 2026-09-25) showed that only narrows the window:
+//! a generation field is finite, so once the counter WRAPS a retired handle can equal a live one
+//! again and reach a different tenant -- the exact thing the patch exists to forbid. Masking the
+//! field fixed the truncation but not the reuse.
+//!
+//! So the handle is a GLOBAL monotonic id that is never reused within a node's run:
+//!   * `insert` mints the next id (1, 2, 3, ...) and stores it with the app; the id identifies the
+//!     occupancy, not the array slot.
+//!   * a running or mid-request app KEEPS its entry, so nothing overwrites a live app.
+//!   * every accessor finds the app by id, so a handle for an app that has stopped (its id retired)
+//!     matches no entry and reaches nothing; a handle never names a later app.
+//!   * when the id space is exhausted the table FAILS CLOSED -- `insert` refuses rather than wrap
+//!     and risk reuse. u32 gives 4,294,967,295 opens per node boot; at any real rate that is never
+//!     reached (decades of continuous uptime), and a node restart resets the counter. Refusing to
+//!     open a new app is safe; reusing a handle is not.
+//!
+//! The array is still bounded (`MAX_APPS` concurrent apps); it is only the ADDRESS that is now an
+//! id rather than an index. Lookup is a scan of at most `MAX_APPS` entries, which is nothing.
 //!
 //! `no_std`: the table itself allocates nothing; it holds the caller's `T`/`E` in place. A tiny
 //! spinlock guards the array because `ee_rt_stop` may be called from a different thread than the
 //! one running the app (the doc on `ee_rt_stop` promises exactly that), and the old `static mut`
-//! access was an unsynchronised data race across those threads. The lock is held only for the
-//! table transitions, never across an app's execution -- an app is checked OUT of the table for
-//! the duration of a request or a run and checked back in afterwards.
+//! access was an unsynchronised data race across those threads. The lock is held only across the
+//! array reads/writes and, in `running_engine`, one `Engine` clone (an `Arc` refcount bump -- see
+//! that method); it is NEVER held across an app's execution, and every value or engine a transition
+//! discards is moved into a local declared before the guard so it DROPS AFTER the lock is released,
+//! not under it.
 
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 pub const MAX_APPS: usize = 8;
-const SLOT_BITS: u32 = 3; // ceil(log2(MAX_APPS)); MAX_APPS must be <= 1 << SLOT_BITS
-const SLOT_MASK: u32 = (1 << SLOT_BITS) - 1;
-/// The generation occupies the rest of the handle. It is kept masked to exactly this width so that
-/// the value stored in an `Entry` is byte-for-byte what a handle carries -- otherwise a generation
-/// past `2^GEN_BITS` would be truncated by the shift in `make_handle`, the stored and recovered
-/// generations would diverge, and (once the counter wrapped) a reused slot could mint a handle
-/// equal to a live one: exactly the wrong-tenant reach this table exists to forbid. Found in review
-/// (d1, 2026-09-25).
-const GEN_BITS: u32 = u32::BITS - SLOT_BITS;
-const GEN_MASK: u32 = (1u32 << GEN_BITS) - 1;
-
-const _: () = assert!(MAX_APPS <= (1 << SLOT_BITS));
-// The generation field must not overlap the slot field, and a masked generation shifted into place
-// must stay within a u32.
-const _: () = assert!(SLOT_BITS + GEN_BITS == u32::BITS);
-const _: () = assert!(GEN_MASK <= (u32::MAX >> SLOT_BITS));
-
-fn make_handle(slot: usize, gen: u32) -> u32 {
-    // The generation is always minted within GEN_MASK (see `next_gen` in `insert`) and never 0, so
-    // handle 0 is never valid and the shift below never loses a generation bit.
-    debug_assert!(gen != 0 && gen <= GEN_MASK, "generation out of the handle's field");
-    debug_assert!((slot as u32) <= SLOT_MASK, "slot out of the handle's field");
-    (gen << SLOT_BITS) | (slot as u32)
-}
-fn split_handle(handle: u32) -> (usize, u32) {
-    ((handle & SLOT_MASK) as usize, handle >> SLOT_BITS)
-}
 
 /// What `remove` (a host close) did, so the caller can report it and drop the value outside the
 /// lock.
@@ -76,18 +59,42 @@ pub enum Removed<T> {
 enum Entry<T, E> {
     Empty,
     /// Loaded and idle: a wasi:http app between requests, or a wasi:cli app before it runs.
-    Loaded { gen: u32, val: T, engine: E },
+    Loaded { id: u32, val: T, engine: E },
     /// A wasi:http app checked out to serve one request. The value is on the serving thread; the
-    /// slot stays occupied. `close_pending` records a host close that arrived mid-request.
-    Busy { gen: u32, engine: E, close_pending: bool },
+    /// entry stays so nothing reuses the id. `close_pending` records a host close that arrived
+    /// mid-request.
+    Busy { id: u32, engine: E, close_pending: bool },
     /// A wasi:cli app whose `Store` has been moved to its run thread. The engine stays so
     /// `ee_rt_stop` can interrupt it.
-    Running { gen: u32, engine: E },
+    Running { id: u32, engine: E },
+}
+
+impl<T, E> Entry<T, E> {
+    /// The occupancy id, or 0 for an empty entry (0 is never a minted id).
+    fn id(&self) -> u32 {
+        match self {
+            Entry::Empty => 0,
+            Entry::Loaded { id, .. } | Entry::Busy { id, .. } | Entry::Running { id, .. } => *id,
+        }
+    }
 }
 
 struct Inner<T, E> {
     entries: [Entry<T, E>; MAX_APPS],
-    next_gen: u32,
+    /// The next id to mint. Monotonic; 0 means "exhausted" (see `insert`), so a minted id is always
+    /// in 1..=u32::MAX and is never reused within a node's run.
+    next_id: u32,
+}
+
+impl<T, E> Inner<T, E> {
+    /// Index of the entry holding this id, if any. Ids are unique, so at most one matches. Id 0
+    /// (an empty entry, or an invalid handle) never matches.
+    fn slot_of(&self, id: u32) -> Option<usize> {
+        if id == 0 {
+            return None;
+        }
+        self.entries.iter().position(|e| e.id() == id)
+    }
 }
 
 pub struct SlotTable<T, E> {
@@ -119,7 +126,7 @@ impl<T, E: Clone> SlotTable<T, E> {
                     Entry::Empty, Entry::Empty, Entry::Empty, Entry::Empty,
                     Entry::Empty, Entry::Empty, Entry::Empty, Entry::Empty,
                 ],
-                next_gen: 1,
+                next_id: 1,
             }),
         }
     }
@@ -136,41 +143,41 @@ impl<T, E: Clone> SlotTable<T, E> {
         Guard { lock: &self.lock, inner: unsafe { &mut *self.inner.get() } }
     }
 
-    /// Install a loaded app in the first free slot. Returns its handle, or `None` if all
-    /// `MAX_APPS` slots are occupied (loaded, busy OR running). `engine` is kept for `ee_rt_stop`.
+    /// Install a loaded app in the first free entry and mint its (never-reused) id. Returns the
+    /// handle, or `None` if the table is full OR the id space is exhausted -- both fail closed, and
+    /// the refused `val`/`engine` drop after the lock is released. `engine` is kept for
+    /// `ee_rt_stop`.
     pub fn insert(&self, val: T, engine: E) -> Option<u32> {
-        let g = self.lock();
-        for (i, e) in g.inner.entries.iter_mut().enumerate() {
-            if matches!(e, Entry::Empty) {
-                // `next_gen` lives in the masked generation space [1, GEN_MASK]: the value handed
-                // out is always what a handle can carry, and advancing wraps within that space and
-                // skips 0 so handle 0 stays invalid. Storing the SAME masked value is what keeps
-                // the comparisons in checkout/checkin/finish_run/running_engine exact.
-                let gen = g.inner.next_gen;
-                g.inner.next_gen = (g.inner.next_gen + 1) & GEN_MASK;
-                if g.inner.next_gen == 0 {
-                    g.inner.next_gen = 1;
+        // `_refused` holds the val+engine of a refused open so they drop AFTER the guard releases,
+        // never under the lock.
+        let (handle, _refused): (Option<u32>, Option<(T, E)>) = {
+            let g = self.lock();
+            let free = g.inner.entries.iter().position(|e| matches!(e, Entry::Empty));
+            match free {
+                // Never mint 0, and never wrap: once the counter has issued u32::MAX it is 0 here
+                // and we refuse rather than reuse an id a stale handle might still name.
+                Some(i) if g.inner.next_id != 0 => {
+                    let id = g.inner.next_id;
+                    g.inner.next_id = id.checked_add(1).unwrap_or(0);
+                    g.inner.entries[i] = Entry::Loaded { id, val, engine };
+                    (Some(id), None)
                 }
-                *e = Entry::Loaded { gen, val, engine };
-                return Some(make_handle(i, gen));
+                _ => (None, Some((val, engine))),
             }
-        }
-        None
+        };
+        handle
     }
 
-    /// Check a loaded wasi:http app OUT to serve one request on the caller's thread. The slot stays
-    /// occupied (`Busy`) so nothing reuses it; call `checkin` with the value afterwards. Returns
-    /// `None` if the handle does not name a currently-idle loaded app.
+    /// Check a loaded wasi:http app OUT to serve one request on the caller's thread. The entry
+    /// stays (`Busy`) so nothing reuses the id; call `checkin` with the value afterwards. `None`
+    /// if the handle does not name a currently-idle loaded app.
     pub fn checkout(&self, handle: u32) -> Option<T> {
-        let (slot, gen) = split_handle(handle);
-        if slot >= MAX_APPS {
-            return None;
-        }
         let g = self.lock();
-        let e = &mut g.inner.entries[slot];
+        let i = g.inner.slot_of(handle)?;
+        let e = &mut g.inner.entries[i];
         match core::mem::replace(e, Entry::Empty) {
-            Entry::Loaded { gen: eg, val, engine } if eg == gen => {
-                *e = Entry::Busy { gen, engine, close_pending: false };
+            Entry::Loaded { id, val, engine } => {
+                *e = Entry::Busy { id, engine, close_pending: false };
                 Some(val)
             }
             other => {
@@ -180,46 +187,51 @@ impl<T, E: Clone> SlotTable<T, E> {
         }
     }
 
-    /// Return a checked-out app to its slot. If a host close arrived while it was serving, the app
-    /// is freed instead of reinstalled (and this returns `true`, "was closed"); the value is
-    /// dropped here in either case only when freed -- otherwise it is stored back. A generation
-    /// mismatch (the slot was force-freed) also drops the value.
+    /// Return a checked-out app to its entry. If a host close arrived while it was serving, the app
+    /// is freed instead of reinstalled (returns `true`, "was closed"). The discarded engine drops
+    /// after the lock is released; the value `val` (a parameter) likewise drops after the guard on
+    /// the paths where it is not stored back.
     pub fn checkin(&self, handle: u32, val: T) -> bool {
-        let (slot, gen) = split_handle(handle);
-        if slot >= MAX_APPS {
-            return true; // nowhere to put it back: it is gone
+        if handle == 0 {
+            return true; // nowhere to put it back; `val` drops here, no lock held
         }
-        let g = self.lock();
-        let e = &mut g.inner.entries[slot];
-        match core::mem::replace(e, Entry::Empty) {
-            Entry::Busy { gen: eg, engine, close_pending } if eg == gen => {
-                if close_pending {
-                    // leave Empty; `val` drops at end of scope
-                    true
-                } else {
-                    *e = Entry::Loaded { gen, val, engine };
-                    false
+        // `_trash` carries whatever must drop after the guard: on a close/gone path the returned
+        // `val` and (if closing) the engine; on the reinstall path nothing (both go back in).
+        let (closed, _trash): (bool, Option<(T, Option<E>)>) = {
+            let g = self.lock();
+            match g.inner.slot_of(handle) {
+                Some(i) => {
+                    let e = &mut g.inner.entries[i];
+                    match core::mem::replace(e, Entry::Empty) {
+                        Entry::Busy { id, engine, close_pending } => {
+                            if close_pending {
+                                (true, Some((val, Some(engine))))
+                            } else {
+                                *e = Entry::Loaded { id, val, engine };
+                                (false, None)
+                            }
+                        }
+                        other => {
+                            *e = other; // not a busy app under this id: leave it
+                            (true, Some((val, None)))
+                        }
+                    }
                 }
+                None => (true, Some((val, None))), // the entry is gone
             }
-            other => {
-                *e = other; // slot was reused under a new gen; drop `val`
-                true
-            }
-        }
+        };
+        closed
     }
 
-    /// Take a loaded wasi:cli app out to run it on the caller's thread, leaving the slot occupied
-    /// (`Running`) so nothing reuses it. Returns the moved value, or `None`.
+    /// Take a loaded wasi:cli app out to run it on the caller's thread, leaving the entry occupied
+    /// (`Running`) so nothing reuses the id. Returns the moved value, or `None`.
     pub fn begin_run(&self, handle: u32) -> Option<T> {
-        let (slot, gen) = split_handle(handle);
-        if slot >= MAX_APPS {
-            return None;
-        }
         let g = self.lock();
-        let e = &mut g.inner.entries[slot];
+        let i = g.inner.slot_of(handle)?;
+        let e = &mut g.inner.entries[i];
         match core::mem::replace(e, Entry::Empty) {
-            Entry::Loaded { gen: eg, val, engine } if eg == gen => {
-                *e = Entry::Running { gen, engine };
+            Entry::Loaded { id, val, engine } => {
+                *e = Entry::Running { id, engine };
                 Some(val)
             }
             other => {
@@ -230,78 +242,96 @@ impl<T, E: Clone> SlotTable<T, E> {
     }
 
     /// The run thread calls this once its app has returned/trapped and its `Store` is dropped.
-    /// Clears the slot ONLY if it still holds this exact occupancy; if the slot was already freed
-    /// and reused (a different generation), it does nothing. Returns whether it cleared the slot.
+    /// Clears the entry ONLY if it still holds this exact running occupancy; a handle for an app
+    /// that was already freed matches nothing and this is a no-op, so a slow teardown cannot free a
+    /// later app. The discarded engine drops after the lock is released. Returns whether it cleared
+    /// the entry.
     pub fn finish_run(&self, handle: u32) -> bool {
-        let (slot, gen) = split_handle(handle);
-        if slot >= MAX_APPS {
-            return false;
-        }
-        let g = self.lock();
-        let e = &mut g.inner.entries[slot];
-        if matches!(e, Entry::Running { gen: eg, .. } if *eg == gen) {
-            *e = Entry::Empty;
-            true
-        } else {
-            false
-        }
+        // `_trash` holds the discarded engine so it drops after the guard releases.
+        let (done, _trash): (bool, Option<E>) = {
+            let g = self.lock();
+            match g.inner.slot_of(handle) {
+                Some(i) => {
+                    let e = &mut g.inner.entries[i];
+                    match core::mem::replace(e, Entry::Empty) {
+                        Entry::Running { engine, .. } => (true, Some(engine)),
+                        other => {
+                            *e = other;
+                            (false, None)
+                        }
+                    }
+                }
+                None => (false, None),
+            }
+        };
+        done
     }
 
-    /// A clone of the engine for an app running under this exact handle, for `ee_rt_stop`. `None`
+    /// A clone of the engine for the app running under this exact handle, for `ee_rt_stop`. `None`
     /// if the handle names no running app -- which is what makes a wrong-tenant stop impossible: a
-    /// handle for a stopped/absent app never yields an engine, and a reused slot has a different
-    /// generation.
+    /// handle for a stopped/absent app matches no entry, and an id is never reused. The clone is a
+    /// `wasmtime::Engine` clone, which is an `Arc` refcount increment (Engine is documented as
+    /// cheaply clonable) -- no host call-out, no allocation, no app execution -- so doing it under
+    /// the lock keeps the section short.
     pub fn running_engine(&self, handle: u32) -> Option<E> {
-        let (slot, gen) = split_handle(handle);
-        if slot >= MAX_APPS {
-            return None;
-        }
         let g = self.lock();
-        match &g.inner.entries[slot] {
-            Entry::Running { gen: eg, engine } if *eg == gen => Some(engine.clone()),
+        let i = g.inner.slot_of(handle)?;
+        match &g.inner.entries[i] {
+            Entry::Running { engine, .. } => Some(engine.clone()),
             _ => None,
         }
     }
 
-    /// Free a slot the host asked to close (wasi:http teardown). Only acts on the exact occupancy
-    /// named. An idle app is taken out (`Took`, drop it outside the lock); an app mid-request is
-    /// marked to free itself on `checkin` (`Deferred`); a running wasi:cli app or a stale/absent
-    /// handle is `NotClosable`.
+    /// Free an entry the host asked to close (wasi:http teardown). Only acts on the app named. An
+    /// idle app is taken out (`Took`; drop it outside the lock -- and its engine drops after the
+    /// guard here); an app mid-request is marked to free itself on `checkin` (`Deferred`); a
+    /// running wasi:cli app or a stale/absent handle is `NotClosable`.
     pub fn remove(&self, handle: u32) -> Removed<T> {
-        let (slot, gen) = split_handle(handle);
-        if slot >= MAX_APPS {
-            return Removed::NotClosable;
-        }
-        let g = self.lock();
-        let e = &mut g.inner.entries[slot];
-        match core::mem::replace(e, Entry::Empty) {
-            Entry::Loaded { gen: eg, val, .. } if eg == gen => Removed::Took(val),
-            Entry::Busy { gen: eg, engine, .. } if eg == gen => {
-                *e = Entry::Busy { gen, engine, close_pending: true };
-                Removed::Deferred
+        // The returned value goes to the caller (dropped outside the lock); `_trash` holds the
+        // discarded engine so it too drops after the guard releases.
+        let (r, _trash): (Removed<T>, Option<E>) = {
+            let g = self.lock();
+            match g.inner.slot_of(handle) {
+                Some(i) => {
+                    let e = &mut g.inner.entries[i];
+                    match core::mem::replace(e, Entry::Empty) {
+                        Entry::Loaded { val, engine, .. } => (Removed::Took(val), Some(engine)),
+                        Entry::Busy { id, engine, .. } => {
+                            *e = Entry::Busy { id, engine, close_pending: true };
+                            (Removed::Deferred, None)
+                        }
+                        other => {
+                            *e = other;
+                            (Removed::NotClosable, None)
+                        }
+                    }
+                }
+                None => (Removed::NotClosable, None),
             }
-            other => {
-                *e = other;
-                Removed::NotClosable
-            }
-        }
-    }
-
-    /// Test-only: drive the generation counter near a wrap without 2^29 real inserts.
-    #[cfg(test)]
-    fn set_next_gen(&self, g: u32) {
-        let guard = self.lock();
-        guard.inner.next_gen = g;
+        };
+        r
     }
 
     /// True if the handle names an app that is currently running.
     pub fn is_running(&self, handle: u32) -> bool {
-        let (slot, gen) = split_handle(handle);
-        if slot >= MAX_APPS {
-            return false;
-        }
         let g = self.lock();
-        matches!(&g.inner.entries[slot], Entry::Running { gen: eg, .. } if *eg == gen)
+        match g.inner.slot_of(handle) {
+            Some(i) => matches!(&g.inner.entries[i], Entry::Running { .. }),
+            None => false,
+        }
+    }
+
+    /// Test-only: drive the id counter near exhaustion without minting billions of handles.
+    #[cfg(test)]
+    fn set_next_id(&self, id: u32) {
+        let g = self.lock();
+        g.inner.next_id = id;
+    }
+
+    /// Test-only: read the lock flag, so a test can assert a value dropped OUTSIDE the lock.
+    #[cfg(test)]
+    fn locked(&self) -> bool {
+        self.lock.load(Ordering::Relaxed)
     }
 }
 
@@ -322,35 +352,31 @@ mod tests {
     }
 
     #[test]
-    fn two_apps_get_distinct_handles_and_slots() {
+    fn two_apps_get_distinct_handles() {
         let t: SlotTable<&str, Eng> = SlotTable::new();
         let a = t.insert("A", Eng::new()).unwrap();
         let b = t.insert("B", Eng::new()).unwrap();
         assert_ne!(a, b);
-        assert_ne!(split_handle(a).0, split_handle(b).0, "distinct slots");
     }
 
     #[test]
-    fn a_running_app_keeps_its_slot_so_open_cannot_reuse_it() {
-        // The exact regression: run A, then open B. B must NOT land in A's slot.
+    fn a_running_app_keeps_its_entry_so_open_cannot_reuse_its_id() {
         let t: SlotTable<&str, Eng> = SlotTable::new();
         let a = t.insert("A", Eng::new()).unwrap();
-        let (slot_a, _) = split_handle(a);
         let val = t.begin_run(a).expect("A begins running");
         assert_eq!(val, "A");
         let b = t.insert("B", Eng::new()).unwrap();
-        assert_ne!(split_handle(b).0, slot_a, "B must not reuse the running app's slot");
+        assert_ne!(a, b, "B gets a fresh id, never A's");
         assert!(t.is_running(a));
     }
 
     #[test]
-    fn a_busy_http_app_keeps_its_slot_too() {
+    fn a_busy_http_app_keeps_its_entry_too() {
         let t: SlotTable<&str, Eng> = SlotTable::new();
         let a = t.insert("A", Eng::new()).unwrap();
-        let (slot_a, _) = split_handle(a);
         let v = t.checkout(a).expect("A checked out for a request");
         let b = t.insert("B", Eng::new()).unwrap();
-        assert_ne!(split_handle(b).0, slot_a, "B must not reuse a busy app's slot");
+        assert_ne!(a, b);
         assert!(!t.checkin(a, v), "A goes back, not closed");
         assert!(t.checkout(a).is_some(), "A is idle-loaded again");
     }
@@ -370,14 +396,12 @@ mod tests {
     }
 
     #[test]
-    fn a_stale_handle_after_slot_reuse_resolves_to_nothing() {
+    fn a_retired_handle_resolves_to_nothing() {
         let t: SlotTable<&str, Eng> = SlotTable::new();
         let a = t.insert("A", Eng::new()).unwrap();
-        let (slot_a, _) = split_handle(a);
         assert!(matches!(t.remove(a), Removed::Took("A")));
         let b = t.insert("B", Eng::new()).unwrap();
-        assert_eq!(split_handle(b).0, slot_a, "B reuses A's freed slot");
-        assert_ne!(a, b, "same slot, new generation -> different handle");
+        assert_ne!(a, b, "B never reuses A's id");
         assert!(t.checkout(a).is_none());
         assert!(t.begin_run(a).is_none());
         assert!(t.running_engine(a).is_none());
@@ -387,24 +411,22 @@ mod tests {
     }
 
     #[test]
-    fn a_close_of_a_stale_handle_cannot_free_the_new_occupant() {
+    fn a_close_of_a_retired_handle_cannot_free_a_later_app() {
         let t: SlotTable<&str, Eng> = SlotTable::new();
         let a = t.insert("A", Eng::new()).unwrap();
         assert!(matches!(t.remove(a), Removed::Took("A")));
         let b = t.insert("B", Eng::new()).unwrap();
-        assert!(matches!(t.remove(a), Removed::NotClosable), "closing A's stale handle is a no-op");
+        assert!(matches!(t.remove(a), Removed::NotClosable), "closing A's retired handle is a no-op");
         assert!(t.checkout(b).is_some(), "B is still installed");
     }
 
     #[test]
-    fn old_completion_racing_a_new_occupant_does_not_free_it() {
+    fn old_completion_racing_a_new_app_does_not_free_it() {
         let t: SlotTable<&str, Eng> = SlotTable::new();
         let a = t.insert("A", Eng::new()).unwrap();
-        let (slot_a, _) = split_handle(a);
         t.begin_run(a).unwrap();
         assert!(t.finish_run(a)); // A finishes once...
         let b = t.insert("B", Eng::new()).unwrap();
-        assert_eq!(split_handle(b).0, slot_a);
         t.begin_run(b).unwrap();
         assert!(!t.finish_run(a), "A's stale finish is a no-op");
         assert!(t.is_running(b), "B is still running");
@@ -415,36 +437,52 @@ mod tests {
         let t: SlotTable<&str, Eng> = SlotTable::new();
         let a = t.insert("A", Eng::new()).unwrap();
         let v = t.checkout(a).unwrap();
-        // Host close arrives mid-request: deferred, not applied yet.
         assert!(matches!(t.remove(a), Removed::Deferred));
-        // The slot is still occupied so nothing reuses it during the request.
         let b = t.insert("B", Eng::new()).unwrap();
-        assert_ne!(split_handle(b).0, split_handle(a).0);
-        // Finishing the request frees A rather than reinstalling it.
+        assert_ne!(a, b);
         assert!(t.checkin(a, v), "checkin reports the app was closed");
         assert!(t.checkout(a).is_none(), "A is gone");
     }
 
+    // The audit's exact scenario, adapted to the monotonic-id design: after the id counter is
+    // driven to its boundary, a retired handle must NOT reach a later app.
     #[test]
-    fn checkin_after_force_free_drops_the_value_and_spares_the_reuser() {
-        // A is checked out; the slot is somehow freed and reused (new gen) before checkin.
+    fn a_retired_handle_never_reaches_a_later_app_even_near_the_counter_boundary() {
         let t: SlotTable<i32, Eng> = SlotTable::new();
-        let a = t.insert(1, Eng::new()).unwrap();
-        let (slot_a, _) = split_handle(a);
-        let v = t.checkout(a).unwrap();
-        // Simulate the slot being reclaimed and reused under a new generation.
-        // (Only reachable in production via a bug, but checkin must be robust to it.)
-        assert!(matches!(t.remove(a), Removed::Deferred));
-        assert!(t.checkin(a, v)); // frees A
-        let b = t.insert(2, Eng::new()).unwrap();
-        assert_eq!(split_handle(b).0, slot_a);
-        // A late checkin of A's OLD handle must not disturb B.
-        assert!(t.checkin(a, 999));
-        assert!(t.checkout(b).is_some(), "B untouched");
+        let old_engine = Eng::new();
+        let old = t.insert(1, old_engine.clone()).unwrap();
+        assert!(matches!(t.remove(old), Removed::Took(1)));
+        // Drive the counter to its last value (would be the wrap point for a bounded field).
+        t.set_next_id(u32::MAX);
+        let mid = t.insert(2, Eng::new()).unwrap();
+        assert_eq!(mid, u32::MAX);
+        assert!(matches!(t.remove(mid), Removed::Took(2)));
+        // The counter is now exhausted; opening the "new" app must FAIL CLOSED, not reuse `old`.
+        assert!(t.insert(3, Eng::new()).is_none(), "id space exhausted -> refuse, never reuse");
+        // And the retired handle reaches nothing.
+        assert!(t.running_engine(old).is_none());
+        assert!(matches!(t.remove(old), Removed::NotClosable));
+        // Nothing ever bumped the old engine.
+        assert_eq!(old_engine.count(), 0);
     }
 
     #[test]
-    fn finish_run_clears_the_running_slot_for_reuse() {
+    fn exhaustion_fails_closed_and_never_mints_zero_or_a_reused_id() {
+        let t: SlotTable<i32, Eng> = SlotTable::new();
+        // One before the end: mint u32::MAX, then the counter is exhausted.
+        t.set_next_id(u32::MAX);
+        let last = t.insert(1, Eng::new()).unwrap();
+        assert_eq!(last, u32::MAX);
+        // Even with free entries, no more ids are minted.
+        assert!(t.insert(2, Eng::new()).is_none());
+        assert!(t.insert(3, Eng::new()).is_none());
+        // The one live app is still reachable and 0 was never a handle.
+        assert!(t.is_running(last) == false && t.checkout(last).is_some());
+        assert!(t.checkout(0).is_none());
+    }
+
+    #[test]
+    fn finish_run_clears_the_entry_for_reuse() {
         let t: SlotTable<&str, Eng> = SlotTable::new();
         let a = t.insert("A", Eng::new()).unwrap();
         t.begin_run(a).unwrap();
@@ -452,66 +490,72 @@ mod tests {
         assert!(t.finish_run(a));
         assert!(!t.is_running(a));
         let b = t.insert("B", Eng::new()).unwrap();
-        assert_eq!(split_handle(b).0, split_handle(a).0);
+        assert_ne!(a, b);
     }
 
     #[test]
-    fn the_table_fills_and_refuses_a_ninth_app() {
+    fn the_table_fills_and_refuses_a_ninth_app_then_reopens_after_a_free() {
         let t: SlotTable<usize, Eng> = SlotTable::new();
         let mut hs = Vec::new();
         for i in 0..MAX_APPS {
             hs.push(t.insert(i, Eng::new()).expect("slot available"));
         }
-        assert!(t.insert(999, Eng::new()).is_none(), "no ninth slot");
+        assert!(t.insert(999, Eng::new()).is_none(), "no ninth entry");
         assert!(matches!(t.remove(hs[3]), Removed::Took(_)));
-        let n = t.insert(1000, Eng::new()).expect("slot freed");
-        assert_eq!(split_handle(n).0, split_handle(hs[3]).0);
-        assert_ne!(n, hs[3]);
+        let n = t.insert(1000, Eng::new()).expect("an entry is free again");
+        assert!(!hs.contains(&n), "the new app's id is fresh, not a reused one");
     }
 
     #[test]
-    fn a_generation_at_the_field_maximum_is_still_reachable() {
-        // The truncation bug (d1's finding): a generation past 2^GEN_BITS used to store one value
-        // and mint a handle carrying another, so the app became unreachable. At the exact maximum
-        // the stored and recovered generations must still agree.
+    fn handle_zero_and_unknown_ids_are_never_valid() {
         let t: SlotTable<&str, Eng> = SlotTable::new();
-        t.set_next_gen(GEN_MASK);
         let a = t.insert("A", Eng::new()).unwrap();
-        assert_eq!(split_handle(a).1, GEN_MASK, "the handle carries the full generation");
-        assert!(t.checkout(a).is_some(), "an app at the max generation is reachable");
-    }
-
-    #[test]
-    fn the_generation_wraps_within_its_field_and_skips_zero() {
-        let t: SlotTable<i32, Eng> = SlotTable::new();
-        // Sit one below the max and mint across the wrap; every minted handle must round-trip
-        // (stored gen == recovered gen, so it is reachable) and never carry generation 0.
-        t.set_next_gen(GEN_MASK - 1);
-        let mut gens = Vec::new();
-        for i in 0..5 {
-            let h = t.insert(i, Eng::new()).unwrap();
-            let g = split_handle(h).1;
-            assert!(g != 0 && g <= GEN_MASK, "generation {g} is in field and non-zero");
-            assert!(matches!(t.remove(h), Removed::Took(v) if v == i), "app at gen {g} is reachable");
-            gens.push(g);
+        for bogus in [0u32, a.wrapping_add(1), u32::MAX] {
+            if bogus == a { continue; }
+            assert!(t.checkout(bogus).is_none());
+            assert!(t.begin_run(bogus).is_none());
+            assert!(!t.finish_run(bogus));
+            assert!(t.running_engine(bogus).is_none());
+            assert!(matches!(t.remove(bogus), Removed::NotClosable));
         }
-        // The sequence crossed the maximum: it includes GEN_MASK and then a low value, and 0 never
-        // appears.
-        assert!(gens.contains(&GEN_MASK), "the run passed through the maximum generation");
-        assert!(gens.iter().all(|&g| g != 0));
-        assert!(gens.iter().any(|&g| g < GEN_MASK / 2), "and wrapped back to a low generation");
+    }
+
+    // Every transition that discards an engine must drop it OUTSIDE the lock. This engine's Drop
+    // reads the table's lock flag and panics if it is held, so a drop-under-lock fails the test
+    // deterministically (rather than hanging on the non-reentrant spinlock).
+    static RT: SlotTable<i32, REng> = SlotTable::new();
+    #[derive(Clone)]
+    struct REng;
+    impl Drop for REng {
+        fn drop(&mut self) {
+            assert!(!RT.locked(), "an engine was dropped while the table lock was held");
+        }
     }
 
     #[test]
-    fn handle_zero_and_out_of_range_are_never_valid() {
-        let t: SlotTable<&str, Eng> = SlotTable::new();
-        let _ = t.insert("A", Eng::new()).unwrap();
-        assert!(t.checkout(0).is_none());
-        assert!(t.begin_run(0).is_none());
-        assert!(!t.finish_run(0));
-        assert!(t.running_engine(0).is_none());
-        assert!(matches!(t.remove(0), Removed::NotClosable));
-        assert!(t.checkout(u32::MAX).is_none());
+    fn engine_drops_happen_outside_the_lock() {
+        // remove(Took): drops the idle app's engine.
+        let a = RT.insert(1, REng).unwrap();
+        assert!(matches!(RT.remove(a), Removed::Took(_)));
+        // finish_run: drops the running app's engine.
+        let b = RT.insert(2, REng).unwrap();
+        RT.begin_run(b).unwrap();
+        let _ = RT.running_engine(b); // clone under lock, dropped here outside
+        assert!(RT.finish_run(b));
+        // checkin(close_pending): drops the busy app's engine.
+        let c = RT.insert(3, REng).unwrap();
+        RT.checkout(c).unwrap();
+        assert!(matches!(RT.remove(c), Removed::Deferred));
+        assert!(RT.checkin(c, 0));
+        // insert refused (table full): drops the refused engine.
+        let mut live = Vec::new();
+        for i in 0..MAX_APPS {
+            live.push(RT.insert(i as i32, REng).unwrap());
+        }
+        assert!(RT.insert(99, REng).is_none()); // refused engine drops outside the lock
+        for h in live {
+            assert!(matches!(RT.remove(h), Removed::Took(_)));
+        }
     }
 
     #[test]
@@ -519,12 +563,10 @@ mod tests {
         use std::thread;
         let t: &'static SlotTable<usize, Eng> = Box::leak(Box::new(SlotTable::new()));
         let engs: &'static Vec<Eng> =
-            Box::leak(Box::new((0..MAX_APPS).map(|_| Eng::new()).collect()));
-        let mut handles = Vec::new();
-        for i in 0..MAX_APPS {
-            handles.push(t.insert(i, engs[i].clone()).unwrap());
-        }
-        let hs: &'static Vec<u32> = Box::leak(Box::new(handles));
+            Box::leak(Box::new((0..4).map(|_| Eng::new()).collect()));
+        let hs: &'static Vec<u32> = Box::leak(Box::new(
+            (0..4).map(|i| t.insert(i, engs[i].clone()).unwrap()).collect(),
+        ));
         let mut js = Vec::new();
         for k in 0..4 {
             js.push(thread::spawn(move || {
@@ -536,9 +578,9 @@ mod tests {
                             e.bump();
                         }
                         assert!(t.finish_run(h));
+                        // Re-open a throwaway app to churn the id counter; ignore exhaustion.
                         let _ = t.insert(9000 + k, engs[k].clone());
                     }
-                    // Reads of a neighbour's handle must never panic or alias.
                     let _ = t.running_engine(hs[(k + 1) % 4]);
                     let _ = t.is_running(hs[(k + 2) % 4]);
                 }

@@ -21,42 +21,46 @@ tenant's** app. In the 09-25 logs two live apps shared "slot 3" (`0x7ae476a3` +
 `0xd9798e4c`) and two shared "slot 1". This is a cross-tenant action from an in-bounds
 handle — a safety bug, not just reliability.
 
-**Fix:** a generational slot table, `src/slots.rs`.
+**Fix:** an app table addressed by a handle that is NEVER reused, `src/slots.rs`.
 
-- A running or mid-request app KEEPS its slot (`Running` / `Busy`), so `insert` can never
-  reuse a live slot and mint a duplicate handle.
-- Every handle carries the generation of the occupancy it was minted for. A handle for an
-  app that has since stopped no longer resolves to whatever app took the slot next.
-- `finish_run` (run thread) and `checkin` (request path) act only when the generation
-  still matches, so an app's teardown racing a new occupant of the same slot cannot free
-  the newcomer.
+- The handle is a GLOBAL monotonic id (1, 2, 3, …) minted per open; it identifies the
+  occupancy, not an array slot. A running or mid-request app KEEPS its entry (`Running` /
+  `Busy`), so nothing overwrites a live app.
+- Every accessor finds the app by id, so a handle for an app that has stopped (its id
+  retired) matches no entry and reaches nothing, and a handle never names a later app.
+- `finish_run` (run thread) and `checkin` (request path) act only when the id still names
+  their occupancy, so an app's teardown racing a new app cannot free the newcomer.
 - `ee_rt_stop` gets the engine only for the app running under that exact handle
-  (`running_engine`), so a wrong-tenant stop is impossible by construction, not merely
-  unlikely.
-- Access is serialised by a tiny spinlock held only for table transitions, never across an
-  app's execution (an app is checked out of the table to run/serve and back in after). The
-  old `static mut` access from the run thread and the gate thread was an unsynchronised
-  data race.
-- The generation field is masked to its exact width (`GEN_MASK`) at mint time and the
-  counter advances within that space, so the value stored in an entry is byte-for-byte what
-  a handle carries. Without the mask a generation past `2^29` would be truncated by the
-  shift in `make_handle`, the stored and recovered generations would diverge, and a wrapped
-  counter could mint a handle equal to a live one — the one place the construction was
-  approximate (found in review, d1 2026-09-25). A compile-time assert pins the field widths
-  and a debug assert pins each minted generation into range.
+  (`running_engine`), so a wrong-tenant stop is impossible by construction.
+
+**Why a monotonic id and not a generational index.** The first version of this fix packed a
+generation into an array-index handle. Review (d1) then an independent audit showed that only
+narrows the window: a generation field is finite, so once its counter WRAPS a retired handle
+can equal a live one again and reach a different tenant — the exact thing the patch exists
+to forbid (masking the field fixed truncation but not reuse). A never-reused id removes the
+failure mode rather than shrinking it.
+
+**Exhaustion is fail-closed.** `u32` gives 4,294,967,295 opens per node boot. When the id
+space is exhausted `insert` REFUSES a new app rather than wrap and risk reuse; a node restart
+resets the counter. At any real rate exhaustion is never reached (decades of continuous
+uptime), and refusing to open a new app is safe while reusing a handle is not. The table is
+still bounded to `MAX_APPS` concurrent apps; only the ADDRESS changed from an index to an id,
+and lookup is a scan of at most `MAX_APPS` entries.
 
 **Spinlock, no yield (deliberate).** The lock uses `spin_loop()` with no OS yield. Every
-critical section is a handful of array/field operations with no call-out, allocation, or app
-execution inside it, so the hold time is a few instructions and a waiter spins only that
-long. On a single-vCPU guest a spinner could burn the rest of its quantum if the holder is
-descheduled mid-section; that is acceptable here because the sections are that short and this
-runs on multi-vCPU enclaves, and a parking primitive (the enclave's park/unpark) would cost
-more than the work it guards. If the enclave ever runs pinned to one vCPU under heavy app
-churn, revisit.
+critical section is a handful of array/field reads or writes; nothing else runs under it. The
+one non-trivial operation is `running_engine`'s `Engine` clone, which is an `Arc` refcount
+bump (wasmtime documents `Engine` as cheaply clonable) — no host call-out, no allocation, no
+app execution. Every value or engine a transition DISCARDS is moved into a local declared
+before the guard so it DROPS AFTER the lock is released, never under it — a dedicated test
+(`engine_drops_happen_outside_the_lock`) enforces this with an engine whose `Drop` panics if
+the table lock is held. On a single-vCPU guest a spinner could burn its quantum if the holder
+is descheduled mid-section; acceptable here because the sections are that short and this runs
+on multi-vCPU enclaves. If the enclave ever runs pinned to one vCPU under heavy app churn,
+revisit.
 
-The handle is now opaque (slot in the low 3 bits, generation above) and the host only
-echoes it back. **Cosmetic:** the node's "loaded into the enclave as slot N" line now
-prints that opaque id rather than 1..8.
+The handle is the opaque id and the host only echoes it back. **Cosmetic:** the node's
+"loaded into the enclave as slot N" line now prints that id rather than 1..8.
 
 ## (a) Leaked host sockets on trap, and shared tenant ports
 
@@ -102,13 +106,14 @@ restart safe to target. They do not by themselves explain why those two threads 
 `slots.rs` and `netset.rs` are dependency-free and unit-tested with `cargo test` /
 `rustc --test`:
 
-- `slots.rs` — 15 tests: two simultaneous apps get distinct slots; a running/busy app
-  keeps its slot so open cannot reuse it; stop reaches only the named app; a stale handle
-  after slot reuse resolves to nothing; a stale close cannot free the new occupant; an old
-  completion racing a new occupant is a no-op; close-during-request frees on checkin; the
-  table fills and refuses a ninth app; handle 0 / out of range never valid; a generation at
-  the field maximum is still reachable; the generation wraps within its field and skips 0; a
-  4-thread open/run/stop churn stays consistent.
+- `slots.rs` — 15 tests: two apps get distinct handles; a running/busy app keeps its entry
+  so open cannot reuse its id; stop reaches only the named app; a retired handle resolves to
+  nothing; a close of a retired handle cannot free a later app; an old completion racing a new
+  app is a no-op; close-during-request frees on checkin; **a retired handle never reaches a
+  later app even at the counter boundary** (the audit's scenario); **exhaustion fails closed
+  and never mints 0 or a reused id**; **engine drops happen outside the lock** (a Drop that
+  panics if the lock is held); the table fills/refuses a 9th and reopens with a fresh id after
+  a free; handle 0 / unknown ids never valid; a 4-thread open/run/stop churn stays consistent.
 - `netset.rs` — 6 tests: a listener left open by a trap is closed by teardown; a
   guest-closed socket is not closed again; failed calls never enter the set; add is
   idempotent; drain leaves the set empty.
