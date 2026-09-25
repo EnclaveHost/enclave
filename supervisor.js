@@ -2311,6 +2311,16 @@ function isolationPrefetchBody(g, runtimeId) {
   return { image: g.wasmRef, derive: isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min), runtimeId,
     isolationHttpPortOf(g.ports)) };
 }
+// Whether the guest guestd holds under this deployment's name was launched from exactly the record the spawn would
+// send for version g (PURE; considerClaim's resume credit). The spawn derives its port from the PARSED firewall
+// (rec.firewall), so this does too; anything missing or underivable is false: a replacement, the conservative side.
+function isolationHeldSameRecord(held, g, firewall, runtimeId) {
+  if (!held || typeof held.recordSha256 !== "string" || !/^[0-9a-f]{64}$/.test(held.recordSha256) || !g || !runtimeId) return false;
+  try {
+    return held.recordSha256 === derivationDigest(isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min), runtimeId,
+      isolationHttpPortOf(firewall || [])));
+  } catch { return false; }
+}
 async function managerPrefetchBody(g) {
   if (!ISOLATION_BACKEND) return { image: g.wasmRef };
   const h = await vmHealth();
@@ -2664,9 +2674,12 @@ function readGuestPool(p) {
   if (p.host && typeof p.host === "object" && Number(p.host.floorMiB) > 0)
     // null means guestd could not read it: Number(null) is 0, so null is checked first, never read as "0 MiB available"
     host = { floorMiB: +p.host.floorMiB,
-             memAvailableMiB: p.host.memAvailableMiB !== null && p.host.memAvailableMiB !== undefined && n(p.host.memAvailableMiB) ? +p.host.memAvailableMiB : null,
-             // admitted guests still starting: their RAM is not in MemAvailable yet, and guestd counts it (enclave-99)
-             pendingMiB: n(p.host.pendingMiB) ? +p.host.pendingMiB : 0 };
+             // what the held guests may still draw beyond MemAvailable (pool.go pendingLocked: a starting guest's whole
+             // reservation, a running one's reservation minus what its unit holds). A pendingMiB that is not a number
+             // makes the host UNKNOWN, never "nothing pending" (that would read open)
+             memAvailableMiB: p.host.memAvailableMiB !== null && p.host.memAvailableMiB !== undefined && n(p.host.memAvailableMiB)
+               && p.host.pendingMiB !== null && p.host.pendingMiB !== undefined && n(p.host.pendingMiB) ? +p.host.memAvailableMiB : null,
+             pendingMiB: n(p.host.pendingMiB) && p.host.pendingMiB !== null ? +p.host.pendingMiB : 0 };
   return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true, host,
     perGuest: { floorMiB: +g.floorMiB, runtimeMiB: +g.runtimeMiB, unitOverheadMiB: +g.unitOverheadMiB } };
 }
@@ -2750,11 +2763,16 @@ function guestPoolRefusal(rawPool, policy, held = null, heldSameRecord = false) 
   const hr = hostRoom(pool);
   if (hr !== undefined && !(holds && heldSameRecord)) {
     if (hr < 0 && pool.host.memAvailableMiB === null) return "the host's available memory is unknown, and guestd admits no guest while it is";
-    const credit = heldRoom ? Math.max(0, heldRoom.memMiB - pool.perGuest.unitOverheadMiB) : 0;
+    // the credit for the held guest the replacement deletes: a STARTING one is wholly in guestd's pending, so all of its
+    // reservation comes back; a running one only surely returns its reservation less the unit allowance (the rest of
+    // it is in MemAvailable, and is judged when guestd admits). Both err toward refusal, never toward a deleted guest
+    // whose successor guestd then refuses.
+    const credit = !heldRoom ? 0 : held.status === "starting" ? heldRoom.memMiB : Math.max(0, heldRoom.memMiB - pool.perGuest.unitOverheadMiB);
     const after = hr - r.memMiB + credit;                          // room above the floor after this create
+    // no live number in the reason: it is returned by the public claim-hint and logged by the sweep on every change,
+    // so MemAvailable must not be reconstructable from it (enclave-e3). The floor is configuration.
     if (after < 0)
-      return `the host is too low on memory: admitting this app's guest would leave the host ${-after} MiB under guestd's ${pool.host.floorMiB} MiB floor`
-           + (pool.host.pendingMiB ? ` (counting ${pool.host.pendingMiB} MiB of guests still starting)` : "");
+      return `the host is too low on memory: admitting this app's guest would take the host under guestd's ${pool.host.floorMiB} MiB floor`;
   }
   return null;
 }
@@ -3329,6 +3347,9 @@ if (process.env.GUEST_POOL_SELFTEST) {
     shares: (c.shares || []).map((m) => minSharesOf(m)),
     reservations: (c.reservations || []).map((v) => _guestPool && guestReservationFor(isolationPolicyFor(v), _guestPool.perGuest)),
     verdicts: (c.verdicts || []).map((v) => isolationClaimVerdict({ backend: ISOLATION_BACKEND, ...v })),
+    sameRecord: (c.sameRecord || []).map((x) => isolationHeldSameRecord(x.held, x.g, x.firewall, x.runtimeId)),
+    ...(c.recordOf ? { recordOf: derivationDigest(isolationDerivation(c.recordOf.g.ref, c.recordOf.g.wasmRef,
+      isolationPolicyFor({ memMb: c.recordOf.g.min.memMb }), c.recordOf.runtimeId, isolationHttpPortOf(c.recordOf.ports))) } : {}),
   }));
   process.exit(0);
 }
@@ -10040,11 +10061,7 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const isoHeld = resume ? await isolationHeldGuest(d.id) : null;
     // ...and whether the spawn would ADOPT it (the same derivation record) or replace it (a different one); only an
     // adoption takes no new host memory. Unknown counts as a replacement (the conservative side).
-    let heldSameRecord = false;
-    if (isoHeld && isoMgr) {
-      try { heldSameRecord = isoHeld.recordSha256 === derivationDigest(isolationPrefetchBody(g, isoMgr.catalog && isoMgr.catalog.runtimeId).derive); }
-      catch { heldSameRecord = false; }
-    }
+    const heldSameRecord = isolationHeldSameRecord(isoHeld, g, firewall, isoMgr && isoMgr.catalog && isoMgr.catalog.runtimeId);
     const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
       manager: isoMgr, gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
       policy: isolationPolicyFor(g.min),

@@ -460,6 +460,7 @@ func TestAHostMemoryFloorAdmitsDownToItAndRefusesBelow(t *testing.T) {
 	r.s.HostFloorMiB = 16384
 	avail := 16384 + oneGuest.MemMiB // exactly room for one guest above the floor
 	r.s.MemAvailable = func() (int, error) { return avail, nil }
+	r.s.UnitMem = func(string) (int, error) { return oneGuest.MemMiB, nil } // a running guest that holds all of its room
 	p, _ := r.bundle("A", contract.Policy{})
 	if code, body := r.create(name(1), p); code != 201 {
 		t.Fatalf("a guest that leaves exactly the floor: %d %v", code, body)
@@ -468,8 +469,18 @@ func TestAHostMemoryFloorAdmitsDownToItAndRefusesBelow(t *testing.T) {
 	avail -= 1 // the host lost a MiB elsewhere (a build, /tmp): the same guest no longer fits
 	builds := r.f.builds
 	code, body := r.create(name(2), p)
-	if code != 507 || body["error"] != "host_memory_low" || body["floorMiB"] != float64(16384) || body["hostMemAvailableMiB"] != float64(avail) || res(body["needs"]) != oneGuest || r.f.builds != builds {
+	if code != 507 || body["error"] != "host_memory_low" || body["floorMiB"] != float64(16384) || res(body["needs"]) != oneGuest || r.f.builds != builds {
 		t.Fatalf("one MiB under the floor: %d %v (builds %d -> %d)", code, body, builds, r.f.builds)
+	}
+	// enclave-e3: the refusal travels on (the supervisor's public claim-hint states its reason), so it carries neither
+	// the host's MemAvailable nor what is pending nor the remainder: only the floor, which is configuration
+	for _, k := range []string{"hostMemAvailableMiB", "pendingMiB", "memAvailableMiB"} {
+		if _, ok := body[k]; ok {
+			t.Fatalf("the refusal carries %s: %v", k, body)
+		}
+	}
+	if d, _ := body["detail"].(string); strings.Contains(d, strconv.Itoa(avail)) || strings.Contains(d, strconv.Itoa(avail-oneGuest.MemMiB)) || !strings.Contains(d, "16384") {
+		t.Fatalf("the refusal text: %q", d)
 	}
 	pool := r.pool()
 	h, _ := pool["host"].(map[string]any)
@@ -554,13 +565,14 @@ func TestAStartingGuestCountsAgainstTheFloorUntilItRuns(t *testing.T) {
 	r.s.Budget = budgetFor(4)
 	r.s.HostFloorMiB = 16384
 	r.s.MemAvailable = func() (int, error) { return 16384 + oneGuest.MemMiB, nil } // the host does not see the first guest yet
+	r.s.UnitMem = func(string) (int, error) { return oneGuest.MemMiB, nil }        // once running, it holds all of its room
 	r.f.startGate = make(chan struct{})                                            // the first guest stays starting
 	p, _ := r.bundle("A", contract.Policy{})
 	if code, body := r.create(name(1), p); code != 201 {
 		t.Fatalf("the first guest: %d %v", code, body)
 	}
 	code, body := r.create(name(2), p)
-	if code != 507 || body["error"] != "host_memory_low" || body["pendingMiB"] != float64(oneGuest.MemMiB) {
+	if code != 507 || body["error"] != "host_memory_low" {
 		t.Fatalf("the second, while the first is starting: %d %v", code, body)
 	}
 	if h, _ := r.pool()["host"].(map[string]any); h["pendingMiB"] != float64(oneGuest.MemMiB) {
@@ -588,5 +600,121 @@ func TestParseMemAvailableIsKiBToMiBRoundedDown(t *testing.T) {
 		if _, err := parseMemAvailableMiB(strings.NewReader(bad)); err == nil {
 			t.Fatalf("%q must be an error", bad)
 		}
+	}
+}
+
+// enclave-e3: SNP memory is allocated as the guest touches it (a memfd backend without prealloc; a Linux guest may accept
+// lazily), so a RUNNING guest may still draw up to its unit's MemoryMax. What it may still draw is its reservation minus
+// what its unit holds, and it counts against the floor; so the floor holds even if every guest grows to its ceiling.
+func TestARunningGuestCountsWhatItMayStillDraw(t *testing.T) {
+	r := newRig(t)
+	r.s.Budget = budgetFor(4)
+	r.s.HostFloorMiB = 16384
+	held := 1067 // what a live canary's unit holds of its 1792 MiB (warden-host, 09-25)
+	r.s.UnitMem = func(string) (int, error) { return held, nil }
+	avail := 16384 + oneGuest.MemMiB + (oneGuest.MemMiB - held) // room for one more guest only if the first's rest is counted
+	r.s.MemAvailable = func() (int, error) { return avail, nil }
+	p, _ := r.bundle("A", contract.Policy{})
+	if code, body := r.create(name(1), p); code != 201 {
+		t.Fatalf("the first guest: %d %v", code, body)
+	}
+	r.s.launching.Wait()
+	h, _ := r.pool()["host"].(map[string]any)
+	if h["pendingMiB"] != float64(oneGuest.MemMiB-held) || h["unreadUnits"] != float64(0) {
+		t.Fatalf("a running guest holding %d of %d MiB: %v", held, oneGuest.MemMiB, h)
+	}
+	if code, body := r.create(name(2), p); code != 201 {
+		t.Fatalf("exactly room for the second with the first's rest counted: %d %v", code, body)
+	}
+	r.s.launching.Wait()
+	avail-- // one MiB less: the third cannot fit whatever the first two already hold
+	if code, body := r.create(name(3), p); code != 507 || body["error"] != "host_memory_low" {
+		t.Fatalf("the third: %d %v", code, body)
+	}
+	// a unit that cannot be read counts its WHOLE reservation, and a running one is reported as unread
+	r.s.UnitMem = func(string) (int, error) { return 0, errTest("no cgroup") }
+	h, _ = r.pool()["host"].(map[string]any)
+	if h["pendingMiB"] != float64(2*oneGuest.MemMiB) || h["unreadUnits"] != float64(2) {
+		t.Fatalf("unreadable units: %v", h)
+	}
+	// a unit holding MORE than its reservation (page cache charged to it) draws nothing more: never negative
+	r.s.UnitMem = func(string) (int, error) { return oneGuest.MemMiB + 500, nil }
+	if h, _ = r.pool()["host"].(map[string]any); h["pendingMiB"] != float64(0) {
+		t.Fatalf("a unit over its reservation: %v", h)
+	}
+}
+
+// A guest that fails to start holds its room only until its reclaim finishes, like the budget: then nothing is pending.
+func TestAFailedStartLeavesNothingPendingOnceReclaimed(t *testing.T) {
+	r := newRig(t)
+	r.s.Budget = budgetFor(4)
+	r.s.HostFloorMiB = 16384
+	r.s.MemAvailable = func() (int, error) { return 1 << 20, nil }
+	r.s.UnitMem = func(string) (int, error) { return 0, errTest("the unit is gone") }
+	r.f.verifyErr = errTest("the guest does not verify")
+	p, _ := r.bundle("A", contract.Policy{})
+	if code, body := r.create(name(1), p); code != 201 {
+		t.Fatalf("create: %d %v", code, body)
+	}
+	r.s.launching.Wait()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		pool := r.pool()
+		h, _ := pool["host"].(map[string]any)
+		if h["pendingMiB"] == float64(0) && h["unreadUnits"] == float64(0) && res(pool["allocated"]) == (reservation{}) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("a failed start still holds: %v", pool)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// The unit's memory is read beside guestd's own cgroup (systemd-run --user puts both in app.slice), in MiB rounded DOWN;
+// anything unexpected is an error (and its guest then counts its whole reservation).
+func TestReadUnitMemMiBReadsTheSiblingCgroup(t *testing.T) {
+	d := t.TempDir()
+	self := filepath.Join(d, "self")
+	root := filepath.Join(d, "cg")
+	app := filepath.Join(root, "user.slice", "user-1000.slice", "user@1000.service", "app.slice")
+	unit := filepath.Join(app, "m2-gdab-1.service")
+	if err := os.MkdirAll(unit, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	must := func(p, b string) {
+		if err := os.WriteFile(p, []byte(b), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(self, "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service\n")
+	must(filepath.Join(unit, "memory.current"), "1118830592\n") // 1067.0 MiB (a live canary)
+	for _, u := range []string{"m2-gdab-1", "m2-gdab-1.service"} {
+		if n, err := readUnitMemMiB(self, root, u); err != nil || n != 1067 {
+			t.Fatalf("%s: %d %v", u, n, err)
+		}
+	}
+	must(filepath.Join(unit, "memory.current"), "1118830591\n") // one byte under 1067 MiB rounds DOWN to 1066
+	if n, _ := readUnitMemMiB(self, root, "m2-gdab-1"); n != 1066 {
+		t.Fatalf("rounding: %d", n)
+	}
+	for what, u := range map[string]string{"missing": "m2-gdcd-2", "a path": "../app.slice/m2-gdab-1", "dotted": ".hidden"} {
+		if _, err := readUnitMemMiB(self, root, u); err == nil {
+			t.Fatalf("%s must be an error", what)
+		}
+	}
+	must(filepath.Join(unit, "memory.current"), "lots\n")
+	if _, err := readUnitMemMiB(self, root, "m2-gdab-1"); err == nil {
+		t.Fatal("a non-number must be an error")
+	}
+	// a hybrid host lists v1 hierarchies too: only the v2 line (0::) names guestd's cgroup
+	must(self, "1:name=systemd:/elsewhere/enclave-guestd.service\n0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service\n")
+	must(filepath.Join(unit, "memory.current"), "1118830592\n")
+	if n, err := readUnitMemMiB(self, root, "m2-gdab-1"); err != nil || n != 1067 {
+		t.Fatalf("hybrid: %d %v", n, err)
+	}
+	must(self, "1:name=systemd:/x\n") // no cgroup v2 line
+	if _, err := readUnitMemMiB(self, root, "m2-gdab-1"); err == nil {
+		t.Fatal("no cgroup v2 path must be an error")
 	}
 }
