@@ -20,12 +20,14 @@
 //
 // OFF unless SECRETS_ATTESTED_RELEASE is set, and then only with its policy and every provider wired (fail closed).
 import { createHash, createPublicKey, createPrivateKey, generateKeyPairSync, diffieHellman, hkdfSync, randomBytes,
-         createCipheriv, createDecipheriv } from "node:crypto";
+         createCipheriv, createDecipheriv, sign as edSign, verify as edVerify } from "node:crypto";
 import { endpointOperator, recoverOp, makeReplayCache, rowOf, holdsLease } from "./fleet-auth.js";
 
 export const RELEASE_DOMAIN = Buffer.from("enclave-secrets-release-v1\n");
 export const SEAL_INFO = Buffer.from("enclave-secrets-release-v1 seal\n");
 export const BINDING_DOMAIN_LABEL = "enclave-secrets-release-v1";
+export const RESPONSE_DOMAIN = Buffer.from("enclave-secrets-release-v1 response\n");
+const ED25519_PKCS8_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
 const TICKET_TTL_SEC = 120, SKEW_SEC = 300, MAX_TICKETS = 5000;
 const X25519_PKCS8_PREFIX = Buffer.from("302e020100300506032b656e04220420", "hex");
 
@@ -82,6 +84,41 @@ export function openRelease({ id, ticket, sealPrivateKey, sealed }) {
   return Buffer.concat([d.update(ct), d.final()]);
 }
 
+// ---- v1.2: the relay SIGNS every release (enclave-5d). The seal gives confidentiality but no origin: its key is public (the
+// request carries it) and the host carries the ticket, so anyone who could terminate TLS as the relay (a mis-issued
+// certificate) could seal a forged {config, secrets}. With the relay's key pinned in the measured front, that is a DoS at
+// worst. The guest verifies BEFORE it opens the seal.
+//   sig = Ed25519(release key, sha256("enclave-secrets-release-v1 response\n" ‖ id(32) ‖ ticket ‖ sealKey ‖ sha256(sealed)))
+//   keyId = sha256(the raw 32-byte public key) hex, first 16 characters: a selector among the guest's pinned keys
+export const signingKeyFromSeed = (seed) => createPrivateKey({ key: Buffer.concat([ED25519_PKCS8_PREFIX, b32(seed, "Ed25519 seed")]), format: "der", type: "pkcs8" });
+export const ed25519RawPublic = (key) => Buffer.from(createPublicKey(key).export({ format: "jwk" }).x, "base64url");
+export const keyIdOf = (rawPublic) => sha256(Buffer.from(rawPublic)).toString("hex").slice(0, 16);
+export function responseDigest({ id, ticket, sealKey, sealed }) {
+  return sha256(RESPONSE_DOMAIN, idBytes(id), b32(ticket, "ticket"), b32(sealKey, "sealKey"), sha256(Buffer.from(sealed)));
+}
+export const signResponse = (signingKey, fields) => edSign(null, responseDigest(fields), signingKey);
+// the guest's half (and the tests'): true only for a signature by THIS raw public key over exactly these fields
+export function verifyResponse({ publicKey, sig, ...fields }) {
+  try {
+    const pub = createPublicKey({ key: { kty: "OKP", crv: "Ed25519", x: b32(publicKey, "Ed25519 public key").toString("base64url") }, format: "jwk" });
+    return edVerify(null, responseDigest(fields), pub, Buffer.from(sig));
+  } catch { return false; }
+}
+function signingKeyEnv() {
+  const s = String(process.env.SECRETS_RELEASE_SIGNING_KEY || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(s)) return null;
+  try { return signingKeyFromSeed(Buffer.from(s, "hex")); } catch { return null; }
+}
+
+// ---- config: a JSON VALUE (object or array), never a string (enclave-5d) ----
+// The guest's ENCLAVE_CONFIG is the value's compact serialization, so a config fetched as TEXT is parsed here, and a value
+// that is itself a JSON string (which the app would receive as one quoted string) is refused, never passed on.
+export function configValue(x) {
+  const v = typeof x === "string" ? JSON.parse(x) : x;
+  if (v === null || typeof v !== "object") throw new Error("the config is not a JSON object or array");
+  return v;
+}
+
 // ---- the SNP report fields the relay reads itself, AFTER the verifier has checked the report's signature ----
 export function reportFields(report) {
   const r = Buffer.from(report);
@@ -110,6 +147,7 @@ export const releaseConfig = () => ({
   runtimeIds: listEnv("SECRETS_RELEASE_RUNTIME_IDS", 64),      // the admitted runtime SET
   minTcb: minTcbEnv(),                                         // passed to the verifier explicitly: never left to a provider
   vmpl: vmplEnv(),                                             // pinned, and re-read from the report below
+  signingKey: signingKeyEnv(),                                 // v1.2: every release is signed with it
 });
 
 // ---- tickets: one use, 120 s, bound to the lease holder and the chips it has attested with ----
@@ -125,7 +163,8 @@ export const _internals = { tickets };
 function missingFor(ctx, cfg) {
   return [!cfg.on && "SECRETS_ATTESTED_RELEASE", !cfg.measurements.length && "SECRETS_RELEASE_MEASUREMENTS",
           !cfg.runtimeIds.length && "SECRETS_RELEASE_RUNTIME_IDS", !cfg.minTcb && "SECRETS_RELEASE_MIN_TCB",
-          cfg.vmpl === null && "SECRETS_RELEASE_VMPL", typeof ctx.leaseHolderChipIds !== "function" && "the lease holder's chip ids",
+          cfg.vmpl === null && "SECRETS_RELEASE_VMPL", !cfg.signingKey && "SECRETS_RELEASE_SIGNING_KEY",
+          typeof ctx.versionConfigFor !== "function" && "the version-config lookup", typeof ctx.leaseHolderChipIds !== "function" && "the lease holder's chip ids",
           typeof ctx.verifyGuestEvidence !== "function" && "the guest-evidence verifier", typeof ctx.runtimeIdOf !== "function" && "the runtime-id function",
           typeof ctx.appIdFor !== "function" && "the AppID derivation", typeof ctx.hostEligibility !== "function" && "the eligibility verdict"].filter(Boolean);
 }
@@ -136,7 +175,10 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   if (path !== "/v1/secrets/release-ticket" && path !== "/v1/secrets/release") return false;
   const cfg = releaseConfig(), missing = missingFor(ctx, cfg);
   if (missing.length) { bad(503, "release_unconfigured", `Attested release is not configured on this relay (missing: ${missing.join(", ")}).`); return true; }
-  if (!rate(ctx.clientIp(req))) { bad(429, "rate_limited", "Too many release requests; retry shortly."); return true; }
+  // rate: a ticket request by client IP (the supervisor's own); a release by its ticket's ENDPOINT, peeked without being
+  // consumed, so many guests behind one host address do not share one bucket (enclave-5d); an unknown ticket by IP
+  const peek = path === "/v1/secrets/release" ? tickets.get(String(b.ticket || "")) : null;
+  if (!rate(peek ? `ep:${peek.endpoint}` : `ip:${ctx.clientIp(req)}`)) { bad(429, "rate_limited", "Too many release requests; retry shortly."); return true; }
   const id = String(b.id || "").toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(id)) { bad(422, "bad_id", "id must be a bytes32 deployment id."); return true; }
   const epIdOf = async (endpoint) => String(await ctx.endpointIdOf(endpoint)).toLowerCase();
@@ -224,23 +266,38 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   if (why) { console.warn(`[secrets-release] ${id}: REFUSED: ${why}`); bad(403, "evidence_refused", why); return true; }
   // what the guest gets: the ledger envelope's config (inline, or its configCid resolved here) and the deployment's secrets
   const envelope = String((row && row.configCid) || "").trim();
-  let config = null;
+  // the config, by the supervisor's own precedence (overrideConfigFields): the envelope's config, else its configCid, else
+  // the catalog VERSION's config, else the version's configCid; null only when none of them names one
+  let o;
+  try { o = envelope ? JSON.parse(envelope) : {}; if (!o || typeof o !== "object" || Array.isArray(o)) throw new Error("x"); }
+  catch { bad(422, "bad_envelope", "The deployment's options envelope is not a JSON object."); return true; }
+  let config = null, source = null;
+  const resolveCid = async (cid, whose) => {
+    if (typeof ctx.resolveConfigCid !== "function") throw Object.assign(new Error("This relay cannot resolve a configCid."), { code: 503, error: "config_unresolvable" });
+    const got = await ctx.resolveConfigCid(String(cid));
+    if (got == null) throw Object.assign(new Error(`${whose} configCid did not resolve.`), { code: 503, error: "config_unresolvable" });
+    return got;
+  };
   try {
-    const o = envelope ? JSON.parse(envelope) : {};
-    if (!o || typeof o !== "object" || Array.isArray(o)) throw new Error("not an object");
-    if (o.config !== undefined) config = o.config;
-    else if (o.configCid !== undefined) {
-      if (typeof ctx.resolveConfigCid !== "function") { bad(503, "config_unresolvable", "This relay cannot resolve a configCid."); return true; }
-      config = await ctx.resolveConfigCid(String(o.configCid));
-      if (config == null) { bad(503, "config_unresolvable", "The deployment's configCid did not resolve."); return true; }
+    if (o.config !== undefined) { config = o.config; source = "the envelope's config"; }
+    else if (o.configCid !== undefined) { config = await resolveCid(o.configCid, "The deployment's"); source = "the envelope's configCid"; }
+    else {
+      const ver = await ctx.versionConfigFor(id);
+      if (ver && ver.config !== undefined && ver.config !== null && ver.config !== "") { config = ver.config; source = "the version's config"; }
+      else if (ver && ver.configCid) { config = await resolveCid(ver.configCid, "The version's"); source = "the version's configCid"; }
     }
-  } catch { bad(422, "bad_envelope", "The deployment's options envelope is not a JSON object."); return true; }
+    if (source) config = configValue(config);
+  } catch (e) {
+    if (e.code) { bad(e.code, e.error, e.message); return true; }
+    bad(422, "bad_config", `${source || "The config"} is not a JSON object or array (${e.message}).`); return true;
+  }
   const plaintext = JSON.stringify({ id, envelopeSha256: sha256(Buffer.from(envelope)).toString("hex"), config, secrets: envOf(id) || {},
                                      issuedAt: new Date().toISOString() });
   let sealed;
   try { sealed = sealRelease({ id, ticket, sealKey, plaintext }); }
   catch (e) { bad(422, "bad_seal_key", e.message); return true; }
+  const sig = signResponse(cfg.signingKey, { id, ticket, sealKey, sealed });
   console.log(`[secrets-release] ${id}: released to a verified guest on ${t.endpoint} (runtime ${runtimeId.toString("hex").slice(0, 12)}…)`);
-  ctx.json(res, 200, { id, sealed: sealed.toString("base64") }, req);
+  ctx.json(res, 200, { id, sealed: sealed.toString("base64"), sig: sig.toString("base64"), keyId: keyIdOf(ed25519RawPublic(cfg.signingKey)) }, req);
   return true;
 }
