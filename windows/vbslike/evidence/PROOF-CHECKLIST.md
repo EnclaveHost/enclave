@@ -69,8 +69,17 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
   should reject this boot state.
 - UNTESTED: that IDKS signs the VbsReport the paravisor obtains. The report's 256-byte signature field fits
   RSA-2048, which is consistency only.
-- UNTESTED: a TPM quote signed by an attestation key that chains to the TPM's endorsement certificate. Needs a
-  host-security decision (see Next).
+- VERIFIED (offline, real boot-64 bytes from this host, `relay/vbs-verify.mjs`, `test/vbs-verify.test.mjs` 12/12):
+  - the EK chains to the pinned AMD fTPM root;
+  - the quote signature holds, and the nonce is in the quote;
+  - the log replays to the quoted PCRs;
+  - IDKS verifies a VBS **enclave** report (Microsoft's documented chain);
+  - it is refused under production policy (Secure Boot off, test signing on);
+  - the tamper cases are refused.
+- UNTESTED on real bytes: the EK–AK credential round trip (the capture has none).
+- PREPARED, held for Steven: a fresh quote on the current boot through the node's own `tpmattest.exe` (transient
+  NULL-hierarchy AK, credential activation, verifier nonce). The Microsoft AIK certificate route is unavailable:
+  enrollment failed with `0x80072EE7`, name not resolved (`trust-root-2026-09-25.md`, TPM quote feasibility).
 - UNTESTED: that host-controlled code, under test signing, cannot reach IDKS.
 - RULED (enclave-5d, contract `aebd6bd7`):
   - The trust root is "host TPM plus IDKS under an ACCEPTED boot state". Secure Boot off, or test signing
@@ -95,6 +104,7 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 | test | status |
 |---|---|
 | host log: altered key bytes / altered digest | VERIFIED detected (`tcglog.py replay`, NEGATIVE 1 and 2) |
+| enclave-chain evidence (boot 64): altered report, SIPA field, quote, nonce, quoting key, EK root | VERIFIED refused (`test/vbs-verify.test.mjs`) |
 | debug paravisor rejected (pinned release measurement + `debug_allowed == 0`) | UNTESTED: needs report bytes |
 | substituted measurement rejected | UNTESTED: needs report bytes |
 | replayed report rejected (nonce in user-data) | UNTESTED: needs report bytes |
@@ -106,8 +116,8 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 
 1. **Steven:** the host's trust-root boot state. Secure Boot and test signing are excluded from this lane, and the
    production enclave engine depends on test signing.
-2. **Steven:** whether a TPM quote may be taken with a host attestation key. It is read-only on PCRs but creates or
-   uses a TPM key.
+2. **Steven:** whether to run the prepared fresh quote. It is one run of the node's own `tpmattest.exe`, whose only
+   TPM effect is a transient NULL-hierarchy key flushed on exit.
 3. **enclave-5d and enclave-53:** a VBS IGVM with our kernel, initrd and command line as a measured Linux VTL0 (build
    only; a boot needs the usual handoff).
 4. **Parked:** report-byte capture and E3.
