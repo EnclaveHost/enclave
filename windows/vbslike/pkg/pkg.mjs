@@ -45,7 +45,7 @@ const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.in
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
   "input.recipe", "input.tree", "input.test", "input.test-support", "guest.uefi-firmware", "guest.uefi-medium", "guest.uefi-fallback",
   "input.efi-stub", "input.tool-source", "input.initrd", "control.node", "control.relay", "control.npm", "control.acceptance",
-  "probe.uefi-medium", "probe.module", "probe.firmware", "input.firmware-config", "candidate.igvm", "reference.values"]);
+  "probe.uefi-medium", "probe.module", "probe.firmware", "input.firmware-config", "candidate.igvm", "candidate.launcher", "reference.values"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
 const SERVED_BY_PINNED_MANAGER = ["enclave-catalog-bundle/1"];   // windows/vbslike/manager/server.mjs SERVES
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
@@ -220,6 +220,17 @@ async function checkClaims(m, bytes, R) {
   const has = (p, role) => { const f = file(p); return !!f && f.role === role; };
   R.add(!!hcs && has(hcs.kernel, "guest.kernel") && has(hcs.initrd, "guest.initrd") && has(hcs.launcher, "control.launcher"),
         "profile hcs-dev names a kernel, the monitor initrd and the launcher of this package", hcs ? "" : "no hcs-dev profile");
+  // A new launcher build ships as role candidate.launcher BESIDE the pinned control.launcher, for an acceptance run, and
+  // becomes a profile's launcher only in a later version that re-roles it (the IGVM rollover's discipline, enclave-d1).
+  { const bad = []; let n = 0;
+    for (const [name, p] of Object.entries(m.profiles || {})) {
+      const f = p && typeof p.launcher === "string" && m.files.find((x) => x.path === p.launcher);
+      if (!f) continue; n++;
+      if (f.role !== "control.launcher") bad.push(`${name}.launcher ${p.launcher} is ${f.role}`);
+    }
+    const cands = m.files.filter((x) => x.role === "candidate.launcher").length;
+    R.add(bad.length === 0, "every profile's launcher is a control.launcher (a candidate.launcher is never a profile's launcher)",
+          bad.length ? bad.join("; ") : `${n} profile launcher(s)${cands ? `, ${cands} candidate launcher(s) shipped beside` : ""}`); }
   R.add(!!ig && has(ig.image, "guest.igvm"), "profile igvm names the image of this package", ig ? ig.image : "no igvm profile");
   R.add(!!ig && m.rebuild?.igvm?.initrd === hcs?.initrd, "both profiles boot the SAME monitor image",
         m.rebuild?.igvm?.initrd === hcs?.initrd ? `${hcs.initrd} is the IGVM's VTL0 initrd` : "the IGVM's VTL0 initrd is not the hcs-dev initrd");

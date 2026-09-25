@@ -320,6 +320,17 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   it booting) and the one eligible reference entry, still prospective. `c567e432` and its twin move to `superseded`
   ("booted and served, no report was ever verified") and are no longer shipped; they remain in the staged v28–v30
   packages for rollback. Served is not isolated or attested: `host_excluded=no`, no report, no chain.
+- **v32 draft** (`drafts/nucbox-ownguest-32.json`; supersedes v31): enclave-d1's **new launcher build `15338081…`**
+  (from `50010709`, where only `wmiserve.rs` changed: `--hold stdin`, and a bad `--hold` is refused before anything
+  starts; built with the box's `Cargo.lock`, `5c0ee1b7…` at `637b21c3`) ships **beside** the pinned `0160d835` as the
+  new role **`candidate.launcher`** for the acceptance run. A `pkg.mjs` rule keeps a candidate launcher from ever being
+  a profile's launcher. The profiles keep `0160d835` until a version records the acceptance run passing. The VM-less
+  refusal checks pass, but the stdin *lifetime* is not exercised. **Reproducibility (enclave-d1):** a rebuild of the
+  unchanged `8f156c9a` differs from `0160d835` in 24 bytes, all link timestamps and the PDB GUID; normalized, they're
+  identical. So a pin names one built binary (a byte-exact rebuild would need `/Brepro`). Profile `uefi` is
+  **labelled**: "pre-G1 monitor (initrd 0d14db23); no isolation claim possible (unmeasured medium); not a proof or
+  serving candidate". Note: `uefi-medium` in `pkg.mjs` file roles (`guest.uefi-medium`) names the medium FILE. It is
+  not the contract's `guestImageKind` (enclave-99, `ae6e9147`), though the word is the same.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
