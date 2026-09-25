@@ -1,0 +1,29 @@
+# nan, 2026-09-25: re-stage at predictor 829c09adb176 (stage-remote.sh at 829c09ad), candidate a4f22748; the sandboxed check ran as a TRANSIENT unit with the api-relay's sandbox
+2eb6d6f965bab2d6
+removed the failed staging 6c343d830594
+2cce09274d4a
+2026-09-25T19:56:35Z
+stage: host: Linux 6.8.0-106-generic x86_64; python 3.12.3; node v22.23.1; cpio (GNU cpio) 2.15; gzip 1.12
+stage: repo at 829c09adb176dbf8cb620857d8e0140005bd7a49; toolchain commit 0181bce3aac5fa03dfaf2928d834ecd04d2a4a73 present
+stage: go version go1.24.7 linux/amd64
+stage: venv: cffi==2.1.1 cryptography==50.0.1 pycparser==3.0 sev-snp-measure==0.0.13 
+release 5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2 verified 15 files
+release 6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb verified 15 files
+release a4f227482df4830ab69b52e38dc5d6e2abea9e5c5fb71f5469f0c30e6b1cb784 verified 15 files
+stage: sev-snp-measure digest b4e0a644f7b0304a239868d1563fd6e3fc4423e4534913dafa94e7e2b30bc142 (pin this as SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256)
+{"uid":61930,"node":"v22.23.1","problems":[],"knownAnswerTest":{"ok":true,"reason":"2 known answer(s) reproduced exactly","ms":20785},"crossCheck":{"ref":"catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0","ok":true,"ms":13439,"appId":"94c04c0edb6b4ca11b9bd0b6e4adfa98afdfa04692e6c10af79755e6db0ba0f2","images":[{"release":"a4f227482df4830ab69b52e38dc5d6e2abea9e5c5fb71f5469f0c30e6b1cb784","measurement":"38b90458cf061ea5a6716f1a1201a5aa5b971ab31e91cec1707939a65f01f1809ddf3fe2ed8d764bc586c21353be2a93"}],"equalsExpected":true}}
+Running as unit: enclave-predict-check-1790366207.service
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 35.017s
+CPU time consumed: 38.833s
+Memory peak: 1.3M
+Memory swap peak: 0B
+stage: done: /opt/enclave-predict/829c09adb176 (nothing outside it changed; no service, env or relay file touched)
+stage exit 0
+MainPID=4016281
+NRestarts=0
+ActiveEnterTimestamp=Fri 2026-09-25 18:00:46 UTC
+2026-09-25T19:57:23Z
+# 'Memory peak: 1.3M' above is not a usable figure (implausible for node + a Go build); see memory.txt
+# after: temp inputs removed, transient state dir removed, api-relay.env has 0 SECRETS_RELEASE/enclave-predict lines, relay not restarted; the first attempt (6c343d830594) failed only on its work dir (EnvironmentFile overrides -E) and was removed; the earlier staging 2cce09274d4a is kept for rollback

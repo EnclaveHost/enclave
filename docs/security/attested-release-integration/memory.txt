@@ -1,0 +1,6 @@
+Cold predictor peak, measured 2026-09-25 on warden-host: a fresh container capped at 768 MiB (--memory 768m, no swap), the
+staged tree of 829c09adb176, a COLD work dir, uid 65534, running check.mjs (known-answer test 2/2, then the api-mcp-adapter
+cross-check under a4f22748: PASS). memory.peak of the container's cgroup = 528756736 bytes (504 MiB), page cache included.
+nan's api-relay: MemoryCurrent 143 MB, MemoryPeak 194 MB, MemoryMax=768M (systemctl show, 2026-09-25).
+So relay peak + a cold prediction ~ 700 MB against 768 MiB: too tight. Proposal: MemoryMax=1536M in a drop-in (nan
+MemAvailable ~6 GB). A warm prediction (GOCACHE in the work dir) builds nothing.

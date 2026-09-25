@@ -1,0 +1,6 @@
+# 2026-09-25, warden-host, BEFORE activation: the acceptance check through the REAL expectedGuest handler, the deployment
+# records read through two agreeing RPCs (publicnode, drpc), the predictor over the three releases staged on nan
+# (5c3561f9, 6f14ce75, a4f22748*; * = admitted for the release), each live canary's chip-signed values from guestd's record:
+gdb677d751 0x0ddbd824 -> 200 appId == guest; images 5c3561f9,6f14ce75,a4f22748*; guest measurement be6b8644384e MATCHES release 5c3561f9
+gd6e734a97 0x395bed3e -> 200 appId == guest; images 5c3561f9,6f14ce75,a4f22748*; guest measurement c068f423578c MATCHES release 6f14ce75
+gdebc9c709 0x4e62e60d -> 200 appId == guest; images 5c3561f9,6f14ce75,a4f22748*; guest measurement c068f423578c MATCHES release 6f14ce75
