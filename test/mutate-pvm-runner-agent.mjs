@@ -14,7 +14,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SUITE = "test/pvm-runner-agent.test.mjs";
 const RA = "shielded/anchor/avf/runner/runner-agent.mjs", PA = "shielded/anchor/avf/runner/proof-agent.mjs";
 const T = { life: "the whole lifecycle on a local chain", entry: "the entry:", event: "a mined lifecycle call WITHOUT the event", claim: "the claim:",
-            proven: "renew only what is proven", intr: "interrupted and restarted", fresh: "a key goes on-chain only from a FRESH statement", config: "runner config:" };
+            proven: "renew only what is proven", intr: "interrupted and restarted", fresh: "a key goes on-chain only from a FRESH statement", config: "runner config:",
+            fresh2: "setProofKey carries the FRESH statement's key", meas: "the registered measurement is EXACTLY the attested build" };
 const MUTATIONS = [
   ["R01", "a lease is renewed whether or not its app is serving", [[RA, "if (!serving) note(", "if (false) note("]], T.proven],
   ["R02", "\"serving\" judged from provenUntil (which trails for the rest of a lease after an outage)", [[RA, "const serving = s.lastProofAt + 2n", "const serving = s.provenUntil + 2n"]], T.intr],
@@ -27,8 +28,10 @@ const MUTATIONS = [
                                                                               [PA, "if (pending) return { kind: \"busy\", op: c.op,", "if (false) return { kind: \"busy\", op: c.op,"]], T.intr],
   ["R09", "a mined call without its event counts as landed", [[PA, "if (!evs.length) return done(\"reverted\", { hash: t.hash, reason: `mined without its ${want} event` });", ""]], T.event],
   // enclave-99's review of e4ecc4aa
-  ["R11", "register writes the earlier (possibly stale) attested key, not a fresh statement's", [[RA, "      const k = await freshKey();\n      if (!k) return { kind: \"attest-failed\", stop: true, reason: \"no fresh attested key to register\" };", "      const k = key;"]], T.fresh],
+  ["R11", "register writes the earlier (possibly stale) attested key, not a fresh statement's", [[RA, "      const c = await fresh();\n      const k = c ? c.proofKey : null;", "      const c = await fresh();\n      const k = key;"]], T.fresh],
   ["R12", "the registered measurement is not tied to the attested build's pinned code hashes", [[RA, "if (!pinned.includes(r.measurement.slice(2))) bad(", "if (false) bad("]], T.config],
+  ["R13", "setProofKey writes the earlier attestation's key, not the fresh statement's (enclave-99's Q2)", [[RA, "args: [E, k], event: \"ProofKeySet\"", "args: [E, key], event: \"ProofKey"+"Set\""]], T.fresh2],
+  ["R14", "the config's measurement is published instead of the attested build", [[RA, "      if (measurement !== L.register.measurement)\n", "      if (false)\n"], [RA, "args: [cfg.endpoint, L.register.repo, measurement,", "args: [cfg.endpoint, L.register.repo, L.register.measurement,"]], T.meas],
   ["R10", "a renew decided from remembered state (the lease re-read skipped after a landing)", [[RA, "    const s = await agent.lease();\n    if (!agent.attested)", "    const s = globalThis.__lastLease || (globalThis.__lastLease = await agent.lease());\n    if (!agent.attested)"]], T.life],
 ];
 

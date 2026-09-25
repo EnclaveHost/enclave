@@ -1,0 +1,30 @@
+ok   run.json names the lease
+ok   steps: start, register, claim, prove-1, heartbeat, renew, 3 approach step(s), renew-interrupted, renew-recovered, after-renew, release -- in that order (start register claim prove-1 heartbeat renew approach-0 approach-1 approach-2 renew-interrupted renew-recovered after-renew release)
+ok   start: the agent attested the key the VM logged (0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc)
+ok   register: the agent registered, and asked no proof before holding the lease
+ok   claim: the agent claimed the lease
+ok   prove-1: nothing due but a proof, which landed
+ok   heartbeat: sent when due, and the proof landed
+ok   renew: inside the margin with a recent proof, renewed; the proof landed
+ok   approach: only proofs (and a due heartbeat) on the way back to the margin -- no renew
+ok   renew-interrupted: the renew was left in flight when the agent stopped
+ok   renew-recovered: the restarted agent landed the journaled renew
+ok   after-renew: no second renew; the proof landed
+ok   release: a final proof, then released
+ok   carrier: the agent's 13 exchanges are the hub's 13, request and answer, one to one (13)
+ok   statements: all 4 re-verify over their own nonces, for this lease, attesting the key the VM logged (4)
+ok   checkpoints: each accepted one is one VM answer to exactly its request, re-verified (9/9)
+ok   transactions: each is keccak256 of its journaled bytes, from the operator at its nonce, carrying exactly its intent or checkpoint (17/17)
+ok   registry: every ProofKeySet for this runner names the ATTESTED key (1)
+ok   one Registered; one Claimed, by this runner and operator
+ok   exactly two Renewed (ordinary + recovered); 3 Heartbeat(s), one per journaled heartbeat
+ok   one Released, mined after the last Checkpointed
+ok   every event's transaction is a journaled landing, and every landing has its event (17 events, 17 landings)
+ok   every landing: a successful, canonical receipt from the operator
+ok   the lease is released on the ledger
+ok   renew: the transaction never delivered is exactly the one the restarted agent landed (its Renewed event)
+ok   renew: the recovery asked the VM for no proof
+ok   renew: the tenant's balance fell by exactly that renew's burn (151200)
+ok   no private key field anywhere in the results
+ok   the run scanned its own results for the operator key and found none
+PASS the runner lifecycle agent on the device

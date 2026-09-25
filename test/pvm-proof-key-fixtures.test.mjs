@@ -25,7 +25,12 @@ for (const c of F.statements) {
   test(`statement ${c.name}: ${c.what}`, () => {
     const v = verifyPvmProofKey(c.statement, c.expect);
     assert.equal(v.ok, c.want.ok, v.reasons.at(-1));
-    if (c.want.ok) assert.deepEqual(v.claims, c.want.claims);
+    if (c.want.ok) {   // the recorded claims (pinned by the verifier session) predate codeHash: it must be the build the fixture pins
+      const { codeHash, ...rest } = v.claims;
+      assert.deepEqual(rest, c.want.claims);
+      assert.ok(c.expect.allowedCodeHashes.includes(codeHash) && /^[0-9a-f]{64}$/.test(codeHash), `codeHash ${codeHash} is a pinned build`);
+      if (c.expect.allowedCodeHashes.length === 1) assert.equal(codeHash, c.expect.allowedCodeHashes[0]);
+    }
     else assert.equal(v.reasons.at(-1), c.want.reason, "the exact reason");
   });
 }
