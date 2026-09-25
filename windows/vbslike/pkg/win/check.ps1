@@ -75,7 +75,12 @@ if ($SelfTest) {
       foreach ($c in (Invoke-BlankVmgsSelfTest $vr $bv.path $bv.blankVmgs $bv.sha256)) {
         [void]$cases.Add([pscustomobject]@{ Name = "box file $($bv.name) $($c.Name)"; Pass = $c.Pass; Want = $c.Want; Got = $c.Got }) }
     }
-  } finally { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue }
+  } finally {
+    Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+    # and .selftest itself once nothing is left in it: a staged package keeps no empty directory from a self-test
+    $st = Split-Path -Parent $root
+    if ((Test-Path -LiteralPath $st) -and -not @(Get-ChildItem -LiteralPath $st -Force -ErrorAction SilentlyContinue).Count) { Remove-Item -LiteralPath $st -Force -ErrorAction SilentlyContinue }
+  }
   foreach ($c in $cases) {
     $w = if ($c.Want -is [bool]) { "ok=$($c.Want)" } else { [string]$c.Want }; $g = if ($c.Got -is [bool]) { "ok=$($c.Got)" } else { [string]$c.Got }
     "{0} {1} (want {2}, got {3})" -f $(if ($c.Pass) { 'ok  ' } else { 'FAIL' }), $c.Name, $w, $g }

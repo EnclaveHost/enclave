@@ -1320,3 +1320,37 @@ $R = New-Results; [void](Test-HostProfile $R $M 'vbsLinux'); Write-Results $R`);
   assert.match(r.out, /^ok +\[vbsLinux\] box file type1\.vmgs is a blank guest-state master \(structure\): blank: /m);
   assert.deepEqual(fs.readFileSync(master).length, 4194816, "the master itself was only read");
 });
+
+test("draft v40 re-pins control/ to e3acc392 (2c3a2873 + the reviewed manager work + M2's node revision), ships the box harness as tools, and changes no guest, launcher, reference, managerEnv or eligibility", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-40.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  const v39 = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-39.json"), "utf8"));
+  const TREE = "e3acc392cb5ee654ad6ee27e8e608b6da19096c5", top = path.join(HERE, "../../..");
+  const blob = (c, p) => crypto.createHash("sha256").update(spawnSync("git", ["-C", top, "show", `${c}:${p}`], { maxBuffer: 1 << 26 }).stdout).digest("hex");
+  assert.match(d.status, /^DRAFT \(supersedes v39, which is staged at pkg\\61028ec33770f4d7\\\)\. THE CONTROL TREE MOVES TO THE REVIEWED MANAGER WORK: control\/ = pkg\/control-v40-e63 e3acc392/);
+  assert.match(d.status, /NOT YET RUN: this control tree has not run from this package/);
+  const ctl = d.files.filter((f) => /^control\./.test(f.role) && f.role !== "control.acceptance" && f.from?.git);
+  assert.ok(ctl.length >= 42 && ctl.every((f) => f.from.git.commit === TREE), "every control.* git pin is e3acc392");
+  // the manager is windows/isolation-manager's, byte for byte; the node's host.mjs is M2's (5d71b39f)
+  for (const f of d.files.filter((x) => x.role === "control.manager")) assert.equal(f.sha256, blob("76af33b4", f.from.git.path), f.path);
+  assert.equal(d.files.find((f) => f.path === "control/windows/node/host.mjs").sha256, blob("5d71b39f", "windows/node/host.mjs"));
+  for (const p of ["manager-accept.ps1", "restart-accept.mjs", "multi-accept.mjs"]) {
+    const f = d.files.find((x) => x.path === `control/windows/vbslike/manager/ops/${p}`);
+    assert.ok(f && f.role === "tool.windows" && f.from.git.commit === TREE, p);
+  }
+  // unchanged: the guest, the launcher, the reference, the managerEnv, the tier
+  const same = (p) => assert.equal(d.files.find((f) => f.path === p).sha256, v39.files.find((f) => f.path === p).sha256, p);
+  for (const p of ["guest/igvm-vbs/vbs-linux-candidate-1539-b7ba7731.bin", "control/vbslike-host.exe", "reference/nucbox-vbs-reference.json"]) same(p);
+  assert.equal(d.profiles.vbsLinux.firmware, v39.profiles.vbsLinux.firmware);
+  assert.deepEqual(d.profiles.vbsLinux.managerEnv, v39.profiles.vbsLinux.managerEnv, "the same managerEnv values");
+  assert.deepEqual(d.tier, v39.tier);
+  assert.deepEqual(deriveReferenceDigests(JSON.parse(refRawFor(D))).eligible.map((x) => x.slice(0, 8)), ["56FBB27F"]);
+  // rollback: v39 as staged
+  assert.equal(d.rollback.version, 39); assert.equal(d.rollback.commit.slice(0, 8), "7e979b38");
+  assert.equal(d.rollback.stagedAt, "C:\\Users\\claude\\vbs-like\\pkg\\61028ec33770f4d7\\");
+  assert.equal(d.rollback.files.length, 4); assert.match(d.rollback.note, /v39's own rollback record names v38/);
+  // the acceptance record says which tree and which env ran, and that this tree has not
+  assert.match(d.acceptance.status, /^RAN, on v36's control\/ tree \(2c3a2873, not this version's\).*restart-accept's manager env \(5 s sweeps\), not this managerEnv.*NOT YET RUN on this version's control\/ tree \(e3acc392\)\.$/);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   the rollback record names a committed version and exactly its pins \(v39, 7e979b38\)/);
+});
