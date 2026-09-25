@@ -21,3 +21,26 @@ client.go edit linked into the front), `dry-run-3.txt` under `6d18f7ad…` (buil
 image-affecting tree until both phases run). The CURRENT pass condition, recorded before the guest: for
 `catalog://0x5bca36b5…/0`, AppID `94c04c0e…` (unchanged throughout: the AppID excludes the image) and measurement
 `70194611…f709`, from derivation record `bc1ac3be…` (the supervisor's own `isolationDerivation` gives the same digest).
+
+## Phase 2 result: PASS (2026-09-25, 18:34:11Z to 18:34:35Z)
+
+Relay side (`phase2-relay.log`, this harness at 415995e7, `serve`):
+- 18:33:04Z listening; start-up: the known-answer test reproduced 2 answers exactly; toolchain 0181bce3; admitted only
+  `6d18f7ad…`; prediction AppID `94c04c0e…`, measurement `70194611…f709`, derivation `bc1ac3be…`.
+- 18:34:25Z `POST /v1/secrets/release-ticket` 200 (the supervisor's real ticket pump, signed by the lab operator).
+- 18:34:26Z `POST /v1/secrets/release` 200: "released to a verified guest". By construction of the real `handleRelease`,
+  the chip-signed report carried the PREDICTED measurement (the only admitted one), the runtime paired with it, the release
+  binding, the AppID, HOST_DATA = the lab deployment, a VCEK chain from KDS to the pinned Turin ARK above the TCB floor at
+  VMPL 0 with DEBUG off, and a CHIP_ID the ticket was issued for.
+- The log holds none of the six synthetic secret values, the lab signing seed or the operator key (checked).
+
+Guest and host side (enclave-5d, isolation/app-config-m1 31438c0a, `evidence/phase2-2026-09-25/`, its pass condition
+committed at 3bd74ea0 BEFORE the run): guestd's attested view of the guest `lbbbb8202b` states measurement `70194611…f709`
+and AppID `94c04c0e…`, equal to this prediction, and `expected-measurement.sh --pin 6d18f7ad…` reproduces it; the supervisor's
+real spawn and ticket pump; api-mcp-adapter's `tools/list` 200 with the released key and 401 with none or a wrong one; no
+synthetic secret in any host-side file; the production canary units byte-identical before and after.
+
+LAB throughout: the ledger row, the operator, release and TLS keys, the front's pins, and the config and secrets are
+synthetic; the chip proof comes from a report's AMD chain rather than a tunnel attach. What phase 2 establishes: the relay's
+INDEPENDENT prediction (chain + pinned release + CAR-verified component, no host or guest input) equals a real SNP guest's
+chip-signed measurement for a real approved catalog version, and the full release path delivers to that guest only.
