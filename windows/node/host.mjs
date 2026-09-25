@@ -465,7 +465,15 @@ export class Host {
    * The lease rule is the client's, not restated here: `held` means the outcome is UNKNOWN, so the
    * lease stays and nothing is retried; only a KNOWN failure frees it.
    */
-  async #isolationReconcile(id, d, v, { memMb, port }) {
+  /**
+   * The parameters this deliberately does NOT take: `memMb` and `port`. It used to be handed both,
+   * and when the branch moved above their declarations ensureApp threw `memMb is not defined` on
+   * every deployment - so the real ensureApp never reached the manager at all (enclave-5d, running
+   * it for real). Neither was used: the policy's memMiB comes from the version's ON-CHAIN memMb
+   * through isolationPlan, and the app port from the plan too. Removing them is the fix, not
+   * hoisting the declarations, because taking a value you do not use is how it comes back.
+   */
+  async #isolationReconcile(id, d, v) {
     const { reconcile } = await import("./isolation-lifecycle.mjs");
     const { IsolationManagerClient } = await import("./isolation-client.mjs");
     const { isolationPlan } = await import("../vbslike/datapath/node-bridge.mjs");
@@ -574,7 +582,15 @@ export class Host {
                                            // appId is REQUIRED by isolatedTarget; without it the
                                            // app-zone route cannot name what it is splicing to
                                            appId: inst.appId ?? null,
-                                           image: inst.image ?? null, tier: inst.tier ?? null,
+                                           image: inst.image ?? null,
+                                           // NORMALISED to the contract's spelling. The HCS backend's
+                                           // BOUNDARY says "t0-hv" and start() hands it up verbatim, but
+                                           // judge-hv and the splice's routeFor use "T0-hv" - so every
+                                           // partition would have been read as an SNP guest and refused
+                                           // for "not stating a whole verified identity" (enclave-5d).
+                                           // They made routeFor case-insensitive; this makes the record
+                                           // say the contract's word in the first place.
+                                           tier: inst.tier ? String(inst.tier).toUpperCase().replace(/^T0-HV$/, "T0-hv") : null,
                                            // carried up verbatim; this is NOT verified capacity
                                            hostExcluded: inst.hostExcluded === true,
                                            transportKeySha256: inst.transportKeySha256 ?? null } });
@@ -656,7 +672,7 @@ export class Host {
       // What it does NOT do: change what this box advertises. A T0-hv partition does not exclude
       // the host, attestedCapacity() is false for it, and nothing here touches meetsIsolationContract().
       if (this.isolation) {
-        const outcome = await this.#isolationReconcile(id, d, v, { memMb, port });
+        const outcome = await this.#isolationReconcile(id, d, v);
         if (outcome) return outcome;
       }
 
