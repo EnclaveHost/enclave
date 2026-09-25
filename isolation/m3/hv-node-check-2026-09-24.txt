@@ -1,7 +1,7 @@
 # 2026-09-24 isolation/m3/hvlab-node.mjs (test-hv-local.sh phase 4) against enclave-d1's windows/isolation-manager at dc9da0e1.
 # REAL (from that tree): Host.ensureApp, appZoneTarget, appzone.mjs, isolation-client, isolation-lifecycle reconcile, the manager
 # (server.mjs, wired as main.mjs wires it: judgeReady = ready.mjs judgeRunning; judge-hv) and relay/tunnel.js's hub; the chain read-only.
-# PUBLISHED (this checkout, 4be... see commit): node-bridge 4cb8d54f, datapath 2db32e0a, supervisor-splice c841ac7c (the tree's copy is stale: named FAIL).
+# PUBLISHED (isolation/portable-runtime-jit at d5f1b953): node-bridge 4cb8d54f, datapath 2db32e0a, supervisor-splice c841ac7c (the tree's copy is stale: named FAIL).
 # STAND-INS: a KVM launch backend returning d1's own HCS BOUNDARY (partition label changed), the agent's frame dispatch, the relay secrets route.
 # Plain KVM guests, image 4610d594..., NOT Hyper-V. Development evidence only: on the box the custom IGVM is not yet the firmware that loads.
 # RESULT for hello-world /1 (pass 3: #isolationReconcile's steps, because ensureApp throws 'memMb is not defined' at this tree): the manager spawns,
