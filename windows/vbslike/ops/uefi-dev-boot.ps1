@@ -215,10 +215,19 @@ function Run-ProbeDomain {
   if ($null -eq $id) { return $r }
   $dl = (Get-Date).AddSeconds(90)
   while ((Get-Date) -lt $dl -and $script:con.text.Substring($mark) -notmatch "PROBE$id done") { Ensure-Com1; Drain $script:con 1000 }
-  Drain $script:con 1500
+  # the memory eater runs AFTER done: wait for the domain to END (or 45 s), so containment is shown, never assumed
+  $dl2 = (Get-Date).AddSeconds(45)
+  while ((Get-Date) -lt $dl2 -and $script:con.text.Substring($mark) -notmatch "MON domain $id ended") { Ensure-Com1; Drain $script:con 1000 }
   foreach ($l in @($script:con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })) { Note "  PROBE CONSOLE: $l" }
-  $r.lines = @($script:con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -match "^PROBE$id " })
+  $r.console = @($script:con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  $r.lines = @($r.console | Where-Object { $_ -match "^PROBE$id " })
   return $r
+}
+# THE PROBE BUILD UNDER TEST, pinned by the IGVM that carries it (enclave-99: the table and the binary must not drift).
+# domprobe is a member of the measured initrd; its sha256 is from the initrd, and whether it probes the TPM nodes follows.
+$ProbeBuilds = @{
+  'a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4' = @{ initrd = '680d40fa'; domprobe = '0d12e950bd6d93f9'; tpm = $false }
+  'b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748' = @{ initrd = '1539d5b2'; domprobe = '2c2600495d07d292'; tpm = $true }
 }
 # THE CLASSES a probe result falls in (independent audit: a timeout or no service is not enforcement).
 #   BROKEN:       it reached the target (READABLE, CONNECTED, OPENED, CREATED), or a neighbour's socket is VISIBLE (ENXIO)
@@ -230,6 +239,67 @@ function Classify([string]$v) {
   if ($v -match 'No such device or address') { return 'BROKEN' }
   if ($v -match '^(No such file or directory|Permission denied|Operation not permitted|Network is unreachable)$') { return 'DENIED' }
   return 'INCONCLUSIVE'
+}
+
+# THE JUDGE (enclave-99's review of 5929d313). What a line may claim:
+# - a REACH (READABLE on another path, CONNECTED, OPENED, CREATED, ENXIO) FAILS, always;
+# - a file route's ENOENT/EACCES/EPERM is "absent from the domain's view". It is a denial of a NEIGHBOUR only if that
+#   path is stated to exist in the root namespace in the same run, and nothing in these builds states it, so with a
+#   neighbour it is INCONCLUSIVE. The relative and escape routes resolve to the absolute one inside a chroot: reported,
+#   never counted;
+# - own_app must be READABLE (6 bytes), the artifact this harness loads, or the view is not the one assumed
+#   (INCONCLUSIVE);
+# - vsock to CID 1 is NO IN-GUEST ROUTE on these builds: CONFIG_VSOCKETS_LOOPBACK=m, vsock_loopback.ko is not in the
+#   initrd, and hv_sock allows only CID 2. It is neither denied nor broken, and never counted;
+# - a timeout, no answer, refusal or reset is never a denial;
+# - report: granted means the decoded report must name THIS domain's app (else FAIL); refused is not cross-domain
+#   evidence;
+# - pids: visible <= 3, signalable <= 2 (test-m3's rule), else FAIL; a root uid FAILS;
+# - memory: UNCONTAINED FAILS; CONTAINED needs a memory_touched line >= 48 MiB AND the domain killed (status 137);
+#   otherwise it is NOT SHOWN (INCONCLUSIVE);
+# - a missing required line FAILS. The TPM lines are required whenever the pinned probe build has them.
+function Judge-Probe($pr, $build, [bool]$neighbour) {
+  $id = $pr.id; $fail = @(); $inc = @()
+  $val = @{}; foreach ($l in $pr.lines) { if ($l -match "^PROBE$id ([a-z_0-9]+)=(.*)$") { $val[$matches[1]] = $matches[2] } }
+  $req = @('other_app_absolute','other_app_relative','other_app_escape','other_front_socket','own_app','configfs_tsm','sysfs','create_tsm_entry','visible_pids','signalable_pids','report','vsock_local_domain1','vsock_local_domain2','vsock_own_control','vsock_host_control','host_gateway')
+  if ($build.tpm) { $req += @('dev_tpm0','dev_tpmrm0') }
+  foreach ($k in $req) { if (-not $val.ContainsKey($k)) { $fail += "$k MISSING" } }
+  if (-not @($pr.lines | Where-Object { $_ -eq "PROBE$id done" }).Count) { $fail += 'done MISSING' }
+  $uidl = @($pr.lines | Where-Object { $_ -match "^PROBE$id uid=(\d+) euid=(\d+)$" })
+  if (-not $uidl.Count) { $fail += 'uid line MISSING' } elseif ($uidl[0] -match 'uid=0 |euid=0$') { $fail += "root: $($uidl[0])" } else { Note "  JUDGE uid: $($uidl[0]) (unprivileged)" }
+  foreach ($k in @($val.Keys)) { if ($k -ne 'own_app' -and $k -ne 'report' -and (Classify $val[$k]) -eq 'BROKEN') { $fail += "$k=$($val[$k]) REACHED" } }
+  if ($val.ContainsKey('own_app')) { if ($val['own_app'] -ne 'READABLE (6 bytes)') { $inc += "own_app=$($val['own_app']) (the view is not the one assumed)" } else { Note "  JUDGE own_app: READABLE (6 bytes): the view is the probe's own chroot (positive control)" } }
+  foreach ($k in 'other_app_absolute','other_front_socket') {
+    if ($val.ContainsKey($k) -and (Classify $val[$k]) -eq 'DENIED') {
+      if ($neighbour) { $inc += "$k=$($val[$k]) (absent from the view; the target's existence in the root namespace is not stated)" }
+      Note "  JUDGE ${k}: $($val[$k]) - absent from the domain's view$(if ($neighbour) { '; not a neighbour denial: target existence unshown' })"
+    }
+  }
+  foreach ($k in 'other_app_relative','other_app_escape') { if ($val.ContainsKey($k)) { Note "  JUDGE ${k}: $($val[$k]) (inside a chroot this resolves to the absolute route: reported, not counted)" } }
+  foreach ($k in 'vsock_local_domain1','vsock_local_domain2','vsock_own_control') { if ($val.ContainsKey($k) -and $val[$k] -notmatch 'CONNECTED') { Note "  JUDGE ${k}: $($val[$k]) - NO IN-GUEST ROUTE on this build (no vsock loopback transport): neither denied nor broken, not counted" } }
+  if ($val.ContainsKey('vsock_host_control')) { Note "  JUDGE vsock_host_control: $($val['vsock_host_control']) - a host connection was ATTEMPTED (not refused inside the guest); nothing listens at host port 9000, so this is no service, not a denial" }
+  if ($val.ContainsKey('host_gateway')) { Note "  JUDGE host_gateway: $($val['host_gateway']) - no route in the domain's network namespace (10.0.2.2 has no target on Hyper-V)" }
+  foreach ($k in 'configfs_tsm','sysfs','create_tsm_entry','dev_tpm0','dev_tpmrm0') { if ($val.ContainsKey($k) -and (Classify $val[$k]) -ne 'BROKEN') { Note "  JUDGE ${k}: $($val[$k]) - absent from the domain's view; existence in the root namespace not stated" } }
+  if ($val.ContainsKey('report')) {
+    if ($val['report'] -eq 'granted-for-this-domain') {
+      $b64 = @($pr.lines | Where-Object { $_ -match "^PROBE$id report_b64=(.+)$" } | ForEach-Object { $matches[1] }) | Select-Object -First 1
+      $named = $null; try { $named = (([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64))) | ConvertFrom-Json).doc.domain.appSha256 } catch { }
+      $own = if ($pr.answer) { [string]$pr.answer.appSha256 } else { '' }
+      if ($named -and $own -and $named -eq $own) { Note "  JUDGE report: granted, and it names THIS domain's app ($($own.Substring(0,16)))" } else { $fail += "report names app '$named', not this domain's '$own'" }
+    } else { Note "  JUDGE report: $($val['report']) - refused by the monitor or the signer; not cross-domain evidence, and it never shows signer authorization" }
+  }
+  foreach ($k in @{ visible_pids = 3; signalable_pids = 2 }.GetEnumerator()) {
+    if ($val.ContainsKey($k.Key)) { if ([int]$val[$k.Key] -gt $k.Value) { $fail += "$($k.Key)=$($val[$k.Key]) (over $($k.Value))" } else { Note "  JUDGE $($k.Key)=$($val[$k.Key]) (at most $($k.Value): its own tree)" } }
+  }
+  if (@($pr.console | Where-Object { $_ -match "^PROBE$id memory_UNCONTAINED" }).Count) { $fail += 'memory_UNCONTAINED' }
+  else {
+    $touched = @($pr.console | Where-Object { $_ -match "^PROBE$id memory_touched=(\d+) MiB" } | ForEach-Object { [int]$matches[1] }) | Measure-Object -Maximum
+    $killed = [bool](@($pr.console | Where-Object { $_ -match "^DOM$id ERROR runtime exited status=137" }).Count)
+    if ($touched.Maximum -ge 48 -and $killed) { Note "  JUDGE memory: CONTAINED - touched $($touched.Maximum) MiB of its 64 MiB cap, then killed (137)" }
+    else { $inc += "memory containment not shown (max touched $($touched.Maximum), killed=$killed)" }
+  }
+  $verdict = if ($fail.Count) { 'FAIL' } elseif ($inc.Count) { 'INCONCLUSIVE' } else { 'PASS' }
+  return @{ verdict = $verdict; fail = $fail; inc = $inc }
 }
 
 Note "=== DEV BOOT. Host exclusion is NOT established on this path. Nothing here is verified capacity. ==="
@@ -875,6 +945,8 @@ try {
               return ($okServe -and $okList)
             }
             $fail = @(); $inc = @()
+            $build = $ProbeBuilds[$FirmwareSha256.ToLower()]
+            if (-not $build) { $fail += "the probe build in IGVM $($FirmwareSha256.Substring(0,16)) is not pinned in this script" } else { Note "PROBE BUILD under test: initrd $($build.initrd), domprobe $($build.domprobe), TPM opens $($build.tpm)" }
             if (-not $nb -or $nb.id -ne 1 -or $nb.guestPort -ne 40001) { $fail += "WRONG TARGET: the neighbour must be domain 1 on guest port 40001 (domprobe's hard-coded targets); the load said id $($nb.id) port $($nb.guestPort)" }
             $liveBefore = Neighbour-Live 'BEFORE'
             if (-not $liveBefore) { $fail += 'DEAD TARGET: the neighbour was not shown live BEFORE the probe' }
@@ -886,32 +958,13 @@ try {
             $liveAfter = if ($pr) { Neighbour-Live 'AFTER' } else { $false }
             if ($pr -and -not $liveAfter) { $fail += 'DEAD TARGET: the neighbour was not shown live AFTER the probe' }
             if ($pr -and $pr.id -eq 2) {
-              $val = @{}; foreach ($l in $pr.lines) { if ($l -match '^PROBE2 ([a-z_0-9]+)=(.*)$') { $val[$matches[1]] = $matches[2] } }
-              if (-not @($pr.lines | Where-Object { $_ -eq 'PROBE2 done' }).Count) { $fail += 'the probe did not reach done' }
-              # routes aimed at the LIVE neighbour: only a DENIED counts
-              $nbTargets = [ordered]@{ other_app_absolute = '/domains/1/app.wasm'; other_app_relative = '../1/app.wasm'; other_app_escape = '/../../../domains/1/app.wasm'; other_front_socket = '/domains/1/run/front.sock'; vsock_local_domain1 = 'vsock CID 1 port 40001' }
-              foreach ($k in $nbTargets.Keys) {
-                if (-not $val.ContainsKey($k)) { $fail += "$k MISSING (a missing line is not a denial)"; continue }
-                $c = Classify $val[$k]
-                Note "  NEIGHBOUR ROUTE ${k} -> $($nbTargets[$k]) (live): $($val[$k]) => $c"
-                if ($c -eq 'BROKEN') { $fail += "$k=$($val[$k]) BROKEN" } elseif ($c -eq 'INCONCLUSIVE') { $inc += "$k=$($val[$k])" }
-              }
-              # everything else: reported with what its target is; only a reach FAILS, and no absence counts as a denial
-              $other = [ordered]@{ vsock_local_domain2 = "the probe's OWN port: not a neighbour test"; vsock_own_control = "the monitor's control port"; vsock_host_control = 'the host at CID 2 port 9000: nothing listens there, so a timeout is no service, not a denial'; host_gateway = '10.0.2.2 is a QEMU address with no target on Hyper-V'; configfs_tsm = 'absent from the view; existence in the root namespace not shown'; sysfs = 'absent from the view'; create_tsm_entry = 'absent from the view'; dev_tpm0 = 'absent from the view; existence in the root namespace not shown'; dev_tpmrm0 = 'absent from the view; existence in the root namespace not shown' }
-              foreach ($k in $other.Keys) {
-                if (-not $val.ContainsKey($k)) { Note "  OTHER ROUTE ${k}: MISSING ($($other[$k]))"; if ($k -notmatch '^dev_tpm') { $fail += "$k MISSING" }; continue }
-                $c = Classify $val[$k]
-                Note "  OTHER ROUTE ${k}: $($val[$k]) => $c ($($other[$k]))"
-                if ($c -eq 'BROKEN') { $fail += "$k=$($val[$k]) BROKEN" }
-              }
-              if ($val.ContainsKey('report')) { Note "  REPORT: $($val['report']) (whether a signer was running decides what this means; it never shows signer authorization by itself)" }
-              foreach ($k in 'visible_pids','signalable_pids') { if ($val.ContainsKey($k)) { Note "  RESOURCE ${k}=$($val[$k])" } }
-              if (@($pr.lines | Where-Object { $_ -match 'memory_UNCONTAINED' }).Count) { $fail += 'memory_UNCONTAINED' }
+              $j = Judge-Probe $pr $build $true
+              $fail += $j.fail; $inc += $j.inc
               Note "PROBE destroy -> $(Hv ('{"cmd":"destroy","id":2,"boot":"' + $pr.boot + '"}'))"
             }
             $verdict = if ($fail.Count) { 'FAIL' } elseif ($inc.Count) { 'INCONCLUSIVE' } else { 'PASS' }
             Note "NEIGHBOUR ACCEPTANCE: $verdict$(if ($fail.Count) { ' - ' + ($fail -join '; ') })$(if ($inc.Count) { ' - inconclusive (not a denial): ' + ($inc -join '; ') })"
-            Note "  (containment between apps inside the partition, by the guest kernel. Nothing here is about the HOST: host_excluded=no.)"
+            Note "  (containment between apps inside the partition, by the guest kernel. Nothing here is about the HOST: host_excluded=no. PASS needs a root-namespace existence statement for each file target, which no pinned build makes yet.)"
           }
           if ($G1Check) {
             # The boot the monitor minted, from wmiserve's own load line (launcher 0160d835+ prints it).
@@ -959,17 +1012,18 @@ try {
   if ($ProbeDomain -and $ready) {
     if (-not $vmId) { $vmId = (Get-VM -Name $name).Id.Guid }
     # NO NEIGHBOUR here: domprobe's "other domain" targets are its own domain or nothing, so this judges only the
-    # domain's own namespace and resource containment (narrowed after the independent audit of 3c3dce3d).
-    $pr = Run-ProbeDomain
-    if ($null -eq $pr.id) { Note "PROBE DOMAIN RESULT: NOT RUN - the load named no domain" }
+    # domain's own-view namespace and resource containment (the independent audit of 3c3dce3d; enclave-99's rules).
+    $build = $ProbeBuilds[$FirmwareSha256.ToLower()]
+    if (-not $build) { Note "PROBE DOMAIN RESULT: NOT RUN - the probe build in IGVM $($FirmwareSha256.Substring(0,16)) is not pinned in this script" }
     else {
-      $val = @{}; foreach ($l in $pr.lines) { if ($l -match "^PROBE$($pr.id) ([a-z_0-9]+)=(.*)$") { $val[$matches[1]] = $matches[2] } }
-      $bad = @()
-      foreach ($k in @('other_app_absolute','other_app_relative','other_app_escape','other_front_socket','configfs_tsm','sysfs','create_tsm_entry','dev_tpm0','dev_tpmrm0','vsock_local_domain1','vsock_local_domain2','vsock_own_control','vsock_host_control','host_gateway')) {
-        if (-not $val.ContainsKey($k)) { $bad += "$k MISSING" } elseif ((Classify $val[$k]) -eq 'BROKEN') { $bad += "$k=$($val[$k]) BROKEN" }
+      Note "PROBE BUILD under test: initrd $($build.initrd), domprobe $($build.domprobe), TPM opens $($build.tpm)"
+      $pr = Run-ProbeDomain
+      if ($null -eq $pr.id) { Note "PROBE DOMAIN RESULT: NOT RUN - the load named no domain" }
+      else {
+        $j = Judge-Probe $pr $build $false
+        Note "PROBE DOMAIN RESULT (own-view containment only; no live neighbour, so no other-app claim): $($j.verdict)$(if ($j.fail.Count) { ' - ' + ($j.fail -join '; ') })$(if ($j.inc.Count) { ' - inconclusive: ' + ($j.inc -join '; ') })"
+        Note "PROBE DOMAIN destroy -> $(Hv ('{"cmd":"destroy","id":' + $pr.id + ',"boot":"' + $pr.boot + '"}'))"
       }
-      Note "PROBE DOMAIN RESULT (own-view containment only; NO live neighbour, so no other-app claim): domain $($pr.id), $(@($pr.lines).Count) line(s), $(if ($bad.Count) { 'FAILED: ' + ($bad -join '; ') } else { 'nothing forbidden was reached' })"
-      Note "PROBE DOMAIN destroy -> $(Hv ('{"cmd":"destroy","id":' + $pr.id + ',"boot":"' + $pr.boot + '"}'))"
     }
   }
 
