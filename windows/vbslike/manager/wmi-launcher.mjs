@@ -505,6 +505,73 @@ export const CMD = {
    * 40 s on nucbox-k11, runs 070935/071140, though the guest spoke within ~3 s). Seeing it only shortens the wait
    * and is reported as `sawUntil`; it is not a readiness judgement, and bytes > 0 is still all "booted" means.
    */
+  /**
+   * START THE VM AND READ ITS CONSOLE IN ONE PROCESS (the manager's start path).
+   *
+   * The monitor prints its boot lines ONCE, about 3 s after Start-VM. A reader started afterwards in a NEW PowerShell
+   * process can attach after they are gone, and a silent partition is refused. That happened to every manager spawn
+   * on nucbox-k11 (runs 075126 and 075544: "no output ... within 25s", although the guest had written its guest
+   * state). A canary whose reader was delayed 4 s failed the same way (ca265b7d). So the reader begins connecting
+   * BEFORE Start-VM, on a thread-pool task (ConnectAsync), and attaches as soon as the worker creates the pipe. If that
+   * early attach is not possible, it retries in this same process straight after Start-VM (uefi-dev-boot.ps1's
+   * order). Everything after that is readConsole's loop: one pending read, bounded, stopping at `until`.
+   */
+  startAndRead: ({ vmId, pipe, seconds = 25, connectMs = 15000, until = null }) => {
+    if (!GUID.test(String(vmId))) throw new Error(`startAndRead: not a VM Id: ${vmId}`);
+    return ps(`
+    $ErrorActionPreference = 'Stop';
+    $v = Get-VM -Id ${q(vmId)};
+    if (-not ${OWNED("$v")}) { throw 'not ours: the ownership marker is absent, so this VM is not started' };
+    $until = ${until ? q(until) : "$null"}; $tail = ''; $sawUntil = $false;
+    $name = ${q(pipe)} -replace '^\\\\\\\\\.\\\\pipe\\\\', '';
+    $total = 0; $head = ''; $connected = $false; $why = ''; $early = $false; $earlyNote = ''; $attachMs = -1;
+    $pd = [System.IO.Pipes.PipeDirection]::In; $po = [System.IO.Pipes.PipeOptions]::Asynchronous;
+    $cli = New-Object System.IO.Pipes.NamedPipeClientStream('.', $name, $pd, $po);
+    $pre = $null; try { $pre = $cli.ConnectAsync(${Math.max(1000, Math.floor(connectMs))}) } catch { $earlyNote = [string]$_.Exception.Message };
+    $t0 = Get-Date;
+    try { Start-VM -VM $v -ErrorAction Stop } catch {
+      if ($cli) { try { $cli.Dispose() } catch {} };
+      $msg = 'Start-VM refused: ' + [string]$_.Exception.Message;
+      $ev = @(Get-WinEvent -LogName 'Microsoft-Windows-Hyper-V-Worker-Admin' -MaxEvents 20 -ErrorAction SilentlyContinue | Where-Object { $_.TimeCreated -ge $t0.AddSeconds(-5) } | Sort-Object TimeCreated | ForEach-Object { '[' + $_.Id + '] ' + ([string]$_.Message -replace '\\r?\\n', ' ') });
+      if ($ev.Count) { $msg += ' | Worker-Admin: ' + ($ev -join ' | ') };
+      throw $msg
+    };
+    $state = [string](Get-VM -Id ${q(vmId)}).State;
+    try { if ($pre -and $pre.Wait(${Math.max(1000, Math.floor(connectMs))}) -and $cli.IsConnected) { $connected = $true; $early = $true } } catch { $earlyNote = [string]$_.Exception.Message };
+    if (-not $connected) {
+      try { $cli.Dispose() } catch {};
+      $cli = New-Object System.IO.Pipes.NamedPipeClientStream('.', $name, $pd, $po);
+      $dl = (Get-Date).AddMilliseconds(${Math.max(1000, Math.floor(connectMs))});
+      while (-not $connected -and (Get-Date) -lt $dl) { try { $cli.Connect(100); $connected = $true } catch { Start-Sleep -Milliseconds 20 } }
+    };
+    $attachMs = [int]((Get-Date) - $t0).TotalMilliseconds;
+    $cts = New-Object System.Threading.CancellationTokenSource;
+    $cts.CancelAfter(${Math.max(1, Math.floor(seconds))} * 1000);
+    $pending = $null;
+    try {
+      if ($connected) {
+        $buf = New-Object byte[] 4096;
+        while (-not $cts.IsCancellationRequested) {
+          if ($null -eq $pending) { $pending = $cli.ReadAsync($buf, 0, $buf.Length) };
+          if (-not $pending.Wait(500)) { continue };
+          $n = $pending.Result; $pending = $null;
+          if ($n -le 0) { break };
+          $total += $n;
+          if ($head.Length -lt 400) { $head += [Text.Encoding]::ASCII.GetString($buf, 0, [Math]::Min($n, 400)) };
+          if ($until) {
+            $tail += [Text.Encoding]::ASCII.GetString($buf, 0, $n);
+            if ($tail.Length -gt 4096) { $tail = $tail.Substring($tail.Length - 4096) };
+            if ($tail.Contains($until)) { $sawUntil = $true; break }
+          }
+        }
+      } else { $why = 'the console pipe could not be attached' }
+    } catch { $why = [string]$_.Exception.Message } finally {
+      if ($cli) { try { $cli.Dispose() } catch {} };
+      $cts.Dispose()
+    };
+    @{state=$state; console=@{connected=$connected; early=$early; earlyNote=$earlyNote; attachMs=$attachMs; bytes=$total; head=$head; sawUntil=$sawUntil; note=$why}} | ConvertTo-Json -Compress -Depth 4`);
+  },
+
   readConsole: ({ pipe, seconds = 20, connectMs = 5000, until = null }) => ps(`
     $ErrorActionPreference = 'Stop';
     $until = ${until ? q(until) : "$null"}; $tail = ''; $sawUntil = $false;
@@ -891,7 +958,8 @@ export class WmiHyperVLauncher {
                                  hypervModuleSha256: this.hypervModuleSha256, hypervUtilitiesSha256: this.hypervUtilitiesSha256,
                                  guestStateRun, guestStateMaster: this.guestStateMaster, mediumSha256: this.mediumSha256 });
 
-      const started = await this.#ps(CMD.start({ vmId: created.id }));
+      // ONE process starts the VM and reads its console, the reader attaching before the guest can speak (startAndRead)
+      const started = await this.#ps(CMD.startAndRead({ vmId: created.id, pipe, seconds: guestReadySec, until: GUEST_READY_LINE }));
       if (started.state !== "Running")
         throw new Error(`the VM is ${JSON.stringify(started.state ?? null)} after Start-VM, not Running`);
 
@@ -900,7 +968,7 @@ export class WmiHyperVLauncher {
       // executed, which is more than "Running" says, and it is NOT evidence that the component was
       // delivered, compiled or served. There is no app-readiness handshake on this backend yet, so
       // there is no state here that means "the app is up", and the launcher does not invent one.
-      const con = await this.#ps(CMD.readConsole({ pipe, seconds: guestReadySec, until: GUEST_READY_LINE }));
+      const con = started.console || {};
       if (con.connected !== true)
         throw new Error(`could not attach to the guest console at ${pipe}: ${con.note || "no connection"}`);
       const booted = Number(con.bytes) > 0;
@@ -929,7 +997,8 @@ export class WmiHyperVLauncher {
                              guestState: { path: created.guestStateFile, masterSha256: created.guestStateMasterSha256 },
                              grants: created.grants ?? [] },
                // guestBooted: something executed. appReady: NOT established - no handshake exists.
-               guest: { booted, bytes: con.bytes, head: String(con.head || "").slice(0, 400), readyLine: con.sawUntil === true },
+               guest: { booted, bytes: con.bytes, head: String(con.head || "").slice(0, 400), readyLine: con.sawUntil === true,
+                        attach: { early: con.early === true, ms: con.attachMs ?? null } },
                appReady: false,
                // NO RELAY, and deliberately so for now. Nothing here loads the app into the guest or
                // starts a host relay (in the dev recipe that is `vbslike-host wmiserve`: the bundle over

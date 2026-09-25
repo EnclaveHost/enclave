@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { WmiHyperVLauncher, CMD, OWNER_MARKER, HYPERV_MODULE_SHA256 } from "./wmi-launcher.mjs";
 import { HyperVPartitionBackend } from "./backend.mjs";
 import { Manager } from "./server.mjs";
-import { TYPE1, PREFLIGHT_OK, VM_ID, defineAnswer, keyOf } from "./fake-hyperv.mjs";
+import { TYPE1, PREFLIGHT_OK, VM_ID, defineAnswer, keyOf, startAndReadAnswer } from "./fake-hyperv.mjs";
 
 const IMG = "C:\\img\\openhcl-ownguest.bin";
 const SHA = "2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3";
@@ -37,6 +37,7 @@ function host(over = {}) {
     seen.push(s);
     const k = keyOf(s);
     let a = A[k];
+    if (k === "startAndRead") a = startAndReadAnswer((x) => A[x]);
     if (k === "define" && !(a instanceof Error)) a = defineAnswer(s, a || {});
     if (a instanceof Error) return { code: 1, stdout: "", stderr: a.message };
     return { code: 0, stdout: JSON.stringify(a ?? { ok: true }), stderr: "" };

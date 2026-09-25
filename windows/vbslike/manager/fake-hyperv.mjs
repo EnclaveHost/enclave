@@ -57,6 +57,7 @@ export function keyOf(s) {
     : s.includes("New-CustomVM") ? "define"
     : s.includes("GetFileNameWithoutExtension") ? "retire"
     : s.includes("Get-FileHash") ? "imageHash"
+    : s.includes("Start-VM") && s.includes("NamedPipeClientStream") ? "startAndRead"
     : s.includes("Start-VM") ? "start"
     : s.includes("already gone") ? "stop"
     : s.includes("NamedPipeClientStream") ? "readConsole"
@@ -65,4 +66,15 @@ export function keyOf(s) {
     : s.includes("$vms = @(Get-VM") ? "survey"
     : s.includes("Get-VM -Id") ? "removeById"
     : "other";
+}
+
+/**
+ * The combined start-and-console script (CMD.startAndRead) answered from a host's SEPARATE start and readConsole
+ * answers: `pick(key)` returns an answer object, an Error, or undefined. An Error from either fails the whole
+ * script, as a PowerShell failure would.
+ */
+export function startAndReadAnswer(pick) {
+  const s = pick("start"); if (s instanceof Error) return s;
+  const c = pick("readConsole"); if (c instanceof Error) return c;
+  return { ...(s ?? { state: "Running" }), console: c ?? { connected: true, bytes: 64, head: "guest said something" } };
 }

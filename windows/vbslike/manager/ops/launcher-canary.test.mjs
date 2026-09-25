@@ -17,7 +17,8 @@ function host({ removeFails = false, silent = false } = {}) {
     if (k === "preflight") return ok(PREFLIGHT_OK);
     if (k === "imageHash") return ok({ present: true, sha256: SHA, bytes: 77794396 });
     if (k === "define") { const a = defineAnswer(s); vms.set(a.id, { vmId: a.id, name: a.name, state: "Off", notes: a.notes }); return ok(a); }
-    if (k === "start") { for (const v of vms.values()) v.state = "Running"; return ok({ state: "Running" }); }
+    if (k === "startAndRead") { for (const v of vms.values()) v.state = "Running";
+      return ok({ state: "Running", console: { connected: true, bytes: silent ? 0 : 613, head: silent ? "" : "MON ready", sawUntil: !silent } }); }
     if (k === "readConsole") return ok({ connected: true, bytes: silent ? 0 : 613, head: silent ? "" : "MON ready" });
     if (k === "survey") return ok({ vms: [...vms.values()] });
     if (k === "removeById" || k === "removeExact") {
