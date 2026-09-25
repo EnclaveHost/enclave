@@ -33,6 +33,52 @@ evening's last several hypotheses, all of which were varying inputs to a load th
 **The positive proof asked for is therefore obtained**: the worker demonstrably opens the pinned
 path (it quotes it when the content is bad) and raises no complaint about ours.
 
+## ANSWERED 2026-09-25: this build cannot start a LINUX-DIRECT OpenHCL image
+
+Not ours specifically. **Microsoft's own linux-direct release image fails identically.**
+
+enclave-53 fetched the reference artifacts from petri's actual flowey path (the `x64-openhcl-igvm`
+artifact of openvmm-ci run 33556260031, commit `29e15ab8`, release/1.7.2511), and both were pinned
+by sha256 and verified on the box before each run. Same bounded procedure, same VM definition
+(petri's `New-CustomVM`, isolation type 16, `-IncreaseVtl2Memory`, Secure Boot off, COM1, 1 GB,
+1 vCPU), only the pinned file differing:
+
+| image | sha256 | result |
+|---|---|---|
+| `openhcl.bin` — Microsoft's STANDARD, UEFI in VTL0 | `48773995cfa2222c…` | **START OK, state Running**, Worker-Admin **18500** "started successfully" |
+| `openhcl-direct.bin` — Microsoft's OWN LINUX-DIRECT | `2f640f33884e6538…` | **START FAILED**, Worker-Admin **12030**, no underlying cause |
+| `openhcl-ownguest.bin` — ours, linux-direct | `7caf7408…` | START FAILED, 12030 — identical |
+
+So, established on hardware:
+
+1. **OpenHCL works on this build.** A standard image starts and runs.
+2. **Custom IGVM loading works.** The worker reads the pinned path and quotes it when the content is
+   wrong; `AllowFirmwareLoadFromFile` is the only gate and it is satisfied by the bounded procedure.
+3. **The linux-direct class does not start on 10.0.26200.9457** — for Microsoft's image as much as
+   for ours. Nothing about our build, our VTL0 payload, our command line or our memory sizing is
+   implicated, because their image shares none of those and fails the same way.
+
+This confirms enclave-53's E3 from the source: petri's Hyper-V backend excluded
+`is_linux_direct()` in `check_compat`, and no `hyperv_openhcl_linux` test instance exists at our pin
+or upstream. It is untested because it does not work here, and we have now shown that directly
+rather than inferring it from an absence.
+
+### What this leaves, and it is a product decision rather than a bug
+
+Our guest is the `x64-test-linux-direct` VTL2 recipe with `OPENHCL_FORCE_LOAD_VTL0_IMAGE=linux`,
+because the domain boots our own Linux VTL0 (kernel + initrd embedded in the IGVM). To run on
+Hyper-V on this build the guest would have to become a **UEFI-booting** VTL0 instead — the shape
+Microsoft actually ships and tests — which is a change to the guest image, not to the manager, the
+node or the bridge. Whether that is worth doing, versus waiting on a build that starts linux-direct,
+is Steven's call. Both are real options and neither is blocked on anything this session owns.
+
+**No diagnostic path exists on this build for the failure itself** (enclave-53, E7): `openhcl_boot`
+logs to serial only when the host describes a COM3 in the device tree, Hyper-V exposes COM3 only on
+build >= 27653, and `OPENHCL_BOOT_LOG` is never parsed by the boot shim at all. So VTL2 has no
+serial log here, and `ohcldiag-dev` over hvsocket is the only way in — which needs the Windows SDK
+and CRT, i.e. accepting Microsoft's licence. 53 has correctly declined to do that or to build on the
+box; it is a resources question, and P2 has made it unnecessary for THIS question.
+
 ## THE BLOCKER, restated correctly
 
 Our IGVM loads, and the partition then fails to start with Worker-Admin event **12030**, carrying no
