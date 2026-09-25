@@ -144,7 +144,7 @@ closed or bounded here, with no weakening of any check.
   two concurrent requests for one nonce get one signature (test/pvm-attach-cosigner.test.mjs; test/mutate-pvm-attach.mjs,
   17/17).
 
-**B, a gap: no in-place re-attach (as of 43601dee).**
+**B, closed in the lab by reconnect in place (48030dd5; device check below). Before it:**
 - The attach certificate is made at VM boot. If the relay drops, the tunnel stays gone until the VM restarts, and the
   restart re-attaches with the co-signature.
 - A true in-place re-attach needs a payload control path that certifies a NEW relay nonce while the app runs. The
@@ -268,6 +268,17 @@ loopback relay, anvil, the Pixel; ONE VM boot throughout):
   - A request cut by a drop sends nothing.
 - **R5:** a relay pinning another build refuses the attach in place; the right relay accepts it.
 - **The end:** a final proof, then release.
+- **The device check: PASS, LAB** (results/pvm-cpu-relay-reconnect, check.txt and NOTES.md; run at 48030dd5's code,
+  with the harness at 204f36bb). ONE VM boot throughout, and 43 of 43 steps as expected:
+  - R1: three drops, re-attached in place 3-15 s after the relay returned; the client served and a proof landed each time;
+  - R2: a frozen relay; the phone's watchdog after 94.4 s; exactly one tunnel after the thaw;
+  - R3: down, wrong and stale co-signatures refused in order, then the owner's accepted; the replayed accepted frame
+    refused on its challenge;
+  - R4: a cut request signed nothing; the undelivered checkpoint landed once across a drop;
+  - R5: the old-build relay refused the in-place attach; no tier in place;
+  - a final proof, then release.
+  12 REATTACHes = 8 accepted + 4 refused by the hub. Every chain hangs off one provisioned AVF key. The checker's coverage
+  test mutates the run 25 ways. Attempts 1 and 2 (`-run1`, `-run2`) stopped on harness errors before anything ran.
 - **Checker coverage, as enclave-99 asked:**
   - at most one live tunnel on the phone: every in-place acceptance follows exactly one loss;
   - one tunnel row at every sample;

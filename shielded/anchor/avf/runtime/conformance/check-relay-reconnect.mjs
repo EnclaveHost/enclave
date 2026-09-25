@@ -60,7 +60,9 @@ const instances = [...vm.matchAll(/INSTANCE id=([0-9a-f]{64})/g)].map((m) => m[1
 expect(count(vm, /ANCHOR start in pVM/) === 1 && spkis.length === 1 && instances.length === 1 && instances[0] === OWNER,
        `ONE boot for the whole run: one start, one transport key ${(spkis[0] || "").slice(24, 40)}…, the owner's out-of-band instance ${OWNER.slice(0, 16)}…`);
 const begins = count(vm, /REATTACH begin$/), ends = count(vm, /REATTACH end$/), accepted = count(vm, /RELAY re-attach \d+: ACCEPTED in place/);
-expect(begins === ends && begins >= accepted && accepted === IN_PLACE, `the running VM answered every REATTACH (${begins} begun, ${ends} ended); the hub accepted ${accepted} in place (the plan's ${IN_PLACE})`);
+const hubRefused = count(vm, /RELAY re-attach \d+: refused by the hub/), noCert = count(vm, /RELAY re-attach \d+: no certificate/);
+expect(begins === ends && accepted === IN_PLACE && begins === accepted + hubRefused + noCert && hubRefused === 4,
+       `the running VM answered every REATTACH (${begins} begun, ${ends} ended) = ${accepted} accepted in place (the plan's ${IN_PLACE}) + ${hubRefused} refused by the hub (R3's three, R5's old build) + ${noCert} without a certificate; a dial that failed sent none`);
 // at most ONE live tunnel on the phone: from the boot's acceptance on, each loss comes before the next acceptance, one to one
 let live = 0, booted = false, seqOk = count(vm, /RELAY keeper armed/) === 1;
 for (const l of vm.split("\n")) {
@@ -107,9 +109,14 @@ const relayLogs = envs.map((e) => ({ n: e.n, why: e.why, log: rd(`relay-${e.n}.l
 const attachLines = relayLogs.flatMap((r) => [...r.log.matchAll(new RegExp(`\\[tunnel\\] ${NAME} attached via [^\\n]*\\((\\d+) enclaves?\\)`, "g"))].map((m) => Number(m[1])));
 expect(attachLines.length >= IN_PLACE && attachLines.every((k) => k === 1), `relay: every attach of the name left exactly ONE tunnel (${attachLines.length} attaches, counts ${[...new Set(attachLines)].join(",")})`);
 const r3 = relayLogs.find((r) => r.why === "back after a drop" && /must carry operatorSig/.test(r.log));
-const rej = r3 ? [...r3.log.matchAll(new RegExp(`\\[tunnel\\] ${NAME} attest REJECTED: (.*)`, "g"))].map((m) => m[1]) : [];
-expect(rej.length === 3 && /must carry operatorSig/.test(rej[0]) && rej[1].includes(`registered on chain to ${OP}, not ${WRONG}`) && new RegExp(`registered on chain to ${OP}, not 0x[0-9a-f]{40}`).test(rej[2]) && !rej[2].includes(WRONG) && /attached via/.test(r3.log.split(rej[2])[1] || ""),
-       `R3: the hub refused, in order, no co-signature / the wrong operator / the stale signature, then attached (${rej.map((r) => r.slice(0, 40)).join(" | ")})`);
+// R3's relay: before the in-place attach, exactly the three co-signer refusals in order; after it, exactly one refusal -- the
+// harness's own replay (replay.jsonl), refused on its challenge
+const att = r3 ? r3.log.indexOf(`[tunnel] ${NAME} attached via`) : -1;
+const rejIn = (t) => [...t.matchAll(new RegExp(`\\[tunnel\\] ${NAME} attest REJECTED: (.*)`, "g"))].map((m) => m[1]);
+const rej = r3 && att > 0 ? rejIn(r3.log.slice(0, att)) : [], after = r3 && att > 0 ? rejIn(r3.log.slice(att)) : [];
+expect(rej.length === 3 && /must carry operatorSig/.test(rej[0]) && rej[1].includes(`registered on chain to ${OP}, not ${WRONG}`) && new RegExp(`registered on chain to ${OP}, not 0x[0-9a-f]{40}`).test(rej[2]) && !rej[2].includes(WRONG)
+       && after.length === 1 && /attestationChallenge does not match/.test(after[0]),
+       `R3: the hub refused, in order, no co-signature / the wrong operator / the stale signature, then attached; after it only the replay was refused (${rej.map((r) => r.slice(0, 40)).join(" | ")} || ${after.map((r) => r.slice(0, 40)).join(" | ")})`);
 const old = relayLogs.find((r) => /OLD build/.test(r.why));
 expect(!!old && /attest REJECTED: no APK component with an allowlisted codeHash/.test(old.log) && !/attached via/.test(old.log), "R5: the relay that admits only another build refused the in-place attach on its build, and attached nothing");
 
