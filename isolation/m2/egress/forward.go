@@ -107,25 +107,53 @@ func (f *Forwarder) serve(ctx context.Context, l net.Listener, idx int, o Origin
 
 func (f *Forwarder) forward(tenant net.Conn, idx int, o Origin) {
 	defer tenant.Close()
-	up, err := f.Upstream()
+	up, err := DialOrigin(f.Upstream, o)
 	if err != nil {
-		f.logf("egress origin #%d: no path to the host", idx)
+		f.logf("egress origin #%d: %s", idx, err)
 		return
 	}
 	defer up.Close()
+	splice(tenant, tenant, up, up) // up's reader already holds anything the host sent after "ok"
+}
+
+// DialOrigin opens one stream to origin o through the host: the header for THIS origin, the host's "ok", then a
+// connection the caller runs TLS over (the forwarder for the tenant; the front for its own release). The caller
+// never writes a byte before the host has accepted the header. Its errors name no origin.
+func DialOrigin(upstream func() (net.Conn, error), o Origin) (net.Conn, error) {
+	up, err := upstream()
+	if err != nil {
+		return nil, errors.New("no path to the host")
+	}
 	up.SetDeadline(time.Now().Add(15 * time.Second))
-	// the target is THIS listener's origin; nothing the tenant has sent has been read yet
 	if _, err := fmt.Fprintf(up, "%s %s 443\n", protoVersion, o.Host); err != nil {
-		return
+		up.Close()
+		return nil, errors.New("the host's egress path failed")
 	}
 	br := bufio.NewReaderSize(up, 64)
 	line, err := br.ReadString('\n')
 	if err != nil || line != "ok\n" {
-		f.logf("egress origin #%d: refused by the host", idx)
-		return
+		up.Close()
+		return nil, errors.New("refused by the host")
 	}
 	up.SetDeadline(time.Time{})
-	splice(tenant, tenant, up, br) // br holds anything the host sent after "ok"
+	return &bufConn{Conn: up, r: br}, nil
+}
+
+// bufConn reads what the header exchange already buffered before reading the stream again.
+type bufConn struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (c *bufConn) Read(b []byte) (int, error) { return c.r.Read(b) }
+
+// CloseWrite keeps splice's half-close: the wrapper would otherwise hide the stream's own CloseWrite, and a tenant
+// that shut its write side would lose the reply still coming back.
+func (c *bufConn) CloseWrite() error {
+	if cw, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return cw.CloseWrite()
+	}
+	return c.Conn.Close()
 }
 
 func (f *Forwarder) logf(format string, a ...any) {

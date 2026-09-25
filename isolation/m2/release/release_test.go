@@ -274,3 +274,21 @@ func TestWriteGuestVectors(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestConfigTextIsTheConfigsValue(t *testing.T) {
+	for raw, want := range map[string]string{
+		``:                     "",
+		`null`:                 "",
+		`{"a":"$K","b":[1,2]}`: `{"a":"$K","b":[1,2]}`, // the relay's serialization, untouched
+		` {"a":1} `:            `{"a":1}`,
+		`[1]`:                  `[1]`,
+	} {
+		got, err := (&Release{Config: json.RawMessage(raw)}).ConfigText()
+		if err != nil || got != want {
+			t.Fatalf("%q: %q %v, want %q", raw, got, err, want)
+		}
+	}
+	if _, err := (&Release{Config: json.RawMessage(`"{\"a\":1}"`)}).ConfigText(); err == nil {
+		t.Fatal("a config delivered as a JSON string (unparsed text) was accepted")
+	}
+}

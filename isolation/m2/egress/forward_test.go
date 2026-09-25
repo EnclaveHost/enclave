@@ -319,3 +319,28 @@ func TestTheHostLogNeverRecordsADestinationOrARawError(t *testing.T) {
 		}
 	}
 }
+
+// DialOrigin is the front's own path to the relay (its release): the header for the origin it names, the host's
+// "ok", then TLS end to end over the returned stream. A refusal names no origin.
+func TestDialOriginIsAStreamToThatOriginOnly(t *testing.T) {
+	ca := newCA(t)
+	relaySrv := ca.server(t, "api.enclave.host", "R")
+	r := newRig(t, nil, map[string]net.Listener{"62.238.4.214:443": relaySrv},
+		fakeResolver{"api.enclave.host": {"62.238.4.214"}, "tok-5ecret-p.example": {"127.0.0.9"}})
+	up := func() (net.Conn, error) { return net.Dial("tcp", r.hostAddr) }
+	c, err := DialOrigin(up, Origin{Host: "api.enclave.host"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tc := tls.Client(c, &tls.Config{ServerName: "api.enclave.host", RootCAs: ca.pool})
+	tc.SetDeadline(time.Now().Add(5 * time.Second))
+	if b, err := io.ReadAll(tc); err != nil || string(b) != "R" {
+		t.Fatalf("%q %v", b, err)
+	}
+	if _, err := DialOrigin(up, Origin{Host: "tok-5ecret-p.example"}); err == nil || strings.Contains(err.Error(), "5ecret") {
+		t.Fatalf("a private destination: %v", err)
+	}
+	if _, err := DialOrigin(func() (net.Conn, error) { return nil, io.EOF }, Origin{Host: "api.enclave.host"}); err == nil {
+		t.Fatal("no upstream, and yet a stream")
+	}
+}
