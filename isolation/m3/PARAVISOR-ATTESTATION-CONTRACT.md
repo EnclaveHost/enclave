@@ -136,6 +136,15 @@ source at a7b0bd4. They are not a boot result.
    - Untested: VTL2's run-time heap with a Linux VTL0. If that fails, it fails at boot, and the debug twin reads it.
    - The VM's memory must cover GPA 0xC000000 plus VTL0's working set.
 
+**Rebuilt per ruling 2 (enclave-53, package v28 840eb861; build-only until enclave-d1's canary).** The candidate is
+now `c567e432…d637`, VBS launch digest A0FDAC0F…A244, deterministic. The only change is `static_command_line=true`;
+the VTL0 command line is unchanged. The debug twin is `24e7a1ff…`, digest A650C020…157E, a named rejection. The
+pre-review pair 246DEE1B… / 0677F3C6… are superseded rejections. enclave-53's mutation evidence, re-run on every
+rebuild:
+- the static line plus ` mutation_test=1` gives 4D628242…;
+- `static_command_line=false` gives 246DEE1B…, exactly the pre-review candidate, so the policy flag is measured;
+- one byte of the kernel, one of the initrd, or a change to the VTL0 line gives 8307B597…, 63463B2C… and 26372500….
+
 **Still host-supplied at run time, and so NOT in the digest** (enclave-d1's question (a)):
 - the VTL2 device tree and the topology it carries (CPUs, memory map, MMIO; an IGVM parameter area the host fills);
 - the ACPI tables and memory map that the paravisor builds for VTL0 from it;
