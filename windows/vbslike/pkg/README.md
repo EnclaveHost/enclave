@@ -54,7 +54,12 @@ manifest, but it is not a release and is not staged on the box. When it is relea
 - **v11 draft** (`drafts/nucbox-ownguest-11.json`): v10 with the NEXT medium, ISO `7b9b04d6…` (UKI `20a0e18e…` on
   enclave-5d's initrd `a1ff9864…`, whose ready line names the vsock transport and which refuses to start with none).
   Built and verified, NOT staged and NOT booted on the NucBox: it goes to a new directory when enclave-d1 asks, and
-  d1 confirms `transport=hv_sock` on one boot before it replaces `4c387086`. Nothing is served.
+  d1 confirms `transport=hv_sock` on one boot before it replaces `4c387086`. STAGED at `pkg\515de1fa8596cafc\` (id
+  `515de1fa…`) with the launcher `c2cb0c10…` (`1ba73a20`: `hvdial` and `wmiserve`) and enclave-d1's served run
+  recorded verbatim: with the previous medium `4c387086`, the dev-boot script drove `wmiserve` (9001 bound, `load` with
+  hash agreement, a relay) and hello-world answered its 13 pinned bytes through the guest's own TLS. Limits, d1's:
+  `curl -k`, so the app SERVES and identity is not verified; type 16 is OpenHCL with no isolation. The MANAGER cannot
+  serve on this path yet (`managerServing`, pinned red as measured).
 
 - **v12 draft** (`drafts/nucbox-ownguest-12.json`, held with v11): v11 plus the NODE TREE enclave-5d's box acceptance
   harness imports and the harness itself (`hvlab-accept.mjs`, 8bb7d111). The tree is 27 repository files at d1's
