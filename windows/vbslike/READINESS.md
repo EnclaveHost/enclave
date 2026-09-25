@@ -5,6 +5,10 @@ or box run was done for it. **Package complete is not isolation complete.** v39 
 whose one eligible reference image is `b7ba7731` (56FBB27F). Every serving result so far is functional, and
 `host_excluded=no`.
 
+**Reviewed by enclave-99** (at `d946b204`): §1 is accurate against the contract (`de2a9f66`, `0e2bdee2`). Their two
+classification corrections (M4, M5) and the widened U7 are applied below. The contract's stale V3/V4 and import notes
+are fixed at main `4f89b648`.
+
 Trees cited below:
 
 | Tag | Tree |
@@ -21,7 +25,8 @@ Trees cited below:
    uid inside its chroot [G `isolation/m2/domtls/domtls.go:19`, `isolation/m2/front/main.go:141`]. It is never
    written to disk.
    - The monitor relays ciphertext only [G `isolation/m3/monitor/main.go:553-554`] and holds no signing key.
-   - Caveat: the guest RNG is seeded with host-supplied entropy [G `UEFI-BOOT.md:166-168`].
+   - Caveat: the guest RNG is seeded with host-supplied entropy [G `UEFI-BOOT.md:166-168`]. That is moot on T0-hv,
+     but a condition for any future isolation claim (enclave-99).
 2. **Binding.** The front computes `report_data[0:32] = Bind2(SPKI, nonce, RuntimeID)` [G `front/main.go:361-366`].
    The monitor identifies the calling domain by `SO_PEERCRED` uid and appends `report_data[32:64]` = the app it
    loaded for that uid [G `monitor/main.go:925-968`]. It then dials the HOST at CID 2, port 9001
@@ -83,8 +88,7 @@ Trees cited below:
 | M1 | The manager does not pass `expectedVmId` to the judge, although judge-hv supports it [C `verify/judge-hv.mjs:92`]. It relies on one launcher key per VM. `recordSha256` is computed [C `manager/derive.mjs:105`] but never compared. | C `manager/server.mjs:147-152` | **enclave-63** (proposed §6); box check d1 |
 | M2 | The node's isolation code is NOT on main: node-hv-identity is 186 commits ahead. main's node agent still sends the retired `windows-vbs-enclave/v1` [M `windows/node/agent.mjs:326`], which the relay refuses. | N `windows/node/*` vs M | enclave-5d (integration), 99 review. Merging to main is a production rollout: **Steven** |
 | M3 | Host prerequisites for serving outside the lab are undecided and not installed: a permanent `AllowFirmwareLoadFromFile` [C `wmi-launcher.mjs:184-193`, "OPEN OWNER DECISION"], and the 9001 `GuestCommunicationServices` GUID, which the runs register temporarily. | package hostChecks; `ops/manager-accept.ps1` | **Steven** decides; 63 packages it after |
-| M4 | Relaying a domain's certificate request to the platform certificate service. Until then the domain serves a self-signed certificate (§1.6). | G `HV-GUEST.md:65`; N `windows/node/*` | deferred until admission exists: issuing a WebPKI certificate to a T0-hv domain is a policy question |
-| M5 | Secrets into a partition: refused, fail-closed ("attested in-partition delivery is not built"). | C `datapath/node-bridge.mjs:124-126` | stays refused until V1-V7 |
+| M4 | Relaying a domain's certificate request to the platform certificate service. Until then the domain serves a self-signed certificate (§1.6). Not blocked by parked work, but gated by U7: `relay/certs.js` issues to any live lease holder's operator-signed request [M `relay/certs.js:888-912`]. Build it only behind U7's owner-only restriction. | G `HV-GUEST.md:65`; N `windows/node/*` | after the U7 decision |
 
 ## 4. Implemented or designed, but UNVALIDATED
 
@@ -96,7 +100,7 @@ Trees cited below:
 | U4 | Recovery after a HOST reboot (not a manager restart) | a planned reboot window | Steven's window; d1 |
 | U5 | A domain's reach to the 9001 signer (from source, likely reachable, §1.5) | domprobe to CID 2:9001 DENIED while the monitor's own dial connects | needs B3; the fix is paused (§5) |
 | U6 | Per-partition AK distinctness (V5 "keys") | two partitions reporting different AKs | not requested; nothing uses the keys |
-| U7 | With the relay switch ON, an OWNER's own deployment is routed to an hv row. Eligibility is enforced at placement, not at routing [M `relay/api-relay.js:1272-1303`] | review only; the switch stays OFF | enclave-99 (observation) |
+| U7 | **Routing and certificate issuance ignore eligibility, platform-wide.** `computeEligible` governs PLACEMENT only [M `relay/api-relay.js:1428-1432`]. `/x` and app-subdomain traffic go to whichever LIVE row holds the lease [M `relay/api-relay.js:1272-1303`], and `relay/certs.js` issues that hostname's public certificate to the lease holder's operator-signed request [M `relay/certs.js:888-912`]. So an ineligible live row holding a lease gets the traffic AND a trusted certificate. For a stranger's deployment, the only guard is the node's own owner-only claim policy, a host statement. This already applies to token tunnels and to AVF rows outside the inference lane, and would include hv-node rows with `RELAY_HVNODE_ATTACH` on. | The contract's rollout conditions now require the relay to restrict routing and certificate issuance for a non-eligible row to its registered operator's deployments, or refuse them, BEFORE the switch (main `4f89b648`) | enclave-99 reported the general case to **Steven**; no production code changed |
 
 ## 5. BLOCKED or PAUSED (parked; not rerouted, not rephrased)
 
@@ -105,6 +109,7 @@ Trees cited below:
 | B1 | Report capture, a real `VbsReport` (vTPM NV path). Provider-blocked. | V1 (IDKS signer), V3 (measurement = 56FBB27F, a PREDICTION today), V4-V7, every O5 row, any hardware-rooted verdict [M `docs/security/nucbox-custom-vm-verifier.md:171-269`] |
 | B2 | E3, the host-memory experiment. Parked. | `host_excluded` (V8). A valid report does not supply it |
 | B3 | Runtime probe extensions: printed targets, stat-only root existence, the 9001 target. Parked after the safety-classifier block. | neighbour-denial PASS (093326 and 093904 are INCONCLUSIVE); the U5 test |
+| B1a | Secrets into a partition: refused, fail-closed ("attested in-partition delivery is not built") [C `datapath/node-bridge.mjs:124-126`]. Missing AND blocked by B1: it needs a verified report binding the domain key (enclave-99). | V1-V7 |
 | P1 | The domain socket-family restriction (no AF_VSOCK for domains), in `domexec`/monitor. An implementation, paused by enclave-5d with Steven (contract `:161-164`). | closes §1.5; its acceptance test needs B3 |
 
 ## 6. Critical path
@@ -114,11 +119,15 @@ Trees cited below:
   functional-serving work moves it. The next step is Steven's or the provider's decision on B1. Nothing here
   substitutes for it.
 - **To serving ANY app from a NucBox partition outside the lab** (T0-hv, host not excluded, owner-only, never
-  tenant capacity), the engineering exists on branches. What remains is M2 (merging and rolling out the node), M3
-  (host prerequisites) and turning on `RELAY_HVNODE_ATTACH`. Each is a **Steven decision**. Production attach stays
+  tenant capacity), the engineering exists on branches. What remains:
+  - M2: merging and rolling out the node;
+  - M3: the host prerequisites;
+  - U7: the relay's owner-only restriction on routing and certificate issuance, which must come BEFORE the switch;
+  - turning on `RELAY_HVNODE_ATTACH`.
+  Each is a **Steven decision**. Production attach stays
   OFF, and this review asks for none of them.
 - **Unblocked work now, which reduces risk without claiming anything:** M1 and U1 (enclave-63), U2 and U3 (d1),
-  M2 merge preparation and review (5d, 99; not a deploy). Respawn stays OFF (Steven), and recovered VMs stay HELD.
+  M2 merge preparation and review (5d, 99; not a deploy). M4 waits for the U7 decision. Respawn stays OFF (Steven), and recovered VMs stay HELD.
 
 Owners: d1 box, host lane and coordination. enclave-5d guest runtime and node integration. enclave-63 package,
 G1/G4 and networking. enclave-99 verifier contract and relay hv-node verification. Steven: decisions.
