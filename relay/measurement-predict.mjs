@@ -172,6 +172,11 @@ export function makePredictor(o) {
   const inconclusiveMaxMs = o.inconclusiveMaxMs ?? 24 * 3600_000;   // how long a pass survives inconclusive re-tests
   const maxComponentBytes = o.maxComponentBytes ?? 256 << 20;
   const components = o.components || (work && path.join(work, "components"));
+  // read-only directories of pre-seeded raw-CID components (the known answers', staged with the toolchain), each re-verified
+  // against its CID on read; a hit is copied into `components`
+  const seeds = (o.seedComponents || []).filter(Boolean);
+  // directories prepended to the children's PATH (the staged Go: the relay's own PATH need not carry a toolchain)
+  const toolPath = (o.toolPath || []).filter(Boolean);
   const releases = new Map((o.releases || []).map((r) => [String(r.id).toLowerCase(), r.dir]));
   const admit = [...new Set((o.admit || []).map((s) => String(s).toLowerCase()))];
   // the releases a guest CERTIFICATE may be judged against (GET /v1/expected-guest): every INSTALLED release (installing
@@ -216,7 +221,9 @@ export function makePredictor(o) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(tmp, { mode: 0o700 });
       // the commit's own objects, never the working tree: `git archive <commit> <paths>` | tar -x
-      const got = await new Promise((resolve) => execFile("git", ["-C", repo, "archive", "--format=tar", commit, "--", ...TOOLCHAIN_PATHS],
+      // safe.directory for THIS repository only: the relay runs as its own (dynamic) user and the staged repository is
+      // root-owned and read-only, which git >= 2.35.2 otherwise refuses as "dubious ownership"
+      const got = await new Promise((resolve) => execFile("git", ["-c", `safe.directory=${path.resolve(repo)}`, "-C", repo, "archive", "--format=tar", commit, "--", ...TOOLCHAIN_PATHS],
         { encoding: "buffer", maxBuffer: 64 << 20, timeout: 60_000 }, (e, stdout) => resolve(e ? { e } : { tar: stdout })));
       if (got.e) throw new Error(`the toolchain commit ${commit.slice(0, 12)} is not extractable from ${repo}: ${String(got.e.message).split("\n")[0]}`);
       const x = await run("tar", ["-x", "-C", tmp], { env: { PATH: process.env.PATH }, timeoutMs: 60_000, input: got.tar });
@@ -229,11 +236,25 @@ export function makePredictor(o) {
     try { fs.unlinkSync(link); } catch {}
     fs.symlinkSync(path.resolve(sevSnpMeasure), link);
     for (const d of ["tmp", "gocache", "gopath"]) fs.mkdirSync(path.join(work, d), { recursive: true, mode: 0o700 });
-    const env = { PATH: `${path.dirname(process.execPath)}:${process.env.PATH || "/usr/bin:/bin"}`, HOME: home,
+    const env = { PATH: [...toolPath, path.dirname(process.execPath), process.env.PATH || "/usr/bin:/bin"].join(":"), HOME: home,
                   TMPDIR: path.join(work, "tmp"), GOCACHE: path.join(work, "gocache"), GOPATH: path.join(work, "gopath"),
                   GOTOOLCHAIN: "local", GOPROXY: "off", GOFLAGS: "-mod=readonly", LC_ALL: "C" };
     toolchain = { dir, env };
     return toolchain;
+  }
+
+  // a raw-CID component already held (the writable `components`, then each read-only seed), re-verified against its CID
+  function heldComponent(cid, digest, max) {
+    for (const dir of [components, ...seeds]) {
+      if (!dir) continue;
+      let b; try { b = fs.readFileSync(path.join(dir, cid)); } catch { continue; }
+      if (b.length > max || sha256hex(b) !== digest) continue;
+      if (dir !== components) {
+        try { fs.mkdirSync(components, { recursive: true, mode: 0o700 }); const k = path.join(components, cid), tmp = `${k}.${randomBytes(6).toString("hex")}`; fs.writeFileSync(tmp, b, { mode: 0o600 }); fs.renameSync(tmp, k); } catch {}
+      }
+      return b;
+    }
+    return null;
   }
 
   // one reconstruction: the component (fetched ONCE, verified by its CID) -> per record, the bundle -> per release, the
@@ -246,8 +267,7 @@ export function makePredictor(o) {
       if (records.some((r) => r.record.cid !== cid)) return { ok: false, code: "prediction_failed", reason: "records of one version name two CIDs" };
       // a raw-CID component already held is used only if it still hashes to its CID; anything else is fetched and verified
       const digest = rawCidDigest(cid), kept = digest && path.join(components, cid);
-      let held = null;
-      try { const b = fs.readFileSync(kept); if (b.length <= maxComponentBytes && sha256hex(b) === digest) held = b; } catch {}
+      const held = digest ? heldComponent(cid, digest, maxComponentBytes) : null;
       if (held) fs.writeFileSync(comp, held);
       else {
         const f = await run("python3", [path.join(tc.dir, "isolation/m4/guestd/fetch-cid.py"), tc.dir, cid, comp, String(maxComponentBytes), gateway],
@@ -417,7 +437,8 @@ export function makePredictor(o) {
   async function fetchVerified(cid, maxBytes = 1 << 20) {
     if (!/^[A-Za-z0-9]{10,100}$/.test(String(cid || ""))) return { ok: false, code: "bad_cid", reason: "not a CID" };
     const digest = rawCidDigest(cid), kept = digest && components && path.join(components, cid);
-    try { const b = fs.readFileSync(kept); if (b.length <= maxBytes && sha256hex(b) === digest) return { ok: true, bytes: b }; } catch {}
+    const held = digest ? heldComponent(cid, digest, maxBytes) : null;
+    if (held) return { ok: true, bytes: held };
     let tc;
     try { tc = await extract(); } catch (e) { return { ok: false, code: "unavailable", reason: e.message }; }
     fs.mkdirSync(path.join(work, "tmp"), { recursive: true, mode: 0o700 });
@@ -518,7 +539,9 @@ export function versionConfigReader(clients, catalogAddress) {
 //   SECRETS_RELEASE_SEV_SNP_MEASURE    the pinned sev-snp-measure executable
 //   SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256  its sevSnpMeasureDigest (node relay/measurement-predict.mjs digest <exe> prints it)
 //   SECRETS_RELEASE_CATALOG_RPCS       two or more independent Base RPC URLs for the catalog read (api-relay.js)
-//   SECRETS_RELEASE_PREDICT_WORK       private work directory
+//   SECRETS_RELEASE_PREDICT_WORK       private work directory (writable by the relay: under its StateDirectory)
+//   SECRETS_RELEASE_PREDICT_PATH       dir:dir prepended to the tools' PATH (the staged Go's bin)
+//   SECRETS_RELEASE_PREDICT_SEED       dir:dir of read-only pre-seeded components (the known answers'), CID-verified on read
 export function predictorEnv(env = process.env) {
   const releases = String(env.SECRETS_RELEASE_PREDICT_RELEASES || "").split(",").map((s) => s.trim()).filter(Boolean)
     .map((s) => { const i = s.indexOf("="); return { id: s.slice(0, i).toLowerCase(), dir: s.slice(i + 1) }; })
@@ -527,6 +550,8 @@ export function predictorEnv(env = process.env) {
            releases, admit: String(env.SECRETS_RELEASE_DOMAIN_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
            gateway: env.SECRETS_RELEASE_PREDICT_GATEWAY || "", sevSnpMeasure: env.SECRETS_RELEASE_SEV_SNP_MEASURE || "",
            sevSnpMeasureSha256: String(env.SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256 || "").toLowerCase(),
+           toolPath: String(env.SECRETS_RELEASE_PREDICT_PATH || "").split(":").filter(Boolean),
+           seedComponents: String(env.SECRETS_RELEASE_PREDICT_SEED || "").split(":").filter(Boolean),
            work: env.SECRETS_RELEASE_PREDICT_WORK || "" };
 }
 

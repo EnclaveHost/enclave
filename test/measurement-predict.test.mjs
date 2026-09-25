@@ -431,6 +431,33 @@ test("two sets: the release's admitted releases, and every INSTALLED release for
   assert.equal((await p.expectedFor(REF, { set: "other" })).code, "predictor_unconfigured");
 });
 
+test("read-only SEED components (verified against their CIDs, copied into the writable cache) and a tool PATH for the children", async () => {
+  const bytes = Buffer.concat([Buffer.from("0061736d0d000100", "hex"), Buffer.from(" a seeded component")]);
+  const A32 = "abcdefghijklmnopqrstuvwxyz234567";
+  const raw = Buffer.concat([Buffer.from([1, 0x55, 0x12, 0x20]), createHash("sha256").update(bytes).digest()]);
+  let bits = 0, v = 0, cid = "b";
+  for (const x of raw) { v = (v << 8) | x; bits += 8; while (bits >= 5) { cid += A32[(v >>> (bits - 5)) & 31]; bits -= 5; } }
+  if (bits) cid += A32[(v << (5 - bits)) & 31];
+  const seed = fs.mkdtempSync(path.join(TMP, "seed-")), bad = fs.mkdtempSync(path.join(TMP, "seedbad-"));
+  fs.writeFileSync(path.join(bad, cid), "tampered"); fs.writeFileSync(path.join(seed, cid), bytes);
+  fs.chmodSync(seed, 0o555);
+  const toolDir = fs.mkdtempSync(path.join(TMP, "tools-"));
+  const seenPath = [];
+  const REF9 = `catalog://${APPX}/19`;
+  const { p, tools } = predictor({ versions: { [REF9]: { app: { active: true }, version: { cid, memMb: 128, ports: "", approval: 1, yanked: false } } },
+    opts: { seedComponents: [bad, seed], toolPath: [toolDir] },
+    tools: { "fetch-cid.py": (a) => (a[2] === cid ? { code: 1, out: "", err: "gateway down" } : null),
+             "derive_reference.py": (a, o) => { seenPath.push(o.env.PATH); return null; } } });
+  try {
+    const r = await p.expectedFor(REF9);
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(tools.calls.filter((c) => c.script === "fetch-cid.py" && c.args[2] === cid).length, 0, "the seed served it: no fetch");
+    assert.ok(seenPath.every((x) => x.split(":")[0] === toolDir), "the tool path comes first in the children's PATH");
+    assert.equal(fs.readFileSync(path.join(path.dirname(p.state().toolchain), "components", cid)).equals(bytes), true, "copied into the writable cache");
+    const r2 = await p.fetchVerified(cid); assert.equal(r2.ok, true);
+  } finally { fs.chmodSync(seed, 0o755); }
+});
+
 test("runBounded: a hung tool is killed with its whole process group at the timeout; output is capped", async () => {
   const t0 = Date.now();
   const r = await P.runBounded("sh", ["-c", "sleep 30 & sleep 30; echo never"], { env: { PATH: process.env.PATH }, timeoutMs: 300 });
