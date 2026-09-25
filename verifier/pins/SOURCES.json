@@ -1,18 +1,23 @@
 {
  "nucbox-vbs-reference.json": {
-  "sha256": "ba3f49a7dce5d73989e23b3ae8ac2b532131de61f49fe775c16e1ea1e1aea958",
+  "sha256": "b4d6675dd9b78eafceb10461a228bd8e039c8534b5b958a5fadc3a479cb97d29",
   "origin": {
    "repository": "EnclaveHost/enclave",
    "branch": "windows/vbslike-pkg",
-   "commit": "37673a05",
+   "commit": "7e979b38",
    "path": "windows/vbslike/pkg/reference/nucbox-vbs-reference.json",
    "owner": "enclave-63",
-   "packageVersion": "v37"
+   "packageVersion": "v39"
   },
   "what": "the reference values for the NucBox custom type-1 paravisor images (type enclave-nucbox-vbs-reference/1), re-derived by enclave-53's pkg.mjs verify from the pinned images and their VBS identity documents; imported by commit and hash, never edited here. A new commit of the file is a new pin, reviewed as such.",
   "use": "verifier/nucbox-reference.mjs eligibleDigestsOf: the exact vbsBootDigest allowlist for V3/V4 of docs/security/nucbox-custom-vm-verifier.md. NOT used by any verdict until the paravisor report format is registered with real report bytes.",
-  "reviewed": "2026-09-25: the diff from adea692b, checked by image id against the pinned v36 before re-pinning, is TWO fields of ONE image, vbs-linux-candidate-1539 (56FBB27F...): \"booted\" is now yes, BOOTED and SERVED as a type-1 partition with host Secure Boot on (enclave-d1 canary 093904, evidence 0bee8444; served by the box's wmiserve 0160d835, not the package's launcher; no report requested; identity, chain and host exclusion NOT established), and \"reason\" names the rollover conditions (one version that also supersedes a44bb55a, after the package's own serving acceptance and enclave-99's review). eligible is still FALSE; NO rollover. Every other image, the superseded list and every top-level field is byte-identical; the derived allowlist is still exactly 58DFEBFE... (8 images, 1 eligible, 11 refused).",
+  "reviewed": "2026-09-25: THE ROLLOVER. Checked by image id against the pinned v37 (37673a05; v38 0f328a18 carries the same bytes) before re-pinning. vbs-linux-candidate-1539 (b7ba7731..., 56FBB27F...) is eligible:true and PROSPECTIVE: its reason cites canary 093904 (0bee8444), the package-owned functional acceptance 094631 (98782fbb), enclave-d1's byte review fd92d610 and this lane's review (launch digest recomputed from the bytes with vbsdigest; OPENHCL_CONFIDENTIAL_DEBUG=1 only in the twin; the run's 12490 inputs tied to v36), and says no report has been verified. vbs-linux-candidate-g1 (a44bb55a, 58DFEBFE) and its twin (4991b3e1, 2A93ED16) moved to superseded[] with eligible:false, shaped like the c567e432 entries, their digests and image hashes unchanged. Every other image and superseded entry is byte-identical. The top-level eligible/notAClaim text now states what eligibility does NOT grant. The derived set is the same 12 digests as ba3f49a7: 1 eligible (56FBB27F), 11 refused. No verdict uses this allowlist: eligibleDigestsOf has no caller outside its test, no vendored bundle includes it, and hyperv-partition-domain/v1 stays delegate.",
   "previous": [
+   {
+    "commit": "37673a05",
+    "sha256": "ba3f49a7dce5d73989e23b3ae8ac2b532131de61f49fe775c16e1ea1e1aea958",
+    "owner": "enclave-63"
+   },
    {
     "commit": "adea692b",
     "sha256": "e4504dfa3eadb960c6563ec03036286976773b4971dd3cd03db7f15fd3aab976",
@@ -48,6 +53,14 @@
     "sha256": "b0541f134945647bc9b80699973ffdd5010364e905e415374fa7442183327c01",
     "owner": "enclave-53"
    }
-  ]
+  ],
+  "rollback": {
+   "sha256": "ba3f49a7dce5d73989e23b3ae8ac2b532131de61f49fe775c16e1ea1e1aea958",
+   "commits": [
+    "37673a05 (v37)",
+    "0f328a18 (v38)"
+   ],
+   "how": "re-pin that file from windows/vbslike-pkg (G1 58DFEBFE becomes the one eligible digest again); never edit the pinned file"
+  }
  }
 }
