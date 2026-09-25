@@ -104,6 +104,7 @@ import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir } from "./store.js";
+import { expectedGuest } from "./secrets-release.mjs";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
 
@@ -393,6 +394,7 @@ function makeRateLimiter({ capacity, refillPerSec }) {
     b.tokens -= 1; return true;
   };
 }
+const rlExpected = makeRateLimiter({ capacity: 60, refillPerSec: 1 });   // per client IP: GET /v1/expected-guest
 const rlMiss = makeRateLimiter({ capacity: 60, refillPerSec: 10 });   // /x + app-subdomain owner misses
 const rlHint = makeRateLimiter({ capacity: 20, refillPerSec: 2 });    // /v1/claim-hint fan-out
 // Signed-upload authorization (/v1/apps/upload-token): per-wallet token-mint cap.
@@ -2251,7 +2253,7 @@ async function confirmRow(id) {
                          isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active });
   const rows = got.map(pick);
   if (rows.some((r) => JSON.stringify(r) !== JSON.stringify(rows[0]))) throw new Error("the RPCs disagree about the deployment's record");
-  if (rows[0].id !== String(id).toLowerCase()) throw new Error("the ledger holds no such deployment");
+  if (rows[0].id !== String(id).toLowerCase()) throw Object.assign(new Error("the ledger holds no such deployment"), { code: "no_deployment" });
   return rows[0];
 }
 let _predictor = null;
@@ -2279,6 +2281,7 @@ async function resolveConfigCid(cid) {
   while (_configByCid.size > 64) _configByCid.delete(_configByCid.keys().next().value);
   return text;
 }
+const predictorSets = () => predictor().sets;
 const predictorProblems = () => [...predictor().problems,
   ...(catalogRpcHosts.size < 2 ? ["SECRETS_RELEASE_CATALOG_RPCS (two or more independent Base RPCs)"] : [])];
 // A release document judged by the VENDORED verifier's SNP domain path (verifier/consumer.mjs verifyGuestDomainEvidence:
@@ -2311,7 +2314,7 @@ async function prewarmCollateral(doc) {
 // is admitted only when it equals an admitted domain release's own
 const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
 const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
-                   expectedGuestFor, predictorProblems, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
+                   expectedGuestFor, predictorProblems, predictorSets, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)
@@ -2525,6 +2528,13 @@ function handleRequest(req, res) {
   // billing — never proxied, answers with zero live enclaves (owners stage
   // secrets between create and the first claim; the fleet being down must not
   // block that).
+  // the guest a deployment must run, PREDICTED by this relay (secrets-release.mjs expectedGuest): the per-app certificate
+  // gate's independent trust root. Public, GET only, and independent of the secrets store and the release switch.
+  if (u.pathname === "/v1/expected-guest") {
+    if (req.method !== "GET") return json(res, 405, { error: "method_not_allowed", message: "GET only." }, req);
+    return expectedGuest(u, req, res, relayCtx, { bad: (code, error, message) => json(res, code, { error, message }, req),
+      rate: (k) => rlExpected(k) }).catch((e) => json(res, 500, { error: "expected_guest_error", message: e.message }, req));
+  }
   if (u.pathname === "/v1/secrets" || u.pathname.startsWith("/v1/secrets/"))
     return handleSecrets(req, res, u, relayCtx).catch((e) =>
       json(res, 500, { error: "secrets_error", message: e.message }, req));
@@ -2687,7 +2697,8 @@ await initBilling(relayCtx);   // needs accounts; degrades the same way
 await initSecrets();           // needs SECRETS_KEY + the same data dir; degrades the same way
 // attested release on: run the predictor's known-answer test now, in the background, so the first release after a restart
 // does not wait for it (a failure is logged and every release refused until a later test passes)
-if (/^(1|true|on|yes)$/i.test(String(process.env.SECRETS_ATTESTED_RELEASE || "").trim()) && !predictorProblems().length)
+// whenever the predictor is configured (it also serves /v1/expected-guest with the release OFF)
+if (process.env.SECRETS_RELEASE_PREDICT_COMMIT && !predictorProblems().length)
   predictor().selfTest().then((k) => console.log(`[measurement-predict] known-answer test at start: ${k.ok ? "PASS" : "FAIL"}: ${k.reason}`)).catch(() => {});
 startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)
 await initDomains();           // custom domains: same data dir, CUSTOM_DOMAINS=0 opts out

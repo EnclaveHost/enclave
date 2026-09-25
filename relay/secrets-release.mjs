@@ -233,6 +233,43 @@ export function releaseStatus(u, req, res, ctx, { bad, rate }) {
   ctx.json(res, 200, { id, listed: cfg.deployments === "*" || cfg.deployments.has(id) }, req);
 }
 
+// GET /v1/expected-guest?id=0x<64 hex> -> { id, catalogRef, appId, images: [{ release, runtimeId, measurement,
+// releaseAdmitted }] }: the guest this deployment must be running, PREDICTED by the relay from the chain and the pinned
+// domain releases (enclave-d1, GUEST-POOL-ROLLOUT row 6: the per-app certificate gate's independent trust root). Over the
+// certificate set (the release's releases plus the legacy images deployments still run; `releaseAdmitted` says which the
+// release itself admits). Public and read-only: AppIDs and measurements are derivable from the chain. Independent of
+// SECRETS_ATTESTED_RELEASE and SECRETS_RELEASE_DEPLOYMENTS; needs only the predictor and the confirmed ledger read. A
+// guest matches only as a (measurement, runtimeId) PAIR of one image, with appId equal. Never waits long for a cold
+// prediction: 503 warming, Retry-After.
+const EXPECTED_WAIT_MS = 3_000;
+export async function expectedGuest(u, req, res, ctx, { bad, rate }) {
+  if (!rate(`expected:${ctx.clientIp(req)}`)) return bad(429, "rate_limited", "Too many expected-guest requests; retry shortly.");
+  const missing = [typeof ctx.expectedGuestFor !== "function" && "the measurement predictor", typeof ctx.confirmRow !== "function" && "the confirmed ledger read",
+                   ...(typeof ctx.predictorProblems === "function" ? ctx.predictorProblems() : [])].filter(Boolean);
+  if (missing.length) return bad(503, "prediction_unconfigured", "Guest prediction is not configured on this relay.");
+  const id = String(u.searchParams.get("id") || "").toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(id)) return bad(422, "bad_id", "id must be a bytes32 deployment id.");
+  let row;
+  try { row = await ctx.confirmRow(id); }
+  catch (e) {
+    if (e && e.code === "no_deployment") return bad(404, "no_deployment", `The ledger holds no deployment ${id}.`);
+    return bad(503, "ledger_unconfirmed", "The deployment's record could not be confirmed; retry shortly.");
+  }
+  let p;
+  try { p = await ctx.expectedGuestFor(row, { forPrivate: row.isPublic === false, waitMs: EXPECTED_WAIT_MS, set: "cert" }); }
+  catch (e) { p = { ok: false, code: "prediction_failed", reason: e.message }; }
+  if (!p || p.ok !== true || !Array.isArray(p.images) || !p.images.length) {
+    const code = (p && p.ok === false && p.code) || "prediction_unavailable";
+    if (code === "not_catalog") return bad(404, "not_catalog", "The deployment does not run a catalog version.");
+    const [status, error, message] = predictionRefusal(p);
+    if (status === 503 && typeof res.setHeader === "function") res.setHeader("Retry-After", code === "warming" ? "5" : "30");
+    return bad(status, error, message);
+  }
+  const releaseSet = new Set((typeof ctx.predictorSets === "function" && ctx.predictorSets().release) || []);
+  ctx.json(res, 200, { id, catalogRef: String(row.appRef || "").toLowerCase(), appId: p.appId,
+    images: p.images.map((i) => ({ release: i.release, runtimeId: i.runtimeId, measurement: i.measurement, releaseAdmitted: releaseSet.has(i.release) })) }, req);
+}
+
 // handles /v1/secrets/release-ticket and /v1/secrets/release; returns false for any other path.
 // `envOf(id)`: the deployment's decrypted secrets ({} when none). `bad(code, error, message)` answers a refusal.
 export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }) {

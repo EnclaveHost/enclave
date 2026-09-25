@@ -174,13 +174,16 @@ export function makePredictor(o) {
   const components = o.components || (work && path.join(work, "components"));
   const releases = new Map((o.releases || []).map((r) => [String(r.id).toLowerCase(), r.dir]));
   const admit = [...new Set((o.admit || []).map((s) => String(s).toLowerCase()))];
+  // the releases a guest CERTIFICATE may be judged against (GET /v1/expected-guest): the release's set plus the legacy
+  // images deployments still run; never used by the release itself
+  const certAdmit = [...new Set([...admit, ...(o.certAdmit || []).map((s) => String(s).toLowerCase())])];
   const problems = [
     !HEX(40).test(String(commit || "")) && "the toolchain commit (40 hex)",
     !repo && "the toolchain repository", typeof readCatalog !== "function" && "the catalog reader",
     !/^https:\/\//.test(String(gateway || "")) && "an https gateway", !sevSnpMeasure && "sev-snp-measure",
     !HEX(64).test(String(sevSnpMeasureSha256 || "")) && "sev-snp-measure's pinned digest", !work && "a work directory",
     !admit.length && "at least one admitted release",
-    ...admit.filter((id) => !HEX(64).test(id) || !releases.has(id)).map((id) => `admitted release ${id.slice(0, 12)} installed`),
+    ...certAdmit.filter((id) => !HEX(64).test(id) || !releases.has(id)).map((id) => `admitted release ${id.slice(0, 12)} installed`),
   ].filter(Boolean);
 
   const cache = new Map();          // key -> { at, value } (LRU by insertion order)
@@ -353,14 +356,16 @@ export function makePredictor(o) {
   // the expected guest for a deployment's catalog reference: { ok, appId, images: [{ release, runtimeId, measurement }] }
   // or { ok: false, code, reason }. Never throws. `forPrivate`: the deployment is private (a pending version is allowed).
   // `waitMs`: answer { ok: false, code: "warming" } rather than wait longer; the prediction continues and is cached.
-  async function expectedFor(catalogRef, { forPrivate = false, waitMs } = {}) {
-    const p = predict(catalogRef, forPrivate);
+  async function expectedFor(catalogRef, { forPrivate = false, waitMs, set = "release" } = {}) {
+    const ids = set === "cert" ? certAdmit : set === "release" ? admit : null;
+    if (!ids) return { ok: false, code: "predictor_unconfigured", reason: `no admitted set named ${set}` };
+    const p = predict(catalogRef, forPrivate, ids);
     if (!(waitMs >= 0)) return p;
     let timer;
     const late = new Promise((resolve) => { timer = setTimeout(() => resolve({ ok: false, code: "warming", reason: "the prediction is still being computed; retry shortly" }), waitMs); });
     try { return await Promise.race([p, late]); } finally { clearTimeout(timer); }
   }
-  async function predict(catalogRef, forPrivate) {
+  async function predict(catalogRef, forPrivate, admitIds) {
     const refuse = (code, reason) => { stats.refusals++; return { ok: false, code, reason }; };
     if (problems.length) return refuse("predictor_unconfigured", `measurement prediction is not configured (missing: ${problems.join(", ")})`);
     const m = CATALOG_REF_RE.exec(String(catalogRef || ""));
@@ -376,7 +381,7 @@ export function makePredictor(o) {
     if (vr) return refuse("version_not_admitted", vr);
     // one record per distinct runtime among the admitted releases (the AppID excludes the runtime; the record does not)
     const byRuntime = new Map();
-    for (const id of admit) {
+    for (const id of admitIds) {
       let rid;
       try { rid = runtimeIdOfJson(fs.readFileSync(path.join(releases.get(id), "template/rt/runtime.json"), "utf8")); }
       catch (e) { return refuse("prediction_unavailable", `release ${id.slice(0, 12)} states no readable runtime identity`); }
@@ -429,7 +434,7 @@ export function makePredictor(o) {
     } finally { fs.rmSync(job, { recursive: true, force: true }); }
   }
 
-  return { expectedFor, selfTest, fetchVerified, problems, state: () => ({ kat: { ok: kat.ok, at: kat.at, reason: kat.reason }, toolchain: toolchain && toolchain.dir,
+  return { expectedFor, selfTest, fetchVerified, problems, sets: { release: admit, cert: certAdmit }, state: () => ({ kat: { ok: kat.ok, at: kat.at, reason: kat.reason }, toolchain: toolchain && toolchain.dir,
                                                          active, queued: queue.length, cached: cache.size, ...stats }) };
 }
 
@@ -509,6 +514,8 @@ export function versionConfigReader(clients, catalogAddress) {
 //   SECRETS_RELEASE_PREDICT_COMMIT     the toolchain commit, 40 hex
 //   SECRETS_RELEASE_PREDICT_RELEASES   id=dir,id=dir: every installed domain release (the known answers' included)
 //   SECRETS_RELEASE_DOMAIN_RELEASES    id,id: the releases whose images a release admits
+//   SECRETS_RELEASE_CERT_RELEASES      id,id: ADDITIONAL releases a guest certificate may be judged against (legacy images
+//                                      deployments still run); /v1/expected-guest predicts over both sets
 //   SECRETS_RELEASE_PREDICT_GATEWAY    https trustless gateway
 //   SECRETS_RELEASE_SEV_SNP_MEASURE    the pinned sev-snp-measure executable
 //   SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256  its sevSnpMeasureDigest (node relay/measurement-predict.mjs digest <exe> prints it)
@@ -520,6 +527,7 @@ export function predictorEnv(env = process.env) {
     .filter((r) => HEX(64).test(r.id) && r.dir);
   return { repo: env.SECRETS_RELEASE_PREDICT_REPO || "", commit: String(env.SECRETS_RELEASE_PREDICT_COMMIT || "").toLowerCase(),
            releases, admit: String(env.SECRETS_RELEASE_DOMAIN_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
+           certAdmit: String(env.SECRETS_RELEASE_CERT_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
            gateway: env.SECRETS_RELEASE_PREDICT_GATEWAY || "", sevSnpMeasure: env.SECRETS_RELEASE_SEV_SNP_MEASURE || "",
            sevSnpMeasureSha256: String(env.SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256 || "").toLowerCase(),
            work: env.SECRETS_RELEASE_PREDICT_WORK || "" };

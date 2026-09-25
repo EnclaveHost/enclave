@@ -174,6 +174,8 @@ Rollout (enclave-d1): `SECRETS_RELEASE_DEPLOYMENTS` starts as the canaries' ids 
 
 Lab validation: `docs/security/measurement-prediction/` (the script, the canaries' attestation documents, and the recorded runs).
 
+`GET /v1/expected-guest?id=0x…` answers `{id, catalogRef, appId, images: [{release, runtimeId, measurement, releaseAdmitted}]}`: the guest the deployment's CONFIRMED record must run, predicted over the CERTIFICATE set (`SECRETS_RELEASE_DOMAIN_RELEASES` plus `SECRETS_RELEASE_CERT_RELEASES`, the legacy images deployments still run; `releaseAdmitted` marks the release's own). It is the per-app certificate gate's independent trust root (enclave-d1, GUEST-POOL-ROLLOUT row 6): a guest matches only if its AppID equals `appId` and its (measurement, runtimeId) is one image's pair. Public (AppIDs and measurements are derivable from the chain), GET only, its own per-IP rate, independent of the secrets store, `SECRETS_ATTESTED_RELEASE` and `SECRETS_RELEASE_DEPLOYMENTS`; waits at most 3 s for a cold prediction (then `503 warming`, `Retry-After`); 404 for an unknown deployment or a non-catalog one. The known-answer test runs at relay start whenever the predictor is configured.
+
 `GET /v1/secrets/release-status?id=0x…` answers `{id, listed}` from `SECRETS_RELEASE_DEPLOYMENTS` only, so a supervisor can choose the guest image without a second copy of the owner's decision (enclave-5d, d1's option (i)). It is public (deployment ids are public on chain), rate-limited, and 503 `release_off` while the release is off or not fully configured, without naming what is missing.
 
 ## Providers (all wired in `relay/api-relay.js`)
