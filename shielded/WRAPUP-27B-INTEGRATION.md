@@ -1,11 +1,12 @@
 # Shielded 27B wrap-up: integration inventory (2026-09-23)
 
 Branch `perf/shielded-27b-wrapup` (worktree
-`/home/steven/Projects/enclave-shield-27b-wrapup`), one commit on top of
-`f46e6639`. Checked against `origin/main` at `fcb980c0` (16 commits ahead of the
-branch's base, site/brand/pVM only): `git merge-tree --write-tree origin/main HEAD`
-is clean, no file is touched on both sides, and the branch uses no retired brand
-term. Full record: `REPORT.md` 18.50-18.54.
+`/home/steven/Projects/enclave-shield-27b-wrapup`), commits 7dbb0812, 81954470,
+b6a8b669, 2e43491a and this one on top of `f46e6639`. Checked against `origin/main`
+at `6f9171a0` on 2026-09-24 (103 commits ahead of the branch's base):
+`git merge-tree --write-tree origin/main HEAD` is clean, no file is touched on both
+sides, and the branch uses no retired brand term. Full record: `REPORT.md`
+18.50-18.55.
 
 ## 1. Integrated, built, pinned: the state measured on 2026-09-24
 
@@ -98,11 +99,20 @@ fail-closed behaviour.
    this campaign, all harness/patch-record/test files under `wasm/`, each cut and
    published such a release on 2026-09-23 (v0.5.832-835, v0.5.837-839, GPU and
    CPU flavours, `update-fleet` succeeded) with no runtime change.
+   Measured 2026-09-24 by running deploy.yml's own detect block (main at 6f9171a0)
+   over this branch's 255 changed paths: only `wasm=true` is set (by the 11 `wasm/`
+   paths; `shielded/**` and `test/**` map to nothing), so `release=true` and
+   `cpu_release=true`: one GPU and one CPU flavour release. With the exclusion
+   applied, the three `wasm/*.patch` files still set it. The detect step diffs
+   against the head of the last SUCCESSFUL Deploy run (6f9171a0 today, nothing
+   pending), so a merge also carries whatever is undeployed on main at that
+   moment: check the run's "changed files" list.
 2. `wasmtime-patch-check.yml` will run (it triggers on `wasm/*.patch`); it
    applies only its own named wasmtime patches, so the two llama.cpp patch
    records do not affect it.
 3. `test.yml` runs on the merge; the branch changes no code under test. Local:
-   `test/shielded-fault-logs.test.mjs` 4/4, `selftest-harness-check.sh` PASS,
+   `test/shielded-fault-logs.test.mjs` 4/4, `test/wasm-cpu-module-patches.test.mjs`
+   2/2 (and its mutants fail), `selftest-harness-check.sh` PASS,
    `git diff --check` clean, `git show --check --format= HEAD` silent.
 4. The graph-slot fix (a correctness change in the official toolchain's patch set)
    becomes live only when someone dispatches `llamacpp-toolchain.yml` and repins
