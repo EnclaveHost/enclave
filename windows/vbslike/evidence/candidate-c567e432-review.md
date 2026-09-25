@@ -86,3 +86,32 @@ Verbatim:
 The debug twin was not needed and was not run.
 Note: the log line "DVD attached ..." in this run was a wording bug in `-LinuxDirect` mode (nothing was attached, as
 the next lines show). It is fixed in the commit after `e0de58cf`.
+
+## Serving: canary 062450 on boot 68 (Secure Boot ON), 06:24:50-06:25:49Z. RUN OK
+
+Configuration:
+- the same candidate, `-LinuxDirect`, with hello-world served;
+- launcher rebuilt from `8f156c9a`: `vbslike-host.exe` sha256 `0160d83511ec8dee2ca2da0f180050561f21b7ac884e62c7d5efe2e78baefea0`,
+  1,126,912 B, the same 5 dead-code warnings;
+- wmiserve given `--igvm-sha256 c567e432…`, so its signed report names the IGVM file as the guest image, with
+  partition `wmi-openhcl-gen2-igvm-linux`;
+- script `uefi-dev-boot.ps1` at `8f156c9a` (sha256 prefix `a6458741`).
+
+    06:25:19 FIRST OBSERVABLE: Start-VM ACCEPTED the partition (state now Running)
+      CONSOLE: MON boundary tier=t0-hv ... host_excluded=no hv_isolation=vbs paravisor=no
+      CONSOLE: MON ready control_port=9000 snp=false transport=hv_sock
+      WMISERVE: {"agreed":true,"appSha256":"9c3d10f1...","boot":null,"guestPort":40001,"id":1,"ok":true,"step":"load"}
+    06:25:26 APP ANSWERED: 13 raw bytes, sha256 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340
+    06:25:26 APP OK: the app served EXACTLY the pinned bytes through the guest's own TLS
+    06:25:49 RUN OK   (setting restored to Absent, hv_sock key removed, VM removed, all verified)
+
+**What this establishes:** the measured-Linux-VTL0 type-1 guest loads a pinned app with hash agreement, and serves
+it through its own TLS, on this host under Secure Boot.
+- `boot: null`: this initrd predates enclave-5d's G1 nonce, so the new launcher correctly sent stop/destroy without
+  one.
+- No report was requested in this run, so the `--igvm-sha256` report path is built but was not exercised.
+
+**NOT established:**
+- identity (curl accepted the guest's certificate; judge-hv's job);
+- any hardware report or chain;
+- `host_excluded`, which stays `no`.
