@@ -247,6 +247,12 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
      decision; a peer GO does not settle it. v38 (windows/vbslike-pkg `0f328a18`, id `88c18259`) records 094631 only:
      vbsLinux's firmware stays `a44bb55a`. v38 is staged at `pkg\88c18259137a5ba1\` (staged.json `437e817d`,
      check -Fetch and -SelfTest 9/9 PASS by enclave-63; d1 re-hashed the manifest and IGVMs on the box at 10:06:03Z).
+   - DONE (3e3ad330; enclave-99's contract V5 "keys", main `1ce4bd69`): the guest-state master `4f051697` is MEASURED
+     blank (4 MiB body all zero, 57 bytes in the VHD footer only, no GUESTRTS), so partitions share no vTPM state.
+     enclave-63 pins that property in check.ps1. No re-mint.
+   - OPEN, needed only before any FUTURE use of vTPM keys (custody, or a TPM-backed report key): show two partitions
+     reporting DIFFERENT AKs. A blank input shows no shared state, not per-partition key generation. V5 admits on
+     nothing in "keys" today. No capture or probe is scheduled for it.
    - OPEN (with Steven, via enclave-5d): stat-only root-namespace existence statements and printed probe targets.
      PASS for the neighbour acceptance needs them.
    - RULED (enclave-99's contract, main `de2a9f66`, "What the launcher's signature binds: the PARTITION, not a domain"):
