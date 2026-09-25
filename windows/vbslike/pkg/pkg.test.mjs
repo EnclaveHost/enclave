@@ -412,7 +412,7 @@ test("draft v13 pins the type-1 material as an EXPERIMENT: the production medium
   assert.match(d.status, /a created and started VM is not a boot of our guest/);
   const r = run(["verify", D, "--tests"]);
   assert.equal(r.code, 0, fails(r.out));
-  assert.match(r.out, /ok   no profile boots a PROBE medium as its medium, and every probe file is named PROBE on disk \(2 probe file\(s\)\)/);
+  assert.match(r.out, /ok   no profile boots a PROBE medium as its medium or a probe firmware as its firmware, and every probe file is named PROBE on disk \(2 probe file\(s\)\)/);
   assert.match(r.out, /ok   the manager's UEFI serving path is exactly as pinned .*imageIsMediumHash=true imageType="string"/);
 });
 test("a profile that boots the PROBE medium as its medium is refused, whatever its text says", { skip }, () => {
@@ -420,7 +420,7 @@ test("a profile that boots the PROBE medium as its medium is refused, whatever i
   m.profiles.vbs.medium = m.profiles.vbs.probeMedium;
   const r = run(["verify", writeManifest(m)]);
   assert.equal(r.code, 1, "a profile booting the probe medium passed");
-  assert.match(r.out, /FAIL no profile boots a PROBE medium as its medium.*vbs\.medium guest\/uefi\/PROBE-NOT-PRODUCTION\/PROBE-vbsreport\.iso is probe\.uefi-medium/, fails(r.out));
+  assert.match(r.out, /FAIL no profile boots a PROBE medium as its medium or a probe firmware as its firmware.*vbs\.medium guest\/uefi\/PROBE-NOT-PRODUCTION\/PROBE-vbsreport\.iso is probe\.uefi-medium/, fails(r.out));
 });
 test("the stale manager pin (image as an object, pre-c067b446) is refused against the c067b446 manager", { skip }, () => {
   const m = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-13.json"), "utf8"));
@@ -513,8 +513,32 @@ test("draft v18 is held: the 03:26 ohcldiag runs as relayed (type-1 'unknown ser
   assert.ok(!/MON (ready|boundary|hv)/.test(d.profiles.vbs.measured.join(" ")));
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
-  assert.match(r.out, /ok   no profile boots a PROBE medium as its medium, and every probe file is named PROBE on disk \(4 probe file\(s\)\)/);
+  assert.match(r.out, /ok   no profile boots a PROBE medium as its medium or a probe firmware as its firmware, and every probe file is named PROBE on disk \(4 probe file\(s\)\)/);
   const m = structuredClone(d); m.profiles.uefi.medium = "guest/uefi/PROBE-NOT-PRODUCTION/PROBE-memmarker.iso";
   const f = run(["verify", writeManifest(m)]);
-  assert.equal(f.code, 1); assert.match(f.out, /FAIL no profile boots a PROBE medium as its medium.*uefi\.medium guest\/uefi\/PROBE-NOT-PRODUCTION\/PROBE-memmarker\.iso is probe\.uefi-medium/, fails(f.out));
+  assert.equal(f.code, 1); assert.match(f.out, /FAIL no profile boots a PROBE medium as its medium or a probe firmware as its firmware.*uefi\.medium guest\/uefi\/PROBE-NOT-PRODUCTION\/PROBE-memmarker\.iso is probe\.uefi-medium/, fails(f.out));
+});
+
+test("draft v19 (staged) pins both probe firmwares under probe.firmware, the named type-1 failure as measured on the a7b0bd4 debug build and a hypothesis for stock, and refuses a probe firmware as any profile's firmware", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-19.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, STAGED \(supersedes v16 as the staged package/);
+  const f = (p) => d.files.find((x) => x.path === p);
+  assert.equal(f(d.profiles.vbs.probeFirmware.debug).sha256, "81e163ee76228c7aa63a2f0f15ab4d584f79b458ed4ce346bc89ab930f1856b5"); assert.equal(f(d.profiles.vbs.probeFirmware.debug).role, "probe.firmware");
+  assert.equal(f(d.profiles.vbs.probeFirmware.control).sha256, "32d464cc0650d67f9efc82b9d1d68acf26602ef7a762a53678d9aeb788c47749"); assert.equal(f(d.profiles.vbs.probeFirmware.control).role, "probe.firmware");
+  assert.match(f(d.profiles.vbs.probeFirmware.debug).note, /^THIS FIRMWARE TRUSTS THE HOST COMMAND LINE/);
+  assert.match(d.profiles.vbs.failure.named, /^MEASURED on the a7b0bd4 DEBUG image .*cannot safely support VTL 1 without using the alias map' at 0\.126 s/);
+  assert.match(d.profiles.vbs.failure.stock, /strongest HYPOTHESIS, not measured/);
+  assert.match(d.profiles.vbs.failure.next, /PREDICTION/);
+  assert.match(d.profiles.vbs.inference.label, /^RESOLVED BY KMSG/);
+  assert.match(d.profiles.vbs.status, /^EXPERIMENT: STARTS, THEN FAILS WITHIN SECONDS/, "type 1 is still an experiment");
+  assert.ok(!/MON (ready|boundary|hv)/.test(d.profiles.vbs.measured.join(" ")), "no type-1 console line: none has been seen");
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   no profile boots a PROBE medium as its medium or a probe firmware as its firmware, and every probe file is named PROBE on disk \(6 probe file\(s\)\)/);
+  for (const [prof, key] of [["vbs", "firmware"], ["uefi", "firmware"], ["igvm", "image"]]) {
+    const m = structuredClone(d); m.profiles[prof][key] = d.profiles.vbs.probeFirmware.debug;
+    const x = run(["verify", writeManifest(m)]);
+    assert.equal(x.code, 1, `${prof}.${key} = the debug firmware passed`);
+    assert.match(x.out, new RegExp(`FAIL no profile boots a PROBE medium as its medium or a probe firmware as its firmware.*${prof}\\.${key} .*is probe\\.firmware: a probe firmware is never a profile's firmware`), fails(x.out));
+  }
 });

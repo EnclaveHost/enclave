@@ -45,7 +45,7 @@ const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.in
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
   "input.recipe", "input.tree", "input.test", "input.test-support", "guest.uefi-firmware", "guest.uefi-medium", "guest.uefi-fallback",
   "input.efi-stub", "input.tool-source", "input.initrd", "control.node", "control.relay", "control.npm", "control.acceptance",
-  "probe.uefi-medium", "probe.module", "input.firmware-config"]);
+  "probe.uefi-medium", "probe.module", "probe.firmware", "input.firmware-config"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
 const SERVED_BY_PINNED_MANAGER = ["enclave-catalog-bundle/1"];   // windows/vbslike/manager/server.mjs SERVES
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
@@ -295,9 +295,11 @@ async function checkClaims(m, bytes, R) {
       if (p.medium && file(p.medium)?.role !== "guest.uefi-medium") bad.push(`${name}.medium ${p.medium} is ${file(p.medium)?.role || "not a file"}`);
       if (p.fallbackMedium && file(p.fallbackMedium)?.role !== "guest.uefi-fallback") bad.push(`${name}.fallbackMedium ${p.fallbackMedium} is ${file(p.fallbackMedium)?.role || "not a file"}`);
       if (p.probeMedium && (file(p.probeMedium)?.role !== "probe.uefi-medium" || !/PROBE/.test(p.probeMedium))) bad.push(`${name}.probeMedium ${p.probeMedium} is ${file(p.probeMedium)?.role || "not a file"}${/PROBE/.test(p.probeMedium) ? "" : " and is not named PROBE"}`);
+      // firmware: a probe.* file (a debug image that trusts the host command line, or its control) is never ANY profile's firmware or image
+      for (const k of ["firmware", "image"]) if (p[k] && /^probe\./.test(file(p[k])?.role || "")) bad.push(`${name}.${k} ${p[k]} is ${file(p[k]).role}: a probe firmware is never a profile's firmware`);
     }
     for (const f of probes) if (!/PROBE/.test(f.path)) bad.push(`${f.path} (${f.role}) is not named PROBE on disk`);
-    if (probes.length || bad.length) R.add(bad.length === 0, "no profile boots a PROBE medium as its medium, and every probe file is named PROBE on disk", bad.length ? bad.join("; ") : `${probes.length} probe file(s)`);
+    if (probes.length || bad.length) R.add(bad.length === 0, "no profile boots a PROBE medium as its medium or a probe firmware as its firmware, and every probe file is named PROBE on disk", bad.length ? bad.join("; ") : `${probes.length} probe file(s)`);
   }
   // The node's own record builder against the catalog. The manifest records each app's catalog version as READ FROM THE
   // CHAIN (catalogFacts, with the block, address book and catalog it came from); the shipped node-bridge.mjs's

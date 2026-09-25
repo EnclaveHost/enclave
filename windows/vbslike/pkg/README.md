@@ -154,6 +154,20 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   had made the script's `ls | head -1` pick the CVM kernel while every pin was right. E2/E3 NOT RUN; no MON line under
   vbs.
 
+- **v19 draft** (`drafts/nucbox-ownguest-19.json`, STAGED; supersedes v16 as the staged package): the type-1 start
+  failure is NAMED on the a7b0bd4 DEBUG image (d1 `81173698`, relayed by 5d `4c4a4b3b`; d1's verbatim pending):
+  `failed to start VM error=failed to initialize memory: cannot safely support VTL 1 without using the alias map` at
+  0.126 s, the +120 s panic being the start-failure timer — MEASURED for that build, a HYPOTHESIS for the stock 2511
+  image, which the CONTROL image decides. Both probe firmwares are pinned under `probe.firmware`
+  (`openhcl-cvm-VBS-DEBUG-TRUSTS-HOST-81e163ee.bin`, whose note's first words are "THIS FIRMWARE TRUSTS THE HOST
+  COMMAND LINE", and `openhcl-cvm-a7b0bd4-CONTROL-32d464cc.bin`, the same code without the flag) under
+  `guest/uefi/PROBE-FIRMWARE-never-a-serving-candidate/`, and the verifier refuses a `probe.*` file as ANY profile's
+  `firmware` or `image` (tested by mutation on vbs, uefi and igvm). 5d's source reading (Guest VSM available + no
+  `vtl0_alias_map_available` → OpenHCL bails in memory init), the next step (`Set-VMSecurity
+  -VirtualizationBasedSecurityOptOut $true`, pinned as a PREDICTION), and the inspect correction (`control_state`
+  "starting" ~50 ms on type-1 images). v17's inference is marked RESOLVED (the failure is in memory init, before the
+  candidate it named). Type 1 stays an experiment: NO isolation claim, E2/E3 NOT RUN, no type-1 console line.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was

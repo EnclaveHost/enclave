@@ -48,7 +48,7 @@ foreach ($p in @($M.vmWorkerRead)) {
 
 # Boot media are read-only on disk: the guest cannot write them, and now neither can a stray host write go unnoticed
 # (a later check sees a hash mismatch, not a silently changed medium). Roles guest.uefi-medium, guest.uefi-fallback, probe.uefi-medium.
-foreach ($f in @($M.files | Where-Object { $_.role -eq 'guest.uefi-medium' -or $_.role -eq 'guest.uefi-fallback' -or $_.role -eq 'probe.uefi-medium' })) {
+foreach ($f in @($M.files | Where-Object { $_.role -eq 'guest.uefi-medium' -or $_.role -eq 'guest.uefi-fallback' -or $_.role -like 'probe.*' })) {
   $file = Get-PkgFilePath $Dir $f.path
   if (Test-Path -LiteralPath $file) { Set-ItemProperty -LiteralPath $file -Name IsReadOnly -Value $true; [void](Add-Result $R $true "read-only attribute on $($f.path)") }
 }
