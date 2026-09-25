@@ -18,6 +18,11 @@
 # that reads R2 is the thing that is down (2026-08-25: 9 of 140 missing CIDs
 # were in that state, one of them a LIVE production app's wasm).
 #
+# What is WANTED mirrors the runner's deploy gate, and so nan-pin-cleanup.mjs's keep test: a catalog version is pinned
+# only if its APP is active (not delisted), the version Approved and not yanked. Pinning a delisted app's versions made
+# the two jobs fight: the daily cleanup unpins them (they cannot be deployed), this job re-pinned them whenever the
+# gateway could serve them and FAILED hourly whenever it could not (48 llm-chat/network-test CIDs, 2026-09-19..25).
+#
 # The adapter's own wasm+config are pinned FIRST, every run: if anything below
 # fails, the bootstrap escape is already in place. Old versions stay pinned
 # (rollback safety); kubo never GCs pins.
@@ -51,6 +56,7 @@ S_APPCOUNT = "0xb55ca2c3"  # appCount() -> uint256
 S_APPIDAT  = "0xcbe6673d"  # appIdAt(uint256) -> bytes32
 S_VERPAGE  = "0x2eb7c1f0"  # getVersionsPage(bytes32,uint256,uint256) -> Version[]
 S_CFGCIDS  = "0x5ea1708a"  # versionConfigCids(bytes32) -> string[]
+S_GETAPP   = "0x42c71f1d"  # getApp(bytes32) -> App (tuple: ..., word 8 = active)
 S_DEPPAGE  = "0xcd1a2e91"  # getPage(uint256,uint256) -> Deployment[]
 
 def ethcall(to, data):
@@ -134,9 +140,14 @@ while True:
 # (appId, index) and every approved, non-yanked release gets pinned.
 # Version head words are append-only across catalog revs: 0 cid, 1 version,
 # 8 yanked, 10 approval (0 Pending, 1 Approved, 2 Rejected).
-catalog = {}
+catalog, app_active = {}, {}
 for i in range(n(ethcall(CATALOG, S_APPCOUNT), 0)):
     app_id = "0x" + w(ethcall(CATALOG, S_APPIDAT + u256(i)), 0)
+    h = ethcall(CATALOG, S_GETAPP + b32(app_id))
+    t = n(h, 0) // 32                       # the App tuple's head (it has dynamic strings, so it is behind an offset)
+    if ("0x" + w(h, t)).lower() != app_id.lower():
+        raise RuntimeError("getApp(%s) returned another app" % app_id)
+    app_active[app_id.lower()] = bool(n(h, t + 8))
     h = ethcall(CATALOG, S_VERPAGE + b32(app_id) + u256(0) + u256(1000))
     arr = n(h, 0) // 32
     vers = []
@@ -167,16 +178,20 @@ if adapter_ref and adapter_ref.startswith("catalog://"):
 else:
     print("[pin-catalog] WARN could not read the adapter's appRef from the ledger", file=sys.stderr)
 
+delisted = 0
 for app_id, vers in catalog.items():
     for k, v in enumerate(vers):
         if v["approval"] != 1 or v["yanked"]:
+            continue
+        if not app_active.get(app_id, False):   # a delisted app's versions are not deployable: the cleanup unpins them
+            delisted += 1
             continue
         want(v["cid"], "%s:%s (wasm)" % (app_id[:10], v["version"]))
         want(v["configCid"], "%s:%s (config)" % (app_id[:10], v["version"]))
 for cid, label in envelopes:
     want(cid, label)
 
-print("[pin-catalog] catalog %s, ledger %s: %d distinct CIDs" % (CATALOG, LEDGER, len(rows)), file=sys.stderr)
+print("[pin-catalog] catalog %s, ledger %s: %d distinct CIDs (%d approved versions of delisted apps skipped)" % (CATALOG, LEDGER, len(rows), delisted), file=sys.stderr)
 for cid, label in rows:
     print("%s\t%s" % (cid, label))
 PY
