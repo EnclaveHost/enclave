@@ -90,7 +90,7 @@ func newRig(t *testing.T, origins []string, route map[string]net.Listener, dns f
 	}
 	var buf bytes.Buffer
 	var mu sync.Mutex
-	srv := &Server{Dialer: d, Log: log.New(writerFunc(func(p []byte) (int, error) { mu.Lock(); defer mu.Unlock(); return buf.Write(p) }), "", 0)}
+	srv := &Server{Dialer: d, CIDOf: func(net.Conn) uint32 { return 42 }, Log: log.New(writerFunc(func(p []byte) (int, error) { mu.Lock(); defer mu.Unlock(); return buf.Write(p) }), "", 0)}
 	hl, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -197,6 +197,14 @@ func TestACertificateForAnotherAllowedHostIsRefused(t *testing.T) {
 	}
 	if got, err := tenantGet(t, r, ca, "other.example", nil); err != nil || got != "B" {
 		t.Fatalf("other.example itself: %q %v", got, err)
+	}
+}
+
+func TestTheServerRefusesToStartWithoutCIDOf(t *testing.T) {
+	l, _ := net.Listen("tcp", "127.0.0.1:0")
+	defer l.Close()
+	if err := (&Server{Dialer: &Dialer{}}).Serve(context.Background(), l); err == nil || !strings.Contains(err.Error(), "CIDOf") {
+		t.Fatalf("a server with no CIDOf started: %v", err)
 	}
 }
 

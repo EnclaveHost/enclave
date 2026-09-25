@@ -144,7 +144,15 @@ type Server struct {
 	Log    *log.Logger // hostname:port, guest CID and outcome only - the host never sees more
 }
 
+// Serve refuses to start without CIDOf: with no way to tell guests apart, every guest would share ONE set of caps
+// and one guest could starve the rest (enclave-99).
 func (s *Server) Serve(ctx context.Context, l net.Listener) error {
+	if s.CIDOf == nil {
+		return errors.New("egress server: CIDOf is required (per-guest caps need to know which guest a stream is from)")
+	}
+	if s.Dialer == nil {
+		return errors.New("egress server: no dialer")
+	}
 	go func() { <-ctx.Done(); l.Close() }()
 	for {
 		c, err := l.Accept()
@@ -160,10 +168,7 @@ func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 
 func (s *Server) handle(ctx context.Context, g net.Conn) {
 	defer g.Close()
-	cid := uint32(0)
-	if s.CIDOf != nil {
-		cid = s.CIDOf(g)
-	}
+	cid := s.CIDOf(g)
 	g.SetReadDeadline(time.Now().Add(10 * time.Second))
 	br := bufio.NewReaderSize(g, maxHeader)
 	line, err := readLine(br, maxHeader)
