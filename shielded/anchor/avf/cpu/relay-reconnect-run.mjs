@@ -39,7 +39,7 @@ if (!OUT || !APK || !/^[0-9a-f]{64}$/.test(CODE || "") || !/^[0-9a-f]{64}$/.test
 if (fs.existsSync(OUT)) { console.error(`${OUT} exists: refusing to mix runs`); process.exit(2); }
 const H = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."), REPO = path.resolve(H, "../../..");
 const ADB = process.env.ADB || path.join(process.env.HOME, "Android/Sdk/platform-tools/adb"), P = "host.enclave.anchor.avf", F = `/data/user/0/${P}/files`;
-const NAME = "pixel10-pvm-cpu", RPORT = 18443, CHAINPORT = 18845, CSPORT = 18470, SERVE_S = 7200, BLOCK_S = 2;
+const NAME = "pixel10-pvm-cpu", RPORT = 18443, CHAINPORT = 18845, CSPORT = 18470, SERVE_S = 3600, BLOCK_S = 2;   // SERVE_S: the host allows 10..3600 (attempt 1 passed 7200 and the app refused the plan)
 const ORIGIN = `https://127.0.0.1:${RPORT}`, ENDPOINT = `${ORIGIN}/t/${NAME}`, RELAY_HTTP = `http://127.0.0.1:${RPORT}`;
 const AUTH = "cd0a7823095d98f82d4787205f020a3f2784912b032eff4f4e6525bba5654df8baaa64c7bebf03ad074788db7b517d82f3c63513f5c39a381b629c26aba38c0f";   // gitleaks:allow -- public: sha512 of the TEST APK signing certificate (LAB-ONLY pin)
 const RID = "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba", ROOTS = ["cedb1cb6dc896ae5ec797348bce9286753c2b38ee71ce0fbe34a9a1248800dfc", "6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0"];
