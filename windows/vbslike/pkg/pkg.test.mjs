@@ -542,3 +542,16 @@ test("draft v19 (staged) pins both probe firmwares under probe.firmware, the nam
     assert.match(x.out, new RegExp(`FAIL no profile boots a PROBE medium as its medium or a probe firmware as its firmware.*${prof}\\.${key} .*is probe\\.firmware: a probe firmware is never a profile's firmware`), fails(x.out));
   }
 });
+
+test("draft v20 is held and corrects v19's next-steps order (the DEBUG run had already happened), adding 5d's two no-boot log checks", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-20.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, HELD, NOT STAGED \(v19 9aa75761 is the staged package/);
+  assert.match(d.profiles.vbs.probeFirmware.order[0], /^\(enclave-5d's recommendation .* 1\. DEBUG image \+ `Set-VMSecurity -VirtualizationBasedSecurityOptOut \$true`/);
+  assert.match(d.profiles.vbs.probeFirmware.order[1], /^2\. If it boots: STOCK image/);
+  assert.match(d.profiles.vbs.probeFirmware.order[2], /^3\. The CONTROL image .* does not gate 1-2/);
+  assert.equal(d.profiles.vbs.probeFirmware.logChecks.length, 2);
+  assert.match(d.profiles.vbs.failure.next, /PREDICTION/);
+  assert.ok(!/MON (ready|boundary|hv)/.test(d.profiles.vbs.measured.join(" ")));
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});

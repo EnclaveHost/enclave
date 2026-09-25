@@ -168,6 +168,13 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   "starting" ~50 ms on type-1 images). v17's inference is marked RESOLVED (the failure is in memory init, before the
   candidate it named). Type 1 stays an experiment: NO isolation claim, E2/E3 NOT RUN, no type-1 console line.
 
+- **v20 draft** (`drafts/nucbox-ownguest-20.json`, HELD; v19 stays staged): v19's next-steps order was one step stale
+  (the DEBUG run had already happened). 5d's order for d1 replaces it: (1) DEBUG image + `VirtualizationBasedSecurityOptOut`
+  on the same type-1 definition with `kmsg -f -r -v`; (2) if it boots, STOCK image + the same opt-out with `inspect
+  control_state` and COM1 ("started" plus MON lines would be the first booted type-1 guest; E2 next); (3) the CONTROL
+  image any time, gating nothing. Two no-boot log checks ("enabling alias map" type 16 vs type 1; "empty vmgs file,
+  formatting" / "failed to write vmgs provisioning marker" in the debug kmsg). Staged with d1's next type-1 run.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
