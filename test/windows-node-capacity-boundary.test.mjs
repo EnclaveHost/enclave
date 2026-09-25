@@ -180,7 +180,15 @@ test("a boundary-held deployment whose lease LAPSED is retired locally (one DELE
   assert.equal(holder.deletes, 1, "the held instance is retired by the manager");
   assert.equal(rec.status, "stopped", `${rec.status}: ${rec.reason}`); assert.equal(rec.isolationHeld ?? null, null);
   assert.equal(h.tracked.has(DEP), false); assert.deepEqual(logs.filter(RENEWAL), [], "no renewal attempted");
-  assert.equal(h.blocked.has(DEP), false, "a local retirement, not a give-up (nothing is released on chain)");
+  assert.ok(!logs.some((l) => /released .* back to the fleet/.test(l)), "a local retirement: nothing is released on chain");
+  // ...and NOT re-claimed by the next scan (enclave-99): blocked here, persisted, until the operator forces it
+  assert.match(h.blocked.get(DEP) || "", /boundary this backend cannot have.*nothing was released on chain/);
+  const unforced = await h.consider(DEP);
+  assert.equal(unforced.accepted, false); assert.match(unforced.reason, /not re-claimed until the operator forces it/);
+  const persisted = JSON.parse(fs.readFileSync(path.join(h.cfg.dir, "host-state.json"), "utf8"));
+  assert.ok(Object.keys(persisted.blocked || {}).includes(DEP), "the block survives a node restart");
+  await h.consider(DEP, { force: true }).catch(() => {});
+  assert.equal(h.blocked.has(DEP), false, "the operator's forced claim is the way back");
 });
 
 test("a manager that turns honest on a LAPSED lease never gets that domain served, not even for one tick", async () => {
