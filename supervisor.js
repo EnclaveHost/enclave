@@ -9871,14 +9871,14 @@ async function depHasSecrets(id){
     const r = await fetch(`${SECRETS_API}/v1/secrets/exists`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: String(id).toLowerCase() }), signal: AbortSignal.timeout(5000) });
-    if (r.status === 404) return false;
     let b = null;
     try { b = await r.json(); } catch { b = null; }
-    // only the relay's deliberate "secrets are off" is a clean NO; any other 503 (a relay restarting) is UNKNOWN, never
-    // "none staged": an unknown read as none would start a deployment without its secrets (enclave-99's L2, the M1 shape)
+    // only the relay's deliberate "secrets are off" is a clean NO; any other 503 (a relay restarting), a 404 (the relay
+    // always answers this route: a 404 is an old or mis-routed one) or a malformed answer is UNKNOWN, never "none
+    // staged": an unknown read as none would start a deployment without its secrets (enclave-99, the M1 shape)
     if (r.status === 503) return b && b.error === "secrets_disabled" ? false : null;
-    if (!r.ok || !b) return null;
-    return b.exists === true;
+    if (!r.ok || !b || typeof b.exists !== "boolean") return null;
+    return b.exists;
   } catch { return null; }
 }
 

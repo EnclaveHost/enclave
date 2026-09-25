@@ -178,6 +178,10 @@ func (c *Client) Release(ctx context.Context, id [32]byte, ticket [32]byte, sk *
 			// rule 1: the digest is this guest's own id, ticket and seal key over the sealed bytes, not the reply's fields
 			return sk.Verify(c.Keys, id, ticket, sealed.sealed, sealed.sig, sealed.keyID)
 		}
+		final := status != http.StatusServiceUnavailable && status != http.StatusTooManyRequests && status != statusTransport
+		if final && status > 0 {
+			return nil, err // a real answer (a 403 that burned the ticket, a 422) is reported as itself, deadline or not
+		}
 		if ctx.Err() != nil && last != nil {
 			// the deadline cut an attempt short: what the relay was actually answering is the useful error, not the cut
 			return nil, fmt.Errorf("%w (the relay kept answering it; stopped at the deadline)", last)

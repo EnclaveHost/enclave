@@ -274,15 +274,16 @@ test("depHasSecrets: only a clean answer is yes or no", async () => {
       res.setHeader("content-type", "application/json");
       const a = { [hexId("a1")]: [503, { error: "secrets_disabled" }], [hexId("b2")]: [503, { error: "busy" }],
                   [hexId("c3")]: [200, { exists: true }], [hexId("d4")]: [404, {}], [hexId("e5")]: [500, {}],
-                  [hexId("f6")]: [200, { exists: false }] }[id] || [500, {}];
+                  [hexId("f6")]: [200, { exists: false }], [hexId("a7")]: [200, { exists: "yes" }] }[id] || [500, {}];
       res.statusCode = a[0]; res.end(JSON.stringify(a[1]));
     });
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   try {
-    const ids = ["a1", "b2", "c3", "d4", "e5", "f6"].map(hexId);
+    const ids = ["a1", "b2", "c3", "d4", "e5", "f6", "a7"].map(hexId);
     const r = await run({ SECRETS_API: `http://127.0.0.1:${server.address().port}`, ISOLATION_BACKEND: TIER, RELEASE_SELFTEST: JSON.stringify({ staged: ids }) });
-    assert.deepEqual(r.staged, [false, null, true, false, null, false], "secrets_disabled / another 503 / exists / 404 / 500 / exists:false");
+    assert.deepEqual(r.staged, [false, null, true, null, null, false, null],
+      "secrets_disabled / another 503 / exists / 404 (an old or mis-routed relay) / 500 / exists:false / a non-boolean");
   } finally { server.close(); }
 });
 
