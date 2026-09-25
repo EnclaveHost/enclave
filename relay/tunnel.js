@@ -19,6 +19,7 @@ import { createHash, timingSafeEqual, randomBytes } from "node:crypto";
 import { verifyQuote } from "./snp-verify.mjs";
 import { verifyAvfEvidence } from "./avf-verify.mjs";
 import { admitPvmCpu, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
+import { verifyPvmAppAbi2 } from "./pvm-app-attest.mjs";
 import { AVF_PAD_FORMAT, avfPadBinding } from "./avf-binding.mjs";
 import { tpmNameOf, VBS_MAX_CERT_BYTES, VBS_MAX_CHAIN_CERTS, VBS_MAX_TPMT_PUBLIC_BYTES } from "./vbs-verify.mjs";
 import { HVNODE_FORMAT, HVNODE_TIER, verifyHvNodeEvidence, retiredFormat } from "./hvnode-verify.mjs";
@@ -129,9 +130,13 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
   // the NucBox node's attach (mode hv-node): only with the pinned TPM EK roots. A legacy `vbs` policy enables nothing.
   const hvOn = !!(attest && attest.hvNode && attest.hvNode.ekRoots);
-  const attestOn = !!(attest && ((attest.allowedMeasurements && attest.allowedMeasurements.length)
-                               || (attest.avf && attest.avf.codeHashes && attest.avf.codeHashes.length)
-                               || hvOn));
+  // AVF attestation is on when ANY build could pass it: the v1 list, or -- for the v2 pad-binding transcript -- a pad build
+  // or a pvm-cpu build (the lists the v2 attach below is judged against). Counting only the v1 list answered a relay
+  // configured for the pVM CPU tier alone with 401 before any evidence was read (the first live attach from a phone).
+  const avfOn = !!(attest && attest.avf && ((attest.avf.codeHashes && attest.avf.codeHashes.length)
+                                            || (attest.avf.padCodeHashes && attest.avf.padCodeHashes.length)
+                                            || (attest.pvmCpu && attest.pvmCpu.codeHashes && attest.pvmCpu.codeHashes.size)));
+  const attestOn = !!(attest && ((attest.allowedMeasurements && attest.allowedMeasurements.length) || avfOn || hvOn));
   const wss = new WebSocketServer({ noServer: true });
   const tunnels = new Map();                                  // name -> { ws, pending, lastSeen, mode, publicUrl, keyFp }
 
@@ -266,6 +271,39 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
         try { ws.send(JSON.stringify({ t: "caps-result", ok: verdict.eligible, tier: verdict.tier, reasons: verdict.reasons })); } catch {}
         return;
       }
+      // A pVM app's ABI/2 evidence (relay/pvm-app-attest.mjs; LAB ONLY: set when the hub is given attest.pvmApp). ONE
+      // frame per nonce this hub issued at bind: the evidence must bind THIS hub's nonce, THIS attach's transport key, an
+      // admitted runtime and an admitted app, under the tier's code/authority pins. The nonce is spent whatever the
+      // verdict (a replay finds none). Only a verified app gets raw streams (spliceRaw), and its TLS key is the attested
+      // transport key: the row publishes the public half for clients to pin.
+      if (f.t === "abi2") {
+        const reply = (ok, reasons) => { try { ws.send(JSON.stringify({ t: "abi2-result", ok, reasons })); } catch {} };
+        if (!t.pvm || !t.abi2 || t.abi2.used) return reply(false, ["no outstanding ABI/2 nonce on this attach (replay, or none was issued)"]);
+        t.abi2.used = true;
+        const policy = attest && attest.pvmApp;
+        const app = String(f.app || "").toLowerCase();
+        if (!policy || !policy.appIds.includes(app)) {
+          console.log(`[tunnel] ${name} abi2 REFUSED: app not admitted`);
+          return reply(false, ["the app is not one this relay admits"]);
+        }
+        const chain = Array.isArray(f.chain) && f.chain.length <= 8 ? f.chain.map((c) => Buffer.from(String(c), "base64")) : [];
+        // v3 (INSTANCE-BINDING.md): the frame may also carry the VM INSTANCE's key and its signature over the challenge; the
+        // challenge is then Bind3, and the row publishes the attested InstanceID -- a HINT for a policy signer, never trust
+        let inst = {};
+        if (f.instanceKey !== undefined || f.instanceSig !== undefined) {
+          if (!/^302a300506032b6570032100[0-9a-f]{64}$/.test(String(f.instanceKey)) || !/^[0-9a-f]{128}$/.test(String(f.instanceSig)))
+            return reply(false, ["the instance key or signature is malformed (an Ed25519 SPKI and a 64-byte signature, lowercase hex)"]);
+          inst = { instanceKey: Buffer.from(f.instanceKey, "hex"), instanceSig: Buffer.from(f.instanceSig, "hex") };
+        }
+        const v = verifyPvmAppAbi2({ chain, identity: f.identity, selftest: f.selftest, spki: t.pvm.spki, nonce: t.abi2.nonce, appId: app, ...inst },
+          { allowedRuntimeIds: policy.runtimeIds, allowedCodeHashes: [...(attest.pvmCpu ? attest.pvmCpu.codeHashes : [])],
+            allowedAuthorityHashes: (attest.avf && attest.avf.authorityHashes) || [], ...(attest.avf && attest.avf.rootPins ? { rootPins: attest.avf.rootPins } : {}) });
+        if (!v.ok) { console.log(`[tunnel] ${name} abi2 REFUSED: ${v.reasons[v.reasons.length - 1]}`); return reply(false, v.reasons); }
+        t.pvmApp = { appId: app, runtimeId: v.runtimeId, transportSpki: t.pvm.spki.toString("hex"), verifiedAt: Date.now(), ...(v.instanceId ? { instanceId: v.instanceId } : {}) };
+        console.log(`[tunnel] ${name} abi2 VERIFIED: app ${app.slice(0, 16)}… runtime ${v.runtimeId.slice(0, 16)}…${v.instanceId ? ` instance ${v.instanceId.slice(0, 16)}…` : ""}`);
+        try { onChange("abi2", name); } catch {}
+        return reply(true, v.reasons);
+      }
       if (f.t === "pong") return;
       if (f.t === "res" && f.id != null) { const p = t.pending.get(f.id); if (p) { t.pending.delete(f.id); p.resolve(f); } return; }
       // raw-stream frames (Phase D): s= open-ack · sd data · sx close
@@ -276,6 +314,11 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     const bye = () => { if (tunnels.get(name) === t) tunnels.delete(name); for (const p of t.pending.values()) p.reject(new Error("tunnel closed")); for (const s of [...t.streams.values()]) s({ t: "sx" }); t.streams.clear(); console.log(`[tunnel] ${name} detached`); try { onChange("detach", name); } catch {} };
     ws.on("close", bye);
     ws.on("error", () => { try { ws.terminate(); } catch {} });
+    // LAB: a fresh, single-use nonce for the app's ABI/2 evidence, owned by this hub (never the phone's or the owner's)
+    if (t.pvm && attest && attest.pvmApp) {
+      t.abi2 = { nonce: randomBytes(32), used: false };
+      try { ws.send(JSON.stringify({ t: "abi2-challenge", nonce: t.abi2.nonce.toString("base64") })); } catch {}
+    }
     return true;
   }
 
@@ -545,6 +588,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   // end-to-end. Bounded: per-tunnel stream cap, open timeout, idle timeout,
   // and a bufferedAmount guard so one slow reader can't balloon hub memory.
   const MAX_STREAMS = 128, STREAM_OPEN_MS = 10_000, STREAM_IDLE_MS = 15 * 60_000, MAX_WS_BUFFER = 16 * 1024 * 1024;
+  // LAB raw streams: the phone -> client direction has no credit-based flow control across the tunnel, so a client that
+  // does not read is bounded here and its stream finished (fail closed) rather than buffered without limit
+  const MAX_RAW_OUT = 1024 * 1024;
   function spliceUpgrade(origin, req, socket, head, path) {
     const name = (String(origin).match(NAME_RE) || [])[1];
     const t = tunnels.get(name);
@@ -590,6 +636,52 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     if (!sendF({ t: "s+", sid })) return finish("tunnel send failed");
   }
 
+  // LAB: a raw byte stream to a pVM, no request head replayed. kind "pvm-app-tls": the client's TLS goes straight to the
+  // VM, where it terminates (httpd.rs with_tls) -- only to an app THIS hub verified (t.pvmApp; its own policy, which can
+  // only deny). kind "pvm-evidence": the VM's evidence endpoint, which answers a CLIENT's nonce so the client verifies the
+  // VM itself -- any AVF-attested attach. kind "pvm-app-sealed": one HPKE-sealed request to the VM's app key (the browser
+  // channel; pvm-rt sealed.rs), under the same rule as TLS. The hub and the phone carry opaque {t:"sd"} chunks and log
+  // sizes only.
+  function spliceRaw(name, socket, kind = "pvm-app-tls") {
+    const t = tunnels.get(name);
+    const allowed = t && t.pvm && (kind === "pvm-evidence" || ((kind === "pvm-app-tls" || kind === "pvm-app-sealed") && t.pvmApp));
+    if (!allowed || t.streams.size >= MAX_STREAMS) { socket.destroy(); return false; }
+    const sid = seq++;
+    const sendF = (o) => { try { t.ws.send(JSON.stringify(o)); return true; } catch { return false; } };
+    let open = false, idleTimer = null, bytesIn = 0, bytesOut = 0;
+    const openTimer = setTimeout(() => finish("stream open timeout"), STREAM_OPEN_MS);
+    const idle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => finish("idle"), STREAM_IDLE_MS); };
+    function finish(why) {
+      clearTimeout(openTimer); clearTimeout(idleTimer);
+      if (t.streams.delete(sid)) { sendF({ t: "sx", sid }); console.log(`[tunnel] ${name} raw ${kind} stream ${sid} closed (${why}): ${bytesIn} bytes in, ${bytesOut} out`); }
+      socket.destroy();
+    }
+    t.streams.set(sid, (f) => {
+      idle();
+      if (f.t === "s=" && !open) {
+        if (!f.ok) return finish(f.err || "open refused");
+        clearTimeout(openTimer); open = true;
+        socket.on("data", (chunk) => {
+          if (t.ws.bufferedAmount > MAX_WS_BUFFER) return finish("hub buffer overflow");
+          bytesIn += chunk.length; idle(); sendF({ t: "sd", sid, d: chunk.toString("base64") });
+        });
+        socket.resume();
+        return;
+      }
+      if (f.t === "sd" && open) {
+        if (socket.writableLength > MAX_RAW_OUT) return finish("client too slow: stream buffer bound reached");
+        const b = Buffer.from(f.d || "", "base64"); bytesOut += b.length; try { socket.write(b); } catch {} return;
+      }
+      if (f.t === "sx") finish("closed by the phone");
+    });
+    socket.pause();
+    socket.on("error", () => finish("client error"));
+    socket.on("close", () => finish("client closed"));
+    idle();
+    if (!sendF({ t: "s+", sid, kind })) { finish("tunnel send failed"); return false; }
+    return true;
+  }
+
   let seq = 1;
   function send(name, method, path, headers, body) {
     const t = tunnels.get(name);
@@ -624,6 +716,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       // admitted capability report; measured rates stay in the relay log, never on the public row
       ...(t.pvmCpu ? { pvmCpu: t.pvmCpu } : {}),
       ...(t.capsRefused && !t.pvmCpu ? { capsRefused: true } : {}),
+      // LAB: a verified pVM app (its ABI/2 evidence bound this hub's nonce): the app, the runtime, and the transport key --
+      // the TLS key the app's connections terminate with, public, for a client to pin before it sends a byte
+      ...(t.pvmApp ? { pvmApp: t.pvmApp } : {}),
       // A CONSUMER NODE's attested public keys, published because a client needs them to
       // talk to it at all: the session is sealed to the enclave's X25519 key (padKey) and
       // signed by its Ed25519 transport key, both minted inside VTL1 per boot and both
@@ -652,5 +747,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     count: () => tunnels.size,
     // websocket-upgrade splice into the guest supervisor (Phase D)
     spliceUpgrade,
+    // LAB: raw splice to a verified pVM app
+    spliceRaw,
   };
 }

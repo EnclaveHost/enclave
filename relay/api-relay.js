@@ -69,6 +69,13 @@
 //                                  see enclave-relay-agent.service) over the
 //                                  EnvironmentFile for the same reason the
 //                                  operator key does.
+//   PVM_SERVING        optional    1/true/on/yes turns ON the pVM deployment carrier
+//                                  (POST /x/<id>/pvm/{evidence,sealed}; relay/pvm-serving.mjs).
+//                                  OFF by default and set nowhere. ON without AVF attach, the
+//                                  pVM CPU policy and the app policy below: those routes 503.
+//   PVM_APP_IDS        optional    with PVM_SERVING: the apps (64-hex, comma) whose ABI/2
+//   PVM_APP_RUNTIME_IDS            evidence this hub admits at attach, over the runtimes listed
+//                                  (tunnel.js attest.pvmApp); sealed streams go only to those.
 //   FANOUT_MAX_INFLIGHT optional   global cap on concurrent upstream fan-out (256)
 //   AVAIL_POLL_SEC     optional    availability poll cadence (default 10)
 //   REGISTRY_POLL_SEC  optional    registry re-read cadence (default 300)
@@ -180,6 +187,15 @@ const HVNODE_ATTEST = /^(1|true|yes|on)$/i.test(String(process.env.RELAY_HVNODE_
   ? { ekRoots: fs.readFileSync(process.env.RELAY_HVNODE_EK_ROOTS || VBS_DEFAULT_EK_ROOTS, "utf8") } : null;   // RELAY_HVNODE_EK_ROOTS: tests and labs only
 if (Object.keys(process.env).some((k) => k.startsWith("METAL_VBS_")))
   console.warn("[relay] METAL_VBS_* is set, but the Windows VBS-enclave attach is retired (2026-09-25): ignored");
+// pVM DEPLOYMENT serving (relay/pvm-serving.mjs; shielded/anchor/avf/RELAY-SERVING.md): PVM_SERVING, OFF unless set to
+// 1/true/on/yes. OFF, nothing here changes anything. ON, POST /x/<id>/pvm/{evidence,sealed} carry a buyer's bytes to the
+// deployment's ON-CHAIN runner when that runner is an attested pVM tunnel (sealed only to an app this hub verified under
+// PVM_APP_IDS / PVM_APP_RUNTIME_IDS); anything missing answers a plain 503. The relay is a carrier: the client verifies the
+// VM itself, and a genuine instance of the expected app is not proof of this deployment's specific instance.
+// OFF, relay/pvm-serving.mjs is not even loaded: the OFF relay carries no new code (a fault in that module cannot touch it).
+const PVM_SERVING = /^(1|true|on|yes)$/i.test(String(process.env.PVM_SERVING || "").trim())
+  ? (await import("./pvm-serving.mjs")).pvmServingFromEnv(process.env, { avfOn: !!AVF_ATTEST, pvmCpuOn: !!PVM_CPU_POLICY })
+  : { enabled: false };
 // The origin a CGNAT seller registers itself under: `<origin>/t/<name>` is the
 // URL its on-chain entry carries, and keccak of it is the runner id its leases
 // record. Configurable because a relay can be reached under more than one name;
@@ -224,11 +240,16 @@ function padsRoutes() {
   }
   return padsRoutesInstance;
 }
+const TUNNEL_ATTEST = METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST || HVNODE_ATTEST
+  ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(PVM_CPU_POLICY ? { pvmCpu: PVM_CPU_POLICY } : {}), ...(PVM_SERVING.attestPvmApp ? { pvmApp: PVM_SERVING.attestPvmApp } : {}), ...(HVNODE_ATTEST ? { hvNode: HVNODE_ATTEST } : {}) }
+  : null;
+// stated from the object the hub is GIVEN: the line says what the hub will admit, not what the env asked for
+if (PVM_SERVING.enabled) console.log(PVM_SERVING.missing.length
+  ? `[pvm-serving] ON but not configured -- every pVM route answers 503. Missing: ${PVM_SERVING.missing.join("; ")}`
+  : `[pvm-serving] ON: the tunnel hub admits ${TUNNEL_ATTEST?.pvmApp?.appIds.length ?? 0} app(s) x ${TUNNEL_ATTEST?.pvmApp?.runtimeIds.length ?? 0} runtime(s) (any listed app on any listed runtime)`);
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
-  attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST || HVNODE_ATTEST
-    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(PVM_CPU_POLICY ? { pvmCpu: PVM_CPU_POLICY } : {}), ...(HVNODE_ATTEST ? { hvNode: HVNODE_ATTEST } : {}) }
-    : null,
+  attest: TUNNEL_ATTEST,
   operatorFor: tunnelNameOwner,
   // TUNNEL_OPERATOR_ATTACH=1 — let a box prove its tunnel name with the operator
   // key that registered its endpoint on chain, instead of a token whose hash
@@ -394,6 +415,15 @@ function makeRateLimiter({ capacity, refillPerSec }) {
 }
 const rlMiss = makeRateLimiter({ capacity: 60, refillPerSec: 10 });   // /x + app-subdomain owner misses
 const rlHint = makeRateLimiter({ capacity: 20, refillPerSec: 2 });    // /v1/claim-hint fan-out
+// the pVM carrier (PVM_SERVING; null when OFF): the ledger's runner only, the relay's own client identity and limiters
+const pvmServe = PVM_SERVING.enabled ? PVM_SERVING.handler({
+  // its OWN resolver, never the app router's (pvm-serving.mjs pvmRunnerResolver): the ledger's live runner for a full id, and
+  // only the hub's current AVF-attested tunnel for it; no owner cache, no probe; the tier is not required (RELAY-SERVING.md)
+  resolve: PVM_SERVING.pvmRunnerResolver({ ledgerRows, expire: () => { _ledger.at = 0; }, origins: () => tunnelHub.origins(), endpointId }),
+  hub: tunnelHub, clientOf: (req) => clientIp(req),
+  perClient: makeRateLimiter({ capacity: 30, refillPerSec: 0.5 }), perDeployment: makeRateLimiter({ capacity: 60, refillPerSec: 1 }),
+  emit: (o) => console.log("[pvm-serving] " + JSON.stringify(o)),
+}) : null;
 // Signed-upload authorization (/v1/apps/upload-token): per-wallet token-mint cap.
 // Generous burst, ~30/hr steady — the gateway enforces the real BYTE budget.
 const rlUpload = makeRateLimiter({ capacity: 30, refillPerSec: 30 / 3600 });
@@ -2454,12 +2484,20 @@ function handleRequest(req, res) {
   const tm = u.pathname.match(/^\/t\/([A-Za-z0-9_-]+)(\/.*|)$/);
   if (tm) {
     const origin = `tunnel://${tm[1]}`;
+    // the pVM carrier's BOOTSTRAP route (relay/pvm-serving.mjs): /t/<name>/pvm/evidence, and only for a name attached as a pVM
+    // (AVF) tunnel -- every other tunnel's /t/ path is proxied exactly as before
+    if (pvmServe && tm[2] === "/pvm/evidence" && tunnelHub.origins().some((o) => o.endpoint === origin && o.mode === "avf") && pvmServe(req, res)) return;
     if (!tunnelHub.origins().some((o) => o.endpoint === origin))
       return json(res, 404, { error: "no_tunnel", message: `No tunnel enclave named ${tm[1]} is attached.` }, req);
     const refused = tunnelTenantRefusal(origin, tm[2] || "/", req.method);
     if (refused) return json(res, refused.status, { error: refused.error, message: refused.message }, req);
     return proxyTo(origin, req, res, { path: (tm[2] || "/") + (u.search || ""), setCors: true, publicOnly: !tunnelEligible(origin) });
   }
+
+  // pVM deployment carrier (PVM_SERVING; OFF by default: pvmServe is null and nothing here runs). Here, and only here: a
+  // sub-route of the /x gateway on the API host. App subdomains, custom domains, the MCP host, box hosts and /t/ were all
+  // dispatched above, so an app's own origin never reaches it.
+  if (pvmServe && pvmServe(req, res)) return;
 
   // API gateway: fleet-aware routing (see the header) — placement on create,
   // owner affinity on deployment-scoped calls, fan-out merge on list, fleet
