@@ -1,0 +1,173 @@
+09:39:04 === DEV BOOT. Host exclusion is NOT established on this path. Nothing here is verified capacity. ===
+09:39:04     partition kind: wmi-openhcl-gen2-igvm-linux (no medium; the guest is inside the IGVM), GuestStateIsolationType 1 (the LAUNCHER states it; the guest cannot know it)
+09:39:04     type 1 = VBS: the hypervisor is configured to keep VTL0 RAM host-private. That is a CONFIGURATION,
+09:39:04     not a measurement. Until a host-side memory read has been shown to find a guest marker on type 16
+09:39:04     and NOT on type 1, nothing from this run may be called host-excluded.
+09:39:29 setting before : Absent
+09:39:29 node pids      : 
+09:39:29 apps before    : e64f7cba=000 d9798e4c=000 a77d0c57=000 7ae476a3=000 a69dcbba=000 c34499ee=000
+09:39:29 loopback before: NONE - the node surface did not answer
+09:39:29 BASELINE: no legacy app answers on loopback because the legacy backend is RETIRED (DIRECTION.md; under Secure
+09:39:29           Boot its test-signed engine cannot load). There is no app to harm; the harm check for this run is
+09:39:29           the node process and the host settings, compared before and after.
+09:39:29 firmware (the measured IGVM: paravisor + our kernel/initrd/cmdline) verified: C:\Users\claude\vbs-like\pkg\3384e097aa024b73\guest\igvm-vbs\vbs-linux-candidate-1539-b7ba7731.bin (77794396 bytes) sha256 b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748 - held open, write and delete denied, until the VM is gone
+09:39:29 watchdog armed: it acts when pid 4852 ends without cleaning up, or after 1320s if this run hangs
+09:39:29 SETTING APPLIED (removed again in this run's cleanup)
+09:39:29 hv_sock service 00002329-facb-11e6-bd58-64006a7986d3 registered for port 9001 (removed again in cleanup)
+09:39:29 hyperv.psm1 verified: 17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c
+09:39:30 guest state: copy of C:\Users\claude\vbs-like\type1.vmgs -> C:\Users\claude\vbs-like\run-20260925-093904.vmgs (4194816 bytes, master sha 4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d)
+09:39:30 VTL2: auto placement NOT set - openhcl-cvm.bin is a fixed-GPA image, and petri sets the trio only for non-isolated VMs
+09:39:31 read back: GuestStateIsolationType=1 enabled=True GuestFeatureSet=0x201 Vtl2Mode=0 Vtl2Range=0 firmware='C:\Users\claude\vbs-like\pkg\3384e097aa024b73\guest\igvm-vbs\vbs-linux-candidate-1539-b7ba7731.bin'
+09:39:31 no network adapter was defined; this guest has no NIC
+09:39:32 guest VBS opt-out read back: VirtualizationBasedSecurityOptOut=True (the GUEST will not run its own VBS in guest-VTL1; the partition's isolation is unaffected)
+09:39:32 created enclave-uefi-20260925-093904 (id 44fe1ef3-861b-4688-afa0-23a1f23ff236) - Gen2, GuestStateIsolationType 1, Secure Boot off
+09:39:32 read access granted to the VM's own SID on the firmware (icacls exit 0)
+09:39:32 NO MEDIUM (-LinuxDirect): our VTL0 kernel, initrd and command line are INSIDE the measured IGVM (sha256 b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748);
+09:39:32           nothing is attached for UEFI to boot, and the guest's identity is the IGVM's launch digest, not a medium hash.
+09:39:32 COM3 UNSUPPORTED: this host's Gen2 VM exposes 2 serial ports, so OpenHCL's own log cannot be read there. Recorded as unsupported, NOT as a pass or a failure.
+09:39:32 NO medium attached; COM1 -> \\.\pipe\enclave-uefi-20260925-093904-com1
+09:39:32 boot order: 
+09:39:32 secure boot: Off
+09:39:32 boot entries: 0 (recorded only: with -LinuxDirect the IGVM carries no UEFI, so nothing reads the boot order)
+09:39:32 vTPM: PRESENT (TpmEnabled = True), because Windows makes one for a VBS VM and the guest-state
+09:39:32       key protector lives there. NOTHING ON THIS PATH READS ITS PCRs. Its presence is not
+09:39:32       attestation and must never be reported as any.
+09:39:32 read-back OK: no medium, no LoadOptions, Secure Boot off, vTPM as reported above
+09:39:34 FIRST OBSERVABLE: Start-VM ACCEPTED the partition (state now Running)
+09:39:34 COM1 attached 1405 ms after start
+09:39:34 ohcldiag-dev kmsg started (pid 12696) -> C:\Users\claude\vbs-evidence\kmsg-20260925-093904.txt
+09:39:34 inspect build_info (48 ms): {     crate_name: "build_info",     internal_scm_branch: "",     internal_scm_revision: "",     openhcl_version: "",     scm_branch: "main",     scm_revision: "a7b0bd4a653ba1c9192497a9d3669b14e7f3bc58", }
+09:39:34 inspect control_state (57 ms): "started"
+09:39:34   INSPECT/vm : {
+09:39:34   INSPECT/vm : partition: {
+09:39:34   INSPECT/vm : vp: {
+09:39:34   INSPECT/vm : 0: {
+09:39:34   INSPECT/vm : backing: {},
+09:39:34   INSPECT/vm : },
+09:39:34   INSPECT/vm : },
+09:39:34   INSPECT/vm : },
+09:39:34   INSPECT/vm : }
+09:39:34   INSPECT/proc : {
+09:39:34   INSPECT/proc : interrupts: {
+09:39:34   INSPECT/proc : CAL: {
+09:39:34   INSPECT/proc : actions: "",
+09:39:34   INSPECT/proc : cpu: {},
+09:39:34   INSPECT/proc : name: "Function call interrupts",
+09:39:34   INSPECT/proc : },
+09:39:34   INSPECT/proc : DFR: {
+09:39:34   INSPECT/proc : actions: "",
+09:39:34   INSPECT/proc : cpu: {},
+09:39:34   INSPECT/proc : name: "Deferred Error APIC interrupts",
+09:39:34   INSPECT/proc : },
+09:39:34 started; watching COM1 for 'MON ready' for 120 s
+09:39:34 host TCG log captured: C:\Users\claude\vbs-evidence\tcglog-20260925-093904-0000000068-0000000000.log (96414 bytes, host boot log 0000000068-0000000000.log)
+09:39:34 console bytes: 613 (COM1); COM3 not attached (see above)
+09:39:36 ohcldiag-dev kmsg: 0 line(s), 1 on stderr
+09:39:36   KMSG-ERR: Error: unknown service diag.UnderhillDiag
+09:39:36   kmsg control: 0 line(s) naming OpenHCL's own kernel (microsoft-hcl), 0 naming OUR VTL0 kernel
+09:39:36   (kept 0 matching line(s) of 0)
+09:39:36   CONSOLE: MON snp=0 vcpus=1 memMiB=1833 boot_ms=319
+09:39:36   CONSOLE: MON insmod /vsock.ko.zst failed: Operation not supported
+09:39:36   CONSOLE: MON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported
+09:39:36   CONSOLE: MON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported
+09:39:36   CONSOLE: MON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, CPUID)
+09:39:36   CONSOLE: MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=vbs paravisor=no
+09:39:36   CONSOLE: MON boot 5ad7d68955090bb8184fa4db9143babc
+09:39:36   CONSOLE: MON ready control_port=9000 snp=false transport=hv_sock
+09:39:36 RESULT: MON ready - the guest booted as a Linux VTL0 loaded by the paravisor from the measured IGVM (DEV BOOT; host exclusion NOT established)
+09:39:36 dialling hv_sock 44fe1ef3-861b-4688-afa0-23a1f23ff236 port 9000 ...
+09:39:36 hvdial: {"connected":true,"head":"","ms":1,"note":"a connect proves the guest has a working vsock transport and is listening. It says NOTHING about the guest's identity, its boundary or host exclusion.","port":9000,"sent":0,"vm":"44fe1ef3-861b-4688-afa0-23a1f23ff236"}
+09:39:36 CONTROL CHANNEL OK: the guest has a working vsock transport and is listening on 9000
+09:39:36 state exchange: {"connected":true,"head":"{\"boot\":\"5ad7d68955090bb8184fa4db9143babc\",\"cgroups\":0,\"dirs\":[],\"domains\":0,\"mem_available_mib\":1708,\"mem_total_mib\":1833,\"mounts\":0,\"userspace_procs\":1}","ms":1,"note":"a connect proves the guest has a working vsock transport and is listening. It says NOTHING about the guest's identity, its boundary or host exclusion.","port":9000,"sent":16,"vm":"44fe1ef3-861b-4688-afa0-23a1f23ff236"}
+09:39:36 PROTOCOL OK: the monitor answered a control command
+09:39:36 loading C:\Users\claude\vbs-like\pkg\3384e097aa024b73\apps\hello-world-1.0.4\app.bundle (sha 9c3d10f1450e17bc) through hv_sock ...
+09:39:38   WMISERVE: {"key":"pf2TP3ZT07laSh22GdPL3aQoOUZ9l2skl7Bku4n1rM4=","step":"launcher","vm":"44fe1ef3-861b-4688-afa0-23a1f23ff236"}
+09:39:38   WMISERVE: {"bound":true,"port":9001,"step":"report-service"}
+09:39:38   WMISERVE: {"agreed":true,"appSha256":"9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45","boot":"5ad7d68955090bb8184fa4db9143babc","guestPort":40001,"id":1,"ok":true,"step":"load"}
+09:39:38   WMISERVE: {"guestPort":40001,"ok":true,"step":"relay","tcp":19500}
+09:39:38   WMISERVE: {"isolationType":1,"note":"serving. This is a DEV path on a type-1 (VBS) partition: the hypervisor is CONFIGURED to keep VTL0 RAM host-private, which is a configuration and not a measurement. No host-side read has been shown to be refused here. Nothing here is host-excluded or verified capacity.","step":"ready"}
+09:39:40 APP ANSWERED: 13 raw bytes, sha256 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340
+09:39:40   body: Hello World!\n
+09:39:40 APP OK: the app served EXACTLY the pinned bytes through the guest's own TLS
+09:39:40   (identity NOT verified here: curl -k accepted the guest cert. That is judge-hv's job.)
+09:39:40 PROBE BUILD under test: initrd 1539d5b2, domprobe 2c2600495d07d292, TPM opens True
+09:39:41 NEIGHBOUR BEFORE: relay answer sha256 03ba204e50d126e4 (the pinned bytes); monitor list: domain 1 app 9c3d10f1450e17bc (the neighbour)
+09:39:41   PROBE: COM1 re-attached
+09:39:41 PROBE DOMAIN load -> {"connected":true,"head":"{\"id\":2,\"label\":\"PROBE\",\"appSha256\":\"25be323556dad377abb57fe7ec8c4b99a6527f488dda28d0c9b686528659c909\",\"port\":40002,\"uid\":5002,\"cpuPercent\":50,\"memMiB\":64,\"mode\":\"serve\",\"boot\":\"5ad7d68955090bb8184fa4db9143babc\"}","ms":1,"note":"a connect proves the guest has a working vsock transport and is listening. It says NOTHING about the guest's identity, its boundary or host exclusion.","port":9000,"sent":77,"vm":"44fe1ef3-861b-4688-afa0-23a1f23ff236"}
+09:39:43   PROBE CONSOLE: MON domain 2 loaded label=PROBE app_sha256=25be323556dad377abb57fe7ec8c4b99a6527f488dda28d0c9b686528659c909 port=40002 uid=5002 cpu=50% mem=64MiB mode=serve http=0
+09:39:43   PROBE CONSOLE: MON refused report request from uid 0 (not a domain)
+09:39:43   PROBE CONSOLE: DOM2 report_as_root=refused
+09:39:43   PROBE CONSOLE: DOM2 started adversary probe=2 (no app, no front)
+09:39:43   PROBE CONSOLE: PROBE2 uid=5002 euid=5002
+09:39:43   PROBE CONSOLE: PROBE2 other_app_absolute=No such file or directory
+09:39:43   PROBE CONSOLE: PROBE2 other_app_relative=No such file or directory
+09:39:43   PROBE CONSOLE: PROBE2 other_app_escape=No such file or directory
+09:39:43   PROBE CONSOLE: PROBE2 other_front_socket=No such file or directory
+09:39:43   PROBE CONSOLE: PROBE2 own_app=READABLE (6 bytes)
+09:39:43   PROBE CONSOLE: PROBE2 configfs_tsm=No such file or directory
+09:39:43   PROBE CONSOLE: PROBE2 sysfs=No such file or directory
+09:39:43   PROBE CONSOLE: PROBE2 create_tsm_entry=No such file or directory
+09:39:43   PROBE CONSOLE: PROBE2 dev_tpm0=No such file or directory
+09:39:43   PROBE CONSOLE: PROBE2 dev_tpmrm0=No such file or directory
+09:39:43   PROBE CONSOLE: PROBE2 visible_pids=2
+09:39:43   PROBE CONSOLE: PROBE2 signalable_pids=1
+09:39:43   PROBE CONSOLE: PROBE2 report=refused
+09:39:43   PROBE CONSOLE: PROBE2 vsock_local_domain1=Network is unreachable
+09:39:43   PROBE CONSOLE: PROBE2 vsock_local_domain2=Network is unreachable
+09:39:43   PROBE CONSOLE: PROBE2 vsock_own_control=Network is unreachable
+09:39:43   PROBE CONSOLE: DOM2 probe workload_uid=5002 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=2
+09:39:43   PROBE CONSOLE: PROBE2 vsock_host_control=timed out (no answer)
+09:39:43   PROBE CONSOLE: PROBE2 own_loopback_8080=Connection refused
+09:39:43   PROBE CONSOLE: PROBE2 host_gateway=Network is unreachable
+09:39:43   PROBE CONSOLE: PROBE2 done
+09:39:43   PROBE CONSOLE: PROBE2 eating memory: cap 64 MiB, will try 256 MiB
+09:39:43   PROBE CONSOLE: PROBE2 memory_touched=16 MiB
+09:39:43   PROBE CONSOLE: PROBE2 memory_touched=32 MiB
+09:39:43   PROBE CONSOLE: PROBE2 memory_touched=48 MiB
+09:39:43   PROBE CONSOLE: DOM2 ERROR runtime exited status=137
+09:39:43   PROBE CONSOLE: DOM2 end
+09:39:43   PROBE CONSOLE: MON domain 2 ended: its process tree exited
+09:39:43 NEIGHBOUR AFTER: relay answer sha256 03ba204e50d126e4 (the pinned bytes); monitor list: domain 1 app 9c3d10f1450e17bc (the neighbour)
+09:39:43   JUDGE uid: PROBE2 uid=5002 euid=5002 (unprivileged)
+09:39:43   JUDGE own_app: READABLE (6 bytes): the view is the probe's own chroot (positive control)
+09:39:43   JUDGE other_app_absolute: No such file or directory - absent from the domain's view; not a neighbour denial: target existence unshown
+09:39:43   JUDGE other_front_socket: No such file or directory - absent from the domain's view; not a neighbour denial: target existence unshown
+09:39:43   JUDGE other_app_relative: No such file or directory (inside a chroot this resolves to the absolute route: reported, not counted)
+09:39:43   JUDGE other_app_escape: No such file or directory (inside a chroot this resolves to the absolute route: reported, not counted)
+09:39:43   JUDGE vsock_local_domain1: Network is unreachable - NO IN-GUEST ROUTE on this build (no vsock loopback transport): neither denied nor broken, not counted
+09:39:43   JUDGE vsock_local_domain2: Network is unreachable - NO IN-GUEST ROUTE on this build (no vsock loopback transport): neither denied nor broken, not counted
+09:39:43   JUDGE vsock_own_control: Network is unreachable - NO IN-GUEST ROUTE on this build (no vsock loopback transport): neither denied nor broken, not counted
+09:39:43   JUDGE vsock_host_control: timed out (no answer) - a host connection was ATTEMPTED (not refused inside the guest); nothing listens at host port 9000, so this is no service, not a denial
+09:39:43   JUDGE host_gateway: Network is unreachable - no route in the domain's network namespace (10.0.2.2 has no target on Hyper-V)
+09:39:43   JUDGE configfs_tsm: No such file or directory - absent from the domain's view; existence in the root namespace not stated
+09:39:43   JUDGE sysfs: No such file or directory - absent from the domain's view; existence in the root namespace not stated
+09:39:43   JUDGE create_tsm_entry: No such file or directory - absent from the domain's view; existence in the root namespace not stated
+09:39:43   JUDGE dev_tpm0: No such file or directory - absent from the domain's view; existence in the root namespace not stated
+09:39:43   JUDGE dev_tpmrm0: No such file or directory - absent from the domain's view; existence in the root namespace not stated
+09:39:43   JUDGE report: refused - refused by the monitor or the signer; not cross-domain evidence, and it never shows signer authorization
+09:39:43   JUDGE visible_pids=2 (at most 3: its own tree)
+09:39:43   JUDGE signalable_pids=1 (at most 2: its own tree)
+09:39:43   JUDGE memory: CONTAINED - touched 48 MiB of its 64 MiB cap, then killed (137)
+09:39:43 PROBE destroy -> {"connected":true,"head":"{\"error\":\"no domain 2\"}","ms":1,"note":"a connect proves the guest has a working vsock transport and is listening. It says NOTHING about the guest's identity, its boundary or host exclusion.","port":9000,"sent":67,"vm":"44fe1ef3-861b-4688-afa0-23a1f23ff236"}
+09:39:43 NEIGHBOUR ACCEPTANCE: INCONCLUSIVE - inconclusive (not a denial): other_app_absolute=No such file or directory (absent from the view; the target's existence in the root namespace is not stated); other_front_socket=No such file or directory (absent from the view; the target's existence in the root namespace is not stated)
+09:39:43   (containment between apps inside the partition, by the guest kernel. Nothing here is about the HOST: host_excluded=no. PASS needs a root-namespace existence statement for each file target, which no pinned build makes yet.)
+09:39:43   (a connect proves the transport and the listener. It says NOTHING about identity, boundary or host exclusion.)
+09:39:43   ADMIN [18609] 'enclave-uefi-20260925-093904' properties were successfully initialized. (Virtual machine ID 44FE1EF3-861B-4688-AFA0-23A1F23FF236)  Guest processor fe
+09:39:43   ADMIN [3086] 'enclave-uefi-20260925-093904' The -861B-4688-AFA0-23A1F23FF236 repository has logged performance summary (Virtual machine ID {00340034-0046-0045-3100
+09:39:43   ADMIN [3086] 'enclave-uefi-20260925-093904' The -861B-4688-AFA0-23A1F23FF236 repository has logged performance summary (Virtual machine ID {00340034-0046-0045-3100
+09:39:43   ADMIN [18615] 'enclave-uefi-20260925-093904' VM guest state encryption key not released. (Virtual machine ID 44FE1EF3-861B-4688-AFA0-23A1F23FF236)
+09:39:43   ADMIN [18500] 'enclave-uefi-20260925-093904' started successfully. (Virtual machine ID 44FE1EF3-861B-4688-AFA0-23A1F23FF236)
+09:39:43   ADMIN [3086] 'enclave-uefi-20260925-093904' The -861B-4688-AFA0-23A1F23FF236 repository has logged performance summary (Virtual machine ID {00340034-0046-0045-3100
+09:39:43   ADMIN [3086] 'enclave-uefi-20260925-093904' The -861B-4688-AFA0-23A1F23FF236 repository has logged performance summary (Virtual machine ID {00340034-0046-0045-3100
+09:39:43 cleanup: VM present, state Running, notes 'enclave-vbslike-app-domain'
+09:39:44 removed enclave-uefi-20260925-093904
+09:39:44 guest state after the run: WRITTEN TO by the run (now bd5d546c71b2793e0587301b986cfe7026507e727a65eea20bc6392d7adbecfe, was 4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d)
+09:39:44 guest state archived for vmgs_check: C:\Users\claude\vbs-evidence\gueststate-20260925-093904.vmgs
+09:39:44 SETTING RESTORED to Absent (verified)
+09:39:44 hv_sock service 00002329-facb-11e6-bd58-64006a7986d3 removed (verified)
+09:39:44 live node unchanged ()
+09:40:04 apps after     : e64f7cba=000 d9798e4c=000 a77d0c57=000 7ae476a3=000 a69dcbba=000 c34499ee=000
+09:40:06 loopback after : NONE - the node surface did not answer
+09:40:06 no app that answered on loopback before this run stopped answering
+09:40:06 === DEV BOOT. Host exclusion NOT established. Not verified capacity. ===
+09:40:06 RUN OK
