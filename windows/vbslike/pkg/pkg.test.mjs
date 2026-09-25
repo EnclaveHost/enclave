@@ -27,7 +27,12 @@ const v5 = () => committed(V5);
 const V1 = path.join(HERE, "manifests/nucbox-ownguest-1.json");
 const V3 = path.join(HERE, "manifests/nucbox-ownguest-3.json");
 const SOURCES = path.join(os.homedir(), "enclave-bench/ownguest-pkg/sources");
-const WORK = path.join(os.homedir(), "enclave-bench/ownguest-pkg/test-work");   // the IGVM is 125 MB: not a tmpfs
+// the IGVM is 125 MB: not a tmpfs. ONE directory per run, named with the pid: concurrent runs (enclave-d1, -63, -99)
+// share test-work/, and after() removes only its own run's directory, never another's (a fixed WORK let one run's
+// after() delete another's files mid-run: enclave-d1, 2026-09-25).
+const WORK_ROOT = path.join(os.homedir(), "enclave-bench/ownguest-pkg/test-work");
+fs.mkdirSync(WORK_ROOT, { recursive: true });
+const WORK = fs.mkdtempSync(path.join(WORK_ROOT, `run-${process.pid}-`));
 const have = fs.existsSync(path.join(SOURCES, "guest/openhcl-ownguest-4610d594.bin"));
 const haveWasmtime = spawnSync("wasmtime", ["--version"]).status === 0;
 const skip = !have && "no local sources";
@@ -51,7 +56,7 @@ const refFor = (draft) => JSON.parse(refRawFor(draft));
 // A mutated manifest is written outside the repository, where a `repo` source reads the working tree: pin its reference
 // to exact bytes instead.
 function pinRef(m, raw) {
-  const p = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vbsref-")), "ref.json"); fs.writeFileSync(p, raw);
+  const p = path.join(fs.mkdtempSync(path.join(WORK, "vbsref-")), "ref.json"); fs.writeFileSync(p, raw);
   const f = m.files.find((x) => x.role === "reference.values"); f.from = { file: p };
   f.sha256 = crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex"); f.bytes = fs.statSync(p).size; return m;
 }
@@ -90,7 +95,7 @@ before(() => {
   assert.equal(r.code, 0, r.out);
   packed = path.join(root, fs.readdirSync(root)[0]);
 });
-after(() => { if (fs.existsSync(WORK)) fs.rmSync(WORK, { recursive: true, force: true }); });
+after(() => { fs.rmSync(WORK, { recursive: true, force: true }); });   // this run's directory only
 
 test("control: the committed manifest verifies", { skip }, () => {
   const r = run(["verify", MANIFEST]);
@@ -750,7 +755,7 @@ test("draft v28 (held; the handoff version) ships the static-line candidate and 
   assert.equal(r.code, 0, fails(r.out));
   assert.match(r.out, /ok   reference values reference\/nucbox-vbs-reference\.json: .*\(5 images, 1 eligible\)/);
   const ref = refFor(D);
-  const withRef = (mut) => { const m = structuredClone(d), x = structuredClone(ref); mut(x); const p = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vbsref-")), "ref.json"); fs.writeFileSync(p, JSON.stringify(x)); const f = m.files.find((f) => f.role === "reference.values"); f.from = { file: p }; f.sha256 = sha256(fs.readFileSync(p)); f.bytes = fs.statSync(p).size; return run(["verify", writeManifest(m)]); };
+  const withRef = (mut) => { const m = structuredClone(d), x = structuredClone(ref); mut(x); const p = path.join(fs.mkdtempSync(path.join(WORK, "vbsref-")), "ref.json"); fs.writeFileSync(p, JSON.stringify(x)); const f = m.files.find((f) => f.role === "reference.values"); f.from = { file: p }; f.sha256 = sha256(fs.readFileSync(p)); f.bytes = fs.statSync(p).size; return run(["verify", writeManifest(m)]); };
   let x = withRef((j) => { j.images.find((e) => e.id === "vbs-linux-candidate-debug-twin").eligible = true; });
   assert.equal(x.code, 1); assert.match(x.out, /FAIL reference values .*vbs-linux-candidate-debug-twin is marked eligible but is a confidential-debug image/, fails(x.out));
   x = withRef((j) => { j.images.find((e) => e.id === "vbs-linux-candidate").vbsBootDigest = "246DEE1B6F2057F504EF3B0C422E081CB365B121E7D0C7BFE420B1A8946A89F0"; });
@@ -886,7 +891,7 @@ test("draft v31 records the G1 candidate's canary (boots, serves, the per-boot n
   // the same manifest with the G1 entry's boot record withdrawn is refused by the rule
   const sha256 = (b) => crypto.createHash("sha256").update(b).digest("hex");
   const x = structuredClone(ref); x.images.find((e) => e.id === "vbs-linux-candidate-g1").booted = "no: withdrawn";
-  const rp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "vbsref-")), "ref.json"); fs.writeFileSync(rp, JSON.stringify(x));
+  const rp = path.join(fs.mkdtempSync(path.join(WORK, "vbsref-")), "ref.json"); fs.writeFileSync(rp, JSON.stringify(x));
   const m2 = structuredClone(d), f = m2.files.find((y) => y.role === "reference.values"); f.from = { file: rp }; f.sha256 = sha256(fs.readFileSync(rp)); f.bytes = fs.statSync(rp).size;
   const y = run(["verify", writeManifest(m2)]);
   assert.equal(y.code, 1); assert.match(y.out, /FAIL a candidate IGVM is a profile's firmware only once its reference entry records it booting: vbsLinux\.firmware /, fails(y.out));
