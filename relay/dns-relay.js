@@ -684,6 +684,10 @@ function apiHandler(req, res) {
     if (!name.startsWith("_acme-challenge.") || !zoneOk || name.length > 253)
       return json(400, { error: "bad_name", message: "name must be _acme-challenge.<name> under the app, tcp or box zone" });
     if (!value || value.length > 1024) return json(400, { error: "bad_value" });
+    // U7: never a challenge at a zone APEX. "_acme-challenge.<zone>" is the name a CA checks for a WILDCARD certificate over
+    // the zone, i.e. for every deployment at once, eligible or not; nothing on the platform issues one (enclave-5d, round 6)
+    if ([APP_ZONE, TCP_ZONE, BOX_ZONE].some((z) => z && name === "_acme-challenge." + z))
+      return json(403, { error: "apex_refused", message: "no dns-01 answer at a zone apex: that would certify a wildcard over every name in the zone" });
 
     // auth: the fleet HMAC (any name), else an operator signature whose
     // authority is the on-chain lease for THIS deployment's subdomain only
