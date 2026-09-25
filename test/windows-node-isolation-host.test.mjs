@@ -204,3 +204,11 @@ test("a domain the node holds or could not confirm gone still occupies the box: 
   assert.equal(before.slotsFree - after.slotsFree, 3, "three may still run; the legacy hold has no VM");
   assert.ok(Math.abs(h.cpuShareFree() - Math.max(0, 1 - 0.75 - 0.25)) < 1e-9, `cpuShareFree ${h.cpuShareFree()}`);
 });
+
+test("an ISOLATED deployment provisioning with no instance id yet (held on a manager 503) holds its share too", () => {
+  const h = box(1);
+  h.cfg.reservedShare = 0;
+  h.records.set("0x" + "b1".repeat(32), { id: "0x" + "b1".repeat(32), status: "provisioning", cpuShare: 0.3, isolationRequired: true });
+  h.records.set("0x" + "b2".repeat(32), { id: "0x" + "b2".repeat(32), status: "provisioning", cpuShare: 0.3, isolationRequired: false });
+  assert.ok(Math.abs(h.cpuShareFree() - 0.7) < 1e-9, `only the isolated one is counted: cpuShareFree ${h.cpuShareFree()}`);
+});
