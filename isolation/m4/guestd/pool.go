@@ -26,8 +26,15 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"log"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -104,6 +111,167 @@ func (s *server) admitLocked(r reservation) map[string]any {
 		}
 		return map[string]any{"error": "pool_full", "needs": r, "free": free, "detail": why}
 	}
+	return s.hostRefusal(r)
+}
+
+// The LIVE host check (enclave-99, on the 64 GiB budget). The budget is the operator's promise; MemAvailable is what the
+// host actually has, and a guest's RAM is PINNED (SEV: it is never swapped or reclaimed), so a /tmp or build surge on a
+// shared host cannot give it back. With HostFloorMiB > 0 a create is admitted only if MemAvailable - R.mem stays at or
+// above the floor; an unreadable MemAvailable refuses (fail closed). 0 = off, and the start log says so. Adoption never
+// checks it: the guests that exist already hold their memory.
+func readMemAvailableMiB() (int, error) {
+	f, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	return parseMemAvailableMiB(f)
+}
+
+// parseMemAvailableMiB reads a /proc/meminfo body: MemAvailable is in kB (KiB), so MiB = kB / 1024, rounded DOWN.
+func parseMemAvailableMiB(r io.Reader) (int, error) {
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		if fs := strings.Fields(sc.Text()); len(fs) >= 2 && fs[0] == "MemAvailable:" {
+			kb, err := strconv.Atoi(fs[1])
+			if err != nil || kb < 0 {
+				return 0, errors.New("MemAvailable is not a number")
+			}
+			return kb / 1024, nil
+		}
+	}
+	return 0, errors.New("no MemAvailable line in /proc/meminfo")
+}
+
+func (s *server) memAvailableMiB() (int, error) {
+	if s.MemAvailable != nil {
+		return s.MemAvailable()
+	}
+	return readMemAvailableMiB()
+}
+
+// pendingLocked is the memory the guests guestd holds may STILL draw from the host, beyond what MemAvailable already
+// shows: a STARTING guest has taken none of its RAM (enclave-99), so its whole reservation counts; a RUNNING one has taken
+// what its unit holds now, and SNP memory is allocated as the guest first touches it (the backend is a memfd without
+// prealloc, and a Linux guest may accept lazily), so its reservation MINUS that counts (enclave-e3); so does one that
+// ended and is not reclaimed yet. A guest whose unit cannot be read counts its whole reservation (a running one is
+// reported in unread). So the floor holds even if every
+// guest grows to its unit's MemoryMax (R.mem). s.mu must be held: it reads sysfs, it runs no command.
+func (s *server) pendingLocked() (pending, unread int) {
+	for _, v := range s.vms {
+		if !v.holds() {
+			continue
+		}
+		r := v.reservation().MemMiB
+		if v.Status == "starting" || v.unit == "" {
+			pending += r
+			continue
+		}
+		// running, or ended and not yet reclaimed (its room is held until then): what its unit may still draw
+		held, err := s.unitMemMiB(v.unit)
+		if err != nil {
+			pending += r
+			if v.Status == "running" {
+				unread++
+			}
+			continue
+		}
+		if held < r {
+			pending += r - held
+		}
+	}
+	return pending, unread
+}
+
+// unitMemMiB is what a guest's unit holds now and will not give back: its cgroup v2 memory.current less the reclaimable
+// page cache charged to it (memory.stat active_file + inactive_file: the kernel can drop that, so it would otherwise
+// count as held and undercount what the guest may still draw; enclave-e3), in MiB rounded DOWN, so what it may still
+// draw (R.mem minus this) is never undercounted.
+func (s *server) unitMemMiB(unit string) (int, error) {
+	if s.UnitMem != nil {
+		return s.UnitMem(unit)
+	}
+	return readUnitMemMiB("/proc/self/cgroup", "/sys/fs/cgroup", unit)
+}
+
+// readUnitMemMiB finds the unit's cgroup beside guestd's own: systemd-run --user (run-domain.sh) puts a transient
+// service in app.slice, where enclave-guestd.service runs too. A guestd run from anywhere else reads nothing, and every
+// running guest then counts its whole reservation (reported as unread; conservative, never open).
+func readUnitMemMiB(selfCgroup, cgroupRoot, unit string) (int, error) {
+	name := unit
+	if !strings.HasSuffix(name, ".service") {
+		name += ".service"
+	}
+	if strings.ContainsAny(name, "/\\") || strings.HasPrefix(name, ".") {
+		return 0, fmt.Errorf("unit %q is not a plain unit name", unit)
+	}
+	b, err := os.ReadFile(selfCgroup)
+	if err != nil {
+		return 0, err
+	}
+	own := ""
+	for _, l := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(l, "0::/") {
+			own = strings.TrimPrefix(l, "0::")
+		}
+	}
+	if own == "" {
+		return 0, errors.New("guestd's own cgroup (v2) is unknown")
+	}
+	dir := filepath.Join(cgroupRoot, filepath.Dir(own), name)
+	m, err := os.ReadFile(filepath.Join(dir, "memory.current"))
+	if err != nil {
+		return 0, err
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(string(m)), 10, 64)
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("%s memory.current is not a number", name)
+	}
+	st, err := os.ReadFile(filepath.Join(dir, "memory.stat"))
+	if err != nil {
+		return 0, err
+	}
+	var cache int64
+	seen := 0
+	for _, l := range strings.Split(string(st), "\n") {
+		if f := strings.Fields(l); len(f) == 2 && (f[0] == "active_file" || f[0] == "inactive_file") {
+			v, err := strconv.ParseInt(f[1], 10, 64)
+			if err != nil || v < 0 {
+				return 0, fmt.Errorf("%s memory.stat %s is not a number", name, f[0])
+			}
+			cache += v
+			seen++
+		}
+	}
+	if seen != 2 {
+		return 0, fmt.Errorf("%s memory.stat lacks active_file/inactive_file", name)
+	}
+	if n -= cache; n < 0 {
+		n = 0
+	}
+	return int(n >> 20), nil
+}
+
+// hostRefusal is the live-memory refusal for a guest reserving r, or nil. s.mu must be held.
+func (s *server) hostRefusal(r reservation) map[string]any {
+	if s.HostFloorMiB <= 0 {
+		return nil
+	}
+	pending, _ := s.pendingLocked()
+	avail, err := s.memAvailableMiB()
+	if err != nil {
+		log.Printf("REFUSED a create: the host's available memory cannot be read (%v)", err)
+		return map[string]any{"error": "host_memory_unknown", "needs": r, "floorMiB": s.HostFloorMiB,
+			"detail": "the host's available memory cannot be read, so no guest is admitted: " + err.Error()}
+	}
+	if avail-pending-r.MemMiB < s.HostFloorMiB {
+		// the host's numbers go to this host's own log only: the body carries none of MemAvailable, pending or the
+		// remainder, because a refusal's text travels on (the supervisor's public claim-hint states its reason; enclave-e3)
+		log.Printf("REFUSED a create: MemAvailable %d MiB - %d MiB the held guests may still draw - %d MiB for this guest is under the %d MiB floor",
+			avail, pending, r.MemMiB, s.HostFloorMiB)
+		return map[string]any{"error": "host_memory_low", "needs": r, "floorMiB": s.HostFloorMiB,
+			"detail": fmt.Sprintf("admitting this guest would take the host under its %d MiB memory floor", s.HostFloorMiB)}
+	}
 	return nil
 }
 
@@ -114,8 +282,15 @@ func (s *server) poolLocked() map[string]any {
 	if s.Budget.configured() {
 		budget = s.Budget
 	}
+	host := map[string]any{"floorMiB": s.HostFloorMiB, "memAvailableMiB": nil, "pendingMiB": 0, "unreadUnits": 0} // null = unread (floor off) or unreadable
+	if s.HostFloorMiB > 0 {
+		host["pendingMiB"], host["unreadUnits"] = s.pendingLocked()
+		if avail, err := s.memAvailableMiB(); err == nil {
+			host["memAvailableMiB"] = avail
+		}
+	}
 	return map[string]any{
-		"budget": budget, "allocated": a, "free": freeOf(s.Budget, a), "guests": n,
+		"budget": budget, "allocated": a, "free": freeOf(s.Budget, a), "guests": n, "host": host,
 		"overcommitted": overcommitted(s.Budget, a),
 		// how a guest's reservation follows from its policy, so a consumer sizes a claim exactly as guestd admits it:
 		// memMiB = max(floorMiB, policy memMiB + runtimeMiB) + unitOverheadMiB, cpuPct = policy cpuPercent
@@ -139,6 +314,13 @@ func (s *server) logPoolAfterRecovery() {
 			n, fmtRes(a), fmtRes(reservation(b)))
 	default:
 		log.Printf("guest pool: %d guest(s) hold %s of %s", n, fmtRes(a), fmtRes(reservation(b)))
+	}
+	if s.HostFloorMiB <= 0 {
+		log.Printf("host memory floor OFF (-guest-host-floor-mib 0): admission checks the budget only, not the host's live MemAvailable")
+	} else if avail, err := s.memAvailableMiB(); err != nil {
+		log.Printf("host memory floor %d MiB, but MemAvailable cannot be read (%v): every create is REFUSED", s.HostFloorMiB, err)
+	} else {
+		log.Printf("host memory floor %d MiB: MemAvailable now %d MiB", s.HostFloorMiB, avail)
 	}
 }
 

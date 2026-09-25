@@ -6,6 +6,17 @@ before anything was deployed; what is live now is under PRODUCTION STATUS. Not i
 
 ## PRODUCTION STATUS (2026-09-24): a canary is live
 
+**2026-09-25 update: the guest pool is LIVE on metal-iso0** (TASK 4c; evidence in
+`m4/evidence/pool-rollout-2026-09-25/README.txt`).
+- guestd is `~/enclave-prod/bin/guestd.c42612c0` with `-guest-mem-mib 65536 -guest-cpus 16` (Steven's request).
+- The node image is `metal/dist-iso-c42612c0`, measurement 10622d98..., allowlisted BESIDE 04e953a4, which is kept for
+  rollback.
+- `/availability` reports the pool: `nodeRamGb` 64, `nodeVcpus` 16, and `cpuShareFree` = min(ledger 0.70, pool 0.8125).
+- The guest images are unchanged: `-isolation` is still iso-03be27d6 at 0181bce3.
+- Rollback, and the rollback artifacts kept through the 72 h window: the evidence README.
+- Where the Host side and Rollback items below still name the pre-pool binary and image, those are the rollback
+  artifacts.
+
 At Steven's production-first direction, the per-app tier serves a real app on enclave.host. This does not
 make the tier proven secure; security testing and fixes follow it:
 
@@ -49,7 +60,9 @@ make the tier proven secure; security testing and fixes follow it:
 admits a guest only inside a budget the operator sets, `-guest-mem-mib` and `-guest-cpus` (host RAM and cores set
 aside for guests). Without them it refuses EVERY create (`pool_unconfigured`, logged naming the flags), which includes
 a canary's recreate after a crash. It still adopts the guests that are running.
-- ORDER: add both flags to `enclave-guestd.service`'s ExecStart BEFORE this build runs on metal-iso0.
+- ORDER: the flags go into `enclave-guestd.service`'s ExecStart IN THE SAME RESTART as this build, never earlier. The
+  deployed guestd does not define them, and Go's flag parsing exits on an unknown flag, so a restart of the old
+  binary with them would not start (isolation/GUEST-POOL-ROLLOUT.md, S1).
 - Each guest reserves its unit's ceilings: guest RAM (at least 1024 MiB) + 768 MiB, and its CPUQuota (100% = a core).
   Today's three canaries hold 3 x 1792 MiB and 3 cores, so a budget under 5376 MiB / 3 cores leaves the pool
   OVERCOMMITTED after the restart. Nothing is killed, but nothing is admitted until guests end.
@@ -58,7 +71,7 @@ a canary's recreate after a crash. It still adopts the guests that are running.
 - The node's supervisor mirrors the pool (`supervisor.js`, `nodeSpec`/`guestPoolRefusal`; only with ISOLATION_BACKEND).
   Landing it is a SUPERVISOR RELEASE: a new measured control-CVM image, admitted through the normal measurement-pinning
   flow, and a reboot of the node CVM.
-- ORDER: guestd's flags, then the guestd pool build, then this supervisor release. Never earlier.
+- ORDER: the guestd pool build WITH its flags (one restart, S1), then this supervisor release. Never earlier.
   - A supervisor with it takes no NEW claim from a guestd without a readable pool.
   - A RESUME of a guest guestd already holds (the release's own reboot re-discovers every own lease) is judged with the
     room that guest holds. So the canaries resume on a pool at exactly its budget, and on an older guestd they are

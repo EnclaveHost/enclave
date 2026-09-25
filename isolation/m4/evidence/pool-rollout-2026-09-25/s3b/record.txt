@@ -1,0 +1,11 @@
+at=2026-09-25T18:38:21Z host=Nan relay_user=enclave-api-relay
+exists_file=no env_files_naming_a_key=[]
+GENERATED /etc/nan-relay/secrets-release-signing.seed
+PUBLIC_KEY_HEX=d6c8a95966710fb52f4f753458362869ee26cf84aee08d27900c53a5b3fcc81d
+PUBLIC_KEY_SHA256=06212e5df9c3779ad42af904d3c9c1c01de59be9cfcc74958be30798703c8b97
+KEY_ID=06212e5df9c3779a
+SEED_SOURCE=new-file
+PLACED_FILE_MATCHES_GENERATED_KEY=yes
+FILE_MODE=600 FILE_UID=63057 FILE_GID=63057 FILE_SIZE=65 REGULAR=true
+FILE_POLICY=ok (regular, no group/other bits, 65 bytes)
+owner=enclave-api-relay:enclave-api-relay done at=2026-09-25T18:38:21Z

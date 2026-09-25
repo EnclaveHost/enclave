@@ -1,0 +1,24 @@
+--- scripts-v1/s1-apply.v2.sh	2026-09-25 10:47:03.538174539 -0700
++++ s1-apply.sh	2026-09-25 10:47:15.791927443 -0700
+@@ -11,16 +11,17 @@
+ check_guestd nopool || { say "REFUSING: guestd is not in its S0 state"; exit 14; }
+ install -m 755 "$EV/build/guestd-1" "$NEWBIN.tmp" && mv "$NEWBIN.tmp" "$NEWBIN"; echo "$NEWBIN_SHA  $NEWBIN" | sha256sum -c --quiet
+ cp -p "$U" "$UBAK"; chmod 600 "$UBAK"
+-python3 - "$U" "$OLD_LINE" "$NEW_LINE" <<'PY'
++# from here on every failure rolls back (enclave-99: fail() before the first mutation it must undo)
++fail() { say "S1 CHECK FAILED: $* -> rolling back"; $EV/s1-rollback.sh; exit 20; }
++python3 - "$U" "$OLD_LINE" "$NEW_LINE" <<'PY' || fail "the unit edit"
+ import sys,os
+ p,old,new=sys.argv[1:]; lines=open(p).read().split("\n"); idx=[i for i,l in enumerate(lines) if l==old]
+ assert len(idx)==1, idx; lines[idx[0]]=new
+ open(p+".new","w").write("\n".join(lines)); os.replace(p+".new",p)
+ PY
+ T0=$(date -u '+%Y-%m-%d %H:%M:%S'); say "S1: daemon-reload + restart (unit now: new binary + -guest-mem-mib 16384 -guest-cpus 8)"
+-systemctl --user daemon-reload
+-systemctl --user restart enclave-guestd.service
+-fail() { say "S1 CHECK FAILED: $* -> rolling back"; $EV/s1-rollback.sh; exit 20; }
++systemctl --user daemon-reload || fail "daemon-reload"
++systemctl --user restart enclave-guestd.service || fail "restart"
+ systemctl --user show enclave-guestd.service -p ExecStart --value | grep -Fq "path=$NEWBIN ;" || fail "ExecStart is not the new binary"
+ systemctl --user show enclave-guestd.service -p ExecStart --value | grep -Fq -- "-guest-mem-mib 16384 -guest-cpus 8" || fail "ExecStart lacks the flags"
+ wait_for 240 check_guestd pool || fail "guestd did not come back with the pool and the 3 same canaries"
