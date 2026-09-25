@@ -19,6 +19,19 @@ mkdir -p "$W/state"; W=$(cd "$W" && pwd); S=$W/state
 CIDA=${CIDA:-70001}; CIDB=${CIDB:-70002}; PA=${PA:-18441}; PB=${PB:-18442}
 OVMF_PLAIN=${OVMF_PLAIN:-/usr/share/edk2/x64/OVMF.4m.fd}; KERNEL=${KERNEL:-/boot/vmlinuz-linux}
 units="hvlab-signer hvlab-gA hvlab-gB hvlab-rA hvlab-rB"
+# launch_guest <tag> <cid>: direct = QEMU loads kernel+initrd+cmdline; uefi = the firmware loads the UKI from the ESP
+launch_guest() {
+  if [ "$BOOT" = uefi ]; then
+    systemd-run --user --unit="hvlab-g$1" --collect -q -p MemoryMax=1792M qemu-system-x86_64 -machine q35,accel=kvm \
+      -cpu host -smp 1 -m 1024M -bios "$OVMF_PLAIN" -drive "if=virtio,format=raw,readonly=on,file=fat:$W/esp" \
+      -device "vhost-vsock-pci,guest-cid=$2" -nodefaults -display none -serial "file:$W/g$1.serial" -no-reboot
+  else
+    systemd-run --user --unit="hvlab-g$1" --collect -q -p MemoryMax=1792M qemu-system-x86_64 -machine q35,accel=kvm \
+      -cpu host -smp 1 -m 1024M -bios "$OVMF_PLAIN" -kernel "$KERNEL" -initrd "$W/mon.cpio.gz" \
+      -append "console=ttyS0 rdinit=/init loglevel=3 report_host=9001" -device "vhost-vsock-pci,guest-cid=$2" \
+      -nodefaults -display none -serial "file:$W/g$1.serial" -no-reboot
+  fi
+}
 cleanup() { systemctl --user stop $units 2>/dev/null || true; }
 trap cleanup EXIT
 cleanup
@@ -26,16 +39,22 @@ rm -f "$S/loaded.json" "$W"/g?.serial
 
 sh "$here/build-domain.sh" "$W/mon.cpio.gz" 1 > "$W/build.log"
 echo "image $(sha256sum "$W/mon.cpio.gz" | cut -c1-64)"
+# BOOT=uefi: the guests boot the way a UEFI partition boots them - firmware -> \EFI\BOOT\BOOTX64.EFI, a UKI carrying this
+# same kernel, initrd and command line (build-uki.sh) - instead of QEMU's -kernel/-initrd/-append. Every check below is
+# unchanged, so a pass says the payload behaves identically under a UEFI boot.
+BOOT=${BOOT:-direct}
+if [ "$BOOT" = uefi ]; then
+  mkdir -p "$W/esp/EFI/BOOT"
+  sh "$here/build-uki.sh" "$KERNEL" "$W/mon.cpio.gz" "$W/esp/EFI/BOOT/BOOTX64.EFI" | tee "$W/uki.txt"
+fi
+echo "boot $BOOT"
 (cd "$W" && rm -rf ex && mkdir ex && cd ex && zcat ../mon.cpio.gz | cpio -id --quiet plat/rt/runtime.json)
 
 systemd-run --user --unit=hvlab-signer --collect -q -E HVLAB_IMAGE="$W/mon.cpio.gz" -E HVLAB_KERNEL="$KERNEL" \
   python3 -u "$here/hvlab.py" signer "$S"
 for g in "A $CIDA" "B $CIDB"; do
   set -- $g
-  systemd-run --user --unit="hvlab-g$1" --collect -q -p MemoryMax=1792M qemu-system-x86_64 -machine q35,accel=kvm \
-    -cpu host -smp 1 -m 1024M -bios "$OVMF_PLAIN" -kernel "$KERNEL" -initrd "$W/mon.cpio.gz" \
-    -append "console=ttyS0 rdinit=/init loglevel=3 report_host=9001" -device "vhost-vsock-pci,guest-cid=$2" \
-    -nodefaults -display none -serial "file:$W/g$1.serial" -no-reboot
+  launch_guest "$1" "$2"
 done
 t=0; until [ "$(grep -l "MON ready" "$W/gA.serial" "$W/gB.serial" 2>/dev/null | wc -l)" = 2 ]; do
   t=$((t + 1)); [ $t -lt 60 ] || { echo "the guests' monitors never came up"; exit 1; }; sleep 2; done
@@ -80,10 +99,7 @@ if [ -n "${NODE_TREE:-}" ]; then
   units="$units hvlab-gC hvlab-gD"
   for g in "C 70003" "D 70004"; do
     set -- $g
-    systemd-run --user --unit="hvlab-g$1" --collect -q -p MemoryMax=1792M qemu-system-x86_64 -machine q35,accel=kvm \
-      -cpu host -smp 1 -m 1024M -bios "$OVMF_PLAIN" -kernel "$KERNEL" -initrd "$W/mon.cpio.gz" \
-      -append "console=ttyS0 rdinit=/init loglevel=3 report_host=9001" -device "vhost-vsock-pci,guest-cid=$2" \
-      -nodefaults -display none -serial "file:$W/g$1.serial" -no-reboot
+    launch_guest "$1" "$2"
   done
   t=0; until [ "$(grep -l "MON ready" "$W/gC.serial" "$W/gD.serial" 2>/dev/null | wc -l)" = 2 ]; do
     t=$((t + 1)); [ $t -lt 60 ] || { echo "the node-phase guests never came up"; exit 1; }; sleep 2; done
