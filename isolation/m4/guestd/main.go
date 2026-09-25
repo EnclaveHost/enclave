@@ -37,6 +37,7 @@ type realLauncher struct {
 	m4, m2, fwd                                   string
 	vcek, chain, product, minTCB, runtimeIdentity string
 	env                                           []string
+	prefix                                        string        // the two-letter instance prefix whose units this guestd owns; "" = "gd"
 	bootWait                                      time.Duration // until "DOM serving"; 0 = 180 s (release mode waits for a ticket too)
 	aliveGrace                                    time.Duration // after this, a dead unit ends the wait even with no serial output; 0 = 5 s
 }
@@ -205,21 +206,41 @@ func (l *realLauncher) Stop(tag, workdir string) error {
 // every guest that verifies again as itself (persist.go), and only the rest end here. The supervisor re-provisions
 // what it still holds a lease for.
 func (l *realLauncher) Sweep(keep map[string]bool) ([]string, error) {
-	out, err := exec.Command("systemctl", "--user", "list-units", "--plain", "--no-legend", "--all", "m2-gd*").Output()
+	prefix := l.unitPrefix()
+	out, err := exec.Command("systemctl", "--user", "list-units", "--plain", "--no-legend", "--all", prefix+"*").Output()
 	if err != nil {
 		return nil, err
 	}
 	var stopped []string
-	for _, ln := range strings.Split(string(out), "\n") {
-		f := strings.Fields(ln)
-		if len(f) == 0 || !strings.HasPrefix(f[0], "m2-gd") || keep[strings.TrimSuffix(f[0], ".service")] || keep[f[0]] {
-			continue
-		}
-		if exec.Command("systemctl", "--user", "stop", f[0]).Run() == nil {
-			stopped = append(stopped, f[0])
+	for _, u := range sweepUnits(string(out), prefix, keep) {
+		if exec.Command("systemctl", "--user", "stop", u).Run() == nil {
+			stopped = append(stopped, u)
 		}
 	}
 	return stopped, nil
+}
+
+// unitPrefix is this guestd's guest units: "m2-" + its two-letter instance prefix. ONLY these are swept, so a second
+// guestd on the host (another prefix) never stops the first one's guests.
+func (l *realLauncher) unitPrefix() string {
+	p := l.prefix
+	if p == "" {
+		p = "gd"
+	}
+	return "m2-" + p
+}
+
+// sweepUnits picks, from `systemctl list-units` output, the units a boot sweep stops: this guestd's prefix, not kept.
+func sweepUnits(listing, prefix string, keep map[string]bool) []string {
+	var out []string
+	for _, ln := range strings.Split(listing, "\n") {
+		f := strings.Fields(ln)
+		if len(f) == 0 || !strings.HasPrefix(f[0], prefix) || keep[strings.TrimSuffix(f[0], ".service")] || keep[f[0]] {
+			continue
+		}
+		out = append(out, f[0])
+	}
+	return out
 }
 
 // pyFetcher fetches through the platform's own CAR verifier (wasm/ipfs_fetch.py, via fetch-cid.py): the bytes a
@@ -279,6 +300,7 @@ func main() {
 	guestMem := flag.Int("guest-mem-mib", 0, "host RAM (MiB) set aside for guests: the guest pool's memory budget; unset = every create is refused (pool.go)")
 	guestCPUs := flag.Int("guest-cpus", 0, "host cores set aside for guests: the guest pool's CPU budget, against each guest's CPUQuota; unset = every create is refused")
 	legacyIso := flag.String("legacy-isolation", "", "with -release: the PREVIOUS isolation/ tree, to build the deployment guests the supervisor does not mark release (their image unchanged); empty = such a deployment is refused")
+	idPrefix := flag.String("instance-prefix", "gd", "two lowercase letters for this guestd's instance ids and guest units (m2-<prefix>…); a SECOND guestd on a host needs its own, or its boot sweep stops the first one's guests")
 	releaseOn := flag.Bool("release", false, "deliver attested-release tickets (vsock host port 9444) and serve deployment guests' egress (9443) (release.go); off = neither, and /health says supports.release=false")
 	flag.Parse()
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
@@ -351,6 +373,13 @@ func main() {
 	l := &realLauncher{m4: filepath.Join(*iso, "m4"), m2: filepath.Join(*iso, "m2"), fwd: fwd, vcek: *vcek,
 		chain: *chain, product: *product, minTCB: *minTCB, runtimeIdentity: rid, env: env}
 	s := newServer(l, *root)
+	// The prefix names this guestd's instances AND its guest units, and the boot sweep below stops only those: a second
+	// guestd on this host with the default prefix would stop the first one's guests. Two letters exactly, so no two
+	// prefixes' unit patterns overlap.
+	if !regexp.MustCompile(`^[a-z]{2}$`).MatchString(*idPrefix) {
+		log.Fatalf("-instance-prefix %q: two lowercase letters", *idPrefix)
+	}
+	l.prefix, s.IDPrefix = *idPrefix, *idPrefix
 	s.Budget = poolBudget{MemMiB: *guestMem, CPUPct: *guestCPUs * 100}
 	// F7: a previous guestd's guests are ADOPTED when they verify again as the same guest (persist.go); every other
 	// guest unit is stopped and every other workdir scrubbed, as a boot sweep always did.
@@ -469,8 +498,8 @@ func main() {
 		// F7: guests OUTLIVE this process. They run in their own user units; the next guestd adopts each that verifies
 		// again as itself and ends the rest (persist.go). Ending them here would turn every guestd restart - a deploy
 		// - into a relaunch of every app with a new key (seen on the production canary, 2026-09-24 20:43Z).
-		// To end every guest deliberately: systemctl --user stop 'm2-gd*'.
-		log.Print("exiting; guests keep running for the next guestd to adopt (end them with: systemctl --user stop 'm2-gd*')")
+		// To end every guest deliberately: systemctl --user stop 'm2-<prefix>*'.
+		log.Printf("exiting; guests keep running for the next guestd to adopt (end them with: systemctl --user stop '%s*')", l.unitPrefix())
 		os.Exit(0)
 	}()
 	log.Printf("guestd serving the /vms contract on %s (firmware %s, root %s)", *listen, fw[:16], *root)
