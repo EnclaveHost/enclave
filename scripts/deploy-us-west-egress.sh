@@ -127,7 +127,10 @@ NPM_CI=0; [ "$COPY" = "egress-relay.js" ] || NPM_CI=1
 
 # 3) env — PLAIN egress: RELAY_NAME=us-west, fleet discovery, NO EGRESS_PREFIX.
 echo "[us-west-egress] writing env + installing deps + starting"
-ssh -o BatchMode=yes "$UW" "TOKEN='$TOKEN' NPM_CI='$NPM_CI' bash -s" <<'REMOTE'
+# The token travels on STDIN, as the remote script's first line, never in an argv: `printf` is a builtin, so no local
+# process carries it, and the remote side sees `bash -s`, not the token (ps on either end, sshd logs). %q also keeps a
+# token with a quote in it from breaking out of the assignment. Nothing below runs `set -x`, and nothing prints it.
+{ printf 'TOKEN=%q\nNPM_CI=%q\n' "$TOKEN" "$NPM_CI"; cat <<'REMOTE'
 set -euo pipefail
 cd /opt/nan-relay
 if [ "$NPM_CI" = 1 ] || [ ! -d node_modules ]; then npm ci --omit=dev; fi
@@ -149,5 +152,6 @@ sleep 4
 systemctl is-active enclave-egress-relay
 journalctl -u enclave-egress-relay --since "-30s" -o cat | grep -iE "control channel up|egress relay" | tail -4
 REMOTE
+} | ssh -o BatchMode=yes "$UW" 'bash -s'
 echo "[us-west-egress] done — us-west now attaches to the fleet as relay 'us-west' and carries egress."
 echo "[us-west-egress] verify: an app routed via us-west should egress FROM us-west (fast R2 reads)."
