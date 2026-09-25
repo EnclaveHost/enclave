@@ -117,6 +117,9 @@ function openListener(origin, id, address, port) {
 
 function splice(client, L) {
   if (connCount >= MAX_CONNS) { client.destroy(); return; }
+  // U7: tenant traffic is dialled only to a host the api-relay holds ELIGIBLE right now (fleet.eligibleOriginSync:
+  // its /enclaves verdict, fresh). net-map says who claims the port; it never makes the claimant eligible.
+  if (!fleet.eligibleOriginSync(L.origin)) { console.log(`[tcp6-relay] ${L.id} tcp:${L.port} -> ${L.origin} REFUSED: not an eligible host (U7)`); client.destroy(); return; }
   connCount++;
   client.once("close", () => connCount--);
   client.on("error", () => client.destroy());
@@ -139,6 +142,8 @@ function splice(client, L) {
   client.on("close", close);
   wsStream.on("error", close); wsStream.on("close", close);
   ws.on("error", close);
+  // U7: the connection lives only while the host stays eligible; a poll that finds it no longer is closes it
+  client.once("close", fleet.holdWhileEligible(L.origin, close));
   ws.on("open", () => {
     clearTimeout(hsTimer);
     client.pipe(wsStream); wsStream.pipe(client);
@@ -191,6 +196,7 @@ async function poll() {
 }
 
 await fleet.start();
+await fleet.startEligibility();
 await poll();
 setInterval(poll, POLL_MS);
 console.log(`[tcp6-relay] polling /v1/net-map across the fleet every ${POLL_MS / 1000}s`);
