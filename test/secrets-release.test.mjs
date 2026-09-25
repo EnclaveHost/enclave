@@ -503,6 +503,32 @@ test("release-status: public, listed only by SECRETS_RELEASE_DEPLOYMENTS; 503 (n
   } finally { process.env.SECRETS_RELEASE_DEPLOYMENTS = saved; process.env.SECRETS_ATTESTED_RELEASE = "1"; }
 });
 
+test("the signing seed from its own file (SECRETS_RELEASE_SIGNING_KEY_FILE): owner-only, one of the two variables, never another key", async () => {
+  rows = [leaseRow(A)]; ineligible = false; chips = [S.chip.toString("hex")];
+  const saved = { k: process.env.SECRETS_RELEASE_SIGNING_KEY, f: process.env.SECRETS_RELEASE_SIGNING_KEY_FILE };
+  const f = path.join(DIR, "release-signing.seed");
+  try {
+    delete process.env.SECRETS_RELEASE_SIGNING_KEY;
+    fs.writeFileSync(f, "7c".repeat(32) + "\n", { mode: 0o600 }); fs.chmodSync(f, 0o600);
+    process.env.SECRETS_RELEASE_SIGNING_KEY_FILE = f;
+    const t = await ticketFor(A), g = guest({ id: A, ticket: t.body.ticket }), r = await release(A, t.body.ticket, g);
+    assert.equal(r.code, 200, JSON.stringify(r.body));
+    const pub = R.ed25519RawPublic(R.signingKeyFromSeed(Buffer.alloc(32, 0x7c)));
+    assert.equal(r.body.keyId, R.keyIdOf(pub), "signed with the file's key");
+    const refusedWith = async (why) => { const x = await ticketFor(A); assert.equal(x.code, 503, why); assert.match(x.body.message, /SECRETS_RELEASE_SIGNING_KEY/, why); };
+    fs.chmodSync(f, 0o644); await refusedWith("a group/world-readable seed file");
+    fs.chmodSync(f, 0o600);
+    process.env.SECRETS_RELEASE_SIGNING_KEY = "5a".repeat(32); await refusedWith("both variables set");
+    delete process.env.SECRETS_RELEASE_SIGNING_KEY;
+    fs.writeFileSync(f, "not hex\n"); await refusedWith("a malformed seed file");
+    fs.writeFileSync(f, process.env.SECRETS_KEY + "\n"); await refusedWith("a seed file equal to SECRETS_KEY");
+    process.env.SECRETS_RELEASE_SIGNING_KEY_FILE = path.join(DIR, "no-such-file"); await refusedWith("a missing seed file");
+  } finally {
+    if (saved.f === undefined) delete process.env.SECRETS_RELEASE_SIGNING_KEY_FILE; else process.env.SECRETS_RELEASE_SIGNING_KEY_FILE = saved.f;
+    process.env.SECRETS_RELEASE_SIGNING_KEY = saved.k;
+  }
+});
+
 test("rate keys: a ticket request by client IP; a release by its ticket's ENDPOINT (many guests behind one host address); an unknown ticket by IP", async () => {
   rows = [leaseRow(A)]; ineligible = false; chips = [S.chip.toString("hex")];
   const keys = [], rate = (k) => { keys.push(k); return true; };

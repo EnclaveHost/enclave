@@ -129,7 +129,12 @@ CHIP_ID binds the **physical chip, not the endpoint**: two registered endpoints 
   - the release document stating no `nonce`.
 - `SECRETS_RELEASE_SIGNING_KEY` set, and its public key pinned in the measured front. Custody (enclave-d1):
   - generated ON the api-relay host (nan), never copied through a workstation;
-  - its env file `chmod 600` and verified;
+  - kept in its OWN file and given to the relay as `SECRETS_RELEASE_SIGNING_KEY_FILE` (preferred over the inline
+    `SECRETS_RELEASE_SIGNING_KEY`, so the seed is never copied into the env file or any backup of it; setting both is
+    refused). The file is one line of 64 hex (an Ed25519 seed), a regular file with no group or other permission bits,
+    owned by the relay's user or root; anything else is refused. The public key is the raw 32-byte Ed25519 key, and the
+    key id the relay puts in each response is the first 16 hex of its sha256 (check vector: seed 0x66 repeated gives
+    public key 34b4d904…a746, key id f7b7676c94df7e8f);
   - a key of its own, distinct from `RELAY_TXT_KEY`, `DNS_TXT_KEY`, `SECRETS_KEY` and `CERTS_KEY`. The relay refuses a seed equal to any of them.
   - **Revocation is only by a new measured front:** the pinned set is in the image, so a leaked release key stays valid for every deployed guest until those guests are re-imaged. Plan a rotation as "ship a front pinning {old, new}, switch the relay to new, ship a front pinning {new}".
 - Every provider below, wired and reviewed.
