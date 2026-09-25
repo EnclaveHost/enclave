@@ -15,17 +15,17 @@ const SOURCES = JSON.parse(fs.readFileSync(new URL("../verifier/pins/SOURCES.jso
 const REF = JSON.parse(RAW.toString("utf8"));
 const clone = () => JSON.parse(RAW.toString("utf8"));
 
-test("the pinned file is enclave-63's v31 (the rollover), by hash; only the G1 measured-VTL0 candidate is eligible, and every debug, control, stock and superseded image, the previous candidate included, is refused by its exact digest", () => {
+test("the pinned file is enclave-63's v33 (after the rollover, plus the G4 probe image), by hash; only the G1 measured-VTL0 candidate is eligible, and every debug, control, stock and superseded image, the previous candidate included, is refused by its exact digest", () => {
   assert.equal(createHash("sha256").update(RAW).digest("hex"), SOURCES["nucbox-vbs-reference.json"].sha256);
-  assert.equal(SOURCES["nucbox-vbs-reference.json"].origin.commit, "fb1bb0e6"); assert.equal(SOURCES["nucbox-vbs-reference.json"].origin.owner, "enclave-63"); assert.equal(REF.type, REFERENCE_TYPE);
-  assert.deepEqual(SOURCES["nucbox-vbs-reference.json"].previous.map((x) => x.commit), ["e94fc756", "85d74c56", "840eb861"], "every previous pin is recorded");
+  assert.equal(SOURCES["nucbox-vbs-reference.json"].origin.commit, "603f12d1"); assert.equal(SOURCES["nucbox-vbs-reference.json"].origin.owner, "enclave-63"); assert.equal(REF.type, REFERENCE_TYPE);
+  assert.deepEqual(SOURCES["nucbox-vbs-reference.json"].previous.map((x) => x.commit), ["fb1bb0e6", "e94fc756", "85d74c56", "840eb861"], "every previous pin is recorded");
   const G1 = "58DFEBFE5F46E5C0E371CE94C2AB947735EA618CF51F973FBBB58048D9C7343A", C567 = "A0FDAC0FC1EFB7B702D6DE1FACFAD8EB4E738DD35F3D3EE39AA0F5416BBCA244";
   const g1 = REF.images.find((i) => i.id === "vbs-linux-candidate-g1");
   assert.match(g1.booted, /^yes: BOOTED and SERVED/); assert.match(g1.reason, /PROSPECTIVE/, "eligibility stays prospective until report bytes verify");
   const { eligible, refused } = eligibleDigestsOf(REF);
   assert.deepEqual([...eligible.keys()], [G1]); assert.equal(eligible.get(G1).id, "vbs-linux-candidate-g1"); assert.equal(eligible.get(G1).imageSha256, "a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4");
   const refusedIds = Object.fromEntries([...refused.values()].map((r) => [r.id, r.class]));
-  assert.deepEqual(refusedIds, { "vbs-linux-candidate-g1-debug-twin": "debug", "a7b0bd4-control": "control", "a7b0bd4-debug": "debug", "stock-2511-openhcl-cvm": "stock",
+  assert.deepEqual(refusedIds, { "vbs-linux-candidate-g1-debug-twin": "debug", "g4-probe-72462737": "probe", "a7b0bd4-control": "control", "a7b0bd4-debug": "debug", "stock-2511-openhcl-cvm": "stock",
                                  "vbs-linux-candidate-c567e432": "superseded", "vbs-linux-candidate-debug-twin-c567e432": "superseded",
                                  "vbs-linux-candidate-v27": "superseded", "vbs-linux-candidate-debug-twin-v27": "superseded" });
   // the previous candidate, the only image that booted before G1, is now refused by its exact digest, with the reason naming its replacement
@@ -33,7 +33,12 @@ test("the pinned file is enclave-63's v31 (the rollover), by hash; only the G1 m
   assert.ok(refused.has("A650C020838049BA0C431E72E0744606C0D55246F9BA8031E0797F724A35157E"), "its confidential-debug twin, whose debugBuild is false");
   assert.ok(refused.has("2A93ED16DC7967A222FB791465E42E4EE84E969FD98349274C4B606D1CBAF533"), "the G1 twin (confidentialDebug, trusts the host's command line)");
   assert.ok(refused.has("246DEE1B6F2057F504EF3B0C422E081CB365B121E7D0C7BFE420B1A8946A89F0") && refused.has("0677F3C6B217794C0F70703C9C6E15EDAFE12E97DE1B5BAD520246E553E01698"), "the superseded pre-review pair");
-  assert.equal(REF.images.length, 5); assert.equal(REF.superseded.length, 4);
+  assert.equal(REF.images.length, 6); assert.equal(REF.superseded.length, 4);
+  // v33: the G4 PROBE image (the G1 recipe with a probe initrd) is refused by its exact digest; its identity document says
+  // debug_build false and it trusts nothing from the host, so ONLY the digest tells it from a candidate
+  const probe = REF.images.find((i) => i.id === "g4-probe-72462737");
+  assert.equal(refused.get("CF339BC5C89E5F160482553CFE61A2CD694B38EE7583A55B6B722DBA13271B0F").class, "probe");
+  assert.equal(probe.confidentialDebug, false); assert.equal(probe.debugBuild, false); assert.equal(probe.eligible, false);
 });
 
 test("debugBuild is never read; a file that marks a debug, host-trusting, control or superseded image eligible, repeats a digest, or has another type is refused outright", () => {
@@ -43,6 +48,8 @@ test("debugBuild is never read; a file that marks a debug, host-trusting, contro
   assert.throws(() => eligibleDigestsOf(twin), /marked eligible but is debug, confidential-debug, trusting the host's command line/);
   const host = clone(); Object.assign(host.images.find((i) => i.id === "vbs-linux-candidate-g1"), { trustsHostCommandLine: true });
   assert.throws(() => eligibleDigestsOf(host), /trusting the host's command line/);
+  const prb = clone(); prb.images.find((i) => i.id === "g4-probe-72462737").eligible = true;
+  assert.throws(() => eligibleDigestsOf(prb), /marked eligible but is probe/, "a probe image can never be eligible, whatever its flags say");
   const ctl = clone(); ctl.images.find((i) => i.id === "a7b0bd4-control").eligible = true;
   assert.throws(() => eligibleDigestsOf(ctl), /marked eligible but is control/);
   const sup = clone(); sup.superseded[0].eligible = true;
