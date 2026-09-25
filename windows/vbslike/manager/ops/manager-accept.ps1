@@ -29,7 +29,11 @@ param(
   [string] $WmiserveSha256 = '15338081b81692a155130ec28e37fa654117a3e769427b621404fff3d6c6bca4',
   # PHASE 1: enclave-5d's hvlab-accept.mjs against the manager (data plane on $DataPort); empty = phase 2 only
   [string] $HvlabScript = '',
-  [int] $DataPort = 18092
+  [int] $DataPort = 18092,
+  # the manager's sweeps: 0 = the driver's own default (5000 ms each). A package's own managerEnv states 15000 and 30000;
+  # give those to run the manager exactly as the package configures it, not with a harness's faster override.
+  [int] $LivenessMs = 0,
+  [int] $AnswerCheckMs = 0
 )
 $ErrorActionPreference = 'Stop'
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss')
@@ -51,6 +55,9 @@ $igvm = Join-Path $Pkg $IgvmRel
 $got = (Get-FileHash $igvm -Algorithm SHA256).Hash.ToLower()
 if ($got -ne $IgvmSha256.ToLower()) { throw "the IGVM hashes $got, not the pinned $IgvmSha256" }
 $treeFull = (Resolve-Path $Tree).Path
+# the driver: inside the tree under test, or an absolute path (a harness pinned OUTSIDE a package's own tree)
+$driverFull = if ([System.IO.Path]::IsPathRooted($Driver)) { $Driver } else { Join-Path $treeFull $Driver }
+if (-not (Test-Path $driverFull)) { throw "the driver is not at $driverFull" }
 $SvcPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices'
 $ReportSvcGuid = '00002329-facb-11e6-bd58-64006a7986d3'
 $wmiserveExe = $null
@@ -65,6 +72,16 @@ if ($HvlabScript -and -not (Test-Path $HvlabScript)) { throw "hvlab-accept not f
 $before = Read-Setting
 Note "=== MANAGER ACCEPTANCE ($Driver). Lifecycle and recovery only: NOT an isolation or attestation result; host_excluded=no. ==="
 Note "setting before: $($before.S); IGVM $igvm verified $got; tree $treeFull"
+# HASHES AT USE: every file of the tree under test, and each input by name, so the record names exactly what ran
+$th = "$runDir\tree-hashes.txt"
+$treeFiles = @(Get-ChildItem $treeFull -Recurse -File | Sort-Object FullName)
+$lines = foreach ($f in $treeFiles) { "$((Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower())  $($f.FullName.Substring($treeFull.Length + 1))" }
+[System.IO.File]::WriteAllLines($th, [string[]]$lines)
+$treeDigest = (Get-FileHash $th -Algorithm SHA256).Hash.ToLower()
+Note "HASHES AT USE: tree $($treeFiles.Count) files, list sha256 $treeDigest ($th)"
+foreach ($x in @($driverFull, $(if ($HvlabScript) { $HvlabScript }), (Join-Path $Pkg 'guest\runtime.json'), (Join-Path $Pkg 'apps\hello-world-1.0.4\spawn.json'), (Join-Path $Pkg 'apps\hello-world-1.0.4\app.bundle'), $GuestStateMaster, $HypervModule) | Where-Object { $_ }) {
+  Note "HASH AT USE: $((Get-FileHash $x -Algorithm SHA256).Hash.ToLower())  $x"
+}
 $sentinel = "C:\Users\claude\uefi-probe-active-$stamp.txt"; $fired = "C:\Users\claude\uefi-watchdog-fired-$stamp.txt"
 $myStart = (Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks
 Set-Content -Path $sentinel -Force -Value "run=mgraccept`npid=$PID`npidStartTicks=$myStart`nbefore.S=$($before.S)`nbefore.V=$($before.V)`nbefore.K=$($before.K)"
@@ -106,13 +123,17 @@ try {
   $cfg = @{ tree = $treeFull; port = $Port; igvm = $igvm; igvmSha256 = $got; gsMaster = $GuestStateMaster; gsMasterSha256 = $GuestStateMasterSha256;
             archiveDir = 'C:\Users\claude\vbs-evidence'; hypervModule = $HypervModule; runtimeIdentity = (Join-Path $Pkg 'guest\runtime.json');
             python = $Python; gateway = $Gateway; spawnJson = (Join-Path $Pkg 'apps\hello-world-1.0.4\spawn.json'); name = $Name; logDir = $runDir }
+  # the data plane's port for a driver that serves traffic itself (multi-accept.mjs), whether or not phase 1 runs
+  $cfg.dataPort = $DataPort
+  if ($LivenessMs -gt 0) { $cfg.livenessMs = $LivenessMs }
+  if ($AnswerCheckMs -gt 0) { $cfg.answerCheckMs = $AnswerCheckMs }
   if ($Serve) { $cfg.wmiserveExe = $wmiserveExe; $cfg.wmiserveSha256 = $WmiserveSha256.ToLower(); $cfg.bundleDir = "$runDir\bundles" }
   if ($HvlabScript) { $cfg.hvlab = @{ script = $HvlabScript; nodeTree = $treeFull; dataPort = $DataPort; timeoutS = 300 } }
   $cfg = $cfg | ConvertTo-Json -Compress -Depth 4
   $cfgFile = "$runDir\config.json"; [System.IO.File]::WriteAllText($cfgFile, $cfg)
   Note "config: $cfg"
   $out = "$runDir\driver.out"
-  $p = Start-Process -FilePath 'C:\Program Files\nodejs\node.exe' -ArgumentList @((Join-Path $treeFull $Driver), $cfgFile) `
+  $p = Start-Process -FilePath 'C:\Program Files\nodejs\node.exe' -ArgumentList @($driverFull, $cfgFile) `
          -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError "$out.err"
   $null = $p.Handle   # Windows PowerShell: without it, ExitCode is empty after WaitForExit(ms)
   if (-not $p.WaitForExit(($CeilingSeconds - 120) * 1000)) { try { $p.Kill() } catch {}; $fail += "the driver did not finish in time (killed)" }
@@ -140,6 +161,19 @@ finally {
     if (Test-Path (Join-Path $SvcPath $ReportSvcGuid)) { $fail += "hv_sock service $ReportSvcGuid NOT removed" } else { Note "hv_sock service $ReportSvcGuid removed (verified)" }
   }
   if (Test-Path $fired) { $fail += "the watchdog acted under this run" }
+  # THE TREE IS UNCHANGED BY THE RUN (READINESS.md M6): the same listing, hashed again, must equal the one hashed at use. A
+  # manager run from a staged package's tree must leave nothing behind in it (a __pycache__ was the case found).
+  try {
+    $thAfter = "$runDir\tree-hashes-after.txt"
+    $linesAfter = foreach ($f in @(Get-ChildItem $treeFull -Recurse -File | Sort-Object FullName)) { "$((Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower())  $($f.FullName.Substring($treeFull.Length + 1))" }
+    [System.IO.File]::WriteAllLines($thAfter, [string[]]$linesAfter)
+    $diff = @(Compare-Object -ReferenceObject @($lines) -DifferenceObject @($linesAfter))
+    if ($diff.Count) {
+      $added = @($diff | Where-Object { $_.SideIndicator -eq '=>' } | ForEach-Object { ([string]$_.InputObject).Substring(66) })
+      $gone = @($diff | Where-Object { $_.SideIndicator -eq '<=' } | ForEach-Object { ([string]$_.InputObject).Substring(66) })
+      $fail += "the run CHANGED the tree under test: new or changed $($added.Count) ($(($added | Select-Object -First 5) -join ', ')), removed or changed $($gone.Count) ($(($gone | Select-Object -First 5) -join ', '))$(if (@($added | Where-Object { $_ -match '__pycache__' }).Count) { '; a __pycache__ among them' })"
+    } else { Note "TREE UNCHANGED by the run: $($linesAfter.Count) files, the same hashes as at use (no __pycache__)" }
+  } catch { $fail += "the tree could not be re-hashed after the run: $($_.Exception.Message)" }
   Remove-Item $sentinel -Force -EA SilentlyContinue; Remove-Item $wdFile -Force -EA SilentlyContinue
   foreach ($f in $fail) { Note "FAILURE: $f" }
   $code = if ($fail.Count) { 1 } elseif ($driverExit -eq 3) { 3 } elseif ($driverExit -ne 0) { 2 } else { 0 }

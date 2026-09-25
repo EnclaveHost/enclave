@@ -82,7 +82,7 @@ class FakeLauncher {
     // observation, not what this file tests.
     return { instanceId, name, vmId, state: "Running", image: "ab".repeat(32), boundary: BOUNDARY,
              appId: mapping.appId, guest: { booted: true, bytes: 9, head: "" }, appReady: false,
-             tcpPort: 19000 + this.host.vms.size, launcherKey: "LKEY",
+             tcpPort: 19000 + this.host.vms.size, launcherKey: "LKEY", launcherVmId: vmId,
              stop: async () => await this.stop({ name, vmId }) };
   }
   async stop(handle) {

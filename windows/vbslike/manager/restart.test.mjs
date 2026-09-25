@@ -127,7 +127,7 @@ test("P3: a stale readiness verdict touches only the record it was judged for, n
   const gates = [];
   const judgeReady = async () => { const g = {}; g.p = new Promise((r) => { g.release = r; }); gates.push(g); await g.p;
                                    return { status: "failed", reason: "the first domain failed", checks: {} }; };
-  const b = { ...host.backend, async start(mapping, o) { const h = await host.backend.start(mapping, o); return { ...h, tcpPort: 40001 }; } };
+  const b = { ...host.backend, async start(mapping, o) { const h = await host.backend.start(mapping, o); return { ...h, tcpPort: 40001, launcherVmId: h.vmId }; } };
   const m = mk(b, { judgeReady });
   const reclaims = [];
   m.onReclaim = (id, why) => reclaims.push(`${id}:${why}`);

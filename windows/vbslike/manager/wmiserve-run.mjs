@@ -57,7 +57,9 @@ export function writeBundle({ dir, instanceId, bundle, appId }) {
 /**
  * runWmiserve(opts) -> Promise<run>, resolved at `ready`, rejected (with the child stopped) on anything else.
  *   exe, vmId, bundleFile, appId, tcpPort, and exactly one of igvmSha256 | mediumSha256
- *   run = { pid, launcherKey, domainId, boot, appSha256, guestPort, tcpPort, note, exited, stop() }
+ *   run = { pid, launcherKey, vm, domainId, boot, appSha256, guestPort, tcpPort, note, exited, stop() }
+ *   vm: the partition the launcher bound itself to, as the LAUNCHER states it (its launcher step, which the report's
+ *       partition.vmId repeats): the manager judges each report against it (READINESS.md M1)
  */
 export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 = null, mediumSha256 = null,
                               isolationType = 1, label = null, vcpus = null, memMiB = null,
@@ -118,7 +120,7 @@ export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 
         case "ready":
           settled = true; clearTimeout(timer);
           log(`wmiserve ${vmId}: ready (domain ${got.load.id}, relay ${tcpPort})`);
-          resolve({ pid: child.pid, launcherKey: got.launcher.key, domainId: got.load.id, boot: got.load.boot ?? null,
+          resolve({ pid: child.pid, launcherKey: got.launcher.key, vm: String(got.launcher.vm), domainId: got.load.id, boot: got.load.boot ?? null,
                     appSha256: got.load.appSha256, guestPort: got.load.guestPort, tcpPort, note: o.note ?? null, exited,
                     stop: () => stopRun() });
           return;

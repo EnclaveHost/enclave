@@ -75,6 +75,7 @@ test("a domain is loaded over the launcher's own protocol, and the handle carrie
     const h = await r.b.start(mapping, { instanceId: "dep-1" });
     assert.match(r.L.sent.find((s) => s.startsWith("load")), /^load dep-1 .*dep-1\.bundle$/);
     assert.equal(h.domainId, 7);
+    assert.equal(h.launcherVmId, "GUID-7", "the partition the lab launcher's key signs for, from its own load answer");
     assert.equal(h.tcpPort, 19007, "the host relay port a request reaches the domain through");
     assert.equal(h.guestPort, 8080);
     assert.equal(h.appId, APPID);
