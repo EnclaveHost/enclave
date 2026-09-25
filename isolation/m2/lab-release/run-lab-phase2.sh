@@ -9,9 +9,10 @@
 #     handleRelease with the REAL predictor over a PINNED lab domain release, verifyEvidence with KDS collateral, the
 #     chip proven from a real report on this host; lab only in its ledger row, its synthetic keys and its synthetic
 #     config/secrets, each labelled in its own output. It must already be serving (99 starts it).
-# The PASS CONDITION was recorded by the relay before any guest existed (99, under lab release 1428c0c4):
+# The PASS CONDITION was recorded by the relay before any guest existed (99, 415995e7, under lab release 6d18f7ad
+# built at the frozen image commit 5ce7ced6; evidence/phase2-2026-09-25/PASS-CONDITION.md):
 #   AppID 94c04c0edb6b4ca11b9bd0b6e4adfa98afdfa04692e6c10af79755e6db0ba0f2
-#   measurement 54ffacdda729a013d3ca59f1b321ce9f6390974d71d82e9f8e5b1b14229ec26950e9d67fbf15dae1ea180cba1665f376
+#   measurement 701946112b68fabcf5fc41982eacf17bac91c8f204c0b7178af84fa301ebe550d13444be421cb7b672544d335441f709
 # The guest is released only if its hardware report carries exactly that prediction; this script checks the guest it
 # got carries it too, that the app serves on the released synthetic key, and that no secret reaches the host.
 #
@@ -21,11 +22,11 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ISO=$(cd "$HERE/../.." && pwd)
 REPO=$(cd "$ISO/.." && pwd)
 SES=${LAB_SESSION:?LAB_SESSION=<phase2 session dir>}
-REL_ID=${LAB_DOMAIN_RELEASE_ID:-1428c0c4ff9a9238f96b9dd3c636351f65d2022dc201e3135bbbbf6dd585cdca}
-REL_DIR=${LAB_DOMAIN_RELEASE:-$SES/domain-release-020f76e7}
+REL_ID=${LAB_DOMAIN_RELEASE_ID:-6d18f7ad8bcad9576cbcbf670bd347d7966bd6ccd65e017b238acab6c745ad0f}
+REL_DIR=${LAB_DOMAIN_RELEASE:-$SES/domain-release-5ce7ced6}
 ID=${LAB_ID:-0x1ab5feb710ec35a291d5c84f01142e2bfa4611b88a1e3e031eb49ecf80780503}
 WANT_APPID=94c04c0edb6b4ca11b9bd0b6e4adfa98afdfa04692e6c10af79755e6db0ba0f2
-WANT_MEAS=54ffacdda729a013d3ca59f1b321ce9f6390974d71d82e9f8e5b1b14229ec26950e9d67fbf15dae1ea180cba1665f376
+WANT_MEAS=701946112b68fabcf5fc41982eacf17bac91c8f204c0b7178af84fa301ebe550d13444be421cb7b672544d335441f709
 ENDPOINT=https://lab-iso.enclave.test
 L=${LAB_DIR:-$HOME/enclave-bench/lab-release/phase2-run-$(date -u +%Y%m%dT%H%M%SZ)}
 mkdir -p "$L"; chmod 700 "$L"
