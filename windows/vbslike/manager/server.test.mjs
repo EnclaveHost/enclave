@@ -467,3 +467,45 @@ test("a linux-direct domain is judged on its (partition, kind) statement AND its
     }
   }
 });
+
+// A relay (wmiserve) that exits AFTER ready leaves a domain nobody can reach: the record fails, its sessions are
+// reclaimed, and the VM is left for the node to retire (d1's review of 299ce3e9). Its exit during a stop is the stop's.
+function relayed({ stopExits = false } = {}) {
+  let exit; const exited = new Promise((r) => { exit = r; });
+  const backend = { supports: {}, backend: "hv", boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
+    start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false,
+                          boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
+                          domainId: 1, guestPort: 40001, tcpPort: 19103, image: "ab".repeat(32), launcherKey: "LKEY",
+                          wmiserve: { exited } }),
+    stop: async () => { if (stopExits) { exit({ code: 0, signal: null }); await new Promise((r) => setImmediate(r)); } } };
+  return { backend, exit };
+}
+const judgeOk = async () => ({ status: "running", transportKeySha256: "cd".repeat(32), checks: { document: { ok: true, verdict: "monitor-signed" }, ready: { ok: true } } });
+
+test("a relay that exits after ready fails its domain and reclaims its sessions; the VM is not stopped here", async () => {
+  const { backend, exit } = relayed();
+  let stops = 0; const origStop = backend.stop; backend.stop = async (...a) => { stops++; return origStop(...a); };
+  const m = mk({ backend, judgeReady: judgeOk }); const seen = []; m.onReclaim = (id, why) => seen.push(why);
+  const r = await m.spawn(spawnBody()); await m.judging.get(r.id);
+  assert.equal(m.get(r.id).status, "running");
+  exit({ code: 101, signal: null }); await new Promise((res) => setImmediate(res));
+  const after = m.get(r.id);
+  assert.equal(after.status, "failed"); assert.match(after.reason, /relay process exited \(code 101\)/);
+  assert.deepEqual(seen, ["the relay process exited"]); assert.equal(stops, 0, "only a stop removes a VM");
+});
+
+test("a relay exiting BECAUSE of a stop is not a failure: the domain is removed, reclaimed once, as removed", async () => {
+  const { backend } = relayed({ stopExits: true });
+  const m = mk({ backend, judgeReady: judgeOk }); const seen = []; m.onReclaim = (id, why) => seen.push(why);
+  const r = await m.spawn(spawnBody()); await m.judging.get(r.id);
+  assert.deepEqual(await m.remove(r.id), { removed: true, absent: false });
+  assert.deepEqual(seen, ["removed"]);
+});
+
+test("a relay exiting after readiness already FAILED leaves that reason standing", async () => {
+  const { backend, exit } = relayed();
+  const m = mk({ backend, judgeReady: async () => ({ status: "failed", reason: "the document was not accepted", transportKeySha256: null, checks: {} }) });
+  const r = await m.spawn(spawnBody()); await m.judging.get(r.id);
+  exit({ code: 1, signal: null }); await new Promise((res) => setImmediate(res));
+  assert.match(m.get(r.id).reason, /document was not accepted/);
+});
