@@ -1,0 +1,16 @@
+{
+ "sigstore-trusted-root.json": {
+  "what": "the Sigstore public-good trusted root (Fulcio CAs, Rekor v1 + v2 keys, CT logs, TSA), byte-identical to test/fixtures/verifier/sigstore/trusted_root.json, which was reached through TUF timestamp -> snapshot -> targets and hash-checked; the consumers (CLI, self-check, relay) verify release provenance against THIS pinned copy, never a root fetched at run time. Refreshing it is the TUF refresh job (plan section 10, M4).",
+  "sha256": "6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66",
+  "source": {
+   "url": "https://tuf-repo-cdn.sigstore.dev/targets/6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66.trusted_root.json",
+   "tufTimestampVersion": 790,
+   "tufSnapshotVersion": 165,
+   "tufTargetsVersion": 14,
+   "sha256": "6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66",
+   "length": 6787,
+   "fetchedAt": "2026-09-24T04:48Z",
+   "note": "TUF metadata signatures were NOT verified by this capture (no TUF client here); the hash chain timestamp->snapshot->targets->target was followed and the target hash checked. A TUF-verified refresh is a follow-up (sigstore-js tuf-js)."
+  }
+ }
+}

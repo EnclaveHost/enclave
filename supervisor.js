@@ -3612,6 +3612,22 @@ async function cachedGpuEvidence() {
 // own PUBLIC origin (hairpin) plus Tinfoil's GitHub/KDS proxies; if any of that
 // is unreachable from inside, it degrades to "unavailable", never an error.
 const SELF_CHECK_TTL_MS  = parseInt(process.env.SELF_CHECK_TTL_MS || "300000", 10); // re-check cadence after a pass (non-pass retries after 30s)
+// Which verifiers the self-check runs (docs/security/independent-verifier-plan.md, section 9 stage 2):
+//   both (default): @tinfoilsh/verifier as before AND this repository's own verifier (verifier/dist/enclave-verifier-node.mjs,
+//                   copied into the image by the Dockerfile); `result` and `steps` stay Tinfoil's, the second result is
+//                   published beside them as `enclave`, with `agreement`. A diagnostic beside a diagnostic.
+//   tinfoil:        the fallback: exactly the previous behaviour, nothing else runs.
+//   enclave:        the own verifier decides `result` (the cutover for this consumer, per stage 7); Tinfoil's runs beside it.
+const SELF_CHECK_VERIFIERS = ["both", "tinfoil", "enclave"].includes(process.env.SELF_CHECK_VERIFIERS || "") ? process.env.SELF_CHECK_VERIFIERS : "both";
+// The own verifier's release index: the github-proxy this enclave already reaches (default) or GitHub directly. Either
+// only serves bytes that must verify against the pinned Sigstore root inside the bundle; a proxy can deny, not forge.
+const SELF_CHECK_RELEASE_INDEX = process.env.SELF_CHECK_RELEASE_INDEX === "direct" ? null : { apiBase: "https://github-proxy.tinfoil.sh", downloadBase: "https://github-proxy.tinfoil.sh" };
+// The own verifier's AMD collateral source (VCEK, chain, CRL): Tinfoil's KDS proxy (the host this enclave reaches today) or
+// AMD's KDS directly (SELF_CHECK_KDS=amd); the bytes are verified against the pinned AMD root either way.
+const SELF_CHECK_KDS = process.env.SELF_CHECK_KDS === "amd" ? "https://kdsintf.amd.com" : "https://kds-proxy.tinfoil.sh";
+// A TCB floor per product line, JSON (e.g. {"Genoa":{"bootloader":10,"tee":0,"snp":23,"microcode":84}}); without one the
+// own verdict is at best "limited" (tcb-floor-unjudged), which is reported as such and never as a pass.
+const SELF_CHECK_MIN_TCB = (() => { const raw = process.env.SELF_CHECK_MIN_TCB; if (!raw) return undefined; try { return JSON.parse(raw); } catch { return raw; } })();
 const SELF_CHECK_WAIT_MS = parseInt(process.env.SELF_CHECK_WAIT_MS || "8000", 10);  // max time one request waits on a fresh run
 const SELF_CHECK_NOTE = "Run by the enclave itself as a diagnostic: it proves this deployment is configured "
                       + "to verify, not that you should trust it. Reproduce it on your side with `cli`, `npm`, "
@@ -3661,9 +3677,41 @@ async function verifyMatchingRelease(host, repo) {
   return latest;   // nothing matched: the latest-comparison doc carries the mismatch detail
 }
 
+// The own verifier's leg: verifier/consumer.mjs selfCheckHosted through the bundle the image carries. The capture goes to
+// the shim over loopback (the trusted in-CVM source fetchEnclaveRad uses, with SNI for the public name so the shim presents
+// the public certificate), the expected measurement comes from release provenance verified against the pinned Sigstore
+// root, the AMD chain and CRL from the collateral source above. Anything missing or failing is a status, never a throw.
+let _ownVerifier = null;
+async function runOwnSelfCheck(origin) {
+  if (!ENCLAVE_REPO) return { verifier: "enclave", status: "unavailable", reasons: ["ENCLAVE_REPO not configured"] };
+  if (!origin)       return { verifier: "enclave", status: "unavailable", reasons: ["public origin not known yet (no external request seen)"] };
+  try { _ownVerifier ||= await import("./verifier/dist/enclave-verifier-node.mjs"); }
+  catch (e) { return { verifier: "enclave", status: "unavailable", reasons: [`the verifier bundle is not in this image: ${e.message}`] }; }
+  const C = _ownVerifier;
+  const loopback = ATTESTATION_URL ? { host: new URL(ATTESTATION_URL).hostname, port: Number(new URL(ATTESTATION_URL).port) || (new URL(ATTESTATION_URL).protocol === "https:" ? 443 : 80) } : { host: "127.0.0.1", port: 443 };
+  return C.selfCheckHosted({ publicHost: new URL(origin).hostname, loopback, repo: ENCLAVE_REPO, releaseIndex: SELF_CHECK_RELEASE_INDEX,
+                             collateral: C.httpCollateral({ base: SELF_CHECK_KDS, timeoutMs: 8000 }), minTcb: SELF_CHECK_MIN_TCB, timeoutMs: 15000 });
+}
+// The two legs agree or not, in words a reader can act on (verifier/consumer.mjs dualAgreement: descriptive, each leg
+// fetched for itself; a refusal never becomes a pass). Without the bundle there is nothing to compare with.
+function selfCheckAgreement(t, e) {
+  if (!_ownVerifier?.dualAgreement || !t || !e) return "not-compared";
+  return _ownVerifier.dualAgreement({ reference: { available: t.result !== "unavailable", pass: t.result === "pass", measurement: t.measurement }, own: e });
+}
 let _selfCheck = null;                  // { data, at }
 let _selfCheckRun = null;               // in-flight run (shared across concurrent requests)
 async function runSelfCheck(origin) {
+  const mode = SELF_CHECK_VERIFIERS;
+  const [t, e] = await Promise.all([
+    mode === "enclave" || mode === "both" || mode === "tinfoil" ? runTinfoilSelfCheck(origin).catch((x) => ({ result: "unavailable", error: x.message })) : null,
+    mode === "tinfoil" ? null : runOwnSelfCheck(origin).catch((x) => ({ verifier: "enclave", status: "unavailable", reasons: [x.message] })),
+  ]);
+  if (mode === "tinfoil") return t;                                                     // the previous behaviour, byte for byte
+  const own = e ? { ...e, result: e.status === "verified" ? "pass" : e.status === "unavailable" ? "unavailable" : "fail" } : null;
+  const primary = mode === "enclave" ? { result: own.result, ...(own.result !== "pass" ? { error: own.reasons?.at(-1) || own.status } : {}), release: own.release ? `release ${own.release}` : null, measurement: own.measurement ?? null } : t;
+  return { ...primary, verifiers: mode, ...(mode === "enclave" ? { tinfoil: t } : {}), enclave: own, agreement: selfCheckAgreement(t, own) };
+}
+async function runTinfoilSelfCheck(origin) {
   if (!ENCLAVE_REPO) return { result: "unavailable", error: "ENCLAVE_REPO not configured" };
   if (!origin)       return { result: "unavailable", error: "public origin not known yet (no external request seen)" };
   let doc, failure = null;

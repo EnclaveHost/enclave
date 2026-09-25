@@ -11,7 +11,7 @@
 //   enclave login                    or sign in with your Enclave account (passkey)
 //   enclave deploy hello-world:1 --fund 2  create + fund + wait until live
 //   enclave ls | status | logs -f    watch it run
-//   enclave attest <id>              verify the enclave BEFORE you send data
+//   enclave attest <id>              verify the enclave BEFORE you send data  [--verifier tinfoil|enclave|both] [--min-tcb JSON]
 //   enclave publish app.wasm --slug hello-world   pin to IPFS + cut a catalog version
 //
 // State lives in ~/.config/enclave/ (key: chmod 600; cached bearer tokens).
@@ -332,7 +332,12 @@ const APPROVAL_WORD = ["pending", "approved", "rejected"];
 // ---- global flags + config ---------------------------------------------------
 // Parsed once, up front; command args are whatever remains.
 const opt = { json: false, trace: false, base: null, rpc: null, yes: false,
-              unsigned: false, signer: null, from: null };
+              unsigned: false, signer: null, from: null,
+              // `enclave attest`: which verifier judges (docs/security/independent-verifier-plan.md, section 9 stage 3).
+              //   tinfoil (default): @tinfoilsh/verifier, exactly as before.
+              //   both:              both run; both verdicts print; the EXIT CODE follows Tinfoil's until the cutover.
+              //   enclave:           the Enclave-owned verifier alone decides (opt-in).
+              verifier: "tinfoil", minTcb: null, releaseBundle: null, releaseDigest: null, collateralDir: null };
 const args = [];
 {
   const a = argv.slice(2);
@@ -353,6 +358,11 @@ const args = [];
     else if (a[i] === "--unsigned") opt.unsigned = true;
     else if (a[i] === "--signer") opt.signer = a[++i];
     else if (a[i] === "--from") opt.from = a[++i];
+    else if (a[i] === "--verifier") opt.verifier = a[++i];
+    else if (a[i] === "--min-tcb") opt.minTcb = a[++i];                 // JSON TCB floor per product line; without it the Enclave verdict is at best "limited"
+    else if (a[i] === "--release-bundle") opt.releaseBundle = a[++i];   // offline release provenance: attestation bundle file(s), comma-separated,
+    else if (a[i] === "--release-digest") opt.releaseDigest = a[++i];   //   paired with the release digest(s); default: GitHub's public release index
+    else if (a[i] === "--collateral-dir") opt.collateralDir = a[++i];   // AMD collateral from a directory (amd/<product>-cert_chain.pem, amd/<product>-crl.der, vcek/<product>-<chip>-<tcb>.der) instead of KDS
     else args.push(a[i]);
   }
 }
@@ -929,6 +939,71 @@ async function verifyEnclaveOrigin(origin, repo) {
            measurement: doc.enclaveFingerprint || null,
            error: failure?.message || null };
 }
+// ---- the Enclave-owned verifier (verifier/consumer.mjs), beside the Tinfoil one --------------------------------
+// The same origin, verified again by THIS repository's verifier: one capture over the CLI's own TLS connection
+// (document + the certificate of that handshake), the expected measurement from the release's Sigstore provenance
+// against the pinned Sigstore root (GitHub's public index directly, no Tinfoil proxy; or --release-bundle offline),
+// the AMD chain and CRL from KDS. Bundled by cli/build.mjs; an install without it says so and never pretends.
+const VERIFIER_MODES = ["tinfoil", "enclave", "both"];
+async function verifyEnclaveOriginOwn(origin, repo) {
+  let C;
+  try { C = await import(new URL("../verifier/consumer.mjs", import.meta.url).href); }
+  catch (e) { throw new Error(`the Enclave verifier is not part of this install (${e.message}); reinstall the CLI, or use --verifier tinfoil`); }
+  const u = new URL(origin), host = u.hostname, port = u.port ? Number(u.port) : 443;
+  let expectations = null;
+  if (opt.releaseBundle || opt.releaseDigest) {
+    if (!opt.releaseBundle || !opt.releaseDigest) throw new Error("--release-bundle and --release-digest go together");
+    const files = opt.releaseBundle.split(","), digests = opt.releaseDigest.split(",");
+    if (files.length !== digests.length) throw new Error("--release-bundle and --release-digest must pair up");
+    expectations = await C.releaseExpectationsFrom(files.map((f, i) => { const j = JSON.parse(fs.readFileSync(f, "utf8")); return { tag: path.basename(f), digest: digests[i].trim(), bundle: j.attestations ? j.attestations[0]?.bundle : j }; }), { repo });
+    trace(`release provenance from ${files.length} local bundle(s): ${expectations.reasons.join("; ")}`);
+  }
+  let minTcb;
+  if (opt.minTcb) { try { minTcb = JSON.parse(opt.minTcb); } catch { throw new Error("--min-tcb must be JSON like {\"Genoa\":{\"bootloader\":10,\"tee\":0,\"snp\":23,\"microcode\":84}}"); } }
+  let collateral = null;
+  if (opt.collateralDir) { const { fileCollateral } = await import(new URL("../verifier/collateral.mjs", import.meta.url).href); collateral = fileCollateral(path.resolve(opt.collateralDir)); }
+  trace(`verify ${origin} with the Enclave verifier (capture over this connection, release provenance from ${expectations ? "local bundles" : "GitHub"}, AMD collateral from ${collateral ? opt.collateralDir : "KDS"})`);
+  const r = await C.verifyHost({ host, port, repo, expectations, reference: false, minTcb, collateral });
+  const v = r.enclave;
+  return { verifier: "enclave", status: v.status, pass: v.status === "verified", admissionSafe: v.admissionSafe === true,
+           release: v.matched ? { tag: v.matched, digest: r.expectations.allowed.find((a) => a.tag === v.matched)?.digest ?? null } : null,
+           expected: r.expectations.allowed.map((a) => a.tag), latestTag: r.expectations.latestTag ?? null, indexError: r.expectations.indexError ?? null,
+           measurement: v.measurement ?? null, failedChecks: v.failedChecks ?? [], omissions: v.omissions ?? [], checks: v.checks ?? {},
+           certificate: r.capture?.certificate ? { subject: r.capture.certificate.subject, sha256: r.capture.certificate.sha256, notAfter: r.capture.certificate.notAfter } : null,
+           reasons: v.reasons ?? [] };
+}
+function printOwnVerdict(r) {
+  kv([["verifier", "enclave (verifier/consumer.mjs)"], ["  status", r.status],
+      ["  release", r.release ? `${r.release.tag}${r.release.digest ? ` sha256:${r.release.digest}` : ""}` : `none matched (expected ${r.expected.join(", ") || "nothing: no verified provenance"})`],
+      ["  measurement", r.measurement], ["  failed", r.failedChecks.join(", ") || "-"], ["  omitted", r.omissions.join(", ") || "-"]]);
+  const last = r.reasons.at(-1);
+  say(r.pass ? "verdict     PASS (enclave): this origin's document, served key and certificate verify against a release with verified provenance"
+    : r.status === "limited" ? `verdict     LIMITED (enclave): every check passed, but ${r.omissions.join(", ")} was not judged (state a floor with --min-tcb); not a pass`
+    : `verdict     ${r.status.toUpperCase()} (enclave): do not send data${last ? ` (${last})` : ""}`);
+}
+// Both verdicts, by mode. `pass` is what the exit code follows: Tinfoil's in tinfoil and both modes (stage 3), the
+// Enclave verifier's in enclave mode. `agreement` is descriptive: two verifiers over their own fetches of one origin.
+async function verifyByMode(origin, repo) {
+  const mode = opt.verifier;
+  if (!VERIFIER_MODES.includes(mode)) throw new Error(`--verifier must be one of ${VERIFIER_MODES.join(", ")}`);
+  const out = { verifier: mode, tinfoil: null, enclave: null, agreement: null, pass: false };
+  if (mode === "tinfoil") out.tinfoil = await verifyEnclaveOrigin(origin, repo);          // as before: a thrown verification ends the command
+  else if (mode === "both") {
+    // both legs report; a Tinfoil leg that throws is a recorded failure here, not the end of the command
+    try { out.tinfoil = await verifyEnclaveOrigin(origin, repo); }
+    catch (e) { out.tinfoil = { pass: false, steps: {}, release: null, measurement: null, error: e.message }; }
+  }
+  if (mode !== "tinfoil") {
+    try { out.enclave = await verifyEnclaveOriginOwn(origin, repo); }
+    catch (e) { out.enclave = { verifier: "enclave", status: "unavailable", pass: false, admissionSafe: false, release: null, expected: [], measurement: null, failedChecks: [], omissions: [], checks: {}, certificate: null, reasons: [`unavailable: ${e.message}`] }; }
+  }
+  if (out.tinfoil && out.enclave) {
+    const { dualAgreement } = await import(new URL("../verifier/consumer.mjs", import.meta.url).href).catch(() => ({ dualAgreement: () => "not-compared" }));
+    out.agreement = dualAgreement({ reference: { available: true, pass: out.tinfoil.pass, measurement: out.tinfoil.measurement }, own: out.enclave });
+  }
+  out.pass = mode === "enclave" ? out.enclave.pass : out.tinfoil.pass;
+  return out;
+}
 function printVerdict(r, origin, repo) {
   kv([["enclave", origin], ["repo", repo],
       ...Object.entries(r.steps).map(([k, v]) => ["  " + k, v]),
@@ -960,7 +1035,12 @@ async function attestDeployment(account, id) {
                         asOwner ? { auth: account } : {});
   const origin = new URL(att.verification.attestationEndpoint).origin;
   const repo = pinnedRepo(att.verification.repo);
-  return { att, nonce, origin, repo, result: await verifyEnclaveOrigin(origin, repo) };
+  return { att, nonce, origin, repo, result: await verifyByMode(origin, repo) };
+}
+function printVerdicts(r, origin, repo) {
+  if (r.tinfoil) printVerdict(r.tinfoil, origin, repo);
+  if (r.enclave) printOwnVerdict(r.enclave);
+  if (r.agreement) say(`agreement   ${r.agreement}${r.verifier === "both" ? " (exit code follows the Tinfoil verdict)" : ""}`);
 }
 
 // ---- commands ---------------------------------------------------------------------
@@ -1245,9 +1325,9 @@ async function cmdAttest(rest) {
     const att = await api("GET", "/v1/attestation");
     const origin = new URL(att.verification.attestationEndpoint).origin;
     const repo = pinnedRepo(att.verification.repo);   // pinned, not API-chosen
-    const r = await verifyEnclaveOrigin(origin, repo);
-    if (opt.json) return jout({ origin, repo, ...r });
-    printVerdict(r, origin, repo);
+    const r = await verifyByMode(origin, repo);
+    if (opt.json) return jout({ origin, repo, ...(r.tinfoil || {}), ...r });
+    printVerdicts(r, origin, repo);
     if (!r.pass) exit(1);
     return;
   }
@@ -1262,9 +1342,9 @@ async function cmdAttest(rest) {
   // freshness is unproven (a replayed report would still "have a nonce").
   const gpuNonce = att.gpu ? String(att.gpu.nonce || "").toLowerCase().replace(/^0x/, "") : "";
   const gpuNonceOk = !!nonce && !!gpuNonce && gpuNonce === nonce.toLowerCase();
-  if (opt.json) return jout({ id, origin, repo, ...result, vm: att.vm ? { technology: att.vm.technology, measurements: att.vm.measurements } : null, gpu: att.gpu ? { ccMode: att.gpu.ccMode, nonce: att.gpu.nonce, nonceVerified: gpuNonceOk } : null });
+  if (opt.json) return jout({ id, origin, repo, ...(result.tinfoil || {}), ...result, vm: att.vm ? { technology: att.vm.technology, measurements: att.vm.measurements } : null, gpu: att.gpu ? { ccMode: att.gpu.ccMode, nonce: att.gpu.nonce, nonceVerified: gpuNonceOk } : null });
   kv([["deployment", id], att.app?.digest ? ["app digest", att.app.digest] : null]);
-  printVerdict(result, origin, repo);
+  printVerdicts(result, origin, repo);
   if (att.vm?.technology) say(`vm          ${att.vm.technology} quote present (registers in --json)`);
   if (att.gpu) say(`gpu         CC report ${att.gpu.report ? "present" : "absent"}${att.gpu.ccMode ? `, ccMode=${att.gpu.ccMode}` : ""}`
     + (gpuNonceOk ? `, fresh (signed over our nonce)`

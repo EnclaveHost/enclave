@@ -572,18 +572,19 @@ No automatic cutover. Each stage is a reviewed change with a configuration flag 
 1. **Shadow in CI** (this branch): the harness runs on every push against the fixtures and, in a scheduled
    job, against live public evidence (a Tinfoil public host for the hosted format, the fleet when attached);
    the job also runs `@tinfoilsh/verifier` and fails on divergence.
-2. **Shadow in the enclave self-check**: `runSelfCheck` runs both verifiers and publishes both results under
-   `verification.selfCheck.{tinfoil,enclave}`; still a diagnostic; divergence is logged. Flag:
-   `SELF_CHECK_VERIFIERS=tinfoil|enclave|both`.
-3. **Shadow in the CLI**: `enclave attest --verifier both` prints both verdicts; the exit code follows the
-   Tinfoil verdict until stage 5. Flag on the command line only.
+2. **Shadow in the enclave self-check** (BUILT 2026-09-25, section 10.4): `runSelfCheck` runs both verifiers and publishes
+   the second result beside the first as `verification.selfCheck.enclave` with `agreement`; still a diagnostic. Flag:
+   `SELF_CHECK_VERIFIERS=both|tinfoil|enclave` (default both; tinfoil = the previous object).
+3. **Shadow in the CLI** (BUILT 2026-09-25): `enclave attest --verifier both` prints both verdicts; the exit code follows the
+   Tinfoil verdict until stage 7. Flag on the command line only (default tinfoil, unchanged).
 4. **Shadow in the browser**: `site/js/core/verify.js` runs the new bundle beside `verifier.js` and renders
    the new verdict as a secondary line; the green state still comes from the Tinfoil result. Same-origin
    bundle built by `build-vendor.mjs` from this repository's code, so no CDN and no new host.
 5. **Consumer gate**: clients (CLI, Node consumers, later the browser bundle) release requests only through
    `verifier/admission.mjs`; pVM evidence enters through the owner's `verifyPvmAppEvidence` behind the
    adapter; the gaps in section 8.1 close first.
-6. **Relay**: dialed rows are re-verified with the new verifier (today `teeCpu` is self-reported);
+6. **Relay** (BUILT 2026-09-25, shadow by default): dialed rows are re-verified with the new verifier
+   (`RELAY_REVERIFY=shadow|enforce|off`; today `teeCpu` is self-reported and stays the rule until `enforce`);
    permissionless attach keeps `relay/snp-verify.mjs` until the new module has replaced it behind the same
    tests, then `expectedBinding` and the pVM ABI/2 frame land with the isolation and pVM owners.
 7. **Cutover decision**: after an independent review of `verifier/` and at least four weeks of zero
@@ -598,7 +599,7 @@ No automatic cutover. Each stage is a reviewed change with a configuration flag 
 | M0 (done on this branch) | map, fixtures, harness for SNP + provenance + hosted binding, differential run, CLI | done |
 | M1 | strict envelope for every format in the registry (DONE 2026-09-24: per-format shapes), CRL policy modes (done), collateral adapters with a disk cache (DONE 2026-09-24: the authenticated, slot-bound cache), Rekor v2 bundles (BLOCKED: no authentic v2 bundle located; see below), scheduled live differential job (PREPARED 2026-09-24 as a shadow job: `verifier/live-differential.mjs` and `.github/workflows/verifier-live-differential.yml`, dispatch-only and gated by a repository variable that is not set, read-only, tested offline on the fixtures) | 5 |
 | M2 | browser build: WebCrypto signatures, X.509 via a reviewed library (PROTOTYPE DONE 2026-09-24: `verifier/web/`, the same `snp.mjs` verdict code behind a crypto provider; see `browser-x509-parser-decision.md`); reproducible packaging with an input manifest and exact notices (DONE 2026-09-24: `verifier/web/dist/`, `reproduce.mjs` under the strict command); an opt-in same-origin shadow adapter that records and never decides (DONE 2026-09-24: `verifier/web/shadow.mjs`, proven in Node and in Chrome 151); same-origin delivery through the site's vendor rule and the site's opt-in shadow line (DONE 2026-09-24 under Steven's website authorization: `site/vendor/enclave-verifier.js` via `scripts/build-vendor.mjs`, `site/js/core/verify-shadow.js` awaited by `verify.js`, record only, viewer opt-in, no primary root or verdict change; `verifier/web/README.md`) | 8 |
-| M3 | CLI `--verifier both`, self-check both, relay re-verification of dialed rows | 5 |
+| M3 | CLI `--verifier both`, self-check both, relay re-verification of dialed rows (BUILT 2026-09-25, section 10.4: every path behind a flag whose fallback is the previous behaviour; no live hosted enclave existed to show a `verified` end to end) | done, pending live data |
 | M4 | signed release index in the release workflow, mirror at `enclave.host`, TUF refresh job, minimum-release policy | 5 |
 | M5 | independent review, cutover per consumer with fallback flags | 3 + review |
 | later | TDX (QVL-grade), NVIDIA GPU evidence, measurement recompute from archived image inputs, AVF ABI/2 relay frame | separate plans |
@@ -811,6 +812,69 @@ the served SPKI b071a9c9… is the document's transport key, TCB at the floor, a
 as the command-line expectation (the owner's pinned-release reconstruction; not reproduced here until the release bytes
 are). The negative: the same record read as v1 (no port) derives 9add8960… and the report is REFUSED at the app-id
 check, so the port is in the identity, not beside it.
+
+## 10.4 M3: the production consumers (2026-09-25, Steven's direction: the next unfinished consumer integrations)
+
+One module carries the three consumers: `verifier/consumer.mjs`. It composes what existed and adds no verdict rule: one
+capture over the caller's OWN TLS connection (`captureHosted`: the document and the certificate of that handshake, from
+one `https.request`, WebPKI on by default), the expected measurements from VERIFIED release provenance only
+(`releaseExpectations`: the latest tag from GitHub's index or explicit tags, each flavor's `tinfoil.hash` and attestation
+bundle, `verifier/provenance.mjs` against the Sigstore root pinned at `verifier/roots/sigstore-trusted-root.json`, which the
+module imports so it travels inside every bundle), the verdict of `verifier/snp.mjs` through the envelope registry (TDX,
+GPU, VBS, Hyper-V and unknown formats are `unsupported`, never green), the Tinfoil reference on the same bytes when asked
+(`referenceVerify`), and the comparison in the live differential's words (`compareVerdicts`: agree, agree-limited,
+agree-refuse, disagree, reference-missing) plus a descriptive `dualAgreement` for two legs that fetched for themselves.
+A TCB floor is a stated policy input (`minTcb`); without one the best verdict is `limited` (tcb-floor-unjudged), which
+every consumer prints as such and never as a pass.
+
+The Node bundle. `verifier/node/build.mjs` packages the module reproducibly (esbuild, platform node, `@tinfoilsh/verifier`
+external so the reference stays a run-time import that reports `installed:false` where absent) into
+`verifier/dist/enclave-verifier-node.mjs` with a MANIFEST naming every input's sha256 and regenerated notices, and copies
+it byte for byte to `relay/vendor/` (the relay's deploy ships `relay/**` only). `verifier/node/reproduce.mjs` rebuilds
+and compares; the strict command runs it before any suite (`test/verifier-node-bundle.test.mjs`: same verdict through the
+bundle as through the sources).
+
+Stage 3, the CLI (`cli/enclave.mjs`): `enclave attest [id] --verifier tinfoil|enclave|both` (default tinfoil, byte for
+byte the previous behaviour, including a thrown Tinfoil verification ending the command). `both` runs both and prints
+both verdicts with `agreement`; the exit code follows Tinfoil's; a Tinfoil leg that throws is recorded, not fatal.
+`enclave` lets this verifier decide. `--min-tcb JSON` states the floor; `--release-bundle F[,F] --release-digest HEX[,HEX]`
+takes provenance offline; `--collateral-dir DIR` takes AMD collateral from disk. `test/cli-attest-verifier.test.mjs` runs
+the real CLI process against a local API and a local TLS enclave serving the Genoa document (the run's own CA through
+NODE_EXTRA_CA_CERTS): rejected on the measurement under our releases' provenance, `unavailable` for a dead enclave, the
+other-repo refusal unchanged, an unknown mode refused. Measured limit: `@tinfoilsh/verifier` builds its URL from the
+hostname alone, so its leg cannot reach an enclave on another port.
+
+Stage 2, the self-check (`supervisor.js`): `SELF_CHECK_VERIFIERS=both` (default) runs Tinfoil's leg as before AND
+`selfCheckHosted` from the bundle the Dockerfile now copies into the image (`verifier/dist/enclave-verifier-node.mjs`):
+the capture over loopback to the shim with SNI for the public name (the trusted in-CVM source the existing self-check
+uses), the release index through the github-proxy the enclave already reaches (`SELF_CHECK_RELEASE_INDEX=direct` for
+GitHub), AMD collateral through Tinfoil's KDS proxy (`SELF_CHECK_KDS=amd` for AMD), `SELF_CHECK_MIN_TCB` for the floor.
+`verification.selfCheck` keeps `result`/`steps`/`release`/`measurement` as Tinfoil's and adds `verifiers`, `enclave` (the
+own leg's status, matched release, measurement, failed checks, omissions, a four-line tail of reasons) and `agreement`.
+`=tinfoil` is the fallback (the previous object, unchanged); `=enclave` makes the own leg decide `result` (stage 7 for
+this consumer). The glue in `supervisor.js` is not unit-testable (the module runs at import); `selfCheckHosted` is
+(`test/verifier-consumer.test.mjs`: a local shim, a local release index with the three routes, the Genoa document
+rejected on the measurement, a loopback that does not answer is `unavailable`).
+
+Stage 6, the relay (`relay/reverify.mjs`, wired in `relay/api-relay.js`): `RELAY_REVERIFY=shadow` (default) re-verifies
+every DIALED row on its own cadence (`RELAY_REVERIFY_SEC`, 900), one row at a time, never inside the availability poll:
+capture over the relay's TLS connection to the row's endpoint, provenance from GitHub (cached an hour; a failed refresh
+keeps the last good set and says so on the row), AMD collateral through the authenticated disk cache
+(`RELAY_REVERIFY_CACHE_DIR`), the floor from `METAL_MIN_TCB` (the attach gate's). Rows carry `reverify` in the fleet
+view and the aggregate carries the run statistics; eligibility is unchanged in shadow. `=enforce` makes a dialed row
+eligible only on a `verified` re-verification (`ineligibleReason` says why not: rejected with the failed checks,
+unsupported, limited, unavailable, pending); tunnel rows are untouched (their evidence is the attach gate's). `=off` is
+the fallback: nothing runs, no annotation, `computeEligible` exactly as before. `test/relay-reverify.test.mjs`: the real
+capture path against a local enclave (rejected on the measurement, annotated, eligibility untouched in shadow), the
+three modes' effect on eligibility with verdicts of the real shape, no verified provenance never verifying, the vendored
+bundle loading with the exports the module uses.
+
+What no test could show today: a `verified` outcome end to end on a hosted enclave of ours. The fleet was empty
+(`no_serving_enclave`) throughout, and no capture of an enclave running one of our releases exists as a fixture; the
+mechanism is shown on the Genoa capture under a policy naming its own measurement and floor (verified, no omission), and
+every consumer's positive path is exercised with verdicts of the real shape. The first live hosted enclave will produce
+the first `agree` or the first disagreement, in the self-check's `enclave` field, the relay's `reverify` annotation and
+`enclave attest --verifier both`.
 
 ## 11. Open risks
 

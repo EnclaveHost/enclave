@@ -1,0 +1,20 @@
+{
+ "copiedFrom": "verifier/dist/enclave-verifier-node.mjs",
+ "artifact": {
+  "file": "enclave-verifier-node.mjs",
+  "bytes": 372564,
+  "sha256": "a98efbaf72cbacae658bf61d5477f76181cf049eb23582c93fc0ca896cd67ded"
+ },
+ "build": {
+  "tool": "esbuild",
+  "version": "0.28.1",
+  "entry": "verifier/consumer.mjs",
+  "format": "esm",
+  "platform": "node",
+  "target": "node20",
+  "minify": false,
+  "external": [
+   "@tinfoilsh/verifier"
+  ]
+ }
+}
