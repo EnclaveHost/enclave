@@ -188,13 +188,14 @@ foreach ($f in @(@{p=$Iso;h=$IsoSha256;n='medium'}, @{p=$Firmware;h=$FirmwareSha
   if (-not (Test-Path $f.p)) { throw "$($f.n) not found: $($f.p)" }
   $got = (Get-FileHash $f.p -Algorithm SHA256).Hash.ToLower()
   if ($got -ne $f.h.ToLower()) { throw "$($f.n) hashes $got, not the pinned $($f.h)" }
-  Note "$($f.n) verified: $($f.p) ($((Get-Item $f.p).Length) bytes)"
+  Note "$($f.n) verified: $($f.p) ($((Get-Item $f.p).Length) bytes) sha256 $got"
 }
 
 if (-not $Approve) {
   Write-Host "=== preflight only. Nothing changed. With -Approve it would:"
   Write-Host "      1. set $RegName = 1 (REG_DWORD)  [HOST-WIDE, permits UNSIGNED guest firmware]"
-  Write-Host "      2. create ONE Gen2 VM, isolation OpenHCL, Secure Boot OFF, NO vTPM,"
+  Write-Host "      2. create ONE Gen2 VM, GuestStateIsolationType $IsolationType, Secure Boot OFF,"
+  Write-Host "         $(if($IsolationType -eq 1){'WITH the vTPM Windows makes for a VBS VM (nothing reads its PCRs)'}else{'NO vTPM'}),"
   Write-Host "         firmware $Firmware, DVD $Iso as the only boot device, COM1 -> \\.\pipe\$pipe"
   Write-Host "      3. read the boot configuration BACK and refuse if any LoadOptions appeared"
   Write-Host "      4. start it and watch COM1 for 'MON ready control_port=9000' for $ReadySeconds s"
@@ -400,7 +401,8 @@ try {
   # the guest-state key protector lives - so refusing it would mean refusing the only isolation
   # configuration this host supports. It is therefore RECORDED, loudly, rather than refused: present
   # and unread is still not attestation, and this line is what stops a transcript implying it is.
-  if ($null -eq $sec) { Note "vTPM: could not be read (no Msvm_SecuritySettingData); none was added by this definition" }
+  if ($null -eq $sec -and $IsolationType -eq 1) { throw "no Msvm_SecuritySettingData on a type-1 VM: Windows makes a vTPM for a VBS VM, so a missing security setting means this VM is not what it should be - it is NOT evidence that no vTPM exists" }
+  elseif ($null -eq $sec) { Note "vTPM: could not be read (no Msvm_SecuritySettingData); none was added by this definition" }
   elseif ($sec.TpmEnabled -and $IsolationType -eq 1) {
     Note "vTPM: PRESENT (TpmEnabled = True), because Windows makes one for a VBS VM and the guest-state"
     Note "      key protector lives there. NOTHING ON THIS PATH READS ITS PCRs. Its presence is not"
@@ -460,15 +462,20 @@ try {
   else { Note "COM1 could NOT be attached after 100 tries: anything the guest says is unobservable" }
   # Start the kmsg reader immediately: the failure it exists to catch happens within SECONDS of the
   # start, and the diagnostics server only exists while the partition is alive.
+  # ON BOTH TYPES, because type 16 is the TOOL's positive control. A reader that returns nothing on
+  # a partition that demonstrably boots and serves is broken, and its silence on type 1 would mean
+  # nothing - the same trap the memory reader fell into. The first line of a working type-16 read is
+  # OpenHCL's OWN kernel ("Linux version 6.12.52-microsoft-hcl+ ..."); a "microsoft-standard-WSL2"
+  # line would be OUR VTL0 kernel and must never appear on this channel (enclave-5d).
   $kmsgOut = $null; $kmsgProc = $null
-  if ($IsolationType -eq 1 -and (Test-Path $OhclDiag)) {
+  if (Test-Path $OhclDiag) {
     $kmsgOut = "C:\Users\claude\vbs-evidence\kmsg-$stamp.txt"
     try {
-      $kmsgProc = Start-Process -FilePath $OhclDiag -ArgumentList @($name, 'kmsg') -NoNewWindow -PassThru `
+      $kmsgProc = Start-Process -FilePath $OhclDiag -ArgumentList @($name, 'kmsg', '--follow') -NoNewWindow -PassThru `
                     -RedirectStandardOutput $kmsgOut -RedirectStandardError "$kmsgOut.err"
       Note "ohcldiag-dev kmsg started (pid $($kmsgProc.Id)) -> $kmsgOut"
     } catch { Note "ohcldiag-dev could not be started: $($_.Exception.Message -replace "`r?`n",' ')" }
-  } elseif ($IsolationType -eq 1) { Note "ohcldiag-dev NOT FOUND at $OhclDiag; an OpenHCL start failure will be unreadable" }
+  } else { Note "ohcldiag-dev NOT FOUND at $OhclDiag; an OpenHCL start failure will be unreadable" }
   Note "started; watching COM1 for 'MON ready' for $ReadySeconds s"
   while (((Get-Date) - $t0).TotalSeconds -lt $ReadySeconds -and -not $ready) {
     Start-Sleep -Seconds 3
@@ -518,6 +525,11 @@ try {
     Note "ohcldiag-dev kmsg: $(@($km).Count) line(s)$(if(@($kerr).Count){", $(@($kerr).Count) on stderr"})"
     if (@($kerr).Count) { foreach ($l in (@($kerr) | Select-Object -First 4)) { Note "  KMSG-ERR: $l" } }
     $keep = @($km | Where-Object { $_ -match 'fail|error|refus|isolat|attest|vmgs|guest state|key|vtl|panic|start' })
+    $ownKernel = @($km | Where-Object { $_ -match 'microsoft-hcl' }).Count
+    $wslKernel = @($km | Where-Object { $_ -match 'microsoft-standard-WSL2' }).Count
+    Note "  kmsg control: $ownKernel line(s) naming OpenHCL's own kernel (microsoft-hcl), $wslKernel naming OUR VTL0 kernel"
+    if ($IsolationType -eq 16 -and $ownKernel -eq 0) { Note "  KMSG CONTROL FAILED: a partition that booted produced no OpenHCL kernel line, so this reader is not reading VTL2. Its silence on type 1 would prove nothing." }
+    if ($wslKernel -gt 0) { Note "  KMSG WRONG CHANNEL: our VTL0 kernel appears here; this is not VTL2's kmsg." }
     Note "  (kept $(@($keep).Count) matching line(s) of $(@($km).Count))"
     foreach ($l in (@($keep) | Select-Object -First 40)) { Note "  KMSG: $l" }
   }

@@ -209,3 +209,18 @@ control PASSES.**
   log. Every verdict now goes through the log.
 - Removal now waits for `Off` and retries; a VM was previously announced as removed while
   `Remove-VM` had thrown `InvalidState`.
+
+## This host DOES render OpenHCL's GET events, so the silence on type 1 is evidence
+
+Worker-Admin **18601 "successfully booted an operating system"** appears on both type-16 runs that
+booted and served (19:37:12 and 19:39:44). That is OpenHCL's GET BOOT_SUCCESS reaching the host, so
+this host renders GET events rather than swallowing them.
+
+OpenHCL reports VMGS open failures to the host as GET events too (VMGS_INIT_FAILED, INVALID_FORMAT,
+CORRUPT_FORMAT, ACCESS_FAILED). The type-1 run produced **none of them, and no 18601**. Combined
+with the donor store being byte-identical to a fresh `vmgstool create` — a pristine, unencrypted v3
+store with no key protector — "the VMGS will not open" is now poorly supported.
+
+`validate_isolated_configuration` emits NO event, which matches the observed silence exactly. It is
+the leading candidate. **Still inference, pending OpenHCL's own kmsg** — it is not a finding, and
+the configuration-incompatibility hypothesis remains labelled as inference.
