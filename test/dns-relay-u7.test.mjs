@@ -137,13 +137,13 @@ test("U7 dns-relay: the fleet HMAC alone gets a dns-01 answer for a deployment's
   feed.listen(0, "127.0.0.1"); await once(feed, "listening");
   t.after(() => { rpc.close(); feed.close(); });
   const KEY = "22".repeat(32);   // the synthetic derived key bootDns configures
-  const env = { DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20), BASE_RPC: `http://127.0.0.1:${rpc.address().port}`, TCP_ZONE: "tcp.test",
+  const env = { DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20), BASE_RPC: `http://127.0.0.1:${rpc.address().port}`, TCP_ZONE: "tcp.test", BOX_ZONE: "box.test",
                 ELIGIBILITY_POLL_SEC: "1", ELIGIBILITY_API: `http://127.0.0.1:${feed.address().port}` };
   const dns = await bootDns(env);
   t.after(() => dns.p.kill("SIGKILL"));
   let seq = 0;
-  const push = async (apiPort, label, { zone = APP_ZONE, method = "POST", sig } = {}) => {
-    const raw = JSON.stringify({ name: `_acme-challenge.${label}.${zone}`, value: "h" + seq++, ts: Math.floor(Date.now() / 1000) });
+  const push = async (apiPort, label, { zone = APP_ZONE, method = "POST", sig, name } = {}) => {
+    const raw = JSON.stringify({ name: name ?? `_acme-challenge.${label}.${zone}`, value: "h" + seq++, ts: Math.floor(Date.now() / 1000) });
     const r = await fetch(`http://127.0.0.1:${apiPort}/v1/txt`, { method,
       headers: { "content-type": "application/json", "x-relay-sig": sig ?? createHmac("sha256", KEY).update(raw).digest("hex") }, body: raw });
     return { status: r.status, body: await r.json() };
@@ -164,6 +164,13 @@ test("U7 dns-relay: the fleet HMAC alone gets a dns-01 answer for a deployment's
   await refused(h8(GONE), /no live lease/);
   await refused("99999999", /no single on-ledger deployment/);
   await refused("c3c3c3c3", /no single on-ledger deployment/, {});       // ambiguous: names two rows
+  // never at a zone APEX, the challenge name of a WILDCARD over every deployment (enclave-5d, round 6): any case, a trailing
+  // dot, POST or DELETE, whatever the signature
+  for (const name of ["_acme-challenge.app.test", "_acme-challenge.tcp.test", "_acme-challenge.box.test", "_acme-challenge.APP.TEST.", "_ACME-CHALLENGE.tcp.test"])
+    for (const method of ["POST", "DELETE"]) {
+      const r = await push(dns.apiPort, "", { name, method });
+      assert.equal(r.status, 403, `${method} ${name}: ${JSON.stringify(r.body)}`); assert.equal(r.body.error, "apex_refused");
+    }
   // removing a value is not issuance: the HMAC keeps that authority
   assert.equal((await push(dns.apiPort, h8(BAD), { method: "DELETE" })).status, 200);
   // a wrong HMAC is still just wrong
