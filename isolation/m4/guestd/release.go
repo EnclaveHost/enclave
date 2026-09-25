@@ -170,7 +170,7 @@ func (s *server) takeTicket(ctx context.Context, cid uint32, gone <-chan struct{
 
 	hold := s.TicketHold
 	if hold <= 0 {
-		hold = 5 * time.Minute
+		hold = release.TicketHold // the front's wait (m2/front ticketWait) is derived from the same constant
 	}
 	timeout := time.NewTimer(hold)
 	defer timeout.Stop()

@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -251,9 +252,9 @@ func TestTheClientRefusesEveryReplyButARelease(t *testing.T) {
 			io.WriteString(w, `{"error":"evidence_refused","message":"chip 5ecret-detail not in the ticket"}`)
 		}, "HTTP 403 evidence_refused"},
 		"a refusal with an unbounded code": {func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(503)
+			w.WriteHeader(500)
 			io.WriteString(w, `{"error":"Not A Code: 5ecret-detail"}`)
-		}, "HTTP 503 unknown"},
+		}, "HTTP 500 unknown"},
 		"a redirect is not followed": {func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "https://5ecret-detail.example/v1/secrets/release", http.StatusTemporaryRedirect)
 		}, "HTTP 307"},
@@ -305,5 +306,67 @@ func TestTheClientNeedsItsPins(t *testing.T) {
 	}
 	if dials.Load() != 0 {
 		t.Fatalf("a client missing a pin still dialled the relay %d time(s)", dials.Load())
+	}
+}
+
+// contract v1.2 as the relay now runs it: on its own 503-class answers (warming while it predicts the image's
+// measurement, busy, ...) and on a 429 it KEEPS the ticket, so the client retries with the SAME ticket and evidence
+// until the deadline; any other refusal is final (a 403 has burned the ticket).
+func TestTheClientRetriesATicketKeepingRefusalWithTheSameRequest(t *testing.T) {
+	root := newTestCA(t)
+	var mu sync.Mutex
+	var bodies []string
+	answers := []int{503, 429, 503, 200}
+	c, seen := testRelay(t, root.leaf(t, RelayHost), root.pool, func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		bodies = append(bodies, string(b))
+		code := answers[len(bodies)-1]
+		mu.Unlock()
+		if code != 200 {
+			w.WriteHeader(code)
+			io.WriteString(w, `{"error":"warming"}`)
+			return
+		}
+		writeSigned(w, relayPriv, tid, tticket, []byte("SEALED"))
+	})
+	c.Retry = 10 * time.Millisecond
+	resp, err := c.Release(context.Background(), tid, tticket, tsk, tev)
+	if err != nil || string(resp.sealed) != "SEALED" {
+		t.Fatalf("%v %v", resp, err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if seen.Load() != 4 || len(bodies) != 4 {
+		t.Fatalf("%d attempts, want 4", seen.Load())
+	}
+	for i, b := range bodies[1:] {
+		if b != bodies[0] {
+			t.Fatalf("attempt %d changed the request: the relay binds the ticket and seal key it first saw", i+2)
+		}
+	}
+}
+
+func TestTheClientDoesNotRetryAFinalRefusalAndStopsAtTheDeadline(t *testing.T) {
+	root := newTestCA(t)
+	for _, code := range []int{403, 422, 500} {
+		c, seen := testRelay(t, root.leaf(t, RelayHost), root.pool, func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(code)
+			io.WriteString(w, `{"error":"bad_ticket"}`)
+		})
+		c.Retry = 10 * time.Millisecond
+		if _, err := c.Release(context.Background(), tid, tticket, tsk, tev); err == nil || seen.Load() != 1 {
+			t.Fatalf("HTTP %d: %v after %d attempts (a final refusal is tried once)", code, err, seen.Load())
+		}
+	}
+	c, seen := testRelay(t, root.leaf(t, RelayHost), root.pool, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(503)
+		io.WriteString(w, `{"error":"warming"}`)
+	})
+	c.Retry, c.RetryFor = 20*time.Millisecond, 250*time.Millisecond
+	t0 := time.Now()
+	_, err := c.Release(context.Background(), tid, tticket, tsk, tev)
+	if err == nil || !strings.Contains(err.Error(), "HTTP 503 warming") || time.Since(t0) > 2*time.Second || seen.Load() < 3 {
+		t.Fatalf("a relay that stays warming: %v after %s and %d attempts", err, time.Since(t0), seen.Load())
 	}
 }

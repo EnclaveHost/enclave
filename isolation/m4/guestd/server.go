@@ -162,7 +162,7 @@ type server struct {
 	// Legacy builds and starts the deployment guests that are NOT release guests on a -release guestd: the previous
 	// tree's image, unchanged (d1's rollout option (i)). nil = such a deployment is refused.
 	Legacy     Launcher
-	TicketHold time.Duration        // how long a guest's ticket connection is held; 0 = 5 minutes
+	TicketHold time.Duration        // how long a guest's ticket connection is held; 0 = release.TicketHold
 	drawCID    func() uint32        // tests; nil = crypto/rand
 	freedCIDs  map[uint32]time.Time // recently freed CIDs, quarantined (release.go)
 	held       int                  // ticket connections held now (release.go maxHeld)

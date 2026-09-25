@@ -89,6 +89,7 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 	if err != nil {
 		return nil, err
 	}
+	ticketAt := time.Now()
 	if tk.ID != id {
 		return nil, fmt.Errorf("the host's ticket is for deployment 0x%x, and this guest serves HOST_DATA 0x%x: refused before the relay sees it", tk.ID[:4], id[:4])
 	}
@@ -120,7 +121,11 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 	relay := egress.Origin{Host: p.relayHost}
 	cl := &release.Client{Host: p.relayHost, Roots: p.roots, Keys: p.keys,
 		Dial: func(context.Context) (net.Conn, error) { return egress.DialOrigin(p.egress, relay) }}
-	resp, err := cl.Release(ctx, id, tk.Ticket, sk, ev) // VERIFIED against the pinned keys (contract v1.2) ...
+	// a relay that keeps the ticket (503 warming while it predicts this image's measurement, busy, 429) is retried with
+	// the same ticket and evidence for release.ReleaseWindow from the ticket's arrival, within its 120 s TTL
+	rctx, rcancel := context.WithDeadline(ctx, ticketAt.Add(release.ReleaseWindow))
+	defer rcancel()
+	resp, err := cl.Release(rctx, id, tk.Ticket, sk, ev) // VERIFIED against the pinned keys (contract v1.2) ...
 	if err != nil {
 		return nil, err
 	}
@@ -178,9 +183,9 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 
 // ticketWait bounds the wait for the ticket line once connected. guestd HOLDS this connection until the supervisor
 // has fetched a ticket (it asks the relay only once guestd reports the guest waiting, and retries a refusal), for up
-// to its own 5-minute hold; waiting a little longer than that means it is always guestd's hold, not this deadline,
-// that ends a guest whose ticket never comes (m4/guestd/release.go).
-var ticketWait = 6 * time.Minute
+// to release.TicketHold; waiting a minute longer means it is always guestd's hold, not this deadline, that ends a
+// guest whose ticket never comes (m4/guestd/release.go).
+var ticketWait = release.TicketHold + time.Minute
 
 // readTicket waits for guestd's ticket service: the guest may boot before guestd accepts, so the dial is retried for
 // a bounded time, and one line is read.
