@@ -17,6 +17,7 @@ const RT = REC.runtimeId;
 
 const mk = (over = {}) => new Manager({ runtimeId: RT, fetchComponent: async () => component, ...over });
 const DEP = "0x" + "e6".repeat(32);
+const VMID = "3f1c0f6e-7a2b-4c3d-8e9f-0a1b2c3d4e5f";   // the partition a fake handle's launcher key signs for
 // the body the node client actually sends: guestd's contract, name included
 const spawnBody = (over = {}) => ({ derive: REC, name: DEP, isPublic: true, hasSecrets: false, ...over });
 
@@ -288,7 +289,7 @@ const relayBackend = () => ({ supports: {}, backend: "hv",
   start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false,
                         boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
                         domainId: 1, guestPort: 40001, tcpPort: 19101, image: "ab".repeat(32),
-                        launcherKey: "LKEY" }),
+                        launcherKey: "LKEY", launcherVmId: VMID }),
   stop: async () => {} });
 
 test("a domain that passes the rule becomes running AND carries the verified key", async () => {
@@ -309,6 +310,7 @@ test("a domain that passes the rule becomes running AND carries the verified key
   assert.equal(seen[0].port, 19101);
   assert.equal(seen[0].appId, after.appId);
   assert.equal(seen[0].launcherKey, "LKEY");
+  assert.equal(seen[0].expectedVmId, VMID, "and the partition that key signs for: a report naming another is refused (READINESS.md M1)");
 });
 
 test("a domain that fails the rule is failed, and never running without the key", async () => {
@@ -448,7 +450,7 @@ test("a linux-direct domain is judged on its (partition, kind) statement AND its
   const ld = { tier: "t0-hv", partition: "wmi-openhcl-gen2-igvm-linux", hostExcluded: false, attested: false };
   const wmi = { supports: {}, backend: "hv", boundary: ld,
     start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false, boundary: ld,
-                          domainId: 1, guestPort: 40001, tcpPort: 19102, image: IGVM, launcherKey: "LKEY",
+                          domainId: 1, guestPort: 40001, tcpPort: 19102, image: IGVM, launcherKey: "LKEY", launcherVmId: VMID,
                           guestIdentity: { partition: ld.partition, guestImageKind: "igvm-linux-direct", igvmSha256: IGVM, igvmPath: "x" } }),
     stop: async () => {} };
   for (const [backend, expectPair] of [[wmi, true], [relayBackend(), false]]) {
@@ -475,7 +477,7 @@ function relayed({ stopExits = false } = {}) {
   const backend = { supports: {}, backend: "hv", boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
     start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false,
                           boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
-                          domainId: 1, guestPort: 40001, tcpPort: 19103, image: "ab".repeat(32), launcherKey: "LKEY",
+                          domainId: 1, guestPort: 40001, tcpPort: 19103, image: "ab".repeat(32), launcherKey: "LKEY", launcherVmId: VMID,
                           wmiserve: { exited } }),
     stop: async () => { if (stopExits) { exit({ code: 0, signal: null }); await new Promise((r) => setImmediate(r)); } } };
   return { backend, exit };
@@ -516,7 +518,7 @@ function answering({ stopBlocks = null } = {}) {
   const backend = { supports: {}, backend: "hv", boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
     start: async () => ({ name: "vm", vmId: "3f1c0f6e-7a2b-4c3d-8e9f-0a1b2c3d4e5f", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false,
                           boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
-                          domainId: 1, guestPort: 40001, tcpPort: 19104, image: "ab".repeat(32), launcherKey: "LKEY",
+                          domainId: 1, guestPort: 40001, tcpPort: 19104, image: "ab".repeat(32), launcherKey: "LKEY", launcherVmId: VMID,
                           wmiserve: { exited: new Promise(() => {}), stop: async () => { relayStops.push(1); return { closed: true }; } } }),
     stop: async () => { if (stopBlocks) await stopBlocks; } };
   return { backend, relayStops };

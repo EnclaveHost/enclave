@@ -102,6 +102,11 @@ export function derive({ record, component }) {
                 runtimeId: r.runtimeId };
   return {
     record: rec,
+    // INFORMATIONAL on the Windows path (enclave-d1, READINESS.md M1): the manager stores it and the node's client passes
+    // it through, and nothing compares it. appId (the bundle: world, policy, component, http) is what every report binds;
+    // the record adds catalog.app/version, cid, derivation and runtimeId, which no report carries (runtimeId is judged
+    // separately, as expectRuntime). The one place it COULD be compared is the node, against its own derivation of the
+    // record it asked for, as supervisor.js does for guestd (derivationDigest); no such consumer exists here yet.
     recordSha256: sha256Hex(canonical(rec)),
     componentSha256: sha256Hex(component),
     componentBytes: component.length,

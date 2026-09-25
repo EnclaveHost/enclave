@@ -1005,7 +1005,9 @@ export class WmiHyperVLauncher {
                // THE RELAY, when served: the manager judges readiness through tcpPort with launcherKey (the report is
                // judged against guestIdentity's pair and `image`), and routes to it. Without `serve` there is none, the
                // domain stays `starting`, and nothing is routed, exactly as before.
-               ...(served ? { tcpPort: served.tcpPort, launcherKey: served.launcherKey, domainId: served.domainId,
+               // launcherVmId: the partition that launcher key signs for, in the launcher's own words; the manager judges the
+               // report's partition.vmId against it, so a report from another partition's launcher never reads as this one
+               ...(served ? { tcpPort: served.tcpPort, launcherKey: served.launcherKey, launcherVmId: served.vm, domainId: served.domainId,
                               guestPort: served.guestPort, boot: served.boot, relayNote: served.note, wmiserve: served } : {}),
                stop: async () => await this.stop({ name, vmId: created.id, wmiserve: served }) };
     } catch (e) {

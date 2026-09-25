@@ -41,7 +41,7 @@ export class FakeLauncher {
     const name = this.prefix + instanceId, vmId = crypto.randomUUID();
     this.host.vms.set(name, { name, vmId, state: "Running", notes, appId: mapping.appId });
     return { instanceId, name, vmId, state: "Running", image: "ab".repeat(32), boundary: BOUNDARY, appId: mapping.appId,
-             guest: { booted: true, bytes: 9, head: "" }, appReady: false, tcpPort: 19000 + this.host.vms.size, launcherKey: "LKEY",
+             guest: { booted: true, bytes: 9, head: "" }, appReady: false, tcpPort: 19000 + this.host.vms.size, launcherKey: "LKEY", launcherVmId: vmId,
              stop: async () => await this.stop({ name, vmId }) };
   }
   async stop(handle) {
