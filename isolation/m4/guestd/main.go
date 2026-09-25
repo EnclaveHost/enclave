@@ -270,6 +270,7 @@ func main() {
 	genKeyFile := flag.String("gen-key", "", "write a NEW pairing key to this file (mode 0600, never overwritten), print its kid, and exit")
 	guestMem := flag.Int("guest-mem-mib", 0, "host RAM (MiB) set aside for guests: the guest pool's memory budget; unset = every create is refused (pool.go)")
 	guestCPUs := flag.Int("guest-cpus", 0, "host cores set aside for guests: the guest pool's CPU budget, against each guest's CPUQuota; unset = every create is refused")
+	legacyIso := flag.String("legacy-isolation", "", "with -release: the PREVIOUS isolation/ tree, to build the deployment guests the supervisor does not mark release (their image unchanged); empty = such a deployment is refused")
 	releaseOn := flag.Bool("release", false, "deliver attested-release tickets (vsock host port 9444) and serve deployment guests' egress (9443) (release.go); off = neither, and /health says supports.release=false")
 	flag.Parse()
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
@@ -397,6 +398,18 @@ func main() {
 		// host for its guests, and unforgeable by another VM - is the only identity either service takes.
 		s.Release = true
 		l.bootWait = 10 * time.Minute // a deployment guest waits for its ticket before its front serves
+		if *legacyIso != "" {
+			if _, err := os.Stat(filepath.Join(*legacyIso, "m4", "build-app-guest.sh")); err != nil {
+				log.Fatalf("-legacy-isolation: %v", err)
+			}
+			// the legacy tree BUILDS the image (its front, its template); this tree's run-domain.sh boots it, with the
+			// same kernel, firmware and command line (m1/domain.env), and a CID guestd chose
+			legacy := *l
+			legacy.m4 = filepath.Join(*legacyIso, "m4")
+			legacy.bootWait = 0
+			s.Legacy = &legacy
+			log.Printf("non-release deployment guests are built from %s", *legacyIso)
+		}
 		tl, err := vsock.Listen(release.TicketPort)
 		if err != nil {
 			log.Fatalf("release tickets: %v", err)

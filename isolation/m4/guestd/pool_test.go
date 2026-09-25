@@ -184,8 +184,9 @@ func TestEveryEndPathReturnsItsReservation(t *testing.T) {
 				_, _, err := r.s.takeTicket(ctx, cid)
 				return err
 			}
-			_, b := r.create(name(1), p)
+			_, b := r.do("POST", "/vms", map[string]any{"image": "file://" + p, "name": name(1), "release": true})
 			r.s.launching.Wait()
+			r.s.Release, r.f.guest = false, nil // the next create, below, is an ordinary guest
 			id := b["id"].(string)
 			if _, v := r.do("GET", "/vms/"+id, nil); v["status"] != "failed" || !strings.Contains(fmt.Sprint(v["error"]), "no ticket arrived") {
 				r.t.Fatalf("a guest whose ticket never came: %v", v)

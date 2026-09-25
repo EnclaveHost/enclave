@@ -93,8 +93,13 @@ type Request struct {
 	Secrets   map[string]any    `json:"secrets"`
 	Hosts     string            `json:"hosts"`
 	Shielded  json.RawMessage   `json:"shielded"`
-	// Ticket is a release ticket (base64, 32 bytes) for the deployment this guest serves: accepted only with -release,
-	// and handed only to this guest (release.go). The config and secrets it releases never cross this host.
+	// Release asks for a RELEASE guest: built from this guestd's tree, whose front fetches the deployment's config and
+	// secrets from the relay, sealed to it, with the ticket this guest alone is handed (release.go). The supervisor sets
+	// it for a deployment the relay lists for the release; any other deployment on a -release guestd is built from the
+	// legacy tree (-legacy-isolation), unchanged. Accepted only with -release.
+	Release bool `json:"release"`
+	// Ticket is a release ticket (base64, 32 bytes) for the deployment this guest serves: accepted only for a release
+	// guest, and handed only to it (release.go). The config and secrets it releases never cross this host.
 	Ticket string `json:"ticket"`
 	// Derive is the catalog derivation record (contract/catalog/DERIVE.md) an ipfs:// image needs: the CID alone names
 	// bytes, not a contract identity, and guestd will not invent one.
@@ -134,6 +139,8 @@ type vm struct {
 	splices                                              map[*splice]struct{} // open data-plane connections
 	reclaimed                                            bool                 // its reclaim has finished: it holds no reservation (pool.go)
 	ticket                                               chan [32]byte        // its one release ticket slot; nil = it takes none (release.go)
+	release                                              bool                 // a release guest (its egress is admitted); false = none, or legacy
+	legacy                                               bool                 // built and started by the legacy launcher (-legacy-isolation)
 	awaitingTicket                                       bool                 // its guest is connected and waiting for the ticket
 }
 
@@ -150,7 +157,10 @@ type server struct {
 	Data      *dataPlane // nil = no data plane (the default)
 	Budget    poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
 	// Release: deliver attested-release tickets and serve egress to deployment guests (release.go, -release).
-	Release    bool
+	Release bool
+	// Legacy builds and starts the deployment guests that are NOT release guests on a -release guestd: the previous
+	// tree's image, unchanged (d1's rollout option (i)). nil = such a deployment is refused.
+	Legacy     Launcher
 	TicketHold time.Duration // how long a guest's ticket connection is held; 0 = 5 minutes
 	drawCID    func() uint32 // tests; nil = crypto/rand
 	mu         sync.Mutex
@@ -212,6 +222,12 @@ func (v *vm) public() map[string]any {
 	}
 	if v.HostData != "" {
 		m["hostData"] = v.HostData
+	}
+	if v.release {
+		m["release"] = true // a release guest: its config and secrets come sealed from the relay (release.go)
+	}
+	if v.legacy {
+		m["legacyImage"] = true // a non-release deployment on a -release guestd: the previous tree's image
 	}
 	if v.awaitingTicket {
 		m["awaitingTicket"] = true // its guest is booted and waiting: the supervisor fetches a ticket now (release.go)
@@ -342,7 +358,7 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 422, map[string]any{"error": "this backend refuses " + why})
 		return
 	}
-	tk, err := s.ticketFromRequest(&req, hostDataFor(req.Name))
+	tk, legacy, err := s.releaseChoice(&req, hostDataFor(req.Name))
 	if err != nil {
 		s.json(w, 422, map[string]any{"error": "this backend refuses " + err.Error()})
 		return
@@ -386,7 +402,9 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		HostData: hostDataFor(req.Name),
 		Vcpus:    pol.Vcpus, MemMiB: mem, CPUPct: pol.CPUPercent, Created: s.Now(),
 		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL), cid: cid}
-	if s.Release && v.HostData != "" {
+	v.legacy = legacy
+	if s.Release && req.Release {
+		v.release = true
 		v.ticket = make(chan [32]byte, 1)
 		if tk != nil {
 			v.ticket <- *tk
@@ -509,13 +527,19 @@ func (s *server) launch(v *vm) {
 	defer s.launching.Done()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
-	image, meas, err := s.L.Build(ctx, filepath.Join(v.workdir, "app.bundle"), v.workdir, v.Vcpus)
+	// the legacy launcher builds and starts a non-release deployment guest on a -release guestd; everything after the
+	// start (forward, verify, liveness, stop) is the same for both images
+	l := s.L
+	if v.legacy {
+		l = s.Legacy
+	}
+	image, meas, err := l.Build(ctx, filepath.Join(v.workdir, "app.bundle"), v.workdir, v.Vcpus)
 	if err != nil {
 		s.fail(v, fmt.Errorf("build: %w", err))
 		return
 	}
 	s.set(v, func() { v.Measurement = meas })
-	unit, err := s.L.Start(ctx, image, v.ID, v.workdir, v.Vcpus, v.MemMiB, v.CPUPct, v.HostData, v.cid)
+	unit, err := l.Start(ctx, image, v.ID, v.workdir, v.Vcpus, v.MemMiB, v.CPUPct, v.HostData, v.cid)
 	cid := v.cid // chosen at create (release.go), so the ticket service knows this guest before it serves
 	s.set(v, func() { v.unit = unit })
 	if err != nil {
