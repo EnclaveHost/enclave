@@ -142,6 +142,7 @@ type vm struct {
 	release                                              bool                 // a release guest (its egress is admitted); false = none, or legacy
 	legacy                                               bool                 // built and started by the legacy launcher (-legacy-isolation)
 	awaitingTicket                                       bool                 // its guest is connected and waiting for the ticket
+	ticketTaken                                          bool                 // its guest took its one ticket: no second is handed
 }
 
 type server struct {
@@ -161,8 +162,10 @@ type server struct {
 	// Legacy builds and starts the deployment guests that are NOT release guests on a -release guestd: the previous
 	// tree's image, unchanged (d1's rollout option (i)). nil = such a deployment is refused.
 	Legacy     Launcher
-	TicketHold time.Duration // how long a guest's ticket connection is held; 0 = 5 minutes
-	drawCID    func() uint32 // tests; nil = crypto/rand
+	TicketHold time.Duration        // how long a guest's ticket connection is held; 0 = 5 minutes
+	drawCID    func() uint32        // tests; nil = crypto/rand
+	freedCIDs  map[uint32]time.Time // recently freed CIDs, quarantined (release.go)
+	held       int                  // ticket connections held now (release.go maxHeld)
 	mu         sync.Mutex
 	vms        map[string]*vm
 	lastBeat   time.Time // zero = never heard one: the lease is INERT
@@ -609,6 +612,12 @@ func (s *server) reclaim(v *vm) {
 func (s *server) remove(v *vm) {
 	s.mu.Lock()
 	delete(s.vms, v.ID)
+	if v.cid != 0 { // the old QEMU may hold it a moment longer: quarantined before reuse (release.go)
+		if s.freedCIDs == nil {
+			s.freedCIDs = map[uint32]time.Time{}
+		}
+		s.freedCIDs[v.cid] = s.Now()
+	}
 	s.mu.Unlock()
 }
 

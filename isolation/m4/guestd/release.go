@@ -34,6 +34,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"enclave.host/isolation/contract"
@@ -43,8 +44,24 @@ import (
 // egressPort is the host port of the egress server; it must equal the front's EgressPort (isolation/m2/front).
 const egressPort = 9443
 
-// The CIDs guestd gives its guests: the range m2/run-domain.sh draws from when it chooses one itself.
-const cidBase, cidSpan = 65536, 65536
+// The CIDs guestd gives its guests: a band of their OWN, above the 65536-131071 that m2/run-domain.sh draws from at
+// random when a lab launch chooses one itself, so a lab VM can never take a CID guestd has promised (enclave-99).
+const cidBase, cidSpan = 131072, 65536
+
+// cidQuarantine: a freed CID is not handed out again for this long. reclaim does not wait on a unit's stop, so the old
+// QEMU may still hold the CID for a moment after the instance is gone (enclave-99).
+const cidQuarantine = 10 * time.Minute
+
+// maxHeld bounds the ticket connections held at once across every guest (one per starting release guest is the norm).
+const maxHeld = 64
+
+// releaseLive: the instance may still be handed something NEW - a ticket, an egress connection. Starting or running,
+// and no end requested: a DELETE during startup only RECORDS the end (startup still owns the guest and honours it on
+// its way out), and until then nothing new may reach the guest (enclave-99's review of 21b41ff6).
+func releaseLive(v *vm) bool {
+	st := v.lc.State()
+	return (st == contract.Starting || st == contract.Running) && !v.lc.EndRequested()
+}
 
 // pickCIDLocked chooses a vsock CID no guest this guestd holds uses - launched this run or ADOPTED from a previous
 // one (their CIDs are restored with them, persist.go). Called with s.mu held.
@@ -53,6 +70,13 @@ func (s *server) pickCIDLocked() (uint32, error) {
 	for _, v := range s.vms {
 		if v.cid != 0 {
 			used[v.cid] = true
+		}
+	}
+	for c, freed := range s.freedCIDs {
+		if s.Now().Sub(freed) < cidQuarantine {
+			used[c] = true
+		} else {
+			delete(s.freedCIDs, c)
 		}
 	}
 	draw := s.drawCID
@@ -86,10 +110,14 @@ func parseTicket(s string) ([32]byte, error) {
 // is refused rather than queued.
 func (s *server) offerTicket(v *vm, t [32]byte) error {
 	s.mu.Lock()
-	ok := v.ticket != nil && v.Status == "starting" && v.lc.State() != contract.Ended
+	ok := v.ticket != nil && v.Status == "starting" && releaseLive(v)
+	taken := v.ticketTaken
 	s.mu.Unlock()
 	if !ok {
 		return errors.New("this instance is not a starting deployment guest that takes a ticket")
+	}
+	if taken {
+		return errors.New("this instance's guest already took its ticket")
 	}
 	select {
 	case v.ticket <- t:
@@ -102,19 +130,32 @@ func (s *server) offerTicket(v *vm, t [32]byte) error {
 // takeTicket is what the ticket service does for the guest at CID cid: find the ONE instance guestd launched with
 // that CID, wait (up to TicketHold) for its ticket, and return it bound to THAT instance's deployment. Another
 // instance's ticket can never be returned: the slot read is the instance's own.
-func (s *server) takeTicket(ctx context.Context, cid uint32) (release.Ticket, *vm, error) {
+//
+// gone closes when the guest's connection does: the hold then ends WITHOUT taking the ticket, which stays in the slot
+// rather than being written to a dead socket (nil = no connection to watch, as in tests).
+func (s *server) takeTicket(ctx context.Context, cid uint32, gone <-chan struct{}) (release.Ticket, *vm, error) {
 	var out release.Ticket
 	s.mu.Lock()
 	var v *vm
 	for _, o := range s.vms {
-		if o.cid == cid && cid != 0 && o.ticket != nil && o.Status == "starting" && o.lc.State() != contract.Ended {
+		if o.cid == cid && cid != 0 && o.ticket != nil && o.Status == "starting" && releaseLive(o) {
 			v = o
 			break
 		}
 	}
-	if v == nil {
+	switch {
+	case v == nil:
 		s.mu.Unlock()
 		return out, nil, errors.New("no starting deployment guest has this CID")
+	case v.ticketTaken:
+		s.mu.Unlock()
+		return out, v, errors.New("this guest already took its ticket")
+	case v.awaitingTicket:
+		s.mu.Unlock()
+		return out, v, errors.New("this guest already holds a ticket connection")
+	case s.held >= maxHeld:
+		s.mu.Unlock()
+		return out, v, errors.New("too many guests are waiting for tickets")
 	}
 	hd, err := hex.DecodeString(v.HostData)
 	if err != nil || len(hd) != 32 {
@@ -123,8 +164,9 @@ func (s *server) takeTicket(ctx context.Context, cid uint32) (release.Ticket, *v
 	}
 	copy(out.ID[:], hd)
 	v.awaitingTicket = true
+	s.held++
 	s.mu.Unlock()
-	defer s.set(v, func() { v.awaitingTicket = false })
+	defer s.set(v, func() { v.awaitingTicket = false; s.held-- })
 
 	hold := s.TicketHold
 	if hold <= 0 {
@@ -135,18 +177,28 @@ func (s *server) takeTicket(ctx context.Context, cid uint32) (release.Ticket, *v
 	check := time.NewTicker(250 * time.Millisecond)
 	defer check.Stop()
 	for {
+		// a guest that has left, or an instance whose end was asked for, takes nothing - checked before every wait, so a
+		// ticket that arrives in the same instant is left in the slot rather than written to a dead socket
+		select {
+		case <-gone:
+			return out, v, errors.New("the guest closed its ticket connection")
+		default:
+		}
+		if !releaseLive(v) {
+			return out, v, errors.New("the instance's end was asked for while its guest waited for a ticket")
+		}
 		select {
 		case t := <-v.ticket:
+			s.set(v, func() { v.ticketTaken = true })
 			out.Ticket = t
 			return out, v, nil
+		case <-gone:
+			return out, v, errors.New("the guest closed its ticket connection")
 		case <-timeout.C:
 			return out, v, errors.New("no ticket arrived for this guest")
 		case <-ctx.Done():
 			return out, v, ctx.Err()
 		case <-check.C:
-			if v.lc.State() == contract.Ended {
-				return out, v, errors.New("the instance ended while its guest waited for a ticket")
-			}
 		}
 	}
 }
@@ -158,18 +210,34 @@ func (s *server) serveTickets(ctx context.Context, l net.Listener, cidOf func(ne
 		return errors.New("ticket service: cidOf is required (a ticket goes only to the guest guestd launched for it)")
 	}
 	go func() { <-ctx.Done(); l.Close() }()
+	backoff := 5 * time.Millisecond
 	for {
 		c, err := l.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
 			}
-			return err
+			if errors.Is(err, net.ErrClosed) || errors.Is(err, os.ErrClosed) {
+				return err
+			}
+			// EMFILE, ECONNABORTED, ...: transient. Ending here would restart guestd, whose boot sweep ends every
+			// starting guest (enclave-99), so wait and accept again.
+			lg.Printf("accept: %v (retrying in %s)", err, backoff)
+			time.Sleep(backoff)
+			if backoff *= 2; backoff > time.Second {
+				backoff = time.Second
+			}
+			continue
 		}
+		backoff = 5 * time.Millisecond
 		go func() {
 			defer c.Close()
 			cid := cidOf(c)
-			t, v, err := s.takeTicket(ctx, cid)
+			// the guest sends nothing on this connection: a read that returns at all means it closed (or broke the
+			// protocol), and then the hold ends without taking its ticket
+			gone := make(chan struct{})
+			go func() { var b [1]byte; _, _ = c.Read(b[:]); close(gone) }()
+			t, v, err := s.takeTicket(ctx, cid, gone)
 			id := "-"
 			if v != nil {
 				id = v.ID
@@ -193,9 +261,9 @@ func (s *server) admitCID(cid uint32) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, v := range s.vms {
-		st := v.lc.State() // Starting or Running only: once its end is requested, its guest gets no new connection
-		// a RELEASE guest only: a legacy or lab guest has no allowlist of its own, so it gets no egress at all
-		if v.cid == cid && cid != 0 && v.release && v.HostData != "" && (st == contract.Starting || st == contract.Running) &&
+		// a RELEASE guest only (a legacy or lab guest has no allowlist of its own), and only while releaseLive: once its
+		// end is requested - a DELETE during startup included - its guest gets no new connection
+		if v.cid == cid && cid != 0 && v.release && v.HostData != "" && releaseLive(v) &&
 			(v.Status == "starting" || v.Status == "running") {
 			return true
 		}

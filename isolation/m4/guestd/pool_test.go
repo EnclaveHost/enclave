@@ -181,7 +181,7 @@ func TestEveryEndPathReturnsItsReservation(t *testing.T) {
 		"a ticket that never arrives": func(r *rig, p string) string {
 			r.s.Release, r.s.TicketHold = true, 50*time.Millisecond
 			r.f.guest = func(ctx context.Context, cid uint32, _ string) error {
-				_, _, err := r.s.takeTicket(ctx, cid)
+				_, _, err := r.s.takeTicket(ctx, cid, nil)
 				return err
 			}
 			_, b := r.do("POST", "/vms", map[string]any{"image": "file://" + p, "name": name(1), "release": true})

@@ -38,6 +38,7 @@ type realLauncher struct {
 	vcek, chain, product, minTCB, runtimeIdentity string
 	env                                           []string
 	bootWait                                      time.Duration // until "DOM serving"; 0 = 180 s (release mode waits for a ticket too)
+	aliveGrace                                    time.Duration // after this, a dead unit ends the wait even with no serial output; 0 = 5 s
 }
 
 func (l *realLauncher) run(ctx context.Context, dir, logName string, name string, args ...string) (string, error) {
@@ -89,13 +90,20 @@ func (l *realLauncher) Start(ctx context.Context, image, tag, workdir string, vc
 	if wait <= 0 {
 		wait = 180 * time.Second
 	}
-	deadline := time.Now().Add(wait)
+	grace := l.aliveGrace
+	if grace <= 0 {
+		grace = 5 * time.Second
+	}
+	started := time.Now()
+	deadline := started.Add(wait)
 	for time.Now().Before(deadline) && ctx.Err() == nil {
 		b, _ := os.ReadFile(serial)
 		if bytes.Contains(bytes.ReplaceAll(b, []byte{0}, nil), []byte("DOM serving")) {
 			return unit, nil
 		}
-		if len(b) > 0 && !l.Alive(unit) {
+		// a unit that died - even before the guest printed anything (a QEMU that never booted) - ends the wait, so its
+		// pool room comes back now and not after bootWait (enclave-99)
+		if (len(b) > 0 || time.Since(started) > grace) && !l.Alive(unit) {
 			return unit, errors.New("the guest ended during boot (see its serial log)")
 		}
 		time.Sleep(500 * time.Millisecond)

@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -34,7 +36,7 @@ func releaseRig(t *testing.T, hold time.Duration) (*rig, *guests) {
 		if hostData == "" {
 			return nil // a lab guest: no deployment, no ticket
 		}
-		tk, _, err := r.s.takeTicket(ctx, cid)
+		tk, _, err := r.s.takeTicket(ctx, cid, nil)
 		if err != nil {
 			return err
 		}
@@ -88,7 +90,7 @@ func TestATicketGoesOnlyToItsOwnInstancesGuest(t *testing.T) {
 		t.Fatalf("A: %s %s", va.Status, va.Error)
 	}
 	// a CID guestd did not launch (the control CVM, another VM) gets nothing, at once
-	if _, _, err := r.s.takeTicket(context.Background(), 4242); err == nil {
+	if _, _, err := r.s.takeTicket(context.Background(), 4242, nil); err == nil {
 		t.Fatal("a CID guestd did not launch was served")
 	}
 }
@@ -154,25 +156,28 @@ func TestTicketRefusals(t *testing.T) {
 	}
 }
 
-// enclave-63's invariant 4: the CID guestd chooses avoids every guest it holds, ADOPTED ones included, and is the
-// CID the guest is started with
+// enclave-63's invariant 4: the CID guestd chooses avoids every guest it holds, ADOPTED ones included, is the CID the
+// guest is started with, lies in guestd's own band (never the lab band run-domain.sh draws from), and is not reused
+// within the quarantine after it was freed (enclave-99)
 func TestTheCIDAvoidsEveryHeldGuest(t *testing.T) {
 	r, _ := releaseRig(t, 50*time.Millisecond)
 	r.s.mu.Lock()
-	r.s.vms["gdadopted"] = &vm{ID: "gdadopted", Name: name(9), Status: "running", cid: 70000, HostData: hostDataFor(name(9)),
+	r.s.vms["gdadopted"] = &vm{ID: "gdadopted", Name: name(9), Status: "running", cid: 140000, HostData: hostDataFor(name(9)),
 		lc: contract.NewLifecycle(contract.Running)}
-	draws := []uint32{70000, 5, 70000, 70001}
+	r.s.freedCIDs = map[uint32]time.Time{140002: r.s.Now().Add(-time.Minute), 140003: r.s.Now().Add(-11 * time.Minute)}
+	// held, lab band, held, freed a minute ago, freed long ago (reusable)
+	draws := []uint32{140000, 70000, 140000, 140002, 140003}
 	r.s.drawCID = func() uint32 { c := draws[0]; draws = draws[1:]; return c }
 	r.s.mu.Unlock()
 	p, _ := r.bundle("A", contract.Policy{})
 	_, v := r.createRelease(name(4), p)
 	r.s.launching.Wait()
-	if x := r.vm(v["id"].(string)); x.cid != 70001 {
-		t.Fatalf("chose CID %d (the adopted guest holds 70000; 5 is out of range)", x.cid)
+	if x := r.vm(v["id"].(string)); x.cid != 140003 {
+		t.Fatalf("chose CID %d (140000 is held, 70000 is the lab band, 140002 is quarantined)", x.cid)
 	}
 	r.f.mu.Lock()
 	defer r.f.mu.Unlock()
-	if len(r.f.cids) != 1 || r.f.cids[0] != 70001 {
+	if len(r.f.cids) != 1 || r.f.cids[0] != 140003 {
 		t.Fatalf("the guest was started with %v", r.f.cids)
 	}
 }
@@ -344,5 +349,153 @@ func TestTheImageIsChosenPerDeployment(t *testing.T) {
 	}
 	if !s2.admitCID(ax.cid) || s2.admitCID(ay.cid) {
 		t.Fatal("after a restart, egress admission changed")
+	}
+}
+
+// enclave-99's review of 21b41ff6, finding 1: a DELETE during startup only RECORDS the end (startup still owns the
+// guest), and from that moment nothing new reaches the guest - not its create-time ticket, not a POSTed one, not egress.
+func TestADeleteDuringStartupStopsTicketsAndEgress(t *testing.T) {
+	r, g := releaseRig(t, 300*time.Millisecond)
+	r.f.startGate = make(chan struct{})
+	p, _ := r.bundle("A", contract.Policy{})
+	_, a := r.do("POST", "/vms", map[string]any{"image": "file://" + p, "name": name(1), "release": true, "ticket": b64('a')})
+	_, b := r.createRelease(name(2), p)
+	x, y := r.vm(a["id"].(string)), r.vm(b["id"].(string))
+	for _, v := range []*vm{x, y} {
+		if code, _ := r.do("DELETE", "/vms/"+v.ID, nil); code != 202 {
+			t.Fatalf("a delete during startup: %d", code)
+		}
+	}
+	if _, _, err := r.s.takeTicket(context.Background(), x.cid, nil); err == nil {
+		t.Fatal("a deleted guest was handed its create-time ticket")
+	}
+	if code, _ := r.do("POST", "/vms/"+y.ID+"/ticket", map[string]any{"ticket": b64('b')}); code != 409 {
+		t.Fatalf("a ticket for a deleted guest: %d", code)
+	}
+	x.release, y.release = true, true
+	if r.s.admitCID(x.cid) || r.s.admitCID(y.cid) {
+		t.Fatal("a deleted guest was admitted to egress")
+	}
+	close(r.f.startGate)
+	r.s.launching.Wait()
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if len(g.got) != 0 {
+		t.Fatalf("tickets reached deleted guests: %v", g.got)
+	}
+}
+
+// finding 2: a guest that has left takes nothing - a ticket waiting in its slot stays there, never written to a dead
+// socket
+func TestAGuestThatLeftTakesNothing(t *testing.T) {
+	r, _ := releaseRig(t, time.Second)
+	r.f.guest, r.f.startGate = nil, make(chan struct{})
+	defer close(r.f.startGate)
+	p, _ := r.bundle("A", contract.Policy{})
+	_, a := r.do("POST", "/vms", map[string]any{"image": "file://" + p, "name": name(1), "release": true, "ticket": b64('a')})
+	x := r.vm(a["id"].(string))
+	gone := make(chan struct{})
+	close(gone)
+	if _, _, err := r.s.takeTicket(context.Background(), x.cid, gone); err == nil || !strings.Contains(err.Error(), "closed") {
+		t.Fatalf("a guest that had left: %v", err)
+	}
+	r.s.mu.Lock()
+	pending, taken, waiting := len(x.ticket), x.ticketTaken, x.awaitingTicket
+	r.s.mu.Unlock()
+	if pending != 1 || taken || waiting {
+		t.Fatalf("slot %d, taken %v, waiting %v: the ticket must stay in the slot and nothing wait", pending, taken, waiting)
+	}
+	// and a guest that leaves WHILE waiting ends its hold at once, not at TicketHold
+	gone2 := make(chan struct{})
+	_, b := r.createRelease(name(2), p)
+	y := r.vm(b["id"].(string))
+	done := make(chan error, 1)
+	go func() { _, _, err := r.s.takeTicket(context.Background(), y.cid, gone2); done <- err }()
+	waitFor(t, func() bool { r.s.mu.Lock(); defer r.s.mu.Unlock(); return y.awaitingTicket })
+	t0 := time.Now()
+	close(gone2)
+	if err := <-done; err == nil || time.Since(t0) > 500*time.Millisecond {
+		t.Fatalf("a guest that left while waiting: %v after %s", err, time.Since(t0))
+	}
+}
+
+// finding 3: one held connection per guest, one ticket per guest, and a global cap on held connections
+func TestOneConnectionAndOneTicketPerGuest(t *testing.T) {
+	r, _ := releaseRig(t, 2*time.Second)
+	r.f.guest, r.f.startGate = nil, make(chan struct{})
+	defer close(r.f.startGate)
+	p, _ := r.bundle("A", contract.Policy{})
+	_, a := r.createRelease(name(1), p)
+	x := r.vm(a["id"].(string))
+	first := make(chan error, 1)
+	go func() { _, _, err := r.s.takeTicket(context.Background(), x.cid, nil); first <- err }()
+	waitFor(t, func() bool { r.s.mu.Lock(); defer r.s.mu.Unlock(); return x.awaitingTicket })
+	if _, _, err := r.s.takeTicket(context.Background(), x.cid, nil); err == nil || !strings.Contains(err.Error(), "already holds") {
+		t.Fatalf("a second connection for the same guest: %v", err)
+	}
+	if code, _ := r.do("POST", "/vms/"+x.ID+"/ticket", map[string]any{"ticket": b64('a')}); code != 202 {
+		t.Fatalf("post: %d", code)
+	}
+	if err := <-first; err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := r.do("POST", "/vms/"+x.ID+"/ticket", map[string]any{"ticket": b64('b')}); code != 409 {
+		t.Fatalf("a second ticket after the first was taken: %d", code)
+	}
+	if _, _, err := r.s.takeTicket(context.Background(), x.cid, nil); err == nil || !strings.Contains(err.Error(), "already took") {
+		t.Fatalf("a connection after the ticket was taken: %v", err)
+	}
+	// the global cap
+	_, b := r.createRelease(name(2), p)
+	y := r.vm(b["id"].(string))
+	r.s.mu.Lock()
+	r.s.held = maxHeld
+	r.s.mu.Unlock()
+	if _, _, err := r.s.takeTicket(context.Background(), y.cid, nil); err == nil || !strings.Contains(err.Error(), "too many") {
+		t.Fatalf("past the global cap: %v", err)
+	}
+}
+
+// finding 4: a transient accept failure does not end the ticket service (guestd would log.Fatal, and its restart's
+// boot sweep would end every starting guest)
+type flakyTicketListener struct {
+	net.Listener
+	fails int
+}
+
+func (f *flakyTicketListener) Accept() (net.Conn, error) {
+	if f.fails > 0 {
+		f.fails--
+		return nil, &net.OpError{Op: "accept", Net: "tcp", Err: os.NewSyscallError("accept4", syscall.EMFILE)}
+	}
+	return f.Listener.Accept()
+}
+
+func TestATransientAcceptFailureDoesNotEndTheTicketService(t *testing.T) {
+	r, _ := releaseRig(t, time.Second)
+	inner, _ := net.Listen("tcp", "127.0.0.1:0")
+	var lg strings.Builder
+	var mu sync.Mutex
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- r.s.serveTickets(ctx, &flakyTicketListener{Listener: inner, fails: 3}, func(net.Conn) uint32 { return 4242 }, logTo(&lg, &mu))
+	}()
+	c, err := net.Dial("tcp", inner.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := release.ReadTicket(c); err == nil {
+		t.Fatal("an unknown CID read a ticket")
+	}
+	c.Close()
+	waitFor(t, func() bool { mu.Lock(); defer mu.Unlock(); return strings.Contains(lg.String(), "guest 4242") })
+	mu.Lock()
+	n := strings.Count(lg.String(), "accept:")
+	mu.Unlock()
+	cancel()
+	if err := <-done; err != nil || n != 3 {
+		t.Fatalf("service ended with %v after %d accept notices (want nil and 3)", err, n)
 	}
 }

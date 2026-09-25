@@ -15,10 +15,12 @@ import (
 	"math/big"
 	"net"
 	"net/netip"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -373,5 +375,51 @@ func TestDialOriginIsAStreamToThatOriginOnly(t *testing.T) {
 	}
 	if _, err := DialOrigin(func() (net.Conn, error) { return nil, io.EOF }, Origin{Host: "api.enclave.host"}); err == nil {
 		t.Fatal("no upstream, and yet a stream")
+	}
+}
+
+// a transient accept failure (EMFILE under many held connections) does not end the server; a closed listener does
+type flakyListener struct {
+	net.Listener
+	fails int
+}
+
+func (f *flakyListener) Accept() (net.Conn, error) {
+	if f.fails > 0 {
+		f.fails--
+		return nil, &net.OpError{Op: "accept", Net: "tcp", Err: os.NewSyscallError("accept4", syscall.EMFILE)}
+	}
+	return f.Listener.Accept()
+}
+
+func TestATransientAcceptFailureDoesNotEndTheServer(t *testing.T) {
+	inner, _ := net.Listen("tcp", "127.0.0.1:0")
+	l := &flakyListener{Listener: inner, fails: 3}
+	var logs strings.Builder
+	var mu sync.Mutex
+	srv := &Server{Dialer: &Dialer{Resolver: fakeResolver{}}, CIDOf: func(net.Conn) uint32 { return 1 },
+		Admit: func(uint32) bool { return false },
+		Log:   log.New(writerFunc(func(p []byte) (int, error) { mu.Lock(); defer mu.Unlock(); return logs.Write(p) }), "", 0)}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- srv.Serve(ctx, l) }()
+	c, err := net.Dial("tcp", inner.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.SetDeadline(time.Now().Add(5 * time.Second))
+	if b, _ := io.ReadAll(c); string(b) != "refused\n" {
+		t.Fatalf("after three accept failures the server did not answer: %q", b)
+	}
+	c.Close()
+	mu.Lock()
+	n := strings.Count(logs.String(), "egress accept:")
+	mu.Unlock()
+	if n != 3 {
+		t.Fatalf("%d accept notices, want 3", n)
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("a cancelled server returned %v", err)
 	}
 }

@@ -73,6 +73,15 @@ func (l *Lifecycle) RequestEnd(why string) bool {
 	return true
 }
 
+// EndRequested reports whether an end has been asked for: RequestEnd on a starting domain records it without changing
+// the state (startup still owns the domain and honours it on the way out), so a caller deciding whether to hand the
+// domain anything NEW - a credential, a connection - asks this as well as State.
+func (l *Lifecycle) EndRequested() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.endWanted != "" || l.state == Ending || l.state == Ended
+}
+
 // FinishStart moves a starting domain to running and returns the reason a reclamation asked for
 // while startup held it, or "".
 func (l *Lifecycle) FinishStart() string {
