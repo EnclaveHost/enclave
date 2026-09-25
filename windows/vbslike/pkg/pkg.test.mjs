@@ -728,3 +728,43 @@ test("draft v28 (held; the handoff version) ships the static-line candidate and 
   x = withRef((j) => { j.images = j.images.filter((e) => e.id !== "a7b0bd4-debug"); });
   assert.equal(x.code, 1); assert.match(x.out, /FAIL reference values .*openhcl-cvm-VBS-DEBUG-TRUSTS-HOST-81e163ee\.bin \(probe\.firmware\) has no reference entry/, fails(x.out));
 });
+
+test("draft v29 (staged) records the measured candidate's first boot AND first serving run verbatim as profile vbsLinux: served is not isolated, host_excluded=no, no chain", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-29.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, STAGED \(supersedes v28, which was staged for the handoff\)\. THE MEASURED LINUX-VTL0 CANDIDATE BOOTS AND SERVES/);
+  const p = d.profiles.vbsLinux;
+  assert.match(p.status, /^EXPERIMENT: BOOTS AND SERVES/);
+  assert.match(p.status, /Served is not isolated or attested: NO isolation claim; no report, no chain; host_excluded=no\./);
+  assert.equal(p.firmware, d.profiles.vbs.measuredVtl0Candidate.file);
+  assert.equal(d.files.find((f) => f.path === p.firmware).sha256, "c567e43210ebd78c31273be47d9f4ca448f9a04cce276c40bc5d2abd6374d637");
+  assert.match(p.measured[0], /FIRST OBSERVABLE: Start-VM ACCEPTED.*'MON boundary tier=t0-hv vmpl=n\/a vmpl_floor=n\/a vmpl0=n\/a host_excluded=no hv_isolation=vbs paravisor=no'.*'MON ready control_port=9000 snp=false transport=hv_sock'/);
+  assert.match(p.measured[1], /^WHAT THE BOOT SHOWS.*that run loaded no app/);
+  // the serving run, verbatim from enclave-d1's 88f444b3, and what it does NOT establish
+  assert.match(p.measured[2], /^SERVED: .*canary 062450.*evidence 88f444b3/);
+  assert.match(p.measured[2], /'06:25:26 APP ANSWERED: 13 raw bytes, sha256 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340'/);
+  assert.match(p.measured[2], /'06:25:26 APP OK: the app served EXACTLY the pinned bytes through the guest's own TLS'/);
+  assert.match(p.measured[2], /"boot":null/);
+  assert.match(p.measured[2], /the --igvm-sha256 report path is built but was NOT exercised/);
+  assert.match(p.measured[2], /identity \(curl accepted the guest's certificate; judge-hv's job\)/);
+  assert.match(p.measured[3], /no report, no chain, host_excluded=no\.$/);
+  assert.match(d.profiles.vbs.measuredVtl0Candidate.status, /^BOOTED AND SERVED/);
+  // the launcher re-pinned to enclave-d1's post-build hash (8f156c9a), and the script that ran the canary
+  const L = d.files.find((f) => f.path === "control/vbslike-host.exe");
+  assert.equal(L.sha256, "0160d83511ec8dee2ca2da0f180050561f21b7ac884e62c7d5efe2e78baefea0"); assert.equal(L.bytes, 1126912);
+  assert.equal(L.source.commit.slice(0, 8), "8f156c9a");
+  assert.equal(d.files.find((f) => f.path === "control/windows/vbslike/ops/uefi-dev-boot.ps1").from.git.commit.slice(0, 8), "8f156c9a");
+  for (const n of ["candidate-c567e432-review-88f444b3.md", "PROOF-CHECKLIST-88f444b3.md"])
+    assert.ok(d.inputs.some((i) => i.name === n && i.from.git.commit.startsWith("88f444b3")), n);
+  for (const n of ["wmiserve.rs", "launcher.rs"])
+    assert.ok(d.inputs.some((i) => i.name === n && i.from.git.commit.startsWith("8f156c9a")), n);
+  assert.ok(d.inputs.some((i) => i.name === "vbsdigest/src/main.rs" && i.from.git.commit.startsWith("5ae35c7d")));
+  assert.match(d.owners.package, /^enclave-63 \(from enclave-53/);
+  const ref = JSON.parse(String(fs.readFileSync(path.join(HERE, "reference/nucbox-vbs-reference.json"))));
+  const c = ref.images.find((e) => e.id === "vbs-linux-candidate");
+  assert.match(c.booted, /^yes: BOOTED .* SERVED .*NOT exercised; identity, any report or chain, and host exclusion are NOT established\.$/);
+  assert.equal(c.eligible, true);
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   every quoted 'MON boundary' line says host_excluded=no/);
+});

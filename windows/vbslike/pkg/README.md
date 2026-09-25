@@ -274,7 +274,7 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   confidential-debug images, so only the exact launch digest tells them apart. Dev-boot script at `a891dfae`.
   `host_excluded=no`; E2/E3 not re-run under Secure Boot; no isolation claim.
 
-- **v28 draft** (`drafts/nucbox-ownguest-28.json`, HELD — the **handoff version**, staged only on d1's word): the
+- **v28 draft** (`drafts/nucbox-ownguest-28.json`, the **handoff version**; STAGED 06:18Z on d1's word at `pkg\cb9fe5645497a0ca\`): the
   measured-VTL0 candidate rebuilt at 5d's review with `static_command_line=true` (the one requested change) and
   **shipped** with its debug twin: candidate `c567e432…` (role `candidate.igvm`, never a profile's firmware until a
   version records it booting), launch digest `A0FDAC0F…`; twin `24e7a1ff…` (`probe.firmware`, trusts the host,
@@ -286,6 +286,17 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   the non-debug candidate is eligible, and every pinned probe/candidate firmware must be listed (mutation-tested).
   The Linux VTL0's serial path is recorded from source (OpenHCL builds its ACPI COM1 UART over the host's vmbus COM1,
   the route the UEFI runs used). Not booted; `host_excluded=no`; no chain claimed.
+- **v29 draft** (`drafts/nucbox-ownguest-29.json`; supersedes v28; cut by enclave-63, who took the package over from
+  enclave-53 on 2026-09-25): the candidate `c567e432…` **boots and serves** as profile `vbsLinux` (type 1, the
+  measured Linux VTL0 IGVM as the firmware, no medium). It BOOTED in d1's canary 061934 (`0564ff8d`; no app loaded)
+  and SERVED in canary 062450 (`88f444b3`): hello-world loaded with hash agreement (`"boot":null`, the initrd predates
+  the G1 nonce) and served its 13 pinned bytes through the guest's own TLS, both lines verbatim. The launcher is
+  re-pinned to d1's post-build `0160d835…` (from `8f156c9a`: `wmiserve --igvm-sha256`, the G1 boot nonce on
+  stop/destroy, no default ids; its two changed sources re-hash to d1's stated `52e1b39a`/`d2fe7733`) and the dev-boot
+  script to `8f156c9a`; d1's byte review and `vbsdigest` (`5ae35c7d`) and both canaries' evidence are inputs. The
+  reference file's candidate entry says it served. **Served is not isolated or attested:** the `--igvm-sha256` report
+  path was built but NOT exercised; identity (judge-hv), any report or chain, and host exclusion are NOT established;
+  `host_excluded=no`, T0-hv.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 

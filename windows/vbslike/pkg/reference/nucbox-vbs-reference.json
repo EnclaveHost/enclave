@@ -16,9 +16,9 @@
    "confidentialDebug": false,
    "trustsHostCommandLine": false,
    "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553), initrd 0d14db23 and command line as measured pages; static_command_line=true (the paravisor line is exactly the measured bytes)",
-   "booted": "no: build-only",
+   "booted": "yes: BOOTED as a type-1 partition under Secure Boot (enclave-d1, canary 061934, 2026-09-25 06:19:34-06:20:30Z, evidence 0564ff8d): Start-VM accepted it, MON ready with hv_isolation=vbs paravisor=no host_excluded=no, the control channel answered on hv_sock 9000; that run loaded no app. SERVED (enclave-d1, canary 062450, 2026-09-25 06:24:50-06:25:49Z, evidence 88f444b3, launcher 0160d835, wmiserve --igvm-sha256): hello-world loaded with hash agreement and served its 13 pinned bytes through the guest's own TLS. The --igvm-sha256 report path was built but NOT exercised; identity, any report or chain, and host exclusion are NOT established.",
    "eligible": true,
-   "reason": "the ONLY image eligible for an allowlist, and only once the paravisor report format is registered and report bytes are pinned (enclave-99); not booted yet",
+   "reason": "the ONLY image eligible for an allowlist, and only once the paravisor report format is registered and report bytes are pinned (enclave-99). It has booted and served a pinned app (type 1, Secure Boot); no report exists.",
    "pin": {
     "image": "guest/igvm-vbs/vbs-linux-candidate-c567e432.bin",
     "identity": "vbs-linux-candidate-vbs.json"
