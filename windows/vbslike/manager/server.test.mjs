@@ -386,3 +386,53 @@ test("with no runtime identity configured, nothing is asserted about the runtime
   assert.equal(got.expectRuntime, undefined,
     "undefined means ABI/1 is judged as before; a hash would have been a guaranteed rejection");
 });
+
+/* ---- onReclaim: a stop that does not stop the traffic is not a stop ------------------------- *
+ *
+ * enclave-5d found this by grepping the whole tree: main.mjs SET manager.onReclaim to the data
+ * plane's closeInstance, and server.mjs never CALLED it - the identifier appeared only at the three
+ * lines that assign it. So a removed domain's established sessions were never closed and kept
+ * carrying traffic to something that no longer existed. Both of their local runs showed the data
+ * plane counting closed:reclaimed 0; the old session ended only because their KVM relay happened to
+ * close when the monitor destroyed the domain. */
+
+test("removing a domain tells the data plane to close its sessions", async () => {
+  const seen = [];
+  const m = mk({ backend: bootedBackend() });
+  m.onReclaim = (id, why) => seen.push({ id, why });
+  const r = await m.spawn(spawnBody());
+  assert.deepEqual(seen, [], "nothing is reclaimed while it is serving");
+  await m.remove(r.id);
+  assert.equal(seen.length, 1, "a removed domain must be reclaimed, or its sessions outlive it");
+  assert.equal(seen[0].id, r.id);
+});
+
+test("a stop that FAILED does not reclaim: the domain may still be serving", async () => {
+  const seen = [];
+  const stubborn = { supports: {}, backend: "hv",
+    start: async () => ({ name: "vm", state: "Running", guest: { booted: true }, appReady: false }),
+    stop: async () => { throw new Error("stop_failed"); } };
+  const m = mk({ backend: stubborn });
+  m.onReclaim = (id, why) => seen.push({ id, why });
+  const r = await m.spawn(spawnBody());
+  await m.remove(r.id).catch(() => {});
+  assert.deepEqual(seen, [], "closing sessions for a domain that is still running would cut live traffic");
+});
+
+test("a domain that fails readiness is reclaimed too", async () => {
+  const seen = [];
+  const m = mk({ backend: relayBackend(),
+    judgeReady: async () => ({ status: "failed", reason: "document rejected", transportKeySha256: null }) });
+  m.onReclaim = (id, why) => seen.push({ id, why });
+  const r = await m.spawn(spawnBody());
+  await m.judging.get(r.id);
+  assert.equal(seen.length, 1, "a domain that never became ready must not keep serving sessions");
+  assert.match(seen[0].why, /readiness/);
+});
+
+test("an onReclaim that throws does not break the removal", async () => {
+  const m = mk({ backend: bootedBackend() });
+  m.onReclaim = () => { throw new Error("data plane is down"); };
+  const r = await m.spawn(spawnBody());
+  assert.deepEqual(await m.remove(r.id), { removed: true, absent: false }, "the domain is gone either way");
+});
