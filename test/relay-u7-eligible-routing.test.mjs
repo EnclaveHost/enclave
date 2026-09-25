@@ -89,10 +89,16 @@ function stubBox(label, { eligible, lists = [] }) {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ servedBy: label }));
   });
+  box.upgradesClosed = 0;
   box.server.on("upgrade", (req, socket) => {
     box.log.push(`UPGRADE ${req.url}`);
     socket.write("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n");
-    socket.end();
+    if (!box.hold) return socket.end();
+    socket.on("error", () => {});                              // `hold`: a raw echo that stays open until someone closes it
+    socket.on("data", (d) => socket.write(d));
+    let gone = false;                                         // the relay ended its side (http keeps the socket half-open)
+    const ended = () => { if (!gone) { gone = true; box.upgradesClosed++; } socket.end(); };
+    socket.on("end", ended); socket.on("close", ended);
   });
   return box;
 }
@@ -267,6 +273,42 @@ test("U7: a holder that LOSES eligibility stops receiving tenant traffic at the 
   assert.equal(f.flip.log.length, n, "the cached owner from before did not carry traffic");
   f.flip.eligible = true;                                      // and it comes back when the evidence does
   assert.ok(await waitFor(async () => (await getJ(origin, `/x/${D_FLIP}/`)).status === 200));
+});
+
+// a WebSocket held OPEN through the relay: resolves the raw socket once the box has switched protocols
+const openUpgrade = (origin, p, headers = {}) => new Promise((resolve, reject) => {
+  const u = new URL(origin + p);
+  const req = http.request({ host: u.hostname, port: u.port, path: u.pathname,
+    headers: { Connection: "Upgrade", Upgrade: "websocket", "Sec-WebSocket-Version": "13", "Sec-WebSocket-Key": randomBytes(16).toString("base64"), ...headers } });
+  req.on("upgrade", (_res, socket) => { socket.on("error", () => {}); resolve(socket); });
+  req.on("response", (res) => { res.resume(); reject(new Error(`no upgrade: HTTP ${res.statusCode}`)); });
+  req.on("error", reject);
+  req.end();
+});
+const closedWithin = (c, ms) => new Promise((resolve) => {
+  if (c.destroyed) return resolve(true);
+  const tm = setTimeout(() => resolve(false), ms);
+  c.once("close", () => { clearTimeout(tm); resolve(true); });
+});
+const echoOn = (c, d) => new Promise((resolve) => { c.once("data", (x) => resolve(x.toString())); c.write(d); });
+
+test("U7: a LIVE WebSocket is closed at the first availability poll after its holder loses eligibility; an eligible holder's stays", async (t) => {
+  const f = await fleet(t);
+  f.flip.hold = true; f.elig.hold = true;
+  const origin = await startRelay(t, { enclaves: [f.elig, f.inel, f.flip].map(f.url).join(","), ledger: f.ledger });
+  assert.ok(await waitFor(async () => (await getJ(origin, "/enclaves")).body?.enclaves?.length === 3));
+  const viaX = await openUpgrade(origin, `/x/${D_FLIP}/ws`);          // the data-plane path
+  const viaHost = await openUpgrade(origin, "/", host(D_FLIP));        // the app subdomain
+  const other = await openUpgrade(origin, `/x/${D_E}/ws`);             // an eligible holder's
+  for (const [c, d] of [[viaX, "x"], [viaHost, "h"], [other, "e"]]) assert.equal(await echoOn(c, d), d, "spliced and live");
+  assert.equal(await closedWithin(viaX, 2500), false, "held open across availability polls while eligible");
+  f.flip.eligible = false;                                              // its evidence is gone
+  assert.equal(await closedWithin(viaX, 6000), true, "the data-plane WebSocket is closed");
+  assert.equal(await closedWithin(viaHost, 1000), true, "the app-subdomain WebSocket is closed");
+  assert.ok(await waitFor(async () => f.flip.upgradesClosed === 2, 3000), `the box's side is closed too (${f.flip.upgradesClosed})`);
+  assert.equal(other.destroyed, false);
+  assert.equal(await echoOn(other, "still"), "still", "the eligible holder's live WebSocket is untouched");
+  other.destroy();
 });
 
 test("U7: an explicitly addressed INELIGIBLE tunnel box is default-deny: only its own read-only surfaces pass (/t/<name> and its box hostname, HTTP and WebSocket)", async (t) => {

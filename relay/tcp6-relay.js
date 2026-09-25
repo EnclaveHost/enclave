@@ -142,6 +142,8 @@ function splice(client, L) {
   client.on("close", close);
   wsStream.on("error", close); wsStream.on("close", close);
   ws.on("error", close);
+  // U7: the connection lives only while the host stays eligible; a poll that finds it no longer is closes it
+  client.once("close", fleet.holdWhileEligible(L.origin, close));
   ws.on("open", () => {
     clearTimeout(hsTimer);
     client.pipe(wsStream); wsStream.pipe(client);

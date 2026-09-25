@@ -313,6 +313,82 @@ test("U7 fleet: the eligibility feed answers only while fresh; ineligible, stale
   assert.equal(await none.eligibleOrigin(A), false);
 });
 
+test("U7 fleet: a held session is closed once its host stops being eligible, or its verdict ages out, and at once if it already is not", async () => {
+  const A = "http://a.test", B = "http://b.test", C = "http://c.test";
+  const elig = await eligibilityApi({ [A]: true, [B]: true, [C]: true });
+  const fleet = createFleet(fleetConfig({ ENCLAVES: `${A},${B}`, ELIGIBILITY_API: elig.url, ELIGIBILITY_POLL_SEC: "1", ELIGIBILITY_MAX_AGE_SEC: "2" }));
+  await fleet.start(); await fleet.startEligibility();
+  try {
+    // judged by its id against the CURRENT verdict: an origin outside this daemon's own list is not refused for that
+    assert.equal(fleet.eligibleOriginSync(C), true);
+    const closed = [];
+    const relA1 = fleet.holdWhileEligible(A + "/", () => closed.push("a1"));
+    fleet.holdWhileEligible(A, () => closed.push("a2"));
+    const relB = fleet.holdWhileEligible(B, () => closed.push("b"));
+    assert.equal(fleet.heldSessions(), 3);
+    relA1();                                                   // a1 ends on its own
+    assert.equal(fleet.heldSessions(), 2);
+    await delay(1500);
+    assert.deepEqual(closed, [], "held across a poll while eligible");
+    elig.set(A, false); await delay(1500);
+    assert.deepEqual(closed, ["a2"], "A's live session is closed (once); the released one is not called; B's stays");
+    assert.equal(fleet.heldSessions(), 1);
+    fleet.holdWhileEligible(A, () => closed.push("a3"));
+    assert.deepEqual(closed, ["a2", "a3"], "holding toward a host that is not eligible closes at once");
+    assert.equal(fleet.heldSessions(), 1);
+    elig.down(); await delay(3500);                            // every poll fails; the verdict ages out
+    assert.deepEqual(closed, ["a2", "a3", "b"], "a stale verdict closes what it held open");
+    assert.equal(fleet.heldSessions(), 0);
+    relB();                                                    // its release after the sweep is a no-op
+    assert.equal(fleet.heldSessions(), 0);
+  } finally { fleet.stopEligibility(); elig.close(); }
+});
+
+// open a connection, exchange one payload, and KEEP it open (the U7 revocation tests close it from the relay side)
+async function openHeld(connect, payload, attempts = 40) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await new Promise((resolve, reject) => {
+        const c = connect();
+        c.on("error", () => {});
+        const t = setTimeout(() => { c.destroy(); reject(new Error("timeout")); }, 3000);
+        c.once("error", (e) => { clearTimeout(t); reject(e); });
+        c.once("close", () => { clearTimeout(t); reject(new Error("closed before the echo")); });
+        c.on("connect", () => payload.forEach(([ms, d]) => setTimeout(() => { if (!c.destroyed) c.write(d); }, ms)));
+        c.once("data", (d) => { clearTimeout(t); resolve({ c, first: d.toString() }); });
+      });
+    } catch { await delay(250); }
+  }
+  throw new Error(`never got an echo after ${attempts} attempts`);
+}
+const closedWithin = (c, ms) => new Promise((resolve) => {
+  if (c.destroyed) return resolve(true);
+  const t = setTimeout(() => resolve(false), ms);
+  c.once("close", () => { clearTimeout(t); resolve(true); });
+});
+const echoOn = (c, d) => new Promise((resolve) => { c.once("data", (x) => resolve(x.toString())); c.write(d); });
+
+test("U7 tcp6-relay: a LIVE connection is closed once its host loses eligibility; the eligible neighbour's is untouched", async (t) => {
+  const [portA, portB] = [await freePort(), await freePort()];
+  const encA = await fakeEnclave({ id: "dep_aaa", tcpPort: portA, tag: "A" });
+  const encB = await fakeEnclave({ id: "dep_bbb", tcpPort: portB, tag: "B" });
+  const elig = await eligibilityApi({ [encA.origin]: true, [encB.origin]: true });
+  const { p, logs } = spawnRelay("tcp6-relay.js", {
+    ENCLAVES: `${encA.origin},${encB.origin}`, NET_POLL_SEC: "1", TCP6_PREFIX: "::1/128", ELIGIBILITY_API: elig.url, ELIGIBILITY_POLL_SEC: "1" });
+  t.after(() => { p.kill(); encA.close(); encB.close(); elig.close(); });
+  await bound(logs, [portA, portB]);
+  const tcp = (port) => () => net.connect({ host: "::1", port, family: 6 });
+  const a = await openHeld(tcp(portA), [[0, "ping-a"]]), b = await openHeld(tcp(portB), [[0, "ping-b"]]);
+  assert.equal(a.first, "A:ping-a"); assert.equal(b.first, "B:ping-b");
+  assert.equal(await closedWithin(a.c, 1500), false, "held open across a poll while eligible");
+  elig.set(encA.origin, false);
+  assert.equal(await closedWithin(a.c, 4000), true, `closed within a poll of losing eligibility (logs: ${logs.join("")})`);
+  assert.equal(b.c.destroyed, false);
+  assert.equal(await echoOn(b.c, "again"), "B:again", "the eligible neighbour's live connection still carries data");
+  assert.match(logs.join(""), /closed 1 live session\(s\) to hosts no longer eligible \(U7\)/);
+  b.c.destroy();
+});
+
 test("U7 tcp6-relay: a port owned by an INELIGIBLE enclave is refused, its eligible neighbour still routes", async (t) => {
   const [portA, portB] = [await freePort(), await freePort()];
   const encA = await fakeEnclave({ id: "dep_aaa", tcpPort: portA, tag: "A" });
@@ -351,6 +427,30 @@ test("U7 relay (SNI): an INELIGIBLE enclave's deployment is refused, the eligibl
   assert.match(none.logs.join(""), /ELIGIBILITY_API \(or DOMAINS_API\) unset: NO host is eligible/);
 });
 
+test("U7 relay (SNI): a LIVE splice is closed once its host loses eligibility; the eligible neighbour's is untouched", async (t) => {
+  const bytes32 = "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+  const encA = await fakeEnclaveTls({ id: "dep_alpha", logicalPort: 6667, tag: "A" });
+  const encB = await fakeEnclaveTls({ id: bytes32, logicalPort: 6667, tag: "B" });
+  const pub = await freePort();
+  const elig = await eligibilityApi({ [encA.origin]: true, [encB.origin]: true });
+  const { p, logs } = spawnRelay("relay.js", {
+    RELAY_DOMAIN: "tcp.test", RELAY_PORTS: `${pub}:6667`, RELAY_BIND: "127.0.0.1",
+    NET_POLL_SEC: "1", ENCLAVES: `${encA.origin},${encB.origin}`, ELIGIBILITY_API: elig.url, ELIGIBILITY_POLL_SEC: "1" });
+  t.after(() => { p.kill(); encA.close(); encB.close(); elig.close(); });
+  for (let i = 0; i < 40 && !logs.join("").includes("listening on"); i++) await delay(250);
+  const sni = () => net.connect(pub, "127.0.0.1");
+  const a = await openHeld(sni, [[0, clientHello("dep-alpha.tcp.test")], [250, "ping-a"]]);
+  const b = await openHeld(sni, [[0, clientHello("abcdef0123456789.tcp.test")], [250, "ping-b"]]);
+  assert.equal(a.first, "A:ping-a"); assert.equal(b.first, "B:ping-b");
+  assert.equal(await closedWithin(a.c, 1500), false, "held open across a poll while eligible");
+  elig.set(encA.origin, false);
+  assert.equal(await closedWithin(a.c, 4000), true, `closed within a poll of losing eligibility (logs: ${logs.join("")})`);
+  assert.equal(b.c.destroyed, false);
+  assert.equal(await echoOn(b.c, "again"), "B:again", "the eligible neighbour's live splice still carries data");
+  assert.match(logs.join(""), /closed 1 live session\(s\) to hosts no longer eligible \(U7\)/);
+  b.c.destroy();
+});
+
 // a fake enclave with one udp:N port: /v1/udp-map declares it on ::1; the WS bridge /x/<id>/udp/<N> echoes, tagged
 async function fakeEnclaveUdp({ id, udpPort, tag }) {
   const srv = http.createServer((req, res) => {
@@ -361,14 +461,17 @@ async function fakeEnclaveUdp({ id, udpPort, tag }) {
     res.statusCode = 404; res.end();
   });
   const wss = new WebSocketServer({ noServer: true });
-  const seen = [];
+  const seen = [], bridgeClosed = [];
   srv.on("upgrade", (req, sock, head) => {
     seen.push(req.url);
     if (req.url !== `/x/${id}/udp/${udpPort}`) { sock.destroy(); return; }
-    wss.handleUpgrade(req, sock, head, (ws) => ws.on("message", (d) => ws.send(Buffer.concat([Buffer.from(tag + ":"), d]))));
+    wss.handleUpgrade(req, sock, head, (ws) => {
+      ws.on("message", (d) => ws.send(Buffer.concat([Buffer.from(tag + ":"), d])));
+      ws.on("close", () => bridgeClosed.push(req.url));
+    });
   });
   srv.listen(0, "127.0.0.1"); await once(srv, "listening");
-  return { origin: `http://127.0.0.1:${srv.address().port}`, seen, close: () => srv.close() };
+  return { origin: `http://127.0.0.1:${srv.address().port}`, seen, bridgeClosed, close: () => srv.close() };
 }
 async function udpExchange(port, payload, ms = 1500) {
   const dgram = await import("node:dgram");
@@ -395,6 +498,38 @@ test("U7 udp-relay: a flow toward an INELIGIBLE enclave never opens; the eligibl
   assert.equal(ra, "A:ping-a", `eligible enclave's flow (logs: ${logs.join("")})`);
   assert.equal(await udpExchange(portB, "ping-b"), null, "no answer through an ineligible enclave");
   assert.deepEqual(encB.seen, [], "no WebSocket was ever opened toward the ineligible enclave");
+});
+
+test("U7 udp-relay: a LIVE flow is dropped once its host loses eligibility, and no new one opens", async (t) => {
+  const portA = await freePort();
+  const encA = await fakeEnclaveUdp({ id: "dep_aaa", udpPort: portA, tag: "A" });
+  const elig = await eligibilityApi({ [encA.origin]: true });
+  const { p, logs } = spawnRelay("udp-relay.js", {
+    ENCLAVES: encA.origin, UDP_POLL_SEC: "1", UDP_PREFIX: "::1/128", ELIGIBILITY_API: elig.url, ELIGIBILITY_POLL_SEC: "1" });
+  t.after(() => { p.kill(); encA.close(); elig.close(); });
+  await bound(logs, [portA]);
+  const dgram = await import("node:dgram");
+  const s = dgram.createSocket("udp6"); t.after(() => { try { s.close(); } catch {} });
+  await new Promise((r) => s.bind(0, "::1", r));
+  const ask = (payload, ms = 1500) => new Promise((resolve) => {
+    const done = (v) => { clearTimeout(tm); s.off("message", on); resolve(v); };
+    const on = (m) => done(m.toString());
+    const tm = setTimeout(() => done(null), ms);
+    s.on("message", on); s.send(Buffer.from(payload), portA, "::1");
+  });
+  let r = null;
+  for (let i = 0; i < 10 && r === null; i++) r = await ask("ping-a");
+  assert.equal(r, "A:ping-a", `eligible flow (logs: ${logs.join("")})`);
+  await delay(1500);
+  assert.deepEqual(encA.bridgeClosed, [], "the flow's bridge stays open across a poll while eligible");
+  assert.equal(await ask("still"), "A:still");
+  elig.set(encA.origin, false);
+  for (let i = 0; i < 40 && !encA.bridgeClosed.length; i++) await delay(100);
+  assert.equal(encA.bridgeClosed.length, 1, `the live flow's bridge is closed within a poll (logs: ${logs.join("")})`);
+  const opened = encA.seen.length;
+  assert.equal(await ask("after"), null, "the same client gets nothing through the ineligible host");
+  assert.equal(encA.seen.length, opened, "and no new flow's bridge was opened toward it");
+  assert.match(logs.join(""), /closed 1 live session\(s\) to hosts no longer eligible \(U7\)/);
 });
 
 // ---- U7 relay (SNI) app subdomains with a ledger: the lease holder or nothing, never a probe ----

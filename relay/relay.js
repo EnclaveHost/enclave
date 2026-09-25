@@ -502,6 +502,8 @@ function spliceRaw(client, origin, dep, path, hello) {
   });
   client.on("error", close); client.on("close", close);
   wsStream.on("error", close); wsStream.on("close", close);
+  // U7: the splice lives only while the host stays eligible; a poll that finds it no longer is closes it
+  client.once("close", fleet.holdWhileEligible(origin, close));
   ws.on("open", () => {
     clearTimeout(hsTimer);
     // idle timeout on the spliced connection: after a valid ClientHello a silent

@@ -123,6 +123,8 @@ function openListener(origin, id, address, port) {
       ws.on("message", (d, isBinary) => { if (isBinary || d.length) { try { sock.send(d, f.cport, f.caddr); } catch {} bump(L, fk, f); } });
       ws.on("close", () => dropFlow(L, fk));
       ws.on("error", () => dropFlow(L, fk));
+      // U7: the flow lives only while the host stays eligible; a poll that finds it no longer is drops it
+      f.release = fleet.holdWhileEligible(L.origin, () => dropFlow(L, fk));
     }
     if (f.ws.readyState === WebSocket.OPEN) f.ws.send(data);
     else {                                                // pre-open: cap the buffer, drop OLDEST past it
@@ -140,6 +142,7 @@ function dropFlow(L, fk) {
   const f = L.flows.get(fk); if (!f) return;
   clearTimeout(f.timer); clearTimeout(f.hsTimer); try { f.ws && f.ws.terminate(); } catch {}
   L.flows.delete(fk); flowCount--;
+  f.release?.();
 }
 function closeListener(key) {
   const L = listeners.get(key); if (!L) return;
