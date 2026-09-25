@@ -16,21 +16,24 @@ test('refill cost priority preserves urgency, full batches, and reserved slots',
 #include <assert.h>
 #include <limits.h>
 
-static void choose(sh_link *l, int expected, int want_deficit) {
+static void choose_b(sh_link *l, int B, int expected, int want_deficit) {
     sh_group before[3]; memcpy(before, l->groups, sizeof before);
     int deficit = -1;
-    sh_group *g = pick_refill_group(l, 4, &deficit);
+    sh_group *g = pick_refill_group(l, B, &deficit);
     assert(g == (expected < 0 ? NULL : &l->groups[expected]));
     assert(deficit == want_deficit);
     assert(memcmp(before, l->groups, sizeof before) == 0);
 }
+static void choose(sh_link *l, int expected, int want_deficit) { choose_b(l, 4, expected, want_deficit); }
 int main(void) {
     sh_group groups[3] = {
         {.K=5120, .u_len=34816, .depth=16, .count=8},
         {.K=5120, .u_len=248320, .depth=16, .count=12},
         {.K=5120, .u_len=5120, .depth=16, .count=16},
     };
-    sh_link l = {.groups=groups, .n_groups=3};
+    /* refill_unit 16 is the production default (SHIELDED_REFILL_UNIT); with
+     * the batch B=4 <= the unit this is exactly the original policy. */
+    sh_link l = {.groups=groups, .n_groups=3, .refill_unit=16};
     choose(&l, 0, 8);                  /* existing largest-deficit policy */
     l.refill_cost_priority = 1;
     choose(&l, 1, 4);                  /* prepare the expensive full batch earlier */
@@ -50,6 +53,23 @@ int main(void) {
     groups[0]=(sh_group){.K=INT64_MAX,.u_len=INT64_MAX,.depth=16,.count=12};
     groups[1]=(sh_group){.K=5120,.u_len=248320,.depth=16,.count=4};
     choose(&l, 0, 4);                  /* priority multiplication cannot wrap */
+
+    /* Batch 64 over 64-deep pools (SHIELDED_REFILL_BATCH=64), unit 16: a group
+     * is LOW only below the unit, and a nonurgent group is topped up once a
+     * whole unit is missing, never for the one pad each token spends. */
+    l.refill_cost_priority = 0;
+    groups[0]=(sh_group){.K=5120,.u_len=34816,.depth=64,.count=63};
+    groups[1]=(sh_group){.K=5120,.u_len=248320,.depth=64,.count=63};
+    groups[2]=(sh_group){.K=5120,.u_len=5120,.depth=64,.count=63};
+    choose_b(&l, 64, -1, 0);           /* one pad missing everywhere: no single-pad mint */
+    groups[1].count=48; choose_b(&l, 64, 1, 16);   /* a whole unit missing: topped up */
+    groups[2].count=40; choose_b(&l, 64, 2, 24);   /* largest deficit among the topped-up */
+    groups[0].count=15; choose_b(&l, 64, 0, 49);   /* below the unit: urgent, wins */
+    groups[0].count=8; groups[0].generating=8; groups[2].count=15;
+    choose_b(&l, 64, 2, 49);           /* reserved pads count toward the unit: 8+8 is not urgent */
+    l.refill_unit = 64;                /* unit = B: the original rule, every group short of B is low */
+    choose_b(&l, 64, 2, 49);           /* least ready+reserved (15) wins */
+    groups[2].count=40; choose_b(&l, 64, 0, 48);
     return 0;
 }
 `);

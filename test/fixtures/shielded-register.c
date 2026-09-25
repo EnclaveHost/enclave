@@ -23,11 +23,14 @@ static ssize_t test_random(void *p, size_t n, unsigned flags) {
     for(size_t i=0;i<n/8;i++) {uint64_t x=rng_word++;memcpy((char*)p+i*8,&x,8);}
     return (ssize_t)n;
 }
+/* shielded-tee.c starts every helper through sh_thread_create (shielded-parwork.c:
+ * opt-in placement), so that is the seam the second creation fails at. */
+#include "../../wasm/ggml-shielded/shielded-parwork.h"
 static int create_call, inject_thread, made, joined;
 static pthread_t handles[16];
-static int test_create(pthread_t *t,const pthread_attr_t *a,void *(*fn)(void*),void *arg) {
+static int test_create(pthread_t *t,void *(*fn)(void*),void *arg) {
     if(inject_thread && create_call++==1)return EAGAIN;
-    int rc=pthread_create(t,a,fn,arg);
+    int rc=sh_thread_create(t,fn,arg);
     if(inject_thread && rc==0)handles[made++]=*t;
     return rc;
 }
@@ -43,14 +46,14 @@ static int test_join(pthread_t t,void **result) {
 #define calloc test_calloc
 #define realloc test_realloc
 #define getrandom test_random
-#define pthread_create test_create
+#define sh_thread_create test_create
 #define pthread_join test_join
 #include "../../wasm/ggml-shielded/shielded-tee.c"
 #undef malloc
 #undef calloc
 #undef realloc
 #undef getrandom
-#undef pthread_create
+#undef sh_thread_create
 #undef pthread_join
 
 static void reference_prepare(const int8_t *w,int64_t k,int64_t n,const int64_t *s,int reps,int64_t *out) {
