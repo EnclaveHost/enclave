@@ -137,7 +137,10 @@ Rate: a ticket request is limited per client IP. A release is limited per its ti
 
 - `verifyGuestEvidence`: the relay's vendored verifier (`relay/vendor/enclave-verifier-node.mjs`) exports the consumer API only. It needs a rebuild that also exports the domain-path `verifyEvidence`, with a `bindingDomain` field in the verdict, and KDS collateral fetched by CHIP_ID (the guest's `certs` are optional).
 - `runtimeIdOf`: `isolation/contract/runtime.mjs` `runtimeId`, bundled for the relay.
-- `appIdFor`: the DERIVE.md derivation for the deployment's catalog version and shares, over component bytes fetched by CID and CAR-verified, cached per version.
+- `appIdFor`: PER PATH. On the M2 path (the only one served today) the AppID is **sha256 of the raw component** (`isolation/m2/build-domain.sh`: `sha256sum app.wasm` into the measured initrd), so `appIdFor` = sha256 of the component bytes the deployment's catalog version names, fetched by CID and CAR-verified, and cached per version. DERIVE.md's `sha256(bundle)` is M4a's and would refuse every M2 release.
+- The measurement allowlist on M2 is PER APP VERSION: the app and its hash are inside the measured initrd, so each version's image has its own launch digest. This is a decision for Steven or Codex:
+  - (a) the operator lists every deployed version's image digest in `SECRETS_RELEASE_MEASUREMENTS`; or
+  - (b) the relay predicts the digest from the version, since `build-domain.sh` is reproducible and its launch digest predictable.
 - `resolveConfigCid`: a `configCid`, fetched and checked against its CID (returning text or a value; the relay parses it).
 - `versionConfigFor`: the catalog version's `{config, configCid}` for the deployment's version.
 - Config: `SECRETS_ATTESTED_RELEASE`, `SECRETS_RELEASE_MEASUREMENTS`, `SECRETS_RELEASE_RUNTIME_IDS`.
