@@ -7,6 +7,15 @@
 # (declared at :620). Pass 3 drives #isolationReconcile's steps and the rest passes: the manager spawns hello-world, judges it monitor-signed
 # (record bff33b95), and a browser through the relay hub -> d1's appzone -> bridge -> data plane -> guest gets TLS on the verified key; app 200.
 # hookbin /2 is refused by the plan: the manager serves /1 only (SERVES = [/1]).
+# LIMITS OF PASS 3 (enclave-99's review): it supplies three inputs itself, so it passes where the real node does not -
+#  1. `require` from the raw envelope, skipping chain.parseEnvelope/claimPolicy (defect 16: chain.mjs reads opts before its
+#     `let`, so the real claim path throws) and the record gate at host.mjs:513-521;
+#  2. `hasSecrets` from this harness's own signer, skipping #secretsState, which is null (the plan HOLDS) whenever the node
+#     has no operator key or the relay refuses its signer;
+#  3. `waf: {}`, where the node records envOpts.waf || null, so an envelope with no waf key holds on "waf not known" (defect 19).
+# None of these can buy admission (the data plane admits on the manager's record: status/appId/image/runtimeId/key/relay,
+# never the tier), and no admission here proves Hyper-V. The browser path's agent.mjs wiring is the branch's, not the
+# bytes on the box (baseline ef1b2077). The claim is bounded to: the manager's record says running under this key.
 PASS the node tree carries the published node-bridge.mjs: tree 4cb8d54f, published 4cb8d54f
 PASS the node tree carries the published datapath.mjs: tree 2db32e0a, published 2db32e0a
 PASS the node tree carries the published supervisor-splice.mjs: tree c841ac7c, published c841ac7c
