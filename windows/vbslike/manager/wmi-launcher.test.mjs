@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { WmiHyperVLauncher, CMD, OWNER_MARKER, HYPERV_MODULE_SHA256, FIRMWARE_OPT_IN, BOOT_UEFI, BOOT_LINUX_DIRECT,
          LINUX_DIRECT_IMAGE_ABSENT, notesFor, q } from "./wmi-launcher.mjs";
-import { TYPE1, PREFLIGHT_OK, VM_ID, defineAnswer, keyOf } from "./fake-hyperv.mjs";
+import { TYPE1, PREFLIGHT_OK, VM_ID, defineAnswer, keyOf, startAndReadAnswer } from "./fake-hyperv.mjs";
 
 const IMG = "C:\\Users\\claude\\vbs-like\\openhcl-ownguest.bin";
 const SHA = "2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3";
@@ -39,6 +39,7 @@ function host(over = {}) {
     seen.push(script);
     const key = keyOf(script);
     let a = typeof answers[key] === "function" ? answers[key](script) : answers[key];
+    if (key === "startAndRead") a = startAndReadAnswer((k) => typeof answers[k] === "function" ? answers[k](script) : answers[k]);
     if (key === "define" && !(a instanceof Error)) a = defineAnswer(script, a || {});
     if (a instanceof Error) return { code: 1, stdout: "", stderr: a.message };
     return { code: 0, stdout: JSON.stringify(a ?? { ok: true }), stderr: "" };
@@ -243,7 +244,7 @@ test("no script this launcher generates writes the registry; only preflight name
 test("a good start does the steps in order and hands back a stoppable handle", async () => {
   const h = host();
   const r = await mk(h).start(mapping, ID);
-  assert.deepEqual(h.keys(), ["preflight", "imageHash", "define", "start", "readConsole"],
+  assert.deepEqual(h.keys(), ["preflight", "imageHash", "define", "startAndRead"],
                    "preflight, the IGVM's hash, ONE definition (read back inside it), start by Id, and the guest heard last");
   const startScript = h.seen[3];
   assert.match(startScript, new RegExp(`Get-VM -Id '${VM_ID}'`), "started BY THE ID it was defined with");
@@ -299,7 +300,7 @@ test("a definition that does not read back as asked is refused, and the VM is re
   ]) {
     const h = host({ define: bad });
     await assert.rejects(() => mk(h).start(mapping, ID), why, JSON.stringify(bad));
-    assert.equal(h.keys().includes("start"), false, `${JSON.stringify(bad)}: never started`);
+    assert.equal(h.keys().some((k) => k === "start" || k === "startAndRead"), false, `${JSON.stringify(bad)}: never started`);
     const rm = h.seen.filter((x) => keyOf(x) === "removeById");
     assert.equal(rm.length, 1, `${JSON.stringify(bad)}: removed exactly once`);
     assert.match(rm[0], new RegExp(`Get-VM -Id '${VM_ID}'`), `${JSON.stringify(bad)}: BY THE CREATED ID`);
@@ -576,11 +577,11 @@ function paravisorHost({ registryOptIn = false } = {}) {
       createdWithIsolation = /-GuestStateIsolationEnabled \$true -GuestStateIsolationType 1 /.test(script);
       return ok(defineAnswer(script, createdWithIsolation ? {} : { isolationType: 0, isolationEnabled: false }));
     }
-    if (k === "start") {
+    if (k === "start" || k === "startAndRead") {
       if (createdWithIsolation && !registryOptIn) {
         return { code: 1, stdout: "", stderr: "Start-VM refused: failed | Worker-Admin: [5142] failed to load custom IGVM file because AllowFirmwareLoadFromFile registry key is not set" };
       }
-      return ok({ state: "Running" });
+      return ok(k === "startAndRead" ? { state: "Running", console: { connected: !!createdWithIsolation, bytes: 0, head: "" } } : { state: "Running" });
     }
     // no isolation type => no paravisor => a Running VM that says nothing
     if (k === "readConsole") return ok({ connected: !!createdWithIsolation, bytes: 0, head: "" });
@@ -669,7 +670,7 @@ const uefiHost = (over = {}) => host({ imageHash: (s) => ({ present: true, sha25
 test("with a medium (uefi-medium), handle.image is the MEDIUM's hash as a string, hashed at attach", async () => {
   const h = uefiHost();
   const handle = await mk(h, { boot: BOOT_UEFI, medium: MEDIUM, mediumSha256: MED }).start(mapping, ID);
-  assert.deepEqual(h.keys(), ["preflight", "imageHash", "imageHash", "define", "start", "readConsole"],
+  assert.deepEqual(h.keys(), ["preflight", "imageHash", "imageHash", "define", "startAndRead"],
     "the IGVM AND the medium are hashed before anything is defined");
   assert.equal(typeof handle.image, "string", "the datapath compares 64-hex strings; an object never matches");
   assert.match(handle.image, /^[0-9a-f]{64}$/);
@@ -786,4 +787,30 @@ test("the type-1 VM gets max(2048, policy + 640) MiB: a 128 MiB app never define
   const handle = await mk(h).start({ ...mapping, record: { policy: { cpuPercent: 100, memMiB: 128, vcpus: 1 } } }, ID);
   assert.match(seen[0], /-Memory \(2048 \* 1MB\)/, "the define script asks for the VM's RAM, not the app's share");
   assert.deepEqual(handle.memory, { policyMiB: 128, vmMiB: TYPE1_VM_MEM_FLOOR_MIB, rule: "max(2048, policy + 640)" });
+});
+
+/* ---- start and console in ONE process, the reader attaching first (manager spawns failed on the race) --- */
+test("startAndRead begins attaching BEFORE Start-VM, falls back in-process, and keeps one pending read", () => {
+  const s = CMD.startAndRead({ vmId: VM_ID, pipe: "\\\\.\\pipe\\x-com1", seconds: 25, until: GUEST_READY_LINE });
+  const iAsync = s.indexOf("$cli.ConnectAsync("), iStart = s.indexOf("Start-VM -VM $v"), iFallback = s.indexOf("$cli.Connect(100)");
+  assert.ok(iAsync > 0 && iStart > 0 && iAsync < iStart, "the reader starts connecting before the VM exists to print anything");
+  assert.ok(iFallback > iStart, "and if that cannot attach, it retries in THIS process straight after Start-VM");
+  assert.match(s, /\$v = Get-VM -Id '5DB6D4EB-1619-4936-9D60-C7E3CA67F3A8'/);
+  assert.match(s, /not ours: the ownership marker is absent, so this VM is not started/);
+  assert.match(s, /Get-WinEvent -LogName 'Microsoft-Windows-Hyper-V-Worker-Admin'/, "a refused start still names the worker's reason");
+  assert.match(s, /if \(\$cli\) \{ try \{ \$cli\.Dispose\(\) \} catch \{\} \};\s*\$msg = 'Start-VM refused: '/, "and releases the pending reader first");
+  assert.match(s, /\$until = 'MON ready';/);
+  assert.equal((s.match(/ReadAsync/g) || []).length, 1, "ONE pending read, as readConsole");
+  assert.match(s, /\[System\.IO\.Pipes\.PipeOptions\]::Asynchronous/);
+  assert.match(s, /console=@\{connected=\$connected; early=\$early; earlyNote=\$earlyNote; attachMs=\$attachMs; bytes=\$total/);
+  assert.throws(() => CMD.startAndRead({ vmId: "x'; Remove-VM *", pipe: "p" }), /not a VM Id/);
+});
+
+test("start uses ONE startAndRead call (no separate console process), and reports how the console was attached", async () => {
+  const h = host({ readConsole: { connected: true, bytes: 613, head: "MON ready", sawUntil: true, early: true, attachMs: 900 } });
+  const handle = await mk(h).start(mapping, ID);
+  assert.equal(h.keys().filter((k) => k === "start" || k === "readConsole").length, 0, "no separate Start-VM or reader process");
+  assert.equal(h.keys().filter((k) => k === "startAndRead").length, 1);
+  assert.deepEqual(handle.guest.attach, { early: true, ms: 900 });
+  assert.equal(handle.guest.readyLine, true);
 });
