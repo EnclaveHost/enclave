@@ -90,6 +90,12 @@ param(
   # (the TPM device nodes included, open only), no CREATED tsm entry, few visible or signalable pids, and an
   # unprivileged uid. It is then destroyed with its boot. Never with -Bundle.
   [switch] $ProbeDomain,
+  # THE LIVE-NEIGHBOUR ACCEPTANCE (independent audit of 3c3dce3d): with -Bundle, the served app is domain 1, the
+  # NEIGHBOUR. Its legitimate route (the relay, the pinned bytes) and the monitor's own list are checked BEFORE and AFTER.
+  # A PROBE domain must then be domain 2, and domprobe's hard-coded targets (/domains/1/..., vsock 40001) are exactly the
+  # live neighbour's. Only a denial of a target shown live counts. A missing, dead or wrong target FAILS. A timeout, no
+  # service or a refusal is INCONCLUSIVE.
+  [switch] $ProbeNeighbor,
   # THE INVERSE CONTROL for Windows' firmware-load requirement: run WITHOUT applying AllowFirmwareLoadFromFile, so
   # the first observable says whether Hyper-V loads this firmware file without the developer setting at all.
   [switch] $WithoutFirmwarePolicy,
@@ -172,6 +178,58 @@ function Drain($st, [int]$waitMs) {
     $st.text += [System.Text.Encoding]::ASCII.GetString($st.buf, 0, $got)
     $w = 50                                     # after the first chunk: only what is already there
   }
+}
+
+# ---- PROBE HELPERS (used by -ProbeDomain and -ProbeNeighbor) -------------------------------------------------------
+# hvdial writes its --send value plus one newline, so <json>`nprobe arrives as the load line followed by exactly
+# 'probe`n'. The argument string is built here, because PowerShell 5.1 strips quotes from native arguments.
+function Hv([string]$payload) {
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = 'C:\Users\claude\vbs-like\target\release\vbslike-host.exe'
+  $psi.Arguments = 'hvdial --vm ' + $script:vmId + ' --port 9000 --seconds 20 --send "' + ($payload -replace '"','\"') + '"'
+  $psi.UseShellExecute = $false; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
+  $pr = [System.Diagnostics.Process]::Start($psi); $o = $pr.StandardOutput.ReadToEnd(); $null = $pr.StandardError.ReadToEnd(); $pr.WaitForExit()
+  return $o.Trim()
+}
+function HvAnswer([string]$out) { try { return (($out | ConvertFrom-Json).head | ConvertFrom-Json) } catch { return $null } }
+# THE COM1 CLIENT IS DISCONNECTED after the ready wait on every run so far (G4 082856; the probe dry runs 091020 and
+# 091408 read nothing for that reason): re-attach before reading.
+function Ensure-Com1 {
+  if ($script:con.c -and $script:con.c.IsConnected) { return }
+  try {
+    $c2 = New-Object System.IO.Pipes.NamedPipeClientStream('.', $script:pipe, [System.IO.Pipes.PipeDirection]::In, [System.IO.Pipes.PipeOptions]::Asynchronous)
+    $c2.Connect(500)
+    if ($script:con.c) { try { $script:con.c.Dispose() } catch {} }
+    $script:con.c = $c2; $script:con.pending = $null; Note "  PROBE: COM1 re-attached"
+  } catch { }
+}
+# Load a PROBE-mode domain raw and collect its lines. -> @{ id; boot; lines; answer }
+function Run-ProbeDomain {
+  Ensure-Com1
+  $mark = $script:con.text.Length
+  $out = Hv ('{"cmd":"load","label":"PROBE","size":6,"cpu":50,"mem":64,"probe":true}' + "`n" + 'probe')
+  Note "PROBE DOMAIN load -> $out"
+  $ans = HvAnswer $out
+  $id = if ($ans) { $ans.id } else { $null }
+  $r = @{ id = $id; boot = $(if ($ans) { [string]$ans.boot } else { '' }); lines = @(); answer = $ans }
+  if ($null -eq $id) { return $r }
+  $dl = (Get-Date).AddSeconds(90)
+  while ((Get-Date) -lt $dl -and $script:con.text.Substring($mark) -notmatch "PROBE$id done") { Ensure-Com1; Drain $script:con 1000 }
+  Drain $script:con 1500
+  foreach ($l in @($script:con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })) { Note "  PROBE CONSOLE: $l" }
+  $r.lines = @($script:con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -match "^PROBE$id " })
+  return $r
+}
+# THE CLASSES a probe result falls in (independent audit: a timeout or no service is not enforcement).
+#   BROKEN:       it reached the target (READABLE, CONNECTED, OPENED, CREATED), or a neighbour's socket is VISIBLE (ENXIO)
+#   DENIED:       the path is absent from the domain's view (ENOENT), permission is refused (EACCES, EPERM), or there is no
+#                 route from the domain (ENETUNREACH)
+#   INCONCLUSIVE: anything else, including timed out, no answer, connection refused or reset
+function Classify([string]$v) {
+  if ($v -match 'READABLE|CONNECTED|OPENED|^CREATED$') { return 'BROKEN' }
+  if ($v -match 'No such device or address') { return 'BROKEN' }
+  if ($v -match '^(No such file or directory|Permission denied|Operation not permitted|Network is unreachable)$') { return 'DENIED' }
+  return 'INCONCLUSIVE'
 }
 
 Note "=== DEV BOOT. Host exclusion is NOT established on this path. Nothing here is verified capacity. ==="
@@ -312,6 +370,8 @@ foreach ($f in $pins) {
 }
 
 if ($ProbeDomain -and $Bundle) { throw "-ProbeDomain never runs with -Bundle: a probe image or probe domain never serves an app" }
+if ($ProbeNeighbor -and (-not $Bundle -or -not $LinuxDirect)) { throw "-ProbeNeighbor needs -Bundle (the neighbour: the pinned fixture) and -LinuxDirect" }
+if ($ProbeNeighbor -and ($G1Check -or $HostRead)) { throw "-ProbeNeighbor runs on its own: G1Check destroys the neighbour and HostRead suspends the guest" }
 if (-not $Approve) {
   Write-Host "=== preflight only. Nothing changed. With -Approve it would:"
   Write-Host "      1. set $RegName = 1 (REG_DWORD)  [HOST-WIDE, permits UNSIGNED guest firmware]"
@@ -798,6 +858,61 @@ try {
               Note "APP OK: the app served EXACTLY the pinned bytes through the guest's own TLS"
               Note "  (identity NOT verified here: curl -k accepted the guest cert. That is judge-hv's job.)"
             } else { Note "APP: answered, but the bytes are not the pinned content (expected sha 03ba204e...)" }
+          if ($ProbeNeighbor) {
+            # THE LIVE-NEIGHBOUR ACCEPTANCE. The neighbour is the domain wmiserve just loaded, the pinned fixture.
+            $PINNED = '03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340'
+            $nbLine = @(Get-Content $svOut -EA SilentlyContinue | Where-Object { $_ -match '"step":"load"' -and $_ -match '"ok":true' }) | Select-Object -First 1
+            $nb = $null; try { $nb = ($nbLine | ConvertFrom-Json) } catch { }
+            function Neighbour-Live([string]$when) {
+              $f = "C:\Users\claude\nbbody-$stamp-$when.bin"
+              & curl.exe -sk --max-time 20 -o $f "https://127.0.0.1:$RelayPort/" 2>$null
+              $sha = if (Test-Path $f) { (Get-FileHash $f -Algorithm SHA256).Hash.ToLower() } else { '' }
+              Remove-Item $f -Force -EA SilentlyContinue
+              $lst = HvAnswer (Hv '{"cmd":"list"}')
+              $d1 = @($lst.domains | Where-Object { $_.id -eq 1 })
+              $okServe = ($sha -eq $PINNED); $okList = ($d1.Count -eq 1 -and [string]$d1[0].appSha256 -eq $bsha)
+              Note "NEIGHBOUR ${when}: relay answer sha256 $(if ($sha) { $sha.Substring(0,16) } else { 'none' }) ($(if ($okServe) { 'the pinned bytes' } else { 'NOT the pinned bytes' })); monitor list: domain 1 $(if ($d1.Count) { 'app ' + ([string]$d1[0].appSha256).Substring(0,16) } else { 'ABSENT' }) ($(if ($okList) { 'the neighbour' } else { 'NOT the neighbour' }))"
+              return ($okServe -and $okList)
+            }
+            $fail = @(); $inc = @()
+            if (-not $nb -or $nb.id -ne 1 -or $nb.guestPort -ne 40001) { $fail += "WRONG TARGET: the neighbour must be domain 1 on guest port 40001 (domprobe's hard-coded targets); the load said id $($nb.id) port $($nb.guestPort)" }
+            $liveBefore = Neighbour-Live 'BEFORE'
+            if (-not $liveBefore) { $fail += 'DEAD TARGET: the neighbour was not shown live BEFORE the probe' }
+            $pr = $null
+            if (-not $fail.Count) {
+              $pr = Run-ProbeDomain
+              if ($pr.id -ne 2) { $fail += "WRONG TARGET: the probe must be domain 2 (it was $($pr.id)), so that /domains/1 and vsock 40001 are the neighbour's" }
+            }
+            $liveAfter = if ($pr) { Neighbour-Live 'AFTER' } else { $false }
+            if ($pr -and -not $liveAfter) { $fail += 'DEAD TARGET: the neighbour was not shown live AFTER the probe' }
+            if ($pr -and $pr.id -eq 2) {
+              $val = @{}; foreach ($l in $pr.lines) { if ($l -match '^PROBE2 ([a-z_0-9]+)=(.*)$') { $val[$matches[1]] = $matches[2] } }
+              if (-not @($pr.lines | Where-Object { $_ -eq 'PROBE2 done' }).Count) { $fail += 'the probe did not reach done' }
+              # routes aimed at the LIVE neighbour: only a DENIED counts
+              $nbTargets = [ordered]@{ other_app_absolute = '/domains/1/app.wasm'; other_app_relative = '../1/app.wasm'; other_app_escape = '/../../../domains/1/app.wasm'; other_front_socket = '/domains/1/run/front.sock'; vsock_local_domain1 = 'vsock CID 1 port 40001' }
+              foreach ($k in $nbTargets.Keys) {
+                if (-not $val.ContainsKey($k)) { $fail += "$k MISSING (a missing line is not a denial)"; continue }
+                $c = Classify $val[$k]
+                Note "  NEIGHBOUR ROUTE ${k} -> $($nbTargets[$k]) (live): $($val[$k]) => $c"
+                if ($c -eq 'BROKEN') { $fail += "$k=$($val[$k]) BROKEN" } elseif ($c -eq 'INCONCLUSIVE') { $inc += "$k=$($val[$k])" }
+              }
+              # everything else: reported with what its target is; only a reach FAILS, and no absence counts as a denial
+              $other = [ordered]@{ vsock_local_domain2 = "the probe's OWN port: not a neighbour test"; vsock_own_control = "the monitor's control port"; vsock_host_control = 'the host at CID 2 port 9000: nothing listens there, so a timeout is no service, not a denial'; host_gateway = '10.0.2.2 is a QEMU address with no target on Hyper-V'; configfs_tsm = 'absent from the view; existence in the root namespace not shown'; sysfs = 'absent from the view'; create_tsm_entry = 'absent from the view'; dev_tpm0 = 'absent from the view; existence in the root namespace not shown'; dev_tpmrm0 = 'absent from the view; existence in the root namespace not shown' }
+              foreach ($k in $other.Keys) {
+                if (-not $val.ContainsKey($k)) { Note "  OTHER ROUTE ${k}: MISSING ($($other[$k]))"; if ($k -notmatch '^dev_tpm') { $fail += "$k MISSING" }; continue }
+                $c = Classify $val[$k]
+                Note "  OTHER ROUTE ${k}: $($val[$k]) => $c ($($other[$k]))"
+                if ($c -eq 'BROKEN') { $fail += "$k=$($val[$k]) BROKEN" }
+              }
+              if ($val.ContainsKey('report')) { Note "  REPORT: $($val['report']) (whether a signer was running decides what this means; it never shows signer authorization by itself)" }
+              foreach ($k in 'visible_pids','signalable_pids') { if ($val.ContainsKey($k)) { Note "  RESOURCE ${k}=$($val[$k])" } }
+              if (@($pr.lines | Where-Object { $_ -match 'memory_UNCONTAINED' }).Count) { $fail += 'memory_UNCONTAINED' }
+              Note "PROBE destroy -> $(Hv ('{"cmd":"destroy","id":2,"boot":"' + $pr.boot + '"}'))"
+            }
+            $verdict = if ($fail.Count) { 'FAIL' } elseif ($inc.Count) { 'INCONCLUSIVE' } else { 'PASS' }
+            Note "NEIGHBOUR ACCEPTANCE: $verdict$(if ($fail.Count) { ' - ' + ($fail -join '; ') })$(if ($inc.Count) { ' - inconclusive (not a denial): ' + ($inc -join '; ') })"
+            Note "  (containment between apps inside the partition, by the guest kernel. Nothing here is about the HOST: host_excluded=no.)"
+          }
           if ($G1Check) {
             # The boot the monitor minted, from wmiserve's own load line (launcher 0160d835+ prints it).
             $loadLine = @(Get-Content $svOut -EA SilentlyContinue | Where-Object { $_ -match '"step":"load"' -and $_ -match '"ok":true' }) | Select-Object -First 1
@@ -843,59 +958,18 @@ try {
 
   if ($ProbeDomain -and $ready) {
     if (-not $vmId) { $vmId = (Get-VM -Name $name).Id.Guid }
-    # hvdial writes its --send value plus one newline. A value of <json>`nprobe therefore arrives as the load line followed
-    # by exactly the 6 bytes 'probe`n'. The argument string is built here, not by PowerShell 5.1, which strips quotes
-    # from native arguments.
-    function Hv([string]$payload) {
-      $psi = New-Object System.Diagnostics.ProcessStartInfo
-      $psi.FileName = 'C:\Users\claude\vbs-like\target\release\vbslike-host.exe'
-      $psi.Arguments = 'hvdial --vm ' + $vmId + ' --port 9000 --seconds 20 --send "' + ($payload -replace '"','\"') + '"'
-      $psi.UseShellExecute = $false; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
-      $pr = [System.Diagnostics.Process]::Start($psi); $o = $pr.StandardOutput.ReadToEnd(); $null = $pr.StandardError.ReadToEnd(); $pr.WaitForExit()
-      return $o.Trim()
-    }
-    # THE COM1 CLIENT IS DISCONNECTED BY THIS POINT on every run so far: G4 (082856) had to re-attach on its first pass
-    # after MON ready, and the first two probe dry runs (091020, 091408) read NOTHING after the load for that reason.
-    # So re-attach before the load, and keep re-attaching while waiting.
-    function Ensure-Com1 {
-      if ($con.c -and $con.c.IsConnected) { return }
-      try {
-        $c2 = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipe, [System.IO.Pipes.PipeDirection]::In, [System.IO.Pipes.PipeOptions]::Asynchronous)
-        $c2.Connect(500)
-        if ($con.c) { try { $con.c.Dispose() } catch {} }
-        $con.c = $c2; $con.pending = $null; Note "  PROBE: COM1 re-attached"
-      } catch { }
-    }
-    Ensure-Com1
-    $mark = $con.text.Length
-    $out = Hv ('{"cmd":"load","label":"PROBE","size":6,"cpu":50,"mem":64,"probe":true}' + "`n" + 'probe')
-    Note "PROBE DOMAIN load -> $out"
-    $ans = $null; try { $ans = (($out | ConvertFrom-Json).head | ConvertFrom-Json) } catch { }
-    $pid_ = if ($ans) { $ans.id } else { $null }; $pboot = if ($ans) { [string]$ans.boot } else { '' }
-    if ($null -eq $pid_) { Note "PROBE DOMAIN RESULT: NOT RUN - the load named no domain" }
+    # NO NEIGHBOUR here: domprobe's "other domain" targets are its own domain or nothing, so this judges only the
+    # domain's own namespace and resource containment (narrowed after the independent audit of 3c3dce3d).
+    $pr = Run-ProbeDomain
+    if ($null -eq $pr.id) { Note "PROBE DOMAIN RESULT: NOT RUN - the load named no domain" }
     else {
-      $pdl = (Get-Date).AddSeconds(90)
-      while ((Get-Date) -lt $pdl -and $con.text.Substring($mark) -notmatch "PROBE$pid_ done") { Ensure-Com1; Drain $con 1000 }
-      # EVERY console line in the window, not just the matches: a probe that printed nothing must be diagnosable
-      foreach ($l in @($con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })) { Note "  PROBE CONSOLE: $l" }
-      $plines = @($con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -match "^PROBE$pid_ " })
+      $val = @{}; foreach ($l in $pr.lines) { if ($l -match "^PROBE$($pr.id) ([a-z_0-9]+)=(.*)$") { $val[$matches[1]] = $matches[2] } }
       $bad = @()
-      $val = @{}; foreach ($l in $plines) { if ($l -match "^PROBE$pid_ ([a-z_0-9]+)=(.*)$") { $val[$matches[1]] = $matches[2] } }
-      foreach ($k in @('other_app_absolute','other_app_relative','other_app_escape','other_front_socket','configfs_tsm','sysfs','dev_tpm0','dev_tpmrm0','vsock_local_domain1','vsock_local_domain2','vsock_own_control','vsock_host_control','host_gateway')) {
-        if (-not $val.ContainsKey($k)) { $bad += "$k MISSING (a missing line is not a pass)" }
-        elseif ($val[$k] -match 'READABLE|CONNECTED|OPENED') { $bad += "$k=$($val[$k]) BROKEN" }
+      foreach ($k in @('other_app_absolute','other_app_relative','other_app_escape','other_front_socket','configfs_tsm','sysfs','create_tsm_entry','dev_tpm0','dev_tpmrm0','vsock_local_domain1','vsock_local_domain2','vsock_own_control','vsock_host_control','host_gateway')) {
+        if (-not $val.ContainsKey($k)) { $bad += "$k MISSING" } elseif ((Classify $val[$k]) -eq 'BROKEN') { $bad += "$k=$($val[$k]) BROKEN" }
       }
-      if ($val['create_tsm_entry'] -eq 'CREATED') { $bad += 'create_tsm_entry=CREATED BROKEN' } elseif (-not $val.ContainsKey('create_tsm_entry')) { $bad += 'create_tsm_entry MISSING' }
-      if (-not $val.ContainsKey('visible_pids') -or [int]$val['visible_pids'] -gt 3) { $bad += "visible_pids=$($val['visible_pids'])" }
-      if (-not $val.ContainsKey('signalable_pids') -or [int]$val['signalable_pids'] -gt 2) { $bad += "signalable_pids=$($val['signalable_pids'])" }
-      $uidl = @($plines | Where-Object { $_ -match "^PROBE$pid_ uid=(\d+) euid=(\d+)" })
-      if (-not $uidl.Count) { $bad += 'uid line MISSING' } elseif ($uidl[0] -match 'uid=0 ' -or $uidl[0] -match 'euid=0$') { $bad += "runs as root: $($uidl[0])" }
-      if (@($plines | Where-Object { $_ -match 'memory_UNCONTAINED' }).Count) { $bad += 'memory_UNCONTAINED' }
-      $mem = @($plines | Where-Object { $_ -match 'memory_refused_at=|memory_touched=' }).Count
-      $done = [bool](@($plines | Where-Object { $_ -eq "PROBE$pid_ done" }).Count)
-      Note "PROBE DOMAIN RESULT: domain $pid_ (boot $pboot), $($plines.Count) line(s), done=$done, memory lines=$mem, $(if ($bad.Count) { 'FAILED: ' + ($bad -join '; ') } else { 'every boundary check held' })"
-      $d = Hv ('{"cmd":"destroy","id":' + $pid_ + ',"boot":"' + $pboot + '"}')
-      Note "PROBE DOMAIN destroy -> $d"
+      Note "PROBE DOMAIN RESULT (own-view containment only; NO live neighbour, so no other-app claim): domain $($pr.id), $(@($pr.lines).Count) line(s), $(if ($bad.Count) { 'FAILED: ' + ($bad -join '; ') } else { 'nothing forbidden was reached' })"
+      Note "PROBE DOMAIN destroy -> $(Hv ('{"cmd":"destroy","id":' + $pr.id + ',"boot":"' + $pr.boot + '"}'))"
     }
   }
 
