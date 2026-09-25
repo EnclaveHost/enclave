@@ -46,6 +46,11 @@ func releaseRig(t *testing.T, hold time.Duration) (*rig, *guests) {
 	return r, g
 }
 
+// createRelease is the supervisor's create for a deployment the relay lists for the release
+func (r *rig) createRelease(name, path string) (int, map[string]any) {
+	return r.do("POST", "/vms", map[string]any{"image": "file://" + path, "name": name, "release": true})
+}
+
 func (r *rig) vm(id string) *vm {
 	r.s.mu.Lock()
 	defer r.s.mu.Unlock()
@@ -57,8 +62,8 @@ func (r *rig) vm(id string) *vm {
 func TestATicketGoesOnlyToItsOwnInstancesGuest(t *testing.T) {
 	r, g := releaseRig(t, 400*time.Millisecond)
 	p, _ := r.bundle("A", contract.Policy{})
-	_, a := r.create(name(1), p)
-	_, b := r.create(name(2), p)
+	_, a := r.createRelease(name(1), p)
+	_, b := r.createRelease(name(2), p)
 	aID, bID := a["id"].(string), b["id"].(string)
 	waitFor(t, func() bool {
 		_, va := r.do("GET", "/vms/"+aID, nil)
@@ -92,7 +97,7 @@ func TestATicketGoesOnlyToItsOwnInstancesGuest(t *testing.T) {
 func TestATicketInTheCreateRequestIsHandedAtBoot(t *testing.T) {
 	r, g := releaseRig(t, time.Second)
 	p, _ := r.bundle("A", contract.Policy{})
-	body := map[string]any{"image": "file://" + p, "name": name(3), "ticket": b64('c')}
+	body := map[string]any{"image": "file://" + p, "name": name(3), "release": true, "ticket": b64('c')}
 	code, v := r.do("POST", "/vms", body)
 	if code != 201 {
 		t.Fatalf("%d %v", code, v)
@@ -113,19 +118,32 @@ func TestATicketInTheCreateRequestIsHandedAtBoot(t *testing.T) {
 func TestTicketRefusals(t *testing.T) {
 	off := newRig(t)
 	p, _ := off.bundle("A", contract.Policy{})
-	if code, _ := off.do("POST", "/vms", map[string]any{"image": "file://" + p, "name": name(1), "ticket": b64('a')}); code != 422 {
-		t.Fatalf("a ticket with -release off: %d", code)
+	for what, body := range map[string]map[string]any{
+		"a release guest with -release off": {"image": "file://" + p, "name": name(1), "release": true},
+		"a ticket with -release off":        {"image": "file://" + p, "name": name(1), "release": true, "ticket": b64('a')},
+	} {
+		if code, _ := off.do("POST", "/vms", body); code != 422 {
+			t.Fatalf("%s: %d", what, code)
+		}
 	}
 	if code, _ := off.do("POST", "/vms/gd00000000/ticket", map[string]any{"ticket": b64('a')}); code != 422 {
 		t.Fatalf("POST ticket with -release off: %d", code)
 	}
+	// no legacy tree: a deployment that is not a release guest cannot be built at all
+	nolegacy, _ := releaseRig(t, time.Second)
+	if code, _ := nolegacy.do("POST", "/vms", map[string]any{"image": "file://" + p, "name": name(2)}); code != 422 {
+		t.Fatalf("a non-release deployment with no legacy image: %d", code)
+	}
+	// with one, so each refusal below is refused for ITS reason and not for the missing legacy tree
 	r, _ := releaseRig(t, time.Second)
+	r.s.Legacy = newFake()
 	for what, body := range map[string]map[string]any{
-		"a ticket for a name that is no deployment id": {"image": "file://" + p, "name": "lab-guest", "ticket": b64('a')},
-		"a short ticket":          {"image": "file://" + p, "name": name(2), "ticket": base64.StdEncoding.EncodeToString([]byte("short"))},
-		"a ticket not base64":     {"image": "file://" + p, "name": name(2), "ticket": "%%%"},
-		"config beside a ticket":  {"image": "file://" + p, "name": name(2), "ticket": b64('a'), "config": `{"a":1}`},
-		"secrets beside a ticket": {"image": "file://" + p, "name": name(2), "ticket": b64('a'), "secrets": map[string]any{"K": "v"}},
+		"a release guest for a name that is no deployment id": {"image": "file://" + p, "name": "lab-guest", "release": true},
+		"a ticket for a guest that is not a release guest":    {"image": "file://" + p, "name": name(2), "ticket": b64('a')},
+		"a short ticket":          {"image": "file://" + p, "name": name(2), "release": true, "ticket": base64.StdEncoding.EncodeToString([]byte("short"))},
+		"a ticket not base64":     {"image": "file://" + p, "name": name(2), "release": true, "ticket": "%%%"},
+		"config beside a ticket":  {"image": "file://" + p, "name": name(2), "release": true, "ticket": b64('a'), "config": `{"a":1}`},
+		"secrets beside a ticket": {"image": "file://" + p, "name": name(2), "release": true, "ticket": b64('a'), "secrets": map[string]any{"K": "v"}},
 	} {
 		if code, _ := r.do("POST", "/vms", body); code != 422 {
 			t.Fatalf("%s: %d", what, code)
@@ -147,7 +165,7 @@ func TestTheCIDAvoidsEveryHeldGuest(t *testing.T) {
 	r.s.drawCID = func() uint32 { c := draws[0]; draws = draws[1:]; return c }
 	r.s.mu.Unlock()
 	p, _ := r.bundle("A", contract.Policy{})
-	_, v := r.create(name(4), p)
+	_, v := r.createRelease(name(4), p)
 	r.s.launching.Wait()
 	if x := r.vm(v["id"].(string)); x.cid != 70001 {
 		t.Fatalf("chose CID %d (the adopted guest holds 70000; 5 is out of range)", x.cid)
@@ -162,14 +180,15 @@ func TestTheCIDAvoidsEveryHeldGuest(t *testing.T) {
 func TestEgressAdmitsOnlyLiveDeploymentGuests(t *testing.T) {
 	r, _ := releaseRig(t, 50*time.Millisecond)
 	r.s.mu.Lock()
-	r.s.vms["a"] = &vm{ID: "a", Status: "running", cid: 70010, HostData: hostDataFor(name(1)), lc: contract.NewLifecycle(contract.Running)}
+	r.s.vms["a"] = &vm{ID: "a", Status: "running", cid: 70010, HostData: hostDataFor(name(1)), release: true, lc: contract.NewLifecycle(contract.Running)}
+	r.s.vms["legacy"] = &vm{ID: "legacy", Status: "running", cid: 70014, HostData: hostDataFor(name(4)), legacy: true, lc: contract.NewLifecycle(contract.Running)}
 	r.s.vms["lab"] = &vm{ID: "lab", Status: "running", cid: 70011, lc: contract.NewLifecycle(contract.Running)}
 	ended := contract.NewLifecycle(contract.Running)
 	ended.RequestEnd("test")
-	r.s.vms["gone"] = &vm{ID: "gone", Status: "running", cid: 70012, HostData: hostDataFor(name(2)), lc: ended}
-	r.s.vms["failed"] = &vm{ID: "failed", Status: "failed", cid: 70013, HostData: hostDataFor(name(3)), lc: contract.NewLifecycle(contract.Starting)}
+	r.s.vms["gone"] = &vm{ID: "gone", Status: "running", cid: 70012, HostData: hostDataFor(name(2)), release: true, lc: ended}
+	r.s.vms["failed"] = &vm{ID: "failed", Status: "failed", cid: 70013, HostData: hostDataFor(name(3)), release: true, lc: contract.NewLifecycle(contract.Starting)}
 	r.s.mu.Unlock()
-	for cid, want := range map[uint32]bool{70010: true, 70011: false, 70012: false, 70013: false, 99999: false, 0: false} {
+	for cid, want := range map[uint32]bool{70010: true, 70011: false, 70012: false, 70013: false, 70014: false, 99999: false, 0: false} {
 		if r.s.admitCID(cid) != want {
 			t.Fatalf("CID %d: admit %v", cid, !want)
 		}
@@ -183,7 +202,7 @@ func TestTheTicketServiceWritesTheLineToThatGuestOnly(t *testing.T) {
 	r.f.guest = nil                     // the guest's boot is the socket below
 	r.f.startGate = make(chan struct{}) // and the instance stays "starting" until it has read its ticket
 	p, _ := r.bundle("A", contract.Policy{})
-	_, v := r.create(name(5), p)
+	_, v := r.createRelease(name(5), p)
 	x := r.vm(v["id"].(string))
 	if code, _ := r.do("POST", "/vms/"+x.ID+"/ticket", map[string]any{"ticket": b64('e')}); code != 202 {
 		t.Fatalf("post: %d", code)
@@ -264,4 +283,63 @@ func (w logWriter) Write(p []byte) (int, error) { return w(p) }
 
 func logTo(b *strings.Builder, mu *sync.Mutex) *log.Logger {
 	return log.New(logWriter(func(p []byte) (int, error) { mu.Lock(); defer mu.Unlock(); return b.Write(p) }), "", 0)
+}
+
+// d1's rollout option (i): on a -release guestd the image is chosen PER DEPLOYMENT. A deployment the supervisor marks
+// release is built from this tree and gets a ticket slot and egress; any other deployment is built by the LEGACY
+// launcher (the previous tree's image, unchanged) and gets neither; a lab guest (no deployment id) is this tree's,
+// with no release. Adoption keeps what each one is.
+func TestTheImageIsChosenPerDeployment(t *testing.T) {
+	r, _ := releaseRig(t, 200*time.Millisecond)
+	old := newFake()
+	r.s.Legacy = old
+	r.f.guest = nil // no boots here: which launcher built what, and what each instance is, is the point
+	p, _ := r.bundle("A", contract.Policy{})
+	_, rel := r.createRelease(name(1), p)
+	_, leg := r.create(name(2), p)
+	_, lab := r.do("POST", "/vms", map[string]any{"image": "file://" + p, "name": "lab-guest"})
+	r.s.launching.Wait()
+	x, y, z := r.vm(rel["id"].(string)), r.vm(leg["id"].(string)), r.vm(lab["id"].(string))
+	r.f.mu.Lock()
+	newBuilds := r.f.builds
+	r.f.mu.Unlock()
+	old.mu.Lock()
+	oldBuilds, oldCIDs := old.builds, append([]uint32(nil), old.cids...)
+	old.mu.Unlock()
+	if newBuilds != 2 || oldBuilds != 1 || len(oldCIDs) != 1 || oldCIDs[0] != y.cid {
+		t.Fatalf("this tree built %d (want the release and the lab guest), the legacy tree %d with CIDs %v (want the other deployment, on its chosen CID %d)",
+			newBuilds, oldBuilds, oldCIDs, y.cid)
+	}
+	if !x.release || x.legacy || x.ticket == nil || y.release || !y.legacy || y.ticket != nil || z.release || z.legacy || z.ticket != nil {
+		t.Fatalf("release %+v / legacy %+v / lab %+v", [3]bool{x.release, x.legacy, x.ticket != nil},
+			[3]bool{y.release, y.legacy, y.ticket != nil}, [3]bool{z.release, z.legacy, z.ticket != nil})
+	}
+	if _, v := r.do("GET", "/vms/"+x.ID, nil); v["release"] != true || v["legacyImage"] != nil {
+		t.Fatalf("the release guest's view: %v", v)
+	}
+	if _, v := r.do("GET", "/vms/"+y.ID, nil); v["legacyImage"] != true || v["release"] != nil {
+		t.Fatalf("the legacy guest's view: %v", v)
+	}
+	// only the release guest may use egress; the legacy one has no allowlist of its own
+	x.Status, y.Status = "running", "running"
+	if r.s.admitCID(y.cid) {
+		t.Fatal("a legacy guest was admitted to egress")
+	}
+	// a restart adopts each as what it was: the release guest keeps its egress, the legacy one its label. (One systemd
+	// holds both trees' units; the two fakes stand in for it separately, so the legacy unit is marked alive in both.)
+	r.f.mu.Lock()
+	r.f.alive["unit-"+y.ID] = true
+	r.f.mu.Unlock()
+	r.s.persistRunning(x)
+	r.s.persistRunning(y)
+	s2, _, _, _ := r.restart(t)
+	s2.mu.Lock()
+	ax, ay := s2.vms[x.ID], s2.vms[y.ID]
+	s2.mu.Unlock()
+	if ax == nil || ay == nil || !ax.release || ax.legacy || ay.release || !ay.legacy {
+		t.Fatalf("adoption lost what each guest is: %+v %+v", ax, ay)
+	}
+	if !s2.admitCID(ax.cid) || s2.admitCID(ay.cid) {
+		t.Fatal("after a restart, egress admission changed")
+	}
 }

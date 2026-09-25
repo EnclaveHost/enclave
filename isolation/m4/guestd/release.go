@@ -194,7 +194,8 @@ func (s *server) admitCID(cid uint32) bool {
 	defer s.mu.Unlock()
 	for _, v := range s.vms {
 		st := v.lc.State() // Starting or Running only: once its end is requested, its guest gets no new connection
-		if v.cid == cid && cid != 0 && v.HostData != "" && (st == contract.Starting || st == contract.Running) &&
+		// a RELEASE guest only: a legacy or lab guest has no allowlist of its own, so it gets no egress at all
+		if v.cid == cid && cid != 0 && v.release && v.HostData != "" && (st == contract.Starting || st == contract.Running) &&
 			(v.Status == "starting" || v.Status == "running") {
 			return true
 		}
@@ -236,20 +237,34 @@ func (s *server) postTicket(w http.ResponseWriter, r *http.Request, id string) {
 	s.json(w, 202, map[string]any{"id": v.ID, "ticket": "pending"})
 }
 
-// ticketFromRequest validates a create request's ticket: only with -release, and only for a deployment guest.
-func (s *server) ticketFromRequest(req *Request, hostData string) (*[32]byte, error) {
-	if req.Ticket == "" {
-		return nil, nil
+// releaseChoice decides, for one create, whether the guest is a RELEASE guest (this tree's image; a ticket slot) or a
+// LEGACY one (the previous tree's image, on a -release guestd), and validates a create-time ticket.
+//
+// d1's rollout option (i): the relay's list is where an owner's decision lives, and the supervisor states it as
+// `release`. On a -release guestd a deployment that is not a release guest is built from the legacy tree, so it runs
+// exactly as before the release existed; with no legacy tree it is refused, because this tree's front will not start a
+// deployment's app without a release. A lab guest (no deployment id) has no HOST_DATA and runs this tree's image with
+// no release.
+func (s *server) releaseChoice(req *Request, hostData string) (ticket *[32]byte, legacy bool, err error) {
+	switch {
+	case req.Release && !s.Release:
+		return nil, false, errors.New("a release guest: this guestd does not deliver releases (-release is off)")
+	case req.Release && hostData == "":
+		return nil, false, fmt.Errorf("a release guest for %q, which is not a deployment id: the guest would have no HOST_DATA to bind", req.Name)
+	case req.Ticket != "" && !req.Release:
+		return nil, false, errors.New("a release ticket for a guest that is not a release guest (release is not set)")
+	case s.Release && !req.Release && hostData != "":
+		if s.Legacy == nil {
+			return nil, false, errors.New("a deployment that is not a release guest: this -release guestd has no legacy image (-legacy-isolation), and its own front would not start the app without a release")
+		}
+		legacy = true
 	}
-	if !s.Release {
-		return nil, errors.New("a release ticket: this guestd does not deliver them (-release is off)")
+	if req.Ticket != "" {
+		t, err := parseTicket(req.Ticket)
+		if err != nil {
+			return nil, false, err
+		}
+		ticket = &t
 	}
-	if hostData == "" {
-		return nil, fmt.Errorf("a release ticket for %q, which is not a deployment id: the guest would have no HOST_DATA to check it against", req.Name)
-	}
-	t, err := parseTicket(req.Ticket)
-	if err != nil {
-		return nil, err
-	}
-	return &t, nil
+	return ticket, legacy, nil
 }
