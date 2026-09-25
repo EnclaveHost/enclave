@@ -245,7 +245,8 @@ test("fail closed: OFF, a missing policy or a missing provider answers 503 and i
   const saved = { ...process.env };
   for (const [k, v] of [["SECRETS_ATTESTED_RELEASE", ""], ["SECRETS_RELEASE_MEASUREMENTS", ""], ["SECRETS_RELEASE_RUNTIME_IDS", "zz"],
                         ["SECRETS_RELEASE_MIN_TCB", ""], ["SECRETS_RELEASE_MIN_TCB", "{}"], ["SECRETS_RELEASE_VMPL", ""], ["SECRETS_RELEASE_VMPL", "4"],
-                        ["SECRETS_RELEASE_SIGNING_KEY", ""], ["SECRETS_RELEASE_SIGNING_KEY", "zz"]]) {
+                        ["SECRETS_RELEASE_SIGNING_KEY", ""], ["SECRETS_RELEASE_SIGNING_KEY", "zz"],
+                        ["SECRETS_RELEASE_SIGNING_KEY", "ab".repeat(32)]]) {   // equal to this suite's SECRETS_KEY: no separate key
     process.env[k] = v;
     const r = await ticketFor(A);
     assert.equal(r.code, 503, `${k}=${v}`); assert.equal(r.body.error, "release_unconfigured"); assert.match(r.body.message, new RegExp(k));
