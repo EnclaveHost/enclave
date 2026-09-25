@@ -84,6 +84,12 @@ param(
   # carrying the FIRST boot is sent raw over hv_sock 9000 and must answer rebooted:true naming the new boot (G1 across a
   # real reboot). Never with -Bundle: a probe never serves an app.
   [int] $G4WatchSeconds = 0,
+  # THE IN-DOMAIN ADVERSARY PROBE (enclave-5d's domprobe, as test-m3 check 10 judges it): after MON ready, load a
+  # PROBE-mode domain RAW over hv_sock 9000 ({"cmd":"load",...,"probe":true} plus a 6-byte artifact). Its workload is
+  # /plat/domprobe instead of the runtime. Its COM1 lines are judged: nothing READABLE, CONNECTED or OPENED
+  # (the TPM device nodes included, open only), no CREATED tsm entry, few visible or signalable pids, and an
+  # unprivileged uid. It is then destroyed with its boot. Never with -Bundle.
+  [switch] $ProbeDomain,
   # THE INVERSE CONTROL for Windows' firmware-load requirement: run WITHOUT applying AllowFirmwareLoadFromFile, so
   # the first observable says whether Hyper-V loads this firmware file without the developer setting at all.
   [switch] $WithoutFirmwarePolicy,
@@ -305,6 +311,7 @@ foreach ($f in $pins) {
   Note "$($f.n) verified: $($f.p) ($($fs.Length) bytes) sha256 $got - held open, write and delete denied, until the VM is gone"
 }
 
+if ($ProbeDomain -and $Bundle) { throw "-ProbeDomain never runs with -Bundle: a probe image or probe domain never serves an app" }
 if (-not $Approve) {
   Write-Host "=== preflight only. Nothing changed. With -Approve it would:"
   Write-Host "      1. set $RegName = 1 (REG_DWORD)  [HOST-WIDE, permits UNSIGNED guest firmware]"
@@ -833,6 +840,50 @@ try {
   elseif ($seen -match 'MON ERROR'){ Note "RESULT: the guest REFUSED to start; the line above names the guard that fired" }
   elseif ($seen.Length -gt 0)      { Note "RESULT: the guest spoke but never said MON ready" }
   else                             { Note "RESULT: silent - no console bytes; a silent partition is not a booted one" }
+
+  if ($ProbeDomain -and $ready) {
+    if (-not $vmId) { $vmId = (Get-VM -Name $name).Id.Guid }
+    # hvdial writes its --send value plus one newline. A value of <json>`nprobe therefore arrives as the load line followed
+    # by exactly the 6 bytes 'probe`n'. The argument string is built here, not by PowerShell 5.1, which strips quotes
+    # from native arguments.
+    function Hv([string]$payload) {
+      $psi = New-Object System.Diagnostics.ProcessStartInfo
+      $psi.FileName = 'C:\Users\claude\vbs-like\target\release\vbslike-host.exe'
+      $psi.Arguments = 'hvdial --vm ' + $vmId + ' --port 9000 --seconds 20 --send "' + ($payload -replace '"','\"') + '"'
+      $psi.UseShellExecute = $false; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
+      $pr = [System.Diagnostics.Process]::Start($psi); $o = $pr.StandardOutput.ReadToEnd(); $null = $pr.StandardError.ReadToEnd(); $pr.WaitForExit()
+      return $o.Trim()
+    }
+    $mark = $con.text.Length
+    $out = Hv ('{"cmd":"load","label":"PROBE","size":6,"cpu":50,"mem":64,"probe":true}' + "`n" + 'probe')
+    Note "PROBE DOMAIN load -> $out"
+    $ans = $null; try { $ans = (($out | ConvertFrom-Json).head | ConvertFrom-Json) } catch { }
+    $pid_ = if ($ans) { $ans.id } else { $null }; $pboot = if ($ans) { [string]$ans.boot } else { '' }
+    if ($null -eq $pid_) { Note "PROBE DOMAIN RESULT: NOT RUN - the load named no domain" }
+    else {
+      $pdl = (Get-Date).AddSeconds(90)
+      while ((Get-Date) -lt $pdl -and $con.text.Substring($mark) -notmatch "PROBE$pid_ done") { Drain $con 1000 }
+      $plines = @($con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -match "^PROBE$pid_ " })
+      foreach ($l in $plines) { Note "  PROBE LINE: $l" }
+      $bad = @()
+      $val = @{}; foreach ($l in $plines) { if ($l -match "^PROBE$pid_ ([a-z_0-9]+)=(.*)$") { $val[$matches[1]] = $matches[2] } }
+      foreach ($k in @('other_app_absolute','other_app_relative','other_app_escape','other_front_socket','configfs_tsm','sysfs','dev_tpm0','dev_tpmrm0','vsock_local_domain1','vsock_local_domain2','vsock_own_control','vsock_host_control','host_gateway')) {
+        if (-not $val.ContainsKey($k)) { $bad += "$k MISSING (a missing line is not a pass)" }
+        elseif ($val[$k] -match 'READABLE|CONNECTED|OPENED') { $bad += "$k=$($val[$k]) BROKEN" }
+      }
+      if ($val['create_tsm_entry'] -eq 'CREATED') { $bad += 'create_tsm_entry=CREATED BROKEN' } elseif (-not $val.ContainsKey('create_tsm_entry')) { $bad += 'create_tsm_entry MISSING' }
+      if (-not $val.ContainsKey('visible_pids') -or [int]$val['visible_pids'] -gt 3) { $bad += "visible_pids=$($val['visible_pids'])" }
+      if (-not $val.ContainsKey('signalable_pids') -or [int]$val['signalable_pids'] -gt 2) { $bad += "signalable_pids=$($val['signalable_pids'])" }
+      $uidl = @($plines | Where-Object { $_ -match "^PROBE$pid_ uid=(\d+) euid=(\d+)" })
+      if (-not $uidl.Count) { $bad += 'uid line MISSING' } elseif ($uidl[0] -match 'uid=0 ' -or $uidl[0] -match 'euid=0$') { $bad += "runs as root: $($uidl[0])" }
+      if (@($plines | Where-Object { $_ -match 'memory_UNCONTAINED' }).Count) { $bad += 'memory_UNCONTAINED' }
+      $mem = @($plines | Where-Object { $_ -match 'memory_refused_at=|memory_touched=' }).Count
+      $done = [bool](@($plines | Where-Object { $_ -eq "PROBE$pid_ done" }).Count)
+      Note "PROBE DOMAIN RESULT: domain $pid_ (boot $pboot), $($plines.Count) line(s), done=$done, memory lines=$mem, $(if ($bad.Count) { 'FAILED: ' + ($bad -join '; ') } else { 'every boundary check held' })"
+      $d = Hv ('{"cmd":"destroy","id":' + $pid_ + ',"boot":"' + $pboot + '"}')
+      Note "PROBE DOMAIN destroy -> $d"
+    }
+  }
 
   if ($G4WatchSeconds -gt 0) {
     Note "G4 WATCH: holding the partition and COM1 for $G4WatchSeconds s. The PROBE panics on purpose about 120 s after /probe.ko loads; what Hyper-V then does is the measurement."
