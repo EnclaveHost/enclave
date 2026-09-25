@@ -64,8 +64,8 @@ A direct boot (HCS linux-direct, QEMU `-kernel`) makes no UKI claim: its loader 
   `startup.nsh`, no NVRAM entry, and nothing under `\loader\` or `BOOTX64.EFI.extra.d\`. Removable-media fallback
   boots it.
 - Gen2 boots from a SCSI VHDX or a DVD ISO. Either works: the guest never writes to its boot medium.
-  - My preference is a read-only El Torito ISO, if d1's VM boots it.
-  - Otherwise use 53's raw-GPT pin (fixed GUIDs, FAT volume id and times), with the VHDX a container verified by
+  - **Chosen (enclave-d1): a read-only El Torito ISO**, deterministic, built by enclave-53.
+  - VHDX is the hardware fallback, pinned by 53's raw GPT image (fixed GUIDs, FAT volume id and times) and verified by
     converting back to raw.
 
 ## Kernel requirements
@@ -91,7 +91,9 @@ Verified by enclave-99 from the pinned kernel's embedded config:
   - 9000: the guest listens;
   - 9001: the HOST listens (report signing);
   - 40000+id: the guest listens.
-- A vTPM: state whether the VM has one (item 13).
+- **No vTPM, deliberately** (enclave-d1): nothing on this path reads PCRs, and a vTPM present but unread would look
+  like attestation it isn't. The report states the absence.
+- d1 reads back the VM's firmware and boot configuration before starting, and refuses if anything carries load options.
 
 ## The signed report's image field, per path
 
@@ -149,7 +151,8 @@ On the NucBox nothing measures the partition's image for a client. The launcher 
 11. **The EFI random seed** (`\loader\random-seed` plus the firmware RNG, into the kernel's seed table): host entropy
     feeds the RNG that mints the handshake key and the nonces. The host is trusted on this tier anyway; stated, not
     solved.
-12. **A vTPM**, if the VM has one: the stub measures into PCRs 9/11/12/13, and nothing reads them. d1 states presence.
+12. **A vTPM: none, by decision** (enclave-d1). The stub would measure into PCRs 9/11/12/13 that nothing reads. If a
+    verifier of those PCRs ever exists, adding one is a real capability, not decoration.
 13. **The toolchain**: objcopy 2.47 (and the stub's systemd version), inputs to the UKI's bytes.
 14. **The report field's source**: the launcher's statement of what it attached (above), which is the host's word.
 
