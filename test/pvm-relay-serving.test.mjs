@@ -14,7 +14,7 @@ import http from "node:http";
 import net from "node:net";
 import { spawn } from "node:child_process";
 import { createHash, generateKeyPairSync, sign as edSign } from "node:crypto";
-import { createPvmServing, windowLimiter, pvmServingFromEnv } from "../relay/pvm-serving.mjs";
+import { createPvmServing, windowLimiter, pvmServingFromEnv, carrierRoute } from "../relay/pvm-serving.mjs";
 import { initialState } from "../shielded/anchor/avf/client/src/trust.js";
 import { connect } from "../shielded/anchor/avf/client/src/client.js";
 import { FileStore } from "../shielded/anchor/avf/client/src/store-file.js";
@@ -57,8 +57,27 @@ const cli = (args) => new Promise((resolve) => {
   c.on("close", (code) => resolve({ code, result: out.split("\n").filter(Boolean).map((l) => JSON.parse(l)).reverse().find((l) => l.result)?.result }));
 });
 const raw = (port, method, p, body = "") => new Promise((resolve) => {
-  const q = http.request({ host: "127.0.0.1", port, method, path: p }, (r) => { let b = ""; r.on("data", (d) => (b += d)); r.on("end", () => resolve({ status: r.statusCode, body: b })); });
-  q.on("error", () => resolve({ status: 0 })); q.end(body);
+  const q = http.request({ host: "127.0.0.1", port, method, path: p }, (r) => { let b = ""; r.on("data", (d) => (b += d)); r.on("end", () => resolve({ status: r.statusCode, body: b, headers: r.headers })); });
+  q.on("error", () => resolve({ status: 0, headers: {} })); q.end(body);
+});
+
+test("carrierRoute: only the EXACT raw routes, POST, no query -- every round-2 variant (encoding, case, slashes, dot segments, trailing parts, a query, another method) is not the carrier's and falls through", () => {
+  const D = "0x" + "d1".repeat(32);
+  const ok = [[`/x/${D}/pvm/evidence`, { id: D, what: "evidence", tunnel: null }], [`/x/${D}/pvm/sealed`, { id: D, what: "sealed", tunnel: null }],
+              ["/t/pixel-a/pvm/evidence", { id: null, what: "evidence", tunnel: "pixel-a" }]];
+  for (const [url, want] of ok) assert.deepEqual(carrierRoute({ method: "POST", url }), want, url);
+  const variants = [
+    `/x/${D}/pvm/evidence/`, `/x/${D}/pvm/evidence/x`, `/x/${D}/pvm/evidence?`, `/x/${D}/pvm/evidence?a=1`, `/x/${D}/pvm/evidence#f`,
+    `/X/${D}/pvm/evidence`, `/x/${D}/PVM/evidence`, `/x/${D}/pvm/Evidence`, `/x/${D.toUpperCase().replace("0X", "0x")}/pvm/evidence`,
+    `/x/${D}/pvm/..%2Fevidence`, `/x/${D}/pvm%2Fevidence`, `/x/${D}/pvm%252Fevidence`, `/x/${D}%2Fpvm%2Fevidence`, `/x/${D}/pvm/%65vidence`,
+    `/x/${D}//pvm/evidence`, `//x/${D}/pvm/evidence`, `/x/${D}/pvm//evidence`, `/x/${D}/./pvm/evidence`, `/x/${D}/pvm/../pvm/evidence`, `/x/${D}\\pvm\\evidence`,
+    `/x/${D}/other/../pvm/evidence`, `/x/${D.slice(0, 10)}/pvm/evidence`, `/x/dep_abc/pvm/evidence`, `http://api.example/x/${D}/pvm/evidence`,
+    "/t/pixel-a/pvm/evidence/", "/t/pixel-a/pvm/sealed", "/t/pixel-a/PVM/evidence", "/t/pixel-a/pvm/%65vidence", "/t/pixel-a//pvm/evidence", "/t/pixel-a/x/../pvm/evidence",
+    "/t/pixel-a/pvm/evidence?x", "/T/pixel-a/pvm/evidence", "/t/pixel%2Da/pvm/evidence", "/t/" + "a".repeat(65) + "/pvm/evidence",
+  ];
+  for (const url of variants) assert.equal(carrierRoute({ method: "POST", url }), null, url);
+  for (const method of ["GET", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS", "post"]) assert.equal(carrierRoute({ method, url: `/x/${D}/pvm/evidence` }), null, method);
+  assert.equal(carrierRoute(null), null); assert.equal(carrierRoute({ method: "POST" }), null);
 });
 
 test("the relay module routes a deployment by its ledger runner to that runner's pVM tunnel, and refuses everything else with a plain status", { skip: !haveOpenssl && "no openssl", timeout: 180000 }, async () => {
@@ -92,13 +111,16 @@ test("the relay module routes a deployment by its ledger runner to that runner's
     const r2 = (await run(D1)).result;
     assert.equal(r2.step, "verify"); assert.equal(ev(vm2), 1, "the new runner's VM answered the fresh nonce"); assert.equal(ev(vm1), 1);
     // raw HTTP: a prefix id, another method, an oversized evidence request, sealed to a tunnel whose app the hub did not verify
-    assert.equal((await raw(port, "POST", "/x/0xd1d1d1d1/pvm/evidence", "EVIDENCE x\n")).status, 404, "a prefix never resolves");
-    assert.equal((await raw(port, "GET", `/x/${D1}/pvm/evidence`)).status, 405);
+    // a prefix id and another method are NOT the carrier's (carrierRoute: exact, raw, POST): the server's own fallback answers
+    for (const [m, p] of [["POST", "/x/0xd1d1d1d1/pvm/evidence"], ["GET", `/x/${D1}/pvm/evidence`]]) {
+      const r = await raw(port, m, p, m === "POST" ? "EVIDENCE x\n" : undefined);
+      assert.equal(r.status, 404, `${m} ${p}`); assert.equal(r.headers["content-security-policy"], undefined, `${m} ${p}: the fallback's 404, not a carrier refusal`);
+    }
     assert.equal((await raw(port, "POST", `/x/${D1}/pvm/evidence`, "E".repeat(300))).status, 413);
     const noapp = await raw(port, "POST", `/x/${D4}/pvm/sealed`, "x");
     assert.equal(noapp.status, 404); assert.equal(noapp.body, "", "a plain status, no body a client could mistake for an envelope");
     // the per-deployment rate (4 a minute here): D1 has used 3 -- two runs and the oversized request (the rate is checked
-    // before the body is read; the 405 is refused before the rate) -- so one more passes and the next is 429
+    // before the body is read; the GET above is not the carrier's at all) -- so one more passes and the next is 429
     await raw(port, "POST", `/x/${D1}/pvm/evidence`, "EVIDENCE " + "ab".repeat(32) + "\n"); await raw(port, "POST", `/x/${D1}/pvm/evidence`, "EVIDENCE " + "cd".repeat(32) + "\n");
     const limited = (await run(D1)).result;
     // the lab web carrier (cpu/web-carrier.mjs) answers an oversized request with its status too, not a reset
@@ -306,7 +328,7 @@ test("the BOOTSTRAP route on the REAL hub: /t/<name>/pvm/evidence reaches that n
     assert.equal(u.status, 404); assert.equal(u.body, "", "an unknown name: a plain 404, nothing that could pass for evidence");
     const n0 = notOurs, sealed = await raw(port, "POST", "/t/pixel-unleased/pvm/sealed", "x");
     assert.equal(sealed.status, 404); assert.equal(notOurs, n0 + 1, "sealed is never routed by name: not this module's path");
-    assert.equal((await raw(port, "GET", "/t/pixel-unleased/pvm/evidence", "")).status, 405);
+    { const n1 = notOurs; assert.equal((await raw(port, "GET", "/t/pixel-unleased/pvm/evidence", "")).status, 404); assert.equal(notOurs, n1 + 1, "a GET is not the carrier's: it falls through"); }
     assert.equal((await raw(port, "POST", "/t/pixel-unleased/pvm/evidence", `EVIDENCE ${n}\n`)).status, 200, "the bucket's second request");
     assert.equal(ev(), 2);
     const r3 = await raw(port, "POST", "/t/pixel-unleased/pvm/evidence", `EVIDENCE ${n}\n`);
