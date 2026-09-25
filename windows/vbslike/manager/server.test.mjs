@@ -106,17 +106,15 @@ test("the lifecycle is readable: list, get, delete", async () => {
 
 test("the backend takes the REAL launcher, and a domain started through it is running", async () => {
   const { WmiHyperVLauncher } = await import("./wmi-launcher.mjs");
+  const { TYPE1, PREFLIGHT_OK, defineAnswer, keyOf } = await import("./fake-hyperv.mjs");
   const SHA = "2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3";
-  const answer = (script) => script.includes("$r.vmms") ? { vmms: true, namespace: true, module: true, firmwareField: true, hypervisor: true }
-    : script.includes("Get-FileHash") ? { present: true, sha256: SHA, bytes: 124962164 }
-    : script.includes("New-VM") ? { id: "GUID", version: "12.0", name: "x" }
-    : script.includes("ModifySystemSettings") ? { returnValue: 0, jobState: null, firmwareFile: "C:\\img.bin", guestFeatureSet: 0x201 }
-    : script.includes("Start-VM") ? { state: "Running" }
-    : script.includes("NamedPipeClientStream") ? { connected: true, bytes: 42, head: "guest output" }
-    : script.includes("$vms = @(Get-VM | Where-Object") ? { vms: [] } : { ok: true };
+  // the type-1 definition (New-CustomVM), answered the way a compliant host reads it back
+  const answer = (script) => ({ preflight: PREFLIGHT_OK, imageHash: { present: true, sha256: SHA, bytes: 124962164 },
+    define: defineAnswer(script), start: { state: "Running" },
+    readConsole: { connected: true, bytes: 42, head: "guest output" }, survey: { vms: [] } })[keyOf(script)] ?? { ok: true };
   const launcher = new WmiHyperVLauncher({
     run: async (s) => ({ code: 0, stdout: JSON.stringify(answer(s)), stderr: "" }),
-    imagePath: "C:\\img.bin", imageSha256: SHA, prefix: "enclave-app-t-" });
+    imagePath: "C:\\img.bin", imageSha256: SHA, prefix: "enclave-app-t-", ...TYPE1 });
   const backend = new HyperVPartitionBackend({ launcher });
   const m = mk({ backend });
   await assert.rejects(m.spawn(spawnBody()), (e) => e.status === 503, "a manager that can launch answers nothing before it has surveyed Hyper-V");

@@ -6,78 +6,77 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { WmiHyperVLauncher, CMD, GUEST_FEATURE_SET, OWNER_MARKER } from "./wmi-launcher.mjs";
+import { WmiHyperVLauncher, CMD, OWNER_MARKER, HYPERV_MODULE_SHA256 } from "./wmi-launcher.mjs";
 import { HyperVPartitionBackend } from "./backend.mjs";
 import { Manager } from "./server.mjs";
+import { TYPE1, PREFLIGHT_OK, VM_ID, defineAnswer, keyOf } from "./fake-hyperv.mjs";
 
 const IMG = "C:\\img\\openhcl-ownguest.bin";
 const SHA = "2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3";
 const mapping = { appId: "708e640945d196df5829aa4ea490774c18ef6876a0d9239f574986ad18ae3782",
                   record: { policy: { cpuPercent: 100, memMiB: 512, vcpus: 1 } } };
 
+/* The type-1 define answer is DERIVED from the script it answers (fake-hyperv.mjs); an override
+ * object is a host that read back something else, an Error a script that failed. */
 function host(over = {}) {
   const seen = [];
   const A = {
-    preflight: { vmms: true, namespace: true, module: true, firmwareField: true, hypervisor: true },
+    preflight: PREFLIGHT_OK,
     imageHash: { present: true, sha256: SHA, bytes: 1 },
-    create: { id: "GUID-1", version: "12.0", name: "n", notes: OWNER_MARKER },
-    pinFirmware: { returnValue: 0, jobState: null, firmwareFile: IMG, guestFeatureSet: GUEST_FEATURE_SET },
-    attachConsole: { ok: true },
     start: { state: "Running" },
     readConsole: { connected: true, bytes: 128, head: "OpenHCL boot..." },
     teardown: { found: 0, removed: [], failed: [] },
     removeExact: { found: true, removed: true },
+    removeById: { found: true, removed: true },
+    retire: { present: true, retired: true },
     stop: { ok: true },
     survey: { vms: [] },
     ...over,
   };
-  const key = (s) => s.includes("$r.vmms") ? "preflight" : s.includes("Get-FileHash") ? "imageHash"
-    : s.includes("New-VM") ? "create" : s.includes("ModifySystemSettings") ? "pinFirmware"
-    : s.includes("Set-VMComPort") ? "attachConsole" : s.includes("Start-VM") ? "start"
-    : s.includes("already gone") ? "stop"
-    : s.includes("NamedPipeClientStream") ? "readConsole"
-    : s.includes("$_.Name -eq") ? "removeExact" : s.includes("$removed = @(); $failed = @();") ? "teardown"
-    : s.includes("$vms = @(Get-VM") ? "survey" : "other";
   const run = async (s) => {
     seen.push(s);
-    const a = A[key(s)];
+    const k = keyOf(s);
+    let a = A[k];
+    if (k === "define" && !(a instanceof Error)) a = defineAnswer(s, a || {});
     if (a instanceof Error) return { code: 1, stdout: "", stderr: a.message };
     return { code: 0, stdout: JSON.stringify(a ?? { ok: true }), stderr: "" };
   };
-  return { run, seen, key };
+  return { run, seen, key: keyOf };
 }
-const mk = (h, over = {}) => new WmiHyperVLauncher({ run: h.run, imagePath: IMG, imageSha256: SHA, prefix: "enclave-app-", ...over });
+const mk = (h, over = {}) => new WmiHyperVLauncher({ run: h.run, imagePath: IMG, imageSha256: SHA, prefix: "enclave-app-", ...TYPE1, ...over });
 const START = { instanceId: "dep0001-708e6409" };
 
-/* ---- (1) 4096 is a job STARTED, not a job done ------------------------------------------------ */
+/* ---- (1) 4096 is a job STARTED, not a job done ------------------------------------------------ *
+ *
+ * REPLACED with the type-1 definition. The launcher no longer calls ModifySystemSettings at all, so
+ * it has no job of its own to wait on: the one DefineSystem is New-CustomVM's, whose
+ * Trace-CimMethodExecution waits on it inside the pinned module. What survives from (1) is the
+ * point of it - a call that "worked" is not a field that holds what was asked - and that is now
+ * the definition's read-back, checked in the script and again here. */
 
-test("REPRO+FIX: ReturnValue 4096 with an unfinished job is no longer success", async () => {
-  // the reported reproduction: 4096, job never completed, Start reported Off
-  const h = host({ pinFirmware: { returnValue: 4096, jobState: 4, firmwareFile: IMG, guestFeatureSet: GUEST_FEATURE_SET },
-                   start: { state: "Off" } });
-  await assert.rejects(() => mk(h).start(mapping, START), /job ended in state 4, not 7/);
-});
-
-test("4096 with a completed job (7) is success", async () => {
-  const h = host({ pinFirmware: { returnValue: 4096, jobState: 7, firmwareFile: IMG, guestFeatureSet: GUEST_FEATURE_SET } });
-  assert.equal((await mk(h).start(mapping, START)).state, "Running");
-});
-
-test("the pin is READ BACK, and a field that did not take is refused", async () => {
-  await assert.rejects(() => mk(host({ pinFirmware: { returnValue: 0, firmwareFile: "C:\\somebody-elses.bin", guestFeatureSet: GUEST_FEATURE_SET } })).start(mapping, START),
-                       /FirmwareFile reads back as/);
-  await assert.rejects(() => mk(host({ pinFirmware: { returnValue: 0, firmwareFile: IMG, guestFeatureSet: 0 } })).start(mapping, START),
-                       /GuestFeatureSet reads back as 0/);
-});
-
-test("the job wait is bounded and polls JobState, and the serializer is DEFINED not assumed", () => {
-  const s = CMD.pinFirmware({ vmId: "v", imagePath: IMG, jobTimeoutSec: 30 });
-  assert.match(s, /function ConvertTo-CimEmbeddedString/, "it was called but never defined: a command-not-found at runtime");
-  assert.match(s, /CimSerializer\]::Create\(\)/, "Microsoft's own serialization, as their script does it");
-  assert.match(s, /while \(\$job\.JobState -eq 4\)/, "poll while running");
-  assert.match(s, /did not finish within 30s/, "bounded, not forever");
-  assert.match(s, /\$jobState -ne 7/, "only 7 is completed");
+test("the launcher writes no settings after the definition: no ModifySystemSettings, no job of its own", () => {
+  const s = CMD.defineType1({ name: "n", memMiB: 512, vcpus: 1, notes: OWNER_MARKER, firmware: IMG, firmwareSha256: SHA,
+    hypervModule: TYPE1.hypervModule, hypervModuleSha256: HYPERV_MODULE_SHA256, guestStateMaster: TYPE1.guestStateMaster,
+    guestStateRun: "C:\\Users\\claude\\vbs-like\\n.vmgs", archiveDir: TYPE1.guestStateArchiveDir, pipe: "\\\\.\\pipe\\n-com1", boot: "linux-direct" });
+  assert.doesNotMatch(s, /ModifySystemSettings|Invoke-CimMethod|ConvertTo-CimEmbeddedString/,
+    "a New-VM VM patched afterwards through ModifySystemSettings never started as type 1");
   assert.match(s, /select \* from Msvm_ComputerSystem where Name = /, "and it re-reads the settings afterwards");
+});
+
+test("the definition is READ BACK, and a field that did not take is refused", async () => {
+  await assert.rejects(() => mk(host({ define: { firmwareFile: "C:\\somebody-elses.bin" } })).start(mapping, START),
+                       /FirmwareFile is "C:\\\\somebody-elses\.bin", not the pinned IGVM/);
+  await assert.rejects(() => mk(host({ define: { featureSet: 0 } })).start(mapping, START),
+                       /GuestFeatureSet is 0, not 513/);
+});
+
+test("a module that is not the pinned one is refused, by the script before import and again on the read-back", async () => {
+  const h = host({ define: { hypervModuleSha256: "00".repeat(32) } });
+  await assert.rejects(() => mk(h).start(mapping, START), /hyperv\.psm1 did not hash to its pin/);
+  const s = h.seen.find((x) => keyOf(x) === "define");
+  assert.ok(s.indexOf(`$pin = '${HYPERV_MODULE_SHA256}'`) < s.indexOf("if ($modSha -ne $pin)"));
+  assert.ok(s.indexOf("if ($modSha -ne $pin)") < s.indexOf("Import-Module $mod"));
+  assert.throws(() => new WmiHyperVLauncher({ run: h.run, imagePath: IMG, imageSha256: SHA, hypervModuleSha256: "not-a-hash" }), /must be a sha256/);
 });
 
 /* ---- (2) Running is the host's word; the guest has to say something --------------------------- */
@@ -124,19 +123,27 @@ test("the manager derives a per-deployment instance id, not a per-app one", () =
 
 /* ---- (4) a partial create must not leak, and teardown must not lie --------------------------- */
 
-test("REPRO+FIX: New-VM succeeding and a later step failing cleans up in PowerShell itself", () => {
-  const s = CMD.create({ name: "n", memMiB: 512, vcpus: 1 });
+test("REPRO+FIX: the definition succeeding and a later step failing cleans up in PowerShell itself", () => {
+  const s = CMD.defineType1({ name: "n", memMiB: 512, vcpus: 1, notes: OWNER_MARKER, firmware: IMG, firmwareSha256: SHA,
+    hypervModule: TYPE1.hypervModule, hypervModuleSha256: HYPERV_MODULE_SHA256, guestStateMaster: TYPE1.guestStateMaster,
+    guestStateRun: "C:\\Users\\claude\\vbs-like\\n.vmgs", archiveDir: TYPE1.guestStateArchiveDir, pipe: "\\\\.\\pipe\\n-com1", boot: "linux-direct" });
   assert.match(s, /\$ErrorActionPreference = 'Stop'/, "a non-terminating error used to sail past");
-  assert.match(s, /catch \{[\s\S]*Remove-VM -VM \$vm -Force/, "the VM it made, it removes");
-  assert.ok(s.indexOf("Set-VM -VM $vm -Notes") < s.indexOf("Set-VMProcessor"),
+  assert.match(s, /catch \{[\s\S]*if \(\$vm\) \{ \$victims = @\(\$vm\) \}[\s\S]*Remove-VM -VM \$v -Force/, "the VM it made, it removes");
+  assert.ok(s.indexOf("Set-VM -VM $vm -Notes") < s.indexOf("Set-VMSecurity"),
             "the ownership marker is applied FIRST, not after the steps that can fail");
 });
 
-test("a failure after create sweeps by the VM's own name, even when create returned nothing", async () => {
-  const h = host({ attachConsole: new Error("no pipe") });
+test("a failure after the definition removes by the VM's Id; with no Id back, by its own EXACT name", async () => {
+  const h = host({ readConsole: { connected: false, bytes: 0, head: "", note: "no pipe" } });
   await assert.rejects(() => mk(h).start(mapping, START));
-  // the failure path removes by EXACT name now, not by a prefix sweep
-  const sweep = h.seen.filter((s) => s.includes("$_.Name -eq"));
+  const byId = h.seen.filter((s) => keyOf(s) === "removeById");
+  assert.equal(byId.length, 1, "exactly one cleanup, by the Id the definition returned");
+  assert.match(byId[0], new RegExp(`Get-VM -Id '${VM_ID}'`));
+  // when the define itself fails it returns nothing: the script removed its own VM, and the launcher
+  // sweeps by EXACT name, not by a prefix
+  const h2 = host({ define: new Error("DefineSystem failed") });
+  await assert.rejects(() => mk(h2).start(mapping, START));
+  const sweep = h2.seen.filter((s) => s.includes("$_.Name -eq"));
   assert.equal(sweep.length, 1, "exactly one cleanup, by exact name");
   assert.match(sweep[0], /\$_\.Name -eq 'enclave-app-dep0001-708e6409'/, "scoped to THIS VM, not the whole prefix");
 });
@@ -181,27 +188,35 @@ test("a manager with no launcher at all says so rather than throwing", async () 
 test("REPRO+FIX: cleanup on failure matches the EXACT name, never a prefix", async () => {
   // the defect: the failure path swept with StartsWith(name). A failed duplicate create would then
   // remove the EXISTING domain of that name, and any neighbour whose name merely began with ours.
-  const h = host({ attachConsole: new Error("no pipe") });
+  // a define that returned nothing: the sweep is by EXACT name
+  const h = host({ define: new Error("no pipe") });
   const l = mk(h);
   await assert.rejects(() => l.start(mapping, START));
   const sweeps = h.seen.filter((s) => s.includes("$_.Name -eq"));
   assert.equal(sweeps.length, 1, "one exact removal");
   assert.match(sweeps[0], /\$_\.Name -eq 'enclave-app-dep0001-708e6409'/);
-  assert.equal(h.seen.some((s) => s.includes("StartsWith('enclave-app-dep0001-708e6409')")), false,
-               "a prefix sweep on the failure path is what could take a neighbour");
+  // a failure after the definition: by Id - and in neither case a prefix sweep
+  const h2 = host({ start: new Error("would not start") });
+  await assert.rejects(() => mk(h2).start(mapping, START));
+  for (const hh of [h, h2])
+    assert.equal(hh.seen.some((s) => s.includes("StartsWith('enclave-app-dep0001-708e6409')")), false,
+                 "a prefix sweep on the failure path is what could take a neighbour");
 });
 
 test("cleanup requires the ownership marker unless THIS attempt created the VM", async () => {
-  // create failed, so we never recorded it: only a marked VM may be removed
-  const h1 = host({ create: new Error("name already exists") });
+  // the definition failed, so we never recorded it: only a marked VM may be removed
+  const h1 = host({ define: new Error("name already exists") });
   await assert.rejects(() => mk(h1).start(mapping, START));
   const s1 = h1.seen.find((s) => s.includes("$_.Name -eq"));
   assert.match(s1, /Notes -eq/, "we did not make it, so it must prove it is ours before being removed");
-  // create succeeded and a later step failed: it is ours, marker or not
+  // the definition succeeded and a later step failed: it is ours, and it goes BY THE ID we defined.
+  // The define script put the Notes on first and read them back, so removeById's ownership check
+  // (kept exactly as it was) finds our marker on it.
   const h2 = host({ start: new Error("would not start") });
   await assert.rejects(() => mk(h2).start(mapping, START));
-  const s2 = h2.seen.find((s) => s.includes("$_.Name -eq"));
-  assert.doesNotMatch(s2, /Notes -eq/, "we made this one; a missing Notes must not strand it");
+  assert.equal(h2.seen.some((s) => s.includes("$_.Name -eq")), false, "not by name once the Id is known");
+  const s2 = h2.seen.find((s) => keyOf(s) === "removeById");
+  assert.match(s2, new RegExp(`Get-VM -Id '${VM_ID}'`), "we made this one: removed by the Id it was defined with");
 });
 
 test("REPRO+FIX: the console read is bounded by itself, not by the outer kill", () => {

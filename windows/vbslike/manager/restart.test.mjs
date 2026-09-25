@@ -196,6 +196,10 @@ test("the survey covers the prefix AND any VM carrying the manager's identity No
   assert.match(s, /StartsWith\('enclave-app-'\)/);
   assert.match(s, /StartsWith\('enclave-vbslike-app-domain\/manager\|'\)/);
   assert.match(s, /vmId=\$_\.Id\.Guid/);
-  assert.match(CMD.create({ name: "n", memMiB: 256, vcpus: 1, notes: notesFor({ id: "hvx", name: DEP, instanceId: "i-1" }) }),
+  // the type-1 definition writes the identity where the old New-VM create did
+  assert.match(CMD.defineType1({ name: "n", memMiB: 256, vcpus: 1, notes: notesFor({ id: "hvx", name: DEP, instanceId: "i-1" }),
+                                 firmware: "C:\\img.bin", firmwareSha256: "0".repeat(64), hypervModule: "C:\\hyperv.psm1",
+                                 hypervModuleSha256: "1".repeat(64), guestStateMaster: "C:\\m.vmgs", guestStateRun: "C:\\n.vmgs",
+                                 archiveDir: "C:\\a", pipe: "\\\\.\\pipe\\n-com1", boot: "linux-direct" }),
                /Set-VM -VM \$vm -Notes 'enclave-vbslike-app-domain\/manager\|/);
 });
