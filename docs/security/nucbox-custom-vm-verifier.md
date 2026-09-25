@@ -109,6 +109,27 @@ deploy list fails it). Before the switch is turned on: the node side deployed an
 `windows-vbs-enclave`, the site labelling an hv-node row explicitly as a host-attested boot state, and Steven or
 enclave-5d asking for it.
 
+## Launcher statements: the partition's boot form has ONE name (decided 2026-09-25, asked by enclave-d1)
+
+The two launchers named the linux-direct partition differently: the Rust `wmiserve` (`windows/custom-vbs-like-hyperv`
+8f156c9a), which SIGNS the launcher report, says `platform.partition = "wmi-openhcl-gen2-igvm-linux"` for `--igvm-sha256`
+and `"wmi-openhcl-gen2"` for `--medium-sha256`; the manager's launcher (`windows/isolation-manager` `wmi-launcher.mjs`
+`linuxDirectIdentity`) said `"wmi-openhcl-gen2"` for both, with `guestImageKind` telling them apart. A judge comparing
+the manager's handle with the report would have refused every linux-direct domain.
+
+**The signed report's names are canonical**, because the signed report is what a verifier holds. The manager adopts them
+and keeps `guestImageKind` as a second field that must agree through a FIXED pairing; a judge compares both fields for
+exact equality and refuses anything else, including an unknown value on either side:
+
+| partition (canonical, signed) | guestImageKind | boot form |
+|---|---|---|
+| `wmi-openhcl-gen2-igvm-linux` | `igvm-linux-direct` | the kernel, initrd and command line are measured pages of the IGVM (the only form that can ever carry an isolation claim) |
+| `wmi-openhcl-gen2` | `uefi-medium` | UEFI boots our medium, which is NOT measured: never an isolation claim, whatever else passes |
+
+Neither name is identity. Both are launcher statements (the monitor-signed T0-hv tier, `host_excluded=no`); what a
+partition RAN is established only by the paravisor report's launch digest against the pinned allowlist (V3), never by
+the partition name, the image kind or the launcher's `--igvm-sha256` argument.
+
 ## The paravisor's VM report (per app partition): what the verifier will require
 
 Each line maps to the contract's requirement (R1-R7) and is NOT ESTABLISHED.
