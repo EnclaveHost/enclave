@@ -6,13 +6,14 @@
    fetcher. The manager then asks the host what it can actually do (probe) before it answers
    /health, so "canStart" is the host's answer rather than a configuration detail. */
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Manager, createServer, startManager } from "./server.mjs";
 import { judgeRunning } from "./ready.mjs";
 import { runtimeId as runtimeIdOf } from "../../../isolation/contract/runtime.mjs";
 import { HyperVPartitionBackend } from "./backend.mjs";
-import { WmiHyperVLauncher } from "./wmi-launcher.mjs";
+import { WmiHyperVLauncher, HYPERV_MODULE_SHA256 } from "./wmi-launcher.mjs";
 import { powershellRunner } from "./psrun.mjs";
 import { cidFetcher } from "./fetchcid.mjs";
 
@@ -34,9 +35,61 @@ const fetchComponent = cidFetcher({
   timeoutMs: Number(env("ENCLAVE_FETCH_TIMEOUT_MS", "240000")),
 });
 
-const launcher = imagePath && imageSha256
-  ? new WmiHyperVLauncher({ run: powershellRunner(), imagePath, imageSha256 })
-  : null;
+// THE TYPE-1 DEFINITION (wmi-launcher.mjs, ported from uefi-dev-boot.ps1). The boot form is STATED
+// here or not at all - "uefi-medium" (ENCLAVE_GUEST_MEDIUM + its sha256) or "linux-direct" (no
+// medium; the IGVM is the identity) - and never inferred from which variables happen to be set. A
+// launcher without it still surveys, stops and removes VMs, but refuses to start one, and /health
+// says why. AllowFirmwareLoadFromFile is NOT configured here: the manager only reports it.
+// THE APP AND ITS RELAY (enclave-5d's wmiserve-run.mjs): the Rust launcher's `wmiserve`, run per domain with
+// `--hold stdin`, loads the bundle over hv_sock 9000, signs reports on 9001 and relays TCP to the domain. Without these
+// three variables the manager boots VMs and serves nothing (the domain stays `starting`). The executable is PINNED BY
+// HASH like every other input: a path is not an identity. It is checked here, and the manager refuses to start on a
+// mismatch or a partial configuration rather than guessing which half was meant.
+const wmiserveExe = env("ENCLAVE_WMISERVE_EXE"), wmiserveSha = env("ENCLAVE_WMISERVE_EXE_SHA256").toLowerCase();
+const bundleDir = env("ENCLAVE_BUNDLE_DIR");
+let serve = null;
+if (wmiserveExe || wmiserveSha || bundleDir) {
+  const miss = [!wmiserveExe && "ENCLAVE_WMISERVE_EXE", !/^[0-9a-f]{64}$/.test(wmiserveSha) && "ENCLAVE_WMISERVE_EXE_SHA256 (64 hex)",
+                !bundleDir && "ENCLAVE_BUNDLE_DIR"].filter(Boolean);
+  if (miss.length) {
+    console.error(`[winmgr] REFUSING TO START: serving through wmiserve needs all three settings; missing ${miss.join(", ")}`);
+    process.exit(2);
+  }
+  let got = null;
+  try { got = createHash("sha256").update(fs.readFileSync(wmiserveExe)).digest("hex"); }
+  catch (e) { console.error(`[winmgr] REFUSING TO START: cannot read the wmiserve executable ${wmiserveExe}: ${e.message}`); process.exit(2); }
+  if (got !== wmiserveSha) {
+    console.error(`[winmgr] REFUSING TO START: the wmiserve executable ${wmiserveExe} hashes ${got}, not the pinned ${wmiserveSha}`);
+    process.exit(2);
+  }
+  serve = { exe: wmiserveExe, bundleDir };
+  console.log(`[winmgr] serving through wmiserve ${wmiserveExe} (sha256 ${got}); bundles in ${bundleDir}`);
+}
+
+let launcher = null;
+if (imagePath && imageSha256) {
+  try {
+    launcher = new WmiHyperVLauncher({
+      run: powershellRunner(), imagePath, imageSha256,
+      boot: env("ENCLAVE_BOOT_FORM") || null,
+      medium: env("ENCLAVE_GUEST_MEDIUM") || null,
+      mediumSha256: env("ENCLAVE_GUEST_MEDIUM_SHA256") || null,
+      guestStateMaster: env("ENCLAVE_GUEST_STATE_MASTER") || null,
+      guestStateMasterSha256: env("ENCLAVE_GUEST_STATE_MASTER_SHA256") || null,
+      guestStateRunDir: env("ENCLAVE_GUEST_STATE_RUN_DIR") || null,
+      guestStateArchiveDir: env("ENCLAVE_GUEST_STATE_ARCHIVE_DIR") || null,
+      hypervModule: env("ENCLAVE_HYPERV_MODULE") || null,
+      hypervModuleSha256: env("ENCLAVE_HYPERV_MODULE_SHA256", HYPERV_MODULE_SHA256),
+      hypervUtilitiesSha256: env("ENCLAVE_HYPERV_UTILITIES_SHA256") || null,
+      serve,
+    });
+  } catch (e) {
+    // A contradictory launcher configuration (a medium with linux-direct, an unknown boot form, a
+    // medium with no boot form) is refused at startup rather than guessed at.
+    console.error(`[winmgr] REFUSING TO START: the launcher configuration is invalid: ${e.message}`);
+    process.exit(2);
+  }
+}
 // THE RUNTIME IDENTITY, read from the image's own runtime.json rather than configured as a hash.
 //
 // enclave-53 found that the defect-11 fix was not REACHED from here: this entry point passed only
@@ -108,6 +161,17 @@ if (dataPort > 0) {
 // Notes, so "not in my memory" is never answered as "absent". Until this completes every /vms request
 // is 503; a failed survey keeps it that way and is retried. (server.mjs startManager: shared with tests.)
 const inv = await startManager(manager);
+// LIVENESS (server.mjs sweepLiveness): a type-1 partition whose monitor dies goes OFF by itself (G4, run 082856), and
+// only a survey sees it. Every ENCLAVE_LIVENESS_MS (default 15 s; 0 disables), a domain whose VM is not Running fails.
+const livenessMs = Number(env("ENCLAVE_LIVENESS_MS", "15000"));
+if (livenessMs > 0) {
+  const t = setInterval(async () => {
+    const r = await manager.sweepLiveness().catch((e) => ({ error: e.message }));
+    if (r && r.failed) console.log(`[winmgr] liveness: ${r.failed} domain(s) failed because their partition stopped`);
+    if (r && r.error) console.error(`[winmgr] liveness survey failed (nothing changed): ${r.error}`);
+  }, livenessMs);
+  t.unref?.();
+}
 console.log(`[winmgr] inventory ${inv.state}` + (inv.state === "ready" ? `: recovered ${inv.recovered}, unattributed ${inv.unattributed}` : inv.error ? `: ${inv.error}` : ""));
 if (inv.state === "failed") {
   const retry = setInterval(async () => { const r = await manager.recover(); if (r.state !== "failed") { clearInterval(retry); console.log(`[winmgr] inventory ${r.state} on retry`); } }, 30_000);

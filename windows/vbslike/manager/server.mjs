@@ -136,8 +136,13 @@ export class Manager {
       return;
     }
     try {
+      // The launcher's statement and image, judged as a PAIR against the signed report (judge-hv): a record that
+      // states one is never judged on its image alone. The HCS lab's records carry no statement and no image.
+      const gi = rec.guestIdentity;
+      const statement = gi ? { expectedStatement: { partition: gi.partition, guestImageKind: gi.guestImageKind },
+                               expectedImageSha256: rec.image } : {};
       const v = await judge({ host: rec.relay.host, port: rec.relay.port, appId: rec.appId,
-                              launcherKey: handle.launcherKey,
+                              launcherKey: handle.launcherKey, ...statement,
                               // the IDENTITY object, which is what checkRuntime compares; never the hash
                               expectRuntime: this.runtime ?? undefined,
                               deadlineMs: this.readyDeadlineMs });
@@ -329,6 +334,19 @@ export class Manager {
       rec.status = h && h.appReady === true ? "running" : "starting";
       rec.appReady = !!(h && h.appReady === true);
       rec.startedAt = Date.now(); rec.handle = h;
+      // THE RELAY IS A CHILD PROCESS (wmiserve-run.mjs). If it exits while this record stands and no stop is under way,
+      // the domain can no longer be reached and must not read as running (d1's review of 299ce3e9). The record fails,
+      // its sessions are reclaimed, and the VM is LEFT for the node to retire: only a stop removes a VM.
+      if (h && h.wmiserve && h.wmiserve.exited && typeof h.wmiserve.exited.then === "function") {
+        h.wmiserve.exited.then((ex) => {
+          if (this.domains.get(rec.id) !== rec || this.#stopping.has(rec)) return;
+          if (rec.status !== "running" && rec.status !== "starting") return;     // already failed or stopped: its reason stands
+          rec.status = "failed"; rec.appReady = false;
+          rec.reason = `the relay process exited (code ${ex?.code ?? null}${ex?.signal ? `, ${ex.signal}` : ""}): this domain `
+                     + "cannot be reached, and its VM is left for the node to retire";
+          this.#reclaim(rec.id, "the relay process exited");
+        });
+      }
       if (h && h.guest) rec.guest = { booted: h.guest.booted === true, bytes: h.guest.bytes, head: h.guest.head };
       if (h && h.name) rec.vmName = h.name;
       // carried up verbatim rather than summarised away
@@ -337,6 +355,13 @@ export class Manager {
       if (h && h.domainId != null) rec.domainId = h.domainId;
       if (h && h.guestPort != null) rec.guestPort = h.guestPort;
       if (h && h.image) rec.image = h.image;
+      // The key this domain's reports are signed with, as the launcher stated it. wmiserve mints a NEW one per run, so a
+      // verifier holding one fixed key cannot judge a relaunched domain. It is public (it verifies, it cannot sign),
+      // and it is exactly what this manager's own readiness rule was given (handle.launcherKey). It is a HOST STATEMENT,
+      // never a root: consistent with T0-hv, where the host launcher is trusted by definition and the host is not excluded.
+      if (h && h.launcherKey) rec.launcherKey = h.launcherKey;
+      // the launcher's (partition, guestImageKind) statement, which the image is only ever compared with
+      if (h && h.guestIdentity) rec.guestIdentity = { partition: h.guestIdentity.partition, guestImageKind: h.guestIdentity.guestImageKind };
       if (h && h.tcpPort != null) rec.relay = { host: "127.0.0.1", port: h.tcpPort };
       else if (h && h.relay) rec.relay = h.relay;
       if (!rec.appReady)
@@ -379,6 +404,49 @@ export class Manager {
     try { this.onReclaim?.(id, why); } catch { /* the domain is gone either way */ }
   }
 
+  // records a stop is under way for: their relay's exit is the stop's doing, not a failure
+  #stopping = new WeakSet();
+
+  /**
+   * LIVENESS: a partition can stop BY ITSELF, and nothing else here would notice.
+   *
+   * Measured on nucbox-k11 (G4, run 082856, enclave-63's probe 72462737): when the guest's PID 1 dies, the kernel
+   * panics and asks for an immediate reset. On a TYPE-1 partition Hyper-V answers "shut down for a reset initiated by
+   * the guest" (Worker-Admin 18515, after 18590), and the VM goes OFF. It does not reboot. wmiserve does not exit when
+   * its VM stops, so the relay-exit watch never fires, and the record would read `running` over a dead partition
+   * forever.
+   *
+   * So a periodic sweep surveys Hyper-V and FAILS every started or recovered domain whose VM is not Running, or is
+   * absent from a SUCCESSFUL survey. It stops that domain's relay, reclaims its sessions, and leaves the VM for the node
+   * to retire (only a stop removes a VM). Unknown is not gone: a survey that fails changes nothing. A record mid-start
+   * (no handle yet) or being stopped is left alone.
+   */
+  async sweepLiveness() {
+    if (!this.inventoryReady || !this.backend.canSurvey) return { checked: 0, failed: 0, skipped: "no inventory or no survey" };
+    let s;
+    try { s = await this.backend.survey(); } catch (e) { return { checked: 0, failed: 0, error: e.message }; }
+    if (!s || !Array.isArray(s.vms)) return { checked: 0, failed: 0, error: "the survey returned no list" };
+    const byId = new Map(s.vms.map((v) => [String(v.vmId || "").toLowerCase(), v]));
+    let checked = 0, failed = 0;
+    for (const rec of this.domains.values()) {
+      if (rec.status !== "running" && rec.status !== "starting") continue;
+      const vmId = rec.handle && rec.handle.vmId;
+      if (!vmId || this.#stopping.has(rec)) continue;
+      checked++;
+      const v = byId.get(String(vmId).toLowerCase());
+      if (v && v.state === "Running") continue;
+      rec.status = "failed"; rec.appReady = false;
+      rec.reason = v
+        ? `the partition is ${v.state}: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 082856); its VM is left for the node to retire`
+        : "the partition is no longer on this host (absent from a successful survey)";
+      const run = rec.handle && rec.handle.wmiserve;
+      if (run && typeof run.stop === "function") run.stop().catch(() => {});      // its relay has nothing to carry
+      this.#reclaim(rec.id, "the partition stopped");
+      failed++;
+    }
+    return { checked, failed };
+  }
+
   async remove(id) {
     const r = this.domains.get(id);
     // UNKNOWN IS NOT ABSENT (63's P1): only a manager that has surveyed Hyper-V may say an id is gone.
@@ -387,6 +455,7 @@ export class Manager {
       if (!this.mayAnswerAbsent(id)) throw unattributedUnknown(id, this.unattributed());
       return { removed: false, absent: true };
     }
+    this.#stopping.add(r);
     try {
       await this.backend.stop(r.handle);
     } catch (e) {
