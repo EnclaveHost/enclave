@@ -1267,7 +1267,15 @@ export class Host {
       // LEASE END is still honoured, and before ensureApp, so a lapsed lease is neither kept running nor served again for
       // one tick by a manager that turned honest: the held domain is RETIRED here. That is a local retirement (#stopApp),
       // never an on-chain release, so it stays inside heldReason's "never released automatically" (enclave-99's re-review).
+      // And it is BLOCKED here (enclave-99's re-review of 99900b74): otherwise the next ledger scan re-claims the lapsed
+      // lease, spawning the tenant's app again under the same manager, and every lease period the claim takes gas and a
+      // quantum. That is the renew leak again, through the claim. blocked is exactly the needed state: scanLedger skips
+      // it, an unforced consider refuses it, the operator's forced claim clears it, and it persists across a restart.
+      // Nothing is released on chain: this is local state, as heldReason's doctrine requires.
       if (rec.boundaryHeld === true && untilMs < Date.now()) {
+        this.blocked.set(id, `the manager stated a boundary this backend cannot have (${rec.reason || "boundary-held"}); the lease `
+          + "lapsed unrenewed and the domain was retired here. It is not re-claimed until the operator forces it; nothing was released on chain");
+        this.#saveTracked();
         await this.#stopApp(id, "the lease lapsed while the deployment was boundary-held (not renewed)");
         continue;
       }

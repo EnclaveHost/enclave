@@ -106,7 +106,8 @@ const host = new Host({
   // No engine: only isolated deployments run, anything else is HELD (host.mjs heldReason), never released.
   engineRetired: !LEGACY_ENGINE,
   // Respawn an isolated domain that ENDED instead of giving its lease up: a lease policy, OFF unless set to exactly "1"
-  // (host.mjs, RESPAWN_BUDGET per hour). Recovered VMs stay held either way.
+  // (host.mjs, RESPAWN_BUDGET per hour). The budget is counted IN MEMORY, so a node restart resets it: "3 an hour" is 3
+  // per hour of this process's life (enclave-d1's note for Steven's decision). Recovered VMs stay held either way.
   isolationRespawn: process.env.ENCLAVE_ISOLATION_RESPAWN === '1',
   cpuPricePerSec6: Number(process.env.CPU_PRICE_PER_SEC6 || 12),
   // What the whole CARD costs per second, USDC 6dp, and what a share of it buys here: the model
