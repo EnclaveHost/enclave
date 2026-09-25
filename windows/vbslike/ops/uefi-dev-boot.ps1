@@ -854,6 +854,19 @@ try {
       $pr = [System.Diagnostics.Process]::Start($psi); $o = $pr.StandardOutput.ReadToEnd(); $null = $pr.StandardError.ReadToEnd(); $pr.WaitForExit()
       return $o.Trim()
     }
+    # THE COM1 CLIENT IS DISCONNECTED BY THIS POINT on every run so far: G4 (082856) had to re-attach on its first pass
+    # after MON ready, and the first two probe dry runs (091020, 091408) read NOTHING after the load for that reason.
+    # So re-attach before the load, and keep re-attaching while waiting.
+    function Ensure-Com1 {
+      if ($con.c -and $con.c.IsConnected) { return }
+      try {
+        $c2 = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipe, [System.IO.Pipes.PipeDirection]::In, [System.IO.Pipes.PipeOptions]::Asynchronous)
+        $c2.Connect(500)
+        if ($con.c) { try { $con.c.Dispose() } catch {} }
+        $con.c = $c2; $con.pending = $null; Note "  PROBE: COM1 re-attached"
+      } catch { }
+    }
+    Ensure-Com1
     $mark = $con.text.Length
     $out = Hv ('{"cmd":"load","label":"PROBE","size":6,"cpu":50,"mem":64,"probe":true}' + "`n" + 'probe')
     Note "PROBE DOMAIN load -> $out"
@@ -862,7 +875,7 @@ try {
     if ($null -eq $pid_) { Note "PROBE DOMAIN RESULT: NOT RUN - the load named no domain" }
     else {
       $pdl = (Get-Date).AddSeconds(90)
-      while ((Get-Date) -lt $pdl -and $con.text.Substring($mark) -notmatch "PROBE$pid_ done") { Drain $con 1000 }
+      while ((Get-Date) -lt $pdl -and $con.text.Substring($mark) -notmatch "PROBE$pid_ done") { Ensure-Com1; Drain $con 1000 }
       # EVERY console line in the window, not just the matches: a probe that printed nothing must be diagnosable
       foreach ($l in @($con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ })) { Note "  PROBE CONSOLE: $l" }
       $plines = @($con.text.Substring($mark) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -match "^PROBE$pid_ " })
