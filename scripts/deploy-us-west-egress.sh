@@ -136,6 +136,10 @@ cd /opt/nan-relay
 if [ "$NPM_CI" = 1 ] || [ ! -d node_modules ]; then npm ci --omit=dev; fi
 umask 077
 mkdir -p /etc/nan-relay                  # a fresh host has none yet
+# umask applies only when a file is CREATED: an existing env file would keep its old mode with the token in it. So the
+# old contents go first, then the mode, then the token (enclave-5d); at no point is a token in a file others can read.
+: > /etc/nan-relay/egress-relay.env
+chmod 600 /etc/nan-relay/egress-relay.env
 cat > /etc/nan-relay/egress-relay.env <<ENV
 EGRESS_RELAY_TOKEN=${TOKEN}
 RELAY_NAME=us-west
