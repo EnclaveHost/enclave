@@ -1,0 +1,16 @@
+-- egress-relay.env 600
+   ELIGIBILITY_API: unset
+   DOMAINS_API: unset
+-- relay-agent.env 600
+   ELIGIBILITY_API: unset
+   DOMAINS_API: unset
+-- tcp-relay.env 600
+   ELIGIBILITY_API: unset
+   DOMAINS_API: = https://api.enclave.host
+inactive active inactive inactive inactive 
+edfc2643d5384da4  relay.js
+e79afe22d390943a  fleet.mjs
+63722096252a9f90  tcp6-relay.js
+35c9bf7d9e50f0e7  udp-relay.js
+3690d7d975875a0d  dns-relay.js
+feed http=200 tls_verify=0
