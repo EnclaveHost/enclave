@@ -14,8 +14,9 @@
 // appSha256 must ALSO equal the AppID the manager derived (enclave-d1). The bundle file is written by instance id into a
 // manager-owned directory, hashed after writing, refused on a mismatch, and removed on stop and on any failure.
 //
-// LIFETIME. `--hold stdin`: wmiserve serves until a line arrives on its stdin, or its stdin reaches EOF or errors. So
-// stop() writes a line and waits for {"step":"closed"}, killing the child after a deadline. A manager that dies closes
+// LIFETIME. `--hold stdin`: wmiserve serves until a NON-BLANK line arrives on its stdin (a blank one is ignored), or its
+// stdin reaches EOF or errors. So stop() writes "stop" and ends stdin, waits for {"step":"closed"}, and kills the child
+// after a deadline. A manager that dies closes
 // the pipe, and the relay goes with it, which is why a VM a restarted manager recovers never serves (recovered:true).
 //
 // NOTHING HERE IS A SECURITY CLAIM. The report is launcher-signed (monitor-signed T0-hv, host_excluded=no), and the
@@ -125,7 +126,9 @@ export function runWmiserve({ exe, vmId, bundleFile, appId, tcpPort, igvmSha256 
     };
     const stopRun = async () => {
       if (child.exitCode !== null || child.signalCode !== null) return { closed: closedSeen, how: "already exited" };
-      try { child.stdin.write("\n"); child.stdin.end(); } catch { /* the pipe is gone: the exit below says what happened */ }
+      // A NON-BLANK line: wmiserve ignores a blank one and keeps reading (d1), so "\n" alone only ever stopped it through
+      // the EOF that followed. Both are sent, and the line path is the one that should close it.
+      try { child.stdin.write("stop\n"); child.stdin.end(); } catch { /* the pipe is gone: the exit below says what happened */ }
       const deadline = new Promise((r) => setTimeout(() => r("deadline"), closeTimeoutMs));
       const how = await Promise.race([exited.then(() => "exited"), deadline]);
       if (how === "deadline") { kill(); await exited; return { closed: closedSeen, how: "killed after the close deadline" }; }
