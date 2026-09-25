@@ -10,7 +10,11 @@
  *      owner's config and secrets and the egress forwarders are up (front/provision.go); an empty pipe means the
  *      front died first, and the domain powers off rather than start an app without the config it should have;
  *   4. starts the app natively under `wasmtime serve` on 127.0.0.1:8080 (the runtime JIT-compiles it inside this
- *      guest, as in M1), with ENCLAVE_CONFIG when there is one;
+ *      guest, as in M1), with ENCLAVE_CONFIG when there is one. The app's stdin, stdout and stderr are /dev/null:
+ *      this process's own are the serial console, a file the HOST reads, so anything the app or its runtime prints
+ *      (a request it logs, its config, a panic, a trap) would otherwise reach the host. This tier has no owner-only
+ *      log channel, so the app's output is discarded, not kept (Codex, 2026-09-25). Only init's and the front's own
+ *      "DOM ..." lines reach the console;
  *   5. if either exits, powers the domain off: a domain that cannot serve should not linger.
  * The host ends a serving domain by stopping its VMM (lease end). */
 #define _GNU_SOURCE
@@ -51,15 +55,25 @@ static void lo_up(void) {
     close(s);
 }
 
-/* extra: one more environment entry or NULL; fd3: a descriptor the child gets as fd 3, or -1 */
-static pid_t spawn(char *const argv[], char *extra, int fd3) {
+/* extra: one more environment entry or NULL; fd3: a descriptor the child gets as fd 3, or -1; quiet: the child's
+ * stdin, stdout and stderr are /dev/null (tenant code: nothing it prints reaches the host's serial file). A quiet
+ * child keeps a close-on-exec copy of the console only to report its OWN exec failure, and one that cannot open
+ * /dev/null exits 126 rather than run with the console. */
+static pid_t spawn(char *const argv[], char *extra, int fd3, int quiet) {
     pid_t pid = fork();
     if (pid == 0) {
         if (fd3 == 3) fcntl(3, F_SETFD, 0);                      /* already fd 3: only drop CLOEXEC */
         else if (fd3 >= 0 && dup2(fd3, 3) < 0) _exit(127);       /* dup2 leaves the new fd 3 without CLOEXEC */
+        int con = 1;
+        if (quiet) {
+            con = fcntl(1, F_DUPFD_CLOEXEC, 10);
+            int nul = open("/dev/null", O_RDWR);
+            if (nul < 0 || dup2(nul, 0) < 0 || dup2(nul, 1) < 0 || dup2(nul, 2) < 0) _exit(126);
+            if (nul > 2) close(nul);
+        }
         char *envp[] = {"HOME=/tmp", "PATH=/rt", extra, NULL};
         execve(argv[0], argv, envp);
-        printf("DOM ERROR exec %s: %s\n", argv[0], strerror(errno));
+        if (con >= 0) dprintf(con, "DOM ERROR exec %s: %s\n", argv[0], strerror(errno));
         _exit(127);
     }
     return pid;
@@ -184,7 +198,7 @@ int main(void) {
     }
     char *front[] = {"/front", "-port", "443", "-upstream", upstream, snp ? "-snp=true" : "-snp=false",
                      "-init-fd", "3", NULL};
-    pid_t front_pid = spawn(front, NULL, pfd[1]);
+    pid_t front_pid = spawn(front, NULL, pfd[1], 0);
     close(pfd[1]);
     char *cfg_env = NULL;
     size_t cfg_len = 0;
@@ -211,7 +225,7 @@ int main(void) {
         app[k++] = base[i];
     }
     app[k] = NULL;
-    pid_t app_pid = spawn(app, cfg_env, -1);
+    pid_t app_pid = spawn(app, cfg_env, -1, 1);
     if (cfg_env) {
         explicit_bzero(cfg_env, sizeof "ENCLAVE_CONFIG=" + cfg_len);
         free(cfg_env);
