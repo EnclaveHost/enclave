@@ -71,8 +71,11 @@ async function lyingManager(over, holder = {}) {
                  runtimeId: REC.runtimeId, image: "ab".repeat(32), transportKeySha256: "cd".repeat(32), tier: "t0-hv", hostExcluded: false,
                  verdict: "monitor-signed", boundary: { tier: "t0-hv", partition: "hyperv-vm", hostExcluded: false }, ...over };
   holder.view = view;                                  // a test may change what the manager says, between passes
+  holder.deletes = 0; let gone = false;
   const s = http.createServer((req, res) => {
     const send = (code, body) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
+    if (req.method === "DELETE" && req.url === `/vms/${HV}`) { holder.deletes++; gone = true; return send(200, { ok: true }); }
+    if (gone && req.url.startsWith("/vms")) return req.url === "/vms" ? send(200, { vms: [] }) : send(404, { error: "not found" });
     if (req.url === "/health") return send(200, { backend: "hyperv-partition-per-app", catalog: { derivations: ["enclave-catalog-bundle/1"] },
                                                   boundary: { tier: "t0-hv", hostExcluded: false } });
     if (req.method === "GET" && req.url === "/vms") return send(200, { vms: [view] });
@@ -135,28 +138,63 @@ test("RUNNING, then the same instance's view turns into a lie: held, and the ser
   assert.equal(await h.appZoneTarget(DEP), null);
 });
 
-test("the tick does NOT renew (or stop) a boundary-held deployment; it re-asks the manager instead", async () => {
+// ---- the tick: a boundary-held lease is not renewed, but its END is honoured (enclave-99's re-review of 2a77f7c0) ----
+const ENDPOINT = "https://api.enclave.host/t/test";
+async function onTheTick(view, leaseUntilS) {
   const { enclaveIdOf, CATALOG } = await import("./helpers/fake-base-rpc.mjs");
   chain.addresses.appCatalog = CATALOG;               // the tick resolves the version itself
   rpc.catalog.current = { cid: REC.cid, version: "4", vramMb: 0, gpuGflops: 0, memMb: 512, cpuGflops: 0, createdAt: 1n, verified: true,
                           yanked: false, ports: "", approval: 0, config: "{}" };
   const holder = {};
-  const { port } = await lyingManager({ hostExcluded: true }, holder);
-  const endpoint = "https://api.enclave.host/t/test";
-  const h = box({ isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
+  const { port } = await lyingManager(view, holder);
+  const logs = [];
+  const h = box({ isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId, log: (x) => logs.push(x) });
   h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {});
-  assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "held");
-  // the lease is ours and EXPIRED: a renewal would be attempted, fail (no key here), and stop the app. Held, it is not.
+  const first = await h.ensureApp(DEP, dep(), { version: PLANNED });
   rpc.row.current = { id: DEP, owner: OWNER, appRef: dep().appRef, ports: "", configCid: ISOLATED, gpuMilli: 0, cpuMilli: 100, appPort: 8080,
-    isPublic: true, active: true, createdAt: 1n, rate: 1n, balance6: 0n, spent6: 0n, runner: enclaveIdOf(endpoint),
-    runnerOperator: "0x" + "00".repeat(20), leaseUntil: BigInt(Math.floor(Date.now() / 1000) - 60) };
-  h.chainReady = true; h.registered = { endpoint, cpuPricePerSec6: 12n }; h.tracked.add(DEP);
+    isPublic: true, active: true, createdAt: 1n, rate: 1n, balance6: 0n, spent6: 0n, runner: enclaveIdOf(ENDPOINT),
+    runnerOperator: "0x" + "00".repeat(20), leaseUntil: BigInt(leaseUntilS) };
+  h.chainReady = true; h.registered = { endpoint: ENDPOINT, cpuPricePerSec6: 12n }; h.tracked.add(DEP);
+  return { h, holder, logs, first };
+}
+const nowS = () => Math.floor(Date.now() / 1000);
+// a renewal's own log lines: "renewed <id>" on success, "<id> renew failed: ..." on failure (not the hold's "not renewed")
+const RENEWAL = (l) => /^renewed |renew failed/.test(l);
+
+test("the tick does NOT renew a boundary-held deployment inside its renewal window (and a served one IS renewed: the control)", async () => {
+  const held = await onTheTick({ hostExcluded: true }, nowS() + 5 * 60);           // live, inside RENEW_LEAD_MS (15 min)
+  assert.equal(held.first.status, "held");
+  await held.h.tick();
+  assert.deepEqual(held.logs.filter(RENEWAL), [], "no renewal attempted");
+  assert.equal(held.h.records.get(DEP).status, "held"); assert.equal(held.holder.deletes, 0, "and nothing retired while the lease lives");
+  const served = await onTheTick({}, nowS() + 5 * 60);                             // the control: the detector sees a renewal
+  assert.equal(served.first.status, "running");
+  await served.h.tick();
+  assert.ok(served.logs.some((l) => /renew failed/.test(l)), `a served lease inside the window is renewed (it fails here, with no key): ${served.logs.join(" / ")}`);
+});
+
+test("a boundary-held deployment whose lease LAPSED is retired locally (one DELETE, the hold cleared), never renewed", async () => {
+  const { h, holder, logs } = await onTheTick({ hostExcluded: true }, nowS() - 3600);
   await h.tick();
   const rec = h.records.get(DEP);
-  assert.equal(rec.status, "held", `${rec.status}: ${rec.reason}`); assert.equal(rec.boundaryHeld, true);
-  assert.doesNotMatch(rec.reason, /renew|stopping/, "no renewal was attempted, so none failed and nothing was stopped");
-  // an honest manager clears it on the next pass
+  assert.equal(holder.deletes, 1, "the held instance is retired by the manager");
+  assert.equal(rec.status, "stopped", `${rec.status}: ${rec.reason}`); assert.equal(rec.isolationHeld ?? null, null);
+  assert.equal(h.tracked.has(DEP), false); assert.deepEqual(logs.filter(RENEWAL), [], "no renewal attempted");
+  assert.equal(h.blocked.has(DEP), false, "a local retirement, not a give-up (nothing is released on chain)");
+});
+
+test("a manager that turns honest on a LAPSED lease never gets that domain served, not even for one tick", async () => {
+  const { h, holder } = await onTheTick({ hostExcluded: true }, nowS() - 3600);
+  Object.assign(holder.view, { hostExcluded: false });                            // honest again, but the lease is over
+  await h.tick();
+  assert.notEqual(h.records.get(DEP).status, "running");
+  assert.equal(await h.appZoneTarget(DEP), null, "no route on a lease that ended");
+});
+
+test("an honest manager clears the hold on a LIVE lease, and the domain serves again", async () => {
+  const { h, holder } = await onTheTick({ hostExcluded: true }, nowS() + 3600);
   Object.assign(holder.view, { hostExcluded: false });
   await h.tick();
-  assert.equal(h.records.get(DEP).boundaryHeld ?? null, null);
+  assert.equal(h.records.get(DEP).status, "running"); assert.equal(h.records.get(DEP).boundaryHeld ?? null, null);
+  assert.ok(await h.appZoneTarget(DEP));
 });
