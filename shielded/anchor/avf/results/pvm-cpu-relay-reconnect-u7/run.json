@@ -1,0 +1,57 @@
+{
+ "runId": "rc09251414",
+ "apk": "apk.apk",
+ "code": "15d9f8c7854514512aabf7b75a1ad5157fad0a4930842bd9c1fbd5c0a1c5a76a",
+ "oldCode": "58ec36752ca6c3024a89c3d835bbd0d337161323fac54d978cacbcab97e48d2a",
+ "app": "29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373",
+ "endpoint": "https://127.0.0.1:18443/t/pixel10-pvm-cpu",
+ "pins": {
+  "chainId": "31337",
+  "proofOfTime": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
+  "registry": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+  "deployment": "0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2",
+  "enclaveId": "0x0e43a5110cc29c646df19eb65b8ed13e96b632833acebf268327adbddf9dea9b",
+  "operator": "0x0c66d0b810f5446ddfa55f1ca7768e2ab1e6cc93"
+ },
+ "accounts": {
+  "deployer": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "operator": "0x0c66D0B810F5446DDfA55F1CA7768e2Ab1E6Cc93",
+  "tenant": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+  "stranger": "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65"
+ },
+ "addresses": {
+  "registry": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+  "ledger": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+  "proofOfTime": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
+  "usdc": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+  "addressBook": "0xa513e6e4b8f2a923d98304ec87f64353c4d5c853"
+ },
+ "chain": "anvil (local: no network, no funds), a block every 2 s",
+ "googleRootPins": [
+  "cedb1cb6dc896ae5ec797348bce9286753c2b38ee71ce0fbe34a9a1248800dfc",
+  "6d9db4ce6c5c0b293166d08986e05774a8776ceb525d9e4329520de12ba4bcc0"
+ ],
+ "runtimeId": "d3370878afa9d5ee064cdcd9c50572a6baa8e23de35f5f4a0c41b7ec8f80acba",
+ "authority": "cd0a7823095d98f82d4787205f020a3f2784912b032eff4f4e6525bba5654df8baaa64c7bebf03ad074788db7b517d82f3c63513f5c39a381b629c26aba38c0f",
+ "ownerInstanceOutOfBand": "ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340",
+ "wrongOperator": "0x39a6a1b7fc4cf640af1c9f06561e4b8017533641",
+ "policy": {
+  "confirmations": 2,
+  "receiptTimeoutMs": 10000,
+  "confirmTimeoutMs": 30000,
+  "pollMs": 1000,
+  "maxReplacements": 3,
+  "maxAnchorAgeBlocks": 20
+ },
+ "labRegister": {
+  "repo": "lab/pvm-relay-reconnect",
+  "measurement": "0x15d9f8c7854514512aabf7b75a1ad5157fad0a4930842bd9c1fbd5c0a1c5a76a",
+  "cpuPricePerSec6": "834"
+ },
+ "relay": {
+  "origin": "https://127.0.0.1:18443",
+  "port": 18443,
+  "scratch": "outside the repository"
+ },
+ "operatorKey": "fresh random keys for this run (operator, wrong operator), held in memory only, never written"
+}
