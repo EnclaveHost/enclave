@@ -20,6 +20,17 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 **Boot 68 (2026-09-25 05:32:35Z, Secure Boot ON) supersedes boot 67 for every same-boot item.** See
 `boot68-2026-09-25.md`. Target: the custom type-1 path ONLY (`../DIRECTION.md`).
 
+## O0. What Windows requires to load the isolation firmware (boot 68, Secure Boot ON)
+
+- VERIFIED: with AllowFirmwareLoadFromFile set, Hyper-V loads our unsigned OpenHCL IGVM (control `32d464cc`) and
+  starts the type-1 partition; the guest serves (canary 054323).
+- VERIFIED: without the setting, Hyper-V refuses with Worker 5142 "failed to load custom IGVM file because
+  AllowFirmwareLoadFromFile registry key is not set" (inverse control 054616).
+- So the gate is the registry opt-in, not Secure Boot and not the VBS-enclave signing rule (which gives error 577
+  for the legacy engine).
+- OPEN, product decision: the opt-in is host-wide, and Microsoft describes it as a developer setting for unsigned
+  images. The firmware's trust comes from its measurement in the report, not from Windows' load policy.
+
 ## O1. What enforces exclusion of the ordinary host OS
 
 - VERIFIED: the partition is configured as type 1 (VBS). The read-back shows `GuestStateIsolationType=1`, and the
