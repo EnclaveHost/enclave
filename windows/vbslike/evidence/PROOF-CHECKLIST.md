@@ -17,6 +17,9 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 
 **Current verdict: host exclusion NOT established. `host_excluded=no`. Admission unchanged.**
 
+**Boot 68 (2026-09-25 05:32:35Z, Secure Boot ON) supersedes boot 67 for every same-boot item.** See
+`boot68-2026-09-25.md`. Target: the custom type-1 path ONLY (`../DIRECTION.md`).
+
 ## O1. What enforces exclusion of the ordinary host OS
 
 - VERIFIED: the partition is configured as type 1 (VBS). The read-back shows `GuestStateIsolationType=1`, and the
@@ -64,7 +67,7 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
   - the secure kernel logged VSM_IDK and VSM_IDKS RSA-2048 public keys in PCR 12.
 - SOURCE (Microsoft, for enclave reports only): trust runs TPM, then hypervisor and secure kernel health, then the
   IDKs in the measured boot log.
-- VERIFIED GAP: Secure Boot is OFF and test signing is ON in this host's measured boot. The production enclave
+- RESOLVED ON BOOT 68: Secure Boot is ON and test signing is 0 (measured). Boot 67 had Secure Boot OFF and test signing ON. The production enclave
   engine is test-signed, so this is how the node currently runs. A verifier holding to Microsoft's requirements
   should reject this boot state.
 - UNTESTED: that IDKS signs the VbsReport the paravisor obtains. The report's 256-byte signature field fits
@@ -77,7 +80,14 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
   - it is refused under production policy (Secure Boot off, test signing on);
   - the tamper cases are refused.
 - UNTESTED on real bytes: the EK–AK credential round trip (the capture has none).
-- PREPARED, held for Steven: a fresh quote on the current boot through the node's own `tpmattest.exe` (transient
+- VERIFIED on boot 68 (`boot68-2026-09-25.md`):
+  - a fresh quote from the node's own tpmattest, with this verifier's MakeCredential and nonce;
+  - the EK chains to the pinned AMD root, and REAL credential activation succeeded;
+  - the quote signature holds and its extraData equals the fresh nonce;
+  - the log replays to the quoted PCRs, with Secure Boot ON, TESTSIGNING 0 and every debug flag 0;
+  - all 7 negative controls are refused.
+  - Open: PCR 0 is not independently pinned.
+- SUPERSEDED (boot 67): a fresh quote on the current boot through the node's own `tpmattest.exe` (transient
   NULL-hierarchy AK, credential activation, verifier nonce). The Microsoft AIK certificate route is unavailable:
   enrollment failed with `0x80072EE7`, name not resolved (`trust-root-2026-09-25.md`, TPM quote feasibility).
 - UNTESTED: that host-controlled code, under test signing, cannot reach IDKS.

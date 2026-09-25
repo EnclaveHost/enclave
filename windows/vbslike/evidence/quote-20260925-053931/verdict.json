@@ -1,0 +1,284 @@
+{
+ "tpmOk": true,
+ "negOk": true,
+ "checks": [
+  {
+   "name": "8 binding: capture mode (report/quote nonces supplied by the operator, transport binding not exercised)",
+   "ok": true,
+   "detail": "",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "1 ek: certificate and chain parse",
+   "ok": true,
+   "detail": "OU=Engineering, C=US, L=Santa Clara, ST=CA, O=Advanced Micro Devices, CN=PRG-HPT, 0 intermediate(s) supplied",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "1 ek: chains to a pinned TPM root",
+   "ok": true,
+   "detail": "root sha256 67bd2472a546751caca5f358a78f80727531671338960a9bcfdfbe6a34d0c6a1",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "1 ek: on-die firmware TPM (SAN tpmManufacturer AMD/Intel)",
+   "ok": true,
+   "detail": "id:414D4400 (AMD)",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "3 credential: EK certificate is the one the credential was minted for",
+   "ok": true,
+   "detail": "",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "2 aik: TPMT_PUBLIC parses (RSA, SHA-256 name, RSASSA-SHA256)",
+   "ok": true,
+   "detail": "RSA-2048",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "2 aik: attributes fixedTPM|fixedParent|sensitiveDataOrigin|restricted|sign, not decrypt",
+   "ok": true,
+   "detail": "attrs=0x00050072",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "2 aik: name == 0x000B || sha256(TPMT_PUBLIC), the name the credential was minted for",
+   "ok": true,
+   "detail": "name 000bab98d6b8990b16ff…",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "3 credential: activated credential == the one minted for (EK, AIK name)",
+   "ok": true,
+   "detail": "",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: parses (TCG 2.0 crypto-agile, SHA-256 bank)",
+   "ok": true,
+   "detail": "45 events",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: every SIPA record and PCR 7 variable event hashes to its recorded digest",
+   "ok": true,
+   "detail": "15 records recomputed",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "4 quote: TPMS_ATTEST parses (TPM_GENERATED, TPM_ST_ATTEST_QUOTE)",
+   "ok": true,
+   "detail": "",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "4 quote: signature verifies with the quoting key (RSASSA-PKCS1v15-SHA256)",
+   "ok": true,
+   "detail": "",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "4 quote: extraData == challenge",
+   "ok": true,
+   "detail": "",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "4 quote: PCR selection is the SHA-256 bank over {0,7,12,13,14}",
+   "ok": true,
+   "detail": "selected {0,7,12,13,14}",
+   "required": true,
+   "dev": true
+  },
+  {
+   "name": "4 quote: PCR 0 on the policy pin list (METAL_VBS_PCR0)",
+   "ok": false,
+   "detail": "no PCR 0 pins configured",
+   "required": true,
+   "dev": true
+  },
+  {
+   "name": "4 quote: PCR digest == sha256(PCR0 || replayed PCR7 || PCR12 || PCR13 || PCR14)",
+   "ok": true,
+   "detail": "",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: VSM_LAUNCH_TYPE == 1",
+   "ok": true,
+   "detail": "log: [1]",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: HYPERVISOR_LAUNCH_TYPE == 1",
+   "ok": true,
+   "detail": "log: [1]",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: VBS_VSM_REQUIRED == 1",
+   "ok": true,
+   "detail": "log: [1]",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: VBS_HVCI_POLICY == 1",
+   "ok": true,
+   "detail": "log: [1]",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: CODEINTEGRITY == 1",
+   "ok": true,
+   "detail": "log: [1, 1]",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: BOOTDEBUGGING == 0",
+   "ok": true,
+   "detail": "log: [0, 0]",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: OSKERNELDEBUG == 0",
+   "ok": true,
+   "detail": "log: [0]",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: HYPERVISOR_DEBUG == 0",
+   "ok": true,
+   "detail": "log: [0]",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: SAFEMODE == 0",
+   "ok": true,
+   "detail": "log: [0]",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: WINPE == 0",
+   "ok": true,
+   "detail": "log: [0]",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: FLIGHTSIGNING == 0",
+   "ok": true,
+   "detail": "log: [0, 0]",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "5 log: TESTSIGNING == 0 (production signing)",
+   "ok": true,
+   "detail": "log: [0, 0]",
+   "required": true,
+   "dev": true
+  },
+  {
+   "name": "5 log: Secure Boot on (PCR 7 SecureBoot variable)",
+   "ok": true,
+   "detail": "log: 1",
+   "required": true,
+   "dev": true
+  },
+  {
+   "name": "6 idks: VSM_IDKS_INFO RSA key on PCR 12 (recomputed)",
+   "ok": true,
+   "detail": "RSA-2048 modulus sha256=402f2281ac8c8ac9",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "7 report: package parses (size, version 1, scheme SHA256/RSA-PSS)",
+   "ok": false,
+   "detail": "report missing or oversized",
+   "required": true,
+   "dev": false
+  },
+  {
+   "name": "7 report: signed by the IDKS of this boot (RSA-PSS SHA-256, salt 32)",
+   "ok": false,
+   "detail": "not checked: report did not parse",
+   "required": true,
+   "dev": false,
+   "skipped": true
+  },
+  {
+   "name": "7 report: EnclaveData[0:32] == challenge",
+   "ok": false,
+   "detail": "not checked: report did not parse",
+   "required": true,
+   "dev": false,
+   "skipped": true
+  },
+  {
+   "name": "7 report: enclave type VBS",
+   "ok": false,
+   "detail": "not checked: report did not parse",
+   "required": true,
+   "dev": false,
+   "skipped": true
+  },
+  {
+   "name": "7 report: sha256(FamilyId||ImageId||AuthorId) on the policy allowlist (METAL_VBS_ENCLAVE_MEASUREMENTS)",
+   "ok": false,
+   "detail": "not checked: report did not parse",
+   "required": true,
+   "dev": false,
+   "skipped": true
+  },
+  {
+   "name": "7 report: SVN >= 1",
+   "ok": false,
+   "detail": "not checked: report did not parse",
+   "required": true,
+   "dev": false,
+   "skipped": true
+  },
+  {
+   "name": "7 report: enclave not debuggable (FULL_DEBUG / DYNAMIC_DEBUG clear)",
+   "ok": false,
+   "detail": "not checked: report did not parse",
+   "required": true,
+   "dev": false,
+   "skipped": true
+  }
+ ],
+ "warnings": [
+  "HYPERVISOR_BOOT_DMA_PROTECTION != 1 (not yet required; see REPORT.md section 5)",
+  "VBS_IOMMU_REQUIRED absent (RequirePlatformSecurityFeatures not set; not yet required)",
+  "log BOOTCOUNTER 233 != quote resetCount 1669444139 (AMD fTPM clockInfo is known to decode oddly; warn only)"
+ ],
+ "logSha256": "8ee177c4e05165c6e4dc4294f32fe38c1e279656c48b2df9db17cadf6ceecb0b"
+}

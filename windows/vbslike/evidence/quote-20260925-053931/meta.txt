@@ -1,0 +1,15 @@
+05:39:31 tpmattest C:\Users\claude\vbs\node\tpmattest.exe sha256 ebc30d9fa54cf70043900165ce12631224075b3301653eaf8527342d18de6982
+05:39:31 host boot UTC 2026-09-25T05:32:35
+05:39:31 started pid 22200
+05:39:33 startup: ready tpmattest/1
+05:39:33 keys: ok
+05:39:37 verifier input received (nonce a63e136acd82fc93...)
+05:39:40 activate: ok
+05:39:40 quote: ok
+05:39:40 pcr 0: ok
+05:39:40 log: ok
+05:39:40 copied C:\Windows\Logs\MeasuredBoot\0000000068-0000000000.log sha256 8ee177c4e05165c6e4dc4294f32fe38c1e279656c48b2df9db17cadf6ceecb0b
+05:39:40 quit: ok
+05:39:40 exit code 0 (the helper flushes its attestation key at quit)
+05:39:40 running helpers now: 0
+05:39:40 DONE
