@@ -1,0 +1,8 @@
+vms=0 sentinels=0 fired=0
+setting=Absent
+leftover run vmgs=0
+master=4f051697a74dc72d
+archived: enclave-mgrcanary-hv52fca03ecfbe82-canary-20260925-071025-647.vmgs 4194816
+archived: enclave-mgrcanary-hv83502ea2beb73f-canary-20260925-071230-471.vmgs 4194816
+watchdog procs=0
+secureboot=True
