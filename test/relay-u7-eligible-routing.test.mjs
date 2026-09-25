@@ -284,7 +284,9 @@ test("U7: an explicitly addressed INELIGIBLE tunnel box is default-deny: only it
     seen.push(`${f.method} ${f.path}`); headersSeen.push(f.headers || {});
     const body = f.path.startsWith("/availability") ? { cpuShareFree: 0.5, nodeVcpus: 8 } : { servedBy: "tunnel" };
     ws.send(JSON.stringify({ t: "res", id: f.id, status: 200,
-                             headers: { "content-type": "application/json", "set-cookie": "planted=1; Path=/" },   // it tries to plant a cookie on the relay's origin
+                             headers: { "content-type": f.path.startsWith("/availability") ? "application/json" : "text/html",
+                                        "set-cookie": "planted=1; Path=/",                         // it tries to plant a cookie on the relay's origin
+                                        "content-security-policy": "default-src *" },               // ...and to run content there
                              body: Buffer.from(JSON.stringify(body)).toString("base64") }));
   });
   await once(ws, "open");
@@ -337,6 +339,8 @@ test("U7: an explicitly addressed INELIGIBLE tunnel box is default-deny: only it
     assert.equal(got.length, 1, p);
     assert.ok(!JSON.stringify(got).includes(SENT), `${p}: the box received a credential: ${JSON.stringify(got)}`);
     assert.equal(r.headers.get("set-cookie"), null, `${p}: the box's Set-Cookie is not relayed`);
+    assert.equal(r.headers.get("x-content-type-options"), "nosniff", p);
+    assert.equal(r.headers.get("content-security-policy"), "sandbox; default-src 'none'", `${p}: nothing active on the relay's origin`);
   }
   // no WebSocket upgrade reaches an ineligible box at all, own surfaces included (none of them is a WebSocket)
   const s0 = streams.length;
