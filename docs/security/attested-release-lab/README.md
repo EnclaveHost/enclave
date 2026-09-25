@@ -14,6 +14,4 @@ evidence of anything but the relay's own logic against a real guest.
   a ticket, junk evidence refused (ticket burned), a real chip-signed report of another image refused by the verifier.
 - `node lab-relay.mjs serve <lab.json>`: the same start-up checks, then HTTPS on the lab name.
 
-`lab.example.json` is the phase-2 file with paths and the synthetic secret elided; `dry-run-1.txt` is its dry run
-(PASS): the prediction for `catalog://0x5bca36b5…/0` under enclave-5d's LAB domain release `c5375c71…` is AppID
-`94c04c0e…`, measurement `faee57d7…`. Phase 2's pass condition is that the lab guest's own report equals it.
+`lab.example.json` is the phase-2 file with paths elided (the synthetic config and secrets come from enclave-5d's file). `dry-run-1.txt` ran under the superseded LAB release `c5375c71…`; `dry-run-2.txt` under its replacement `1428c0c4…` (the lab ticket port moved off production's): the prediction for `catalog://0x5bca36b5…/0` is AppID `94c04c0e…` (unchanged: the AppID excludes the image), measurement `54ffacdd…f376`, from the derivation record printed there. Phase 2's pass condition is that the lab guest's own report equals it.
