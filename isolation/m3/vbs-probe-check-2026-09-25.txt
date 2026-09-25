@@ -1,0 +1,83 @@
+# VBS isolation review support: the stated isolation fields, the /probe.ko hook, the VBS report probe.
+# All runs here: QEMU/KVM on warden-host, NOT Hyper-V. Nothing here has run on a VBS-isolated (type 1) partition.
+
+## pins
+production initrd 0d14db231b1485bfde352d9043437d27459278361153802e0fa42314732e67e1 (build-domain.sh, rebuilt byte-identical)
+box UKI (WSL kernel 7fe3edb5 + 0d14db23)  7af57aabbe5d8b5533892734a6cb8947085bad13dfdd89b918e2436cccd66f4a
+PROBE initrd (0d14db23 + /probe.ko)       574ce802997b353979de7ed98deea8618a20c21ac196b04506a17c70c968da0e  NOT a production medium
+PROBE UKI                                 f6ebbc0ee473cfddc9523b9bb7b879b0869a4dfb379366e57a0a005a7d2c6cba  NOT a production medium
+vbsreport.ko                              447af5ceb0bc7f45100e6fc869f70094154ee112bf145b348c502b4d83506d49 (WSL tag linux-msft-wsl-6.6.87.2, IKCONFIG of 7fe3edb5, gcc 16.2.1)
+
+## monitor unit tests
+--- PASS: TestHvIsolationFields (0.00s)
+    hvisolation_test.go:36: this machine: hyperv=false max_leaf=0x0 priv_high=0x0 isolation_priv=false config_a=0x0 config_b=0x0 (stated by the hypervisor, CPUID) -> hv_isolation=n/a paravisor=n/a
+--- PASS: TestHvIsolationReadsHere (0.00s)
+PASS
+ok  	enclave.host/isolation/m3/monitor	0.003s
+
+## local suites on 0d14db23 (judge: d1 cf640825 judge-hv.mjs; node tree cf640825)
+HVLAB-CHECK ALL PASS
+HVLAB-CHECK PASS WITH 4 SKIPPED (one domain)
+HVLAB-ROUTE ALL PASS
+HVLAB-NODE ALL PASS
+TEST-HV-LOCAL PASS
+accept: 27 PASS; TEST-HV-ACCEPT PASS (QEMU/KVM, NOT Hyper-V)
+PASS clean: MON ready control_port=9000 snp=false transport=virtio
+PASS smbios: MON ERROR refusing to start: the kernel command line is not the pinned one (got "console=ttyS0 rdinit=/init loglevel=3 report_host=9001 injected=1")
+PASS addon: MON ERROR refusing to start: the boot stub added files under /.extra (credentials or extensions): /.extra/os-release /.extra/credentials /.extra/credentials/x.cred
+PASS loadopts: MON ERROR refusing to start: the kernel command line is not the pinned one (got "console=ttyS0 rdinit=/init loglevel=3 report_host=9001 injected=1")
+PASS loadpinned: MON ready control_port=9000 snp=false transport=virtio
+PASS direct: MON ready control_port=9000 snp=false transport=virtio
+UEFI-GUARDS ALL PASS
+guest console (direct boot, KVM):
+MON hv hyperv=false max_leaf=0x40000001 priv_high=0x0 isolation_priv=false config_a=0x0 config_b=0x0 (stated by the hypervisor, CPUID)
+MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=n/a paravisor=n/a
+MON ready control_port=9000 snp=false transport=virtio
+
+## the probe on the box's own kernel (WSL 6.6.87.2), three hypervisor faces
+-- plain
+MON PROBE IMAGE: loading /probe.ko (this is not a production medium)
+VBSREPORT probe: one HvCallVbsVmCallReport from VTL0 (a probe image, not a production medium)
+VBSREPORT status=0xffffffffffffffff (low 16 bits: 0 = success, 2 = invalid hypercall code, 3 = invalid input, 6 = access denied)
+VBSREPORT no hypercall page: not running on Hyper-V
+MON PROBE finished: No such device
+MON hv hyperv=false max_leaf=0x40000001 priv_high=0x0 isolation_priv=false config_a=0x0 config_b=0x0 (stated by the hypervisor, CPUID)
+-- hv
+MON PROBE IMAGE: loading /probe.ko (this is not a production medium)
+VBSREPORT probe: one HvCallVbsVmCallReport from VTL0 (a probe image, not a production medium)
+VBSREPORT status=0xffffffffffffffff (low 16 bits: 0 = success, 2 = invalid hypercall code, 3 = invalid input, 6 = access denied)
+VBSREPORT no hypercall page: not running on Hyper-V
+MON PROBE finished: No such device
+MON hv hyperv=true max_leaf=0x40000005 priv_high=0x30 isolation_priv=false config_a=0x0 config_b=0x0 (stated by the hypervisor, CPUID)
+-- hvoff
+MON PROBE IMAGE: loading /probe.ko (this is not a production medium)
+VBSREPORT probe: one HvCallVbsVmCallReport from VTL0 (a probe image, not a production medium)
+VBSREPORT status=0x2 (low 16 bits: 0 = success, 2 = invalid hypercall code, 3 = invalid input, 6 = access denied)
+MON PROBE finished: No such device
+MON hv hyperv=true max_leaf=0x40000005 priv_high=0x30 isolation_priv=false config_a=0x0 config_b=0x0 (stated by the hypervisor, CPUID)
+-- the PROBE UKI through OVMF + systemd-stub (guards on), kvm=off + Hyper-V enlightenments
+MON PROBE IMAGE: loading /probe.ko (this is not a production medium)
+VBSREPORT probe: one HvCallVbsVmCallReport from VTL0 (a probe image, not a production medium)
+VBSREPORT status=0x2 (low 16 bits: 0 = success, 2 = invalid hypercall code, 3 = invalid input, 6 = access denied)
+MON PROBE finished: No such device
+MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=n/a paravisor=n/a
+
+## host-side verifier
+selftest: signed span found: True [('SELFTEST', 'version..identity [0x14:0x130]', 'RSA-PSS salt 32'), ('SELFTEST', 'version..identity [0x14:0x130]', 'RSA-PSS salt auto')]; a flipped measurement byte verifies nowhere: True
+this box 09-20 log: IDKS RSA-2048 b0788dbb827273a8...
+this box 09-20 log: IDK RSA-2048 bda6e4fdd6d27b94...
+
+## IGVM platforms (probe/igvm_platforms.py)
+7caf7408 openhcl-ownguest-4610d594.bin: v1 platforms=['VSM_ISOLATION(mask=0x1,highest_vtl=2,ver=1,shared_gpa_boundary=0x0)'] vbs_measurement_headers=0
+48773995 openhcl.bin: v1 platforms=['VSM_ISOLATION(mask=0x1,highest_vtl=2,ver=1,shared_gpa_boundary=0x0)'] vbs_measurement_headers=0
+cfd40ce2 openhcl-cvm.bin: v1 platforms=['SEV_SNP(mask=0x1,highest_vtl=2,ver=1,shared_gpa_boundary=0x400000000000)', 'TDX(mask=0x2,highest_vtl=2,ver=1,shared_gpa_boundary=0x800000000000)', 'VSM_ISOLATION(mask=0x4,highest_vtl=2,ver=1,shared_gpa_boundary=0x0)'] vbs_measurement_headers=0
+IGVM file isolation: None   <- 7caf7408's own map
+
+## the box kernel's config (IKCONFIG of 7fe3edb5)
+CONFIG_AMD_MEM_ENCRYPT=y
+CONFIG_MODULES=y
+CONFIG_MODVERSIONS=y
+# CONFIG_MODULE_SIG is not set
+CONFIG_HYPERV_VSOCKETS=y
+CONFIG_TCG_TPM=y
+CONFIG_HYPERV=y

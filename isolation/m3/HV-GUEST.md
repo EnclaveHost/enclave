@@ -15,9 +15,20 @@ root partition (tier `T0-hv`), and the host is **not** excluded. The best verdic
 Kernel command line: `console=ttyS0 rdinit=/init loglevel=3 report_host=9001`. The console then shows
 
 ```
-MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no
+MON hv hyperv=true max_leaf=0x... priv_high=0x... isolation_priv=... config_a=0x... config_b=0x... (stated by the hypervisor, CPUID)
+MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=none paravisor=yes
 MON ready control_port=9000 snp=false transport=hv_sock
 ```
+
+`hv_isolation=` and `paravisor=` are the partition's isolation configuration as the hypervisor STATES it, read the
+way Linux reads it:
+- CPUID 0x40000003 EBX bit 22 (`HV_ISOLATION`) gates leaf 0x4000000C;
+- in that leaf, EBX[3:0] is the type (`none`, `vbs`, `snp`, `tdx`) and EAX bit 0 is the paravisor;
+- `n/a` means not Microsoft's hypervisor, or no such leaf.
+
+The expected readings are `none`/`yes` for OpenHCL type 16 and `vbs`/`yes` for a VBS-isolated type 1. The fields are
+configuration, not a proof, and they never change `host_excluded=no` (VBS-ISOLATION.md). The `MON hv` line carries
+the raw values they come from.
 
 `transport=` names the host-guest vsock transport the kernel can actually use: `hv_sock` (Hyper-V's VMBus transport,
 built into the NucBox kernel) or `virtio` (QEMU/KVM). AF_VSOCK accepts a listen with NO transport registered, so
