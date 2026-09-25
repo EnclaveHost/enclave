@@ -15,7 +15,7 @@ Every line is exactly one of:
 
 A successful app response, a type-1 boot, or a refused Save-VM is none of these for host exclusion.
 
-**Current verdict: host exclusion NOT established. `host_excluded=no`. Admission unchanged.**
+**Current verdict: host exclusion NOT established. `host_excluded=no`. Admission unchanged.** (updated ~06:25 UTC)
 
 **Boot 68 (2026-09-25 05:32:35Z, Secure Boot ON) supersedes boot 67 for every same-boot item.** See
 `boot68-2026-09-25.md`. Target: the custom type-1 path ONLY (`../DIRECTION.md`).
@@ -73,40 +73,33 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 
 ## O3. Report signer and trust root
 
-- VERIFIED (`trust-root-2026-09-25.md`):
-  - the host's current boot log replays to its TPM's PCRs 0-14, with both negative controls detected;
-  - the secure kernel logged VSM_IDK and VSM_IDKS RSA-2048 public keys in PCR 12.
-- SOURCE (Microsoft, for enclave reports only): trust runs TPM, then hypervisor and secure kernel health, then the
-  IDKs in the measured boot log.
-- RESOLVED ON BOOT 68: Secure Boot is ON and test signing is 0 (measured). Boot 67 had Secure Boot OFF and test signing ON. The production enclave
-  engine is test-signed, so this is how the node currently runs. A verifier holding to Microsoft's requirements
-  should reject this boot state.
-- UNTESTED: that IDKS signs the VbsReport the paravisor obtains. The report's 256-byte signature field fits
-  RSA-2048, which is consistency only.
-- VERIFIED (offline, real boot-64 bytes from this host, `relay/vbs-verify.mjs`, `test/vbs-verify.test.mjs` 12/12):
+**Current (boot 68, Secure Boot ON since 2026-09-25 05:32:35Z):**
+- VERIFIED (`boot68-2026-09-25.md`, quote session `quote-20260925-053931/`):
+  - a fresh quote from the node's own `tpmattest`, with this verifier's MakeCredential and nonce;
   - the EK chains to the pinned AMD fTPM root;
-  - the quote signature holds, and the nonce is in the quote;
-  - the log replays to the quoted PCRs;
-  - IDKS verifies a VBS **enclave** report (Microsoft's documented chain);
-  - it is refused under production policy (Secure Boot off, test signing on);
-  - the tamper cases are refused.
-- UNTESTED on real bytes: the EK–AK credential round trip (the capture has none).
-- VERIFIED on boot 68 (`boot68-2026-09-25.md`):
-  - a fresh quote from the node's own tpmattest, with this verifier's MakeCredential and nonce;
-  - the EK chains to the pinned AMD root, and REAL credential activation succeeded;
+  - REAL EK-AK credential activation returned the minted credential;
   - the quote signature holds and its extraData equals the fresh nonce;
   - the log replays to the quoted PCRs, with Secure Boot ON, TESTSIGNING 0 and every debug flag 0;
   - all 7 negative controls are refused.
-  - Open: PCR 0 is not independently pinned.
-- SUPERSEDED (boot 67): a fresh quote on the current boot through the node's own `tpmattest.exe` (transient
-  NULL-hierarchy AK, credential activation, verifier nonce). The Microsoft AIK certificate route is unavailable:
-  enrollment failed with `0x80072EE7`, name not resolved (`trust-root-2026-09-25.md`, TPM quote feasibility).
-- UNTESTED: that host-controlled code, under test signing, cannot reach IDKS.
-- RULED (enclave-5d, contract `aebd6bd7`):
-  - The trust root is "host TPM plus IDKS under an ACCEPTED boot state". Secure Boot off, or test signing
-    measured on, is a REJECTION condition. On this host both hold today, so a conforming verifier must reject
-    any report from it.
-  - "IDKS signs the VbsReport" stays a HYPOTHESIS until real report bytes verify under the same boot's IDKS.
+  The monitor independently re-verified the committed recording offline, with the same result.
+- VERIFIED: boot 68's log carries new VSM_IDK/IDKS keys (IDKS modulus sha256 `402f2281…01a9`, PCR 12).
+- RULED (enclave-5d, contract `aebd6bd7` and `1e5d3ae1`): the trust root is "host TPM plus IDKS under an ACCEPTED
+  boot state". Secure Boot off or test signing on is a rejection condition, and **neither is present on boot 68**.
+  That is not a pass of anything else.
+- OPEN, current gaps:
+  - PCR 0 (platform firmware) is not independently pinned; it is carried and recorded as an omission.
+  - That IDKS (or any key) signs the paravisor's VM report: a HYPOTHESIS. No VM report bytes exist, and capturing
+    them is provider-blocked (parked).
+  - These are boot and node identity results only. They say nothing about custom-VM isolation or app admission.
+
+**Historical (superseded, kept only as record; nothing waits on it):**
+- Boot 67: Secure Boot OFF and TESTSIGNING ON (`trust-root-2026-09-25.md`), because the legacy enclave engine
+  needed it. That was resolved by Steven's reboot with Secure Boot on, and the legacy engine is retired
+  (`../DIRECTION.md`).
+- Boot 64 (offline fixture): IDKS verified a VBS **enclave** report (Microsoft's documented enclave chain) as tier
+  vbs-dev only. It had no credential round trip. It is not combined with any boot-68 evidence.
+- The Windows AIK has no Microsoft AIK certificate (enrollment `0x80072EE7`). The tpmattest route above replaced
+  that need.
 
 ## O4. Fresh verifier nonce and guest-held TLS key, authenticated to the measured instance
 
@@ -133,12 +126,26 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 | cross-VM report rejected | UNTESTED: needs report bytes from two VMs |
 | positive control: a correct report accepted | UNTESTED: needs report bytes |
 
-## Next, and who decides
+## Next, and who owns it
 
-1. **Steven:** the host's trust-root boot state. Secure Boot and test signing are excluded from this lane, and the
-   production enclave engine depends on test signing.
-2. **Steven:** whether to run the prepared fresh quote. It is one run of the node's own `tpmattest.exe`, whose only
-   TPM effect is a transient NULL-hierarchy key flushed on exit.
-3. **enclave-5d and enclave-53:** a VBS IGVM with our kernel, initrd and command line as a measured Linux VTL0 (build
-   only; a boot needs the usual handoff).
-4. **Parked:** report-byte capture and E3.
+Nothing here waits on a decision already made: boot state (Secure Boot on) and the fresh quote are DONE on boot 68.
+
+1. **enclave-d1 with enclave-53:** boot 53's measured Linux-VTL0 candidate as a bounded owned canary. The candidate
+   is `vbs-linux-candidate.bin`, sha256 `5562e71d…45ce`, VBS launch digest `246DEE1B…89F0`.
+   - Run it under the temporary developer setting, fully restored afterwards.
+   - Record whether it boots under Secure Boot, its digest and runtime identity, and which inputs are measured
+     versus host-supplied.
+   - enclave-53 supplies offline mutation evidence that changing the kernel, initrd or command line changes the
+     expected digest.
+2. **enclave-5d and enclave-99:** the replacement node identity (windows-hv-node/v1), host-only and honest. A
+   TPM-only node attach grants no app capacity and no isolation badge.
+3. **enclave-5d:** the node lifecycle treats a manager's `recovered: true` instance as HELD. The manager side of
+   63's P1 is fixed (windows/isolation-manager `53672cbe`).
+4. **Unresolved production requirement, documented, not blocking proof:** loading our firmware needs the host-wide
+   AllowFirmwareLoadFromFile opt-in (O0). Proof runs use it temporarily and restore it. Permanent production use is
+   Steven's decision, and it is not enabled permanently.
+5. **Parked (provider-blocked or declined; not rerouted):** VM report-byte capture, and the host-memory experiment
+   (E3). If every permitted prerequisite completes while these remain blocked, the remaining boundary is exactly:
+   - no VM report signer verified;
+   - no guest key or app binding in a report;
+   - no host-memory exclusion evidence.
