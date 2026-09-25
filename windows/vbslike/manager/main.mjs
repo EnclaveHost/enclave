@@ -161,6 +161,17 @@ if (dataPort > 0) {
 // Notes, so "not in my memory" is never answered as "absent". Until this completes every /vms request
 // is 503; a failed survey keeps it that way and is retried. (server.mjs startManager: shared with tests.)
 const inv = await startManager(manager);
+// LIVENESS (server.mjs sweepLiveness): a type-1 partition whose monitor dies goes OFF by itself (G4, run 082856), and
+// only a survey sees it. Every ENCLAVE_LIVENESS_MS (default 15 s; 0 disables), a domain whose VM is not Running fails.
+const livenessMs = Number(env("ENCLAVE_LIVENESS_MS", "15000"));
+if (livenessMs > 0) {
+  const t = setInterval(async () => {
+    const r = await manager.sweepLiveness().catch((e) => ({ error: e.message }));
+    if (r && r.failed) console.log(`[winmgr] liveness: ${r.failed} domain(s) failed because their partition stopped`);
+    if (r && r.error) console.error(`[winmgr] liveness survey failed (nothing changed): ${r.error}`);
+  }, livenessMs);
+  t.unref?.();
+}
 console.log(`[winmgr] inventory ${inv.state}` + (inv.state === "ready" ? `: recovered ${inv.recovered}, unattributed ${inv.unattributed}` : inv.error ? `: ${inv.error}` : ""));
 if (inv.state === "failed") {
   const retry = setInterval(async () => { const r = await manager.recover(); if (r.state !== "failed") { clearInterval(retry); console.log(`[winmgr] inventory ${r.state} on retry`); } }, 30_000);

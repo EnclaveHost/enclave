@@ -4,10 +4,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { judge, canonical, SIGN_DOMAIN, FORMAT, TIER } from "./judge-hv.mjs";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { judge, canonical, SIGN_DOMAIN } from "./judge-hv.mjs";
 import { BOOT_STATEMENTS, bootFormOfStatement, isStatedPartition } from "./boot-statements.mjs";
 import { admit } from "../datapath/datapath.mjs";
 
+// The report's format and tier as the RUST launcher defines them (host/src/contract.rs), never as the judge does: a
+// fixture that took the judge's own names would agree with the judge while the binary disagreed, which is how run 081904
+// failed on the box with every JS test green (enclave-d1's format-drift finding).
+const CONTRACT_RS = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../host/src/contract.rs"), "utf8");
+const FORMAT = CONTRACT_RS.match(/pub const FORMAT_HYPERV: &str = "([^"]+)";/)[1];
+const TIER = CONTRACT_RS.match(/pub const TIER_HYPERV: &str = "([^"]+)";/)[1];
 const LD = BOOT_STATEMENTS["linux-direct"], UEFI = BOOT_STATEMENTS["uefi-medium"];
 const IMG = "7c".repeat(32);                                         // one 64-hex value, stated under different pairs
 const APP = "708e640945d196df5829aa4ea490774c18ef6876a0d9239f574986ad18ae3782";
