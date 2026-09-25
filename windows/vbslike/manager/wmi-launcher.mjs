@@ -308,7 +308,12 @@ export class WmiHyperVLauncher {
    * @param imagePath / imageSha256  the guest image and the hash it must have, checked on the host
    * @param prefix  every VM this instance creates starts with it, and teardown filters on it
    */
-  constructor({ run, imagePath, imageSha256, prefix = "enclave-app-", pipeFor = null, jobTimeoutSec = 120 }) {
+  constructor({ run, imagePath, imageSha256, medium = null, mediumSha256 = null, prefix = "enclave-app-", pipeFor = null, jobTimeoutSec = 120 }) {
+    // The boot medium, beside the firmware and never confused with it. The firmware is the
+    // paravisor image the worker loads; the medium is what the guest BOOTS, and only the medium's
+    // hash can answer "what ran" - with Secure Boot off the ESP can differ under one UKI.
+    this.medium = medium;
+    this.mediumSha256 = mediumSha256 ? String(mediumSha256).toLowerCase() : null;
     if (typeof run !== "function") throw new Error("a PowerShell runner must be injected");
     this.run = run; this.imagePath = imagePath; this.imageSha256 = (imageSha256 || "").toLowerCase();
     // A STABLE prefix, not one keyed to a pid: a restarted manager must still recognise, and be
@@ -376,7 +381,11 @@ export class WmiHyperVLauncher {
       e.code = "prerequisites_absent"; e.checks = pre.checks;
       throw e;
     }
-    const image = await this.verifyImage();
+    // THE FIRMWARE's hash, and it is NOT the image identity. Keeping the name `image` for it was
+    // the bug: it was returned as handle.image, server.mjs copied it to rec.image, and 5d's
+    // datapath compares `want.image !== rec.image` as 64-hex STRINGS - so an object could never
+    // match and EVERY route would be refused as "identity", never as a type error (enclave-53).
+    const firmware = await this.verifyImage();
     const name = `${this.prefix}${instanceId}`;
     const pipe = this.pipeFor(name);
     let created = null;
@@ -414,7 +423,15 @@ export class WmiHyperVLauncher {
       if (!booted)
         throw new Error(`the VM is Running but the guest produced no output on ${pipe} within ${guestReadySec}s: a silent partition is not a booted one`);
 
-      return { instanceId, name, vmId: created.id, pipe, state: started.state, image, appId: mapping.appId,
+      // `image` is the guest's identity as a 64-hex STRING: the MEDIUM's hash when one was
+      // attached (uefiImageIdentity), never the firmware's, and never an object. Null when no
+      // medium was attached, so a caller can tell "no medium" from "wrong medium" - the datapath
+      // then refuses for want of an identity rather than on a mismatch it cannot explain.
+      return { instanceId, name, vmId: created.id, pipe, state: started.state,
+               image: this.mediumSha256 ? uefiImageIdentity({ mediumSha256: this.mediumSha256,
+                                                              mediumPath: this.medium }).guestImageSha256
+                                        : null,
+               firmware, boundary: BOUNDARY, appId: mapping.appId,
                // guestBooted: something executed. appReady: NOT established - no handshake exists.
                guest: { booted, bytes: con.bytes, head: String(con.head || "").slice(0, 400) },
                appReady: false,

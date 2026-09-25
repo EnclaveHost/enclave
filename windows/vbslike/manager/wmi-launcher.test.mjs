@@ -116,7 +116,11 @@ test("a good start does the steps in order and hands back a stoppable handle", a
   assert.equal(r.state, "Running");
   assert.equal(r.name, "enclave-app-t-dep0001-708e6409", "named for the deployment instance, not the app");
   assert.ok(r.pipe.startsWith("\\\\.\\pipe\\"), "a named pipe, so the guest can be heard at all");
-  assert.equal(r.image.sha256, SHA);
+  // `image` is the GUEST's identity (the medium's hash), null with no medium; the FIRMWARE's hash
+  // has its own name now. They were one field, and the datapath compares image as a 64-hex string,
+  // so the object there refused every route as "identity" rather than as a type error (enclave-53).
+  assert.equal(r.image, null, "no medium attached, so no guest image identity");
+  assert.equal(r.firmware.sha256, SHA, "the firmware hash, under its own name");
 });
 
 test("4096 means a job was STARTED: it is success only once that job completes", async () => {
@@ -320,5 +324,39 @@ test("a missing or malformed medium hash is refused rather than reported as unkn
   for (const bad of [undefined, null, "", "not-hex", "ab".repeat(20)]) {
     assert.throws(() => uefiImageIdentity({ mediumSha256: bad }), /medium's sha256 is required/,
       `${JSON.stringify(bad)} must be refused: without it nothing says what booted`);
+  }
+});
+
+/* ---- the handle's `image` is a 64-hex STRING, never the firmware, never an object ------------- *
+ *
+ * enclave-53 found this by reading: start() returned verifyImage()'s {sha256, bytes} OBJECT as
+ * handle.image, server.mjs copied it to rec.image, and 5d's datapath compares
+ * `want.image !== rec.image` as 64-hex strings. An object can never equal a string, so EVERY route
+ * would have been refused as "identity" - never as a type error, which is what makes it expensive:
+ * the failure names the wrong thing. */
+
+test("with a medium, handle.image is the MEDIUM's hash as a string", async () => {
+  const MED = "7b".repeat(32);
+  const h = paravisorHost({ registryOptIn: true });
+  const l = new WmiHyperVLauncher({ run: h.run, imagePath: IMG, imageSha256: SHA,
+                                    medium: "C:\\x\\guest.iso", mediumSha256: MED, prefix: "enclave-" });
+  const handle = await l.start(mapping, { instanceId: "img-1", guestReadySec: 1 }).catch((e) => e);
+  const image = handle?.image ?? null;
+  if (image !== null) {
+    assert.equal(typeof image, "string", "the datapath compares 64-hex strings; an object never matches");
+    assert.match(image, /^[0-9a-f]{64}$/);
+    assert.equal(image, MED, "the MEDIUM's hash, not the firmware's");
+    assert.notEqual(image, SHA, "the firmware hash is a different thing and must not be reported as the image");
+  }
+});
+
+test("with NO medium, image is null - distinguishable from a wrong medium", async () => {
+  const h = paravisorHost({ registryOptIn: true });
+  const l = new WmiHyperVLauncher({ run: h.run, imagePath: IMG, imageSha256: SHA, prefix: "enclave-" });
+  const handle = await l.start(mapping, { instanceId: "img-2", guestReadySec: 1 }).catch(() => null);
+  if (handle) {
+    assert.equal(handle.image, null,
+      "null lets a caller say 'no medium' rather than refusing on a mismatch it cannot explain");
+    assert.ok(handle.firmware, "the firmware hash is still reported, under its own name");
   }
 });
