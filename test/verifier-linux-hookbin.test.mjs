@@ -45,7 +45,9 @@ const col = () => memoryCollateral({ chains: { Turin: text(new URL("Turin-cert_c
 const rid = () => asBuf(C.runtimeId(identity)), bind2 = (n = nonce, k = spki) => asBuf(C.bind2(k, n, rid()));
 // the AppID, derived by the owner's pinned reference from the component bytes and a record (the fixture's v2 record by default)
 function derive(rec = record) {
-  const tmp = fs.mkdtempSync(path.join(new URL("../.verifier-integration/", import.meta.url).pathname, "hookbin-derive-"));
+  const scratch = new URL("../.verifier-integration/", import.meta.url).pathname;   // gitignored: absent on a fresh checkout (CI)
+  fs.mkdirSync(scratch, { recursive: true });
+  const tmp = fs.mkdtempSync(path.join(scratch, "hookbin-derive-"));
   try {
     const r = path.join(tmp, "record.json"), c = path.join(tmp, "component.wasm"), o = path.join(tmp, "out.bundle");
     fs.writeFileSync(r, JSON.stringify(rec)); fs.writeFileSync(c, component);
