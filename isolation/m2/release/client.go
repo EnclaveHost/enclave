@@ -13,6 +13,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/tls"
 	"crypto/x509"
 	_ "embed"
@@ -133,6 +134,7 @@ type Client struct {
 	Dial    func(ctx context.Context) (net.Conn, error)
 	Host    string
 	Roots   *x509.CertPool
+	Keys    []ed25519.PublicKey // the relay's pinned release keys (PinnedRelayKeys); the reply must be signed by one
 	Timeout time.Duration
 }
 
@@ -141,15 +143,20 @@ const MaxSealed = 4 << 20
 
 var errCodeRE = regexp.MustCompile(`^[a-z_]{1,40}$`)
 
-// Release POSTs {id, ticket, sealKey, evidence} and returns the sealed blob. A refusal returns the relay's status and
-// error CODE only (a bounded token), never its message: the guest's log is the host's to read.
-func (c *Client) Release(ctx context.Context, id [32]byte, ticket [32]byte, sealKey []byte, ev Evidence) ([]byte, error) {
+// Release POSTs {id, ticket, sealKey, evidence} and returns the reply, VERIFIED (contract v1.2), for sk to open. A
+// refusal returns the relay's status and error CODE only (a bounded token), never its message: the guest's log is the
+// host's to read. With no pinned key it refuses before sending, so the one-use ticket is not burned.
+func (c *Client) Release(ctx context.Context, id [32]byte, ticket [32]byte, sk *SealKey, ev Evidence) (*Response, error) {
 	if c.Dial == nil || c.Host == "" || c.Roots == nil {
 		return nil, errors.New("release client: no dialer, relay host or pinned roots")
 	}
-	if len(sealKey) != 32 {
-		return nil, errors.New("release client: the seal key is not 32 bytes")
+	if len(c.Keys) == 0 {
+		return nil, errors.New("release client: no relay release key is pinned in this image, so no release is trusted")
 	}
+	if sk == nil {
+		return nil, errors.New("release client: no seal key")
+	}
+	sealKey := sk.Public()
 	body, err := json.Marshal(request{ID: fmt.Sprintf("0x%x", id), Ticket: base64.StdEncoding.EncodeToString(ticket[:]),
 		SealKey: base64.StdEncoding.EncodeToString(sealKey), Evidence: ev})
 	if err != nil {
@@ -203,9 +210,11 @@ func (c *Client) Release(ctx context.Context, id [32]byte, ticket [32]byte, seal
 	var out struct {
 		ID     string `json:"id"`
 		Sealed string `json:"sealed"`
+		Sig    string `json:"sig"`
+		KeyID  string `json:"keyId"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, errors.New("release: the reply is not {id, sealed}")
+		return nil, errors.New("release: the reply is not {id, sealed, sig, keyId}")
 	}
 	if got, err := ID(out.ID); err != nil || got != id {
 		return nil, errors.New("release: the reply names another deployment")
@@ -214,7 +223,12 @@ func (c *Client) Release(ctx context.Context, id [32]byte, ticket [32]byte, seal
 	if err != nil {
 		return nil, errors.New("release: the sealed blob is not base64")
 	}
-	return sealed, nil
+	sig, err := base64.StdEncoding.DecodeString(out.Sig)
+	if err != nil {
+		sig = nil // a signature that is not base64 is a missing one, and Verify refuses it
+	}
+	// rule 1: the digest is this guest's own id, ticket and seal key over the sealed bytes, not the reply's fields
+	return sk.Verify(c.Keys, id, ticket, sealed, sig, out.KeyID)
 }
 
 // tlsReason keeps a certificate failure recognisable without echoing the certificate's names or the peer.

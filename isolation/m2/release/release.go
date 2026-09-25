@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 )
 
 const (
@@ -127,9 +128,20 @@ func (r *Release) ConfigText() (string, error) {
 	return c, nil
 }
 
-// Open decrypts a sealed release and checks it is for THIS deployment. A failure says why and never carries a
-// plaintext byte.
-func (s *SealKey) Open(sealed []byte, id, ticket [32]byte) (*Release, error) {
+// Open decrypts a VERIFIED release (contract v1.2: SealKey.Verify made r, for this seal key) and checks it is for
+// THIS deployment. A failure says why and never carries a plaintext byte.
+func (s *SealKey) Open(r *Response) (*Release, error) {
+	if r == nil || r.by != s {
+		return nil, errors.New("only a response this seal key verified can be opened")
+	}
+	return s.openVerified(r.sealed, r.id, r.ticket)
+}
+
+// decrypts counts decryption attempts, so a test can assert that a reply which failed its signature never reached one.
+var decrypts atomic.Int64
+
+func (s *SealKey) openVerified(sealed []byte, id, ticket [32]byte) (*Release, error) {
+	decrypts.Add(1)
 	pt, err := s.open(sealed, id, ticket)
 	if err != nil {
 		return nil, err

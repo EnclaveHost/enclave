@@ -3,6 +3,7 @@ package release
 import (
 	"bytes"
 	"crypto/aes"
+	"crypto/ed25519"
 	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/hkdf"
@@ -28,12 +29,19 @@ type vectors struct {
 		EphPrivateHex    string `json:"ephPrivateHex"`
 		IVHex            string `json:"ivHex"`
 		Plaintext        string `json:"plaintext"`
+		// v1.2: the relay's response signature
+		ResponseSigningSeedHex string `json:"responseSigningSeedHex,omitempty"`
 	} `json:"inputs"`
 	Outputs struct {
 		SealKeyHex   string `json:"sealKeyHex"`
 		EphPublicHex string `json:"ephPublicHex"`
 		BindingHex   string `json:"bindingHex"`
 		SealedHex    string `json:"sealedHex"`
+		// v1.2
+		ResponseDigestHex        string `json:"responseDigestHex,omitempty"`
+		ResponseSigningPublicHex string `json:"responseSigningPublicHex,omitempty"`
+		ResponseKeyID            string `json:"responseKeyId,omitempty"`
+		ResponseSigHex           string `json:"responseSigHex,omitempty"`
 	} `json:"outputs"`
 }
 
@@ -93,7 +101,7 @@ func load(t *testing.T, name string) vectors {
 // The relay's own vectors (security/attested-release 6396ed1f, test/fixtures/secrets-release-vectors.json): the key,
 // the binding and the sealed blob must all agree byte for byte.
 func TestRelayVectors(t *testing.T) {
-	v := load(t, "relay-vectors-6396ed1f.json")
+	v := load(t, "relay-vectors-8042ce68.json")
 	if !strings.HasPrefix(v.Contract, "enclave-secrets-release-v1") {
 		t.Fatalf("contract %q", v.Contract)
 	}
@@ -130,7 +138,24 @@ func TestRelayVectors(t *testing.T) {
 	if again := seal(t, unhex(t, v.Inputs.EphPrivateHex), unhex(t, v.Inputs.IVHex), sk.Public(), id, ticket, []byte(v.Inputs.Plaintext)); !bytes.Equal(again, sealed) {
 		t.Fatal("this package's reading of the seal does not reproduce the relay's bytes")
 	}
-	r, err := sk.Open(sealed, id, ticket)
+	// v1.2: the response signature, byte for byte (Ed25519 is deterministic), then verify-then-open
+	priv := ed25519.NewKeyFromSeed(unhex(t, v.Inputs.ResponseSigningSeedHex))
+	pub := priv.Public().(ed25519.PublicKey)
+	if hex.EncodeToString(pub) != v.Outputs.ResponseSigningPublicHex || KeyID(pub) != v.Outputs.ResponseKeyID {
+		t.Fatalf("signing key %x / %s, want %s / %s", pub, KeyID(pub), v.Outputs.ResponseSigningPublicHex, v.Outputs.ResponseKeyID)
+	}
+	d, err := ResponseDigest(id, ticket, sk.Public(), sealed)
+	if err != nil || hex.EncodeToString(d[:]) != v.Outputs.ResponseDigestHex {
+		t.Fatalf("response digest %x, want %s", d, v.Outputs.ResponseDigestHex)
+	}
+	if sig := ed25519.Sign(priv, d[:]); hex.EncodeToString(sig) != v.Outputs.ResponseSigHex {
+		t.Fatalf("signature %x, want %s: the signature must be over the 32-byte DIGEST", sig, v.Outputs.ResponseSigHex)
+	}
+	resp, err := sk.Verify([]ed25519.PublicKey{pub}, id, ticket, sealed, unhex(t, v.Outputs.ResponseSigHex), v.Outputs.ResponseKeyID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := sk.Open(resp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,13 +177,13 @@ func TestGuestVectorsAreCurrent(t *testing.T) {
 		hex.EncodeToString(sealed) != v.Outputs.SealedHex || hex.EncodeToString(sealed[:32]) != v.Outputs.EphPublicHex {
 		t.Fatal("testdata/guest-vectors.json is stale: regenerate it with GUEST_VECTORS_WRITE=1")
 	}
-	if _, err := sk.Open(sealed, id, ticket); err != nil {
+	if _, err := sk.openVerified(sealed, id, ticket); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestOpenRefusals(t *testing.T) {
-	v := load(t, "relay-vectors-6396ed1f.json")
+	v := load(t, "relay-vectors-8042ce68.json")
 	id, _ := ID(v.Inputs.ID)
 	sk, _ := sealKeyFrom(unhex(t, v.Inputs.SealPrivateHex))
 	ticket := b32(t, v.Inputs.TicketHex)
@@ -170,19 +195,19 @@ func TestOpenRefusals(t *testing.T) {
 	tampered := append([]byte{}, sealed...)
 	tampered[len(tampered)-1] ^= 1
 	for name, try := range map[string]func() error{
-		"another ticket":            func() error { _, err := sk.Open(sealed, id, otherTicket); return err },
-		"another deployment's info": func() error { _, err := sk.Open(sealed, other, ticket); return err },
-		"a tampered byte":           func() error { _, err := sk.Open(tampered, id, ticket); return err },
-		"truncated":                 func() error { _, err := sk.Open(sealed[:40], id, ticket); return err },
+		"another ticket":            func() error { _, err := sk.openVerified(sealed, id, otherTicket); return err },
+		"another deployment's info": func() error { _, err := sk.openVerified(sealed, other, ticket); return err },
+		"a tampered byte":           func() error { _, err := sk.openVerified(tampered, id, ticket); return err },
+		"truncated":                 func() error { _, err := sk.openVerified(sealed[:40], id, ticket); return err },
 		"another seal key": func() error {
 			k, _ := NewSealKey()
-			_, err := k.Open(sealed, id, ticket)
+			_, err := k.openVerified(sealed, id, ticket)
 			return err
 		},
 		// a low-order ephemeral key forces an all-zero shared secret; the open must refuse, not derive from zeros
 		"a low-order ephemeral key": func() error {
 			lowOrder := make([]byte, 32) // the all-zero point
-			_, err := sk.Open(append(lowOrder, sealed[32:]...), id, ticket)
+			_, err := sk.openVerified(append(lowOrder, sealed[32:]...), id, ticket)
 			return err
 		},
 		// a plaintext that is well-sealed for THIS key and ticket but names another deployment
@@ -192,7 +217,7 @@ func TestOpenRefusals(t *testing.T) {
 				t.Fatal("the vector's plaintext does not carry its id")
 			}
 			s := seal(t, unhex(t, v.Inputs.EphPrivateHex), unhex(t, v.Inputs.IVHex), sk.Public(), id, ticket, []byte(pt))
-			_, err := sk.Open(s, id, ticket)
+			_, err := sk.openVerified(s, id, ticket)
 			return err
 		},
 	} {
@@ -207,7 +232,7 @@ func TestOpenRefusals(t *testing.T) {
 // The release binding can never be a Bind2 (or Bind) over the same transport key, whatever nonce a host relays: the
 // preimages start differently (ASCII domain vs DER 0x30), so equal digests would be a SHA-256 collision.
 func TestTheReleaseDomainIsNotBind2(t *testing.T) {
-	v := load(t, "relay-vectors-6396ed1f.json")
+	v := load(t, "relay-vectors-8042ce68.json")
 	id, _ := ID(v.Inputs.ID)
 	spki := unhex(t, v.Inputs.TransportSpkiHex)
 	ticket, rt := b32(t, v.Inputs.TicketHex), b32(t, v.Inputs.RuntimeIDHex)

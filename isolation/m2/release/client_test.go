@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
@@ -119,14 +120,26 @@ func testRelay(t *testing.T, cert tls.Certificate, roots *x509.CertPool, h http.
 	go srv.Serve(l)
 	t.Cleanup(func() { srv.Close() })
 	addr := l.Addr().String()
-	return &Client{Host: RelayHost, Roots: roots, Timeout: 5 * time.Second,
+	return &Client{Host: RelayHost, Roots: roots, Keys: []ed25519.PublicKey{relayPub}, Timeout: 5 * time.Second,
 		Dial: func(ctx context.Context) (net.Conn, error) { return (&net.Dialer{}).DialContext(ctx, "tcp", addr) }}, &seen
+}
+
+// the test relay's release key, which the test clients pin
+var relayPub, relayPriv, _ = ed25519.GenerateKey(rand.Reader)
+
+// writeSigned answers a release as v1.2 does: {id, sealed, sig, keyId}, signed by `priv` over the digest of
+// (id, ticket, the test seal key, sealed)
+func writeSigned(w io.Writer, priv ed25519.PrivateKey, id, ticket [32]byte, sealed []byte) {
+	d, _ := ResponseDigest(id, ticket, tsk.Public(), sealed)
+	json.NewEncoder(w).Encode(map[string]string{"id": "0x" + hex.EncodeToString(id[:]),
+		"sealed": base64.StdEncoding.EncodeToString(sealed), "sig": base64.StdEncoding.EncodeToString(ed25519.Sign(priv, d[:])),
+		"keyId": KeyID(priv.Public().(ed25519.PublicKey))})
 }
 
 var (
 	tid     = [32]byte{0xa6, 0x9d, 0xbb, 0xa1}
 	tticket = [32]byte{7, 7, 7}
-	tseal   = bytes.Repeat([]byte{9}, 32)
+	tsk, _  = NewSealKey()
 	tev     = Evidence{Format: "sev-snp-guest-domain-v1", Abi: "enclave-domain-abi/2", Runtime: json.RawMessage(`{"name":"wasmtime"}`),
 		TransportKey: "MFkw", Report: "AAAA"}
 )
@@ -140,14 +153,14 @@ func TestTheClientPresentsTheReleaseAndReturnsTheSealedBlob(t *testing.T) {
 			return
 		}
 		json.NewDecoder(r.Body).Decode(&body)
-		json.NewEncoder(w).Encode(map[string]string{"id": body["id"].(string), "sealed": base64.StdEncoding.EncodeToString([]byte("SEALED"))})
+		writeSigned(w, relayPriv, tid, tticket, []byte("SEALED"))
 	})
-	sealed, err := c.Release(context.Background(), tid, tticket, tseal, tev)
-	if err != nil || string(sealed) != "SEALED" {
-		t.Fatalf("%q %v", sealed, err)
+	resp, err := c.Release(context.Background(), tid, tticket, tsk, tev)
+	if err != nil || string(resp.sealed) != "SEALED" || resp.by != tsk {
+		t.Fatalf("%v %v", resp, err)
 	}
 	if body["id"] != "0x"+hex.EncodeToString(tid[:]) || body["ticket"] != base64.StdEncoding.EncodeToString(tticket[:]) ||
-		body["sealKey"] != base64.StdEncoding.EncodeToString(tseal) {
+		body["sealKey"] != base64.StdEncoding.EncodeToString(tsk.Public()) {
 		t.Fatalf("the request: %v", body)
 	}
 	ev := body["evidence"].(map[string]any)
@@ -169,7 +182,7 @@ func TestTheClientRefusesARelayItCannotPin(t *testing.T) {
 		c, seen := testRelay(t, cert, pinned.pool, func(w http.ResponseWriter, r *http.Request) {
 			io.WriteString(w, `{"id":"0x00","sealed":""}`)
 		})
-		_, err := c.Release(context.Background(), tid, tticket, tseal, tev)
+		_, err := c.Release(context.Background(), tid, tticket, tsk, tev)
 		if err == nil || seen.Load() != 0 {
 			t.Fatalf("%s: err %v, requests seen %d", what, err, seen.Load())
 		}
@@ -180,7 +193,7 @@ func TestTheClientRefusesARelayItCannotPin(t *testing.T) {
 	// and the real pool refuses a test root outright
 	roots, _ := RelayRoots()
 	c, seen := testRelay(t, pinned.leaf(t, RelayHost), roots, func(http.ResponseWriter, *http.Request) {})
-	if _, err := c.Release(context.Background(), tid, tticket, tseal, tev); err == nil || seen.Load() != 0 {
+	if _, err := c.Release(context.Background(), tid, tticket, tsk, tev); err == nil || seen.Load() != 0 {
 		t.Fatalf("the pinned ISRG pool accepted a test root: %v", err)
 	}
 }
@@ -206,16 +219,27 @@ func TestTheClientRefusesEveryReplyButARelease(t *testing.T) {
 		"a release for another deployment": {func(w http.ResponseWriter, r *http.Request) {
 			io.WriteString(w, `{"id":"0x`+strings.Repeat("11", 32)+`","sealed":"U0VBTEVE"}`)
 		}, "another deployment"},
-		"not JSON": {func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "<html>") }, "not {id, sealed}"},
+		"not JSON": {func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, "<html>") }, "not {id, sealed, sig, keyId}"},
 		"a sealed blob that is not base64": {func(w http.ResponseWriter, r *http.Request) {
 			io.WriteString(w, `{"id":"`+idHex+`","sealed":"%%%"}`)
 		}, "not base64"},
 		"a reply larger than any release": {func(w http.ResponseWriter, r *http.Request) {
 			w.Write(bytes.Repeat([]byte("A"), MaxSealed+10))
 		}, "larger than any release"},
+		// v1.2: the reply must be signed by a PINNED key, over THIS request
+		"a missing signature": {func(w http.ResponseWriter, r *http.Request) {
+			io.WriteString(w, `{"id":"`+idHex+`","sealed":"U0VBTEVE"}`)
+		}, "no valid signature"},
+		"a signature by an unpinned key": {func(w http.ResponseWriter, r *http.Request) {
+			_, other, _ := ed25519.GenerateKey(rand.Reader)
+			writeSigned(w, other, tid, tticket, []byte("SEALED"))
+		}, "does not verify"},
+		"a signature over another ticket": {func(w http.ResponseWriter, r *http.Request) {
+			writeSigned(w, relayPriv, tid, [32]byte{0xee}, []byte("SEALED"))
+		}, "does not verify"},
 	} {
 		cl, _ := testRelay(t, root.leaf(t, RelayHost), root.pool, c.h)
-		_, err := cl.Release(context.Background(), tid, tticket, tseal, tev)
+		_, err := cl.Release(context.Background(), tid, tticket, tsk, tev)
 		if err == nil || !strings.Contains(err.Error(), c.want) || strings.Contains(err.Error(), "5ecret") {
 			t.Fatalf("%s: %v (want %q, and nothing of the relay's message)", what, err, c.want)
 		}
@@ -224,13 +248,21 @@ func TestTheClientRefusesEveryReplyButARelease(t *testing.T) {
 
 func TestTheClientNeedsItsPins(t *testing.T) {
 	roots, _ := RelayRoots()
-	dial := func(context.Context) (net.Conn, error) { return nil, io.EOF }
-	for _, c := range []*Client{{Host: RelayHost, Roots: roots}, {Dial: dial, Roots: roots}, {Dial: dial, Host: RelayHost}} {
-		if _, err := c.Release(context.Background(), tid, tticket, tseal, tev); err == nil {
+	var dials atomic.Int32
+	dial := func(context.Context) (net.Conn, error) { dials.Add(1); return nil, io.EOF }
+	keys := []ed25519.PublicKey{relayPub}
+	for _, c := range []*Client{{Host: RelayHost, Roots: roots, Keys: keys}, {Dial: dial, Roots: roots, Keys: keys},
+		{Dial: dial, Host: RelayHost, Keys: keys},
+		{Dial: dial, Host: RelayHost, Roots: roots}, // no pinned release key: refused BEFORE sending, so no ticket burns
+	} {
+		if _, err := c.Release(context.Background(), tid, tticket, tsk, tev); err == nil {
 			t.Fatalf("%+v released", c)
 		}
 	}
-	if _, err := (&Client{Dial: dial, Host: RelayHost, Roots: roots}).Release(context.Background(), tid, tticket, tseal[:31], tev); err == nil {
-		t.Fatal("a 31-byte seal key was sent")
+	if _, err := (&Client{Dial: dial, Host: RelayHost, Roots: roots, Keys: keys}).Release(context.Background(), tid, tticket, nil, tev); err == nil {
+		t.Fatal("a release was sent with no seal key")
+	}
+	if dials.Load() != 0 {
+		t.Fatalf("a client missing a pin still dialled the relay %d time(s)", dials.Load())
 	}
 }

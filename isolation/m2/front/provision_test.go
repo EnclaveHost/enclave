@@ -8,6 +8,7 @@ import (
 	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/hkdf"
 	"crypto/rand"
@@ -93,6 +94,9 @@ func sealTo(id, ticket [32]byte, sealKey, plaintext []byte) []byte {
 	return append(append(append([]byte{}, eph.PublicKey().Bytes()...), iv...), g.Seal(nil, iv, plaintext, nil)...)
 }
 
+// the test relay's release key, pinned by every test provisioner
+var releasePub, releasePriv, _ = ed25519.GenerateKey(rand.Reader)
+
 type provWorld struct {
 	id      [32]byte
 	ticket  release.Ticket
@@ -109,12 +113,13 @@ type provWorld struct {
 	status  int
 	config  any
 	secrets map[string]string
-	sealFor []byte // seal to this key instead of the request's
+	sealFor []byte             // seal to this key instead of the request's
+	signer  ed25519.PrivateKey // the relay's release key (the provisioner pins releasePub)
 	mu      sync.Mutex
 }
 
 func newProvWorld(t *testing.T) *provWorld {
-	w := &provWorld{status: 200}
+	w := &provWorld{status: 200, signer: releasePriv}
 	w.id = [32]byte{0xa6, 0x9d, 0xbb, 0xa1, 0x11}
 	w.ticket = release.Ticket{ID: w.id, Ticket: [32]byte{0x7e, 0x57}}
 	_, spki, err := domtls.Mint("enclave-domain")
@@ -187,7 +192,7 @@ func newProvWorld(t *testing.T) *provWorld {
 		ticket:    func() (net.Conn, error) { return net.Dial("tcp", tl.Addr().String()) },
 		egress:    func() (net.Conn, error) { return net.Dial("tcp", el.Addr().String()) },
 		report:    w.psp,
-		relayHost: release.RelayHost, roots: ca.pool,
+		relayHost: release.RelayHost, roots: ca.pool, keys: []ed25519.PublicKey{releasePub},
 		etc: filepath.Join(t.TempDir(), "etc"), fwdPort: port,
 		audit: func(want []netip.AddrPort) error { w.audited = want; return nil },
 		logf:  t.Logf,
@@ -239,7 +244,7 @@ func (w *provWorld) relay(rw http.ResponseWriter, r *http.Request) {
 	}
 	fail := func(what string) { w.mu.Lock(); w.checks = append(w.checks, what); w.mu.Unlock() }
 	w.mu.Lock()
-	status, config, secrets, sealFor := w.status, w.config, w.secrets, w.sealFor
+	status, config, secrets, sealFor, signer := w.status, w.config, w.secrets, w.sealFor, w.signer
 	w.mu.Unlock()
 	id, _ := release.ID(req.ID)
 	tk, _ := base64.StdEncoding.DecodeString(req.Ticket)
@@ -279,7 +284,10 @@ func (w *provWorld) relay(rw http.ResponseWriter, r *http.Request) {
 	if sealFor != nil {
 		to = sealFor
 	}
-	json.NewEncoder(rw).Encode(map[string]string{"id": req.ID, "sealed": base64.StdEncoding.EncodeToString(sealTo(id, ticket, to, plain))})
+	sealed := sealTo(id, ticket, to, plain)
+	d, _ := release.ResponseDigest(id, ticket, sk, sealed)
+	json.NewEncoder(rw).Encode(map[string]string{"id": req.ID, "sealed": base64.StdEncoding.EncodeToString(sealed),
+		"sig": base64.StdEncoding.EncodeToString(ed25519.Sign(signer, d[:])), "keyId": release.KeyID(signer.Public().(ed25519.PublicKey))})
 }
 
 func (w *provWorld) run(t *testing.T) (*provisioned, error) {
@@ -360,6 +368,10 @@ func TestProvisionNeedsADeploymentAndARuntimeIdentity(t *testing.T) {
 	if _, err := w.p.run(context.Background(), w.id[:], w.spki, nil, w.appSha); err == nil {
 		t.Fatal("an ABI/1 image (no runtime identity) was provisioned")
 	}
+	w.p.keys = nil // an image with no pinned release key: refused before the ticket is read, so nothing is burned
+	if _, err := w.run(t); err == nil || !strings.Contains(err.Error(), "no relay release key is pinned") {
+		t.Fatalf("an image with no pinned release key provisioned: %v", err)
+	}
 	if w.ticketN.Load() != 0 || w.relayN.Load() != 0 {
 		t.Fatalf("a refused provision still asked for a ticket (%d) or the relay (%d)", w.ticketN.Load(), w.relayN.Load())
 	}
@@ -371,6 +383,7 @@ func TestAFailedReleaseStartsNothing(t *testing.T) {
 	for what, set := range map[string]func(*provWorld){
 		"the relay refuses":                  func(w *provWorld) { w.status = 403 },
 		"a reply sealed to another key":      func(w *provWorld) { w.sealFor = other.Public() },
+		"a reply signed by an unpinned key":  func(w *provWorld) { _, w.signer, _ = ed25519.GenerateKey(rand.Reader) },
 		"a config that is a JSON string":     func(w *provWorld) { w.config = `{"a":1}` },
 		"a config over the env ceiling":      func(w *provWorld) { w.config = map[string]any{"x": strings.Repeat("y", 70*1024)} },
 		"a placeholder value over the limit": func(w *provWorld) { w.secrets["IMAGE_ENDPOINT"] = strings.Repeat("z", 5000) },
