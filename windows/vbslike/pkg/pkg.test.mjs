@@ -621,3 +621,28 @@ test("draft v24 (staged) pins 5d's reading beside d1's E2 conclusion (finding no
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
 });
+
+test("draft v25 (staged) corrects E2: NOT complete, VTL2's report an inference on the debug image only, no report bytes, chain NOT established; no live field keeps the overstated wording", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-25.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, STAGED \(supersedes v24 as the staged package; staged after enclave-d1 released the box\)\. CORRECTS v23\/v24's E2 wording/);
+  assert.match(d.profiles.vbs.measured.find((m) => /^NEXT MILESTONE/.test(m)), /FOUND BY SOURCE TRACE.*NOT run.*0x01400002.*0x01400001.*2900-byte blob.*CAPTURE ONLY.*PAUSED by enclave-5d.*NOT our DVD medium.*AK carries no trust here/);
+  assert.match(d.files.find((x) => x.path === "control/vbslike-host.exe").source.checked, /RAN against a VM .*RUN OK.*A tooling result: not an isolation or attestation result/);
+  assert.match(d.files.find((x) => x.path === "control/windows/vbslike/ops/uefi-dev-boot.ps1").note, /RAN for real .*NOT exercised: the kill path/);
+  const all = JSON.stringify({ status: d.status, profiles: d.profiles, about: d.about });
+  for (const bad of ["E2 RESOLVED", "WAS obtained", "VTL2 obtains the report", "VTL2 gets the report", "E2 RUN and RESOLVED", "RESOLVED by the debug kmsg"]) assert.ok(!all.includes(bad), `the overstated wording '${bad}' is still live`);
+  const e2 = d.profiles.vbs.measured.find((m) => /^E2 NOT COMPLETE \(CORRECTED per enclave-d1 91f24619/.test(m));
+  assert.ok(e2, "the corrected E2 entry is present");
+  assert.match(e2, /the size of the attestation response 0 is too small to parse.*STRONGLY SUPPORTED BY INFERENCE.*DEBUG image 81e163ee ONLY.*No report bytes were captured.*No signature, signing key or root was identified or verified.*not access-denied.*E2 is NOT complete\. The customer chain is NOT established/);
+  assert.match(d.profiles.vbs.measured.find((m) => /^E2 SOURCE READING BESIDE/.test(m)), /CLASSIFIED.*STRONGLY SUPPORTED BY INFERENCE.*DECIDED \(enclave-d1, 91f24619\): no boot for it now/);
+  assert.match(d.profiles.vbs.measured.find((m) => /^NEXT MILESTONE/.test(m)), /CONFIG_TCG_TPM=y.*CONFIG_TCG_TIS=y, CONFIG_TCG_CRB=y.*NOT measured/);
+  for (const f of ["uefi-dev-boot.ps1", "host-read-guest.ps1"]) assert.equal(d.files.find((x) => x.path === `control/windows/vbslike/ops/${f}`).from.git.commit.slice(0, 8), "29ea63e5");
+  const l = d.files.find((x) => x.path === "control/vbslike-host.exe");
+  assert.equal(l.sha256, "da16c20f6b16fb411293ae258ee4a7e6c37fa8dd2702c13e3cfa3b79f0fd157a", "the launcher is d1's post-build binary");
+  assert.equal(l.bytes, 1117184); assert.ok(l.source.commit.startsWith("daa61749"));
+  assert.match(l.note, /REQUIRED for coherence: the dev-boot script pinned at 29ea63e5 passes --isolation-type/);
+  assert.ok(d.inputs.some((i) => i.name === "type1-isolation-91f24619.md" && i.from.git.commit.startsWith("91f24619")));
+  assert.ok(d.inputs.some((i) => i.name === "PARAVISOR-ATTESTATION-CONTRACT-dd31cada.md" && /DESIGN ONLY.*Establishes nothing/.test(i.note)), "5d's contract is an input and says it is design only");
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});

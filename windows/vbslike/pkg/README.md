@@ -205,7 +205,7 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   `host_excluded=no`, no isolation proof; stock 2511 is a product decision for the monitor. d1's verbatim probe lines
   pending.
 
-- **v23 draft** (`drafts/nucbox-ownguest-23.json`, STAGED; supersedes v22): E2 VERBATIM from d1 (run 042300, RUN OK;
+- **v23 draft** (`drafts/nucbox-ownguest-23.json`, SUPERSEDED; its E2 "resolved" wording is WITHDRAWN in v25): E2 VERBATIM from d1 (run 042300, RUN OK;
   every condition read back off the live VM; the probe's entire output is one line, `[0.335899] VBSREPORT status=0x71
   (…)`, reconstructed from a console-interleaved raw line and said so; the guest's own type-1 tuple; the host TCG log
   name and size) and **E2 RESOLVED** by the debug image's kmsg of the opt-out boot that booted: OpenHCL's own VTL2
@@ -218,7 +218,7 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   is NOT yet an input (my generator missed it: git abbreviates the path in its stat line); it is pinned in the next
   version. The box launcher's hash is NOT re-pinned until d1 gives the post-rebuild one.
 
-- **v24 draft** (`drafts/nucbox-ownguest-24.json`, STAGED; supersedes v23): enclave-5d's reading AGREES with d1's E2
+- **v24 draft** (`drafts/nucbox-ownguest-24.json`, SUPERSEDED; carries v23's E2 wording, WITHDRAWN in v25): enclave-5d's reading AGREES with d1's E2
   conclusion and is pinned BESIDE it, not over it (`c8529534`): (1) it is a finding, not an inference — OpenHCL calls the
   same VBS-report hypercall first and returns on failure before sending the IGVM_ATTEST request, so the empty-response
   parse error means the VTL2 report call succeeded; (2) PAIRING CAVEAT — the VTL2 success was seen on the debug image
@@ -228,6 +228,22 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   nothing today binds the domain's TLS key to a VBS report, and the signer question (IDKS or not) is UNTESTED because
   no report has been in our hands. d1's `b0f20482` evidence (the input v23 missed) and 5d's `c8529534` review are
   inputs. Unchanged: `host_excluded=no`, E3 NOT RUN, no isolation claim.
+
+- **v25 draft** (`drafts/nucbox-ownguest-25.json`, STAGED; supersedes v24): **E2 corrected** per d1's own record
+  (`91f24619`, caught by the monitor): E2 is NOT complete and the customer chain is NOT established. VTL2 obtaining a
+  VBS report is STRONGLY SUPPORTED BY INFERENCE, on the debug image only; no report bytes were captured; no signature,
+  signing key or root was identified or verified; VTL0's `0x71` is not access-denied and does not show VTL0 can never
+  get a report. v23/v24's "resolved" wording is withdrawn (no live field keeps it; a suite case checks), 5d's source
+  reading stays beside it, classified, and d1 decided against a boot for the pairing caveat. **Launcher re-pinned** to
+  d1's post-build `da16c20f…` (from `daa61749`: wmiserve takes `--isolation-type` and states the partition it was
+  given), which the dev-boot script at `29ea63e5` requires; both RAN in d1's tooling canary (RUN OK, `ad5aa058`;
+  the kill path not exercised) — a tooling result, not an isolation result. Review findings 4a, 4b, 5, 8–11, 12(i)(ii)
+  closed. **Next milestone** recorded, nothing built: a paravisor-mediated attestation path found by d1's checked
+  source trace (vTPM NV index `0x01400002` write, `0x01400001` read, a 2900-byte blob carrying a VBS report over a JSON
+  containing the guest's 64 bytes), with its two limits (the launch measurement does not cover our DVD medium; with no
+  VMGS encryption the vTPM's AK carries no trust); the capture-only probe is paused by 5d pending Steven; 5d's
+  contract (`dd31cada`) is a design-only input; the pinned VTL0 kernel has `CONFIG_TCG_TPM=y`, `CONFIG_TCG_TIS=y`,
+  `CONFIG_TCG_CRB=y` built in. Unchanged: `host_excluded=no`, E3 NOT RUN, no isolation claim.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
