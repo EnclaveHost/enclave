@@ -13,11 +13,15 @@
 //   3. the guest's attestation, fetched over such a session with a fresh nonce, is judged by the same judge a client
 //      uses (isolation/m2/judge.mjs): AMD chain, report binding of THIS handshake's key and nonce, the AppID, and
 //      HOST_DATA = this deployment, and - when the node image carries one (ISOLATION_MIN_TCB, a file measured into the
-//      node's own image) - a firmware TCB floor, below which nothing is issued. The measurement it is held to is
-//      guestd's (host) word - the supervisor has no independent expected measurement - and this file says so rather
-//      than implying more;
-//   4. the CSR's public key is exactly that key, and the issued leaf is for that key and the deployment's name.
-// Any failure issues nothing and installs nothing.
+//      node's own image) - a firmware TCB floor, below which nothing is issued;
+//   4. for an SEV-SNP guest, the relay's PREDICTION (holdToPrediction): guestd's AppID and the measurement the guest is
+//      judged against were the host's word, so a host running a modified image with the right HOST_DATA could have had
+//      it certified for the deployment's name. They must now be what the relay predicts for this deployment from the
+//      chain and its installed domain releases (GET /v1/expected-guest, the predictor the attested release admits
+//      against: no list of its own here), and the runtime the report binds must be the predicted image's;
+//   5. the CSR's public key is exactly that key, and the issued leaf is for that key and the deployment's name.
+// Any failure issues nothing and installs nothing. A NucBox partition (tier T0-hv) has no measurement and no relay
+// prediction; its route is judged as before.
 //
 // A certificate says only "this key answers for this name", which a browser trusts on the platform's word. What a
 // VERIFYING client relies on is unchanged: the attestation over the same key.
@@ -25,6 +29,7 @@ import tls from "node:tls";
 import http from "node:http";
 import { createHash, randomBytes, X509Certificate } from "node:crypto";
 import { routeFor, openSplice } from "./supervisor-splice.mjs";
+import { ABI2, runtimeId } from "../../contract/runtime.mjs";
 
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 
@@ -112,30 +117,105 @@ export function servedReusable(dataAddr, route, name, { timeoutMs = 20_000, now 
   }), () => null);
 }
 
+// ---- the independent expectation: the relay's prediction (GUEST-POOL-ROLLOUT section 9, row 6) ---------------------
+const HEXL = (n) => new RegExp(`^[0-9a-f]{${n}}$`);
+const short = (h) => `${String(h || "").slice(0, 16)}…`;
+
+// holdToPrediction: guestd's AppID must be the relay's predicted AppID, and the measurement the guest will be judged
+// against must be one predicted image's. Returns { ok, image } or { ok: false, why }.
+export function holdToPrediction(exp, { deploymentId, appId, measurement }) {
+  if (!exp || typeof exp !== "object") return { ok: false, why: "the relay gave no expected guest" };
+  if (String(exp.id || "").toLowerCase() !== String(deploymentId || "").toLowerCase())
+    return { ok: false, why: "the relay's expected guest names another deployment" };
+  if (!HEXL(64).test(String(exp.appId || ""))) return { ok: false, why: "the relay's predicted AppID is malformed" };
+  if (exp.appId !== String(appId || "").toLowerCase())
+    return { ok: false, why: `guestd's AppID ${short(appId)} is not the relay's predicted ${short(exp.appId)}` };
+  const images = (Array.isArray(exp.images) ? exp.images : [])
+    .filter((m) => m && HEXL(96).test(String(m.measurement || "")) && HEXL(64).test(String(m.runtimeId || "")));
+  if (!images.length) return { ok: false, why: "the relay predicted no image for this deployment" };
+  const image = images.find((m) => m.measurement === String(measurement || "").toLowerCase());
+  if (!image) return { ok: false, why: `the guest's measurement ${short(measurement)} is no predicted image's` };
+  return { ok: true, image };
+}
+
+// runtimePairs: after the judge, the runtime the report binds (ABI/2 binds its id into report_data) must be the runtime
+// of the predicted image the measurement matched - the (measurement, runtime) pair, as the attested release admits it.
+export function runtimePairs(doc, image) {
+  if (!doc || doc.abi !== ABI2 || !doc.runtime) return { ok: false, why: "the guest's report binds no runtime (not enclave-domain-abi/2)" };
+  let rid;
+  try { rid = runtimeId(doc.runtime).toString("hex"); } catch (e) { return { ok: false, why: e.message }; }
+  if (rid !== image.runtimeId) return { ok: false, why: `the report binds runtime ${short(rid)}, not the predicted image's ${short(image.runtimeId)}` };
+  return { ok: true };
+}
+
+// expectedGuestFetcher: the relay's answer for one deployment, over WebPKI TLS (the global fetch: Node's CA store plus
+// the node image's own bundle, certificate checks on, no redirect followed) to an https origin fixed in the measured
+// image (supervisor.js passes SECRETS_API, whose default the host does not override). Anything but a well-formed 200
+// throws, with a bounded retry hint, so the caller issues nothing and backs off. Kept per deployment for cacheMs: a
+// prediction changes only with the catalog version or the relay's installed releases.
+export function expectedGuestFetcher({ base, fetchImpl = globalThis.fetch, timeoutMs = 10_000, cacheMs = 10 * 60_000,
+                                       now = Date.now } = {}) {
+  const origin = String(base || "").replace(/\/+$/, "");
+  const cache = new Map();
+  return async (deploymentId) => {
+    if (!/^https:\/\/[^/]+$/.test(origin)) throw new Error("no https relay origin for the expected guest; nothing issued");
+    const id = String(deploymentId || "").toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(id)) throw new Error("not a deployment id");
+    const hit = cache.get(id);
+    if (hit && now() - hit.at < cacheMs) return hit.value;
+    const r = await fetchImpl(`${origin}/v1/expected-guest?id=${id}`, { signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
+    let b = null;
+    try { b = await r.json(); } catch { b = null; }
+    if (r.status !== 200 || !b || typeof b !== "object") {
+      const e = new Error(`the relay's expected guest answered HTTP ${r.status}${b && typeof b.error === "string" ? " " + b.error.slice(0, 40) : ""}; nothing issued`);
+      const after = Number(b && b.retryAfterSec);
+      if (after > 0) e.retryMs = Math.min(3600_000, Math.max(60_000, after * 1000));   // never faster than the loop
+      throw e;
+    }
+    cache.set(id, { at: now(), value: b });
+    while (cache.size > 256) cache.delete(cache.keys().next().value);
+    return b;
+  };
+}
+
 // ensureGuestCert runs the whole relay once. Returns what was installed (or, with reuse, what the guest already
 // serves: reused true, nothing issued), or throws with why nothing was.
 //   judge(doc, spki, nonce, want)  isolation/m2/judge.mjs's judge; judgeOk: the verdicts that allow issuance
 //   issue(name, csrPem, spkiHash)  the platform certificate service; resolves to the PEM chain
+//   expected(deploymentId)         the relay's expected guest (expectedGuestFetcher); REQUIRED for an SEV-SNP guest
 export async function ensureGuestCert({ transport, dataAddr, instanceId, expectAppId, deploymentId, name, judge,
-                                        judgeOk = ["attested", "no-tcb-policy"], judgeMode = "trusted", issue,
-                                        minTcb, reuse = true, timeoutMs = 20_000 }) {
-  const route = await routeFor(transport, instanceId, expectAppId, { timeoutMs });
+                                        judgeOk = ["attested", "no-tcb-policy"], judgeMode = "trusted", issue, expected,
+                                        minTcb, reuse = true, timeoutMs = 20_000,
+                                        _deps: { routeFor: rf = routeFor, servedReusable: sr = servedReusable, exchange: ex = exchange } = {} }) {
+  const route = await rf(transport, instanceId, expectAppId, { timeoutMs });
   if (reuse) {
-    const have = await servedReusable(dataAddr, route, name, { timeoutMs });
+    const have = await sr(dataAddr, route, name, { timeoutMs });
     if (have) return { instanceId: route.id, key: route.key, name, ...have, reused: true, verdict: "not judged: nothing issued" };
+  }
+  // 4 (before any exchange that could lead to issuing). An SNP route carries a measurement; a T0-hv partition does not.
+  let image = null;
+  if (route.measurement !== undefined) {
+    if (typeof expected !== "function") throw new Error("no source for the relay's expected guest; nothing issued");
+    const held = holdToPrediction(await expected(deploymentId), { deploymentId, appId: expectAppId, measurement: route.measurement });
+    if (!held.ok) throw new Error(`${held.why}; nothing issued`);
+    image = held.image;
   }
   // 3. the guest's attestation, over a session with the verified key
   const nonce = randomBytes(32);
-  const a = await exchange(dataAddr, route, name, "GET", `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`, null, timeoutMs);
+  const a = await ex(dataAddr, route, name, "GET", `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`, null, timeoutMs);
   if (a.status !== 200) throw new Error(`the guest's attestation answered HTTP ${a.status}`);
   let doc;
   try { doc = JSON.parse(a.body.toString()); } catch { throw new Error("the guest's attestation is not JSON"); }
-  const v = await judge(doc, a.spki, nonce, { measurement: route.measurement, appSha: expectAppId, mode: judgeMode,
-    hostData: deploymentId, ...(minTcb !== undefined ? { minTcb } : {}) });
+  const v = await judge(doc, a.spki, nonce, { measurement: image ? image.measurement : route.measurement, appSha: expectAppId,
+    mode: judgeMode, hostData: deploymentId, ...(minTcb !== undefined ? { minTcb } : {}) });
   if (!judgeOk.includes(v.verdict))
     throw new Error(`the guest did not verify (${v.verdict}: ${String(v.reasons?.at(-1) || "").slice(0, 160)}); nothing issued`);
+  if (image) {
+    const paired = runtimePairs(doc, image);
+    if (!paired.ok) throw new Error(`${paired.why}; nothing issued`);
+  }
   // 4. its CSR, for exactly its key
-  const c = await exchange(dataAddr, route, name, "GET", "/.well-known/enclave-csr", null, timeoutMs);
+  const c = await ex(dataAddr, route, name, "GET", "/.well-known/enclave-csr", null, timeoutMs);
   if (c.status !== 200) throw new Error(`the guest produced no CSR (HTTP ${c.status}: ${c.body.toString().slice(0, 120)})`);
   const csrPem = c.body.toString();
   if (sha(csrSpki(csrPem)) !== route.key) throw new Error("the CSR is not for the guest's verified key; nothing issued");
@@ -144,8 +224,8 @@ export async function ensureGuestCert({ transport, dataAddr, instanceId, expectA
   if (sha(leaf.publicKey.export({ type: "spki", format: "der" })) !== route.key)
     throw new Error("the issued certificate is not for the guest's key; not installed");
   if (!leaf.checkHost(name)) throw new Error(`the issued certificate is not for ${name}; not installed`);
-  const i = await exchange(dataAddr, route, name, "POST", "/.well-known/enclave-cert", chain, timeoutMs);
+  const i = await ex(dataAddr, route, name, "POST", "/.well-known/enclave-cert", chain, timeoutMs);
   if (i.status !== 200) throw new Error(`the guest refused the certificate (HTTP ${i.status}: ${i.body.toString().slice(0, 160)})`);
   return { instanceId: route.id, key: route.key, name, serial: leaf.serialNumber, issuer: leaf.issuer.replace(/\n/g, ", "),
-           ...renewAtOf(leaf), verdict: v.verdict };
+           ...renewAtOf(leaf), verdict: v.verdict, ...(image ? { release: image.release ?? null } : {}) };
 }

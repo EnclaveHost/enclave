@@ -8425,6 +8425,10 @@ server.on("upgrade", async (req, socket, head) => {
 // certificate goes back into the guest - but only after the guest verified, over a session with guestd's verified
 // key, as this deployment's app (isolation/m4/guestd/supervisor-guestcert.mjs says exactly what is checked).
 let _guestCertMod = null, _guestCertJudgeMode = "trusted";
+// The relay's expected guest for a deployment (supervisor-guestcert.mjs expectedGuestFetcher): the independent AppID and
+// (runtime, measurement) pairs an SEV-SNP guest is held to before its key is certified. Over WebPKI to SECRETS_API, the
+// relay origin this measured image fixes (the node's launcher sets no override), never with certificate checks off.
+let _expectedGuest = null;
 // The firmware floor a guest's report must meet before its key is certified: from the node's MEASURED image (gsup,
 // ISOLATION_MIN_TCB). With it, only "attested" issues; without it, "no-tcb-policy" (chain verified, TCB unjudged)
 // still issues, and the log says which. Malformed = no issuance at all (the judge refuses a malformed floor).
@@ -8466,6 +8470,7 @@ async function guestCertPass() {
     try {
       const got = await mod.ensureGuestCert({ transport, dataAddr: GUESTD_DATA_ADDR, instanceId: rec._vmId,
         expectAppId: rec._vmAppId, deploymentId: rec.id, name, judge: judgeMod.judge, judgeMode: _guestCertJudgeMode,
+        expected: _expectedGuest || (_expectedGuest = mod.expectedGuestFetcher({ base: SECRETS_API })),
         judgeOk: _guestCertJudgeMode !== "trusted" ? ["attested", "no-tcb-policy", "unauthenticated"]
           : ISOLATION_MIN_TCB !== undefined ? ["attested"] : ["attested", "no-tcb-policy"],
         minTcb: ISOLATION_MIN_TCB, issue: issueGuestCsr });
