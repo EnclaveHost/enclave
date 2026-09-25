@@ -168,12 +168,13 @@ $d = $Dir
 "node $(Get-PkgFilePath $d $M.control.manager)"
 if (($M.profiles.PSObject.Properties.Name -contains 'vbsLinux') -and ($M.profiles.vbsLinux.PSObject.Properties.Name -contains 'managerEnv')) {
   # the manager of this package's control tree, with the environment the box acceptance starts it with (<...> = fill in)
-  $bf = @($M.hostChecks.vbsLinux.boxFiles)
+  $bf = @(); if (($M.hostChecks.PSObject.Properties.Name -contains 'vbsLinux') -and ($M.hostChecks.vbsLinux.PSObject.Properties.Name -contains 'boxFiles')) { $bf = @($M.hostChecks.vbsLinux.boxFiles) }
   ''
   '# vbsLinux profile: the manager, pinned to this package (box files are hash-checked above and again by the launcher)'
   foreach ($e in @($M.profiles.vbsLinux.managerEnv)) {
     $k = @($e.PSObject.Properties.Name)
-    $val = [string]$e.value
+    $val = ''
+    if ($k -contains 'value') { $val = [string]$e.value }
     if ($k -contains 'file') { $val = Get-PkgFilePath $d $e.file }
     if ($k -contains 'dir') { $val = Get-PkgFilePath $d $e.dir }
     if ($k -contains 'sha256Of') { $val = [string](@($M.files | Where-Object { $_.path -eq $e.sha256Of })[0].sha256) }

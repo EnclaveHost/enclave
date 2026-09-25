@@ -146,7 +146,8 @@ function Test-HostProfile($R, $M, [string]$Boot) {
       $h = $null
       if (Test-Path -LiteralPath $b.path -PathType Leaf) { try { $h = Get-Sha256 $b.path } catch { $h = $null } }
       $ok = ($null -ne $h) -and ($h -eq $b.sha256); if (-not $ok) { $ready = $false }
-      [void](Add-Result $R $ok "[$Boot] box file $($b.name)" $(if ($ok) { "$($b.path) sha256 $h" } elseif ($null -eq $h) { "absent at $($b.path): $($b.why)" } else { "$($b.path) hashes $h, not the pinned $($b.sha256)" }) 'blocked')
+      $why = ''; if (@($b.PSObject.Properties.Name) -contains 'why') { $why = ": $($b.why)" }
+      [void](Add-Result $R $ok "[$Boot] box file $($b.name)" $(if ($ok) { "$($b.path) sha256 $h" } elseif ($null -eq $h) { "absent at $($b.path)$why" } else { "$($b.path) hashes $h, not the pinned $($b.sha256)" }) 'blocked')
     }
   }
   # recorded, never gating: a setting someone suspects matters, whose role is not established
@@ -183,7 +184,7 @@ function Test-ManagerCreatesIsolated($R, [string]$Dir, $M, [string]$MgrDir, [str
   $line = & node (Get-PkgFilePath $Dir $M.profiles.igvm.manager.check) $MgrDir --record (Get-PkgFilePath $Dir "$($app.dir)/record.json") --component (Get-PkgFilePath $Dir "$($app.dir)/component.wasm") --image-sha256 $ig.sha256 2>&1 | Select-Object -Last 1
   $j = $null; try { $j = "$line" | ConvertFrom-Json } catch { }
   $ok = $j -and $j.ok -eq $true
-  [void](Add-Result $R $ok $Name $(if ($ok) { "New-VM -GuestStateIsolationType $($j.isolation)$(if ($j.secureBootOff) { ', Secure Boot off' })" } elseif ($j) { $j.reason } else { "$line" }))
+  [void](Add-Result $R $ok $Name $(if ($ok) { "$(if ("$($j.isolation)" -match '^[0-9]+$') { 'New-CustomVM' } else { 'New-VM' }) -GuestStateIsolationType $($j.isolation)$(if ($j.secureBootOff) { ', Secure Boot off' })" } elseif ($j) { $j.reason } else { "$line" }))
 }
 
 function Get-BytesSha256([byte[]]$B) {

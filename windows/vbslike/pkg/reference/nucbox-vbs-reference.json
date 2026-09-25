@@ -54,9 +54,9 @@
    "confidentialDebug": false,
    "trustsHostCommandLine": false,
    "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553), enclave-5d's initrd 1539d5b2 (680d40fa with plat/domprobe rebuilt: the open-only TPM negative control) and command line as measured pages; static_command_line=true",
-   "booted": "no: build-only; enclave-d1's byte review agrees (fd92d610)",
+   "booted": "yes: BOOTED and SERVED as a type-1 partition, host Secure Boot ON (enclave-d1, canary 093904, 2026-09-25, evidence 0bee8444, script uefi-dev-boot.ps1 at ad61cb02): 'MON boot 5ad7d68955090bb8184fa4db9143babc', MON ready, and the pinned fixture served 03ba204e through the guest's own TLS, served by the box's target\\release wmiserve 0160d835, not the package's launcher. The TPM control: dev_tpm0 and dev_tpmrm0 absent from the domain's view; existence in the root namespace not stated. The live-neighbour probe: INCONCLUSIVE. No report was requested; identity, any report or chain, and host exclusion are NOT established. enclave-d1's byte review agrees (fd92d610).",
    "eligible": false,
-   "reason": "NOT YET ELIGIBLE: the next production candidate, before its first boot; eligibility is a later version's decision after its own canary (enclave-d1's rollover discipline), never this entry's",
+   "reason": "NOT YET ELIGIBLE: booted and served in its own canary; eligibility is a later version's decision that also supersedes a44bb55a (one eligible digest), after the package's own serving acceptance on it (control/ 2c3a2873 with the package's launcher 435717de) and enclave-99's review; never this entry's",
    "pin": {
     "image": "guest/igvm-vbs/vbs-linux-candidate-1539-b7ba7731.bin",
     "identity": "vbs-linux-candidate-1539-vbs.json"
