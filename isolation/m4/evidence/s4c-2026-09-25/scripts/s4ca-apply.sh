@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# 4c-a: ADD the 4c image's measurement to the relay's METAL_ALLOWED_MEASUREMENTS on nan, beside 04e953a4 (pre-pool) and
+# 10622d98 (S2, live), both kept for their soaks; ONE line changes; one api-relay restart (every tunnel node and the API
+# blip; the predictor re-runs its KAT and warms again). A failure restores the ONE line. Run DETACHED via s4c-run.sh a.
+set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/s4c-20260925/lib4c.sh
+trap '' HUP PIPE
+grep -qE '^0::/.*/s4ca-apply-[0-9]{8}T[0-9]{6}Z\.service$' /proc/self/cgroup || { say "REFUSING: run 4c-a detached, through s4c-run.sh a"; exit 2; }
+check_prediction4c || exit 2
+[ "$(allowlist)" = "METAL_ALLOWED_MEASUREMENTS=$PREM,$OLDM" ] || { say "REFUSING: the allowlist is not exactly 04e953a4,10622d98"; exit 3; }
+relay_row_ok || { say "REFUSING: metal-iso0 is not serving and eligible now"; exit 3; }
+wait_for 60 public_ok || { say "REFUSING: the canaries do not serve now"; exit 3; }
+say "4c-a: adding ${NEWM:0:16} to the allowlist on nan (api-relay restart: every tunnel and the API blip)"
+set +e; $NAN "set -euo pipefail
+F=/etc/nan-relay/api-relay.env; B=\$F.bak-4c-\$(date -u +%Y%m%dT%H%M%SZ); OLD='METAL_ALLOWED_MEASUREMENTS=$PREM,$OLDM'; NEW='METAL_ALLOWED_MEASUREMENTS=$PREM,$OLDM,$NEWM'
+[ \"\$(grep -c '^METAL_ALLOWED_MEASUREMENTS=' \$F)\" = 1 ] && grep -qx \"\$OLD\" \$F || { echo 'REFUSING: not exactly the one expected allowlist line'; exit 3; }
+cp -p \$F \$B; chmod 600 \$B; echo backup=\$B
+sed -i \"s/^\$OLD\\\$/\$NEW/\" \$F
+restore1() { sed -i \"s/^\$NEW\\\$/\$OLD/\" \$F; systemctl restart enclave-api-relay.service; echo \"RESTORED the one line: \$1\"; exit 4; }
+grep -qx \"\$NEW\" \$F || restore1 'the edit did not verify'
+diff <(grep -v '^METAL_ALLOWED_MEASUREMENTS=' \$B) <(grep -v '^METAL_ALLOWED_MEASUREMENTS=' \$F) >/dev/null || restore1 'other lines changed'
+[ \"\$(stat -c '%a %U' \$F)\" = '600 root' ] || restore1 'the mode changed'
+date -u +%H:%M:%SZ; systemctl restart enclave-api-relay.service; sleep 8
+systemctl is-active --quiet enclave-api-relay.service || restore1 'the relay is not active after 8 s'
+[ \"\$(systemctl show enclave-api-relay.service -p NRestarts --value)\" = 0 ] || restore1 'the relay restarted on its own'
+[ \"\$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 https://api.enclave.host/enclaves)\" = 200 ] || restore1 'the API does not answer 200'
+echo \"invocation \$(systemctl show enclave-api-relay -p InvocationID --value)\"
+grep '^METAL_ALLOWED_MEASUREMENTS=' \$F | awk -F'[=,]' '{print \"allowlist now:\", NF-1, \"entries\"}'" > $S4C/4ca-remote.txt 2>&1; r=$?; cat $S4C/4ca-remote.txt
+set -e; [ $r = 0 ] || { say "4c-a FAILED on nan (4ca-remote.txt): the one line was restored"; exit 4; }
+fail() { set +e; say "4c-a CHECK FAILED: $* -> rolling back 4c-a"; FORCE_ORDER="4c-a apply's own check (the node was not restarted)" $S4C/s4ca-rollback.sh; local rc=$?; [ $rc = 0 ] && exit 20; say "ROLLBACK FAILED rc=$rc: ESCALATE"; exit 24; }
+wait_for 180 relay_row_ok || fail "metal-iso0 did not re-attach"
+read -r am ao <<<"$(node_attested)" || true; [ "${am:-}" = "$OLDM" ] && [[ "${ao:-}" == c42612c0* ]] || fail "the node no longer attests 10622d98 / c42612c0"
+wait_for 120 public_ok || fail "the canaries do not serve"
+inv=$(grep -o 'invocation [0-9a-f]*' $S4C/4ca-remote.txt | cut -d' ' -f2)
+end=$(( $(date +%s) + 600 )); kat=""; while [ $(date +%s) -lt $end ]; do kat=$($NAN "journalctl _SYSTEMD_INVOCATION_ID=$inv --no-pager -o cat | grep -m1 'known-answer test at start'" || true); [ -n "$kat" ] && break; sleep 15; done
+[[ "$kat" == *"PASS: 2 known answer(s)"* ]] || fail "the predictor's KAT did not pass after the restart (${kat:-none})"
+~/enclave-bench/relay-slice-20260925/accept.sh > $S4C/4ca-accept.txt 2>&1 || fail "the relay slice's acceptance fails after the restart (4ca-accept.txt)"
+say "4c-a APPLIED and checked: the allowlist is 04e953a4,10622d98,${NEWM:0:12}; metal-iso0 re-attached on 10622d98; canaries serve; the predictor KAT PASS and accept.sh ok"
