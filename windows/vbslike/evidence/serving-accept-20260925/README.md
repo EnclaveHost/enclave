@@ -59,3 +59,23 @@ Run 081904 used the packaged candidate launcher `15338081…`.
 - **The fix:** `1a6f1556` makes wmiserve use the shared constants, and a drift test reads the Rust source. The
   launcher was rebuilt as `435717de…`.
 - **So `15338081` must NOT be promoted.** It fails the judge. The launcher that passed is `435717de`.
+
+## Repeated on the PACKAGE, with the liveness sweep: run 084443 on v34 (`pkg\6c82ff93fd3e3718\`)
+
+Changes from 082325:
+- enclave-63's v34, whose ONLY launcher is `control\vbslike-host.exe` `435717de…`, re-roled on 082325;
+- the tree `windows/hv-acceptance` `4a51c13f`, adding the manager's liveness sweep (`d7d4fd1c`, the consequence of G4)
+  and enclave-5d's node boundary review (`9b79022c`);
+- A8 added to phase 2.
+
+[pass-084443-v34/driver.out](pass-084443-v34/driver.out):
+- phase 1: `HVLAB-ACCEPT ALL PASS`;
+- phase 2: A0-A7 as before, plus:
+
+      A8: turned 8e5f4c71-95f9-4ca9-ae35-f1100fc4a337 off from the host -> {"state":"Off"}
+      PASS A8: after turning 8e5f4c71-… Off: status failed within 4022 ms, reason "the partition is Off: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 082856); its VM is left for the node to retire", relay 58425 refuses
+      RESTART-ACCEPT ALL PASS
+
+A8 makes the Off state G4 measured by turning the VM off from the host, so no probe serves anything. The manager's
+sweep (every 5 s for this run) failed the domain and closed its relay within 4 s. DELETE then removed the Off VM.
+AllowFirmwareLoadFromFile and the 9001 service were restored and removed (verified).
