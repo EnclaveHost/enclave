@@ -494,6 +494,7 @@ func newChain(t *testing.T) *chain {
 	l := &chainLauncher{t: t, front: front, sockDir: sockDir, rtFile: rtFile, guests: map[string]*chainGuest{},
 		mitmFrom: map[string]bool{"D": true}, copyLabel: map[string]string{}}
 	s := newServer(l, filepath.Join(dir, "root"))
+	s.Budget = testBudget
 	s.RuntimeID = hex.EncodeToString(rid[:])
 	s.Auth = newControlAuth(testKey, s.Now)
 	s.Data = newDataPlane(s)

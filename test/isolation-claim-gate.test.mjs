@@ -31,9 +31,13 @@ async function seam(c, backend = "") {
 
 const TIER = "snp-guest-per-app";
 const REQ = JSON.stringify({ isolation: { require: TIER } });
-const GUESTD = { backend: TIER, supports: { gpu: false, secrets: false, egress: false, config: false, ports: false } };
+// a guestd with room: its /health.pool as isolation/m4/guestd/pool.go states it (test/isolation-guest-pool.test.mjs
+// covers the pool itself)
+const POOL = { budget: { memMiB: 32768, cpuPct: 800 }, allocated: { memMiB: 0, cpuPct: 0 }, free: { memMiB: 32768, cpuPct: 800 },
+               guests: 0, overcommitted: false, perGuest: { floorMiB: 1024, runtimeMiB: 384, unitOverheadMiB: 768 } };
+const GUESTD = { backend: TIER, supports: { gpu: false, secrets: false, egress: false, config: false, ports: false }, pool: POOL };
 const clean = { require: TIER, manager: GUESTD, gpuMilli: 0, config: "", appConfigCid: "", hasSecrets: false,
-                firewall: [], volumes: [], isPublic: true, waf: null };
+                firewall: [], volumes: [], isPublic: true, waf: null, policy: { cpuPercent: 100, memMiB: 128, vcpus: 1 } };
 
 test("flag UNSET: a deployment that requires isolation is refused, and saying so", async () => {
   const r = await seam({ parse: [REQ] });

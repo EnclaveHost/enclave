@@ -1,0 +1,145 @@
+// pool.go - the guest pool: what guestd may hand to guests on this host, what the guests it owns hold of it, and what is
+// left (TASK 4c, reviewed with enclave-5d and enclave-99). guestd is the authority; the supervisor mirrors /health.pool.
+//
+//   - The BUDGET B is the operator's: -guest-mem-mib and -guest-cpus, host RAM and CPU set aside for guests. Without it
+//     guestd refuses every create (it cannot keep a promise it has no number for) and still adopts on recovery.
+//   - A guest's RESERVATION R is its unit's ceilings, not what it happens to use: memory = the guest's RAM plus the
+//     unit's QEMU allowance (run-domain.sh: MemoryMax = mem + 768), cpu = its CPUQuota (policy cpuPercent; 100 = one
+//     core). The 768 is a CAP, reserved whole on purpose: the host lets the unit use it, so the pool must have it. Do
+//     not "reclaim" it by measuring use. vCPUs (-smp) are reported, not budgeted: the quota is the real CPU cap.
+//   - R is HELD from the create that accepts it until that guest's reclaim has finished (vm.reclaimed): starting,
+//     running, and a failed start whose unit is still being stopped. A record whose reclaim finished, and a removed
+//     one, hold nothing. `allocated` is SUMMED from the held set on every read - no counter, so nothing to drift and
+//     nothing to release twice.
+//   - Admission: allocated + R <= B on both axes, checked and inserted under one s.mu. Otherwise 507 with a stable
+//     {"error":"pool_full", needs, free}. The supervisor refuses such a claim from /health.pool before it is ever made,
+//     so a 507 means a race, never steady state.
+//   - Recovery: every guest that re-verifies is adopted and counts (ending a verified tenant is an availability
+//     decision, not accounting). If that leaves allocated > B the pool is OVERCOMMITTED: free is 0, every create is
+//     refused, nothing is killed, and creates resume as guests end.
+//   - `allocated` is reservations ONLY, never observed use, and observed use never feeds admission.
+//   - Pricing is NOT this ledger. On this tier a deployment's share is a price unit, a fraction of B at the host's posted
+//     price, while its guest reserves R: a 128 MB app's 1% share is priced at 1% of B and its guest reserves ~1792 MiB.
+//     Admission uses R, never the share. The gap is a pricing question for the operator, not a correctness one.
+//   - B is the host's own configuration. It is no security claim and is in no attested statement: a host that lies
+//     about its pool costs only availability, which the host controls anyway.
+package main
+
+import (
+	"fmt"
+	"log"
+)
+
+const (
+	guestFloorMiB   = 1024 // the least RAM a guest boots with: the kernel and the 45 MB runtime, whatever the manifest asked
+	guestRuntimeMiB = 384  // what a guest gets on top of its policy's memory, for the same kernel and runtime
+	unitOverheadMiB = 768  // run-domain.sh: MemoryMax="$((mem + 768))M", the unit's QEMU allowance above the guest's RAM (a CAP)
+)
+
+// poolBudget is what guestd may hand to guests. The zero value is "not configured": every create is refused.
+type poolBudget struct {
+	MemMiB int `json:"memMiB"`
+	CPUPct int `json:"cpuPct"` // 100 = one core
+}
+
+// reservation is what one guest holds of the pool: its unit's ceilings.
+type reservation struct {
+	MemMiB int `json:"memMiB"`
+	CPUPct int `json:"cpuPct"`
+}
+
+func (b poolBudget) configured() bool { return b.MemMiB > 0 && b.CPUPct > 0 }
+
+// reservationFor is the reservation of a guest launched with this RAM and CPU quota.
+func reservationFor(guestMem, cpuPct int) reservation {
+	return reservation{MemMiB: guestMem + unitOverheadMiB, CPUPct: cpuPct}
+}
+
+func (v *vm) reservation() reservation { return reservationFor(v.MemMiB, v.CPUPct) }
+
+// holds reports whether v holds its reservation: from accept until its reclaim has finished. s.mu must be held.
+func (v *vm) holds() bool { return !v.reclaimed }
+
+// allocatedLocked sums the reservations of the guests that hold one. s.mu must be held.
+func (s *server) allocatedLocked() (reservation, int) {
+	var a reservation
+	n := 0
+	for _, v := range s.vms {
+		if v.holds() {
+			r := v.reservation()
+			a.MemMiB += r.MemMiB
+			a.CPUPct += r.CPUPct
+			n++
+		}
+	}
+	return a, n
+}
+
+// freeOf is what is left of b after a, never negative (an overcommitted pool has nothing free).
+func freeOf(b poolBudget, a reservation) reservation {
+	f := reservation{MemMiB: b.MemMiB - a.MemMiB, CPUPct: b.CPUPct - a.CPUPct}
+	if f.MemMiB < 0 || f.CPUPct < 0 || !b.configured() {
+		return reservation{}
+	}
+	return f
+}
+
+func overcommitted(b poolBudget, a reservation) bool {
+	return b.configured() && (a.MemMiB > b.MemMiB || a.CPUPct > b.CPUPct)
+}
+
+// admitLocked decides whether a new guest with reservation r fits: nil, or the stable refusal body. s.mu must be held.
+func (s *server) admitLocked(r reservation) map[string]any {
+	if !s.Budget.configured() {
+		log.Printf("REFUSED a create: no guest budget is configured (start guestd with -guest-mem-mib and -guest-cpus)")
+		return map[string]any{"error": "pool_unconfigured", "needs": r,
+			"detail": "this host has configured no guest budget (-guest-mem-mib, -guest-cpus), so it admits no guest"}
+	}
+	a, _ := s.allocatedLocked()
+	free := freeOf(s.Budget, a)
+	if r.MemMiB > free.MemMiB || r.CPUPct > free.CPUPct {
+		why := "the guest pool cannot fit this guest"
+		if overcommitted(s.Budget, a) {
+			why = "the guest pool is overcommitted (recovered guests exceed the budget); nothing is admitted until guests end"
+		}
+		return map[string]any{"error": "pool_full", "needs": r, "free": free, "detail": why}
+	}
+	return nil
+}
+
+// poolLocked is /health.pool. s.mu must be held.
+func (s *server) poolLocked() map[string]any {
+	a, n := s.allocatedLocked()
+	var budget any // null when not configured
+	if s.Budget.configured() {
+		budget = s.Budget
+	}
+	return map[string]any{
+		"budget": budget, "allocated": a, "free": freeOf(s.Budget, a), "guests": n,
+		"overcommitted": overcommitted(s.Budget, a),
+		// how a guest's reservation follows from its policy, so a consumer sizes a claim exactly as guestd admits it:
+		// memMiB = max(floorMiB, policy memMiB + runtimeMiB) + unitOverheadMiB, cpuPct = policy cpuPercent
+		"perGuest": map[string]int{"floorMiB": guestFloorMiB, "runtimeMiB": guestRuntimeMiB, "unitOverheadMiB": unitOverheadMiB},
+		"basis":    "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
+		"pricing":  "a deployment's share is priced as a fraction of the budget; its guest reserves its own reservation, which admission uses",
+	}
+}
+
+// logPoolAfterRecovery states the pool once adoption has run, loudly when it is unconfigured or overcommitted.
+func (s *server) logPoolAfterRecovery() {
+	s.mu.Lock()
+	a, n := s.allocatedLocked()
+	b := s.Budget
+	s.mu.Unlock()
+	switch {
+	case !b.configured():
+		log.Printf("NO GUEST BUDGET: -guest-mem-mib/-guest-cpus are unset, so every create is REFUSED (%d adopted guest(s) keep running)", n)
+	case overcommitted(b, a):
+		log.Printf("GUEST POOL OVERCOMMITTED after recovery: %d guest(s) hold %s of %s; nothing is admitted until guests end, nothing is killed",
+			n, fmtRes(a), fmtRes(reservation(b)))
+	default:
+		log.Printf("guest pool: %d guest(s) hold %s of %s", n, fmtRes(a), fmtRes(reservation(b)))
+	}
+}
+
+func fmtRes(r reservation) string { return fmt.Sprintf("%d MiB / %d%% CPU", r.MemMiB, r.CPUPct) }

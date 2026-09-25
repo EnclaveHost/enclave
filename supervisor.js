@@ -424,6 +424,8 @@ async function vmHealth(timeoutMs = 3000) {
   if (r.status !== 200) throw new Error(`vmmanager /health ${r.status}`);
   // the wasm-manager holds the card this container can't see: adopt its probed VRAM
   if (r.body && r.body.gpuVramSource === "nvidia-smi") adoptCardVram(r.body.gpuVramGb, "manager");
+  // guestd's guest pool is the tier's node (TASK 4c): every answer refreshes it, an answer without one clears it
+  if (ISOLATION_BACKEND && r.body) adoptGuestPool(r.body.pool);
   return r.body;
 }
 
@@ -2327,7 +2329,7 @@ async function managerPrefetchBody(g) {
 //     is a leak, a dropped config is a wrong app. guestd refuses the same things at launch; refusing here keeps
 //     the lease from being taken for work that could only fail.
 function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, appConfigCid, hasSecrets,
-                                 firewall, volumes, isPublic, waf }) {
+                                 firewall, volumes, isPublic, waf, policy, held }) {
   if (!backend) return null;
   if (!ISOLATION_BACKENDS.includes(backend))
     return `ISOLATION_BACKEND=${JSON.stringify(backend)} is not a backend this build knows; taking no tenant work`;
@@ -2366,7 +2368,11 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
     return "the deployment is private, and its owner gate needs the request's plaintext, which exists only inside the guest on this backend";
   if (waf && Object.keys(waf).length)
     return "the deployment sets protection rules (waf), which need the request's plaintext, which exists only inside the guest on this backend";
-  return null;
+  // Last, the guest pool (TASK 4c): this version's guest must fit what guestd has free, by the reservation guestd
+  // admits it at (its unit's ceilings), never by the share bought. guestd refuses the same at create (507
+  // pool_full); refusing here keeps a lease from being taken for work that could only be refused. A create that still
+  // meets a 507 (a race between two claims) is a failed provision like any other: noted, backed off, released once.
+  return guestPoolRefusal(manager.pool || null, policy, held || null);
 }
 
 // ISOLATION_SELFTEST='{"verdicts":[{…isolationClaimVerdict input…}],"parse":["<envelope>",…],
@@ -2622,8 +2628,112 @@ const quantizePct = (share) => Math.min(100, Math.max(MIN_COMPUTE_PCT, Math.roun
 const pctCeil = (x) => Math.max(MIN_COMPUTE_PCT, Math.ceil(x * 100 - 1e-9));
 const gpuShareOf = (vramGb, gpuTflops = 0) => (vramGb > 0 || gpuTflops > 0)
   ? pctCeil(Math.max(vramGb / CARD_VRAM_GB, gpuTflops / CARD_TFLOPS)) / 100 : 0;
-const cpuShareOf = (memMb, cpuGflops = 0) =>
-  pctCeil(Math.max(memMb / (NODE_RAM_GB * 1024), cpuGflops / NODE_GFLOPS)) / 100;
+const cpuShareOf = (memMb, cpuGflops = 0) => {
+  const n = nodeSpec();
+  return pctCeil(Math.max(memMb / (n.ramGb * 1024), cpuGflops / n.gflops)) / 100;
+};
+
+// ---- the per-app guest pool (ISOLATION_BACKEND; TASK 4c, isolation/m4/guestd/pool.go) --------------------------
+// On the per-app isolation tier this CVM runs only the control plane. Every tenant is its own SNP guest on the HOST,
+// admitted by guestd into a budget the operator set. So on that tier "the node" a share is a fraction of is guestd's
+// GUEST POOL (its /health.pool budget), not this CVM's NODE_RAM_GB / NODE_VCPUS, and what is free is the pool's free
+// room, never this CVM's. Everywhere else nothing changes: nodeSpec() is the NODE_* constants.
+//   - A share stays a PRICE unit: a fraction of the pool at SELL_CPU_PRICE6, which is unchanged, and app minimums are
+//     unchanged (the declared memMb against the pool, so a 128 MB app still needs 1%).
+//   - The pool is a separate RESERVATION ledger, and it decides fit: an app's guest reserves its unit's ceilings
+//     (guestReservationFor), whatever share it bought. A 128 MB app's 1% share is priced at 1% of the pool while its
+//     guest reserves ~1792 MiB. That gap is a pricing question for the operator; admission never uses the share.
+//   - guestd is the authority: it refuses a guest that does not fit (507 pool_full). This process mirrors it only so
+//     it never CLAIMS work guestd must refuse (isolationClaimVerdict) and never advertises room there is not.
+let _guestPool = null;   // guestd's last /health.pool, checked; null = not heard (the tier then offers and claims nothing)
+// A {memMiB, cpuPct} of non-negative numbers, or null.
+function readRoom(x) {
+  const n = (v) => Number.isFinite(Number(v)) && Number(v) >= 0;
+  return x && typeof x === "object" && n(x.memMiB) && n(x.cpuPct) ? { memMiB: +x.memMiB, cpuPct: +x.cpuPct } : null;
+}
+// guestd's /health.pool, checked and normalized, or null: an older guestd (no pool) or a malformed one is a pool we
+// cannot read, and nothing is offered or judged on it.
+function readGuestPool(p) {
+  const n = (x) => Number.isFinite(Number(x)) && Number(x) >= 0;
+  const g = p && p.perGuest, allocated = p && readRoom(p.allocated), free = p && readRoom(p.free);
+  const budget = p && p.budget != null ? readRoom(p.budget) : null;
+  if (!p || !allocated || !free || !g || !n(g.floorMiB) || !n(g.runtimeMiB) || !n(g.unitOverheadMiB)
+      || (p.budget != null && !(budget && budget.memMiB > 0 && budget.cpuPct > 0))) return null;
+  return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true,
+    perGuest: { floorMiB: +g.floorMiB, runtimeMiB: +g.runtimeMiB, unitOverheadMiB: +g.unitOverheadMiB } };
+}
+// Every answer replaces the mirror; one without a readable pool CLEARS it (never "keep the last pool"), so the tier
+// offers and claims nothing on a pool it cannot read. The BUDGET the last readable answer stated is kept for sizing
+// only (nodeSpec): the node does not shrink to this CVM because one answer failed. Sized against the CVM, floors
+// triple, and an owner's resize landing during a guestd restart would evict a deployment that fits (enclave-5d).
+let _guestPoolBudgetSeen = null;
+function adoptGuestPool(p) {
+  _guestPool = readGuestPool(p);
+  if (_guestPool && _guestPool.budget) _guestPoolBudgetSeen = _guestPool.budget;
+}
+// The node shares are fractions of: the guest pool's budget on the tier (its cores at this CVM's per-vCPU GFLOPS, the
+// same host CPU), the last budget guestd stated while an answer is unreadable, and the NODE_* constants everywhere
+// else and before any budget is heard.
+function nodeSpec() {
+  const b = ISOLATION_BACKEND && ((_guestPool && _guestPool.budget) || _guestPoolBudgetSeen);
+  if (!b) return { vcpus: NODE_VCPUS, ramGb: NODE_RAM_GB, gflops: NODE_GFLOPS, pool: false };
+  const cores = b.cpuPct / 100;
+  return { vcpus: cores, ramGb: b.memMiB / 1024, gflops: cores * (NODE_GFLOPS / NODE_VCPUS), pool: true };
+}
+// What a version's guest reserves, computed exactly as guestd admits it: its unit's ceilings.
+function guestReservationFor(policy, perGuest) {
+  const mem = Math.max(perGuest.floorMiB, Number(policy.memMiB) + perGuest.runtimeMiB) + perGuest.unitOverheadMiB;
+  return { memMiB: mem, cpuPct: Number(policy.cpuPercent) };
+}
+// The pool's free room as a fraction of its budget: 0 unless one smallest guest still fits (and never while it is
+// unheard, unconfigured or overcommitted), so a full pool is never advertised as a sliver of free share.
+function guestPoolFreeFraction(pool = _guestPool) {
+  if (!pool || !pool.budget || pool.overcommitted) return 0;
+  const g = pool.perGuest, f = pool.free, b = pool.budget;
+  if (f.memMiB < g.floorMiB + g.unitOverheadMiB || f.cpuPct < 1) return 0;
+  return Math.max(0, Math.min(f.memMiB / b.memMiB, f.cpuPct / b.cpuPct));
+}
+// Why this version's guest cannot be admitted by the pool guestd reported, or null (PURE; isolationClaimVerdict).
+// `held` is the guest guestd ALREADY runs under this deployment's name (its GET /vms entry, starting or running): on a
+// RESUME after this CVM restarted, guestd kept the guest, so its reservation is already in `allocated`. Adopting it
+// (the spawn path's 409-by-name) takes no new room, and relaunching it (another record) frees that room first, so it
+// is judged against free PLUS the room it holds, and never refused for the room it is itself using. A resume whose
+// guest guestd no longer holds is a new guest and needs real room. (enclave-99's review of 829ea21b: judged against
+// free alone, every canary's resume after the release's own reboot was refused.)
+function guestPoolRefusal(rawPool, policy, held = null) {
+  const pool = readGuestPool(rawPool);
+  const holds = !!held && (held.status === "running" || held.status === "starting");
+  const heldRoom = holds ? readRoom(held.reserved) : null;
+  // an older guestd (no pool, no `reserved`) admits unbudgeted, as before the pool: adopting what it runs is no worse
+  if (!pool) return holds ? null
+    : "the per-app manager reports no readable guest pool (it predates admission by reservation), so this box claims no work it may not be able to place";
+  if (!policy || !(Number(policy.memMiB) > 0) || !(Number(policy.cpuPercent) > 0)) return "the version has no isolation policy to size its guest by";
+  const r = guestReservationFor(policy, pool.perGuest);
+  // it fits in the room its own running guest already holds: nothing new is taken, whatever the rest of the pool says
+  if (heldRoom && r.memMiB <= heldRoom.memMiB && r.cpuPct <= heldRoom.cpuPct) return null;
+  if (!pool.budget) return "this host's guest pool has no budget (guestd -guest-mem-mib/-guest-cpus), so it admits no guest";
+  if (pool.overcommitted) return "the guest pool is overcommitted (its recovered guests exceed the budget), so it admits no guest until guests end";
+  const room = { memMiB: pool.free.memMiB + (heldRoom ? heldRoom.memMiB : 0), cpuPct: pool.free.cpuPct + (heldRoom ? heldRoom.cpuPct : 0) };
+  if (r.memMiB > room.memMiB || r.cpuPct > room.cpuPct)
+    return `the guest pool cannot fit this app's guest: it reserves ${r.memMiB} MiB / ${r.cpuPct}% CPU (its unit's ceilings), `
+         + `and ${room.memMiB} MiB / ${room.cpuPct}% is free${heldRoom ? " counting the room its current guest holds" : ""}`;
+  return null;
+}
+// The guest guestd runs under this deployment's name (its GET /vms entry), or null: what a resume would adopt.
+async function isolationHeldGuest(name) {
+  try {
+    const r = await vmReq("GET", "/vms", null, 5000);
+    const list = (r.status === 200 && r.body && Array.isArray(r.body.vms)) ? r.body.vms : [];
+    return list.find((v) => v && v.name === name && (v.status === "running" || v.status === "starting")) || null;
+  } catch { return null; }
+}
+// The pool as this box reports it (availability): reservations, stated as such, never observed use.
+function guestPoolReport() {
+  if (!_guestPool) return { heard: false };
+  return { heard: true, ..._guestPool,
+    basis: "allocated = the reservations of the guests guestd holds (each unit's MemoryMax and CPUQuota), not observed use",
+    pricing: "a share is priced as a fraction of this pool's budget; an app's guest reserves its own reservation, which admission uses" };
+}
 // An app's catalog specs -> the minimum shares a deployment must buy here.
 // Zero-guarded: axes the app didn't declare add no minimum. Each axis floors on
 // its own hardware and nothing else.
@@ -2774,7 +2884,8 @@ function allocCpu(share) {
   cpuPool.shareFree -= share;
   return { cpu: true, share };
 }
-const maxFreeCpu = () => Math.max(0, Math.min(1, cpuPool.shareFree));
+// On the per-app isolation tier the share ledger is capped by the guest pool's own free room (guestPoolFreeFraction).
+const maxFreeCpu = () => Math.max(0, Math.min(1, cpuPool.shareFree, ISOLATION_BACKEND ? guestPoolFreeFraction() : 1));
 // CPU requests use the same whole-percent grain as GPU compute; priced at the
 // share of the whole-node rate.
 const normalizeCpuReq = (share) => { const pct = quantizePct(share); return { cpu: true, gpuShare: 0, cpuShare: pct / 100, share: pct / 100, pct }; };
@@ -3151,6 +3262,31 @@ if (process.env.POOL_SELFTEST) {
     cards: gpuCards.map((k) => ({ vramFree: round1(k.vramFree), computeFree: round3(k.computeFree) })),
     maxFreeGpuShare: round3(maxFreeGpuShare()),
     dropped: [...deployments.values()].filter((r) => !r._gpu).map((r) => r.id) }));
+  process.exit(0);
+}
+
+// GUEST_POOL_SELFTEST='{"pool":{…guestd /health.pool…}|null,"shareFree":0.7,"shares":[{memMb}],"reservations":[{memMb}],
+//   "verdicts":[{…isolationClaimVerdict input…}]}' adopts the pool as vmHealth would, then prints what the tier
+// computes from it as one JSON line and exits (test/isolation-guest-pool.test.mjs drives it; TASK 4c).
+if (process.env.GUEST_POOL_SELFTEST) {
+  const c = JSON.parse(process.env.GUEST_POOL_SELFTEST);
+  // viaHealth: the pool comes the production way, vmHealth() over guestd-control/1 from the guestd at VMMGR_URL, and
+  // the claim verdict for a version (viaHealth.memMb) is judged on that same answer (isolation/m4/guestd/pool_test.go)
+  let health = null, healthError = null, held = null;
+  if (c.viaHealth) { try { health = await vmHealth(); } catch (e) { healthError = e.message; } }
+  if (c.viaHealth && c.viaHealth.resumeOf) held = await isolationHeldGuest(c.viaHealth.resumeOf);
+  if ("pool" in c) adoptGuestPool(c.pool);
+  for (const p of c.pools || []) adoptGuestPool(p);               // answers in order, as successive vmHealth() calls
+  if (c.shareFree != null) cpuPool.shareFree = c.shareFree;
+  console.log(JSON.stringify({
+    node: nodeSpec(), maxFreeCpu: round3(maxFreeCpu()), guestPool: guestPoolReport(), sellCpuPrice6: SELL_CPU_PRICE6,
+    ...(c.viaHealth ? { healthError, healthVerdict: health && isolationClaimVerdict({ backend: ISOLATION_BACKEND,
+      require: ISOLATION_BACKEND, manager: health, gpuMilli: 0, config: "", appConfigCid: "", hasSecrets: false, firewall: [],
+      volumes: [], isPublic: true, waf: null, policy: isolationPolicyFor({ memMb: c.viaHealth.memMb }), held }), held } : {}),
+    shares: (c.shares || []).map((m) => minSharesOf(m)),
+    reservations: (c.reservations || []).map((v) => _guestPool && guestReservationFor(isolationPolicyFor(v), _guestPool.perGuest)),
+    verdicts: (c.verdicts || []).map((v) => isolationClaimVerdict({ backend: ISOLATION_BACKEND, ...v })),
+  }));
   process.exit(0);
 }
 
@@ -4877,7 +5013,8 @@ app.get("/v1/pricing", async (_req, res) => {
     ethUsd: ethUsd8 ? (Number(ethUsd8) / 1e8).toFixed(2) : null,
     model: "Deployments buy TWO shares: gpuShare (0..1 of ONE GPU card — VRAM and compute move together; 0 = CPU-only app) and cpuShare (0..1 of the node's vCPU+RAM). Apps declare their exact specs in the catalog — VRAM GB + GPU TFLOPS of a card, RAM MB + CPU GFLOPS of the node; those specs divided by this server's spec (the LARGER of the memory and compute axes per pool, rounded up to the whole percent) are the MINIMUM shares a deployment may buy. A GPU app's gpuShare must be >= its cpuShare. Billed per second, additively.",
     pricing: "The prices below are THIS enclave's, published in its EnclaveRegistry entry — every enclave sets its own, and a deployment is charged its shares of whichever one claims it. Set maxRatePerHourUsdc (create's maxRate6) to cap that: an enclave costing more than the cap cannot take the work, which is also what bounds where a deployment fails over to when its host dies. Change it any time with setMaxRate.",
-    node: { vcpus: NODE_VCPUS, ramGb: NODE_RAM_GB, gflops: NODE_GFLOPS,
+    node: { vcpus: nodeSpec().vcpus, ramGb: nodeSpec().ramGb, gflops: nodeSpec().gflops,
+            ...(nodeSpec().pool ? { is: "the per-app guest pool guestd admits into (its budget), not this CVM" } : {}),
             wholeNodePerSecondUsdc: CPU_RATE.toFixed(7), wholeNodePerHourUsdc: (CPU_RATE * 3600).toFixed(2) },
     computeGranularity: { unit: "percent", step: 1, minPercent: MIN_COMPUTE_PCT },
     formula: "ratePerSecondUsdc = gpuShare × wholeCardPerSecond + cpuShare × wholeNodePerSecond; minGpuShare = ceilPct(max(vramGb / cardVramGb, gpuTflops / cardTflops)); minCpuShare = ceilPct(max(memMb / nodeRam, cpuGflops / nodeGflops))",
@@ -4887,7 +5024,7 @@ app.get("/v1/pricing", async (_req, res) => {
     const r = rateFor(g, c);
     return { gpuShare: g, cpuShare: c,
              ...(g > 0 ? { vramGb: round1(g * CARD_VRAM_GB), gpuTflops: round1(g * CARD_TFLOPS) } : {}),
-             ramGb: round1(c * NODE_RAM_GB), vcpus: round1(c * NODE_VCPUS), cpuGflops: Math.round(c * NODE_GFLOPS),
+             ramGb: round1(c * nodeSpec().ramGb), vcpus: round1(c * nodeSpec().vcpus), cpuGflops: Math.round(c * nodeSpec().gflops),
              ratePerSecondUsdc: r.toFixed(7), ratePerHourUsdc: (r * 3600).toFixed(2) };
   };
   if (!IS_GPU) return res.json({
@@ -5292,9 +5429,9 @@ app.get("/availability", async (_req, res) => {
     gpuShareFree: round3(gpuFree), cpuShareFree: round3(cpuFree),
     usedGpuShare: IS_GPU ? round3(1 - gpuFree) : 0, usedCpuShare: round3(1 - cpuFree),
     maxShare: round3(IS_GPU ? gpuFree : cpuFree),
-    vcpusFree: round1(cpuFree * NODE_VCPUS), ramGbFree: round1(cpuFree * NODE_RAM_GB),
-    cpuGflopsFree: Math.round(cpuFree * NODE_GFLOPS),
-    nodeVcpus: NODE_VCPUS, nodeRamGb: NODE_RAM_GB, nodeGflops: NODE_GFLOPS,
+    vcpusFree: round1(cpuFree * nodeSpec().vcpus), ramGbFree: round1(cpuFree * nodeSpec().ramGb),
+    cpuGflopsFree: Math.round(cpuFree * nodeSpec().gflops),
+    nodeVcpus: nodeSpec().vcpus, nodeRamGb: nodeSpec().ramGb, nodeGflops: nodeSpec().gflops,   // exactly NODE_* off the tier
     smFree: IS_GPU ? Math.round(gpuFree * SM_TOTAL) : 0, smTotal: IS_GPU ? SM_TOTAL : 0,
     vramFreeGb: IS_GPU ? round1(gpuFree * CARD_VRAM_GB) : 0,
     gpuTflopsFree: IS_GPU ? round1(gpuFree * CARD_TFLOPS) : 0,
@@ -5362,7 +5499,9 @@ app.get("/availability", async (_req, res) => {
     // deploys, live resize) whose deployments it then refuses: Queued forever. Found on the production canary.
     ...(ISOLATION_BACKEND ? { isolation: ISOLATION_BACKEND, fullService: false,
       secrets: false, secretsInConfig: false, customDomains: false, configOverride: false, configEdit: false,
-      waf: false, gpuOptional: false, devDeploy: false, shareResize: false } : {}),
+      waf: false, gpuOptional: false, devDeploy: false, shareResize: false,
+      // the node above IS this pool; the pool's own ledger, stated as reservations and apart from any utilization
+      guestPool: guestPoolReport() } : {}),
     source, ...(note ? { note } : {}), updatedAt: new Date().toISOString(),
   });
   try {
@@ -9855,6 +9994,9 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
     const cf = overrideConfigFields(claimOpts, g);
     const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
       manager: await vmHealth().catch(() => null), gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
+      policy: isolationPolicyFor(g.min),
+      // a resume after this CVM restarted: the guest guestd kept for it already holds its room (guestPoolRefusal)
+      held: resume ? await isolationHeldGuest(d.id) : null,
       hasSecrets: await depHasSecrets(d.id), firewall, volumes: neededVolumes(d, g), isPublic: d.isPublic === true,
       waf: claimOpts.waf || null });
     if (isoWhy) return isoWhy;
