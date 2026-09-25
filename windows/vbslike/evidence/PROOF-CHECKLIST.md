@@ -136,9 +136,11 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 
 Nothing here waits on a decision already made: boot state (Secure Boot on) and the fresh quote are DONE on boot 68.
 
-1. DONE (boot 68): the measured Linux-VTL0 candidate `c567e432` (`A0FDAC0F…`) boots under Secure Boot; see O2.
-   Next on this path: serving an app from it. wmiserve must carry the IGVM digest as the identity instead of a
-   medium hash, and 5d's per-boot guest nonce (G1) goes on stop and destroy.
+1. DONE (boot 68): the measured Linux-VTL0 candidate `c567e432` (`A0FDAC0F…`) boots under Secure Boot AND serves
+   the pinned app (canaries 061934, 062450). Launcher `0160d835` from `8f156c9a` adds the IGVM identity
+   (`--igvm-sha256`) and the G1 nonce on stop/destroy.
+   Next: 53 cuts a G1 initrd and a new candidate (new digest and mutation set), which needs this canary again.
+   Then the G4 restart probe.
 2. **enclave-5d and enclave-99:** the replacement node identity (windows-hv-node/v1), host-only and honest. A
    TPM-only node attach grants no app capacity and no isolation badge.
 3. **enclave-5d:** the node lifecycle treats a manager's `recovered: true` instance as HELD. The manager side of
