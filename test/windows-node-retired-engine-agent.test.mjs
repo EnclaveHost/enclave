@@ -34,6 +34,11 @@ test("the agent without the legacy engine never dials the engine port and refuse
     assert.ok(health, `the agent did not come up: ${out}`);
     assert.equal(health.role, "windows-hv-node");
     assert.equal(health.engine, "retired");
+    // /availability names no CPU TEE and no card: the retired engine's name would read as that backend (enclave-99)
+    const avail = await fetch(`http://127.0.0.1:${httpPort}/availability`).then((r) => r.json());
+    assert.equal(avail.role, "windows-hv-node");
+    assert.equal(avail.teeCpu, null);
+    assert.equal(avail.shielded, null);
     for (const [method, p] of [["POST", "/v1/completions"], ["GET", "/v1/session/keys"], ["POST", "/v1/session"]]) {
       const r = await fetch(`http://127.0.0.1:${httpPort}${p}`, { method, body: method === "POST" ? "{}" : undefined });
       assert.equal(r.status, 503, p);
