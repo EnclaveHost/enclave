@@ -268,3 +268,29 @@ minimal structure the host requires.
 A clean type-1 run reported `FAILURE: guest state left on disk`. The file it named was the donor
 supplied as INPUT, which must survive. The check was written for the earlier New-VM path where the
 VMGS lived inside the Hyper-V store. It now removes the per-run copy and leaves the master alone.
+
+## CORRECTION: "unknown service" means the diagnostics server IS running, not that it never started
+
+I read `Error: unknown service diag.UnderhillDiag` as "VTL2's diagnostics server never starts" and
+placed the failure before it. **That is wrong, and it is backwards.** From source (enclave-5d):
+
+- The string is SERVER-GENERATED. `mesh_rpc` looks the requested service up in its registered map
+  and answers `Unimplemented "unknown service <name>"`. A server that is not there gives a CONNECT
+  failure, not an RPC reply.
+- Registration is POLICY, not liveness: `diag_server` registers `UnderhillDiag` and `OpenhclDiag`
+  (kmsg, exec, files) **only when confidential filtering is OFF**. Filtering is on exactly when the
+  partition is isolated. Inspect and the profiler are registered always.
+
+So the reply is POSITIVE evidence in three ways: the boot shim saw an isolated partition, the VTL2
+kernel came up, and OpenHCL's userspace ran as far as its diagnostics worker. It is the opposite of
+what I concluded.
+
+It also does NOT localise the failure the way I said: `run_control` starts the diagnostics server
+BEFORE `launch_workers`, so it precedes both the VMGS open and `validate_isolated_configuration`.
+The reply therefore rules out neither candidate. What it does rule out is "the failure is
+pre-userspace", which was my inference and is now dead.
+
+**Consequence for the toolchain:** kmsg cannot carry the error on a stock isolated image, by design.
+Reading it needs a debug image whose STATIC, measured command line sets
+`OPENHCL_CONFIDENTIAL_DEBUG=1` — a different measured image that trusts the host, so a debug artifact
+only, never a serving candidate, and it must be named on disk so that is unmissable.
