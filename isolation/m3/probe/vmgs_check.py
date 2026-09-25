@@ -15,6 +15,9 @@ and CRC-32 over the 168-byte header with its checksum zeroed. Header 1 is at 0 a
 
   python vmgs_check.py <file.vmgs>          prints the format, headers, allocated files and OpenHCL's expected outcome
   python vmgs_check.py --selftest           synthetic empty / V1 / v2 / bad-CRC / encrypted cases
+
+A store that carries file 18 (PROVISIONING_MARKER) with "provisioner":"openhcl" was formatted by OpenHCL's own VM
+worker: that worker ran at least through worker.rs:1911 of the boot that formatted it.
 """
 import struct, sys, zlib
 
@@ -82,6 +85,11 @@ def examine(data):
         if alloc:
             out.append(f"  file {i:2} {NAMES.get(i, '?'):20} blocks@{off} alloc={alloc} valid={valid_sz} "
                        f"encrypted={attr & 1} authenticated={attr >> 1 & 1}")
+        if alloc and i == 18 and not attr & 1:
+            # PROVISIONING_MARKER: JSON OpenHCL writes right after it formats a store this boot (underhill_core
+            # worker.rs:1458-1478, called at 1909-1919): who provisioned it, why, and OpenHCL's own build revision
+            raw = data[off * BLOCK: off * BLOCK + min(valid_sz, 4096)]
+            out.append(f"  provisioning marker: {raw.decode('utf-8', 'replace')}")
     return ('V3-ENCRYPTED' if act['encryption_algorithm'] == 1 else 'V3-PLAIN'), out
 
 
