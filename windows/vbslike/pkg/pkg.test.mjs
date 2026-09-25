@@ -904,3 +904,20 @@ test("draft v32 ships enclave-d1's new launcher 15338081 BESIDE the pinned 0160d
   assert.equal(x.code, 1);
   assert.match(x.out, /FAIL every profile's launcher is a control\.launcher .*hcs-dev\.launcher control\/candidate-launcher\/vbslike-host-15338081\.exe is candidate\.launcher/, fails(x.out));
 });
+
+test("pkg.mjs: a stated boot-form pair (profile.contract) must be exactly one of the verifier contract's canonical pairs (ae6e9147)", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-32.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  const verify = (mut) => { const m = pinRef(structuredClone(d), refRawFor(D)); mut(m); return run(["verify", writeManifest(m)]); };
+  // canonical pairs, and null (not launched by wmiserve), pass
+  let x = verify((m) => { m.profiles.vbsLinux.contract = { partition: "wmi-openhcl-gen2-igvm-linux", guestImageKind: "igvm-linux-direct", source: "ae6e9147" };
+                          m.profiles.uefi.contract = { partition: "wmi-openhcl-gen2", guestImageKind: "uefi-medium" }; m.profiles["hcs-dev"].contract = null; });
+  assert.equal(x.code, 0, fails(x.out)); assert.match(x.out, /ok   every stated boot-form pair .* \(2 stated pair\(s\)\)/);
+  // a crossed pairing, a near-miss name and an unknown key are each refused
+  for (const [c, why] of [[{ partition: "wmi-openhcl-gen2-igvm-linux", guestImageKind: "uefi-medium" }, "crossed"],
+                          [{ partition: "wmi-openhcl-gen2", guestImageKind: "igvm-linux-direct" }, "crossed the other way"],
+                          [{ partition: "wmi-openhcl-gen2-igvm", guestImageKind: "igvm-linux-direct" }, "near-miss name"],
+                          [{ partition: "wmi-openhcl-gen2", guestImageKind: "uefi-medium", eligible: true }, "unknown key"]]) {
+    x = verify((m) => { m.profiles.vbsLinux.contract = c; });
+    assert.equal(x.code, 1, why); assert.match(x.out, /FAIL every stated boot-form pair .*vbsLinux\.contract .* is not exactly one canonical pair/, `${why}: ${fails(x.out)}`);
+  }
+});

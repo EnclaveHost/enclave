@@ -220,6 +220,21 @@ async function checkClaims(m, bytes, R) {
   const has = (p, role) => { const f = file(p); return !!f && f.role === role; };
   R.add(!!hcs && has(hcs.kernel, "guest.kernel") && has(hcs.initrd, "guest.initrd") && has(hcs.launcher, "control.launcher"),
         "profile hcs-dev names a kernel, the monitor initrd and the launcher of this package", hcs ? "" : "no hcs-dev profile");
+  // A profile MAY state the boot form it runs as, in the verifier contract's own vocabulary (enclave-99, ae6e9147:
+  // wmiserve's signed report names are canonical and a judge compares both fields exactly). The pair is INFORMATIONAL: it
+  // never feeds eligibility, which is the launch digest against the reference file. Each stated pair must be exactly one of
+  // the canonical pairs; `null` says the profile is not launched by wmiserve.
+  { const PAIRS = [["wmi-openhcl-gen2-igvm-linux", "igvm-linux-direct"], ["wmi-openhcl-gen2", "uefi-medium"]];
+    const bad = []; let n = 0;
+    for (const [name, p] of Object.entries(m.profiles || {})) {
+      if (!p || !("contract" in p) || p.contract === null) continue;
+      n++; const c = p.contract;
+      const extra = c && typeof c === "object" ? Object.keys(c).filter((k) => !["partition", "guestImageKind", "source"].includes(k)) : [];
+      if (!c || typeof c !== "object" || extra.length || !PAIRS.some(([a, b]) => c.partition === a && c.guestImageKind === b))
+        bad.push(`${name}.contract ${JSON.stringify(c)} is not exactly one canonical pair${extra.length ? ` (unknown keys ${extra.join(", ")})` : ""}`);
+    }
+    R.add(bad.length === 0, "every stated boot-form pair (profile.contract) is exactly one of the verifier contract's canonical pairs (informational; never eligibility)",
+          bad.length ? bad.join("; ") : `${n} stated pair(s)`); }
   // A new launcher build ships as role candidate.launcher BESIDE the pinned control.launcher, for an acceptance run, and
   // becomes a profile's launcher only in a later version that re-roles it (the IGVM rollover's discipline, enclave-d1).
   { const bad = []; let n = 0;
