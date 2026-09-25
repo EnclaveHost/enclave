@@ -53,6 +53,12 @@ lifecycle transaction, settled before anything else:
      by a heartbeat.
    - Its proof key is not the VM's attested key: `setProofKey` to the attested key (the only source of that key is
      `verifyPvmProofKey` over the agent's own nonce).
+   - **A key goes on-chain only from a FRESH statement.** Both `register` and `setProofKey` re-attest over a new nonce
+     immediately before sending. An attestation from an earlier tick may name a key a re-provisioned VM no longer holds.
+     (enclave-99's review of e4ecc4aa.)
+   - **The published measurement is the attested build's.** The config is refused unless `register.measurement` is one
+     of the evidence's `allowedCodeHashes`, and THE one when exactly one is pinned. (Also enclave-99's review.) The next
+     step: the canonical verifier returns the attested code hash, and `register` uses exactly that value.
 2. **The lease.**
    - Ours and live, and within `renewMarginSec` of its end (default 600, as supervisor.js): `renew`, but ONLY if the
      proofs show the app serving, meaning the prover's `lastProofAt` is within `2 x intervalSec` of now. A dead app's
@@ -102,7 +108,7 @@ These are built and tested on the local chain, with synthetic operator keys: reg
 stop-with-release after a final proof. They share one journal with the checkpoints.
 - **The CLI.** `runner/proof-agent-cli.mjs` takes a runner config (format `enclave-pvm-runner-agent/v1`), with
   `--release` for a final proof then release. The key comes only from a 0600 file, and the RPC only from the environment.
-- **test/pvm-runner-agent.test.mjs, 8/8.** The real contracts on anvil, a fake VM, and nothing pre-registered or
+- **test/pvm-runner-agent.test.mjs, 9/9** (including a re-provisioned VM whose re-registration must carry the NEW key). The real contracts on anvil, a fake VM, and nothing pre-registered or
   pre-claimed. It covers:
   - the whole lifecycle;
   - another operator's endpoint, a missing or deactivated entry (not revived, no heartbeat), and an old key replaced by
@@ -113,7 +119,7 @@ stop-with-release after a final proof. They share one journal with the checkpoin
   - interruptions: a claim, a renew and a release each journaled but never delivered, each delivered ONCE after a
     restart (the tenant pays one quantum); a renew still in the mempool followed, never repeated;
   - the CLI.
-- **test/mutate-pvm-runner-agent.mjs.** A control plus 10 mutations, each caught by the test it names. The posting agent's
+- **test/mutate-pvm-runner-agent.mjs.** A control plus 12 mutations, each caught by the test it names. The posting agent's
   own harness still catches its 23.
 - **Next: the device check** (results/pvm-cpu-runner-agent). The lifecycle runs against the Pixel's real VM, as the
   posting agent's did.

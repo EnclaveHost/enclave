@@ -14,7 +14,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SUITE = "test/pvm-runner-agent.test.mjs";
 const RA = "shielded/anchor/avf/runner/runner-agent.mjs", PA = "shielded/anchor/avf/runner/proof-agent.mjs";
 const T = { life: "the whole lifecycle on a local chain", entry: "the entry:", event: "a mined lifecycle call WITHOUT the event", claim: "the claim:",
-            proven: "renew only what is proven", intr: "interrupted and restarted" };
+            proven: "renew only what is proven", intr: "interrupted and restarted", fresh: "a key goes on-chain only from a FRESH statement", config: "runner config:" };
 const MUTATIONS = [
   ["R01", "a lease is renewed whether or not its app is serving", [[RA, "if (!serving) note(", "if (false) note("]], T.proven],
   ["R02", "\"serving\" judged from provenUntil (which trails for the rest of a lease after an outage)", [[RA, "const serving = s.lastProofAt + 2n", "const serving = s.provenUntil + 2n"]], T.intr],
@@ -26,6 +26,9 @@ const MUTATIONS = [
   ["R08", "a new transaction while one is in flight (both guards removed)", [[RA, "    if (agent.pending) {\n      const s = await agent.settlePending();", "    if (false) {\n      const s = await agent.settlePending();"],
                                                                               [PA, "if (pending) return { kind: \"busy\", op: c.op,", "if (false) return { kind: \"busy\", op: c.op,"]], T.intr],
   ["R09", "a mined call without its event counts as landed", [[PA, "if (!evs.length) return done(\"reverted\", { hash: t.hash, reason: `mined without its ${want} event` });", ""]], T.event],
+  // enclave-99's review of e4ecc4aa
+  ["R11", "register writes the earlier (possibly stale) attested key, not a fresh statement's", [[RA, "      const k = await freshKey();\n      if (!k) return { kind: \"attest-failed\", stop: true, reason: \"no fresh attested key to register\" };", "      const k = key;"]], T.fresh],
+  ["R12", "the registered measurement is not tied to the attested build's pinned code hashes", [[RA, "if (!pinned.includes(r.measurement.slice(2))) bad(", "if (false) bad("]], T.config],
   ["R10", "a renew decided from remembered state (the lease re-read skipped after a landing)", [[RA, "    const s = await agent.lease();\n    if (!agent.attested)", "    const s = globalThis.__lastLease || (globalThis.__lastLease = await agent.lease());\n    if (!agent.attested)"]], T.life],
 ];
 
