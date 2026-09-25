@@ -103,8 +103,10 @@ What 4d changes while the live supervisor (c42612c0, ISOLATION_RELEASE unset) ru
 - A deployment the supervisor ever marks `release:true` (only after rows 7-8) is built from the new tree, which is
   31d117a9's image.
 
-**Pre-4d hardware check (not yet run).** The legacy path, 0181bce3's image booted by d1a38994's `run-domain.sh`, has
-never run on hardware. Before 4d, launch ONE non-release deployment guest from a LAB guestd with:
+**Pre-4d hardware check: RAN, PASS (2026-09-25 19:22Z, `isolation/m2/lab-release/evidence/legacy-2026-09-25/`).**
+A legacy hookbin guest came up with the LIVE canary's AppID and VCEK-signed measurement (be6b8644…), and served.
+Re-run `run-legacy-check.sh` if run-domain.sh, guestd or the host's tools change before 4d. The check as designed:
+the legacy path, 0181bce3's image booted by d1a38994's `run-domain.sh`, had never run on hardware. Before 4d, launch ONE non-release deployment guest from a LAB guestd with:
 - `-instance-prefix lb`, the lab ports, `-release`, `-legacy-isolation ~/enclave-prod/iso-03be27d6/isolation`, and its
   own root;
 - the lab conditions: the fatal `m2-gd*` diff, MemAvailable ≥ 44 GiB, and the exe sweep.

@@ -1,0 +1,11 @@
+19:21:54Z legacy-path lab /home/steven/enclave-bench/lab-release/legacy-run-20260925a; production units before: 3; MemAvailable 80 GiB
+19:21:54Z this tree: 63ff0284 (run-domain.sh, fwd, judge, guestd); legacy tree: 0181bce3
+19:21:56Z lab guestd up: supports.release and supports.legacyImage true, config/secrets false/false
+19:21:56Z created lb0cbc9c2d (release false); building from the legacy tree and booting
+19:22:07Z status running, verdict attested, release , legacyImage true 
+19:22:07Z ok   AppID = the live canary's (d2c4dfc0ec475910aa509d1045ae4f2997346c1cd666a167cd5fc959c036aa24)
+19:22:07Z ok   measurement = the live canary's VCEK-signed be6b8644384eee12396881e3e4cbca4259ae1a16a1e198d2c48d577ff7b3c6d355971eccebe8353749439adca718da4d
+19:22:12Z ok   expected-measurement.sh --pin 5c3561f9 reproduces it
+19:22:12Z ok   the app answers through the front: HTTP 200
+19:22:12Z LEGACY PATH PASS: 0181bce3's image, booted by this tree, is the live canary's image and serves
+19:22:19Z cleanup done; production m2-gd* units unchanged
