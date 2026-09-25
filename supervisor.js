@@ -8753,6 +8753,23 @@ if (process.env.RELEASE_SELFTEST) {
     console.log(JSON.stringify({ listed: await Promise.all(c.listed.map((id) => releaseListedFor(id))) }));
     process.exit(0);
   }
+  if (Array.isArray(c.staged)) {   // {"staged":["0x…",…]}: depHasSecrets, against SECRETS_API
+    console.log(JSON.stringify({ staged: await Promise.all(c.staged.map((id) => depHasSecrets(id))) }));
+    process.exit(0);
+  }
+  if (c.spawnSite) {               // {"spawnSite":{health, spec}}: the REAL spawnContainer against a scripted guestd
+    const posted = [], pumped = [];
+    vmReq = async (method, path, body) => {
+      if (method === "GET" && path === "/health") return { status: 200, body: c.spawnSite.health };
+      if (method === "POST" && path === "/vms") { posted.push(body); return { status: 201, body: { id: "gd0a0b0c0d", appId: "ab".repeat(32), recordSha256: "" } }; }
+      return { status: 404, body: {} };
+    };
+    pumpReleaseTicket = (dep, vmId) => { pumped.push(vmId); return Promise.resolve("recorded"); };
+    let error = null;
+    try { await spawnContainer(c.spawnSite.spec); } catch (e) { error = e.message; }
+    console.log(JSON.stringify({ posted, pumped, error }));
+    process.exit(0);
+  }
   if (Array.isArray(c.spawn)) {    // {"spawn":[{h, id, config, configCid, staged}]}: the spawn's release decision, against SECRETS_API
     const out = [];
     for (const x of c.spawn) {
@@ -9854,9 +9871,13 @@ async function depHasSecrets(id){
     const r = await fetch(`${SECRETS_API}/v1/secrets/exists`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ id: String(id).toLowerCase() }), signal: AbortSignal.timeout(5000) });
-    if (r.status === 404 || r.status === 503) return false;
-    if (!r.ok) return null;
-    const b = await r.json();
+    if (r.status === 404) return false;
+    let b = null;
+    try { b = await r.json(); } catch { b = null; }
+    // only the relay's deliberate "secrets are off" is a clean NO; any other 503 (a relay restarting) is UNKNOWN, never
+    // "none staged": an unknown read as none would start a deployment without its secrets (enclave-99's L2, the M1 shape)
+    if (r.status === 503) return b && b.error === "secrets_disabled" ? false : null;
+    if (!r.ok || !b) return null;
     return b.exists === true;
   } catch { return null; }
 }

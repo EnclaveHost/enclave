@@ -347,6 +347,13 @@ func TestTheClientRetriesATicketKeepingRefusalWithTheSameRequest(t *testing.T) {
 	}
 }
 
+// the retry window stays inside the ticket's 120 s TTL (from issue): a guest never presents a dead ticket
+func TestTheReleaseWindowIsInsideTheTicketTTL(t *testing.T) {
+	if ReleaseWindow >= 120*time.Second || ReleaseWindow < 30*time.Second {
+		t.Fatalf("ReleaseWindow %s: it must leave room inside the 120 s TTL and still outlast a cold prediction", ReleaseWindow)
+	}
+}
+
 func TestTheClientDoesNotRetryAFinalRefusalAndStopsAtTheDeadline(t *testing.T) {
 	root := newTestCA(t)
 	for _, code := range []int{403, 422, 500} {
