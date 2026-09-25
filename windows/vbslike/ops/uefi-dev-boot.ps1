@@ -337,11 +337,25 @@ try {
           # this proves the app SERVES, not its identity. Identity is judge-hv's job on the
           # handshake key, and is a separate check - a 200 here is not an attestation.
           Start-Sleep -Seconds 2
-          $body = & curl.exe -sk --max-time 20 "https://127.0.0.1:$RelayPort/" 2>$null | Out-String
-          $bytes = [System.Text.Encoding]::UTF8.GetByteCount($body)
-          Note "APP ANSWERED: $bytes bytes: $($body -replace "`r?`n",'\n')"
-          if ($body -match 'Hello World') { Note "APP OK: the app served its content through the guest's own TLS (identity NOT verified here)" }
-          else { Note "APP: the relay answered but the body is not the expected content" }
+          # RAW BYTES TO A FILE, then hash them. Piping through Out-String appends a newline, which
+          # is why an earlier run reported 14 bytes where enclave-53 pins 13 - measured twice by
+          # them, from wasmtime serve of the pinned component and from 99's HCS window. A byte
+          # count taken through PowerShell's string layer is a count of PowerShell's string, not of
+          # what the app sent.
+          $bodyFile = "C:\Users\claude\appbody-$stamp.bin"
+          & curl.exe -sk --max-time 20 -o $bodyFile "https://127.0.0.1:$RelayPort/" 2>$null
+          if (Test-Path $bodyFile) {
+            $len = (Get-Item $bodyFile).Length
+            $bsh = (Get-FileHash $bodyFile -Algorithm SHA256).Hash.ToLower()
+            $txt = [System.IO.File]::ReadAllText($bodyFile)
+            Note "APP ANSWERED: $len raw bytes, sha256 $bsh"
+            Note "  body: $($txt -replace "`r",'\r' -replace "`n",'\n')"
+            if ($bsh -eq '03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340') {
+              Note "APP OK: the app served EXACTLY the pinned bytes through the guest's own TLS"
+              Note "  (identity NOT verified here: curl -k accepted the guest cert. That is judge-hv's job.)"
+            } else { Note "APP: answered, but the bytes are not the pinned content (expected sha 03ba204e...)" }
+            Remove-Item $bodyFile -Force -EA SilentlyContinue
+          } else { Note "APP: no body file; the relay returned nothing" }
         } else { Note "WMISERVE did not reach ready" }
         try { if (-not $sv.HasExited) { Stop-Process -Id $sv.Id -Force -EA SilentlyContinue } } catch {}
       }
