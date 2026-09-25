@@ -279,3 +279,16 @@ test("a recovered domain is never serving, whatever status it shows", () => {
   assert.equal(instanceServing({ status: "running", recovered: true }), false);
   assert.equal(instanceServing({ status: "running", recovered: false }), true);
 });
+
+// enclave-d1's re-review of d626da4e: finding 4 (P2) and the unpinned recovered-with-no-name clause (C4)
+test("a 409 whose adoption read answers ANY other failure (a 410 here) HOLDS: the manager said a domain is live", async () => {
+  const m = manager({ routes: { ...empty, "POST /vms": async () => ({ status: 409, body: { error: "already live", id: HV } }),
+                                [`GET /vms/${HV}`]: async () => ({ status: 410, body: { error: "gone?" } }) } });
+  const r = await reconcile({ client: client(m), deployment: { id: DEP, body: supervisorBody() }, ledger: noRelease(), ...fast });
+  assert.equal(r.action, "held", r.reason); assert.equal(r.leaseFree, false);
+});
+
+test("a RECOVERED row with no name makes a miss unknown even without the unattributed flag", async () => {
+  const m = manager({ routes: { "GET /vms": async () => ({ status: 200, body: [{ id: "hvX", name: null, recovered: true, status: "starting" }] }) } });
+  await assert.rejects(() => client(m).findByName(DEP), (e) => e.kind === "unavailable");
+});

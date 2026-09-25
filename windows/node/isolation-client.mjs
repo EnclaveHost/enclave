@@ -72,7 +72,10 @@ export class IsolationManagerClient {
 
   /** A non-success answer as an error: a 5xx is UNAVAILABLE (nothing is known), anything else is a REFUSAL. */
   static #answerError(what, r) {
-    const why = `${what}: ${(r.body && r.body.error) || r.status}`;
+    // the VMs that make an id unknown (d1's 6b1137ee answers them), named so an operator can see which to remove
+    const orphans = Array.isArray(r.body && r.body.unattributed) && r.body.unattributed.length
+      ? ` (VMs naming no deployment: ${r.body.unattributed.join(", ")})` : "";
+    const why = `${what}: ${(r.body && r.body.error) || r.status}${orphans}`;
     return new IsolationError(r.status >= 500 ? "unavailable" : "refused", why, r.body);
   }
 
@@ -111,7 +114,11 @@ export class IsolationManagerClient {
     if (r.status === 409) {
       const id = r.body && r.body.id;
       if (!id) throw new IsolationError("conflict", `the manager refused ${body.name} as already live but named no instance to adopt`);
-      const cur = await this.get(id);
+      // ANY failure to read the domain a 409 named is a conflict, never a refusal: the manager has just said one IS live
+      // (enclave-d1's re-review, finding 4: a 4xx other than 404 on this read used to free the lease)
+      let cur;
+      try { cur = await this.get(id); }
+      catch (e) { throw new IsolationError("conflict", `the manager named ${id} as live for ${body.name} and then could not be asked about it: ${e.message}`, e.detail); }
       if (!cur) throw new IsolationError("conflict", `the manager named ${id} to adopt and then did not have it`);
       return { adopted: true, view: cur };
     }

@@ -1367,10 +1367,18 @@ export class Host {
 
   // ---- the surface the relay and the console call, over the tunnel -------------------------
   deployments() { return [...this.records.values()].map((r) => ({ ...r })); }
+  /**
+   * Does this record still occupy the box? A running app does; so does an isolated domain the node holds or could not
+   * confirm gone, whatever the record's status says (held, provisioning, failed): its VM may still run, and selling
+   * its share again would over-admit (enclave-d1's re-review, finding 5).
+   */
+  static occupies(r) {
+    return r.status === "running" || !!r.isolation || !!r.isolationHeld || !!r.isolationRetireFailed;
+  }
   /** The node pool this box has left, as a fraction: what the relay's placement reads. */
   cpuShareFree({ exclude = null } = {}) {
     if (!this.cfg.appsEnabled) return 0;
-    const used = [...this.records.values()].filter((r) => r.status === "running")
+    const used = [...this.records.values()].filter((r) => Host.occupies(r))
       .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase())
       .reduce((a, r) => a + (r.cpuShare || 0), 0);
     return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25)));   // a quarter stays for the enclave, the worker and the owner
@@ -1388,7 +1396,7 @@ export class Host {
     if (!this.cfg.appsEnabled) return 0;
     const card = this.card && this.card();
     if (!card || !(Number(card.vramBudgetGb) > 0)) return 0;
-    const sold = [...this.records.values()].filter((r) => r.status === "running")
+    const sold = [...this.records.values()].filter((r) => Host.occupies(r))
       .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase())
       .reduce((a, r) => a + (r.gpuShare || 0), 0);
     const onCard = Number(card.vramFreeGb) / Number(card.vramBudgetGb);
@@ -1408,7 +1416,7 @@ export class Host {
     // RESIZE measures a tenant growing from 10% to 20% against a box that would otherwise still be
     // counting their first 10%. Either way, counting a deployment against itself refuses it for
     // asking for what it already has.
-    const running = [...this.records.values()].filter((r) => r.status === "running" || r.status === "provisioning")
+    const running = [...this.records.values()].filter((r) => r.status === "provisioning" || Host.occupies(r))
       .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase());
     const committedMb = running.reduce((a, r) => a + (Number(r.memMb) || 0), 0);
     // AN APP INSIDE THE ENCLAVE LIVES IN ENCLAVE MEMORY, and the enclave is a FIXED, DEDICATED

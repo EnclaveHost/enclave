@@ -2,12 +2,18 @@
 // deployments. Anything else it already holds is HELD: refused and recorded, never started, never renewed and
 // NEVER released on chain automatically (enclave-d1 F2). It never claims one either. Each test here fails if its
 // guard is removed.
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { Host } from "../windows/node/host.mjs";
+import { fakeBaseRpc, DEPLOYMENTS } from "./helpers/fake-base-rpc.mjs";
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
+
+// Base is faked before host.mjs loads, so a give-up's release read never reaches a public RPC
+const rpc = await fakeBaseRpc();
+(await import("../windows/node/chain.mjs")).addresses.deployments = DEPLOYMENTS;
+const { Host } = await import("../windows/node/host.mjs");
+after(() => rpc.close());
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ee-retired-"));
 const box = (cfg = {}) => new Host({ dir, endpoint: "https://api.enclave.host/t/test", name: "test", appsEnabled: true,
