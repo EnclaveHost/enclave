@@ -59,4 +59,7 @@ Decision for this release: do not widen the measured code. Record it per app bef
   936ce3fe, 0e9a6f08, 666674d7, 891f7eb6, 020f76e7, 5cb4389c, 8cc27b04, 5b41db37 (all four root PEMs genuine, DER
   sha256 = RootFingerprints), 63b2b276 and aef54ff7 (unreachable on SNP: dominit never passes -cert-name-file),
   aeb3d328 (the should-fix), dominit's config handoff, and an unchanged go.mod/go.sum.
-- enclave-99's sign-off of the image diff: pending.
+- **The relay's predictor agrees** (enclave-e3, security/attested-release 4ace1f3c). It verified the release against
+  31d117a9 (15 files) after its known-answer test passed. It read catalog 0x5bca36b5…/0 from two agreeing RPCs and
+  CAR-verified the component. It got AppID 94c04c0e… and measurement ca8c0e1e…bcb9, the cross-check value above.
+- The image-diff sign-off from the relay side (enclave-e3, for enclave-99, over 0181bce3..d1a38994): pending.
