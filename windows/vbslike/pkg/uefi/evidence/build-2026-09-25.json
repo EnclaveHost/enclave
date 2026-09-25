@@ -12,11 +12,12 @@
              "gptLabelId": "5E6C0D1A-7A0B-4C3E-9E0B-000000000001", "espPartUuid": "5E6C0D1A-7A0B-4C3E-9E0B-0000000000E5",
              "espPath": "/EFI/BOOT/BOOTX64.EFI" },
  "tools": { "objcopy": "GNU objcopy (GNU Binutils) 2.47", "mtools": "mcopy (GNU mtools) 4.0.49",
-            "sfdisk": "sfdisk from util-linux 2.42.3", "qemu-img": "qemu-img version 11.1.1", "mkfs.fat": "Usage: mkfs.fat [OPTIONS] TARGET [BLOCKS]" },
+            "sfdisk": "sfdisk from util-linux 2.42.3", "xorriso": "xorriso 1.5.8.pl02", "qemu-img": "qemu-img version 11.1.1", "mkfs.fat": "Usage: mkfs.fat [OPTIONS] TARGET [BLOCKS]" },
  "outputs": {
   "uki.efi":   { "sha256": "a1fdb5c3e973accc2f04bfecce7fb22cfdcfcf7568244350328ec6436a1a87b1", "bytes": 40045056 },
   "esp.img":   { "sha256": "9bea1b683845083383c2e08c94c5a5550d5e64d71fb20ac9ae3dee756ac9945e", "bytes": 134217728 },
   "disk.raw":  { "sha256": "04898f098ab9e464ee5be9771926812a6f8236940403492019a7538aa6efe4a7", "bytes": 268435456, "note": "the pinned identity of the disk" },
-  "disk.vhdx": { "sha256": "719f735333863b371913000c1474dd266cbe3d1a9fdc83939a0c26dd400a8dea", "bytes": 67108864, "note": "container: header GUIDs are random, so NOT reproducible; its payload is disk.raw (checked)" }
+  "disk.vhdx": { "sha256": "b3c9e97006add991963729e48d0f4da87add13c88c8796d0fed6eb07e5cffb2e", "bytes": 67108864, "note": "FALLBACK container: header GUIDs are random, so NOT reproducible; its payload is disk.raw (checked)" },
+  "guest.iso": { "sha256": "b218a3290cfbc0932e3d406e17b8bc0fd2b5b83591fb99216b5c4c2a03d04cf0", "bytes": 134594560, "note": "the boot medium: El Torito EFI = /efiboot.img (= esp.img) inside the ISO 9660 volume; read-only" }
  }
 }
