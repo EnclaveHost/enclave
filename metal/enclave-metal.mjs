@@ -144,17 +144,29 @@ const CERTS = certsCfg(cfg);
 // ride fw_cfg like the tunnel token. The key protects the channel from other processes on this host, not from the
 // host's operator, who holds it in any case.
 const ISOLATION_BACKENDS = ['snp-guest-per-app'];
+// fw_cfg's `isolation` object, and nothing else of the config's: the endpoints, the pairing key, and the operator's
+// attested-release opt-in. gsup (metal/guest/gsup.mjs) passes ISOLATION_RELEASE=1 to the supervisor only for
+// `isolation.release === true`, so only a boolean true is forwarded; no other isolation key (backend, pairingKeyFile,
+// anything added later) crosses to the guest. A release that is neither absent nor a boolean REFUSES the launch, so a
+// typo ("true", 1) cannot look like a successful opt-in while running with the release off. Pure, so
+// test/metal-launcher-isolation.test.mjs slices it out by text (and also drives the real launcher).
+function isoRuntimeOf(iso, key) {
+  if (iso.release !== undefined && typeof iso.release !== 'boolean')
+    throw new Error(`isolation.release must be the boolean true or false (got ${JSON.stringify(iso.release)}); refusing rather than reading it as off`);
+  const managerUrl = String(iso.managerUrl || 'http://10.0.2.2:8095');
+  const dataAddr = String(iso.dataAddr || '10.0.2.2:8096');
+  if (!/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}$/.test(managerUrl) || !/^(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}$/.test(dataAddr))
+    throw new Error('isolation.managerUrl / dataAddr must be IPv4 literals (http://10.0.2.2:8095, 10.0.2.2:8096)');
+  return { managerUrl, dataAddr, pairingKey: key, ...(iso.release === true ? { release: true } : {}) };
+}
 const ISO = (cfg.isolation && typeof cfg.isolation === 'object') ? cfg.isolation : null;
 let ISO_RUNTIME = null;
 if (ISO) {
   if (!ISOLATION_BACKENDS.includes(ISO.backend)) throw new Error(`isolation.backend must be one of ${ISOLATION_BACKENDS.join(', ')}`);
   const key = fs.readFileSync(String(ISO.pairingKeyFile || ''), 'utf8').trim();
   if (!/^[0-9a-f]{64}$/.test(key)) throw new Error('isolation.pairingKeyFile must hold the 64-hex guestd pairing key (guestd -gen-key)');
-  const managerUrl = String(ISO.managerUrl || 'http://10.0.2.2:8095');
-  const dataAddr = String(ISO.dataAddr || '10.0.2.2:8096');
-  if (!/^http:\/\/(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}$/.test(managerUrl) || !/^(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}$/.test(dataAddr))
-    throw new Error('isolation.managerUrl / dataAddr must be IPv4 literals (http://10.0.2.2:8095, 10.0.2.2:8096)');
-  ISO_RUNTIME = { managerUrl, dataAddr, pairingKey: key };
+  ISO_RUNTIME = isoRuntimeOf(ISO, key);
+  console.log(`[enclave-metal] isolation ${ISO.backend}: attested release ${ISO_RUNTIME.release === true ? 'OPTED IN (isolation.release: true)' : 'off'}`);
 }
 const cmdline = [
   'console=ttyS0', 'root=/dev/ram0', 'rootfstype=ramfs', 'quiet',
