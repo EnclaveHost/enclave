@@ -48,6 +48,12 @@ param(
   # where the root can map every guest page by construction, or the reader is broken and a type-1
   # miss says nothing. Off by default; this never runs against anything but our own canary VM.
   [switch] $HostRead,
+  # OpenHCL's own kmsg, over its diagnostics server on vsock. It is the ONLY readable source for a
+  # type-1 start failure on this host: COM3 does not exist here, and a sweep of every Hyper-V event
+  # channel across a failing run found no free-text error and no CompleteStartVtl0 entry at all.
+  # OpenHCL reports a start failure and then waits 2 minutes to be terminated, so the reason is
+  # there for a bounded window and nowhere else.
+  [string] $OhclDiag = 'C:\Users\claude\vbs-like\pkg\ohcldiag-dev-5f25f2e7\ohcldiag-dev.exe',
   # GuestFeatureSet, swept rather than assumed. MEASURED on this box, type 1 + openhcl-cvm.bin:
   #   0x400 (what New-VM sets for VBS, OpenHCL feature OFF) -> starts, then triple-faults
   #   0x601 (VBS bit kept, OpenHCL bits added)              -> refuses to start at all
@@ -452,6 +458,17 @@ try {
   if ($pipe3) { Note $(if ($pipe3Client) { "COM3 (OpenHCL's own log) attached" } else { "COM3 could NOT be attached: an OpenHCL refusal would be silent" }) }
   if ($pipeClient) { Note "COM1 attached $([int]((Get-Date)-$t0).TotalMilliseconds) ms after start" }
   else { Note "COM1 could NOT be attached after 100 tries: anything the guest says is unobservable" }
+  # Start the kmsg reader immediately: the failure it exists to catch happens within SECONDS of the
+  # start, and the diagnostics server only exists while the partition is alive.
+  $kmsgOut = $null; $kmsgProc = $null
+  if ($IsolationType -eq 1 -and (Test-Path $OhclDiag)) {
+    $kmsgOut = "C:\Users\claude\vbs-evidence\kmsg-$stamp.txt"
+    try {
+      $kmsgProc = Start-Process -FilePath $OhclDiag -ArgumentList @($name, 'kmsg') -NoNewWindow -PassThru `
+                    -RedirectStandardOutput $kmsgOut -RedirectStandardError "$kmsgOut.err"
+      Note "ohcldiag-dev kmsg started (pid $($kmsgProc.Id)) -> $kmsgOut"
+    } catch { Note "ohcldiag-dev could not be started: $($_.Exception.Message -replace "`r?`n",' ')" }
+  } elseif ($IsolationType -eq 1) { Note "ohcldiag-dev NOT FOUND at $OhclDiag; an OpenHCL start failure will be unreadable" }
   Note "started; watching COM1 for 'MON ready' for $ReadySeconds s"
   while (((Get-Date) - $t0).TotalSeconds -lt $ReadySeconds -and -not $ready) {
     Start-Sleep -Seconds 3
@@ -492,6 +509,18 @@ try {
   try { if ($pipeClient) { $pipeClient.Dispose() } } catch { }
   try { if ($pipe3Client) { $pipe3Client.Dispose() } } catch { }
   Note "console bytes: $($seen.Length) (COM1), $(if($pipe3){"$($seen3.Length) (COM3)"}else{'COM3 unsupported on this host'})"
+  # OpenHCL's own words, whatever else happened.
+  if ($kmsgOut) {
+    Start-Sleep -Seconds 2
+    try { if ($kmsgProc -and -not $kmsgProc.HasExited) { $kmsgProc.Kill() } } catch { }
+    $km = Get-Content $kmsgOut -EA SilentlyContinue
+    $kerr = Get-Content "$kmsgOut.err" -EA SilentlyContinue
+    Note "ohcldiag-dev kmsg: $(@($km).Count) line(s)$(if(@($kerr).Count){", $(@($kerr).Count) on stderr"})"
+    if (@($kerr).Count) { foreach ($l in (@($kerr) | Select-Object -First 4)) { Note "  KMSG-ERR: $l" } }
+    $keep = @($km | Where-Object { $_ -match 'fail|error|refus|isolat|attest|vmgs|guest state|key|vtl|panic|start' })
+    Note "  (kept $(@($keep).Count) matching line(s) of $(@($km).Count))"
+    foreach ($l in (@($keep) | Select-Object -First 40)) { Note "  KMSG: $l" }
+  }
   # COM3 is printed whenever the guest did not come ready, and always on type 1, where the whole
   # question is whether OpenHCL accepted the isolated configuration at all.
   if ($seen3 -and (-not $ready -or $IsolationType -eq 1)) {
