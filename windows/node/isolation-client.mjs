@@ -25,7 +25,10 @@
 const OK_STATUS = new Set(["starting", "running", "failed", "stopped"]);
 
 export class IsolationError extends Error {
-  // kind: "refused" | "protocol" | "timeout" | "transport" | "conflict"
+  // kind: "refused" | "unavailable" | "protocol" | "timeout" | "transport" | "conflict"
+  //   refused      a 4xx: the manager ANSWERED no. The only kind that says something did not happen.
+  //   unavailable  a 5xx: the manager could not answer (inventory not surveyed, the survey failed, an unknown id while
+  //                an unattributed VM exists). Nothing is known, so a caller holds.
   constructor(kind, message, detail = null) { super(message); this.kind = kind; this.detail = detail; }
 }
 
@@ -67,6 +70,12 @@ export class IsolationManagerClient {
     return { status: res.status, body: json };
   }
 
+  /** A non-success answer as an error: a 5xx is UNAVAILABLE (nothing is known), anything else is a REFUSAL. */
+  static #answerError(what, r) {
+    const why = `${what}: ${(r.body && r.body.error) || r.status}`;
+    return new IsolationError(r.status >= 500 ? "unavailable" : "refused", why, r.body);
+  }
+
   /**
    * The spawn body is EXACTLY what supervisor.js sends, because a manager that refuses the real
    * body while a test's invented body passes is the defect this whole lane started from: the
@@ -106,20 +115,19 @@ export class IsolationManagerClient {
       if (!cur) throw new IsolationError("conflict", `the manager named ${id} to adopt and then did not have it`);
       return { adopted: true, view: cur };
     }
-    throw new IsolationError("refused", `the manager refused to launch ${body.name}: `
-      + `${(r.body && r.body.error) || r.status}`, r.body);
+    throw IsolationManagerClient.#answerError(`the manager did not launch ${body.name}`, r);
   }
 
   async get(id) {
     const r = await this.#req("GET", `/vms/${encodeURIComponent(id)}`);
     if (r.status === 404) return null;
-    if (r.status !== 200) throw new IsolationError("refused", `GET /vms/${id}: ${(r.body && r.body.error) || r.status}`);
+    if (r.status !== 200) throw IsolationManagerClient.#answerError(`GET /vms/${id}`, r);
     return this.#view(r.body);
   }
 
   async list() {
     const r = await this.#req("GET", "/vms");
-    if (r.status !== 200) throw new IsolationError("refused", `GET /vms: ${(r.body && r.body.error) || r.status}`);
+    if (r.status !== 200) throw IsolationManagerClient.#answerError("GET /vms", r);
     const rows = Array.isArray(r.body) ? r.body : (r.body && r.body.vms) || [];
     return rows.map((v) => this.#view(v));
   }
@@ -132,20 +140,34 @@ export class IsolationManagerClient {
   async remove(id) {
     const r = await this.#req("DELETE", `/vms/${encodeURIComponent(id)}`);
     if (r.status === 404) return { removed: false, absent: true };
-    if (r.status !== 200) throw new IsolationError("refused", `DELETE /vms/${id}: ${(r.body && r.body.error) || r.status}`);
+    if (r.status !== 200) throw IsolationManagerClient.#answerError(`DELETE /vms/${id}`, r);
     return { removed: true, absent: false, body: r.body };
   }
 
   async health() {
     const r = await this.#req("GET", "/health");
-    if (r.status !== 200) throw new IsolationError("refused", `GET /health: ${r.status}`);
+    if (r.status !== 200) throw IsolationManagerClient.#answerError("GET /health", r);
     return r.body;
   }
 
-  /** Adoption after a node restart matches on NAME, which every backend carries; never on id shape. */
+  /**
+   * Adoption after a node restart matches on NAME, which every backend carries; never on id shape.
+   *
+   * "Not found" is only an answer when every listed domain HAS a name. A VM the manager recovered without a deployment
+   * identity (an older manager's bare marker after an upgrade: `unattributed`, name null) could be this deployment's,
+   * so while one is listed, a miss is UNKNOWN, never absent: absent would let retire() confirm a running VM gone and
+   * reconcile() start a second one.
+   */
   async findByName(name) {
     const all = await this.list();
-    return all.find((v) => v.name === name) || null;
+    const hit = all.find((v) => v.name === name);
+    if (hit) return hit;
+    const nameless = all.filter((v) => v.unattributed || (v.recovered && !v.name));
+    if (nameless.length) {
+      throw new IsolationError("unavailable", `no domain is named ${name}, but ${nameless.length} VM(s) on this host name no `
+        + `deployment (${nameless.map((v) => v.id).join(", ")}); one of them may be this one, so whether it exists is unknown`);
+    }
+    return null;
   }
 
   #view(v) {
@@ -175,6 +197,8 @@ export class IsolationManagerClient {
       // a domain a RESTARTED manager rebuilt from Hyper-V: alive, and never to serve under that manager
       // (its relay and readiness belonged to the old process). The lifecycle holds it; see reconcile.
       recovered: o.recovered === true,
+      // a recovered VM that names no deployment: see findByName
+      unattributed: o.unattributed === true,
       reason: o.reason ?? null,
     };
   }
@@ -185,9 +209,10 @@ export function instanceAlive(view) {
   return !!view && (view.status === "running" || view.status === "starting");
 }
 
-/** Serving: the manager's own readiness verdict, and only that. */
+/** Serving: the manager's own readiness verdict, and only that. A recovered domain never serves under the manager
+ *  that recovered it, whatever status it shows. */
 export function instanceServing(view) {
-  return !!view && view.status === "running";
+  return !!view && view.status === "running" && !view.recovered;
 }
 
 /**

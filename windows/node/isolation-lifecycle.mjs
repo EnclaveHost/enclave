@@ -73,12 +73,16 @@ export async function reconcile({ client, deployment, ledger = null, deadlineMs 
       view = r.view;
       if (r.adopted) action = "adopted";           // it appeared between our look and our spawn
     } catch (e) {
-      if (e instanceof IsolationError && (e.kind === "timeout" || e.kind === "transport")) {
-        // the spawn may or may not have happened; a retry could double-run it
-        return { action: "held", instance: null, ...HELD(`the launch of ${name} got no answer (${e.message}); `
-          + "the outcome is UNKNOWN, so nothing is retried and the lease is kept - reconcile before repeating it") };
+      // ONLY A REFUSAL (a 4xx) IS AN ANSWER: the manager will not run this, and it never will. Every other outcome is
+      // UNKNOWN and holds (enclave-d1's review of dad939e9, finding 1):
+      //   timeout / transport  the spawn may or may not have happened; a retry could double-run it
+      //   unavailable (5xx)    not surveyed yet, the survey failed, or an unattributed VM exists
+      //   conflict             a 409 said a domain for this name IS live, and it could not then be read
+      //   protocol             the manager answered something this client cannot read
+      if (!(e instanceof IsolationError && e.kind === "refused")) {
+        return { action: "held", instance: null, ...HELD(`the launch of ${name} did not end in a known state `
+          + `(${e.kind || "error"}: ${e.message}); nothing is retried and the lease is kept - reconcile before repeating it`) };
       }
-      // a REFUSAL is an answer: the manager will not run this, and it never will
       return { action: "failed", instance: null, leaseFree: true,
                reason: `the manager refused to run ${name}: ${e.message}` };
     }
