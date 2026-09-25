@@ -62,6 +62,36 @@ revisit.
 The handle is the opaque id and the host only echoes it back. **Cosmetic:** the node's
 "loaded into the enclave as slot N" line now prints that id rather than 1..8.
 
+## (c) Cross-generation id reuse (node ↔ ee-host boundary)
+
+The monotonic id is never reused WITHIN one ee-host process, but the counter resets to 1 every
+time ee-host restarts, so across a process generation the same numbers name different apps.
+Review (Codex) asked whether a stale queued request or old mapping in the node could reach a new
+app under a reused number.
+
+What already existed: on an ee-host restart `agent.mjs`'s `start.host` reconnects and, once the
+port is up, `host.mjs` does `host.apps.clear()` — the old `EnclaveApp` objects (holding stale
+slots) are dropped and the apps are reloaded from the leases with fresh ids. Nothing persists a
+numeric slot (`host-state.json` holds only deployment ids and the blocked set). That is coarse
+invalidation, but it leaves a narrow window: an in-flight request holding a pre-restart
+`EnclaveApp` object could still send its old slot after the new ee-host is up and has reused the
+number.
+
+Closed by construction at the node, which is the sole ee-host client: `agent.mjs` bumps a
+`hostGen` counter on every ee-host (re)start (before the process is even up), each `EnclaveApp`
+records the generation it was opened in, and `handle`/`stop`/`alive` refuse once the app's
+generation is stale — `stop` in particular sends NOTHING (an `appstop`/`appclose` under a reused
+slot would hit the new tenant). So a slot minted in generation N can never be sent in generation
+N+1. Tests: `test/enclave-app-host-generation.test.mjs` (3) — the audit's exact cross-generation
+scenario (A at slot 1 gen 1, restart, B at slot 1 gen 2: A's stale handle/stop reach nothing, B
+serves), backward compatibility when `hostGen` is not wired, and same-generation apps unaffected.
+The mutation that neuters the guard fails that test.
+
+Optional defense-in-depth, NOT implemented here (a note for the owner): ee-host could also mint a
+per-boot epoch, return it from `appopen`, and reject an app-scoped command carrying a stale epoch,
+so the boundary holds even against a node bug. The node guard already makes a stale command
+unsendable by the only client, so this is belt-and-suspenders, not required.
+
 ## (a) Leaked host sockets on trap, and shared tenant ports
 
 A wasi:cli app that traps has its `Store` dropped by `ee_rt_run`, but dropping a

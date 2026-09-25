@@ -213,9 +213,18 @@ export function missingHostInterfaces(file) {
  * this class does is four commands: appabi, appopen, apphandle, appclose.
  */
 export class EnclaveApp {
-  constructor({ id, cwasmPath, hostCmd, log = () => {}, memMb = 0, world = 1, env = {}, port = 0 }) {
+  constructor({ id, cwasmPath, hostCmd, log = () => {}, memMb = 0, world = 1, env = {}, port = 0, hostGen = null }) {
     this.id = id; this.cwasmPath = cwasmPath; this.hostCmd = hostCmd; this.log = log;
     this.memMb = memMb;
+    // The ee-host process generation this app was opened against. ee-host mints app ids (slots)
+    // from 1 on every boot, so a numeric slot is unique only WITHIN one ee-host process; after a
+    // restart the same numbers name different apps. `hostGen()` returns the current generation
+    // (agent.mjs bumps it on every ee-host (re)start), and every app-scoped command below refuses
+    // when this app's generation is stale, so a slot from a dead ee-host can never reach a new one
+    // that has since reused the number. Without this the coarse host.apps.clear() on restart still
+    // leaves a window for an in-flight request holding a pre-restart app object.
+    this.hostGen = typeof hostGen === "function" ? hostGen : null;
+    this.openedGen = null;
     // 1 = enclave:app (this box's own world), 2 = wasi:http (served per request through the gate),
     // 4 = wasi:cli (a SERVER: it binds `port` inside the enclave through the brokered sockets and
     // runs until it is stopped, so the node proxies to that port instead of calling the gate).
@@ -233,6 +242,9 @@ export class EnclaveApp {
     this.log(m);
   }
   logs(n = 200) { return this.lines.slice(-n); }
+  /** The ee-host that minted this app's slot has restarted, so the slot now names a different app
+   *  (or nothing): no app-scoped command may be sent under it. */
+  #stale() { return this.hostGen != null && this.openedGen != null && this.hostGen() !== this.openedGen; }
   /** Load the bytecode into the enclave. The enclave copies it in and answers with a slot. */
   async start() {
     this.state = "starting";
@@ -243,6 +255,7 @@ export class EnclaveApp {
     const [slot, us] = String(r).trim().split(/\s+/);
     this.slot = Number(slot) || 0;
     this.loadUs = Number(us) || 0;
+    this.openedGen = this.hostGen ? this.hostGen() : 0;   // the ee-host generation this slot belongs to
     if (!this.slot) { this.state = "failed"; throw new Error("the enclave did not return an app slot"); }
     const kind = this.world === 4 ? "wasi:cli" : this.world === 2 ? "wasi:http" : "enclave:app";
     this.#say(`loaded into the enclave as slot ${this.slot} in ${(this.loadUs / 1000).toFixed(1)} ms (${kind})`);
@@ -262,7 +275,12 @@ export class EnclaveApp {
     return this;
   }
   async stop() {
-    if (this.slot) {
+    if (this.slot && this.#stale()) {
+      // The enclave restarted: this slot number now belongs to a DIFFERENT app in the new ee-host.
+      // Sending appstop/appclose under it would stop or free that other tenant, so drop it locally
+      // and send nothing. The new instance is reloaded from the lease by host.tick.
+      this.#say("stop: the enclave restarted; not sending a command for a stale slot");
+    } else if (this.slot) {
       try {
         // A running server is asked to STOP first: appstop bumps the runtime's epoch, the guest
         // traps wherever it is and its own thread unwinds and frees. appclose alone would leave
@@ -293,7 +311,7 @@ export class EnclaveApp {
   }
   /** Is it still there? For a server, the port; for a gate-served app, the gate answering at all. */
   async alive() {
-    if (!this.slot) return false;
+    if (!this.slot || this.#stale()) return false;   // a stale-generation app is not this enclave's
     if (this.world === 4) return await this.waitPort(PROBE_MS);
     try { return Number(String(await this.hostCmd("appabi")).split(/\s+/)[0]) >= 1; } catch { return false; }
   }
@@ -304,6 +322,9 @@ export class EnclaveApp {
   async handle({ method = "GET", pathRest = "/", headers = {}, body = Buffer.alloc(0) } = {}) {
     if (!this.slot) return { status: 503, headers: { "content-type": "application/json" },
                              body: Buffer.from(JSON.stringify({ error: "not_loaded", id: this.id })) };
+    if (this.#stale()) return { status: 502, headers: { "content-type": "application/json" },
+                                body: Buffer.from(JSON.stringify({ error: "app_gone", id: this.id,
+                                  reason: "the enclave restarted; this app must be reloaded" })) };
     // A server-shaped app is spoken to over its own socket. The connection is the host's and the
     // bytes cross the broker into the enclave, where the app reads them; nothing goes through the
     // gate, which is why this path carries a whole HTTP request rather than a frame.
