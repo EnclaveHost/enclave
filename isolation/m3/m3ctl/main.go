@@ -41,6 +41,7 @@ func main() {
 	cpu := flag.Int("cpu", 100, "the domain's share of one CPU, in percent")
 	mem := flag.Int("mem", 256, "the domain's memory cap, in MiB")
 	id := flag.Int("id", 0, "the domain to stop or destroy")
+	boot := flag.String("boot", "", "the boot nonce from the domain's load answer (stop and destroy need it: ids restart at 1 on a reboot)")
 	probe := flag.Bool("probe", false, "run the measured adversary probe as this domain's workload")
 	bundle := flag.Bool("bundle", false, "wrap the artifact in a contract bundle (label + policy in the manifest) before loading, so its ID covers the manifest")
 	flag.Parse()
@@ -53,7 +54,7 @@ func main() {
 		os.Exit(2)
 	}
 	if *cid == 0 || len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: m3ctl -cid N [-port 9000] [-id N] [-label A] [-cpu 100] [-mem 256] [-probe] [-bundle] <load <app.wasm> | list | state | stop | destroy>")
+		fmt.Fprintln(os.Stderr, "usage: m3ctl -cid N [-port 9000] [-id N -boot B] [-label A] [-cpu 100] [-mem 256] [-probe] [-bundle] <load <app.wasm> | list | state | stop | destroy>")
 		os.Exit(2)
 	}
 
@@ -84,9 +85,9 @@ func main() {
 	case "state":
 		die(enc.Encode(map[string]any{"cmd": "state"}))
 	case "stop":
-		die(enc.Encode(map[string]any{"cmd": "stop", "id": *id}))
+		die(enc.Encode(map[string]any{"cmd": "stop", "id": *id, "boot": *boot}))
 	case "destroy":
-		die(enc.Encode(map[string]any{"cmd": "destroy", "id": *id}))
+		die(enc.Encode(map[string]any{"cmd": "destroy", "id": *id, "boot": *boot}))
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", args[0])
 		os.Exit(2)

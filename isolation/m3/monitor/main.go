@@ -36,6 +36,7 @@ package main
 
 import (
 	"bufio"
+	crand "crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -96,6 +97,9 @@ type domain struct {
 	// states it at load. There is no SNP HOST_DATA on a Hyper-V partition, so this is the launcher's word, which is
 	// honest only because the launcher is inside this tier's trust boundary already (T0-hv). Empty: no name.
 	Name string `json:"name,omitempty"`
+	// Boot is the monitor's per-boot nonce (see monitor.boot). Ids restart at 1 when the guest reboots, so an id alone
+	// cannot say WHICH boot's domain it means; (boot, id) can. stop and destroy must name both.
+	Boot string `json:"boot"`
 
 	dir     string
 	cgroup  string
@@ -166,6 +170,12 @@ type monitor struct {
 	tsmMu     sync.Mutex    // one configfs entry at a time
 	reports   chan struct{} // global admission for report work
 	refusals  chan struct{} // separate, small budget for politely closing refused callers
+	// boot: 128 random bits minted when this monitor starts, returned in every load, list and state answer, and
+	// REQUIRED on stop and destroy (enclave-63's G1). Domain ids are never reused within a boot, but they restart at
+	// 1 after a reboot (and this kernel reboots when PID 1 dies: CONFIG_PANIC_TIMEOUT=-1), so a host holding "domain 3"
+	// from an earlier boot would otherwise act on whatever the new boot numbered 3. It is not a secret and not
+	// authentication: it only makes a stale reference fail as "rebooted" instead of landing on the wrong domain.
+	boot string
 }
 
 var errNoHardwareReport = errors.New("no hardware report on this tier")
@@ -216,6 +226,8 @@ func main() {
 		_ = syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
 		os.Exit(1)
 	}
+	// the boot nonce on its own line (the ready line's shape is parsed elsewhere): a reboot shows up in the log as a new one
+	fmt.Printf("MON boot %s\n", m.boot)
 	fmt.Printf("MON ready control_port=%d snp=%v transport=%s\n", *control, m.snp, transport)
 	slots := make(chan struct{}, maxControlConns)
 	for {
@@ -237,10 +249,20 @@ func main() {
 	}
 }
 
+// newBoot mints the per-boot nonce. getrandom blocks until the kernel's pool is ready and does not fail after that, so
+// a failure here means the guest cannot mint anything unpredictable, and it must not serve.
+func newBoot() string {
+	var b [16]byte
+	if _, err := crand.Read(b[:]); err != nil {
+		panic("MON cannot mint a boot nonce: " + err.Error())
+	}
+	return hex.EncodeToString(b[:])
+}
+
 func newMonitor(snp bool, plat, root string, basePort uint32, baseUID int) *monitor {
 	m := &monitor{doms: map[int]*domain{}, byUID: map[int]*domain{}, next: 1, snp: snp,
 		plat: plat, root: root, basePrt: basePort, baseUID: baseUID,
-		reports: make(chan struct{}, maxReportsTotal), refusals: make(chan struct{}, maxRefusals)}
+		reports: make(chan struct{}, maxReportsTotal), refusals: make(chan struct{}, maxRefusals), boot: newBoot()}
 	m.report = m.tsmReport
 	m.tier, m.format = contract.TierSNP, contract.FormatSNP
 	return m
@@ -258,6 +280,8 @@ type request struct {
 	CPU    int    `json:"cpu"`
 	MemMiB int    `json:"mem"`
 	ID     int    `json:"id"`
+	// Boot: stop and destroy must carry the "boot" of the domain's load answer; see monitor.boot.
+	Boot string `json:"boot"`
 	// Probe runs the measured adversary probe (/plat/domprobe) as this domain's workload instead of the
 	// runtime and front. It stands in for a tenant whose runtime has been compromised: native code with
 	// the domain's uid and namespaces, trying to reach other domains and the monitor. The host can only
@@ -290,16 +314,24 @@ func (m *monitor) serveControl(c net.Conn) {
 			}
 			enc.Encode(d)
 		case "list":
-			enc.Encode(map[string]any{"domains": m.snapshot()})
+			enc.Encode(map[string]any{"domains": m.snapshot(), "boot": m.boot})
 		case "state":
 			enc.Encode(m.state())
 		case "stop":
+			if refusal := m.otherBoot(req.Boot); refusal != nil {
+				enc.Encode(refusal)
+				continue
+			}
 			if err := m.stop(req.ID); err != nil {
 				enc.Encode(map[string]string{"error": err.Error()})
 				continue
 			}
 			enc.Encode(map[string]any{"stopped": req.ID})
 		case "destroy":
+			if refusal := m.otherBoot(req.Boot); refusal != nil {
+				enc.Encode(refusal)
+				continue
+			}
 			if err := m.destroy(req.ID); err != nil {
 				enc.Encode(map[string]string{"error": err.Error()})
 				continue
@@ -309,6 +341,22 @@ func (m *monitor) serveControl(c net.Conn) {
 			enc.Encode(map[string]string{"error": "unknown command " + req.Cmd})
 		}
 	}
+}
+
+// otherBoot refuses a stop or destroy that does not name THIS boot, touching nothing. No boot at all is refused
+// too: accepting a bare id is exactly the ambiguity the nonce exists to remove. A mismatch answers `rebooted`, a
+// distinct field the host reads as a KNOWN fact (every domain of the boot it named is gone), never as an error to
+// retry; `boot` tells it which boot is running now.
+func (m *monitor) otherBoot(b string) map[string]any {
+	if b == "" {
+		return map[string]any{"error": "stop and destroy name the boot as well as the id: send the \"boot\" from the " +
+			"domain's load answer (ids restart at 1 when the guest reboots)", "bootRequired": true}
+	}
+	if b != m.boot {
+		return map[string]any{"error": "this guest has rebooted since boot " + b + ": every domain of that boot is " +
+			"gone, and nothing here was touched", "rebooted": true, "boot": m.boot}
+	}
+	return nil
 }
 
 // readLine reads one newline-terminated command, refusing anything longer than the cap rather than
@@ -371,7 +419,7 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	if manifest != nil && manifest.World == contract.WorldCLI {
 		mode, httpPort = "run", manifest.HTTP
 	}
-	d := &domain{ID: id, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
+	d := &domain{ID: id, Boot: m.boot, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
 		Port: m.basePrt + uint32(id), UID: m.baseUID + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
 		probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
@@ -801,7 +849,7 @@ func (m *monitor) state() map[string]any {
 	n := len(m.doms)
 	m.mu.Unlock()
 	return map[string]any{"domains": n, "dirs": names, "cgroups": cgroups, "mounts": mounts,
-		"userspace_procs": procs, "mem_total_mib": memTotal, "mem_available_mib": memAvail}
+		"userspace_procs": procs, "mem_total_mib": memTotal, "mem_available_mib": memAvail, "boot": m.boot}
 }
 
 // --- reports ------------------------------------------------------------------------------------

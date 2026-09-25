@@ -42,7 +42,9 @@ export class KvmBackend {
       const tcpPort = this.portBase + (cid % 100) * 10 + (ans.id % 10);
       const relay = spawn("python3", ["-u", HVLAB, "relay", String(cid), String(ans.port), String(tcpPort)], { stdio: "ignore" });
       await new Promise((res) => setTimeout(res, 400));
-      this.live.set(instanceId, { cid, domainId: ans.id, relay });
+      // the monitor names its domains by (boot, id): the id alone restarts at 1 on a guest reboot
+      if (!/^[0-9a-f]{32}$/.test(String(ans.boot || ""))) throw new Error(`the monitor's load answer for guest ${cid} carries no boot nonce`);
+      this.live.set(instanceId, { cid, domainId: ans.id, boot: ans.boot, relay });
       return { name: instanceId, vmId: `hvlab-cid-${cid}`, appId: mapping.appId, tcpPort, guestPort: ans.port,
                image: this.image, launcherKey: this.launcherKey, guest: { booted: true }, boundary: this._boundary };
     } catch (e) { this.free.unshift(cid); throw e; }
@@ -53,7 +55,7 @@ export class KvmBackend {
     if (!l) return { stopped: false, reason: "no such instance here" };
     // a destroy the monitor did not confirm leaves the domain possibly RUNNING: say so, as the manager's defect-5
     // rule requires of a backend, and keep it listed rather than handing the guest to the next start
-    try { execFileSync("python3", [HVLAB, "destroy", String(l.cid), String(l.domainId)], { stdio: ["ignore", "pipe", "pipe"] }); }
+    try { execFileSync("python3", [HVLAB, "destroy", String(l.cid), String(l.domainId), String(l.boot)], { stdio: ["ignore", "pipe", "pipe"] }); }
     catch (e) { throw new Error(`the monitor did not confirm destroying domain ${l.domainId} in guest ${l.cid}: ${String(e.stderr || e.message).trim()}`); }
     try { l.relay.kill(); } catch {}
     this.live.delete(id);
