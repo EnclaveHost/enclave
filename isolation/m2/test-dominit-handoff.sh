@@ -63,4 +63,12 @@ int main(void) {
 EOF
 cp "$here/dominit.c" "$d/"
 gcc -O2 -Wall -Wextra -Wno-unused-function -o "$d/h" "$d/h.c"
-"$d/h" && echo "dominit handoff: PASS"
+"$d/h" && echo "dominit handoff (glibc): PASS"
+# ...and against the libc the IMAGE's init links: musl (app-image-template.sh), when its prefix exists
+MUSL=${MUSL_PREFIX:-$HOME/.cache/enclave-isolation/musl-1.2.6}
+if [ -r "$MUSL/lib/musl-gcc.specs" ]; then
+  /usr/bin/gcc -specs "$MUSL/lib/musl-gcc.specs" -static -O2 -Wall -Wextra -Wno-unused-function -o "$d/hm" "$d/h.c"
+  "$d/hm" && echo "dominit handoff (musl, as the image links it): PASS"
+else
+  echo "dominit handoff (musl): SKIPPED, no musl at $MUSL (sh isolation/m2/build-musl.sh)"
+fi

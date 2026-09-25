@@ -11,7 +11,20 @@ m2=$here/../m2
 t=${1:?usage: app-image-template.sh <dir>}
 if [ -e "$t" ] && [ -n "$(ls -A "$t")" ]; then echo "app-image-template.sh: $t is not empty" >&2; exit 2; fi
 mkdir -p "$t"
-gcc -static -O2 -o "$t/init" "$m2/dominit.c"
+# init links musl (MIT), never glibc (Codex, 2026-09-25): musl built by m2/build-musl.sh from a pinned, signature-checked
+# source into this user's cache, compiled with the host's /usr/bin/gcc named explicitly (the image's init bytes are a
+# function of both; a change in either fails the install's reproduction gate, closed). Besides musl, the link takes only
+# GCC's crtbeginS.o/crtendS.o (GCC Runtime Library Exception). The predictor never rebuilds init: it reads the
+# release's own template (assemble-app-image.sh copies it as it is).
+MUSL=${MUSL_PREFIX:-$HOME/.cache/enclave-isolation/musl-1.2.6}
+[ -r "$MUSL/lib/musl-gcc.specs" ] && [ -r "$MUSL/lib/libc.a" ] || {
+  echo "app-image-template.sh: no musl at $MUSL (build it with: sh isolation/m2/build-musl.sh)" >&2; exit 2; }
+/usr/bin/gcc -specs "$MUSL/lib/musl-gcc.specs" -static -O2 -o "$t/init" "$m2/dominit.c"
+# ...and it IS a static musl binary: no program interpreter, no shared library, nothing of glibc
+if readelf -lW "$t/init" | grep -q INTERP || readelf -dW "$t/init" | grep -q "(NEEDED)" \
+   || strings -a "$t/init" | grep -qiE "glibc|GLIBC_"; then
+  echo "app-image-template.sh: $t/init is not a static musl binary; refusing" >&2; exit 2
+fi
 # static and byte-reproducible for a given Go toolchain, so the measurement is predictable. GOFLAGS is CLEARED: a caller's
 # environment must never decide what the measured front is (a lab's -tags releaselab reaching a production guestd would
 # build lab fronts; enclave-99). A LAB front is asked for by name, ISOLATION_LAB_FRONT=1, and only builds with the lab
