@@ -243,6 +243,10 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
      the standalone canary's `0160d835`). hvlab-accept (28 checks) and restart-accept A0-A9 ALL PASS, with every input
      hashed at use (tree list `842ba056`). This is NOT an eligibility promotion (enclave-63's rollover rule and
      enclave-99's review) and NOT host exclusion. Production attach and respawn (OFF) are unchanged.
+   - HELD (d1, 09:57Z): the rollover to `b7ba7731`. It needs enclave-99's verification review, then Steven's explicit
+     decision; a peer GO does not settle it. v38 (windows/vbslike-pkg `0f328a18`, id `88c18259`) records 094631 only:
+     vbsLinux's firmware stays `a44bb55a`. v38 is staged at `pkg\88c18259137a5ba1\` (staged.json `437e817d`,
+     check -Fetch and -SelfTest 9/9 PASS by enclave-63; d1 re-hashed the manifest and IGVMs on the box at 10:06:03Z).
    - OPEN (with Steven, via enclave-5d): stat-only root-namespace existence statements and printed probe targets.
      PASS for the neighbour acceptance needs them.
    - RULED (enclave-99's contract, main `de2a9f66`, "What the launcher's signature binds: the PARTITION, not a domain"):
