@@ -70,8 +70,8 @@ param(
   # THE MEASURED GUEST (enclave-53's Linux-VTL0 candidate): the paravisor loads our kernel, initrd and VTL0 command
   # line from INSIDE the IGVM, where they are measured, instead of UEFI booting an unmeasured medium. So there is no
   # medium at all: -Iso is refused, nothing is attached for UEFI, and the IGVM's own digest is the guest's identity.
-  # Built for the VBS config only (type 1). App serving is refused for now: wmiserve binds its report to a MEDIUM
-  # hash, and here the identity is the IGVM digest, which wmiserve does not yet carry.
+  # Built for the VBS config only (type 1). An app is served with wmiserve's --igvm-sha256 (the IGVM FILE's hash
+  # as the guest image, partition "wmi-openhcl-gen2-igvm-linux"): launcher builds from the commit that added it.
   [switch] $LinuxDirect,
   # THE INVERSE CONTROL for Windows' firmware-load requirement: run WITHOUT applying AllowFirmwareLoadFromFile, so
   # the first observable says whether Hyper-V loads this firmware file without the developer setting at all.
@@ -214,7 +214,6 @@ $APPS = @('e64f7cba','d9798e4c','a77d0c57','7ae476a3','a69dcbba','c34499ee')
 if ($LinuxDirect) {
   if ($Iso -or $IsoSha256) { throw "-LinuxDirect boots the kernel INSIDE the measured IGVM: no medium may be attached (-Iso must be empty)" }
   if ($IsolationType -ne 1) { throw "-LinuxDirect is built for the VBS config only: use -IsolationType 1" }
-  if ($Bundle) { throw "-LinuxDirect cannot serve an app yet: wmiserve binds its report to a MEDIUM hash, and here the identity is the IGVM digest" }
 } elseif (-not $Iso -or -not $IsoSha256) { throw "-Iso and -IsoSha256 are required (or -LinuxDirect for a measured Linux-VTL0 IGVM)" }
 
 # ONE RUN AT A TIME, ENFORCED - and checked BEFORE self-heal, which it protects.
@@ -744,7 +743,9 @@ try {
         Note "loading $Bundle (sha $($bsha.Substring(0,16))) through hv_sock ..."
         $svOut = "C:\Users\claude\wmiserve-$stamp.out"
         $sv = Start-Process -FilePath 'C:\Users\claude\vbs-like\target\release\vbslike-host.exe' `
-              -ArgumentList @('wmiserve','--vm',$vmId,'--bundle',$Bundle,'--medium-sha256',$attachedSha,
+              -ArgumentList @('wmiserve','--vm',$vmId,'--bundle',$Bundle,
+                              $(if ($LinuxDirect) { '--igvm-sha256' } else { '--medium-sha256' }),
+                              $(if ($LinuxDirect) { $FirmwareSha256.ToLower() } else { $attachedSha }),
                               '--tcp',"$RelayPort",'--label','canary','--vcpus',"$Vcpus",'--mem',"$MemMiB",
                               '--isolation-type',"$IsolationType",'--hold','90') `
               -NoNewWindow -PassThru -RedirectStandardOutput $svOut -RedirectStandardError "$svOut.err" `
