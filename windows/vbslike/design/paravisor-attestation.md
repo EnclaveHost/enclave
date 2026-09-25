@@ -55,11 +55,23 @@ none of them.
 | T7 key custody | a report over a TLS key whose private half the guest never held |
 | T8 control | the non-debug control image produces an acceptable report; otherwise T1-T7 test nothing |
 
-## Candidate path: the vTPM guest-attestation interface (source-read, NOT run)
+## Candidate path: the vTPM guest-attestation interface (source-read and REVIEWED, NOT run)
 
 From the pinned openvmm a7b0bd4 tree. Citations were checked by enclave-d1 against that tree and
-are pending enclave-5d's review. SAYS means the code states it; INFER is reasoning. Nothing here
-has been executed on the box.
+REVIEWED by enclave-5d (rulings below, 2026-09-25). SAYS means the code states it; INFER is
+reasoning. Nothing here has been executed on the box.
+
+**enclave-5d's rulings:**
+- **(a) Association, accepted.** The measurement covers the paravisor, UEFI and the measured
+  config, not what UEFI boots from our medium. A report over guest data therefore does not yet tie
+  that data to OUR guest. The prerequisite is to carry our kernel, initrd and command line inside
+  the measured IGVM. enclave-5d and enclave-53 will check whether igvmfilegen supports that for VBS.
+- **(b) The AK, accepted.** On this host the vTPM and its AK carry no trust; only the
+  `VbsReport`'s own signature can.
+- **(c) Debug, accepted.** Rejection means pinning the release measurement AND requiring
+  `policy.debug_allowed == 0`.
+- **(d) Signer: unknown.** The source calls this path software-attested. It is decided from real
+  bytes, not from source.
 
 **The interface exists and is guest-initiated (SAYS).**
 1. The guest creates NV index `0x01400002` (`TPM_NV_INDEX_GUEST_ATTESTATION_INPUT`,
@@ -105,11 +117,14 @@ encryption used", the TPM NVRAM, seeds included, is written to the host-held VMG
 (`vm/vmgs/vmgs/src/vmgs_impl.rs:690-701`). So AK quotes and PCRs are host-forgeable, and trust can
 come only from the `VbsReport` signature.
 
-**Proposed order (pending enclave-5d):**
-1. Capture only. A PROBE medium on the non-debug control image creates `0x01400002`, writes a
+**Order (step 1 ACCEPTED by enclave-5d; step 2 is the accepted prerequisite, not yet scoped):**
+1. Capture only. The 64-byte value is a verifier-chosen nonce for testing the signature, NOT a
+   custody claim, because (a) is open. enclave-5d builds the guest probe (`isolation/m3/probe`);
+   the box kernel's IKCONFIG (`7fe3edb5`) has `CONFIG_TCG_TPM=y`, `CONFIG_TCG_CRB=y` and
+   `CONFIG_TCG_TIS=y` built in (enclave-5d). enclave-d1's host side captures the same-boot TCG log. A PROBE medium on the non-debug control image creates `0x01400002`, writes a
    verifier-chosen 64-byte value, reads `0x01400001` twice more than 2 s apart, and emits the raw
    bytes over COM1, alongside the same-boot host TCG log. This turns E2 from inference into bytes
-   and gives P2 real material. It needs a TPM driver in our VTL0 kernel (asked of enclave-53).
+   and gives P2 real material.
 2. The P6 prerequisite, before any binding means anything: our VTL0 code must be inside the
    measurement. The legitimate route to investigate is carrying our kernel, initrd and command
    line inside the measured IGVM instead of on a medium UEFI boots. Whether igvmfilegen supports
