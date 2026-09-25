@@ -110,6 +110,8 @@ export async function startLeaseChain({ port = 18545 + Math.floor(Math.random() 
       return ev.args.id;
     },
     claim: (id, enclaveId, from = operator) => send(from, ledger, "EnclaveDeployments", "claim", [id, enclaveId]),
+    deregister: (enclaveId, from = operator) => send(from, registry, "EnclaveRegistry", "deregister", [enclaveId]),   // the entry goes inactive; its proof key stays
+    setActive: (id, active, from = tenant) => send(from, ledger, "EnclaveDeployments", "setActive", [id, active]),    // the owner's switch; the runner stays
     async anchor() { const b = await pub.getBlock(); return { anchorBlock: Number(b.number) - 1, anchorHash: b.parentHash }; },
     async advance(seconds) { await pub.request({ method: "evm_increaseTime", params: [seconds] }); await pub.request({ method: "evm_mine", params: [] }); },
     now: async () => Number((await pub.getBlock()).timestamp),

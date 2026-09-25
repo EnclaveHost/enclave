@@ -28,14 +28,20 @@ const askVm = (port, line) => new Promise((resolve, reject) => {
 
 // POST /evidence -> the VM's evidence port, like cpu/web-carrier.mjs; `state.mode` turns it hostile
 function startCarrier(vm) {
-  const state = { mode: "honest", target: vm, last: null, lines: [] };
+  const state = { mode: "honest", target: vm, last: null, lastStatement: null, lines: [] };
   const srv = http.createServer((req, res) => {
     let body = ""; req.on("data", (d) => (body += d));
     req.on("end", async () => {
       const line = body.trim(); state.lines.push(line);
       if (state.mode === "503") { res.writeHead(503); return res.end(); }
-      const ans = await askVm(state.target.evidencePort, line);
+      // swap-anchor: the VM is asked to sign another anchor hash than the agent's (a genuine signature for the same upto and block)
+      const fwd = state.mode === "swap-anchor" && line.startsWith("CHECKPOINT") ? line.replace(/ [0-9a-f]{64}$/, " " + "ab".repeat(32)) : line;
+      const ans = await askVm(state.target.evidencePort, fwd);
       let out = ans;
+      if (line.startsWith("PROOFKEY")) {   // replay-statement: the previous, genuine statement for a new nonce
+        if (state.mode === "replay-statement" && state.lastStatement) out = state.lastStatement;
+        else if (!/"error"/.test(ans)) state.lastStatement = ans;
+      }
       if (line.startsWith("CHECKPOINT")) {
         if (state.mode === "replay" && state.last) out = state.last;   // the VM signed the new request; the carrier hands back the old answer
         if (!/"error"/.test(ans)) state.last = ans;
@@ -208,6 +214,36 @@ test("the lease and the key decide whether the VM is asked at all: not our lease
   } finally { if (agent) agent.close(); S.stop(); }
 });
 
+test("the registry entry and the deployment must be LIVE: a deregistered entry and an inactive deployment each stop the agent before the VM is asked (the prover checks neither)",
+     { skip, timeout: 120000 }, async () => {
+  const S = await setup();
+  let agent;
+  try {
+    agent = await S.agentOf();
+    await agent.start();
+    await S.later();
+    assert.equal((await agent.tick()).kind, "landed");
+    const n0 = await S.nonceOf(), asked0 = S.checkpointsAsked();
+    // the tenant switches the deployment off (the runner and the lease stay on the row)
+    await S.chain.setActive(S.D, false); await S.later();
+    const a = await agent.tick();
+    assert.equal(a.kind, "inactive", JSON.stringify(a));
+    await S.chain.setActive(S.D, true); await S.later();
+    assert.equal((await agent.tick()).kind, "landed", "switched back on, it proves again");
+    const n1 = await S.nonceOf(), asked1 = S.checkpointsAsked();
+    // the operator deregisters the entry (its proof key stays published, and the prover would still accept it)
+    await S.chain.deregister(S.enclaveId); await S.later();
+    const n2 = await S.nonceOf();   // after the operator's own deregister transaction
+    assert.equal(n2, n1 + 1);
+    const b = await agent.tick();
+    assert.equal(b.kind, "registry-mismatch", JSON.stringify(b));
+    assert.equal(S.checkpointsAsked(), asked1, "no proof is asked for an inactive entry");
+    assert.equal(await S.nonceOf(), n2, "and nothing is sent");
+    assert.equal(S.checkpointsAsked() - asked0, 1, "exactly one ask across both refusals: the landing in between");
+    assert.equal(n1, n0 + 1);
+  } finally { if (agent) agent.close(); S.stop(); }
+});
+
 test("the owner's fee cap: a base fee above it means no proof is asked for and nothing is sent", { skip, timeout: 120000 }, async () => {
   const S = await setup();
   let agent;
@@ -247,10 +283,27 @@ test("a hostile carrier: a replayed (genuine) checkpoint, another VM's signature
     assert.equal(b.kind, "checkpoint-refused", JSON.stringify(b));
     assert.match(b.reason, /is signed by 0x[0-9a-f]{40}, not the attested proof key/);
     assert.match(b.reattested, /^failed: .*not one bound/);
+    // a replayed STATEMENT (the previous genuine one, for another nonce) when the agent re-attests: refused at the nonce, so a
+    // statement for a key the VM may no longer hold can never keep the agent attesting it (the agent's nonce is fresh each time)
+    S.carrier.state.target = S.vm; S.carrier.state.mode = "honest";
+    assert.equal((await agent.attest()).ok, true, "an honest attestation first (the carrier keeps it)");
+    S.carrier.state.mode = "replay-statement"; S.clock.t += 3601_000; await S.later(100);   // past attestEverySec: the tick re-attests
+    const asked0 = S.checkpointsAsked();
+    const r1 = await agent.tick();
+    assert.equal(r1.kind, "attest-failed", JSON.stringify(r1));
+    assert.match(r1.reason, /another nonce/);
+    assert.equal(S.checkpointsAsked(), asked0, "no proof is asked for on a replayed statement");
+    // the anchor swapped: a GENUINE VM signature for the same (upto, anchorBlock) over another anchor hash -- refused before simulate
+    S.carrier.state.mode = "honest"; assert.equal((await agent.attest()).ok, true);
+    S.carrier.state.mode = "swap-anchor"; await S.later(100);
+    const r2 = await agent.tick();
+    assert.equal(r2.kind, "checkpoint-refused", JSON.stringify(r2));
+    assert.match(r2.reason, /not the one asked for .*replayed or crossed/);
     // the relay refuses: a plain status, no evidence
-    S.carrier.state.target = S.vm; S.carrier.state.mode = "503"; await S.later(100);
+    S.carrier.state.mode = "503"; await S.later(100);
     const c = await agent.tick();
-    assert.equal(c.kind, "attest-failed", JSON.stringify(c));   // attestation was dropped by the failed re-attest; the carrier's 503 is what it met
+    assert.ok(["carrier-failed", "attest-failed"].includes(c.kind), JSON.stringify(c));   // the carrier's 503, at whichever request it met first
+    assert.match(c.reason, /carrier answered 503/);
     S.carrier.state.mode = "honest";
     // the VM refusing in its own words: its app is not serving
     S.vm.setServing(false); await S.later(100);
