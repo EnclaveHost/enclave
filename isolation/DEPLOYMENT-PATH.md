@@ -55,6 +55,20 @@ a canary's recreate after a crash. It still adopts the guests that are running.
   OVERCOMMITTED after the restart. Nothing is killed, but nothing is admitted until guests end.
 - warden-host is shared (32 threads, 125 GiB). B is the operator's choice of what guests may take, not the host's size.
 - Rollback: the previous binary. The flags are unknown to it, so drop them too.
+- The node's supervisor mirrors the pool (`supervisor.js`, `nodeSpec`/`guestPoolRefusal`; only with ISOLATION_BACKEND).
+  A supervisor with it CLAIMS NOTHING from a guestd without a pool ("reports no guest pool"), so guestd goes first.
+- What changes in the node's `/availability` and `/v1/pricing` on the tier:
+  - `nodeRamGb`/`nodeVcpus` are the pool's budget B, not the control CVM's 6 GiB / 4 vCPU. So "1% of the node" is
+    1% of B, and relay quotes and the fleet's `cheapest` ask change meaning on this host.
+  - The posted price (SELL_CPU_PRICE6, 834 by default) and every app's cap are unchanged. App minimums are unchanged,
+    so a 128 MB app still needs 1%, and 1% × 834 = 8.34 µUSDC/s stays under a69dcbba's 9
+    (`test/isolation-guest-pool.test.mjs` pins it).
+  - `cpuShareFree` is the smaller of the share ledger and the pool's free fraction, and 0 unless one smallest guest
+    (1792 MiB) still fits.
+  - `guestPool` states the pool's ledger as RESERVATIONS, separate from any utilization.
+  - A claim is refused when the app's guest does not fit by its reservation, whatever share it bought. A share is priced
+    against B while its guest reserves R (a 128 MB app: 1% of B vs ~1792 MiB). That gap is the operator's pricing
+    question, not a correctness one.
 
 ## The vehicle: one SNP guest per app (M4a), not planes (M4b)
 
