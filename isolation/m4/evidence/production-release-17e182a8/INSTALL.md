@@ -1,3 +1,7 @@
+> **Superseded FOR THE NEXT TREE SWITCH by 79c5ecf2 (aa6c985c, init links musl), 2026-09-25.** a4f22748 is
+> installed and is production guestd's -isolation tree since 4d; it stays live, and the rollback, until enclave-63's
+> reviewed switch. See `../production-release-aa6c985c/`.
+
 # Installing release a4f22748: what goes where, the 4d flags, the pins, the rollback
 
 For enclave-63's guarded rollout scripts (rows 4-10 of GUEST-POOL-ROLLOUT.md). This is a description, not a script.
