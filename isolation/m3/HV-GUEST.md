@@ -15,11 +15,12 @@ root partition (tier `T0-hv`), and the host is **not** excluded. The best verdic
 Kernel command line: `console=ttyS0 rdinit=/init loglevel=3 report_host=9001`. The console then shows
 
 ```
-MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no
+MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no
 MON ready control_port=9000 snp=false
 ```
 
-(`partition=hcs-child` is fixed text in report-host mode; it prints on a local KVM run too.)
+(No partition kind: the guest cannot tell an HCS child from a UEFI/OpenHCL partition or a KVM test guest, so the
+launcher states the kind in the report it signs. Initrds before 2026-09-25 printed a fixed `partition=hcs-child`.)
 
 ## Channels (vsock ports; hv_sock service ids `<port>-facb-11e6-bd58-64006a7986d3` on Hyper-V)
 
