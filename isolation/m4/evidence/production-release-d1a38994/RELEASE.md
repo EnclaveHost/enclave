@@ -46,3 +46,17 @@ Decision for this release: do not widen the measured code. Record it per app bef
 - **d9798e4c, a77d0c57.** They carry config and no staged secrets, per enclave-99's read-only check of 2026-09-25.
   Confirm this at S5 (the per-app secret inventory).
 - An app that needs env secrets waits for a later release that adds them to the init message.
+- **Also check at S5, per app** (enclave-d1): no staged secret's NAME may equal one of the app's own template tokens
+  (a69dcbba's config also carries `$prompt`, `$user`, `$cmd`, `$content`, `$factor`, `$image`, `$size`). A secret with
+  such a name would replace the app's variable. That is parity with the standard runtime, but it takes one grep.
+
+## Reviews
+- **enclave-d1: APPROVED d1a38994 and release 31d117a9.** d1 reproduced the release independently: a clean worktree
+  at d1a38994, a fresh GOCACHE, GOFLAGS and ISOLATION_LAB_FRONT unset, `verify --expect` passing 15 files, byte-identical
+  to this artifact. d1's own mutant (the Host appended) is caught. The parity decision holds, with a69dcbba's config
+  re-fetched and re-checked by d1.
+- The image diff 0181bce3..aff21c73: enclave-d1 signed it off, with the one should-fix that d1a38994 is. That covers
+  936ce3fe, 0e9a6f08, 666674d7, 891f7eb6, 020f76e7, 5cb4389c, 8cc27b04, 5b41db37 (all four root PEMs genuine, DER
+  sha256 = RootFingerprints), 63b2b276 and aef54ff7 (unreachable on SNP: dominit never passes -cert-name-file),
+  aeb3d328 (the should-fix), dominit's config handoff, and an unchanged go.mod/go.sum.
+- enclave-99's sign-off of the image diff: pending.
