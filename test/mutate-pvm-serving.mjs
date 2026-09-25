@@ -14,11 +14,12 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SUITES = { api: "test/api-relay-pvm-serving.test.mjs", hub: "test/pvm-relay-serving.test.mjs", resolver: "test/pvm-runner-resolver.test.mjs" };
+const SUITES = { api: "test/api-relay-pvm-serving.test.mjs", hub: "test/pvm-relay-serving.test.mjs", resolver: "test/pvm-runner-resolver.test.mjs", u7: "test/pvm-u7-integration.test.mjs" };
 const T = {   // the tests, by a distinctive part of their titles
   off: "PVM_SERVING OFF (the default)", lazy: "OFF carries no new code", bare: "PVM_SERVING ON without its configuration",
   on: "PVM_SERVING ON and configured: the ledger runner only", hung: "a ledger that never answers", hub: "the relay's wiring on the REAL hub",
   boot: "the BOOTSTRAP route on the REAL hub", route: "carrierRoute: only the EXACT raw routes",
+  u7: "the pVM carrier inside U7, through the REAL api-relay", preload: "the lab-root preload is TEST-ONLY",
   // the carrier's own resolver (pvm-serving.mjs pvmRunnerResolver; enclave-99's refusals)
   rTier: "routed: the ledger's live runner", rCanon: "a full canonical id only", rMiss: "a miss gets exactly ONE fresh ledger read",
   rFail: "a ledger read that fails is NO route", rLapse: "a lease that lapses mid-session", rHub: "only the hub's avf tunnel for THAT runner",
@@ -64,6 +65,12 @@ const MUTATIONS = [
   ["M34", "the carve-out claims any /x segment, not a canonical id", PS, [["/^\\/x\\/(0x[0-9a-f]{64})\\/pvm\\/(evidence|sealed)$/", "/^\\/x\\/([^/]+)\\/pvm\\/(evidence|sealed)$/"]], "hub", T.route],
   ["M35", "the carve-out matches case-insensitively", PS, [["(evidence|sealed)$/.exec(raw)", "(evidence|sealed)$/i.exec(raw)"]], "hub", T.route],
   ["M36", "the carve-out judges the DECODED path, not the raw one", PS, [["  const raw = String(req.url || \"\");", "  const raw = decodeURIComponent(String(req.url || \"\"));"]], "hub", T.route],
+  // inside U7, through the REAL api-relay (test/pvm-u7-integration.test.mjs), and the test-only lab-root preload
+  ["U01", "the carrier forwards the caller's headers to the VM", PS, [["      sock.push(Buffer.concat(inb));", "      sock.push(Buffer.concat([Buffer.from(JSON.stringify(req.headers) + \"\\n\"), ...inb]));"]], "u7", T.u7],
+  ["U02", "carrier answers set a cookie", PS, [["const CARRIER_HEADERS = { \"cache-control\": \"no-store\",", "const CARRIER_HEADERS = { \"set-cookie\": \"s=1\", \"cache-control\": \"no-store\","]], "u7", T.u7],
+  ["U03", "the preload loads without a well-formed pin", "test/fixtures/avf-lab-root-preload.mjs", [["if (!/^[0-9a-f]{64}$/.test(pin)) throw", "if (false) throw"]], "u7", T.preload],
+  ["U04", "the preload REPLACES the production pins", "test/fixtures/avf-lab-root-preload.mjs", [["GOOGLE_ATTESTATION_ROOT_SHA256.set(\"test-lab-root\", pin);", "GOOGLE_ATTESTATION_ROOT_SHA256.clear(); GOOGLE_ATTESTATION_ROOT_SHA256.set(\"test-lab-root\", pin);"]], "u7", T.preload],
+  ["U05", "a deploy path references the test-only preload", "relay/deploy.sh", [["#!/usr/bin/env bash\n", "#!/usr/bin/env bash\n# node --import ../test/fixtures/avf-lab-root-preload.mjs api-relay.js\n"]], "u7", T.preload],
   ["M37", "carrier answers lose the sandbox CSP", PS, [[", \"content-security-policy\": \"sandbox; default-src 'none'\" };", " };"]], "api", T.bare],
   ["M20", "the hub pairs app and runtime (not the cross product)", TJ, [["        t.pvmApp = { appId: app, runtimeId: v.runtimeId,", "        if (policy.appIds.indexOf(app) !== policy.runtimeIds.indexOf(v.runtimeId)) return reply(false, [\"paired\"]);\n        t.pvmApp = { appId: app, runtimeId: v.runtimeId,"]], "hub", T.hub],
 ];

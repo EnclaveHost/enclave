@@ -209,7 +209,9 @@ test("PVM_SERVING ON and configured: the ledger runner only -- an ordinary app's
   const drain = async (h, dep = ID("98")) => { let n = 0; while (n < 80 && (await post(dep, "evidence", undefined, h)).status !== 429) n++; return n; };
   const nA = await drain(as("198.51.100.7", "10.0.0.1"));
   assert.ok(nA >= 29 && nA <= 36, `one client: its own bucket of 30 (+ refill) -- ${nA}`);
-  assert.equal((await post(ID("98"), "evidence", undefined, as("198.51.100.7", "192.0.2.200"))).status, 429, "another first entry, same last hop: the same client");
+  { const r = await post(ID("98"), "evidence", undefined, as("198.51.100.7", "192.0.2.200"));
+    assert.equal(r.status, 429, "another first entry, same last hop: the same client");
+    assert.equal(r.headers.connection, "close", "an early refusal (before the body is read) closes the connection: a reused socket would be reset"); }
   assert.equal((await post(ID("98"), "evidence", undefined, as("198.51.100.8"))).status, 404, "another last hop is another client, with its own bucket");
   assert.equal((await post(ID("97"))).status, 404, "a direct hit with no X-Forwarded-For keys on the socket, and works");
   // the per-deployment bucket (60, a courtesy to the VM): two clients spend deployment 96's budget; a THIRD, fresh client
