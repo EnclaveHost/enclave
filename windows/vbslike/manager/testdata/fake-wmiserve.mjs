@@ -33,11 +33,15 @@ else {
   out({ step: "ready", note: "T0-hv: launcher-signed, host_excluded=no" });
   if (mode === "ignore-stdin") { process.stdin.resume(); setInterval(() => {}, 1 << 30); }
   else {
-    let done = false;
-    const close = () => { if (done) return; done = true; out({ step: "closed" }); process.exit(0); };
-    // stdin: a line OR EOF/error ends serving. A numeric hold ends at its time; a stdin line still ends it early.
-    process.stdin.on("data", close);
-    if (hold === "stdin") { process.stdin.on("end", close); process.stdin.on("error", close); }
-    else setTimeout(close, 1000 * Number(hold ?? 120));
+    let done = false, pending = "";
+    // FAKE_WMISERVE_CLOSED (a file): which path closed it, "line" | "eof" | "time", so a test can tell them apart
+    const close = (by) => { if (done) return; done = true; if (process.env.FAKE_WMISERVE_CLOSED) fs.writeFileSync(process.env.FAKE_WMISERVE_CLOSED, by);
+                            out({ step: "closed" }); process.exit(0); };
+    // stdin, as the real binary reads it: a NON-BLANK line ends serving and a blank one is ignored; with --hold stdin,
+    // EOF or an error ends it too. A numeric hold ends at its time, and a non-blank line still ends it early.
+    process.stdin.on("data", (d) => { pending += d; let i;
+      while ((i = pending.indexOf("\n")) >= 0) { const l = pending.slice(0, i).trim(); pending = pending.slice(i + 1); if (l) return close("line"); } });
+    if (hold === "stdin") { process.stdin.on("end", () => close("eof")); process.stdin.on("error", () => close("eof")); }
+    else setTimeout(() => close("time"), 1000 * Number(hold ?? 120));
   }
 }
