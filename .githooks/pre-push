@@ -12,6 +12,15 @@
 #                             labelled/known Ethereum keys, keystore JSON
 #   2. gitleaks (if found)  - provider tokens + .gitleaks.toml crypto rules
 # Confirmed false positive? git push --no-verify (and say so in the commit).
+#
+# WHICH config and scanner (fixed 2026-09-25): core.hooksPath may be an ABSOLUTE path into one checkout's .githooks, so
+# every linked worktree runs THIS file, whatever branch that checkout holds. The config that governs a push is therefore
+# taken from the commit being pushed (<sha>:.gitleaks.toml, exactly the file CI scans with), then the pushing worktree's
+# file, and only then the one beside this hook; each push says which it used. A pushed config that gitleaks cannot load
+# is never a way around the scan: the range is scanned again with the config beside this hook. The crypto-key scanner is
+# the pushing worktree's .githooks/scan-crypto-keys.py, AND this hook's own copy when the two differ (a refusal by either
+# refuses). Regression checks: .githooks/gitleaks-selftest.py (the config finds generated keys) and
+# .githooks/hook-selftest.py (a real push from a linked worktree is judged by the pushed commit's config).
 set -u
 remote="$1"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,8 +31,34 @@ gitleaks_bin=""
 for c in "${GITLEAKS:-}" "$(command -v gitleaks 2>/dev/null || true)" "$HOME/.local/bin/gitleaks"; do
   if [ -n "$c" ] && [ -x "$c" ]; then gitleaks_bin="$c"; break; fi
 done
-cfg=()
-if [ -f "$here/../.gitleaks.toml" ]; then cfg=(--config "$here/../.gitleaks.toml"); fi
+# the crypto-key scanners: the pushing worktree's, and this hook's own when it differs (the stricter union)
+scanners=()
+if [ -f "$root/.githooks/scan-crypto-keys.py" ]; then scanners+=("$root/.githooks/scan-crypto-keys.py"); fi
+if [ -f "$here/scan-crypto-keys.py" ] && { [ "${#scanners[@]}" -eq 0 ] || ! cmp -s "$here/scan-crypto-keys.py" "${scanners[0]}"; }; then
+  scanners+=("$here/scan-crypto-keys.py")
+fi
+hook_cfg=""
+if [ -f "$here/../.gitleaks.toml" ]; then hook_cfg="$(cd "$here/.." && pwd)/.gitleaks.toml"; fi
+tmpfiles=()
+cleanup() { if [ "${#tmpfiles[@]}" -gt 0 ]; then rm -f "${tmpfiles[@]}"; fi; }
+trap cleanup EXIT
+# config_for <pushed sha>: prints "<path>\t<what it is>"
+config_for() {
+  local f
+  f="$(mktemp)"; tmpfiles+=("$f")
+  if git show "$1:.gitleaks.toml" >"$f" 2>/dev/null && [ -s "$f" ]; then printf '%s\t%s\n' "$f" "the pushed commit's .gitleaks.toml (${1:0:12})"; return; fi
+  if [ -f "$root/.gitleaks.toml" ]; then printf '%s\t%s\n' "$root/.gitleaks.toml" "the worktree's .gitleaks.toml ($root)"; return; fi
+  if [ -n "$hook_cfg" ]; then printf '%s\t%s\n' "$hook_cfg" "the hook's own .gitleaks.toml ($hook_cfg)"; return; fi
+  printf '\t%s\n' "no .gitleaks.toml (gitleaks default rules only)"
+}
+# run_gitleaks <config path or empty> <range> <log>: 0 clean, 1 leaks found, 2 could not run
+run_gitleaks() {
+  local c=() rc
+  if [ -n "$1" ]; then c=(--config "$1"); fi
+  if "$gitleaks_bin" git "$root" "${c[@]}" --log-opts="$2" --no-banner --redact=60 --exit-code 1 -v >"$3" 2>&1; then return 0; fi
+  if grep -q 'leaks found' "$3"; then return 1; fi
+  return 2
+}
 
 fail=0
 scanned=0
@@ -36,20 +71,26 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
   scanned=$((scanned + 1))
 
-  # shellcheck disable=SC2086  # $range is intentionally word-split
-  if ! python3 "$here/scan-crypto-keys.py" --range $range; then fail=1; fi
+  for sc in "${scanners[@]}"; do
+    # shellcheck disable=SC2086  # $range is intentionally word-split
+    if ! python3 "$sc" --range $range; then fail=1; fi
+  done
 
   if [ -n "$gitleaks_bin" ]; then
-    log="$(mktemp)"
-    if "$gitleaks_bin" git "$root" "${cfg[@]}" --log-opts="$range" --no-banner --redact=60 --exit-code 1 -v >"$log" 2>&1; then
-      :
-    elif grep -q 'leaks found' "$log"; then
+    IFS=$'\t' read -r cfg_path cfg_what < <(config_for "$local_sha")
+    echo "pre-push: gitleaks config: $cfg_what" >&2
+    log="$(mktemp)"; tmpfiles+=("$log")
+    run_gitleaks "$cfg_path" "$range" "$log"; rc=$?
+    if [ "$rc" -eq 2 ] && [ -n "$hook_cfg" ] && [ "$cfg_path" != "$hook_cfg" ]; then
+      { echo "pre-push: that config did not load (CI will fail on it too):"; tail -n 2 "$log"; echo "pre-push: scanning again with the hook's own config ($hook_cfg)"; } >&2
+      run_gitleaks "$hook_cfg" "$range" "$log"; rc=$?
+    fi
+    if [ "$rc" -eq 1 ]; then
       fail=1
       { echo; echo "gitleaks: secrets in the commits being pushed ($range):"; grep -E '^(Finding|Secret|RuleID|File|Line|Commit):' "$log"; } >&2
-    else
+    elif [ "$rc" -eq 2 ]; then
       { echo "pre-push: gitleaks could not run - provider-token rules skipped (the crypto-key scan still ran):"; tail -n 3 "$log"; } >&2
     fi
-    rm -f "$log"
   fi
 done
 

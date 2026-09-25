@@ -85,8 +85,15 @@ paths = [
   '''^\.gitleaks\.toml$''',
 ]
 
+# Scoped to the one default rule that ever matches a bare hex value here (generic-api-key: the whole history, all rules,
+# measured 2026-09-25). UNSCOPED, this allowlist also matched the secretGroup of every ethereum-private-key-* rule above
+# (their secret IS a bare 64-hex), so those rules could never fire: enclave-53 found it with planted keys, and three keys
+# generated for the check went undetected (0 findings) until it was scoped (all three found). The crypto rules decide what
+# a 64-hex string is through their own narrow line allowlists (sha256, hash, digest, measurement, pubkey, ...); never add a
+# global allowlist that matches a bare 64-hex secret without targetRules. .githooks/gitleaks-selftest.py enforces this.
 [[allowlists]]
-description = "an Ethereum ADDRESS or a bare hex digest is not a secret (the crypto rules above decide what a 64-hex string is)"
+description = "an Ethereum ADDRESS or a bare hex digest is not a generic API key (the crypto rules above decide what a 64-hex string is)"
+targetRules = ["generic-api-key"]
 regexes = [
   '''^0x[0-9a-fA-F]{40}$''',
   '''^(?:0x)?[0-9a-fA-F]{64}$''',
@@ -95,6 +102,7 @@ regexes = [
 
 [[allowlists]]
 description = "relay attach-token digests are published on purpose (hash only; the token is off-repo)"
+targetRules = ["generic-api-key"]
 regexTarget = "line"
 regexes = ['''tokenSha256''']
 
