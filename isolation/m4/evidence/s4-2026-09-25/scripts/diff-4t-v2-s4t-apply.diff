@@ -1,0 +1,17 @@
+--- s4t-apply.sh.v1	2026-09-25 13:42:53.258211062 -0700
++++ s4t-apply.sh	2026-09-25 14:04:06.022833490 -0700
+@@ -42,6 +42,14 @@
+   [ $(( now - ep )) -le "$1" ] || return 1
+ }
+ adopt_fresh 7200 || { say4 "REFUSING: no adoption preflight for guestd $BINC / tree $IMG in the last 2 h (run s4d-adoption-preflight.sh)"; exit 12; }
++# enclave-d1: the RELAY must be ahead of guestd. Before guestd builds guests from the new tree, the relay's predictor
++# must predict AND admit the new release for every canary (a guest on an unpredicted release gets no certificate from the
++# 4c gate, and no release): /v1/expected-guest lists an image under release $REL with releaseAdmitted true
++for cid in 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e; do
++  eg=$(curl -sS --max-time 60 "https://api.enclave.host/v1/expected-guest?id=$cid" || true)
++  python3 -c "import json,sys; r=json.loads(sys.argv[1]); sys.exit(0 if any(i.get('release')==sys.argv[2] and i.get('releaseAdmitted') is True for i in r.get('images',[])) else 1)" "$eg" "$REL" 2>/dev/null \
++    || { say4 "REFUSING: the relay does not predict and admit release ${REL:0:12} for ${cid:0:10} (re-stage the predictor first)"; exit 13; }
++done
+ tree_ok || { say4 "REFUSING: the installed tree"; exit 13; }
+ python3 "$T/isolation/m4/release-manifest.py" verify "$R" --expect "$REL" | grep -q "verified 15 files" || { say4 "REFUSING: $R does not verify"; exit 13; }
+ [ -f "$LEG/m4/build-app-guest.sh" ] && [ "$(git -C "$LEG/.." rev-parse HEAD)" = "$LEGC" ] || { say4 "REFUSING: the legacy tree is not $LEGC"; exit 13; }
