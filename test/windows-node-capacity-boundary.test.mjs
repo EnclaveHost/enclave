@@ -58,16 +58,19 @@ test("attestedCapacity: a manager's own hostExcluded/chain-verified claim is not
 test("isolationBoundaryRefusal: only T0-hv with the host NOT excluded is this backend's boundary", () => {
   for (const ok of [{ hostExcluded: false, tier: "t0-hv" }, { hostExcluded: false, tier: "T0-hv" }]) assert.equal(isolationBoundaryRefusal(ok), null);
   for (const bad of [{ hostExcluded: true, tier: "T0-hv" }, { hostExcluded: "false", tier: "T0-hv" }, { tier: "T0-hv" },
+                     { hostExcluded: false, hostExcludedAsStated: "true", tier: "T0-hv" }, { hostExcluded: false, hostExcludedAsStated: 1, tier: "T0-hv" },
+                     { hostExcluded: false, tier: ["T0-hv"] }, { hostExcluded: false, tier: { toString: () => "T0-hv" } },
                      { hostExcluded: false, tier: "T2-snp" }, { hostExcluded: false, tier: "T0" }, { hostExcluded: false, tier: null }, null])
     assert.ok(isolationBoundaryRefusal(bad), JSON.stringify(bad));
 });
 
 // a manager that lies: its /vms view says this deployment's domain runs with a boundary this backend cannot have
-async function lyingManager(over) {
+async function lyingManager(over, holder = {}) {
   const HV = "hv" + "3".repeat(32);
   const view = { id: HV, name: DEP, status: "running", appId: "708e640945d196df5829aa4ea490774c18ef6876a0d9239f574986ad18ae3782",
                  runtimeId: REC.runtimeId, image: "ab".repeat(32), transportKeySha256: "cd".repeat(32), tier: "t0-hv", hostExcluded: false,
                  verdict: "monitor-signed", boundary: { tier: "t0-hv", partition: "hyperv-vm", hostExcluded: false }, ...over };
+  holder.view = view;                                  // a test may change what the manager says, between passes
   const s = http.createServer((req, res) => {
     const send = (code, body) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
     if (req.url === "/health") return send(200, { backend: "hyperv-partition-per-app", catalog: { derivations: ["enclave-catalog-bundle/1"] },
@@ -91,8 +94,9 @@ for (const [what, over, why] of [
     const h = box({ isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
     h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {});
     const r = await h.ensureApp(DEP, dep(), { version: PLANNED });
-    assert.equal(r.status, "provisioning", `${r.status}: ${r.reason}`); assert.match(r.reason, why);
+    assert.equal(r.status, "held", `${r.status}: ${r.reason}`); assert.match(r.reason, why);
     const rec = h.records.get(DEP);
+    assert.equal(rec.boundaryHeld, true, "held as a standing fact, so the tick does not renew it");
     assert.equal(rec.isolation ?? null, null, "nothing is recorded as a serving isolated domain");
     assert.equal(rec.isolationHeld, HV, "the instance is held by id, so it can be retired");
     assert.equal(await h.appZoneTarget(DEP), null, "no route");
@@ -107,4 +111,52 @@ test("the honest view (T0-hv, host not excluded) still serves, and its record sa
   assert.equal(r.status, "running", r.reason);
   assert.equal(h.records.get(DEP).isolation.instance, HV); assert.equal(h.records.get(DEP).isolation.hostExcluded, false);
   assert.equal(h.records.get(DEP).isolation.tier, "T0-hv");
+});
+
+test("a manager whose view says hostExcluded:\"true\" (not a plain boolean) is held too, not silently read as false", async () => {
+  const { port } = await lyingManager({ hostExcluded: "true" });
+  const h = box({ isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
+  h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {});
+  const r = await h.ensureApp(DEP, dep(), { version: PLANNED });
+  assert.equal(r.status, "held"); assert.match(r.reason, /hostExcluded="true"/);
+});
+
+test("RUNNING, then the same instance's view turns into a lie: held, and the serving block is CLEARED (no route)", async () => {
+  const holder = {};
+  const { port } = await lyingManager({}, holder);
+  const h = box({ isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
+  h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {});
+  assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
+  assert.ok(await h.appZoneTarget(DEP), "served on the honest pass");
+  Object.assign(holder.view, { hostExcluded: true, verdict: "chain-verified", tier: "T2-snp" });
+  const r = await h.ensureApp(DEP, dep(), { version: PLANNED });
+  assert.equal(r.status, "held");
+  assert.equal(h.records.get(DEP).isolation ?? null, null, "a held record carries no serving block from the honest pass");
+  assert.equal(await h.appZoneTarget(DEP), null);
+});
+
+test("the tick does NOT renew (or stop) a boundary-held deployment; it re-asks the manager instead", async () => {
+  const { enclaveIdOf, CATALOG } = await import("./helpers/fake-base-rpc.mjs");
+  chain.addresses.appCatalog = CATALOG;               // the tick resolves the version itself
+  rpc.catalog.current = { cid: REC.cid, version: "4", vramMb: 0, gpuGflops: 0, memMb: 512, cpuGflops: 0, createdAt: 1n, verified: true,
+                          yanked: false, ports: "", approval: 0, config: "{}" };
+  const holder = {};
+  const { port } = await lyingManager({ hostExcluded: true }, holder);
+  const endpoint = "https://api.enclave.host/t/test";
+  const h = box({ isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
+  h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {});
+  assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "held");
+  // the lease is ours and EXPIRED: a renewal would be attempted, fail (no key here), and stop the app. Held, it is not.
+  rpc.row.current = { id: DEP, owner: OWNER, appRef: dep().appRef, ports: "", configCid: ISOLATED, gpuMilli: 0, cpuMilli: 100, appPort: 8080,
+    isPublic: true, active: true, createdAt: 1n, rate: 1n, balance6: 0n, spent6: 0n, runner: enclaveIdOf(endpoint),
+    runnerOperator: "0x" + "00".repeat(20), leaseUntil: BigInt(Math.floor(Date.now() / 1000) - 60) };
+  h.chainReady = true; h.registered = { endpoint, cpuPricePerSec6: 12n }; h.tracked.add(DEP);
+  await h.tick();
+  const rec = h.records.get(DEP);
+  assert.equal(rec.status, "held", `${rec.status}: ${rec.reason}`); assert.equal(rec.boundaryHeld, true);
+  assert.doesNotMatch(rec.reason, /renew|stopping/, "no renewal was attempted, so none failed and nothing was stopped");
+  // an honest manager clears it on the next pass
+  Object.assign(holder.view, { hostExcluded: false });
+  await h.tick();
+  assert.equal(h.records.get(DEP).boundaryHeld ?? null, null);
 });

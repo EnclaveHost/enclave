@@ -198,6 +198,9 @@ export class IsolationManagerClient {
       boundary: o.boundary ?? null,
       tier: o.tier ?? null,
       hostExcluded: o.hostExcluded === true,
+      // the manager's field exactly as sent (undefined when absent), so a claim that is not a plain false ("true",
+      // "yes", 1) is seen and held rather than collapsed to false in silence (enclave-99's review of 9b79022c)
+      hostExcludedAsStated: o.hostExcluded,
       verdict: o.verdict ?? null,
       relay: o.relay ?? (o.tcpPort ? { host: "127.0.0.1", port: o.tcpPort } : null),
       error: o.error ?? null,
