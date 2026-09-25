@@ -50,7 +50,7 @@ expect(envs.some((e) => e.values.METAL_AVF_CODE_HASHES === run.oldCode && e.valu
        "relay: the lab build admitted in every relay but the one that admits only the OLD build");
 
 // ---- VM verdicts per boot ----
-const vm = (p) => { const c = rd(`vm/${p}.log`) || ""; return { accepted: /RELAY attest ACCEPTED/.test(c), rejected: (/RELAY attest REJECTED: (.*)/.exec(c) || [])[1] || "", cosigned: /RELAY attach co-signed by the owner/.test(c),
+const vm = (p) => { const c = rd(`vm/${p}.log`) || ""; return { accepted: /RELAY attest ACCEPTED/.test(c), rejected: (/RELAY attest REJECTED: (.*)/.exec(c) || [])[1] || "", cosigned: /RELAY attach (co-signed by the owner|operatorSig attached)/.test(c),
   instance: (/INSTANCE id=([0-9a-f]{64})/.exec(c) || [])[1], proofKey: (/PROOF key=(0x[0-9a-f]{40})/.exec(c) || [])[1] }; };
 const B = { a: vm("a"), b1: vm("b1"), b2: vm("b2"), b3: vm("b3"), c: vm("c"), d: vm("d") };
 expect(Object.values(B).every((x) => x.instance === OWNER), `every boot logged the owner's out-of-band instance ${OWNER.slice(0, 16)}…`);

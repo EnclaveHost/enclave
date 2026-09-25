@@ -28,12 +28,14 @@ const askVm = (port, line) => new Promise((resolve, reject) => {
 
 // POST /evidence -> the VM's evidence port, like cpu/web-carrier.mjs; `state.mode` turns it hostile
 function startCarrier(vm) {
-  const state = { mode: "honest", target: vm, last: null, lastStatement: null, lines: [] };
+  const state = { mode: "honest", target: vm, last: null, lastStatement: null, lines: [], rateRefusals: 0, refusalText: null };
   const srv = http.createServer((req, res) => {
     let body = ""; req.on("data", (d) => (body += d));
     req.on("end", async () => {
       const line = body.trim(); state.lines.push(line);
       if (state.mode === "503") { res.writeHead(503); return res.end(); }
+      // the VM's evidence budget spent by another caller: the payload's own refusal line, verbatim, for the next N requests
+      if (state.rateRefusals > 0) { state.rateRefusals--; res.writeHead(200, { "content-type": "application/json" }); return res.end(`{"error":"${state.refusalText || "one evidence answer every 2 s"}"}\n`); }
       // swap-anchor: the VM is asked to sign another anchor hash than the agent's (a genuine signature for the same upto and block)
       const fwd = state.mode === "swap-anchor" && line.startsWith("CHECKPOINT") ? line.replace(/ [0-9a-f]{64}$/, " " + "ab".repeat(32)) : line;
       const ans = await askVm(state.target.evidencePort, fwd);
@@ -314,6 +316,47 @@ test("a hostile carrier: a replayed (genuine) checkpoint, another VM's signature
     S.vm.setServing(true); await S.later(100);
     assert.equal((await agent.tick()).kind, "landed", "the honest path works again");
   } finally { if (agent) agent.close(); if (other) other.close(); S.stop(); }
+});
+
+test("the VM's evidence budget, shared by every caller: its rate refusal is retried promptly, at most twice, each retry journaled -- never taken as an answer; any other error is not retried",
+     { skip, timeout: 120000 }, async () => {
+  const S = await setup();
+  let agent;
+  try {
+    agent = await S.agentOf();
+    const pk = () => S.carrier.state.lines.filter((l) => l.startsWith("PROOFKEY")).length;
+    const retries = () => S.journal().filter((e) => e.ev === "rate-retry");
+    // two refusals, then the statement: attested on the third try, 2.5 s apart on the agent's clock
+    S.carrier.state.rateRefusals = 2; let t0 = S.clock.t, p0 = pk();
+    assert.equal((await agent.attest()).ok, true);
+    assert.equal(pk() - p0, 3, "exactly three PROOFKEY requests");
+    assert.ok(S.clock.t - t0 >= 2 * 2500, `the retries waited (${S.clock.t - t0} ms)`);
+    assert.deepEqual(retries().map((e) => [e.request, e.attempt]), [["PROOFKEY", 1], ["PROOFKEY", 2]]);
+    // three refusals: the retries run out, and the refusal is journaled as a FAILED attestation -- never a key
+    S.carrier.state.rateRefusals = 3; p0 = pk();
+    const f = await agent.attest();
+    assert.equal(f.ok, false); assert.match(f.reason, /one evidence answer every 2 s/);
+    assert.equal(pk() - p0, 3, "no fourth try");
+    assert.equal(retries().length, 4);
+    const last = S.journal().filter((e) => e.ev === "attest").at(-1);
+    assert.equal(last.ok, false); assert.equal(last.proofKey, undefined);
+    // a checkpoint refused once for the budget is asked again and lands
+    assert.equal((await agent.attest()).ok, true);
+    await S.later(100);
+    S.carrier.state.rateRefusals = 1; const c0 = S.checkpointsAsked();
+    assert.equal((await agent.tick()).kind, "landed");
+    assert.equal(S.checkpointsAsked() - c0, 2);
+    assert.deepEqual(retries().at(-1) && [retries().at(-1).request, retries().at(-1).attempt], ["CHECKPOINT", 1]);
+    // an error that is NOT exactly the payload's budget refusal is judged once, never retried
+    S.carrier.state.rateRefusals = 1; S.carrier.state.refusalText = "one evidence answer every 3 s"; p0 = pk(); const r0 = retries().length;
+    assert.equal((await agent.attest()).ok, false);
+    assert.equal(pk() - p0, 1); assert.equal(retries().length, r0);
+    S.carrier.state.refusalText = null;
+    // the bound: at most 5 retries, each beyond the VM's own 2 s
+    assert.throws(() => checkAgentConfig(S.config({ policy: { rateRetries: 6 } })), /rateRetries is at most 5/);
+    assert.throws(() => checkAgentConfig(S.config({ policy: { rateRetries: 1, rateRetryMs: 2000 } })), /2100 ms apart/);
+    assert.doesNotThrow(() => checkAgentConfig(S.config({ policy: { rateRetries: 0 } })));
+  } finally { if (agent) agent.close(); S.stop(); }
 });
 
 test("idempotency: a checkpoint someone else already posted is not paid for twice; a crash after journaling but before broadcast is recovered from the journal",

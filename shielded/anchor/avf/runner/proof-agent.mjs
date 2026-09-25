@@ -40,11 +40,17 @@ import { verifyPvmCheckpoint } from "../../../../relay/pvm-checkpoint.mjs";
 
 export { LEDGER_ABI, REGISTRY_ABI };
 export const AGENT_CONFIG_FORMAT = "enclave-pvm-proof-agent/v1";
+export const VM_RATE_REFUSAL = "one evidence answer every 2 s";   // the payload's evidence-budget refusal, verbatim
 export const AGENT_DEFAULTS = Object.freeze({
   intervalSec: 300,          // one checkpoint every 5 min, against the contract's 15 min window (supervisor.js PROOF_INTERVAL_SEC)
   vmGapSec: 61,              // the VM signs at most one checkpoint per 60 s
   carrierGapMs: 3000,        // the VM answers at most one evidence-port request per 2 s
   carrierTimeoutMs: 20000,
+  // the VM's evidence budget (one answer per 2 s) is shared by EVERY caller of its evidence endpoint, through /t/ and /x
+  // (results/pvm-cpu-relay-route NOTES.md): its refusal is retried promptly, a bounded number of times, each retry journaled.
+  // Availability only: a same-kind flood can still outlast the retries; the 15 min proof window absorbs occasional misses.
+  rateRetries: 2,            // at most this many extra tries per request (3 in all)
+  rateRetryMs: 2500,         // apart, beyond the VM's 2 s budget
   anchorDepth: 1,            // the parent of the newest block (supervisor.js: blockhash(latest) can be 0 inside the next block)
   maxAnchorAgeBlocks: 192,   // of blockhash()'s 256: a proof older than this is not sent
   confirmations: 2,
@@ -142,6 +148,7 @@ export function checkAgentConfig(c) {
   if (policy.vmGapSec < 61) bad("policy.vmGapSec below 61 s would ask the VM to break its own 60 s rate");
   if (policy.maxAnchorAgeBlocks >= 256 || policy.anchorDepth < 1 || policy.anchorDepth >= policy.maxAnchorAgeBlocks) bad("anchorDepth must be >= 1 and below maxAnchorAgeBlocks, and that below 256");
   if (policy.confirmations < 1) bad("policy.confirmations must be at least 1");
+  if (policy.rateRetries > 5 || (policy.rateRetries > 0 && policy.rateRetryMs < 2100)) bad("policy.rateRetries is at most 5, each at least 2100 ms apart (the VM's own 2 s budget)");
   return { ...c, enclaveId: keccak256(stringToBytes(c.endpoint)), policy };
 }
 
@@ -237,7 +244,19 @@ export async function createProofAgent({ config, publicClient, account, stateDir
   }
 
   // ---- the carrier: untrusted bytes in both directions; paced to the VM's own limits ----
+  // The payload's evidence-budget refusal, exactly as it writes it (payload/anchor_payload.c): an answer that is ONLY this
+  // is retried (bounded, journaled); anything else -- another error, a statement, a checkpoint -- is judged as before.
+  const isRateRefusal = (d) => !!d && typeof d === "object" && !Array.isArray(d) && Object.keys(d).join() === "error" && d.error === VM_RATE_REFUSAL;
   async function ask(line) {
+    let doc = await askOnce(line);
+    for (let i = 1; i <= P.rateRetries && isRateRefusal(doc); i++) {
+      note({ ev: "rate-retry", request: line.split(" ")[0], attempt: i, reason: doc.error });
+      await sleep(P.rateRetryMs);
+      doc = await askOnce(line);
+    }
+    return doc;
+  }
+  async function askOnce(line) {
     const wait = lastCarrierAt + P.carrierGapMs - now();
     if (wait > 0) await sleep(wait);
     lastCarrierAt = now();
@@ -256,6 +275,10 @@ export async function createProofAgent({ config, publicClient, account, stateDir
     if (!addrs) await resolve();
     const nonce = randomBytes(32).toString("hex"), doc = await ask(`PROOFKEY ${nonce}`);
     if (doc && doc.carrier) { note({ ev: "attest", ok: false, reason: doc.error }); attested = null; return { ok: false, reason: doc.error }; }   // no statement at all: say so
+    if (doc && typeof doc === "object" && !Array.isArray(doc) && Object.keys(doc).join() === "error") {   // the VM's own refusal, in its words
+      const reason = `the VM refused: ${String(doc.error).slice(0, 200)}`;
+      note({ ev: "attest", ok: false, reason }); attested = null; return { ok: false, reason };
+    }
     const e = cfg.evidence;
     const v = verifyPvmProofKey(doc, { nonce, appId: e.appId, allowedRuntimeIds: e.allowedRuntimeIds, allowedCodeHashes: e.allowedCodeHashes,
                                        allowedAuthorityHashes: e.allowedAuthorityHashes, rootPins: e.rootPins, instanceIds: e.instanceIds, deployment: D });

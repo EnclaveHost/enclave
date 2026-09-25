@@ -25,11 +25,17 @@ public final class Ws implements Closeable {
     private final Socket sock; private final InputStream in; private final OutputStream out;
     private final SecureRandom rnd = new SecureRandom();
 
+    /* Bounded (RUNNER-AGENT.md "Reconnect in place"): a relay that accepts nothing, or a frozen one, cannot hang the caller --
+     * the dial gives up after CONNECT_MS and every read after READ_MS unless setReadTimeout says otherwise. */
+    static final int CONNECT_MS = 10000, READ_MS = 20000;
     public Ws(String url, Map<String, String> headers) throws IOException {
         URI u = URI.create(url);
         boolean tls = "wss".equals(u.getScheme());
         int port = u.getPort() > 0 ? u.getPort() : (tls ? 443 : 80);
-        Socket s = tls ? SSLSocketFactory.getDefault().createSocket(u.getHost(), port) : new Socket(u.getHost(), port);
+        Socket raw = new Socket();
+        raw.connect(new java.net.InetSocketAddress(u.getHost(), port), CONNECT_MS);
+        raw.setSoTimeout(READ_MS);
+        Socket s = tls ? ((SSLSocketFactory) SSLSocketFactory.getDefault()).createSocket(raw, u.getHost(), port, true) : raw;
         s.setTcpNoDelay(true);
         sock = s; in = new BufferedInputStream(s.getInputStream()); out = s.getOutputStream();
         byte[] key = new byte[16]; rnd.nextBytes(key);
@@ -57,6 +63,9 @@ public final class Ws implements Closeable {
     }
 
     public synchronized void sendText(String s) throws IOException { frame(0x1, s.getBytes(StandardCharsets.UTF_8)); }
+
+    /** A read that waits longer than ms throws java.net.SocketTimeoutException: the caller decides the peer is gone. */
+    public void setReadTimeout(int ms) throws IOException { sock.setSoTimeout(ms); }
 
     private void frame(int op, byte[] p) throws IOException {
         ByteArrayOutputStream f = new ByteArrayOutputStream();

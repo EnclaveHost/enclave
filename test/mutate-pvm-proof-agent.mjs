@@ -18,6 +18,7 @@ const T = {   // the tests, by a distinctive part of their titles
   full: "the full path on a local lease", pins: "pins must agree before anything is asked", lease: "the lease and the key decide",
   cap: "the owner's fee cap", hostile: "a hostile carrier", idem: "idempotency:", replace: "a transaction that does not mine is replaced",
   stuck: "a nonce left stuck past its anchor's age", reorg: "reorganizations:", live: "the registry entry and the deployment must be LIVE",
+  budget: "the VM's evidence budget, shared by every caller",
 };
 const MUTATIONS = [
   ["A01", "a replayed or crossed answer is accepted (no equality with the request)", [["if (c.upto !== upto || c.anchorBlock !== anchorBlock || c.anchorHash !== anchorHash)", "if (false)"]], T.hostile],
@@ -47,6 +48,9 @@ const MUTATIONS = [
   ["A21", "the answer's anchor hash is not compared with the request's", [["if (c.upto !== upto || c.anchorBlock !== anchorBlock || c.anchorHash !== anchorHash)", "if (c.upto !== upto || c.anchorBlock !== anchorBlock)"]], T.hostile],
   ["A22", "the registry entry is not checked (active, operator, endpoint)", [["if (!L.regActive || L.regOperator !== me || L.regEndpointId !== E) return out(", "if (false) return out("]], T.live],
   ["A23", "an inactive deployment is still proven", [["if (!L.active) return out(", "if (false) return out("]], T.live],
+  ["A25", "the rate refusal retried without bound", [["for (let i = 1; i <= P.rateRetries && isRateRefusal(doc); i++)", "for (let i = 1; i <= 50 && isRateRefusal(doc); i++)"]], T.budget],
+  ["A26", "any error answer retried (not only the payload's own budget refusal)", [["Object.keys(d).join() === \"error\" && d.error === VM_RATE_REFUSAL;", "Object.keys(d).join() === \"error\";"]], T.budget],
+  ["A27", "a retry not journaled", [["      note({ ev: \"rate-retry\", request: line.split(\" \")[0], attempt: i, reason: doc.error });\n", ""]], T.budget],
 ];
 
 const pick = process.argv.slice(2);
