@@ -443,6 +443,16 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   `host.mjs` of them. `agent.mjs` is not a package entry point (the box's node agent does not run from this package),
   and its `9a39f28c` change is a comment. The lease-lapse BLOCK itself is in `host.mjs`, which ships. v40's manifest
   status says the package takes all three; the next substantive version's status corrects it.
+  **v40 lab validation `2ea79951` (enclave-d1): the package's own sweeps, 6/6, functional only.** Runs A (hvlab plus
+  restart A0–A9) and B (multi-accept M0–M7), alternated three times each, from a lab COPY of the staged v40, using the
+  copy's own tools at `-LivenessMs 15000 -AnswerCheckMs 30000`. The results:
+  - every run passed, with driver and harness exit 0;
+  - A9 failed the stopped domain after about 70 s, three 30 s answer checks;
+  - with three domains running, about 6.4 GiB was used; free memory came back within about 100 MiB each time, with
+    no growth across the series;
+  - every run ended with `TREE UNCHANGED … (no __pycache__)` and the host setting and 9001 service restored;
+  - the staged original lists the same files before and after the series.
+  Scope: T0-hv, host not excluded; not isolation, not production.
   - **What the manager work brings:**
     - the manager judges the report's partition (M1, `62965126`, passed on hardware);
     - `multi-accept.mjs`, several serving domains at once (U1, `0513ced0`, passed on hardware);
