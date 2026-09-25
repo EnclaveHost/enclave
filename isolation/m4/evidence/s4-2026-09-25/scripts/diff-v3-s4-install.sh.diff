@@ -1,0 +1,16 @@
+--- s4-install.sh.v2	2026-09-25 12:31:22.040102051 -0700
++++ s4-install.sh	2026-09-25 12:37:48.512808007 -0700
+@@ -1,8 +1,9 @@
+ #!/usr/bin/env bash
+-# S4 install of release 31d117a9 on warden-host, INERT (5d's INSTALL.md 1a, 1b, 1d at 44f91687): nothing references the
+-# new paths, nothing restarts. Runs only after 99 (now enclave-e3) reviews this script and the image diff
+-# 0181bce3..d1a38994 is signed off (d1 APPROVED d1a38994, RELEASE.md at 023b06be). Codex authorized the inert install
+-# once those pass. The guestd binary (1c) is s4-guestd-install.sh, after the host floor's merge.
++# S4 install of release 0839ac3a on warden-host, INERT (5d's INSTALL.md 1a, 1b, 1d; production-release-ecf02384 at
++# 4e99148f): nothing references the new paths, nothing restarts. Runs only after 99 (now enclave-e3) reviews this script
++# and the image diff 0181bce3..ecf02384 is signed off (d1 and e3 review ecf02384, the fix of e3's HOST_DATA fail-open).
++# Codex authorized the inert install once those pass. The guestd binary (1c) is s4-guestd-install.sh, after the host
++# floor's merge.
+ set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/pool-rollout-20260925/s4/lib4.sh
+ BEFORE=$(snap) || { say4 "REFUSING: guestd's or the m2-gd* units' state is unreadable (user bus?) or not the 3 running canaries"; exit 2; }
+ for x in "$T" "$R"; do [ -e "$x" ] && { say4 "REFUSING: $x exists"; exit 3; }; done

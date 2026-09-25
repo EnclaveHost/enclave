@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # S4 1c: the 4d guestd binary under its own name, INERT (nothing references it until s4d-apply.sh). Built from the
-# reviewed merge that carries BOTH the release services (d1a38994's guestd) and the host floor (d67b0020 + 1b5375c9),
+# reviewed merge that carries BOTH the release services (ecf02384's guestd) and the host floor (d67b0020 + 1b5375c9),
 # once 99/e3 approved the floor and 5d merged it. Built twice in a clean worktree; the two builds must agree.
 # Usage: s4-guestd-install.sh <merge commit, 40 hex>
 set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/pool-rollout-20260925/s4/lib4.sh
