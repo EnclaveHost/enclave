@@ -197,7 +197,9 @@ if (Object.values(results).some((r) => /no app runtime|enclave has no socket|thi
 }
 
 // PASS 3, the steps of host.mjs #isolationReconcile called directly, because at this tree ensureApp never reaches
-// them: the CURRENT plan (this checkout's node-bridge, with require/manager/appConfigCid) -> the node's real
+// them. It supplies three inputs ITSELF (require from the raw envelope, hasSecrets from this harness's signer, waf {}),
+// which the real node derives through code that can hold or throw (enclave-99): a pass here is not a pass of ensureApp.
+// The steps: the CURRENT plan (this checkout's node-bridge, with require/manager/appConfigCid) -> the node's real
 // IsolationManagerClient + isolation-lifecycle reconcile -> the real manager's spawn and readiness judgement -> the
 // record #isolationReconcile writes -> the real appZoneTarget/appzone below.
 if (Object.values(results).some((r) => !r || r.status !== "running")) {
