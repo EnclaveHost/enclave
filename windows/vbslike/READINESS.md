@@ -87,7 +87,7 @@ Trees cited below:
 |---|---|---|---|
 | M1 | **DONE, verified on hardware** (enclave-63 `62965126`; d1 run 115938, `evidence/m1-partition-judge-20260925/`). The manager passes `expectedVmId` (the launcher's own `vm`, already tied to the manager's VM) to judge-hv, and refuses a handle with none. A mutation check confirms the test. `recordSha256` is documented as informational. | C `manager/server.mjs` | done |
 | M6 | **DONE** (enclave-63 `3919c18b`, reviewed by d1; 418/418). The Python fetcher wrote `__pycache__` into the control tree (run 120744 found it), and run 094631 had left one `.pyc` in v36's staged directory; 63 removed it, scoped, and v36 is back to its manifest. The fetcher now runs with `PYTHONDONTWRITEBYTECODE=1`. The next control/ pin takes it; the box check rides the next manager run. | C `manager/fetchcid.mjs` | done |
-| M2 | The node's isolation code is NOT on main yet. main's node agent still sends the retired `windows-vbs-enclave/v1` [M `windows/node/agent.mjs:326`]. **Candidate 5ce3b6ed** (m2/windows-node-isolation; enclave-5d): source integration only. d1 checked it byte-equal to its sources: host/ = `1a6f1556`, manager core = `62965126`, manager/ops = `0513ced0`, windows/node = `5d71b39f`, 7 isolation/ files. It has 0 deletions. `deploy.yml`'s classifier maps no windows/, isolation/ or test/ path, so it cuts no release and triggers no deploy. | enclave-5d. **Owner-approved by d1 (content)**; 99's approval pending. Landing is under the authorization 5d cites from Codex. Deploying a node to a box is separate and not requested |
+| M2 | The node's isolation code is NOT on main yet. main's node agent still sends the retired `windows-vbs-enclave/v1` [M `windows/node/agent.mjs:326`]. **Candidate 5ce3b6ed** (m2/windows-node-isolation; enclave-5d): source integration only. d1 checked it byte-equal to its sources: host/ = `1a6f1556`, manager core = `62965126`, manager/ops = `0513ced0`, windows/node = `5d71b39f`, 7 isolation/ files. It has 0 deletions. `deploy.yml`'s classifier maps no windows/, isolation/ or test/ path, so it cuts no release and triggers no deploy. | enclave-5d. FINAL exact revision **a60c415b**, rebased on main 19cbfcb4 with a patch-id IDENTICAL to 5ce3b6ed. Approved by d1 (owner, content) and by 99. Pushed ALONE after a fresh deploy audit, under the authorization 5d cites from Codex. Deploying a node to a box is separate and not requested |
 | M3 | Host prerequisites for serving outside the lab are undecided and not installed: a permanent `AllowFirmwareLoadFromFile` [C `wmi-launcher.mjs:184-193`, "OPEN OWNER DECISION"], and the 9001 `GuestCommunicationServices` GUID, which the runs register temporarily. | package hostChecks; `ops/manager-accept.ps1` | **Steven** decides; 63 packages it after |
 | M4 | Relaying a domain's certificate request to the platform certificate service. Until then the domain serves a self-signed certificate (§1.6). Not blocked by parked work, but gated by U7: `relay/certs.js` issues to any live lease holder's operator-signed request [M `relay/certs.js:888-912`]. Build it only behind U7's owner-only restriction. | G `HV-GUEST.md:65`; N `windows/node/*` | after the U7 decision |
 
@@ -113,8 +113,15 @@ d1's round-2 verdict missed this direction.
 - credentials are stripped and Set-Cookie dropped for an ineligible box;
 - no WebSocket upgrade reaches an ineligible box;
 - 20/20 bypass paths refused, 9/9 legitimate surfaces allowed, 91/91 relay tests.
-Low residual: a publicOnly response keeps the box's Content-Type (nosniff and a sandbox CSP suggested). Part A
-passes. Part B (the SNI relay, udp, tcp6, dns-01) is next |
+Part A passes. Round 4 `631915a2` makes an ineligible box's surfaces inert (nosniff plus a sandbox CSP).
+**Part B** (`1f9fb834`, the SNI relay, udp, tcp6, dns-01) was reviewed by d1:
+- every daemon dial is gated, and new flows only open to a fresh eligible origin;
+- the node-id join is consistent (both sides strip trailing slashes and hash the exact string), and every mismatch
+  fails closed.
+Open with 99:
+- the dns-relay's fleet-HMAC path authorizes dns-01 for ANY name with no lease or eligibility check, so it is safe
+  only if every holder of the fleet secret is eligible;
+- established flows survive a loss of eligibility. |
 
 ## 5. BLOCKED or PAUSED (parked; not rerouted, not rephrased)
 
