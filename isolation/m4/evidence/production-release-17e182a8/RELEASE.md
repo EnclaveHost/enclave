@@ -53,5 +53,7 @@ api-mcp-adapter 1.0.0, phase 2's derived bundle (AppID 94c04c0e…, runtime ccad
 ## Reviews
 - The front is ecf02384's, which enclave-d1 and enclave-e3 APPROVED (e3's image sign-off over 0181bce3..ecf02384 is
   complete).
-- 77cf2d78 (dominit), the output lab and this release: pending enclave-d1's and enclave-e3's review, and e3's predictor
-  cross-check.
+- **enclave-d1: APPROVED 77cf2d78 and release a4f22748.** d1 checked the raw lab files: the control's serial has 11
+  tagged lines, the new one's has 0, and the new-only paths appear in no host file and on no journal line. d1 also
+  reproduced the release independently: a clean worktree, a fresh GOCACHE, byte-identical `diff -r`.
+- enclave-e3: review and predictor cross-check pending.
