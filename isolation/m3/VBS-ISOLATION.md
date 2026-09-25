@@ -368,6 +368,19 @@ changed across a type-1 run (01c2879b → 3e9630e1).
   - the attestation steps before GSP.
 - `probe/vmgs_check.py` prints the marker.
 
+**The debug image and its control** (enclave-53, staged for enclave-d1). The debug image is
+`pkg\probe-firmware-81e163ee\PROBE-FIRMWARE-TRUSTS-HOST-never-a-serving-candidate\`, sha `81e163ee...`.
+- It is built from openvmm a7b0bd4, the whole `openhcl-x64-cvm-release.json` (SNP, TDX and VBS configs), with
+  `--confidential-debug`. igvmfilegen appends `OPENHCL_CONFIDENTIAL_DEBUG=1` to the static OpenHCL command line
+  (`vm/loader/igvmfilegen/src/main.rs:366-376`).
+- It is **not** "stock plus a flag". Its VTL2 kernel is 6.18.37.5 and its userspace is a7b0bd4's, where stock
+  `cfd40ce2` is release 2511 (kernel 6.12.52). The source cited in this file is a7b0bd4.
+- So the type-1 order is:
+  1. a **control** image, the same a7b0bd4 components without `--confidential-debug`. Failing like stock makes the
+     debug image's text attributable. If it boots, the stock failure is specific to 2511.
+  2. the debug image, with `kmsg -f -r -v`.
+- Neither image is ever a serving candidate.
+
 **Still true:** no type-1 guest has booted, E2/E3 are NOT RUN, `host_excluded=no`, and nothing here is evidence of
 isolation.
 
