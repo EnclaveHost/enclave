@@ -596,9 +596,36 @@ async function operatorAuth(sig, raw, body, name) {
     lease = await fleet.leaseFor(depId, { fresh: true });
   }
   if (!ok(lease)) return "signer does not hold the live lease for this deployment";
+  // U7: a dns-01 answer is a certificate for a tenant's name, so it is given only to a lease holder the api-relay holds
+  // ELIGIBLE (fleet.eligibleId: its /enclaves verdict, fresh). The chain names the holder; it never makes it eligible.
+  if (!fleet.eligibleId(lease.runner)) return "the lease holder is not an eligible host (U7): no dns-01 answer for its names";
   // the label must name ONLY this deployment: a prefix shared with another
   // ledger row authorizes neither holder (leaseFor is null on ambiguity)
   if (!(await fleet.leaseFor("0x" + label))) return "label does not uniquely name this deployment";
+  return null;
+}
+
+// U7 on the fleet-HMAC path. The HMAC proves only "a holder of the fleet secret", never WHICH box (and on a metal box
+// that secret sits in an operator-readable file), so for a name that belongs to an on-ledger deployment it authorizes a
+// dns-01 answer only while that deployment has a live lease whose holder the api-relay holds ELIGIBLE, the bar the
+// operator-signed path sets. A deployment name is read the way the api-relay routes it (depFromHost): one label under the
+// app or tcp zone, "dep-"/"dep_" and "0x" stripped, 8-64 hex. Other names under those zones, and box-zone names (a box's
+// own hostname), are not a tenant's and keep the HMAC's authority. Returns why not, or null.
+async function hmacTenantRefusal(name) {
+  const rest = name.slice("_acme-challenge.".length);
+  const zone = rest.endsWith("." + APP_ZONE) ? APP_ZONE : (TCP_ZONE && rest.endsWith("." + TCP_ZONE) ? TCP_ZONE : null);
+  if (!zone) return null;
+  const label = rest.slice(0, -(zone.length + 1)).replace(/^dep[-_]/, "");
+  const hex = label.startsWith("0x") ? label.slice(2) : label;
+  if (!/^[0-9a-f]{8,64}$/.test(hex)) return null;
+  let lease = await fleet.leaseFor("0x" + hex);
+  if (!(lease && lease.leaseLive) && Date.now() - _lastFresh > FRESH_COOLDOWN_MS) {
+    _lastFresh = Date.now();
+    lease = await fleet.leaseFor("0x" + hex, { fresh: true });
+  }
+  if (!lease) return "the name is a deployment's, and no single on-ledger deployment (or no readable ledger) answers for it";
+  if (!lease.leaseLive) return "the name's deployment has no live lease";
+  if (!fleet.eligibleId(lease.runner)) return "the lease holder is not an eligible host (U7): no dns-01 answer for its names";
   return null;
 }
 
@@ -657,10 +684,21 @@ function apiHandler(req, res) {
     if (!name.startsWith("_acme-challenge.") || !zoneOk || name.length > 253)
       return json(400, { error: "bad_name", message: "name must be _acme-challenge.<name> under the app, tcp or box zone" });
     if (!value || value.length > 1024) return json(400, { error: "bad_value" });
+    // U7: never a challenge at a zone APEX. "_acme-challenge.<zone>" is the name a CA checks for a WILDCARD certificate over
+    // the zone, i.e. for every deployment at once, eligible or not; nothing on the platform issues one (enclave-5d, round 6)
+    if ([APP_ZONE, TCP_ZONE, BOX_ZONE].some((z) => z && name === "_acme-challenge." + z))
+      return json(403, { error: "apex_refused", message: "no dns-01 answer at a zone apex: that would certify a wildcard over every name in the zone" });
 
     // auth: the fleet HMAC (any name), else an operator signature whose
     // authority is the on-chain lease for THIS deployment's subdomain only
     let authed = !!TXT_KEY && checkSig(req.headers["x-relay-sig"], raw);
+    // U7: a new challenge value under the HMAC, for a deployment's name, needs that deployment's live, ELIGIBLE lease
+    // holder (removing a value is not issuance and keeps the HMAC's authority)
+    if (authed && req.method === "POST") {
+      let why;
+      try { why = await hmacTenantRefusal(name); } catch (e) { console.error(`[dns-relay] hmac tenant check error: ${e.message}`); why = "verification error"; }
+      if (why) { console.log(`[dns-relay] txt POST ${name} under the fleet HMAC REFUSED: ${why}`); return json(403, { error: "hmac_auth_refused", message: why }); }
+    }
     if (!authed && typeof req.headers["x-operator-sig"] === "string") {
       if (!rlOperator(req.socket?.remoteAddress || "unknown"))
         return json(429, { error: "rate_limited", message: "Too many operator-signed pushes; retry shortly." });
@@ -709,6 +747,7 @@ api.listen(API_PORT, API_BIND, () => console.log(`[dns-relay] challenge-push api
 // ---- boot ---------------------------------------------------------------------
 
 await fleet.start();
+await fleet.startEligibility();
 await poll();
 setInterval(poll, POLL_MS);
 console.log(`[dns-relay] authoritative for ${IP_ZONE} + ${APP_ZONE}${TCP_ZONE ? " + " + TCP_ZONE : ""} (ns ${NS_NAME}, serial ${SERIAL}); ` +

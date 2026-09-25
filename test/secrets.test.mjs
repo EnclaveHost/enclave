@@ -52,7 +52,12 @@ const ctx = {
     if (typeof epOwner === "function") return epOwner(ep);
     return epOwner;
   },
+  // U7: the relay's eligibility verdict for a lease holder's endpoint id (api-relay.js hostEligibility); eligible unless a
+  // test says otherwise
+  hostEligibility: (epId) => (INELIGIBLE.has(String(epId).toLowerCase())
+    ? { eligible: false, reason: "its attestation document presents no confidential CPU" } : { eligible: true, reason: null }),
 };
+const INELIGIBLE = new Set();
 let epOwner = null;
 const call = async (pathname, body) => {
   const res = {};
@@ -376,4 +381,22 @@ test("fetch: an UNREGISTERED endpoint still needs the fleet HMAC", async () => {
   assert.equal(res.code, 401);
   assert.equal(res.body.error, "bad_fetch_sig");
   assert.match(res.body.message, /no on-chain registry entry/);
+});
+
+// ---- U7: a deployment's secrets never leave for a host the relay would not route its traffic to ------------------------
+test("U7: fetch is refused to an INELIGIBLE lease holder, and to any holder when the relay gives no verdict", async () => {
+  rows = [leaseRow()];
+  const ts = Math.floor(Date.now() / 1000) + 7;
+  const req = (t) => ({ id: ID, endpoint: ENDPOINT, ts: t, sig: fetchSig(KEY, ID, ENDPOINT, t) });
+  INELIGIBLE.add(RUNNER);
+  let res = await call("/v1/secrets/fetch", req(ts));
+  assert.equal(res.code, 403, JSON.stringify(res.body)); assert.equal(res.body.error, "host_ineligible");
+  assert.equal(res.body.env, undefined, "no secret in the refusal");
+  INELIGIBLE.delete(RUNNER);
+  const saved = ctx.hostEligibility; delete ctx.hostEligibility;
+  res = await call("/v1/secrets/fetch", req(ts + 1));
+  assert.equal(res.code, 403); assert.equal(res.body.error, "host_ineligible");
+  ctx.hostEligibility = saved;
+  res = await call("/v1/secrets/fetch", req(ts + 2));
+  assert.equal(res.code, 200, JSON.stringify(res.body)); assert.ok(res.body.env, "eligible again: released");
 });
