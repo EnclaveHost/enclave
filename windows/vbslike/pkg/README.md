@@ -352,6 +352,21 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   `0160d835` carries the same name on its wmiserve path. Both remain in the staged v28–v33 packages. Scope
   (enclave-d1): T0-hv, host NOT excluded, reports signed by the host's launcher key (a host statement, never a root),
   no hardware VM report; not an isolation claim.
+- **v35 draft** (`drafts/nucbox-ownguest-35.json`; supersedes v34): **v34 passed the serving acceptance as staged**
+  (enclave-d1, run 084443, `54627fa2`). From `pkg\6c82ff93fd3e3718\` it used the one launcher `435717de…`, the
+  candidate `a44bb55a`, `runtime.json` and hello-world. `hvlab-accept` passed ALL, and restart A0–A8 passed ALL. In the
+  new A8, a second domain's VM was turned Off from the host, and the manager's liveness sweep failed the domain within
+  4 s and closed its relay. The manager, node and harness came from enclave-d1's `windows/hv-acceptance` `4a51c13f`,
+  NOT this package's `control/` tree (`c067b446`), and the guest-state master is the box's own. So the package's own
+  acceptance block is still not run. Scope: T0-hv, host-signed, host not excluded; not isolation.
+  **G4 is answered, as a host-behaviour measurement** (enclave-d1, run 082856, `4e314db7`). The probe `72462737` panicked on purpose at 121.8 s. Hyper-V
+  logged 18590 (a fatal guest error) and then 18515 (a reset the guest initiated), and turned the VM off within a
+  second. It did not reboot (one `MON boot` line in 330 s) and did not wedge. So on type 1 a dead monitor ends the
+  domain, and there is no second boot for G1 to meet. The manager now sweeps for stopped VMs (`d7d4fd1c`, not pinned
+  here), because wmiserve does not exit when its VM stops. The probe's reference entry now records that it booted
+  once; it stays refused. The probe is reused from v33's staged copy instead of pushed again. The dev-boot script's
+  note says it uses the box's own `target\release` launcher only for hvdial, which signs nothing. Scope: T0-hv,
+  host not excluded; not isolation evidence.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
