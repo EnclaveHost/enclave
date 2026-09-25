@@ -1,6 +1,7 @@
 # reboot-accept.ps1 - recovery after a HOST reboot (enclave-d1's READINESS.md U4), in two phases around ONE reboot:
 #   -Phase Arm     records the exact prior host state; installs a ONE-SHOT boot task that restores it on the next boot
-#                  and then removes itself; applies the temporary firmware opt-in and the 9001 key exactly as
+#                  and then removes itself (its script holds the prior values as LITERALS and lives, with its log, in a
+#                  directory ACL'd to SYSTEM and Administrators only; enclave-63's review F1); applies the temporary firmware opt-in and the 9001 key exactly as
 #                  manager-accept.ps1 does; runs reboot-accept.mjs arm (two lab domains serving, the manager left running);
 #                  restores the setting and the key BEFORE the reboot and re-checks that both domains still answer;
 #                  disables the host's own node boot task for this one boot only (-NodeTaskName; the one-shot task
@@ -39,7 +40,8 @@ param(
   [int] $AnswerCheckMs = 30000,
   [string] $NodeTaskName = 'EnclaveWindowsNode',
   [int] $RebootDelaySeconds = 60,
-  [int] $OneShotWaitSeconds = 300
+  [int] $OneShotWaitSeconds = 300,
+  [string] $RestoreDir = 'C:\ProgramData\d1-u4-restore'
 )
 $ErrorActionPreference = 'Stop'
 if ($WmiserveSha256 -notmatch '^[0-9a-fA-F]{64}$' -or $IgvmSha256 -notmatch '^[0-9a-fA-F]{64}$') { throw 'the launcher and IGVM pins must be 64 hex' }
@@ -95,42 +97,60 @@ if ($Phase -eq 'Arm') {
   if ($pre.Count) { throw "manager-owned or enclave-app- VMs already exist ($($pre.Name -join ', ')); refusing" }
   if (Get-ScheduledTask -TaskName $OneShot -EA SilentlyContinue) { throw "the one-shot task $OneShot already exists; refusing" }
   $before = Read-Setting; $xml = TaskXml
+  # F3: the run must not leave a RUNNING production node stopped, and a re-enabled task must not fire by a non-boot trigger
+  $legacyNow = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match 'vbs\\node' })
+  if ($legacyNow.Count) { throw "the legacy node is RUNNING (pid $($legacyNow.ProcessId -join ',')): a reboot would leave it stopped; refusing" }
+  if ($xml) {
+    $trig = @((Get-ScheduledTask -TaskName $NodeTaskName).Triggers | ForEach-Object { $_.CimClass.CimClassName })
+    if (@($trig | Where-Object { $_ -ne 'MSFT_TaskBootTrigger' }).Count) { throw "the node task has a non-boot trigger ($($trig -join ', ')): re-enabling it could fire it; refusing" }
+  }
   $prior = [ordered]@{ armedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); lastBoot = (LastBoot); secureBoot = [bool](Confirm-SecureBootUEFI);
     bcd = (Bcd); setting = $before; svc9001Present = (Test-Path $SvcKey); svcAddedByUs = $false;
     nodeTask = [ordered]@{ name = $NodeTaskName; exists = ($null -ne $xml); enabled = $(if ($xml) { [bool](Get-ScheduledTask -TaskName $NodeTaskName).Settings.Enabled } else { $null });
                            xmlSha256 = $(if ($xml) { Sha $xml }); xmlNormSha256 = $(if ($xml) { Sha (TaskXmlNorm $xml) });
                            lastRun = $(if ($xml) { $i = Get-ScheduledTaskInfo -TaskName $NodeTaskName; if ($i.LastRunTime) { $i.LastRunTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') } }); disabledByUs = $false };
-    tree = $treeFull; treeDigest = $null; oneShot = $OneShot }
+    tree = $treeFull; treeDigest = $null; oneShot = $OneShot; restoreDir = $RestoreDir; legacyNodeRunning = $false }
+  $prior.svcAddedByUs = -not $prior.svc9001Present                      # the arm registers the 9001 key only if absent
+  $prior.nodeTask.disabledByUs = [bool]($prior.nodeTask.exists -and $prior.nodeTask.enabled)   # decided now: a literal for the one-shot
   if ($xml) { [System.IO.File]::WriteAllText("$Lab\nodetask-before.xml", [string]$xml) }
   $lines = @(TreeLines $treeFull); [System.IO.File]::WriteAllLines("$Lab\tree-hashes-arm.txt", [string[]]$lines)
   $prior.treeDigest = (Get-FileHash "$Lab\tree-hashes-arm.txt" -Algorithm SHA256).Hash.ToLower()
   ($prior | ConvertTo-Json -Depth 5) | Set-Content -Path $priorFile
   Note "PRIOR STATE: $((Get-Content $priorFile -Raw) -replace '\s+', ' ')"
-  # the ONE-SHOT boot restore: runs as SYSTEM on the next boot, restores the recorded prior state, re-enables the node task
-  # only after its boot trigger (a 1-minute delay) can no longer fire, logs, and unregisters itself
+  # the ONE-SHOT boot restore (F1): runs as SYSTEM on the next boot. Every value it acts on is a LITERAL written here,
+  # nothing is read from a file at boot, and the script and its log live in a directory only SYSTEM and Administrators
+  # can write. It restores the recorded prior state, re-enables the node task only after its boot trigger (a 1-minute
+  # delay) can no longer fire, logs, and unregisters itself.
+  New-Item -ItemType Directory $RestoreDir -Force | Out-Null
+  & icacls.exe $RestoreDir /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'Administrators:(OI)(CI)F' | Out-Null
+  $aclIds = @((Get-Acl $RestoreDir).Access | ForEach-Object { [string]$_.IdentityReference })
+  if (@($aclIds | Where-Object { $_ -notmatch '^(NT AUTHORITY\\SYSTEM|BUILTIN\\Administrators)$' }).Count) { throw "the restore directory ACL is not SYSTEM/Administrators only: $($aclIds -join ', ')" }
+  $pS = $before.S; $pV = if ($before.S -eq 'Present') { [string]$before.V } else { '' }; $pK = if ($before.S -eq 'Present') { [string]$before.K } else { '' }
+  $rsLog = "$RestoreDir\restore-at-boot.log"
   $rs = @"
 `$ErrorActionPreference = 'Continue'
-`$log = '$Lab\restore-at-boot.log'
+`$log = '$rsLog'
 function L(`$m) { Add-Content -Path `$log -Value "`$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss'))Z `$m" }
-L 'START one-shot boot restore (SYSTEM)'
-`$p = Get-Content '$priorFile' -Raw | ConvertFrom-Json
+L 'START one-shot boot restore (SYSTEM; literals from the arm of $($prior.armedAt))'
 `$rp = '$RegPath'; `$rn = '$RegName'; `$sk = '$SvcKey'
 `$cur = try { (Get-ItemProperty `$rp -Name `$rn -EA Stop).`$rn } catch { `$null }
-if (`$p.setting.S -eq 'Absent') { if (`$null -ne `$cur) { Remove-ItemProperty `$rp -Name `$rn -EA SilentlyContinue; L 'setting was Present: REMOVED (prior Absent)' } else { L 'setting already Absent (prior Absent)' } }
-else { Set-ItemProperty `$rp -Name `$rn -Value `$p.setting.V -Type `$p.setting.K; L "setting set to prior `$(`$p.setting.V)" }
-if (`$p.svcAddedByUs -and (Test-Path `$sk)) { Remove-Item -Path `$sk -Recurse -Force -EA SilentlyContinue; L '9001 key was present: REMOVED (added by the run)' } else { L "9001 key present=`$(Test-Path `$sk) (prior `$(`$p.svc9001Present))" }
+if ('$pS' -eq 'Absent') { if (`$null -ne `$cur) { Remove-ItemProperty `$rp -Name `$rn -EA SilentlyContinue; L 'setting was Present: REMOVED (prior Absent)' } else { L 'setting already Absent (prior Absent)' } }
+else { Set-ItemProperty `$rp -Name `$rn -Value '$pV' -Type '$pK'; L 'setting set to the prior $pV ($pK)' }
+if (`$$($prior.svcAddedByUs) -and (Test-Path `$sk)) { Remove-Item -Path `$sk -Recurse -Force -EA SilentlyContinue; L '9001 key was present: REMOVED (added by the run)' } else { L "9001 key present=`$(Test-Path `$sk) (prior $($prior.svc9001Present))" }
 Start-Sleep -Seconds $OneShotWaitSeconds
-if (`$p.nodeTask.disabledByUs) { try { Enable-ScheduledTask -TaskName `$p.nodeTask.name | Out-Null; L "node task `$(`$p.nodeTask.name) RE-ENABLED (not run)" } catch { L "node task re-enable FAILED: `$(`$_.Exception.Message)" } }
+if (`$$($prior.nodeTask.disabledByUs)) { try { Enable-ScheduledTask -TaskName '$NodeTaskName' | Out-Null; L 'node task $NodeTaskName RE-ENABLED (not run)' } catch { L "node task re-enable FAILED: `$(`$_.Exception.Message)" } }
 else { L 'node task was not disabled by the run: left alone' }
 try { Unregister-ScheduledTask -TaskName '$OneShot' -Confirm:`$false; L 'DONE; one-shot task unregistered' } catch { L "DONE; unregister FAILED: `$(`$_.Exception.Message)" }
 "@
-  Set-Content -Path "$Lab\restore-at-boot.ps1" -Value $rs -Force
-  $act = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File $Lab\restore-at-boot.ps1"
+  Set-Content -Path "$RestoreDir\restore-at-boot.ps1" -Value $rs -Force
+  $act = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File $RestoreDir\restore-at-boot.ps1"
   $prn = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
   $set = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -StartWhenAvailable
   Register-ScheduledTask -TaskName $OneShot -Action $act -Trigger (New-ScheduledTaskTrigger -AtStartup) -Principal $prn -Settings $set | Out-Null
   if (-not (Get-ScheduledTask -TaskName $OneShot -EA SilentlyContinue)) { throw "the one-shot task $OneShot was not registered" }
   Note "one-shot boot restore task $OneShot registered (SYSTEM, at startup; it removes itself)"
+  ($prior | ConvertTo-Json -Depth 5) | Set-Content -Path $priorFile
+  Note "INTEGRITY: prior-state.json sha256 $((Get-FileHash $priorFile -Algorithm SHA256).Hash.ToLower()); restore-at-boot.ps1 sha256 $((Get-FileHash "$RestoreDir\restore-at-boot.ps1" -Algorithm SHA256).Hash.ToLower())"
   $armed = $false
   try {
     Set-ItemProperty -Path $RegPath -Name $RegName -Value 1 -Type DWORD
@@ -138,7 +158,6 @@ try { Unregister-ScheduledTask -TaskName '$OneShot' -Confirm:`$false; L 'DONE; o
     if (-not (Test-Path $SvcKey)) {
       New-Item -Path $SvcKey -Force | Out-Null
       New-ItemProperty -Path $SvcKey -Name 'ElementName' -Value 'enclave report signing (acceptance)' -PropertyType String -Force | Out-Null
-      $prior.svcAddedByUs = $true; ($prior | ConvertTo-Json -Depth 5) | Set-Content -Path $priorFile
       Note "hv_sock service $ReportSvcGuid registered for port 9001 (removed again before the reboot)"
     }
     $cfg = @{ tree = $treeFull; port = $Port; igvm = $igvm; igvmSha256 = $IgvmSha256.ToLower(); gsMaster = $GuestStateMaster; gsMasterSha256 = $GuestStateMasterSha256;
@@ -154,10 +173,10 @@ try { Unregister-ScheduledTask -TaskName '$OneShot' -Confirm:`$false; L 'DONE; o
     if (-not (Restore-Prior $prior)) { throw 'the setting or the 9001 key could not be restored before the reboot' }
     $rc2 = RunDriver 'recheck'
     Note "recheck (both domains answer with the setting and the 9001 key restored): exit $rc2"
-    if ($prior.nodeTask.exists -and $prior.nodeTask.enabled) {
+    if ($rc2 -ne 0) { throw "the recheck exited ${rc2}: the armed domains did not keep serving; not rebooting (F2)" }
+    if ($prior.nodeTask.disabledByUs) {
       Disable-ScheduledTask -TaskName $NodeTaskName | Out-Null
       if ((Get-ScheduledTask -TaskName $NodeTaskName).Settings.Enabled) { throw "the node task $NodeTaskName could not be disabled" }
-      $prior.nodeTask.disabledByUs = $true; ($prior | ConvertTo-Json -Depth 5) | Set-Content -Path $priorFile
       Note "node task $NodeTaskName DISABLED for this one boot (the one-shot task re-enables it after its boot trigger has passed)"
     }
     Note "before the reboot: VMs $((@(Get-VM | Where-Object { Owned $_ }) | ForEach-Object { "$($_.Name)=$($_.State)" }) -join ', '); lastBoot $(LastBoot)"
@@ -172,6 +191,7 @@ try { Unregister-ScheduledTask -TaskName '$OneShot' -Confirm:`$false; L 'DONE; o
     $null = Restore-Prior $prior
     if ($prior.nodeTask.disabledByUs) { Enable-ScheduledTask -TaskName $NodeTaskName | Out-Null; Note "node task re-enabled" }
     Unregister-ScheduledTask -TaskName $OneShot -Confirm:$false -EA SilentlyContinue
+    Remove-Item $RestoreDir -Recurse -Force -EA SilentlyContinue
     Move-Item $priorFile "$Lab\prior-state.aborted.json" -Force
     Note "=== ARM RESULT: ABORTED, cleaned up, not rebooted; manager-owned VMs left $(@(Get-VM | Where-Object { Owned $_ }).Count) ==="
     try { $script:lock.Dispose() } catch { }
@@ -187,12 +207,19 @@ if (-not (Test-Path $priorFile) -or -not (Test-Path $stateFile)) { throw "no arm
 $prior = Get-Content $priorFile -Raw | ConvertFrom-Json
 $fail = @()
 function Check($id, $ok, $detail) { if (-not $ok) { $script:fail += $id }; Note "$(if ($ok) { 'PASS' } else { 'FAIL' }) ${id}: $detail" }
+$armLog = @(Get-Content "$Lab\arm.log" -EA SilentlyContinue)
+$integ = ($armLog | Where-Object { $_ -match 'INTEGRITY: prior-state.json sha256 ([0-9a-f]{64}); restore-at-boot.ps1 sha256 ([0-9a-f]{64})' } | Select-Object -Last 1)
+$m = [regex]::Match([string]$integ, 'prior-state.json sha256 ([0-9a-f]{64}); restore-at-boot.ps1 sha256 ([0-9a-f]{64})')
+$ps = (Get-FileHash $priorFile -Algorithm SHA256).Hash.ToLower()
+$rsh = if (Test-Path "$RestoreDir\restore-at-boot.ps1") { (Get-FileHash "$RestoreDir\restore-at-boot.ps1" -Algorithm SHA256).Hash.ToLower() } else { 'missing' }
+Check 'B0' ($m.Success -and $ps -eq $m.Groups[1].Value -and $rsh -eq $m.Groups[2].Value) "integrity since the arm: prior-state.json $ps (arm $($m.Groups[1].Value)); restore-at-boot.ps1 $rsh (arm $($m.Groups[2].Value))"
 $lb = LastBoot
 Check 'B1' ([datetime]$lb -gt [datetime]$prior.armedAt) "a new boot: lastBoot $lb, armed $($prior.armedAt)"
 Check 'B2' (([bool](Confirm-SecureBootUEFI) -eq [bool]$prior.secureBoot) -and ((Bcd) -eq $prior.bcd)) "Secure Boot $(Confirm-SecureBootUEFI) (prior $($prior.secureBoot)); BCD '$(Bcd)' (prior '$($prior.bcd)')"
 $until = (Get-Date).AddSeconds($OneShotWaitSeconds + 300)
-while ((Get-Date) -lt $until -and -not ((Get-Content "$Lab\restore-at-boot.log" -EA SilentlyContinue) -match 'DONE')) { Start-Sleep -Seconds 10 }
-$osLog = @(Get-Content "$Lab\restore-at-boot.log" -EA SilentlyContinue)
+while ((Get-Date) -lt $until -and -not ((Get-Content "$RestoreDir\restore-at-boot.log" -EA SilentlyContinue) -match 'DONE')) { Start-Sleep -Seconds 10 }
+$osLog = @(Get-Content "$RestoreDir\restore-at-boot.log" -EA SilentlyContinue)
+Copy-Item "$RestoreDir\restore-at-boot.log" "$Lab\restore-at-boot.log" -Force -EA SilentlyContinue
 Check 'B3' (($osLog -match 'DONE; one-shot task unregistered').Count -gt 0 -and -not (Get-ScheduledTask -TaskName $OneShot -EA SilentlyContinue)) "one-shot log: $($osLog -join ' | ')"
 $a = Read-Setting
 Check 'B4' (($a.S -eq $prior.setting.S) -and ("$($a.V)" -eq "$($prior.setting.V)") -and ((Test-Path $SvcKey) -eq [bool]$prior.svc9001Present)) "setting $($a.S) (prior $($prior.setting.S)); 9001 key $(Test-Path $SvcKey) (prior $($prior.svc9001Present))"
@@ -217,6 +244,8 @@ $a2 = Read-Setting; $left = @(Get-VM | Where-Object { Owned $_ })
 $lines2 = @(TreeLines $treeFull); [System.IO.File]::WriteAllLines("$Lab\tree-hashes-end.txt", [string[]]$lines2)
 $td2 = (Get-FileHash "$Lab\tree-hashes-end.txt" -Algorithm SHA256).Hash.ToLower()
 Check 'B9' ($left.Count -eq 0 -and $a2.S -eq $prior.setting.S -and ((Test-Path $SvcKey) -eq [bool]$prior.svc9001Present) -and $td2 -eq $prior.treeDigest -and -not (Get-ScheduledTask -TaskName $OneShot -EA SilentlyContinue)) "end: manager-owned VMs $($left.Count); setting $($a2.S); 9001 key $(Test-Path $SvcKey); tree $td2; one-shot task present $([bool](Get-ScheduledTask -TaskName $OneShot -EA SilentlyContinue))"
+Remove-Item $RestoreDir -Recurse -Force -EA SilentlyContinue
+Note "restore directory $RestoreDir removed: $(-not (Test-Path $RestoreDir))"
 Move-Item $priorFile "$Lab\prior-state.verified.json" -Force
 $code = if ($fail.Count) { 1 } else { 0 }
 Note "=== VERIFY RESULT: $(if ($code) { "FAILED: $($fail -join ', ')" } else { 'ALL PASS' }) ==="
