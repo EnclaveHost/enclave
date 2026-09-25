@@ -51,11 +51,12 @@ export const RESPAWN_WINDOW_MS = 60 * 60 * 1000;
 
 export function isolationBoundaryRefusal(inst) {
   if (!inst || typeof inst !== "object") return "the manager returned no instance view";
-  if (inst.hostExcluded !== false) {
-    return `the manager's view of ${inst.id ?? "the instance"} states hostExcluded=${JSON.stringify(inst.hostExcluded ?? null)}; `
+  const stated = "hostExcludedAsStated" in inst ? inst.hostExcludedAsStated : inst.hostExcluded;
+  if (inst.hostExcluded !== false || (stated !== undefined && stated !== false)) {
+    return `the manager's view of ${inst.id ?? "the instance"} states hostExcluded=${JSON.stringify(stated ?? null)}; `
          + "this backend is T0-hv with the host NOT excluded, and nothing here verifies more, so it is not served";
   }
-  const tier = inst.tier == null ? null : String(inst.tier).toUpperCase().replace(/^T0-HV$/, "T0-hv");
+  const tier = typeof inst.tier === "string" ? inst.tier.toUpperCase().replace(/^T0-HV$/, "T0-hv") : null;
   if (tier !== "T0-hv") {
     return `the manager's view of ${inst.id ?? "the instance"} states tier ${JSON.stringify(inst.tier ?? null)}; `
          + "this backend's tier is T0-hv, and a view stating another is not served";
@@ -648,13 +649,18 @@ export class Host {
     // nothing on this node can verify more. A view claiming host exclusion or another tier is a contract violation, from
     // a manager that is wrong or lying: nothing is routed to it, and the lease is HELD with the instance recorded so it
     // can be retired. The record never carries a boundary stronger than this tier's.
+    // HELD, and NOT renewed (enclave-99's review of 9b79022c): a boundary refusal is a standing fact about a manager that is
+    // wrong or lying, unlike a transient hold (a 503), so the tenant is not billed for a service this box will not give
+    // (the tick reads boundaryHeld before it renews). isolation: null, because a record that served on an honest pass and
+    // is now refused must not keep a serving block. Every tick re-asks, so an honest manager clears it.
     const boundaryWrong = isolationBoundaryRefusal(inst);
     if (boundaryWrong) {
-      this.log(`${id.slice(0, 10)} isolation held: ${boundaryWrong}`);
-      return this.#record(id, { status: "provisioning", reason: boundaryWrong, ...(inst.id ? { isolationHeld: inst.id } : {}) });
+      this.log(`${id.slice(0, 10)} isolation held, not renewed: ${boundaryWrong}`);
+      return this.#record(id, { status: "held", boundaryHeld: true, isolation: null, reason: boundaryWrong,
+                                ...(inst.id ? { isolationHeld: inst.id } : {}) });
     }
     this.log(`${id.slice(0, 10)} isolation ${r.action}: ${inst.id} status=${inst.status} image=${inst.image || "?"}`);
-    return this.#record(id, { status: "running", reason: null, isolationHeld: null,
+    return this.#record(id, { status: "running", reason: null, isolationHeld: null, boundaryHeld: null,
                               isolation: { backend: "hyperv-partition-per-app", instance: inst.id,
                                            // appId is REQUIRED by isolatedTarget; without it the
                                            // app-zone route cannot name what it is splicing to
@@ -1256,7 +1262,9 @@ export class Host {
       // the resize, each of which can spend or give back the lease on chain. Recorded, and left alone.
       const held = this.heldReason(d);
       if (held) { this.#record(id, { status: "held", reason: held, leaseUntil: Number(d.leaseUntil) }); continue; }
-      if (untilMs - Date.now() < RENEW_LEAD_MS) {
+      // A deployment whose manager stated a boundary this backend cannot have is HELD and NOT renewed: renewing would bill
+      // the tenant for a service this box will not give (enclave-99). ensureApp below still re-asks every tick.
+      if (rec.boundaryHeld !== true && untilMs - Date.now() < RENEW_LEAD_MS) {
         try { await chain.renewDeployment(id); this.log(`renewed ${id.slice(0, 10)}`); d = await chain.readDeployment(id); }
         catch (e) {
           // rateCap doctrine (the platform runner's, mirrored): a renew the LEDGER refuses is not
