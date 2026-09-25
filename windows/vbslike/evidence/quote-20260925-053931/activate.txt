@@ -4,4 +4,5 @@ ek-name 000b71ce9306a83eaa067be40a8f6831142ed4281148c3096545a7e6c0e3781d0506
 ek-source createprimary:endorsement
 ek-cert-match yes
 policy-hmac empty
+credential e930ff54f13e9a52b6e2795b5e8b7e04695c80bbc671bc35a119a87235b3792b
 ok
