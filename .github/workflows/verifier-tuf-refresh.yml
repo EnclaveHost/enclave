@@ -1,11 +1,13 @@
 # The TUF-verified refresh of the pinned Sigstore trusted root (verifier/tuf-refresh.mjs; docs/security/independent-verifier-plan.md
 # M4). Weekly and on dispatch: from the PINNED starting root (verifier/roots/sigstore-tuf-root.json) the client walks
 # Sigstore's root rotations, timestamp, snapshot and targets, and fetches trusted_root.json by hash and length. When the
-# verified target or the highest verified root differs from the pinned files, the job opens a PULL REQUEST carrying the
-# refreshed files and the TUF versions in its body; it never writes to main. A verification failure fails the job and
-# writes nothing. Read-only against the network, no secret, pinned actions; the job token may only push the PR branch
-# and open the PR. A CDN or mirror can refuse to serve; it cannot serve anything the chain from the pinned root does
-# not sign, so this job is never a new authority over what the consumers trust.
+# verified target or the highest verified root differs from the pinned files (and only then: an unchanged refresh writes
+# nothing), the job pushes the refreshed files to a verifier/tuf-refresh-* BRANCH, puts the compare link and the report in
+# the run summary, and FAILS the run so a maintainer reviews the pins and opens the pull request: this repository does not
+# let GitHub Actions create pull requests (measured 2026-09-25, the first CI run), and the job never writes to main. A
+# verification failure fails the job and writes nothing. Read-only against the network, no secret, pinned actions; the job
+# token may only push the refresh branch. A CDN or mirror can refuse to serve; it cannot serve anything the chain from
+# the pinned root does not sign, so this job is never a new authority over what the consumers trust.
 name: verifier TUF refresh (pinned Sigstore root)
 
 on:
@@ -21,8 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write        # push the refresh branch
-      pull-requests: write   # open the pull request
+      contents: write        # push the refresh branch (never main)
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
@@ -43,14 +44,15 @@ jobs:
           name: verifier-tuf-refresh
           path: tuf-refresh-report.json
           retention-days: 30
-      - name: open a pull request with the refreshed pins (never a push to main)
+      - name: push the refreshed pins to a branch (never main) and fail the run for review
         if: steps.refresh.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           BR="verifier/tuf-refresh-$(date -u +%Y%m%d-%H%M)"
           git config user.name "verifier-tuf-refresh[bot]"; git config user.email "verifier-tuf-refresh@users.noreply.github.com"
           git checkout -b "$BR"; git add verifier/roots/; git commit -m "verifier: TUF-verified refresh of the pinned Sigstore trusted root" -m "$(node -e 'const r=require("./tuf-refresh-report.json"); console.log(r.reasons.join("\n"))')"
           git push origin "$BR"
-          gh pr create --base main --head "$BR" --title "verifier: TUF-verified refresh of the pinned Sigstore trusted root" --body-file <(printf '%s\n\n```\n%s\n```\n' "Opened by the weekly TUF refresh: the pinned trusted root and/or the highest verified root changed. The chain from the previously pinned root was verified by verifier/tuf-refresh.mjs; review the diff of verifier/roots/ and the report artifact before merging." "$(node -e 'console.log(JSON.stringify(require("./tuf-refresh-report.json"), null, 2))')")
+          URL="https://github.com/${GITHUB_REPOSITORY}/compare/main...${BR}"
+          { echo "### The pinned Sigstore trust changed (verified from the pinned root)"; echo; echo "Review the diff of verifier/roots/ and open a pull request: ${URL}"; echo; echo '```'; node -e 'console.log(JSON.stringify(require("./tuf-refresh-report.json"), null, 2))'; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error title=verifier TUF refresh::the pinned Sigstore trust changed and verified; review branch ${BR} and open a pull request: ${URL}"
+          exit 1

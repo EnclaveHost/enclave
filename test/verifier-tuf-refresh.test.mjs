@@ -111,6 +111,16 @@ test("writePinned writes the trusted root, the starting root and the sources onl
     assert.equal(sha(fs.readFileSync(w.trustedRoot)), sha(ROOT_B)); assert.equal(JSON.parse(fs.readFileSync(w.startingRoot, "utf8")).signed.version, 2, "the starting root advanced to the verified v2");
     const src = JSON.parse(fs.readFileSync(w.sources, "utf8")); assert.equal(src["sigstore-trusted-root.json"].tuf.rootVersion, 2); assert.equal(src["sigstore-trusted-root.json"].what, "old", "existing notes kept"); assert.equal(src["sigstore-tuf-root.json"].version, 2);
     assert.equal(fs.readdirSync(roots).filter((f) => f.endsWith(".tmp")).length, 0);
+    assert.equal(w.written, true); assert.equal(w.trustedChanged, true); assert.equal(w.tufChanged, true);
+    // the same verified trust again (a later week, nothing rotated, the same target): NOTHING is written, not even a timestamp
+    const before = Object.fromEntries(fs.readdirSync(roots).map((f) => [f, fs.readFileSync(path.join(roots, f))]));
+    const again = await refresh(repo, s, { stateDir: tmp(), currentTrustedRoot: ROOT_B }); assert.equal(again.ok, true); assert.equal(again.changed, false);
+    const w2 = writePinned(again, { rootsDir: roots, metadataUrl: s.metadataUrl, targetsUrl: s.targetsUrl, now: new Date("2031-01-01T00:00:00Z") });
+    assert.equal(w2.written, false); for (const [f, b] of Object.entries(before)) assert.ok(fs.readFileSync(path.join(roots, f)).equals(b), `${f} untouched`);
+    // only the TUF root rotated (the target is the same): written, and it says which
+    repo.publishRoot(); const rot = await refresh(repo, s, { stateDir: tmp(), currentTrustedRoot: ROOT_B }); assert.equal(rot.ok, true); assert.equal(rot.changed, false);
+    const w3 = writePinned(rot, { rootsDir: roots, metadataUrl: s.metadataUrl, targetsUrl: s.targetsUrl });
+    assert.equal(w3.written, true); assert.equal(w3.trustedChanged, false); assert.equal(w3.tufChanged, true); assert.equal(JSON.parse(fs.readFileSync(w3.startingRoot, "utf8")).signed.version, 3);
     repo.tamperSignature("timestamp.json"); const bad = await refresh(repo, s, { stateDir: tmp() }); assert.equal(bad.ok, false); assert.throws(() => writePinned(bad, { rootsDir: roots }), /only a verified refresh/);
   });
   // another repository entirely (other keys) served at the same URLs: refused by the pinned root, whatever it signs
@@ -139,11 +149,12 @@ test("Sigstore's real chain, offline (fixture sigstore-2026-09-25): from the anc
   } finally { await new Promise((r) => srv.close(() => r())); }
 });
 
-test("the refresh workflow: weekly and on dispatch, pinned actions, the lockfile install, refresh from the pinned root written only on success, the report kept, a PULL REQUEST on change and never a push to main, no secret beyond the job token", () => {
+test("the refresh workflow: weekly and on dispatch, pinned actions, the lockfile install, refresh from the pinned root written only on success, the report kept, a BRANCH and a failed run for review on change (Actions may not open pull requests here) and never a push to main, no secret beyond the job token", () => {
   const y = fs.readFileSync(path.join(REPO, ".github", "workflows", "verifier-tuf-refresh.yml"), "utf8");
   assert.match(y, /^\s+schedule:\n\s+- cron: "41 5 \* \* 1"/m); assert.match(y, /workflow_dispatch: \{\}/); assert.equal(/^\s+push:/m.test(y), false); assert.equal(/^\s+pull_request:/m.test(y), false);
   for (const m of y.matchAll(/uses: ([^@\s]+)@([0-9a-f]{40})/g)) assert.ok(m[2], m[1]); assert.equal((y.match(/uses: /g) || []).length, 3, "three pinned actions");
   assert.match(y, /npm ci --ignore-scripts --no-audit --no-fund/); assert.match(y, /node verifier\/tuf-refresh\.mjs refresh --state \.tuf-state --out tuf-refresh-report\.json --write/);
-  assert.match(y, /gh pr create --base main --head "\$BR"/); assert.equal(/git push origin (main|HEAD:main)/.test(y), false, "never a push to main"); assert.match(y, /git push origin "\$BR"/);
-  assert.equal(/secrets\./.test(y), false, "no secret"); assert.match(y, /pull-requests: write/); assert.match(y, /^permissions:\n  contents: read/m, "read-only by default; the job raises what it needs");
+  assert.equal(/gh pr create/.test(y), false, "no pull request from Actions: the repository forbids it (first CI run, 2026-09-25)"); assert.equal(/git push origin (main|HEAD:main)/.test(y), false, "never a push to main"); assert.match(y, /git push origin "\$BR"/);
+  assert.match(y, /GITHUB_STEP_SUMMARY/); assert.match(y, /::error title=verifier TUF refresh::/); assert.match(y, /compare\/main\.\.\.\$\{BR\}/); assert.match(y, /\n          exit 1\n/, "a verified change fails the run so a maintainer reviews it");
+  assert.equal(/secrets\./.test(y), false, "no secret"); assert.equal(/pull-requests: write/.test(y), false, "no pull-request permission"); assert.match(y, /^permissions:\n  contents: read/m, "read-only by default; the job raises what it needs");
 });
