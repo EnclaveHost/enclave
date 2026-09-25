@@ -21,8 +21,8 @@
 #     cannot produce it is better than one that relies on the guest to catch it.
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory = $true)][string] $Iso,            # the boot medium (deterministic El Torito)
-  [Parameter(Mandatory = $true)][string] $IsoSha256,      # pinned; verified on this host
+  [string] $Iso = '',                                     # the boot medium (deterministic El Torito); required unless -LinuxDirect
+  [string] $IsoSha256 = '',                               # pinned; verified on this host
   [string] $Firmware   = 'C:\openhcl-probe\openhcl.bin',  # Microsoft's STANDARD OpenHCL, not linux-direct
   [string] $FirmwareSha256 = '48773995cfa2222ca7bb40020a807dcb8ce155a244b0987ba55334caafe49075',
   [int]    $MemMiB     = 2048,
@@ -67,6 +67,12 @@ param(
   # DESIGN. Without this switch that empty baseline is refused, as before; with it the run proceeds and the harm
   # check rests on the node process and the host settings, which are still compared before and after.
   [switch] $LegacyBackendRetired,
+  # THE MEASURED GUEST (enclave-53's Linux-VTL0 candidate): the paravisor loads our kernel, initrd and VTL0 command
+  # line from INSIDE the IGVM, where they are measured, instead of UEFI booting an unmeasured medium. So there is no
+  # medium at all: -Iso is refused, nothing is attached for UEFI, and the IGVM's own digest is the guest's identity.
+  # Built for the VBS config only (type 1). App serving is refused for now: wmiserve binds its report to a MEDIUM
+  # hash, and here the identity is the IGVM digest, which wmiserve does not yet carry.
+  [switch] $LinuxDirect,
   # THE INVERSE CONTROL for Windows' firmware-load requirement: run WITHOUT applying AllowFirmwareLoadFromFile, so
   # the first observable says whether Hyper-V loads this firmware file without the developer setting at all.
   [switch] $WithoutFirmwarePolicy,
@@ -205,6 +211,12 @@ function Loopbacks {
 }
 $APPS = @('e64f7cba','d9798e4c','a77d0c57','7ae476a3','a69dcbba','c34499ee')
 
+if ($LinuxDirect) {
+  if ($Iso -or $IsoSha256) { throw "-LinuxDirect boots the kernel INSIDE the measured IGVM: no medium may be attached (-Iso must be empty)" }
+  if ($IsolationType -ne 1) { throw "-LinuxDirect is built for the VBS config only: use -IsolationType 1" }
+  if ($Bundle) { throw "-LinuxDirect cannot serve an app yet: wmiserve binds its report to a MEDIUM hash, and here the identity is the IGVM digest" }
+} elseif (-not $Iso -or -not $IsoSha256) { throw "-Iso and -IsoSha256 are required (or -LinuxDirect for a measured Linux-VTL0 IGVM)" }
+
 # ONE RUN AT A TIME, ENFORCED - and checked BEFORE self-heal, which it protects.
 #
 # Self-heal removes every `enclave-uefi-*` VM carrying our marker or empty Notes. The stale-sentinel
@@ -271,7 +283,10 @@ if (@($appsBefore | Where-Object { $_ -match '=(200|401)$' }).Count -eq 0) {
 # sharing READ only - no writer, no delete, no rename can get in while the handle is held - hashed
 # through that handle, and held until the VM has been removed.
 $script:held = @()
-foreach ($f in @(@{p=$Iso;h=$IsoSha256;n='medium'}, @{p=$Firmware;h=$FirmwareSha256;n='firmware'})) {
+$pins = @()
+if (-not $LinuxDirect) { $pins += @{p=$Iso;h=$IsoSha256;n='medium'} }
+$pins += @{p=$Firmware;h=$FirmwareSha256;n=$(if ($LinuxDirect) { 'firmware (the measured IGVM: paravisor + our kernel/initrd/cmdline)' } else { 'firmware' })}
+foreach ($f in $pins) {
   if (-not (Test-Path $f.p)) { throw "$($f.n) not found: $($f.p)" }
   $fs = [System.IO.File]::Open($f.p, 'Open', 'Read', 'Read')
   $script:held += $fs
@@ -285,7 +300,7 @@ if (-not $Approve) {
   Write-Host "      1. set $RegName = 1 (REG_DWORD)  [HOST-WIDE, permits UNSIGNED guest firmware]"
   Write-Host "      2. create ONE Gen2 VM, GuestStateIsolationType $IsolationType, Secure Boot OFF,"
   Write-Host "         $(if($IsolationType -eq 1){'WITH the vTPM Windows makes for a VBS VM (nothing reads its PCRs)'}else{'NO vTPM'}),"
-  Write-Host "         firmware $Firmware, DVD $Iso as the only boot device, COM1 -> \\.\pipe\$pipe"
+  Write-Host "         firmware $Firmware, $(if ($LinuxDirect) { 'NO medium (Linux VTL0 inside the measured IGVM)' } else { "DVD $Iso as the only boot device" }), COM1 -> \\.\pipe\$pipe"
   Write-Host "      3. read the boot configuration BACK and refuse if any LoadOptions appeared"
   Write-Host "      4. start it and watch COM1 for 'MON ready control_port=9000' for $ReadySeconds s"
   Write-Host "      5. remove that exact VM and restore the setting, verified"
@@ -475,32 +490,38 @@ try {
 
   # CHECKED. A failed grant used to be discarded, and a VM that cannot read its own firmware fails
   # to start with no content at all - indistinguishable from the start failures under study.
-  foreach ($gp in @($Iso, $Firmware)) {
+  foreach ($gp in @(@($Iso, $Firmware) | Where-Object { $_ })) {
     & icacls $gp /grant "NT VIRTUAL MACHINE\$($vm.Id):R" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "icacls could not grant the VM read access to $gp (exit $LASTEXITCODE)" }
   }
-  Note "read access granted to the VM's own SID on the medium and the firmware (icacls exit 0 for both)"
+  Note "read access granted to the VM's own SID on $(if ($LinuxDirect) { 'the firmware' } else { 'the medium and the firmware' }) (icacls exit 0)"
 
-  # petri's New-CustomVM defines the VM through a single DefineSystem call and adds NO storage
-  # controller, so there is nowhere to attach a boot medium: Add-VMDvdDrive fails with "no available
-  # locations were found on the disk controller". Measured on the first run. Add one first.
-  if (-not (Get-VMScsiController -VM $vm -ErrorAction SilentlyContinue)) {
-    Add-VMScsiController -VM $vm
-    Note "added a SCSI controller (New-CustomVM creates none)"
+  $attachedSha = $null
+  if (-not $LinuxDirect) {
+    # petri's New-CustomVM defines the VM through a single DefineSystem call and adds NO storage
+    # controller, so there is nowhere to attach a boot medium: Add-VMDvdDrive fails with "no available
+    # locations were found on the disk controller". Measured on the first run. Add one first.
+    if (-not (Get-VMScsiController -VM $vm -ErrorAction SilentlyContinue)) {
+      Add-VMScsiController -VM $vm
+      Note "added a SCSI controller (New-CustomVM creates none)"
+    }
+    Add-VMDvdDrive -VM $vm -Path $Iso
+    # HASHED AT ATTACH TIME, not from the pin argument. The pin says what we MEANT to attach; this
+    # says what the VM is actually pointed at, and they are only the same if nothing changed the file
+    # between the check above and this line. partition.guestImageSha256 is this value - the MEDIUM's,
+    # not the UKI's, because with Secure Boot off the stub reads addons and credentials from the ESP,
+    # so two media with the same UKI can boot different command lines (enclave-99's review).
+    $dvd = Get-VMDvdDrive -VM $vm
+    $attached = $dvd.Path
+    $attachedSha = (Get-FileHash $attached -Algorithm SHA256).Hash.ToLower()
+    Note "attached medium: $attached"
+    Note "guestImageSha256 (medium, hashed at attach): $attachedSha"
+    if ($attachedSha -ne $IsoSha256.ToLower()) { throw "the attached medium hashes $attachedSha, not the pinned $IsoSha256" }
+    Set-VMFirmware -VM $vm -FirstBootDevice $dvd
+  } else {
+    Note "NO MEDIUM (-LinuxDirect): our VTL0 kernel, initrd and command line are INSIDE the measured IGVM (sha256 $FirmwareSha256);"
+    Note "          nothing is attached for UEFI to boot, and the guest's identity is the IGVM's launch digest, not a medium hash."
   }
-  Add-VMDvdDrive -VM $vm -Path $Iso
-  # HASHED AT ATTACH TIME, not from the pin argument. The pin says what we MEANT to attach; this
-  # says what the VM is actually pointed at, and they are only the same if nothing changed the file
-  # between the check above and this line. partition.guestImageSha256 is this value - the MEDIUM's,
-  # not the UKI's, because with Secure Boot off the stub reads addons and credentials from the ESP,
-  # so two media with the same UKI can boot different command lines (enclave-99's review).
-  $dvd = Get-VMDvdDrive -VM $vm
-  $attached = $dvd.Path
-  $attachedSha = (Get-FileHash $attached -Algorithm SHA256).Hash.ToLower()
-  Note "attached medium: $attached"
-  Note "guestImageSha256 (medium, hashed at attach): $attachedSha"
-  if ($attachedSha -ne $IsoSha256.ToLower()) { throw "the attached medium hashes $attachedSha, not the pinned $IsoSha256" }
-  Set-VMFirmware -VM $vm -FirstBootDevice $dvd
   Set-VMComPort  -VM $vm -Number 1 -Path "\\.\pipe\$pipe"
   # COM3 IS NEVER ATTACHED BY THIS SCRIPT, on any host. It would be OpenHCL's own VTL2 log, but
   # Set-VMComPort only addresses ports 1 and 2, and the only thing that configured a third port's
@@ -523,7 +544,8 @@ try {
   Note "boot order: $((@($fw.BootOrder | ForEach-Object { $_.BootType })) -join ', ')"
   Note "secure boot: $($fw.SecureBoot)"
   if ($fw.SecureBoot -ne 'Off') { throw "Secure Boot is $($fw.SecureBoot); the UKI is unsigned and this must be Off" }
-  if (@($fw.BootOrder).Count -ne 1) { throw "the VM has $(@($fw.BootOrder).Count) boot entries; exactly one (the DVD) is expected" }
+  if (-not $LinuxDirect -and @($fw.BootOrder).Count -ne 1) { throw "the VM has $(@($fw.BootOrder).Count) boot entries; exactly one (the DVD) is expected" }
+  if ($LinuxDirect) { Note "boot entries: $(@($fw.BootOrder).Count) (recorded only: with -LinuxDirect the IGVM carries no UEFI, so nothing reads the boot order)" }
   # The vTPM, asserted through WMI rather than Get-VMTpm: that cmdlet does not exist in this build's
   # Hyper-V module, and my first version threw on it - a check meant to enforce the absence of a
   # vTPM instead stopped the boot. Msvm_SecuritySettingData.TpmEnabled is present here and is the
@@ -550,7 +572,7 @@ try {
     $lo = $e.Device.PSObject.Properties['LoadOptions']
     if ($lo -and $lo.Value) { throw "a boot entry carries LoadOptions ('$($lo.Value)'); the guest would refuse to start" }
   }
-  Note "read-back OK: one boot entry, no LoadOptions, Secure Boot off, vTPM as reported above"
+  Note "read-back OK: $(if ($LinuxDirect) { 'no medium' } else { 'one boot entry' }), no LoadOptions, Secure Boot off, vTPM as reported above"
 
   # OPEN THE CONSOLE BEFORE STARTING, AND KEEP IT OPEN.
   #
@@ -673,7 +695,7 @@ try {
   }
   if ($seen) { foreach ($l in ($seen -split "`n" | Where-Object { $_ -match 'MON|error|panic|refus' } | Select-Object -First 12)) { Note "  CONSOLE: $($l.Trim())" } }
   if ($ready) {
-    Note "RESULT: MON ready - the guest booted as a UEFI VTL0 (DEV BOOT; host exclusion NOT established)"
+    Note "RESULT: MON ready - the guest booted as $(if ($LinuxDirect) { 'a Linux VTL0 loaded by the paravisor from the measured IGVM' } else { 'a UEFI VTL0' }) (DEV BOOT; host exclusion NOT established)"
     # THE CONTROL CHANNEL. `MON ready` does NOT prove it: AF_VSOCK accepts a listen with no
     # transport registered, so the monitor can say ready while nothing could ever reach it. The
     # guest's virtio vsock modules fail to insert here (they are QEMU's); enclave-5d reports the
