@@ -5,14 +5,16 @@
 # once).
 #   stage-remote.sh <BASE> <INPUTS>
 #     BASE    e.g. /opt/enclave-predict/<predictor commit, 12 hex>
-#     INPUTS  a directory holding releases.tar (release-0181bce3/, release-6757d139/) and components/ (the known answers'
-#             raw-CID components; re-verified against their CIDs on every read)
+#     INPUTS  a directory holding releases.tar (release-0181bce3/, release-6757d139/), components/ (the known answers'
+#             raw-CID components; re-verified against their CIDs on every read), pip-25.2-py3-none-any.whl and
+#             requirements.txt (the pinned packages, each with every sha256 PyPI publishes for that version)
 # Needs on the host: git, python3 (>= 3.9, with venv), node (>= 20), cpio, gzip, curl, tar. Reports and stops if any is absent.
 set -eu
 BASE=${1:?usage: stage-remote.sh <BASE> <INPUTS>}; IN=${2:?usage: stage-remote.sh <BASE> <INPUTS>}
 PREDICTOR_COMMIT=${PREDICTOR_COMMIT:?}; TOOLCHAIN_COMMIT=${TOOLCHAIN_COMMIT:?}
 REPO_URL=${REPO_URL:-https://github.com/EnclaveHost/enclave}
 GO_URL=https://go.dev/dl/go1.24.7.linux-amd64.tar.gz; GO_SHA=da18191ddb7db8a9339816f3e2b54bdded8047cdc2a5d67059478f8d1595c43f
+PIP_WHEEL=pip-25.2-py3-none-any.whl; PIP_SHA=6d67a2b4e7f14d8b31b8b52648866fa717f45a1eb70e83002f4331d07e953717   # PyPI's published sha256
 KAT_RELEASES="5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2:release-0181bce3 6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb:release-6757d139"
 say() { echo "stage: $*"; }
 [ ! -e "$BASE" ] || { say "REFUSED: $BASE exists (a version is staged once)"; exit 2; }
@@ -34,10 +36,13 @@ curl -fsSL "$GO_URL" -o "$BASE/go.tgz"
 echo "$GO_SHA  $BASE/go.tgz" | sha256sum -c --quiet
 tar -xzf "$BASE/go.tgz" -C "$BASE" && rm "$BASE/go.tgz"
 say "$("$BASE/go/bin/go" version)"
-# sev-snp-measure 0.0.13 and its dependencies, pinned versions, in its own venv
-python3 -m venv "$BASE/venv"
-"$BASE/venv/bin/pip" install -q --disable-pip-version-check "sev-snp-measure==0.0.13" "cryptography==50.0.1" "cffi==2.1.1" "pycparser==3.0"
-say "venv: $("$BASE/venv/bin/pip" freeze | tr '\n' ' ')"
+# sev-snp-measure 0.0.13 and its dependencies in their own venv. The venv is made WITHOUT pip (a host python may lack
+# ensurepip); pip runs from its PyPI wheel, checked against PyPI's sha256; every package is hash-locked and binary-only
+# (no compiler runs here).
+python3 -m venv --without-pip "$BASE/venv"
+echo "$PIP_SHA  $IN/$PIP_WHEEL" | sha256sum -c --quiet
+"$BASE/venv/bin/python" "$IN/$PIP_WHEEL/pip" install -q --disable-pip-version-check --no-cache-dir --require-hashes --only-binary=:all: -r "$IN/requirements.txt"
+say "venv: $("$BASE/venv/bin/python" "$IN/$PIP_WHEEL/pip" freeze --disable-pip-version-check | tr '\n' ' ')"
 # the known answers' domain releases, each verified against its id; their components
 mkdir -p "$BASE/releases" "$BASE/components"
 tar -xf "$IN/releases.tar" -C "$BASE/releases"
