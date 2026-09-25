@@ -225,6 +225,10 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
      PASS. A8 shows the liveness sweep failing a domain whose VM went Off, within 4 s, on hardware.
    - DONE (run 090327): tree `2c3a2873` on v35 passes hvlab-accept and A0-A9. A9 shows enclave-5d's answer sweep failing
      a domain stopped inside a still-Running VM, on hardware. v36 pins that tree as the package's control/.
+   - DONE (run 091720, `probe-domain-20260925/`): the in-domain adversary probe on the measured `a44bb55a` guest, on
+     Hyper-V. A domain is contained by the guest kernel: an unprivileged uid; no other domain's files; no report
+     interface; 2 pids; no vsock or gateway; memory capped. This is app-versus-app inside the partition, NOT host
+     exclusion.
    - NEXT: the canary for enclave-63's production candidate `b7ba7731` (digest `56FBB27F`, byte review `fd92d610`). It
      includes a PROBE-mode domain that must read `dev_tpm0=No such file or directory`: the measured form of the
      source claim that a tenant cannot reach the vTPM.
