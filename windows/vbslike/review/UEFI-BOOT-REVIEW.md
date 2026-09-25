@@ -60,6 +60,10 @@ the same `guestImageSha256` if the field were the UKI's. The medium's hash separ
 Whichever is chosen, the launcher must hash the medium it attaches at attach time, and the field's meaning per path
 must be written next to the field (53's package records the expectation per path).
 
+## Pins as of 53's v9 draft (f99f16dc, windows/vbslike-pkg 285b8af6+), per 53's report 2026-09-25
+
+The hashes above (disk.raw 04898f09, esp.img 9bea1b68, UKI a1fdb5c3) were 53's pins at 1be7bbcd, before 5d's guarded initrd. With initrd 5bc06259 (4127789d) they are: UKI 75ae6bcc; ISO 4c387086d204c7064bf77a48c6e076b844ba5b429f2219c5e29cd988e23cdcb0, the medium d1 chose (read-only DVD) and therefore the bytes `partition.guestImageSha256` names on that path; disk.raw a50fdd05663762f703353919620179ddbfab7b561788163429eed8e4146b0f72, the VHDX fallback's payload and the field's value on that path. The draft carries the composition (.osrel, objcopy 2.47, SOURCE_DATE_EPOCH=0), the not-measured list, and "vTPM NOT STATED" for the VM config. `pkg.mjs verify --rebuild` rebuilds the ISO with both UKI recipes and checks the VHDX payload. Not measured here; recorded as 53 stated it.
+
 ## Two concrete items for the owners
 
 - **monitor/main.go:1037** prints `partition=hcs-child` as fixed text. Under a WMI/OpenHCL Gen2 VM the document
