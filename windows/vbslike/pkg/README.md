@@ -331,6 +331,17 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   **labelled**: "pre-G1 monitor (initrd 0d14db23); no isolation claim possible (unmeasured medium); not a proof or
   serving candidate". Note: `uefi-medium` in `pkg.mjs` file roles (`guest.uefi-medium`) names the medium FILE. It is
   not the contract's `guestImageKind` (enclave-99, `ae6e9147`), though the word is the same.
+- **v33 draft** (`drafts/nucbox-ownguest-33.json`; supersedes v32): **the G4 PROBE image** `72462737…` (launch digest
+  `CF339BC5…`), built and reviewed, not booted. It is the G1 candidate's recipe with only the VTL0 initrd swapped for
+  enclave-5d's probe initrd `e3b68c92…` (`680d40fa` plus one appended archive holding the probe module `8b7f5ace…`),
+  which enclave-63 reproduced byte-exact. enclave-d1's byte review agrees (`7ce0a5fa`). It ships as `probe.firmware`
+  under a PROBE path: never any profile's firmware, and never eligible (reference class `probe`, refused by exact
+  digest). It is for enclave-d1's G4 run, which enclave-d1 schedules. **Also** recorded: enclave-d1's manager
+  restart-recovery acceptance on `a44bb55a` (run 080420, `33a5bb06`/`fbc13e81`: one VM, recovered:true held, no second
+  VM, DELETE by VM Id). That is a manager result only; no `vbslike-host.exe` ran, so the candidate launcher stays a
+  candidate. **And** each profile states its boot form as `profile.contract` in the verifier contract's vocabulary
+  (`vbsLinux` the Linux-direct pair, `uefi` and `vbs` the UEFI-medium pair, `hcs-dev` and `igvm` `null`). It is
+  informational and never feeds eligibility.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
