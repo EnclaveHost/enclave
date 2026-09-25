@@ -140,7 +140,9 @@ CHIP_ID binds the **physical chip, not the endpoint**: two registered endpoints 
     `d6c8a95966710fb52f4f753458362869ee26cf84aee08d27900c53a5b3fcc81d`, sha256 `06212e5d…8b97`, key id `06212e5df9c3779a`;
     the seed in `/etc/nan-relay/secrets-release-signing.seed` (0600, owned by `enclave-api-relay`, generated on nan with no
     copy off it). It is NOT yet configured: no `SECRETS_RELEASE_SIGNING_KEY(_FILE)` in api-relay.env, the release OFF. No
-    standby key was generated (Codex's decision).
+    standby key was generated (Codex's decision: ONE key). A standby would NOT be revocation: guests pinning {active, standby}
+    keep accepting the active key after a leak, so switching the relay to the standby revokes nothing; the key id is a
+    selector, not a revocation. Planned rotation is a separate design.
   - **Revocation is only by a new measured front:** the pinned set is in the image, so a leaked release key stays valid for every deployed guest until those guests are re-imaged. Plan a rotation as "ship a front pinning {old, new}, switch the relay to new, ship a front pinning {new}".
 - Every provider below, wired and reviewed.
 
