@@ -1,0 +1,4 @@
+47c608a063d77d343014577675b8b437edce544cc164e8788c0a9a88d9a5cad7  /home/steven/enclave-bench/llama-conv/bin/libggml-cpu.so
+86526a4dc930af7d83fe2a2cb49490a9d5368d850fdc3384d285eb19afc8f01c  /home/steven/enclave-bench/llama-conv/bin/libggml-base.so
+163786179d429334ff5ac5c72fd19448542c5aa9ad048269bd710f17f89aa1ce  /home/steven/enclave-bench/b27/bin-fast/bench-spec2
+fe206527652eecf5ef42b9b70eeb454cb2339d16e6ce76cef168fe56b43ea655  /home/steven/Projects/enclave/wasm/ggml-shielded/libggml-shielded.so

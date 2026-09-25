@@ -1,0 +1,20 @@
+am-slow-1 rc=0 wall=87s foreign=0.41 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.24 workload=(1, 17, 64, 64, 43118)
+  plain 18.25 | spec k=1 21.24 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4
+am-fast-1 rc=0 wall=92s foreign=0.36 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.91 workload=(1, 17, 64, 64, 43118)
+  plain 19.77 | spec k=1 21.91 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4
+am-fast-2 rc=0 wall=87s foreign=0.35 refusalA=0 refusalB=0 splitrefused=0
+  VALID tok_s=21.50 workload=(1, 17, 64, 64, 43118)
+  plain 19.49 | spec k=1 21.50 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4
+am-slow-2 rc=0 wall=101s foreign=0.62 refusalA=0 refusalB=0 splitrefused=0 INTRUDER: rustc:96.2
+  INVALID: intruder=rustc:96.2
+  plain 18.75 | spec k=1 19.30 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+YIELDED 15:58:51: queue stopped after am-slow-2 (pairs done: 1 valid; pair 2 invalid by intruder; pair 3 not run)

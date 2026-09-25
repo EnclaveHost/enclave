@@ -5066,3 +5066,156 @@ pages) but that batch was stopped, see below.
 
 No timed runs are possible while the compositor burns a core; the box is not
 quiet. **No 25.**
+
+### 18.54 Wrap-up: the official path, a candidate excluded by it, and what shipped
+
+**Setup of record** (every run below): AMD EPYC 9115 (16 cores / 32 threads,
+one NUMA node, 128 GB), two V100-class cards on PCIe 3.0 x8 (card 0 Tesla
+PG500-216, HBM 1107 MHz; card 1 Tesla V100-PCIE-32GB, 877 MHz), Linux
+7.2.0-gbf5bafed3e6d (the M3b kernel), NVIDIA 580.178.04. Model
+Qwen3.8-27B-UD-Q4_K_XL with its shielded calibration
+(`metal/shielded-overlay/calib/qwen3.8-27b-mtp-q4-vl-gguf.calib`), MTP
+self-drafting k=1, 64 generated tokens, 8 decode threads, column split
+(`SHIELDED_SPLIT_COLS=1`), `SHIELDED_OVERLAP_VERIFY=1`, refill batch 64, pool 64,
+max m 64, masking and Freivalds verification on throughout, fresh pads per run.
+Worker binary 9039023a0be03d66, shielded backend fe206527652eecf5, engine drop
+`ell-new` (libenclave_llama), bench `bin-fast/bench-spec2` 163786179d429334
+(the register-max argmax). Harness `shielded/bench-harness/` (`run10.sh`,
+`validate.py`, `waitquiet3.sh`); raw artifacts in `results-2026-09-23/`.
+
+**The official path.** The llamacpp-toolchain workflow's tree was rebuilt
+exactly (LLAMA_COMMIT ddd4ec14 + graph-slot, cuda-graph-ptr-update, sync-instr,
+rs-pin-cells, topk-rows, parallel-copy, parallel-rows, rs-inplace, in workflow
+order) and compared byte for byte with what a fresh checkout plus those patches
+yields. The one candidate that could run on it was the streaming-store snapshot
+(the register row compiles out on the workflow's AVX2 build, and its diff is
+fork-relative), so `llamacpp-gdn-ntsnap.patch` was rediffed against that tree.
+
+1. `official-toolchain-check.sh` (ubuntu 22.04, GCC 11.4, the workflow's flags
+   `-mavx -mavx2 -mfma -mf16c -mbmi2 -msse4.2`): gdn-equiv NTSNAP on/off
+   byte-identical (72 cases, every snapshot slot dumped); the 0.8B real graph's
+   rollback scenario identical; cold-state op at the 27B verify shape (48
+   rotating states, 2 tokens, K=2), ABBA x2: on 138.2 / 140.7 / 138.0 / 129.5
+   us against off 134.7 / 164.5 / 189.3 / 174.9; the no-snapshot control (K=1)
+   91.2-97.4 both ways. ALL CHECKS PASSED.
+2. The shielded 27B through that official build (host-built with the same CPU
+   flags, `GGML_NATIVE=OFF`), NTSNAP off vs on, ABBA (`abofficial.sh`):
+
+   | pair | off: spec (verify ms/round) | on: spec (verify ms/round) |
+   |---|---|---|
+   | 1 | 21.05 (78.25) | 19.52 (84.53) |
+   | 2 | 21.40 (77.22) | 19.97 (82.47) |
+   | 3 | 19.69 (82.80) | **invalid**: intruder electron:65 (18.62, 87.77; text identical) |
+
+   All six runs: 43,118 exchanges, local 0, verify_fail 0, text identical,
+   obs_fail 0, plain-token hash 0a1570d184a4. The plain phase, which takes no
+   snapshot, did not move (55.27 / 53.45 off, 50.44 / 54.37 on).
+
+**ntsnap is EXCLUDED.** In both valid pairs the verify round is ~5 ms slower
+with it (-1.5 tok/s), and nothing already recorded overrides that. **Correction
+to 18.52-18.53:** I reported its op-level gain (the 2-row op 130.4 -> 112.2 us
+in the fork's profile) and projected ~1 ms per verify round without checking
+the rounds of those same runs; they pointed the other way (np-on-1 / np-on-2
+verify 75.95 / 79.90 against np-off-1 / np-off-2 67.62 / 75.71). The op gets
+cheaper and the round gets slower; the mechanism is not measured (a plausible
+one: the 144 MB of snapshot per round is written to DRAM immediately instead
+of lazily, competing with the pad refill and the ops that follow). The patch
+stays in the repo marked NOT APPLIED; it is not in the workflow.
+
+**What landed** (branch `perf/shielded-27b-wrapup`):
+- `wasm/ggml-shielded/bench-spec.cpp`, `bench-batch.cpp`: the greedy argmax
+  keeps its running maximum in a register. Identical picks (invariant
+  m == lg[b]; 200 rows incl. ties at the maximum and signed zeros agree), 2.2
+  ms less per round measured within-run (18.53). A benchmark fix, not an engine
+  change: the engine already selects with a one-branch top-k scan.
+- `wasm/llamacpp-conv-inplace/official-toolchain-check.sh`: the official-path
+  gate for the next CPU-kernel candidate.
+- Records: `llamacpp-gdn-ntsnap.patch` (official-tree diff, NOT APPLIED, with the
+  numbers), `llamacpp-gdn-regrow.patch` (NOT APPLIED: AVX-512 only,
+  fork-relative), and the README's list of what ships.
+- The official llama.cpp build (`.github/workflows/llamacpp-toolchain.yml`) and
+  the official shielded backend and worker are UNCHANGED by this wrap-up.
+
+**Best validated results.** Official path (the production CPU flags, no
+candidate): 21.05 / 21.40 / 19.69 tok/s, median 21.05, best 21.40. Development
+fork (AVX-512 host build with the register row and ntsnap, now known to cost
+the round): clean baseline bt-1, bt-3..7 = 21.08 / 22.72 / 21.20 / 21.48 / 21.39
+/ 17.51, median 21.30; the best single valid run of the whole campaign 24.51
+(pt-1). **No verified 25 tok/s**, sustained or otherwise.
+
+**Rejected or not integrated, and why:** token-fused recurrence (slower); conv
+in place (neutral); register row (AVX-512 only, AVX2 regression, fork-relative);
+streaming snapshots (round slower on the official path); scheduler
+instrumentation `llamacpp-sched-prof.patch` (diagnostic only, off by default,
+not for production); k=2 re-test (incomplete: its k=2 arms were invalidated by
+peer builds or stopped for this wrap-up; the context runs put k=2's round at
+116-122 ms for 2.29 tokens, i.e. still below k=1, consistent with 18.32).
+
+**Harness defects fixed this session:** the quiet gate and intruder check used
+ps's lifetime-average CPU (now `cpunow.py` windows, sampled during each run);
+renamed bench binaries escaped `pgrep -x` (variants now `bin-*/bench-spec2`);
+the desktop compositor (busy while a GPU monitor animates) is recorded per run
+and exempt, since it can only slow a run.
+
+**Open:** both production Freivalds rejections (sterms-1, b-eq-1); the conv
+multi-sequence limitation; no model-matched quality evaluation of the 27B
+shielded encoding; the run-to-run spread (whole-CPU slowdowns within a run, not
+huge pages, not the GPUs, not the CPU ops' work) is unexplained.
+
+### 18.55 The multi-sequence abort was the official graph-slot patch; fixed and validated
+
+The "multi-sequence limitation" carried since 18.46 as a property of the development
+fork is in the OFFICIAL build. On the llamacpp-toolchain workflow's own tree
+(LLAMA_COMMIT + its patches, host build with the workflow's CPU flags), a context
+with `n_seq_max = 3` and llama's default per-sequence KV cache aborts on its first
+2-8 token single-sequence decode:
+`process_ubatch -> ensure_slot_alt -> graph_reserve -> build_layer_attn (qwen35) ->
+ggml_mul: GGML_ASSERT(ggml_can_repeat(b, a))`. `ensure_slot_alt`, from
+`llamacpp-graph-slot.patch` (mm10's small-batch graph slot), reserved each slot with
+`n_seqs = 1` against `memory->init_full()`, which spans `n_seq_max` KV streams unless
+the cache is unified; stock `sched_reserve` never pairs a single-sequence reserve with
+a multi-stream memory context. `LLAMA_GRAPH_SLOT_ALT=0` made the scenario complete,
+which isolated the cause.
+
+**Fix** (in `llamacpp-graph-slot.patch`, two added lines of the patch become
+eleven): reserve with the stream count, `kv_unified ? 1 : n_seq_max`
+(`graph_reserve` rounds `n_tokens` up). Unified contexts, which is what the engine's
+server contexts create (`ell_new_server`, the MTP server: `kv_unified = true`), keep
+exactly the old reservation. The reservation only sizes the slot's buffers; the
+decode graph is built from the real ubatch, so numerics cannot change.
+
+**Validation** (0.8B qwen35 on the CPU, `graph-slot-check.sh`: plain, spec, lifetime
+and multi, each with the per-sequence and the unified KV cache, slot on vs
+`LLAMA_GRAPH_SLOT_ALT=0`, byte-identical logits required):
+
+| build | per-sequence KV | unified KV |
+|---|---|---|
+| official, before | plain / spec / lifetime PASS; **multi aborts** (slot-on arm, rc 134) | all 4 PASS |
+| official + fix, host | all 4 PASS | all 4 PASS |
+| official + fix, ubuntu 22.04 / GCC 11.4 / AVX2 (`official-graph-slot-check.sh`) | all 4 PASS | all 4 PASS |
+
+The fixed build's dumps equal the unfixed build's in all 7 cells the old code
+completed; in the aborting cell the unfixed partial dump (21,852,160 bytes) is an
+exact prefix of the fixed one (45,690,880). Every workflow patch after graph-slot
+still applies. Dump hashes, summaries and the backtrace:
+`bench-harness/results-2026-09-23/graph-slot/`. Masking, Freivalds verification and
+fail-closed behaviour are untouched (this is host-side scheduler buffer reservation).
+Production exposure before the fix is unverified: the engine's multi-session contexts
+are unified, which the old code handled.
+
+**Not live**: the fix reaches production only through a manual `llamacpp-toolchain`
+dispatch and a `WASMTIME_IMAGE` repin, each needing its own review and release window.
+
+**Deploy path.** Merging the branch still cuts a release (`deploy.yml`: any `wasm/`
+path -> image rebuild, release, `update-fleet`; seven harness/record pushes did so on
+2026-09-23). `shielded/proposals/` holds an UNAPPLIED, source-justified exclusion for
+benchmark sources and the CPU-kernel harness directory, simulated with deploy.yml's
+own detect block: those 8 paths stop triggering, every image input and backend source
+still triggers, and the branch's three `wasm/*.patch` records still trigger.
+
+**Checked, nothing to correct:** no shielded-lane document or source cites a VMPL0
+refusal as confinement evidence (the isolation lane's 2026-09-23 correction).
+
+**Still open:** both production Freivalds rejections (sterms-1, b-eq-1), unexplained;
+no model-matched quality evaluation of the 27B shielded encoding (token equality is
+not a quality measurement). No verified 25 tok/s.

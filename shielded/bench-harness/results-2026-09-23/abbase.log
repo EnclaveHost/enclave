@@ -1,0 +1,6 @@
+bs-1 pre: MemFree: 32890152 kB AnonHugePages: 1173504 kB  now:[]
+bs-1 rc=0 wall=92s foreign=0.55 refusalA=0 refusalB=0 splitrefused=0 INTRUDER: picom:88
+  INVALID: intruder=picom:88
+  plain 18.81 | spec k=1 21.58 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+STOPPED 18:01:15: bs-1 invalid (picom:88 during the run: nvtop GPU graphs make the compositor redraw while the cards work); restarting with run10 (compositor recorded, not an intruder)

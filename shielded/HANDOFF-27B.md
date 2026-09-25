@@ -1,5 +1,21 @@
 # Handoff: getting the shielded 27B past 20 tok/s
 
+> **Status 2026-09-23 (wrap-up, `shielded/REPORT.md` 18.50-18.54).** The goal
+> moved to **25 tok/s sustained** and is **not reached**. Best validated: the
+> official build (llamacpp-toolchain patches, production AVX2 flags) runs the
+> shielded 27B at 21.05 / 21.40 / 19.69 tok/s (median 21.05); the development
+> fork's clean baseline median is 21.30, and the best single valid run of the
+> campaign is 24.51. Nothing from the late CPU-kernel work ships: the register
+> row is AVX-512 only; streaming-store snapshots made the op cheaper but the
+> verify round ~5 ms SLOWER on the official path. Read 18.52-18.54 before trying
+> another recurrent-op kernel, and gate any candidate with
+> `wasm/llamacpp-conv-inplace/official-toolchain-check.sh` plus 27B round timing,
+> never the op profile alone. The bench harness lives in `shielded/bench-harness/`
+> (it used to live in a tmpfs scratchpad and was lost once). Merge readiness,
+> the open acceptance gaps (Freivalds rejections, no model-matched quality eval,
+> multi-sequence abort in the official graph-slot patch, since FIXED on the branch,
+> REPORT 18.55): `shielded/WRAPUP-27B-INTEGRATION.md`.
+
 You are picking up a performance campaign on Enclave's **shielded inference**
 tier. Read all of this before touching anything. It is written for an agent
 with no prior context, and most of its value is in the parts that say *this

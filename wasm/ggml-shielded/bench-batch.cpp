@@ -74,7 +74,14 @@ int main(int argc, char **argv) {
     if (n < 0) { fprintf(stderr, "tokenize failed\n"); return 2; }
     toks.resize(n);
 
-    auto argmax = [&](const float *lg) { int b = 0; for (int t = 1; t < nv; t++) if (lg[t] > lg[b]) b = t; return b; };
+    /* greedy pick: the first index of the maximum. The running maximum lives in
+     * a register (m == lg[b] always holds, so every comparison and every pick
+     * are the ones the old lg[t] > lg[b] form made); the old form re-loaded
+     * lg[b] through a data-dependent address and cost ~1.7 ms per two-row
+     * verify, far more than the engine's own one-branch host top-k scan
+     * (topk_rows in wasmtime-nn-ggml.patch), so it under-reported the engine.
+     * shielded/REPORT.md 18.52-18.53. */
+    auto argmax = [&](const float *lg) { int b = 0; float m = lg[0]; for (int t = 1; t < nv; t++) if (lg[t] > m) { m = lg[t]; b = t; } return b; };
 
     /* 1. prompt, then record a real greedy continuation (m = 1) */
     if (llama_decode(ctx, llama_batch_get_one(toks.data(), n))) { fprintf(stderr, "decode(prompt) failed\n"); return 2; }

@@ -17,9 +17,12 @@
 //
 //   conv-graph-test MODEL.gguf OUT.bin [SCENARIO]   (plain|spec|multi|lifetime; default all)
 //
-// multi aborts in context creation on this fork with or without the fused op
-// (GGML_ASSERT(ggml_can_repeat) in graph_reserve for n_seq_max > 1, also on the
-// pre-change libraries): a pre-existing limitation, so it runs only when named.
+// multi aborts (GGML_ASSERT(ggml_can_repeat) in ggml_mul, from qwen35
+// build_layer_attn) with or without the fused op, on the fork AND on the official
+// llamacpp-toolchain tree: the first 2-8 token single-sequence decode enters
+// ensure_slot_alt (llamacpp-graph-slot.patch), which reserves with n_seqs = 1
+// against a memory context sized for n_seq_max. LLAMA_GRAPH_SLOT_ALT=0 makes it
+// complete (shielded/WRAPUP-27B-INTEGRATION.md). It runs only when named.
 #include "llama.h"
 #include "ggml-backend.h"
 #include <cstdio>
@@ -71,6 +74,9 @@ static llama_context * make_ctx(llama_model * m, uint32_t n_seq_max, uint32_t n_
     llama_context_params cp = llama_context_default_params();
     cp.n_ctx = 512; cp.n_batch = 512; cp.n_ubatch = 512;
     cp.n_seq_max = n_seq_max; cp.n_rs_seq = n_rs_seq;
+    // CONV_TEST_KV_UNIFIED=1: one KV stream for all sequences (as the engine's
+    // server contexts use); otherwise llama's default, one stream per sequence
+    { const char * u = getenv("CONV_TEST_KV_UNIFIED"); if (u && u[0] == '1') cp.kv_unified = true; }
     cp.n_threads = 8; cp.n_threads_batch = 8;
     llama_context * c = llama_init_from_model(m, cp);
     if (!c) { fprintf(stderr, "context failed\n"); exit(2); }

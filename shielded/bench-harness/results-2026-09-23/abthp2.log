@@ -1,0 +1,7 @@
+th-1 pre: MemFree: 42675040 kB AnonHugePages: 1099776 kB
+th-1 rc=0 wall=96s foreign=0.54 refusalA=0 refusalB=0 splitrefused=0 INTRUDER: picom:50.2
+  INVALID: intruder=picom:50.2
+  plain 19.41 | spec k=1 21.28 tok/s, acc 0.778, identical=True
+[bench] shielded: offloaded=43118 local=0 GMAC=4958.30 verify_fail=0
+  plain-hash 0a1570d184a4 thp: t+30 Rss: 45388108 kB Anonymous: 28238640 kB AnonHugePages: 25075712 kB
+STOPPED 17:30:43: desktop compositor picom at ~88% of a core (current, cpunow.py); th-1 invalid (intruder), th-2..6 not run

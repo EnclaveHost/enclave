@@ -28,8 +28,11 @@ any other compiler or flags before trusting the op there.
   with `n_rs_seq=1`, and cache lifetime (clear, full `seq_rm`, re-prefill,
   alternating ubatch sizes). Run once with `ENCLAVE_GGML_CONV_INPLACE=1` and
   once with `=0`; the two logit dumps must be byte-identical. The multi-sequence
-  scenario runs only when named: this fork aborts in context creation for
-  `n_seq_max > 1` with or without the op (a pre-existing limitation).
+  scenario runs only when named: it aborts on the fork AND on the official
+  llamacpp-toolchain tree, with or without the op, because `ensure_slot_alt`
+  (`llamacpp-graph-slot.patch`) reserves a 2-8 token single-sequence slot with
+  `n_seqs = 1` against a memory context sized for `n_seq_max`;
+  `LLAMA_GRAPH_SLOT_ALT=0` makes it complete (`shielded/WRAPUP-27B-INTEGRATION.md`).
 - `prod-toolchain-check.sh`: runs inside `ubuntu:22.04` (the toolchain
   runner's OS, stock GCC 11.4 / cmake 3.22), builds the CPU libraries with the
   workflow's CPU-relevant flags, and runs all three harnesses there, plus the
@@ -50,7 +53,8 @@ mutant changed exactly the 52 fused cases. `gdn-bench.cpp` times the op at the
 a record only. The tokfuse switch only exists on a tree with that patch.
 
 **Register-row GATED_DELTA_NET** (`../llamacpp-gdn-regrow.patch`, switch
-`ENCLAVE_GGML_GDN_REGROW`, default on; REPORT 18.51). For the scalar gate and
+`ENCLAVE_GGML_GDN_REGROW`; REPORT 18.51, 18.53; NOT APPLIED to the official
+build, see its header: AVX-512 only and fork-relative). For the scalar gate and
 S_v = 128, each state row is loaded once, taken through scale, dot(k), the d*k
 update and dot(q) in registers with ggml's own `GGML_F32_VEC` operations in
 the vector routines' exact order, and stored once. Evidence on the AVX-512
@@ -68,8 +72,34 @@ with NSTATES > 1 rotates per-layer states so they arrive cold, and
 confounded (the warm-up lets the pool threads sleep and the timed call pays the
 wake-up) and is not evidence either way.
 
+**What ships (2026-09-23 wrap-up): none of these kernels.** The official build
+is `.github/workflows/llamacpp-toolchain.yml` (LLAMA_COMMIT + its patches, AVX2,
+`GGML_NATIVE=OFF`), and every kernel validated here was held against it:
+- conv in place (`../llamacpp-conv-inplace.patch`): bit-identical, throughput
+  neutral (REPORT 18.42, 18.46): not applied.
+- token-fused recurrence (`../llamacpp-gdn-tokfuse.patch`): bit-identical, slower: not applied.
+- register row (`../llamacpp-gdn-regrow.patch`): bit-identical, op 10-13% cheaper
+  on AVX-512, ~55% slower on AVX2 and compiled out there; fork-relative: not applied.
+- streaming-store snapshots (`../llamacpp-gdn-ntsnap.patch`, now diffed against the
+  official tree): passed `official-toolchain-check.sh` (bitwise and real graph, GCC
+  11.4, AVX2), then EXCLUDED because the 27B verify round got ~5 ms slower through
+  the official build (REPORT 18.54).
+`official-toolchain-check.sh` is the gate for the next candidate: it rebuilds the
+workflow's tree plus the candidate under the workflow's compiler and flags.
+`prod-toolchain-check.sh` checks the development FORK under the same compiler.
+
+**Graph-slot multi-sequence check** (`graph-slot-check.sh`, `official-graph-slot-check.sh`;
+REPORT 18.55, `shielded/WRAPUP-27B-INTEGRATION.md`). `graph-slot-check.sh BIN MODEL
+OUTDIR` runs every `conv-graph-test` scenario (plain, spec, lifetime, multi) with the
+KV cache per-sequence and unified (`CONV_TEST_KV_UNIFIED=1`), each with the
+small-batch graph slot on and with `LLAMA_GRAPH_SLOT_ALT=0`, through `run_graph`'s
+optional scenario argument; every cell must finish with byte-identical logits.
+`official-graph-slot-check.sh` runs it on the workflow's tree under GCC 11.4 / AVX2.
+Before the reservation fix in `../llamacpp-graph-slot.patch` exactly one cell failed
+(multi, per-sequence cache: the slot-on arm aborted); after it all eight pass.
+
 **Streaming-store rollback snapshots** (`../llamacpp-gdn-ntsnap.patch`, switch
-`ENCLAVE_GGML_GDN_NTSNAP`, default on; REPORT 18.52). Evidence on the AVX-512
+`ENCLAVE_GGML_GDN_NTSNAP`; REPORT 18.52-18.54; NOT APPLIED, see above). Evidence on the AVX-512
 build: `gdn-equiv` byte-identical on and off and identical to the pre-change
 dump (every snapshot slot is in the dump); a mutant in the 512-bit branch
 changed 4 cases and one in the 256-bit branch 16, so both streaming paths and
