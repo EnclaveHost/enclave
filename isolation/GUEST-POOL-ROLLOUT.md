@@ -389,7 +389,7 @@ have bought as little as 1% each. That gap (the section 7 pricing question) is w
 3. The rollback to 16384/8 is simple only while the canaries alone run. It is gated like S2's dist rollback
    (`s3-budget64-rollback.sh`: the non-canary list must be empty, otherwise escalate).
 
-## 9. Remaining prerequisites and owners (2026-09-25 20:00Z)
+## 9. Remaining prerequisites and owners (2026-09-25 19:57Z, read from the clock)
 
 | # | Prerequisite | Owner | Reviewer / decision |
 |---|---|---|---|
