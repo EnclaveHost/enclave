@@ -43,6 +43,7 @@ $notes   = @()
 function Note($m){ $l = "$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')) $m"; $script:notes += $l; Write-Host $l }
 
 Note "=== DEV BOOT. Host exclusion is NOT established on this path. Nothing here is verified capacity. ==="
+Note "    partition kind: wmi-openhcl-gen2 (the LAUNCHER states it; the guest cannot know it)"
 
 function Read-Setting {
   if (-not (Test-Path $RegPath)) { return @{ S='NoKey' } }
@@ -106,7 +107,17 @@ try {
   & icacls $Firmware /grant "NT VIRTUAL MACHINE\$($vm.Id):R" | Out-Null
 
   Add-VMDvdDrive -VM $vm -Path $Iso
+  # HASHED AT ATTACH TIME, not from the pin argument. The pin says what we MEANT to attach; this
+  # says what the VM is actually pointed at, and they are only the same if nothing changed the file
+  # between the check above and this line. partition.guestImageSha256 is this value - the MEDIUM's,
+  # not the UKI's, because with Secure Boot off the stub reads addons and credentials from the ESP,
+  # so two media with the same UKI can boot different command lines (enclave-99's review).
   $dvd = Get-VMDvdDrive -VM $vm
+  $attached = $dvd.Path
+  $attachedSha = (Get-FileHash $attached -Algorithm SHA256).Hash.ToLower()
+  Note "attached medium: $attached"
+  Note "guestImageSha256 (medium, hashed at attach): $attachedSha"
+  if ($attachedSha -ne $IsoSha256.ToLower()) { throw "the attached medium hashes $attachedSha, not the pinned $IsoSha256" }
   Set-VMFirmware -VM $vm -FirstBootDevice $dvd
   Set-VMComPort  -VM $vm -Number 1 -Path "\\.\pipe\$pipe"
   Note "DVD attached and set as the ONLY boot device; COM1 -> \\.\pipe\$pipe"
