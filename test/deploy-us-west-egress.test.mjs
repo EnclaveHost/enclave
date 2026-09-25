@@ -170,3 +170,19 @@ test("the token reaches the remote ONLY on stdin: in no argv (local or remote), 
   const back = spawnSync("bash", ["-c", `${first}; printf %s "$TOKEN"`], { encoding: "utf8" });
   assert.equal(back.stdout, nasty, "bash reads the line back as exactly the token, and runs nothing");
 });
+
+test("the env file holding the token is mode 600 even when it already existed with another mode (the script's own lines, run locally)", () => {
+  const r = run(world(), []);
+  assert.equal(r.code, 0, r.out);
+  const lines = r.stdin.split("\n"), from = lines.findIndex((l) => l === "umask 077"), to = lines.findIndex((l, i) => i > from && l === "ENV");
+  assert.ok(from > 0 && to > from, "the remote script's env-writing block");
+  const etc = fs.mkdtempSync(path.join(os.tmpdir(), "egress-deploy-env-")); WORLDS.push(etc);
+  const env = path.join(etc, "egress-relay.env");
+  fs.writeFileSync(env, "EGRESS_RELAY_TOKEN=the-old-token\n", { mode: 0o644 }); fs.chmodSync(env, 0o644);
+  const block = lines.slice(from, to + 1).join("\n").split("/etc/nan-relay").join(etc);
+  const x = spawnSync("bash", ["-c", `set -euo pipefail\nTOKEN='${"new-token"}'\n${block}\n`], { encoding: "utf8" });
+  assert.equal(x.status, 0, x.stderr);
+  assert.equal(fs.statSync(env).mode & 0o777, 0o600, "an existing 0644 env file is 0600 afterwards");
+  const body = fs.readFileSync(env, "utf8");
+  assert.match(body, /^EGRESS_RELAY_TOKEN=new-token$/m); assert.ok(!body.includes("the-old-token"));
+});
