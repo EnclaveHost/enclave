@@ -52,10 +52,14 @@ A direct boot (HCS linux-direct, QEMU `-kernel`) makes no UKI claim: its loader 
 `initrd=initrd`), so it is not pinned. On this tier the host can read the guest's memory anyway. These guards are
 **fail-closed hygiene against silent drift, not a boundary against the host.**
 
-`test-uefi-guards.sh` exercises them through the same channels, on QEMU + OVMF (NOT Hyper-V):
+`test-uefi-guards.sh` exercises them through the same channels, on QEMU + OVMF (NOT Hyper-V), 6/6:
 - clean: MON ready;
 - SMBIOS type 11 extra: refused on the line;
 - a `BOOTX64.EFI.extra.d/x.cred`: refused on `/.extra/credentials`;
+- an invocation command line (LoadOptions, channel 8): the UKI at `\EFI\enclave\uki.efi`, started by the edk2 UEFI
+  Shell's `startup.nsh` with one extra argument, is refused on the line (enclave-99's method, needing no NVRAM). The
+  same with exactly the pinned line reaches MON ready: the guard compares content, not the channel. The Shell is
+  built from edk2-stable202608 `ShellPkg` (Shell.efi `412bd287...`); without one the two cases report SKIP, not PASS;
 - a direct boot with an extra argument: not pinned, MON ready, as scoped.
 
 ## The ESP and the media (for enclave-53)
@@ -164,6 +168,6 @@ this and must not be advertised.
 - `BOOT=uefi test-hv-local.sh`: the guests boot from an ESP holding only the UKI (the Arch kernel as `.linux`, initrd
   5bc06259, UKI `1f1fbed6...`). Every phase passes: 15/15, the one-domain mode, and route 13/13. The direct boot also
   passes on the same initrd.
-- `test-uefi-guards.sh`: 4/4, as listed above.
+- `test-uefi-guards.sh`: 6/6, as listed above.
 - The box's own kernel boots from a UKI under OVMF to `MON ready`. Its hv_sock channel cannot be exercised in QEMU;
   that part is for the box.
