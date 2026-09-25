@@ -472,3 +472,46 @@ refused on a type-1 VM, and looking for an undocumented way into an isolated VM'
 attacking the protection under test rather than measuring it. That is out of scope for this lane.
 The memmarker module stays parked as the type-16 control should a documented reader ever appear.
 **The claim a customer could check therefore rests on E2.**
+
+## The discriminator resolves E2: VTL2 GETS a VBS report; only VTL0 is turned away
+
+`0x71` is `HV_STATUS_OPERATION_FAILED`. The hypervisor recognised `HvCallVbsVmCallReport` from VTL0,
+accepted its input, did not deny access, and produced no report.
+
+The deciding evidence needed no new boot — it is in the debug image's kmsg from the opt-out run that
+BOOTED. OpenHCL requests its OWN VBS report from VTL2 during a type-1 boot, for key release, through
+the same hypercall. Verbatim:
+
+    [0.126504] underhill_attestation: Reading security profile tee_type=Some(Vbs) secure_boot=false
+               tpm_enabled=true tpm_persisted=true hardware_sealing_supported=false
+    [0.150645] secure_key_release: attempt to get VMGS key-encryption key
+    [0.153124] secure_key_release: ERROR VMGS key-encryption key request failed due to error
+               error=failed to parse the IgvmAttest KEY_RELEASE response: error in parsing response
+               header: the size of the attestation response 0 is too small to parse
+    [0.153173] underhill_attestation: ERROR Failed to retrieve key-encryption key error=<same>
+    [0.153616] GSP response request_data_length_in_vmgs=0x0 no_rpc_server=true requires_rpc_server=false
+    [0.153813] No VMGS encryption used.
+
+**The failure is an IgvmAttest/agent failure, not a report-generation failure.** The error is in
+parsing a ZERO-length KEY_RELEASE response — the missing host attestation agent — which means the
+request was assembled and sent, and therefore the VBS report it carries was obtained. Had VTL2 been
+unable to get a report, this would have failed earlier and differently, as
+`GetAttestationReport(GetVbsReport(...))`.
+
+So, for this host and configuration:
+
+- the hypervisor DOES produce a VBS report for this partition — **to VTL2**;
+- **VTL0 is turned away** with `HV_STATUS_OPERATION_FAILED`;
+- therefore the report is reachable **only through the paravisor**.
+
+That is NOT a NO-GO on the report chain. It relocates it: a client-verifiable binding on this host
+would have to be paravisor-mediated, which is a design change rather than a guest patch. Whether
+that is buildable here is the next question and is not answered.
+
+Two further facts from the same log, recorded because they bear on any such design: there is no host
+attestation agent (`no_rpc_server=true`), so key release cannot complete as configured; and the
+vTPM allocates an NV index for an attestation report (`nv_index="1400001" size=0xb54`). Neither is a
+claim about what is achievable, only about what this boot did.
+
+Unchanged: `host_excluded=no`, E3 NOT RUN with no instrument, no isolation proof, nothing here is
+verified capacity.
