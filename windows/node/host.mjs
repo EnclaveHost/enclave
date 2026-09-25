@@ -1370,10 +1370,13 @@ export class Host {
   /**
    * Does this record still occupy the box? A running app does; so does an isolated domain the node holds or could not
    * confirm gone, whatever the record's status says (held, provisioning, failed): its VM may still run, and selling
-   * its share again would over-admit (enclave-d1's re-review, finding 5).
+   * its share again would over-admit (enclave-d1's re-review, finding 5). So does an ISOLATED deployment that is
+   * provisioning with no instance id yet (a hold on a manager 503): a VM for it may exist unnamed (d1's acceptance of
+   * fb1db848, the residual).
    */
   static occupies(r) {
-    return r.status === "running" || !!r.isolation || !!r.isolationHeld || !!r.isolationRetireFailed;
+    return r.status === "running" || !!r.isolation || !!r.isolationHeld || !!r.isolationRetireFailed
+      || (r.status === "provisioning" && r.isolationRequired === true);
   }
   /** The node pool this box has left, as a fraction: what the relay's placement reads. */
   cpuShareFree({ exclude = null } = {}) {
