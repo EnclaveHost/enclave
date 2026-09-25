@@ -2,47 +2,9 @@
  "type": "enclave-nucbox-vbs-reference/1",
  "about": "Reference values for VBS (GuestStateIsolationType 1) paravisor images on nucbox-k11, for the custom-VM verifier (enclave-99, docs/security/nucbox-custom-vm-verifier.md check V4). Every value is derived from the pinned bytes and re-checked by windows/vbslike/pkg/pkg.mjs verify on every run; do not edit by hand.",
  "rule": "Refuse by EXACT vbsBootDigest only. Never use debugBuild to exclude an image: it follows the manifest's enable_debug and is false for --confidential-debug images too. confidentialDebug is read from the image bytes (OPENHCL_CONFIDENTIAL_DEBUG=1 in the measured command line); such an image trusts the host command line.",
- "eligible": "true only for the non-debug measured-VTL0 candidate, and only once the paravisor report format is registered and report bytes are pinned (enclave-99). Not an allowlist today. A report-level debug indication, if the report has one, is an extra refusal, never a substitute (enclave-99).",
- "notAClaim": "No image here is an isolation claim; host_excluded=no.",
+ "eligible": "eligible:true marks ONLY the one permitted measured-image reference: at most one image, a non-debug candidate, and a rollover supersedes the old one in the same version. It is PROSPECTIVE and subject to every remaining verification requirement: a report from that image could be admitted only once the paravisor report format is registered and report bytes are pinned and verify under the same boot's IDKS, with the verifier contract's other checks (enclave-99). It grants no production app capacity, no verified or attested status, no badge and no protected-host admission. Custom-report verification stays unsupported and fail-closed: no report format is registered, and no verdict uses this allowlist. A report-level debug indication, if the report has one, is an extra refusal, never a substitute (enclave-99).",
+ "notAClaim": "No image here is an isolation claim: T0-hv, host_excluded=no. No eligibility here changes host policy: production attach OFF, respawn OFF, recovered VMs HELD.",
  "images": [
-  {
-   "id": "vbs-linux-candidate-g1",
-   "class": "candidate",
-   "imageSha256": "a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4",
-   "imageBytes": 77794396,
-   "vbsBootDigest": "58DFEBFE5F46E5C0E371CE94C2AB947735EA618CF51F973FBBB58048D9C7343A",
-   "vbsIsvsvn": 13,
-   "debugBuild": false,
-   "confidentialDebug": false,
-   "trustsHostCommandLine": false,
-   "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553), the G1+G3 initrd 680d40fa and command line as measured pages; static_command_line=true (the paravisor line is exactly the measured bytes)",
-   "booted": "yes: BOOTED and SERVED as a type-1 partition under Secure Boot, and its per-boot nonce HOLDS (enclave-d1, canary 070020, 2026-09-25 07:00:44-07:01:24Z, evidence 7b509d16, script uefi-dev-boot.ps1 at 95752533): MON ready with hv_isolation=vbs paravisor=no host_excluded=no and 'MON boot 39725c19e15c91afe488ce62251055f5'; hello-world loaded with hash agreement under that boot and served its 13 pinned bytes through the guest's own TLS; a destroy without boot was refused (bootRequired) and one with a wrong boot answered rebooted:true, both touching nothing (app still 200); the load answer's own boot destroyed the domain. Not covered: the launcher's own rebooted:true handling, and G4. No report was requested; identity, any report or chain, and host exclusion are NOT established.",
-   "eligible": true,
-   "reason": "the ONLY image eligible for an allowlist (since v31), and only once the paravisor report format is registered and report bytes from this image verify under the same boot's IDKS (enclave-99): eligibility stays PROSPECTIVE. It has booted and served a pinned app (type 1, Secure Boot), with the G1 nonce holding; no report exists.",
-   "pin": {
-    "image": "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin",
-    "identity": "vbs-linux-candidate-g1-vbs.json"
-   }
-  },
-  {
-   "id": "vbs-linux-candidate-g1-debug-twin",
-   "class": "debug",
-   "imageSha256": "4991b3e13c7a6d4d75ac24ea3d68d7db7ded86ba14c2a25bb6773bd2e755505e",
-   "imageBytes": 77794396,
-   "vbsBootDigest": "2A93ED16DC7967A222FB791465E42E4EE84E969FD98349274C4B606D1CBAF533",
-   "vbsIsvsvn": 13,
-   "debugBuild": false,
-   "confidentialDebug": true,
-   "trustsHostCommandLine": true,
-   "vtl0": "linux, measured (the G1 candidate's own VTL0)",
-   "booted": "no: build-only",
-   "eligible": false,
-   "reason": "REFUSE: carries OPENHCL_CONFIDENTIAL_DEBUG=1, so OpenHCL trusts the host command line; its debugBuild is false all the same",
-   "pin": {
-    "image": "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-G1-DEBUG-TRUSTS-HOST-4991b3e1.bin",
-    "identity": "vbs-linux-candidate-g1-DEBUG-TRUSTS-HOST-vbs.json"
-   }
-  },
   {
    "id": "vbs-linux-candidate-1539",
    "class": "candidate",
@@ -55,8 +17,8 @@
    "trustsHostCommandLine": false,
    "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553), enclave-5d's initrd 1539d5b2 (680d40fa with plat/domprobe rebuilt: the open-only TPM negative control) and command line as measured pages; static_command_line=true",
    "booted": "yes: BOOTED and SERVED as a type-1 partition, host Secure Boot ON (enclave-d1, canary 093904, 2026-09-25, evidence 0bee8444, script uefi-dev-boot.ps1 at ad61cb02): 'MON boot 5ad7d68955090bb8184fa4db9143babc', MON ready, and the pinned fixture served 03ba204e through the guest's own TLS, served by the box's target\\release wmiserve 0160d835, not the package's launcher. The TPM control: dev_tpm0 and dev_tpmrm0 absent from the domain's view; existence in the root namespace not stated. The live-neighbour probe: INCONCLUSIVE. No report was requested; identity, any report or chain, and host exclusion are NOT established. enclave-d1's byte review agrees (fd92d610).",
-   "eligible": false,
-   "reason": "NOT YET ELIGIBLE: booted and served in its own canary; eligibility is a later version's decision that also supersedes a44bb55a (one eligible digest), after the package's own serving acceptance on it (control/ 2c3a2873 with the package's launcher 435717de) and enclave-99's review; never this entry's",
+   "eligible": true,
+   "reason": "ELIGIBLE from v39, and PROSPECTIVE: the ONE permitted measured-image reference (enclave-99's one-eligible rule; a44bb55a superseded in the same version). It rests on its own canary 093904 (0bee8444: boots and serves; the TPM control absent from the domain's view), the package-owned functional acceptance 094631 (98782fbb), enclave-d1's byte review (fd92d610) and enclave-99's verification review. No report has been verified for it: a report from it could be admitted only after every remaining verification requirement holds. It grants no production app capacity, no verified or attested status, no badge and no protected-host admission.",
    "pin": {
     "image": "guest/igvm-vbs/vbs-linux-candidate-1539-b7ba7731.bin",
     "identity": "vbs-linux-candidate-1539-vbs.json"
@@ -159,6 +121,20 @@
   }
  ],
  "superseded": [
+  {
+   "id": "vbs-linux-candidate-g1",
+   "vbsBootDigest": "58DFEBFE5F46E5C0E371CE94C2AB947735EA618CF51F973FBBB58048D9C7343A",
+   "imageSha256": "a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4",
+   "eligible": false,
+   "reason": "REFUSE: superseded in v39 by vbs-linux-candidate-1539 (b7ba7731..., 56FBB27F...). It booted, served and its per-boot nonce held (canary 070020), and it was the eligible image of v31-v38, but no report was ever verified for it. No longer shipped; it stays in the staged v31-v38 packages for rollback (v39's rollback record names v38 at pkg\\88c18259137a5ba1\\)."
+  },
+  {
+   "id": "vbs-linux-candidate-g1-debug-twin",
+   "vbsBootDigest": "2A93ED16DC7967A222FB791465E42E4EE84E969FD98349274C4B606D1CBAF533",
+   "imageSha256": "4991b3e13c7a6d4d75ac24ea3d68d7db7ded86ba14c2a25bb6773bd2e755505e",
+   "eligible": false,
+   "reason": "REFUSE: the superseded a44bb55a candidate's debug twin (OPENHCL_CONFIDENTIAL_DEBUG=1: it trusts the host command line); never booted; superseded with it in v39 by b7ba7731 (56FBB27F...)."
+  },
   {
    "id": "vbs-linux-candidate-c567e432",
    "vbsBootDigest": "A0FDAC0FC1EFB7B702D6DE1FACFAD8EB4E738DD35F3D3EE39AA0F5416BBCA244",
