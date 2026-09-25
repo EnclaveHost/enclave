@@ -140,10 +140,13 @@ func FromRelease(rel *release.Release, relay Origin) (*Policy, error) {
 	if rel == nil || !rel.Attested() {
 		return nil, errors.New("egress policy needs a release opened through the attested channel")
 	}
+	text, err := rel.ConfigText()
+	if err != nil {
+		return nil, err
+	}
 	resolved := ""
-	if len(rel.Config) > 0 && string(rel.Config) != "null" {
-		var err error
-		if resolved, err = appconfig.Resolve(string(rel.Config), rel.Secrets); err != nil {
+	if text != "" {
+		if resolved, err = appconfig.Resolve(text, rel.Secrets); err != nil {
 			return nil, err
 		}
 	}
