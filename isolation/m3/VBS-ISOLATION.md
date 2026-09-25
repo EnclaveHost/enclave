@@ -389,6 +389,11 @@ isolation.
   calls the unexported `hv_tdx_hypercall`.
 - `probe/build-probe.sh`: production initrd + `/probe.ko` → a probe initrd.
 - `probe/verify_vbs_vm_report.py`: the host half, with `--selftest`.
+- `probe/memmarker/memmarker.c` + `Kbuild`: the guest half of the memory-read positive control.
+  - It writes a run-unique marker into one private page and one page made host-visible with
+    `set_memory_decrypted`, and prints both guest-physical addresses.
+  - The host reader (enclave-d1's saved-state decoder) checks exactly those addresses.
+  - Validated locally with QEMU's `pmemsave` (`memmarker-check-2026-09-25.txt`). It ships only on a probe medium.
 - `probe/vmgs_check.py`: what OpenHCL will make of a VMGS on this host (EMPTY / V1 / INVALID / V3-PLAIN /
   V3-ENCRYPTED, the headers, the allocated files), with `--selftest`. Checked against files made by Microsoft's
   `vmgstool`.
