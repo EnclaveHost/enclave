@@ -576,7 +576,9 @@ const FRESH_COOLDOWN_MS = 5000;
 let _lastFresh = 0;
 
 let _recover = null;
-async function operatorAuth(sig, raw, body, name) {
+// `probe`: the fleet-HMAC evidence check only (authStats.fleetHmacOnly). It forces no fresh ledger read, so it spends
+// nothing a real authorization needs; a lease that only a fresh read would show counts as not verified (conservative).
+async function operatorAuth(sig, raw, body, name, { probe = false } = {}) {
   if (!/^0x[0-9a-fA-F]{130}$/.test(String(sig))) return "malformed x-operator-sig";
   if (body?.ts == null) return "ts is required for operator-signed pushes";   // ±300s window enforced above
   const rest = name.slice("_acme-challenge.".length);
@@ -622,7 +624,7 @@ async function operatorAuth(sig, raw, body, name) {
   let lease = await fleet.leaseFor(depId);
   // a just-claimed lease can be behind the 10s row cache — one fresh re-read
   // before denying, at most once per cooldown across all callers
-  if (!ok(lease) && Date.now() - _lastFresh > FRESH_COOLDOWN_MS) {
+  if (!probe && !ok(lease) && Date.now() - _lastFresh > FRESH_COOLDOWN_MS) {
     _lastFresh = Date.now();
     lease = await fleet.leaseFor(depId, { fresh: true });
   }
@@ -741,8 +743,17 @@ function apiHandler(req, res) {
       catch (e) { console.error(`[dns-relay] operator auth error: ${e.message}`); why = "verification error"; }
       return why ? { status: 403, error: "operator_auth_failed", message: why } : null;
     };
+    // the evidence probe: would this push's operator signature verify? No rate-limit budget, no forced ledger read
+    // (enclave-d1: a 429 from the real path would have counted a verifiable push as fleet-HMAC-only)
+    const opVerifies = async () => {
+      if (!hasOpSig) return false;
+      try { return !(await operatorAuth(req.headers["x-operator-sig"], raw, body, name, { probe: true })); } catch { return false; }
+    };
     let authed = false;
     if (checkSig(req.headers["x-relay-txt-sig"], raw, RELAY_TXT_KEY)) {
+      // a relay-key push must carry ts (checked against the ±300s window above): a captured body cannot replay forever
+      // (certs.js always sends it; enclave-d1). The fleet HMAC keeps it optional until it retires.
+      if (body?.ts == null) return json(401, { error: "ts_required", message: "a relay-key push must carry ts" });
       const refused = await sharedKeyGate("relay key", "relay_auth_refused");
       if (refused) return json(403, refused);
       authed = true; authStats.relayKey++;
@@ -752,7 +763,7 @@ function apiHandler(req, res) {
         if (refused) return json(403, refused);
         authed = true; authStats.fleetHmac++;
         // would anything BUT the fleet HMAC have authorized it? (the evidence the FLEET_TXT_HMAC=off flip needs)
-        if (!(hasOpSig && !(await opAuth()))) {
+        if (!(await opVerifies())) {
           authStats.fleetHmacOnly++;
           console.log(`[dns-relay] txt ${req.method} ${name} authorized by the fleet HMAC ALONE (no operator signature that verifies): FLEET_TXT_HMAC=off would refuse it`);
         }

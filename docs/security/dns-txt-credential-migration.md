@@ -63,15 +63,24 @@ The DNS relay accepts exactly two kinds of authority:
   - `FLEET_TXT_HMAC` takes `on` (the default: today's behaviour) or `off`. Only the exact word `off` turns it off; an unknown word leaves it on and logs an error.
   - `/health` gains non-secret `pushAuth` fields: `relayKey`, `fleetHmac`, and `authorizedBy` counters (`relayKey`, `operator`, `fleetHmac`, `fleetHmacOnly`, `fleetHmacIgnored`).
   - `fleetHmacOnly` counts pushes that nothing but the fleet HMAC could authorize: there's no relay key, and no operator signature that verifies. Each one is logged with its name.
+  - The check behind it is a probe. It spends no operator rate budget and forces no fresh ledger read (enclave-d1), so a busy box's verifiable push is never miscounted as fleet-only. A lease visible only to a fresh read counts as not verified: conservative.
+  - A relay-key push must carry `ts`, which the ±300 s window then bounds (enclave-d1). certs.js always sends it. The fleet HMAC keeps `ts` optional until it retires.
 - `relay/certs.js`:
   - signs with `RELAY_TXT_KEY` (`x-relay-txt-sig`) when it is set, and adds `x-relay-sig` only while `DNS_TXT_KEY` is still configured;
   - needs either key at init;
   - ignores, with an error, a relay key equal to `DNS_TXT_KEY`.
 - Unset, both behave exactly as before.
 
+**Prerequisite: U7 rolled out, including its env step.** Relay-key pushes for deployment names pass through U7's eligibility gate. U7 preflight rev 3 found that nan-relay's `dns.env` has NO `ELIGIBILITY_API` or `DOMAINS_API` today. Until the feed is in `dns.env`, platform-cert pushes for app names are refused under either key (enclave-5d).
+
 **Stage 2: config (operator; no code).**
-1. Generate a fresh random 32-byte `RELAY_TXT_KEY` **on a relay host**. It must never be derived from the fleet SECRET, and never go into git or a CI log.
-2. Put it in `/etc/nan-relay/dns.env` (nan-relay) and `/etc/nan-relay/api-relay.env` (nan), mode 600.
+0. **Precondition, verified:** `/etc/nan-relay/dns.env` on nan-relay is **mode 644 today**; CI's deploy flags it on every run.
+   - Run `chmod 600 /etc/nan-relay/dns.env`, confirm the mode, and do the same for `api-relay.env` on nan.
+   - Only then write the key. Otherwise the one key no box can derive lands in a world-readable file (enclave-5d).
+1. Generate a fresh random 32-byte `RELAY_TXT_KEY` **on the DNS-relay host (nan-relay)**, and copy it only to the api relay (enclave-d1).
+   - The DNS relay is the authoritative server for these zones, so its host can already answer any TXT without a key; holding the key there adds no power. Only the api relay's copy is new authority.
+   - The key must never be derived from the fleet SECRET, and never go into git or a CI log.
+2. Put it in `/etc/nan-relay/dns.env` (nan-relay) and `/etc/nan-relay/api-relay.env` (nan), both already mode 600.
 3. Restart the **DNS relay first** so it accepts the header, then the api relay so it starts sending it.
 4. Check:
    - DNS `/health` shows `pushAuth.relayKey: true`;
@@ -82,6 +91,8 @@ The DNS relay accepts exactly two kinds of authority:
 - whatever in-enclave fallback happens. Today, with no Tinfoil box, none does.
 
 A non-zero count logs the name: that is a writer this trace missed, so stop and look.
+
+The evidence is the **journal** over the whole window: `authorized by the fleet HMAC ALONE` lines, and `authorized by operator signature` or relay-key pushes. `/health` alone is not enough, because its counters live in memory and a DNS-relay restart inside the window zeroes them (enclave-5d).
 
 **Stage 4: flip.** Set `FLEET_TXT_HMAC=off` in `dns.env` and restart the DNS relay.
 - From then on the fleet HMAC authorizes nothing. `/health` shows `fleetHmac: "off"`.
@@ -131,6 +142,8 @@ A non-zero count logs the name: that is a writer this trace missed, so stop and 
     - A relay key equal to the fleet-derived key is disabled, so a fleet-key holder can't pose as the relay.
     - A malformed relay key is disabled.
     - An unknown `FLEET_TXT_HMAC` word leaves it on.
+  - A relay-key body without `ts` is refused.
+  - 35 supervisor-shaped pushes (past the operator limiter's burst of 30) count none as fleet-only, and a real operator push afterwards still passes: the probe spent no budget.
   - **Every refusal also asserts that nothing was stored.**
 - `test/certs.test.mjs`, one new test covering five configurations:
   - relay key alone: only `x-relay-txt-sig` on the wire;
@@ -139,18 +152,20 @@ A non-zero count logs the name: that is a writer this trace missed, so stop and 
   - a malformed relay key: disabled;
   - no push key: disabled.
 - `test/dns-relay-u7.test.mjs`: its HMAC refusals now also assert that nothing was stored.
-- Mutations: 11 of 11 caught.
+- Mutations: 13 of 13 caught.
   - One of them is a real fall-through this branch's first draft had: a refusal answered 403 and then stored the record.
   - The U7 test's new check catches that class too.
-- Neighbouring suites (DNS, certs, secrets, fleet, api relay, U7, mcp, tunnel, deploy closure, metal launcher certs): 161/161.
+- Neighbouring suites (DNS, certs, secrets, fleet, api relay, U7, mcp, tunnel, deploy closure, metal launcher certs): 162/162.
 
 ## What this does not close
 
-- **The relays hold the relay key**: the api-relay and DNS-relay hosts can answer for any non-apex name in our zones. That's where the fleet-derived key is today; what changes is that no box holds the relay key.
+- **The relays hold the relay key**: the api-relay and DNS-relay hosts can answer for any non-apex name in our zones. That's where the fleet-derived key is today; what changes is that no box holds the relay key. The DNS-relay host could already answer any TXT without a key, as the zones' authoritative server, so only the api relay's copy is new authority.
+- **Transport**: nan's `api-relay.env` has `DNS_API=http://46.62.128.36…`, so certs.js pushes over **plain HTTP** today (host and scheme read by enclave-5d with the documented relay-admin key). Only HMACs cross the wire, never a key, and the signed body carries `ts`. An on-path attacker can observe pushes, replay one within 300 s, or drop them, but cannot forge one. That's pre-existing and unchanged here.
 - **Operator signatures are per operator, not per box.**
   - Boxes that share one registry key (each Tinfoil config names one `REGISTRY_PRIVATE_KEY`) can answer for each other's leased deployments.
   - A metal operator who can read its own registry key can answer for deployments leased to its own box, whose traffic it already carries.
   - Closing that means keeping registry keys inside the CVM. That's separate work.
+  - With U7, an operator's signature still needs an ELIGIBLE lease holder. So an operator key held outside attested code (the Windows NucBox operator key sits in the host) cannot answer for its own leased deployments while that node is ineligible (enclave-d1).
 - `CERTS_KEY` (fleet-derived) stays an optional extra factor at `/v1/certs/issue`. It is never sufficient on its own: `opSig` and the lease are required. It can retire in the same supervisor release as `DNS_TXT_KEY`.
 - `secrets.js` already requires the operator signature for a registered endpoint, so this doesn't change it.
 
@@ -158,5 +173,5 @@ A non-zero count logs the name: that is a writer this trace missed, so stop and 
 
 1. Whether to flip (Stage 4) before any Tinfoil box returns. Recommended: yes. Their fallback keeps deployment names through operator signatures, and nothing live depends on the fleet HMAC.
 2. The length of the observation window in Stage 3. It needs at least one organic platform issuance or renewal.
-3. Which relay host generates `RELAY_TXT_KEY`, and how the operator copies it to the other one.
+3. How the operator copies `RELAY_TXT_KEY` from nan-relay, where it's generated, to nan.
 4. Whether Stage 1 rides U7's relay push or a separate one. Recommended: a separate, later push, since both restart every relay unit.
