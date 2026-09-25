@@ -236,16 +236,65 @@ try {
     Note "hyperv.psm1 verified: $mh"
   } else { Note "hyperv.psm1 pin SKIPPED by request (the VM definition is therefore unverified)" }
   Import-Module $HypervModule -Force   # petri's New-CustomVM, the reference definition
-  # -Com3: OpenHCL's own VTL2 log. On an isolated VM it REFUSES a set of settings by name there
-  # (hibernation, processor idle, a legacy memory map, PCAT, PSP, servicing, firmware debugging
-  # with Secure Boot, unmeasured extra PCRs), and without this port a refusal is a silent failure.
-  New-CustomVM -VMName $name -GuestStateIsolationEnabled $true -GuestStateIsolationType $IsolationType `
-    -GuestStateIsolationMode 0 -FirmwareFile $Firmware -IncreaseVtl2Memory `
-    -SecureBootEnabled $false -Com1 $true -Com3 $true -Memory ($MemMiB * 1MB) -VpCount $Vcpus | Out-Null
-  $created = $true
-  $vm = Get-VM -Name $name
+  # COM3 would be OpenHCL's own VTL2 log, where it names the settings it refuses on an isolated VM.
+  # petri's -Com3 sets it by indexing Msvm_SerialPortSettingData[2], and on THIS host that index is
+  # empty: the first type-1 run died with "The property 'Connection' cannot be found on this object"
+  # before the VM was ever defined. A missing diagnostic port must not fail the experiment it exists
+  # to diagnose, so -Com3 is not passed and the port is probed below and recorded as UNSUPPORTED.
+  # WHY TYPE 1 IS CREATED A DIFFERENT WAY, and it is not a preference.
+  #
+  # petri's New-CustomVM defines the VM through one DefineSystem call and sets no guest state. That
+  # is fine for type 16. For type 1 this host REFUSES it: VMMS logs "Cannot perform the operation
+  # ... because the virtual machine has security settings which do not allow it" at define time and
+  # the start dies with a bare Worker 12030.
+  #
+  # Asked directly what it wants, Windows answers unambiguously. `New-VM -GuestStateIsolationType
+  # VBS` on this build produces GuestStateFile "Virtual Machines\<GUID>.vmgs" with 4,194,816 bytes
+  # ACTUALLY ON DISK, GuestFeatureSet 1024, UserSnapshotType 5 and TpmEnabled True. A VBS VM needs a
+  # guest-state file, and petri gives it none. The knob petri offers for going without one,
+  # GuestStateLifetime, DOES NOT EXIST on this build's Msvm_VirtualSystemSettingData (nor does
+  # GuestStateEncryptionPolicy), so "stateless guest state" is not available here at all - recorded
+  # as UNSUPPORTED on this host rather than worked around.
+  #
+  # So type 1 is created by New-VM, which builds the VMGS, and the firmware is pinned onto it
+  # afterwards through WMI. Type 16 keeps the petri path exactly as it was.
+  if ($IsolationType -eq 1) {
+    $vmNew = New-VM -Name $name -Generation 2 -MemoryStartupBytes ($MemMiB * 1MB) -NoVHD `
+                    -GuestStateIsolationType VBS -ErrorAction Stop
+    $created = $true
+    Set-VMProcessor -VM $vmNew -Count $Vcpus
+    $vm = Get-VM -Name $name
+    # Pin OUR firmware onto the VM Windows just built, through the setting data - New-VM has no
+    # parameter for it. This is the step AllowFirmwareLoadFromFile exists for.
+    $vssdF = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemSettingData |
+             Where-Object { $_.ConfigurationID -eq $vm.Id.Guid }
+    $vssdF.FirmwareFile = $Firmware
+    $svc = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemManagementService
+    $r = Invoke-CimMethod -InputObject $svc -MethodName ModifySystemSettings `
+           -Arguments @{ SystemSettings = ($vssdF | ConvertTo-CimEmbeddedString) }
+    if ($r.ReturnValue -notin 0, 4096) { throw "pinning FirmwareFile returned $($r.ReturnValue)" }
+    if ($r.ReturnValue -eq 4096) {
+      $job = $r.Job | Get-CimInstance
+      while ($job.JobState -in 3, 4) { Start-Sleep -Milliseconds 200; $job = $job | Get-CimInstance }
+      if ($job.JobState -ne 7) { throw "pinning FirmwareFile failed: job state $($job.JobState) $($job.ErrorDescription)" }
+    }
+    $vssdF = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemSettingData |
+             Where-Object { $_.ConfigurationID -eq $vm.Id.Guid }
+    Note "firmware pinned, read back: '$($vssdF.FirmwareFile)'"
+    if ($vssdF.FirmwareFile -ne $Firmware) { throw "the VM's FirmwareFile reads '$($vssdF.FirmwareFile)', not the pinned $Firmware" }
+    $gsf = "$($vssdF.GuestStateDataRoot)\$($vssdF.GuestStateFile)"
+    Note "guest state: '$($vssdF.GuestStateFile)' $(if(Test-Path $gsf){"$((Get-Item $gsf).Length) bytes on disk"}else{'NOT ON DISK'}); GuestFeatureSet=$($vssdF.GuestFeatureSet)"
+    Set-VMFirmware -VM $vm -EnableSecureBoot Off
+    Set-VMComPort  -VM $vm -Number 1 -Path "\\.\pipe\$pipe"
+  } else {
+    New-CustomVM -VMName $name -GuestStateIsolationEnabled $true -GuestStateIsolationType $IsolationType `
+      -GuestStateIsolationMode 0 -FirmwareFile $Firmware -IncreaseVtl2Memory `
+      -SecureBootEnabled $false -Com1 $true -Memory ($MemMiB * 1MB) -VpCount $Vcpus | Out-Null
+    $created = $true
+    $vm = Get-VM -Name $name
+  }
   Set-VM -VM $vm -Notes $MARKER
-  Note "created $name (id $($vm.Id)) - Gen2, isolation OpenHCL, Secure Boot off, NO vTPM"
+  Note "created $name (id $($vm.Id)) - Gen2, GuestStateIsolationType $IsolationType, Secure Boot off"
 
   & icacls $Iso      /grant "NT VIRTUAL MACHINE\$($vm.Id):R" | Out-Null
   & icacls $Firmware /grant "NT VIRTUAL MACHINE\$($vm.Id):R" | Out-Null
@@ -273,7 +322,15 @@ try {
   Set-VMComPort  -VM $vm -Number 1 -Path "\\.\pipe\$pipe"
   # COM3 keeps the name petri gave it. Set-VMComPort only addresses ports 1 and 2, while COM3 exists
   # only in the Msvm model, which is why New-CustomVM sets it through WMI and this reads it there.
-  $pipe3 = "$($vm.Id)-3"
+  # Probed rather than assumed, and its absence is recorded as unsupported, not as a failure.
+  $pipe3 = $null
+  try {
+    $vssd3  = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemSettingData |
+              Where-Object { $_.ConfigurationID -eq $vm.Id.Guid }
+    $ports3 = @($vssd3 | Get-CimAssociatedInstance -ResultClassName Msvm_SerialPortSettingData)
+    if ($ports3.Count -ge 3) { $pipe3 = "$($vm.Id)-3"; Note "COM3 present ($($ports3.Count) serial ports)" }
+    else { Note "COM3 UNSUPPORTED: this host's Gen2 VM exposes $($ports3.Count) serial ports, so OpenHCL's own log cannot be read. Recorded as unsupported, NOT as a pass or a failure." }
+  } catch { Note "COM3 UNSUPPORTED: $($_.Exception.Message)" }
   Note "DVD attached and set as the ONLY boot device; COM1 -> \\.\pipe\$pipe"
 
   # THE READ-BACK. The guest refuses to start if the command line is not exactly its pinned one, or
@@ -291,8 +348,19 @@ try {
   $sec = (Get-CimInstance -Namespace 'root\virtualization\v2' -Query ("select * from Msvm_ComputerSystem where ElementName = '" + $name + "'")) |
          Get-CimAssociatedInstance -ResultClass Msvm_VirtualSystemSettingData -Association Msvm_SettingsDefineState |
          Get-CimAssociatedInstance -ResultClass Msvm_SecuritySettingData -ErrorAction SilentlyContinue
+  # On type 16 a vTPM must not be present: nothing on that path reads a PCR, and a vTPM sitting in
+  # the configuration unread LOOKS like attestation to anyone reading it. On type 1 Windows enables
+  # one as part of the supported VBS configuration (New-VM sets TpmEnabled True), and it is where
+  # the guest-state key protector lives - so refusing it would mean refusing the only isolation
+  # configuration this host supports. It is therefore RECORDED, loudly, rather than refused: present
+  # and unread is still not attestation, and this line is what stops a transcript implying it is.
   if ($null -eq $sec) { Note "vTPM: could not be read (no Msvm_SecuritySettingData); none was added by this definition" }
-  elseif ($sec.TpmEnabled) { throw "a vTPM is ENABLED; nothing reads its PCRs on this path and it must not be present" }
+  elseif ($sec.TpmEnabled -and $IsolationType -eq 1) {
+    Note "vTPM: PRESENT (TpmEnabled = True), because Windows makes one for a VBS VM and the guest-state"
+    Note "      key protector lives there. NOTHING ON THIS PATH READS ITS PCRs. Its presence is not"
+    Note "      attestation and must never be reported as any."
+  }
+  elseif ($sec.TpmEnabled) { throw "a vTPM is ENABLED on a type-$IsolationType VM; nothing reads its PCRs on this path and it must not be present" }
   else { Note "vTPM: absent (Msvm_SecuritySettingData.TpmEnabled = False)" }
   foreach ($e in $fw.BootOrder) {
     $lo = $e.Device.PSObject.Properties['LoadOptions']
@@ -333,7 +401,7 @@ try {
   }
   # COM3 on the same terms: opened as fast as possible and HELD, because a named pipe keeps nothing
   # for an absent client and OpenHCL says why it refused a configuration in its first moments.
-  for ($i = 0; $i -lt 100 -and -not $pipe3Client; $i++) {
+  for ($i = 0; $i -lt 100 -and $pipe3 -and -not $pipe3Client; $i++) {
     try {
       $c3 = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipe3,
               [System.IO.Pipes.PipeDirection]::In, [System.IO.Pipes.PipeOptions]::Asynchronous)
@@ -341,7 +409,7 @@ try {
       $pipe3Client = $c3
     } catch { Start-Sleep -Milliseconds 50 }
   }
-  Note $(if ($pipe3Client) { "COM3 (OpenHCL's own log) attached" } else { "COM3 could NOT be attached: an OpenHCL refusal would be silent" })
+  if ($pipe3) { Note $(if ($pipe3Client) { "COM3 (OpenHCL's own log) attached" } else { "COM3 could NOT be attached: an OpenHCL refusal would be silent" }) }
   if ($pipeClient) { Note "COM1 attached $([int]((Get-Date)-$t0).TotalMilliseconds) ms after start" }
   else { Note "COM1 could NOT be attached after 100 tries: anything the guest says is unobservable" }
   Note "started; watching COM1 for 'MON ready' for $ReadySeconds s"
@@ -383,7 +451,7 @@ try {
   }
   try { if ($pipeClient) { $pipeClient.Dispose() } } catch { }
   try { if ($pipe3Client) { $pipe3Client.Dispose() } } catch { }
-  Note "console bytes: $($seen.Length) (COM1), $($seen3.Length) (COM3)"
+  Note "console bytes: $($seen.Length) (COM1), $(if($pipe3){"$($seen3.Length) (COM3)"}else{'COM3 unsupported on this host'})"
   # COM3 is printed whenever the guest did not come ready, and always on type 1, where the whole
   # question is whether OpenHCL accepted the isolated configuration at all.
   if ($seen3 -and (-not $ready -or $IsolationType -eq 1)) {
