@@ -303,8 +303,14 @@ create/fund/refund transactions.
    4's proofs 4 and 5).
 9. **One ticket, one release (e3):** the relay journal holds exactly ONE
    `[secrets-release] <id>: released to a verified guest on <endpoint> (runtime ccadb38a…)` line for the test id, and
-   no `REFUSED` or `no prediction` line. If the consumed ticket is available to the operator without new
-   instrumentation, a re-POST of it must answer 403 `bad_ticket`, which is refused before anything is sealed.
+   no `REFUSED` or `no prediction` line. No production replay (e3: no tap is added for one; it would prove nothing
+   the code and tests don't). The consumption is shown by source at the live relay b7a3364c:
+   - relay/secrets-release.mjs:435-436 re-checks `tickets.get(tk) !== t` (else 403 `bad_ticket`), then
+     `tickets.delete(tk)` BEFORE the evidence is judged, so every 200 consumed its ticket;
+   - the store is an in-process Map with a 120 s TTL, never persisted or replicated, so a later presentation finds
+     nothing (:343-347, 403 `bad_ticket`);
+   - test/secrets-release.test.mjs:222-224 presents a consumed ticket again WITH perfect evidence and gets 403
+     `bad_ticket`, and :369 and :611 assert the ticket is gone from the map right after a 200.
 
 **Teardown** (whatever the outcome):
 1. `DELETE https://0ddbd824.app.enclave.host/api/bins/$BIN`.
@@ -316,7 +322,7 @@ create/fund/refund transactions.
 5. Remove the local value files.
 
 Evidence: the config, the sha256s, the counts, the relay and guestd lines. No value.
-- **Acceptance** = proofs 1-9 (9's re-POST only if the ticket is at hand). Only then step 6 for Steven's apps.
+- **Acceptance** = proofs 1-9. Only then step 6 for Steven's apps.
 
 ## Step 5 (S5): Steven's per-app check (names only; INVENTORY.md)
 **The evidence, and how fresh it is (Codex's question 2).** What we hold is in
