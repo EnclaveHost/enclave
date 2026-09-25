@@ -471,8 +471,38 @@ allow it").
 - The verifiable claim therefore rests on **E2**: does the VBS report verify under a key a remote client can reach?
   E2 can now run: the vbsreport PROBE medium on the same type-1 definition, with the same boot's TCG log.
 
-**Still true:** `host_excluded=no`, E2/E3 NOT RUN, and nothing here is evidence of isolation. A partition that
-reports VBS isolation does not demonstrate that the root cannot read its memory.
+**E2 RAN: no report.** The run: vbsreport PROBE medium 8d1fea1f on the same type-1 definition (a7b0bd4 CONTROL
+32d464cc, Guest VSM opted out). The guest reproduced the type-1 tuple, and the probe printed one line:
+
+```
+VBSREPORT status=0x71 (low 16 bits: 0 = success, 2 = invalid hypercall code, 3 = invalid input, 6 = access denied)
+MON PROBE finished: No such device        (by design: the module never stays loaded)
+```
+
+- 0x71 is `HV_STATUS_OPERATION_FAILED` (`hvdef/src/lib.rs:1053`). The hypervisor recognised
+  `HvCallVbsVmCallReport` from VTL0 (not 2), accepted its input (not 3) and did not deny access (not 6), but produced
+  no report.
+- So it is neither "status 0 + verifies" (the chain is NOT shown) nor "VTL0 refused" (the vTPM-only conclusion does
+  not follow). **E2 has a result, and it is neither GO nor NO-GO.**
+- Why, the open source cannot say. The failure is on the hypervisor's side. Neither our builds nor Microsoft's
+  `cfd40ce2` carry a signed VBS measurement header (0x311); igvmfilegen only computes the digest (`main.rs:507`).
+  Whether the report needs one is not in this source.
+- **The discriminator, with no new code:** OpenHCL requests its OWN VBS report from VTL2 during a type-1 boot, for key
+  release (`secure_key_release.rs:174-176`, `tee_call` `VbsCall`). Any failure is logged as "Failed to retrieve
+  key-encryption key" with its error chain (`underhill_attestation/src/lib.rs:386-398`, `CVM_ALLOWED`). The debug
+  image with the opt-out boots, so its kmsg shows it:
+  - a `GetAttestationReport(...)` error, i.e. `GetVbsReport` failing: the hypervisor gives no VBS report on this
+    partition at all, whoever asks. The report chain does not exist here as configured.
+  - an IGVM-attest/agent error: VTL2 DID get a report, and only VTL0 is turned away. The report is then reachable
+    only through the paravisor.
+- The TCG log of the same host boot is captured (`tcglog-20260925-042300-0000000067-0000000000.log`, 90,554 B). It is
+  needed only once a report exists; before that it can confirm that this boot's log carries IDKS/IDK.
+
+**Stock 2511:** enclave-d1's view is to leave it alone unless the product needs Microsoft's released image, and the
+decision goes to the monitor. The pinned a7b0bd4 build boots and serves.
+
+**Still true:** `host_excluded=no`, E2 has no report, E3 NOT RUN, and nothing here is evidence of isolation. A
+partition that reports VBS isolation does not demonstrate that the root cannot read its memory.
 
 ## 5. Files
 
