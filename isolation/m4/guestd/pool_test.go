@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -362,6 +365,75 @@ func TestTheUnitOverheadIsRunDomainsMemoryMax(t *testing.T) {
 	}
 	if !regexp.MustCompile(`CPUQuota="\$\{quota\}%"`).Match(b) {
 		t.Fatal("run-domain.sh no longer sets CPUQuota from the quota the pool reserves")
+	}
+}
+
+// poolSeam runs the REAL supervisor's GUEST_POOL_SELFTEST against this guestd over guestd-control/1: the supervisor's
+// view of the pool comes from vmHealth(), the production path, so a field guestd renames or drops fails here.
+func poolSeam(t *testing.T, r *rig, memMb int) map[string]any {
+	t.Helper()
+	key := filepath.Join(t.TempDir(), "pair.key")
+	_ = os.WriteFile(key, []byte(hex.EncodeToString(testKey)+"\n"), 0o600)
+	cj, _ := json.Marshal(map[string]any{"viaHealth": map[string]any{"memMb": memMb}})
+	cmd := exec.Command("node", "../../../supervisor.js")
+	cmd.Env = append(os.Environ(), "SECRET=test-secret", "GUEST_POOL_SELFTEST="+string(cj), "GUESTD_TRANSPORT_SELFTEST=",
+		"ISOLATION_SELFTEST=", "INSTANCE_SELFTEST=", "POOL_SELFTEST=", "SWEEP_SELFTEST=", "REACH_SELFTEST=",
+		"ACME_SELFTEST=", "CFG_EDIT_SELFTEST=", "ADDRESS_BOOK_ADDRESS=", "REGISTRY_ENABLED=", "CLAIM_ENABLED=",
+		"ACME_EAB_KID=", "ACME_EAB_HMAC=", "APP_CERT_DOMAIN=", "DNS_API=", "NODE_RAM_GB=6", "NODE_VCPUS=4", "NODE_GFLOPS=250",
+		"ISOLATION_BACKEND=snp-guest-per-app", "VMMGR_URL="+r.ts.URL, "GUESTD_KEY_FILE="+key)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("supervisor seam: %v %s", err, out)
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var got map[string]any
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &got); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	return got
+}
+
+func TestTheSupervisorMirrorsThePoolThisGuestdReports(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	if _, err := os.Stat("../../../node_modules"); err != nil {
+		t.Skip("the supervisor's node_modules are not installed (npm ci at the repository root)")
+	}
+	r := newRig(t)
+	r.s.Budget = budgetFor(3)
+	auth := newControlAuth(testKey, r.s.Now)
+	p, _ := r.bundle("A", contract.Policy{})
+	if code, _ := r.create(name(1), p); code != 201 { // the rig's own requests go unauthenticated (lab mode)...
+		t.Fatal("the first guest")
+	}
+	r.s.launching.Wait()
+	r.s.Auth = auth // ...and the supervisor's over guestd-control/1, as in production
+	got := poolSeam(t, r, 128)
+	node, _ := got["node"].(map[string]any)
+	gp, _ := got["guestPool"].(map[string]any)
+	if got["healthError"] != nil || node["pool"] != true || node["ramGb"] != float64(3*1792)/1024 || node["vcpus"] != float64(3) {
+		t.Fatalf("the supervisor's node is not this guestd's pool: %v", got)
+	}
+	if gp["heard"] != true || res(gp["allocated"]) != oneGuest || res(gp["free"]) != (reservation{MemMiB: 2 * 1792, CPUPct: 200}) {
+		t.Fatalf("the supervisor's pool: %v", gp)
+	}
+	if got["maxFreeCpu"] != 0.667 || got["healthVerdict"] != nil {
+		t.Fatalf("two rooms of three free: maxFreeCpu %v, verdict %v", got["maxFreeCpu"], got["healthVerdict"])
+	}
+	// full: the supervisor advertises nothing and claims nothing
+	r.s.Auth = nil
+	for i := 2; i <= 3; i++ {
+		if code, _ := r.create(name(i), p); code != 201 {
+			t.Fatalf("guest %d", i)
+		}
+	}
+	r.s.launching.Wait()
+	r.s.Auth = auth
+	got = poolSeam(t, r, 128)
+	why, _ := got["healthVerdict"].(string)
+	if got["maxFreeCpu"] != float64(0) || !strings.Contains(why, "cannot fit this app's guest") {
+		t.Fatalf("a full pool: maxFreeCpu %v, verdict %q", got["maxFreeCpu"], why)
 	}
 }
 
