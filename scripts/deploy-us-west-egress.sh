@@ -136,11 +136,15 @@ cd /opt/nan-relay
 if [ "$NPM_CI" = 1 ] || [ ! -d node_modules ]; then npm ci --omit=dev; fi
 umask 077
 mkdir -p /etc/nan-relay                  # a fresh host has none yet
-# umask applies only when a file is CREATED: an existing env file would keep its old mode with the token in it. So the
-# old contents go first, then the mode, then the token (enclave-5d); at no point is a token in a file others can read.
-: > /etc/nan-relay/egress-relay.env
-chmod 600 /etc/nan-relay/egress-relay.env
-cat > /etc/nan-relay/egress-relay.env <<ENV
+# The WORKING env file is never touched until its complete replacement is ready (Codex): the new settings go into a
+# private temporary file in the SAME directory (mktemp makes it 0600, and the same filesystem makes the rename atomic),
+# are checked, and only then renamed over the old file. Any failure before that exits here (set -e) with the old file
+# byte for byte as it was, the temporary file removed (the trap), and no service touched: the systemctl lines below
+# never run. The token is in the file's CONTENT only, never in an argv or a log line.
+ENV_FILE=/etc/nan-relay/egress-relay.env
+ENV_TMP="$(mktemp /etc/nan-relay/.egress-relay.env.XXXXXX)"
+trap 'rm -f "$ENV_TMP"' EXIT
+cat > "$ENV_TMP" <<ENV
 EGRESS_RELAY_TOKEN=${TOKEN}
 RELAY_NAME=us-west
 REGISTRY_ADDRESS=0xCB65f487eba6564D57FfB860cF9aE701584cB4a2
@@ -148,6 +152,12 @@ ADDRESS_BOOK_ADDRESS=0xab214342d5A490150A4A977063A2f88E21F80907
 BASE_RPC=https://base-rpc.publicnode.com
 TRUSTED_OPERATORS=0x390e2e0e0bc34b7f428f1e31c9b6770d5028ecc1
 ENV
+# complete: a token was written, and the last line made it (a short write fails these, and the old file stays)
+grep -q '^EGRESS_RELAY_TOKEN=.' "$ENV_TMP" && grep -qx 'TRUSTED_OPERATORS=0x390e2e0e0bc34b7f428f1e31c9b6770d5028ecc1' "$ENV_TMP" \
+  || { echo "FATAL: the new egress env file is incomplete; the working one is untouched" >&2; exit 1; }
+chmod 600 "$ENV_TMP"                     # mktemp's mode already; stated, not assumed
+mv -f "$ENV_TMP" "$ENV_FILE"             # rename(2) in one directory: the old file or the new one, never a partial one
+trap - EXIT
 # NO EGRESS_PREFIX -> the unit's `ip -6 route add local` self-ignores, and the
 # relay dials plain from us-west's own address (the enclave sends no source).
 systemctl daemon-reload
