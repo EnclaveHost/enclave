@@ -205,8 +205,11 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
 - At 4b the relay reads it through `SECRETS_RELEASE_SIGNING_KEY_FILE` (enclave-99's dbae7fc1). The seed is never copied
   into api-relay.env or its backups.
 - The release is still OFF.
-- A STANDBY key pinned beside it would let a planned rotation, or a leak of the active seed alone, be a relay switch
-  instead of a re-image. It is Codex's call and has not been generated.
+- CODEX DECISION: ONE production key (this one, pinned by enclave-5d at aff21c73). No standby, and the trusted key set
+  is not broadened.
+  - A correction to the standby idea: switching the relay to a second key does NOT revoke a compromised first key.
+    Deployed guests pinning both would keep accepting the first. A keyId is a selector, not revocation.
+  - Revocation stays "a new measured front without the key", and a planned-rotation design comes later, separately.
 
 - The release key's PUBLIC half is compiled into the MEASURED front: `relayReleaseKeys` in
   isolation/m2/release/verify.go:32, empty today. An image built without it refuses every release ("no pinned
@@ -391,9 +394,9 @@ have bought as little as 1% each. That gap (the section 7 pricing question) is w
 | # | Prerequisite | Owner | Reviewer / decision |
 |---|---|---|---|
 | 1 | Release-chain CODE complete and reviewed: 5d's app-config-m1 (front, guestd host services, option (i) legacy tree, supervisor ticket fetch e425947a) | enclave-5d | enclave-99, enclave-63, enclave-d1 |
-| 2 | Relay attested-release code (security/attested-release, incl. SECRETS_RELEASE_DEPLOYMENTS and _KEY_FILE) merged and deployed OFF; nan host prerequisites for the relay's measurement prediction (python3, node, go >= 1.24, cpio, gzip, a sev-snp-measure 0.0.13 venv, the predict repo at the reviewed commit, known-answer test passing) | enclave-99 | enclave-5d, enclave-d1; Codex go for the deploy |
+| 2 | Relay attested-release code merged and deployed OFF (no broad relay deploy while U7 / us-west are unresolved); NOW: the reviewed predictor, toolchain and dependencies staged in an ISOLATED, VERSIONED location on nan, with its known-answer self-test run there (no service or env change) | enclave-99 | enclave-5d, enclave-d1; Codex go for the deploy |
 | 3 | U7 (S3): preflight rev 3 says not ready. ELIGIBILITY_API/DOMAINS_API on every daemon host, dns.env's ledger, a dns-01 check; us-west access (B1) | the U7 lane (enclave-99 / enclave-5d); **Steven** for us-west access | Codex go |
-| 4 | Production `pins.go` = the S3b public key (and a standby, if chosen); the new guest domain release built reproducibly | enclave-5d (image) | enclave-99; **Codex**: standby yes/no |
+| 4 | Production `pins.go` = the S3b public key (DONE, aff21c73; one key, no standby: Codex). The new guest domain release built reproducibly from the final reviewed image-affecting commit, NOW, not waiting on host-only work | enclave-5d (image) | enclave-99 |
 | 5 | Domain-release publication artifact: reproducible rebuild, third-party inventory, notices and corresponding source, Enclave's license unchanged | enclave-53 (in progress) | enclave-63, enclave-5d, enclave-99 before any publication |
 | 6 | Trusted clients pin the new domain release BESIDE the old one (never replacing it) | the site/CLI verifier owner, with enclave-5d | enclave-99 |
 | 7 | 4b: the relay's release ON with the full policy, SECRETS_RELEASE_DEPLOYMENTS = the canaries only | enclave-99 | **Codex** go |
@@ -403,7 +406,7 @@ have bought as little as 1% each. That gap (the section 7 pricing question) is w
 | 11 | S5: a per-app secret inventory and who can rotate each secret, before any real release | **Steven** | Codex |
 | 12 | S6: setConfig transactions (owner actions) | **Steven** (his apps), the agent wallet (canaries) | Codex |
 | 13 | The 72 h soak review (ends about 2026-09-28 18:26Z) before retiring dist-iso-8ed6231f / 04e953a4 / the old guestd | enclave-63 | enclave-99; it does NOT pause app recovery |
-| 14 | Memory-headroom follow-ups: (a) live-MemAvailable admission in guestd (source), (b) OOMScoreAdjust, (c) a soak alert | enclave-63 (a) as source only; (b) and (c) proposed | **Codex** for any live change |
+| 14 | The host-memory floor (source d67b0020 + fixes): CODEX selects 16384 MiB for THIS 64 GiB pool, set at its next coordinated guestd rollout after enclave-99's review and enclave-5d's merge and tests; the default stays 0. No OOM-priority or pricing change | enclave-63 | enclave-99; it must not delay the guest-image build |
 | 15 | The pricing gap on the tier (a share priced as a fraction of 64 GiB while each guest reserves a core; section 8's table) | **Steven** | Codex |
 
 ## 7. Decisions for Steven / Codex

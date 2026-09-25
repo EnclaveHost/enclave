@@ -29,6 +29,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -123,7 +124,12 @@ func readMemAvailableMiB() (int, error) {
 		return 0, err
 	}
 	defer f.Close()
-	sc := bufio.NewScanner(f)
+	return parseMemAvailableMiB(f)
+}
+
+// parseMemAvailableMiB reads a /proc/meminfo body: MemAvailable is in kB (KiB), so MiB = kB / 1024, rounded DOWN.
+func parseMemAvailableMiB(r io.Reader) (int, error) {
+	sc := bufio.NewScanner(r)
 	for sc.Scan() {
 		if fs := strings.Fields(sc.Text()); len(fs) >= 2 && fs[0] == "MemAvailable:" {
 			kb, err := strconv.Atoi(fs[1])
@@ -143,20 +149,35 @@ func (s *server) memAvailableMiB() (int, error) {
 	return readMemAvailableMiB()
 }
 
+// pendingLocked is the memory of admitted guests still STARTING (enclave-99): a guest takes its RAM only when it boots,
+// seconds to tens of seconds after its 201, so MemAvailable cannot show it yet. Counting its whole reservation is
+// conservative, and only until it runs. s.mu must be held.
+func (s *server) pendingLocked() int {
+	n := 0
+	for _, v := range s.vms {
+		if v.holds() && v.Status == "starting" {
+			n += v.reservation().MemMiB
+		}
+	}
+	return n
+}
+
 // hostRefusal is the live-memory refusal for a guest reserving r, or nil. s.mu must be held.
 func (s *server) hostRefusal(r reservation) map[string]any {
 	if s.HostFloorMiB <= 0 {
 		return nil
 	}
+	pending := s.pendingLocked()
 	avail, err := s.memAvailableMiB()
 	if err != nil {
 		log.Printf("REFUSED a create: the host's available memory cannot be read (%v)", err)
 		return map[string]any{"error": "host_memory_unknown", "needs": r, "floorMiB": s.HostFloorMiB,
 			"detail": "the host's available memory cannot be read, so no guest is admitted: " + err.Error()}
 	}
-	if avail-r.MemMiB < s.HostFloorMiB {
-		return map[string]any{"error": "host_memory_low", "needs": r, "hostMemAvailableMiB": avail, "floorMiB": s.HostFloorMiB,
-			"detail": fmt.Sprintf("admitting this guest would leave the host %d MiB available, under its %d MiB floor", avail-r.MemMiB, s.HostFloorMiB)}
+	if avail-pending-r.MemMiB < s.HostFloorMiB {
+		return map[string]any{"error": "host_memory_low", "needs": r, "hostMemAvailableMiB": avail, "pendingMiB": pending, "floorMiB": s.HostFloorMiB,
+			"detail": fmt.Sprintf("admitting this guest would leave the host %d MiB available (%d MiB of starting guests counted), under its %d MiB floor",
+				avail-pending-r.MemMiB, pending, s.HostFloorMiB)}
 	}
 	return nil
 }
@@ -168,7 +189,7 @@ func (s *server) poolLocked() map[string]any {
 	if s.Budget.configured() {
 		budget = s.Budget
 	}
-	host := map[string]any{"floorMiB": s.HostFloorMiB, "memAvailableMiB": nil} // null = unread (floor off) or unreadable
+	host := map[string]any{"floorMiB": s.HostFloorMiB, "memAvailableMiB": nil, "pendingMiB": s.pendingLocked()} // null = unread (floor off) or unreadable
 	if s.HostFloorMiB > 0 {
 		if avail, err := s.memAvailableMiB(); err == nil {
 			host["memAvailableMiB"] = avail
