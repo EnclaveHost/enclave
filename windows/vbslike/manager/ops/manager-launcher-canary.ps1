@@ -69,8 +69,13 @@ try {
   Note "config: $cfg"
   $p = Start-Process -FilePath 'C:\Program Files\nodejs\node.exe' -ArgumentList @("$Tree\windows\vbslike\manager\ops\launcher-canary.mjs", $cfgFile) `
          -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError "$out.err"
+  # READ THE HANDLE NOW. Windows PowerShell's Start-Process -PassThru object reports an EMPTY ExitCode after
+  # WaitForExit(ms) unless its Handle was taken while the process lived (measured: run 20260925-070935 held every
+  # step and still read exit '').
+  $null = $p.Handle
   if (-not $p.WaitForExit(600000)) { try { $p.Kill() } catch {}; $fail += "the launcher canary did not finish in 600 s (killed)" }
   $launcherExit = $p.ExitCode
+  if ($null -eq $launcherExit -or "$launcherExit" -eq '') { $fail += "the launcher's exit code could not be read" }
   foreach ($l in (Get-Content $out -EA SilentlyContinue)) { Note "  LAUNCHER: $l" }
   foreach ($l in (Get-Content "$out.err" -EA SilentlyContinue | Select-Object -First 20)) { Note "  LAUNCHER-ERR: $l" }
 } catch { $fail += "harness: $($_.Exception.Message)" }
