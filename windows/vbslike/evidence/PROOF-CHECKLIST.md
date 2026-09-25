@@ -72,6 +72,11 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 - UNTESTED: a TPM quote signed by an attestation key that chains to the TPM's endorsement certificate. Needs a
   host-security decision (see Next).
 - UNTESTED: that host-controlled code, under test signing, cannot reach IDKS.
+- RULED (enclave-5d, contract `aebd6bd7`):
+  - The trust root is "host TPM plus IDKS under an ACCEPTED boot state". Secure Boot off, or test signing
+    measured on, is a REJECTION condition. On this host both hold today, so a conforming verifier must reject
+    any report from it.
+  - "IDKS signs the VbsReport" stays a HYPOTHESIS until real report bytes verify under the same boot's IDKS.
 
 ## O4. Fresh verifier nonce and guest-held TLS key, authenticated to the measured instance
 
