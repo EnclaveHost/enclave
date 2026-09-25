@@ -93,11 +93,34 @@ AVF phones bridging fake VMs, an eligible app host, and a token tunnel.
 
 **Mutations:** test/mutate-pvm-serving.mjs M01-M37, U01-U05.
 
+## Reviewed, and the regression run
+- **enclave-99 APPROVED 48c6efb3** for the one bounded Pixel/local-chain regression. It independently checked:
+  - the ancestry, and that U7's code is unchanged;
+  - the carve-out and the resolver against its conditions;
+  - the deploy.sh closure, the .gitleaks.toml hash, and the preload;
+  - 148/148 suites;
+  - its own carve-out mutations against the integration test. "The resolver ignores avf mode" survives end to end,
+    because spliceRaw's t.pvm check refuses anyway (defence in depth), and test/pvm-runner-resolver.test.mjs catches it.
+- **The regression: PASS at 48c6efb3** (results/pvm-cpu-relay-reconnect-u7, NOTES.md and check.txt). 43 of 43 steps on
+  one VM boot through the U7 relay: 8 in-place re-attaches, the refusals in order, exactly-once recovery, and no tier in
+  place.
+
+## Rollout notes (enclave-99's review; not blocking)
+1. **tunnel.js `avfOn`** now also counts `padCodeHashes` and the pvm-cpu code hashes. A relay configured with only those
+   v2 lists now VERIFIES AVF attaches it used to answer with 401.
+   - U7 is unaffected: an avf tunnel is never eligible, and with PVM_SERVING off it carries nothing.
+   - Whether this changes anything live depends on production's `METAL_AVF_*` and `PVM_CPU_*` wiring: check it before
+     any rollout.
+2. **Pre-existing on main, not this branch's:** `GOOGLE_ATTESTATION_ROOT_SHA256` is a mutable exported Map, so any
+   in-process module could add a root. A read-only view is worth doing separately. The test preload would then need its
+   own seam.
+3. **This branch carries about 1,870 files beyond U7** (the pVM lane's tree). Landing any of it on main is a separate
+   decision, with its own deploy audit. The approval covers the Pixel regression at this revision only.
+
 ## What remains
-- **enclave-99's review** of this exact revision.
-- **Then ONE bounded Pixel/local-chain regression run** at this revision: cpu/relay-reconnect-run.mjs from this tree
-  (one VM boot; drops, a frozen relay, co-signer refusals, exactly-once recovery, an old-build relay).
-- **enclave-99's offline re-verification** of results/pvm-cpu-relay-reconnect, which was run at 48030dd5 before U7.
+- **enclave-99's offline re-verification** of both device runs:
+  - results/pvm-cpu-relay-reconnect (48030dd5, before U7);
+  - results/pvm-cpu-relay-reconnect-u7 (48c6efb3).
 - **Not done, and not claimed:**
   - a merge to main, or any deployment;
   - production PVM_SERVING or any production configuration;

@@ -1,0 +1,31 @@
+ok   run.json present
+ok   steps: exactly the plan's 43, in order, each ok (A-attach A-row A-bootstrap-attest A-register A-claim A-route A-prove A-client R1-back-1 R1-route-1 R1-row-1 R1-client-1 R1-prove-1 R1-back-2 R1-route-2 R1-row-2 R1-client-2 R1-prove-2 R1-back-3 R1-route-3 R1-row-3 R1-client-3 R1-prove-3 R2-watchdog R2-one-tunnel R2-route R3-refusals R3-route R3-replay R3-client R4-cut R4-route R4-pre R4-crash R4-back R4-route-2 R4-recover R5-old-build R5-right R5-route R5-no-tier D-release D-one-boot)
+ok   relay: 9 processes, each from an allowlisted environment with no secret-bearing name, bound to loopback
+ok   relay: the lab build admitted in every relay but the one that admits only the OLD build
+ok   ONE boot for the whole run: one start, one transport key 7d6c77caa9b0842a…, the owner's out-of-band instance ccd79db14e9f3a22…
+ok   the running VM answered every REATTACH (12 begun, 12 ended) = 8 accepted in place (the plan's 8) + 4 refused by the hub (R3's three, R5's old build) + 0 without a certificate; a dial that failed sent none
+ok   one reconnector, armed once: every in-place acceptance follows exactly one loss -- never two live tunnels on the phone
+ok   attach: every owner co-signature re-verifies offline -- the rad (AVF, build, authority, nonce), the BOOT transport key in every one, the instance over THIS transcript, the owner over exactly its name and nonce (10/10)
+ok   attach: no nonce was co-signed twice
+ok   the owner's co-signer journal records exactly its 10 signatures
+ok   R3's co-signer answers, once each: down; the WRONG operator's (recovers to that key); a STALE owner signature (an earlier nonce's; over the new nonce it recovers to someone else)
+ok   relay: every attach of the name left exactly ONE tunnel (9 attaches, counts 1)
+ok   R3: the hub refused, in order, no co-signature / the wrong operator / the stale signature, then attached; after it only the replay was refused (pixel10-pvm-cpu is registered on chain;  | pixel10-pvm-cpu is registered on chain t | pixel10-pvm-cpu is registered on chain t || attestationChallenge does not match ours)
+ok   R5: the relay that admits only another build refused the in-place attach on its build, and attached nothing
+ok   R3: an ACCEPTED attest frame (certificate and co-signature for nonce N) replayed on a fresh connection N' was refused on its challenge
+ok   statements: all 5 re-verify over their own nonces (the owner's instance, this deployment, the lab build)
+ok   the agent accepted exactly the 5 statements; each of the VM's 0 rate refusal(s) was journaled as a retry or a refused attest, never a key
+ok   carrier: the bootstrap route in A-bootstrap, A-register, A-claim only, /x in every other step (13 exchanges)
+ok   checkpoints: each accepted one is one answer to exactly its request, re-verified (8/8)
+ok   client: served through /x as the bound deployment at boot and after every checked re-attach (5)
+ok   rows: never two rows for the name, at any sampled moment
+ok   rows: the tier at boot (a self-test after that attach); none after an in-place re-attach (routing only), never eligible, never serving
+ok   R2: after the thaw, exactly one row for the name
+ok   registered once with the attested key; claimed once
+ok   every Checkpointed is a journaled landing, one per signed checkpoint (8)
+ok   exactly once across a drop: the checkpoint never delivered is the one the restarted agent landed, once
+ok   R4: no checkpoint was signed or sent while the relay was down (a request cut by a drop sends nothing)
+ok   released once, after the last proof
+ok   every attestation chain in the run (15: attaches and statements) hangs off ONE provisioned AVF key -- no key consumed per call
+ok   the run scanned its own results for both operator keys and found neither
+PASS reconnect in place through the real relay

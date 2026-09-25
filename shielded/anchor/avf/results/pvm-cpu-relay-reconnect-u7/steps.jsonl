@@ -1,0 +1,43 @@
+{"step":"A-attach","ok":true,"facts":{"accepted":true,"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","spki":"302a300506032b6570032100…","bootMs":99796},"utc":"2026-09-25T14:17:15.048Z"}
+{"step":"A-row","ok":true,"facts":{"rows":1,"tier":"pvm-cpu","eligible":false},"utc":"2026-09-25T14:17:18.054Z"}
+{"step":"A-bootstrap-attest","ok":true,"facts":{"proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","reason":null},"utc":"2026-09-25T14:17:18.899Z"}
+{"step":"A-register","ok":true,"facts":{"lifecycle":{"kind":"landed","op":"register (new)","hash":"0x1c7641bc334bc5afd36c95fd39d2c78b6ad2d4627fbcb5a42fb8cb8baa07d362","block":80,"blockHash":"0xd091208e61a492059bad8a6877bc0f6667fd18f1c9574e0c123e70f3ee9c7fbe","event":"Updated","args":{"id":"0x0e43a5110cc29c646df19eb65b8ed13e96b632833acebf268327adbddf9dea9b","repo":"lab/pvm-relay-reconnect","measurement":"0x15d9f8c7854514512aabf7b75a1ad5157fad0a4930842bd9c1fbd5c0a1c5a76a"},"gasUsed":"306307","nonce":0}},"utc":"2026-09-25T14:17:24.868Z"}
+{"step":"A-claim","ok":true,"facts":{"lifecycle":{"kind":"landed","op":"claim","hash":"0x40447b5a69392e593b28c9fb733b01c4a942bd7c24c8e606de4c5f516732132d","block":84,"blockHash":"0x233e735dc6f724a92e19cc97b7d5b8f030d84be1f9dd7411f2038f6efe1c4cf1","event":"Claimed","args":{"id":"0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2","enclaveId":"0x0e43a5110cc29c646df19eb65b8ed13e96b632833acebf268327adbddf9dea9b","operator":"0x0c66D0B810F5446DDfA55F1CA7768e2Ab1E6Cc93","leaseUntil":"1790347650","burned6":"151200"},"gasUsed":"188605","nonce":1}},"utc":"2026-09-25T14:17:37.072Z"}
+{"step":"A-route","ok":true,"facts":{"route":"/x/0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2/pvm/evidence"},"utc":"2026-09-25T14:17:40.275Z"}
+{"step":"A-prove","ok":true,"facts":{"proof":"landed"},"utc":"2026-09-25T14:18:47.214Z"}
+{"step":"A-client","ok":true,"facts":{"complete":true,"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340"},"utc":"2026-09-25T14:18:52.100Z"}
+{"step":"R1-back-1","ok":true,"facts":{"reattached":1,"boots":{"starts":1,"spki":1,"instances":1}},"utc":"2026-09-25T14:19:07.465Z"}
+{"step":"R1-route-1","ok":true,"facts":{"route":"back"},"utc":"2026-09-25T14:19:10.002Z"}
+{"step":"R1-row-1","ok":true,"facts":{"rows":1,"tier":null},"utc":"2026-09-25T14:19:10.006Z"}
+{"step":"R1-client-1","ok":true,"facts":{"complete":true},"utc":"2026-09-25T14:19:14.653Z"}
+{"step":"R1-prove-1","ok":true,"facts":{"proof":"landed"},"utc":"2026-09-25T14:20:20.780Z"}
+{"step":"R1-back-2","ok":true,"facts":{"reattached":2,"boots":{"starts":1,"spki":1,"instances":1}},"utc":"2026-09-25T14:20:52.939Z"}
+{"step":"R1-route-2","ok":true,"facts":{"route":"back"},"utc":"2026-09-25T14:20:55.483Z"}
+{"step":"R1-row-2","ok":true,"facts":{"rows":1,"tier":null},"utc":"2026-09-25T14:20:55.486Z"}
+{"step":"R1-client-2","ok":true,"facts":{"complete":true},"utc":"2026-09-25T14:21:00.237Z"}
+{"step":"R1-prove-2","ok":true,"facts":{"proof":"landed"},"utc":"2026-09-25T14:22:05.364Z"}
+{"step":"R1-back-3","ok":true,"facts":{"reattached":3,"boots":{"starts":1,"spki":1,"instances":1}},"utc":"2026-09-25T14:22:38.213Z"}
+{"step":"R1-route-3","ok":true,"facts":{"route":"back"},"utc":"2026-09-25T14:22:40.749Z"}
+{"step":"R1-row-3","ok":true,"facts":{"rows":1,"tier":null},"utc":"2026-09-25T14:22:40.752Z"}
+{"step":"R1-client-3","ok":true,"facts":{"complete":true},"utc":"2026-09-25T14:22:45.384Z"}
+{"step":"R1-prove-3","ok":true,"facts":{"proof":"landed"},"utc":"2026-09-25T14:23:50.511Z"}
+{"step":"R2-watchdog","ok":true,"facts":{"note":"the phone gave up on a silent tunnel (no frame for RelayAttach.SILENT_MS = 95 s)","afterMs":97977},"utc":"2026-09-25T14:25:28.611Z"}
+{"step":"R2-one-tunnel","ok":true,"facts":{"rows":1,"reattached":4,"relayLine":"[tunnel] pixel10-pvm-cpu attached via attestation(avf) (1 enclave)"},"utc":"2026-09-25T14:26:01.020Z"}
+{"step":"R2-route","ok":true,"facts":{"route":"back"},"utc":"2026-09-25T14:26:04.335Z"}
+{"step":"R3-refusals","ok":true,"facts":{"refusals":["pixel10-pvm-cpu is registered on chain; attach must carry operatorSig (personal_sign of \"e","pixel10-pvm-cpu is registered on chain to 0x0c66d0b810f5446ddfa55f1ca7768e2ab1e6cc93, not ","pixel10-pvm-cpu is registered on chain to 0x0c66d0b810f5446ddfa55f1ca7768e2ab1e6cc93, not "],"reattached":5},"utc":"2026-09-25T14:28:12.369Z"}
+{"step":"R3-route","ok":true,"facts":{"route":"back"},"utc":"2026-09-25T14:28:14.904Z"}
+{"step":"R3-replay","ok":true,"facts":{"reason":"attestationChallenge does not match ours","rows":1},"utc":"2026-09-25T14:28:18.015Z"}
+{"step":"R3-client","ok":true,"facts":{"complete":true},"utc":"2026-09-25T14:28:22.730Z"}
+{"step":"R4-cut","ok":true,"facts":{"kind":"carrier-failed","proof":"carrier-failed","lifecycle":"heartbeat","checkpointsSigned":0},"utc":"2026-09-25T14:30:31.365Z"}
+{"step":"R4-route","ok":true,"facts":{"route":"back"},"utc":"2026-09-25T14:31:31.368Z"}
+{"step":"R4-pre","ok":true,"facts":{"proof":"landed","lifecycle":null},"utc":"2026-09-25T14:32:36.488Z"}
+{"step":"R4-crash","ok":true,"facts":{"kind":"stuck","proof":"stuck","lifecycle":null},"utc":"2026-09-25T14:33:46.667Z"}
+{"step":"R4-back","ok":true,"facts":{"reattached":7},"utc":"2026-09-25T14:34:03.226Z"}
+{"step":"R4-route-2","ok":true,"facts":{"route":"back"},"utc":"2026-09-25T14:34:05.765Z"}
+{"step":"R4-recover","ok":true,"facts":{"recovered":{"kind":"landed","hash":"0x01c8ff25a5152bbbe4c82879353cc512bfa8a8564d5c5a37d5e7f8fab0172f6a"}},"utc":"2026-09-25T14:34:09.605Z"}
+{"step":"R5-old-build","ok":true,"facts":{"rejected":"no APK component with an allowlisted codeHash (saw 15d9f8c785451451…)","reattached":7},"utc":"2026-09-25T14:35:16.870Z"}
+{"step":"R5-right","ok":true,"facts":{"reattached":8},"utc":"2026-09-25T14:35:28.396Z"}
+{"step":"R5-route","ok":true,"facts":{"route":"back"},"utc":"2026-09-25T14:35:30.925Z"}
+{"step":"R5-no-tier","ok":true,"facts":{"tier":null,"eligible":false,"serving":false,"servingEnclaves":503},"utc":"2026-09-25T14:35:42.940Z"}
+{"step":"D-release","ok":true,"facts":{"kind":"released","proof":"landed"},"utc":"2026-09-25T14:36:53.186Z"}
+{"step":"D-one-boot","ok":true,"facts":{"boots":{"starts":1,"spki":1,"instances":1},"reattached":8},"utc":"2026-09-25T14:36:53.354Z"}
