@@ -38,6 +38,7 @@ import { parseAbi, encodeFunctionData, keccak256, stringToBytes, parseEventLogs,
 import { verifyPvmProofKey, canonicalChainId } from "../../../../relay/pvm-app-attest.mjs";
 import { verifyPvmCheckpoint } from "../../../../relay/pvm-checkpoint.mjs";
 
+export { LEDGER_ABI, REGISTRY_ABI };
 export const AGENT_CONFIG_FORMAT = "enclave-pvm-proof-agent/v1";
 export const AGENT_DEFAULTS = Object.freeze({
   intervalSec: 300,          // one checkpoint every 5 min, against the contract's 15 min window (supervisor.js PROOF_INTERVAL_SEC)
@@ -70,14 +71,35 @@ const POT_ABI = parseAbi([
 // the ledger's Deployment and the registry's Enclave, exactly as EnclaveProofOfTime reads them (its IEnclaveDeployments /
 // IEnclaveRegistry): the registry has appended fields since (schema 4+), which a prefix decode leaves alone, as the prover does
 const LEDGER_ABI = parseAbi([
+  "function claimableBy(bytes32 id, bytes32 enclaveId) view returns (bool)",
+  "function claimBond6() view returns (uint256)",
+  "function bondOf(address operator) view returns (uint256 amount6, uint64 exitAt)",
+  "function claim(bytes32 id, bytes32 enclaveId)",
+  "function renew(bytes32 id)",
+  "function release(bytes32 id)",
   "function get(bytes32 id) view returns ((bytes32 id, address owner, string appRef, string ports, string configCid, uint16 gpuMilli, uint16 cpuMilli, uint32 appPort, bool isPublic, bool active, uint64 createdAt, uint256 rate, uint256 balance6, uint256 spent6, bytes32 runner, address runnerOperator, uint64 leaseUntil))",
   "function provenUntil(bytes32 id) view returns (uint64)",
   "function prover() view returns (address)",
 ]);
 const REGISTRY_ABI = parseAbi([
+  "function register(string endpoint, string repo, bytes32 measurement, uint64 cpuPricePerSec6, uint64 gpuPricePerSec6, address proofKey) returns (bytes32)",
+  "function setProofKey(bytes32 id, address proofKey)",
+  "function heartbeat(bytes32 id)",
+  "function deregister(bytes32 id)",
   "function get(bytes32 id) view returns ((string endpoint, string repo, bytes32 measurement, address operator, uint64 registeredAt, uint64 lastSeen, bool active, uint64 cpuPricePerSec6, uint64 gpuPricePerSec6, address proofKey))",
 ]);
 const BOOK_ABI = parseAbi(["function all() view returns (bytes32[], address[])"]);
+// the events a lifecycle call must produce (RUNNER-AGENT.md): a mined call without its event is a failure, not a success
+export const LIFECYCLE_EVENTS = parseAbi([
+  "event Registered(bytes32 indexed id, address indexed operator, string endpoint, string repo)",
+  "event Updated(bytes32 indexed id, string repo, bytes32 measurement)",
+  "event ProofKeySet(bytes32 indexed id, address indexed proofKey)",
+  "event Heartbeat(bytes32 indexed id, uint64 at)",
+  "event Deregistered(bytes32 indexed id)",
+  "event Claimed(bytes32 indexed id, bytes32 indexed enclaveId, address indexed operator, uint64 leaseUntil, uint256 burned6)",
+  "event Renewed(bytes32 indexed id, bytes32 indexed enclaveId, uint64 leaseUntil, uint256 burned6)",
+  "event Released(bytes32 indexed id, bytes32 indexed enclaveId, uint256 refunded6)",
+]);
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // configuration: public values only (addresses, ids, pins, URLs). The operator key is never in it.
@@ -148,17 +170,21 @@ function openState(stateDir) {
   };
 }
 
+/** A pending transaction's journal key: a checkpoint's EIP-712 digest, or a lifecycle intent's own digest. */
+export const keyOf = (p) => (p.checkpoint ? p.checkpoint.digest : p.call.digest);
+
 /** What the journal says is still in flight: the newest nonce with a sent transaction and no terminal record. */
 export function pendingFromJournal(entries) {
   let p = null;
   for (const e of entries) {
     if (e.ev === "signed") p = { checkpoint: e.checkpoint, nonce: null, txs: [], replacements: 0 };
-    else if (e.ev === "tx" && p && e.digest === p.checkpoint.digest) {
+    else if (e.ev === "intent") p = { call: e.call, nonce: null, txs: [], replacements: 0 };
+    else if (e.ev === "tx" && p && e.digest === keyOf(p)) {
       if (p.nonce !== null && p.nonce !== e.nonce) p.txs = [];
       p.nonce = e.nonce; p.txs.push({ hash: e.hash, raw: e.raw, maxFeePerGas: e.maxFeePerGas, maxPriorityFeePerGas: e.maxPriorityFeePerGas, gas: e.gas, ...(e.cancel ? { cancel: true } : {}) });
       if (e.cancel) p.cancelling = true;
       if (e.replacement) p.replacements++;
-    } else if (e.ev === "done" && p && e.digest === p.checkpoint.digest) p = null;
+    } else if (e.ev === "done" && p && e.digest === keyOf(p)) p = null;
   }
   return p && p.txs.length ? p : null;
 }
@@ -226,6 +252,7 @@ export async function createProofAgent({ config, publicClient, account, stateDir
   async function attest() {
     if (!addrs) await resolve();
     const nonce = randomBytes(32).toString("hex"), doc = await ask(`PROOFKEY ${nonce}`);
+    if (doc && doc.carrier) { note({ ev: "attest", ok: false, reason: doc.error }); attested = null; return { ok: false, reason: doc.error }; }   // no statement at all: say so
     const e = cfg.evidence;
     const v = verifyPvmProofKey(doc, { nonce, appId: e.appId, allowedRuntimeIds: e.allowedRuntimeIds, allowedCodeHashes: e.allowedCodeHashes,
                                        allowedAuthorityHashes: e.allowedAuthorityHashes, rootPins: e.rootPins, instanceIds: e.instanceIds, deployment: D });
@@ -246,7 +273,9 @@ export async function createProofAgent({ config, publicClient, account, stateDir
     const [d, provenUntil, reg, rec, windowSec] = await Promise.all([read(addrs.deployments, LEDGER_ABI, "get", [D]), read(addrs.deployments, LEDGER_ABI, "provenUntil", [D]),
       read(addrs.registry, REGISTRY_ABI, "get", [E]), read(addrs.proofOfTime, POT_ABI, "recordOf", [D]), read(addrs.proofOfTime, POT_ABI, "proofWindowSec")]);
     return { head, headTs: BigInt(head.timestamp), runner: lc(d.runner), runnerOperator: lc(d.runnerOperator), active: d.active, leaseUntil: BigInt(d.leaseUntil),
+             rate: BigInt(d.rate), balance6: BigInt(d.balance6),
              provenUntil: BigInt(provenUntil), regProofKey: lc(reg.proofKey), regOperator: lc(reg.operator), regActive: reg.active,
+             regExists: lc(reg.operator) !== ZERO, regLastSeen: BigInt(reg.lastSeen), regRepo: reg.repo, regMeasurement: reg.measurement, regCpuPrice6: BigInt(reg.cpuPricePerSec6),
              regEndpointId: reg.endpoint ? keccak256(stringToBytes(reg.endpoint)) : null, lastProofAt: BigInt(rec[0]), windowSec: BigInt(windowSec) };
   }
 
@@ -260,12 +289,12 @@ export async function createProofAgent({ config, publicClient, account, stateDir
 
   async function signAndSend(p, fees, replacement) {
     const c = p.checkpoint;
-    const tx = { type: "eip1559", chainId: Number(cfg.chainId), to: addrs.proofOfTime, value: 0n, nonce: p.nonce, gas: BigInt(p.gas),
-                 data: encodeFunctionData({ abi: POT_ABI, functionName: "checkpoint", args: txArgs(c) }),
+    const tx = { type: "eip1559", chainId: Number(cfg.chainId), to: c ? addrs.proofOfTime : p.call.to, value: 0n, nonce: p.nonce, gas: BigInt(p.gas),
+                 data: c ? encodeFunctionData({ abi: POT_ABI, functionName: "checkpoint", args: txArgs(c) }) : p.call.data,
                  maxFeePerGas: fees.maxFeePerGas, maxPriorityFeePerGas: fees.maxPriorityFeePerGas };
     const raw = await account.signTransaction(tx), hash = keccak256(raw);
     const t = { hash, raw, maxFeePerGas: String(fees.maxFeePerGas), maxPriorityFeePerGas: String(fees.maxPriorityFeePerGas), gas: String(p.gas) };
-    note({ ev: "tx", digest: c.digest, nonce: p.nonce, ...t, replacement: !!replacement });   // journaled BEFORE it can reach any node
+    note({ ev: "tx", digest: keyOf(p), nonce: p.nonce, ...t, replacement: !!replacement });   // journaled BEFORE it can reach any node
     p.txs.push(t); if (replacement) p.replacements++;
     return broadcast(t);
   }
@@ -294,8 +323,10 @@ export async function createProofAgent({ config, publicClient, account, stateDir
   // Returns the outcome. `pending` stays set when the transaction may still land (stuck, unconfirmed, fee-capped); the outcome
   // then says `fresh: true` when only a NEW proof (or a cancel) can still use its nonce, because its anchor has aged out.
   async function settle(p) {
-    const done = (kind, extra = {}) => { note({ ev: "done", digest: p.checkpoint.digest, kind, ...extra }); pending = null; return { kind, ...extra }; };
-    const keep = (kind, extra) => { pending = p; note({ ev: "stuck", digest: p.checkpoint.digest, nonce: p.nonce, kind, ...extra }); return { kind, nonce: p.nonce, ...extra }; };
+    const op = p.checkpoint ? {} : { op: p.call.op };
+    const done = (kind, extra = {}) => { note({ ev: "done", digest: keyOf(p), kind, ...op, ...extra }); pending = null; return { kind, ...op, ...extra }; };
+    const keep = (kind, extra) => { pending = p; note({ ev: "stuck", digest: keyOf(p), nonce: p.nonce, kind, ...op, ...extra }); return { kind, nonce: p.nonce, ...op, ...extra }; };
+    let replacedHere = 0;   // a lifecycle call has no anchor to age out: its replacements are bounded per tick, and it keeps its nonce
     for (let reorgs = 0; ; ) {
       const deadline = now() + P.receiptTimeoutMs;
       let found = null;
@@ -310,18 +341,21 @@ export async function createProofAgent({ config, publicClient, account, stateDir
           for (const t of p.txs) { const r = await receipt(t.hash); if (r) { found = { t, r }; break; } }
           if (!found) return done("nonce-consumed", { nonce: p.nonce, reason: "another transaction from the operator took this nonce; the next tick proves afresh" });
         } else {
-          const head = await publicClient.getBlock({ blockTag: "latest" });
-          const age = Number(head.number) - Number(p.checkpoint.anchorBlock);
           if (p.cancelling) return keep("stuck", { reason: "the cancel is not mined yet" });
-          if (age >= P.maxAnchorAgeBlocks) return keep("stuck", { fresh: true, anchorAge: age, reason: `not mined, and the anchor is ${age} blocks old: only a fresh proof (or a cancel) can use nonce ${p.nonce} now` });
-          const anc = await publicClient.getBlock({ blockNumber: BigInt(p.checkpoint.anchorBlock) }).catch(() => null);
-          if (!anc || anc.hash !== p.checkpoint.anchorHash)
-            return keep("stuck", { fresh: true, reason: `not mined, and the anchor block ${p.checkpoint.anchorBlock} is no longer canonical: only a fresh proof (or a cancel) can use nonce ${p.nonce} now` });
-          if (p.replacements >= P.maxReplacements) return keep("stuck", { replacements: p.replacements, reason: `not mined after ${p.replacements} replacements; kept for the next tick` });
+          if (p.checkpoint) {
+            const head = await publicClient.getBlock({ blockTag: "latest" });
+            const age = Number(head.number) - Number(p.checkpoint.anchorBlock);
+            if (age >= P.maxAnchorAgeBlocks) return keep("stuck", { fresh: true, anchorAge: age, reason: `not mined, and the anchor is ${age} blocks old: only a fresh proof (or a cancel) can use nonce ${p.nonce} now` });
+            const anc = await publicClient.getBlock({ blockNumber: BigInt(p.checkpoint.anchorBlock) }).catch(() => null);
+            if (!anc || anc.hash !== p.checkpoint.anchorHash)
+              return keep("stuck", { fresh: true, reason: `not mined, and the anchor block ${p.checkpoint.anchorBlock} is no longer canonical: only a fresh proof (or a cancel) can use nonce ${p.nonce} now` });
+          }
+          const replaced = p.checkpoint ? p.replacements : replacedHere;
+          if (replaced >= P.maxReplacements) return keep("stuck", { replacements: replaced, reason: `not mined after ${replaced} replacements; kept for the next tick` });
           const fees = await replacementFees(p.txs.at(-1));
           if (fees.over) return keep("fee-cap", { reason: `a replacement needs maxFeePerGas ${fees.over}, above the owner's cap ${cfg.maxFeePerGasWei}` });
-          const b = await signAndSend(p, fees, true);
-          if (!b.ok && !b.nonceTooLow) note({ ev: "broadcast-failed", digest: p.checkpoint.digest, reason: b.reason });
+          const b = await signAndSend(p, fees, true); replacedHere++;
+          if (!b.ok && !b.nonceTooLow) note({ ev: "broadcast-failed", digest: keyOf(p), reason: b.reason });
           continue;   // mined meanwhile (nonce too low): the next pass finds its receipt, or calls the nonce consumed
         }
       }
@@ -339,11 +373,12 @@ export async function createProofAgent({ config, publicClient, account, stateDir
       const r2 = await receipt(t.hash);
       const blk = await publicClient.getBlock({ blockNumber: r.blockNumber }).catch(() => null);
       if (!r2 || r2.blockHash !== r.blockHash || !blk || blk.hash !== r.blockHash) {
-        note({ ev: "reorg", digest: p.checkpoint.digest, hash: t.hash, block: Number(r.blockNumber), was: r.blockHash, now: r2 ? r2.blockHash : null });
+        note({ ev: "reorg", digest: keyOf(p), hash: t.hash, block: Number(r.blockNumber), was: r.blockHash, now: r2 ? r2.blockHash : null });
         if (++reorgs > 2) return done("reorged-out", { hash: t.hash, reason: "reorganized away twice; the next tick proves afresh" });
-        // back in the pool or dropped: rebroadcast the same bytes while the anchor is still a canonical, recent block
-        const a = await publicClient.getBlock({ blockNumber: BigInt(p.checkpoint.anchorBlock) }).catch(() => null);
-        if (!a || a.hash !== p.checkpoint.anchorHash) {
+        // back in the pool or dropped: rebroadcast the same bytes while the anchor is still a canonical, recent block (a lifecycle
+        // call has no anchor: its bytes are rebroadcast as they are)
+        const a = p.checkpoint ? await publicClient.getBlock({ blockNumber: BigInt(p.checkpoint.anchorBlock) }).catch(() => null) : null;
+        if (p.checkpoint && (!a || a.hash !== p.checkpoint.anchorHash)) {
           const latest = await publicClient.getTransactionCount({ address: me, blockTag: "latest" });
           if (latest <= p.nonce) return keep("stuck", { fresh: true, reason: "the anchor block itself was reorganized away: only a fresh proof (or a cancel) can use this nonce" });
           return done("reorged-out", { hash: t.hash, reason: "the anchor block was reorganized away and the nonce is used; the next tick proves afresh" });
@@ -352,6 +387,13 @@ export async function createProofAgent({ config, publicClient, account, stateDir
         continue;
       }
       if (r2.status !== "success") return done("reverted", { hash: t.hash, block: Number(r2.blockNumber) });
+      if (!p.checkpoint) {   // a lifecycle call: the event it must produce, from the contract it called, for its id
+        const want = p.call.event, evs = parseEventLogs({ abi: LIFECYCLE_EVENTS, logs: r2.logs, strict: false })
+          .filter((l) => lc(l.address) === lc(p.call.to) && want.split("|").includes(l.eventName) && (!p.call.eventId || lc(l.args.id) === lc(p.call.eventId)));
+        if (!evs.length) return done("reverted", { hash: t.hash, reason: `mined without its ${want} event` });
+        const args = Object.fromEntries(Object.entries(evs.at(-1).args).map(([k, v]) => [k, typeof v === "bigint" ? String(v) : v]));
+        return done("landed", { hash: t.hash, block: Number(r2.blockNumber), blockHash: r2.blockHash, event: evs.at(-1).eventName, args, gasUsed: String(r2.gasUsed), nonce: p.nonce });
+      }
       const ev = parseEventLogs({ abi: POT_ABI, logs: r2.logs, eventName: "Checkpointed", strict: false })
         .find((l) => lc(l.address) === addrs.proofOfTime && lc(l.args.id) === D);
       if (!ev) return done("reverted", { hash: t.hash, reason: "mined without a Checkpointed event for this deployment" });
@@ -369,22 +411,22 @@ export async function createProofAgent({ config, publicClient, account, stateDir
     const tx = { type: "eip1559", chainId: Number(cfg.chainId), to: me, value: 0n, nonce: p.nonce, gas: 21000n, ...fees };
     const raw = await account.signTransaction(tx), hash = keccak256(raw);
     const t = { hash, raw, maxFeePerGas: String(fees.maxFeePerGas), maxPriorityFeePerGas: String(fees.maxPriorityFeePerGas), gas: "21000", cancel: true };
-    note({ ev: "tx", digest: p.checkpoint.digest, nonce: p.nonce, ...t, replacement: true });
+    note({ ev: "tx", digest: keyOf(p), nonce: p.nonce, ...t, replacement: true });
     p.txs.push(t); p.cancelling = true;
     const b = await broadcast(t);
-    if (!b.ok && !b.nonceTooLow) note({ ev: "broadcast-failed", digest: p.checkpoint.digest, reason: b.reason });
+    if (!b.ok && !b.nonceTooLow) note({ ev: "broadcast-failed", digest: keyOf(p), reason: b.reason });
     return settle(p);
   }
-  const keep2 = (p, kind, extra) => { pending = p; note({ ev: "stuck", digest: p.checkpoint.digest, nonce: p.nonce, kind, ...extra }); return { kind, nonce: p.nonce, ...extra }; };
+  const keep2 = (p, kind, extra) => { pending = p; note({ ev: "stuck", digest: keyOf(p), nonce: p.nonce, kind, ...extra }); return { kind, nonce: p.nonce, ...extra }; };
 
   // ---- after a restart: what the journal says may be in flight is followed before anything new is asked ----
   async function recover() {
     if (!pending) return null;
-    note({ ev: "recover", digest: pending.checkpoint.digest, nonce: pending.nonce, txs: pending.txs.length });
+    note({ ev: "recover", digest: keyOf(pending), nonce: pending.nonce, txs: pending.txs.length, ...(pending.call ? { op: pending.call.op } : {}) });
     const latest = await publicClient.getTransactionCount({ address: me, blockTag: "latest" });
     if (latest <= pending.nonce) {
       const head = await publicClient.getBlock({ blockTag: "latest" });
-      if (pending.cancelling || Number(head.number) - Number(pending.checkpoint.anchorBlock) < P.maxAnchorAgeBlocks) for (const t of pending.txs) await broadcast(t);
+      if (pending.cancelling || !pending.checkpoint || Number(head.number) - Number(pending.checkpoint.anchorBlock) < P.maxAnchorAgeBlocks) for (const t of pending.txs) await broadcast(t);
     }
     return settle(pending);
   }
@@ -473,6 +515,36 @@ export async function createProofAgent({ config, publicClient, account, stateDir
     return { sent: await settle(p) };
   }
 
+  // ---- a lifecycle call (RUNNER-AGENT.md): simulated first, then signed, journaled and sent exactly like a checkpoint ----
+  // c = { op, contract: "registry" | "deployments", functionName, args, event: "Name" or "A|B", eventId } -> the outcome
+  async function sendCall(c) {
+    if (!addrs) await resolve();
+    if (pending) return { kind: "busy", op: c.op, reason: "a transaction is already in flight: it is followed first" };
+    const to = addrs[c.contract], abi = c.contract === "registry" ? REGISTRY_ABI : LEDGER_ABI;
+    const data = encodeFunctionData({ abi, functionName: c.functionName, args: c.args });
+    let gas;
+    try {
+      await publicClient.simulateContract({ account: me, address: to, abi, functionName: c.functionName, args: c.args });
+      gas = await publicClient.estimateContractGas({ account: me, address: to, abi, functionName: c.functionName, args: c.args });
+    } catch (x) { const reason = revertReason(x); note({ ev: "refused", op: c.op, reason }); return { kind: "refused", op: c.op, reason }; }
+    gas = gas + (gas * BigInt(P.gasMarginPct) + 99n) / 100n;
+    const head = await publicClient.getBlock({ blockTag: "latest" });
+    if (head.baseFeePerGas != null && head.baseFeePerGas > cap()) return { kind: "fee-cap", op: c.op, reason: `the base fee ${head.baseFeePerGas} is above the owner's cap ${cfg.maxFeePerGasWei}` };
+    const fees = capped(await publicClient.estimateFeesPerGas());
+    const call = { op: c.op, to: lc(to), data, event: c.event, eventId: c.eventId || null,
+                   digest: keccak256(stringToBytes(`${c.op}|${lc(to)}|${data}|${randomBytes(16).toString("hex")}`)) };
+    note({ ev: "intent", call, simulated: true });
+    const nonce = await publicClient.getTransactionCount({ address: me, blockTag: "pending" });
+    const p = { call, nonce, txs: [], replacements: 0, gas: String(gas) };
+    pending = p;
+    let b = await signAndSend(p, fees, false);
+    if (!b.ok && b.nonceTooLow) { p.nonce = await publicClient.getTransactionCount({ address: me, blockTag: "pending" }); p.txs = []; b = await signAndSend(p, fees, false); }
+    if (!b.ok && !b.nonceTooLow) note({ ev: "broadcast-failed", digest: call.digest, reason: b.reason });
+    return settle(p);
+  }
+  // follow whatever is in flight (a checkpoint or a call) without deciding anything new
+  async function settlePending() { if (!addrs) await resolve(); return pending ? settle(pending) : null; }
+
   async function start() {
     await resolve();
     const r = await recover();
@@ -490,7 +562,8 @@ export async function createProofAgent({ config, publicClient, account, stateDir
     return outs;
   }
 
-  return { start, resolve, attest, tick, run, recover, lease: async () => { if (!addrs) await resolve(); return lease(); },
+  return { start, resolve, attest, tick, run, recover, sendCall, settlePending, note, config: cfg, lease: async () => { if (!addrs) await resolve(); return lease(); },
+           readLedger: (fn, args) => read(addrs.deployments, LEDGER_ABI, fn, args), get lastCheckpointAskAt() { return lastCheckpointAskAt; },
            get addresses() { return addrs; }, get attested() { return attested && attested.claims; }, get pending() { return pending; },
            close: () => st.close() };
 }
