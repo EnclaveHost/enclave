@@ -153,7 +153,9 @@ try {
   if (execFileSync("sha256sum", [DIST], { encoding: "utf8" }).slice(0, 64) !== DIST_SHA) fail("client/dist/pvm-client.mjs is not the pinned 0.5.0 dist");
   const KEYS = path.join(SCRATCH, "lab-keys"); fs.mkdirSync(KEYS, { recursive: true, mode: 0o700 });
   const CLI = path.join(SCRATCH, "pvm-client.mjs"); fs.copyFileSync(DIST, CLI);
-  const node = (args, label) => new Promise((resolve) => { const c = spawn(process.execPath, args, { stdio: ["ignore", "pipe", "pipe"] }); let o = "", e = ""; c.stdout.on("data", (d) => (o += d)); c.stderr.on("data", (d) => (e += d));
+  // the built client and the policy signer run from a scrubbed environment too (PATH only), recorded like the relay's
+  const TOOL_ENV = { PATH: process.env.PATH }; rec("tool-env.jsonl", { names: Object.keys(TOOL_ENV), note: "the built client and lab-sign: PATH only; keys and state in the scratch dir" });
+  const node = (args, label) => new Promise((resolve) => { const c = spawn(process.execPath, args, { env: TOOL_ENV, stdio: ["ignore", "pipe", "pipe"] }); let o = "", e = ""; c.stdout.on("data", (d) => (o += d)); c.stderr.on("data", (d) => (e += d));
     c.on("exit", (code) => { if (label) fs.writeFileSync(path.join(OUT, "client", `${label}.jsonl`), o); resolve({ code, out: o, err: e }); }); });
   const pkey = JSON.parse((await node([SIGN, "keygen", "--keys", KEYS, "--name", "policy"])).out), rkey = JSON.parse((await node([SIGN, "keygen", "--keys", KEYS, "--name", "release"])).out);
   let current = null;

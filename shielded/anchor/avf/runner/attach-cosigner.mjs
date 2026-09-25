@@ -7,7 +7,8 @@
 //   1. the request names THIS co-signer's name (a phone-supplied name is never signed) and its configured relay (a SANITY check
 //      only: the requester asserts it and the attach message names no relay; what binds a co-signature to one relay connection
 //      is the nonce -- 32 random bytes issued per connection, single-use at the relay that issued it);
-//   2. the relay's nonce: exactly 32 bytes, canonical base64, never signed twice (the journal, across restarts);
+//   2. the relay's nonce: exactly 32 bytes, canonical base64, never signed twice (the journal, across restarts; reserved before
+//      the signing await, so not under concurrency either);
 //   3. the rad is verified with the hub's own code: android-avf-pvm/v2, verifyAvfEvidence over the pad-bind transcript
 //      B = "enclave-avf-pad-bind-v1\n" || transport SPKI || pad key || nonce, under the owner's pinned build(s), authority and
 //      Google's roots;
@@ -18,6 +19,8 @@
 //      with this boot's transport key and this nonce (an impostor cannot pair the owner's instance with its own rad);
 //   5. only then: personal_sign of exactly "enclave-tunnel-attach:<own name>:<canonical nonce b64>", journaled (fsync) with
 //      the name, sha256 of the nonce, sha256 of the transport SPKI, the InstanceID and the time; rate-limited.
+// The rate window counts refused requests too, so a local caller can spend the budget: acceptable because the wrapper is
+// loopback only, and the budget is all it can spend.
 // It is a single-function module: never a general signing endpoint for the chain operator key. serveAttachCosigner() is its
 // HTTP wrapper, loopback only.
 import fs from "node:fs";
@@ -79,8 +82,11 @@ export function createAttachCosigner({ account, name, relay, codeHashes, authori
     try { iok = cryptoVerify(null, Buffer.concat([Buffer.from(ATTACH_INSTANCE_DOMAIN), B]), createPublicKey({ key: Buffer.from(req.instanceKey, "hex"), format: "der", type: "spki" }), Buffer.from(req.instanceSig, "hex")); } catch { iok = false; }
     if (!iok) return no("the instance signature does not verify over THIS transcript (this boot's transport key and this nonce)");
     const message = attachMessage(name, nonce);
-    const operatorSig = await account.signMessage({ message });
+    // RESERVE the nonce before the first await: every check above is synchronous, so two concurrent requests for one nonce
+    // cannot both get here (enclave-99's review of e47314d9). A signing failure keeps it reserved: fail closed -- that
+    // nonce's connection is dead anyway.
     signed.add(nonceSha256);
+    const operatorSig = await account.signMessage({ message });
     fs.writeSync(fd, JSON.stringify({ at: new Date(t).toISOString(), name, relay, nonceSha256, spkiSha256: sha(spki), instanceId, build: v.measurement }) + "\n"); fs.fsyncSync(fd);
     return { ok: true, operatorSig, message };
   }
