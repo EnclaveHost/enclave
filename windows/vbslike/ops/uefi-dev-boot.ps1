@@ -163,7 +163,7 @@ function Drain($st, [int]$waitMs) {
 }
 
 Note "=== DEV BOOT. Host exclusion is NOT established on this path. Nothing here is verified capacity. ==="
-Note "    partition kind: wmi-openhcl-gen2, GuestStateIsolationType $IsolationType (the LAUNCHER states it; the guest cannot know it)"
+Note "    partition kind: $(if ($LinuxDirect) { 'wmi-openhcl-gen2-igvm-linux (no medium; the guest is inside the IGVM)' } else { 'wmi-openhcl-gen2' }), GuestStateIsolationType $IsolationType (the LAUNCHER states it; the guest cannot know it)"
 if ($IsolationType -eq 1) {
   Note "    type 1 = VBS: the hypervisor is configured to keep VTL0 RAM host-private. That is a CONFIGURATION,"
   Note "    not a measurement. Until a host-side memory read has been shown to find a guest marker on type 16"
@@ -276,7 +276,7 @@ if (@($loopBefore | Where-Object { $_ -match '=(200|401)$' }).Count -eq 0) {
   Note "          Boot its test-signed engine cannot load). There is no app to harm; the harm check for this run is"
   Note "          the node process and the host settings, compared before and after."
 }
-if (@($appsBefore | Where-Object { $_ -match '=(200|401)$' }).Count -eq 0) {
+if (@($appsBefore | Where-Object { $_ -match '=(200|401)$' }).Count -eq 0 -and @($loopBefore | Where-Object { $_ -match '=(200|401)$' }).Count -gt 0) {
   Note "NOTE: every public probe FROM THIS BOX failed while the loopback layer is healthy. That is this box's"
   Note "      own egress to the relay, not an app outage - a user's path to the relay is a different one. The"
   Note "      harmlessness comparison for this run therefore rests on the loopback layer."
