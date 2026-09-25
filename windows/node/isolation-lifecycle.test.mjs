@@ -62,15 +62,24 @@ async function seam() {
 }
 const run = async (mgr, over = {}) => (await seam())({ client: new IsolationManagerClient({ base: mgr.base, timeoutMs: over.timeoutMs || 2000 }), deployment, ledger: over.ledger || ledger(), deadlineMs: 1500, pollMs: 100, ...over });
 
-test("attestedCapacity (exported today): a running T0-hv domain with hostExcluded false is never verified capacity, and a self-asserted hostExcluded:true under monitor-signed is not either", () => {
+test("attestedCapacity: FALSE for every view a manager can send, its own chain-verified claim included (nothing on the node verifies a chain)", () => {
+  // Updated 2026-09-25 (enclave-99), for enclave-5d's 9b79022c: the view is the MANAGER's word, a host process, so
+  // hostExcluded:true with verdict "chain-verified" is a CLAIM, not a verification. This spec used to expect true for that
+  // pair; that expectation was wrong. Verified host-excluded capacity will come from a verifier the node runs over evidence
+  // BYTES (the paravisor report, its signer and the report-data binding: V5 of docs/security/nucbox-custom-vm-verifier.md),
+  // and it will take that verifier's result, never a view. Until then no view is capacity.
   const base = { id: "hv0a1b2c3d", name: DEP, status: "running", appId: APP, runtimeId: RT, tier: "T0-hv", verdict: "monitor-signed", boundary: { hostExcluded: false } };
-  const view = (o) => new IsolationManagerClient({ base: "http://127.0.0.1:1" }).constructor.prototype.constructor && o;   // views come from the client; here the fields are given as the manager would
   assert.equal(attestedCapacity({ ...base, hostExcluded: false }), false);
   assert.equal(attestedCapacity({ ...base, hostExcluded: true, verdict: "monitor-signed" }), false, "a manager's word of host exclusion under a monitor-signed verdict is not chain-verified");
   assert.equal(attestedCapacity({ ...base, hostExcluded: true, verdict: "attested" }), false, "the word attested alone is not the chain-verified verdict");
-  assert.equal(attestedCapacity({ ...base, hostExcluded: true, verdict: "chain-verified" }), true);
+  assert.equal(attestedCapacity({ ...base, hostExcluded: true, verdict: "chain-verified" }), false, "the manager's own chain-verified claim is a claim: no view grants capacity");
+  // the whole space a manager controls: every tier, exclusion claim (as a boolean or not) and verdict word, and no view at all
+  for (const tier of ["T0-hv", "t0-hv", "T1", "T2-snp", "T3", null])
+    for (const hostExcluded of [true, false, "true", 1, undefined])
+      for (const verdict of ["chain-verified", "CHAIN-VERIFIED", "verified", "attested", "monitor-signed", null])
+        assert.equal(attestedCapacity({ ...base, tier, hostExcluded, verdict, boundary: { hostExcluded, tier } }), false, JSON.stringify({ tier, hostExcluded, verdict }));
+  for (const v of [null, undefined, {}, { hostExcluded: true, verdict: "chain-verified" }]) assert.equal(attestedCapacity(v), false, JSON.stringify(v ?? null));
   assert.equal(instanceServing({ ...base, status: "starting" }), false); assert.equal(instanceAlive({ ...base, status: "starting" }), true); assert.equal(instanceAlive({ ...base, status: "failed" }), false);
-  assert.equal(view(base), base);
 });
 
 test("the client's view of a real record carries hostExcluded only when the manager said true, and never invents a verdict", async () => {
