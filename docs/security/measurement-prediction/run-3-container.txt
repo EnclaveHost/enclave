@@ -1,0 +1,52 @@
+
+[notice] A new release of pip is available: 24.0 -> 26.2.1
+[notice] To update, run: python3 -m pip install --upgrade pip
+== environment: Debian GNU/Linux 13 (trixie); go version go1.24.7 linux/amd64; node v22.20.0; Python 3.11.16; Version: 0.0.13; gzip 1.13; cpio (GNU cpio) 2.15
+== predictor 57fa2d6f472a562e32bba61f500b0bd6a8923eee from github.com/EnclaveHost/enclave; toolchain 0181bce3aac5fa03dfaf2928d834ecd04d2a4a73
+/rel/a enclave-m4a-domain-release/1 (id checked by the predictor's --pin)
+/rel/b enclave-m4a-domain-release/1 (id checked by the predictor's --pin)
+sev-snp-measure /ssm/bin/sev-snp-measure: digest 9f020e1e50451e26a072e75b8bb671e2b24c0810d8d1a6601d06f561e2806cc4
+chain: appCatalog 0x18419CA2b502D423A8de6269AEeE171a378626e3, deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a (address book 0xab214342d5A490150A4A977063A2f88E21F80907); gateway https://trustless-gateway.link; toolchain 0181bce3aac5fa03dfaf2928d834ecd04d2a4a73
+
+== the canaries: prediction vs chip-signed reports
+ok   gdb677d751: the report is AMD-signed (VCEK from KDS -> ASK -> pinned ARK; chip and TCB match)
+ok   gdb677d751: HOST_DATA in the signed report is deployment 0x0ddbd824…
+     the ledger says deployment 0x0ddbd824… runs catalog://0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4
+ok   gdb677d751: a prediction for catalog://0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4 (26474 ms)
+ok   gdb677d751: the report's measurement be6b8644384eee12… is the prediction for an admitted release (release 5c3561f91bc7…)
+ok   gdb677d751: report_data[32:64] is the predicted AppID d2c4dfc0ec475910…
+ok   gdb677d751: the runtime the guest states (ccadb38a6779…) is that release's runtime
+ok   gd6e734a97: the report is AMD-signed (VCEK from KDS -> ASK -> pinned ARK; chip and TCB match)
+ok   gd6e734a97: HOST_DATA in the signed report is deployment 0x395bed3e…
+     the ledger says deployment 0x395bed3e… runs catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4
+ok   gd6e734a97: a prediction for catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4 (11542 ms)
+ok   gd6e734a97: the report's measurement c068f423578cda63… is the prediction for an admitted release (release 6f14ce753708…)
+ok   gd6e734a97: report_data[32:64] is the predicted AppID 9c3d10f1450e17bc…
+ok   gd6e734a97: the runtime the guest states (ccadb38a6779…) is that release's runtime
+ok   gdebc9c709: the report is AMD-signed (VCEK from KDS -> ASK -> pinned ARK; chip and TCB match)
+ok   gdebc9c709: HOST_DATA in the signed report is deployment 0x4e62e60d…
+     the ledger says deployment 0x4e62e60d… runs catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4
+ok   gdebc9c709: a prediction for catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4 (216 ms, cached)
+ok   gdebc9c709: the report's measurement c068f423578cda63… is the prediction for an admitted release (release 6f14ce753708…)
+ok   gdebc9c709: report_data[32:64] is the predicted AppID 9c3d10f1450e17bc…
+ok   gdebc9c709: the runtime the guest states (ccadb38a6779…) is that release's runtime
+     cached re-predictions of 2 version(s): 565 ms; state {"kat":{"ok":true,"at":1790358228058,"reason":"2 known answer(s) reproduced exactly"},"toolchain":"/work/main/toolchain-0181bce3aac5fa03dfaf2928d834ecd04d2a4a73","active":0,"queued":0,"cached":2,"predictions":2,"cacheHits":3,"refusals":0,"busy":0}
+
+== refusals
+ok   one flipped byte in template/front under release 5c3561f91bc7…: refused (prediction_failed: release 5c3561f91bc7: REFUSED: template/front does not match its manifest entry)
+ok   runtime.json changed under release 5c3561f91bc7…: refused (prediction_failed: release 5c3561f91bc7: REFUSED: template/rt/runtime.json does not match its manifest entry)
+ok   the same change re-manifested is release 33accf4cdca5…: its prediction (cc2844a714fe…) is no real guest's measurement and names another runtime, so it must be ADMITTED to count
+ok   two catalog versions: disjoint AppIDs and measurements (a guest of one never passes for the other)
+ok   guestd's stale enclave-catalog-bundle/1 record for the http:8000 version (AppID 9add8960…) is never what the chain derives
+[measurement-predict] DISABLED: the known-answer test did not run: sev-snp-measure: ENOENT: no such file or directory, lstat '/work/no-such-sev-snp-measure'
+ok   sev-snp-measure missing: refused (prediction_unavailable: measurement prediction is disabled: the known-answer test did not run: sev-snp-measure: ENOENT: no such file o)
+[measurement-predict] DISABLED: the known-answer test did not run: sev-snp-measure's digest 9f020e1e5045 is not the pinned 000000000000
+ok   sev-snp-measure not the pinned one (another digest): refused (prediction_unavailable: measurement prediction is disabled: the known-answer test did not run: sev-snp-measure's digest 9f020e1e5045 i)
+ok   the gateway unreachable (the first known-answer test is inconclusive, never a pass): refused (prediction_unavailable: measurement prediction is disabled: the known-answer test was inconclusive: the component bafkreidocbixnql7lro)
+[measurement-predict] DISABLED: the known-answer test did not run: the toolchain commit 000000000000 is not extractable from /src: Command failed: git -C /src archive --format=tar 0000000000000000000000000000000000000000 -- isolation/m4/expected-measurement.sh isolation/m4/release-manifest.py isolation/m4/verifying-firmware.txt isolation/m4/assemble-app-image.sh isolation/m4/pack-initrd.sh isolation/m4/guestd/fetch-cid.py isolation/contract wasm/ipfs_fetch.py
+ok   a toolchain commit the repository does not hold: refused (prediction_unavailable: measurement prediction is disabled: the known-answer test did not run: the toolchain commit 000000000000 is no)
+ok   no admitted release: refused (predictor_unconfigured: measurement prediction is not configured (missing: at least one admitted release))
+ok   a second version while one reconstructs (concurrency 1, queue 0): busy
+ok   the first completes
+
+PASS measurement prediction lab validation
