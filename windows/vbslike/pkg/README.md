@@ -37,11 +37,12 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   `4cb8d54f`, enclave-99's suites at `1d6d9b60`, and the catalog versions as read on-chain. It is held until enclave-5d's
   phase 3 passes against the real node. 5d measured the real node path failing (d1's gate order). Nothing is served.
 
-- **v9 draft** (`drafts/nucbox-ownguest-9.json`): v8 plus the `uefi` profile. The same guest is a standard UEFI payload,
-  on a read-only El Torito ISO `b218a329…` with a VHDX fallback, under Microsoft's standard OpenHCL `48773995…`, which
-  this build starts (research E8). It is STAGED on the box for enclave-d1's UEFI DEV boot. It is not a release, and
-  host exclusion is not established. `verify --rebuild` rebuilds the ISO and `disk.raw` from the pinned inputs, and
-  checks the VHDX's payload.
+- **v9 draft** (`drafts/nucbox-ownguest-9.json`, id `f99f16dc…`): v8 plus the `uefi` profile. The same guest is a
+  standard UEFI payload on a read-only El Torito ISO `4c387086…` (UKI `75ae6bcc…` on enclave-5d's guarded initrd
+  `5bc06259…`), with a VHDX fallback (payload `disk.raw` `a50fdd05…`), under Microsoft's standard OpenHCL `48773995…`,
+  which this build starts (research E8). It is STAGED on the box at `pkg\f99f16dc15a1933a\` for enclave-d1's UEFI DEV
+  boot. It is not a release, and host exclusion is not established. `verify --rebuild` rebuilds the ISO and `disk.raw`
+  from the pinned inputs with both UKI recipes, and checks the VHDX's payload.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
