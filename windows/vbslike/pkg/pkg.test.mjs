@@ -803,3 +803,15 @@ test("draft v30 ships the G1 measured-VTL0 candidate (a44bb55a, 58DFEBFE) and it
   const m2 = structuredClone(d); m2.profiles.vbsLinux.firmware = DF; const x = run(["verify", writeManifest(m2)]);
   assert.equal(x.code, 1); assert.match(x.out, /vbsLinux\.firmware .*4991b3e1\.bin is probe\.firmware: a probe firmware is never a profile's firmware/, fails(x.out));
 });
+
+test("pkg.mjs: a not-yet-booted candidate IGVM cannot be a profile's firmware (the reference entry must record it booting)", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-30.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  const ok = run(["verify", D]);
+  assert.equal(ok.code, 0, fails(ok.out));
+  assert.match(ok.out, /ok   a candidate IGVM is a profile's firmware only once its reference entry records it booting \(1 profile use\(s\) of a candidate IGVM, each recorded as booted\)/);
+  // the G1 candidate (reference: "no: ... not booted yet") made profile vbsLinux's firmware: refused by the rule
+  const m2 = structuredClone(d); m2.profiles.vbsLinux.firmware = "guest/igvm-vbs/vbs-linux-candidate-g1-a44bb55a.bin";
+  const x = run(["verify", writeManifest(m2)]);
+  assert.equal(x.code, 1);
+  assert.match(x.out, /FAIL a candidate IGVM is a profile's firmware only once its reference entry records it booting: vbsLinux\.firmware guest\/igvm-vbs\/vbs-linux-candidate-g1-a44bb55a\.bin is a candidate IGVM whose reference entry says booted "no: built by enclave-63/, fails(x.out));
+});

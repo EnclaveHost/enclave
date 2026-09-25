@@ -494,6 +494,20 @@ function checkReferenceValues(m, bytes, R) {
     for (const x of [...m.files, ...m.inputs]) if (/^(probe\.firmware|candidate\.igvm)$/.test(x.role) && !listed.has(x.sha256)) bad.push(`${x.path || x.name} (${x.role}) has no reference entry`);
     R.add(bad.length === 0, `reference values ${rf.path}: every value re-derived from the pinned bytes, eligibility only for a non-debug candidate, every probe/candidate firmware listed`,
           bad.length ? bad.join("; ") : `${imgs.length} images, ${imgs.filter((e) => e.eligible).length} eligible`);
+    // A candidate IGVM ships as role candidate.igvm so a canary can boot it, and becomes a profile's firmware only in a
+    // version that records it booting: its reference entry's `booted` must say "yes". (Before this rule it was a
+    // convention a test asserted for one version.)
+    const nb = []; let used = 0;
+    for (const [name, p] of Object.entries(m.profiles || {})) for (const k of ["firmware", "image"]) {
+      const f = p && p[k] && m.files.find((x) => x.path === p[k]);
+      if (!f || f.role !== "candidate.igvm") continue;
+      used++;
+      const e = imgs.find((x) => pinOf(x.pin?.image)?.sha256 === f.sha256);
+      if (!e || !/^yes\b/.test(String(e.booted || "")))
+        nb.push(`${name}.${k} ${p[k]} is a candidate IGVM whose reference entry ${e ? `says booted ${JSON.stringify(String(e.booted).slice(0, 48))}` : "is missing"}: a candidate becomes a profile's firmware only once a version records it booting`);
+    }
+    R.add(nb.length === 0, "a candidate IGVM is a profile's firmware only once its reference entry records it booting",
+          nb.length ? nb.join("; ") : `${used} profile use(s) of a candidate IGVM, each recorded as booted`);
   }
 }
 // Byte rules on a pinned IGVM that hold with or without --rebuild: strings it must carry and strings it must never carry
