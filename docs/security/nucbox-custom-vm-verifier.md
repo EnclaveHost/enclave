@@ -156,6 +156,65 @@ own non-Hyper-V backend answers 0xC001 with a DUMMY report of 0xCD bytes (`vmm_c
 | V7. Replay and cross-VM refused: the nonce is this verifier's and fresh; a report of another partition (another ledger deployment) is refused | tests required | report bytes from two VMs; how the report names the partition (open) |
 | V8. The verdict never claims host exclusion: `host_excluded` comes only from d1's separate host-memory evidence (E3, parked), never from a boot state or a report | direction | E3 |
 
+### V5 in detail: the report data (checked by enclave-5d against a7b0bd4; SOURCE ONLY, 2026-09-25)
+
+From enclave-5d's reading of the pinned openvmm a7b0bd4. No report bytes have been seen on this path, the signer is still
+the IDKS hypothesis, and whether a type-1 VBS partition serves this NV path on the box is open. The report data is NOT the
+ABI/2 binding itself: the guest's 64 bytes sit one level down, inside a JSON document whose hash is the report data.
+
+1. The guest writes its 64-byte input to the vTPM NV index TPM_NV_INDEX_GUEST_ATTESTATION_INPUT (platform-manufacturer
+   base + 0x2; ATTESTATION_REPORT_DATA_SIZE = 0x40, `tpm_device/src/lib.rs:92`; an unset index reads as zeros,
+   `:1141-1152`). For V5 that input is `Bind2(SPKI, nonce, runtimeId) (32) || AppID (32)`, the same 64 bytes the other
+   tiers carry in their report data, written by measured code in the guest.
+2. When the guest reads TPM_NV_INDEX_ATTESTATION_REPORT (base + 0x1), the paravisor builds the runtime claims
+   (`openhcl_attestation_protocol` `get.rs:339-392`, `RuntimeClaims::ak_cert_runtime_claims`):
+   `{ "keys": [the vTPM's AK and EK as RSA JWKs], "vm-configuration": {...}, "user-data": lowercase hex of the input }`,
+   serialised with `serde_json::to_string` (`underhill_attestation` `igvm_attest/mod.rs:357-362`: struct field order,
+   kebab-case, compact).
+3. `report_data (64) = SHA-256(those exact claims bytes) (32) || 32 zero bytes` (`mod.rs:146-185`, runtime_claims_hash
+   zero-padded to REPORT_DATA_SIZE), passed to tee_call (`underhill_core` `emuplat/tpm.rs:54-101`, TeeType::Vbs on type 1).
+4. What the guest reads back from the report index is the IgvmAttest request structure, VERSION_1, "the stable structure
+   exposed to the guest via NV index" (`emuplat/tpm.rs:86-93`): it carries the hardware report AND the claims bytes.
+
+The structure the guest reads back (`igvm_attest/mod.rs:269-332`; layout `get.rs:74-86, 140-153, 197-208`), VERSION_1,
+with NO extension struct: `IgvmAttestRequestBase { header { signature, version, report_size, request_type, status,
+reserved[3] }, attestation_report[ATTESTATION_REPORT_SIZE_MAX], request_data { data_size, version, report_type,
+report_data_hash_type, variable_data_size } }`, then the claims bytes. The claims length is stated twice, so it is checked
+both ways. VERSION_1 is the one to pin: the NV-report path always uses it; only the AK-certificate request takes the
+current version.
+
+The verifier's rule, AFTER V1 (the signature) and never before it:
+- the structure, strictly: `header.report_size == sizeof(Base) + variable_data_size`; `request_data.data_size ==
+  sizeof(IgvmAttestRequestData) + variable_data_size`; `request_data.version == 1`; `report_type == VBS_VM_REPORT (1)`;
+  `report_data_hash_type == SHA_256`; the first VBS_REPORT_SIZE bytes of `attestation_report` are the report and the REST
+  of that fixed array is zero (a zeroed struct with the report copied in, `mod.rs:298-302`); the claims are exactly
+  `variable_data_size` bytes after the base. The NV index has a fixed allocation, so a read may return padding after
+  `report_size`: take `report_size` bytes and require anything read past them to be zero (to settle on real bytes);
+- take the claims bytes EXACTLY as carried; never re-serialise the JSON (serde's field order is not a canonical form to
+  depend on);
+- require `SHA-256(claims) == report_data[0:32]` and `report_data[32:64] ==` 32 zero bytes;
+- parse the claims strictly (UTF-8, one JSON object, no duplicate keys: serde emits each field once at every level, and
+  `"user-data"` exists only at the top, always present on this path, so a legitimate document never trips it) and require
+  `"user-data"` to be exactly 128
+  lowercase hex characters equal to `hex(Bind2(SPKI, nonce, runtimeId) || AppID)`, with SPKI from the verifier's own TLS
+  handshake, nonce the verifier's fresh one, runtimeId and AppID from the pinned expectations;
+- treat `"keys"` (the vTPM's AK and EK: the vTPM state is host-readable on this box, enclave-5d's finding) and
+  `"vm-configuration"` (host-supplied, including `current-time` from the HOST's clock: never a freshness proof) as
+  statements only: nothing admits on them. Freshness is the verifier's nonce, and only the nonce.
+
+What a report binds, stated (`tpm_device/src/lib.rs:1141-1152, 1396-1411`, REPORT_TIMER_PERIOD 2 s at `:97`): the input
+index is read at RENEWAL, not at write. A renewal happens at the start of a read of the report index, only if more than
+2 s have passed since the last one; inside that window the read returns the PREVIOUS report, bound to the input present
+at the previous renewal, and a renewal that errors is only logged, the read again returning the previous contents. So a
+report binds "the input present at the last successful renewal", not "the last write": measured code that needs a fresh
+report writes the input, then reads more than 2 s after its previous read. The verifier's fresh nonce makes every stale
+case FAIL, never pass.
+Refusals to test on real bytes when they exist: a claims document whose hash is not report_data[0:32]; non-zero
+report_data[32:64]; user-data of the wrong length or case, or for another nonce, key, AppID or runtimeId; a structure of
+another version; claims with a duplicate "user-data"; a report bound to the PREVIOUS nonce (a read within 2 s of the
+last renewal); header or request-data lengths that disagree with `variable_data_size`; a non-zero byte in the rest of
+`attestation_report` or after `report_size`; a `report_type` or `report_data_hash_type` other than the pinned ones.
+
 The verdict states when it exists: `verified` only with V1-V7 all passing on the non-debug control platform in one boot;
 never `limited` for a missing hardware root; `rejected` naming the failed check; `unsupported` until the format is agreed
 and the positive control and the refusals of the contract's "Tests required" pass on real bytes. The format will be
