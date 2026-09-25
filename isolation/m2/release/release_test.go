@@ -170,10 +170,10 @@ func TestOpenRefusals(t *testing.T) {
 	tampered := append([]byte{}, sealed...)
 	tampered[len(tampered)-1] ^= 1
 	for name, try := range map[string]func() error{
-		"another ticket":             func() error { _, err := sk.Open(sealed, id, otherTicket); return err },
-		"another deployment's info":  func() error { _, err := sk.Open(sealed, other, ticket); return err },
-		"a tampered byte":            func() error { _, err := sk.Open(tampered, id, ticket); return err },
-		"truncated":                  func() error { _, err := sk.Open(sealed[:40], id, ticket); return err },
+		"another ticket":            func() error { _, err := sk.Open(sealed, id, otherTicket); return err },
+		"another deployment's info": func() error { _, err := sk.Open(sealed, other, ticket); return err },
+		"a tampered byte":           func() error { _, err := sk.Open(tampered, id, ticket); return err },
+		"truncated":                 func() error { _, err := sk.Open(sealed[:40], id, ticket); return err },
 		"another seal key": func() error {
 			k, _ := NewSealKey()
 			_, err := k.Open(sealed, id, ticket)
