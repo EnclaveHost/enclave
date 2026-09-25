@@ -13,7 +13,10 @@
 # host's cached file; domain-release.sh still refuses it unless its sha256 is pinned in m4/verifying-firmware.txt.
 # --notices adds a directory's THIRD-PARTY-NOTICES.md, INVENTORY.md, SOURCES.md and licenses/ to the tarball (beside
 # release/), so the notices travel with the binaries; the manifest lists their sha256 too.
-# The worktree is <outdir>/src (a detached `git worktree` of this repository at <commit>); it is left for inspection.
+# The build uses a detached `git worktree` of this repository at <commit> (<outdir>/src) and a Go build cache of its own
+# (<outdir>/gocache, empty at the start); the worktree is removed afterwards, so nothing stays registered in the checkout.
+# The tarball also carries source/isolation/m2/dominit.c from <commit>: template/init links glibc statically, and
+# LGPL-2.1 section 6(a) wants the work that uses the library to accompany the binary.
 set -e
 umask 022   # the tarball records modes: the same on every builder
 commit=${1:?usage: make-artifact.sh <commit> <outdir> [--expect dir] [--firmware fd] [--firmware-versions txt]}
@@ -44,7 +47,7 @@ rel=$out/release-$(echo "$full" | cut -c1-8)
 [ -z "$fw" ] || export OVMF="$fw"   # m1/domain.env takes OVMF from the environment when it is set
 # a PRODUCTION front, whatever the caller's environment says: app-image-template.sh builds a lab front only when
 # ISOLATION_LAB_FRONT=1 (since 7de792bc's successors), and GOFLAGS could carry -tags releaselab into an older one
-unset ISOLATION_LAB_FRONT; export GOFLAGS= GOTOOLCHAIN=local
+unset ISOLATION_LAB_FRONT; export GOFLAGS= GOTOOLCHAIN=local GOCACHE="$out/gocache"
 (cd "$out/src" && sh isolation/m4/domain-release.sh "$rel") | tee "$out/domain-release.out"
 id=$(awk '/^release /{print $2}' "$out/domain-release.out")
 python3 "$out/src/isolation/m4/release-manifest.py" verify "$rel" --expect "$id"
@@ -100,6 +103,8 @@ m = {
   "release": {"id": rid, "manifest": "release/release.json", "commit": commit, "commitTime": int(epoch)},
   "files": {("release/" + k): v for k, v in sorted(files.items())},
   "hostInputs": host,
+  "source": {"source/isolation/m2/dominit.c": {"sha256": hashlib.sha256(subprocess.run(["git", "-C", os.path.join(os.path.dirname(rel), "src"), "show", commit + ":isolation/m2/dominit.c"], capture_output=True, check=True).stdout).hexdigest(),
+             "why": "template/init links glibc statically (LGPL-2.1 section 6(a)); build: gcc -static -O2 -o init isolation/m2/dominit.c"}},
   "toolchain": {
     "packages": {p: sh("pacman", "-Q", p) for p in ["linux", "glibc", "gcc", "gcc-libs", "libgcc", "go", "wasmtime", "grub", "dosfstools", "zstd", "python"]},
     "gcc": sh("gcc", "--version").splitlines()[0],
@@ -115,8 +120,9 @@ m = {
 }
 json.dump(m, open(dst, "w"), indent=1, sort_keys=True); open(dst, "a").write("\n")
 EOF
-mkdir -p "$out/pack/$name"
+mkdir -p "$out/pack/$name/source/isolation/m2"
 cp -a "$rel" "$out/pack/$name/release"
+git -C "$repo" show "$full:isolation/m2/dominit.c" > "$out/pack/$name/source/isolation/m2/dominit.c"
 cp "$out/PUBLICATION-MANIFEST.json" "$out/pack/$name/"
 if [ -n "$notices" ]; then
   for f in THIRD-PARTY-NOTICES.md INVENTORY.md SOURCES.md; do [ ! -f "$notices/$f" ] || cp "$notices/$f" "$out/pack/$name/"; done
@@ -125,6 +131,7 @@ if [ -n "$notices" ]; then
 fi
 (cd "$out/pack" && tar --sort=name --mtime="@$epoch" --owner=0 --group=0 --numeric-owner --format=posix \
    --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime -cf - "$name") | xz -9 -T1 > "$out/$name.tar.xz"
-rm -rf "$out/pack"
+rm -rf "$out/pack" "$out/gocache"
+git -C "$repo" worktree remove --force "$out/src"
 (cd "$out" && sha256sum "$name.tar.xz" > "$name.tar.xz.sha256" && cat "$name.tar.xz.sha256")
 echo "== rebuild: sh isolation/release-publication/make-artifact.sh $full <outdir>${expect:+ --expect <deployed release dir>}${fw:+ --firmware <rebuilt OVMF.amdsev.fd> --firmware-versions <its versions.txt>}${notices:+ --notices <notices dir>}"
