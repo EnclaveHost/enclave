@@ -43,7 +43,11 @@ export function cidFetcher({ script, python = "python", maxBytes = 128 << 20, ti
       const args = [script, id, out, String(maxBytes), ...(gateway ? [gateway] : [])];
       let stdout = "";
       try {
-        const r = await exec(python, args, { timeout: timeoutMs, killSignal: "SIGKILL", maxBuffer: 1 << 20 });
+        // PYTHONDONTWRITEBYTECODE (= python -B): importing ipfs_fetch must not write __pycache__ into the tree the fetcher
+        // sits in. The manager runs from a staged package's control/ tree, and a stray .pyc is a file that package's
+        // manifest does not name (enclave-d1, READINESS.md M6: run 094631 left one in v36's staged directory).
+        const r = await exec(python, args, { timeout: timeoutMs, killSignal: "SIGKILL", maxBuffer: 1 << 20,
+                                             env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
         stdout = String((r && r.stdout) || "");
       } catch (e) {
         // exit 2 is the usage line, which is what a wrong call site looks like; say so rather than
