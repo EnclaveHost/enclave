@@ -1,0 +1,23 @@
+19:49:55Z app-output lab /home/steven/enclave-bench/lab-release/output-run-20260925a; tag SNTL06a9cfaf2446; production units before: 3; MemAvailable 79 GiB
+19:49:55Z this tree: ae9e3954 (the NEW image); positive control: 0181bce3's image
+/home/steven/enclave-bench/lab-release/output-run-20260925a/app.bundle 194300 bytes app_id=6b16ffec00ee5066b9946ffe7ad51c20057c3ebd5714add2b308036a79ef3d4a
+19:50:09Z guest new lb2807451d: status running, legacyImage , hostPort 38311
+19:50:09Z guest old lb14c53694: status running, legacyImage true, hostPort 42131
+19:50:09Z guest new: request HTTP 200, panic request HTTP 502
+19:50:09Z guest old: request HTTP 200, panic request HTTP 502
+19:50:11Z guest new after the panic: status failed
+19:50:11Z guest old after the panic: status failed
+19:50:14Z ok   control: the OLD image's serial shows "SNTL06a9cfaf2446-STDOUT-START"
+19:50:14Z ok   control: the OLD image's serial shows "SNTL06a9cfaf2446-STDERR-START"
+19:50:14Z ok   control: the OLD image's serial shows "SNTL06a9cfaf2446-STDOUT-REQ /req-SNTL06a9cfaf2446-old"
+19:50:14Z ok   control: the OLD image's serial shows "SNTL06a9cfaf2446-PANIC /panic-SNTL06a9cfaf2446-old"
+19:50:14Z ok   no tag in serial-new.txt
+19:50:14Z ok   no tag in journal-new.txt
+19:50:14Z ok   no tag in guestd-new-lines.txt
+19:50:14Z ok   no tag in vm-new.json
+19:50:14Z ok   NEW serial keeps "DOM serving"
+19:50:14Z ok   NEW serial keeps "DOM started app="
+19:50:14Z ok   NEW serial keeps "DOM app config: none"
+19:50:14Z ok   NEW serial keeps "DOM ERROR app exited"
+19:50:14Z OUTPUT CHECK PASS: the control leaks (old image), the new image leaks nothing tagged, and its control lines stand
+19:50:25Z cleanup done; production m2-gd* units unchanged

@@ -1,0 +1,50 @@
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H
+DOM snp=1 vcpus=1 memMiB=883 boot_ms=809
+DOM app mode run: a wasi:cli command serving HTTP on 8000 (ENCLAVE_PORTS http:8000=8000, /data 64 MiB scratch)
+DOM started app=76 front=77 at_ms=827
+DOM runtime wasmtime/48.0.1 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8
+DOM runtime selftest exec_pages=allowed wx=clean maps=3 scope=all-processes
+DOM certificate: this domain may certify ca92c279.app.enclave.host (HOST_DATA ca92c279e163b332...)
+SNTL06a9cfaf2446-STDOUT-START
+SNTL06a9cfaf2446-STDERR-START
+SNTL06a9cfaf2446-STDOUT-REQ /
+SNTL06a9cfaf2446-STDERR-REQ /
+DOM serving vsock=443 spki_sha256=7840a5d7dd2f2053e1e75a85a9140e5fae18c9faf0ced833febf0f01ea9e444a ready_ms=969
+SNTL06a9cfaf2446-STDOUT-REQ /hello?from=client
+SNTL06a9cfaf2446-STDERR-REQ /hello?from=client
+SNTL06a9cfaf2446-STDOUT-REQ /req-SNTL06a9cfaf2446-old
+SNTL06a9cfaf2446-STDERR-REQ /req-SNTL06a9cfaf2446-old
+SNTL06a9cfaf2446-STDOUT-REQ /panic-SNTL06a9cfaf2446-old
+SNTL06a9cfaf2446-STDERR-REQ /panic-SNTL06a9cfaf2446-old
+
+thread 'main' (1) panicked at src/main.rs:30:13:
+SNTL06a9cfaf2446-PANIC /panic-SNTL06a9cfaf2446-old
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+Error: failed to run main module `/app.wasm`
+
+Caused by:
+    0: failed to invoke `run` function
+    1: error while executing at wasm backtrace:
+    0:   0xb1a2 - sentinel_app.wasm!abort
+    1:   0x77f1 - sentinel_app.wasm!std[a5e6636a7ca9058e]::sys::pal::wasi::abort_internal
+    2:   0x5e7a - sentinel_app.wasm!std[a5e6636a7ca9058e]::process::abort
+    3:   0x63d4 - sentinel_app.wasm!__rustc[8f1b7a2c2a45eb1c]::__rust_abort
+    4:   0x46be - sentinel_app.wasm!__rustc[8f1b7a2c2a45eb1c]::__rust_start_panic
+    5:   0x6251 - sentinel_app.wasm!__rustc[8f1b7a2c2a45eb1c]::rust_panic
+    6:   0x580e - sentinel_app.wasm!std[a5e6636a7ca9058e]::panicking::panic_with_hook
+    7:   0x5139 - sentinel_app.wasm!std[a5e6636a7ca9058e]::panicking::panic_handler::{closure#0}
+    8:   0x508f - sentinel_app.wasm!std[a5e6636a7ca9058e]::sys::backtrace::__rust_end_short_backtrace::<std[a5e6636a7ca9058e]::panicking::panic_handler::{closure#0}, !>
+    9:   0x64b7 - sentinel_app.wasm!__rustc[8f1b7a2c2a45eb1c]::rust_begin_unwind
+   10:  0x17d91 - sentinel_app.wasm!core[cb78b4bf6142305d]::panicking::panic_fmt
+   11:   0x4299 - sentinel_app.wasm!sentinel_app[27d5a53c7616b093]::main
+   12:   0x3894 - sentinel_app.wasm!std[a5e6636a7ca9058e]::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+   13:   0x38a7 - sentinel_app.wasm!std[a5e6636a7ca9058e]::rt::lang_start::<()>::{closure#0}
+   14:   0x74f2 - sentinel_app.wasm!std[a5e6636a7ca9058e]::rt::lang_start_internal
+   15:   0x4672 - sentinel_app.wasm!__main_void
+   16:   0x3861 - sentinel_app.wasm!_start
+    2: wasm trap: wasm `unreachable` instruction executed
+
+2026/09/25 19:50:08 http: proxy error: EOF
+DOM ERROR app exited status=134
+DOM end
+[    2.354502] reboot: Power down
