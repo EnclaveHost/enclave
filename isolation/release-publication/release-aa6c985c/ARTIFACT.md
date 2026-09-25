@@ -20,8 +20,11 @@
   commit its manifest records.
 - **The firmware inside it is the one rebuilt from pinned source (142589cc):** rebuilt from scratch, with TZ=UTC0.
 - **The tarball and the bundle are both deterministic:** two runs each, the same sha256.
-- **Scanned:** none of the tarball's 209 files names the build host, a home path or a reviewer. The one match, "Steven
-  G. Kargl", is a copyright holder in the libm crate's verbatim license.
+- **Scanned:** the tarball's documents and manifest name no build host, home path or reviewer. The manifest's host
+  inputs are standard system paths only. Two matches are in files shipped verbatim, and are correct as they are:
+  - "Steven G. Kargl" is a copyright holder in the libm crate's license;
+  - source/isolation/m2/dominit.c names "(Codex, 2026-09-25)" in a comment. It is Enclave's own source, and it must be
+    the exact source.
 
 ## Rebuild
 As in [../release-0181bce3/ARTIFACT.md](../release-0181bce3/ARTIFACT.md), with three differences:
@@ -38,7 +41,18 @@ e3, 5d and 63 review this artifact and DRAFT-RELEASE.md. Until then, nothing is 
   - the bundle's sha256 matches, and it holds musl with its .asc, glibc and gcc;
   - no GitHub release or domain-release tag exists.
   63 did not assess the notices' content.
-- **enclave-e3:** re-review of 839a7f9d pending.
+- **enclave-e3: APPROVED** release-aa6c985c/ and DRAFT-RELEASE.md (839a7f9d). All of its findings are fixed, each
+  verified independently:
+  - the hashes;
+  - the release, and dominit.c;
+  - the notices' texts: musl's and Rust 1.98.1's are byte-identical to their tarballs';
+  - the bundle's SHA256SUMS, in C order;
+  - unifont's b2sum, against the PKGBUILD in the bundle;
+  - the GRUB reverts patch, against upstream's commits;
+  - the kernel's CONFIG_RUST and rustc 1.98.1, against the release's own IKCONFIG;
+  - musl's signature;
+  - the section 6(d) text and the scope, against its own link-map derivation.
+  e3's one note, on this file's scan claim, is corrected above.
 - **enclave-5d: APPROVED** (839a7f9d), having checked the artifacts themselves:
   - the tarball is c3b7f47d…, its release/ is identical (`diff -r`) to 5d's artifact, and dominit.c equals
     aa6c985c's;
@@ -46,4 +60,5 @@ e3, 5d and 63 review this artifact and DRAFT-RELEASE.md. Until then, nothing is 
   - the bundle is 21752b26…, and its musl-1.2.6.tar.gz is the pinned d585fd3b…, with its .asc;
   - there are no lab strings, keys or host details.
   5d did not re-derive the crate texts or the section 6(d) text.
-- **The release step itself is outside this lane.**
+- **All three reviews are done.** Publication is Codex's and Steven's decision, and the release step itself is outside
+  this lane. Nothing has been created or published.
