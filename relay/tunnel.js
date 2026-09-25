@@ -122,6 +122,15 @@ function selfRoutedUrl(url, name) {
 // is also listed there, so the tier routes but never provisions pads.
 const padBuildsOf = (attest) => new Set((Array.isArray(attest?.avf?.padCodeHashes) ? attest.avf.padCodeHashes : []).map((h) => String(h).toLowerCase()));
 
+// The chip set a (re)attach leaves: an in-place re-attach under the SAME transport key while the previous record is still
+// registered adds its chip to the set; anything else starts over. The set lives only as long as that continuous attachment
+// (a detach deletes the record), and SNP boxes attaching here mint their transport key per boot inside the CVM, so a set
+// never outlives the boot that proved it (enclave-d1's lifetime condition).
+export function snpChipsAfter(prev, meta = {}) {
+  const keep = prev && prev.keyFp && prev.keyFp === (meta.keyFp || "") ? prev.snpChips || [] : [];
+  return [...new Set([...keep, ...(meta.snpChip ? [meta.snpChip] : [])])];
+}
+
 export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 30000, onChange = () => {},
                                   operatorFor = null, operatorAttach = false,
                                   trustedOperators = [], operatorsUnrestricted = false } = {}) {
@@ -217,8 +226,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                 // mode "snp": every CHIP_ID a VCEK-verified attach under THIS transport key has proved (an in-place
                 // re-attach adds to the set, so a multi-socket box's other chip is not a false refusal; a new key starts
                 // over). Internal: never in origins() rows or /enclaves.
-                snpChips: [...new Set([...(prev && prev.keyFp && prev.keyFp === (meta.keyFp || "") ? prev.snpChips || [] : []),
-                                       ...(meta.snpChip ? [meta.snpChip] : [])])] };
+                snpChips: snpChipsAfter(prev, meta) };
     tunnels.set(name, t);
     console.log(`[tunnel] ${name} attached via ${meta.via || "token"} (${tunnels.size} enclave${tunnels.size === 1 ? "" : "s"})`);
     try { onChange("attach", name); } catch {}   // refresh discovery so it lands in `live` now, not on the next slow poll

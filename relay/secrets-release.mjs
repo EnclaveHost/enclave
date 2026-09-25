@@ -86,8 +86,8 @@ export function openRelease({ id, ticket, sealPrivateKey, sealed }) {
 export function reportFields(report) {
   const r = Buffer.from(report);
   if (r.length < 0x2a0) throw new Error("report too short");
-  return { signingKey: (r.readUInt32LE(0x48) >> 2) & 0x7, reportData: r.subarray(0x50, 0x90), hostData: r.subarray(0xc0, 0xe0),
-           chipId: r.subarray(0x1a0, 0x1e0) };
+  return { policy: r.readBigUInt64LE(0x08), vmpl: r.readUInt32LE(0x30), signingKey: (r.readUInt32LE(0x48) >> 2) & 0x7,
+           reportData: r.subarray(0x50, 0x90), hostData: r.subarray(0xc0, 0xe0), chipId: r.subarray(0x1a0, 0x1e0) };
 }
 const nonZero = (b) => Buffer.from(b).some((x) => x !== 0);
 
@@ -95,10 +95,21 @@ const nonZero = (b) => Buffer.from(b).some((x) => x !== 0);
 const HEX = (n) => new RegExp(`^[0-9a-f]{${n}}$`);
 const listEnv = (name, n) => String(process.env[name] || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
   .filter((s) => { const ok = HEX(n).test(s); if (!ok) console.error(`[secrets-release] ${name}: ignoring a malformed entry`); return ok; });
+// the TCB floor, per product ({"Genoa":{"bootloader":…,"tee":…,"snp":…,"microcode":…},…}); anything malformed is no floor
+function minTcbEnv() {
+  try {
+    const o = JSON.parse(String(process.env.SECRETS_RELEASE_MIN_TCB || ""));
+    return o && typeof o === "object" && !Array.isArray(o) && Object.keys(o).length ? o : null;
+  } catch { return null; }
+}
+// the VMPL the release client's report must state: the monitor's (0..3)
+function vmplEnv() { const s = String(process.env.SECRETS_RELEASE_VMPL ?? "").trim(); return /^[0-3]$/.test(s) ? Number(s) : null; }
 export const releaseConfig = () => ({
   on: /^(1|true|on|yes)$/i.test(String(process.env.SECRETS_ATTESTED_RELEASE || "").trim()),
-  measurements: listEnv("SECRETS_RELEASE_MEASUREMENTS", 96),   // the per-app guest images, fail-closed firmware only
+  measurements: listEnv("SECRETS_RELEASE_MEASUREMENTS", 96),   // reviewed, non-debug per-app guest images, fail-closed firmware only
   runtimeIds: listEnv("SECRETS_RELEASE_RUNTIME_IDS", 64),      // the admitted runtime SET
+  minTcb: minTcbEnv(),                                         // passed to the verifier explicitly: never left to a provider
+  vmpl: vmplEnv(),                                             // pinned, and re-read from the report below
 });
 
 // ---- tickets: one use, 120 s, bound to the lease holder and the chips it has attested with ----
@@ -113,7 +124,8 @@ export const _internals = { tickets };
 // provider check: every piece the release needs, or a 503 that names what is missing
 function missingFor(ctx, cfg) {
   return [!cfg.on && "SECRETS_ATTESTED_RELEASE", !cfg.measurements.length && "SECRETS_RELEASE_MEASUREMENTS",
-          !cfg.runtimeIds.length && "SECRETS_RELEASE_RUNTIME_IDS", typeof ctx.leaseHolderChipIds !== "function" && "the lease holder's chip ids",
+          !cfg.runtimeIds.length && "SECRETS_RELEASE_RUNTIME_IDS", !cfg.minTcb && "SECRETS_RELEASE_MIN_TCB",
+          cfg.vmpl === null && "SECRETS_RELEASE_VMPL", typeof ctx.leaseHolderChipIds !== "function" && "the lease holder's chip ids",
           typeof ctx.verifyGuestEvidence !== "function" && "the guest-evidence verifier", typeof ctx.runtimeIdOf !== "function" && "the runtime-id function",
           typeof ctx.appIdFor !== "function" && "the AppID derivation", typeof ctx.hostEligibility !== "function" && "the eligibility verdict"].filter(Boolean);
 }
@@ -178,6 +190,9 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
       || typeof doc.report !== "string" || typeof doc.transportKey !== "string" || !doc.runtime || typeof doc.runtime !== "object") {
     bad(422, "bad_evidence", "evidence must be a sev-snp-guest-domain-v1 document stating abi enclave-domain-abi/2, its transport key and its runtime."); return true;
   }
+  // a release document states no verifier `nonce`: the ticket is committed in the binding, and a release report must never
+  // pass for an ordinary nonce-bound attestation wherever it is logged or re-verified
+  if (doc.nonce !== undefined) { bad(422, "bad_evidence", "a release document must not state a nonce (the ticket is bound in report_data)."); return true; }
   let runtimeId, appId, binding, report;
   try {
     runtimeId = b32(await ctx.runtimeIdOf(doc.runtime), "runtime id");
@@ -188,8 +203,9 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     binding = releaseBinding({ id, transportSpki: Buffer.from(doc.transportKey, "base64"), ticket, runtimeId, sealKey });
     report = Buffer.from(doc.report, "base64");
   } catch (e) { bad(422, "bad_evidence", e.message); return true; }
-  const v = await ctx.verifyGuestEvidence(doc, { allowedMeasurements: cfg.measurements, expectedBinding: binding, expectedAppId: appId,
-                                                 expectedHostData: idBytes(id), bindingDomain: BINDING_DOMAIN_LABEL });
+  const v = await ctx.verifyGuestEvidence(doc, { allowedMeasurements: cfg.measurements, minTcb: cfg.minTcb, expectedVmpl: cfg.vmpl,
+                                                 expectedBinding: binding, expectedAppId: appId, expectedHostData: idBytes(id),
+                                                 bindingDomain: BINDING_DOMAIN_LABEL });
   if (!v || v.status !== "verified") {
     console.warn(`[secrets-release] ${id}: evidence REFUSED: ${(v && v.reasons && v.reasons.at(-1)) || "no verdict"}`);
     bad(403, "evidence_refused", (v && v.reasons && v.reasons.at(-1)) || "The guest's evidence did not verify."); return true;
@@ -197,6 +213,8 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   // belt and braces over the verified report: the fields this release depends on, read here
   let f; try { f = reportFields(report); } catch (e) { bad(422, "bad_evidence", e.message); return true; }
   const why = f.signingKey !== 0 ? "the report is not VCEK-signed"
+    : (f.policy >> 19n) & 1n ? "the guest policy allows DEBUG"
+    : f.vmpl !== cfg.vmpl ? `the report states VMPL ${f.vmpl}, not the pinned ${cfg.vmpl}`
     : !f.reportData.subarray(0, 32).equals(binding) ? "report_data[0:32] is not this release's binding"
     : !f.reportData.subarray(32, 64).equals(appId) ? "report_data[32:64] is not this deployment's app"
     : !f.hostData.equals(idBytes(id)) ? "HOST_DATA is not this deployment"

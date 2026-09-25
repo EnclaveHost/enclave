@@ -20,7 +20,8 @@ const RID = sha(Buffer.from("synthetic runtime identity"));   // what runtimeIdO
 const RUNTIME = { synthetic: "runtime" };
 Object.assign(process.env, { SECRETS_KEY: "ab".repeat(32), AUTH_DATA_DIR: DIR, SECRETS_ATTESTED_RELEASE: "1",
   SECRETS_RELEASE_MEASUREMENTS: "77".repeat(48), SECRETS_RELEASE_RUNTIME_IDS: RID.toString("hex"),
-  SECRETS_RELEASE_BURST: "1000" });   // the suite asks far more often than a real guest may
+  SECRETS_RELEASE_BURST: "1000",      // the suite asks far more often than a real guest may
+  SECRETS_RELEASE_MIN_TCB: JSON.stringify({ Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } }), SECRETS_RELEASE_VMPL: "0" });
 const { initSecrets, handleSecrets, applyPut } = await import("../relay/secrets.js");
 const R = await import("../relay/secrets-release.mjs");
 await initSecrets();
@@ -48,8 +49,8 @@ const ctx = {
   runtimeIdOf: async (r) => (JSON.stringify(r) === JSON.stringify(RUNTIME) ? RID : sha(Buffer.from(JSON.stringify(r)))),
   appIdFor: async (id) => (id === A || id === B ? APP : null),
   resolveConfigCid: async (cid) => (cid === "bafkreisyntheticcid" ? { resolved: true, key: "${JOT_API_KEY}" } : null),
-  verifyGuestEvidence: (doc, { allowedMeasurements, expectedBinding, expectedAppId, expectedHostData }) => verifyEvidence(doc, {
-    policy: { snp: { roots: new Map([["Genoa", S.arkFp]]), allowedMeasurements, minTcb: FLOOR } },
+  verifyGuestEvidence: (doc, { allowedMeasurements, minTcb, expectedVmpl, expectedBinding, expectedAppId, expectedHostData }) => verifyEvidence(doc, {
+    policy: { snp: { roots: new Map([["Genoa", S.arkFp]]), allowedMeasurements, minTcb, expectedVmpl } },
     context: { transportKeySpki: Buffer.from(doc.transportKey, "base64"), expectedBinding, expectedAppId, expectedHostData, now: new Date().toISOString() },
     collateral: synthCol }),
 };
@@ -63,14 +64,15 @@ async function ticketFor(id, { account = OP, endpoint = EP } = {}) {
   return call("/v1/secrets/release-ticket", { id, endpoint, ts, opSig: await account.signMessage({ message: `enclave-secrets-release-ticket:${id}:${endpoint}:${ts}` }) });
 }
 // the guest: a transport key, a fresh seal key, and a report over the release binding (or whatever a test overrides)
-function guest({ id, ticket, hostData = id, appId = APP, binding, runtime = RUNTIME, rid = RID, sealPriv, signingKey = 0 }) {
+function guest({ id, ticket, hostData = id, appId = APP, binding, runtime = RUNTIME, rid = RID, sealPriv, signingKey = 0, debug = false }) {
   const transport = generateKeyPairSync("ec", { namedCurve: "P-256" }).publicKey.export({ type: "spki", format: "der" });
   const seal = generateKeyPairSync("x25519"), sealKey = R.rawPublicOf(sealPriv ? R.x25519PrivateKey(sealPriv) : seal.privateKey);
   const t = Buffer.from(ticket, "base64");
   const rd0 = binding ? binding({ transport, t, sealKey }) : R.releaseBinding({ id, transportSpki: transport, ticket: t, runtimeId: rid, sealKey });
   let report = synthReport(S, { reportData: Buffer.concat([rd0, appId]), hostData: R.idBytes(hostData) });
-  if (signingKey) {                                    // re-sign a report that says another signing key (VLEK = 1)
-    report.writeUInt32LE((report.readUInt32LE(0x48) & ~0x1c) | (signingKey << 2), 0x48);
+  if (signingKey || debug) {                           // re-sign a report that says another signing key (VLEK = 1) or allows DEBUG
+    if (signingKey) report.writeUInt32LE((report.readUInt32LE(0x48) & ~0x1c) | (signingKey << 2), 0x48);
+    if (debug) report.writeBigUInt64LE(report.readBigUInt64LE(0x08) | (1n << 19n), 0x08);
     const sig = cryptoSign("sha384", report.subarray(0, 0x2a0), { key: S.vcekKey, dsaEncoding: "ieee-p1363" });
     report.fill(0, 0x2a0, 0x2a0 + 0x90);
     Buffer.from(sig.subarray(0, 48)).reverse().copy(report, 0x2a0); Buffer.from(sig.subarray(48, 96)).reverse().copy(report, 0x2a0 + 0x48);
@@ -201,6 +203,10 @@ test("release refusals: each releases NOTHING and consumes the ticket", async ()
   await refused("a ticket for A presented for B", (tk) => ({ g: guest({ id: B, ticket: tk }), id: B }), { code: 403, error: "bad_ticket" });
   await refused("a measurement outside the allowlist", async (tk) => { process.env.SECRETS_RELEASE_MEASUREMENTS = "66".repeat(48); return { g: guest({ id: A, ticket: tk }) }; }, E);
   process.env.SECRETS_RELEASE_MEASUREMENTS = "77".repeat(48);
+  await refused("a report from another VMPL than the pinned one", async (tk) => { process.env.SECRETS_RELEASE_VMPL = "1"; return { g: guest({ id: A, ticket: tk }) }; }, E);
+  process.env.SECRETS_RELEASE_VMPL = "0";
+  await refused("a DEBUG-enabled guest policy", (tk) => ({ g: guest({ id: A, ticket: tk, debug: true }) }), E);
+  await refused("a release document that states a nonce", (tk) => { const g = guest({ id: A, ticket: tk }); g.evidence.nonce = "00".repeat(32); return { g }; }, { code: 422, error: "bad_evidence", why: /must not state a nonce/ });
   await refused("a low-order seal key", (tk) => ({ g: guest({ id: A, ticket: tk, sealPriv: null, binding: ({ transport, t }) => R.releaseBinding({ id: A, transportSpki: transport, ticket: t, runtimeId: RID, sealKey: Buffer.alloc(32) }) }), over: { sealKey: Buffer.alloc(32).toString("base64") } }), { code: 422, error: "bad_seal_key" });
 });
 
@@ -217,7 +223,8 @@ test("a chip mismatch is caught at release: a ticket issued for chip X refuses a
 test("fail closed: OFF, a missing policy or a missing provider answers 503 and issues nothing; an expired ticket is refused", async () => {
   rows = [leaseRow(A)];
   const saved = { ...process.env };
-  for (const [k, v] of [["SECRETS_ATTESTED_RELEASE", ""], ["SECRETS_RELEASE_MEASUREMENTS", ""], ["SECRETS_RELEASE_RUNTIME_IDS", "zz"]]) {
+  for (const [k, v] of [["SECRETS_ATTESTED_RELEASE", ""], ["SECRETS_RELEASE_MEASUREMENTS", ""], ["SECRETS_RELEASE_RUNTIME_IDS", "zz"],
+                        ["SECRETS_RELEASE_MIN_TCB", ""], ["SECRETS_RELEASE_MIN_TCB", "{}"], ["SECRETS_RELEASE_VMPL", ""], ["SECRETS_RELEASE_VMPL", "4"]]) {
     process.env[k] = v;
     const r = await ticketFor(A);
     assert.equal(r.code, 503, `${k}=${v}`); assert.equal(r.body.error, "release_unconfigured"); assert.match(r.body.message, new RegExp(k));
@@ -249,6 +256,7 @@ test("the relay's OWN checks hold even when the verifier says verified: VCEK sig
       ["Bind2 over the ticket", (tk) => guest({ id: A, ticket: tk, binding: ({ transport, t }) => sha(Buffer.from("enclave-bind-v2\n"), transport, t, RID) }), /not this release's binding/],
       ["another app", (tk) => guest({ id: A, ticket: tk, appId: sha(Buffer.from("x")) }), /not this deployment's app/],
       ["another deployment's HOST_DATA", (tk) => guest({ id: A, ticket: tk, hostData: B }), /HOST_DATA is not this deployment/],
+      ["a DEBUG-enabled guest policy", (tk) => guest({ id: A, ticket: tk, debug: true }), /allows DEBUG/],
     ];
     for (const [label, mk, why] of cases) {
       const t = await ticketFor(A);
@@ -256,6 +264,11 @@ test("the relay's OWN checks hold even when the verifier says verified: VCEK sig
       assert.equal(r.code, 403, label); assert.equal(r.body.error, "evidence_refused", label); assert.match(r.body.message, why, label);
       assert.equal(r.body.sealed, undefined, `${label}: nothing released`);
     }
+    // a report from another VMPL than the pinned one
+    process.env.SECRETS_RELEASE_VMPL = "2";
+    const tv = await ticketFor(A), rv = await release(A, tv.body.ticket, guest({ id: A, ticket: tv.body.ticket }));
+    process.env.SECRETS_RELEASE_VMPL = "0";
+    assert.equal(rv.code, 403); assert.match(rv.body.message, /states VMPL 0, not the pinned 2/); assert.equal(rv.body.sealed, undefined);
     // a zero (masked) CHIP_ID in the report: refused even though the stub verifier passed it
     const t = await ticketFor(A), g = guest({ id: A, ticket: t.body.ticket });
     const rep = Buffer.from(g.evidence.report, "base64"); rep.fill(0, 0x1a0, 0x1e0); g.evidence.report = rep.toString("base64");
@@ -274,4 +287,28 @@ test("provenSnpChip: a CHIP_ID counts only from a VCEK-verified, VCEK-signed rep
   assert.equal(provenSnpChip(vlek, { ok: true, vcekVerified: true }), null, "VLEK-signed: the CHIP_ID does not name the signer's chip");
   const masked = Buffer.from(rep); masked.fill(0, 0x1a0, 0x1e0);
   assert.equal(provenSnpChip(masked, { ok: true, vcekVerified: true }), null, "a masked (zero) CHIP_ID");
+});
+
+test("the guest's own vectors (enclave-5d, isolation/app-config-m1 0e9a6f08): this side reproduces its binding and opens its seal", () => {
+  const v = JSON.parse(fs.readFileSync(new URL("./fixtures/secrets-release-guest-vectors.json", import.meta.url)));
+  const i = v.inputs, hx = (x) => Buffer.from(x, "hex");
+  const sealKey = R.rawPublicOf(R.x25519PrivateKey(hx(i.sealPrivateHex)));
+  assert.equal(sealKey.toString("hex"), v.outputs.sealKeyHex);
+  assert.equal(R.rawPublicOf(R.x25519PrivateKey(hx(i.ephPrivateHex))).toString("hex"), v.outputs.ephPublicHex);
+  assert.equal(R.releaseBinding({ id: i.id, transportSpki: hx(i.transportSpkiHex), ticket: hx(i.ticketHex), runtimeId: hx(i.runtimeIdHex), sealKey }).toString("hex"), v.outputs.bindingHex);
+  assert.equal(R.openRelease({ id: i.id, ticket: hx(i.ticketHex), sealPrivateKey: hx(i.sealPrivateHex), sealed: hx(v.outputs.sealedHex) }).toString(), i.plaintext);
+  assert.equal(R.sealRelease({ id: i.id, ticket: hx(i.ticketHex), sealKey, plaintext: i.plaintext, _ephPrivate: hx(i.ephPrivateHex), _iv: hx(i.ivHex) }).toString("hex"), v.outputs.sealedHex);
+  assert.equal(typeof JSON.parse(i.plaintext).issuedAt, "string", "issuedAt is an ISO-8601 string");
+});
+
+test("snpChipsAfter: a chip set lives only across a same-key re-attach of a still-registered tunnel", async () => {
+  const { snpChipsAfter } = await import("../relay/tunnel.js");
+  const X = "11".repeat(64), Y = "22".repeat(64);
+  assert.deepEqual(snpChipsAfter(undefined, { keyFp: "k1", snpChip: X }), [X], "a first attach");
+  assert.deepEqual(snpChipsAfter({ keyFp: "k1", snpChips: [X] }, { keyFp: "k1", snpChip: Y }), [X, Y], "same key: the other socket's chip joins");
+  assert.deepEqual(snpChipsAfter({ keyFp: "k1", snpChips: [X] }, { keyFp: "k1", snpChip: X }), [X], "no duplicates");
+  assert.deepEqual(snpChipsAfter({ keyFp: "k1", snpChips: [X] }, { keyFp: "k2", snpChip: Y }), [Y], "a new key (a new boot) starts over");
+  assert.deepEqual(snpChipsAfter({ keyFp: "k1", snpChips: [X] }, { keyFp: "k2" }), [], "a new key with no proven chip has none");
+  assert.deepEqual(snpChipsAfter({ keyFp: "", snpChips: [X] }, { keyFp: "", snpChip: Y }), [Y], "no key fingerprint: never carried");
+  assert.deepEqual(snpChipsAfter(undefined, { keyFp: "k1" }), [], "a measurement-only attach proves none");
 });

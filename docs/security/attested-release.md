@@ -36,6 +36,7 @@ The ticket records the lease holder and its chips. The host carries the ticket t
 ```
 POST /v1/secrets/release  {id, ticket, sealKey: base64(X25519 public, 32), evidence}
 evidence = {format: "sev-snp-guest-domain-v1", abi: "enclave-domain-abi/2", runtime, transportKey, report[, certs]}
+           (NO `nonce`: the ticket is bound in report_data, and a release report must never pass for an ordinary attestation)
 → 200 {id, sealed: base64}
 ```
 
@@ -55,6 +56,7 @@ report_data[32:64] = AppID          (filled by the monitor, never by the release
 - The ticket exists, is unexpired and was issued for this `id`. It is **consumed on first presentation, whatever the verdict**. A burned ticket is DoS only, and it is logged.
 - The lease is still held by the ticket's endpoint, and the relay still holds that endpoint eligible.
 - The runtime id is in the admitted set (`SECRETS_RELEASE_RUNTIME_IDS`).
+- The TCB floor (`SECRETS_RELEASE_MIN_TCB`) and the VMPL pin (`SECRETS_RELEASE_VMPL`, the monitor's) are REQUIRED policy, passed to the verifier explicitly: a provider can't omit them.
 - The guest-evidence verifier returns `verified`, given:
   - the measurement allowlist (`SECRETS_RELEASE_MEASUREMENTS`; fail-closed firmware only);
   - `expectedBinding` = the binding above, recomputed from the document's stated transport key and runtime and from the request's ticket and seal key;
@@ -63,13 +65,14 @@ report_data[32:64] = AppID          (filled by the monitor, never by the release
   - `bindingDomain` = `enclave-secrets-release-v1`.
 - Then the relay re-reads the verified report itself:
   - SIGNING_KEY = VCEK;
+  - the guest POLICY's DEBUG bit (19) is clear, and VMPL = the pin;
   - `report_data` = the binding ‖ AppID;
   - HOST_DATA = id;
   - CHIP_ID non-zero, and ∈ the ticket's chips.
 - The response is the ledger envelope's config (its inline `config`, or its `configCid` resolved by the relay; unresolvable means 503, never a partial answer) plus the deployment's secrets, sealed:
 
 ```
-plaintext = JSON {id, envelopeSha256, config, secrets, issuedAt}
+plaintext = JSON {id, envelopeSha256, config, secrets, issuedAt}      (issuedAt: an ISO-8601 UTC string)
 key    = HKDF-SHA256(ikm = X25519(eph, sealKey), salt = ticket,
                      info = "enclave-secrets-release-v1 seal\n" ‖ id ‖ ephPub ‖ sealKey), 32 bytes
 sealed = ephPub(32) ‖ iv(12) ‖ AES-256-GCM(plaintext) ‖ tag(16)      (fresh eph and iv every time)
@@ -86,9 +89,20 @@ The tunnel hub keeps a CHIP_ID from an SNP attach **only** in this case (`proven
 
 A measurement-only attach (`requireVcek` false) proves no chip, so its lease holder gets no ticket.
 
-Chips accumulate across in-place re-attaches under the same transport key, so a multi-socket box's other chip doesn't produce a false refusal. A new key starts over. The chips are internal to the hub and never appear in `/enclaves`.
+Chips accumulate across in-place re-attaches under the same transport key while the previous record is still registered (`snpChipsAfter`), so a multi-socket box's other chip doesn't produce a false refusal. A new key starts over, and a detach deletes the record. SNP boxes attaching through the hub mint their transport key per boot inside the CVM, so a chip set never outlives the boot that proved it. The chips are internal to the hub and never appear in `/enclaves`.
 
 CHIP_ID binds the **physical chip, not the endpoint**: two registered endpoints on one machine are indistinguishable. That is acceptable only when they share an operator.
+
+## Preconditions before `SECRETS_ATTESTED_RELEASE` may be turned on (enclave-d1)
+
+- The policy: `SECRETS_RELEASE_MIN_TCB`, `SECRETS_RELEASE_VMPL`, and a measurement allowlist holding reviewed, non-debug per-app guest images only.
+- The guest side landed and reviewed (enclave-5d):
+  - the boot check that the served deployment id equals HOST_DATA;
+  - the release client as measured platform code, with [32:64] filled by the monitor;
+  - the enumeration of every report path;
+  - the guest validating the relay's TLS;
+  - the release document stating no `nonce`.
+- Every provider below, wired and reviewed.
 
 ## Not wired yet (the release answers 503 until these land)
 
@@ -125,4 +139,5 @@ CHIP_ID binds the **physical chip, not the endpoint**: two registered endpoints 
   - an unresolvable configCid.
 - The relay's own checks are exercised under a verifier stub that passes everything.
 - `test/tunnel.test.mjs`: a measurement-only attach proves no chip, and chip ids never reach a row.
-- 13 mutations of the checks, all caught.
+- `test/fixtures/secrets-release-guest-vectors.json`: enclave-5d's guest vectors (isolation/app-config-m1 0e9a6f08). This side reproduces their binding and seal and opens their blob, and theirs does the same with this side's.
+- Mutations of the checks, all caught (counted in the commit messages).
