@@ -688,7 +688,9 @@ func TestReadUnitMemMiBReadsTheSiblingCgroup(t *testing.T) {
 		}
 	}
 	must(self, "0::/user.slice/user-1000.slice/user@1000.service/app.slice/enclave-guestd.service\n")
-	must(filepath.Join(unit, "memory.current"), "1118830592\n") // 1067.0 MiB (a live canary)
+	must(filepath.Join(unit, "memory.current"), "1118830592\n")                                                        // 1067.0 MiB (a live canary)
+	stat := "anon 36700160\nfile 1076887552\nactive_file 0\ninactive_file 0\nshmem 67108864\nunevictable 1008730112\n" // the canary's
+	must(filepath.Join(unit, "memory.stat"), stat)
 	for _, u := range []string{"m2-gdab-1", "m2-gdab-1.service"} {
 		if n, err := readUnitMemMiB(self, root, u); err != nil || n != 1067 {
 			t.Fatalf("%s: %d %v", u, n, err)
@@ -698,6 +700,19 @@ func TestReadUnitMemMiBReadsTheSiblingCgroup(t *testing.T) {
 	if n, _ := readUnitMemMiB(self, root, "m2-gdab-1"); n != 1066 {
 		t.Fatalf("rounding: %d", n)
 	}
+	// reclaimable page cache charged to the unit is NOT held: 100 MiB of it leaves 967 MiB (enclave-e3)
+	must(filepath.Join(unit, "memory.current"), "1118830592\n")
+	must(filepath.Join(unit, "memory.stat"), "anon 36700160\nactive_file 52428800\ninactive_file 52428800\n")
+	if n, _ := readUnitMemMiB(self, root, "m2-gdab-1"); n != 967 {
+		t.Fatalf("page cache: %d, want 967", n)
+	}
+	for what, st := range map[string]string{"no stat fields": "anon 1\n", "one field": "active_file 0\n", "a non-number": "active_file x\ninactive_file 0\n"} {
+		must(filepath.Join(unit, "memory.stat"), st)
+		if _, err := readUnitMemMiB(self, root, "m2-gdab-1"); err == nil {
+			t.Fatalf("memory.stat %s must be an error", what)
+		}
+	}
+	must(filepath.Join(unit, "memory.stat"), stat)
 	for what, u := range map[string]string{"missing": "m2-gdcd-2", "a path": "../app.slice/m2-gdab-1", "dotted": ".hidden"} {
 		if _, err := readUnitMemMiB(self, root, u); err == nil {
 			t.Fatalf("%s must be an error", what)
@@ -716,5 +731,46 @@ func TestReadUnitMemMiBReadsTheSiblingCgroup(t *testing.T) {
 	must(self, "1:name=systemd:/x\n") // no cgroup v2 line
 	if _, err := readUnitMemMiB(self, root, "m2-gdab-1"); err == nil {
 		t.Fatal("no cgroup v2 path must be an error")
+	}
+}
+
+// enclave-e3's surviving mutant: a guest that ENDED (failed) but is not reclaimed yet still holds its room, and its unit
+// may still draw: it counts R.mem minus what its unit holds, not nothing.
+func TestAnEndedGuestNotYetReclaimedStillCountsWhatItMayDraw(t *testing.T) {
+	r := newRig(t)
+	r.s.Budget = budgetFor(4)
+	r.s.HostFloorMiB = 16384
+	r.s.MemAvailable = func() (int, error) { return 1 << 20, nil }
+	r.s.UnitMem = func(string) (int, error) { return 1000, nil }
+	p, _ := r.bundle("A", contract.Policy{})
+	_, b := r.create(name(1), p)
+	r.s.launching.Wait()
+	id := b["id"].(string)
+	r.f.stopGate = make(chan struct{})
+	r.f.mu.Lock()
+	r.f.alive["unit-"+id] = false
+	r.f.mu.Unlock()
+	ticked := make(chan struct{})
+	go func() { r.s.tick(); close(ticked) }() // it marks the guest failed, then blocks stopping its unit
+	for deadline := time.Now().Add(5 * time.Second); ; {
+		r.s.mu.Lock()
+		st := r.s.vms[id].Status
+		r.s.mu.Unlock()
+		if st == "failed" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the dead guest was never marked failed")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if h, _ := r.pool()["host"].(map[string]any); h["pendingMiB"] != float64(oneGuest.MemMiB-1000) || h["unreadUnits"] != float64(0) {
+		t.Fatalf("an ended, unreclaimed guest: %v", h)
+	}
+	close(r.f.stopGate)
+	<-ticked
+	r.f.stopGate = nil
+	if h, _ := r.pool()["host"].(map[string]any); h["pendingMiB"] != float64(0) {
+		t.Fatalf("reclaimed, it draws nothing: %v", h)
 	}
 }

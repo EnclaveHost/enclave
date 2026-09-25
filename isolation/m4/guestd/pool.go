@@ -183,7 +183,9 @@ func (s *server) pendingLocked() (pending, unread int) {
 	return pending, unread
 }
 
-// unitMemMiB is what a guest's unit holds now: its cgroup v2 memory.current, in MiB rounded DOWN, so what it may still
+// unitMemMiB is what a guest's unit holds now and will not give back: its cgroup v2 memory.current less the reclaimable
+// page cache charged to it (memory.stat active_file + inactive_file: the kernel can drop that, so it would otherwise
+// count as held and undercount what the guest may still draw; enclave-e3), in MiB rounded DOWN, so what it may still
 // draw (R.mem minus this) is never undercounted.
 func (s *server) unitMemMiB(unit string) (int, error) {
 	if s.UnitMem != nil {
@@ -216,13 +218,36 @@ func readUnitMemMiB(selfCgroup, cgroupRoot, unit string) (int, error) {
 	if own == "" {
 		return 0, errors.New("guestd's own cgroup (v2) is unknown")
 	}
-	m, err := os.ReadFile(filepath.Join(cgroupRoot, filepath.Dir(own), name, "memory.current"))
+	dir := filepath.Join(cgroupRoot, filepath.Dir(own), name)
+	m, err := os.ReadFile(filepath.Join(dir, "memory.current"))
 	if err != nil {
 		return 0, err
 	}
 	n, err := strconv.ParseInt(strings.TrimSpace(string(m)), 10, 64)
 	if err != nil || n < 0 {
 		return 0, fmt.Errorf("%s memory.current is not a number", name)
+	}
+	st, err := os.ReadFile(filepath.Join(dir, "memory.stat"))
+	if err != nil {
+		return 0, err
+	}
+	var cache int64
+	seen := 0
+	for _, l := range strings.Split(string(st), "\n") {
+		if f := strings.Fields(l); len(f) == 2 && (f[0] == "active_file" || f[0] == "inactive_file") {
+			v, err := strconv.ParseInt(f[1], 10, 64)
+			if err != nil || v < 0 {
+				return 0, fmt.Errorf("%s memory.stat %s is not a number", name, f[0])
+			}
+			cache += v
+			seen++
+		}
+	}
+	if seen != 2 {
+		return 0, fmt.Errorf("%s memory.stat lacks active_file/inactive_file", name)
+	}
+	if n -= cache; n < 0 {
+		n = 0
 	}
 	return int(n >> 20), nil
 }
