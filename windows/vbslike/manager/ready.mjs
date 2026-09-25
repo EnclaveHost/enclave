@@ -141,7 +141,9 @@ export async function checkAnswer({ host = "127.0.0.1", port, appId, transportKe
 }
 
 /**
- * judgeRunning({ host, port, appId, launcherKey, expectRuntime, expectedStatement, expectedImageSha256, deadlineMs })
+ * judgeRunning({ host, port, appId, launcherKey, expectedVmId, expectRuntime, expectedStatement, expectedImageSha256, deadlineMs })
+ *   expectedVmId: the partition the launcher holding launcherKey is bound to; judge-hv refuses a report naming another
+ *     ("report names another partition").
  *   expectedStatement + expectedImageSha256: the record's launcher statement and image, judged as a PAIR (judge-hv);
  *   absent, no image is compared (the HCS lab's records carry none).
  *   -> { status: "running" | "starting" | "failed", reason, checks: { document, ready } }
@@ -150,7 +152,7 @@ export async function checkAnswer({ host = "127.0.0.1", port, appId, transportKe
  * readiness answer is a perfect 200: a 200 from something we have not identified is not evidence
  * about the thing we meant to ask.
  */
-export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKey, expectRuntime,
+export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKey, expectedVmId, expectRuntime,
                                      expectedStatement, expectedImageSha256, deadlineMs = 60_000, attemptTimeoutMs = 10_000, now = Date.now,
                                      sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   if (!port) throw new Error("a port is required");
@@ -177,7 +179,7 @@ export async function judgeRunning({ host = "127.0.0.1", port, appId, launcherKe
           checks.document = { ok: false, reason: "the attestation answer is not JSON" };
           return { status: "failed", transportKeySha256, reason: checks.document.reason, checks };
         }
-        const v = judge({ doc, spki: session.spki, nonce, expectedAppSha256: appId, launcherKey, expectRuntime,
+        const v = judge({ doc, spki: session.spki, nonce, expectedAppSha256: appId, launcherKey, expectedVmId, expectRuntime,
                           expectedStatement, expectedImageSha256 });
         // judge-hv answers { verdict, reasons, checks } and has NO `ok` field: reading v.ok was
         // always false, so a perfectly good monitor-signed document reported "was not accepted"

@@ -30,7 +30,7 @@ class FakeLauncher {
     if (this.relays) { const srv = net.createServer((c) => c.end()); await new Promise((r) => srv.listen(0, "127.0.0.1", r)); tcpPort = srv.address().port; this.relays.push(srv); this.host.get(vmId).tcpPort = tcpPort; }
     return { instanceId, name, vmId, state: "Running", image: null, boundary: this.boundary, appId: mapping.appId,
              guest: { booted: true, bytes: 613, head: "MON ready" }, appReady: false,
-             ...(tcpPort ? { tcpPort, launcherKey: "LKEY", domainId: 1, guestIdentity: { partition: "wmi-openhcl-gen2-igvm-linux", guestImageKind: "igvm-linux-direct" },
+             ...(tcpPort ? { tcpPort, launcherKey: "LKEY", launcherVmId: vmId, domainId: 1, guestIdentity: { partition: "wmi-openhcl-gen2-igvm-linux", guestImageKind: "igvm-linux-direct" },
                              wmiserve: { stop: async () => { const srv = this.relays.find((x) => x.address() && x.address().port === tcpPort); if (srv) srv.close(); return { closed: true }; },
                                          exited: new Promise(() => {}) } } : {}) };
   }

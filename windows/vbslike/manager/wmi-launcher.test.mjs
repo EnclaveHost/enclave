@@ -852,6 +852,7 @@ test("serve: the app is loaded and relayed; the handle carries the relay, the ke
   try {
   assert.equal(handle.tcpPort, 19311); assert.equal(handle.domainId, 1); assert.equal(handle.guestPort, 40001);
   assert.equal(Buffer.from(handle.launcherKey, "base64").length, 32);
+  assert.equal(handle.launcherVmId, handle.vmId, "the partition that key signs for, as wmiserve's launcher step states it");
   assert.equal(handle.boot, "39725c19e15c91afe488ce62251055f5", "the per-boot nonce, kept for the manager's own destroys");
   assert.equal(handle.image, SHA); assert.equal(handle.guestIdentity.partition, "wmi-openhcl-gen2-igvm-linux");
   assert.ok(fs.existsSync(path.join(bundleDir, `${ID.instanceId}.bundle`)), "the bundle is in the manager-owned directory, by instance id");
