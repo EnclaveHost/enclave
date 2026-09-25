@@ -294,3 +294,26 @@ pre-userspace", which was my inference and is now dead.
 Reading it needs a debug image whose STATIC, measured command line sets
 `OPENHCL_CONFIDENTIAL_DEBUG=1` — a different measured image that trusts the host, so a debug artifact
 only, never a serving candidate, and it must be named on disk so that is unmissable.
+
+## A fresh VMGS is an EMPTY store plus a VHD footer — and that means OpenHCL DID open it
+
+Measured on the freshly minted master, no boot required:
+
+    size 4,194,816; all 57 non-zero bytes lie at 0x400000-0x400053
+    length - 512 = 0x400000 (4 MiB exactly)
+    the last 512 bytes begin: 63 6f 6e 65 63 74 69 78 = "conectix"
+
+So `New-VM -GuestStateIsolationType VBS` produces **4 MiB of zeros plus a 512-byte fixed-VHD
+footer**: an empty store in a valid container. Two things follow.
+
+1. My hand-made all-zero file was refused with 0x80070570 because it had **no VHD footer**, not
+   because of anything about VMGS content. The host was validating the container.
+2. The `GUESTRTS` v3 header I later found in the donor was therefore written by **OpenHCL's own
+   formatter**, which formats an empty store on open. That means the VM worker DID successfully
+   open the guest state.
+
+Candidate (a), "the VMGS will not open", is now ruled out **on evidence** rather than on the
+mistaken pristine-donor premise I offered earlier. The failure is after the store is opened, which
+puts the weight on what follows in the worker's startup — memory initialization (the VBS-specific
+step where VTL0 RAM is accepted host-private), the DMA manager, the guest-memory self test, measured
+VTL0 info, and `validate_isolated_configuration` — with no reason yet to prefer one.
