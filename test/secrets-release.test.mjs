@@ -460,7 +460,7 @@ test("config parity with the tier: the envelope decides when it names either, el
     ["the envelope's config wins over the version's", JSON.stringify({ config: { mine: true } }), { config: '{"fromVersion":1}' }, { mine: true }],
     ["the envelope's configCid wins over the version's", JSON.stringify({ configCid: "bafkreisyntheticcid" }), { config: '{"fromVersion":1}' }, { resolved: true, key: "${JOT_API_KEY}" }],
     ["a rev-7 large-config version: the inline field is the routing manifest, the configCid is the config", "", { config: '{"wasi":"p2"}', configCid: "bafkreiversioncid" }, { fromVersionCid: true }],
-    ["an envelope naming both: its configCid wins, as in the manager", JSON.stringify({ config: { manifest: true }, configCid: "bafkreisyntheticcid" }), { config: '{"fromVersion":1}' }, { resolved: true, key: "${JOT_API_KEY}" }],
+    ["an envelope naming both: its configCid wins, as in the manager (the inline field is the routing manifest)", JSON.stringify({ config: { volumes: [] }, configCid: "bafkreisyntheticcid" }), { config: '{"fromVersion":1}' }, { resolved: true, key: "${JOT_API_KEY}" }],
     ["an envelope naming only config overrides the version's configCid", JSON.stringify({ config: { mine: 2 } }), { configCid: "bafkreiversioncid" }, { mine: 2 }],
     ["no config anywhere: null", "", null, null],
     ["a version with an empty config: null", "", { config: "" }, null],
@@ -470,7 +470,18 @@ test("config parity with the tier: the envelope decides when it names either, el
     assert.equal(r.code, 200, `${label}: ${JSON.stringify(r.body)}`); assert.deepEqual(config, want, label);
   }
   // a config that is a JSON STRING (the app would get one quoted string) or not JSON: refused, nothing released
-  for (const [label, env, ver] of [["an envelope config that is a string", JSON.stringify({ config: "text" }), null],
+  // envelope shapes the supervisor's parseDepOptions refuses are refused here too, by key PRESENCE (enclave-d1's A1)
+  for (const [label, env] of [["an envelope config that is a string", JSON.stringify({ config: "text" })],
+                              ["an empty configCid beside a manifest (would have released the manifest)", JSON.stringify({ configCid: "", config: { volumes: [] } })],
+                              ["a null configCid", JSON.stringify({ configCid: null })],
+                              ["a numeric configCid", JSON.stringify({ configCid: 123 })],
+                              ["a config carrying _media", JSON.stringify({ config: { _media: { icon: "x" }, a: 1 } })],
+                              ["an app key beside a configCid (the guest would never receive it)", JSON.stringify({ configCid: "bafkreisyntheticcid", config: { lab: 1 } })],
+                              ["an array config", JSON.stringify({ config: [1] })]]) {
+    const { r } = await releaseC(env, null);
+    assert.equal(r.code, 422, `${label}: ${JSON.stringify(r.body)}`); assert.equal(r.body.error, "bad_envelope", label); assert.equal(r.body.sealed, undefined, label);
+  }
+  for (const [label, env, ver] of [["a version configCid that is not a bare CID", "", { configCid: "ipfs://x" }],
                                    ["a version config text that is a JSON string", "", { config: '"text"' }],
                                    ["a version config that is not JSON", "", { config: "not json" }],
                                    ["a version config that is a number", "", { config: "42" }]]) {

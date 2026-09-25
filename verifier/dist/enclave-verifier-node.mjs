@@ -14,10 +14,10 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/error.js
+// node_modules/@freedomofpress/crypto-browser/dist/asn1/error.js
 var ASN1ParseError, ASN1TypeError;
 var init_error = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/error.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/asn1/error.js"() {
     ASN1ParseError = class extends Error {
     };
     ASN1TypeError = class extends Error {
@@ -25,10 +25,10 @@ var init_error = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/tag.js
+// node_modules/@freedomofpress/crypto-browser/dist/asn1/tag.js
 var UNIVERSAL_TAG, TAG_CLASS, ASN1Tag;
 var init_tag = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/tag.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/asn1/tag.js"() {
     init_error();
     UNIVERSAL_TAG = {
       BOOLEAN: 1,
@@ -95,7 +95,7 @@ var init_tag = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/length.js
+// node_modules/@freedomofpress/crypto-browser/dist/asn1/length.js
 function decodeLength(stream) {
   const buf = stream.getUint8();
   if ((buf & 128) === 0) {
@@ -127,12 +127,12 @@ function encodeLength(len) {
   return new Uint8Array([128 | bytes2.length, ...bytes2]);
 }
 var init_length = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/length.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/asn1/length.js"() {
     init_error();
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/encoding.js
+// node_modules/@freedomofpress/crypto-browser/dist/encoding.js
 function base64ToUint8Array(base64) {
   const binaryString = atob(base64);
   const length = binaryString.length;
@@ -207,11 +207,11 @@ function uint8ArrayEqual(a, b) {
   return result === 0;
 }
 var init_encoding = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/encoding.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/encoding.js"() {
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/parse.js
+// node_modules/@freedomofpress/crypto-browser/dist/asn1/parse.js
 function parseInteger(buf) {
   let pos = 0;
   const end = buf.length;
@@ -284,17 +284,17 @@ function parseBitString(buf) {
 }
 var RE_TIME_SHORT_YEAR, RE_TIME_LONG_YEAR;
 var init_parse = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/parse.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/asn1/parse.js"() {
     init_encoding();
     RE_TIME_SHORT_YEAR = /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\.\d{3})?Z$/;
     RE_TIME_LONG_YEAR = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\.\d{3})?Z$/;
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/stream.js
+// node_modules/@freedomofpress/crypto-browser/dist/stream.js
 var StreamError, ByteStream;
 var init_stream = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/stream.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/stream.js"() {
     StreamError = class extends Error {
     };
     ByteStream = class _ByteStream {
@@ -382,7 +382,7 @@ var init_stream = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/obj.js
+// node_modules/@freedomofpress/crypto-browser/dist/asn1/obj.js
 function parseStream(stream) {
   const tag = new ASN1Tag(stream.getUint8());
   const len = decodeLength(stream);
@@ -418,7 +418,7 @@ function collectSubs(stream, len) {
 }
 var ASN1Obj;
 var init_obj = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/obj.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/asn1/obj.js"() {
     init_stream();
     init_error();
     init_length();
@@ -501,7 +501,7 @@ var init_obj = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/pem.js
+// node_modules/@freedomofpress/crypto-browser/dist/pem.js
 function toDER(certificate) {
   let der = "";
   certificate.split("\n").forEach((line) => {
@@ -514,14 +514,14 @@ function toDER(certificate) {
 }
 var PEM_HEADER, PEM_FOOTER;
 var init_pem = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/pem.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/pem.js"() {
     init_encoding();
     PEM_HEADER = /-----BEGIN (.*)-----/;
     PEM_FOOTER = /-----END (.*)-----/;
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/canonicalize.js
+// node_modules/@freedomofpress/crypto-browser/dist/canonicalize.js
 function canonicalizeString(string) {
   const escapedString = string.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   return '"' + escapedString + '"';
@@ -567,7 +567,7 @@ function canonicalize(object) {
 }
 var COMMA, COLON, LEFT_SQUARE_BRACKET, RIGHT_SQUARE_BRACKET, LEFT_CURLY_BRACKET, RIGHT_CURLY_BRACKET;
 var init_canonicalize = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/canonicalize.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/canonicalize.js"() {
     COMMA = ",";
     COLON = ":";
     LEFT_SQUARE_BRACKET = "[";
@@ -577,17 +577,17 @@ var init_canonicalize = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/index.js
+// node_modules/@freedomofpress/crypto-browser/dist/asn1/index.js
 var init_asn1 = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/index.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/asn1/index.js"() {
     init_obj();
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/interfaces.js
+// node_modules/@freedomofpress/crypto-browser/dist/interfaces.js
 var KeyTypes, EcdsaTypes, HashAlgorithms, RsaAlgorithms, RsaSchemes;
 var init_interfaces = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/interfaces.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/interfaces.js"() {
     (function(KeyTypes2) {
       KeyTypes2["Ecdsa"] = "ECDSA";
       KeyTypes2["Ed25519"] = "Ed25519";
@@ -614,16 +614,16 @@ var init_interfaces = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/hashes/esm/cryptoNode.js
+// node_modules/@noble/hashes/esm/cryptoNode.js
 import * as nc from "node:crypto";
 var crypto2;
 var init_cryptoNode = __esm({
-  "../enclave-verifier/node_modules/@noble/hashes/esm/cryptoNode.js"() {
+  "node_modules/@noble/hashes/esm/cryptoNode.js"() {
     crypto2 = nc && typeof nc === "object" && "webcrypto" in nc ? nc.webcrypto : nc && typeof nc === "object" && "randomBytes" in nc ? nc : void 0;
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/hashes/esm/utils.js
+// node_modules/@noble/hashes/esm/utils.js
 function isBytes(a) {
   return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
 }
@@ -712,14 +712,14 @@ function randomBytes(bytesLength = 32) {
 }
 var Hash;
 var init_utils = __esm({
-  "../enclave-verifier/node_modules/@noble/hashes/esm/utils.js"() {
+  "node_modules/@noble/hashes/esm/utils.js"() {
     init_cryptoNode();
     Hash = class {
     };
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/hashes/esm/_md.js
+// node_modules/@noble/hashes/esm/_md.js
 function setBigUint64(view, byteOffset, value, isLE) {
   if (typeof view.setBigUint64 === "function")
     return view.setBigUint64(byteOffset, value, isLE);
@@ -740,7 +740,7 @@ function Maj(a, b, c) {
 }
 var HashMD, SHA256_IV, SHA384_IV, SHA512_IV;
 var init_md = __esm({
-  "../enclave-verifier/node_modules/@noble/hashes/esm/_md.js"() {
+  "node_modules/@noble/hashes/esm/_md.js"() {
     init_utils();
     HashMD = class extends Hash {
       constructor(blockLen, outputLen, padOffset, isLE) {
@@ -881,7 +881,7 @@ var init_md = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/hashes/esm/_u64.js
+// node_modules/@noble/hashes/esm/_u64.js
 function fromBig(n, le = false) {
   if (le)
     return { h: Number(n & U32_MASK64), l: Number(n >> _32n & U32_MASK64) };
@@ -903,7 +903,7 @@ function add(Ah, Al, Bh, Bl) {
 }
 var U32_MASK64, _32n, shrSH, shrSL, rotrSH, rotrSL, rotrBH, rotrBL, add3L, add3H, add4L, add4H, add5L, add5H;
 var init_u64 = __esm({
-  "../enclave-verifier/node_modules/@noble/hashes/esm/_u64.js"() {
+  "node_modules/@noble/hashes/esm/_u64.js"() {
     U32_MASK64 = /* @__PURE__ */ BigInt(2 ** 32 - 1);
     _32n = /* @__PURE__ */ BigInt(32);
     shrSH = (h, _l, s) => h >>> s;
@@ -921,10 +921,10 @@ var init_u64 = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/hashes/esm/sha2.js
+// node_modules/@noble/hashes/esm/sha2.js
 var SHA256_K, SHA256_W, SHA256, K512, SHA512_Kh, SHA512_Kl, SHA512_W_H, SHA512_W_L, SHA512, SHA384, sha2563, sha512, sha384;
 var init_sha2 = __esm({
-  "../enclave-verifier/node_modules/@noble/hashes/esm/sha2.js"() {
+  "node_modules/@noble/hashes/esm/sha2.js"() {
     init_md();
     init_u64();
     init_utils();
@@ -1289,10 +1289,10 @@ var init_sha2 = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/hashes/esm/hmac.js
+// node_modules/@noble/hashes/esm/hmac.js
 var HMAC, hmac;
 var init_hmac = __esm({
-  "../enclave-verifier/node_modules/@noble/hashes/esm/hmac.js"() {
+  "node_modules/@noble/hashes/esm/hmac.js"() {
     init_utils();
     HMAC = class extends Hash {
       constructor(hash, _key) {
@@ -1363,7 +1363,7 @@ var init_hmac = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/curves/esm/abstract/utils.js
+// node_modules/@noble/curves/esm/abstract/utils.js
 function isBytes2(a) {
   return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
 }
@@ -1562,7 +1562,7 @@ function memoized(fn) {
 }
 var _0n, _1n, hasHexBuiltin, hexes, asciis, isPosBig, bitMask, u8n, u8fr, validatorFns;
 var init_utils2 = __esm({
-  "../enclave-verifier/node_modules/@noble/curves/esm/abstract/utils.js"() {
+  "node_modules/@noble/curves/esm/abstract/utils.js"() {
     _0n = /* @__PURE__ */ BigInt(0);
     _1n = /* @__PURE__ */ BigInt(1);
     hasHexBuiltin = // @ts-ignore
@@ -1587,7 +1587,7 @@ var init_utils2 = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/curves/esm/abstract/modular.js
+// node_modules/@noble/curves/esm/abstract/modular.js
 function mod(a, b) {
   const result = a % b;
   return result >= _0n2 ? result : b + result;
@@ -1836,7 +1836,7 @@ function mapHashToField(key, fieldOrder, isLE = false) {
 }
 var _0n2, _1n2, _2n, _3n, _4n, _5n, _8n, isNegativeLE, FIELD_FIELDS;
 var init_modular = __esm({
-  "../enclave-verifier/node_modules/@noble/curves/esm/abstract/modular.js"() {
+  "node_modules/@noble/curves/esm/abstract/modular.js"() {
     init_utils();
     init_utils2();
     _0n2 = BigInt(0);
@@ -1869,7 +1869,7 @@ var init_modular = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/curves/esm/abstract/curve.js
+// node_modules/@noble/curves/esm/abstract/curve.js
 function constTimeNegate(condition, item) {
   const neg = item.negate();
   return condition ? neg : item;
@@ -2100,7 +2100,7 @@ function validateBasic(curve) {
 }
 var _0n3, _1n3, pointPrecomputes, pointWindowSizes;
 var init_curve = __esm({
-  "../enclave-verifier/node_modules/@noble/curves/esm/abstract/curve.js"() {
+  "node_modules/@noble/curves/esm/abstract/curve.js"() {
     init_modular();
     init_utils2();
     _0n3 = BigInt(0);
@@ -2110,7 +2110,7 @@ var init_curve = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/curves/esm/abstract/weierstrass.js
+// node_modules/@noble/curves/esm/abstract/weierstrass.js
 function validateSigVerOpts(opts) {
   if (opts.lowS !== void 0)
     abool("lowS", opts.lowS);
@@ -2887,7 +2887,7 @@ function weierstrass(curveDef) {
 }
 var DERErr, DER, _0n4, _1n4, _2n2, _3n2, _4n2;
 var init_weierstrass = __esm({
-  "../enclave-verifier/node_modules/@noble/curves/esm/abstract/weierstrass.js"() {
+  "node_modules/@noble/curves/esm/abstract/weierstrass.js"() {
     init_curve();
     init_modular();
     init_utils2();
@@ -3004,7 +3004,7 @@ var init_weierstrass = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/curves/esm/_shortw_utils.js
+// node_modules/@noble/curves/esm/_shortw_utils.js
 function getHash(hash) {
   return {
     hash,
@@ -3017,17 +3017,17 @@ function createCurve(curveDef, defHash) {
   return { ...create(defHash), create };
 }
 var init_shortw_utils = __esm({
-  "../enclave-verifier/node_modules/@noble/curves/esm/_shortw_utils.js"() {
+  "node_modules/@noble/curves/esm/_shortw_utils.js"() {
     init_hmac();
     init_utils();
     init_weierstrass();
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/curves/esm/nist.js
+// node_modules/@noble/curves/esm/nist.js
 var Fp256, p256_a, p256_b, p256, Fp384, p384_a, p384_b, p384, Fp521, p521_a, p521_b, p521;
 var init_nist = __esm({
-  "../enclave-verifier/node_modules/@noble/curves/esm/nist.js"() {
+  "node_modules/@noble/curves/esm/nist.js"() {
     init_sha2();
     init_shortw_utils();
     init_modular();
@@ -3075,7 +3075,7 @@ var init_nist = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/curves/esm/abstract/edwards.js
+// node_modules/@noble/curves/esm/abstract/edwards.js
 function validateOpts2(curve) {
   const opts = validateBasic(curve);
   validateObject(curve, {
@@ -3455,7 +3455,7 @@ function twistedEdwards(curveDef) {
 }
 var _0n5, _1n5, _2n3, _8n2, VERIFY_DEFAULT;
 var init_edwards = __esm({
-  "../enclave-verifier/node_modules/@noble/curves/esm/abstract/edwards.js"() {
+  "node_modules/@noble/curves/esm/abstract/edwards.js"() {
     init_curve();
     init_modular();
     init_utils2();
@@ -3467,7 +3467,7 @@ var init_edwards = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@noble/curves/esm/ed25519.js
+// node_modules/@noble/curves/esm/ed25519.js
 function ed25519_pow_2_252_3(x) {
   const _10n = BigInt(10), _20n = BigInt(20), _40n = BigInt(40), _80n = BigInt(80);
   const P = ED25519_P;
@@ -3513,7 +3513,7 @@ function uvRatio(u, v) {
 }
 var ED25519_P, ED25519_SQRT_M1, _0n6, _1n6, _2n4, _3n3, _5n2, _8n3, Fp, ed25519Defaults, ed25519;
 var init_ed25519 = __esm({
-  "../enclave-verifier/node_modules/@noble/curves/esm/ed25519.js"() {
+  "node_modules/@noble/curves/esm/ed25519.js"() {
     init_sha2();
     init_utils();
     init_edwards();
@@ -3551,7 +3551,7 @@ var init_ed25519 = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/crypto.js
+// node_modules/@freedomofpress/crypto-browser/dist/crypto.js
 function getSubtle() {
   if (!subtlePromise) {
     subtlePromise = subtleCryptoProxy();
@@ -3816,7 +3816,7 @@ async function verifySignatureOverDigest(key, digest, sig) {
 }
 var subtlePromise;
 var init_crypto = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/crypto.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/crypto.js"() {
     init_asn1();
     init_encoding();
     init_interfaces();
@@ -3827,9 +3827,9 @@ var init_crypto = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/index.js
+// node_modules/@freedomofpress/crypto-browser/dist/index.js
 var init_dist = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/index.js"() {
+  "node_modules/@freedomofpress/crypto-browser/dist/index.js"() {
     init_error();
     init_tag();
     init_length();
@@ -3844,7 +3844,7 @@ var init_dist = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/interfaces.js
+// node_modules/@freedomofpress/sigstore-browser/dist/interfaces.js
 function getHashAlgorithm(algorithm) {
   const hashAlg = SUPPORTED_HASH_ALGORITHMS[algorithm];
   if (!hashAlg) {
@@ -3854,7 +3854,7 @@ function getHashAlgorithm(algorithm) {
 }
 var SigstoreRoots, SUPPORTED_HASH_ALGORITHMS;
 var init_interfaces2 = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/interfaces.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/interfaces.js"() {
     init_dist();
     init_dist();
     (function(SigstoreRoots2) {
@@ -3874,10 +3874,10 @@ var init_interfaces2 = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/oid.js
+// node_modules/@freedomofpress/sigstore-browser/dist/oid.js
 var ECDSA_SIGNATURE_ALGOS, RSA_SIGNATURE_ALGOS, OID_RSASSA_PSS, SHA2_HASH_ALGOS, DEFAULT_HASH_ALGORITHM, ECDSA_CURVE_NAMES;
 var init_oid = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/oid.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/oid.js"() {
     ECDSA_SIGNATURE_ALGOS = {
       "1.2.840.10045.4.3.1": "sha224",
       "1.2.840.10045.4.3.2": "sha256",
@@ -3909,10 +3909,10 @@ var init_oid = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/sct.js
+// node_modules/@freedomofpress/sigstore-browser/dist/x509/sct.js
 var SignedCertificateTimestamp;
 var init_sct = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/sct.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/x509/sct.js"() {
     init_dist();
     SignedCertificateTimestamp = class _SignedCertificateTimestamp {
       constructor(options) {
@@ -4005,10 +4005,10 @@ var init_sct = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/ext.js
+// node_modules/@freedomofpress/sigstore-browser/dist/x509/ext.js
 var X509Extension, X509BasicConstraintsExtension, X509KeyUsageExtension, X509SubjectAlternativeNameExtension, X509AuthorityKeyIDExtension, X509SubjectKeyIDExtension, X509FulcioExtensionV1, X509FulcioExtensionV2, X509FulcioIssuerV1, X509GitHubWorkflowTriggerExtension, X509GitHubWorkflowSHAExtension, X509GitHubWorkflowNameExtension, X509GitHubWorkflowRepositoryExtension, X509GitHubWorkflowRefExtension, X509FulcioIssuerV2, X509BuildSignerURIExtension, X509BuildSignerDigestExtension, X509RunnerEnvironmentExtension, X509SourceRepositoryURIExtension, X509SourceRepositoryDigestExtension, X509SourceRepositoryRefExtension, X509SourceRepositoryIdentifierExtension, X509SourceRepositoryOwnerURIExtension, X509SourceRepositoryOwnerIdentifierExtension, X509BuildConfigURIExtension, X509BuildConfigDigestExtension, X509BuildTriggerExtension, X509RunInvocationURIExtension, X509SourceRepositoryVisibilityExtension, X509SCTExtension;
 var init_ext = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/ext.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/x509/ext.js"() {
     init_dist();
     init_sct();
     X509Extension = class {
@@ -4253,10 +4253,10 @@ var init_ext = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/cert.js
+// node_modules/@freedomofpress/sigstore-browser/dist/x509/cert.js
 var EXTENSION_OID_SUBJECT_KEY_ID, EXTENSION_OID_KEY_USAGE, EXTENSION_OID_SUBJECT_ALT_NAME, EXTENSION_OID_BASIC_CONSTRAINTS, EXTENSION_OID_AUTHORITY_KEY_ID, EXTENSION_OID_SCT, DN_OID_COMMON_NAME, DN_OID_COUNTRY, DN_OID_LOCALITY, DN_OID_STATE, DN_OID_ORGANIZATION, DN_OID_ORGANIZATIONAL_UNIT, DN_OID_TO_NAME, EXTENSION_OID_FULCIO_ISSUER_V1, EXTENSION_OID_GITHUB_WORKFLOW_TRIGGER, EXTENSION_OID_GITHUB_WORKFLOW_SHA, EXTENSION_OID_GITHUB_WORKFLOW_NAME, EXTENSION_OID_GITHUB_WORKFLOW_REPOSITORY, EXTENSION_OID_GITHUB_WORKFLOW_REF, EXTENSION_OID_OTHERNAME, EXTENSION_OID_FULCIO_ISSUER_V2, EXTENSION_OID_BUILD_SIGNER_URI, EXTENSION_OID_BUILD_SIGNER_DIGEST, EXTENSION_OID_RUNNER_ENVIRONMENT, EXTENSION_OID_SOURCE_REPOSITORY_URI, EXTENSION_OID_SOURCE_REPOSITORY_DIGEST, EXTENSION_OID_SOURCE_REPOSITORY_REF, EXTENSION_OID_SOURCE_REPOSITORY_IDENTIFIER, EXTENSION_OID_SOURCE_REPOSITORY_OWNER_URI, EXTENSION_OID_SOURCE_REPOSITORY_OWNER_IDENTIFIER, EXTENSION_OID_BUILD_CONFIG_URI, EXTENSION_OID_BUILD_CONFIG_DIGEST, EXTENSION_OID_BUILD_TRIGGER, EXTENSION_OID_RUN_INVOCATION_URI, EXTENSION_OID_SOURCE_REPOSITORY_VISIBILITY, X509Certificate4;
 var init_cert = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/cert.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/x509/cert.js"() {
     init_dist();
     init_interfaces2();
     init_oid();
@@ -4643,7 +4643,7 @@ var init_cert = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/chain.js
+// node_modules/@freedomofpress/sigstore-browser/dist/x509/chain.js
 function dedupeCertificates(certs) {
   for (let i = 0; i < certs.length; i++) {
     for (let j = i + 1; j < certs.length; j++) {
@@ -4657,7 +4657,7 @@ function dedupeCertificates(certs) {
 }
 var CertificateChainVerifier;
 var init_chain = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/chain.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/x509/chain.js"() {
     init_dist();
     CertificateChainVerifier = class {
       constructor(opts) {
@@ -4769,16 +4769,16 @@ var init_chain = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/index.js
+// node_modules/@freedomofpress/sigstore-browser/dist/x509/index.js
 var init_x509 = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/index.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/x509/index.js"() {
     init_cert();
     init_ext();
     init_chain();
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/dsse.js
+// node_modules/@freedomofpress/sigstore-browser/dist/dsse.js
 function preAuthEncoding(payloadType, payload) {
   const prefix = [
     PAE_PREFIX,
@@ -4801,12 +4801,12 @@ function preAuthEncoding(payloadType, payload) {
 }
 var PAE_PREFIX;
 var init_dsse = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/dsse.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/dsse.js"() {
     PAE_PREFIX = "DSSEv1";
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/merkle.js
+// node_modules/@freedomofpress/sigstore-browser/dist/tlog/merkle.js
 async function verifyMerkleInclusion(entry) {
   if (!entry.inclusionProof) {
     throw new Error("Missing inclusion proof");
@@ -4883,7 +4883,7 @@ async function hashLeaf(leaf) {
 }
 var RFC6962_LEAF_HASH_PREFIX, RFC6962_NODE_HASH_PREFIX;
 var init_merkle = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/merkle.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/tlog/merkle.js"() {
     init_dist();
     init_interfaces2();
     RFC6962_LEAF_HASH_PREFIX = new Uint8Array([0]);
@@ -4891,7 +4891,7 @@ var init_merkle = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/checkpoint.js
+// node_modules/@freedomofpress/sigstore-browser/dist/tlog/checkpoint.js
 async function verifyCheckpoint(entry, tlogs) {
   if (!entry.inclusionProof?.checkpoint) {
     throw new Error("Missing checkpoint in inclusion proof");
@@ -4962,7 +4962,7 @@ async function importTLogKey(tlog) {
 }
 var CHECKPOINT_SEPARATOR, SIGNATURE_REGEX, SignedNote, LogCheckpoint;
 var init_checkpoint = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/checkpoint.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/tlog/checkpoint.js"() {
     init_dist();
     CHECKPOINT_SEPARATOR = "\n\n";
     SIGNATURE_REGEX = /\u2014 (\S+) (\S+)\n/g;
@@ -5020,7 +5020,7 @@ var init_checkpoint = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/hashedrekord.js
+// node_modules/@freedomofpress/sigstore-browser/dist/tlog/hashedrekord.js
 async function verifyHashedRekordBody(entry, bundle) {
   const hashedRekordEntry = entry;
   switch (hashedRekordEntry.apiVersion) {
@@ -5069,12 +5069,12 @@ function verifyHashedRekordV002Body(entry, bundle) {
   }
 }
 var init_hashedrekord = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/hashedrekord.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/tlog/hashedrekord.js"() {
     init_dist();
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/dsse.js
+// node_modules/@freedomofpress/sigstore-browser/dist/tlog/dsse.js
 async function verifyDSSEBody(entry, bundle) {
   const dsseEntry = entry;
   switch (dsseEntry.apiVersion) {
@@ -5145,13 +5145,13 @@ async function verifyDSSE002Body(entry, bundle) {
   }
 }
 var init_dsse2 = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/dsse.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/tlog/dsse.js"() {
     init_dist();
     init_interfaces2();
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/intoto.js
+// node_modules/@freedomofpress/sigstore-browser/dist/tlog/intoto.js
 async function verifyIntotoBody(entry, bundle) {
   const intotoEntry = entry;
   if (intotoEntry.apiVersion !== "0.0.2") {
@@ -5188,13 +5188,13 @@ async function verifyIntotoBody(entry, bundle) {
   }
 }
 var init_intoto = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/intoto.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/tlog/intoto.js"() {
     init_dist();
     init_interfaces2();
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/body.js
+// node_modules/@freedomofpress/sigstore-browser/dist/tlog/body.js
 async function verifyTLogBody(entry, bundle) {
   const rekorEntry = parseCanonicalBody(entry);
   const { kind, version } = entry.kindVersion;
@@ -5225,7 +5225,7 @@ function parseCanonicalBody(entry) {
   }
 }
 var init_body = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/body.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/tlog/body.js"() {
     init_dist();
     init_hashedrekord();
     init_dsse2();
@@ -5233,19 +5233,19 @@ var init_body = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/error.js
+// node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/error.js
 var RFC3161TimestampVerificationError;
 var init_error2 = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/error.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/error.js"() {
     RFC3161TimestampVerificationError = class extends Error {
     };
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/tstinfo.js
+// node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/tstinfo.js
 var TSTInfo;
 var init_tstinfo = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/tstinfo.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/tstinfo.js"() {
     init_dist();
     init_interfaces2();
     init_oid();
@@ -5290,10 +5290,10 @@ var init_tstinfo = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/timestamp.js
+// node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/timestamp.js
 var OID_PKCS9_CONTENT_TYPE_SIGNED_DATA, OID_PKCS9_CONTENT_TYPE_TSTINFO, OID_PKCS9_MESSAGE_DIGEST_KEY, RFC3161Timestamp;
 var init_timestamp = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/timestamp.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/timestamp.js"() {
     init_dist();
     init_interfaces2();
     init_oid();
@@ -5460,14 +5460,14 @@ var init_timestamp = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/index.js
+// node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/index.js
 var init_rfc3161 = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/index.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/index.js"() {
     init_timestamp();
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/timestamp/tsa.js
+// node_modules/@freedomofpress/sigstore-browser/dist/timestamp/tsa.js
 async function verifyRFC3161Timestamp(timestamp, data, timestampAuthorities) {
   const signingTime = timestamp.signingTime;
   let validAuthorities = filterCertAuthorities(timestampAuthorities, signingTime);
@@ -5551,14 +5551,14 @@ async function verifyBundleTimestamp(timestampData, signature, timestampAuthorit
   return verifiedResults.map((r) => r.signingTime);
 }
 var init_tsa = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/timestamp/tsa.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/timestamp/tsa.js"() {
     init_dist();
     init_x509();
     init_rfc3161();
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/crypto.js
+// node_modules/@freedomofpress/tuf-browser/dist/crypto.js
 function getRoleKeys(keys, keyids) {
   const roleKeys = new Map(keys);
   for (const key of keys.keys()) {
@@ -5615,12 +5615,12 @@ async function checkSignatures(keys, roleKeys, signed, signatures, threshold) {
   }
 }
 var init_crypto2 = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/crypto.js"() {
+  "node_modules/@freedomofpress/tuf-browser/dist/crypto.js"() {
     init_dist();
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/encoding.js
+// node_modules/@freedomofpress/tuf-browser/dist/storage/encoding.js
 function isRawBytesWrapper(value) {
   return value != null && typeof value === "object" && "__raw_bytes__" in value && // eslint-disable-next-line
   typeof value.__raw_bytes__ === "string";
@@ -5633,15 +5633,15 @@ function createRawBytesWrapper(value) {
   return { __raw_bytes__: Uint8ArrayToBase64(value) };
 }
 var init_encoding2 = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/encoding.js"() {
+  "node_modules/@freedomofpress/tuf-browser/dist/storage/encoding.js"() {
     init_dist();
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/browser.js
+// node_modules/@freedomofpress/tuf-browser/dist/storage/browser.js
 var ExtensionStorageBackend;
 var init_browser = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/browser.js"() {
+  "node_modules/@freedomofpress/tuf-browser/dist/storage/browser.js"() {
     init_encoding2();
     ExtensionStorageBackend = class {
       async read(key) {
@@ -5665,10 +5665,10 @@ var init_browser = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/localstorage.js
+// node_modules/@freedomofpress/tuf-browser/dist/storage/localstorage.js
 var LocalStorageBackend;
 var init_localstorage = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/localstorage.js"() {
+  "node_modules/@freedomofpress/tuf-browser/dist/storage/localstorage.js"() {
     init_encoding2();
     LocalStorageBackend = class {
       async read(key) {
@@ -5694,10 +5694,10 @@ var init_localstorage = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/memory.js
+// node_modules/@freedomofpress/tuf-browser/dist/storage/memory.js
 var MemoryBackend;
 var init_memory = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/memory.js"() {
+  "node_modules/@freedomofpress/tuf-browser/dist/storage/memory.js"() {
     init_encoding2();
     MemoryBackend = class {
       constructor() {
@@ -5725,10 +5725,10 @@ var init_memory = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/types.js
+// node_modules/@freedomofpress/tuf-browser/dist/types.js
 var Roles, TOP_LEVEL_ROLE_NAMES;
 var init_types = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/types.js"() {
+  "node_modules/@freedomofpress/tuf-browser/dist/types.js"() {
     init_dist();
     (function(Roles2) {
       Roles2["Root"] = "root";
@@ -5745,14 +5745,14 @@ var init_types = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/tuf.js
+// node_modules/@freedomofpress/tuf-browser/dist/tuf.js
 var tuf_exports = {};
 __export(tuf_exports, {
   TUFClient: () => TUFClient
 });
 var TUFClient;
 var init_tuf = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/tuf.js"() {
+  "node_modules/@freedomofpress/tuf-browser/dist/tuf.js"() {
     init_dist();
     init_crypto2();
     init_browser();
@@ -6142,22 +6142,22 @@ var init_tuf = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf-root.js
+// node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf-root.js
 var tuf_root_exports = {};
 __export(tuf_root_exports, {
   default: () => tuf_root_default
 });
 var tuf_root_default;
 var init_tuf_root = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf-root.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf-root.js"() {
     tuf_root_default = "ewogInNpZ25hdHVyZXMiOiBbCiAgewogICAia2V5aWQiOiAiNmYyNjAwODlkNTkyM2RhZjIwMTY2Y2E2NTdjNTQzYWY2MTgzNDZhYjk3MTg4NGE5OTk2MmIwMTk4OGJiZTBjMyIsCiAgICJzaWciOiAiIgogIH0sCiAgewogICAia2V5aWQiOiAiZTcxYTU0ZDU0MzgzNWJhODZhZGFkOTQ2MDM3OWM3NjQxZmI4NzI2ZDE2NGVhNzY2ODAxYTFjNTIyYWJhN2VhMiIsCiAgICJzaWciOiAiMzA0NTAyMjEwMGJiZGRkNDY0ZjgwNjZjZWI4OGJhNzg3Mzc1YzEyY2Q2MzMwNjgwZTA4YzI5MTA3MDNlNjUzOGM3MWNjNzlhZDIwMjIwNTE5MGIwNmU0NTM3ZmU5NjFiM2VmODFmZTY4ZWRjZDAwODljMTlmOTE5YWZlZDQyM2I5YWFmZDcwMDY0MTE1MyIKICB9LAogIHsKICAgImtleWlkIjogIjIyZjRjYWVjNmQ4ZTZmOTU1NWFmNjZiM2Q0YzNjYjA2YTNiYjIzZmRjN2UzOWM5MTZjNjFmNDYyZTZmNTJiMDYiLAogICAic2lnIjogIjMwNDQwMjIwNjkzMDZjZDUyNTdmNzMyYTc0MGMxYWZlNjBhOGU0MzNjNWRlNThlYWZlYWRiZTk5YzMzNmM5YzcxZDE5OGNmODAyMjAwZDc3Mzk1M2FlN2RiYzQ4ZDNlNWJhZDlhNmY2NGJhZmZmMTk2YjdlMmFkNGE1MmExOTUxOTM2N2Q0N2RjMDQyIgogIH0sCiAgewogICAia2V5aWQiOiAiNjE2NDM4MzgxMjViNDQwYjQwZGI2OTQyZjVjYjVhMzFjMGRjMDQzNjgzMTZlYjJhYWE1OGI5NTkwNGE1ODIyMiIsCiAgICJzaWciOiAiMzA0NDAyMjA0ZDIxYTJlYzgwZGY2NmU2MWY2ZmUyOTEyOTUxZGM0N2RmODM2MDM2ZjhjMGFiMTA4MTZkMzc1ZTcxZGJmNzllMDIyMDU0N2FkY2UxYWZkZjA0ZTY3OTRlZmEyMDNkZDUyNjRjNmY3ZTBlZjc4ZTU3ZmU5MzRiMGQyNmNiOTk0ZWVjNzYiCiAgfSwKICB7CiAgICJrZXlpZCI6ICJhNjg3ZTViZjRmYWI4MmIwZWU1OGQ0NmUwNWM5NTM1MTQ1YTJjOWFmYjQ1OGY0M2Q0MmI0NWNhMGZkY2UyYTcwIiwKICAgInNpZyI6ICIzMDQ1MDIyMDYwODI2NDk2NTU3MTQ0ZWIxNjQ5ODkzZWQ1ZjZmNGVhNTQ1MzZmZWIwY2E4MmY4Yjg5YWU2NDFiZTM5NzQzZTUwMjIxMDBhZDcxMThiNWU5ZDQ4MzczMjYyMDZlNDEyZmM2ZGEyOTk5OTI1ZDExMDMyOGE3YzE2NmIwNmM2MjQzMzZjOTNmIgogIH0sCiAgewogICAia2V5aWQiOiAiMTgzZTY0ZjM3NjcwZGMxM2NhMGQyODk5NWEzMDUzZjM3NDA5NTRkZGNlNDQzMjFhNDFlNDY1MzRjZjQ0ZTYzMiIsCiAgICJzaWciOiAiMzA0NjAyMjEwMGQ4MTc5NDM5YzJlNzNlYjBjMTczM2FiZWU3ZmFmODMyZGNhZWE3MjYzZWRjYjQ5MTk4OTFjM2EyNDdmMDU5MjMwMjIxMDBlMWE0MzdlMDc5N2U4MDNmOWI3MmRjOWQyZDkyMTU1YjBhMjI3MGMyNGVmZGQ1ZjRiM2E1ZDhmMGIwZjQzMWE3IgogIH0KIF0sCiAic2lnbmVkIjogewogICJfdHlwZSI6ICJyb290IiwKICAiY29uc2lzdGVudF9zbmFwc2hvdCI6IHRydWUsCiAgImV4cGlyZXMiOiAiMjAyNi0wMS0yMlQxMzowNTo1OVoiLAogICJrZXlzIjogewogICAiMGM4NzQzMmMzYmYwOWZkOTkxODlmZGMzMmZhNWVhZWRmNGU0YTVmYWM3YmFiNzNmYTA0YTJlMGZjNjRhZjZmNSI6IHsKICAgICJrZXlpZF9oYXNoX2FsZ29yaXRobXMiOiBbCiAgICAgInNoYTI1NiIsCiAgICAgInNoYTUxMiIKICAgIF0sCiAgICAia2V5dHlwZSI6ICJlY2RzYSIsCiAgICAia2V5dmFsIjogewogICAgICJwdWJsaWMiOiAiLS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS1cbk1Ga3dFd1lIS29aSXpqMENBUVlJS29aSXpqMERBUWNEUWdBRVdSaUdyNStqKzNKNVNzSCtadHI1bkUySDJ3TzdcbkJWK25PM3M5M2dMY2ExOHFUT3pIWTFvV3lBR0R5a01Tc0dUVUJTdDlEK0FuMEtmS3NEMm1mU000MlE9PVxuLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tXG4iCiAgICB9LAogICAgInNjaGVtZSI6ICJlY2RzYS1zaGEyLW5pc3RwMjU2IiwKICAgICJ4LXR1Zi1vbi1jaS1vbmxpbmUtdXJpIjogImdjcGttczpwcm9qZWN0cy9zaWdzdG9yZS1yb290LXNpZ25pbmcvbG9jYXRpb25zL2dsb2JhbC9rZXlSaW5ncy9yb290L2NyeXB0b0tleXMvdGltZXN0YW1wL2NyeXB0b0tleVZlcnNpb25zLzEiCiAgIH0sCiAgICIxODNlNjRmMzc2NzBkYzEzY2EwZDI4OTk1YTMwNTNmMzc0MDk1NGRkY2U0NDMyMWE0MWU0NjUzNGNmNDRlNjMyIjogewogICAgImtleXR5cGUiOiAiZWNkc2EiLAogICAgImtleXZhbCI6IHsKICAgICAicHVibGljIjogIi0tLS0tQkVHSU4gUFVCTElDIEtFWS0tLS0tXG5NRmt3RXdZSEtvWkl6ajBDQVFZSUtvWkl6ajBEQVFjRFFnQUVNeHBQT0pDSVo1b3RHNDEwNmZHSnNlRVFpM1Y5XG5wa01ZUTR1eVY5VGoxTTdXSFhJeUxHK2prZnZ1RzBnbFExSlpiUlpaQlYzZ0FSNHNvamRHSElTZW93PT1cbi0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLVxuIgogICAgfSwKICAgICJzY2hlbWUiOiAiZWNkc2Etc2hhMi1uaXN0cDI1NiIsCiAgICAieC10dWYtb24tY2kta2V5b3duZXIiOiAiQGxhbmNlIgogICB9LAogICAiMjJmNGNhZWM2ZDhlNmY5NTU1YWY2NmIzZDRjM2NiMDZhM2JiMjNmZGM3ZTM5YzkxNmM2MWY0NjJlNmY1MmIwNiI6IHsKICAgICJrZXlpZF9oYXNoX2FsZ29yaXRobXMiOiBbCiAgICAgInNoYTI1NiIsCiAgICAgInNoYTUxMiIKICAgIF0sCiAgICAia2V5dHlwZSI6ICJlY2RzYSIsCiAgICAia2V5dmFsIjogewogICAgICJwdWJsaWMiOiAiLS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS1cbk1Ga3dFd1lIS29aSXpqMENBUVlJS29aSXpqMERBUWNEUWdBRXpCelZPbUhDUG9qTVZMU0kzNjRXaWlWOE5QckRcbjZJZ1J4Vmxpc2t6L3YreTNKRVI1bWNWR2NPTmxpRGNXTUM1SjJsZkhtalBOUGhiNEg3eG04THpmU0E9PVxuLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tXG4iCiAgICB9LAogICAgInNjaGVtZSI6ICJlY2RzYS1zaGEyLW5pc3RwMjU2IiwKICAgICJ4LXR1Zi1vbi1jaS1rZXlvd25lciI6ICJAc2FudGlhZ290b3JyZXMiCiAgIH0sCiAgICI2MTY0MzgzODEyNWI0NDBiNDBkYjY5NDJmNWNiNWEzMWMwZGMwNDM2ODMxNmViMmFhYTU4Yjk1OTA0YTU4MjIyIjogewogICAgImtleWlkX2hhc2hfYWxnb3JpdGhtcyI6IFsKICAgICAic2hhMjU2IiwKICAgICAic2hhNTEyIgogICAgXSwKICAgICJrZXl0eXBlIjogImVjZHNhIiwKICAgICJrZXl2YWwiOiB7CiAgICAgInB1YmxpYyI6ICItLS0tLUJFR0lOIFBVQkxJQyBLRVktLS0tLVxuTUZrd0V3WUhLb1pJemowQ0FRWUlLb1pJemowREFRY0RRZ0FFaW5pa1NzQVFtWWtOZUg1ZVlxL0NuSXpMYWFjT1xueGxTYWF3UURPd3FLeS90Q3F4cTV4eFBTSmMyMUs0V0loczlHeU9rS2Z6dWVZM0dJTHpjTUpaNGNXdz09XG4tLS0tLUVORCBQVUJMSUMgS0VZLS0tLS1cbiIKICAgIH0sCiAgICAic2NoZW1lIjogImVjZHNhLXNoYTItbmlzdHAyNTYiLAogICAgIngtdHVmLW9uLWNpLWtleW93bmVyIjogIkBib2JjYWxsYXdheSIKICAgfSwKICAgImE2ODdlNWJmNGZhYjgyYjBlZTU4ZDQ2ZTA1Yzk1MzUxNDVhMmM5YWZiNDU4ZjQzZDQyYjQ1Y2EwZmRjZTJhNzAiOiB7CiAgICAia2V5aWRfaGFzaF9hbGdvcml0aG1zIjogWwogICAgICJzaGEyNTYiLAogICAgICJzaGE1MTIiCiAgICBdLAogICAgImtleXR5cGUiOiAiZWNkc2EiLAogICAgImtleXZhbCI6IHsKICAgICAicHVibGljIjogIi0tLS0tQkVHSU4gUFVCTElDIEtFWS0tLS0tXG5NRmt3RXdZSEtvWkl6ajBDQVFZSUtvWkl6ajBEQVFjRFFnQUUwZ2hyaDkyTHcxWXIzaWRHVjVXcUN0TURCOEN4XG4rRDhoZEM0dzJaTE5JcGxWUm9WR0xza1lhM2doZU15T2ppSjhrUGkxNWFRMi8vN1Arb2o3VXZKUEd3PT1cbi0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLVxuIgogICAgfSwKICAgICJzY2hlbWUiOiAiZWNkc2Etc2hhMi1uaXN0cDI1NiIsCiAgICAieC10dWYtb24tY2kta2V5b3duZXIiOiAiQGpvc2h1YWdsIgogICB9LAogICAiZTcxYTU0ZDU0MzgzNWJhODZhZGFkOTQ2MDM3OWM3NjQxZmI4NzI2ZDE2NGVhNzY2ODAxYTFjNTIyYWJhN2VhMiI6IHsKICAgICJrZXlpZF9oYXNoX2FsZ29yaXRobXMiOiBbCiAgICAgInNoYTI1NiIsCiAgICAgInNoYTUxMiIKICAgIF0sCiAgICAia2V5dHlwZSI6ICJlY2RzYSIsCiAgICAia2V5dmFsIjogewogICAgICJwdWJsaWMiOiAiLS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS1cbk1Ga3dFd1lIS29aSXpqMENBUVlJS29aSXpqMERBUWNEUWdBRUVYc3ozU1pYRmI4ak1WNDJqNnBKbHlqYmpSOEtcbk4zQndvY2V4cTZMTUliNXFzV0tPUXZMTjE2TlVlZkxjNEhzd09vdW1Sc1ZWYWFqU3BRUzZmb2JrUnc9PVxuLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tXG4iCiAgICB9LAogICAgInNjaGVtZSI6ICJlY2RzYS1zaGEyLW5pc3RwMjU2IiwKICAgICJ4LXR1Zi1vbi1jaS1rZXlvd25lciI6ICJAbW5tNjc4IgogICB9CiAgfSwKICAicm9sZXMiOiB7CiAgICJyb290IjogewogICAgImtleWlkcyI6IFsKICAgICAiZTcxYTU0ZDU0MzgzNWJhODZhZGFkOTQ2MDM3OWM3NjQxZmI4NzI2ZDE2NGVhNzY2ODAxYTFjNTIyYWJhN2VhMiIsCiAgICAgIjIyZjRjYWVjNmQ4ZTZmOTU1NWFmNjZiM2Q0YzNjYjA2YTNiYjIzZmRjN2UzOWM5MTZjNjFmNDYyZTZmNTJiMDYiLAogICAgICI2MTY0MzgzODEyNWI0NDBiNDBkYjY5NDJmNWNiNWEzMWMwZGMwNDM2ODMxNmViMmFhYTU4Yjk1OTA0YTU4MjIyIiwKICAgICAiYTY4N2U1YmY0ZmFiODJiMGVlNThkNDZlMDVjOTUzNTE0NWEyYzlhZmI0NThmNDNkNDJiNDVjYTBmZGNlMmE3MCIsCiAgICAgIjE4M2U2NGYzNzY3MGRjMTNjYTBkMjg5OTVhMzA1M2YzNzQwOTU0ZGRjZTQ0MzIxYTQxZTQ2NTM0Y2Y0NGU2MzIiCiAgICBdLAogICAgInRocmVzaG9sZCI6IDMKICAgfSwKICAgInNuYXBzaG90IjogewogICAgImtleWlkcyI6IFsKICAgICAiMGM4NzQzMmMzYmYwOWZkOTkxODlmZGMzMmZhNWVhZWRmNGU0YTVmYWM3YmFiNzNmYTA0YTJlMGZjNjRhZjZmNSIKICAgIF0sCiAgICAidGhyZXNob2xkIjogMSwKICAgICJ4LXR1Zi1vbi1jaS1leHBpcnktcGVyaW9kIjogMzY1MCwKICAgICJ4LXR1Zi1vbi1jaS1zaWduaW5nLXBlcmlvZCI6IDM2NQogICB9LAogICAidGFyZ2V0cyI6IHsKICAgICJrZXlpZHMiOiBbCiAgICAgImU3MWE1NGQ1NDM4MzViYTg2YWRhZDk0NjAzNzljNzY0MWZiODcyNmQxNjRlYTc2NjgwMWExYzUyMmFiYTdlYTIiLAogICAgICIyMmY0Y2FlYzZkOGU2Zjk1NTVhZjY2YjNkNGMzY2IwNmEzYmIyM2ZkYzdlMzljOTE2YzYxZjQ2MmU2ZjUyYjA2IiwKICAgICAiNjE2NDM4MzgxMjViNDQwYjQwZGI2OTQyZjVjYjVhMzFjMGRjMDQzNjgzMTZlYjJhYWE1OGI5NTkwNGE1ODIyMiIsCiAgICAgImE2ODdlNWJmNGZhYjgyYjBlZTU4ZDQ2ZTA1Yzk1MzUxNDVhMmM5YWZiNDU4ZjQzZDQyYjQ1Y2EwZmRjZTJhNzAiLAogICAgICIxODNlNjRmMzc2NzBkYzEzY2EwZDI4OTk1YTMwNTNmMzc0MDk1NGRkY2U0NDMyMWE0MWU0NjUzNGNmNDRlNjMyIgogICAgXSwKICAgICJ0aHJlc2hvbGQiOiAzCiAgIH0sCiAgICJ0aW1lc3RhbXAiOiB7CiAgICAia2V5aWRzIjogWwogICAgICIwYzg3NDMyYzNiZjA5ZmQ5OTE4OWZkYzMyZmE1ZWFlZGY0ZTRhNWZhYzdiYWI3M2ZhMDRhMmUwZmM2NGFmNmY1IgogICAgXSwKICAgICJ0aHJlc2hvbGQiOiAxLAogICAgIngtdHVmLW9uLWNpLWV4cGlyeS1wZXJpb2QiOiA3LAogICAgIngtdHVmLW9uLWNpLXNpZ25pbmctcGVyaW9kIjogNgogICB9CiAgfSwKICAic3BlY192ZXJzaW9uIjogIjEuMCIsCiAgInZlcnNpb24iOiAxMywKICAieC10dWYtb24tY2ktZXhwaXJ5LXBlcmlvZCI6IDE5NywKICAieC10dWYtb24tY2ktc2lnbmluZy1wZXJpb2QiOiA0NgogfQp9";
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf.js
+// node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf.js
 var DEFAULT_CONFIG, TrustedRootProvider;
 var init_tuf2 = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf.js"() {
     init_dist();
     DEFAULT_CONFIG = {
       metadataUrl: "https://tuf-repo-cdn.sigstore.dev/",
@@ -6265,10 +6265,10 @@ var init_tuf2 = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/errors.js
+// node_modules/@freedomofpress/sigstore-browser/dist/errors.js
 var VerificationError, TimestampError, CertificateError, TLogError, SignatureError, PolicyError;
 var init_errors = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/errors.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/errors.js"() {
     VerificationError = class _VerificationError extends Error {
       constructor(code, message) {
         super(message);
@@ -6315,10 +6315,10 @@ var init_errors = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/policy.js
+// node_modules/@freedomofpress/sigstore-browser/dist/policy.js
 var GITHUB_OIDC_ISSUER, SingleX509ExtPolicyV1, SingleX509ExtPolicyV2, OIDCIssuer, GitHubWorkflowTrigger, GitHubWorkflowSHA, GitHubWorkflowName, GitHubWorkflowRepository, GitHubWorkflowRef, OIDCIssuerV2, OIDCBuildSignerURI, OIDCBuildSignerDigest, OIDCRunnerEnvironment, OIDCSourceRepositoryURI, OIDCSourceRepositoryDigest, OIDCSourceRepositoryRef, OIDCSourceRepositoryIdentifier, OIDCSourceRepositoryOwnerURI, OIDCSourceRepositoryOwnerIdentifier, OIDCBuildConfigURI, OIDCBuildConfigDigest, OIDCBuildTrigger, OIDCRunInvocationURI, OIDCSourceRepositoryVisibility, AnyOf, AllOf, Identity;
 var init_policy = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/policy.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/policy.js"() {
     init_errors();
     init_cert();
     GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com";
@@ -6608,7 +6608,7 @@ var init_policy = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/sigstore.js
+// node_modules/@freedomofpress/sigstore-browser/dist/sigstore.js
 function getBundleVersion(mediaType) {
   switch (mediaType) {
     case `${MEDIA_TYPE_BASE}+json;version=0.1`:
@@ -6633,7 +6633,7 @@ function assertRekorV2Timestamp(timestampData) {
 }
 var MEDIA_TYPE_BASE, SigstoreVerifier;
 var init_sigstore = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/sigstore.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/sigstore.js"() {
     init_dist();
     init_interfaces2();
     init_x509();
@@ -7143,7 +7143,7 @@ var init_sigstore = __esm({
   }
 });
 
-// ../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/index.js
+// node_modules/@freedomofpress/sigstore-browser/dist/index.js
 var dist_exports = {};
 __export(dist_exports, {
   AllOf: () => AllOf,
@@ -7230,7 +7230,7 @@ __export(dist_exports, {
   verifyRFC3161Timestamp: () => verifyRFC3161Timestamp
 });
 var init_dist2 = __esm({
-  "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/index.js"() {
+  "node_modules/@freedomofpress/sigstore-browser/dist/index.js"() {
     init_sigstore();
     init_errors();
     init_tsa();
