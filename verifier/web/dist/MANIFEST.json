@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-web.js",
-  "bytes": 245930,
-  "sha256": "58652f0bab3506968fbfe1625d6c61cc3dfefa14f22629a297b3b3c824fec1aa"
+  "bytes": 246267,
+  "sha256": "3c827b30d9b5a72d5bdea55c9a16b7b96cea9a73da0f9c691b33a5081d7116a1"
  },
  "build": {
   "tool": "esbuild",
@@ -353,8 +353,8 @@
   },
   {
    "path": "verifier/envelope.mjs",
-   "bytes": 12581,
-   "sha256": "fbf4937215bb009bcac0a8221cf68c4e4284ae2b1942722a395b09bc42b32a48"
+   "bytes": 13489,
+   "sha256": "f3a5ca25cfc8dfe76d2946803c2f5ffdb311a1bd83ebbb0af988debf46553b95"
   },
   {
    "path": "verifier/index-memory.mjs",
