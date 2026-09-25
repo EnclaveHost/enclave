@@ -13,19 +13,14 @@ import "../../components/toast/toast.js";
 import "../../components/section-head/section-head.js";
 import "../../components/fleet-list/fleet-list.js";
 import { Enclave } from "../core/api.js";
+import { refreshFleetInto } from "../core/fleet-read.js";
 
 let _poll = null;
 
 async function refreshFleet(){
-  const fl = document.querySelector(".arch-fleet c-fleet-list"); if (!fl) return;
-  try {
-    const r = await fetch(Enclave.base.replace(/\/v1\/?$/, "") + "/enclaves", { headers: { "Accept": "application/json" } });
-    if (!r.ok) throw new Error("no fleet view");
-    const j = await r.json();
-    fl.rows = (j.enclaves || []).slice().sort((a, b) =>
-      ((b.availability && b.availability.gpu) === true) - ((a.availability && a.availability.gpu) === true)
-      || String(a.endpoint || "").localeCompare(String(b.endpoint || "")));
-  } catch(e){ fl.rows = []; }   // the component's empty state reads "no live enclaves"
+  // a failed read shows the last good table marked stale, or an error state -
+  // never the component's "no app hosts" empty state (js/core/fleet-read.js)
+  await refreshFleetInto(document.querySelector(".arch-fleet c-fleet-list"), Enclave.base);
 }
 
 export function boot(){
