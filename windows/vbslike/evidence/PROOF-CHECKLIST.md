@@ -243,10 +243,14 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
      the standalone canary's `0160d835`). hvlab-accept (28 checks) and restart-accept A0-A9 ALL PASS, with every input
      hashed at use (tree list `842ba056`). This is NOT an eligibility promotion (enclave-63's rollover rule and
      enclave-99's review) and NOT host exclusion. Production attach and respawn (OFF) are unchanged.
-   - HELD (d1, 09:57Z): the rollover to `b7ba7731`. It needs enclave-99's verification review, then Steven's explicit
-     decision; a peer GO does not settle it. v38 (windows/vbslike-pkg `0f328a18`, id `88c18259`) records 094631 only:
-     vbsLinux's firmware stays `a44bb55a`. v38 is staged at `pkg\88c18259137a5ba1\` (staged.json `437e817d`,
-     check -Fetch and -SelfTest 9/9 PASS by enclave-63; d1 re-hashed the manifest and IGVMs on the box at 10:06:03Z).
+   - DONE (v39, windows/vbslike-pkg `7e979b38`, id `61028ec3`; d1's review `v39-rollover-review/`): THE ROLLOVER.
+     `b7ba7731` (56FBB27F) is the ONE eligible reference image. a44bb55a (58DFEBFE) and its twin are superseded and
+     refused. The digest set is the same 12 (1 eligible, 11 refused), with every debug and probe image refused by
+     exact digest. enclave-99 reviewed it and re-pinned it on main (`cf1b9dc3`). v39 is staged at
+     `pkg\61028ec33770f4d7\` (staged.json `1cca37cc`; SelfTest 17/17 incl. the seven blank-master corruptions on
+     5.1). Rollback to v38 (`88c18259`, reference `ba3f49a7`) is intact on the box.
+     "Eligible" is PROSPECTIVE only: no production capacity, verified status, badge or protected-host admission.
+     Custom-report verification stays fail-closed. host_excluded=no. Attach and respawn OFF; recovered VMs HELD.
    - DONE (3e3ad330; enclave-99's contract V5 "keys", main `1ce4bd69`): the guest-state master `4f051697` is MEASURED
      blank (4 MiB body all zero, 57 bytes in the VHD footer only, no GUESTRTS), so partitions share no vTPM state.
      enclave-63 pins that property in check.ps1. No re-mint.
