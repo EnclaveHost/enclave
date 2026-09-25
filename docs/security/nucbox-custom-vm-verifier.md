@@ -243,7 +243,8 @@ The verifier's rule, AFTER V1 (the signature) and never before it:
   `GUESTRTS` header. So the master carries no VMGS file table and no vTPM state to share, and each run's copy is formatted
   by that run's own OpenHCL. Provenance: a never-started `New-VM -GuestStateIsolationType VBS` donor; the mint command
   line and the hash at mint are not recorded. The package pins that PROPERTY at use in check.ps1 (size, zero body, footer
-  cookie, no GUESTRTS, and the hash), which is stronger than a mint recipe because it checks the bytes every time.
+  cookie, no GUESTRTS, and the hash; `windows/vbslike-pkg` 7e979b38, v39, with seven named corruptions refused in its
+  self-test), which is stronger than a mint recipe because it checks the bytes every time.
   Before any future use of the vTPM as a key (custody, or a TPM-backed report key), one thing is still required: two
   partitions must be shown to report DIFFERENT AKs. Fresh formatting shows no shared input state, not that key
   generation is distinct per partition.
