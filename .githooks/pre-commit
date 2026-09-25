@@ -13,6 +13,11 @@ if [ -f "$root/.githooks/scan-crypto-keys.py" ]; then scanners+=("$root/.githook
 if [ -f "$here/scan-crypto-keys.py" ] && { [ "${#scanners[@]}" -eq 0 ] || ! cmp -s "$here/scan-crypto-keys.py" "${scanners[0]}"; }; then
   scanners+=("$here/scan-crypto-keys.py")
 fi
+# no scanner at all is a refusal, never a silent pass (the hook used to call its own copy unconditionally)
+if [ "${#scanners[@]}" -eq 0 ]; then
+  echo "pre-commit: no crypto-key scanner found (neither $root/.githooks/scan-crypto-keys.py nor $here/scan-crypto-keys.py): COMMIT REFUSED" >&2
+  exit 1
+fi
 for sc in "${scanners[@]}"; do
   python3 "$sc" --staged || {
     echo "pre-commit: COMMIT REFUSED (confirmed false positive: git commit --no-verify)" >&2
