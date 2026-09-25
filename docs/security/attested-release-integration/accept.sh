@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Post-activation acceptance, READ-ONLY, run from any host with curl + node (no key needed). Exits non-zero on any miss.
 #   accept.sh [API base, default https://api.enclave.host]
+#   ADMIT=<release id> accept.sh ...   also requires, for every canary, an image under that release with releaseAdmitted
+#                                      true (the relay predicts AND admits it: the tree switch's precondition)
 # 1. each live canary's expected guest (the relay's PREDICTION) contains the canary's own chip-attested measurement and
 #    AppID, as a (measurement, runtimeId) pair; 2. the release is still OFF (a ticket request answers 503
 #    release_unconfigured); 3. an unknown deployment is 404, a malformed id 422.
@@ -22,8 +24,11 @@ while read -r id app meas; do
   node -e '
     const [b, app, meas] = process.argv.slice(1); let r; try { r = JSON.parse(b); } catch { r = {}; }
     const hit = r.appId === app && (r.images || []).find((i) => i.measurement === meas && i.runtimeId === "ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8");
-    console.log((hit ? "ok   " : "FAIL ") + `${process.argv[4].slice(0, 10)}: ` + (hit ? `measurement ${meas.slice(0, 12)} predicted under release ${hit.release.slice(0, 12)}` : b.slice(0, 200)));
-    process.exit(hit ? 0 : 1);' "$body" "$app" "$meas" "$id" || fail=1
+    const adm = process.env.ADMIT, ai = adm && (r.images || []).find((i) => i.release === adm && i.releaseAdmitted === true);
+    const ok = hit && (!adm || ai);
+    console.log((ok ? "ok   " : "FAIL ") + `${process.argv[4].slice(0, 10)}: ` + (ok ? `measurement ${meas.slice(0, 12)} predicted under release ${hit.release.slice(0, 12)}` +
+      (adm ? `; release ${adm.slice(0, 12)} predicted (${ai.measurement.slice(0, 12)}) and admitted` : "") : b.slice(0, 300)));
+    process.exit(ok ? 0 : 1);' "$body" "$app" "$meas" "$id" || fail=1
 done <<'CANARIES'
 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 d2c4dfc0ec475910aa509d1045ae4f2997346c1cd666a167cd5fc959c036aa24 be6b8644384eee12396881e3e4cbca4259ae1a16a1e198d2c48d577ff7b3c6d355971eccebe8353749439adca718da4d
 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595 9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45 c068f423578cda6316fd9462db6b5e9047bd34d6e2c0ae3b0819828e8db78831bd76bdb27092efefe380713662815f9e
