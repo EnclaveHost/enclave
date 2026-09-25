@@ -21,6 +21,7 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
+import fs from "node:fs";
 import { bootDaemon, listenOnFreePort } from "./helpers/daemon.mjs";
 
 const RELAY_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "relay");
@@ -138,9 +139,8 @@ const idOf = (url) => keccak256(stringToBytes(url));
 
 async function fleet(t) {
   const elig = stubBox("eligible", { eligible: true }), inel = stubBox("ineligible", { eligible: false, lists: [D_E, "dep_zzz"] });
-  const flip = stubBox("flip", { eligible: true });
-  elig.refuse = (u) => u.startsWith("/x/dep_zzz");            // the eligible box does NOT host the non-ledger id
-  flip.refuse = (u) => u.startsWith("/x/dep_zzz");
+  const flip = stubBox("flip", { eligible: true, lists: ["dep_zzz"] });   // hosts the non-ledger id while eligible
+  elig.refuse = (u) => u.startsWith("/x/dep_zzz");            // the other eligible box does NOT host it
   for (const b of [elig, inel, flip]) { b.server.listen(0, "127.0.0.1"); await once(b.server, "listening"); t.after(() => b.server.close()); }
   const url = (b) => `http://127.0.0.1:${b.server.address().port}`;
   const ledger = [
@@ -184,7 +184,14 @@ test("U7: an ELIGIBLE lease holder is routed on every tenant path; an INELIGIBLE
   // the bare record read (GET /v1/deployments/<id>) falls back to the public ledger row instead of forwarding
   r = await getJ(origin, `/v1/deployments/${D_I}`, { authorization: "Bearer " + jwt(OWNER) });
   assert.equal(r.status, 200); assert.equal(r.body.ledger, true, "the ledger row answers; the ineligible box is not asked");
-  assert.deepEqual(f.inel.log.slice(before).filter((l) => !l.startsWith("GET /v1/deployments")), [], "no tenant request reached the ineligible holder");
+  // the signed-in LIST fans the caller's session out to eligible hosts only (enclave-d1's review): the ineligible box
+  // never receives a session it could replay through the relay
+  assert.equal((await getJ(origin, "/v1/deployments", { authorization: "Bearer " + jwt(OWNER) })).status, 200);
+  assert.ok(f.elig.log.includes("GET /v1/deployments"), "the eligible host was asked");
+  // ...and a sign-in pinned to the ineligible box lands on an eligible one instead (sticky), never on it
+  r = await getJ(origin, `/v1/auth/nonce?enclave=${encodeURIComponent(f.url(f.inel))}`);
+  assert.notEqual(r.body?.servedBy, "ineligible", JSON.stringify(r.body));
+  assert.deepEqual(f.inel.log.slice(before), [], "no tenant request, session or sign-in reached the ineligible holder");
 });
 
 test("U7: unknown, unleased, unreachable or unreadable answers REFUSE and never become a probe (fallback bypass)", async (t) => {
@@ -196,8 +203,13 @@ test("U7: unknown, unleased, unreachable or unreadable answers REFUSE and never 
   assert.equal(r.status, 503); assert.equal(r.body.error, "runner_unreachable", "the holder is not live: no other box may answer for it");
   r = await getJ(origin, `/x/${D_UNLEASED}/`);
   assert.equal(r.status, 404); assert.equal(r.body.error, "not_running");
-  r = await getJ(origin, `/x/${"0x" + "c9".repeat(32)}/`);
-  assert.equal(r.status, 404); assert.equal(r.body.error, "not_found");
+  // an unknown id right after: the fresh ledger read is on its 5 s cooldown, so the answer is "not yet", never a probe
+  const UNKNOWN = "0x" + "c9".repeat(32);
+  r = await getJ(origin, `/x/${UNKNOWN}/`);
+  assert.equal(r.status, 503); assert.equal(r.body.error, "not_yet_visible");
+  await delay(5200);
+  r = await getJ(origin, `/x/${UNKNOWN}/`);
+  assert.equal(r.status, 404); assert.equal(r.body.error, "not_found", "after the cooldown, a fresh read says no");
   assert.equal((await fetch(origin + `/internal/tls-ask?domain=${D_GONE.slice(2, 10)}.app.enclave.host`)).status, 404);
   assert.deepEqual(probes(), [], "no box was probed for an on-chain id: every box here would have answered 'mine'");
 
@@ -208,21 +220,35 @@ test("U7: unknown, unleased, unreachable or unreadable answers REFUSE and never 
   r = await getJ(blind, `/x/${D_E}/`);
   assert.equal(r.status, 503); assert.equal(r.body.error, "ledger_unavailable");
   assert.deepEqual(b2.log.filter((l) => l.startsWith("HEAD ")), [], "no probe when the ledger is unreadable");
+  // a ledger configured only through the address book, not resolved yet: ledger-shaped ids wait, and are not probed
+  const unresolved = await startRelay(t, { enclaves: `http://127.0.0.1:${b2.server.address().port}`, ledger: [], broken: true,
+                                           env: { DEPLOYMENTS_ADDRESS: "", ADDRESS_BOOK_ADDRESS: "0x" + "34".repeat(20) } });
+  assert.ok(await waitFor(async () => (await getJ(unresolved, "/enclaves")).body?.enclaves?.length === 1));
+  r = await getJ(unresolved, `/x/${D_E}/`);
+  assert.equal(r.status, 503); assert.equal(r.body.error, "ledger_unavailable");
+  assert.deepEqual(b2.log.filter((l) => l.startsWith("HEAD ")), [], "no probe while the configured ledger is unresolved");
 });
 
-test("U7: an owner learned from an INELIGIBLE box's own listing is never a route (cache bypass); a non-ledger id probes eligible hosts only", async (t) => {
+test("U7: a cached owner is used only while eligible (cache bypass); a non-ledger id probes eligible hosts only", async (t) => {
   const f = await fleet(t);
   const origin = await startRelay(t, { enclaves: [f.elig, f.inel, f.flip].map(f.url).join(","), ledger: f.ledger });
   assert.ok(await waitFor(async () => (await getJ(origin, "/enclaves")).body?.enclaves?.length === 3));
-  // the signed-in list fans out; the ineligible box lists D_E and dep_zzz, which teaches the owner cache
+  // the signed-in list fans out to the ELIGIBLE hosts: the flip box lists dep_zzz, which teaches the owner cache
   assert.equal((await getJ(origin, "/v1/deployments", { authorization: "Bearer " + jwt(OWNER) })).status, 200);
-  const before = f.inel.log.length;
-  let r = await getJ(origin, `/x/${D_E}/`);
-  assert.equal(r.status, 200); assert.equal(r.body.servedBy, "eligible", "the ledger decides an on-chain id, never the cache");
+  let r = await getJ(origin, "/x/dep_zzz/");
+  assert.equal(r.status, 200, JSON.stringify(r.body)); assert.equal(r.body.servedBy, "flip");
+  // the ledger decides an on-chain id, whatever any listing said
+  r = await getJ(origin, `/x/${D_E}/`);
+  assert.equal(r.status, 200); assert.equal(r.body.servedBy, "eligible");
+  // the cached owner loses eligibility: the cache no longer routes, and the probe asks eligible hosts only
+  f.flip.eligible = false;
+  assert.ok(await waitFor(async () => (await getJ(origin, "/enclaves")).body?.enclaves?.find((e) => e.endpoint === f.url(f.flip))?.eligible === false));
+  const flipBefore = f.flip.log.length, inelBefore = f.inel.log.length;
   r = await getJ(origin, "/x/dep_zzz/");
   assert.equal(r.status, 404, JSON.stringify(r.body));
-  assert.deepEqual(f.inel.log.slice(before), [], "the ineligible box that claimed dep_zzz was neither routed to nor probed");
-  assert.ok(f.elig.log.includes("HEAD /x/dep_zzz"), "the eligible hosts were probed for the non-ledger id");
+  assert.equal(f.flip.log.length, flipBefore, "the cached (now ineligible) owner received nothing");
+  assert.deepEqual(f.inel.log.slice(inelBefore), [], "the ineligible box that claims every id was neither routed to nor probed");
+  assert.ok(f.elig.log.includes("HEAD /x/dep_zzz"), "the eligible host was probed for the non-ledger id");
 });
 
 test("U7: a holder that LOSES eligibility stops receiving tenant traffic at the next availability poll", async (t) => {
@@ -243,7 +269,7 @@ test("U7: a holder that LOSES eligibility stops receiving tenant traffic at the 
   assert.ok(await waitFor(async () => (await getJ(origin, `/x/${D_FLIP}/`)).status === 200));
 });
 
-test("U7: an explicitly addressed tunnel box carries tenant paths only when eligible (/t/<name> and its box hostname, HTTP and WebSocket)", async (t) => {
+test("U7: an explicitly addressed INELIGIBLE tunnel box is default-deny: only its own read-only surfaces pass (/t/<name> and its box hostname, HTTP and WebSocket)", async (t) => {
   const NAME = "e0123456789abcdef";
   const origin = await startRelay(t, { enclaves: "http://127.0.0.1:1", ledger: [],
     env: { METAL_TUNNEL_TOKENS: `${NAME}:tok-secret`, BOX_ZONE: "box.test" } });
@@ -254,25 +280,56 @@ test("U7: an explicitly addressed tunnel box carries tenant paths only when elig
   ws.on("message", (d) => {
     const f = JSON.parse(d);
     if (f.t !== "req") return;
-    seen.push(f.path);
+    seen.push(`${f.method} ${f.path}`);
     const body = f.path.startsWith("/availability") ? { cpuShareFree: 0.5, nodeVcpus: 8 } : { servedBy: "tunnel" };
     ws.send(JSON.stringify({ t: "res", id: f.id, status: 200, headers: { "content-type": "application/json" },
                              body: Buffer.from(JSON.stringify(body)).toString("base64") }));
   });
   await once(ws, "open");
   assert.ok(await waitFor(async () => ((await getJ(origin, "/enclaves")).body?.enclaves || []).some((e) => e.endpoint === `tunnel://${NAME}`)));
-  const tenant = `/x/${D_E}/`;
-  // its own surfaces stay reachable, by path and by box hostname
-  assert.equal((await getJ(origin, `/t/${NAME}/availability`)).status, 200);
-  assert.equal((await getJ(origin, "/availability", { "x-forwarded-host": `${NAME}.box.test` })).status, 200);
-  // tenant paths are refused: data plane and control plane, by path and by box hostname, HTTP and WebSocket
+  const boxHost = { "x-forwarded-host": `${NAME}.box.test` };
+  // its own read-only surfaces stay reachable, by path and by box hostname
+  for (const p of ["/availability", "/v1/health", "/v1/attestation", "/v1/attestation/verify", "/.well-known/tinfoil-attestation"])
+    assert.equal((await getJ(origin, `/t/${NAME}${p}`)).status, 200, p);
+  assert.equal((await getJ(origin, "/availability", boxHost)).status, 200);
+  assert.equal((await getJ(origin, "/.well-known/tinfoil-attestation", boxHost)).status, 200);
+  // everything else is refused: the tenant paths, enclave-5d's five, the encodings, the collection, and any other path
   const before = seen.length;
-  for (const [p, h] of [[`/t/${NAME}${tenant}`, {}], [`/t/${NAME}/v1/deployments/${D_E}/logs`, {}],
-                        [tenant, { "x-forwarded-host": `${NAME}.box.test` }], [`/v1/deployments/${D_E}`, { "x-forwarded-host": `${NAME}.box.test` }]]) {
-    const r = await getJ(origin, p, h);
-    assert.equal(r.status, 503, `${p} ${JSON.stringify(h)}`); assert.equal(r.body.error, "host_ineligible");
-  }
+  const refused = async (p, h = {}, init = {}) => {
+    const r = await fetch(origin + p, { headers: h, ...init });
+    const b = await r.json().catch(() => null);
+    assert.equal(r.status, 503, `${init.method || "GET"} ${p} ${JSON.stringify(h)}`); assert.equal(b?.error, "host_ineligible", p);
+  };
+  const tenant = `/x/${D_E}/`;
+  for (const p of [tenant, `/v1/deployments/${D_E}/logs`, "/v1/deployments",                               // tenant paths
+                   `/X/${D_E}/`, `/V1/Deployments/${D_E}/logs`,                                            // enclave-5d's case variants
+                   `//x/${D_E}/`, `/%78/${D_E}/`, `/v1//deployments/${D_E}`, `/v1/%64eployments/${D_E}`, `/%2578/${D_E}/`,
+                   "/v1/tls-bridge", "/hello", "/v1/secrets", "/%E0%A4%A"])                                // anything else
+    await refused(`/t/${NAME}${p}`);
+  for (const p of [`/X/${D_E}/`, `/v1/Deployments/${D_E}`, tenant, "/v1/deployments"]) await refused(p, boxHost);   // by box hostname
+  await refused(`/t/${NAME}/v1/deployments`, {}, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  await refused(`/t/${NAME}/v1/attestation`, {}, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
   assert.equal(await upgrade(origin, `/t/${NAME}${tenant}ws`), 503);
-  assert.equal(await upgrade(origin, `${tenant}ws`, { "x-forwarded-host": `${NAME}.box.test` }), 503);
-  assert.deepEqual(seen.slice(before), [], "no tenant path reached the ineligible tunnel box");
+  assert.equal(await upgrade(origin, `${tenant}ws`, boxHost), 503);
+  assert.equal(await upgrade(origin, `/t/${NAME}/X/${D_E}/ws`), 503);
+  assert.deepEqual(seen.slice(before), [], "nothing but its own surfaces reached the ineligible tunnel box");
+});
+
+test("U7: a customer's own hostname routes, and earns an edge certificate, only while its deployment's holder is eligible", async (t) => {
+  const f = await fleet(t);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "u7-domains-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const rec = (hostname, deploymentId) => ({ hostname, deploymentId, status: "active", owner: OWNER });
+  fs.writeFileSync(path.join(dir, "domains.json"), JSON.stringify({ byHost: { "good.customer-shop.net": rec("good.customer-shop.net", D_E), "bad.customer-shop.net": rec("bad.customer-shop.net", D_I) } }));
+  const origin = await startRelay(t, { enclaves: [f.elig, f.inel, f.flip].map(f.url).join(","), ledger: f.ledger, env: { AUTH_DATA_DIR: dir } });
+  assert.ok(await waitFor(async () => (await getJ(origin, "/enclaves")).body?.enclaves?.length === 3));
+  let r = await getJ(origin, "/", { "x-forwarded-host": "good.customer-shop.net" });
+  assert.equal(r.status, 200, JSON.stringify(r.body)); assert.equal(r.body.servedBy, "eligible");
+  assert.equal((await fetch(origin + "/internal/tls-ask?domain=good.customer-shop.net")).status, 200);
+  const before = f.inel.log.length;
+  r = await getJ(origin, "/", { "x-forwarded-host": "bad.customer-shop.net" });
+  assert.equal(r.status, 503); assert.equal(r.body.error, "host_ineligible");
+  assert.equal((await fetch(origin + "/internal/tls-ask?domain=bad.customer-shop.net")).status, 404, "no edge certificate for a name routed to an ineligible holder");
+  assert.equal(await upgrade(origin, "/", { "x-forwarded-host": "bad.customer-shop.net" }), 404, "the WebSocket router does not route custom domains at all");
+  assert.deepEqual(f.inel.log.slice(before), []);
 });

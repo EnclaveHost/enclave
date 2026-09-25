@@ -1274,27 +1274,35 @@ async function probe(url, init) {
 // Ids the ledger cannot speak for (non-ledger dep_ ids, or a relay run without a ledger) keep the cache and probe, over
 // ELIGIBLE rows only.
 const LEDGER_ID_RE = /^0x[0-9a-f]{8,64}$/;
+// A ledger is CONFIGURED (by address or through the address book) even while the book has not resolved its address yet:
+// a ledger-shaped id then waits for the ledger (503) rather than being probed (enclave-5d's review, F3). Only a relay run
+// with no ledger at all probes, and then over eligible hosts only.
+const LEDGER_CONFIGURED = !!(DEPLOYMENTS_ADDRESS || ADDRESS_BOOK);
 const deny = (status, error, message) => ({ endpoint: null, status, error, message });
 // A miss forces at most ONE fresh ledger read per LEDGER_FRESH_COOLDOWN_MS relay-wide, so random ids (any path, the
 // WebSocket upgrade included, which has no per-client miss limit) cannot turn a miss into a ledger reload each.
 const LEDGER_FRESH_COOLDOWN_MS = 5_000;
 let _ledgerFreshAt = 0;
 async function ledgerLeaseOf(h, fresh) {
-  if (fresh && Date.now() - _ledgerFreshAt >= LEDGER_FRESH_COOLDOWN_MS) { _ledgerFreshAt = Date.now(); _ledger.at = 0; }
+  let stale = false;
+  if (fresh) { if (Date.now() - _ledgerFreshAt >= LEDGER_FRESH_COOLDOWN_MS) { _ledgerFreshAt = Date.now(); _ledger.at = 0; } else stale = true; }
   let rows; try { rows = await ledgerRows(); } catch (e) { return { error: e }; }
   const hits = rows.filter((d) => String(d.id).toLowerCase().startsWith(h));
   if (hits.length > 1) return { ambiguous: true };
-  if (!hits.length) return { none: true };
+  if (!hits.length) return { none: true, stale };
   const d = hits[0];
-  if (ZERO32.test(String(d.runner)) || Number(d.leaseUntil) * 1000 <= Date.now()) return { unleased: true, row: d };
+  if (ZERO32.test(String(d.runner)) || Number(d.leaseUntil) * 1000 <= Date.now()) return { unleased: true, row: d, stale };
   return { row: d, runner: String(d.runner).toLowerCase() };
 }
 async function tenantRoute(id, { auth = null } = {}) {
   const h = String(id).toLowerCase();
-  if (LEDGER_ID_RE.test(h) && DEPLOYMENTS_ADDRESS) {
+  if (LEDGER_ID_RE.test(h) && LEDGER_CONFIGURED) {
+    if (!DEPLOYMENTS_ADDRESS) return deny(503, "ledger_unavailable", `The ledger address is not resolved yet, so ${id} is not routed (no fallback).`);
     let l = await ledgerLeaseOf(h, false);
     if (l.none || l.unleased) l = await ledgerLeaseOf(h, true);           // a just-created or just-claimed row: one fresh read
     if (l.error) return deny(503, "ledger_unavailable", `The ledger could not be read, so ${id} is not routed (no fallback).`);
+    // the fresh read was skipped by the cooldown: a row minutes old could still be on its way, so say "not yet", not "no"
+    if ((l.none || l.unleased) && l.stale) return deny(503, "not_yet_visible", `${id} is not on the ledger this relay last read; retry shortly.`);
     // An app subdomain is an 8-hex id PREFIX (32 bits of keccak256(creator, nonce)): a twin is ground offline in seconds
     // and created in one transaction. A prefix the ledger says names two deployments names NEITHER; no race may pick.
     if (l.ambiguous) return deny(404, "ambiguous", `${id} names more than one deployment on the ledger: it routes nowhere.`);
@@ -1340,15 +1348,34 @@ function hostEligibility(epId) {
   if (!row) return { eligible: false, reason: "the host is not attached to this relay right now" };
   return computeEligible(row) ? { eligible: true, reason: null } : { eligible: false, reason: ineligibleReason(row) };
 }
-// A tunnel box addressed EXPLICITLY (/t/<name>/..., or its own e<hex>.<BOX_ZONE> hostname) carries tenant paths only
-// when the relay holds it eligible: /x/<id>/... (the data plane and its tls/tcp/https bridges) and /v1/deployments/<id>...
-// (a deployment's control plane). Its own surfaces (attestation, availability, health) stay reachable. null = allowed.
-const TUNNEL_TENANT_PATH_RE = /^\/(?:x\/|v1\/deployments\/[^/?]+)/;
-function tunnelTenantRefusal(origin, path) {
-  if (!TUNNEL_TENANT_PATH_RE.test(String(path || ""))) return null;
+// A tunnel box addressed EXPLICITLY (/t/<name>/..., or its own e<hex>.<BOX_ZONE> hostname). An ELIGIBLE box: every path,
+// as before. A box the relay does NOT hold eligible: DEFAULT-DENY. Only its own read-only surfaces pass (GET, HEAD or
+// OPTIONS to its availability, health, version, pricing, session keys, net/udp maps, attestation and .well-known), so
+// no tenant path, whatever a box router would call one, reaches it: not the data plane, not a deployment's control
+// plane, not the deployments collection (create or list), and nothing a future router adds (enclave-d1's and
+// enclave-5d's review: the Linux supervisor's Express routes are case-insensitive, so a denylist of tenant paths was
+// bypassable with /X/ and /V1/Deployments).
+// The comparison is on the path as a LENIENT box router could read it, not as sent: percent-decoded (up to three
+// levels), backslashes as slashes, repeated slashes collapsed, dot segments resolved, lower-cased. A path that will not
+// decode is refused rather than guessed at. null = allowed.
+const BOX_OWN_SURFACE_RE = /^\/(?:availability|health|v1\/health|v1\/version|v1\/pricing|v1\/session-jwks|v1\/net-map|v1\/udp-map)\/?$|^\/(?:v1\/attestation|\.well-known)(?:\/|$)/;
+function canonicalBoxPath(path) {
+  let p = String(path || "/");
+  for (let i = 0; i < 3; i++) {
+    let d; try { d = decodeURIComponent(p); } catch { return null; }
+    if (d === p) break;
+    p = d;
+  }
+  p = p.replace(/\\/g, "/").replace(/\/{2,}/g, "/");
+  try { p = new URL("http://x" + (p.startsWith("/") ? p : "/" + p)).pathname; } catch { return null; }
+  return p.replace(/\/{2,}/g, "/").toLowerCase();
+}
+function tunnelTenantRefusal(origin, path, method = "GET") {
   const row = live.find((x) => x.endpoint === origin);
   if (row && computeEligible(row)) return null;
-  return deny(503, "host_ineligible", `This box is not eligible to serve tenant apps${row ? ": " + ineligibleReason(row) : " (not in the live fleet)"}.`);
+  const canon = canonicalBoxPath(path);
+  if (canon !== null && /^(?:GET|HEAD|OPTIONS)$/i.test(String(method || "")) && BOX_OWN_SURFACE_RE.test(canon)) return null;
+  return deny(503, "host_ineligible", `This box is not eligible to serve tenant apps${row ? ": " + ineligibleReason(row) : " (not in the live fleet)"}; only its own surfaces (availability, health, attestation) are reachable.`);
 }
 async function xOwnerOf(id) {                                // data-path resolve: the eligible owner, or null
   return (await tenantRoute(id)).endpoint;
@@ -1893,9 +1920,12 @@ async function gateway(u, req, res) {
   // falls back to sticky rather than failing — a pin is an optimization, and
   // signing in against the wrong box is recoverable while not signing in isn't.
   const pin = String(u.searchParams.get("enclave") || "").trim().toLowerCase();
+  // U7 (enclave-d1's review): a pin names an ELIGIBLE host only (live, not a relay, computeEligible; not necessarily
+  // taking new work, since the box that hosts a signed-in owner's app may be full). A crafted link naming an ineligible
+  // box falls back to sticky like an unknown name, so a platform sign-in never lands on a box that could not host.
   const pinned = pin && p.startsWith("/v1/auth/")
-    ? live.find((e) => String(e.name || "").toLowerCase() === pin
-                    || String(e.endpoint || "").toLowerCase() === pin) : null;
+    ? live.find((e) => !e.relay && computeEligible(e) && (String(e.name || "").toLowerCase() === pin
+                    || String(e.endpoint || "").toLowerCase() === pin)) : null;
   const c = pinned || sticky();                              // auth, pricing, version, attestation, ...
   // Say so, rather than dereferencing null: with no serving enclave there is nowhere to ask.
   if (!c) return json(res, 503, { error: "no_serving_enclave",
@@ -1919,7 +1949,9 @@ async function listDeployments(u, req, res) {
   const auth = req.headers.authorization;
   const addr = ownerScope(u, req);
   // no token = no enclave view (they'd all 401); the ledger alone answers
-  const rs = auth ? await Promise.all(live.map((e) =>
+  // U7 (enclave-d1's review): the caller's SESSION rides this fan-out, so it goes to ELIGIBLE hosts only. An ineligible
+  // live row (a token tunnel, a relay, an hv-node) never receives a session minted by a box that could be replayed there.
+  const rs = auth ? await Promise.all(live.filter((e) => !e.relay && computeEligible(e)).map((e) =>
     forward(e.endpoint, req, null).then((r) => ({ e, r })).catch(() => null))) : [];
   const answered = rs.filter(Boolean);
   const oks = answered.filter((x) => x.r.status === 200);
@@ -2194,7 +2226,14 @@ function handleRequest(req, res) {
     // check lives in domains.js and is applied here even though the add
     // endpoint already refused such a name, because this gate is the last thing
     // between a request and a certificate.
-    if (tlsAskAllowed(asked)) { res.writeHead(200); return res.end(); }
+    // ...and, like an app subdomain below, only while its deployment routes to an ELIGIBLE holder (U7; enclave-5d's
+    // review, F2): the edge never mints a certificate for a name the relay would not route.
+    if (tlsAskAllowed(asked)) {
+      const cid = domainDeployment(asked);
+      if (!cid) { res.writeHead(404); return res.end(); }
+      if (!ownerCached(cid) && !rlMiss(clientIp(req))) { res.writeHead(429); return res.end("rate limited"); }
+      return tenantRoute(cid).then((r) => { res.writeHead(r.endpoint ? 200 : 404); res.end(); });
+    }
     const id = depFromHost(asked);
     if (!id) { res.writeHead(400); return res.end("bad domain"); }
     if (!ownerCached(id) && !rlMiss(clientIp(req))) { res.writeHead(429); return res.end("rate limited"); }
@@ -2361,7 +2400,7 @@ function handleRequest(req, res) {
     const origin = `tunnel://${boxName}`;
     if (!tunnelHub.origins().some((o) => o.endpoint === origin))
       return json(res, 404, { error: "no_tunnel", message: `No enclave is attached for ${routingHost(req)}.` }, req);
-    const refused = tunnelTenantRefusal(origin, u.pathname);
+    const refused = tunnelTenantRefusal(origin, u.pathname, req.method);
     if (refused) return json(res, refused.status, { error: refused.error, message: refused.message }, req);
     return proxyTo(origin, req, res, { path: u.pathname + (u.search || ""), setCors: true });
   }
@@ -2376,7 +2415,7 @@ function handleRequest(req, res) {
     const origin = `tunnel://${tm[1]}`;
     if (!tunnelHub.origins().some((o) => o.endpoint === origin))
       return json(res, 404, { error: "no_tunnel", message: `No tunnel enclave named ${tm[1]} is attached.` }, req);
-    const refused = tunnelTenantRefusal(origin, tm[2] || "/");
+    const refused = tunnelTenantRefusal(origin, tm[2] || "/", req.method);
     if (refused) return json(res, refused.status, { error: refused.error, message: refused.message }, req);
     return proxyTo(origin, req, res, { path: (tm[2] || "/") + (u.search || ""), setCors: true });
   }
@@ -2429,7 +2468,7 @@ server.on("upgrade", async (req, socket, head) => {
     if (tm) {
       const origin = `tunnel://${tm[1]}`;
       if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
-      if (tunnelTenantRefusal(origin, tm[2] || "/")) return refuse(503, "Service Unavailable");
+      if (tunnelTenantRefusal(origin, tm[2] || "/", req.method)) return refuse(503, "Service Unavailable");
       return tunnelHub.spliceUpgrade(origin, req, socket, head, (tm[2] || "/") + (u.search || ""));
     }
     // …and the same box reached by its own hostname, so a websocket to a box
@@ -2438,7 +2477,7 @@ server.on("upgrade", async (req, socket, head) => {
     if (bn) {
       const origin = `tunnel://${bn}`;
       if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
-      if (tunnelTenantRefusal(origin, u.pathname)) return refuse(503, "Service Unavailable");
+      if (tunnelTenantRefusal(origin, u.pathname, req.method)) return refuse(503, "Service Unavailable");
       return tunnelHub.spliceUpgrade(origin, req, socket, head, u.pathname + (u.search || ""));
     }
   }
