@@ -53,7 +53,13 @@ var RootFingerprints = []string{
 }
 
 // relayReleaseKeys is the PINNED set of the relay's release keys: Ed25519 public keys, hex, compiled into the
-// measured front (rule 4). It is EMPTY on purpose. The production key is generated on the api-relay host under the
-// custody rules (docs/security/attested-release.md, "Preconditions"), and until its public half is pinned here and the
-// image rebuilt, a front built from this source refuses every release - before it sends one, so no ticket is burned.
-var relayReleaseKeys = []string{}
+// measured front (rule 4). A reply is trusted only if one of these signed it, so adding a key is an image change and a
+// new measurement; a rotation ships {old, new} and later drops old.
+//
+// The production key was generated ON the api-relay host (nan) at 2026-09-25 18:38:21Z by enclave-63, under the
+// custody rules (docs/security/attested-release.md, "Preconditions"). Its seed never leaves that host (the relay reads
+// it from SECRETS_RELEASE_SIGNING_KEY_FILE). keyId 06212e5df9c3779a = sha256(public)[:16]. An empty set would make
+// the front refuse every release before sending one, so no ticket is burned.
+var relayReleaseKeys = []string{
+	"d6c8a95966710fb52f4f753458362869ee26cf84aee08d27900c53a5b3fcc81d", // nan, 2026-09-25, keyId 06212e5df9c3779a
+}

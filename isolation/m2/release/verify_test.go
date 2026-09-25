@@ -136,13 +136,9 @@ func TestOnlyPinnedKeysAndTheKeyIDRule(t *testing.T) {
 	}
 }
 
-// Rule 4: the pinned set is a LIST compiled into the image, empty until the production key is generated, and a
-// malformed entry is an error, never skipped.
-func TestThePinnedSetIsAListAndStartsEmpty(t *testing.T) {
-	keys, err := PinnedRelayKeys()
-	if err != nil || len(keys) != 0 {
-		t.Fatalf("the source pins %d key(s) (%v): the production key does not exist yet, so none may be pinned", len(keys), err)
-	}
+// Rule 4: the pinned set is a LIST compiled into the image, and a malformed entry is an error, never skipped. (The
+// production set itself is pinned by pins_test.go.)
+func TestThePinnedSetIsAList(t *testing.T) {
 	saved := relayReleaseKeys
 	defer func() { relayReleaseKeys = saved }()
 	a, _ := keyPair(t)
