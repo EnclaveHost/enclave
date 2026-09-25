@@ -21,21 +21,24 @@ const RUNTIME = { synthetic: "runtime" };
 Object.assign(process.env, { SECRETS_KEY: "ab".repeat(32), AUTH_DATA_DIR: DIR, SECRETS_ATTESTED_RELEASE: "1",
   SECRETS_RELEASE_MEASUREMENTS: "77".repeat(48), SECRETS_RELEASE_RUNTIME_IDS: RID.toString("hex"),
   SECRETS_RELEASE_BURST: "1000",      // the suite asks far more often than a real guest may
-  SECRETS_RELEASE_MIN_TCB: JSON.stringify({ Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } }), SECRETS_RELEASE_VMPL: "0" });
+  SECRETS_RELEASE_MIN_TCB: JSON.stringify({ Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } }), SECRETS_RELEASE_VMPL: "0",
+  SECRETS_RELEASE_SIGNING_KEY: "5a".repeat(32) });   // a synthetic release signing seed (v1.2)
 const { initSecrets, handleSecrets, applyPut } = await import("../relay/secrets.js");
 const R = await import("../relay/secrets-release.mjs");
 await initSecrets();
 
 const OP = privateKeyToAccount(generatePrivateKey()), STRANGER = privateKeyToAccount(generatePrivateKey());
 const A = "0x" + "a1".repeat(32), B = "0x" + "b2".repeat(32);            // two deployments of the SAME app
+const C = "0x" + "c3".repeat(32);                                          // a third, whose envelope names no config
 const APP = sha(Buffer.from("the app both deployments run"));
 const EP = "https://api.enclave.host/t/metal-iso0", EP_ID = "0x" + "e0".repeat(32);
 const synthCol = memoryCollateral({ chains: { Genoa: S.chainPem }, vceks: { Genoa: S.vcekDer }, crls: { Genoa: S.crlDer } });
 const FLOOR = { Genoa: { bootloader: 10, tee: 0, snp: 23, microcode: 84 } };
 let rows = [], ineligible = false, chips = [S.chip.toString("hex")];
+const versions = {};   // the catalog version's config per deployment (versionConfigFor)
 const envelopes = { [A]: JSON.stringify({ isolation: { require: "snp-guest-per-app" }, config: { endpoint: "$IMAGE_ENDPOINT", n: 1 } }),
                     [B]: JSON.stringify({ isolation: { require: "snp-guest-per-app" }, configCid: "bafkreisyntheticcid" }) };
-const leaseRow = (id, over = {}) => ({ id, owner: STRANGER.address, runner: EP_ID, configCid: envelopes[id],
+const leaseRow = (id, over = {}) => ({ id, owner: STRANGER.address, runner: EP_ID, configCid: envelopes[id] ?? "",
                                        leaseUntil: BigInt(Math.floor(Date.now() / 1000) + 1800), ...over });
 const ctx = {
   json: (res, code, body) => { res.code = code; res.body = body; },
@@ -47,8 +50,10 @@ const ctx = {
   hostEligibility: () => (ineligible ? { eligible: false, reason: "evidence regressed" } : { eligible: true, reason: null }),
   leaseHolderChipIds: async (ep) => (ep === EP ? chips : []),
   runtimeIdOf: async (r) => (JSON.stringify(r) === JSON.stringify(RUNTIME) ? RID : sha(Buffer.from(JSON.stringify(r)))),
-  appIdFor: async (id) => (id === A || id === B ? APP : null),
-  resolveConfigCid: async (cid) => (cid === "bafkreisyntheticcid" ? { resolved: true, key: "${JOT_API_KEY}" } : null),
+  appIdFor: async (id) => (id === A || id === B || id === C ? APP : null),
+  resolveConfigCid: async (cid) => (cid === "bafkreisyntheticcid" ? { resolved: true, key: "${JOT_API_KEY}" }
+                                     : cid === "bafkreiversioncid" ? '{"fromVersionCid":true}' : null),   // a value, or fetched TEXT
+  versionConfigFor: async (id) => versions[id] ?? null,
   verifyGuestEvidence: (doc, { allowedMeasurements, minTcb, expectedVmpl, expectedBinding, expectedAppId, expectedHostData }) => verifyEvidence(doc, {
     policy: { snp: { roots: new Map([["Genoa", S.arkFp]]), allowedMeasurements, minTcb, expectedVmpl } },
     context: { transportKeySpki: Buffer.from(doc.transportKey, "base64"), expectedBinding, expectedAppId, expectedHostData, now: new Date().toISOString() },
@@ -92,6 +97,13 @@ test("vectors: the committed binding and sealed blob reproduce, and the RFC 7748
   assert.equal(R.releaseBinding({ id: i.id, transportSpki: hx(i.transportSpkiHex), ticket: hx(i.ticketHex), runtimeId: hx(i.runtimeIdHex), sealKey }).toString("hex"), v.outputs.bindingHex);
   assert.equal(R.sealRelease({ id: i.id, ticket: hx(i.ticketHex), sealKey, plaintext: i.plaintext, _ephPrivate: hx(i.ephPrivateHex), _iv: hx(i.ivHex) }).toString("hex"), v.outputs.sealedHex);
   assert.equal(R.openRelease({ id: i.id, ticket: hx(i.ticketHex), sealPrivateKey: hx(i.sealPrivateHex), sealed: hx(v.outputs.sealedHex) }).toString(), i.plaintext);
+  // v1.2: the response signature (Ed25519 over the 32-byte digest, deterministic)
+  const rk = R.signingKeyFromSeed(hx(i.responseSigningSeedHex)), rf = { id: i.id, ticket: hx(i.ticketHex), sealKey, sealed: hx(v.outputs.sealedHex) };
+  assert.equal(R.ed25519RawPublic(rk).toString("hex"), v.outputs.responseSigningPublicHex);
+  assert.equal(R.keyIdOf(R.ed25519RawPublic(rk)), v.outputs.responseKeyId);
+  assert.equal(R.responseDigest(rf).toString("hex"), v.outputs.responseDigestHex);
+  assert.equal(R.signResponse(rk, rf).toString("hex"), v.outputs.responseSigHex);
+  assert.equal(R.verifyResponse({ publicKey: hx(v.outputs.responseSigningPublicHex), sig: hx(v.outputs.responseSigHex), ...rf }), true);
   const a = R.x25519PrivateKey(hx("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a")), b = R.x25519PrivateKey(hx("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"));
   assert.equal(R.rawPublicOf(b).toString("hex"), "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f");
   assert.equal(diffieHellman({ privateKey: a, publicKey: R.x25519PublicKey(R.rawPublicOf(b)) }).toString("hex"), "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742");
@@ -136,6 +148,14 @@ test("the flow: a ticket for the eligible lease holder, then a verified guest ge
   const g = guest({ id: A, ticket: t.body.ticket });
   const r = await release(A, t.body.ticket, g);
   assert.equal(r.code, 200, JSON.stringify(r.body));
+  const RELEASE_PUB = R.ed25519RawPublic(R.signingKeyFromSeed(Buffer.alloc(32, 0x5a)));
+  assert.equal(r.body.keyId, R.keyIdOf(RELEASE_PUB));
+  const fields = { id: A, ticket: Buffer.from(t.body.ticket, "base64"), sealKey: g.sealKey, sealed: Buffer.from(r.body.sealed, "base64") };
+  assert.equal(R.verifyResponse({ publicKey: RELEASE_PUB, sig: Buffer.from(r.body.sig, "base64"), ...fields }), true, "v1.2: signed by the relay's release key");
+  const bentSealed = Buffer.from(fields.sealed); bentSealed[50] ^= 1;
+  assert.equal(R.verifyResponse({ publicKey: RELEASE_PUB, sig: Buffer.from(r.body.sig, "base64"), ...fields, sealed: bentSealed }), false, "a forged blob fails the signature");
+  assert.equal(R.verifyResponse({ publicKey: R.ed25519RawPublic(R.signingKeyFromSeed(Buffer.alloc(32, 1))), sig: Buffer.from(r.body.sig, "base64"), ...fields }), false, "another key does not verify it");
+  assert.equal(R.verifyResponse({ publicKey: RELEASE_PUB, sig: Buffer.from(r.body.sig, "base64"), ...fields, id: B }), false, "bound to the deployment");
   const p = opened(A, t.body.ticket, g, r);
   assert.equal(p.id, A);
   assert.deepEqual(p.config, { endpoint: "$IMAGE_ENDPOINT", n: 1 }, "the ledger envelope's inline config, placeholders untouched (substitution is the guest's)");
@@ -224,13 +244,14 @@ test("fail closed: OFF, a missing policy or a missing provider answers 503 and i
   rows = [leaseRow(A)];
   const saved = { ...process.env };
   for (const [k, v] of [["SECRETS_ATTESTED_RELEASE", ""], ["SECRETS_RELEASE_MEASUREMENTS", ""], ["SECRETS_RELEASE_RUNTIME_IDS", "zz"],
-                        ["SECRETS_RELEASE_MIN_TCB", ""], ["SECRETS_RELEASE_MIN_TCB", "{}"], ["SECRETS_RELEASE_VMPL", ""], ["SECRETS_RELEASE_VMPL", "4"]]) {
+                        ["SECRETS_RELEASE_MIN_TCB", ""], ["SECRETS_RELEASE_MIN_TCB", "{}"], ["SECRETS_RELEASE_VMPL", ""], ["SECRETS_RELEASE_VMPL", "4"],
+                        ["SECRETS_RELEASE_SIGNING_KEY", ""], ["SECRETS_RELEASE_SIGNING_KEY", "zz"]]) {
     process.env[k] = v;
     const r = await ticketFor(A);
     assert.equal(r.code, 503, `${k}=${v}`); assert.equal(r.body.error, "release_unconfigured"); assert.match(r.body.message, new RegExp(k));
     Object.assign(process.env, saved);
   }
-  for (const p of ["verifyGuestEvidence", "appIdFor", "runtimeIdOf", "leaseHolderChipIds"]) {
+  for (const p of ["verifyGuestEvidence", "appIdFor", "runtimeIdOf", "leaseHolderChipIds", "versionConfigFor"]) {
     const keep = ctx[p]; delete ctx[p];
     const r = await ticketFor(A);
     assert.equal(r.code, 503, p); assert.equal(r.body.error, "release_unconfigured");
@@ -311,4 +332,52 @@ test("snpChipsAfter: a chip set lives only across a same-key re-attach of a stil
   assert.deepEqual(snpChipsAfter({ keyFp: "k1", snpChips: [X] }, { keyFp: "k2" }), [], "a new key with no proven chip has none");
   assert.deepEqual(snpChipsAfter({ keyFp: "", snpChips: [X] }, { keyFp: "", snpChip: Y }), [Y], "no key fingerprint: never carried");
   assert.deepEqual(snpChipsAfter(undefined, { keyFp: "k1" }), [], "a measurement-only attach proves none");
+});
+
+test("config parity with the supervisor: envelope config, then its configCid, then the version's config, then its configCid; always a JSON value", async () => {
+  ineligible = false; chips = [S.chip.toString("hex")];
+  const releaseC = async (envelope, version) => {
+    envelopes[C] = envelope; versions[C] = version; rows = [leaseRow(C)];
+    const t = await ticketFor(C), g = guest({ id: C, ticket: t.body.ticket });
+    const r = await release(C, t.body.ticket, g);
+    return { r, config: r.code === 200 ? opened(C, t.body.ticket, g, r).config : undefined };
+  };
+  const cases = [
+    ["the version's config text, parsed to a value", "", { config: '{"fromVersion":1}' }, { fromVersion: 1 }],
+    ["the version's config as an object", JSON.stringify({ isolation: { require: "snp-guest-per-app" } }), { config: { v: [1, 2] } }, { v: [1, 2] }],
+    ["the version's configCid, fetched as TEXT and parsed", "", { configCid: "bafkreiversioncid" }, { fromVersionCid: true }],
+    ["the envelope's config wins over the version's", JSON.stringify({ config: { mine: true } }), { config: '{"fromVersion":1}' }, { mine: true }],
+    ["the envelope's configCid wins over the version's", JSON.stringify({ configCid: "bafkreisyntheticcid" }), { config: '{"fromVersion":1}' }, { resolved: true, key: "${JOT_API_KEY}" }],
+    ["no config anywhere: null", "", null, null],
+    ["a version with an empty config: null", "", { config: "" }, null],
+  ];
+  for (const [label, env, ver, want] of cases) {
+    const { r, config } = await releaseC(env, ver);
+    assert.equal(r.code, 200, `${label}: ${JSON.stringify(r.body)}`); assert.deepEqual(config, want, label);
+  }
+  // a config that is a JSON STRING (the app would get one quoted string) or not JSON: refused, nothing released
+  for (const [label, env, ver] of [["an envelope config that is a string", JSON.stringify({ config: "text" }), null],
+                                   ["a version config text that is a JSON string", "", { config: '"text"' }],
+                                   ["a version config that is not JSON", "", { config: "not json" }],
+                                   ["a version config that is a number", "", { config: "42" }]]) {
+    const { r } = await releaseC(env, ver);
+    assert.equal(r.code, 422, `${label}: ${JSON.stringify(r.body)}`); assert.equal(r.body.error, "bad_config", label); assert.equal(r.body.sealed, undefined, label);
+  }
+  // a version configCid that does not resolve: nothing rather than a partial answer
+  const { r } = await releaseC("", { configCid: "bafkreinothere" });
+  assert.equal(r.code, 503); assert.equal(r.body.error, "config_unresolvable");
+});
+
+test("rate keys: a ticket request by client IP; a release by its ticket's ENDPOINT (many guests behind one host address); an unknown ticket by IP", async () => {
+  rows = [leaseRow(A)]; ineligible = false; chips = [S.chip.toString("hex")];
+  const keys = [], rate = (k) => { keys.push(k); return true; };
+  const t = await ticketFor(A);
+  const g = guest({ id: A, ticket: t.body.ticket });
+  const res = {};
+  await R.handleRelease("/v1/secrets/release", { id: A, ticket: t.body.ticket, sealKey: g.sealKey.toString("base64"), evidence: g.evidence }, {}, res, ctx,
+                        { envOf: () => ({}), bad: (code, error) => { res.code = code; res.body = { error }; }, rate });
+  assert.equal(res.code, 200, JSON.stringify(res.body));
+  await R.handleRelease("/v1/secrets/release", { id: A, ticket: Buffer.alloc(32, 9).toString("base64") }, {}, {}, ctx, { envOf: () => ({}), bad: () => {}, rate });
+  await R.handleRelease("/v1/secrets/release-ticket", { id: A }, {}, {}, ctx, { envOf: () => ({}), bad: () => {}, rate });
+  assert.deepEqual(keys, [`ep:${EP}`, "ip:203.0.113.9", "ip:203.0.113.9"]);
 });
