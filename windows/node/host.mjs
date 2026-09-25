@@ -1263,7 +1263,14 @@ export class Host {
       const held = this.heldReason(d);
       if (held) { this.#record(id, { status: "held", reason: held, leaseUntil: Number(d.leaseUntil) }); continue; }
       // A deployment whose manager stated a boundary this backend cannot have is HELD and NOT renewed: renewing would bill
-      // the tenant for a service this box will not give (enclave-99). ensureApp below still re-asks every tick.
+      // the tenant for a service this box will not give (enclave-99). ensureApp below still re-asks every tick. But its
+      // LEASE END is still honoured, and before ensureApp, so a lapsed lease is neither kept running nor served again for
+      // one tick by a manager that turned honest: the held domain is RETIRED here. That is a local retirement (#stopApp),
+      // never an on-chain release, so it stays inside heldReason's "never released automatically" (enclave-99's re-review).
+      if (rec.boundaryHeld === true && untilMs < Date.now()) {
+        await this.#stopApp(id, "the lease lapsed while the deployment was boundary-held (not renewed)");
+        continue;
+      }
       if (rec.boundaryHeld !== true && untilMs - Date.now() < RENEW_LEAD_MS) {
         try { await chain.renewDeployment(id); this.log(`renewed ${id.slice(0, 10)}`); d = await chain.readDeployment(id); }
         catch (e) {
@@ -1274,6 +1281,7 @@ export class Host {
           const ends = new Date(untilMs).toISOString().replace("T", " ").slice(0, 19);
           const capped = /cap|balance|fund|rate/i.test(msg);
           this.#record(id, { reason: capped ? `the lease ends at ${ends} UTC and will not renew: ${msg}` : `renew failed: ${msg}` });
+          this.log(`${id.slice(0, 10)} renew failed: ${msg}`);     // said, not only recorded: a later pass rewrites the reason
           if (untilMs < Date.now()) { await this.#stopApp(id, `the lease expired and renew failed: ${msg}`); continue; }
         }
       }
