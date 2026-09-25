@@ -14,8 +14,10 @@ Build tool, not distributed in the bundle: esbuild 0.28.1 (MIT).
 - `verifier/consumer.mjs`
 - `verifier/der.mjs`
 - `verifier/envelope.mjs`
+- `verifier/index-memory-file.mjs`
 - `verifier/index-memory.mjs`
 - `verifier/provenance.mjs`
+- `verifier/release-index-core.mjs`
 - `verifier/release-index.mjs`
 - `verifier/roots/sigstore-trusted-root.json`
 - `verifier/snp.mjs`

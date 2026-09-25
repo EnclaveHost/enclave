@@ -8,7 +8,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createIndexMemory } from "../verifier/index-memory.mjs";
+import { createIndexMemory as createCoreMemory, webStorageStore } from "../verifier/index-memory.mjs";
+import { createFileIndexMemory as createIndexMemory, fileStore } from "../verifier/index-memory-file.mjs";
 import { buildReleaseIndex, indexBytesOf, comparePublications, publicationOf, normalizePublication } from "../verifier/release-index.mjs";
 import { createHash } from "node:crypto";
 

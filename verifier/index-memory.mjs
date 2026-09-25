@@ -15,30 +15,33 @@
 // a missing or unreadable file is "no record" and is said so; `persisted` in every answer says whether the record as it
 // stands is on disk (a memory that could not be written is not durable, and never says it is); nothing here is ever a
 // reason to accept more.
-import fs from "node:fs";
-import path from "node:path";
+// Stores: { name, load(): object|null, save(obj): boolean }. verifier/index-memory-file.mjs fileStore(file) for Node,
+// webStorageStore(storage, key) below for a browser, memoryStore() for a process alone.
+export const memoryStore = () => { let v = null; return { name: "memory", load: () => v, save: (o) => { v = o; return true; } }; };
+export function webStorageStore(storage, key = "enclave.verifierIndexMemory") {
+  return { name: `storage:${key}`,
+           load: () => { try { const raw = storage.getItem(key); return raw ? JSON.parse(raw) : null; } catch { return null; } },
+           save: (o) => { try { storage.setItem(key, JSON.stringify(o)); return true; } catch { return false; } } };
+}
 
 const cmpVersion = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 const cmpPub = (a, b) => (a.runId - b.runId) || (a.attempt - b.attempt);
 const validPub = (p) => p && Number.isSafeInteger(p.runId) && p.runId > 0 && Number.isSafeInteger(p.attempt) && p.attempt > 0;
 const validVersion = (v) => Array.isArray(v) && v.length === 3 && v.every((n) => Number.isInteger(n) && n >= 0);
 
-export function createIndexMemory({ file = null, now = () => new Date(), log = () => {} } = {}) {
-  let state = null, note = null, durable = false;   // durable: the state as it stands has been written to the file (or there is no file to write)
-  if (file) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(file, "utf8"));
-      if (raw && raw.schema === "enclave-index-memory/v1" && validPub(raw.publication) && /^[0-9a-f]{64}$/.test(String(raw.digest || "")) && validVersion(raw.minimumRelease)) { state = raw; durable = true; }
-      else { note = `the index memory at ${file} is not a record this version understands; starting without one`; log(note); }
-    } catch (e) { if (e.code !== "ENOENT") { note = `the index memory at ${file} is unreadable (${e.message}); starting without one`; log(note); } }
-  }
+export function createIndexMemory({ store = null, now = () => new Date(), log = () => {} } = {}) {
+  const st = store ?? memoryStore();
+  let state = null, note = null, durable = false;   // durable: the state as it stands has been written to the store
+  try {
+    const raw = st.load();
+    if (raw === null || raw === undefined) { /* no record */ }
+    else if (raw && raw.schema === "enclave-index-memory/v1" && validPub(raw.publication) && /^[0-9a-f]{64}$/.test(String(raw.digest || "")) && validVersion(raw.minimumRelease)) { state = raw; durable = true; }
+    else { note = `the index memory at ${st.name} is not a record this version understands; starting without one`; log(note); }
+  } catch (e) { note = `the index memory at ${st.name} is unreadable (${e.message}); starting without one`; log(note); }
   const persist = () => {
-    if (!file) { durable = true; return true; }
-    try {
-      fs.mkdirSync(path.dirname(file), { recursive: true });
-      const tmp = `${file}.${process.pid}.${Math.random().toString(16).slice(2)}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify(state, null, 1) + "\n"); fs.renameSync(tmp, file); durable = true; return true;
-    } catch (e) { durable = false; log(`the index memory could not be written to ${file}: ${e.message}`); return false; }
+    let ok = false; try { ok = st.save(state) === true; } catch (e) { log(`the index memory could not be written to ${st.name}: ${e.message}`); ok = false; }
+    if (!ok) log(`the index memory could not be written to ${st.name}`);
+    durable = ok; return ok;
   };
   const remember = (rec) => { state = { schema: "enclave-index-memory/v1", ...rec, at: now().toISOString() }; return persist(); };
 
@@ -65,5 +68,5 @@ export function createIndexMemory({ file = null, now = () => new Date(), log = (
     const persisted = remember(rec);
     return { ok: true, kind: "newest-seen", why: `newer publication: run ${rec.publication.runId} attempt ${rec.publication.attempt} after ${seen}`, persisted, remembered: state };
   }
-  return { consider, floor: () => (state ? [...state.minimumRelease] : null), record: () => (state ? structuredClone(state) : null), note: () => note, durable: () => durable, file };
+  return { consider, floor: () => (state ? [...state.minimumRelease] : null), record: () => (state ? structuredClone(state) : null), note: () => note, durable: () => durable, file: st.file ?? null, store: st.name };
 }

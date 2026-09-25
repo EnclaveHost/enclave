@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-node.mjs",
-  "bytes": 396713,
-  "sha256": "cedb356e654e1d7ecfa7a0cc46082dcf138381cd907428b9ca7a845db1eb6a86"
+  "bytes": 398370,
+  "sha256": "dfdbf5df68b403b3e80d69d0f9f15d8bd067e86ddd8e81cd19d1449bb521a411"
  },
  "build": {
   "tool": "esbuild",
@@ -339,8 +339,8 @@
   },
   {
    "path": "verifier/consumer.mjs",
-   "bytes": 31317,
-   "sha256": "c08996d575276f197267daf70d949c6ad2686e1afefafc399cac5a980658f6c3"
+   "bytes": 31557,
+   "sha256": "91cec0889871eb0b6944e53d9184b832bdcf0a72f61989bfb55072eaedf915c3"
   },
   {
    "path": "verifier/der.mjs",
@@ -353,19 +353,29 @@
    "sha256": "fbf4937215bb009bcac0a8221cf68c4e4284ae2b1942722a395b09bc42b32a48"
   },
   {
+   "path": "verifier/index-memory-file.mjs",
+   "bytes": 1234,
+   "sha256": "47f4a6f206fe7dc0895ec2770d566d38a45654abf941419a6d0482340e4717ed"
+  },
+  {
    "path": "verifier/index-memory.mjs",
-   "bytes": 7131,
-   "sha256": "470062abdd77b0a72c542366af276f7d1370457a178bc93ba42cce72ad376ec4"
+   "bytes": 7614,
+   "sha256": "5f1ee9b7bd82919e3096b1b1284c020ed49bd1cc941578be1ada12be2878a6d6"
   },
   {
    "path": "verifier/provenance.mjs",
-   "bytes": 10716,
-   "sha256": "e6b7c5f679adb549bb1450ccd6a7b4f16e7527c14c812355ff6cf834bb0ceece"
+   "bytes": 10850,
+   "sha256": "76b4111e70a4594d972c05e1e1d6128513235c3b7f3a1211d9cfd3b4c20a6fd6"
+  },
+  {
+   "path": "verifier/release-index-core.mjs",
+   "bytes": 12359,
+   "sha256": "2d60d6e6fc8f40a4bb36cb37587aa1746f628ed154f4296022b7456b7b4d15ba"
   },
   {
    "path": "verifier/release-index.mjs",
-   "bytes": 20274,
-   "sha256": "a18ba14b6906d5450d43d3f2f085a7aa3cf42dfde75194dbb1de3370a2b664bb"
+   "bytes": 9226,
+   "sha256": "3ded3baee5ced818f0e11fb8cff26d59e48a3ce5d08ae5e26a1cae1539072e62"
   },
   {
    "path": "verifier/roots/sigstore-trusted-root.json",

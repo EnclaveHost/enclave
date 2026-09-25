@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-web.js",
-  "bytes": 135235,
-  "sha256": "ae0b04ea2c2c18a01ef0a123beb0ff0c02a1d3a9ca86db3dfd383541774e195d"
+  "bytes": 243335,
+  "sha256": "4912574b8428014e5ef692b51cf1b245047440e68fd0dffc43b088c19231ffc1"
  },
  "build": {
   "tool": "esbuild",
@@ -357,6 +357,26 @@
    "sha256": "fbf4937215bb009bcac0a8221cf68c4e4284ae2b1942722a395b09bc42b32a48"
   },
   {
+   "path": "verifier/index-memory.mjs",
+   "bytes": 7614,
+   "sha256": "5f1ee9b7bd82919e3096b1b1284c020ed49bd1cc941578be1ada12be2878a6d6"
+  },
+  {
+   "path": "verifier/provenance.mjs",
+   "bytes": 10850,
+   "sha256": "76b4111e70a4594d972c05e1e1d6128513235c3b7f3a1211d9cfd3b4c20a6fd6"
+  },
+  {
+   "path": "verifier/release-index-core.mjs",
+   "bytes": 12359,
+   "sha256": "2d60d6e6fc8f40a4bb36cb37587aa1746f628ed154f4296022b7456b7b4d15ba"
+  },
+  {
+   "path": "verifier/roots/sigstore-trusted-root.json",
+   "bytes": 6787,
+   "sha256": "6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66"
+  },
+  {
    "path": "verifier/snp.mjs",
    "bytes": 34321,
    "sha256": "6dfabe48d9f3022b3e94005716f556ac046a8b692667e4d33b13bde8e21e9c25"
@@ -373,8 +393,13 @@
   },
   {
    "path": "verifier/web/index.mjs",
-   "bytes": 4914,
-   "sha256": "e840bc8952292ad0fd8648c9960aa1498d9983c77fb8b922c27864ff9a672745"
+   "bytes": 5347,
+   "sha256": "ec4e959120a88f0851dc724d6879fa25ccf9233fec98d16c53ad70ced6545f20"
+  },
+  {
+   "path": "verifier/web/provenance.mjs",
+   "bytes": 11681,
+   "sha256": "85f854c770842b4b959a44ca39994af8217234ccb673f33d6b7e58f74a5aae99"
   },
   {
    "path": "verifier/web/provider.mjs",
