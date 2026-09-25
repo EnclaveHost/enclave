@@ -25,6 +25,8 @@ import { slugOfRef, artOfRef, loadCatalog, parseCatalogRef, catalogRef, specOf, 
 import { vspecOf, verifyEnclaveInBrowser } from "../../js/core/verify.js";
 import { runlog, paintLine, retryOfferOf } from "../../js/core/runlog.js";
 import { payForRuntime } from "../../js/core/fund.js";
+import { BUCKETS, bucketOf, countBuckets } from "../../js/core/deploy-status.js";
+import { LastGood, listIdentity, failureReason, asOf } from "../../js/core/list-state.js";
 import { shareRates, minPctsOf, cpuFloorFor, cardServesApp, adoptServerSpec, leaseHostOf, moveTargetsFor, moveBlockReason, gpuUpgradeForMove, gpuDowngradeForMove, enclavePriceOf, hostChargeWaived, sharesLegalOn, liftSharesForLedger } from "../../js/core/pricing.js";
 
 // Keep search and the card title on the same resolved app identity.
@@ -293,25 +295,12 @@ function domainRow(d){
 }
 
 function shortImg(s){ if (!s) return ""; return s.length > 44 ? s.slice(0, 42) + "…" : s; }
-// Status buckets for the filter bar: coarse groups beat ten raw statuses.
-// Unknown/new statuses land in "ended" rather than vanishing.
+// Status buckets for the filter bar: BUCKETS/bucketOf/countBuckets live in
+// js/core/deploy-status.js (tested there). Unknown statuses land in "ended".
 const FILTER_KEY = "enclave_dash_filters";
-const BUCKETS = ["running", "queued", "ended", "failed"];
 // Decline reasons that no amount of waiting resolves (mirrors the enclave's
 // claim-gauntlet wording; deploy.js's watchClaimAndRun keys on the same set)
 const WHY_TERMINAL = /below the app|minimum shares|yanked|not .{0,12}approved|rejected|delisted|unlisted|configcid|retired|deactivated/i;
-function bucketOf(st){
-  st = String(st || "").toLowerCase();
-  if (st === "running") return "running";
-  // the "queued" bucket matches the ledger's own vocabulary: everything on
-  // its way (queued/claimed/provisioning/awaiting_payment/...) but not over —
-  // unfunded (drained; resumes on top-up) waits here too, it just isn't "queued"
-  // "unknown" = an account row the relay's ledger cache hasn't caught up to
-  // yet (fresh deploy) - it's on its way, not over
-  if (["provisioning", "queued", "pending", "claiming", "claimed", "starting", "created", "awaiting_payment", "unfunded", "unknown"].indexOf(st) !== -1) return "queued";
-  if (["failed", "error"].indexOf(st) !== -1) return "failed";
-  return "ended";   // stopped, stopping, terminated, expired, …
-}
 // Who can act on a row: "wallet" rows are owned by the connected wallet
 // (on-chain txs + enclave-session reads); "vault" rows are owned by the
 // account's credit vault (money/control ops are passkey-signed through the
@@ -589,6 +578,10 @@ class Deployments extends EnclaveElement {
     // NO sign-in wall: a connected wallet is enough - the list is public
     // ledger data, scoped by address (api.js adds ?owner= when tokenless);
     // a session only enriches rows with the enclaves' live view
+    // whose list this paint is: rows are never shown to another wallet/account
+    const who = listIdentity(Enclave.address, this._paintedAcct, Enclave.accountId);
+    if (!this._good) this._good = new LastGood();
+    if (this._rowsFor !== who){ this._rowsFor = null; this._list = []; body.innerHTML = ""; }   // another identity's rows never linger through a load
     if (!body.querySelector(".enc-row") || opts.spinner) body.innerHTML = '<div class="loading" role="status">loading your enclaves…</div>';
     try {
       // fire-and-forget: the row art and the mobile section resolve versions
@@ -613,7 +606,10 @@ class Deployments extends EnclaveElement {
         } catch(e){ if (!Enclave.address) throw e; }   // wallet rows still serve
       }
       const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = false;   // refresh + Deploy CTA live here now
+      this._good.ok(who, list);
+      this._loadNote(null);
       this._sessionNote();
+      this._rowsFor = who;
       this._renderRows(list, opts.highlight);
       this._startPoll();
     } catch(e){
@@ -622,8 +618,47 @@ class Deployments extends EnclaveElement {
       // but VISIBLY (the bar below), never silently: the fallback hides
       // runner-held truth, and the owner must know signing in restores it
       if (e.status === 401 && Enclave.token){ Enclave.token = null; Enclave.tokenBase = null; saveSession(); refreshWallet(); this._sessDropped = true; return this.refresh(opts); }
-      body.innerHTML = '<div class="enc-empty">couldn’t load enclaves: ' + esc(e.message || String(e)) + '</div>';
+      this._listFailed(who, e);
+      this._startPoll();   // keep retrying: the next good read clears the failure
     }
+  }
+
+  /* ---- a failed read is not an empty list (see js/core/list-state.js).
+     Same identity with a good read behind it: those rows again, marked stale
+     with their time. Otherwise: an error state, counters unknown ("–", never
+     0), and none of anyone else's rows. Either way a Retry, plus the poll. ---- */
+  _listFailed(who, e) {
+    const body = this.querySelector(".enc-body"); if (!body) return;
+    const v = this._good.failed(who, e);
+    const tb = this.querySelector(".enc-toolbar"); if (tb) tb.hidden = false;   // refresh + Deploy CTA stay reachable
+    if (v.kind === "stale"){
+      if (this._rowsFor !== who || !body.querySelector(".enc-row")){ this._rowsFor = who; this._renderRows(v.rows); }
+      this._loadNote(v);
+      return;
+    }
+    this._list = []; this._rowsFor = null;
+    this._loadNote(null);
+    $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = "–"; b.classList.add("zero"); b.title = "not loaded"; });
+    const pager = this.querySelector(".enc-pager"); if (pager){ pager.hidden = true; pager.innerHTML = ""; }
+    body.innerHTML = '<div class="enc-empty enc-loaderr" role="alert" title="' + esc(e && e.message || String(e)) + '">'
+      + 'Couldn’t load your apps: ' + esc(failureReason(e)) + '. This is a failed read, not an empty list. Retrying every 10 s. '
+      + '<button type="button" class="btn btn-sm enc-retry">Retry now</button></div>';
+    body.querySelector(".enc-retry").addEventListener("click", () => this.refresh({ spinner: true }));
+  }
+  _loadNote(v) {
+    let el = this.querySelector(".enc-loadnote");
+    if (!v){ if (el) el.remove(); return; }
+    const body = this.querySelector(".enc-body"); if (!body) return;
+    if (!el){
+      el = document.createElement("div");
+      el.className = "enc-sessnote enc-loadnote";
+      el.setAttribute("role", "status");
+      body.before(el);
+    }
+    el.title = (v.error && v.error.message) || "";
+    el.innerHTML = '⚠ Couldn’t refresh: ' + esc(failureReason(v.error)) + '. Showing your apps as of ' + esc(asOf(v.at))
+      + '; statuses may have changed since. Retrying every 10 s. <button type="button" class="btn btn-sm enc-retry">Retry now</button>';
+    el.querySelector(".enc-retry").addEventListener("click", () => this.refresh({ spinner: true }));
   }
 
   /* ---- a dropped session must be VISIBLE. Every fleet update reboots the
@@ -657,9 +692,8 @@ class Deployments extends EnclaveElement {
     const body = this.querySelector(".enc-body");
     list = (list || []).slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     this._list = list;
-    const counts = { all: list.length, running: 0, queued: 0, ended: 0, failed: 0 };
-    list.forEach(d => { counts[bucketOf(d.status)]++; });
-    $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = String(counts[b.dataset.bucket] || 0); b.classList.toggle("zero", !(counts[b.dataset.bucket] > 0)); });
+    const counts = countBuckets(list);
+    $$(".enc-segs button", this).forEach(b => { const n = b.querySelector("b"); if (n) n.textContent = String(counts[b.dataset.bucket] || 0); b.classList.toggle("zero", !(counts[b.dataset.bucket] > 0)); b.title = ""; });
     let shown = this._filter === "all" ? list.slice() : list.filter(d => bucketOf(d.status) === this._filter);
     if (this._q) shown = shown.filter(d =>
       [d.id, deploymentTitle(d), d.image && d.image.reference, d.status, d.enclave]
