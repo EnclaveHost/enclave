@@ -75,8 +75,23 @@ the "null" statement accepted, a statement claiming host exclusion changing noth
 key, a missing or wrong possession signature, a statement swapped after binding, the retired VBS transcript (domain
 separation), Secure Boot off, test signing on (flag ignored), kernel debugging, HVCI off, a quote without PCR 0, a
 truncated log and a missing mint record. Five deliberate regressions (test signing or Secure Boot unchecked, possession
-skipped, PCR 0 not required, the statement unbound) each fail the suite. The tunnel wiring and the refusal of the retired
-format at dispatch are the next change, a production relay deploy.
+skipped, PCR 0 not required, the statement unbound) each fail the suite.
+
+**Wired, switch OFF (2026-09-25).** `relay/tunnel.js`: a `windows-vbs-enclave/v1` attest is refused by name before
+anything else (`retiredFormat`), whatever the relay's policy holds; the vbs-keys credential round and a
+`windows-hv-node/v1` attest run only when the hub has `attest.hvNode` (the relay sets it from `RELAY_HVNODE_ATTACH`, with
+the pinned EK roots `relay/fixtures/tpm-roots.pem`; unset in production); a verified node binds as mode and tier
+`hv-node` with no measurement and no pad key, and its row carries `hvNode: { hostExcluded: false, tee: null, omissions,
+bootCounter, idksModulusSha256, verifiedAt }` while the node's statement stays in the hub. `relay/api-relay.js`: the
+retired `METAL_VBS_*` policy is no longer read (a startup line says so if set) and an hv-node row is ineligible with "host-
+attested boot state (TPM quote: Secure Boot on, test signing off); no isolation evidence, the host is not excluded".
+`relay/local-hub.mjs` attaches a node to a workstation on the same path. Tests: `test/tunnel.test.mjs` (the full
+handshake, the retired format refused on a relay still holding the lab test-signing policy, the switch, and every
+refusal), `test/tenant-compute-eligibility.test.mjs` (an hv-node row is never capacity and never a verified TEE, even
+when its availability still names the VBS enclave), the deploy-closure guard (checked by mutation: the new module off the
+deploy list fails it). Before the switch is turned on: the node side deployed and its availability no longer naming
+`windows-vbs-enclave`, the site labelling an hv-node row explicitly as a host-attested boot state, and Steven or
+enclave-5d asking for it.
 
 ## The paravisor's VM report (per app partition): what the verifier will require
 
@@ -87,7 +102,7 @@ Each line maps to the contract's requirement (R1-R7) and is NOT ESTABLISHED.
 | V1. The report's signature verifies under the IDKS public key taken from the host's replayed boot log, and that log comes from a quote accepted as above, in the SAME boot | R6, R7, trust root | real report bytes; IDKS-signs-the-VM-report is a hypothesis until they verify (d1 O3) |
 | V2. The boot state is accepted (Secure Boot on, test signing off, no debug), from the same quote | trust root | met on boot 68 for the host quote (d1, VERIFIED); never waived |
 | V3. The launch digest is one of the PINNED paravisor images with a measured Linux VTL0 (kernel, initrd, command line) from enclave-53's reproducible build; the probe firmwares and any debug image refused. Windows' own firmware-load policy is no identity: under Secure Boot, Hyper-V loaded our UNSIGNED control IGVM with AllowFirmwareLoadFromFile set (d1, boot 68), so the host can load any IGVM and only the launch digest names what ran | R4, R5 | a VBS IGVM with a measured Linux VTL0 (not built; d1 O2) |
-| V4. The report's policy forbids debug | R5 | where debug is visible in the report (open question) |
+| V4. Debug and host-trusting images are refused by the EXACT pinned launch digest, never by a flag. enclave-53 measured (2026-09-25, three pinned images, package `windows/vbslike-pkg` 18f17084): igvmfilegen's VBS identity document says `endorsement.build_info.debug_build: false` for images built with `--confidential-debug` exactly as for non-debug ones (it follows the manifest's enable_debug, not `OPENHCL_CONFIDENTIAL_DEBUG=1`, which makes OpenHCL trust the host's command line and turns off confidential diagnostic filtering). Only `vbs_boot_digest` separates the measured-VTL0 candidate (246DEE1B...A89F0) from its debug twin (0677F3C6...01698). A report-level debug indication, if the report has one, is an additional refusal, never a substitute for the digest pin | R5 | the pin list from enclave-53's reproducible build; where debug is visible in the report (open question) |
 | V5. The report data binds, by measured code, the verifier's fresh nonce, the hash of the guest-held TLS key, the appId and the runtimeId (the ABI/2 binding), and the TLS key is the one of the verifier's own handshake | R1, R2 | the guest-to-paravisor report path over guest data (vTPM NV index candidate, parked) |
 | V6. The binding request is authenticated to the measured instance: a report over host-chosen data is refused | R3 | the same path, and a measured VTL0 (today's medium is unmeasured: d1 O4) |
 | V7. Replay and cross-VM refused: the nonce is this verifier's and fresh; a report of another partition (another ledger deployment) is refused | tests required | report bytes from two VMs; how the report names the partition (open) |

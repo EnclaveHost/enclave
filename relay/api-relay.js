@@ -100,7 +100,7 @@ import { handleCerts, initCerts } from "./certs.js";
 import { createTunnelHub } from "./tunnel.js";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
-import { vbsPolicyFromEnv } from "./vbs-policy.mjs";
+import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir } from "./store.js";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
@@ -170,13 +170,16 @@ const AVF_ATTEST = avfPolicyFromEnv(process.env);
 // PVM_CPU_MODELS): only meaningful beside AVF attach, and null means every capability
 // report is refused, which is the fail-closed default.
 const PVM_CPU_POLICY = AVF_ATTEST ? pvmCpuPolicyFromEnv(process.env) : null;
-// Windows consumer nodes running a VBS enclave (windows/vbs/EVIDENCE.md): the
-// enclave builds admitted (sha256(FamilyId||ImageId||AuthorId)), minimum SVN,
-// pinned PCR 0 per firmware, the pinned TPM EK roots, and the lab-only
-// test-signing switch. Empty METAL_VBS_ENCLAVE_MEASUREMENTS = mode vbs off. A
-// malformed value throws here, at startup, rather than admitting or refusing
-// quietly later.
-const VBS_ATTEST = vbsPolicyFromEnv(process.env);
+// The NucBox node on the custom type-1 path (relay/hvnode-verify.mjs, mode "hv-node"): a
+// host-attested boot state (TPM EK chain, credential round trip, quote, measured-boot log with
+// Secure Boot on and test signing off), never a TEE and never tenant capacity. OFF unless
+// RELAY_HVNODE_ATTACH is set; the EK roots are the pinned bundle shipped beside vbs-policy.mjs.
+// The Windows VBS-ENCLAVE attach (METAL_VBS_*, mode "vbs") is RETIRED (Steven, 2026-09-25): its
+// format is refused at attest, and any METAL_VBS_* still set is ignored, said once at startup.
+const HVNODE_ATTEST = /^(1|true|yes|on)$/i.test(String(process.env.RELAY_HVNODE_ATTACH || "").trim())
+  ? { ekRoots: fs.readFileSync(VBS_DEFAULT_EK_ROOTS, "utf8") } : null;
+if (Object.keys(process.env).some((k) => k.startsWith("METAL_VBS_")))
+  console.warn("[relay] METAL_VBS_* is set, but the Windows VBS-enclave attach is retired (2026-09-25): ignored");
 // The origin a CGNAT seller registers itself under: `<origin>/t/<name>` is the
 // URL its on-chain entry carries, and keccak of it is the runner id its leases
 // record. Configurable because a relay can be reached under more than one name;
@@ -223,8 +226,8 @@ function padsRoutes() {
 }
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
-  attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST || VBS_ATTEST
-    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(PVM_CPU_POLICY ? { pvmCpu: PVM_CPU_POLICY } : {}), ...(VBS_ATTEST ? { vbs: VBS_ATTEST } : {}) }
+  attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST || HVNODE_ATTEST
+    ? { allowedMeasurements: METAL_ALLOWED_MEASUREMENTS, requireVcek: METAL_REQUIRE_VCEK, ...(METAL_MIN_TCB !== undefined ? { minTcb: METAL_MIN_TCB } : {}), ...(AVF_ATTEST ? { avf: AVF_ATTEST } : {}), ...(PVM_CPU_POLICY ? { pvmCpu: PVM_CPU_POLICY } : {}), ...(HVNODE_ATTEST ? { hvNode: HVNODE_ATTEST } : {}) }
     : null,
   operatorFor: tunnelNameOwner,
   // TUNNEL_OPERATOR_ATTACH=1 — let a box prove its tunnel name with the operator
@@ -1443,6 +1446,7 @@ function ineligibleReason(e) {
   if (computeEligible(e)) return null;
   if (e.tunnel) {
     const m = String(e.mode || "");
+    if (m === "hv-node") return "host-attested boot state (TPM quote: Secure Boot on, test signing off); no isolation evidence, the host is not excluded";
     if (m === "vbs") return "verified enclave report, but the app-zone key and traffic run through the host: the isolation contract is not met";
     if (m === "avf") return inferenceLaneOf(e) ? "pVM CPU tier: an inference lane on its owner's phone, not app deployments"
                          : e.capsRefused ? "verified protected-VM chain; its pVM CPU capability report was refused"

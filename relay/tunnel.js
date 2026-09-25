@@ -20,7 +20,8 @@ import { verifyQuote } from "./snp-verify.mjs";
 import { verifyAvfEvidence } from "./avf-verify.mjs";
 import { admitPvmCpu, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { AVF_PAD_FORMAT, avfPadBinding } from "./avf-binding.mjs";
-import { VBS_FORMAT, verifyVbsEvidence, tpmNameOf, VBS_MAX_CERT_BYTES, VBS_MAX_CHAIN_CERTS, VBS_MAX_TPMT_PUBLIC_BYTES } from "./vbs-verify.mjs";
+import { tpmNameOf, VBS_MAX_CERT_BYTES, VBS_MAX_CHAIN_CERTS, VBS_MAX_TPMT_PUBLIC_BYTES } from "./vbs-verify.mjs";
+import { HVNODE_FORMAT, HVNODE_TIER, verifyHvNodeEvidence, retiredFormat } from "./hvnode-verify.mjs";
 import { ekPublicFrom, makeCredential } from "./vbs-credential.mjs";
 import { boxOrigin } from "./boxhost.js";
 
@@ -71,12 +72,19 @@ function selfRoutedUrl(url, name) {
 //   attestation chain (avf-verify.mjs) whose leaf carries our challenge, is
 //   rooted at Google, and names an allowlisted anchor build (codeHash) signed by
 //   our APK certificate (authorityHash). Its mode is "avf", not "snp".
-//   `vbs` admits a WINDOWS CONSUMER NODE running a VBS enclave (vbs-verify.mjs,
-//   windows/vbs/EVIDENCE.md): the same handshake with one extra round, in which
-//   the hub mints a TPM credential for the node's (EK, quoting key) and the
-//   node's TPM proves it can recover it. Its mode is "vbs"; its tier is "vbs"
-//   or, under METAL_VBS_ALLOW_TESTSIGNING, "vbs-dev".
-//           vbs: { measurements: [hex], minSvn, pcr0: [hex], ekRoots: PEM, allowTestSigning }
+//   `hv-node` admits the NucBox NODE on the custom type-1 path (hvnode-verify.mjs,
+//   docs/security/nucbox-custom-vm-verifier.md): the same handshake with one extra
+//   round, in which the hub mints a TPM credential for the node's (EK, quoting
+//   key) and the node's TPM proves it can recover it; the quote binds the node's
+//   transport key, and the log must show Secure Boot on and test signing off,
+//   with no dev tier. It proves a HOST-ATTESTED BOOT STATE: no TEE claim, the
+//   host is not excluded, no measurement, never tenant capacity. Its mode and
+//   tier are "hv-node". OFF unless the relay's RELAY_HVNODE_ATTACH is set.
+//           hvNode: { ekRoots: PEM }
+//   The Windows VBS-ENCLAVE attach ("windows-vbs-enclave/v1", mode "vbs") is
+//   RETIRED (Steven, 2026-09-25: the custom type-1 path is the only NucBox
+//   target): the format is refused at attest whatever the relay's policy says,
+//   and METAL_VBS_ALLOW_TESTSIGNING no longer admits anything.
 // operatorFor: async (name) -> 0x… | null                — WHO OWNS A NAME on chain.
 //   A quote proves the IMAGE, and the transport key is minted PER BOOT, so
 //   neither survives a reboot as an identity: while a seller was down, another
@@ -119,10 +127,11 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                                   trustedOperators = [], operatorsUnrestricted = false } = {}) {
   const trusted = new Set(trustedOperators.map((a) => String(a).toLowerCase()));
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
-  const vbsOn = !!(attest && attest.vbs && attest.vbs.measurements && attest.vbs.measurements.length);
+  // the NucBox node's attach (mode hv-node): only with the pinned TPM EK roots. A legacy `vbs` policy enables nothing.
+  const hvOn = !!(attest && attest.hvNode && attest.hvNode.ekRoots);
   const attestOn = !!(attest && ((attest.allowedMeasurements && attest.allowedMeasurements.length)
                                || (attest.avf && attest.avf.codeHashes && attest.avf.codeHashes.length)
-                               || vbsOn));
+                               || hvOn));
   const wss = new WebSocketServer({ noServer: true });
   const tunnels = new Map();                                  // name -> { ws, pending, lastSeen, mode, publicUrl, keyFp }
 
@@ -192,7 +201,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     if (prev && prev.ws !== ws) { try { prev.ws.terminate(); } catch {} }   // newest wins
     const t = { ws, pending: new Map(), streams: new Map(), lastSeen: Date.now(), mode: meta.mode || "", publicUrl: "",
                 measurement: meta.measurement || null, keyFp: meta.keyFp || "",
-                // mode "vbs": "vbs" (production) or "vbs-dev" (test-signed, admitted by lab policy);
+                // mode "hv-node": "hv-node" (a host-attested boot state; never a TEE tier);
                 // mode "avf": "pvm-cpu" once, and only once, a capability report is admitted (below)
                 tier: meta.tier || "",
                 // an AVF attach keeps what the pVM CPU admission needs: the verified verdict, the
@@ -201,7 +210,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                 pvm: meta.pvm || null,
                 // dealt pads (relay/pads.mjs): the attested transport SPKI signs
                 // ledger requests, the X25519 pad key receives the pVM's seed
-                spki: meta.spki || "", padKey: meta.padKey || "" };
+                spki: meta.spki || "", padKey: meta.padKey || "",
+                // mode "hv-node": the boot this attach proved (boot counter, the IDKS a same-boot VM report must
+                // verify under, PCRs, EK and AK), its omissions, and the node's own statement (recorded, never read)
+                hvNode: meta.hvNode || null };
     tunnels.set(name, t);
     console.log(`[tunnel] ${name} attached via ${meta.via || "token"} (${tunnels.size} enclave${tunnels.size === 1 ? "" : "s"})`);
     try { onChange("attach", name); } catch {}   // refresh discovery so it lands in `live` now, not on the next slow poll
@@ -381,7 +393,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
           // which is what ties the quote (and so the log, and so the enclave
           // report) to the hardware whose EK certificate is checked at `attest`.
           if (f.t === "vbs-keys") {
-            if (!vbsOn) return deny("VBS attach is not enabled on this relay");
+            if (!hvOn) return deny("hv-node attach is not enabled on this relay (the VBS-enclave attach is retired)");
             if (vbs) return deny("duplicate vbs-keys");
             verifying = true;
             try {
@@ -402,10 +414,13 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
           if (f.t !== "attest" || !f.rad || !f.rad.body) return;
           verifying = true;
           try {
+            // a RETIRED format is refused by name before anything else, whatever this relay's policy holds
+            const retired = retiredFormat(f.rad.format);
+            if (retired) return deny(retired);
             const spki = f.rad.transportKey ? Buffer.from(f.rad.transportKey, "base64") : null;
             const isAvf = f.rad.format === "android-avf-pvm/v1" || f.rad.format === AVF_PAD_FORMAT;
             const avfV2 = f.rad.format === AVF_PAD_FORMAT;
-            const isVbs = f.rad.format === VBS_FORMAT;
+            const isHv = f.rad.format === HVNODE_FORMAT;
             // Validate the versioned transcript even in explicitly enabled
             // development mode. Production checks its certificate/signature.
             const avfBound = avfV2 ? avfPadBinding(spki, f.rad.padKey, nonce) : null;
@@ -443,21 +458,20 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                                         signature: Buffer.from(ev.signature, "base64"), signedMessage: bound },
                                       { allowedCodeHashes: codeHashes, allowedAuthorityHashes: attest.avf.authorityHashes || [],
                                         ...(attest.avf.rootPins ? { rootPins: attest.avf.rootPins } : {}) });
-            } else if (isVbs) {
-              // EVIDENCE.md step 6: the body carries report, log, quote, EK,
-              // the activated credential and the transport signature; the hub
-              // rebuilds the transcript from ITS nonce and the credential it
-              // minted in the vbs-keys round. Both keys are covered (AVF v2 rule).
-              if (!vbsOn) return deny("VBS attach is not enabled on this relay");
-              if (!vbs) return deny("VBS attest without the vbs-keys round");
-              if (!spki) return deny("VBS attach must carry transportKey");
-              if (typeof f.rad.body !== "string" || f.rad.body.length > 12 * 1024 * 1024) return deny("VBS body exceeds size limit");
-              let ev; try { ev = JSON.parse(Buffer.from(f.rad.body, "base64").toString("utf8")); } catch { return deny("VBS body is not JSON"); }
-              res = verifyVbsEvidence({ evidence: ev, nonce, transportKeySpki: spki, padKeyHex: String(f.rad.padKey || ""), expectedCredential: vbs.credential,
-                                        mintedFor: { ekCert: vbs.ekCert, aikName: vbs.aikName } }, attest.vbs);
-              if (!res.ok) return deny(res.reasons.join("; ") || "VBS evidence invalid");
+            } else if (isHv) {
+              // The NucBox node: the body carries the log, the quote, the EK, the activated credential, the
+              // node's statement and the transport key's signature over the transcript; the hub rebuilds the
+              // transcript from ITS nonce and checks the credential it minted in the vbs-keys round.
+              if (!hvOn) return deny("hv-node attach is not enabled on this relay");
+              if (!vbs) return deny("hv-node attest without the vbs-keys round");
+              if (!spki) return deny("hv-node attach must carry transportKey");
+              if (typeof f.rad.body !== "string" || f.rad.body.length > 12 * 1024 * 1024) return deny("hv-node body exceeds size limit");
+              let ev; try { ev = JSON.parse(Buffer.from(f.rad.body, "base64").toString("utf8")); } catch { return deny("hv-node body is not JSON"); }
+              res = verifyHvNodeEvidence({ evidence: ev, nonce, transportKeySpki: spki, expectedCredential: vbs.credential,
+                                           mintedFor: { ekCert: vbs.ekCert, aikName: vbs.aikName } }, attest.hvNode);
+              if (!res.ok || !res.admissible) return deny(res.reasons.join("; ") || "hv-node evidence invalid");
             } else {
-              if (!/sev-snp-guest/.test(f.rad.format || "")) return deny(`format ${f.rad.format} not SEV-SNP or AVF`);
+              if (!/sev-snp-guest/.test(f.rad.format || "")) return deny(`format ${f.rad.format} not SEV-SNP, AVF or hv-node`);
               const report = Buffer.from(f.rad.body, "base64");
               const aux = f.rad.certs ? Buffer.from(f.rad.certs, "base64") : null;
               res = await verifyQuote(report, { challenge: nonce, transportKeySpki: spki, auxblob: aux,
@@ -491,15 +505,17 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             if (prev && (!prev.keyFp || prev.keyFp !== keyFp))
               return deny("that name is held by another enclave");
             clearTimeout(timer); settled = true;
-            try { ws.send(JSON.stringify({ t: "attest-result", ok: true, measurement: res.measurement, ...(isVbs && res.tier ? { tier: res.tier } : {}) })); } catch {}
+            try { ws.send(JSON.stringify({ t: "attest-result", ok: true, measurement: res.measurement, ...(isHv ? { tier: HVNODE_TIER, hostExcluded: false } : {}) })); } catch {}
             // A v1 padKey was outside the attested message. Never retain it
             // for seed issuance or for the dealer's consumer enumeration.
             // ...and a v2 attach keeps its pad key only when the build is an admitted PAD build:
             // a pVM CPU build routed through on its own code hash is never a pad consumer.
-            const padEligible = !isAvf || (avfV2 && padBuildsOf(attest).has(String(res.component?.codeHash || res.measurement || "").toLowerCase()));
+            // an hv-node attach is a host, never a pad consumer
+            const padEligible = !isHv && (!isAvf || (avfV2 && padBuildsOf(attest).has(String(res.component?.codeHash || res.measurement || "").toLowerCase())));
             const padKey = padEligible && /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";
-            bind(name, ws, { via: isVbs ? `attestation(${res.tier})` : isAvf ? "attestation(avf)" : res.vcekVerified ? "attestation" : "attestation(measurement-only)",
-                             measurement: res.measurement, mode: isVbs ? "vbs" : isAvf ? "avf" : "snp", keyFp, tier: isVbs ? res.tier : "",
+            bind(name, ws, { via: isHv ? "attestation(hv-node)" : isAvf ? "attestation(avf)" : res.vcekVerified ? "attestation" : "attestation(measurement-only)",
+                             measurement: res.measurement, mode: isHv ? "hv-node" : isAvf ? "avf" : "snp", keyFp, tier: isHv ? HVNODE_TIER : "",
+                             hvNode: isHv ? { boot: res.boot, omissions: res.omissions, hostStatement: res.hostStatement, verifiedAt: new Date().toISOString() } : null,
                              spki: spki ? spki.toString("base64") : "", padKey,
                              // the pVM CPU admission inputs, pinned at attach (policy included: a hub
                              // without one refuses every report, by the verifier's own first rule)
@@ -593,7 +609,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     isTunnel: (origin) => NAME_RE.test(String(origin || "")),
     // One attached tunnel's identity, for modules that authenticate a tunnel's
     // own requests (relay/pads.mjs): null when nothing by that name is attached.
-    info: (name) => { const t = tunnels.get(name); return t ? { name, mode: t.mode, tier: t.tier || "", keyFp: t.keyFp, spki: t.spki, padKey: t.padKey } : null; },
+    info: (name) => { const t = tunnels.get(name); return t ? { name, mode: t.mode, tier: t.tier || "", keyFp: t.keyFp, spki: t.spki, padKey: t.padKey, ...(t.hvNode ? { hvNode: t.hvNode } : {}) } : null; },
     nameOf: (origin) => (String(origin || "").match(NAME_RE) || [])[1] || null,
     // synthetic registry rows for the attached tunnels (bypass the dial-based
     // discovery filters; auth already happened at attach time). `endpoint`
@@ -616,6 +632,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       // the row's tier already believes the row's keys. Nothing else consumes them yet,
       // so the field is scoped to mode vbs rather than every attached tunnel.
       ...(t.mode === "vbs" && t.spki ? { attestedKeys: { transportKey: t.spki, padKey: t.padKey || "" } } : {}),
+      // mode hv-node: what the attach proved, stated as such; the node's own statement stays in the hub
+      ...(t.mode === "hv-node" && t.hvNode ? { hvNode: { hostExcluded: false, tee: null, omissions: t.hvNode.omissions,
+          bootCounter: t.hvNode.boot?.bootCounter ?? null, idksModulusSha256: t.hvNode.boot?.idksModulusSha256 ?? null, verifiedAt: t.hvNode.verifiedAt } } : {}),
     })),
     // fetch JSON (availability polling)
     fetchJson: async (origin, path) => {

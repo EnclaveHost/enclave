@@ -26,9 +26,10 @@ import { AVF_PAD_FORMAT, avfPadBinding } from "../relay/avf-binding.mjs";
 import { avfPolicyFromEnv } from "../relay/avf-policy.mjs";
 import fs from "node:fs";
 import { haveOpenssl, tmpdir, makeCa, issueLeaf, extension, CODE, AUTH } from "./fixtures/avf-synthetic.mjs";
-import { makeVbsWorld, evidenceFor as vbsEvidenceFor, policyFor as vbsPolicyFor, nameOf as tpmName, tpmtPublicOf } from "./fixtures/vbs-synthetic.mjs";
+import { makeVbsWorld, evidenceFor as vbsEvidenceFor, policyFor as vbsPolicyFor, nameOf as tpmName, tpmtPublicOf, buildLog, buildQuote } from "./fixtures/vbs-synthetic.mjs";
 import { VBS_FORMAT } from "../relay/vbs-verify.mjs";
 import { activateCredential } from "../relay/vbs-credential.mjs";
+import { HVNODE_FORMAT, hvNodeBinding } from "../relay/hvnode-verify.mjs";
 
 // ---------- SEV-SNP quote gate ------------------------------------------------
 
@@ -130,7 +131,7 @@ test("tunnel: a hello frame never sets the mode - a token-attached box that says
     const { ws } = await dial(h.url, { "x-metal-name": "metal0", "x-metal-token": TOKEN });
     await settle();
     assert.equal(h.hub.origins()[0].mode, "", "a token attach verified nothing");
-    for (const claimed of ["snp", "avf", "vbs", "tdx"]) {
+    for (const claimed of ["snp", "avf", "vbs", "hv-node", "tdx"]) {
       ws.send(JSON.stringify({ t: "hello", mode: claimed, publicUrl: "https://api.enclave.host/t/metal0" }));
       await settle();
       assert.equal(h.hub.origins()[0].mode, "", `hello mode:${claimed} must not promote a token attach`);
@@ -618,102 +619,112 @@ test("avf: a Google-rooted chain over (transportKey || nonce) attaches as mode a
   } finally { await h.close(); await hLegacy.close(); await hStrict.close(); await hSnp.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-// ---------- VBS (Windows consumer node) attach ------------------------------
-// The same gate, a third root: a Windows PC's VBS enclave (windows/vbs/EVIDENCE.md).
-// One extra round: the hub mints a TPM credential for the (EK, quoting key) the
-// node presents, and only a TPM holding both can hand it back on `attest`. The
-// origin row says mode "vbs" and carries the tier; the pad key is retained,
-// because both enclave keys are inside the signed transcript (the AVF v2 rule).
-test("vbs: a Windows node attaches as mode vbs through the vbs-keys/vbs-credential round; wrong credential, skipped round, stale nonce, swapped keys, test signing, no policy all refuse",
+// ---------- the NucBox node (mode hv-node) and the RETIRED VBS-enclave attach -------------
+// Steven, 2026-09-25: the custom type-1 path is the only NucBox target; the VBS-enclave backend is retired.
+// The node proves a HOST-ATTESTED BOOT STATE (relay/hvnode-verify.mjs): the same vbs-keys/vbs-credential round
+// ties its quote to the TPM whose EK is checked, the quote binds its transport key and statement, the log must
+// show Secure Boot on and test signing off with no dev tier. The row says mode/tier "hv-node", no measurement, no
+// pad key, never tenant capacity. The legacy format is refused by name whatever the relay's policy holds.
+test("hv-node: the NucBox node attaches as mode hv-node through the vbs-keys/vbs-credential round only when the relay's switch is on; the retired VBS-enclave format is refused by name; wrong credential, skipped round, stale nonce, foreign key, swapped statement, test signing and Secure Boot off all refuse",
      { skip: !haveOpenssl && "openssl not installed" }, async () => {
-  const dir = tmpdir("vbs-tunnel-");
+  const dir = tmpdir("hvnode-tunnel-");
   const w = makeVbsWorld(dir);
-  const h = await hubServer({ attest: { vbs: vbsPolicyFor(w) } });
-  const hDev = await hubServer({ attest: { vbs: vbsPolicyFor(w, { allowTestSigning: true }) } });
-  const hSnp = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false } });
+  const h = await hubServer({ attest: { hvNode: { ekRoots: w.ca.bundlePem } } });
+  // a relay still holding the RETIRED VBS policy, lab test-signing switch included: it enables nothing now
+  const hLegacy = await hubServer({ attest: { vbs: vbsPolicyFor(w, { allowTestSigning: true }), hvNode: { ekRoots: w.ca.bundlePem } } });
+  const hOff = await hubServer({ attest: { allowedMeasurements: [MEAS], requireVcek: false, vbs: vbsPolicyFor(w) } });
   const waitFrame = (frames, pred, ms = 8000) => new Promise((resolve) => {
     const t0 = Date.now();
     const tick = () => { const f = frames.find(pred); if (f) return resolve(f); if (Date.now() - t0 > ms) return resolve(null); setTimeout(tick, 20); };
     tick();
   });
-  // A fake node: dial, take the challenge, present its keys, activate the
-  // credential with the EK's private key (what the TPM does), attest.
-  async function vbsAttach(hub, name, { keys = true, keysOf = (k) => k, credentialOf = (c) => c, stale = false, log = {}, report = {}, quote = {}, mutateRad = (r) => r, world = w } = {}) {
+  const STATEMENT = Buffer.from(JSON.stringify({ stated: true, backend: "custom-type1", tier: "t0-hv", hostExcluded: false, derivations: [] }));
+  // A fake node: dial, take the challenge, present its keys, activate the credential with the EK's private
+  // key (what the TPM does), then attest in the hv-node format, or in the retired one (`legacy`).
+  async function nodeAttach(hub, name, { keys = true, credentialOf = (c) => c, stale = false, log = {}, statement = STATEMENT, statementSent = null, signer = w.transport.privateKey,
+                                         transport = w.transport.spki, legacy = false, mutateRad = (r) => r } = {}) {
     const r = await dial(hub.url, { "x-metal-name": name, "x-metal-attest": "1" });
     if (r.state !== "open") return { state: r.state };
     const chal = await waitFrame(r.frames, (f) => f.t === "challenge");
     const nonce = Buffer.from(chal.nonce, "base64");
     let credential = Buffer.alloc(32, 0);
     if (keys) {
-      r.ws.send(JSON.stringify(keysOf({ t: "vbs-keys", ek: world.ek.cert.toString("base64"), ekChain: [world.ca.inter.toString("base64")],
-                                       aikPub: world.aik.tpmtPublic.toString("base64"), aikName: world.aik.name.toString("base64") })));
+      r.ws.send(JSON.stringify({ t: "vbs-keys", ek: w.ek.cert.toString("base64"), ekChain: [w.ca.inter.toString("base64")], aikPub: w.aik.tpmtPublic.toString("base64"), aikName: w.aik.name.toString("base64") }));
       const cred = await waitFrame(r.frames, (f) => f.t === "vbs-credential" || f.t === "attest-result");
       if (!cred || cred.t !== "vbs-credential") return { state: "open", ok: false, reason: cred?.reason || "(no credential frame)", ws: r.ws, stage: "keys" };
-      try { credential = activateCredential(world.ek.privateKey, world.aik.name, Buffer.from(cred.credentialBlob, "base64"), Buffer.from(cred.secret, "base64")); }
-      catch { credential = Buffer.alloc(32, 0); }                    // a TPM that cannot activate returns nothing useful
+      try { credential = activateCredential(w.ek.privateKey, w.aik.name, Buffer.from(cred.credentialBlob, "base64"), Buffer.from(cred.secret, "base64")); } catch { credential = Buffer.alloc(32, 0); }
     }
-    const ev = vbsEvidenceFor(world, { nonce: stale ? Buffer.alloc(32, 9) : nonce, credential: credentialOf(credential), log, report, quote });
-    r.ws.send(JSON.stringify({ t: "attest", rad: mutateRad({ format: VBS_FORMAT, body: Buffer.from(JSON.stringify(ev.body)).toString("base64"),
-                                                             transportKey: world.transport.spki.toString("base64"), padKey: world.padKey }) }));
+    let rad;
+    if (legacy) {
+      const ev = vbsEvidenceFor(w, { nonce, credential: credentialOf(credential) });
+      rad = { format: VBS_FORMAT, body: Buffer.from(JSON.stringify(ev.body)).toString("base64"), transportKey: w.transport.spki.toString("base64"), padKey: w.padKey };
+    } else {
+      const bound = hvNodeBinding(w.transport.spki, stale ? Buffer.alloc(32, 9) : nonce, statement);
+      const L = buildLog({ idksPub: w.idks.publicKey, ...log });
+      const Q = buildQuote({ aikPriv: w.aik.privateKey, aikName: w.aik.name, pcrs: L.pcrs, pcr0: w.pcr0, extraData: createHash("sha256").update(bound).digest() });
+      const body = { proves: "an admin-level process on this TPM's host, in this measured boot state, chose and holds this transport key; it proves nothing about isolation or host exclusion",
+                     statement: (statementSent || statement).toString("base64"), signature: edSign(null, bound, signer).toString("base64"), log: L.log.toString("base64"),
+                     quote: { attest: Q.attest.toString("base64"), sig: Q.sig.toString("base64"), aikPub: w.aik.tpmtPublic.toString("base64") },
+                     credential: credentialOf(credential).toString("base64"), ek: { cert: w.ek.cert.toString("base64"), chain: [w.ca.inter.toString("base64")] }, pcr0: w.pcr0.toString("hex"), platform: {} };
+      rad = { format: HVNODE_FORMAT, transportKey: transport.toString("base64"), body: Buffer.from(JSON.stringify(body)).toString("base64") };
+    }
+    r.ws.send(JSON.stringify({ t: "attest", rad: mutateRad(rad) }));
     const res = await waitResult(r.frames);
-    return { state: "open", ok: !!res?.ok, reason: res?.reason || "(no verdict)", measurement: res?.measurement, ws: r.ws, stage: "attest" };
+    return { state: "open", ok: !!res?.ok, reason: res?.reason || "(no verdict)", measurement: res?.measurement, tier: res?.tier, hostExcluded: res?.hostExcluded, ws: r.ws, stage: "attest" };
   }
   try {
-    const good = await vbsAttach(h, "win-1");
-    assert.equal(good.ok, true, good.reason);
-    const row = h.hub.origins().find((o) => o.name === "win-1");
-    assert.ok(row, "the PC is a tunnel origin now");
-    assert.equal(row.mode, "vbs", "the badge path reads mode vbs"); assert.equal(row.tier, "vbs");
-    assert.equal(row.measurement, good.measurement);
-    assert.equal(row.measurement, w.identity.imageId.toString("hex") + w.identity.authorId.toString("hex") + "03000000");
-    const info = h.hub.info("win-1");
-    assert.equal(info.padKey, w.padKey, "the pad key is retained: it is inside the signed transcript");
-    assert.equal(info.spki, w.transport.spki.toString("base64")); assert.equal(info.tier, "vbs");
+    const good = await nodeAttach(h, "nucbox-1");
+    assert.equal(good.ok, true, good.reason); assert.equal(good.tier, "hv-node"); assert.equal(good.hostExcluded, false); assert.equal(good.measurement, null);
+    const row = h.hub.origins().find((o) => o.name === "nucbox-1");
+    assert.ok(row, "the node is a tunnel origin now");
+    assert.equal(row.mode, "hv-node"); assert.equal(row.tier, "hv-node"); assert.equal(row.measurement, undefined, "no measurement: a host is not an image");
+    assert.equal(row.attestedKeys, undefined); assert.equal(row.hvNode.hostExcluded, false); assert.equal(row.hvNode.tee, null); assert.deepEqual(row.hvNode.omissions, ["platform-firmware-unpinned"]);
+    assert.match(row.hvNode.idksModulusSha256, /^[0-9a-f]{64}$/, "the boot's IDKS, for a same-boot VM report"); assert.equal(row.hvNode.hostStatement, undefined, "the node's statement stays in the hub");
+    const info = h.hub.info("nucbox-1");
+    assert.equal(info.mode, "hv-node"); assert.equal(info.padKey, "", "a host is never a pad consumer"); assert.equal(info.spki, w.transport.spki.toString("base64"));
+    assert.equal(info.hvNode.hostStatement.json.backend, "custom-type1"); assert.match(info.hvNode.hostStatement.note, /never read for admission/);
     // a genuine reconnect (same transport key) may retake the name
-    const again = await vbsAttach(h, "win-1");
-    assert.equal(again.ok, true, again.reason);
-    again.ws.close(); try { good.ws.close(); } catch {}
+    const again = await nodeAttach(h, "nucbox-1"); assert.equal(again.ok, true, again.reason); again.ws.close(); try { good.ws.close(); } catch {}
 
-    // a relay without vbs policy refuses the keys round outright
-    const off = await vbsAttach(hSnp, "win-off");
-    assert.equal(off.ok, false); assert.match(off.reason, /VBS attach is not enabled/); assert.equal(off.stage, "keys");
+    // the RETIRED VBS-enclave format: refused by name, even on a relay still holding the lab test-signing policy
+    const legacy = await nodeAttach(hLegacy, "win-legacy", { legacy: true });
+    assert.equal(legacy.ok, false); assert.match(legacy.reason, /VBS-enclave backend \(ee-engine\) is retired/);
+    // a relay with only the retired policy: the keys round is refused, the switch is the hv-node one
+    const off = await nodeAttach(hOff, "nucbox-off");
+    assert.equal(off.ok, false); assert.match(off.reason, /hv-node attach is not enabled/); assert.equal(off.stage, "keys");
+    const offLegacy = await nodeAttach(hOff, "win-off", { keys: false, legacy: true });
+    assert.equal(offLegacy.ok, false); assert.match(offLegacy.reason, /retired/);
     // straight to attest, no credential minted
-    const skipped = await vbsAttach(h, "win-nokeys", { keys: false });
+    const skipped = await nodeAttach(h, "nucbox-nokeys", { keys: false });
     assert.equal(skipped.ok, false); assert.match(skipped.reason, /without the vbs-keys round/);
-    // the TPM handed back the wrong credential: the quoting key is not in the EK's TPM
-    const wrongCred = await vbsAttach(h, "win-cred", { credentialOf: () => Buffer.alloc(32, 7) });
+    // the TPM handed back the wrong credential
+    const wrongCred = await nodeAttach(h, "nucbox-cred", { credentialOf: () => Buffer.alloc(32, 7) });
     assert.equal(wrongCred.ok, false); assert.match(wrongCred.reason, /3 credential/);
-    // the keys round named a quoting key other than the one that quoted
-    const otherAik = tpmtPublicOf(generateKeyPairSync("rsa", { modulusLength: 2048 }).publicKey);
-    const swappedAik = await vbsAttach(h, "win-aik", { keysOf: (k) => ({ ...k, aikPub: otherAik.toString("base64"), aikName: tpmName(otherAik).toString("base64") }) });
-    assert.equal(swappedAik.ok, false); assert.match(swappedAik.reason, /minted for/);
-    // an aikName that is not the hash of aikPub is refused before anything is minted
-    const badName = await vbsAttach(h, "win-name", { keysOf: (k) => ({ ...k, aikName: Buffer.alloc(34, 1).toString("base64") }) });
-    assert.equal(badName.ok, false); assert.match(badName.reason, /aikName/); assert.equal(badName.stage, "keys");
-    const noEk = await vbsAttach(h, "win-noek", { keysOf: (k) => ({ ...k, ek: undefined }) });
-    assert.equal(noEk.ok, false); assert.match(noEk.reason, /vbs-keys needs/); assert.equal(noEk.stage, "keys");
-    // the transcript was signed for another challenge
-    const stale = await vbsAttach(h, "win-stale", { stale: true });
-    assert.equal(stale.ok, false); assert.match(stale.reason, /binding|challenge/);
-    // the pad key in the rad is not the one the enclave signed
-    const pad = await vbsAttach(h, "win-pad", { mutateRad: (r) => ({ ...r, padKey: "31".repeat(32) }) });
-    assert.equal(pad.ok, false); assert.match(pad.reason, /binding/);
-    const noTransport = await vbsAttach(h, "win-nokey", { mutateRad: (r) => ({ ...r, transportKey: undefined }) });
+    // the transcript was built for another challenge (replay)
+    const stale = await nodeAttach(h, "nucbox-stale", { stale: true });
+    assert.equal(stale.ok, false); assert.match(stale.reason, /extraData == challenge/);
+    // a foreign transport key in the rad: the quote and the possession signature were for another key
+    const other = generateKeyPairSync("ed25519");
+    const foreign = await nodeAttach(h, "nucbox-foreign", { transport: other.publicKey.export({ type: "spki", format: "der" }) });
+    assert.equal(foreign.ok, false); assert.match(foreign.reason, /extraData == challenge|possession/);
+    const forged = await nodeAttach(h, "nucbox-forged", { signer: other.privateKey });
+    assert.equal(forged.ok, false); assert.match(forged.reason, /8 possession/);
+    // the statement sent is not the one the quote bound
+    const swapped = await nodeAttach(h, "nucbox-stmt", { statementSent: Buffer.from(JSON.stringify({ stated: true, hostExcluded: true })) });
+    assert.equal(swapped.ok, false); assert.match(swapped.reason, /extraData == challenge/);
+    // production boot policy only: test signing and Secure Boot off refuse, on the legacy lab relay too
+    const ts = await nodeAttach(hLegacy, "nucbox-ts", { log: { fields: { TESTSIGNING: 1 } } });
+    assert.equal(ts.ok, false); assert.match(ts.reason, /TESTSIGNING == 0/);
+    const sb = await nodeAttach(h, "nucbox-sb", { log: { secureBoot: 0 } });
+    assert.equal(sb.ok, false); assert.match(sb.reason, /Secure Boot on/);
+    const noTransport = await nodeAttach(h, "nucbox-nokey", { mutateRad: (r) => ({ ...r, transportKey: undefined }) });
     assert.equal(noTransport.ok, false); assert.match(noTransport.reason, /must carry transportKey/);
-    // a test-signed boot: refused here, admitted as tier vbs-dev by the lab relay
-    const ts = await vbsAttach(h, "win-ts", { log: { fields: { TESTSIGNING: 1 } } });
-    assert.equal(ts.ok, false); assert.match(ts.reason, /TESTSIGNING.*ALLOW_TESTSIGNING not set/);
-    const dev = await vbsAttach(hDev, "win-dev", { log: { fields: { TESTSIGNING: 1 } } });
-    assert.equal(dev.ok, true, dev.reason);
-    assert.equal(hDev.hub.origins().find((o) => o.name === "win-dev").tier, "vbs-dev"); assert.equal(hDev.hub.info("win-dev").tier, "vbs-dev");
-    dev.ws.close();
-    // VBS evidence cannot ride the SNP or AVF format
-    const misLabel = await vbsAttach(h, "win-format", { mutateRad: (r) => ({ ...r, format: AVF_PAD_FORMAT }) });
+    // hv-node evidence cannot ride another format
+    const misLabel = await nodeAttach(h, "nucbox-format", { mutateRad: (r) => ({ ...r, format: AVF_PAD_FORMAT }) });
     assert.equal(misLabel.ok, false);
-    // every refusal left no tunnel behind
-    for (const n of ["win-off", "win-nokeys", "win-cred", "win-aik", "win-name", "win-noek", "win-stale", "win-pad", "win-nokey", "win-ts", "win-format"])
-      assert.equal(h.hub.info(n) || hSnp.hub.info(n), null, `${n} did not bind`);
-  } finally { await h.close(); await hDev.close(); await hSnp.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+    for (const n of ["win-legacy", "nucbox-off", "win-off", "nucbox-nokeys", "nucbox-cred", "nucbox-stale", "nucbox-foreign", "nucbox-forged", "nucbox-stmt", "nucbox-ts", "nucbox-sb", "nucbox-nokey", "nucbox-format"])
+      assert.equal(h.hub.info(n) || hLegacy.hub.info(n) || hOff.hub.info(n), null, `${n} did not bind`);
+  } finally { await h.close(); await hLegacy.close(); await hOff.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 // ---------- the operator's minimum-TCB policy reaches the attach gate -----------
