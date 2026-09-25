@@ -428,8 +428,51 @@ that has VTL1, and it cannot hide Guest VSM from the guest's secure kernel.
 The blocking `launch_worker` calls I cited are the VNC and gdb workers. So `run_control` stays responsive and reports
 `control_state: starting`, as enclave-d1 measured on both images, while type 16 reports `started`.
 
-**Still true:** no type-1 guest has booted, E2/E3 are NOT RUN, `host_excluded=no`, and nothing here is evidence of
-isolation.
+**A TYPE-1 GUEST BOOTS AND SERVES** (enclave-d1, 39cff982). The run: enclave-53's CONTROL image
+`openhcl-cvm-a7b0bd4-CONTROL-32d464cc.bin` (a7b0bd4, no confidential debug), `VirtualizationBasedSecurityOptOut`
+true, medium ca245eae, `GuestStateIsolationType` 1 read back:
+
+```
+inspect control_state (66 ms): "started"
+MON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, CPUID)
+MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=vbs paravisor=no
+MON ready control_port=9000 snp=false transport=hv_sock
+load agreed 9c3d10f1...; relay up; the app answered its 13 pinned bytes (03ba204e...)
+```
+
+- The debug image boots identically, so this is a7b0bd4's behaviour, not the debug flag's.
+- **The opt-out alone does not fix stock 2511** (cfd40ce2): `control_state` stays "starting" and the guest never
+  speaks.
+- **In-guest discriminator** (stated by the hypervisor): type 1 reads `max_leaf=0x4000000c isolation_priv=true
+  hv_isolation=vbs`, and type 16 reads `0x4000000b`, `false`, `n/a`.
+
+**Why `paravisor=no`, from source; my "vbs/yes" was wrong.** On a VBS or unisolated partition OpenHCL installs no
+CPUID overrides (`virt_mshv_vtl/src/lib.rs:1841`), so VTL0 reads leaf 0x4000000C from the hypervisor. The loader's
+`IsolationConfig` (`paravisor_present: true`), which I cited, is not what VTL0 sees on VBS. A paravisor bit is
+synthesised only for SNP/TDX (`cvm_cpuid`). So `paravisor=no` is the hypervisor's own statement; the guest does not
+see OpenHCL there.
+
+**Why stock 2511 still fails: a different error.** At the stock image's own revision (release/1.7.2511, head
+`29e15ab`, the scm_revision it reports), `check_guest_vsm_support`, the `maximum_vtl` choice and the alias-map bail
+are identical to a7b0bd4's. With the same host register, the opt-out should clear that check in 2511 too, so 2511
+stops on something else. The diff across the VBS-relevant crates is 57 files and about 8,000 lines. The same method
+would name it: a 29e15ab build with confidential debug, on our own probe VM. That only matters for using Microsoft's
+released image rather than our pinned a7b0bd4 build.
+
+**Save-VM is REFUSED on type 1** (enclave-d1, 9b498f62: "the virtual machine has security settings which do not
+allow it").
+- That closes the documented host path to a type-1 guest's memory (Save-VM, then the saved-state decoder). It is the
+  platform's protection doing what it says.
+- It is recorded as REFUSED and is **not evidence of isolation**: nothing was read.
+- This lane does not look for undocumented ways into an isolated VM's memory. That would be attacking the protection
+  under test, not measuring it.
+- So E3 has no instrument on type 1 and stays NOT RUN. The memmarker module remains the type-16 control for a
+  decoder, if one is ever needed.
+- The verifiable claim therefore rests on **E2**: does the VBS report verify under a key a remote client can reach?
+  E2 can now run: the vbsreport PROBE medium on the same type-1 definition, with the same boot's TCG log.
+
+**Still true:** `host_excluded=no`, E2/E3 NOT RUN, and nothing here is evidence of isolation. A partition that
+reports VBS isolation does not demonstrate that the root cannot read its memory.
 
 ## 5. Files
 
