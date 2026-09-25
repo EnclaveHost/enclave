@@ -1,0 +1,15 @@
+build 1 from /home/steven/Projects/enclave-build-f6cbd75a start 22:29:31Z
+build 1 done 22:31:34Z
+build 2 from /home/steven/enclave-bench/s4c-20260925/cc-other/checkout/path/src start 22:31:34Z
+build 2 done 22:33:35Z
+vmlinuz: 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7 IDENTICAL-in-build-2
+initramfs.cpio.gz: 453d49994be5f136ee72547b1131047d1ad29ed0176e5755c522687fa753d9f3 IDENTICAL-in-build-2
+cmdline: d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8 IDENTICAL-in-build-2
+prediction 4 vCPU : 02f6e313a2c03f7f163426e03154654233ac6d8ac9bcc00f598ff94f3a1f596312f8849ea7419db0c4425bdf13bdde8b
+build 2 agrees    : True
+ovmf              : /home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd 142589cc4882f29a
+overlay           : f6cbd75ae0c2a44163db95b657b351da7504c2d1 dirty False reproducible True
+overlay files equal across the two builds: True
+images            : b59f69816d8131f4 1cf721aa25d994e4
+by hand           : 02f6e313a2c03f7f163426e03154654233ac6d8ac9bcc00f598ff94f3a1f596312f8849ea7419db0c4425bdf13bdde8b
+HAND == MANIFEST
