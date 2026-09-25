@@ -157,6 +157,7 @@ type server struct {
 	RuntimeID string     // hex; the runtime identity every guest image here carries (the judge pins it)
 	Data      *dataPlane // nil = no data plane (the default)
 	Budget    poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
+	IDPrefix  string     // two lowercase letters for this guestd's instance ids and guest units; "" = "gd" (-instance-prefix)
 	// Release: deliver attested-release tickets and serve egress to deployment guests (release.go, -release).
 	Release bool
 	// Legacy builds and starts the deployment guests that are NOT release guests on a -release guestd: the previous
@@ -190,10 +191,19 @@ func hostDataFor(name string) string {
 	return strings.ToLower(name[2:])
 }
 
-func newID() string {
+// newID is an instance id: this guestd's two-letter prefix and 8 hex. The prefix also names the guest's unit
+// (m2/run-domain.sh: m2-<id>-<pid>), which is what keeps two guestds on one host from sweeping each other's guests.
+func (s *server) newID() string {
 	b := make([]byte, 4)
 	_, _ = rand.Read(b)
-	return "gd" + hex.EncodeToString(b)
+	return s.idPrefix() + hex.EncodeToString(b)
+}
+
+func (s *server) idPrefix() string {
+	if s.IDPrefix == "" {
+		return "gd"
+	}
+	return s.IDPrefix
 }
 
 func (s *server) json(w http.ResponseWriter, code int, v any) {
@@ -403,7 +413,7 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 		s.json(w, 503, map[string]any{"error": err.Error()})
 		return
 	}
-	v := &vm{ID: newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting", RecordSha256: record,
+	v := &vm{ID: s.newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting", RecordSha256: record,
 		HostData: hostDataFor(req.Name),
 		Vcpus:    pol.Vcpus, MemMiB: mem, CPUPct: pol.CPUPercent, Created: s.Now(),
 		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL), cid: cid}

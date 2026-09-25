@@ -160,7 +160,7 @@ func parsePreamble(line string) (spliceWant, error) {
 			return spliceWant{}, fmt.Errorf("malformed: field %d is not %s=", i+1, spec.name)
 		}
 		if spec.n == 0 {
-			if !strings.HasPrefix(v, "gd") || !isHex(v[2:], 4) {
+			if len(v) != 10 || v[0] < 'a' || v[0] > 'z' || v[1] < 'a' || v[1] > 'z' || !isHex(v[2:], 4) {
 				return spliceWant{}, errors.New("malformed: id is not an instance id")
 			}
 		} else if !isHex(v, spec.n) {

@@ -69,7 +69,7 @@ func (s *server) persistRunning(v *vm) {
 // and dropped, for the log. The caller then sweeps every other guest unit and scrubs every other workdir.
 func (s *server) adoptOnBoot(ctx context.Context) (keep map[string]bool, adopted, dropped []string) {
 	keep = map[string]bool{}
-	dirs, _ := filepath.Glob(filepath.Join(s.Root, "gd*"))
+	dirs, _ := filepath.Glob(filepath.Join(s.Root, s.idPrefix()+"*"))
 	for _, dir := range dirs {
 		id := filepath.Base(dir)
 		why := s.adoptOne(ctx, dir)
