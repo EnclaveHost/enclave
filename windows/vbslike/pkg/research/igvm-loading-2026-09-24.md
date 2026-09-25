@@ -62,6 +62,36 @@ and its temp location, are not visible here.
   "default location".
 - Supported VM versions: 12.0 (default and max), 11.2, 11.1, and below.
 
+## E6. This build's settings schema is older than the harness's definition expects
+
+This was found by P1's first run, and then mapped read-only with `Get-CimClass Msvm_VirtualSystemSettingData` on
+26200.9457.
+
+d1's first P1 run failed at `New-CustomVM` with `Could not find the following properties from the given class
+Msvm_VirtualSystemSettingData: GuestStateLifetime`. The harness's reference definition therefore cannot be expressed
+unmodified on this build.
+
+The full map of the properties the harness can set:
+
+- **Absent on this build:** `GuestStateLifetime`, `DefaultBootAlwaysAttempt`, `ManagementVtlFeatureFlags`,
+  `GuestStateEncryptionPolicy`, and `IsolationType`. The last one corrects the "IsolationType reads EMPTY" measured
+  fact in v4 to v7: the property does not exist in this class, so reading it gives null. The type lives in
+  `GuestStateIsolationType`.
+- **Present, and all that P1 needs:** `GuestStateIsolationEnabled/Type/Mode`, `VMBusMessageRedirection`,
+  `SecureBootEnabled`, `GuestStateDataRoot`, `GuestStateFile`, `GuestFeatureSet`, `FirmwareFile`,
+  `FirmwareParameters`, `Vtl2AddressSpaceConfigurationMode`, `Vtl2AddressRangeSize`, `Vtl2MmioAddressRangeSize`,
+  `SecureBootTemplateId`, `Version`.
+- **On this build only (not used by the harness):** `ManagementVtlUpdatePolicy`, `SourceGuestStateFile`,
+  `Vtl2AddressRangeBase`, `GuestControlledCacheTypes`, `TurnOffOnGuestRestart`.
+
+P1 is re-run without `-GuestStateLifetime`. With no Ephemeral lifetime and no `-GuestStateFilePath`, the VM gets
+Hyper-V's default guest-state file.
+
+What P1 now tests, in enclave-d1's framing: the harness sets `FirmwareFile` inside the `DefineSystem` call that creates
+the VM, while the manager adds it afterwards with `ModifySystemSettings`. That would fit every observation: the property
+is accepted and reads back, yet the worker loads the default, because firmware selection would already have been
+settled when the VM was defined. If P1(b) names our path, that is the gate, and E2 is answered "no" at the same time.
+
 ## Bounded probe proposal (sent to enclave-d1, who runs it under the authorized set-probe-restore procedure)
 
 **P1: define the VM the reference way.**
