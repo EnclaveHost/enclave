@@ -10,6 +10,7 @@ ko=${1:?usage: build-probe.sh <module.ko> <out.cpio.gz> [vcpus]}; out=${2:?}; vc
 sh "$here/../build-domain.sh" "$out.base" "$vcpus" > "$out.build.log"
 d=$(mktemp -d); trap 'rm -rf "$d" "$out.base"' EXIT
 cp "$ko" "$d/probe.ko"
+chmod 0644 "$d/probe.ko"      # cpio records the mode: without this a read-only copy of the same module gives other bytes
 find "$d" -exec touch -h -d @0 {} +
 (cat "$out.base"; cd "$d" && find . -mindepth 1 | LC_ALL=C sort | cpio -o -H newc --reproducible 2>/dev/null | gzip -n -9) > "$out"
 echo "probe initrd $out sha256 $(sha256sum "$out" | cut -c1-64) (NOT a production medium)"
