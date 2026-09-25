@@ -16,7 +16,7 @@
 // secret and no secret-in-code is required.
 import { WebSocketServer } from "ws";
 import { createHash, timingSafeEqual, randomBytes } from "node:crypto";
-import { verifyQuote } from "./snp-verify.mjs";
+import { verifyQuote, provenSnpChip } from "./snp-verify.mjs";
 import { verifyAvfEvidence } from "./avf-verify.mjs";
 import { admitPvmCpu, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { AVF_PAD_FORMAT, avfPadBinding } from "./avf-binding.mjs";
@@ -213,7 +213,12 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                 spki: meta.spki || "", padKey: meta.padKey || "",
                 // mode "hv-node": the boot this attach proved (boot counter, the IDKS a same-boot VM report must
                 // verify under, PCRs, EK and AK), its omissions, and the node's own statement (recorded, never read)
-                hvNode: meta.hvNode || null };
+                hvNode: meta.hvNode || null,
+                // mode "snp": every CHIP_ID a VCEK-verified attach under THIS transport key has proved (an in-place
+                // re-attach adds to the set, so a multi-socket box's other chip is not a false refusal; a new key starts
+                // over). Internal: never in origins() rows or /enclaves.
+                snpChips: [...new Set([...(prev && prev.keyFp && prev.keyFp === (meta.keyFp || "") ? prev.snpChips || [] : []),
+                                       ...(meta.snpChip ? [meta.snpChip] : [])])] };
     tunnels.set(name, t);
     console.log(`[tunnel] ${name} attached via ${meta.via || "token"} (${tunnels.size} enclave${tunnels.size === 1 ? "" : "s"})`);
     try { onChange("attach", name); } catch {}   // refresh discovery so it lands in `live` now, not on the next slow poll
@@ -425,6 +430,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // development mode. Production checks its certificate/signature.
             const avfBound = avfV2 ? avfPadBinding(spki, f.rad.padKey, nonce) : null;
             let res;
+            // the SEV-SNP CHIP_ID this attach PROVED (secrets-release.mjs binds a per-app guest's release to its lease
+            // holder's chip): kept only from a VCEK-verified, VCEK-signed report with a non-zero CHIP_ID -- a
+            // measurement-only attach never had its signature checked against the chip, so its CHIP_ID proves nothing
+            let snpChip = null;
             // DEVELOPMENT ONLY, double-gated (the hub's option AND the process
             // env): a phone whose VM cannot attest yet (vendor level below the
             // RKP admission) binds on its transport key alone so the rest of
@@ -477,6 +486,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
               res = await verifyQuote(report, { challenge: nonce, transportKeySpki: spki, auxblob: aux,
                 allowedMeasurements: attest.allowedMeasurements || [], requireVcek: !!attest.requireVcek,
                 ...("minTcb" in attest ? { minTcb: attest.minTcb } : {}) });   // absent: TCB unjudged, as before
+              snpChip = provenSnpChip(report, res);
             }
             // verification is a network round trip (KDS): the timeout may have
             // denied and closed this socket while we waited. Binding it now
@@ -515,6 +525,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             const padKey = padEligible && /^[0-9a-f]{64}$/.test(String(f.rad.padKey || "")) ? f.rad.padKey : "";
             bind(name, ws, { via: isHv ? "attestation(hv-node)" : isAvf ? "attestation(avf)" : res.vcekVerified ? "attestation" : "attestation(measurement-only)",
                              measurement: res.measurement, mode: isHv ? "hv-node" : isAvf ? "avf" : "snp", keyFp, tier: isHv ? HVNODE_TIER : "",
+                             snpChip,
                              hvNode: isHv ? { boot: res.boot, omissions: res.omissions, hostStatement: res.hostStatement, verifiedAt: new Date().toISOString() } : null,
                              spki: spki ? spki.toString("base64") : "", padKey,
                              // the pVM CPU admission inputs, pinned at attach (policy included: a hub
@@ -652,5 +663,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     count: () => tunnels.size,
     // websocket-upgrade splice into the guest supervisor (Phase D)
     spliceUpgrade,
+    // the CHIP_IDs a mode-"snp" tunnel has proved at attach (VCEK-verified): secrets-release.mjs's lease-holder chip binding
+    snpChipIdsOf: (name) => { const t = tunnels.get(name); return t && t.mode === "snp" ? [...(t.snpChips || [])] : []; },
   };
 }
