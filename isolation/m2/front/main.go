@@ -33,6 +33,7 @@
 package main
 
 import (
+	"context"
 	"crypto"
 	"crypto/sha256"
 	"crypto/tls"
@@ -44,6 +45,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"strings"
 	"sync"
@@ -53,6 +55,7 @@ import (
 
 	"enclave.host/isolation/contract"
 	"enclave.host/isolation/m2/domtls"
+	"enclave.host/isolation/m2/release"
 	"enclave.host/isolation/m2/vsock"
 )
 
@@ -116,6 +119,7 @@ func main() {
 	certZone := flag.String("cert-zone", "app.enclave.host", "the app zone this domain's deployment name lives in (<first 4 bytes of its HOST_DATA, hex>.<zone>); empty = never certify a name")
 	certNameFile := flag.String("cert-name-file", "", "where there is no SEV-SNP HOST_DATA (a Hyper-V partition): a file holding the deployment name the LAUNCHER named this domain for; used only if it is <8 hex>.<-cert-zone>")
 	appMode := flag.String("app-mode", "serve", "how the app runs, for /.well-known/enclave-ready: serve (the runtime serves a wasi:http component) or run (a wasi:cli command binds -upstream itself)")
+	initFD := flag.Int("init-fd", 0, "a pipe from init (M2): after provisioning, the front writes N (no config) or C+config there, and init starts the app only then (provision.go)")
 	flag.Parse()
 
 	raw, err := os.ReadFile(*appShaPath)
@@ -190,8 +194,14 @@ func main() {
 	// client pins by comparing that key, never by tracking which session came from which handshake.
 	// The name this domain may certify comes from its own HOST_DATA (certs.go); the key is the attested one either way.
 	f.certs = &certState{key: cert.PrivateKey.(crypto.Signer), spki: spki, self: &cert}
+	// HOST_DATA, read once: it names the deployment this guest serves, for both its certificate and its release
+	var hd []byte
+	var hdErr error
 	if f.plane == nil {
-		if hd, err := f.hostData(); err != nil {
+		hd, hdErr = f.hostData()
+	}
+	if f.plane == nil {
+		if err := hdErr; err != nil {
 			if n := launcherName(*certNameFile, *certZone); n != "" {
 				f.certs.name = n
 				fmt.Printf("DOM certificate: this domain may certify %s (named by the launcher at load: no HOST_DATA here, "+
@@ -204,6 +214,34 @@ func main() {
 		} else {
 			fmt.Printf("DOM certificate: HOST_DATA names no deployment; self-signed only\n")
 		}
+	}
+	// M2: a guest that serves a deployment gets its owner's config and secrets through the attested release, and its
+	// allowlist from them, BEFORE init starts the app (provision.go). Any failure ends the domain.
+	if *initFD > 0 {
+		initPipe := os.NewFile(uintptr(*initFD), "init-pipe")
+		config := ""
+		if f.snp && f.plane == nil && f.monitor == "" && hdErr == nil && !isZero(hd) {
+			roots, err := release.RelayRoots()
+			must(err)
+			p := &provisioner{
+				ticket:    func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, release.TicketPort) },
+				egress:    func() (net.Conn, error) { return vsock.Dial(vsock.CIDHost, EgressPort) },
+				report:    f.report,
+				relayHost: release.RelayHost, roots: roots,
+				etc: "/etc", fwdPort: 443,
+				audit: func(want []netip.AddrPort) error { return auditListeners("/proc/net", want) },
+				logf:  func(format string, a ...any) { fmt.Printf(format+"\n", a...) },
+			}
+			prov, err := p.run(context.Background(), hd, spki, rt, appSha)
+			if err != nil {
+				die("release: %v", err)
+			}
+			config = prov.config
+		} else {
+			fmt.Printf("DOM release: none (this guest serves no deployment's HOST_DATA on the M2 SNP path)\n")
+		}
+		must(handToInit(initPipe, config))
+		config = ""
 	}
 	tl := tls.NewListener(l, &tls.Config{GetCertificate: f.certs.getCertificate, MinVersion: tls.VersionTLS13,
 		SessionTicketsDisabled: true})

@@ -3,11 +3,15 @@
  * The domain holds exactly one app and exposes exactly one port. This init:
  *   1. loads the vsock transport (the domain has no NIC: vsock to the host is its only channel) and,
  *      under SEV-SNP, the report interface;
- *   2. brings up loopback and starts the app natively under `wasmtime serve` on 127.0.0.1:8080 (the
- *      runtime JIT-compiles it inside this guest, as in M1);
- *   3. starts /front, which mints the domain's TLS key in guest memory, terminates TLS on vsock port
- *      443, serves the attestation document binding that key, and proxies everything else to the app;
- *   4. if either exits, powers the domain off: a domain that cannot serve should not linger.
+ *   2. brings up loopback and starts /front, which mints the domain's TLS key in guest memory, terminates TLS on
+ *      vsock port 443, serves the attestation document binding that key, and proxies everything else to the app;
+ *   3. waits for the front's ONE message on the pipe it gave it (fd 3): "N" (no config) or "C" + the app's config.
+ *      For a guest that serves a deployment, the front sends it only after the attested release has delivered the
+ *      owner's config and secrets and the egress forwarders are up (front/provision.go); an empty pipe means the
+ *      front died first, and the domain powers off rather than start an app without the config it should have;
+ *   4. starts the app natively under `wasmtime serve` on 127.0.0.1:8080 (the runtime JIT-compiles it inside this
+ *      guest, as in M1), with ENCLAVE_CONFIG when there is one;
+ *   5. if either exits, powers the domain off: a domain that cannot serve should not linger.
  * The host ends a serving domain by stopping its VMM (lease end). */
 #define _GNU_SOURCE
 #include <cpuid.h>
@@ -47,15 +51,56 @@ static void lo_up(void) {
     close(s);
 }
 
-static pid_t spawn(char *const argv[]) {
+/* extra: one more environment entry or NULL; fd3: a descriptor the child gets as fd 3, or -1 */
+static pid_t spawn(char *const argv[], char *extra, int fd3) {
     pid_t pid = fork();
     if (pid == 0) {
-        char *envp[] = {"HOME=/tmp", "PATH=/rt", NULL};
+        if (fd3 == 3) fcntl(3, F_SETFD, 0);                      /* already fd 3: only drop CLOEXEC */
+        else if (fd3 >= 0 && dup2(fd3, 3) < 0) _exit(127);       /* dup2 leaves the new fd 3 without CLOEXEC */
+        char *envp[] = {"HOME=/tmp", "PATH=/rt", extra, NULL};
         execve(argv[0], argv, envp);
         printf("DOM ERROR exec %s: %s\n", argv[0], strerror(errno));
         _exit(127);
     }
     return pid;
+}
+
+/* The front's one message on the pipe: "N" (no config), or "C" + the app's config, at most the standard runtime's
+ * ENCLAVE_CONFIG ceiling (64 KiB), then EOF. On "C" *env is a malloc'd "ENCLAVE_CONFIG=<config>" and *len the config's
+ * length; on "N" *env stays NULL. Anything else - an empty pipe (the front died first), one byte over the ceiling, a
+ * NUL, another tag - returns why, and the caller does not start the app. The read buffer is wiped either way. */
+#define CFG_MAX 65536
+static const char *read_front_msg(int fd, char **env, size_t *len) {
+    static char msg[1 + CFG_MAX + 1];
+    static const char pre[] = "ENCLAVE_CONFIG=";
+    size_t n = 0;
+    const char *why = NULL;
+    for (;;) {
+        ssize_t r = read(fd, msg + n, sizeof msg - n);
+        if (r < 0 && errno == EINTR) continue;
+        if (r <= 0) break;
+        n += (size_t)r;
+        if (n == sizeof msg) break;
+    }
+    *env = NULL;
+    *len = 0;
+    if (n == 0) why = "ended before it handed over the app's config";
+    else if (n == 1 && msg[0] == 'N') why = NULL;
+    else if (msg[0] != 'C' || n < 2) why = "sent no valid config message";
+    else if (n == sizeof msg) why = "sent a config over the 64 KiB ENCLAVE_CONFIG ceiling";
+    else if (memchr(msg + 1, 0, n - 1)) why = "sent a config with a NUL byte";
+    else {
+        *len = n - 1;
+        *env = malloc(sizeof pre + *len);
+        if (!*env) why = "sent a config there was no memory for";
+        else {
+            memcpy(*env, pre, sizeof pre - 1);
+            memcpy(*env + sizeof pre - 1, msg + 1, *len);
+            (*env)[sizeof pre - 1 + *len] = 0;
+        }
+    }
+    explicit_bzero(msg, n);
+    return why;
 }
 
 static double now_ms(void) {
@@ -104,7 +149,8 @@ int main(void) {
      * through wasi:sockets, as the platform's run mode does (wasm/wasm_manager.py): -S tcp/udp/inherit-network,
      * ENCLAVE_PORTS=http:N=N (logical = actual here: this domain holds one app), and a private scratch /data.
      * inherit-network reaches nothing but this domain's own loopback: the domain has no NIC, and its only channel,
-     * vsock, is not an IP socket. No config, secrets, egress or other ports are granted. */
+     * vsock, is not an IP socket. Its config arrives as ENCLAVE_CONFIG like a served app's; its egress is the same
+     * as a served app's, the front's per-origin forwarders on loopback (front/provision.go). No other ports. */
     int port = 0;
     FILE *rf = fopen("/app.run", "r");
     if (rf) {
@@ -128,9 +174,48 @@ int main(void) {
         printf("DOM app mode run: a wasi:cli command serving HTTP on %d (ENCLAVE_PORTS http:%d=%d, /data 64 MiB scratch)\n",
                port, port, port);
     }
-    char **app = port ? run : serve;
-    char *front[] = {"/front", "-port", "443", "-upstream", upstream, snp ? "-snp=true" : "-snp=false", NULL};
-    pid_t app_pid = spawn(app), front_pid = spawn(front);
+    /* The front first. It hands this process the app's config (or "none") on a pipe, and the app starts only then:
+     * the release, the allowlist and the forwarders all happen before any tenant code runs. */
+    int pfd[2];
+    if (pipe2(pfd, O_CLOEXEC) < 0) {
+        printf("DOM ERROR pipe: %s\n", strerror(errno));
+        fflush(stdout);
+        reboot(RB_POWER_OFF);
+    }
+    char *front[] = {"/front", "-port", "443", "-upstream", upstream, snp ? "-snp=true" : "-snp=false",
+                     "-init-fd", "3", NULL};
+    pid_t front_pid = spawn(front, NULL, pfd[1]);
+    close(pfd[1]);
+    char *cfg_env = NULL;
+    size_t cfg_len = 0;
+    const char *why = read_front_msg(pfd[0], &cfg_env, &cfg_len);
+    close(pfd[0]);
+    if (why) {
+        printf("DOM ERROR the front %s: the app is not started\n", why);
+        fflush(stdout);
+        sync();
+        reboot(RB_POWER_OFF);
+    }
+    if (cfg_env) printf("DOM app config: %zu bytes (ENCLAVE_CONFIG)\n", cfg_len);   /* its length, never its content */
+    else printf("DOM app config: none\n");
+
+    /* the runtime passes ENCLAVE_CONFIG to the guest program from its own environment (--env NAME, no value), so the
+     * value is never an argument */
+    char **base = port ? run : serve, *app[48];
+    int k = 0;
+    for (int i = 0; base[i]; i++) {
+        if (cfg_env && strcmp(base[i], "/app.wasm") == 0) {
+            app[k++] = "--env";
+            app[k++] = "ENCLAVE_CONFIG";
+        }
+        app[k++] = base[i];
+    }
+    app[k] = NULL;
+    pid_t app_pid = spawn(app, cfg_env, -1);
+    if (cfg_env) {
+        explicit_bzero(cfg_env, sizeof "ENCLAVE_CONFIG=" + cfg_len);
+        free(cfg_env);
+    }
     printf("DOM started app=%d front=%d at_ms=%.0f\n", app_pid, front_pid, now_ms());
 
     for (;;) {                   /* PID 1 reaps everything; either server ending ends the domain */
