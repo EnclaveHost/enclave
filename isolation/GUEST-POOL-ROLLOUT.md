@@ -102,7 +102,8 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
   - the node's `/availability`;
   - each deployment's on-chain record (shares, cap, balance, appRef);
   - that the three public URLs answer and verify in trusted mode;
-  - host MemAvailable and PSI.
+  - host MemAvailable and PSI;
+  - who judges the control CVM's measurement, re-checked at the integration commit (S2 a).
 - Go/no-go: MemAvailable >= 40 GiB.
 
 **S1. guestd pool build AND its flags, in ONE restart.**
@@ -125,18 +126,31 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
   guestd (F7).
 
 **S2. The supervisor release: a new measured control-CVM image.**
-- Build with `metal/build-image.mjs` from the integration commit: the supervisor.js overlay plus the guestd client
-  modules. Record the prediction, and rebuild once to confirm it reproduces.
-- Measurement pinning: back up `/etc/nan-relay/api-relay.env` on nan, then ADD the new measurement to
-  `METAL_ALLOWED_MEASUREMENTS`, keeping 04e953a4. Restart `enclave-api-relay.service`. That is a brief blip of the
-  production API relay, so schedule it.
+- a. Who judges the control CVM's measurement (d1). In code, only the production api-relay's tunnel attach gate does:
+  `METAL_ALLOWED_MEASUREMENTS`, relay/api-relay.js:133 and :229 on main.
+  - The relay's re-verifier skips tunnel rows (relay/reverify.mjs:59: `isDialed` requires `!e.tunnel`).
+  - No site, CLI or vendored verifier code refers to a metal node image or its measurement (grep at 77f789a6).
+  - A trusted-mode client of a tier app judges the GUEST's measurement, recomputed from the pinned domain release
+    (S4), not the node image.
+  - So no client pin is needed at S2. S0 re-runs this check at the integration commit, and also confirms the
+    release index / TUF lists no metal node image. If anything is found, pin the new measurement there alongside
+    04e953a4 BEFORE the dist switch.
+- b. Build with `metal/build-image.mjs` from a CLEAN checkout at the integration commit, never a working tree:
+  `git worktree add --detach` at the commit, with `git status --porcelain` empty. Include the supervisor.js overlay
+  and the guestd client modules. Record the commit, the predicted measurement and `node-image-manifest.json`
+  (`reproducible: true`), and rebuild once to confirm the prediction reproduces.
+- c. Measurement pinning.
+  - Back up `/etc/nan-relay/api-relay.env` ON nan ONLY: it holds secrets, so the copy is chmod 600, stays on nan, and
+    is never copied off the host. The S2 executor records the backup's path and deletes it at the soak's end step.
+  - Then ADD the new measurement to `METAL_ALLOWED_MEASUREMENTS`, keeping 04e953a4, and restart
+    `enclave-api-relay.service`. That is a brief blip of the production API relay, so schedule it.
 - Switch: back up `metal/config.iso.json`, point `dist` at `metal/dist-iso-<new>`, and
   `systemctl --user restart enclave-metal-iso` (the node CVM reboots). The guests keep running on the host, but the
   apps' public paths are down while the CVM reboots.
 - Resume: every own lease is re-discovered and resumed. c42612c0 judges each resume with the room its held guest
   already reserves, so they pass even on a pool at exactly its budget. At B = 16 GiB, free is ample anyway.
 - Check:
-  - the node attaches via attestation with the NEW measurement, and the relay lists it serving, mode snp;
+  - the ATTACHED measurement EQUALS the prediction recorded at b, and the relay lists the node serving, mode snp;
   - the log shows "[isolation] ... adopted guest ... launched from this record before the node restarted" three
     times, with NO lease released;
   - `/availability` shows `guestPool.heard:true`, `nodeRamGb` 16, `nodeVcpus` 8, and `cpuShareFree` <= 0.625;
@@ -145,9 +159,13 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
 - Rollback: point `dist` back at `metal/dist-iso-8ed6231f` and restart. The old supervisor adopts the same guests,
   because 4c does not change the derivation, so `recordSha256` matches. Then remove the new measurement from the
   allowlist.
-- Reversibility: operationally reversible ONLY while `dist-iso-8ed6231f` and its allowlist entry are KEPT; keep both
-  through a soak. What cannot be undone: that the new measurement was admitted (relay history). Revoking it means
-  removing it from the allowlist.
+- Reversibility: operationally reversible ONLY while `dist-iso-8ed6231f` and its allowlist entry are KEPT. What cannot
+  be undone: that the new measurement was admitted (relay history). Revoking it means removing it from the allowlist.
+- d. The soak. Proposed: 72 h, including at least one guestd restart and one supervisor resume, owned by the S2
+  executor (a section 7 decision).
+  - Until it ends, BOTH images are admitted. That is intended: it is the rollback path.
+  - End step, only after a clean soak: remove 04e953a4 from `METAL_ALLOWED_MEASUREMENTS` and restart the relay;
+    retire `metal/dist-iso-8ed6231f`; delete the env backups from c.
 
 **S3. Relay: U7 first, then attested release, still OFF.**
 - U7 (18772bf7) goes by its own staged preflight (5d's `~/enclave-bench/u7-preflight/U7-ROLLOUT-PREFLIGHT.md`, rev 2):
@@ -166,7 +184,20 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
 - Rollback: revert and redeploy (CI deploys nan-relay; us-west is manual), and unset the envs. The code is
   reversible; the blockers are access, not risk.
 
+**S3b. Generate the relay's release signing key, BEFORE S4 (d1: an ordering dependency).**
+- The release key's PUBLIC half is compiled into the MEASURED front: `relayReleaseKeys` in
+  isolation/m2/release/verify.go:32, empty today. An image built without it refuses every release ("no pinned
+  release key") and needs another image cycle.
+- Generate `SECRETS_RELEASE_SIGNING_KEY` on its ONE named relay host, and never move it:
+  - its own key, distinct from RELAY_TXT_KEY (d1 on v1.2);
+  - its env file chmod 600;
+  - record the public key.
+- The release stays OFF (`SECRETS_ATTESTED_RELEASE` unset).
+- Check: the public key is recorded, and the private half exists only on that host.
+- Rollback: discard the key before any image pins it. After S4, replacing it means re-imaging (see 6.5).
+
 **S4. Guest images carrying 5d's front (`isolation/app-config-m1`, once its guestd host services land).**
+- Build the images with `relayReleaseKeys` = exactly the S3b public key.
 - Build the new guest domain release, and PIN it for trusted-mode clients BEFORE any guest runs it.
 - Restart guestd with 5d's `-release` flag and the new release. It adopts the old-image canaries, which keep running.
 - New launches use the new image. Each canary moves on its next relaunch, because the supervisor's spawn compares
@@ -177,16 +208,34 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
 - Room: a relaunch DELETEs first, which frees the old guest's room, then creates, so B holds.
 - The relay's release stays OFF, so no config or secret flows yet.
 - Check:
+  - the image pins EXACTLY the S3b public key, and no other;
   - each relaunched canary attests with the new measurement from the pinned release, and verifies in trusted mode;
   - AppIDs match the baseline.
 - Rollback: guestd back to the previous release, and relaunch the canaries on the old image. Keep the old release
   pinned in clients through the window. Reversible: no secret has been released.
 
 **S5. Switch attested release ON at the relay (a separate decision; the first HARD step).**
-- Set `SECRETS_ATTESTED_RELEASE` with its signing key (its own key, d1 on v1.2), the TCB floor and the VMPL pin.
-- Check: a guest's release succeeds only for its own measurement, AppID and HOST_DATA, and every other asker is refused.
+- Preconditions (d1's, all required):
+  - a TCB floor the handler owns (SECRETS_RELEASE_MIN_TCB) and the VMPL pin (SECRETS_RELEASE_VMPL);
+  - the reviewed NON-debug allowlist of guest images (SECRETS_RELEASE_MEASUREMENTS, SECRETS_RELEASE_RUNTIME_IDS)
+    naming exactly the S4 image;
+  - 5d's guest side landed and reviewed: host_data = the deployment id, the measured release client,
+    verify-then-open, TLS validation;
+  - key custody as in S3b.
+- h. For each of Steven's apps, before anything real is released: WHICH secrets it has, and WHO can rotate each one.
+  The owner is Steven (secrets are relay-stored and lease-holder-only; nobody else can read their names). "Rotate" is
+  a rollback only for a secret someone can actually rotate.
+- f. Make the first release carry nothing worth rotating.
+  - Release ON for the CANARY deployments only, with DUMMY secrets.
+  - There is no per-deployment allowlist today; 99's relay gates by image only (the two envs above). So do it
+    operationally: stage dummy secrets on the canaries only, and keep the tier's `supports.secrets` false, so the claim
+    gate claims no real secret-bearing deployment onto the tier until the canary release has passed.
+  - A deployment allowlist in the relay (for example SECRETS_RELEASE_DEPLOYMENTS) would be new code in 99's lane, as
+    defence in depth.
+- Check: a canary's release succeeds only for its own measurement, AppID and HOST_DATA; every other asker is
+  refused; and the dummy value arrives.
 - Rollback: unset it. But **a config or secret already released into a guest cannot be recalled**. The rollback for
-  a released secret is ROTATING it.
+  a released secret is ROTATING it, which is why the first release carries dummies only.
 
 **S6. The owner setConfig transactions: LAST, and NOT part of this plan's execution.**
 - These are owner actions: the agent wallet for the canaries, and Steven for his apps. The tier must advertise
@@ -216,10 +265,16 @@ What does change, visibly: `/availability` `nodeRamGb`/`nodeVcpus` become B (16 
 2. S5: a released secret or config cannot be recalled (rotate).
 3. S6: setConfig transactions are permanent and public (supersede only).
 4. Every CVM reboot (S2 and each rollback) and every relaunch (S4) is a short outage of the affected apps.
+5. The relay's release PUBLIC key is pinned in the measured guest images (S3b/S4). A leaked signing key stays trusted
+   by deployed guests until they are re-imaged.
+6. The S4 client pins (the domain release in the release index or TUF) are public history: superseded, never erased.
+7. S3's U7 deploy is reversible as code, but it FAILS CLOSED. A missing or stale ELIGIBILITY_API or DOMAINS_API on any
+   daemon host cuts tenant traffic. Rollback trigger: ANY canary URL stops serving after S3.
 
 ## 7. Decisions for Steven / Codex
 
 - B: 16384 MiB / 8 recommended.
+- S2's soak: its length (72 h proposed) and its owner.
 - One pool release first (section 5), or a single combined release.
 - The S3 access blockers (us-west).
 - Whether and when to do S5.
