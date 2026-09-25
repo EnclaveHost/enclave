@@ -1,0 +1,47 @@
+=== toolchain 
+cargo 1.100.0-nightly (495c385d0 2026-09-16)
+rustc 1.100.0-nightly (bba531001 2026-09-20)
+=== cargo build --release 
+   Compiling vbslike-host v0.1.0 (C:\Users\claude\vbs-like\host)
+warning: field `id` is never read
+  --> src\hcs.rs:17:9
+   |
+16 | pub struct Partition {
+   |            --------- field in this struct
+17 |     pub id: String,
+   |         ^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `vm` and `port` are never read
+  --> src\hvsock.rs:80:9
+   |
+78 | pub struct Listener {
+   |            -------- fields in this struct
+79 |     s: SOCKET,
+80 |     pub vm: GUID,
+   |         ^^
+81 |     pub port: u32,
+   |         ^^^^
+
+warning: field `app_id` is never read
+  --> src\launcher.rs:41:9
+   |
+36 | pub struct Domain {
+   |            ------ field in this struct
+...
+41 |     pub app_id: [u8; 32],
+   |         ^^^^^^
+
+warning: method `ended_reason` is never used
+  --> src\launcher.rs:70:12
+   |
+62 | impl Domain {
+   | ----------- method in this implementation
+...
+70 |     pub fn ended_reason(&self) -> Option<String> {
+   |            ^^^^^^^^^^^^
+
+warning: `vbslike-host` (bin "vbslike-host") generated 4 warnings
+    Finished `release` profile [optimized + debuginfo] target(s) in 1.88s
+=== rc=0 
