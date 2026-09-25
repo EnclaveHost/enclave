@@ -34,6 +34,7 @@ function stubRpc({ hang = false } = {}) {
   return http.createServer((req, res) => { let b = ""; req.on("data", (d) => (b += d)); req.on("end", () => {
     if (hang) return;   // a ledger that never answers
     const q = JSON.parse(b || "{}"); const one = (m) => { const data = String(m.params?.[0]?.data || "");
+      if (data.startsWith("0x5d1b72b6")) return "0x" + W(2);   // the ledger's schema revision (2), as test/relay-u7-eligible-routing.test.mjs answers it
       if (data.startsWith("0x06661abd")) return "0x" + W(LEDGER.length);
       if (m.method === "eth_call" && data.length >= 138) { const start = Number(BigInt("0x" + data.slice(10, 74))), n = Number(BigInt("0x" + data.slice(74, 138))); return encPage(LEDGER.slice(start, start + n)); }
       if (m.method === "eth_call") return "0x" + W(0);   // any other view (schema probes, address-book reads): a zero word
@@ -66,7 +67,9 @@ const CONFIGURED = { PVM_SERVING: "1", METAL_AVF_CODE_HASHES: "aa".repeat(32), M
 async function appEnclave(t) {
   const seen = [];
   const e = http.createServer((req, res) => { seen.push(req.url);
-    if (req.url === "/availability") { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5 })); }
+    // U7: an ordinary app host is an ELIGIBLE one (a dialed row naming its confidential CPU, as test/relay-u7-eligible-routing.test.mjs's
+    // stub boxes do) -- the carrier's paths are judged beside a host that may serve tenant traffic, never instead of one
+    if (req.url === "/availability") { res.setHeader("content-type", "application/json"); return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, teeCpu: "amd-sev-snp" })); }
     if (req.method === "HEAD") { res.statusCode = 200; return res.end(); }
     let b = ""; req.on("data", (d) => (b += d)); req.on("end", () => { const h = { ...req.headers }; for (const k of ["host", "content-length", "connection", "x-forwarded-for", "x-real-ip"]) delete h[k];
       res.setHeader("content-type", "application/json"); res.setHeader("x-app", "own"); res.end(JSON.stringify({ app: "OWN RESPONSE", headers: h, body: b })); }); });
