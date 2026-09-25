@@ -535,7 +535,7 @@ try {
     if ($ports3.Count -ge 3) { Note "COM3 NOT ATTACHED: this host exposes $($ports3.Count) serial ports, but nothing here configures the third one's pipe (untested path). Recorded as not attached, NOT as a pass or a failure." }
     else { Note "COM3 UNSUPPORTED: this host's Gen2 VM exposes $($ports3.Count) serial ports, so OpenHCL's own log cannot be read there. Recorded as unsupported, NOT as a pass or a failure." }
   } catch { Note "COM3 UNSUPPORTED: $($_.Exception.Message)" }
-  Note "DVD attached and set as the ONLY boot device; COM1 -> \\.\pipe\$pipe"
+  Note "$(if ($LinuxDirect) { 'NO medium attached' } else { 'DVD attached and set as the ONLY boot device' }); COM1 -> \\.\pipe\$pipe"
 
   # THE READ-BACK. The guest refuses to start if the command line is not exactly its pinned one, or
   # if the stub unpacked anything besides os-release. Load options and SMBIOS strings are how that

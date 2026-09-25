@@ -66,8 +66,14 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
     `underhill_core/src/loader/mod.rs:186-197`, the `LoadLinuxParams` passed to `load_linux`);
   - the app. Apps are loaded at runtime over the control port, so their identity (AppID) reaches a verifier only
     as a statement made by measured code, through report_data.
-- UNTESTED: nobody has built a VBS IGVM with a Linux VTL0 image. The type-16 linux-direct boots of 09-24/25 failed
-  (12030) under different placement settings, which is no evidence either way.
+- VERIFIED (boot 68, `candidate-c567e432-review.md`): enclave-53 built it (`c567e432`, launch digest `A0FDAC0F…`).
+  - The digests were independently recomputed with the pinned igvm crate.
+  - Kernel, initrd and both command lines are confirmed in measured pages, and 53's mutation digests show each
+    input changes the digest.
+  - It BOOTED as a type-1 partition under Secure Boot with no medium: `MON ready`, `hv_isolation=vbs`, and the
+    control channel answered (canary 061934).
+  - Still host-supplied and unmeasured: the device tree, ACPI and memory map, the DPS apart from load kind, VMBus
+    offers and the vTPM.
 - Runtime: the wasm runtime binary lives in our initrd, so it is covered once the initrd is measured (SOURCE, same
   citations). RuntimeID is bound in report_data by measured code, as on the SNP path.
 
@@ -130,13 +136,9 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 
 Nothing here waits on a decision already made: boot state (Secure Boot on) and the fresh quote are DONE on boot 68.
 
-1. **enclave-d1 with enclave-53:** boot 53's measured Linux-VTL0 candidate as a bounded owned canary. The candidate
-   is `vbs-linux-candidate.bin`, sha256 `5562e71d…45ce`, VBS launch digest `246DEE1B…89F0`.
-   - Run it under the temporary developer setting, fully restored afterwards.
-   - Record whether it boots under Secure Boot, its digest and runtime identity, and which inputs are measured
-     versus host-supplied.
-   - enclave-53 supplies offline mutation evidence that changing the kernel, initrd or command line changes the
-     expected digest.
+1. DONE (boot 68): the measured Linux-VTL0 candidate `c567e432` (`A0FDAC0F…`) boots under Secure Boot; see O2.
+   Next on this path: serving an app from it. wmiserve must carry the IGVM digest as the identity instead of a
+   medium hash, and 5d's per-boot guest nonce (G1) goes on stop and destroy.
 2. **enclave-5d and enclave-99:** the replacement node identity (windows-hv-node/v1), host-only and honest. A
    TPM-only node attach grants no app capacity and no isolation badge.
 3. **enclave-5d:** the node lifecycle treats a manager's `recovered: true` instance as HELD. The manager side of

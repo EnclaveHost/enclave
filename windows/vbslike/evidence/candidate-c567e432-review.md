@@ -47,3 +47,42 @@ input bytes sit in pages the digest measures.
 The guest must check safety-relevant values itself.
 
 Not established by this review: that the candidate boots, anything about a report, or host exclusion.
+
+## First boot: canary 061934 on boot 68 (Secure Boot ON), 06:19:34-06:20:30Z. RUN OK
+
+Configuration:
+- `uefi-dev-boot.ps1 -LinuxDirect` at `e0de58cf`: type 1, VBS opt-out, 2048 MiB, 1 vCPU;
+- NO medium, no disk, no NIC; no app loaded; no memory read;
+- AllowFirmwareLoadFromFile applied for the run and restored to absent (verified).
+FirmwareFile was read back as the staged candidate path. The file was held open, write- and delete-denied, from its
+hash check (`c567e432…`, 77,786,140 B) until the VM was removed. Launcher `da16c20f` (unused: no app).
+
+Verbatim:
+
+    06:20:01 read back: GuestStateIsolationType=1 enabled=True GuestFeatureSet=0x201 Vtl2Mode=0 Vtl2Range=0 firmware='...\vbs-linux-candidate-c567e432.bin'
+    06:20:02 boot entries: 0 (recorded only: with -LinuxDirect the IGVM carries no UEFI, so nothing reads the boot order)
+    06:20:03 FIRST OBSERVABLE: Start-VM ACCEPTED the partition (state now Running)
+    06:20:04 inspect control_state (65 ms): "started"
+      CONSOLE: MON snp=0 vcpus=1 memMiB=1833 boot_ms=319
+      CONSOLE: MON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1 (stated by the hypervisor, CPUID)
+      CONSOLE: MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=vbs paravisor=no
+      CONSOLE: MON ready control_port=9000 snp=false transport=hv_sock
+    06:20:06 CONTROL CHANNEL OK: the guest has a working vsock transport and is listening on 9000
+    06:20:06 PROTOCOL OK: the monitor answered a control command
+      ADMIN [18615] VM guest state encryption key not released.
+    06:20:30 RUN OK
+
+**What this establishes:**
+- The measured-Linux-VTL0 type-1 path boots on this host under Secure Boot. The candidate, launch digest
+  `A0FDAC0F…`, reached our monitor's `MON ready`, and its control channel answered.
+- The VM had no medium, no disk and no NIC, and the IGVM carries no UEFI. So the only VTL0 code source was the
+  kernel and initrd inside the measured IGVM (source-level argument, above).
+- `memMiB=1833`, against 1828 on the UEFI path: the host-supplied memory map differs without UEFI. That is recorded,
+  and it is one of the unmeasured inputs.
+
+**What it does NOT establish** (enclave-5d's wording):
+- no report, no chain, `host_excluded=no`;
+- that the host could not substitute unmeasured inputs (device tree, ACPI, memory map).
+The debug twin was not needed and was not run.
+Note: the log line "DVD attached ..." in this run was a wording bug in `-LinuxDirect` mode (nothing was attached, as
+the next lines show). It is fixed in the commit after `e0de58cf`.
