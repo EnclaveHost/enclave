@@ -70,17 +70,20 @@ report_data[32:64] = AppID          (filled by the monitor, never by the release
 
 - The ticket exists, is unexpired and was issued for this `id`. It is **consumed on first presentation, whatever the verdict**. A burned ticket is DoS only, and it is logged.
 - The lease is still held by the ticket's endpoint, and the relay still holds that endpoint eligible.
-- The runtime id is in the admitted set (`SECRETS_RELEASE_RUNTIME_IDS`).
+- The deployment is enabled for release (`SECRETS_RELEASE_DEPLOYMENTS`: `*`, or a list of ids for a staged rollout). An unlisted id gets neither a ticket nor a release (403 `release_not_enabled`).
+- The relay has a PREDICTION for the deployment's catalog version (see "Measurements: predicted"): the AppID, and per admitted domain release a (runtime id, measurement) pair. No prediction is a refusal: 503 when the relay cannot predict now (`busy`, `prediction_unavailable`, `component_unavailable`, `catalog_unreachable`, `prediction_failed`, `predictor_unconfigured`), 403 when the version cannot have one (`version_not_admitted`, `underivable`, `not_catalog`).
+- The runtime the guest states is an admitted release's runtime (403 `runtime_not_admitted` otherwise), and only THAT release's measurements are allowed for it: a runtime and a measurement are admitted as one pair.
 - The TCB floor (`SECRETS_RELEASE_MIN_TCB`) and the VMPL pin (`SECRETS_RELEASE_VMPL`, the monitor's) are REQUIRED policy, passed to the verifier explicitly: a provider can't omit them.
 - The guest-evidence verifier returns `verified`, given:
-  - the measurement allowlist (`SECRETS_RELEASE_MEASUREMENTS`; fail-closed firmware only);
+  - `allowedMeasurements` = the predicted measurements for the guest's runtime (never a value the host or the guest stated);
   - `expectedBinding` = the binding above, recomputed from the document's stated transport key and runtime and from the request's ticket and seal key;
-  - `expectedAppId` = the relay's derivation;
+  - `expectedAppId` = the predicted AppID;
   - `expectedHostData` = the deployment id;
   - `bindingDomain` = `enclave-secrets-release-v1`.
 - Then the relay re-reads the verified report itself:
   - SIGNING_KEY = VCEK;
   - the guest POLICY's DEBUG bit (19) is clear, and VMPL = the pin;
+  - the MEASUREMENT is one of the predicted ones for the guest's runtime;
   - `report_data` = the binding ‖ AppID;
   - HOST_DATA = id;
   - CHIP_ID non-zero, and ∈ the ticket's chips.
@@ -114,7 +117,7 @@ CHIP_ID binds the **physical chip, not the endpoint**: two registered endpoints 
 
 ## Preconditions before `SECRETS_ATTESTED_RELEASE` may be turned on (enclave-d1)
 
-- The policy: `SECRETS_RELEASE_MIN_TCB`, `SECRETS_RELEASE_VMPL`, and a measurement allowlist holding reviewed, non-debug per-app guest images only.
+- The policy: `SECRETS_RELEASE_MIN_TCB`, `SECRETS_RELEASE_VMPL`, `SECRETS_RELEASE_DEPLOYMENTS`, and the predictor's pins: a reviewed toolchain commit and reviewed, non-debug domain releases with fail-closed firmware only (`SECRETS_RELEASE_DOMAIN_RELEASES`), its known-answer test passing on the relay host.
 - Scope: this release serves the per-app guests guestd builds (M4a image assembly; AppID = the DERIVE.md bundle id) running the **M2 runtime shape**: dominit plus the front, with no SVSM, and a report read through configfs-tsm at VMPL0. So `SECRETS_RELEASE_VMPL=0` (enclave-5d, from source).
   - When M4b becomes a per-app path, the VMPL becomes per measurement: allowlist entries of the form `<measurement>@<vmpl>`, so each image is judged at its own level.
   - Re-check the guest POLICY value (0x30000: DEBUG off) against `run-domain.sh` at deploy time; the relay refuses DEBUG regardless.
@@ -133,22 +136,41 @@ CHIP_ID binds the **physical chip, not the endpoint**: two registered endpoints 
 
 Rate: a ticket request is limited per client IP. A release is limited per its ticket's ENDPOINT, looked up without being consumed, so many guests behind one host address don't share one bucket. An unknown ticket is limited per IP.
 
+## Measurements: predicted (`relay/measurement-predict.mjs`)
+
+A release admits exactly the guest the relay PREDICTS for the deployment's catalog version. Nothing the lease holder, guestd or the guest states is ever its own allowlist: the report's measurement, AppID and runtime are compared against the prediction, never added to it. (This replaces the earlier `SECRETS_RELEASE_MEASUREMENTS` / `SECRETS_RELEASE_RUNTIME_IDS` lists and the open "(a) or (b)" question: it is (b).)
+
+The pipeline, per catalog version:
+1. The version, read from the chain by the relay (the address book's `appCatalog`, `getApp` + `getVersion`): `cid`, `memMb`, `ports`. Only an approved, unyanked version of a listed app (the supervisor's `approvalVerdict`, never its private dev-mode exception).
+2. The derivation record, by the supervisor's own rule (`isolationPolicyFor`, `isolationHttpPortOf`, `isolationDerivation`): `enclave-catalog-bundle/1`, or `/2` for one declared `http:N` port; policy `{cpuPercent 100, memMiB max(128, memMb), vcpus 1}`; `runtimeId` = the admitted release's own `template/rt/runtime.json`. The test suite checks the rule against the supervisor's functions at the toolchain commit, and against guestd's real records (their `recordSha256`).
+3. The component, fetched by CID and verified against it by guestd's own fetcher (`fetch-cid.py` → `wasm/ipfs_fetch.py`, CAR verification), through any trustless gateway (availability only). A raw-CID component is kept and re-verified against its CID on every read.
+4. The bundle, by the catalog contract's reference implementation (`derive_reference.py`); AppID = `sha256(bundle)`. The AppID excludes the runtime (DERIVE.md); the record does not.
+5. Per admitted release: `expected-measurement.sh --pin <release id>`, which verifies the release against that id, reassembles the guest image with M4a's own `assemble-app-image.sh` and computes the launch measurement with sev-snp-measure. The release's verified runtime must equal the record's.
+
+Pins and self-checks:
+- The toolchain is ONE git commit (`SECRETS_RELEASE_PREDICT_COMMIT`), extracted from the object store into a private directory (`git archive`): no working tree, untracked file or later edit is executed.
+- The host tools it drives (python3, node, go ≥ 1.24, cpio, gzip, sev-snp-measure 0.0.13) are checked by a KNOWN-ANSWER test: the measurements of real M4a guests (`KNOWN_ANSWERS`, from VCEK-signed canary reports), recomputed before the first prediction and every 6 h. A mismatch disables prediction (every release refused) until a later test passes. A gateway failure during the test is inconclusive, which never counts as a first pass. At least one known answer's release must be installed; `release-0181bce3` (id `5c3561f9…`) and `release-6757d139` (id `6f14ce75…`) are the two with known answers today.
+- Several admitted releases are allowed (`SECRETS_RELEASE_DOMAIN_RELEASES`): a guest keeps the measurement of the release it was built from, so the set spans a release change.
+
+Bounds: one reconstruction at a time and at most 4 waiting (`busy` beyond that, never a guess); every tool call is time-bounded (240 s) with its process group killed; output capped; component size capped (256 MiB); answers cached per (commit, records, releases), LRU 256; a refusal cached for 60 s only; `busy` never cached. A ticket starts the prediction, so the guest's release usually hits the cache. Measured on the lab host: 12 to 26 s cold, about 0.2 s cached.
+
+Env: `SECRETS_RELEASE_PREDICT_REPO` (a git clone holding the commit), `SECRETS_RELEASE_PREDICT_COMMIT`, `SECRETS_RELEASE_PREDICT_RELEASES` (`id=dir,…`: every installed release, the known answers' included), `SECRETS_RELEASE_DOMAIN_RELEASES` (the admitted ids), `SECRETS_RELEASE_PREDICT_GATEWAY` (https), `SECRETS_RELEASE_SEV_SNP_MEASURE` (the pinned executable), `SECRETS_RELEASE_PREDICT_WORK` (private).
+
+Lab validation: `docs/security/measurement-prediction/` (the script, the canaries' attestation documents, and the recorded runs).
+
+`GET /v1/secrets/release-status?id=0x…` answers `{id, listed}` from `SECRETS_RELEASE_DEPLOYMENTS` only, so a supervisor can choose the guest image without a second copy of the owner's decision (enclave-5d, d1's option (i)). It is public (deployment ids are public on chain), rate-limited, and 503 `release_off` while the release is off or not fully configured, without naming what is missing.
+
 ## Not wired yet (the release answers 503 until these land)
 
 - `verifyGuestEvidence`: the relay's vendored verifier (`relay/vendor/enclave-verifier-node.mjs`) exports the consumer API only. It needs a rebuild that also exports the domain-path `verifyEvidence`, with a `bindingDomain` field in the verdict, and KDS collateral fetched by CHIP_ID (the guest's `certs` are optional).
-- `runtimeIdOf`: `isolation/contract/runtime.mjs` `runtimeId`, bundled for the relay.
-- `appIdFor`: the **DERIVE.md bundle AppID**, `sha256(bundle)` (`bundletool id`), for the deployment's catalog version and shares, over component bytes fetched by CID and CAR-verified, and cached per version.
-  - guestd builds every production per-app guest with M4a's image assembly (`isolation/m4/assemble-app-image.sh`: `app.sha256 = bundletool id app.bundle`, the value guestd itself computes), and the front puts `/app.sha256` in report_data[32:64].
-  - (`isolation/m2/build-domain.sh`, which hashes the raw `app.wasm`, is a LAB script only. A correction of this doc's previous revision, from enclave-5d.)
-- The measurement allowlist is PER APP VERSION: the bundle is inside the measured initramfs, and the vCPU count is also a measurement input. This is a decision for Steven or Codex:
-  - (a) the operator lists every deployed version's image digest in `SECRETS_RELEASE_MEASUREMENTS`, one step per new version, keeping nan's footprint small; or
-  - (b) the relay pins ONE published domain release and predicts each version's digest with `isolation/m4/expected-measurement.sh --pin <release id> <release dir> <app.bundle> <vcpus>`, cached per (version, vCPUs). That reassembles the image from the published release plus the bundle, with no host binaries, but puts sev-snp-measure, cpio/gzip and the contract's bundletool on nan.
 - `resolveConfigCid`: a `configCid`, fetched and checked against its CID (returning text or a value; the relay parses it).
 - `versionConfigFor`: the catalog version's `{config, configCid}` for the deployment's version.
-- Config: `SECRETS_ATTESTED_RELEASE`, `SECRETS_RELEASE_MEASUREMENTS`, `SECRETS_RELEASE_RUNTIME_IDS`.
+- The predictor's host prerequisites on nan (below), and its env set and reviewed.
 - Rollout condition: the lease holder must attach with VCEK verification (`METAL_REQUIRE_VCEK`), or it proves no chip.
 
 ## Tests
+
+- `test/measurement-predict.test.mjs`: the derivation rule against guestd's real records and (when the commit is present) the supervisor's functions; every refusal code; the cache, dedupe, busy and timeout bounds; the toolchain executed from the commit only; the known-answer test disabling and re-enabling prediction; the kept component re-verified against its CID.
 
 - `test/secrets-release.test.mjs` exercises the real `verifyEvidence` against synthetic reports from a synthetic AMD-shaped chain:
   - the vectors, and the RFC 7748 §6.1 exchange through the key wrappers;

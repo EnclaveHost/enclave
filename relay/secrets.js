@@ -65,7 +65,7 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, 
 import { JsonStore, dataDir, dataFile, makeRateLimiter } from "./store.js";
 // the fleet-route primitives shared with certs.js (one spelling per rule)
 import { endpointOperator, recoverOp, makeReplayCache, rowOf, holdsLease } from "./fleet-auth.js";
-import { handleRelease } from "./secrets-release.mjs";
+import { handleRelease, releaseStatus } from "./secrets-release.mjs";
 
 // One env key, two derived subkeys: labels keep the fetch-auth MAC and the
 // at-rest cipher cryptographically independent even though they share a root.
@@ -224,6 +224,9 @@ export function readSecrets(id) {          // TESTS only - unauthenticated, see 
 export async function handleSecrets(req, res, u, ctx) {
   if (!enabled)
     return bad(ctx, res, req, 503, "secrets_disabled", "Per-deployment secrets are not configured on this relay.");
+  // the one GET: whether attested release is enabled for a deployment (public; no signature involved)
+  if (req.method === "GET" && u.pathname === "/v1/secrets/release-status")
+    return releaseStatus(u, req, res, ctx, { bad: (code, error, message) => bad(ctx, res, req, code, error, message), rate: rlRelease });
   if (req.method !== "POST")
     return bad(ctx, res, req, 405, "method_not_allowed", "Secrets endpoints are POST-only (signatures never belong in URLs).");
   let raw; try { raw = await ctx.readBody(req, 32768); } catch (e) { return bad(ctx, res, req, 413, "too_large", e.message); }

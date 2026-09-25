@@ -18,6 +18,10 @@
 // same deployment: AppID names an APP, so without it a lease holder hosting two tenants of one app could route A's ticket
 // to B's guest (enclave-d1's confused deputy).
 //
+// WHICH guest: the measurement, AppID and runtime a release admits are PREDICTED by the relay for the deployment's catalog
+// version (relay/measurement-predict.mjs, via ctx.expectedGuestFor): from the chain, the component verified by its CID, the
+// catalog's derivation rule and a pinned domain release. Nothing the host or the guest states is its own allowlist.
+//
 // OFF unless SECRETS_ATTESTED_RELEASE is set, and then only with its policy and every provider wired (fail closed).
 import { createHash, createPublicKey, createPrivateKey, generateKeyPairSync, diffieHellman, hkdfSync, randomBytes,
          createCipheriv, createDecipheriv, sign as edSign, verify as edVerify } from "node:crypto";
@@ -130,14 +134,13 @@ export function reportFields(report) {
   const r = Buffer.from(report);
   if (r.length < 0x2a0) throw new Error("report too short");
   return { policy: r.readBigUInt64LE(0x08), vmpl: r.readUInt32LE(0x30), signingKey: (r.readUInt32LE(0x48) >> 2) & 0x7,
-           reportData: r.subarray(0x50, 0x90), hostData: r.subarray(0xc0, 0xe0), chipId: r.subarray(0x1a0, 0x1e0) };
+           reportData: r.subarray(0x50, 0x90), measurement: r.subarray(0x90, 0xc0), hostData: r.subarray(0xc0, 0xe0),
+           chipId: r.subarray(0x1a0, 0x1e0) };
 }
 const nonZero = (b) => Buffer.from(b).some((x) => x !== 0);
 
 // ---- config ----
 const HEX = (n) => new RegExp(`^[0-9a-f]{${n}}$`);
-const listEnv = (name, n) => String(process.env[name] || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
-  .filter((s) => { const ok = HEX(n).test(s); if (!ok) console.error(`[secrets-release] ${name}: ignoring a malformed entry`); return ok; });
 // the TCB floor, per product ({"Genoa":{"bootloader":…,"tee":…,"snp":…,"microcode":…},…}); anything malformed is no floor
 function minTcbEnv() {
   try {
@@ -147,10 +150,17 @@ function minTcbEnv() {
 }
 // the VMPL the release client's report must state: the monitor's (0..3)
 function vmplEnv() { const s = String(process.env.SECRETS_RELEASE_VMPL ?? "").trim(); return /^[0-3]$/.test(s) ? Number(s) : null; }
+// the deployments a release may serve: "*" (every deployment the other checks admit) or a list of bytes32 ids (a staged
+// rollout's defence in depth, enclave-63); unset is none
+function deploymentsEnv() {
+  const s = String(process.env.SECRETS_RELEASE_DEPLOYMENTS || "").trim().toLowerCase();
+  if (s === "*") return "*";
+  const ids = s.split(",").map((x) => x.trim()).filter((x) => /^0x[0-9a-f]{64}$/.test(x));
+  return ids.length ? new Set(ids) : null;
+}
 export const releaseConfig = () => ({
   on: /^(1|true|on|yes)$/i.test(String(process.env.SECRETS_ATTESTED_RELEASE || "").trim()),
-  measurements: listEnv("SECRETS_RELEASE_MEASUREMENTS", 96),   // reviewed, non-debug per-app guest images, fail-closed firmware only
-  runtimeIds: listEnv("SECRETS_RELEASE_RUNTIME_IDS", 64),      // the admitted runtime SET
+  deployments: deploymentsEnv(),
   minTcb: minTcbEnv(),                                         // passed to the verifier explicitly: never left to a provider
   vmpl: vmplEnv(),                                             // pinned, and re-read from the report below
   signingKey: signingKeyEnv(),                                 // v1.2: every release is signed with it
@@ -167,12 +177,32 @@ export const _internals = { tickets };
 
 // provider check: every piece the release needs, or a 503 that names what is missing
 function missingFor(ctx, cfg) {
-  return [!cfg.on && "SECRETS_ATTESTED_RELEASE", !cfg.measurements.length && "SECRETS_RELEASE_MEASUREMENTS",
-          !cfg.runtimeIds.length && "SECRETS_RELEASE_RUNTIME_IDS", !cfg.minTcb && "SECRETS_RELEASE_MIN_TCB",
+  return [!cfg.on && "SECRETS_ATTESTED_RELEASE", !cfg.deployments && "SECRETS_RELEASE_DEPLOYMENTS", !cfg.minTcb && "SECRETS_RELEASE_MIN_TCB",
           cfg.vmpl === null && "SECRETS_RELEASE_VMPL", !cfg.signingKey && "SECRETS_RELEASE_SIGNING_KEY",
           typeof ctx.versionConfigFor !== "function" && "the version-config lookup", typeof ctx.leaseHolderChipIds !== "function" && "the lease holder's chip ids",
           typeof ctx.verifyGuestEvidence !== "function" && "the guest-evidence verifier", typeof ctx.runtimeIdOf !== "function" && "the runtime-id function",
-          typeof ctx.appIdFor !== "function" && "the AppID derivation", typeof ctx.hostEligibility !== "function" && "the eligibility verdict"].filter(Boolean);
+          typeof ctx.expectedGuestFor !== "function" && "the measurement predictor", typeof ctx.hostEligibility !== "function" && "the eligibility verdict",
+          ...(typeof ctx.predictorProblems === "function" ? ctx.predictorProblems() : [])].filter(Boolean);
+}
+// a prediction refusal as an answer: the relay's own inability (503) or the version's (403)
+const PREDICTION_503 = new Set(["busy", "prediction_unavailable", "catalog_unreachable", "component_unavailable", "prediction_failed", "predictor_unconfigured"]);
+const predictionRefusal = (p) => {
+  const code = p && p.ok === false && typeof p.code === "string" && p.code ? p.code : "prediction_unavailable";
+  return [code === "prediction_unavailable" || PREDICTION_503.has(code) ? 503 : 403, code,
+          `No expected guest for this deployment: ${(p && p.ok === false && p.reason) || "the predictor gave no usable answer"}.`];
+};
+
+// GET /v1/secrets/release-status?id=0x<64 hex> -> { id, listed }: whether attested release is enabled for this deployment.
+// The owner's decision lives ONLY in SECRETS_RELEASE_DEPLOYMENTS; a supervisor asks here at spawn to choose the guest image
+// (enclave-5d, d1's option (i)). Public: deployment ids are public on chain and the answer names nothing else. 503 while
+// release is off or not fully configured, which a supervisor reads as not listed; the missing pieces are not named here.
+export function releaseStatus(u, req, res, ctx, { bad, rate }) {
+  if (!rate(`status:${ctx.clientIp(req)}`)) return bad(429, "rate_limited", "Too many status requests; retry shortly.");
+  const cfg = releaseConfig();
+  if (missingFor(ctx, cfg).length) return bad(503, "release_off", "Attested release is not enabled on this relay.");
+  const id = String(u.searchParams.get("id") || "").toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(id)) return bad(422, "bad_id", "id must be a bytes32 deployment id.");
+  ctx.json(res, 200, { id, listed: cfg.deployments === "*" || cfg.deployments.has(id) }, req);
 }
 
 // handles /v1/secrets/release-ticket and /v1/secrets/release; returns false for any other path.
@@ -187,6 +217,7 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   if (!rate(peek ? `ep:${peek.endpoint}` : `ip:${ctx.clientIp(req)}`)) { bad(429, "rate_limited", "Too many release requests; retry shortly."); return true; }
   const id = String(b.id || "").toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(id)) { bad(422, "bad_id", "id must be a bytes32 deployment id."); return true; }
+  if (cfg.deployments !== "*" && !cfg.deployments.has(id)) { bad(403, "release_not_enabled", `Attested release is not enabled for ${id} on this relay.`); return true; }
   const epIdOf = async (endpoint) => String(await ctx.endpointIdOf(endpoint)).toLowerCase();
   // the lease holder: holds D's live lease NOW, and the relay holds it eligible NOW (U7)
   const leaseHolder = async (endpoint, epId) => {   // → { refusal: [code, error, message] } or { row }
@@ -216,6 +247,8 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     if (tickets.size >= MAX_TICKETS) { bad(503, "busy", "Too many outstanding release tickets; retry shortly."); return true; }
     const ticket = randomBytes(32).toString("base64"), exp = Math.floor(Date.now() / 1000) + TICKET_TTL_SEC;
     tickets.set(ticket, { id, endpoint, epId, chips, exp });
+    // warm the prediction while the guest boots (a cold one derives and measures); its answer is judged at release
+    Promise.resolve().then(() => ctx.expectedGuestFor(holder.row)).catch(() => {});
     ctx.json(res, 200, { ticket, expiresAt: exp }, req);
     return true;
   }
@@ -241,17 +274,24 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   // a release document states no verifier `nonce`: the ticket is committed in the binding, and a release report must never
   // pass for an ordinary nonce-bound attestation wherever it is logged or re-verified
   if (doc.nonce !== undefined) { bad(422, "bad_evidence", "a release document must not state a nonce (the ticket is bound in report_data)."); return true; }
-  let runtimeId, appId, binding, report;
+  // the guest this deployment must be running, predicted for its catalog version (never taken from the host or the guest)
+  let expected;
+  try { expected = await ctx.expectedGuestFor(row); } catch (e) { expected = { ok: false, code: "prediction_failed", reason: e.message }; }
+  if (!expected || expected.ok !== true || !/^[0-9a-f]{64}$/.test(String(expected.appId)) || !Array.isArray(expected.images) || !expected.images.length) {
+    const [code, error, message] = predictionRefusal(expected);
+    console.warn(`[secrets-release] ${id}: no prediction: ${message}`); bad(code, error, message); return true;
+  }
+  let runtimeId, appId, binding, report, measurements;
   try {
     runtimeId = b32(await ctx.runtimeIdOf(doc.runtime), "runtime id");
-    if (!cfg.runtimeIds.includes(runtimeId.toString("hex"))) { bad(403, "runtime_not_admitted", "The guest's runtime is not in the admitted set."); return true; }
-    appId = await ctx.appIdFor(id);
-    if (!appId) { bad(503, "appid_underivable", "The relay cannot derive this deployment's app id right now."); return true; }
-    appId = b32(appId, "app id");
+    // the images this runtime may run in: an admitted release's runtime AND its measurement, as one pair
+    measurements = expected.images.filter((m) => m.runtimeId === runtimeId.toString("hex")).map((m) => m.measurement);
+    if (!measurements.length) { bad(403, "runtime_not_admitted", "The guest's runtime is not the runtime of an admitted domain release."); return true; }
+    appId = b32(Buffer.from(expected.appId, "hex"), "app id");
     binding = releaseBinding({ id, transportSpki: Buffer.from(doc.transportKey, "base64"), ticket, runtimeId, sealKey });
     report = Buffer.from(doc.report, "base64");
   } catch (e) { bad(422, "bad_evidence", e.message); return true; }
-  const v = await ctx.verifyGuestEvidence(doc, { allowedMeasurements: cfg.measurements, minTcb: cfg.minTcb, expectedVmpl: cfg.vmpl,
+  const v = await ctx.verifyGuestEvidence(doc, { allowedMeasurements: measurements, minTcb: cfg.minTcb, expectedVmpl: cfg.vmpl,
                                                  expectedBinding: binding, expectedAppId: appId, expectedHostData: idBytes(id),
                                                  bindingDomain: BINDING_DOMAIN_LABEL });
   if (!v || v.status !== "verified") {
@@ -263,6 +303,7 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   const why = f.signingKey !== 0 ? "the report is not VCEK-signed"
     : (f.policy >> 19n) & 1n ? "the guest policy allows DEBUG"
     : f.vmpl !== cfg.vmpl ? `the report states VMPL ${f.vmpl}, not the pinned ${cfg.vmpl}`
+    : !measurements.includes(f.measurement.toString("hex")) ? "the measurement is not the one predicted for this deployment's version under an admitted release"
     : !f.reportData.subarray(0, 32).equals(binding) ? "report_data[0:32] is not this release's binding"
     : !f.reportData.subarray(32, 64).equals(appId) ? "report_data[32:64] is not this deployment's app"
     : !f.hostData.equals(idBytes(id)) ? "HOST_DATA is not this deployment"

@@ -97,6 +97,7 @@ import { handleBilling, initBilling } from "./billing.js";
 import { handleSecrets, initSecrets, secretsEnabled, startSecretsSweep } from "./secrets.js";
 import { handleDomains, initDomains, domainsEnabled, startDomainSweep, domainDeployment, tlsAskAllowed } from "./domains.js";
 import { handleCerts, initCerts } from "./certs.js";
+import { makePredictor, predictorEnv, catalogReader, runtimeIdOfJson } from "./measurement-predict.mjs";
 import { createTunnelHub } from "./tunnel.js";
 import { avfPolicyFromEnv } from "./avf-policy.mjs";
 import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
@@ -2200,7 +2201,29 @@ const leaseHolderChipIds = async (endpoint) => {
   const o = tunnelHub.origins().find((x) => x.mode === "snp" && x.publicUrl && String(x.publicUrl).replace(/\/+$/, "") === ep);
   return o ? tunnelHub.snpChipIdsOf(String(o.endpoint).replace(/^tunnel:\/\//, "")) : [];
 };
+// secrets-release.mjs: the guest a deployment must be running, PREDICTED for its catalog version (measurement-predict.mjs):
+// the version read from the address book's appCatalog, never from the lease holder. Built on first use from the
+// SECRETS_RELEASE_PREDICT_* env; what it lacks is reported by the release's own 503.
+const BOOK_KEY_CATALOG = "0x" + Buffer.from("appCatalog", "ascii").toString("hex").padEnd(64, "0");
+let _catalogAddr = { addr: (process.env.APP_CATALOG_ADDRESS || "").trim(), at: 0 };
+async function catalogAddress() {
+  if (ADDRESS_BOOK && Date.now() - _catalogAddr.at > 600_000) {
+    const a = await (await chain()).readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_CATALOG] });
+    if (a && !/^0x0{40}$/i.test(a)) _catalogAddr = { addr: a, at: Date.now() };
+  }
+  if (!_catalogAddr.addr) throw new Error("no appCatalog address (address book or APP_CATALOG_ADDRESS)");
+  return _catalogAddr.addr;
+}
+let _predictor = null;
+const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(),
+  readCatalog: catalogReader({ readContract: async (q) => (await chain()).readContract(q) }, catalogAddress) }));
+const expectedGuestFor = (row) => predictor().expectedFor(row && row.appRef);
+const predictorProblems = () => predictor().problems;
+// the RuntimeID of the runtime identity a guest states (isolation/contract/runtime.go: sha256 of its canonical JSON); it
+// is admitted only when it equals an admitted domain release's own
+const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
 const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
+                   expectedGuestFor, predictorProblems, runtimeIdOf,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)
