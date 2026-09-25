@@ -4,9 +4,19 @@
 # means rewriting history; removing it from the index is `git reset <file>`).
 # Bypass for a confirmed false positive: git commit --no-verify
 set -u
+# The committing worktree's scanner, and this hook's own copy when it differs (core.hooksPath may point every worktree at
+# one checkout's .githooks; a refusal by either refuses), as .githooks/pre-push does.
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-python3 "$here/scan-crypto-keys.py" --staged || {
-  echo "pre-commit: COMMIT REFUSED (confirmed false positive: git commit --no-verify)" >&2
-  exit 1
-}
+root="$(git rev-parse --show-toplevel)"
+scanners=()
+if [ -f "$root/.githooks/scan-crypto-keys.py" ]; then scanners+=("$root/.githooks/scan-crypto-keys.py"); fi
+if [ -f "$here/scan-crypto-keys.py" ] && { [ "${#scanners[@]}" -eq 0 ] || ! cmp -s "$here/scan-crypto-keys.py" "${scanners[0]}"; }; then
+  scanners+=("$here/scan-crypto-keys.py")
+fi
+for sc in "${scanners[@]}"; do
+  python3 "$sc" --staged || {
+    echo "pre-commit: COMMIT REFUSED (confirmed false positive: git commit --no-verify)" >&2
+    exit 1
+  }
+done
 exit 0
