@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# 4d's ADOPTION preflight (enclave-e3 A1), READ-ONLY. At 4d the new guestd adopts each canary only if it verifies again
+# 4d's ADOPTION preflight (enclave-e3 A1). It changes nothing: it opens one attestation session per canary through its
+# CURRENT forwarder, and, once the gate opens, client.mjs sends the canary's app the same GET /hello?from=client that
+# adoption sends (retrying on a 502 for up to 60 s); nothing is consumed (independent attestations, --no-kds). At 4d the new guestd adopts each canary only if it verifies again
 # as the same guest (persist.go adoptOne: a new forwarder to its CID, then THE NEW TREE's judge with the recorded
 # measurement, AppID and HOST_DATA, this host's runtime identity, and the same key); a guest that fails even once is
 # STOPPED and its workdir scrubbed, which no rollback undoes (it can only be relaunched: Codex escalation). So this proves
@@ -14,9 +16,13 @@
 # It writes s4/adoption-check.txt, which s4d-apply.sh requires for the same binary within 2 hours.
 # Usage: s4d-adoption-preflight.sh <guestd merge commit, 40 hex> <its sha256>
 set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/pool-rollout-20260925/s4/lib4.sh
+export PATH=/usr/local/bin:/usr/bin:/usr/sbin:/bin   # guestd's unit PATH: the wasmtime, node and go the new guestd will use
 BINC=${1:?commit}; BSHA=${2:?sha256}; [[ "$BINC" =~ ^[0-9a-f]{40}$ && "$BSHA" =~ ^[0-9a-f]{64}$ ]] || { echo "40-hex commit, 64-hex sha"; exit 2; }
 GR=$PROD/guestd-root; OUT=$S4/adoption-check.txt
 tree_ok || { say4 "ADOPTION PREFLIGHT: the installed tree"; exit 3; }
+# the new guestd adopts from EVERY gd* workdir: exactly the 3 canaries', or a stray one is "not adopted" (a needless rollback)
+nd=$(find "$GR" -mindepth 1 -maxdepth 1 -type d -name 'gd*' | wc -l)
+[ "$nd" = 3 ] || { say4 "ADOPTION PREFLIGHT: guestd-root holds $nd gd* workdirs, not the 3 canaries'"; exit 3; }
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 # the runtime identity the new guestd will compute (main.go: runtime-identity.sh <wasmtime>) = the live one
 "$T/isolation/contract/runtime-identity.sh" "$(command -v wasmtime)" > "$W/rid.json" || { say4 "ADOPTION PREFLIGHT: runtime-identity.sh failed"; exit 4; }
@@ -26,7 +32,7 @@ fb() { ( cd "$1/m2" && env -u GOFLAGS CGO_ENABLED=0 go build -trimpath "${@:3}" 
 fb "$T/isolation" "$W/fwd" && fb "$T/isolation" "$W/fwd-nv" -buildvcs=false && fb "$LEG" "$W/fwd-old-nv" -buildvcs=false \
   || { say4 "ADOPTION PREFLIGHT: building fwd failed"; exit 5; }
 cmp -s "$W/fwd-nv" "$W/fwd-old-nv" || { say4 "ADOPTION PREFLIGHT: the two trees' fwd code differs"; exit 5; }
-bi() { go version -m "$1" | sed 1d | grep -vE '^[[:space:]]*build[[:space:]]+vcs\.(revision|time)='; }
+bi() { local o; o=$(go version -m "$1") || return 1; sed -n '1s/^[^:]*: //p' <<<"$o"; sed 1d <<<"$o" | grep -vE '^[[:space:]]*build[[:space:]]+vcs\.(revision|time)=' || true; }
 [ "$(bi "$W/fwd")" = "$(bi "$GR/bin/fwd")" ] && [ -n "$(bi "$GR/bin/fwd")" ] || { say4 "ADOPTION PREFLIGHT: the live fwd's build info differs beyond its VCS stamp"; exit 5; }
 guestd_seam > "$W/g.json" || { say4 "ADOPTION PREFLIGHT: guestd unreadable"; exit 6; }
 python3 - "$W/g.json" "$GR" > "$W/targets.tsv" <<'PY' || { say4 "ADOPTION PREFLIGHT: the records and guestd's /vms disagree, or not exactly the 3 canaries"; exit 6; }

@@ -10,13 +10,18 @@ set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~
 X=${1:-${IMG:0:8}}; [[ "$X" =~ ^[0-9a-f]{8}$ ]] || { echo "an 8-hex image commit"; exit 2; }
 case "$X" in 03be27d6|0181bce3|6757d139) say4 "ABANDON REFUSED: $X is the live or the known-answer tree/release"; exit 2;; esac
 T=$PROD/iso-$X; R=$PROD/release-$X
+# only what s4-install.sh installed (its 1b line names the tree): never another release directory in ~/enclave-prod
+grep -qE "^[0-9:]{8}Z 1b: $T at [0-9a-f]{40}, clean" "$LOG4" || { say4 "ABANDON REFUSED: $T was not installed by s4-install.sh"; exit 2; }
+[ -r "$U" ] || { say4 "ABANDON REFUSED: the unit file is unreadable"; exit 2; }
+UF=$(cat "$U")
 ex=$(systemctl --user show enclave-guestd.service -p ExecStart --value) && [ -n "$ex" ] || { say4 "ABANDON REFUSED: guestd's ExecStart is unreadable"; exit 2; }
 # the LOADED ExecStart and the unit FILE (a 4d stopped between its edit and daemon-reload shows only in the file)
 for x in "$T" "$R" "${ABANDON_BIN:-/nonexistent}"; do
   case "$ex" in *"$x"*) say4 "ABANDON REFUSED: guestd's ExecStart references $x"; exit 3;; esac
-  grep -qF -- "$x" "$U" && { say4 "ABANDON REFUSED: the unit file references $x"; exit 3; }
+  case "$UF" in *"$x"*) say4 "ABANDON REFUSED: the unit file references $x"; exit 3;; esac
 done
-if git -C $MAIN worktree list --porcelain | grep -qxF "worktree $T"; then
+WL=$(git -C $MAIN worktree list --porcelain) || { say4 "ABANDON REFUSED: cannot list worktrees"; exit 4; }
+if grep -qxF "worktree $T" <<<"$WL"; then
   flock /tmp/enclave-git-cleanup.lock git -C $MAIN worktree remove --force "$T"; say4 "abandon: worktree $T removed"
 elif [ -e "$T" ]; then say4 "ABANDON: $T exists but is not a registered worktree; left for a human"; exit 4; fi
 if [ -e "$R" ]; then chmod -R u+w "$R"; rm -rf "$R"; say4 "abandon: $R removed"; fi

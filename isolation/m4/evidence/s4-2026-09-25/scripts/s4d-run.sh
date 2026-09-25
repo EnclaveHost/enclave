@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Starts s4d-apply.sh DETACHED, as the transient user unit s4d-apply-<UTC stamp>.service (enclave-e3): an ssh drop, a
+# closed pipe or a tool timeout on this side can then never cut a run between its restart and its checks (and
+# s4d-apply.sh refuses to run outside such a unit). The unit gets guestd's own PATH. Its lines go to install.log (the
+# reliable record: the journal can lose a short-lived process's lines) and its exit code to s4/4d-<unit>.rc.
+# Follow it with: tail -f ~/enclave-bench/pool-rollout-20260925/s4/install.log
+# Usage: s4d-run.sh <guestd merge commit, 40 hex> <its sha256>
+set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/pool-rollout-20260925/s4/lib4.sh
+BINC=${1:?commit}; BSHA=${2:?sha256}; [[ "$BINC" =~ ^[0-9a-f]{40}$ && "$BSHA" =~ ^[0-9a-f]{64}$ ]] || { echo "40-hex commit, 64-hex sha"; exit 2; }
+U4=s4d-apply-$(date -u +%Y%m%dT%H%M%SZ)
+systemctl --user list-units --plain --no-legend --all 's4d-apply-*' | grep -q . && { say4 "REFUSING: a 4d run is already active"; exit 3; }
+systemd-run --user --unit="$U4" --collect -q -p Environment=PATH=/usr/local/bin:/usr/bin:/usr/sbin:/bin \
+  --working-directory="$HOME" bash -c '"$0" "$1" "$2"; echo $? > "$3"' "$S4/s4d-apply.sh" "$BINC" "$BSHA" "$S4/4d-$U4.rc"
+say4 "4D started DETACHED as $U4 (exit code -> s4/4d-$U4.rc); follow: tail -f $LOG4"

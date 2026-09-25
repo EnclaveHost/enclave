@@ -31,4 +31,5 @@ python3 -c "import json,sys; s=json.load(open('$EV/.guestd.json'))[0]['body'].ge
 RJ=$S4/4d-rollback-journal.txt; journalctl --user -u enclave-guestd.service --since "$T0" --no-pager -o cat > "$RJ" 2>&1 || true
 grep -qF "adopted 3 guest(s)" "$RJ" || { say4 "ROLLBACK CHECK FAILED: no adoption line"; exit 21; }
 wait_for 120 public_ok || { say4 "ROLLBACK CHECK FAILED: canaries"; exit 21; }
-mv "$BAK" "$BAK.used-$(date -u +%Y%m%dT%H%M%SZ)"; say4 "4D ROLLED BACK to guestd.c42612c0 and checked"
+mv "$BAK" "$BAK.used-$(date -u +%Y%m%dT%H%M%SZ)" || say4 "note: the used backup could not be renamed (the rollback itself is done)"
+say4 "4D ROLLED BACK to guestd.c42612c0 and checked"

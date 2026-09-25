@@ -1,0 +1,94 @@
+--- s4d-apply.sh.v4	2026-09-25 12:56:20.435365941 -0700
++++ s4d-apply.sh	2026-09-25 13:13:24.941823488 -0700
+@@ -8,24 +8,44 @@
+ # which read false; the canaries' CIDs (65536-131071) sit below guestd's new band (131072-196607).
+ # NOT A GO BY ITSELF. Runs only with: the image diff signed off (99/e3, d1), this script reviewed by 99/e3, s4-install.sh
+ # and s4-guestd-install.sh done, the legacy check covering THIS guestd, and Codex's go for the activation.
+-# Usage: s4d-apply.sh <guestd merge commit, 40 hex> <its sha256 from install.log>. Before it: s4d-adoption-preflight.sh
+-# (the same two arguments) within 2 h, and s4/legacy-check.txt for this binary.
++# Usage: s4d-run.sh <guestd merge commit, 40 hex> <its sha256 from install.log>, which starts THIS script DETACHED as a
++# transient user unit (enclave-e3: an ssh drop, a closed pipe or a tool timeout must never cut a run between its restart
++# and its checks); it refuses to run any other way. Before it: s4d-adoption-preflight.sh (the same two arguments)
++# within 2 h (it runs again here, right before the change), and s4/legacy-check.txt for this binary.
+ set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/pool-rollout-20260925/s4/lib4.sh
++trap '' HUP PIPE
++trap 'say4 "4D: terminated before any change"; exit 143' TERM INT
+ BINC=${1:?commit}; BSHA=${2:?sha256}; [[ "$BINC" =~ ^[0-9a-f]{40}$ && "$BSHA" =~ ^[0-9a-f]{64}$ ]] || { echo "40-hex commit, 64-hex sha"; exit 2; }
++grep -qE '^0::/.*/s4d-apply-[0-9]{8}T[0-9]{6}Z\.service$' /proc/self/cgroup || { say4 "REFUSING: run 4d detached, through s4d-run.sh"; exit 2; }
+ B=$PROD/bin/guestd.${BINC:0:8}; BAK=$EV/secret/enclave-guestd.service.bak-pre-4d; J=$S4/4d-guestd-journal.txt
+ # ---- preflight: every check before the first mutation, all of them fail closed
+ [ -e "$BAK" ] && { say4 "REFUSING: $BAK exists (4d already ran?)"; exit 10; }
+ [ -x "$B" ] && [ "$(sha256sum < "$B" | cut -c1-64)" = "$BSHA" ] || { say4 "REFUSING: $B is not the binary $BSHA"; exit 11; }
+ grep -qF "1c: $B sha256 $BSHA (built twice, from $BINC)" $LOG4 || { say4 "REFUSING: install.log has no 1c line for $B"; exit 11; }
+-# the legacy-path hardware check (5d's run-legacy-check.sh) for THIS guestd: "guestd <commit> sha256 <sha> PASS evidence <commit>"
+-lc=$(grep -xE "guestd $BINC sha256 $BSHA PASS evidence [0-9a-f]{40}" $S4/legacy-check.txt 2>/dev/null | tail -1) \
+-  && git -C $MAIN cat-file -e "${lc##* }^{commit}" 2>/dev/null || { say4 "REFUSING: no legacy-path check recorded for guestd $BINC / $BSHA with an evidence commit (s4/legacy-check.txt)"; exit 12; }
++# the legacy-path hardware check (5d's run-legacy-check.sh, which builds its lab guestd from the tree it runs in) for THIS
++# guestd: legacy-check.txt says "guestd <commit> sha256 <sha> PASS evidence <commit> <run.txt path>", and that file AT
++# that commit says "this tree: <a prefix of this commit>" and "LEGACY PATH PASS" (enclave-e3)
++lc=$(grep -xE "guestd $BINC sha256 $BSHA PASS evidence [0-9a-f]{40} isolation/m2/lab-release/evidence/[A-Za-z0-9._-]+/run\.txt" \
++     $S4/legacy-check.txt 2>/dev/null | head -1 || true)
++[ -n "$lc" ] || { say4 "REFUSING: no legacy-path check recorded for guestd $BINC / $BSHA (s4/legacy-check.txt)"; exit 12; }
++read -r _ _ _ _ _ _ lcc lcp <<<"$lc"
++lrun=$(git -C $MAIN show "$lcc:$lcp" 2>/dev/null || true)
++ltree=$(sed -n 's/.* this tree: \([0-9a-f]\{7,40\}\) .*/\1/p' <<<"$lrun" | head -1)
++[ -n "$ltree" ] && [[ "$BINC" == "$ltree"* ]] || { say4 "REFUSING: the legacy evidence $lcc:$lcp is not for this commit (this tree: ${ltree:-none})"; exit 12; }
++grep -q 'LEGACY PATH PASS' <<<"$lrun" || { say4 "REFUSING: the legacy evidence $lcc:$lcp does not say LEGACY PATH PASS"; exit 12; }
+ # enclave-e3 A1: the scripted ADOPTION preflight (s4d-adoption-preflight.sh) for THIS binary and tree, under 2 hours old:
+ # a canary that fails adoption even once is stopped and scrubbed, which no rollback undoes
+-ac=$(cat $S4/adoption-check.txt 2>/dev/null || true)
+-[[ "$ac" == "guestd $BINC sha256 $BSHA tree $IMG at "*": 3/3 canaries verify with the new tree's judge"* ]] \
+-  && ae=$(sed -n 's/.* epoch \([0-9]*\):.*/\1/p' <<<"$ac") && [ -n "$ae" ] && [ $(( $(date +%s) - ae )) -le 7200 ] \
+-  || { say4 "REFUSING: no adoption preflight for guestd $BINC / tree $IMG in the last 2 h (run s4d-adoption-preflight.sh)"; exit 12; }
++adopt_fresh() {   # $1 = max age in s. First line only; a plain 10-digit epoch; 0 <= age <= $1; each test on its own
++  local ln ep now
++  ln=$(head -1 $S4/adoption-check.txt 2>/dev/null || true)
++  [[ "$ln" == "guestd $BINC sha256 $BSHA tree $IMG at "*": 3/3 canaries verify with the new tree's judge"* ]] || return 1
++  ep=$(sed -n 's/.* epoch \([0-9]*\):.*/\1/p' <<<"$ln")
++  [[ "$ep" =~ ^[1-9][0-9]{9}$ ]] || return 1
++  now=$(date +%s)
++  [ "$ep" -le "$now" ] || return 1
++  [ $(( now - ep )) -le "$1" ] || return 1
++}
++adopt_fresh 7200 || { say4 "REFUSING: no adoption preflight for guestd $BINC / tree $IMG in the last 2 h (run s4d-adoption-preflight.sh)"; exit 12; }
+ tree_ok || { say4 "REFUSING: the installed tree"; exit 13; }
+ python3 "$T/isolation/m4/release-manifest.py" verify "$R" --expect "$REL" | grep -q "verified 15 files" || { say4 "REFUSING: $R does not verify"; exit 13; }
+ [ -f "$LEG/m4/build-app-guest.sh" ] && [ "$(git -C "$LEG/.." rev-parse HEAD)" = "$LEGC" ] || { say4 "REFUSING: the legacy tree is not $LEGC"; exit 13; }
+@@ -47,6 +67,10 @@
+ assert set(kv)==set(want)|{"-auth-key"}, sorted(kv)
+ assert all(kv[k]==v for k,v in want.items()) and kv["-auth-key"].startswith("/")
+ PY
++# enclave-e3: the adoption preflight AGAIN, now: wasmtime, node or go changing inside the 2 h would make every canary
++# fail adoption, and a canary that fails is scrubbed (no rollback undoes it)
++"$S4/s4d-adoption-preflight.sh" "$BINC" "$BSHA" || { say4 "REFUSING: the adoption preflight fails now"; exit 18; }
++adopt_fresh 300 || { say4 "REFUSING: the adoption preflight just run left no fresh record"; exit 18; }
+ # vsock 9443/9444 free: bind-probe (this host has no vsock_diag). The last check, right before the restart; the only
+ # process that may take them is the guestd this script starts next.
+ PP=$(mktemp -d); ( cd "$T/isolation/m2" && go build -o "$PP/portprobe" ./lab-release/portprobe )
+@@ -59,8 +83,15 @@
+ # FROM_APPLY: the preflight above verified the 3 S0 canaries alone and an empty non-canary set seconds before, and the
+ # live supervisor never asks for a release; so the rollback skips its gate, which needs a READABLE guestd (the one
+ # thing a failed 4d may not have)
+-fail() { set +e; say4 "4D CHECK FAILED: $* -> rolling back to guestd.c42612c0 on the live tree"; FROM_APPLY="$TOKV" FROM_APPLY_WHY="4d apply at $T0: $*" $S4/s4d-rollback.sh; exit 20; }
++fail() {
++  set +e; trap '' TERM INT
++  say4 "4D CHECK FAILED: $* -> rolling back to guestd.c42612c0 on the live tree"
++  FROM_APPLY="$TOKV" FROM_APPLY_WHY="4d apply at $T0: $*" "$S4/s4d-rollback.sh"; local rc=$?
++  if [ $rc = 0 ]; then exit 20; fi
++  say4 "ROLLBACK FAILED rc=$rc: the 4d unit may still be live; ESCALATE to Codex (backup $BAK, token $TOK)"; exit 24
++}
+ T0="before the restart"
++trap 'fail "terminated (TERM/INT) after the change began"' TERM INT
+ python3 - "$U" "$B" "$T/isolation" "$LEG" "$FLOOR" <<'PY' || { if cmp -s "$U" "$BAK"; then mv "$BAK" "$BAK.unused-$(date -u +%Y%m%dT%H%M%SZ)"; rm -f "$TOK"; say4 "4D: the unit edit failed and the unit is unchanged: nothing restarted"; exit 21; fi; fail "the unit edit"; }
+ import sys,os,shlex
+ p,b,iso,leg,floor=sys.argv[1:]; lines=open(p).read().split("\n"); i=[n for n,l in enumerate(lines) if l.startswith("ExecStart=")][0]
+@@ -115,7 +146,7 @@
+ wait_for 120 public_ok || fail "the canaries do not serve"
+ avail64() { curl -sS --max-time 20 https://api.enclave.host/t/metal-iso0/availability | python3 -c "import json,sys; a=json.load(sys.stdin); g=a.get('guestPool') or {}; sys.exit(0 if g.get('heard') and a.get('nodeRamGb')==64 and a.get('nodeVcpus')==16 and g.get('budget')=={'memMiB':65536,'cpuPct':1600} and g.get('free')=={'memMiB':60160,'cpuPct':1300} and abs(a.get('cpuShareFree',0)-0.7)<1e-9 else 1)"; }
+ wait_for 180 avail64 || fail "the supervisor's availability changed (64 GiB / 16, free 0.7 expected)"
+-read -r am ac <<<"$(node_attested)" || true; [ "${am:-}" = "$NEWM" ] && [[ "${ac:-}" == c42612c0* ]] || fail "the node CVM's attested measurement or overlay moved"
++read -r am ao <<<"$(node_attested)" || true; [ "${am:-}" = "$NEWM" ] && [[ "${ao:-}" == c42612c0* ]] || fail "the node CVM's attested measurement or overlay moved"
+ relay_row_ok || fail "the relay does not list metal-iso0 serving and eligible"
+-rm -f "$TOK"
++rm -f "$TOK"; trap - TERM INT
+ say4 "4D APPLIED and checked (restart at $T0). Next: observe.sh 4d (the 10-min gate); rollback = s4/s4d-rollback.sh"
