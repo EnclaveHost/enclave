@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"io"
 	"math/big"
 	"net"
@@ -224,9 +225,14 @@ func TestTheClientRefusesARelayItCannotPin(t *testing.T) {
 		c, seen := testRelay(t, cert, pinned.pool, func(w http.ResponseWriter, r *http.Request) {
 			io.WriteString(w, `{"id":"0x00","sealed":""}`)
 		})
+		t0 := time.Now()
 		_, err := c.Release(context.Background(), tid, tticket, tsk, tev)
 		if err == nil || seen.Load() != 0 {
 			t.Fatalf("%s: err %v, requests seen %d", what, err, seen.Load())
+		}
+		// a certificate failure is FINAL at once: retrying a pin that failed cannot help (enclave-d1)
+		if d := time.Since(t0); d > 3*time.Second {
+			t.Fatalf("%s: a certificate failure was retried for %s", what, d)
 		}
 		if strings.Contains(err.Error(), "evil.example") || strings.Contains(err.Error(), "127.0.0.1") {
 			t.Fatalf("%s: the error names the peer: %v", what, err)
@@ -375,5 +381,27 @@ func TestTheClientDoesNotRetryAFinalRefusalAndStopsAtTheDeadline(t *testing.T) {
 	_, err := c.Release(context.Background(), tid, tticket, tsk, tev)
 	if err == nil || !strings.Contains(err.Error(), "HTTP 503 warming") || time.Since(t0) > 2*time.Second || seen.Load() < 3 {
 		t.Fatalf("a relay that stays warming: %v after %s and %d attempts", err, time.Since(t0), seen.Load())
+	}
+}
+
+// enclave-d1's low on 891f7eb6: a transport failure (the relay restarting mid-prediction) is retried with the same body
+// inside the window; a certificate failure is not (TestTheClientRefusesARelayItCannotPin: no request ever reaches it)
+func TestTheClientRidesOutARelayRestart(t *testing.T) {
+	root := newTestCA(t)
+	c, seen := testRelay(t, root.leaf(t, RelayHost), root.pool, func(w http.ResponseWriter, r *http.Request) {
+		writeSigned(w, relayPriv, tid, tticket, []byte("SEALED"))
+	})
+	var dials atomic.Int32
+	realDial := c.Dial
+	c.Dial = func(ctx context.Context) (net.Conn, error) {
+		if dials.Add(1) <= 2 {
+			return nil, errors.New("connect: connection refused") // the relay is restarting
+		}
+		return realDial(ctx)
+	}
+	c.Retry = 10 * time.Millisecond
+	resp, err := c.Release(context.Background(), tid, tticket, tsk, tev)
+	if err != nil || string(resp.sealed) != "SEALED" || dials.Load() != 3 || seen.Load() != 1 {
+		t.Fatalf("%v: %d dials, %d requests seen", err, dials.Load(), seen.Load())
 	}
 }

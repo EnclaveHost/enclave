@@ -50,13 +50,21 @@ cleanup() {
   say "cleanup done; production m2-gd* units unchanged"
 }
 
-# ---- 0. the shared host ----
+# ---- 0. the shared host (enclave-d1's conditions) ----
+case "$ISO" in "$HOME"/enclave-prod/*) echo "this is a production tree ($ISO): run the lab from a lab worktree" >&2; exit 1 ;; esac
 if [ -n "$(systemctl --user list-units --plain --no-legend --all 'm2-lb*')" ]; then
   echo "m2-lb* units exist already: another lab is running; refusing" >&2; exit 1
 fi
+# the lab holds ONLY lab vsock ports (tickets 19444, its guestd's egress 19445, the router 19443), never production's
+# 9444/9443; refuse if any of them, or production's, is already held
+busy=$(ss --vsock -ln 2>/dev/null | awk '{print $5}' | grep -E ':(9443|9444|19443|19444|19445)$' || true)
+[ -z "$busy" ] || { echo "vsock port(s) already held: $busy; refusing" >&2; exit 1; }
+# the lab pool (4096 MiB) sits outside production's pool accounting: leave the rollout's guard (40 GiB) intact
+avail=$(awk '/^MemAvailable:/ {print int($2/1024/1024)}' /proc/meminfo)
+[ "$avail" -ge 44 ] || { echo "MemAvailable ${avail} GiB: under the 40 GiB guard plus the lab's 4 GiB; refusing" >&2; exit 1; }
 systemctl --user list-units --plain --no-legend --all 'm2-gd*' | awk '{print $1, $3, $4}' > "$L/prod-units-before.txt"
 trap cleanup EXIT
-say "lab dir $L; production units before: $(wc -l < "$L/prod-units-before.txt")"
+say "lab dir $L; production units before: $(wc -l < "$L/prod-units-before.txt"); MemAvailable ${avail} GiB"
 # the lab relay (99's module imports the relay's fleet-auth.js) and guestd's judge need the repo's node_modules
 if [ ! -e "$REPO/node_modules" ]; then
   MAIN=${ENCLAVE_MAIN_CHECKOUT:-$HOME/Projects/enclave}
@@ -118,7 +126,7 @@ PIDS+=($!)
 PIDS+=($!)
 ( cd "$ISO/m4/guestd" && go build -o "$L/guestd" . )
 GUESTD_ENABLE=1 GOFLAGS=-tags=releaselab "$L/guestd" -isolation "$ISO" -root "$L/guestd-root" -listen 127.0.0.1:18095 \
-  -release -instance-prefix lb -guest-mem-mib 4096 -guest-cpus 2 > "$L/guestd.log" 2>&1 &
+  -release -instance-prefix lb -ticket-port 19444 -egress-port 19445 -guest-mem-mib 4096 -guest-cpus 2 > "$L/guestd.log" 2>&1 &
 PIDS+=($!)
 for _ in $(seq 1 120); do curl -sf -m 2 http://127.0.0.1:18095/health > "$L/health.json" 2>/dev/null && break; sleep 1; done
 grep -q '"release":true' "$L/health.json" || { say "FAIL: the lab guestd did not come up with -release"; exit 1; }
@@ -135,9 +143,9 @@ for _ in $(seq 1 900); do
   curl -sf -m 5 "http://127.0.0.1:18095/vms/$VM" > "$L/vm.json" || true
   st=$(field status)
   if [ -z "$handed" ] && [ "$(field awaitingTicket)" = "true" ]; then
-    curl -sfk -m 10 -X POST https://127.0.0.1:18443/lab/expect -H 'content-type: application/json' \
+    curl -sf --cacert "$L/ca.pem" --resolve release-lab.enclave.test:18443:127.0.0.1 -m 10 -X POST https://release-lab.enclave.test:18443/lab/expect -H 'content-type: application/json' \
       -d "{\"id\":\"$ID\",\"measurement\":\"$(field measurement)\",\"appId\":\"$(field appId)\",\"runtimeId\":\"$(field runtimeId)\"}" > /dev/null
-    T=$(curl -sfk -m 10 -X POST https://127.0.0.1:18443/v1/secrets/release-ticket -H 'content-type: application/json' -d "{\"id\":\"$ID\"}" \
+    T=$(curl -sf --cacert "$L/ca.pem" --resolve release-lab.enclave.test:18443:127.0.0.1 -m 10 -X POST https://release-lab.enclave.test:18443/v1/secrets/release-ticket -H 'content-type: application/json' -d "{\"id\":\"$ID\"}" \
       | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).ticket))')
     curl -sf -m 10 -X POST "http://127.0.0.1:18095/vms/$VM/ticket" -H 'content-type: application/json' -d "{\"ticket\":\"$T\"}" > /dev/null
     unset T
@@ -159,6 +167,7 @@ fi
 
 # ---- 6. the app serves on the RELEASED config: the synthetic key admits, anything else is refused ----
 HP=$(field hostPort)
+# -k here is INHERENT: the domain serves its own self-signed key, which guestd's judge already attested (its "running")
 mcp() { curl -sk -m 15 -o "$L/mcp.json" -w '%{http_code}' -X POST "https://127.0.0.1:$HP/mcp" -H 'content-type: application/json' "$@" \
           -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'; }
 fail=0
@@ -171,7 +180,8 @@ done
 
 # ---- 7. nothing secret in anything the host holds (the release file is the lab's own input) ----
 grep -a "DOM release:\|DOM app config\|listener audit" "$L"/guestd-root/lb*/*.serial 2>/dev/null | tee -a "$L/run.txt" || true
+journalctl --user -u 'm2-lb*' --no-pager > "$L/journal-lb.txt" 2>/dev/null || true   # the guest units' journal (QEMU's own output)
 leaks=$(grep -rlaF -e "$KEY" -e "synthetic-vm-" -e "synthetic-notes-" "$L" --exclude=release.json --exclude=run.txt --exclude=mcp.json 2>/dev/null || true)
-if [ -z "$leaks" ]; then say "ok   no synthetic secret value in any host-side file (guestd root and logs, serial console, relay and router logs)"
+if [ -z "$leaks" ]; then say "ok   no synthetic secret value in any host-side file (guestd root and logs, serial console, the units' journal, relay and router logs)"
 else say "FAIL a synthetic secret value appears in: $leaks"; fail=1; fi
 [ "$fail" = 0 ] && say "LAB PASS: the release reached a real SNP guest and its app serves on it" || { say "LAB FAIL"; exit 1; }

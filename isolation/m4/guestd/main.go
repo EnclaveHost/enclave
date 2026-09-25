@@ -301,6 +301,8 @@ func main() {
 	guestCPUs := flag.Int("guest-cpus", 0, "host cores set aside for guests: the guest pool's CPU budget, against each guest's CPUQuota; unset = every create is refused")
 	legacyIso := flag.String("legacy-isolation", "", "with -release: the PREVIOUS isolation/ tree, to build the deployment guests the supervisor does not mark release (their image unchanged); empty = such a deployment is refused")
 	idPrefix := flag.String("instance-prefix", "gd", "two lowercase letters for this guestd's instance ids and guest units (m2-<prefix>…); a SECOND guestd on a host needs its own, or its boot sweep stops the first one's guests")
+	ticketPort := flag.Uint("ticket-port", release.TicketPort, "vsock host port of the ticket service (-release); a LAB guestd uses its lab image's (19444) so it never holds production's")
+	egressPortFlag := flag.Uint("egress-port", egressPort, "vsock host port of the egress server (-release); a LAB guestd moves it off production's too")
 	releaseOn := flag.Bool("release", false, "deliver attested-release tickets (vsock host port 9444) and serve deployment guests' egress (9443) (release.go); off = neither, and /health says supports.release=false")
 	flag.Parse()
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
@@ -455,14 +457,14 @@ func main() {
 			s.Legacy = &legacy
 			log.Printf("non-release deployment guests are built from %s", *legacyIso)
 		}
-		tl, err := vsock.Listen(release.TicketPort)
+		tl, err := vsock.Listen(uint32(*ticketPort))
 		if err != nil {
 			log.Fatalf("release tickets: %v", err)
 		}
 		go func() {
 			log.Fatal(s.serveTickets(context.Background(), tl, vsockCID, log.New(os.Stderr, "release: ", log.LstdFlags)))
 		}()
-		el, err := vsock.Listen(egressPort)
+		el, err := vsock.Listen(uint32(*egressPortFlag))
 		if err != nil {
 			log.Fatalf("egress: %v", err)
 		}
@@ -471,7 +473,7 @@ func main() {
 			CIDOf:  vsockCID, Admit: s.admitCID, Log: log.New(os.Stderr, "egress: ", log.LstdFlags),
 		}
 		go func() { log.Fatal(es.Serve(context.Background(), el)) }()
-		log.Printf("attested release ON: tickets on vsock %d, egress on vsock %d (guests guestd launched only)", release.TicketPort, egressPort)
+		log.Printf("attested release ON: tickets on vsock %d, egress on vsock %d (guests guestd launched only)", *ticketPort, *egressPortFlag)
 	}
 	if *authKey != "" {
 		k, err := loadKey(*authKey)

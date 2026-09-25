@@ -13,6 +13,10 @@ import _ "embed"
 // different binary, and so a different launch measurement.
 const RelayHost = "api.enclave.host"
 
+// TicketPort is the host (vsock CID 2) port guestd hands each guest its ticket on. A lab build uses a port of its own
+// (pins_lab.go), so a lab guestd never holds a production port (enclave-d1).
+const TicketPort = 9444
+
 // The roots the relay's certificate must chain to, for the two issuers api.enclave.host's ACME client uses:
 //   - Let's Encrypt: ISRG Root X1 and X2 (served 2026-09-25: YE1 -> Root YE -> ISRG Root X2 -> ISRG Root X1);
 //   - ZeroSSL, Caddy's fallback issuer, whose failover a real Let's Encrypt outage has exercised: Sectigo Public Server
