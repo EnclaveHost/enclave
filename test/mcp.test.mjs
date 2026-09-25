@@ -173,10 +173,14 @@ async function freePort() {
   const s = net.createServer(); s.listen(0, "127.0.0.1"); await once(s, "listening");
   const p = s.address().port; s.close(); return p;
 }
-function stubEnclave() {
+// The stub stands in for a SERVING first-party enclave, so it presents the evidence the relay has required of a dialed
+// box since 0e01901e (evidence-derived host admission: computeEligible): the confidential CPU its attestation names.
+// Without it the relay has no serving enclave and answers the read tools 503, which is the relay working as intended
+// (pinned below), not a bug. The api-relay tests' eligible hosts say the same ("a host needs hardware evidence to serve").
+function stubEnclave({ teeCpu = "amd-sev-snp" } = {}) {
   return http.createServer((req, res) => {
     const j = (o) => { res.setHeader("content-type", "application/json"); res.end(JSON.stringify(o)); };
-    if (req.url === "/availability") return j({ gpu: true, gpuShareFree: 1, cpuShareFree: 1, maxShare: 1 });
+    if (req.url === "/availability") return j({ gpu: true, gpuShareFree: 1, cpuShareFree: 1, maxShare: 1, ...(teeCpu ? { teeCpu } : {}) });
     if (req.url === "/v1/pricing") return j({ model: "stub-pricing", card: { vramGb: 80, tflops: 100 }, node: { ramGb: 100, gflops: 5000 } });
     res.statusCode = 404; j({ error: "not_found" });
   });
@@ -196,8 +200,8 @@ function stubRpc() {
   });
 }
 const UPLOAD_KEY = "test-upload-key";
-async function startRelay(t) {
-  const enclave = stubEnclave(); enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
+async function startRelay(t, stub = {}) {
+  const enclave = stubEnclave(stub); enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
   const rpc = stubRpc(); rpc.listen(0, "127.0.0.1"); await once(rpc, "listening");
   // the relay must PROVE it won the port before /health means anything -
   // see test/helpers/daemon.mjs
@@ -341,4 +345,14 @@ test("mcp protocol: full surface through the relay", async (t) => {
     body: "{}",
   });
   assert.equal(appHost.status, 404, "app-subdomain /mcp stays tenant namespace");
+});
+
+// The relay's evidence rule reaches the MCP surface too: with only an enclave that presents no hardware evidence, there
+// is no serving enclave, and a read tool says so as an error. It never answers from the unevidenced box.
+test("mcp protocol: with no evidenced enclave, the read tools answer 'no serving enclave', never the box's own data", async (t) => {
+  const origin = await startRelay(t, { teeCpu: null });
+  const pricing = await call(origin, "pricing", {});
+  assert.equal(pricing.result.isError, true);
+  assert.match(pricing.result.content[0].text, /503.*No enclave in the fleet is taking work/);
+  assert.equal(pricing.result.structuredContent, undefined, "nothing from the stub's /v1/pricing");
 });
