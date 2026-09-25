@@ -1,0 +1,20 @@
+{
+ "type": "enclave-vbslike-uefi-image/1",
+ "inputs": {
+  "kernel":  { "sha256": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd", "bytes": 15876096 },
+  "initrd":  { "sha256": "4610d5944cc2d67a6510ece964915b6a90b20ecc27a0169d514a2701c9fc9f85", "bytes": 24038133 },
+  "stub":    { "sha256": "2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18", "bytes": 134144 },
+  "cmdline": "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
+ },
+ "params": { "espMiB": 128, "diskMiB": 256, "sourceDateEpoch": 1758672000, "fatVolumeId": "E5C1A7E5",
+             "gptLabelId": "5E6C0D1A-7A0B-4C3E-9E0B-000000000001", "espPartUuid": "5E6C0D1A-7A0B-4C3E-9E0B-0000000000E5",
+             "espPath": "/EFI/BOOT/BOOTX64.EFI" },
+ "tools": { "objcopy": "GNU objcopy (GNU Binutils) 2.47", "mtools": "mcopy (GNU mtools) 4.0.49",
+            "sfdisk": "sfdisk from util-linux 2.42.3", "qemu-img": "qemu-img version 11.1.1", "mkfs.fat": "Usage: mkfs.fat [OPTIONS] TARGET [BLOCKS]" },
+ "outputs": {
+  "uki.efi":   { "sha256": "8b531361ec433ef971aeaaeb88d4f0b37813d769b997acda9b0116fa711f72ad", "bytes": 40045056 },
+  "esp.img":   { "sha256": "ba22ec6b2a14493b2950390c6bce5360d5c4533b4ca5bfc567729a6c67ed2b91", "bytes": 134217728 },
+  "disk.raw":  { "sha256": "aec1e2017808dc2efc29838064f6fdf0d6fbeafdebd36731a849e5cf58c62009", "bytes": 268435456, "note": "the pinned identity of the disk" },
+  "disk.vhdx": { "sha256": "98be3c2f78d07d2e48e9bfe844c04ae9f983d74d998bb1eba40ec05052b3695e", "bytes": 67108864, "note": "container: header GUIDs are random, so NOT reproducible; its payload is disk.raw (checked)" }
+ }
+}
