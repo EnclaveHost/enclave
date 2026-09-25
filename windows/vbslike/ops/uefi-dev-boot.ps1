@@ -54,6 +54,10 @@ param(
   # Two different stages, which is what says the bits interact rather than simply accumulate. 0 here
   # means "keep what New-VM chose and add 0x201"; any other value is written exactly.
   [uint32] $FeatureSet = 0,
+  # A real VMGS for the type-1 path. This host refuses a VBS VM with no guest state and petri
+  # supplies none, so one is made by `New-VM -GuestStateIsolationType VBS` and kept after that donor
+  # VM is removed. It is guest state, not a secret, and it is never committed.
+  [string] $GuestStateFile = 'C:\Users\claude\vbs-like\type1.vmgs',
   [string] $Bundle = '',
   [int]    $RelayPort = 19500,
   [switch] $Approve
@@ -277,77 +281,51 @@ try {
   # empty: the first type-1 run died with "The property 'Connection' cannot be found on this object"
   # before the VM was ever defined. A missing diagnostic port must not fail the experiment it exists
   # to diagnose, so -Com3 is not passed and the port is probed below and recorded as UNSUPPORTED.
-  # WHY TYPE 1 IS CREATED A DIFFERENT WAY, and it is not a preference.
+  # WHY TYPE 1 IS BUILT THIS WAY. Every piece is a measurement or Microsoft's own recipe.
   #
-  # petri's New-CustomVM defines the VM through one DefineSystem call and sets no guest state. That
-  # is fine for type 16. For type 1 this host REFUSES it: VMMS logs "Cannot perform the operation
-  # ... because the virtual machine has security settings which do not allow it" at define time and
-  # the start dies with a bare Worker 12030.
+  # petri, which runs Microsoft's 28 hyperv_openhcl_uefi_x64[vbs] cases, defines an isolated VM in
+  # ONE DefineSystem with GuestStateIsolationType, GuestFeatureSet 0x201 and FirmwareFile together,
+  # and removes the synthetic mouse, keyboard and display for isolation types 1-3. A New-VM VM
+  # patched afterwards through ModifySystemSettings is NOT the same thing, and it never started.
   #
-  # Asked directly what it wants, Windows answers unambiguously. `New-VM -GuestStateIsolationType
-  # VBS` on this build produces GuestStateFile "Virtual Machines\<GUID>.vmgs" with 4,194,816 bytes
-  # ACTUALLY ON DISK, GuestFeatureSet 1024, UserSnapshotType 5 and TpmEnabled True. A VBS VM needs a
-  # guest-state file, and petri gives it none. The knob petri offers for going without one,
-  # GuestStateLifetime, DOES NOT EXIST on this build's Msvm_VirtualSystemSettingData (nor does
-  # GuestStateEncryptionPolicy), so "stateless guest state" is not available here at all - recorded
-  # as UNSUPPORTED on this host rather than worked around.
+  # It differs from the type-16 path in one further place, and it is the OPPOSITE of what I first
+  # guessed. petri sets the VTL2 trio only when `is_openhcl && !is_isolated`
+  # (petri/src/vm/hyperv/powershell.rs:548): openhcl.bin carries a RELOCATABLE_REGION and a
+  # PAGE_TABLE_RELOCATION_REGION so it needs auto placement, while openhcl-cvm.bin has NEITHER and
+  # requires VTL2 at the FIXED GPA 0x8000000. Asking a fixed image to auto-place a 1 GiB VTL2 range
+  # is the best available explanation for the bare 12030 (enclave-5d). So type 16 gets
+  # -IncreaseVtl2Memory and type 1 must NOT - my earlier "VTL2 is always required" was wrong.
   #
-  # So type 1 is created by New-VM, which builds the VMGS, and the firmware is pinned onto it
-  # afterwards through WMI. Type 16 keeps the petri path exactly as it was.
+  # The one thing petri does not supply is guest state, and this host requires it: without a VMGS,
+  # VMMS refuses at define time with "security settings which do not allow it". petri's knob for
+  # going without one, GuestStateLifetime, does not exist on this build (nor does
+  # GuestStateEncryptionPolicy), so stateless guest state is UNSUPPORTED here rather than declined.
+  # -GuestStateFile points at a real VMGS made by `New-VM -GuestStateIsolationType VBS`, kept after
+  # that donor VM was removed.
   if ($IsolationType -eq 1) {
-    $vmNew = New-VM -Name $name -Generation 2 -MemoryStartupBytes ($MemMiB * 1MB) -NoVHD `
-                    -GuestStateIsolationType VBS -ErrorAction Stop
+    if (-not $GuestStateFile) { throw "type 1 needs -GuestStateFile: this host refuses a VBS VM with no guest state, and petri supplies none" }
+    if (-not (Test-Path $GuestStateFile)) { throw "the guest-state file is not at $GuestStateFile" }
+    Note "guest state: $GuestStateFile ($((Get-Item $GuestStateFile).Length) bytes, sha $((Get-FileHash $GuestStateFile -Algorithm SHA256).Hash.ToLower().Substring(0,16)))"
+    Note "VTL2: auto placement NOT set - openhcl-cvm.bin is a fixed-GPA image, and petri sets the trio only for non-isolated VMs"
+    New-CustomVM -VMName $name -GuestStateIsolationEnabled $true -GuestStateIsolationType 1 `
+      -GuestStateIsolationMode 0 -FirmwareFile $Firmware -GuestStateFilePath $GuestStateFile `
+      -TpmEnabled $true -SecureBootEnabled $false -Com1 $true `
+      -Memory ($MemMiB * 1MB) -VpCount $Vcpus | Out-Null
     $created = $true
-    Set-VMProcessor -VM $vmNew -Count $Vcpus
     $vm = Get-VM -Name $name
-    # Pin OUR firmware onto the VM Windows just built, through the setting data - New-VM has no
-    # parameter for it. This is the step AllowFirmwareLoadFromFile exists for.
-    $vssdF = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemSettingData |
+    $pipe3 = $null
+    # READ BACK what the VM actually IS, rather than reprinting the parameters it was asked for.
+    $vssdR = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemSettingData |
              Where-Object { $_.ConfigurationID -eq $vm.Id.Guid }
-    $vssdF.FirmwareFile = $Firmware
-    # ENABLE OPENHCL BY FEATURE. Pinning FirmwareFile is not enough: petri sets GuestFeatureSet to
-    # 0x201 whenever a firmware file is given, commented in its source as "Enable OpenHCL by
-    # feature", and the working type-16 path goes through exactly that. New-VM leaves GuestFeatureSet
-    # at 0x400 for a VBS VM, so the first two type-1 boots had the OpenHCL image pinned and the
-    # OpenHCL feature off, and triple-faulted. The VBS bit Windows chose is KEPT and the OpenHCL bits
-    # are added to it rather than overwriting a value this host picked for its own reasons.
-    $featBefore = [uint32] $vssdF.GuestFeatureSet
-    $vssdF.GuestFeatureSet = $(if ($FeatureSet -ne 0) { $FeatureSet } else { $featBefore -bor 0x00000201 })
-    # VTL2's address space, which OpenHCL itself runs in. petri's -IncreaseVtl2Memory sets exactly
-    # these three on the type-16 path; New-VM sets none, and the first type-1 boot proved what that
-    # costs: the VM started, then "a fatal virtual firmware error ... ErrorCode0..4: 0x0" and a
-    # triple fault, which is OpenHCL coming up with no address space to run in. Total OpenHCL RAM is
-    # Vtl2AddressRangeSize - Vtl2MmioAddressRangeSize, so 1024 - 512 = 512 MiB, petri's own numbers.
-    $vssdF.Vtl2AddressSpaceConfigurationMode = 1
-    $vssdF.Vtl2AddressRangeSize              = 1024
-    $vssdF.Vtl2MmioAddressRangeSize          = 512
-    $svc = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemManagementService
-    $r = Invoke-CimMethod -InputObject $svc -MethodName ModifySystemSettings `
-           -Arguments @{ SystemSettings = ($vssdF | ConvertTo-CimEmbeddedString) }
-    if ($r.ReturnValue -notin 0, 4096) { throw "pinning FirmwareFile returned $($r.ReturnValue)" }
-    if ($r.ReturnValue -eq 4096) {
-      $job = $r.Job | Get-CimInstance
-      while ($job.JobState -in 3, 4) { Start-Sleep -Milliseconds 200; $job = $job | Get-CimInstance }
-      if ($job.JobState -ne 7) { throw "pinning FirmwareFile failed: job state $($job.JobState) $($job.ErrorDescription)" }
-    }
-    $vssdF = Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemSettingData |
-             Where-Object { $_.ConfigurationID -eq $vm.Id.Guid }
-    Note "firmware pinned, read back: '$($vssdF.FirmwareFile)'"
-    if ($vssdF.FirmwareFile -ne $Firmware) { throw "the VM's FirmwareFile reads '$($vssdF.FirmwareFile)', not the pinned $Firmware" }
-    $gsf = "$($vssdF.GuestStateDataRoot)\$($vssdF.GuestStateFile)"
-    Note "guest state: '$($vssdF.GuestStateFile)' $(if(Test-Path $gsf){"$((Get-Item $gsf).Length) bytes on disk"}else{'NOT ON DISK'}); GuestFeatureSet=$($vssdF.GuestFeatureSet)"
-    Note "GuestFeatureSet: 0x$('{0:x}' -f $featBefore) -> 0x$('{0:x}' -f [uint32]$vssdF.GuestFeatureSet) (OpenHCL enabled by feature; the VBS bit New-VM set is kept)"
-    if (([uint32]$vssdF.GuestFeatureSet -band 0x201) -ne 0x201) { throw "GuestFeatureSet read back as 0x$('{0:x}' -f [uint32]$vssdF.GuestFeatureSet); OpenHCL is not enabled by feature" }
-    Note "  (0x400 alone triple-faults; 0x601 refuses to start; this run uses 0x$('{0:x}' -f [uint32]$vssdF.GuestFeatureSet))"
-    Note "VTL2: mode=$($vssdF.Vtl2AddressSpaceConfigurationMode) range=$($vssdF.Vtl2AddressRangeSize) MiB mmio=$($vssdF.Vtl2MmioAddressRangeSize) MiB (OpenHCL RAM = $([int]$vssdF.Vtl2AddressRangeSize - [int]$vssdF.Vtl2MmioAddressRangeSize) MiB)"
-    if ([int]$vssdF.Vtl2AddressRangeSize -eq 0) { throw "VTL2 address range read back as 0: OpenHCL would have no address space to run in" }
-    Set-VMFirmware -VM $vm -EnableSecureBoot Off
-    # New-VM gives a Gen2 VM a network adapter. This guest is not supposed to have one: it reaches
-    # nothing but its own loopback and the control channel, and a NIC on an isolation experiment is
-    # both an unnecessary surface and a way for a result to be quietly explained by the network.
+    $gsf = "$($vssdR.GuestStateDataRoot)\$($vssdR.GuestStateFile)"
+    Note ("read back: GuestStateIsolationType=$($vssdR.GuestStateIsolationType) enabled=$($vssdR.GuestStateIsolationEnabled) " +
+          "GuestFeatureSet=0x$('{0:x}' -f [uint32]$vssdR.GuestFeatureSet) Vtl2Mode=$($vssdR.Vtl2AddressSpaceConfigurationMode) " +
+          "Vtl2Range=$($vssdR.Vtl2AddressRangeSize) firmware='$($vssdR.FirmwareFile)'")
+    if ([int]$vssdR.GuestStateIsolationType -ne 1) { throw "GuestStateIsolationType read back as $($vssdR.GuestStateIsolationType), not 1" }
+    if ($vssdR.FirmwareFile -ne $Firmware) { throw "the VM's FirmwareFile reads '$($vssdR.FirmwareFile)', not the pinned $Firmware" }
     $nics = @(Get-VMNetworkAdapter -VM $vm -ErrorAction SilentlyContinue)
-    if ($nics.Count) { $nics | Remove-VMNetworkAdapter -Confirm:$false; Note "removed $($nics.Count) network adapter(s) New-VM added; this guest has no NIC" }
-    Set-VMComPort  -VM $vm -Number 1 -Path "\\.\pipe\$pipe"
+    if ($nics.Count) { $nics | Remove-VMNetworkAdapter -Confirm:$false; Note "removed $($nics.Count) network adapter(s); this guest has no NIC" }
+    else { Note "no network adapter was defined; this guest has no NIC" }
   } else {
     New-CustomVM -VMName $name -GuestStateIsolationEnabled $true -GuestStateIsolationType $IsolationType `
       -GuestStateIsolationMode 0 -FirmwareFile $Firmware -IncreaseVtl2Memory `
