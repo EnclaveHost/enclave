@@ -182,11 +182,20 @@ The two live wedges themselves are separate from this bookkeeping and still open
 registers-only thread sample (03:10Z) localized one and, on offline review, did NOT localize
 the other:
 
-- `ipns-publisher` 0xd9798e4c: 100% USER CPU, pinned 20/20 in an ~11-byte window at `ntdll`
-  RVA 0xFC9B — the un-exported region right after `RtlRaiseException` (0xF700), before
-  `RtlSleepConditionVariableCS` (0x11230), i.e. the RTL exception/unwind machinery. A genuine
-  live-lock that never returns to the accept loop. The exact function needs `ntdll` PDBs; do
-  not assert "exception storm" as fact, only "pinned in that region".
+- `ipns-publisher` 0xd9798e4c: 100% USER CPU, pinned 20/20 at `ntdll` RVAs 0xFC9B/0xFCA0/0xFCA6.
+  **Symbolized** against the public PDB for that exact build (10.0.26100.9444; the DLL's own
+  CodeView record and the PDB share key `C3093720177DA6851519DCFFE8DF53FE1`): the RVA is
+  **`RtlpWaitOnCriticalSection`+0x2DB**, and the exception directory puts it inside one unchained
+  function [0xF9C0, 0x1007F). The three RIPs are the tail of one loop, which walks a linked list
+  (`cur = cur->[+0x10]; cur->[+0x18] = prev`) until it finds a node whose `[+0x20]` is nonzero,
+  with no null check and no other exit. A waiter list is a few nodes long, so being pinned there
+  means the walk never terminates: a **cycle in a critical section's wait list**. It is a
+  corrupted lock, not an exception storm. (The first reading, "RTL exception/unwind region after
+  `RtlRaiseException`", came from exports only and was WRONG.) Not determined: WHICH critical
+  section. The sample holds RIPs only, and the candidates are ee-host's `g_log_cs`/`g_sock_cs` plus
+  CRT, loader and winsock-internal locks. Ruled out: a `g_socks[]` overrun corrupting an adjacent
+  lock (`handle` is `uint32_t` and every index is checked `< 256`). Evidence and method:
+  `~/enclave-bench/wedge/sym/README.txt` on the workstation.
 - `s3-ipfs-adapter` 0x7ae476a3: 10/10 in `NtWaitForAlertByThreadId`, 0 CPU — but this is
   INCONCLUSIVE. s3's loop is a non-blocking `srv.poll()` sweep then `thread::sleep(25ms)`, and
   that sleep maps to `ee_sleep_ms` → `WaitOnAddress` → `NtWaitForAlertByThreadId`; a HEALTHY
