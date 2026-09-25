@@ -44,7 +44,7 @@ const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.in
   "control.datapath", "control.judge", "control.node-client", "tool.windows",
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
   "input.recipe", "input.tree", "input.test", "input.test-support", "guest.uefi-firmware", "guest.uefi-medium", "guest.uefi-fallback",
-  "input.efi-stub", "input.tool-source"]);
+  "input.efi-stub", "input.tool-source", "input.initrd"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
 const SERVED_BY_PINNED_MANAGER = ["enclave-catalog-bundle/1"];   // windows/vbslike/manager/server.mjs SERVES
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");

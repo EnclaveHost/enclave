@@ -56,12 +56,12 @@
    "medium": "guest/uefi/guest.iso",
    "fallbackMedium": "guest/uefi/disk.vhdx",
    "uki": {
-    "sha256": "a1fdb5c3e973accc2f04bfecce7fb22cfdcfcf7568244350328ec6436a1a87b1",
-    "bytes": 40045056,
-    "spec": "isolation/m3/UEFI-BOOT.md at acfdddac (enclave-5d)",
+    "sha256": "75ae6bccf2cd663a85dc21562b06892800b2744aa90441a453fdf6aa613776b6",
+    "bytes": 40046592,
+    "spec": "isolation/m3/UEFI-BOOT.md at 4127789d (enclave-5d)",
     "composition": {
      "kernel": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd",
-     "initrd": "4610d5944cc2d67a6510ece964915b6a90b20ecc27a0169d514a2701c9fc9f85",
+     "initrd": "5bc062598212f1e509c4579ba76ab2e34ed090960fc6712d503c49ae427fb359",
      "stub": "2d9b80732fa76c29 (systemd 261.2)",
      "cmdline": "console=ttyS0 rdinit=/init loglevel=3 report_host=9001",
      "cmdlineSha256": "c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615",
@@ -80,9 +80,9 @@
     "hvSock": "guest listens 9000, host listens 9001, domain 40000+id",
     "vTpm": "NOT STATED: the VM configuration must state present or absent (enclave-99)"
    },
-   "identity": "enclave-99 recommends the launcher sign the MEDIUM's sha256 (guest.iso), with the UKI and its composition beside it: with Secure Boot off, systemd-stub honours ESP side-files and cmdline overrides, and only a medium hash rules them out. Not yet implemented by the launcher.",
+   "identity": "partition.guestImageSha256 = the attached MEDIUM's sha256 (guest.iso's bytes, or disk.raw's for the VHDX payload), with the UKI and its composition beside it (isolation/m3/UEFI-BOOT.md at 4127789d, from enclave-99's review): with Secure Boot off, systemd-stub honours ESP side-files and cmdline overrides, and only a medium hash rules them out; the guest's own guard also refuses them. Not yet implemented by the launcher.",
    "measured": [
-    "DEV only, QEMU q35 + OVMF on KVM (warden-host): the ISO on a read-only SCSI CD-ROM, and disk.raw, each boot to 'MON ready control_port=9000' (windows/vbslike/pkg/uefi/evidence). NOT Hyper-V, NOT OpenHCL; hv_sock not exercised.",
+    "DEV only, QEMU q35 + OVMF on KVM (warden-host): this ISO (4c387086) on a read-only SCSI CD-ROM boots past the guest's guards to 'MON ready control_port=9000' (windows/vbslike/pkg/uefi/evidence). NOT Hyper-V, NOT OpenHCL; hv_sock not exercised.",
     "On the NucBox: Microsoft's standard openhcl.bin starts with NO medium (enclave-d1, 7c6bb15d). This medium has not been booted there.",
     "Not measured on the NucBox: see windows/vbslike/pkg/uefi/README.md, 'Not yet measured under UEFI on the NucBox' (10 items, reviewed by enclave-99)."
    ]
@@ -280,22 +280,22 @@
   {
    "path": "guest/uefi/guest.iso",
    "role": "guest.uefi-medium",
-   "sha256": "b218a3290cfbc0932e3d406e17b8bc0fd2b5b83591fb99216b5c4c2a03d04cf0",
+   "sha256": "4c387086d204c7064bf77a48c6e076b844ba5b429f2219c5e29cd988e23cdcb0",
    "bytes": 134594560,
    "from": {
-    "file": "~/enclave-bench/ownguest-pkg/sources/uefi/guest.iso"
+    "file": "~/enclave-bench/ownguest-pkg/sources/uefi/guest-4c387086.iso"
    },
-   "note": "THE BOOT MEDIUM: a read-only El Torito ISO whose EFI image holds exactly one file, \\EFI\\BOOT\\BOOTX64.EFI = UKI a1fdb5c3 (enclave-5d's spec, reproduced by both assemblies). Reproducible: `verify --rebuild` makes it again. Its sha256 is the identity enclave-99 recommends the launcher sign"
+   "note": "THE BOOT MEDIUM: a read-only El Torito ISO whose EFI image holds exactly one file, \\EFI\\BOOT\\BOOTX64.EFI = UKI 75ae6bcc (enclave-5d's spec at 4127789d, reproduced by both assemblies). Reproducible: `verify --rebuild` makes it again. Its sha256 is the identity enclave-99 recommends the launcher sign"
   },
   {
    "path": "guest/uefi/disk.vhdx",
    "role": "guest.uefi-fallback",
-   "sha256": "b3c9e97006add991963729e48d0f4da87add13c88c8796d0fed6eb07e5cffb2e",
+   "sha256": "5c54470e0462da7f7b0115f895cb7fdc7ed4a619984144976126dc8e6568db52",
    "bytes": 67108864,
    "from": {
-    "file": "~/enclave-bench/ownguest-pkg/sources/uefi/disk.vhdx"
+    "file": "~/enclave-bench/ownguest-pkg/sources/uefi/disk-a50fdd05.vhdx"
    },
-   "note": "FALLBACK medium (enclave-d1): a Gen2 SCSI boot disk. The container's header GUIDs are random, so these bytes are pinned by observation; `verify --rebuild` checks that its payload is disk.raw 04898f09 exactly"
+   "note": "FALLBACK medium (enclave-d1): a Gen2 SCSI boot disk. The container's header GUIDs are random, so these bytes are pinned by observation; `verify --rebuild` checks that its payload is disk.raw a50fdd05 exactly"
   },
   {
    "path": "guest/wsl-kernel",
@@ -1109,13 +1109,28 @@
    "note": "enclave-53's reproducible UEFI image builder"
   },
   {
+   "name": "mon-5bc06259.cpio.gz",
+   "role": "input.initrd",
+   "sha256": "5bc062598212f1e509c4579ba76ab2e34ed090960fc6712d503c49ae427fb359",
+   "bytes": 24039932,
+   "from": {
+    "file": "~/enclave-bench/ownguest-pkg/sources/guest/mon-5bc06259.cpio.gz"
+   },
+   "source": {
+    "command": "isolation/m3/build-domain.sh <out> 1",
+    "commit": "4127789d60e2f3973691dcd4871b10bb81578434",
+    "owner": "enclave-5d"
+   },
+   "note": "the UEFI payload's initrd (inside the UKI): 4610d594 plus two guards -- dominit refuses a stub boot whose command line is not the pinned one or with anything but os-release under /.extra -- and a boundary line without the fixed partition=hcs-child. The linux-direct profiles keep guest/mon.cpio.gz 4610d594 (the IGVM 7caf7408 is built around it)"
+  },
+  {
    "name": "build-uki.sh",
    "role": "input.recipe",
-   "sha256": "84ac435620556cd6d17a662fe05af89342b908ad5a9e48f64bdf59d557299dfb",
-   "bytes": 3349,
+   "sha256": "a3e2748b5313ee2bc7e8b5a4e7c7265db782c0e7180f2bdb9eaa1f61ecafbbe4",
+   "bytes": 3562,
    "from": {
     "git": {
-     "commit": "acfdddac2645480e28b50f2b977dd4270556ceb0",
+     "commit": "4127789d60e2f3973691dcd4871b10bb81578434",
      "path": "isolation/m3/build-uki.sh"
     }
    },
@@ -1404,7 +1419,7 @@
    "builder": "build-uefi-image.sh",
    "ukiRecipe": "build-uki.sh",
    "kernel": "file:guest/wsl-kernel",
-   "initrd": "file:guest/mon.cpio.gz",
+   "initrd": "mon-5bc06259.cpio.gz",
    "stub": "linuxx64.efi.stub",
    "cmdline": "console=ttyS0 rdinit=/init loglevel=3 report_host=9001",
    "espMiB": 128,
@@ -1413,7 +1428,7 @@
    "mtoolsDir": "~/enclave-bench/ownguest-pkg/tools/mtools/bin",
    "iso": "guest/uefi/guest.iso",
    "fallback": "guest/uefi/disk.vhdx",
-   "diskRawSha256": "04898f098ab9e464ee5be9771926812a6f8236940403492019a7538aa6efe4a7"
+   "diskRawSha256": "a50fdd05663762f703353919620179ddbfab7b561788163429eed8e4146b0f72"
   },
   "vmlinux": {
    "script": "vtl0-vmlinux.sh",

@@ -2,9 +2,9 @@ BdsDxe: loading Boot0002 "UEFI QEMU QEMU CD-ROM " from PciRoot(0x0)/Pci(0x1,0x0)
 BdsDxe: starting Boot0002 "UEFI QEMU QEMU CD-ROM " from PciRoot(0x0)/Pci(0x1,0x0)/Scsi(0x0,0x0)
 EFI stub: Loaded initrd from LINUX_EFI_INITRD_MEDIA_GUID device path
 
-MON snp=0 vcpus=1 memMiB=958 boot_ms=640
+MON snp=0 vcpus=1 memMiB=958 boot_ms=665
 MON insmod /vsock.ko.zst failed: Operation not supported
 MON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported
 MON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported
-MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a partition=hcs-child host_excluded=no
+MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no
 MON ready control_port=9000 snp=false
