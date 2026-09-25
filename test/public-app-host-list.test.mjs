@@ -111,9 +111,14 @@ test("the fleet list filters on that rule and keeps no exceptions (pinned in sou
 });
 
 test("every public consumer feeds the component the same unfiltered relay rows (pinned in source)", () => {
+  // the three pages share one reader (js/core/fleet-read.js), which assigns the relay's rows
+  const reader = fs.readFileSync(path.join(ROOT, "site/js/core/fleet-read.js"), "utf8");
+  assert.match(reader, /sortFleet\(\(j && j\.enclaves\) \|\| \[\]\)/, "the reader assigns the relay's rows");
+  assert.match(reader, /fl\.rows = v\.rows;/);
+  assert.doesNotMatch(reader, /\.filter\(/, "the reader must not keep its own visibility rule");
   for (const page of ["site/js/pages/host.js", "site/js/pages/architecture.js", "site/js/pages/dashboard.js"]) {
     const src = fs.readFileSync(path.join(ROOT, page), "utf8");
-    assert.match(src, /fl\.rows = \(j\.enclaves \|\| \[\]\)/, `${page} assigns the relay's rows`);
+    assert.match(src, /refreshFleetInto\(document\.querySelector\("\.[a-z]+-fleet c-fleet-list"\), Enclave\.base\)/, `${page} feeds the component through the shared reader`);
     assert.doesNotMatch(src, /\.filter\(\s*\(?e\)?\s*=>\s*e\.serving/, `${page} must not keep its own visibility rule`);
   }
 });
