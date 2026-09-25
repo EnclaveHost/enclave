@@ -19,5 +19,11 @@ pins; the digest is per installation, because the entry script names its venv.
 the host, predictor 508841b3, toolchain 0181bce3: known-answer test PASS (2 reproduced exactly, 15 s); the second run
 refused; 686 MB, all under BASE.
 
+`dry-run-ubuntu2404.txt`: Ubuntu 24.04 (python 3.12 WITHOUT ensurepip, as on nan), predictor 2cce0927: PASS, 674 MB.
+
+**`nan-2026-09-25.txt`: STAGED on nan** (19:22:42Z-19:23:16Z), `/opt/enclave-predict/2cce09274d4a`: known-answer test PASS
+(2 reproduced exactly, 21.5 s); sev-snp-measure digest `4c252b75…05ba`; temp inputs removed; `api-relay.env` untouched and
+the api-relay not restarted (before and after: started 18:00:46 UTC, 0 restarts).
+
 Wiring the relay to it (the SECRETS_RELEASE_PREDICT_* env, the work and components directories owned by the relay's
 user) is a separate, reviewed step, and the release stays OFF until its own go.
