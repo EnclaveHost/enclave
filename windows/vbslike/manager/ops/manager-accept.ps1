@@ -51,6 +51,9 @@ $igvm = Join-Path $Pkg $IgvmRel
 $got = (Get-FileHash $igvm -Algorithm SHA256).Hash.ToLower()
 if ($got -ne $IgvmSha256.ToLower()) { throw "the IGVM hashes $got, not the pinned $IgvmSha256" }
 $treeFull = (Resolve-Path $Tree).Path
+# the driver: inside the tree under test, or an absolute path (a harness pinned OUTSIDE a package's own tree)
+$driverFull = if ([System.IO.Path]::IsPathRooted($Driver)) { $Driver } else { Join-Path $treeFull $Driver }
+if (-not (Test-Path $driverFull)) { throw "the driver is not at $driverFull" }
 $SvcPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices'
 $ReportSvcGuid = '00002329-facb-11e6-bd58-64006a7986d3'
 $wmiserveExe = $null
@@ -65,6 +68,16 @@ if ($HvlabScript -and -not (Test-Path $HvlabScript)) { throw "hvlab-accept not f
 $before = Read-Setting
 Note "=== MANAGER ACCEPTANCE ($Driver). Lifecycle and recovery only: NOT an isolation or attestation result; host_excluded=no. ==="
 Note "setting before: $($before.S); IGVM $igvm verified $got; tree $treeFull"
+# HASHES AT USE: every file of the tree under test, and each input by name, so the record names exactly what ran
+$th = "$runDir\tree-hashes.txt"
+$treeFiles = @(Get-ChildItem $treeFull -Recurse -File | Sort-Object FullName)
+$lines = foreach ($f in $treeFiles) { "$((Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower())  $($f.FullName.Substring($treeFull.Length + 1))" }
+[System.IO.File]::WriteAllLines($th, [string[]]$lines)
+$treeDigest = (Get-FileHash $th -Algorithm SHA256).Hash.ToLower()
+Note "HASHES AT USE: tree $($treeFiles.Count) files, list sha256 $treeDigest ($th)"
+foreach ($x in @($driverFull, $(if ($HvlabScript) { $HvlabScript }), (Join-Path $Pkg 'guest\runtime.json'), (Join-Path $Pkg 'apps\hello-world-1.0.4\spawn.json'), (Join-Path $Pkg 'apps\hello-world-1.0.4\app.bundle'), $GuestStateMaster, $HypervModule) | Where-Object { $_ }) {
+  Note "HASH AT USE: $((Get-FileHash $x -Algorithm SHA256).Hash.ToLower())  $x"
+}
 $sentinel = "C:\Users\claude\uefi-probe-active-$stamp.txt"; $fired = "C:\Users\claude\uefi-watchdog-fired-$stamp.txt"
 $myStart = (Get-Process -Id $PID).StartTime.ToUniversalTime().Ticks
 Set-Content -Path $sentinel -Force -Value "run=mgraccept`npid=$PID`npidStartTicks=$myStart`nbefore.S=$($before.S)`nbefore.V=$($before.V)`nbefore.K=$($before.K)"
@@ -112,7 +125,7 @@ try {
   $cfgFile = "$runDir\config.json"; [System.IO.File]::WriteAllText($cfgFile, $cfg)
   Note "config: $cfg"
   $out = "$runDir\driver.out"
-  $p = Start-Process -FilePath 'C:\Program Files\nodejs\node.exe' -ArgumentList @((Join-Path $treeFull $Driver), $cfgFile) `
+  $p = Start-Process -FilePath 'C:\Program Files\nodejs\node.exe' -ArgumentList @($driverFull, $cfgFile) `
          -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError "$out.err"
   $null = $p.Handle   # Windows PowerShell: without it, ExitCode is empty after WaitForExit(ms)
   if (-not $p.WaitForExit(($CeilingSeconds - 120) * 1000)) { try { $p.Kill() } catch {}; $fail += "the driver did not finish in time (killed)" }
