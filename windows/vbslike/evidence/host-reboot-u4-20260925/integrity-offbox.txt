@@ -1,0 +1,2 @@
+15:36:47Z INTEGRITY (captured off-box by d1 before the reboot): prior-state.json sha256 95468785016c792b4769ebe77d3183ce50db2b10acedde58c6871b7f82a56ebb; restore-at-boot.ps1 sha256 ae15c8719b6cb32f258c2e3d70ab3dd868b8379d7b497599b02fb64a7cede342; node task xml sha256 b8ea54d34af84485d7223a4ebc589600acf81f750cce132f3a03178993087f2a
+owner=BUILTIN\Administrators created=15:36:46Z access=NT AUTHORITY\SYSTEM:FullControl; BUILTIN\Administrators:FullControl

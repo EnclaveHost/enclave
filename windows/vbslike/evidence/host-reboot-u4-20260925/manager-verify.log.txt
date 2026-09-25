@@ -1,0 +1,7 @@
+[winmgr] serving through wmiserve C:\Users\claude\d1-v40-lab\pkg\control\vbslike-host.exe (sha256 435717def62bb5c9a632f80210b5c3fbcbeb7cb8c1047f9beef4ca578ebe99e7); bundles in C:\Users\claude\d1-u4\bundles
+[winmgr] runtime identity wasmtime/48.0.1 jit x86_64 -> RuntimeID ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8
+[winmgr] data plane on 127.0.0.1:18092
+[winmgr] inventory ready: recovered 2, unattributed 0
+[winmgr] hyperv-partition-per-app on 127.0.0.1:18091 · canStart=false · AllowFirmwareLoadFromFile
+[winmgr] fetcher C:\Users\claude\d1-v40-lab\pkg\control\windows\node\fetch-cid.py
+[winmgr] liveness: 2 domain(s) failed because their partition stopped

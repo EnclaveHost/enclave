@@ -1,0 +1,10 @@
+REBOOT-ACCEPT ARM: liveness 15000 ms, answer check 30000 ms; pinned body 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340. Functional recovery only; host_excluded=no.
+manager (arm) pid 5092 (detached: it outlives this driver)
+PASS R0: inventory ready and empty; no manager-owned VM
+R1: POST 0xb0acce55… -> 201 hve2060f4b476dcc5b1b986fc7b6aae8b9
+R1: POST 0xb1acce55… -> 201 hv0ba194f81a2732104ae1e135aefab9c0
+PASS R1: 2 lab deployments created: hve2060f4b476dcc5b1b986fc7b6aae8b9, hv0ba194f81a2732104ae1e135aefab9c0
+PASS R2: hve2060f4b476dcc5b1b986fc7b6aae8b9: running, VM c235c66a-a590-44ee-a482-0e296d3fe317 Running, relay 65451, key 592a5c68474f690d, answer OK 200 key 592a5c68474f690d body 03ba204e; hv0ba194f81a2732104ae1e135aefab9c0: running, VM d7ddf01e-03ea-47b0-a7ea-edbdca577fd3 Running, relay 65455, key fa96891f8bcbf00c, answer OK 200 key fa96891f8bcbf00c body 03ba204e
+state written: C:\Users\claude\d1-u4\state.json
+the manager (pid 5092) is LEFT RUNNING with both domains serving: the host is to go down with it
+REBOOT-ACCEPT ARM ALL PASS

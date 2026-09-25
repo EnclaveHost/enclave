@@ -1,0 +1,26 @@
+15:36:29Z === REBOOT ACCEPTANCE, ARM. Functional recovery only: NOT an isolation or attestation result; host_excluded=no. ===
+15:36:46Z PRIOR STATE: { "armedAt": "2026-09-25T15:36:30Z", "lastBoot": "2026-09-25T05:32:35Z", "secureBoot": true, "bcd": "hypervisorlaunchtype Auto", "setting": { "S": "Absent", "K": null, "V": null }, "svc9001Present": false, "svcAddedByUs": true, "nodeTask": { "name": "EnclaveWindowsNode", "exists": true, "enabled": true, "xmlSha256": "b8ea54d34af84485d7223a4ebc589600acf81f750cce132f3a03178993087f2a", "xmlNormSha256": "b8ea54d34af84485d7223a4ebc589600acf81f750cce132f3a03178993087f2a", "lastRun": "2026-09-25T05:33:55Z", "disabledByUs": true }, "tree": "C:\\Users\\claude\\d1-v40-lab\\pkg\\control", "treeDigest": "819bed7da53e4c273f0def5e51e130318de9e6ebb17007ee0c804ce3011783b8", "oneShot": "d1-u4-restore-once", "restoreDir": "C:\\ProgramData\\d1-u4-restore", "legacyNodeRunning": false } 
+15:36:47Z one-shot boot restore task d1-u4-restore-once registered (SYSTEM, at startup; it removes itself)
+15:36:47Z INTEGRITY: prior-state.json sha256 95468785016c792b4769ebe77d3183ce50db2b10acedde58c6871b7f82a56ebb; restore-at-boot.ps1 sha256 ae15c8719b6cb32f258c2e3d70ab3dd868b8379d7b497599b02fb64a7cede342
+15:36:47Z SETTING APPLIED for the arm
+15:36:48Z hv_sock service 00002329-facb-11e6-bd58-64006a7986d3 registered for port 9001 (removed again before the reboot)
+15:36:48Z config: {"spawnJson":"C:\\Users\\claude\\d1-v40-lab\\pkg\\apps\\hello-world-1.0.4\\spawn.json","answerCheckMs":30000,"igvmSha256":"b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748","gsMasterSha256":"4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d","bundleDir":"C:\\Users\\claude\\d1-u4\\bundles","archiveDir":"C:\\Users\\claude\\vbs-evidence","livenessMs":15000,"gateway":"https://ipfs.enclave.host","python":"C:\\Python314\\python.exe","runtimeIdentity":"C:\\Users\\claude\\d1-v40-lab\\pkg\\guest\\runtime.json","tree":"C:\\Users\\claude\\d1-v40-lab\\pkg\\control","logDir":"C:\\Users\\claude\\d1-u4","gsMaster":"C:\\Users\\claude\\vbs-like\\type1.vmgs","dataPort":18092,"hypervModule":"C:\\Users\\claude\\hyperv.psm1","name":"0xd1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55","igvm":"C:\\Users\\claude\\d1-v40-lab\\pkg\\guest\\igvm-vbs\\vbs-linux-candidate-1539-b7ba7731.bin","wmiserveExe":"C:\\Users\\claude\\d1-v40-lab\\pkg\\control\\vbslike-host.exe","port":18091,"wmiserveSha256":"435717def62bb5c9a632f80210b5c3fbcbeb7cb8c1047f9beef4ca578ebe99e7"}
+15:37:20Z   DRIVER(arm): REBOOT-ACCEPT ARM: liveness 15000 ms, answer check 30000 ms; pinned body 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340. Functional recovery only; host_excluded=no.
+15:37:20Z   DRIVER(arm): manager (arm) pid 5092 (detached: it outlives this driver)
+15:37:21Z   DRIVER(arm): PASS R0: inventory ready and empty; no manager-owned VM
+15:37:21Z   DRIVER(arm): R1: POST 0xb0acce55… -> 201 hve2060f4b476dcc5b1b986fc7b6aae8b9
+15:37:21Z   DRIVER(arm): R1: POST 0xb1acce55… -> 201 hv0ba194f81a2732104ae1e135aefab9c0
+15:37:21Z   DRIVER(arm): PASS R1: 2 lab deployments created: hve2060f4b476dcc5b1b986fc7b6aae8b9, hv0ba194f81a2732104ae1e135aefab9c0
+15:37:21Z   DRIVER(arm): PASS R2: hve2060f4b476dcc5b1b986fc7b6aae8b9: running, VM c235c66a-a590-44ee-a482-0e296d3fe317 Running, relay 65451, key 592a5c68474f690d, answer OK 200 key 592a5c68474f690d body 03ba204e; hv0ba194f81a2732104ae1e135aefab9c0: running, VM d7ddf01e-03ea-47b0-a7ea-edbdca577fd3 Running, relay 65455, key fa96891f8bcbf00c, answer OK 200 key fa96891f8bcbf00c body 03ba204e
+15:37:21Z   DRIVER(arm): state written: C:\Users\claude\d1-u4\state.json
+15:37:21Z   DRIVER(arm): the manager (pid 5092) is LEFT RUNNING with both domains serving: the host is to go down with it
+15:37:21Z   DRIVER(arm): REBOOT-ACCEPT ARM ALL PASS
+15:37:21Z RESTORE: setting now Absent (prior Absent); 9001 key now False (prior False): VERIFIED
+15:37:21Z   DRIVER(recheck): REBOOT-ACCEPT RECHECK: liveness 15000 ms, answer check 30000 ms; pinned body 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340. Functional recovery only; host_excluded=no.
+15:37:21Z   DRIVER(recheck): PASS RC: after the setting and the 9001 key were restored, both armed domains still answer: hve2060f4b476dcc5b1b986fc7b6aae8b9: OK 200 key 592a5c68474f690d; hv0ba194f81a2732104ae1e135aefab9c0: OK 200 key fa96891f8bcbf00c
+15:37:21Z   DRIVER(recheck): REBOOT-ACCEPT RECHECK ALL PASS
+15:37:21Z recheck (both domains answer with the setting and the 9001 key restored): exit 0
+15:37:21Z node task EnclaveWindowsNode DISABLED for this one boot (the one-shot task re-enables it after its boot trigger has passed)
+15:37:22Z before the reboot: VMs enclave-app-hv0ba194f81a2732-07f5cbd3=Running, enclave-app-hve2060f4b476dcc-9c3d10f1=Running; lastBoot 2026-09-25T05:32:35Z
+15:37:22Z REBOOT: shutdown /r /t 60
+15:37:22Z REBOOT ISSUED (exit 0)
