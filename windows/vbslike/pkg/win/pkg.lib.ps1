@@ -97,6 +97,54 @@ function Test-VmWorkerRead($R, [string]$Path, [string]$Name) {
 }
 
 # What each profile needs from the host, read-only, as the manifest states it. Not met = BLOCKED, not FAIL.
+# Is a file a BLANK guest-state master, by its structure (enclave-d1 measured the box's master this way, 3e3ad330)? A
+# fixed VHD of $Spec.bytes: the store body (the first $Spec.zeroBytes) all zero, the 512-byte footer beginning with
+# $Spec.footerCookie, and no $Spec.notMagic at offset 0 (the header an OpenHCL writes when it formats a store, so a
+# used copy). Read only. Returns the FIRST structural reason, in this order: missing, size, formatted, body not zero,
+# footer; else blank. The hash pin is a separate check, reported apart.
+function Test-BlankVmgs([string]$Path, $Spec) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return [pscustomobject]@{ Ok = $false; Reason = 'missing'; Detail = "absent at $Path" } }
+  $b = [System.IO.File]::ReadAllBytes($Path)
+  $n = [int]$Spec.bytes; $z = [int]$Spec.zeroBytes; $magic = [string]$Spec.notMagic; $cookie = [string]$Spec.footerCookie
+  if ($b.Length -ne $n) { return [pscustomobject]@{ Ok = $false; Reason = 'size'; Detail = "$($b.Length) bytes, not $n" } }
+  if ([System.Text.Encoding]::ASCII.GetString($b, 0, $magic.Length) -eq $magic) {
+    return [pscustomobject]@{ Ok = $false; Reason = 'formatted'; Detail = "it begins '$magic': a store an OpenHCL has formatted (a used copy), not a blank master" } }
+  $h = [System.Security.Cryptography.SHA256]::Create()
+  $want = [System.BitConverter]::ToString($h.ComputeHash((New-Object byte[] $z))).Replace('-', '').ToLower()
+  $got = [System.BitConverter]::ToString($h.ComputeHash($b, 0, $z)).Replace('-', '').ToLower()
+  if ($got -ne $want) { return [pscustomobject]@{ Ok = $false; Reason = 'body not zero'; Detail = "the first $z bytes are not all zero (sha256 $got)" } }
+  $f = [System.Text.Encoding]::ASCII.GetString($b, $n - 512, $cookie.Length)
+  if ($f -ne $cookie) { return [pscustomobject]@{ Ok = $false; Reason = 'footer'; Detail = "the last 512 bytes begin '$f', not the fixed-VHD cookie '$cookie'" } }
+  return [pscustomobject]@{ Ok = $true; Reason = 'blank'; Detail = "$n bytes: a zero body of $z bytes, the '$cookie' footer, no '$magic'" }
+}
+
+# check.ps1 -SelfTest's cases for a blank-master box file: each corruption refused for ITS OWN reason, with the
+# structure and the hash pin reported apart. Every case is a scratch copy under $Root; the master is only read.
+function Invoke-BlankVmgsSelfTest([string]$Root, [string]$Master, $Spec, [string]$Sha256) {
+  $out = New-Object System.Collections.ArrayList
+  $src = [System.IO.File]::ReadAllBytes($Master); $n = $src.Length
+  $cases = New-Object System.Collections.ArrayList
+  $x = $src.Clone(); [void]$cases.Add(@('(a) the master, copied (control)', 'a.vmgs', $x, 'blank', $true))
+  $x = $src.Clone(); $x[4096] = 1; [void]$cases.Add(@('(b) one non-zero byte in the body', 'b.vmgs', $x, 'body not zero', $false))
+  $x = New-Object byte[] ($n - 512); [Array]::Copy($src, $x, $n - 512); [void]$cases.Add(@('(c) truncated by 512 bytes', 'c1.vmgs', $x, 'size', $false))
+  $x = New-Object byte[] ($n + 512); [Array]::Copy($src, $x, $n); [void]$cases.Add(@('(c) extended by 512 bytes', 'c2.vmgs', $x, 'size', $false))
+  $x = $src.Clone(); $x[$n - 512] = [byte][char]'X'; [void]$cases.Add(@('(d) the footer cookie changed', 'd.vmgs', $x, 'footer', $false))
+  $x = $src.Clone(); $g = [System.Text.Encoding]::ASCII.GetBytes([string]$Spec.notMagic); [Array]::Copy($g, $x, $g.Length)
+  [void]$cases.Add(@("(e) '$($Spec.notMagic)' at offset 0 (a used copy)", 'e.vmgs', $x, 'formatted', $false))
+  $x = $src.Clone(); $x[$n - 512 + 24] = [byte](($x[$n - 512 + 24] + 1) % 256)
+  [void]$cases.Add(@('(f) another footer (a re-minted master): structure blank, refused by the hash pin', 'f.vmgs', $x, 'blank', $false))
+  [void]$cases.Add(@('(g) the file missing', 'absent.vmgs', $null, 'missing', $false))
+  foreach ($c in $cases) {
+    $p = Join-Path $Root $c[1]
+    if ($null -ne $c[2]) { [System.IO.File]::WriteAllBytes($p, [byte[]]$c[2]) }
+    $v = Test-BlankVmgs $p $Spec
+    $hashOk = (Test-Path -LiteralPath $p -PathType Leaf) -and ((Get-Sha256 $p) -eq $Sha256.ToLower())
+    $w = "$($c[3]), hash $(if ($c[4]) { 'pinned' } else { 'refused' })"; $g2 = "$($v.Reason), hash $(if ($hashOk) { 'pinned' } else { 'refused' })"
+    [void]$out.Add([pscustomobject]@{ Name = $c[0]; Pass = ($w -eq $g2); Want = $w; Got = $g2 })
+  }
+  return ,$out
+}
+
 function Test-HostProfile($R, $M, [string]$Boot) {
   $hc = $M.hostChecks.$Boot
   $ready = $true
@@ -148,6 +196,11 @@ function Test-HostProfile($R, $M, [string]$Boot) {
       $ok = ($null -ne $h) -and ($h -eq $b.sha256); if (-not $ok) { $ready = $false }
       $why = ''; if (@($b.PSObject.Properties.Name) -contains 'why') { $why = ": $($b.why)" }
       [void](Add-Result $R $ok "[$Boot] box file $($b.name)" $(if ($ok) { "$($b.path) sha256 $h" } elseif ($null -eq $h) { "absent at $($b.path)$why" } else { "$($b.path) hashes $h, not the pinned $($b.sha256)" }) 'blocked')
+      # a blank guest-state master is checked for its STRUCTURE too, reported apart from the hash (enclave-d1, 3e3ad330)
+      if (@($b.PSObject.Properties.Name) -contains 'blankVmgs') {
+        $v = Test-BlankVmgs $b.path $b.blankVmgs; if (-not $v.Ok) { $ready = $false }
+        [void](Add-Result $R $v.Ok "[$Boot] box file $($b.name) is a blank guest-state master (structure)" "$($v.Reason): $($v.Detail)" 'blocked')
+      }
     }
   }
   # recorded, never gating: a setting someone suspects matters, whose role is not established

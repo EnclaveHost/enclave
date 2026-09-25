@@ -412,6 +412,30 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   promotion:** a44bb55a stays the one eligible image, and the reference is unchanged. **The rollover is on hold**
   until enclave-99's verification review and then an explicit decision by Steven. The candidate's two images are
   reused from v36's staged copies.
+- **v39 draft** (`drafts/nucbox-ownguest-39.json`; supersedes v38): **the rollover.** `b7ba7731` (`56FBB27F…`) is now
+  the vbsLinux firmware, the `ENCLAVE_GUEST_IGVM` of the manager environment, and the **one eligible reference image**.
+  That eligibility is prospective. It rests on:
+  - its own canary 093904, which booted and served;
+  - the package-owned functional acceptance 094631 (`98782fbb`);
+  - enclave-d1's byte review (`fd92d610`);
+  - enclave-99's verification review.
+
+  a44bb55a (`58DFEBFE`) and its debug twin (`2A93ED16`) move to `superseded[]` with REFUSE reasons, and are no longer
+  shipped. The reference still derives **12 digests: 1 eligible, 11 refused**, the same set as v38.
+  - **What eligible means:** ONLY a permitted measured-image reference, subject to every remaining verification
+    requirement. It grants no production app capacity, no verified or attested status, no badge and no
+    protected-host admission. Custom-report verification stays unsupported and fail-closed: no report format is
+    registered, and no verdict uses the allowlist. The tier stays T0-hv with host_excluded=no. Production attach stays
+    OFF, respawn OFF, and recovered VMs HELD.
+  - **Rollback:** `rollback` names v38 (`0f328a18`, staged at `pkg\88c18259137a5ba1\`), with a44bb55a, 4991b3e1 and
+    v38's reference `ba3f49a7`. The verifier checks the record against v38's committed pins, and `check.ps1` hashes
+    the staged copies read-only. No staged package and no source image is deleted.
+  - **The guest-state master** (`type1.vmgs`, measured blank by enclave-d1, `3e3ad330`) is now checked for its
+    structure as well as its hash: size 4194816, a zero body of 4194304 bytes, a footer beginning `conectix`, and no
+    `GUESTRTS` at 0. `check.ps1 -SelfTest` refuses seven corruptions of a scratch copy, each for its own reason.
+  - `pkg.mjs` exports `deriveReferenceDigests`: at most one eligible digest, every other refused by its exact digest,
+    and fail-closed on any error. Tests show every debug, probe, control, stock and superseded digest refused, and a
+    reference with a debug or probe image eligible, or with two eligible images, refused outright.
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
