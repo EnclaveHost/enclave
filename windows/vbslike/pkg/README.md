@@ -44,6 +44,13 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   boot. It is not a release, and host exclusion is not established. `verify --rebuild` rebuilds the ISO and `disk.raw`
   from the pinned inputs with both UKI recipes, and checks the VHDX's payload.
 
+- **v10 draft** (`drafts/nucbox-ownguest-10.json`, id `b341dd1f…`): v9 re-pinned on enclave-d1's `cf640825` (the launcher
+  states the partition kind `wmi-openhcl-gen2`; the UEFI identity is the medium's hash at attach) and enclave-99's
+  `c6554c6c`, with the rebuilt launcher `cddb70fd…` (`f45015c7`, adds `hvdial`), d1's `uefi-dev-boot.ps1` and petri's
+  `hyperv.psm1` pinned, and d1's first NucBox DEV boot quoted from its log. The medium is v9's `4c387086`, unchanged.
+  STAGED at `pkg\b341dd1f5b53b97f\`, with the large files reused from v9's directory after hashing. Not a release. Nothing
+  is loaded into or served from the booted VM: no control exchange for a WMI-created VM exists yet.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
