@@ -2209,6 +2209,13 @@ function handleRequest(req, res) {
   if (u.pathname === "/health")
     return json(res, 200, { ok: true, enclaves: live.length, of: registry.length, updatedAt }, req);
 
+  // The same-origin mirror of the signed release index and the release attestations this relay last verified
+  // (relay/reverify.mjs mirror): bytes and signatures for a client to verify itself, never a verdict. Cached briefly.
+  if (u.pathname === "/v1/release-index" && req.method === "GET") {
+    res.setHeader("cache-control", "public, max-age=300");
+    return json(res, 200, reverifier.mirror(), req);
+  }
+
   if (u.pathname === "/enclaves") {
     // rows list EVERY live enclave (presentation + tunnel health); the
     // aggregate totals count only the CLAIMING subset — capacity nobody can

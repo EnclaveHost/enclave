@@ -51,7 +51,7 @@ export function createReverifier({ mode = "shadow", bundle = null, repo = "Encla
     const t = now().getTime();
     if (expectations && expectations.ok && t - expectationsAt < expectationsTtlMs) return expectations;
     const B = await load();
-    const e = expectationsFor ? await expectationsFor({ indexMemory, requireIndex }) : await B.releaseExpectations({ repo, timeoutMs, indexMemory, requireIndex, ...(releaseIndex ? { apiBase: releaseIndex.apiBase, downloadBase: releaseIndex.downloadBase ?? releaseIndex.apiBase } : {}) });
+    const e = expectationsFor ? await expectationsFor({ indexMemory, requireIndex, keepArtifacts: true }) : await B.releaseExpectations({ repo, timeoutMs, indexMemory, requireIndex, keepArtifacts: true, ...(releaseIndex ? { apiBase: releaseIndex.apiBase, downloadBase: releaseIndex.downloadBase ?? releaseIndex.apiBase } : {}) });
     if (e.ok || !expectations) { expectations = e; expectationsAt = t; }    // a failed refresh keeps the last good set, and says so on the row
     else log(`release provenance refresh failed (${e.indexError || e.reasons.at(-1)}); keeping the set from ${new Date(expectationsAt).toISOString()}`);
     return expectations;
@@ -65,10 +65,12 @@ export function createReverifier({ mode = "shadow", bundle = null, repo = "Encla
     const done = new Map();
     try {
       const targets = (rows || []).filter(isDialed);
-      if (!targets.length) return done;
+      // the expectations (the signed index, the releases' provenance) are refreshed on the cadence whether or not there is a
+      // row to judge: the mirror (below) serves them, and a fleet with no dialed row still has an index to keep fresh
       let B, exp;
       try { B = await load(); exp = await refreshExpectations(); }
       catch (e) { stats.lastError = e.message; log(`re-verification cannot run: ${e.message}`); for (const r of targets) { const b = { status: "unavailable", at: now().toISOString(), release: null, measurement: null, failedChecks: [], omissions: [], expected: [], reasons: [e.message] }; byEndpoint.set(r.endpoint, b); done.set(r.endpoint, b); } return done; }
+      if (!targets.length) return done;
       for (const row of targets) {
         const u = new URL(row.endpoint); const host = u.hostname, port = u.port ? Number(u.port) : 443;
         let b;
@@ -90,7 +92,27 @@ export function createReverifier({ mode = "shadow", bundle = null, repo = "Encla
   const eligible = (row, base) => (mode !== "enforce" || !isDialed(row) ? base : base && byEndpoint.get(row.endpoint)?.status === "verified");
   const ineligibleReason = (row) => (mode === "enforce" && isDialed(row) && byEndpoint.get(row.endpoint)?.status !== "verified"
     ? `its attestation did not re-verify here (${byEndpoint.get(row.endpoint)?.status ?? "pending"}${byEndpoint.get(row.endpoint)?.failedChecks?.length ? `: ${byEndpoint.get(row.endpoint).failedChecks.join(", ")}` : ""})` : null);
-  return { mode, run, annotate, eligible, ineligibleReason, verdictOf: (endpoint) => byEndpoint.get(endpoint) ?? null,
+  // The same-origin MIRROR (GET /v1/release-index on the relay): the signed index bytes, their attestation bundle and the
+  // release attestation bundles the relay last VERIFIED, for a browser or CLI that cannot or would rather not reach
+  // GitHub. It is bytes plus signatures, never a verdict: a client verifies the bundles against ITS pinned Sigstore root
+  // and orders the index with ITS memory, exactly as it would from GitHub. This relay's own memory keeps a replayed or
+  // equivocating index out of the mirror, and a refused or unavailable index is served as that status with no bytes.
+  const mirror = () => {
+    const e = expectations;
+    if (mode === "off") return { status: "off", note: "re-verification is off on this relay; fetch the index from the release" };
+    if (!e) return { status: "not-yet", note: "no release expectations refreshed yet" };
+    const idx = e.index ?? { status: "not-consulted" };
+    const body = { status: idx.status, verifiedAt: expectationsAt ? new Date(expectationsAt).toISOString() : null, authenticity: idx.authenticity ?? null, freshness: idx.freshness ?? null,
+                   publication: idx.publication ?? null, sequenceAuthenticated: idx.sequenceAuthenticated ?? null, signedTag: idx.signedTag ?? null, floorApplied: idx.floorApplied ?? null,
+                   note: "bytes and signatures, not a verdict: verify the attestation bundles against your pinned Sigstore root (verifier/release-index.mjs, verifier/provenance.mjs) and order the index with your own memory" };
+    if (idx.status === "verified" && e.artifacts?.index) {
+      let index = null; try { index = JSON.parse(Buffer.from(e.artifacts.index.bytes, "base64").toString("utf8")); } catch {}
+      return { ...body, index, indexBytes: e.artifacts.index.bytes, indexSha256: e.artifacts.index.sha256, attestation: { bundle: e.artifacts.index.bundle },
+               releases: (e.artifacts.releases ?? []).map((r) => ({ tag: r.tag, digest: r.digest, attestation: { bundle: r.bundle } })) };
+    }
+    return { ...body, reasons: idx.reasons ?? [], ...(e.indexError ? { indexError: e.indexError } : {}) };
+  };
+  return { mode, run, annotate, eligible, ineligibleReason, mirror, verdictOf: (endpoint) => byEndpoint.get(endpoint) ?? null,
            stats: () => ({ ...stats, requireIndex, expectationsAt: expectationsAt ? new Date(expectationsAt).toISOString() : null,
                            expectations: expectations ? { ok: expectations.ok, latestTag: expectations.latestTag ?? null, allowed: expectations.allowed.map((a) => a.tag), index: expectations.index ?? null, ...(expectations.indexError ? { indexError: expectations.indexError } : {}) } : null,
                            indexMemory: indexMemory ? { file: indexMemory.file, remembered: indexMemory.record() } : null }) };
