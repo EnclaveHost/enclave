@@ -25,13 +25,14 @@ sections:
 |---|---|---|
 | stub | `linuxx64.efi.stub`, systemd 261.2 | `2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18` |
 | `.linux` | the WSL kernel 6.6.87.2, unchanged from the HCS path | `7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd` |
-| `.initrd` | the guest initrd, `build-domain.sh` at the commit that adds this file's guards | `5bc062598212f1e509c4579ba76ab2e34ed090960fc6712d503c49ae427fb359` |
+| `.initrd` | the guest initrd, `build-domain.sh` (guards + the ready line's named transport) | `a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f` |
 | `.cmdline` | `console=ttyS0 rdinit=/init loglevel=3 report_host=9001`, no trailing newline | `c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615` |
 | `.osrel` | `NAME="enclave NucBox guest"` / `ID=enclave-nucbox-guest` | `b6bca85d3e1933b36e542863b088667a56c8575de37f5e739d699d262d92d184` |
 | tool | GNU objcopy (Binutils) 2.47, `SOURCE_DATE_EPOCH=0` | (an input to the bytes) |
 
-- UKI for the box: `75ae6bccf2cd663a85dc21562b06892800b2744aa90441a453fdf6aa613776b6` (40,046,592 B). This
-  supersedes a1fdb5c3, which carried initrd 4610d594, from before the guards.
+- UKI for the box: `20a0e18e51a02ed78465b1234b979177e9aab2d74ba198dd6ccc3d1a8a241a33` (40,045,568 B), over initrd
+  a1ff9864. It supersedes 75ae6bcc (initrd 5bc06259: the guards, with a ready line that named no transport), which
+  was the first to boot on the box, and a1fdb5c3 (4610d594, from before the guards).
 - Deterministic on one toolchain. objcopy stamps the PE TimeDateStamp from the clock unless `SOURCE_DATE_EPOCH` is set,
   and the header checksum follows it. enclave-53's independent assembly reproduced the previous UKI byte for byte.
 - Why a UKI: the firmware starts `BOOTX64.EFI` with no command line and no initrd, and the UKI carries both. **With
@@ -90,7 +91,9 @@ Verified by enclave-99 from the pinned kernel's embedded config:
 - The medium as the first boot device.
 - **No boot entries carrying LoadOptions for it, and no SMBIOS type 11 strings.** The guest refuses both, so either one
   shows up as a failed boot, not a silent change.
-- COM1 to a named pipe: `MON ready control_port=9000` is the boot signal; `MON ERROR refusing to start` is a guard.
+- COM1 to a named pipe: `MON ready control_port=9000 snp=false transport=hv_sock` is the boot signal. `MON ERROR
+  refusing to start` is a guard; `MON ERROR no vsock transport` means the kernel carries no transport the host can
+  use.
 - hv_sock services, the same as the HCS path:
   - 9000: the guest listens;
   - 9001: the HOST listens (report signing);
@@ -185,8 +188,10 @@ The ISO (`4c387086...`) was hashed at attach, with UKI 75ae6bcc and initrd 5bc06
 exclusion is NOT established, and the guest says so itself.
 - The insmod lines are the QEMU lane's virtio modules. This kernel has Hyper-V's transport built in
   (`CONFIG_HYPERV_VSOCKETS=y`), and the same lines appeared on the 09-23 HCS path where hv_sock worked.
-- Whether hv_sock 9000 answers on this path is the next measurement. `MON ready` alone does not show it: AF_VSOCK
-  accepts a listen with no transport registered.
+- hv_sock 9000 ANSWERS on this path: `vbslike-host hvdial --vm <guid> --port 9000` connected in 1 ms, over three boots
+  (enclave-d1). A connect proves a working transport and a listener, nothing about the guest's identity or boundary.
+- `MON ready` printed the same whether or not the channel could exist, so from initrd a1ff9864 the ready line names
+  the transport, and the guest powers off with `MON ERROR no vsock transport` when there is none.
 
 ## Local proof (warden-host, QEMU + OVMF: NOT Hyper-V)
 
