@@ -96,6 +96,27 @@ The El Torito layout is MEASURED (OVMF on KVM):
 Earlier builds on the previous initrd `4610d594` gave UKI `a1fdb5c3`, `disk.raw` `04898f09` and ISO `b218a329`; they are
 superseded.
 
+**The NEXT medium, built and reproducible, NOT staged as the boot medium** (`evidence/build-next-a1ff9864-2026-09-25.json`):
+enclave-5d's initrd `a1ff9864…` (6f1a9aff: the ready line names the vsock transport, `hv_sock` or `virtio`, and with
+none the guest prints `MON ERROR no vsock transport` and powers off). UKI `20a0e18e…` (5d's predicted hash, both
+assemblies), `disk.raw` `23c52ecc…`, ISO `7b9b04d6…`. It goes to a NEW package directory when enclave-d1 wants to boot it;
+the medium d1 is probing (`4c387086`) is not replaced mid-probe. On KVM+OVMF the pinned WSL kernel has no virtio vsock,
+so this medium refuses by name there, which is the guard working, not a boot.
+
+## The first DEV boot on the NucBox (enclave-d1, 2026-09-25 01:10Z)
+
+From `uefi-dev-boot-20260925-011023.log`, read by enclave-53 (d1's `ops/uefi-dev-boot.ps1` at cf640825): the v9 medium
+`4c387086`, hashed at attach, under `openhcl.bin` `48773995`; Gen2, isolation OpenHCL, Secure Boot Off, boot order
+`Drive` only, no LoadOptions, vTPM absent (`Msvm_SecuritySettingData.TpmEnabled = False`), 1 vCPU, 2048 MiB. COM1
+attached 454 ms after start. The console: `MON snp=0 vcpus=1 memMiB=1965 boot_ms=308`, the vsock module insmods failing
+harmlessly, `MON boundary tier=t0-hv … host_excluded=no`, `MON ready control_port=9000 snp=false`. Worker-Admin 18500
+"started successfully" and 18601 "successfully booted an operating system". Then the VM was removed, the setting
+restored to Absent (verified), the live node unchanged, and the six apps' answers identical before and after.
+
+**What it does not show:** host exclusion (`host_excluded=no`); attestation (no report was requested or signed); a
+bundle loaded or an app served; hv_sock reaching VTL0 through OpenHCL. No control exchange (9000 load, 9001 signing, the
+relay) exists for a WMI-created VM in the pinned launcher; enclave-d1 is building `vbslike-host hvdial` for it.
+
 `uki.efi` is the hash enclave-5d predicted from `build-uki.sh`. Both assemblies produce it, and two builds of all four
 outputs were identical.
 

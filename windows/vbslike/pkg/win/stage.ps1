@@ -46,6 +46,13 @@ foreach ($p in @($M.vmWorkerRead)) {
   [void](Add-Result $R ($LASTEXITCODE -eq 0) "grant the VM worker read on $p" $(if ($LASTEXITCODE -eq 0) { '' } else { "icacls: $out" }))
 }
 
+# Boot media are read-only on disk: the guest cannot write them, and now neither can a stray host write go unnoticed
+# (a later check sees a hash mismatch, not a silently changed medium). Roles guest.uefi-medium and guest.uefi-fallback.
+foreach ($f in @($M.files | Where-Object { $_.role -eq 'guest.uefi-medium' -or $_.role -eq 'guest.uefi-fallback' })) {
+  $file = Get-PkgFilePath $Dir $f.path
+  if (Test-Path -LiteralPath $file) { Set-ItemProperty -LiteralPath $file -Name IsReadOnly -Value $true; [void](Add-Result $R $true "read-only attribute on $($f.path)") }
+}
+
 Test-PkgFiles $R $Dir $M
 foreach ($p in @($M.vmWorkerRead)) { Test-VmWorkerRead $R (Get-PkgFilePath $Dir $p) $p }
 

@@ -1,0 +1,23 @@
+{
+ "type": "enclave-vbslike-uefi-image/1",
+ "inputs": {
+  "kernel":  { "sha256": "7fe3edb5b5dd2435545f611607b1c80e0cbc0e92b83e0cc0a25c07dc7d5ecddd", "bytes": 15876096 },
+  "initrd":  { "sha256": "a1ff9864015f6032141304e770c4912fb13c1efa07b654d5d342fef81895452f", "bytes": 24038902 },
+  "stub":    { "sha256": "2d9b80732fa76c29be1134cd51536df595b61510874ba646ec5fe12181f5ba18", "bytes": 134144 },
+  "cmdline": "console=ttyS0 rdinit=/init loglevel=3 report_host=9001",
+  "cmdlineSha256": "c99a16aef605f38db0d6b5ba307665c74658b86b79b3be3f33055f362b394615",
+  "ukiRecipe": { "sha256": "a3e2748b5313ee2bc7e8b5a4e7c7265db782c0e7180f2bdb9eaa1f61ecafbbe4", "agrees": true }
+ },
+ "params": { "espMiB": 128, "diskMiB": 256, "sourceDateEpoch": 1758672000, "fatVolumeId": "E5C1A7E5",
+             "gptLabelId": "5E6C0D1A-7A0B-4C3E-9E0B-000000000001", "espPartUuid": "5E6C0D1A-7A0B-4C3E-9E0B-0000000000E5",
+             "espPath": "/EFI/BOOT/BOOTX64.EFI" },
+ "tools": { "objcopy": "GNU objcopy (GNU Binutils) 2.47", "mtools": "mcopy (GNU mtools) 4.0.49",
+            "sfdisk": "sfdisk from util-linux 2.42.3", "xorriso": "xorriso 1.5.8.pl02", "qemu-img": "qemu-img version 11.1.1", "mkfs.fat": "Usage: mkfs.fat [OPTIONS] TARGET [BLOCKS]" },
+ "outputs": {
+  "uki.efi":   { "sha256": "20a0e18e51a02ed78465b1234b979177e9aab2d74ba198dd6ccc3d1a8a241a33", "bytes": 40045568 },
+  "esp.img":   { "sha256": "dd7b514029de0d6553f3c560872ef8b2fcdb95e74e3ccfe67d58763950dac15e", "bytes": 134217728 },
+  "disk.raw":  { "sha256": "23c52ecc4bf5340a9c06a7fc102ff608fb424171a6e35a91afd8e2bab27d248f", "bytes": 268435456, "note": "the pinned identity of the disk" },
+  "disk.vhdx": { "sha256": "80b33d33ffb97f9f843033c6d2990bfe2a6a2454115be47edf05a8ee9fecc283", "bytes": 67108864, "note": "FALLBACK container: header GUIDs are random, so NOT reproducible; its payload is disk.raw (checked)" },
+  "guest.iso": { "sha256": "7b9b04d699da2e5915df7c51c2464ba2bb18122380b197e1cbea2f24aa9a2ddd", "bytes": 134594560, "note": "the boot medium: El Torito EFI = /efiboot.img (= esp.img) inside the ISO 9660 volume; read-only" }
+ }
+}
