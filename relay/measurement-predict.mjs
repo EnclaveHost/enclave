@@ -224,8 +224,8 @@ export function makePredictor(o) {
       // safe.directory for THIS repository only: the relay runs as its own (dynamic) user and the staged repository is
       // root-owned and read-only, which git >= 2.35.2 otherwise refuses as "dubious ownership"
       const got = await new Promise((resolve) => execFile("git", ["-c", `safe.directory=${path.resolve(repo)}`, "-C", repo, "archive", "--format=tar", commit, "--", ...TOOLCHAIN_PATHS],
-        { encoding: "buffer", maxBuffer: 64 << 20, timeout: 60_000 }, (e, stdout) => resolve(e ? { e } : { tar: stdout })));
-      if (got.e) throw new Error(`the toolchain commit ${commit.slice(0, 12)} is not extractable from ${repo}: ${String(got.e.message).split("\n")[0]}`);
+        { encoding: "buffer", maxBuffer: 64 << 20, timeout: 60_000 }, (e, stdout, stderr) => resolve(e ? { e, stderr } : { tar: stdout })));
+      if (got.e) throw new Error(`the toolchain commit ${commit.slice(0, 12)} is not extractable from ${repo}: ${lastLine(String(got.stderr || "")) || String(got.e.message).split("\n")[0]}`);
       const x = await run("tar", ["-x", "-C", tmp], { env: { PATH: process.env.PATH }, timeoutMs: 60_000, input: got.tar });
       if (x.code !== 0) throw new Error(`extracting the toolchain: ${x.err.trim().slice(-200)}`);
       fs.renameSync(tmp, dir);

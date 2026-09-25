@@ -35,6 +35,14 @@ git -C "$BASE/repo" fetch -q origin security/attested-release isolation/portable
 git -C "$BASE/repo" checkout -q --detach "$PREDICTOR_COMMIT"
 git -C "$BASE/repo" cat-file -e "$TOOLCHAIN_COMMIT^{commit}"
 say "repo at $(git -C "$BASE/repo" rev-parse HEAD); toolchain commit $TOOLCHAIN_COMMIT present"
+# The clone is partial (blob:none). The relay runs as its own non-root user and cannot lazily fetch into this root-owned
+# object store, so every blob the predictor extracts (TOOLCHAIN_PATHS at the toolchain commit) is fetched NOW, as root,
+# and the promisor remote is then disabled: a later missing blob fails loudly instead of reaching the network.
+TPATHS=$(node -e 'import(process.argv[1]).then((m) => console.log(m.TOOLCHAIN_PATHS.join(" ")))' "$BASE/repo/relay/measurement-predict.mjs")
+# shellcheck disable=SC2086
+git -C "$BASE/repo" archive --format=tar "$TOOLCHAIN_COMMIT" -- $TPATHS > /dev/null
+git -C "$BASE/repo" config remote.origin.promisor false
+git -C "$BASE/repo" config --unset remote.origin.partialclonefilter || true
 # Go, pinned by the go.dev-published sha256
 curl -fsSL "$GO_URL" -o "$BASE/go.tgz"
 echo "$GO_SHA  $BASE/go.tgz" | sha256sum -c --quiet
