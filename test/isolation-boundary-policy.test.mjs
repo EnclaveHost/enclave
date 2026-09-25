@@ -14,9 +14,29 @@ const ok2 = 'tier=t1 vmpl=2 vmpl_floor=2 vmpl0=refused';
 test('the only tuple accepted at VMPL2 is a coherent one recording the refusal', () => {
   const r = checkBoundary(ok2, 2, 2);
   assert.equal(r.ok, true, r.reasons.join('; '));
-  assert.match(r.reasons.join(' '), /REFUSED a report at VMPL0/);
-  // and it must say out loud that this is the measured monitor's word, not a hardware fact
-  assert.match(r.reasons.join(' '), /hardware does not attest it/);
+  assert.match(r.reasons.join(' '), /refused level-0 probe/);
+  // and it must say out loud what that refusal is NOT. Corrected 2026-09-23: this used to assert the
+  // reasons called the refusal the unfakeable part, which is measured false (see the test below).
+  assert.match(r.reasons.join(' '), /does NOT show this guest lacks VMPCK0/);
+  assert.match(r.reasons.join(' '), /MEASUREMENT/);
+});
+
+test('the refusal is NOT evidence of confinement, and the reasons must say so (measured 2026-09-23)', () => {
+  // A plain SNP guest with no SVSM above it - therefore AT VMPL0 - produces this tuple byte for byte, by
+  // loading sev-guest with vmpck_id=2: tsm-report refuses a privlevel below its floor in its own check, and
+  // the floor is that module parameter, so no VMPCK is consulted. Measured twice on one image:
+  //   vmpck_id=0 -> floor 0, signed report vmpl=0, level 0 GRANTED   (the control: it is unconfined)
+  //   vmpck_id=2 -> floor 2, level 0 REFUSED with EINVAL             (the tuple below)
+  // So no verifier can tell the two apart from the tuple, and this one does not pretend to: it accepts a
+  // COHERENT tuple and states that confinement rests on the pinned measurement instead.
+  const forged = 'tier=t1 vmpl=2 vmpl_floor=2 vmpl0=refused';
+  assert.equal(forged, ok2, 'the forged tuple is byte-identical to the honest one');
+  const r = checkBoundary(forged, 2, 2);
+  assert.equal(r.ok, true, 'it is accepted, because it is coherent');
+  const why = r.reasons.join(' ');
+  assert.match(why, /vmpck_id/, 'the reasons must name the mechanism that forges it');
+  assert.doesNotMatch(why, /cannot be faked/, 'nothing here may claim the refusal is unfakeable');
+  assert.doesNotMatch(why, /which is what distinguishes being confined/, 'nor that it distinguishes confinement');
 });
 
 test('a missing self-test is a REJECT once confinement is demanded', () => {
@@ -135,10 +155,11 @@ test('at VMPL2 a signed report is NOT enough: without the refusal the gate stays
   const neverRan = await ask(docAt(2, 'tier=t1 vmpl=2 vmpl_floor=2 vmpl0=n/a'), 2);
   assert.equal(neverRan.verdict, 'reject');
 
-  // only the coherent tuple recording the refusal gets past the boundary gate
+  // only a coherent tuple gets past the boundary gate - and the verdict says what that is and is not worth
   const ok = await ask(docAt(2, 'tier=t1 vmpl=2 vmpl_floor=2 vmpl0=refused'), 2);
   assert.equal(ok.verdict, 'unauthenticated', ok.reasons.join('; '));  // unauthenticated only for want of a VCEK
-  assert.match(ok.reasons.join(' '), /REFUSED a report at VMPL0/);
+  assert.match(ok.reasons.join(' '), /refused level-0 probe/);
+  assert.match(ok.reasons.join(' '), /does NOT show this guest lacks VMPCK0/);
 });
 
 test('a tuple that disagrees with the signed level is rejected', async () => {

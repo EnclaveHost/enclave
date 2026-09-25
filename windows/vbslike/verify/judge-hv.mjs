@@ -15,6 +15,12 @@
 //   unsigned        the field checks pass but the signature does not verify with the trusted key
 //   reject          anything else
 import { createHash, createPublicKey, timingSafeEqual, verify as cryptoVerify } from "node:crypto";
+// The runtime half of the verdict is the Linux judge's own checkRuntime (isolation/m2/judge.mjs), which
+// validates the stated identity through the contract mirror, judges the self-test (closed scope
+// vocabulary) and computes the ABI/2 binding. One implementation for both verifiers: a Windows judge and
+// a Linux judge that disagreed about what a clean scan means is the failure neither lab would catch.
+import { checkRuntime } from "../../../isolation/m2/judge.mjs";
+import { bootFormOfStatement, isStatedPartition } from "./boot-statements.mjs";
 
 export const FORMAT = "hyperv-partition-domain/v1";
 export const TIER = "T0-hv";
@@ -47,12 +53,19 @@ export function signedReportOf(doc) {
 }
 
 /**
- * judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expectedVmId?, expectedImageSha256? })
+ * judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expectedVmId?, expectedImageSha256?, expectedStatement?, expectAbi?, expectRuntime? })
  *   doc:   the attestation document the domain returned (the m2 front's shape)
  *   spki:  the SPKI DER the caller's OWN TLS handshake saw (never doc.transportKey)
  *   nonce: the 32 bytes the caller chose
+ *   expectRuntime: the exact runtime identity the domain must state (ABI/2); given, a document that states
+ *                  ABI/1 or another identity is rejected, never downgraded. Absent, ABI/1 is judged as before.
+ * expectedStatement: { partition, guestImageKind }, the record's launcher statement (boot-statements.mjs). Given, the
+ *                  pair must be a row of the fixed table AND the report's platform.partition must equal its
+ *                  partition, and only then is the image compared. A report naming a WMI partition has its image
+ *                  compared ONLY with a statement: the same 64 hex under the other partition or kind is another
+ *                  claim (enclave-d1 + enclave-99, main ae6e9147). A statement, not identity either way.
  */
-export function judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expectedVmId, expectedImageSha256 }) {
+export function judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expectedVmId, expectedImageSha256, expectedStatement, expectRuntime }) {
   const checks = {}, reasons = [];
   const c = (name, ok, why) => { checks[name] = !!ok; if (!ok) reasons.push(why || name); return !!ok; };
   if (!doc || typeof doc !== "object") return { verdict: "reject", reasons: ["no document"], checks };
@@ -65,19 +78,39 @@ export function judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expect
   c("report format", d.format === FORMAT && d.tier === TIER, "report format/tier");
   const rd = Buffer.from(String(d.reportData || ""), "hex");
   c("report_data is 64 bytes", rd.length === 64);
-  const bind = sha256(spki, nonce);
-  c("report_data[0:32] == sha256(handshake SPKI || nonce)", rd.length === 64 && eq(rd.subarray(0, 32), bind), "key/nonce binding does not match the handshake");
+  // the binding: ABI/1 is key || nonce; ABI/2 folds in the runtime identity the document states, so a
+  // document naming another runtime, version, execution mode, ISA or feature policy does not verify.
+  // checkRuntime (shared) decides the ABI, the identity, the self-test and the binding; null means ABI/1.
+  const rt = checkRuntime(doc, spki, nonce, expectRuntime !== undefined ? { runtime: expectRuntime } : {});
+  c("ABI, runtime identity and self-test admissible (shared checkRuntime)", rt.ok, rt.reasons.filter((r) => r.startsWith("REJECT")).join("; "));
+  const bind = rt.ok ? (rt.binding ?? sha256(spki, nonce)) : null;
+  c("report_data[0:32] == the binding recomputed from the handshake key, our nonce and the stated runtime", bind !== null && rd.length === 64 && eq(rd.subarray(0, 32), bind), "binding does not match the handshake");
   const expApp = Buffer.from(expectedAppSha256, "hex");
   c("report_data[32:64] == expected app", rd.length === 64 && eq(rd.subarray(32, 64), expApp), "the report names a different app");
   c("domain.appSha256 == report_data[32:64]", rd.length === 64 && d.domain && d.domain.appSha256 === rd.subarray(32, 64).toString("hex"));
   c("document appSha256 agrees", doc.appSha256 === expectedAppSha256, "the domain's own claim differs from the expected app (informational field)");
   if (expectedVmId) c("partition.vmId == expected partition", d.partition && d.partition.vmId === expectedVmId, "report names another partition");
+  // THE PAIR BEFORE THE IMAGE, never the image alone for a WMI partition
+  const statedPartition = d.platform && d.platform.partition;
+  if (expectedStatement) {
+    c("the expected (partition, guestImageKind) is a row of the fixed table",
+      bootFormOfStatement(expectedStatement.partition, expectedStatement.guestImageKind) !== null,
+      `the record states ${JSON.stringify(expectedStatement)}, which is no known pair`);
+    c("platform.partition == the expected statement's partition", statedPartition === expectedStatement.partition,
+      `the report states partition ${JSON.stringify(statedPartition ?? null)}, not ${JSON.stringify(expectedStatement.partition)}`);
+    c("an image is compared with the statement", !!expectedImageSha256, "a statement with no image to compare names nothing");
+  } else if (expectedImageSha256 && isStatedPartition(statedPartition)) {
+    c("a WMI partition's image is compared only with its statement", false,
+      `the report names partition ${statedPartition}, and its image is never compared alone`);
+  }
   if (expectedImageSha256) c("partition.guestImageSha256 == the image we shipped", d.partition && d.partition.guestImageSha256 === expectedImageSha256, "another guest image");
   c("launcher key is the trusted one", d.launcher && d.launcher.key === launcherKey, "report carries a different launcher key");
   c("platform states host_excluded=false", d.platform && d.platform.hostExcluded === false, "a T0-hv report must not claim host exclusion");
   c("boundary tuple says t0-hv and host_excluded=no", typeof d.boundary === "string" && d.boundary.includes("tier=T0-hv") && d.boundary.includes("host_excluded=no"), d.boundary);
   const sigOk = c("launcher signature verifies", verifyLauncherSignature(launcherKey, rep), "signature does not verify");
-  const structural = Object.entries(checks).every(([k, v]) => v || k === "launcher signature verifies");
+  checks.abi = doc.abi ?? "enclave-domain-abi/1";
+  checks.runtimeReasons = rt.reasons;
+  const structural = Object.entries(checks).every(([k, v]) => k === "abi" || k === "runtimeReasons" || v || k === "launcher signature verifies");
   const verdict = structural && sigOk ? "monitor-signed" : structural ? "unsigned" : "reject";
   return { verdict, reasons, checks };
 }
