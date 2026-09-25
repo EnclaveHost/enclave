@@ -39,10 +39,26 @@ test("the rule reproduces guestd's real derivation records, byte for byte (recor
   assert.throws(() => P.derivationRecord(`catalog://${k1.record.catalog.app}/4`, { cid: "", memMb: 1 }, rid), /CID/);
 });
 
-test("parity with the supervisor's own functions at the toolchain commit (skipped when that commit is not in this repository)", (t) => {
-  let src;
-  try { src = execFileSync("git", ["show", "0181bce3:supervisor.js"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 << 20 }); }
-  catch { return t.skip("0181bce3 is not in this clone"); }
+// the supervisors the per-app tier runs: the live 0181bce3 and the pool release c42612c0 (GUEST-POOL-ROLLOUT S2)
+const SUPERVISOR_COMMITS = ["0181bce3", "c42612c0"];
+const supervisorAt = (c) => { try { return execFileSync("git", ["show", `${c}:supervisor.js`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 << 20 }); } catch { return null; } };
+
+test("the supervisor's rule is pinned: every tier supervisor this clone holds, and the working tree's, carry exactly the rule the predictor implements", (t) => {
+  let checked = 0;
+  for (const c of SUPERVISOR_COMMITS) {
+    const src = supervisorAt(c);
+    if (!src) continue;
+    assert.equal(P.supervisorRuleSha256(src), P.SUPERVISOR_RULE_SHA256, `supervisor.js at ${c}: a changed rule must change the predictor with it`);
+    checked++;
+  }
+  const here = fs.existsSync("supervisor.js") ? P.supervisorRuleSha256(fs.readFileSync("supervisor.js", "utf8")) : null;
+  if (here !== null) { assert.equal(here, P.SUPERVISOR_RULE_SHA256, "the working tree's supervisor.js carries another rule"); checked++; }
+  if (!checked) t.skip("no tier supervisor in this clone");
+});
+
+for (const commit of SUPERVISOR_COMMITS) test(`parity with the supervisor's own functions at ${commit} (skipped when that commit is not in this repository)`, (t) => {
+  const src = supervisorAt(commit);
+  if (!src) return t.skip(`${commit} is not in this clone`);
   const fn = (name) => { const i = src.indexOf(`function ${name}(`); assert.ok(i >= 0, name); return src.slice(i, src.indexOf("\n}\n", i) + 2); };
   const sup = vm.runInNewContext(`${fn("isolationPolicyFor")}\n${fn("isolationHttpPortOf")}\n${fn("isolationDerivation")}\n({ isolationPolicyFor, isolationHttpPortOf, isolationDerivation })`);
   const rid = "cc".repeat(32), app = "0x" + "Ab".repeat(32);
@@ -65,7 +81,11 @@ test("versionRefusal: only an approved, unyanked version of a listed app", () =>
   assert.match(P.versionRefusal(null, ok), /not listed/);
   assert.match(P.versionRefusal({ active: true }, null), /no such version/);
   assert.match(P.versionRefusal({ active: true }, { ...ok, yanked: true }), /yanked/);
-  for (const a of [0, 2]) assert.match(P.versionRefusal({ active: true }, { ...ok, approval: a }), /not approved/);
+  for (const a of [0, 2]) assert.match(P.versionRefusal({ active: true }, { ...ok, approval: a }), /not approved|rejected/);
+  // the supervisor's forPrivate: a PENDING version is released to a private deployment; a rejected one never
+  assert.equal(P.versionRefusal({ active: true }, { ...ok, approval: 0 }, true), null);
+  assert.match(P.versionRefusal({ active: true }, { ...ok, approval: 2 }, true), /rejected/);
+  assert.match(P.versionRefusal({ active: true }, { ...ok, approval: 0, yanked: true }, true), /yanked/);
 });
 
 // ---- the pipeline, with stub tools ----
@@ -117,6 +137,7 @@ const APPX = "0x" + "5a".repeat(32), REF = `catalog://${APPX}/3`, CID = "bafkrei
 const katRecord = P.derivationRecord(`catalog://0x${"4b".repeat(32)}/1`, { cid: "bafkreikatcomponent", memMb: 64, ports: "" }, P.runtimeIdOfJson(WASMTIME_48));
 const katApp = sha(stubBundle(katRecord, Buffer.from("component:bafkreikatcomponent")));
 const KAT = [{ what: "a stub known answer", release: RK, record: katRecord, appId: katApp, measurement: stubMeasure(RK, katApp, katRecord.runtimeId) }];
+const TOOL = "5e".repeat(32), tool = { digest: TOOL };   // the stub sev-snp-measure's digest, as pinned
 function predictor(over = {}) {
   const repo = over.repo || toolchainRepo();
   const tools = stubs(over.tools);
@@ -124,7 +145,8 @@ function predictor(over = {}) {
   const versions = over.versions || { [REF]: { app: { active: true }, version: { cid: CID, memMb: 300, ports: "http:8080", approval: 1, yanked: false } } };
   const p = P.makePredictor({ repo: repo.dir, commit: repo.commit, releases: Object.entries(REL).map(([id, dir]) => ({ id, dir })),
     admit: over.admit || [R1, R2, R3], readCatalog: over.readCatalog || (async (app, i) => { const v = versions[`catalog://${app}/${i}`]; if (!v) throw new Error("rpc down"); return v; }),
-    gateway: "https://trustless.example", sevSnpMeasure: "/nonexistent/sev-snp-measure", work: fs.mkdtempSync(path.join(TMP, "work-")),
+    gateway: "https://trustless.example", sevSnpMeasure: "/nonexistent/sev-snp-measure", sevSnpMeasureSha256: TOOL,
+    digestTool: async () => tool.digest, work: fs.mkdtempSync(path.join(TMP, "work-")),
     knownAnswers: over.knownAnswers || KAT, run: tools.run, now: () => clock.t, ...over.opts });
   return { p, tools, clock, repo, versions };
 }
@@ -250,6 +272,12 @@ test("the known-answer test: a mismatch disables every prediction until a later 
   await q.p.selfTest();
   assert.equal(q.p.state().kat.ok, true, "an unreachable gateway does not disable a checked toolchain");
 
+  // an inconclusive re-test keeps a pass for at most a day: then prediction is disabled until a test passes
+  q.clock.t += 18 * 3600_000;
+  await q.p.selfTest();
+  assert.equal(q.p.state().kat.ok, false, "a pass older than 24 h does not survive another inconclusive test");
+  assert.match(q.p.state().kat.reason, /older than 24 h/);
+
   // no known answer's release installed: the toolchain is unchecked, so nothing is predicted
   const none = predictor({ knownAnswers: [{ ...KAT[0], release: "99".repeat(32) }] });
   const r3 = await none.p.expectedFor(REF);
@@ -280,6 +308,57 @@ test("components: a raw-CID component is kept and re-verified against its CID on
   const r5 = await p.expectedFor(REF5);
   assert.equal(r5.ok, true); assert.equal(fetched(), 2, "the changed copy was not used");
   assert.equal(r5.appId, sha(stubBundle(P.derivationRecord(REF5, versions[REF5].version, P.runtimeIdOfJson(WASMTIME_48)), bytes)), "derived from the verified bytes");
+});
+
+test("the pinned sev-snp-measure: a changed tool disables prediction; its digest covers the entry script and the package", async () => {
+  const { p } = predictor();
+  assert.equal((await p.expectedFor(REF)).ok, true);
+  tool.digest = "66".repeat(32);
+  try {
+    const q = predictor();
+    const r = await q.p.expectedFor(REF);
+    assert.equal(r.code, "prediction_unavailable"); assert.match(r.reason, /digest .* is not the pinned/);
+  } finally { tool.digest = TOOL; }
+  // the real digest function over a synthetic venv: entry script + package tree, __pycache__ ignored
+  const venv = fs.mkdtempSync(path.join(TMP, "venv-")), pkg = path.join(venv, "site", "sevsnpmeasure");
+  fs.mkdirSync(path.join(pkg, "__pycache__"), { recursive: true });
+  fs.writeFileSync(path.join(pkg, "__init__.py"), "x = 1\n"); fs.writeFileSync(path.join(pkg, "__pycache__", "a.pyc"), "noise");
+  const py = path.join(venv, "python"); fs.writeFileSync(py, `#!/bin/sh\necho ${pkg}\n`); fs.chmodSync(py, 0o755);
+  const exe = path.join(venv, "sev-snp-measure"); fs.writeFileSync(exe, `#!${py}\nentry\n`);
+  const d1 = await P.sevSnpMeasureDigest(exe);
+  fs.writeFileSync(path.join(pkg, "__pycache__", "a.pyc"), "other noise");
+  assert.equal(await P.sevSnpMeasureDigest(exe), d1, "bytecode caches are not part of the tool");
+  fs.writeFileSync(path.join(pkg, "__init__.py"), "x = 2\n");
+  assert.notEqual(await P.sevSnpMeasureDigest(exe), d1, "a changed package file changes the digest");
+  fs.writeFileSync(path.join(pkg, "__init__.py"), "x = 1\n"); fs.writeFileSync(exe, `#!${py}\nentry changed\n`);
+  assert.notEqual(await P.sevSnpMeasureDigest(exe), d1, "a changed entry script changes the digest");
+});
+
+test("a bounded wait answers warming and keeps computing; the next ask gets the cached answer", async () => {
+  let open; const gate = new Promise((r) => { open = r; });
+  const { p } = predictor({ tools: { "derive_reference.py": async (a) => { if (fs.readFileSync(a[2], "utf8").includes(`"version":3`)) await gate; return null; } } });
+  await p.selfTest();
+  const r = await p.expectedFor(REF, { waitMs: 50 });
+  assert.equal(r.ok, false); assert.equal(r.code, "warming");
+  open();
+  await new Promise((res) => setTimeout(res, 100));
+  const r2 = await p.expectedFor(REF, { waitMs: 50 });
+  assert.equal(r2.ok, true, JSON.stringify(r2));
+});
+
+test("the catalog read: every configured RPC is read and all must agree; one lying RPC is a refusal, never a pick", async () => {
+  const honest = { getApp: { appId: "0x" + "11".repeat(32), active: true, versionCount: 5 }, getVersion: { cid: CID, memMb: 300, ports: "", approval: 1, yanked: false } };
+  const client = (over = {}) => ({ readContract: async ({ functionName }) => ({ ...honest[functionName], ...(over[functionName] || {}) }) });
+  const good = P.catalogReader([client(), client()], "0x" + "cc".repeat(20));
+  assert.equal(good.sources, 2);
+  assert.deepEqual(await good(APPX, 3), { app: { active: true }, version: { cid: CID, memMb: 300, ports: "", approval: 1, yanked: false } });
+  for (const lie of [{ getVersion: { cid: "bafkreianotherapp" } }, { getVersion: { memMb: 256 } }, { getVersion: { yanked: true } }, { getApp: { active: false } }]) {
+    const r = P.catalogReader([client(), client(lie)], "0x" + "cc".repeat(20));
+    await assert.rejects(r(APPX, 3), /disagree/, JSON.stringify(lie));
+  }
+  const { p } = predictor({ readCatalog: P.catalogReader([client(), client({ getVersion: { cid: "bafkreianotherapp" } })], "0x" + "cc".repeat(20)) });
+  const r = await p.expectedFor(`catalog://${APPX}/3`);
+  assert.equal(r.code, "catalog_unreachable"); assert.match(r.reason, /disagree/);
 });
 
 test("runBounded: a hung tool is killed with its whole process group at the timeout; output is capped", async () => {

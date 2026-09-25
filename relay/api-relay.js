@@ -2204,26 +2204,56 @@ const leaseHolderChipIds = async (endpoint) => {
 // secrets-release.mjs: the guest a deployment must be running, PREDICTED for its catalog version (measurement-predict.mjs):
 // the version read from the address book's appCatalog, never from the lease holder. Built on first use from the
 // SECRETS_RELEASE_PREDICT_* env; what it lacks is reported by the release's own 503.
+// the catalog is read through TWO OR MORE independent RPCs, and they must agree (enclave-d1): one lying provider cannot make
+// the relay predict another app. SECRETS_RELEASE_CATALOG_RPCS: comma-separated https URLs, distinct hosts.
+const CATALOG_RPCS = [...new Set(String(process.env.SECRETS_RELEASE_CATALOG_RPCS || "").split(",").map((u) => u.trim()).filter((u) => /^https:\/\//.test(u)))];
+const catalogRpcHosts = new Set(CATALOG_RPCS.map((u) => { try { return new URL(u).host; } catch { return u; } }));
+const catalogClients = CATALOG_RPCS.map((url) => { let c = null; return { readContract: async (q) => {
+  if (!c) { const { createPublicClient, http: viemHttp } = await import("viem"); const { base } = await import("viem/chains");
+            c = createPublicClient({ chain: base, transport: viemHttp(url, { timeout: 15_000 }) }); }
+  return c.readContract(q);
+} }; });
+// WHICH catalog: APP_CATALOG_ADDRESS when the operator pins it, else the address book's appCatalog read through the SAME
+// agreeing RPCs (a single lying RPC could otherwise point every reader at a contract of its own)
 const BOOK_KEY_CATALOG = "0x" + Buffer.from("appCatalog", "ascii").toString("hex").padEnd(64, "0");
-let _catalogAddr = { addr: (process.env.APP_CATALOG_ADDRESS || "").trim(), at: 0 };
+let _catalogAddr = { addr: (process.env.APP_CATALOG_ADDRESS || "").trim(), pinned: !!(process.env.APP_CATALOG_ADDRESS || "").trim(), at: 0 };
 async function catalogAddress() {
-  if (ADDRESS_BOOK && Date.now() - _catalogAddr.at > 600_000) {
-    const a = await (await chain()).readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_CATALOG] });
-    if (a && !/^0x0{40}$/i.test(a)) _catalogAddr = { addr: a, at: Date.now() };
+  if (!_catalogAddr.pinned && ADDRESS_BOOK && Date.now() - _catalogAddr.at > 600_000) {
+    if (!catalogClients.length) throw new Error("no catalog RPCs configured");
+    const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_CATALOG] })));
+    if (got.some((a) => String(a).toLowerCase() !== String(got[0]).toLowerCase())) throw new Error("the catalog RPCs disagree about the address book's appCatalog");
+    if (got[0] && !/^0x0{40}$/i.test(got[0])) _catalogAddr = { addr: got[0], pinned: false, at: Date.now() };
   }
   if (!_catalogAddr.addr) throw new Error("no appCatalog address (address book or APP_CATALOG_ADDRESS)");
   return _catalogAddr.addr;
 }
+// The deployment's ledger record, read by id through the SAME agreeing RPCs: a release decision (the lease holder, the
+// catalog version, privacy, the config envelope) never rests on one provider's answer. Rev-2 ledgers only (the per-app tier).
+const DEP_GET_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: DEP_TUPLE }] }];
+async function confirmRow(id) {
+  if (catalogRpcHosts.size < 2) throw new Error("fewer than two independent RPCs are configured");
+  const pinned = (process.env.DEPLOYMENTS_ADDRESS || "").trim();
+  const books = pinned ? [pinned] : await Promise.all(catalogClients.map((c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS] })));
+  if (books.some((a) => String(a).toLowerCase() !== String(books[0]).toLowerCase()) || /^0x0{40}$/i.test(String(books[0])))
+    throw new Error("the RPCs disagree about the deployments ledger");
+  const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: books[0], abi: DEP_GET_ABI, functionName: "get", args: [id] })));
+  const pick = (d) => ({ id: String(d.id).toLowerCase(), runner: String(d.runner).toLowerCase(), leaseUntil: String(d.leaseUntil), appRef: d.appRef,
+                         isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active });
+  const rows = got.map(pick);
+  if (rows.some((r) => JSON.stringify(r) !== JSON.stringify(rows[0]))) throw new Error("the RPCs disagree about the deployment's record");
+  if (rows[0].id !== String(id).toLowerCase()) throw new Error("the ledger holds no such deployment");
+  return rows[0];
+}
 let _predictor = null;
-const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(),
-  readCatalog: catalogReader({ readContract: async (q) => (await chain()).readContract(q) }, catalogAddress) }));
-const expectedGuestFor = (row) => predictor().expectedFor(row && row.appRef);
-const predictorProblems = () => predictor().problems;
+const predictor = () => _predictor || (_predictor = makePredictor({ ...predictorEnv(), readCatalog: catalogReader(catalogClients, catalogAddress) }));
+const expectedGuestFor = (row, o) => predictor().expectedFor(row && row.appRef, o);
+const predictorProblems = () => [...predictor().problems,
+  ...(catalogRpcHosts.size < 2 ? ["SECRETS_RELEASE_CATALOG_RPCS (two or more independent Base RPCs)"] : [])];
 // the RuntimeID of the runtime identity a guest states (isolation/contract/runtime.go: sha256 of its canonical JSON); it
 // is admitted only when it equals an admitted domain release's own
 const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
 const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
-                   expectedGuestFor, predictorProblems, runtimeIdOf,
+                   expectedGuestFor, predictorProblems, runtimeIdOf, confirmRow,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)
@@ -2597,6 +2627,10 @@ await initAccounts();          // no data dir/deps => disabled with one log line
 await initSso();               // SSO_SIGNER_KEY unset => disabled with one log line
 await initBilling(relayCtx);   // needs accounts; degrades the same way
 await initSecrets();           // needs SECRETS_KEY + the same data dir; degrades the same way
+// attested release on: run the predictor's known-answer test now, in the background, so the first release after a restart
+// does not wait for it (a failure is logged and every release refused until a later test passes)
+if (/^(1|true|on|yes)$/i.test(String(process.env.SECRETS_ATTESTED_RELEASE || "").trim()) && !predictorProblems().length)
+  predictor().selfTest().then((k) => console.log(`[measurement-predict] known-answer test at start: ${k.ok ? "PASS" : "FAIL"}: ${k.reason}`)).catch(() => {});
 startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)
 await initDomains();           // custom domains: same data dir, CUSTOM_DOMAINS=0 opts out
 startDomainSweep(relayCtx);    // DNS re-check + demotion sweep (no-op while disabled)

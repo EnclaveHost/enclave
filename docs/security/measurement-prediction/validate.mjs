@@ -14,7 +14,7 @@ import { createHash, createVerify, X509Certificate } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { createPublicClient, http, fallback } from "viem";
 import { base } from "viem/chains";
-import { makePredictor, catalogReader, runtimeIdOfJson, KNOWN_ANSWERS } from "../../../relay/measurement-predict.mjs";
+import { makePredictor, catalogReader, runtimeIdOfJson, sevSnpMeasureDigest, KNOWN_ANSWERS } from "../../../relay/measurement-predict.mjs";
 import { parseSnpReport, snpProductHint, kdsVcekUrl, certChain, vcekMatchesReport } from "../../../relay/snp-verify.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -37,7 +37,10 @@ const DEP = [["id", "bytes32"], ["owner", "address"], ["appRef", "string"], ["po
   ["runner", "bytes32"], ["runnerOperator", "address"], ["leaseUntil", "uint64"]].map(([name, type]) => ({ name, type }));
 const catalogAddr = await book("appCatalog"), depAddr = await book("deployments");
 const appRefOf = async (id) => (await pub.readContract({ address: depAddr, abi: [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: DEP }] }], functionName: "get", args: [id] })).appRef;
-const readCatalog = catalogReader(pub, catalogAddr);
+// two independent providers, which must agree (the relay's SECRETS_RELEASE_CATALOG_RPCS)
+const readCatalog = catalogReader(["https://base-rpc.publicnode.com", "https://base.drpc.org"].map((u) => createPublicClient({ chain: base, transport: http(u) })), catalogAddr);
+const SSM_SHA = opt("--sev-snp-measure-sha256") || await sevSnpMeasureDigest(SSM);
+console.log(`sev-snp-measure ${SSM}: digest ${SSM_SHA}`);
 console.log(`chain: appCatalog ${catalogAddr}, deployments ${depAddr} (address book ${BOOK}); gateway ${GATEWAY}; toolchain ${COMMIT}`);
 
 // the AMD chain of one report, from KDS, to the pinned ARK: this is what makes a report "real"
@@ -56,7 +59,7 @@ async function amdVerified(report) {
 }
 
 const mk = (over = {}) => makePredictor({ repo: REPO, commit: COMMIT, releases: RELEASES, admit: ADMIT, readCatalog, gateway: GATEWAY,
-  sevSnpMeasure: SSM, components: path.join(WORK, "components"), ...over, work: path.join(WORK, over.work || "main") });
+  sevSnpMeasure: SSM, sevSnpMeasureSha256: SSM_SHA, components: path.join(WORK, "components"), ...over, work: path.join(WORK, over.work || "main") });
 const P = mk();
 const guests = JSON.parse(fs.readFileSync(path.join(here, "evidence/guests.json"), "utf8"));
 const seen = new Map();   // appRef -> { prediction, guests }
@@ -122,6 +125,7 @@ expect(![...seen.values()].some((e) => e.appId === "9add8960b2cf2a2480df3b93eb27
 // (d) an unavailable prediction
 for (const [label, over, code] of [
   ["sev-snp-measure missing", { work: "u-ssm", sevSnpMeasure: path.join(WORK, "no-such-sev-snp-measure") }, "prediction_unavailable"],
+  ["sev-snp-measure not the pinned one (another digest)", { work: "u-ssm-sha", sevSnpMeasureSha256: "00".repeat(32) }, "prediction_unavailable"],
   ["the gateway unreachable (the first known-answer test is inconclusive, never a pass)", { work: "u-gw", gateway: "https://127.0.0.1:9", components: path.join(WORK, "u-gw-none") }, "prediction_unavailable"],
   ["a toolchain commit the repository does not hold", { work: "u-commit", commit: "0".repeat(40) }, "prediction_unavailable"],
   ["no admitted release", { work: "u-admit", admit: [] }, "predictor_unconfigured"],
