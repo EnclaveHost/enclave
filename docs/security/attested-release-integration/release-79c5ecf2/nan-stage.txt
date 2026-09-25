@@ -1,0 +1,23 @@
+# nan, 2026-09-25: stage-release.sh at d3ed78aa (as root, nice 10), inputs (the script, rel-79c5.tar 9b377b89… = the reviewed ~/enclave-bench/prod-release-aa6c985c/release-aa6c985c) in a 0700 temp dir, removed after
+2026-09-25T21:21:00Z
+MainPID=4030771
+NRestarts=0
+ActiveEnterTimestamp=Fri 2026-09-25 20:59:08 UTC
+2cce09274d4a
+829c09adb176
+stage-release: release 79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4 verified 15 files, at /opt/enclave-predict/rel-79c5ecf24eb4/release (root, read-only to others)
+{"uid":61930,"node":"v22.23.1","module":"/opt/nan-relay/measurement-predict.mjs","problems":[],"knownAnswerTest":{"ok":true,"reason":"2 known answer(s) reproduced exactly","ms":20845},"crossCheck":{"ref":"catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0","ok":true,"ms":41168,"appId":"94c04c0edb6b4ca11b9bd0b6e4adfa98afdfa04692e6c10af79755e6db0ba0f2","admitted":[{"release":"79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4","measurement":"20319b02324494bd169750b5f031915feeac5dc165f37ec21dd9bdfce9d875a34d9809716a01c965698f06aa4a83ef47","runtimeId":"ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8"}],"installed":["5c3561f91bc7","6f14ce753708","a4f227482df4","79c5ecf24eb4"]},"pass":true}
+Running as unit: enclave-predict-check-1790371260.service
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 1min 2.801s
+CPU time consumed: 1min 12.565s
+Memory peak: 2.1M
+Memory swap peak: 0B
+stage-release: done: /opt/enclave-predict/rel-79c5ecf24eb4 (nothing outside it changed; no service, env or relay file touched)
+stage-release exit 0
+MainPID=4030771
+NRestarts=0
+ActiveEnterTimestamp=Fri 2026-09-25 20:59:08 UTC
+2026-09-25T21:22:03Z
+# after: temp inputs removed (0 left); /opt/enclave-predict/rel-79c5ecf24eb4 76M root; no enclave-predict-check state left; the live two lines (file order) sha256 b3f4a67a… = predict-lines.before.env; the api-relay untouched (PID 4030771, since 20:59:08Z, NRestarts 0)

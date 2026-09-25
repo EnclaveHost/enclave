@@ -1,0 +1,43 @@
+# rs-4-remote.sh (this commit) as root in a container (ubuntu 24.04 userland, python 3.12): a fake api-relay.env (two unrelated lines + the 11 staged lines), the four releases copied from their verified reference copies, nan's own predict-lines*.env and STAGED.txt, a systemctl shim for the api-relay unit
+== 1 apply
+nan: rs-4 apply: backup /etc/nan-relay/api-relay.env.bak-rs4-apply-T1; the two lines replaced (now sha 6f816b317664); api-relay restarted: invocation inv-initial -> inv-1790371518570468430, NRestarts 0, MemoryMax 1536M; the release OFF
+rc=0
+   diff vs original:
+5,6c5,6
+< SECRETS_RELEASE_PREDICT_RELEASES=5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2=/opt/encla
+< SECRETS_RELEASE_DOMAIN_RELEASES=a4f227482df4830ab69b52e38dc5d6e2abea9e5c5fb71f5469f0c30e6b1cb784
+---
+> SECRETS_RELEASE_PREDICT_RELEASES=5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2=/opt/encla
+> SECRETS_RELEASE_DOMAIN_RELEASES=79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4
+600 root
+api-relay.env
+api-relay.env.bak-rs4-apply-T1
+1
+== 2 apply again (must refuse)
+REFUSING: the live SECRETS_RELEASE_PREDICT_RELEASES is not the expected one (already done?)
+rc=13
+== 3 rollback
+nan: rs-4 rollback: backup /etc/nan-relay/api-relay.env.bak-rs4-rollback-T3; the two lines replaced (now sha b3f4a67aa76f); api-relay restarted: invocation inv-17903715 -> inv-1790371523807369888, NRestarts 0, MemoryMax 1536M; the release OFF
+rc=0
+   env byte-identical to the original after rollback
+600 root
+== 4 release ON (must refuse)
+REFUSING: 1 release setting(s) on: this step runs with the release OFF
+rc=14
+== 5 tampered new lines (must refuse)
+REFUSING: the staged line files are not the reviewed ones
+rc=11
+== 6 env mode 0644 (must refuse)
+REFUSING: /etc/nan-relay/api-relay.env is not 0600 root
+rc=13
+== 7 relay down (must refuse, before any write)
+REFUSING: enclave-api-relay is not active
+rc=16
+   env unchanged
+== 8 duplicate key (must refuse)
+REFUSING: /etc/nan-relay/api-relay.env has not exactly one SECRETS_RELEASE_DOMAIN_RELEASES
+rc=13
+restarts total: 2 (expected 2: apply + rollback)
+api-relay.env
+api-relay.env.bak-rs4-apply-T1
+api-relay.env.bak-rs4-rollback-T3
