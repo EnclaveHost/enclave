@@ -15,6 +15,7 @@ import (
 func (r *rig) restart(t *testing.T) (*server, map[string]bool, []string, []string) {
 	s2 := newServer(r.f, r.s.Root)
 	s2.Now = r.s.Now
+	s2.Budget = r.s.Budget // a restarted guestd runs with the same flags
 	keep, adopted, dropped := s2.adoptOnBoot(context.Background())
 	return s2, keep, adopted, dropped
 }
@@ -43,6 +44,7 @@ func TestARestartAdoptsTheSameGuestAndNothingElse(t *testing.T) {
 	// "other" will present a different key on re-verification: not the same guest
 	s2 := newServer(r.f, r.s.Root)
 	s2.Now = r.s.Now
+	s2.Budget = r.s.Budget // a restarted guestd runs with the same flags
 	r.f.mu.Lock()
 	r.f.keyOverride = ""
 	r.f.mu.Unlock()
