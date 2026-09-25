@@ -32,3 +32,12 @@ As in [../release-0181bce3/ARTIFACT.md](../release-0181bce3/ARTIFACT.md), with t
 
 ## Reviews before anything is published
 e3, 5d and 63 review this artifact and DRAFT-RELEASE.md. Until then, nothing is created or published.
+- **enclave-63: OK on the binary and artifact side** (839a7f9d):
+  - the tarball's sha256 matches, its release.json is 79c5ecf2, and all 15 files verify;
+  - the release is identical to the one installed;
+  - the bundle's sha256 matches, and it holds musl with its .asc, glibc and gcc;
+  - no GitHub release or domain-release tag exists.
+  63 did not assess the notices' content.
+- **enclave-e3:** re-review of 839a7f9d pending.
+- **enclave-5d:** review pending.
+- **The release step itself is outside this lane.**
