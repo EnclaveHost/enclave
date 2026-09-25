@@ -55,7 +55,8 @@ $SvcPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\Gu
 $ReportSvcGuid = '00002329-facb-11e6-bd58-64006a7986d3'
 $wmiserveExe = $null
 if ($Serve) {
-  $wmiserveExe = Join-Path $Pkg $WmiserveRel
+  # a path inside the package, or an absolute path (a launcher built but not yet packaged, pinned by its hash all the same)
+  $wmiserveExe = if ([System.IO.Path]::IsPathRooted($WmiserveRel)) { $WmiserveRel } else { Join-Path $Pkg $WmiserveRel }
   $ws = (Get-FileHash $wmiserveExe -Algorithm SHA256).Hash.ToLower()
   if ($ws -ne $WmiserveSha256.ToLower()) { throw "the wmiserve executable hashes $ws, not the pinned $WmiserveSha256" }
 }
