@@ -45,6 +45,10 @@ const RENEW_LEAD_MS = 15 * 60_000;
  * self-asserted hostExcluded or a stronger tier from the manager (a host process) must not reach this node's record,
  * which the console and the relay read.
  */
+// isolationRespawn (off by default): at most this many respawns of an ended domain per deployment per window
+export const RESPAWN_BUDGET = 3;
+export const RESPAWN_WINDOW_MS = 60 * 60 * 1000;
+
 export function isolationBoundaryRefusal(inst) {
   if (!inst || typeof inst !== "object") return "the manager returned no instance view";
   if (inst.hostExcluded !== false) {
@@ -595,6 +599,36 @@ export class Host {
     let r;
     try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
     catch (e) { return this.#record(id, { status: "failed", reason: `isolation: ${e.message}` }); }
+
+    // RESPAWN, OFF BY DEFAULT (cfg.isolationRespawn, ENCLAVE_ISOLATION_RESPAWN=1): a lease policy, Steven's decision,
+    // put to him by enclave-d1. Today a domain that ENDED (crashed, stopped by itself, failed the manager's sweeps, or
+    // missed the readiness deadline) makes the node give the lease up: it is released on chain AND blocked on this box,
+    // which for an owner-only NucBox deployment is effectively permanent. With the switch ON, the ended domain is instead
+    // RETIRED, confirmed gone (so there is never a second VM, and nothing is released), and a fresh one is spawned, at
+    // most RESPAWN_BUDGET times in RESPAWN_WINDOW_MS per deployment, then the old give-up with the reason. A REFUSAL
+    // (the manager answered no) is never respawned. A recovered VM stays HELD either way.
+    if (r.action === "failed" && r.leaseFree && r.ended === true && this.cfg.isolationRespawn === true) {
+      const spent = this.#respawnsWithin(id);
+      if (spent >= RESPAWN_BUDGET) {
+        r = { ...r, reason: `${r.reason}; it was respawned ${spent} time(s) in the last hour, so it is not respawned again` };
+      } else {
+        if (r.instance?.id) this.#record(id, { isolationHeld: r.instance.id });
+        const gone = await this.#retireIsolated(id, "respawn after the domain ended");
+        if (!gone) {
+          return this.#record(id, { status: "provisioning", reason: `isolation: ${r.reason}; not respawned: the ended domain `
+            + "could not be confirmed gone, so its lease is kept and nothing new is started" });
+        }
+        this.#respawns.set(id, [...(this.#respawns.get(id) || []), Date.now()]);
+        this.log(`${id.slice(0, 10)} isolation respawn ${spent + 1}/${RESPAWN_BUDGET} this hour: ${r.reason}`);
+        try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
+        catch (e) { return this.#record(id, { status: "failed", reason: `isolation: ${e.message}` }); }
+        // ended AGAIN at once: the next pass decides (it respawns while the budget lasts, then gives up), not this one
+        if (r.action === "failed" && r.leaseFree && r.ended === true) {
+          return this.#record(id, { status: "provisioning", reason: `isolation: respawned (${spent + 1}/${RESPAWN_BUDGET} this hour) `
+            + `and it ended again: ${r.reason}`, ...(r.instance?.id ? { isolationHeld: r.instance.id } : {}) });
+        }
+      }
+    }
 
     if (r.action === "held") {
       // NOT a failure and NOT a success: the lease is kept and this tick decided nothing. The instance it holds is
@@ -1322,6 +1356,15 @@ export class Host {
    * the caller must not treat the deployment as finished - retire() already keeps the lease in
    * that case, and this reports it so the record says why.
    */
+  /** Respawns of an ended isolated domain inside the budget window (cfg.isolationRespawn). In memory: a node restart
+   *  starts the count again, which errs toward trying; the budget still bounds each run. */
+  #respawns = new Map();
+  #respawnsWithin(id) {
+    const recent = (this.#respawns.get(id) || []).filter((t) => Date.now() - t < RESPAWN_WINDOW_MS);
+    this.#respawns.set(id, recent);
+    return recent.length;
+  }
+
   async #retireIsolated(id, why) {
     if (!this.cfg.isolationManager) return true;                                // no backend: nothing can be out there
     const rec = this.records.get(id) || {};
