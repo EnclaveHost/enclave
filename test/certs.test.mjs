@@ -693,6 +693,7 @@ test("the mock CA signs concurrent finalizes independently: a serial of its own 
   const csrs = await Promise.all([0, 1, 2, 3].map(() => csrFor(NAME)));
   const serials = (await Promise.all(csrs.map((c) => signLeaf(derOf(c))))).map((pem) => new X509Certificate(pem).serialNumber);
   assert.equal(new Set(serials).size, serials.length, serials.join(" "));
+  // this is the guard: distinct serials would also pass under -CAcreateserial (it increments), a ca.srl would not (enclave-99)
   assert.equal(fs.existsSync(path.join(DIR, "ca.srl")), false, "a ca.srl is shared state every concurrent signing rewrites");
 });
 
