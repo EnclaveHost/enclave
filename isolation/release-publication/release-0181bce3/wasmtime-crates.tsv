@@ -1,0 +1,275 @@
+# wasmtime 48.0.1 (tag v48.0.1, commit 7bac2c27), default features, x86_64-unknown-linux-gnu: `cargo tree --locked -p wasmtime-cli -e normal`
+# kind: linked = compiled into the binary; workspace = wasmtime's own crates (compiled in); proc-macro = runs at build time only
+name	version	license	kind	source
+addr2line	0.26.0	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+aho-corasick	1.0.2	Unlicense OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+allocator-api2	0.2.20	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+ambient-authority	0.0.2	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+anstream	0.6.21	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+anstyle	1.0.13	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+anstyle-parse	0.2.7	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+anstyle-query	1.1.5	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+anyhow	1.0.103	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+arbitrary	1.4.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+async-trait	0.1.89	MIT OR Apache-2.0	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+atomic-waker	1.1.2	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+base64	0.22.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+beef	0.5.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+bitflags	2.11.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+block-buffer	0.10.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+bumpalo	3.20.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+bytes	1.11.1	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+cap-fs-ext	4.0.3	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+cap-primitives	4.0.3	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+cap-std	4.0.3	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+capstone	0.14.0	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+capstone-sys	0.18.0	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+cfg-if	1.0.0	MIT/Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+chacha20	0.10.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+clap	4.5.48	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+clap_builder	4.5.48	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+clap_complete	4.5.58	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+clap_derive	4.5.47	MIT OR Apache-2.0	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+clap_lex	0.7.5	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+cobs	0.3.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+colorchoice	1.0.4	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+cpp_demangle	0.5.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+cpufeatures	0.2.7	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+cpufeatures	0.3.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+cranelift-assembler-x64	0.135.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+cranelift-bforest	0.135.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+cranelift-bitset	0.135.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+cranelift-codegen	0.135.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+cranelift-codegen-shared	0.135.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+cranelift-control	0.135.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+cranelift-entity	0.135.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+cranelift-frontend	0.135.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+cranelift-native	0.135.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+crc32fast	1.3.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+crossbeam-deque	0.8.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+crossbeam-epoch	0.9.20	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+crossbeam-utils	0.8.20	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+crypto-common	0.1.6	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+debugid	0.8.0	Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+digest	0.10.7	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+directories-next	2.0.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+dirs-sys-next	0.1.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+displaydoc	0.2.5	MIT OR Apache-2.0	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+either	1.13.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+encoding_rs	0.8.31	(Apache-2.0 OR MIT) AND BSD-3-Clause	linked	registry+https://github.com/rust-lang/crates.io-index
+env_logger	0.10.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+equivalent	1.0.1	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+fallible-iterator	0.3.0	MIT/Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+fastrand	2.3.0	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+file-per-thread-logger	0.2.0	Apache-2.0 WITH LLVM-exception	linked	registry+https://github.com/rust-lang/crates.io-index
+fnv	1.0.7	Apache-2.0 / MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+foldhash	0.2.0	Zlib	linked	registry+https://github.com/rust-lang/crates.io-index
+form_urlencoded	1.2.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+fs-set-times	0.20.3	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+futures	0.3.31	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+futures-channel	0.3.31	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+futures-core	0.3.31	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+futures-io	0.3.31	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+futures-sink	0.3.31	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+futures-task	0.3.31	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+futures-util	0.3.31	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+fxprof-processed-profile	0.8.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+generic-array	0.14.5	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+getrandom	0.2.15	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+getrandom	0.4.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+gimli	0.32.3	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+gimli	0.33.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+h2	0.4.13	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+hashbrown	0.16.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+hashbrown	0.17.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+heck	0.5.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+http	1.3.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+http-body	1.0.1	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+http-body-util	0.1.3	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+httparse	1.10.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+httpdate	1.0.2	MIT/Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+humantime	2.1.0	MIT/Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+hyper	1.9.0	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+icu_collections	1.5.0	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+icu_locid	1.5.0	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+icu_locid_transform	1.5.0	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+icu_locid_transform_data	1.5.0	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+icu_normalizer	1.5.0	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+icu_normalizer_data	1.5.0	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+icu_properties	1.5.1	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+icu_properties_data	1.5.0	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+icu_provider	1.5.0	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+icu_provider_macros	1.5.0	Unicode-3.0	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+id-arena	2.3.0	MIT/Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+idna	1.1.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+idna_adapter	1.2.0	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+indexmap	2.14.0	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+io-extras	0.19.0	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+io-lifetimes	2.0.3	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+io-lifetimes	3.0.1	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+ipnet	2.5.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+is-terminal	0.4.17	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+is_terminal_polyfill	1.70.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+itertools	0.14.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+itoa	1.0.14	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+ittapi	0.4.0	GPL-2.0-only OR BSD-3-Clause	linked	registry+https://github.com/rust-lang/crates.io-index
+ittapi-sys	0.4.0	GPL-2.0-only OR BSD-3-Clause	linked	registry+https://github.com/rust-lang/crates.io-index
+json-from-wast	0.254.0	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+lazy_static	1.4.0	MIT/Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+leb128	0.2.5	Apache-2.0/MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+leb128fmt	0.1.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+libc	0.2.185	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+libloading	0.8.6	ISC	linked	registry+https://github.com/rust-lang/crates.io-index
+libm	0.2.16	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+linux-raw-sys	0.12.1	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+litemap	0.7.4	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+log	0.4.28	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+logos	0.14.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+logos-codegen	0.14.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+logos-derive	0.14.2	MIT OR Apache-2.0	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+matchers	0.2.0	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+maybe-owned	0.3.4	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+memchr	2.7.6	Unlicense OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+memfd	0.6.5	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+mio	1.2.0	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+nu-ansi-term	0.50.3	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+object	0.39.0	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+once_cell	1.19.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+openvino	0.11.0	Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+openvino-finder	0.11.0	Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+openvino-sys	0.11.0	Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+percent-encoding	2.3.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+pin-project-lite	0.2.14	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+pin-utils	0.1.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+postcard	1.1.3	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+proc-macro2	1.0.101	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+pulley-interpreter	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+pulley-macros	48.0.1	Apache-2.0 WITH LLVM-exception	proc-macro	wasmtime workspace
+quote	1.0.41	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+rand	0.10.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+rand_core	0.10.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+rayon	1.5.3	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+rayon-core	1.12.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+regalloc2	0.15.2	Apache-2.0 WITH LLVM-exception	linked	registry+https://github.com/rust-lang/crates.io-index
+regex	1.9.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+regex-automata	0.3.3	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+regex-automata	0.4.11	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+regex-syntax	0.7.4	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+regex-syntax	0.8.5	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+ring	0.17.14	Apache-2.0 AND ISC	linked	registry+https://github.com/rust-lang/crates.io-index
+rustc-demangle	0.1.24	MIT/Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+rustc-hash	2.1.1	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+rustix	1.1.4	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+rustix-linux-procfs	0.1.1	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+rustls	0.23.37	Apache-2.0 OR ISC OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+rustls-pki-types	1.13.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+rustls-webpki	0.103.13	ISC	linked	registry+https://github.com/rust-lang/crates.io-index
+ryu	1.0.9	Apache-2.0 OR BSL-1.0	linked	registry+https://github.com/rust-lang/crates.io-index
+semver	1.0.27	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+serde	1.0.228	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+serde_core	1.0.228	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+serde_derive	1.0.228	MIT OR Apache-2.0	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+serde_json	1.0.140	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+serde_spanned	1.0.3	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+sha2	0.10.2	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+sharded-slab	0.1.4	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+signal-hook-registry	1.4.1	Apache-2.0/MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+slab	0.4.11	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+smallvec	1.15.1	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+socket2	0.6.3	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+stable_deref_trait	1.2.0	MIT/Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+static_assertions	1.1.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+strsim	0.11.1	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+subtle	2.5.0	BSD-3-Clause	linked	registry+https://github.com/rust-lang/crates.io-index
+syn	2.0.106	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+synstructure	0.13.1	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+target-lexicon	0.13.5	Apache-2.0 WITH LLVM-exception	linked	registry+https://github.com/rust-lang/crates.io-index
+tempfile	3.27.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+termcolor	1.4.1	Unlicense OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+terminal_size	0.4.4	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+thiserror	1.0.65	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+thiserror	2.0.17	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+thiserror-impl	1.0.65	MIT OR Apache-2.0	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+thiserror-impl	2.0.17	MIT OR Apache-2.0	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+thread_local	1.1.4	Apache-2.0/MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+tinystr	0.7.6	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+tokio	1.51.1	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+tokio-macros	2.7.0	MIT	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+tokio-rustls	0.26.4	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+tokio-util	0.7.16	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+toml	0.9.8	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+toml_datetime	0.7.3	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+toml_parser	1.0.4	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+toml_writer	1.0.4	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+tracing	0.1.41	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+tracing-attributes	0.1.30	MIT	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+tracing-core	0.1.34	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+tracing-log	0.2.0	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+tracing-subscriber	0.3.20	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+try-lock	0.2.4	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+typenum	1.15.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+unicode-ident	1.0.24	(MIT OR Apache-2.0) AND Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+unicode-width	0.2.0	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+untrusted	0.9.0	ISC	linked	registry+https://github.com/rust-lang/crates.io-index
+url	2.5.7	MIT OR Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+utf16_iter	1.0.5	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+utf8_iter	1.0.4	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+utf8parse	0.2.2	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+uuid	1.0.0	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+want	0.3.0	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+wasm-encoder	0.254.0	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+wasm-metadata	0.254.0	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+wasm-wave	0.254.0	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+wasmparser	0.254.0	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+wasmprinter	0.254.0	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+wasmtime	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-cli	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-cli-flags	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-environ	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-cache	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-component-macro	48.0.1	Apache-2.0 WITH LLVM-exception	proc-macro	wasmtime workspace
+wasmtime-internal-component-util	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-core	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-cranelift	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-debugger	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-explorer	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-fiber	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-jit-debug	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-jit-icache-coherence	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-unwinder	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-versioned-export-macros	48.0.1	Apache-2.0 WITH LLVM-exception	proc-macro	wasmtime workspace
+wasmtime-internal-winch	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-internal-wit-bindgen	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-wasi	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-wasi-config	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-wasi-http	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-wasi-io	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-wasi-keyvalue	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-wasi-nn	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-wasi-tls	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-wast	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wasmtime-wizer	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wast	254.0.0	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+wast	35.0.2	Apache-2.0 WITH LLVM-exception	linked	registry+https://github.com/rust-lang/crates.io-index
+wat	1.254.0	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+webpki-roots	1.0.7	CDLA-Permissive-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+wiggle	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wiggle-generate	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+wiggle-macro	48.0.1	Apache-2.0 WITH LLVM-exception	proc-macro	wasmtime workspace
+winch-codegen	48.0.1	Apache-2.0 WITH LLVM-exception	workspace	wasmtime workspace
+winnow	0.7.13	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+wit-component	0.254.0	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+wit-parser	0.254.0	Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+witx	0.9.1	Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+write16	1.0.0	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+writeable	0.5.5	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+yoke	0.7.5	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+yoke-derive	0.7.5	Unicode-3.0	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+zerofrom	0.1.5	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+zerofrom-derive	0.1.5	Unicode-3.0	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+zeroize	1.8.2	Apache-2.0 OR MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+zerovec	0.10.4	Unicode-3.0	linked	registry+https://github.com/rust-lang/crates.io-index
+zerovec-derive	0.10.3	Unicode-3.0	proc-macro	registry+https://github.com/rust-lang/crates.io-index
+zstd	0.13.0	MIT	linked	registry+https://github.com/rust-lang/crates.io-index
+zstd-safe	7.0.0	MIT/Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
+zstd-sys	2.0.9+zstd.1.5.5	MIT/Apache-2.0	linked	registry+https://github.com/rust-lang/crates.io-index
