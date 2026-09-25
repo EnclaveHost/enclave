@@ -1191,11 +1191,14 @@ function proxyViaTunnel(origin, req, res, { path = req.url, setCors = true, publ
       const out = {};
       for (const [k, v] of Object.entries(r.headers || {})) {
         if (/^connection$|^transfer-encoding$|^content-length$/i.test(k)) continue;
-        if (publicOnly && /^set-cookie2?$/i.test(k)) continue;
+        if (publicOnly && /^(?:set-cookie2?|content-security-policy(?:-report-only)?|x-content-type-options)$/i.test(k)) continue;
         if (setCors && /^access-control-/i.test(k)) continue;
         out[k] = v;
       }
       if (setCors) Object.assign(out, cors(req));
+      // ...and it serves nothing ACTIVE on the relay's origin: whatever content type it claims, the browser neither sniffs
+      // it nor runs it (enclave-d1's round-3 residual: a hostile box could otherwise serve text/html under api.enclave.host)
+      if (publicOnly) Object.assign(out, { "x-content-type-options": "nosniff", "content-security-policy": "sandbox; default-src 'none'" });
       res.writeHead(r.status || 502, out);
       res.end(r.body);
     } catch (e) {
