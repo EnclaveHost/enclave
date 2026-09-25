@@ -200,13 +200,13 @@ function missingFor(ctx, cfg) {
           typeof ctx.versionConfigFor !== "function" && "the version-config lookup", typeof ctx.leaseHolderChipIds !== "function" && "the lease holder's chip ids",
           typeof ctx.verifyGuestEvidence !== "function" && "the guest-evidence verifier", typeof ctx.runtimeIdOf !== "function" && "the runtime-id function",
           typeof ctx.expectedGuestFor !== "function" && "the measurement predictor", typeof ctx.hostEligibility !== "function" && "the eligibility verdict",
-          typeof ctx.confirmRow !== "function" && "the confirmed ledger read",
+          typeof ctx.confirmRow !== "function" && "the confirmed ledger read", typeof ctx.prewarmCollateral !== "function" && "the AMD collateral prewarm",
           ...(typeof ctx.predictorProblems === "function" ? ctx.predictorProblems() : [])].filter(Boolean);
 }
 // a prediction refusal as an answer: the relay's own inability (503) or the version's (403)
 // the supervisor's DEP_CONFIG_CID_RE and DEP_MANIFEST_KEYS (supervisor.js): what a config CID looks like, and the only keys
 // an inline config may carry beside one (the routing manifest)
-const CONFIG_CID_RE = /^[A-Za-z0-9]{10,100}$/, MANIFEST_KEYS = ["volumes"];
+export const CONFIG_CID_RE = /^[A-Za-z0-9]{10,100}$/, MANIFEST_KEYS = ["volumes"];
 const PREDICTION_503 = new Set(["warming", "busy", "prediction_unavailable", "catalog_unreachable", "component_unavailable", "prediction_failed", "predictor_unconfigured"]);
 // how long a release waits for a prediction still being computed before answering 503 warming (its ticket kept)
 const PREDICT_WAIT_MS = 10_000;
@@ -362,6 +362,14 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
   } catch (e) {
     if (e.code) { if (e.code !== 503) tickets.delete(tk); bad(e.code, e.error, e.message); return true; }   // a 503 keeps the ticket
     tickets.delete(tk); bad(422, "bad_config", `${source || "The config"} is not a JSON object or array (${e.message}).`); return true;
+  }
+  // the AMD collateral the evidence will need, fetched BEFORE the ticket is consumed (enclave-d1): a KDS or CRL outage is the
+  // relay's own 503 and keeps the ticket, instead of a verifier "rejected" that would burn it. It judges nothing.
+  let warm;
+  try { warm = await ctx.prewarmCollateral(b.evidence); } catch (e) { warm = { ok: false, missing: [e.message] }; }
+  if (!warm || warm.ok !== true) {
+    const why = `AMD collateral is unavailable right now (${((warm && warm.missing) || ["no answer"]).join(", ")}); retry shortly`;
+    console.warn(`[secrets-release] ${id}: ${why} (ticket kept)`); bad(503, "collateral_unavailable", `${why}.`); return true;
   }
   if (tickets.get(tk) !== t) { bad(403, "bad_ticket", "Unknown, expired or already-used ticket, or one issued for another deployment."); return true; }
   tickets.delete(tk);   // consumed: everything below judges the guest's evidence

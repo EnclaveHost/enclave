@@ -62,6 +62,7 @@ const ctx = {
     if (!r) throw new Error("the ledger holds no such deployment");
     return { ...r, ...confirm.over };
   },
+  prewarmCollateral: async () => ({ ok: true }),   // the real one (vendored prewarmSnpCollateral) is exercised in its own test
   expectedGuestFor: async (row) => { predictedFor.push(row && row.id); return row && row.appRef === REF ? predicted : { ok: false, code: "version_not_admitted", reason: "not the synthetic version" }; },
   resolveConfigCid: async (cid) => (cid === "bafkreisyntheticcid" ? { resolved: true, key: "${JOT_API_KEY}" }
                                      : cid === "bafkreiversioncid" ? '{"fromVersionCid":true}' : null),   // a value, or fetched TEXT
@@ -339,7 +340,7 @@ test("fail closed: OFF, a missing policy or a missing provider answers 503 and i
     assert.equal(r.code, 503, `${k}=${v}`); assert.equal(r.body.error, "release_unconfigured"); assert.match(r.body.message, new RegExp(k));
     Object.assign(process.env, saved);
   }
-  for (const p of ["verifyGuestEvidence", "expectedGuestFor", "runtimeIdOf", "leaseHolderChipIds", "versionConfigFor", "confirmRow"]) {
+  for (const p of ["verifyGuestEvidence", "expectedGuestFor", "runtimeIdOf", "leaseHolderChipIds", "versionConfigFor", "confirmRow", "prewarmCollateral"]) {
     const keep = ctx[p]; delete ctx[p];
     const r = await ticketFor(A);
     assert.equal(r.code, 503, p); assert.equal(r.body.error, "release_unconfigured");
@@ -571,6 +572,50 @@ test("the relay's VENDORED verifier (relay/vendor, verifyGuestDomainEvidence) ju
   // not a release document: unsupported, never green
   const other = await bundle.verifyGuestDomainEvidence({ format: "sev-snp-tinfoil-hosted-v1", report: "AAAA" }, {});
   assert.notEqual(other.status, "verified"); assert.equal(other.admissionSafe, false);
+});
+
+test("AMD collateral is fetched BEFORE the ticket is consumed: an outage is 503 with the ticket kept, and the retry releases (enclave-d1)", async () => {
+  rows = [leaseRow(A)]; ineligible = false; chips = [S.chip.toString("hex")];
+  const bundle = await import("../relay/vendor/enclave-verifier-node.mjs");
+  let failVcek = 1, staleCrl = false;
+  const flaky = { kind: "flaky",
+    vcek: async (...a) => { if (failVcek-- > 0) throw new Error("KDS: 503"); return synthCol.vcek(...a); },
+    chain: (...a) => synthCol.chain(...a),
+    crl: async (...a) => { const c = await synthCol.crl(...a); return staleCrl ? { ...c, stale: true } : c; } };
+  const real = ctx.prewarmCollateral;
+  ctx.prewarmCollateral = (doc) => bundle.prewarmSnpCollateral(doc, flaky);
+  try {
+    const t = await ticketFor(A), g = guest({ id: A, ticket: t.body.ticket });
+    const r1 = await release(A, t.body.ticket, g);
+    assert.equal(r1.code, 503, JSON.stringify(r1.body)); assert.equal(r1.body.error, "collateral_unavailable"); assert.match(r1.body.message, /vcek \(KDS: 503\)/);
+    assert.ok(R._internals.tickets.has(t.body.ticket), "the ticket is kept");
+    const r2 = await release(A, t.body.ticket, g);
+    assert.equal(r2.code, 200, JSON.stringify(r2.body)); assert.equal(R._internals.tickets.has(t.body.ticket), false);
+    // a CRL the adapter marks stale is unavailable too (the verifier allows no staleness)
+    staleCrl = true;
+    const t2 = await ticketFor(A), r3 = await release(A, t2.body.ticket, guest({ id: A, ticket: t2.body.ticket }));
+    assert.equal(r3.code, 503); assert.match(r3.body.message, /crl \(stale\)/); assert.ok(R._internals.tickets.has(t2.body.ticket));
+    staleCrl = false;
+    // junk evidence is not the prewarm's business: it passes it through and the verifier refuses it (a final 4xx)
+    const w = await bundle.prewarmSnpCollateral({ format: "sev-snp-guest-domain-v1", report: "AAAA" }, flaky);
+    assert.equal(w.ok, true); assert.match(w.skipped, /unparseable/);
+  } finally { ctx.prewarmCollateral = real; }
+});
+
+test("the relay's envelope constants are the supervisor's (DEP_CONFIG_CID_RE, DEP_MANIFEST_KEYS): here, and at every tier supervisor this clone holds", async (t) => {
+  const { execFileSync } = await import("node:child_process");
+  const sources = [["the working tree", fs.existsSync("supervisor.js") ? fs.readFileSync("supervisor.js", "utf8") : null]];
+  for (const c of ["0181bce3", "c42612c0"]) { try { sources.push([c, execFileSync("git", ["show", `${c}:supervisor.js`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 << 20 })]); } catch {} }
+  let checked = 0;
+  for (const [where, src] of sources) {
+    if (!src) continue;
+    const re = /const DEP_CONFIG_CID_RE = (\/[^\n]+\/);/.exec(src), keys = /const DEP_MANIFEST_KEYS = (\[[^\]]*\]);/.exec(src);
+    if (!re || !keys) continue;
+    assert.equal(re[1], R.CONFIG_CID_RE.toString(), `DEP_CONFIG_CID_RE at ${where}`);
+    assert.deepEqual(JSON.parse(keys[1]), R.MANIFEST_KEYS, `DEP_MANIFEST_KEYS at ${where}`);
+    checked++;
+  }
+  if (!checked) t.skip("no supervisor.js with the constants in this clone");
 });
 
 test("rate keys: a ticket request by client IP; a release by its ticket's ENDPOINT (many guests behind one host address); an unknown ticket by IP", async () => {

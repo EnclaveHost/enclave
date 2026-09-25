@@ -48,6 +48,31 @@ export async function verifyGuestDomainEvidence(doc, { policy = {}, context = {}
   return { technology: env.spec.technology, ...(await verifySnp(env, policy.snp || {}, context, collateral)) };
 }
 
+// Before a relay CONSUMES a release ticket (relay/secrets-release.mjs): the AMD collateral this report will need (its VCEK,
+// the product's ASK/ARK chain, the CRL), fetched through the SAME adapter verifyGuestDomainEvidence will use, so a KDS or
+// CRL outage is answered 503 with the ticket kept rather than a 403 that burns it (enclave-d1). It judges NOTHING: the
+// unverified report is parsed only to name the product, chip and TCB (exactly as verifySnp keys the VCEK), and anything it
+// cannot parse is left to the verifier ({ ok: true, skipped }). A CRL the adapter marks stale counts as missing: the
+// verifier's default policy allows no staleness.
+export async function prewarmSnpCollateral(doc, collateral) {
+  if (!collateral) return { ok: true, skipped: "no collateral adapter" };
+  let p;
+  try { p = parseReportStrict(parseEnvelope(doc).body); } catch { return { ok: true, skipped: "unparseable (the verifier refuses it)" }; }
+  const product = p.productHint;
+  if (!product) return { ok: true, skipped: "the report names no product line (the verifier refuses it)" };
+  const missing = [];
+  try {
+    const v = await collateral.vcek(product, hex(p.chipId), hex(p.reportedTcb), kdsVcekUrl(product, p).replace(/^https:\/\/[^/]+\//, ""));
+    if (!v || !v.der) missing.push("vcek");
+  } catch (e) { missing.push(`vcek (${e.message})`); }
+  try { const c = await collateral.chain(product); if (!c || !c.pem) missing.push("chain"); } catch (e) { missing.push(`chain (${e.message})`); }
+  if (typeof collateral.crl === "function") {
+    try { const c = await collateral.crl(product); if (!c || !c.der) missing.push("crl"); else if (c.stale === true) missing.push("crl (stale)"); }
+    catch (e) { missing.push(`crl (${e.message})`); }
+  }
+  return missing.length ? { ok: false, product, missing } : { ok: true, product };
+}
+
 export const RAD_PATH = "/.well-known/tinfoil-attestation";
 export const DEFAULT_REPO = DEFAULT_RELEASE_POLICY.repository;
 export const FLAVOR_SUFFIXES = Object.freeze(["", "-cpu", "-gpu8"]);
