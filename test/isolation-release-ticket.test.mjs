@@ -52,23 +52,66 @@ const withConfig = { config: '{"api_key":"$MCP_ADAPTER_API_KEY"}' };
 const withSecrets = { hasSecrets: true };
 const unknownSecrets = { hasSecrets: null };
 
-test("config and staged secrets are claimable only when guestd runs -release AND the operator opted in", async () => {
+test("config and secrets are claimable only for a RELEASE GUEST: guestd -release, the operator's opt-in AND the relay's list", async () => {
+  const L = { listed: true }, U = { listed: false };
   const cases = [
-    [guestd(true), withConfig], [guestd(true), withSecrets], [guestd(true), unknownSecrets], [guestd(true), { appConfigCid: "bafyx" }],
-    [guestd(false), withConfig], [guestd(undefined), withSecrets],
+    [guestd(true), { ...withConfig, ...L }], [guestd(true), { ...withSecrets, ...L }], [guestd(true), { ...unknownSecrets, ...L }],
+    [guestd(true), { appConfigCid: "bafyx", ...L }],
+    [guestd(true), { ...withConfig, ...U }], [guestd(true), { ...withSecrets, ...U }],    // unlisted: the owner did not opt in
+    [guestd(false), { ...withConfig, ...L }], [guestd(undefined), { ...withSecrets, ...L }],
   ];
   const verdicts = (c) => c.map(([m, x]) => dep(m, x));
   const on = await run({ ISOLATION_BACKEND: TIER, ISOLATION_RELEASE: "1", ISOLATION_SELFTEST: JSON.stringify({ verdicts: verdicts(cases) }) });
   const off = await run({ ISOLATION_BACKEND: TIER, ISOLATION_SELFTEST: JSON.stringify({ verdicts: verdicts(cases) }) });
-  assert.deepEqual(on.verdicts.slice(0, 4), [null, null, null, null], "both ends on: config, secrets, an unknown secret state and a configCid are claimable");
-  assert.match(on.verdicts[4], /carries app config/, "a guestd without -release: still refused, whatever this box's opt-in says");
+  assert.deepEqual(on.verdicts.slice(0, 4), [null, null, null, null], "a listed deployment on an opted-in box: config, secrets, an unknown secret state and a configCid are claimable");
+  assert.match(on.verdicts[4], /carries app config/, "UNLISTED: refused, whatever this box's opt-in says (enclave-63)");
   assert.match(on.verdicts[5], /staged secrets/);
-  for (const v of off.verdicts) assert.match(v, /app config|staged secrets|cannot verify/, "no opt-in: refused as before");
+  assert.match(on.verdicts[6], /carries app config/, "a guestd without -release: refused");
+  assert.match(on.verdicts[7], /staged secrets/);
+  for (const v of off.verdicts) assert.ok(v, "no opt-in: every one refused");
   // what the release does not change: GPU, private, waf and volumes are still refused
   const still = await run({ ISOLATION_BACKEND: TIER, ISOLATION_RELEASE: "1", ISOLATION_SELFTEST: JSON.stringify({ verdicts: [
-    dep(guestd(true), { gpuMilli: 250 }), dep(guestd(true), { isPublic: false }), dep(guestd(true), { waf: { rate: 5 } }),
-    dep(guestd(true), { volumes: ["m"] }) ] }) });
+    dep(guestd(true), { gpuMilli: 250, ...L }), dep(guestd(true), { isPublic: false, ...L }), dep(guestd(true), { waf: { rate: 5 }, ...L }),
+    dep(guestd(true), { volumes: ["m"], ...L }) ] }) });
   for (const v of still.verdicts) assert.ok(v, "refused");
+});
+
+test("a deployment that is not a release guest runs on a -release box only if its guestd has the legacy image", async () => {
+  const legacy = (has) => ({ ...guestd(true), supports: { ...guestd(true).supports, legacyImage: has } });
+  const r = await run({ ISOLATION_BACKEND: TIER, ISOLATION_RELEASE: "1", ISOLATION_SELFTEST: JSON.stringify({ verdicts: [
+    dep(legacy(true), { listed: false }),      // unlisted, no config: the legacy image, unchanged
+    dep(legacy(false), { listed: false }),     // unlisted and no legacy image: this box's front would not start it
+    dep(legacy(false), { listed: true }),      // listed: a release guest, no legacy image needed
+    dep(guestd(false), { listed: false }),     // a guestd without -release: the old path, unchanged
+  ] }) });
+  assert.deepEqual([r.verdicts[0], r.verdicts[2], r.verdicts[3]], [null, null, null]);
+  assert.match(r.verdicts[1], /no legacy image/);
+  // without the box's opt-in nothing is a release guest, so a -release guestd needs its legacy image for everyone
+  const off = await run({ ISOLATION_BACKEND: TIER, ISOLATION_SELFTEST: JSON.stringify({ verdicts: [dep(legacy(false), { listed: true })] }) });
+  assert.match(off.verdicts[0], /no legacy image/);
+});
+
+test("the relay's list is read as {id, listed: true} and nothing else", async () => {
+  const listedIds = new Set(["0x" + "11".repeat(32)]);
+  const server = http.createServer((req, res) => {
+    const u = new URL(req.url, "http://x");
+    const id = u.searchParams.get("id");
+    res.setHeader("content-type", "application/json");
+    if (u.pathname !== "/v1/secrets/release-status") { res.statusCode = 404; res.end("{}"); return; }
+    if (id === "0x" + "33".repeat(32)) { res.statusCode = 503; res.end(JSON.stringify({ error: "release_unconfigured" })); return; }
+    if (id === "0x" + "44".repeat(32)) { res.end(JSON.stringify({ id: "0x" + "11".repeat(32), listed: true })); return; } // another id's answer
+    if (id === "0x" + "55".repeat(32)) { res.end(JSON.stringify({ id, listed: "yes" })); return; }
+    res.end(JSON.stringify({ id, listed: listedIds.has(id) }));
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const ids = ["11", "22", "33", "44", "55"].map((b) => "0x" + b.repeat(32));
+    const r = await run({ SECRETS_API: `http://127.0.0.1:${server.address().port}`, ISOLATION_BACKEND: TIER,
+      RELEASE_SELFTEST: JSON.stringify({ listed: [ids[0].toUpperCase().replace("0X", "0x"), ...ids.slice(1)] }) });
+    assert.deepEqual(r.listed, [true, false, false, false, false], "listed / unlisted / relay 503 / another id's answer / not a boolean");
+    const down = await run({ SECRETS_API: "http://127.0.0.1:9", ISOLATION_BACKEND: TIER, RELEASE_SELFTEST: JSON.stringify({ listed: [ids[0]] }) });
+    assert.deepEqual(down.listed, [false], "an unreachable relay lists nothing");
+  } finally { server.close(); }
 });
 
 // ---- the ticket pump, against a scripted guestd and a fake relay ----

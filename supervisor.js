@@ -2329,7 +2329,7 @@ async function managerPrefetchBody(g) {
 //     is a leak, a dropped config is a wrong app. guestd refuses the same things at launch; refusing here keeps
 //     the lease from being taken for work that could only fail.
 function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, appConfigCid, hasSecrets,
-                                 firewall, volumes, isPublic, waf, policy, held }) {
+                                 firewall, volumes, isPublic, waf, policy, held, listed }) {
   if (!backend) return null;
   if (!ISOLATION_BACKENDS.includes(backend))
     return `ISOLATION_BACKEND=${JSON.stringify(backend)} is not a backend this build knows; taking no tenant work`;
@@ -2346,7 +2346,7 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
   // guest, sealed to a key only that guest holds; nothing of them crosses this host or guestd's. Claimable only when
   // BOTH ends say so: guestd runs with -release (supports.release) and this box's operator opted in
   // (ISOLATION_RELEASE=1, once the relay's release is on and each already-leased deployment passed its go/no-go).
-  const released = isolationReleaseOn(manager);
+  const released = isolationReleaseGuest(manager, listed);
   if ((config || appConfigCid) && sup.config !== true && !released)
     return "the deployment carries app config, which is not yet delivered into a per-app guest";
   if (hasSecrets !== false && sup.secrets !== true && !released)
@@ -2363,6 +2363,10 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
     if (port && !derivations.includes("enclave-catalog-bundle/2"))
       return `the version serves HTTP on its own port (http:${port}), and this box's per-app manager cannot derive such a bundle (enclave-catalog-bundle/2)`;
   }
+  // A -release guestd starts THIS tree's image only for a release guest; any other deployment runs its legacy image
+  // (d1's rollout option (i)), and without one it cannot run here at all.
+  if (sup.release === true && !released && sup.legacyImage !== true)
+    return "this box's per-app guests need the attested release, and this deployment is not a release guest here (not listed by the relay, or this box has not opted in), and its manager has no legacy image to run it on";
   if ((volumes || []).length)
     return "the deployment needs model volumes, which are not mounted into a per-app guest";
   // The next two are enforced in THIS process on every other backend, on the plaintext of each request. Here the
@@ -2388,6 +2392,23 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
 const ISOLATION_RELEASE = process.env.ISOLATION_RELEASE === "1";
 function isolationReleaseOn(manager) {
   return ISOLATION_RELEASE && !!manager && !!manager.supports && manager.supports.release === true;
+}
+// A RELEASE GUEST: this box and its guestd are on (isolationReleaseOn) AND the relay lists the deployment for the
+// release. The relay's SECRETS_RELEASE_DEPLOYMENTS is the only place an owner's decision lives (d1); the spawn and the
+// claim gate both ask this, so they cannot disagree about which image a deployment gets.
+function isolationReleaseGuest(manager, listed) {
+  return isolationReleaseOn(manager) && listed === true;
+}
+// Whether the relay lists this deployment for the release. Anything but a clear {id, listed: true} is FALSE: the
+// deployment then runs the legacy image, unchanged, never a release guest the relay would refuse to provision.
+async function releaseListedFor(id) {
+  const idL = String(id).toLowerCase();
+  try {
+    const r = await fetch(`${SECRETS_API}/v1/secrets/release-status?id=${encodeURIComponent(idL)}`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return false;
+    const b = await r.json();
+    return !!b && String(b.id || "").toLowerCase() === idL && b.listed === true;
+  } catch { return false; }
 }
 
 // One ticket, for this deployment, signed by the key that registered this endpoint (the relay checks it is the
@@ -3789,7 +3810,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     // deployments that need one. With the attested release on, config and secrets are not sent EITHER: the guest
     // fetches them from the relay itself, sealed to it, with the ticket this process hands guestd (pumpReleaseTicket).
     const h = await vmHealth();
-    const released = isolationReleaseOn(h);
+    const released = isolationReleaseGuest(h, isolationReleaseOn(h) ? await releaseListedFor(deploymentId) : false);
     if (!released && (secrets || configCid || isolationAppConfig(config)))
       throw new Error("per-app isolation: this deployment carries config or secrets the guest tier does not support");
     const httpPort = isolationHttpPortOf(ports);   // throws for tcp/udp or a second port
@@ -3800,7 +3821,9 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
       isolationPolicyFor({ memMb: versionMemMb }), h && h.catalog && h.catalog.runtimeId, httpPort);
     const body = { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
       gpuShare: 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
-      ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}) };
+      ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}),
+      // sent only when true: a guestd that predates the release refuses unknown fields, and it is never asked for one
+      ...(released ? { release: true } : {}) };
     let r = await vmReq("POST", "/vms", body, SPAWN_TIMEOUT_MS);
     // Guests live on the HOST and outlive this node CVM: after a node restart, guestd still runs the guest this
     // deployment launched before. Adopt it only if it is starting or running AND was launched from exactly this
@@ -3813,7 +3836,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
       if (v && v.name === deploymentId && (v.status === "running" || v.status === "starting")
           && v.recordSha256 === derivationDigest(derive)) {
         console.log(`[isolation] ${deploymentId.slice(0, 10)}: adopted guest ${v.id} (${v.status}), launched from this record before the node restarted`);
-        if (v.status === "starting" && h && h.supports && h.supports.release === true) pumpReleaseTicket(deploymentId, v.id);
+        if (v.status === "starting" && v.release === true) pumpReleaseTicket(deploymentId, v.id);
         return { internalPort: 0, vmId: v.id, hostPort: 0, appId: v.appId };
       }
       console.warn(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} under this name is not this record's; ending it and launching again`);
@@ -3824,10 +3847,9 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     if (r.status !== 201) throw new Error(`guestd refused the launch (HTTP ${r.status}): ${(r.body && r.body.error) || JSON.stringify(r.body)}`);
     console.log(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} app ${String(r.body.appId).slice(0, 16)}… `
               + `(${ISOLATION_POLICY_RULE} ${JSON.stringify(derive.policy)}, record ${String(r.body.recordSha256 || "").slice(0, 16)}…)${r.reconciled ? " [reconciled]" : ""}`);
-    // A guestd with -release runs images whose front reads a ticket before it serves, for EVERY deployment guest
-    // (config or not: the host must not be able to start one without its owner's release). So the ticket is pumped
-    // whenever guestd says supports.release, whatever ISOLATION_RELEASE says about claiming config.
-    if (h && h.supports && h.supports.release === true) pumpReleaseTicket(deploymentId, r.body.id);
+    // A release guest's front reads a ticket before it serves, config or not (the host must not be able to start one
+    // without its owner's release), so its ticket is pumped; a legacy guest takes none.
+    if (released) pumpReleaseTicket(deploymentId, r.body.id);
     // hostPort 0: the guest's forwarder is on the HOST, which this process cannot reach as 127.0.0.1; liveness is
     // guestd's "running", which it reports only after verifying the guest (instanceAlive, tenantServing)
     return { internalPort: 0, vmId: r.body.id, hostPort: 0, appId: r.body.appId };
@@ -8691,6 +8713,10 @@ function claimSigner() {
 //   exits (test/isolation-release-ticket.test.mjs drives it with a fake relay and a throwaway REGISTRY_PRIVATE_KEY).
 if (process.env.RELEASE_SELFTEST) {
   const c = JSON.parse(process.env.RELEASE_SELFTEST);
+  if (Array.isArray(c.listed)) {   // {"listed":["0x…",…]}: the relay's list, as releaseListedFor reads it
+    console.log(JSON.stringify({ listed: await Promise.all(c.listed.map((id) => releaseListedFor(id))) }));
+    process.exit(0);
+  }
   let i = 0;
   const posts = [], logs = [];
   const req = async (method, path, body) => {
@@ -10103,8 +10129,10 @@ async function considerClaim(d, { hinted = false, forced = false, background = f
   // nothing the guest cannot honour may be needed (isolationClaimVerdict). Inert when ISOLATION_BACKEND is unset.
   if (ISOLATION_BACKEND) {
     const cf = overrideConfigFields(claimOpts, g);
+    const isoMgr = await vmHealth().catch(() => null);
     const isoWhy = isolationClaimVerdict({ backend: ISOLATION_BACKEND, require: claimOpts.isolation,
-      manager: await vmHealth().catch(() => null), gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
+      manager: isoMgr, listed: isolationReleaseOn(isoMgr) ? await releaseListedFor(d.id) : false,
+      gpuMilli: d.gpuMilli, ...cf, config: isolationAppConfig(cf.config),
       policy: isolationPolicyFor(g.min),
       // a resume after this CVM restarted: the guest guestd kept for it already holds its room (guestPoolRefusal)
       held: resume ? await isolationHeldGuest(d.id) : null,

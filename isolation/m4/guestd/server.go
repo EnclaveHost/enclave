@@ -286,7 +286,9 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 			// release: config and secrets reach a DEPLOYMENT guest only through the attested release, sealed to it, with
 			// egress to its own allowlist (release.go); nothing of them crosses this host, so config/secrets stay false
 			"supports": map[string]bool{"gpu": false, "secrets": false, "egress": false, "config": false,
-				"ports": false, "configCid": false, "release": s.Release}})
+				"ports": false, "configCid": false, "release": s.Release,
+				// legacyImage: a deployment that is not a release guest can still run here (on the previous image)
+				"legacyImage": s.Release && s.Legacy != nil}})
 	case r.Method == http.MethodPost && r.URL.Path == "/vms":
 		s.create(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/prefetch":

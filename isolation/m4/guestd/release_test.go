@@ -254,14 +254,17 @@ func TestTheTicketServiceWritesTheLineToThatGuestOnly(t *testing.T) {
 	}
 }
 
-func TestHealthStatesRelease(t *testing.T) {
-	for _, on := range []bool{false, true} {
+func TestHealthStatesReleaseAndLegacy(t *testing.T) {
+	for _, c := range []struct{ release, legacy, wantLegacy bool }{{false, false, false}, {true, false, false}, {true, true, true}, {false, true, false}} {
 		r := newRig(t)
-		r.s.Release = on
+		r.s.Release = c.release
+		if c.legacy {
+			r.s.Legacy = newFake()
+		}
 		_, h := r.do("GET", "/health", nil)
 		sup := h["supports"].(map[string]any)
-		if sup["release"] != on || sup["config"] != false || sup["secrets"] != false {
-			t.Fatalf("-release %v: supports %v", on, sup)
+		if sup["release"] != c.release || sup["legacyImage"] != c.wantLegacy || sup["config"] != false || sup["secrets"] != false {
+			t.Fatalf("%+v: supports %v", c, sup)
 		}
 	}
 }
