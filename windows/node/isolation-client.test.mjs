@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { IsolationManagerClient, IsolationError, instanceAlive, instanceServing, attestedCapacity } from "./isolation-client.mjs";
+import { reconcile, retire } from "./isolation-lifecycle.mjs";
 
 const DEP = "0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b";
 const APPID = "9c3d10f1".padEnd(64, "0");
@@ -172,4 +173,122 @@ test("a manager that never answers is a timeout, not a hang", async () => {
   const hang = { fetchImpl: (url, init) => new Promise((_, rj) => init.signal.addEventListener("abort", () => rj(new Error("aborted")))) };
   const c = new IsolationManagerClient({ base: "http://127.0.0.1:8091", fetchImpl: hang.fetchImpl, timeoutMs: 40 });
   await assert.rejects(() => c.spawn(supervisorBody()), (e) => e.kind === "timeout");
+});
+
+// A domain a restarted manager RECOVERED from Hyper-V is alive and never serves under that manager (enclave-d1
+// 53672cbe). The node holds it: no second spawn, no removal, no release, whether it is found at the first look or
+// turns recovered while reconcile waits (a restart mid-wait, P1c).
+const noRelease = () => { const released = []; return { released, release: async (id, why) => { released.push([id, why]); } }; };
+const fast = { pollMs: 1, deadlineMs: 200, sleep: async () => {} };
+
+test("a recovered domain found at the first look is HELD: nothing spawned, removed or released", async () => {
+  const m = manager();
+  m.live.set("hv" + "7".repeat(32), view({ id: "hv" + "7".repeat(32), recovered: true, reason: "recovered after a manager restart" }));
+  const led = noRelease();
+  const r = await reconcile({ client: client(m), deployment: { id: DEP, body: supervisorBody() }, ledger: led, ...fast });
+  assert.equal(r.action, "held"); assert.equal(r.leaseFree, false);
+  assert.equal(r.instance.recovered, true, "the client carries recovered through");
+  assert.match(r.reason, /recovered from Hyper-V/);
+  assert.equal(r.instance.reason, "recovered after a manager restart", "the manager's own reason is carried through");
+  assert.deepEqual(m.seen.filter((x) => x.method !== "GET"), [], "no POST and no DELETE");
+  assert.deepEqual(m.seen.filter((x) => x.path.startsWith("/vms/")), [], "held at the first look, before any poll");
+  assert.deepEqual(led.released, []);
+});
+
+test("a domain that turns recovered while reconcile waits is HELD at once, not retired at the deadline", async () => {
+  const id = "hv" + "8".repeat(32);
+  let gets = 0;
+  const m = manager({ routes: {
+    "GET /vms": async () => ({ status: 200, body: [view({ id })] }),
+    [`GET /vms/${id}`]: async () => ({ status: 200, body: view({ id, recovered: ++gets > 1 }) }),
+  } });
+  const led = noRelease();
+  const r = await reconcile({ client: client(m), deployment: { id: DEP, body: supervisorBody() }, ledger: led, ...fast });
+  assert.equal(r.action, "held", r.reason); assert.equal(r.leaseFree, false);
+  assert.equal(gets, 2, "held on the first recovered answer, not polled to the deadline");
+  assert.deepEqual(m.seen.filter((x) => x.method === "DELETE" || x.method === "POST"), []);
+  assert.deepEqual(led.released, []);
+});
+
+// enclave-d1's independent review of dad939e9 (findings 1, 2 and 5-7), from its reviewer's probes S1-S9: only a 4xx
+// REFUSAL is an answer that frees a lease; a 5xx, a 409 whose domain cannot then be read, and a VM that names no
+// deployment are all UNKNOWN, and unknown holds.
+const empty = { "GET /vms": async () => ({ status: 200, body: [] }) };
+const HV = "hv" + "7".repeat(32);
+const orphan = { id: "orphan-1234", name: null, unattributed: true, recovered: true, status: "starting" };
+const posts = (m) => m.seen.filter((x) => x.method === "POST" || x.method === "DELETE");
+
+test("a 5xx is UNAVAILABLE and a 4xx a REFUSAL", async () => {
+  for (const [status, kind] of [[503, "unavailable"], [500, "unavailable"], [400, "refused"], [422, "refused"]]) {
+    const m = manager({ routes: { [`GET /vms/${HV}`]: async () => ({ status, body: { error: "x" } }) } });
+    await assert.rejects(() => client(m).get(HV), (e) => e instanceof IsolationError && e.kind === kind, `${status}`);
+  }
+});
+
+test("a spawn the manager could not answer (5xx) HOLDS: nothing is known, so nothing is freed", async () => {
+  const m = manager({ routes: { ...empty, "POST /vms": async () => ({ status: 503, body: { error: "inventory_unavailable" } }) } });
+  const led = noRelease();
+  const r = await reconcile({ client: client(m), deployment: { id: DEP, body: supervisorBody() }, ledger: led, ...fast });
+  assert.equal(r.action, "held", r.reason); assert.equal(r.leaseFree, false); assert.deepEqual(led.released, []);
+});
+
+test("a 409 whose named domain cannot then be read (5xx, or gone) HOLDS: the manager said one IS live", async () => {
+  for (const read of [{ status: 503, body: { error: "inventory_unavailable" } }, { status: 404, body: { error: "not_found" } }]) {
+    const m = manager({ routes: { ...empty, "POST /vms": async () => ({ status: 409, body: { error: "already live", id: HV } }),
+                                  [`GET /vms/${HV}`]: async () => read } });
+    const r = await reconcile({ client: client(m), deployment: { id: DEP, body: supervisorBody() }, ledger: noRelease(), ...fast });
+    assert.equal(r.action, "held", `${read.status}: ${r.reason}`); assert.equal(r.leaseFree, false);
+  }
+});
+
+test("a 409 naming a RECOVERED domain holds at the adoption read, without polling it", async () => {
+  const m = manager({ routes: { ...empty, "POST /vms": async () => ({ status: 409, body: { error: "already live", id: HV } }),
+                                [`GET /vms/${HV}`]: async () => ({ status: 200, body: view({ id: HV, recovered: true }) }) } });
+  const r = await reconcile({ client: client(m), deployment: { id: DEP, body: supervisorBody() }, ledger: noRelease(), ...fast });
+  assert.equal(r.action, "held"); assert.equal(r.leaseFree, false);
+  assert.equal(m.seen.filter((x) => x.path === `/vms/${HV}`).length, 1, "one adoption read, no readiness polls");
+});
+
+test("a 4xx REFUSAL on spawn is still an answer: the lease is freed with the manager's reason", async () => {
+  const m = manager({ routes: { ...empty, "POST /vms": async () => ({ status: 400, body: { error: "derive record refused" } }) } });
+  const r = await reconcile({ client: client(m), deployment: { id: DEP, body: supervisorBody() }, ledger: noRelease(), ...fast });
+  assert.equal(r.action, "failed"); assert.equal(r.leaseFree, true); assert.match(r.reason, /derive record refused/);
+});
+
+test("a VM that names no deployment makes a name miss UNKNOWN: reconcile holds, retire by name releases nothing", async () => {
+  const m = manager({ routes: { "GET /vms": async () => ({ status: 200, body: [orphan] }) } });
+  await assert.rejects(() => client(m).findByName(DEP), (e) => e.kind === "unavailable" && /orphan-1234/.test(e.message));
+  const r = await reconcile({ client: client(m), deployment: { id: DEP, body: supervisorBody() }, ledger: noRelease(), ...fast });
+  assert.equal(r.action, "held"); assert.deepEqual(posts(m), [], "no second domain started");
+  const led = noRelease();
+  const rr = await retire({ client: client(m), deployment: { id: DEP }, ledger: led });
+  assert.equal(rr.removed, false); assert.equal(rr.leaseFree, false); assert.deepEqual(led.released, []);
+});
+
+test("an UNATTRIBUTED row makes a miss unknown even when it is not marked recovered", async () => {
+  const m = manager({ routes: { "GET /vms": async () => ({ status: 200, body: [{ id: "orphan-9", name: null, unattributed: true, status: "starting" }] }) } });
+  await assert.rejects(() => client(m).findByName(DEP), (e) => e.kind === "unavailable");
+});
+
+test("a domain found by name is returned even beside one that names no deployment", async () => {
+  const m = manager({ routes: { "GET /vms": async () => ({ status: 200, body: [orphan, view({ id: HV })] }) } });
+  assert.equal((await client(m).findByName(DEP)).id, HV);
+});
+
+test("a recovered domain is never serving, whatever status it shows", () => {
+  assert.equal(instanceServing({ status: "running", recovered: true }), false);
+  assert.equal(instanceServing({ status: "running", recovered: false }), true);
+});
+
+// enclave-d1's re-review of d626da4e: finding 4 (P2) and the unpinned recovered-with-no-name clause (C4)
+test("a 409 whose adoption read answers ANY other failure (a 410 here) HOLDS: the manager said a domain is live", async () => {
+  const m = manager({ routes: { ...empty, "POST /vms": async () => ({ status: 409, body: { error: "already live", id: HV } }),
+                                [`GET /vms/${HV}`]: async () => ({ status: 410, body: { error: "gone?" } }) } });
+  const r = await reconcile({ client: client(m), deployment: { id: DEP, body: supervisorBody() }, ledger: noRelease(), ...fast });
+  assert.equal(r.action, "held", r.reason); assert.equal(r.leaseFree, false);
+});
+
+test("a RECOVERED row with no name makes a miss unknown even without the unattributed flag", async () => {
+  const m = manager({ routes: { "GET /vms": async () => ({ status: 200, body: [{ id: "hvX", name: null, recovered: true, status: "starting" }] }) } });
+  await assert.rejects(() => client(m).findByName(DEP), (e) => e.kind === "unavailable");
 });
