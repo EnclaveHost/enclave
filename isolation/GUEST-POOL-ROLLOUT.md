@@ -239,6 +239,12 @@ services). One step, in this order (enclave-5d's correction of 14ccc893).**
     - (ii) 4d happens only while EVERY deployment leased on metal-iso0 is listed, AND the claim gate refuses to claim
       an unlisted deployment onto a box that launches only 4a images, so none arrives afterwards.
   - Neither may fall back to booting the new front without its release.
+  - RECOMMENDED: (i) (enclave-d1, and this plan). It turns an unlisted deployment from a bounded outage into no change
+    at all, and it keeps the allowlist the ONLY place where the owner's release decision lives. (ii) couples every
+    lease on the box to the list, and needs a second gate in the claim path.
+  - Either way, guestd's Start should fail fast when the unit dies: check liveness while waiting for "DOM serving". In
+    release mode the boot wait is 10 minutes (21b41ff6 main.go:399), so a guest that failed closed would otherwise
+    hold its pool room that long, and on a tight B that refuses healthy claims.
 - 4e. Relaunch the canaries ONE AT A TIME. Each boots THROUGH a release carrying null config and no secrets: the first
   end-to-end test of the chain, with nothing sensitive in it.
   - What changes: the measurement and the transport key (a new guest).
