@@ -27,7 +27,7 @@ static FakeGraph *capture() { FakeGraph *p = new FakeGraph{++created}; ++live; r
 
 static void limits() {
     size_t out = 77;
-    assert(sh_graph_cache_limit(nullptr, &out) && out == 256);
+    assert(sh_graph_cache_limit(nullptr, &out) && out == 1024);   // raised from 256 for the 27B (268048f8)
     assert(sh_graph_cache_limit("1", &out) && out == 1);
     assert(sh_graph_cache_limit("4096", &out) && out == 4096);
     for (const char *bad : {"", "0", "00", "01", "-1", "+1", " 2", "2 ", "1.0", "NaN", "inf", "4097", "999999999999999999999999"}) {

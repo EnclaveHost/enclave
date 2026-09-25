@@ -29,7 +29,7 @@ test('balanced mint files retain original PRF groups and scalar products when th
       '-c', join(gg, 'shielded-simd.c'), '-o', fast], {timeout: 20_000});
     execFileSync('cc', [...flags, join(root, 'test/fixtures/shielded-mint-balanced-files.c'),
       ...['shielded-tee.c', 'shielded-field.c', 'shielded-wire.c', 'shielded-pads.c', 'shielded-bank.c',
-        'shielded-http.c', 'tweetnacl.c', 'poly1305-donna.c'].map(f => join(gg, f)), simd, fast,
+        'shielded-http.c', 'shielded-parwork.c', 'tweetnacl.c', 'poly1305-donna.c'].map(f => join(gg, f)), simd, fast,
       '-Wl,--wrap=pthread_create', '-Wl,--gc-sections', '-pthread', '-lm', '-o', bin], {timeout: 30_000});
     execFileSync(bin, [dir], {timeout: 10_000,
       env: Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('SHIELDED_')))});

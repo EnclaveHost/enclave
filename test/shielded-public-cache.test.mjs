@@ -32,7 +32,7 @@ test('protected C client negotiates safely, refuses malformed replies and skips 
   run('cc',[...flags,...(process.arch==='arm64'?['-march=armv8.2-a+dotprod','-DSH_SIMD_NEON']:
    ['-mavx512f','-mavx512bw','-mavx512dq','-mavx512vl','-mavx512vnni','-DSH_SIMD_AVX512']),
    '-c',join(gg,'shielded-simd.c'),'-o',fast]);
-  const core=['shielded-field.c','shielded-pads.c','shielded-bank.c','shielded-http.c','tweetnacl.c','poly1305-donna.c'];
+  const core=['shielded-field.c','shielded-parwork.c','shielded-pads.c','shielded-bank.c','shielded-http.c','tweetnacl.c','poly1305-donna.c'];
   run('cc',[...flags,'-std=c11',join(root,'test/fixtures/shielded-public-cache-client.c'),
    ...core.map(x=>join(gg,x)),simd,fast,'-Wl,--gc-sections','-pthread','-lm','-o',bin]);
   assert.match(run(bin,[]),/public-cache-client:.*PASS/);
