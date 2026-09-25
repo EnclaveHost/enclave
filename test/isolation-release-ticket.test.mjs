@@ -53,7 +53,7 @@ const withSecrets = { hasSecrets: true };
 const unknownSecrets = { hasSecrets: null };
 
 test("config and secrets are claimable only for a RELEASE GUEST: guestd -release, the operator's opt-in AND the relay's list", async () => {
-  const L = { listed: true }, U = { listed: false };
+  const L = { listed: "listed" }, U = { listed: "unlisted" };
   const cases = [
     [guestd(true), { ...withConfig, ...L }], [guestd(true), { ...withSecrets, ...L }], [guestd(true), { ...unknownSecrets, ...L }],
     [guestd(true), { appConfigCid: "bafyx", ...L }],
@@ -69,6 +69,10 @@ test("config and secrets are claimable only for a RELEASE GUEST: guestd -release
   assert.match(on.verdicts[6], /carries app config/, "a guestd without -release: refused");
   assert.match(on.verdicts[7], /staged secrets/);
   for (const v of off.verdicts) assert.ok(v, "no opt-in: every one refused");
+  // a list the relay could not answer is never read as unlisted: the claim waits (enclave-99's M1)
+  const unknown = await run({ ISOLATION_BACKEND: TIER, ISOLATION_RELEASE: "1", ISOLATION_SELFTEST: JSON.stringify({ verdicts: [
+    dep(guestd(true), { listed: "unknown" }), dep({ ...guestd(true), supports: { ...guestd(true).supports, legacyImage: true } }, { listed: "unknown" }) ] }) });
+  for (const v of unknown.verdicts) assert.match(v, /could not be read/);
   // what the release does not change: GPU, private, waf and volumes are still refused
   const still = await run({ ISOLATION_BACKEND: TIER, ISOLATION_RELEASE: "1", ISOLATION_SELFTEST: JSON.stringify({ verdicts: [
     dep(guestd(true), { gpuMilli: 250, ...L }), dep(guestd(true), { isPublic: false, ...L }), dep(guestd(true), { waf: { rate: 5 }, ...L }),
@@ -79,39 +83,79 @@ test("config and secrets are claimable only for a RELEASE GUEST: guestd -release
 test("a deployment that is not a release guest runs on a -release box only if its guestd has the legacy image", async () => {
   const legacy = (has) => ({ ...guestd(true), supports: { ...guestd(true).supports, legacyImage: has } });
   const r = await run({ ISOLATION_BACKEND: TIER, ISOLATION_RELEASE: "1", ISOLATION_SELFTEST: JSON.stringify({ verdicts: [
-    dep(legacy(true), { listed: false }),      // unlisted, no config: the legacy image, unchanged
-    dep(legacy(false), { listed: false }),     // unlisted and no legacy image: this box's front would not start it
-    dep(legacy(false), { listed: true }),      // listed: a release guest, no legacy image needed
-    dep(guestd(false), { listed: false }),     // a guestd without -release: the old path, unchanged
+    dep(legacy(true), { listed: "unlisted" }),   // unlisted, no config: the legacy image, unchanged
+    dep(legacy(false), { listed: "unlisted" }),  // unlisted and no legacy image: this box's front would not start it
+    dep(legacy(false), { listed: "listed" }),    // listed: a release guest, no legacy image needed
+    dep(guestd(false), { listed: "unlisted" }),  // a guestd without -release: the old path, unchanged
   ] }) });
   assert.deepEqual([r.verdicts[0], r.verdicts[2], r.verdicts[3]], [null, null, null]);
   assert.match(r.verdicts[1], /no legacy image/);
   // without the box's opt-in nothing is a release guest, so a -release guestd needs its legacy image for everyone
-  const off = await run({ ISOLATION_BACKEND: TIER, ISOLATION_SELFTEST: JSON.stringify({ verdicts: [dep(legacy(false), { listed: true })] }) });
+  const off = await run({ ISOLATION_BACKEND: TIER, ISOLATION_SELFTEST: JSON.stringify({ verdicts: [dep(legacy(false), { listed: "listed" })] }) });
   assert.match(off.verdicts[0], /no legacy image/);
 });
 
-test("the relay's list is read as {id, listed: true} and nothing else", async () => {
-  const listedIds = new Set(["0x" + "11".repeat(32)]);
+// a relay that answers release-status the way 99's does (security/attested-release 1ed256cc): the id LOWERCASED
+async function statusRelay(answers) {
   const server = http.createServer((req, res) => {
     const u = new URL(req.url, "http://x");
     const id = u.searchParams.get("id");
     res.setHeader("content-type", "application/json");
-    if (u.pathname !== "/v1/secrets/release-status") { res.statusCode = 404; res.end("{}"); return; }
-    if (id === "0x" + "33".repeat(32)) { res.statusCode = 503; res.end(JSON.stringify({ error: "release_unconfigured" })); return; }
-    if (id === "0x" + "44".repeat(32)) { res.end(JSON.stringify({ id: "0x" + "11".repeat(32), listed: true })); return; } // another id's answer
-    if (id === "0x" + "55".repeat(32)) { res.end(JSON.stringify({ id, listed: "yes" })); return; }
-    res.end(JSON.stringify({ id, listed: listedIds.has(id) }));
+    const a = u.pathname === "/v1/secrets/release-status" ? answers(id) : { code: 404, body: {} };
+    res.statusCode = a.code || 200;
+    res.end(JSON.stringify(a.body));
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  return { url: `http://127.0.0.1:${server.address().port}`, close: () => server.close() };
+}
+const hexId = (b) => "0x" + b.repeat(32);
+
+test("the relay's list has THREE answers, and only a clear one is listed or unlisted", async () => {
+  const listedIds = new Set([hexId("ab"), hexId("11")]);
+  const relay = await statusRelay((id) => {
+    if (id !== id.toLowerCase()) return { code: 422, body: { error: "bad_id" } };   // the real relay lowercases; a client must send lowercase to match
+    switch (id) {
+      case hexId("33"): return { code: 503, body: { error: "release_off" } };
+      case hexId("34"): return { code: 503, body: { error: "busy" } };
+      case hexId("35"): return { code: 429, body: { error: "rate_limited" } };
+      case hexId("44"): return { body: { id: hexId("11"), listed: true } };          // another id's answer
+      case hexId("55"): return { body: { id, listed: "yes" } };
+      default: return { body: { id, listed: listedIds.has(id) } };
+    }
+  });
   try {
-    const ids = ["11", "22", "33", "44", "55"].map((b) => "0x" + b.repeat(32));
-    const r = await run({ SECRETS_API: `http://127.0.0.1:${server.address().port}`, ISOLATION_BACKEND: TIER,
-      RELEASE_SELFTEST: JSON.stringify({ listed: [ids[0].toUpperCase().replace("0X", "0x"), ...ids.slice(1)] }) });
-    assert.deepEqual(r.listed, [true, false, false, false, false], "listed / unlisted / relay 503 / another id's answer / not a boolean");
-    const down = await run({ SECRETS_API: "http://127.0.0.1:9", ISOLATION_BACKEND: TIER, RELEASE_SELFTEST: JSON.stringify({ listed: [ids[0]] }) });
-    assert.deepEqual(down.listed, [false], "an unreachable relay lists nothing");
-  } finally { server.close(); }
+    const ids = [hexId("AB").replace("0X", "0x"), hexId("22"), hexId("33"), hexId("34"), hexId("35"), hexId("44"), hexId("55")];
+    const r = await run({ SECRETS_API: relay.url, ISOLATION_BACKEND: TIER, RELEASE_SELFTEST: JSON.stringify({ listed: ids }) });
+    assert.deepEqual(r.listed, ["listed", "unlisted", "unlisted", "unknown", "unknown", "unknown", "unknown"],
+      "mixed-case listed / listed:false / release_off / another 503 / 429 / another id's answer / not a boolean");
+    const down = await run({ SECRETS_API: "http://127.0.0.1:9", ISOLATION_BACKEND: TIER, RELEASE_SELFTEST: JSON.stringify({ listed: [hexId("11")] }) });
+    assert.deepEqual(down.listed, ["unknown"], "an unreachable relay is unknown, never unlisted");
+  } finally { relay.close(); }
+});
+
+test("the spawn's decision: a listed deployment is a release guest, an unknown list THROWS, never the legacy image", async () => {
+  const relay = await statusRelay((id) => id === hexId("35") ? { code: 429, body: {} } : { body: { id, listed: id === hexId("11") } });
+  const on = guestd(true), withLegacy = { ...guestd(true), supports: { ...guestd(true).supports, legacyImage: true } };
+  try {
+    const cases = [
+      { h: on, id: hexId("11"), staged: true, config: '{"k":"$K"}' },   // listed, with config and secrets: a release guest
+      { h: withLegacy, id: hexId("22"), staged: false },                  // unlisted, nothing to deliver: the legacy image
+      { h: withLegacy, id: hexId("22"), staged: false, config: '{"a":1}' },  // unlisted with config: refused
+      { h: withLegacy, id: hexId("22"), staged: null },                   // unlisted, secrets unknown: refused
+      { h: withLegacy, id: hexId("35"), staged: false },                  // the relay could not answer: throws, retried
+      { h: guestd(false), id: hexId("11"), staged: false },               // guestd without -release: the old path
+    ];
+    const r = await run({ SECRETS_API: relay.url, ISOLATION_BACKEND: TIER, ISOLATION_RELEASE: "1", RELEASE_SELFTEST: JSON.stringify({ spawn: cases }) });
+    assert.deepEqual(r.spawn[0], { released: true });
+    assert.deepEqual(r.spawn[1], { released: false });
+    assert.match(r.spawn[2].error, /config or secrets .*not listed/);
+    assert.match(r.spawn[3].error, /config or secrets/);
+    assert.match(r.spawn[4].error, /could not be read .*rather than launching it on the legacy image/);
+    assert.deepEqual(r.spawn[5], { released: false });
+    // without the box's opt-in nothing is a release guest, and the list is not even asked
+    const off = await run({ SECRETS_API: "http://127.0.0.1:9", ISOLATION_BACKEND: TIER, RELEASE_SELFTEST: JSON.stringify({ spawn: [cases[1]] }) });
+    assert.deepEqual(off.spawn[0], { released: false });
+  } finally { relay.close(); }
 });
 
 // ---- the ticket pump, against a scripted guestd and a fake relay ----
@@ -124,6 +168,9 @@ async function fakeRelay(opts = {}) {
     req.on("data", (c) => (body += c));
     req.on("end", async () => {
       const b = JSON.parse(body || "{}");
+      if (!/^https?:\/\//.test(String(b.endpoint || ""))) {   // the real relay: 422 bad_endpoint
+        res.statusCode = 422; res.setHeader("content-type", "application/json"); res.end(JSON.stringify({ error: "bad_endpoint" })); seen.push({ bad: true }); return;
+      }
       const msg = `enclave-secrets-release-ticket:${b.id}:${b.endpoint}:${b.ts}`;
       let signer = null;
       try { signer = await recoverMessageAddress({ message: msg, signature: b.opSig }); } catch { signer = null; }
@@ -143,7 +190,7 @@ const ID = "0x" + "a6".repeat(32);
 const key = generatePrivateKey();
 const operator = privateKeyToAccount(key).address;
 const pump = (relay, c, env = {}) => run({ SECRETS_API: relay.url, REGISTRY_PRIVATE_KEY: key, ISOLATION_BACKEND: TIER,
-  RELEASE_SELFTEST: JSON.stringify({ id: ID, vmId: "gd01020304", endpoint: "iso0.example:443", ...c }), ...env });
+  RELEASE_SELFTEST: JSON.stringify({ id: ID, vmId: "gd01020304", endpoint: "https://iso0.example", ...c }), ...env });
 const starting = { status: "starting" }, awaiting = { status: "starting", awaitingTicket: true };
 
 test("the ticket is fetched only once the guest awaits it, signed by this endpoint's operator, and handed to guestd", async () => {
@@ -155,7 +202,7 @@ test("the ticket is fetched only once the guest awaits it, signed by this endpoi
     const s = relay.seen[0];
     assert.equal(s.path, "/v1/secrets/release-ticket");
     assert.equal(s.id, ID);
-    assert.equal(s.endpoint, "iso0.example:443");
+    assert.equal(s.endpoint, "https://iso0.example");
     assert.equal(s.signer, operator, "signed over exactly the contract's text, by the operator key");
     assert.ok(s.fresh);
     // handed after the THIRD answer, the first that said awaitingTicket: never while the guest was merely starting
@@ -207,12 +254,12 @@ test("a malformed ticket is never handed on, and without an operator key nothing
   } finally { relay.close(); }
 });
 
-test("guestd refusing the ticket (already pending) is logged, and the pump does not loop on the relay", async () => {
+test("guestd refusing the ticket (already pending, or taken) counts as handed: one fetch, however short the retry", async () => {
   const relay = await fakeRelay();
   try {
-    const r = await pump(relay, { script: [awaiting, awaiting, { status: "running" }], post: 409, retryMs: 100000 });
+    const r = await pump(relay, { script: [awaiting, awaiting, awaiting, awaiting, { status: "running" }], post: 409, retryMs: 1 });
     assert.equal(r.result, "running");
-    assert.equal(relay.seen.length, 1, "one fetch, then the retry waits out retryMs");
+    assert.equal(relay.seen.length, 1, "a 409 means guestd holds or gave out a ticket: no second fetch");
     assert.ok(r.logs.some((l) => /did not take the release ticket .*HTTP 409/.test(l)));
   } finally { relay.close(); }
 });

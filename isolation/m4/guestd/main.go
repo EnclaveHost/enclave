@@ -400,6 +400,14 @@ func main() {
 		log.Printf("data plane (enclave-splice/1) on %s: ciphertext only, admitted per verified instance identity", dl.Addr())
 		go func() { log.Fatal(s.Data.Serve(dl)) }()
 	}
+	// This tree's guest front starts a DEPLOYMENT's app only after the attested release (m2/front/provision.go). A guestd
+	// from this tree without -release would launch deployment guests that wait for a ticket nobody serves and then
+	// power off, so it refuses to start instead (enclave-99's L5). Run it with -release, and -legacy-isolation for the
+	// deployments that are not release guests.
+	if !*releaseOn {
+		log.Fatal("this guestd's guest image needs the attested release for every deployment guest: run it with -release " +
+			"(and -legacy-isolation <previous isolation/ tree> for deployments the relay does not list)")
+	}
 	if *releaseOn {
 		// The attested release (release.go): tickets to the ONE guest guestd launched for each deployment, and egress
 		// to the origins that guest's own allowlist names. Both listen on vsock, where the peer's CID - set by this
