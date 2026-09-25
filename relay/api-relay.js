@@ -527,7 +527,7 @@ async function readRegistry() {
   // A tunnel box that SELLS registers on-chain under its public relay-routed
   // URL, and every lease it claims records keccak(that URL) as `runner`. Stamp
   // the tunnel row with that id so runner matching — ledgerStatus's "running",
-  // runnerEndpointOf's routing, enclaveNameOf's label — recognizes the box
+  // tenantRoute's routing, enclaveNameOf's label — recognizes the box
   // (the synthetic tunnel:<name> id matched nothing and left hosted rows stuck
   // on "claimed"). Never-registered dev tunnels keep the synthetic id. A
   // discovered twin of the same id is dropped: the tunnel is the working route
@@ -1235,16 +1235,19 @@ const sticky = () => {
 // ages out (found 2026-07-28, right after a metal0 -> kryptos -> metal0 move).
 // Reading the ledger first costs nothing a request didn't already pay:
 // ledgerRows() is itself cached (LEDGER_TTL_MS), so this is an in-memory scan,
-// and runnerEndpointOf declines anything the chain can't answer for (unleased,
-// ambiguous prefix, non-ledger dep_ id) — which is exactly when the cache and
-// then the probe should get their turn.
+// and for an on-chain id tenantRoute's ledger answer is FINAL (U7): unleased,
+// ambiguous, unreachable or ineligible REFUSES. Only an id the ledger cannot
+// speak for (a non-ledger dep_ id) gets the cache and the probe, over eligible
+// rows only.
 const OWNER = new Map();                                     // dep id -> { endpoint, at }
 const OWNER_TTL_MS = 5 * 60_000;
 const OWNER_NEG = new Map();                                 // dep id -> at (miss, short-lived; fix 2)
 const OWNER_NEG_TTL_MS = 10_000;
 const ownerCached = (id) => {
   const hit = OWNER.get(id);
-  return (hit && Date.now() - hit.at < OWNER_TTL_MS && live.some((e) => e.endpoint === hit.endpoint))
+  // U7: a cached owner is an answer about WHERE, never permission to route. It is used only while its row is live AND
+  // eligible right now, so a host that loses eligibility stops receiving the cached tenant at once.
+  return (hit && Date.now() - hit.at < OWNER_TTL_MS && live.some((e) => e.endpoint === hit.endpoint && computeEligible(e)))
     ? hit.endpoint : null;
 };
 const ownerNegRecent = (id) => { const at = OWNER_NEG.get(id); return at != null && Date.now() - at < OWNER_NEG_TTL_MS; };
@@ -1263,75 +1266,95 @@ async function probe(url, init) {
   try { return await fetch(url, { ...init, signal: ctrl.signal }); }
   catch { return null; } finally { clearTimeout(t); }
 }
-// SECURITY (fix 1c / B3): prefer the deployment's ON-CHAIN runner (the enclave
-// that actually claimed the lease) over "first endpoint answering non-404", so
-// a hostile enclave can't hijack another tenant's /x traffic by answering for
-// its id. Returns the runner's endpoint only when it's a known, in-fleet enclave
-// (which is already https-/operator-filtered); null (=> probe fallback) on any
-// uncertainty, so a valid deployment never becomes unroutable.
-async function runnerEndpointOf(id) {
-  const h = String(id).toLowerCase();
-  if (!/^0x[0-9a-f]{8,64}$/.test(h)) return null;           // dep_/non-onchain ids: probe path
-  let rows; try { rows = await ledgerRows(); } catch { return null; }
+// ---- U7: tenant traffic goes ONLY to a host the relay holds ELIGIBLE -------------------------------------------------
+// computeEligible (the evidence rule placement already uses) now also governs ROUTING. The ledger says WHO holds a
+// deployment's lease; it never makes that holder eligible. So for an on-chain id the ledger's live-lease holder is the
+// ONLY candidate: it must be a live row and eligible, or the request is REFUSED with the reason. Unknown, ambiguous,
+// unleased, unreachable or ineligible answers never fall back to the owner cache or the fan-out probe as authorization.
+// Ids the ledger cannot speak for (non-ledger dep_ ids, or a relay run without a ledger) keep the cache and probe, over
+// ELIGIBLE rows only.
+const LEDGER_ID_RE = /^0x[0-9a-f]{8,64}$/;
+const deny = (status, error, message) => ({ endpoint: null, status, error, message });
+// A miss forces at most ONE fresh ledger read per LEDGER_FRESH_COOLDOWN_MS relay-wide, so random ids (any path, the
+// WebSocket upgrade included, which has no per-client miss limit) cannot turn a miss into a ledger reload each.
+const LEDGER_FRESH_COOLDOWN_MS = 5_000;
+let _ledgerFreshAt = 0;
+async function ledgerLeaseOf(h, fresh) {
+  if (fresh && Date.now() - _ledgerFreshAt >= LEDGER_FRESH_COOLDOWN_MS) { _ledgerFreshAt = Date.now(); _ledger.at = 0; }
+  let rows; try { rows = await ledgerRows(); } catch (e) { return { error: e }; }
   const hits = rows.filter((d) => String(d.id).toLowerCase().startsWith(h));
-  if (hits.length !== 1) return null;                       // unknown/ambiguous -> fall back
+  if (hits.length > 1) return { ambiguous: true };
+  if (!hits.length) return { none: true };
   const d = hits[0];
-  if (ZERO32.test(String(d.runner)) || Number(d.leaseUntil) * 1000 <= Date.now()) return null;
-  const runner = String(d.runner).toLowerCase();
-  const e = live.find((x) => x.id && x.id.toLowerCase() === runner);
-  return e ? e.endpoint : null;
+  if (ZERO32.test(String(d.runner)) || Number(d.leaseUntil) * 1000 <= Date.now()) return { unleased: true, row: d };
+  return { row: d, runner: String(d.runner).toLowerCase() };
 }
-// SECURITY: an app subdomain is a deployment id PREFIX — canonically the first
-// 8 hex chars, which is 32 bits. Ids are keccak256(creator, nonce), so a
-// collision is not a birthday accident to wave off: an attacker grinds
-// candidate creator addresses OFFLINE until one's next id shares a victim's
-// prefix (seconds of hashing, no gas), then creates that one deployment. Both
-// records then answer to <prefix>.<APP_DOMAIN>. runnerEndpointOf already
-// declines an ambiguous prefix, but declining used to mean "fall back to the
-// fan-out probe", and the probe takes the FIRST enclave that answers — so the
-// ground twin could win the victim's subdomain and be cached as its owner for
-// five minutes. A prefix the LEDGER says names two deployments names neither:
-// refuse it outright rather than let a race pick.
-async function prefixAmbiguous(id) {
+async function tenantRoute(id, { auth = null } = {}) {
   const h = String(id).toLowerCase();
-  if (!/^0x[0-9a-f]{8,63}$/.test(h)) return false;          // full id or non-ledger shape: nothing to confuse
-  let rows; try { rows = await ledgerRows(); } catch { return false; }
-  return rows.filter((d) => String(d.id).toLowerCase().startsWith(h)).length > 1;
-}
-async function xOwnerOf(id) {                                // data-path resolve (no auth needed)
-  const byRunner = await runnerEndpointOf(id);              // fix 1c: on-chain claimer wins
-  if (byRunner) { ownerLearn(id, byRunner); return byRunner; }
-  const hit = ownerCached(id); if (hit) return hit;
-  if (await prefixAmbiguous(id)) return null;
-  if (ownerNegRecent(id)) return null;                      // recent miss: don't re-fan-out (fix 2)
-  if (!fanoutReserve(live.length)) return null;             // global fan-out cap (fix 2)
+  if (LEDGER_ID_RE.test(h) && DEPLOYMENTS_ADDRESS) {
+    let l = await ledgerLeaseOf(h, false);
+    if (l.none || l.unleased) l = await ledgerLeaseOf(h, true);           // a just-created or just-claimed row: one fresh read
+    if (l.error) return deny(503, "ledger_unavailable", `The ledger could not be read, so ${id} is not routed (no fallback).`);
+    // An app subdomain is an 8-hex id PREFIX (32 bits of keccak256(creator, nonce)): a twin is ground offline in seconds
+    // and created in one transaction. A prefix the ledger says names two deployments names NEITHER; no race may pick.
+    if (l.ambiguous) return deny(404, "ambiguous", `${id} names more than one deployment on the ledger: it routes nowhere.`);
+    if (l.none) return deny(404, "not_found", `No deployment ${id} on the ledger.`);
+    if (l.unleased) return deny(404, "not_running", `${id} has no live lease: no host runs it.`);
+    const row = live.find((x) => x.id && x.id.toLowerCase() === l.runner);
+    if (!row) return deny(503, "runner_unreachable", `The host holding ${id}'s lease is not attached to this relay right now.`);
+    if (!computeEligible(row)) return deny(503, "host_ineligible", `The host holding ${id}'s lease is not eligible to serve tenant apps: ${ineligibleReason(row)}.`);
+    ownerLearn(h, row.endpoint);
+    return { endpoint: row.endpoint };
+  }
+  // no ledger answer is possible for this id: the cache, then the probe, over ELIGIBLE rows only
+  const hit = ownerCached(h); if (hit) return { endpoint: hit };
+  const pool = live.filter((e) => !e.relay && computeEligible(e));
+  if (!pool.length) return deny(503, "no_eligible_host", "No eligible host is serving tenant apps right now.");
   let ep = null;
-  try {
-    const found = await Promise.all(live.map(async (e) =>
-      (r => r && r.status !== 404 ? e.endpoint : null)(await probe(`${e.endpoint}/x/${encodeURIComponent(id)}`, { method: "HEAD" }))));
-    ep = found.find(Boolean) || null;
-  } finally { fanoutRelease(live.length); }
-  if (ep) ownerLearn(id, ep); else OWNER_NEG.set(id, Date.now());
-  return ep;
-}
-async function v1OwnerOf(id, auth) {                         // control-plane probe (caller's token)
-  const byRunner = await runnerEndpointOf(id);              // fix 1c: on-chain claimer wins
-  if (byRunner) { ownerLearn(id, byRunner); return byRunner; }
-  const hit = ownerCached(id); if (hit) return hit;
-  if (await prefixAmbiguous(id)) return null;               // a prefix naming two deployments names neither
-  let ep = null;
-  if (fanoutReserve(live.length)) {
+  if (auth && fanoutReserve(pool.length)) {
     try {
-      const found = await Promise.all(live.map(async (e) => {
-        const r = await probe(`${e.endpoint}/v1/deployments/${encodeURIComponent(id)}`,
-                              { headers: auth ? { Authorization: auth, Accept: "application/json" } : { Accept: "application/json" } });
+      const found = await Promise.all(pool.map(async (e) => {
+        const r = await probe(`${e.endpoint}/v1/deployments/${encodeURIComponent(h)}`, { headers: { Authorization: auth, Accept: "application/json" } });
         return r && r.status === 200 ? e.endpoint : null;
       }));
       ep = found.find(Boolean) || null;
-    } finally { fanoutRelease(live.length); }
+    } finally { fanoutRelease(pool.length); }
   }
-  if (ep) ownerLearn(id, ep);
-  return ep || xOwnerOf(id);                                 // fall back to the data-path probe (e.g. expired token)
+  if (!ep && !ownerNegRecent(h) && fanoutReserve(pool.length)) {
+    try {
+      const found = await Promise.all(pool.map(async (e) =>
+        (r => r && r.status !== 404 ? e.endpoint : null)(await probe(`${e.endpoint}/x/${encodeURIComponent(h)}`, { method: "HEAD" }))));
+      ep = found.find(Boolean) || null;
+    } finally { fanoutRelease(pool.length); }
+    if (!ep) OWNER_NEG.set(h, Date.now());
+  }
+  if (!ep) return deny(404, "not_found", `No eligible host has ${id}.`);
+  ownerLearn(h, ep);
+  return { endpoint: ep };
+}
+// Is this endpoint id (keccak256 of a registered endpoint) a host the relay holds eligible right now? For the lease-holder
+// authorizations outside the router (relay/certs.js, relay/secrets.js), handed over in relayCtx. Not live = not eligible.
+function hostEligibility(epId) {
+  const id = String(epId || "").toLowerCase();
+  const row = live.find((x) => x.id && x.id.toLowerCase() === id);
+  if (!row) return { eligible: false, reason: "the host is not attached to this relay right now" };
+  return computeEligible(row) ? { eligible: true, reason: null } : { eligible: false, reason: ineligibleReason(row) };
+}
+// A tunnel box addressed EXPLICITLY (/t/<name>/..., or its own e<hex>.<BOX_ZONE> hostname) carries tenant paths only
+// when the relay holds it eligible: /x/<id>/... (the data plane and its tls/tcp/https bridges) and /v1/deployments/<id>...
+// (a deployment's control plane). Its own surfaces (attestation, availability, health) stay reachable. null = allowed.
+const TUNNEL_TENANT_PATH_RE = /^\/(?:x\/|v1\/deployments\/[^/?]+)/;
+function tunnelTenantRefusal(origin, path) {
+  if (!TUNNEL_TENANT_PATH_RE.test(String(path || ""))) return null;
+  const row = live.find((x) => x.endpoint === origin);
+  if (row && computeEligible(row)) return null;
+  return deny(503, "host_ineligible", `This box is not eligible to serve tenant apps${row ? ": " + ineligibleReason(row) : " (not in the live fleet)"}.`);
+}
+async function xOwnerOf(id) {                                // data-path resolve: the eligible owner, or null
+  return (await tenantRoute(id)).endpoint;
+}
+async function v1OwnerOf(id, auth) {                         // control-plane resolve (the caller's token helps the probe only)
+  return (await tenantRoute(id, { auth })).endpoint;
 }
 
 function readBody(req, max = 262144) {
@@ -1755,8 +1778,9 @@ async function gateway(u, req, res) {
     // rate-limit only the misses (the fan-out probe); cached routes stay fast (fix 2)
     if (!ownerCached(id) && !rlMiss(clientIp(req)))
       return json(res, 429, { error: "rate_limited", message: "Too many deployment lookups; retry shortly.", updatedAt }, req);
-    const owner = dep ? await v1OwnerOf(id, req.headers.authorization) : await xOwnerOf(id);
-    if (!owner) return json(res, 404, { error: "not_found", message: `No live enclave has ${id}.`, updatedAt }, req);
+    const route = await tenantRoute(id, dep ? { auth: req.headers.authorization } : {});
+    if (!route.endpoint) return json(res, route.status, { error: route.error, message: route.message, updatedAt }, req);
+    const owner = route.endpoint;
     // Tenant data path: generous idle window. A model-serving app's first
     // request can sit silent for the length of a session init (e.g. wasi-nn
     // loading a 100MB+ model onto the GPU under CC); 30s cut those off and
@@ -2096,7 +2120,7 @@ const deploymentExists = async (id) => !!(await xOwnerOf(id));
 // they reuse the relay's CORS, raw-body reader and cached ledger reader
 // without circular imports. deploymentsAddress is a thunk because the address
 // book live-updates the binding.
-const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView,
+const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
                    // (rev-8 ledgers carry none of their own)
@@ -2191,8 +2215,9 @@ function handleRequest(req, res) {
                || domainDeployment(routingHost(req));
   if (depHost) {
     if (!ownerCached(depHost) && !rlMiss(clientIp(req))) return json(res, 429, { error: "rate_limited", message: "Too many lookups; retry shortly." });
-    return xOwnerOf(depHost).then((owner) => {
-      if (!owner) return json(res, 404, { error: "not_found", message: "No live enclave has " + depHost + "." });
+    return tenantRoute(depHost).then((route) => {
+      if (!route.endpoint) return json(res, route.status, { error: route.error, message: route.message });
+      const owner = route.endpoint;
       const rest = req.url === "/" ? "/" : req.url;           // preserve path+query under /x/<id>
       // same generous idle window as the /x data path (see gateway()): app
       // subdomains ARE the data path, and long-silent first bytes are real
@@ -2336,6 +2361,8 @@ function handleRequest(req, res) {
     const origin = `tunnel://${boxName}`;
     if (!tunnelHub.origins().some((o) => o.endpoint === origin))
       return json(res, 404, { error: "no_tunnel", message: `No enclave is attached for ${routingHost(req)}.` }, req);
+    const refused = tunnelTenantRefusal(origin, u.pathname);
+    if (refused) return json(res, refused.status, { error: refused.error, message: refused.message }, req);
     return proxyTo(origin, req, res, { path: u.pathname + (u.search || ""), setCors: true });
   }
 
@@ -2349,6 +2376,8 @@ function handleRequest(req, res) {
     const origin = `tunnel://${tm[1]}`;
     if (!tunnelHub.origins().some((o) => o.endpoint === origin))
       return json(res, 404, { error: "no_tunnel", message: `No tunnel enclave named ${tm[1]} is attached.` }, req);
+    const refused = tunnelTenantRefusal(origin, tm[2] || "/");
+    if (refused) return json(res, refused.status, { error: refused.error, message: refused.message }, req);
     return proxyTo(origin, req, res, { path: (tm[2] || "/") + (u.search || ""), setCors: true });
   }
 
@@ -2400,6 +2429,7 @@ server.on("upgrade", async (req, socket, head) => {
     if (tm) {
       const origin = `tunnel://${tm[1]}`;
       if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
+      if (tunnelTenantRefusal(origin, tm[2] || "/")) return refuse(503, "Service Unavailable");
       return tunnelHub.spliceUpgrade(origin, req, socket, head, (tm[2] || "/") + (u.search || ""));
     }
     // …and the same box reached by its own hostname, so a websocket to a box
@@ -2408,6 +2438,7 @@ server.on("upgrade", async (req, socket, head) => {
     if (bn) {
       const origin = `tunnel://${bn}`;
       if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
+      if (tunnelTenantRefusal(origin, u.pathname)) return refuse(503, "Service Unavailable");
       return tunnelHub.spliceUpgrade(origin, req, socket, head, u.pathname + (u.search || ""));
     }
   }
@@ -2416,8 +2447,9 @@ server.on("upgrade", async (req, socket, head) => {
     const x = depHost ? null : (req.url || "").match(X_PATH_RE);
     if (!depHost && !x) return refuse(404, "Not Found");
     const id = await fullDepId(depHost || x[1]);
-    const owner = await xOwnerOf(id);
-    if (!owner) return refuse(404, "Not Found");
+    const route = await tenantRoute(id);
+    if (!route.endpoint) return refuse(route.status, route.status === 503 ? "Service Unavailable" : "Not Found");
+    const owner = route.endpoint;
     const rest = depHost ? (req.url === "/" ? "/" : req.url) : req.url.slice(3 + (x[1].length));  // after "/x/<id>"
     const path = "/x/" + id + rest;
     if (tunnelHub.isTunnel(owner)) return tunnelHub.spliceUpgrade(owner, req, socket, head, path);
