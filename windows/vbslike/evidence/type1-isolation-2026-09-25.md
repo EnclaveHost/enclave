@@ -317,3 +317,52 @@ mistaken pristine-donor premise I offered earlier. The failure is after the stor
 puts the weight on what follows in the worker's startup — memory initialization (the VBS-specific
 step where VTL0 RAM is accepted host-private), the DMA manager, the guest-memory self test, measured
 VTL0 info, and `validate_isolated_configuration` — with no reason yet to prefer one.
+
+---
+
+# THE TYPE-1 FAILURE IS NAMED
+
+From the debug image's kmsg on a live type-1 partition, verbatim:
+
+    [0.126263] underhill_core::worker: ERROR worker_new{ name="UnderhillWorker" action="new"}:
+      failed to start VM error=failed to initialize memory:
+      cannot safely support VTL 1 without using the alias map
+    [120.126490] [U] thread 'worker-UnderhillWorker' (45) panicked at
+      vm/devices/get/guest_emulation_transport/src/client.rs:562:25
+
+**The failure is in MEMORY INITIALIZATION, at 126 ms**, and the panic is exactly 120 s later —
+confirming the 120-second wait-to-be-terminated timer, with the triple fault as its epilogue. It is
+NOT `validate_isolated_configuration`, and not the VMGS: memory initialization is the VBS-specific
+step where VTL0 RAM is accepted host-private, and it is where this stops.
+
+The requirement named is the **VTL alias map**, which this host is not providing for the partition.
+That is a concrete, host-side prerequisite rather than an unexplained refusal, and it is the first
+statement of what type 1 actually needs here.
+
+Supporting lines from the same run, all on the isolated partition:
+
+    Hyper-V: Isolation Config: Group A 0x0, Group B 0x1
+    Command line: ... OPENHCL_CONFIDENTIAL=1 OPENHCL_CONFIDENTIAL_DEBUG=1 ...
+    diag_server: INFO control starting control_address=VmAddress(Address { cid: ffffffff, port: 1 })
+    inspect build_info: scm_branch "main", scm_revision a7b0bd4a653ba1c9192497a9d3669b14e7f3bc58
+    inspect control_state: "starting"          (type 16 answers "started")
+
+## The confound, stated because it is not yet excluded
+
+This came from the DEBUG image, built from openvmm a7b0bd4 with a 6.18.37.5 VTL2 kernel, while the
+stock `cfd40ce2` runs release 2511 with 6.12.52. **The debug flag is not the only difference.** A
+CONTROL image — same a7b0bd4 components, no `--confidential-debug` — is being built to establish
+whether stock fails the same way. Until that runs, this is the named cause of the DEBUG image's
+failure and the strongest available hypothesis for the stock one, not a proven identity.
+
+What is independent of the confound: `control_state` reads `"starting"` and the `vm` node is absent
+on BOTH the stock and the debug type-1 runs, while type 16 reads `"started"` with a full `vm` tree.
+Both images stop before the VM worker finishes starting.
+
+## Also measured: OpenHCL formatted the guest state
+
+The per-run store copy went in as an empty store (`4f051697…`, 4 MiB of zeros plus a VHD footer) and
+came out as `21419cd8…` with **`GUESTRTS` at offset 0** — the v3 header, byte-identical to the one
+seen earlier. So the VM worker opened the store and formatted it. No PROVISIONING_MARKER was written
+(`openhcl` appears nowhere in the file), which is consistent with stopping in memory initialization
+before that marker is written; absence alone proves nothing, but it fits.
