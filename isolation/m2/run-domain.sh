@@ -61,7 +61,9 @@ start)
   # Host-side only: the CID is not part of the launch measurement.
   if [ -n "${GUEST_CID:-}" ]; then
     case "$GUEST_CID" in *[!0-9]*) echo "run-domain.sh: GUEST_CID must be a number" >&2; exit 2 ;; esac
-    [ "$GUEST_CID" -ge 65536 ] && [ "$GUEST_CID" -lt 131072 ] || { echo "run-domain.sh: GUEST_CID must be in 65536-131071" >&2; exit 2; }
+    # 131072-196607 is guestd's own band (m4/guestd/release.go), above the 65536-131071 a launch without GUEST_CID
+    # draws from at random, so the two never collide
+    [ "$GUEST_CID" -ge 131072 ] && [ "$GUEST_CID" -lt 196608 ] || { echo "run-domain.sh: GUEST_CID must be in 131072-196607 (guestd's band)" >&2; exit 2; }
     cid=$GUEST_CID
   else
     cid=$(( 65536 + $(od -An -N2 -tu2 /dev/urandom) ))

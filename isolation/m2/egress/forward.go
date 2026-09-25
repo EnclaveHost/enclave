@@ -17,6 +17,7 @@ import (
 	"log"
 	"net"
 	"net/netip"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -177,7 +178,7 @@ type Server struct {
 	Dialer *Dialer
 	CIDOf  func(net.Conn) uint32
 	Admit  func(cid uint32) bool // only guests the host's manager launched (guestd admitCID); anything else is refused
-	Log    *log.Logger           // "guest <cid> egress open|refused:<reason>" and nothing else
+	Log    *log.Logger           // "guest <cid> egress open|refused:<reason>", and "egress accept: <errno>" on a transient accept failure
 }
 
 // Serve refuses to start without CIDOf: with no way to tell guests apart, every guest would share ONE set of caps
@@ -194,14 +195,28 @@ func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 		return errors.New("egress server: Admit is required (it serves only the guests the host's manager launched)")
 	}
 	go func() { <-ctx.Done(); l.Close() }()
+	backoff := 5 * time.Millisecond
 	for {
 		c, err := l.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
 			}
-			return err
+			if errors.Is(err, net.ErrClosed) || errors.Is(err, os.ErrClosed) {
+				return err
+			}
+			// EMFILE, ECONNABORTED, ...: transient. Returning would end the host's manager, and with it every guest it
+			// is starting (enclave-99), so wait and accept again. The notice names the error only, never a guest's.
+			if s.Log != nil {
+				s.Log.Printf("egress accept: %v (retrying in %s)", err, backoff)
+			}
+			time.Sleep(backoff)
+			if backoff *= 2; backoff > time.Second {
+				backoff = time.Second
+			}
+			continue
 		}
+		backoff = 5 * time.Millisecond
 		go s.handle(ctx, c)
 	}
 }
