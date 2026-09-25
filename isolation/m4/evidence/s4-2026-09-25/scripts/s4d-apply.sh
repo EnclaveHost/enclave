@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # S4 row 4d, the coordinated activation: guestd -> the reviewed floor merge's binary with -release, the new tree
-# (d1a38994), -legacy-isolation (the LIVE tree, 0181bce3) and Codex's host floor 16384. ONE guestd restart; the node CVM,
+# (ecf02384), -legacy-isolation (the LIVE tree, 0181bce3) and Codex's host floor 16384. ONE guestd restart; the node CVM,
 # its image, the relay, the chain and the budget 65536/16 stay. The live supervisor (c42612c0, ISOLATION_RELEASE unset)
 # never asks for a release, so every new deployment guest is still built from 0181bce3 (5d's hardware check 023b06be:
 # the hookbin canary's AppID and VCEK-signed measurement, reproduced by expected-measurement --pin 5c3561f9).
-# Adoption (source, d1a38994 persist.go adoptOne): the same conditions as c42612c0's; old records lack Release/Legacy,
+# Adoption (source, ecf02384 = d1a38994 for guestd: persist.go adoptOne): the same conditions as c42612c0's; old records lack Release/Legacy,
 # which read false; the canaries' CIDs (65536-131071) sit below guestd's new band (131072-196607).
 # NOT A GO BY ITSELF. Runs only with: the image diff signed off (99/e3, d1), this script reviewed by 99/e3, s4-install.sh
 # and s4-guestd-install.sh done, the legacy check covering THIS guestd, and Codex's go for the activation.
@@ -59,7 +59,7 @@ lines[i]="ExecStart="+" ".join(a)   # every argument is a plain path/flag/number
 assert all(shlex.quote(x)==x for x in a)
 open(p+".new","w").write("\n".join(lines)); os.replace(p+".new",p)
 PY
-T0=$(date -u '+%Y-%m-%d %H:%M:%S UTC'); say4 "4D: daemon-reload + restart (guestd.${BINC:0:8} -release, tree d1a38994, legacy 0181bce3, floor $FLOOR)"
+T0=$(date -u '+%Y-%m-%d %H:%M:%S UTC'); say4 "4D: daemon-reload + restart (guestd.${BINC:0:8} -release, tree ecf02384, legacy 0181bce3, floor $FLOOR)"
 systemctl --user daemon-reload || fail "daemon-reload"
 systemctl --user restart enclave-guestd.service || fail "restart"
 X=$(systemctl --user show enclave-guestd.service -p ExecStart --value)

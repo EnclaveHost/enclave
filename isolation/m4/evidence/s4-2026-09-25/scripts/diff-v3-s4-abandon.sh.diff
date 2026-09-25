@@ -1,0 +1,11 @@
+--- s4-abandon.sh.v2	2026-09-25 12:32:28.593146848 -0700
++++ s4-abandon.sh	2026-09-25 12:37:38.005838421 -0700
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env bash
+-# Abandon a (partial) S4 install while it is still INERT: remove ~/enclave-prod/iso-d1a38994 (git worktree remove under
+-# the shared-checkout flock, never rm -rf, which would leave the worktree registered) and ~/enclave-prod/release-d1a38994.
++# Abandon a (partial) S4 install while it is still INERT: remove ~/enclave-prod/iso-ecf02384 (git worktree remove under
++# the shared-checkout flock, never rm -rf, which would leave the worktree registered) and ~/enclave-prod/release-ecf02384.
+ # Refuses if guestd's ExecStart references either path (4d has run: use s4d-rollback.sh first). The guestd binary
+ # (s4-guestd-install.sh) is a separate file: remove it only with ABANDON_BIN=<its path>, and never the live one.
+ set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/pool-rollout-20260925/s4/lib4.sh
