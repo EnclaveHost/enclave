@@ -117,10 +117,28 @@ AVF phones bridging fake VMs, an eligible app host, and a token tunnel.
 3. **This branch carries about 1,870 files beyond U7** (the pVM lane's tree). Landing any of it on main is a separate
    decision, with its own deploy audit. The approval covers the Pixel regression at this revision only.
 
+## Offline re-verification: PASS (enclave-99, review/pvm-reconnect-reverify @ 7bab430d, docs/security/pvm-reconnect-reverify/)
+- **enclave-53's own checker**, re-run by enclave-99 at each run's own revision in clean worktrees, passes on both runs:
+  results/pvm-cpu-relay-reconnect at 2ff0efcf, and results/pvm-cpu-relay-reconnect-u7 at cb0f4d98.
+- **An INDEPENDENT verifier** (node:crypto and viem only; none of this branch's modules; B written from its definition;
+  the root pins read from main's source). For each run, 10 of 10 owner-co-signed attaches re-verify:
+  - the chain, link by link, to a production Google root, valid at the attach time;
+  - the leaf signature over B;
+  - sha256(B), and the build, in the chain;
+  - the instance key and its signature;
+  - the operator signature over exactly its name and nonce.
+- **Across each run:**
+  - one transport key, and no nonce twice;
+  - one AVF parent for every chain;
+  - R3's wrong and stale signatures are exactly what they claim to be.
+- **Controls:**
+  - tampered copies all fail;
+  - the two runs share no nonce or signature.
+- **Not re-derived by the independent verifier** (the checker covers them): the proof-key statement and checkpoint
+  semantics, the AVF extension's structured fields, and the anvil chain facts.
+
 ## What remains
-- **enclave-99's offline re-verification** of both device runs:
-  - results/pvm-cpu-relay-reconnect (48030dd5, before U7);
-  - results/pvm-cpu-relay-reconnect-u7 (48c6efb3).
+- **A decision on landing any of this on main.** That is separate, with its own deploy audit (rollout note 3).
 - **Not done, and not claimed:**
   - a merge to main, or any deployment;
   - production PVM_SERVING or any production configuration;
