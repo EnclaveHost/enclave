@@ -8,7 +8,6 @@ package egress
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/netip"
 	"sync"
@@ -79,8 +78,8 @@ type Dialer struct {
 	Resolver      Resolver
 	Own           func() []netip.Addr // this host's addresses, read at dial time
 	DialTimeout   time.Duration
-	MaxConcurrent int           // per guest
-	MaxPerMinute  int           // per guest, dials started
+	MaxConcurrent int // per guest
+	MaxPerMinute  int // per guest, dials started
 	dial          func(ctx context.Context, addr string) (net.Conn, error)
 	mu            sync.Mutex
 	active        map[uint32]int
@@ -89,14 +88,64 @@ type Dialer struct {
 
 var ErrRefused = errors.New("egress refused")
 
+// Reason is why a dial was refused or failed: a code from a fixed set, never the destination, an address or the
+// underlying network error. A destination can come from a secret (the owner's config resolves secret values into
+// URLs), so the host's log records only the guest and this code (forward.go).
+type Reason string
+
+const (
+	ReasonPort            Reason = "port"              // not 443
+	ReasonName            Reason = "name"              // not a plain DNS name: an IP literal, a single label, ...
+	ReasonRate            Reason = "rate"              // the guest is over its dial rate
+	ReasonConcurrency     Reason = "concurrency"       // the guest is at its connection limit
+	ReasonResolve         Reason = "resolve"           // the name did not resolve
+	ReasonNonPublicAnswer Reason = "non-public-answer" // an answer is loopback, private, link-local, this host, ...
+	ReasonNonPublicPeer   Reason = "non-public-peer"   // the socket's actual peer is not public
+	ReasonConnect         Reason = "connect"           // no judged address accepted the connection
+	ReasonHeader          Reason = "header"            // (server) a missing or malformed egress-v1 header
+	ReasonInternal        Reason = "internal"          // anything else
+)
+
+// DialError is every error Dial returns. It holds a Reason and nothing else, so no caller can log a destination or
+// a raw network error by printing it.
+type DialError struct {
+	Reason  Reason
+	refused bool // a policy refusal (errors.Is ErrRefused), as opposed to a connection that failed
+}
+
+func (e *DialError) Error() string {
+	if e.refused {
+		return "egress refused: " + string(e.Reason)
+	}
+	return "egress failed: " + string(e.Reason)
+}
+
+func (e *DialError) Unwrap() error {
+	if e.refused {
+		return ErrRefused
+	}
+	return nil
+}
+
+func refused(r Reason) error { return &DialError{Reason: r, refused: true} }
+
+// ReasonOf is the bounded code for any error Dial returned (ReasonInternal for anything else).
+func ReasonOf(err error) Reason {
+	var de *DialError
+	if errors.As(err, &de) {
+		return de.Reason
+	}
+	return ReasonInternal
+}
+
 // Dial opens a TCP connection for guest `cid` to host:443, or refuses. It returns the connection and a release func
 // the caller MUST call when the connection ends (it frees the guest's concurrency slot).
 func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (net.Conn, func(), error) {
 	if port != 443 {
-		return nil, nil, fmt.Errorf("%w: port %d (only 443)", ErrRefused, port)
+		return nil, nil, refused(ReasonPort)
 	}
 	if _, err := ParseOrigin("https://" + host + "/"); err != nil {
-		return nil, nil, fmt.Errorf("%w: %v", ErrRefused, err) // an IP literal, a single label, …: never by name here
+		return nil, nil, refused(ReasonName) // an IP literal, a single label, …: never by name here
 	}
 	release, err := d.take(cid)
 	if err != nil {
@@ -110,7 +159,7 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
 	}()
 	addrs, err := d.Resolver.LookupNetIP(ctx, "ip", host)
 	if err != nil || len(addrs) == 0 {
-		return nil, nil, fmt.Errorf("%w: %s does not resolve", ErrRefused, host)
+		return nil, nil, refused(ReasonResolve)
 	}
 	var own []netip.Addr
 	if d.Own != nil {
@@ -119,8 +168,8 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
 	// every answer must be public: a name that resolves to ANY private address is refused outright, rather than
 	// dialing its public sibling (a rebinding setup mixes the two)
 	for _, a := range addrs {
-		if why := RefuseAddr(a, own); why != "" {
-			return nil, nil, fmt.Errorf("%w: %s resolves to %s", ErrRefused, host, why)
+		if RefuseAddr(a, own) != "" {
+			return nil, nil, refused(ReasonNonPublicAnswer)
 		}
 	}
 	dial := d.dial
@@ -128,23 +177,21 @@ func (d *Dialer) Dial(ctx context.Context, cid uint32, host string, port int) (n
 		nd := &net.Dialer{Timeout: d.timeout()}
 		dial = func(ctx context.Context, addr string) (net.Conn, error) { return nd.DialContext(ctx, "tcp", addr) }
 	}
-	var lastErr error
 	for _, a := range addrs {
 		// dial the JUDGED address itself, never the name again (no second resolution between check and connect)
 		c, err := dial(ctx, netip.AddrPortFrom(a.Unmap(), uint16(port)).String())
 		if err != nil {
-			lastErr = err
-			continue
+			continue // the raw error names the address; it is dropped, not logged (DialError)
 		}
 		// and the address the socket actually reached is judged once more
 		if ra, err := netip.ParseAddrPort(c.RemoteAddr().String()); err != nil || RefuseAddr(ra.Addr(), own) != "" {
 			c.Close()
-			return nil, nil, fmt.Errorf("%w: the connection reached a non-public address", ErrRefused)
+			return nil, nil, refused(ReasonNonPublicPeer)
 		}
 		ok = true
 		return c, release, nil
 	}
-	return nil, nil, fmt.Errorf("could not connect to %s: %v", host, lastErr)
+	return nil, nil, &DialError{Reason: ReasonConnect}
 }
 
 func (d *Dialer) timeout() time.Duration {
@@ -169,10 +216,10 @@ func (d *Dialer) take(cid uint32) (func(), error) {
 	}
 	d.window[cid] = w
 	if d.MaxPerMinute > 0 && len(w) >= d.MaxPerMinute {
-		return nil, fmt.Errorf("%w: guest %d is over its dial rate", ErrRefused, cid)
+		return nil, refused(ReasonRate)
 	}
 	if d.MaxConcurrent > 0 && d.active[cid] >= d.MaxConcurrent {
-		return nil, fmt.Errorf("%w: guest %d is at its connection limit", ErrRefused, cid)
+		return nil, refused(ReasonConcurrency)
 	}
 	d.window[cid] = append(w, now)
 	d.active[cid]++

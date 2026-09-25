@@ -31,10 +31,10 @@ const (
 
 // Forwarder runs one loopback listener per allowed origin.
 type Forwarder struct {
-	Policy *Policy
-	Port   int                      // 443 in a guest; a free port in tests
+	Policy   *Policy
+	Port     int                      // 443 in a guest; a free port in tests
 	Upstream func() (net.Conn, error) // a new stream to the host's egress server (vsock to the host CID in a guest)
-	Logf   func(string, ...any)       // the guest's own log; never a URL or header, only the origin's index and outcome
+	Logf     func(string, ...any)     // the guest's own log; never a URL or header, only the origin's index and outcome
 
 	mu    sync.Mutex
 	ls    []net.Listener
@@ -138,10 +138,17 @@ func (f *Forwarder) logf(format string, a ...any) {
 
 // Server is the host's egress endpoint: one per host, serving every guest; `cidOf` says which guest a stream is
 // from (the vsock peer CID), so the dialer's per-guest caps apply.
+//
+// What the host OBSERVES and what it RECORDS are different things, and both are stated plainly. Forwarding
+// necessarily shows the host each connection's destination hostname (it resolves it, so its DNS resolver sees the
+// query too), the address it dials, the port, and the timing and volume: this is controlled egress, not
+// traffic-analysis privacy. But a destination can come from a secret (the owner's config resolves secret values into
+// URLs), so the log RECORDS only the guest's CID and a bounded outcome code - "open" or "refused:<Reason>" - never the
+// hostname, an address or a raw network error (Codex's review of f109bf8d).
 type Server struct {
 	Dialer *Dialer
 	CIDOf  func(net.Conn) uint32
-	Log    *log.Logger // hostname:port, guest CID and outcome only - the host never sees more
+	Log    *log.Logger // "guest <cid> egress open|refused:<reason>" and nothing else
 }
 
 // Serve refuses to start without CIDOf: with no way to tell guests apart, every guest would share ONE set of caps
@@ -173,11 +180,13 @@ func (s *Server) handle(ctx context.Context, g net.Conn) {
 	br := bufio.NewReaderSize(g, maxHeader)
 	line, err := readLine(br, maxHeader)
 	if err != nil {
+		s.outcome(cid, "refused:"+string(ReasonHeader))
 		return
 	}
 	g.SetReadDeadline(time.Time{})
 	f := strings.Fields(line)
 	if len(f) != 3 || f[0] != protoVersion || f[2] != "443" {
+		s.outcome(cid, "refused:"+string(ReasonHeader))
 		io.WriteString(g, "refused\n")
 		return
 	}
@@ -185,22 +194,24 @@ func (s *Server) handle(ctx context.Context, g net.Conn) {
 	up, release, err := s.Dialer.Dial(dctx, cid, f[1], 443)
 	cancel()
 	if err != nil {
-		s.logf("guest %d -> %s:443 refused: %v", cid, f[1], err)
+		s.outcome(cid, "refused:"+string(ReasonOf(err)))
 		io.WriteString(g, "refused\n")
 		return
 	}
 	defer release()
 	defer up.Close()
-	s.logf("guest %d -> %s:443 open", cid, f[1])
+	s.outcome(cid, "open")
 	if _, err := io.WriteString(g, "ok\n"); err != nil {
 		return
 	}
 	splice(g, br, up, up) // br holds anything the guest sent after its header
 }
 
-func (s *Server) logf(format string, a ...any) {
+// outcome is the server's ONLY log line. Its arguments are the CID and a code from a fixed set; there is no format
+// string to pass a hostname or an error through.
+func (s *Server) outcome(cid uint32, code string) {
 	if s.Log != nil {
-		s.Log.Printf(format, a...)
+		s.Log.Printf("guest %d egress %s", cid, code)
 	}
 }
 

@@ -122,7 +122,7 @@ func TestPerGuestCaps(t *testing.T) {
 		}
 		releases = append(releases, r)
 	}
-	if _, _, err := d.Dial(context.Background(), 5, "images.example", 443); err == nil || !strings.Contains(err.Error(), "connection limit") {
+	if _, _, err := d.Dial(context.Background(), 5, "images.example", 443); ReasonOf(err) != ReasonConcurrency {
 		t.Fatalf("a third concurrent connection for guest 5: %v", err)
 	}
 	if _, r, err := d.Dial(context.Background(), 6, "images.example", 443); err != nil {
@@ -149,7 +149,7 @@ func TestPerGuestCaps(t *testing.T) {
 		}
 		r()
 	}
-	if _, _, err := d2.Dial(context.Background(), 9, "images.example", 443); err == nil || !strings.Contains(err.Error(), "rate") {
+	if _, _, err := d2.Dial(context.Background(), 9, "images.example", 443); ReasonOf(err) != ReasonRate {
 		t.Fatalf("a fourth dial within the minute: %v", err)
 	}
 }
@@ -164,5 +164,44 @@ func TestARefusedDialFreesItsSlot(t *testing.T) {
 		t.Fatalf("refused dials leaked the slot: %v", err)
 	} else {
 		r()
+	}
+}
+
+// Every error Dial returns is a bounded code: it names no host, no address and no underlying network error, so no
+// caller can log a (possibly secret-derived) destination by printing it.
+func TestDialErrorsNameNoDestination(t *testing.T) {
+	d, _ := testDialer(fakeResolver{"tok-5ecret-a.example": {"10.1.2.3"}, "tok-5ecret-b.example": {"93.184.216.34"}},
+		map[string]string{"93.184.216.34:443": "127.0.0.1:443"})
+	cases := []struct {
+		host string
+		port int
+		want Reason
+	}{
+		{"tok-5ecret-a.example", 8443, ReasonPort},
+		{"198.51.100.9", 443, ReasonName},
+		{"tok-5ecret-z.example", 443, ReasonResolve},
+		{"tok-5ecret-a.example", 443, ReasonNonPublicAnswer},
+		{"tok-5ecret-b.example", 443, ReasonNonPublicPeer},
+	}
+	for _, c := range cases {
+		_, _, err := d.Dial(context.Background(), 1, c.host, c.port)
+		if ReasonOf(err) != c.want || !errors.Is(err, ErrRefused) {
+			t.Fatalf("%s:%d: %v, want %s", c.host, c.port, err, c.want)
+		}
+		for _, leak := range []string{"5ecret", ".example", "198.51", "10.1.2.3", "93.184", "127.0.0.1"} {
+			if strings.Contains(err.Error(), leak) {
+				t.Fatalf("%s:%d: the error names %q: %v", c.host, c.port, leak, err)
+			}
+		}
+	}
+	// a connect failure is not a policy refusal, and drops the raw error (which names the address)
+	fail, _ := testDialer(fakeResolver{"tok-5ecret-c.example": {"93.184.216.35"}}, nil)
+	fail.dial = func(context.Context, string) (net.Conn, error) {
+		return nil, errors.New("dial tcp 93.184.216.35:443: connect: connection refused")
+	}
+	_, _, err := fail.Dial(context.Background(), 1, "tok-5ecret-c.example", 443)
+	if ReasonOf(err) != ReasonConnect || errors.Is(err, ErrRefused) || strings.Contains(err.Error(), "93.184") ||
+		strings.Contains(err.Error(), "connection refused") {
+		t.Fatalf("connect failure: %v", err)
 	}
 }

@@ -10,11 +10,11 @@ var relay = Origin{Host: "api.enclave.host"}
 func TestParseOriginAccepts(t *testing.T) {
 	for raw, want := range map[string]string{
 		"https://images.example/v1/images/generations": "images.example",
-		"HTTPS://Images.Example:443/x":                "images.example", // case and an explicit :443 normalize
-		"https://0ddbd824.app.enclave.host/":          "0ddbd824.app.enclave.host",
-		"https://xn--bcher-kva.example/p?q=1#f":       "xn--bcher-kva.example", // punycode ASCII is a DNS name
-		"https://a-b.c-d.example":                     "a-b.c-d.example",
-		"https://notes.example/api/notes/${user}":     "notes.example", // a placeholder in the PATH is the app's own
+		"HTTPS://Images.Example:443/x":                 "images.example", // case and an explicit :443 normalize
+		"https://0ddbd824.app.enclave.host/":           "0ddbd824.app.enclave.host",
+		"https://xn--bcher-kva.example/p?q=1#f":        "xn--bcher-kva.example", // punycode ASCII is a DNS name
+		"https://a-b.c-d.example":                      "a-b.c-d.example",
+		"https://notes.example/api/notes/${user}":      "notes.example", // a placeholder in the PATH is the app's own
 	} {
 		o, err := ParseOrigin(raw)
 		if err != nil || o.Host != want {
