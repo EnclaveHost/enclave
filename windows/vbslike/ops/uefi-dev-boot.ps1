@@ -34,6 +34,14 @@ param(
   [string] $HypervModule = 'C:\Users\claude\hyperv.psm1',
   [string] $HypervModuleSha256 = '17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c',
   [switch] $SkipModulePin,
+  # WHICH PARTITION THIS IS, and it changes what may be said about the run:
+  #   16 = OpenHCL with IsolationType::None. No page acceptance and no host-visibility model, so
+  #        the root partition can map every page of this guest. A dev path, permanently.
+  #    1 = VBS. OpenHCL accepts VTL0 RAM host-PRIVATE (HvCallAcceptGpaPages) and only the shared
+  #        pool and the rings the guest publishes become host-visible, so the root cannot read a
+  #        page the guest has not shared. That is the hypervisor's claim FROM SOURCE; this script
+  #        has not measured it, and a type-1 boot on its own does not establish host exclusion.
+  [ValidateSet(1, 16)][int] $IsolationType = 16,
   [string] $Bundle = '',
   [int]    $RelayPort = 19500,
   [switch] $Approve
@@ -71,7 +79,14 @@ function Note($m){
 }
 
 Note "=== DEV BOOT. Host exclusion is NOT established on this path. Nothing here is verified capacity. ==="
-Note "    partition kind: wmi-openhcl-gen2 (the LAUNCHER states it; the guest cannot know it)"
+Note "    partition kind: wmi-openhcl-gen2, GuestStateIsolationType $IsolationType (the LAUNCHER states it; the guest cannot know it)"
+if ($IsolationType -eq 1) {
+  Note "    type 1 = VBS: the hypervisor is configured to keep VTL0 RAM host-private. That is a CONFIGURATION,"
+  Note "    not a measurement. Until a host-side memory read has been shown to find a guest marker on type 16"
+  Note "    and NOT on type 1, nothing from this run may be called host-excluded."
+} else {
+  Note "    type 16 = IsolationType::None: the root partition can map every page of this guest, by construction."
+}
 
 function Read-Setting {
   if (-not (Test-Path $RegPath)) { return @{ S='NoKey' } }
@@ -221,9 +236,12 @@ try {
     Note "hyperv.psm1 verified: $mh"
   } else { Note "hyperv.psm1 pin SKIPPED by request (the VM definition is therefore unverified)" }
   Import-Module $HypervModule -Force   # petri's New-CustomVM, the reference definition
-  New-CustomVM -VMName $name -GuestStateIsolationEnabled $true -GuestStateIsolationType 16 `
+  # -Com3: OpenHCL's own VTL2 log. On an isolated VM it REFUSES a set of settings by name there
+  # (hibernation, processor idle, a legacy memory map, PCAT, PSP, servicing, firmware debugging
+  # with Secure Boot, unmeasured extra PCRs), and without this port a refusal is a silent failure.
+  New-CustomVM -VMName $name -GuestStateIsolationEnabled $true -GuestStateIsolationType $IsolationType `
     -GuestStateIsolationMode 0 -FirmwareFile $Firmware -IncreaseVtl2Memory `
-    -SecureBootEnabled $false -Com1 $true -Memory ($MemMiB * 1MB) -VpCount $Vcpus | Out-Null
+    -SecureBootEnabled $false -Com1 $true -Com3 $true -Memory ($MemMiB * 1MB) -VpCount $Vcpus | Out-Null
   $created = $true
   $vm = Get-VM -Name $name
   Set-VM -VM $vm -Notes $MARKER
@@ -253,6 +271,9 @@ try {
   if ($attachedSha -ne $IsoSha256.ToLower()) { throw "the attached medium hashes $attachedSha, not the pinned $IsoSha256" }
   Set-VMFirmware -VM $vm -FirstBootDevice $dvd
   Set-VMComPort  -VM $vm -Number 1 -Path "\\.\pipe\$pipe"
+  # COM3 keeps the name petri gave it. Set-VMComPort only addresses ports 1 and 2, while COM3 exists
+  # only in the Msvm model, which is why New-CustomVM sets it through WMI and this reads it there.
+  $pipe3 = "$($vm.Id)-3"
   Note "DVD attached and set as the ONLY boot device; COM1 -> \\.\pipe\$pipe"
 
   # THE READ-BACK. The guest refuses to start if the command line is not exactly its pinned one, or
@@ -291,8 +312,10 @@ try {
   # fast as possible and HOLD the connection: a named pipe does not buffer for an absent client, so
   # every millisecond before the first connect is output that can never be recovered.
   $seen = ''; $ready = $false
-  $pipeClient = $null
+  $seen3 = ''
+  $pipeClient = $null; $pipe3Client = $null
   $script:pendingRead = $null; $script:readBuf = $null
+  $script:pendingRead3 = $null; $script:readBuf3 = $null
   $t0 = Get-Date
   Start-VM -Name $name
   for ($i = 0; $i -lt 100 -and -not $pipeClient; $i++) {
@@ -308,6 +331,17 @@ try {
       $pipeClient = $c
     } catch { Start-Sleep -Milliseconds 50 }
   }
+  # COM3 on the same terms: opened as fast as possible and HELD, because a named pipe keeps nothing
+  # for an absent client and OpenHCL says why it refused a configuration in its first moments.
+  for ($i = 0; $i -lt 100 -and -not $pipe3Client; $i++) {
+    try {
+      $c3 = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipe3,
+              [System.IO.Pipes.PipeDirection]::In, [System.IO.Pipes.PipeOptions]::Asynchronous)
+      $c3.Connect(100)
+      $pipe3Client = $c3
+    } catch { Start-Sleep -Milliseconds 50 }
+  }
+  Note $(if ($pipe3Client) { "COM3 (OpenHCL's own log) attached" } else { "COM3 could NOT be attached: an OpenHCL refusal would be silent" })
   if ($pipeClient) { Note "COM1 attached $([int]((Get-Date)-$t0).TotalMilliseconds) ms after start" }
   else { Note "COM1 could NOT be attached after 100 tries: anything the guest says is unobservable" }
   Note "started; watching COM1 for 'MON ready' for $ReadySeconds s"
@@ -330,11 +364,33 @@ try {
         }
       }
     } catch { }
+    try {
+      if ($pipe3Client -and $pipe3Client.IsConnected) {
+        if ($null -eq $script:pendingRead3) {
+          $script:readBuf3 = New-Object byte[] 8192
+          $script:pendingRead3 = $pipe3Client.ReadAsync($script:readBuf3, 0, $script:readBuf3.Length)
+        }
+        if ($script:pendingRead3.Wait(200)) {
+          if (-not $script:pendingRead3.IsFaulted -and $script:pendingRead3.Result -gt 0) {
+            $seen3 += [System.Text.Encoding]::ASCII.GetString($script:readBuf3, 0, $script:pendingRead3.Result)
+          }
+          $script:pendingRead3 = $null
+        }
+      }
+    } catch { }
     if ($seen -match 'MON ready')  { $ready = $true }
     if ($seen -match 'MON ERROR')  { break }
   }
   try { if ($pipeClient) { $pipeClient.Dispose() } } catch { }
-  Note "console bytes: $($seen.Length)"
+  try { if ($pipe3Client) { $pipe3Client.Dispose() } } catch { }
+  Note "console bytes: $($seen.Length) (COM1), $($seen3.Length) (COM3)"
+  # COM3 is printed whenever the guest did not come ready, and always on type 1, where the whole
+  # question is whether OpenHCL accepted the isolated configuration at all.
+  if ($seen3 -and (-not $ready -or $IsolationType -eq 1)) {
+    $keep = $seen3 -split "`n" | Where-Object { $_ -match 'isolat|refus|not supported|unsupported|error|panic|vtl|accept|attest|vbs' }
+    Note "  --- COM3 (OpenHCL), $(@($keep).Count) matching lines ---"
+    foreach ($l in ($keep | Select-Object -First 25)) { Note "  OPENHCL: $($l.Trim())" }
+  }
   if ($seen) { foreach ($l in ($seen -split "`n" | Where-Object { $_ -match 'MON|error|panic|refus' } | Select-Object -First 12)) { Note "  CONSOLE: $($l.Trim())" } }
   if ($ready) {
     Note "RESULT: MON ready - the guest booted as a UEFI VTL0 (DEV BOOT; host exclusion NOT established)"
