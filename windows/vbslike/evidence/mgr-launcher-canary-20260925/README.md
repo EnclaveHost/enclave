@@ -52,3 +52,15 @@ Findings:
      mismatch. The verifier contract should choose one name before the two are compared (enclave-99, enclave-5d).
 4. **Grants accumulate.** Like the recipe, the launcher grants the VM's own SID read on the IGVM and never revokes
    it, so ACEs for removed VMs accumulate on the staged file. Harmless, but unbounded.
+
+Status of the findings, 2026-09-25 ~07:45Z:
+1. Fixed in isolation-manager `3cc68b87` (run 2 proves it).
+2. Fixed in `faaf381a`. The console read stops at `MON ready` and reports `readyLine`; "booted" still means bytes > 0.
+   It parses in the box's PowerShell but has NOT run on hardware yet; the next manager canary covers it.
+3. Settled. enclave-99 ruled the signed report's names canonical (main `ae6e9147`, "Launcher statements"). The
+   manager follows in `25fa4e32`, with the fixed pairing matched exactly by `bootFormOfStatement`, one name per
+   handle, and the backend's missing `boundary` getter added.
+4. Deferred, documented. Revoking needs the VM's SID after the VM is removed, and whether `NT VIRTUAL MACHINE\<id>`
+   still resolves then is untested on this host. The fix is to revoke by the computed SID (`S-1-5-83-1-…`) or
+   before `Remove-VM`, checked on hardware. The ACEs name VMs that no longer exist and grant only read of a
+   read-only public image.
