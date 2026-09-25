@@ -53,3 +53,14 @@ seed, the pairing key and the synthetic release file are NOT included (checked: 
 18:33Z: the supervisor's spawn created guest lbbff9a318 with the predicted AppID, then the seam process exited
 mid-pump (the pump's timers are unref'd; fixed in 4f17b681). The relay saw only status calls; production was
 unchanged.
+
+## After the run (found 18:37Z)
+The run's "cleanup done" was incomplete. The lab guest's host forwarder (`phase2-run-20260925b/guestd-root/bin/fwd
+-cid 146244`, listening on 127.0.0.1:36335, the lab vm's hostPort) outlived the cleanup.
+- Cause: phase 2's cleanup killed the lab guestd without first DELETEing the vm (phase 1's cleanup does DELETE it), and
+  a lab guestd runs outside a unit.
+- Production guestd is a unit with KillMode=control-group, so its forwarders end with it.
+- The forwarder's guest was already stopped, so it forwarded nothing.
+- It was killed by its verified PID at 18:37Z; production m2-gd* was unchanged.
+- Both harnesses now end every process whose executable lives in the run's dir (matched by /proc/PID/exe), and FAIL if
+  one survives.
