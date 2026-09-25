@@ -98,6 +98,10 @@ Verified by enclave-99 from the pinned kernel's embedded config:
 - **No vTPM, deliberately** (enclave-d1): nothing on this path reads PCRs, and a vTPM present but unread would look
   like attestation it isn't. The report states the absence.
 - d1 reads back the VM's firmware and boot configuration before starting, and refuses if anything carries load options.
+- Host facts (enclave-d1, on the box):
+  - Hyper-V creates the COM1 pipe server only when the VM STARTS. A console reader cannot pre-attach: it must
+    connect right after start and hold one connection. Earlier runs that showed 0 bytes had attached late.
+  - petri's `New-CustomVM` creates no SCSI controller, so add one before `Add-VMDvdDrive`.
 
 ## The signed report's image field, per path
 
@@ -162,6 +166,27 @@ On the NucBox nothing measures the partition's image for a client. The launcher 
 
 None of these is covered by anything a client checks today. Hardware host exclusion is NOT established by any of
 this and must not be advertised.
+
+## On the NucBox: the first UEFI boot (enclave-d1, 2026-09-25)
+
+enclave-53's v9 ISO booted on Hyper-V: Gen2, isolation type 16, Secure Boot off, no vTPM, one boot entry with no
+LoadOptions, 1 vCPU, 2048 MiB, firmware openhcl.bin `48773995...`. The console, verbatim:
+
+```
+MON snp=0 vcpus=1 memMiB=1965 boot_ms=309
+MON insmod /vsock.ko.zst failed: Operation not supported
+MON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported
+MON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported
+MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no
+MON ready control_port=9000 snp=false
+```
+
+The ISO (`4c387086...`) was hashed at attach, with UKI 75ae6bcc and initrd 5bc06259. This is a dev boot: host
+exclusion is NOT established, and the guest says so itself.
+- The insmod lines are the QEMU lane's virtio modules. This kernel has Hyper-V's transport built in
+  (`CONFIG_HYPERV_VSOCKETS=y`), and the same lines appeared on the 09-23 HCS path where hv_sock worked.
+- Whether hv_sock 9000 answers on this path is the next measurement. `MON ready` alone does not show it: AF_VSOCK
+  accepts a listen with no transport registered.
 
 ## Local proof (warden-host, QEMU + OVMF: NOT Hyper-V)
 
