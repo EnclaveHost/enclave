@@ -107,8 +107,14 @@ is DEFAULT-DENY (GET/HEAD/OPTIONS to its own surfaces only, on a canonical lower
 case-variant bypass enclave-5d found (Express routes are case-insensitive) and explicit create. 80/80 relay tests.
 **But round 2 is still bypassable** (enclave-5d; reproduced by d1): the relay checks the CANONICAL path and forwards
 the RAW one. So `/x/<id>/..%2F..%2Favailability` is judged as `/availability` and served as tenant `/x/<id>/…`.
-d1's round-2 verdict missed this direction. Fix proposed: allow only when the raw path (lower-cased) equals its
-canonical form, with exact allowlist entries. Part B (the SNI relay, udp, tcp6, dns-01) is next |
+d1's round-2 verdict missed this direction.
+**Round 3 `a47958d5` closes it, and d1 verified it:**
+- an own surface passes only on an unaltered path, with exact entries;
+- credentials are stripped and Set-Cookie dropped for an ineligible box;
+- no WebSocket upgrade reaches an ineligible box;
+- 20/20 bypass paths refused, 9/9 legitimate surfaces allowed, 91/91 relay tests.
+Low residual: a publicOnly response keeps the box's Content-Type (nosniff and a sandbox CSP suggested). Part A
+passes. Part B (the SNI relay, udp, tcp6, dns-01) is next |
 
 ## 5. BLOCKED or PAUSED (parked; not rerouted, not rephrased)
 
