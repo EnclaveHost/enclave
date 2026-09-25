@@ -228,7 +228,20 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const spawnBody = JSON.parse(fs.readFileSync(cfg.spawnJson, "utf8").replace(/^﻿/, ""));
   delete spawnBody.id;
   const m = cfg.multi || {};
+  // the answer the PACKAGE pins for this app (its MANIFEST.json apps[].expect, beside the spawn.json it serves), so M3 checks
+  // the exact bytes and not only a 200; an explicit cfg.multi.expectBodySha256 wins
+  let expectBodySha256 = m.expectBodySha256 || null;
+  if (!expectBodySha256) {
+    try {
+      const pkgDir = path.dirname(path.dirname(path.dirname(cfg.spawnJson)));
+      const man = JSON.parse(fs.readFileSync(path.join(pkgDir, "MANIFEST.json"), "utf8").replace(/^\uFEFF/, ""));
+      const rel = path.relative(pkgDir, path.dirname(cfg.spawnJson)).split(path.sep).join("/");
+      const app = (man.apps || []).find((x) => x.dir === rel);
+      if (app && app.expect && /^[0-9a-f]{64}$/.test(String(app.expect.bodySha256))) expectBodySha256 = app.expect.bodySha256;
+    } catch { /* stays null: M3 then checks the status and the key only, and says so below */ }
+  }
+  console.log(`M3 expects ${expectBodySha256 ? `the pinned body sha256 ${expectBodySha256}` : "status 200 and the verified key only (no pinned body found)"}`);
   console.log(`MULTI: ${m.n || 3} serving domains at once, memMiB ${m.memMiB || 128}+16*i, data plane 127.0.0.1:${cfg.dataPort}. Functional serving only: no probe; host_excluded=no.`);
-  const r = await runMultiAccept({ ctl, spawnBody, name: cfg.name, dataPort: Number(cfg.dataPort), n: m.n || 3, memMiB: m.memMiB || 128, expectBodySha256: m.expectBodySha256 || null });
+  const r = await runMultiAccept({ ctl, spawnBody, name: cfg.name, dataPort: Number(cfg.dataPort), n: m.n || 3, memMiB: m.memMiB || 128, expectBodySha256 });
   process.exitCode = r.refused ? 3 : r.ok ? 0 : 1;
 }
