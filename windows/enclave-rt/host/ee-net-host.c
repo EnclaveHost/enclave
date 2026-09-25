@@ -43,7 +43,9 @@ int ee_net_listen(uint16_t port, uint16_t *bound) {
     if (ls == INVALID_SOCKET) return net_err();
     struct sockaddr_in a; memset(&a, 0, sizeof a);
     a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(INADDR_LOOPBACK); a.sin_port = htons(port);
-    BOOL one = TRUE; setsockopt(ls, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof one);
+    /* Exclusive, mirroring the enclave host (ee-host.c EE_OP_LISTEN): a tenant's port is one app's,
+     * so a second bind to it fails rather than silently sharing. */
+    BOOL one = TRUE; setsockopt(ls, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char *)&one, sizeof one);
     if (bind(ls, (struct sockaddr *)&a, sizeof a) || listen(ls, 64)) { int e = net_err(); closesocket(ls); return e; }
     int alen = sizeof a;
     if (getsockname(ls, (struct sockaddr *)&a, &alen) == 0 && bound) *bound = ntohs(a.sin_port);

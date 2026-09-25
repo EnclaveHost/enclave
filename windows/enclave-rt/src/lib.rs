@@ -132,6 +132,9 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 }
 
 pub mod wasihost;
+mod netset;
+mod slots;
+use slots::{Removed, SlotTable};
 
 wasmtime::component::bindgen!({
     path: "wit",
@@ -263,11 +266,13 @@ pub const WORLD_HTTP: u32 = 2;
 /// most of the platform's catalog actually is (the s3-ipfs-adapter among them).
 pub const WORLD_CLI: u32 = 4;
 
-const MAX_APPS: usize = 8;
-static mut APPS: [Option<Loaded>; MAX_APPS] = [None, None, None, None, None, None, None, None];
-/// A clone of each app's engine, kept OUTSIDE the slot so a stop can reach a running app without
-/// touching the store its own thread is using. An Engine is a handle, not the app.
-static mut RUN_ENGINES: [Option<wasmtime::Engine>; MAX_APPS] = [None, None, None, None, None, None, None, None];
+/// Every app this enclave is running at once, in a generational slot table (slots.rs). The handle
+/// returned to the host carries the slot AND the generation of this occupancy, so a handle for an
+/// app that has stopped can never reach whatever app took the slot next -- the tenant-safety fix
+/// for the "two tenants share slot 3" bug found 2026-09-25. The table keeps a running or
+/// mid-request app IN its slot (the old code took it out, which is what let a second app reuse the
+/// handle), and it holds each app's engine so `ee_rt_stop` can interrupt exactly the app named.
+static APPS: SlotTable<Loaded, wasmtime::Engine> = SlotTable::new();
 static mut LAST_ERROR: Option<String> = None;
 
 fn set_err(s: &str) { unsafe { LAST_ERROR = Some(String::from(s)) } }
@@ -416,19 +421,12 @@ pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize, world: u32,
             Err(e) => { set_err_owned(format!("instantiate: {e:?}")); return 0; }
         }
     };
-    unsafe {
-        let apps = &mut *core::ptr::addr_of_mut!(APPS);
-        let engines = &mut *core::ptr::addr_of_mut!(RUN_ENGINES);
-        for (i, slot) in apps.iter_mut().enumerate() {
-            if slot.is_none() {
-                *slot = Some(loaded);
-                engines[i] = Some(engine.clone());     // for ee_rt_stop, see RUN_ENGINES
-                return (i + 1) as u32;
-            }
-        }
+    // The engine goes into the slot with the app (the table keeps it for ee_rt_stop); the handle
+    // carries this occupancy's generation, so it can never later resolve to a different app.
+    match APPS.insert(loaded, engine) {
+        Some(handle) => handle,
+        None => { set_err("no free app slot in this enclave"); 0 }
     }
-    set_err("no free app slot in this enclave");
-    0
 }
 
 /// Run one request through the app. The response is written into the caller's buffer, which lives
@@ -436,34 +434,40 @@ pub extern "C" fn ee_rt_open(cwasm: *const u8, len: usize, world: u32,
 #[no_mangle]
 pub extern "C" fn ee_rt_handle(id: u32, req: *const u8, req_len: usize,
                                out: *mut u8, out_cap: usize, out_len: *mut usize) -> i32 {
-    if id == 0 || id as usize > MAX_APPS || req.is_null() || out.is_null() || out_len.is_null() { return -1; }
-    let app = unsafe {
-        let apps = &mut *core::ptr::addr_of_mut!(APPS);
-        match apps[id as usize - 1].as_mut() { Some(a) => a, None => return -2 }
-    };
+    if id == 0 || req.is_null() || out.is_null() || out_len.is_null() { return -1; }
     let buf = unsafe { core::slice::from_raw_parts(req, req_len) };
     let request = match decode_request(buf) { Some(r) => r, None => { set_err("malformed request frame"); return -3 } };
+    // Check the app OUT of its slot for the request so the table lock is not held across the
+    // guest call; the slot stays occupied (Busy) so nothing reuses it, and checkin puts it back
+    // (or frees it if a close arrived meanwhile). A handle that names no idle loaded app -- gone,
+    // running, or stale after a slot reuse -- gets -2 here rather than reaching another tenant.
+    let mut app = match APPS.checkout(id) { Some(a) => a, None => return -2 };
     // The two kinds answer the same frame; only the world in between differs.
-    let enc = match app {
-        Loaded::Enclave { store, instance } => {
-            let resp = match instance.call_handle(store, &request) {
-                Ok(r) => r,
-                Err(e) => { set_err_owned(format!("the app trapped: {e:?}")); return -4 }
-            };
-            encode_response(&resp)
-        }
+    let result: Result<Vec<u8>, (i32, Option<String>)> = match &mut app {
+        Loaded::Enclave { store, instance } => match instance.call_handle(store, &request) {
+            Ok(resp) => Ok(encode_response(&resp)),
+            Err(e) => Err((-4, Some(format!("the app trapped: {e:?}")))),
+        },
         Loaded::Wasi { store, shape, .. } => match shape {
             wasihost::Shape::Http(func) => {
                 store.data_mut().now_ms = unsafe { ee_app_now_ms() };
                 match wasihost::serve(store, func, &request) {
-                    Ok(v) => v,
-                    Err(msg) => { set_err_owned(msg); return -4 }
+                    Ok(v) => Ok(v),
+                    Err(msg) => Err((-4, Some(msg))),
                 }
             }
             // A wasi:cli app is not called per request: it holds its own socket and the host
             // carries connections to it. Nothing should be sending frames here.
-            wasihost::Shape::Cli(_) => { set_err("this app serves its own socket; requests go to its port, not through the gate"); return -6 }
+            wasihost::Shape::Cli(_) => Err((-6, Some(String::from("this app serves its own socket; requests go to its port, not through the gate")))),
         },
+    };
+    // Return the app to its slot before answering. If a host close arrived mid-request the app is
+    // freed here instead; either way the store is no longer aliased.
+    APPS.checkin(id, app);
+    let enc = match result {
+        Ok(v) => v,
+        Err((code, Some(msg))) => { set_err_owned(msg); return code; }
+        Err((code, None)) => return code,
     };
     if enc.len() > out_cap {
         // Say how much was needed rather than truncating a tenant's response into something that
@@ -486,11 +490,10 @@ pub extern "C" fn ee_rt_handle(id: u32, req: *const u8, req_len: usize,
 /// can touch a store that is being run on this one - there is no lock here, only ownership.
 #[no_mangle]
 pub extern "C" fn ee_rt_run(id: u32) -> i32 {
-    if id == 0 || id as usize > MAX_APPS { return -1; }
-    let mut taken = unsafe {
-        let apps = &mut *core::ptr::addr_of_mut!(APPS);
-        match apps[id as usize - 1].take() { Some(a) => a, None => return -2 }
-    };
+    if id == 0 { return -1; }
+    // begin_run moves the Store to this thread but LEAVES the slot occupied (Running), so no
+    // ee_rt_open can reuse it and hand a second app the same handle -- the core of the fix.
+    let mut taken = match APPS.begin_run(id) { Some(a) => a, None => return -2 };
     let rc = match &mut taken {
         Loaded::Wasi { store, shape, running } => match shape {
             wasihost::Shape::Cli(func) => {
@@ -506,11 +509,11 @@ pub extern "C" fn ee_rt_run(id: u32) -> i32 {
         },
         Loaded::Enclave { .. } => { set_err("an enclave:app app is served per request, not run"); -5 }
     };
-    // Whatever happened, the slot goes back to empty: the app is gone and its memory with it.
-    unsafe {
-        let engines = &mut *core::ptr::addr_of_mut!(RUN_ENGINES);
-        engines[id as usize - 1] = None;
-    }
+    // Whatever happened, the slot goes back to empty -- but ONLY if it still holds this exact
+    // occupancy. If the app was stopped and its slot already freed and reused by another tenant
+    // (a different generation), finish_run is a no-op, so this late teardown cannot free the
+    // newcomer. The app's memory is freed by dropping `taken` regardless.
+    APPS.finish_run(id);
     drop(taken);
     rc
 }
@@ -519,27 +522,29 @@ pub extern "C" fn ee_rt_run(id: u32) -> i32 {
 /// epoch, which makes the guest trap wherever it is, and its own thread does the freeing.
 #[no_mangle]
 pub extern "C" fn ee_rt_stop(id: u32) -> i32 {
-    if id == 0 || id as usize > MAX_APPS { return -1; }
-    let e = unsafe {
-        let engines = &*core::ptr::addr_of!(RUN_ENGINES);
-        match engines[id as usize - 1].as_ref() { Some(e) => e.clone(), None => return -2 }
-    };
+    if id == 0 { return -1; }
+    // Only the app running under THIS exact handle yields an engine; a stopped, absent or
+    // stale-after-reuse handle yields None and returns -2. That is what makes a wrong-tenant stop
+    // impossible by construction: ee_rt_stop can no longer reach an app the caller did not name.
+    let e = match APPS.running_engine(id) { Some(e) => e, None => return -2 };
     e.increment_epoch();
     e.increment_epoch();
     0
 }
 
-/// Unload an app and free its memory inside the enclave.
+/// Unload a wasi:http app and free its memory inside the enclave. A wasi:cli app is stopped with
+/// `ee_rt_stop` instead (its own run thread frees it); closing one here is refused.
 #[no_mangle]
 pub extern "C" fn ee_rt_close(id: u32) -> i32 {
-    if id == 0 || id as usize > MAX_APPS { return -1; }
-    unsafe {
-        let apps = &mut *core::ptr::addr_of_mut!(APPS);
-        let engines = &mut *core::ptr::addr_of_mut!(RUN_ENGINES);
-        apps[id as usize - 1] = None;
-        engines[id as usize - 1] = None;
+    if id == 0 { return -1; }
+    match APPS.remove(id) {
+        // Idle app taken out: drop it here, outside the table lock.
+        Removed::Took(app) => { drop(app); 0 }
+        // It was mid-request; it will free itself when the request finishes.
+        Removed::Deferred => 0,
+        // A running wasi:cli app, or a stale/absent handle: not closable this way.
+        Removed::NotClosable => -2,
     }
-    0
 }
 
 /// The last failure, as text, for the record the tenant reads. Never a pointer into app memory.
