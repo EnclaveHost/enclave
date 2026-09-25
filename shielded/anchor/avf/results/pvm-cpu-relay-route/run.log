@@ -1,0 +1,48 @@
+10:09:10Z installed apk.apk over the previous build, data kept (88b0403e6737d6bd2ba950e9fd487d54a4b0d9a99deaa6ac6ce36b87de36db3c)
+10:09:11Z relay 1 (the lab build): up; admits build 58ec36752ca6c302…
+10:10:56Z A-attach: ok {"accepted":true,"rejected":null,"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","outOfBand":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","bootMs":102063}
+10:10:59Z A-row: ok {"mode":"avf","tier":"pvm-cpu","eligible":false,"ineligible":"pVM CPU tier: an inference lane on its owner's phone, not app deployments","serving":false,"publicUrl":"https://127.0.0.1:18443/t/pixel10-pvm-cpu","lane":"pvm-cpu"}
+10:11:00Z   agent attest
+10:11:00Z A-bootstrap-attest: ok {"via":"/t/<name>/pvm/evidence","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc","reason":null}
+10:11:03Z   agent attest
+10:11:07Z   agent done register (new) landed
+10:11:07Z A-register: ok {"lifecycle":{"kind":"landed","op":"register (new)","hash":"0xa7d4afd6d2dd3ee756d64f16f932793e98835495dba51ea912449aafd8f5d66b","block":82,"blockHash":"0xf0d4fa5d33e62eebe1d8beac09c7087edc99c950cd3dffcfc538c482c24c1aa0","event":"Updated","args":{"id":"0x0e43a5110cc29c646df19eb65b8ed13e96b632833acebf
+10:11:14Z   agent done claim landed
+10:11:18Z   agent done landed
+10:11:18Z A-claim: ok {"lifecycle":{"kind":"landed","op":"claim","hash":"0xa9ac63b6996a7c8ddc02723c8ccd1d2e28fb31017bf7012e129eabbf0c2f8e7c","block":86,"blockHash":"0x4d42ea33796deed4dfb0875825e3fa40df5c8ec22586e2623e70c8b66251f611","event":"Claimed","args":{"id":"0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5e
+10:11:19Z A-route: ok {"route":"/x/0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2/pvm/evidence"}
+10:11:19Z   agent attest: the proof-key statement's fields must be exactly chainId,deployment,enclaveId,evidence,format,instance,operator,proofKey,proofOfTime,registr
+10:12:22Z   agent attest
+10:12:28Z   agent done landed
+10:12:28Z A-prove: ok {"via":"/x","proof":{"kind":"landed","provenUntil":"1790331171"}}
+10:12:33Z A-client: ok {"complete":true,"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340"}
+10:12:37Z A-client-wrong-instance: ok {"step":"verify","refused":"instance ccd79db14e9f3a22… is a genuine instance of this app, but not one bound to the selected deployment: refused","sent":false}
+10:12:41Z A-client-wrong-build: ok {"step":"verify","refused":"attestation: no APK component with an allowlisted codeHash (saw 58ec36752ca6c302…)","sent":false}
+10:12:48Z A-client-stale: ok {"step":"verify","refused":"the evidence answers another nonce (stale or replayed)","sent":false}
+10:13:51Z   agent attest
+10:13:58Z   agent stuck stuck: not mined after 0 replacements; kept for the next tick
+10:13:58Z A-crash: ok {"kind":"stuck","proof":"stuck"}
+10:13:58Z   agent recover
+10:14:02Z   agent done landed
+10:14:03Z   agent attest
+10:14:03Z A-recover: ok {"recovered":{"kind":"landed","hash":"0x2d8cd4c96d92730500a6fdc28ec48a386c2e370e1450124ca58f198c4295ec2c"}}
+10:15:07Z B-disconnect: ok {"kind":"carrier-failed","proof":"carrier-failed","reason":"the carrier failed: fetch failed"}
+10:15:07Z relay 2 (back after a stop): up; admits build 58ec36752ca6c302…
+10:15:28Z B-gone: ok {"note":"no in-place re-attach (gap B): the tunnel is gone until the VM restarts"}
+10:15:47Z B1-no-cosigner: ok {"rejected":"pixel10-pvm-cpu is registered on chain; attach must carry operatorSig (personal_sign of \"enclave-tunnel-attach:<name>:<nonce b64>\") — upgrade the agent"}
+10:16:05Z B2-wrong-operator: ok {"rejected":"pixel10-pvm-cpu is registered on chain to 0xbae46ec45f50b7ba0248e5374a415da6cefe8445, not 0x3ce55cc84ded33d25d54f7c0d7fcb825dc73eaa7","cosigned":true,"notCosigned":null}
+10:17:50Z B3-owner-cosigner: ok {"accepted":true,"cosigned":true,"instance":"ccd79db14e9f3a22d21ee4969f38def76db21f53fa7503fba8cd20f97ec7a340","proofKey":"0xa91a53000dcdcc3dd40e18b21023b4bdc0f3b0fc"}
+10:17:51Z B-route: ok {"route":"back"}
+10:17:56Z B-client: ok {"complete":true}
+10:19:02Z   agent done landed
+10:19:02Z B-prove: ok {"proof":"landed"}
+10:19:04Z relay 3 (admits only the OLD build): up; admits build fe734cb85f0eb451…
+10:19:22Z C-wrong-build-relay: ok {"rejected":"no APK component with an allowlisted codeHash (saw 58ec36752ca6c302…)","cosigned":true}
+10:19:24Z relay 4 (the lab build again): up; admits build 58ec36752ca6c302…
+10:21:10Z C-right-relay: ok {"accepted":true,"cosigned":true}
+10:21:10Z C-route: ok {"route":"back"}
+10:22:17Z   agent done landed
+10:22:21Z   agent done release landed
+10:22:21Z D-release: ok {"kind":"released","proof":"landed"}
+10:22:21Z the lab app was stopped by the script (the VM ends with it)
+10:22:21Z the operator keys appear nowhere in the results

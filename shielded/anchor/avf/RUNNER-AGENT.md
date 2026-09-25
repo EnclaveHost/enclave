@@ -140,14 +140,34 @@ closed or bounded here, with no weakening of any check.
      `operatorSig` in its attest frame. It holds no key.
 - Tested on the real hub: a registered name without a signature is refused; a co-signed attach by the owner's instance
   is accepted; a co-signature for nonce N is refused on a connection with nonce N'; a second, validly co-signed attach
-  with another transport key is refused while the owner's tunnel is live; every co-signer refusal leaves nothing signed
-  (test/pvm-attach-cosigner.test.mjs; test/mutate-pvm-attach.mjs, 16/16).
+  with another transport key is refused while the owner's tunnel is live; every co-signer refusal leaves nothing signed;
+  two concurrent requests for one nonce get one signature (test/pvm-attach-cosigner.test.mjs; test/mutate-pvm-attach.mjs,
+  17/17).
 
 **B, a gap, documented: no in-place re-attach.**
 - The attach certificate is made at VM boot. If the relay drops, the tunnel stays gone until the VM restarts, and the
   restart re-attaches with the co-signature.
 - A true in-place re-attach needs a payload control path that certifies a NEW relay nonce while the app runs. That is
   not built.
+
+**The device check through the real relay: PASS, LAB** (results/pvm-cpu-relay-route, check.txt and NOTES.md;
+cpu/relay-route-run.mjs; runtime/conformance/check-relay-route.mjs). It ran at **43601dee**, on the Pixel 10, with a
+lab relay process on loopback and the real contracts on a local chain. The steps:
+- **Attach and bootstrap:** an unregistered attach; the bootstrap statement; register and claim.
+- **Serving:** the /x route; proofs; the built client served as bound. Another instance, another build and a stale
+  answer were each refused before sealing.
+- **An interrupted checkpoint** was delivered once after a restart.
+- **A relay drop:** gap B held (the tunnel stayed gone). Then restarts:
+  - with no co-signer: refused;
+  - co-signed by another operator: refused;
+  - co-signed by the owner: accepted, with the same instance and key.
+- **A relay pinning another build** refused the co-signed attach.
+- **A final proof, then release.**
+
+The checker re-verifies every co-signature, statement and checkpoint offline; its coverage test mutates the run 25
+ways. The run found no integration gap in the code. It left two open items (NOTES.md "Observed, open"):
+- the VM's evidence budget is shared by every caller, which is an availability issue for the agent's proofs;
+- the phone's "co-signed by the owner" log line is printed for any co-signer.
 
 ## Interruption: what a restart must never do
 

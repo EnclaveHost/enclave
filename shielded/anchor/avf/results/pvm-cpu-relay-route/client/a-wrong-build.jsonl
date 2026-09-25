@@ -1,0 +1,2 @@
+{"committed":{"serial":3,"gen":4}}
+{"result":{"label":"cli","mode":"stream","step":"verify","refused":"attestation: no APK component with an allowlisted codeHash (saw 58ec36752ca6c302…)","sent":false,"verifyMs":728,"policySerial":3,"stateGen":4,"clientVersion":"0.5.0","deployment":{"id":"0x0999ac324ac31bf0a03b1f5939344c49f0977b6462ce137f9e8ec5ef6536c1e2","app":"29e8942369846359b5936dbef1268c28f7097cccb3101b86345dc4dd8f4c1373","instance":null,"bound":true}}}

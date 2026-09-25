@@ -1,0 +1,29 @@
+ok   run.json present
+ok   steps: exactly the plan's 25, in order, each ok (A-attach A-row A-bootstrap-attest A-register A-claim A-route A-prove A-client A-client-wrong-instance A-client-wrong-build A-client-stale A-crash A-recover B-disconnect B-gone B1-no-cosigner B2-wrong-operator B3-owner-cosigner B-route B-client B-prove C-wrong-build-relay C-right-relay C-route D-release)
+ok   relay: 4 processes, each from an allowlisted environment with no secret-bearing name, bound to loopback
+ok   relay: the lab build admitted in every relay but the one that admits only the OLD build
+ok   every boot logged the owner's out-of-band instance ccd79db14e9f3a22…
+ok   A: attached UNREGISTERED, first-come, without a co-signature
+ok   B1: the registered name refused an attach without a co-signature (pixel10-pvm-cpu is registered on chain; attach must carry operatorSig (personal_)
+ok   B2: refused: the name is the owner's, the signature another operator's
+ok   B3 and C's right relay (boot d): attached with the owner's co-signature
+ok   C: the relay that admits only another build refused the attach on its build (no APK component with an allowlisted codeHash (saw 58ec36752ca6c302…))
+ok   attach: every owner co-signature re-verifies offline: the rad (AVF, build, authority, nonce, transport key), the instance and its signature over THIS transcript, the owner's operator signature over exactly its own name and nonce (3/3)
+ok   attach: no nonce was co-signed twice
+ok   attach: the wrong operator's one signature recovers to that other key (the hub refused it: B2)
+ok   the owner's co-signer journal records exactly its 3 signatures
+ok   statements: all 5 re-verify over their own nonces (the owner's instance, this deployment, codeHash = the lab build)
+ok   the agent accepted exactly the 5 statements and refused the payload's 1 rate refusal(s) (A-route): never a refusal taken as a key
+ok   carrier: the bootstrap route in A-bootstrap, A-register, A-claim only (3), /x in every other step (8)
+ok   the first statement came through the BOOTSTRAP route, before any lease
+ok   checkpoints: each accepted one is one answer to exactly its request, re-verified (5/5)
+ok   client: served through /x as the bound deployment, before and after the reconnect
+ok   client a-wrong-instance: refused before sealing (instance ccd79db14e9f3a22… is a genuine instance of this app, but not one bound )
+ok   client a-wrong-build: refused before sealing (attestation: no APK component with an allowlisted codeHash (saw 58ec36752ca6c302)
+ok   client a-stale: refused before sealing (the evidence answers another nonce (stale or replayed))
+ok   registered once with the attested key; claimed once
+ok   every Checkpointed is a journaled landing, one per signed checkpoint (5)
+ok   exactly once: the checkpoint never delivered is the one the restarted agent landed
+ok   released once, after the last proof
+ok   the run scanned its own results for both operator keys and found neither
+PASS the pVM runner through the real relay
