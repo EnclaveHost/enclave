@@ -13,13 +13,15 @@
 // same emulator with that check switched off, to show the interleaving is real and reachable
 // through the funnel - i.e. that it is the host's refusal, not the test's timing, that saves the
 // other tenant.
-import { test } from "node:test";
+import { test, after } from "node:test";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { EnclaveApp } from "../windows/node/apprun.mjs";
-import { makeHostCmd } from "../windows/node/appframe.mjs";
-import { RESP_200, emuHost, restart } from "./helpers/ee-host-emu.mjs";
+import { makeHostCmd, parseAppOpenReply } from "../windows/node/appframe.mjs";
+import { RESP_200, emuHost, restart, closeAllEmuHosts } from "./helpers/ee-host-emu.mjs";
+
+after(closeAllEmuHosts);
 
 async function deferredOpen({ checkEpoch }) {
   const h1 = await emuHost();
@@ -78,7 +80,7 @@ test("deferred open, host epoch check OFF: the same interleaving frees the other
   } finally { h1.close(); h2.close(); }
 });
 
-async function queuedClose({ checkEpoch }) {
+async function queuedClose({ checkEpoch = true, forceSame = false } = {}) {
   const h1 = await emuHost();
   const hostCmd = makeHostCmd(h1.port, "127.0.0.1", 10_000);
   let gen = 1;
@@ -98,7 +100,8 @@ async function queuedClose({ checkEpoch }) {
   const cStart = c.start().then(() => "started", (e) => e);
   const aStop = a.stop();
 
-  const h2 = await restart(h1, () => { gen = 2; }, { checkEpoch });
+  // forceSame: the new process draws the OLD process's epoch - a forced identity collision.
+  const h2 = await restart(h1, () => { gen = 2; }, { checkEpoch, ...(forceSame ? { forceEpoch: h1.epoch } : {}) });
   held.release();                                       // the old host answers the slow request, then is gone
   assert.equal((await req).status, 200);
 
@@ -129,6 +132,87 @@ test("queued appclose, host epoch check OFF: it frees the new host's app of that
     assert.deepEqual(h2.effects.filter((x) => x.cmd === "appclose")[0], { cmd: "appclose", epoch: h1.epoch, id: 1 },
       "without the host's check, A's queued close is executed against the new host's slot 1 (C's)");
   } finally { h1.close(); h2.close(); }
+});
+
+test("FORCED SAME EPOCH (the limit an identity check has): a queued appclose lands on the new process's app", async () => {
+  // The epoch check can only tell processes apart if their epochs differ. Force the new ee-host to
+  // draw the old one's epoch and the queued appclose - which already passed every node-side check
+  // before the restart - is accepted and frees the new process's app of that id: the original
+  // cross-tenant bug, back. The node's generation filter cannot help, because the command was
+  // queued while it was current. This is why the first version's 32-bit epoch with a time/pid
+  // fallback was not enough, and why ee-epoch.h draws 128 bits from the OS CSPRNG and fails closed
+  // instead of falling back.
+  const { h1, h2 } = await queuedClose({ forceSame: true });
+  try {
+    assert.equal(h2.epoch, h1.epoch, "the collision was forced");
+    assert.deepEqual(h2.refused, [], "nothing is refused: the stale command looks current");
+    assert.deepEqual(h2.effects.filter((x) => x.cmd === "appclose")[0], { cmd: "appclose", epoch: h1.epoch, id: 1 },
+      "A's queued appclose executed against the new process's slot 1 (C's)");
+  } finally { h1.close(); h2.close(); }
+});
+
+test("the epoch round-trips losslessly: leading zeros and values past 2^53 are echoed byte for byte", async () => {
+  for (const forced of ["00000000000000000000000000000001", "0000000000000000000000000000abcd",
+                        "ffffffffffffffffffffffffffffffff", "0000000000200000000000000000001f"]) {
+    const h = await emuHost({ forceEpoch: forced });
+    try {
+      const hostCmd = makeHostCmd(h.port, "127.0.0.1", 10_000);
+      const app = new EnclaveApp({ id: "0xAB", cwasmPath: "x.cwasm", hostCmd, world: 2, hostGen: () => 1 });
+      await app.start();
+      assert.equal(app.epoch, forced);
+      assert.equal(typeof app.epoch, "string");
+      assert.equal((await app.handle({ method: "GET", pathRest: "/" })).status, 200, `${forced}: the host accepted the echoed epoch`);
+      await app.stop();
+      assert.deepEqual(h.effects.map((x) => [x.cmd, x.epoch]), [["appopen", forced], ["apphandle", forced], ["appclose", forced]]);
+      assert.deepEqual(h.refused, []);
+    } finally { h.close(); }
+  }
+});
+
+test("appopen replies are parsed strictly: anything but <id> <load_us> <32 lowercase hex, not zero> is refused", () => {
+  const E = "0123456789abcdef0123456789abcdef";
+  assert.deepEqual(parseAppOpenReply(`7 1234 ${E}`), { id: 7, loadUs: 1234, epoch: E });
+  assert.deepEqual(parseAppOpenReply(`4294967295 0 ${E}`), { id: 4294967295, loadUs: 0, epoch: E });
+  for (const [bad, why] of [
+    ["1 1000", "old grammar, no epoch"], ["1 1000 12345", "old 32-bit numeric epoch"],
+    ["1 1000 4294967295", "old max 32-bit epoch"], [`1 1000 ${E.toUpperCase()}`, "uppercase"],
+    [`1 1000 ${E.slice(1)}`, "31 digits"], [`1 1000 ${E}0`, "33 digits"],
+    ["1 1000 00000000000000000000000000000000", "all-zero epoch"], [`1 1000 0x${E.slice(2)}`, "0x prefix"],
+    [`1 1000 ${E} extra`, "a 4th token"], [`1  1000 ${E}`, "double space"], [`0 1000 ${E}`, "id 0"],
+    [`01 1000 ${E}`, "leading zero id"], [`4294967296 1000 ${E}`, "id past u32"], [`-1 1000 ${E}`, "signed id"],
+    [`1 -5 ${E}`, "signed load time"], ["", "empty"], [undefined, "undefined"],
+  ]) assert.equal(parseAppOpenReply(bad), null, why);
+});
+
+test("an ee-host whose RNG failed has no epoch: it opens nothing and every app command is refused", async () => {
+  const h = await emuHost({ noEpoch: true });
+  try {
+    const hostCmd = makeHostCmd(h.port, "127.0.0.1", 10_000);
+    const app = new EnclaveApp({ id: "0xAB", cwasmPath: "x.cwasm", hostCmd, world: 2, hostGen: () => 1 });
+    await assert.rejects(app.start(), /app epoch unavailable/);
+    assert.equal(app.slot, 0);
+    const E = "0123456789abcdef0123456789abcdef";
+    for (const cmd of [`apphandle ${E} 1 ${RESP_200}`, `apprun ${E} 1`, `appstop ${E} 1`, `appclose ${E} 1`])
+      await assert.rejects(hostCmd(cmd), /app epoch unavailable/, cmd);
+    assert.deepEqual(h.effects, [], "nothing was opened or acted on");
+  } finally { h.close(); }
+});
+
+test("an appopen reply with an invalid, zero or old-grammar epoch is refused and nothing is sent under it", async () => {
+  const net = await import("node:net");
+  for (const reply of ["ok 1 1000", "ok 1 1000 42", "ok 1 1000 00000000000000000000000000000000",
+                       "ok 1 1000 0123456789ABCDEF0123456789ABCDEF"]) {
+    const got = [];
+    const srv = net.createServer((sk) => sk.on("data", (d) => { got.push(String(d).trim()); sk.write(reply + "\n"); }));
+    await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+    try {
+      const hostCmd = makeHostCmd(srv.address().port, "127.0.0.1", 10_000);
+      const app = new EnclaveApp({ id: "0xAB", cwasmPath: "x.cwasm", hostCmd, world: 2, hostGen: () => 1 });
+      await assert.rejects(app.start(), /no valid app id and epoch/, reply);
+      await app.stop();
+      assert.deepEqual(got.map((l) => l.split(" ")[0]), ["appopen"], `${reply}: nothing id-scoped followed`);
+    } finally { srv.close(); }
+  }
 });
 
 test("every id-scoped command carrying a dead boot's epoch is refused through the funnel", async () => {
@@ -195,6 +279,6 @@ test("apptool refuses an ee-host that answers appopen without an epoch", async (
   try {
     const r = await tool(srv.address().port, "run", "4", "x.cwasm");
     assert.notEqual(r.code, 0);
-    assert.match(r.out, /no app epoch/);
+    assert.match(r.out, /no valid app id and epoch/);
   } finally { srv.close(); }
 });

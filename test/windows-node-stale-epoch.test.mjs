@@ -7,7 +7,7 @@
 // Driven the way it happens in production, with hostGen wired: a request is queued in the real
 // funnel behind a slow command while its generation is still current (the local filter lets it
 // through), ee-host restarts, and the queued apphandle reaches the NEW ee-host, which refuses it.
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -15,7 +15,9 @@ import path from "node:path";
 import { Host } from "../windows/node/host.mjs";
 import { EnclaveApp } from "../windows/node/apprun.mjs";
 import { makeHostCmd } from "../windows/node/appframe.mjs";
-import { emuHost, restart } from "./helpers/ee-host-emu.mjs";
+import { emuHost, restart, closeAllEmuHosts } from "./helpers/ee-host-emu.mjs";
+
+after(closeAllEmuHosts);
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ee-stale-epoch-"));
 const ID = "0xab";

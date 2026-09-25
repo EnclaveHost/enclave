@@ -11,7 +11,7 @@
 // command takes both, because ee-host refuses an id presented under another boot's epoch
 // ("stale epoch") - an id alone is only unique within one ee-host process.
 import net from "node:net";
-import { encodeRequest, decodeResponse } from "./appframe.mjs";
+import { encodeRequest, decodeResponse, parseAppOpenReply } from "./appframe.mjs";
 
 const PORT = Number(process.env.HOST_PORT || 9596);   // the ENCLAVE host's loopback protocol, not the agent's HTTP
 
@@ -33,14 +33,15 @@ function cmd(line) {
   });
 }
 
-/** appopen, answered "<id> <load_us> <epoch>". An ee-host without an epoch is refused: its ids
- *  cannot be told apart from another boot's. */
+/** appopen, answered "<id> <load_us> <epoch>" (appframe.mjs parseAppOpenReply). An ee-host without
+ *  a valid epoch is refused: its ids cannot be told apart from another process's. */
 async function open(world, file, hex = "") {
-  const [id, us, epoch] = (await cmd(`appopen ${world} ${file}${hex ? " " + hex : ""}`)).split(" ");
-  if (!/^[1-9]\d*$/.test(epoch || "")) throw new Error("the enclave host returned no app epoch (ee-host.exe older than this tool?)");
-  return { id, us, epoch };
+  const r = parseAppOpenReply(await cmd(`appopen ${world} ${file}${hex ? " " + hex : ""}`));
+  if (!r) throw new Error("the enclave host returned no valid app id and epoch (ee-host.exe older than this tool?)");
+  return { id: r.id, us: r.loadUs, epoch: r.epoch };
 }
-const num = (v, what) => { if (!/^\d+$/.test(v || "")) { console.error(`${what} must be a number`); process.exit(2); } return v; };
+const num = (v, what) => { if (!/^[1-9]\d{0,9}$/.test(v || "")) { console.error(`${what} must be a positive number`); process.exit(2); } return v; };
+const epochArg = (v) => { if (!/^[0-9a-f]{32}$/.test(v || "")) { console.error("epoch must be the 32 lowercase hex digits run/open printed"); process.exit(2); } return v; };
 
 const [verb, a, b, c] = process.argv.slice(2);
 try {
@@ -55,11 +56,11 @@ try {
   } else if (verb === "get") {
     const frame = encodeRequest({ method: "GET", path: c || "/", headers: { "x-from": "apptool" } });
     const t0 = Date.now();
-    const [hex, us] = (await cmd(`apphandle ${num(a, "epoch")} ${num(b, "id")} ${frame.toString("hex")}`)).split(" ");
+    const [hex, us] = (await cmd(`apphandle ${epochArg(a)} ${num(b, "id")} ${frame.toString("hex")}`)).split(" ");
     const r = decodeResponse(Buffer.from(hex, "hex"));
     console.log(`status ${r.status} in ${(Number(us) / 1000).toFixed(3)} ms inside the enclave (${Date.now() - t0} ms round trip)`);
     for (const [k, v] of Object.entries(r.headers)) console.log(`  ${k}: ${v}`);
     console.log(`body: ${r.body.toString("utf8")}`);
-  } else if (verb === "close") { await cmd(`appclose ${num(a, "epoch")} ${num(b, "id")}`); console.log("unloaded"); }
+  } else if (verb === "close") { await cmd(`appclose ${epochArg(a)} ${num(b, "id")}`); console.log("unloaded"); }
   else { console.error("usage: apptool.mjs abi | run <world> <cwasm> [K=V ...] | open <world> <cwasm> | get <epoch> <id> <path> | close <epoch> <id>"); process.exit(2); }
 } catch (e) { console.error(`failed: ${e.message}`); process.exit(1); }

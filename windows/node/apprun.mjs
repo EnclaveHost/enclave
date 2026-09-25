@@ -23,7 +23,7 @@ import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import { encodeRequest, decodeResponse } from "./appframe.mjs";
+import { encodeRequest, decodeResponse, parseAppOpenReply } from "./appframe.mjs";
 const execFileAsync = promisify(execFile);
 
 const LOG_LINES = 400;
@@ -228,7 +228,7 @@ export class EnclaveApp {
     // ee-host's per-boot epoch (`this.epoch`, below), checked at the side-effecting end.
     this.hostGen = typeof hostGen === "function" ? hostGen : null;
     this.openedGen = null;
-    this.epoch = 0;                          // the ee-host boot that minted `slot`; 0 = none
+    this.epoch = "";                         // the ee-host process that minted `slot` (32 hex, a string); "" = none
     // 1 = enclave:app (this box's own world), 2 = wasi:http (served per request through the gate),
     // 4 = wasi:cli (a SERVER: it binds `port` inside the enclave through the brokered sockets and
     // runs until it is stopped, so the node proxies to that port instead of calling the gate).
@@ -260,26 +260,25 @@ export class EnclaveApp {
     // restart mid-open is a host that never opened this app.
     const gen = this.hostGen ? this.hostGen() : 0;
     const r = await this.hostCmd(`appopen ${this.world} ${this.cwasmPath}${envHex ? " " + envHex : ""}`);
-    const [slot, us, epoch] = String(r).trim().split(/\s+/);
-    this.slot = Number(slot) || 0;
-    this.loadUs = Number(us) || 0;
-    this.epoch = /^[1-9]\d*$/.test(epoch || "") ? Number(epoch) : 0;
+    const open = parseAppOpenReply(r);
     this.openedGen = gen;
-    if (!this.slot) { this.state = "failed"; throw new Error("the enclave did not return an app slot"); }
-    if (!this.epoch) {
-      // An ee-host that does not bind its ids to a boot cannot refuse a stale command, so nothing
-      // it hands out is used. The node and ee-host.exe carry this protocol together and have to be
-      // deployed together.
-      this.slot = 0; this.state = "failed";
-      throw new Error("the enclave host returned no app epoch (ee-host.exe older than this node?)");
+    if (!open) {
+      // No valid "<id> <load_us> <epoch>": an ee-host that does not bind its ids to its process
+      // (too old, or it has no epoch) cannot refuse a stale command, so nothing it hands out is
+      // used. The node and ee-host.exe carry this protocol together and are deployed together.
+      this.slot = 0; this.epoch = ""; this.state = "failed";
+      throw new Error("the enclave host returned no valid app id and epoch (ee-host.exe older than this node?)");
     }
+    this.slot = open.id;
+    this.loadUs = open.loadUs;
+    this.epoch = open.epoch;
     if (this.#stale()) {
       // The ee-host restarted while this open was in flight, so the reply may name a slot in a host
       // that is gone. Release it under ITS OWN epoch - a host other than the one that minted it
       // refuses that, so this can only ever close the app this very open created - and fail the
       // start: host.tick reloads the app from its lease against the current ee-host.
       const [s, e] = [this.slot, this.epoch];
-      this.slot = 0; this.epoch = 0; this.state = "failed";
+      this.slot = 0; this.epoch = ""; this.state = "failed";
       try { await this.hostCmd(`appclose ${e} ${s}`); } catch { /* refused by a newer host, or gone */ }
       throw new Error("the enclave restarted while this app was being opened");
     }
@@ -317,7 +316,7 @@ export class EnclaveApp {
         else { await this.hostCmd(`appclose ${this.epoch} ${this.slot}`); }
       } catch (e) { this.#say(`stop: ${e.message}`); }
     }
-    this.slot = 0; this.epoch = 0; this.state = "stopped";
+    this.slot = 0; this.epoch = ""; this.state = "stopped";
   }
   /** Wait for the app to bind its port inside the enclave. */
   waitPort(ms) {

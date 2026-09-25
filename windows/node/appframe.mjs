@@ -21,6 +21,22 @@ const MAX_HEADERS = 256;          // the runtime refuses more; refuse here too r
  * the NEW host - which is why id-scoped app commands carry ee-host's per-boot epoch and ee-host
  * refuses a stale one before any side effect (ee-host.c g_app_epoch).
  */
+/**
+ * ee-host's answer to appopen, "<id> <load_us> <epoch>", parsed strictly (ee-host.c, ee-epoch.h).
+ * The epoch is 128 bits as exactly 32 lowercase hex digits, never all zero, and it stays a STRING:
+ * it is an identity to echo back byte for byte, and a JS Number cannot hold it. Returns null for
+ * anything else - including an ee-host too old to send an epoch - so the caller fails closed.
+ */
+export function parseAppOpenReply(reply) {
+  const parts = String(reply ?? "").trim().split(" ");
+  if (parts.length !== 3) return null;
+  const [id, us, epoch] = parts;
+  if (!/^[1-9]\d{0,9}$/.test(id) || Number(id) > 0xffffffff) return null;
+  if (!/^\d+$/.test(us)) return null;
+  if (!/^[0-9a-f]{32}$/.test(epoch) || /^0+$/.test(epoch)) return null;
+  return { id: Number(id), loadUs: Number(us), epoch };
+}
+
 export function makeHostCmd(port, host = "127.0.0.1", timeoutMs = 600_000) {
   let queue = Promise.resolve();
   return function hostCmd(line) {
