@@ -1,11 +1,99 @@
-# Can the OpenHCL UEFI path on nucbox-k11 exclude the Windows host? — **NO**
+# Can the OpenHCL UEFI path on nucbox-k11 exclude the Windows host?
 
-**Verdict: NO-GO for host exclusion on this hardware. The UEFI path is an integration prototype.**
-It is a real and useful one — it boots, it has a live control channel, and it exercises the whole
-manager/node/relay stack — but it cannot deny the ordinary Windows host kernel or the VM worker
-access to app memory or keys, and no software change to our stack can make it.
+**Corrected 2026-09-25 after enclave-5d's source review. My first answer was right about what we
+run and WRONG about what is possible.** Both versions are kept below, because the correction is the
+useful part.
 
-Dated 2026-09-25. Sources are the pinned openvmm checkout at `a7b0bd4` and measurements on the box.
+## The answer, in scope
+
+1. **What boots today — `GuestStateIsolationType OpenHCL`, type 16 — does NOT exclude the host.**
+   This is not inference. `petri/src/vm/hyperv/powershell.rs:61-62`, verbatim:
+   ```rust
+   /// OpenHCL but no isolation
+   OpenHCL = 16,
+   ```
+   The root partition can map guest RAM. Our guest says so on every boot: `host_excluded=no`.
+
+2. **`VBS`, type 1, is a different thing and this box can create and start it.**
+   `vmm_core/virt/src/generic.rs:132`, verbatim:
+   ```rust
+   /// Hypervisor based isolation.
+   Vbs,
+   ```
+   `is_isolated()` is TRUE for it. It is **untested by us** and it is the real open question.
+
+3. **Hardware exclusion (SNP/TDX) is impossible here.** Measured: both are REFUSED AT CREATE on this
+   Ryzen 9 8945HS client APU.
+
+## The error I made, stated plainly
+
+I read `is_hardware_isolated() = Snp | Tdx | Cca` and concluded "therefore VBS does not exclude the
+host". That function separates **who enforces** — hardware or hypervisor — **not whether the host is
+excluded**. I then generalised to "only hardware memory encryption can do this" and "no software
+change can make it", and both are contradicted by the pinned source.
+
+## What the source actually shows about VBS (enclave-5d; citations verified here)
+
+- **A private/shared host-visibility model exists under VBS, not only SNP.** `underhill_mem` accepts
+  VTL0 RAM as PRIVATE (`accept_gpa_pages`, `HvCallAcceptGpaPages`) and then moves only the shared
+  pool to host-visible (`HvCallModifySparseGpaPageHostVisibility`, with the comment "On VBS, we need
+  to accept the pages first before we move them to shared"). A private/shared distinction is only
+  meaningful if the root cannot see private pages; under VBS the **hypervisor** enforces that
+  instead of the RMP.
+- **VBS has its own attestation report.** `vm/hv1/hvdef/src/vbs.rs` defines `VbsReport` (0x230
+  bytes): report data, measurement, signer, owner id, host data, enabled-VTL bitmap, security
+  policy, guest SVN, 256-byte signature. `tee_call` exposes it as `TeeType::Vbs`.
+- **Microsoft tests exactly this shape on Hyper-V.** 28 cases of `hyperv_openhcl_uefi_x64[vbs]` in
+  `vmm_tests/.../multiarch/tpm138.rs`, including **Linux** guests (`ubuntu_2504_server_x64`), gated
+  on the host advertising `Vbs` in `GuestIsolationTypes`. I first grepped the wrong path and
+  reported it absent; it is there.
+
+## What VBS would and would not exclude — inferred from the ABI, NOT measured
+
+| | |
+|---|---|
+| **Would exclude** | the root partition's OS: the Windows kernel, `vmwp.exe`, an administrator — absent a hypervisor compromise |
+| **Would NOT exclude** | the hypervisor and the Secure Kernel; whoever controls the host's boot chain; **physical attacks — memory is NOT encrypted**, so DMA outside the IOMMU, cold boot, bus probing; side channels |
+
+That is a **real but weaker tier than SNP**: *host OS excluded, hypervisor and the box's boot chain
+trusted*. It is not hardware confidential computing and must never be described as such.
+
+## The open question that may still be the blocker
+
+**Who signs the `VbsReport`, and can a REMOTE client verify that key?** Unverified. 5d's guess is a
+host VBS key chaining to the host's TPM (AMD fTPM here) through measured boot — which would require
+host attestation (a TPM quote plus TCG log) before a client could trust it. **Without a
+client-verifiable chain, VBS isolation is a property we assert rather than one a customer can
+check**, and by our own standing rule that is not "attested".
+
+## Go / no-go
+
+- **NO-GO, unchanged**, for advertising host exclusion, verified capacity or confidential computing
+  on anything running today. Type 16 is explicitly non-isolating.
+- **NOT a dead end.** Type 1 is a documented, Microsoft-tested configuration this box offers, and
+  moving to it is a configuration change plus an IGVM built for the VSM_ISOLATION platform — not a
+  different architecture.
+- **GO** on the UEFI path as an integration prototype meanwhile.
+
+## What would settle it, all bounded, all on our own probe VM
+
+1. Does our IGVM `7caf7408` declare the **VSM_ISOLATION** platform, or type-16 only?
+   (`igvmfilegen` maps `LoaderIsolationType::Vbs` → `IgvmPlatformType::VSM_ISOLATION`.)
+2. Boot a **type-1** VM with such an IGVM and read **CPUID 0x4000000C** inside: `EBX[3:0]=1` means
+   VBS, `EAX` bit 0 means a paravisor is present. Hypervisor-stated, so evidence of configuration,
+   not proof of enforcement.
+3. Fetch a `VbsReport` and find its signing chain. **This is the one that decides remote
+   verifiability.**
+4. The empirical negative: from the root, a documented memory read (a VM dump) of a type-1 probe VM
+   should be refused or return private pages absent, where the same read on type 16 succeeds.
+   Our own probe VM only, never a customer app, never a bypass.
+
+---
+
+# Superseded first version (kept deliberately)
+
+The original text below reached the right conclusion for type 16 by an argument that was too broad.
+Its capability probe and its three-boundaries table stand; its generalisation does not.
 
 ## The primitive that would be required
 
