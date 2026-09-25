@@ -15,6 +15,7 @@ import { $, lsGet, on } from "../core/util.js";
 import { DEPLOYMENTS_ADDRESS } from "../core/config.js";
 import { catExplorer } from "../core/chain.js";
 import { Enclave } from "../core/api.js";
+import { refreshFleetInto } from "../core/fleet-read.js";
 import { navigate } from "../boot.js";
 
 /* Signed-out visitors have nothing here - bounce to Overview. "Signed out"
@@ -40,15 +41,9 @@ on("enclave:account", gate);   // passkey/card session edges gate the same way
    polled only while this page's <main> is mounted */
 let _fleetPoll = null;
 async function refreshFleet(){
-  const fl = document.querySelector(".dash-fleet c-fleet-list"); if (!fl) return;
-  try {
-    const r = await fetch(Enclave.base.replace(/\/v1\/?$/, "") + "/enclaves", { headers: { "Accept": "application/json" } });
-    if (!r.ok) throw new Error("no fleet view");
-    const j = await r.json();
-    fl.rows = (j.enclaves || []).slice().sort((a, b) =>
-      ((b.availability && b.availability.gpu) === true) - ((a.availability && a.availability.gpu) === true)
-      || String(a.endpoint || "").localeCompare(String(b.endpoint || "")));
-  } catch(e){ fl.rows = []; }   // the component's empty state reads "no live enclaves"
+  // a failed read shows the last good table marked stale, or an error state -
+  // never the component's "no app hosts" empty state (js/core/fleet-read.js)
+  await refreshFleetInto(document.querySelector(".dash-fleet c-fleet-list"), Enclave.base);
 }
 
 export function boot() {

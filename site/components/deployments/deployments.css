@@ -41,6 +41,10 @@ c-deployments{display:contents;}
    runner-held status/errors - this says so and offers the sign-in that fixes it */
 .enc-sessnote{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;padding:.6em .8em;border:1px solid var(--amber-dim);border-radius:8px;background:rgba(255,145,77,.06);color:var(--amber);font-family:var(--font-mono);font-size:.72rem;line-height:1.5;}
 .enc-sessnote .btn{flex-shrink:0;margin-left:auto;}
+/* a failed list read: an error, never "No apps yet" (js/core/list-state.js) */
+.enc-loaderr{color:var(--amber);}
+.enc-loaderr::before{content:"⚠" / "";color:var(--amber);}
+.enc-loaderr .btn{margin-left:8px;}
 /* queued rows' "why isn't the fleet taking this" line (claim-hint decline
    reason). Layout only: transient reasons dim via an inner .dim span,
    terminal ones get .enc-err stacked on (declared FIRST so its colors win) */

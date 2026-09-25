@@ -7,6 +7,7 @@
    ============================================================ */
 import { EnclaveElement, register } from "../../js/lib/enclave-element.js";
 import { esc, fmtNum, short, showToast } from "../../js/core/util.js";
+import { asOf } from "../../js/core/list-state.js";
 import { starsHtml } from "../../js/core/reviews.js";
 import { hrevConfigured, hrevTallies, hrevMine, encCall, HREV_SEL, waitReceipt, REVIEW_MAX_BODY } from "../../js/core/chain.js";
 import { HOST_REVIEWS_ADDRESS } from "../../js/core/config.js";
@@ -17,7 +18,9 @@ import { REGISTRY_ADDRESS } from "../../js/core/config.js";
 import { catExplorer } from "../../js/core/chain.js";
 
 class FleetList extends EnclaveElement {
-  static properties = { rows: null };
+  // error: why the latest read failed (null = it did not); staleAt: when the
+  // rows shown were read, when they are the last good table (js/core/fleet-read.js)
+  static properties = { rows: null, error: null, staleAt: 0 };
   static templateUrl = new URL("./fleet-list.html", import.meta.url);
 
   renderedCallback() {
@@ -63,11 +66,19 @@ class FleetList extends EnclaveElement {
       + (price != null ? '<span class="fleet-pool-price"><b>' + perHr(price) + '</b>/hr</span>' : '')
       + '<span class="fleet-stats">' + stats + '</span>'
       + '</div>';
+    // A FAILED read is not an empty fleet: say it failed (retrying) rather than "no hosts",
+    // and under last-good rows say how old they are.
+    const failed = this.error ? String(this.error) : "";
+    const staleNote = failed && rows.length
+      ? '<div class="fleet-stale" role="status">Showing hosts as of ' + esc(asOf(this.staleAt)) + ': the latest read failed (' + esc(failed) + '). Retrying.</div>'
+      : "";
     list.innerHTML = (!rows.length
-      // Honest and short. It is said the same way whether the fleet is empty or every attached
-      // box is excluded, because from a buyer's side those are the same fact: nothing to deploy on.
-      ? '<div class="fleet-empty">No app hosts available right now</div>'
-      : rows.map(e => {
+      ? (failed
+        ? '<div class="fleet-empty fleet-error" role="alert">Couldn’t load the app hosts: ' + esc(failed) + '. This is a failed read, not an empty fleet. Retrying.</div>'
+        // Honest and short. It is said the same way whether the fleet is empty or every attached
+        // box is excluded, because from a buyer's side those are the same fact: nothing to deploy on.
+        : '<div class="fleet-empty">No app hosts available right now</div>')
+      : staleNote + rows.map(e => {
           const a = e.availability || {};
           const gpu = a.gpu === true;
           const gFree = a.gpuShareFree != null ? a.gpuShareFree : (gpu ? a.maxShare || 0 : 0);
