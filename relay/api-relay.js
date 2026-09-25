@@ -391,7 +391,10 @@ const rlMiss = makeRateLimiter({ capacity: 60, refillPerSec: 10 });   // /x + ap
 const rlHint = makeRateLimiter({ capacity: 20, refillPerSec: 2 });    // /v1/claim-hint fan-out
 // the pVM carrier (PVM_SERVING; null when OFF): the ledger's runner only, the relay's own client identity and limiters
 const pvmServe = PVM_SERVING.enabled ? PVM_SERVING.handler({
-  resolve: (id) => runnerEndpointOf(id), hub: tunnelHub, clientOf: (req) => clientIp(req),
+  // its OWN resolver, never the app router's (pvm-serving.mjs pvmRunnerResolver): the ledger's live runner for a full id, and
+  // only the hub's current AVF-attested tunnel for it; no owner cache, no probe; the tier is not required (RELAY-SERVING.md)
+  resolve: PVM_SERVING.pvmRunnerResolver({ ledgerRows, expire: () => { _ledger.at = 0; }, origins: () => tunnelHub.origins(), endpointId }),
+  hub: tunnelHub, clientOf: (req) => clientIp(req),
   perClient: makeRateLimiter({ capacity: 30, refillPerSec: 0.5 }), perDeployment: makeRateLimiter({ capacity: 60, refillPerSec: 1 }),
   emit: (o) => console.log("[pvm-serving] " + JSON.stringify(o)),
 }) : null;

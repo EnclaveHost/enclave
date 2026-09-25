@@ -2,7 +2,8 @@
 // api-relay.js behind PVM_SERVING, which is OFF by default and not enabled anywhere; not deployed. POST /x/<id>/pvm/evidence and POST /x/<id>/pvm/sealed carry a buyer's bytes to the
 // pVM tunnel of that deployment's ON-CHAIN runner and the VM's answer back, as bytes -- exactly the lab web carrier's two
 // endpoints (cpu/web-carrier.mjs), under the deployment's path.
-//   - resolve(id) must return the runner's live endpoint from the LEDGER (runnerEndpointOf), never a fan-out probe; it
+//   - resolve(id) must return the runner's live endpoint from the LEDGER (pvmRunnerResolver, the carrier's own: never the
+//     app router's runnerEndpointOf, never a fan-out probe); it
 //     must be tunnel://<name>, and the hub must accept the stream for that kind (tunnel.js spliceRaw: pvm-evidence for an
 //     AVF-attested pVM tunnel, pvm-app-sealed only for an app the hub verified). Anything else: a plain 404, no body a
 //     client could mistake for evidence, no fallback to another tunnel or enclave.
@@ -76,12 +77,55 @@ export function pvmServingFromEnv(env, { avfOn = false, pvmCpuOn = false } = {})
     if (!ROUTE.test((req.url || "").split("?")[0])) return false;
     res.writeHead(503, { "content-type": "text/plain", "cache-control": "no-store", connection: "close" }); res.end(); return true;
   };
-  return { enabled: true, missing, attestPvmApp: missing.length ? null : app, handler: (deps) => (missing.length ? refuseAll : createPvmServing(deps)) };
+  return { enabled: true, missing, attestPvmApp: missing.length ? null : app, handler: (deps) => (missing.length ? refuseAll : createPvmServing(deps)),
+           pvmRunnerResolver };   // the carrier's own resolver, handed out with the handler (OFF, this module is never loaded)
 }
 
 /**
+ * The pVM carrier's OWN resolver (RELAY-SERVING.md "Routing: the carrier's own resolver"; reviewed with the verifier
+ * session). /x/<D>/pvm/{evidence,sealed} ONLY -- never the app router, an app subdomain, a custom domain, a WS upgrade or a
+ * certificate. It answers "tunnel://<name>" or null:
+ *   - D is a FULL canonical id (0x + 64 lowercase hex; no prefix, nothing ambiguous) whose ledger row has a runner and a
+ *     LIVE lease (leaseUntil in the future, judged at THIS request: a lease that lapses mid-session refuses the next one);
+ *   - the ledger is read through the caller's cache; a miss (no row, or no live lease) gets ONE fresh read, then no route;
+ *     a read that fails is no route -- never an owner cache, never a fan-out probe of live rows;
+ *   - the runner must be one of the hub's CURRENT tunnels (origins(): tunnel://<name>, the row the hub builds from its own
+ *     attach verdict) whose MODE is the hub's "avf" (set only after a verified AVF attach; a hello cannot set it) and whose
+ *     own public URL hashes to that runner id.
+ * The tier is NOT required: a tunnel re-attached in place carries none (the tier is the inference lane's capability
+ * admission -- the model and a self-test after the attach -- not a security gate). What each stream may carry is still
+ * the hub's own judgement (spliceRaw: evidence for an AVF-attested attach, sealed only for an app it verified), and the
+ * client verifies the VM itself.
+ * ledgerRows(): Promise<rows> (the caller's cached ledger read); expire(): drop that cache so the next read is fresh;
+ * origins(): the hub's current tunnel rows; endpointId(url): Promise<registry id> (keccak256 of the URL).
+ */
+export function pvmRunnerResolver({ ledgerRows, expire, origins, endpointId, now = Date.now }) {
+  const CANON = /^0x[0-9a-f]{64}$/, ZERO = /^0x0+$/, TUNNEL = /^tunnel:\/\/[A-Za-z0-9_-]{1,64}$/;
+  const liveLease = (d) => !!d && !ZERO.test(String(d.runner)) && Number(d.leaseUntil) * 1000 > now();
+  const read = async (id, fresh) => {
+    if (fresh) expire();
+    let rows; try { rows = await ledgerRows(); } catch { return { failed: true }; }
+    const hits = (Array.isArray(rows) ? rows : []).filter((d) => d && String(d.id).toLowerCase() === id);
+    return { d: hits.length === 1 ? hits[0] : null };
+  };
+  return async function resolve(id) {
+    const h = String(id || "");
+    if (!CANON.test(h)) return null;
+    let r = await read(h, false);
+    if (r.failed) return null;
+    if (!liveLease(r.d)) { r = await read(h, true); if (r.failed || !liveLease(r.d)) return null; }
+    const runner = String(r.d.runner).toLowerCase();
+    for (const o of origins() || []) {
+      if (!o || o.tunnel !== true || o.mode !== "avf" || !TUNNEL.test(String(o.endpoint)) || !o.publicUrl) continue;
+      let eid; try { eid = String(await endpointId(o.publicUrl)).toLowerCase(); } catch { continue; }
+      if (eid === runner) return o.endpoint;
+    }
+    return null;
+  };
+}
+/**
  * handle(req, res) -> true when the request was a pVM carrier request (answered), false otherwise (not ours).
- * resolve(id): Promise<string|null> the ledger runner's live endpoint; hub.spliceRaw(name, socket, kind) -> bool.
+ * resolve(id): Promise<string|null> the ledger runner's live endpoint (pvmRunnerResolver); hub.spliceRaw(name, socket, kind) -> bool.
  */
 // clientOf: the relay's AUTHENTICATED client identity. The default is the socket's address, which behind a front (Caddy, a
 // relay) is the FRONT's -- every buyer would share one bucket -- and X-Forwarded-For is never read (spoofable). Wiring must

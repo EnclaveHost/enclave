@@ -14,11 +14,15 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SUITES = { api: "test/api-relay-pvm-serving.test.mjs", hub: "test/pvm-relay-serving.test.mjs" };
+const SUITES = { api: "test/api-relay-pvm-serving.test.mjs", hub: "test/pvm-relay-serving.test.mjs", resolver: "test/pvm-runner-resolver.test.mjs" };
 const T = {   // the tests, by a distinctive part of their titles
   off: "PVM_SERVING OFF (the default)", lazy: "OFF carries no new code", bare: "PVM_SERVING ON without its configuration",
   on: "PVM_SERVING ON and configured: the ledger runner only", hung: "a ledger that never answers", hub: "the relay's wiring on the REAL hub",
   boot: "the BOOTSTRAP route on the REAL hub",
+  // the carrier's own resolver (pvm-serving.mjs pvmRunnerResolver; enclave-99's refusals)
+  rTier: "routed: the ledger's live runner", rCanon: "a full canonical id only", rMiss: "a miss gets exactly ONE fresh ledger read",
+  rFail: "a ledger read that fails is NO route", rLapse: "a lease that lapses mid-session", rHub: "only the hub's avf tunnel for THAT runner",
+  rWire: "api-relay.js: pvm-serving resolves through pvmRunnerResolver",
 };
 const AR = "relay/api-relay.js", PS = "relay/pvm-serving.mjs", TJ = "relay/tunnel.js";
 const PVM_LINE = "  if (pvmServe && pvmServe(req, res)) return;\n";
@@ -45,6 +49,14 @@ const MUTATIONS = [
   // the pre-lease BOOTSTRAP route (/t/<name>/pvm/evidence; RUNNER-AGENT.md "Before the lease")
   ["M21", "the bootstrap route claims ANY tunnel's /t/<name>/pvm/evidence, not only an attached pVM tunnel's", AR, [["o.endpoint === origin && o.mode === \"avf\")", "o.endpoint === origin)"]], "api", T.on],
   ["M22", "no per-tunnel rate on the bootstrap route", PS, [["if (!perClient(who) || !perDeployment(bucket))", "if (!perClient(who) || (m && !perDeployment(bucket)))"]], "hub", T.boot],
+  ["M24", "the resolver requires the tier (a tunnel re-attached in place is cut off)", PS, [["if (!o || o.tunnel !== true || o.mode !== \"avf\" ||", "if (!o || !o.tier || o.tunnel !== true || o.mode !== \"avf\" ||"]], "resolver", T.rTier],
+  ["M25", "the resolver reads the ledger for a non-canonical id", PS, [["    if (!CANON.test(h)) return null;\n", ""]], "resolver", T.rCanon],
+  ["M26", "no fresh read on a miss", PS, [["if (!liveLease(r.d)) { r = await read(h, true); if (r.failed || !liveLease(r.d)) return null; }", "if (!liveLease(r.d)) return null;"]], "resolver", T.rMiss],
+  ["M27", "a failed ledger read falls back to probing the hub's tunnels", PS, [["    if (r.failed) return null;\n", "    if (r.failed) { for (const o of origins() || []) if (o && o.mode === \"avf\") return o.endpoint; return null; }\n"]], "resolver", T.rFail],
+  ["M28", "the lease's end is not judged", PS, [["Number(d.leaseUntil) * 1000 > now()", "true"]], "resolver", T.rLapse],
+  ["M29", "the hub's mode is not required", PS, [["o.tunnel !== true || o.mode !== \"avf\" ||", "o.tunnel !== true ||"]], "resolver", T.rHub],
+  ["M30", "any avf tunnel is taken, not the runner's", PS, [["      if (eid === runner) return o.endpoint;", "      return o.endpoint;"]], "resolver", T.rHub],
+  ["M31", "pvm-serving resolves through the app router's runnerEndpointOf", AR, [["  resolve: PVM_SERVING.pvmRunnerResolver({ ledgerRows, expire: () => { _ledger.at = 0; }, origins: () => tunnelHub.origins(), endpointId }),", "  resolve: (id) => runnerEndpointOf(id),"]], "resolver", T.rWire],
   ["M23", "sealed routed by tunnel name", PS, [["\\/pvm\\/evidence$/.exec(path)", "\\/pvm\\/(?:evidence|sealed)$/.exec(path)"]], "hub", T.boot],
   ["M20", "the hub pairs app and runtime (not the cross product)", TJ, [["        t.pvmApp = { appId: app, runtimeId: v.runtimeId,", "        if (policy.appIds.indexOf(app) !== policy.runtimeIds.indexOf(v.runtimeId)) return reply(false, [\"paired\"]);\n        t.pvmApp = { appId: app, runtimeId: v.runtimeId,"]], "hub", T.hub],
 ];

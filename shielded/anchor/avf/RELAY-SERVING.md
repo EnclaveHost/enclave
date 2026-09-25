@@ -93,7 +93,8 @@ each needs its own review.
 
 - **`relay/pvm-serving.mjs`** implements items 1 to 3 as a standalone handler. `api-relay.js` does not import it, so the
   production relay's behaviour is unchanged. The handler:
-  - takes a ledger resolver, which must be `runnerEndpointOf`, and a tunnel hub, `spliceRaw`;
+  - takes a ledger resolver, which had to be `runnerEndpointOf` (since 2026-09-25 it is the carrier's OWN,
+    `pvmRunnerResolver`: see "Routing: the carrier's own resolver"), and a tunnel hub, `spliceRaw`;
   - accepts only full canonical ids;
   - requires a `tunnel://` runner, and returns a plain 404 otherwise, with no body and no fallback;
   - applies the carrier's bounds (413 is sent before the connection closes), per-deployment and per-client rates (429),
@@ -277,6 +278,55 @@ Codex directed this slice under Steven's standing scope. Coding the disabled pat
   6. **Cold start** (targets 3 and 5) for a runner.
   7. **Review.** The verifier session's review of this exact wiring.
 
+## Routing: the carrier's own resolver (2026-09-25; reviewed with the verifier session)
+
+**Why it is separate.** The verifier session is preparing a defensive relay patch, on another branch off main, for
+tenant APP routing and certificate issuance. Under it, `runnerEndpointOf`, app subdomains, custom domains, WS upgrades,
+the owner cache, the fan-out probe and certs.js all require the relay's verified eligibility (`computeEligible`). An AVF
+(phone) row is never eligible: the pVM CPU tier is an inference lane, not app hosting. So `/x/<D>/pvm/{evidence,sealed}`
+no longer goes through the app router. It has its own resolver, `pvmRunnerResolver` in relay/pvm-serving.mjs, handed out
+only by the ON switch, and that patch leaves it alone.
+
+**What it routes.** It answers `tunnel://<name>` or nothing, for these two paths only:
+- **The deployment:** D must be a FULL canonical id, and its ledger row must have a runner with a LIVE lease. The lease is
+  judged at each request, so a lease that lapses mid-session refuses the next request.
+- **The runner:** it must be one of the hub's CURRENT tunnels (`origins()`) whose MODE is the hub's `avf`, and whose own
+  public URL hashes to the runner id. The mode is set only by a verified AVF attach; a hello cannot set it.
+
+**What it never does:**
+- keep an owner cache of its own;
+- probe live rows;
+- fall back when a ledger read fails: a failed read is no route;
+- serve any path but these two.
+A miss gets ONE fresh ledger read, then no route.
+
+**The tier is not required, and that is deliberate.**
+- **The tier is capability admission:** the model, and a self-test AFTER the attach. It is not a security gate.
+- **A tunnel re-attached in place carries no tier.** The engine runs its self-test once, at start (RUNNER-AGENT.md
+  "Reconnect in place"). Requiring the tier would cut `/x` after every relay drop until the VM restarts.
+- **The security of each stream is the hub's and the client's:**
+  - `spliceRaw` gives the evidence kind only to an AVF-attested attach (`t.pvm`), and the sealed kind only to an app the
+    hub verified (`t.pvmApp`, ABI/2 over the hub's own nonce and this tunnel's transport key);
+  - the client verifies the VM itself.
+- **A tier-less row is routed only for its OWN leased deployment's pvm kinds.** Never for an app subdomain, a custom
+  domain, a certificate, or `/x/<D>/<anything else>`. It stays never eligible and never serving.
+
+**Tests** (test/pvm-runner-resolver.test.mjs; test/mutate-pvm-serving.mjs M24-M31):
+- routed with no tier;
+- a non-canonical id is not even read;
+- a miss gets exactly one fresh read, then no route; a new lease is found on that read;
+- a failed read (the cached one, or the fresh one after a miss) is no route, and looks at no tunnel;
+- a lapse mid-session refuses the next request;
+- no route for:
+  - a dialed row claiming avf;
+  - a row without the tunnel flag;
+  - a token tunnel whose hello says avf;
+  - vbs and snp tunnels;
+  - another avf tunnel;
+  - a row without a public URL;
+  - a malformed endpoint;
+- api-relay.js wires pvm-serving to this resolver, never to `runnerEndpointOf`.
+
 ## Runner registration and production configuration: what is done, and exactly what remains (2026-09-24)
 
 Inspected read-only: relay/api-relay.js (`runnerEndpointOf`, `endpointId`, `readRegistry`), relay/tunnel.js
@@ -315,8 +365,8 @@ relay/deploy.sh and relay/systemd/enclave-api-relay.service.
    - The EOA is a seller key, not a TEE key.
 2. **Take a lease.** `EnclaveDeployments.claim(<deployment id>, <runner id>)`, then `renew` and `release`, from the same
    EOA.
-   - With the lease live and the phone attached with its `publicUrl`, `runnerEndpointOf(<deployment id>)` returns
-     `tunnel://<name>`, and the pVM carrier routes to it.
+   - With the lease live and the phone attached with its `publicUrl`, the carrier's resolver (`pvmRunnerResolver`) returns
+     `tunnel://<name>` for `<deployment id>`, and the pVM carrier routes to it.
 3. **Proven time (ledger rev 9).**
    - A rev-9 ledger pays only for time the runner PROVES it served. The proof is checkpoints signed by the
      registry's `proofKey`, and metal boxes mint that key inside the CVM.
