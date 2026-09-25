@@ -531,9 +531,13 @@ try {
         Note "marker: $marker"
         $mk = & C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send "{`"cmd`":`"echo`",`"marker`":`"$marker`"}" 2>&1 | Out-String
         Note "marker pushed to the guest: $($mk.Trim())"
+        # Both readers, because they fail in different ways and the comparison is the evidence.
+        # vmwp first (it does not disturb the guest), then the saved-state path, which SUSPENDS the
+        # VM - so it runs last, after the app has been served, and resumes afterwards.
         $hr = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\host-read-guest.ps1 `
                 -VmId $vmId -Marker $marker -Label "type$IsolationType" 2>&1 | Out-String
-        foreach ($l in ($hr -split "`n" | Where-Object { $_.Trim() })) { Note "  HOSTREAD: $($l.Trim())" }
+        foreach ($l in ($hr -split "`n" | Where-Object { $_.Trim() })) { Note "  HOSTREAD/vmwp: $($l.Trim())" }
+        $script:hostReadMarker = $marker
       }
       if ($st -match '"head"\s*:\s*"\S') { Note "PROTOCOL OK: the monitor answered a control command" }
       else { Note "PROTOCOL: connected but the monitor returned no answer to {cmd:state}" }
@@ -578,6 +582,12 @@ try {
               Note "APP OK: the app served EXACTLY the pinned bytes through the guest's own TLS"
               Note "  (identity NOT verified here: curl -k accepted the guest cert. That is judge-hv's job.)"
             } else { Note "APP: answered, but the bytes are not the pinned content (expected sha 03ba204e...)" }
+          # LAST, because it suspends the guest: the documented saved-state path.
+          if ($HostRead -and $script:hostReadMarker) {
+            $ss = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\host-read-savedstate.ps1 `
+                    -VmId $vmId -Marker $script:hostReadMarker -Label "type$IsolationType" -ResumeAfter 2>&1 | Out-String
+            foreach ($l in ($ss -split "`n" | Where-Object { $_.Trim() })) { Note "  HOSTREAD/saved: $($l.Trim())" }
+          }
             Remove-Item $bodyFile -Force -EA SilentlyContinue
           } else { Note "APP: no body file; the relay returned nothing" }
         } else { Note "WMISERVE did not reach ready" }
@@ -610,6 +620,7 @@ finally {
   try {
     if ($created) {
       $v = Get-VM -Name $name -EA SilentlyContinue
+      Note "cleanup: VM $(if($v){"present, state $($v.State), notes '$($v.Notes)'"}else{'already gone'})"
       # WAIT FOR Off BEFORE REMOVING. Remove-VM on a VM still transitioning throws
       # "InvalidState" - measured: a run left enclave-uefi-20260925-024136 behind exactly this way,
       # and the old code announced "removed" over the top of it.
@@ -667,11 +678,14 @@ finally {
   # The verdict is DECIDED here and ACTED ON after the block. `exit` inside `finally` does not set
   # the process exit code - measured: a run that printed "RUN FAILED (cleanup also failed)" still
   # handed its caller 0, which is the very bug this was added to fix.
-  if ($fail.Count) { foreach ($f in $fail) { Write-Host "FAILURE: $f" }; Write-Host "RUN FAILED (cleanup also failed)"; $script:exitCode = 1 }
+  # THROUGH Note, not Write-Host. A detached run (Win32_Process Create) has no console, so every
+  # cleanup failure was written to nowhere: a canary VM was left RUNNING after a saved-state read and
+  # the log showed the setting restored with no hint that anything had gone wrong.
+  if ($fail.Count) { foreach ($f in $fail) { Note "FAILURE: $f" }; Note "RUN FAILED (cleanup also failed)"; $script:exitCode = 1 }
   elseif ($script:runFailed -or -not $ready) {
-    Write-Host "RUN FAILED$(if(-not $script:runFailed){' (the guest never came ready)'}) - cleanup was clean"; $script:exitCode = 2
+    Note "RUN FAILED$(if(-not $script:runFailed){' (the guest never came ready)'}) - cleanup was clean"; $script:exitCode = 2
   }
-  else { Write-Host "RUN OK"; $script:exitCode = 0 }
+  else { Note "RUN OK"; $script:exitCode = 0 }
 }
 
 # The exit code, set inside `finally` and acted on here for the reason stated there.
