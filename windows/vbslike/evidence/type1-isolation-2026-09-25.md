@@ -579,3 +579,24 @@ Housekeeping: two per-run guest-state copies from the 04:03 and 04:12 runs were 
 `c9c8cdcc`), and the VMs were removed by hand at the time; their copies were not. Both files were
 moved, hash-verified, to `vbs-evidence\gueststate-20260925-040317.vmgs` (`8306e228...`) and
 `gueststate-20260925-041231.vmgs` (`b4d3bb3d...`).
+
+## Correction (2026-09-25 ~07:00Z): every JSON sent to the guest through hvdial lost its quotes
+
+Windows PowerShell 5.1 strips embedded double quotes from an argument passed to a native program. Measured on
+nucbox-k11 with node as the receiver:
+- `'{"cmd":"destroy","id":1}'` arrives as `{cmd:destroy,id:1}`;
+- escaped `\"`, it arrives intact.
+
+Consequences:
+- Every "state exchange" line in this record reads `{"error":"bad request: invalid character 'c' ..."}` because the
+  monitor received broken JSON. "PROTOCOL OK" there meant only that the monitor ANSWERED, and the answer was a
+  parse error.
+- The host-read marker push (`{"cmd":"echo","marker":...}`) was sent the same way, so the marker was very likely
+  never placed in guest memory on those runs.
+- The type-16 reader-control verdict does NOT depend on the marker: it was VOID because the reader found neither
+  the marker NOR the canary, a string the guest itself had printed. So the conclusion stands (that reader cannot
+  see guest memory). But the marker half of that run was not a valid test, and it is recorded as such.
+- The memory experiment stays parked; this changes nothing about it.
+
+Fixed in `uefi-dev-boot.ps1`: every `--send` escapes quotes (`-replace '"','\"'`). This matters for the new
+`-G1Check`, whose three destroys must reach the monitor as real JSON.
