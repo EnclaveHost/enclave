@@ -218,6 +218,17 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   is NOT yet an input (my generator missed it: git abbreviates the path in its stat line); it is pinned in the next
   version. The box launcher's hash is NOT re-pinned until d1 gives the post-rebuild one.
 
+- **v24 draft** (`drafts/nucbox-ownguest-24.json`, STAGED; supersedes v23): enclave-5d's reading AGREES with d1's E2
+  conclusion and is pinned BESIDE it, not over it (`c8529534`): (1) it is a finding, not an inference — OpenHCL calls the
+  same VBS-report hypercall first and returns on failure before sending the IGVM_ATTEST request, so the empty-response
+  parse error means the VTL2 report call succeeded; (2) PAIRING CAVEAT — the VTL2 success was seen on the debug image
+  and the VTL0 `0x71` on the control image (same a7b0bd4 code, manifest and layout; the flag changes only OpenHCL's
+  command line and digest), so one debug-firmware boot with the vbsreport probe would give both answers from one
+  partition (optional, d1's call); (3) VTL2's report binds OpenHCL's own key-release claims, NOT our guest's key —
+  nothing today binds the domain's TLS key to a VBS report, and the signer question (IDKS or not) is UNTESTED because
+  no report has been in our hands. d1's `b0f20482` evidence (the input v23 missed) and 5d's `c8529534` review are
+  inputs. Unchanged: `host_excluded=no`, E3 NOT RUN, no isolation claim.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was

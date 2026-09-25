@@ -606,3 +606,18 @@ test("draft v23 (staged) pins E2 verbatim from d1 with the interleaving note, an
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
 });
+
+test("draft v24 (staged) pins 5d's reading beside d1's E2 conclusion (finding not inference, the pairing caveat, VTL2's report binds OpenHCL's claims not our key) and carries d1's b0f20482 evidence", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-24.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, STAGED \(supersedes v23 as the staged package\): enclave-5d's reading AGREES/);
+  const ms = d.profiles.vbs.measured, iRes = ms.findIndex((m) => /^E2 RESOLVED/.test(m)), iBes = ms.findIndex((m) => /^E2 READING BESIDE d1's CONCLUSION/.test(m));
+  assert.ok(iRes >= 0 && iBes === iRes + 1, "5d's reading sits beside (right after) d1's conclusion, not over it");
+  assert.match(ms[iBes], /the VTL2 report call SUCCEEDED.*PAIRING CAVEAT.*ONE partition.*NOT our guest's key.*UNTESTED, because no report has been in our hands/);
+  assert.match(ms[iRes], /DESIGN CHANGE rather than a guest patch/, "d1's conclusion is unchanged");
+  const ev = d.inputs.find((i) => i.name === "type1-isolation-b0f20482.md");
+  assert.ok(ev && ev.from.git.commit.startsWith("b0f20482") && ev.from.git.path === "windows/vbslike/evidence/type1-isolation-2026-09-25.md");
+  assert.ok(d.inputs.some((i) => i.name === "VBS-ISOLATION-c8529534.md" && i.from.git.commit.startsWith("c8529534")));
+  assert.equal(d.tier.hostExcluded, false); assert.equal(d.tier.attested, false);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});
