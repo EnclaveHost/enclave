@@ -14,6 +14,8 @@ import argparse, glob, hashlib, io, json, os, re, shutil, sys, tarfile
 ap = argparse.ArgumentParser()
 ap.add_argument("outdir"); ap.add_argument("--sources", required=True); ap.add_argument("--edk2", required=True)
 ap.add_argument("--wasmtime-src", required=True); ap.add_argument("--crates", required=True); ap.add_argument("--cargo-home", required=True)
+ap.add_argument("--title", default="domain release 0181bce3 (release id 5c3561f9...)")
+ap.add_argument("--extra-md", help="a release's own additions (e.g. public data embedded in its front), inserted before the crate table")
 a = ap.parse_args()
 L = os.path.join(a.outdir, "licenses")
 if os.path.exists(L): shutil.rmtree(L)
@@ -159,7 +161,7 @@ section(f"Rust crates compiled into wasmtime ({len(crate_rows)})", "template/rt/
 # --- write -------------------------------------------------------------------------------------------------------------
 md = io.StringIO()
 w = md.write
-w("# Third-party notices: domain release 0181bce3 (release id 5c3561f9...)\n\n")
+w(f"# Third-party notices: {a.title}\n\n")
 w("Every component below is part of the release's bytes (INVENTORY.md says where, and how that was established). Each "
   "remains under its own license. The texts are copied from each component's own source into licenses/, byte for byte; "
   "their sha256 are listed at the end. The corresponding source of the copyleft components is listed in SOURCES.md. "
@@ -170,6 +172,7 @@ for title, where, version, lic, source, files, notes in sections:
     if files: w("- **Texts:** " + ", ".join(f"[{f}]({f})" for f in files) + "\n")
     if notes: w(f"\n{notes}\n")
     w("\n")
+if a.extra_md: w(open(a.extra_md).read().rstrip() + "\n\n")
 w("## The crates, one per row\n\n| crate | version | license (declared) | texts |\n|---|---|---|---|\n")
 for name, ver, lic, got, note in crate_rows:
     w(f"| {name} | {ver} | {lic} | " + ", ".join(f"[{os.path.basename(g)}]({g})" for g in got) + (f" ({note})" if note else "") + " |\n")

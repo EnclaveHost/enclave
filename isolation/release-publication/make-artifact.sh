@@ -42,6 +42,9 @@ git -C "$repo" worktree add -q --detach "$out/src" "$full"
 echo "== domain-release.sh"
 rel=$out/release-$(echo "$full" | cut -c1-8)
 [ -z "$fw" ] || export OVMF="$fw"   # m1/domain.env takes OVMF from the environment when it is set
+# a PRODUCTION front, whatever the caller's environment says: app-image-template.sh builds a lab front only when
+# ISOLATION_LAB_FRONT=1 (since 7de792bc's successors), and GOFLAGS could carry -tags releaselab into an older one
+unset ISOLATION_LAB_FRONT; export GOFLAGS= GOTOOLCHAIN=local
 (cd "$out/src" && sh isolation/m4/domain-release.sh "$rel") | tee "$out/domain-release.out"
 id=$(awk '/^release /{print $2}' "$out/domain-release.out")
 python3 "$out/src/isolation/m4/release-manifest.py" verify "$rel" --expect "$id"

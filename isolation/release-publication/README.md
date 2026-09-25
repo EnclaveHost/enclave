@@ -38,5 +38,10 @@ Rules the scripts keep:
 - nothing is uploaded anywhere.
 
 ## Releases
-- [release-0181bce3/](release-0181bce3/): release id 5c3561f9…, the one deployed as ~/enclave-prod/release-0181bce3.
-  [ARTIFACT.md](release-0181bce3/ARTIFACT.md) has the tarball, its hash and the exact rebuild commands.
+- [release-0181bce3/](release-0181bce3/): release id 5c3561f9…, the one deployed as ~/enclave-prod/release-0181bce3,
+  and the production release's rollback. [ARTIFACT.md](release-0181bce3/ARTIFACT.md) has the tarball, its hash and the
+  exact rebuild commands.
+- [production/](production/): the production release (5d's).
+  - Its third-party content is checked identical to 0181bce3's.
+  - Packaging waits for the final id ([STATUS.md](production/STATUS.md)).
+  - `check-third-party.py` decides whether a new release is covered by an already-prepared one.
