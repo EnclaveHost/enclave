@@ -56,8 +56,10 @@ to every remaining verification requirement. It grants:
    - `node --test pkg.test.mjs`: 96/96, 0 skipped, including the PowerShell 7 cases, run alone from 11:01:28Z to
      11:05:59Z.
    - An earlier overlapping run failed 4 tests with ENOENT. The suite's fixed scratch directory is shared, and each
-     run's `after()` deletes it. That is a harness defect, reported to enclave-63 and being fixed as a per-run
-     directory; it is not a package defect.
+     run's `after()` deletes it. That is a harness defect, not a package defect.
+   - FIXED in windows/vbslike-pkg `55aca21e`, a test-only change: one `run-<pid>-` directory per run, and `after()`
+     removes only its own. d1 verified it by running TWO suites concurrently from 11:11:45Z to 11:17:08Z: each used its
+     own directory, both passed 96/96 with 0 skipped, and `test-work/` was empty afterwards.
 4. **Manifest.**
    - `managerEnv` has the same 19 names. Only `ENCLAVE_GUEST_IGVM` and `_SHA256` moved, to b7ba7731. There is no
      respawn, attach, relay or tunnel variable.
