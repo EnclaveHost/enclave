@@ -2342,9 +2342,14 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
   const sup = manager.supports || {};
   if (Number(gpuMilli) > 0 && sup.gpu !== true)
     return "the deployment bought a GPU share, and a per-app SNP guest has no GPU path";
-  if ((config || appConfigCid) && sup.config !== true)
+  // The attested release (docs/security/attested-release.md) delivers a deployment's config and secrets INTO its
+  // guest, sealed to a key only that guest holds; nothing of them crosses this host or guestd's. Claimable only when
+  // BOTH ends say so: guestd runs with -release (supports.release) and this box's operator opted in
+  // (ISOLATION_RELEASE=1, once the relay's release is on and each already-leased deployment passed its go/no-go).
+  const released = isolationReleaseOn(manager);
+  if ((config || appConfigCid) && sup.config !== true && !released)
     return "the deployment carries app config, which is not yet delivered into a per-app guest";
-  if (hasSecrets !== false && sup.secrets !== true)
+  if (hasSecrets !== false && sup.secrets !== true && !released)
     return hasSecrets === true
       ? "the deployment has staged secrets, and they would cross this host in plaintext (attested in-guest delivery is not built)"
       : "cannot verify the deployment has no staged secrets (relay probe unreachable)";
@@ -2373,6 +2378,84 @@ function isolationClaimVerdict({ backend, require, manager, gpuMilli, config, ap
   // pool_full); refusing here keeps a lease from being taken for work that could only be refused. A create that still
   // meets a 507 (a race between two claims) is a failed provision like any other: noted, backed off, released once.
   return guestPoolRefusal(manager.pool || null, policy, held || null);
+}
+
+// ---- the attested release: this box's half (docs/security/attested-release.md) ------------------------------------
+// ISOLATION_RELEASE=1 is the operator's opt-in to CLAIM deployments with config or staged secrets on this tier: the
+// relay's release must be on, and each deployment already leased here must have passed its go/no-go (a guest on a
+// release image can have its staged secrets released). Tickets themselves are pumped for every guest of a guestd
+// that runs with -release, whatever this says: its images need one to boot.
+const ISOLATION_RELEASE = process.env.ISOLATION_RELEASE === "1";
+function isolationReleaseOn(manager) {
+  return ISOLATION_RELEASE && !!manager && !!manager.supports && manager.supports.release === true;
+}
+
+// One ticket, for this deployment, signed by the key that registered this endpoint (the relay checks it is the
+// endpoint's registered operator, that the endpoint holds the deployment's LIVE lease, and that its SNP tunnel proved a
+// chip). The ticket is one-use and lives 120 s; it is never logged.
+async function fetchReleaseTicket(id, endpoint = _advertisedEndpoint) {
+  if (!REGISTRY_PK) throw new Error("no operator key: a release ticket is signed by the endpoint's registry operator");
+  if (!endpoint) throw new Error("this box has no registered endpoint yet");
+  const idL = String(id).toLowerCase();
+  const ts = Math.floor(Date.now() / 1000);
+  const opSig = await claimSigner().account.signMessage({ message: `enclave-secrets-release-ticket:${idL}:${endpoint}:${ts}` });
+  const r = await fetch(`${SECRETS_API}/v1/secrets/release-ticket`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: idL, endpoint, ts, opSig }), signal: AbortSignal.timeout(10_000) });
+  let b = null;
+  try { b = await r.json(); } catch { b = null; }
+  if (!r.ok) {
+    const code = b && /^[a-z_]{1,40}$/.test(String(b.error || "")) ? ` ${b.error}` : "";
+    throw new Error(`the relay refused a release ticket (HTTP ${r.status}${code})`);
+  }
+  if (!b || typeof b.ticket !== "string" || Buffer.from(b.ticket, "base64").length !== 32
+      || Buffer.from(b.ticket, "base64").toString("base64") !== b.ticket)
+    throw new Error("the relay's ticket is not base64 of 32 bytes");
+  return b.ticket;
+}
+
+// The pump for ONE guest: guestd holds the booting guest and reports awaitingTicket; only THEN is a ticket fetched
+// (so none of its 120 s is spent on the image build) and handed to guestd for that guest alone. It ends when the guest
+// is no longer starting (running, failed, gone) or at the deadline. A relay refusal is retried while the guest waits:
+// guestd's hold (5 min) is what ends a guest whose ticket never comes, through its lifecycle.
+const _ticketPumps = new Map();   // vmId -> the pump's promise
+function pumpReleaseTicket(deploymentId, vmId) {
+  if (_ticketPumps.has(vmId)) return _ticketPumps.get(vmId);
+  const p = releaseTicketPump(deploymentId, vmId)
+    .catch((e) => { console.warn(`[isolation] ${deploymentId.slice(0, 10)}: release ticket pump for ${vmId} ended: ${e.message}`); return "error"; })
+    .finally(() => _ticketPumps.delete(vmId));
+  _ticketPumps.set(vmId, p);
+  return p;
+}
+async function releaseTicketPump(deploymentId, vmId, { req = vmReq, fetchTicket = fetchReleaseTicket,
+                                                        pollMs = 2000, retryMs = 10_000, deadlineMs = 15 * 60_000,
+                                                        sleep = sleepMs, log = console } = {}) {
+  const until = Date.now() + deadlineMs, path = `/vms/${encodeURIComponent(vmId)}`;
+  let handed = false, nextTry = 0;
+  while (Date.now() < until) {
+    const r = await req("GET", path, null, 10_000).catch(() => null);
+    const v = r && r.status === 200 ? r.body : null;
+    if (r && r.status === 404) return "gone";
+    if (v && v.status !== "starting") return v.status;          // running, failed: nothing more to hand
+    if (v && v.awaitingTicket === true && !handed && Date.now() >= nextTry) {
+      try {
+        const ticket = await fetchTicket(deploymentId);
+        const p = await req("POST", `${path}/ticket`, { ticket }, 10_000);
+        if (p.status === 202) {
+          handed = true;
+          log.log(`[isolation] ${deploymentId.slice(0, 10)}: release ticket handed to guest ${vmId}`);
+        } else {
+          log.warn(`[isolation] ${deploymentId.slice(0, 10)}: guestd did not take the release ticket for ${vmId} (HTTP ${p.status})`);
+          nextTry = Date.now() + retryMs;
+        }
+      } catch (e) {
+        log.warn(`[isolation] ${deploymentId.slice(0, 10)}: release ticket for ${vmId}: ${e.message}`);
+        nextTry = Date.now() + retryMs;
+      }
+    }
+    await sleep(pollMs);
+  }
+  return "timeout";
 }
 
 // ISOLATION_SELFTEST='{"verdicts":[{…isolationClaimVerdict input…}],"parse":["<envelope>",…],
@@ -3703,14 +3786,16 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
   if (PROVISION_BACKEND === "vm" && ISOLATION_BACKEND) {
     // Per-app guest tier: guestd derives the bundle from the catalog version and runs it in its OWN SNP guest. It
     // refuses every feature it cannot honour inside the guest, so none is sent; the claim gate already refused
-    // deployments that need one.
-    if (secrets || configCid || isolationAppConfig(config))
+    // deployments that need one. With the attested release on, config and secrets are not sent EITHER: the guest
+    // fetches them from the relay itself, sealed to it, with the ticket this process hands guestd (pumpReleaseTicket).
+    const h = await vmHealth();
+    const released = isolationReleaseOn(h);
+    if (!released && (secrets || configCid || isolationAppConfig(config)))
       throw new Error("per-app isolation: this deployment carries config or secrets the guest tier does not support");
     const httpPort = isolationHttpPortOf(ports);   // throws for tcp/udp or a second port
     // The policy is the version's; a record that lost the version's memMb must not guess one (a different policy
     // is a different AppID and measurement for the same version).
     if (versionMemMb == null) throw new Error("per-app isolation: this record does not carry its version's on-chain memMb");
-    const h = await vmHealth();
     const derive = isolationDerivation(catalogRef, image && image.reference,
       isolationPolicyFor({ memMb: versionMemMb }), h && h.catalog && h.catalog.runtimeId, httpPort);
     const body = { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
@@ -3728,6 +3813,7 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
       if (v && v.name === deploymentId && (v.status === "running" || v.status === "starting")
           && v.recordSha256 === derivationDigest(derive)) {
         console.log(`[isolation] ${deploymentId.slice(0, 10)}: adopted guest ${v.id} (${v.status}), launched from this record before the node restarted`);
+        if (v.status === "starting" && h && h.supports && h.supports.release === true) pumpReleaseTicket(deploymentId, v.id);
         return { internalPort: 0, vmId: v.id, hostPort: 0, appId: v.appId };
       }
       console.warn(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} under this name is not this record's; ending it and launching again`);
@@ -3738,6 +3824,10 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     if (r.status !== 201) throw new Error(`guestd refused the launch (HTTP ${r.status}): ${(r.body && r.body.error) || JSON.stringify(r.body)}`);
     console.log(`[isolation] ${deploymentId.slice(0, 10)}: guest ${r.body.id} app ${String(r.body.appId).slice(0, 16)}… `
               + `(${ISOLATION_POLICY_RULE} ${JSON.stringify(derive.policy)}, record ${String(r.body.recordSha256 || "").slice(0, 16)}…)${r.reconciled ? " [reconciled]" : ""}`);
+    // A guestd with -release runs images whose front reads a ticket before it serves, for EVERY deployment guest
+    // (config or not: the host must not be able to start one without its owner's release). So the ticket is pumped
+    // whenever guestd says supports.release, whatever ISOLATION_RELEASE says about claiming config.
+    if (h && h.supports && h.supports.release === true) pumpReleaseTicket(deploymentId, r.body.id);
     // hostPort 0: the guest's forwarder is on the HOST, which this process cannot reach as 127.0.0.1; liveness is
     // guestd's "running", which it reports only after verifying the guest (instanceAlive, tenantServing)
     return { internalPort: 0, vmId: r.body.id, hostPort: 0, appId: r.body.appId };
@@ -8595,6 +8685,27 @@ function claimSigner() {
   }
   return { account: _claimAccount, wallet: _claimWallet };
 }
+// RELEASE_SELFTEST='{"id":"0x…","vmId":"gd…","endpoint":"…","script":[{status,awaitingTicket}|{"code":404},…],
+//   "post":202}' runs ONE ticket pump against a scripted guestd (each GET answers the next script entry; the last
+//   repeats) and the REAL signed fetch against SECRETS_API, then prints {result, posts, logs} as one JSON line and
+//   exits (test/isolation-release-ticket.test.mjs drives it with a fake relay and a throwaway REGISTRY_PRIVATE_KEY).
+if (process.env.RELEASE_SELFTEST) {
+  const c = JSON.parse(process.env.RELEASE_SELFTEST);
+  let i = 0;
+  const posts = [], logs = [];
+  const req = async (method, path, body) => {
+    if (method === "POST") { posts.push({ path, ticketBytes: Buffer.from(String(body && body.ticket), "base64").length, afterGet: i }); return { status: c.post ?? 202, body: {} }; }
+    const e = c.script[Math.min(i++, c.script.length - 1)];
+    return e.code ? { status: e.code, body: {} } : { status: 200, body: e };
+  };
+  const log = { log: (m) => logs.push(m), warn: (m) => logs.push(m) };
+  // a REF'd sleep: sleepMs unrefs its timer (right for the long-running process), and here nothing else holds the loop
+  const result = await releaseTicketPump(c.id, c.vmId, { req, pollMs: 5, retryMs: c.retryMs ?? 5, deadlineMs: c.deadlineMs ?? 5000,
+    log, sleep: (ms) => new Promise((r) => setTimeout(r, ms)), fetchTicket: (id) => fetchReleaseTicket(id, c.endpoint) });
+  console.log(JSON.stringify({ result, posts, logs }));
+  process.exit(0);
+}
+
 // Bare-metal receipt wait: poll eth_getTransactionReceipt every 2s. viem's
 // waitForTransactionReceipt spent the FULL 120s timeout on every tx here even
 // though each one mined within seconds — the whole night of 2026-07-19 the
