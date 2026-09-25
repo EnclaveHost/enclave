@@ -1,0 +1,5 @@
+{"key":"XMipQhCf1LkmAlmYtjUvrhQnhpk/R3IvwhE/Aqa6LDo=","step":"launcher","vm":"f19647f5-12f0-444a-b050-56789070e4b0"}
+{"bound":true,"port":9001,"step":"report-service"}
+{"agreed":true,"appSha256":"9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45","boot":"39725c19e15c91afe488ce62251055f5","guestPort":40001,"id":1,"ok":true,"step":"load"}
+{"guestPort":40001,"ok":true,"step":"relay","tcp":19500}
+{"isolationType":1,"note":"serving. This is a DEV path on a type-1 (VBS) partition: the hypervisor is CONFIGURED to keep VTL0 RAM host-private, which is a configuration and not a measurement. No host-side read has been shown to be refused here. Nothing here is host-excluded or verified capacity.","step":"ready"}
