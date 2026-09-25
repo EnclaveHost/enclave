@@ -22,7 +22,7 @@ read from the code at the commits named, and from read-only probes. Nothing in i
 ## The order, and what each step needs
 | step | what | who | needs |
 |---|---|---|---|
-| 1 | U7 on nan (the release needs U7's `hostEligibility` provider: without it, `release_unconfigured` whatever the env) | 63 | e3's 2144fcb3, d1's check (running) |
+| 1 | U7 on nan (the release needs U7's `hostEligibility` provider: without it, `release_unconfigured` whatever the env) | 63 | **DONE**: U7 live on nan, nan-relay and us-west (enclave-63, 2026-09-25, per the preflight's §7) |
 | 2 (4b) | the relay's release ON, for the 3 canaries only | 63 runs `relay-release-on.sh` | step 1, e3/d1 review, **Codex go** |
 | 3 (4c-c) | the node passes `ISOLATION_RELEASE=1` (NEW IMAGE: the one real blocker) | 63 | the gsup change (prepared here), d1/e3 review, **Codex go** |
 | 4 (4e) | the canaries relaunched as release guests, ONE at a time | 63 (the agent wallet signs the restart) | steps 2 and 3 |
@@ -178,8 +178,7 @@ serves at `https://<label>.app.enclave.host/`.
 1. **A NEW NODE IMAGE (4c-c) for `ISOLATION_RELEASE`.** The code change is prepared (gsup.mjs, above); it needs d1/e3
    review, 63's build, prediction and rollout, and Codex's go. The 4c image now rolling out (b18f8989) cannot run
    release guests.
-2. **U7 on nan before the release goes ON** (hostEligibility), in progress. U7 on us-west is NOT needed for the release
-   or for serving: us-west's relay only splices TLS.
+2. ~~U7 on nan before the release goes ON~~: **DONE** (live on nan, nan-relay and us-west).
 3. **Steven:**
    - the S5 names check per app;
    - the three `setConfig` signatures;
