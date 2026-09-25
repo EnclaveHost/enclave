@@ -80,6 +80,19 @@
     "hvSock": "guest listens 9000, host listens 9001, domain 40000+id",
     "vTpm": "ABSENT, deliberately: nothing on this path reads PCRs, and a vTPM present but unread would look like attestation (enclave-d1). Measured 2026-09-25 01:10:51Z: Msvm_SecuritySettingData.TpmEnabled = False"
    },
+   "managerServing": {
+    "expect": {
+     "attachesMedium": false,
+     "setsBootDevice": false,
+     "readsBackBoot": false,
+     "imageIsMediumHash": false,
+     "imageType": "object",
+     "hasLauncherKey": false,
+     "hasRelay": false
+    },
+    "measuredBy": "win/manager-check.mjs on the pinned manager's own start(), recording host, 2026-09-25",
+    "note": "RED AS MEASURED (sent to enclave-d1 with lines, accepted): the manager's start() attaches no medium and sets no boot device, returns verifyImage()'s {sha256, bytes} of the FIRMWARE as image (the datapath compares a 64-hex string, so every route would be refused), and has no 9001 bind, 9000 load or relay, so no launcherKey and no relay and readiness is never judged. The dev-boot script + wmiserve did all of this once by hand. When the manager gains it, THIS PIN MOVES."
+   },
    "identity": "partition.guestImageSha256 = the attached MEDIUM's sha256, hashed AT ATTACH (guest.iso's bytes on the DVD path, disk.raw's for the VHDX payload), with the UKI and its composition beside it; partition = wmi-openhcl-gen2, the LAUNCHER's word (isolation/m3/UEFI-BOOT.md at 4127789d; wmi-launcher.mjs uefiImageIdentity at fe56ad65). With Secure Boot off, systemd-stub honours ESP side-files and cmdline overrides; only a medium hash rules them out, and the guest's guards refuse them.",
    "measured": [
     "DEV only, QEMU q35 + OVMF on KVM (warden-host): this ISO (7b9b04d6) boots past the guards and then REFUSES by name, 'MON ERROR no vsock transport: neither Hyper-V's (hv_sock) nor virtio's is present', and powers off, because the pinned WSL kernel has no virtio vsock transport. That is the guard working on KVM, not a boot. On the NucBox the same medium is expected to print transport=hv_sock; not yet measured.",
@@ -289,6 +302,7 @@
    "from": {
     "file": "~/enclave-bench/ownguest-pkg/sources/uefi/guest-7b9b04d6.iso"
    },
+   "boxReuse": "C:\\Users\\claude\\vbs-like\\pkg\\515de1fa8596cafc\\guest\\uefi\\guest.iso",
    "note": "THE BOOT MEDIUM: a read-only El Torito ISO whose EFI image holds exactly one file, \\EFI\\BOOT\\BOOTX64.EFI = UKI 20a0e18e (enclave-5d's spec at 6f1a9aff, reproduced by both assemblies). Reproducible: `verify --rebuild` makes it again. Its sha256 is the identity enclave-99 recommends the launcher sign"
   },
   {
@@ -299,6 +313,7 @@
    "from": {
     "file": "~/enclave-bench/ownguest-pkg/sources/uefi/disk-23c52ecc.vhdx"
    },
+   "boxReuse": "C:\\Users\\claude\\vbs-like\\pkg\\515de1fa8596cafc\\guest\\uefi\\disk.vhdx",
    "note": "FALLBACK medium (enclave-d1): a Gen2 SCSI boot disk. The container's header GUIDs are random, so these bytes are pinned by observation; `verify --rebuild` checks that its payload is disk.raw 23c52ecc exactly"
   },
   {
