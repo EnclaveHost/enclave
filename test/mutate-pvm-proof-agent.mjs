@@ -17,7 +17,7 @@ const SUITE = "test/pvm-proof-agent.test.mjs", PA = "shielded/anchor/avf/runner/
 const T = {   // the tests, by a distinctive part of their titles
   full: "the full path on a local lease", pins: "pins must agree before anything is asked", lease: "the lease and the key decide",
   cap: "the owner's fee cap", hostile: "a hostile carrier", idem: "idempotency:", replace: "a transaction that does not mine is replaced",
-  stuck: "a nonce left stuck past its anchor's age", reorg: "reorganizations:",
+  stuck: "a nonce left stuck past its anchor's age", reorg: "reorganizations:", live: "the registry entry and the deployment must be LIVE",
 };
 const MUTATIONS = [
   ["A01", "a replayed or crossed answer is accepted (no equality with the request)", [["if (c.upto !== upto || c.anchorBlock !== anchorBlock || c.anchorHash !== anchorHash)", "if (false)"]], T.hostile],
@@ -41,6 +41,11 @@ const MUTATIONS = [
   ["A17", "the RPC's chain id is not checked", [["if (String(rpcChain) !== cfg.chainId) throw", "if (false) throw"]], T.pins],
   ["A18", "an aged-out anchor is replaced with the same aged proof", [["if (age >= P.maxAnchorAgeBlocks) return keep(", "if (false) return keep("]], T.stuck],
   ["A19", "recovery does not rebroadcast the journaled bytes", [["< P.maxAnchorAgeBlocks) for (const t of pending.txs) await broadcast(t);", "< P.maxAnchorAgeBlocks) {}"]], T.idem],
+  // enclave-99's review of c9fd1d39: four checks no test failed without
+  ["A20", "the proof-key statement is asked for over a constant nonce", [["const nonce = randomBytes(32).toString(\"hex\"), doc = await ask(`PROOFKEY ${nonce}`);", "const nonce = \"5a\".repeat(32), doc = await ask(`PROOFKEY ${nonce}`);"]], T.hostile],
+  ["A21", "the answer's anchor hash is not compared with the request's", [["if (c.upto !== upto || c.anchorBlock !== anchorBlock || c.anchorHash !== anchorHash)", "if (c.upto !== upto || c.anchorBlock !== anchorBlock)"]], T.hostile],
+  ["A22", "the registry entry is not checked (active, operator, endpoint)", [["if (!L.regActive || L.regOperator !== me || L.regEndpointId !== E) return out(", "if (false) return out("]], T.live],
+  ["A23", "an inactive deployment is still proven", [["if (!L.active) return out(", "if (false) return out("]], T.live],
 ];
 
 const pick = process.argv.slice(2);
