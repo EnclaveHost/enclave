@@ -291,6 +291,35 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     console.warn(`[secrets-release] ${id}: no prediction (${code === 503 ? "ticket kept" : "ticket burned"}): ${message}`);
     bad(code, error, message); return true;
   }
+  // what the guest gets: the ledger envelope's config (inline, or its configCid resolved here) and the deployment's secrets.
+  // Resolved BEFORE the ticket is consumed: it depends only on the deployment's record, and an unresolvable CID is the
+  // relay's own 503, which keeps the ticket for the guest's retry. Nothing is released until the evidence verifies below.
+  const envelope = String((row && row.configCid) || "").trim();
+  // the config, by the supervisor's own precedence (overrideConfigFields): the envelope's config, else its configCid, else
+  // the catalog VERSION's config, else the version's configCid; null only when none of them names one
+  let o;
+  try { o = envelope ? JSON.parse(envelope) : {}; if (!o || typeof o !== "object" || Array.isArray(o)) throw new Error("x"); }
+  catch { tickets.delete(tk); bad(422, "bad_envelope", "The deployment's options envelope is not a JSON object."); return true; }
+  let config = null, source = null;
+  const resolveCid = async (cid, whose) => {
+    if (typeof ctx.resolveConfigCid !== "function") throw Object.assign(new Error("This relay cannot resolve a configCid."), { code: 503, error: "config_unresolvable" });
+    const got = await ctx.resolveConfigCid(String(cid));
+    if (got == null) throw Object.assign(new Error(`${whose} configCid did not resolve.`), { code: 503, error: "config_unresolvable" });
+    return got;
+  };
+  try {
+    if (o.config !== undefined) { config = o.config; source = "the envelope's config"; }
+    else if (o.configCid !== undefined) { config = await resolveCid(o.configCid, "The deployment's"); source = "the envelope's configCid"; }
+    else {
+      const ver = await ctx.versionConfigFor(id);
+      if (ver && ver.config !== undefined && ver.config !== null && ver.config !== "") { config = ver.config; source = "the version's config"; }
+      else if (ver && ver.configCid) { config = await resolveCid(ver.configCid, "The version's"); source = "the version's configCid"; }
+    }
+    if (source) config = configValue(config);
+  } catch (e) {
+    if (e.code) { if (e.code !== 503) tickets.delete(tk); bad(e.code, e.error, e.message); return true; }   // a 503 keeps the ticket
+    tickets.delete(tk); bad(422, "bad_config", `${source || "The config"} is not a JSON object or array (${e.message}).`); return true;
+  }
   if (tickets.get(tk) !== t) { bad(403, "bad_ticket", "Unknown, expired or already-used ticket, or one issued for another deployment."); return true; }
   tickets.delete(tk);   // consumed: everything below judges the guest's evidence
   const doc = b.evidence;
@@ -331,33 +360,6 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     : !t.chips.includes(f.chipId.toString("hex")) ? "the report is not from a chip the lease holder attested with"
     : null;
   if (why) { console.warn(`[secrets-release] ${id}: REFUSED: ${why}`); bad(403, "evidence_refused", why); return true; }
-  // what the guest gets: the ledger envelope's config (inline, or its configCid resolved here) and the deployment's secrets
-  const envelope = String((row && row.configCid) || "").trim();
-  // the config, by the supervisor's own precedence (overrideConfigFields): the envelope's config, else its configCid, else
-  // the catalog VERSION's config, else the version's configCid; null only when none of them names one
-  let o;
-  try { o = envelope ? JSON.parse(envelope) : {}; if (!o || typeof o !== "object" || Array.isArray(o)) throw new Error("x"); }
-  catch { bad(422, "bad_envelope", "The deployment's options envelope is not a JSON object."); return true; }
-  let config = null, source = null;
-  const resolveCid = async (cid, whose) => {
-    if (typeof ctx.resolveConfigCid !== "function") throw Object.assign(new Error("This relay cannot resolve a configCid."), { code: 503, error: "config_unresolvable" });
-    const got = await ctx.resolveConfigCid(String(cid));
-    if (got == null) throw Object.assign(new Error(`${whose} configCid did not resolve.`), { code: 503, error: "config_unresolvable" });
-    return got;
-  };
-  try {
-    if (o.config !== undefined) { config = o.config; source = "the envelope's config"; }
-    else if (o.configCid !== undefined) { config = await resolveCid(o.configCid, "The deployment's"); source = "the envelope's configCid"; }
-    else {
-      const ver = await ctx.versionConfigFor(id);
-      if (ver && ver.config !== undefined && ver.config !== null && ver.config !== "") { config = ver.config; source = "the version's config"; }
-      else if (ver && ver.configCid) { config = await resolveCid(ver.configCid, "The version's"); source = "the version's configCid"; }
-    }
-    if (source) config = configValue(config);
-  } catch (e) {
-    if (e.code) { bad(e.code, e.error, e.message); return true; }
-    bad(422, "bad_config", `${source || "The config"} is not a JSON object or array (${e.message}).`); return true;
-  }
   const plaintext = JSON.stringify({ id, envelopeSha256: sha256(Buffer.from(envelope)).toString("hex"), config, secrets: envOf(id) || {},
                                      issuedAt: new Date().toISOString() });
   let sealed;
