@@ -366,3 +366,51 @@ came out as `21419cd8…` with **`GUESTRTS` at offset 0** — the v3 header, byt
 seen earlier. So the VM worker opened the store and formatted it. No PROVISIONING_MARKER was written
 (`openhcl` appears nowhere in the file), which is consistent with stopping in memory initialization
 before that marker is written; absence alone proves nothing, but it fits.
+
+---
+
+# A TYPE-1 VBS PARTITION BOOTS AND SERVES — two changes, both named
+
+The blocker was two things, not one:
+
+1. **`Set-VMSecurity -VirtualizationBasedSecurityOptOut $true`.** The error was "cannot safely
+   support VTL 1 without using the alias map": OpenHCL was being asked to support Guest VSM
+   (VTL1 *inside* the guest) and this host does not give it the alias map it needs to do that
+   safely. Our Linux guest has no secure kernel and never uses VTL1, so declining Guest VSM removes
+   the requirement. **This is not weakening the property under test** — Guest VSM is VTL1 inside the
+   guest; the host exclusion in question is the PARTITION's isolation, a different mechanism,
+   untouched. The raw CIM property is ReadOnly on this build; `Set-VMSecurity` is the path.
+2. **An a7b0bd4-built CVM image.** Stock `cfd40ce2` (release 2511) still reads `control_state
+   "starting"` and never boots WITH the opt-out applied. So the opt-out alone is not sufficient and
+   the 2511-versus-a7b0bd4 difference is real, exactly as the control image was built to decide.
+
+## Measured on the CONTROL image (a7b0bd4, no --confidential-debug, does NOT trust the host)
+
+    firmware openhcl-cvm-a7b0bd4-CONTROL-32d464cc.bin, GuestStateIsolationType 1, medium ca245eae
+    inspect control_state (66 ms): "started"
+    MON snp=0 vcpus=1 memMiB=1828 boot_ms=325
+    MON hv hyperv=true max_leaf=0x4000000c priv_high=0x6a8030 isolation_priv=true config_a=0x0 config_b=0x1
+    MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=vbs paravisor=no
+    MON ready control_port=9000 snp=false transport=hv_sock
+    WMISERVE load: agreed, appSha256 9c3d10f1...; relay up; APP ANSWERED 13 raw bytes sha256 03ba204e...
+
+**The guest itself now reports `hv_isolation=vbs`**, `isolation_priv=true`, and leaf `0x4000000C`
+is DEFINED (`max_leaf=0x4000000c`), where type 16 reads `0x4000000b` with `isolation_priv=false` and
+`hv_isolation=n/a`. That is the first time the tuple has distinguished the two partition types from
+inside the guest.
+
+## What this is NOT
+
+`host_excluded=no`, and that is correct and unchanged. A partition that reports VBS isolation is not
+a demonstration that the root cannot read its memory. **E2 (the report chain) and E3 (the memory
+experiment) remain NOT RUN**, the memory reader still has no passing positive control, and nothing
+here is verified capacity or admissible as attestation. `paravisor=no` also differs from the
+source-based prediction of `yes` and is not yet explained.
+
+## A label that is now WRONG and must be fixed
+
+`wmiserve` still prints, on every run: *"type 16 is 'OpenHCL but no isolation', the root can map
+this guest's memory..."*. On this path that string is hardcoded and inaccurate — the partition is
+type 1. It under-claims here rather than over-claims, but a hardcoded boundary statement that does
+not track the actual partition type is exactly the kind of thing that makes a transcript unreliable
+in either direction. It needs to state the partition type it was given.

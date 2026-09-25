@@ -47,6 +47,20 @@ param(
   # running. It only means anything as a PAIR of runs: the identical reader must FIND it on type 16,
   # where the root can map every guest page by construction, or the reader is broken and a type-1
   # miss says nothing. Off by default; this never runs against anything but our own canary VM.
+  # Opt the GUEST out of running its OWN VBS in guest-VTL1.
+  #
+  # WHY THIS IS NOT WEAKENING THE PROPERTY UNDER TEST, and the distinction matters: this flag
+  # governs whether the GUEST can run VBS inside itself, in guest-VTL1. Our guest is a Linux monitor
+  # that never uses VTL1. The host exclusion this whole exercise is about comes from the PARTITION's
+  # isolation type and OpenHCL accepting VTL0 RAM host-private - a different mechanism entirely, and
+  # untouched by this. Declining a guest-internal feature the guest does not use is not the same as
+  # turning off a protection to make a probe pass.
+  #
+  # Why it is worth trying: the measured failure is "failed to initialize memory: cannot safely
+  # support VTL 1 without using the alias map". OpenHCL is being asked to support guest-VTL1 and
+  # this host does not give it the alias map it needs to do so safely. If the guest never asks for
+  # VTL1, the requirement should not arise.
+  [switch] $VbsOptOut,
   [switch] $HostRead,
   # OpenHCL's own kmsg, over its diagnostics server on vsock. It is the ONLY readable source for a
   # type-1 start failure on this host: COM3 does not exist here, and a sweep of every Hyper-V event
@@ -344,6 +358,17 @@ try {
     $nics = @(Get-VMNetworkAdapter -VM $vm -ErrorAction SilentlyContinue)
     if ($nics.Count) { $nics | Remove-VMNetworkAdapter -Confirm:$false; Note "removed $($nics.Count) network adapter(s); this guest has no NIC" }
     else { Note "no network adapter was defined; this guest has no NIC" }
+    if ($VbsOptOut) {
+      # THROUGH THE CMDLET. Setting the property on the CIM instance and calling
+      # ModifySecuritySettings is refused on this build: "VirtualizationBasedSecurityOptOut is a
+      # ReadOnly property". Set-VMSecurity is the documented path and exists here.
+      Set-VMSecurity -VMName $name -VirtualizationBasedSecurityOptOut $true -ErrorAction Stop
+      $back = (Get-CimInstance -Namespace root\virtualization\v2 -ClassName Msvm_VirtualSystemSettingData |
+               Where-Object { $_.ConfigurationID -eq $vm.Id.Guid }) |
+               Get-CimAssociatedInstance -ResultClassName Msvm_SecuritySettingData
+      Note "guest VBS opt-out read back: VirtualizationBasedSecurityOptOut=$($back.VirtualizationBasedSecurityOptOut) (the GUEST will not run its own VBS in guest-VTL1; the partition's isolation is unaffected)"
+      if (-not $back.VirtualizationBasedSecurityOptOut) { throw "the guest VBS opt-out did not take" }
+    }
   } else {
     New-CustomVM -VMName $name -GuestStateIsolationEnabled $true -GuestStateIsolationType $IsolationType `
       -GuestStateIsolationMode 0 -FirmwareFile $Firmware -IncreaseVtl2Memory `
@@ -695,7 +720,13 @@ finally {
       # WAIT FOR Off BEFORE REMOVING. Remove-VM on a VM still transitioning throws
       # "InvalidState" - measured: a run left enclave-uefi-20260925-024136 behind exactly this way,
       # and the old code announced "removed" over the top of it.
-      if ($v -and $v.Notes -eq $MARKER) {
+      # THE SAME RULE AS SELF-HEAL, and for the same reason. The marker is applied AFTER the VM is
+      # created, so a failure in between leaves a VM with EMPTY Notes - and a marker-only rule then
+      # REFUSES to remove the very VM the cleanup exists for. Measured: a run that failed on a
+      # read-only property left enclave-uefi-20260925-040019 behind with Notes=''. `enclave-uefi-*`
+      # is this script's own namespace, so an empty-Notes VM under that name is ours by
+      # construction; one carrying SOMEBODY ELSE'S marker is still refused.
+      if ($v -and ($v.Notes -eq $MARKER -or [string]::IsNullOrWhiteSpace($v.Notes))) {
         Stop-VM -VM $v -TurnOff -Force -EA SilentlyContinue
         $dlRm = (Get-Date).AddSeconds(20)
         while ((Get-Date) -lt $dlRm -and (Get-VM -Name $name -EA SilentlyContinue).State -ne 'Off') { Start-Sleep -Milliseconds 500 }
