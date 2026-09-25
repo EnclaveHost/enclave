@@ -14,6 +14,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY supervisor.js ./
+# the repository's own verifier, one reproducible file (verifier/node/build.mjs; MANIFEST.json names every input): the
+# self-check's second result (SELF_CHECK_VERIFIERS) runs it against this enclave's own document and certificate
+COPY verifier/dist/enclave-verifier-node.mjs ./verifier/dist/
 # dedicated-IP egress: the enclave-side SOCKS front + its SSRF classifier
 # (net-guard.mjs is also symlinked into relay/ and shipped to the relay box).
 COPY egress.js ./

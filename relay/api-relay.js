@@ -83,6 +83,7 @@ import net from "node:net";
 import tls from "node:tls";
 import fs from "node:fs";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createReverifier, modeOf as reverifyModeOf } from "./reverify.mjs";
 import { readCappedText, MAX_BODY_BYTES, installProcessGuards } from "./fleet.mjs";
 import { isBlockedHost } from "./net-guard.mjs";
 import { isMcpHost, handleMcp } from "./mcp.js";
@@ -136,6 +137,18 @@ const METAL_MIN_TCB = (() => {
   if (!raw) return undefined;
   try { return JSON.parse(raw); } catch { console.error("[relay] METAL_MIN_TCB is not JSON: SNP attaches will be refused"); return raw; }
 })();
+// Re-verification of DIALED rows with the repository's own verifier (relay/reverify.mjs, the vendored
+// relay/vendor/enclave-verifier-node.mjs; docs/security/independent-verifier-plan.md section 9 stage 6). Until now a
+// dialed row's confidential-CPU claim was its own word (availability.teeCpu); this checks it against the row's own
+// attestation document, captured over this relay's TLS connection, and the release's verified provenance.
+//   RELAY_REVERIFY=shadow (default): rows carry `reverify` in the fleet view, eligibility is unchanged, non-verified
+//                  rows are logged; =enforce: a dialed row must have re-verified to be eligible; =off: nothing runs
+//                  (the fallback: the previous behaviour, byte for byte). RELAY_REVERIFY_SEC: the cadence (default 900).
+//   The TCB floor is METAL_MIN_TCB, the same floor the attach gate applies; without one a verdict is at best "limited".
+const RELAY_REVERIFY = reverifyModeOf(process.env.RELAY_REVERIFY);
+const RELAY_REVERIFY_SEC = parseInt(process.env.RELAY_REVERIFY_SEC || "900", 10);
+const reverifier = createReverifier({ mode: RELAY_REVERIFY, minTcb: METAL_MIN_TCB && typeof METAL_MIN_TCB === "object" ? METAL_MIN_TCB : undefined,
+  cacheDir: process.env.RELAY_REVERIFY_CACHE_DIR || (typeof dataDir() === "string" && dataDir() ? `${dataDir()}/verifier-collateral` : "/tmp/enclave-relay-verifier-collateral"), log: (m) => console.log(`[reverify] ${m}`) });
 // Phone-anchored hosts (shielded/anchor/PLAN.md): the anchor APK builds admitted
 // (codeHash = the APK's v4 Merkle root) and the APK signing certificate(s) that
 // may sign them (authorityHash = sha512 of the certificate). Routing builds
@@ -896,8 +909,8 @@ async function pollAvailability() {
       const e = src[idx];
       const a = e.tunnel ? await tunnelHub.fetchJson(e.endpoint, "/availability").catch(() => null)
                          : await fetchJson(`${e.endpoint}/availability`);
-      rows[idx] = a ? { ...e, availability: a, relay: hasNoResources(a),
-                        checkedAt: new Date().toISOString() } : null;
+      rows[idx] = a ? reverifier.annotate({ ...e, availability: a, relay: hasNoResources(a),
+                                            checkedAt: new Date().toISOString() }) : null;
     }
   };
   await Promise.all(Array.from({ length: Math.min(AVAIL_POLL_CONCURRENCY, src.length || 1) }, worker));
@@ -1404,7 +1417,8 @@ const CONFIDENTIAL_CPU = new Set(["amd-sev-snp", "intel-tdx"]);
 function computeEligible(e) {
   if (!e || e.relay) return false;
   if (e.tunnel) return TENANT_COMPUTE_MODES.has(String(e.mode || ""));
-  return CONFIDENTIAL_CPU.has(String(e.availability?.teeCpu || ""));
+  // a dialed row: its own word, and (RELAY_REVERIFY=enforce) this relay's re-verification of it; shadow/off leave the word
+  return reverifier.eligible(e, CONFIDENTIAL_CPU.has(String(e.availability?.teeCpu || "")));
 }
 // The pVM CPU tier is its own INFERENCE lane, not app hosting: a phone the hub tiered
 // "pvm-cpu" (one admitted capability report, relay/pvm-cpu-tier.mjs) serves the platform's
@@ -1425,6 +1439,8 @@ function ineligibleReason(e) {
                          : "verified protected-VM chain; no pVM CPU capability report admitted yet";
     return "attached on a token, no hardware quote verified";
   }
+  const rv = reverifier.ineligibleReason(e);
+  if (rv) return rv;
   const t = String(e.availability?.teeCpu || "");
   const gpu = (e.availability?.gpu === true || (e.availability?.shielded && e.availability.shielded.vramGb > 0))
     ? "; its GPU is exposed only through Enclave Shield, whose evidence it has not presented" : "";
@@ -2205,6 +2221,7 @@ function handleRequest(req, res) {
       totalGpuShareFree: Math.round(serving.reduce((s, e) => s + gpuFreeOf(e.availability), 0) * 1000) / 1000,
       totalCpuShareFree: Math.round(serving.reduce((s, e) => s + cpuFreeOf(e.availability), 0) * 1000) / 1000,
       totalVramFreeGb: Math.round(serving.reduce((s, e) => s + (e.availability.vramFreeGb || 0), 0) * 10) / 10,
+      ...(RELAY_REVERIFY !== "off" ? { reverify: { mode: RELAY_REVERIFY, ...reverifier.stats() } } : {}),
     };
     return json(res, 200, { updatedAt, aggregate: agg, enclaves: rows }, req);
   }
@@ -2416,6 +2433,14 @@ await initCerts();             // platform certs: CERTS_KEY + DNS_API + DNS_TXT_
 setInterval(pollRegistry, REGISTRY_POLL_SEC * 1000);
 setInterval(resolveDeployments, REGISTRY_POLL_SEC * 1000);
 setInterval(pollAvailability, AVAIL_POLL_SEC * 1000);
+// the re-verification of dialed rows: its own cadence, never inside the availability poll (KDS rate-limits; a slow
+// enclave must not delay the fleet view); rows are re-annotated from the verdicts it writes
+if (RELAY_REVERIFY !== "off") {
+  const reverifyRound = async () => { try { await reverifier.run(live); live = live.map((e) => reverifier.annotate(e)); } catch (e) { console.error("[reverify] round failed:", e.message); } };
+  setTimeout(reverifyRound, 20_000).unref?.();
+  setInterval(reverifyRound, RELAY_REVERIFY_SEC * 1000).unref?.();
+  console.log(`[reverify] ${RELAY_REVERIFY}: dialed rows re-verified every ${RELAY_REVERIFY_SEC}s with the vendored verifier`);
+}
 
 const BIND = process.env.API_RELAY_BIND || undefined;
 if (!BIND) console.error("[api-relay] NOTE: binding ALL interfaces (no API_RELAY_BIND). If a local Caddy fronts this relay, set API_RELAY_BIND=127.0.0.1 so :" + PORT + " isn't reachable directly.");
