@@ -17,7 +17,7 @@
 param(
   [Parameter(Mandatory = $true)][string]$ManifestSha256,
   [ValidateSet('package', 'serve')][string]$Phase = 'package',
-  [ValidateSet('', 'hcs-dev', 'igvm')][string]$Require = '',
+  [ValidateSet('', 'hcs-dev', 'igvm', 'uefi')][string]$Require = '',
   [ValidateSet('', 'hcs-dev', 'igvm')][string]$Boot = '',
   [string]$App = 'hello-world',
   [string]$Url = '',
@@ -139,7 +139,8 @@ if ($Fetch) {
   }
 }
 $ready = @{}
-foreach ($p in @('hcs-dev', 'igvm')) { $ready[$p] = Test-HostProfile $R $M $p }
+$profiles = @($M.hostChecks.PSObject.Properties.Name)   # every profile the manifest states host checks for
+foreach ($p in $profiles) { $ready[$p] = Test-HostProfile $R $M $p }
 $task = Get-ScheduledTask -TaskName EnclaveWindowsNode -ErrorAction SilentlyContinue
 [void](Add-Result $R $true 'live node (not touched by this package)' $(if ($task) { "EnclaveWindowsNode $($task.State)" } else { 'no EnclaveWindowsNode task' }) 'info')
 Write-Results $R
@@ -147,7 +148,7 @@ Write-Results $R
 $pkgOk = Test-ResultsOk $R
 if (-not $pkgOk) { 'FAIL package: see the FAIL lines'; exit 1 }
 "PACKAGE OK $($M.name) v$($M.version) $($ManifestSha256.ToLower())"
-foreach ($p in @('hcs-dev', 'igvm')) {
+foreach ($p in $profiles) {
   $pr = $M.profiles.$p
   # host checks passing is what this script can see; it is not a boot, which only the box owner's run shows
   # name what blocks it: a profile line that only restated what the profile needs read as if all of it were missing
@@ -167,5 +168,13 @@ $d = $Dir
 ''
 '# hcs-dev profile: boot the same monitor image and serve the first app, end to end (development path, host NOT excluded)'
 "powershell -NoProfile -ExecutionPolicy Bypass -File $d\win\smoke-hcs.ps1 -ManifestSha256 $($ManifestSha256.ToLower())"
+if ($M.profiles.PSObject.Properties.Name -contains 'uefi') {
+  $u = $M.profiles.uefi
+  ''
+  '# uefi profile (DEV boot, host exclusion NOT established): the files enclave-d1''s VM definition points at'
+  "firmware (FirmwareFile): $(Get-PkgFilePath $d $u.firmware)"
+  "boot medium (Gen2 SCSI DVD, read-only): $(Get-PkgFilePath $d $u.medium)"
+  "fallback medium (Gen2 SCSI disk): $(Get-PkgFilePath $d $u.fallbackMedium)"
+}
 if ($Require -and -not $ready[$Require]) { "REQUIRED PROFILE $Require IS BLOCKED"; exit 3 }
 exit 0

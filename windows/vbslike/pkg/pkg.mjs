@@ -43,7 +43,8 @@ const ROLES = new Set(["guest.igvm", "guest.igvm-map", "guest.kernel", "guest.in
   "app.component", "app.record", "app.bundle", "app.spawn", "control.manager", "control.fetcher", "control.launcher",
   "control.datapath", "control.judge", "control.node-client", "tool.windows",
   "input.vtl0-kernel-bzimage", "input.vtl0-vmlinux", "input.vtl2", "input.igvmfilegen", "input.igvm-manifest",
-  "input.recipe", "input.tree", "input.test", "input.test-support"]);
+  "input.recipe", "input.tree", "input.test", "input.test-support", "guest.uefi-firmware", "guest.uefi-medium", "guest.uefi-fallback",
+  "input.efi-stub", "input.tool-source"]);
 const FROM = ["git", "repo", "file", "dir", "canonical", "derive", "box"];
 const SERVED_BY_PINNED_MANAGER = ["enclave-catalog-bundle/1"];   // windows/vbslike/manager/server.mjs SERVES
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
@@ -359,6 +360,34 @@ function rebuild(m, bytes, R) {
   } finally { fs.rmSync(d, { recursive: true, force: true }); }
 }
 
+// Rebuild the UEFI boot medium from its pinned inputs with the pinned builder (pkg/uefi/build-uefi-image.sh), and
+// require the ISO and disk.raw to be the pinned bytes, and the shipped VHDX's payload to be that disk.raw.
+function rebuildUefi(m, bytes, R) {
+  const u = m.rebuild && m.rebuild.uefi; if (!u) return;
+  const ref = (x) => (String(x).startsWith("file:") ? m.files.find((f) => f.path === x.slice(5)) : m.inputs.find((i) => i.name === x));
+  const d = fs.mkdtempSync(path.join(os.homedir(), ".vbspkg-uefi-"));
+  try {
+    const wr = (name, e, mode) => { const p = path.join(d, name); fs.writeFileSync(p, bytes.get(ref(e))); if (mode) fs.chmodSync(p, mode); return p; };
+    const builder = wr("build-uefi-image.sh", u.builder, 0o755), recipe = wr("build-uki.sh", u.ukiRecipe);
+    const kernel = wr("kernel", u.kernel), initrd = wr("initrd", u.initrd), stub = wr("stub.efi", u.stub);
+    const mt = u.mtoolsDir ? home(u.mtoolsDir) : null;
+    const r = spawnSync(builder, ["--kernel", kernel, "--initrd", initrd, "--cmdline", u.cmdline, "--stub", stub, "--uki-recipe", recipe,
+      "--esp-mib", String(u.espMiB), "--disk-mib", String(u.diskMiB), "--epoch", String(u.epoch), "--out", path.join(d, "out"), ...(mt ? ["--mtools", mt] : [])], { encoding: "utf8" });
+    const o = (f) => (fs.existsSync(path.join(d, "out", f)) ? sha(fs.readFileSync(path.join(d, "out", f))) : null);
+    const want = (p) => m.files.find((f) => f.path === p)?.sha256;
+    R.add(r.status === 0 && o("guest.iso") === want(u.iso), "rebuild: the UEFI boot medium (ISO) from its pinned inputs, and 5d's recipe agrees on the UKI",
+          o("guest.iso") === want(u.iso) ? o("guest.iso").slice(0, 16) : `exit ${r.status}: ${(r.stderr || "").trim().split("\n").at(-1)}; got ${o("guest.iso")}`);
+    R.add(o("disk.raw") === u.diskRawSha256, "rebuild: disk.raw (the fallback's payload) from the same inputs", `${o("disk.raw")}`);
+    const vh = m.files.find((f) => f.path === u.fallback);
+    if (vh && bytes.get(vh)) {
+      fs.writeFileSync(path.join(d, "fb.vhdx"), bytes.get(vh));
+      const c = spawnSync("qemu-img", ["convert", "-q", "-f", "vhdx", "-O", "raw", path.join(d, "fb.vhdx"), path.join(d, "fb.raw")], { encoding: "utf8" });
+      const got = c.status === 0 ? sha(fs.readFileSync(path.join(d, "fb.raw"))) : null;
+      R.add(got === u.diskRawSha256, "the shipped fallback VHDX carries exactly disk.raw", got ? got.slice(0, 16) : c.stderr);
+    }
+  } finally { fs.rmSync(d, { recursive: true, force: true }); }
+}
+
 async function fetchCheck(m, gw, R) {
   for (const a of m.apps || []) {
     try {
@@ -506,7 +535,7 @@ export async function verify(manifestPath, { out = null, rebuild: doRebuild = fa
   }
   await checkClaims(m, bytes, R);
   if (out) checkOut(m, mbytes, out, bytes, R);
-  if (doRebuild) rebuild(m, bytes, R);
+  if (doRebuild) { rebuild(m, bytes, R); rebuildUefi(m, bytes, R); }
   if (fetchGw) await fetchCheck(m, fetchGw, R);
   if (serve) await serveCheck(m, bytes, R);
   if (tests) testsCheck(m, bytes, R);
