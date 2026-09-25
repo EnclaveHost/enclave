@@ -7,3 +7,9 @@ Post-install checks (read-only, enclave-63):
   ExecStart still references: iso-03be27d6 
   drwxr-xr-x /home/steven/enclave-prod/iso-ecf02384
   drwxr-xr-x /home/steven/enclave-prod/release-ecf02384
+
+Second install, release a4f22748 (image 17e182a8), 20:09:57-20:09:58Z, s4-install.sh 3bade55a + lib4.sh b3c8db24 (e3's technical OK on v4; Codex's standing authorization for the reviewed INERT install):
+  20:10:25Z independent re-run of domain-release.sh from ~/enclave-prod/iso-17e182a8: release a4f22748, release.json identical to 5d's artifact (init 3ae4c7e5, front bd066066); tree status --porcelain 0 lines
+  adoption preflight DRY RUN on this tree (placeholder binary, record set aside): 3/3 canaries verify with the new tree's judge
+  guestd MainPID 3590642, NRestarts 0; ExecStart references only iso-03be27d6 
+  0839ac3a (iso-ecf02384 + release-ecf02384) stays installed and inert until s4-abandon.sh ecf02384 (after e3's v4 verdict on it)
