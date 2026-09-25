@@ -460,6 +460,7 @@ test("a linux-direct domain is judged on its (partition, kind) statement AND its
       assert.deepEqual(seen[0].expectedStatement, { partition: ld.partition, guestImageKind: "igvm-linux-direct" });
       assert.equal(seen[0].expectedImageSha256, IGVM);
       assert.deepEqual(m.get(r.id).guestIdentity, { partition: ld.partition, guestImageKind: "igvm-linux-direct" }, "the view states the pair");
+      assert.equal(m.get(r.id).launcherKey, "LKEY", "the view names the key its reports are signed with (new per wmiserve run)");
     } else {
       assert.equal(seen[0].expectedStatement, undefined); assert.equal(seen[0].expectedImageSha256, undefined);
     }
