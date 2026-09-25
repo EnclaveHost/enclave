@@ -121,10 +121,9 @@ Part A passes. Round 4 `631915a2` makes an ineligible box's surfaces inert (nosn
 Round 5 `8f31a87e`, checked by d1 (100/100):
 - under the HMAC, a deployment name now needs a live lease with an eligible holder;
 - live sessions close within about one poll when their host loses eligibility.
-Still open with 99:
-- the ZONE APEX (`_acme-challenge.<zone>`, a wildcard over every tenant) keeps HMAC authority. enclave-5d found it;
-  d1 reproduced it; the fix is to refuse zone apexes;
-- the HMAC never names WHICH box: a Codex/Steven item. |
+Round 6 `18772bf7`: zone apexes are refused at intake on every auth path (enclave-5d found the gap; d1 verified the
+fix, 33/33). **U7 parts A and B: reviewed, no open findings.** The one remaining residual, that the HMAC never names
+WHICH box, is a Codex/Steven item. Not rolled out. |
 
 ## 5. BLOCKED or PAUSED (parked; not rerouted, not rephrased)
 
