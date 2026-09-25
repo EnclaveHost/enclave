@@ -1,0 +1,8 @@
+[winmgr] serving through wmiserve C:\Users\claude\vbs-like\pkg\1840b52f91e92cdd\control\vbslike-host.exe (sha256 435717def62bb5c9a632f80210b5c3fbcbeb7cb8c1047f9beef4ca578ebe99e7); bundles in C:\Users\claude\vbs-evidence\mgraccept-20260925-090327\bundles
+[winmgr] runtime identity wasmtime/48.0.1 jit x86_64 -> RuntimeID ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8
+[winmgr] no ENCLAVE_DATAPLANE_PORT: no data plane, so a running domain carries no traffic
+[winmgr] inventory ready: recovered 0, unattributed 0
+[winmgr] hyperv-partition-per-app on 127.0.0.1:18091 · canStart=true
+[winmgr] fetcher C:\Users\claude\d1-hvacc-2c3a2873\tree\windows\node\fetch-cid.py
+(node:5960) [DEP0123] DeprecationWarning: Setting the TLS ServerName to an IP address is not permitted by RFC 6066. This will be ignored in a future version.
+(Use `node --trace-deprecation ...` to show where the warning was created)

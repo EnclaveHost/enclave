@@ -79,3 +79,23 @@ Changes from 082325:
 A8 makes the Off state G4 measured by turning the VM off from the host, so no probe serves anything. The manager's
 sweep (every 5 s for this run) failed the domain and closed its relay within 4 s. DELETE then removed the Off VM.
 AllowFirmwareLoadFromFile and the 9001 service were restored and removed (verified).
+
+## The tree enclave-63 will package, on v35, with the answer sweep: run 090327 (`pkg\1840b52f91e92cdd\`)
+
+- Tree: `windows/hv-acceptance` `2c3a2873`, 464/464. It adds enclave-5d's answer sweep (`ecdc30d2`, reviewed and merged),
+  the respawn switch (default OFF), 99's node boundary fixes, and A9.
+- Inputs: enclave-63's v35 (launcher `435717de`, `a44bb55a`, runtime.json, hello-world).
+
+[pass-090327-v35/driver.out](pass-090327-v35/driver.out):
+- phase 1: `HVLAB-ACCEPT ALL PASS`;
+- phase 2: A0-A8 as before, plus A9:
+
+      A9: monitor stop of domain 1 under boot cad7597ec62cafc383d75dc405dbe581 -> {"stopped":1}
+      PASS A9: monitor stop -> {"stopped":1}; status failed after 29807 ms, reason "the domain stopped answering (3 checks in a row): no TLS session: read ECONNRESET; its VM is left for the node to retire", VM Running
+      PASS A8: after turning 89cdbb45-… Off: status failed within 1009 ms, ...
+      RESTART-ACCEPT ALL PASS
+
+A9 stops a serving domain INSIDE the guest through the monitor's own control channel (`stop` with the boot nonce), so
+the VM stays Running and only the answer sweep can see it. The sweep, at 5 s for this run, failed the domain after 3
+strikes (about 30 s), while the VM was still Running. AllowFirmwareLoadFromFile and the 9001 service were restored and
+removed (verified).
