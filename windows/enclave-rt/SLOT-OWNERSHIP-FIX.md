@@ -121,21 +121,36 @@ half alone therefore opens no app, and `host.mjs` gives a lease back after three
 list, already imported by `agent.mjs`) so the tests can drive the real funnel; `agent.mjs` delegates
 to it through its hoisted `hostCmd` function, so there is no behavior or ordering change.
 
+`windows/node/apptool.mjs` (the hand tool) speaks the same grammar: `run`/`open <world> <cwasm>`
+print the id AND the epoch, `get <epoch> <id> <path>`, `close <epoch> <id>`, and it refuses an
+epoch-less `appopen` reply. (Its old `open <cwasm>` sent no world and was already refused by
+ee-host as usage.)
+
 Tests:
-- `test/enclave-app-epoch-funnel.test.mjs` (5) — through the REAL funnel against a loopback server
+- `test/enclave-app-epoch-funnel.test.mjs` (7; emulator in `test/helpers/ee-host-emu.mjs`) — through the REAL funnel against a loopback server
   speaking ee-host's app protocol with its epoch check, with a real restart (the old process stops
   accepting, a new one binds the same port with ids from 1 and a new epoch): the deferred-open race
   and the queued-appclose race each leave the new host having executed nothing under the old epoch
   and the other tenant intact; each runs again with the emulator's epoch check OFF and shows the
   cross-tenant close actually lands (the interleaving is real, so the tests are not vacuous); and
-  every id-scoped command with a dead boot's epoch, and the old grammar, is refused.
+  every id-scoped command with a dead boot's epoch, and the old grammar, is refused; `apptool`
+  run/get/close carry the epoch, a dead boot's epoch and an epoch-less host are refused.
+- `test/windows-node-stale-epoch.test.mjs` (1) — `host.mjs`'s mapping: a queued `apphandle` that
+  the new ee-host refuses as `stale epoch`, through `Host.proxy` with `hostGen` wired, is answered
+  `app_gone` and marks the app and its record failed so `host.tick` reloads it (reverting the
+  regex to `/no such app/` fails it: a record that says running while every request fails).
 - `test/enclave-app-host-generation.test.mjs` (5) — the audit's cross-generation scenario at the
   node filter, the epoch on every command, fail-closed on an ee-host that returns no epoch, and
   `appstop <epoch> <slot>` for a server-shaped app.
 - Mutations: stamping the generation after the await (race 1 exactly) fails 3 tests; dropping the
-  epoch from `stop` fails 4.
-- The emulator mirrors `ee-host.c`'s check; the C itself is compiled on the box (MSVC) and reviewed,
-  not executed by these tests.
+  epoch from `stop` fails 4; the `host.mjs` regex revert fails 1; the old `apptool` fails 2 (d1
+  added: removing the mid-open release fails 3, accepting an epoch-less reply fails 1).
+
+**Not proven by these tests, so nobody reads more into them.** The emulator MIRRORS `ee-host.c`'s
+check; the C is compiled on the box (MSVC 19.51, `/W3`: 0 warnings, 0 errors) and reviewed, but no
+test executes it. And the epoch is a generation tag, NOT authentication: any local process can read
+it from ee-host's "serving on" log line or an `appopen` reply and present it. The loopback protocol
+had no authentication before either, so this is not a regression, only a limit on what it claims.
 
 ## (a) Leaked host sockets on trap, and shared tenant ports
 
@@ -207,7 +222,20 @@ box** (`cargo check --release --offline` against the real `wasmtime-set`, scratc
 `C:\Users\claude\e63-build`, box's own toolchain, nothing deployed): `enclave_rt.lib`, then
 `ee-engine.dll` relinked from the prebuilt engine objects + that lib, and `ee-host.exe`; all exit 0.
 The epoch change touches only `ee-host.c` and the node, so `enclave_rt.lib`/`ee-engine.dll` are
-unaffected and only `ee-host.exe` is rebuilt for it (hashes in the build sentinel, below).
+unaffected and only `ee-host.exe` was rebuilt for it: b3447eb7, 2026-09-25 04:55:12–04:55:14Z,
+`build.cmd host` at BelowNormal priority, exit 0, cl.exe 19.51.36247.0 (MSVC 14.51.36231), `/W3`
+0 warnings. Sentinel `C:\Users\claude\e63-build\BUILD-SENTINEL-b3447eb7.txt`:
+
+| artifact | sha256 | from |
+|---|---|---|
+| `ee-host.c` | `2259ace797a02bd9bd9b6d4b1151b821329a81ef344cbbaec734ddebee679825` | git blob at b3447eb7 |
+| `ee-host.exe` | `ec7ba0a2612da7a2a8a4ed545fd73b3d79787e8788213b1ef1f5151f3cc139b5` (215552 B) | that source |
+| `ee-engine.dll` | `dd26b524ba28530e54aebf029b51748e81621d6a958d74ea2f5953fd03b39c15` | c8f18eea build (unchanged) |
+| `enclave_rt.lib` | `762c3682b7f71062fb9842d3f58170d2298940d1ecf8845bf680c83237095006` | c8f18eea build; rt sources identical |
+
+MSVC output is not bit-reproducible, so an exe hash names a BUILD, not a source: `build.cmd link`
+falls through into `:host`, and the c8f18eea run's `ee-host.exe` was `0b5be00d…85b1` (written by
+the link step), not the `0e0be1cd…` its earlier `host` step printed.
 
 ## Review asks d1 raised, addressed
 
