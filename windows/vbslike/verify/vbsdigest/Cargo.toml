@@ -1,0 +1,10 @@
+# The igvm paths are the pinned git checkout (rev b7e717d, as openvmm a7b0bd4 pins it) in the local cargo cache;
+# replace ~ with your home. Build offline: cargo build --offline --release (zerocopy pinned to 0.8.54 in Cargo.lock).
+[package]
+name = "vbsdigest"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+igvm = { path = "~/.cargo/git/checkouts/igvm-40b1edab4abe0f2a/b7e717d/igvm", features = ["corim"] }
+igvm_defs = { path = "~/.cargo/git/checkouts/igvm-40b1edab4abe0f2a/b7e717d/igvm_defs" }
+[workspace]
