@@ -221,6 +221,8 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
      - Restart A0-A7 ALL PASS: the relay dies with the manager.
      - The launcher is `435717de` (`1a6f1556`). The packaged candidate `15338081` FAILED the judge on a stray report
        format name, so it must not be promoted.
+   - DONE (run 084443): the same serving acceptance on enclave-63's v34 PACKAGE, whose one launcher is `435717de`: ALL
+     PASS. A8 shows the liveness sweep failing a domain whose VM went Off, within 4 s, on hardware.
    - DONE (G4, run 082856, `g4-probe-20260925/`): a type-1 guest whose monitor dies panics, asks for a reset, and
      Hyper-V turns the partition OFF (18590, then 18515). It does not reboot. The manager's liveness sweep now fails such
      a domain (`d7d4fd1c`); that sweep is not yet run on hardware.
