@@ -399,6 +399,27 @@ test("versionConfigReader: the version's inline config and configCid through agr
   await assert.rejects(P.versionConfigReader([mk(), mk({ rpcDown: true })], addr)(APPX, 3), /fetch failed/, "a transport failure is not 'no configCid'");
 });
 
+test("an installed release may be READ-ONLY: the predictor measures an owner-writable snapshot inside its job directory", async () => {
+  const ro = release("read-only-copy");
+  const RO = "ad".repeat(32);
+  const chmodAll = (p, fm, dm) => { for (const e of fs.readdirSync(p, { withFileTypes: true })) { const q = path.join(p, e.name); if (e.isDirectory()) { chmodAll(q, fm, dm); fs.chmodSync(q, dm); } else fs.chmodSync(q, fm); } fs.chmodSync(p, dm); };
+  chmodAll(ro, 0o444, 0o555);
+  const seen = [];
+  const repo = toolchainRepo();
+  const tools = stubs({ "expected-measurement.sh": (a) => { if (a[2] === RO) { seen.push(a[3]); fs.accessSync(path.join(a[3], "template/rt/runtime.json"), fs.constants.W_OK); } return null; } });
+  const p = P.makePredictor({ repo: repo.dir, commit: repo.commit, releases: [...Object.entries(REL).map(([id, dir]) => ({ id, dir })), { id: RO, dir: ro }], admit: [RO],
+    readCatalog: async () => ({ app: { active: true }, version: { cid: CID, memMb: 300, ports: "", approval: 1, yanked: false } }),
+    gateway: "https://trustless.example", sevSnpMeasure: "/x", sevSnpMeasureSha256: TOOL, digestTool: async () => TOOL,
+    work: fs.mkdtempSync(path.join(TMP, "work-")), knownAnswers: KAT, run: tools.run });
+  try {
+    const r = await p.expectedFor(REF);
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(seen.length, 1); assert.notEqual(seen[0], ro, "the snapshot, not the installed release, is measured");
+    assert.ok(seen[0].startsWith(path.dirname(p.state().toolchain)), "inside the predictor's private work directory");
+    assert.equal(fs.existsSync(seen[0]), false, "and removed with the job");
+  } finally { chmodAll(ro, 0o644, 0o755); }
+});
+
 test("runBounded: a hung tool is killed with its whole process group at the timeout; output is capped", async () => {
   const t0 = Date.now();
   const r = await P.runBounded("sh", ["-c", "sleep 30 & sleep 30; echo never"], { env: { PATH: process.env.PATH }, timeoutMs: 300 });
