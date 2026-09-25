@@ -148,7 +148,11 @@ test("a T0-hv partition is NEVER verified host-excluded capacity, however health
   // even a backend claiming exclusion needs a chain-verified verdict, not its own word
   assert.equal(attestedCapacity(view({ status: "running", hostExcluded: true, verdict: "monitor-signed" })), false,
     "a self-asserted boundary is not evidence");
-  assert.equal(attestedCapacity(view({ status: "running", hostExcluded: true, verdict: "chain-verified" })), true);
+  // ...and a manager saying "chain-verified" is still only the manager saying it: a host statement, never a verification
+  assert.equal(attestedCapacity(view({ status: "running", hostExcluded: true, verdict: "chain-verified", tier: "T2-snp" })), false,
+    "the manager's own verdict string grants nothing: no verifier runs over evidence bytes on this node");
+  for (const v of [null, undefined, {}, { hostExcluded: "true", verdict: "chain-verified" }, { attested: true, verified: true }])
+    assert.equal(attestedCapacity(v), false, JSON.stringify(v));
 });
 
 test("a refusal carries the manager's own reason rather than a generic failure", async () => {
