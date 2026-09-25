@@ -119,13 +119,65 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 
 - SOURCE: the vTPM interface puts 64 guest-chosen bytes into the report through `report_data = sha256(runtime-claims
   JSON)` (`design/paravisor-attestation.md`, reviewed by enclave-5d).
-- SOURCE GAP: today's medium is unmeasured, so a host can boot the same measured paravisor with its own VTL0 and
-  obtain a genuine report over data it chose. A host-supplied key hash would attest host-controlled data. The
-  prerequisite is O2's measured Linux VTL0.
+- CLOSED AS A PREREQUISITE on the linux-direct path. The old gap was that an unmeasured medium let a host boot the
+  measured paravisor with its own VTL0 and get a genuine report over data it chose. The measured Linux VTL0 now exists
+  and boots and serves (`a44bb55a`, launch digest `58DFEBFE…`, canary 070020). A host booting another VTL0 gets
+  another launch digest, which V3's pin refuses. That holds IF the report's `measurement` is that digest, which is a
+  PREDICTION until report bytes exist (see "Outstanding dependency" below). The uefi-medium path keeps the gap
+  forever: never an isolation claim (enclave-99's contract).
+- SOURCE (d1, 07:42Z, `isolation/portable-runtime-jit`): a tenant cannot reach the TPM device.
+  - Each domain is chrooted to its own directory, in new mount, PID, network, IPC and UTS namespaces (monitor
+    `main.go:512-516`).
+  - domexec mounts only `/proc`, `/tmp` and `/data` there, then drops to an unprivileged uid (`domexec.c:150-192`).
+  - So no `/dev/tpm*` exists in a domain; only the measured monitor, in the root namespace, could ask for a report.
+  - NOT MEASURED: the in-domain adversary probe (`domprobe.c`) checks the SNP interface (`configfs tsm`), not
+    `/dev/tpm0` or `/dev/tpmrm0`. That negative control is requested of enclave-5d (open only, never a TPM command).
 - SOURCE GAP: the vTPM's seeds and AK are in plaintext in the host-held VMGS, so AK quotes carry no trust
   (`vmgs_impl.rs:690-701`, `tpm_device/src/lib.rs:663-671`).
 - BLOCKED (parked): capturing report bytes through the vTPM interface. enclave-5d's probe stopped at a provider
   safety block and is not rerouted.
+
+### Outstanding dependency: report, signer and key binding (d1, 2026-09-25 07:42Z)
+
+**Source facts (openvmm `a7b0bd4`, read-only):**
+- OpenHCL (VTL2) gets the report with hypercall `HvCallVbsVmCallReport` (`0xC001`): "Request a VBS VM report from the
+  host VSM" (`openhcl/hcl/src/ioctl.rs:1343`). So the signer is on the host's secure-kernel side, not in our
+  paravisor.
+- The layout is `hvdef/src/vbs.rs`, `VbsReport` (0x230 B).
+  - A package header names `signature_scheme` and `signature_size`; their values are not named in the source.
+  - `report_data[64]`.
+  - `identity`: `owner_id`, `measurement`, `signer`, `host_data`, `enabled_vtl`, `policy.debug_allowed`,
+    `guest_vtl`, SVN, product and module ids.
+  - `signature[256]`. 256 bytes fits an RSA-2048 signature, the IDKS key's size. That is CONSISTENT with the IDKS
+    hypothesis, not evidence for it.
+- OpenVMM's own non-Hyper-V backend answers `0xC001` with a DUMMY report of `0xCD` bytes
+  (`vmm_core/virt_whp/src/hypercalls.rs:695-702`). A parser that trusts fields without verifying the signature would
+  accept it, so signature verification is not optional.
+
+**What every open check waits for:** ONE real `VbsReport` package from a booted `a44bb55a` partition. Obtaining it
+(the vTPM NV path, enclave-5d's step-1 probe) is PROVIDER-BLOCKED and PARKED; it is not rerouted or rephrased. Until
+then these stay UNTESTED:
+- V1: which key signs the report, and whether IDKS from the same boot's quoted log verifies it;
+- V3: whether the report's `measurement` equals the pinned launch digest `58DFEBFE…` (a PREDICTION);
+- V4: debug refusal by digest, plus `policy.debug_allowed`;
+- V5: the binding of nonce, TLS key, appId and runtimeId in `report_data`;
+- V7: replay and cross-VM refusal;
+- every row of O5 below.
+`host_excluded` additionally needs E3 (the host-memory experiment, PARKED). A report, even a valid one, does not
+supply it.
+
+**Next permissible steps, none of which captures a report:**
+1. enclave-5d: the domain negative control above, an `open()` of `/dev/tpm0` and `/dev/tpmrm0` from `domprobe`
+   (expect ENOENT). It runs in d1's acceptance run.
+2. enclave-99: record the source facts in the contract. Add a refusal case for a report whose signature does not
+   verify, including an all-`0xCD` dummy, and for an unknown `signature_scheme`, with no parsed field trusted first.
+3. enclave-5d and 99: write down the `report_data` construction (which bytes, in which order) as a SPEC. It is not
+   code that requests a report.
+4. Steven or the provider: whether the parked capture can proceed is their decision, reported as the blocking item.
+   Nothing here substitutes for it.
+
+Eligible is not verified. `a44bb55a` is the one ELIGIBLE digest in 99's allowlist (main `2fc4f46b`). Eligible means a
+report naming it would be accepted IF V1-V7 pass. No report has been verified, so nothing is verified.
 
 ## O5. Refusal tests on real evidence
 
@@ -149,14 +201,30 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
    - The G1 candidate `a44bb55a` (`58DFEBFE…`, package v30): canary 070020, where G1's three destroys held on
      hardware.
    - Launcher `0160d835` (from `8f156c9a`) carries the IGVM identity and the boot nonce.
-   Next:
-   - **enclave-63:** cut v31 with profile firmware `a44bb55a`, superseding `c567e432`.
-   - Not yet exercised on hardware: the launcher's own `rebooted:true` handling on a fresh domain (enclave-5d's
-     proposed step) and the G4 restart probe (a PROBE image from enclave-63).
+   - DONE: package v31 (enclave-63, `fb1bb0e6`, staged at `pkg\5e6b972e0451416a\`) makes `a44bb55a` vbsLinux's
+     firmware and the one ELIGIBLE entry, superseding `c567e432`. The verifier is re-pinned on main (`2fc4f46b`).
+     Eligible is not verified (see "Outstanding dependency").
    - DONE: the manager's ported WMI launcher defined, started, listed by identity and removed a type-1 linux-direct
-     partition on this host, twice (runs 070935 and 071140; `mgr-launcher-canary-20260925/`). It serves no app.
-     Its linux-direct domains are refused by the data plane (no medium identity). Its partition name differs from
-     wmiserve's report (`wmi-openhcl-gen2` versus `wmi-openhcl-gen2-igvm-linux`), for the verifier contract to settle.
+     partition on this host, twice (runs 070935 and 071140; `mgr-launcher-canary-20260925/`). It serves no app. The
+     partition name is settled by enclave-99 (main `ae6e9147`), and the manager follows (`25fa4e32`).
+   - DONE: a candidate launcher, `vbslike-host.exe` `15338081…` (source `50010709`, lock `5c0ee1b7`), adds
+     `--hold stdin` for the manager's per-domain wmiserve. It was built and checked VM-less on the box
+     (`wmiserve-hold-stdin-build-20260925/`). `0160d835` is shown reproducible modulo link metadata. The candidate
+     ships beside `0160d835` until the acceptance run passes with it.
+   Next, with ONE box owner (d1) for each run:
+   - **The measured-G1 lifecycle and recovery acceptance run**, on `a44bb55a` with the candidate launcher:
+     - the manager's launcher starts the domain;
+     - enclave-5d's `wmiserve-run.mjs` loads it and relays with `--hold stdin`;
+     - hvlab-accept's applicable checks run, with its PASS, SKIP and FAIL expectations stated by 5d first;
+     - the manager restarts: `recovered:true` is HELD and never serves, and the relay dies with the old process;
+     - stop removes the VM;
+     - the domain negative control runs: no `/dev/tpm*` in a domain.
+     It is scheduled only when 5d's module is committed and reviewed.
+   - **G4 restart probe**, only if enclave-63 has a PROBE image, and never an app. The question is how Hyper-V handles
+     the type-1 guest kernel's panic restart request after the monitor (PID 1) dies. That is measured, not inferred:
+     does the partition reboot into a new monitor boot (G1 then reports `rebooted`), turn off, or hang?
+   - Still unexercised on hardware: the Rust launcher's own `rebooted:true` handling.
+   - **Every run above is app plumbing and lifecycle. None of them is evidence of host exclusion.**
 2. **enclave-5d and enclave-99:** the replacement node identity (windows-hv-node/v1), host-only and honest. A
    TPM-only node attach grants no app capacity and no isolation badge.
 3. DONE, reviewed by d1: the node lifecycle treats a manager's `recovered: true` instance as HELD.
