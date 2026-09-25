@@ -409,7 +409,10 @@ function buildShieldedBackend(dstRoot) {
   fs.rmSync(objDir, { recursive: true, force: true });
   fs.mkdirSync(objDir, { recursive: true });
   const inc = ['-I' + vendorDir, '-I' + SHIELDED_CODE];
-  const base = ['-O2', '-Wall', '-Wextra', '-fPIC', '-fno-math-errno'];
+  // -ffile-prefix-map: the sources are compiled from ABSOLUTE paths, and a __FILE__ (shielded-weight-source.h) lands in
+  // .rodata, so without it the .so - and the node image's measurement - depended on the CHECKOUT PATH: no verifier could
+  // reproduce a metal measurement except from the builder's own directory (enclave-d1, 2026-09-25, on the 4c image).
+  const base = ['-O2', '-Wall', '-Wextra', '-fPIC', '-fno-math-errno', `-ffile-prefix-map=${SHIELDED_CODE}=wasm/ggml-shielded`];
   // Flags mirror wasm/ggml-shielded/Makefile. THREE are load-bearing rather
   // than taste: -ffp-contract=off on the field encoder, because the worker runs
   // the same source and an FMA would round differently on one side, making the
