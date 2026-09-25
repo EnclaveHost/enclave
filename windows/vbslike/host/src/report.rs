@@ -35,7 +35,10 @@ pub struct PartitionId {
     pub vm_id: String,
     #[serde(rename = "guestImageSha256")]
     pub guest_image_sha256: String,
-    #[serde(rename = "kernelSha256")]
+    /// The host-supplied kernel, on a path where the host supplies one. OMITTED on the UEFI path:
+    /// there the guest boots from a medium and no kernel file is handed in, so filling this would
+    /// state an identity the boot never used (enclave-99's UEFI review).
+    #[serde(rename = "kernelSha256", skip_serializing_if = "String::is_empty", default)]
     pub kernel_sha256: String,
     pub vcpus: u64,
     #[serde(rename = "memMiB")]

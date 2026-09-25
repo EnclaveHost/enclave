@@ -94,6 +94,19 @@ pub fn service_properties(query: &str) -> Result<String, HcsError> {
 }
 
 impl Partition {
+    /// Open an EXISTING compute system by id. Used only by `reap`, which opens exactly the ids it was
+    /// told to and terminates those; nothing here searches, and an id that does not exist is an error
+    /// rather than a no-op.
+    pub fn open(id: &str) -> Result<Partition, HcsError> {
+        let wid = wide(id);
+        let mut handle: HCS_SYSTEM = null_mut();
+        let hr = unsafe { HcsOpenComputeSystem(wid.as_ptr(), 0, &mut handle) };
+        if hr < 0 || handle.is_null() {
+            return Err(HcsError { step: "HcsOpenComputeSystem", hr, detail: id.to_string() });
+        }
+        Ok(Partition { id: id.to_string(), handle })
+    }
+
     /// Create the partition from a schema-2.1 document. The compute system exists after this but is
     /// not running; nothing inside it has executed.
     pub fn create(id: &str, document: &str) -> Result<Partition, HcsError> {
@@ -164,7 +177,7 @@ pub struct DomainSpec<'a> {
 }
 
 pub fn domain_document(s: &DomainSpec) -> String {
-    isolated_document(&IsoSpec { base: s, isolation: None, igvm_path: None, hcl_enabled: None, vmgs_path: None, uefi: false, firmware_params: None, extra_com_ports: 0, enable_tpm: false, overcommit: true, transient_guest_state: false })
+    isolated_document(&IsoSpec { base: s, isolation: None, igvm_path: None, hcl_enabled: None, vmgs_path: None, no_chipset: false, bogus_key: false, firmware_path: None, uefi: false, firmware_params: None, extra_com_ports: 0, enable_tpm: false, overcommit: true, transient_guest_state: false })
 }
 
 /// The phase-2 document: the same partition, plus what an isolated (paravisor-backed) partition
@@ -175,6 +188,9 @@ pub struct IsoSpec<'a> {
     pub igvm_path: Option<&'a str>,     // SecuritySettings.Isolation.IgvmFilePath ("custom location": registry-gated)
     pub hcl_enabled: Option<bool>,      // SecuritySettings.Isolation.HclEnabled
     pub vmgs_path: Option<&'a str>,     // GuestState.GuestStateFilePath (FileMode, transient): an IGVM in file id 8 is "from VMGS file"
+    pub no_chipset: bool,               // omit Chipset entirely: the IGVM *is* the firmware, and vmchipset.dll is what faults
+    pub bogus_key: bool,                // add an INVENTED key beside IgvmFilePath: does this schema refuse the unknown, or ignore it?
+    pub firmware_path: Option<&'a str>, // Chipset.FirmwareFile.Path: where this worker actually reads a custom firmware image from
     pub uefi: bool,                     // Chipset.Uefi instead of LinuxKernelDirect
     pub firmware_params: Option<&'a str>, // Chipset.FirmwareFile.Parameters (the paravisor command line), base64 of UTF-8
     pub extra_com_ports: u32,           // ComPorts 1..=n on sibling pipes (<pipe>-com2 ...); HCS knows COM1 and COM2 only
@@ -186,19 +202,45 @@ pub struct IsoSpec<'a> {
 pub fn isolated_document(x: &IsoSpec) -> String {
     let s = x.base;
     let js = crate::util::json_str;
-    let chipset = if x.uefi {
-        let fw = match x.firmware_params {
-            Some(p) => format!(r#", "FirmwareFile": {{ "Parameters": {} }}"#, js(&base64_of(p))),
-            None => String::new(),
+    let chipset = if x.no_chipset {
+        // NO CHIPSET AT ALL. Every start of an isolated partition with a guest-state file on this
+        // host crashes vmwp.exe inside vmchipset.dll at the same offset, the in-box paravisor
+        // included, so the chipset is the code that faults. An isolated partition's firmware comes
+        // from the IGVM, which makes "describe a chipset as well" a thing worth not doing.
+        String::new()
+    } else if x.uefi {
+        // FirmwareFile carries a PATH as well as Parameters, and the path is the part we never
+        // sent. The worker logged "Loading IGVM file from default location" for every partition,
+        // including the ones whose SecuritySettings.Isolation.IgvmFilePath named our image - so
+        // that key is not what this build reads, and our IGVM was never loaded at all.
+        let fw = match (x.firmware_path, x.firmware_params) {
+            (None, None) => String::new(),
+            (path, params) => {
+                let mut inner = String::new();
+                if let Some(p) = path { inner.push_str(&format!(r#""Path": {}"#, js(p))); }
+                if let Some(p) = params {
+                    if !inner.is_empty() { inner.push_str(", "); }
+                    inner.push_str(&format!(r#""Parameters": {}"#, js(&base64_of(p))));
+                }
+                format!(r#", "FirmwareFile": {{ {inner} }}"#)
+            }
         };
-        format!(r#""Chipset": {{ "Uefi": {{ "Console": "ComPort1" }}{fw} }}"#)
+        format!(r#""Chipset": {{ "Uefi": {{ "Console": "ComPort1" }}{fw} }},"#)
     } else {
-        let fw = match x.firmware_params {
-            Some(p) => format!(r#", "FirmwareFile": {{ "Parameters": {} }}"#, js(&base64_of(p))),
-            None => String::new(),
+        let fw = match (x.firmware_path, x.firmware_params) {
+            (None, None) => String::new(),
+            (path, params) => {
+                let mut inner = String::new();
+                if let Some(p) = path { inner.push_str(&format!(r#""Path": {}"#, js(p))); }
+                if let Some(p) = params {
+                    if !inner.is_empty() { inner.push_str(", "); }
+                    inner.push_str(&format!(r#""Parameters": {}"#, js(&base64_of(p))));
+                }
+                format!(r#", "FirmwareFile": {{ {inner} }}"#)
+            }
         };
         format!(
-            r#""Chipset": {{ "LinuxKernelDirect": {{ "KernelFilePath": {}, "InitRdPath": {}, "KernelCmdLine": {} }}{fw} }}"#,
+            r#""Chipset": {{ "LinuxKernelDirect": {{ "KernelFilePath": {}, "InitRdPath": {}, "KernelCmdLine": {} }}{fw} }},"#,
             js(s.kernel), js(s.initrd), js(s.cmdline)
         )
     };
@@ -218,6 +260,9 @@ pub fn isolated_document(x: &IsoSpec) -> String {
             if let Some(h) = x.hcl_enabled {
                 inner.push_str(&format!(r#", "HclEnabled": {h}"#));
             }
+            if x.bogus_key {
+                inner.push_str(r#", "VbslikeNoSuchKeyEverPlease": "x""#);
+            }
             format!(r#", "SecuritySettings": {{ "EnableTpm": {}, "Isolation": {{ {inner} }} }}"#, x.enable_tpm)
         }
         None => String::new(),
@@ -234,7 +279,7 @@ pub fn isolated_document(x: &IsoSpec) -> String {
   "ShouldTerminateOnLastHandleClosed": true,
   "VirtualMachine": {{
     "StopOnReset": true,
-    {chipset},
+    {chipset}
     "ComputeTopology": {{
       "Memory": {{ "SizeInMB": {mem}, "AllowOvercommit": {overcommit} }},
       "Processor": {{ "Count": {cpus} }}
@@ -289,7 +334,7 @@ mod tests {
     #[test]
     fn isolated_document_carries_every_requested_knob() {
         let s = base_spec(r"\\.\pipe\t-com1");
-        let doc = isolated_document(&IsoSpec { base: &s, isolation: Some("VirtualizationBasedSecurity"), igvm_path: Some(r"C:\f\ours.bin"), hcl_enabled: Some(true), vmgs_path: Some(r"C:\v\a.vmgs"), uefi: true, firmware_params: Some("OPENHCL_BOOT_LOG=com3"), extra_com_ports: 1, enable_tpm: true, overcommit: false, transient_guest_state: false });
+        let doc = isolated_document(&IsoSpec { base: &s, isolation: Some("VirtualizationBasedSecurity"), igvm_path: Some(r"C:\f\ours.bin"), hcl_enabled: Some(true), vmgs_path: Some(r"C:\v\a.vmgs"), no_chipset: false, bogus_key: false, firmware_path: None, uefi: true, firmware_params: Some("OPENHCL_BOOT_LOG=com3"), extra_com_ports: 1, enable_tpm: true, overcommit: false, transient_guest_state: false });
         let v: serde_json::Value = serde_json::from_str(&doc).expect("valid JSON");
         let vm = &v["VirtualMachine"];
         assert_eq!(vm["SecuritySettings"]["Isolation"]["IsolationType"], "VirtualizationBasedSecurity");
@@ -312,7 +357,7 @@ mod tests {
     #[test]
     fn transient_guest_state_without_a_file_is_expressible_and_com_ports_are_clamped() {
         let s = base_spec(r"\\.\pipe\t-com1");
-        let doc = isolated_document(&IsoSpec { base: &s, isolation: Some("GuestStateOnly"), igvm_path: None, hcl_enabled: None, vmgs_path: None, uefi: true, firmware_params: None, extra_com_ports: 3, enable_tpm: false, overcommit: false, transient_guest_state: true });
+        let doc = isolated_document(&IsoSpec { base: &s, isolation: Some("GuestStateOnly"), igvm_path: None, hcl_enabled: None, vmgs_path: None, no_chipset: false, bogus_key: false, firmware_path: None, uefi: true, firmware_params: None, extra_com_ports: 3, enable_tpm: false, overcommit: false, transient_guest_state: true });
         let v: serde_json::Value = serde_json::from_str(&doc).expect("valid JSON");
         let vm = &v["VirtualMachine"];
         assert!(vm["GuestState"].get("GuestStateFilePath").is_none());
