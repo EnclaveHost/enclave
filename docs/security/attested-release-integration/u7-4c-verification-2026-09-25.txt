@@ -1,0 +1,24 @@
+# Independent read-only verification of U7 (2144fcb3) and 4c on production, 2026-09-25 22:29:53-22:31:05Z (enclave-e3)
+# Reads only: the public API, file hashes, unit state and env KEY NAMES on nan / nan-relay / us-west. No value of any env key read.
+main = 2144fcb3 (the converged U7 commit)
+accept.sh (38000e62) with ADMIT=79c5ecf2 against https://api.enclave.host: rc 0
+  0x0ddbd824: be6b8644 under 5c3561f9 (its own chip-attested measurement); 79c5ecf2 predicted 2317370df656 and admitted
+  0x395bed3e: c068f423 under 6f14ce75; 79c5ecf2 predicted 6de873656f88 and admitted
+  0x4e62e60d: c068f423 under 6f14ce75; 79c5ecf2 predicted 6de873656f88 and admitted
+  release-ticket 503 (the release is OFF); unknown id 404; malformed id 422
+/v1/expected-guest full values (admitted 79c5ecf2), = ENABLEMENT.md step 4:
+  0x0ddbd824 2317370df6562d5b03f2b4b78c297e0b14cf81cc0e53704f893e86dc305bf397e92233b226868bd219ca9246721262ea
+  0x395bed3e/0x4e62e60d 6de873656f88fa63e6f9aceed48951a42fb5703d08a643f2d250b343af178431c75dc7c4cb8454bffbec089bd92c9b25
+nan (api-relay): api-relay.js 1b823be6, secrets-release.mjs 7f0f22f3, measurement-predict.mjs 4aab8ff1, certs.js 9b4cd164,
+  secrets.js 3c7ed954, fleet.mjs 384a1ef1 = 2144fcb3's; active since 22:14:15Z, NRestarts 0, MemoryMax 1536M, MemoryPeak 555 MB;
+  NO SECRETS_ATTESTED_RELEASE / _DEPLOYMENTS / _MIN_TCB / _VMPL / _SIGNING_KEY(_FILE) line; METAL_ALLOWED_MEASUREMENTS =
+  04e953a4, 10622d98, 8ab7a159
+nan-relay (data plane): relay.js e0cb218f, fleet.mjs 384a1ef1, dns-relay.js 6e1398a6, tcp6-relay.js 60e12f12, udp-relay.js
+  8f82af5a = 2144fcb3's; tcp/tcp6/udp/dns/egress active since 22:03:49-55Z, 0 restarts; ELIGIBILITY_API in dns/tcp6/udp env,
+  DOMAINS_API in tcp-relay.env; every env file 0600
+us-west: relay.js e0cb218f, fleet.mjs 384a1ef1 = 2144fcb3's; enclave-tcp-relay active since 22:10:46Z, 0 restarts, feed
+  DOMAINS_API; egress-relay.js 83974a24 = main's, still the 09-19 process (old fleet.mjs in memory). Its next restart loads U7's
+  fleet.mjs: compatible (it uses fleet.origins() only, not the eligibility gate) and nan-relay has run that exact pair since 22:03:54Z
+node (4c): attestation measurement 8ab7a1590fad…30bf, supervisor overlay b3109929; metal-iso0 serving + eligible in /enclaves;
+  the 3 canaries 200 over public TLS with their S0 keys; availability 64 GB / 16 vCPU, cpuShareFree 0.7, guest pool budget
+  65536 MiB / 1600 %, free 60160 / 1300, floor {floorMiB 16384, admitsSmallestGuest true}
