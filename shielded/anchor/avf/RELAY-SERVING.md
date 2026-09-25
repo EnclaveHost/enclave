@@ -319,7 +319,9 @@ relay/deploy.sh and relay/systemd/enclave-api-relay.service.
      - it attests it in an `enclave-proof-key/v1` statement;
      - it signs EnclaveProofOfTime checkpoints for its pins only;
      - the real contracts, on a local chain, accepted them.
-     The owner-side agent that posts them is the next piece.
+     The owner-side agent that posts them is now BUILT: `runner/proof-agent.mjs` (PROOF-KEY.md "The posting agent").
+     It still needs the owner's production inputs listed there. Among them is a carrier route to the VM's evidence port:
+     the `/x/<id>/pvm/evidence` route of this document once `PVM_SERVING` is set, or the owner's own.
    - It is a precondition, not a refinement. supervisor.js records that a rev-9 ledger refuses to sell work to a runner
      that published no proof key, so without it the phone cannot take a lease at all.
    - The VM side is now built (above). The pattern is the same as the transport and instance keys.
@@ -346,9 +348,10 @@ relay/deploy.sh and relay/systemd/enclave-api-relay.service.
 - Which deployment id this is for.
 - The decision to set `PVM_SERVING` in production.
 
-The in-VM proof key (item 3, which a lease requires) and the instance-binding device campaign are done. What remains is
-implementation and is not blocked on anyone: the owner-side runner agent (items 1 and 2: register, claim, heartbeat,
-and posting the VM's checkpoints). Its exact steps are in PROOF-KEY.md "Activation, exactly".
+These are done: the in-VM proof key (item 3, which a lease requires), the instance-binding device campaign, and the agent
+that POSTS the VM's checkpoints (PROOF-KEY.md "The posting agent"). What remains of the owner-side runner is its OTHER
+transactions (items 1 and 2): register or `setProofKey`, `claim`, `renew`, `release` (after a final checkpoint) and
+`heartbeat`. Their exact steps are in PROOF-KEY.md "Activation, exactly".
 
 ## Review questions
 
