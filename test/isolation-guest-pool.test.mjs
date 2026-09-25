@@ -180,7 +180,8 @@ test("the claim path judges the pool with the version's policy and, on a resume,
   assert.match(call, /policy: isolationPolicyFor\(g\.min\)/);
   assert.match(src, /const isoHeld = resume \? await isolationHeldGuest\(d\.id\) : null;/);
   assert.match(call, /held: isoHeld, heldSameRecord,/);
-  assert.match(src, /heldSameRecord = isoHeld\.recordSha256 === derivationDigest\(isolationPrefetchBody\(g, /, "an adoption is the SAME record");
+  assert.match(src, /const heldSameRecord = isolationHeldSameRecord\(isoHeld, g, firewall, isoMgr && isoMgr\.catalog && isoMgr\.catalog\.runtimeId\);/,
+    "an adoption is the SAME record, derived as the spawn derives it (the parsed firewall)");
   assert.match(src, /const resume = leaseLive && d\.runner === _enclaveId;/, "a resume is this runner's own live lease");
 });
 
@@ -195,10 +196,18 @@ test("the host's live memory floor gates claims and caps the advertised share; w
     verdict(MGR({ ...pool(B), host: host(16384 + 1792, 1792) })),  // enclave-99 #1: room for one, but one is still STARTING
   ] });
   assert.equal(r.verdicts[0], null);
-  assert.match(r.verdicts[1], /too low on memory: .* 1 MiB under guestd's 16384 MiB floor/);
+  assert.match(r.verdicts[1], /too low on memory: .*under guestd's 16384 MiB floor/);
   assert.match(r.verdicts[2], /available memory is unknown/);
   assert.equal(r.verdicts[3], null);
-  assert.match(r.verdicts[4], /1792 MiB under .*\(counting 1792 MiB of guests still starting\)/);
+  assert.match(r.verdicts[4], /too low on memory/, "room for one, but one is still starting");
+  // enclave-e3: the reason is returned by the public claim-hint and re-logged by the sweep on every change, so it carries
+  // no live number (MemAvailable would be reconstructable from "N MiB under ... counting P MiB"); the floor is config
+  for (const v of [r.verdicts[1], r.verdicts[4]]) assert.deepEqual(v.match(/\d+/g), ["16384"], v);
+  // a pendingMiB that is not a number makes the host UNKNOWN, never "nothing pending"
+  const odd = await seam({ pool: { ...pool(B), host: { floorMiB: 16384, memAvailableMiB: 16384 + 20500, pendingMiB: "lots" } },
+    verdicts: [verdict(MGR({ ...pool(B), host: { floorMiB: 16384, memAvailableMiB: 16384 + 20500 } }))] });
+  assert.match(odd.verdicts[0], /available memory is unknown/);
+  assert.equal(odd.maxFreeCpu, 0);
   // 20500 MiB above the floor caps the pool's own 1.0 at 20500/32768 = 0.6256, quantized DOWN to 0.62 (enclave-99 #4)
   assert.equal(r.maxFreeCpu, 0.62);
   assert.deepEqual(r.guestPool.host, { floorMiB: 16384, admitsSmallestGuest: true }, "the report carries the verdict, not MemAvailable");
@@ -222,8 +231,46 @@ test("a resume adopting the same record skips the host check; a replacement is c
     { ...verdict(MGR({ ...near, host: { ...near.host, memAvailableMiB: 16384 + 768 } })), held, heldSameRecord: false },  // exactly 0 over: claimable
   ] });
   assert.equal(r.verdicts[0], null, "adopting the same record's running guest must pass (the resume path)");
-  assert.match(r.verdicts[1], /68 MiB under guestd's 16384 MiB floor/);
+  assert.match(r.verdicts[1], /too low on memory/, "700 - 1792 + 1024 = -68");
   assert.equal(r.verdicts[2], null);
+  // a STARTING held guest is wholly in guestd's pending: deleting it returns all of its reservation (enclave-e3's nit)
+  const starting = { ...held, status: "starting" };
+  const edge = (over) => MGR({ ...near, host: { floorMiB: 16384, memAvailableMiB: 16384 + over, pendingMiB: 1792 } });
+  const s2 = await seam({ verdicts: [
+    { ...verdict(edge(0)), held: starting, heldSameRecord: false },    // 0 - 1792 - 1792 + 1792 = -1792: refused
+    { ...verdict(edge(1792)), held: starting, heldSameRecord: false }, // 1792 - 1792 - 1792 + 1792 = 0: claimable
+    { ...verdict(edge(1791)), held: starting, heldSameRecord: false }, // one MiB short: refused
+  ] });
+  assert.match(s2.verdicts[0], /too low on memory/);
+  assert.equal(s2.verdicts[1], null, "a starting guest's whole reservation is credited");
+  assert.match(s2.verdicts[2], /too low on memory/);
+});
+
+// enclave-e3: the resume's same-record test is a PURE helper, derived exactly as the spawn derives its record (the
+// PARSED firewall: rec.firewall), and false whenever anything is missing or underivable (a replacement: conservative)
+test("a held guest is the same record only when the spawn would send exactly that record", async () => {
+  const RT = "ab".repeat(32);
+  const g = { ref: "catalog://0x" + "11".repeat(32) + "/3", wasmRef: "ipfs://bafyexample", min: { memMb: 128 }, ports: "http" };
+  const { recordOf } = await seam({ recordOf: { g, runtimeId: RT, ports: [] } });              // the spawn's own digest
+  const { recordOf: rec8080 } = await seam({ recordOf: { g, runtimeId: RT, ports: ["http:8080"] } });
+  const held = { name: "0x" + "4e".repeat(32), status: "running", recordSha256: recordOf };
+  const r = await seam({ sameRecord: [
+    { held, g, firewall: [], runtimeId: RT },                                        // 0 the same record: true
+    { held: { ...held, recordSha256: rec8080 }, g: { ...g, ports: "http:8080" }, firewall: ["http:8080"], runtimeId: RT }, // 1 a declared port: true
+    { held, g, firewall: ["http:8080"], runtimeId: RT },                             // 2 another port: another record
+    { held, g: { ...g, min: { memMb: 256 } }, firewall: [], runtimeId: RT },          // 3 another policy
+    { held, g, firewall: [], runtimeId: "cd".repeat(32) },                            // 4 another runtime
+    { held: { ...held, recordSha256: undefined }, g, firewall: [], runtimeId: RT },   // 5 no recordSha256
+    { held: { ...held, recordSha256: "XYZ" }, g, firewall: [], runtimeId: RT },       // 6 not a digest
+    { held, g, firewall: [], runtimeId: null },                                       // 7 no manager / runtime
+    { held, g: { ...g, ref: "not-a-catalog-ref" }, firewall: [], runtimeId: RT },     // 8 the derivation throws
+    { held, g, firewall: ["tcp:5000"], runtimeId: RT },                               // 9 a port the tier refuses (throws)
+    { held: null, g, firewall: [], runtimeId: RT },                                   // 10 nothing held
+  ] });
+  assert.deepEqual(r.sameRecord, [true, true, false, false, false, false, false, false, false, false, false]);
+  // the bare "http" marker: parseFirewall drops it (firewall []), so the spawn's record has no port; the RAW g.ports
+  // path the claim side used before threw on it and judged every such resume a replacement
+  assert.equal(r.sameRecord[0], true);
 });
 
 test("off the tier nothing of the pool applies: the node is the NODE_* constants and free is the share ledger", async () => {

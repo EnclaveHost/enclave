@@ -145,7 +145,8 @@ type server struct {
 	Budget    poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
 	// HostFloorMiB: a create must leave the host at least this much MemAvailable (pool.go); 0 = off
 	HostFloorMiB int
-	MemAvailable func() (int, error) // tests; nil = /proc/meminfo
+	MemAvailable func() (int, error)            // tests; nil = /proc/meminfo
+	UnitMem      func(unit string) (int, error) // tests; nil = the unit's cgroup memory.current (pool.go)
 	mu           sync.Mutex
 	vms          map[string]*vm
 	lastBeat     time.Time // zero = never heard one: the lease is INERT
