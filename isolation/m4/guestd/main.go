@@ -256,6 +256,7 @@ func main() {
 	dataIdle := flag.Duration("data-idle", 180*time.Second, "close a spliced connection after this long with no bytes in either direction")
 	genKeyFile := flag.String("gen-key", "", "write a NEW pairing key to this file (mode 0600, never overwritten), print its kid, and exit")
 	guestMem := flag.Int("guest-mem-mib", 0, "host RAM (MiB) set aside for guests: the guest pool's memory budget; unset = every create is refused (pool.go)")
+	hostFloor := flag.Int("guest-host-floor-mib", 0, "a create must leave the host at least this much LIVE MemAvailable (MiB); 0 = off (pool.go). Deploy with it set, e.g. 16384")
 	guestCPUs := flag.Int("guest-cpus", 0, "host cores set aside for guests: the guest pool's CPU budget, against each guest's CPUQuota; unset = every create is refused")
 	flag.Parse()
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
@@ -329,6 +330,10 @@ func main() {
 		chain: *chain, product: *product, minTCB: *minTCB, runtimeIdentity: rid, env: env}
 	s := newServer(l, *root)
 	s.Budget = poolBudget{MemMiB: *guestMem, CPUPct: *guestCPUs * 100}
+	if *hostFloor < 0 {
+		log.Fatal("-guest-host-floor-mib is a MiB count, 0 or more")
+	}
+	s.HostFloorMiB = *hostFloor
 	// F7: a previous guestd's guests are ADOPTED when they verify again as the same guest (persist.go); every other
 	// guest unit is stopped and every other workdir scrubbed, as a boot sweep always did.
 	actx, acancel := context.WithTimeout(context.Background(), 10*time.Minute)

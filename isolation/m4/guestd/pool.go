@@ -26,8 +26,13 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -104,6 +109,55 @@ func (s *server) admitLocked(r reservation) map[string]any {
 		}
 		return map[string]any{"error": "pool_full", "needs": r, "free": free, "detail": why}
 	}
+	return s.hostRefusal(r)
+}
+
+// The LIVE host check (enclave-99, on the 64 GiB budget). The budget is the operator's promise; MemAvailable is what the
+// host actually has, and a guest's RAM is PINNED (SEV: it is never swapped or reclaimed), so a /tmp or build surge on a
+// shared host cannot give it back. With HostFloorMiB > 0 a create is admitted only if MemAvailable - R.mem stays at or
+// above the floor; an unreadable MemAvailable refuses (fail closed). 0 = off, and the start log says so. Adoption never
+// checks it: the guests that exist already hold their memory.
+func readMemAvailableMiB() (int, error) {
+	f, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		if fs := strings.Fields(sc.Text()); len(fs) >= 2 && fs[0] == "MemAvailable:" {
+			kb, err := strconv.Atoi(fs[1])
+			if err != nil || kb < 0 {
+				return 0, errors.New("MemAvailable is not a number")
+			}
+			return kb / 1024, nil
+		}
+	}
+	return 0, errors.New("no MemAvailable line in /proc/meminfo")
+}
+
+func (s *server) memAvailableMiB() (int, error) {
+	if s.MemAvailable != nil {
+		return s.MemAvailable()
+	}
+	return readMemAvailableMiB()
+}
+
+// hostRefusal is the live-memory refusal for a guest reserving r, or nil. s.mu must be held.
+func (s *server) hostRefusal(r reservation) map[string]any {
+	if s.HostFloorMiB <= 0 {
+		return nil
+	}
+	avail, err := s.memAvailableMiB()
+	if err != nil {
+		log.Printf("REFUSED a create: the host's available memory cannot be read (%v)", err)
+		return map[string]any{"error": "host_memory_unknown", "needs": r, "floorMiB": s.HostFloorMiB,
+			"detail": "the host's available memory cannot be read, so no guest is admitted: " + err.Error()}
+	}
+	if avail-r.MemMiB < s.HostFloorMiB {
+		return map[string]any{"error": "host_memory_low", "needs": r, "hostMemAvailableMiB": avail, "floorMiB": s.HostFloorMiB,
+			"detail": fmt.Sprintf("admitting this guest would leave the host %d MiB available, under its %d MiB floor", avail-r.MemMiB, s.HostFloorMiB)}
+	}
 	return nil
 }
 
@@ -114,8 +168,14 @@ func (s *server) poolLocked() map[string]any {
 	if s.Budget.configured() {
 		budget = s.Budget
 	}
+	host := map[string]any{"floorMiB": s.HostFloorMiB, "memAvailableMiB": nil} // null = unread (floor off) or unreadable
+	if s.HostFloorMiB > 0 {
+		if avail, err := s.memAvailableMiB(); err == nil {
+			host["memAvailableMiB"] = avail
+		}
+	}
 	return map[string]any{
-		"budget": budget, "allocated": a, "free": freeOf(s.Budget, a), "guests": n,
+		"budget": budget, "allocated": a, "free": freeOf(s.Budget, a), "guests": n, "host": host,
 		"overcommitted": overcommitted(s.Budget, a),
 		// how a guest's reservation follows from its policy, so a consumer sizes a claim exactly as guestd admits it:
 		// memMiB = max(floorMiB, policy memMiB + runtimeMiB) + unitOverheadMiB, cpuPct = policy cpuPercent
@@ -139,6 +199,13 @@ func (s *server) logPoolAfterRecovery() {
 			n, fmtRes(a), fmtRes(reservation(b)))
 	default:
 		log.Printf("guest pool: %d guest(s) hold %s of %s", n, fmtRes(a), fmtRes(reservation(b)))
+	}
+	if s.HostFloorMiB <= 0 {
+		log.Printf("host memory floor OFF (-guest-host-floor-mib 0): admission checks the budget only, not the host's live MemAvailable")
+	} else if avail, err := s.memAvailableMiB(); err != nil {
+		log.Printf("host memory floor %d MiB, but MemAvailable cannot be read (%v): every create is REFUSED", s.HostFloorMiB, err)
+	} else {
+		log.Printf("host memory floor %d MiB: MemAvailable now %d MiB", s.HostFloorMiB, avail)
 	}
 }
 

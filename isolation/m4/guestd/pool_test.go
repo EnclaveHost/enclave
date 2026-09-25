@@ -451,3 +451,97 @@ func TestTheSupervisorMirrorsThePoolThisGuestdReports(t *testing.T) {
 type errTest string
 
 func (e errTest) Error() string { return string(e) }
+
+// The live host floor (enclave-99's flag on the 64 GiB budget): a create is admitted only while MemAvailable - R.mem stays
+// at or above the floor. Exactly at the floor is admitted; one MiB under is refused, with a stable body.
+func TestAHostMemoryFloorAdmitsDownToItAndRefusesBelow(t *testing.T) {
+	r := newRig(t)
+	r.s.Budget = budgetFor(4)
+	r.s.HostFloorMiB = 16384
+	avail := 16384 + oneGuest.MemMiB // exactly room for one guest above the floor
+	r.s.MemAvailable = func() (int, error) { return avail, nil }
+	p, _ := r.bundle("A", contract.Policy{})
+	if code, body := r.create(name(1), p); code != 201 {
+		t.Fatalf("a guest that leaves exactly the floor: %d %v", code, body)
+	}
+	r.s.launching.Wait()
+	avail -= 1 // the host lost a MiB elsewhere (a build, /tmp): the same guest no longer fits
+	builds := r.f.builds
+	code, body := r.create(name(2), p)
+	if code != 507 || body["error"] != "host_memory_low" || body["floorMiB"] != float64(16384) || body["hostMemAvailableMiB"] != float64(avail) || res(body["needs"]) != oneGuest || r.f.builds != builds {
+		t.Fatalf("one MiB under the floor: %d %v (builds %d -> %d)", code, body, builds, r.f.builds)
+	}
+	pool := r.pool()
+	h, _ := pool["host"].(map[string]any)
+	if h["floorMiB"] != float64(16384) || h["memAvailableMiB"] != float64(avail) {
+		t.Fatalf("/health.pool.host: %v", h)
+	}
+}
+
+func TestAnUnreadableHostMemoryRefusesEveryCreate(t *testing.T) {
+	r := newRig(t)
+	r.s.HostFloorMiB = 16384
+	r.s.MemAvailable = func() (int, error) { return 0, errTest("no /proc/meminfo") }
+	p, _ := r.bundle("A", contract.Policy{})
+	code, body := r.create(name(1), p)
+	if code != 507 || body["error"] != "host_memory_unknown" || r.f.builds != 0 {
+		t.Fatalf("an unreadable MemAvailable must refuse: %d %v", code, body)
+	}
+	if h, _ := r.pool()["host"].(map[string]any); h["memAvailableMiB"] != nil {
+		t.Fatalf("an unreadable reading is reported as null: %v", h)
+	}
+}
+
+func TestTheFloorOffNeverReadsTheHostAndAdoptionIgnoresIt(t *testing.T) {
+	r := newRig(t)
+	reads := 0
+	r.s.MemAvailable = func() (int, error) { reads++; return 1, nil } // a host that would refuse everything
+	p, _ := r.bundle("A", contract.Policy{})
+	if code, _ := r.create(name(1), p); code != 201 || reads != 0 {
+		t.Fatalf("floor 0 must not read or refuse: reads %d", reads)
+	}
+	r.s.launching.Wait()
+	// a restart WITH a floor, on a host far below it: the running guest is adopted, not refused
+	s2 := newServer(r.f, r.s.Root)
+	s2.Now, s2.Budget, s2.HostFloorMiB = r.s.Now, r.s.Budget, 1<<20
+	s2.MemAvailable = func() (int, error) { return 1, nil }
+	if _, adopted, dropped := s2.adoptOnBoot(context.Background()); len(adopted) != 1 || len(dropped) != 0 {
+		t.Fatalf("adoption must ignore the host floor: adopted %v dropped %v", adopted, dropped)
+	}
+}
+
+func TestReadMemAvailableParsesProcMeminfo(t *testing.T) {
+	if _, err := os.Stat("/proc/meminfo"); err != nil {
+		t.Skip("no /proc/meminfo here")
+	}
+	n, err := readMemAvailableMiB()
+	if err != nil || n <= 0 {
+		t.Fatalf("readMemAvailableMiB: %d %v", n, err)
+	}
+}
+
+// The real supervisor reads guestd's real host block over guestd-control/1: a host one MiB short of the floor is refused
+// by the supervisor's gate and advertised as nothing free (no field drift between pool.go and supervisor.js).
+func TestTheSupervisorMirrorsTheHostFloorThisGuestdReports(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node is not installed")
+	}
+	if _, err := os.Stat("../../../node_modules"); err != nil {
+		t.Skip("the supervisor's node_modules are not installed (npm ci at the repository root)")
+	}
+	r := newRig(t)
+	r.s.Budget = budgetFor(3)
+	r.s.HostFloorMiB = 16384
+	r.s.MemAvailable = func() (int, error) { return 16384 + oneGuest.MemMiB - 1, nil }
+	r.s.Auth = newControlAuth(testKey, r.s.Now)
+	got := poolSeam(t, r, 128, "")
+	gp, _ := got["guestPool"].(map[string]any)
+	h, _ := gp["host"].(map[string]any)
+	why, _ := got["healthVerdict"].(string)
+	if h["floorMiB"] != float64(16384) || h["memAvailableMiB"] != float64(16384+oneGuest.MemMiB-1) {
+		t.Fatalf("the supervisor's host block: %v", gp)
+	}
+	if got["maxFreeCpu"] != float64(0) || !strings.Contains(why, "too low on memory") {
+		t.Fatalf("a host one MiB short: maxFreeCpu %v, verdict %q", got["maxFreeCpu"], why)
+	}
+}
