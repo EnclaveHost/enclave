@@ -32,7 +32,41 @@ The matrix. Every row is its own run, all on medium `ca245eae…` hashed at atta
 | `openhcl-cvm.bin` cfd40ce2 | 1 | 0x601 | **REFUSED TO START** |
 | `openhcl-cvm.bin` cfd40ce2 | 1 | 0x400 | starts, then Worker 18610 "fatal virtual firmware error … ErrorCode0..4: 0x0" + 18560 triple fault |
 
-**The same firmware that boots on type 16 refuses on type 1, so this is not about the CVM image.**
+### UPDATE, same night: the refusal was MY configuration, not the platform
+
+With Microsoft's own recipe the type-1 VM **STARTS**. petri sets the VTL2 trio only when
+`is_openhcl && !is_isolated` (petri/src/vm/hyperv/powershell.rs:548), because `openhcl.bin` carries
+a RELOCATABLE_REGION and `openhcl-cvm.bin` has none and needs VTL2 at the FIXED GPA 0x8000000.
+Asking a fixed-GPA image to auto-place a 1 GiB VTL2 range is what the bare 12030 was. Removing the
+trio, defining the VM in ONE DefineSystem as petri does, and supplying the real VMGS this host
+requires gives, read back off the live VM:
+
+    GuestStateIsolationType=1 enabled=True GuestFeatureSet=0x201 Vtl2Mode=0 Vtl2Range=0
+    firmware='...\openhcl-cvm.bin'
+
+and the partition starts. **The failure has moved from a refusal BEFORE the partition starts to a
+runtime failure AFTER it starts** — Worker 18610 "fatal virtual firmware error ... ErrorCode0..4:
+0x0" then 18560 triple fault, ~2 minutes in, with ZERO bytes on COM1. That distinction matters: a
+partition that never starts has no diagnostics server, and this one does start.
+
+So the row below reading "type 1 refuses to start" describes MY earlier configuration. Restated:
+type 1 with petri's configuration STARTS AND TRIPLE-FAULTS. **No blanket claim that type 1 is
+unavailable on this build is supported, and the earlier inference that the two paths are "not
+composable" is withdrawn pending OpenHCL's own logs.**
+
+### The diagnostic delta, from the host event channels
+
+Two lines appear on the type-16 runs that BOOTED and are entirely absent on the type-1 run:
+
+    [1540] Gsp server unavailable.
+    [1540] GspSeedData not set.
+
+Two other lines are NOISE and must not be read as failures — both appear on the successful runs:
+`[1820] Loading IGVM file from default location.` (it says this even when our pinned firmware is in
+use, which a previous session misread) and `[2000] Create compute system, result 0xC0370103`.
+
+**The same firmware that boots on type 16 refuses on type 1** (under the configuration in the table),
+
 0x400 is what `New-VM` sets for VBS with the OpenHCL feature OFF; that combination starts because it
 is the in-box VBS path with no paravisor, and triple-faults because nothing in VTL2 boots our medium.
 
