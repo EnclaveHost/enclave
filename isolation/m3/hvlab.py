@@ -14,7 +14,8 @@ It is a test fixture, not a backend. It does on vsock what vbslike-host does on 
   usage:  hvlab.py signer <state dir>                 (foreground; the key is <state dir>/launcher.key, made once)
           hvlab.py load <state dir> <cid> <bundle> [label] [name]   prints the monitor's answer (JSON); name = the
                                                     deployment name the domain may certify (<8 hex>.<zone>)
-          hvlab.py destroy <cid> <domain id>                 the monitor's destroy (the domain ends, its port closes)
+          hvlab.py destroy <cid> <domain id> <boot>          the monitor's destroy (the domain ends, its port closes);
+                                                             <boot> is the load answer's per-boot nonce
           hvlab.py relay <cid> <vsock port> <tcp port>       (foreground)
           hvlab.py pubkey <state dir>                 prints the fixture launcher's public key (base64)
 """
@@ -126,12 +127,13 @@ def load(state, cid, bundle, label="", name=""):
     print(json.dumps(ans))
 
 
-def destroy(cid, dom_id):
-    """the monitor's own `destroy`: the domain's process tree ends and its port closes (a lease end, a relaunch)"""
+def destroy(cid, dom_id, boot):
+    """the monitor's own `destroy`: the domain's process tree ends and its port closes (a lease end, a relaunch).
+    It names the boot as well as the id: ids restart at 1 when the guest reboots."""
     s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
     s.settimeout(60)
     s.connect((int(cid), 9000))
-    s.sendall((json.dumps({"cmd": "destroy", "id": int(dom_id)}) + "\n").encode())
+    s.sendall((json.dumps({"cmd": "destroy", "id": int(dom_id), "boot": boot}) + "\n").encode())
     buf = b""
     while not buf.endswith(b"\n"):
         b = s.recv(4096)

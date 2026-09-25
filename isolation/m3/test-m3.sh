@@ -243,18 +243,21 @@ if [ "${RECHECK:-0}" != 1 ]; then
   # ...and the real domains must be untouched by any of it
   client "$W/s1-A.after-probe" "$W/s1-AAAAA.fwd" --app-sha "$shaA" $TR
   pid=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-PROBE.load" | head -1)
+  pboot=$(sed -n 's/.*"boot":"\([0-9a-f]*\)".*/\1/p' "$W/s1-PROBE.load" | head -1)
   "$W/m3ctl" -cid "$cid" list > "$W/s1.list-after-probe" 2>&1 || true
-  "$W/m3ctl" -cid "$cid" -id "${pid:-0}" destroy > "$W/s1.probe-destroy" 2>&1 || true
+  "$W/m3ctl" -cid "$cid" -id "${pid:-0}" -boot "${pboot:-}" destroy > "$W/s1.probe-destroy" 2>&1 || true
 
   # --- graceful stop: signal the front and let the domain wind down -------------------------------
   agid=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-AGAIN.load" | head -1)
-  "$W/m3ctl" -cid "$cid" -id "${agid:-0}" stop > "$W/s1.stop" 2>&1 || true
+  agboot=$(sed -n 's/.*"boot":"\([0-9a-f]*\)".*/\1/p' "$W/s1-AGAIN.load" | head -1)
+  "$W/m3ctl" -cid "$cid" -id "${agid:-0}" -boot "${agboot:-}" stop > "$W/s1.stop" 2>&1 || true
   sleep 2
   "$W/m3ctl" -cid "$cid" state > "$W/s1.state-after-stop" 2>&1 || true
 
   "$W/m3ctl" -cid "$cid" list > "$W/s1.list-before" 2>&1 || true
   idB=$(sed -n 's/.*"id":\([0-9]*\).*/\1/p' "$W/s1-BBBBB.load" | head -1)
-  "$W/m3ctl" -cid "$cid" -id "${idB:-2}" destroy > "$W/s1.destroy" 2>&1 || true
+  bootB=$(sed -n 's/.*"boot":"\([0-9a-f]*\)".*/\1/p' "$W/s1-BBBBB.load" | head -1)
+  "$W/m3ctl" -cid "$cid" -id "${idB:-2}" -boot "${bootB:-}" destroy > "$W/s1.destroy" 2>&1 || true
   sleep 1
   # a short probe, not the client: the client is built to WAIT for a domain to come up, which is the
   # opposite of what this checks
