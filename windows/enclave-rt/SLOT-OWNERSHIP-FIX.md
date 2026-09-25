@@ -88,18 +88,25 @@ new connections went to the dead listener — a port that accepts and never answ
 
 ## What is NOT fixed here
 
-The two live wedges themselves had distinct proximate causes that are separate from this
-bookkeeping and still open:
+The two live wedges themselves are separate from this bookkeeping and still open. A
+registers-only thread sample (03:10Z) localized one and, on offline review, did NOT localize
+the other:
 
-- `ipns-publisher` 0xd9798e4c: its ee-host thread spun 100% in `ntdll` exception dispatch
-  (20/20 RIP samples near `RtlRaiseException`); the brokered call never returned, so the
-  accept loop stalled. Cause of the exception storm not yet identified.
-- `s3-ipfs-adapter` 0x7ae476a3: its thread was blocked in `NtWaitForAlertByThreadId`
-  (10/10 samples, 0 CPU) — a wait that never completes.
+- `ipns-publisher` 0xd9798e4c: 100% USER CPU, pinned 20/20 in an ~11-byte window at `ntdll`
+  RVA 0xFC9B — the un-exported region right after `RtlRaiseException` (0xF700), before
+  `RtlSleepConditionVariableCS` (0x11230), i.e. the RTL exception/unwind machinery. A genuine
+  live-lock that never returns to the accept loop. The exact function needs `ntdll` PDBs; do
+  not assert "exception storm" as fact, only "pinned in that region".
+- `s3-ipfs-adapter` 0x7ae476a3: 10/10 in `NtWaitForAlertByThreadId`, 0 CPU — but this is
+  INCONCLUSIVE. s3's loop is a non-blocking `srv.poll()` sweep then `thread::sleep(25ms)`, and
+  that sleep maps to `ee_sleep_ms` → `WaitOnAddress` → `NtWaitForAlertByThreadId`; a HEALTHY
+  idle s3 samples identically. The thread sample does not localize s3's wedge — that is
+  established only by the port state (CLOSE_WAIT, not answering) and the node's record, and
+  needs a different method (counting `accept()` call-outs, or the app's `conns.len()`).
 
 These fixes remove the leaked-listener and cross-tenant-reuse amplifiers that made a
 single app's stall look like a whole-node, un-restartable failure, and make a per-app
-restart safe to target. They do not by themselves explain why those two threads stalled.
+restart safe to target. They do not by themselves explain either wedge.
 
 ## Tests (run locally, no wasmtime needed)
 
