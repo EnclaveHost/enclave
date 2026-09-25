@@ -154,11 +154,12 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
   (`vmm_core/virt_whp/src/hypercalls.rs:695-702`). A parser that trusts fields without verifying the signature would
   accept it, so signature verification is not optional.
 
-**What every open check waits for:** ONE real `VbsReport` package from a booted `a44bb55a` partition. Obtaining it
+**What every open check waits for:** ONE real `VbsReport` package from a booted partition of the eligible image
+(since v39: `b7ba7731`, launch digest `56FBB27F…`; `a44bb55a` before). Obtaining it
 (the vTPM NV path, enclave-5d's step-1 probe) is PROVIDER-BLOCKED and PARKED; it is not rerouted or rephrased. Until
 then these stay UNTESTED:
 - V1: which key signs the report, and whether IDKS from the same boot's quoted log verifies it;
-- V3: whether the report's `measurement` equals the pinned launch digest `58DFEBFE…` (a PREDICTION);
+- V3: whether the report's `measurement` equals the pinned launch digest (`56FBB27F…` since v39) (a PREDICTION);
 - V4: debug refusal by digest, plus `policy.debug_allowed`;
 - V5: the binding of nonce, TLS key, appId and runtimeId in `report_data`;
 - V7: replay and cross-VM refusal;
@@ -176,8 +177,9 @@ supply it.
 4. Steven or the provider: whether the parked capture can proceed is their decision, reported as the blocking item.
    Nothing here substitutes for it.
 
-Eligible is not verified. `a44bb55a` is the one ELIGIBLE digest in 99's allowlist (main `2fc4f46b`). Eligible means a
-report naming it would be accepted IF V1-V7 pass. No report has been verified, so nothing is verified.
+Eligible is not verified. Since v39 (main `cf1b9dc3`), `b7ba7731` (`56FBB27F…`) is the one ELIGIBLE digest in 99's
+allowlist; `a44bb55a` is superseded. Eligible means a report naming it would be accepted IF V1-V7 pass. No report has
+been verified, so nothing is verified. The engineering gaps from v39 to serving apps are in `../READINESS.md`.
 
 ## O5. Refusal tests on real evidence
 
