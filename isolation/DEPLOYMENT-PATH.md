@@ -6,6 +6,17 @@ before anything was deployed; what is live now is under PRODUCTION STATUS. Not i
 
 ## PRODUCTION STATUS (2026-09-24): a canary is live
 
+**2026-09-25 update: the guest pool is LIVE on metal-iso0** (TASK 4c; evidence in
+`m4/evidence/pool-rollout-2026-09-25/README.txt`).
+- guestd is `~/enclave-prod/bin/guestd.c42612c0` with `-guest-mem-mib 65536 -guest-cpus 16` (Steven's request).
+- The node image is `metal/dist-iso-c42612c0`, measurement 10622d98..., allowlisted BESIDE 04e953a4, which is kept for
+  rollback.
+- `/availability` reports the pool: `nodeRamGb` 64, `nodeVcpus` 16, and `cpuShareFree` = min(ledger 0.70, pool 0.8125).
+- The guest images are unchanged: `-isolation` is still iso-03be27d6 at 0181bce3.
+- Rollback, and the rollback artifacts kept through the 72 h window: the evidence README.
+- Where the Host side and Rollback items below still name the pre-pool binary and image, those are the rollback
+  artifacts.
+
 At Steven's production-first direction, the per-app tier serves a real app on enclave.host. This does not
 make the tier proven secure; security testing and fixes follow it:
 

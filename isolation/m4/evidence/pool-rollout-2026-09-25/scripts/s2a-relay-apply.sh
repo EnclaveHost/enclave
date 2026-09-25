@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# S2a: ADD the recorded prediction beside 04e953a4 in the relay's allowlist on nan; nothing else changes. NOTE: restarting
+# the api-relay briefly drops EVERY tunnel node and the API, not only metal-iso0. v2 (enclave-99): the value comes from
+# prediction.txt tied to the image; the restart is judged after it settles; a failure restores the ONE line.
+set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh
+check_prediction
+say "S2a: adding $NEWM to METAL_ALLOWED_MEASUREMENTS on nan (api-relay restart: every tunnel node and the API blip)"
+$NAN "set -euo pipefail
+F=/etc/nan-relay/api-relay.env; B=\$F.bak-pool-\$(date -u +%Y%m%dT%H%M%SZ)
+[ \"\$(grep -c '^METAL_ALLOWED_MEASUREMENTS=' \$F)\" = 1 ] || { echo 'REFUSING: not exactly one allowlist line'; exit 3; }
+grep -qx 'METAL_ALLOWED_MEASUREMENTS=$OLDM' \$F || { echo 'REFUSING: the allowlist is not exactly the live measurement'; exit 3; }
+cp -p \$F \$B; chmod 600 \$B; echo backup=\$B
+sed -i 's/^METAL_ALLOWED_MEASUREMENTS=$OLDM\$/METAL_ALLOWED_MEASUREMENTS=$OLDM,$NEWM/' \$F
+restore1() { sed -i 's/^METAL_ALLOWED_MEASUREMENTS=$OLDM,$NEWM\$/METAL_ALLOWED_MEASUREMENTS=$OLDM/' \$F; systemctl restart enclave-api-relay.service; echo \"RESTORED the one line: \$1\"; exit 4; }
+grep -qx 'METAL_ALLOWED_MEASUREMENTS=$OLDM,$NEWM' \$F || restore1 'the edit did not verify'
+diff <(grep -v '^METAL_ALLOWED_MEASUREMENTS=' \$B) <(grep -v '^METAL_ALLOWED_MEASUREMENTS=' \$F) >/dev/null || restore1 'other lines changed'
+date -u +%H:%M:%SZ; systemctl restart enclave-api-relay.service; sleep 8
+systemctl is-active --quiet enclave-api-relay.service || restore1 'the relay is not active after 8 s'
+[ \"\$(systemctl show enclave-api-relay.service -p NRestarts --value)\" = 0 ] || restore1 'the relay restarted on its own'
+[ \"\$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 https://api.enclave.host/enclaves)\" = 200 ] || restore1 'the API does not answer 200'
+grep '^METAL_ALLOWED_MEASUREMENTS=' \$F | awk -F'[=,]' '{print \"allowlist now:\", NF-1, \"entries\"}'" 2>&1 | tee $EV/s2a-remote.txt
+wait_for 180 relay_row_ok || { say "S2a CHECK FAILED: metal-iso0 did not re-attach -> rolling back S2a"; $EV/s2a-relay-rollback.sh; exit 20; }
+[ "$(node_attested | cut -d' ' -f1)" = "$OLDM" ] || { say "S2a CHECK FAILED: the node no longer attests 04e953a4 -> rolling back"; $EV/s2a-relay-rollback.sh; exit 20; }
+wait_for 120 public_ok || { say "S2a CHECK FAILED: canaries -> rolling back"; $EV/s2a-relay-rollback.sh; exit 20; }
+say "S2a APPLIED and checked: the allowlist is 04e953a4 + the prediction; metal-iso0 re-attached on 04e953a4; canaries serve"

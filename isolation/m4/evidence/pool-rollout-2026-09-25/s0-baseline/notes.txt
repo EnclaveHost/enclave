@@ -1,0 +1,1 @@
+17:41:45Z pre-change baseline noise: 4e62e60d public probe http=000 (no TLS) once; 4 re-probes 17:41:54Z-17:42:35Z all 200/verify=0 for all 3 canaries. Nothing had been changed on any host.

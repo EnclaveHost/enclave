@@ -1,0 +1,2 @@
+2026/09/25 11:15:25 adopted 3 guest(s) a previous guestd left, each verified again as the same guest: [gd6e734a97 gdb677d751 gdebc9c709]
+2026/09/25 11:15:25 guest pool: 3 guest(s) hold 5376 MiB / 300% CPU of 65536 MiB / 1600% CPU

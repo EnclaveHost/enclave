@@ -1,0 +1,13 @@
+[
+ {
+  "id": "0xf7a1256d22644d59d88fd523a42820586335fb3bcf01f7ed132e9448a298c745",
+  "name": "metal-iso0",
+  "endpoint": "tunnel://metal-iso0",
+  "mode": "snp",
+  "tier": null,
+  "serving": true,
+  "eligible": true,
+  "ineligible": null,
+  "teeCpu": null
+ }
+]
