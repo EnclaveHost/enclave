@@ -12,7 +12,8 @@
 //   HVACC_NODE_TREE      the node's tree (a worktree of windows/isolation-manager, or the box's deployed copy)
 //   HVACC_MANAGER        the manager's base URL, e.g. http://127.0.0.1:7071
 //   HVACC_DATA           the manager's data plane, e.g. 127.0.0.1:7072
-//   HVACC_LAUNCHER_KEY   the key the launcher signs domain reports with (what the manager's judge was given)
+//   HVACC_LAUNCHER_KEY   the key the launcher signs domain reports with (what the manager's judge was given), or
+//                        "record": each instance's own, from the manager's record (wmiserve mints a new key per run)
 //   HVACC_JUDGE          judge-hv.mjs;  HVACC_RUNTIME  the image's runtime.json
 //   optional: HVACC_DEPLOYMENT (default hello-world 0x4e62e60d...), HVACC_APPREF, HVACC_APPPORT, HVACC_PYTHON,
 //             HVACC_TIMEOUT_S (per wait, default 300), IPFS_GATEWAY,
@@ -156,20 +157,31 @@ function session(s) {
 // the verifier's judgement of a session: the document fetched ON that session, bound to its key and a fresh nonce, the
 // app, the runtime identity, the launcher's key, and the guest image the manager's record names
 let IMAGE, STATEMENT;
+const KEY_FROM_RECORD = LAUNCHER_KEY === "record";
+let LKEY = KEY_FROM_RECORD ? null : LAUNCHER_KEY;
 // The launcher's (partition, guestImageKind) statement from the manager's OWN record (the node client's view drops it).
 // A WMI partition's image is judged only as a pair with it (judge-hv, enclave-d1 + enclave-99 ae6e9147); the HCS lab's
 // records state none, and are judged on the image as before.
+async function rawRecord(id) {
+  return await fetch(`${MANAGER.replace(/\/+$/, "")}/vms/${encodeURIComponent(id)}`).then((r) => r.json()).catch(() => null);
+}
 async function statementOf(id) {
-  const raw = await fetch(`${MANAGER.replace(/\/+$/, "")}/vms/${encodeURIComponent(id)}`).then((r) => r.json()).catch(() => null);
-  const gi = raw && raw.guestIdentity;
+  const gi = (await rawRecord(id))?.guestIdentity;
   return gi ? { partition: gi.partition, guestImageKind: gi.guestImageKind } : undefined;
+}
+// HVACC_LAUNCHER_KEY=record: the key THIS instance's reports are signed with, as the manager's record states it
+async function useKeyOf(id) {
+  if (!KEY_FROM_RECORD) return;
+  const k = (await rawRecord(id))?.launcherKey;
+  if (Buffer.from(String(k || ""), "base64").length !== 32) throw new Error(`the manager's record of ${id} names no launcherKey`);
+  LKEY = k;
 }
 async function judged(b, appId, { spki = b.spki, nonceFor = null } = {}) {
   const nonce = randomBytes(32);
   const at = await b.req("GET", `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`);
   let v, doc = null;
   try { doc = JSON.parse(at.body);
-        v = judge({ doc, spki, nonce: nonceFor || nonce, expectedAppSha256: appId, launcherKey: LAUNCHER_KEY,
+        v = judge({ doc, spki, nonce: nonceFor || nonce, expectedAppSha256: appId, launcherKey: LKEY,
                     expectedImageSha256: IMAGE, ...(STATEMENT ? { expectedStatement: STATEMENT } : {}), expectRuntime }); }
   catch (e) { v = { verdict: "reject", reasons: [e.message] }; }
   return { ...v, why: (v.reasons || []).join("; "), guestBoundary: doc && typeof doc.boundary === "string" ? doc.boundary : null };
@@ -202,6 +214,7 @@ try {
   const view1 = await client.get(I1);
   IMAGE = view1.image;
   STATEMENT = await statementOf(I1);
+  await useKeyOf(I1);
   console.log(`the manager's view of ${I1}: ${JSON.stringify(view1).slice(0, 400)}; statement ${JSON.stringify(STATEMENT ?? null)}`);
 
   // ---- 2. a browser through the relay's tunnel, the app zone and the data plane: TLS ends in the domain ---------------
@@ -262,6 +275,7 @@ try {
     const stale = await preamble({ ...good });
     record("the old route (old instance, old key) is refused", /^NO /.test(stale), JSON.stringify(stale));
     const view2 = await client.get(I2);
+    await useKeyOf(I2);                                  // a relaunched domain's wmiserve signs with a NEW key
     const oldKey = await preamble({ id: I2, app: APP, image: view2.image, runtime: rid, key: K1 });
     record("the new instance under the OLD key is refused", /^NO .*transport key/.test(oldKey), JSON.stringify(oldKey));
     const b2 = await browser();
