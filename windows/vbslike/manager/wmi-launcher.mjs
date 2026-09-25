@@ -38,6 +38,7 @@
    able to prove they booted the same bytes.
    ============================================================ */
 import path from "node:path";
+import { BOOT_STATEMENTS, bootFormOfStatement } from "../verify/boot-statements.mjs";
 
 /*  THE VM MUST BE CREATED WITH A GUEST-STATE ISOLATION TYPE, or FirmwareFile is inert.
  *
@@ -87,16 +88,9 @@ export const BOUNDARY = Object.freeze({
  *
  * Keyed by the boot-form strings themselves (BOOT_UEFI, BOOT_LINUX_DIRECT below), so no forward reference is needed.
  */
-export const BOOT_STATEMENTS = Object.freeze({
-  "uefi-medium": Object.freeze({ partition: "wmi-openhcl-gen2", guestImageKind: "uefi-medium" }),
-  "linux-direct": Object.freeze({ partition: "wmi-openhcl-gen2-igvm-linux", guestImageKind: "igvm-linux-direct" }),
-});
-/** The boot form a (partition, guestImageKind) pair states: EXACT equality with one row, else null. No prefixes. */
-export function bootFormOfStatement(partition, guestImageKind) {
-  for (const [form, st] of Object.entries(BOOT_STATEMENTS))
-    if (partition === st.partition && guestImageKind === st.guestImageKind) return form;
-  return null;
-}
+// The table itself lives in verify/boot-statements.mjs, shared with judge-hv and the data plane; re-exported here so
+// this module's API is unchanged.
+export { BOOT_STATEMENTS, bootFormOfStatement };
 /** The boundary word for one boot form: BOUNDARY with that form's canonical partition name. */
 export function boundaryFor(boot) {
   const st = BOOT_STATEMENTS[boot];
@@ -137,9 +131,12 @@ export function uefiImageIdentity({ mediumSha256, mediumPath, ukiSha256 = null, 
  *
  * The paravisor loads our kernel, initrd and VTL0 command line from INSIDE the IGVM, where they are
  * measured (the recipe's -LinuxDirect mode). So the IGVM is everything that booted - and it is NOT
- * a medium. It is deliberately NOT called `guestImageSha256`: judge-hv compares that field against
- * the MEDIUM it shipped and the datapath compares `image` as a medium hash, and an IGVM digest in
- * either place would be a different kind of identity answering a question it was not asked.
+ * a medium. Its hash is the handle's `image` (the same value wmiserve's signed report puts in
+ * partition.guestImageSha256 under platform.partition "wmi-openhcl-gen2-igvm-linux"), and it is only ever
+ * compared TOGETHER with the (partition, guestImageKind) statement (verify/boot-statements.mjs): judge-hv
+ * and the data plane refuse the same 64 hex under the other partition or kind, and never compare an
+ * image alone (enclave-d1 + enclave-99). A launcher statement, not identity: what ran is only the
+ * paravisor report's launch digest against the pinned allowlist.
  */
 export function linuxDirectIdentity({ igvmSha256, igvmPath = null }) {
   if (!/^[0-9a-f]{64}$/.test(String(igvmSha256 || "").toLowerCase()))
@@ -151,11 +148,6 @@ export function linuxDirectIdentity({ igvmSha256, igvmPath = null }) {
     igvmPath: igvmPath ?? null,
   });
 }
-/** Why a linux-direct handle's `image` is null, said on the handle so nobody has to infer it. */
-export const LINUX_DIRECT_IMAGE_ABSENT =
-  "linux-direct: no medium is attached. The guest's kernel, initrd and command line are inside the measured IGVM, "
-  + "so its identity is guestIdentity.igvmSha256 - which is NOT a medium hash, and is kept out of `image` so the "
-  + "datapath cannot compare it as one. The datapath therefore refuses this domain for want of a medium identity.";
 
 /** How the guest boots. STATED by whoever constructs the launcher, never inferred from what else is set. */
 export const BOOT_UEFI = "uefi-medium";
@@ -877,18 +869,18 @@ export class WmiHyperVLauncher {
       if (!booted)
         throw new Error(`the VM is Running but the guest produced no output on ${pipe} within ${guestReadySec}s: a silent partition is not a booted one`);
 
-      // `image` is the guest's identity as a 64-hex STRING, and ONLY for a medium boot: the medium's
-      // hash as it was hashed AT ATTACH TIME on the host (uefiImageIdentity), never the firmware's and
-      // never an object. For linux-direct there is no medium, so `image` is null WITH ITS REASON, and
-      // the identity is the IGVM's pinned sha256 under its own name (linuxDirectIdentity).
+      // `image` is a 64-hex STRING, never an object and never the firmware's hash on a medium boot: the
+      // medium's hash as hashed AT ATTACH TIME (uefiImageIdentity), or for linux-direct the IGVM's pinned
+      // sha256 (linuxDirectIdentity), because the IGVM is what booted. Either way it travels with
+      // guestIdentity's (partition, guestImageKind) statement, and judge-hv and the data plane compare the
+      // pair first and the image second, never the image alone.
       const uefi = this.boot === BOOT_UEFI;
       const guestIdentity = uefi
         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
         : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
       return { instanceId, name, vmId: created.id, pipe, state: started.state,
                boot: this.boot, isolationType: 1,
-               image: uefi ? guestIdentity.guestImageSha256 : null,
-               ...(uefi ? {} : { imageAbsentReason: LINUX_DIRECT_IMAGE_ABSENT }),
+               image: uefi ? guestIdentity.guestImageSha256 : guestIdentity.igvmSha256,
                guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
                vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
                definition: { recipe: "petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)",
