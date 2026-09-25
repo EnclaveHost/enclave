@@ -35,7 +35,9 @@
 # Once us-west is in CI's EXTRA_RELAY_SSH_HOSTS (U7 preflight B1(a)), relay/deploy.sh ships the whole set there and
 # restarts the egress relay too; this script's remaining job is then a fresh host's bootstrap and the env file.
 # WHAT THIS CANNOT PROTECT: a copy of the OLD script in another checkout (only a pull brings this one); a host changed by
-# someone else between the probe and the write (there is no lock); files outside /opt/nan-relay, and other hosts.
+# someone else between the probe and the write (there is no lock); files outside /opt/nan-relay, and other hosts; a remote
+# shell KILLED mid-update skips its cleanup trap, so a root-owned 0600 /etc/nan-relay/.egress-relay.env.XXXXXX holding the
+# token can remain (acceptable at that mode; the working env file itself is never left partial).
 set -euo pipefail
 
 usage() { echo "usage: bash scripts/deploy-us-west-egress.sh [--bootstrap] [us-west-ssh-alias]" >&2; exit 2; }
@@ -156,6 +158,7 @@ ENV
 grep -q '^EGRESS_RELAY_TOKEN=.' "$ENV_TMP" && grep -qx 'TRUSTED_OPERATORS=0x390e2e0e0bc34b7f428f1e31c9b6770d5028ecc1' "$ENV_TMP" \
   || { echo "FATAL: the new egress env file is incomplete; the working one is untouched" >&2; exit 1; }
 chmod 600 "$ENV_TMP"                     # mktemp's mode already; stated, not assumed
+sync "$ENV_TMP"                          # the content is on disk before the name points at it (not left to a mount option)
 mv -f "$ENV_TMP" "$ENV_FILE"             # rename(2) in one directory: the old file or the new one, never a partial one
 trap - EXIT
 # NO EGRESS_PREFIX -> the unit's `ip -6 route add local` self-ignores, and the
@@ -164,7 +167,9 @@ systemctl daemon-reload
 systemctl enable --now enclave-egress-relay
 sleep 4
 systemctl is-active enclave-egress-relay
-journalctl -u enclave-egress-relay --since "-30s" -o cat | grep -iE "control channel up|egress relay" | tail -4
+# diagnostic only: `systemctl is-active` above is the check (set -e fails an inactive unit). A quiet journal in this
+# 30 s window must not report a failure after a good start, or an operator retries a deploy that worked (enclave-99).
+journalctl -u enclave-egress-relay --since "-30s" -o cat | grep -iE "control channel up|egress relay" | tail -4 || true
 REMOTE
 } | ssh -o BatchMode=yes "$UW" 'bash -s'
 echo "[us-west-egress] done — us-west now attaches to the fleet as relay 'us-west' and carries egress."
