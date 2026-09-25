@@ -1,0 +1,11 @@
+MemTotal:       130876608 kB
+MemAvailable:   77563776 kB
+Unevictable:     7612028 kB
+SwapTotal:       4194300 kB
+SwapFree:         178912 kB
+Zswapped:        3732040 kB
+AnonPages:      21033816 kB
+Shmem:          17010588 kB
+
+some avg10=0.00 avg60=0.02 avg300=0.03 total=6534893
+full avg10=0.00 avg60=0.00 avg300=0.00 total=6160190
