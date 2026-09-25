@@ -49,7 +49,9 @@ make the tier proven secure; security testing and fixes follow it:
 admits a guest only inside a budget the operator sets, `-guest-mem-mib` and `-guest-cpus` (host RAM and cores set
 aside for guests). Without them it refuses EVERY create (`pool_unconfigured`, logged naming the flags), which includes
 a canary's recreate after a crash. It still adopts the guests that are running.
-- ORDER: add both flags to `enclave-guestd.service`'s ExecStart BEFORE this build runs on metal-iso0.
+- ORDER: the flags go into `enclave-guestd.service`'s ExecStart IN THE SAME RESTART as this build, never earlier. The
+  deployed guestd does not define them, and Go's flag parsing exits on an unknown flag, so a restart of the old
+  binary with them would not start (isolation/GUEST-POOL-ROLLOUT.md, S1).
 - Each guest reserves its unit's ceilings: guest RAM (at least 1024 MiB) + 768 MiB, and its CPUQuota (100% = a core).
   Today's three canaries hold 3 x 1792 MiB and 3 cores, so a budget under 5376 MiB / 3 cores leaves the pool
   OVERCOMMITTED after the restart. Nothing is killed, but nothing is admitted until guests end.
