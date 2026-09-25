@@ -23,6 +23,6 @@ j=$($US "journalctl -u enclave-tcp-relay --since '$T0' --no-pager -o cat")
 grep -q 'eligibility: https://api.enclave.host/enclaves every 15s' <<<"$j" || fail "no eligibility line"; ! grep -q 'unset: NO host is eligible' <<<"$j" || fail "UNSET feed"
 nl=$($US 'ss -ltnH | wc -l'); [ "$nl" -ge 49000 ] && $US 'ss -ltnH "( sport = :443 or sport = :80 )" | wc -l' | grep -qE '^[2-9]' || fail "listeners: $nl (443/80?)"
 canary200 dns || fail "a canary is not 200 via us-west (DNS)"
-for l in $LABELS; do ! grep -q "REFUSED: not an eligible host (U7).*$l" <<<"$j" || fail "tcp-relay refused canary $l"; done
+! grep -q "REFUSED: not an eligible host (U7)" <<<"$j" || fail "tcp-relay logged a U7 eligibility refusal (any line: the canaries are the only leases)"
 probe "$US" > $U7/probe-uswest-after.txt 2>&1
 say "U7 STEP 4 DONE: us-west on U7 (relay.js e0cb218f, fleet.mjs 384a1ef1), tcp-relay up 2 min without restarts, eligibility line, $nl listeners, canaries 200 via DNS"
