@@ -390,7 +390,7 @@ async function measureEngineHold() {
 async function handle(frame) {
   const p = String(frame.path || '').split('?')[0]; const method = frame.method || 'GET';
   const json = (status, o) => ({ status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(o) });
-  if (p === '/availability') return json(200, { ok: true, role: 'windows-vbs-node', name: NAME,
+  if (p === '/availability') return json(200, { ok: true, role: LEGACY_ENGINE ? 'windows-vbs-node' : 'windows-hv-node', name: NAME,
     // gpu:false stays false, and it is not a statement about whether the card is for sale: on this
     // fleet that flag means the card is INSIDE the measured enclave, and this one is not. It sits
     // on the untrusted Windows host and the enclave uses it by masked offload. The card's facts,
@@ -415,11 +415,14 @@ async function handle(frame) {
       : Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
     machineRamGb: Number(process.env.NODE_RAM_GB || Math.round(os.totalmem() / 2 ** 30)),
     nodeGflops: Math.round(62.5 * Number(process.env.NODE_VCPUS || os.cpus().length)),   // the fleet's convention (metal gsup.mjs)
-    teeCpu: 'windows-vbs-enclave', tier: tier || null,
+    // teeCpu names a CPU TEE this box's own attestation shows. An isolation-only node has none: its attach is a
+    // host-attested boot state (windows-hv-node/v1), so it says null rather than the retired engine's name.
+    teeCpu: LEGACY_ENGINE ? 'windows-vbs-enclave' : null, tier: tier || null,
     // THE CARD, as the worker itself reports it (shieldedcard.mjs), refreshed on a timer. The
     // fallback is what this box knows without asking - a worker that is down must not leave the
     // row advertising a card nobody can use.
-    shielded: (card ? { ...card, ...(cardProof ? { proof: cardProof } : {}) } : null) || { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), vramGb: Number(WORKER_VRAM_GB),
+    // An isolation-only node starts no worker, so it advertises no card at all.
+    shielded: !LEGACY_ENGINE ? null : (card ? { ...card, ...(cardProof ? { proof: cardProof } : {}) } : null) || { worker: 'vulkan', protocol: '1.4.0', vramGiB: Number(WORKER_VRAM_GB), vramGb: Number(WORKER_VRAM_GB),
                         vramBudgetGb: Number(WORKER_VRAM_GB), vramFreeGb: 0, vramReservedGb: 0,
                         ...(gpuName ? { device: gpuName } : {}), note: 'the worker has not answered a HELLO yet' },
     model: MODEL ? path.basename(MODEL) : null, attachedAt, ...(APPS ? host.availability() : {}) });
