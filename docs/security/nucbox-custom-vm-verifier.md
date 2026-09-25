@@ -130,6 +130,42 @@ Neither name is identity. Both are launcher statements (the monitor-signed T0-hv
 partition RAN is established only by the paravisor report's launch digest against the pinned allowlist (V3), never by
 the partition name, the image kind or the launcher's `--igvm-sha256` argument.
 
+### What the launcher's signature binds: the PARTITION, not a domain (2026-09-25, raised by enclave-d1)
+
+From source (`windows/custom-vbs-like-hyperv` ad61cb02, `host/src/wmiserve.rs`): the report service on hv_sock 9001
+accepts a peer only when its VM GUID is this partition's. It takes `report_data` (bind 32 bytes || app 32 bytes) from the
+REQUEST, and signs when the app half is one this launcher loaded into this VM. It cannot know which in-guest process
+asked. So the property domprobe states ("a compromised domain can only ever name ITSELF") belongs to the MONITOR. It
+holds only while the monitor is the only in-guest path to 9001. A domain that dials 9001 itself can obtain a
+launcher-signed report naming ANY app the launcher loaded into that partition, with a bind of its own choosing.
+
+Observed, as a hypothesis only (enclave-d1, run 093904 on b7ba7731): domprobe's connect to host CID 2 port 9000 TIMED
+OUT rather than being refused inside the guest. So a domain can start an hv_sock connection to the host, and no in-guest
+policy is known to deny domains AF_VSOCK. The 9001 route itself is untested: it needs a domprobe route, which is
+enclave-5d's source and paused with Steven.
+
+How it is weighed:
+
+1. **A single-app partition** (`hyperv-partition-per-app`: one wmiserve load per partition, and control port 9000 is
+   dialled only by the host). The direct path gives a domain nothing the monitor would not. The only loaded app is its
+   own, and the bind half is the requester's choice on both paths. This is not a finding against that backend.
+2. **A partition holding MORE THAN ONE domain** (the neighbour-probe lab, or any future multi-app partition). A
+   launcher-signed report binds (partition, one of the apps loaded into it), NEVER a domain, so it is never evidence of
+   which domain holds the bound key. The launcher's own loaded list cannot establish "one domain" either: a domain
+   loaded raw over 9000, such as the probe, is invisible to it.
+3. **The verifier.** The launcher-signed document stays `unsupported`, because the host is not excluded by contract.
+   Nothing changes today. If it is ever read for per-app routing on the lab tier, it must come with a measured-image
+   (monitor) statement that the partition runs exactly one domain, and without one it is refused.
+4. **Guest-local containment acceptance** (enclave-d1's Judge-Probe) cannot PASS while the 9001 route is unprobed.
+   "Host signer 9001: not probed" is INCONCLUSIVE, never a pass.
+5. **The fix at the source, when unpaused.** Domains get no AF_VSOCK (or AF_HYPERV) sockets, through a seccomp filter in
+   domexec or a cgroup sock_create hook, so only the monitor reaches 9000 and 9001. The test: domprobe to CID 2 port 9001
+   is DENIED (EPERM or EACCES), with a positive control in the same run (the monitor's own dial connects). A timeout is
+   not a denial.
+6. **The paravisor path (V5) has the same shape.** Its report_data comes from the vTPM, so a domain must not reach
+   /dev/tpm*. The 1539 image's domprobe opens return ENOENT, which means absent from the domain's view. Their existence
+   in the root namespace is unshown until the monitor's stat statement exists.
+
 ## The paravisor's VM report (per app partition): what the verifier will require
 
 Each line maps to the contract's requirement (R1-R7) and is NOT ESTABLISHED. An image's ELIGIBILITY in the pinned
