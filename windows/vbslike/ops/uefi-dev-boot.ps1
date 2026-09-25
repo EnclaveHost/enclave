@@ -487,6 +487,25 @@ try {
       Note "ohcldiag-dev kmsg started (pid $($kmsgProc.Id)) -> $kmsgOut"
     } catch { Note "ohcldiag-dev could not be started: $($_.Exception.Message -replace "`r?`n",' ')" }
   } else { Note "ohcldiag-dev NOT FOUND at $OhclDiag; an OpenHCL start failure will be unreadable" }
+  # INSPECT, on both types so the type-16 answer is the control rather than an assumption.
+  # Inspect stays registered on a CVM (Safe-filtered) but run_control serves it, and run_control is
+  # blocked in launch_workers while the VM worker sits in its start-failure wait. So the PREDICTION
+  # is: instant on type 16, TIMEOUT on type 1. An answer with control_state=Started on type 1 would
+  # contradict the start-failure reading, which is why it is worth asking (enclave-5d).
+  if (Test-Path $OhclDiag) {
+    foreach ($q in @('build_info', 'control_state')) {
+      $t = Get-Date
+      $r = & $OhclDiag $name inspect -t 10 $q 2>&1 | Out-String
+      Note "inspect $q ($([int]((Get-Date)-$t).TotalMilliseconds) ms): $(($r -replace "`r?`n",' ').Trim())"
+    }
+    # Only if it answered at all: the deeper Safe-level views say WHICH worker state it is in.
+    if ($r -and $r -notmatch 'timed out|timeout') {
+      foreach ($q2 in @('vm', 'proc')) {
+        $r2 = & $OhclDiag $name inspect -r -t 10 $q2 2>&1 | Out-String
+        foreach ($l in (($r2 -split "`n") | Where-Object { $_.Trim() } | Select-Object -First 12)) { Note "  INSPECT/$q2 : $($l.Trim())" }
+      }
+    }
+  }
   Note "started; watching COM1 for 'MON ready' for $ReadySeconds s"
   while (((Get-Date) - $t0).TotalSeconds -lt $ReadySeconds -and -not $ready) {
     Start-Sleep -Seconds 3
@@ -693,11 +712,18 @@ finally {
       if (Get-VM -Name $name -EA SilentlyContinue) { $fail += "$name is STILL PRESENT after the removal" }
       # The per-run COPY is ours to remove; the master is an input and must survive. The old check
       # flagged the master and reported a cleanup failure on every clean type-1 run.
+      # ARCHIVED, not deleted, and only now that the VM is gone. OpenHCL's writes (format, file 18)
+      # happen in the first seconds, but copying while vmwp still holds the file risks a torn read -
+      # the same class of mistake as reading a .VMRS before Save-VM finished writing it. The VM's
+      # removal above is the trigger (enclave-5d).
       if ($IsolationType -eq 1 -and $runGsf -and (Test-Path $runGsf)) {
         $endSha = (Get-FileHash $runGsf -Algorithm SHA256).Hash.ToLower()
-        Note "guest state after the run: $(if($endSha -eq $masterSha){'UNCHANGED'}else{"WRITTEN TO (now $endSha, was $masterSha)"})"
+        Note "guest state after the run: $(if($endSha -eq $masterSha){'UNCHANGED by the run'}else{"WRITTEN TO by the run (now $endSha, was $masterSha)"})"
+        $keepGsf = "C:\Users\claude\vbs-evidence\gueststate-$stamp.vmgs"
+        Copy-Item $runGsf $keepGsf -Force -EA SilentlyContinue
+        if (Test-Path $keepGsf) { Note "guest state archived for vmgs_check: $keepGsf" }
+        else { $fail += "the run's guest-state copy could not be archived" }
         Remove-Item $runGsf -Force -EA SilentlyContinue
-        if (Test-Path $runGsf) { $fail += "the run's guest-state copy could not be removed: $runGsf" }
       }
     }
   } catch { $fail += "cleanup: $($_.Exception.Message)" }
