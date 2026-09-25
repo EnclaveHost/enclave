@@ -96,6 +96,9 @@ CHIP_ID binds the **physical chip, not the endpoint**: two registered endpoints 
 ## Preconditions before `SECRETS_ATTESTED_RELEASE` may be turned on (enclave-d1)
 
 - The policy: `SECRETS_RELEASE_MIN_TCB`, `SECRETS_RELEASE_VMPL`, and a measurement allowlist holding reviewed, non-debug per-app guest images only.
+- Scope: this release serves **M2-path** per-app guests only. They have no SVSM, and the front reads its report through configfs-tsm at VMPL0, so `SECRETS_RELEASE_VMPL=0` (enclave-5d, from source).
+  - When M4b becomes a per-app path, the VMPL becomes per measurement: allowlist entries of the form `<measurement>@<vmpl>`, so each image is judged at its own level.
+  - Re-check the guest POLICY value (0x30000: DEBUG off) against `run-domain.sh` at deploy time; the relay refuses DEBUG regardless.
 - The guest side landed and reviewed (enclave-5d):
   - the boot check that the served deployment id equals HOST_DATA;
   - the release client as measured platform code, with [32:64] filled by the monitor;
