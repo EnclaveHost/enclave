@@ -2210,7 +2210,7 @@ const CATALOG_RPCS = [...new Set(String(process.env.SECRETS_RELEASE_CATALOG_RPCS
 const catalogRpcHosts = new Set(CATALOG_RPCS.map((u) => { try { return new URL(u).host; } catch { return u; } }));
 const catalogClients = CATALOG_RPCS.map((url) => { let c = null; return { readContract: async (q) => {
   if (!c) { const { createPublicClient, http: viemHttp } = await import("viem"); const { base } = await import("viem/chains");
-            c = createPublicClient({ chain: base, transport: viemHttp(url, { timeout: 15_000 }) }); }
+            c = createPublicClient({ chain: base, transport: viemHttp(url, { timeout: 6_000 }) }); }
   return c.readContract(q);
 } }; });
 // WHICH catalog: APP_CATALOG_ADDRESS when the operator pins it, else the address book's appCatalog read through the SAME
@@ -2230,13 +2230,23 @@ async function catalogAddress() {
 // The deployment's ledger record, read by id through the SAME agreeing RPCs: a release decision (the lease holder, the
 // catalog version, privacy, the config envelope) never rests on one provider's answer. Rev-2 ledgers only (the per-app tier).
 const DEP_GET_ABI = [{ type: "function", name: "get", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "tuple", components: DEP_TUPLE }] }];
-async function confirmRow(id) {
-  if (catalogRpcHosts.size < 2) throw new Error("fewer than two independent RPCs are configured");
+// The ledger's address: pinned by DEPLOYMENTS_ADDRESS, else the address book's entry as the agreeing RPCs read it, kept for
+// 10 min (a release's budget is the guest's 25 s attempt: one agreed record read, 6 s per provider, plus the prediction).
+let _confirmedLedger = { addr: "", at: 0 };
+async function confirmedLedger() {
   const pinned = (process.env.DEPLOYMENTS_ADDRESS || "").trim();
-  const books = pinned ? [pinned] : await Promise.all(catalogClients.map((c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS] })));
+  if (pinned) return pinned;
+  if (_confirmedLedger.addr && Date.now() - _confirmedLedger.at < 600_000) return _confirmedLedger.addr;
+  const books = await Promise.all(catalogClients.map((c) => c.readContract({ address: ADDRESS_BOOK, abi: BOOK_ABI, functionName: "addr", args: [BOOK_KEY_DEPLOYMENTS] })));
   if (books.some((a) => String(a).toLowerCase() !== String(books[0]).toLowerCase()) || /^0x0{40}$/i.test(String(books[0])))
     throw new Error("the RPCs disagree about the deployments ledger");
-  const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: books[0], abi: DEP_GET_ABI, functionName: "get", args: [id] })));
+  _confirmedLedger = { addr: books[0], at: Date.now() };
+  return books[0];
+}
+async function confirmRow(id) {
+  if (catalogRpcHosts.size < 2) throw new Error("fewer than two independent RPCs are configured");
+  const ledger = await confirmedLedger();
+  const got = await Promise.all(catalogClients.map((c) => c.readContract({ address: ledger, abi: DEP_GET_ABI, functionName: "get", args: [id] })));
   const pick = (d) => ({ id: String(d.id).toLowerCase(), runner: String(d.runner).toLowerCase(), leaseUntil: String(d.leaseUntil), appRef: d.appRef,
                          isPublic: !!d.isPublic, configCid: d.configCid, active: !!d.active });
   const rows = got.map(pick);

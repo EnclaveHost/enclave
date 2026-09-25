@@ -359,8 +359,18 @@ test("fail closed: OFF, a missing policy or a missing provider answers 503 and i
   assert.equal(r.code, 403); assert.equal(r.body.error, "bad_ticket");
   // a deployment whose configCid does not resolve gets nothing rather than a partial answer
   rows = [leaseRow(B, { configCid: JSON.stringify({ configCid: "bafkreiunknown" }) })];
-  const tb = await ticketFor(B), rb = await release(B, tb.body.ticket, guest({ id: B, ticket: tb.body.ticket }));
+  const tb = await ticketFor(B), gb = guest({ id: B, ticket: tb.body.ticket }), rb = await release(B, tb.body.ticket, gb);
   assert.equal(rb.code, 503); assert.equal(rb.body.error, "config_unresolvable"); assert.equal(rb.body.sealed, undefined);
+  // the relay's own 503: the ticket is KEPT (config is resolved before it is consumed), and the retry releases once it resolves
+  assert.ok(R._internals.tickets.has(tb.body.ticket), "config_unresolvable keeps the ticket");
+  rows = [leaseRow(B, { configCid: JSON.stringify({ configCid: "bafkreisyntheticcid" }) })];
+  const rb2 = await release(B, tb.body.ticket, gb);
+  assert.equal(rb2.code, 200, JSON.stringify(rb2.body)); assert.equal(R._internals.tickets.has(tb.body.ticket), false);
+  // a malformed envelope is final: 422, and the ticket is burned
+  const tc = await ticketFor(B);
+  rows = [leaseRow(B, { configCid: "not json" })];
+  const rc = await release(B, tc.body.ticket, guest({ id: B, ticket: tc.body.ticket }));
+  assert.equal(rc.code, 422); assert.equal(rc.body.error, "bad_envelope"); assert.equal(R._internals.tickets.has(tc.body.ticket), false);
 });
 
 test("the relay's OWN checks hold even when the verifier says verified: VCEK signer, binding, app, HOST_DATA, chip", async () => {
