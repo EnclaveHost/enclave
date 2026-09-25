@@ -368,6 +368,30 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   note says it uses the box's own `target\release` launcher only for hvdial, which signs nothing. Scope: T0-hv,
   host not excluded; not isolation evidence.
 
+- **v36 draft** (`drafts/nucbox-ownguest-36.json`; supersedes v35): **the package's control tree is now the one that
+  ran.** `control/` is re-pinned to `windows/hv-acceptance` `2c3a2873`, exactly what enclave-d1's run 090327 ran on
+  v35's inputs (`c5bb270d`). hvlab-accept passed ALL and restart A0–A9 passed ALL. The new A9: a domain stopped inside
+  the guest, with its VM still Running, was failed by the answer sweep after 3 strikes. The tree's import closure adds
+  `wmiserve-run.mjs` and `verify/boot-statements.mjs`. The harness is re-pinned at `c192380c`, and enclave-99's lifecycle
+  spec at `755b3f88`, where attestedCapacity is false for every view. The npm tree stays the 15-tarball import closure:
+  the root lock is byte-identical, and 090327 itself installed the full 90.
+  - **The vbsLinux manager's environment** is stated in `profiles.vbsLinux.managerEnv` (enclave-d1's list), and
+    `check.ps1` prints it. `hyperv.psm1` (`17ca4352`) and `type1.vmgs` (`4f051697`) are **box files**: hash-checked by
+    `check.ps1` (`hostChecks.vbsLinux.boxFiles`), not shipped. The verifier refuses an environment that names a
+    variable the pinned `main.mjs` does not read, or that contradicts the package: another IGVM, launcher, boot form,
+    or hyperv.psm1 pin.
+  - **The manager check measures the type-1 launcher.** It states the boot form and supplies the type-1 inputs. It
+    reads isolation type 1 from the `New-CustomVM` line, and it lays out the judge's files beside the manager's. It
+    fails a forged launcher that stops asking for the isolation type.
+  - **The next production candidate `b7ba7731`** (launch digest `56FBB27F…`) is a44bb55a's recipe with only the initrd
+    swapped for enclave-5d's `1539d5b2`. There, only `plat/domprobe` differs: the open-only TPM negative control.
+    enclave-d1's review agrees (`fd92d610`). It is eligible:false and booted no, it is no profile's firmware, and its
+    debug twin is `95de03cc` / `8E9D6ACB…`.
+  - **A correction of v35's note on `uefi-dev-boot.ps1`**, now pinned at `c16d785d` (the script with the probe step).
+    The script runs the box's own `target\release\vbslike-host.exe` for hvdial, which signs nothing. With `-Bundle`
+    it also runs that binary as `wmiserve`: the 9000 load and the 9001 report signer. `-ProbeDomain` refuses `-Bundle`,
+    so a probe run only dials.
+  - Scope: T0-hv, host-signed, host not excluded; not isolation.
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was

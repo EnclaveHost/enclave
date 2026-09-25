@@ -246,6 +246,46 @@ async function checkClaims(m, bytes, R) {
     const cands = m.files.filter((x) => x.role === "candidate.launcher").length;
     R.add(bad.length === 0, "every profile's launcher is a control.launcher (a candidate.launcher is never a profile's launcher)",
           bad.length ? bad.join("; ") : `${n} profile launcher(s)${cands ? `, ${cands} candidate launcher(s) shipped beside` : ""}`); }
+  // The vbsLinux manager's environment, when the manifest states it (from v36, for the 2c3a2873 manager): every name is
+  // one the PINNED main.mjs reads, every reference resolves inside this manifest or to a host box file it hash-pins, and
+  // the values that can contradict the package are checked against it: the IGVM is the profile's firmware, the
+  // wmiserve executable is the control.launcher, the boot form is the contract's, and hyperv.psm1's pin is the pinned
+  // launcher's own default.
+  if (P.vbsLinux && P.vbsLinux.managerEnv !== undefined) {
+    const env = Array.isArray(P.vbsLinux.managerEnv) ? P.vbsLinux.managerEnv : [];
+    const bf = Array.isArray(m.hostChecks?.vbsLinux?.boxFiles) ? m.hostChecks.vbsLinux.boxFiles : [];
+    const main = m.control?.manager && file(m.control.manager), mainSrc = main && bytes.get(main) ? String(bytes.get(main)) : "";
+    const reads = new Set([...mainSrc.matchAll(/\benv\("([A-Z][A-Z0-9_]*)"/g)].map((x) => x[1]).concat(["PYTHONPATH"]));
+    const wl = m.files.find((f) => f.role === "control.manager" && f.path.endsWith("/wmi-launcher.mjs"));
+    const hvPin = wl && bytes.get(wl) ? (/export const HYPERV_MODULE_SHA256 = "([0-9a-f]{64})"/.exec(String(bytes.get(wl))) || [])[1] : null;
+    const SRC = ["value", "file", "dir", "sha256Of", "boxFile", "boxFileSha256"], bad = [];
+    for (const b of bf) if (!b || typeof b.name !== "string" || !/^[A-Za-z]:\\/.test(String(b.path || "")) || !/^[0-9a-f]{64}$/.test(String(b.sha256 || "")))
+      bad.push(`box file ${JSON.stringify(b && b.name)} needs a name, an absolute Windows path and a lowercase sha256`);
+    const box = (n) => bf.find((b) => b && b.name === n);
+    const val = {};
+    for (const e of env) {
+      const srcs = e ? SRC.filter((k) => k in e) : [];
+      if (!e || !/^[A-Z][A-Z0-9_]*$/.test(String(e.name || "")) || srcs.length !== 1) { bad.push(`entry ${JSON.stringify(e)} needs a NAME and exactly one of ${SRC.join("/")}`); continue; }
+      if (!reads.has(e.name)) bad.push(`${e.name} is not read by the pinned ${m.control?.manager || "manager"}`);
+      if (e.name in val) bad.push(`${e.name} is stated twice`);
+      const k = srcs[0];
+      if ((k === "file" || k === "sha256Of") && !file(e[k])) bad.push(`${e.name} names ${e[k]}, which this manifest does not ship`);
+      if (k === "dir" && !m.files.some((f) => f.path.startsWith(`${String(e.dir).replace(/\/$/, "")}/`))) bad.push(`${e.name} names the directory ${e.dir}, which holds no file of this manifest`);
+      if ((k === "boxFile" || k === "boxFileSha256") && !box(e[k])) bad.push(`${e.name} names the box file ${e[k]}, which hostChecks.vbsLinux.boxFiles does not pin`);
+      val[e.name] = { k, v: e[k] };
+    }
+    const is = (n, k, v) => val[n] && val[n].k === k && val[n].v === v;
+    const fw = P.vbsLinux.firmware, lau = m.files.find((f) => f.role === "control.launcher");
+    if (!is("ENCLAVE_GUEST_IGVM", "file", fw) || !is("ENCLAVE_GUEST_IGVM_SHA256", "sha256Of", fw)) bad.push(`ENCLAVE_GUEST_IGVM(_SHA256) must be the profile's firmware ${fw}`);
+    if (!lau || !is("ENCLAVE_WMISERVE_EXE", "file", lau.path) || !is("ENCLAVE_WMISERVE_EXE_SHA256", "sha256Of", lau.path)) bad.push("ENCLAVE_WMISERVE_EXE(_SHA256) must be this package's control.launcher");
+    const kind = P.vbsLinux.contract && P.vbsLinux.contract.guestImageKind, form = { "igvm-linux-direct": "linux-direct", "uefi-medium": "uefi-medium" }[kind];
+    if (!is("ENCLAVE_BOOT_FORM", "value", form)) bad.push(`ENCLAVE_BOOT_FORM must be ${JSON.stringify(form || null)}, the form of the contract's guestImageKind ${JSON.stringify(kind || null)}`);
+    const hv = val.ENCLAVE_HYPERV_MODULE_SHA256, hvBox = hv && hv.k === "boxFileSha256" && box(hv.v);
+    if (!hvPin || !hvBox || hvBox.sha256 !== hvPin || !is("ENCLAVE_HYPERV_MODULE", "boxFile", hv.v))
+      bad.push(`hyperv.psm1 must be a box file pinned at the pinned launcher's own default ${hvPin || "(none found)"}`);
+    R.add(bad.length === 0, "the vbsLinux manager's environment is one the pinned manager reads, and agrees with this package (its IGVM, launcher, boot form and hyperv.psm1 pin)",
+          bad.length ? bad.join("; ") : `${env.length} variable(s), ${bf.length} box file(s)`);
+  }
   R.add(!!ig && has(ig.image, "guest.igvm"), "profile igvm names the image of this package", ig ? ig.image : "no igvm profile");
   R.add(!!ig && m.rebuild?.igvm?.initrd === hcs?.initrd, "both profiles boot the SAME monitor image",
         m.rebuild?.igvm?.initrd === hcs?.initrd ? `${hcs.initrd} is the IGVM's VTL0 initrd` : "the IGVM's VTL0 initrd is not the hcs-dev initrd");
@@ -283,7 +323,8 @@ async function checkClaims(m, bytes, R) {
   // copy, which the package also ships for the box.
   if (ig?.manager) R.add(has(ig.manager.check, "tool.windows"), "profile igvm ships its manager check for the box", ig.manager.check);
   if (ig) {
-    const mf = m.files.filter((f) => f.role === "control.manager");
+    // the manager's files and the judge's, laid out as shipped: the manager imports verify/ modules (boot-statements.mjs, 2c3a2873)
+    const mf = m.files.filter((f) => f.role === "control.manager" || f.role === "control.judge");
     const app = (m.apps || []).find((a) => a.servable);
     const d = fs.mkdtempSync(path.join(os.tmpdir(), "vbspkg-mgr-"));
     let res = null;
@@ -301,7 +342,7 @@ async function checkClaims(m, bytes, R) {
       try { res = JSON.parse(r.stdout.trim().split("\n").at(-1)); } catch { res = { ok: false, reason: (r.stderr || r.stdout || "").trim().split("\n").at(-1) }; }
     } finally { fs.rmSync(d, { recursive: true, force: true }); }
     R.add(!!res?.ok, "the igvm manager creates its VM with a guest-state isolation type (its own start(), on a recording host)",
-          res?.ok ? `New-VM -GuestStateIsolationType ${res.isolation}${res.secureBootOff ? ", Secure Boot off" : ""}` : res?.reason || "no answer");
+          res?.ok ? `${/^[0-9]+$/.test(String(res.isolation)) ? "New-CustomVM" : "New-VM"} -GuestStateIsolationType ${res.isolation}${res.secureBootOff ? ", Secure Boot off" : ""}` : res?.reason || "no answer");
     // The manager's UEFI SERVING path, pinned as MEASURED: what start() does about the medium and the hv_sock exchange.
     // Red today; the pin must move when the manager gains them, so a change never passes unnoticed.
     const ms = m.profiles?.uefi?.managerServing;

@@ -166,6 +166,24 @@ $d = $Dir
 "`$env:ENCLAVE_RUNTIME_IDENTITY  = '$(Get-PkgFilePath $d $M.runtime.file)'   # RuntimeID $($M.runtime.runtimeId)"
 "`$env:ENCLAVE_CID_FETCHER       = '$(Get-PkgFilePath $d $M.control.fetcher)'"
 "node $(Get-PkgFilePath $d $M.control.manager)"
+if (($M.profiles.PSObject.Properties.Name -contains 'vbsLinux') -and ($M.profiles.vbsLinux.PSObject.Properties.Name -contains 'managerEnv')) {
+  # the manager of this package's control tree, with the environment the box acceptance starts it with (<...> = fill in)
+  $bf = @($M.hostChecks.vbsLinux.boxFiles)
+  ''
+  '# vbsLinux profile: the manager, pinned to this package (box files are hash-checked above and again by the launcher)'
+  foreach ($e in @($M.profiles.vbsLinux.managerEnv)) {
+    $k = @($e.PSObject.Properties.Name)
+    $val = [string]$e.value
+    if ($k -contains 'file') { $val = Get-PkgFilePath $d $e.file }
+    if ($k -contains 'dir') { $val = Get-PkgFilePath $d $e.dir }
+    if ($k -contains 'sha256Of') { $val = [string](@($M.files | Where-Object { $_.path -eq $e.sha256Of })[0].sha256) }
+    if ($k -contains 'boxFile') { $val = [string](@($bf | Where-Object { $_.name -eq $e.boxFile })[0].path) }
+    if ($k -contains 'boxFileSha256') { $val = [string](@($bf | Where-Object { $_.name -eq $e.boxFileSha256 })[0].sha256) }
+    $c = ''; if ($k -contains 'note') { $c = "   # $($e.note)" }
+    "`$env:$($e.name) = '$val'$c"
+  }
+  "node $(Get-PkgFilePath $d $M.control.manager)"
+}
 ''
 '# hcs-dev profile: boot the same monitor image and serve the first app, end to end (development path, host NOT excluded)'
 "powershell -NoProfile -ExecutionPolicy Bypass -File $d\win\smoke-hcs.ps1 -ManifestSha256 $($ManifestSha256.ToLower())"
