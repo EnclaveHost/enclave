@@ -27,10 +27,10 @@ class FakeLauncher {
     this.host.set(vmId, { vmId, name, state: "Running", notes: identity ? notesFor({ ...identity, instanceId }) : OWNER_MARKER });
     // serve: a relay that lives exactly as long as the manager that started it (wmiserve with --hold stdin)
     let tcpPort = undefined;
-    if (this.relays) { const srv = net.createServer((c) => c.end()); await new Promise((r) => srv.listen(0, "127.0.0.1", r)); tcpPort = srv.address().port; this.relays.push(srv); }
+    if (this.relays) { const srv = net.createServer((c) => c.end()); await new Promise((r) => srv.listen(0, "127.0.0.1", r)); tcpPort = srv.address().port; this.relays.push(srv); this.host.get(vmId).tcpPort = tcpPort; }
     return { instanceId, name, vmId, state: "Running", image: null, boundary: this.boundary, appId: mapping.appId,
              guest: { booted: true, bytes: 613, head: "MON ready" }, appReady: false,
-             ...(tcpPort ? { tcpPort, launcherKey: "LKEY", guestIdentity: { partition: "wmi-openhcl-gen2-igvm-linux", guestImageKind: "igvm-linux-direct" },
+             ...(tcpPort ? { tcpPort, launcherKey: "LKEY", domainId: 1, guestIdentity: { partition: "wmi-openhcl-gen2-igvm-linux", guestImageKind: "igvm-linux-direct" },
                              wmiserve: { stop: async () => { const srv = this.relays.find((x) => x.address() && x.address().port === tcpPort); if (srv) srv.close(); return { closed: true }; },
                                          exited: new Promise(() => {}) } } : {}) };
   }
@@ -42,16 +42,18 @@ class FakeLauncher {
 
 function harness({ blindAfterRestart = false, serve = false, relayOutlives = false } = {}) {
   const host = new Map(); let server = null, port = 0, boots = 0; let relays = serve ? [] : null;
+  const silent = new Set();          // relay ports whose domain was stopped inside the guest (A9)
   const ctl = {
     parseNotes,
     survey: async () => ({ vms: [...host.values()].map((x) => ({ ...x })) }),
     async startManager() {
       boots++;
       const judgeReady = serve ? async () => ({ status: "running", transportKeySha256: "cd".repeat(32), checks: {} }) : async () => null;
-      const manager = new Manager({ judgeReady, runtimeId: REC.runtimeId, fetchComponent: async () => component,
+      const answerCheck = async ({ port: p }) => silent.has(p) ? { ok: false, keyChanged: false, reason: "no TLS session: connection reset" } : { ok: true };
+      const manager = new Manager({ judgeReady, answerCheck, runtimeId: REC.runtimeId, fetchComponent: async () => component,
         backend: new HyperVPartitionBackend({ launcher: new FakeLauncher(host, { blind: blindAfterRestart && boots > 1, relays }) }) });
       await startManager(manager);
-      if (serve) { const t = setInterval(() => manager.sweepLiveness().catch(() => {}), 50); t.unref(); manager._sweep = t; }
+      if (serve) { const t = setInterval(() => { manager.sweepLiveness().catch(() => {}); manager.sweepAnswers().catch(() => {}); }, 50); t.unref(); manager._sweep = t; }
       server = createServer(manager);
       await new Promise((res) => server.listen(port, "127.0.0.1", res));
       port = server.address().port;
@@ -65,6 +67,8 @@ function harness({ blindAfterRestart = false, serve = false, relayOutlives = fal
     cleanup() { for (const r of relays || []) r.close(); },
     // A8: the VM goes Off from the host; the in-process manager's liveness sweep is run by the test's own interval
     async turnOff(vmId) { const v = [...host.values()].find((x) => x.vmId === vmId); if (v) v.state = "Off"; },
+    // A9: the domain stops inside the guest; the VM stays Running, and its relay port stops answering
+    async stopDomain(vmId) { const v = [...host.values()].find((x) => x.vmId === vmId); if (v && v.tcpPort) silent.add(v.tcpPort); return { stopped: 1 }; },
   };
   return { host, ctl };
 }
@@ -104,6 +108,7 @@ test("serve: the domain is running with a relay that accepts TCP (A2s), and the 
   assert.equal(r.ok, true, lines.join("\n"));
   assert.ok(lines.some((l) => l.startsWith("PASS A2s:")) && lines.some((l) => l.startsWith("PASS A7:")), lines.join("\n"));
   assert.ok(lines.some((l) => l.startsWith("PASS A8:") && /status failed/.test(l) && /refuses/.test(l)), `A8 must pass: the sweep fails the Off domain and its relay closes\n${lines.join("\n")}`);
+  assert.ok(lines.some((l) => l.startsWith("PASS A9:") && /stopped answering/.test(l) && /VM Running/.test(l)), `A9 must pass: the answer sweep fails a domain stopped inside a Running VM\n${lines.join("\n")}`);
   assert.match(lines.at(-1), /^RESTART-ACCEPT ALL PASS$/);
 });
 
