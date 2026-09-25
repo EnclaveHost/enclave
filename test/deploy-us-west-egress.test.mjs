@@ -180,24 +180,25 @@ test("the token reaches the remote ONLY on stdin: in no argv (local or remote), 
 
 // The REMOTE script as the stub received it on stdin, run locally in a sandbox: /opt/nan-relay and /etc/nan-relay moved
 // under a temp dir, systemctl/journalctl/npm/sleep recorded or stubbed, and mktemp/cat/chmod/mv able to fail on demand.
-const REAL = Object.fromEntries(["mktemp", "cat", "chmod", "mv", "grep", "rm"].map((c) => [c, spawnSync("sh", ["-c", `command -v ${c}`], { encoding: "utf8" }).stdout.trim()]));
-function remoteRun(stdin, { fail = null, token = null } = {}) {
+const REAL = Object.fromEntries(["mktemp", "cat", "chmod", "sync", "mv", "grep", "rm"].map((c) => [c, spawnSync("sh", ["-c", `command -v ${c}`], { encoding: "utf8" }).stdout.trim()]));
+function remoteRun(stdin, { fail = null, token = null, quietJournal = false } = {}) {
   const box = fs.mkdtempSync(path.join(os.tmpdir(), "egress-deploy-remote-")); WORLDS.push(box);
   const etc = path.join(box, "etc"), opt = path.join(box, "opt"), bin = path.join(box, "bin"), svc = path.join(box, "svc.log");
   for (const d of [etc, path.join(opt, "node_modules"), bin]) fs.mkdirSync(d, { recursive: true });
   const env = path.join(etc, "egress-relay.env"), OLD = "EGRESS_RELAY_TOKEN=the-working-token\nRELAY_NAME=us-west\n";
   fs.writeFileSync(env, OLD); fs.chmodSync(env, 0o644);
   for (const c of ["systemctl", "journalctl", "npm"]) fs.writeFileSync(path.join(bin, c), `#!/bin/sh\necho "${c} $*" >> "${svc}"\n`, { mode: 0o755 });
-  // a healthy relay's journal line: the script's last pipeline greps for it, and under pipefail an empty journal ends it 1
-  fs.appendFileSync(path.join(bin, "journalctl"), `echo "egress relay: control channel up"\n`);
+  // a healthy relay's journal line (unless this run asks for a quiet journal)
+  if (!quietJournal) fs.appendFileSync(path.join(bin, "journalctl"), `echo "egress relay: control channel up"\n`);
   fs.writeFileSync(path.join(bin, "sleep"), "#!/bin/sh\n", { mode: 0o755 });
   for (const [c, real] of Object.entries(REAL)) if (c !== "grep" && c !== "rm")
-    fs.writeFileSync(path.join(bin, c), `#!/bin/sh\nif [ "$FAIL_AT" = "${c}" ]; then ${c === "cat" ? "exec >/dev/null; " : ""}echo "stub: ${c} fails" >&2; exit 1; fi\nexec ${real} "$@"\n`, { mode: 0o755 });
+    fs.writeFileSync(path.join(bin, c), `#!/bin/sh\n${c === "mktemp" ? `echo "$*" >> "${path.join(box, "mktemp.args")}"\n` : ""}if [ "$FAIL_AT" = "${c}" ]; then ${c === "cat" ? "exec >/dev/null; " : ""}echo "stub: ${c} fails" >&2; exit 1; fi\nexec ${real} "$@"\n`, { mode: 0o755 });
   let script = stdin.split("/etc/nan-relay").join(etc).split("/opt/nan-relay").join(opt);
   if (token !== null) script = script.replace(/^TOKEN=.*$/m, `TOKEN=${token}`);
   const r = spawnSync("bash", ["-s"], { input: script, encoding: "utf8", env: { PATH: `${bin}:${process.env.PATH}`, FAIL_AT: fail || "" } });
   return { code: r.status, err: r.stderr, bytes: fs.readFileSync(env, "utf8"), mode: fs.statSync(env).mode & 0o777, OLD,
-           left: fs.readdirSync(etc).filter((f) => f !== "egress-relay.env"), svc: fs.existsSync(svc) ? fs.readFileSync(svc, "utf8") : "" };
+           left: fs.readdirSync(etc).filter((f) => f !== "egress-relay.env"), svc: fs.existsSync(svc) ? fs.readFileSync(svc, "utf8") : "", etc,
+           mktempArgs: fs.existsSync(path.join(box, "mktemp.args")) ? fs.readFileSync(path.join(box, "mktemp.args"), "utf8").trim() : null };
 }
 
 test("the env update REPLACES the working file only when its complete successor is ready: success is mode 600, the new token, no temp left, then the service", () => {
@@ -207,13 +208,14 @@ test("the env update REPLACES the working file only when its complete successor 
   assert.equal(r.code, 0, r.err);
   assert.equal(r.mode, 0o600); assert.match(r.bytes, new RegExp(`^EGRESS_RELAY_TOKEN=${TOKEN}$`, "m")); assert.ok(!r.bytes.includes("the-working-token"));
   assert.deepEqual(r.left, [], "no temporary file is left beside it");
+  assert.equal(r.mktempArgs, `${r.etc}/.egress-relay.env.XXXXXX`, "the temporary file is made IN the env file's directory (one filesystem: the rename is atomic)");
   assert.match(r.svc, /systemctl daemon-reload\nsystemctl enable --now enclave-egress-relay/);
   assert.ok(!r.err.includes(TOKEN) && !r.svc.includes(TOKEN), "the token is in no log and no argv the stubs saw");
 });
 
 test("every failure BEFORE the rename leaves the working env file byte-for-byte (and its mode), removes the temporary file, and runs NO service action", () => {
   const r0 = run(world(), []);
-  for (const [what, opt] of [["mktemp fails", { fail: "mktemp" }], ["writing the settings fails", { fail: "cat" }], ["chmod fails", { fail: "chmod" }],
+  for (const [what, opt] of [["mktemp fails", { fail: "mktemp" }], ["writing the settings fails", { fail: "cat" }], ["chmod fails", { fail: "chmod" }], ["sync fails", { fail: "sync" }],
                              ["the rename itself fails", { fail: "mv" }], ["the settings are incomplete (no token)", { token: "''" }]]) {
     const r = remoteRun(r0.stdin, opt);
     assert.notEqual(r.code, 0, `${what}: the remote script must stop`);
@@ -235,4 +237,10 @@ test("the closure is TRANSITIVE: a module only fleet.mjs imports (extra.mjs) is 
   refusedBeforeAnything(run(world({ extra: "missing" })), /extra\.mjs \(host missing/);
   const b = run(world({ host: "absent", extra: "same" }), ["--bootstrap"]);
   assert.equal(b.code, 0, b.out); assert.ok(scpToRelay(b).includes("extra.mjs"), "--bootstrap ships the transitive module too");
+});
+
+test("a quiet journal after a good start is not reported as a failure (the journal grep is diagnostic; `systemctl is-active` is the check)", () => {
+  const r0 = run(world(), []);
+  const quiet = remoteRun(r0.stdin, { quietJournal: true });
+  assert.equal(quiet.code, 0, `a quiet journal must not fail the remote step: ${quiet.err}`);
 });
