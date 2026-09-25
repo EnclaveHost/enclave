@@ -238,6 +238,11 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
      - 093326 printed PASS; that is superseded.
    - DONE (093904): candidate `b7ba7731` BOOTS under Secure Boot and SERVES the pinned fixture. Its TPM control reads
      ENOENT: absent from the domain's view, existence in the root namespace not stated.
+   - DONE, functional serving and stability only (run 094631, `pkg-accept-b7ba7731-20260925/`): candidate `b7ba7731`
+     serves through enclave-63's PACKAGED manager, node and launcher (v36 `3384e097aa024b73`, launcher `435717de`, not
+     the standalone canary's `0160d835`). hvlab-accept (28 checks) and restart-accept A0-A9 ALL PASS, with every input
+     hashed at use (tree list `842ba056`). This is NOT an eligibility promotion (enclave-63's rollover rule and
+     enclave-99's review) and NOT host exclusion. Production attach and respawn (OFF) are unchanged.
    - OPEN (with Steven, via enclave-5d): stat-only root-namespace existence statements and printed probe targets.
      PASS for the neighbour acceptance needs them.
    - RULED (enclave-99's contract, main `de2a9f66`, "What the launcher's signature binds: the PARTITION, not a domain"):
