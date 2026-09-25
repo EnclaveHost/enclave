@@ -102,12 +102,16 @@ const (
 	ReasonNonPublicAnswer Reason = "non-public-answer" // an answer is loopback, private, link-local, this host, ...
 	ReasonNonPublicPeer   Reason = "non-public-peer"   // the socket's actual peer is not public
 	ReasonConnect         Reason = "connect"           // no judged address accepted the connection
-	ReasonHeader          Reason = "header"            // (server) a missing or malformed egress-v1 header
+	ReasonEmpty           Reason = "empty"             // (server) the stream closed before any header byte
+	ReasonHeader          Reason = "header"            // (server) a malformed or unfinished egress-v1 header
 	ReasonInternal        Reason = "internal"          // anything else
 )
 
 // DialError is every error Dial returns. It holds a Reason and nothing else, so no caller can log a destination or
 // a raw network error by printing it.
+//
+// ReasonOf is THE way to classify one. errors.Is(err, ErrRefused) covers policy refusals only: a connection that
+// failed (ReasonConnect) is not a refusal, and is recognisable only through ReasonOf.
 type DialError struct {
 	Reason  Reason
 	refused bool // a policy refusal (errors.Is ErrRefused), as opposed to a connection that failed

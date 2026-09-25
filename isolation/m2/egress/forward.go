@@ -206,6 +206,10 @@ func (s *Server) handle(ctx context.Context, g net.Conn) {
 	cid := s.CIDOf(g)
 	g.SetReadDeadline(time.Now().Add(10 * time.Second))
 	br := bufio.NewReaderSize(g, maxHeader)
+	if _, err := br.Peek(1); err != nil {
+		s.outcome(cid, "refused:"+string(ReasonEmpty)) // opened and closed with nothing said: not a malformed header
+		return
+	}
 	line, err := readLine(br, maxHeader)
 	if err != nil {
 		s.outcome(cid, "refused:"+string(ReasonHeader))
