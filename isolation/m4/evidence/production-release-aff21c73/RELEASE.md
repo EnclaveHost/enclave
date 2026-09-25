@@ -1,3 +1,7 @@
+> **SUPERSEDED by 31d117a9 (d1a38994), 2026-09-25.** enclave-d1's sign-off of this image diff came with one
+> should-fix (the app proxy logged request paths to the host-visible console), fixed in d1a38994. Do not install
+> or pin bca562cc. See `../production-release-d1a38994/`.
+
 # Production domain release bca562cc (image commit aff21c73), 2026-09-25
 
 **Release id: `bca562ccf9039e155bebe5bc85579cca913367d53d4c549bd3ed92398db865da`** (= sha256 of `release.json`,

@@ -1,3 +1,7 @@
+> **SUPERSEDED by 31d117a9 (d1a38994), 2026-09-25.** enclave-d1's sign-off of this image diff came with one
+> should-fix (the app proxy logged request paths to the host-visible console), fixed in d1a38994. Do not install
+> or pin bca562cc. See `../production-release-d1a38994/`.
+
 # Installing release bca562cc: what goes where, the 4d flags, the pins, the rollback
 
 For enclave-63's guarded rollout scripts (rows 4-10 of GUEST-POOL-ROLLOUT.md). This is a description, not a script.
