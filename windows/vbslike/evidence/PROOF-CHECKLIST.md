@@ -44,12 +44,12 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
     paravisor's own environment (`options.rs:462-467`), which derives from its kernel command line
     (`underhill_init/src/options.rs:21-75`).
   - On a non-debug isolated image, the boot shim uses only the measured static command line and ignores the host's
-    (`openhcl_boot/src/main.rs:670-671`; `host_params/dt/mod.rs:1026-1039`).
+    (`openhcl_boot/src/main.rs:671-672`; `host_params/dt/mod.rs:1027-1039`).
   - So the whole VTL0 command line is fixed by measured bytes, provided the static command line contains no
     confidential-debug flag.
 - SOURCE: not covered in either construction:
   - host-derived runtime configuration handed to VTL0 (memory layout, ACPI and device tree:
-    `underhill_core/src/loader/mod.rs:186-197`);
+    `underhill_core/src/loader/mod.rs:186-197`, the `LoadLinuxParams` passed to `load_linux`);
   - the app. Apps are loaded at runtime over the control port, so their identity (AppID) reaches a verifier only
     as a statement made by measured code, through report_data.
 - UNTESTED: nobody has built a VBS IGVM with a Linux VTL0 image. The type-16 linux-direct boots of 09-24/25 failed
