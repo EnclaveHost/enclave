@@ -1,0 +1,21 @@
+# Full suite (node --test test/*.test.mjs), warden-host 2026-09-25, run ALONE and sequentially, identical deps (npm ci root + relay/, lockfiles byte-identical):
+#   converged U7 commit 2144fcb3 (relay/u7-converged): 21:59:08-22:00:21Z; main aeb345e6: 22:00:29-22:01:41Z
+converged 2144fcb3: # tests 2083 # pass 1938 # fail 10 # skipped 135 
+main      aeb345e6: # tests 2062 # pass 1917 # fail 10 # skipped 135 
+
+## failing on BOTH (10) - GPU-shield / pad C tests (toolchain; not relay/)
+balanced mint files retain original PRF groups and scalar products when thread creation fails
+captured graph capacity retains complete passes and safely owns handles on every failure
+pad receiver preserves ACK digests and rejects failed delivery with streaming opt-in
+protected C client negotiates safely, refuses malformed replies and skips authenticated reads on actual CPU-worker hits
+refill cost priority preserves urgency, full batches, and reserved slots
+required worker cache releases authenticated rows after private checks and refuses missing prerequisites
+seed boxes: allocation-free Node interoperability, tampering, and attacker-known zero-DH keys
+source prefetch overlaps the next read with authenticated registration and preserves failure and lifetime rules
+the real scheduler admits only opted-in calibrated islands and preserves both outputs across graph reuse
+weight registration fails closed on allocation/entropy errors and joins noncontiguous successful threads
+
+## failing ONLY on the converged commit: 0
+## failing ONLY on main: 0
+
+relay auth / billing / indexer / sso on the converged commit: 13 ok, 0 failing (an earlier run's 503s were a missing relay/node_modules: auth.js loads jose + @simplewebauthn/server from relay/)
