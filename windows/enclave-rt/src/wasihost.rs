@@ -121,11 +121,25 @@ pub struct WasiState {
     /// exactly as it does on a CVM.
     pub env: Vec<(String, String)>,
     pub now_ms: u64,
+    /// Every host socket this app currently holds, so all of them are closed when the store is torn
+    /// down -- including after a trap, when the guest never gets to drop them. See netset.rs.
+    sockets: crate::netset::SocketSet,
+}
+
+impl Drop for WasiState {
+    fn drop(&mut self) {
+        // Close any socket the guest did not close itself. A guest-closed socket was removed from
+        // the set in tcp-socket.drop and is not touched again, so each handle closes exactly once.
+        for h in self.sockets.drain() {
+            unsafe { ee_net_close(h) }
+        }
+    }
 }
 
 impl WasiState {
     pub fn new(env: Vec<(String, String)>) -> Self {
-        Self { table: ResourceTable::new(), bodies: Vec::new(), answered: None, failed: None, env, now_ms: 0 }
+        Self { table: ResourceTable::new(), bodies: Vec::new(), answered: None, failed: None, env, now_ms: 0,
+               sockets: crate::netset::SocketSet::new() }
     }
     fn body(&mut self) -> usize { self.bodies.push(Vec::new()); self.bodies.len() - 1 }
 }
@@ -991,6 +1005,7 @@ impl self::wasi::sockets::tcp::HostTcpSocket for WasiState {
         let mut c = addr.into_bytes(); c.push(0);
         let h = unsafe { ee_net_connect(c.as_ptr(), port) };
         if h < 0 { return Ok(Err(err_of(h))); }
+        self.sockets.add(h);   // owned now; closed on drop or on store teardown
         let sock = self.table.get_mut(&s)?;
         sock.handle = h;
         sock.remote = sock.connect_to.clone();
@@ -1003,6 +1018,7 @@ impl self::wasi::sockets::tcp::HostTcpSocket for WasiState {
         let mut bound: u16 = 0;
         let h = unsafe { ee_net_listen(want, &mut bound) };
         if h < 0 { return Ok(Err(err_of(h))); }
+        self.sockets.add(h);   // the listener: closed on drop or on store teardown (the leak fix)
         let sock = self.table.get_mut(&s)?;
         sock.handle = h; sock.listening = true; sock.local = Some(loopback(bound));
         Ok(Ok(()))
@@ -1018,6 +1034,7 @@ impl self::wasi::sockets::tcp::HostTcpSocket for WasiState {
             return Ok(Err(err_of(h)));
         }
         trace(&format!("accepted connection {h} on listener {lh}"));
+        self.sockets.add(h);   // the accepted connection; closed on drop or on store teardown
         let peer = self.table.push(TcpSocket { family, handle: h, want_port: 0,
             local: self.table.get(&s)?.local.clone(), remote: None, listening: false, connect_to: None })?;
         let input = self.table.push(InputStream { data: Vec::new(), pos: 0, socket: Some(h) })?;
@@ -1062,7 +1079,10 @@ impl self::wasi::sockets::tcp::HostTcpSocket for WasiState {
         -> wasmtime::Result<Result<(), net::ErrorCode>> { Ok(Ok(())) }
     fn drop(&mut self, s: Resource<TcpSocket>) -> wasmtime::Result<()> {
         let sock = self.table.delete(s)?;
-        if sock.handle > 0 {
+        // Close only if we still hold it: remove() is false when the store is already tearing down
+        // and closed it, so a socket is never closed twice. Streams for this handle carry no
+        // ownership (they alias it), so only the TcpSocket drop and teardown close.
+        if sock.handle > 0 && self.sockets.remove(sock.handle) {
             trace(&format!("socket {} dropped by the app{}", sock.handle, if sock.listening { " (a listener)" } else { "" }));
             unsafe { ee_net_close(sock.handle) }
         }

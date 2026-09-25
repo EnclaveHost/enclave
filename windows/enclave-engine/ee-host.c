@@ -172,7 +172,14 @@ static void *WINAPI host_callout(void *param) {
         if (ls == INVALID_SOCKET) { c->ret = -wsa_errno(); break; }
         struct sockaddr_in a; memset(&a, 0, sizeof a);
         a.sin_family = AF_INET; a.sin_addr.s_addr = htonl(INADDR_LOOPBACK); a.sin_port = htons((u_short)c->arg);
-        BOOL one = TRUE; setsockopt(ls, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof one);
+        /* A tenant's port is EXCLUSIVE, not shared. SO_REUSEADDR on Windows lets a socket bind a
+         * port ANOTHER socket is already actively bound to, so two apps that ask for the same port
+         * (e.g. two risc-boxes both defaulting to tcp:2222) both "succeeded" and split the
+         * connections between them. SO_EXCLUSIVEADDRUSE makes the second bind fail with
+         * EADDRINUSE instead, which is the honest answer -- one port, one app. A listener that is
+         * closed (see the store-teardown cleanup in enclave-rt) frees its port at once, so a
+         * relaunch on the same port still binds; only a LIVE double-bind is refused. */
+        BOOL one = TRUE; setsockopt(ls, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char *)&one, sizeof one);
         if (bind(ls, (struct sockaddr *)&a, sizeof a) || listen(ls, 64)) { int e = wsa_errno(); closesocket(ls); c->ret = -e; break; }
         int alen = sizeof a;
         if (getsockname(ls, (struct sockaddr *)&a, &alen) == 0) c->arg = ntohs(a.sin_port);   /* the port it actually got */
