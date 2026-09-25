@@ -13,6 +13,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
 
 const pexec = promisify(execFile);
 const SUPERVISOR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "supervisor.js");
@@ -109,10 +110,76 @@ test("a claim is refused when the app's guest does not fit the pool by its reser
   assert.match(r.verdicts[1], /cannot fit this app's guest: it reserves 1792 MiB \/ 100% CPU .*1500 MiB/);
   assert.match(r.verdicts[2], /cannot fit this app's guest: it reserves 41152 MiB/);
   assert.match(r.verdicts[3], /cannot fit this app's guest/);
-  assert.match(r.verdicts[4], /reports no guest pool/);
+  assert.match(r.verdicts[4], /reports no readable guest pool/);
   assert.match(r.verdicts[5], /no budget .*-guest-mem-mib/);
   assert.match(r.verdicts[6], /overcommitted/);
   assert.match(r.verdicts[7], /no isolation policy/);
+});
+
+// enclave-99's review of 829ea21b: after the control CVM's update reboot (the release that ships this change is one),
+// every own lease is re-discovered and RESUMED through the claim gate, while guestd kept the guests - their rooms are
+// already allocated. Judged against free alone, a pool sized to its guests refused every resume and darked them.
+test("a resume of a guest guestd already holds is judged with the room that guest holds; a new claim on the same full pool is refused", async () => {
+  const canary = { memMiB: 1792, cpuPct: 100 };
+  const full = pool({ memMiB: 3 * 1792, cpuPct: 300 }, { memMiB: 3 * 1792, cpuPct: 300 }, { guests: 3 });   // exactly its budget
+  const heldBy = (name, status = "running", reserved = canary) => ({ id: "gd" + name.slice(2, 10), name, status, ...(reserved ? { reserved } : {}) });
+  const names = ["0x" + "4e".repeat(32), "0x" + "39".repeat(32), "0x" + "0d".repeat(32)];
+  const r = await seam({ verdicts: [
+    ...names.map((n) => ({ ...verdict(MGR(full)), held: heldBy(n) })),                 // the three canaries resume: none refused
+    verdict(MGR(full)),                                                                  // a NEW claim on that pool: refused
+    { ...verdict(MGR(full)), held: heldBy(names[0], "failed", null) },                   // guestd lost it (failed, holds nothing): a new guest
+    { ...verdict(MGR(full), { cpuPercent: 100, memMiB: 4096, vcpus: 1 }), held: heldBy(names[0]) },  // a bigger version than the room it holds
+    { ...verdict(MGR(pool({ memMiB: 8192, cpuPct: 300 }, { memMiB: 1792, cpuPct: 100 })), { cpuPercent: 100, memMiB: 4096, vcpus: 1 }),
+      held: heldBy(names[0]) },                                                          // ...which fits once its own room is counted
+    { ...verdict(MGR(pool({ memMiB: 3584, cpuPct: 200 }, { memMiB: 5376, cpuPct: 300 }, { overcommitted: true }))), held: heldBy(names[1]) },
+    { ...verdict(MGR(null)), held: heldBy(names[2], "running", null) },                  // an older guestd (no pool, no `reserved`): adopt as before
+    verdict(MGR(null)),                                                                  // ...but a new guest there is not placed
+    { ...verdict(MGR(null)), held: heldBy(names[2], "failed", null) },                   // a FAILED guest there is not adopted
+    { ...verdict(MGR(full)), held: heldBy(names[0], "failed") },                         // failed, its unit still stopping (reserved
+                                                                                         // still listed): not a guest to resume into
+  ] });
+  assert.deepEqual(r.verdicts.slice(0, 3), [null, null, null], "every canary's resume must pass");
+  assert.match(r.verdicts[3], /cannot fit this app's guest: it reserves 1792 MiB .* 0 MiB \/ 0% is free/);
+  assert.match(r.verdicts[4], /cannot fit this app's guest/);
+  assert.match(r.verdicts[5], /cannot fit .* 1792 MiB \/ 100% is free counting the room its current guest holds/);
+  assert.equal(r.verdicts[6], null);
+  assert.equal(r.verdicts[7], null, "an overcommitted pool still lets a running guest resume in its own room");
+  assert.equal(r.verdicts[8], null);
+  assert.match(r.verdicts[9], /no readable guest pool/);
+  assert.match(r.verdicts[10], /no readable guest pool/);
+  assert.match(r.verdicts[11], /cannot fit this app's guest: it reserves 1792 MiB .* 0 MiB \/ 0% is free$/);
+});
+
+test("an answer without a readable pool clears the mirror: nothing is offered or claimed, and the node keeps the budget last heard", async () => {
+  const r = await seam({ pools: [pool(B), { budget: B }], shares: [small], verdicts: [verdict(MGR({ budget: B }))] });
+  assert.equal(r.maxFreeCpu, 0);
+  assert.deepEqual(r.guestPool, { heard: false });
+  assert.match(r.verdicts[0], /no readable guest pool/);
+  // sizing does not fall back to the control CVM (that would triple floors, and a resize could evict: enclave-5d)
+  assert.equal(r.node.pool, true);
+  assert.equal(r.node.ramGb, 32);
+  assert.equal(r.shares[0].cpuShare, 0.01);
+  const back = await seam({ pools: [pool(B), { budget: B }, pool(B, { memMiB: 16384, cpuPct: 400 })] });
+  assert.equal(back.maxFreeCpu, 0.5, "the next readable answer restores the offer");
+});
+
+// a69dcbba (128 MB, cap 9 µUSDC/s) is claimable only while ceil(128 / B) is the 1% floor: B >= 12800 MiB
+test("the budget floor for a 1% app: 12800 MiB is 1%, 12799 MiB is 2%, over a69dcbba's cap", async () => {
+  const at = await seam({ pool: pool({ memMiB: 12800, cpuPct: 800 }), shares: [small] });
+  const under = await seam({ pool: pool({ memMiB: 12799, cpuPct: 800 }), shares: [small] });
+  assert.equal(at.shares[0].cpuShare, 0.01);
+  assert.equal(under.shares[0].cpuShare, 0.02);
+  assert.ok((10 / 1000) * at.sellCpuPrice6 <= 9);
+  assert.ok((20 / 1000) * under.sellCpuPrice6 > 9, "at 2% the cap refuses it");
+});
+
+// considerClaim is not drivable through a seam; its call of the gate is pinned in source, as the repo pins such wiring
+test("the claim path judges the pool with the version's policy and, on a resume, the guest guestd holds (pinned in source)", () => {
+  const src = fs.readFileSync(SUPERVISOR, "utf8");
+  const call = src.slice(src.indexOf("const isoWhy = isolationClaimVerdict({"), src.indexOf("if (isoWhy) return isoWhy;"));
+  assert.match(call, /policy: isolationPolicyFor\(g\.min\)/);
+  assert.match(call, /held: resume \? await isolationHeldGuest\(d\.id\) : null/);
+  assert.match(src, /const resume = leaseLive && d\.runner === _enclaveId;/, "a resume is this runner's own live lease");
 });
 
 test("off the tier nothing of the pool applies: the node is the NODE_* constants and free is the share ledger", async () => {
