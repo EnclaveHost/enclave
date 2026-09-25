@@ -11,6 +11,9 @@ import http from "node:http";
 import path from "node:path";
 import { createReverifier, modeOf, MODES } from "../relay/reverify.mjs";
 import * as consumer from "../verifier/consumer.mjs";
+import { verifyReleaseIndex } from "../verifier/release-index.mjs";
+import { verifyReleaseAttestation } from "../verifier/provenance.mjs";
+import { createIndexMemory } from "../verifier/index-memory.mjs";
 import { mintLocalCa, serveTls } from "./helpers/local-tls.mjs";
 
 const REPO = new URL("..", import.meta.url).pathname, F = path.join(REPO, "test", "fixtures", "verifier");
@@ -87,4 +90,39 @@ test("the vendored bundle is what the relay loads by default, and it carries the
   for (const n of ["verifyHost", "releaseExpectations", "httpCollateral", "cachedCollateral"]) assert.equal(typeof B[n], "function", n);
   const R = createReverifier({ mode: "shadow", expectationsFor: ours, now: () => new Date(NOW), verify: async () => ({ enclave: { status: "rejected", at: NOW, failedChecks: ["measurement"], omissions: [], expected: [], reasons: [] } }) });
   await R.run([row("https://a")]); assert.equal(R.verdictOf("https://a").status, "rejected");
+});
+
+test("the mirror serves the verified index bytes, their attestation and the release attestations, with the relay's freshness state; a client verifies all of it against ITS pinned root and orders it with ITS memory; altered bytes fail that client's check (the mirror is not an authority); before a refresh, or with the index refused, no bytes are served", async () => {
+  const FX = (tag) => path.join(REPO, "test", "fixtures", "verifier", "release-index", tag);
+  const indexBytes = fs.readFileSync(path.join(FX("v0.5.848"), "release-index.json")), indexBundle = JSON.parse(fs.readFileSync(path.join(FX("v0.5.848"), "attestation.json"), "utf8")).attestations[0].bundle;
+  const expectationsFor = async ({ indexMemory, keepArtifacts }) => {
+    // what a real refresh yields: the fixture index verified, the memory consulted, the artifacts kept (the releases' bundles here are the v0.5.841 fixtures: real bundles, other tags)
+    const v = await verifyReleaseIndex({ indexBytes, bundle: indexBundle, trustedRoot: consumer.TRUSTED_ROOT });
+    const m = indexMemory ? indexMemory.consider({ publication: v.publication, digest: v.digest, minimumRelease: v.minimumRelease, tag: v.claims.tag }) : null;
+    const rel = await consumer.releaseExpectationsFrom([candidate("v0.5.841"), candidate("v0.5.841-cpu")], { keepArtifacts });
+    return { ...rel, index: { status: m && !m.ok ? "refused" : "verified", authenticity: "signed", freshness: m ? m.kind : "not-remembered", publication: v.publication, sequenceAuthenticated: v.sequenceAuthenticated, signedTag: v.claims.tag, floorApplied: "v0.5.841", reasons: m && !m.ok ? [m.why] : [] },
+             ...(keepArtifacts ? { artifacts: { index: m && !m.ok ? null : { bytes: indexBytes.toString("base64"), sha256: v.digest, bundle: indexBundle }, releases: rel.artifacts.releases } } : {}) };
+  };
+  const R = createReverifier({ mode: "shadow", bundle, expectationsFor, now: () => new Date(NOW), verify: async () => ({ enclave: { status: "rejected", at: NOW, failedChecks: ["measurement"], omissions: [], expected: [], reasons: [] } }) });
+  assert.equal(R.mirror().status, "not-yet");
+  await R.run([row("https://a")]);
+  const m = R.mirror();
+  assert.equal(m.status, "verified"); assert.equal(m.authenticity, "signed"); assert.equal(m.freshness, "not-remembered"); assert.deepEqual(m.publication, { runId: 36089632273, attempt: 1, uri: "https://github.com/EnclaveHost/enclave/actions/runs/36089632273/attempts/1" });
+  assert.equal(m.indexSha256, "9ef3346a0b2ec50d15fdba2521e1713914326bf23c860c336a1c474e1567ed5e"); assert.equal(m.index.schema, "enclave-release-index/v2"); assert.match(m.note, /not a verdict/);
+  // the CLIENT's verification of what was served: the index against its own pinned root and its own memory, each release against the same root
+  const served = Buffer.from(m.indexBytes, "base64");
+  const v = await verifyReleaseIndex({ indexBytes: served, bundle: m.attestation.bundle, trustedRoot: consumer.TRUSTED_ROOT }); assert.equal(v.ok, true); assert.equal(v.sequenceAuthenticated, true);
+  const mem = createIndexMemory(); assert.equal(mem.consider({ publication: v.publication, digest: v.digest, minimumRelease: v.minimumRelease }).kind, "first-seen");
+  assert.equal(m.releases.length, 2);
+  for (const r of m.releases) { const a = await verifyReleaseAttestation({ bundle: r.attestation.bundle, digestHex: r.digest, trustedRoot: consumer.TRUSTED_ROOT }); assert.equal(a.ok, true, `${r.tag}: ${a.reasons.at(-1)}`); assert.equal(a.claims.tag, r.tag); }
+  // altered bytes on the wire: the client's check fails, whatever the relay said
+  const altered = Buffer.from(served); altered[altered.length - 2] ^= 0x01;
+  const bad = await verifyReleaseIndex({ indexBytes: altered, bundle: m.attestation.bundle, trustedRoot: consumer.TRUSTED_ROOT }); assert.equal(bad.ok, false); assert.equal(bad.signed, false);
+  const other = m.releases[0]; const swapped = await verifyReleaseAttestation({ bundle: other.attestation.bundle, digestHex: m.releases[1].digest, trustedRoot: consumer.TRUSTED_ROOT }); assert.equal(swapped.ok, false, "a bundle served for another release's digest is refused by the client");
+  // the relay's own memory keeps a replay out of the mirror: a memory that saw a newer publication refuses this index, and the mirror serves the status, no bytes
+  const newer = createIndexMemory(); newer.consider({ publication: { runId: 36089632273 + 5, attempt: 1 }, digest: "aa".repeat(32), minimumRelease: [0, 5, 841] });
+  const R2 = createReverifier({ mode: "shadow", bundle: { ...bundle, createIndexMemory: () => newer }, indexMemoryFile: "/dev/null/never", expectationsFor, now: () => new Date(NOW), verify: async () => ({ enclave: { status: "rejected", at: NOW, failedChecks: ["measurement"], omissions: [], expected: [], reasons: [] } }) });
+  await R2.run([row("https://a")]);
+  const m2 = R2.mirror(); assert.equal(m2.status, "refused"); assert.equal(m2.freshness, "replay"); assert.equal(m2.indexBytes, undefined); assert.equal(m2.attestation, undefined); assert.match(m2.reasons[0], /replay/);
+  assert.equal(createReverifier({ mode: "off" }).mirror().status, "off");
 });

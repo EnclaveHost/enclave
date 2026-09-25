@@ -600,7 +600,7 @@ No automatic cutover. Each stage is a reviewed change with a configuration flag 
 | M1 | strict envelope for every format in the registry (DONE 2026-09-24: per-format shapes), CRL policy modes (done), collateral adapters with a disk cache (DONE 2026-09-24: the authenticated, slot-bound cache), Rekor v2 bundles (BLOCKED: no authentic v2 bundle located; see below), scheduled live differential job (PREPARED 2026-09-24 as a shadow job: `verifier/live-differential.mjs` and `.github/workflows/verifier-live-differential.yml`, dispatch-only and gated by a repository variable that is not set, read-only, tested offline on the fixtures) | 5 |
 | M2 | browser build: WebCrypto signatures, X.509 via a reviewed library (PROTOTYPE DONE 2026-09-24: `verifier/web/`, the same `snp.mjs` verdict code behind a crypto provider; see `browser-x509-parser-decision.md`); reproducible packaging with an input manifest and exact notices (DONE 2026-09-24: `verifier/web/dist/`, `reproduce.mjs` under the strict command); an opt-in same-origin shadow adapter that records and never decides (DONE 2026-09-24: `verifier/web/shadow.mjs`, proven in Node and in Chrome 151); same-origin delivery through the site's vendor rule and the site's opt-in shadow line (DONE 2026-09-24 under Steven's website authorization: `site/vendor/enclave-verifier.js` via `scripts/build-vendor.mjs`, `site/js/core/verify-shadow.js` awaited by `verify.js`, record only, viewer opt-in, no primary root or verdict change; `verifier/web/README.md`) | 8 |
 | M3 | CLI `--verifier both`, self-check both, relay re-verification of dialed rows (BUILT 2026-09-25, section 10.4: every path behind a flag whose fallback is the previous behaviour; no live hosted enclave existed to show a `verified` end to end) | done, pending live data |
-| M4 | signed release index in the release workflow (BUILT 2026-09-25, section 10.5), minimum-release policy (BUILT: `verifier/release-policy.json`, the floor only rises), publication order from the signing run + persisted memory (BUILT, section 10.5), TUF-verified refresh of the pinned root with a weekly PR job (BUILT, section 10.6), mirror at `enclave.host` and the per-consumer strict rollout criteria (remaining) | 4 done, 2 remaining |
+| M4 | signed release index in the release workflow (BUILT 2026-09-25, section 10.5), minimum-release policy (BUILT: `verifier/release-policy.json`, the floor only rises), publication order from the signing run + persisted memory (BUILT, section 10.5), TUF-verified refresh of the pinned root with a weekly PR job (BUILT, section 10.6), the same-origin mirror on the relay and the per-consumer strict rollout criteria (BUILT/WRITTEN, section 10.7; the browser's own provenance from the mirror remains) | done; browser provenance remains |
 | M5 | independent review, cutover per consumer with fallback flags | 3 + review |
 | later | TDX (QVL-grade), NVIDIA GPU evidence, measurement recompute from archived image inputs, AVF ABI/2 relay frame | separate plans |
 
@@ -984,6 +984,36 @@ therefore "the highest creation-ordered publication this consumer has verified",
 has seen and bounds the rest by the floor; it is not a proof that no newer index exists, and a consumer on its first
 use, or falling back to the unsigned pointer, has only the built-in floor. Those two cases are said in every result
 (`index.freshness`), and the TUF timestamp role above is the shape of the complete answer.
+
+## 10.7 The same-origin mirror, and the per-consumer strict rollout criteria (2026-09-25)
+
+**The mirror.** `GET /v1/release-index` on the api relay serves what the relay's re-verification last VERIFIED: the
+signed index bytes, their attestation bundle, and the release attestation bundles of the flavors the index names,
+together with the relay's own freshness state (`status`, `authenticity`, `freshness`, `publication`). It is bytes and
+signatures, never a verdict: a client verifies the bundles against ITS pinned Sigstore root and orders the index with
+ITS memory, exactly as it would from GitHub, so the mirror cannot become an authority; the relay's own memory keeps a
+replayed or equivocating index out of it, and a refused or unavailable index is served as that status with no bytes.
+`test/relay-reverify.test.mjs`: what the mirror serves verifies client-side (index and both release bundles), altered
+bytes and a bundle served for another release's digest are refused by the client, a relay memory that saw a newer
+publication serves no bytes. The browser shadow (`site/js/core/verify-shadow.js`) still takes its expected measurement
+from the primary's own Sigstore step; making it verify release provenance itself, from this mirror, is the browser's
+next step (stage 4 becomes independent of the primary's provenance).
+
+**Strict rollout criteria, per consumer.** Each strict switch stays OFF until every gate below has passed with
+recorded evidence; flipping one is a reviewed commit that names the evidence. Status on 2026-09-25 in brackets.
+
+| consumer | switch | gates | status |
+|---|---|---|---|
+| all | (precondition) | a hosted enclave running one of our releases verified end to end by this verifier (`verified`, no omission) at least once, from the CLI, the self-check and the relay | NOT MET: the fleet has had no hosted enclave since before this work; every positive path is shown on the Genoa capture under a stated policy |
+| all | (precondition) | the live differential daily job green for 14 consecutive days with zero `disagree`; the TUF refresh job green for two cycles | NOT MET: enabled 2026-09-25 (one run, agree-refuse against Tinfoil's host); the TUF job has not yet run on schedule |
+| CLI | `--require-index` default | the user's memory has history (`persisted: true`, one index seen) is unknowable per user: the default stays opt-in; documented in `--help` | opt-in, by design |
+| self-check | `SELF_CHECK_REQUIRE_INDEX=1` | 14 days of `verification.selfCheck.enclave.index.status = verified` and `agreement` in {agree, agree-limited} on every hosted enclave, with `memoryNotPersisted` absent | NOT MET: no hosted enclave |
+| self-check | `SELF_CHECK_VERIFIERS=enclave` (own verdict decides `result`) | the above, plus the independent review of `verifier/` (M5) | NOT MET |
+| relay | `RELAY_REQUIRE_INDEX=1` | the relay's memory has history (`aggregate.reverify.indexMemory.remembered` set, persisted) and 14 days of `expectations.index.status = verified` | NOT MET: shadow live since 2026-09-25 01:52Z, no dialed rows to judge |
+| relay | `RELAY_REVERIFY=enforce` | the above, plus every dialed row `verified` for 14 days with zero unexplained `rejected`/`unavailable` | NOT MET |
+| browser | own verdict primary | provenance verified in the browser from the mirror (next step), then 14 days of `agree` in the site shadow with the primary | NOT MET |
+
+Until then Tinfoil is the primary everywhere, and every own verdict is published beside it.
 
 ## 11. Open risks
 

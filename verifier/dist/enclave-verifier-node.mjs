@@ -9051,8 +9051,8 @@ async function fetchBounded(url, { fetchImpl = globalThis.fetch, timeoutMs = 2e4
     clearTimeout(t);
   }
 }
-async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO, trustedRoot = TRUSTED_ROOT, policy = {}, latestTag = null } = {}) {
-  const out = { repo, latestTag, candidates: [], allowed: [], ok: false, reasons: [] };
+async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO, trustedRoot = TRUSTED_ROOT, policy = {}, latestTag = null, keepArtifacts = false } = {}) {
+  const out = { repo, latestTag, candidates: [], allowed: [], ok: false, reasons: [], ...keepArtifacts ? { artifacts: { releases: [] } } : {} };
   for (const c of candidates || []) {
     const tag = String(c?.tag ?? "");
     if (!c || c.error || !c.bundle) {
@@ -9079,6 +9079,7 @@ async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO, truste
       reasons: r.reasons.slice(-2)
     });
     if (r.ok) out.allowed.push({ tag, measurement: r.claims.snpMeasurement, version: r.claims.version, flavor: r.claims.flavor, digest });
+    if (r.ok && keepArtifacts) out.artifacts.releases.push({ tag, digest, bundle: c.bundle });
   }
   out.ok = out.allowed.length > 0;
   out.reasons.push(out.ok ? `${out.allowed.length} release(s) with verified provenance: ${out.allowed.map((a) => a.tag).join(", ")}` : "no release's provenance verified: there is no expected measurement, so nothing can be verified (fail closed)");
@@ -9096,8 +9097,10 @@ async function releaseExpectations({
   policy = {},
   useIndex = true,
   requireIndex = false,
-  indexMemory = null
+  indexMemory = null,
+  keepArtifacts = false
 } = {}) {
+  let indexArtifact = null;
   const get = (url, accept) => fetchBounded(url, { fetchImpl, timeoutMs, maxBytes, accept });
   let latestTag = null, list = tags, index = { status: "not-consulted" };
   let pol = { ...policy };
@@ -9122,6 +9125,7 @@ async function releaseExpectations({
             list = candidatesFromIndex(v).map((c) => c.tag);
             latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
             pol = { ...pol, minimumRelease: v.minimumRelease, revoked: v.revoked };
+            if (keepArtifacts) indexArtifact = { bytes: bytes2.toString("base64"), sha256: v.digest, bundle };
           }
         } else index = { status: "refused", authenticity: v.signed ? "signed" : "unverified", ...v.publication ? { publication: v.publication } : {}, reasons: v.reasons.slice(-2) };
       }
@@ -9154,7 +9158,8 @@ async function releaseExpectations({
       candidates.push({ tag, error: e.message });
     }
   }
-  return { ...await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag }), index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` } };
+  const from = await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag, keepArtifacts });
+  return { ...from, index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` }, ...keepArtifacts ? { artifacts: { index: indexArtifact, releases: from.artifacts?.releases ?? [] } } : {} };
 }
 function captureHosted({ host, port = 443, path: path5 = RAD_PATH, timeoutMs = 2e4, maxBytes = 1024 * 1024, tls = {}, now = () => /* @__PURE__ */ new Date() } = {}) {
   if (!host) return Promise.reject(new Error("captureHosted needs a host"));

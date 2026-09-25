@@ -55,8 +55,8 @@ export async function fetchBounded(url, { fetchImpl = globalThis.fetch, timeoutM
 // candidates: [{ tag, digest, bundle }] (or { tag, error }) -> { repo, candidates: [...with provenance], allowed: [{ tag,
 // measurement, version, flavor, digest }], ok }. A candidate whose provenance does not verify contributes no measurement;
 // with no verified candidate there is no expected measurement at all, and every consumer fails closed on that (ok: false).
-export async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO, trustedRoot = TRUSTED_ROOT, policy = {}, latestTag = null } = {}) {
-  const out = { repo, latestTag, candidates: [], allowed: [], ok: false, reasons: [] };
+export async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO, trustedRoot = TRUSTED_ROOT, policy = {}, latestTag = null, keepArtifacts = false } = {}) {
+  const out = { repo, latestTag, candidates: [], allowed: [], ok: false, reasons: [], ...(keepArtifacts ? { artifacts: { releases: [] } } : {}) };
   for (const c of candidates || []) {
     const tag = String(c?.tag ?? "");
     if (!c || c.error || !c.bundle) { out.candidates.push({ tag, digest: c?.digest ?? null, provenance: "unavailable", why: c?.error || c?.note || "no attestation bundle" }); continue; }
@@ -67,6 +67,7 @@ export async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO,
     out.candidates.push({ tag, digest, provenance: r.ok ? "verified" : "refused", measurement: r.ok ? r.claims.snpMeasurement : null,
                           version: r.ok ? r.claims.version : null, flavor: r.ok ? r.claims.flavor : null, reasons: r.reasons.slice(-2) });
     if (r.ok) out.allowed.push({ tag, measurement: r.claims.snpMeasurement, version: r.claims.version, flavor: r.claims.flavor, digest });
+    if (r.ok && keepArtifacts) out.artifacts.releases.push({ tag, digest, bundle: c.bundle });
   }
   out.ok = out.allowed.length > 0;
   out.reasons.push(out.ok ? `${out.allowed.length} release(s) with verified provenance: ${out.allowed.map((a) => a.tag).join(", ")}`
@@ -82,7 +83,8 @@ export async function releaseExpectationsFrom(candidates, { repo = DEFAULT_REPO,
 // under the REMEMBERED floor, unless requireIndex, which fails closed. `index.freshness: not-remembered` says a consumer
 // without a memory cannot tell a replayed genuine index from the newest: authenticity alone.
 export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fetchImpl = globalThis.fetch, timeoutMs = 20000, maxBytes = 4 * 1024 * 1024,
-                                            apiBase = GITHUB_API, downloadBase = GITHUB_DOWNLOADS, trustedRoot = TRUSTED_ROOT, policy = {}, useIndex = true, requireIndex = false, indexMemory = null } = {}) {
+                                            apiBase = GITHUB_API, downloadBase = GITHUB_DOWNLOADS, trustedRoot = TRUSTED_ROOT, policy = {}, useIndex = true, requireIndex = false, indexMemory = null, keepArtifacts = false } = {}) {
+  let indexArtifact = null;
   const get = (url, accept) => fetchBounded(url, { fetchImpl, timeoutMs, maxBytes, accept });
   let latestTag = null, list = tags, index = { status: "not-consulted" };
   let pol = { ...policy };
@@ -108,6 +110,7 @@ export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fe
             index = { status: "verified", ...base, freshness: m ? m.kind : "not-remembered", latest: Object.fromEntries(Object.entries(v.latest).map(([f, l]) => [f, l.tag])), revoked: v.revoked, ...(m && m.persisted === false ? { memoryNotPersisted: true } : {}) };
             list = candidatesFromIndex(v).map((c) => c.tag); latestTag = v.latest.gpu?.tag ?? list[0] ?? null;
             pol = { ...pol, minimumRelease: v.minimumRelease, revoked: v.revoked };
+            if (keepArtifacts) indexArtifact = { bytes: bytes.toString("base64"), sha256: v.digest, bundle };
           }
         } else index = { status: "refused", authenticity: v.signed ? "signed" : "unverified", ...(v.publication ? { publication: v.publication } : {}), reasons: v.reasons.slice(-2) };
       }
@@ -131,7 +134,8 @@ export async function releaseExpectations({ repo = DEFAULT_REPO, tags = null, fe
       candidates.push({ tag, digest, bundle, note: bundle ? null : "the attestation API returned no inline bundle" });
     } catch (e) { candidates.push({ tag, error: e.message }); }
   }
-  return { ...(await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag })), index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` } };
+  const from = await releaseExpectationsFrom(candidates, { repo, trustedRoot, policy: pol, latestTag, keepArtifacts });
+  return { ...from, index: { ...index, floorApplied: `v${(pol.minimumRelease ?? builtin).join(".")}` }, ...(keepArtifacts ? { artifacts: { index: indexArtifact, releases: from.artifacts?.releases ?? [] } } : {}) };
 }
 
 // ---- 2. the capture: the document and the certificate of ONE TLS connection --------------------------------------------
