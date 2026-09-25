@@ -14,6 +14,7 @@ It is a test fixture, not a backend. It does on vsock what vbslike-host does on 
   usage:  hvlab.py signer <state dir>                 (foreground; the key is <state dir>/launcher.key, made once)
           hvlab.py load <state dir> <cid> <bundle> [label] [name]   prints the monitor's answer (JSON); name = the
                                                     deployment name the domain may certify (<8 hex>.<zone>)
+          hvlab.py destroy <cid> <domain id>                 the monitor's destroy (the domain ends, its port closes)
           hvlab.py relay <cid> <vsock port> <tcp port>       (foreground)
           hvlab.py pubkey <state dir>                 prints the fixture launcher's public key (base64)
 """
@@ -125,6 +126,24 @@ def load(state, cid, bundle, label="", name=""):
     print(json.dumps(ans))
 
 
+def destroy(cid, dom_id):
+    """the monitor's own `destroy`: the domain's process tree ends and its port closes (a lease end, a relaunch)"""
+    s = socket.socket(socket.AF_VSOCK, socket.SOCK_STREAM)
+    s.settimeout(60)
+    s.connect((int(cid), 9000))
+    s.sendall((json.dumps({"cmd": "destroy", "id": int(dom_id)}) + "\n").encode())
+    buf = b""
+    while not buf.endswith(b"\n"):
+        b = s.recv(4096)
+        if not b:
+            break
+        buf += b
+    ans = json.loads(buf or b"{}")
+    if "destroyed" not in ans:
+        sys.exit(f"HVLAB destroy refused: {ans.get('error', 'no answer')}")
+    print(json.dumps(ans))
+
+
 def relay(cid, vport, tport):
     l = socket.socket()
     l.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -165,6 +184,8 @@ if __name__ == "__main__":
         signer(a[1])
     elif a[:1] == ["load"]:
         load(*a[1:])
+    elif a[:1] == ["destroy"]:
+        destroy(*a[1:])
     elif a[:1] == ["relay"]:
         relay(*a[1:])
     elif a[:1] == ["pubkey"]:
