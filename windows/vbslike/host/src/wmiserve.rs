@@ -14,7 +14,16 @@
 //!     the caller that attached it. Not the UKI's: with Secure Boot off the stub reads addons,
 //!     credentials and extensions from the ESP, so two media carrying one UKI can boot different
 //!     command lines, and only the medium hash tells them apart.
+//!   - OR, with `--igvm-sha256` instead of `--medium-sha256` (the measured Linux-VTL0 IGVM, where
+//!     there is NO medium: our kernel, initrd and VTL0 command line are INSIDE the measured firmware),
+//!     `guestImageSha256` is the IGVM FILE's sha256 and `platform.partition` says so
+//!     ("wmi-openhcl-gen2-igvm-linux"), so a reader can never mistake one kind of identity for the
+//!     other. The hardware launch digest is not in this launcher-signed report; it is the file's
+//!     measurement, recomputable from these bytes (verify/vbsdigest).
 //!   - `kernelSha256` is LEFT EMPTY and omitted. There is no host-supplied kernel here.
+//!   - G1 (enclave-5d, isolation/portable-runtime-jit 1e9e99fb): the monitor mints a per-boot nonce
+//!     and returns it as `boot` in the load answer. Every stop/destroy carries it, and an answer of
+//!     `rebooted: true` is a KNOWN end - every domain of that boot is gone - never an error to retry.
 //!   - `platform.partition` is stated by THIS launcher ("wmi-openhcl-gen2"), because the guest
 //!     cannot know what kind of partition it is in and the monitor no longer guesses.
 //!   - `platform.isolation` and the boundary line carry the partition's ACTUAL
@@ -46,7 +55,10 @@ struct Serve {
     vm: windows_sys::core::GUID,
     vm_str: String,
     key: LauncherKey,
-    medium_sha: String,
+    /// What the guest booted from: the MEDIUM's sha256 (UEFI path) or the IGVM FILE's (Linux VTL0
+    /// inside the measured IGVM). `partition` names which, so the two are never confused.
+    image_sha: String,
+    partition: &'static str,
     /// The partition's GuestStateIsolationType, stated by the launcher that created it. Required:
     /// a boundary statement that does not track the actual partition kind is wrong in whichever
     /// direction it happens to err, so there is no default to guess with.
@@ -92,7 +104,7 @@ impl Serve {
                 os: "windows".into(),
                 hypervisor: "hyper-v".into(),
                 // STATED BY THE LAUNCHER. The guest cannot know its partition kind.
-                partition: "wmi-openhcl-gen2".into(),
+                partition: self.partition.into(),
                 isolation: format!("openhcl-type{}", self.isolation_type),
                 // FALSE FOR BOTH TYPES, and not negotiable here.
                 //
@@ -111,8 +123,9 @@ impl Serve {
             launcher: LauncherId { key: self.key.public_b64(), started_ms: self.key.started_ms },
             partition: PartitionId {
                 vm_id: self.vm_str.clone(),
-                // the MEDIUM, hashed by the caller at attach time
-                guest_image_sha256: self.medium_sha.clone(),
+                // the MEDIUM, hashed by the caller at attach time - or the IGVM file on the
+                // measured Linux-VTL0 path, as `platform.partition` states
+                guest_image_sha256: self.image_sha.clone(),
                 // EMPTY: no host-supplied kernel on this path, so the field is omitted entirely
                 kernel_sha256: String::new(),
                 vcpus: self.vcpus,
@@ -120,8 +133,8 @@ impl Serve {
             },
             domain: DomainId { label: self.label.clone(), app_sha256: hex::encode(app) },
             report_data: hex::encode(rd),
-            boundary: format!("tier={TIER} partition=wmi-openhcl-gen2 isolation_type={} host_excluded=no",
-                              self.isolation_type),
+            boundary: format!("tier={TIER} partition={} isolation_type={} host_excluded=no",
+                              self.partition, self.isolation_type),
             issued_ms: crate::util::unix_ms(),
         };
         let signed = self.key.sign(&doc);
@@ -131,6 +144,13 @@ impl Serve {
 
 /// The signing service. The listener is bound to this VM's id, so every connection comes from
 /// inside it; a connection claiming another partition is closed without an answer.
+/// A stop/destroy for guest domain `id`, carrying the boot its load answer named (G1). Without a boot
+/// (a monitor older than 1e9e99fb) the field is omitted: a newer monitor refuses that with
+/// `bootRequired`, which is the correct refusal rather than a guess.
+fn guest_cmd(cmd: &str, id: u64, boot: Option<&str>) -> Value {
+    match boot { Some(b) => json!({"cmd": cmd, "id": id, "boot": b}), None => json!({"cmd": cmd, "id": id}) }
+}
+
 fn report_service(s: Arc<Serve>, l: hvsock::Listener) {
     loop {
         if s.closing.load(Ordering::SeqCst) { return; }
@@ -177,11 +197,17 @@ pub fn run(o: &Opts) -> i32 {
     let Some(bundle_path) = o.get("bundle") else {
         eprintln!("wmiserve: --bundle <file> is required"); return 2;
     };
-    let medium_sha = o.get("medium-sha256").unwrap_or("").to_string();
-    if medium_sha.len() != 64 {
-        eprintln!("wmiserve: --medium-sha256 <64 hex> is required: without it the report cannot say what booted");
-        return 2;
-    }
+    // EXACTLY ONE identity: the medium the VM booted from, or the IGVM that carries the guest.
+    let hex64 = |v: &str| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit());
+    let (image_sha, partition) = match (o.get("medium-sha256"), o.get("igvm-sha256")) {
+        (Some(m), None) if hex64(m) => (m.to_lowercase(), "wmi-openhcl-gen2"),
+        (None, Some(i)) if hex64(i) => (i.to_lowercase(), "wmi-openhcl-gen2-igvm-linux"),
+        _ => {
+            eprintln!("wmiserve: exactly one of --medium-sha256 <64 hex> (UEFI medium) or --igvm-sha256 <64 hex> \
+                       (Linux VTL0 inside the measured IGVM) is required: without it the report cannot say what booted");
+            return 2;
+        }
+    };
     let tcp: u16 = o.get("tcp").and_then(|s| s.parse().ok()).unwrap_or(0);
     let label = o.get("label").unwrap_or("canary").to_string();
     // REQUIRED, and refused rather than defaulted: every boundary string below is derived from it.
@@ -206,7 +232,7 @@ pub fn run(o: &Opts) -> i32 {
 
     let s = Arc::new(Serve {
         isolation_type: iso,
-        vm, vm_str: hvsock::guid_string(&vm), key: LauncherKey::mint(), medium_sha,
+        vm, vm_str: hvsock::guid_string(&vm), key: LauncherKey::mint(), image_sha, partition,
         vcpus, mem_mib, label: label.clone(), loaded: Mutex::new(Vec::new()),
         closing: AtomicBool::new(false),
     });
@@ -240,14 +266,28 @@ pub fn run(o: &Opts) -> i32 {
         println!("{}", json!({"step": "load", "ok": false,
             "error": format!("hash disagreement: the guest computed {guest_sha}, we sent {our_app_sha}"),
             "action": "the domain is NOT served"}));
-        let _ = s.guest(&json!({"cmd": "destroy", "id": ans.get("id").cloned().unwrap_or(json!(1))}), None, Duration::from_secs(20));
+        // Destroy exactly the domain the guest named, under the boot it named. The old code defaulted a
+        // missing id to 1 (63's L4), which could reclaim a different domain.
+        match ans.get("id").and_then(|x| x.as_u64()) {
+            Some(id) => {
+                let r = s.guest(&guest_cmd("destroy", id, ans.get("boot").and_then(|x| x.as_str())), None, Duration::from_secs(20));
+                println!("{}", json!({"step": "load-reclaim", "answer": r.unwrap_or_else(|e| json!({"error": e}))}));
+            }
+            None => println!("{}", json!({"step": "load-reclaim", "error": "the load answer named no domain id, so nothing was destroyed rather than guessing one"})),
+        }
         return 1;
     }
+    // NO DEFAULTS (63's L4): a load answer without the domain's id or port is refused, never filled in.
+    let (Some(gid), Some(gport)) = (ans.get("id").and_then(|x| x.as_u64()), ans.get("port").and_then(|x| x.as_u64())) else {
+        println!("{}", json!({"step": "load", "ok": false, "error": "the load answer did not name the domain's id and port", "answer": ans}));
+        return 1;
+    };
+    let gport = gport as u32;
+    // G1: the boot this domain belongs to. Absent only from a monitor older than 1e9e99fb.
+    let gboot = ans.get("boot").and_then(|x| x.as_str()).map(|s| s.to_string());
     s.loaded.lock().unwrap().push(our_app_id);
-    let gid = ans.get("id").and_then(|x| x.as_u64()).unwrap_or(1);
-    let gport = ans.get("port").and_then(|x| x.as_u64()).unwrap_or(40000 + gid) as u32;
     println!("{}", json!({"step": "load", "ok": true, "id": gid, "appSha256": guest_sha,
-                          "guestPort": gport, "agreed": true}));
+                          "guestPort": gport, "boot": gboot, "agreed": true}));
 
     // 3. the relay: host TCP -> the domain's TLS port. Ciphertext only; this never terminates TLS.
     if tcp > 0 {

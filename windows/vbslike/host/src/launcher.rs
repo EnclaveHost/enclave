@@ -43,6 +43,9 @@ pub struct Domain {
     pub vcpus: u64,
     pub mem_mib: u64,
     pub guest_id: Mutex<u32>,   // the domain id the in-guest monitor assigned
+    /// G1: the monitor's per-boot nonce from the load answer. Every stop/destroy carries it; a guest that
+    /// rebooted answers `rebooted: true`, which means this domain is GONE (a known end), not an error.
+    pub guest_boot: Mutex<Option<String>>,
     pub guest_port: Mutex<u32>, // the vsock port the domain serves on inside the partition
     pub tcp_port: u16,
     part: Partition,
@@ -60,6 +63,16 @@ pub struct Domain {
 }
 
 impl Domain {
+    /// A stop/destroy for this domain's guest id, carrying the boot its load answer named (G1). Without a
+    /// boot (a monitor older than 1e9e99fb) the field is omitted; a newer monitor refuses that with
+    /// `bootRequired`, which is the correct refusal rather than a guess.
+    pub fn guest_cmd(&self, cmd: &str) -> Value {
+        let gid = *self.guest_id.lock().unwrap();
+        match self.guest_boot.lock().unwrap().clone() {
+            Some(b) => json!({"cmd": cmd, "id": gid, "boot": b}),
+            None => json!({"cmd": cmd, "id": gid}),
+        }
+    }
     fn log(&self, s: String) {
         println!("LAUNCH partition {} {}", self.id, s);
         self.events.lock().unwrap().push(format!("{:.0} {}", now_ms(), s));
@@ -225,18 +238,22 @@ impl Launcher {
     /// destroy: the in-guest domain first (its own reclamation), then the partition.
     pub fn destroy(&self, id: u32) -> Result<Value, String> {
         let d = self.get(id).ok_or_else(|| format!("no partition {id}"))?;
-        let gid = *d.guest_id.lock().unwrap();
-        let ans = d.guest(&json!({"cmd": "destroy", "id": gid}), None, Duration::from_secs(20)).unwrap_or_else(|e| json!({"error": e}));
-        self.retire(&d, "destroyed at lease end");
+        let ans = d.guest(&d.guest_cmd("destroy"), None, Duration::from_secs(20)).unwrap_or_else(|e| json!({"error": e}));
+        let why = if ans.get("rebooted").and_then(|x| x.as_bool()) == Some(true) {
+            "destroyed at lease end; the guest had REBOOTED, so its domain was already gone (a known end)"
+        } else { "destroyed at lease end" };
+        self.retire(&d, why);
         Ok(ans)
     }
     /// stop: the in-guest graceful path (the monitor signals the domain's init, the front winds down),
     /// then the partition is ended.
     pub fn stop(&self, id: u32) -> Result<Value, String> {
         let d = self.get(id).ok_or_else(|| format!("no partition {id}"))?;
-        let gid = *d.guest_id.lock().unwrap();
-        let ans = d.guest(&json!({"cmd": "stop", "id": gid}), None, Duration::from_secs(30)).unwrap_or_else(|e| json!({"error": e}));
-        self.retire(&d, "stopped at lease end");
+        let ans = d.guest(&d.guest_cmd("stop"), None, Duration::from_secs(30)).unwrap_or_else(|e| json!({"error": e}));
+        let why = if ans.get("rebooted").and_then(|x| x.as_bool()) == Some(true) {
+            "stopped at lease end; the guest had REBOOTED, so its domain was already gone (a known end)"
+        } else { "stopped at lease end" };
+        self.retire(&d, why);
         Ok(ans)
     }
     /// kill: the partition is terminated by the host with no notice to the guest -- the crash the lab
@@ -281,7 +298,7 @@ impl Launcher {
         let vm_str = hvsock::guid_string(&vm);
         let d = Arc::new(Domain {
             id, label: req.label.to_string(), vm_id: vm, vm_id_str: vm_str.clone(), app_id, app_sha: app_sha.clone(), vcpus: req.vcpus, mem_mib: req.mem_mib,
-            guest_id: Mutex::new(0), guest_port: Mutex::new(0), tcp_port: self.tcp_base + id as u16, part, life: Lifecycle::new(State::Starting),
+            guest_id: Mutex::new(0), guest_boot: Mutex::new(None), guest_port: Mutex::new(0), tcp_port: self.tcp_base + id as u16, part, life: Lifecycle::new(State::Starting),
             exited: Mutex::new(false), exited_cv: Condvar::new(), reports_in_flight: AtomicU32::new(0), events: Mutex::new(Vec::new()), ended_reason: Mutex::new(None),
             relay: Mutex::new(None), report_l: Mutex::new(None), closing: std::sync::atomic::AtomicBool::new(false), console_path: console, loaded_ids: Mutex::new(vec![app_id]),
         });
@@ -360,8 +377,14 @@ impl Launcher {
             self.abandon(&d, &format!("failed to start: hash disagreement: launcher {app_sha} guest {guest_sha:?}"));
             return Err("hash disagreement".into());
         }
-        *d.guest_id.lock().unwrap() = ans.get("id").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
-        *d.guest_port.lock().unwrap() = ans.get("port").and_then(|x| x.as_u64()).unwrap_or(0) as u32;
+        // NO DEFAULTS (63's L4): a load answer that names no id or port is a failed start, not id 0.
+        let (Some(gid), Some(gport)) = (ans.get("id").and_then(|x| x.as_u64()), ans.get("port").and_then(|x| x.as_u64())) else {
+            self.abandon(&d, "failed to start: the load answer did not name the domain's id and port");
+            return Err("load answer without id/port".into());
+        };
+        *d.guest_id.lock().unwrap() = gid as u32;
+        *d.guest_port.lock().unwrap() = gport as u32;
+        *d.guest_boot.lock().unwrap() = ans.get("boot").and_then(|x| x.as_str()).map(|s| s.to_string());
         let t_loaded = t0.elapsed().as_secs_f64() * 1e3;
         d.log(format!("loaded: guest agrees on {app_sha}; guest domain {} on vsock port {}", d.guest_id.lock().unwrap(), d.guest_port.lock().unwrap()));
 
