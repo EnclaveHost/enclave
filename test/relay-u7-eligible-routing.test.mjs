@@ -274,22 +274,26 @@ test("U7: an explicitly addressed INELIGIBLE tunnel box is default-deny: only it
   const origin = await startRelay(t, { enclaves: "http://127.0.0.1:1", ledger: [],
     env: { METAL_TUNNEL_TOKENS: `${NAME}:tok-secret`, BOX_ZONE: "box.test" } });
   // a token-attached box: it proves nothing about its CPU, so it is not eligible; it answers every path 200
-  const seen = [];
+  const seen = [], headersSeen = [], streams = [];
   const ws = new WebSocket(origin.replace(/^http/, "ws") + "/v1/fleet-tunnel", { headers: { "x-metal-name": NAME, "x-metal-token": "tok-secret" } });
   t.after(() => ws.close());
   ws.on("message", (d) => {
     const f = JSON.parse(d);
+    if (f.t === "s+") { streams.push(f); return; }                  // a raw stream (a spliced WebSocket upgrade)
     if (f.t !== "req") return;
-    seen.push(`${f.method} ${f.path}`);
+    seen.push(`${f.method} ${f.path}`); headersSeen.push(f.headers || {});
     const body = f.path.startsWith("/availability") ? { cpuShareFree: 0.5, nodeVcpus: 8 } : { servedBy: "tunnel" };
-    ws.send(JSON.stringify({ t: "res", id: f.id, status: 200, headers: { "content-type": "application/json" },
+    ws.send(JSON.stringify({ t: "res", id: f.id, status: 200,
+                             headers: { "content-type": "application/json", "set-cookie": "planted=1; Path=/" },   // it tries to plant a cookie on the relay's origin
                              body: Buffer.from(JSON.stringify(body)).toString("base64") }));
   });
   await once(ws, "open");
   assert.ok(await waitFor(async () => ((await getJ(origin, "/enclaves")).body?.enclaves || []).some((e) => e.endpoint === `tunnel://${NAME}`)));
   const boxHost = { "x-forwarded-host": `${NAME}.box.test` };
   // its own read-only surfaces stay reachable, by path and by box hostname
-  for (const p of ["/availability", "/v1/health", "/v1/attestation", "/v1/attestation/verify", "/.well-known/tinfoil-attestation"])
+  // ("/v1/./health" is resolved to "/v1/health" by the client and the relay's own URL parse BEFORE the gate, so the box
+  //  receives exactly its own surface: that is the same request, not an encoding of another)
+  for (const p of ["/availability", "/Availability", "/availability/", "/v1/health", "/v1/./health", "/v1/attestation", "/.well-known/tinfoil-attestation"])
     assert.equal((await getJ(origin, `/t/${NAME}${p}`)).status, 200, p);
   assert.equal((await getJ(origin, "/availability", boxHost)).status, 200);
   assert.equal((await getJ(origin, "/.well-known/tinfoil-attestation", boxHost)).status, 200);
@@ -304,15 +308,41 @@ test("U7: an explicitly addressed INELIGIBLE tunnel box is default-deny: only it
   for (const p of [tenant, `/v1/deployments/${D_E}/logs`, "/v1/deployments",                               // tenant paths
                    `/X/${D_E}/`, `/V1/Deployments/${D_E}/logs`,                                            // enclave-5d's case variants
                    `//x/${D_E}/`, `/%78/${D_E}/`, `/v1//deployments/${D_E}`, `/v1/%64eployments/${D_E}`, `/%2578/${D_E}/`,
-                   "/v1/tls-bridge", "/hello", "/v1/secrets", "/%E0%A4%A"])                                // anything else
+                   "/v1/tls-bridge", "/hello", "/v1/secrets", "/%E0%A4%A",                                 // anything else
+                   "/v1/attestation/verify", "/.well-known/other",                                          // exact entries, no prefixes
+                   // enclave-5d's round-2 finding: a raw tenant path that CANONICALIZES to an own surface
+                   `/x/${D_E}/..%2F..%2Favailability`, `/x/${D_E}/..%2f..%2f.well-known/tinfoil-attestation`,
+                   `/x/${D_E}/..%252F..%252Favailability`, `/v1/deployments/${D_E}/..%2F..%2F..%2Fv1%2Fhealth`,
+                   "//availability", "/%61vailability"])
     await refused(`/t/${NAME}${p}`);
-  for (const p of [`/X/${D_E}/`, `/v1/Deployments/${D_E}`, tenant, "/v1/deployments"]) await refused(p, boxHost);   // by box hostname
+  for (const p of [`/X/${D_E}/`, `/v1/Deployments/${D_E}`, tenant, "/v1/deployments",
+                   `/x/${D_E}/..%2F..%2Favailability`]) await refused(p, boxHost);   // by box hostname
   await refused(`/t/${NAME}/v1/deployments`, {}, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
   await refused(`/t/${NAME}/v1/attestation`, {}, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
   assert.equal(await upgrade(origin, `/t/${NAME}${tenant}ws`), 503);
   assert.equal(await upgrade(origin, `${tenant}ws`, boxHost), 503);
   assert.equal(await upgrade(origin, `/t/${NAME}/X/${D_E}/ws`), 503);
   assert.deepEqual(seen.slice(before), [], "nothing but its own surfaces reached the ineligible tunnel box");
+
+  // CREDENTIALS (Codex's review): an ineligible box's own public surfaces get the request WITHOUT the caller's
+  // credentials, and its Set-Cookie never reaches the client. Synthetic sentinels only.
+  const SENT = "sentinel-" + randomBytes(8).toString("hex");
+  const cred = { authorization: `Bearer ${SENT}`, cookie: `session=${SENT}`, "proxy-authorization": `Basic ${SENT}` };
+  for (const [p, h] of [[`/t/${NAME}/availability`, cred], ["/availability", { ...cred, ...boxHost }],
+                        [`/t/${NAME}/v1/attestation`, cred], ["/.well-known/tinfoil-attestation", { ...cred, ...boxHost }]]) {
+    const n = headersSeen.length;
+    const r = await fetch(origin + p, { headers: h });
+    assert.equal(r.status, 200, p);
+    const got = headersSeen.slice(n);
+    assert.equal(got.length, 1, p);
+    assert.ok(!JSON.stringify(got).includes(SENT), `${p}: the box received a credential: ${JSON.stringify(got)}`);
+    assert.equal(r.headers.get("set-cookie"), null, `${p}: the box's Set-Cookie is not relayed`);
+  }
+  // no WebSocket upgrade reaches an ineligible box at all, own surfaces included (none of them is a WebSocket)
+  const s0 = streams.length;
+  assert.equal(await upgrade(origin, `/t/${NAME}/availability`, { authorization: `Bearer ${SENT}` }), 503);
+  assert.equal(await upgrade(origin, "/availability", { ...boxHost, cookie: `session=${SENT}` }), 503);
+  assert.equal(streams.length, s0, "no stream was opened toward the ineligible box");
 });
 
 test("U7: a customer's own hostname routes, and earns an edge certificate, only while its deployment's holder is eligible", async (t) => {

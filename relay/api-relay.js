@@ -1124,8 +1124,13 @@ const json = (res, code, body, req) => {
 // Reverse-proxy `req` to `enclaveOrigin + path`. `setCors`: on the api.enclave.host
 // control-plane paths WE own CORS (swap the enclave's for ours); on an app
 // subdomain the app is its own origin, so pass its headers through untouched.
-function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30000 } = {}) {
-  if (tunnelHub.isTunnel(origin)) return proxyViaTunnel(origin, req, res, { path, setCors });
+// publicOnly (U7, Codex's review): an INELIGIBLE box's own public surfaces are forwarded WITHOUT the caller's credentials
+// (Authorization, Proxy-Authorization, Cookie) and WITHOUT the box's Set-Cookie, so a public read of its availability or
+// attestation neither hands it a session nor lets it plant a cookie on the relay's origin.
+const CREDENTIAL_HEADERS = ["authorization", "proxy-authorization", "cookie"];
+function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30000, publicOnly = false } = {}) {
+  if (tunnelHub.isTunnel(origin)) return proxyViaTunnel(origin, req, res, { path, setCors, publicOnly });
+  if (publicOnly) throw new Error("publicOnly forwarding is only defined for tunnel boxes");
   const target = new URL(origin.replace(/\/+$/, "") + path);
   const headers = { ...req.headers, host: target.host };
   delete headers["accept-encoding"];                          // let the enclave send identity; simpler passthrough
@@ -1175,16 +1180,18 @@ function proxyTo(origin, req, res, { path = req.url, setCors = true, idleMs = 30
 // (Phase-1 buffered request/response; the streaming/WS upgrade path over tunnels
 // is a follow-on), forwards method+path+headers over the tunnel, writes the
 // framed response back with our CORS on control-plane paths.
-function proxyViaTunnel(origin, req, res, { path = req.url, setCors = true }) {
+function proxyViaTunnel(origin, req, res, { path = req.url, setCors = true, publicOnly = false }) {
   const chunks = []; let size = 0;
   req.on("data", (c) => { size += c.length; if (size > 8 * 1024 * 1024) req.destroy(); else chunks.push(c); });
   req.on("end", async () => {
     try {
       const headers = { ...req.headers }; delete headers["accept-encoding"];
+      if (publicOnly) for (const h of CREDENTIAL_HEADERS) delete headers[h];
       const r = await tunnelHub.request(origin, { method: req.method, path, headers, body: chunks.length ? Buffer.concat(chunks) : null });
       const out = {};
       for (const [k, v] of Object.entries(r.headers || {})) {
         if (/^connection$|^transfer-encoding$|^content-length$/i.test(k)) continue;
+        if (publicOnly && /^set-cookie2?$/i.test(k)) continue;
         if (setCors && /^access-control-/i.test(k)) continue;
         out[k] = v;
       }
@@ -1355,10 +1362,15 @@ function hostEligibility(epId) {
 // plane, not the deployments collection (create or list), and nothing a future router adds (enclave-d1's and
 // enclave-5d's review: the Linux supervisor's Express routes are case-insensitive, so a denylist of tenant paths was
 // bypassable with /X/ and /V1/Deployments).
-// The comparison is on the path as a LENIENT box router could read it, not as sent: percent-decoded (up to three
-// levels), backslashes as slashes, repeated slashes collapsed, dot segments resolved, lower-cased. A path that will not
-// decode is refused rather than guessed at. null = allowed.
-const BOX_OWN_SURFACE_RE = /^\/(?:availability|health|v1\/health|v1\/version|v1\/pricing|v1\/session-jwks|v1\/net-map|v1\/udp-map)\/?$|^\/(?:v1\/attestation|\.well-known)(?:\/|$)/;
+// The allowlist is EXACT (no prefixes, so a route added later under one stays default-deny: enclave-d1's round-2 note),
+// and a path passes only when canonicalizing it changes nothing but letter case. The relay forwards the RAW path, and
+// a raw path under a tenant prefix can canonicalize to an own surface: /x/<id>/..%2F..%2Favailability is "/availability"
+// once decoded and resolved, yet Express serves it raw as /x/<id> (enclave-5d's round-2 finding). An own surface never
+// needs percent-encoding, backslashes, repeated slashes or dot segments, so any of those refuses. A trailing slash is
+// tolerated. Canonical = percent-decoded (up to three levels), backslashes as slashes, repeated slashes collapsed, dot
+// segments resolved, lower-cased; a path that will not decode is refused. null = allowed.
+const BOX_OWN_SURFACES = new Set(["/availability", "/health", "/v1/health", "/v1/version", "/v1/pricing", "/v1/session-jwks",
+                                  "/v1/net-map", "/v1/udp-map", "/v1/attestation", "/.well-known/tinfoil-attestation"]);
 function canonicalBoxPath(path) {
   let p = String(path || "/");
   for (let i = 0; i < 3; i++) {
@@ -1370,11 +1382,15 @@ function canonicalBoxPath(path) {
   try { p = new URL("http://x" + (p.startsWith("/") ? p : "/" + p)).pathname; } catch { return null; }
   return p.replace(/\/{2,}/g, "/").toLowerCase();
 }
+// Is this explicitly addressed tunnel box one the relay holds eligible? Not live = not eligible.
+function tunnelEligible(origin) { const row = live.find((x) => x.endpoint === origin); return !!(row && computeEligible(row)); }
 function tunnelTenantRefusal(origin, path, method = "GET") {
   const row = live.find((x) => x.endpoint === origin);
   if (row && computeEligible(row)) return null;
-  const canon = canonicalBoxPath(path);
-  if (canon !== null && /^(?:GET|HEAD|OPTIONS)$/i.test(String(method || "")) && BOX_OWN_SURFACE_RE.test(canon)) return null;
+  const raw = String(path || "/").toLowerCase(), canon = canonicalBoxPath(path);
+  const unaltered = canon !== null && canon === raw;          // canonicalizing changed nothing but case
+  if (unaltered && /^(?:GET|HEAD|OPTIONS)$/i.test(String(method || ""))
+      && (BOX_OWN_SURFACES.has(canon) || BOX_OWN_SURFACES.has(canon.replace(/\/$/, "")))) return null;
   return deny(503, "host_ineligible", `This box is not eligible to serve tenant apps${row ? ": " + ineligibleReason(row) : " (not in the live fleet)"}; only its own surfaces (availability, health, attestation) are reachable.`);
 }
 async function xOwnerOf(id) {                                // data-path resolve: the eligible owner, or null
@@ -2402,7 +2418,7 @@ function handleRequest(req, res) {
       return json(res, 404, { error: "no_tunnel", message: `No enclave is attached for ${routingHost(req)}.` }, req);
     const refused = tunnelTenantRefusal(origin, u.pathname, req.method);
     if (refused) return json(res, refused.status, { error: refused.error, message: refused.message }, req);
-    return proxyTo(origin, req, res, { path: u.pathname + (u.search || ""), setCors: true });
+    return proxyTo(origin, req, res, { path: u.pathname + (u.search || ""), setCors: true, publicOnly: !tunnelEligible(origin) });
   }
 
   // Reach a SPECIFIC tunnel enclave through the relay: /t/<name>/<rest> forwards
@@ -2417,7 +2433,7 @@ function handleRequest(req, res) {
       return json(res, 404, { error: "no_tunnel", message: `No tunnel enclave named ${tm[1]} is attached.` }, req);
     const refused = tunnelTenantRefusal(origin, tm[2] || "/", req.method);
     if (refused) return json(res, refused.status, { error: refused.error, message: refused.message }, req);
-    return proxyTo(origin, req, res, { path: (tm[2] || "/") + (u.search || ""), setCors: true });
+    return proxyTo(origin, req, res, { path: (tm[2] || "/") + (u.search || ""), setCors: true, publicOnly: !tunnelEligible(origin) });
   }
 
   // API gateway: fleet-aware routing (see the header) — placement on create,
@@ -2468,7 +2484,9 @@ server.on("upgrade", async (req, socket, head) => {
     if (tm) {
       const origin = `tunnel://${tm[1]}`;
       if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
-      if (tunnelTenantRefusal(origin, tm[2] || "/", req.method)) return refuse(503, "Service Unavailable");
+      // no WebSocket reaches an INELIGIBLE box, own surfaces included (none of them is one): its raw upgrade would carry
+      // the caller's headers, credentials included (Codex's review)
+      if (!tunnelEligible(origin) || tunnelTenantRefusal(origin, tm[2] || "/", req.method)) return refuse(503, "Service Unavailable");
       return tunnelHub.spliceUpgrade(origin, req, socket, head, (tm[2] || "/") + (u.search || ""));
     }
     // …and the same box reached by its own hostname, so a websocket to a box
@@ -2477,7 +2495,7 @@ server.on("upgrade", async (req, socket, head) => {
     if (bn) {
       const origin = `tunnel://${bn}`;
       if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
-      if (tunnelTenantRefusal(origin, u.pathname, req.method)) return refuse(503, "Service Unavailable");
+      if (!tunnelEligible(origin) || tunnelTenantRefusal(origin, u.pathname, req.method)) return refuse(503, "Service Unavailable");
       return tunnelHub.spliceUpgrade(origin, req, socket, head, u.pathname + (u.search || ""));
     }
   }
