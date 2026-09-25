@@ -20,6 +20,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -62,16 +64,41 @@ func (rd *readiness) serve(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(out)
 }
 
+// appHeaderTimeout bounds how long the app may take to START answering (enclave-63's G3). Without it a wedged app
+// (accepting, never answering) held every client connection open indefinitely, so the host's view was accepted
+// connections that never close. 180 s is the window the platform's app path already gives a response
+// (supervisor.js headersTimeout 185 s; a non-streamed completion dies at about 180 s), so no request that works today is cut
+// sooner. It bounds the headers only: a stream that has sent its headers may run as long as it keeps going, which is
+// also why the front's server has no WriteTimeout.
+const appHeaderTimeout = 180 * time.Second
+
 // appProxy forwards to the app at upstream as plaintext on the domain's loopback. Rewrite (not Director) is what
 // keeps X-Forwarded-For out: with Rewrite the forwarding headers are removed from the outbound request and none is
 // added unless SetXForwarded is called, which it is not.
 func appProxy(upstream string) *httputil.ReverseProxy {
+	return appProxyWithin(upstream, appHeaderTimeout)
+}
+
+func appProxyWithin(upstream string, headerTimeout time.Duration) *httputil.ReverseProxy {
 	target := &url.URL{Scheme: "http", Host: upstream}
 	return &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
 			pr.Out.Host = pr.In.Host // the name the client asked for, as the app has always seen it
 		},
-		Transport: &http.Transport{DialContext: (&net.Dialer{}).DialContext, MaxIdleConnsPerHost: 64},
+		Transport: &http.Transport{DialContext: (&net.Dialer{}).DialContext, MaxIdleConnsPerHost: 64,
+			ResponseHeaderTimeout: headerTimeout},
+		// A client is told which it was: 504 when the app did not start answering in time, 502 when it could not be
+		// reached at all. Neither leaves the connection hanging.
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
+				log.Printf("DOM proxy: %s %s: the app sent no response headers within %s", r.Method, r.URL.Path, headerTimeout)
+				http.Error(w, "the app did not start answering within "+headerTimeout.String(), http.StatusGatewayTimeout)
+				return
+			}
+			log.Printf("DOM proxy: %s %s: %v", r.Method, r.URL.Path, err)
+			http.Error(w, "the app could not be reached", http.StatusBadGateway)
+		},
 	}
 }
