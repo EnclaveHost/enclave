@@ -2,12 +2,23 @@
 
 For enclave-63's guarded rollout scripts (rows 4-10 of GUEST-POOL-ROLLOUT.md). This is a description, not a script.
 
+**For THIS release the procedure is enclave-63's TREE SWITCH, not a first install.**
+- 4d is done: production guestd is `guestd.4e78ba80` with `-release`, `-isolation iso-17e182a8` (a4f22748),
+  `-legacy-isolation iso-03be27d6` and the 16384 floor.
+- The switch installs this tree inert beside iso-17e182a8, with step 0's musl prefix. It gates on 1d (the installed
+  tree reproduces 79c5ecf2) and then moves ONLY guestd's `-isolation` to it. The binary stays 4e78ba80's (guestd is
+  unchanged), and so do the other flags.
+- It uses a detached apply, the adoption preflight, and a rollback to the current 4d unit, BEFORE any real release
+  guest exists.
+- Sections 2-4 below still hold for the flags, pins and rollback, with iso-aa6c985c in place of the tree 4d named.
+
 **Gate.** Nothing here runs until:
 - the image diff 0181bce3..aa6c985c is signed off:
   - enclave-d1 signed off 0181bce3..aff21c73 (should-fix: d1a38994) and approved d1a38994;
   - enclave-e3 (for enclave-99) approved every commit through d1a38994, with one medium fail-open, fixed in ecf02384;
   - d1 and e3 approved ecf02384 (release 0839ac3a, installed inert, superseded);
-  - 77cf2d78 (dominit: the app's stdio is /dev/null; Codex's decision) awaits enclave-d1's and enclave-e3's review;
+  - d1 and e3 approved 77cf2d78 (release a4f22748: installed 20:09:57Z, and guestd's live -isolation tree since 4d);
+  - aa6c985c (init links musl; Codex's decision) awaits enclave-d1's and enclave-e3's review, and e3's predictor check;
 - enclave-99 reviews the scripts;
 - Codex gives the go.
 
