@@ -82,7 +82,7 @@ and earlier is void for same-boot purposes.
 From the TPM feasibility work (enclave-d1 878a3074): the host-side chain EK → quote → log → IDKS verifies on real
 bytes for a VBS **enclave** report. IDKS signing a VM report stays a hypothesis.
 
-## Measured VTL0 (source; one candidate built, none booted)
+## Measured VTL0 (source; one candidate built and booted, no report)
 
 - igvmfilegen can place our kernel, initrd and VTL0 command line inside the IGVM as measured (`Exclusive`) pages
   (`vm/loader/src/linux.rs:478, 531, 592`; `paravisor.rs:944-951`). The VBS digest hashes the full content of
@@ -136,7 +136,7 @@ source at a7b0bd4. They are not a boot result.
    - Untested: VTL2's run-time heap with a Linux VTL0. If that fails, it fails at boot, and the debug twin reads it.
    - The VM's memory must cover GPA 0xC000000 plus VTL0's working set.
 
-**Rebuilt per ruling 2 (enclave-53, package v28 840eb861; build-only until enclave-d1's canary).** The candidate is
+**Rebuilt per ruling 2 (enclave-53, package v28 840eb861).** The candidate is
 now `c567e432…d637`, VBS launch digest A0FDAC0F…A244, deterministic. The only change is `static_command_line=true`;
 the VTL0 command line is unchanged. The debug twin is `24e7a1ff…`, digest A650C020…157E, a named rejection. The
 pre-review pair 246DEE1B… / 0677F3C6… are superseded rejections. enclave-53's mutation evidence, re-run on every
@@ -144,6 +144,16 @@ rebuild:
 - the static line plus ` mutation_test=1` gives 4D628242…;
 - `static_command_line=false` gives 246DEE1B…, exactly the pre-review candidate, so the policy flag is measured;
 - one byte of the kernel, one of the initrd, or a change to the VTL0 line gives 8307B597…, 63463B2C… and 26372500….
+
+**Booted (enclave-d1, canary 061934, evidence 0564ff8d).** c567e432 started as type 1 under Secure Boot, with no
+medium, disk or NIC; the IGVM has no UEFI.
+- MON ready came at 319 ms, with the boundary line `hv_isolation=vbs host_excluded=no`, and the control channel
+  answered on 9000.
+- The guest reported memMiB 1833, against 1828 on the UEFI path, in the same VM size. That difference is the
+  host-supplied memory map (below), which the digest does not cover.
+
+This shows only that the measured-Linux-VTL0 type-1 path boots. It gives no report, no signer and no chain, and
+`host_excluded=no`. Requirements 2, 3 and 6 are untouched.
 
 **Still host-supplied at run time, and so NOT in the digest** (enclave-d1's question (a)):
 - the VTL2 device tree and the topology it carries (CPUs, memory map, MMIO; an IGVM parameter area the host fills);
