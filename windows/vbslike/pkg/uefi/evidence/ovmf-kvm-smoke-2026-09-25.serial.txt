@@ -2,7 +2,7 @@
 BdsDxe: starting Boot0002 "UEFI Misc Device" from PciRoot(0x0)/Pci(0x1,0x0)
 EFI stub: Loaded initrd from LINUX_EFI_INITRD_MEDIA_GUID device path
 
-MON snp=0 vcpus=1 memMiB=958 boot_ms=632
+MON snp=0 vcpus=1 memMiB=958 boot_ms=605
 MON insmod /vsock.ko.zst failed: Operation not supported
 MON insmod /vmw_vsock_virtio_transport_common.ko.zst failed: Operation not supported
 MON insmod /vmw_vsock_virtio_transport.ko.zst failed: Operation not supported

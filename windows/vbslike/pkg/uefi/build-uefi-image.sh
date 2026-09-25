@@ -4,7 +4,12 @@
 # one, so the guest that ran linux-direct is delivered here unchanged, as a UEFI payload.
 #
 #   build-uefi-image.sh --kernel BZIMAGE --initrd INITRD --cmdline "…" --stub linuxx64.efi.stub --out DIR
-#                       [--mtools DIR] [--esp-mib 128] [--disk-mib 256] [--epoch N]
+#                       [--uki-recipe build-uki.sh] [--mtools DIR] [--esp-mib 128] [--disk-mib 256] [--epoch N]
+#
+# The UKI follows enclave-5d's spec (isolation/m3/UEFI-BOOT.md, acfdddac): .osrel, .cmdline, .linux, .initrd in that
+# order, the fixed .osrel text, and SOURCE_DATE_EPOCH=0 for objcopy (it stamps the PE TimeDateStamp and the checksum
+# follows). This file assembles it independently; with --uki-recipe it ALSO runs 5d's own build-uki.sh, and the two
+# must agree byte for byte (two readings of one spec, as with the AppID). The ESP's FAT timestamps use --epoch.
 #
 # It builds, in DIR:
 #   uki.efi     a Unified Kernel Image: systemd-stub + .osrel + .cmdline + .initrd + .linux (the kernel must carry an
@@ -21,12 +26,12 @@
 # Reproducible: two runs over the same inputs and tools give identical uki.efi, esp.img and disk.raw (checked by
 # `--check`, which builds twice). It needs no root, starts no VM, and changes nothing outside DIR.
 set -eu
-KERNEL= INITRD= CMDLINE= STUB= OUT= MTOOLS= ESP_MIB=128 DISK_MIB=256 EPOCH=1758672000 CHECK=
+KERNEL= INITRD= CMDLINE= STUB= OUT= MTOOLS= ESP_MIB=128 DISK_MIB=256 EPOCH=1758672000 CHECK= RECIPE=
 while [ $# -gt 0 ]; do case "$1" in
   --kernel) KERNEL=$2; shift 2;; --initrd) INITRD=$2; shift 2;; --cmdline) CMDLINE=$2; shift 2;;
   --stub) STUB=$2; shift 2;; --out) OUT=$2; shift 2;; --mtools) MTOOLS=$2; shift 2;;
   --esp-mib) ESP_MIB=$2; shift 2;; --disk-mib) DISK_MIB=$2; shift 2;; --epoch) EPOCH=$2; shift 2;;
-  --check) CHECK=1; shift;; *) echo "unknown argument $1" >&2; exit 2;; esac; done
+  --uki-recipe) RECIPE=$2; shift 2;; --check) CHECK=1; shift;; *) echo "unknown argument $1" >&2; exit 2;; esac; done
 for v in KERNEL INITRD STUB OUT; do eval "[ -n \"\${$v}\" ]" || { echo "--$(echo $v | tr A-Z a-z) is required" >&2; exit 2; }; done
 [ -n "$CMDLINE" ] || { echo "--cmdline is required" >&2; exit 2; }
 [ -n "$MTOOLS" ] && PATH="$MTOOLS:$PATH"
@@ -38,6 +43,7 @@ if [ -n "$CHECK" ]; then
   self=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
   set -- --kernel "$KERNEL" --initrd "$INITRD" --cmdline "$CMDLINE" --stub "$STUB" --esp-mib "$ESP_MIB" --disk-mib "$DISK_MIB" --epoch "$EPOCH"
   [ -n "$MTOOLS" ] && set -- "$@" --mtools "$MTOOLS"
+  [ -n "$RECIPE" ] && set -- "$@" --uki-recipe "$RECIPE"
   rm -rf "$OUT.check-a" "$OUT.check-b"
   "$self" "$@" --out "$OUT.check-a" >/dev/null; "$self" "$@" --out "$OUT.check-b" >/dev/null
   rc=0; for f in uki.efi esp.img disk.raw; do
@@ -49,21 +55,27 @@ fi
 mkdir -p "$OUT"; W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 sha() { sha256sum < "$1" | cut -c1-64; }
 
-# 1. the UKI. Sections go after the stub's last section, each at the stub's SectionAlignment; .linux last.
-printf 'ID=enclave-vbslike-guest\nNAME="enclave guest (isolation/m3 monitor)"\n' > "$W/osrel"
+# 1. the UKI, per UEFI-BOOT.md: after the stub's last section, each at the stub's SectionAlignment, in the order
+#    .osrel .cmdline .linux .initrd; the PE timestamp pinned by SOURCE_DATE_EPOCH=0.
+printf 'NAME="enclave NucBox guest"\nID=enclave-nucbox-guest\n' > "$W/osrel"
 printf '%s' "$CMDLINE" > "$W/cmdline"
 align=$(objdump -p "$STUB" | awk '$1 == "SectionAlignment" { print $2 }'); align=$((0x$align))
 next=$(objdump -h "$STUB" | awk 'NF == 7 && $1 ~ /^[0-9]+$/ { e = strtonum("0x" $3) + strtonum("0x" $4); if (e > m) m = e } END { print m }')
 up() { echo $(( ($1 + align - 1) / align * align )); }
 args=""; vma=$(up "$next")
-for pair in osrel:"$W/osrel" cmdline:"$W/cmdline" initrd:"$INITRD" linux:"$KERNEL"; do
+for pair in osrel:"$W/osrel" cmdline:"$W/cmdline" linux:"$KERNEL" initrd:"$INITRD"; do
   name=${pair%%:*}; file=${pair#*:}
   args="$args --add-section .$name=$file --change-section-vma .$name=$(printf 0x%x "$vma")"
   vma=$(up $(( vma + $(stat -Lc%s "$file") )))
 done
 # shellcheck disable=SC2086
-objcopy $args "$STUB" "$W/uki.efi"
+SOURCE_DATE_EPOCH=0 objcopy $args "$STUB" "$W/uki.efi"
 touch -d "@$EPOCH" "$W/uki.efi"
+if [ -n "$RECIPE" ]; then   # enclave-5d's own recipe must produce the same bytes
+  UKI_STUB="$STUB" sh "$RECIPE" "$KERNEL" "$INITRD" "$W/uki.recipe.efi" "$CMDLINE" >/dev/null
+  [ "$(sha "$W/uki.recipe.efi")" = "$(sha "$W/uki.efi")" ] \
+    || { echo "the UKI differs from enclave-5d's build-uki.sh: $(sha "$W/uki.efi") vs $(sha "$W/uki.recipe.efi")" >&2; exit 1; }
+fi
 
 # 2. the ESP: FAT32, fixed volume id, invariant metadata, the UKI at the removable-media default path
 truncate -s "${ESP_MIB}M" "$W/esp.img"
@@ -91,7 +103,9 @@ cat > "$OUT/build.json" <<JSON
   "kernel":  { "sha256": "$(sha "$KERNEL")", "bytes": $(stat -Lc%s "$KERNEL") },
   "initrd":  { "sha256": "$(sha "$INITRD")", "bytes": $(stat -Lc%s "$INITRD") },
   "stub":    { "sha256": "$(sha "$STUB")", "bytes": $(stat -Lc%s "$STUB") },
-  "cmdline": $(printf '%s' "$CMDLINE" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')
+  "cmdline": $(printf '%s' "$CMDLINE" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'),
+  "cmdlineSha256": "$(printf '%s' "$CMDLINE" | sha256sum | cut -c1-64)",
+  "ukiRecipe": $( [ -n "$RECIPE" ] && echo "{ \"sha256\": \"$(sha "$RECIPE")\", \"agrees\": true }" || echo null )
  },
  "params": { "espMiB": $ESP_MIB, "diskMiB": $DISK_MIB, "sourceDateEpoch": $EPOCH, "fatVolumeId": "E5C1A7E5",
              "gptLabelId": "5E6C0D1A-7A0B-4C3E-9E0B-000000000001", "espPartUuid": "5E6C0D1A-7A0B-4C3E-9E0B-0000000000E5",

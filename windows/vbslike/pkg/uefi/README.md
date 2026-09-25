@@ -32,6 +32,17 @@ directory.
 `mtools-4.0.49.tar.gz` (sha256 `10cd1111da87bf2400a380c1639a6cba8bfb937a24f9c51f5f88d393ae5f6f76`). Its GPG signature
 was NOT verified, because the signer's key is not in the local keyring.
 
+## The UKI follows enclave-5d's spec, reproduced two ways
+
+The spec is `isolation/m3/UEFI-BOOT.md` at acfdddac:
+
+- sections in the order `.osrel`, `.cmdline`, `.linux`, `.initrd`, with a fixed `.osrel`;
+- `SOURCE_DATE_EPOCH=0` for objcopy, which pins the PE TimeDateStamp;
+- exactly one file on the ESP.
+
+This builder assembles the UKI independently. With `--uki-recipe`, it also runs 5d's own `build-uki.sh` (pinned by
+commit) and refuses unless the two are byte-identical.
+
 ## Measured 2026-09-25 (`evidence/`)
 
 **The build** (`build-2026-09-25.json`). Inputs:
@@ -39,24 +50,42 @@ was NOT verified, because the signer's key is not in the local keyring.
 - the WSL kernel `7fe3edb5…`;
 - the monitor initrd `4610d594…` (enclave-5d, aef54ff7);
 - systemd 261.2's `linuxx64.efi.stub` `2d9b8073…`;
-- the command line `console=ttyS0 rdinit=/init loglevel=3 report_host=9001`.
-
-Two builds gave identical outputs:
+- the command line `console=ttyS0 rdinit=/init loglevel=3 report_host=9001` (sha256 `c99a16ae…`).
 
 | output | sha256 |
 |---|---|
-| `uki.efi` | `8b531361ec433ef971aeaaeb88d4f0b37813d769b997acda9b0116fa711f72ad` |
-| `esp.img` | `ba22ec6b2a14493b2950390c6bce5360d5c4533b4ca5bfc567729a6c67ed2b91` |
-| `disk.raw` | `aec1e2017808dc2efc29838064f6fdf0d6fbeafdebd36731a849e5cf58c62009` |
+| `uki.efi` | `a1fdb5c3e973accc2f04bfecce7fb22cfdcfcf7568244350328ec6436a1a87b1`, 40,045,056 B |
+| `esp.img` | `9bea1b683845083383c2e08c94c5a5550d5e64d71fb20ac9ae3dee756ac9945e` |
+| `disk.raw` | `04898f098ab9e464ee5be9771926812a6f8236940403492019a7538aa6efe4a7` |
 
-**The boot chain, on KVM with OVMF: DEVELOPMENT EVIDENCE ONLY** (`ovmf-kvm-smoke-2026-09-25.serial.txt`). QEMU q35,
-1 vCPU, 1 GiB, the disk read-only, no network:
+`uki.efi` is the hash enclave-5d predicted from `build-uki.sh`. Both assemblies produce it, and two builds of all three
+outputs were identical.
+
+**The boot chain, on KVM with OVMF: DEVELOPMENT EVIDENCE ONLY** (`ovmf-kvm-smoke-2026-09-25.serial.txt`, this
+`disk.raw`). QEMU q35, 1 vCPU, 1 GiB, the disk read-only, no network:
 
 1. OVMF boots `BOOTX64.EFI`.
 2. The EFI stub loads the initrd from `LINUX_EFI_INITRD_MEDIA_GUID`.
 3. The kernel starts, and the unchanged monitor prints `MON boundary tier=t0-hv … host_excluded=no` and `MON ready
-   control_port=9000 snp=false`, the lines it prints in an HCS partition.
+   control_port=9000 snp=false`.
 
 This is NOT Hyper-V and NOT OpenHCL. The monitor's host channel (hv_sock) was not exercised, and nothing was loaded or
 served. Whether this disk boots under Microsoft's standard OpenHCL image on the NucBox has not been tried. That run is
-enclave-d1's, after enclave-5d's interface split.
+enclave-d1's.
+
+## Not yet measured under UEFI on the NucBox (the list enclave-99 reviews)
+
+1. Microsoft's standard `openhcl.bin` (`48773995…`) with THIS disk attached. It has only been started with no disk.
+2. OpenHCL's VTL0 UEFI finding `\EFI\BOOT\BOOTX64.EFI` on this GPT/FAT32 ESP, from a SCSI VHDX (or a DVD ISO).
+3. The unsigned UKI with Secure Boot off (the VM definition turns it off), and systemd 261.2's stub under Hyper-V's
+   UEFI.
+4. The WSL kernel booting through its EFI stub in VTL0 under OpenHCL. Until now it booted only by LinuxKernelDirect
+   under HCS.
+5. VMBus and hv_sock through OpenHCL's relay to VTL0. These are the monitor's only channel: control 9000, signing 9001,
+   and the domain's port.
+6. What loads a bundle into such a VM, and relays to it: `vbslike-host lab` creates HCS partitions only, and the
+   datapath route is not wired to a WMI VM.
+7. The COM1 console through OpenHCL, the only way to see `MON` lines on the box.
+8. The launcher's `partition.guestImageSha256` on this path. 5d proposes the UKI's sha256, with its composition
+   published beside it; the launcher reports the initrd's today.
+9. Hyper-V accepting this VHDX (qemu-img, dynamic).
