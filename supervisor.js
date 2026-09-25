@@ -2311,14 +2311,21 @@ function isolationPrefetchBody(g, runtimeId) {
   return { image: g.wasmRef, derive: isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min), runtimeId,
     isolationHttpPortOf(g.ports)) };
 }
+// The derivation record the SPAWN sends for a catalog version (spawnContainer): the ONE function the resume's
+// same-record test and the self-test use too, so the three can never drift apart (enclave-e3).
+function isolationSpawnDerivation({ catalogRef, wasmRef, versionMemMb, runtimeId, ports }) {
+  return isolationDerivation(catalogRef, wasmRef, isolationPolicyFor({ memMb: versionMemMb }), runtimeId, isolationHttpPortOf(ports));
+}
 // Whether the guest guestd holds under this deployment's name was launched from exactly the record the spawn would
 // send for version g (PURE; considerClaim's resume credit). The spawn derives its port from the PARSED firewall
 // (rec.firewall), so this does too; anything missing or underivable is false: a replacement, the conservative side.
 function isolationHeldSameRecord(held, g, firewall, runtimeId) {
   if (!held || typeof held.recordSha256 !== "string" || !/^[0-9a-f]{64}$/.test(held.recordSha256) || !g || !runtimeId) return false;
   try {
-    return held.recordSha256 === derivationDigest(isolationDerivation(g.ref, g.wasmRef, isolationPolicyFor(g.min), runtimeId,
-      isolationHttpPortOf(firewall || [])));
+    // what the claim path would put on the record (rec.image = g.ref, rec.appWasm = g.wasmRef, rec._versionMemMb =
+    // g.min.memMb, rec.firewall = the parsed firewall), through the spawn's own derivation
+    return held.recordSha256 === derivationDigest(isolationSpawnDerivation({ catalogRef: g.ref, wasmRef: g.wasmRef,
+      versionMemMb: g.min && g.min.memMb, runtimeId, ports: firewall || [] }));
   } catch { return false; }
 }
 async function managerPrefetchBody(g) {
@@ -2670,16 +2677,17 @@ function readGuestPool(p) {
   if (!p || !allocated || !free || !g || !n(g.floorMiB) || !n(g.runtimeMiB) || !n(g.unitOverheadMiB)
       || (p.budget != null && !(budget && budget.memMiB > 0 && budget.cpuPct > 0))) return null;
   // host: guestd's LIVE memory floor (pool.go hostRefusal). An older guestd sends none, and nothing changes then.
+  // The host fields must be JSON NUMBERS: Number() would read "", false, [] or " " as 0 and "0x10" as 16 (enclave-e3).
+  const num = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0;
   let host = null;
-  if (p.host && typeof p.host === "object" && Number(p.host.floorMiB) > 0)
-    // null means guestd could not read it: Number(null) is 0, so null is checked first, never read as "0 MiB available"
-    host = { floorMiB: +p.host.floorMiB,
+  if (p.host && typeof p.host === "object" && num(p.host.floorMiB) && p.host.floorMiB > 0)
+    host = { floorMiB: p.host.floorMiB,
              // what the held guests may still draw beyond MemAvailable (pool.go pendingLocked: a starting guest's whole
-             // reservation, a running one's reservation minus what its unit holds). A pendingMiB that is not a number
-             // makes the host UNKNOWN, never "nothing pending" (that would read open)
-             memAvailableMiB: p.host.memAvailableMiB !== null && p.host.memAvailableMiB !== undefined && n(p.host.memAvailableMiB)
-               && p.host.pendingMiB !== null && p.host.pendingMiB !== undefined && n(p.host.pendingMiB) ? +p.host.memAvailableMiB : null,
-             pendingMiB: n(p.host.pendingMiB) && p.host.pendingMiB !== null ? +p.host.pendingMiB : 0 };
+             // reservation, a running one's reservation minus what its unit holds). A MemAvailable or a pendingMiB that
+             // is not a number (null = guestd could not read it) makes the host UNKNOWN, never "0 available" or
+             // "nothing pending"
+             memAvailableMiB: num(p.host.memAvailableMiB) && num(p.host.pendingMiB) ? p.host.memAvailableMiB : null,
+             pendingMiB: num(p.host.pendingMiB) ? p.host.pendingMiB : 0 };
   return { budget, allocated, free, guests: Number(p.guests) || 0, overcommitted: p.overcommitted === true, host,
     perGuest: { floorMiB: +g.floorMiB, runtimeMiB: +g.runtimeMiB, unitOverheadMiB: +g.unitOverheadMiB } };
 }
@@ -3348,8 +3356,9 @@ if (process.env.GUEST_POOL_SELFTEST) {
     reservations: (c.reservations || []).map((v) => _guestPool && guestReservationFor(isolationPolicyFor(v), _guestPool.perGuest)),
     verdicts: (c.verdicts || []).map((v) => isolationClaimVerdict({ backend: ISOLATION_BACKEND, ...v })),
     sameRecord: (c.sameRecord || []).map((x) => isolationHeldSameRecord(x.held, x.g, x.firewall, x.runtimeId)),
-    ...(c.recordOf ? { recordOf: derivationDigest(isolationDerivation(c.recordOf.g.ref, c.recordOf.g.wasmRef,
-      isolationPolicyFor({ memMb: c.recordOf.g.min.memMb }), c.recordOf.runtimeId, isolationHttpPortOf(c.recordOf.ports))) } : {}),
+    // the digest the SPAWN would record for a version (its own derivation function), to compare the resume's test with
+    ...(c.recordOf ? { recordOf: derivationDigest(isolationSpawnDerivation({ catalogRef: c.recordOf.g.ref, wasmRef: c.recordOf.g.wasmRef,
+      versionMemMb: c.recordOf.g.min.memMb, runtimeId: c.recordOf.runtimeId, ports: c.recordOf.ports })) } : {}),
   }));
   process.exit(0);
 }
@@ -3770,13 +3779,13 @@ async function spawnContainer({ deploymentId, gpuShare, cpuShare, cardId, gpuVra
     // deployments that need one.
     if (secrets || configCid || isolationAppConfig(config))
       throw new Error("per-app isolation: this deployment carries config or secrets the guest tier does not support");
-    const httpPort = isolationHttpPortOf(ports);   // throws for tcp/udp or a second port
+    isolationHttpPortOf(ports);                    // throws for tcp/udp or a second port, before anything else
     // The policy is the version's; a record that lost the version's memMb must not guess one (a different policy
     // is a different AppID and measurement for the same version).
     if (versionMemMb == null) throw new Error("per-app isolation: this record does not carry its version's on-chain memMb");
     const h = await vmHealth();
-    const derive = isolationDerivation(catalogRef, image && image.reference,
-      isolationPolicyFor({ memMb: versionMemMb }), h && h.catalog && h.catalog.runtimeId, httpPort);
+    const derive = isolationSpawnDerivation({ catalogRef, wasmRef: image && image.reference, versionMemMb,
+      runtimeId: h && h.catalog && h.catalog.runtimeId, ports });
     const body = { image: image.reference, name: deploymentId, cpuShare: cpuShare ?? 0.05,
       gpuShare: 0, appPort: appPort || 8080, ports: [], config: "", configCid: "", egress: "", derive,
       ...(hosts && hosts.length ? { hosts: hosts.join(",") } : {}) };

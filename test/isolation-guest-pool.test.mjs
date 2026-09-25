@@ -182,6 +182,10 @@ test("the claim path judges the pool with the version's policy and, on a resume,
   assert.match(call, /held: isoHeld, heldSameRecord,/);
   assert.match(src, /const heldSameRecord = isolationHeldSameRecord\(isoHeld, g, firewall, isoMgr && isoMgr\.catalog && isoMgr\.catalog\.runtimeId\);/,
     "an adoption is the SAME record, derived as the spawn derives it (the parsed firewall)");
+  // ONE derivation for the spawn and the resume's test (enclave-e3): spawnContainer builds its record through it
+  const spawn = src.slice(src.indexOf("async function spawnContainer("), src.indexOf("let r = await vmReq(\"POST\", \"/vms\", body, SPAWN_TIMEOUT_MS);"));
+  assert.match(spawn, /const derive = isolationSpawnDerivation\(\{ catalogRef, wasmRef: image && image\.reference, versionMemMb,/);
+  assert.match(src, /function isolationHeldSameRecord[\s\S]{0,900}isolationSpawnDerivation\(\{ catalogRef: g\.ref, wasmRef: g\.wasmRef,/);
   assert.match(src, /const resume = leaseLive && d\.runner === _enclaveId;/, "a resume is this runner's own live lease");
 });
 
@@ -208,6 +212,15 @@ test("the host's live memory floor gates claims and caps the advertised share; w
     verdicts: [verdict(MGR({ ...pool(B), host: { floorMiB: 16384, memAvailableMiB: 16384 + 20500 } }))] });
   assert.match(odd.verdicts[0], /available memory is unknown/);
   assert.equal(odd.maxFreeCpu, 0);
+  // only JSON NUMBERS count: Number() would read these as 0 (nothing pending, or 0 available) or "0x10" as 16 (enclave-e3)
+  for (const bad of ["", false, [], " ", "0x10", "16384", true, {}]) {
+    const x = await seam({ pool: { ...pool(B), host: { floorMiB: 16384, memAvailableMiB: 16384 + 20500, pendingMiB: bad } },
+      verdicts: [verdict(MGR({ ...pool(B), host: { floorMiB: 16384, memAvailableMiB: bad, pendingMiB: 0 } }))] });
+    assert.equal(x.maxFreeCpu, 0, `pendingMiB ${JSON.stringify(bad)}: the host is unknown`);
+    assert.match(x.verdicts[0], /available memory is unknown/, `memAvailableMiB ${JSON.stringify(bad)}`);
+  }
+  // a floor that is not a number is no floor this supervisor can mirror: an older guestd's shape, nothing changes
+  assert.equal((await seam({ pool: { ...pool(B), host: { floorMiB: "16384", memAvailableMiB: 1, pendingMiB: 0 } } })).maxFreeCpu, 1);
   // 20500 MiB above the floor caps the pool's own 1.0 at 20500/32768 = 0.6256, quantized DOWN to 0.62 (enclave-99 #4)
   assert.equal(r.maxFreeCpu, 0.62);
   assert.deepEqual(r.guestPool.host, { floorMiB: 16384, admitsSmallestGuest: true }, "the report carries the verdict, not MemAvailable");
@@ -251,7 +264,7 @@ test("a resume adopting the same record skips the host check; a replacement is c
 test("a held guest is the same record only when the spawn would send exactly that record", async () => {
   const RT = "ab".repeat(32);
   const g = { ref: "catalog://0x" + "11".repeat(32) + "/3", wasmRef: "ipfs://bafyexample", min: { memMb: 128 }, ports: "http" };
-  const { recordOf } = await seam({ recordOf: { g, runtimeId: RT, ports: [] } });              // the spawn's own digest
+  const { recordOf } = await seam({ recordOf: { g, runtimeId: RT, ports: [] } });              // the spawn's own derivation (isolationSpawnDerivation)
   const { recordOf: rec8080 } = await seam({ recordOf: { g, runtimeId: RT, ports: ["http:8080"] } });
   const held = { name: "0x" + "4e".repeat(32), status: "running", recordSha256: recordOf };
   const r = await seam({ sameRecord: [
