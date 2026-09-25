@@ -330,6 +330,14 @@ export async function handleSecrets(req, res, u, ctx) {
         + `(ledger runner ${d.runner}, leaseUntil ${d.leaseUntil})`);
       return bad(ctx, res, req, 409, "not_lease_holder", "This endpoint does not hold the deployment's live lease.");
     }
+    // ...and the lease holder must be a host the relay holds ELIGIBLE (U7): a deployment's secrets never leave for a
+    // host the relay would not route its traffic to. A context without the verdict refuses: unknown is not permission.
+    const el = typeof ctx.hostEligibility === "function" ? ctx.hostEligibility(epId) : null;
+    if (!el || el.eligible !== true) {
+      console.error(`[secrets] ${endpoint} fetch REFUSED for ${id}: the lease holder is not an eligible host (${el ? el.reason : "no eligibility verdict"})`);
+      return bad(ctx, res, req, 403, "host_ineligible",
+        `This endpoint holds the lease but is not eligible to serve tenant apps${el && el.reason ? ": " + el.reason : ""}.`);
+    }
     const { rev, env } = readSecrets(id);
     // SUCCESS is logged too, and that is the point of this pair rather than a
     // nicety. A launch that comes up without its secrets looks identical from

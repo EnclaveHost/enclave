@@ -109,6 +109,8 @@ function openListener(origin, id, address, port) {
     let f = L.flows.get(fk);
     if (!f) {
       if (flowCount >= MAX_FLOWS) return;                 // shed load rather than sprawl
+      // U7: a flow opens only toward a host the api-relay holds ELIGIBLE right now; the datagram is dropped otherwise
+      if (!fleet.eligibleOriginSync(L.origin)) return;
       f = { ws: null, buf: [], bufBytes: 0, caddr: rinfo.address, cport: rinfo.port, timer: null, hsTimer: null };
       L.flows.set(fk, f); flowCount++;
       const ws = new WebSocket(`${wsOrigin(L.origin)}/x/${encodeURIComponent(id)}/udp/${port}`, { perMessageDeflate: false });
@@ -121,6 +123,8 @@ function openListener(origin, id, address, port) {
       ws.on("message", (d, isBinary) => { if (isBinary || d.length) { try { sock.send(d, f.cport, f.caddr); } catch {} bump(L, fk, f); } });
       ws.on("close", () => dropFlow(L, fk));
       ws.on("error", () => dropFlow(L, fk));
+      // U7: the flow lives only while the host stays eligible; a poll that finds it no longer is drops it
+      f.release = fleet.holdWhileEligible(L.origin, () => dropFlow(L, fk));
     }
     if (f.ws.readyState === WebSocket.OPEN) f.ws.send(data);
     else {                                                // pre-open: cap the buffer, drop OLDEST past it
@@ -138,6 +142,7 @@ function dropFlow(L, fk) {
   const f = L.flows.get(fk); if (!f) return;
   clearTimeout(f.timer); clearTimeout(f.hsTimer); try { f.ws && f.ws.terminate(); } catch {}
   L.flows.delete(fk); flowCount--;
+  f.release?.();
 }
 function closeListener(key) {
   const L = listeners.get(key); if (!L) return;
@@ -184,6 +189,7 @@ async function poll() {
 }
 
 await fleet.start();
+await fleet.startEligibility();
 await poll();
 setInterval(poll, POLL_MS);
 console.log(`[udp-relay] polling /v1/udp-map across the fleet every ${POLL_MS / 1000}s`);

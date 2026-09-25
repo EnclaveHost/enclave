@@ -912,6 +912,17 @@ export async function handleCerts(req, res, u, ctx) {
     return bad(ctx, res, req, 403, "not_lease_holder", "This endpoint does not hold the deployment's live lease.");
   }
 
+  // 6b. the lease holder must be a host the relay holds ELIGIBLE (U7). The chain says who runs the deployment the label
+  //     names; it never makes that host fit to serve it. Checked BEFORE the cache, the in-flight order resume and a new
+  //     order alike, so an ineligible holder gets no certificate by any of the three. A context without the verdict
+  //     (hostEligibility) refuses: unknown is not permission.
+  const el = typeof ctx.hostEligibility === "function" ? ctx.hostEligibility(epId) : null;
+  if (!el || el.eligible !== true) {
+    console.error(`[certs] ${endpoint} REFUSED for ${name}: the lease holder is not an eligible host (${el ? el.reason : "no eligibility verdict"})`);
+    return bad(ctx, res, req, 403, "host_ineligible",
+      `This endpoint holds the lease but is not eligible to serve tenant apps${el && el.reason ? ": " + el.reason : ""}.`);
+  }
+
   // 7. cache
   const key = cacheKey(name, spkiHash);
   const hit = store.data.certs[key];

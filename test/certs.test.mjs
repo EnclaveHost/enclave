@@ -254,7 +254,12 @@ const ctx = {
   // every https://enclaveN.example is "this box" (later tests take a fresh N to sidestep the per-endpoint pacing bucket)
   endpointIdOf: async (ep) => (/^https:\/\/enclave\d+\.example$/.test(ep) ? RUNNER : "0x" + "ee".repeat(32)),
   operatorOfEndpoint: async () => epOwner,
+  // U7: the relay's eligibility verdict for a lease holder's endpoint id (api-relay.js hostEligibility). Every test runs
+  // with the lease holder ELIGIBLE unless it says otherwise; the U7 tests at the end flip it.
+  hostEligibility: (epId) => (INELIGIBLE.has(String(epId).toLowerCase())
+    ? { eligible: false, reason: "its attestation document presents no confidential CPU" } : { eligible: true, reason: null }),
 };
+const INELIGIBLE = new Set();
 const leaseRow = (over = {}) => ({ id: ID, owner: OTHER.address, runner: RUNNER, leaseUntil: BigInt(Math.floor(Date.now() / 1000) + 1800), ...over });
 const now = () => Math.floor(Date.now() / 1000);
 // every body gets a distinct, strictly increasing ts inside the skew window:
@@ -880,4 +885,58 @@ test("disabled module answers 503 certs_disabled", async () => {
   const res = {};
   await m.handleCerts({ method: "POST", body: {} }, res, new URL("http://x/v1/certs/issue"), ctx);
   assert.equal(res.code, 503); assert.equal(res.body.error, "certs_disabled");
+});
+
+// ---- U7: the lease holder must be a host the relay holds ELIGIBLE ------------------------------------------------------
+// The chain names who runs the deployment; it never makes that host fit to serve it. relay/certs.js asks the relay's
+// verdict (hostEligibility) AFTER the lease check and BEFORE the cache, the in-flight order resume and a new order, so an
+// ineligible holder gets a certificate by none of the three, and the refusal leaves the store untouched.
+test("U7: an INELIGIBLE lease holder gets no certificate: not a resumed in-flight order, not a cached one, not a fresh order", async () => {
+  EP = "https://enclave91.example";                          // a fresh per-endpoint pacing bucket
+  rows = [leaseRow()];
+  const key = await genKey(), keyOf = (h) => `${NAME}|${h}`;
+  const h = await spkiHashOf(await csrFor(NAME, { key }));
+  ca1.slowFinalizeMs = 4000;                                // the order is still processing when the sync window ends
+  const o1 = ca1.calls.newOrder, o2 = ca2.calls.newOrder || 0;
+  let r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 202, JSON.stringify(r.body));
+  assert.ok(_internals.store().data.orders[keyOf(h)], "the in-flight order is persisted");
+  // the holder loses eligibility while its order is in flight
+  INELIGIBLE.add(RUNNER);
+  await new Promise((s) => setTimeout(s, 1700));           // the CA finishes the order meanwhile
+  r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 403, JSON.stringify(r.body)); assert.equal(r.body.error, "host_ineligible");
+  assert.match(r.body.message, /not eligible to serve tenant apps: its attestation document presents no confidential CPU/);
+  assert.equal(ca1.calls.newOrder, o1 + 1, "no new order"); assert.equal(ca2.calls.newOrder || 0, o2, "no fallover either");
+  assert.ok(_internals.store().data.orders[keyOf(h)], "the in-flight order was NOT resumed: it is still in the store");
+  // eligible again: the untouched order resumes (one order in all), and the certificate is cached
+  INELIGIBLE.delete(RUNNER);
+  r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 200, JSON.stringify(r.body)); assert.equal(r.body.cached, false);
+  assert.equal(ca1.calls.newOrder, o1 + 1, "resumed, not re-ordered");
+  // a CACHED certificate is not served to an ineligible holder either
+  INELIGIBLE.add(RUNNER);
+  r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 403, JSON.stringify(r.body)); assert.equal(r.body.error, "host_ineligible");
+  INELIGIBLE.delete(RUNNER);
+  r = await call(await body({ csr: await csrFor(NAME, { key }) }));
+  assert.equal(r.code, 200); assert.equal(r.body.cached, true, "the refusal left the cache as it was");
+  assert.equal(ca1.calls.newOrder, o1 + 1);
+  ca1.slowFinalizeMs = 0; await settle();
+});
+
+test("U7: a relay context with no eligibility verdict refuses (unknown is not permission), and the verdict asked is the lease holder's", async () => {
+  EP = "https://enclave92.example";
+  rows = [leaseRow()];
+  const saved = ctx.hostEligibility, asked = [];
+  delete ctx.hostEligibility;
+  const o1 = ca1.calls.newOrder;
+  let r = await call(await body({ csr: await csrFor(NAME) }));
+  assert.equal(r.code, 403, JSON.stringify(r.body)); assert.equal(r.body.error, "host_ineligible");
+  assert.equal(ca1.calls.newOrder, o1, "nothing ordered");
+  ctx.hostEligibility = (epId) => { asked.push(epId); return saved(epId); };
+  r = await call(await body({ csr: await csrFor(NAME) }));
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.deepEqual([...new Set(asked)], [RUNNER], "the verdict is asked for the requesting endpoint's id, the lease holder");
+  ctx.hostEligibility = saved;
 });

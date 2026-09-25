@@ -315,7 +315,7 @@ test("api-relay: live enclave rows merge with ledger-only rows, deduped by id", 
                    resources: { gpuShare: 0, cpuShare: 0.01 } };
   const enclave = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     if (req.url === "/v1/deployments" && req.method === "GET") return res.end(JSON.stringify({ data: [hosted], cursor: null }));
     res.statusCode = 404; res.end("{}");
   });
@@ -408,7 +408,7 @@ test("api-relay: a free self-hosted row reads queued, never awaiting_payment or 
 test("api-relay: a fleet-wide 401 propagates instead of falling back to ledger rows", async (t) => {
   const enclave = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5 }));
+    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     res.statusCode = 401; res.end(JSON.stringify({ error: "unauthorized", message: "bad token" }));
   });
   enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
@@ -431,7 +431,7 @@ test("api-relay: a leased id missing from its live runner's own list downgrades 
                    resources: { gpuShare: 0.35, cpuShare: 0.01 } };
   const enclave = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: true, gpuShareFree: 0.14, cpuShareFree: 0.9 }));
+    if (req.url === "/availability") return res.end(JSON.stringify({ gpu: true, gpuShareFree: 0.14, cpuShareFree: 0.9, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     if (req.url === "/v1/deployments" && req.method === "GET") return res.end(JSON.stringify({ data: [hosted], cursor: null }));
     res.statusCode = 404; res.end("{}");
   });
@@ -539,19 +539,22 @@ test("api-relay: an ambiguous id prefix resolves to nobody, not to whoever answe
   const TWIN_A = "0xabcdef01" + "11".repeat(28);
   const TWIN_B = "0xabcdef01" + "22".repeat(28);
   const LONE   = "0x0fedcba9" + "33".repeat(28);
-  const ledger = [
-    { id: TWIN_A, owner: OWNER, appRef: "ipfs://a", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
-    { id: TWIN_B, owner: OTHER, appRef: "ipfs://b", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
-    { id: LONE,   owner: OWNER, appRef: "ipfs://c", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
-  ];
-  // an enclave that claims EVERY id it is probed for — the hostile-answer case
+  // an enclave that claims EVERY id it is probed for — the hostile-answer case. It presents the evidence a serving
+  // host needs (U7: routing, like placement, goes only to an eligible host) and holds the LONE deployment's lease.
   const enclave = http.createServer((req, res) => {
     if (req.url === "/availability") { res.setHeader("content-type", "application/json");
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 })); }
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" })); }
     res.statusCode = 200; res.end("served");
   });
   enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
   t.after(() => enclave.close());
+  const { keccak256, stringToBytes } = await import("viem");
+  const ledger = [
+    { id: TWIN_A, owner: OWNER, appRef: "ipfs://a", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
+    { id: TWIN_B, owner: OTHER, appRef: "ipfs://b", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
+    { id: LONE,   owner: OWNER, appRef: "ipfs://c", active: true, isPublic: true, balance6: 5_000_000, spent6: 0,
+      runner: keccak256(stringToBytes(`http://127.0.0.1:${enclave.address().port}`)), leaseUntil: FUTURE },
+  ];
 
   const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${enclave.address().port}`, ledger,
                                        env: { APP_DOMAIN: "app.enclave.host" } });
@@ -585,14 +588,11 @@ test("api-relay: an ambiguous id prefix resolves to nobody, not to whoever answe
 // human restarted it (live 2026-08-08). The proxy must close its upstream leg
 // the moment the client goes away.
 test("api-relay: a client that dies mid-stream takes the enclave leg down with it", async (t) => {
-  const XID = "0x99" + "44".repeat(28);
-  const ledger = [
-    { id: XID, owner: OWNER, appRef: "ipfs://sse", active: true, isPublic: true, balance6: 5_000_000, spent6: 0 },
-  ];
+  const XID = "0x99" + "44".repeat(31);                  // a full 32-byte id: the ledger row must match it (U7: no probe for on-chain ids)
   let upstreamClosed = false;
   const enclave = http.createServer((req, res) => {
     if (req.url === "/availability") { res.setHeader("content-type", "application/json");
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 })); }
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" })); }
     if (req.method === "HEAD") { res.statusCode = 200; return res.end(); }  // the ownership probe
     // the app: an endless SSE stream. Ticks every 25ms keep bytes MOVING so
     // the relay's idle timeout can never be what cleans this up - only the
@@ -603,6 +603,12 @@ test("api-relay: a client that dies mid-stream takes the enclave leg down with i
   });
   enclave.listen(0, "127.0.0.1"); await once(enclave, "listening");
   t.after(() => enclave.close());
+  // U7: the stream's deployment is leased to this (eligible) box; an unleased on-chain id no longer routes by probe
+  const { keccak256, stringToBytes } = await import("viem");
+  const ledger = [
+    { id: XID, owner: OWNER, appRef: "ipfs://sse", active: true, isPublic: true, balance6: 5_000_000, spent6: 0,
+      runner: keccak256(stringToBytes(`http://127.0.0.1:${enclave.address().port}`)), leaseUntil: FUTURE },
+  ];
 
   const origin = await startRelay(t, { enclaves: `http://127.0.0.1:${enclave.address().port}`, ledger });
 
@@ -712,8 +718,8 @@ test("api-relay: the on-chain runner outranks a cached owner, so a moved deploym
   const ID66 = ID("66");
   const mk = (label, hosts) => http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability")
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    if (req.url === "/availability")    // both hosts present the evidence a serving host needs (U7)
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" }));
     // the deployment-scoped call: the previous host has nothing left to serve
     if (req.url.startsWith(`/v1/deployments/${ID66}`)) {
       if (!hosts) { res.statusCode = 404; return res.end(JSON.stringify({ code: "not_found", message: "No such deployment." })); }
@@ -761,8 +767,8 @@ test("api-relay: a runner's 404/401 on a bare record read falls back to the ledg
   let answer = "miss";                       // miss | badsession | hosted
   const box = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
-    if (req.url === "/availability")
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+    if (req.url === "/availability")    // the evidence a serving host needs (U7: control-plane forwarding is gated too)
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" }));
     if (req.url.split("?")[0] === `/v1/deployments/${ID66}`) {
       if (answer === "miss")       { res.statusCode = 404; return res.end(JSON.stringify({ code: "not_found", message: "No such deployment." })); }
       if (answer === "badsession") { res.statusCode = 401; return res.end(JSON.stringify({ code: "unauthorized", message: "Missing or invalid session." })); }
@@ -827,7 +833,7 @@ test("api-relay: two enclaves claiming one deployment yield ONE row, the on-chai
   const mk = (label, status) => http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
     if (req.url === "/availability")
-      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32 }));
+      return res.end(JSON.stringify({ gpu: false, cpuShareFree: 0.5, nodeVcpus: 8, nodeRamGb: 32, teeCpu: "amd-sev-snp" }));   // U7: the session list fans out to eligible hosts only
     if (req.url.split("?")[0] === "/v1/deployments")
       return res.end(JSON.stringify({ data: [{ id: ID66, status, enclave: label }], cursor: null }));
     res.statusCode = 404; res.end("{}");
