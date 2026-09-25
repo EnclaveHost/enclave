@@ -31,6 +31,23 @@ export { createIndexMemory };
 export { webStorageStore, memoryStore } from "./index-memory.mjs";
 import PINNED_TRUSTED_ROOT from "./roots/sigstore-trusted-root.json" with { type: "json" };
 
+// The attested-release relay's judgement of a per-app guest's release document (relay/secrets-release.mjs, ctx
+// verifyGuestEvidence): the SNP domain path only, exactly verifier/index.mjs verifyEvidence's SNP branch, so the relay (which
+// ships relay/** only) runs the same verdict as the harness. Anything but sev-snp-guest-domain-v1 is "unsupported", never
+// green; a malformed envelope is "rejected".
+export async function verifyGuestDomainEvidence(doc, { policy = {}, context = {}, collateral = null } = {}) {
+  let env;
+  try { env = parseEnvelope(doc); }
+  catch (e) {
+    if (!(e instanceof EnvelopeError)) throw e;
+    return { status: e.code === "unsupported" ? "unsupported" : "rejected", admissionSafe: false, omissions: [], technology: FORMATS[doc?.format]?.technology ?? null,
+             reasons: [`${e.code.toUpperCase()}: ${e.message}`], checks: {}, claims: null };
+  }
+  if (env.spec.technology !== TECH.SNP || env.format !== "sev-snp-guest-domain-v1")
+    return { status: "unsupported", admissionSafe: false, omissions: [], technology: env.spec.technology, reasons: [`UNSUPPORTED: a release document is sev-snp-guest-domain-v1, not ${env.format}`], checks: {}, claims: null };
+  return { technology: env.spec.technology, ...(await verifySnp(env, policy.snp || {}, context, collateral)) };
+}
+
 export const RAD_PATH = "/.well-known/tinfoil-attestation";
 export const DEFAULT_REPO = DEFAULT_RELEASE_POLICY.repository;
 export const FLAVOR_SUFFIXES = Object.freeze(["", "-cpu", "-gpu8"]);

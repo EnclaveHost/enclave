@@ -1,8 +1,8 @@
 {
  "artifact": {
   "file": "enclave-verifier-node.mjs",
-  "bytes": 402187,
-  "sha256": "fb091bb2e67ee1ffd07b1fe242b6867e0f7b3639cb0677ebd2d7bd49000fad88"
+  "bytes": 405511,
+  "sha256": "fd2d5dc7360ac4a54a83283922be5a756165d4346ede5df13e028529c1366e04"
  },
  "build": {
   "tool": "esbuild",
@@ -18,314 +18,314 @@
  },
  "inputs": [
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/asn1/error.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/error.js",
    "bytes": 789,
    "sha256": "486dd55edf920a8870856ad7f78618055d11160415e8e9df14d0d53b94be21ff"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/asn1/index.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/index.js",
    "bytes": 734,
    "sha256": "a7858f7bb911891d1cf21e100843b85e7d220782dfcad10b192164e2b2ce85df"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/asn1/length.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/length.js",
    "bytes": 2375,
    "sha256": "c80f715c9dbfee29720f6aa7b07a839ec4ba4f67b8a53ef7c5468efbc616004d"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/asn1/obj.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/obj.js",
    "bytes": 5607,
    "sha256": "3a2ec8e7a4bf535bc8363c5069db3688ac74c895d75257eeea1da2d85a55cf5a"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/asn1/parse.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/parse.js",
    "bytes": 4542,
    "sha256": "d8208bdce0f8e96073d87b7d9b4dc5afc01e364e5ee9f3e75eaecb12b16cf7da"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/asn1/tag.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/asn1/tag.js",
    "bytes": 2682,
    "sha256": "d0849dd712b87d98533f561132ca628c80c5e94de6d79ae99d8b052e780903c5"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/canonicalize.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/canonicalize.js",
    "bytes": 2217,
    "sha256": "ef41a2ef1754bf16c41a3950ae2291a5138fad4f964c4b6e708d02e4b78f830d"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/crypto.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/crypto.js",
    "bytes": 14024,
    "sha256": "f17d58a164d3da70891d5d75d10760951222801cfc35334f505b0db65439dea1"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/encoding.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/encoding.js",
    "bytes": 2291,
    "sha256": "e4c8bbdfa30160d1a8ac1a32b8be14c607c4a67cfca6aae0346b48582289c51b"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/index.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/index.js",
    "bytes": 378,
    "sha256": "1628250da1499ac968925c595426f87546932c7c7d806a8824839ca074a30bc0"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/interfaces.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/interfaces.js",
    "bytes": 977,
    "sha256": "75a67acf5ba9a00e59b3a1185c3b9f5ede3478f077b032f7b14c9c2cc226bc8f"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/pem.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/pem.js",
    "bytes": 1689,
    "sha256": "4f0df2207fbae140fe82ff0ab21da99dedef7eebc7dccca561f9873f19bb3a16"
   },
   {
-   "path": "node_modules/@freedomofpress/crypto-browser/dist/stream.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/crypto-browser/dist/stream.js",
    "bytes": 3156,
    "sha256": "27267e7ced1f3d44d2a47f8232669c5e59cf3afcf0340daa77f40d4b108cf680"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/dsse.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/dsse.js",
    "bytes": 1564,
    "sha256": "6e38ed7f94ec433bebea818964e8b1207e231f37791eef7f09d77cd15d155817"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/errors.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/errors.js",
    "bytes": 2399,
    "sha256": "322bec5f946bbc89d753aa7f0c7359e53fb26b1e9ec4845289d005012e3ce09e"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/index.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/index.js",
    "bytes": 2587,
    "sha256": "0699d6f4ff64e90f74dafc36ba991eb717a073069bc77bd5f3d73875988a4f6d"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/interfaces.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/interfaces.js",
    "bytes": 1210,
    "sha256": "959e9fefdfa74e1d21560166212955df5d0c89e28d378bb60c1456302e23f7b6"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/oid.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/oid.js",
    "bytes": 1184,
    "sha256": "7e47c151e4cf5f19c6d01013d3dc4a78fd4d035afbef5375a72d7416606d29db"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/policy.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/policy.js",
    "bytes": 14754,
    "sha256": "8aa19bddc742826706800ff4e9b9d83ba39600e19f128ac954163cb9a7c0046f"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/error.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/error.js",
    "bytes": 666,
    "sha256": "115787923a8bc3b42609f704c8aa7b8a3ea4e2480378faf4e0419fb59abf9048"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/index.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/index.js",
    "bytes": 652,
    "sha256": "27570b0e85f65601cd33b207619d2c4ffa396222471b1d98423cb4d4f70dd1f9"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/timestamp.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/timestamp.js",
    "bytes": 8456,
    "sha256": "0dd6fc2d26318ac65c9d08bd1ad6257ae0ed13944a7ca5aa972137cde37a2f39"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/tstinfo.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/rfc3161/tstinfo.js",
    "bytes": 2268,
    "sha256": "6f06f64386e5ae4a1394d96ce3502838a4af86c9be32523ebbf7c2fc13e1a7a5"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/sigstore.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/sigstore.js",
    "bytes": 36100,
    "sha256": "a0971faf842d24778f43d30c42ae6c38094561385bba1206fb7d8159924f551a"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/timestamp/tsa.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/timestamp/tsa.js",
    "bytes": 7011,
    "sha256": "3922b63e9fe9a7802a1b039153e41dc5e6e21dae98c51b0fe7a659718d69ef1a"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/tlog/body.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/body.js",
    "bytes": 1843,
    "sha256": "bf5c22fb0799e5941ab6d3aee72e9f4c57f68b67295ba6c6171177865807deae"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/tlog/checkpoint.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/checkpoint.js",
    "bytes": 7791,
    "sha256": "6f817ea7fcafcdad3b672d1cb5f6e3ecb41e1d0e82c3541dffd43cd5851e18b2"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/tlog/dsse.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/dsse.js",
    "bytes": 4122,
    "sha256": "a9d9f761bb55b94e2cce741b0073a1a138d4674a39de243afdacc7af2097f0e7"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/tlog/hashedrekord.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/hashedrekord.js",
    "bytes": 3144,
    "sha256": "1db1b12ef2d55c9f0b52c998f27c20f43d10adb5951e9cb4237d69ac441ed2a1"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/tlog/intoto.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/intoto.js",
    "bytes": 2831,
    "sha256": "8fbdee10dcc5ddf99d1e6d5323ff74c142abdb490cbb68a3b457a8f35677347e"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/tlog/merkle.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/tlog/merkle.js",
    "bytes": 4748,
    "sha256": "ecc617208697635db7a4fe1281698849ed198a929ae918e3d479dc0f4323c3df"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf-root.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf-root.js",
    "bytes": 7817,
    "sha256": "c07c3cf0242ba8a582c7b7e16ffebb421ed0da97b2db064450964615646ec99d"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/trust/tuf.js",
    "bytes": 5742,
    "sha256": "b95aa6f35081b04a14d27eab8e86368e30d11463f1437c74449f472e7e14c1ec"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/x509/cert.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/cert.js",
    "bytes": 20955,
    "sha256": "1ac0c8d0311a36be2ad08d01902423410507d6191454387d9fb181ec00788103"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/x509/chain.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/chain.js",
    "bytes": 5459,
    "sha256": "d24b5f44bb0b08197c36d28611f1e80b060dc82e8c43980cf2148c779bb77c70"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/x509/ext.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/ext.js",
    "bytes": 10650,
    "sha256": "215b76dd04448c07729ee2c34350d388672dee84a5dcd57ee5c42755e9d2581c"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/x509/index.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/index.js",
    "bytes": 765,
    "sha256": "ea7d4b1b51ee49e404a80dda824d2aa43c5d83702a32260859cb5a3f2e3776ee"
   },
   {
-   "path": "node_modules/@freedomofpress/sigstore-browser/dist/x509/sct.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/sigstore-browser/dist/x509/sct.js",
    "bytes": 4726,
    "sha256": "61a597e19885cab12777e874c94b4312049a1402fc2960bbee55b8fc9f8c1f4e"
   },
   {
-   "path": "node_modules/@freedomofpress/tuf-browser/dist/crypto.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/crypto.js",
    "bytes": 4228,
    "sha256": "8b065f354a95da3555691c9db1f83d2b36f7bae825cd20d33101ec08b95a0b64"
   },
   {
-   "path": "node_modules/@freedomofpress/tuf-browser/dist/storage/browser.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/browser.js",
    "bytes": 714,
    "sha256": "91859aaa713b510724c8540e41977ddb96e2e5f8c6b9096edc4b31f0ae12717a"
   },
   {
-   "path": "node_modules/@freedomofpress/tuf-browser/dist/storage/encoding.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/encoding.js",
    "bytes": 703,
    "sha256": "0a49b5a19f0c69b8b51420028aaa7ab034134dc304addb9bb5100a6a782911e2"
   },
   {
-   "path": "node_modules/@freedomofpress/tuf-browser/dist/storage/localstorage.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/localstorage.js",
    "bytes": 751,
    "sha256": "174c4da6d156817382774a203dee410f1003401cb0f395161fb617574c24a142"
   },
   {
-   "path": "node_modules/@freedomofpress/tuf-browser/dist/storage/memory.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/storage/memory.js",
    "bytes": 694,
    "sha256": "2f7a182ed970182c88b3e21ff6439bd8b7c2bde58d59da8e39ff67a861a9ce58"
   },
   {
-   "path": "node_modules/@freedomofpress/tuf-browser/dist/tuf.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/tuf.js",
    "bytes": 22808,
    "sha256": "72367000eef96e2a96cef360b518ed878e3481c7378047d749973830cc94290e"
   },
   {
-   "path": "node_modules/@freedomofpress/tuf-browser/dist/types.js",
+   "path": "../enclave-verifier/node_modules/@freedomofpress/tuf-browser/dist/types.js",
    "bytes": 484,
    "sha256": "c284f79316f6d0962915b4d0f2d3e7379dce3303789952af92e2f4fbe9b50980"
   },
   {
-   "path": "node_modules/@noble/curves/esm/_shortw_utils.js",
+   "path": "../enclave-verifier/node_modules/@noble/curves/esm/_shortw_utils.js",
    "bytes": 742,
    "sha256": "094e48b0cc55194c806e67bbb039622929d1380a424c3c24007bde12cd9eaad3"
   },
   {
-   "path": "node_modules/@noble/curves/esm/abstract/curve.js",
+   "path": "../enclave-verifier/node_modules/@noble/curves/esm/abstract/curve.js",
    "bytes": 16444,
    "sha256": "e3d7d63e98ab0911cf9d66fb4cdecabc729ef2b2bcf93dcc065cf8970f118577"
   },
   {
-   "path": "node_modules/@noble/curves/esm/abstract/edwards.js",
+   "path": "../enclave-verifier/node_modules/@noble/curves/esm/abstract/edwards.js",
    "bytes": 19997,
    "sha256": "aaa62e281983d32802e2ccf8bc2e4eaf337ac372ddfe6f9757c5535d86a09215"
   },
   {
-   "path": "node_modules/@noble/curves/esm/abstract/hash-to-curve.js",
+   "path": "../enclave-verifier/node_modules/@noble/curves/esm/abstract/hash-to-curve.js",
    "bytes": 7543,
    "sha256": "8621c317318f0a851dcf2153480be811009485dd6114727523a8ed0a8686f1a9"
   },
   {
-   "path": "node_modules/@noble/curves/esm/abstract/modular.js",
+   "path": "../enclave-verifier/node_modules/@noble/curves/esm/abstract/modular.js",
    "bytes": 18279,
    "sha256": "85ab136f068217c8a9ec7cda62a6e429e67fe96684297075761b1005ae76bc09"
   },
   {
-   "path": "node_modules/@noble/curves/esm/abstract/montgomery.js",
+   "path": "../enclave-verifier/node_modules/@noble/curves/esm/abstract/montgomery.js",
    "bytes": 5757,
    "sha256": "052189fcda1b07d16dde2a2a4c24873dd81f245d8f8926a58d6592c58531aa5f"
   },
   {
-   "path": "node_modules/@noble/curves/esm/abstract/utils.js",
+   "path": "../enclave-verifier/node_modules/@noble/curves/esm/abstract/utils.js",
    "bytes": 12626,
    "sha256": "ea47b9f98a7f92f2a5d4272fb98cb8cd440dc054819b9defb30d153e4677895c"
   },
   {
-   "path": "node_modules/@noble/curves/esm/abstract/weierstrass.js",
+   "path": "../enclave-verifier/node_modules/@noble/curves/esm/abstract/weierstrass.js",
    "bytes": 52500,
    "sha256": "cdc650e13a4b3e26699fcfd6d85b4a816f159efd16fb0905411495b57dce485f"
   },
   {
-   "path": "node_modules/@noble/curves/esm/ed25519.js",
+   "path": "../enclave-verifier/node_modules/@noble/curves/esm/ed25519.js",
    "bytes": 22111,
    "sha256": "e443dab6f5160ff9a91991554734758791b8eb91f15b5058b53c40477e1bc098"
   },
   {
-   "path": "node_modules/@noble/curves/esm/nist.js",
+   "path": "../enclave-verifier/node_modules/@noble/curves/esm/nist.js",
    "bytes": 5100,
    "sha256": "d5f02bf83519e089eaa4b30014a4dc9a7e29a7f4625f9cabd682e27b81db16ab"
   },
   {
-   "path": "node_modules/@noble/hashes/esm/_md.js",
+   "path": "../enclave-verifier/node_modules/@noble/hashes/esm/_md.js",
    "bytes": 6192,
    "sha256": "cefb1557e7715cb2117c83f82ef3e3175c7e0391c80bd5795b2d4effc45fc582"
   },
   {
-   "path": "node_modules/@noble/hashes/esm/_u64.js",
+   "path": "../enclave-verifier/node_modules/@noble/hashes/esm/_u64.js",
    "bytes": 3081,
    "sha256": "e48c0cfc10810439a4807b46db136ce603a3fa09b62584f513ef2f3ca496af54"
   },
   {
-   "path": "node_modules/@noble/hashes/esm/cryptoNode.js",
+   "path": "../enclave-verifier/node_modules/@noble/hashes/esm/cryptoNode.js",
    "bytes": 482,
    "sha256": "26f80c6a85b6ef7bfd83b99d95b2b5ba8764397b9465feff32e81ba4e6416619"
   },
   {
-   "path": "node_modules/@noble/hashes/esm/hmac.js",
+   "path": "../enclave-verifier/node_modules/@noble/hashes/esm/hmac.js",
    "bytes": 2962,
    "sha256": "a330af1af3fb00ebdbba2f023dd5e023aa367669081cd51c7d172eb499533d0b"
   },
   {
-   "path": "node_modules/@noble/hashes/esm/sha2.js",
+   "path": "../enclave-verifier/node_modules/@noble/hashes/esm/sha2.js",
    "bytes": 16832,
    "sha256": "e729088b82e5450bff54c3a0013582aa42e1fe8f58dd31f5967f6ebe34c52299"
   },
   {
-   "path": "node_modules/@noble/hashes/esm/utils.js",
+   "path": "../enclave-verifier/node_modules/@noble/hashes/esm/utils.js",
    "bytes": 10538,
    "sha256": "4cf4c1e05affedcb4fd584a43d76ae1a3711e34a36e2251b90c27e33ecc74fad"
   },
   {
    "path": "relay/snp-verify.mjs",
-   "bytes": 23901,
-   "sha256": "f6a32dfbe56d9050802c63819bef622d3800233e1e70d795cf98f6668a86e8de"
+   "bytes": 24620,
+   "sha256": "ee5a45f8e160fe48ca515dc9ed2ce21553dc0d47aac20923bc89d53f6414dbef"
   },
   {
    "path": "verifier/collateral-cache.mjs",
@@ -339,8 +339,8 @@
   },
   {
    "path": "verifier/consumer.mjs",
-   "bytes": 31957,
-   "sha256": "30c2bfb089ca1029fea7c79e44121e7d1be5088d319958ca4711b7b7898895f5"
+   "bytes": 33273,
+   "sha256": "59a301bb99a7aebf994bb4f99bf1645e08cd7989484ae2b72af1701b8cb9b7e1"
   },
   {
    "path": "verifier/der.mjs",

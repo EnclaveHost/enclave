@@ -361,6 +361,44 @@ test("the catalog read: every configured RPC is read and all must agree; one lyi
   assert.equal(r.code, "catalog_unreachable"); assert.match(r.reason, /disagree/);
 });
 
+test("fetchVerified: a config CID through the platform's fetcher; a raw-CID answer kept and re-verified; refusals, and no known-answer gate", async () => {
+  const bytes = Buffer.from('{"config":"synthetic"}');
+  const A32 = "abcdefghijklmnopqrstuvwxyz234567";
+  const raw = Buffer.concat([Buffer.from([1, 0x55, 0x12, 0x20]), createHash("sha256").update(bytes).digest()]);
+  let bits = 0, v = 0, cid = "b";
+  for (const x of raw) { v = (v << 8) | x; bits += 8; while (bits >= 5) { cid += A32[(v >>> (bits - 5)) & 31]; bits -= 5; } }
+  if (bits) cid += A32[(v << (5 - bits)) & 31];
+  let down = false;
+  // a known-answer test that would FAIL: fetchVerified does not depend on it (it measures nothing)
+  const { p, tools } = predictor({ tools: {
+    "fetch-cid.py": (a) => (a[2] === cid ? (down ? { code: 1, out: "", err: "gateway down" } : (fs.writeFileSync(a[3], bytes), { code: 0, out: "ok", err: "" }))
+                          : a[2] === "bafkreinotfetchedatall" ? { code: 1, out: "", err: "fetch/verify failed: not found" } : null),
+    "expected-measurement.sh": () => ({ code: 1, out: "", err: "broken" }) } });
+  const r = await p.fetchVerified(cid);
+  assert.equal(r.ok, true, JSON.stringify(r)); assert.deepEqual(r.bytes, bytes);
+  down = true;
+  const again = await p.fetchVerified(cid);
+  assert.equal(again.ok, true, "served from the kept copy, re-verified against its CID");
+  assert.equal(tools.calls.filter((c) => c.script === "fetch-cid.py").length, 1);
+  const nope = await p.fetchVerified("bafkreinotfetchedatall");
+  assert.equal(nope.ok, false); assert.equal(nope.code, "unavailable");
+  assert.equal((await p.fetchVerified("not a cid!")).code, "bad_cid");
+  assert.equal(tools.calls.filter((c) => c.script === "expected-measurement.sh").length, 0, "no measurement ran");
+});
+
+test("versionConfigReader: the version's inline config and configCid through agreeing RPCs; a revert on versionConfigCid is none; a disagreement refuses", async () => {
+  const mk = (over = {}) => ({ readContract: async ({ functionName }) => {
+    if (functionName === "getVersion") return { cid: CID, version: "1", vramMb: 0, gpuGflops: 0, memMb: 128, cpuGflops: 0, createdAt: 0n, verified: false, yanked: false, ports: "", approval: 1, config: over.config ?? '{"wasi":"p2"}' };
+    if (functionName === "versionConfigCid") { if (over.revert) throw Object.assign(new Error("execution reverted"), { shortMessage: "The contract function reverted." }); if (over.rpcDown) throw new Error("fetch failed"); return over.configCid ?? "bafkreiversionconfig"; }
+  } });
+  const addr = "0x" + "cc".repeat(20);
+  assert.deepEqual(await P.versionConfigReader([mk(), mk()], addr)(APPX, 3), { config: '{"wasi":"p2"}', configCid: "bafkreiversionconfig" });
+  assert.deepEqual(await P.versionConfigReader([mk({ revert: true }), mk({ revert: true })], addr)(APPX, 3), { config: '{"wasi":"p2"}', configCid: "" }, "an older catalog: no configCid");
+  await assert.rejects(P.versionConfigReader([mk(), mk({ configCid: "bafkreianother" })], addr)(APPX, 3), /disagree/);
+  await assert.rejects(P.versionConfigReader([mk(), mk({ config: '{"other":1}' })], addr)(APPX, 3), /disagree/);
+  await assert.rejects(P.versionConfigReader([mk(), mk({ rpcDown: true })], addr)(APPX, 3), /fetch failed/, "a transport failure is not 'no configCid'");
+});
+
 test("runBounded: a hung tool is killed with its whole process group at the timeout; output is capped", async () => {
   const t0 = Date.now();
   const r = await P.runBounded("sh", ["-c", "sleep 30 & sleep 30; echo never"], { env: { PATH: process.env.PATH }, timeoutMs: 300 });

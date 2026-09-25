@@ -445,7 +445,7 @@ test("snpChipsAfter: a chip set lives only across a same-key re-attach of a stil
   assert.deepEqual(snpChipsAfter(undefined, { keyFp: "k1" }), [], "a measurement-only attach proves none");
 });
 
-test("config parity with the supervisor: envelope config, then its configCid, then the version's config, then its configCid; always a JSON value", async () => {
+test("config parity with the tier: the envelope decides when it names either, else the version; within a source a configCid wins over the inline field (the manager's rule); always a JSON value", async () => {
   ineligible = false; chips = [S.chip.toString("hex")];
   const releaseC = async (envelope, version) => {
     envelopes[C] = envelope; versions[C] = version; rows = [leaseRow(C)];
@@ -459,6 +459,9 @@ test("config parity with the supervisor: envelope config, then its configCid, th
     ["the version's configCid, fetched as TEXT and parsed", "", { configCid: "bafkreiversioncid" }, { fromVersionCid: true }],
     ["the envelope's config wins over the version's", JSON.stringify({ config: { mine: true } }), { config: '{"fromVersion":1}' }, { mine: true }],
     ["the envelope's configCid wins over the version's", JSON.stringify({ configCid: "bafkreisyntheticcid" }), { config: '{"fromVersion":1}' }, { resolved: true, key: "${JOT_API_KEY}" }],
+    ["a rev-7 large-config version: the inline field is the routing manifest, the configCid is the config", "", { config: '{"wasi":"p2"}', configCid: "bafkreiversioncid" }, { fromVersionCid: true }],
+    ["an envelope naming both: its configCid wins, as in the manager", JSON.stringify({ config: { manifest: true }, configCid: "bafkreisyntheticcid" }), { config: '{"fromVersion":1}' }, { resolved: true, key: "${JOT_API_KEY}" }],
+    ["an envelope naming only config overrides the version's configCid", JSON.stringify({ config: { mine: 2 } }), { configCid: "bafkreiversioncid" }, { mine: 2 }],
     ["no config anywhere: null", "", null, null],
     ["a version with an empty config: null", "", { config: "" }, null],
   ];
@@ -527,6 +530,36 @@ test("the signing seed from its own file (SECRETS_RELEASE_SIGNING_KEY_FILE): own
     if (saved.f === undefined) delete process.env.SECRETS_RELEASE_SIGNING_KEY_FILE; else process.env.SECRETS_RELEASE_SIGNING_KEY_FILE = saved.f;
     process.env.SECRETS_RELEASE_SIGNING_KEY = saved.k;
   }
+});
+
+test("the relay's VENDORED verifier (relay/vendor, verifyGuestDomainEvidence) judges a release document exactly as verifyEvidence", async () => {
+  const bundle = await import("../relay/vendor/enclave-verifier-node.mjs");
+  assert.equal(typeof bundle.verifyGuestDomainEvidence, "function", "the vendored bundle exports the guest-domain verifier");
+  const ticket = Buffer.alloc(32, 0x3c).toString("base64"), t = Buffer.from(ticket, "base64");
+  const judge = async (g, over = {}) => {
+    const binding = R.releaseBinding({ id: A, transportSpki: Buffer.from(g.evidence.transportKey, "base64"), ticket: t, runtimeId: RID, sealKey: g.sealKey });
+    const opts = { policy: { snp: { roots: new Map([["Genoa", S.arkFp]]), allowedMeasurements: ["77".repeat(48)], minTcb: FLOOR, expectedVmpl: 0 } },
+                   context: { transportKeySpki: Buffer.from(g.evidence.transportKey, "base64"), expectedBinding: binding, expectedAppId: APP, expectedHostData: R.idBytes(A),
+                              now: new Date().toISOString(), ...over }, collateral: synthCol };
+    const [a, b] = [await verifyEvidence(g.evidence, opts), await bundle.verifyGuestDomainEvidence(g.evidence, opts)];
+    return { a, b };
+  };
+  const cases = [
+    ["the honest guest", guest({ id: A, ticket }), {}, "verified"],
+    ["another deployment's HOST_DATA", guest({ id: A, ticket, hostData: B }), {}, "rejected"],
+    ["another app", guest({ id: A, ticket, appId: sha(Buffer.from("x")) }), {}, "rejected"],
+    ["Bind2 over the ticket", guest({ id: A, ticket, binding: ({ transport, t: tk }) => sha(Buffer.from("enclave-bind-v2\n"), transport, tk, RID) }), {}, "rejected"],
+    ["DEBUG allowed", guest({ id: A, ticket, debug: true }), {}, "rejected"],
+  ];
+  for (const [label, g, over, want] of cases) {
+    const { a, b } = await judge(g, over);
+    assert.equal(a.status, want, `${label}: verifyEvidence ${a.status} ${a.reasons.at(-1)}`);
+    assert.equal(b.status, a.status, `${label}: the vendored verdict ${b.status} (${b.reasons.at(-1)}) equals verifyEvidence's`);
+    assert.deepEqual(b.checks, a.checks, `${label}: the same checks`);
+  }
+  // not a release document: unsupported, never green
+  const other = await bundle.verifyGuestDomainEvidence({ format: "sev-snp-tinfoil-hosted-v1", report: "AAAA" }, {});
+  assert.notEqual(other.status, "verified"); assert.equal(other.admissionSafe, false);
 });
 
 test("rate keys: a ticket request by client IP; a release by its ticket's ENDPOINT (many guests behind one host address); an unknown ticket by IP", async () => {
