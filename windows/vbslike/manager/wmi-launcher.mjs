@@ -76,6 +76,35 @@ export const BOUNDARY = Object.freeze({
 });
 
 /**
+ * THE BOOT FORM'S NAME: ONE per form, the SIGNED report's (enclave-99's contract, "Launcher statements" in
+ * docs/security/nucbox-custom-vm-verifier.md, main ae6e9147). The Rust wmiserve signs `platform.partition` with these
+ * names, so the manager states the same ones; `guestImageKind` rides beside it through this FIXED pairing, and a judge
+ * compares BOTH for exact equality and refuses any other pairing or any unknown value (bootFormOfStatement).
+ *
+ * Neither is identity. Both are launcher statements (T0-hv, host_excluded=no): what a partition RAN is established only
+ * by the paravisor report's launch digest against the pinned allowlist, never by a name, a kind or an argument. And a
+ * uefi-medium partition never carries an isolation claim, because the medium is not measured.
+ *
+ * Keyed by the boot-form strings themselves (BOOT_UEFI, BOOT_LINUX_DIRECT below), so no forward reference is needed.
+ */
+export const BOOT_STATEMENTS = Object.freeze({
+  "uefi-medium": Object.freeze({ partition: "wmi-openhcl-gen2", guestImageKind: "uefi-medium" }),
+  "linux-direct": Object.freeze({ partition: "wmi-openhcl-gen2-igvm-linux", guestImageKind: "igvm-linux-direct" }),
+});
+/** The boot form a (partition, guestImageKind) pair states: EXACT equality with one row, else null. No prefixes. */
+export function bootFormOfStatement(partition, guestImageKind) {
+  for (const [form, st] of Object.entries(BOOT_STATEMENTS))
+    if (partition === st.partition && guestImageKind === st.guestImageKind) return form;
+  return null;
+}
+/** The boundary word for one boot form: BOUNDARY with that form's canonical partition name. */
+export function boundaryFor(boot) {
+  const st = BOOT_STATEMENTS[boot];
+  if (!st) throw new Error(`boundaryFor: unknown boot form ${JSON.stringify(boot)}`);
+  return Object.freeze({ ...BOUNDARY, partition: st.partition });
+}
+
+/**
  * The image identity for a UEFI boot: the sha256 of the MEDIUM the launcher attached, hashed AT
  * ATTACH TIME.
  *
@@ -93,9 +122,9 @@ export function uefiImageIdentity({ mediumSha256, mediumPath, ukiSha256 = null, 
   if (!/^[0-9a-f]{64}$/.test(String(mediumSha256 || "").toLowerCase()))
     throw new Error("the medium's sha256 is required, hashed at attach time: without it nothing says WHAT booted");
   const id = {
-    partition: BOUNDARY.partition,
+    partition: BOOT_STATEMENTS["uefi-medium"].partition,
     guestImageSha256: String(mediumSha256).toLowerCase(),
-    guestImageKind: "uefi-medium",
+    guestImageKind: BOOT_STATEMENTS["uefi-medium"].guestImageKind,
     guestImagePath: mediumPath ?? null,
   };
   if (ukiSha256) id.ukiSha256 = String(ukiSha256).toLowerCase();   // beside, never instead
@@ -116,8 +145,8 @@ export function linuxDirectIdentity({ igvmSha256, igvmPath = null }) {
   if (!/^[0-9a-f]{64}$/.test(String(igvmSha256 || "").toLowerCase()))
     throw new Error("the IGVM's sha256 is required: with no medium it is the only identity a linux-direct boot has");
   return Object.freeze({
-    partition: BOUNDARY.partition,
-    guestImageKind: "igvm-linux-direct",
+    partition: BOOT_STATEMENTS["linux-direct"].partition,
+    guestImageKind: BOOT_STATEMENTS["linux-direct"].guestImageKind,
     igvmSha256: String(igvmSha256).toLowerCase(),
     igvmPath: igvmPath ?? null,
   });
@@ -860,7 +889,7 @@ export class WmiHyperVLauncher {
                boot: this.boot, isolationType: 1,
                image: uefi ? guestIdentity.guestImageSha256 : null,
                ...(uefi ? {} : { imageAbsentReason: LINUX_DIRECT_IMAGE_ABSENT }),
-               guestIdentity, firmware, boundary: BOUNDARY, appId: mapping.appId,
+               guestIdentity, firmware, boundary: boundaryFor(this.boot), appId: mapping.appId,
                vtpm: { enabled: created.tpmEnabled === true, pcrsRead: false, note: VTPM_NOTE },
                definition: { recipe: "petri New-CustomVM, GuestStateIsolationType 1 (uefi-dev-boot.ps1 e0de58cf)",
                              hypervModuleSha256: created.hypervModuleSha256, hypervUtilitiesSha256: created.hypervUtilitiesSha256 ?? null,
@@ -936,6 +965,8 @@ export class WmiHyperVLauncher {
     }
     return { stopped: true, name: handle.name };
   }
+  /** The boundary word for THIS launcher's stated boot form (null until one is stated: nothing can start then). */
+  get boundary() { return this.boot ? boundaryFor(this.boot) : null; }
   async state(name) { return await this.#ps(CMD.state({ name })); }
   /** What this prefix owns right now, including anything a previous run left behind. */
   async survey() { return await this.#ps(CMD.survey({ prefix: this.prefix })); }

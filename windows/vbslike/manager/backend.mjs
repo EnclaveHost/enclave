@@ -55,6 +55,8 @@ export class HyperVPartitionBackend {
   async preflight() { return this.launcher ? await this.launcher.preflight() : null; }
   get backend() { return BACKEND; }
   get supports() { return SUPPORTS; }
+  /** The launcher's boundary word, which server.mjs carries on /health and every record (null with no launcher). */
+  get boundary() { return (this.launcher && this.launcher.boundary) ?? null; }
   /**
    * Start a domain for an already-derived mapping. Resolves to { pid, endpoint } when a partition
    * really runs; throws otherwise. It never returns a partial success.
