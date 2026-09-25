@@ -56,3 +56,61 @@ which is what our paravisor obtains.
   action, decision needed), and real report bytes to test the signer (probe parked).
 
 `host_excluded` stays `no`. Admission settings unchanged.
+
+## TPM quote feasibility (read-only inventory, ~05:45 UTC)
+
+Scope: identify the supported interface and the existing key and certificate state. Nothing was created, loaded,
+signed or changed. No authorization value was read.
+
+| item | observed |
+|---|---|
+| TPM | AMD firmware TPM, spec 2.0 rev 1.59, firmware 6.10.0.7, owned by Windows, managed auth Full, auto-provisioning on (`Get-Tpm`, `Win32_Tpm`) |
+| EK | present, public key sha256 `d58eb547e26969a1f8fda45d9907020c9dd87b5cdd5e5ec4705d101f195130e1` (`Get-TpmEndorsementKeyInfo`) |
+| EK certificate | issued by `CN=PRG-HPT, O=Advanced Micro Devices`, thumbprint `F3BB25E5…AC81`, valid to 2050. Held in Windows' EK cert store, not in TPM NV. An ECC EK certificate is also stored (`18CBD376…9469`) |
+| persistent handles | `0x81000001 0x81000002 0x81000009 0x81010001` (`TPM2_GetCapability`, read-only) |
+| Windows AIK | registered (`WindowsAIKHash 0074ed4f…7fa4`), but **no Microsoft AIK certificate**: `AIKEnrollmentErrorCode 0x80072EE7` (WinHTTP 12007, "the server name or address could not be resolved"), and the `Tpm-HASCertRetr` task has never run (result `0x00041303`) |
+
+**The supported route this host already uses.** The node's own `tpmattest.exe` (`windows/node/tpmattest.c`) does
+the following:
+- creates a fresh attestation key per process with `CreatePrimary` in the TPM's NULL hierarchy. It is restricted
+  RSA-2048, never persisted, flushed on exit, and changes no ownership, auth or hierarchy;
+- proves that key sits in the same TPM as the EK by `ActivateCredential` against a verifier's `MakeCredential`;
+- quotes SHA-256 PCRs 0, 7, 12, 13 and 14 with the verifier's challenge as `extraData`.
+
+The relay verifies this at every attach (`relay/vbs-verify.mjs`):
+1. the EK chains to the pinned AMD fTPM root (sha256 `67bd2472…c6a1`);
+2. the credential round trip succeeds;
+3. the quote's magic and type are right and its extraData equals the challenge;
+4. the log replays to the quoted PCRs, with the policy fields checked;
+5. the PCR 12 `VSM_IDKS_INFO` key verifies the VBS **enclave** report;
+6. the transport binding holds.
+
+**What that verifier establishes today, run offline** (`node --test test/vbs-verify.test.mjs`, 12/12):
+- VERIFIED on real bytes from this host (boot 64, `test/fixtures/vbs/boot64-evidence.json`): the EK chain to AMD's
+  root, the quote signature, the nonce in the quote, the log replay, and **an IDKS signature over a VBS enclave
+  report**. That is Microsoft's documented enclave chain, working on this host.
+- It verifies only as tier `vbs-dev`, and it is refused under production policy for the same dev-only facts
+  recorded above (Secure Boot off, test signing on).
+- The tamper cases are all refused: report bytes, SIPA fields, quote bytes and signature, wrong nonces, wrong
+  quoting key, unpinned EK root, allowlist, SVN and debug.
+- NOT exercised on real bytes: the credential round trip (EK–AK binding). The boot-64 capture has no credential
+  (capture mode); only the synthetic node test runs it.
+
+**Kept distinct.** IDKS signing VBS *enclave* reports is verified on real bytes from this host. IDKS signing the
+*VM* report the paravisor obtains (`HvCallVbsVmCallReport`) is still a HYPOTHESIS: no VM report bytes exist.
+
+**The exact prerequisite for a fresh, independently checked quote on the current boot, with EK–AK binding.** It is
+one run of the existing `tpmattest.exe`, the same operations the production node performs at each attach:
+1. `keys` gives the EK certificate, the transient AK's public area and its name.
+2. Our verifier runs `MakeCredential(EK public, AK name, secret)` offline.
+3. `activate` must return the secret.
+4. `quote <fresh 32-byte nonce>` must return a quote whose `extraData` is that nonce, over PCRs that replay from
+   the current log.
+5. `relay/vbs-verify.mjs` checks all of it, including the negative controls.
+
+Its only TPM-side effect is a transient NULL-hierarchy key, flushed on exit. It is held until Steven answers the
+question already put to him, because a peer's relay is not his answer. The Microsoft AIK certificate route is not
+available: enrollment failed on name resolution.
+
+The Secure Boot and test-signing rejection is our conservative acceptance requirement. It does not by itself show
+that the host can read the guest.
