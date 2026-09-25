@@ -74,6 +74,37 @@ to every remaining verification requirement. It grants:
    - The only caller of `eligibleDigestsOf` is that test. No `relay/`, `site/`, `verifier/web` or `verifier/dist` file
      carries the reference or either digest.
 
+## Staging (enclave-63 under d1's GO) and d1's check of the staged copy
+
+enclave-63 staged v39 at `C:\Users\claude\vbs-like\pkg\61028ec33770f4d7\` and handed the box back at 11:07:28Z (box
+Get-Date). There was no VM and no host setting, and no other package directory was written or deleted.
+
+**63's read-only checks, on the box's Windows PowerShell 5.1:**
+- `check.ps1 -Fetch`: PACKAGE OK. The env block names b7ba7731. The blank-master row reports structure and hash
+  separately. The three rollback rows (a44bb55a, 4991b3e1, reference ba3f49a7 in v38's staged directory) are OK.
+- `check.ps1 -SelfTest`: 17/17. Each of the seven corrupted-master cases is refused for its own reason, with the hash
+  result reported separately:
+  - (a) the control copy is blank, hash pinned;
+  - (b) a body byte → "body not zero";
+  - (c) truncated or extended by 512 → "size";
+  - (d) the cookie changed → "footer";
+  - (e) GUESTRTS at 0 → "formatted";
+  - (f) a re-minted footer → structure blank, REFUSED by the hash pin;
+  - (g) missing → "missing".
+
+**d1's own read-only check at 11:08:10Z** (`staged-check-110810.txt`):
+- No VMs, no node or vbslike-host processes, the setting Absent, no 9001 service.
+- The staged `MANIFEST.json` is `61028ec3…` and `staged.json` is `1cca37cc…`, with 12541 files.
+- b7ba7731, the launcher `435717de` and the reference `b4d6675d` match their pins. No a44bb55a or 4991b3e1 file is in
+  the v39 directory. The b7ba7731 copy grants S-1-5-83-0 Read only.
+- The SelfTest scratch directory is empty.
+- Rollback is intact: v38's a44bb55a, 4991b3e1, reference `ba3f49a7` and MANIFEST `88c18259` hash to their pins.
+  v36's b7ba7731 is unchanged.
+- The master `type1.vmgs` is still `4f051697…`, 4194816 bytes, with a zero body and the `conectix` footer.
+
+No VM was booted from v39. Its guest bytes, launcher and control tree equal those of the package-owned functional
+acceptance 094631. That run is functional only.
+
 ## Unresolved, unchanged by the rollover
 
 - No real VbsReport from any measured guest, and no report signer verified. Report capture stays PARKED.

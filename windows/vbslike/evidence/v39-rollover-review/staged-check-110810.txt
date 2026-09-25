@@ -1,0 +1,20 @@
+box utc 11:08:10Z
+VMs: 
+procs: 
+AllowFirmwareLoadFromFile: Absent
+9001 svc: False
+MANIFEST 61028ec33770f4d7e6238e2c042e065dc29b41f3298cd8c2045a28d129768cbc
+staged.json 1cca37cc6ba0504c3889894eb9299a764454bd785f09717e5b3ffbb4448a3e60
+files 12541
+selftest leftovers: 0
+a44bb55a/4991b3e1 in v39 dir: 
+  b7ba7731240ec902 guest\igvm-vbs\vbs-linux-candidate-1539-b7ba7731.bin
+  435717def62bb5c9 control\vbslike-host.exe
+  b4d6675dd9b78eaf reference\nucbox-vbs-reference.json
+b7ba7731 copy S-1-5-83-0: Allow Read, Synchronize
+  v38 a44bb55a89bb0e6d guest\igvm-vbs\vbs-linux-candidate-g1-a44bb55a.bin
+  v38 4991b3e13c7a6d4d guest\igvm-vbs\PROBE-FIRMWARE-never-a-serving-candidate\vbs-linux-candidate-G1-DEBUG-TRUSTS-HOST-4991b3e1.bin
+  v38 ba3f49a7dce5d739 reference\nucbox-vbs-reference.json
+  v38 88c18259137a5ba1 MANIFEST.json
+  v36 b7ba7731 b7ba7731240ec902
+master 4f051697a74dc72d len 4194816 body-nonzero 0 cookie conectix
