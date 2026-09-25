@@ -54,8 +54,11 @@ use std::time::Duration;
 const CTRL_PORT: u32 = 9000;
 const REPORT_PORT: u32 = 9001;
 const MAX_LINE: usize = 1 << 20;
-const FORMAT: &str = "hyperv-vbs-partition-v1";
-const TIER: &str = "T0-hv";
+// THE SHARED FORMAT AND TIER (contract.rs, re-exported by report.rs), the names judge-hv, the verifier registry and the
+// Go contract use. A local "hyperv-vbs-partition-v1" signed every report on this path until the first serving acceptance
+// on nucbox-k11 (run 081904) had the manager's judge refuse it as "report format/tier". The partition KIND travels in
+// platform.partition, never in the format name.
+use crate::report::{FORMAT, TIER};
 
 struct Serve {
     vm: windows_sys::core::GUID,
