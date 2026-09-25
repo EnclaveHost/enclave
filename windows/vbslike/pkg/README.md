@@ -96,6 +96,21 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   not run here). v14 claims no more than v13: `measured[0]` is still "CREATED AND STARTED, NOT BOOTED". It is staged
   when d1's type-1 MON lines arrive and are pinned.
 
+- **v15 draft** (`drafts/nucbox-ownguest-15.json`, STAGED): the production medium `ca245eae` is BOOTED on the NucBox under
+  type 16 (enclave-d1: hashed at attach, firmware `48773995`, boot_ms 307, `transport=hv_sock`, hello-world's 13 bytes
+  served; a development boot, host NOT excluded) and the three measured console lines are pinned verbatim: the tuple
+  reads `hv_isolation=n/a paravisor=n/a` because leaf 0x4000000C is not defined on this host (max leaf 0xb), NOT the
+  predicted none/yes; type-16 acceptance may run with `HVACC_EXPECT_HV_ISOLATION=n/a`. Type 1 is pinned
+  REFUSED-TO-START under d1's recipe as of `f140bd56` (the matrix: None+16 boots; None+1 refuses; cvm+16 refuses;
+  cvm+1 refuses at GuestFeatureSet 0x201/0x601 and starts-then-triple-faults at 0x400), distinct from "not yet tried"
+  and NOT a verdict on type 1 (5d, `VBS-ISOLATION.md` §4 at `10145554`: three departures from petri's recipe); no
+  type-1 VM has ever produced a console line; E2/E3 NOT RUN. d1's scripts at `f140bd56` (after the 714c4709 review:
+  a failed run exits non-zero, a borrowed before-state is refused, a removal is verified). `ohcldiag-dev.exe` (the
+  COM3 replacement: VTL2 kmsg over the always-on diag server) was built from the pinned openvmm `a7b0bd4` for
+  `x86_64-pc-windows-gnullvm` with llvm-mingw 20260922 (no Microsoft SDK) and `+crt-static`, imports system DLLs
+  only, and sits on the box as `pkg\ohcldiag-dev-5f25f2e7\` with `BUILD.txt`; it is pinned in the next version with
+  d1's first-run evidence, not before.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was

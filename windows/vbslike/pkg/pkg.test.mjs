@@ -442,3 +442,22 @@ test("draft v14 is held, not staged, and records 5d's source reading: the type-1
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
 });
+
+test("draft v15 pins d1's measured type-16 lines on ca245eae (n/a, not the predicted none/yes) and type 1 as REFUSED-TO-START under d1's recipe, with the scripts at f140bd56", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-15.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, STAGED: the production medium ca245eae is BOOTED on the NucBox under type 16/);
+  assert.deepEqual(d.console.uefi.measuredType16, [
+    "MON hv hyperv=true max_leaf=0x4000000b priv_high=0x3b8030 isolation_priv=false config_a=0x0 config_b=0x0 (stated by the hypervisor, CPUID)",
+    "MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=n/a paravisor=n/a",
+    "MON ready control_port=9000 snp=false transport=hv_sock"]);
+  assert.match(d.profiles.uefi.measured[0], /^ON THE NUCBOX, type 16, THIS medium .*hv_isolation=n\/a paravisor=n\/a.*host is NOT excluded/);
+  assert.match(d.profiles.vbs.expect.type16, /^MEASURED on ca245eae/);
+  assert.match(d.profiles.vbs.status, /^EXPERIMENT, REFUSED-TO-START under enclave-d1's recipe/);
+  assert.match(d.profiles.vbs.measured[0], /^REFUSED-TO-START on 26200 .*cvm \+ type 1 at GuestFeatureSet 0x400 STARTS and then TRIPLE-FAULTS/);
+  assert.match(d.profiles.vbs.measured[1], /^NOT A VERDICT ON TYPE 1 .*E2\/E3 are NOT RUN, not failed/);
+  assert.ok(!/MON (ready|boundary|hv)/.test(d.profiles.vbs.measured.join(" ")), "no type-1 console line is quoted: none has ever been seen");
+  for (const f of ["uefi-dev-boot.ps1", "host-read-guest.ps1"]) assert.equal(d.files.find((x) => x.path === `control/windows/vbslike/ops/${f}`).from.git.commit, "f140bd56bdcfb4c00226e8ec79bf3534ce618bc9", `${f} at f140bd56`);
+  assert.ok(d.inputs.some((i) => i.name === "VBS-ISOLATION-10145554.md" && i.from.git.commit.startsWith("10145554")));
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+});
