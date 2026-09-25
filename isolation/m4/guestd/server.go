@@ -128,6 +128,7 @@ type vm struct {
 	lc                                                   *contract.Lifecycle
 	leaseUntil                                           time.Time
 	splices                                              map[*splice]struct{} // open data-plane connections
+	reclaimed                                            bool                 // its reclaim has finished: it holds no reservation (pool.go)
 }
 
 type server struct {
@@ -141,6 +142,7 @@ type server struct {
 	Firmware  map[string]any
 	RuntimeID string     // hex; the runtime identity every guest image here carries (the judge pins it)
 	Data      *dataPlane // nil = no data plane (the default)
+	Budget    poolBudget // the guest pool's budget; the zero value admits no guest (pool.go)
 	mu        sync.Mutex
 	vms       map[string]*vm
 	lastBeat  time.Time // zero = never heard one: the lease is INERT
@@ -183,6 +185,9 @@ func (v *vm) public() map[string]any {
 	m := map[string]any{"id": v.ID, "name": v.Name, "status": v.Status, "createdAt": v.Created.Unix(),
 		"hostPort": v.HostPort, "appId": v.AppID, "measurement": v.Measurement, "vcpus": v.Vcpus,
 		"memMiB": v.MemMiB, "backend": "snp-guest-per-app"}
+	if v.holds() {
+		m["reserved"] = v.reservation()
+	}
 	if v.Error != "" {
 		m["error"] = v.Error
 	}
@@ -240,13 +245,14 @@ func (s *server) route(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && r.URL.Path == "/health":
 		s.mu.Lock()
 		n := len(s.vms)
+		pool := s.poolLocked()
 		s.mu.Unlock()
 		cat := map[string]any{"derivations": []string{}}
 		if s.Store != nil {
 			cat = map[string]any{"derivations": []string{catalog.V1, catalog.V2}, "runtimeId": s.Store.RuntimeID}
 		}
 		s.json(w, 200, map[string]any{"ok": true, "backend": "snp-guest-per-app", "guests": n,
-			"firmware": s.Firmware, "catalog": cat,
+			"firmware": s.Firmware, "catalog": cat, "pool": pool,
 			// what a tenant here does NOT get, so a claim gate can refuse deployments that need it
 			"supports": map[string]bool{"gpu": false, "secrets": false, "egress": false, "config": false,
 				"ports": false, "configCid": false}})
@@ -333,6 +339,7 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 	}
 	id := contract.AppID(raw)
 	pol := contract.EffectivePolicy(&m, contract.Request{})
+	mem := guestMemMiB(pol.MemMiB)
 	s.mu.Lock()
 	for _, o := range s.vms {
 		if o.Name == req.Name && o.lc.State() != contract.Ended && o.Status != "failed" {
@@ -341,9 +348,15 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// the pool (pool.go): checked under the lock that inserts, so two creates cannot both take the last room
+	if refusal := s.admitLocked(reservationFor(mem, pol.CPUPercent)); refusal != nil {
+		s.mu.Unlock()
+		s.json(w, http.StatusInsufficientStorage, refusal)
+		return
+	}
 	v := &vm{ID: newID(), Name: req.Name, AppID: hex.EncodeToString(id[:]), Status: "starting", RecordSha256: record,
 		HostData: hostDataFor(req.Name),
-		Vcpus:    pol.Vcpus, MemMiB: guestMemMiB(pol.MemMiB), CPUPct: pol.CPUPercent, Created: s.Now(),
+		Vcpus:    pol.Vcpus, MemMiB: mem, CPUPct: pol.CPUPercent, Created: s.Now(),
 		lc: contract.NewLifecycle(contract.Starting), leaseUntil: s.Now().Add(s.LeaseTTL)}
 	v.workdir = filepath.Join(s.Root, v.ID)
 	s.vms[v.ID] = v
@@ -367,10 +380,10 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 // guestMemMiB is the guest's RAM: the bundle's share plus room for the guest kernel and the runtime. M4a boots
 // the same kernel and a 45 MB runtime for every app, so a floor applies whatever the manifest asked for.
 func guestMemMiB(policy int) int {
-	if policy+384 < 1024 {
-		return 1024
+	if policy+guestRuntimeMiB < guestFloorMiB {
+		return guestFloorMiB
 	}
-	return policy + 384
+	return policy + guestRuntimeMiB
 }
 
 // bundleFor returns the bundle bytes an image reference names, the derivation record's digest when it came from
@@ -528,6 +541,8 @@ func (s *server) reclaim(v *vm) {
 	}
 	// the bundle and the image are the tenant's; nothing of them stays on this host
 	_ = os.RemoveAll(v.workdir)
+	// only now is its room free again (pool.go): its unit is stopped, so nothing of it still runs on the host
+	s.set(v, func() { v.reclaimed = true })
 }
 
 func (s *server) remove(v *vm) {

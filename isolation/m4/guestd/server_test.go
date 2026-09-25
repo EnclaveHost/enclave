@@ -27,6 +27,7 @@ type fake struct {
 	alive       map[string]bool
 	verifyErr   error
 	startGate   chan struct{} // when set, Start blocks until it is closed
+	stopGate    chan struct{} // when set, Stop blocks until it is closed (a unit that takes its time to stop)
 	startArgs   [3]int
 	fwdPort     func(workdir string) int // when set, where each guest's forwarder listens (the data-plane tests)
 	hostData    []string                 // the HOST_DATA each Start was given, in order
@@ -81,8 +82,14 @@ func (f *fake) Verify(ctx context.Context, port int, m, id, hostData, workdir st
 
 var fakeKeySha = hex.EncodeToString(bytes.Repeat([]byte{0x6b}, 32))
 
+// testBudget is a pool no test outside pool_test.go comes near: 64 GiB and 16 cores.
+var testBudget = poolBudget{MemMiB: 64 << 10, CPUPct: 1600}
+
 func (f *fake) Alive(unit string) bool { f.mu.Lock(); defer f.mu.Unlock(); return f.alive[unit] }
 func (f *fake) Stop(tag, workdir string) error {
+	if f.stopGate != nil {
+		<-f.stopGate
+	}
 	f.mu.Lock()
 	f.stops[tag]++
 	f.alive["unit-"+tag] = false
@@ -105,6 +112,7 @@ type rig struct {
 func newRig(t *testing.T) *rig {
 	r := &rig{t: t, f: newFake(), dir: t.TempDir(), clock: time.Unix(1_800_000_000, 0)}
 	r.s = newServer(r.f, filepath.Join(r.dir, "root"))
+	r.s.Budget = testBudget // room for every guest a test starts; pool_test.go sets its own
 	r.s.Now = func() time.Time { r.mu.Lock(); defer r.mu.Unlock(); return r.clock }
 	r.ts = httptest.NewServer(r.s)
 	t.Cleanup(r.ts.Close)
