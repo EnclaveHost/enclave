@@ -24,8 +24,14 @@
 //!   - G1 (enclave-5d, isolation/portable-runtime-jit 1e9e99fb): the monitor mints a per-boot nonce
 //!     and returns it as `boot` in the load answer. Every stop/destroy carries it, and an answer of
 //!     `rebooted: true` is a KNOWN end - every domain of that boot is gone - never an error to retry.
-//!   - `platform.partition` is stated by THIS launcher ("wmi-openhcl-gen2"), because the guest
-//!     cannot know what kind of partition it is in and the monitor no longer guesses.
+//!   - `platform.partition` is stated by THIS launcher ("wmi-openhcl-gen2" for a medium,
+//!     "wmi-openhcl-gen2-igvm-linux" for the IGVM), because the guest cannot know what kind of partition
+//!     it is in and the monitor no longer guesses. These names are CANONICAL (enclave-99's contract,
+//!     "Launcher statements", main ae6e9147): the manager states the same ones, paired with guestImageKind.
+//!   - LIFETIME: `--hold <seconds>` (default 120) serves for that long, and a non-empty stdin line ends it
+//!     early (uefi-dev-boot.ps1's bounded canary). `--hold stdin` serves until a non-empty stdin line OR
+//!     stdin's EOF: a manager keeps the pipe open for the domain's life, and its exit (or crash) closes
+//!     the pipe and so ends the relay with it. Anything else is refused before anything starts.
 //!   - `platform.isolation` and the boundary line carry the partition's ACTUAL
 //!     GuestStateIsolationType, which `--isolation-type` supplies and which is refused rather than
 //!     defaulted. The old code hardcoded type 16 and printed it verbatim on type-1 runs.
@@ -190,6 +196,37 @@ fn report_service(s: Arc<Serve>, l: hvsock::Listener) {
     }
 }
 
+/// How long wmiserve serves: a bounded number of seconds, or for as long as its parent holds stdin open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Hold { Secs(u64), Stdin }
+
+/// `--hold`: absent is 120 s; `stdin` is the parent's lifetime; otherwise whole seconds, 1..=86400. Anything else is
+/// REFUSED (0 used to close the relay the moment it was ready; a typo used to become 120 s).
+pub fn parse_hold(v: Option<&str>) -> Result<Hold, String> {
+    match v {
+        None => Ok(Hold::Secs(120)),
+        Some("stdin") => Ok(Hold::Stdin),
+        Some(s) => match s.parse::<u64>() {
+            Ok(n) if (1..=86_400).contains(&n) => Ok(Hold::Secs(n)),
+            _ => Err(format!("--hold must be whole seconds 1..86400 or `stdin`, not {s:?}")),
+        },
+    }
+}
+
+#[cfg(test)]
+mod hold_tests {
+    use super::*;
+    #[test]
+    fn hold_values() {
+        assert_eq!(parse_hold(None), Ok(Hold::Secs(120)));
+        assert_eq!(parse_hold(Some("90")), Ok(Hold::Secs(90)));
+        assert_eq!(parse_hold(Some("stdin")), Ok(Hold::Stdin));
+        for bad in ["0", "-1", "", "forever", "STDIN", "90s", "86401", " 90"] {
+            assert!(parse_hold(Some(bad)).is_err(), "{bad:?} must be refused");
+        }
+    }
+}
+
 pub fn run(o: &Opts) -> i32 {
     let Some(vm) = o.get("vm").and_then(|s| hvsock::parse_guid(s)) else {
         eprintln!("wmiserve: --vm <GUID> is required"); return 2;
@@ -221,6 +258,11 @@ pub fn run(o: &Opts) -> i32 {
     };
     let vcpus: u64 = o.get("vcpus").and_then(|s| s.parse().ok()).unwrap_or(1);
     let mem_mib: u64 = o.get("mem").and_then(|s| s.parse().ok()).unwrap_or(2048);
+    // PARSED HERE, before anything is loaded: a mistyped hold used to become 120 s silently, AFTER the app was served.
+    let hold = match parse_hold(o.get("hold")) {
+        Ok(h) => h,
+        Err(e) => { eprintln!("wmiserve: {e}"); return 2; }
+    };
 
     let app = match std::fs::read(bundle_path) {
         Ok(b) => b,
@@ -331,20 +373,27 @@ pub fn run(o: &Opts) -> i32 {
     // empty file - so read_line hit EOF immediately and this exited before serving anything. A
     // server whose lifetime depends on its caller's stdin having content is a server that stops
     // the moment nobody is typing.
-    let hold: u64 = o.get("hold").and_then(|s| s.parse().ok()).unwrap_or(120);
-    let deadline = std::time::Instant::now() + Duration::from_secs(hold);
+    let deadline = match hold { Hold::Secs(n) => Some(std::time::Instant::now() + Duration::from_secs(n)), Hold::Stdin => None };
     let stop = Arc::new(AtomicBool::new(false));
     {
         let stop2 = stop.clone();
+        let eof_ends = hold == Hold::Stdin;
         std::thread::spawn(move || {
             let mut line = String::new();
-            // a line on stdin still ends it early, when there IS one
-            if std::io::stdin().read_line(&mut line).is_ok() && !line.trim().is_empty() {
-                stop2.store(true, Ordering::SeqCst);
+            loop {
+                line.clear();
+                match std::io::stdin().read_line(&mut line) {
+                    // a non-empty line ends it early, in either mode
+                    Ok(n) if n > 0 && !line.trim().is_empty() => { stop2.store(true, Ordering::SeqCst); return; }
+                    Ok(n) if n > 0 => continue,
+                    // EOF or a broken pipe: under `--hold stdin` the parent is gone, so the relay goes too.
+                    // Under a timed hold it means only that nobody will type (an empty redirected file).
+                    _ => { if eof_ends { stop2.store(true, Ordering::SeqCst); } return; }
+                }
             }
         });
     }
-    while std::time::Instant::now() < deadline && !stop.load(Ordering::SeqCst) {
+    while deadline.map_or(true, |d| std::time::Instant::now() < d) && !stop.load(Ordering::SeqCst) {
         std::thread::sleep(Duration::from_millis(200));
     }
     s.closing.store(true, Ordering::SeqCst);
