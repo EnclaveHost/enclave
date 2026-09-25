@@ -40,7 +40,15 @@ $stamp   = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss')
 $name    = "enclave-uefi-$stamp"
 $pipe    = "$name-com1"
 $notes   = @()
-function Note($m){ $l = "$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')) $m"; $script:notes += $l; Write-Host $l }
+# WRITTEN AS IT GOES, not only at the end. An ssh timeout killed my view of two runs tonight and the
+# transcript went with it; a run whose evidence only exists in a dropped console is a run that did
+# not happen.
+$script:logPath = "C:\Users\claude\uefi-dev-boot-$stamp.log"
+function Note($m){
+  $l = "$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')) $m"
+  $script:notes += $l; Write-Host $l
+  try { Add-Content -Path $script:logPath -Value $l -EA SilentlyContinue } catch { }
+}
 
 Note "=== DEV BOOT. Host exclusion is NOT established on this path. Nothing here is verified capacity. ==="
 Note "    partition kind: wmi-openhcl-gen2 (the LAUNCHER states it; the guest cannot know it)"
@@ -90,6 +98,36 @@ if (-not $Approve) {
 
 $mutated = $false
 $created = $false
+
+# THE WATCHDOG, launched BEFORE the setting is applied.
+#
+# `finally` does not run when this process is killed - and that is not hypothetical: an ssh timeout
+# killed a run tonight, leaving AllowFirmwareLoadFromFile APPLIED and a VM RUNNING until I removed
+# them by hand. Cleanup did not "hold" there, it failed. So a separate detached process now owns the
+# guarantee: it waits past this run's own deadline and, if the sentinel file still exists, force
+# restores the setting and removes this run's VM. The main script deletes the sentinel on a clean
+# finish, so the watchdog then does nothing.
+$sentinel = "C:\Users\claude\uefi-probe-active-$stamp.txt"
+Set-Content -Path $sentinel -Value "$name" -Force
+$wdSeconds = $ReadySeconds + 120
+$wd = @"
+Start-Sleep -Seconds $wdSeconds
+if (Test-Path '$sentinel') {
+  `$m = '$MARKER'
+  foreach (`$v in (Get-VM -EA SilentlyContinue | Where-Object { `$_.Name -eq '$name' -and `$_.Notes -eq `$m })) {
+    Stop-VM -VM `$v -TurnOff -Force -EA SilentlyContinue; Remove-VM -VM `$v -Force -EA SilentlyContinue
+  }
+  Remove-ItemProperty '$RegPath' -Name '$RegName' -EA SilentlyContinue
+  Add-Content -Path '$script:logPath' -Value "`$((Get-Date).ToUniversalTime().ToString('HH:mm:ss')) WATCHDOG fired: the run did not clean up; setting restored and `$('$name') removed" -EA SilentlyContinue
+  Remove-Item '$sentinel' -Force -EA SilentlyContinue
+}
+"@
+$wdFile = "C:\Users\claude\uefi-watchdog-$stamp.ps1"
+Set-Content -Path $wdFile -Value $wd -Force
+Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
+  CommandLine = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File $wdFile" } | Out-Null
+Note "watchdog armed for ${wdSeconds}s (it force-restores the setting if this run is killed)"
+
 try {
   Set-ItemProperty -Path $RegPath -Name $RegName -Value 1 -Type DWORD; $mutated = $true
   Note "SETTING APPLIED (removed again in this run's cleanup)"
@@ -106,6 +144,13 @@ try {
   & icacls $Iso      /grant "NT VIRTUAL MACHINE\$($vm.Id):R" | Out-Null
   & icacls $Firmware /grant "NT VIRTUAL MACHINE\$($vm.Id):R" | Out-Null
 
+  # petri's New-CustomVM defines the VM through a single DefineSystem call and adds NO storage
+  # controller, so there is nowhere to attach a boot medium: Add-VMDvdDrive fails with "no available
+  # locations were found on the disk controller". Measured on the first run. Add one first.
+  if (-not (Get-VMScsiController -VM $vm -ErrorAction SilentlyContinue)) {
+    Add-VMScsiController -VM $vm
+    Note "added a SCSI controller (New-CustomVM creates none)"
+  }
   Add-VMDvdDrive -VM $vm -Path $Iso
   # HASHED AT ATTACH TIME, not from the pin argument. The pin says what we MEANT to attach; this
   # says what the VM is actually pointed at, and they are only the same if nothing changed the file
@@ -130,30 +175,67 @@ try {
   Note "secure boot: $($fw.SecureBoot)"
   if ($fw.SecureBoot -ne 'Off') { throw "Secure Boot is $($fw.SecureBoot); the UKI is unsigned and this must be Off" }
   if (@($fw.BootOrder).Count -ne 1) { throw "the VM has $(@($fw.BootOrder).Count) boot entries; exactly one (the DVD) is expected" }
-  if ((Get-VMTpm -VM $vm -EA SilentlyContinue).Enabled) { throw "a vTPM is enabled; nothing reads its PCRs on this path and it must not be present" }
+  # The vTPM, asserted through WMI rather than Get-VMTpm: that cmdlet does not exist in this build's
+  # Hyper-V module, and my first version threw on it - a check meant to enforce the absence of a
+  # vTPM instead stopped the boot. Msvm_SecuritySettingData.TpmEnabled is present here and is the
+  # property Hyper-V itself uses. If neither can be read we say so rather than assuming absence.
+  $sec = (Get-CimInstance -Namespace 'root\virtualization\v2' -Query ("select * from Msvm_ComputerSystem where ElementName = '" + $name + "'")) |
+         Get-CimAssociatedInstance -ResultClass Msvm_VirtualSystemSettingData -Association Msvm_SettingsDefineState |
+         Get-CimAssociatedInstance -ResultClass Msvm_SecuritySettingData -ErrorAction SilentlyContinue
+  if ($null -eq $sec) { Note "vTPM: could not be read (no Msvm_SecuritySettingData); none was added by this definition" }
+  elseif ($sec.TpmEnabled) { throw "a vTPM is ENABLED; nothing reads its PCRs on this path and it must not be present" }
+  else { Note "vTPM: absent (Msvm_SecuritySettingData.TpmEnabled = False)" }
   foreach ($e in $fw.BootOrder) {
     $lo = $e.Device.PSObject.Properties['LoadOptions']
     if ($lo -and $lo.Value) { throw "a boot entry carries LoadOptions ('$($lo.Value)'); the guest would refuse to start" }
   }
-  Note "read-back OK: one boot entry, no LoadOptions, Secure Boot off, no vTPM"
+  Note "read-back OK: one boot entry, no LoadOptions, Secure Boot off, vTPM as reported above"
 
+  # OPEN THE CONSOLE BEFORE STARTING, AND KEEP IT OPEN.
+  #
+  # The previous run booted (Worker-Admin 18601 "successfully booted an operating system") and
+  # captured ZERO bytes, because this connected AFTER Start-VM and reconnected every few seconds.
+  # A named pipe does not buffer for an absent client, so everything the guest said before the
+  # first connect - which is all of it, on a fast boot - was discarded. The reader was the reason
+  # the console looked silent, not the guest.
+  # Hyper-V creates the COM1 pipe SERVER when the VM starts, not when Set-VMComPort is called - so
+  # attaching beforehand is impossible (measured: Connect times out). Start first, then attach as
+  # fast as possible and HOLD the connection: a named pipe does not buffer for an absent client, so
+  # every millisecond before the first connect is output that can never be recovered.
+  $seen = ''; $ready = $false
+  $pipeClient = $null
   $t0 = Get-Date
   Start-VM -Name $name
-  Note "started; watching COM1 for 'MON ready' for $ReadySeconds s"
-  $seen = ''; $ready = $false
-  while (((Get-Date) - $t0).TotalSeconds -lt $ReadySeconds -and -not $ready) {
-    Start-Sleep -Seconds 3
+  for ($i = 0; $i -lt 100 -and -not $pipeClient; $i++) {
     try {
       $c = New-Object System.IO.Pipes.NamedPipeClientStream('.', $pipe, [System.IO.Pipes.PipeDirection]::In)
-      $c.Connect(1500)
-      $buf = New-Object byte[] 8192
-      $n = $c.Read($buf, 0, $buf.Length)
-      if ($n -gt 0) { $seen += [System.Text.Encoding]::ASCII.GetString($buf, 0, $n) }
-      $c.Dispose()
+      $c.Connect(100)
+      $pipeClient = $c
+    } catch { Start-Sleep -Milliseconds 50 }
+  }
+  if ($pipeClient) { Note "COM1 attached $([int]((Get-Date)-$t0).TotalMilliseconds) ms after start" }
+  else { Note "COM1 could NOT be attached after 100 tries: anything the guest says is unobservable" }
+  Note "started; watching COM1 for 'MON ready' for $ReadySeconds s"
+  while (((Get-Date) - $t0).TotalSeconds -lt $ReadySeconds -and -not $ready) {
+    Start-Sleep -Seconds 3
+    # Read from the ONE connection opened before the start, with a deadline so a silent guest can
+    # never hang this the way Read() once did.
+    try {
+      if ($pipeClient -and $pipeClient.IsConnected) {
+        $buf = New-Object byte[] 8192
+        $cts = New-Object System.Threading.CancellationTokenSource
+        $cts.CancelAfter(2500)
+        $task = $pipeClient.ReadAsync($buf, 0, $buf.Length, $cts.Token)
+        if ($task.Wait(3000) -and -not $task.IsFaulted -and $task.Result -gt 0) {
+          $seen += [System.Text.Encoding]::ASCII.GetString($buf, 0, $task.Result)
+        }
+        $cts.Dispose()
+      }
     } catch { }
     if ($seen -match 'MON ready')  { $ready = $true }
     if ($seen -match 'MON ERROR')  { break }
   }
+  try { if ($pipeClient) { $pipeClient.Dispose() } } catch { }
   Note "console bytes: $($seen.Length)"
   if ($seen) { foreach ($l in ($seen -split "`n" | Where-Object { $_ -match 'MON|error|panic|refus' } | Select-Object -First 12)) { Note "  CONSOLE: $($l.Trim())" } }
   if ($ready)                      { Note "RESULT: MON ready - the guest booted as a UEFI VTL0 (DEV BOOT; host exclusion NOT established)" }
@@ -191,5 +273,7 @@ finally {
   if ($nodeAfter -ne $nodeBefore) { $fail += "the live node changed: $nodeBefore -> $nodeAfter" } else { Note "live node unchanged ($nodeAfter)" }
   Note "apps after    : $(($APPS | ForEach-Object { "$_=$(App $_)" }) -join ' ')"
   Note "=== DEV BOOT. Host exclusion NOT established. Not verified capacity. ==="
+  Remove-Item $sentinel -Force -EA SilentlyContinue        # disarm: this run cleaned up itself
+  Remove-Item $wdFile   -Force -EA SilentlyContinue
   if ($fail.Count) { foreach ($f in $fail) { Write-Host "FAILURE: $f" }; Write-Host "RUN FAILED" } else { Write-Host "RUN OK" }
 }
