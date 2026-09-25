@@ -1,0 +1,19 @@
+07:51:26 === MANAGER ACCEPTANCE (windows\vbslike\manager\ops\restart-accept.mjs). Lifecycle and recovery only: NOT an isolation or attestation result; host_excluded=no. ===
+07:51:26 setting before: Absent; IGVM C:\Users\claude\vbs-like\pkg\071f194b86a573ac\guest\igvm-vbs\vbs-linux-candidate-g1-a44bb55a.bin verified a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4; tree C:\Users\claude\d1-accept-8e6cefa5\tree
+07:51:26 watchdog armed (pid 21884, ceiling 1800s)
+07:51:26 SETTING APPLIED for this run
+07:51:26 config: {"igvmSha256":"a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4","gateway":"https://ipfs.enclave.host","gsMasterSha256":"4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d","logDir":"C:\\Users\\claude\\vbs-evidence\\mgraccept-20260925-075126","runtimeIdentity":"C:\\Users\\claude\\vbs-like\\pkg\\071f194b86a573ac\\guest\\runtime.json","hypervModule":"C:\\Users\\claude\\hyperv.psm1","igvm":"C:\\Users\\claude\\vbs-like\\pkg\\071f194b86a573ac\\guest\\igvm-vbs\\vbs-linux-candidate-g1-a44bb55a.bin","gsMaster":"C:\\Users\\claude\\vbs-like\\type1.vmgs","name":"0xd1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55","port":18091,"tree":"C:\\Users\\claude\\d1-accept-8e6cefa5\\tree","archiveDir":"C:\\Users\\claude\\vbs-evidence","python":"C:\\Python314\\python.exe","spawnJson":"C:\\Users\\claude\\vbs-like\\pkg\\071f194b86a573ac\\apps\\hello-world-1.0.4\\spawn.json"}
+07:52:59   DRIVER: manager #1 pid 10368
+07:52:59   DRIVER: PASS A0: inventory ready and empty; no manager-owned VM on this host
+07:52:59   DRIVER: FAIL A1: POST 201 in 35664 ms, id hvcfa166918aff46d9ae62f6d4bafea9ca, status failed, partition wmi-openhcl-gen2-igvm-linux, hostExcluded false
+07:52:59   DRIVER: FAIL A2: 0 VM(s) carry id hvcfa166918aff46d9ae62f6d4bafea9ca: 
+07:52:59   DRIVER: FAIL A3: manager gone; the VM count is 0
+07:52:59   DRIVER: manager #2 pid 19300
+07:52:59   DRIVER: FAIL A4: GET 404: recovered undefined, status undefined, appReady undefined, relay null, hostExcluded undefined
+07:52:59   DRIVER: FAIL A5: second POST 201 naming hv3bd6eadd2e06bc0db6236e6269a47308; VMs with this id 0, manager-owned VMs 0
+07:52:59   DRIVER: FAIL A6: DELETE 404; VMs with this id 0; GET after 404
+07:52:59   DRIVER: N/A A7: the relay dies with the manager - no per-domain wmiserve relay exists yet (enclave-5d's wmiserve-run.mjs)
+07:52:59   DRIVER: cleanup: DELETE hvcfa166918aff46d9ae62f6d4bafea9ca -> 404
+07:52:59   DRIVER: RESTART-ACCEPT 6 FAILED
+07:52:59 SETTING RESTORED to Absent (verified)
+07:52:59 === RESULT: driver exit 1, harness exit 2 (0 passed; 3 refused; 2 driver failed, cleanup clean; 1 cleanup failed). Evidence: C:\Users\claude\vbs-evidence\mgraccept-20260925-075126 ===
