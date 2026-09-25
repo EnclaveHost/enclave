@@ -74,6 +74,14 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
     control channel answered (canary 061934).
   - Still host-supplied and unmeasured: the device tree, ACPI and memory map, the DPS apart from load kind, VMBus
     offers and the vTPM.
+- VERIFIED (boot 68, `candidate-a44bb55a-review.md`): the G1 candidate `a44bb55a` (launch digest `58DFEBFE…`) is
+  enclave-63's v30 build. It is `c567e432`'s recipe with only the initrd swapped for enclave-5d's G1+G3 initrd
+  (`680d40fa…`).
+  - Digests were independently recomputed. The new initrd is in measured pages, and the old initrd's bytes are absent.
+  - It BOOTED and SERVED under Secure Boot (canary 070020).
+  - The per-boot nonce held over hv_sock: no boot gave `bootRequired`, a wrong boot gave `rebooted:true`, both with
+    the app untouched; the load answer's boot destroyed the domain.
+  - It is a stale-reference guard, not caller authentication.
 - Runtime: the wasm runtime binary lives in our initrd, so it is covered once the initrd is measured (SOURCE, same
   citations). RuntimeID is bound in report_data by measured code, as on the SNP path.
 
@@ -136,15 +144,23 @@ A successful app response, a type-1 boot, or a refused Save-VM is none of these 
 
 Nothing here waits on a decision already made: boot state (Secure Boot on) and the fresh quote are DONE on boot 68.
 
-1. DONE (boot 68): the measured Linux-VTL0 candidate `c567e432` (`A0FDAC0F…`) boots under Secure Boot AND serves
-   the pinned app (canaries 061934, 062450). Launcher `0160d835` from `8f156c9a` adds the IGVM identity
-   (`--igvm-sha256`) and the G1 nonce on stop/destroy.
-   Next: 53 cuts a G1 initrd and a new candidate (new digest and mutation set), which needs this canary again.
-   Then the G4 restart probe.
+1. DONE (boot 68): measured Linux-VTL0 guests boot under Secure Boot and serve the pinned app.
+   - `c567e432` (`A0FDAC0F…`): canaries 061934 and 062450.
+   - The G1 candidate `a44bb55a` (`58DFEBFE…`, package v30): canary 070020, where G1's three destroys held on
+     hardware.
+   - Launcher `0160d835` (from `8f156c9a`) carries the IGVM identity and the boot nonce.
+   Next:
+   - **enclave-63:** cut v31 with profile firmware `a44bb55a`, superseding `c567e432`.
+   - Not yet exercised on hardware: the launcher's own `rebooted:true` handling on a fresh domain (enclave-5d's
+     proposed step) and the G4 restart probe (a PROBE image from enclave-63).
+   - **d1:** the manager's ported WMI launcher (windows/isolation-manager `393fccf8`) has a bounded hardware canary
+     written and not yet run.
 2. **enclave-5d and enclave-99:** the replacement node identity (windows-hv-node/v1), host-only and honest. A
    TPM-only node attach grants no app capacity and no isolation badge.
-3. **enclave-5d:** the node lifecycle treats a manager's `recovered: true` instance as HELD. The manager side of
-   63's P1 is fixed (windows/isolation-manager `53672cbe`).
+3. DONE, reviewed by d1: the node lifecycle treats a manager's `recovered: true` instance as HELD.
+   - enclave-5d's windows/node-hv-identity: `dad939e9`, `d626da4e`, then `fb1db848` for the re-review.
+   - The manager side is in windows/isolation-manager (`53672cbe`, `6b1137ee`, `8aac6cb4`).
+   - d1 reproduced `fb1db848` at 361/361 in a clean worktree.
 4. **Unresolved production requirement, documented, not blocking proof:** loading our firmware needs the host-wide
    AllowFirmwareLoadFromFile opt-in (O0). Proof runs use it temporarily and restore it. Permanent production use is
    Steven's decision, and it is not enabled permanently.
