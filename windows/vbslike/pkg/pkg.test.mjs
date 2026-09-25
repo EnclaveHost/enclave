@@ -1268,6 +1268,11 @@ test("deriveReferenceDigests refuses every debug, probe, control, stock and supe
   assert.ok(r.errors.some((e) => /^2 eligible digests \(56FBB27F, 58DFEBFE\)/.test(e)), r.errors.join("; ")); assert.deepEqual(r.eligible, []);
   r = mut((x) => { byId(x, "vbs-linux-candidate-1539").eligible = "yes"; });
   assert.ok(r.errors.some((e) => /eligible must be true or false/.test(e)));
+  // parity with enclave-99's eligibleDigestsOf (their review of 7e979b38): a document of another type derives nothing
+  for (const t of ["other/1", undefined, "enclave-nucbox-vbs-reference/2"]) {
+    r = mut((x) => { if (t === undefined) delete x.type; else x.type = t; });
+    assert.ok(r.errors.some((e) => /is not enclave-nucbox-vbs-reference\/1/.test(e)), String(t)); assert.deepEqual(r.eligible, [], String(t));
+  }
   // and pkg.mjs verify refuses such a reference too
   for (const [what, f, re] of [["the G4 probe eligible", (x) => { byId(x, "g4-probe-72462737").eligible = true; }, /g4-probe-72462737 is marked eligible/],
                                ["the superseded a44bb55a eligible beside b7ba7731", (x) => { byId(x, "vbs-linux-candidate-g1").eligible = true; }, /superseded vbs-linux-candidate-g1 is marked eligible/]]) {

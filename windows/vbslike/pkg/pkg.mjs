@@ -581,6 +581,7 @@ function rebuildIgvmfilegen(m, bytes, R) {
 export function deriveReferenceDigests(doc) {
   const errors = [], all = [], eligible = [], refused = [], D = /^[0-9A-F]{64}$/;
   const lists = [["images", Array.isArray(doc?.images) ? doc.images : null], ["superseded", Array.isArray(doc?.superseded) ? doc.superseded : []]];
+  if (doc?.type !== "enclave-nucbox-vbs-reference/1") errors.push(`type ${JSON.stringify(doc?.type)} is not enclave-nucbox-vbs-reference/1`);
   if (!lists[0][1]) errors.push("no images list");
   for (const [where, list] of lists) for (const e of list || []) {
     const d = String(e?.vbsBootDigest ?? "");
