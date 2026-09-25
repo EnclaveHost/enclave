@@ -167,7 +167,13 @@ SECRETS_RELEASE_SIGNING_KEY_FILE=/etc/nan-relay/secrets-release-signing.seed    
   Then predict, allowlist, roll out (S2 shape).
 - **Flip:** config.iso.json gets `"release": true` in its `isolation` object, the launcher runs from 578be084 or later,
   then the node CVM restarts. The image change, the launcher move and the flip can be ONE restart, after step 2 is
-  verified. The check is BOTH log lines: the launcher's "attested release OPTED IN", and gsup's in the guest.
+  verified. d1 APPROVED 578be084. The retry's checks (d1):
+  - (a) before the restart, validate the edited config with node: `c.isolation.release === true`, a BOOLEAN. A
+    non-boolean now makes the launcher exit, and under Restart=always that is a crash loop with the node down;
+  - (b) after the start, BOTH halves, in order: the launcher's journal line
+    `[enclave-metal] isolation snp-guest-per-app: attested release OPTED IN` (host), then gsup's
+    `attested release OPTED IN` (guest). A failure then names its side;
+  - (c) the running launcher's cwd is the 578be084 worktree, and its enclave-metal.mjs is sha256 4620da5d….
 - **Inert for running guests.** On the restart the supervisor resumes the canaries. The spawn ADOPTS a running guest
   launched from the same derivation record whether it is legacy or release (supervisor.js's 409 branch), and pumps a
   ticket only to a STARTING release guest. So nothing relaunches; the canaries stay legacy until step 4.
