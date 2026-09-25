@@ -256,6 +256,45 @@ type 1.**
   are the next evidence. `ohcldiag-dev` only helps once VTL2 runs; a partition that never starts has no diagnostics
   server.
 
+**Update, same day: type 1 STARTS with petri's recipe** (enclave-d1, af7aab92). The run: one DefineSystem with
+`GuestStateIsolationType` 1 + `GuestFeatureSet` 0x201 + `FirmwareFile` cfd40ce2, **no** Vtl2 trio, the synthetic
+devices removed, and a real VMGS (a donor file made by `New-VM -GuestStateIsolationType VBS`). The auto-placement
+refusal is confirmed, and "not composable on 26200" is withdrawn.
+- The run: Worker 18500 "started" at 19:52:40; at 19:54:40, 18610 "fatal virtual firmware error", an 18560 triple fault,
+  then 18508; COM1 zero bytes.
+- The host lines `[1540] Gsp server unavailable` / `GspSeedData not set`, present on every booted type-16 run, are
+  ABSENT.
+
+**Reading from source.**
+- **The 120 s is OpenHCL's own start-failure timer**, not a retry loop. When building the VM fails
+  (`underhill_core/src/worker.rs:386-407`, any error in `new_or_restart`), OpenHCL:
+  - logs "failed to start VM" (`CVM_ALLOWED`);
+  - sends the formatted error to the host (`CompleteStartVtl0`);
+  - waits two minutes to be terminated, and then panics with "should have been terminated after reporting start
+    failure: {error}" (`vm/devices/get/guest_emulation_transport/src/client.rs:543-566`).
+
+  So the failure happened within seconds of 19:52:40, and **the host was sent the exact error text** then. It is also
+  in OpenHCL's kmsg for those two minutes, through `ohcldiag-dev`.
+- **No GSP lines puts the failure before the GSP request.** On type 1, OpenHCL gets as far as that request
+  (`get_derived_keys`, `lib.rs:1026`) only after:
+  - opening the VMGS (`worker.rs:1864`);
+  - `validate_isolated_configuration` (`worker.rs:2230`);
+  - the non-fatal key release;
+  - reading the key protector (fatal on a read error).
+
+  A type-16 VM has no TEE and goes straight to GSP, which is why its runs log those lines.
+- **Two candidates, both fatal on this host:**
+  1. The VMGS does not open: `try_open(format_on_empty=true, format_on_failure=false)`, since this host has no
+     `GuestStateLifetime`. A V1 or otherwise invalid store is fatal; an EMPTY one is formatted.
+     `probe/vmgs_check.py <file>` says which the donor is.
+  2. `validate_isolated_configuration` refuses the host's settings. For example "additional PCRs must be measured":
+     `MeasureAdditionalPcrs` is a required field (no serde default, `get_protocol/src/dps_json.rs`), and the older
+     host may send false for this VM.
+- **Is a VMGS transferable between VM ids?** On OpenHCL's side, yes, if it is EMPTY or a plain v3 store. A key
+  protector written for another VM id only triggers a TPM seed refresh (`lib.rs` "VM Id has changed since last
+  boot"). Not if it is V1/invalid, or encrypted for another VM. Whether the HOST binds the file to a VM is not in this
+  source.
+
 ## 5. Files
 
 - `monitor/hvisolation.go` and `cpuid_amd64.{go,s}`: the stated fields. `hvisolation_test.go`: the mapping, and
@@ -274,3 +313,6 @@ type 1.**
   calls the unexported `hv_tdx_hypercall`.
 - `probe/build-probe.sh`: production initrd + `/probe.ko` → a probe initrd.
 - `probe/verify_vbs_vm_report.py`: the host half, with `--selftest`.
+- `probe/vmgs_check.py`: what OpenHCL will make of a VMGS on this host (EMPTY / V1 / INVALID / V3-PLAIN /
+  V3-ENCRYPTED, the headers, the allocated files), with `--selftest`. Checked against files made by Microsoft's
+  `vmgstool`.
