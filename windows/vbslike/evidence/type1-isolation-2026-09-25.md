@@ -144,3 +144,68 @@ Five of six apps healthy throughout; `0xd9798e4c` is wedged on the known ee-host
 which predates this work, has three prior unexplained occurrences, and is handed to the monitor for
 assignment. Every run's own before/after check reported "no app that answered on loopback before this
 run stopped answering".
+
+---
+
+# Continuation, same night: where the type-1 failure actually is
+
+## The 120 seconds is OpenHCL's start-failure timer, not a hang
+
+Hypervisor-Operational: partition 51 **created 19:52:47**, **deleted 19:54:47**. Exactly 120 s.
+OpenHCL reports a start failure to the host and then waits two minutes to be terminated; if it is
+not, it panics — which is the 18610 + 18560 pair. So **the real failure happens within seconds of
+the start**, and the triple fault is its epilogue rather than its cause.
+
+## The host holds no readable reason
+
+Every `Microsoft-Windows-Hyper-V-*` channel with records, swept unfiltered across 19:52:30–19:55:10.
+The complete set of entries is: Worker-Operational `[1820] Loading IGVM file from default location`
+(the only one); Worker-Admin 18609/12148/18500 then 18610/18560/18508; VMMS-Admin
+18304/19732/13002/18018/18012; Compute-Operational 2014/2009/2000/2008; Hypervisor-Operational
+16641/16642. **There is no free-text error and no CompleteStartVtl0 entry anywhere.** OpenHCL's own
+reason is therefore unreachable from the host, and `ohcldiag-dev` is the only remaining way to read
+it — a blocker, not a detail.
+
+## The empty-store discriminator: REFUSED BY THE HOST, so it decides nothing
+
+A 4,194,816-byte all-zero store (sha `8d81cd22…`) never reached OpenHCL. Hyper-V rejected it at
+realize time:
+
+    Failed to create a new virtual machine. '…' failed to realize.
+    Failed to access configuration store: The file or directory is corrupted and unreadable. (0x80070570)
+
+So **the host validates the guest-state store itself, before the VM is created**, and "OpenHCL
+formats an empty vmgs" is unreachable on this build. Recorded as refused-by-host — NOT as a result
+about OpenHCL.
+
+## The donor store looks valid, which shifts the weight
+
+First 16 bytes: `47 55 45 53 54 52 54 53 00 00 03 00 28 ed 2e 6d` = `GUESTRTS` then `00 00 03 00`,
+i.e. a v3.0 store. Per source review a v3 store from another VM id is accepted and only logs that the
+VM id changed. That moves weight off "the VMGS will not open" and onto
+`validate_isolated_configuration` refusing one of the host's settings — **inference, pending logs.**
+CRCs and allocated file ids are not yet checked.
+
+## Memory experiment: still VOID, but one reader is now honest and the decoder exists
+
+The saved-state reader works mechanically (Save-VM 520 ms, VM resumed cleanly) and found a
+2,147,512,320-byte `.VMRS` — the full 2 GiB guest. Its first verdict was an ARTEFACT: **Save-VM
+returns before the saved state is written**, the file read 165,654,528 bytes at that moment, and
+searching the truncated file produced a confident VOID. The reader now waits for the size to settle.
+
+A raw byte search may still be the wrong instrument for a `.VMRS`. The documented decoder IS present
+on this box: `C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\vmsavedstatedumpprovider.dll`
+with `vmsavedstatedump.h` and the `.lib`. That is the path to a reader whose positive control can
+actually pass.
+
+**No type-1 memory comparison has been attempted, and none would mean anything until a type-16
+control PASSES.**
+
+## Defects found in this harness while doing the above
+
+- **Cleanup failures were written to a console nobody was attached to.** A detached run has no
+  console, so `Write-Host "FAILURE: …"` went nowhere: a canary VM was left RUNNING after a
+  saved-state read while the log showed the setting restored. Found by listing VMs, not from the
+  log. Every verdict now goes through the log.
+- Removal now waits for `Off` and retries; a VM was previously announced as removed while
+  `Remove-VM` had thrown `InvalidState`.
