@@ -50,4 +50,18 @@ live canaries, if relaunched) are not affected; the legacy re-run of 4e78ba80 st
   - the PUBLISHED release must carry musl 1.2.6's COPYRIGHT and a pointer to its source;
   - the change removes glibc from the STATIC init only. template/rt still ships the dynamic glibc runtime set that
     wasmtime runs on, so its notices and source stay as before. No legal claim either way.
-- enclave-e3: review and predictor cross-check pending.
+- **enclave-e3: APPROVED release 79c5ecf2, and its predictor MATCHES** (fc90d6b5, the same predictor code as the live
+  aeb345e6, with toolchain 0181bce3; known answers PASS): api-mcp-adapter = 20319b02…, from a cold work dir.
+  - e3 built musl with `env -i` into a third prefix (libc.a 4f72e098…), and the template's line gave ba7f7ff0….
+  - Header deps are only musl's and GCC's cpuid.h. The link's 118 members are all musl's libc.a.
+  - dominit.c has no glibc-only behaviour; only the diagnostic `vcpus=` count may differ.
+  - e3's lows:
+    - L1: gcc honours CPATH-like variables;
+    - L2: build-musl.sh read CFLAGS and similar.
+    Both are fixed in **3ddacdf4**, which changes no output byte: the release built at 3ddacdf4, against a musl built
+    with CFLAGS=-O0 CPPFLAGS=-DBOGUS=1, is 79c5ecf2 byte for byte. A poisoned CPATH no longer reaches init; without the
+    fix it does. The tree switch may install aa6c985c or 3ddacdf4: the same release id.
+    - L3 (ops): after the tree switch, `~/.cache/enclave-isolation/musl-1.2.6` on warden-host is PRODUCTION-CRITICAL
+      (every release guest's template build reads it). It is NEVER to be deleted, like the verifying firmware; without
+      it, release guests fail closed.
+- **So 79c5ecf2 is FULLY REVIEWED** (d1 and e3, each reproduced from scratch).
