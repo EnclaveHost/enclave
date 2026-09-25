@@ -1,0 +1,5 @@
+u7-3 = v3 ec66487b (d1 OK)
+22:10:31Z U7 STEP 3 SMOKE PASSED (nan / nan-relay on U7; us-west still old)
+u7-3 exit=0
+
+[exited with code 0]

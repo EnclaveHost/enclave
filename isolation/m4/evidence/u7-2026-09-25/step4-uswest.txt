@@ -1,0 +1,23 @@
+u7-4 + its rollback = reviewed
+22:10:43Z
+-- egress-relay.env 600
+   ELIGIBILITY_API: unset
+   DOMAINS_API: unset
+-- relay-agent.env 600
+   ELIGIBILITY_API: unset
+   DOMAINS_API: unset
+-- tcp-relay.env 600
+   ELIGIBILITY_API: unset
+   DOMAINS_API: = https://api.enclave.host
+inactive active inactive inactive inactive 
+edfc2643d5384da4  relay.js
+e79afe22d390943a  fleet.mjs
+63722096252a9f90  tcp6-relay.js
+35c9bf7d9e50f0e7  udp-relay.js
+3690d7d975875a0d  dns-relay.js
+feed http=200 tls_verify=0
+22:10:44Z U7 step 4: us-west backup, fleet.mjs then relay.js, restart enclave-tcp-relay (live SNI sessions on the DNS path drop; clients reconnect)
+22:12:55Z U7 STEP 4 DONE: us-west on U7 (relay.js e0cb218f, fleet.mjs 384a1ef1), tcp-relay up 2 min without restarts, eligibility line, 50003 listeners, canaries 200 via DNS
+u7-4 exit=0
+
+[exited with code 0]
