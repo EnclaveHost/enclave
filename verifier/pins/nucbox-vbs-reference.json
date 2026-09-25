@@ -54,7 +54,7 @@
    "confidentialDebug": false,
    "trustsHostCommandLine": false,
    "vtl0": "linux, measured: the G1 candidate's kernel and command line with the G4 PROBE initrd e3b68c92 (680d40fa plus one appended archive holding the probe module)",
-   "booted": "no: build-only; enclave-d1's byte review agrees (7ce0a5fa)",
+   "booted": "yes, once: in enclave-d1's G4 run 082856 (evidence 4e314db7) it panicked on purpose at 121.8 s and Hyper-V turned the VM off (18590, 18515); it never served. enclave-d1's byte review agrees (7ce0a5fa).",
    "eligible": false,
    "reason": "REFUSE: a PROBE image for enclave-d1's G4 run, never a serving candidate; refused by its exact digest. Its identity document says debug_build false, so only the digest identifies it.",
    "pin": {

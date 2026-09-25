@@ -15,10 +15,10 @@ const SOURCES = JSON.parse(fs.readFileSync(new URL("../verifier/pins/SOURCES.jso
 const REF = JSON.parse(RAW.toString("utf8"));
 const clone = () => JSON.parse(RAW.toString("utf8"));
 
-test("the pinned file is enclave-63's v33 (after the rollover, plus the G4 probe image), by hash; only the G1 measured-VTL0 candidate is eligible, and every debug, control, stock and superseded image, the previous candidate included, is refused by its exact digest", () => {
+test("the pinned file is enclave-63's v35 (after the rollover, plus the G4 probe image, which booted once and never served), by hash; only the G1 measured-VTL0 candidate is eligible, and every debug, control, stock and superseded image, the previous candidate included, is refused by its exact digest", () => {
   assert.equal(createHash("sha256").update(RAW).digest("hex"), SOURCES["nucbox-vbs-reference.json"].sha256);
-  assert.equal(SOURCES["nucbox-vbs-reference.json"].origin.commit, "603f12d1"); assert.equal(SOURCES["nucbox-vbs-reference.json"].origin.owner, "enclave-63"); assert.equal(REF.type, REFERENCE_TYPE);
-  assert.deepEqual(SOURCES["nucbox-vbs-reference.json"].previous.map((x) => x.commit), ["fb1bb0e6", "e94fc756", "85d74c56", "840eb861"], "every previous pin is recorded");
+  assert.equal(SOURCES["nucbox-vbs-reference.json"].origin.commit, "75d4563e"); assert.equal(SOURCES["nucbox-vbs-reference.json"].origin.owner, "enclave-63"); assert.equal(REF.type, REFERENCE_TYPE);
+  assert.deepEqual(SOURCES["nucbox-vbs-reference.json"].previous.map((x) => x.commit), ["603f12d1", "fb1bb0e6", "e94fc756", "85d74c56", "840eb861"], "every previous pin is recorded");
   const G1 = "58DFEBFE5F46E5C0E371CE94C2AB947735EA618CF51F973FBBB58048D9C7343A", C567 = "A0FDAC0FC1EFB7B702D6DE1FACFAD8EB4E738DD35F3D3EE39AA0F5416BBCA244";
   const g1 = REF.images.find((i) => i.id === "vbs-linux-candidate-g1");
   assert.match(g1.booted, /^yes: BOOTED and SERVED/); assert.match(g1.reason, /PROSPECTIVE/, "eligibility stays prospective until report bytes verify");
@@ -39,6 +39,8 @@ test("the pinned file is enclave-63's v33 (after the rollover, plus the G4 probe
   const probe = REF.images.find((i) => i.id === "g4-probe-72462737");
   assert.equal(refused.get("CF339BC5C89E5F160482553CFE61A2CD694B38EE7583A55B6B722DBA13271B0F").class, "probe");
   assert.equal(probe.confidentialDebug, false); assert.equal(probe.debugBuild, false); assert.equal(probe.eligible, false);
+  // v35: the probe BOOTED once (d1's G4 run 082856) and that changes nothing: a boot is not eligibility, the digest still refuses it
+  assert.match(probe.booted, /^yes, once/); assert.match(probe.booted, /never served/);
 });
 
 test("debugBuild is never read; a file that marks a debug, host-trusting, control or superseded image eligible, repeats a digest, or has another type is refused outright", () => {
