@@ -177,7 +177,7 @@ const PVM_CPU_POLICY = AVF_ATTEST ? pvmCpuPolicyFromEnv(process.env) : null;
 // The Windows VBS-ENCLAVE attach (METAL_VBS_*, mode "vbs") is RETIRED (Steven, 2026-09-25): its
 // format is refused at attest, and any METAL_VBS_* still set is ignored, said once at startup.
 const HVNODE_ATTEST = /^(1|true|yes|on)$/i.test(String(process.env.RELAY_HVNODE_ATTACH || "").trim())
-  ? { ekRoots: fs.readFileSync(VBS_DEFAULT_EK_ROOTS, "utf8") } : null;
+  ? { ekRoots: fs.readFileSync(process.env.RELAY_HVNODE_EK_ROOTS || VBS_DEFAULT_EK_ROOTS, "utf8") } : null;   // RELAY_HVNODE_EK_ROOTS: tests and labs only
 if (Object.keys(process.env).some((k) => k.startsWith("METAL_VBS_")))
   console.warn("[relay] METAL_VBS_* is set, but the Windows VBS-enclave attach is retired (2026-09-25): ignored");
 // The origin a CGNAT seller registers itself under: `<origin>/t/<name>` is the

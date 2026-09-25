@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomBytes, createHash, sign as cryptoSign, generateKeyPairSync } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { verifyHvNodeEvidence, hvNodeBinding, retiredFormat, HVNODE_FORMAT, HVNODE_BIND_DOMAIN, HVNODE_OMISSIONS } from "../relay/hvnode-verify.mjs";
+import { verifyHvNodeEvidence, hvNodeBinding, retiredFormat, HVNODE_FORMAT, HVNODE_BIND_DOMAIN, HVNODE_OMISSIONS, HVNODE_SCOPE } from "../relay/hvnode-verify.mjs";
 import { vbsBinding, VBS_FORMAT } from "../relay/vbs-verify.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "../relay/vbs-policy.mjs";
 import { haveOpenssl, tmpdir, makeVbsWorld, buildLog, buildQuote, modulusOf } from "./fixtures/vbs-synthetic.mjs";
@@ -75,6 +75,48 @@ test("REAL boot-64 legacy enclave evidence re-presented as hv-node: refused on i
   const r = verifyHvNodeEvidence({ evidence: FIX.body, capture: { quoteExtraData: Buffer.from(FIX.capture.quoteExtraData, "hex") }, expectedCredential: randomBytes(32), mintedFor: { ekCert: Buffer.from(FIX.body.ek.cert, "base64"), aikName: Buffer.alloc(34) } }, { ekRoots: ROOTS, allowTestSigning: true });
   assert.equal(r.ok, false); assert.ok(fails(r, /^5 log: Secure Boot on/), r.reasons.join(" | ")); assert.ok(fails(r, /^5 log: TESTSIGNING == 0/));
   assert.match(retiredFormat(VBS_FORMAT), /retired \(Steven, 2026-09-25\).*never stands in for a custom-VM report/); assert.equal(retiredFormat(HVNODE_FORMAT), null); assert.equal(retiredFormat("anything-else/v1"), null);
+});
+
+// ---- the REAL full-transcript capture (enclave-d1, c54eea70): the node's frame as the relay receives it
+const CAP = path.join(HERE, "fixtures", "hvnode", "capture-20260925-061116");
+function capture() {
+  for (const [f, h] of Object.entries(JSON.parse(fs.readFileSync(path.join(CAP, "SOURCE.json"), "utf8")).files)) assert.equal(sha(fs.readFileSync(path.join(CAP, f))).toString("hex"), h, `fixture ${f} is the recorded bytes`);
+  const frame = JSON.parse(fs.readFileSync(path.join(CAP, "frame.json"), "utf8"));
+  const minted = JSON.parse(fs.readFileSync(path.join(CAP, "minted-for.json"), "utf8"));
+  return { frame, ev: JSON.parse(Buffer.from(frame.rad.body, "base64").toString("utf8")), spki: Buffer.from(frame.rad.transportKey, "base64"),
+           nonce: Buffer.from(fs.readFileSync(path.join(CAP, "nonce.hex"), "utf8").trim(), "hex"), credential: Buffer.from(fs.readFileSync(path.join(CAP, "expected-credential.hex"), "utf8").trim(), "hex"),
+           mintedFor: { ekCert: Buffer.from(minted.ekCert, "base64"), aikName: Buffer.from(minted.aikName, "hex") } };
+}
+const runCap = (C, o = {}) => verifyHvNodeEvidence({ evidence: o.ev ?? C.ev, nonce: o.nonce ?? C.nonce, transportKeySpki: o.spki ?? C.spki, expectedCredential: o.credential ?? C.credential, mintedFor: o.mintedFor ?? C.mintedFor }, { ekRoots: ROOTS });
+
+test("REAL full transcript (enclave-d1's boot-68 capture, the node's own frame): verified end to end, every check passing, the scope stated: host attach only", () => {
+  const C = capture();
+  assert.equal(C.frame.rad.format, HVNODE_FORMAT); assert.ok(C.spki.equals(Buffer.from(fs.readFileSync(path.join(CAP, "capture-spki.b64"), "utf8").trim(), "base64")));
+  const r = runCap(C);
+  assert.equal(r.ok, true, r.reasons.join("\n")); assert.equal(r.capture, false); assert.equal(r.admissible, true);
+  assert.equal(r.scope, HVNODE_SCOPE); assert.match(r.scope, /never tenant capacity, never an isolation or TEE label/);
+  assert.equal(r.tier, "hv-node"); assert.equal(r.technology, "windows-tpm-host"); assert.equal(r.hostExcluded, false); assert.equal(r.teeCpu, null); assert.equal(r.measurement, null);
+  assert.deepEqual(r.omissions, ["platform-firmware-unpinned"]); assert.equal(r.checks.length, 31, "all 31 checks run"); assert.ok(r.checks.every((c) => c.ok));
+  assert.match(r.boot.idksModulusSha256, /^402f2281[0-9a-f]{52}01a9$/, "the same boot-68 IDKS as the independent session");
+  assert.equal(r.boot.akName, "000bab98d6b8990b16ff1e7cbbc5ecc2a51dc7f26db1cb9501052813f03cc563134c", "the NULL-hierarchy AK: the same name as the 05:39 session, same boot");
+  assert.ok(r.hostStatement && r.hostStatement.sha256);
+  const recorded = JSON.parse(fs.readFileSync(path.join(CAP, "verdict.json"), "utf8"));
+  assert.deepEqual(r.checks.map((c) => [c.name, c.ok]), recorded.checks.map((c) => [c.name, c.ok]), "the same 31 verdicts enclave-d1 recorded on the box");
+});
+
+test("REAL full transcript: enclave-d1's six negatives, each refused: replay, a quote-body bit, a possession-signature bit, a different transport key, a never-minted credential, a substituted statement", () => {
+  const C = capture();
+  const flip = (s, i) => { const b = Buffer.from(s, "base64"); b[i % b.length] ^= 1; return b.toString("base64"); };
+  const other = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
+  const cases = [
+    ["replay: a new nonce", runCap(C, { nonce: randomBytes(32) }), /^4 quote: extraData == challenge/],
+    ["a quote-body bit", runCap(C, { ev: { ...C.ev, quote: { ...C.ev.quote, attest: flip(C.ev.quote.attest, 40) } } }), /^4 quote: (signature|TPMS_ATTEST)/],
+    ["a possession-signature bit", runCap(C, { ev: { ...C.ev, signature: flip(C.ev.signature, 5) } }), /^8 possession/],
+    ["a different transport key", runCap(C, { spki: other }), /^4 quote: extraData == challenge|^8 possession/],
+    ["a credential never minted", runCap(C, { credential: randomBytes(32) }), /^3 credential/],
+    ["a substituted statement", runCap(C, { ev: { ...C.ev, statement: b64(Buffer.from(JSON.stringify({ stated: true, hostExcluded: true }))) } }), /^4 quote: extraData == challenge/],
+  ];
+  for (const [name, r, re] of cases) { assert.equal(r.ok, false, name); assert.equal(r.admissible, false, name); assert.ok(fails(r, re), `${name}: refused at ${re}; failed: ${r.reasons.join(" | ")}`); }
 });
 
 // ---- synthetic worlds: the full transcript
