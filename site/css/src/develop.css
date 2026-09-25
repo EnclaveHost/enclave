@@ -70,10 +70,10 @@ table.params.cmds td{overflow-wrap:break-word;}
 .doc .code code{color:var(--code-ink);background:none;border:0;padding:0;font-size:1em;}
 .doc ul,.doc ol{color:var(--text-muted);font-size:.95rem;line-height:1.65;padding-left:1.3em;max-width:78ch;margin:.6em 0;}
 .doc li{margin:.35em 0;}
-.doc-note{border:1px solid var(--jade-dim);border-left-width:3px;border-radius:var(--radius-sm);background:linear-gradient(180deg,rgba(47,230,168,.06),transparent);padding:14px 18px;margin:16px 0;max-width:78ch;}
+.doc-note{border:1px solid var(--jade-dim);border-left-width:3px;border-radius:var(--radius-sm);background:linear-gradient(180deg,rgba(47,230,168,.06),transparent),var(--surface);padding:14px 18px;margin:16px 0;max-width:78ch;}
 .doc-note p{margin:.2em 0;font-size:.9rem;}
 .doc-note .nt{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--jade);display:block;margin-bottom:4px;}
-.doc-note.warn{border-color:var(--amber-dim);background:linear-gradient(180deg,var(--amber-deep),transparent);}
+.doc-note.warn{border-color:var(--amber-dim);background:linear-gradient(180deg,var(--amber-deep),transparent),var(--surface);}
 .doc-note.warn .nt{color:var(--amber);}
 .doc .tbl{overflow-x:auto;margin:14px 0;border:1px solid var(--line-soft);border-radius:var(--radius-sm);}
 .doc table.params td{color:var(--text-muted);font-size:.86rem;line-height:1.55;}
