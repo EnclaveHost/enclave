@@ -1,0 +1,20 @@
+20:56:44Z
+20:56:47Z step 2: pushing aeb345e649c432e7184d6fada6aef034529a6510 to main (fast-forward from 779e5944ad7b48b38aed0a9c2b9b37bb85518e21)
+pre-push: gitleaks config: the pushed commit's .gitleaks.toml (aeb345e649c4)
+To https://github.com/EnclaveHost/enclave.git
+   779e5944a..aeb345e64  aeb345e649c432e7184d6fada6aef034529a6510 -> main
+20:56:58Z step 2: Deploy run 36188755371
+success
+detect: success
+relay: success
+contracts-notice: skipped
+release: skipped
+contracts: skipped
+site: skipped
+20:59:22Z step 2: jobs: contracts-notice=skipped contracts=skipped detect=success relay=success release=skipped site=skipped
+20:59:22Z step 2: detect flags: catalog=false contracts_any=false cpu_release=false deployments=false enclavepay=false mps=false paymentrouter=false registry=false relay=true release=false site=false wasm=false worker=false 
+20:59:22Z WATCH 1 ok: the relay job deployed to nan-relay only
+20:59:22Z step 2 done: Deploy run 36188755371, relay job success
+rs-2 exit=0
+
+[exited with code 0]

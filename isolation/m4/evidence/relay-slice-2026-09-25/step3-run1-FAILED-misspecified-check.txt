@@ -1,0 +1,22 @@
+20:59:34Z
+20:59:35Z api-relay: active, NRestarts 0, since Fri 2026-09-25 20:59:08 UTC, invocation d7a7d48710b6
+20:59:36Z ACCEPT FAIL: /v1/enclaves is not 200
+20:59:36Z KAT: [measurement-predict] known-answer test at start: PASS: 2 known answer(s) reproduced exactly
+20:59:36Z serving nodes: 1 (before 1)
+..   0x0ddbd824: 503 (warming), retry in 5s
+..   0x0ddbd824: 503 (warming), retry in 5s
+..   0x0ddbd824: 503 (warming), retry in 5s
+ok   0x0ddbd824: measurement be6b8644384e predicted under release 5c3561f91bc7
+..   0x395bed3e: 503 (warming), retry in 5s
+..   0x395bed3e: 503 (warming), retry in 5s
+..   0x395bed3e: 503 (warming), retry in 5s
+ok   0x395bed3e: measurement c068f423578c predicted under release 6f14ce753708
+ok   0x4e62e60d: measurement c068f423578c predicted under release 6f14ce753708
+ok   the release is OFF (release-ticket 503)
+ok   unknown deployment 404
+ok   malformed id 422
+21:00:34Z MemoryPeak 731303936
+21:00:45Z RELAY SLICE NOT ACCEPTED: decide the rollback (rs-rollback-config.sh, then rs-rollback-code.sh)
+rs-3 exit=1
+
+[exited with code 0]

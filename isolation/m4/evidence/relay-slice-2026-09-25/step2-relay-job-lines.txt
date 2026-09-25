@@ -1,0 +1,4 @@
+2026-09-25T20:57:27.2337211Z == data-plane relays: nan-relay
+2026-09-25T20:57:27.2337552Z == nan-relay: tcp (SNI) + tcp6 (dedicated-IP) + udp + egress relays
+2026-09-25T20:58:07.8991677Z == env-file permissions (secrets live here)
+2026-09-25T20:58:12.1958425Z == api relay (site box)

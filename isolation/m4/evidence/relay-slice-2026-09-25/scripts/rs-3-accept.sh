@@ -12,7 +12,13 @@ as=$(prop ActiveState); nr=$(prop NRestarts); since=$(prop ActiveEnterTimestamp)
 say "api-relay: $as, NRestarts $nr, since $since, invocation ${inv:0:12}"
 [ "$as" = active ] && [ "$nr" = 0 ] || bad "api-relay not active or restarted"
 [[ "$since" == *" 2026-09-25 "* ]] && [ "$since" != "Fri 2026-09-25 18:00:46 UTC" ] || bad "the api-relay was not restarted by the deploy (still since $since)"
-[ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://api.enclave.host/v1/enclaves)" = 200 ] || bad "/v1/enclaves is not 200"
+# the relay's OWN routes answer (/enclaves 200 with its aggregate, /health ok). /v1/* is proxied to a FULL-SERVICE enclave
+# and answers 503 no_serving_enclave BY DESIGN while none serves (sticky(); metal-iso0 is fullService:false): it must
+# answer exactly that, as before the deploy (v3 wrongly expected /v1/enclaves 200; corrected at 21:01:43Z, see README)
+[ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://api.enclave.host/enclaves)" = 200 ] || bad "/enclaves is not 200"
+curl -sS --max-time 20 https://api.enclave.host/health | grep -q '"ok":true' || bad "/health is not ok"
+v1=$(curl -sS --max-time 20 -w ' %{http_code}' https://api.enclave.host/v1/enclaves)
+[[ "$v1" == *'"error":"no_serving_enclave"'*' 503' ]] || bad "/v1/enclaves answers something new: ${v1:0:160}"
 # the known-answer test of THIS relay process (its invocation's journal); the first run is cold: up to 15 min
 end=$(( $(date +%s) + 900 )); kat=""
 while [ $(date +%s) -lt $end ]; do
