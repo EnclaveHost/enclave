@@ -530,3 +530,52 @@ claim about what is achievable, only about what this boot did.
 
 Unchanged: `host_excluded=no`, E2 NOT complete, E3 NOT RUN with no instrument (and report testing
 does not replace its missing evidence), no isolation proof, nothing here is verified capacity.
+
+# Tooling canary, 05:03:38 UTC: the corrected cleanup code and the rebuilt launcher on hardware
+
+**What this is:** a test of the TOOLS, not of isolation or attestation. It is one run of
+`uefi-dev-boot.ps1` at `29ea63e5` (the closed review items: watchdog on the run's pid, run lock
+before self-heal, held input handles, checked icacls, drained COM1) with `vbslike-host.exe`
+`da16c20f` built from `daa61749`. Log: `uefi-dev-boot-20260925-050338.log`.
+
+Configuration: type 1, CONTROL firmware `32d464cc`, production medium `ca245eae`, VBS opt-out,
+1 vCPU, 2 GiB, hello-world served on relay port 19500. No host memory read: that work is parked.
+The box was handed off to enclave-5d and enclave-53 before the run.
+
+Verbatim from the run:
+
+    05:04:04 medium verified: ...guest-production-uki7af57aab.iso (134594560 bytes) sha256 ca245eae... - held open, write and delete denied, until the VM is gone
+    05:04:04 firmware verified: ...openhcl-cvm-a7b0bd4-CONTROL-32d464cc.bin (21732876 bytes) sha256 32d464cc... - held open, write and delete denied, until the VM is gone
+    05:04:04 watchdog armed: it acts when pid 8328 ends without cleaning up, or after 1350s if this run hangs
+    05:04:06 read access granted to the VM's own SID on the medium and the firmware (icacls exit 0 for both)
+    05:04:12   CONSOLE: MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=vbs paravisor=no
+    05:04:14   WMISERVE: {"isolationType":1,"note":"serving. This is a DEV path on a type-1 (VBS) partition: the hypervisor is CONFIGURED to keep VTL0 RAM host-private, which is a configuration and not a measurement. No host-side read has been shown to be refused here. Nothing here is host-excluded or verified capacity.","step":"ready"}
+    05:04:16 APP OK: the app served EXACTLY the pinned bytes through the guest's own TLS
+    05:04:16   ADMIN [18615] 'enclave-uefi-20260925-050338' VM guest state encryption key not released.
+    05:04:17 removed enclave-uefi-20260925-050338
+    05:04:17 SETTING RESTORED to Absent (verified)
+    05:04:17 hv_sock service 00002329-facb-11e6-bd58-64006a7986d3 removed (verified)
+    05:04:33 no app that answered on loopback before this run stopped answering
+    05:04:33 RUN OK
+
+Checked on the box afterwards (05:05 UTC):
+- no VM, no sentinel, no watchdog-fired mark, no watchdog process, run lock free;
+- `AllowFirmwareLoadFromFile` absent, the hv_sock report key absent;
+- no ohcldiag-dev or vbslike-host process left.
+
+The watchdog saw its run's process end after a clean finish and did nothing, as designed. Holding
+the medium and firmware open with read-only sharing did not stop the VM from starting.
+
+What the run shows, and nothing more:
+- The corrected cleanup code works on a clean type-1 run.
+- The rebuilt launcher states the partition it was given (`isolationType 1`), and its note says
+  configuration, not measurement.
+- The kill path (the watchdog acting after a killed run) was NOT exercised here.
+
+What it does NOT show: host exclusion, attestation, or anything about E2 or E3.
+
+Housekeeping: two per-run guest-state copies from the 04:03 and 04:12 runs were still in
+`vbs-like\`. Those runs' cleanup had refused their own VMs (the ownership-marker collision fixed at
+`c9c8cdcc`), and the VMs were removed by hand at the time; their copies were not. Both files were
+moved, hash-verified, to `vbs-evidence\gueststate-20260925-040317.vmgs` (`8306e228...`) and
+`gueststate-20260925-041231.vmgs` (`b4d3bb3d...`).
