@@ -13,3 +13,7 @@ Second install, release a4f22748 (image 17e182a8), 20:09:57-20:09:58Z, s4-instal
   adoption preflight DRY RUN on this tree (placeholder binary, record set aside): 3/3 canaries verify with the new tree's judge
   guestd MainPID 3590642, NRestarts 0; ExecStart references only iso-03be27d6 
   0839ac3a (iso-ecf02384 + release-ecf02384) stays installed and inert until s4-abandon.sh ecf02384 (after e3's v4 verdict on it)
+
+1c, 20:17:35Z (s4-guestd-install.sh 03967f0b, e3-approved v5): ~/enclave-prod/bin/guestd.4e78ba80 sha256 0ee7ed91e5066a0cbe7a4b528250342c354722a84202d043d03c5ee6dbec3086, built twice (the second from an empty Go cache), equal to the sha reproduced independently by enclave-5d, enclave-e3 and enclave-63; it lists -release -legacy-isolation -instance-prefix -guest-host-floor-mib -guest-mem-mib -guest-cpus. INERT: nothing references it.
+Adoption preflight for THAT binary, 20:17:16Z: 3/3 canaries verify with the 17e182a8 tree's judge (adoption-check-4e78ba80.txt).
+guestd still MainPID 3590642, NRestarts 0, ExecStart guestd.c42612c0 on iso-03be27d6; the 3 canary units running.
