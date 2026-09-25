@@ -1,0 +1,17 @@
+u7-3 = reviewed v2
+./u7-3-smoke.sh: line 25: [: 0
+0: integer expected
+22:06:18Z U7 SMOKE FAIL: the api relay logs U7: closed repeatedly (0
+0 in 5 min)
+22:07:50Z U7 STEP 3 SMOKE FAILED: rollback = u7-rollback-code.sh
+u7-3 exit=1
+== ADMIT=79c5ecf2 accept.sh (rs-4 package copy)
+ok   0x0ddbd824: measurement be6b8644384e predicted under release 5c3561f91bc7; release 79c5ecf24eb4 predicted (2317370df656) and admitted
+ok   0x395bed3e: measurement c068f423578c predicted under release 6f14ce753708; release 79c5ecf24eb4 predicted (6de873656f88) and admitted
+ok   0x4e62e60d: measurement c068f423578c predicted under release 6f14ce753708; release 79c5ecf24eb4 predicted (6de873656f88) and admitted
+ok   the release is OFF (release-ticket 503)
+ok   unknown deployment 404
+ok   malformed id 422
+accept rc=0
+
+[exited with code 0]
