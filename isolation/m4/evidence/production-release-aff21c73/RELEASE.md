@@ -10,7 +10,7 @@ cmdline `console=ttyS0 rdinit=/init loglevel=3`, measure snp / QEMU / family 26 
 
 Built on warden-host at 19:05:55Z by `isolation/m4/domain-release.sh`, in a clean worktree detached at aff21c73 (no
 local changes, GOFLAGS and ISOLATION_LAB_FRONT unset), go1.27.0-X:nodwarf5. The artifact is
-`~/enclave-bench/prod-release-aff21c73/release-aff21c73` (read-only). It is NOT installed, pinned by any relay, or run
+`~/enclave-bench/prod-release-aff21c73/release-aff21c73` (owner-writable; see the d1a38994 INSTALL.md on why). It is NOT installed, pinned by any relay, or run
 by any guest.
 
 ## Why this commit

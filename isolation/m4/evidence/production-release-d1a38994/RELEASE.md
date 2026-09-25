@@ -12,7 +12,7 @@ is the only change from aff21c73: `git diff aff21c73 d1a38994` touches `front/re
 
 Built on warden-host at 19:17:35Z by `isolation/m4/domain-release.sh`, in a clean worktree detached at d1a38994
 (`status --porcelain --ignored` empty; GOFLAGS and ISOLATION_LAB_FRONT unset), go1.27.0-X:nodwarf5. The artifact is
-`~/enclave-bench/prod-release-d1a38994/release-d1a38994` (read-only). It is NOT installed, pinned by any relay, or run
+`~/enclave-bench/prod-release-d1a38994/release-d1a38994` (owner-writable: the manifest pins contents, not modes; INSTALL.md 1a). It is NOT installed, pinned by any relay, or run
 by any guest. INSTALL.md describes installing it.
 
 ## Checked
