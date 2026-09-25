@@ -201,3 +201,57 @@ exclusion is NOT established, and the guest says so itself.
 - `test-uefi-guards.sh`: 6/6, as listed above.
 - The box's own kernel boots from a UKI under OVMF to `MON ready`. Its hv_sock channel cannot be exercised in QEMU;
   that part is for the box.
+
+## The box acceptance run (hvlab-accept.mjs)
+
+This is one deployment taken through the node's own code, from `ensureApp` to a browser's TLS session that ends
+inside the partition. It runs against the manager already running on the box: enclave-d1's `main.mjs`, with its
+real launch backend. It creates at most one instance at a time and removes each one it created. It never touches an
+instance it did not create: if the manager already holds one for the deployment, it exits 3, `HVLAB-ACCEPT REFUSED`.
+
+- Its node is d1's real `Host` and app zone, with a test endpoint, a temp dir and no operator key.
+- It uses its own tunnel hub on loopback (`relay/tunnel.js`), not the production relay. The node agent, the
+  production apps and the relay are not involved.
+
+What it checks, in order:
+
+1. `ensureApp` reaches running, and the record says `T0-hv` with the host not excluded.
+2. A browser goes through the tunnel hub, the app zone and the data plane into the domain. `judge-hv`
+   returns monitor-signed on the browser's own handshake key, and that key equals the key in the manager's record.
+   The judge is given the app, the runtime identity, the launcher key and the image. The app answers 200.
+3. Refusals:
+   - a verifier holding another key, another nonce, or expecting another app;
+   - the data plane's admission for another key, image, app or runtime, or for an instance the manager does not
+     hold, with the exact record admitted as the control.
+4. A forced relaunch (`ensureApp(..., {force: true})`, a config edit's path):
+   - a NEW instance with a NEW key, and the old instance gone from the manager;
+   - exactly one instance with the deployment's name;
+   - the session opened on the old domain has ended;
+   - the old route is refused, and so is the new instance under the old key;
+   - the browser reconnects on the new verified key, and a client pinned to the old key sees a different one.
+5. A node restart (a fresh `Host`, a fresh tunnel): `ensureApp` ADOPTS the same instance and key and does not
+   start a second one, and the browser reconnects through it.
+6. Cleanup: the node's own `retire` for each instance created, re-read and confirmed gone.
+
+On the box, from the checkout that carries this file (PowerShell):
+
+```
+$env:HVACC_NODE_TREE    = "<the node tree: windows/node, windows/vbslike, relay/tunnel.js, isolation/contract, node_modules>"
+$env:HVACC_MANAGER      = "http://127.0.0.1:<the manager's port>"
+$env:HVACC_DATA         = "127.0.0.1:<ENCLAVE_DATAPLANE_PORT>"
+$env:HVACC_LAUNCHER_KEY = "<the launcher's report key, exactly as the report's launcher.key carries it>"
+$env:HVACC_JUDGE        = "$env:HVACC_NODE_TREE\windows\vbslike\verify\judge-hv.mjs"
+$env:HVACC_RUNTIME      = "<ENCLAVE_RUNTIME_IDENTITY: the booted image's plat/rt/runtime.json>"
+$env:HVACC_PYTHON       = "python"
+node isolation\m3\hvlab-accept.mjs
+```
+
+It passes with 27 PASS lines and a last line of `HVLAB-ACCEPT ALL PASS`. Defaults: hello-world, the representative
+record `0x4e62e60d...`, whose derive record is `bff33b95`. Override them with `HVACC_DEPLOYMENT`, `HVACC_APPREF`
+and `HVACC_APPPORT`. `HVACC_TIMEOUT_S` (default 300) bounds each wait for running.
+
+Locally, `NODE_TREE=<tree> test-hv-accept.sh <workdir>` (add `BOOT=uefi` for the UKI path) runs the same harness
+against `hvlab-manager.mjs`: d1's Manager, `judgeRunning` and the data plane as main.mjs wires them, with plain KVM
+guests. That is QEMU/KVM, NOT Hyper-V. A pass there says the node, manager and guest code agree. It says nothing
+about a Hyper-V partition's boundary. The local "old session ended" pass comes from the relay closing when the
+domain is destroyed, not from `onReclaim`: the data plane counts `closed:reclaimed` 0.
