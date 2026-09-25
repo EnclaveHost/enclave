@@ -139,6 +139,16 @@ export class Manager {
       rec.reason = "the backend exposed no relay port, so readiness cannot be judged and nothing can be routed";
       return;
     }
+    // THE PARTITION (enclave-d1, READINESS.md M1). judge-hv compares the report's partition.vmId with the partition the
+    // launcher holding this key is bound to, as that launcher states it (wmiserve's launcher step; the lab's load answer).
+    // Without it the only thing tying a report to THIS domain's VM is one launcher key per VM. A handle that carries a
+    // launcher key and names no partition is refused, never judged without the check.
+    if (!handle.launcherVmId) {
+      rec.status = "failed"; rec.appReady = false;
+      rec.reason = "the backend named no partition for its launcher key (launcherVmId), so a report from another partition could not be told apart";
+      this.#reclaim(rec.id, "failed readiness");
+      return;
+    }
     try {
       // The launcher's statement and image, judged as a PAIR against the signed report (judge-hv): a record that
       // states one is never judged on its image alone. The HCS lab's records carry no statement and no image.
@@ -146,7 +156,7 @@ export class Manager {
       const statement = gi ? { expectedStatement: { partition: gi.partition, guestImageKind: gi.guestImageKind },
                                expectedImageSha256: rec.image } : {};
       const v = await judge({ host: rec.relay.host, port: rec.relay.port, appId: rec.appId,
-                              launcherKey: handle.launcherKey, ...statement,
+                              launcherKey: handle.launcherKey, expectedVmId: handle.launcherVmId, ...statement,
                               // the IDENTITY object, which is what checkRuntime compares; never the hash
                               expectRuntime: this.runtime ?? undefined,
                               deadlineMs: this.readyDeadlineMs });

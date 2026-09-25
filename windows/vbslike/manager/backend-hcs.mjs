@@ -187,6 +187,9 @@ export class HcsPartitionBackend {
                        // in hand the whole time.
                        image: this.launcher?.initrdSha256 ?? null,
                        launcherKey: this.launcher?.launcherKey ?? null,
+                       // the partition that key signs for, as the lab launcher states it in its load answer (the same
+                       // vm_id_str its reports carry as partition.vmId): the manager judges each report against it
+                       launcherVmId: d.vmId ?? null,
                        // The guest booted and took the bundle. Whether the APP answers is a separate
                        // question with its own signal, and this backend does not pretend to know it.
                        guest: { booted: true, loaded: true }, appReady: false };

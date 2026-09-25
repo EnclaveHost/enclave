@@ -89,3 +89,39 @@ test("the temp file is cleaned up whether it worked or not", async () => {
   assert.deepEqual(await fs.readdir(base), [], "no component bytes left lying in temp");
   await fs.rm(base, { recursive: true, force: true });
 });
+
+// ---- READINESS.md M6: the fetcher writes no bytecode into the tree it runs from --------------------------------------
+import { execFile, spawnSync } from "node:child_process";
+import { promisify } from "node:util";
+import http from "node:http";
+import fsSync from "node:fs";
+import { fileURLToPath } from "node:url";
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const PY = ["python3", "python"].find((p) => { const r = spawnSync(p, ["-c", "import sys; print(sys.version_info[0])"]); return !r.error && String(r.stdout).trim() === "3"; });
+
+test("the fetcher runs Python with PYTHONDONTWRITEBYTECODE=1, and the rest of the environment is inherited", async () => {
+  const seen = [];
+  const run = async (python, args, opts) => { seen.push(opts); throw Object.assign(new Error("stop here"), { code: 1, stderr: "x" }); };
+  await assert.rejects(() => cidFetcher({ script: "s.py", run })(CID));
+  assert.equal(seen[0].env.PYTHONDONTWRITEBYTECODE, "1");
+  assert.equal(seen[0].env.PATH, process.env.PATH, "PATH and the rest are the manager's own");
+});
+
+test("a REAL fetch leaves the fetcher's directory unchanged (no __pycache__), where the same fetch without the setting writes one", { skip: !PY && "no python 3" }, async () => {
+  const tree = fsSync.mkdtempSync(path.join(os.tmpdir(), "m6-tree-")), elsewhere = fsSync.mkdtempSync(path.join(os.tmpdir(), "m6-out-"));
+  fsSync.copyFileSync(path.join(HERE, "../../node/fetch-cid.py"), path.join(tree, "fetch-cid.py"));
+  fsSync.copyFileSync(path.join(HERE, "../../../wasm/ipfs_fetch.py"), path.join(tree, "ipfs_fetch.py"));
+  const listing = () => fsSync.readdirSync(tree).sort(), before = listing();
+  // a gateway that answers 404 to everything: fetch-cid.py imports ipfs_fetch at startup, then fails fast, on this host only
+  const gw = http.createServer((q, r) => { r.writeHead(404); r.end(); });
+  await new Promise((r) => gw.listen(0, "127.0.0.1", r));
+  const gateway = `http://127.0.0.1:${gw.address().port}`;
+  try {
+    await assert.rejects(() => cidFetcher({ script: path.join(tree, "fetch-cid.py"), python: PY, gateway, timeoutMs: 30_000 })(CID));
+    assert.deepEqual(listing(), before, "the fetcher's directory is exactly as it was: no __pycache__, no .pyc");
+    // the control: the same call WITHOUT the setting writes the bytecode this test exists to catch
+    const env = { ...process.env }; delete env.PYTHONDONTWRITEBYTECODE;
+    await promisify(execFile)(PY, [path.join(tree, "fetch-cid.py"), CID, path.join(elsewhere, "c.wasm"), "1024", gateway], { env, timeout: 30_000 }).catch(() => {});
+    assert.ok(listing().includes("__pycache__"), `without the setting the import writes __pycache__ (listing: ${listing().join(", ")})`);
+  } finally { gw.close(); fsSync.rmSync(tree, { recursive: true, force: true }); fsSync.rmSync(elsewhere, { recursive: true, force: true }); }
+});

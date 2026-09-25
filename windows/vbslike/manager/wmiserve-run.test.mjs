@@ -38,6 +38,7 @@ test("a well-behaved run is ready with the loaded domain, and stop() closes it t
   assert.equal(r.domainId, 1); assert.equal(r.guestPort, 40001); assert.equal(r.tcpPort, 19201);
   assert.equal(r.appSha256, appId); assert.equal(r.boot, "39725c19e15c91afe488ce62251055f5");
   assert.equal(Buffer.from(r.launcherKey, "base64").length, 32);
+  assert.equal(r.vm, VM, "the partition the launcher bound itself to, in the launcher's own words");
   const argv = JSON.parse(fs.readFileSync(argsFile, "utf8"));
   assert.deepEqual(argv.slice(0, 3), ["wmiserve", "--vm", VM]);
   assert.equal(argv[argv.indexOf("--hold") + 1], "stdin", "the relay lives until the manager says otherwise, or dies");
