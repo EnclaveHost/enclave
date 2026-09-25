@@ -498,6 +498,30 @@ MON PROBE finished: No such device        (by design: the module never stays loa
 - The TCG log of the same host boot is captured (`tcglog-20260925-042300-0000000067-0000000000.log`, 90,554 B). It is
   needed only once a report exists; before that it can confirm that this boot's log carries IDKS/IDK.
 
+**The discriminator, answered** (enclave-d1's debug kmsg from the type-1 opt-out boot, `kmsg-20260925-040317.txt`):
+
+```
+secure_key_release: ERROR ... failed to parse the IgvmAttest KEY_RELEASE response: ... the size of the attestation response 0 is too small to parse
+... GSP response ... no_rpc_server=true
+No VMGS encryption used.
+```
+
+- **VTL2 got a VBS report, and VTL0 did not.** This follows from source, not inference.
+  `request_vmgs_encryption_keys` calls `get_attestation_report` (the same `HvCallVbsVmCallReport`) first, and a
+  failure there returns immediately (`secure_key_release.rs:174-182`, "Failures here are fatal"). Only after that does
+  it send the IGVM_ATTEST request (`:185`), whose empty response produced this error (`igvm_attest/mod.rs:41`).
+- So on this host the hypervisor produces VBS VM reports for the paravisor and answers VTL0's identical call with
+  `OPERATION_FAILED`. The key-release, GSP and VMGS lines match the no-agent path (section 2).
+- **One pairing caveat.** The VTL2 success was seen on the debug image (81e163ee) and the VTL0 failure on the control
+  image (32d464cc). Both are a7b0bd4 with the same manifest and layout; the flag changes only OpenHCL's command line
+  and so its digest, and it is not expected to change the hypervisor's decision. A single boot of the debug firmware
+  with the vbsreport probe medium would show both answers from one partition.
+- **What VTL2's report binds.** It binds OpenHCL's own key-release runtime claims (its transfer key, `report_data =
+  hash(runtime claims)`), not our guest's key. It went to the host in the IGVM_ATTEST request. Nothing today binds the
+  domain's TLS key to a VBS report. A client-verifiable binding would need the paravisor to request a report over our
+  key: a design change in the paravisor, not a guest patch. Whether it is buildable here is open, and the signer
+  question (IDKS or not) is untested, because no report has been in our hands.
+
 **Stock 2511:** enclave-d1's view is to leave it alone unless the product needs Microsoft's released image, and the
 decision goes to the monitor. The pinned a7b0bd4 build boots and serves.
 
