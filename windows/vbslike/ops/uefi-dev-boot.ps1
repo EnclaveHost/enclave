@@ -73,6 +73,11 @@ param(
   # Built for the VBS config only (type 1). An app is served with wmiserve's --igvm-sha256 (the IGVM FILE's hash
   # as the guest image, partition "wmi-openhcl-gen2-igvm-linux"): launcher builds from the commit that added it.
   [switch] $LinuxDirect,
+  # G1 ON HARDWARE (enclave-5d's per-boot nonce, isolation/portable-runtime-jit 1e9e99fb): after the app is served,
+  # three destroys over hv_sock 9000 - no boot (must be refused bootRequired, app still serving), a WRONG boot (must
+  # answer rebooted:true and touch nothing, app still serving), then the load answer's own boot (must destroy, and
+  # the app must stop answering). Needs -Bundle and a monitor that mints a boot.
+  [switch] $G1Check,
   # THE INVERSE CONTROL for Windows' firmware-load requirement: run WITHOUT applying AllowFirmwareLoadFromFile, so
   # the first observable says whether Hyper-V loads this firmware file without the developer setting at all.
   [switch] $WithoutFirmwarePolicy,
@@ -708,7 +713,7 @@ try {
       Note "CONTROL CHANNEL OK: the guest has a working vsock transport and is listening on 9000"
       # A connect proves a listener. An EXCHANGE proves the monitor is speaking its protocol, which
       # is what `load` will need. {"cmd":"state"} is the cheapest command that carries no payload.
-      $st = & C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send '{"cmd":"state"}' 2>&1 | Out-String
+      $st = & C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send ('{"cmd":"state"}' -replace '"','\"') 2>&1 | Out-String
       Note "state exchange: $($st.Trim())"
 
       # THE MARKER. Fresh per run, so a hit can never be last run's bytes still lying around, and
@@ -722,7 +727,7 @@ try {
       if ($HostRead) {
         $hrMarker = "ENCLAVE-HOSTREAD-MARKER/1-" + ([guid]::NewGuid().ToString('N')) + "-END"
         Note "marker: $hrMarker"
-        $mk = & C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send "{`"cmd`":`"echo`",`"marker`":`"$hrMarker`"}" 2>&1 | Out-String
+        $mk = & C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send ("{`"cmd`":`"echo`",`"marker`":`"$hrMarker`"}" -replace '"','\"') 2>&1 | Out-String
         Note "marker pushed to the guest: $($mk.Trim())"
         # Both readers, because they fail in different ways and the comparison is the evidence.
         # vmwp first (it does not disturb the guest), then the saved-state path, which SUSPENDS the
@@ -780,6 +785,29 @@ try {
               Note "APP OK: the app served EXACTLY the pinned bytes through the guest's own TLS"
               Note "  (identity NOT verified here: curl -k accepted the guest cert. That is judge-hv's job.)"
             } else { Note "APP: answered, but the bytes are not the pinned content (expected sha 03ba204e...)" }
+          if ($G1Check) {
+            # The boot the monitor minted, from wmiserve's own load line (launcher 0160d835+ prints it).
+            $loadLine = @(Get-Content $svOut -EA SilentlyContinue | Where-Object { $_ -match '"step":"load"' -and $_ -match '"ok":true' }) | Select-Object -First 1
+            $g1 = $null; try { $g1 = ($loadLine | ConvertFrom-Json) } catch { }
+            $gboot = if ($g1) { [string]$g1.boot } else { '' }
+            $gid = if ($g1) { [int]$g1.id } else { 0 }
+            Note "G1: the load answer named domain $gid under boot '$gboot'"
+            $appCode = { & curl.exe -sk -o NUL -w "%{http_code}" --max-time 10 "https://127.0.0.1:$RelayPort/" 2>$null }
+            $send = { param($j) (& C:\Users\claude\vbs-like\target\release\vbslike-host.exe hvdial --vm $vmId --port 9000 --seconds 10 --send ($j -replace '"','\"') 2>&1 | Out-String).Trim() }
+            if ($gboot -notmatch '^[0-9a-f]{32}$') { Note "G1 CHECK NOT RUN: the load answer carried no 32-hex boot (a monitor older than G1, or a launcher that does not print it)" }
+            else {
+              $r1 = & $send ('{"cmd":"destroy","id":' + $gid + '}')
+              Note "G1 1/3 destroy WITHOUT boot -> $r1"
+              Note "G1 1/3 app afterwards: HTTP $(& $appCode) (must still be 200: nothing may be touched)"
+              $wrong = -join ((1..32) | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+              $r2 = & $send ('{"cmd":"destroy","id":' + $gid + ',"boot":"' + $wrong + '"}')
+              Note "G1 2/3 destroy with a WRONG boot ($wrong) -> $r2"
+              Note "G1 2/3 app afterwards: HTTP $(& $appCode) (must still be 200: nothing may be touched)"
+              $r3 = & $send ('{"cmd":"destroy","id":' + $gid + ',"boot":"' + $gboot + '"}')
+              Note "G1 3/3 destroy with the load answer's boot -> $r3"
+              Note "G1 3/3 app afterwards: HTTP $(& $appCode) (must no longer be 200: the domain was destroyed)"
+            }
+          }
           # LAST, because it suspends the guest: the documented saved-state path.
           if ($HostRead -and $script:hostReadMarker) {
             $ss = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\claude\host-read-savedstate.ps1 `
