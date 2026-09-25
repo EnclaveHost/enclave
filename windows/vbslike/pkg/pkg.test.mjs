@@ -555,3 +555,27 @@ test("draft v20 is held and corrects v19's next-steps order (the DEBUG run had a
   const r = run(["verify", D]);
   assert.equal(r.code, 0, fails(r.out));
 });
+
+test("draft v21 (staged) pins d1's type-1 BOOT AND SERVE on the a7b0bd4 control image verbatim, with host_excluded=no, the stock decision and the opt-out reason; a quoted boundary line without host_excluded=no is refused", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-21.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  assert.match(d.status, /^DRAFT, STAGED \(supersedes v19 as the staged package\): A TYPE-1 PARTITION BOOTS AND SERVES on the a7b0bd4 CONTROL image/);
+  assert.match(d.profiles.vbs.status, /^EXPERIMENT: BOOTS AND SERVES .*NO isolation claim; E2\/E3 NOT RUN/);
+  assert.match(d.profiles.vbs.measured[0], /^BOOTS AND SERVES .*'MON boundary tier=t0-hv vmpl=n\/a vmpl_floor=n\/a vmpl0=n\/a host_excluded=no hv_isolation=vbs paravisor=no'.*'MON ready control_port=9000 snp=false transport=hv_sock'.*sha256 03ba204e50d126e4674c005e04d82e84c21366780af1f43bd54a37816b6ab340/);
+  assert.match(d.profiles.vbs.measured[1], /^DECIDED BY THE CONTROL IMAGE .*MEASURED, no longer a hypothesis.*DIFFERENT, UNNAMED error/);
+  assert.equal(d.profiles.vbs.firmware, "guest/uefi/openhcl-cvm.bin", "the profile's firmware stays the stock image; the booting image stays a probe.firmware");
+  assert.equal(d.files.find((x) => x.path === d.profiles.vbs.probeFirmware.control).role, "probe.firmware");
+  assert.match(d.profiles.vbs.vm.security.virtualizationBasedSecurityOptOut, /^REQUIRED for type 1 .*ReadOnly property.*Guest VSM is VTL1 INSIDE the guest.*untouched by the opt-out/);
+  assert.match(d.profiles.vbs.vm.security.saveVm, /^REFUSED BY HOST .*NOT evidence of protection/);
+  assert.match(d.profiles.vbs.expect.type1, /^MEASURED .*paravisor=NO/);
+  assert.deepEqual(d.console.uefi.measuredType1.slice(2), ["MON boundary tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=vbs paravisor=no", "MON ready control_port=9000 snp=false transport=hv_sock"]);
+  assert.equal(d.tier.hostExcluded, false);
+  for (const f of ["uefi-dev-boot.ps1", "host-read-guest.ps1"]) assert.equal(d.files.find((x) => x.path === `control/windows/vbslike/ops/${f}`).from.git.commit, "c9c8cdccd70f39b780ad9320949ae60fa5564080");
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   every quoted 'MON boundary' line says host_excluded=no while the tier says the host is not excluded/);
+  // the rule d1 asked for: not "no MON line under vbs" but "a quoted boundary line must carry host_excluded=no"
+  const m = structuredClone(d); m.profiles.vbs.measured[0] = m.profiles.vbs.measured[0].replace("host_excluded=no hv_isolation=vbs", "host_excluded=yes hv_isolation=vbs");
+  const x = run(["verify", writeManifest(m)]);
+  assert.equal(x.code, 1, "a quoted boundary line claiming host_excluded=yes passed under a T0-hv tier");
+  assert.match(x.out, /FAIL every quoted 'MON boundary' line says host_excluded=no .*host_excluded=yes/, fails(x.out));
+});

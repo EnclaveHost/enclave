@@ -175,6 +175,24 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   image any time, gating nothing. Two no-boot log checks ("enabling alias map" type 16 vs type 1; "empty vmgs file,
   formatting" / "failed to write vmgs provisioning marker" in the debug kmsg). Staged with d1's next type-1 run.
 
+- **v21 draft** (`drafts/nucbox-ownguest-21.json`, STAGED; supersedes v19): **a type-1 partition BOOTS AND SERVES** on
+  the a7b0bd4 CONTROL image `32d464cc…` with `Set-VMSecurity -VirtualizationBasedSecurityOptOut $true` (d1, verbatim):
+  `inspect control_state` "started", `MON hv … isolation_priv=true config_b=0x1`, `MON boundary … host_excluded=no
+  hv_isolation=vbs paravisor=no`, `MON ready … transport=hv_sock`, hello-world's 13 bytes (sha `03ba204e…`). The
+  guest states `hv_isolation=vbs` and STILL `host_excluded=no`: a development boot of an experimental image; NO
+  isolation claim; E2/E3 NOT RUN. The profile's pinned firmware stays the stock `cfd40ce2`, which does NOT boot type 1
+  here (measured with the same opt-out and medium: "starting", never boots) — the image that boots stays a
+  `probe.firmware`; promotion is a separate decision. DECIDED: the stock failure is 2511-specific (5d from source: the
+  Guest-VSM/alias-map code at 29e15ab is identical, so 2511 fails on a different, unnamed error); the named failure was
+  Guest VSM, not the debug flag, cleared by the opt-out on a7b0bd4. Two host facts in d1's terms: the opt-out is
+  REQUIRED (CIM property ReadOnly; cmdlet only) and legitimate because Guest VSM is VTL1 inside the guest, which our
+  guest never uses, while the partition's isolation from the host is a different, untouched mechanism; and `Save-VM`
+  is REFUSED on type 1 (refused-by-host; a constraint on E3's design, NOT evidence of protection). `paravisor=no` is
+  what the source expects (5d's vbs/yes prediction was wrong). The suite rule that forbade any MON line under vbs is
+  replaced by a verifier rule: every quoted boundary line carrying a `host_excluded=` value must say `no` while the
+  tier is not host-excluded (mutation-tested). Scripts at `c9c8cdcc` (wmiserve's hard-coded type-16 boundary string
+  noted as d1's pending fix). Next: E2 on the vbsreport probe on this definition, with the host's TCG log.
+
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was

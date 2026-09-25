@@ -301,6 +301,16 @@ async function checkClaims(m, bytes, R) {
     for (const f of probes) if (!/PROBE/.test(f.path)) bad.push(`${f.path} (${f.role}) is not named PROBE on disk`);
     if (probes.length || bad.length) R.add(bad.length === 0, "no profile boots a PROBE medium as its medium or a probe firmware as its firmware, and every probe file is named PROBE on disk", bad.length ? bad.join("; ") : `${probes.length} probe file(s)`);
   }
+  // A quoted guest console line is evidence of what the guest STATED. While the tier says the host is not excluded, every
+  // 'MON boundary' line quoted anywhere in the profiles must say host_excluded=no: a package cannot carry a line that
+  // contradicts its own tier, and (enclave-d1) a rule that merely forbade such lines under an experimental profile would
+  // fail on true evidence the day a guest really boots there.
+  {
+    // a quoted line is one that carries the tuple (MON boundary tier=... with a host_excluded= value); prose that mentions
+    // "the MON boundary line" and the bare expectation prefix "MON boundary tier=t0-hv" carry no value and are not evidence
+    const lines = (JSON.stringify(m.profiles || {}).match(/MON boundary tier=[^'"\\]*/g) || []).filter((l) => /host_excluded=/.test(l)), bad = lines.filter((l) => !/host_excluded=no\b/.test(l));
+    if (!m.tier?.hostExcluded && lines.length) R.add(bad.length === 0, "every quoted 'MON boundary' line says host_excluded=no while the tier says the host is not excluded", bad.length ? bad.map((l) => l.slice(0, 120)).join("; ") : `${lines.length} line(s)`);
+  }
   // The node's own record builder against the catalog. The manifest records each app's catalog version as READ FROM THE
   // CHAIN (catalogFacts, with the block, address book and catalog it came from); the shipped node-bridge.mjs's
   // isolationPlan builds the derivation record from those facts exactly as the node will at spawn time, and it must be
