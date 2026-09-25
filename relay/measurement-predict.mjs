@@ -282,7 +282,13 @@ export function makePredictor(o) {
   async function measure(tc, job, record, bundle, appId, releaseIds) {
     const images = [];
     for (const id of releaseIds) {
-      const e = await run("sh", [path.join(tc.dir, "isolation/m4/expected-measurement.sh"), "--pin", id, releases.get(id), bundle, String(record.policy.vcpus)],
+      // an owner-writable snapshot of the release in the private job directory: an installed release may be read-only, and
+      // expected-measurement.sh copies it with `cp -a` and removes its copy on exit (a read-only copy fails that and the
+      // run). The manifest pins contents, not modes, and the script verifies the snapshot against the pinned id.
+      const snap = path.join(job, `release-${id.slice(0, 16)}`);
+      try { snapshotRelease(releases.get(id), snap); }
+      catch (e) { return { ok: false, code: "prediction_unavailable", reason: `release ${id.slice(0, 12)} could not be read: ${e.message}` }; }
+      const e = await run("sh", [path.join(tc.dir, "isolation/m4/expected-measurement.sh"), "--pin", id, snap, bundle, String(record.policy.vcpus)],
         { env: tc.env, cwd: job, timeoutMs });
       const kv = Object.fromEntries(e.out.split("\n").map((l) => [l.slice(0, l.indexOf(" ")), l.slice(l.indexOf(" ") + 1).trim()]));
       if (e.code !== 0 || kv.release !== id || !HEX(96).test(kv.measurement || "")) {
@@ -425,6 +431,21 @@ export function makePredictor(o) {
 
   return { expectedFor, selfTest, fetchVerified, problems, state: () => ({ kat: { ok: kat.ok, at: kat.at, reason: kat.reason }, toolchain: toolchain && toolchain.dir,
                                                          active, queued: queue.length, cached: cache.size, ...stats }) };
+}
+
+// copy a release directory tree (regular files and directories only; anything else is left for the manifest check to refuse)
+// with the owner's write bit added, so every copy made from it can be removed again
+function snapshotRelease(src, dst) {
+  const st = fs.lstatSync(src);
+  if (st.isDirectory()) {
+    fs.mkdirSync(dst, { mode: (st.mode & 0o777) | 0o700 });
+    for (const e of fs.readdirSync(src)) snapshotRelease(path.join(src, e), path.join(dst, e));
+  } else if (st.isFile()) {
+    fs.copyFileSync(src, dst);
+    fs.chmodSync(dst, (st.mode & 0o777) | 0o200);
+  } else if (st.isSymbolicLink()) {
+    fs.symlinkSync(fs.readlinkSync(src), dst);   // copied as a link: release-manifest.py refuses it, as for the original
+  }
 }
 
 const lastLine = (s) => String(s || "").trim().split("\n").filter(Boolean).slice(-1)[0] || "";
