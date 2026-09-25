@@ -8761,6 +8761,9 @@ if (process.env.RELEASE_SELFTEST) {
     // guestd at VMMGR_URL (guestd-control/1, GUESTD_KEY_FILE) and the relay at SECRETS_API - the release lab's phase 2
     // (isolation/m2/lab-release/run-lab-phase2.sh). Prints the instance id, the pump's result and guestd's view.
     _advertisedEndpoint = c.spawnReal.endpoint;
+    // the pump sleeps on sleepMs, whose timers are unref'd (right for the long-running process); here nothing else holds
+    // the event loop, so hold it while the seam waits, or node exits mid-pump with the top-level await unsettled
+    const hold = setInterval(() => {}, 1000);
     let out = {};
     try {
       const r = await spawnContainer(c.spawnReal.spec);
@@ -8769,6 +8772,7 @@ if (process.env.RELEASE_SELFTEST) {
       const v = await vmReq("GET", `/vms/${encodeURIComponent(r.vmId)}`, null, 10_000);
       out.view = v.body;
     } catch (e) { out.error = e.message; }
+    clearInterval(hold);
     console.log(JSON.stringify(out));
     process.exit(0);
   }
