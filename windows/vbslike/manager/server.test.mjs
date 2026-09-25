@@ -106,17 +106,16 @@ test("the lifecycle is readable: list, get, delete", async () => {
 
 test("the backend takes the REAL launcher, and a domain started through it is running", async () => {
   const { WmiHyperVLauncher } = await import("./wmi-launcher.mjs");
+  const { TYPE1, PREFLIGHT_OK, defineAnswer, keyOf } = await import("./fake-hyperv.mjs");
   const SHA = "2d7353760b89b81b6f47759382bb2e83c325d73ed0825734f30fc4051183dfb3";
-  const answer = (script) => script.includes("$r.vmms") ? { vmms: true, namespace: true, module: true, firmwareField: true, hypervisor: true }
-    : script.includes("Get-FileHash") ? { present: true, sha256: SHA, bytes: 124962164 }
-    : script.includes("New-VM") ? { id: "GUID", version: "12.0", name: "x" }
-    : script.includes("ModifySystemSettings") ? { returnValue: 0, jobState: null, firmwareFile: "C:\\img.bin", guestFeatureSet: 0x201 }
-    : script.includes("Start-VM") ? { state: "Running" }
-    : script.includes("NamedPipeClientStream") ? { connected: true, bytes: 42, head: "guest output" }
-    : script.includes("$vms = @(Get-VM | Where-Object") ? { vms: [] } : { ok: true };
+  // the type-1 definition (New-CustomVM), answered the way a compliant host reads it back
+  const answer = (script) => ({ preflight: PREFLIGHT_OK, imageHash: { present: true, sha256: SHA, bytes: 124962164 },
+    define: defineAnswer(script), start: { state: "Running" },
+    startAndRead: { state: "Running", console: { connected: true, bytes: 42, head: "guest output" } },
+    readConsole: { connected: true, bytes: 42, head: "guest output" }, survey: { vms: [] } })[keyOf(script)] ?? { ok: true };
   const launcher = new WmiHyperVLauncher({
     run: async (s) => ({ code: 0, stdout: JSON.stringify(answer(s)), stderr: "" }),
-    imagePath: "C:\\img.bin", imageSha256: SHA, prefix: "enclave-app-t-" });
+    imagePath: "C:\\img.bin", imageSha256: SHA, prefix: "enclave-app-t-", ...TYPE1 });
   const backend = new HyperVPartitionBackend({ launcher });
   const m = mk({ backend });
   await assert.rejects(m.spawn(spawnBody()), (e) => e.status === 503, "a manager that can launch answers nothing before it has surveyed Hyper-V");
@@ -439,4 +438,74 @@ test("an onReclaim that throws does not break the removal", async () => {
   m.onReclaim = () => { throw new Error("data plane is down"); };
   const r = await m.spawn(spawnBody());
   assert.deepEqual(await m.remove(r.id), { removed: true, absent: false }, "the domain is gone either way");
+});
+
+// The launcher's (partition, guestImageKind) statement travels to the readiness rule WITH the image, so judge-hv
+// compares the pair before the image (enclave-d1 + enclave-99, main ae6e9147); a record with no statement (the HCS lab)
+// passes neither, and its image is not compared.
+test("a linux-direct domain is judged on its (partition, kind) statement AND its image; the HCS lab's on neither", async () => {
+  const IGVM = "7c".repeat(32);
+  const ld = { tier: "t0-hv", partition: "wmi-openhcl-gen2-igvm-linux", hostExcluded: false, attested: false };
+  const wmi = { supports: {}, backend: "hv", boundary: ld,
+    start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false, boundary: ld,
+                          domainId: 1, guestPort: 40001, tcpPort: 19102, image: IGVM, launcherKey: "LKEY",
+                          guestIdentity: { partition: ld.partition, guestImageKind: "igvm-linux-direct", igvmSha256: IGVM, igvmPath: "x" } }),
+    stop: async () => {} };
+  for (const [backend, expectPair] of [[wmi, true], [relayBackend(), false]]) {
+    const seen = [];
+    const m = mk({ backend, judgeReady: async (a) => { seen.push(a); return { status: "running", transportKeySha256: "cd".repeat(32),
+      checks: { document: { ok: true, verdict: "monitor-signed" }, ready: { ok: true } } }; } });
+    const r = await m.spawn(spawnBody());
+    await m.judging.get(r.id);
+    if (expectPair) {
+      assert.deepEqual(seen[0].expectedStatement, { partition: ld.partition, guestImageKind: "igvm-linux-direct" });
+      assert.equal(seen[0].expectedImageSha256, IGVM);
+      assert.deepEqual(m.get(r.id).guestIdentity, { partition: ld.partition, guestImageKind: "igvm-linux-direct" }, "the view states the pair");
+      assert.equal(m.get(r.id).launcherKey, "LKEY", "the view names the key its reports are signed with (new per wmiserve run)");
+    } else {
+      assert.equal(seen[0].expectedStatement, undefined); assert.equal(seen[0].expectedImageSha256, undefined);
+    }
+  }
+});
+
+// A relay (wmiserve) that exits AFTER ready leaves a domain nobody can reach: the record fails, its sessions are
+// reclaimed, and the VM is left for the node to retire (d1's review of 299ce3e9). Its exit during a stop is the stop's.
+function relayed({ stopExits = false } = {}) {
+  let exit; const exited = new Promise((r) => { exit = r; });
+  const backend = { supports: {}, backend: "hv", boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
+    start: async () => ({ name: "vm", state: "Running", guest: { booted: true, bytes: 9 }, appReady: false,
+                          boundary: { tier: "t0-hv", partition: "hcs-child", hostExcluded: false, attested: false },
+                          domainId: 1, guestPort: 40001, tcpPort: 19103, image: "ab".repeat(32), launcherKey: "LKEY",
+                          wmiserve: { exited } }),
+    stop: async () => { if (stopExits) { exit({ code: 0, signal: null }); await new Promise((r) => setImmediate(r)); } } };
+  return { backend, exit };
+}
+const judgeOk = async () => ({ status: "running", transportKeySha256: "cd".repeat(32), checks: { document: { ok: true, verdict: "monitor-signed" }, ready: { ok: true } } });
+
+test("a relay that exits after ready fails its domain and reclaims its sessions; the VM is not stopped here", async () => {
+  const { backend, exit } = relayed();
+  let stops = 0; const origStop = backend.stop; backend.stop = async (...a) => { stops++; return origStop(...a); };
+  const m = mk({ backend, judgeReady: judgeOk }); const seen = []; m.onReclaim = (id, why) => seen.push(why);
+  const r = await m.spawn(spawnBody()); await m.judging.get(r.id);
+  assert.equal(m.get(r.id).status, "running");
+  exit({ code: 101, signal: null }); await new Promise((res) => setImmediate(res));
+  const after = m.get(r.id);
+  assert.equal(after.status, "failed"); assert.match(after.reason, /relay process exited \(code 101\)/);
+  assert.deepEqual(seen, ["the relay process exited"]); assert.equal(stops, 0, "only a stop removes a VM");
+});
+
+test("a relay exiting BECAUSE of a stop is not a failure: the domain is removed, reclaimed once, as removed", async () => {
+  const { backend } = relayed({ stopExits: true });
+  const m = mk({ backend, judgeReady: judgeOk }); const seen = []; m.onReclaim = (id, why) => seen.push(why);
+  const r = await m.spawn(spawnBody()); await m.judging.get(r.id);
+  assert.deepEqual(await m.remove(r.id), { removed: true, absent: false });
+  assert.deepEqual(seen, ["removed"]);
+});
+
+test("a relay exiting after readiness already FAILED leaves that reason standing", async () => {
+  const { backend, exit } = relayed();
+  const m = mk({ backend, judgeReady: async () => ({ status: "failed", reason: "the document was not accepted", transportKeySha256: null, checks: {} }) });
+  const r = await m.spawn(spawnBody()); await m.judging.get(r.id);
+  exit({ code: 1, signal: null }); await new Promise((res) => setImmediate(res));
+  assert.match(m.get(r.id).reason, /document was not accepted/);
 });

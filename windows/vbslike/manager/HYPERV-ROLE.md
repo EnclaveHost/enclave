@@ -1,5 +1,14 @@
 # Enabling the Hyper-V role on nucbox-k11 — a procedure to review, not to run
 
+> **Superseded in part (windows/manager-type1-launcher).** The role is enabled, and `wmi-launcher.mjs`
+> no longer pins firmware through `ModifySystemSettings`: it defines a type-1 VM with petri's
+> `New-CustomVM`, ported from `windows/vbslike/ops/uefi-dev-boot.ps1` (e0de58cf). A launcher now
+> also needs `boot` (`uefi-medium` or `linux-direct`, stated), `hypervModule`, `guestStateMaster`
+> and `guestStateArchiveDir` (main.mjs: `ENCLAVE_BOOT_FORM`, `ENCLAVE_HYPERV_MODULE`,
+> `ENCLAVE_GUEST_STATE_MASTER`, `ENCLAVE_GUEST_STATE_ARCHIVE_DIR`, plus `ENCLAVE_GUEST_MEDIUM[_SHA256]`
+> for a medium), and the host's `AllowFirmwareLoadFromFile`, which the manager reports and never sets.
+> The boot snippet below predates that and would now be refused for want of a boot form.
+
 The supported way to give a VM a custom IGVM is WMI on the Hyper-V role: `wmi-launcher.mjs`
 implements it, against Microsoft's own `openhcl/Set-OpenHCL-HyperV-VM.ps1`. The adapter is written
 and tested. What it cannot do on this box is run, because the role is absent.
