@@ -32,7 +32,7 @@
    "cmdline": "console=ttyS0 rdinit=/init loglevel=3 report_host=9001"
   },
   "igvm": {
-   "status": "needs the Hyper-V role (vmms, root\\virtualization\\v2 with Msvm_VirtualSystemSettingData.FirmwareFile, Get-VM) AND the host's AllowFirmwareLoadFromFile opt-in (Steven's decision); check.ps1 reports whether this host has them",
+   "status": "needs the Hyper-V role (vmms, root\\virtualization\\v2 with Msvm_VirtualSystemSettingData.FirmwareFile, Get-VM) AND the host's AllowFirmwareLoadFromFile opt-in (bounded set-probe-restore procedure, authorized); check.ps1 reports whether this host has them",
    "boundary": "not established: this image has never been loaded (windows/vbslike/evidence/igvm-never-loaded-2026-09-24.md on windows/custom-vbs-like-hyperv)",
    "image": "guest/openhcl-ownguest.bin",
    "launcher": "windows/vbslike/manager/wmi-launcher.mjs (Msvm_VirtualSystemSettingData.FirmwareFile over root\\virtualization\\v2)",
@@ -137,7 +137,7 @@
      "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization",
      "name": "AllowFirmwareLoadFromFile",
      "value": 1,
-     "why": "Hyper-V names it (Worker-Admin 5142, 0x80070032). Setting it lets Hyper-V load unsigned firmware from a file for any VM on this host: Steven's decision; no script here sets it"
+     "why": "Hyper-V names it (Worker-Admin 5142, 0x80070032). Setting it lets Hyper-V load unsigned firmware from a file for any VM on this host. Bounded set-probe-restore runs are AUTHORIZED (production-first-windows.txt; windows/vbslike/evidence/isolated-firmware-approved-2026-09-24.md); leaving it set is a separate decision; no script here sets it"
     }
    ]
   },
@@ -164,7 +164,7 @@
      "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization",
      "name": "AllowFirmwareLoadFromFile",
      "value": 1,
-     "why": "Hyper-V names it (Worker-Admin 5142, 0x80070032). Setting it lets Hyper-V load unsigned firmware from a file for any VM on this host: Steven's decision; no script here sets it"
+     "why": "Hyper-V names it (Worker-Admin 5142, 0x80070032). Setting it lets Hyper-V load unsigned firmware from a file for any VM on this host. Bounded set-probe-restore runs are AUTHORIZED (production-first-windows.txt; windows/vbslike/evidence/isolated-firmware-approved-2026-09-24.md); leaving it set is a separate decision; no script here sets it"
     }
    ]
   }
@@ -603,7 +603,7 @@
      "path": "windows/vbslike/datapath/node-bridge.mjs"
     }
    },
-   "note": "enclave-5d's node-side bridge; isolationPlan takes the claim gate's require, manager and appConfigCid (2a43239a). Imported by enclave-d1's hooks. enclave-5d's evidence (isolation/m3/hv-node-check-2026-09-24.txt @ 2b09e9d8), against d1's REAL node at dc9da0e1 on local KVM, NOT Hyper-V: hello-world /1 spawned and judged ready (monitor-signed) by the real manager, record bff33b95; a browser through the relay hub -> d1's appzone -> the bridge -> the data plane -> the guest gets TLS on exactly the key the manager verified, and the app answers; hookbin /2 refused by the plan (the manager serves /1 only). NOT yet through the node's own ensureApp: at dc9da0e1 it throws 'memMb is not defined' (d1's), so that run drives #isolationReconcile's steps directly. Nothing is served until ensureApp itself passes."
+   "note": "enclave-5d's node-side bridge; isolationPlan takes the claim gate's require, manager and appConfigCid (2a43239a). Imported by enclave-d1's hooks. enclave-5d's evidence (isolation/m3/hv-node-check-2026-09-24.txt @ bcaaef37), in their words: the node's OWN path (d1's ensureApp at ebc0ef27) serves hello-world end to end on local KVM, development evidence: hello-world /1 reaches running (planned, spawned, judged monitor-signed; record bff33b95), and a browser through the relay hub -> appzone -> bridge -> data plane -> guest gets TLS on the verified key, and the app answers; hookbin /2 is refused by name (the manager serves /1 only); the guests ran initrd 5bc06259. NOT deployed to the box (the box runs baseline ef1b2077), and the UEFI/OpenHCL boot on the box is not yet done. 'Served on the NucBox' waits for the first real partition boot there."
   },
   {
    "path": "control/isolation/m4/guestd/supervisor-splice.mjs",
