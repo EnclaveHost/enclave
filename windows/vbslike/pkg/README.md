@@ -214,8 +214,9 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   VTL2. Conclusion in d1's words: the hypervisor produces a VBS report for this partition TO VTL2 and turns VTL0
   away; the chain is not absent but reachable only through the paravisor, which makes a client-verifiable binding a
   DESIGN CHANGE rather than a guest patch, buildable here unanswered. Not an isolation claim: `host_excluded=no`,
-  nothing verified, E3 NOT RUN; stock 2511 is a product decision for the monitor. d1's `b0f20482` evidence is an
-  input. The box launcher's hash is NOT re-pinned until d1 gives the post-rebuild one.
+  nothing verified, E3 NOT RUN; stock 2511 is a product decision for the monitor. d1's `b0f20482` evidence document
+  is NOT yet an input (my generator missed it: git abbreviates the path in its stat line); it is pinned in the next
+  version. The box launcher's hash is NOT re-pinned until d1 gives the post-rebuild one.
 
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
