@@ -605,6 +605,30 @@ async function operatorAuth(sig, raw, body, name) {
   return null;
 }
 
+// U7 on the fleet-HMAC path. The HMAC proves only "a holder of the fleet secret", never WHICH box (and on a metal box
+// that secret sits in an operator-readable file), so for a name that belongs to an on-ledger deployment it authorizes a
+// dns-01 answer only while that deployment has a live lease whose holder the api-relay holds ELIGIBLE, the bar the
+// operator-signed path sets. A deployment name is read the way the api-relay routes it (depFromHost): one label under the
+// app or tcp zone, "dep-"/"dep_" and "0x" stripped, 8-64 hex. Other names under those zones, and box-zone names (a box's
+// own hostname), are not a tenant's and keep the HMAC's authority. Returns why not, or null.
+async function hmacTenantRefusal(name) {
+  const rest = name.slice("_acme-challenge.".length);
+  const zone = rest.endsWith("." + APP_ZONE) ? APP_ZONE : (TCP_ZONE && rest.endsWith("." + TCP_ZONE) ? TCP_ZONE : null);
+  if (!zone) return null;
+  const label = rest.slice(0, -(zone.length + 1)).replace(/^dep[-_]/, "");
+  const hex = label.startsWith("0x") ? label.slice(2) : label;
+  if (!/^[0-9a-f]{8,64}$/.test(hex)) return null;
+  let lease = await fleet.leaseFor("0x" + hex);
+  if (!(lease && lease.leaseLive) && Date.now() - _lastFresh > FRESH_COOLDOWN_MS) {
+    _lastFresh = Date.now();
+    lease = await fleet.leaseFor("0x" + hex, { fresh: true });
+  }
+  if (!lease) return "the name is a deployment's, and no single on-ledger deployment (or no readable ledger) answers for it";
+  if (!lease.leaseLive) return "the name's deployment has no live lease";
+  if (!fleet.eligibleId(lease.runner)) return "the lease holder is not an eligible host (U7): no dns-01 answer for its names";
+  return null;
+}
+
 // One guard around the whole handler. installProcessGuards turns any
 // synchronous throw in a request listener into exit(1), and this daemon is the
 // AUTHORITATIVE DNS for the app and ip zones — a single malformed request
@@ -664,6 +688,13 @@ function apiHandler(req, res) {
     // auth: the fleet HMAC (any name), else an operator signature whose
     // authority is the on-chain lease for THIS deployment's subdomain only
     let authed = !!TXT_KEY && checkSig(req.headers["x-relay-sig"], raw);
+    // U7: a new challenge value under the HMAC, for a deployment's name, needs that deployment's live, ELIGIBLE lease
+    // holder (removing a value is not issuance and keeps the HMAC's authority)
+    if (authed && req.method === "POST") {
+      let why;
+      try { why = await hmacTenantRefusal(name); } catch (e) { console.error(`[dns-relay] hmac tenant check error: ${e.message}`); why = "verification error"; }
+      if (why) { console.log(`[dns-relay] txt POST ${name} under the fleet HMAC REFUSED: ${why}`); return json(403, { error: "hmac_auth_refused", message: why }); }
+    }
     if (!authed && typeof req.headers["x-operator-sig"] === "string") {
       if (!rlOperator(req.socket?.remoteAddress || "unknown"))
         return json(429, { error: "rate_limited", message: "Too many operator-signed pushes; retry shortly." });

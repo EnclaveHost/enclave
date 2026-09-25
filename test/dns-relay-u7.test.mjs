@@ -1,5 +1,6 @@
 // U7 on the DNS relay: an operator-signed dns-01 TXT push is authorized by the on-chain lease for THIS deployment's
-// subdomain, and (U7) only while the api-relay holds that lease holder ELIGIBLE. A dns-01 answer is a certificate for the
+// subdomain, and (U7) only while the api-relay holds that lease holder ELIGIBLE. The fleet-HMAC push, which names no
+// box, is held to the same lease and eligibility for a deployment's name (round 5). A dns-01 answer is a certificate for the
 // tenant's name, so an ineligible holder, or a relay with no eligibility source, gets none. Drives the REAL dns-relay
 // against a stub Base ledger and a stub /enclaves; the operator key is generated per run.
 //   run: node --test test/dns-relay-u7.test.mjs
@@ -11,6 +12,7 @@ import http from "node:http";
 import { once } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHmac } from "node:crypto";
 import { keccak256, stringToBytes } from "viem";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
@@ -116,4 +118,66 @@ test("U7 dns-relay: a lease-authorized dns-01 push needs an ELIGIBLE holder; ine
   r = await push(none.apiPort);
   assert.equal(r.status, 403, JSON.stringify(r.body)); assert.match(r.body.message, /not an eligible host \(U7\)/);
   assert.match(none.log(), /ELIGIBILITY_API \(or DOMAINS_API\) unset: NO host is eligible/);
+});
+
+test("U7 dns-relay: the fleet HMAC alone gets a dns-01 answer for a deployment's name only while it has a live, ELIGIBLE lease holder", async (t) => {
+  const GOOD = "0x" + "d7".repeat(32), BAD = "0x" + "b0".repeat(32), GONE = "0x" + "e1".repeat(32);
+  const TWIN1 = "0x" + "c3c3c3c3" + "01".repeat(28), TWIN2 = "0x" + "c3c3c3c3" + "02".repeat(28);   // one 8-hex label, two rows
+  const box = "https://box.example", bad = "https://bad.example";
+  const now = Math.floor(Date.now() / 1000), op = "0x" + "0f".repeat(20);
+  const row = (id, ep, leaseUntil) => ({ id, owner: "0x" + "aa".repeat(20), runner: keccak256(stringToBytes(ep)), runnerOperator: op, leaseUntil });
+  const ledger = [row(GOOD, box, now + 3600), row(BAD, bad, now + 3600), row(GONE, box, now - 60), row(TWIN1, box, now + 3600), row(TWIN2, box, now + 3600)];
+  const rpc = stubRpc(ledger); rpc.listen(0, "127.0.0.1"); await once(rpc, "listening");
+  let boxEligible = true;
+  const feed = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ enclaves: [{ endpoint: box, id: keccak256(stringToBytes(box)), eligible: boxEligible },
+                                        { endpoint: bad, id: keccak256(stringToBytes(bad)), eligible: false }] }));
+  });
+  feed.listen(0, "127.0.0.1"); await once(feed, "listening");
+  t.after(() => { rpc.close(); feed.close(); });
+  const KEY = "22".repeat(32);   // the synthetic derived key bootDns configures
+  const env = { DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20), BASE_RPC: `http://127.0.0.1:${rpc.address().port}`, TCP_ZONE: "tcp.test",
+                ELIGIBILITY_POLL_SEC: "1", ELIGIBILITY_API: `http://127.0.0.1:${feed.address().port}` };
+  const dns = await bootDns(env);
+  t.after(() => dns.p.kill("SIGKILL"));
+  let seq = 0;
+  const push = async (apiPort, label, { zone = APP_ZONE, method = "POST", sig } = {}) => {
+    const raw = JSON.stringify({ name: `_acme-challenge.${label}.${zone}`, value: "h" + seq++, ts: Math.floor(Date.now() / 1000) });
+    const r = await fetch(`http://127.0.0.1:${apiPort}/v1/txt`, { method,
+      headers: { "content-type": "application/json", "x-relay-sig": sig ?? createHmac("sha256", KEY).update(raw).digest("hex") }, body: raw });
+    return { status: r.status, body: await r.json() };
+  };
+  await delay(1500);                                          // the first eligibility poll
+  const ok = async (label, opts, why) => { const r = await push(dns.apiPort, label, opts); assert.equal(r.status, 200, `${label}: ${why}: ${JSON.stringify(r.body)}\n${dns.log()}`); };
+  const refused = async (label, re, opts) => {
+    const r = await push(dns.apiPort, label, opts);
+    assert.equal(r.status, 403, `${label}: ${JSON.stringify(r.body)}`); assert.equal(r.body.error, "hmac_auth_refused"); assert.match(r.body.message, re, label);
+  };
+  const h8 = (id) => id.slice(2, 10);
+  await ok(h8(GOOD), {}, "the eligible holder's deployment");
+  await ok(GOOD.slice(2), {}, "its full id as the label");
+  await ok("www", {}, "a name that is no deployment's keeps the HMAC's authority");
+  for (const label of [h8(BAD), "dep-" + h8(BAD), "dep_" + h8(BAD), "0x" + h8(BAD), "dep-0x" + h8(BAD), BAD.slice(2)])
+    await refused(label, /not an eligible host \(U7\)/);                  // every form the api-relay routes to that deployment
+  await refused(h8(BAD), /not an eligible host \(U7\)/, { zone: "tcp.test" });
+  await refused(h8(GONE), /no live lease/);
+  await refused("99999999", /no single on-ledger deployment/);
+  await refused("c3c3c3c3", /no single on-ledger deployment/, {});       // ambiguous: names two rows
+  // removing a value is not issuance: the HMAC keeps that authority
+  assert.equal((await push(dns.apiPort, h8(BAD), { method: "DELETE" })).status, 200);
+  // a wrong HMAC is still just wrong
+  assert.equal((await push(dns.apiPort, h8(GOOD), { sig: "00".repeat(32) })).status, 401);
+  // eligibility lost: the same push is refused; regained: answered again
+  boxEligible = false; await delay(1600);
+  await refused(h8(GOOD), /not an eligible host \(U7\)/);
+  boxEligible = true; await delay(1600);
+  await ok(h8(GOOD), {}, "eligible again");
+  // a relay with no readable ledger cannot tie a deployment name to a lease holder: refused, not waved through
+  const noLedger = await bootDns({ ...env, DEPLOYMENTS_ADDRESS: "" });
+  t.after(() => noLedger.p.kill("SIGKILL"));
+  await delay(1500);
+  const r = await push(noLedger.apiPort, h8(GOOD));
+  assert.equal(r.status, 403, JSON.stringify(r.body)); assert.match(r.body.message, /no single on-ledger deployment \(or no readable ledger\)/);
+  assert.equal((await push(noLedger.apiPort, "www")).status, 200);
 });

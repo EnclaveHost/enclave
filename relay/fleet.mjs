@@ -223,12 +223,15 @@ export function createFleet(cfg, log = () => {}) {
     }
     return _runnerClient;
   }
-  async function endpointId(ep) {
-    if (_endpointIdCache.has(ep)) return _endpointIdCache.get(ep);
+  async function loadHash() {
     if (!_hashEndpoint) {
       const { keccak256, stringToBytes } = await import("viem");
       _hashEndpoint = (s) => keccak256(stringToBytes(s));
     }
+  }
+  async function endpointId(ep) {
+    if (_endpointIdCache.has(ep)) return _endpointIdCache.get(ep);
+    await loadHash();
     const id = _hashEndpoint(ep).toLowerCase();
     _endpointIdCache.set(ep, id);
     return id;
@@ -367,34 +370,71 @@ export function createFleet(cfg, log = () => {}) {
   // use) and publishes it per row in /enclaves: `id` = keccak256(the registered endpoint), `eligible`. A tenant-routing
   // daemon dials a host only while that verdict is FRESH and says eligible. A failed poll keeps the last verdict until it
   // is older than eligibilityMaxAgeSec, and then nothing is eligible. Unconfigured, nothing is. Unknown is not permission.
-  let _elig = { ids: new Set(), at: 0 }, _eligOrigins = new Set(), _eligTimer = null;
+  // Every verdict is judged against the CURRENT id set: an origin's id (keccak256 of the endpoint string) is computed
+  // synchronously once viem is loaded, and cached, so no separately rebuilt origin set can lag the feed (enclave-5d's
+  // round-5 race: an older rebuild finishing after a newer one wrote back a set built from the previous ids).
+  // An ESTABLISHED session is held only while its host stays eligible: a daemon registers each live splice or flow with
+  // holdWhileEligible(origin, close), and every eligibility poll, a failed one included, closes those whose host no
+  // longer is (enclave-5d and enclave-d1, round 5: a check only at open let a host that lost eligibility keep them).
+  let _elig = { ids: new Set(), at: 0 }, _eligTimer = null;
+  const _held = new Map();   // origin -> Set of close functions of its live sessions
+  const normOrigin = (o) => String(o || "").replace(/\/+$/, "");
   const eligibilityFresh = () => !!cfg.eligibilityApi && Date.now() - _elig.at <= cfg.eligibilityMaxAgeSec * 1000;
-  async function recomputeEligibleOrigins() {
-    const next = new Set();
-    for (const o of new Set([...origins, ..._anyEndpoints]))
-      if (_elig.ids.has(await endpointId(o))) next.add(o);
-    _eligOrigins = next;
+  function endpointIdSync(ep) {
+    if (_endpointIdCache.has(ep)) return _endpointIdCache.get(ep);
+    if (!_hashEndpoint) return null;   // not loaded yet: unknown, so not eligible
+    const id = _hashEndpoint(ep).toLowerCase();
+    _endpointIdCache.set(ep, id);
+    return id;
+  }
+  function originEligibleNow(origin) {
+    if (!eligibilityFresh()) return false;
+    const id = endpointIdSync(normOrigin(origin));
+    return !!id && _elig.ids.has(id);
+  }
+  function sweepIneligible() {
+    let closed = 0;
+    for (const [o, set] of [..._held]) {
+      if (originEligibleNow(o)) continue;
+      _held.delete(o);   // each close runs once; its later release finds nothing
+      for (const close of set) { closed++; try { close(); } catch {} }
+    }
+    if (closed) log(`eligibility: closed ${closed} live session(s) to hosts no longer eligible (U7)`);
+    return closed;
   }
   async function refreshEligibility() {
-    if (!cfg.eligibilityApi) return;
-    const j = await fetchJson(cfg.eligibilityApi + "/enclaves", 5000).catch(() => null);
-    if (!j || !Array.isArray(j.enclaves)) { log(`eligibility poll failed (${cfg.eligibilityApi}/enclaves): keeping the last verdict until it ages out`); return; }
-    const ids = new Set(j.enclaves.filter((e) => e && e.eligible === true && /^0x[0-9a-f]{64}$/i.test(String(e.id || "")))
-                                   .map((e) => String(e.id).toLowerCase()));
-    _elig = { ids, at: Date.now() };
-    await recomputeEligibleOrigins();
+    try {
+      if (!cfg.eligibilityApi) return;
+      const j = await fetchJson(cfg.eligibilityApi + "/enclaves", 5000).catch(() => null);
+      if (!j || !Array.isArray(j.enclaves)) { log(`eligibility poll failed (${cfg.eligibilityApi}/enclaves): keeping the last verdict until it ages out`); return; }
+      const ids = new Set(j.enclaves.filter((e) => e && e.eligible === true && /^0x[0-9a-f]{64}$/i.test(String(e.id || "")))
+                                     .map((e) => String(e.id).toLowerCase()));
+      _elig = { ids, at: Date.now() };
+    } finally { sweepIneligible(); }   // after a failed poll too: a verdict that has aged out closes what it held open
   }
   const eligibility = {
     // is this registered endpoint (an origin this daemon would dial) an eligible host right now? Synchronous: a daemon
-    // asks it at the moment it dials. An origin first seen since the last poll is not yet in the set: refused until then.
-    eligibleOriginSync: (origin) => eligibilityFresh() && _eligOrigins.has(String(origin || "").replace(/\/+$/, "")),
-    // the same, computing the id on demand (an origin the last poll has not mapped yet)
-    async eligibleOrigin(origin) { return eligibilityFresh() && _elig.ids.has(await endpointId(String(origin || "").replace(/\/+$/, ""))); },
+    // asks it at the moment it dials.
+    eligibleOriginSync: (origin) => originEligibleNow(origin),
+    // the same, for a caller that may run before the hash is loaded
+    async eligibleOrigin(origin) { await loadHash(); return originEligibleNow(origin); },
     // is this endpoint id (keccak256 of a registered endpoint, e.g. a ledger row's runner) an eligible host right now?
     eligibleId: (id) => eligibilityFresh() && _elig.ids.has(String(id || "").toLowerCase()),
+    // hold a live session to `origin` only while it stays eligible: `close` is called when a poll finds it is not (and at
+    // once, if it already is not). Returns the release to call when the session ends on its own.
+    holdWhileEligible(origin, close) {
+      const o = normOrigin(origin);
+      if (!originEligibleNow(o)) { try { close(); } catch {} return () => {}; }
+      let set = _held.get(o);
+      if (!set) _held.set(o, (set = new Set()));
+      set.add(close);
+      return () => { set.delete(close); if (!set.size && _held.get(o) === set) _held.delete(o); };
+    },
+    heldSessions: () => [..._held.values()].reduce((n, s) => n + s.size, 0),
     async startEligibility() {
       if (!cfg.eligibilityApi) { log("ELIGIBILITY_API (or DOMAINS_API) unset: NO host is eligible, so tenant traffic is REFUSED (U7)"); return; }
-      log(`eligibility: ${cfg.eligibilityApi}/enclaves every ${cfg.eligibilityPollSec}s (stale after ${cfg.eligibilityMaxAgeSec}s = nothing eligible)`);
+      log(`eligibility: ${cfg.eligibilityApi}/enclaves every ${cfg.eligibilityPollSec}s (stale after ${cfg.eligibilityMaxAgeSec}s = nothing eligible, and live sessions to it are closed)`);
+      await loadHash();
       await refreshEligibility();
       _eligTimer = setInterval(refreshEligibility, cfg.eligibilityPollSec * 1000);
       _eligTimer.unref?.();
@@ -485,7 +525,6 @@ export function createFleet(cfg, log = () => {}) {
       if (next.join(",") !== origins.join(","))
         log(`fleet: ${next.length ? next.join(", ") : "(empty)"}`);
       origins = next;
-      await recomputeEligibleOrigins().catch(() => {});   // a new origin is mapped at once, not at the next eligibility poll
     } catch (e) {
       // keep the last known fleet — a flaky RPC must not unbind live relays
       log(`registry read failed (keeping ${origins.length} known): ${e.message}`);

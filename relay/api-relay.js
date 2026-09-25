@@ -929,6 +929,7 @@ async function pollAvailability() {
   await Promise.all(Array.from({ length: Math.min(AVAIL_POLL_CONCURRENCY, src.length || 1) }, worker));
   live = rows.filter(Boolean);
   updatedAt = new Date().toISOString();
+  sweepIneligibleUpgrades();
 }
 
 // ---- the relay roster, and which deployment chose which relay --------------
@@ -1386,6 +1387,27 @@ function canonicalBoxPath(path) {
   return p.replace(/\/{2,}/g, "/").toLowerCase();
 }
 // Is this explicitly addressed tunnel box one the relay holds eligible? Not live = not eligible.
+// U7: a WebSocket spliced to a host lives only while the relay holds that host eligible. Each is held under the row's
+// endpoint (a tunnel box's is tunnel://<name>), and every availability poll and re-verification round closes those whose
+// row is gone or no longer eligible (enclave-5d and enclave-d1, round 5: a check only at the upgrade let a host that lost
+// eligibility keep its live sockets). An in-flight plain HTTP response is not cut; the next request is judged afresh.
+const _heldUpgrades = new Map();   // row endpoint -> Set of drop functions
+function holdUpgradeWhileEligible(endpoint, socket, drop) {
+  let set = _heldUpgrades.get(endpoint);
+  if (!set) _heldUpgrades.set(endpoint, (set = new Set()));
+  set.add(drop);
+  socket.once("close", () => { set.delete(drop); if (!set.size && _heldUpgrades.get(endpoint) === set) _heldUpgrades.delete(endpoint); });
+}
+function sweepIneligibleUpgrades() {
+  let closed = 0;
+  for (const [endpoint, set] of [..._heldUpgrades]) {
+    const row = live.find((e) => e.endpoint === endpoint);
+    if (row && computeEligible(row)) continue;
+    _heldUpgrades.delete(endpoint);   // each drop runs once; the socket's close then finds nothing
+    for (const drop of set) { closed++; try { drop(); } catch {} }
+  }
+  if (closed) console.log(`[api-relay] U7: closed ${closed} WebSocket(s) to hosts no longer eligible`);
+}
 function tunnelEligible(origin) { const row = live.find((x) => x.endpoint === origin); return !!(row && computeEligible(row)); }
 function tunnelTenantRefusal(origin, path, method = "GET") {
   const row = live.find((x) => x.endpoint === origin);
@@ -2490,6 +2512,7 @@ server.on("upgrade", async (req, socket, head) => {
       // no WebSocket reaches an INELIGIBLE box, own surfaces included (none of them is one): its raw upgrade would carry
       // the caller's headers, credentials included (Codex's review)
       if (!tunnelEligible(origin) || tunnelTenantRefusal(origin, tm[2] || "/", req.method)) return refuse(503, "Service Unavailable");
+      holdUpgradeWhileEligible(origin, socket, () => socket.destroy());
       return tunnelHub.spliceUpgrade(origin, req, socket, head, (tm[2] || "/") + (u.search || ""));
     }
     // …and the same box reached by its own hostname, so a websocket to a box
@@ -2499,6 +2522,7 @@ server.on("upgrade", async (req, socket, head) => {
       const origin = `tunnel://${bn}`;
       if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
       if (!tunnelEligible(origin) || tunnelTenantRefusal(origin, u.pathname, req.method)) return refuse(503, "Service Unavailable");
+      holdUpgradeWhileEligible(origin, socket, () => socket.destroy());
       return tunnelHub.spliceUpgrade(origin, req, socket, head, u.pathname + (u.search || ""));
     }
   }
@@ -2512,7 +2536,10 @@ server.on("upgrade", async (req, socket, head) => {
     const owner = route.endpoint;
     const rest = depHost ? (req.url === "/" ? "/" : req.url) : req.url.slice(3 + (x[1].length));  // after "/x/<id>"
     const path = "/x/" + id + rest;
-    if (tunnelHub.isTunnel(owner)) return tunnelHub.spliceUpgrade(owner, req, socket, head, path);
+    if (tunnelHub.isTunnel(owner)) {
+      holdUpgradeWhileEligible(owner, socket, () => socket.destroy());
+      return tunnelHub.spliceUpgrade(owner, req, socket, head, path);
+    }
     const target = new URL(owner.replace(/\/+$/, "") + path);
     const secure = target.protocol === "https:";
     const up = (secure ? tls : net).connect({
@@ -2529,6 +2556,7 @@ server.on("upgrade", async (req, socket, head) => {
     const drop = () => { socket.destroy(); up.destroy(); };
     up.setTimeout(UPGRADE_IDLE_MS, drop); socket.setTimeout(UPGRADE_IDLE_MS, drop);
     up.on("error", drop); up.on("close", drop); socket.on("close", drop);
+    holdUpgradeWhileEligible(owner, socket, drop);
   } catch (e) { refuse(502, "Bad Gateway"); }
 });
 
@@ -2549,7 +2577,7 @@ setInterval(pollAvailability, AVAIL_POLL_SEC * 1000);
 // the re-verification of dialed rows: its own cadence, never inside the availability poll (KDS rate-limits; a slow
 // enclave must not delay the fleet view); rows are re-annotated from the verdicts it writes
 if (RELAY_REVERIFY !== "off") {
-  const reverifyRound = async () => { try { await reverifier.run(live); live = live.map((e) => reverifier.annotate(e)); } catch (e) { console.error("[reverify] round failed:", e.message); } };
+  const reverifyRound = async () => { try { await reverifier.run(live); live = live.map((e) => reverifier.annotate(e)); sweepIneligibleUpgrades(); } catch (e) { console.error("[reverify] round failed:", e.message); } };
   setTimeout(reverifyRound, 20_000).unref?.();
   setInterval(reverifyRound, RELAY_REVERIFY_SEC * 1000).unref?.();
   console.log(`[reverify] ${RELAY_REVERIFY}: dialed rows re-verified every ${RELAY_REVERIFY_SEC}s with the vendored verifier`);
