@@ -47,7 +47,8 @@ require("fs").appendFileSync(process.env.STUB_LOG, JSON.stringify({ tool: "scp",
 `;
 
 /** A synthetic checkout (the script, the relay files, net-guard.mjs as the repo's symlink) and a synthetic host. */
-function world({ checkoutU7 = false, host = "identical", hostU7 = false, drop = null, change = null, others = ["relay.js", "api-relay.js"] } = {}) {
+const EXTRA_IMPORT = "\nimport { extra } from \"./extra.mjs\"; void extra;\n", EXTRA = "export const extra = 1;\n";
+function world({ checkoutU7 = false, host = "identical", hostU7 = false, drop = null, change = null, others = ["relay.js", "api-relay.js"], extra = null } = {}) {
   const w = fs.mkdtempSync(path.join(os.tmpdir(), "egress-deploy-")); WORLDS.push(w);
   const co = path.join(w, "checkout"), rel = path.join(co, "relay");
   fs.mkdirSync(path.join(co, "scripts"), { recursive: true }); fs.mkdirSync(path.join(rel, "systemd"), { recursive: true });
@@ -57,6 +58,8 @@ function world({ checkoutU7 = false, host = "identical", hostU7 = false, drop = 
   for (const f of ["egress-relay.js", ...SHARED.filter((f) => f !== "net-guard.mjs")]) fs.copyFileSync(path.join(REPO, "relay", f), path.join(rel, f));
   fs.copyFileSync(path.join(REPO, "relay/systemd/enclave-egress-relay.service"), path.join(rel, "systemd/enclave-egress-relay.service"));
   if (checkoutU7) fs.appendFileSync(path.join(rel, "fleet.mjs"), U7);
+  // a TRANSITIVE-only dependency: fleet.mjs imports ./extra.mjs, which egress-relay.js does not import itself
+  if (extra) { fs.appendFileSync(path.join(rel, "fleet.mjs"), EXTRA_IMPORT); fs.writeFileSync(path.join(rel, "extra.mjs"), EXTRA); }
   const root = path.join(w, "host"), d = path.join(root, "opt/nan-relay");
   if (host !== "absent") fs.mkdirSync(d, { recursive: true });
   if (host === "identical") {
@@ -67,6 +70,10 @@ function world({ checkoutU7 = false, host = "identical", hostU7 = false, drop = 
     for (const f of others) fs.writeFileSync(path.join(d, f), `// ${f}\n`);
     fs.mkdirSync(path.join(d, "node_modules"));
     if (hostU7) fs.appendFileSync(path.join(d, "fleet.mjs"), U7);
+    if (extra) {
+      fs.appendFileSync(path.join(d, "fleet.mjs"), EXTRA_IMPORT);
+      if (extra !== "missing") fs.writeFileSync(path.join(d, "extra.mjs"), extra === "differ" ? EXTRA + "// another revision\n" : EXTRA);
+    }
     if (drop) fs.rmSync(path.join(d, drop));
     if (change) fs.appendFileSync(path.join(d, change), "\n// another revision\n");
   }
@@ -185,4 +192,18 @@ test("the env file holding the token is mode 600 even when it already existed wi
   assert.equal(fs.statSync(env).mode & 0o777, 0o600, "an existing 0644 env file is 0600 afterwards");
   const body = fs.readFileSync(env, "utf8");
   assert.match(body, /^EGRESS_RELAY_TOKEN=new-token$/m); assert.ok(!body.includes("the-old-token"));
+});
+
+test("the closure is TRANSITIVE: a module only fleet.mjs imports (extra.mjs) is derived, checked, and refused when the host's differs or lacks it (enclave-99's E2)", () => {
+  const W = world({ extra: "same" });
+  assert.deepEqual(closure(path.join(W.co, "relay")).sort(), [...closure(path.join(REPO, "relay")), "extra.mjs"].sort(), "the fixture's own closure gains extra.mjs");
+  const r = run(W);
+  assert.equal(r.code, 0, r.out);
+  const line = r.out.split("\n").find((l) => l.includes("shared modules this egress relay needs:"));
+  assert.ok(line.split(": ")[1].trim().split(" ").includes("extra.mjs"), `extra.mjs, imported only by fleet.mjs, is in the derived set: ${line}`);
+  assert.deepEqual(scpToRelay(r), ["egress-relay.js"]);
+  refusedBeforeAnything(run(world({ extra: "differ" })), /extra\.mjs \(host [0-9a-f]{12}…/);
+  refusedBeforeAnything(run(world({ extra: "missing" })), /extra\.mjs \(host missing/);
+  const b = run(world({ host: "absent", extra: "same" }), ["--bootstrap"]);
+  assert.equal(b.code, 0, b.out); assert.ok(scpToRelay(b).includes("extra.mjs"), "--bootstrap ships the transitive module too");
 });
