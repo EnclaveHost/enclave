@@ -7,7 +7,7 @@ STAMP=$(cat $RS/stamp.txt); BAK=$ENVF.bak-slice-$STAMP
 $NAN "set -euo pipefail; ENVF=$ENVF; BAK=$BAK; DROPIN=$DROPIN; LINES_SHA=$LINES_SHA
   n0=\$(wc -l < \$BAK); n=\$(wc -l < \$ENVF)
   if [ \$n -eq \$((n0+11)) ] && head -n \$n0 \$ENVF | cmp -s - \$BAK && [ \"\$(tail -n 11 \$ENVF | sha256sum | cut -c1-64)\" = \$LINES_SHA ]; then
-    head -n \$n0 \$ENVF > \$ENVF.new; chmod 600 \$ENVF.new; mv \$ENVF.new \$ENVF; echo 'env: the 11 lines removed'
+    ( umask 077; head -n \$n0 \$ENVF > \$ENVF.new ); chmod 600 \$ENVF.new; mv \$ENVF.new \$ENVF; echo 'env: the 11 lines removed'
   elif cmp -s \$ENVF \$BAK; then echo 'env: already the backup'
   else echo 'REFUSING: the env file is neither the backup nor the backup + the 11 lines: resolve by hand'; exit 3; fi
   rm -f \$DROPIN; systemctl daemon-reload; systemctl restart enclave-api-relay; sleep 3

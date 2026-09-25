@@ -18,8 +18,19 @@ say "step 2: Deploy run $run"; echo "$run" > $RS/deploy-run.txt
 gh run watch "$run" --repo EnclaveHost/enclave --exit-status > $RS/deploy-watch.txt 2>&1 || true
 gh run view "$run" --repo EnclaveHost/enclave --json conclusion,jobs --jq '.conclusion, (.jobs[] | "\(.name): \(.conclusion)")' | tee $RS/deploy-jobs.txt
 gh run view "$run" --repo EnclaveHost/enclave --log > $RS/deploy-log.txt 2>&1 || true
-grep -E 'release=|site=|relay=|cpu_release=' $RS/deploy-log.txt | sed 's/.*\t//' | sort -u | head -12
+# enclave-d1: ASSERT the scope, not just print it. The jobs: detect + relay succeed, every other job is skipped; and the
+# detect job's own outputs (tee'd into its log): relay=true, and every other deploy/release flag it prints false
+jq_ok=$(gh run view "$run" --repo EnclaveHost/enclave --json jobs --jq '[.jobs[] | "\(.name)=\(.conclusion)"] | sort | join(" ")')
+say "step 2: jobs: $jq_ok"
+[ "$jq_ok" = "contracts-notice=skipped contracts=skipped detect=success relay=success release=skipped site=skipped" ] \
+  || { say "STEP 2 SCOPE: the jobs are not exactly detect+relay (the rest skipped): STOP and investigate"; exit 4; }
+# the detect job's OUTPUT lines only ("detect<TAB>step<TAB><ts> key=value" with nothing else: the log also echoes the
+# workflow's script source, in ANSI colour, which contains "relay=true" as text; verified on run 36113605121)
+flags=$(grep -P '^detect\t[^\t]*\t\S+Z [a-z_]+=(true|false)\r?$' $RS/deploy-log.txt | sed -E 's/.*Z ([a-z_]+=(true|false)).*/\1/' | sort -u | tr '\n' ' ')
+[ -n "$flags" ] || { say "STEP 2 SCOPE: no detect outputs found in the log: STOP and investigate"; exit 4; }
+say "step 2: detect flags: $flags"
+grep -qw 'relay=true' <<<"$flags" || { say "STEP 2 SCOPE: detect did not say relay=true"; exit 4; }
+for f in $flags; do case "$f" in relay=true|*=false) ;; *) say "STEP 2 SCOPE: detect says $f: STOP and investigate"; exit 4;; esac; done
 grep -q '== data-plane relays: nan-relay$' $RS/deploy-log.txt && ! grep -q 'data-plane relays:.*us-west' $RS/deploy-log.txt \
   && say "WATCH 1 ok: the relay job deployed to nan-relay only" || { say "WATCH 1 FAILED: the data-plane relay line is not 'nan-relay' alone: STOP and investigate"; exit 4; }
-grep -qE "^(relay: success)$" $RS/deploy-jobs.txt || { say "STEP 2: the relay job did not succeed (deploy-jobs.txt): run rs-3 checks, then decide the rollback"; exit 5; }
 say "step 2 done: Deploy run $run, relay job success"
