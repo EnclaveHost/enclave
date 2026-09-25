@@ -240,9 +240,14 @@ Nothing here waits on a decision already made: boot state (Secure Boot on) and t
      ENOENT: absent from the domain's view, existence in the root namespace not stated.
    - OPEN (with Steven, via enclave-5d): stat-only root-namespace existence statements and printed probe targets.
      PASS for the neighbour acceptance needs them.
-   - OPEN (hypothesis, untested): a domain appears able to start an hv_sock connection to the host. wmiserve's 9001
-     signer checks the VM, not the domain. Could a domain in a multi-domain VM get another app signed? Raised with
-     enclave-99 and 5d.
+   - RULED (enclave-99's contract, main `de2a9f66`, "What the launcher's signature binds: the PARTITION, not a domain"):
+     - wmiserve's 9001 signer checks the calling VM and signs a request whose app half it loaded into that VM. "A domain
+       names only itself" holds only while the monitor is the sole in-guest path to 9001.
+     - One app per partition: not a finding. More than one domain: a launcher-signed report never binds a domain.
+     - The fix, when 5d's source unpauses: no AF_VSOCK or AF_HYPERV for domains, tested as domprobe to CID 2:9001 DENIED
+       while the monitor's own dial connects in the same run.
+     - Until then every neighbour run carries "host signer 9001: not probed" as INCONCLUSIVE (judge pin
+       `hostSigner9001Probed`). The 093904 timeout shows the connect is attempted; it is not a denial.
    - DONE (G4, run 082856, `g4-probe-20260925/`): a type-1 guest whose monitor dies panics, asks for a reset, and
      Hyper-V turns the partition OFF (18590, then 18515). It does not reboot. The manager's liveness sweep now fails such
      a domain (`d7d4fd1c`); that sweep is not yet run on hardware.

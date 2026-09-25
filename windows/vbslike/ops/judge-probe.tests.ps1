@@ -10,8 +10,14 @@ function Classify([string]$v) {
   return 'INCONCLUSIVE'
 }
 $ProbeBuilds = @{
-  'a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4' = @{ initrd = '680d40fa'; domprobe = '0d12e950bd6d93f9'; tpm = $false }
-  'b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748' = @{ initrd = '1539d5b2'; domprobe = '2c2600495d07d292'; tpm = $true }
+# vsockLoopback: whether an in-guest vsock loopback transport exists. It is $false for both: the kernel 363b3553 IKCONFIG
+# has CONFIG_VSOCKETS_LOOPBACK=m, and vsock_loopback.ko is in neither initrd (dominit never loads it), so CID 1 falls to
+# hv_sock, which allows only CID 2. A build that ships the transport must say so here, and then a vsock refusal needs a
+# positive control before it counts.
+# hostSigner9001Probed: whether the build's domprobe tries the host's report signer (CID 2 port 9001). Until it does, no
+# neighbour run can PASS (enclave-99's contract, main de2a9f66: the launcher's signature binds the PARTITION, not a domain).
+  'a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4' = @{ initrd = '680d40fa'; domprobe = '0d12e950bd6d93f9'; tpm = $false; vsockLoopback = $false; hostSigner9001Probed = $false }
+  'b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748' = @{ initrd = '1539d5b2'; domprobe = '2c2600495d07d292'; tpm = $true; vsockLoopback = $false; hostSigner9001Probed = $false }
 }
 function Judge-Probe($pr, $build, [bool]$neighbour) {
   $id = $pr.id; $fail = @(); $inc = @()
@@ -31,7 +37,11 @@ function Judge-Probe($pr, $build, [bool]$neighbour) {
     }
   }
   foreach ($k in 'other_app_relative','other_app_escape') { if ($val.ContainsKey($k)) { Note "  JUDGE ${k}: $($val[$k]) (inside a chroot this resolves to the absolute route: reported, not counted)" } }
-  foreach ($k in 'vsock_local_domain1','vsock_local_domain2','vsock_own_control') { if ($val.ContainsKey($k) -and $val[$k] -notmatch 'CONNECTED') { Note "  JUDGE ${k}: $($val[$k]) - NO IN-GUEST ROUTE on this build (no vsock loopback transport): neither denied nor broken, not counted" } }
+  foreach ($k in 'vsock_local_domain1','vsock_local_domain2','vsock_own_control') {
+    if (-not $val.ContainsKey($k) -or $val[$k] -match 'CONNECTED') { continue }
+    if ($build.vsockLoopback -eq $false) { Note "  JUDGE ${k}: $($val[$k]) - NO IN-GUEST ROUTE on this build (the pin says no vsock loopback transport): neither denied nor broken, not counted" }
+    else { $inc += "${k}=$($val[$k]) (this build has a vsock loopback transport: a refusal needs a positive control from a context allowed to connect)" }
+  }
   if ($val.ContainsKey('vsock_host_control')) { Note "  JUDGE vsock_host_control: $($val['vsock_host_control']) - a host connection was ATTEMPTED (not refused inside the guest); nothing listens at host port 9000, so this is no service, not a denial" }
   if ($val.ContainsKey('host_gateway')) { Note "  JUDGE host_gateway: $($val['host_gateway']) - no route in the domain's network namespace (10.0.2.2 has no target on Hyper-V)" }
   foreach ($k in 'configfs_tsm','sysfs','create_tsm_entry','dev_tpm0','dev_tpmrm0') { if ($val.ContainsKey($k) -and (Classify $val[$k]) -ne 'BROKEN') { Note "  JUDGE ${k}: $($val[$k]) - absent from the domain's view; existence in the root namespace not stated" } }
@@ -53,10 +63,12 @@ function Judge-Probe($pr, $build, [bool]$neighbour) {
     if ($touched.Maximum -ge 48 -and $killed) { Note "  JUDGE memory: CONTAINED - touched $($touched.Maximum) MiB of its 64 MiB cap, then killed (137)" }
     else { $inc += "memory containment not shown (max touched $($touched.Maximum), killed=$killed)" }
   }
+  # the host's report signer: a launcher-signed report binds the PARTITION, not a domain (99's contract). A neighbour run
+  # cannot PASS until the probe tries CID 2 port 9001 and is DENIED, while the monitor's own dial connects in the same run.
+  if ($neighbour -and -not $build.hostSigner9001Probed) { $inc += 'host signer 9001: not probed (this domprobe has no route to it)' }
   $verdict = if ($fail.Count) { 'FAIL' } elseif ($inc.Count) { 'INCONCLUSIVE' } else { 'PASS' }
   return @{ verdict = $verdict; fail = $fail; inc = $inc }
 }
-
 $A44 = 'a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4'; $B7B = 'b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748'
 $REC = @(
   'MON domain 2 loaded label=PROBE app_sha256=25be323556dad377abb57fe7ec8c4b99a6527f488dda28d0c9b686528659c909 port=40002 uid=5002 cpu=50% mem=64MiB mode=serve http=0'
@@ -103,6 +115,10 @@ function Expect($name, $console, $build, [bool]$nbr, $verdict, $pattern) {
   "{0} {1}: {2}{3}" -f $(if ($ok) { 'ok  ' } else { 'FAIL' }), $name, $j.verdict, $(if ($ok) { '' } else { "  (wanted $verdict /$pattern/) :: $all" })
 }
 Expect 'run 093326 as recorded, with a neighbour (a44bb55a)' $REC $A44 $true 'INCONCLUSIVE' 'target''s existence in the root namespace is not stated'
+Expect 'a neighbour run names the unprobed host signer' $REC $A44 $true 'INCONCLUSIVE' 'host signer 9001: not probed'
+$LB = @{ initrd = 'x'; domprobe = 'x'; tpm = $false; vsockLoopback = $true; hostSigner9001Probed = $false }
+$ProbeBuilds['loopback-build'] = $LB
+Expect 'a build WITH vsock loopback: ENETUNREACH needs a positive control' $REC 'loopback-build' $false 'INCONCLUSIVE' 'needs a positive control'
 Expect 'run 093326 lines judged own-view only (a44bb55a)' $REC $A44 $false 'PASS' 'CONTAINED'
 Expect 'the same lines on the b7ba7731 build: TPM lines required' $REC $B7B $false 'FAIL' 'dev_tpm0 MISSING'
 Expect 'a neighbour file READABLE' (Sub 'PROBE2 other_app_absolute=No such file or directory' 'PROBE2 other_app_absolute=READABLE (73228 bytes)') $A44 $true 'FAIL' 'REACHED'
