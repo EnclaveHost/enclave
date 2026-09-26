@@ -14,6 +14,16 @@ Publishing one means shipping third-party binaries. So a publication artifact is
 Enclave's own code in it stays under the repository LICENSE, unchanged.
 
 ## The recipe (reusable for any release commit)
+0. **Cut a NEW release** (a new image commit, such as a front fix): `cut-release.sh <image commit> <outdir>`.
+   - It builds the release from a clean worktree of <commit>, with musl built by that commit's own `build-musl.sh`
+     (source hash and signature checked).
+   - It builds TWICE, the second time with a cold Go cache, and refuses unless every file, the tree and the modes are
+     byte-identical.
+   - It checks the manifest id, then checks that every third-party byte equals the reference release's (default
+     5c3561f9, the rollback), so that only Enclave's own init, front and runtime.json may differ.
+   - It writes <outdir>/release-<commit8> and CUT.txt. The new id goes to enclave-e3 for prediction and admission; the
+     box install is someone else's step.
+   - Proof: run on aa6c985c, it reproduced 79c5ecf2 twice.
 1. **Firmware** (only when a release's firmware is new): `rebuild-firmware.sh <workdir> <expected sha256>
    [<firmware-inputs dir>]`.
    - It rebuilds OVMF AmdSevX64 from pinned sources, and never writes to ~/.cache/enclave-isolation.
