@@ -1,0 +1,7 @@
+[isolation] 0x395bed3e: guest gda1fa6b24 app 9c3d10f1450e17bc… (enclave-isolation-policy/1 {"cpuPercent":100,"memMiB":128,"vcpus":1}, record bff33b951aade0a9…)
+[isolation] 0x395bed3e: no certificate for 395bed3e.app.enclave.host (the instance is starting); retry in 300s
+[isolation] 0x395bed3e: release ticket handed to guest gda1fa6b24
+[isolation] 0x395bed3e: no certificate for 395bed3e.app.enclave.host (order for 395bed3e.app.enclave.host in flight); retry in 30s
+[isolation] 0x395bed3e: no certificate for 395bed3e.app.enclave.host (order for 395bed3e.app.enclave.host in flight); retry in 30s
+[isolation] 0x395bed3e: no certificate for 395bed3e.app.enclave.host (order for 395bed3e.app.enclave.host in flight); retry in 30s
+[isolation] 0x395bed3e: certificate for 395bed3e.app.enclave.host installed in guest gda1fa6b24 (key bcabba015be30c0a…, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2026-12-25T23:59:59.000Z; guest attested)

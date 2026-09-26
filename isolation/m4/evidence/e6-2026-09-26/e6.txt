@@ -1,0 +1,55 @@
+03:24:03Z 6e 0ddbd824: 52156652 release guest gda3193060 (f4fb208aeddd) -> f7888d86 predicted a0101960e272; certificate serial 57A82674F6A4B14104B131EFF534CDB3; the OWNER's restart now (T0 2026-09-26 03:24:03 UTC)
+03:24:07Z 6e 0ddbd824: enclave restart exited 0: running (Restarted in place — same version and balance; app state is ephemeral.) 
+03:24:07Z 6e 0ddbd824: the five proofs + the 10-min observe run DETACHED as e6-proofs-0ddbd824-20260926T032407Z (exit code -> /home/steven/enclave-bench/e6-20260926/state/0ddbd824-proofs.rc); follow: tail -f /home/steven/enclave-bench/e6-20260926/e6.log
+03:24:35Z 6e 0ddbd824: new guest gdf9a0c247 running (the legacy one was gda3193060)
+03:24:35Z 6e 0ddbd824 proof 2 ok: release:true, attested, measurement a0101960e2720805 = the independently computed f7888d86 value = the relay's prediction, new key d6391ba70880111b
+03:24:35Z 6e 0ddbd824 proof 7 ok: yama ptrace_scope=1 -> 2; user.max_user_namespaces=3420 -> 0; kernel.io_uring_disabled=0 -> 2
+03:24:35Z 6e 0ddbd824 proof 3 ok: DOM release (1 origin = the relay, config 177 bytes = the version's _media config) (envelope tag 42c6f115f763f544) < app config 177 bytes < serving on d6391ba70880111b; no app output
+03:24:38Z 6e 0ddbd824 proof 1 ok: one release at 03:24:34; 1 '(ticket kept)' warming/collateral line(s) before it (5.9 s before); one ticket handed to gdf9a0c247
+03:32:29Z 6e 0ddbd824 proof 4 ok: certificate installed in gdf9a0c247 for key d6391ba70880111b, guest attested; no refusal (3 retry line(s))
+03:32:35Z 6e 0ddbd824 proof 5 ok: https://0ddbd824.app.enclave.host/ 200 via us-west, new serial 13DFFD0AFD6FF42C5FA9E0FD017C38C0 on key d6391ba70880111b
+03:32:37Z 6e 0ddbd824 proof 6 ok: HEAD -> 404; the serial withholds the body (DOM front: unsolicited upstream response (119 bytes withheld)), 0 'Unsolicited response' lines (a regression check: the console guard stays in the hardened front)
+03:32:37Z 6e 0ddbd824: ALL PROOFS PASS; 4e's expected key for 0ddbd824 is now d6391ba70880111b; the 10-min observe
+03:32:48Z 6e 0ddbd824 observe r1: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+03:35:00Z 6e 0ddbd824 observe r2: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+03:37:11Z 6e 0ddbd824 observe r3: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+03:39:23Z 6e 0ddbd824 observe r4: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+03:41:35Z 6e 0ddbd824 observe r5: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+03:42:51Z 6e 0ddbd824 observe r6: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+03:42:51Z 6e 0ddbd824 ACCEPTED: five proofs + the observe (6 rounds over 614 s). Next canary: 395bed3e
+03:43:21Z 6e 395bed3e: 52156652 release guest gdc71431bd (5f2f238c88e1) -> f7888d86 predicted 4bfae407cddd; certificate serial 6A71335E7E4A3A2BD8FC85987899D7BF; the OWNER's restart now (T0 2026-09-26 03:43:21 UTC)
+03:43:25Z 6e 395bed3e: enclave restart exited 0: running (Restarted in place — same version and balance; app state is ephemeral.) 
+03:43:25Z 6e 395bed3e: the five proofs + the 10-min observe run DETACHED as e6-proofs-395bed3e-20260926T034325Z (exit code -> /home/steven/enclave-bench/e6-20260926/state/395bed3e-proofs.rc); follow: tail -f /home/steven/enclave-bench/e6-20260926/e6.log
+03:43:53Z 6e 395bed3e: new guest gda1fa6b24 running (the legacy one was gdc71431bd)
+03:43:53Z 6e 395bed3e proof 2 ok: release:true, attested, measurement 4bfae407cddd0e7c = the independently computed f7888d86 value = the relay's prediction, new key bcabba015be30c0a
+03:43:53Z 6e 395bed3e proof 7 ok: yama ptrace_scope=1 -> 2; user.max_user_namespaces=3421 -> 0; kernel.io_uring_disabled=0 -> 2
+03:43:53Z 6e 395bed3e proof 3 ok: DOM release (1 origin = the relay, config 194 bytes = the version's _media config) (envelope tag 42c6f115f763f544) < app config 194 bytes < serving on bcabba015be30c0a; no app output
+03:43:54Z 6e 395bed3e proof 1 ok: one release at 03:43:52; 1 '(ticket kept)' warming/collateral line(s) before it (5.9 s before); one ticket handed to gda1fa6b24
+03:51:29Z 6e 395bed3e proof 4 ok: certificate installed in gda1fa6b24 for key bcabba015be30c0a, guest attested; no refusal (4 retry line(s))
+03:51:36Z 6e 395bed3e proof 5 ok: https://395bed3e.app.enclave.host/ 200 via us-west, new serial 7237C0DCAF36312F54B6C45EB4A0F6AB on key bcabba015be30c0a
+03:51:36Z 6e 395bed3e: ALL PROOFS PASS; 4e's expected key for 395bed3e is now bcabba015be30c0a; the 10-min observe
+03:51:47Z 6e 395bed3e observe r1: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+03:53:58Z 6e 395bed3e observe r2: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+03:56:09Z 6e 395bed3e observe r3: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+03:58:21Z 6e 395bed3e observe r4: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+04:00:32Z 6e 395bed3e observe r5: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+04:01:48Z 6e 395bed3e observe r6: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+04:01:48Z 6e 395bed3e ACCEPTED: five proofs + the observe (6 rounds over 612 s). Next canary: 4e62e60d
+04:02:14Z 6e 4e62e60d: 52156652 release guest gd41d9ab25 (5f2f238c88e1) -> f7888d86 predicted 4bfae407cddd; certificate serial 68847BF5CE08225343D1D9699CAD1A45; the OWNER's restart now (T0 2026-09-26 04:02:14 UTC)
+04:02:18Z 6e 4e62e60d: enclave restart exited 0: running (Restarted in place — same version and balance; app state is ephemeral.) 
+04:02:18Z 6e 4e62e60d: the five proofs + the 10-min observe run DETACHED as e6-proofs-4e62e60d-20260926T040218Z (exit code -> /home/steven/enclave-bench/e6-20260926/state/4e62e60d-proofs.rc); follow: tail -f /home/steven/enclave-bench/e6-20260926/e6.log
+04:02:30Z 6e 4e62e60d: new guest gdcc11046d running (the legacy one was gd41d9ab25)
+04:02:30Z 6e 4e62e60d proof 2 ok: release:true, attested, measurement 4bfae407cddd0e7c = the independently computed f7888d86 value = the relay's prediction, new key 71a4892cd7108ce2
+04:02:31Z 6e 4e62e60d proof 7 ok: yama ptrace_scope=1 -> 2; user.max_user_namespaces=3421 -> 0; kernel.io_uring_disabled=0 -> 2
+04:02:31Z 6e 4e62e60d proof 3 ok: DOM release (1 origin = the relay, config 194 bytes = the version's _media config) (envelope tag 42c6f115f763f544) < app config 194 bytes < serving on 71a4892cd7108ce2; no app output
+04:02:31Z 6e 4e62e60d proof 1 ok: one release at 04:02:29; 0 '(ticket kept)' warming/collateral line(s) before it (none); one ticket handed to gdcc11046d
+04:09:32Z 6e 4e62e60d proof 4 ok: certificate installed in gdcc11046d for key 71a4892cd7108ce2, guest attested; no refusal (2 retry line(s))
+04:09:37Z 6e 4e62e60d proof 5 ok: https://4e62e60d.app.enclave.host/ 200 via us-west, new serial 60778A47DDB8F53A2252DC2BF4700335 on key 71a4892cd7108ce2
+04:09:38Z 6e 4e62e60d: ALL PROOFS PASS; 4e's expected key for 4e62e60d is now 71a4892cd7108ce2; the 10-min observe
+04:09:49Z 6e 4e62e60d observe r1: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+04:12:00Z 6e 4e62e60d observe r2: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+04:14:12Z 6e 4e62e60d observe r3: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+04:16:23Z 6e 4e62e60d observe r4: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+04:18:34Z 6e 4e62e60d observe r5: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+04:19:51Z 6e 4e62e60d observe r6: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+04:19:51Z 6e 4e62e60d ACCEPTED: five proofs + the observe (6 rounds over 613 s). Next canary: none: the hardened relaunch is done

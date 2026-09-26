@@ -1,0 +1,19 @@
+--- s7t-apply.sh.v1	2026-09-25 20:06:03.772431083 -0700
++++ s7t-apply.sh	2026-09-25 20:09:53.527297386 -0700
+@@ -14,7 +14,7 @@
+ # enclave-bf: lib7.sh is sourced LAST (lib-e5.sh sets REL/LOG4/say for e5), and REL and LOG4 are re-pinned and REL
+ # asserted against the installed release, so no later source can clobber the release this switch is about
+ REL=f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca; LOG4=$S4/install.log
+-[ "$(sha256sum < "$R/release.json" | cut -c1-64)" = "$REL" ] && [ "$T" = /home/steven/enclave-prod/iso-b63c2def ] && [ "$OT" = /home/steven/enclave-prod/iso-4cdd5169 ] || { echo "REFUSING: REL/T/OT are not the S5 switch's"; exit 2; }
++[ "$(sha256sum < "$R/release.json" | cut -c1-64)" = "$REL" ] && [ "$T" = /home/steven/enclave-prod/iso-b63c2def ] && [ "$OT" = /home/steven/enclave-prod/iso-4cdd5169 ] || { echo "REFUSING: REL/T/OT are not the S7 switch's"; exit 2; }
+ trap '' HUP PIPE
+ trap 'say4 "7T: terminated before any change"; exit 143' TERM INT
+ # the binary stays the live one; the FROM tree is iso-4cdd5169 (OT/OIMG, lib7.sh)
+@@ -110,6 +110,7 @@
+ assert all(shlex.quote(x)==x for x in a)
+ open(p+".new","w").write("\n".join(lines)); os.replace(p+".new",p)
+ PY
++date +%s > ~/enclave-bench/fl-20260926/state/s7-switched-epoch   # the first-launch check: a guest created after this must be f7888d86 (bf)
+ T0=$(date -u '+%Y-%m-%d %H:%M:%S UTC'); say4 "7T: daemon-reload + restart (guestd.${BINC:0:8}, -isolation ${OT##*/} -> ${T##*/}; all else unchanged)"
+ systemctl --user daemon-reload || fail "daemon-reload"
+ systemctl --user restart enclave-guestd.service || fail "restart"

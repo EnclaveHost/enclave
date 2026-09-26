@@ -1,0 +1,11 @@
+--- s7t-apply.sh.v2	2026-09-25 20:09:53.527297386 -0700
++++ s7t-apply.sh	2026-09-25 20:12:08.518036743 -0700
+@@ -110,7 +110,7 @@
+ assert all(shlex.quote(x)==x for x in a)
+ open(p+".new","w").write("\n".join(lines)); os.replace(p+".new",p)
+ PY
+-date +%s > ~/enclave-bench/fl-20260926/state/s7-switched-epoch   # the first-launch check: a guest created after this must be f7888d86 (bf)
++date +%s > ~/enclave-bench/fl-20260926/state/s7-switched-epoch || fail "writing the S7 epoch (the unit is edited: rolling back)"   # the first-launch check: a guest created after this must be f7888d86 (bf)
+ T0=$(date -u '+%Y-%m-%d %H:%M:%S UTC'); say4 "7T: daemon-reload + restart (guestd.${BINC:0:8}, -isolation ${OT##*/} -> ${T##*/}; all else unchanged)"
+ systemctl --user daemon-reload || fail "daemon-reload"
+ systemctl --user restart enclave-guestd.service || fail "restart"
