@@ -60,12 +60,13 @@ The console must show:
    `Select-String -Path <console file>,<lab manager log>,<wmiserve output> -SimpleMatch 'SNTLa67d9469ffe1'` must find
    **nothing**.
    The console must also hold only MON/DOM lines (and kernel `[ t.tttttt]` lines):
-   `Get-Content <console file> | Where-Object { $_ -and $_ -notmatch '^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d(\.\d+)? )?(DOM|MON)' -and $_ -notmatch '^\[\s*\d+\.\d+\]' }`
+   `Get-Content <console file> | Where-Object { $_ -and $_ -notmatch '^(\d{4}/\d\d/\d\d \d\d:\d\d:\d\d(\.\d+)? DOM |DOM|MON)' -and $_ -notmatch '^\[\s*\d+\.\d+\]' }`
    must print **nothing**.
    - The optional date is the std logger's prefix, which consoleFilter keeps on a passing `DOM` line (console.go
      `logPrefix`/`domLine`). It appears on the front's own `DOM proxy: <method> unreachable|timeout …` lines (ready.go),
      e.g. `2026/09/26 02:35:48 DOM proxy: GET unreachable` after the `/panic` (enclave-d1's run 023514).
-   - The strict `^(DOM|MON)` flagged that line.
+   - The strict `^(DOM|MON)` flagged that line. The date is accepted ONLY before `DOM ` (exactly domLine): nothing prints a
+     dated `MON` line (the monitor uses fmt.Printf), so one would mean something unexpected got through (enclave-bf).
 4. **Positive markers** (the capture saw this domain; a zero above is not a blind spot):
    - `MON domain <n> loaded label=canary-sentinel app_sha256=2609d1f4… … mode=run http=8000`;
    - `DOM<n> started runtime=<pid> front=<pid> mode=run http=8000 (/data 64 MiB scratch)`;
