@@ -1765,6 +1765,8 @@ export class Host {
    */
   availability() {
     const running = [...this.apps.values()].filter((a) => a.state === "running").length;
+    // partitions this node serves: a record with an isolation block is a running domain the app zone splices to
+    const partitions = [...this.records.values()].filter((r) => r && r.isolation && r.status === "running").length;
     const cap = this.capacity();
     const ready = !!(this.cfg.appsEnabled && this.registered && Number(this.registered.cpuPricePerSec6) > 0
                      && chain.operatorAddress() && (this.gasRenewals ?? 1) > 0);
@@ -1784,6 +1786,13 @@ export class Host {
       // a promise the whole fleet has to keep.
       fullService: false,
       ...this.features(),
+      // THE ISOLATION BACKEND, by the name a tenant's isolation.require and `enclave deploy --isolation` match (metal-iso0
+      // advertises "snp-guest-per-app" the same way), or null without a manager. Its boundary is stated beside it and is
+      // this backend's own, never a stronger one: a Hyper-V partition per app is T0-hv, and the host is NOT excluded.
+      isolation: this.isolationBackend,
+      ...(this.isolationBackend ? { isolationBoundary: { tier: "T0-hv", hostExcluded: false } } : {}),
+      // The relay's verdict on this node's attach, as it gave it (null until attached): tier "hv-node", hostExcluded false.
+      attach: { tier: this.relayTier || null, hostExcluded: this.relayHostExcluded ?? null },
       apps: this.appsInTee() ? {
         // Where a leased app runs, in the one word that matters: INSIDE the enclave. The bytecode
         // is interpreted in VTL1 by the runtime linked into the measured image, so the app's code
@@ -1804,6 +1813,12 @@ export class Host {
         // numbers that make the pool checkable rather than asserted.
         ramMb: cap.ramMbPool, engineMb: cap.ramMbEngine, ramMbFree: cap.ramMbFree,
         note: "an app runs inside the VBS enclave, interpreted from bytecode; its host carries the request and response bytes",
+      } : this.isolationBackend ? {
+        // THE ISOLATED BACKEND (enclave-b4's N5): each deployment in its own Hyper-V partition. It used to fall into the
+        // branch below and say isolation "none", capacity 0 and "sells no app hosting" while partitions served.
+        isolation: this.isolationBackend, tier: "T0-hv", hostExcluded: false, inTee: false,
+        running: partitions, capacity: cap.slots, scope: this.scope(),
+        note: "each deployment runs in its own Hyper-V partition (T0-hv), which holds its TLS key and ends TLS; the host is NOT excluded from it",
       } : {
         // No app runtime in this enclave image: the box hosts nothing for a tenant. The VTL0
         // wasmtime path still exists for the box owner's own bring-up, and is not an offer.
@@ -1823,7 +1838,11 @@ export class Host {
         ? { kid: this.cfg.sessionKid, alg: "ES256", keyIn: "host-process", jwks: "/v1/session-jwks",
             note: "private deployments are served to their owner; the key that proves it is in the agent's process, not inside the enclave" }
         : null,
-      appTls: {
+      appTls: !this.appsInTee() && this.isolationBackend ? {
+        // a partition's hostname is spliced to it UNOPENED (node-bridge.mjs): the key and the handshake are the partition's
+        served: partitions > 0, zone: this.cfg.appZone, keyIn: "partition", terminatesIn: "partition",
+        note: "each isolated deployment's hostname is spliced to its partition unopened; the partition holds the key and ends TLS",
+      } : {
         served: this.appsInTee() && Number(this.cfg.enclaveAppWorlds || 0) & 4 ? true : false,
         zone: this.cfg.appZone, keyIn: "host-process", terminatesIn: "host-process",
         issued: [...this.appCerts.values()].filter((c) => c.cert && !c.cert.selfSigned).length,
