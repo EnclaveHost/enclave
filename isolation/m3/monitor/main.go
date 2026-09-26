@@ -179,6 +179,9 @@ type monitor struct {
 	// from an earlier boot would otherwise act on whatever the new boot numbered 3. It is not a secret and not
 	// authentication: it only makes a stale reference fail as "rebooted" instead of landing on the wrong domain.
 	boot string
+	// noDomains, when set, is why this monitor loads no domain at all (raisePtraceScope: no Yama held at 2). main stops
+	// before `ready` on it; load checks it too, so the gate does not depend on that ordering.
+	noDomains string
 }
 
 var errNoHardwareReport = errors.New("no hardware report on this tier")
@@ -219,10 +222,19 @@ func main() {
 	// ONE canonical record of the tuple, emitted exactly once. It used to appear on the MON ready line
 	// too, and two sources of the same fact is one more than a checker can safely believe.
 	fmt.Printf("MON boundary %s\n", m.boundary)
-	// Yama's ptrace scope, raised to at least 2 (only CAP_SYS_PTRACE may attach) where the guest kernel has Yama: defence
-	// in depth for the front, which also makes itself non-dumpable (m2/front/dumpable.go), against a tenant runtime of the
-	// same uid (enclave-b4's review of 683798d0; enclave-87). Stated either way; its absence is not a failure.
-	fmt.Printf("MON %s\n", raisePtraceScope("/proc/sys/kernel/yama/ptrace_scope", 2))
+	// Yama's ptrace scope, set to 2 (only CAP_SYS_PTRACE may attach) and read back. It is THE guard between a tenant
+	// runtime and its domain's front (the same uid), so without it there is no `ready`: the monitor stops here, as it does
+	// with no vsock transport, and the line above says why (raisePtraceScope; enclave-bf's F1/F2, enclave-87's ruling).
+	// load refuses on the same fact, should anything ever reach it.
+	yama, ok := raisePtraceScope("/proc/sys/kernel/yama/ptrace_scope", 2)
+	fmt.Printf("MON %s\n", yama)
+	if !ok {
+		m.noDomains = yama
+		fmt.Printf("MON ERROR refusing to start: %s\n", yama)
+		syscall.Sync()
+		_ = syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
+		os.Exit(1)
+	}
 	// "ready" must mean the control channel can exist. AF_VSOCK accepts a listen with NO transport registered, so a
 	// guest whose kernel carries only another hypervisor's transport used to print ready and then never answer a
 	// load (enclave-d1, the first UEFI boot on the NucBox). Name the transport that can carry the channel, or stop.
@@ -386,6 +398,9 @@ func readLine(br *bufio.Reader, max int) ([]byte, error) {
 }
 
 func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
+	if m.noDomains != "" {
+		return nil, fmt.Errorf("refused: %s", m.noDomains)
+	}
 	if req.Name != "" && !certNameOK(req.Name) {
 		return nil, fmt.Errorf("name %q is not <8 lowercase hex>.<zone>", req.Name)
 	}
@@ -1310,27 +1325,44 @@ func openNullDeviceAt(path string) (*os.File, error) {
 func unixMajor(dev uint64) uint32 { return uint32((dev>>8)&0xfff) | uint32((dev>>32)&^0xfff) }
 func unixMinor(dev uint64) uint32 { return uint32(dev&0xff) | uint32((dev>>12)&^0xff) }
 
-// raisePtraceScope sets Yama's ptrace_scope at path to at least min (never lowers it) and says what it found and left.
-func raisePtraceScope(path string, min int) string {
+// yamaRefused ends every line on which the monitor refuses all domains for want of Yama.
+const yamaRefused = "domains refused (a same-uid runtime could attach to the front)"
+
+// raisePtraceScope sets Yama's ptrace_scope at path to want (2: only CAP_SYS_PTRACE may attach; not 3, which cannot be
+// lowered again before a reboot), never lowering a higher value, and reads it back. -> (the MON line, ok). ok is false,
+// and the line ends in yamaRefused, unless the value READ BACK is at least want: Yama absent, unparsable, the write
+// refused, or the read-back short or unreadable. Then no domain may load (monitor.load), because Yama is the guard that
+// keeps the tenant runtime - the same uid, a sibling of the front - from attaching to the front or opening its
+// /proc/<pid>/mem during the front's start-up; the front's non-dumpable flag is only defence in depth (enclave-bf's F1
+// and F2 on d9176ed5; enclave-87's ruling).
+func raisePtraceScope(path string, want int) (string, bool) {
+	return raisePtraceScopeWith(path, want, os.WriteFile)
+}
+
+// raisePtraceScopeWith is raisePtraceScope with the write passed in: a test's write can "succeed" and change nothing, the
+// case only the read-back catches.
+func raisePtraceScopeWith(path string, want int, write func(string, []byte, os.FileMode) error) (string, bool) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Sprintf("yama absent (%s unreadable: %v): the front's non-dumpable flag is the guard", path, err)
+		return fmt.Sprintf("yama absent: %s (%s: %v)", yamaRefused, path, err), false
 	}
 	was, err := strconv.Atoi(strings.TrimSpace(string(raw)))
 	if err != nil {
-		return fmt.Sprintf("yama ptrace_scope unparsable (%q): left as is", strings.TrimSpace(string(raw)))
+		return fmt.Sprintf("yama ptrace_scope unparsable (%q): %s", strings.TrimSpace(string(raw)), yamaRefused), false
 	}
-	if was >= min {
-		return fmt.Sprintf("yama ptrace_scope=%d (already >= %d)", was, min)
+	if was >= want {
+		return fmt.Sprintf("yama ptrace_scope=%d (already >= %d)", was, want), true
 	}
-	if err := os.WriteFile(path, []byte(strconv.Itoa(min)+"\n"), 0); err != nil {
-		return fmt.Sprintf("yama ptrace_scope=%d, NOT raised to %d: %v", was, min, err)
+	if err := write(path, []byte(strconv.Itoa(want)+"\n"), 0); err != nil {
+		return fmt.Sprintf("yama ptrace_scope=%d, NOT raised to %d (%v): %s", was, want, err, yamaRefused), false
 	}
-	now := was
-	if raw, err := os.ReadFile(path); err == nil {
-		if v, err := strconv.Atoi(strings.TrimSpace(string(raw))); err == nil {
-			now = v
-		}
+	raw, err = os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("yama ptrace_scope=%d -> unreadable (%v): %s", was, err, yamaRefused), false
 	}
-	return fmt.Sprintf("yama ptrace_scope=%d -> %d", was, now)
+	now, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || now < want {
+		return fmt.Sprintf("yama ptrace_scope=%d -> %q, not the %d asked: %s", was, strings.TrimSpace(string(raw)), want, yamaRefused), false
+	}
+	return fmt.Sprintf("yama ptrace_scope=%d -> %d", was, now), true
 }

@@ -107,9 +107,10 @@ type front struct {
 func main() {
 	// first, before anything can log: nothing but the front's own DOM statements reaches the host's console (console.go).
 	// Package init() functions, this package's and every import's, run BEFORE this line: none may print (enclave-e3's L2).
-	// ...and not dumpable, before the TLS key exists (dumpable.go): the runtime runs as this domain's uid too, and must not
-	// be able to ptrace this process or lift its descriptors. It prints nothing, so it can precede the guard.
-	tracer, dumpErr := notDumpable()
+	// ...and not dumpable, before the TLS key exists (dumpable.go). That is defence in depth: the runtime runs as this
+	// domain's uid too, and what keeps it from ptracing this process or reading its memory is Yama, which the monitor
+	// holds at >= 1 or refuses every domain. It prints nothing, so it can precede the guard.
+	tid, tracer, threads, dumpErr := notDumpable()
 	if err := guardConsole(); err != nil {
 		die("console guard: %v", err)
 	}
@@ -117,11 +118,11 @@ func main() {
 		die("not dumpable: %v", dumpErr)
 	}
 	if tracer != 0 {
-		// a tracer attached before PR_SET_DUMPABLE 0 stays attached (enclave-bf): refuse before any key exists
-		fmt.Printf("DOM front: traced at start (pid %d): refusing\n", tracer)
+		// a tracer attached before PR_SET_DUMPABLE 0 stays attached, on any thread (enclave-bf): refuse before any key exists
+		fmt.Printf("DOM front: traced at start (thread %d, tracer %d): refusing\n", tid, tracer)
 		os.Exit(1)
 	}
-	fmt.Printf("DOM front: not dumpable\n")
+	fmt.Printf("DOM front: not dumpable; none of its %d threads traced\n", threads)
 	port := flag.Uint("port", 443, "vsock port to serve TLS on")
 	listenUnix := flag.String("listen-unix", "", "serve TLS on this unix socket instead of vsock (M3)")
 	reportUnix := flag.String("report-unix", "", "ask the monitor on this unix socket for reports (M3)")
