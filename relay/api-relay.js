@@ -969,6 +969,13 @@ const RELAY_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;   // byte-for-byte the superv
 const RELAY_SERVICES = ["sni", "tcp", "udp", "egress", "tunnelHub"];
 const fleetName = (e) => String(e.name || endpointName(e.endpoint) || "").toLowerCase();
 function relayRowOf(e) {
+  // A row's relay declaration (availability.relay) is ITS OWN WORD, and relay rows feed /v1/relays and, through it, the
+  // app-zone DNS (dns-relay.js) and every deployment's relay choice. So only a box whose IDENTITY is vetted may make it:
+  // a dialed row passed the dial-time operator allowlist; a tunnel row counts only when it attached on its on-chain
+  // operator key (how us-west attaches) or an allowlisted token, never on a hardware verdict alone. An hv-node attach
+  // proves a host boot state, not what the host runs, so its word must not name a relay, take a relay's name, or knock
+  // a real relay out by colliding with it (enclave-bf's NO-GO on the hv-node flip). An hv-node row never feeds the roster.
+  if (e.tunnel && (String(e.mode || "") === "hv-node" || (e.attach !== "operator" && e.attach !== "token"))) return null;
   const r = e.availability?.relay;
   if (!r || typeof r !== "object" || Array.isArray(r)) return null;
   const name = fleetName(e);
@@ -1781,7 +1788,9 @@ function cheapestAsk(serving, gpus) {
 const MAX_VOLUMES_PER_ENCLAVE = 256;                        // guard a hostile /availability (fix 8)
 function fleetVolumes() {
   const byName = new Map();
-  for (const e of live) {
+  // the public aggregate lists only what a box that could take the work holds (servingEnclaves: eligible, claiming): an
+  // ineligible row's volumes are its own word and name nothing a deployment could be placed on (enclave-bf)
+  for (const e of servingEnclaves()) {
     const vols = e.availability?.volumes;
     for (const v of (Array.isArray(vols) ? vols.slice(0, MAX_VOLUMES_PER_ENCLAVE) : [])) {
       if (!v || !v.name) continue;
