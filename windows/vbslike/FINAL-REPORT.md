@@ -7,9 +7,8 @@ v43's install). The report is final once they are filled in.
 ## In short
 Your NucBox (`nucbox-k11`) serves apps in production on the custom type-1 path: each app runs in its own Hyper-V
 partition, and the box serves only you (its operator) and the owners who have delegated to it. It is never offered to
-the market, and it never takes secrets. A test app ("test 1", hello-world 1.0.4) was first served at 01:29Z (E9), and
-since 03:37Z on v42 with a publicly trusted certificate held inside its partition (E12), apart from the planned pauses
-for canaries (E10, E11). **What this is not:** proof that the partition is isolated from
+the market, and it never takes secrets. A test app ("test 1", hello-world 1.0.4) was first served at 01:29Z (E9; paused twice
+for canaries, E10 and E11), and since 03:37Z on v42 with a publicly trusted certificate held inside its partition (E12). **What this is not:** proof that the partition is isolated from
 the NucBox's own host. The partition's report is signed by our launcher, not by hardware, so the boundary is stated
 honestly as **T0-hv, host not excluded**. It is working serving, not proven isolated hosting.
 
