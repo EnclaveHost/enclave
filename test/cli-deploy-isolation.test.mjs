@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { decodeFunctionData, encodeFunctionResult, encodeErrorResult, parseTransaction } from "viem";
+import { decodeFunctionData, encodeFunctionResult, encodeErrorResult, parseTransaction, recoverMessageAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -26,10 +26,14 @@ const CREATE_LEGACY = { type: "function", name: "create", stateMutability: "nonp
            { name: "ports", type: "string" }, { name: "isPublic", type: "bool" },
            { name: "configCid", type: "string" }],
   outputs: [{ type: "bytes32" }] };
+// the rev 4-7 create (a publisher-fee pair after the envelope): what the CLI sends to the rev-5 ledger the config tests play
+const CREATE_V4 = { type: "function", name: "create", stateMutability: "nonpayable",
+  inputs: [...CREATE_LEGACY.inputs, { name: "feeRecipient", type: "address" }, { name: "feePerSec6", type: "uint256" }],
+  outputs: [{ type: "bytes32" }] };
 const PRICE_LEGACY = ["pricePerSec6", "cpuPricePerSec6"].map((name) => ({
   type: "function", name, stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }));
 const DEP_ABI = [...JSON.parse(fs.readFileSync(path.join(REPO, "contracts", "EnclaveDeployments.abi.json"), "utf8")),
-                 CREATE_LEGACY, ...PRICE_LEGACY];
+                 CREATE_LEGACY, CREATE_V4, ...PRICE_LEGACY];
 const CAT_ABI = JSON.parse(fs.readFileSync(path.join(REPO, "contracts", "EnclaveAppCatalog.abi.json"), "utf8"));
 const ERC20_ABI = [{ type: "function", name: "balanceOf", stateMutability: "view",
   inputs: [{ name: "a", type: "address" }], outputs: [{ type: "uint256" }] }];
@@ -45,6 +49,7 @@ const DEP_CREATED_TOPIC = "0x3b201eb11e77934b296f908775fc0a82679683fd83a1232579f
 const ID = "0x" + "ab".repeat(32);
 const APP_ID = "0x" + "cd".repeat(32);
 const ZERO32 = "0x" + "0".repeat(64), ZERO20 = "0x" + "0".repeat(40);
+const PINNED_CID = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
 
 // ---- the platform double -------------------------------------------------------
 // one shared chain (txs, the funded balance) seen through two RPCs that may lag
@@ -60,6 +65,8 @@ function reset({ rpc = {}, ...over } = {}) {
     fleet: [{ name: "nucbox-k11", availability: { isolation: "hyperv-partition-per-app" } },
             { name: "metal-iso0", availability: { isolation: "snp-guest-per-app" } }, { name: "plain", availability: {} }],
     fleetDown: false,
+    depRev: 3n,                            // deploymentsSchema: 3 = the live pre-config ledger; the config tests play 5
+    pinnedJson: [],                        // configs pinned through /add-json (the large-config spill)
     fundOnUnknown: false,                  // the first "unknown" estimate also lands the money (the double-fund guard's case)
     ...over });
 }
@@ -80,7 +87,7 @@ function rpcServer(name) {
     const out = {
       balanceOf: () => [100_000000n],
       pricePerSec6: () => [1667n], cpuPricePerSec6: () => [556n],
-      deploymentsSchema: () => [3n], catalogSchema: () => [4n],
+      deploymentsSchema: () => [S.depRev], catalogSchema: () => [4n],
       get: () => {
         // this RPC's view: the record only once created AND its lag has run out
         const seen = S.created && args[0] === ID && !(me.lag > 0 && me.lag--);
@@ -164,7 +171,19 @@ function apiServer() {
     const json = (code, o) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(o)); };
     if (u.pathname === "/v1/pricing")
       return json(200, { node: { vcpus: 32, ramGb: 32, gflops: 200 }, card: {} });
-    if (u.pathname === "/availability") return json(200, { aggregate: true, secrets: true, configOverride: false });
+    // the fleet-wide AGGREGATE: config overrides off, no pinned configs. Isolation hosts are not in it (they advertise their
+    // own), so an --isolation deploy must never be judged by it
+    if (u.pathname === "/availability") { events.push("api:availability"); return json(200, { aggregate: true, secrets: true, configOverride: false }); }
+    if (u.pathname === "/v1/apps/upload-token" && req.method === "POST") {
+      const { hash, expiry, signature } = JSON.parse(body);
+      const address = await recoverMessageAddress({ message: `enclave-upload:${hash}:${expiry}`, signature });
+      return json(200, { token: `upload-${hash.slice(0, 16)}`, address, expiry });
+    }
+    if (u.pathname === "/add-json" && req.method === "POST") {
+      S.pinnedJson.push(JSON.parse(body));
+      events.push("ipfs:add-json");
+      return json(200, { cid: PINNED_CID });
+    }
     if (u.pathname === "/enclaves") {
       events.push("api:enclaves");
       if (S.fleetDown) return json(502, { error: "bad_gateway" });
@@ -213,6 +232,7 @@ function run(cliArgs, { wait = "2" } = {}) {
              ENCLAVE_API_BASE: `http://127.0.0.1:${apiPort}`,
              // A first: pub()'s fallback sends every read and tx there; B is the second reader
              ENCLAVE_RPC: `http://127.0.0.1:${rpcA},http://127.0.0.1:${rpcB}`,
+             ENCLAVE_IPFS_JSON_UPLOAD: `http://127.0.0.1:${apiPort}/add-json`,
              ENCLAVE_ADDRESS_BOOK: "", ENCLAVE_VISIBLE_WAIT: wait, XDG_CONFIG_HOME: confDir },
     });
     let out = "", err = "";
@@ -286,4 +306,57 @@ test("without --isolation nothing changes: no isolation namespace, and the fleet
   assert.equal(r.code, 0, r.err);
   assert.equal(creates()[0].args[6], "", "no envelope at all");
   assert.equal(events.includes("api:enclaves"), false);
+});
+
+/* ---- --isolation with --config: judged by the TIER's hosts, never the fleet aggregate (enclave-b4's review) ---------- */
+// the rev-5 ledger (per-deployment config); the SNP host takes config only through the attested release (its own
+// configOverride false, on purpose), the hv host takes it itself (true), inline only unless configCidOverride says pinned
+const SNP_ROW = { name: "metal-iso0", availability: { isolation: "snp-guest-per-app", configOverride: false, configCidOverride: false } };
+const HV_ROW = (cid) => ({ name: "nucbox-k11", availability: { isolation: "hyperv-partition-per-app", configOverride: true, configCidOverride: cid } });
+const BIG = JSON.stringify({ system_prompt: "x".repeat(5000) });   // an envelope over 4096 bytes: must be pinned
+
+test("--isolation snp + --config: the envelope carries both, the release path is said, the aggregate is never asked", async () => {
+  reset({ depRev: 5n, fleet: [SNP_ROW] });
+  const r = await run([...DEPLOY, "--isolation", "snp-guest-per-app", "--config", '{"k":"v"}']);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(creates()[0].args[6], '{"isolation":{"require":"snp-guest-per-app"},"config":{"k":"v"}}');
+  assert.match(r.out, /config: delivered only INTO the snp-guest-per-app guest, through the attested release/);
+  assert.equal(events.includes("api:availability"), false, events.join(" "));
+});
+
+test("--isolation hv + --config: a host that takes config itself is named for it", async () => {
+  reset({ depRev: 5n, fleet: [HV_ROW(true)] });
+  const r = await run([...DEPLOY, "--isolation", "hyperv-partition-per-app", "--config", '{"k":"v"}']);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(creates()[0].args[6], '{"isolation":{"require":"hyperv-partition-per-app"},"config":{"k":"v"}}');
+  assert.match(r.out, /config: the hyperv-partition-per-app host\(s\) take a per-deployment config themselves \(availability.configOverride: nucbox-k11\)/);
+  assert.equal(events.includes("api:availability"), false);
+});
+
+test("a large config with --isolation snp is PINNED for the release, though the fleet aggregate has no pinned configs", async () => {
+  reset({ depRev: 5n, fleet: [SNP_ROW] });
+  const r = await run([...DEPLOY, "--isolation", "snp-guest-per-app", "--config", BIG]);
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(S.pinnedJson, [JSON.parse(BIG)]);
+  assert.equal(creates()[0].args[6], `{"isolation":{"require":"snp-guest-per-app"},"configCid":"${PINNED_CID}"}`);
+  assert.match(r.out, /config: pinned; it reaches the snp-guest-per-app guest only through the attested release, which resolves its CID/);
+  assert.equal(events.includes("api:availability"), false, "the aggregate would have refused it");
+});
+
+test("a large config for an hv host that takes config only INLINE is refused before anything is pinned or sent", async () => {
+  reset({ depRev: 5n, fleet: [HV_ROW(false)] });
+  const r = await run([...DEPLOY, "--isolation", "hyperv-partition-per-app", "--config", BIG]);
+  assert.equal(r.code, 1);
+  assert.match(r.err, /the hyperv-partition-per-app host\(s\) take a config only inline \(availability.configCidOverride is not true\)/);
+  assert.equal(S.pinnedJson.length, 0);
+  assert.equal(S.txs.length, 0);
+});
+
+test("a large config for an hv host that takes it PINNED goes through", async () => {
+  reset({ depRev: 5n, fleet: [HV_ROW(true)] });
+  const r = await run([...DEPLOY, "--isolation", "hyperv-partition-per-app", "--config", BIG]);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(S.pinnedJson.length, 1);
+  assert.equal(creates()[0].args[6], `{"isolation":{"require":"hyperv-partition-per-app"},"configCid":"${PINNED_CID}"}`);
+  assert.match(r.out, /config: pinned; the hyperv-partition-per-app host\(s\) take a pinned config/);
 });

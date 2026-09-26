@@ -533,6 +533,7 @@ function emitUnsigned({ account, to, data, value, label }) {
   exit(0);
 }
 async function sendTx(account, { address, abi, functionName, args: a, value }) {
+  // before the --unsigned branch below, so an unsigned transaction for someone else to sign is guarded too (enclave-b4)
   if (String(address).toLowerCase() === String(DEFAULTS.APP_CATALOG_ADDRESS).toLowerCase()) catalogWriteAllowed();
   const name = { [DEFAULTS.DEPLOYMENTS_ADDRESS]: "EnclaveDeployments",
                  [DEFAULTS.APP_CATALOG_ADDRESS]: "EnclaveAppCatalog" }[address] || address;
@@ -1905,6 +1906,11 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
     : " - it launches when claimed"}; watch: enclave status ${short(id)}`);
 }
 
+// The hosts an --isolation deployment can land on: what THEY advertise decides how its config gets in (not the fleet's
+// aggregate, which leaves isolation hosts out). -> true when any of them advertises `key` true.
+const isoTakesConfig = (hosts, key) => hosts.some((h) => h && h.availability && h.availability[key] === true);
+const isoHostNames = (hosts) => hosts.map((h) => h.name || h.id).join(", ");
+
 async function cmdDeploy(rest) {
   const account = loadKey();
   const f = flags(rest, {
@@ -1991,7 +1997,7 @@ async function cmdDeploy(rest) {
   // envelope namespace an owner's setConfig adds later). Set AT CREATION, so there is no window in which a runner
   // without that tier can claim it: every other runner refuses the namespace. Refused unless some live host
   // advertises that backend, because nothing else would ever claim it.
-  let isoBackend = null;
+  let isoBackend = null, isoHosts = [];
   if (f.isolation !== undefined) {
     isoBackend = String(f.isolation).trim();
     if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(isoBackend)) throw new Error("--isolation takes a backend name, e.g. --isolation snp-guest-per-app");
@@ -1999,6 +2005,7 @@ async function cmdDeploy(rest) {
     try { hosts = ((await api("GET", "/enclaves")).enclaves || []).filter((e) => e && e.availability && e.availability.isolation === isoBackend); }
     catch (e) { throw new Error(`couldn't read the fleet to confirm a ${isoBackend} host: ${e.message}`); }
     if (!hosts.length) throw new Error(`no live host advertises the ${isoBackend} tier; a deployment requiring it would never be claimed`);
+    isoHosts = hosts;
     envParts.isolation = { require: isoBackend };
     say(`isolation: REQUIRES ${isoBackend} (hosts: ${hosts.map((h) => h.name || h.id).join(", ")}); every other runner refuses it`);
   }
@@ -2015,7 +2022,9 @@ async function cmdDeploy(rest) {
     // loud warning.
     // An isolation tier is not in the fleet-wide AND (its host advertises configOverride:false on purpose: it takes
     // config only through the attested release), so the gate that matters there is the release, stated instead.
-    if (isoBackend) say(`config: delivered only INTO the ${isoBackend} guest, through the attested release; the deployment stays Queued until the relay lists it for the release and its host has opted in`);
+    if (isoBackend) say(isoTakesConfig(isoHosts, "configOverride")
+      ? `config: the ${isoBackend} host(s) take a per-deployment config themselves (availability.configOverride: ${isoHostNames(isoHosts)})`
+      : `config: delivered only INTO the ${isoBackend} guest, through the attested release; the deployment stays Queued until the relay lists it for the release and its host has opted in`);
     else try {
       const av = await api("GET", "/availability");
       if (av && av.aggregate && av.configOverride !== true)
@@ -2059,9 +2068,21 @@ async function cmdDeploy(rest) {
     const body = JSON.stringify(envParts.config);
     if (Buffer.byteLength(body) > CONFIG_MAX_BYTES)
       throw new Error(`the config is ${Buffer.byteLength(body)} bytes; enclaves refuse anything over ${CONFIG_MAX_BYTES} at launch`);
-    const av = await api("GET", "/availability");
-    if (!av?.configCidOverride)
-      throw new Error("the live fleet does not support pinned config overrides; trim the config or update the fleet");
+    // A pinned config is claimable where the hosts that will RUN it take one. For an isolation tier those are its own
+    // hosts, never the fleet-wide aggregate, which leaves them out (enclave-b4's review of 864be4e5): a host that takes
+    // config itself (availability.configOverride) must also take it pinned (configCidOverride); a tier that takes it only
+    // through the attested release gets the CID resolved there (relay: resolveConfigCid).
+    if (isoBackend) {
+      if (isoTakesConfig(isoHosts, "configOverride") && !isoTakesConfig(isoHosts, "configCidOverride"))
+        throw new Error(`the ${isoBackend} host(s) take a config only inline (availability.configCidOverride is not true), and this one must be pinned (the envelope would be ${Buffer.byteLength(envelope)} bytes, over 4096); trim the config`);
+      say(isoTakesConfig(isoHosts, "configOverride")
+        ? `config: pinned; the ${isoBackend} host(s) take a pinned config (availability.configCidOverride)`
+        : `config: pinned; it reaches the ${isoBackend} guest only through the attested release, which resolves its CID`);
+    } else {
+      const av = await api("GET", "/availability");
+      if (!av?.configCidOverride)
+        throw new Error("the live fleet does not support pinned config overrides; trim the config or update the fleet");
+    }
     const manifest = {};
     if (envParts.config.volumes !== undefined) manifest.volumes = envParts.config.volumes;
     const cid = await pinJson(account, Buffer.from(body, "utf8"));
