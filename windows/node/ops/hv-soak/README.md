@@ -106,7 +106,7 @@ With `--leak-scope out`, only the EXERCISE requirement is waived, never a sighti
 
 | id | FAIL when | notes |
 |---|---|---|
-| public | 3 or more consecutive public checks are not a verified 200 | |
+| public | 3 or more consecutive public checks are not a verified 200 on the partition's own key | Four things fail a check: a verified 200 whose leaf's SPKI is not the manager's `transportKeySha256` for the deployment, meaning something in front of the partition holds its own certificate (enclave-bf); a TLS failure; a timeout; a non-200. An unknown key (no manager record that sample) is not a failure. The key rule is recomputed from the raw record, the leaf's SPKI against `box.vms.mine.transportKeySha256`, never from the stored `derived` field, so `--summary` applies it to a JSONL written before the rule existed. It also governs uptime, latency and whether a sample exercised the leak check. |
 | spki | the leaf's SPKI changes with no restart of the deployment in the node log | See "SPKI baseline and restarts" below. |
 | partition | the partition is not Running on 2 consecutive samples | Running means the manager says `running` and, when `Get-VM` answered, the VM is `Running`. A sample whose box read failed is unknown: it neither counts toward the streak nor resets it. |
 | price | a new `registry: card price now` line (a price tx) past the history | |
