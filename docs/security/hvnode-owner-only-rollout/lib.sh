@@ -56,7 +56,14 @@ canaries_dns() { local l r; for l in 0ddbd824 395bed3e 4e62e60d; do r=$(curl -sS
 # 1b's acceptance (enclave-87, 09-26): test 1 on its public hostname, on the partition's key; an unleased hostname refused
 TEST1=0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3
 TEST1_SPKI=${TEST1_SPKI:-}   # sha256 of test 1's SPKI DER (d1's R4 key 4d80b956...): pinned before 1b runs; empty = the accept FAILS
-UNLEASED="0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a 0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371"
+# the stranger probe (bf's S2): a deployment from the LIVE release listing with NO live lease and a DNS record at us-west, chosen at
+# run time (Steven's apps may be leased by then); STRANGER=<id> names one by hand when none is. Prints the id, or nothing.
+listed_ids() { $NAN "grep -E '^SECRETS_RELEASE_DEPLOYMENTS=' /etc/nan-relay/api-relay.env | cut -d= -f2 | tr ',' '\n' | grep -xE '0x[0-9a-f]{64}'"; }
+stranger_probe() {
+  local d; for d in ${STRANGER:-$(listed_ids)}; do
+    [ "$(curl -sS -m 20 "https://api.enclave.host/v1/expected-guest?id=$d" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("error",""))' 2>/dev/null)" = not_leased ] || continue
+    [ "$(dig +short ${d:2:8}.app.enclave.host A | head -1)" = 5.78.85.108 ] || continue; echo "$d"; return; done
+}
 # GET https://<label>.app.enclave.host/ -> "<http code> <sha256 of the handshake SPKI DER, or ->"; "000 -" when refused
 public_get() {
   node -e '
@@ -67,14 +74,16 @@ const req = https.get({ host: process.argv[1] + ".app.enclave.host", path: "/", 
 });
 req.on("timeout", () => req.destroy(new Error("timeout"))); req.on("error", () => console.log("000 -"));' "$1"
 }
-# the attestation document on that hostname: its transportKey equals THIS handshake's SPKI (the TLS ends in the attested partition)
-public_doc_binds() {
+# the attestation document on that hostname STATES this handshake's key (transportKey = the handshake SPKI). A statement only
+# (bf's S1): no nonce echo, report_data binding or signature is checked here; the partition binding is TEST1_SPKI = the manager's
+# transportKeySha256 for test 1's record, pinned at run time.
+public_doc_states_key() {
   node -e '
 const https = require("node:https"), { randomBytes, X509Certificate } = require("node:crypto");
 const req = https.get({ host: process.argv[1] + ".app.enclave.host", path: "/.well-known/enclave-attestation?nonce=" + randomBytes(32).toString("hex"), timeout: 20000, agent: false }, (res) => {
   const spki = new X509Certificate(res.socket.getPeerCertificate(false).raw).publicKey.export({ type: "spki", format: "der" });
   let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => { let d = {}; try { d = JSON.parse(b); } catch {}
-    console.log(res.statusCode === 200 && d.transportKey && Buffer.from(d.transportKey, "base64").equals(spki) ? "bound" : `not bound (${res.statusCode})`); });
+    console.log(res.statusCode === 200 && d.transportKey && Buffer.from(d.transportKey, "base64").equals(spki) ? "states the key" : `does not state it (${res.statusCode})`); });
 });
 req.on("timeout", () => req.destroy(new Error("timeout"))); req.on("error", (e) => console.log("refused " + e.message));' "$1"
 }
