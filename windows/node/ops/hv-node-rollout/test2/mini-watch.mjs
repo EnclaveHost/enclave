@@ -124,12 +124,12 @@ const hasDep = (r, id) => (r.deps || []).some((d) => d.id === id);
 
 /**
  * The PASS lines of TEST2-MINI.md from the JSONL (the node.log lines are checked by hand):
- *  ADD, window [addAt - 30 s, addAt + 240 s]:
+ *  ADD, window [addAt - 30 s, min(addAt + 240 s, rmAt)]:
  *   - handover = the first row sample listing the delegated owner. The relay bound the new attach between the sample
  *     before it and this one;
  *   - A1 no gap: NO row sample absent; NO test-1 probe refused or unable to open (x != open); and every opened test-1
- *     probe is 200 on key1, EXCEPT one cut in flight (x=open, no 200) whose [start, end] overlaps the handover interval
- *     (the relay's newest-wins bind ends the old tunnel's streams: INFO, listed);
+ *     probe is 200 on key1, EXCEPT at most 2 cut in flight (x=open, no 200, no key but key1's) whose [start, end] overlaps
+ *     the handover interval (the relay's newest-wins bind ends the old tunnel's streams: INFO, listed);
  *   - A2 the served owners after the handover are EXACTLY {the operator, the delegated owner}.
  *  REMOVE, from rmAt:
  *   - break = the first row sample at or after rmAt that is absent (break-before-make ends the tunnel first);
@@ -142,15 +142,19 @@ const hasDep = (r, id) => (r.deps || []).some((d) => d.id === id);
 export function summarize(lines, { key1, key2 = null, id2 = null, addAt, rmAt = null, owner = "0x29479bf04ed889d46a7afb7f292b9bb26e12647c" }) {
   const out = [], verdicts = {};
   const rows = lines.filter((l) => l.kind === "row" && !l.error), t1 = lines.filter((l) => l.kind === "t1"), p2 = lines.filter((l) => l.kind === "id2");
-  const a = Date.parse(addAt) - 30_000, b = Date.parse(addAt) + 240_000;
+  // the ADD window ends at the REMOVE, whichever comes first (enclave-bf's W2: a REMOVE 2-4 min after the ADD is allowed)
+  const a = Date.parse(addAt) - 30_000, b = Math.min(Date.parse(addAt) + 240_000, rmAt ? Date.parse(rmAt) - 1 : Infinity);
   const rowsA = rows.filter((r) => within(r.t, a, b)), t1A = t1.filter((p) => within(p.start, a, b));
   const hi = rowsA.findIndex((r) => r.present && hasOwner(r, owner));
   const hand = hi > 0 ? [Date.parse(rowsA[hi - 1].t) - 1000, Date.parse(rowsA[hi].t) + 1000] : null;
   const absentA = rowsA.filter((r) => !r.present), notOpenA = t1A.filter((p) => p.x !== "open");
   const badOpenA = t1A.filter((p) => p.x === "open" && !ok200(p, key1));
-  const cut = hand ? badOpenA.filter((p) => Date.parse(p.start) <= hand[1] && Date.parse(p.end) >= hand[0]) : [];
+  // a CUT (enclave-bf's W1): no 200, and no key but test 1's (none, if cut before the handshake), overlapping the handover.
+  // A 200 on any other key is never a cut. At most 2: one in flight at the bind, and one started as it happened.
+  const cut = hand ? badOpenA.filter((p) => p.code !== "200" && (p.spki === null || p.spki === key1)
+    && Date.parse(p.start) <= hand[1] && Date.parse(p.end) >= hand[0]) : [];
   const unexplained = badOpenA.filter((p) => !cut.includes(p));
-  verdicts.A1 = hand && !absentA.length && !notOpenA.length && !unexplained.length && t1A.length >= 60 ? "PASS" : "FAIL";
+  verdicts.A1 = hand && !absentA.length && !notOpenA.length && !unexplained.length && cut.length <= 2 && t1A.length >= 60 ? "PASS" : "FAIL";
   out.push(`A1 ADD no gap: ${verdicts.A1} - ${rowsA.length} row samples (${absentA.length} absent), ${t1A.length} test-1 probes `
     + `(${notOpenA.length} not opened, ${unexplained.length} opened but not 200 on key1 outside the handover, ${cut.length} cut at the handover: INFO); `
     + `handover ${hand ? new Date(hand[0] + 1000).toISOString() + " .. " + new Date(hand[1] - 1000).toISOString() : "NOT SEEN (the owner never appeared)"}`);

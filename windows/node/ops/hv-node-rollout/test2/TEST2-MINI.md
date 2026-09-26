@@ -21,6 +21,10 @@ once, on the production node.
 
 - **A1:** adding a delegation re-attaches with NO gap. No relay-row sample is absent, and every test-1 request started
   through the ADD reaches a tunnel and gets 200 on test 1's key.
+  - The one exception: at most 2 requests IN FLIGHT at the handover second. The relay's newest-wins bind and the node's
+    zone.closeAll() end the old tunnel's streams, so such a request may be cut. It is INFO, and only if it carries no
+    key but test 1's (enclave-bf's W1).
+  - A 200 on any other key, or a 200 whose key was not read, is never excused.
 - **A2:** after the ADD, the row serves exactly {the operator, the delegated owner}, and nobody else. The zero id is
   refused, 503.
 - **A3:** the delegated owner's partition app (ID2) is claimed and served on its OWN key. This is the path Steven's apps
@@ -95,7 +99,11 @@ once, on the production node.
    - the agent wallet has ≥ 0.00005 ETH (two transactions; this test spends NO USDC);
    - the operator has ≥ 0.0005 ETH (R3).
 7. **`CLI status 0x958ae6e9…`** reads `active=false`, balance 0. Save it as `$E/id2-status-before.txt`.
-8. **ID2 is FREE on this box, read on chain** (enclave-d1's check; ledger `0xF9e71385…`), with `cast call`:
+8. **The CLI has the confirmed-stop report** (enclave-bf's S1): `git -C <the CLI worktree> merge-base --is-ancestor
+   b3dd35813 HEAD` exits 0 (enclave-d1's `~/enclave-bench/wt-test2-main` is at main `c6347dd2`, which contains it).
+   Without it, a `stop` whose API teardown is refused prints only an error and exits non-zero, although the on-chain stop
+   landed. Either way, the PASS check for a stop is `CLI status` reading `active=false`.
+9. **ID2 is FREE on this box, read on chain** (enclave-d1's check; ledger `0xF9e71385…`), with `cast call`:
    - `earnOf(ID2)`: `runnerRate6` = 0;
    - `rateFor(ID2, 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b)` (nucbox-k11) = 0.
    The payout wallet is the owner, so this is the rev-12 free self-host. `claimableBy` is `balance6 >= rateFor`, so ID2
@@ -165,7 +173,7 @@ CLI status 0x958ae6e9…        | tee $E/id2-status-1.txt     # active=false, ba
 CLI resume 0x958ae6e9… --yes  | tee $E/id2-resume.txt       # setActive(true); a claim hint
 CLI status 0x958ae6e9…        | tee $E/id2-status-2.txt     # active=true, balance 0
 ```
-- **No `fund`** (enclave-d1, precondition 8). The claim is free at rate 0, so resume alone makes ID2 claimable.
+- **No `fund`** (enclave-d1, precondition 9). The claim is free at rate 0, so resume alone makes ID2 claimable.
   - A fund here would forward the money to the platform, not escrow it (the zero-escrow case), and nothing could refund
     it.
   - `resume` may print "re-queued, but UNFUNDED …". At rate 0 that is expected: the node's scan takes active rows and asks
