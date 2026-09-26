@@ -28,6 +28,10 @@ type WXScan struct {
 	Scope string         // all-processes | cgroup:<path>
 	Roles map[string]int // processes with an address space, by role
 	Found string         // "pid N (role): <maps line>", or "" when no mapping is both writable and executable
+	// RuntimePids: the processes counted as the runtime, for CheckRuntimeFiltered. Seccomp: the init's statement of the
+	// runtime's filter (ParseSeccompStatement's hash), carried into Clean() as seccomp=<hash>; "" = none stated.
+	RuntimePids []int
+	Seccomp     string
 }
 
 // Gone reports whether err means the process no longer exists (and so has no mappings to vouch for).
@@ -58,6 +62,9 @@ func ScanWX(scope string, pids []int, role func(pid int) (string, error)) (WXSca
 			continue // a kernel thread: no address space of its own
 		}
 		s.Roles[r]++
+		if r == "runtime" {
+			s.RuntimePids = append(s.RuntimePids, pid)
+		}
 		if line != "" && s.Found == "" {
 			s.Found = fmt.Sprintf("pid %d (%s): %s", pid, r, line)
 		}
@@ -93,8 +100,65 @@ func (s WXScan) Clean() string {
 	for _, r := range others {
 		fmt.Fprintf(&b, " %s=%d", r, s.Roles[r])
 	}
+	if s.Seccomp != "" {
+		fmt.Fprintf(&b, " seccomp=%s", s.Seccomp)
+	}
 	fmt.Fprintf(&b, " scope=%s", s.Scope)
 	return b.String()
+}
+
+// CheckRuntimeFiltered: every process the scan counted as the runtime is under a seccomp FILTER now (mode 2 in
+// /proc/<pid>/status), measured at the same attestation as the W^X scan - the init's statement says WHICH filter, this
+// says it is on the runtime (enclave-87: positive evidence). One proven gone is skipped; any other failure is an error.
+func (s WXScan) CheckRuntimeFiltered() error {
+	for _, pid := range s.RuntimePids {
+		mode, err := SeccompMode(pid)
+		if err != nil {
+			if Gone(err) {
+				continue
+			}
+			return fmt.Errorf("could not read runtime pid %d's seccomp mode: %v: the scan cannot vouch for it", pid, err)
+		}
+		if mode != 2 {
+			return fmt.Errorf("runtime pid %d is not under a seccomp filter (Seccomp: %d)", pid, mode)
+		}
+	}
+	return nil
+}
+
+// SeccompMode is a process's seccomp mode, from /proc/<pid>/status: 0 none, 1 strict, 2 filter.
+func SeccompMode(pid int) (int, error) {
+	f, err := os.Open("/proc/" + strconv.Itoa(pid) + "/status")
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		if rest, ok := strings.CutPrefix(sc.Text(), "Seccomp:"); ok {
+			return strconv.Atoi(strings.TrimSpace(rest))
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return 0, err
+	}
+	return 0, fmt.Errorf("pid %d: no Seccomp line", pid)
+}
+
+// ParseSeccompStatement reads an init's statement of the runtime's filter (m2/app-seccomp.h app_seccomp_statement):
+// exactly "seccomp sha256=<64 lowercase hex> rules=<n>\n". -> the hash.
+func ParseSeccompStatement(b []byte) (string, error) {
+	var hash string
+	var rules uint
+	line := string(b)
+	if !strings.HasSuffix(line, "\n") || strings.Count(line, "\n") != 1 {
+		return "", fmt.Errorf("not one statement line: %q", line)
+	}
+	if n, err := fmt.Sscanf(line, "seccomp sha256=%64s rules=%d\n", &hash, &rules); n != 2 || err != nil || rules == 0 ||
+		len(hash) != 64 || strings.Trim(hash, "0123456789abcdef") != "" || line != fmt.Sprintf("seccomp sha256=%s rules=%d\n", hash, rules) {
+		return "", fmt.Errorf("not a seccomp statement: %q", line)
+	}
+	return hash, nil
 }
 
 // FirstWXMapping returns the first writable-and-executable mapping of a process, and whether it has an address space

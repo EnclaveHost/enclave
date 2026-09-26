@@ -52,6 +52,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -120,6 +121,10 @@ type domain struct {
 	inFlight chan struct{} // this domain's share of concurrent report work
 
 	life *contract.Lifecycle // starting -> running -> ending -> ended; reclamation exactly once
+
+	// seccomp: the runtime's filter as domexec's runtime child stated it once installed (readSeccompStatement), carried
+	// into every self-test this monitor measures for the domain; nil until then.
+	seccomp atomic.Pointer[string]
 
 	mu     sync.Mutex
 	proc   *os.Process // a STABLE handle, set once Start returned. Never signal by raw pid.
@@ -552,6 +557,16 @@ func (m *monitor) start(d *domain, app []byte) error {
 		return fail(err)
 	}
 	defer nul.Close() // the child has its own copy once started (launch); ours is only for the fork
+	// THE SECCOMP STATEMENT (domexec.c SECCOMP_FD, fd 4; enclave-87: positive evidence): a pipe whose write end only the
+	// runtime's child writes, once its filter is installed and before exec - domexec closes its own copy right after
+	// spawning the runtime, so the front, the probe and whatever the runtime runs never hold it. What arrives goes into
+	// every self-test this monitor measures for the domain (scanDomainWX).
+	sr, sw, err := os.Pipe()
+	if err != nil {
+		return fail(fmt.Errorf("seccomp statement pipe: %w", err))
+	}
+	defer sw.Close() // likewise: the child has its own copy once started
+	go m.readSeccompStatement(d, sr)
 	ln, err := vsock.Listen(d.Port)
 	if err != nil {
 		return fail(fmt.Errorf("vsock port %d: %w", d.Port, err))
@@ -568,7 +583,7 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 	cmd := exec.Command("/plat/domexec", args...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	cmd.ExtraFiles = []*os.File{nul} // fd 3 in domexec
+	cmd.ExtraFiles = []*os.File{nul, sw} // fd 3 and fd 4 in domexec
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Chroot: d.dir,
 		// its own mount, process, network, IPC and hostname namespaces. The network namespace is why
@@ -1049,6 +1064,22 @@ func (m *monitor) oneReport(c net.Conn) (refused bool) {
 // (contract.ScanWX: a process whose mappings cannot be read FAILS the scan; only one proven gone is skipped), each
 // counted by role from its uid - the runtime (the domain's uid), the front (its own), init (domexec, root). ->
 // "wx=clean maps=N runtime=R front=F init=I scope=cgroup:/domN", "wx=found pid P (role): <line>", or "wx=error: why".
+// readSeccompStatement takes the one statement domexec's runtime child writes on fd 4 (to EOF: its exec closes it).
+func (m *monitor) readSeccompStatement(d *domain, r *os.File) {
+	defer r.Close()
+	line, _ := bufio.NewReader(io.LimitReader(r, 256)).ReadString('\n')
+	if line == "" {
+		return // no filtered runtime (a probe domain), or it failed before its statement: the self-test states none
+	}
+	h, err := contract.ParseSeccompStatement([]byte(line))
+	if err != nil {
+		fmt.Printf("MON dom%d ERROR the runtime's seccomp statement: %v\n", d.ID, err)
+		return
+	}
+	d.seccomp.Store(&h)
+	fmt.Printf("MON dom%d seccomp: runtime filter installed (sha256 %s)\n", d.ID, h)
+}
+
 func (m *monitor) scanDomainWX(d *domain) string {
 	raw, err := os.ReadFile(filepath.Join(d.cgroup, "cgroup.procs"))
 	if err != nil {
@@ -1081,6 +1112,13 @@ func (m *monitor) scanDomainWX(d *domain) string {
 	}
 	if scan.Found != "" {
 		return "wx=found " + scan.Found
+	}
+	// the runtime's filter: on every runtime process NOW (its Seccomp mode), and which one (domexec's statement)
+	if err := scan.CheckRuntimeFiltered(); err != nil {
+		return "wx=error: " + err.Error()
+	}
+	if h := d.seccomp.Load(); h != nil {
+		scan.Seccomp = *h
 	}
 	return scan.Clean()
 }

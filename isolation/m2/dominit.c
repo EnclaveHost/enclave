@@ -268,6 +268,61 @@ static void lo_up(void) {
 #define SPAWN_QUIET 1
 #define SPAWN_DROP 2
 #define SPAWN_FILTER 4
+/* The seccomp STATEMENT channel (enclave-87: positive evidence that the filter is on): a close-on-exec pipe made just
+ * before the app is spawned (so the front, already running, never holds it). The app's child writes app-seccomp.h's
+ * statement to it once the filter is installed, before exec, and exec closes it: nothing the app runs can write it. */
+static int seccomp_status_fd = -1;
+#ifndef SECCOMP_DIR
+#define SECCOMP_DIR "/run/enclave"                  /* root-only (0700): what the front reads into the attested self-test */
+#endif
+#define SECCOMP_STATEMENT SECCOMP_DIR "/seccomp"
+/* Read the app child's seccomp statement (to EOF: its exec, or its exit on a failure, closes the other end). A valid one
+ * is printed - the positive line - and written, root-only, where the front reads it into every attested self-test; none
+ * means the child failed before exec (it has said why, exits 125, and the domain ends). */
+static void seccomp_statement_from(int fd) {
+    char st[160];
+    size_t got = 0;
+    for (;;) {
+        ssize_t n = read(fd, st + got, sizeof st - 1 - got);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) break;
+        got += (size_t)n;
+        if (got == sizeof st - 1) break;
+    }
+    st[got] = 0;
+    char hex[65];
+    unsigned rules = 0;
+    if (sscanf(st, "seccomp sha256=%64[0-9a-f] rules=%u", hex, &rules) != 2 || strlen(hex) != 64 || got == 0 || st[got - 1] != '\n') {
+        if (got) printf("DOM ERROR the app's seccomp statement is malformed: the self-test will state none\n");
+        return;
+    }
+    printf("DOM seccomp: app filter installed (sha256 %s, %u rules)\n", hex, rules);
+    if (strncmp(SECCOMP_DIR, "/run/", 5) == 0) mkdir("/run", 0755);
+    mkdir(SECCOMP_DIR, 0700);
+    int w = open(SECCOMP_STATEMENT ".tmp", O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0600);
+    if (w < 0 || write(w, st, got) != (ssize_t)got || close(w) != 0 || rename(SECCOMP_STATEMENT ".tmp", SECCOMP_STATEMENT) != 0)
+        printf("DOM ERROR could not record the app's seccomp statement for the front: %s\n", strerror(errno));
+}
+
+static pid_t spawn(char *const argv[], char *extra, int fd3, int flags);
+/* The app, through the seccomp statement channel: a close-on-exec pipe made here (the front, already running, never
+ * holds it), handed to the child, and read to EOF - until the child's exec closes its end - so the positive line and the
+ * front's statement come from init once the filter is on. -> the app's pid, or -2 when no pipe could be made. */
+static pid_t spawn_app(char *const argv[], char *extra, int flags) {
+    int sfd[2];
+    if (pipe2(sfd, O_CLOEXEC) != 0) {
+        printf("DOM ERROR pipe: %s\n", strerror(errno));
+        return -2;
+    }
+    seccomp_status_fd = sfd[1];
+    pid_t pid = spawn(argv, extra, -1, flags);
+    close(sfd[1]);
+    seccomp_status_fd = -1;
+    seccomp_statement_from(sfd[0]);
+    close(sfd[0]);
+    return pid;
+}
+
 static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
     const int quiet = flags & SPAWN_QUIET, drop = flags & SPAWN_DROP;
     pid_t pid = fork();
@@ -296,6 +351,14 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
         if ((flags & SPAWN_FILTER) && app_seccomp_install() != 0) {
             if (con >= 0) dprintf(con, "DOM ERROR the app's seccomp filter could not be installed (%s): not started\n", strerror(errno));
             _exit(125);
+        }
+        if ((flags & SPAWN_FILTER) && seccomp_status_fd >= 0) {   /* the filter is on: say which, to init, before exec */
+            char st[160];
+            int n = app_seccomp_statement(st, sizeof st);
+            if (n < 0 || write(seccomp_status_fd, st, (size_t)n) != n) {
+                if (con >= 0) dprintf(con, "DOM ERROR the app's seccomp statement could not be written: not started\n");
+                _exit(125);
+            }
         }
         char *envp[] = {"HOME=/tmp", "PATH=/rt", extra, NULL};
         execve(argv[0], argv, envp);
@@ -457,7 +520,7 @@ int main(void) {
         reboot(RB_POWER_OFF);
     }
     char *front[] = {"/front", "-port", "443", "-upstream", upstream, snp ? "-snp=true" : "-snp=false",
-                     "-init-fd", "3", NULL};
+                     "-init-fd", "3", "-seccomp-statement", SECCOMP_STATEMENT, NULL};
     pid_t front_pid = spawn(front, NULL, pfd[1], 0);         /* the front stays root and unfiltered: it holds the key, the release and the vsock */
     front_pid_g = front_pid;                                   /* what the app's child checks it cannot open */
     close(pfd[1]);
@@ -486,7 +549,11 @@ int main(void) {
         app[k++] = base[i];
     }
     app[k] = NULL;
-    pid_t app_pid = spawn(app, cfg_env, -1, SPAWN_QUIET | SPAWN_DROP | SPAWN_FILTER);   /* quiet, dropped to APP_UID, filtered */
+    pid_t app_pid = spawn_app(app, cfg_env, SPAWN_QUIET | SPAWN_DROP | SPAWN_FILTER);   /* quiet, dropped to APP_UID, filtered */
+    if (app_pid == -2) {
+        fflush(stdout);
+        reboot(RB_POWER_OFF);
+    }
     if (cfg_env) {
         explicit_bzero(cfg_env, sizeof "ENCLAVE_CONFIG=" + cfg_len);
         free(cfg_env);

@@ -221,7 +221,7 @@ source_order() {  # <dominit.c>
     inmain && /sysctl_hold\(holds\[i\]/ && !h { h = NR }
     inmain && h && !rb && /reboot\(RB_POWER_OFF\)/ { rb = NR }
     inmain && /spawn\(front,/ { f = NR; fdrop = ($0 ~ /pfd\[1\], 0\);/) }
-    inmain && /spawn\(app,/ { a = NR; adrop = ($0 ~ /SPAWN_QUIET \| SPAWN_DROP \| SPAWN_FILTER\)/) }
+    inmain && /spawn(_app)?\(app,/ { a = NR; adrop = ($0 ~ /SPAWN_QUIET \| SPAWN_DROP \| SPAWN_FILTER\)/) }   # spawn_app: the seccomp statement channel
     END {
       ok = ty && tu && ti && h && ty < h && tu < h && ti < h && h < f && rb && rb < f && f && a && fdrop && adrop
       printf("%s main: holds yama@%d userns@%d io_uring@%d, held at %d (refusal powers off at %d), before the front at %d (no flags: %d); the app at %d quiet+dropped+filtered: %d\n",
@@ -237,7 +237,7 @@ if command -v unshare >/dev/null 2>&1 && unshare --map-root-user --map-auto -U t
 run_all() {  # <dominit.c> <app-seccomp.h> <cc...>
   src=$1; hdr=$2; shift 2
   rm -rf "$d/b" && mkdir -p "$d/b/t" "$d/b/o" && chmod 0755 "$d/b" && chmod 1777 "$d/b/o"
-  cp "$src" "$d/b/dominit.c" && cp "$hdr" "$d/b/app-seccomp.h" && cp "$d/h.c" "$d/b/"
+  cp "$src" "$d/b/dominit.c" && cp "$hdr" "$d/b/app-seccomp.h" && cp "$here/sha256-min.h" "$d/b/" && cp "$d/h.c" "$d/b/"
   "$@" -O2 -Wall -Wextra -Wno-unused-function -o "$d/b/h" "$d/b/h.c" || return 1
   "$@" -O2 -o "$d/b/probe" "$d/probe.c" || return 1
   gcc -static -pthread -O2 -o "$d/b/rt-probe" "$here/app-seccomp-probe.c" 2>/dev/null || return 1

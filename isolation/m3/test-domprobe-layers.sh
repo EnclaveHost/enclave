@@ -34,7 +34,7 @@ K="vsock_local_domain1 vsock_local_domain2 vsock_own_control vsock_host_control"
 run_all() {  # <domprobe.c> <app-seccomp.h> -> 0 only if both layers are as specified
   reclaim; rm -rf "$d/b" && mkdir -p "$d/b/m3" "$d/b/m2" "$d/root/plat" "$d/root/run" "$d/root/tmp" "$d/root/proc"
   chmod 0755 "$d/root" "$d/root/plat"; chmod 1777 "$d/root/run"
-  cp "$here/domexec.c" "$d/b/m3/domexec.c" && cp "$1" "$d/b/m3/domprobe.c" && cp "$2" "$d/b/m2/app-seccomp.h"
+  cp "$here/domexec.c" "$d/b/m3/domexec.c" && cp "$1" "$d/b/m3/domprobe.c" && cp "$2" "$d/b/m2/app-seccomp.h" && cp "$here/../m2/sha256-min.h" "$d/b/m2/"
   gcc -static -O2 -o "$d/root/plat/domexec" "$d/b/m3/domexec.c" 2>/dev/null || { echo "FAIL domexec did not build"; return 1; }
   gcc -static -O2 -o "$d/root/plat/domprobe" "$d/b/m3/domprobe.c" 2>/dev/null || { echo "FAIL domprobe did not build"; return 1; }
   chmod 0755 "$d/root/plat/domexec" "$d/root/plat/domprobe"

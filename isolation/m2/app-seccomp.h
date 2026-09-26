@@ -41,6 +41,8 @@
  * The caller refuses to exec the runtime on -1. */
 #ifndef ENCLAVE_APP_SECCOMP_H
 #define ENCLAVE_APP_SECCOMP_H
+#include <stdio.h>
+#include "sha256-min.h"
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -144,6 +146,18 @@ static struct app_sock_filter app_seccomp_prog[] = {
     APP_RULE(APP_NR_delete_module, APP_RET_KILL_PROCESS),
     APP_STMT(APP_BPF_RET_K, APP_RET_ALLOW),
 };
+
+/* THE STATEMENT an init makes once this filter is installed on the runtime (enclave-87: positive evidence, not only the
+ * absence of an error): the sha256 of the exact BPF program handed to the kernel - this sock_filter array, 8 bytes an
+ * instruction on x86-64, the same bytes PTRACE_SECCOMP_GET_FILTER returns - and its length. The attester carries the hash
+ * into the attested self-test (seccomp=<hash>); anyone can recompute it from this header. -> the line's length, or -1. */
+#define APP_SECCOMP_RULES ((unsigned)(sizeof app_seccomp_prog / sizeof app_seccomp_prog[0]))
+static int app_seccomp_statement(char *buf, size_t n) {
+    char hex[65];
+    sha256_min_hex(app_seccomp_prog, sizeof app_seccomp_prog, hex);
+    int k = snprintf(buf, n, "seccomp sha256=%s rules=%u\n", hex, APP_SECCOMP_RULES);
+    return k > 0 && (size_t)k < n ? k : -1;
+}
 
 /* needs PR_SET_NO_NEW_PRIVS already set (the caller's drop sets it); a filter cannot be removed once installed */
 static int app_seccomp_install(void) {
