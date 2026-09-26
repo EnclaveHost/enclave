@@ -441,10 +441,14 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   if (!appsEnabled) return "this node is not hosting apps (set APPS=1)";
   if (!d || !Number(d.createdAt)) return "no such deployment on the ledger";
   if (!d.active) return "the deployment is not active";
-  const owners = !!ownerAllow && String(d.owner || "").toLowerCase() === String(ownerAllow).toLowerCase();
+  // ownerAllow: the SET of owners this box serves (host.mjs ownerSet: its operator and its delegated owners), or one
+  // address. Membership, never one equality: the claim, the scan, the restart gate and the sweep ask the same set.
+  const allow = new Set([...(ownerAllow instanceof Set ? ownerAllow : Array.isArray(ownerAllow) ? ownerAllow : ownerAllow ? [ownerAllow] : [])]
+                          .map((a) => String(a).toLowerCase()));
+  const owners = allow.has(String(d.owner || "").toLowerCase());
   if (scope === "owner-only") {
-    if (!ownerAllow) return "this node is in owner-only scope and no owner wallet is declared";
-    if (!owners) return `this node is in owner-only scope and hosts only ${ownerAllow} (this one is owned by ${d.owner})`;
+    if (!allow.size) return "this node is in owner-only scope and serves nobody: no operator key and no valid delegation";
+    if (!owners) return `this node is in owner-only scope and hosts only its operator's and its delegated owners' deployments (${[...allow].join(", ")}; this one is owned by ${d.owner})`;
   } else if (!owners && !invited && !legacy && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
     return "it was created before this box was listed, and this box is a VBS enclave on a consumer PC:"
          + " an app runs inside the enclave, but the enclave protects it against this machine's software,"

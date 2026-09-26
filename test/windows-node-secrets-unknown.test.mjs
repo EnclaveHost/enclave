@@ -12,6 +12,7 @@ import path from "node:path";
 import http from "node:http";
 import { once } from "node:events";
 import { fakeBaseRpc, DEPLOYMENTS } from "./helpers/fake-base-rpc.mjs";
+import { servedOwner } from "./helpers/owners.mjs";
 import { REC, DEP, ISOLATED, PLANNED, FakeHost, bootManager, closeManagers } from "./helpers/hv-fake-manager.mjs";
 
 const rpc = await fakeBaseRpc();
@@ -63,6 +64,7 @@ async function planWith(answer) {
     name: "test", appsEnabled: true, cpuPricePerSec6: 12, log: () => {}, isolationManager: `http://127.0.0.1:${m.port}`,
     isolationRuntimeId: REC.runtimeId, relayBase: relay.base, engineRetired: true });
   h.cfg.secretsSign = sign;
+  servedOwner(h, dep().owner);
   const r = await h.ensureApp(DEP, dep(), { version: PLANNED });
   relay.close();
   return { r, host, relay };

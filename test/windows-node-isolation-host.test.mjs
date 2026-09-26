@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { fakeBaseRpc, DEPLOYMENTS } from "./helpers/fake-base-rpc.mjs";
+import { servedOwner } from "./helpers/owners.mjs";
 import { REC, DEP, deployment, ISOLATED, PLANNED, FakeHost, bootManager, restartManager, clientFor, ledger, fast,
          recoveredOnManager, closeManagers } from "./helpers/hv-fake-manager.mjs";
 import { reconcile, retire } from "../windows/node/isolation-lifecycle.mjs";
@@ -28,9 +29,10 @@ const dep = () => ({ appRef: "catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5
   owner: "0x29479bf04ed889d46a7afb7f292b9bb26e12647c", configCid: ISOLATED });
 // each box gets its own state directory: blocked and tracked deployments persist there, and one test's give-up must
 // not be read by the next
-const box = (port, logs = []) => new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-iso-host-")),
+const box = (port, logs = []) => servedOwner(new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-iso-host-")),
   endpoint: "https://api.enclave.host/t/test", name: "test", appsEnabled: true, cpuPricePerSec6: 12,
-  log: (s) => logs.push(s), isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
+  log: (s) => logs.push(s), isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId }),
+  "0x29479bf04ed889d46a7afb7f292b9bb26e12647c");
 const YANKED = { yanked: true, cid: "bafy", version: 4 };
 const FORCED = { cid: "bafy", version: 4, memMb: 512 };
 const noSecrets = (h) => { h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {}); };   // known: none staged
