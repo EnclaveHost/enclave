@@ -63,8 +63,9 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), '[node
 // Hosting apps (APPS=1): this box holds a lease on the ledger and runs that deployment's app under
 // wasmtime, in VTL0. With APPS off it reports no claimEnabled at all and the relay keeps it out of
 // the serving set, which is the honest reading: a box hosting nothing sells nothing.
-// CLAIM_SCOPE=market (the default) takes any wallet's public deployment this box can honour;
-// CLAIM_SCOPE=owner-only narrows it to the box owner's own. chain.mjs claimPolicy has each rule.
+// CLAIM_SCOPE is owner-only by default (below): only the operator's and its delegated owners' deployments (host.mjs
+// ownerSet). CLAIM_SCOPE=market is honoured only by a box that meets the isolation contract (host.scope), which no
+// Windows node does today. chain.mjs claimPolicy has each rule.
 const APPS = /^(1|true|yes)$/i.test(String(process.env.APPS || ''));
 // THE LEGACY VBS-ENCLAVE ENGINE IS RETIRED (Steven, 2026-09-25): this node hosts only the isolated backend (a Hyper-V
 // type-1 partition per app, windows/vbslike). The engine (ee-host.exe + ee-engine.dll) and its worker start ONLY
