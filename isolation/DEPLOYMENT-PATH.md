@@ -19,7 +19,9 @@ the root front: `m2/dominit.c` starts both without dropping privileges.
 - **The fix** is `isolation/snp-dominit-yama`:
   - the app runs as its own uid, with no capability, no group and no_new_privs;
   - each start checks that it cannot open the console, the report interface, or init's and the front's `/proc`;
-  - Yama is held at 2 as the second guard.
+  - Yama is held at 2 as the second guard;
+  - user namespaces (`user.max_user_namespaces=0`) and io_uring (`kernel.io_uring_disabled=2`) are off, each read
+    back; a missing or wrong value powers the domain off (enclave-bf; the kernel is 7.2.3-arch1-2).
   It ships in the NEXT SNP domain release, after a full canary cycle and an app-compatibility check for each served
   app (`/data` writes, egress, ports). Until then this exposure stands and is not claimed away.
 - **What the fix does NOT close** (pre-existing; enclave-5d): an escaped runtime, even as its own uid, can still open
