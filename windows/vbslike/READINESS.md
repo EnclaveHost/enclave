@@ -5,6 +5,9 @@ or box run was done for it. **Package complete is not isolation complete.** v39 
 whose one eligible reference image is `b7ba7731` (56FBB27F). Every serving result so far is functional, and
 `host_excluded=no`.
 
+**The production deployment** (what runs on nucbox-k11 with exact shas, what it claims and does not, the evidence
+index, rollback) is recorded in [DEPLOYMENT.md](DEPLOYMENT.md).
+
 **Reviewed by enclave-99** (at `d946b204`): §1 is accurate against the contract (`de2a9f66`, `0e2bdee2`). Their two
 classification corrections (M4, M5) and the widened U7 are applied below. The contract's stale V3/V4 and import notes
 are fixed at main `4f89b648`.
