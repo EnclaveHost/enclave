@@ -327,6 +327,7 @@ mut "reach: the tsm entry skipped" 's/if (mkdir(p, 0700) == 0) {/if (0) {/' user
 mut "reach: /proc skipped" 's/if (who\[i\] <= 0) continue;/continue;/' userns || k=1
 mut "spawn: the filter never installed" 's/if ((flags \& SPAWN_FILTER) \&\& app_seccomp_install() != 0) {/if (0) {/' userns || k=1
 mut "filter: no AF_VSOCK rule" '/APP_ARG0_EQ(APP_NR_socket, APP_AF_VSOCK, APP_EPERM),/d' userns header || k=1
+mut "filter: pidfd_getfd allowed" '/APP_RULE(APP_NR_pidfd_getfd, APP_EPERM),/d' userns header || k=1
 mut "filter: clone3 allowed" '/APP_RULE(APP_NR_clone3, APP_ENOSYS),/d' userns header || k=1
 mut "filter: the arch check disarmed" 's/APP_JUMP(APP_BPF_JEQ_K, APP_AUDIT_ARCH_X86_64, 1, 0),/APP_JUMP(APP_BPF_JEQ_K, APP_AUDIT_ARCH_X86_64, 1, 1),/' userns header || k=1
 mut "filter: kexec_load only EPERM" 's/APP_RULE(APP_NR_kexec_load, APP_RET_KILL_PROCESS),/APP_RULE(APP_NR_kexec_load, APP_EPERM),/' userns header || k=1

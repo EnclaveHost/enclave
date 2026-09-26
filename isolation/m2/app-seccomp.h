@@ -22,8 +22,11 @@
  *       (also off kernel-wide: kernel.io_uring_disabled=2);
  *     - setns, unshare with any CLONE_NEW* flag, clone with any CLONE_NEW* flag: no namespace for the app (user
  *       namespaces are also off kernel-wide: user.max_user_namespaces=0); plain thread and process clones pass;
- *     - ptrace, process_vm_readv, process_vm_writev: no reaching into another process (Yama and the uid already
- *       refuse; a crash handler that tries gets an error);
+ *     - ptrace, process_vm_readv, process_vm_writev, pidfd_getfd, process_madvise, kcmp: no reaching into another
+ *       process - its memory, its descriptors (pidfd_getfd: the "lift the front's descriptors" vector; on the NucBox the
+ *       runtime and the front share a uid, so this is a third layer after Yama and the front's non-dumpable flag;
+ *       enclave-5d), its pages or its kernel objects (Yama and the uid already refuse; a crash handler that tries gets an
+ *       error);
  *     - bpf, perf_event_open: probed by profilers and tracing libraries; unprivileged BPF is already off;
  *     - keyctl, add_key, request_key: the kernel keyrings, probed by some crypto and credential libraries;
  *     - userfaultfd: an old wasmtime pooling option could use it; it is an exploitation primitive.
@@ -80,6 +83,7 @@ struct app_sock_fprog { unsigned short len; struct app_sock_filter *filter; };
 #define APP_NR_unshare 272
 #define APP_NR_perf_event_open 298
 #define APP_NR_setns 308
+#define APP_NR_kcmp 312
 #define APP_NR_process_vm_readv 310
 #define APP_NR_process_vm_writev 311
 #define APP_NR_finit_module 313
@@ -90,6 +94,8 @@ struct app_sock_fprog { unsigned short len; struct app_sock_filter *filter; };
 #define APP_NR_io_uring_enter 426
 #define APP_NR_io_uring_register 427
 #define APP_NR_clone3 435
+#define APP_NR_pidfd_getfd 438
+#define APP_NR_process_madvise 440
 
 #define APP_STMT(code, k) {(code), 0, 0, (k)}
 #define APP_JUMP(code, k, jt, jf) {(code), (jt), (jf), (k)}
@@ -122,6 +128,9 @@ static struct app_sock_filter app_seccomp_prog[] = {
     APP_RULE(APP_NR_ptrace, APP_EPERM),
     APP_RULE(APP_NR_process_vm_readv, APP_EPERM),
     APP_RULE(APP_NR_process_vm_writev, APP_EPERM),
+    APP_RULE(APP_NR_pidfd_getfd, APP_EPERM),
+    APP_RULE(APP_NR_process_madvise, APP_EPERM),
+    APP_RULE(APP_NR_kcmp, APP_EPERM),
     APP_RULE(APP_NR_bpf, APP_EPERM),
     APP_RULE(APP_NR_perf_event_open, APP_EPERM),
     APP_RULE(APP_NR_keyctl, APP_EPERM),

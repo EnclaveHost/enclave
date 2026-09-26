@@ -126,6 +126,11 @@ int main(int argc, char **argv) {
     struct iovec l = {dst, sizeof dst}, r = {src, sizeof src};
     refused("process_vm_readv (itself)", syscall(SYS_process_vm_readv, getpid(), &l, 1, &r, 1, 0), EPERM);
     refused("process_vm_writev (itself)", syscall(SYS_process_vm_writev, getpid(), &r, 1, &l, 1, 0), EPERM);
+    int self_pidfd = (int)syscall(SYS_pidfd_open, getpid(), 0);                 /* allowed: only its use is refused */
+    refused("pidfd_getfd (its own fd 0)", syscall(SYS_pidfd_getfd, self_pidfd, 0, 0), EPERM);
+    struct iovec adv = {src, sizeof src};
+    refused("process_madvise (itself)", syscall(SYS_process_madvise, self_pidfd, &adv, 1, 20 /* MADV_COLD */, 0), EPERM);
+    refused("kcmp (itself)", syscall(SYS_kcmp, getpid(), getpid(), 0 /* KCMP_FILE */, 0, 0), EPERM);
     refused("bpf", syscall(SYS_bpf, -1, NULL, 0), EPERM);
     struct perf_event_attr pa;
     memset(&pa, 0, sizeof pa);
