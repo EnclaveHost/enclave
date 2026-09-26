@@ -1,0 +1,14 @@
+2026-09-26T06:03:54Z
+refundable  $0.01  ->  0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+balance     $0.01 (0s of runtime at $0.00/h)
+! $0.00 of that balance is NOT refundable: the publisher fee and the platform's
+  share left for their wallets when you funded. Only the host's escrow is still held here.
+refunded $0.01 to 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C; 0x958ae6e9… is cancelled
+`enclave fund 0x958ae6e9… --usdc 5` brings it back if you change your mind
+2026-09-26T06:03:58Z
+moved agent-2947-10m.json at 06:04:08.948Z
+delegations\ now: 0 file(s); removed\ holds: agent-2947-10m.json, agent-2947.json
+owners: 0x389c3f030a209d04d026228d2d053feb75dbadca
+base-rpc.publicnode.com "active":false "balance6":"0" "spent6":"0" 
+base-mainnet.public.blastapi.io "active":false "balance6":"0" "spent6":"0" 
+2026-09-26T06:04:06Z 0x958ae6e9d6cb638901d97d2f29d9775d8143b14fa46f6c37aaa4e3f2c78cdd42 | row=hv-node ownerOnly=true owners=[0x389c(op)] served=no | public via=x x=refused(503) ca=000 k=000 spki=none | runner=nucbox-k11 lease=2026-09-26T06:01:25.000Z(lapsed) active=false rate=0 balance6=0 envelope={

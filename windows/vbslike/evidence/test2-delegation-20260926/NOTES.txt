@@ -1,0 +1,7 @@
+Re-attach gap (5d's observation, for the evidence; not a TEST2 fail):
+- every delegation change makes the node re-attach v2, which REPLACES the tunnel;
+- for ~10-30 s the box serves nothing, test 1 included. 5d's 04:23:15Z row sample had nucbox-k11 ABSENT.
+- Step 1 timings (node.log): "attaching again" 04:23:08Z -> "attach ACCEPTED" 04:23:18Z (~10 s).
+- The soak samples at 04:21:05Z and 04:26:05Z missed the gap.
+- Steps (c) and (b) will each cause one more.
+- 5d's independent row log: ~/enclave-bench/test2-5d/row.log (every 30 s).

@@ -1,0 +1,11 @@
+05:31:59Z
+2026-09-26T05:31:19Z 0x958ae6e9d6cb638901d97d2f29d9775d8143b14fa46f6c37aaa4e3f2c78cdd42 | row=absent | public via=x x=refused(404) ca=000 k=000 spki=none | runner=nucbox-k11 lease=2026-09-26T05:28:55.000Z(lapsed) active=true rate=0 balance6=10000 envelope={"isolation":{"require":"hyperv-partition-per-app"}}
+2026-09-26T05:31:51Z 0x958ae6e9d6cb638901d97d2f29d9775d8143b14fa46f6c37aaa4e3f2c78cdd42 | row=hv-node ownerOnly=true owners=[0x2947(until 2026-09-26T05:41:02.000Z),0x389c(op)] served=yes until=2026-09-26T05:41:02.000Z | public via=x x=open ca=000(DEPTH_ZERO_SELF_SIGNED_CERT) k=200 spki=6c8a12bd4e6c7c4a | runner=nucbox-k11 lease=
+05:31:19 [node] the owners this node serves changed since its attach: attaching again so the relay serves the same set
+05:31:23 [node] [host] claimed 0x958ae6e9 (tx 0xde4ea49c7b7156e46c7ffee977648d9ca8d0bb387a37832bce056c01db4f8883)
+05:31:28 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+05:31:29 [node] attach ACCEPTED tier=hv-node measurement=
+05:31:44 [node] [host] 0x958ae6e9 isolation spawned: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:31:57 [node] 0x958ae6e9 certificate: none for 958ae6e9.app.enclave.host (the order for 958ae6e9.app.enclave.host is in flight (the relay is still getting it)); retry in 30s
+
+[exited with code 0]

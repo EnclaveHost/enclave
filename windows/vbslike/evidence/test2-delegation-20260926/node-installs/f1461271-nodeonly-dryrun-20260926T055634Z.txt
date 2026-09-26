@@ -1,0 +1,6 @@
+ok   manager Running and canStart; the node runs C:\Users\claude\vbs-like\hvnode\317b3152\windows\node; it moves to C:\Users\claude\vbs-like\hvnode\f1461271\windows\node
+ok   node tree C:\Users\claude\vbs-like\hvnode\f1461271 = the manifest (54 files)
+ok   npm ci from the pinned lockfile (ws, viem, tweetnacl at the locked versions)
+ok   DRY RUN: every check passed and C:\Users\claude\vbs-like\hvnode\f1461271\windows\node is staged; the node was NOT stopped and run-node.cmd was NOT rewritten
+run-node.cmd would name: cd /d "C:\Users\claude\vbs-like\hvnode\f1461271\windows\node"
+exit=0

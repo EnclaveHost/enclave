@@ -1,0 +1,7 @@
+ok   manager Running and canStart; the node runs C:\Users\claude\vbs-like\hvnode\317b3152\windows\node; it moves to C:\Users\claude\vbs-like\hvnode\f1461271\windows\node
+ok   node tree C:\Users\claude\vbs-like\hvnode\f1461271 = the manifest (54 files)
+ok   npm ci from the pinned lockfile (ws, viem, tweetnacl at the locked versions)
+ok   run-node.cmd sha256 5f1a79b4c192743360344c640291457249b25c51f6bdafde1e12d9c0888a4507 (names C:\Users\claude\vbs-like\hvnode\f1461271\windows\node; the previous one kept as run-node.cmd.bak-317b3152)
+ok   the node runs C:\Users\claude\vbs-like\hvnode\f1461271\windows\node and answers /availability; the manager, its task, test 1's partition, node-config.cmd, the keys and state\ were not touched
+NODE-ONLY INSTALLED: 317b3152 -> f1461271. ROLLBACK = the same -NodeOnly with hvnode-317b3152.tar.gz and its pins (its tree C:\Users\claude\vbs-like\hvnode\317b3152\windows\node is kept)
+exit=0

@@ -1,0 +1,13 @@
+06:02:44Z
+--- 958ae6e9 lines since 05:41:
+06:01:53 [node] [host] 0x958ae6e9 isolated domain retired (its lease lapsed while held for an owner this box does not serve (0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C))
+06:01:53 [node] [host] stopped 0x958ae6e9: its lease lapsed while held for an owner this box does not serve (0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C)
+--- renewed 958ae6e9 since 05:41: 0
+--- manager VMs:
+  0x31136008 hv88b31102f902741d791a3e90b56f571b running
+--- Hyper-V:
+  enclave-app-hv88b31102f90274-9c3d10f1 Running
+--- ID2: stopped / its lease lapsed while held for an owner this box does not serve (0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C)
+2026-09-26T06:02:28Z 0x958ae6e9d6cb638901d97d2f29d9775d8143b14fa46f6c37aaa4e3f2c78cdd42 | row=hv-node ownerOnly=true owners=[0x389c(op)] served=no | public via=x x=refused(503) ca=000 k=000 spki=none | runner=nucbox-k11 lease=2026-09-26T06:01:25.000Z(lapsed) active=true rate=0 balance6=10000 envelope={"isolation":{"require":"hyp
+
+[exited with code 0]

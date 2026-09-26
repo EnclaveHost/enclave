@@ -1,0 +1,8 @@
+04:23:19Z
+04:23:08 [node] the owners this node serves changed since its attach: attaching again so the relay serves the same set
+04:23:17 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:23:18 [node] attach ACCEPTED tier=hv-node measurement=
+owners: 0x389c3f030a209d04d026228d2d053feb75dbadca,0x29479bf04ed889d46a7afb7f292b9bb26e12647c
+
+[exited with code 0]
+{"ownerOnly":true,"served":[{"owner":"0x29479bf04ed889d46a7afb7f292b9bb26e12647c","expires":1790482946},{"owner":"0x389c3f030a209d04d026228d2d053feb75dbadca","expires":null}],"servesDeployments":[{"id":"0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3","until":1790399089}],"owners":["0x389c3f030a209d04d026228d2d053feb75dbadca","0x29479bf04ed889d46a7afb7f292b9bb26e12647c"]}
