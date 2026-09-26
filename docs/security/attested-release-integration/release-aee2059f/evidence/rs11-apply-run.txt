@@ -1,0 +1,4 @@
+07:05:44Z rs-11 apply: the four lines on nan (R's three + the node allowlist), then one api-relay restart (invocation before: 873a5cdc191c; nucbox-k11: hv-node true 0x31136008aa0cf1d826d223777)
+nan: rs4 apply: backup /etc/nan-relay/api-relay.env.bak-rs4-apply-20260926T070543Z; the four lines replaced (now sha 414810a351c3); api-relay restarted: invocation 873a5cdc191c -> 23d460c2af6d4276996ff19aaa762280, NRestarts 0, MemoryMax 1536M; the release settings unchanged (07a13d4d9739)
+07:06:19Z rs-11 apply: predictor probe: predicting (200)
+07:06:19Z rs-11 apply: remote rc=0; next: rs-11-accept.sh apply

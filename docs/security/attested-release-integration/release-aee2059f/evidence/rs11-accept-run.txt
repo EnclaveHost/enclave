@@ -1,0 +1,14 @@
+07:06:38Z allowlist line: live 92d5105f4ddc, staged lines4.env 92d5105f4ddc
+07:06:39Z nucbox-k11 attach ACCEPTED in 23d460c2af6d: 2026-09-26T07:05:55.402928+00:00 (10 s after the restart)
+07:06:39Z nucbox-k11 row: 'hv-node true 0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3' (before 'hv-node true 0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3')
+api relay: invocation 23d460c2af6d since Sat 2026-09-26 07:05:45 UTC, NRestarts 0; KAT: [measurement-predict] known-answer test at start: PASS: 2 known answer(s) reproduced exactly
+settle: us-west + metal-iso0 re-attached in this invocation after 0 s of waiting
+canary 0ddbd824: 200/0 spki 1868e492f607814d (guest-boot-key)
+canary 395bed3e: 200/0 spki afedf53d9b8f6832 (guest-boot-key)
+canary 4e62e60d: 200/0 spki 39223442761055ff (guest-boot-key)
+us-west: [('us-west', '5.78.85.108', None)] | relays 1 labels 64
+release (cert set separate): each canary's expected guest = EXACTLY [5db18199 aee2059f ] admitted at their pins; release ON; 404/422
+HEALTHY 07:07:01Z
+07:07:02Z metal-iso0 attests 02f6e313a2c0
+07:07:02Z MemoryPeak 483307520
+07:07:02Z RS-11 apply ACCEPTED
