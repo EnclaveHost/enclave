@@ -1,0 +1,3 @@
+seed keyId: 06212e5df9c3779a (= the key pinned in release 79c5ecf2's front)
+backup: /etc/nan-relay/api-relay.env.pre-release-20260925T234340Z
+RELEASE ON for the 3 canaries: release-status listed:true for each, false for a69dcbba; no refused setting; /enclaves 200

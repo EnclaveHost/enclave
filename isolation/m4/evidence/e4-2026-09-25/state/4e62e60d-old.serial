@@ -1,0 +1,39 @@
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H
+DOM snp=1 vcpus=1 memMiB=883 boot_ms=811
+DOM started app=76 front=77 at_ms=827
+DOM runtime wasmtime/48.0.1 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8
+DOM runtime selftest exec_pages=allowed wx=clean maps=3 scope=all-processes
+DOM certificate: this domain may certify 4e62e60d.app.enclave.host (HOST_DATA 4e62e60da567ca6c...)
+Serving HTTP on http://127.0.0.1:8080/
+DOM serving vsock=443 spki_sha256=295ce2e0e8bfecf17026bc0197ac838c13766eb1ab5922b283d4675d11913643 ready_ms=919
+DOM certificate installed for 4e62e60d.app.enclave.host: issuer "ZeroSSL ECC DV SSL CA 2", valid until 2026-12-23T23:59:59Z
+DOM certificate installed for 4e62e60d.app.enclave.host: issuer "ZeroSSL ECC DV SSL CA 2", valid until 2026-12-23T23:59:59Z
+2026/09/24 21:04:58 http: TLS handshake error from 2:707960727: tls: client offered only unsupported versions: [303 302 301]
+2026/09/24 21:04:59 http: TLS handshake error from 2:707960728: tls: client offered only unsupported versions: [301 302 303]
+2026/09/24 21:05:00 http: TLS handshake error from 2:707960729: tls: client offered only unsupported versions: [303 302 301]
+2026/09/24 21:05:01 http: TLS handshake error from 2:707960730: tls: client offered only unsupported versions: [303 302 301]
+2026/09/24 21:05:03 http: TLS handshake error from 2:707960731: tls: client offered only unsupported versions: [303 302 301]
+2026/09/24 21:05:04 http: TLS handshake error from 2:707960732: tls: client offered only unsupported versions: [302 301]
+2026/09/24 21:05:08 http: TLS handshake error from 2:707960735: tls: no cipher suite supported by both client and server; client offered: [16 33 67 c09e c0a2 9e 39 6b c09f c0a3 9f 45 be 88 c4 9a c008 c009 c023 c0ac c0ae c02b c00a c024 c0ad c0af c02c c072 c073 cca9 cc14 c007 c012 c013 c027 c02f c014 c028 c030 c060 c061 c076 c077 cca8 cc13 c011 a 2f 3c c09c c0a0 9c 35 3d c09d c0a1 9d 41 ba 84 c0 7 4 5]
+2026/09/24 21:05:15 http: TLS handshake error from 2:707960733: read vsock 4294967295:443->2:707960733: i/o timeout
+2026/09/24 21:05:16 http: TLS handshake error from 2:707960734: read vsock 4294967295:443->2:707960734: i/o timeout
+2026/09/24 21:05:19 http: TLS handshake error from 2:707960736: read vsock 4294967295:443->2:707960736: i/o timeout
+DOM certificate installed for 4e62e60d.app.enclave.host: issuer "ZeroSSL ECC DV SSL CA 2", valid until 2026-12-23T23:59:59Z
+2026/09/24 21:34:42 http: TLS handshake error from 2:707960875: EOF
+2026/09/25 02:25:40 http: TLS handshake error from 2:707961863: tls: client offered only unsupported versions: [303 302 301]
+2026/09/25 02:25:42 http: TLS handshake error from 2:707961864: tls: client offered only unsupported versions: [301 302 303]
+2026/09/25 02:25:45 http: TLS handshake error from 2:707961865: tls: client offered only unsupported versions: [303 302 301]
+2026/09/25 02:25:48 http: TLS handshake error from 2:707961866: tls: client offered only unsupported versions: [303 302 301]
+2026/09/25 16:24:02 http: TLS handshake error from 2:707962127: EOF
+2026/09/25 17:45:58 http: TLS handshake error from 2:707962174: tls: client offered only unsupported versions: [303 302 301]
+2026/09/25 17:46:00 http: TLS handshake error from 2:707962175: tls: client offered only unsupported versions: [303 302 301]
+2026/09/25 17:46:02 http: TLS handshake error from 2:707962176: tls: client offered only unsupported versions: [303 302 301]
+2026/09/25 17:46:04 http: TLS handshake error from 2:707962177: tls: client offered only unsupported versions: [303 302 301]
+2026/09/25 17:46:06 http: TLS handshake error from 2:707962178: tls: client offered only unsupported versions: [303 302 301]
+2026/09/25 18:03:32 http: TLS handshake error from 2:707962301: EOF
+2026/09/25 19:23:17 http: TLS handshake error from 2:707962429: tls: client offered only unsupported versions: [303 302 301]
+2026/09/25 19:23:18 http: TLS handshake error from 2:707962430: tls: client offered only unsupported versions: [303 302 301]
+2026/09/25 21:40:35 http: TLS handshake error from 2:707962694: EOF
+2026/09/25 22:18:46 http: TLS handshake error from 2:707962910: EOF
+2026/09/25 22:47:39 http: TLS handshake error from 2:707963026: EOF
+2026/09/25 23:19:26 http: TLS handshake error from 2:707963080: EOF

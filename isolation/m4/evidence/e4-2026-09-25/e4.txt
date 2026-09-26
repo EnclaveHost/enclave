@@ -1,0 +1,50 @@
+23:50:26Z 4e 0ddbd824: VERIFY a restart made outside e4-restart.sh (T0 2026-09-25 23:47:10 UTC, old guest gdb677d751, old serial 3636639ABF417F4B384A95A6468D5D3F)
+23:50:26Z 4e 0ddbd824: new guest gde1277bac running (the legacy one was gdb677d751)
+23:50:27Z 4e 0ddbd824 proof 2 ok: release:true, attested, measurement 2317370df6562d5b = the relay's 79c5ecf2 prediction, new key c0894ac9e11a54bf
+23:50:27Z 4e 0ddbd824 HOLD: proof 3: the serial lacks, doubles or misorders DOM release (none) / app config none (none) / serving (10) (nothing changed by this checker; rollback = rr-run.sh off, then the owner's restart of 0ddbd824)
+23:52:03Z 4e 0ddbd824: VERIFY a restart made outside e4-restart.sh (T0 2026-09-25 23:47:10 UTC, old guest gdb677d751, old serial 3636639ABF417F4B384A95A6468D5D3F)
+23:52:03Z 4e 0ddbd824: new guest gde1277bac running (the legacy one was gdb677d751)
+23:52:04Z 4e 0ddbd824 proof 2 ok: release:true, attested, measurement 2317370df6562d5b = the relay's 79c5ecf2 prediction, new key c0894ac9e11a54bf
+23:52:04Z 4e 0ddbd824 proof 3 ok: DOM release (1 origin = the relay, config 177 bytes = the version's _media config) (envelope tag 42c6f115f763f544) < app config 177 bytes < serving on c0894ac9e11a54bf; no app output (the legacy control had it)
+23:52:05Z 4e 0ddbd824 proof 1 ok: one relay release to a verified guest (runtime ccadb38a…), one ticket handed to gde1277bac
+23:54:30Z 4e 0ddbd824 proof 4 ok: certificate installed in gde1277bac for key c0894ac9e11a54bf, guest attested; no refusal (2 retry line(s))
+23:54:36Z 4e 0ddbd824 proof 5 ok: https://0ddbd824.app.enclave.host/ 200 via us-west, new serial 4973812F4DB32F8080AA07464D7E4EC4 on key c0894ac9e11a54bf
+23:54:36Z 4e 0ddbd824: ALL FIVE PROOFS PASS; 4e's expected key for 0ddbd824 is now c0894ac9e11a54bf; the 10-min observe
+23:54:47Z 4e 0ddbd824 observe r1: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+23:56:58Z 4e 0ddbd824 observe r2: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+23:59:09Z 4e 0ddbd824 observe r3: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:01:20Z 4e 0ddbd824 observe r4: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:03:31Z 4e 0ddbd824 observe r5: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:04:47Z 4e 0ddbd824 observe r6: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:04:47Z 4e 0ddbd824 ACCEPTED: five proofs + the observe (6 rounds over 611 s). Next canary: 395bed3e
+00:05:19Z 4e 395bed3e: VERIFY a restart made outside e4-restart.sh (T0 2026-09-26 00:05:00 UTC, old guest gd6e734a97, old serial 2C36B3A9C3FDDABBBDA7997C2198C641)
+00:05:25Z 4e 395bed3e: new guest gd65f964b3 running (the legacy one was gd6e734a97)
+00:05:26Z 4e 395bed3e proof 2 ok: release:true, attested, measurement 6de873656f88fa63 = the relay's 79c5ecf2 prediction, new key 9f78d94ca143df7e
+00:05:26Z 4e 395bed3e proof 3 ok: DOM release (1 origin = the relay, config 194 bytes = the version's _media config) (envelope tag 42c6f115f763f544) < app config 194 bytes < serving on 9f78d94ca143df7e; no app output (the legacy control had it)
+00:05:26Z 4e 395bed3e proof 1 ok: one relay release to a verified guest (runtime ccadb38a…), one ticket handed to gd65f964b3
+00:06:36Z 4e 395bed3e proof 4 ok: certificate installed in gd65f964b3 for key 9f78d94ca143df7e, guest attested; no refusal (1 retry line(s))
+00:06:42Z 4e 395bed3e proof 5 ok: https://395bed3e.app.enclave.host/ 200 via us-west, new serial 64130375AC01CB8402B7F84F274A5A13 on key 9f78d94ca143df7e
+00:06:42Z 4e 395bed3e: ALL FIVE PROOFS PASS; 4e's expected key for 395bed3e is now 9f78d94ca143df7e; the 10-min observe
+00:06:53Z 4e 395bed3e observe r1: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:09:04Z 4e 395bed3e observe r2: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:11:15Z 4e 395bed3e observe r3: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:13:36Z public 4e62e60d recovered on its one retry
+00:13:37Z 4e 395bed3e observe r4: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:15:48Z 4e 395bed3e observe r5: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:16:54Z 4e 395bed3e observe r6: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:16:54Z 4e 395bed3e ACCEPTED: five proofs + the observe (6 rounds over 612 s). Next canary: 4e62e60d
+00:17:41Z 4e 4e62e60d: VERIFY a restart made outside e4-restart.sh (T0 2026-09-26 00:17:15 UTC, old guest gdebc9c709, old serial 9ACD5518B04EFBBEA84D28CB518101A9)
+00:17:41Z 4e 4e62e60d: new guest gde31e154c running (the legacy one was gdebc9c709)
+00:17:42Z 4e 4e62e60d proof 2 ok: release:true, attested, measurement 6de873656f88fa63 = the relay's 79c5ecf2 prediction, new key bf7ec81db35e3bef
+00:17:42Z 4e 4e62e60d proof 3 ok: DOM release (1 origin = the relay, config 194 bytes = the version's _media config) (envelope tag 42c6f115f763f544) < app config 194 bytes < serving on bf7ec81db35e3bef; no app output (the legacy control had it)
+00:17:42Z 4e 4e62e60d proof 1 ok: one relay release to a verified guest (runtime ccadb38a…), one ticket handed to gde31e154c
+00:23:28Z 4e 4e62e60d proof 4 ok: certificate installed in gde31e154c for key bf7ec81db35e3bef, guest attested; no refusal (2 retry line(s))
+00:23:34Z 4e 4e62e60d proof 5 ok: https://4e62e60d.app.enclave.host/ 200 via us-west, new serial 54D17A2D02D3B7E02FC3B9AACEDD9F2B on key bf7ec81db35e3bef
+00:23:34Z 4e 4e62e60d: ALL FIVE PROOFS PASS; 4e's expected key for 4e62e60d is now bf7ec81db35e3bef; the 10-min observe
+00:23:45Z 4e 4e62e60d observe r1: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:25:56Z 4e 4e62e60d observe r2: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:28:08Z 4e 4e62e60d observe r3: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:30:19Z 4e 4e62e60d observe r4: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:32:29Z 4e 4e62e60d observe r5: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:33:45Z 4e 4e62e60d observe r6: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+00:33:45Z 4e 4e62e60d ACCEPTED: five proofs + the observe (6 rounds over 611 s). Next canary: none, 4e done: then 4b

@@ -1,0 +1,1 @@
+Control for proof 3 (395bed3e), observed read-only by enclave-63 in this session BEFORE the relaunch reclaimed the legacy guest: /home/steven/enclave-prod/guestd-root/gd6e734a97/gd6e734a97.serial contained the app's own output line 'Serving HTTP on http://127.0.0.1:8080/' (1 line). The file is gone; this records that read, not a copy.

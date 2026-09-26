@@ -1,5 +1,5 @@
 Step 2 (4b) of isolation/restore/ENABLEMENT.md (rev 4.1 f95e2d55): the relay's attested release ON for the 3 canaries.
-PREPARED, NOT RUN (waits for enclave-d1's re-check of v2 and Codex's go). enclave-63's wrapper around enclave-5d's
+RUN 2026-09-25 23:43:18-23:45:16Z by enclave-d1 on Steven's direct instruction, rc 0 (release-on.txt, on-output.txt, accept-after-on.txt: exactly "answered 403"). enclave-63's wrapper around enclave-5d's
 relay-release-on.sh f09f511c / relay-release-off.sh fef9905f (reviewed by enclave-d1 and enclave-e3; not copied here: they
 are at f95e2d55 isolation/restore/). scripts-v2.sha256 pins all six.
 rr-run.sh on|off starts rr-on-apply.sh / rr-off.sh as a transient user unit. nan_run copies the reviewed script into a

@@ -1,0 +1,16 @@
+00:35:40Z 4b: prepared run1 + bin created
+00:35:53Z 4b: deploy ran
+00:37:20Z 4b: retried secrets set + fund
+00:37:33Z 4b: fund --yes
+00:38:56Z 4b record ok: 0x6b1781ff95a6fdf54afc69795c4e47fa1973a597848edfa61b32722c271a0286 on chain as created (a69dcbba's app/version, the agent wallet's, public, active, 0.01 funded, the envelope = isolation + config.json)
+00:39:05Z 4b names ok: the staged secret names are ACCEPT_API_KEY and ACCEPT_TOKEN (other capitalised words in the listing: none)
+00:39:13Z 4b refused ok (the negative control): unlisted, metal-iso0 refuses 0x6b1781ff95a6fdf54afc69795c4e47fa1973a597848edfa61b32722c271a0286 for its app config and guestd holds no guest for it
+00:39:28Z 4b: relay-list add done
+00:40:07Z 4b served ok: release guest gdea8df09e for 0x6b1781ff95a6fdf54afc69795c4e47fa1973a597848edfa61b32722c271a0286 runs and serves
+00:40:17Z 4b proofs FAIL: proof 2: the relay has no admitted 79c5ecf2 prediction for 0x6b1781ff95a6fdf54afc69795c4e47fa1973a597848edfa61b32722c271a0286
+00:41:07Z 4b proof 2 ok: gdea8df09e release:true, attested, measurement 20319b02324494bd169750b5f031915feeac5dc165f37ec21dd9bdfce9d875a34d9809716a01c965698f06aa4a83ef47 = the relay's prediction for 0x6b1781ff95a6fdf54afc69795c4e47fa1973a597848edfa61b32722c271a0286 = a69dcbba's (20319b02…ef47)
+00:41:08Z 4b proofs 1+9 ok: one relay release to a verified guest (runtime ccadb38a…), no REFUSED / no-prediction line; one ticket handed to gdea8df09e
+00:43:34Z 4b proof 8 ok: https://6b1781ff.app.enclave.host/ valid public TLS via us-west on gdea8df09e's key a785f12b5ab7aa95, serial 7785151469B5B26C4E4CB50366654A26, certificate through the gate (guest attested)
+00:44:38Z 4b: teardown ran
+00:44:52Z 4b: relay-list remove done
+00:45:33Z 4b gone ok: 0x6b1781ff95a6fdf54afc69795c4e47fa1973a597848edfa61b32722c271a0286 inactive on chain, no guest in guestd, unlisted; the 3 canaries still listed

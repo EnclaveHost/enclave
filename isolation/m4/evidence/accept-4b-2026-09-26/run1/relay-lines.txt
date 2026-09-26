@@ -1,0 +1,1 @@
+[secrets-release] 0x6b1781ff95a6fdf54afc69795c4e47fa1973a597848edfa61b32722c271a0286: released to a verified guest on https://api.enclave.host/t/metal-iso0 (runtime ccadb38a6779…)

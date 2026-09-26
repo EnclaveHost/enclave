@@ -1,0 +1,5 @@
+23:43:18Z release-on started DETACHED as rr-on-apply-20260925T234318Z (exit code -> rr-on-rr-on-apply-20260925T234318Z.rc); follow: tail -f /home/steven/enclave-bench/release-on-20260925/release-on.log
+23:43:39Z release-on: running relay-release-on.sh (f09f511c) as root on nan (one api-relay restart: every tunnel drops)
+23:43:45Z release-on: relay-release-on.sh exited 0 (output: on-output.txt, no values)
+23:45:14Z release-on: KAT: [measurement-predict] known-answer test at start: PASS: 2 known answer(s) reproduced exactly
+23:45:16Z RELEASE ON and checked (restart at 2026-09-25 23:43:39 UTC): the 3 canaries listed:true, a69dcbba false; metal-iso0 serving on 02f6e313; canaries 200 on the SAME guests; accept.sh flips only its release-OFF line. Next: 4e (one canary at a time, hookbin 0ddbd824 first)

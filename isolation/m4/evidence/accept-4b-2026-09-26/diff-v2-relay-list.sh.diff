@@ -1,0 +1,17 @@
+--- /home/steven/enclave-bench/accept-4b-20260926/relay-list.sh.v1	2026-09-25 17:07:53.464397697 -0700
++++ /home/steven/enclave-bench/accept-4b-20260926/relay-list.sh	2026-09-25 17:17:19.596650472 -0700
+@@ -52,10 +52,14 @@
+ restart_ok() { systemctl restart enclave-api-relay; for _ in $(seq 1 60); do systemctl is-active --quiet enclave-api-relay && return 0; sleep 1; done; return 1; }
+ back() { echo "CHECK FAILED: $* - restoring $BK" >&2; cp -p "$BK" "$ENV.restore" && mv -f "$ENV.restore" "$ENV" && restart_ok && echo "RESTORED the list as it was ($BK) and restarted" >&2 || echo "RESTORE FAILED: put back $BK by hand" >&2; exit 1; }
+ restart_ok || back "enclave-api-relay is not active after the restart"
++# a NEW invocation that stays up (enclave-e3): it must be unchanged, with NRestarts 0, at the end of the checks
++INV=$(systemctl show -p InvocationID --value enclave-api-relay)
+ sleep 5
+ for c in $CANARIES; do listed "$c" true || back "canary $(echo $c | cut -c1-10) is not listed:true"; done
+ if [ "$ACT" = add ]; then listed "$ID" true || back "$(echo $ID | cut -c1-10) is not listed:true"; else listed "$ID" false || back "$(echo $ID | cut -c1-10) is not listed:false"; fi
+ case ",$NEW," in *",$A69,"*) ;; *) listed "$A69" false || back "a69dcbba (not on the list) is not listed:false";; esac
+ ! journalctl -u enclave-api-relay --since "$T0" --no-pager -o cat | grep -qE '\[secrets-release\].*(refused|unreadable)' || back "the relay refused or could not read a release setting"
+ [ "$(curl -sS -o /dev/null -m 10 -w '%{http_code}' "$API/enclaves")" = 200 ] || back "/enclaves is not 200"
++[ -n "$INV" ] && [ "$(systemctl show -p InvocationID --value enclave-api-relay)" = "$INV" ] && [ "$(systemctl show -p NRestarts --value enclave-api-relay)" = 0 ] \
++  || back "the api relay restarted during the checks (a crash loop?)"
+ echo "LISTED ($ACT $(echo $ID | cut -c1-10)...): release-status as expected for it and the 3 canaries; no refused setting; /enclaves 200"

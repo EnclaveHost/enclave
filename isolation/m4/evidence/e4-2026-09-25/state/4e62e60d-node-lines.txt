@@ -1,0 +1,5 @@
+[isolation] 0x4e62e60d: guest gde31e154c app 9c3d10f1450e17bc… (enclave-isolation-policy/1 {"cpuPercent":100,"memMiB":128,"vcpus":1}, record bff33b951aade0a9…)
+[isolation] 0x4e62e60d: no certificate for 4e62e60d.app.enclave.host (the instance is starting); retry in 300s
+[isolation] 0x4e62e60d: release ticket handed to guest gde31e154c
+[isolation] 0x4e62e60d: no certificate for 4e62e60d.app.enclave.host (order for 4e62e60d.app.enclave.host in flight); retry in 30s
+[isolation] 0x4e62e60d: certificate for 4e62e60d.app.enclave.host installed in guest gde31e154c (key bf7ec81db35e3bef…, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2026-12-25T23:59:59.000Z; guest attested)
