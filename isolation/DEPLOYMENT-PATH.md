@@ -6,6 +6,8 @@ before anything was deployed; what is live now is under PRODUCTION STATUS. Not i
 
 ## PRODUCTION STATUS (2026-09-24): a canary is live
 
+**2026-09-26, a known gap in an attested claim (enclave-b4's finding, from enclave-bf's review; enclave-87's ruling):** the attested RuntimeSelfTest wx result is measured at front start, before the app exists, so it does not cover the app runtime (all releases through f7888d86); fixed in the next release (the self-test is measured at each attestation and names what it covered, and a judge that relies on it rejects a document that saw no runtime). The production verifier checks the field's shape only, so no production decision rested on it.
+
 **2026-09-26, a known exposure, with its fix scheduled (enclave-b4's finding; enclave-87's ruling).** In every per-app
 guest released so far, including the live domain release 52156652, the app's runtime (wasmtime) runs as ROOT beside
 the root front: `m2/dominit.c` starts both without dropping privileges.
