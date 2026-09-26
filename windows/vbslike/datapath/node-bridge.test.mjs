@@ -76,8 +76,15 @@ test("the rules agree with supervisor.js's, case for case", { timeout: 60_000 },
 // secrets - which the gate reads differently; those are compared only with known values here, and covered as
 // "unknown" below.)
 test("the plan refuses exactly when supervisor.js's claim gate refuses, input for input", { timeout: 60_000 }, async () => {
+  // Since 829ea21b (09-25, the per-app tier's admission by reservation) the gate also needs guestd's GUEST POOL and the
+  // version's policy to size a guest by. Those are box-capacity inputs of the SNP manager that isolationPlan does not
+  // take: the NucBox has no guest pool. So the gate is given a pool with room (a 32 GiB, 8-core budget, as in
+  // test/isolation-guest-pool.test.mjs), and the policy both sides derive (policyFor = isolationPolicyFor, the seam's
+  // derive cases above). The pool then never decides, and the comparison stays on the per-deployment inputs both take.
+  const POOL = { budget: { memMiB: 32768, cpuPct: 800 }, allocated: { memMiB: 0, cpuPct: 0 }, free: { memMiB: 32768, cpuPct: 800 },
+                 guests: 0, overcommitted: false, perGuest: { floorMiB: 1024, runtimeMiB: 384, unitOverheadMiB: 768 } };
   const gateMgr = (m) => m && { backend: m.backend, supports: { gpu: false, secrets: false, egress: false, config: false, ports: false },
-                                catalog: { derivations: m.catalog && m.catalog.derivations } };
+                                catalog: { derivations: m.catalog && m.catalog.derivations }, pool: POOL };
   const cases = [
     {}, { require: "snp-guest-per-app" }, { require: "" }, { manager: { ...MGR, backend: "snp-guest-per-app" } },
     { deployment: { ...ledger, gpuMilli: 250 } }, { appConfig: JSON.stringify({ _media: {}, TOKEN: "x" }) }, { appConfig: MEDIA },
@@ -92,7 +99,7 @@ test("the plan refuses exactly when supervisor.js's claim gate refuses, input fo
     const fw = String(x.version.ports || "").split(",").map((p) => p.trim()).filter(Boolean);
     return { require: x.require, manager: gateMgr(x.manager), gpuMilli: x.deployment.gpuMilli, config: appConfigOf(x.appConfig),
              appConfigCid: x.appConfigCid || x.version.configCid || "", hasSecrets: x.hasSecrets, firewall: fw, volumes: x.volumes,
-             isPublic: x.deployment.isPublic, waf: x.waf };
+             isPublic: x.deployment.isPublic, waf: x.waf, policy: policyFor(x.version.memMb) };
   });
   const s = await seam({ verdicts: gateIn });
   cases.forEach((c, i) => assert.equal(planned[i].ok, s.verdicts[i] === null,
