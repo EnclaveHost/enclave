@@ -163,6 +163,47 @@ func TestTracedThread(t *testing.T) {
 	if tid, tr, _, err := tracedThread(mk(map[string]string{"10": clean, "11": clean, "12": "TracerPid:\t99\n"})); err != nil || tid != 12 || tr != 99 {
 		t.Fatalf("thread 12 traced by 99: %d %d %v", tid, tr, err)
 	}
+	// a traced clone that appears AFTER a whole, clean round is still found: one whole round is not enough, the next
+	// listing must name the same threads (enclave-bf's mutant of 298924ae: settling on the first whole round survived).
+	// Thread 10's status is a FIFO, so round 1 has listed [10] and is blocked reading it when thread 12 (traced) appears.
+	dir := mk(map[string]string{"10": ""})
+	fifo := filepath.Join(dir, "10", "status")
+	if err := syscall.Mkfifo(fifo, 0o644); err != nil {
+		t.Skipf("mkfifo: %v", err)
+	}
+	stop := make(chan struct{})
+	writer := make(chan error, 1)
+	go func() {
+		for i := 0; ; i++ {
+			f, err := os.OpenFile(fifo, os.O_WRONLY, 0) // returns once a round opens the status to read it
+			if err != nil {
+				writer <- err
+				return
+			}
+			if i == 0 {
+				if err := os.MkdirAll(filepath.Join(dir, "12"), 0o755); err == nil {
+					err = os.WriteFile(filepath.Join(dir, "12", "status"), []byte("TracerPid:\t77\n"), 0o644)
+				}
+			}
+			f.Write([]byte(clean))
+			f.Close()
+			select {
+			case <-stop:
+				writer <- nil
+				return
+			default:
+			}
+		}
+	}()
+	tid, tr, _, err := tracedThread(dir)
+	close(stop)
+	if r, e := os.OpenFile(fifo, os.O_RDONLY|syscall.O_NONBLOCK, 0); e == nil { // release a writer still waiting for a reader
+		r.Close()
+	}
+	<-writer
+	if err != nil || tid != 12 || tr != 77 {
+		t.Fatalf("a traced thread started after the first whole round: %d %d %v", tid, tr, err)
+	}
 	for name, threads := range map[string]map[string]string{
 		"no TracerPid":         {"10": clean, "11": "Name:\tx\n"},
 		"no thread":            {},
