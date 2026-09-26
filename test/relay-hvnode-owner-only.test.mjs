@@ -401,6 +401,7 @@ test("owner grace (5d): a re-attach during an outage LONGER than the grace start
   // read the row as soon as it is back: the state bind gave it (the 5 s re-check has had no time to change it)
   const x = await waitFor(() => rowOf(origin), 1500);
   assert.ok(x && x.mode === "hv-node" && x.ownerOnly === undefined, "attached, but owner-only starts SUSPENDED (the last good read is older than the grace)");
+  assert.equal((origin.log().match(/owner-only starts SUSPENDED: no successful owner read within the grace/g) || []).length, 1, "and the journal says so, once");
   registryDown = false;
   assert.ok(await waitFor(async () => { const s = await served(); return s && s.includes(D_OWN) ? s : null; }, 12000), "a good read of the same owner resumes it");
   // a successful read with NO owner (deregistered: the zero operator) ENDS it, as a changed owner does
