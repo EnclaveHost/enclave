@@ -50,7 +50,9 @@ const row = (id, owner, runner, configCid = HV_ENV) => ({ id, owner: owner.addre
   isPublic: true, active: true, createdAt: 1n, rate: 1n, balance6: 10n ** 6n, spent6: 0n, runner, runnerOperator: OPERATOR.address, leaseUntil: lease });
 const BASE_ROWS = [row(D_OWN, OPERATOR, EP_ID), row(D_DELEG, OWNER, EP_ID), row(D_STRANGER, STRANGER, EP_ID), row(D_ELSEWHERE, OPERATOR, OTHER_EP),
                    row(D_SNP, OWNER, EP_ID, SNP_ENV), row(D_NOREQ, OWNER, EP_ID, ""), row(D_OP_SNP, OPERATOR, EP_ID, SNP_ENV)];
-let ROWS = BASE_ROWS;   // a test may swap the ledger (a transfer) and restores it
+let ROWS = BASE_ROWS;
+// the registry's answer for the box's name: its owner, or (registryDown) an RPC error (an outage)
+let registryOwner = null, registryDown = false;   // a test may swap the ledger (a transfer) and restores it
 
 function chainStub() {
   return http.createServer((req, res) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => {
@@ -60,10 +62,11 @@ function chainStub() {
       if (m.method === "eth_chainId") result = "0x2105";
       else if (m.method === "eth_call") {
         const to = String(m.params[0].to || "").toLowerCase(), data = String(m.params[0].data || "");
+        if (to === REG && data.startsWith(toFunctionSelector("get(bytes32)")) && registryDown) return { jsonrpc: "2.0", id: m.id, error: { code: -32000, message: "registry RPC down (test)" } };
         if (to === REG && data.startsWith(toFunctionSelector("get(bytes32)"))) {
           const id = ("0x" + data.slice(10, 74)).toLowerCase();
           result = encodeFunctionResult({ abi: REG_GET, functionName: "get", result: id === EP_ID
-            ? { endpoint: ENDPOINT, repo: "EnclaveHost/enclave", measurement: "0x" + "00".repeat(32), operator: OPERATOR.address, registeredAt: 1n, lastSeen: 1n, active: true }
+            ? { endpoint: ENDPOINT, repo: "EnclaveHost/enclave", measurement: "0x" + "00".repeat(32), operator: registryOwner || OPERATOR.address, registeredAt: 1n, lastSeen: 1n, active: true }
             : { endpoint: "", repo: "", measurement: "0x" + "00".repeat(32), operator: "0x" + "00".repeat(20), registeredAt: 0n, lastSeen: 0n, active: false } });
         } else if (to === LEDGER && data.startsWith(toFunctionSelector("deploymentsSchema()"))) result = encodeFunctionResult({ abi: U256("deploymentsSchema"), functionName: "deploymentsSchema", result: 2n });
         else if (to === LEDGER && data.startsWith(toFunctionSelector("count()"))) result = encodeFunctionResult({ abi: U256("count"), functionName: "count", result: BigInt(ROWS.length) });
@@ -76,7 +79,7 @@ function chainStub() {
 }
 async function startRelay(t, env) {
   const rpc = chainStub(); await listenOnFreePort(rpc);
-  const { child, port } = await bootDaemon({
+  const boot = await bootDaemon({
     start: (port) => spawn(process.execPath, [path.join(RELAY_DIR, "api-relay.js")], {
       env: { ...process.env, ENCLAVES: "http://127.0.0.1:1", API_RELAY_PORT: String(port), API_RELAY_BIND: "127.0.0.1", BASE_RPC: `http://127.0.0.1:${rpc.address().port}`,
              RPC_FALLBACKS: "0", REGISTRY_ADDRESS: REG, DEPLOYMENTS_ADDRESS: LEDGER, FEATURED_VIEWS_FILE: path.join(tmpdir("feat-"), "v.json"),
@@ -85,8 +88,10 @@ async function startRelay(t, env) {
     claimed: (log, port) => log.includes(`[api-relay] :${port}`),
     ready: async (port) => (await fetch(`http://127.0.0.1:${port}/health`)).ok,
   });
+  const { child, port } = boot;
   t.after(() => { child.kill("SIGKILL"); rpc.close(); });
-  return `http://127.0.0.1:${port}`;
+  const origin = new String(`http://127.0.0.1:${port}`); origin.log = () => { let out = ""; try { out = boot.log(); } catch {} return out; };
+  return origin;
 }
 const waitFor = async (fn, ms = 20000) => { const until = Date.now() + ms; for (;;) { const v = await fn(); if (v) return v; if (Date.now() > until) return null; await new Promise((r) => setTimeout(r, 150)); } };
 const STATEMENT = Buffer.from(JSON.stringify({ stated: true, backend: "custom-type1", tier: "t0-hv", hostExcluded: false, derivations: [] }));
@@ -330,4 +335,84 @@ test("the site never badges a TEE GPU on a tunnel row the relay did not verify a
   assert.equal(enclaveClassOf({ tunnel: true, mode: "", availability: { gpu: true } }).inTee, false);
   assert.equal(enclaveClassOf({ tunnel: true, mode: "snp", availability: { gpu: true } }).kind, "tee-gpu");
   assert.equal(enclaveClassOf({ availability: { gpu: true } }).kind, "tee-gpu", "a dialed row is unchanged");
+});
+
+test("owner grace (87): a FAILED owner read leans on the last successful one for the grace only - within it still serving (delegations still expire), past it SUSPENDED (serves nothing, still attached), recovery RESUMES, a changed owner ENDS until re-attach; one log line per state change",
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  const { w, roots } = hvWorld(t);
+  t.after(() => { registryDown = false; registryOwner = null; });
+  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR),
+                                       TUNNEL_OWNER_RECHECK_MS: "400", TUNNEL_OWNER_GRACE_MS: "4000" });
+  const exp = Math.floor(Date.now() / 1000) + 12;
+  const a = await attachHv(origin, w, { delegations: [await delegation({ expires: exp })] });
+  t.after(() => { try { a.ws.close(); } catch {} });
+  assert.equal(a.ok, true, a.reason);
+  const served = async () => { const x = await rowOf(origin); return x && x.ownerOnly === true ? (x.servesDeployments || []).map((d) => d.id) : null; };
+  assert.ok(await waitFor(async () => { const s = await served(); return s && s.includes(D_OWN) && s.includes(D_DELEG) ? s : null; }), "serving both before the outage");
+  // the outage starts ~2 s before the delegation expires
+  await new Promise((r) => setTimeout(r, Math.max(0, (exp - 2) * 1000 - Date.now())));
+  registryDown = true; const down = Date.now();
+  await new Promise((r) => setTimeout(r, 1500));
+  assert.ok((await served()).includes(D_OWN), "within the grace: still serving on the cached owner");
+  assert.doesNotMatch(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /503/, "and the splice opens");
+  await new Promise((r) => setTimeout(r, Math.max(0, exp * 1000 + 1200 - Date.now())));
+  const mid = await served();
+  assert.ok(mid && mid.includes(D_OWN) && !mid.includes(D_DELEG), "during the grace a delegation still EXPIRES by the clock (only the operator's own left)");
+  assert.ok(Date.now() - down < 4000, "(still inside the grace)");
+  // past the grace: suspended - attached, serving nothing
+  assert.ok(await waitFor(async () => ((await served()) === null ? true : null), 6000), "past the grace: owner-only SUSPENDED");
+  const row = await rowOf(origin);
+  assert.ok(row && row.mode === "hv-node" && row.ownerOnly === undefined && row.servesDeployments === undefined, "still attached, serving nothing");
+  assert.match(await upgrade(origin, `/t/${NAME}/x/${D_OWN}/https`), /503/, "the splice is refused");
+  // it STAYS suspended while the reads keep failing (several failed re-checks, each ~1 s with the RPC client's retries)
+  await new Promise((r) => setTimeout(r, 3500));
+  assert.equal(await served(), null, "still suspended while the outage lasts");
+  // recovery: the same owner resumes it, without a re-attach
+  registryDown = false;
+  assert.ok(await waitFor(async () => { const s = await served(); return s && s.includes(D_OWN) ? s : null; }, 6000), "a successful read of the same owner RESUMES");
+  // an owner change after recovery ends it - and it stays ended, even if the owner changes back, until a re-attach
+  registryOwner = STRANGER.address;
+  assert.ok(await waitFor(async () => ((await served()) === null ? true : null), 6000), "a changed owner ENDS owner-only serving");
+  registryOwner = null;
+  await new Promise((r) => setTimeout(r, 1500));
+  assert.equal(await served(), null, "and it stays ended until the box re-attaches under the owner's signature");
+  // one log line per state change (not per 400 ms re-check)
+  const log = origin.log();
+  assert.equal((log.match(/owner-only serving SUSPENDED/g) || []).length, 1, "SUSPENDED once");
+  assert.equal((log.match(/owner-only serving RESUMED/g) || []).length, 1, "RESUMED once");
+  assert.equal((log.match(/owner read FAILED: serving on the owner read/g) || []).length, 1, "the grace start once");
+});
+
+test("owner grace (5d): a re-attach during an outage LONGER than the grace starts SUSPENDED (then resumes on a good read); a deregistered owner ENDS it; a malformed grace env is logged, never silently replaced",
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  const { w, roots } = hvWorld(t);
+  t.after(() => { registryDown = false; registryOwner = null; });
+  const origin = await startRelay(t, { RELAY_HVNODE_ATTACH: "1", RELAY_HVNODE_EK_ROOTS: roots, RELAY_HVNODE_OPERATORS: lc(OPERATOR),
+                                       TUNNEL_OWNER_RECHECK_MS: "5000", TUNNEL_OWNER_GRACE_MS: "2000" });
+  const served = async () => { const x = await rowOf(origin); return x && x.ownerOnly === true ? (x.servesDeployments || []).map((d) => d.id) : null; };
+  let a = await attachHv(origin, w); assert.equal(a.ok, true, a.reason);
+  assert.ok(await waitFor(async () => { const s = await served(); return s && s.includes(D_OWN) ? s : null; }), "serving after a first attach (a good read)");
+  // the box drops; the registry goes down; more than the grace passes; the box comes back
+  a.ws.close(); registryDown = true;
+  await new Promise((r) => setTimeout(r, 3000));
+  assert.ok(await waitFor(async () => ((await rowOf(origin)) === null ? true : null), 3000), "the dropped box's row is gone");
+  a = await attachHv(origin, w); t.after(() => { try { a.ws.close(); } catch {} });
+  assert.equal(a.ok, true, `attaches on the cached owner: ${a.reason}`);
+  // read the row as soon as it is back: the state bind gave it (the 5 s re-check has had no time to change it)
+  const x = await waitFor(() => rowOf(origin), 1500);
+  assert.ok(x && x.mode === "hv-node" && x.ownerOnly === undefined, "attached, but owner-only starts SUSPENDED (the last good read is older than the grace)");
+  registryDown = false;
+  assert.ok(await waitFor(async () => { const s = await served(); return s && s.includes(D_OWN) ? s : null; }, 12000), "a good read of the same owner resumes it");
+  // a successful read with NO owner (deregistered: the zero operator) ENDS it, as a changed owner does
+  registryOwner = "0x" + "00".repeat(20);
+  assert.ok(await waitFor(async () => ((await served()) === null ? true : null), 12000), "a deregistered owner ENDS owner-only serving");
+  assert.match(origin.log(), /owner-only serving ENDED: the name's owner is now \(none\)/);
+});
+
+test("owner grace env: a malformed TUNNEL_OWNER_GRACE_MS / TUNNEL_OWNER_RECHECK_MS is logged LOUDLY and the default used", async (t) => {
+  const origin = await startRelay(t, { TUNNEL_OWNER_GRACE_MS: "-5", TUNNEL_OWNER_RECHECK_MS: "abc" });
+  const log = await waitFor(() => { const l = origin.log(); return /TUNNEL_OWNER_GRACE_MS/.test(l) && /TUNNEL_OWNER_RECHECK_MS/.test(l) ? l : null; }, 5000);
+  assert.ok(log, "both logged");
+  assert.match(log, /TUNNEL_OWNER_GRACE_MS="-5" is not a whole number of milliseconds >= 0: using the default 900000/);
+  assert.match(log, /TUNNEL_OWNER_RECHECK_MS="abc" is not a whole number of milliseconds >= 250: using the default 60000/);
 });
