@@ -39,6 +39,7 @@ import { nonceStore, siweMessage, verifyLogin } from './siwe.mjs';
 import { HV_NODE_FORMAT, buildHvNodeFrame, loadOrCreateNodeKey } from './hvnode-evidence.mjs';
 import { mintToken, startHostingAdmin, tokenFileDefault } from './hosting.mjs';
 import { finishHvAttach, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
+import { tunnelHandover } from './tunnel-handover.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
 // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
@@ -84,8 +85,9 @@ const LEGACY_ENGINE = /^legacy$/i.test(String(process.env.ENCLAVE_ENGINE || ''))
 const NO_ENGINE = 'this node runs only the isolated backend: the VBS enclave engine is retired, so this service is unavailable';
 let nodeKey = null;          // windows-hv-node/v1: the agent's own Ed25519 transport key, a HOST key
 // What the last hv-node attach told the relay (hvnode-attach.mjs): its signature version and the owners it carried, so a
-// change in whom this node serves is followed by a new attach. `redialNow` ends the live tunnel; its close handler redials.
-let attachSent = null, attachedOwnersVersion = null, lastOwnerRedial = 0, redialNow = () => {};
+// change in whom this node serves is followed by a new attach. `reattachNow` dials a STANDBY tunnel that takes over when
+// the relay accepts it, while the live one keeps serving (make-before-break, tunnel-handover.mjs).
+let attachedOwnersVersion = null, lastOwnerRedial = 0, reattachNow = () => {};
 // The app-zone half: built once APPS is on, because it needs the host to know which deployment
 // runs where and which certificate belongs to it.
 let zone = null;
@@ -561,18 +563,23 @@ async function handle(frame) {
 
 // ---- the tunnel ----------------------------------------------------------------------------
 function connect() {
-  let ws, pending = null;   // pending: { nonce } between challenge and attest-result
-  const dial = () => {
-    log(`dialing ${RELAY_URL} as ${NAME}`);
+  const tunnels = tunnelHandover();
+  reattachNow = () => { if (tunnels.canReattach()) dial({ standby: true }); };
+  // standby: a make-before-break re-attach (tunnel-handover.mjs). It serves nothing until the relay accepts its attach;
+  // the relay then binds it and ends the live one (relay/tunnel.js bind, "newest wins").
+  const dial = ({ standby = false } = {}) => {
+    const s = { ws: null, pending: null, attachSent: null, superseded: false };   // pending: { nonce } between challenge and attest-result
+    log(`dialing ${RELAY_URL} as ${NAME}${standby ? ' (standby: the live tunnel serves until the relay accepts this attach)' : ''}`);
     // maxPayload: an explicit ceiling on one tunnel frame. `ws` defaults to 100 MB, which is a
     // lot of agent memory to hand a single message, and every frame this tunnel legitimately
     // carries is one request or one response - already bounded by the same knob at the app.
-    ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1' }, family: 4,
+    const ws = s.ws = new WebSocket(RELAY_URL, { headers: { 'x-metal-name': NAME, 'x-metal-attest': '1' }, family: 4,
                                     maxPayload: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576 * 1.4) });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
-    tunnelSend = send;
-    redialNow = () => { try { ws.terminate(); } catch {} };
-    tunnelBuffered = () => { try { return ws.bufferedAmount || 0; } catch { return 0; } };
+    // the app-zone half answers on the tunnel that serves: this one from the start, or a standby once it is accepted
+    const serve = () => { tunnelSend = send; tunnelBuffered = () => { try { return ws.bufferedAmount || 0; } catch { return 0; } }; };
+    tunnels.opened(s, { standby });
+    if (!standby) serve();
     let last = Date.now(); const live = setInterval(() => { if (Date.now() - last > 90_000) { log('tunnel silent for 90s, redialing'); try { ws.terminate(); } catch {} } }, 15_000);
     ws.on('open', () => { last = Date.now(); log('tunnel open, waiting for the challenge'); });
     ws.on('message', async (data) => {
@@ -581,20 +588,20 @@ function connect() {
         if (f.t === 'challenge') {
           const kf = await keysFrame();
           // the EK certificate exactly as sent (attach signature v2 binds its sha256) and whether the relay verifies v2
-          pending = { nonce: f.nonce, v2: relayTakesV2(f), ekCertDer: Buffer.from(kf.ek, 'base64') };
+          s.pending = { nonce: f.nonce, v2: relayTakesV2(f), ekCertDer: Buffer.from(kf.ek, 'base64') };
           send(kf); log('sent TPM keys');
         }
         else if (f.t === 'vbs-credential') {
-          if (!pending) return;
+          if (!s.pending) return;
           if (LEGACY_ENGINE) {
-            const { frame, spki } = await attestFrame(pending.nonce, f.credentialBlob, f.secret);
+            const { frame, spki } = await attestFrame(s.pending.nonce, f.credentialBlob, f.secret);
             spkiFp = createHash('sha256').update(spki).digest('hex');
-            const sig = await operatorSig(pending.nonce); if (sig) frame.operatorSig = sig;
+            const sig = await operatorSig(s.pending.nonce); if (sig) frame.operatorSig = sig;
             send(frame); log('sent evidence (report, quote, credential, log)');
           } else {
             // windows-hv-node/v1: the TPM's quote over this node's own key and the relay's nonce. It refuses
             // (throws) on a boot state the relay would refuse, and never sends an enclave-format frame.
-            const frame = await buildHvNodeFrame({ nonce: Buffer.from(pending.nonce, 'base64'),
+            const frame = await buildHvNodeFrame({ nonce: Buffer.from(s.pending.nonce, 'base64'),
               credentialBlob: Buffer.from(f.credentialBlob, 'base64'), secret: Buffer.from(f.secret, 'base64'),
               spki: nodeKey.spki, privateKey: nodeKey.privateKey, tpm: tpmCmd,
               managerHealth: await isolationHealth(), platform: await platformInfo() });
@@ -603,21 +610,33 @@ function connect() {
             // delegations with it, only when the relay's challenge says it verifies v2 - a relay that checks v1 alone
             // would refuse a v2 signature for this registered name. Delegations re-read now, so the attach is current.
             if (APPS) await host.refreshOwners().catch((e) => log(`owners: ${e.message}`));
-            const x = await finishHvAttach(frame, { name: NAME, nonceB64: pending.nonce, spki: nodeKey.spki, ekCertDer: pending.ekCertDer,
-                                                    v2: pending.v2, sign: await operatorSigner(), delegations: APPS ? host.attachDelegations() : [] });
+            const x = await finishHvAttach(frame, { name: NAME, nonceB64: s.pending.nonce, spki: nodeKey.spki, ekCertDer: s.pending.ekCertDer,
+                                                    v2: s.pending.v2, sign: await operatorSigner(), delegations: APPS ? host.attachDelegations() : [] });
             // the version of the list this frame CARRIES (x.delegations), not of whatever the host holds after the awaits above
-            attachSent = { version: x.version, owners: APPS ? host.ownersVersion(undefined, x.delegations) : null };
+            s.attachSent = { version: x.version, owners: APPS ? host.ownersVersion(undefined, x.delegations) : null };
             send(frame); log(`sent ${HV_NODE_FORMAT} evidence (quote, credential, log, signed binding), attach signature v${x.version}`
               + (x.version === 2 ? `, ${x.delegations.length} delegation(s)` : ' (the relay offered no v2: it serves no delegated owner from this attach)'));
           }
         } else if (f.t === 'attest-result') {
-          if (f.ok) { tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
-                      attachedOwnersVersion = attachSent && attachSent.version === 2 ? attachSent.owners : null;
+          if (f.ok) { const replaced = tunnels.accepted(s);
+                      if (replaced) {
+                        // the relay serves THIS tunnel now and has ended the old one: drop the old one's app streams (on
+                        // the old sender, before serve() moves it) and close it; nothing redials
+                        if (zone) zone.closeAll();
+                        try { replaced.ws.terminate(); } catch {}
+                        log('re-attach: the standby tunnel serves now; the replaced one is closed, with no gap on the relay');
+                      }
+                      if (standby) serve();
+                      tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
+                      attachedOwnersVersion = s.attachSent && s.attachSent.version === 2 ? s.attachSent.owners : null;
                       host.relayTier = tier;   // the host's contract gate reads the relay's verdict, not ours
                       // the relay's word on host exclusion, kept as given (hv-node: false); never raised by this node
                       host.relayHostExcluded = typeof f.hostExcluded === 'boolean' ? f.hostExcluded : null;
                       attachedAt = Date.now(); log(`attach ACCEPTED tier=${tier} measurement=${String(f.measurement || '').slice(0, 16)}`); send({ t: 'hello', name: NAME, mode: LEGACY_ENGINE ? 'vbs' : 'hv-node', publicUrl: PUBLIC_URL, transportKeyFp: spkiFp }); }
-          else log(`attach REJECTED: ${f.reason}`);
+          else {
+            log(`attach REJECTED: ${f.reason}${standby ? ' (a standby: the live tunnel still serves)' : ''}`);
+            if (standby) { try { ws.terminate(); } catch {} }
+          }
         } else if (f.t === 'ping') send({ t: 'pong' });
         else if (f.t === 'req') { const r = await handle(f); send({ t: 'res', id: f.id, status: r.status, headers: r.headers, body: Buffer.from(r.body).toString('base64') }); }
         // The app's OWN origin arrives as a raw stream with the WebSocket upgrade replayed into
@@ -631,7 +650,12 @@ function connect() {
     });
     ws.on('unexpected-response', (_r, res) => { log(`handshake rejected: HTTP ${res.statusCode}`); try { ws.terminate(); } catch {} });
     ws.on('close', () => {
-      if (zone) zone.closeAll(); clearInterval(live); attachedAt = 0; log('tunnel closed'); setTimeout(dial, 5000); });
+      clearInterval(live);
+      const { lost, redial } = tunnels.closed(s);
+      if (lost) { if (zone) zone.closeAll(); attachedAt = 0; }
+      log(lost ? 'tunnel closed' : s.superseded ? 'the replaced tunnel closed' : 'the standby tunnel closed; the live one still serves');
+      if (redial) setTimeout(() => dial(), 5000);
+    });
     ws.on('error', (e) => { log(`tunnel error: ${e.message}`); try { ws.terminate(); } catch {} });
   };
   dial();
@@ -790,8 +814,8 @@ async function startHostingControls() {
   if (!LEGACY_ENGINE && APPS) setInterval(() => {
     if (!shouldReattach({ attached: attachedAt > 0, attachedVersion: attachedOwnersVersion, currentVersion: host.ownersVersion(), lastRedialMs: lastOwnerRedial })) return;
     lastOwnerRedial = Date.now();
-    log('the owners this node serves changed since its attach: attaching again so the relay serves the same set');
-    redialNow();
+    log('the owners this node serves changed since its attach: attaching again (make-before-break) so the relay serves the same set');
+    reattachNow();
   }, 30_000).unref?.();
 })().catch((e) => { console.error(e); process.exit(1); });
 process.on('SIGINT', () => { for (const c of Object.values(children)) c?.kill(); tpm?.kill(); process.exit(0); });

@@ -206,3 +206,54 @@ test("the challenge as THIS tree's relay sends it: a relay offering v2 (B) gets 
   assert.deepEqual(r.servesDeployments.map((d) => d.id).sort(), [D_OWN, D_DELEG].sort());
   assert.doesNotMatch(await upgrade(origin, `/t/${NAME}/x/${D_DELEG}/https`), /503/, "the delegated owner's deployment was not spliced");
 });
+
+// An owners change reaches the relay only through a new attach. The node dials it as a STANDBY while the live tunnel
+// serves (windows/node/tunnel-handover.mjs); the relay binds it on acceptance and ends the old one ("newest wins"), so
+// the row never leaves /enclaves and the new owners take effect at once (enclave-5d's TEST2 gap: the node used to end its
+// tunnel first, and the row was absent for up to ~30 s). The control, break-before-make, shows the poller sees a gap.
+test("a same-key re-attach is make-before-break at the relay: the row never leaves /enclaves, the new owners apply, the old tunnel is ended",
+     { skip: !haveOpenssl && "openssl not installed" }, async (t) => {
+  const { w, roots } = hvWorld(t);
+  const { h } = await nodeHost(t);
+  const origin = await startRelay(t, roots);
+  const a = await attachNode(origin, w, h);
+  t.after(() => { try { a.ws.close(); } catch {} });
+  assert.equal(a.ok, true, a.reason);
+  if (!relayTakesV2(a.chal)) { t.skip("this tree's relay offers no v2: owner-only re-attach does not apply"); return; }
+  assert.ok(await waitFor(async () => { const x = await rowOf(origin); return x && (x.served || []).length === 2 ? x : null; }), "the first attach's owners never showed");
+  // the owner's delegation is removed: the node now serves its operator alone
+  fs.rmSync(path.join(h.cfg.dir, "delegations", "owner.json"));
+  await h.refreshOwners();
+  assert.equal(h.attachDelegations().length, 0);
+  const watch = () => {
+    const seen = { samples: 0, absent: [] }; let on = true;
+    (async () => { while (on) { const r = await rowOf(origin).catch(() => null); seen.samples++; if (!r) seen.absent.push(Date.now()); await new Promise((z) => setTimeout(z, 40)); } })();
+    return { stop: () => { on = false; return seen; } };
+  };
+  const aClosed = new Promise((r) => a.ws.on("close", () => r(Date.now())));
+  const w1 = watch();
+  const b = await attachNode(origin, w, h);           // the standby, dialled while `a` still serves
+  t.after(() => { try { b.ws.close(); } catch {} });
+  assert.equal(b.ok, true, b.reason);
+  const endedAt = await Promise.race([aClosed, new Promise((r) => setTimeout(() => r(0), 5000))]);
+  const r = await waitFor(async () => { const x = await rowOf(origin); return x && (x.served || []).length === 1 ? x : null; });
+  await new Promise((z) => setTimeout(z, 300));
+  const s1 = w1.stop();
+  assert.ok(endedAt > 0, "the relay did not end the replaced tunnel");
+  assert.ok(s1.samples >= 5, `too few samples to say anything: ${s1.samples}`);
+  assert.deepEqual(s1.absent, [], `the row left /enclaves during the make-before-break re-attach (${s1.absent.length} of ${s1.samples} samples)`);
+  assert.ok(r, "the re-attach's owners never applied");
+  assert.deepEqual(r.served, [{ owner: lc(OPERATOR), expires: null }]);
+  assert.deepEqual((r.servesDeployments || []).map((d) => d.id), [D_OWN]);
+  // CONTROL, break-before-make (the node before this change): end the tunnel, THEN attach - the same poller sees the gap
+  const w2 = watch();
+  b.ws.terminate();
+  assert.ok(await waitFor(async () => !(await rowOf(origin)), 8000), "the row never left after its only tunnel ended");
+  const c = await attachNode(origin, w, h);
+  t.after(() => { try { c.ws.close(); } catch {} });
+  assert.equal(c.ok, true, c.reason);
+  await waitFor(async () => !!(await rowOf(origin)));
+  const s2 = w2.stop();
+  assert.ok(s2.absent.length > 0, "the control saw no gap: the poller cannot tell");
+  t.diagnostic(`make-before-break: 0 of ${s1.samples} samples absent; break-before-make control: ${s2.absent.length} of ${s2.samples} absent`);
+});
