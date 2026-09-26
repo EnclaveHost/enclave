@@ -12,8 +12,25 @@ import {
   DEFAULTS, CONSOLE_OK, THRESHOLDS, BOOTSTRAP, remoteCommand, appUrlFor, certFacts, tlsCheck, parseRelayRow, encodeGetCall,
   decodeDeployment, boxScript, parseBoxStdout, consumeChunk, scanLog, consoleScan, pickDeploymentVm, digestBox, newEval, step,
   summarize, newSampler, humanLine, parseArgs, exercised, headSentInWindow, splitHistory, HV_GUARD_NOT_COVERED, OUT_OF_SCOPE_VERDICT,
-  BODY_KEEP,
+  BODY_KEEP, ECHO_PATTERN, evidenceRegex,
 } from "./soak.mjs";
+
+test("evidenceRegex: the sentinel's body form, for THIS token only, with stdout n > 0", () => {
+  const line = (tok, n) => `hvsoakbody289ec97d2c0e token=${tok} path=/hv-soak/${tok} printed stdout=${n}B stderr=${n}B`;
+  const re = evidenceRegex(ECHO_PATTERN, "hvsoakabc");
+  assert.equal(re.test(line("hvsoakabc", 57)), true);
+  assert.equal(re.test(line("hvsoakabc", 0)), false, "stdout=0B");
+  assert.equal(re.test(line("hvsoakabd", 57)), false, "another sample's token");
+  assert.equal(re.test("hvsoakabc echoed back"), false, "a reflector");
+  assert.equal(re.test(`token=hvsoakabcX path=/ printed stdout=5B`), false, "a longer token is not this one");
+  assert.equal(evidenceRegex(ECHO_PATTERN, "a.c").test("token=abc path=/ printed stdout=5B"), false, "the token is escaped");
+  assert.throws(() => evidenceRegex("printed stdout=[1-9]", "t"), /must contain \{token\}/);
+  // the CLI checks a custom pattern compiles and names the token
+  assert.equal(parseArgs(["--echo-pattern", "ok {token} wrote=[1-9]"]).echoPattern, "ok {token} wrote=[1-9]");
+  assert.throws(() => parseArgs(["--echo-pattern", "wrote=[1-9]"]), /--echo-pattern: .*\{token\}/);
+  assert.throws(() => parseArgs(["--echo-pattern", "{token} ("]), /--echo-pattern/);
+  assert.equal(parseArgs([]).echoPattern, ECHO_PATTERN);
+});
 
 const DEP = DEFAULTS.deployment;
 const b64 = (s) => Buffer.from(s, "utf8").toString("base64");
@@ -38,6 +55,12 @@ test("tlsCheck: verification is ON - a self-signed leaf is recorded (SPKI, seria
     seen.push([req.url, req.headers["x-hv-soak"], req.method]);
     if (req.url.startsWith("/echo/")) return res.end(`sentinel saw ${req.headers["x-hv-soak"]}\n`);          // the sentinel echoes the token
     if (req.url.startsWith("/e404/")) { res.statusCode = 404; return res.end(`not here: ${req.headers["x-hv-soak"]}\n`); }   // an error page echoing it
+    // the sentinel's own body (enclave-5d, e37a29a91): its statement that it PRINTED; /sent0/ printed nothing to stdout
+    if (req.url.startsWith("/sent")) {
+      const n = req.url.startsWith("/sent0/") ? 0 : 57;
+      if (req.url.startsWith("/sent404/")) res.statusCode = 404;                 // the right words on a wrong answer
+      return res.end(`hvsoakbody289ec97d2c0e token=${req.headers["x-hv-soak"]} path=${req.url} printed stdout=${n}B stderr=${n}B\n`);
+    }
     if (req.url.startsWith("/late/")) return res.end("x".repeat(BODY_KEEP) + req.headers["x-hv-soak"]);   // past the kept bytes
     res.end("Hello World!\n");                                                                          // hello-world never echoes
   });
@@ -86,6 +109,18 @@ test("tlsCheck: verification is ON - a self-signed leaf is recorded (SPKI, seria
   const unverified = await tlsCheck(`https://localhost:${port}/echo/tokU`, { timeoutMs: 5000, headers: { "x-hv-soak": "tokU" }, expect: "tokU" });
   assert.deepEqual([unverified.ok, unverified.bodyHasToken], [false, false], "an unverified connection proves nothing");
   assert.equal((await tlsCheck(`https://localhost:${port}/echo/n`, { timeoutMs: 5000, ca: cert })).bodyHasToken, null, "no token asked, no answer");
+
+  // C: the printed evidence, not the token, is what counts: a reflector carries the token and states nothing
+  const probe = (p, tok, pattern = ECHO_PATTERN) => tlsCheck(`https://localhost:${port}${p}`,
+    { timeoutMs: 5000, ca: cert, headers: { "x-hv-soak": tok }, expect: tok, evidence: evidenceRegex(pattern, tok) });
+  const sentinel = await probe("/sent/hv-soak/tokS", "tokS");
+  assert.deepEqual([sentinel.ok, sentinel.bodyHasToken, sentinel.printedEvidence], [true, true, true]);
+  const reflector = await probe("/echo/hv-soak/tokR", "tokR");
+  assert.deepEqual([reflector.ok, reflector.bodyHasToken, reflector.printedEvidence], [true, true, false], "a reflector 200 with the token is not printed evidence");
+  const silent = await probe("/sent0/hv-soak/tokZ", "tokZ");
+  assert.deepEqual([silent.bodyHasToken, silent.printedEvidence], [true, false], "printed stdout=0B is not n > 0");
+  const s404 = await probe("/sent404/hv-soak/tok5", "tok5");
+  assert.deepEqual([s404.authorized, s404.status, s404.printedEvidence], [true, 404, false], "the printed evidence counts only in a 200");
 
   // a trusted chain for the WRONG name is refused too: the hostname is verified
   const wrong = await tlsCheck(`https://127.0.0.1:${port}/`, { timeoutMs: 5000, ca: cert });
@@ -373,7 +408,8 @@ test("G2: a marker the first sample's own probe caused (past the pre-READY size)
   const mine = `00:00:05 caused by the probe ${MARK}\n00:00:06 registry: card price now 0/sec (was 0) tx=0x2\n`;
   const b = digestBox(boxRes({ node: hist + mine, nodePre: Buffer.byteLength(hist) }), st, { deployment: DEP, token: "t", marker: MARK });
   assert.equal(b.logs.node.baseline, true);
-  assert.equal(b.logs.node.preReady, Buffer.byteLength(hist));
+  assert.equal(b.logs.node.historyUntil, Buffer.byteLength(hist));
+  assert.equal(b.logs.node.historyBounded, true);
   assert.deepEqual([b.logs.node.markerHits, b.logs.node.history.markerHits], [1, 1]);
   assert.deepEqual([b.logs.node.cardPrice, b.logs.node.history.cardPrice], [1, 1]);
   const r = step(newEval(), { t: "2026-09-26T03:00:00Z", tls: { ok: true, authorized: true, status: 200 }, box: { ok: true, logs: { node: b.logs.node, manager: b.logs.manager }, console: b.console, partition: b.partition } });
@@ -385,18 +421,35 @@ test("G2: a marker the first sample's own probe caused (past the pre-READY size)
   assert.equal(b2.logs.node.lines, 1);
 });
 
-test("G2: without the pre-READY size the first read fails closed and is retried; a reset file is all judged", () => {
+/* B (enclave-bf): history may ONLY be bounded by the soak's FIRST READY. A first sample without a log's size leaves that
+   log with no history at all (everything judged); a later sample's size must never set it, since it already holds the
+   earlier samples' probe lines. */
+test("B: sample 1 without the pre-READY size, then sample 2 with one -> sample 1's marker is judged (FAIL)", () => {
   const st = newSampler();
-  const b = digestBox(boxRes({ nodePre: null }), st, { deployment: DEP, token: "t" });
-  assert.equal(b.logs.node.ok, false);
-  assert.match(b.logs.node.error, /size before READY is unknown/);
-  assert.equal(b.ok, false);
-  assert.equal(st.offsets.node, 0, "the offset stays, so the next sample reads it again as the baseline");
-  assert.equal(digestBox(boxRes({ nodePre: -1 }), newSampler(), { deployment: DEP, token: "t" }).logs.node.ok, false, "-1 is the script's 'unknown'");
-  const b2 = digestBox(boxRes(), st, { deployment: DEP, token: "t" });
-  assert.equal(b2.logs.node.baseline, true);
-  const res = boxRes({ node: `00:00:01 ${MARK}\n`, nodeFrom: 0 }); res.data.node.reset = true;
-  assert.equal(digestBox(res, st, { deployment: DEP, token: "t", marker: MARK }).logs.node.markerHits, 1, "a new file is not history");
+  const s1 = `00:00:05 probe of sample 1 ${MARK}\n`;
+  const b1 = digestBox(boxRes({ node: s1, nodePre: null }), st, { deployment: DEP, token: "t1", marker: MARK });
+  assert.deepEqual([b1.logs.node.ok, b1.logs.node.historyBounded, b1.logs.node.historyUntil, b1.logs.node.markerHits], [true, false, 0, 1]);
+  assert.equal(b1.logs.node.history, null);
+  const r = step(newEval(), { t: "2026-09-26T03:00:00Z", tls: { ok: true }, box: { ok: true, logs: b1.logs, console: b1.console, partition: b1.partition } });
+  assert.ok(r.fail.some(([id]) => id === "leak"));
+  assert.ok(r.info.some(([, m]) => /NO history boundary/.test(m)));
+  // -1 is the script's "unknown" for a size it could not open for
+  assert.equal(digestBox(boxRes({ nodePre: -1 }), newSampler(), { deployment: DEP, token: "t" }).logs.node.historyBounded, false);
+});
+
+test("B: the first sample's box read failing entirely leaves no history; sample 2's own size never sets one", () => {
+  const st = newSampler();
+  digestBox({ ok: false, exit: 255, ms: 15000, error: "ssh: timed out" }, st, { deployment: DEP, token: "t1", marker: MARK });
+  // sample 2 reads the log from 0 and brings a pre-READY size that already covers sample 1's probe line
+  const lines = `00:00:01 before the soak\n00:00:05 probe of sample 1 ${MARK}\n`;
+  const b2 = digestBox(boxRes({ node: lines, nodePre: Buffer.byteLength(lines) }), st, { deployment: DEP, token: "t2", marker: MARK });
+  assert.deepEqual([b2.logs.node.historyBounded, b2.logs.node.markerHits, b2.logs.node.lines], [false, 1, 2], "all judged, the old line too");
+  // and a reset file is all judged, whatever the boundary was
+  const st2 = newSampler();
+  digestBox(boxRes({ node: `00:00:01 old ${"x".repeat(200)}\n` }), st2, { deployment: DEP, token: "t" });      // a 214-byte history
+  // the new file's lines all sit below the old boundary, so only the reset keeps them from being filed as history
+  const res = boxRes({ node: `a\n00:00:01 ${MARK}\n`, nodeFrom: 0 }); res.data.node.reset = true;
+  assert.equal(digestBox(res, st2, { deployment: DEP, token: "t", marker: MARK }).logs.node.markerHits, 1, "a new file is not history");
 });
 
 test("digestBox: an ssh failure yields only the ssh block", () => {
@@ -409,21 +462,22 @@ test("digestBox: an ssh failure yields only the ssh block", () => {
 const SPKI_A = "a".repeat(64), SPKI_B = "b".repeat(64);
 let clock = Date.parse("2026-09-26T03:00:00Z");
 // one sample. The default is a sentinel sample that EXERCISES the leak check: a verified 200 fired at READY with the
-// console connected, whose body echoed the token. echo:false is hello-world (it never echoes).
+// console connected, whose body carried the sentinel's printed evidence. echo:false is hello-world (no token at all);
+// printed:false is a REFLECTOR (the token, but no statement that anything was printed).
 function S({ ok = true, spki = SPKI_A, authorized = true, status = ok ? 200 : 503, restart = 0, nodeOk = true, baseline = false,
              running = true, price = 0, nonMatching = 0, tokenHits = 0, boxOk = true, sshOk = true, relayOk = true, hostExcluded = false,
              connected = true, latencyMs = 300, t = null, chain = null, head = true, markerHits = 0, nodeMarkerHits = 0, withheld = 0,
-             sentinelLines = 0, echo = true, trigger = "console", histPrice = 0, histRestart = 0 } = {}) {
+             sentinelLines = 0, echo = true, printed = true, trigger = "console", histPrice = 0, histRestart = 0, nodeTokenHits = 0 } = {}) {
   clock += 300_000;
   return { type: "sample", t: t || new Date(clock).toISOString(), deployment: DEP,
     tls: { ok, status: ok ? 200 : status, authorized, latencyMs, cert: spki ? { spkiSha256: spki } : null, error: ok ? null : "x",
-           trigger, bodyHasToken: ok && echo },
+           trigger, bodyHasToken: ok && echo, printedEvidence: ok && echo && printed },
     head: { method: "HEAD", trigger: head ? "console" : "fallback", authorized: true, status: 200, sentInWindow: head },
     relay: { ok: relayOk, present: true, hostExcluded, mode: "hv-node" },
     chain: chain || { skipped: true },
     box: { ok: boxOk && sshOk, ssh: { ok: sshOk, error: sshOk ? undefined : "timeout" }, vms: { ok: true },
       partition: sshOk ? { running, status: running ? "running" : "starting" } : undefined,
-      logs: sshOk ? { node: nodeOk ? { ok: true, baseline, restart, cardPrice: price, tokenHits: 0, markerHits: nodeMarkerHits, renewed: 0, renewedMine: 0,
+      logs: sshOk ? { node: nodeOk ? { ok: true, baseline, restart, cardPrice: price, tokenHits: nodeTokenHits, markerHits: nodeMarkerHits, renewed: 0, renewedMine: 0,
                                        history: baseline ? { cardPrice: histPrice, restart: histRestart, markerHits: 0, sentinelLines: 0, lines: 4 } : null }
                                      : { ok: false, error: "x" },
                       manager: { ok: true, tokenHits: 0, markerHits: 0 } } : undefined,
@@ -523,6 +577,7 @@ test("exercised: the partition running, a verified 200 fired in the console wind
   assert.equal(exercised(S()), true);
   for (const [o, why] of [[{ running: false }, "not running"], [{ ok: false }, "no verified 200"], [{ ok: false, authorized: false, status: 200 }, "an unverified 200"],
                           [{ echo: false }, "the body did not echo the token (hello-world): the app's output path is unproven"],
+                          [{ printed: false }, "C: a REFLECTOR - the token in a verified 200, but no printed evidence"],
                           [{ trigger: "fallback" }, "the GET fired by the fallback, not inside the console window"],
                           [{ trigger: "noconsole" }, "the GET fired with no console connected"],
                           [{ connected: false }, "no console"], [{ nodeOk: false }, "node.log unread"], [{ sshOk: false }, "no box read"]])
@@ -612,10 +667,24 @@ test("leak scope out: NOT IN SCOPE with the evidence, verdict from the other thr
   assert.equal(f.pass, false);
   assert.match(f.text, /^VERDICT \(availability\/stability; leak not in scope\): FAIL$/m);
   assert.doesNotMatch(f.text, /^VERDICT: /m);
-  // a leak sighting is shown, not judged
-  const s = summarize(soakFile([S({ tokenHits: 1 }), S()]), { leakScope: "out", leakEvidence: EVIDENCE });
-  assert.equal(s.pass, true);
-  assert.match(s.text, /NOT IN SCOPE: .*1 sighting\(s\) recorded, not judged/);
+});
+
+test("A: scope out waives only the exercise, never a sighting - bf's 12 samples, one with a foreign console line and the token in node.log -> FAIL", () => {
+  clock = Date.parse("2026-10-01T00:00:00Z");
+  const samples = Array.from({ length: 12 }, (_, i) => S({ baseline: i === 0, echo: false, ...(i === 7 ? { nonMatching: 1, nodeTokenHits: 1 } : {}) }));
+  const r = summarize(soakFile(samples), { leakScope: "out", leakEvidence: EVIDENCE });
+  assert.equal(r.pass, false);
+  assert.match(r.text, /^ {2}FAIL leak \(scope out, but seen\): 2 event\(s\); first /m);
+  assert.doesNotMatch(r.text, /^ {2}NOT IN SCOPE: /m, "NOT IN SCOPE is only for the not-exercised case");
+  assert.match(r.text, /^VERDICT \(availability\/stability; leak not in scope\): FAIL$/m);
+  assert.doesNotMatch(r.text, /^VERDICT: /m);
+  const leak = r.json.thresholds.find((t) => t.id === "leak");
+  assert.deepEqual([leak.status, leak.note, leak.events, r.json.verdict], ["FAIL", "scope out, but seen", 2, "FAIL"]);
+  // each kind of sighting alone does it too
+  for (const o of [{ markerHits: 1 }, { sentinelLines: 1 }, { tokenHits: 1 }, { nonMatching: 1 }, { nodeTokenHits: 1 }]) {
+    clock = Date.parse("2026-10-02T00:00:00Z");
+    assert.equal(summarize(soakFile([S({ echo: false }), S({ echo: false, ...o })]), { leakScope: "out", leakEvidence: EVIDENCE }).pass, false, JSON.stringify(o));
+  }
 });
 
 test("leak scope: taken from the run's header; the default is in scope; out needs its evidence", () => {

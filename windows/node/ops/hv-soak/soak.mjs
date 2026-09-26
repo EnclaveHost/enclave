@@ -64,6 +64,16 @@ export const DEFAULTS = Object.freeze({
 });
 
 export const CONSOLE_MARGIN_MS = 5_000;
+// THE SENTINEL'S PRINTED EVIDENCE in its 200 body (enclave-5d, rollout e37a29a91):
+//   hvsoakbody289ec97d2c0e token=<x-hv-soak> path=<path> printed stdout=<n>B stderr=<n>B
+// {token} is this sample's token (regex-escaped); stdout must be n > 0 bytes. The token alone is in the request, so a
+// reflector app would carry it without printing anything (enclave-bf's C); --echo-pattern replaces this.
+export const ECHO_PATTERN = "token={token} path=\\S* printed stdout=[1-9][0-9]*B";
+/** The printed-evidence RegExp for one sample: the pattern with {token} replaced by the escaped token. */
+export function evidenceRegex(pattern, token) {
+  if (!String(pattern).includes("{token}")) throw new Error("the echo pattern must contain {token}");
+  return new RegExp(String(pattern).split("{token}").join(String(token).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+}
 // get(bytes32) on the deployments ledger: keccak256("get(bytes32)")[0..4], computed with viem's toFunctionSelector
 export const GET_SELECTOR = "0x8eaa6ac0";
 // a console line that is the guest's own: the monitor (MON), a domain's init (DOM, DOM1...) or a kernel timestamp
@@ -103,12 +113,13 @@ export function certFacts(x509) {
  */
 export const BODY_KEEP = 4096;     // the body is retained, bounded, only to look for the sample's token; never stored
 
-export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutMs, headers = {}, ca, maxBody = 65536, expect = null } = {}) {
+export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutMs, headers = {}, ca, maxBody = 65536, expect = null,
+                                evidence = null } = {}) {
   return new Promise((resolve) => {
     const t0 = process.hrtime.bigint();
     const ms = () => Number((process.hrtime.bigint() - t0) / 1_000_000n);
     const out = { ok: false, status: null, latencyMs: null, authorized: null, authorizationError: null, error: null,
-                  bytes: null, cert: null, bodyHasToken: expect ? false : null };
+                  bytes: null, cert: null, bodyHasToken: expect ? false : null, printedEvidence: evidence ? false : null };
     let done = false, timer = null, req = null, kept = Buffer.alloc(0);
     const finish = (extra = {}) => {
       if (done) return;
@@ -118,6 +129,9 @@ export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutM
       out.ok = out.authorized === true && out.status === 200 && !out.error;
       // only a VERIFIED 200's body can prove the app's output path ran; the first BODY_KEEP bytes are searched
       if (expect) out.bodyHasToken = out.ok && kept.includes(expect);
+      // the token alone is in the REQUEST, so a reflector would carry it; only the target's own statement that it PRINTED
+      // (evidence: a RegExp over the kept body, e.g. the sentinel's "token=<t> ... printed stdout=<n>B", n > 0) counts
+      if (evidence) out.printedEvidence = out.ok && evidence.test(kept.toString("latin1"));
       kept = null;
       resolve(out);
     };
@@ -439,8 +453,20 @@ const asArray = (x) => (Array.isArray(x) ? x : x == null ? [] : [x]);
 export function digestBox(res, st, { deployment, token, marker = null }) {
   const box = { ok: false, ssh: { ok: !!res.ok, exit: res.exit ?? null, ms: res.ms ?? null, readyMs: res.readyMs ?? null,
                                   ...(res.ok ? {} : { error: trunc(res.error, 400) }) } };
+  const d = (res.ok && res.data) || {};
+  // THE HISTORY BOUNDARY is fixed ONCE, by the soak's FIRST sample, whatever that sample's box read looks like
+  // (enclave-bf's B): each log's size before the FIRST READY, and 0 (judge everything, so old lines must be explained)
+  // for a log whose size that sample did not bring back. A later sample's pre-READY size already holds earlier probes'
+  // lines, so it never sets it.
+  if (!st.historyFixed) {
+    st.historyFixed = true;
+    for (const k of ["node", "manager"]) {
+      const pre = Number(d[k]?.ok ? d[k].preReady : NaN);
+      st.historyBounded[k] = Number.isSafeInteger(pre) && pre >= 0;
+      st.historyUntil[k] = st.historyBounded[k] ? pre : 0;
+    }
+  }
   if (!res.ok) return box;
-  const d = res.data || {};
   let mine = null;
   if (d.vms && d.vms.ok) {
     try {
@@ -470,30 +496,23 @@ export function digestBox(res, st, { deployment, token, marker = null }) {
     st.instance = instance;
   } else box.partition = { running: null };
 
-  // THE LOGS. Bytes below the log's size before the FIRST READY are its history (before this soak), reported apart and
-  // never judged; everything at or past it is judged, including the first sample's own probe lines, which the script
-  // reads after READY (enclave-bf's G2). Without that size the first read cannot be split, so it fails closed: the log
-  // is unread this sample and its offset stays, so the next sample tries again.
+  // THE LOGS. Bytes below the boundary fixed above are history (before this soak), reported apart and never judged;
+  // everything at or past it is judged, including the first sample's own probe lines, which the script reads after
+  // READY (enclave-bf's G2).
   box.logs = {};
   for (const k of ["node", "manager"]) {
     const ch = d[k];
     if (!ch || !ch.ok) { box.logs[k] = { ok: false, error: trunc(ch?.error ?? `no ${k} log section`, 300) }; continue; }
     const baseline = !st.baselined[k];
-    if (baseline) {
-      const pre = Number(ch.preReady);
-      if (!Number.isSafeInteger(pre) || pre < 0) {
-        box.logs[k] = { ok: false, error: `the ${k} log's size before READY is unknown, so its history cannot be told from this sample's own lines` };
-        continue;
-      }
-      st.historyUntil[k] = pre; st.baselined[k] = true;
-    }
+    st.baselined[k] = true;
     if (ch.reset === true) st.historyUntil[k] = 0;                  // a new file: none of it is history
     const c = consumeChunk(ch);
     st.offsets[k] = c.next;
     const { history, current } = splitHistory(c.buf, ch.from, st.historyUntil[k]);
     const sc = scanLog(current.toString("utf8"), { deployment, token, marker });
     const hist = history.length ? scanLog(history.toString("utf8"), { deployment, token, marker }) : null;
-    box.logs[k] = { ok: true, baseline, reset: ch.reset === true, size: ch.size, preReady: baseline ? st.historyUntil[k] : undefined,
+    box.logs[k] = { ok: true, baseline, reset: ch.reset === true, size: ch.size, historyUntil: st.historyUntil[k],
+                    historyBounded: st.historyBounded[k] === true,
                     bytes: c.bytes, pendingBytes: c.pendingBytes, ...sc,
                     history: hist && { bytes: history.length, lines: hist.lines, cardPrice: hist.cardPrice, restart: hist.restart,
                                        markerHits: hist.markerHits, sentinelLines: hist.sentinelLines, errorLines: hist.errorLines,
@@ -574,6 +593,8 @@ export function step(ev, s) {
     if (node.history) ev.price.baseline = (ev.price.baseline ?? 0) + node.history.cardPrice;
     else if (node.baseline) ev.price.baseline = ev.price.baseline ?? 0;
     if (node.baseline) info.push(["price", `card-price line baseline ${ev.price.baseline} (the log's history before this soak)`]);
+    if (node.baseline && node.historyBounded === false)
+      info.push(["price", "node.log has NO history boundary (the soak's first sample did not bring back its size before READY): every line in it is judged"]);
     if (node.cardPrice > 0) { ev.price.added += node.cardPrice; fail.push(["price", `${node.cardPrice} new 'registry: card price now' line(s): a price tx`]); }
   }
 
@@ -608,10 +629,11 @@ export function step(ev, s) {
 
 /**
  * A sample EXERCISED the leak check only with per-sample proof that the app's OUTPUT path ran (enclave-bf's amended
- * G1): a verified 200, fired at READY with the console connected, whose BODY echoes THIS sample's token. The sentinel
- * target echoes the token in its body AND prints it to stdout and stderr, so with the console and both logs read,
- * "the token is absent from all three" means the app produced those bytes and nothing carried them out. hello-world
- * never echoes, so it can never count.
+ * G1): a verified 200, fired at READY with the console connected, whose BODY carries the target's PRINTED EVIDENCE for
+ * THIS sample's token (ECHO_PATTERN: the sentinel's "token=<t> path=<p> printed stdout=<n>B", n > 0). The token alone
+ * is in the request, so a reflector would carry it without printing a byte (enclave-bf's C). The sentinel prints the
+ * token to stdout and stderr and says so in its body, so with the console and both logs read, "the token is absent
+ * from all three" means the app produced those bytes and nothing carried them out. hello-world can never count.
  *
  * The HEAD probe is NOT part of this: on the hv tier (bundle/1 wasi:http under wasmtime serve) hyper frames every
  * response, so no app can reach the front's unsolicited-response guard, and an answered HEAD proves nothing. It stays a
@@ -622,7 +644,7 @@ export function step(ev, s) {
  */
 export const LEAK_FLOOR = 0.9;
 export const exercised = (s) => s.box?.partition?.running === true && s.tls?.ok === true && s.tls?.trigger === "console"
-  && s.tls?.bodyHasToken === true && s.box?.console?.connected === true
+  && s.tls?.printedEvidence === true && s.box?.console?.connected === true
   && s.box?.logs?.node?.ok === true && s.box?.logs?.manager?.ok === true;
 /** The HEAD probe counts only when it was fired by a READY with the console connected, verified, and answered. */
 export const headSentInWindow = (trigger, head) => trigger === "console" && head?.authorized === true && head?.status != null;
@@ -690,10 +712,12 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
   const ex = samples.filter(exercised).length, exShare = ex / samples.length;
   const leakCovered = ex >= 1 && exShare >= leakFloor;
   const echoed = samples.filter((s) => s.tls?.bodyHasToken === true).length;
+  const printed = samples.filter((s) => s.tls?.printedEvidence === true).length;
   if (scope === "out") out.push(`leak check: NOT IN SCOPE for this run: ${evidence}`);
   out.push(`leak check: exercised in ${ex}/${samples.length} samples (${(100 * exShare).toFixed(1)}%; floor ${(100 * leakFloor).toFixed(1)}%): `
-           + `the partition running, a verified 200 fired inside the console window whose BODY echoes this sample's token (the app's `
-           + `output path ran; ${echoed}/${samples.length} echoed), the console and both logs read`);
+           + `the partition running, a verified 200 fired inside the console window whose BODY carries the target's printed evidence `
+           + `for this sample's token (the app's output path ran; ${printed}/${samples.length} printed, ${echoed}/${samples.length} carried the token), `
+           + `the console and both logs read`);
   out.push(HV_GUARD_NOT_COVERED);
   out.push(`HEAD tripwire: sent inside the console window in ${samples.filter((s) => s.head?.sentInWindow === true).length}/${samples.length} samples`
            + (samples.some((s) => s.head?.skipped) ? ` (OFF in ${samples.filter((s) => s.head?.skipped).length}: --leak-probe not given)` : "")
@@ -715,10 +739,17 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
   for (const th of THRESHOLDS) {
     const evs = ev.events.filter((e) => e.id === th.id);
     const worst = ev.worst[th.id] !== undefined ? ` (worst streak ${ev.worst[th.id]})` : "";
+    // Scope out waives ONLY the exercise requirement, never a sighting (enclave-bf's A): with nothing seen the line says
+    // why it is not judged; anything seen FAILs, and the verdict with it.
     if (th.id === "leak" && scope === "out") {
-      // not judged: the line says why, and the sightings are still shown
-      out.push(`  NOT IN SCOPE: ${evidence} [leak: ${th.text}; ${evs.length} sighting(s) recorded, not judged; exercised ${ex}/${samples.length}]`);
-      thJson.push({ id: th.id, status: "NOT IN SCOPE", evidence, events: evs.length });
+      if (!evs.length) {
+        out.push(`  NOT IN SCOPE: ${evidence} [leak: not exercised, nothing seen; exercised ${ex}/${samples.length}]`);
+        thJson.push({ id: th.id, status: "NOT IN SCOPE", evidence, events: 0 });
+        continue;
+      }
+      failed++;
+      out.push(`  FAIL leak (scope out, but seen): ${evs.length} event(s); first ${evs[0].t}: ${evs[0].msg}`);
+      thJson.push({ id: th.id, status: "FAIL", note: "scope out, but seen", events: evs.length, first: evs[0] });
       continue;
     }
     // a leak seen anywhere FAILs; no leak seen PASSes only on enough exercised samples, else it is NOT EXERCISED
@@ -742,7 +773,7 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
     coverage: { gapFreeMs: best, longerGaps: gaps.length, largestGapMs: gaps.length ? Math.max(...gaps.map((g) => g.ms)) : 0 },
     public: { verified200: ok.length, uptimePct: Number((100 * ok.length / samples.length).toFixed(1)), p50Ms: pct(lat, 50), p95Ms: pct(lat, 95) },
     partition: { running: known.filter((s) => s.box.partition.running).length, known: known.length },
-    leak: { exercised: ex, floor: leakFloor, echoed, guardNotCovered: HV_GUARD_NOT_COVERED },
+    leak: { exercised: ex, floor: leakFloor, printed, echoed, guardNotCovered: HV_GUARD_NOT_COVERED },
     chain: chainJson, thresholds: thJson,
   };
   return { text: out.join("\n"), pass, json };
@@ -752,7 +783,7 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
 
 export function newSampler() {
   return { seq: 0, rpc: 0, offsets: { node: 0, manager: 0 }, baselined: { node: false, manager: false },
-           historyUntil: { node: 0, manager: 0 }, instance: undefined };
+           historyFixed: false, historyUntil: { node: 0, manager: 0 }, historyBounded: { node: false, manager: false }, instance: undefined };
 }
 
 async function takeSample(cfg, st) {
@@ -766,7 +797,8 @@ async function takeSample(cfg, st) {
   // as exercised) and, with --leak-probe, ONE HEAD tripwire, both over verified TLS.
   let probes = null;
   const startProbes = (trigger = "fallback") => (probes ||= { trigger,
-    get: tlsCheck(url.href, { timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token }, expect: token }),
+    get: tlsCheck(url.href, { timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token }, expect: token,
+                              evidence: evidenceRegex(cfg.echoPattern, token) }),
     head: cfg.leakProbe ? tlsCheck(url.href, { method: "HEAD", timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token } }) : null });
   const relayP = relayRead(cfg);
   const chainP = cfg.chain ? chainRead(cfg, st) : Promise.resolve({ skipped: true });
@@ -788,7 +820,7 @@ async function takeSample(cfg, st) {
 
 export function humanLine(s, v) {
   const t = s.tls, b = s.box || {}, r = s.relay || {}, n = b.logs?.node, m = b.logs?.manager, c = b.console;
-  const pub = t.ok ? `200 ${t.latencyMs}ms${t.bodyHasToken ? " echo" : " no-echo"}` : t.status != null && t.authorized ? `HTTP ${t.status}` : t.authorized === false ? `TLS ${t.authorizationError}` : `ERR ${trunc(t.error, 60)}`;
+  const pub = t.ok ? `200 ${t.latencyMs}ms${t.printedEvidence ? " printed" : t.bodyHasToken ? " token-no-print" : " no-token"}` : t.status != null && t.authorized ? `HTTP ${t.status}` : t.authorized === false ? `TLS ${t.authorizationError}` : `ERR ${trunc(t.error, 60)}`;
   const parts = [
     `${s.t.slice(0, 19)}Z #${s.seq}`,
     `public ${pub}${t.cert?.spkiSha256 ? ` spki ${t.cert.spkiSha256.slice(0, 12)}` : ""}${s.derived?.spkiEqualsManagerKey === true ? "=vm" : s.derived?.spkiEqualsManagerKey === false ? "!=vm" : ""}`,
@@ -817,7 +849,7 @@ function parseDuration(x) {
 
 export function parseArgs(argv) {
   const cfg = { ...DEFAULTS, rpcs: [...DEFAULTS.rpcs], chain: true, once: false, summary: null, since: null, out: null, url: null,
-                leakFloor: LEAK_FLOOR, leakScope: null, leakEvidence: null, json: false };
+                leakFloor: LEAK_FLOOR, leakScope: null, leakEvidence: null, json: false, echoPattern: ECHO_PATTERN };
   const rpcs = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], v = () => { if (i + 1 >= argv.length) throw new Error(`${a} needs a value`); return argv[++i]; };
@@ -837,6 +869,7 @@ export function parseArgs(argv) {
       case "--console-sec": cfg.consoleSec = parseInt(v(), 10); break;
       case "--leak-probe": cfg.leakProbe = true; break;
       case "--path": cfg.path = v(); break;
+      case "--echo-pattern": cfg.echoPattern = v(); break;
       case "--leak-scope": cfg.leakScope = v(); break;
       case "--leak-evidence": cfg.leakEvidence = v(); break;
       case "--json": cfg.json = true; break;
@@ -853,6 +886,7 @@ export function parseArgs(argv) {
     }
   }
   if (rpcs.length) cfg.rpcs = rpcs;
+  try { evidenceRegex(cfg.echoPattern, "hvsoak0"); } catch (e) { throw new Error(`--echo-pattern: ${e.message}`); }
   if (cfg.leakScope !== null && !LEAK_SCOPES.includes(cfg.leakScope)) throw new Error(`--leak-scope must be ${LEAK_SCOPES.join(" or ")}`);
   if (cfg.leakScope === "out" && !(cfg.leakEvidence && cfg.leakEvidence.trim()))
     throw new Error("--leak-scope out needs --leak-evidence \"<why the leak cannot be exercised here, or a reference>\"");
@@ -878,10 +912,12 @@ options: --deployment 0x.. --url https://.. --node nucbox-k11 --relay https://ap
          --root C:\\Users\\claude\\vbs-like\\hvnode --console-sec 25 --rpc URL (repeatable)
          --leak-floor F: the share of samples that must EXERCISE the leak check for it to PASS (default 0.9; "90%" works)
          --path T: the GET/HEAD target, carrying {token} (default /hv-soak/{token}; hookbin: /ping?hvsoak={token})
+         --echo-pattern P: the regex the GET's 200 body must match for the sample to EXERCISE the leak check; {token} is
+             this sample's token (default: the sentinel's "${ECHO_PATTERN}")
          --leak-probe --body-marker S: ONE HEAD per sample inside the console window, a TRIPWIRE: S (the target app's
              HEAD-body marker; no default) anywhere in the console or a log is a leak. It never makes a sample exercised
-         --leak-scope out --leak-evidence E: an availability/stability soak; the leak line reads NOT IN SCOPE: E and the
-             verdict reads "${OUT_OF_SCOPE_VERDICT}: PASS|FAIL" (default scope: in)
+         --leak-scope out --leak-evidence E: an availability/stability soak: the leak's EXERCISE is waived (NOT IN SCOPE: E),
+             never a sighting (FAIL leak (scope out, but seen)); the verdict reads "${OUT_OF_SCOPE_VERDICT}: PASS|FAIL"
          --json (with --summary): the summary as JSON`;
 
 async function main() {
@@ -900,7 +936,7 @@ async function main() {
   if (out) fs.mkdirSync(path.dirname(out), { recursive: true });
   const write = (o) => { if (out) fs.appendFileSync(out, JSON.stringify(o) + "\n"); };
   const header = { type: "start", t: new Date().toISOString(), v: 1, interval: cfg.interval, duration: cfg.duration, leakFloor: cfg.leakFloor,
-                   leakProbe: cfg.leakProbe, bodyMarker: cfg.bodyMarker, path: cfg.path, leakScope: cfg.leakScope ?? "in",
+                   leakProbe: cfg.leakProbe, bodyMarker: cfg.bodyMarker, path: cfg.path, echoPattern: cfg.echoPattern, leakScope: cfg.leakScope ?? "in",
                    ...(cfg.leakScope === "out" ? { leakEvidence: cfg.leakEvidence } : {}), deployment: cfg.deployment,
                    url: cfg.url, node: cfg.node, relay: cfg.relay, ssh: cfg.ssh, root: cfg.root, chain: cfg.chain, pid: process.pid, once: cfg.once };
   write(header);
