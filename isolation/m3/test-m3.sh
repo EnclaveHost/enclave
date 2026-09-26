@@ -499,7 +499,13 @@ done
 for k in vsock_local_domain1 vsock_local_domain2 vsock_own_control vsock_host_control; do
   b=$(ser s1 | sed -n "s/^PROBE[0-9]* $k=//p" | head -1)
   f=$(ser s1 | sed -n "s/^PROBE[0-9]* filtered_$k=//p" | head -1)
-  [ "$b" = "Operation not permitted" ] && { echo "    BASE LAYER UNMEASURED: $k=$b"; bad=$((bad + 1)); }
+  # ...and it must be a refusal the relay and port confinement give (the values seen in real guests: reset, refused, a
+  # timeout, unreachable), not one that means vsock was never there to measure (EAFNOSUPPORT) or the filter (EPERM):
+  # enclave-bf's review of 80b3f0de. A new errno fails loudly here, to be looked at, never passed by default.
+  case "$b" in
+    "Connection reset by peer"|"Connection refused"|"timed out (no answer)"|"Connection timed out"|"Network is unreachable") ;;
+    *) echo "    BASE LAYER UNMEASURED: $k=${b:-missing}"; bad=$((bad + 1)) ;;
+  esac
   [ "$f" = "Operation not permitted" ] || { echo "    NOT REFUSED BY THE FILTER: filtered_$k=${f:-missing}"; bad=$((bad + 1)); }
 done
 [ "$(ser s1 | sed -n 's/^PROBE[0-9]* seccomp=//p' | head -1)" = 2 ] || { echo "    the probe did not filter itself (seccomp=2)"; bad=$((bad + 1)); }
