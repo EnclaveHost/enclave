@@ -1,0 +1,24 @@
+[package]
+name = "soak-sentinel"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# The SOAK TARGET for the NucBox hv node (SOAK-SENTINEL.md; enclave-87): a wasi:http proxy component (the only kind the
+# production hv path serves: bundle/1, `wasmtime serve`, no ports) that prints the soak's token on every request, with a
+# tag and a body marker fixed at build time.
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasi = "0.14"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"
+
+# standalone: not part of any enclosing workspace
+[workspace]
