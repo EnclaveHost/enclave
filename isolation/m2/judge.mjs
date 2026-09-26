@@ -221,9 +221,9 @@ export function checkRuntime(doc, handshakeSpki, nonce, want = {}) {
 //
 // The releases the relay could still predict when this table was written (enclave-e3, from nan's live env at
 // 2026-09-26T04:29:16Z), every one built before the attest-time scan. Retired, so NOT listed: 52156652 (rs-8),
-// 79c5ecf2 and a4f22748 (rs-6).
+// 79c5ecf2 and a4f22748 (rs-6), f7888d86 (image b63c2def; admitted by rs-7, retired by rs-10 - enclave-87's must-have for
+// the next chain rev: this tree ships only with rs-10, and no live guest record names f7888d86 at its swap).
 export const LEGACY_WX_RELEASES = Object.freeze({
-  'f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca': 'domain release f7888d86 (image b63c2def): admitted, rs-7',
   '5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2': 'domain release 5c3561f9 (image 0181bce3): installed, KAT-only; the legacy tree\'s run-mode guests',
   '6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb': 'domain release 6f14ce75 (release-6757d139): installed, KAT-only; the legacy tree\'s other guests',
 });

@@ -294,40 +294,43 @@ test('a bad runtime identity is rejected in EVERY mode, including the lab diagno
 // 4. PER RELEASE, NO FLAG DAY (enclave-87's ruling). A release built before the attest-time scan states the LEGACY form;
 // it is accepted only for a release the CALLER names that the judge lists, and then as runtime W^X UNMEASURED.
 const LEGACY_ST = 'exec_pages=allowed wx=clean maps=3 scope=all-processes';
-const F7 = 'f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca';     // admitted (rs-7), pre-chain
+const L5C = '5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2';    // installed (the legacy tree), pre-chain
+const L6F = '6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb';    // installed (the legacy tree), pre-chain
+const F7 = 'f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca';     // admitted by rs-7, retired by rs-10
 const RETIRED = '52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1'; // retired by rs-8
 const NEW = '11'.repeat(32);                                                        // a release built from this chain
 const docWith = (st) => doc2({ runtimeSelfTest: st, format: 'sev-snp-guest-domain-v1',
   report: report(bind2(SPKI, NONCE, runtimeId(JIT))).toString('base64') });
 
 test('the legacy self-test is accepted ONLY for a listed release the caller names, and only as UNMEASURED', async () => {
-  for (const release of [F7, [F7], [F7, '5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2'], F7.toUpperCase()]) {
+  for (const release of [L5C, [L5C], [L5C, L6F], L5C.toUpperCase()]) {
     const v = await judge(docWith(LEGACY_ST), SPKI, NONCE, { ...want, release });
     assert.equal(v.verdict, 'unauthenticated', `${JSON.stringify(release)}: ${v.reasons.join('; ')}`);
     assert.equal(v.wxCoverage, 'runtime-unmeasured');
     assert.match(v.reasons.join(' '), /LEGACY runtime self-test.*covered NO runtime process - W\^X of the runtime is UNMEASURED here, not clean/);
     assert.doesNotMatch(v.reasons.join(' '), /the scan covered every process/);
   }
-  // a release this chain built, a RETIRED one, one of each, or none named: the legacy form is refused
-  for (const release of [NEW, RETIRED, [F7, NEW], undefined, []]) {
+  // a release this chain built, a RETIRED one (f7888d86 since rs-10), one of each, or none named: the legacy form is refused
+  for (const release of [NEW, RETIRED, F7, [L5C, NEW], [L5C, F7], undefined, []]) {
     const v = await judge(docWith(LEGACY_ST), SPKI, NONCE, { ...want, release });
     assert.equal(v.verdict, 'reject', `${JSON.stringify(release)} accepted the legacy form: ${v.reasons.join('; ')}`);
     assert.match(v.reasons.join(' '), /does not say how many runtime processes it covered/);
   }
   // a malformed name is the caller's fault, refused - never read as "none named"
-  for (const release of ['f7888d86', `${F7}00`, [F7, 'x'.repeat(64)]]) {
+  for (const release of ['5c3561f9', `${L5C}00`, [L5C, 'x'.repeat(64)]]) {
     const v = await judge(docWith(ST), SPKI, NONCE, { ...want, release });
     assert.equal(v.verdict, 'reject', JSON.stringify(release));
     assert.match(v.reasons.join(' '), /not a 64-hex release id/);
   }
   // the name counts only with the measurement pinned (it says what THAT measurement is an image of)
-  assert.deepEqual(legacyWxFor(F7, undefined), { ok: true, legacy: null });
-  assert.deepEqual(legacyWxFor(F7, 'ab'.repeat(20)), { ok: true, legacy: null });
-  assert.equal(legacyWxFor(F7, MEAS).legacy, LEGACY_WX_RELEASES[F7]);
+  assert.deepEqual(legacyWxFor(L5C, undefined), { ok: true, legacy: null });
+  assert.deepEqual(legacyWxFor(L5C, 'ab'.repeat(20)), { ok: true, legacy: null });
+  assert.equal(legacyWxFor(L5C, MEAS).legacy, LEGACY_WX_RELEASES[L5C]);
+  assert.deepEqual(legacyWxFor(F7, MEAS), { ok: true, legacy: null }, 'f7888d86 is retired (rs-10): no legacy form');
 });
 
 test('the attest-time form is judged by the full rule whatever release is named', async () => {
-  for (const release of [F7, NEW, undefined]) {
+  for (const release of [L5C, F7, NEW, undefined]) {
     const ok = await judge(docWith(ST), SPKI, NONCE, { ...want, release });
     assert.equal(ok.verdict, 'unauthenticated', `${release}: ${ok.reasons.join('; ')}`);
     assert.equal(ok.wxCoverage, 'runtime-covered');
@@ -345,7 +348,7 @@ test('the legacy table holds full ids of releases the relay can still predict, a
   assert.ok(Object.isFrozen(LEGACY_WX_RELEASES));
   const ids = Object.keys(LEGACY_WX_RELEASES);
   assert.ok(ids.length >= 1 && ids.every((x) => /^[0-9a-f]{64}$/.test(x)), ids.join(' '));
-  for (const retired of [RETIRED, '79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4',
+  for (const retired of [RETIRED, F7, '79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4',
     'a4f227482df4830ab69b52e38dc5d6e2abea9e5c5fb71f5469f0c30e6b1cb784']) {
     assert.ok(!ids.includes(retired), `retired release ${retired.slice(0, 8)} still admits the legacy form`);
   }
@@ -360,14 +363,14 @@ test('a release after 5db18199 must state its seccomp filter; one before may omi
   assert.equal(with_.verdict, 'unauthenticated', with_.reasons.join('; '));
   assert.match(with_.reasons.join(' '), /under the seccomp filter with program sha256 d4d4/);
   // enclave-87's mutant, the filter skipped: no statement, so no seccomp= - refused for a new release or none named
-  for (const release of [NEW, undefined, [R5DB, NEW]]) {
+  for (const release of [NEW, undefined, [R5DB, NEW], F7, [R5DB, F7]]) {   // f7888d86: retired by rs-10, no exemption left
     const v = await judge(docWith(NOSC), SPKI, NONCE, { ...want, release });
     assert.equal(v.verdict, 'reject', `${JSON.stringify(release)} accepted a self-test with no filter`);
     assert.match(v.reasons.join(' '), /states no seccomp filter/);
   }
   // 5db18199 (and every release before it) may omit it, named by the caller - said, not counted as attested
-  for (const release of [R5DB, F7]) {
-    const st = release === F7 ? LEGACY_ST : NOSC;
+  for (const release of [R5DB, L5C]) {
+    const st = release === L5C ? LEGACY_ST : NOSC;
     const v = await judge(docWith(st), SPKI, NONCE, { ...want, release });
     assert.equal(v.verdict, 'unauthenticated', `${release}: ${v.reasons.join('; ')}`);
     assert.match(v.reasons.join(' '), /NOT positively attested/);
