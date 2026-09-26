@@ -44,6 +44,7 @@ import { fetchDomains } from "./domains.mjs";
 import tls from "node:tls";
 import * as waf from "./waf.mjs";
 import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
+import { PARTITION_OFFERS } from "../vbslike/datapath/partition-offers.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
 const TICK_MS = 30_000;
@@ -383,8 +384,8 @@ export class Host {
                                           appsEnabled: this.cfg.appsEnabled, scope: this.scope(),
                                           version: v, capacity: this.capacity({ exclude: id, capped: !here }),
                                           listedAt: this.listedAt(), invited: invited || force,
-                                          legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true,
-                                          privateOk: !!this.cfg.sessionKid,
+                                          legacy: this.cfg.claimLegacy === true, fetchesConfigCid: this.features().configCidOverride,
+                                          privateOk: !!this.cfg.sessionKid && (!this.partitionsOnly() || this.features().devDeploy),
                                           features: this.features() });
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
     const retired = this.retiredEngineClaimRefusal(d);
@@ -673,6 +674,8 @@ export class Host {
     // The WHOLE /health object: the plan checks the manager's backend name and its derivations. null = could not ask.
     let managerHealth = null;
     try { managerHealth = (await client.health()) ?? null; } catch { managerHealth = null; }
+    // what the manager says it can give a partition (/health supports), for features(): kept when it answered
+    if (managerHealth && managerHealth.supports && typeof managerHealth.supports === "object") this.managerSupports = { ...managerHealth.supports };
     // Which model volumes this version needs, from its own config; null (unknown) when the config cannot be read.
     let volumes = null;
     try {
@@ -1423,8 +1426,8 @@ export class Host {
       let v = null; try { v = await chain.resolveAppRef(d.appRef); } catch {}
       const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: owners, enclaveId: this.enclaveId, appsEnabled: true,
                                             scope, version: v, capacity: this.capacity(), listedAt: this.listedAt(),
-                                            legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true,
-                                            privateOk: !!this.cfg.sessionKid,
+                                            legacy: this.cfg.claimLegacy === true, fetchesConfigCid: this.features().configCidOverride,
+                                            privateOk: !!this.cfg.sessionKid && (!this.partitionsOnly() || this.features().devDeploy),
                                             features: this.features() });
       if (refuse) {
         // Recorded, not logged every 30 seconds: a refusal is a standing fact about a row, and
@@ -2112,7 +2115,34 @@ export class Host {
    * these describe THIS box and nothing else. A true here is a promise the claim policy keeps: if
    * a flag is false, a deployment that needs it is refused by name rather than run without it.
    */
+  /** Does this node run ONLY the isolated backend (the engine retired, a manager configured)? Then what it offers a
+   *  deployment is what a partition can be given, not what the enclave's runtime could do. */
+  partitionsOnly() { return this.cfg.engineRetired === true && !!this.isolationBackend; }
+  /** A partition capability: the node's own plan allows it (PARTITION_OFFERS) AND the manager's /health supports it. */
+  partitionOffers(plan, supports = plan) {
+    return PARTITION_OFFERS[plan] === true && !!this.managerSupports && this.managerSupports[supports] === true;
+  }
   features() {
+    // THE ISOLATED BACKEND offers what a partition can be given (enclave-87, from d1's live node at 013deb51, which
+    // advertised secrets, secretsInConfig, configOverride and customDomains as true while its plan refuses every one).
+    // Each is the node's plan AND the manager's word; today every one is false, and the claim gate refuses such a
+    // deployment by name instead of claiming it.
+    if (this.partitionsOnly()) {
+      const config = this.partitionOffers("config"), configCid = this.partitionOffers("configCid");
+      return {
+        configOverride: config, gpuOptional: this.partitionOffers("gpu"), cpuFallback: true,
+        networkOptions: this.partitionOffers("egress"), rateCap: true, proofOfTime: true,
+        waf: this.partitionOffers("waf"),
+        secrets: this.partitionOffers("secrets") && !!this.cfg.secretsSign,
+        secretsInConfig: this.partitionOffers("secrets") && config && !!this.cfg.secretsSign,
+        configCid, configCidOverride: configCid, configEdit: config,
+        shareResize: true,
+        customDomains: this.partitionOffers("customDomains"),
+        devDeploy: this.partitionOffers("privateDeployments") && !!this.cfg.sessionKid,
+        mem64: false, set: false, p3: false, coopThreads: false,
+        volumes: [],
+      };
+    }
     return {
       // What it does implement.
       configOverride: true,   // the envelope's `config` namespace: the deployment's app-config replaces the version's (appConfig() below)
