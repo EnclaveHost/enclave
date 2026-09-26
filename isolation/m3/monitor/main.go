@@ -235,6 +235,19 @@ func main() {
 		_ = syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
 		os.Exit(1)
 	}
+	// ...and no user namespaces and no io_uring, kernel-wide (holdSysctl; enclave-87, from enclave-bf's review of the SNP
+	// guest's dominit): the runtime's seccomp filter refuses both too, and these hold for anything else in the guest.
+	for _, h := range kernelHolds {
+		line, held := holdSysctl(h.name, h.path, h.want, h.atLeast, h.refused, os.WriteFile)
+		fmt.Printf("MON %s\n", line)
+		if !held {
+			m.noDomains = line
+			fmt.Printf("MON ERROR refusing to start: %s\n", line)
+			syscall.Sync()
+			_ = syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
+			os.Exit(1)
+		}
+	}
 	// "ready" must mean the control channel can exist. AF_VSOCK accepts a listen with NO transport registered, so a
 	// guest whose kernel carries only another hypervisor's transport used to print ready and then never answer a
 	// load (enclave-d1, the first UEFI boot on the NucBox). Name the transport that can carry the channel, or stop.
@@ -1324,6 +1337,53 @@ func openNullDeviceAt(path string) (*os.File, error) {
 // Linux's encoding of a device number (glibc gnu_dev_major/minor), without a dependency on x/sys/unix.
 func unixMajor(dev uint64) uint32 { return uint32((dev>>8)&0xfff) | uint32((dev>>32)&^0xfff) }
 func unixMinor(dev uint64) uint32 { return uint32(dev&0xff) | uint32((dev>>12)&^0xff) }
+
+// kernelHolds: the kernel settings beside Yama that the monitor starts only with. Nothing in the guest needs either:
+//   - user.max_user_namespaces caps USER namespaces only. The monitor clones each domain with new mount, pid, net, ipc and
+//     uts namespaces as root, never a user namespace, so the cap of 0 does not touch it;
+//   - io_uring: the Go monitor and front poll with epoll, and wasmtime runs on tokio/mio, also epoll.
+var kernelHolds = []struct {
+	name, path string
+	want       int
+	atLeast    bool
+	refused    string
+}{
+	{"user.max_user_namespaces", "/proc/sys/user/max_user_namespaces", 0, false, "domains refused (a runtime could create a user namespace)"},
+	{"kernel.io_uring_disabled", "/proc/sys/kernel/io_uring_disabled", 2, true, "domains refused (a runtime could use io_uring)"},
+}
+
+// holdSysctl sets the sysctl at path to want - at least it (atLeast) or at most it - never moving a value already on the
+// right side, and READS IT BACK. -> (the MON line, ok): ok is false, and the line ends in `refused`, when the sysctl is
+// absent, unparsable, the write is refused, or the read-back is on the wrong side or unreadable. write is passed in so a
+// test can make one that "succeeds" and changes nothing. The same rule as raisePtraceScope, and as the SNP guest's
+// m2/dominit.c sysctl_hold.
+func holdSysctl(name, path string, want int, atLeast bool, refused string, write func(string, []byte, os.FileMode) error) (string, bool) {
+	right := func(v int) bool { return (atLeast && v >= want) || (!atLeast && v <= want) }
+	side := map[bool]string{true: ">=", false: "<="}[atLeast]
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("%s absent: %s (%s: %v)", name, refused, path, err), false
+	}
+	was, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil {
+		return fmt.Sprintf("%s unparsable (%q): %s", name, strings.TrimSpace(string(raw)), refused), false
+	}
+	if right(was) {
+		return fmt.Sprintf("%s=%d (already %s %d)", name, was, side, want), true
+	}
+	if err := write(path, []byte(strconv.Itoa(want)+"\n"), 0); err != nil {
+		return fmt.Sprintf("%s=%d, NOT set to %d (%v): %s", name, was, want, err, refused), false
+	}
+	raw, err = os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("%s=%d -> unreadable (%v): %s", name, was, err, refused), false
+	}
+	now, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || !right(now) {
+		return fmt.Sprintf("%s=%d -> %q, not the %d asked: %s", name, was, strings.TrimSpace(string(raw)), want, refused), false
+	}
+	return fmt.Sprintf("%s=%d -> %d", name, was, now), true
+}
 
 // yamaRefused ends every line on which the monitor refuses all domains for want of Yama.
 const yamaRefused = "domains refused (a same-uid runtime could attach to the front)"

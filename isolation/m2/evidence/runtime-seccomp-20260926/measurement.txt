@@ -1,0 +1,30 @@
+2026-09-26T03:14:19Z
+== SERVE (wasi:http, ~/.cache/enclave-isolation/m2-regress/app-A.wasm)
+listening
+pid 1140093 Seccomp:2 threads=65
+GET / -> 200
+GET / -> 200
+GET / -> 200
+alive after 3 requests (Seccomp:2, threads=65)
+== RUN (wasi:cli socket server, sentinel)
+listening
+pid 1140177 Seccomp:2 threads=65
+GET /r1 -> 200
+GET /r2 -> 200
+GET /r3 -> 200
+alive after 3 requests (Seccomp:2, threads=65)
+== CONTROL: the same launcher, a program that tries AF_VSOCK
+AF_VSOCK refused: 1 Operation not permitted
+--- serve.out
+Serving HTTP on http://127.0.0.1:8080/
+--- run.out (the sentinel's own lines)
+SNTLa67d9469ffe1-STDOUT-START
+SNTLa67d9469ffe1-STDERR-START
+SNTLa67d9469ffe1-STDOUT-REQ /
+SNTLa67d9469ffe1-STDERR-REQ /
+SNTLa67d9469ffe1-STDOUT-REQ /r1
+SNTLa67d9469ffe1-STDERR-REQ /r1
+SNTLa67d9469ffe1-STDOUT-REQ /r2
+SNTLa67d9469ffe1-STDERR-REQ /r2
+SNTLa67d9469ffe1-STDOUT-REQ /r3
+SNTLa67d9469ffe1-STDERR-REQ /r3

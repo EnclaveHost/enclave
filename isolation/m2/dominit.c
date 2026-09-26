@@ -45,6 +45,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "app-seccomp.h"   /* the app runtime's seccomp filter, shared with m3/domexec.c */
+
 /* The app's own uid and gid: nobody else in the guest has them (the front and init are root). The image's files are
  * 0644/0755 root (m4/pack-initrd.sh), so the app can read /app.wasm and run /rt, and nothing else is its own but /data
  * and what it makes in /tmp. */
@@ -255,13 +257,19 @@ static void lo_up(void) {
     close(s);
 }
 
-/* extra: one more environment entry or NULL; fd3: a descriptor the child gets as fd 3, or -1; quiet: the child's
- * stdin, stdout and stderr are /dev/null (tenant code: nothing it prints reaches the host's serial file). A quiet
- * child keeps a close-on-exec copy of the console only to report its OWN exec failure, and one that cannot open
- * /dev/null exits 126 rather than run with the console. drop: the child becomes APP_UID (drop_to_app) and checks it
- * can reach nothing it must not (app_reaches) before it runs anything; either failing exits 125, so the app never
- * starts privileged, and the domain powers off as for any app exit. */
-static pid_t spawn(char *const argv[], char *extra, int fd3, int quiet, int drop) {
+/* extra: one more environment entry or NULL; fd3: a descriptor the child gets as fd 3, or -1. flags:
+ *   SPAWN_QUIET  the child's stdin, stdout and stderr are /dev/null (tenant code: nothing it prints reaches the host's
+ *                serial file). A quiet child keeps a close-on-exec copy of the console only to report its OWN exec
+ *                failure, and one that cannot open /dev/null exits 126 rather than run with the console;
+ *   SPAWN_DROP   the child becomes APP_UID (drop_to_app) and checks it can reach nothing it must not (app_reaches);
+ *   SPAWN_FILTER the child installs app-seccomp.h's filter last, right before exec (it needs the drop's no_new_privs).
+ * A drop, reach or filter failure exits 125, so the app never starts privileged or unfiltered, and the domain powers
+ * off as for any app exit. The app gets all three; the front none. */
+#define SPAWN_QUIET 1
+#define SPAWN_DROP 2
+#define SPAWN_FILTER 4
+static pid_t spawn(char *const argv[], char *extra, int fd3, int flags) {
+    const int quiet = flags & SPAWN_QUIET, drop = flags & SPAWN_DROP;
     pid_t pid = fork();
     if (pid == 0) {
         if (fd3 == 3) fcntl(3, F_SETFD, 0);                      /* already fd 3: only drop CLOEXEC */
@@ -284,6 +292,10 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int quiet, int drop
                 if (con >= 0) dprintf(con, "DOM ERROR the app could still open %s after its privilege drop: not started\n", reach);
                 _exit(125);
             }
+        }
+        if ((flags & SPAWN_FILTER) && app_seccomp_install() != 0) {
+            if (con >= 0) dprintf(con, "DOM ERROR the app's seccomp filter could not be installed (%s): not started\n", strerror(errno));
+            _exit(125);
         }
         char *envp[] = {"HOME=/tmp", "PATH=/rt", extra, NULL};
         execve(argv[0], argv, envp);
@@ -446,7 +458,7 @@ int main(void) {
     }
     char *front[] = {"/front", "-port", "443", "-upstream", upstream, snp ? "-snp=true" : "-snp=false",
                      "-init-fd", "3", NULL};
-    pid_t front_pid = spawn(front, NULL, pfd[1], 0, 0);      /* the front stays root: it holds the key and the release */
+    pid_t front_pid = spawn(front, NULL, pfd[1], 0);         /* the front stays root and unfiltered: it holds the key, the release and the vsock */
     front_pid_g = front_pid;                                   /* what the app's child checks it cannot open */
     close(pfd[1]);
     char *cfg_env = NULL;
@@ -474,7 +486,7 @@ int main(void) {
         app[k++] = base[i];
     }
     app[k] = NULL;
-    pid_t app_pid = spawn(app, cfg_env, -1, 1, 1);           /* quiet, and dropped to APP_UID */
+    pid_t app_pid = spawn(app, cfg_env, -1, SPAWN_QUIET | SPAWN_DROP | SPAWN_FILTER);   /* quiet, dropped to APP_UID, filtered */
     if (cfg_env) {
         explicit_bzero(cfg_env, sizeof "ENCLAVE_CONFIG=" + cfg_len);
         free(cfg_env);
