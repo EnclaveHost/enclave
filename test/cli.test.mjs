@@ -570,6 +570,17 @@ test("fund: tops up an existing deployment with USDC", async () => {
   assert.match(r.out, /balance \$2\.00/);                   // stub balance readback
 });
 
+test("fund: an INACTIVE record is refused before any transaction, and resume is named as the way back", async () => {
+  S.txs.length = 0; S.active = false;
+  try {
+    const r = await run(["fund", ID, "--usdc", "5"]);
+    assert.notEqual(r.code, 0, "the command fails");
+    assert.match(r.err + r.out, /is inactive \(stopped or cancelled\), and the ledger funds only an active record/);
+    assert.ok((r.err + r.out).includes("`enclave resume " + ID.slice(0, 10) + "…` first"), r.err + r.out);
+    assert.equal(S.txs.length, 0, "no transaction is sent");
+  } finally { S.active = true; }
+});
+
 test("stop: setActive(false) on-chain, then DELETE", async () => {
   S.txs.length = 0;
   const r = await run(["stop", ID]);
