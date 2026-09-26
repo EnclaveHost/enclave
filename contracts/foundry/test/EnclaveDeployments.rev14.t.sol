@@ -274,6 +274,33 @@ contract EnclaveDeploymentsRev14Test is Test {
         assertEq(_escrow(id), escBefore, "nothing escrowed during the live free lease");
     }
 
+    /// enclave-bf's required test: the LIVE-lease path, which rev 14 rewrote as ceil(value x (rate6 x 10000) / (rate x
+    /// 10000)), must still escrow exactly rev 13's ceil(value x rate6 / rate) for a top-up during a paid lease, the most
+    /// common funding in production. Exact escrow, ownerEscrow6, the publisher's cut and payout's share, with a fee.
+    function test_topUpDuringALivePaidLease_escrowsExactlyTheLeasesShare() public {
+        bytes32 id = _create(tenant, 1000, publisher, 100);
+        _fund(tenant, id, 10e6);
+        _claim(otherOp, id, otherBox);                            // paid, at the list price plus the fee
+        uint256 rate = dep.get(id).rate;
+        uint256 r6 = _rate6(id);
+        assertEq(rate, _hostRate(1000, CPU_PRICE) + 100);
+        assertEq(r6, ((rate - 100) * dep.runnerBps()) / 10000);
+        uint256 esc0 = _escrow(id);
+        uint256 own0 = dep.ownerEscrow6(id);
+        uint256 pub0 = usdc.balanceOf(publisher);
+        uint256 pay0 = usdc.balanceOf(payout);
+        uint256 v = 1e6;
+        _fund(tenant, id, v);
+        uint256 esc = (v * r6 + rate - 1) / rate;                // rev 13's rule, unchanged for a live lease
+        uint256 cut = (v * 100) / rate;
+        assertEq(_escrow(id) - esc0, esc, "exactly the lease's share");
+        assertEq(dep.ownerEscrow6(id) - own0, esc, "the owner's own money: refundable");
+        assertEq(usdc.balanceOf(publisher) - pub0, cut, "the publisher's cut at the lease's rate");
+        assertEq(usdc.balanceOf(payout) - pay0, v - cut - esc, "the platform remainder");
+        // and the fee-free figure bf quotes: 1e6 at rate 834, rate6 667 escrows 799761
+        assertEq((uint256(1e6) * 667 + 833) / 834, 799761);
+    }
+
     /// The residual rev 14 does NOT close, stated as a test: a funding during a LIVE near-free lease splits at that
     /// lease's rate (runner share 0), and a later paid runner serves those seconds unbacked, as before.
     function test_fundDuringALiveNearFreeLease_isTheResidual() public {
