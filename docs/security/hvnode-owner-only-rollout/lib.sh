@@ -7,7 +7,7 @@ NR="ssh -i $HOME/.ssh/nan-ci-deploy -o IdentitiesOnly=yes -o BatchMode=yes -o Co
 US="ssh -o BatchMode=yes -o ConnectTimeout=15 us-west"                                                              # us-west (Steven's unlocked key)
 # BASE = B's base = the parent of B's two commits; b-1-push.sh requires it to BE main at push time (b-recut.sh re-cuts
 # onto a moved main: B's files must stay byte-identical to the reviewed ones, so no re-review is needed)
-BC=e4d9098dab052eced67e8f69b5305bb4e71f81aa   # B's head after the re-cut (fc44db2f + af9a7175 content, bf GO); b-recut.sh updates this line
+BC=4d805c1e37268aeab999133345b4dec19aa3f4ed   # B's head after the re-cut (fc44db2f + af9a7175 content, bf GO); b-recut.sh updates this line
 BASE=$(git -C $MAIN rev-parse "$BC~2" 2>/dev/null || echo unknown)
 # every relay file B deploys, as B has it (sha256): nan (api relay) gets all; nan-relay relay.js/fleet.mjs/dns-relay.js; us-west relay.js/fleet.mjs
 declare -A SHA=(
@@ -20,6 +20,10 @@ declare -A SHA=(
   [relay.js]=68cd3b938f374a65a6014c51ea9c6b99237cec394f360ece4a0142ef5bced973
   [dns-relay.js]=3360ae772787015bdf38eac57984af62b2df085b64f194b79a45a73eef594cbd
 )
+# the RELAY CONTEXT B was reviewed in (enclave-bf): main at the review. A main that has since changed ANY relay/ file (e.g.
+# secrets-release.mjs beside B), or anything under site/ or scripts/, is a new context: refused until re-reviewed, never re-cut silently
+REVIEW_BASE=68e96b115
+context_moved() { git -C "$1" diff --name-only $REVIEW_BASE origin/main -- relay/ site/ scripts/; }   # 87: relay/, site/, scripts/ (all the deploy ships)
 # EVERY file B changes, with its reviewed sha256 (the exact list: a re-cut or a push that differs in any file is refused)
 declare -A BFILE=(
   [relay/api-relay.js]=d40442cc3c32c72cbe3b64096384b1dfa0e2fc3b0a1e5a3c64b920ad3c5769fd

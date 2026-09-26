@@ -6,6 +6,7 @@ set -euo pipefail; source "$(dirname "$0")/lib.sh"
 WT=${1:?usage: b-recut.sh <B worktree>}
 git -C "$WT" fetch -q origin
 [ "$(git -C "$WT" rev-parse HEAD)" = "$BC" ] || { say "REFUSING: the worktree is not at lib.sh's BC"; exit 2; }
+m=$(context_moved "$WT"); [ -z "$m" ] || { say "REFUSING: main changed B's relay context since the review ($REVIEW_BASE): $(echo $m): re-review"; exit 4; }
 git -C "$WT" rebase -q origin/main
 new=$(git -C "$WT" rev-parse HEAD)
 [ "$(git -C "$WT" diff --name-only HEAD~2 HEAD | sort)" = "$(printf '%s\n' "${!BFILE[@]}" | sort)" ] || { say "REFUSING: the re-cut changed B's file list"; git -C "$WT" reset -q --hard "$BC"; exit 3; }
