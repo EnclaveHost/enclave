@@ -151,9 +151,21 @@ if ($NodeOnly) {
   if (-not $gone) { Die 'the node loop or agent is still running after 60 s: run-node.cmd was NOT rewritten; start \EnclaveHvNode again (Start-ScheduledTask) to resume the old tree' }
   $mgrTask = Get-ScheduledTask -TaskName 'EnclaveHvManager' -TaskPath '\'
   if ($mgrTask.State -ne 'Running') { Write-Output 'WARNING: the manager task is no longer Running (it was not touched): tell d1' }
-  # only now (no cmd.exe reads it) run-node.cmd names the new tree; the old one is kept beside it
-  Copy-Item -LiteralPath $runNodeCmd -Destination "$runNodeCmd.bak-$old8" -Force
-  Set-Content -Path $runNodeCmd -Value $newRun -Encoding ASCII
+  # only now (no cmd.exe reads it) run-node.cmd names the new tree; the old one is kept beside it. The node is DOWN
+  # from here until the start below, so a rewrite that throws puts the previous run-node.cmd back and restarts the node
+  # on its OLD tree before refusing (enclave-d1's review of 6f737a0e): a failure never leaves the node stopped.
+  $bak = "$runNodeCmd.bak-$old8"
+  try {
+    Copy-Item -LiteralPath $runNodeCmd -Destination $bak -Force -ErrorAction Stop
+    Set-Content -Path $runNodeCmd -Value $newRun -Encoding ASCII -ErrorAction Stop
+  } catch {
+    $why = $_.Exception.Message
+    if ((Test-Path -LiteralPath $bak) -and ((Sha256Of $bak) -ne (Sha256Of $runNodeCmd))) {
+      try { Copy-Item -LiteralPath $bak -Destination $runNodeCmd -Force -ErrorAction Stop } catch { Write-Output "WARNING: run-node.cmd could not be restored from $bak ($($_.Exception.Message)): restore it by hand" }
+    }
+    Start-ScheduledTask -TaskName 'EnclaveHvNode' -TaskPath '\' -ErrorAction SilentlyContinue
+    Die "rewriting run-node.cmd failed ($why): the previous run-node.cmd is back and \EnclaveHvNode was restarted on the old tree ($oldNodeDir)"
+  }
   Note ("run-node.cmd sha256 {0} (names {1}; the previous one kept as run-node.cmd.bak-{2})" -f (Sha256Of $runNodeCmd), $newNodeDir, $old8)
   Start-ScheduledTask -TaskName 'EnclaveHvNode' -TaskPath '\'
   $up = $false; $newLike = "*$newNodeDir\agent.mjs*"
