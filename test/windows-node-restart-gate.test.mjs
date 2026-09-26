@@ -85,3 +85,77 @@ test("owner-only with no owner declared refuses everything, and a malformed id o
   assert.match(k.restartRefusal("0x1234", dep(k)), /bytes32/);
   assert.match(k.restartRefusal(ID, null), /no such deployment/);
 });
+
+// ---- WHO may ask (enclave-5d's review of N1): the owner's session on THIS box, before anything else ----------------
+const { initSessionKey, mint, addressFor } = await import("../windows/node/session.mjs");
+const sessionBox = () => {
+  const h = hvBox();
+  const key = initSessionKey({ dir: h.cfg.dir });
+  h.cfg.sessionVerify = (headers, id) => addressFor(key, headers, id);
+  const bearer = (addr) => ({ authorization: `Bearer ${mint(key, { subject: addr, ttlSec: 600 })}` });
+  return { h, bearer };
+};
+
+test("restartRequest: no session is 401, before the ledger is read and before ensureApp", async () => {
+  const { h } = sessionBox();
+  const calls = spy(h);
+  let reads = 0;
+  const r = await h.restartRequest(ID, {}, { read: async () => { reads++; return dep(h); } });
+  assert.equal(r.status, 401, JSON.stringify(r));
+  assert.equal(reads, 0);
+  assert.equal(calls.length, 0);
+  // and with no verifier at all it fails closed the same way
+  const k = hvBox();
+  const n = await k.restartRequest(ID, { authorization: "Bearer x" }, { read: async () => dep(k) });
+  assert.equal(n.status, 401);
+});
+
+test("restartRequest: a valid session for ANOTHER address is 404 (as on Linux), and nothing restarts", async () => {
+  const { h, bearer } = sessionBox();
+  const calls = spy(h);
+  const r = await h.restartRequest(ID, bearer(STRANGER), { read: async () => dep(h) });
+  assert.equal(r.status, 404, JSON.stringify(r));
+  assert.equal(calls.length, 0);
+});
+
+test("restartRequest: the owner's session on this box's live lease restarts with force; no lease here stays 409", async () => {
+  const { h, bearer } = sessionBox();
+  const calls = spy(h);
+  const ok = await h.restartRequest(ID, bearer(OWNER), { read: async () => dep(h) });
+  assert.equal(ok.status, 200, JSON.stringify(ok));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].opts.force, true);
+  const no = await h.restartRequest(ID, bearer(OWNER), { read: async () => dep(h, { runner: OTHER_ENCLAVE }) });
+  assert.equal(no.status, 409);
+  assert.equal(no.body.error, "refused");
+  assert.match(no.body.reason, /does not hold a live lease/);
+  assert.equal(calls.length, 1);
+});
+
+test("the agent's own route answers 401 without the owner's session (it is wired to restartRequest)", { timeout: 60_000 }, async () => {
+  const { spawn } = await import("node:child_process");
+  const net = await import("node:net");
+  const { once } = await import("node:events");
+  const srv = net.createServer(); srv.listen(0, "127.0.0.1"); await once(srv, "listening");
+  const port = srv.address().port; srv.close();
+  const nodeDir = fs.mkdtempSync(path.join(os.tmpdir(), "ee-restart-agent-"));
+  const agent = path.join(path.dirname(new URL(import.meta.url).pathname), "../windows/node/agent.mjs");
+  // BASE_RPCS is the fake RPC (fakeBaseRpc set it above), so the agent's chain reads never leave this machine
+  const child = spawn(process.execPath, [agent], { env: { ...process.env, NODE_DIR: nodeDir, NODE_NAME: "restart-test",
+    RELAY_URL: "none", APPS: "1", LOCAL_HTTP_PORT: String(port), TPMATTEST_EXE: path.join(nodeDir, "no-tpm-tool"),
+    ENCLAVE_ENGINE: "", OWNER_WALLET: OWNER }, stdio: ["ignore", "pipe", "pipe"] });
+  let out = ""; child.stdout.on("data", (d) => { out += d; }); child.stderr.on("data", (d) => { out += d; });
+  try {
+    let up = false;
+    for (let i = 0; i < 100 && !up; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      up = await fetch(`http://127.0.0.1:${port}/v1/health`).then((r) => r.ok).catch(() => false);
+    }
+    assert.ok(up, `the agent did not come up: ${out}`);
+    const url = `http://127.0.0.1:${port}/v1/deployments/${ID}/restart`;
+    const none = await fetch(url, { method: "POST" });
+    assert.equal(none.status, 401, await none.text());
+    const forged = await fetch(url, { method: "POST", headers: { authorization: "Bearer not-a-token" } });
+    assert.equal(forged.status, 401);
+  } finally { child.kill(); fs.rmSync(nodeDir, { recursive: true, force: true }); }
+});

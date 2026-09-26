@@ -483,12 +483,11 @@ async function handle(frame) {
     return app ? json(200, { id, lines: app.logs(200) }) : json(404, { error: 'not_found', id });
   }
   if (APPS && method === 'POST' && /^\/v1\/deployments\/0x[0-9a-fA-F]{64}\/restart$/.test(p)) {
-    const id = p.split('/')[3].toLowerCase();
-    let d; try { d = await (await import('./chain.mjs')).readDeployment(id); } catch (e) { return json(502, { error: 'chain', message: e.message }); }
-    // host.restart refuses unless this box holds the live lease (and, owner-only, it is the owner's): this route used
-    // to run ANY ledger deployment here (enclave-b4's N1).
-    const r = await host.restart(id, d);
-    return r.refused ? json(409, { error: 'refused', id, reason: r.reason }) : json(200, r);
+    // host.restartRequest: the OWNER's session on this box (401 without one, 404 for anyone else), then this box's live
+    // lease and the owner rule (409). This route used to run ANY ledger deployment here, for anyone (enclave-b4's N1;
+    // the caller check is enclave-5d's review of it).
+    const r = await host.restartRequest(p.split('/')[3], frame.headers);
+    return json(r.status, r.body);
   }
   // The platform's own "come and claim this" nudge (the relay sends it after funding, the console
   // when a row reads queued). The policy in chain.mjs decides; a refusal names its reason.
