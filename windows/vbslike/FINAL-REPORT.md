@@ -34,8 +34,8 @@ honestly as **T0-hv, host not excluded**. It is working serving, not proven isol
 | The tray app | PASS: moving the CPU slider to 20% reached the node, and back to 100% (E8) | `evidence/done-audit-5d` `ebef33d1` (SHA256SUMS `9d6738a6…`) | enclave-b4's box read at 07:37Z (`done-audit-b4/tray-pre.txt`) covers the tray being installed and running on the current node (the exe, its logon entry, the caps, its access to the node's token), not the slider-to-node path, which rests on E8 alone |
 | The 12-hour soak (04:01Z → 16:01Z): test 1 sampled from outside every 5 min. The node was replaced twice in the window (so `f1461271` carries about 9 h 57 min of it), and the 5-min samples cannot see the ~10 s re-attach gaps (15 attaches) or the two ~37 s node restarts | ⟨E13⟩ | ws `~/enclave-bench/nucbox-soak/` (`summary-final.txt`) | ⟨E13⟩ |
 | The reboot: the box restarts and test 1 comes back by itself, on a new key, with a new certificate, and the tray's program and settings intact (it runs again at srbat's next logon) | ⟨E14⟩ | ws `~/enclave-bench/reboot-v42-<stamp>/` (SHA256SUMS ⟨E14⟩); the procedure `windows/reboot-go-sheet` `f2862f91` (enclave-bf GO) | ⟨E14⟩ |
-| v43 (the front on its own user, the runtime's W^X measured at every attestation) | dev boot PASS (E20); ⟨v43: the manager-path canary and the install⟩ | branch `evidence/nucbox-devboot-49500527` `fecc47ae` | enclave-53's check (E20); ⟨v43⟩ |
-| v44, the follow-on (v43 plus a seccomp filter on the app runtime, stated in each attestation) | dev boot PASS (E22); not installed, its canary follows v43's | branch `evidence/nucbox-devboot-afa9633c` `626a924f` | — |
+| v43 (the front on its own user, the runtime's W^X measured at every attestation, a seccomp filter on the app runtime) | dev boot PASS (E20); ⟨v43: the manager-path canary and the install⟩ | branch `evidence/nucbox-devboot-49500527` `fecc47ae` | enclave-53's check (E20); ⟨v43⟩ |
+| v44, the follow-on (v43 plus the runtime's seccomp filter stated in each attestation, `d4d17c9f…`, 71 rules) | dev boot PASS (E22); not installed, its canary follows v43's | branch `evidence/nucbox-devboot-afa9633c` `626a924f` | — |
 
 ## What is NOT claimed
 - **Isolation from the NucBox's host.** The boundary is T0-hv with the host NOT excluded. The partition's report is
@@ -51,7 +51,8 @@ honestly as **T0-hv, host not excluded**. It is working serving, not proven isol
 - **Reaching the app by its public name.** Today it is reachable only through nan's owner-only splice
   (`api.enclave.host/t/nucbox-k11/x/…`). The public hostname needs B on us-west (step 1b), which waits for you.
 - **That an app cannot reach the launcher's report signer.** On v42 a domain can plausibly dial it (U5; its fix P1 is
-  paused). The runtime seccomp filter that refuses those connections is v44's, not installed.
+  paused). The app runtime's seccomp filter, which refuses those connections, is in v43's image (E20: every filtered
+  vsock connection refused), not yet installed.
 - **The relay's refusal of secrets to this box** is proven by tests only; no live request has exercised it.
 - **On v42, that the runtime's W^X is measured, and that only the front can have its key attested.** Both are fixed in
   v43 (not yet installed): today the check is a snapshot taken before the app compiles, and a runtime that had already
