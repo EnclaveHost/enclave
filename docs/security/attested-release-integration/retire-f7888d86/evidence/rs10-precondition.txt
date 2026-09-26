@@ -1,0 +1,9 @@
+ok   scope: 3 deployment(s) leased on metal-iso0, every one release-listed (each chip-verified below)
+ok   0ddbd824: leased; AMD-verified report of the serving guest (fresh nonce, TLS key bound), measurement 6716ef1462e1 = 5db18199's
+ok   395bed3e: leased; AMD-verified report of the serving guest (fresh nonce, TLS key bound), measurement be2bb73c799f = 5db18199's
+ok   4e62e60d: leased; AMD-verified report of the serving guest (fresh nonce, TLS key bound), measurement be2bb73c799f = 5db18199's
+--   a69dcbba: no live lease (runs nowhere): not checked
+--   d9798e4c: no live lease (runs nowhere): not checked
+--   a77d0c57: no live lease (runs nowhere): not checked
+--   7ae476a3: no live lease (runs nowhere): not checked
+EVERY leased listed deployment chip-verified on 5db18199 (the 3 canaries among them)

@@ -1,0 +1,22 @@
+start 06:40:35Z
+06:40:59Z step 2: pushing 3212f1470fc6 to main (fast-forward from f146127176f7): the pre-warm pacing
+To https://github.com/EnclaveHost/enclave.git
+   f14612717..3212f1470  3212f1470fc6426c25386e77709667421d307a87 -> main
+06:41:08Z step 2: Deploy run 36224493517
+06:43:03Z step 2: jobs: contracts-notice=skipped contracts=skipped detect=success relay=success release=skipped site=skipped
+06:43:03Z step 2 pushed and deployed (run 36224493517); next: pace-accept.sh
+push rc=0 at 06:43:03Z
+06:43:21Z predictor probe: predicting (200)
+06:44:24Z pre-warm: [secrets-release] pre-warm: 14 prediction(s) ready for 7 listed deployment(s) in 61271 ms
+api relay: invocation 873a5cdc191c since Sat 2026-09-26 06:42:53 UTC, NRestarts 0; KAT: [measurement-predict] known-answer test at start: PASS: 2 known answer(s) reproduced exactly
+settle: us-west + metal-iso0 re-attached in this invocation after 0 s of waiting
+canary 0ddbd824: 200/0 spki 1868e492f607814d (guest-boot-key)
+canary 395bed3e: 200/0 spki afedf53d9b8f6832 (guest-boot-key)
+canary 4e62e60d: 200/0 spki 39223442761055ff (guest-boot-key)
+us-west: [('us-west', '5.78.85.108', None)] | relays 1 labels 64
+release (cert set separate): each canary's expected guest = EXACTLY [5db18199 ] admitted at their pins; release ON; 404/422
+HEALTHY 06:44:45Z
+06:44:45Z PACING ACCEPTED
+accept rc=0 at 06:44:45Z
+
+[exited with code 0]
