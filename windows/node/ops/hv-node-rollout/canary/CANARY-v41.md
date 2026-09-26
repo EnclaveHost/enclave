@@ -23,13 +23,19 @@ The sentinel app, staged on the workstation (copy it to the box's lab directory)
   - on `GET /panic…` it panics with `SNTLa67d9469ffe1-PANIC <path>` (the runtime prints the panic and the trap on stderr).
   Every request is answered `200 ok` (Content-Length 2, Connection: close).
 
-## 0. The rebuilt candidate (isolation/front-console-guard d9176ed5: 683798d0 + 139c3fdd + d9176ed5)
+## 0. The rebuilt candidate (isolation/front-console-guard: 683798d0 + 139c3fdd + d9176ed5 + 298924ae, or the head enclave-87 names)
 The failure of 252602c8 (every domain: `DOM1 ERROR runtime exited status=126`, the chroot had no /dev) is fixed by the
 monitor handing the null device to domexec on fd 3. The front is also hardened. On EVERY load, the console must show:
-- `MON yama …`, once at boot, right after `MON boundary`: which case the NucBox kernel is in (`yama ptrace_scope=N -> 2`,
-  `(already >= 2)`, or `yama absent …`). RECORD it; an absent Yama is stated, not a failure;
-- `DOM front: not dumpable`, from each domain's front, before `DOM serving`;
-- NEVER `DOM front: traced at start (pid N): refusing`, `… ERROR the monitor handed no null device …`, or
+- `MON yama ptrace_scope=1 -> 2` (or `MON yama ptrace_scope=N (already >= 2)`), exactly once at boot, right after
+  `MON boundary` and before `MON ready` and the first domain's DOM lines. Anything else is a FAILURE (enclave-bf): no
+  `MON yama` line, `yama absent`, `unparsable`, `NOT raised`, `-> unreadable`, `not the 2 asked`, or
+  `MON ERROR refusing to start`. The NucBox's kernel has Yama built in and active: guest/wsl-kernel 7fe3edb5…,
+  CONFIG_SECURITY_YAMA=y, `yama` in CONFIG_LSM, and no `lsm=`/`security=` on any profile's command line (enclave-d1 from
+  the package's kernel, enclave-bf from the UKIs' .linux and .cmdline, 2026-09-26). Its default is 1, so `1 -> 2` is
+  the expected line. From 298924ae a refused raise powers the guest off before `ready`, so the start fails closed; that
+  is still a canary failure;
+- `DOM front: not dumpable; none of its N threads traced`, from each domain's front, before `DOM serving`;
+- NEVER `DOM front: traced at start (thread N, tracer N): refusing`, `… ERROR the monitor handed no null device …`, or
   `DOM<n> ERROR runtime exited status=126`.
 
 ## 1. domexec's app-stdio discard (the tenant runtime gets /dev/null)
