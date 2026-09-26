@@ -92,9 +92,16 @@ once, on the production node.
 4. **The soak has ended** (16:01Z), and no other prober or lab is running on the box.
 5. **`delegations\` holds no `*.json`.** `removed\` holds TEST2's two files. `/availability` `owners` = [0x389c…].
 6. **Balances, read:**
-   - the agent wallet has ≥ 0.00005 ETH and ≥ 0.01 USDC;
+   - the agent wallet has ≥ 0.00005 ETH (two transactions; this test spends NO USDC);
    - the operator has ≥ 0.0005 ETH (R3).
 7. **`CLI status 0x958ae6e9…`** reads `active=false`, balance 0. Save it as `$E/id2-status-before.txt`.
+8. **ID2 is FREE on this box, read on chain** (enclave-d1's check; ledger `0xF9e71385…`), with `cast call`:
+   - `earnOf(ID2)`: `runnerRate6` = 0;
+   - `rateFor(ID2, 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b)` (nucbox-k11) = 0.
+   The payout wallet is the owner, so this is the rev-12 free self-host. `claimableBy` is `balance6 >= rateFor`, so ID2
+   is claimable at balance 0 once it is active, and step 3 needs NO funding. **If rateFor > 0, STOP and re-plan.** A fund
+   under `runnerRate6` 0 escrows nothing and forwards the money to the platform's payout wallet: the rev-13 zero-escrow
+   case (docs/billing-runbook.md §3a). So fund only after a paid claim.
 
 ## 0. Baseline (about 2 minutes)
 
@@ -156,12 +163,13 @@ MW zero | tee $E/zero.txt        # exit 0 = refused(503); exit 1 = anything else
 ```
 CLI status 0x958ae6e9…        | tee $E/id2-status-1.txt     # active=false, balance 0
 CLI resume 0x958ae6e9… --yes  | tee $E/id2-resume.txt       # setActive(true); a claim hint
-CLI fund 0x958ae6e9… --usdc 0.01 --yes | tee $E/id2-fund.txt
-CLI status 0x958ae6e9…        | tee $E/id2-status-2.txt     # active=true, balance $0.01
+CLI status 0x958ae6e9…        | tee $E/id2-status-2.txt     # active=true, balance 0
 ```
-- `fund` needs an ACTIVE record (EnclaveDeployments `_requireActive`): a fund before the resume reverts `inactive`. The
-  refund message's "`enclave fund …` brings it back" is wrong; that is a separate CLI fix.
-- The rate is 0 (the box's payout wallet is the owner), so the cent is fully refundable in step 5.
+- **No `fund`** (enclave-d1, precondition 8). The claim is free at rate 0, so resume alone makes ID2 claimable.
+  - A fund here would forward the money to the platform, not escrow it (the zero-escrow case), and nothing could refund
+    it.
+  - `resume` may print "re-queued, but UNFUNDED …". At rate 0 that is expected: the node's scan takes active rows and asks
+    the ledger's `claimableBy`, which is true at balance 0.
 - Expect, with times:
   - node.log `ledger: considering 0x958ae6e9`, then `claimed 0x958ae6e9 (tx …)`;
   - `0x958ae6e9 isolation spawned: hv… status=running image=0891c740…`;
@@ -171,7 +179,7 @@ CLI status 0x958ae6e9…        | tee $E/id2-status-2.txt     # active=true, bal
   - C1 (INFO): node.log `0x958ae6e9 certificate: 958ae6e9.app.enclave.host installed …`, and `ca:true` on the `id2`
     lines. It took about 2 min on TEST2. Wait at most 10 minutes for it, and record it either way. ID2's name already has
     two certificates today; a third is within LE's limits, and the relay fails over to ZeroSSL.
-- **ABORT (R2)** if there is no `claimed 0x958ae6e9` within 5 minutes of the fund, or its partition is not running within
+- **ABORT (R2)** if there is no `claimed 0x958ae6e9` within 5 minutes of the resume, or its partition is not running within
   5 minutes of the claim.
 - Let `id2` read 200 on K2 for at least 3 consecutive samples (6 s). Then wait until the handover is at least 2 minutes
   old: the node re-attaches at most every 2 minutes, so a REMOVE sooner would be delayed.
@@ -199,9 +207,14 @@ CLI status 0x958ae6e9…        | tee $E/id2-status-2.txt     # active=true, bal
 ## 5. Teardown
 
 ```
-CLI refund 0x958ae6e9… --yes  | tee $E/id2-refund.txt       # returns the cent, cancels the record
+CLI stop 0x958ae6e9… --yes    | tee $E/id2-stop.txt         # setActive(false): "stopped on-chain: … tx … confirmed in block …"
 CLI status 0x958ae6e9…        | tee $E/id2-status-after.txt # active=false, balance 0
 ```
+- **`stop`, not `refund`** (enclave-d1): nothing is escrowed, so `refund` would error "nothing to refund" and NOT cancel.
+  TEST2 needed the same separate stop for 0xca141665 (0xded9430d).
+- After the confirmed on-chain line, `stop` also asks the API to tear the app down. For an owner-only hv-node row the
+  relay may refuse that (E15 item 3: `host_ineligible`). Since main `b3dd35813` the CLI then prints the failure as a
+  WARNING and exits 0: the stop is the on-chain line. The node's own stop below is the teardown.
 - Expect, within about 30 s (the next tick):
   - node.log `stopped 0x958ae6e9: the deployment was stopped on the ledger`;
   - `GET /vms` holds test 1's ONE record, the same id and K1 (`vms-after.json`);
@@ -242,12 +255,12 @@ passes. It judges the relay's and warden-host's view. **The node.log lines above
 - **R1, the ADD misbehaves** (a gap, no `attach ACCEPTED` within 3 minutes, or `REMOVED` / `tunnel closed` / `attach
   REJECTED` after T_add):
   - move the file into `removed\` at once (step 4's move) and record the times;
-  - if ID2 was already resumed or funded, refund it (step 5);
+  - if ID2 was already resumed, stop it (step 5);
   - FAIL, and report to enclave-87.
   If the node does not attach again within 3 minutes of the move, the node rollback (`hvnode-install.ps1 -NodeOnly` back
   to `317b3152`, DEPLOYMENT.md §4) is enclave-87's decision, never taken on the executor's own.
 - **R2, ID2 is not claimed or does not run:**
-  - refund ID2 (step 5): cancelling stops anything the node started, at its next tick;
+  - stop ID2 (step 5): an inactive record stops anything the node started, at its next tick;
   - then REMOVE (step 4);
   - FAIL(A3).
 - **R3, test 1's instance or key changes at ANY point:** STOP and report. This test caused nothing that should do that,
@@ -256,6 +269,6 @@ passes. It judges the relay's and warden-host's view. **The node.log lines above
   decision time, without an attach (E19), and the node ignores the file. So a missed REMOVE cannot leave the owner served
   past the hour.
 - **Money:**
-  - ID2's cent comes back at the refund (rate 0);
-  - gas: the agent wallet sends 3 transactions (resume, fund, refund); the operator sends 1 claim and at most 1 renewal.
+  - USDC spend: 0 (no fund);
+  - gas: the agent wallet sends 2 transactions (resume, stop); the operator sends 1 claim and at most 1 renewal.
   All well under a cent.
