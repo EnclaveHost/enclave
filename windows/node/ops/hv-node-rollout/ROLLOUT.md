@@ -8,6 +8,9 @@ Approved by enclave-87 with Steven's authority (2026-09-26):
 - deploying the new node on the NucBox, the one that doesn't need the legacy engine;
 - `RELAY_HVNODE_ATTACH` on.
 
+**v2.2.1**: R2b's `nosession` is INFO, outside the tally (enclave-87's ruling); `-OwnerRestart` makes a new domain
+key, so A7 and R4 are re-run after it, once (b4).
+
 **v2.2** (on d1's v2.1.1 box-run fixes, bf43e358): P5 pinned to main 013deb51 with the stage's hashes; `-FundExisting`
 (8.1); b4's F1 (A9: N1 checked on the NODE; R2/R2b are relay checks, and R2b's `nosession` is a FAIL), F2/F3 (what a
 removed delegation, a transfer and a lapse do), F4 (A4 fails without `availability.isolation`), F5 (test 2's
@@ -213,7 +216,9 @@ EnclaveHvNode`. The logs are `hvnode\logs\manager.log` and `node.log`.
   - a throwaway wallet's OWN session, minted on the node (`/v1/auth/nonce` + `/v1/auth/login`): **404** (not the
     owner);
   - with `-OwnerRestart` (it really restarts the app, so not read-only): the operator's own session (its key read in the
-    check script from `state\operator.key`, never printed): **200**.
+    check script from `state\operator.key`, never printed): **200**. The restart retires the partition and spawns a new
+    one with a **NEW domain key** (b4): re-run A7 and then R4's key comparison against the new `transportKeySha256`.
+    Run it ONCE, never in a loop (under M4 each restart also costs a certificate issuance).
   The throwaway key lives only in that script. The script is written into the node tree (so `viem` resolves) and
   deleted after.
 - A8 (`-KillRecovery`, not read-only): it kills the agent's node.exe and then the manager's, by exact PID. Each must
@@ -230,7 +235,9 @@ EnclaveHvNode`. The logs are `hvnode\logs\manager.log` and `node.log`.
   - R2b (b4's check with a real STRANGER): a throwaway wallet logs in to the node THROUGH the relay (its own SIWE
     session) and asks to restart the test deployment. It must be refused: 404 (not the owner), or 401 if the relay
     strips the credential. Never 200. **`nosession` is a FAIL** (enclave-87): a check that never reaches the restart
-    proves nothing. If B refuses `/v1/auth` for this box, R2b cannot pass, and A9 is the evidence (87 to rule);
+    proves nothing, so (enclave-87's ruling, v2.2.1) it is **INFO**, not a PASS, and left out of the tally: "the relay
+    refuses /v1/auth for this hv-node box (by design); N1 evidenced by A9". Under B that is what it reads (b4: B
+    default-denies paths that name no deployment). A9 on the box stays the hard N1 check; R2 the relay's;
 - R3: gas ≥ 0.0005 ETH (below it, top up from the operator gas tank), latest nonce = pending.
 - After acceptance, test 1 soaks for **12 h** (the DONE soak, enclave-87), then stops: `enclave refund <id>` by the
   operator on the box, the same way it was created.

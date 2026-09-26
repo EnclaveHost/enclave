@@ -9,8 +9,8 @@ set -uo pipefail
 ID=${1:-}; KEY=${2:-}
 VIEM_DIR=${VIEM_DIR:-$HOME/Projects/enclave}
 OPERATOR=0x389C3f030a209D04D026228D2D053fEB75DbadcA
-fails=0
-check() { if [ "$1" = ok ]; then echo "PASS $2"; else echo "FAIL $2"; fails=$((fails + 1)); fi; }
+fails=0; passes=0; excluded=""
+check() { if [ "$1" = ok ]; then echo "PASS $2"; passes=$((passes + 1)); else echo "FAIL $2"; fails=$((fails + 1)); fi; }
 
 # R1: the relay's row for nucbox-k11
 row=$(curl -sS -m 20 https://api.enclave.host/enclaves | node -e '
@@ -34,8 +34,9 @@ check $c "R2 (relay) POST /t/nucbox-k11/v1/deployments/${rid:0:10}…/restart wi
 # R2b (RELAY; b4's check, with a real STRANGER): a throwaway wallet logs in to the node THROUGH the relay (its own SIWE
 # session) and asks to restart the deployment. It must be refused: 404 (not the owner; Linux's rule) once B routes the
 # POST, 401 if the relay strips the credential first. Never 200. The throwaway key lives only in this process.
-# 'nosession' is a FAIL (enclave-87): a check that never reaches the restart proves nothing about it. If the relay
-# refuses /v1/auth for this box, this check cannot pass; the node's own answer is then A9's (hvnode-accept.ps1).
+# 'nosession' (the relay refused the stranger's login) is INFO, never a PASS, and is left out of the tally (enclave-87's
+# ruling): under B the relay refuses /v1/auth/* for an hv-node row by design (b4), so this check cannot reach the
+# restart; the node's N1 is evidenced by A9 on the box (hvnode-accept.ps1), a hard check.
 r2b=$(cd "$VIEM_DIR" && RID="$rid" node --input-type=module -e '
   import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
   const B = "https://api.enclave.host/t/nucbox-k11";
@@ -50,11 +51,16 @@ r2b=$(cd "$VIEM_DIR" && RID="$rid" node --input-type=module -e '
   const [rs] = await post(`/v1/deployments/${process.env.RID}/restart`, {}, { authorization: `Bearer ${l.token}` });
   console.log(`session ${rs}`);')
 set -- $r2b
-case "${1:-}/${2:-}" in
-  session/401|session/403|session/404|session/409|session/503) c=ok ;;
-  *) c=no ;;
-esac
-check $c "R2b (relay) a stranger's OWN session on the node, restarting ${rid:0:10}…: ${r2b:-no answer} (refused; 'nosession' = it never logged in, so it proves nothing: FAIL)"
+if [ "${1:-}" = nosession ]; then
+  echo "INFO R2b (relay): the relay refuses /v1/auth for this hv-node box (by design, B): ${r2b}; N1 is evidenced by A9 on the box. NOT counted as a PASS"
+  excluded="R2b"
+else
+  case "${1:-}/${2:-}" in
+    session/401|session/403|session/404|session/409|session/503) c=ok ;;
+    *) c=no ;;
+  esac
+  check $c "R2b (relay) a stranger's OWN session on the node, restarting ${rid:0:10}…: ${r2b:-no answer} (refused, never 200)"
+fi
 
 # R3: the operator's gas, and no stuck nonce
 g=$(cd "$VIEM_DIR" && node --input-type=module -e '
@@ -94,4 +100,5 @@ if [ -n "$ID" ]; then
   echo "INFO R4 the served TLS key: SPKI sha256 $spki (the guest's self-signed certificate until M4)"
   if [ -n "$KEY" ]; then [ "$spki" = "$KEY" ] && c=ok || c=no; check $c "R4 the served key = the manager's transportKeySha256 (A7)"; fi
 fi
-[ $fails = 0 ] && echo "ACCEPT (remote): all PASS" || { echo "ACCEPT (remote): $fails FAIL(s)"; exit 1; }
+tally="$passes PASS, $fails FAIL${excluded:+; not counted (INFO): $excluded}"
+[ $fails = 0 ] && echo "ACCEPT (remote): $tally" || { echo "ACCEPT (remote): $tally"; exit 1; }
