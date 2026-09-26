@@ -29,6 +29,30 @@ code=$(curl -sS -o /dev/null -m 20 -w '%{http_code}' -X POST "https://api.enclav
 case "$code" in 401|403|404|409|503) c=ok ;; *) c=no ;; esac
 check $c "R2 POST /t/nucbox-k11/v1/deployments/${rid:0:10}…/restart without a session -> $code (refused)"
 
+# R2b (b4's check, with a real STRANGER): a throwaway wallet logs in to the node (its own SIWE session) and asks to restart
+# the deployment. It must be refused: 404 (not the owner; Linux's rule) once B routes the POST, 401 if the relay
+# strips the credential first. Never 200. The throwaway key lives only in this process and is discarded.
+r2b=$(cd "$VIEM_DIR" && RID="$rid" node --input-type=module -e '
+  import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+  const B = "https://api.enclave.host/t/nucbox-k11";
+  const acct = privateKeyToAccount(generatePrivateKey());
+  const get = async (p) => { const r = await fetch(B + p, { signal: AbortSignal.timeout(20000) }); return [r.status, await r.json().catch(() => ({}))]; };
+  const post = async (p, body, headers = {}) => { const r = await fetch(B + p, { method: "POST", headers: { "content-type": "application/json", ...headers },
+    body: JSON.stringify(body || {}), signal: AbortSignal.timeout(20000) }); return [r.status, await r.json().catch(() => ({}))]; };
+  const [ns, n] = await get(`/v1/auth/nonce?address=${acct.address}`);
+  if (ns !== 200 || !n.message) { console.log(`nosession nonce:${ns}`); process.exit(0); }
+  const [ls, l] = await post("/v1/auth/login", { message: n.message, signature: await acct.signMessage({ message: n.message }) });
+  if (ls !== 200 || !l.token) { console.log(`nosession login:${ls}`); process.exit(0); }
+  const [rs] = await post(`/v1/deployments/${process.env.RID}/restart`, {}, { authorization: `Bearer ${l.token}` });
+  console.log(`session ${rs}`);')
+set -- $r2b
+case "${1:-}/${2:-}" in
+  session/401|session/403|session/404|session/409|session/503) c=ok ;;
+  nosession/*) c=ok ;;
+  *) c=no ;;
+esac
+check $c "R2b a stranger's OWN session on the node, restarting ${rid:0:10}…: ${r2b:-no answer} (refused; 'nosession' = the relay did not even let it log in)"
+
 # R3: the operator's gas, and no stuck nonce
 g=$(cd "$VIEM_DIR" && node --input-type=module -e '
   import { createPublicClient, http, formatEther } from "viem"; import { base } from "viem/chains";
@@ -37,7 +61,8 @@ g=$(cd "$VIEM_DIR" && node --input-type=module -e '
   const [b, l, p] = await Promise.all([c.getBalance({ address: a }), c.getTransactionCount({ address: a }), c.getTransactionCount({ address: a, blockTag: "pending" })]);
   console.log(formatEther(b), l, p);' "$OPERATOR")
 set -- $g
-awk -v b="${1:-0}" 'BEGIN { exit !(b >= 0.0005) }' && c=ok || c=no; check $c "R3 operator gas ${1:-?} ETH (>= 0.0005; GAS.md)"
+awk -v b="${1:-0}" 'BEGIN { exit !(b >= 0.0005) }' && c=ok || c=no
+check $c "R3 operator gas ${1:-?} ETH (>= 0.0005; below it, top up from the operator gas tank: enclave-87 approved, GAS.md)"
 [ "${2:-x}" = "${3:-y}" ] && c=ok || c=no; check $c "R3 operator nonce latest ${2:-?} = pending ${3:-?}"
 
 # R4 (with a deployment id): the ledger names this box, and the app answers over the guest's TLS with the manager's key

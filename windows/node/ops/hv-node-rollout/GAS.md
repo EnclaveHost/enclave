@@ -39,7 +39,13 @@ Which leases are charged: a lease is free (rate 0) only when the deployment's ow
 - A deployment owned by the payout wallet (test 2's agent-wallet deployment, via its delegation) is rate 0: renewals
   only, about 0.00005 ETH/day with heartbeats.
 
-**What's needed:**
+**enclave-87's decisions (2026-09-26, received by 00:30Z):**
+- no ask to Steven. DONE's soak is MULTI-HOUR: test 1 soaks for 12 h after acceptance and then stops, about
+  0.00014 ETH, well within 0.001457;
+- **top-up threshold: if the operator's balance falls below 0.0005 ETH, top it up from our operator gas tank**
+  (approved). hvnode-accept-remote.sh R3 fails below it.
+
+**What's needed (before those decisions; the month figures are kept for reference):**
 - no top-up to START: the preflight requires ≥ 0.0005 ETH, and the node publishes `claimEnabled:false` below its own
   `gasRenewalsLeft` floor, so it never takes a lease it can't renew;
 - for the soak, a month of margin is ~0.0015 ETH with rate-0 leases only, or ~0.008 ETH while one charged lease (test
