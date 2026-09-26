@@ -11,16 +11,22 @@ judge (hvcert.mjs `0b0b3c2b…`, judge-hv.mjs `bae3916e…`, isolation/m2/judge.
 ## What this canary proves, and what already exists
 - PRECONDITION: v43 is INSTALLED and accepted (CANARY-GO-v43.md B5-B7), with the v42 reboot acceptance done. If v43 is not
   installed, stop and ask enclave-87 (the rollback section covers v42).
-- DONE, not repeated here: the v44 image `afa9633c…` passed its DEV BOOT (enclave-d1, 2026-09-26 07:05-07:13Z, runs V1, V1b,
-  V2, V3 in `~/enclave-bench/canary-afa9633c/`, all `RUN OK`; evidence commit `<d1's, to fold in>`). Its console carries the
-  manifest's N5 lines EXACTLY, in V1 and V1b alike (the only difference is the front's key):
+- DONE, not repeated here: the v44 image `afa9633c…` passed its DEV BOOT (enclave-d1; evidence/nucbox-devboot-afa9633c
+  `626a924f`, `windows/vbslike/evidence/devboot-afa9633c-20260926/`, verified by enclave-bf). The run of record is **V1b,
+  07:08:42-07:11:25Z** (firmware verified `sha256 afa9633c973dd728…` at 07:09:11, Start-VM 07:09:15, `MON ready` 07:09:17,
+  console read 07:09:17.420-07:11:03.042Z = 1265 bytes, the document fetched 07:09:18.604Z). V1 is superseded (it overlapped
+  the 07:05:45Z api-relay restart; kept in `superseded-V1/`, same lines). V1b-console.txt carries the manifest's N5 lines
+  EXACTLY:
   - `DOM1 seccomp: runtime filter installed (sha256 d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66, 71 rules)`
   - `MON dom1 seccomp: runtime filter installed (sha256 d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66)`
   - no `DOM<n> ERROR the runtime's seccomp …` and no `MON dom<n> ERROR the runtime's seccomp statement: …` line;
-  - with `DOM1 report_as_root=refused`, `DOM front: not dumpable`, `DOM runtime wasmtime/48.0.1 … id=ccadb38a…`;
-  - the attested document (V1, V1b): `abi enclave-domain-abi/2`, `runtimeSelfTest` =
+  - with `DOM1 report_as_root=refused`, `DOM front: not dumpable; none of its 3 threads traced`,
+    `DOM runtime wasmtime/48.0.1 … id=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8`, `ready_ms=2898`;
+  - the attested document (V1b-attestation.json, a fresh nonce, HTTP 200): `abi enclave-domain-abi/2`, `runtimeSelfTest` =
     `exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 seccomp=d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66 scope=cgroup:/dom1`;
-  - ProbeDomain PASS (V2, V3): `PROBE seccomp=2`, and the four vsock paths refused by the runtime's filter.
+  - V2 (07:11:43-07:12:37Z): PROBE DOMAIN RESULT PASS (`seccomp=2`; the four `filtered_vsock_*` EPERM, the distinguishing
+    `filtered_vsock_host_control` against the unfiltered `timed out`); V3 (07:12:37-07:13:33Z): ProbeNeighbor
+    INCONCLUSIVE (the unchanged ENOENT reason, expected).
 - **G1. Why the console lines come from the dev boot, not the manager path.** The manager's launcher reads COM1 only until
   `MON ready` (wmi-launcher.mjs `GUEST_READY_LINE`, one `startAndRead`), and the domain's lines are printed AFTER it, when
   the app is served (V1's console shows them after `MON ready`). Nothing on the manager path reads COM1 later:
@@ -31,6 +37,9 @@ judge (hvcert.mjs `0b0b3c2b…`, judge-hv.mjs `bae3916e…`, isolation/m2/judge.
     `Seccomp: 2` on every runtime process at that attestation (contract.CheckRuntimeFiltered);
   - A4 captures that document, A5 records the manager's readiness verdict on it, and A5b judges it with the node's own
     judge, requiring `runtime-covered` and the exact hash.
+  - The console evidence TRANSFERS only because the bytes are the same: A1 and A3 each check that the IGVM the manager
+    path boots is BYTE-IDENTICAL (sha256) to the dev-booted `afa9633c973dd728…` (V1b: `firmware … verified … sha256
+    afa9633c…`). ACCEPTED by enclave-87 (2026-09-26), on that condition.
 - THIS canary: the same image under v44's MANAGER set, control `9de5996a` = bd657ed0's manager set +
   `windows/vbslike/verify/` and `isolation/m2/judge.mjs` byte-equal to main c6347dd2's (ONE judge with the node; enclave-87's
   ruling). From v44, judge-hv requires every image not in `SECCOMP_UNSTATED_IMAGES` (v42 `0891c740`, v43 `49500527`) to
@@ -57,16 +66,16 @@ judge (hvcert.mjs `0b0b3c2b…`, judge-hv.mjs `bae3916e…`, isolation/m2/judge.
 | # | Where | Command | PASS when |
 |---|---|---|---|
 | A0 | ws + box | enclave-87's go recorded with its time; tell e3 ("NucBox pause for the v44 canary"); `node soak.mjs --once --via x` (R4 before) | go recorded; R4 `ok:true` 200 authorized on the CURRENT key (the v43 partition's) |
-| A1 | ws→box | `push.sh <dry pack dir> minipc-zt`, then `stage.ps1` and `check.ps1` (+ `-SelfTest`) with `-ManifestSha256 <dry sha>`. Staging only | stage exit 0 (every file ok; the VM worker can read afa9633c + its twin); check 0; SELFTEST all |
+| A1 | ws→box | `push.sh <dry pack dir> minipc-zt`, then `stage.ps1` and `check.ps1` (+ `-SelfTest`) with `-ManifestSha256 <dry sha>`. Staging only | stage exit 0 (every file ok; the VM worker can read afa9633c + its twin); check 0; SELFTEST all. **G1's byte identity:** the staged IgvmRel file's sha256 (check.ps1's line for it, or `Get-FileHash <P>\<IgvmRel>`) = `afa9633c973dd7283613de99df97d3f7b7f3c41ff6eeaa65bac6a52fa95957dd` = the dev-booted IGVM; any other value STOPS the canary |
 | A2 | ws, box | `LR get $ID` (ws); `hvnode-rollback.ps1` (box: the PAUSE, tasks Disabled, test 1's VM destroyed through the manager, the lease HELD) | `ROLLED BACK`; 0 VMs; the ledger runner is still nucbox-k11, leaseUntil recorded |
-| A3 | box | with `$P = 'C:\Users\claude\vbs-like\pkg\<id16>'`: `$P\control\windows\vbslike\manager\ops\manager-accept.ps1 -Tree $P\control -Pkg $P -IgvmRel <IgvmRel> -IgvmSha256 afa9633c973dd7283613de99df97d3f7b7f3c41ff6eeaa65bac6a52fa95957dd -Serve -WmiserveRel control\vbslike-host.exe -WmiserveSha256 10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba -HvlabScript $P\control\isolation\m3\hvlab-accept.mjs` | `HVLAB-ACCEPT ALL PASS` and `RESTART-ACCEPT ALL PASS` (A0-A9); image `afa9633c973dd728…` on every spawn; `TREE UNCHANGED`; `SETTING RESTORED`; harness exit 0 |
+| A3 | box | with `$P = 'C:\Users\claude\vbs-like\pkg\<id16>'`: `$P\control\windows\vbslike\manager\ops\manager-accept.ps1 -Tree $P\control -Pkg $P -IgvmRel <IgvmRel> -IgvmSha256 afa9633c973dd7283613de99df97d3f7b7f3c41ff6eeaa65bac6a52fa95957dd -Serve -WmiserveRel control\vbslike-host.exe -WmiserveSha256 10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba -HvlabScript $P\control\isolation\m3\hvlab-accept.mjs` | `HVLAB-ACCEPT ALL PASS` and `RESTART-ACCEPT ALL PASS` (A0-A9); image `afa9633c973dd728…` on every spawn (the launcher hashes the firmware it defines against `-IgvmSha256`: G1's byte identity on the manager path itself); `TREE UNCHANGED`; `SETTING RESTORED`; harness exit 0 |
 | A4 | box (parallel with A3, while its instance runs) | the CSR: `GET /.well-known/enclave-csr` on the record's `relay.port`, as v43's A4. The document: save the RUNNING instance's record, without a BOM: `$r = @((Invoke-RestMethod -Uri 'http://127.0.0.1:18091/vms' -TimeoutSec 10 -UseBasicParsing).vms) \| ? { "$($_.status)" -eq 'running' } \| select -First 1; [IO.File]::WriteAllText("$PWD\rec.json", ($r \| ConvertTo-Json -Depth 6 -Compress))`, then `node C:\Users\claude\d1-canary-v44\hv-doc-judge.mjs fetch --view rec.json --direct 127.0.0.1:<rec.relay.port> --out C:\Users\claude\vbs-evidence\mgraccept-<stamp>\doc` | CSR 200: CN = SAN = `4e62e60d.app.enclave.host`, SPKI = the record's transportKeySha256. fetch exit 0: HTTP 200, `spki … = the record's transportKeySha256`, `nonce-echo true`, `abi enclave-domain-abi/2`, **`runtimeSelfTest` = `exec_pages=allowed wx=clean maps=N runtime=R front=F init=I seccomp=d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66 scope=cgroup:/dom1` with R ≥ 1, R+F+I(+root+other) = N, and the hash EXACTLY this one** (the dev boot: `maps=3 runtime=1 front=1 init=1`) |
 | A5 | box | the record: `GET :18091/vms` during the run | `status running`, `verdict` = `monitor-signed`, and the image `afa9633c973dd728…`, all RECORDED. Under v44's readiness rule (judge-hv `bae3916e…`), with afa9633c in neither table, that verdict exists only for a self-test in the attest-time form WITH a seccomp statement (G1) |
 | A5b | ws | `scp` A4's `doc` directory back to `~/enclave-bench/canary-v44-<stamp>/doc`; `HVJ judge --tree $T44 --in <that dir> --pin ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8 --expect-seccomp d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66` | exit 0: `VERDICT monitor-signed wxCoverage=runtime-covered`, wxWhy `… every runtime process under the seccomp filter with program sha256 d4d17c9f53832439…`, `PASS … seccomp d4d17c9f… named=true`. verdict.json's `files` = hvcert `0b0b3c2b…`, judgeHv `bae3916e…`, judgeMjs `24311fe8…` (the node's bytes = the control's) |
 | A6 | box | RESUME: `Enable-ScheduledTask` both; start the manager; wait for `/health canStart`; start the node | node.log: `renewed 0x31136008` or `claimed` (if lapsed), `attach … v2 … ACCEPTED`, `0x31136008 isolation spawned … image=4950052785daf26d…` (still v43's manager until B), then `certificate: … installed` |
 | A7 | ws | tell e3 ("resumed"); `node soak.mjs --once --via x` | R4 `ok:true` 200 authorized, spki = the NEW test-1 key (v43 image) |
-- **Canary PASS = A1, A3-A5 and A5b all PASS**, with A2/A6/A7 clean, AND the dev boot's N5 console lines above (G1) in
-  d1's evidence commit.
+- **Canary PASS = A1, A3-A5 and A5b all PASS** (A1 and A3 including G1's byte identity), with A2/A6/A7 clean. The N5
+  console lines are V1b's in `626a924f` (G1).
 - Evidence: `~/enclave-bench/canary-v44-<stamp>/` (A5b's dir, with its verdict.json) and
   `C:\Users\claude\vbs-evidence\mgraccept-<stamp>\` (A4's `doc` dir: view.json, nonce.hex, attestation.json, cert.pem,
   spki.der, fetch.json).
