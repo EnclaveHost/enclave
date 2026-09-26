@@ -1,0 +1,16 @@
+2026-09-26T06:57:01Z
+before (live, key order) 03e0ccf11246b77f
+stage-release: release aee2059ffcc7bd8a459001cba02a7e9139d6a4aa964fd6de68047407f8597532 verified 15 files, at /opt/enclave-predict/rel-aee2059ffcc7/release (root, read-only to others)
+{"uid":61930,"node":"v22.23.1","module":"/opt/nan-relay/measurement-predict.mjs","problems":[],"knownAnswerTest":{"ok":true,"reason":"2 known answer(s) reproduced exactly","ms":20690},"crossCheck":{"ref":"catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0","ok":true,"ms":16448,"appId":"94c04c0edb6b4ca11b9bd0b6e4adfa98afdfa04692e6c10af79755e6db0ba0f2","admitted":[{"release":"5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77","measurement":"c8ac2d720194e41668b56adbf3e4e35b35f38267f59736a3580583d42245593a5e19094a6c75828e0536321d850f0ed8","runtimeId":"ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8"},{"release":"aee2059ffcc7bd8a459001cba02a7e9139d6a4aa964fd6de68047407f8597532","measurement":"5be511856afd91c2b19e9eb8ca8057682adfdc1fe400809a7bd71db3f4db904264daa7e37e029ae269a0a41badf34d0d","runtimeId":"ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8"}],"installed":["5db18199ef0d","aee2059ffcc7"]},"certReleases":["5db18199ef0d","aee2059ffcc7"],"pass":true}
+Running as unit: enclave-predict-check-1790405821.service
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 37.612s
+CPU time consumed: 47.018s
+Memory peak: 372.0K
+Memory swap peak: 0B
+stage-release: done: /opt/enclave-predict/rel-aee2059ffcc7 (nothing outside it changed; no service, env or relay file touched)
+stage exit 0
+6877d7de91c1f2e50f7701cefd8bb2b154b2efe8fcb15745a4288b6aed1cbc3d  /opt/enclave-predict/rel-aee2059ffcc7/predict-lines.env
+03e0ccf11246b77fc54d3a31c87ea48c3a10bc06853dba7037d8280dbb836780  /opt/enclave-predict/rel-aee2059ffcc7/predict-lines.before.env
+0 873a5cdc191c49c2928833d9a74996de 2026-09-26T06:57:39Z

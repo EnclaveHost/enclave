@@ -1,0 +1,17 @@
+ok   node_meas(metal-iso0) = 02f6e313a2c0 (f6cbd75a's)
+ok   node_meas(no-such-box) = absent
+ok   rollback_guard: node on 02f6e313, no S9 -> passes
+ok   rollback_guard: node on N1 -> refuses (metal-iso0 attests b2dba54a (N1/N2): roll the node back to f6cbd75a FIRST (enclave-63))
+ok   rollback_guard: node on N2 -> refuses (metal-iso0 attests fab9c6c7 (N1/N2): rol…)
+ok   rollback_guard: unreadable node -> refuses (metal-iso0's measurement is unreadable ('absent'))
+ok   rollback_guard: S9 epoch present -> refuses (S9 switched guestd to R at epoch 1790410000 (/tmp/…)
+ok   rs-11.sh rollback refuses at its guard (rc 4) before touching nan
+ok   hv_row(nucbox-k11) = hv-node true 0x31136008aa0cf1d826d223777…
+ok   hv_attach_line(873a5cdc191c) = 2026-09-26T06:43:03.473607+00:00…
+ok   the attach time parses (2026-09-26T06:43:03.473607+00:00)
+ok   allowlist: live = staged BEFORE (aea2c09c5beb)
+ok   allowlist: live != staged AFTER (92d5105f4ddc): the apply accept discriminates
+ok   health ADMIT=5db18199 passes NOW (the rollback accept's target)
+ok   health ADMIT='5db18199 R' FAILS now on the expected guest (R's pins are wired; R not admitted yet)
+UNHEALTHY: expected-guest 0x0ddbd824 is not exactly [5db18199 aee2059f ] admitted at their pins: {"id":"0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d78
+rs11-selftest: 15/15
