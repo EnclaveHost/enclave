@@ -27,8 +27,8 @@
   below its title, and licenses/ is identical (c4e18ee9…).
 - **init's source, now complete:** from this artifact on, make-artifact.sh ships dominit.c WITH the local headers it
   includes, transitively (here app-seccomp.h and sha256-min.h), and the manifest's `source` lists each with its sha256.
-  5db18199's artifact (../release-0c087de8/) carried dominit.c alone, which does not compile without app-seccomp.h;
-  that DRAFT is not re-made here (enclave-87's call).
+  5db18199's first artifact (../release-0c087de8/, d2252757) carried dominit.c alone, which does not compile without
+  app-seccomp.h; on enclave-87's word it was re-made with this script (ace3ae69…), its source/ alone building 00355508.
 - **init's source compiles as shipped:** source/ alone, extracted from the tarball and built by the release's command
   against the same musl prefix, gives b8aa8dcb…, the released init.
 

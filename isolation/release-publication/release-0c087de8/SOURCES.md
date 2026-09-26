@@ -22,9 +22,11 @@ release ships as a binary, this lists the source that builds those bytes, and th
   The candidate is the project's existing GitHub repository's Releases.
 - **Clear directions NEXT TO the binaries** saying where the bundle is, kept up for as long as the binaries are offered
   (GPL-3.0 section 6(d)). This applies to every channel that offers them, not only the publication page.
-- **The release tarball itself carries source/isolation/m2/dominit.c:** the source of template/init, which links musl
-  (MIT) statically. No LGPL code is statically linked into this release. glibc is shipped only as the shared runtime
-  set in template/rt/ that wasmtime is dynamically linked with, with its complete source in the bundle.
+- **The release tarball itself carries template/init's source:** source/isolation/m2/dominit.c with the local header
+  it includes (app-seccomp.h), so it compiles as shipped (the artifact re-made on 2026-09-26; the first one carried
+  dominit.c alone). init links musl (MIT) statically. No LGPL code is statically linked into this release. glibc is
+  shipped only as the shared runtime set in template/rt/ that wasmtime is dynamically linked with, with its complete
+  source in the bundle.
 
 ## The files in the bundle
 The files are fetched by `fetch-corresponding-source.sh`: 29 files, outside git. Their sha256 are below and in
@@ -99,7 +101,8 @@ needed beyond the GRUB recipe files (above).
 - **musl and template/init:**
   - Build musl 1.2.6 from musl-1.2.6.tar.gz, with no patches: `CC=/usr/bin/gcc ./configure --prefix=<prefix>
     --disable-shared && make && make install`. Then link init:
-    `/usr/bin/gcc -specs <prefix>/lib/musl-gcc.specs -static -O2 -o init dominit.c`.
+    `/usr/bin/gcc -specs <prefix>/lib/musl-gcc.specs -static -O2 -o init dominit.c` (in the directory that holds its
+    header).
   - This repository's isolation/m2/build-musl.sh does exactly that, with the tarball's sha256 and musl's release
     signature checked. It is at the image commit aa6c985c, and hardened against environment leaks at 3ddacdf4, which
     gives the same release id. This release's init links the same musl (libc.a 4f72e098…, built by 0c087de8's

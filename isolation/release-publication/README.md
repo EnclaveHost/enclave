@@ -45,7 +45,8 @@ Enclave's own code in it stays under the repository LICENSE, unchanged.
    - It compares every file, the tree and the modes with the deployed release.
    - It packs one deterministic tarball: release/, PUBLICATION-MANIFEST.json, the notices and template/init's source.
      Since the 4cd26e58 artifact, that source is dominit.c WITH the local headers it includes, transitively. Earlier
-     artifacts carried dominit.c alone; from 0c087de8 on, that does not compile without app-seccomp.h.
+     artifacts carried dominit.c alone; from 0c087de8 on, that does not compile without app-seccomp.h, so 5db18199's
+     draft was re-made (d2252757 → ace3ae69).
 
 Rules the scripts keep:
 - no writes to ~/enclave-prod or the firmware cache;

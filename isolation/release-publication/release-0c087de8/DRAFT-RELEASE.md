@@ -8,7 +8,7 @@ existing GitHub Releases, with no new hosting.
 
 | asset | sha256 | bytes |
 |---|---|---|
-| enclave-domain-release-5db18199ef0d.tar.xz (the binaries, the notices and init's source) | d2252757a565cbaa112d5f678d64078dbef08d345187c9eb6b30472a5cd9be47 | 32015636 |
+| enclave-domain-release-5db18199ef0d.tar.xz (the binaries, the notices and init's source) | ace3ae6923f118a6094c1bebdb509bd9353ae2f4a53b2e3cf0abd65b5e34360d | 32017796 |
 | enclave-guest-corresponding-source-11b366ea5a41.tar (the corresponding source) | 21752b26d36f33198ffc8aadf3b8fdff235646dd35eaa694eb6d5473f6d093da | 328878080 |
 
 - **The release:** id 5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77 (sha256 of release.json),
@@ -19,13 +19,20 @@ existing GitHub Releases, with no new hosting.
 - **The two assets go out together, in the same place.** The source bundle is not optional, and a link to upstream
   sources does not replace it.
 
+- **Re-made on 2026-09-26 (enclave-87): tarball d2252757… → ace3ae69….** The first artifact carried template/init's
+  source as dominit.c alone, which does not compile without app-seccomp.h. make-artifact.sh now ships dominit.c with
+  the local headers it includes, and the source/ extracted from the new tarball alone builds the released init,
+  00355508…. Nothing else in the tarball changed except SOURCES.md, which now says so (8d465869… → 0ac44bc5…). The
+  release, its id and every release file are unchanged.
+  d2252757a565cbaa112d5f678d64078dbef08d345187c9eb6b30472a5cd9be47 is withdrawn: it was never published.
+
 ## The notices, inside the release tarball (and in this directory)
 
 | file | sha256 |
 |---|---|
 | THIRD-PARTY-NOTICES.md | e88e1c8c3547e80919efdd358cba4328dc60efa32ef274e0500de8873013ff1b |
 | INVENTORY.md | 8aa949a2b5450820da85f66ab421f09bb21551b35a8a172e64851f5ae8a615c5 |
-| SOURCES.md | 8d46586930c7f94839d5dedd1f1968d5551b400c7f2436f6e3cee84b2a9518e5 |
+| SOURCES.md | 0ac44bc51f58d18d601ba1437147e2c0193e7c3104095f490781a7c4c1883469 |
 | licenses/ (188 texts; the sha256 of their sorted `sha256sum` list) | c4e18ee9fae0def9660a801c8c1eb25edfb240fa8d8e1d54cd94fecb462a0a07 |
 
 ## The text that goes next to the assets (GPL-3.0 section 6(d): directions beside the binaries)
