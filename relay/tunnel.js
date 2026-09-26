@@ -340,6 +340,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                 snpChips: snpChipsAfter(prev, meta) };
     tunnels.set(name, t);
     console.log(`[tunnel] ${name} attached via ${meta.via || "token"} (${tunnels.size} enclave${tunnels.size === 1 ? "" : "s"})`);
+    // the one state change no re-check logs (the flag is already set): an attach on a stale cached owner (enclave-5d)
+    if (t.ownerSuspended) console.error(`[tunnel] ${name} owner-only starts SUSPENDED: no successful owner read within the grace (${Math.round(ownerGraceMs / 1000)} s); it serves nothing until one succeeds`);
     try { onChange("attach", name); } catch {}   // refresh discovery so it lands in `live` now, not on the next slow poll
     ws.on("message", (data) => {
       t.lastSeen = Date.now();
