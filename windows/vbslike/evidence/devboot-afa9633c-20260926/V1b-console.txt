@@ -1,0 +1,12 @@
+MON domain 1 loaded label=canary app_sha256=9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45 port=40001 uid=5001 front_uid=1053577 cpu=100% mem=128MiB mode=serve http=0
+MON refused report request from uid 0 (not a domain's front)
+DOM1 report_as_root=refused
+DOM1 started runtime=2 front=3 mode=serve
+DOM1 seccomp: runtime filter installed (sha256 d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66, 71 rules)
+MON dom1 seccomp: runtime filter installed (sha256 d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66)
+DOM front: not dumpable; none of its 3 threads traced
+DOM runtime wasmtime/48.0.1 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8
+DOM runtime selftest exec_pages=allowed wx=at-each-attestation
+DOM certificate: no HOST_DATA to name this domain (the monitor's report is "hyperv-partition-domain/v1", not an SEV-SNP report: it carries no HOST_DATA); self-signed only
+DOM serving unix=/run/front.sock spki_sha256=f303534abcb1c38461fd6bf556c38c79b2b1d697834748e646ab661662553c1e ready_ms=2898
+DOM1 probe workload_uid=5001 front_uid=1053577 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=3

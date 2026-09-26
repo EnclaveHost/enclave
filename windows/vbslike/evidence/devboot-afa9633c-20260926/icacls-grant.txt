@@ -1,0 +1,16 @@
+sha256 afa9633c973dd7283613de99df97d3f7b7f3c41ff6eeaa65bac6a52fa95957dd
+--- ACL BEFORE:
+C:\Users\claude\d1-canary-afa9633c\vbs-linux-candidate-afa9633c.bin NT AUTHORITY\SYSTEM:(I)(F)
+                                                                    BUILTIN\Administrators:(I)(F)
+                                                                    NUCBOX_K11\claude:(I)(F)
+
+Successfully processed 1 files; Failed processing 0 files
+processed file: C:\Users\claude\d1-canary-afa9633c\vbs-linux-candidate-afa9633c.bin
+Successfully processed 1 files; Failed processing 0 files
+--- ACL AFTER GRANT:
+C:\Users\claude\d1-canary-afa9633c\vbs-linux-candidate-afa9633c.bin NT VIRTUAL MACHINE\Virtual Machines:(R)
+                                                                    NT AUTHORITY\SYSTEM:(I)(F)
+                                                                    BUILTIN\Administrators:(I)(F)
+                                                                    NUCBOX_K11\claude:(I)(F)
+
+Successfully processed 1 files; Failed processing 0 files
