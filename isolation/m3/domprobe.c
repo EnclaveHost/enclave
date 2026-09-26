@@ -15,6 +15,14 @@
  * It SHOULD be able to get a report for ITS OWN domain: that is the domain's own evidence, and the app
  * hash in it comes from the monitor, so a compromised domain can only ever name itself.
  *
+ * TWO LAYERS (enclave-5d, on enclave-b4's runtime seccomp filter 2ea664d8): the runtime now runs under a seccomp filter
+ * (m2/app-seccomp.h), so a compromised runtime IS filtered. domexec starts this probe unfiltered, and the probe measures
+ * both: every check once as it starts (the layer BENEATH the filter: the chroot, the uid, the monitor's relay and port
+ * confinement, each proved on its own), then it installs the same filter on itself and repeats what the filter
+ * changes, the vsock reaches, as `filtered_<what>` (the compromised runtime as it actually exists). A filtered-only probe
+ * would pass the vsock lines on EPERM alone and measure nothing about the relay beneath; an unfiltered-only probe
+ * overstates what a real escape reaches.
+ *
  * Every line is printed as `PROBE<id> <what>=<result>` for the harness. This binary never exits on its
  * own: a domain that ended immediately would be reclaimed before the harness could read anything, so it
  * sleeps once its report is printed, and the harness ends it with stop or destroy.
@@ -37,6 +45,7 @@
 #include <sys/time.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include "../m2/app-seccomp.h"   /* the app runtime's filter, exactly as domexec installs it on the runtime */
 
 #define AF_VSOCK_ 40
 struct sockaddr_vm_ {
@@ -209,6 +218,17 @@ int main(int argc, char **argv) {
     /* 6. the network: its own loopback is all it has */
     try_tcp("own_loopback_8080", "127.0.0.1", 8080);
     try_tcp("host_gateway", "10.0.2.2", 80);
+
+    /* 6b. the runtime's filter, installed on itself as domexec installs it on the runtime (no_new_privs, then the
+     *     filter), and the vsock reaches again: the base lines above must have failed on their own (never EPERM, which
+     *     only the filter gives), and these must fail with EPERM (the filter refusing). */
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) say("seccomp", strerror(errno));
+    else if (app_seccomp_install() != 0) say("seccomp", strerror(errno));
+    else { snprintf(n, sizeof n, "%d", prctl(PR_GET_SECCOMP, 0, 0, 0, 0)); say("seccomp", n); }
+    try_vsock("filtered_vsock_local_domain1", 1, 40001);
+    try_vsock("filtered_vsock_local_domain2", 1, 40002);
+    try_vsock("filtered_vsock_own_control", 1, 9000);
+    try_vsock("filtered_vsock_host_control", 2, 9000);
 
     printf("PROBE%s done\n", id);
     fflush(stdout);
