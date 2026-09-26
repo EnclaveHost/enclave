@@ -1354,3 +1354,161 @@ test("draft v40 re-pins control/ to e3acc392 (2c3a2873 + the reviewed manager wo
   assert.equal(r.code, 0, fails(r.out));
   assert.match(r.out, /ok   the rollback record names a committed version and exactly its pins \(v39, 7e979b38\)/);
 });
+
+test("draft v41 re-pins control/ to cf1ac30d (e3acc392 + 39d5922e's manager-accept.ps1, nothing else), adds win/host-prereq.ps1, the v40 lab record, the PENDING candidate 252602c8 (initrd 41cacbc8, the fixed front) and enclave-5d's node install (rollout v2.2.3, the node at main 013deb51), rolls back to v40, and changes no profile firmware, launcher, managerEnv or eligibility", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-41.json"), d = JSON.parse(fs.readFileSync(D, "utf8"));
+  const v40 = JSON.parse(fs.readFileSync(path.join(HERE, "drafts/nucbox-ownguest-40.json"), "utf8"));
+  const TREE = "cf1ac30d9172410e83e81a267c0d7cef7f20cfd5", top = path.join(HERE, "../../..");
+  const blob = (c, p) => crypto.createHash("sha256").update(spawnSync("git", ["-C", top, "show", `${c}:${p}`], { maxBuffer: 1 << 26 }).stdout).digest("hex");
+  assert.match(d.status, /^DRAFT \(supersedes v40, which is staged at pkg\\15f39ae4d1fab954\\\)\. BUILT BY enclave-53 IN enclave-63'S LANE/);
+  assert.match(d.status, /NOT YET RUN: this version's control\/ tree \(cf1ac30d\) has not run from this package/);
+  assert.match(d.status, /the PACKAGE ships only host\.mjs of them/, "the correction of v40's status");
+  assert.match(d.status, /Underneath \(v40\): DRAFT \(supersedes v39/, "v40's status is kept underneath");
+  const ctl = d.files.filter((f) => /^control\./.test(f.role) && f.role !== "control.acceptance" && f.from?.git);
+  assert.ok(ctl.length >= 42 && ctl.every((f) => f.from.git.commit === TREE), "every control.* git pin is cf1ac30d");
+  // the control tree changes in exactly one file, manager-accept.ps1, which is 39d5922e's byte for byte
+  const MA = "control/windows/vbslike/manager/ops/manager-accept.ps1";
+  const moved = d.files.filter((f) => f.path.startsWith("control/")).filter((f) => f.sha256 !== v40.files.find((x) => x.path === f.path)?.sha256).map((f) => f.path);
+  assert.deepEqual(moved, [MA]);
+  assert.equal(d.files.find((f) => f.path === MA).sha256, blob("39d5922e", "windows/vbslike/manager/ops/manager-accept.ps1"));
+  assert.deepEqual(d.files.filter((f) => f.path.startsWith("control/")).map((f) => f.path).sort(), v40.files.filter((f) => f.path.startsWith("control/")).map((f) => f.path).sort());
+  // the new files: host-prereq.ps1 from the package's own repo files, and the v40 lab record at its commit
+  const hp = d.files.find((f) => f.path === "win/host-prereq.ps1");
+  assert.ok(hp && hp.role === "tool.windows" && hp.from.repo === "windows/vbslike/pkg/win/host-prereq.ps1" && /any future run re-pins the runner to this file \(b1784c10\)/.test(hp.note));
+  assert.equal(hp.sha256, "b1784c108e3d82257cb75de42cf20a6f5115a21f93bc84fa26568e432d60ba0a", "the version enclave-bf gave GO");
+  assert.match(d.status, /M3 IS INSTALLED ON THE BOX: today's M3 \(2026-09-26\) ran the earlier 9abdc36c \(sha256 4a72dab8; enclave-bf's GO\) through enclave-d1's runner c2cb589e.*any future run, a re-run or -Rollback, re-pins the runner to b1784c10.*exercised once in enclave-d1's HKCU rehearsal/);
+  assert.equal(hp.sha256, crypto.createHash("sha256").update(fs.readFileSync(path.join(HERE, "win/host-prereq.ps1"))).digest("hex"));
+  const lab = d.inputs.find((i) => i.name === "v40-lab-series-README.md");
+  assert.equal(lab.from.git.commit, "2ea7995123bb5a57069754c987bacd51d8739e68");
+  assert.equal(lab.sha256, blob(lab.from.git.commit, lab.from.git.path));
+  const NCF = "guest/igvm-vbs/vbs-linux-candidate-41cacbc8-252602c8.bin", NDF = "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-41cacbc8-DEBUG-TRUSTS-HOST-4df033e8.bin";
+  const added = d.files.map((f) => f.path).filter((p) => !v40.files.some((x) => x.path === p));
+  const NODEF = ["win/node-install.ps1", "win/node-rollback.ps1", "win/node-preflight.ps1", "node/hvnode-013deb51.tar.gz", "node/MANIFEST-hvnode-013deb51.txt"];
+  assert.deepEqual(added.sort(), [NCF, NDF, "win/host-prereq.ps1", ...NODEF].sort());
+  // the node install: enclave-5d's scripts at the rollout's head v2.2.3 7fcaa145 byte for byte, and the node tree at ROLLOUT.md's pins
+  const RO = "7fcaa145de35dd2590274d5918b300c55cc2873f";
+  for (const [p, src] of [["win/node-install.ps1", "hvnode-install.ps1"], ["win/node-rollback.ps1", "hvnode-rollback.ps1"], ["win/node-preflight.ps1", "hvnode-preflight.ps1"]]) {
+    const f = d.files.find((x) => x.path === p);
+    assert.ok(f.role === "tool.windows" && f.from.git.commit === RO && f.from.git.path === `windows/node/ops/hv-node-rollout/${src}`, p);
+    assert.equal(f.sha256, blob(RO, `windows/node/ops/hv-node-rollout/${src}`), p);
+  }
+  assert.equal(d.files.find((f) => f.path === "node/hvnode-013deb51.tar.gz").sha256, "fd145fcad76b4e4d1526d53404deb9287ab92c48495dd7b8352752c6ecef02db");
+  assert.equal(d.files.find((f) => f.path === "node/MANIFEST-hvnode-013deb51.txt").sha256, "c58d3af32dc9a1917abe69fed964359ada69eaef49353ce461ed682d5dbef2b6");
+  const rollout = spawnSync("git", ["-C", top, "show", `${RO}:windows/node/ops/hv-node-rollout/ROLLOUT.md`], { encoding: "utf8" }).stdout;
+  assert.match(rollout, /hvnode-013deb51\.tar\.gz \(45 files\) \| `fd145fcad76b4e4d1526d53404deb9287ab92c48495dd7b8352752c6ecef02db`/, "the archive is ROLLOUT.md's own pin");
+  assert.match(rollout, /MANIFEST-hvnode-013deb51\.txt \(45 lines\) \| `c58d3af32dc9a1917abe69fed964359ada69eaef49353ce461ed682d5dbef2b6`/, "the manifest is ROLLOUT.md's own pin");
+  assert.equal(d.inputs.find((i) => i.name === "hv-node-ROLLOUT.md").from.git.commit, RO);
+  assert.match(d.status, /\(6\) THE NODE INSTALL, enclave-5d's hv-node rollout at its head v2\.2\.3 \(7fcaa145\), the node at main 013deb51/);
+  assert.match(d.status, /NEXT, v42 \(enclave-87\): the rollover to 252602c8 PLUS the cert-name set, as ONE set.*THE INVARIANT.*v41 changes none of the three.*v41's node pin \(main 013deb51\) will be stale by then.*ROLLBACK: v40 as staged/);
+  assert.deepEqual(v40.files.map((f) => f.path).filter((p) => !d.files.some((x) => x.path === p)), [], "nothing dropped");
+  // unchanged: the guest, the launcher, the reference, the managerEnv, the tier, eligibility
+  const same = (p) => assert.equal(d.files.find((f) => f.path === p).sha256, v40.files.find((f) => f.path === p).sha256, p);
+  for (const p of ["guest/igvm-vbs/vbs-linux-candidate-1539-b7ba7731.bin", "control/vbslike-host.exe"]) same(p);
+  const { nextCandidate: nc, ...vbsLinux } = d.profiles.vbsLinux;
+  assert.deepEqual({ ...d.profiles, vbsLinux }, v40.profiles, "the same profiles, firmware and managerEnv values; only nextCandidate is new");
+  assert.deepEqual(d.tier, v40.tier);
+  // the PENDING candidate: a candidate IGVM and its debug twin, never a profile's firmware, and refused by exact digest
+  assert.equal(d.files.find((f) => f.path === NCF).role, "candidate.igvm"); assert.equal(d.files.find((f) => f.path === NDF).role, "probe.firmware");
+  assert.equal(d.files.find((f) => f.path === NCF).sha256, "252602c860781d64df6e0e2ff003dc33dba4accf7265a9a70f1ac421ef0ae738");
+  assert.equal(d.inputs.find((i) => i.name === "mon-41cacbc8.cpio.gz").sha256, "41cacbc815bea7631ce7fd43e9ed1934fcb66981b27d4c1bc7bd1f0c31930389");
+  assert.ok(Object.values(d.profiles).every((p) => p.firmware !== NCF && p.image !== NCF), "no profile boots the pending candidate");
+  const u = d.rebuild.vbsLinux41cacbc8, u0 = d.rebuild.vbsLinux1539;
+  assert.deepEqual({ ...u.resources, linux_initrd: u0.resources.linux_initrd }, u0.resources, "b7ba7731's resources with ONLY linux_initrd swapped");
+  assert.equal(u.resources.linux_initrd, "mon-41cacbc8.cpio.gz"); assert.equal(u.manifest, u0.manifest); assert.deepEqual(u.twin, u0.twin);
+  assert.deepEqual(u.mutations.map((x) => x.name), u0.mutations.map((x) => x.name), "the same five mutations, against the new baseline");
+  assert.equal(d.rebuild.vbsLinux41cacbc8Debug.resources.linux_initrd, "mon-41cacbc8.cpio.gz");
+  assert.equal(nc.image, NCF); assert.equal(nc.commit, "4cdd516924981eeacefc8ccaefb4e7fc0e1ec939"); assert.equal(nc.vbsBootDigest, "231D1AB7EE9C3BA1A4046DD26AC911BC247230F5C7FAD79895E9405F3E51A82C");
+  for (const c of ["8be920fa", "0475ae50", "fbc50ea4", "4cdd5169", "d1a38994", "7de792bc", "ecf02384", "77f789a6"]) assert.match(nc.guestDelta, new RegExp(c), `the guest delta names ${c}`);
+  assert.match(nc.status, /^PENDING enclave-d1's box canary.*eligible:false: b7ba7731 stays the firmware of profile vbsLinux and the one eligible image/);
+  assert.match(d.status, /\(5\) THE NEXT CANDIDATE, PENDING: guest\/igvm-vbs\/vbs-linux-candidate-41cacbc8-252602c8\.bin/);
+  // the reference: v40's entries unchanged, plus exactly the candidate and its twin, both eligible:false
+  const r40 = JSON.parse(spawnSync("git", ["-C", top, "show", "f4a0bf274fe36d33dc34b1b4a19fce700def9642:windows/vbslike/pkg/reference/nucbox-vbs-reference.json"], { encoding: "utf8" }).stdout);
+  const r41 = JSON.parse(refRawFor(D));
+  assert.deepEqual(r41.images.filter((e) => !/41cacbc8/.test(e.id)), r40.images); assert.deepEqual(r41.superseded, r40.superseded);
+  assert.deepEqual(r41.images.filter((e) => /41cacbc8/.test(e.id)).map((e) => [e.id, e.class, e.eligible]),
+    [["vbs-linux-candidate-41cacbc8", "candidate", false], ["vbs-linux-candidate-41cacbc8-debug-twin", "debug", false]]);
+  const dv = deriveReferenceDigests(r41);
+  assert.deepEqual(dv.eligible.map((x) => x.slice(0, 8)), ["56FBB27F"]);
+  for (const x of ["231D1AB7", "25E0E2C6"]) assert.ok(dv.refused.some((y) => y.startsWith(x)), `${x} is refused by its exact digest`);
+  // rollback: v40 as staged
+  assert.equal(d.rollback.version, 40); assert.equal(d.rollback.commit, "f4a0bf274fe36d33dc34b1b4a19fce700def9642");
+  assert.equal(d.rollback.manifestSha256, "15f39ae4d1fab954f61a5195a6f8cf59c8bf8786000b95ddbb4e47aaa9efd1df");
+  assert.equal(d.rollback.stagedAt, "C:\\Users\\claude\\vbs-like\\pkg\\15f39ae4d1fab954\\");
+  assert.equal(d.rollback.files.length, 4); assert.match(d.rollback.note, /v40's own rollback record names v39.*host-prereq\.ps1 -Rollback/);
+  // the acceptance record says which tree ran, and that this one has not
+  assert.match(d.acceptance.status, /^RAN, on v40's control\/ tree \(e3acc392, not this version's\): enclave-d1's v40 lab series 2ea79951.*NOT YET RUN on this version's control\/ tree \(cf1ac30d\)/);
+  const r = run(["verify", D]);
+  assert.equal(r.code, 0, fails(r.out));
+  assert.match(r.out, /ok   the rollback record names a committed version and exactly its pins \(v40, f4a0bf27\)/);
+});
+
+test("host-prereq.ps1 takes the shared lock the way the harnesses do, by opening it: refused while another process holds it open, not refused because the file merely exists (the harnesses never delete it), and released at exit even inside a longer session", { skip: !PWSH && "no pwsh" }, () => {
+  // Off the box there is no registry: the rehearsal root check comes AFTER the lock, so "does not exist: create it
+  // first" is how a run shows it got past the lock. enclave-63's review of fd739f24: a Test-Path lock refused forever.
+  const dir = fs.mkdtempSync(path.join(WORK, "hostprereq-")), lock = path.join(dir, "uefi-probe.lock"), t = path.join(dir, "t.ps1");
+  const H = path.join(HERE, "win/host-prereq.ps1"), q = (x) => x.replace(/'/g, "''");
+  fs.writeFileSync(t, `$ErrorActionPreference = 'Stop'
+$pw = Join-Path $PSHOME 'pwsh'
+$a = @('-NoProfile', '-File', '${q(H)}', '-Install', '-RegRoot', 'HKCU:\\Software\\EnclaveHostPrereqRehearsal', '-RecordDir', '${q(path.join(dir, "rec"))}', '-Lock', '${q(lock)}')
+$h = [System.IO.File]::Open('${q(lock)}', 'OpenOrCreate', 'ReadWrite', 'None')
+$o = (& $pw @a 2>&1) -join ' '; "HELD|$LASTEXITCODE|$o"
+$h.Dispose()
+"EXISTS|$(Test-Path '${q(lock)}')"
+$o = (& $pw @a 2>&1) -join ' '; "FREE|$LASTEXITCODE|$o"
+$o = (& '${q(H)}' -Install -RegRoot 'HKCU:\\Software\\EnclaveHostPrereqRehearsal' -RecordDir '${q(path.join(dir, "rec"))}' -Lock '${q(lock)}' 2>&1) -join ' '
+try { $x = [System.IO.File]::Open('${q(lock)}', 'OpenOrCreate', 'ReadWrite', 'None'); $x.Dispose(); "SESSION|released" } catch { "SESSION|LEAKED" }`);
+  const r = pwsh(t); assert.equal(r.code, 0, r.out);
+  const row = (k) => (r.out.split("\n").find((l) => l.startsWith(`${k}|`)) || "").split("|");
+  assert.equal(row("HELD")[1], "2", r.out); assert.match(row("HELD")[2], /REFUSED: an acceptance run holds /);
+  assert.equal(row("EXISTS")[1], "True", "the lock file exists and is not held");
+  assert.equal(row("FREE")[1], "2", r.out);
+  assert.doesNotMatch(row("FREE")[2], /an acceptance run holds/); assert.match(row("FREE")[2], /REFUSED: the rehearsal root .* does not exist: create it first/);
+  assert.equal(row("SESSION")[1], "released", "the lock is released by the script's finally, not only by process exit");
+  assert.ok(!fs.existsSync(path.join(dir, "rec")), "a refused run writes no record");
+});
+
+test("host-prereq.ps1 resolves its target from -RegRoot's spelling first: every HKLM spelling of the default key is REAL (every check), an HKLM spelling of any other key is refused, only an explicit HKCU key is a rehearsal, and anything else is refused", { skip: !PWSH && "no pwsh" }, () => {
+  // enclave-bf's review of 9abdc36c, enclave-87's rule: "Registry::HKEY_LOCAL_MACHINE\..." was classed as a rehearsal
+  // (it did not start with "HKLM:") and so skipped the Secure Boot, test-signing and admin checks while writing HKLM.
+  const V = "\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization", CANON = `HKLM:${V}`;
+  const cases = [
+    [`HKLM:${V}`, "REAL"], [`hklm:${V.toLowerCase()}\\`, "REAL"], [`Registry::HKEY_LOCAL_MACHINE${V}`, "REAL"],
+    [`Microsoft.PowerShell.Core\\Registry::HKEY_LOCAL_MACHINE${V}`, "REAL"], [`registry::hkey_local_machine${V}`, "REAL"],
+    [`Registry::HKLM${V}`, "REAL"], [`HKEY_LOCAL_MACHINE${V}`, "REAL"],
+    ["HKLM:\\SOFTWARE\\EnclaveHostPrereqRehearsal", "HKLM-OTHER"], ["Registry::HKEY_LOCAL_MACHINE\\SOFTWARE\\EnclaveHostPrereqRehearsal", "HKLM-OTHER"],
+    [`HKLM:${V}\\GuestCommunicationServices`, "HKLM-OTHER"],
+    ["HKCU:\\Software\\EnclaveHostPrereqRehearsal", "REHEARSAL"], ["Registry::HKEY_CURRENT_USER\\Software\\EnclaveHostPrereqRehearsal", "REHEARSAL"],
+    ["V:\\Virtualization", "NEITHER"], ["C:\\temp\\x", "NEITHER"], [`HKLM:${V.slice(1)}`, "NEITHER"], ["HKCU:\\", "NEITHER"],
+    ["Registry::HKEY_CLASSES_ROOT\\x", "NEITHER"], [`HKLM:${V.replace(/\\/g, "/")}`, "NEITHER"], [`HKLM:\\\\SOFTWARE${V.slice(9)}`, "NEITHER"]];
+  const dir = fs.mkdtempSync(path.join(WORK, "hostprereq-spell-")), t = path.join(dir, "t.ps1"), q = (x) => x.replace(/'/g, "''");
+  fs.writeFileSync(t, `$pw = Join-Path $PSHOME 'pwsh'
+foreach ($r in @(${cases.map(([r]) => `'${q(r)}'`).join(", ")})) {
+  $o = & $pw -NoProfile -File '${q(path.join(HERE, "win/host-prereq.ps1"))}' -Check -RegRoot $r 2>&1
+  "CASE|$r|$LASTEXITCODE|$(($o | Select-Object -First 1) -join '')"
+}`);
+  const r = pwsh(t); assert.equal(r.code, 0, r.out);
+  const rows = r.out.split("\n").filter((l) => l.startsWith("CASE|")).map((l) => l.split("|"));
+  assert.equal(rows.length, cases.length, r.out);
+  cases.forEach(([spelling, want], i) => {
+    const [, got, code, first] = rows[i]; assert.equal(got, spelling);
+    if (want === "REAL") { assert.equal(code, "0", `${spelling}: ${first}`); assert.equal(first, `host-prereq: target: REAL ${CANON} (from -RegRoot '${spelling}'; every check applies)`); }
+    else if (want === "REHEARSAL") { assert.equal(code, "0", `${spelling}: ${first}`); assert.match(first, /^host-prereq: target: REHEARSAL on HKCU:\\Software\\EnclaveHostPrereqRehearsal \(from -RegRoot /); }
+    else if (want === "HKLM-OTHER") { assert.equal(code, "2", `${spelling}: ${first}`); assert.match(first, /REFUSED: -RegRoot .* names HKLM, so it is the REAL target, and the real target is only HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization$/); }
+    else { assert.equal(code, "2", `${spelling}: ${first}`); assert.match(first, /REFUSED: -RegRoot .* is neither an HKLM spelling of the default key nor an explicit HKCU rehearsal key$/); }
+  });
+  // and a REAL spelling never reaches the rehearsal's skip of the boot checks: its -Install goes to the lock and admin gates
+  const src = fs.readFileSync(path.join(HERE, "win/host-prereq.ps1"), "utf8");
+  assert.equal((src.match(/\$Rehearsal = /g) || []).length, 1, "the rehearsal flag is set in exactly one place");
+  assert.match(src, /\$Rehearsal = \(\$T\.Hive -eq 'HKCU'\)/);
+});
+
+test("v41's node tree is what enclave-5d's stage-hvnode.sh (rollout v2.2.3 7fcaa145) makes from main 013deb51: the archive and its MANIFEST byte for byte, and the node's N1 fix is in that commit", { skip }, () => {
+  const D = path.join(HERE, "drafts/nucbox-ownguest-41.json"), d = JSON.parse(fs.readFileSync(D, "utf8")), top = path.join(HERE, "../../..");
+  const dir = fs.mkdtempSync(path.join(WORK, "hvnode-stage-")), script = path.join(dir, "stage-hvnode.sh");
+  fs.writeFileSync(script, spawnSync("git", ["-C", top, "show", "7fcaa145de35dd2590274d5918b300c55cc2873f:windows/node/ops/hv-node-rollout/stage-hvnode.sh"]).stdout);
+  const r = spawnSync("bash", [script, "013deb51cbef481c23bdc66f5922d991c3058f02", "154b41a9e1e14bac386b6375275d7a3049e50271", path.join(dir, "out")], { cwd: top, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr); assert.match(r.stderr, /import closure: 25 files, 0 missing/);
+  for (const n of ["hvnode-013deb51.tar.gz", "MANIFEST-hvnode-013deb51.txt"])
+    assert.equal(crypto.createHash("sha256").update(fs.readFileSync(path.join(dir, "out", n))).digest("hex"), d.files.find((f) => f.path === `node/${n}`).sha256, n);
+  for (const c of ["a3c9d808e", "792d71f47"]) assert.equal(spawnSync("git", ["-C", top, "merge-base", "--is-ancestor", c, "013deb51cbef481c23bdc66f5922d991c3058f02"]).status, 0, `${c} is in 013deb51`);
+});

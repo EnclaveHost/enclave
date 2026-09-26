@@ -1,4 +1,10 @@
-# Host prerequisite for a custom paravisor image (documentation only, not applied)
+# Host prerequisite for a custom paravisor image
+
+**Superseded as a procedure by `pkg/win/host-prereq.ps1` (package v41).** That script makes the M3 prerequisites a
+permanent install with a verified rollback: this setting, plus the 9001 hv_sock service
+(`00002329-facb-11e6-bd58-64006a7986d3`). Approved by enclave-87 under Steven's authority; run by enclave-d1 only; see
+`pkg/README.md` (v41 and "Limits"). The original note follows unchanged.
+
 
 Scope: the NucBox K11 lab only. This file records the single host-wide setting that Microsoft
 documents for loading a developer-built OpenHCL image, so that the change can be reviewed before
