@@ -40,7 +40,15 @@
 import path from "node:path";
 import { BOOT_STATEMENTS, bootFormOfStatement } from "../verify/boot-statements.mjs";
 import fs from "node:fs";
-import { runWmiserve, writeBundle, freePort } from "./wmiserve-run.mjs";
+import { runWmiserve, writeBundle, freePort, CERT_NAME } from "./wmiserve-run.mjs";
+/** The name a deployment's domain may be certified for (M4): the first 8 hex of its id in the app zone, or null for a
+ *  name that is not a deployment id (a lab label): such a domain gets no certificate endpoints at all. */
+export function certNameFor(name) {
+  const m = /^0x([0-9a-fA-F]{64})$/.exec(String(name ?? ""));
+  if (!m) return null;
+  const n = `${m[1].slice(0, 8).toLowerCase()}.app.enclave.host`;
+  return CERT_NAME.test(n) ? n : null;
+}
 
 /*  THE VM MUST BE CREATED WITH A GUEST-STATE ISOLATION TYPE, or FirmwareFile is inert.
  *
@@ -982,7 +990,8 @@ export class WmiHyperVLauncher {
       const uefi = this.boot === BOOT_UEFI;
       // THE APP AND ITS RELAY, when this launcher was given wmiserve to run (enclave-5d, wmiserve-run.mjs): the bundle
       // into the guest over hv_sock 9000, the report service for THIS VM, and a loopback TCP relay to the domain.
-      if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB });
+      if (this.serve) served = await this.#serveApp({ mapping, instanceId, vmId: created.id, uefi, created, vcpus, memMiB,
+                                                      certName: certNameFor(identity && identity.name) });
       const guestIdentity = uefi
         ? uefiImageIdentity({ mediumSha256: created.mediumSha256, mediumPath: created.mediumPath ?? this.medium })
         : linuxDirectIdentity({ igvmSha256: created.firmwareSha256, igvmPath: this.imagePath });
@@ -1044,14 +1053,14 @@ export class WmiHyperVLauncher {
   }
 
   /** The app into the guest and a relay to it (wmiserve-run.mjs). Its bundle file is removed if this fails. */
-  async #serveApp({ mapping, instanceId, vmId, uefi, created, vcpus, memMiB }) {
+  async #serveApp({ mapping, instanceId, vmId, uefi, created, vcpus, memMiB, certName = null }) {
     const s = this.serve;
     const bundleFile = writeBundle({ dir: s.bundleDir, instanceId, bundle: mapping.bundle, appId: mapping.appId });
     try {
       const tcpPort = await (s.portFor ? s.portFor(instanceId) : freePort());
       const run = await (s.run || runWmiserve)({ exe: s.exe, vmId, bundleFile, appId: mapping.appId, tcpPort,
         ...(uefi ? { mediumSha256: created.mediumSha256 } : { igvmSha256: created.firmwareSha256 }),
-        isolationType: 1, label: instanceId, vcpus, memMiB,
+        isolationType: 1, label: instanceId, vcpus, memMiB, ...(certName ? { certName } : {}),
         ...(s.readyTimeoutMs ? { readyTimeoutMs: s.readyTimeoutMs } : {}), ...(s.spawn ? { spawn: s.spawn } : {}) });
       run.bundleFile = bundleFile;
       return run;
