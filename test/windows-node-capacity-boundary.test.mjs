@@ -225,3 +225,19 @@ test("an honest manager clears the hold on a LIVE lease, and the domain serves a
   assert.equal(h.records.get(DEP).status, "running"); assert.equal(h.records.get(DEP).boundaryHeld ?? null, null);
   assert.ok(await h.appZoneTarget(DEP));
 });
+
+// A REMOVED owner (a delegation deleted, expired or no longer valid) is never spliced by the app zone, whatever served
+// list the relay still holds (enclave-bf's belt on the make-before-break re-attach; enclave-87's revocation ruling).
+test("the app zone never splices a running deployment whose owner this box no longer serves; served again once it is", async () => {
+  const { port } = await lyingManager({});
+  const h = box({ isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
+  h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {});
+  assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).status, "running");
+  assert.equal(h.records.get(DEP).owner, OWNER);
+  assert.ok(await h.appZoneTarget(DEP), "served while its owner is");
+  servedOwner(h, STRANGER);                                   // the owner's delegation is gone: the box serves someone else
+  assert.equal(await h.appZoneTarget(DEP), null, "a removed owner's deployment was still spliced");
+  assert.equal(await h.appZoneTarget(DEP.slice(2, 10)), null, "...by its label either");
+  servedOwner(h, OWNER);
+  assert.ok(await h.appZoneTarget(DEP), "served again once its owner is");
+});

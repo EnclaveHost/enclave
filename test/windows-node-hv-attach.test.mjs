@@ -141,5 +141,6 @@ test("the version an attach records is of the list it SENT: a refresh during the
 
 test("the agent records the version of x.delegations, the list its frame carried (source)", () => {
   const src = fs.readFileSync(new URL("../windows/node/agent.mjs", import.meta.url), "utf8");
-  assert.match(src, /attachSent = \{ version: x\.version, owners: APPS \? host\.ownersVersion\(undefined, x\.delegations\) : null \};/);
+  // both what the frame carried: its owners' version (shouldReattach) and whom it made the relay serve (reattachMode)
+  assert.match(src, /attachSent = \{ version: x\.version, owners: APPS \? host\.ownersVersion\(undefined, x\.delegations\) : null,\s*served: APPS \? host\.servedBy\(x\.delegations\) : null \};/);
 });
