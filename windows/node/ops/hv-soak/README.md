@@ -23,7 +23,7 @@ Each sample opens one ssh session and sends one HTTPS request per check.
 | 1 | public TLS | ONE `GET` of the app URL with `--path` (default `/hv-soak/{token}`), where `{token}` is the sample's random token. The token also rides in `x-hv-soak`. The chain and the hostname are verified against Node's CA store. When a connection fails verification, its leaf is recorded (SPKI sha256, serial, issuer, the reason) and the connection is dropped before any response is read. Only a verified 200 counts. The first 4 KiB of the body are kept in memory, never stored, and matched against `--echo-pattern` (below). |
 | 1b | HEAD tripwire (`--leak-probe --body-marker S`) | ONE `HEAD` to the same URL, same token, same verification rules, sent together with the GET. |
 | 2 | relay row | `GET https://api.enclave.host/enclaves`, unauthenticated, reading the `nucbox-k11` row. It is OK when all of these hold: mode and tier `hv-node`, `attach` `attestation`, `tunnel` true, `hvNode.hostExcluded` false, and `availability.claimScope` `owner-only`. The sample also records `lastSeen`, `owners`, `eligible` and `serving`. |
-| 3 | the box | ONE `ssh minipc-zt` session. A short `-EncodedCommand` bootstrap reads the sampler script from stdin; nothing is written to the box. It reads: the manager's `GET /vms`; `Get-VM` for the `enclave-app-*` VMs; host free memory; `hvnode\logs\node.log` and `manager.log`, from where the last sample stopped, opened for READ with sharing; and the deployment's COM1 console. |
+| 3 | the box | ONE `ssh -n minipc-zt` session. The command itself carries the sampler script, minified, raw-DEFLATEd and base64-encoded inside a short `-EncodedCommand` bootstrap. Nothing is read from stdin and nothing is written to the box. The command stays under cmd.exe's 8191 characters (about 8050 today). It reads: the manager's `GET /vms`; `Get-VM` for the `enclave-app-*` VMs; host free memory; `hvnode\logs\node.log` and `manager.log`, from where the last sample stopped, opened for READ with sharing; and the deployment's COM1 console. Every step is bounded: the HTTP and CIM calls have timeouts, and the Hyper-V calls run in their own runspace, abandoned after 15 s. The script ends its own process. |
 | 4 | chain (`--no-chain` skips it) | ONE `eth_call get(bytes32)` on the deployments ledger through a public Base RPC. It records balance6, spent6, leaseUntil and whether the runner is this box. |
 
 **Order within a sample:**
@@ -70,7 +70,7 @@ It also prints `-STDOUT-REQ <path> <x-hv-soak>` to stdout and stderr.
 - the sample's token;
 - a `-STDOUT-REQ` line;
 - the HEAD body marker;
-- a console line that does not match `^(DOM|MON)|^\[ *[0-9]+\.[0-9]+\]`.
+- a console line that does not match `^(\d{4}\/\d\d\/\d\d \d\d:\d\d:\d\d(\.\d+)? DOM |DOM|MON)|^\[ *[0-9]+\.[0-9]+\]`. This is exactly the front's domLine form. The Go log date prefix is allowed only before `DOM `, as in the fixed front's `2026/09/26 02:35:48 DOM proxy: GET unreachable`. A date before `MON`, or before any other text, is a foreign line.
 
 **The HEAD tripwire (`--leak-probe --body-marker S`).** This is a tripwire, not coverage:
 - **Not covered on hv:** the front's unsolicited-response guard. Under bundle/1 wasi:http (wasmtime serve), hyper frames every response, so no servable app can reach it. Every summary says so.
@@ -172,6 +172,8 @@ summary modes against fake box answers and fake JSONL. It also runs the TLS chec
 a local server whose throwaway certificate openssl makes at test time; that test is skipped when openssl is missing.
 
 ## Limits (stated, not hidden)
+
+- **An ssh session that is killed does not end its remote process.** This was measured on the box at 02:56Z: a stdin-fed sampler hung at PowerShell startup and outlived its ssh client. The transport no longer uses stdin, and every step in the script is bounded, but a hang in powershell.exe's own startup would still leave an orphan. It would hold nothing: the COM1 pipe is opened only mid-script. Check with a process listing if samples start timing out.
 
 - **Console coverage.** The console is covered for the window around the requests. Output at other times is seen only when a later window catches it, because Hyper-V does not keep it for a reader who was not connected.
 - **Partial first line.** A window can begin mid-line. Its first line is judged like any other.

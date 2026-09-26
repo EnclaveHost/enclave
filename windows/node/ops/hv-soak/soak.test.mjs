@@ -4,12 +4,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import https from "node:https";
 import crypto from "node:crypto";
+import zlib from "node:zlib";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import {
-  DEFAULTS, CONSOLE_OK, THRESHOLDS, BOOTSTRAP, remoteCommand, appUrlFor, certFacts, tlsCheck, parseRelayRow, encodeGetCall,
+  DEFAULTS, CONSOLE_OK, THRESHOLDS, CMD_LIMIT, minifyPs, remoteCommand, appUrlFor, certFacts, tlsCheck, parseRelayRow, encodeGetCall,
   decodeDeployment, boxScript, parseBoxStdout, consumeChunk, scanLog, consoleScan, pickDeploymentVm, digestBox, newEval, step,
   summarize, newSampler, humanLine, parseArgs, exercised, headSentInWindow, splitHistory, HV_GUARD_NOT_COVERED, OUT_OF_SCOPE_VERDICT,
   BODY_KEEP, ECHO_PATTERN, evidenceRegex,
@@ -198,7 +199,9 @@ test("boxScript: nothing in it changes the box", () => {
   assert.deepEqual([...new Set(verbs)].filter((v) => !allowed.has(v)), [], "only reading cmdlets");
   assert.doesNotMatch(s, /-Method\b|FileAccess\]::(Write|ReadWrite)|PipeDirection\]::(Out|InOut)|Set-|Remove-|Stop-|Start-|Restart-|\bdel\b|\bmkdir\b/);
   assert.match(s, /\[IO\.FileAccess\]::Read,/);
-  assert.match(s, /\[System\.IO\.Pipes\.PipeDirection\]::In,/);
+  assert.match(s, /\[IO\.Pipes\.PipeDirection\]::In,/);
+  assert.equal((s.match(/\[IO\.File\]::Open\(/g) || []).length, 1, "one way to open a file: OpenR, for READ");
+  assert.match(s, /function OpenR\(\[string\]\$p\) \{ \[IO\.File\]::Open\(\$p, \[IO\.FileMode\]::Open, \[IO\.FileAccess\]::Read, /);
   assert.match(s, /\$_\.status -eq 'running' -and \$_\.guest/, "the console is opened only once the manager's start capture is done");
   assert.doesNotMatch(s, /state\\|operator\.key|proof\.key|delegations/i, "never near the key directory");
 });
@@ -211,12 +214,31 @@ test("boxScript: refuses inputs that would change what it reads", () => {
   assert.match(boxScript({ ...P, nodeFrom: 12345 }), /\$NodeFrom = \[long\]12345;/);
 });
 
-test("the ssh command line is a short bootstrap (cmd.exe caps a command line at 8191 characters)", () => {
-  const cmd = remoteCommand();
-  assert.ok(cmd.length < 8191, `${cmd.length}`);
-  const enc = cmd.split(" ").pop();
-  assert.equal(Buffer.from(enc, "base64").toString("utf16le"), BOOTSTRAP);
-  assert.match(BOOTSTRAP, /\[Console\]::In\.ReadToEnd\(\)/);
+test("the ssh command CARRIES the script (gzipped, minified): nothing is read from stdin, and it fits cmd.exe's 8191", () => {
+  // the largest offsets a 12 h run can reach still fit
+  const script = boxScript({ ...P, nodeFrom: 99_999_999_999, managerFrom: 99_999_999_999 });
+  const cmd = remoteCommand(script);
+  assert.ok(cmd.length < CMD_LIMIT, `${cmd.length}`);
+  assert.equal(CMD_LIMIT, 8191);
+  const boot = Buffer.from(cmd.split(" ").pop(), "base64").toString("utf16le");
+  assert.doesNotMatch(boot, /\[Console\]::In/, "no stdin read");
+  assert.doesNotMatch(minifyPs(script), /\[Console\]::In/, "the script reads no stdin either");
+  const z = boot.match(/FromBase64String\('([A-Za-z0-9+/=]+)'\)/)[1];
+  assert.equal(zlib.inflateRawSync(Buffer.from(z, "base64")).toString("utf8"), minifyPs(script), "the payload is exactly the minified script");
+  assert.match(boot, /\[IO\.Compression\.DeflateStream\]::new\(.*,\[IO\.Compression\.CompressionMode\]0\)/, "raw DEFLATE with a TYPED mode (a string is ambiguous on the box)");
+  // minifying drops only comment lines and indentation
+  assert.equal(minifyPs("  # a comment\n  $a = 1\n\n    if ($a) { 'x' }  \n"), "$a = 1\nif ($a) { 'x' }");
+  assert.throws(() => remoteCommand(script + "\n$z = '" + crypto.randomBytes(6000).toString("hex") + "'"), /over cmd\.exe's 8191/);
+});
+
+test("boxScript: every Hyper-V call is bounded, and the script ends its own process", () => {
+  const s = boxScript(P);
+  assert.match(s, /Bounded \{ param\(\$n\) \(Get-VMComPort -VMName \$n -Number 1\)\.Path \} \$vmName 15000/);
+  assert.match(s, /Bounded \{ @\(Get-VM \|/);
+  assert.equal((s.match(/Get-VM(ComPort)?\b/g) || []).length, 2, "no unbounded Hyper-V call");
+  assert.match(s, /Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 10/);
+  assert.match(s, /-TimeoutSec 20/);
+  assert.match(s.trim(), /\[Environment\]::Exit\(0\)$/);
 });
 
 test("parseBoxStdout: the last HVSOAK1 line, not READY and not the noise around it", () => {
@@ -284,6 +306,27 @@ test("consoleScan: the guest's own lines pass; anything else is counted and hash
   assert.equal(c.tokenHits, 1);
   assert.doesNotMatch(JSON.stringify(c), /Serving|hv-soak/, "no line content in the result");
   assert.ok(CONSOLE_OK.test("DOM1 x") && CONSOLE_OK.test("MON x") && CONSOLE_OK.test("[ 1.5] x") && !CONSOLE_OK.test(" DOM x"));
+});
+
+test("consoleScan: the fixed front's date-prefixed DOM line is the guest's own; a date-prefixed non-DOM line is still foreign", () => {
+  // enclave-d1's box canary: the front's own lines keep Go's log date prefix
+  assert.equal(String(CONSOLE_OK), String(/^(\d{4}\/\d\d\/\d\d \d\d:\d\d:\d\d(\.\d+)? DOM |DOM|MON)|^\[ *[0-9]+\.[0-9]+\]/), "exactly the front's domLine form");
+  for (const ok of ["2026/09/26 02:35:48 DOM proxy: GET unreachable", "2026/09/26 03:00:01.123456 DOM proxy: GET timeout",
+                    "2026/09/26 03:00:01 DOM front: unsolicited upstream response (19 bytes withheld)"])
+    assert.equal(CONSOLE_OK.test(ok), true, ok);
+  for (const bad of ["2026/09/26 02:35:48 MON ready control_port=9000", "2026/09/26 02:35:48 app text",
+                     "2026/09/26 03:00:01 Unsolicited response received on idle HTTP channel", "2026/09/26 03:00:01 GET /hv-soak/x 200",
+                     "2026/09/26 03:00:01 DOMAIN leak", "2026/9/26 03:00:01 DOM x", "2026/09/26 03:00 DOM x", "x 2026/09/26 03:00:01 DOM y"])
+    assert.equal(CONSOLE_OK.test(bad), false, bad);
+  // and as a verdict: the date is allowed only before DOM
+  for (const [line, fails] of [["2026/09/26 02:35:48 DOM proxy: GET unreachable", 0], ["2026/09/26 02:35:48 MON ready", 1], ["2026/09/26 02:35:48 app text", 1]]) {
+    const r = step(newEval(), { t: "2026-09-26T03:00:00Z", tls: { ok: true }, box: { ok: true, console: consoleScan(Buffer.from(`${line}\n`)) } });
+    assert.equal(r.fail.filter(([id]) => id === "leak").length, fails, line);
+  }
+  const c = consoleScan(Buffer.from("2026/09/26 03:00:01 DOM proxy: GET unreachable\r\n2026/09/26 03:00:02 GET /hv-soak/hvsoakQ 200\r\n"), { token: "hvsoakQ" });
+  assert.deepEqual([c.lines, c.nonMatching, c.tokenHits], [2, 1, 1]);
+  const v = step(newEval(), { t: "2026-09-26T03:00:00Z", tls: { ok: true }, box: { ok: true, console: consoleScan(Buffer.from("2026/09/26 03:00:01.5 DOM proxy: GET timeout\n")) } });
+  assert.deepEqual(v.fail, [], "a proxy timeout is not a leak");
   assert.deepEqual(consoleScan(Buffer.alloc(0), { token: "x" }), { bytes: 0, lines: 0, nonMatching: 0, nonMatchingSha256: [], partialTailBytes: 0,
                                                                     tokenHits: 0, markerHits: 0, sentinelLines: 0, withheld: 0 });
 });
