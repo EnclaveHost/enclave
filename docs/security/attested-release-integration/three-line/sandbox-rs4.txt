@@ -1,0 +1,29 @@
+== rs4-remote.sh e726237e, sandbox 2026-09-26T06:52:33Z
+PASS apply: the four lines, consistent, allowlist + exactly ADD rc=0   (want 0  ) env CHANGED   | nan: rs4 apply: backup /tmp/tmp.zumyg18Cib/api-relay.env.bak-rs4-apply-s12123; the four lines replaced (now sh
+PASS   apply kept the allowlist's place (line 2) and its 4 live entries, in order, then N1, N2
+PASS rollback: back to BEFORE (exactly ADD off the end)         rc=0   (want 0  ) env CHANGED   | nan: rs4 rollback: backup /tmp/tmp.zumyg18Cib/api-relay.env.bak-rs4-rollback-s14624; the four lines replaced (
+PASS   rollback restored the 4 live entries exactly
+PASS refuse: ADD unset/empty (the pinned additions are required) rc=1   (want 1  ) env unchanged | /tmp/tmp.zumyg18Cib/remote.sh: line 49: ADD: parameter null or not set
+PASS refuse: staged NEW file is not the reviewed one            rc=11  (want 11 ) env unchanged | REFUSING: the staged line files are not the reviewed ones
+PASS refuse: the staging's check did not pass                   rc=11  (want 11 ) env unchanged | REFUSING: the staging's sandboxed check did not pass
+PASS refuse: MODE neither apply nor rollback                    rc=10  (want 10 ) env unchanged | REFUSING: MODE is apply or rollback
+PASS refuse: TO is not exactly the four lines                   rc=12  (want 12 ) env unchanged | REFUSING: /tmp/tmp.zumyg18Cib/dest/lines4.env is not exactly the four lines
+PASS refuse: the staged allowlist DROPS a live entry            rc=12  (want 12 ) env unchanged | REFUSING: the staged allowlist: apply: the allowlist is not the live one plus exactly ADD (4 -> 5 entries, ADD
+PASS refuse: the staged allowlist adds less than ADD            rc=12  (want 12 ) env unchanged | REFUSING: the staged allowlist: apply: the allowlist is not the live one plus exactly ADD (4 -> 5 entries, ADD
+PASS refuse: the staged allowlist adds ADD out of order         rc=12  (want 12 ) env unchanged | REFUSING: the staged allowlist: apply: the allowlist is not the live one plus exactly ADD (4 -> 6 entries, ADD
+PASS refuse: the staged allowlist reorders live entries         rc=12  (want 12 ) env unchanged | REFUSING: the staged allowlist: apply: the allowlist is not the live one plus exactly ADD (4 -> 6 entries, ADD
+PASS refuse: an allowlist entry twice                           rc=12  (want 12 ) env unchanged | REFUSING: the staged allowlist: an entry appears twice
+PASS refuse: an entry that is not 96 hex                        rc=12  (want 12 ) env unchanged | REFUSING: the staged allowlist: an entry is not 96 lowercase hex
+PASS refuse: ADD pinned in the wrapper != the staged addition   rc=12  (want 12 ) env unchanged | REFUSING: the staged allowlist: apply: the allowlist is not the live one plus exactly ADD (4 -> 6 entries, ADD
+PASS refuse: env not 0600 owner                                 rc=13  (want 13 ) env unchanged | REFUSING: /tmp/tmp.zumyg18Cib/api-relay.env is not 0600 root
+PASS refuse: env without a trailing newline                     rc=13  (want 13 ) env unchanged | REFUSING: /tmp/tmp.zumyg18Cib/api-relay.env does not end with a newline
+PASS refuse: a key twice in the env                             rc=13  (want 13 ) env unchanged | REFUSING: /tmp/tmp.zumyg18Cib/api-relay.env has not exactly one SECRETS_RELEASE_DOMAIN_RELEASES
+PASS refuse: live line is not FROM (already done?)              rc=13  (want 13 ) env unchanged | REFUSING: the live SECRETS_RELEASE_CERT_RELEASES is not the expected one (already done?)
+PASS refuse: the live allowlist moved since staging             rc=13  (want 13 ) env unchanged | REFUSING: the live METAL_ALLOWED_MEASUREMENTS is not the expected one (already done?)
+PASS refuse: a TO release does not verify on disk               rc=15  (want 15 ) env unchanged | REFUSING: 9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e does not verify at /r/bad
+PASS refuse: api relay not active                               rc=16  (want 16 ) env unchanged | REFUSING: enclave-api-relay is not active
+PASS refuse: CERT unchanged (not 4 lines replaced)              rc=18  (want 18 ) env unchanged | REFUSING: the edited file is not the old one with exactly the four lines replaced
+PASS refuse: cert drops an admitted release (consistent)        rc=19  (want 19 ) env unchanged | REFUSING: the new env would refuse EVERY prediction: SECRETS_RELEASE_CERT_RELEASES leaves out the admitted f7f
+PASS refuse: admitted not installed (consistent)                rc=19  (want 19 ) env unchanged | REFUSING: the new env would refuse EVERY prediction: admitted but not installed: 9e9e9e9e9e9e (nothing written
+PASS refuse: a cert release not installed (consistent)          rc=19  (want 19 ) env unchanged | REFUSING: the new env would refuse EVERY prediction: a certificate release is not installed: abababababab (not
+PASS post-restart: NRestarts!=0 -> CHECK FAILED                 rc=21  (want 21 ) env CHANGED   | CHECK FAILED: invocation inv-17904055 (was inv-17904055), NRestarts 1
