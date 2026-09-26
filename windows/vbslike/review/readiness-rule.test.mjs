@@ -21,7 +21,7 @@ import fs from "node:fs";
 import { randomBytes } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { judge } from "../verify/judge-hv.mjs";
-import { FakeDomain, launcherKey, session, sha256hex, APP, OTHER_APP, RUNTIME } from "./fake-domain.mjs";
+import { FakeDomain, launcherKey, session, sha256hex, APP, OTHER_APP, RUNTIME, SELFTEST, LEGACY_SELFTEST, V42_IMAGE, FAKE_IMAGE } from "./fake-domain.mjs";
 
 const SEAM = new URL("../manager/ready.mjs", import.meta.url);
 async function seam() {
@@ -58,6 +58,34 @@ test("the fake domain is faithful: judge-hv says monitor-signed on THIS handshak
     assert.equal(judge({ doc, spki: s.spki, nonce, expectedAppSha256: APP, launcherKey: d.signer.keyB64, expectRuntime: { ...RUNTIME, version: "47.0.0" } }).verdict, "reject", "another runtime identity (ABI/2)");
     s.close();
   } finally { d.close(); }
+});
+
+// the per-image W^X rule (enclave-b4's judge-hv 8d036dff = main f1461271; v43): judged directly, both ways. It FAILS on a
+// judge before that rule (this branch's own verify/judge-hv.mjs accepts the legacy form on any image), which is the correct
+// reading of such a judge; run it in the package's layout (v43's control bd657ed0 + these files): 9/9 here, record-to-route 4/4.
+async function judgeFake(opts, expectedImageSha256) {
+  const d = await new FakeDomain(opts).listen();
+  try {
+    const s = await session(d.port), nonce = randomBytes(32);
+    const doc = JSON.parse((await s.req("GET", `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`)).body);
+    s.close();
+    return judge({ doc, spki: s.spki, nonce, expectedAppSha256: APP, launcherKey: d.signer.keyB64, expectRuntime: RUNTIME,
+                   ...(expectedImageSha256 ? { expectedImageSha256 } : {}) });
+  } finally { d.close(); }
+}
+test("the per-image W^X rule, both ways: the attest-time self-test is runtime-covered; the LEGACY form is accepted ONLY on the listed image 0891c740 (the caller's image), as runtime W^X UNMEASURED, and refused on any other image or with no image named", async () => {
+  const now = await judgeFake({}, FAKE_IMAGE);
+  assert.equal(now.verdict, "monitor-signed", now.reasons.join("; "));
+  assert.equal(now.wxCoverage, "runtime-covered", `the default fake states the attest-time form (${SELFTEST})`);
+  const v42 = await judgeFake({ selfTest: LEGACY_SELFTEST, imageSha256: V42_IMAGE }, V42_IMAGE);
+  assert.equal(v42.verdict, "monitor-signed", `the legacy form on the listed v42 image is accepted: ${v42.reasons.join("; ")}`);
+  assert.equal(v42.wxCoverage, "runtime-unmeasured", "and reported as runtime W^X UNMEASURED, never covered");
+  assert.match(v42.wxWhy, /UNMEASURED/);
+  const other = await judgeFake({ selfTest: LEGACY_SELFTEST }, FAKE_IMAGE);
+  assert.equal(other.verdict, "reject", "the legacy form on an image the table does not list is refused");
+  assert.ok(other.reasons.some((r) => /names no runtime coverage/.test(r)), other.reasons.join("; "));
+  const unnamed = await judgeFake({ selfTest: LEGACY_SELFTEST, imageSha256: V42_IMAGE });
+  assert.equal(unnamed.verdict, "reject", "no image named by the caller = no legacy, even when the DOCUMENT states the listed image");
 });
 
 test("RUNNING: the document verified on this handshake's key with a fresh nonce AND ready 200 on the same key", async () => {
