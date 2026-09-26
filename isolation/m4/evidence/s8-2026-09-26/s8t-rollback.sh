@@ -30,6 +30,32 @@ elif ! { check_guestd4 >/dev/null && noncanary_empty; }; then
   [ -n "${OVERRIDE:-}" ] || { say4 "REFUSING the tree-switch rollback: a guest is not one of the 3 canaries on its current (e6) key, or a non-canary is (or may be) on metal-iso0; escalate to enclave-87"; exit 30; }
   say4 "OVERRIDE (8t rollback): $OVERRIDE"; { echo "$(date -u +%FT%TZ) OVERRIDE (8t rollback): $OVERRIDE" >> $EV/rollback-override.log; } 2>/dev/null || true
 fi
+# ---- enclave-87 (enforced after rs-10): this rollback returns guestd to iso-b63c2def, which builds f7888d86 guests; once
+# e3's rs-10 retired f7888d86 on the relay those guests get no release and no certificate. So the relay's PUBLIC
+# /v1/expected-guest must list f7888d86 releaseAdmitted for EVERY canary (i.e. rs-10 was rolled back first); an unreadable
+# or malformed answer, or one for another id, counts as NOT admitted (fail closed). Its own bypass, OVERRIDE_UNADMITTED:
+# OVERRIDE alone cannot pass it (every rollback after e7 needs OVERRIDE for the canary gate). The apply's own fail()
+# (FROM_APPLY, token-checked above) is exempt: it runs mid-switch, where a half-switched unit is worse; S8 has run and
+# s8t-apply.sh refuses a re-run while $BAK exists. test-rollback-guard.sh runs this block verbatim.
+# BEGIN f7888d86-admitted guard
+adm_f7888d86() {
+  local cid eg
+  for cid in 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e; do
+    eg=$(curl -sS --max-time 30 "https://api.enclave.host/v1/expected-guest?id=$cid" 2>/dev/null) || return 1
+    python3 -c "import json,sys; r=json.loads(sys.argv[1]); assert r.get('id','').lower()==sys.argv[2]; sys.exit(0 if any(i.get('release')==sys.argv[3] and i.get('releaseAdmitted') is True for i in r.get('images',[])) else 1)" \
+      "$eg" "$cid" f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca 2>/dev/null || return 1
+  done
+}
+if [ -n "${FROM_APPLY:-}" ]; then
+  :   # the apply's own automatic rollback, mid-switch (see above)
+elif [ -n "${OVERRIDE_UNADMITTED:-}" ]; then
+  say4 "OVERRIDE_UNADMITTED (8t rollback, f7888d86 admission not checked): $OVERRIDE_UNADMITTED"
+  { echo "$(date -u +%FT%TZ) OVERRIDE_UNADMITTED (8t rollback): $OVERRIDE_UNADMITTED" >> $EV/rollback-override.log; } 2>/dev/null || true
+elif ! adm_f7888d86; then
+  say4 "REFUSING the S8 rollback: the relay does not list f7888d86 releaseAdmitted for every canary (rs-10 retired it, or the relay did not answer). Roll back rs-10 FIRST (e3's rs-10 rollback: re-admit f7888d86), then run this again; otherwise fix forward on 5db18199. Bypass only with OVERRIDE_UNADMITTED=<reason> (enclave-87)"
+  exit 32
+fi
+# END f7888d86-admitted guard
 [ -f "$BAK" ] || { say4 "no $BAK"; exit 1; }
 grep -q "^ExecStart=$B4 -isolation $OT/isolation .* -guest-mem-mib 65536 -guest-cpus 16 -release -legacy-isolation $LEG -instance-prefix gd -guest-host-floor-mib $FLOOR\$" "$BAK" \
   || { say4 "the backup is not the guestd.4e78ba80 / iso-b63c2def unit"; exit 1; }
