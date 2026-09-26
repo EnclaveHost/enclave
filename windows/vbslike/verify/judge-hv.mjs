@@ -45,7 +45,10 @@ export const LEGACY_WX_IMAGES = Object.freeze({
 // checks at each attestation that every runtime process is under a filter (Seccomp: 2) and carries seccomp=<hash>. An
 // image built before that states none, and is accepted without it only when the caller's image is listed here - said,
 // not counted as attested. Same rules as LEGACY_WX_IMAGES: the caller's image, never the document's; an entry goes
-// at its image's retirement.
+// at its image's retirement. The hash is NOT compared with an expected value (enclave-5d's N2, enclave-87): the image's
+// launch digest pins domexec's compiled filter, so it identifies the program (recomputable from m2/app-seccomp.h); the
+// independent half is the monitor reading the kernel's Seccomp mode at each attestation. The v44 chain's filter is
+// d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66 (71 instructions; recomputed by enclave-bf).
 export const SECCOMP_UNSTATED_IMAGES = Object.freeze({
   ...LEGACY_WX_IMAGES,
   "4950052785daf26d9c712a710f118211c853a04e03c01b8d77d8ac44a50327ab": "v43 guest IGVM 49500527 (digest 61C61AD4): W^X at each attestation, no seccomp statement",
