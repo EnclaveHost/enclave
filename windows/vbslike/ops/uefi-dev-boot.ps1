@@ -350,11 +350,21 @@ if ($IsolationType -eq 1) {
   Note "    type 16 = IsolationType::None: the root partition can map every page of this guest, by construction."
 }
 
+# Read-Setting -> @{ S='NoKey' | 'Absent' | 'Present' (V, K) | 'Unreadable' (Why) }. FAIL-CLOSED (enclave-bf's review of
+# 55019552): 'Absent' ONLY when the key exists and holds no such value, 'NoKey' ONLY for the path-not-found error, and ANY
+# other failure - access denied, a transient read error, GetValueKind throwing - is 'Unreadable', never 'Absent'. The old
+# catch-all read every error as 'Absent': one transient error at a production NucBox (M3: Present = 1) made the run write 1
+# and then REMOVE the setting in cleanup, reporting "SETTING RESTORED to Absent (verified)".
 function Read-Setting {
-  if (-not (Test-Path $RegPath)) { return @{ S='NoKey' } }
-  try { $i = Get-ItemProperty $RegPath -Name $RegName -EA Stop
-        @{ S='Present'; V=$i.$RegName; K="$((Get-Item $RegPath).GetValueKind($RegName))" } }
-  catch { @{ S='Absent' } }
+  try { $k = Get-Item -LiteralPath $RegPath -ErrorAction Stop }
+  catch {
+    if ($_.Exception -is [System.Management.Automation.ItemNotFoundException] -or "$($_.FullyQualifiedErrorId)" -like 'PathNotFound*') { return @{ S='NoKey' } }
+    return @{ S='Unreadable'; Why="$($_.Exception.Message)" }
+  }
+  try {
+    if (@($k.GetValueNames()) -notcontains $RegName) { return @{ S='Absent' } }
+    return @{ S='Present'; V=$k.GetValue($RegName); K="$($k.GetValueKind($RegName))" }
+  } catch { return @{ S='Unreadable'; Why="$($_.Exception.Message)" } }
 }
 # AllowFirmwareLoadFromFile is HOST-WIDE, and on a production NucBox M3 keeps it Present = 1 permanently: the manager needs it
 # for every partition. A lab run then has nothing to change, so it writes NOTHING - neither the apply nor the restore, nor
@@ -362,6 +372,12 @@ function Read-Setting {
 # setting it would only set to what it already is). Otherwise it applies 1 and restores the exact prior state, verified.
 # windows/vbslike/ops/firmware-setting.tests.ps1 runs these four against recording stubs.
 function FirmwareAlreadyOn($s) { $s.S -eq 'Present' -and "$($s.V)" -eq '1' }
+# refuses the run BEFORE any write: a setting this run cannot read is never touched, and -WithoutFirmwarePolicy cannot ask
+# its question ("does Hyper-V load the file WITHOUT the setting?") on a host where the setting is already on (M3)
+function Assert-FirmwareRunnable($before, [bool]$without) {
+  if ($before.S -eq 'Unreadable') { throw "$RegName could not be read ($($before.Why)): refusing before any write - a setting this run cannot read is never touched" }
+  if ($without -and (FirmwareAlreadyOn $before)) { throw "-WithoutFirmwarePolicy cannot test 'without' here: $RegName is already present = 1 (M3 keeps it on); refusing before any write" }
+}
 function Invoke-FirmwareApply($before, [bool]$without) {
   if ($without) {
     Note "SETTING NOT APPLIED (-WithoutFirmwarePolicy): this run asks whether Hyper-V loads the firmware file WITHOUT AllowFirmwareLoadFromFile"
@@ -382,6 +398,7 @@ function Invoke-FirmwareRestore($before, [bool]$mutated) {
     else { Remove-ItemProperty $RegPath -Name $RegName -EA SilentlyContinue }
   }
   $after = Read-Setting
+  if ($after.S -eq 'Unreadable') { return "SETTING NOT VERIFIED: $RegName could not be read after the run ($($after.Why)); it was $($before.S)$(if ($before.S -eq 'Present') { ' = ' + $before.V })" }
   if ($after.S -eq $before.S -and "$($after.V)" -eq "$($before.V)") {
     if ($mutated) { Note "SETTING RESTORED to $($before.S) (verified)" }
     else { Note "SETTING left as it was ($($before.S)$(if ($before.S -eq 'Present') { ' = ' + $before.V }); this run never wrote it; verified)" }
@@ -478,6 +495,7 @@ foreach ($v in (Get-VM -EA SilentlyContinue | Where-Object { $_.Name -like 'encl
 }
 
 $before   = Read-Setting
+Assert-FirmwareRunnable $before ([bool]$WithoutFirmwarePolicy)
 $nodeBefore = @(Get-Process node -EA SilentlyContinue | ForEach-Object { $_.Id }) -join ','
 $appsBefore = $APPS | ForEach-Object { "$_=$(App $_)" }
 $loopBefore = Loopbacks
