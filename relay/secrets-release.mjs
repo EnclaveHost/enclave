@@ -198,7 +198,7 @@ export const releaseConfig = () => ({
 // retry pass for catalog_unreachable only, after `retryAfterMs` - longer than the predictor's 60 s negative cache, so the
 // retry recomputes instead of reading the cached refusal. Any other failure is not retried (it is not a transport blip).
 export async function prewarmReleasePredictions(ctx, { log = console.log, sets = ["release", "cert"], gapMs = 750, retryAfterMs = 61_000,
-                                                       sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
+                                                       sleep = (ms) => new Promise((r) => setTimeout(r, ms).unref?.()) } = {}) {
   const cfg = releaseConfig();
   if (!cfg.deployments) return { skipped: "no deployment is listed for release" };
   if (cfg.deployments === "*") return { skipped: "SECRETS_RELEASE_DEPLOYMENTS=* names every deployment: not pre-warmed" };
