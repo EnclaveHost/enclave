@@ -14,6 +14,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"sort"
@@ -104,13 +105,19 @@ func FirstWXMapping(pid int) (line string, mapped bool, err error) {
 		return "", false, err
 	}
 	defer f.Close()
-	sc := bufio.NewScanner(f)
+	return firstWX(f)
+}
+
+// firstWX reads a maps file. A line it cannot parse (fewer than two fields, or permissions shorter than "rwxp") is an
+// ERROR, not a skip: the scan fails closed on anything it cannot read (enclave-5d's nit).
+func firstWX(r io.Reader) (line string, mapped bool, err error) {
+	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for sc.Scan() {
 		mapped = true
 		fields := strings.Fields(sc.Text())
 		if len(fields) < 2 || len(fields[1]) < 4 {
-			continue
+			return "", mapped, fmt.Errorf("a maps line it cannot parse: %q", sc.Text())
 		}
 		if fields[1][1] == 'w' && fields[1][2] == 'x' {
 			return sc.Text(), true, nil
