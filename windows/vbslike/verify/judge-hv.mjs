@@ -32,7 +32,8 @@ import { bootFormOfStatement, isStatedPartition } from "./boot-statements.mjs";
 // document's; no image named means no legacy. An entry goes when its image is retired from service.
 //
 // Who relies on it, and so enforces it through the verdict: the manager's readiness (manager/ready.mjs, server.mjs: a
-// partition whose runtime W^X is unmeasured or not clean never becomes ready, so never serves), the node's certificate
+// partition whose runtime W^X is not clean, or - on an image the table does not list - not covered, never becomes ready,
+// so never serves; a listed image's legacy form is admitted, reported unmeasured), the node's certificate
 // pass (windows/node/hvcert.mjs: no certificate for it), and the lab tools (verify/lab.mjs, isolation/m3/hvlab-*.mjs).
 // The shared checkRuntime (isolation/m2/judge.mjs) judges wx=clean, maps and the scope; this adds the coverage, and
 // passes the legacy label to it, so the same verdict comes from main's judge and from the per-release one.
@@ -44,17 +45,17 @@ const WX_ROLES = ["runtime", "front", "init", "root", "other"];
 /** wxCoverage(selfTest, legacy) -> { ok, coverage: "runtime-covered" | "runtime-unmeasured", why } for an ABI/2 document. */
 export function wxCoverage(selfTest, legacy) {
   if (typeof selfTest !== "string" || !selfTest) return { ok: false, why: "the document states no runtime self-test" };
-  const f = {};
+  const f = Object.create(null);
   for (const part of selfTest.trim().split(/\s+/)) {
     const i = part.indexOf("=");
-    if (i <= 0 || part.slice(0, i) in f) return { ok: false, why: `malformed runtime self-test ${JSON.stringify(selfTest)}` };
+    if (i <= 0 || Object.hasOwn(f, part.slice(0, i))) return { ok: false, why: `malformed runtime self-test ${JSON.stringify(selfTest)}` };
     f[part.slice(0, i)] = part.slice(i + 1);
   }
-  const roles = WX_ROLES.filter((r) => r in f);
+  const roles = WX_ROLES.filter((r) => Object.hasOwn(f, r));
+  if (f.wx !== "clean") return { ok: false, why: `the runtime self-test says wx=${JSON.stringify(f.wx ?? null)}` };
   if (!roles.length && legacy) return { ok: true, coverage: "runtime-unmeasured",
     why: `the LEGACY runtime self-test, accepted only for ${legacy}: one scan at front start, before the runtime existed - runtime W^X UNMEASURED, not clean` };
-  if (f.wx !== "clean") return { ok: false, why: `the runtime self-test says wx=${JSON.stringify(f.wx ?? null)}` };
-  if (!("runtime" in f)) return { ok: false, why: `the runtime self-test names no runtime coverage (runtime=<n>): a scan made before the runtime ran${legacy ? "" : " (the legacy form is accepted only for a listed image)"}` };
+  if (!Object.hasOwn(f, "runtime")) return { ok: false, why: `the runtime self-test names no runtime coverage (runtime=<n>): a scan made before the runtime ran${legacy ? "" : " (the legacy form is accepted only for a listed image)"}` };
   const counts = roles.map((r) => f[r]);
   if (!counts.every((n) => /^\d+$/.test(n))) return { ok: false, why: `the runtime self-test's role counts are not counts: ${JSON.stringify(selfTest)}` };
   if (counts.reduce((a, n) => a + Number(n), 0) !== Number(f.maps)) return { ok: false, why: `the runtime self-test's roles do not add up to maps=${f.maps}` };
@@ -125,12 +126,12 @@ export function judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expect
     ? LEGACY_WX_IMAGES[String(expectedImageSha256).toLowerCase()] : null;
   const rt = checkRuntime(doc, spki, nonce, { ...(expectRuntime !== undefined ? { runtime: expectRuntime } : {}), legacyWx: legacy });
   c("ABI, runtime identity and self-test admissible (shared checkRuntime)", rt.ok, rt.reasons.filter((r) => r.startsWith("REJECT")).join("; "));
-  // the runtime's W^X, per image (above): judged for every document that states a runtime (ABI/2)
-  let wx = null;
-  if (doc.runtime !== undefined) {
-    wx = wxCoverage(doc.runtimeSelfTest, legacy);
-    c("the runtime's W^X measured at attestation (or a listed image's legacy form, as unmeasured)", wx.ok, wx.why);
-  }
+  // the runtime's W^X, per image (above), for every ABI/2 document - and for an ABI/1 one on any image the table does NOT
+  // list, which states no runtime and no self-test and so is REFUSED, whether or not the caller pins the runtime (enclave-5d,
+  // enclave-87: a manager started without ENCLAVE_RUNTIME_IDENTITY would otherwise admit a v43 partition stating no W^X).
+  // A listed image keeps today's ABI handling (the caller's expectRuntime decides ABI/1).
+  const wx = doc.runtime !== undefined || !legacy ? wxCoverage(doc.runtimeSelfTest, legacy) : null;
+  if (wx) c("the runtime's W^X measured at attestation (or a listed image's legacy form, as unmeasured)", wx.ok, wx.why);
   const bind = rt.ok ? (rt.binding ?? sha256(spki, nonce)) : null;
   c("report_data[0:32] == the binding recomputed from the handshake key, our nonce and the stated runtime", bind !== null && rd.length === 64 && eq(rd.subarray(0, 32), bind), "binding does not match the handshake");
   const expApp = Buffer.from(expectedAppSha256, "hex");
