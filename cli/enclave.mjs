@@ -1883,7 +1883,7 @@ async function cmdUpgrade(rest, { resize = false } = {}) {
       say("! couldn't read fleet availability to confirm resize support; if a runner predates it, the new rate applies but the slice only changes at the next re-claim");
     }
     // a resize mid-lease settles the lease tail at the old rate and re-burns
-    // it at the new one; the contract refuses ("unfunded at the new rate") if
+    // it at the new one; the contract refuses ("unfunded at the new rate", "unfunded" from ledger rev 14) if
     // that can't buy even one second - fail with words before the signature
     if (leased) {
       const tail = BigInt(Math.max(0, Number(d.leaseUntil) - Math.floor(Date.now() / 1000)));
