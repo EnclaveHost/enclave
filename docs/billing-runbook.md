@@ -136,6 +136,49 @@ pre-signature in all three clients, and the number they received is exactly
 what `refundableOf` returned. Making customers whole beyond that is a §3b
 discretionary refund and needs finance like any other.
 
+#### When `refundableOf` is 0 but the balance is not
+
+Two ledger behaviours make `refundableOf(id)` read 0, or less than the balance
+suggests, with nothing stuck in the contract. Both are how rev 10-13 work: the
+money is where the contract sent it.
+
+1. **A funding made under a zero runner share escrowed nothing.** `fund()`
+   splits at the record's CURRENT snapshot, `d.rate` and
+   `earnOf(id).runnerRate6`, and `release` leaves the last lease's snapshot in
+   place. So a record last held by a free lease (§3c) is still at runner share
+   0. So is a record last held by a lease so cheap that the share rounds to 0:
+   `runnerRate6 = floor((rate - fee) × runnerBps / 10000)`, so rate 1 gives 0.
+   A USDC funding made then escrows 0 and forwards everything but the
+   publisher's cut to payout. `ownerEscrow6` does not grow, so none of it is
+   refundable. The next paid runner is credited nothing for the seconds that
+   balance buys: served-but-unbacked time is forfeit. The app still runs for
+   `balance6 / rate`, because leases burn the balance, not the escrow.
+   - **Recognise it:** a `Funded` event that follows a `RunnerRateSet(0)` with
+     no paid claim between them. Today that shows as `ownerEscrow6` 0 (or
+     spent) and `escrow6` 0 while `balance6` > 0. Example: `0xca141665`, our
+     own wallet. It was funded 250000 on 09-22 after three free leases; since
+     then `refundableOf` is 0 and `balance6` is 233800.
+   - **Avoid it:** fund only while a paid runner holds the lease, i.e. after it
+     claims. Then the owner's `fundEscrow(id, amount)` works too: it needs
+     `runnerRate6 > 0`, backs the runner without buying time, and stays
+     refundable.
+   - **Money already forwarded:** a §3b refund is the only way back. Splitting
+     an unleased or lapsed record at its cap instead is backlog for the next
+     ledger rev.
+2. **A lapsed lease's unproven tail stays reserved.** `refundableOf` keeps back
+   `(leaseUntil - creditedUntil) × runnerRate6` while `leaseUntil` is ahead of
+   `creditedUntil`, and a lapse alone never clears it. The runner may still
+   checkpoint after its lease ends: `EnclaveProofOfTime`'s window counts from
+   the last proof, not from `leaseUntil`. `refund()`'s NatSpec says the tail
+   "becomes refundable once ... the lease lapses unproven"; the code does not
+   do that.
+   - **What clears it:** the runner's `release`, or another enclave's claim.
+     A claim needs an active record, so for a cancelled one only `release`.
+   - **Recognise it:** `leaseUntil` in the past, still above
+     `earnOf(id).creditedUntil`, with `runnerRate6` > 0.
+   - **Backlog:** bounding late proofs to a horizon after `leaseUntil`, for
+     the next ledger rev.
+
 ### 3c. "I'm being charged to run my own app on my own box"
 
 Since ledger rev 12 they should not be, but only once they have published the
@@ -157,7 +200,9 @@ and both are self-serve:
 Nothing here is refundable as an exception. Money already forwarded at funding
 time is gone the same way §3a describes, and the seller's remedy is to declare
 the wallet and stop funding: a free deployment needs no balance at all, and
-`refund(id)` returns whatever escrow the earlier paid fundings still back.
+`refund(id)` returns whatever escrow the earlier paid fundings still back. A
+funding counts as paid only if a paid lease's snapshot stood when it was made;
+one made just after a free lease escrowed nothing (§3a, the zero-escrow note).
 
 One thing that is NOT a fault: a paid app still charges its publisher fee on a
 free box. The waiver covers what the host and the platform would take; the fee
