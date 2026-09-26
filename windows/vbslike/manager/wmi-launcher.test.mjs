@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { WmiHyperVLauncher, CMD, OWNER_MARKER, HYPERV_MODULE_SHA256, FIRMWARE_OPT_IN, BOOT_UEFI, BOOT_LINUX_DIRECT,
-         notesFor, q } from "./wmi-launcher.mjs";
+         notesFor, q, certNameFor } from "./wmi-launcher.mjs";
 import { TYPE1, PREFLIGHT_OK, VM_ID, defineAnswer, keyOf, startAndReadAnswer } from "./fake-hyperv.mjs";
 
 const IMG = "C:\\Users\\claude\\vbs-like\\openhcl-ownguest.bin";
@@ -895,4 +895,28 @@ test("serve: a UEFI-medium launcher hands wmiserve the MEDIUM's hash, never the 
     assert.equal(argv[argv.indexOf("--medium-sha256") + 1], MED); assert.equal(argv.includes("--igvm-sha256"), false);
     await handle.stop();
   } finally { reap(handle); }
+});
+
+/* ---- M4: the served domain is NAMED for its certificate ------------------------------------------------------- */
+test("M4: certNameFor takes a deployment id's first 8 hex into the app zone, and nothing else", () => {
+  assert.equal(certNameFor("0x" + "4E62e60d" + "ab".repeat(28)), "4e62e60d.app.enclave.host", "lowercased");
+  for (const bad of [null, undefined, "", "0x12", "hv" + "1".repeat(32), "4e62e60d" + "ab".repeat(28), "0x" + "g".repeat(64),
+                     "0x" + "ab".repeat(32) + "00", " 0x" + "ab".repeat(32)])
+    assert.equal(certNameFor(bad), null, JSON.stringify(bad));
+});
+
+test("M4: start() hands wmiserve the deployment's cert name; without an identity (a lab run) it names none", async () => {
+  const bundle = Buffer.from("enclave-catalog-bundle/1 m4 test bytes");
+  const m4 = { ...mapping, bundle, appId: crypto.createHash("sha256").update(bundle).digest("hex") };
+  const bundleDir = fs.mkdtempSync(path.join(os.tmpdir(), "wmi-launcher-m4-"));
+  const seen = [];
+  const serve = { exe: "vbslike-host.exe", bundleDir, portFor: async () => 19301,
+                  run: async (a) => { seen.push(a); return { pid: 1, launcherKey: "k", vm: a.vmId, domainId: 1, boot: null, appSha256: a.appId,
+                                                             guestPort: 40001, tcpPort: a.tcpPort, note: null, certName: a.certName ?? null,
+                                                             exited: new Promise(() => {}), stop: async () => ({ closed: true, how: "closed" }) }; } };
+  const identity = { id: "hv" + "1".repeat(32), name: "0x" + "e6".repeat(32), appId: m4.appId };
+  await mk(host(), { serve }).start(m4, { ...ID, identity });
+  assert.equal(seen[0].certName, "e6e6e6e6.app.enclave.host", "the name from the identity the Notes carry");
+  await mk(host(), { serve }).start(m4, ID);
+  assert.equal("certName" in seen[1], false, "no identity, no name: the domain gets no certificate endpoints");
 });

@@ -228,6 +228,27 @@ mod hold_tests {
             assert!(parse_hold(Some(bad)).is_err(), "{bad:?} must be refused");
         }
     }
+
+    #[test]
+    fn a_cert_name_is_exactly_8_lowercase_hex_in_the_app_zone() {
+        assert!(cert_name_ok("4e62e60d.app.enclave.host"));
+        for bad in ["", "1", "4E62E60D.app.enclave.host", "4e62e60.app.enclave.host", "4e62e60d0.app.enclave.host",
+                    "4e62e60g.app.enclave.host", "4e62e60d.app.enclave.host.", "4e62e60d.app.test", "x.4e62e60d.app.enclave.host",
+                    "4e62e60d.app.enclave.hostx", " 4e62e60d.app.enclave.host"] {
+            assert!(!cert_name_ok(bad), "{bad:?} must be refused");
+        }
+    }
+}
+
+/// M4: the ONE name a domain may be certified for, `<8 lowercase hex>.app.enclave.host` (the first 8 hex of its deployment
+/// id). Stated to the monitor on `load` as "name", which the monitor re-checks (certNameOK) and writes to /cert.name; only
+/// a named domain serves the front's CSR and certificate endpoints. The host's word (T0-hv); the relay's certificate
+/// gate binds the name to the deployment.
+pub fn cert_name_ok(n: &str) -> bool {
+    match n.strip_suffix(".app.enclave.host") {
+        Some(h) => h.len() == 8 && h.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+        None => false,
+    }
 }
 
 pub fn run(o: &Opts) -> i32 {
@@ -266,6 +287,16 @@ pub fn run(o: &Opts) -> i32 {
         Ok(h) => h,
         Err(e) => { eprintln!("wmiserve: {e}"); return 2; }
     };
+    // M4: parsed HERE too, and REFUSED rather than dropped: a domain loaded without the name it was asked to carry would
+    // serve no certificate endpoints, silently.
+    let cert_name: Option<String> = match o.get("cert-name") {
+        None => None,
+        Some(n) if cert_name_ok(n) => Some(n.to_string()),
+        Some(n) => {
+            eprintln!("wmiserve: --cert-name must be <8 lowercase hex>.app.enclave.host, not {:?}", n.chars().take(80).collect::<String>());
+            return 2;
+        }
+    };
 
     let app = match std::fs::read(bundle_path) {
         Ok(b) => b,
@@ -298,7 +329,9 @@ pub fn run(o: &Opts) -> i32 {
     }
 
     // 2. load, and REFUSE on any hash disagreement
-    let ans = match s.guest(&json!({"cmd": "load", "label": label, "size": app.len()}), Some(&app), Duration::from_secs(60)) {
+    let mut load = json!({"cmd": "load", "label": label, "size": app.len()});
+    if let Some(n) = &cert_name { load["name"] = json!(n); }
+    let ans = match s.guest(&load, Some(&app), Duration::from_secs(60)) {
         Ok(v) => v,
         Err(e) => { println!("{}", json!({"step": "load", "ok": false, "error": e})); return 1; }
     };
@@ -322,6 +355,19 @@ pub fn run(o: &Opts) -> i32 {
         }
         return 1;
     }
+    // M4: the monitor answers with the domain it recorded, whose "name" must be exactly the one sent (absent when none
+    // was). A monitor that dropped or changed it is refused here, and the domain it named is destroyed as above.
+    let guest_name = ans.get("name").and_then(|x| x.as_str()).map(|s| s.to_string());
+    if guest_name != cert_name {
+        println!("{}", json!({"step": "load", "ok": false,
+            "error": format!("the monitor recorded the name {guest_name:?}, not the {cert_name:?} sent"),
+            "action": "the domain is NOT served"}));
+        if let Some(id) = ans.get("id").and_then(|x| x.as_u64()) {
+            let r = s.guest(&guest_cmd("destroy", id, ans.get("boot").and_then(|x| x.as_str())), None, Duration::from_secs(20));
+            println!("{}", json!({"step": "load-reclaim", "answer": r.unwrap_or_else(|e| json!({"error": e}))}));
+        }
+        return 1;
+    }
     // NO DEFAULTS (63's L4): a load answer without the domain's id or port is refused, never filled in.
     let (Some(gid), Some(gport)) = (ans.get("id").and_then(|x| x.as_u64()), ans.get("port").and_then(|x| x.as_u64())) else {
         println!("{}", json!({"step": "load", "ok": false, "error": "the load answer did not name the domain's id and port", "answer": ans}));
@@ -332,7 +378,7 @@ pub fn run(o: &Opts) -> i32 {
     let gboot = ans.get("boot").and_then(|x| x.as_str()).map(|s| s.to_string());
     s.loaded.lock().unwrap().push(our_app_id);
     println!("{}", json!({"step": "load", "ok": true, "id": gid, "appSha256": guest_sha,
-                          "guestPort": gport, "boot": gboot, "agreed": true}));
+                          "guestPort": gport, "boot": gboot, "agreed": true, "certName": guest_name}));
 
     // 3. the relay: host TCP -> the domain's TLS port. Ciphertext only; this never terminates TLS.
     if tcp > 0 {
