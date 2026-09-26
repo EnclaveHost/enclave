@@ -374,6 +374,10 @@ export class Manager {
       // and it is exactly what this manager's own readiness rule was given (handle.launcherKey). It is a HOST STATEMENT,
       // never a root: consistent with T0-hv, where the host launcher is trusted by definition and the host is not excluded.
       if (h && h.launcherKey) rec.launcherKey = h.launcherKey;
+      // ...and the partition that key signs for, in the launcher's own words (the readiness rule's expectedVmId, from the
+      // handle). Public beside the key, so a SECOND judge of this domain - the node's certificate relay (windows/node/
+      // hvcert.mjs) - checks the report's partition exactly as this manager does. A host statement, like the key.
+      if (h && h.launcherVmId) rec.launcherVmId = h.launcherVmId;
       // the launcher's (partition, guestImageKind) statement, which the image is only ever compared with
       if (h && h.guestIdentity) rec.guestIdentity = { partition: h.guestIdentity.partition, guestImageKind: h.guestIdentity.guestImageKind };
       if (h && h.tcpPort != null) rec.relay = { host: "127.0.0.1", port: h.tcpPort };
