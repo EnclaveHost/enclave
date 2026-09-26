@@ -27,8 +27,9 @@ the root front: `m2/dominit.c` starts both without dropping privileges.
 - **What the fix does NOT close** (pre-existing; enclave-5d): an escaped runtime, even as its own uid, can still open
   AF_VSOCK sockets (there is no seccomp filter) and dial the HOST's vsock services. It cannot bind a vsock port below
   1024, so it cannot take the front's listener. But what it may ask of the host's ticket, release and egress services
-  is bounded only by those services' own checks. A seccomp filter denying AF_VSOCK to the app would close it; not
-  scheduled yet.
+  is bounded only by those services' own checks. A seccomp filter denying AF_VSOCK to the app closes it:
+  `isolation/runtime-seccomp` (m2/app-seccomp.h, applied to the app runtime only, never the front, in dominit and in
+  the NucBox's domexec), for the SNP release AFTER the next one and the NucBox build after v42 (enclave-87).
 
 **2026-09-25 update: the guest pool is LIVE on metal-iso0** (TASK 4c; evidence in
 `m4/evidence/pool-rollout-2026-09-25/README.txt`).

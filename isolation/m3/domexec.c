@@ -44,6 +44,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "../m2/app-seccomp.h"   /* the app runtime's seccomp filter, shared with the SNP guest's m2/dominit.c */
+
 static const char *dom_id = "?";
 static volatile sig_atomic_t front_pid_g = -1;
 
@@ -133,8 +135,11 @@ static void probe_report_as_root(void) {
  * may reach it. The same rule as the SEV-SNP guest's m2/dominit.c (77cf2d78). A quiet child keeps a close-on-exec copy
  * of the console only to report its OWN exec failure, and one whose null device cannot be installed exits 126 rather
  * than run with the console. The front (console-guarded, m2/front/console.go) and the adversary probe (our statements
- * only) keep the console. */
-static pid_t spawn(char *const argv[], uid_t uid, int quiet) {
+ * only) keep the console.
+ * filter: after the drop, the child sets no_new_privs and installs app-seccomp.h's filter, right before exec (enclave-87:
+ * no AF_VSOCK, no io_uring, no namespaces, no ptrace, ... for the RUNTIME; never the front). A child that cannot exits 1,
+ * and the domain ends as for any workload exit. */
+static pid_t spawn(char *const argv[], uid_t uid, int quiet, int filter) {
     pid_t pid = fork();
     if (pid < 0) die("fork");
     if (pid == 0) {
@@ -157,6 +162,10 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet) {
         /* and confirm it held: a privilege drop that can be undone is not a privilege drop */
         if (getuid() != uid || geteuid() != uid || setuid(0) == 0) {
             if (con >= 0) dprintf(con, "DOM%s ERROR privilege drop did not hold\n", dom_id);
+            _exit(1);
+        }
+        if (filter && (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0 || app_seccomp_install() != 0)) {
+            if (con >= 0) dprintf(con, "DOM%s ERROR the runtime's seccomp filter could not be installed: %s\n", dom_id, strerror(errno));
             _exit(1);
         }
         char *envp[] = {"HOME=/tmp", "PATH=/plat", NULL};
@@ -233,18 +242,18 @@ int main(int argc, char **argv) {
 
     pid_t rt_pid, front_pid;
     if (argc > 3 && strcmp(argv[3], "probe") == 0) {
-        rt_pid = spawn(probe_argv, uid, 0);
+        rt_pid = spawn(probe_argv, uid, 0, 0);
         front_pid = -1;
         printf("DOM%s started adversary probe=%d (no app, no front)\n", dom_id, rt_pid);
     } else if (run_port) {
-        rt_pid = spawn(run, uid, 1);
-        front_pid = spawn(run_front, uid, 0);
+        rt_pid = spawn(run, uid, 1, 1);                 /* the runtime: quiet and filtered */
+        front_pid = spawn(run_front, uid, 0, 0);        /* the front: neither */
         front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d mode=run http=%d (/data 64 MiB scratch)\n", dom_id, rt_pid, front_pid,
                run_port);
     } else {
-        rt_pid = spawn(rt, uid, 1);
-        front_pid = spawn(front, uid, 0);
+        rt_pid = spawn(rt, uid, 1, 1);                  /* the runtime: quiet and filtered */
+        front_pid = spawn(front, uid, 0, 0);            /* the front: neither */
         front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d mode=serve\n", dom_id, rt_pid, front_pid);
     }

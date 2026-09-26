@@ -14,7 +14,11 @@
 #   3b. app_reaches REFUSING (enclave-bf): the harness aims each of its checks at something the dropped uid CAN open -
 #      a world-writable file, a world-read-writable file, a world-writable "tsm" directory, a same-uid dumpable "front" -
 #      and the child must exit 125 with "could still open <that>";
-#   4. main, from the source: the three settings held before the front, the front not dropped, the app dropped;
+#   3c. the app runtime's seccomp filter (app-seccomp.h), from INSIDE (app-seccomp-probe.c): spawned as the app it is
+#      filtered, every refusal as specified (EPERM / ENOSYS / killed by SIGSYS) and every allowance working; spawned as
+#      the front it is NOT filtered;
+#   4. main, from the source: the three settings held before the front, the front not dropped or filtered, the app
+#      dropped and filtered;
 #   5. mutants, one at a time: each must make these checks FAIL.
 # PID 1 itself cannot run here, so dominit.c is compiled with its main renamed (as test-dominit-handoff.sh does).
 #
@@ -78,7 +82,7 @@ static void port_case(const char *name, const char *dir, int port, const char *c
 /* part 3: as (namespace) root, give this process something to drop, then spawn the probe dropped. `reach`, for 3b, aims
  * one of app_reaches' checks at `target`, which the dropped uid CAN open: "write" a file, "rw" a file, "tsm" a directory,
  * "proc" a same-uid dumpable process standing in for the front (target unused). */
-static int drop_run(const char *probe, const char *out, const char *reach, const char *target) {
+static int drop_run(const char *probe, const char *out, const char *reach, const char *target, int flags) {
     gid_t g[] = {4242};
     if (setgroups(1, g) != 0) { perror("setgroups (harness)"); return 2; }
     struct { uint32_t version; int pid; } h = {0x20080522, 0};
@@ -114,7 +118,7 @@ static int drop_run(const char *probe, const char *out, const char *reach, const
     snprintf(env, sizeof env, "PROBE_OUT=%s", out);
     char *argv[] = {(char *)probe, NULL};
     fflush(stdout);
-    pid_t pid = spawn(argv, env, -1, 1, 1);
+    pid_t pid = spawn(argv, env, -1, flags);
     int st = 0;
     waitpid(pid, &st, 0);
     if (same > 0) { kill(same, SIGKILL); waitpid(same, NULL, 0); }
@@ -122,8 +126,10 @@ static int drop_run(const char *probe, const char *out, const char *reach, const
 }
 
 int main(int argc, char **argv) {
-    if (argc == 4 && strcmp(argv[1], "drop") == 0) return drop_run(argv[2], argv[3], NULL, NULL);
-    if (argc == 6 && strcmp(argv[1], "reach") == 0) return drop_run(argv[2], argv[3], argv[4], argv[5]);
+    const int app = SPAWN_QUIET | SPAWN_DROP | SPAWN_FILTER;
+    if (argc == 4 && strcmp(argv[1], "drop") == 0) return drop_run(argv[2], argv[3], NULL, NULL, app);
+    if (argc == 6 && strcmp(argv[1], "reach") == 0) return drop_run(argv[2], argv[3], argv[4], argv[5], app);
+    if (argc == 4 && strcmp(argv[1], "front") == 0) return drop_run(argv[2], argv[3], NULL, NULL, 0);   /* as main spawns the front */
     const char *dir = argv[1];
     hold_case("yama absent", dir, "yama ptrace_scope", 2, 1, NULL, wr_count, 0, "yama ptrace_scope absent", 0, -1);
     hold_case("yama unparsable", dir, "yama ptrace_scope", 2, 1, "x\n", wr_count, 0, "yama ptrace_scope unparsable", 0, -1);
@@ -214,11 +220,11 @@ source_order() {  # <dominit.c>
     inmain && /\{"kernel.io_uring_disabled", "\/proc\/sys\/kernel\/io_uring_disabled", 2, 1\}/ { ti = NR }
     inmain && /sysctl_hold\(holds\[i\]/ && !h { h = NR }
     inmain && h && !rb && /reboot\(RB_POWER_OFF\)/ { rb = NR }
-    inmain && /spawn\(front,/ { f = NR; fdrop = ($0 ~ /, 0, 0\)/) }
-    inmain && /spawn\(app,/ { a = NR; adrop = ($0 ~ /, 1, 1\)/) }
+    inmain && /spawn\(front,/ { f = NR; fdrop = ($0 ~ /pfd\[1\], 0\);/) }
+    inmain && /spawn\(app,/ { a = NR; adrop = ($0 ~ /SPAWN_QUIET \| SPAWN_DROP \| SPAWN_FILTER\)/) }
     END {
       ok = ty && tu && ti && h && ty < h && tu < h && ti < h && h < f && rb && rb < f && f && a && fdrop && adrop
-      printf("%s main: holds yama@%d userns@%d io_uring@%d, held at %d (refusal powers off at %d), before the front at %d (not dropped: %d); the app at %d dropped: %d\n",
+      printf("%s main: holds yama@%d userns@%d io_uring@%d, held at %d (refusal powers off at %d), before the front at %d (no flags: %d); the app at %d quiet+dropped+filtered: %d\n",
              ok ? "ok  " : "FAIL", ty, tu, ti, h, rb, f, fdrop, a, adrop)
       exit ok ? 0 : 1
     }' "$1"
@@ -228,13 +234,15 @@ have_userns=0
 if command -v unshare >/dev/null 2>&1 && unshare --map-root-user --map-auto -U true 2>/dev/null; then have_userns=1; fi
 
 # one full run of parts 1-4 against a given dominit.c; -> 0 only if every check passes
-run_all() {  # <dominit.c> <cc...>
-  src=$1; shift
+run_all() {  # <dominit.c> <app-seccomp.h> <cc...>
+  src=$1; hdr=$2; shift 2
   rm -rf "$d/b" && mkdir -p "$d/b/t" "$d/b/o" && chmod 0755 "$d/b" && chmod 1777 "$d/b/o"
-  cp "$src" "$d/b/dominit.c" && cp "$d/h.c" "$d/b/"
+  cp "$src" "$d/b/dominit.c" && cp "$hdr" "$d/b/app-seccomp.h" && cp "$d/h.c" "$d/b/"
   "$@" -O2 -Wall -Wextra -Wno-unused-function -o "$d/b/h" "$d/b/h.c" || return 1
   "$@" -O2 -o "$d/b/probe" "$d/probe.c" || return 1
-  chmod 0755 "$d/b/probe"
+  gcc -static -pthread -O2 -o "$d/b/rt-probe" "$here/app-seccomp-probe.c" 2>/dev/null || return 1
+  cp "$d/b/rt-probe" "$d/b/front-probe"
+  chmod 0755 "$d/b/probe" "$d/b/rt-probe" "$d/b/front-probe"
   rc=0
   "$d/b/h" "$d/b/t" || rc=1
   source_order "$d/b/dominit.c" || rc=1
@@ -258,16 +266,28 @@ run_all() {  # <dominit.c> <cc...>
         echo "FAIL app_reaches did not refuse a reachable $mode target (exit $ec): $out"; rc=1
       fi
     done
+    # 3c: the seccomp filter, from inside: as the app (every flag), and as the front (none)
+    rm -f "$d/b/o/runtime.seccomp" "$d/b/o/front.seccomp"
+    unshare --map-root-user --map-auto -mpf --mount-proc "$d/b/h" drop "$d/b/rt-probe" "$d/b/o" > /dev/null 2>&1
+    unshare --map-root-user --map-auto -mpf --mount-proc "$d/b/h" front "$d/b/front-probe" "$d/b/o" > /dev/null 2>&1
+    for role in runtime front; do
+      f="$d/b/o/$role.seccomp"
+      if [ -s "$f" ] && ! grep -q '^BAD' "$f" && grep -qE '^done ok=[0-9]+ bad=0$' "$f"; then
+        echo "ok   seccomp, seen from inside the $role: $(tail -1 "$f")"
+      else
+        echo "FAIL seccomp, seen from inside the $role: $( [ -s "$f" ] && grep -E '^BAD|^done' "$f" | tr '\n' ' ' || echo 'no report (the child did not run)')"; rc=1
+      fi
+    done
   fi
   return $rc
 }
 
 MUSL=${MUSL_PREFIX:-$HOME/.cache/enclave-isolation/musl-1.2.6}
 set +e
-run_all "$here/dominit.c" gcc; g=$?
+run_all "$here/dominit.c" "$here/app-seccomp.h" gcc; g=$?
 [ $g = 0 ] && echo "dominit hardening (glibc): PASS" || echo "dominit hardening (glibc): FAIL"
 if [ -r "$MUSL/lib/musl-gcc.specs" ]; then
-  run_all "$here/dominit.c" /usr/bin/gcc -specs "$MUSL/lib/musl-gcc.specs" -static; m=$?
+  run_all "$here/dominit.c" "$here/app-seccomp.h" /usr/bin/gcc -specs "$MUSL/lib/musl-gcc.specs" -static; m=$?
   [ $m = 0 ] && echo "dominit hardening (musl, as the image links it): PASS" || echo "dominit hardening (musl): FAIL"
 else
   m=0; echo "dominit hardening (musl): SKIPPED, no musl at $MUSL (sh isolation/m2/build-musl.sh)"
@@ -275,11 +295,13 @@ fi
 [ $have_userns = 1 ] || echo "the app's drop (part 3): SKIPPED, no unshare --map-auto here: parts 1, 2 and 4 only"
 
 # part 5: every mutant must FAIL the checks above (glibc build)
-mut() {  # <label> <sed expression> [needs-userns]
+mut() {  # <label> <sed expression> [needs-userns] [header]: the edit goes to dominit.c, or with "header" to app-seccomp.h
   if [ "${3:-}" = userns ] && [ $have_userns = 0 ]; then echo "skip mutant $1 (needs part 3)"; return 0; fi
-  sed "$2" "$here/dominit.c" > "$d/mutant.c"
-  if cmp -s "$d/mutant.c" "$here/dominit.c"; then echo "FAIL mutant $1: the edit did not apply"; return 1; fi
-  if run_all "$d/mutant.c" gcc > "$d/mutant.log" 2>&1; then echo "FAIL mutant $1 SURVIVED"; return 1; fi
+  if [ "${4:-}" = header ]; then orig="$here/app-seccomp.h"; else orig="$here/dominit.c"; fi
+  sed "$2" "$orig" > "$d/mutant"
+  if cmp -s "$d/mutant" "$orig"; then echo "FAIL mutant $1: the edit did not apply"; return 1; fi
+  if [ "${4:-}" = header ]; then set -- "$1" "$here/dominit.c" "$d/mutant"; else set -- "$1" "$d/mutant" "$here/app-seccomp.h"; fi
+  if run_all "$2" "$3" gcc > "$d/mutant.log" 2>&1; then echo "FAIL mutant $1 SURVIVED"; return 1; fi
   echo "ok   mutant $1 killed: $(grep -m1 '^FAIL' "$d/mutant.log")"
 }
 k=0
@@ -287,7 +309,9 @@ mut "hold: no read-back check" 's/if (r == -2 || (at_least ? now < want : now > 
 mut "hold: every value taken as already held" 's/if (at_least ? was >= want : was <= want) {/if (1) {/' || k=1
 mut "hold: the at-most direction flipped" 's/if (at_least ? was >= want : was <= want) {/if (was >= want) {/' || k=1
 mut "port: lowered to 0, not the port" 's/snprintf(v, sizeof v, "%d\\n", port);/snprintf(v, sizeof v, "0\\n");/' || k=1
-mut "main: the app not dropped" 's/spawn(app, cfg_env, -1, 1, 1)/spawn(app, cfg_env, -1, 1, 0)/' || k=1
+mut "main: the app not dropped" 's/SPAWN_QUIET | SPAWN_DROP | SPAWN_FILTER)/SPAWN_QUIET | SPAWN_FILTER)/' || k=1
+mut "main: the app not filtered" 's/SPAWN_QUIET | SPAWN_DROP | SPAWN_FILTER)/SPAWN_QUIET | SPAWN_DROP)/' || k=1
+mut "main: the filter applied to the front" 's/spawn(front, NULL, pfd\[1\], 0);/spawn(front, NULL, pfd[1], SPAWN_FILTER);/' || k=1
 mut "main: Yama not held" '/{"yama ptrace_scope", YAMA_PATH, YAMA_WANT, 1},/d' || k=1
 mut "main: user namespaces not held" '/{"user.max_user_namespaces", "\/proc\/sys\/user\/max_user_namespaces", 0, 0},/d' || k=1
 mut "main: io_uring not held" '/{"kernel.io_uring_disabled", "\/proc\/sys\/kernel\/io_uring_disabled", 2, 1},/d' || k=1
@@ -301,5 +325,10 @@ mut "reach: the write table skipped" 's/for (int i = 0; reach_write\[i\]; i++) {
 mut "reach: the rw table skipped" 's/for (int i = 0; reach_rw\[i\]; i++) {/for (int i = 0; 0; i++) {/' userns || k=1
 mut "reach: the tsm entry skipped" 's/if (mkdir(p, 0700) == 0) {/if (0) {/' userns || k=1
 mut "reach: /proc skipped" 's/if (who\[i\] <= 0) continue;/continue;/' userns || k=1
+mut "spawn: the filter never installed" 's/if ((flags \& SPAWN_FILTER) \&\& app_seccomp_install() != 0) {/if (0) {/' userns || k=1
+mut "filter: no AF_VSOCK rule" '/APP_ARG0_EQ(APP_NR_socket, APP_AF_VSOCK, APP_EPERM),/d' userns header || k=1
+mut "filter: clone3 allowed" '/APP_RULE(APP_NR_clone3, APP_ENOSYS),/d' userns header || k=1
+mut "filter: the arch check disarmed" 's/APP_JUMP(APP_BPF_JEQ_K, APP_AUDIT_ARCH_X86_64, 1, 0),/APP_JUMP(APP_BPF_JEQ_K, APP_AUDIT_ARCH_X86_64, 1, 1),/' userns header || k=1
+mut "filter: kexec_load only EPERM" 's/APP_RULE(APP_NR_kexec_load, APP_RET_KILL_PROCESS),/APP_RULE(APP_NR_kexec_load, APP_EPERM),/' userns header || k=1
 [ $k = 0 ] && echo "dominit hardening mutants: all killed" || echo "dominit hardening mutants: FAIL"
 [ $g = 0 ] && [ $m = 0 ] && [ $k = 0 ]
