@@ -594,6 +594,9 @@ export class Host {
     let r;
     try { r = await this.loadSecrets(id); }
     catch { return null; }                            // asking failed: still unknown, never "no"
+    // A partition is never handed secrets (node-bridge's plan refuses one that has them), so the plaintext this probe
+    // fetched is not kept: the answer is whether there ARE any (enclave-b4's N4).
+    this.secrets.delete(id);
     // "None" only from the relay's own answer FOR THIS deployment. A relay with no secrets plane (secrets_disabled),
     // one with no ledger row for it, or no relay configured at all is an in-enclave launch's reason to go without
     // secrets, and it says nothing about whether this deployment HAS them: unknown, so the isolation plan holds

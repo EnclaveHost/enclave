@@ -97,3 +97,21 @@ test("names the node's filter drops were still STAGED: the plan refuses rather t
   assert.match(r.reason, /hasSecrets: the deployment has staged secrets/);
   assert.equal(host.running().length, 0);
 });
+
+test("N4: a deployment WITH secrets is refused with a reason that does not overstate it, and the plaintext is not kept", { timeout: 30_000 }, async () => {
+  const host = new FakeHost();
+  const m = await bootManager(host, 0);
+  const relay = await relayAnswering((i, b) => ({ status: 200, body: { id: b.id, rev: 2, env: { API_TOKEN: "t0p" } } }));
+  const h = servedOwner(new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-sec-n4-")), endpoint: "https://api.enclave.host/t/test",
+    name: "test", appsEnabled: true, cpuPricePerSec6: 12, log: () => {}, isolationManager: `http://127.0.0.1:${m.port}`,
+    isolationRuntimeId: REC.runtimeId, relayBase: relay.base, engineRetired: true }), dep().owner);
+  h.cfg.secretsSign = sign;
+  const r = await h.ensureApp(DEP, dep(), { version: PLANNED });
+  relay.close();
+  assert.notEqual(r.status, "running", JSON.stringify(r));
+  assert.match(r.reason, /cannot deliver them into a partition/);
+  assert.match(r.reason, /does not keep them from this host/);
+  assert.doesNotMatch(r.reason, /would cross this host/);
+  assert.equal(h.secrets.has(DEP), false, "the fetched plaintext is still held in the agent");
+  assert.equal(host.running().length, 0);
+});
