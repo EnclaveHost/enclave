@@ -714,6 +714,24 @@ async function startHostingControls() {
         dataAddr: host.cfg.isolationDataAddr,
         log: (m) => log(m),
       });
+      // M4: the certificate relay for the partitions this box runs (hvcert.mjs): each one's CSR, issued for its own key
+      // under this box's operator signature, installed back into it. Without an operator key there is nothing to sign
+      // the request with, and each partition keeps serving its self-signed certificate.
+      const { loadOperator } = await import('./chain.mjs');
+      let acct = null;
+      try { acct = loadOperator(path.join(DIR, 'operator.key')); } catch (e) { log(`certificates: no operator key (${e.message})`); }
+      if (acct) {
+        const { createHvCertPass } = await import('./hvcert.mjs');
+        const certs = createHvCertPass({
+          client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,
+          runtimeId: host.cfg.isolationRuntimeId, endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }),
+          log: (m) => log(m) });
+        let running = false;
+        const tick = () => { if (running) return; running = true;
+          certs.pass(host.records).catch((e) => log(`certificates: pass failed: ${e.message}`)).finally(() => { running = false; }); };
+        setInterval(tick, 60_000).unref?.();
+        setTimeout(tick, 15_000).unref?.();
+      } else log('certificates: this box has no operator key, so its partitions keep their self-signed certificates');
     }
     zone = appZone({
       isolationSplicer,
