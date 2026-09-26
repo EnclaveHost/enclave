@@ -130,15 +130,18 @@ up from our operator gas tank (approved).
   versions;
 - sets `hvnode\state\`'s ACL (SYSTEM + Administrators only) FIRST, then COPIES the operator and proof keys (and
   `node-transport.key` if present) into it: byte-identical, never overwriting a differing file, never printed;
-- copies the package's `control\` to `hvnode\manager-<pkg8>\` and checks EVERY file against the package's
-  `MANIFEST.json` (an extra file, e.g. a `__pycache__`, refuses). The manager runs from that copy with
+- copies the package's `control\` to `hvnode\manager-<pkg8>\`. It checks EVERY file the package's `MANIFEST.json` lists
+  (55 in v40), and refuses any other file outside `node_modules` (e.g. a `__pycache__`). `node_modules` (12,438 files,
+  installed and verified at stage time, not in the MANIFEST) must be a byte-identical copy of the staged package's:
+  the sorted (path, sha256) lists must be equal. The manager runs from that copy with
   `PYTHONDONTWRITEBYTECODE=1`, never from the staged package (enclave-d1's box rule). The IGVM, runtime.json and the
   launcher stay hash-pinned, read-only references into the package;
 - copies `tpmattest.exe` into `hvnode\bin\` at its pin;
 - writes the configuration: `manager-config.cmd` (the package's `managerEnv` resolved), `node-config.cmd`, and
   `run-manager.cmd` / `run-node.cmd`;
 - writes `run-manager.cmd` / `run-node.cmd` as bounded RESTART LOOPS (the process, then 10 s, then again), with the
-  script by its ABSOLUTE path. Task Scheduler's restart-on-failure does not reliably fire on a process that exits, and
+  script by its ABSOLUTE path, and the 10 s pause is `ping -n 11 127.0.0.1`, since `timeout` exits at once without
+  a console. Task Scheduler's restart-on-failure does not reliably fire on a process that exits, and
   the absolute path lets the acceptance and the rollback match the process by path, never by name;
 - registers the two NEW tasks `\EnclaveHvManager` (boot +30 s) and `\EnclaveHvNode` (boot +90 s): SYSTEM, highest,
   NO run-time limit. It does NOT start them. Every native command runs under ErrorAction Continue and is judged by
@@ -182,7 +185,9 @@ EnclaveHvNode`. The logs are `hvnode\logs\manager.log` and `node.log`.
 - A5: node.log never starts ee-host, and has the attach lines.
 - A6: M3 applied, and host-prereq's record at `C:\Users\claude\vbs-like\host-prereq\prior-state.json` is for the HKLM root.
 - A8 (`-KillRecovery`, not read-only): it kills the agent's node.exe and then the manager's, by exact PID. Each must
-  come back through its run loop with a NEW PID, and /availability or /health must answer within 60 s.
+  come back through its run loop with a NEW PID, and /availability or /health must answer within 60 s. **Run it here,
+  on the EMPTY node, BEFORE test 1** (enclave-d1): killing the manager while an app VM runs can leave that VM failed,
+  and ENCLAVE_ISOLATION_RESPAWN is off.
 
 **7r. Acceptance, relay/public half (workstation, read-only).** `hvnode-accept-remote.sh [<deployment id>]`:
 - R1: `/enclaves` has the `nucbox-k11` row: mode `hv-node`, `hvNode.hostExcluded:false`, a recent `verifiedAt`, and
