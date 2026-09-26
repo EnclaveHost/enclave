@@ -1,0 +1,15 @@
+PS 5.1.26100.9444 Desktop host=NUCBOX_K11 now=2026-09-26T07:35:24Z
+uefi-dev-boot.ps1 sha256=6124105aa1982bc7383b5a866df4fdae89f793d310943b0270b8c93047505bfb tokens=8542 parseErrors=0
+firmware-setting.tests.ps1 sha256=8f28ded4c804b6b606d3ea3a740d604df50549fed3e8bc31b4dd5159050fe1be tokens=1492 parseErrors=0
+fn Read-Setting top-level defs=1 line=358
+fn FirmwareAlreadyOn top-level defs=1 line=374
+fn Assert-FirmwareRunnable top-level defs=1 line=377
+fn Invoke-FirmwareApply top-level defs=1 line=381
+fn Invoke-FirmwareRestore top-level defs=1 line=395
+fn FirmwareWatchdogRestore top-level defs=1 line=410
+top-level: line 497 '$before   = Read-Setting' then line 498 'Assert-FirmwareRunnable $before ([bool]$WithoutFirmwarePolicy)'
+watchdog here-string assignments at top level: 1 (line 592)
+rendered watchdog before=NoKey: parseErrors=0 restore: Remove-ItemProperty 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Virtualization' -Name 'AllowFirmwareLoadFromFile' -EA SilentlyContinue
+rendered watchdog before=Absent: parseErrors=0 restore: Remove-ItemProperty 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Virtualization' -Name 'AllowFirmwareLoadFromFile' -EA SilentlyContinue
+rendered watchdog before=Present=0: parseErrors=0 restore: Set-ItemProperty 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Virtualization' -Name 'AllowFirmwareLoadFromFile' -Value 0 -Type 'DWord'
+rendered watchdog before=Present=1: parseErrors=0 restore: # AllowFirmwareLoadFromFile was already present = 1: this run never wrote it, so the watchdog leaves it as it was

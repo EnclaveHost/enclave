@@ -1,0 +1,27 @@
+PS 5.1.26100.9444 Desktop host=NUCBOX_K11
+BEFORE 07:46:50.477Z HKLM AllowFirmwareLoadFromFile = 1 (DWord)
+BEFORE Virtualization values: AllowFirmwareLoadFromFile=1(DWord); CachedClusterLowestVersion=0(DWord); CompatibleVmVersion=4.0(String); CurrentVmVersion=12.0(String); CurrentWWNNAddress=C003FF0000FFFF00(String); InstallDate=09/24/2026 21:58:09(String); ListenerPort=2179(DWord); MaximumMacAddress=0 21 93 1 51 255(Binary); MaximumWWPNAddress=C003FF128ABAFFFF(String); MetricsFlushInterval=3600(DWord); MinimumImportVmVersion=1.0(String); MinimumMacAddress=0 21 93 1 51 0(Binary); MinimumWWPNAddress=C003FF128ABA0000(String); ServicingVersion=1.0(String); ShutdownTimeout=120(DWord); Version=10.0.26100.1(String)
+BEFORE GCS subkeys: 00002329-facb-11e6-bd58-64006a7986d3,999E53D4-3D5C-4C3E-8779-BED06EC056E1,A5201C21-2770-4C11-A68E-F182EDB29220
+BEFORE sandbox key HKCU:\Software\EnclaveFwTest-20260926T074622Z-absent exists: False
+uefi-dev-boot.ps1 sha256=cb3df5d762c1f9ea828b67985d45bf02c46816414aed19cacf6871c6046a2817
+judge-probe.tests.ps1 sha256=cc7b915e766b5528840aaa2098bfdf723ab771ed81b77113ac9a15db28aca1c6
+firmware-setting.tests.sandbox.ps1 sha256=a91b27efedead629c231d4e2623933b53a68ae7c89ff252a562173fce168a7ec
+RUN judge-probe.tests.ps1 exit=0 at 07:46:51Z output sha256=8f97b80391dd42c16127b26f8ff1094ea9cb5a8e19cb2f833d6eacd23df888aa lines=51
+  HKLM unchanged after judge-probe.tests.ps1 (fw 1 (DWord)); sandbox key exists: False
+RUN firmware-setting.tests.sandbox.ps1 exit=0 at 07:46:51Z output sha256=72d2790b05a34942176cd42ee40a261834e3b7c02901a94a216caf63c81bff1b lines=28
+  HKLM unchanged after firmware-setting.tests.sandbox.ps1 (fw 1 (DWord)); sandbox key exists: False
+AFTER 07:46:52.011Z HKLM AllowFirmwareLoadFromFile = 1 (DWord)
+AFTER Virtualization values: AllowFirmwareLoadFromFile=1(DWord); CachedClusterLowestVersion=0(DWord); CompatibleVmVersion=4.0(String); CurrentVmVersion=12.0(String); CurrentWWNNAddress=C003FF0000FFFF00(String); InstallDate=09/24/2026 21:58:09(String); ListenerPort=2179(DWord); MaximumMacAddress=0 21 93 1 51 255(Binary); MaximumWWPNAddress=C003FF128ABAFFFF(String); MetricsFlushInterval=3600(DWord); MinimumImportVmVersion=1.0(String); MinimumMacAddress=0 21 93 1 51 0(Binary); MinimumWWPNAddress=C003FF128ABA0000(String); ServicingVersion=1.0(String); ShutdownTimeout=120(DWord); Version=10.0.26100.1(String)
+AFTER GCS subkeys: 00002329-facb-11e6-bd58-64006a7986d3,999E53D4-3D5C-4C3E-8779-BED06EC056E1,A5201C21-2770-4C11-A68E-F182EDB29220
+IDENTICAL: True
+sandbox key never existed (none to remove)
+FAIL/ok summary judge: ok=50
+FAIL/ok summary firmware: ok=27
+--- judge tail
+ok   J6: a negative pid count fails: FAIL
+ok   vsock_host_control refused inside the guest is noted as such, not as an attempt: PASS
+judge tests: ALL OK
+--- firmware tail
+ok   mutant (no already-on check): the present=1 "NO registry write" assertion FAILS, as it must
+ok   mutant 2 (the old catch-all Read-Setting): "access denied -> Unreadable" FAILS, as it must
+firmware-setting tests: ALL OK
