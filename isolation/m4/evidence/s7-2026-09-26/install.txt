@@ -1,0 +1,18 @@
+03:11:31Z 1b: /home/steven/enclave-prod/iso-b63c2def at b63c2def6e9b12088c30594b8cb58c7273903a60, clean (no ignored files either)
+release f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca verified 15 files
+03:11:31Z 1a: /home/steven/enclave-prod/release-b63c2def verified as f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca
+release f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca
+03:11:32Z 1d: the installed tree reproduces release f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca on this host
+03:11:32Z S5 INSTALL (the fixed tree + release) done and inert: guestd's MainPID/ExecStart and the m2-gd* units are unchanged
+03:11:41Z adoption preflight: gd41d9ab25 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key 02c87008d2c4)
+03:11:41Z adoption preflight: gda3193060 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key 9cbf78e91951)
+03:11:41Z adoption preflight: gdc71431bd verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key b9892100cb73)
+03:11:41Z ADOPTION PREFLIGHT PASSED: guestd 4e78ba80db7ac14a2d27fd65d495b8feb036ca23 sha256 0ee7ed91e5066a0cbe7a4b528250342c354722a84202d043d03c5ee6dbec3086 tree b63c2def6e9b12088c30594b8cb58c7273903a60 at 2026-09-26T03:11:41Z epoch 1790392301: 3/3 canaries verify with the new tree's judge (gd41d9ab25 gda3193060 gdc71431bd); runtime identity byte-equal, fwd code equal (its VCS stamp aside)
+03:12:27Z 7T started DETACHED as s7t-apply-20260926T031227Z (exit code -> /home/steven/enclave-bench/s7-20260926/7t-s7t-apply-20260926T031227Z.rc); follow: tail -f /home/steven/enclave-bench/s7-20260926/install.log
+release f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca
+03:12:38Z adoption preflight: gd41d9ab25 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key 02c87008d2c4)
+03:12:39Z adoption preflight: gda3193060 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key 9cbf78e91951)
+03:12:39Z adoption preflight: gdc71431bd verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key b9892100cb73)
+03:12:39Z ADOPTION PREFLIGHT PASSED: guestd 4e78ba80db7ac14a2d27fd65d495b8feb036ca23 sha256 0ee7ed91e5066a0cbe7a4b528250342c354722a84202d043d03c5ee6dbec3086 tree b63c2def6e9b12088c30594b8cb58c7273903a60 at 2026-09-26T03:12:39Z epoch 1790392359: 3/3 canaries verify with the new tree's judge (gd41d9ab25 gda3193060 gdc71431bd); runtime identity byte-equal, fwd code equal (its VCS stamp aside)
+03:12:39Z 7T: daemon-reload + restart (guestd.4e78ba80, -isolation iso-4cdd5169 -> iso-b63c2def; all else unchanged)
+03:12:59Z 7T APPLIED and checked (restart at 2026-09-26 03:12:39 UTC): -isolation is iso-b63c2def (release f7888d86); the 3 canaries re-adopted on 52156652. Next: the 10-min gate, then each canary's owner restart onto f7888d86; rollback = s7t-rollback.sh

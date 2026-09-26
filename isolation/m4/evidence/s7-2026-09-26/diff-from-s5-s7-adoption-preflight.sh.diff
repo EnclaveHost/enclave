@@ -1,0 +1,20 @@
+--- ../s5-20260926/s5-adoption-preflight.sh	2026-09-25 17:52:14.982603684 -0700
++++ s7-adoption-preflight.sh	2026-09-25 20:05:45.911962432 -0700
+@@ -1,6 +1,6 @@
+ #!/usr/bin/env bash
+-# S5 (the FIXED tree switch) ADOPTION preflight, derived from s4d-adoption-preflight.sh with lib5.sh: the NEW tree is
+-# iso-4cdd5169 and the adopted guests are the 3 canaries as RELEASE guests on 79c5ecf2 (since 4e). It changes nothing: it opens one attestation session per canary through its
++# S5 (the FIXED tree switch) ADOPTION preflight, derived from s4d-adoption-preflight.sh with lib7.sh: the NEW tree is
++# iso-b63c2def and the adopted guests are the 3 canaries as RELEASE guests on 52156652 (since 4e). It changes nothing: it opens one attestation session per canary through its
+ # CURRENT forwarder, and, once the gate opens, client.mjs sends the canary's app the same GET /hello?from=client that
+ # adoption sends (retrying on a 502 for up to 60 s); nothing is consumed (independent attestations, --no-kds). At 4d the new guestd adopts each canary only if it verifies again
+ # as the same guest (persist.go adoptOne: a new forwarder to its CID, then THE NEW TREE's judge with the recorded
+@@ -16,7 +16,7 @@
+ #     and the recorded transport key.
+ # It writes s4/adoption-check.txt, which s4d-apply.sh requires for the same binary within 2 hours.
+ # Usage: s4d-adoption-preflight.sh <guestd merge commit, 40 hex> <its sha256>
+-set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/s5-20260926/lib5.sh
++set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/s7-20260926/lib7.sh
+ export PATH=/usr/local/bin:/usr/bin:/usr/sbin:/bin   # guestd's unit PATH: the wasmtime, node and go the new guestd will use
+ BINC=${1:?commit}; BSHA=${2:?sha256}; [[ "$BINC" =~ ^[0-9a-f]{40}$ && "$BSHA" =~ ^[0-9a-f]{64}$ ]] || { echo "40-hex commit, 64-hex sha"; exit 2; }
+ GR=$PROD/guestd-root; OUT=$S4/adoption-check.txt

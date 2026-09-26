@@ -1,0 +1,2 @@
+2026-09-26T03:24:28.256629+00:00 Nan node[4091825]: [secrets-release] 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76: no prediction (ticket kept): No expected guest for this deployment: the prediction is still being computed; retry shortly.
+2026-09-26T03:24:34.162648+00:00 Nan node[4091825]: [secrets-release] 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76: released to a verified guest on https://api.enclave.host/t/metal-iso0 (runtime ccadb38a6779…)

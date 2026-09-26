@@ -1,0 +1,9 @@
+02:21:11Z watch: polling the chain for a69dcbba, d9798e4c, a77d0c57 (envelope requires snp-guest-per-app)
+02:21:11Z watch: a69dcbba now: envelope sha 923598423d87be22, requires snp: false
+02:21:12Z watch: d9798e4c now: envelope sha 8d2421d1b1ac49a3, requires snp: false
+02:21:12Z watch: a77d0c57 now: envelope sha 51052dfcd1d0297a, requires snp: false
+02:46:13Z watch: polling the chain for a69dcbba, d9798e4c, a77d0c57, 7ae476a3 (envelope requires snp-guest-per-app)
+02:46:14Z watch: a69dcbba now: envelope sha 923598423d87be22, requires snp: false, network.relay -
+02:46:14Z watch: d9798e4c now: envelope sha 8d2421d1b1ac49a3, requires snp: false, network.relay -
+02:46:14Z watch: a77d0c57 now: envelope sha 51052dfcd1d0297a, requires snp: false, network.relay -
+02:46:15Z watch: 7ae476a3 now: envelope sha 01a7e7fcec52d6ff, requires snp: false, network.relay us-west
