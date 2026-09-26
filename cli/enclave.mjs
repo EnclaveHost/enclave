@@ -1373,6 +1373,10 @@ async function cmdFund(rest) {
   if (!isB32(id)) throw new Error("only on-chain deployments (bytes32 ids) are fundable by transaction");
   const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]);
   if (d.owner === "0x0000000000000000000000000000000000000000") throw new Error(`no deployment ${short(id)} on the ledger`);
+  // the ledger funds only an ACTIVE record (_requireActive): a stopped or refunded one would revert "inactive" after the
+  // signature and the gas estimate, so say what brings it back instead of sending that (enclave-b4)
+  if (!d.active) throw new Error(`${short(id)} is inactive (stopped or cancelled), and the ledger funds only an active record: `
+    + `its owner runs \`enclave resume ${short(id)}\` first, then funds it`);
   if (f.usdc) {
     const amt = numFlag(f.usdc, "--usdc");
     if (!(await confirm(`fund ${short(id)} with ${usd6(BigInt(Math.round(amt * 1e6)))} USDC (buys ~${dur(d.rate > 0n ? amt * 1e6 / Number(d.rate) : 0)})?`)))
