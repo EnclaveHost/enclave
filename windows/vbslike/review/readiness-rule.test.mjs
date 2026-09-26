@@ -21,7 +21,7 @@ import fs from "node:fs";
 import { randomBytes } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { judge } from "../verify/judge-hv.mjs";
-import { FakeDomain, launcherKey, session, sha256hex, APP, OTHER_APP, RUNTIME, SELFTEST, LEGACY_SELFTEST, V42_IMAGE, FAKE_IMAGE } from "./fake-domain.mjs";
+import { FakeDomain, launcherKey, session, sha256hex, APP, OTHER_APP, RUNTIME, SELFTEST, SELFTEST_NO_SECCOMP, SECCOMP, LEGACY_SELFTEST, V42_IMAGE, FAKE_IMAGE } from "./fake-domain.mjs";
 
 const SEAM = new URL("../manager/ready.mjs", import.meta.url);
 async function seam() {
@@ -87,6 +87,17 @@ test("the per-image W^X rule, both ways: the attest-time self-test is runtime-co
   const unnamed = await judgeFake({ selfTest: LEGACY_SELFTEST, imageSha256: V42_IMAGE });
   assert.equal(unnamed.verdict, "reject", "no image named by the caller = no legacy, even when the DOCUMENT states the listed image");
   assert.ok(unnamed.reasons.some((r) => /names no runtime coverage/.test(r)), `refused for the W^X form, not another reason: ${unnamed.reasons.join("; ")}`);
+});
+
+test("the per-image SECCOMP rule (v44): the default fake states seccomp=<hash> and is covered; the attest-time form WITHOUT seccomp= on an image not listed as predating it is REFUSED", async () => {
+  const now = await judgeFake({}, FAKE_IMAGE);
+  assert.equal(now.verdict, "monitor-signed", now.reasons.join("; "));
+  assert.match(now.wxWhy, new RegExp(`seccomp filter with program sha256 ${SECCOMP.slice(0, 16)}`), "the stated filter is named");
+  const bare = await judgeFake({ selfTest: SELFTEST_NO_SECCOMP }, FAKE_IMAGE);
+  assert.equal(bare.verdict, "reject", "no seccomp statement on an unlisted image is refused");
+  assert.ok(bare.reasons.some((r) => /states no seccomp filter/.test(r)), `refused for the missing filter, not another reason: ${bare.reasons.join("; ")}`);
+  const bad = await judgeFake({ selfTest: `${SELFTEST_NO_SECCOMP} seccomp=nothex` }, FAKE_IMAGE);
+  assert.equal(bad.verdict, "reject", "a seccomp= that is not a 64-hex hash is refused");
 });
 
 test("RUNNING: the document verified on this handshake's key with a fresh nonce AND ready 200 on the same key", async () => {
