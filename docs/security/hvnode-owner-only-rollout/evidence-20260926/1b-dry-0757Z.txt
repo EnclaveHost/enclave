@@ -1,0 +1,19 @@
+--   us-west master: Control socket connect(/home/steven/.ssh/cm-root@5.78.85.108:22): No such file or directory (1b is HELD until it is running; this DRY never connects)
+ok   relay.js: B = the pin = main c6347dd2 (68cd3b938f37); changes from pre-B e0cb218f6947
+ok   fleet.mjs: B = the pin = main c6347dd2 (0441e47decd6); changes from pre-B 384a1ef1daf2
+ok   connlog.mjs: B = the pin = main c6347dd2 (1ea6002bd044); = pre-B: already on us-west
+ok   net-guard.mjs: B = the pin = main c6347dd2 (f319fa3754b8); = pre-B: already on us-west
+ok   relative imports of the closure: ./connlog.mjs ./fleet.mjs ./net-guard.mjs 
+ok   package imports (besides node:*): viem viem/chains ws  (unchanged from pre-B)
+ok   relay.js and fleet.mjs parse
+ok   test/fleet.test.mjs at main: # pass 17 # fail 0 
+ok   test/relay-hvnode-owner-only-fleet.test.mjs at main: # pass 3 # fail 0 
+ok   test/custom-domain-routing.test.mjs at main: # pass 6 # fail 0 
+ok   fixture: us-west's closure as pinned -> files_are_b passes
+ok   fixture: a changed connlog.mjs -> refused (connlog.mjs is 000000000000, not B's 1ea6002bd044)
+ok   test 1's hostname resolves to us-west
+ok   test 1 public TODAY (pre-1b): refused ('000 -'), as expected
+ok   public_get on a canary: '200 06bb5ccd9ed16031…' (the key check's shape works)
+ok   public_doc_states_key on a canary: states the key
+ok   the stranger probe today: a69dcbba (unleased, at us-west) -> 000 -
+b-1b-dry: 17/17

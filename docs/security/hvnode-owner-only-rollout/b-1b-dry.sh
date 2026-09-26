@@ -33,8 +33,7 @@ out=$(FIX_CONNLOG=$(printf '0%.0s' $(seq 64)) files_are_b shim connlog.mjs net-g
 [ "$(dig +short ${TEST1:2:8}.app.enclave.host A | head -1)" = 5.78.85.108 ] && t ok "test 1's hostname resolves to us-west" || t no "test 1's hostname does not resolve to us-west"
 g=$(public_get ${TEST1:2:8}); [ "$g" = "000 -" ] && t ok "test 1 public TODAY (pre-1b): refused ('$g'), as expected" || t no "test 1 public today: '$g'"
 c=$(public_get 0ddbd824); [[ "$c" =~ ^200\ [0-9a-f]{64}$ ]] && t ok "public_get on a canary: '$(cut -c1-20 <<<"$c")…' (the key check's shape works)" || t no "public_get canary: '$c'"
-bd=$(public_doc_binds 0ddbd824); [ "$bd" = bound ] && t ok "public_doc_binds on a canary: bound" || t no "public_doc_binds on a canary: $bd"
-st=""; for d in $UNLEASED; do [ "$(curl -sS -m 20 "$API/v1/expected-guest?id=$d" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("error",""))' 2>/dev/null)" = not_leased ] || continue
-  [ "$(dig +short ${d:2:8}.app.enclave.host A | head -1)" = 5.78.85.108 ] || continue; st=$d; break; done
+bd=$(public_doc_states_key 0ddbd824); [ "$bd" = "states the key" ] && t ok "public_doc_states_key on a canary: states the key" || t no "public_doc_states_key on a canary: $bd"
+st=$(stranger_probe)
 [ -n "$st" ] && t ok "the stranger probe today: ${st:2:8} (unleased, at us-west) -> $(public_get ${st:2:8})" || t no "no unleased us-west hostname to probe"
 echo "b-1b-dry: $((n-f))/$n"; [ $f = 0 ]

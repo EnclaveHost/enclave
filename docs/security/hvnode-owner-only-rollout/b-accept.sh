@@ -41,12 +41,10 @@ case "$STEP:$MODE" in
     [[ "$TEST1_SPKI" =~ ^[0-9a-f]{64}$ ]] || bad "TEST1_SPKI is not pinned (64 hex): the key check cannot run"
     g=""; end=$(( $(date +%s) + 90 )); while [ "$(date +%s)" -lt $end ]; do g=$(public_get ${TEST1:2:8}); [[ "$g" == 200\ * ]] && break; sleep 10; done
     [ "$g" = "200 $TEST1_SPKI" ] && note "test 1 public: 200 on the partition's key ${TEST1_SPKI:0:16}" || bad "test 1 public: '$g' (want '200 ${TEST1_SPKI:0:16}...')"
-    bd=$(public_doc_binds ${TEST1:2:8}); [ "$bd" = bound ] && note "test 1's attestation document binds the public handshake's key" || bad "test 1's document: $bd"
+    bd=$(public_doc_states_key ${TEST1:2:8}); [ "$bd" = "states the key" ] && note "test 1's attestation document states the public handshake's key (a statement; the binding is TEST1_SPKI = the manager's key)" || bad "test 1's document: $bd"
     # a hostname nothing may serve (a listed deployment with NO live lease, DNS at us-west): refused
-    st=""; for d in $UNLEASED; do
-      [ "$(curl -sS -m 20 "$API/v1/expected-guest?id=$d" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("error",""))' 2>/dev/null)" = not_leased ] || continue
-      [ "$(dig +short ${d:2:8}.app.enclave.host A | head -1)" = 5.78.85.108 ] || continue; st=$d; break; done
-    [ -n "$st" ] || bad "no unleased us-west hostname to probe (all leased or not at us-west)"
+    st=$(stranger_probe)
+    [ -n "$st" ] || note "INFO: no unleased us-west hostname in the live listing (all leased?): the stranger probe is NOT exercised (STRANGER=<id> names one)"
     [ -z "$st" ] || { r=$(public_get ${st:2:8}); [ "$r" = "000 -" ] && note "an unleased hostname (${st:2:8}) is refused" || bad "the unleased ${st:2:8} answered '$r'"; } ;;
   2:on|2:off)
     newinv inv0-2-$MODE.txt
