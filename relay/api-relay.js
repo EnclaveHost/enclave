@@ -2827,7 +2827,8 @@ await initSecrets();           // needs SECRETS_KEY + the same data dir; degrade
 // RELEASE_PREWARM_SEC (default 600; 0 = off): a cached key costs a catalog read, a new app version is computed before its release
 let _prewarming = false;
 const prewarmReleases = () => {
-  if (_prewarming) return;
+  // only while the predictor's known-answer test passes (enclave-bf): a failing predictor would compute nothing usable
+  if (_prewarming || !(predictor().state().kat || {}).ok) return;
   _prewarming = true;
   prewarmReleasePredictions(relayCtx).catch((e) => console.error(`[secrets-release] pre-warm failed: ${e.message}`)).finally(() => { _prewarming = false; });
 };
