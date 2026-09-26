@@ -1,0 +1,50 @@
+00:55:00 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+00:55:02 [node] tpm: ready tpmattest/1
+00:55:02 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+00:55:02 [node] session: minted an ES256 session-signing key
+00:55:02 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+00:55:03 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+00:55:03 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001457 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+00:55:03 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu + 28/sec card, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+00:55:03 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:03 [node] local http on 127.0.0.1:9600
+00:55:03 [node] tunnel open, waiting for the challenge
+00:55:03 [node] sent TPM keys
+00:55:03 [node] attach REJECTED: hv-node attach is not enabled on this relay (the VBS-enclave attach is retired)
+00:55:04 [node] [host] registry: card price now 0/sec (was 28) tx=0xe4368ba9776bdd3ee2b62573b02319a7c75175cf1dbcbabf57dc86ce43922e49
+00:55:04 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu + 28/sec card, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+00:55:04 [node] tunnel closed
+00:55:09 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:09 [node] tunnel open, waiting for the challenge
+00:55:09 [node] sent TPM keys
+00:55:09 [node] attach REJECTED: hv-node attach is not enabled on this relay (the VBS-enclave attach is retired)
+00:55:10 [node] tunnel closed
+00:55:15 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:15 [node] tunnel open, waiting for the challenge
+00:55:15 [node] sent TPM keys
+00:55:15 [node] attach REJECTED: hv-node attach is not enabled on this relay (the VBS-enclave attach is retired)
+00:55:16 [node] tunnel closed
+00:55:21 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:21 [node] tunnel open, waiting for the challenge
+00:55:21 [node] sent TPM keys
+00:55:21 [node] attach REJECTED: hv-node attach is not enabled on this relay (the VBS-enclave attach is retired)
+00:55:22 [node] tunnel closed
+00:55:27 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:27 [node] handshake rejected: HTTP 502
+00:55:27 [node] tunnel error: WebSocket was closed before the connection was established
+00:55:27 [node] tunnel closed
+00:55:32 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:33 [node] tunnel open, waiting for the challenge
+00:55:33 [node] sent TPM keys
+00:55:33 [node] [host] registry: card price now 0/sec (was 28) tx=0x79ebd3892dd58cb5696a04848b1557de7f89f20ae3efbca6a037136f7c86df6a
+00:55:34 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+00:55:36 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+00:55:37 [node] attach ACCEPTED tier=hv-node measurement=
+Fri 09/25/2026 17:55:43.21 [run] agent.mjs exited -1; restarting in 10 s 
+00:55:53 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+00:55:56 [node] tpm: ready tpmattest/1
+00:55:56 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+00:55:56 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+00:55:56 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+00:55:56 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001456 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+00:55:56 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C

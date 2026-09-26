@@ -1,0 +1,223 @@
+04:22:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:23:04 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:23:04 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:23:08 [node] the owners this node serves changed since its attach: attaching again so the relay serves the same set
+04:23:08 [node] tunnel closed
+04:23:09 [node] [host] ledger: not taking 0xda9e43f8: it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer
+04:23:09 [node] [host] ledger: not taking 0xc34499ee: it is a private deployment, and this box has no session key to verify its owner with
+04:23:09 [node] [host] ledger: not taking 0x7c4149ee: it is a private deployment, and this box has no session key to verify its owner with
+04:23:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:23:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:23:13 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:23:14 [node] tunnel open, waiting for the challenge
+04:23:14 [node] sent TPM keys
+04:23:17 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:23:18 [node] attach ACCEPTED tier=hv-node measurement=
+04:23:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:23:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:24:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:24:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:24:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:24:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:25:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:25:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:25:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:25:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:26:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:26:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:26:09 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:26:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:26:37 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:26:37 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+04:26:39 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:26:39 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+04:26:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:26:42 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:27:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:27:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:27:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:27:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:28:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:28:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:28:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:28:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:29:09 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:29:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:29:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:29:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:30:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:30:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:30:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:30:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:31:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:31:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:31:09 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:31:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:31:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:31:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:32:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:32:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:32:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:32:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:33:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:33:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:33:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:33:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:33:59 [node] tunnel closed
+04:34:04 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:34:04 [node] tunnel open, waiting for the challenge
+04:34:04 [node] sent TPM keys
+04:34:08 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:34:09 [node] attach ACCEPTED tier=hv-node measurement=
+04:34:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:34:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:34:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:34:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:35:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:35:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:35:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:35:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:36:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:36:12 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:36:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:36:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:37:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:37:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:37:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:37:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:38:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:38:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:38:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:38:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:39:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:39:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:39:13 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:39:13 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+04:39:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:39:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:40:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:40:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:40:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:40:42 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:41:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:41:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:41:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:41:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:41:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:41:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:42:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:42:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:42:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:42:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:43:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:43:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:43:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:43:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:44:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:44:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:44:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:44:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:44:44 [node] tunnel closed
+04:44:49 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:44:50 [node] tunnel open, waiting for the challenge
+04:44:50 [node] sent TPM keys
+04:44:53 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:44:54 [node] attach ACCEPTED tier=hv-node measurement=
+04:45:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:45:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:45:34 [node] tunnel closed
+04:45:39 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:45:40 [node] tunnel open, waiting for the challenge
+04:45:40 [node] sent TPM keys
+04:45:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:45:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:45:43 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:45:44 [node] attach ACCEPTED tier=hv-node measurement=
+04:46:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:46:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:46:12 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:46:14 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:46:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:46:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:47:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:47:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:47:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:47:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:48:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:48:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:48:41 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:48:43 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:49:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:49:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:49:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:49:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:50:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:50:11 [node] [host] renewed 0x31136008
+04:50:12 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:50:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:50:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:51:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:51:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:51:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:51:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:51:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:51:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:52:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:52:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:52:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:52:42 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:53:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:53:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:53:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:53:42 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:54:11 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:54:13 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:54:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:54:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:55:11 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:55:12 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:55:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:55:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:56:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:56:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:56:11 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:56:12 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:56:39 [node] tunnel closed
+04:56:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:56:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:56:44 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:56:45 [node] tunnel open, waiting for the challenge
+04:56:45 [node] sent TPM keys
+04:56:48 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:56:49 [node] attach ACCEPTED tier=hv-node measurement=
+04:57:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:57:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:57:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:57:42 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:58:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:58:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+^C04:58:45 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+04:58:48 [node] tpm: ready tpmattest/1
+04:58:48 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+04:58:48 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+04:58:48 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+04:58:48 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+04:58:48 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001444 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+04:58:48 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+04:58:48 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:58:48 [node] local http on 127.0.0.1:9600
+04:58:49 [node] tunnel open, waiting for the challenge
+04:58:49 [node] sent TPM keys
+04:58:49 [node] [host] ledger: 10 active deployment(s) in scope (owner-only)
+04:58:50 [node] [host] ledger: not taking 0xda9e43f8: it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer
+04:58:50 [node] [host] ledger: not taking 0xc34499ee: it is a private deployment, and this box has no session key to verify its owner with
+04:58:50 [node] [host] ledger: not taking 0x7c4149ee: it is a private deployment, and this box has no session key to verify its owner with
+04:58:50 [node] [host] ledger: not taking 0xca141665: this node runs only the isolated backend (the legacy VBS-enclave backend is retired): it claims only deployments that require hyperv-partition-per-app
+04:58:51 [node] [host] ledger: not taking 0x5c61595c: this node runs only the isolated backend (the legacy VBS-enclave backend is retired): it claims only deployments that require hyperv-partition-per-app
+04:58:51 [node] [host] ledger: considering 0x958ae6e9 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:58:52 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:58:53 [node] [host] claimed 0x958ae6e9 (tx 0x490bdf4e30c428333f0dc908f663d06a2dfc7e36cadbbbc9c7a34384fa93d052)
+04:58:53 [node] attach ACCEPTED tier=hv-node measurement=
+04:59:15 [node] [host] 0x958ae6e9 isolation spawned: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:59:16 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:59:16 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998

@@ -1,0 +1,24 @@
+1:00:55:00 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+8:00:55:03 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu + 28/sec card, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+14:00:55:04 [node] [host] registry: card price now 0/sec (was 28) tx=0xe4368ba9776bdd3ee2b62573b02319a7c75175cf1dbcbabf57dc86ce43922e49
+15:00:55:04 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu + 28/sec card, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+39:00:55:33 [node] [host] registry: card price now 0/sec (was 28) tx=0x79ebd3892dd58cb5696a04848b1557de7f89f20ae3efbca6a037136f7c86df6a
+40:00:55:34 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+44:00:55:53 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+50:00:55:56 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+125:^C01:28:11 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+132:01:28:14 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+150:01:31:38 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+157:01:31:41 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+169:01:33:03 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+176:01:33:06 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+209:^C02:04:42 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+216:02:04:45 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+303:^C02:51:10 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+310:02:51:13 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+418:^C03:34:34 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+425:03:34:37 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+776:^C04:58:45 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+783:04:58:48 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+1196:^C06:03:27 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+1203:06:03:30 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
