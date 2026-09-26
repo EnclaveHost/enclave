@@ -1,18 +1,23 @@
 {
  "nucbox-vbs-reference.json": {
-  "sha256": "b4d6675dd9b78eafceb10461a228bd8e039c8534b5b958a5fadc3a479cb97d29",
+  "sha256": "bb10724694d1ed436f88a967a19928c975205bd65f5f67ce26dc0559d63bc52f",
   "origin": {
    "repository": "EnclaveHost/enclave",
-   "branch": "windows/vbslike-pkg",
-   "commit": "7e979b38",
+   "branch": "windows/vbslike-pkg-v42-e53",
+   "commit": "3c2fc939",
    "path": "windows/vbslike/pkg/reference/nucbox-vbs-reference.json",
-   "owner": "enclave-63",
-   "packageVersion": "v39"
+   "owner": "enclave-53 (in enclave-63's lane)",
+   "packageVersion": "v42"
   },
   "what": "the reference values for the NucBox custom type-1 paravisor images (type enclave-nucbox-vbs-reference/1), re-derived by enclave-53's pkg.mjs verify from the pinned images and their VBS identity documents; imported by commit and hash, never edited here. A new commit of the file is a new pin, reviewed as such.",
   "use": "verifier/nucbox-reference.mjs eligibleDigestsOf: the exact vbsBootDigest allowlist for V3/V4 of docs/security/nucbox-custom-vm-verifier.md. NOT used by any verdict until the paravisor report format is registered with real report bytes.",
-  "reviewed": "2026-09-25: THE ROLLOVER. Checked by image id against the pinned v37 (37673a05; v38 0f328a18 carries the same bytes) before re-pinning. vbs-linux-candidate-1539 (b7ba7731..., 56FBB27F...) is eligible:true and PROSPECTIVE: its reason cites canary 093904 (0bee8444), the package-owned functional acceptance 094631 (98782fbb), enclave-d1's byte review fd92d610 and this lane's review (launch digest recomputed from the bytes with vbsdigest; OPENHCL_CONFIDENTIAL_DEBUG=1 only in the twin; the run's 12490 inputs tied to v36), and says no report has been verified. vbs-linux-candidate-g1 (a44bb55a, 58DFEBFE) and its twin (4991b3e1, 2A93ED16) moved to superseded[] with eligible:false, shaped like the c567e432 entries, their digests and image hashes unchanged. Every other image and superseded entry is byte-identical. The top-level eligible/notAClaim text now states what eligibility does NOT grant. The derived set is the same 12 digests as ba3f49a7: 1 eligible (56FBB27F), 11 refused. No verdict uses this allowlist: eligibleDigestsOf has no caller outside its test, no vendored bundle includes it, and hyperv-partition-domain/v1 stays delegate.",
+  "reviewed": "2026-09-26: THE ROLLOVER to the fixed guest. Checked by image id against the pinned v39 (7e979b38; v40 f4a0bf27 carries the same bytes) and v41 (3b0d739e, 3bb33297, never pinned here) before re-pinning. vbs-linux-candidate-aaad1d37 (0891c740..., A39E2F8C...) is eligible:true and PROSPECTIVE: the monitor initrd aaad1d37 from isolation/front-console-guard 298924ae (4cdd5169's console guard, enclave-5d's domexec fix 683798d0, the front hardening 139c3fdd/d9176ed5/298924ae), b7ba7731's recipe with only the initrd swapped, built twice identically by enclave-53 (enclave-bf's independent rebuild is part of v42's review); its reason cites enclave-d1's canary 8d488dbf, which PASSED both the direct boot and the manager path with v42's manager and launcher, and says no report has been verified. Its twin 17f40444 (DB5A0402...) is refused. vbs-linux-candidate-1539 (b7ba7731, 56FBB27F, eligible v39-v41) and its twin moved to superseded[]; so did v41's pending vbs-linux-candidate-41cacbc8 (252602c8, 231D1AB7), which FAILED its canary (the runtime exited 126: /dev/null in a chroot with no /dev), and its twin. Every other image and superseded entry is byte-identical to v39's. The derived set is 16 digests: 1 eligible, 15 refused. No verdict uses this allowlist. Landed only after enclave-d1 staged and installed v42 on the box (enclave-87), so the pin follows what is deployed.",
   "previous": [
+   {
+    "commit": "7e979b38",
+    "sha256": "b4d6675dd9b78eafceb10461a228bd8e039c8534b5b958a5fadc3a479cb97d29",
+    "owner": "enclave-63"
+   },
    {
     "commit": "37673a05",
     "sha256": "ba3f49a7dce5d73989e23b3ae8ac2b532131de61f49fe775c16e1ea1e1aea958",
@@ -55,12 +60,11 @@
    }
   ],
   "rollback": {
-   "sha256": "ba3f49a7dce5d73989e23b3ae8ac2b532131de61f49fe775c16e1ea1e1aea958",
+   "sha256": "3bb33297206197852cab99e8bfbf96766d9dbf7aff7f085ceffdd0373eb2a4ea",
    "commits": [
-    "37673a05 (v37)",
-    "0f328a18 (v38)"
+    "3b0d739e (v41)"
    ],
-   "how": "re-pin that file from windows/vbslike-pkg (G1 58DFEBFE becomes the one eligible digest again); never edit the pinned file"
+   "how": "re-pin v41's file from windows/vbslike-pkg-v41-e53 (b7ba7731 56FBB27F becomes the one eligible digest again; 252602c8 is refused in it), together with the box's rollback to v41 as staged; or restore the previous pin b4d6675d (v39/v40), which also makes b7ba7731 the one eligible digest. Never edit the pinned file."
   }
  }
 }
