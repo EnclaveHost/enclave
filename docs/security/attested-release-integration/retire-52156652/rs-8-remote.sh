@@ -5,6 +5,27 @@
 # Line-wise: every other line stays byte-identical, the file stays 0600 root, every release setting line byte-identical
 # (the release is ON for the 3 canaries), then ONE api-relay restart. Fails closed before its first write; prints no value.
 set -euo pipefail
+# predictor consistency of an env FILE, as makePredictor judges it (enclave-5d's M1): every admitted release installed; with a
+# certificate set, every named one installed AND every admitted one in it. A file that fails would give the predictor a
+# PROBLEM that refuses EVERY prediction (the secrets release included) - so it is never written. Prints the problem, or nothing.
+consistent() { python3 - "$1" <<'PYC'
+import sys, re
+kv = {}
+for l in open(sys.argv[1]):
+    m = re.match(r"^(SECRETS_RELEASE_(?:PREDICT_RELEASES|DOMAIN_RELEASES|CERT_RELEASES))=(.*)$", l.rstrip("\n"))
+    if m: kv.setdefault(m.group(1), []).append(m.group(2))
+if any(len(v) > 1 for v in kv.values()): print("a release key appears more than once"); sys.exit()
+one = lambda k: kv.get(k, [""])[0]
+inst = {p.split("=", 1)[0].strip().lower() for p in one("SECRETS_RELEASE_PREDICT_RELEASES").split(",") if "=" in p}
+adm = {x.strip().lower() for x in one("SECRETS_RELEASE_DOMAIN_RELEASES").split(",") if x.strip()}
+cert = {x.strip().lower() for x in one("SECRETS_RELEASE_CERT_RELEASES").split(",") if x.strip()}
+short = lambda s: ",".join(sorted(x[:12] for x in s))
+if not adm: print("no admitted release")
+elif adm - inst: print("admitted but not installed: " + short(adm - inst))
+elif cert and cert - inst: print("a certificate release is not installed: " + short(cert - inst))
+elif cert and adm - cert: print("SECRETS_RELEASE_CERT_RELEASES leaves out the admitted " + short(adm - cert) + ": run cs-3-env.sh off FIRST")
+PYC
+}
 : "${MODE:?}" "${DEST:?}" "${STAMP:?}" "${NEW_SHA:?}" "${OLD_SHA:?}"
 ENVF=/etc/nan-relay/api-relay.env; NEWF=$DEST/predict-lines.env; OLDF=$DEST/predict-lines.before.env
 KEYS="SECRETS_RELEASE_PREDICT_RELEASES SECRETS_RELEASE_DOMAIN_RELEASES"
@@ -46,6 +67,7 @@ NEWENV=$ENVF.rs8-new
   && [ "$(diff "$ENVF" "$NEWENV" | sed -n 's/^> //p' | sha256sum)" = "$(sha256sum < "$TO")" ] \
   && [ "$(relset "$NEWENV")" = "$REL0" ] \
   || { rm -f "$NEWENV"; echo "REFUSING: the edited file is not the old one with exactly the two lines replaced"; exit 18; }
+why=$(consistent "$NEWENV"); [ -z "$why" ] || { rm -f "$NEWENV"; echo "REFUSING: the new env would refuse EVERY prediction: $why (nothing written)"; exit 19; }
 mv "$NEWENV" "$ENVF"
 for k in $KEYS; do [ "$(grep "^$k=" "$ENVF")" = "$(grep "^$k=" "$TO")" ] || { echo "CHECK FAILED: $k after the move (backup $BAK)"; exit 20; }; done
 # ONE restart
