@@ -11,7 +11,8 @@ import { execFileSync } from "node:child_process";
 import {
   DEFAULTS, CONSOLE_OK, THRESHOLDS, BOOTSTRAP, remoteCommand, appUrlFor, certFacts, tlsCheck, parseRelayRow, encodeGetCall,
   decodeDeployment, boxScript, parseBoxStdout, consumeChunk, scanLog, consoleScan, pickDeploymentVm, digestBox, newEval, step,
-  summarize, newSampler, humanLine, parseArgs, exercised, headSentInWindow,
+  summarize, newSampler, humanLine, parseArgs, exercised, headSentInWindow, splitHistory, HV_GUARD_NOT_COVERED, OUT_OF_SCOPE_VERDICT,
+  BODY_KEEP,
 } from "./soak.mjs";
 
 const DEP = DEFAULTS.deployment;
@@ -33,7 +34,13 @@ test("tlsCheck: verification is ON - a self-signed leaf is recorded (SPKI, seria
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const { key, cert } = makeCert(dir, "localhost");
   const seen = [];
-  const srv = https.createServer({ key, cert }, (req, res) => { seen.push([req.url, req.headers["x-hv-soak"], req.method]); res.end("Hello World!\n"); });
+  const srv = https.createServer({ key, cert }, (req, res) => {
+    seen.push([req.url, req.headers["x-hv-soak"], req.method]);
+    if (req.url.startsWith("/echo/")) return res.end(`sentinel saw ${req.headers["x-hv-soak"]}\n`);          // the sentinel echoes the token
+    if (req.url.startsWith("/e404/")) { res.statusCode = 404; return res.end(`not here: ${req.headers["x-hv-soak"]}\n`); }   // an error page echoing it
+    if (req.url.startsWith("/late/")) return res.end("x".repeat(BODY_KEEP) + req.headers["x-hv-soak"]);   // past the kept bytes
+    res.end("Hello World!\n");                                                                          // hello-world never echoes
+  });
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   t.after(() => srv.close());
   const port = srv.address().port;
@@ -63,6 +70,22 @@ test("tlsCheck: verification is ON - a self-signed leaf is recorded (SPKI, seria
   assert.deepEqual(seen.at(-1), ["/hv-soak/tok456", "tok456", "HEAD"]);
   const headBad = await tlsCheck(`https://localhost:${port}/`, { method: "HEAD", timeoutMs: 5000 });
   assert.deepEqual([headBad.authorized, headBad.status], [false, null]);
+
+  // the token echo: only a verified 200 whose (bounded) body carries THIS token proves the app's output path ran
+  const echo = await tlsCheck(`https://localhost:${port}/echo/tokE`, { timeoutMs: 5000, ca: cert, headers: { "x-hv-soak": "tokE" }, expect: "tokE" });
+  assert.deepEqual([echo.ok, echo.bodyHasToken], [true, true]);
+  assert.equal(Object.keys(echo).includes("body"), false, "the body itself is never returned");
+  const plain = await tlsCheck(`https://localhost:${port}/hv-soak/tokP`, { timeoutMs: 5000, ca: cert, headers: { "x-hv-soak": "tokP" }, expect: "tokP" });
+  assert.deepEqual([plain.ok, plain.bodyHasToken], [true, false], "hello-world answers 200 but never echoes");
+  const other = await tlsCheck(`https://localhost:${port}/echo/x`, { timeoutMs: 5000, ca: cert, headers: { "x-hv-soak": "tokOLD" }, expect: "tokNEW" });
+  assert.equal(other.bodyHasToken, false, "another sample's token is not this one's");
+  const late = await tlsCheck(`https://localhost:${port}/late/x`, { timeoutMs: 5000, ca: cert, headers: { "x-hv-soak": "tokL" }, expect: "tokL" });
+  assert.deepEqual([late.ok, late.bodyHasToken, late.bytes], [true, false, BODY_KEEP + 4], "only the first BODY_KEEP bytes are kept and searched");
+  const e404 = await tlsCheck(`https://localhost:${port}/e404/x`, { timeoutMs: 5000, ca: cert, headers: { "x-hv-soak": "tok4" }, expect: "tok4" });
+  assert.deepEqual([e404.authorized, e404.status, e404.bodyHasToken], [true, 404, false], "only a 200's body counts, not an error page that reflects the token");
+  const unverified = await tlsCheck(`https://localhost:${port}/echo/tokU`, { timeoutMs: 5000, headers: { "x-hv-soak": "tokU" }, expect: "tokU" });
+  assert.deepEqual([unverified.ok, unverified.bodyHasToken], [false, false], "an unverified connection proves nothing");
+  assert.equal((await tlsCheck(`https://localhost:${port}/echo/n`, { timeoutMs: 5000, ca: cert })).bodyHasToken, null, "no token asked, no answer");
 
   // a trusted chain for the WRONG name is refused too: the hostname is verified
   const wrong = await tlsCheck(`https://127.0.0.1:${port}/`, { timeoutMs: 5000, ca: cert });
@@ -208,7 +231,10 @@ test("consumeChunk: only complete lines are consumed; the next read starts after
   assert.equal(c.text, "a\nb\n");
   assert.equal(c.next, 104);
   assert.equal(c.pendingBytes, 4);
-  assert.deepEqual(consumeChunk({ from: 7, b64: b64("no newline yet") }), { text: "", next: 7, bytes: 0, pendingBytes: 14 });
+  const { buf, ...rest } = consumeChunk({ from: 7, b64: b64("no newline yet") });
+  assert.deepEqual(rest, { text: "", next: 7, bytes: 0, pendingBytes: 14 });
+  assert.equal(buf.length, 0);
+  assert.equal(c.buf.toString(), "a\nb\n");
   assert.equal(consumeChunk({ from: 0, b64: "" }).next, 0);
 });
 
@@ -253,7 +279,7 @@ test("scanLog and digestBox: marker and sentinel sightings in the logs; the base
   assert.deepEqual([c.markerHits, c.sentinelLines], [1, 1]);
   const st = newSampler();
   const b1 = digestBox(boxRes({ node: `00:00:01 old ${MARK} ${SENTINEL_LINE}\n` }), st, { deployment: DEP, token: "t", marker: MARK });
-  assert.deepEqual([b1.logs.node.markerHits, b1.logs.node.markerHitsHistory, b1.logs.node.sentinelLines, b1.logs.node.sentinelLinesHistory], [0, 1, 0, 1]);
+  assert.deepEqual([b1.logs.node.markerHits, b1.logs.node.history.markerHits, b1.logs.node.sentinelLines, b1.logs.node.history.sentinelLines], [0, 1, 0, 1]);
   const b2 = digestBox(boxRes({ node: `00:05:00 new ${MARK}\n`, nodeFrom: st.offsets.node, console: `${OLD_FRONT}\n${SENTINEL_LINE}\n` }), st,
                        { deployment: DEP, token: "t", marker: MARK });
   assert.equal(b2.logs.node.markerHits, 1);
@@ -267,14 +293,18 @@ const vm = (o = {}) => ({ id: "hv1210563e5e204bbc7cf0f987485949db", name: DEP, i
   vmName: "enclave-app-hv1210563e5e204b-9c3d10f1", policy: { memMiB: 128 }, tier: "T0-hv", hostExcluded: false,
   transportKeySha256: "ab".repeat(32), managerEpoch: "e1", guest: { booted: true, bytes: 600, head: "MON ready" }, ...o });
 function boxRes({ vms = [vm()], hv = [{ name: "enclave-app-hv1210563e5e204b-9c3d10f1", state: "Running", memMiB: 512, uptimeSec: 60 }],
-                  node = NODE_LOG, nodeFrom = 0, manager = "[winmgr] data plane on 127.0.0.1:8092\n", console = "", connected = true } = {}) {
+                  node = NODE_LOG, nodeFrom = 0, manager = "[winmgr] data plane on 127.0.0.1:8092\n", console = "", connected = true,
+                  nodePre, managerPre } = {}) {
+  // preReady: the log's size before READY; by default the whole read (nothing written after READY); null = not sent
+  const pre = (v, dflt) => (v === undefined ? { preReady: dflt } : v === null ? {} : { preReady: v });
   return { ok: true, exit: 0, ms: 30000, readyMs: 3000, ready: connected ? "console" : "noconsole", data: {
     v: 1, vms: vms === null ? { ok: false, error: "503" } : { ok: true, b64: b64(JSON.stringify({ vms, managerEpoch: "e1" })) },
     console: { attempted: connected, connected, note: connected ? "" : "not connected", b64: b64(console) },
     hv: hv === null ? { ok: false, error: "Get-VM failed" } : { ok: true, vms: hv.length === 1 ? hv[0] : hv },
     mem: { ok: true, freeKB: 104857600, totalKB: 117440512 },
-    node: { ok: true, size: nodeFrom + Buffer.byteLength(node), from: nodeFrom, reset: false, b64: b64(node) },
-    manager: { ok: true, size: Buffer.byteLength(manager), from: 0, reset: false, b64: b64(manager) } } };
+    node: { ok: true, size: nodeFrom + Buffer.byteLength(node), from: nodeFrom, reset: false, b64: b64(node),
+            ...pre(nodePre, nodeFrom + Buffer.byteLength(node)) },
+    manager: { ok: true, size: Buffer.byteLength(manager), from: 0, reset: false, b64: b64(manager), ...pre(managerPre, Buffer.byteLength(manager)) } } };
 }
 
 test("digestBox: a running partition, its VM Running, the logs from offset 0 as the baseline", () => {
@@ -314,11 +344,59 @@ test("digestBox: not Running when the manager says so, when Hyper-V says Off, or
 test("digestBox: a running partition whose console cannot be read is a failed box read; line contents never kept", () => {
   const st = newSampler();
   assert.equal(digestBox(boxRes({ connected: false }), st, { deployment: DEP, token: "t" }).ok, false);
-  const b = digestBox(boxRes({ console: "MON ok\r\nServing HTTP on http://127.0.0.1:8080/ SECRETCANARY\r\n", node: "01:00:00 Error: boom SECRETCANARY\n" }),
-                      newSampler(), { deployment: DEP, token: "t" });
+  const b = digestBox(boxRes({ console: "MON ok\r\nServing HTTP on http://127.0.0.1:8080/ SECRETCANARY\r\n", node: "01:00:00 Error: boom SECRETCANARY\n",
+                               nodePre: 0 }), newSampler(), { deployment: DEP, token: "t" });
   assert.equal(b.console.nonMatching, 1);
   assert.equal(b.logs.node.errorLines, 1);
+  const h = digestBox(boxRes({ node: "01:00:00 Error: old SECRETCANARY\n" }), newSampler(), { deployment: DEP, token: "t" });
+  assert.deepEqual([h.logs.node.errorLines, h.logs.node.history.errorLines], [0, 1], "history is counted apart");
+  assert.doesNotMatch(JSON.stringify(h), /SECRETCANARY|old/);
   assert.doesNotMatch(JSON.stringify(b), /SECRETCANARY|Serving HTTP|boom/);
+});
+
+/* G2 (enclave-bf): the script reads the logs AFTER READY, so the first read holds this sample's own probe lines too.
+   Only bytes below the pre-READY size are history. */
+test("splitHistory: whole lines at or below the pre-READY size are history; a crossing line and the rest are judged", () => {
+  const buf = Buffer.from("old1\nold2\nnew1\nnew2\n");
+  const at = (from, until) => { const r = splitHistory(buf, from, until); return [r.history.toString(), r.current.toString()]; };
+  assert.deepEqual(at(0, 10), ["old1\nold2\n", "new1\nnew2\n"]);
+  assert.deepEqual(at(0, 12), ["old1\nold2\n", "new1\nnew2\n"], "a line crossing the boundary is judged, never history");
+  assert.deepEqual(at(0, 0), ["", "old1\nold2\nnew1\nnew2\n"]);
+  assert.deepEqual(at(0, 999), ["old1\nold2\nnew1\nnew2\n", ""]);
+  assert.deepEqual(at(100, 50), ["", "old1\nold2\nnew1\nnew2\n"], "a read past the boundary is all judged");
+  assert.deepEqual(at(5, 10), ["old1\n", "old2\nnew1\nnew2\n"], "offsets are file offsets: this read starts at byte 5, so 5 bytes are history");
+});
+
+test("G2: a marker the first sample's own probe caused (past the pre-READY size) is judged and FAILs; the history before it is not", () => {
+  const st = newSampler();
+  const hist = `00:00:01 old ${MARK}\n00:00:02 registry: card price now 0/sec (was 12) tx=0x1\n`;
+  const mine = `00:00:05 caused by the probe ${MARK}\n00:00:06 registry: card price now 0/sec (was 0) tx=0x2\n`;
+  const b = digestBox(boxRes({ node: hist + mine, nodePre: Buffer.byteLength(hist) }), st, { deployment: DEP, token: "t", marker: MARK });
+  assert.equal(b.logs.node.baseline, true);
+  assert.equal(b.logs.node.preReady, Buffer.byteLength(hist));
+  assert.deepEqual([b.logs.node.markerHits, b.logs.node.history.markerHits], [1, 1]);
+  assert.deepEqual([b.logs.node.cardPrice, b.logs.node.history.cardPrice], [1, 1]);
+  const r = step(newEval(), { t: "2026-09-26T03:00:00Z", tls: { ok: true, authorized: true, status: 200 }, box: { ok: true, logs: { node: b.logs.node, manager: b.logs.manager }, console: b.console, partition: b.partition } });
+  assert.ok(r.fail.some(([id, m]) => id === "leak" && /body marker appeared 1/.test(m)), "the probe's own marker is a leak");
+  assert.ok(r.fail.some(([id]) => id === "price"), "a price tx after READY is a price tx");
+  // everything before READY is history, however it is chunked: the next sample judges only what is new
+  const b2 = digestBox(boxRes({ node: `00:05:00 later\n`, nodeFrom: st.offsets.node, nodePre: 999999 }), st, { deployment: DEP, token: "t", marker: MARK });
+  assert.equal(b2.logs.node.history, null, "the boundary is fixed at the first READY");
+  assert.equal(b2.logs.node.lines, 1);
+});
+
+test("G2: without the pre-READY size the first read fails closed and is retried; a reset file is all judged", () => {
+  const st = newSampler();
+  const b = digestBox(boxRes({ nodePre: null }), st, { deployment: DEP, token: "t" });
+  assert.equal(b.logs.node.ok, false);
+  assert.match(b.logs.node.error, /size before READY is unknown/);
+  assert.equal(b.ok, false);
+  assert.equal(st.offsets.node, 0, "the offset stays, so the next sample reads it again as the baseline");
+  assert.equal(digestBox(boxRes({ nodePre: -1 }), newSampler(), { deployment: DEP, token: "t" }).logs.node.ok, false, "-1 is the script's 'unknown'");
+  const b2 = digestBox(boxRes(), st, { deployment: DEP, token: "t" });
+  assert.equal(b2.logs.node.baseline, true);
+  const res = boxRes({ node: `00:00:01 ${MARK}\n`, nodeFrom: 0 }); res.data.node.reset = true;
+  assert.equal(digestBox(res, st, { deployment: DEP, token: "t", marker: MARK }).logs.node.markerHits, 1, "a new file is not history");
 });
 
 test("digestBox: an ssh failure yields only the ssh block", () => {
@@ -330,19 +408,24 @@ test("digestBox: an ssh failure yields only the ssh block", () => {
 
 const SPKI_A = "a".repeat(64), SPKI_B = "b".repeat(64);
 let clock = Date.parse("2026-09-26T03:00:00Z");
+// one sample. The default is a sentinel sample that EXERCISES the leak check: a verified 200 fired at READY with the
+// console connected, whose body echoed the token. echo:false is hello-world (it never echoes).
 function S({ ok = true, spki = SPKI_A, authorized = true, status = ok ? 200 : 503, restart = 0, nodeOk = true, baseline = false,
              running = true, price = 0, nonMatching = 0, tokenHits = 0, boxOk = true, sshOk = true, relayOk = true, hostExcluded = false,
              connected = true, latencyMs = 300, t = null, chain = null, head = true, markerHits = 0, nodeMarkerHits = 0, withheld = 0,
-             sentinelLines = 0 } = {}) {
+             sentinelLines = 0, echo = true, trigger = "console", histPrice = 0, histRestart = 0 } = {}) {
   clock += 300_000;
   return { type: "sample", t: t || new Date(clock).toISOString(), deployment: DEP,
-    tls: { ok, status: ok ? 200 : status, authorized, latencyMs, cert: spki ? { spkiSha256: spki } : null, error: ok ? null : "x" },
+    tls: { ok, status: ok ? 200 : status, authorized, latencyMs, cert: spki ? { spkiSha256: spki } : null, error: ok ? null : "x",
+           trigger, bodyHasToken: ok && echo },
     head: { method: "HEAD", trigger: head ? "console" : "fallback", authorized: true, status: 200, sentInWindow: head },
     relay: { ok: relayOk, present: true, hostExcluded, mode: "hv-node" },
     chain: chain || { skipped: true },
     box: { ok: boxOk && sshOk, ssh: { ok: sshOk, error: sshOk ? undefined : "timeout" }, vms: { ok: true },
       partition: sshOk ? { running, status: running ? "running" : "starting" } : undefined,
-      logs: sshOk ? { node: nodeOk ? { ok: true, baseline, restart, cardPrice: price, tokenHits: 0, markerHits: nodeMarkerHits, renewed: 0, renewedMine: 0 } : { ok: false, error: "x" },
+      logs: sshOk ? { node: nodeOk ? { ok: true, baseline, restart, cardPrice: price, tokenHits: 0, markerHits: nodeMarkerHits, renewed: 0, renewedMine: 0,
+                                       history: baseline ? { cardPrice: histPrice, restart: histRestart, markerHits: 0, sentinelLines: 0, lines: 4 } : null }
+                                     : { ok: false, error: "x" },
                       manager: { ok: true, tokenHits: 0, markerHits: 0 } } : undefined,
       console: sshOk ? { connected, nonMatching, nonMatchingSha256: Array(nonMatching).fill("c".repeat(64)), tokenHits, markerHits, withheld,
                          sentinelLines, lines: 3 } : undefined } };
@@ -372,8 +455,8 @@ test("thresholds: an SPKI change FAILs unless the node log recorded a restart of
   assert.deepEqual(run([S({ baseline: true }), S({ restart: 1 }), S(), S({ spki: SPKI_B })]).fails, ["spki"]);
   // a re-baselined key is the new reference
   assert.deepEqual(run([S({ baseline: true }), S({ spki: SPKI_B, restart: 1 }), S({ spki: SPKI_B }), S({ spki: SPKI_A })]).fails, ["spki"]);
-  // restart lines in the baseline read (history) explain nothing
-  assert.deepEqual(run([S({ baseline: true, restart: 5 }), S({ spki: SPKI_B })]).fails, ["spki"]);
+  // restart lines in the log's history (before the first READY) explain nothing
+  assert.deepEqual(run([S({ baseline: true, histRestart: 5 }), S({ spki: SPKI_B })]).fails, ["spki"]);
   // the log unreadable when the key changed: judged at the next read, either way
   assert.deepEqual(run([S({ baseline: true }), S({ spki: SPKI_B, nodeOk: false }), S({ spki: SPKI_B, restart: 1 })]).fails, []);
   assert.deepEqual(run([S({ baseline: true }), S({ spki: SPKI_B, nodeOk: false }), S({ spki: SPKI_B })]).fails, ["spki"]);
@@ -387,12 +470,22 @@ test("thresholds: partition not Running on 2 consecutive samples; unknown neithe
   assert.deepEqual(run([S({ running: false }), S({ sshOk: false }), S({ running: false })]).fails, ["partition"]);
 });
 
-test("thresholds: a card-price line after the baseline is a price tx", () => {
-  assert.deepEqual(run([S({ baseline: true, price: 3 }), S(), S()]).fails, []);
-  const r = run([S({ baseline: true, price: 3 }), S({ price: 1 })]);
+test("thresholds: a first read recorded before G2 (no history split) keeps its old meaning: all history", () => {
+  const legacy = S({ baseline: true, price: 2, restart: 3 });
+  delete legacy.box.logs.node.history;
+  const r = run([legacy, S({ spki: SPKI_B })]);
+  assert.deepEqual(r.fails, ["spki"], "no price FAIL from old lines, and old restart lines explain nothing");
+  assert.equal(r.ev.price.baseline, 2);
+});
+
+test("thresholds: a card-price line past the log's history is a price tx", () => {
+  assert.deepEqual(run([S({ baseline: true, histPrice: 3 }), S(), S()]).fails, []);
+  const r = run([S({ baseline: true, histPrice: 3 }), S({ price: 1 })]);
   assert.deepEqual(r.fails, ["price"]);
   assert.equal(r.ev.price.baseline, 3);
   assert.equal(r.ev.price.added, 1);
+  // G2: a price line in the FIRST read but past the pre-READY size is judged too
+  assert.deepEqual(run([S({ baseline: true, histPrice: 3, price: 1 })]).fails, ["price"]);
 });
 
 test("thresholds: any non-DOM/MON console line or any token sighting is a leak", () => {
@@ -426,14 +519,19 @@ const soakFile = (samples) => [JSON.stringify({ type: "start", interval: 300, de
 // n samples, `ex` of them exercised; the others miss ONLY the console (box.ok stays true, so no other threshold moves)
 const coverage = (n, ex) => { clock = Date.parse("2026-09-27T00:00:00Z"); return soakFile(Array.from({ length: n }, (_, i) => S({ baseline: i === 0, connected: i < ex }))); };
 
-test("exercised: the partition running, a verified 200, the console read, and both logs read", () => {
+test("exercised: the partition running, a verified 200 fired in the console window whose body echoes the token, the console and both logs read", () => {
   assert.equal(exercised(S()), true);
   for (const [o, why] of [[{ running: false }, "not running"], [{ ok: false }, "no verified 200"], [{ ok: false, authorized: false, status: 200 }, "an unverified 200"],
-                          [{ connected: false }, "no console"], [{ nodeOk: false }, "node.log unread"], [{ sshOk: false }, "no box read"],
-                          [{ head: false }, "the HEAD probe not sent inside the console window"]])
+                          [{ echo: false }, "the body did not echo the token (hello-world): the app's output path is unproven"],
+                          [{ trigger: "fallback" }, "the GET fired by the fallback, not inside the console window"],
+                          [{ trigger: "noconsole" }, "the GET fired with no console connected"],
+                          [{ connected: false }, "no console"], [{ nodeOk: false }, "node.log unread"], [{ sshOk: false }, "no box read"]])
     assert.equal(exercised(S(o)), false, why);
   const m = S(); m.box.logs.manager = { ok: false };
   assert.equal(exercised(m), false, "manager.log unread");
+  // the HEAD probe is a tripwire, not coverage (bf's amended G1): neither it nor a "withheld" line makes a sample count
+  assert.equal(exercised(S({ head: false })), true, "no HEAD needed");
+  assert.equal(exercised(S({ echo: false, withheld: 3 })), false, "withheld lines without the echo prove nothing");
 });
 
 test("summarize: no console ever read -> leak NOT EXERCISED and the verdict is not PASS", () => {
@@ -470,17 +568,69 @@ test("summarize: a token hit in an exercised sample is a leak FAIL", () => {
   assert.match(r.text, /VERDICT: FAIL/);
 });
 
-test("summarize: without the HEAD probe nothing is exercised; a marker sighting FAILs; withheld lines are reported", () => {
+test("summarize: bf's vacuous run - 20 answered HEADs, 0 withheld, 0 marker, a 200 with no echo - is NOT PASS", () => {
   clock = Date.parse("2026-09-29T00:00:00Z");
+  const vac = summarize(soakFile(Array.from({ length: 20 }, (_, i) => S({ baseline: i === 0, echo: false, withheld: 0 }))));
+  assert.equal(vac.pass, false);
+  assert.match(vac.text, /NOT EXERCISED \(0\/20\) leak/);
+  assert.match(vac.text, /VERDICT: NOT PASS/);
+  assert.match(vac.text, /HEAD tripwire: sent inside the console window in 20\/20 samples/);
+  // withheld lines do not rescue it either
+  assert.equal(summarize(soakFile(Array.from({ length: 20 }, () => S({ echo: false, withheld: 2 })))).pass, false);
+});
+
+test("summarize: the HEAD probe is a tripwire - off or on, it never decides coverage; its sightings FAIL; withheld is INFO", () => {
+  clock = Date.parse("2026-09-29T06:00:00Z");
   const off = summarize(soakFile(Array.from({ length: 10 }, (_, i) => S({ baseline: i === 0, head: false }))));
-  assert.equal(off.pass, false);
-  assert.match(off.text, /NOT EXERCISED \(0\/10\) leak/);
-  assert.match(off.text, /HEAD probe: sent inside the console window in 0\/10 samples/);
+  assert.equal(off.pass, true, "echoed samples are exercised without any HEAD");
   const hit = summarize(soakFile([S({ baseline: true }), S({ markerHits: 1 }), S()]));
   assert.match(hit.text, /FAIL leak .*: 1 event\(s\); first .*body marker appeared 1 time/);
-  const ok = summarize(soakFile([S({ baseline: true, withheld: 1 }), S({ withheld: 1 }), S()]));
-  assert.equal(ok.pass, true);
-  assert.match(ok.text, /'bytes withheld' lines 2 \(in 2 samples: the probe reached the front\)/);
+  const w = summarize(soakFile([S({ baseline: true, withheld: 1 }), S({ withheld: 1 }), S()]));
+  assert.equal(w.pass, true);
+  assert.match(w.text, /'bytes withheld' lines 2 \(INFO\)/);
+  // stated plainly in every summary: the front's guard is not covered on hv
+  assert.ok(w.text.includes(HV_GUARD_NOT_COVERED));
+  assert.match(HV_GUARD_NOT_COVERED, /^NOT COVERED on hv: the front's unsolicited-response guard/);
+  assert.equal(w.json.leak.guardNotCovered, HV_GUARD_NOT_COVERED);
+});
+
+/* --leak-scope out: the hello-world availability soak. Never a plain "VERDICT: PASS". */
+const EVIDENCE = "hv tier: bundle/1 wasi:http under wasmtime serve; hyper frames every response, hello-world never prints (box run 0926)";
+
+test("leak scope out: NOT IN SCOPE with the evidence, verdict from the other thresholds only, never a plain VERDICT line", () => {
+  const r = summarize(coverage(10, 0), { leakScope: "out", leakEvidence: EVIDENCE });
+  assert.equal(r.pass, true);
+  assert.ok(r.text.split("\n").some((l) => l.startsWith(`  NOT IN SCOPE: ${EVIDENCE}`)), "the leak line reads NOT IN SCOPE: <evidence>");
+  assert.match(r.text, new RegExp(`^${OUT_OF_SCOPE_VERDICT.replace(/[()]/g, "\\$&")}: PASS$`, "m"));
+  assert.equal(OUT_OF_SCOPE_VERDICT, "VERDICT (availability/stability; leak not in scope)");
+  assert.doesNotMatch(r.text, /^VERDICT: /m);
+  assert.deepEqual([r.json.leakScope, r.json.leakEvidence, r.json.verdict], ["out", EVIDENCE, "PASS"]);
+  assert.equal(r.json.thresholds.find((t) => t.id === "leak").status, "NOT IN SCOPE");
+  // another threshold failing FAILs it, still in the scoped form
+  clock = Date.parse("2026-09-30T00:00:00Z");
+  const f = summarize(soakFile([S({ ok: false }), S({ ok: false }), S({ ok: false })]), { leakScope: "out", leakEvidence: EVIDENCE });
+  assert.equal(f.pass, false);
+  assert.match(f.text, /^VERDICT \(availability\/stability; leak not in scope\): FAIL$/m);
+  assert.doesNotMatch(f.text, /^VERDICT: /m);
+  // a leak sighting is shown, not judged
+  const s = summarize(soakFile([S({ tokenHits: 1 }), S()]), { leakScope: "out", leakEvidence: EVIDENCE });
+  assert.equal(s.pass, true);
+  assert.match(s.text, /NOT IN SCOPE: .*1 sighting\(s\) recorded, not judged/);
+});
+
+test("leak scope: taken from the run's header; the default is in scope; out needs its evidence", () => {
+  clock = Date.parse("2026-09-30T06:00:00Z");
+  const samples = Array.from({ length: 5 }, () => S({ echo: false }));
+  const hdr = (h) => [JSON.stringify({ type: "start", interval: 300, deployment: DEP, ...h }), ...samples.map((x) => JSON.stringify(x))];
+  const fromHeader = summarize(hdr({ leakScope: "out", leakEvidence: EVIDENCE }));
+  assert.match(fromHeader.text, /^VERDICT \(availability\/stability; leak not in scope\): PASS$/m);
+  const dflt = summarize(hdr({}));
+  assert.match(dflt.text, /^VERDICT: NOT PASS/m, "in scope by default: a vacuous run cannot pass");
+  assert.equal(dflt.json.leakScope, "in");
+  assert.throws(() => summarize(hdr({ leakScope: "out" })), /needs its evidence/);
+  assert.throws(() => summarize(hdr({}), { leakScope: "sideways" }), /one of in, out/);
+  // the options override the header, both ways
+  assert.match(summarize(hdr({ leakScope: "out", leakEvidence: EVIDENCE }), { leakScope: "in" }).text, /^VERDICT: NOT PASS/m);
 });
 
 test("thresholds: the box read FAILs at 3 in a row and is INFO below that", () => {
@@ -562,7 +712,25 @@ test("parseArgs: defaults, the derived URL, and the guards", () => {
   assert.deepEqual([lp.leakProbe, lp.bodyMarker], [true, "SENTINEL-X"]);
   assert.throws(() => parseArgs(["--interval", "10"]), /at least 30/);
   assert.throws(() => parseArgs(["--deployment", "0x1"]), /64 hex/);
-  assert.throws(() => parseArgs(["--console-sec", "10"]), /outlast/);
+  // the console window must outlast the requests' 20 s timeout by a margin (bf)
+  assert.throws(() => parseArgs(["--console-sec", "10"]), /at least the requests' timeout \(20 s\) \+ 5 s/);
+  assert.throws(() => parseArgs(["--console-sec", "24"]), /at least/);
+  assert.throws(() => parseArgs(["--console-sec", "x"]), /at least/);
+  assert.equal(parseArgs(["--console-sec", "25"]).consoleSec, 25);
+  // the request target carries the token
+  assert.equal(c.path, "/hv-soak/{token}");
+  assert.equal(parseArgs(["--path", "/ping?hvsoak={token}"]).path, "/ping?hvsoak={token}");
+  for (const bad of ["/ping", "ping?t={token}", "/a b/{token}", "/x#{token}"]) assert.throws(() => parseArgs(["--path", bad]), /--path/, bad);
+  // the availability mode: scope out needs its evidence; evidence needs scope out
+  assert.equal(c.leakScope, null);
+  assert.throws(() => parseArgs(["--leak-scope", "out"]), /needs --leak-evidence/);
+  assert.throws(() => parseArgs(["--leak-scope", "out", "--leak-evidence", "  "]), /needs --leak-evidence/);
+  assert.throws(() => parseArgs(["--leak-evidence", "x"]), /goes with --leak-scope out/);
+  assert.throws(() => parseArgs(["--leak-scope", "maybe"]), /in or out/);
+  const so = parseArgs(["--leak-scope", "out", "--leak-evidence", "hv frames every response"]);
+  assert.deepEqual([so.leakScope, so.leakEvidence], ["out", "hv frames every response"]);
+  assert.throws(() => parseArgs(["--json"]), /for --summary/);
+  assert.equal(parseArgs(["--summary", "f.jsonl", "--json"]).json, true);
   assert.throws(() => parseArgs(["--bogus"]), /unknown/);
 });
 
@@ -576,6 +744,6 @@ test("humanLine: one line per sample with the verdict under it", () => {
   const h = humanLine(s, v);
   assert.match(h, /^2026-09-26T03:00:00Z #0 \| public TLS DEPTH_ZERO_SELF_SIGNED_CERT spki aaaaaaaaaaaa!=vm \| relay ok hv-node\/attestation/);
   assert.match(h, /vm running hv1210563e 128MiB hv Running free 100\.0GiB/);
-  assert.match(h, /node \+12\(baseline\)/);
+  assert.match(h, /node \+0\(baseline; history 12 lines\)/, "everything before READY is history, nothing after it");
   assert.match(h, /info spki: SPKI baseline aaaaaaaaaaaaaaaa… \(from an UNVERIFIED leaf\)/);
 });
