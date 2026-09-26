@@ -137,10 +137,14 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet) {
         }
         /* Drop the supplementary groups FIRST. setuid alone would leave this process carrying the
          * monitor's groups — root's among them — so a domain workload could reach anything granted by
-         * group membership. setgroups must happen while still privileged. */
-        if (setgroups(0, NULL) != 0) die("setgroups");
-        if (setgid((gid_t)uid) != 0) die("setgid");
-        if (setuid(uid) != 0) die("setuid");
+         * group membership. setgroups must happen while still privileged. A failure is reported on the
+         * console copy (a quiet child's stdout is /dev/null), as die() would, then the child exits 1. */
+        const char *drop = setgroups(0, NULL) != 0 ? "setgroups" : setgid((gid_t)uid) != 0 ? "setgid"
+                         : setuid(uid) != 0 ? "setuid" : NULL;
+        if (drop) {
+            if (con >= 0) dprintf(con, "DOM%s ERROR %s: %s\n", dom_id, drop, strerror(errno));
+            _exit(1);
+        }
         /* and confirm it held: a privilege drop that can be undone is not a privilege drop */
         if (getuid() != uid || geteuid() != uid || setuid(0) == 0) {
             if (con >= 0) dprintf(con, "DOM%s ERROR privilege drop did not hold\n", dom_id);

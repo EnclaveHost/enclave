@@ -64,55 +64,57 @@ func withheldClass(first []byte, n int) string {
 	}
 }
 
-// filter turns one write into what the console may show: each `DOM` line as written, and each run of other lines as
-// one class line. A write that mixes the two keeps its DOM lines and withholds the rest.
+// filter turns ONE message into what the console may show: the message itself when it is exactly one `DOM` line (the
+// front's own statements are all single-line), else ONE class line for the WHOLE message. It never judges line by line:
+// a withheld message (a panic value, an error's %v) could otherwise carry "\nDOM …" and have that line pass as the
+// front's (enclave-d1's review of 8be920fa).
 func filter(p []byte) []byte {
-	var out bytes.Buffer
-	lines := bytes.SplitAfter(p, []byte("\n"))
-	for i := 0; i < len(lines); {
-		line := lines[i]
-		if len(line) == 0 {
-			i++
-			continue
-		}
-		if domLine(bytes.TrimRight(line, "\n")) {
-			out.Write(line)
-			if line[len(line)-1] != '\n' {
-				out.WriteByte('\n')
-			}
-			i++
-			continue
-		}
-		first, n := bytes.TrimRight(line, "\n"), 0
-		for ; i < len(lines) && len(lines[i]) > 0 && !domLine(bytes.TrimRight(lines[i], "\n")); i++ {
-			n += len(lines[i])
-		}
-		fmt.Fprintf(&out, "DOM front: %s\n", withheldClass(first, n))
+	if len(p) == 0 {
+		return nil
 	}
-	return out.Bytes()
+	msg := bytes.TrimSuffix(p, []byte("\n"))
+	if !bytes.Contains(msg, []byte("\n")) && domLine(msg) {
+		return append(append([]byte{}, msg...), '\n')
+	}
+	first := msg
+	if i := bytes.IndexByte(msg, '\n'); i >= 0 {
+		first = msg[:i]
+	}
+	return []byte("DOM front: " + withheldClass(first, len(p)) + "\n")
 }
 
 // Write takes one message (the std logger makes one Write per message). It always reports the whole input written,
 // so no writer ever retries a withheld line.
 func (c *consoleFilter) Write(p []byte) (int, error) {
-	b := filter(p)
+	c.emit(filter(p))
+	return len(p), nil
+}
+
+func (c *consoleFilter) emit(b []byte) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(b) > 0 {
 		c.out.Write(b)
 	}
-	return len(p), nil
 }
 
-// pump carries raw writes to fd 2 (the Go runtime's crash output, any direct os.Stderr write) through the filter,
-// one LINE at a time: fd-level writes are not message-aligned. A fatal crash may end the process before its lines are
-// pumped; then nothing of it is shown, which is the point.
+// pump drains fd 2 (the Go runtime's crash output, any direct os.Stderr write). NOTHING on it passes: the front's own
+// statements go to stdout or through the logger (which writes into the filter directly), never to fd 2, and fd-level
+// writes are not message-aligned, so no line of them can be judged the front's. Each burst (the lines already
+// buffered together) becomes ONE class line, chosen by its first line. A fatal crash may end the process before its
+// lines are pumped; then nothing of it is shown, which is the point.
 func (c *consoleFilter) pump(r io.Reader) {
 	br := bufio.NewReaderSize(r, 64<<10)
 	for {
 		line, err := br.ReadBytes('\n')
 		if len(line) > 0 {
-			c.Write(line)
+			first, n := bytes.TrimRight(line, "\n"), len(line)
+			for err == nil && br.Buffered() > 0 {
+				var more []byte
+				more, err = br.ReadBytes('\n')
+				n += len(more)
+			}
+			c.emit([]byte("DOM front: " + withheldClass(first, n) + "\n"))
 		}
 		if err != nil {
 			return
