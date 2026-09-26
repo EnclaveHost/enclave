@@ -69,6 +69,12 @@ const APPROVAL_SET_TOPIC = keccak256(toHex("VersionApprovalSet(bytes32,uint256,u
 const ID = "0x" + "ab".repeat(32);                     // the id the stub chain mints
 const CID = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
 const APP_ID = "0x" + "cd".repeat(32);
+// the on-chain address book the address-book tests point the CLI at (ENCLAVE_ADDRESS_BOOK), and the catalog it names
+const BOOK_ADDR = "0x" + "b0".repeat(20);
+const BOOK_CATALOG = "0x" + "c4".repeat(20);
+const BOOK_ABI = [{ type: "function", name: "all", stateMutability: "view", inputs: [],
+                    outputs: [{ type: "bytes32[]" }, { type: "address[]" }] }];
+const name32 = (n) => "0x" + Buffer.from(n).toString("hex").padEnd(64, "0");
 
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = (addr) => `${b64u({ alg: "HS256" })}.${b64u({ sub: addr, exp: Math.floor(Date.now() / 1000) + 43200 })}.stub`;
@@ -101,6 +107,8 @@ const S = {
   fleet: null,                                 // GET /enclaves rows (per-box hardware; null = no fleet view)
   money: null,                                 // get(ID) rate/balance6 override ({rate,balance6}); null = the paid default
   envelope: "", pinnedJson: [],
+  book: "ok",                                  // the address book at BOOK_ADDR: "ok" names BOOK_CATALOG, "fail" errors
+  pinnedWasm: 0,                               // /add-wasm uploads the ipfs double accepted
 };
 
 function apiServer() {
@@ -228,7 +236,13 @@ function rpcServer() {
                     config: "" };   // rev-3 Version tuple carries the default config
   const version2 = () => ({ ...version, version: "2", ...S.v2 });   // the upgrade target (S.v2 shapes it per test)
   function call(to, data) {
-    const abi = to === DEPLOYMENTS ? DEP_ABI : to === CATALOG ? CAT_ABI : to === REGISTRY ? REG_ABI
+    if (to === BOOK_ADDR) {
+      if (S.book === "fail") throw new Error("execution reverted (the test's unreadable address book)");
+      decodeFunctionData({ abi: BOOK_ABI, data });
+      return encodeFunctionResult({ abi: BOOK_ABI, functionName: "all", result: [
+        [name32("registry"), name32("deployments"), name32("appCatalog")], [REGISTRY, DEPLOYMENTS, BOOK_CATALOG]] });
+    }
+    const abi = to === DEPLOYMENTS ? DEP_ABI : to === CATALOG || to === BOOK_CATALOG ? CAT_ABI : to === REGISTRY ? REG_ABI
       : [{ type: "function", name: "balanceOf", stateMutability: "view",
            inputs: [{ name: "a", type: "address" }], outputs: [{ type: "uint256" }] }];
     const { functionName, args } = decodeFunctionData({ abi, data });
@@ -324,6 +338,7 @@ function ipfsServer() {
     if (buf.readUInt32LE(0) !== 0x6d736100 || (buf[6] | (buf[7] << 8)) !== 1) {
       res.writeHead(415); return res.end("not a component");
     }
+    S.pinnedWasm++;
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ cid: CID }));
   });
@@ -863,6 +878,53 @@ test("publish: reads an owner publish's auto-approval off the receipt (catalog r
   assert.match(r.out, /approved on publish/);
   assert.ok(!/approval is pending/.test(r.out), "must not tell the owner to wait for review");
   S.autoApprove = false;
+});
+
+/* ---- the address book: the live catalog, and a loud, write-refusing fallback -------- */
+const component = () => {
+  const wasm = path.join(confDir, "app.wasm");
+  fs.writeFileSync(wasm, Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x0d, 0x00, 0x01, 0x00]));
+  return wasm;
+};
+
+test("address book read: publish goes to the catalog the BOOK names, not the baked one, and nothing is said", async () => {
+  S.txs.length = 0; S.numVersions = 0n; S.book = "ok";
+  const r = await run(["publish", component(), "--slug", "hello-world"], { env: { ENCLAVE_ADDRESS_BOOK: BOOK_ADDR } });
+  assert.equal(r.code, 0, r.err);
+  const pv = S.txs.find((t) => t.functionName === "publishVersion");
+  assert.equal(pv?.to, BOOK_CATALOG);
+  assert.notEqual(BOOK_CATALOG, CATALOG);
+  assert.ok(!/address book/.test(r.err), r.err);
+});
+
+test("address book UNREAD: said on stderr, and a publish is refused before anything is pinned or sent", async () => {
+  S.txs.length = 0; S.numVersions = 0n; S.book = "fail"; S.pinnedWasm = 0;
+  try {
+    const r = await run(["publish", component(), "--slug", "hello-world"], { env: { ENCLAVE_ADDRESS_BOOK: BOOK_ADDR } });
+    assert.notEqual(r.code, 0);
+    assert.match(r.err, /warning: the on-chain address book 0x(b0){20} was not read/);
+    assert.match(r.err, /refusing to write to the app catalog/);
+    assert.equal(S.pinnedWasm, 0, "nothing pinned");
+    assert.equal(S.txs.length, 0, "nothing sent");
+  } finally { S.book = "ok"; }
+});
+
+test("address book UNREAD: a catalog READ still runs on the baked addresses, and says so", async () => {
+  S.book = "fail";
+  try {
+    const r = await run(["apps"], { env: { ENCLAVE_ADDRESS_BOOK: BOOK_ADDR } });
+    assert.equal(r.code, 0, r.err);
+    assert.match(r.out, /hello-world/);
+    assert.match(r.err, /warning: the on-chain address book .* was not read/);
+  } finally { S.book = "ok"; }
+});
+
+test("ENCLAVE_ADDRESS_BOOK=\"\" is the deliberate opt-out: the baked catalog, a publish allowed, nothing said", async () => {
+  S.txs.length = 0; S.numVersions = 0n;
+  const r = await run(["publish", component(), "--slug", "hello-world"]);   // run() sets ENCLAVE_ADDRESS_BOOK: ""
+  assert.equal(r.code, 0, r.err);
+  assert.equal(S.txs.find((t) => t.functionName === "publishVersion")?.to, CATALOG);
+  assert.ok(!/address book/.test(r.err), r.err);
 });
 
 /* ---- the publisher-fee surface (rev-4 ledger + rev-5 catalog) ------------ */

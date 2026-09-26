@@ -60,7 +60,7 @@ const DEFAULTS = {
   rpcs: ["https://base-rpc.publicnode.com", "https://base.drpc.org",
          "https://1rpc.io/base", "https://mainnet.base.org"],
   DEPLOYMENTS_ADDRESS: "0xF9e71385C5cB49844F2457ba6567De0742f8B89a",
-  APP_CATALOG_ADDRESS: "0xAc5270C57f3118F0b37d4f493198bb6863eDDDdF",
+  APP_CATALOG_ADDRESS: "0x18419CA2b502D423A8de6269AEeE171a378626e3",   // the address book's appCatalog (read 2026-09-26; 0xAc5270… is a RETIRED catalog): a FALLBACK only, see resolveAddressBook
   REGISTRY_ADDRESS: "0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC",
   ADDRESS_BOOK_ADDRESS: "0xab214342d5A490150A4A977063A2f88E21F80907",     // EnclaveAddressBook; written by scripts/deploy-address-book.mjs — when set, the CLI resolves the addresses above from it at start ("" = baked only)
   USDC_ADDRESS: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
@@ -533,6 +533,7 @@ function emitUnsigned({ account, to, data, value, label }) {
   exit(0);
 }
 async function sendTx(account, { address, abi, functionName, args: a, value }) {
+  if (String(address).toLowerCase() === String(DEFAULTS.APP_CATALOG_ADDRESS).toLowerCase()) catalogWriteAllowed();
   const name = { [DEFAULTS.DEPLOYMENTS_ADDRESS]: "EnclaveDeployments",
                  [DEFAULTS.APP_CATALOG_ADDRESS]: "EnclaveAppCatalog" }[address] || address;
   trace(`tx ${name}.${functionName}(${a.map(fmtArg).join(", ")})${value ? ` value=${formatUnits(value, 18)} ETH` : ""}`);
@@ -2403,6 +2404,7 @@ const pinJson = (account, buf) =>
   pinBytes(account, buf, DEFAULTS.ipfsJsonUpload, "application/json", "config.json");
 
 async function cmdPublish(rest) {
+  catalogWriteAllowed();   // before anything is pinned: the version would go to a catalog this CLI cannot vouch for
   const account = loadKey();
   const f = flags(rest, { val: ["--slug", "--name", "--desc", "--version", "--mem", "--cpu-gflops",
                                 "--vram", "--gpu-gflops", "--ports", "--config", "--fee",
@@ -3534,9 +3536,22 @@ const COMMANDS = {
 // Resolve the platform's contract addresses from the on-chain address book
 // before dispatch (one eth_call, hard 4s cap; baked DEFAULTS on any failure so
 // offline use and tests never block; ENCLAVE_ADDRESS_BOOK="" opts out).
+// A baked address can be a RETIRED contract that still answers (the catalog's
+// was, until 2026-09-26: a publish would have gone to a dead catalog, and a
+// deploy would have read versions and fees from it). So an unread book is said
+// on stderr, not only under --trace, and a catalog WRITE is refused unless the
+// catalog address came from the book or the book was switched off on purpose.
+const BOOK = { wanted: false, catalogFromBook: false, why: "" };
+function catalogWriteAllowed() {
+  if (!BOOK.wanted || BOOK.catalogFromBook) return;
+  throw new Error(`refusing to write to the app catalog: the on-chain address book was not read (${BOOK.why}), so this CLI `
+    + `cannot tell which catalog is live, and its baked address may be a retired one. Retry, or set ENCLAVE_ADDRESS_BOOK="" `
+    + `to use the baked addresses on purpose.`);
+}
 async function resolveAddressBook() {
   const book = env.ENCLAVE_ADDRESS_BOOK !== undefined ? env.ENCLAVE_ADDRESS_BOOK : DEFAULTS.ADDRESS_BOOK_ADDRESS;
   if (!book) return;
+  BOOK.wanted = true;
   try {
     const abi = [{ type: "function", name: "all", stateMutability: "view", inputs: [], outputs: [{ type: "bytes32[]" }, { type: "address[]" }] }];
     const [keys, values] = await Promise.race([
@@ -3548,10 +3563,18 @@ async function resolveAddressBook() {
     keys.forEach((kh, i) => {
       let k = ""; for (let b = 2; b < kh.length; b += 2) { const c = parseInt(kh.slice(b, b + 2), 16); if (!c) break; k += String.fromCharCode(c); }
       const name = map[k], v = values[i];
-      if (name && DEFAULTS[name] !== undefined && !/^0x0{40}$/i.test(v)) DEFAULTS[name] = v;
+      if (name && DEFAULTS[name] !== undefined && !/^0x0{40}$/i.test(v)) {
+        DEFAULTS[name] = v;
+        if (name === "APP_CATALOG_ADDRESS") BOOK.catalogFromBook = true;
+      }
     });
+    if (!BOOK.catalogFromBook) BOOK.why = "it names no appCatalog";
     trace("address book " + book + " resolved");
-  } catch (e) { trace("address book unresolved (" + (e?.shortMessage || e?.message) + "); baked defaults in effect"); }
+  } catch (e) { BOOK.why = String(e?.shortMessage || e?.message || e).split("\n")[0]; }
+  if (!BOOK.catalogFromBook)
+    stderr.write(`warning: the on-chain address book ${book} was not read (${BOOK.why}); this CLI is using its baked `
+      + `contract addresses, which can be out of date. Catalog writes are refused; set ENCLAVE_ADDRESS_BOOK="" to use the `
+      + `baked addresses on purpose.\n`);
 }
 
 const cmd = args.shift();
