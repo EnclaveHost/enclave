@@ -53,7 +53,8 @@ $REC = @(
   'DOM2 end'
   'MON domain 2 ended: its process tree exited'
 )
-function Pr($console) { @{ id = 2; boot = 'x'; console = @($console); lines = @($console | Where-Object { $_ -match '^PROBE2 ' }); answer = @{ appSha256 = '25be323556dad377abb57fe7ec8c4b99a6527f488dda28d0c9b686528659c909' } } }
+$script:probeId = 2
+function Pr($console) { @{ id = $script:probeId; boot = 'x'; console = @($console); lines = @($console | Where-Object { $_ -match "^PROBE$($script:probeId) " }); answer = @{ appSha256 = '25be323556dad377abb57fe7ec8c4b99a6527f488dda28d0c9b686528659c909' } } }
 function Sub($from, $to) { @($REC | ForEach-Object { if ($_ -eq $from) { $to } else { $_ } }) }
 $bad = 0
 function Expect($name, $console, $build, [bool]$nbr, $verdict, $pattern) {
@@ -109,5 +110,73 @@ Expect 'two layers: a filtered line missing' @($LREC | Where-Object { $_ -notmat
 Expect 'two layers: the seccomp line missing' @($LREC | Where-Object { $_ -ne 'PROBE2 seccomp=2' }) $L49 $false 'FAIL' 'seccomp MISSING'
 Expect 'two layers: the one-layer output (093326 + TPM) on this build fails' (@($REC | ForEach-Object { if ($_ -eq 'PROBE2 report=refused') { 'PROBE2 dev_tpm0=No such file or directory'; 'PROBE2 dev_tpmrm0=No such file or directory'; $_ } else { $_ } })) $L49 $false 'FAIL' 'filtered_report MISSING'
 Expect 'one-layer build unchanged: two-layer lines on a44bb55a are judged by the old report rule' ((Sub 'PROBE2 report=refused' 'PROBE2 report=granted-for-this-domain') + "PROBE2 report_b64=$own") $A44 $false 'PASS' 'names THIS domain'
+# THE REAL RUNS (enclave-bf's review of 446777b3, J1-J4): v43's V2 (IGVM 49500527, evidence/nucbox-devboot-49500527
+# fecc47ae, devboot-49500527-20260926/V2-devboot.txt) and v44's V2 (IGVM afa9633c, evidence/nucbox-devboot-afa9633c
+# 626a924f, devboot-afa9633c-20260926/V2-devboot.txt) printed the SAME 39 console lines, byte for byte; here verbatim.
+# They must still PASS, and each of bf's mutations of them must now FAIL or be INCONCLUSIVE (all PASSed on 446777b3).
+$L44 = 'afa9633c973dd7283613de99df97d3f7b7f3c41ff6eeaa65bac6a52fa95957dd'
+$REAL = @(
+  'MON domain 1 loaded label=PROBE app_sha256=25be323556dad377abb57fe7ec8c4b99a6527f488dda28d0c9b686528659c909 port=40001 uid=5001 front_uid=1053577 cpu=50% mem=64MiB mode=serve http=0'
+  'MON refused report request from uid 0 (not a domain''s front)'
+  'DOM1 report_as_root=refused'
+  'DOM1 started adversary probe=2 (no app, no front)'
+  'PROBE1 uid=5001 euid=5001'
+  'PROBE1 other_app_absolute=No such file or directory'
+  'PROBE1 other_app_relative=No such file or directory'
+  'PROBE1 other_app_escape=No such file or directory'
+  'PROBE1 other_front_socket=No such file or directory'
+  'PROBE1 own_app=READABLE (6 bytes)'
+  'PROBE1 configfs_tsm=No such file or directory'
+  'PROBE1 sysfs=No such file or directory'
+  'PROBE1 create_tsm_entry=No such file or directory'
+  'PROBE1 dev_tpm0=No such file or directory'
+  'PROBE1 dev_tpmrm0=No such file or directory'
+  'PROBE1 visible_pids=2'
+  'PROBE1 signalable_pids=1'
+  'PROBE1 report=Permission denied'
+  'PROBE1 vsock_local_domain1=Network is unreachable'
+  'PROBE1 vsock_local_domain2=Network is unreachable'
+  'PROBE1 vsock_own_control=Network is unreachable'
+  'DOM1 probe workload_uid=5001 front_uid=1053577 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=2'
+  'PROBE1 vsock_host_control=timed out (no answer)'
+  'PROBE1 own_loopback_8080=Connection refused'
+  'PROBE1 host_gateway=Network is unreachable'
+  'PROBE1 seccomp=2'
+  'PROBE1 filtered_vsock_local_domain1=Operation not permitted'
+  'PROBE1 filtered_vsock_local_domain2=Operation not permitted'
+  'PROBE1 filtered_vsock_own_control=Operation not permitted'
+  'PROBE1 filtered_vsock_host_control=Operation not permitted'
+  'PROBE1 filtered_report=Permission denied'
+  'PROBE1 done'
+  'PROBE1 eating memory: cap 64 MiB, will try 256 MiB'
+  'PROBE1 memory_touched=16 MiB'
+  'PROBE1 memory_touched=32 MiB'
+  'PROBE1 memory_touched=48 MiB'
+  'DOM1 ERROR runtime exited status=137'
+  'DOM1 end'
+  'MON domain 1 ended: its process tree exited'
+)
+function RSub($from, $to) { @($REAL | ForEach-Object { if ($_ -eq $from) { $to } else { $_ } }) }
+function RBefore($at, $extra) { @($REAL | ForEach-Object { if ($_ -eq $at) { $extra }; $_ }) }
+$script:probeId = 1
+Expect 'v43 V2 as recorded (49500527), own view' $REAL $L49 $false 'PASS' 'memory: CONTAINED'
+Expect 'v44 V2 as recorded (afa9633c), own view' $REAL $L44 $false 'PASS' 'filtered_vsock_host_control: Operation not permitted'
+Expect 'v44 V2 as recorded, with a neighbour' $REAL $L44 $true 'INCONCLUSIVE' 'target''s existence in the root namespace is not stated'
+Expect 'J4: a reach masked by a later denial of the same key' (RBefore 'PROBE1 other_app_absolute=No such file or directory' 'PROBE1 other_app_absolute=READABLE (6 bytes)') $L44 $false 'FAIL' 'other_app_absolute=READABLE \(6 bytes\) REACHED.*other_app_absolute printed more than once'
+Expect 'J4: a filtered CONNECTED masked by a later EPERM' (RBefore 'PROBE1 filtered_vsock_host_control=Operation not permitted' 'PROBE1 filtered_vsock_host_control=CONNECTED') $L44 $false 'FAIL' 'filtered_vsock_host_control=CONNECTED REACHED'
+Expect 'J4: any key printed twice fails' (RBefore 'PROBE1 sysfs=No such file or directory' 'PROBE1 sysfs=No such file or directory') $L44 $false 'FAIL' 'sysfs printed more than once'
+Expect 'J4: own_app printed twice fails' (RBefore 'PROBE1 own_app=READABLE (6 bytes)' 'PROBE1 own_app=READABLE (73228 bytes)') $L44 $false 'FAIL' 'own_app printed more than once'
+Expect 'J1: other_app_absolute I/O error is not a denial' (RSub 'PROBE1 other_app_absolute=No such file or directory' 'PROBE1 other_app_absolute=Input/output error') $L44 $false 'INCONCLUSIVE' 'other_app_absolute=Input/output error \(not absent from the view'
+Expect 'J1: other_front_socket timed out is not a denial' (RSub 'PROBE1 other_front_socket=No such file or directory' 'PROBE1 other_front_socket=timed out (no answer)') $L44 $false 'INCONCLUSIVE' 'other_front_socket=timed out \(no answer\) \(not absent'
+Expect 'J1: the relative route with an I/O error is not reported as the absolute one' (RSub 'PROBE1 other_app_relative=No such file or directory' 'PROBE1 other_app_relative=Input/output error') $L44 $false 'INCONCLUSIVE' 'other_app_relative=Input/output error'
+Expect 'J2: configfs_tsm timed out is not absent' (RSub 'PROBE1 configfs_tsm=No such file or directory' 'PROBE1 configfs_tsm=timed out (no answer)') $L44 $false 'INCONCLUSIVE' 'configfs_tsm=timed out \(no answer\) \(not absent'
+Expect 'J2: dev_tpm0 busy is not absent' (RSub 'PROBE1 dev_tpm0=No such file or directory' 'PROBE1 dev_tpm0=Device or resource busy') $L44 $false 'INCONCLUSIVE' 'dev_tpm0=Device or resource busy'
+Expect 'J2: sysfs refused is not absent' (RSub 'PROBE1 sysfs=No such file or directory' 'PROBE1 sysfs=Connection refused') $L44 $false 'INCONCLUSIVE' 'sysfs=Connection refused'
+Expect 'J3: host_gateway timed out means a route existed' (RSub 'PROBE1 host_gateway=Network is unreachable' 'PROBE1 host_gateway=timed out (no answer)') $L44 $false 'INCONCLUSIVE' 'host_gateway=timed out \(no answer\) \(not ENETUNREACH'
+Expect 'J3: host_gateway EPERM is not the no-route statement' (RSub 'PROBE1 host_gateway=Network is unreachable' 'PROBE1 host_gateway=Operation not permitted') $L44 $false 'INCONCLUSIVE' 'host_gateway=Operation not permitted \(not ENETUNREACH'
+Expect 'J5: an in-guest vsock line timed out is not no-route' (RSub 'PROBE1 vsock_local_domain1=Network is unreachable' 'PROBE1 vsock_local_domain1=timed out (no answer)') $L44 $false 'INCONCLUSIVE' 'vsock_local_domain1=timed out \(no answer\) \(not ENETUNREACH'
+Expect 'J6: a pid line that is not a count fails' (RSub 'PROBE1 visible_pids=2' 'PROBE1 visible_pids=timed out (no answer)') $L44 $false 'FAIL' 'visible_pids=timed out \(no answer\) \(not a count\)'
+Expect 'J6: a negative pid count fails' (RSub 'PROBE1 signalable_pids=1' 'PROBE1 signalable_pids=-1') $L44 $false 'FAIL' 'signalable_pids=-1 \(not a count\)'
+Expect 'vsock_host_control refused inside the guest is noted as such, not as an attempt' (RSub 'PROBE1 vsock_host_control=timed out (no answer)' 'PROBE1 vsock_host_control=Network is unreachable') $L44 $false 'PASS' 'vsock_host_control: Network is unreachable - refused inside the guest'
 "judge tests: $(if ($bad) { "$bad FAILED" } else { 'ALL OK' })"
 exit $bad
