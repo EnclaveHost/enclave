@@ -118,10 +118,23 @@ static void probe_report_as_root(void) {
     close(fd);
 }
 
-static pid_t spawn(char *const argv[], uid_t uid) {
+/* quiet: the child's stdin, stdout and stderr are /dev/null. It is TENANT code (the runtime serving or running the app),
+ * and this process's stdout is the monitor's, which is the guest console the HOST reads (monitor/main.go runs this
+ * with cmd.Stdout/Stderr = its own): nothing an app prints (a request, its config, a panic) may reach it. The same rule
+ * as the SEV-SNP guest's m2/dominit.c (77cf2d78). A quiet child keeps a close-on-exec copy of the console only to report
+ * its OWN exec failure, and one that cannot open /dev/null exits 126 rather than run with the console. The front
+ * (console-guarded, m2/front/console.go) and the adversary probe (our statements only) keep the console. */
+static pid_t spawn(char *const argv[], uid_t uid, int quiet) {
     pid_t pid = fork();
     if (pid < 0) die("fork");
     if (pid == 0) {
+        int con = 1;
+        if (quiet) {
+            con = fcntl(1, F_DUPFD_CLOEXEC, 10);
+            int nul = open("/dev/null", O_RDWR);
+            if (nul < 0 || dup2(nul, 0) < 0 || dup2(nul, 1) < 0 || dup2(nul, 2) < 0) _exit(126);
+            if (nul > 2) close(nul);
+        }
         /* Drop the supplementary groups FIRST. setuid alone would leave this process carrying the
          * monitor's groups — root's among them — so a domain workload could reach anything granted by
          * group membership. setgroups must happen while still privileged. */
@@ -130,13 +143,13 @@ static pid_t spawn(char *const argv[], uid_t uid) {
         if (setuid(uid) != 0) die("setuid");
         /* and confirm it held: a privilege drop that can be undone is not a privilege drop */
         if (getuid() != uid || geteuid() != uid || setuid(0) == 0) {
-            printf("DOM%s ERROR privilege drop did not hold\n", dom_id);
-            fflush(stdout);
+            if (con >= 0) dprintf(con, "DOM%s ERROR privilege drop did not hold\n", dom_id);
             _exit(1);
         }
         char *envp[] = {"HOME=/tmp", "PATH=/plat", NULL};
         execve(argv[0], argv, envp);
-        die("exec");
+        if (con >= 0) dprintf(con, "DOM%s ERROR exec %s: %s\n", dom_id, argv[0], strerror(errno));
+        _exit(127);
     }
     return pid;
 }
@@ -198,18 +211,18 @@ int main(int argc, char **argv) {
 
     pid_t rt_pid, front_pid;
     if (argc > 3 && strcmp(argv[3], "probe") == 0) {
-        rt_pid = spawn(probe_argv, uid);
+        rt_pid = spawn(probe_argv, uid, 0);
         front_pid = -1;
         printf("DOM%s started adversary probe=%d (no app, no front)\n", dom_id, rt_pid);
     } else if (run_port) {
-        rt_pid = spawn(run, uid);
-        front_pid = spawn(run_front, uid);
+        rt_pid = spawn(run, uid, 1);
+        front_pid = spawn(run_front, uid, 0);
         front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d mode=run http=%d (/data 64 MiB scratch)\n", dom_id, rt_pid, front_pid,
                run_port);
     } else {
-        rt_pid = spawn(rt, uid);
-        front_pid = spawn(front, uid);
+        rt_pid = spawn(rt, uid, 1);
+        front_pid = spawn(front, uid, 0);
         front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d mode=serve\n", dom_id, rt_pid, front_pid);
     }

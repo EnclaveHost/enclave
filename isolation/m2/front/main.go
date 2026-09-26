@@ -105,6 +105,10 @@ type front struct {
 }
 
 func main() {
+	// first, before anything can log: nothing but the front's own DOM statements reaches the host's console (console.go)
+	if err := guardConsole(); err != nil {
+		die("console guard: %v", err)
+	}
 	port := flag.Uint("port", 443, "vsock port to serve TLS on")
 	listenUnix := flag.String("listen-unix", "", "serve TLS on this unix socket instead of vsock (M3)")
 	reportUnix := flag.String("report-unix", "", "ask the monitor on this unix socket for reports (M3)")
@@ -189,7 +193,9 @@ func main() {
 		must(f.plane.registerKey(spki))
 		fmt.Printf("DOM plane %s registered spki_sha256=%x\n", *appid, sha256.Sum256(spki))
 	}
-	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	// ErrorLog: a TLS handshake error names the client, and a recovered handler panic prints its value; both go
+	// through the console filter, as the class alone (console.go)
+	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute, ErrorLog: consoleLog}
 	// No session tickets: every connection then proves the attested key in a full handshake, so a
 	// client pins by comparing that key, never by tracking which session came from which handshake.
 	// The name this domain may certify comes from its own HOST_DATA (certs.go); the key is the attested one either way.
