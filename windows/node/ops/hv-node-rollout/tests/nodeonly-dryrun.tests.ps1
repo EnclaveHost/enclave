@@ -12,7 +12,9 @@
 #   real     the POSITIVE CONTROL (no -DryRun): the same stubs DO record Stop-ScheduledTask, Set-Content of run-node.cmd and
 #            Start-ScheduledTask, and it ends "NODE-ONLY INSTALLED" - so an empty record in `dry` is not a blind stub.
 #   mutant   the DryRun branch's `exit 0` removed from the extracted block: run as `dry`, it MUST record Stop-ScheduledTask
-#            (the assertion catches the regression it exists for).
+#            (the assertion catches the regression it exists for). mutant 2: the exit moved below the first stop (enclave-5d).
+#            mutant 3: an UNSTUBBED Remove-Item before the exit (enclave-bf): the dry case also snapshots the fixture root
+#            (every file's path + sha256) before and after and requires them equal, so ANY write is seen, stubbed or not.
 param([string]$Script = (Join-Path (Split-Path -Parent $PSScriptRoot) 'hvnode-install.ps1'))
 $ErrorActionPreference = 'Stop'
 $fail = 0
@@ -34,6 +36,13 @@ $real = @{ RunLoop = (FnText 'RunLoop'); Sha256Of = (FnText 'Sha256Of') }
 Check ($block -match '(?s)if \(\$DryRun\) \{.*?exit 0') 'the extracted block has a DryRun branch that exits'
 
 $pwsh = (Get-Process -Id $PID).Path
+# every file under the fixture root, as "relative path  sha256", sorted: equal before and after = NOTHING was written, by ANY
+# cmdlet or .NET call, stubbed or not (enclave-bf's review: an unstubbed Remove-Item of node-config.cmd passed a record-only check)
+function Snapshot([string]$root) {
+  (@(Get-ChildItem -LiteralPath $root -Recurse -File -Force | ForEach-Object {
+    $_.FullName.Substring($root.Length).TrimStart('/', '\') + '  ' + (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLower()
+  }) | Sort-Object) -join "`n"
+}
 function RunCase([string]$name, [bool]$dry, [string]$blockText) {
   $d = Join-Path ([IO.Path]::GetTempPath()) ("nodeonly-" + $name + "-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
   New-Item -ItemType Directory -Path $d | Out-Null
@@ -42,6 +51,7 @@ function RunCase([string]$name, [bool]$dry, [string]$blockText) {
   Set-Content -Path (Join-Path $root 'run-node.cmd') -Value @('@echo off', 'call "x"', "cd /d `"$old`"", ':loop')
   foreach ($f in 'node-config.cmd', 'run-manager.cmd', 'manager-config.cmd') { Set-Content -Path (Join-Path $root $f) -Value 'rem stub' }
   $rec = Join-Path $d 'calls.txt'; [IO.File]::WriteAllText($rec, '')
+  $snapBefore = Snapshot $root
   $child = Join-Path $d 'case.ps1'
   $harness = @"
 `$ErrorActionPreference = 'Stop'
@@ -70,8 +80,9 @@ if (`$NodeOnly) $blockText
   $out = & $pwsh -NoProfile -NonInteractive -File $child 2>&1 | ForEach-Object { "$_" }
   $code = $LASTEXITCODE
   $calls = @(Get-Content $rec | Where-Object { $_ })
+  $snapAfter = Snapshot $root
   if ($env:KEEP) { Write-Output "kept $d" } else { Remove-Item -Recurse -Force $d }
-  [pscustomobject]@{ code = $code; out = ($out -join "`n"); calls = $calls; runNode = (Join-Path $root 'run-node.cmd') }
+  [pscustomobject]@{ code = $code; out = ($out -join "`n"); calls = $calls; runNode = (Join-Path $root 'run-node.cmd'); unchanged = ($snapBefore -eq $snapAfter) }
 }
 $writes = '^(Stop-ScheduledTask|Stop-Process|Start-ScheduledTask|Set-Content|Copy-Item|Get-CimInstance)\b'
 
@@ -82,6 +93,7 @@ Check ($r.out -match 'DRY RUN: every check passed') 'dry: says DRY RUN'
 Check (@($r.calls | Where-Object { $_ -eq 'StageNodeTree' }).Count -eq 1) 'dry: staged the tree (the stub was reached)'
 $bad = @($r.calls | Where-Object { $_ -match $writes })
 Check ($bad.Count -eq 0) ("dry: NO stop/start/rewrite/process call" + $(if ($bad.Count) { " (got: " + ($bad -join '; ') + ")" } else { '' }))
+Check $r.unchanged 'dry: the fixture root is BYTE-IDENTICAL before and after (no write by any means)'
 
 # real: the positive control - the same stubs DO see the stop, the rewrite and the start
 $r = RunCase 'real' $false $block
@@ -104,6 +116,13 @@ $mut2 = [regex]::Replace($mut2, "(Stop-ScheduledTask -TaskName 'EnclaveHvNode'[^
 Check ($mut2 -match '(?s)Stop-ScheduledTask[^\n]*\n\s*if \(\$DryRun\) \{ exit 0 \}') 'mutant 2: the exit now sits below the first Stop-ScheduledTask'
 $r = RunCase 'mutant2' $true $mut2
 Check (@($r.calls | Where-Object { $_ -eq 'Stop-ScheduledTask EnclaveHvNode' }).Count -eq 1) 'mutant 2: a DryRun that exits only after the stop IS caught'
+
+# mutant 3 (enclave-bf): an UNSTUBBED write before the DryRun exit - Remove-Item of the live node-config.cmd. Only the snapshot
+# can see it; the dry case's snapshot check must FAIL for it.
+$mut3 = $block -replace '(\r?\n)(\s*)if \(\$DryRun\) \{', '$1$2Remove-Item -LiteralPath $nodeCfgCmd -Force$1$2if ($DryRun) {'
+Check ($mut3 -match 'Remove-Item -LiteralPath \$nodeCfgCmd -Force\s*\r?\n\s*if \(\$DryRun\)') 'mutant 3: an unstubbed Remove-Item of node-config.cmd sits before the DryRun exit'
+$r = RunCase 'mutant3' $true $mut3
+Check (-not $r.unchanged) 'mutant 3: a DryRun that deletes node-config.cmd IS caught (the snapshot differs)'
 
 if ($fail) { Write-Output "nodeonly-dryrun tests: $fail FAILED"; exit 1 }
 Write-Output 'nodeonly-dryrun tests: ALL OK'
