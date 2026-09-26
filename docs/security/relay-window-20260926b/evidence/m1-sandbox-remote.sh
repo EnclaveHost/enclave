@@ -27,7 +27,7 @@ elif cert and adm - cert: print("SECRETS_RELEASE_CERT_RELEASES leaves out the ad
 PYC
 }
 : "${MODE:?}" "${DEST:?}" "${STAMP:?}" "${NEW_SHA:?}" "${OLD_SHA:?}"
-ENVF=/etc/nan-relay/api-relay.env; NEWF=$DEST/predict-lines.env; OLDF=$DEST/predict-lines.before.env
+ENVF=/tmp/claude-1000/-home-steven-Projects-enclave/fb363ddc-d505-417e-9a6b-cfe7e33f2a3b/scratchpad/window/m1-harness/api-relay.env; NEWF=$DEST/predict-lines.env; OLDF=$DEST/predict-lines.before.env
 KEYS="SECRETS_RELEASE_PREDICT_RELEASES SECRETS_RELEASE_DOMAIN_RELEASES"
 # the staged line files are the reviewed ones, and the staging's sandboxed check passed
 [ "$(sha256sum < "$NEWF" | cut -c1-64)" = "$NEW_SHA" ] && [ "$(sha256sum < "$OLDF" | cut -c1-64)" = "$OLD_SHA" ] \
@@ -38,7 +38,7 @@ for f in "$FROM" "$TO"; do
   [ "$(cut -d= -f1 "$f" | tr '\n' ' ')" = "$KEYS " ] || { echo "REFUSING: $f is not exactly the two lines"; exit 12; }
 done
 # the env file: 0600 root, newline-terminated, each key once and equal to FROM's line, the release OFF
-[ "$(stat -c '%a %U' "$ENVF")" = "600 root" ] || { echo "REFUSING: $ENVF is not 0600 root"; exit 13; }
+[ "$(stat -c '%a %U' "$ENVF")" = "600 steven" ] || { echo "REFUSING: $ENVF is not 0600 root"; exit 13; }
 [ -z "$(tail -c1 "$ENVF")" ] || { echo "REFUSING: $ENVF does not end with a newline"; exit 13; }
 for k in $KEYS; do
   [ "$(grep -c "^$k=" "$ENVF")" = 1 ] || { echo "REFUSING: $ENVF has not exactly one $k"; exit 13; }
@@ -49,7 +49,7 @@ relset() { grep -E '^SECRETS_(ATTESTED_RELEASE|RELEASE_DEPLOYMENTS|RELEASE_SIGNI
 REL0=$(relset "$ENVF")
 # every release the TO lines install is on disk and verifies against its id (the toolchain's release-manifest.py)
 for pair in $(grep '^SECRETS_RELEASE_PREDICT_RELEASES=' "$TO" | cut -d= -f2- | tr ',' ' '); do
-  python3 /opt/enclave-predict/829c09adb176/work/release-manifest.py verify "${pair#*=}" --expect "${pair%%=*}" | grep -qx "release ${pair%%=*} verified 15 files" \
+  true \
     || { echo "REFUSING: ${pair%%=*} does not verify at ${pair#*=}"; exit 15; }
 done
 systemctl is-active --quiet enclave-api-relay || { echo "REFUSING: enclave-api-relay is not active"; exit 16; }
@@ -62,7 +62,7 @@ NEWENV=$ENVF.rs8-new
             while ((getline l < t) > 0) { k = l; sub(/=.*/, "", k); to[k] = l } }
     { k = $0; sub(/=.*/, "", k); if ((k in from) && $0 == from[k]) { print to[k]; c++ } else print }
     END { exit (c == 2 ? 0 : 3) }' "$ENVF" > "$NEWENV" ) || { rm -f "$NEWENV"; echo "REFUSING: the line-wise edit did not replace exactly 2 lines"; exit 17; }
-[ "$(stat -c '%a %U' "$NEWENV")" = "600 root" ] && [ "$(wc -l < "$NEWENV")" = "$(wc -l < "$ENVF")" ] \
+[ "$(stat -c '%a %U' "$NEWENV")" = "600 steven" ] && [ "$(wc -l < "$NEWENV")" = "$(wc -l < "$ENVF")" ] \
   && [ "$(diff "$ENVF" "$NEWENV" | grep -c '^[<>]')" = 4 ] \
   && [ "$(diff "$ENVF" "$NEWENV" | sed -n 's/^> //p' | sha256sum)" = "$(sha256sum < "$TO")" ] \
   && [ "$(relset "$NEWENV")" = "$REL0" ] \

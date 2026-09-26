@@ -13,5 +13,8 @@ fi
 $NAN "systemctl show enclave-api-relay -p InvocationID --value" > $B/inv0-3-$MODE.txt
 say "step 3 $MODE: SECRETS_RELEASE_CERT_RELEASES (= the admitted ${RF:0:8}, read on nan)"
 set +e; $NAN "MODE=$MODE EXPECT=$RF STAMP=$(date -u +%Y%m%dT%H%M%SZ) PINS='$PINS' bash -s" < "$H/cs-3-remote.sh" > $B/remote-3-$MODE.txt 2>&1; rc=$?; set -e
-cat $B/remote-3-$MODE.txt; say "step 3 $MODE: remote rc=$rc$([ $rc = 0 ] && echo "; next: cs-3-accept.sh $MODE")"
-exit $rc
+cat $B/remote-3-$MODE.txt; say "step 3 $MODE: remote rc=$rc"
+[ $rc = 0 ] || exit $rc
+# chained (enclave-87 item 2): no human gap between the restart and the check; on: a problem rolls the line back at once
+[ "$MODE" = on ] && exec bash "$H/cs-3-accept.sh" on
+exit 0

@@ -81,7 +81,11 @@ function attest(label, nonceHex) {
 }
 
 let all = true, canariesOk = 0;
-for (const [id, appId, want, canary] of LISTED) {
+// the LIVE listing (rs-8.sh passes it from nan's env; enclave-87 item 4): a listed deployment this table has no pin for refuses
+const live = String(process.env.LISTED_IDS || "").toLowerCase().split(/[\s,]+/).filter((x) => /^0x[0-9a-f]{64}$/.test(x));
+if (!live.length) { console.log("FAIL the live listing was not given (LISTED_IDS)"); all = false; }
+for (const id of live) if (!LISTED.some(([x]) => x === id)) { console.log(`FAIL ${id.slice(2, 10)}: listed on the relay but no f7888d86 pin here`); all = false; }
+for (const [id, appId, want, canary] of LISTED.filter(([x]) => live.includes(x))) {
   const label = id.slice(2, 10), nonce = randomBytes(32);
   let leased;
   try { leased = await leaseOf(id); } catch (e) { console.log(`FAIL ${label}: the lease could not be read (${e.message})`); all = false; continue; }

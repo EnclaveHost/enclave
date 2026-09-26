@@ -21,3 +21,18 @@ say() { local m; m="$(date -u +%H:%M:%SZ) $*"; echo "$m"; { echo "$m" >> "$LOG";
 context_moved() { git -C "$1" diff --name-only $REVIEW_BASE origin/main -- relay/ site/ scripts/; }
 files_are_pc() { local f got; for f in "$@"; do got=$($NAN "sha256sum < /opt/nan-relay/$f" | cut -c1-64); [ "$got" = "${SHA[$f]}" ] || { echo "$f is ${got:0:12}, not ${SHA[$f]:0:12}"; return 1; }; done; }
 last_restart_age() { local t; t=$($NAN "systemctl show enclave-api-relay -p ActiveEnterTimestamp --value"); echo $(( $(date +%s) - $(date -d "$t" +%s) )); }
+# the release listing, DERIVED from the live env (enclave-87 item 4: never hardcoded): the listed deployment ids, one per line
+listed_ids() { $NAN "grep -E '^SECRETS_RELEASE_DEPLOYMENTS=' /etc/nan-relay/api-relay.env | cut -d= -f2 | tr ',' '\n' | grep -xE '0x[0-9a-f]{64}'"; }
+# INSTANT predictor check right after a restart (enclave-5d S1 / 87 item 2): a predictor problem shows at once on
+# /v1/expected-guest as predictor_unconfigured (no KAT wait - a problem suppresses the start KAT). 0 = predicting, 2 = a
+# PROBLEM, 1 = no answer in 120 s. Warming (503) is retried.
+probe_predictor() {
+  local id=${1:-0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76} end=$(( $(date +%s) + 120 )) b c
+  while :; do
+    b=$(curl -sS -m 40 -w '\n%{http_code}' "https://api.enclave.host/v1/expected-guest?id=$id" 2>/dev/null); c=${b##*$'\n'}; b=${b%$'\n'*}
+    grep -q predictor_unconfigured <<<"$b" && { echo "PROBLEM: ${b:0:300}"; return 2; }
+    [ "$c" = 200 ] && { echo "predicting (200)"; return 0; }
+    [ "$(date +%s)" -ge $end ] && { echo "no answer in 120 s (last $c: ${b:0:200})"; return 1; }
+    sleep 5
+  done
+}

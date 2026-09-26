@@ -17,10 +17,27 @@ STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 # (leased-attest.mjs: AMD chain, HOST_DATA, ABI/2 binding of our TLS handshake + fresh nonce + the admitted runtime, AppID,
 # measurement = the pinned f7888d86 value). A guest still on 52156652 would lose its secrets and certificates: refused.
 if [ "$MODE" = apply ]; then
+  LISTED_IDS=$($NAN "grep -E '^SECRETS_RELEASE_DEPLOYMENTS=' /etc/nan-relay/api-relay.env | cut -d= -f2 | tr ',' ' '") \
   node "$H/leased-attest.mjs" "$H/../../../../relay" | tee "$RS/rs8-precondition.txt" || { say "REFUSING rs-8 apply: not every leased listed deployment is chip-verified on f7888d86"; exit 3; }
 fi
 $NAN "systemctl show enclave-api-relay -p InvocationID --value" > "$RS/rs8-$MODE-inv0.txt"
 say "rs-8 $MODE: the two predictor lines on nan, then one api-relay restart (invocation before: $(cut -c1-12 "$RS/rs8-$MODE-inv0.txt"))"
 set +e; $NAN "MODE=$MODE DEST=$DEST STAMP=$STAMP NEW_SHA=$NEW_SHA OLD_SHA=$OLD_SHA bash -s" < "$H/rs-8-remote.sh" > "$RS/rs8-$MODE.txt" 2>&1; rc=$?; set -e
-cat "$RS/rs8-$MODE.txt"; say "rs-8 $MODE: remote rc=$rc$([ $rc = 0 ] && echo "; next: rs-8-accept.sh $MODE")"
+probe_predictor() {   # 0 predicting, 2 a predictor PROBLEM (predictor_unconfigured), 1 no answer in 120 s (enclave-5d S1)
+  local end=$(( $(date +%s) + 120 )) b c
+  while :; do
+    b=$(curl -sS -m 40 -w '\n%{http_code}' "https://api.enclave.host/v1/expected-guest?id=0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76" 2>/dev/null); c=${b##*$'\n'}; b=${b%$'\n'*}
+    grep -q predictor_unconfigured <<<"$b" && { echo "PROBLEM: ${b:0:300}"; return 2; }
+    [ "$c" = 200 ] && { echo "predicting (200)"; return 0; }
+    [ "$(date +%s)" -ge $end ] && { echo "no answer in 120 s (last $c)"; return 1; }
+    sleep 5
+  done
+}
+cat "$RS/rs8-$MODE.txt"
+# INSTANT predictor check (enclave-87 item 2): a problem right after the restart rolls this step back at once
+if [ $rc = 0 ]; then
+  p=$(probe_predictor); pr=$?; say "rs-8 $MODE: predictor probe: $p"
+  if [ $pr = 2 ] && [ "$MODE" = apply ]; then say "rs-8 apply: a PREDICTOR PROBLEM after the restart: ROLLING BACK AT ONCE"; bash "$H/rs-8.sh" rollback; exit 9; fi
+fi
+say "rs-8 $MODE: remote rc=$rc$([ $rc = 0 ] && echo "; next: rs-8-accept.sh $MODE")"
 exit $rc

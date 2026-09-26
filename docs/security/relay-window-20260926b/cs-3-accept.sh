@@ -9,6 +9,11 @@
 # off: the new invocation and the KAT; the canaries' expected guests list the KAT releases again (health in its default mode).
 set -uo pipefail; source "$(dirname "$0")/lib.sh"
 MODE=${1:-on}; ok=1; bad() { say "STEP 3 ACCEPT FAIL: $*"; ok=0; }
+# FIRST the instant predictor probe (5d S1): predictor_unconfigured = the line gave the predictor a problem: roll back NOW
+if [ "$MODE" = on ]; then
+  p=$(probe_predictor); pr=$?; say "predictor probe: $p"
+  if [ $pr = 2 ]; then say "STEP 3: a PREDICTOR PROBLEM: ROLLING THE LINE BACK AT ONCE"; bash "$H/cs-3-env.sh" off; exit 1; fi
+fi
 inv=$($NAN "systemctl show enclave-api-relay -p InvocationID --value"); nr=$($NAN "systemctl show enclave-api-relay -p NRestarts --value")
 [ "$inv" != "$(cat $B/inv0-3-$MODE.txt 2>/dev/null)" ] && [ "$nr" = 0 ] || bad "not a clean single restart (${inv:0:12}, NRestarts $nr)"
 end=$(( $(date +%s) + 900 )); kat=""

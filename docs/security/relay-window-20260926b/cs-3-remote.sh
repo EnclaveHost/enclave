@@ -5,6 +5,27 @@
 # refuses every prediction (5d). The relay must run the code that reads the key (PINS: the pushed files). TRUSTED_OPERATORS and
 # every release setting stay byte-identical. If the relay does not stay up 30 s, the pre-edit copy goes back AT ONCE.
 set -euo pipefail
+# predictor consistency of an env FILE, as makePredictor judges it (enclave-5d's M1): every admitted release installed; with a
+# certificate set, every named one installed AND every admitted one in it. A file that fails would give the predictor a
+# PROBLEM that refuses EVERY prediction (the secrets release included) - so it is never written. Prints the problem, or nothing.
+consistent() { python3 - "$1" <<'PYC'
+import sys, re
+kv = {}
+for l in open(sys.argv[1]):
+    m = re.match(r"^(SECRETS_RELEASE_(?:PREDICT_RELEASES|DOMAIN_RELEASES|CERT_RELEASES))=(.*)$", l.rstrip("\n"))
+    if m: kv.setdefault(m.group(1), []).append(m.group(2))
+if any(len(v) > 1 for v in kv.values()): print("a release key appears more than once"); sys.exit()
+one = lambda k: kv.get(k, [""])[0]
+inst = {p.split("=", 1)[0].strip().lower() for p in one("SECRETS_RELEASE_PREDICT_RELEASES").split(",") if "=" in p}
+adm = {x.strip().lower() for x in one("SECRETS_RELEASE_DOMAIN_RELEASES").split(",") if x.strip()}
+cert = {x.strip().lower() for x in one("SECRETS_RELEASE_CERT_RELEASES").split(",") if x.strip()}
+short = lambda s: ",".join(sorted(x[:12] for x in s))
+if not adm: print("no admitted release")
+elif adm - inst: print("admitted but not installed: " + short(adm - inst))
+elif cert and cert - inst: print("a certificate release is not installed: " + short(cert - inst))
+elif cert and adm - cert: print("SECRETS_RELEASE_CERT_RELEASES leaves out the admitted " + short(adm - cert) + ": run cs-3-env.sh off FIRST")
+PYC
+}
 : "${MODE:?}" "${EXPECT:?}" "${STAMP:?}" "${PINS:?}"
 umask 077
 ENV=/etc/nan-relay/api-relay.env; R=/opt/nan-relay; KEY=SECRETS_RELEASE_CERT_RELEASES
@@ -48,6 +69,7 @@ else
 fi
 cmp -s "$D/new" "$D/expect" || die "the two independent edits disagree (nothing changed)"
 [ "$(tdig "$D/new")" = "$T0" ] && [ "$(relset "$D/new")" = "$R0" ] || die "the TRUSTED_OPERATORS or a release setting line would change (nothing changed)"
+why=$(consistent "$D/new"); [ -z "$why" ] || die "the new env would refuse EVERY prediction: $why (nothing written)"
 install -m 600 -o root -g root "$D/new" "$ENV.cs3-new" && mv "$ENV.cs3-new" "$ENV"
 modeok "$ENV" || { cp -p "$BAK" "$ENV"; die "the new file lost 0600 root (the backup is back; nothing restarted)"; }
 echo "nan: $KEY $MODE: backup $BAK; TRUSTED_OPERATORS line digest $T0 (unchanged); restarting the api relay"
