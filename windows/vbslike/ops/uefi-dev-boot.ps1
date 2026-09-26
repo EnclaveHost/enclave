@@ -229,7 +229,7 @@ $ProbeBuilds = @{
   'a44bb55a89bb0e6d2757287032070662041a0952eaf3713901cedc92404717e4' = @{ initrd = '680d40fa'; domprobe = '0d12e950bd6d93f9'; tpm = $false }
   'b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748' = @{ initrd = '1539d5b2'; domprobe = '2c2600495d07d292'; tpm = $true }
   '0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998' = @{ initrd = 'aaad1d37'; domprobe = '2c2600495d07d292'; tpm = $true }
-  '4950052785daf26d9c712a710f118211c853a04e03c01b8d77d8ac44a50327ab' = @{ initrd = '15833b62'; domprobe = '650caedea6d2fe3d'; tpm = $true }
+  '4950052785daf26d9c712a710f118211c853a04e03c01b8d77d8ac44a50327ab' = @{ initrd = '15833b62'; domprobe = '650caedea6d2fe3d'; tpm = $true; layers = $true }
 }
 # THE CLASSES a probe result falls in (independent audit: a timeout or no service is not enforcement).
 #   BROKEN:       it reached the target (READABLE, CONNECTED, OPENED, CREATED), or a neighbour's socket is VISIBLE (ENXIO)
@@ -254,8 +254,20 @@ function Classify([string]$v) {
 # - vsock to CID 1 is NO IN-GUEST ROUTE on these builds: CONFIG_VSOCKETS_LOOPBACK=m, vsock_loopback.ko is not in the
 #   initrd, and hv_sock allows only CID 2. It is neither denied nor broken, and never counted;
 # - a timeout, no answer, refusal or reset is never a denial;
-# - report: granted means the decoded report must name THIS domain's app (else FAIL); refused is not cross-domain
-#   evidence;
+# - report, on a ONE-LAYER build: granted means the decoded report must name THIS domain's app (else FAIL); refused is
+#   not cross-domain evidence;
+# - on a TWO-LAYER build (layers = $true: domprobe from 80b3f0de/0923efff on the front-uid layout of a8de8ca2), the
+#   probe stands in for the RUNTIME, and the report channel is the FRONT's alone:
+#   - report and filtered_report must be REFUSED: 'Permission denied' (/run is the front's, 0700) or 'refused' (the
+#     monitor's uid check), and filtered_report may also read 'Operation not permitted' (the filter). A GRANTED report,
+#     or any report_b64 line, FAILS whatever app it names; anything else (no-answer, ENOENT) does not show the refusal
+#     (INCONCLUSIVE);
+#   - seccomp must read 2 (SECCOMP_MODE_FILTER, the runtime's filter installed on the probe itself), else FAIL: the
+#     filtered lines would then prove nothing;
+#   - each filtered_vsock_* must read 'Operation not permitted' (the filter's EPERM), else FAIL. Its unfiltered line
+#     must NOT be EPERM, since only the filter gives EPERM; if it is, the two layers cannot be told apart (INCONCLUSIVE).
+#     The layer this proves on Hyper-V is filtered_vsock_host_control: unfiltered, the connect to CID 2 LEAVES the guest
+#     (timed out), and under the filter it is refused before it is made;
 # - pids: visible <= 3, signalable <= 2 (test-m3's rule), else FAIL; a root uid FAILS;
 # - memory: UNCONTAINED FAILS; CONTAINED needs a memory_touched line >= 48 MiB AND the domain killed (status 137);
 #   otherwise it is NOT SHOWN (INCONCLUSIVE);
@@ -265,11 +277,12 @@ function Judge-Probe($pr, $build, [bool]$neighbour) {
   $val = @{}; foreach ($l in $pr.lines) { if ($l -match "^PROBE$id ([a-z_0-9]+)=(.*)$") { $val[$matches[1]] = $matches[2] } }
   $req = @('other_app_absolute','other_app_relative','other_app_escape','other_front_socket','own_app','configfs_tsm','sysfs','create_tsm_entry','visible_pids','signalable_pids','report','vsock_local_domain1','vsock_local_domain2','vsock_own_control','vsock_host_control','host_gateway')
   if ($build.tpm) { $req += @('dev_tpm0','dev_tpmrm0') }
+  if ($build.layers) { $req += @('seccomp','filtered_vsock_local_domain1','filtered_vsock_local_domain2','filtered_vsock_own_control','filtered_vsock_host_control','filtered_report') }
   foreach ($k in $req) { if (-not $val.ContainsKey($k)) { $fail += "$k MISSING" } }
   if (-not @($pr.lines | Where-Object { $_ -eq "PROBE$id done" }).Count) { $fail += 'done MISSING' }
   $uidl = @($pr.lines | Where-Object { $_ -match "^PROBE$id uid=(\d+) euid=(\d+)$" })
   if (-not $uidl.Count) { $fail += 'uid line MISSING' } elseif ($uidl[0] -match 'uid=0 |euid=0$') { $fail += "root: $($uidl[0])" } else { Note "  JUDGE uid: $($uidl[0]) (unprivileged)" }
-  foreach ($k in @($val.Keys)) { if ($k -ne 'own_app' -and $k -ne 'report' -and (Classify $val[$k]) -eq 'BROKEN') { $fail += "$k=$($val[$k]) REACHED" } }
+  foreach ($k in @($val.Keys)) { if ($k -ne 'own_app' -and $k -ne 'report' -and $k -ne 'filtered_report' -and (Classify $val[$k]) -eq 'BROKEN') { $fail += "$k=$($val[$k]) REACHED" } }
   if ($val.ContainsKey('own_app')) { if ($val['own_app'] -ne 'READABLE (6 bytes)') { $inc += "own_app=$($val['own_app']) (the view is not the one assumed)" } else { Note "  JUDGE own_app: READABLE (6 bytes): the view is the probe's own chroot (positive control)" } }
   foreach ($k in 'other_app_absolute','other_front_socket') {
     if ($val.ContainsKey($k) -and (Classify $val[$k]) -eq 'DENIED') {
@@ -282,7 +295,29 @@ function Judge-Probe($pr, $build, [bool]$neighbour) {
   if ($val.ContainsKey('vsock_host_control')) { Note "  JUDGE vsock_host_control: $($val['vsock_host_control']) - a host connection was ATTEMPTED (not refused inside the guest); nothing listens at host port 9000, so this is no service, not a denial" }
   if ($val.ContainsKey('host_gateway')) { Note "  JUDGE host_gateway: $($val['host_gateway']) - no route in the domain's network namespace (10.0.2.2 has no target on Hyper-V)" }
   foreach ($k in 'configfs_tsm','sysfs','create_tsm_entry','dev_tpm0','dev_tpmrm0') { if ($val.ContainsKey($k) -and (Classify $val[$k]) -ne 'BROKEN') { Note "  JUDGE ${k}: $($val[$k]) - absent from the domain's view; existence in the root namespace not stated" } }
-  if ($val.ContainsKey('report')) {
+  if ($build.layers) {
+    foreach ($k in 'report','filtered_report') {
+      if (-not $val.ContainsKey($k)) { continue }
+      $v = $val[$k]
+      if ($v -eq 'granted-for-this-domain') { $fail += "$k=granted: the RUNTIME obtained a report, and on this build the report channel is the front's alone" }
+      elseif ($v -eq 'Permission denied' -or $v -eq 'refused' -or ($k -eq 'filtered_report' -and $v -eq 'Operation not permitted')) { Note "  JUDGE ${k}: $v - the runtime is REFUSED a report (the channel is the front's)" }
+      else { $inc += "$k=$v (the runtime's refusal is not shown)" }
+    }
+    if (@($pr.lines | Where-Object { $_ -match "^PROBE$id report_b64=" }).Count) { $fail += 'report_b64 printed: the runtime was given a report' }
+    if ($val.ContainsKey('seccomp')) {
+      if ($val['seccomp'] -ne '2') { $fail += "seccomp=$($val['seccomp']): the runtime's filter was not installed (2 = SECCOMP_MODE_FILTER), so the filtered lines prove nothing" }
+      else {
+        Note "  JUDGE seccomp=2: the runtime's filter is installed on the probe (NO_NEW_PRIVS, then the filter, as domexec does for the runtime)"
+        foreach ($k in 'vsock_local_domain1','vsock_local_domain2','vsock_own_control','vsock_host_control') {
+          $f = "filtered_$k"
+          if (-not $val.ContainsKey($f)) { continue }
+          if ($val[$f] -ne 'Operation not permitted') { $fail += "$f=$($val[$f]): the runtime's filter did not refuse it (EPERM expected)" }
+          elseif ($val.ContainsKey($k) -and $val[$k] -eq 'Operation not permitted') { $inc += "$k=Operation not permitted UNFILTERED: the filter's EPERM on $f cannot be told apart from the base layer" }
+          else { Note "  JUDGE ${f}: Operation not permitted - refused by the runtime's seccomp filter (unfiltered: $($val[$k]))" }
+        }
+      }
+    }
+  } elseif ($val.ContainsKey('report')) {
     if ($val['report'] -eq 'granted-for-this-domain') {
       $b64 = @($pr.lines | Where-Object { $_ -match "^PROBE$id report_b64=(.+)$" } | ForEach-Object { $matches[1] }) | Select-Object -First 1
       $named = $null; try { $named = (([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64))) | ConvertFrom-Json).doc.domain.appSha256 } catch { }
