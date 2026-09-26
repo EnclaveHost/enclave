@@ -1,0 +1,16 @@
+6b6145952790db13  uefi-dev-boot.ps1
+830f1238d835e146  judge-probe.tests.ps1
+ok   two layers: report refused by the monitor (reached it): PASS
+ok   two layers: report no-answer does not show the refusal: INCONCLUSIVE
+ok   two layers: seccomp not installed: FAIL
+ok   two layers: seccomp mode 0: FAIL
+ok   two layers: the filter let the host vsock connect out: FAIL
+ok   two layers: a filtered vsock CONNECTED: FAIL
+ok   two layers: the base line already EPERM (layers not told apart): INCONCLUSIVE
+ok   two layers: a filtered line missing: FAIL
+ok   two layers: the seccomp line missing: FAIL
+ok   two layers: the one-layer output (093326 + TPM) on this build fails: FAIL
+ok   one-layer build unchanged: two-layer lines on a44bb55a are judged by the old report rule: PASS
+judge tests: ALL OK
+exit=0
+PS 5.1.26100.9444

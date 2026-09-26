@@ -1,0 +1,16 @@
+sha256 4950052785daf26d9c712a710f118211c853a04e03c01b8d77d8ac44a50327ab
+--- ACL BEFORE:
+C:\Users\claude\d1-canary-49500527\vbs-linux-candidate-49500527.bin NT AUTHORITY\SYSTEM:(I)(F)
+                                                                    BUILTIN\Administrators:(I)(F)
+                                                                    NUCBOX_K11\claude:(I)(F)
+
+Successfully processed 1 files; Failed processing 0 files
+processed file: C:\Users\claude\d1-canary-49500527\vbs-linux-candidate-49500527.bin
+Successfully processed 1 files; Failed processing 0 files
+--- ACL AFTER GRANT:
+C:\Users\claude\d1-canary-49500527\vbs-linux-candidate-49500527.bin NT VIRTUAL MACHINE\Virtual Machines:(R)
+                                                                    NT AUTHORITY\SYSTEM:(I)(F)
+                                                                    BUILTIN\Administrators:(I)(F)
+                                                                    NUCBOX_K11\claude:(I)(F)
+
+Successfully processed 1 files; Failed processing 0 files

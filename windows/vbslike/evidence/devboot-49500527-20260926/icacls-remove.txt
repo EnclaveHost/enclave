@@ -1,0 +1,8 @@
+--- ACL AFTER REMOVE+RESET:
+C:\Users\claude\d1-canary-49500527\vbs-linux-candidate-49500527.bin NT AUTHORITY\SYSTEM:(I)(F)
+                                                                    BUILTIN\Administrators:(I)(F)
+                                                                    NUCBOX_K11\claude:(I)(F)
+
+sha256 4950052785daf26d9c712a710f118211c853a04e03c01b8d77d8ac44a50327ab
+enclave-uefi VMs left: 0
+all VMs: enclave-app-hv5ccfec2b5e0040-9c3d10f1=Running enclave-app-hv88b31102f90274-9c3d10f1=Running
