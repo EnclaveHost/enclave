@@ -9,7 +9,7 @@
 set -euo pipefail; source ~/enclave-bench/relay-slice-20260925/lib.sh
 MODE=${1:?usage: rs-6.sh apply|rollback}; H=$(cd "$(dirname "$0")" && pwd)
 DEST=/opt/enclave-predict/retire-79c5ecf2
-NEW_SHA=__NEW__   # predict-lines.env (the two new lines; set when staged on nan)
+NEW_SHA=0dabb75b92e979692bf4b9c10446d15fcbeb4b2d0b9618d4956df9e73fc13bb6   # predict-lines.env (the two new lines; staged 02:00-02:01Z, sandboxed check PASS)
 OLD_SHA=daec659ecb4c7aac7ba7b645892972dcc8b44f0f76935fe3e8d551e9f17e0412   # predict-lines.before.env (= the live two lines = rs-5's after)
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 # PRECONDITION of apply (enclave-bf, required by enclave-87): ALL 3 canaries run on 52156652, CHIP-VERIFIED from each serving
