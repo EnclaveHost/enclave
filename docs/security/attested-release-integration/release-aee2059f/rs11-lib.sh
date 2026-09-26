@@ -23,13 +23,33 @@ hv_attach_line() { $NAN "journalctl _SYSTEMD_INVOCATION_ID=$1 --no-pager -o shor
 # the ROLLBACK guards (a rollback takes N1, N2 off the allowlist AND R out of all three lines): refuses, with the reason, while
 #  (a) metal-iso0 attests N1 or N2 (63's N1-b/N2-b ran: the node would be refused on its next attach) - roll the node back first;
 #  (b) 63's S9 epoch file exists (guestd builds guests on R: they would lose secrets and certificates) - roll S9 back first;
-#  (c) metal-iso0's measurement cannot be read (fail closed).   $1 = metal-iso0's measurement as read
+#  (c) metal-iso0's measurement cannot be read (fail closed);
+#  (d) a guestd record on this host names R (guest_on_r, below; enclave-5d's R1).   $1 = metal-iso0's measurement as read
 rollback_guard() {
   local m=$1
   [[ "$m" =~ ^[0-9a-f]{96}$ ]] || { echo "metal-iso0's measurement is unreadable ('${m:0:20}')"; return 1; }
   case ",$ADD," in *",$m,"*) echo "metal-iso0 attests ${m:0:8} (N1/N2): roll the node back to f6cbd75a FIRST (enclave-63)"; return 1;; esac
   [ ! -e "$S9_EPOCH" ] || { echo "S9 switched guestd to R at epoch $(cat "$S9_EPOCH" 2>/dev/null) ($S9_EPOCH): roll S9 back FIRST (enclave-63)"; return 1; }
+  local g; g=$(guest_on_r) && { echo "$g"; return 1; }
   return 0
+}
+# (d) (enclave-5d's R1) a guest BUILT ON R survives an S9 rollback (the old guestd re-adopts it; s9t-rollback removes the epoch),
+# so the guard also reads guestd's own records on this host (key-free: the instance.json files, never its API or key). Prints the
+# reason and returns 0 (= refuse) when a record names R, or when the root, a guest dir or a record cannot be read (fail closed);
+# returns 1 when every record reads and none names R. Order after e8: S9 rollback -> each e8 canary back onto 5db18199 -> rs-11.
+GUESTD_ROOT=${GUESTD_ROOT:-$HOME/enclave-prod/guestd-root}
+guest_on_r() { python3 - "$R" "$GUESTD_ROOT" <<'PYG'
+import glob, json, os, sys
+r, root = sys.argv[1], sys.argv[2]
+if not os.path.isdir(root) or not os.access(root, os.R_OK | os.X_OK): print(f"the guestd records at {root} cannot be read (fail closed)"); sys.exit(0)
+for d in sorted(glob.glob(os.path.join(root, "gd*"))):
+    f = os.path.join(d, "instance.json")
+    try: rel = json.load(open(f)).get("Releases")
+    except Exception as e: print(f"the guestd record {f} cannot be read ({type(e).__name__}; fail closed)"); sys.exit(0)
+    if not isinstance(rel, list): print(f"the guestd record {f} names no Releases list (fail closed)"); sys.exit(0)
+    if r in rel: print(f"a guestd record names {r[:8]} ({os.path.basename(d)}): relaunch that guest onto 5db18199 FIRST (after S9's rollback)"); sys.exit(0)
+sys.exit(1)
+PYG
 }
 # the live allowlist line's sha256 on nan, and the expected one from the staged file (after = lines4.env, before = lines4.before.env)
 allow_live() { $NAN "grep '^METAL_ALLOWED_MEASUREMENTS=' /etc/nan-relay/api-relay.env | sha256sum | cut -c1-64"; }

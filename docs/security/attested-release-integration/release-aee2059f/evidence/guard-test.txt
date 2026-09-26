@@ -1,0 +1,14 @@
+ok   node on 02f6e313 (f6cbd75a), no S9, the REAL guestd records (3, all 5db18199) -> passes
+ok   (a) node on N1 -> refuses (metal-iso0 attests b2dba54a (N1/N2): roll the node back to f6cbd75a FIRST (enclave-63))
+ok   (a) node on N2 -> refuses (metal-iso0 attests fab9c6c7 (N1/N2): roll the node back to f6cbd75a FIRST (enclave-63))
+ok   (c) node unreadable -> refuses (metal-iso0's measurement is unreadable ('absent'))
+ok   (b) S9 epoch present -> refuses (S9 switched guestd to R at epoch 1790410000 (/tmp/tmp.eejzRZ0fsQ): roll S9 back FIRST (enc)
+ok   (d) synthetic records on 5db18199 only -> passes
+ok   (d) a record naming R -> refuses (a guestd record names aee2059f (gdcccc): relaunch that guest onto 5db18199 FIRST (after S9)
+ok   (d) a record naming 5db18199 AND R -> refuses (a guestd record names aee2059f (gdcccc): relaunch that guest onto 5db18199 FIRST (after S9)
+ok   (d) a guest dir without a record -> refuses (the guestd record /tmp/tmp.0KiHcWk033/gddddd/instance.json cannot be read (FileNotFoundErr)
+ok   (d) a malformed record -> refuses (the guestd record /tmp/tmp.0KiHcWk033/gdeeee/instance.json cannot be read (JSONDecodeError)
+ok   (d) a record without a Releases list -> refuses (the guestd record /tmp/tmp.0KiHcWk033/gdffff/instance.json names no Releases list (fail cl)
+ok   (d) an unreadable guestd root -> refuses (the guestd records at /tmp/tmp.0KiHcWk033/no-such-dir cannot be read (fail closed))
+ok   rs-11.sh rollback on the live state (node fab9c6c7) refuses at its guard: REFUSING rs-11 rollback: metal-iso0 attests fab9c6c7 (N1/N2): roll the node back to f6cbd75a FIRST (enclave-63
+rs11-guard-test: 13/13
