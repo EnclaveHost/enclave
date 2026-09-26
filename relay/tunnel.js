@@ -177,7 +177,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                                   // serve OWNER-ONLY. Read in exactly one place (the hv-node attest path below); it grants nothing
                                   // else: not dial discovery, not the operator attach path, not the relay roster. Empty = every
                                   // hv-node attaches host-only. trustedOperators / "*" never imply it, and it never implies them.
-                                  hvNodeOperators = [] } = {}) {
+                                  hvNodeOperators = [],
+                                  // owner-only serving's re-check cadence, and how long a FAILED owner read may lean on the last
+                                  // successful one before owner-only serving is suspended (enclave-87: a bounded grace, not forever)
+                                  ownerRecheckMs = 60_000, ownerGraceMs = 15 * 60_000 } = {}) {
   const trusted = new Set(trustedOperators.map((a) => String(a).toLowerCase()));
   const hvOps = new Set((Array.isArray(hvNodeOperators) ? hvNodeOperators : []).map((a) => String(a).toLowerCase())
     .filter((a) => /^0x[0-9a-f]{40}$/.test(a)));
@@ -213,11 +216,32 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   // Owner-only serving is re-proved as it ages (enclave-bf): the name's on-chain owner is re-read and every delegation
   // re-verified once a minute. A changed or vanished owner clears the operator (the row serves nothing until it re-attaches
   // under the new owner's signature); an expired delegation drops its owner. A change re-announces the row.
-  const OWNER_RECHECK_MS = 60_000;
+  // A FAILED read (an RPC outage) leans on the owner of the last SUCCESSFUL read for at most ownerGraceMs (enclave-87): past
+  // that, owner-only serving is SUSPENDED - the row stays attached but serves nothing - until a read succeeds again: the same
+  // owner resumes it, any other ends it (re-attach needed). Delegations keep expiring by the clock throughout. Each state change
+  // is logged once, not per re-check.
   async function recheckOwnerOnly() {
     for (const [name, t] of [...tunnels]) {
       if (t.mode !== "hv-node" || !t.operator) continue;
-      let owner = null; try { owner = await ownerOf(name); } catch { owner = null; }
+      const r = await ownerRead(name);
+      if (tunnels.get(name) !== t) continue;
+      const age = Date.now() - (ownerReadAt.get(name) || 0);
+      if (!r.ok && age > ownerGraceMs) {
+        if (!t.ownerSuspended) {
+          t.ownerSuspended = true;
+          console.error(`[tunnel] ${name} owner-only serving SUSPENDED: no successful owner read for ${Math.round(age / 1000)} s (grace ${Math.round(ownerGraceMs / 1000)} s); it serves nothing until one succeeds`);
+          try { onChange("owner", name); } catch {}
+        }
+        continue;
+      }
+      if (!r.ok && !t.ownerGrace) { t.ownerGrace = true; console.error(`[tunnel] ${name} owner read FAILED: serving on the owner read ${Math.round(age / 1000)} s ago, for at most ${Math.round(ownerGraceMs / 1000)} s since that read`); }
+      if (r.ok && t.ownerGrace) { t.ownerGrace = false; console.log(`[tunnel] ${name} owner read recovered`); }
+      const owner = r.owner;
+      if (r.ok && t.ownerSuspended && owner === t.operator) {
+        t.ownerSuspended = false;
+        console.log(`[tunnel] ${name} owner-only serving RESUMED: the owner read succeeded and is still ${owner}`);
+        try { onChange("owner", name); } catch {}
+      }
       let served = [];
       if (owner === t.operator && hvOps.has(owner))
         served = (await servedList(t.delegations, { operator: t.operator, box: name, chain: ownerOnly && ownerOnly.chainId,
@@ -234,7 +258,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       }
     }
   }
-  setInterval(() => { recheckOwnerOnly().catch((e) => console.error(`[tunnel] owner re-check failed: ${e.message}`)); }, OWNER_RECHECK_MS).unref?.();
+  setInterval(() => { recheckOwnerOnly().catch((e) => console.error(`[tunnel] owner re-check failed: ${e.message}`)); }, ownerRecheckMs).unref?.();
 
   function tokenOk(name, token) {
     const want = allowByName.get(name);
@@ -253,17 +277,22 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
   // to. A name never seen registered stays first-come, which is the same answer
   // as before this existed.
   const ownerCache = new Map();
-  async function ownerOf(name) {
-    if (!operatorFor) return null;
+  const ownerReadAt = new Map();                // name -> the time of the last SUCCESSFUL owner read (owner-only's grace)
+  // { ok, owner }: ok = the registry answered (owner may be null = none); a FAILED read answers the cached owner, ok false
+  async function ownerRead(name) {
+    if (!operatorFor) return { ok: false, owner: null };
     try {
       const a = await operatorFor(name);
       if (a) ownerCache.set(name, String(a).toLowerCase());
       else ownerCache.delete(name);
-      return a ? String(a).toLowerCase() : null;
+      ownerReadAt.set(name, Date.now());
+      return { ok: true, owner: a ? String(a).toLowerCase() : null };
     } catch {
-      return ownerCache.get(name) || null;      // fail closed against a known owner
+      return { ok: false, owner: ownerCache.get(name) || null };   // fail closed against a known owner
     }
   }
+  // the attach paths' answer, unchanged (the cached owner on a failed read)
+  async function ownerOf(name) { return (await ownerRead(name)).owner; }
   async function signerOf(message, sig) {
     if (typeof sig !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(sig)) return null;
     try {
@@ -302,6 +331,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                 // the v2 attach message (this transport key, this EK) and is a trusted operator of this relay; the owners it
                 // may serve (the operator + each VALID delegation's owner); and the raw delegations, re-verified as they age.
                 operator: meta.operator || "", served: meta.served || [], delegations: meta.delegations || [],
+                // attached on a CACHED owner whose last successful read is already older than the grace (a long RPC outage):
+                // the box attaches, but owner-only starts SUSPENDED until a read succeeds (enclave-5d)
+                ownerSuspended: !!meta.operator && Date.now() - (ownerReadAt.get(name) || 0) > ownerGraceMs,
                 // mode "snp": every CHIP_ID a VCEK-verified attach under THIS transport key has proved (an in-place
                 // re-attach adds to the set, so a multi-socket box's other chip is not a false refusal; a new key starts
                 // over). Internal: never in origins() rows or /enclaves.
@@ -756,7 +788,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       ...(t.mode === "vbs" && t.spki ? { attestedKeys: { transportKey: t.spki, padKey: t.padKey || "" } } : {}),
       // mode hv-node: what the attach proved, stated as such; the node's own statement stays in the hub
       // mode hv-node, owner-only serving: the operator and the owners it serves (public addresses); absent = serves nothing
-      ...(t.mode === "hv-node" && t.operator && t.served.length ? { ownerOnly: true, operator: t.operator, served: t.served.map((e) => ({ ...e })) } : {}),
+      // owner-only only while not suspended (a failed owner read past the grace: the row serves nothing)
+      ...(t.mode === "hv-node" && t.operator && t.served.length && !t.ownerSuspended ? { ownerOnly: true, operator: t.operator, served: t.served.map((e) => ({ ...e })) } : {}),
       ...(t.mode === "hv-node" && t.hvNode ? { hvNode: { hostExcluded: false, tee: null, omissions: t.hvNode.omissions,
           bootCounter: t.hvNode.boot?.bootCounter ?? null, idksModulusSha256: t.hvNode.boot?.idksModulusSha256 ?? null, verifiedAt: t.hvNode.verifiedAt } } : {}),
     })),
