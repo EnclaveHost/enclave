@@ -598,7 +598,9 @@ async function operatorAuth(sig, raw, body, name) {
   if (!ok(lease)) return "signer does not hold the live lease for this deployment";
   // U7: a dns-01 answer is a certificate for a tenant's name, so it is given only to a lease holder the api-relay holds
   // ELIGIBLE (fleet.eligibleId: its /enclaves verdict, fresh). The chain names the holder; it never makes it eligible.
-  if (!fleet.eligibleId(lease.runner)) return "the lease holder is not an eligible host (U7): no dns-01 answer for its names";
+  // (B) ...or an OWNER-ONLY hv-node the api relay lists as carrying THIS deployment (its owner consented to that host)
+  if (!fleet.eligibleId(lease.runner) && !(typeof fleet.servesDeploymentId === "function" && fleet.servesDeploymentId(lease.runner, lease.id)))
+    return "the lease holder is not an eligible host (U7): no dns-01 answer for its names";
   // the label must name ONLY this deployment: a prefix shared with another
   // ledger row authorizes neither holder (leaseFor is null on ambiguity)
   if (!(await fleet.leaseFor("0x" + label))) return "label does not uniquely name this deployment";
@@ -625,7 +627,10 @@ async function hmacTenantRefusal(name) {
   }
   if (!lease) return "the name is a deployment's, and no single on-ledger deployment (or no readable ledger) answers for it";
   if (!lease.leaseLive) return "the name's deployment has no live lease";
-  if (!fleet.eligibleId(lease.runner)) return "the lease holder is not an eligible host (U7): no dns-01 answer for its names";
+  // (B) an owner-only hv-node the api relay lists as carrying this deployment answers too (the platform's certificate for the
+  // owner's own app on the host the owner chose); any other ineligible holder does not
+  if (!fleet.eligibleId(lease.runner) && !(typeof fleet.servesDeploymentId === "function" && fleet.servesDeploymentId(lease.runner, lease.id)))
+    return "the lease holder is not an eligible host (U7): no dns-01 answer for its names";
   return null;
 }
 

@@ -470,10 +470,15 @@ function httpsRedirect(client, head) {
 // U7: EVERY routed connection lands in splice, so this is the one gate: the destination must be a host the api-relay
 // holds ELIGIBLE right now (fleet.eligibleOrigin: its /enclaves verdict, fresh). Unknown or stale = no route. The client
 // is paused by every caller, so the ClientHello waits for the answer.
+// (B) ...or, for an app's own HTTPS (/x/<dep>/https: TLS ends in the guest, never here), an OWNER-ONLY hv-node host that
+// the api-relay lists as carrying THIS deployment (fleet.servesDeployment). Any other path (a declared tcp port) stays
+// eligible-only.
+const httpsPathOf = (dep) => `/x/${encodeURIComponent(dep)}/https`;
 function splice(client, origin, dep, path, hello) {
-  fleet.eligibleOrigin(origin).then((ok) => {
+  const owned = path === httpsPathOf(dep) && typeof fleet.servesDeployment === "function";
+  (owned ? fleet.servesDeployment(origin, dep) : fleet.eligibleOrigin(origin)).then((ok) => {
     if (client.destroyed) return;
-    if (!ok) { console.log(`[relay] ${dep} -> ${origin} REFUSED: not an eligible host (U7)`); return client.destroy(); }
+    if (!ok) { console.log(`[relay] ${dep} -> ${origin} REFUSED: not an eligible host (U7)${owned ? " and not an owner-only host of this deployment" : ""}`); return client.destroy(); }
     spliceRaw(client, origin, dep, path, hello);
   }, () => client.destroy());
 }
@@ -502,8 +507,10 @@ function spliceRaw(client, origin, dep, path, hello) {
   });
   client.on("error", close); client.on("close", close);
   wsStream.on("error", close); wsStream.on("close", close);
-  // U7: the splice lives only while the host stays eligible; a poll that finds it no longer is closes it
-  client.once("close", fleet.holdWhileEligible(origin, close));
+  // U7: the splice lives only while the host stays eligible (or, (B), while an owner-only host still carries this deployment);
+  // a poll that finds it no longer does closes it
+  client.once("close", path === httpsPathOf(dep) && typeof fleet.holdWhileServes === "function"
+    ? fleet.holdWhileServes(origin, dep, close) : fleet.holdWhileEligible(origin, close));
   ws.on("open", () => {
     clearTimeout(hsTimer);
     // idle timeout on the spliced connection: after a valid ClientHello a silent

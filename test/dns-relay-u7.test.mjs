@@ -188,3 +188,37 @@ test("U7 dns-relay: the fleet HMAC alone gets a dns-01 answer for a deployment's
   assert.equal(r.status, 403, JSON.stringify(r.body)); assert.match(r.body.message, /no single on-ledger deployment \(or no readable ledger\)/);
   assert.equal((await push(noLedger.apiPort, "www")).status, 200);
 });
+
+// (B) an OWNER-ONLY hv-node lease holder (never eligible) gets a dns-01 answer for a deployment the api relay lists it as
+// carrying NOW (servesDeployments, each with its `until`), and for nothing else: the owner's own app on the host it chose.
+test("(B) dns-relay: an owner-only hv-node holder gets dns-01 only for a deployment the api relay lists it as serving", async (t) => {
+  const op = privateKeyToAccount(generatePrivateKey());
+  const DEP = "0x" + "e8".repeat(32), RUNNER = keccak256(stringToBytes("https://api.enclave.host/t/nucbox-k11"));
+  const ledger = [{ id: DEP, owner: "0x" + "aa".repeat(20), runner: RUNNER, runnerOperator: op.address, leaseUntil: Math.floor(Date.now() / 1000) + 3600 }];
+  const rpc = stubRpc(ledger); rpc.listen(0, "127.0.0.1"); await once(rpc, "listening");
+  let served = [{ id: DEP, until: Math.floor(Date.now() / 1000) + 3600 }];
+  const feed = http.createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ enclaves: [{ endpoint: "https://api.enclave.host/t/nucbox-k11", id: RUNNER, eligible: false, mode: "hv-node", ownerOnly: true, servesDeployments: served }] }));
+  });
+  feed.listen(0, "127.0.0.1"); await once(feed, "listening");
+  t.after(() => { rpc.close(); feed.close(); });
+  const dns = await bootDns({ DEPLOYMENTS_ADDRESS: "0x" + "12".repeat(20), BASE_RPC: `http://127.0.0.1:${rpc.address().port}`, ELIGIBILITY_POLL_SEC: "1",
+                              ELIGIBILITY_API: `http://127.0.0.1:${feed.address().port}` });
+  t.after(() => dns.p.kill("SIGKILL"));
+  let seq = 0;
+  const push = async () => {
+    const body = { name: `_acme-challenge.${DEP.slice(2, 10)}.${APP_ZONE}`, value: "w" + seq, deploymentId: DEP, ts: Math.floor(Date.now() / 1000) + (seq++ % 100) };
+    const raw = JSON.stringify(body);
+    const r = await fetch(`http://127.0.0.1:${dns.apiPort}/v1/txt`, { method: "POST",
+      headers: { "content-type": "application/json", "x-operator-sig": await op.signMessage({ message: raw }) }, body: raw });
+    return { status: r.status, body: await r.json() };
+  };
+  await delay(1500);
+  let r = await push();
+  assert.equal(r.status, 200, `listed: ${JSON.stringify(r.body)}\n${dns.log()}`);
+  served = [];                                                // a transfer, an expired delegation or E4: no longer listed
+  await delay(1600);
+  r = await push();
+  assert.equal(r.status, 403, JSON.stringify(r.body)); assert.match(r.body.message, /not an eligible host \(U7\)/);
+});

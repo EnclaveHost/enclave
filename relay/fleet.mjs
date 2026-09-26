@@ -392,7 +392,35 @@ export function createFleet(cfg, log = () => {}) {
     const id = endpointIdSync(normOrigin(origin));
     return !!id && _elig.ids.has(id);
   }
+  // (B) does this owner-only origin carry this deployment NOW (a full id, or an id prefix naming exactly ONE it carries)? Each
+  // entry's `until` (the lease end or the delegation's expiry, whichever is first) is checked at decision time, so a lapse
+  // between two /enclaves reads still refuses (enclave-bf E2).
+  const liveUntil = (u) => Number(u) > Date.now() / 1000;
+  function servedMapOf(id) { return id && _elig.served ? _elig.served.get(id) || null : null; }
+  function servedNow(origin, dep) {
+    if (!eligibilityFresh()) return false;
+    const m = servedMapOf(endpointIdSync(normOrigin(origin)));
+    if (!m) return false;
+    const d = String(dep || "").toLowerCase();
+    if (m.has(d)) return liveUntil(m.get(d));
+    if (!/^0x[0-9a-f]{8,63}$/.test(d)) return false;
+    const hits = [...m].filter(([x]) => x.startsWith(d));
+    return hits.length === 1 && liveUntil(hits[0][1]);
+  }
+  const _heldServed = new Map();   // origin + "\n" + dep -> Set of close functions
+  function sweepServed() {
+    let closed = 0;
+    for (const [key, set] of [..._heldServed]) {
+      const i = key.indexOf("\n"), o = key.slice(0, i), dep = key.slice(i + 1);
+      if (originEligibleNow(o) || servedNow(o, dep)) continue;
+      _heldServed.delete(key);
+      for (const close of set) { closed++; try { close(); } catch {} }
+    }
+    if (closed) log(`owner-only: closed ${closed} live session(s) to a deployment its hv-node host no longer serves`);
+    return closed;
+  }
   function sweepIneligible() {
+    sweepServed();
     let closed = 0;
     for (const [o, set] of [..._held]) {
       if (originEligibleNow(o)) continue;
@@ -409,7 +437,17 @@ export function createFleet(cfg, log = () => {}) {
       if (!j || !Array.isArray(j.enclaves)) { log(`eligibility poll failed (${cfg.eligibilityApi}/enclaves): keeping the last verdict until it ages out`); return; }
       const ids = new Set(j.enclaves.filter((e) => e && e.eligible === true && /^0x[0-9a-f]{64}$/i.test(String(e.id || "")))
                                      .map((e) => String(e.id).toLowerCase()));
-      _elig = { ids, at: Date.now() };
+      // (B) an OWNER-ONLY hv-node row (never eligible): the deployments the api relay says it carries now. The daemon takes
+      // that verdict as given and never re-derives the rule from row fields (enclave-bf); anything else about the row is ignored.
+      const served = new Map();   // endpoint id -> Map(deployment id -> until, unix seconds)
+      for (const e of j.enclaves) {
+        if (!e || e.eligible === true || e.ownerOnly !== true || String(e.mode || "") !== "hv-node" || !/^0x[0-9a-f]{64}$/i.test(String(e.id || ""))) continue;
+        const deps = new Map((Array.isArray(e.servesDeployments) ? e.servesDeployments : [])
+          .filter((x) => x && /^0x[0-9a-f]{64}$/.test(String(x.id || "")) && Number.isFinite(Number(x.until)))
+          .map((x) => [String(x.id), Number(x.until)]));
+        if (deps.size) served.set(String(e.id).toLowerCase(), deps);
+      }
+      _elig = { ids, served, at: Date.now() };
     } finally { sweepIneligible(); }   // after a failed poll too: a verdict that has aged out closes what it held open
   }
   const eligibility = {
@@ -420,8 +458,27 @@ export function createFleet(cfg, log = () => {}) {
     async eligibleOrigin(origin) { await loadHash(); return originEligibleNow(origin); },
     // is this endpoint id (keccak256 of a registered endpoint, e.g. a ledger row's runner) an eligible host right now?
     eligibleId: (id) => eligibilityFresh() && _elig.ids.has(String(id || "").toLowerCase()),
+    // (B) does the owner-only hv-node row with endpoint id `runnerId` carry deployment `depId` (the api relay's list, fresh)?
+    servesDeploymentId: (runnerId, depId) => {
+      if (!eligibilityFresh()) return false;
+      const m = servedMapOf(String(runnerId || "").toLowerCase()), d = String(depId || "").toLowerCase();
+      return !!(m && m.has(d) && liveUntil(m.get(d)));
+    },
     // hold a live session to `origin` only while it stays eligible: `close` is called when a poll finds it is not (and at
     // once, if it already is not). Returns the release to call when the session ends on its own.
+    // (B) may this daemon splice deployment `dep` to `origin`? An ELIGIBLE host: any of its deployments, as before. An
+    // owner-only hv-node: only a deployment the api relay lists as one it carries. Unknown or stale = no.
+    async servesDeployment(origin, dep) { await loadHash(); return originEligibleNow(origin) || servedNow(origin, dep); },
+    // hold such a session only while that stays true (a transfer, a lease move or an ended delegation closes it at the next poll)
+    holdWhileServes(origin, dep, close) {
+      const o = normOrigin(origin), d = String(dep || "").toLowerCase();
+      if (!originEligibleNow(o) && !servedNow(o, d)) { try { close(); } catch {} return () => {}; }
+      const key = o + "\n" + d;
+      let set = _heldServed.get(key);
+      if (!set) _heldServed.set(key, (set = new Set()));
+      set.add(close);
+      return () => { set.delete(close); if (!set.size && _heldServed.get(key) === set) _heldServed.delete(key); };
+    },
     holdWhileEligible(origin, close) {
       const o = normOrigin(origin);
       if (!originEligibleNow(o)) { try { close(); } catch {} return () => {}; }
