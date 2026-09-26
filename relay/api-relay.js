@@ -243,6 +243,12 @@ const tunnelHub = createTunnelHub({
   // and the owner still has to clear the same operator bar the dial path uses —
   // a tunnel row bypasses that filter, so it is enforced at attach instead
   trustedOperators: TRUSTED_OPERATORS, operatorsUnrestricted: OPERATORS_UNRESTRICTED,
+  // this relay's own public origin: a tunnel's self-routed /t/<name> URL must name it (selfRoutedUrl form 2, enclave-bf);
+  // and what an hv-node's hosting delegation must name (relay/host-delegation.mjs): Base, and this relay's registry
+  tunnelOrigin: TUNNEL_ORIGIN, ownerOnly: { chainId: 8453, registry: () => REGISTRY_ADDRESS },
+  // RELAY_HVNODE_OPERATORS: the ONLY operators whose v2-signed hv-node attach serves owner-only (tunnel.js reads it in the
+  // hv-node attest path and nowhere else); never TRUSTED_OPERATORS, which grants dial discovery and operator attach
+  hvNodeOperators: (process.env.RELAY_HVNODE_OPERATORS || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean),
   // when an enclave attaches/detaches, refresh discovery + availability now so it
   // enters/leaves `live` immediately rather than on the slow (5 min) registry poll
   onChange: () => { pollRegistry().then(pollAvailability).catch(() => {}); },
@@ -931,6 +937,9 @@ async function pollAvailability() {
   };
   await Promise.all(Array.from({ length: Math.min(AVAIL_POLL_CONCURRENCY, src.length || 1) }, worker));
   live = rows.filter(Boolean);
+  // (B) an owner-only row's served deployments are read from the ledger: keep it loaded while such a row is live (the
+  // common poll pays nothing; a failed read leaves the last rows, and none at first, which serves nothing: fail closed)
+  if (live.some((e) => e.ownerOnly)) await ledgerRows().catch(() => null);
   updatedAt = new Date().toISOString();
   sweepIneligibleUpgrades();
 }
@@ -1369,6 +1378,94 @@ function hostEligibility(epId) {
   if (!row) return { eligible: false, reason: "the host is not attached to this relay right now" };
   return computeEligible(row) ? { eligible: true, reason: null } : { eligible: false, reason: ineligibleReason(row) };
 }
+// ---- (B) OWNER-ONLY serving on an hv-node row (enclave-87, 2026-09-26) -------------------------------------------------
+// An hv-node row (the NucBox: a host-attested boot state, never a TEE, never eligible) may carry a deployment D ONLY when ALL
+// hold, checked AT DECISION TIME on every path (the splice upgrade, its sweep, certs, has-secrets, and the /enclaves verdict
+// the SNI daemons consume with each entry's `until`):
+//   1. D's LEDGER OWNER is served NOW: the row's operator (the name's on-chain owner, who signed the v2 attach and is in
+//      RELAY_HVNODE_OPERATORS; no expiry, re-read every minute by the hub) or an owner whose hosting delegation to it
+//      (relay/host-delegation.mjs) has not expired (enclave-bf E2). payoutWallet never authorizes;
+//   2. THIS row holds D's live lease;
+//   3. D's on-chain envelope REQUIRES this backend: isolation.require === "hyperv-partition-per-app" (enclave-87 E4). The
+//      backend is fixed by the ATTESTED mode (hv-node), never read from the row's own words. A deployment that requires
+//      snp-guest-per-app, requires nothing, or has an unreadable envelope is never served here, whatever delegation exists:
+//      a delegated node cannot take an SNP-required app to a host that is not excluded.
+// And on ONE path: the raw splice of the app's own TLS, wss /t/<box>/x/<id>/https, so TLS still ends in the guest and this
+// relay never sees a request's plaintext (enclave-b4). Plain HTTP /x/<id>, the control plane, secrets and the attested
+// release stay refused (only the has-secrets BOOLEAN is answered: secrets.js); placement, pricing and eligibility never count
+// it; it never feeds the relay roster (relayRowOf). The owner's levers: change D's isolation.require (setConfig), let the
+// delegation expire (90 d default, 180 d cap), or transfer/cancel D.
+const HVNODE_BACKEND = "hyperv-partition-per-app";
+const isOwnerOnlyRow = (row) => !!(row && row.tunnel && String(row.mode || "") === "hv-node" && row.ownerOnly === true
+  && Array.isArray(row.served) && /^0x[0-9a-f]{64}$/i.test(String(row.id || "")));
+// 1. the entry that serves this owner now (its expiry: null = the operator), or null
+function servedEntryNow(row, owner, nowSec = Math.floor(Date.now() / 1000)) {
+  if (!isOwnerOnlyRow(row) || !owner) return null;
+  const o = String(owner).toLowerCase();
+  return row.served.find((e) => e && e.owner === o && (e.expires === null || Number(e.expires) > nowSec)) || null;
+}
+// 3. the backend D's envelope requires ("" when none or unreadable: never served)
+function isolationRequireOf(d) {
+  try { const o = JSON.parse(String((d && d.configCid) || "")); const r = o && o.isolation && o.isolation.require; return typeof r === "string" ? r : ""; }
+  catch { return ""; }
+}
+// all three -> the unix second until which D is served by this row (min of the lease end and the delegation's expiry), or 0
+function servesDeploymentUntil(row, d, nowSec = Math.floor(Date.now() / 1000)) {
+  if (!isOwnerOnlyRow(row) || !d) return 0;
+  const lease = Number(d.leaseUntil);
+  if (String(d.runner || "").toLowerCase() !== String(row.id).toLowerCase() || !(lease > nowSec)) return 0;
+  const e = servedEntryNow(row, d.owner, nowSec);
+  if (!e) return 0;
+  if (isolationRequireOf(d) !== HVNODE_BACKEND) return 0;
+  return e.expires === null ? lease : Math.min(lease, Number(e.expires));
+}
+// the deployments an owner-only row serves right now, from the cached ledger, each with its `until` (the SNI daemons check it
+// at decision time, so a lapse between two /enclaves reads still stops the splice)
+function ownerServedDeployments(row) {
+  if (!isOwnerOnlyRow(row)) return [];
+  const now = Math.floor(Date.now() / 1000);
+  return (_ledger.rows || []).map((d) => ({ id: String(d.id).toLowerCase(), until: servesDeploymentUntil(row, d, now) }))
+    .filter((x) => x.until > now).sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+// the one path an owner-only row serves: exactly /x/<0x-id or prefix>/https, lower-case, no query, no encoding
+const OWNER_SPLICE_RE = /^\/x\/(0x[0-9a-f]{8,64})\/https$/;
+// Is this upgrade to an ineligible box the owner-only splice of a deployment it may carry? -> the full deployment id, or null.
+async function ownerOnlySplice(origin, rawPath, search = "") {
+  const row = live.find((x) => x.endpoint === origin);
+  if (!isOwnerOnlyRow(row)) return null;
+  const m = OWNER_SPLICE_RE.exec(String(rawPath || ""));
+  if (!m || search) return null;
+  if (!LEDGER_CONFIGURED || !DEPLOYMENTS_ADDRESS) return null;
+  let l = await ledgerLeaseOf(m[1], false);
+  if (l.none || l.unleased) l = await ledgerLeaseOf(m[1], true);
+  if (l.error || l.ambiguous || l.none || l.unleased || !l.row) return null;
+  return servesDeploymentUntil(row, l.row) ? String(l.row.id).toLowerCase() : null;
+}
+// ...and such a splice lives only while the predicate still holds (a transfer, a lease move, an ended delegation or a changed
+// name owner closes it at the next sweep, as U7's holds do for eligibility; enclave-bf)
+const _heldOwnerSplices = new Map();   // endpoint + "\n" + deployment id -> Set of drop functions
+function holdUpgradeWhileServes(endpoint, dep, socket, drop) {
+  const key = endpoint + "\n" + dep;
+  let set = _heldOwnerSplices.get(key);
+  if (!set) _heldOwnerSplices.set(key, (set = new Set()));
+  set.add(drop);
+  socket.once("close", () => { set.delete(drop); if (!set.size && _heldOwnerSplices.get(key) === set) _heldOwnerSplices.delete(key); });
+}
+function ownerSpliceStillServes(endpoint, dep) {
+  const row = live.find((e) => e.endpoint === endpoint);
+  const d = (_ledger.rows || []).find((x) => String(x.id).toLowerCase() === dep);
+  return servesDeploymentUntil(row, d) > 0;
+}
+function sweepOwnerSplices() {
+  let closed = 0;
+  for (const [key, set] of [..._heldOwnerSplices]) {
+    const i = key.indexOf("\n");
+    if (ownerSpliceStillServes(key.slice(0, i), key.slice(i + 1))) continue;
+    _heldOwnerSplices.delete(key);
+    for (const drop of set) { closed++; try { drop(); } catch {} }
+  }
+  if (closed) console.log(`[api-relay] owner-only: closed ${closed} splice(s) whose deployment this hv-node no longer serves`);
+}
 // A tunnel box addressed EXPLICITLY (/t/<name>/..., or its own e<hex>.<BOX_ZONE> hostname). An ELIGIBLE box: every path,
 // as before. A box the relay does NOT hold eligible: DEFAULT-DENY. Only its own read-only surfaces pass (GET, HEAD or
 // OPTIONS to its availability, health, version, pricing, session keys, net/udp maps, attestation and .well-known), so
@@ -1409,6 +1506,7 @@ function holdUpgradeWhileEligible(endpoint, socket, drop) {
   socket.once("close", () => { set.delete(drop); if (!set.size && _heldUpgrades.get(endpoint) === set) _heldUpgrades.delete(endpoint); });
 }
 function sweepIneligibleUpgrades() {
+  sweepOwnerSplices();
   let closed = 0;
   for (const [endpoint, set] of [..._heldUpgrades]) {
     const row = live.find((e) => e.endpoint === endpoint);
@@ -1547,7 +1645,8 @@ function ineligibleReason(e) {
   if (computeEligible(e)) return null;
   if (e.tunnel) {
     const m = String(e.mode || "");
-    if (m === "hv-node") return "host-attested boot state (TPM quote: Secure Boot on, test signing off); no isolation evidence, the host is not excluded";
+    if (m === "hv-node") return "host-attested boot state (TPM quote: Secure Boot on, test signing off); no isolation evidence, the host is not excluded"
+      + (isOwnerOnlyRow(e) ? `; it serves only deployments that require ${HVNODE_BACKEND}, of its own operator and of owners who delegated to it` : "");
     if (m === "vbs") return "verified enclave report, but the app-zone key and traffic run through the host: the isolation contract is not met";
     if (m === "avf") return inferenceLaneOf(e) ? "pVM CPU tier: an inference lane on its owner's phone, not app deployments"
                          : e.capsRefused ? "verified protected-VM chain; its pVM CPU capability report was refused"
@@ -2323,6 +2422,9 @@ async function prewarmCollateral(doc) {
 // is admitted only when it equals an admitted domain release's own
 const runtimeIdOf = (r) => Buffer.from(runtimeIdOfJson(JSON.stringify(r)), "hex");
 const relayCtx = { json, cors, clientIp, readBody, ledgerRows, ledgerView, hostEligibility, leaseHolderChipIds,
+                   // (B) does this endpoint id's live row serve this ledger deployment NOW (hv-node owner-only: served owner,
+                   // this row's live lease, isolation.require = hyperv-partition-per-app)? certs.js 6b and secrets.js has-secrets
+                   ownerServesDeployment: (epId, d) => servesDeploymentUntil(live.find((x) => x.id && String(x.id).toLowerCase() === String(epId || "").toLowerCase()), d) > 0,
                    expectedGuestFor, predictorProblems, predictorSets, runtimeIdOf, confirmRow, verifyGuestEvidence, prewarmCollateral, versionConfigFor, resolveConfigCid,
                    deploymentsAddress: () => DEPLOYMENTS_ADDRESS,
                    // billing.js quotes at the fleet's cheapest posted price
@@ -2471,6 +2573,9 @@ function handleRequest(req, res) {
     // teeCpu / tier / claimEnabled strings.
     const rows = live.map((e) => ({ ...e, serving: servingSet.has(e), eligible: computeEligible(e),
                                     ...(computeEligible(e) ? {} : { ineligible: ineligibleReason(e) }),
+                                    // (B) the deployments an owner-only hv-node row carries now: the data-plane daemons splice
+                                    // ONLY these to it (fleet.mjs servesDeployment), never re-deriving the rule from row fields
+                                    ...(e.ownerOnly ? { servesDeployments: ownerServedDeployments(e) } : {}),
                                     ...(inferenceLaneOf(e) ? { lane: inferenceLaneOf(e) } : {}) }));
     const agg = {
       enclaves: live.length, serving: serving.length,
@@ -2648,7 +2753,13 @@ server.on("upgrade", async (req, socket, head) => {
       if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
       // no WebSocket reaches an INELIGIBLE box, own surfaces included (none of them is one): its raw upgrade would carry
       // the caller's headers, credentials included (Codex's review)
-      if (!tunnelEligible(origin) || tunnelTenantRefusal(origin, tm[2] || "/", req.method)) return refuse(503, "Service Unavailable");
+      if (!tunnelEligible(origin) || tunnelTenantRefusal(origin, tm[2] || "/", req.method)) {
+        // (B) an hv-node row's owner-only splice of a deployment it may carry, and nothing else
+        const dep = await ownerOnlySplice(origin, tm[2] || "/", u.search || "");
+        if (!dep) return refuse(503, "Service Unavailable");
+        holdUpgradeWhileServes(origin, dep, socket, () => socket.destroy());
+        return tunnelHub.spliceUpgrade(origin, req, socket, head, tm[2]);
+      }
       holdUpgradeWhileEligible(origin, socket, () => socket.destroy());
       return tunnelHub.spliceUpgrade(origin, req, socket, head, (tm[2] || "/") + (u.search || ""));
     }
@@ -2658,7 +2769,12 @@ server.on("upgrade", async (req, socket, head) => {
     if (bn) {
       const origin = `tunnel://${bn}`;
       if (!tunnelHub.origins().some((o) => o.endpoint === origin)) return refuse(404, "Not Found");
-      if (!tunnelEligible(origin) || tunnelTenantRefusal(origin, u.pathname, req.method)) return refuse(503, "Service Unavailable");
+      if (!tunnelEligible(origin) || tunnelTenantRefusal(origin, u.pathname, req.method)) {
+        const dep = await ownerOnlySplice(origin, u.pathname, u.search || "");
+        if (!dep) return refuse(503, "Service Unavailable");
+        holdUpgradeWhileServes(origin, dep, socket, () => socket.destroy());
+        return tunnelHub.spliceUpgrade(origin, req, socket, head, u.pathname);
+      }
       holdUpgradeWhileEligible(origin, socket, () => socket.destroy());
       return tunnelHub.spliceUpgrade(origin, req, socket, head, u.pathname + (u.search || ""));
     }

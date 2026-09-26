@@ -316,7 +316,11 @@ export function enclavePriceOf(row){
 export function enclaveClassOf(row){
   const a = (row && row.availability) || {};
   const shielded = !!(a.shielded && a.shielded.vramGb > 0);
-  const gpu = a.gpu === true;
+  // A TUNNEL row the relay did not verify as SEV-SNP (an hv-node host, a token or operator attach) has no TEE for a card to
+  // sit in, whatever its own availability says: never "tee-gpu" on its word (enclave-87's (B); the NucBox says gpu:false
+  // today, and the badge must not depend on that).
+  const unverifiedTunnel = !!(row && row.tunnel && row.mode !== "snp");
+  const gpu = a.gpu === true && !unverifiedTunnel;
   if (shielded) return { kind: "shielded-gpu", inTee: false, shielded: true, hasCard: true };
   if (gpu)      return { kind: "tee-gpu",      inTee: true,  shielded: false, hasCard: true };
   return { kind: "cpu", inTee: false, shielded: false, hasCard: false };

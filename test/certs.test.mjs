@@ -940,3 +940,28 @@ test("U7: a relay context with no eligibility verdict refuses (unknown is not pe
   assert.deepEqual([...new Set(asked)], [RUNNER], "the verdict is asked for the requesting endpoint's id, the lease holder");
   ctx.hostEligibility = saved;
 });
+
+// ---- (B) the ONE exception to U7 in certs.js 6b: an hv-node row's owner-only serving (enclave-87) ------------------------
+// An ineligible lease holder gets a certificate only when the relay's owner-only predicate (api-relay.js
+// servesDeploymentUntil: owner served NOW, this row's live lease, isolation.require = hyperv-partition-per-app) says it
+// serves THIS ledger row now. The predicate is asked with the lease holder's endpoint id and the ledger row itself.
+test("(B) an ineligible holder gets a certificate only when the owner-only predicate serves THIS deployment now; asked with (lease holder id, ledger row)", async () => {
+  EP = "https://enclave93.example";
+  rows = [leaseRow({ configCid: '{"isolation":{"require":"hyperv-partition-per-app"}}' })];
+  INELIGIBLE.add(RUNNER);
+  const saved = ctx.ownerServesDeployment, asked = [];
+  try {
+    const o1 = ca1.calls.newOrder;
+    delete ctx.ownerServesDeployment;
+    let r = await call(await body({ csr: await csrFor(NAME) }));
+    assert.equal(r.code, 403, JSON.stringify(r.body)); assert.equal(r.body.error, "host_ineligible", "no predicate: refused");
+    ctx.ownerServesDeployment = (epId, d) => { asked.push([epId, d && d.id, d && d.configCid]); return false; };
+    r = await call(await body({ csr: await csrFor(NAME) }));
+    assert.equal(r.code, 403, JSON.stringify(r.body)); assert.equal(r.body.error, "host_ineligible", "not served: refused");
+    assert.equal(ca1.calls.newOrder, o1, "nothing ordered");
+    ctx.ownerServesDeployment = (epId, d) => { asked.push([epId, d && d.id, d && d.configCid]); return true; };
+    r = await call(await body({ csr: await csrFor(NAME) }));
+    assert.equal(r.code, 200, JSON.stringify(r.body));
+    assert.deepEqual(asked[0], [RUNNER, ID, '{"isolation":{"require":"hyperv-partition-per-app"}}'], "the lease holder's id and the ledger row (with its envelope)");
+  } finally { INELIGIBLE.delete(RUNNER); if (saved) ctx.ownerServesDeployment = saved; else delete ctx.ownerServesDeployment; await settle(); }
+});

@@ -24,6 +24,7 @@ import { tpmNameOf, VBS_MAX_CERT_BYTES, VBS_MAX_CHAIN_CERTS, VBS_MAX_TPMT_PUBLIC
 import { HVNODE_FORMAT, HVNODE_TIER, verifyHvNodeEvidence, retiredFormat } from "./hvnode-verify.mjs";
 import { ekPublicFrom, makeCredential } from "./vbs-credential.mjs";
 import { boxOrigin } from "./boxhost.js";
+import { verifyDelegation, attachMessageV2, MAX_DELEGATIONS, MAX_DELEGATION_BYTES } from "./host-delegation.mjs";
 
 const sha256Hex = (s) => createHash("sha256").update(String(s)).digest("hex");
 const eqHex = (a, b) => { const x = Buffer.from(String(a), "hex"), y = Buffer.from(String(b), "hex"); return x.length === y.length && timingSafeEqual(x, y); };
@@ -51,14 +52,20 @@ const NAME_RE_OK = /^[A-Za-z0-9_-]{1,64}$/;
 //      label IS the attach name, so this is a pure derivation.
 //   2. https://<relay>/t/<name>     — the legacy path route, kept so a box
 //      that predates the zone (or a relay with BOX_ZONE unset) still attaches.
-function selfRoutedUrl(url, name) {
+// Form 2 names THIS relay's own public origin (tunnelOrigin, e.g. https://api.enclave.host), never any host: a row whose
+// publicUrl could be https://<other-host>/t/<name> would stamp the registry id of an endpoint some other box registered
+// and take that box's lease routing (enclave-bf). The hub's tunnelOrigin defaults to the production origin; api-relay passes
+// its own TUNNEL_ORIGIN; a caller passing none at all to this function gets form 2 refused (fail closed).
+function selfRoutedUrl(url, name, tunnelOrigin = "") {
   if (!url) return "";
   let u; try { u = new URL(String(url)); } catch { return ""; }
   if (u.protocol !== "https:" || u.search || u.hash) return "";
   const origin = boxOrigin(name);
   if (origin && u.pathname.replace(/\/+$/, "") === "" && `https://${u.host}` === origin) return origin;
+  if (!tunnelOrigin || `https://${u.host}` !== String(tunnelOrigin).replace(/\/+$/, "")) return "";
   return u.pathname.replace(/\/+$/, "") === `/t/${name}` ? String(url) : "";
 }
+export { selfRoutedUrl };
 
 // allow:  [{ name, tokenSha256 }]                       — bootstrap / first-party boxes
 // attest: { allowedMeasurements: [hex], requireVcek, minTcb,   — permissionless sellers:
@@ -138,10 +145,42 @@ export function snpChipsAfter(prev, meta = {}) {
 export function attachKindOf(via) {
   return via === "token" ? "token" : via === "operator" ? "operator" : "attestation";
 }
+// An owner-only hv-node row's served owners, EACH WITH ITS EXPIRY (enclave-bf E2, enclave-87): the operator (no expiry: it is
+// the name's on-chain owner, re-read every minute) + each owner whose hosting delegation verifies now (its own expiry, the
+// latest if one owner signed several). Every serve decision checks `expires` at decision time (servesNow in api-relay.js),
+// so a delegation that lapses while the tunnel stays attached stops serving then, not at the next re-attach.
+export async function servedList(delegations, ctx) {
+  const byOwner = new Map(), refused = [];
+  const op = String(ctx && ctx.operator || "").toLowerCase();
+  if (/^0x[0-9a-f]{40}$/.test(op)) byOwner.set(op, null);
+  const list = Array.isArray(delegations) ? delegations.slice(0, MAX_DELEGATIONS) : [];
+  if (Array.isArray(delegations) && delegations.length > MAX_DELEGATIONS) refused.push({ index: MAX_DELEGATIONS, reason: `more than ${MAX_DELEGATIONS} delegations; the rest ignored` });
+  for (let i = 0; i < list.length; i++) {
+    const d = list[i];
+    if (!d || typeof d.message !== "string" || typeof d.signature !== "string" || d.message.length > MAX_DELEGATION_BYTES || d.signature.length > MAX_DELEGATION_BYTES) {
+      refused.push({ index: i, reason: "not a { message, signature } pair within size" }); continue;
+    }
+    const v = await verifyDelegation(d, ctx);
+    if (!v.ok) { refused.push({ index: i, reason: v.reason }); continue; }
+    if (byOwner.has(v.owner) && (byOwner.get(v.owner) === null || byOwner.get(v.owner) >= v.expires)) continue;
+    byOwner.set(v.owner, v.expires);
+  }
+  return { served: [...byOwner].map(([owner, expires]) => ({ owner, expires })).sort((a, b) => (a.owner < b.owner ? -1 : 1)), refused };
+}
 export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 30000, onChange = () => {},
                                   operatorFor = null, operatorAttach = false,
-                                  trustedOperators = [], operatorsUnrestricted = false } = {}) {
+                                  trustedOperators = [], operatorsUnrestricted = false,
+                                  // this relay's public origin (selfRoutedUrl form 2) and, for an hv-node's owner-only
+                                  // serving, what a hosting delegation must name: { chainId, registry: () => address }
+                                  tunnelOrigin = "https://api.enclave.host", ownerOnly = null,
+                                  // RELAY_HVNODE_OPERATORS (enclave-87): the on-chain operators whose v2-signed hv-node attach may
+                                  // serve OWNER-ONLY. Read in exactly one place (the hv-node attest path below); it grants nothing
+                                  // else: not dial discovery, not the operator attach path, not the relay roster. Empty = every
+                                  // hv-node attaches host-only. trustedOperators / "*" never imply it, and it never implies them.
+                                  hvNodeOperators = [] } = {}) {
   const trusted = new Set(trustedOperators.map((a) => String(a).toLowerCase()));
+  const hvOps = new Set((Array.isArray(hvNodeOperators) ? hvNodeOperators : []).map((a) => String(a).toLowerCase())
+    .filter((a) => /^0x[0-9a-f]{40}$/.test(a)));
   const allowByName = new Map(allow.filter((a) => a && a.name && a.tokenSha256).map((a) => [a.name, a.tokenSha256.toLowerCase()]));
   // the NucBox node's attach (mode hv-node): only with the pinned TPM EK roots. A legacy `vbs` policy enables nothing.
   const hvOn = !!(attest && attest.hvNode && attest.hvNode.ekRoots);
@@ -170,6 +209,32 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       try { t.ws.send(JSON.stringify({ t: "ping" })); } catch {}
     }
   }, PING_MS).unref?.();
+
+  // Owner-only serving is re-proved as it ages (enclave-bf): the name's on-chain owner is re-read and every delegation
+  // re-verified once a minute. A changed or vanished owner clears the operator (the row serves nothing until it re-attaches
+  // under the new owner's signature); an expired delegation drops its owner. A change re-announces the row.
+  const OWNER_RECHECK_MS = 60_000;
+  async function recheckOwnerOnly() {
+    for (const [name, t] of [...tunnels]) {
+      if (t.mode !== "hv-node" || !t.operator) continue;
+      let owner = null; try { owner = await ownerOf(name); } catch { owner = null; }
+      let served = [];
+      if (owner === t.operator && hvOps.has(owner))
+        served = (await servedList(t.delegations, { operator: t.operator, box: name, chain: ownerOnly && ownerOnly.chainId,
+                                                    registry: ownerOnly && typeof ownerOnly.registry === "function" ? ownerOnly.registry() : "" })).served;
+      if (tunnels.get(name) !== t) continue;
+      if (!served.length) {
+        console.error(`[tunnel] ${name} owner-only serving ENDED: the name's owner is now ${owner || "(none)"} (was ${t.operator})${owner === t.operator ? "; not in RELAY_HVNODE_OPERATORS" : ""}`);
+        t.operator = ""; t.served = []; t.delegations = [];
+        try { onChange("owner", name); } catch {}
+      } else if (JSON.stringify(served) !== JSON.stringify(t.served)) {
+        console.log(`[tunnel] ${name} served owners now ${served.map((e) => e.owner + (e.expires ? `(until ${e.expires})` : "")).join(", ")}`);
+        t.served = served;
+        try { onChange("owner", name); } catch {}
+      }
+    }
+  }
+  setInterval(() => { recheckOwnerOnly().catch((e) => console.error(`[tunnel] owner re-check failed: ${e.message}`)); }, OWNER_RECHECK_MS).unref?.();
 
   function tokenOk(name, token) {
     const want = allowByName.get(name);
@@ -233,6 +298,10 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                 // mode "hv-node": the boot this attach proved (boot counter, the IDKS a same-boot VM report must
                 // verify under, PCRs, EK and AK), its omissions, and the node's own statement (recorded, never read)
                 hvNode: meta.hvNode || null,
+                // mode "hv-node", owner-only serving (enclave-87's (B)): the name's on-chain operator, set ONLY when it signed
+                // the v2 attach message (this transport key, this EK) and is a trusted operator of this relay; the owners it
+                // may serve (the operator + each VALID delegation's owner); and the raw delegations, re-verified as they age.
+                operator: meta.operator || "", served: meta.served || [], delegations: meta.delegations || [],
                 // mode "snp": every CHIP_ID a VCEK-verified attach under THIS transport key has proved (an in-place
                 // re-attach adds to the set, so a multi-socket box's other chip is not a false refusal; a new key starts
                 // over). Internal: never in origins() rows or /enclaves.
@@ -253,7 +322,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
         // tenant work on its own word. Eligibility is derived from verified evidence, never from a
         // self-reported string, so the hello's mode is recorded as what it is: a declaration.
         t.declaredMode = f.mode || ""; t.transportKeyFp = f.transportKeyFp || "";
-        t.publicUrl = selfRoutedUrl(f.publicUrl, name);
+        t.publicUrl = selfRoutedUrl(f.publicUrl, name, tunnelOrigin);
         if (f.publicUrl && !t.publicUrl)
           console.error(`[tunnel] ${name} claimed publicUrl ${String(f.publicUrl).slice(0, 120)} — IGNORED (not this tunnel's own https://<relay>/t/${name} route); its on-chain runner id stays unstamped`);
         // The attach-time onChange snapshots the registry BEFORE this frame can
@@ -519,16 +588,34 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
             // an opening: same image, same name, and the routing for its
             // registered id follows.
             const owner = await ownerOf(name);
+            const keyFp = spki ? createHash("sha256").update(spki).digest("hex") : "";
+            let operator = "", served = { served: [], refused: [] }, delegations = [];
             if (owner) {
               const signer = await signerOf(attachMessage(name, nonce), f.operatorSig);
+              // hv-node: the v2 message binds the operator's consent to THIS transport key on THIS TPM (enclave-bf)
+              const signer2 = isHv && vbs ? await signerOf(attachMessageV2(name, nonce.toString("base64"), keyFp,
+                                                     createHash("sha256").update(vbs.ekCert).digest("hex")), f.operatorSig) : null;
               if (settled) return;                       // the timeout may have fired while we recovered
-              if (!signer)
+              if (!signer && !signer2)
                 return deny(`${name} is registered on chain; attach must carry operatorSig `
                           + `(personal_sign of "enclave-tunnel-attach:<name>:<nonce b64>") — upgrade the agent`);
-              if (signer !== owner)
-                return deny(`${name} is registered on chain to ${owner}, not ${signer}`);
+              if (signer !== owner && signer2 !== owner)
+                return deny(`${name} is registered on chain to ${owner}, not ${signer2 || signer}`);
+              // OWNER-ONLY SERVING (hv-node only): the operator is recorded only on a v2 signature by the name's owner, who
+              // must be in RELAY_HVNODE_OPERATORS (hvOps; never TRUSTED_OPERATORS, which grants dialing and relay roles);
+              // the served owners are it + each valid delegation's owner, with expiries. A v1 signature attaches the node
+              // HOST-ONLY (serves nothing), which is how an old node stays safe.
+              if (isHv && signer2 === owner && hvOps.has(owner)) {
+                operator = owner;
+                delegations = Array.isArray(f.rad.delegations) ? f.rad.delegations.slice(0, MAX_DELEGATIONS) : [];
+                served = await servedList(delegations, { operator, box: name, chain: ownerOnly && ownerOnly.chainId,
+                                                         registry: ownerOnly && typeof ownerOnly.registry === "function" ? ownerOnly.registry() : "" });
+                if (settled) return;
+                for (const r of served.refused) console.error(`[tunnel] ${name} hosting delegation #${r.index} NOT honoured: ${r.reason}`);
+              } else if (isHv) {
+                console.log(`[tunnel] ${name} hv-node attached HOST-ONLY (serves nothing): ${signer2 === owner ? `operator ${owner} is not in RELAY_HVNODE_OPERATORS` : "no v2 operator signature (enclave-tunnel-attach/2)"}`);
+              }
             }
-            const keyFp = spki ? createHash("sha256").update(spki).digest("hex") : "";
             const prev = tunnels.get(name);
             if (prev && (!prev.keyFp || prev.keyFp !== keyFp))
               return deny("that name is held by another enclave");
@@ -545,6 +632,7 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
                              measurement: res.measurement, mode: isHv ? "hv-node" : isAvf ? "avf" : "snp", keyFp, tier: isHv ? HVNODE_TIER : "",
                              snpChip,
                              hvNode: isHv ? { boot: res.boot, omissions: res.omissions, hostStatement: res.hostStatement, verifiedAt: new Date().toISOString() } : null,
+                             ...(operator ? { operator, served: served.served, delegations } : {}),
                              spki: spki ? spki.toString("base64") : "", padKey,
                              // the pVM CPU admission inputs, pinned at attach (policy included: a hub
                              // without one refuses every report, by the verifier's own first rule)
@@ -553,7 +641,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
           finally { verifying = false; }
         });
         ws.on("error", () => { try { ws.terminate(); } catch {} });
-        try { ws.send(JSON.stringify({ t: "challenge", nonce: nonce.toString("base64") })); } catch {}
+        // sigVersions: the operator signatures this relay verifies (1: enclave-tunnel-attach, 2: enclave-tunnel-attach/2 over
+        // the transport key and the EK); an hv-node signs v2 and sends its hosting delegations only when 2 is offered
+        try { ws.send(JSON.stringify({ t: "challenge", nonce: nonce.toString("base64"), sigVersions: [1, 2] })); } catch {}
       });
     }
 
@@ -665,6 +755,8 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
       // so the field is scoped to mode vbs rather than every attached tunnel.
       ...(t.mode === "vbs" && t.spki ? { attestedKeys: { transportKey: t.spki, padKey: t.padKey || "" } } : {}),
       // mode hv-node: what the attach proved, stated as such; the node's own statement stays in the hub
+      // mode hv-node, owner-only serving: the operator and the owners it serves (public addresses); absent = serves nothing
+      ...(t.mode === "hv-node" && t.operator && t.served.length ? { ownerOnly: true, operator: t.operator, served: t.served.map((e) => ({ ...e })) } : {}),
       ...(t.mode === "hv-node" && t.hvNode ? { hvNode: { hostExcluded: false, tee: null, omissions: t.hvNode.omissions,
           bootCounter: t.hvNode.boot?.bootCounter ?? null, idksModulusSha256: t.hvNode.boot?.idksModulusSha256 ?? null, verifiedAt: t.hvNode.verifiedAt } } : {}),
     })),

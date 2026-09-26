@@ -917,7 +917,12 @@ export async function handleCerts(req, res, u, ctx) {
   //     order alike, so an ineligible holder gets no certificate by any of the three. A context without the verdict
   //     (hostEligibility) refuses: unknown is not permission.
   const el = typeof ctx.hostEligibility === "function" ? ctx.hostEligibility(epId) : null;
-  if (!el || el.eligible !== true) {
+  //     ...with ONE exception (enclave-87's (B)): an hv-node row may have a certificate for a deployment it serves NOW: its
+  //     LEDGER OWNER is served (the operator, or an owner whose delegation has not expired: relay/host-delegation.mjs), the
+  //     row holds its live lease, and its envelope requires hyperv-partition-per-app (api-relay.js servesDeploymentUntil).
+  //     That is the owner's own app on a host the owner chose; any other deployment on such a row is refused as before.
+  const ownerServed = !!(d && typeof ctx.ownerServesDeployment === "function" && ctx.ownerServesDeployment(epId, d));
+  if ((!el || el.eligible !== true) && !ownerServed) {
     console.error(`[certs] ${endpoint} REFUSED for ${name}: the lease holder is not an eligible host (${el ? el.reason : "no eligibility verdict"})`);
     return bad(ctx, res, req, 403, "host_ineligible",
       `This endpoint holds the lease but is not eligible to serve tenant apps${el && el.reason ? ": " + el.reason : ""}.`);
