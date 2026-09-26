@@ -102,7 +102,9 @@ test("key: created once, reused, owner-only, Ed25519", () => {
 test("statement: never raises host exclusion", () => {
   assert.equal(isolationStatementBytes(null).toString(), "null");
   const s = JSON.parse(isolationStatementBytes({ backend: "hyperv-partition-per-app", boundary: { tier: "t0-hv" }, catalog: { derivations: ["enclave-catalog-bundle/1"] } }));
-  assert.equal(s.hostExcluded, false); assert.equal(s.stated, true); assert.equal(s.tier, "t0-hv");
+  assert.equal(s.hostExcluded, false); assert.equal(s.stated, true); assert.equal(s.tier, "T0-hv", "normalised to the contract's spelling (N6)");
+  assert.throws(() => isolationStatementBytes({ boundary: { tier: "T2-snp" } }), /this backend's tier is T0-hv/);
+  assert.equal(JSON.parse(isolationStatementBytes({ boundary: {} })).tier, null);
   assert.throws(() => isolationStatementBytes({ boundary: { hostExcluded: true } }), /never claims/);
 });
 

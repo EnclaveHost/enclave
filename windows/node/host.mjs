@@ -2,9 +2,10 @@
 // and runs that deployment's app, and it answers the platform's host surface over the tunnel.
 //
 // Scope (see chain.mjs claimPolicy for each refusal and its reason): PUBLIC deployments, on CORES,
-// whose options this box actually enforces, that FIT in what it has left to sell. In the default
-// "market" scope that means any wallet's, which is what being a listed enclave means; CLAIM_SCOPE=
-// owner-only narrows it back to the box owner's own for bring-up.
+// whose options this box actually enforces, that FIT in what it has left to sell. The scope is
+// OWNER-ONLY - the operator's and its delegated owners' deployments (ownerSet) - unless the box meets
+// the isolation contract AND CLAIM_SCOPE=market (scope()); no Windows node meets it today, so none
+// takes a stranger's deployment.
 //
 // It advertises `claimEnabled: true` (it takes work) with `fullService: false` (it sells a subset
 // of the platform's features). The relay keeps a partial box out of the fleet-AND capability flags,
