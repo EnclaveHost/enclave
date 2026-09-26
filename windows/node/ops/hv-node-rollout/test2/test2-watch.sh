@@ -1,7 +1,10 @@
 #!/bin/bash
 # test2-watch.sh <deployment id> - READ-ONLY, one line per call: what the RELAY, the PUBLIC and the LEDGER say about one
 # test-2 deployment right now (TEST2.md). Needs VIEM_DIR (default ~/Projects/enclave) for the ledger read.
-#   relay:  is the id in nucbox-k11's servesDeployments (enclave-e3's B), and until when
+#   relay:  the owners nucbox-k11's row serves (B's row.served, from the node's last attach), and whether the id is in its
+#           servesDeployments (enclave-e3's B), and until when
+# The ledger address is the CLI's default deployments ledger (0xF9e71385…); the node resolves its own from the address
+# book, and today they are the same (enclave-b4's review).
 #   public: https://<id8>.app.enclave.host/ - the HTTP code with CA verification (M4) and without it (-k), and the SPKI
 #   ledger: runner (nucbox-k11 or not), leaseUntil, active, rate (0 = self-hosted: the owner is the box's payout wallet),
 #           balance6, the options envelope
@@ -15,7 +18,10 @@ relay=$(curl -sS -m 20 https://api.enclave.host/enclaves | ID="$ID" node -e '
     if (!r) return console.log("row=absent");
     const sv = Array.isArray(r.servesDeployments) ? r.servesDeployments : null;
     const me = sv && sv.find((x) => String(x.id || x).toLowerCase() === process.env.ID);
-    console.log(`row=${r.mode} served=${sv ? (me ? "yes" : "no") : "n/a"}${me && me.until ? " until=" + new Date(Number(me.until) * (Number(me.until) < 1e12 ? 1000 : 1)).toISOString() : ""}`);
+    // the owners the relay took from the LAST attach of the node (B: row.served, sorted by owner; expires null = the operator)
+    const iso = (sec) => new Date(Number(sec) * 1000).toISOString();
+    const owners = Array.isArray(r.served) ? r.served.map((e) => String(e.owner).slice(0, 6) + "(" + (e.expires === null ? "op" : "until " + iso(e.expires)) + ")").join(",") : "n/a";
+    console.log(`row=${r.mode} ownerOnly=${r.ownerOnly === true} owners=[${owners}] served=${sv ? (me ? "yes" : "no") : "n/a"}${me && me.until ? " until=" + iso(me.until) : ""}`);
   });' 2>/dev/null || echo "row=unreadable")
 host="${ID:2:8}.app.enclave.host"
 ca=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "https://$host/" 2>/dev/null); ca=${ca:-000}
