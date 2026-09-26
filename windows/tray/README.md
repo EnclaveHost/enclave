@@ -12,7 +12,7 @@ Left-click the icon, or choose **Hosting controls…**, to open the panel. A sli
 
 The agent serves `GET`/`PUT http://127.0.0.1:9610/v1/local/hosting`. It listens on loopback only, refuses any non-loopback peer, and requires `Authorization: Bearer <token>`. At every start the agent writes a fresh token to `%ProgramData%\Enclave\hosting\hosting-admin.token`. That directory holds nothing else, and its DACL is set before any file is created in it: protected (nothing inherited), with SYSTEM, Administrators and the node's own account full, and `HOSTING_TRAY_USER` read. A new directory is created with that DACL already on it, and the DACL is read back and checked. So the token file is private from the moment it exists, and a handle opened earlier can't reach it. If the directory or `%ProgramData%\Enclave` is a junction or link, is owned by anyone but SYSTEM, Administrators or the node's account, or its DACL doesn't read back as set, the controls stay off, the node logs why, and nothing else changes. Settings: `HOSTING_ADMIN_PORT` (default 9610; 0 turns it off), `HOSTING_ADMIN_TOKEN_FILE`, `HOSTING_TRAY_USER`, `HOSTING_CAPS_FILE`.
 
-Set `HOSTING_TRAY_USER` to the account the tray runs as (for example `set HOSTING_TRAY_USER=NUCBOX-K11\steven` in `node-config.cmd`). Without it, only an elevated administrator can read the token.
+Set `HOSTING_TRAY_USER` to the account the tray runs as, in the node's config (for example `set HOSTING_TRAY_USER=%COMPUTERNAME%\srbat`, where the machine name on nucbox-k11 is `NUCBOX_K11`). Without it, only SYSTEM, an elevated administrator and the node's own account can read the token.
 
 ## Build and install (on the box)
 
@@ -22,6 +22,12 @@ install-tray.cmd       copies it to %LOCALAPPDATA%\Enclave\Tray, starts it now a
                        and says if this account cannot read the node's token
 uninstall-tray.cmd     stops it, removes the logon start and the folder (the node's caps stay as set)
 ```
+
+**For the operator, after the node is redeployed with this change:**
+- The hosting controls are **on by default**: `HOSTING_ADMIN_PORT` defaults to 9610, loopback only (127.0.0.1). Set it to 0 to turn them off.
+- Until `HOSTING_TRAY_USER` is set, only SYSTEM, Administrators and the node's own account can read the token. The tray runs unelevated as the signed-in user, so it will report that it can't read the token.
+- To fix that, set `HOSTING_TRAY_USER` in the node's config and **restart the node**. The node applies the token directory's DACL when it starts, so the restart is what lets the tray read the token.
+- Then run `install-tray.cmd` as that account. It says so if the account still can't read the token.
 
 Optional `tray-config.json` beside the exe, if the node isn't on the defaults: `{"port": 9610, "tokenFile": "C:\\ProgramData\\Enclave\\hosting\\hosting-admin.token", "logsFolder": ""}`. The app writes its own log to `%LOCALAPPDATA%\Enclave\Tray\tray.log`.
 
