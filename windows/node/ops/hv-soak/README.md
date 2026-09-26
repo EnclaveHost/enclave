@@ -8,8 +8,8 @@ It runs in one of two modes, chosen by the target:
 
 | run | target | what it can PASS |
 |---|---|---|
-| availability/stability soak | hello-world, or any app | everything except the leak check. Run it with `--leak-scope out --leak-evidence "<why>"`. The verdict line then reads `VERDICT (availability/stability; leak not in scope): PASS\|FAIL`. |
-| leak soak | a sentinel app that echoes the token (below) | everything, the leak check included. The leak check PASSes only on enough exercised samples. |
+| availability/stability soak | hello-world, or any app | everything, except that the leak check need not be exercised. Run it with `--leak-scope out --leak-evidence "<why>"`. A leak that is SEEN still FAILs (`FAIL leak (scope out, but seen)`). The verdict line reads `VERDICT (availability/stability; leak not in scope): PASS\|FAIL`. |
+| leak soak | the sentinel app (below), which states in its body what it printed | everything, the leak check included. The leak check PASSes only on enough exercised samples. |
 
 The default is in scope. A run that cannot exercise the leak check therefore never prints `VERDICT: PASS`; it prints
 `VERDICT: NOT PASS (the leak check was not exercised enough to pass)`.
@@ -20,7 +20,7 @@ Each sample opens one ssh session and sends one HTTPS request per check.
 
 | # | check | how |
 |---|---|---|
-| 1 | public TLS | ONE `GET` of the app URL with `--path` (default `/hv-soak/{token}`), where `{token}` is the sample's random token. The token also rides in `x-hv-soak`. The chain and the hostname are verified against Node's CA store. When a connection fails verification, its leaf is recorded (SPKI sha256, serial, issuer, the reason) and the connection is dropped before any response is read. Only a verified 200 counts. The first 4 KiB of the body are kept in memory, never stored, and searched for the token. |
+| 1 | public TLS | ONE `GET` of the app URL with `--path` (default `/hv-soak/{token}`), where `{token}` is the sample's random token. The token also rides in `x-hv-soak`. The chain and the hostname are verified against Node's CA store. When a connection fails verification, its leaf is recorded (SPKI sha256, serial, issuer, the reason) and the connection is dropped before any response is read. Only a verified 200 counts. The first 4 KiB of the body are kept in memory, never stored, and matched against `--echo-pattern` (below). |
 | 1b | HEAD tripwire (`--leak-probe --body-marker S`) | ONE `HEAD` to the same URL, same token, same verification rules, sent together with the GET. |
 | 2 | relay row | `GET https://api.enclave.host/enclaves`, unauthenticated, reading the `nucbox-k11` row. It is OK when all of these hold: mode and tier `hv-node`, `attach` `attestation`, `tunnel` true, `hvNode.hostExcluded` false, and `availability.claimScope` `owner-only`. The sample also records `lastSeen`, `owners`, `eligible` and `serving`. |
 | 3 | the box | ONE `ssh minipc-zt` session. A short `-EncodedCommand` bootstrap reads the sampler script from stdin; nothing is written to the box. It reads: the manager's `GET /vms`; `Get-VM` for the `enclave-app-*` VMs; host free memory; `hvnode\logs\node.log` and `manager.log`, from where the last sample stopped, opened for READ with sharing; and the deployment's COM1 console. |
@@ -49,13 +49,22 @@ read. Console and log line CONTENTS are never stored or printed:
 of these must hold:
 - the partition was Running;
 - the GET was a verified 200, fired at READY with the console connected;
-- its body contains this sample's token;
+- its body carries the target's PRINTED EVIDENCE for this sample's token;
 - the console and both logs were read.
 
-**Why the echo is required:**
-- The sentinel target echoes the token in its body, and prints it to stdout and stderr on every request as `-STDOUT-REQ <path> <x-hv-soak>`.
-- So when the token is absent from the console and from both logs, the app produced those bytes and nothing carried them out.
-- hello-world never echoes, so it can never count. A token in the path proves nothing for an app that never logs.
+**The printed evidence.** The sentinel (enclave-5d, rollout e37a29a91) answers each request with this body:
+
+    hvsoakbody289ec97d2c0e token=<x-hv-soak> path=<path> printed stdout=<n>B stderr=<n>B
+
+It also prints `-STDOUT-REQ <path> <x-hv-soak>` to stdout and stderr.
+
+`--echo-pattern` is a regex with `{token}`, which is replaced by the regex-escaped token. The default is
+`token={token} path=\S* printed stdout=[1-9][0-9]*B`: this sample's token, and at least one byte printed to stdout.
+
+**Why the printed evidence is required:**
+- The token alone proves nothing: it is in the request, so a reflector app would carry it without printing a byte.
+- hello-world carries nothing, so it can never count.
+- With the printed evidence, a token absent from the console and from both logs means the app produced those bytes and nothing carried them out.
 
 **What FAILs it**, in the console window or in node.log/manager.log past their history:
 - the sample's token;
@@ -68,18 +77,21 @@ of these must hold:
 - A sighting of the marker S, the token or a `-STDOUT-REQ` line is still a FAIL. An old front would log ``Unsolicited response … starting with "<body>"``.
 - A `DOM front: unsolicited upstream response (N bytes withheld)` line is INFO.
 - The HEAD never makes a sample exercised.
-- `--body-marker` has no default and goes with `--leak-probe`. For hookbin, whose HEAD returns 404 with body `{"error":"gone"}`, it is `--body-marker '{"error":"gone"}'`. Use `--path '/ping?hvsoak={token}'` with it, because hookbin answers GET `/ping` with 200 and every other path with 404, and its path excludes the query. hookbin's body does not echo the token, so a hookbin run cannot exercise the check.
+- `--body-marker` has no default and goes with `--leak-probe`. For hookbin, whose HEAD returns 404 with body `{"error":"gone"}`, it is `--body-marker '{"error":"gone"}'`. Use `--path '/ping?hvsoak={token}'` with it, because hookbin answers GET `/ping` with 200 and every other path with 404, and its path excludes the query. hookbin's body carries no printed evidence, so a hookbin run cannot exercise the check.
 
 **The leak floor.** `--summary` gives `leak` one of four results:
 - **FAIL**: any leak event, in any sample.
 - **PASS**: no event, at least one exercised sample, and exercised samples make up at least the floor of all samples. The floor is 90% by default; set it with `--leak-floor 0.95` or `95%`.
 - **NOT EXERCISED (x/N)**: otherwise.
-- **NOT IN SCOPE: \<evidence\>**: with `--leak-scope out`. Sightings are still shown on that line, but not judged.
 
-**History (G2).** The logs' history is only the bytes below each log's size at the FIRST READY. It is reported apart and never judged:
-- Everything at or past that size is judged, including the first sample's own probe lines.
+With `--leak-scope out`, only the EXERCISE requirement is waived, never a sighting:
+- Nothing seen: the line reads **NOT IN SCOPE: \<evidence\>**.
+- Anything seen: the line reads **FAIL leak (scope out, but seen): …**, and the verdict FAILs.
+
+**History (G2).** The logs' history is only the bytes below each log's size at the soak's FIRST READY. It is reported apart and never judged:
+- The boundary is fixed once, by the first sample, and never by a later one. A later sample's size already holds the earlier samples' probe lines.
+- If the first sample did not bring back a log's size, that log has no history at all. Everything in it is judged, old lines too, and an INFO says so. This happens when that sample's ssh failed, or its size read hit a transient lock.
 - A line that crosses the boundary is judged, not filed as history.
-- Without that size, the first read fails closed: the log counts as unread, and the next sample tries again.
 - A file that was replaced is all judged.
 
 ## Thresholds
@@ -121,10 +133,13 @@ nohup node soak.mjs --duration 12h --leak-scope out --leak-evidence "$EVID" \
 echo $! > soak.pid
 ```
 
-**Leak soak** on a sentinel deployment. Replace the `<…>` values; the path must be a route that answers 200 and echoes `x-hv-soak`:
+**Leak soak** on a sentinel deployment. Replace the `<…>` value. The default `--echo-pattern` is the sentinel's body
+form. The default `--path` (`/hv-soak/{token}`) works if the sentinel answers any path, since its body reports the path it
+got. I have not verified its routes: run `--once` first and check the per-sample line shows `200 … printed`. If it
+doesn't, pass the sentinel's route with `--path`.
 
 ```sh
-nohup node soak.mjs --duration 12h --deployment 0x<sentinel id> --path '/<route>?hvsoak={token}' \
+nohup node soak.mjs --duration 12h --deployment 0x<sentinel id> \
   [--leak-probe --body-marker '<its HEAD-body marker>'] > soak-$(date -u +%Y%m%dT%H%M%SZ).log 2>&1 &
 ```
 
@@ -139,7 +154,7 @@ nohup node soak.mjs --duration 12h --deployment 0x<sentinel id> --path '/<route>
   - It re-evaluates every threshold from the observations, not from the stored verdicts, and exits 1 unless it PASSes.
   - `--json` prints the summary as JSON, carrying `leakScope`, the `leakEvidence`, the verdict and each threshold.
   - `--since` scores only the part after a given time.
-- Options: `--interval 300`, `--duration 12h`, `--out FILE`, `--deployment 0x…`, `--url`, `--path`, `--node`, `--relay`, `--ssh`, `--root`, `--console-sec 25`, `--rpc URL` (repeatable), `--no-chain`, `--leak-floor`, `--leak-probe --body-marker S`, and `--leak-scope out --leak-evidence E`.
+- Options: `--interval 300`, `--duration 12h`, `--out FILE`, `--deployment 0x…`, `--url`, `--path`, `--echo-pattern`, `--node`, `--relay`, `--ssh`, `--root`, `--console-sec 25`, `--rpc URL` (repeatable), `--no-chain`, `--leak-floor`, `--leak-probe --body-marker S`, and `--leak-scope out --leak-evidence E`.
 
 **What the summary prints:**
 - the result of each threshold, with the worst streak and the first event;
@@ -147,13 +162,13 @@ nohup node soak.mjs --duration 12h --deployment 0x<sentinel id> --path '/<route>
 - the longest stretch with no gap over 2×INTERVAL;
 - the share of samples with the partition Running;
 - node-log counts, the console totals and the balance trend;
-- the leak check's exercised count (and how many samples echoed), and the statement that the hv guard is not covered;
+- the leak check's exercised count, how many samples carried printed evidence and how many only the token, and the statement that the hv guard is not covered;
 - the HEAD tripwire's counts.
 
 ## Tests
 
 `node --test windows/node/ops/hv-soak/soak.test.mjs` runs the parsers, the thresholds, the leak rules, G2 and both
-summary modes against fake box answers and fake JSONL. It also runs the TLS check, the HEAD and the token echo against
+summary modes against fake box answers and fake JSONL. It also runs the TLS check, the HEAD and the printed evidence (a sentinel, a reflector, a 404) against
 a local server whose throwaway certificate openssl makes at test time; that test is skipped when openssl is missing.
 
 ## Limits (stated, not hidden)
