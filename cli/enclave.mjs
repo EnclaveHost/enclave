@@ -1429,17 +1429,34 @@ async function cmdStop(rest) {
   if (!rest[0]) throw new Error("usage: enclave stop <id>");
   const id = await resolveId(rest[0], account);
   if (!(await confirm(`stop ${short(id)}? (suspends the app and takes it off the queue; the remaining balance stays on the deployment - \`enclave resume\` re-queues it)`))) return say("aborted");
+  let sent = null;   // the setActive(false) THIS run confirmed: { tx, block }
   if (isB32(id)) {
     // take the work item off the queue first so no enclave re-claims it…
     const d = await read(DEFAULTS.DEPLOYMENTS_ADDRESS, (await depAbi()).abi, "get", [id]).catch(() => null);
-    if (d && d.active && d.owner.toLowerCase() === account.address.toLowerCase())
-      await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: (await depAbi()).abi,
+    if (d && d.active && d.owner.toLowerCase() === account.address.toLowerCase()) {
+      const rcpt = await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: (await depAbi()).abi,
         functionName: "setActive", args: [id, false] });
+      sent = { tx: rcpt.transactionHash, block: rcpt.blockNumber };
+      // The stop is DONE here: the record is off the queue, and its runner ends the app on its next ledger pass. Said
+      // now, before the teardown below, so a failure there can never read as the stop having failed (enclave-87: a
+      // login refusal printed as the only line after setActive 0xded9430d had landed).
+      if (!opt.json) say(`stopped on-chain: setActive(false) tx ${sent.tx} confirmed in block ${sent.block} - the deployment is off the queue`);
+    }
   }
   // …then tear down the running instance (the runner also notices ActiveSet on
-  // its next sweep; DELETE just makes it immediate)
-  const r = await api("DELETE", `/v1/deployments/${id}`, { auth: account, ok404: true });
-  if (opt.json) return jout(r || { id, status: "stopped", note: "ledger item deactivated; no live enclave record" });
+  // its next sweep; DELETE just makes it immediate). Once this run's on-chain stop
+  // has landed, a teardown failure (a refused login, the API down) is a WARNING:
+  // the stop stands and exits 0. With nothing sent, the teardown IS the command.
+  let r = null, teardownError = null;
+  try { r = await api("DELETE", `/v1/deployments/${id}`, { auth: account, ok404: true }); }
+  catch (e) { if (!sent) throw e; teardownError = e.message; }
+  if (opt.json) return jout({ ...(r || { id, status: "stopped", note: teardownError ? "ledger item deactivated; the immediate teardown failed (teardown)" : "ledger item deactivated; no live enclave record" }),
+                              ...(sent ? { setActive: sent } : {}), ...(teardownError ? { teardown: { ok: false, error: teardownError } } : {}) });
+  if (teardownError) {
+    stderr.write(`warning: the immediate teardown failed: ${teardownError}\n`
+      + `warning: the stop itself succeeded (tx ${sent.tx}); the runner ends the app on its next ledger pass\n`);
+    return;
+  }
   say(r ? `${r.status}${r.ranSeconds ? ` after ${dur(r.ranSeconds)}` : ""}${r.note ? ` (${r.note})` : ""}`
         : "deactivated on-chain; no enclave was serving it");
 }
