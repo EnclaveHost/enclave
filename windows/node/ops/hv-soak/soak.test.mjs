@@ -14,7 +14,7 @@ import {
   decodeDeployment, boxScript, parseBoxStdout, consumeChunk, scanLog, consoleScan, pickDeploymentVm, digestBox, newEval, step,
   summarize, newSampler, humanLine, parseArgs, exercised, headSentInWindow, splitHistory, HV_GUARD_NOT_COVERED, OUT_OF_SCOPE_VERDICT,
   BODY_KEEP, ECHO_PATTERN, evidenceRegex, ROOT_MAX, CONSOLE_SEC_MAX, PS_RENAMES, reflectableForms, DUMMY_TOKEN, USER_AGENT,
-  wsTunnel, xUrlFor,
+  wsTunnel, xUrlFor, keyMatch, publicOk,
 } from "./soak.mjs";
 
 test("evidenceRegex: the sentinel's body form, for THIS token only, with stdout n > 0", () => {
@@ -714,7 +714,8 @@ let clock = Date.parse("2026-09-26T03:00:00Z");
 function S({ ok = true, spki = SPKI_A, authorized = true, status = ok ? 200 : 503, restart = 0, nodeOk = true, baseline = false,
              running = true, price = 0, nonMatching = 0, tokenHits = 0, boxOk = true, sshOk = true, relayOk = true, hostExcluded = false,
              connected = true, latencyMs = 300, t = null, chain = null, head = true, markerHits = 0, nodeMarkerHits = 0, withheld = 0,
-             sentinelLines = 0, echo = true, printed = true, trigger = "console", histPrice = 0, histRestart = 0, nodeTokenHits = 0 } = {}) {
+             sentinelLines = 0, echo = true, printed = true, trigger = "console", histPrice = 0, histRestart = 0, nodeTokenHits = 0,
+             managerKey = null } = {}) {
   clock += 300_000;
   return { type: "sample", t: t || new Date(clock).toISOString(), deployment: DEP,
     tls: { ok, status: ok ? 200 : status, authorized, latencyMs, cert: spki ? { spkiSha256: spki } : null, error: ok ? null : "x",
@@ -722,7 +723,8 @@ function S({ ok = true, spki = SPKI_A, authorized = true, status = ok ? 200 : 50
     head: { method: "HEAD", trigger: head ? "console" : "fallback", authorized: true, status: 200, sentInWindow: head },
     relay: { ok: relayOk, present: true, hostExcluded, mode: "hv-node" },
     chain: chain || { skipped: true },
-    box: { ok: boxOk && sshOk, ssh: { ok: sshOk, error: sshOk ? undefined : "timeout" }, vms: { ok: true },
+    box: { ok: boxOk && sshOk, ssh: { ok: sshOk, error: sshOk ? undefined : "timeout" },
+      vms: managerKey === null ? { ok: true } : { ok: true, mine: { status: running ? "running" : "starting", transportKeySha256: managerKey } },
       partition: sshOk ? { running, status: running ? "running" : "starting" } : undefined,
       logs: sshOk ? { node: nodeOk ? { ok: true, baseline, restart, cardPrice: price, tokenHits: nodeTokenHits, markerHits: nodeMarkerHits, renewed: 0, renewedMine: 0,
                                        history: baseline ? { cardPrice: histPrice, restart: histRestart, markerHits: 0, sentinelLines: 0, lines: 4 } : null }
@@ -745,6 +747,42 @@ test("thresholds: public FAILs at the 3rd consecutive non-200, once per streak",
   assert.deepEqual(run([S({ ok: false }), S({ ok: false }), S({ ok: false }), S(), S({ ok: false }), S({ ok: false }), S({ ok: false })]).fails, ["public", "public"]);
   // an unverified 200 is not a 200
   assert.deepEqual(run([S({ ok: false, authorized: false, status: 200 }), S({ ok: false, authorized: false }), S({ ok: false, authorized: false })]).fails, ["public"]);
+});
+
+test("bf: a verified 200 whose leaf is NOT the partition's key is a public failure; an unknown key is not", () => {
+  // keyMatch and publicOk, from the raw record
+  assert.equal(keyMatch(S({ managerKey: SPKI_A })), true);
+  assert.equal(keyMatch(S({ managerKey: SPKI_B })), false);
+  assert.equal(keyMatch(S({ managerKey: SPKI_A.toUpperCase() })), true, "hex case does not matter");
+  assert.equal(keyMatch(S()), null, "no manager record this sample: unknown");
+  assert.equal(keyMatch(S({ spki: null, ok: false, managerKey: SPKI_A })), null, "no leaf: unknown");
+  assert.equal(publicOk(S({ managerKey: SPKI_A })), true);
+  assert.equal(publicOk(S({ managerKey: SPKI_B })), false, "a verified 200 on ANOTHER key");
+  assert.equal(publicOk(S()), true, "null is unknown, not a failure");
+  assert.equal(publicOk(S({ ok: false, managerKey: SPKI_A })), false);
+  // per sample: it counts toward the public streak, with the reason said
+  const r = run([S({ managerKey: SPKI_B }), S({ managerKey: SPKI_B }), S({ managerKey: SPKI_B })]);
+  assert.deepEqual(r.fails, ["public"]);
+  assert.match(r.ev.events[0].msg, /key mismatch: the verified leaf's SPKI aaaaaaaaaaaa… is not the partition's transportKeySha256/);
+  assert.deepEqual(run([S(), S(), S()]).fails, [], "three unknown keys are three passes");
+  // and it cannot exercise the leak check: the response did not come from the partition
+  assert.equal(exercised(S({ managerKey: SPKI_B })), false);
+  assert.equal(exercised(S({ managerKey: SPKI_A })), true);
+});
+
+test("bf: --summary recomputes the key rule from the RAW record, so a JSONL written before it is re-scored", () => {
+  clock = Date.parse("2026-10-04T00:00:00Z");
+  // records as the running soak wrote them: derived.spkiEqualsManagerKey computed then; here a stale `true` is ignored
+  const recs = [S({ managerKey: SPKI_A }), S({ managerKey: SPKI_B }), S({ managerKey: SPKI_B }), S({ managerKey: SPKI_B }), S()];
+  for (const x of recs) x.derived = { spkiEqualsManagerKey: true };
+  const r = summarize(soakFile(recs), { leakScope: "out", leakEvidence: "x" });
+  assert.match(r.text, /uptime 40\.0% \(2\/5 verified 200 on the partition's key; 3 verified 200 on ANOTHER key, counted as failures; key known in 4\)/);
+  assert.match(r.text, /FAIL public .*key mismatch/);
+  assert.equal(r.json.public.keyMismatches, 3);
+  assert.equal(r.pass, false);
+  // the human line says so too
+  const s = S({ managerKey: SPKI_B });
+  assert.match(humanLine({ ...s, seq: 0, via: "x" }, step(newEval(), s)), /public\[x\] 200 ON ANOTHER KEY \(FAIL\)/);
 });
 
 test("thresholds: an SPKI change FAILs unless the node log recorded a restart of the deployment", () => {
@@ -978,7 +1016,7 @@ test("summarize: uptime, latency percentiles, coverage with a gap, PASS/FAIL per
   const r = summarize(lines, { leakFloor: 0.8 });
   assert.equal(r.pass, true);
   assert.match(r.text, /12 samples/);
-  assert.match(r.text, /uptime 83\.3% \(10\/12 verified 200\)/);
+  assert.match(r.text, /uptime 83\.3% \(10\/12 verified 200 on the partition's key; key known in 0\)/);
   assert.match(r.text, /latency p50 500 ms, p95 1000 ms \(n=10\)/);
   assert.match(r.text, /coverage: 0h45m with no gap longer than 600 s; 1 longer gap\(s\) \(largest 1200 s/);
   assert.match(r.text, /balance6 46400 -> 43700 \(-2700 over 0\.8 h\)/);
@@ -1001,7 +1039,7 @@ test("summarize: the route is printed (via host / x), with the relay's WebSocket
   const xs = [S(), S({ ok: false }), S()].map((s) => ({ ...s, via: "x" }));
   xs[1].tls.wsStatus = 503;
   const r = summarize(soakFile(xs), { leakFloor: 0.5 });
-  assert.match(r.text, /^public \(via x\): uptime 66\.7% \(2\/3 verified 200\); .*; ws refusals 1$/m);
+  assert.match(r.text, /^public \(via x\): uptime 66\.7% \(2\/3 verified 200 on the partition's key; key known in 0\); .*; ws refusals 1$/m);
   assert.deepEqual(r.json.public.via, ["x"]);
   assert.match(summarize(soakFile([S(), S()])).text, /^public \(via host\): /m, "a record without `via` is host");
 });

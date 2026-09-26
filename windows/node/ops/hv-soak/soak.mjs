@@ -100,7 +100,7 @@ export const GET_SELECTOR = "0x8eaa6ac0";
 // before "DOM ", never before MON; a date-prefixed line that is not a DOM line is still foreign. Exactly bf's form.
 export const CONSOLE_OK = /^(\d{4}\/\d\d\/\d\d \d\d:\d\d:\d\d(\.\d+)? DOM |DOM|MON)|^\[ *[0-9]+\.[0-9]+\]/;
 export const THRESHOLDS = Object.freeze([
-  { id: "public", text: ">=3 consecutive public checks not 200 over verified TLS" },
+  { id: "public", text: ">=3 consecutive public checks not a verified 200 on the partition's own key" },
   { id: "spki", text: "the public leaf's SPKI changed with no restart of the deployment in the node log" },
   { id: "partition", text: "the deployment's partition not Running on 2 consecutive samples" },
   { id: "price", text: "the node's 'registry: card price now' (price tx) line count increased" },
@@ -738,8 +738,10 @@ export function step(ev, s) {
 
   // public
   const t = s.tls || {};
-  const why = t.status != null && t.authorized ? `HTTP ${t.status}` : t.authorized === false ? `TLS ${t.authorizationError}` : trunc(t.error || "no answer", 80);
-  bump("public", t.ok !== true, 3, (n) => `${n} consecutive public checks not 200 (last: ${why})`, (n) => `public check not OK (${why}); ${n} in a row`);
+  const km = keyMatch(s);
+  const why = t.ok === true && km === false ? `key mismatch: the verified leaf's SPKI ${String(t.cert?.spkiSha256).slice(0, 12)}… is not the partition's transportKeySha256`
+    : t.status != null && t.authorized ? `HTTP ${t.status}` : t.authorized === false ? `TLS ${t.authorizationError}` : trunc(t.error || "no answer", 80);
+  bump("public", !publicOk(s), 3, (n) => `${n} consecutive public checks not 200 (last: ${why})`, (n) => `public check not OK (${why}); ${n} in a row`);
 
   // SPKI: baseline at the first presented leaf; a change needs a restart of the deployment in the node log
   let node = s.box?.logs?.node;
@@ -831,9 +833,24 @@ export function step(ev, s) {
  * LEAK_FLOOR.
  */
 export const LEAK_FLOOR = 0.9;
-export const exercised = (s) => s.box?.partition?.running === true && s.tls?.ok === true && s.tls?.trigger === "console"
+export const exercised = (s) => s.box?.partition?.running === true && publicOk(s) && s.tls?.trigger === "console"
   && s.tls?.printedEvidence === true && s.box?.console?.connected === true
   && s.box?.logs?.node?.ok === true && s.box?.logs?.manager?.ok === true;
+/**
+ * Does the public leaf carry the PARTITION's key? Recomputed from the RAW record (the leaf's SPKI and the manager's
+ * transportKeySha256 for the deployment, both stored in every sample), never from the stored `derived` field, so a
+ * --summary re-run applies this rule to a JSONL written before it. true | false | null (either side unknown).
+ */
+export function keyMatch(s) {
+  const leaf = s?.tls?.cert?.spkiSha256, key = s?.box?.vms?.mine?.transportKeySha256;
+  return typeof leaf === "string" && typeof key === "string" && leaf && key ? leaf.toLowerCase() === key.toLowerCase() : null;
+}
+/**
+ * A PUBLIC check passes only as a verified 200 whose leaf is the partition's own key (enclave-bf): a verified 200 from
+ * any other key - something in front of the partition holding its own certificate - is a public FAILURE for that
+ * sample. An unknown key (no manager record this sample) is not a failure.
+ */
+export const publicOk = (s) => s?.tls?.ok === true && keyMatch(s) !== false;
 /** The HEAD probe counts only when it was fired by a READY with the console connected, verified, and answered. */
 export const headSentInWindow = (trigger, head) => trigger === "console" && head?.authorized === true && head?.status != null;
 
@@ -875,7 +892,8 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
   }
   const ev = newEval();
   for (const s of samples) step(ev, s);
-  const ok = samples.filter((s) => s.tls?.ok === true);
+  const ok = samples.filter(publicOk);
+  const mismatches = samples.filter((s) => s.tls?.ok === true && keyMatch(s) === false).length;
   const lat = ok.map((s) => s.tls.latencyMs).filter(Number.isFinite).sort((a, b) => a - b);
   const known = samples.filter((s) => typeof s.box?.partition?.running === "boolean");
   const chain = samples.filter((s) => s.chain?.ok);
@@ -889,7 +907,8 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
   out.push(`coverage: ${dur(best)} with no gap longer than ${2 * iv / 1000} s; ${gaps.length} longer gap(s)`
            + (gaps.length ? ` (largest ${Math.round(Math.max(...gaps.map((g) => g.ms)) / 1000)} s, first after ${gaps[0].at})` : ""));
   const vias = [...new Set(samples.map((s) => s.via || "host"))];
-  out.push(`public (via ${vias.join("+")}): uptime ${(100 * ok.length / samples.length).toFixed(1)}% (${ok.length}/${samples.length} verified 200); `
+  out.push(`public (via ${vias.join("+")}): uptime ${(100 * ok.length / samples.length).toFixed(1)}% (${ok.length}/${samples.length} verified 200 on the partition's key`
+           + `${mismatches ? `; ${mismatches} verified 200 on ANOTHER key, counted as failures` : ""}; key known in ${samples.filter((s) => keyMatch(s) !== null).length}); `
            + `latency p50 ${pct(lat, 50) ?? "-"} ms, p95 ${pct(lat, 95) ?? "-"} ms (n=${lat.length})`
            + (vias.includes("x") ? `; ws refusals ${samples.filter((s) => s.tls?.wsStatus != null).length}` : ""));
   out.push(`partition: Running in ${known.filter((s) => s.box.partition.running).length}/${known.length} samples with a known state; `
@@ -961,7 +980,7 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
     samples: samples.length, from: samples[0].t, to: samples[samples.length - 1].t, intervalSec: iv / 1000,
     deployment: head?.deployment || samples[0].deployment || null,
     coverage: { gapFreeMs: best, longerGaps: gaps.length, largestGapMs: gaps.length ? Math.max(...gaps.map((g) => g.ms)) : 0 },
-    public: { via: vias, verified200: ok.length, uptimePct: Number((100 * ok.length / samples.length).toFixed(1)), p50Ms: pct(lat, 50), p95Ms: pct(lat, 95) },
+    public: { via: vias, verified200: ok.length, keyMismatches: mismatches, uptimePct: Number((100 * ok.length / samples.length).toFixed(1)), p50Ms: pct(lat, 50), p95Ms: pct(lat, 95) },
     partition: { running: known.filter((s) => s.box.partition.running).length, known: known.length },
     leak: { exercised: ex, floor: leakFloor, printed, echoed, guardNotCovered: HV_GUARD_NOT_COVERED },
     chain: chainJson, thresholds: thJson,
@@ -1004,15 +1023,15 @@ async function takeSample(cfg, st) {
               head: head ? { method: "HEAD", via: cfg.via, trigger: p.trigger, ...head, sentInWindow: headSentInWindow(p.trigger, head) }
                          : { method: "HEAD", skipped: "--leak-probe is off", sentInWindow: false },
               relay: await relayP, chain: await chainP, box };
-  const mk = box.vms?.mine?.transportKeySha256;
-  s.derived = { spkiEqualsManagerKey: get.cert?.spkiSha256 && mk ? get.cert.spkiSha256 === mk : null };
+  s.derived = { spkiEqualsManagerKey: keyMatch(s) };   // informational; the verdicts recompute it from the raw fields
   s.derived.leakExercised = exercised(s);           // informational; --summary recomputes it from the observations
   return s;
 }
 
 export function humanLine(s, v) {
   const t = s.tls, b = s.box || {}, r = s.relay || {}, n = b.logs?.node, m = b.logs?.manager, c = b.console;
-  const pub = t.ok ? `200 ${t.latencyMs}ms${t.printedEvidence ? " printed" : t.bodyHasToken ? " token-no-print" : " no-token"}` : t.status != null && t.authorized ? `HTTP ${t.status}` : t.authorized === false ? `TLS ${t.authorizationError}` : `ERR ${trunc(t.error, 60)}`;
+  const pub = t.ok && keyMatch(s) === false ? `200 ON ANOTHER KEY (FAIL) ${t.latencyMs}ms`
+    : t.ok ? `200 ${t.latencyMs}ms${t.printedEvidence ? " printed" : t.bodyHasToken ? " token-no-print" : " no-token"}` : t.status != null && t.authorized ? `HTTP ${t.status}` : t.authorized === false ? `TLS ${t.authorizationError}` : `ERR ${trunc(t.error, 60)}`;
   const parts = [
     `${s.t.slice(0, 19)}Z #${s.seq}`,
     `public[${s.via || "host"}] ${pub}${t.wsStatus != null ? ` ws ${t.wsStatus}` : ""}${t.cert?.spkiSha256 ? ` spki ${t.cert.spkiSha256.slice(0, 12)}` : ""}${s.derived?.spkiEqualsManagerKey === true ? "=vm" : s.derived?.spkiEqualsManagerKey === false ? "!=vm" : ""}`,
