@@ -1,0 +1,11 @@
+01:23:38Z source: windows/m4-cert-name ce1230425 (git archive windows/vbslike/host), crate C:\Users\claude\d1-v42-launcher-alt\src\windows\vbslike\host
+01:23:38Z toolchain: rustc 1.100.0-nightly (bba531001 2026-09-20) | binary: rustc | commit-hash: bba531001d4de6d7f49693e0836a2668ca063282 | commit-date: 2026-09-20 | host: x86_64-pc-windows-msvc | release: 1.100.0-nightly | LLVM version: 23.1.1
+01:23:38Z cargo: cargo 1.100.0-nightly (495c385d0 2026-09-16)
+01:23:38Z Cargo.lock sha256 5c0ee1b7f9d70d1b9d6973dea54e8d8f9b9563117d1a8f97a8172ce29c96ad3b
+01:23:38Z RUSTFLAGS: --remap-path-prefix=C:\Users\claude\d1-v42-launcher-alt\src\windows\vbslike\host=/vbslike-host --remap-path-prefix=C:\Users\claude\.cargo\registry\src=/cargo-registry -C link-arg=/Brepro -C link-arg=/PDBALTPATH:%_PDB%
+01:23:46Z build 1: vbslike-host.exe sha256 10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba, 1136128 bytes
+01:23:55Z build 2: vbslike-host.exe sha256 10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba, 1136128 bytes
+01:23:57Z IDENTICAL: the two clean builds are byte-for-byte equal
+01:23:58Z embedded .pdb reference: vbslike_host.pdb
+01:23:58Z absolute build path present in exe: False; registry path present: False
+01:23:59Z cargo test cert_name rc=0: running 1 test test wmiserve::hold_tests::a_cert_name_is_exactly_8_lowercase_hex_in_the_app_zone ... ok test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
