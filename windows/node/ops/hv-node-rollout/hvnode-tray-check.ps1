@@ -17,7 +17,10 @@ param(
   [Parameter(Mandatory = $true)][ValidateSet('pre', 'post')][string]$Phase,
   [Parameter(Mandatory = $true)][string]$OutDir,
   [string]$TrayUser = 'NUCBOX_K11\srbat',
-  [string]$Root = 'C:\Users\claude\vbs-like\hvnode'
+  [string]$Root = 'C:\Users\claude\vbs-like\hvnode',
+  # pre: the caps file's sha256 as last read (REBOOT-GO-v42.md 3a); REQUIRED, so a mis-resolved caps path FAILS rather
+  # than reading as "no caps" (enclave-bf's S1)
+  [string]$ExpectCapsSha256 = ''
 )
 $ErrorActionPreference = 'Stop'
 $script:fails = 0
@@ -43,8 +46,9 @@ if ($hiveLoaded) {
 $runNode = Join-Path $Root 'run-node.cmd'
 $capsFile = Join-Path $Root 'state\hosting-caps.json'
 if (Test-Path -LiteralPath $runNode) {
-  $cl = @(Get-Content -LiteralPath $runNode | Where-Object { $_ -match '^\s*set\s+HOSTING_CAPS_FILE=(.+)$' })
-  if ($cl.Count) { $null = $cl[0] -match '^\s*set\s+HOSTING_CAPS_FILE=(.+)$'; $capsFile = $matches[1].Trim() }
+  $re = '^\s*set\s+"?HOSTING_CAPS_FILE=([^"]+)"?\s*$'
+  $cl = @(Get-Content -LiteralPath $runNode | Where-Object { $_ -match $re })
+  if ($cl.Count) { $null = $cl[0] -match $re; $capsFile = $matches[1].Trim() }
 }
 $caps = $null
 if (Test-Path -LiteralPath $capsFile) { $c = Get-Content -Raw -LiteralPath $capsFile | ConvertFrom-Json; $caps = @{ cpuShare = $c.cpuShare; gpuShare = $c.gpuShare; updatedAt = [string]$c.updatedAt } }
@@ -62,8 +66,14 @@ if (Test-Path -LiteralPath $token) {
 $sessions = @()
 # a native command's stderr must not trip Stop (PowerShell 5.1): query.exe writes "No User exists" there, exit 1
 $e = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-try { $q = @(& query.exe user 2>$null) } finally { $ErrorActionPreference = $e }
+try { $q = @(& query.exe user 2>$null); $qExit = $LASTEXITCODE } finally { $ErrorActionPreference = $e }
 foreach ($l in $q) { if ($l -match '^\s*>?(\S+)\s+(\S*)\s+(\d+)\s+(Active|Disc)\b') { if ($matches[1] -ieq $user) { $sessions += [int]$matches[3] } } }
+# a second source that parses nothing: an explorer.exe owned by the user means an interactive session exists
+$explorerSessions = @()
+foreach ($x in @(Get-CimInstance Win32_Process -Filter "Name = 'explorer.exe'")) {
+  $xo = Invoke-CimMethod -InputObject $x -MethodName GetOwner
+  if ("$($xo.Domain)\$($xo.User)" -ieq $TrayUser) { $explorerSessions += [int]$x.SessionId }
+}
 $procs = @()
 foreach ($p in @(Get-CimInstance Win32_Process -Filter "Name = 'EnclaveTray.exe'")) {
   $o = Invoke-CimMethod -InputObject $p -MethodName GetOwner
@@ -78,7 +88,7 @@ $now = @{
   tokenPresent = [bool](Test-Path -LiteralPath $token); tokenGrantsTrayUserRead = $tokenGrant
   tokenWrittenUtc = $(if (Test-Path -LiteralPath $token) { (Get-Item -LiteralPath $token).LastWriteTimeUtc.ToString('o') } else { $null })
   lastBootUtc = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToUniversalTime().ToString('o')
-  sessions = $sessions; trayProcesses = $procs
+  sessions = $sessions; queryExit = $qExit; explorerSessions = $explorerSessions; trayProcesses = $procs
   autoAdminLogon = [string](Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -ErrorAction SilentlyContinue).AutoAdminLogon
 }
 $json = $now | ConvertTo-Json -Depth 5
@@ -86,8 +96,17 @@ if ($OutDir -eq '-') { $json } else { New-Item -ItemType Directory -Force -Path 
 
 $wantRun = '"' + $exe + '"'
 $mine = @($procs | Where-Object { $_.owner -ieq $TrayUser -and $_.path -ieq $exe -and ($sessions -contains $_.session) })
+# THE SESSION PARSE MUST BE TRUSTWORTHY before "no session" can be INFO (enclave-bf's S2): query.exe exits 0 or 1 (over
+# ssh it exits 1 even while it lists sessions: measured 2026-09-26 07:4xZ, so the exit code says nothing about "none"),
+# and neither a tray nor an explorer owned by the user may run in a session the parse did not find
+Check (($qExit -eq 0) -or ($qExit -eq 1)) "query.exe user exited $qExit (0 or 1; anything else FAILS)"
+$ownTray = @($procs | Where-Object { $_.owner -ieq $TrayUser })
+$unparsed = @(@($ownTray | ForEach-Object { $_.session }) + $explorerSessions | Where-Object { $sessions -notcontains $_ } | Sort-Object -Unique)
+Check ($unparsed.Count -eq 0) "every session where $TrayUser runs EnclaveTray or explorer was parsed from query.exe (unparsed: $($unparsed -join ',')$(if (-not $unparsed.Count) { 'none' }))"
 if ($Phase -eq 'pre') {
   Check ([bool]$now.exeSha256) "tray exe present: $exe sha256 $($now.exeSha256)"
+  if (-not $ExpectCapsSha256) { Say 'FAIL' 'pass -ExpectCapsSha256 <the caps file sha256 as last read>: the caps must be FOUND, not assumed absent' }
+  else { Check ($now.capsSha256 -eq $ExpectCapsSha256.ToLower()) "the caps file is found at ${capsFile} with the expected sha256 $ExpectCapsSha256 (read $($now.capsSha256))" }
   if ($hiveLoaded) { Check ($runValue -eq $wantRun) "HKCU Run EnclaveHostingTray = $runValue (the installed exe)" }
   else { Say 'INFO' "$user's hive is not loaded ($user not signed in): the Run value is not read (never loaded by this check)" }
   if ($caps) { Say 'INFO' "caps ${capsFile} sha256 $($now.capsSha256): cpuShare $($caps.cpuShare), gpuShare $($caps.gpuShare) (updatedAt $($caps.updatedAt))" }
