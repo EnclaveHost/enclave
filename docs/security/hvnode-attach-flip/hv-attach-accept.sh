@@ -56,22 +56,26 @@ say "canaries 200 with the same keys; metal-iso0 serving and eligible: $([ $allo
 # if one is attached, host-attach-only, and zero rows said, never passed silently. us-west is a TUNNEL row and drops on the
 # api relay's restart, so the after-snapshot is POLLED until it matches or 180 s pass (not one read and a needless rollback).
 cat > "$OUT/compare-$MODE.py" <<'PY'
+# explicit checks that EXIT non-zero (never `assert`, which python -O / PYTHONOPTIMIZE turns off; enclave-bf, required by 87)
 import json, sys
+def fail(why):
+    print(f"MISMATCH: {why}"); sys.exit(1)
 o, m = sys.argv[1], sys.argv[2]
 ld = lambda n: json.load(open(f"{o}/{n}-{m}.json"))
 key = lambda r: (r.get("name"), r.get("address"), r.get("address6"), json.dumps(r.get("services"), sort_keys=True))
 rb, ra = ld("relays-before"), ld("relays-after")
 lb, la = rb.get("labels"), ra.get("labels")
-assert isinstance(lb, dict) and lb, "the BEFORE snapshot has no labels map"
-assert isinstance(la, dict) and la, "the AFTER snapshot has no labels map (a 503 body?)"
-assert sorted(map(key, rb["relays"])) == sorted(map(key, ra["relays"])), ("relays changed", rb["relays"], ra["relays"])
+if not (isinstance(lb, dict) and lb): fail("the BEFORE snapshot has no labels map")
+if not (isinstance(la, dict) and la): fail("the AFTER snapshot has no labels map (a 503 body?)")
+if sorted(map(key, rb.get("relays") or [])) != sorted(map(key, ra.get("relays") or [])): fail(f"relays changed: {rb.get('relays')} -> {ra.get('relays')}")
 moved = [k for k, v in lb.items() if (la.get(k) or {}).get("relay") != (v or {}).get("relay")]
-assert not moved, ("labels moved relay", moved[:10])
-vb, va = ld("availability-before")["volumes"], ld("availability-after")["volumes"]
-assert json.dumps(vb, sort_keys=True) == json.dumps(va, sort_keys=True), ("volumes changed", vb, va)
-rows = [e for e in ld("enclaves")["enclaves"] if str(e.get("mode", "")).lower() == "hv-node"]
+if moved: fail(f"labels moved relay: {moved[:10]}")
+vb, va = ld("availability-before").get("volumes"), ld("availability-after").get("volumes")
+if not (isinstance(vb, list) and isinstance(va, list)): fail("a volumes list is missing")
+if json.dumps(vb, sort_keys=True) != json.dumps(va, sort_keys=True): fail(f"volumes changed: {vb} -> {va}")
+rows = [e for e in (ld("enclaves").get("enclaves") or []) if str(e.get("mode", "")).lower() == "hv-node"]
 for e in rows:
-    assert e.get("eligible") is not True and e.get("serving") is not True and e.get("attach") == "attestation", e
+    if e.get("eligible") is True or e.get("serving") is True or e.get("attach") != "attestation": fail(f"an hv-node row is not host-attach-only: {e.get('name')}")
 print(f"relays unchanged ({len(ra['relays'])}); labels kept ({len(lb)} before, {len(la)} after); volumes unchanged ({len(va)})")
 print(f"hv-node rows: {len(rows)}" + (" (each NOT eligible, NOT serving, attach attestation)" if rows else " - NOT EXERCISED: no NucBox node is attached (the attach itself is proven by the relay's own tests)"))
 PY
@@ -79,7 +83,7 @@ end=$(( $(date +%s) + 180 )); cmp_ok=0; why=""
 while :; do
   if curl -sSf -m 20 "$API/v1/relays" > "$OUT/relays-after-$MODE.json" && curl -sSf -m 20 "$API/availability" > "$OUT/availability-after-$MODE.json" \
      && curl -sSf -m 20 "$API/enclaves" > "$OUT/enclaves-$MODE.json"; then
-    why=$(python3 "$OUT/compare-$MODE.py" "$OUT" "$MODE" 2>&1) && { cmp_ok=1; break; }
+    why=$(env -u PYTHONOPTIMIZE python3 "$OUT/compare-$MODE.py" "$OUT" "$MODE" 2>&1) && { cmp_ok=1; break; }
   else why="a snapshot endpoint did not answer 200"; fi
   [ "$(date +%s)" -ge $end ] && break
   sleep 10
