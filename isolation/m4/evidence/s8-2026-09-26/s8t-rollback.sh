@@ -11,6 +11,8 @@
 # AFTER any canary is accepted on 5db18199 (e7), its key differs from e6's, so the gate REFUSES (exit 30): run it then with
 # OVERRIDE=<reason> (enclave-87), and only with every relaunched canary accounted for; the post-checks below are on the
 # e6 keys, so they then report CHECK FAILED for the relaunched canary by construction: check that one by hand.
+# AFTER e3's rs-10 IS ACCEPTED (f7888d86 retired on the relay): NEVER run this alone. Roll back rs-10 FIRST (re-admit
+# f7888d86), then this; otherwise fix forward on 5db18199 (enclave-87; README.txt, ROLLBACK ORDER AFTER rs-10).
 set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/e6-20260926/lib-e6.sh; source ~/enclave-bench/s8-20260926/lib8.sh
 # enclave-bf: lib8.sh is sourced LAST (lib-e6.sh sets REL/LOG4/say for e6), and REL and LOG4 are re-pinned and REL
 # asserted against the installed release, so no later source can clobber the release this switch is about
