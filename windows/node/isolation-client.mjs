@@ -214,6 +214,9 @@ export class IsolationManagerClient {
       // a domain a RESTARTED manager rebuilt from Hyper-V: alive, and never to serve under that manager
       // (its relay and readiness belonged to the old process). The lifecycle holds it; see reconcile.
       recovered: o.recovered === true,
+      // ...and the state its VM was surveyed in (Hyper-V's word: "Off", "Running", "Saved", ...), for a recovered one: an
+      // Off VM runs nothing, which is what lets the node replace it after a host restart (host.mjs, reboot recovery)
+      vmState: typeof o.vmState === "string" ? o.vmState : null,
       // a recovered VM that names no deployment: see findByName
       unattributed: o.unattributed === true,
       reason: o.reason ?? null,
