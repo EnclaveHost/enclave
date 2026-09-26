@@ -82,9 +82,12 @@ On this tier the front is started WITHOUT `-init-fd` (domexec.c: the serve and r
   - the monitor's answer (the domain record) carries `"probe": true`;
   - the console shows `DOM<n> started adversary probe=<pid> (no app, no front)`, then
     `DOM<n> probe workload_uid=… sys=… configfs=… domains_dir=… own_app=… visible_pids=…` and
-    `DOM<n> report_as_root=…`.
+    `DOM<n> report_as_root=…` (which a normal domain prints too; see below).
 - Expected for a NORMAL load: the answer has NO `probe` key (`omitempty`), and the console shows
   `DOM<n> started runtime=… front=…`.
+- The DISTINGUISHING line is `DOM<n> started runtime=… front=…` versus `DOM<n> started adversary probe=…`. domexec prints
+  `DOM<n> report_as_root=…` and a `DOM<n> probe workload_uid=…` line for a NORMAL domain too (its own confinement self-check,
+  run before either workload: enclave-d1's canary console of 252602c8), so those two lines do not tell the workloads apart.
 
 ## 5. A front runtime throw ends the front (it does not hang on the console)
 COVERED WITHOUT A BOX RUN (enclave-87's decision). The production front has no trigger: no debug route, no flag that
