@@ -2,7 +2,7 @@
 
 For enclave-d1's isolated lab manager on nucbox-k11 (own instance prefix and ports, `uefi-probe.lock` held, the candidate as
 an explicit override). Everything here is SYNTHETIC: no tenant data, no production deployment. Nothing is improvised on the
-box. Anything that needs a build this kit does not ship is marked PENDING, and nothing runs in its place.
+box. Both sentinel bundles are staged, with their sources and hashes.
 
 Tools in this directory:
 - `console-read.ps1 -VmName enclave-app-<instance> -Seconds <n> -OutFile <file>`: READ-ONLY capture of the partition's
@@ -45,15 +45,28 @@ The sentinel app, staged on the workstation (copy it to the box's lab directory)
 PASS = step 3 empty, AND every marker in 4 present.
 
 ## 2. The console guard: an upstream that answers HEAD with a body, or sends bytes after Content-Length
-PENDING: a sentinel VARIANT that keeps the connection alive and sends extra bytes (`/extra-<tag>`: `Content-Length: 2`,
-body `ok<tag>-EXTRA`; `HEAD /head-<tag>`: a body `<tag>-HEADBODY`). The staged sentinel closes every connection, so Go's
-transport never logs an unsolicited response for it. I build the variant (cargo wasm32-wasip2 + the contract's bundle
-tool) as soon as enclave-63 lifts the warden-host quiet window, and send its path, tag and sha256. It is not faked with
-the current bundle.
-Expected with the variant:
-- the console shows `DOM front: unsolicited upstream response (N bytes withheld)` (one class line per event);
-- it NEVER shows `<tag>-EXTRA` or `<tag>-HEADBODY`, nor a raw `Unsolicited response received on idle HTTP channel`
-  line. The same grep as item 1 on the new tag must be empty.
+The keep-alive sentinel, staged on the workstation:
+- `~/enclave-bench/canary-v41/sentinel-keepalive-SNTLkaea192ee7f6.bundle`, sha256 / AppID
+  `9a79c076f1d0c9660131d55eecc1d86dc98bb476e5c4050fcb0e45c76462b0c5`, 195261 bytes, bundle/2 (wasi:cli, run mode,
+  HTTP 8000, mem 128), tag `SNTLkaea192ee7f6`.
+- Source: `canary/sentinel-keepalive/` (this directory). Built with `SENTINEL_TAG=SNTLkaea192ee7f6 cargo build --release
+  --target wasm32-wasip2` (wasm sha256 139ad2c9…), and bundled with the guest's own contract tool at 4cdd5169:
+  `go run ./cmd/bundle build -label sentinel-keepalive -world wasi:cli -http 8000 -mem 128`.
+- It is the sentinel, plus two answers WITHOUT Connection: close:
+  - `GET /extra…`: Content-Length 2, body `ok`, followed by `<tag>-EXTRA <path>`;
+  - `HEAD /head…`: a body `<tag>-HEADBODY <path>`.
+- Proven on the workstation (wasmtime 48.0.1 + Go's net/http client, which is what the front's reverse proxy uses
+  upstream): Go logs `Unsolicited response received on idle HTTP channel starting with "SNTLkaea192ee7f6-EXTRA
+  /extra-probe"` and `... "SNTLkaea192ee7f6-HEADBODY /head-probe"`. That is the leak the guard exists for; unguarded,
+  those lines would go to the console.
+Run:
+1. Load it like item 1 (label `canary-keepalive`), with `console-read.ps1` started after the launcher step.
+2. `curl.exe -sk https://127.0.0.1:<relay>/extra-SNTLkaea192ee7f6-1`, then `curl.exe -sk -I
+   https://127.0.0.1:<relay>/head-SNTLkaea192ee7f6-2` (each answers 200), then a plain `/req-SNTLkaea192ee7f6-3`.
+3. Expected on the console: `DOM front: unsolicited upstream response (N bytes withheld)`, once per event (two).
+4. The grep of item 1 for `SNTLkaea192ee7f6` over the console, the manager log and the wmiserve output must be EMPTY.
+   That also covers `-EXTRA`, `-HEADBODY`, and the app's own REQ/START lines.
+PASS = both class lines present, and the tag nowhere.
 
 ## 3. The release client is inert on hv
 On this tier the front is started WITHOUT `-init-fd` (domexec.c: the serve and run argv), so the release step
@@ -74,14 +87,12 @@ On this tier the front is started WITHOUT `-init-fd` (domexec.c: the serve and r
   `DOM<n> started runtime=… front=…`.
 
 ## 5. A front runtime throw ends the front (it does not hang on the console)
-There is NO trigger in the production front: it has no debug route and no flag that throws. What exists:
-- 4cdd5169's `TestARuntimeThrowUnderTheGuardStillExits` (isolation/m2/front/console_test.go): fd 2 is non-blocking under
-  the guard, so a Go runtime throw exits.
-- On the box, the observable would be `DOM<n> ERROR front exited status=…`, then `DOM<n> end` and
-  `MON domain <n> ended: …`, with the throw's text withheld (one class line).
-Proving it on the box needs a DEBUG front (a build tag adding a throw route). That is a different initrd, so a
-different IGVM measurement: a lab-only image, never the 252602c8 candidate. Recommendation: do not run item 5 on the
-candidate. If enclave-87 wants box evidence, I build the lab variant separately.
+COVERED WITHOUT A BOX RUN (enclave-87's decision). The production front has no trigger: no debug route, no flag that
+throws. A debug front would be a different initrd, so a different IGVM measurement: not a release candidate. The
+evidence is 4cdd5169's bounded-exit regression test `TestARuntimeThrowUnderTheGuardStillExits`
+(isolation/m2/front/console_test.go): fd 2 is non-blocking under the guard, so a Go runtime throw exits instead of
+hanging. enclave-bf reproduced it: removing `SetNonblock` fails that test. If a front ever exits on the box, the
+observable is `DOM<n> ERROR front exited status=…`, then `DOM<n> end` and `MON domain <n> ended: …`.
 
 ## 6. The cert name (v42 set: exe 10547aca, manager at windows/m4-cert-name, monitor 4cdd5169)
 Load with `--cert-name <id8>.app.enclave.host` (a real-looking id8 is fine in the lab; it is never issued).
