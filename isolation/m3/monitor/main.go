@@ -87,8 +87,13 @@ type domain struct {
 	AppSha string `json:"appSha256"`
 	Port   uint32 `json:"port"`
 	UID    int    `json:"uid"`
-	CPU    int    `json:"cpuPercent"`
-	MemMiB int    `json:"memMiB"`
+	// FrontUID is the uid the domain's FRONT runs as, never the runtime's (UID): the front is the trusted component in a
+	// domain and the runtime is not (enclave-87's ruling on enclave-bf's finding: a runtime sharing the front's uid could
+	// obtain reports for keys of its choosing and replace the front's listen socket). Reports are answered for this uid
+	// only (byUID), and the domain's /run is this uid's alone.
+	FrontUID int `json:"frontUid"`
+	CPU      int `json:"cpuPercent"`
+	MemMiB   int `json:"memMiB"`
 	// How the app runs, from the bundle the monitor hashed (never from the request): "serve" = the runtime serves a
 	// wasi:http component; "run" = a wasi:cli command binds HTTP (enclave-catalog-bundle/2).
 	Mode string `json:"mode"`
@@ -154,7 +159,7 @@ type reporter func(rd []byte) (report, certs []byte, err error)
 type monitor struct {
 	mu      sync.Mutex
 	doms    map[int]*domain
-	byUID   map[int]*domain
+	byUID   map[int]*domain // by the FRONT's uid: the only caller a report is ever made for
 	next    int
 	snp     bool
 	plat    string
@@ -214,7 +219,7 @@ func main() {
 
 	rl, err := net.Listen("unix", *sock)
 	must(err)
-	must(os.Chmod(*sock, 0o666)) // every domain uid may ask; who is asking comes from the kernel, not the request
+	must(os.Chmod(*sock, 0o666)) // every domain FRONT may ask (it is bind-mounted into /run, which only the front can enter); who is asking comes from the kernel, not the request
 	go m.serveReports(rl)
 
 	cl, err := vsock.Listen(uint32(*control))
@@ -454,15 +459,20 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	if manifest != nil && manifest.World == contract.WorldCLI {
 		mode, httpPort = "run", manifest.HTTP
 	}
+	// the front's uid comes from a range of its own, far above the runtimes' (UID = base + id), so no runtime uid is ever
+	// a front's
+	if id >= frontUIDOffset {
+		return nil, fmt.Errorf("domain id %d would give its runtime a uid in the fronts' range", id)
+	}
 	d := &domain{ID: id, Boot: m.boot, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
-		Port: m.basePrt + uint32(id), UID: m.baseUID + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
+		Port: m.basePrt + uint32(id), UID: m.baseUID + id, FrontUID: m.baseUID + frontUIDOffset + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
 		Probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
 	if err := m.start(d, artifact); err != nil {
 		return nil, err // start() has already released whatever it managed to take
 	}
-	fmt.Printf("MON domain %d loaded label=%s app_sha256=%s port=%d uid=%d cpu=%d%% mem=%dMiB mode=%s http=%d\n",
-		d.ID, d.Label, d.AppSha, d.Port, d.UID, d.CPU, d.MemMiB, d.Mode, d.HTTP)
+	fmt.Printf("MON domain %d loaded label=%s app_sha256=%s port=%d uid=%d front_uid=%d cpu=%d%% mem=%dMiB mode=%s http=%d\n",
+		d.ID, d.Label, d.AppSha, d.Port, d.UID, d.FrontUID, d.CPU, d.MemMiB, d.Mode, d.HTTP)
 	return d, nil
 }
 
@@ -511,8 +521,13 @@ func (m *monitor) start(d *domain, app []byte) error {
 	if err := syscall.Mount("/run/monitor.sock", sockAt, "", syscall.MS_BIND, ""); err != nil {
 		return fail(fmt.Errorf("bind report socket: %w", err))
 	}
-	// the front creates its own socket in /run, so that directory belongs to the domain
-	if err := os.Chown(filepath.Join(d.dir, "run"), d.UID, d.UID); err != nil {
+	// /run is the FRONT's alone (0700, its uid): it creates its listen socket there and reaches the report socket bind-mounted
+	// there, and the runtime (another uid) can do neither - not replace the front's socket, not ask for a report
+	runAt := filepath.Join(d.dir, "run")
+	if err := os.Chown(runAt, d.FrontUID, d.FrontUID); err != nil {
+		return fail(err)
+	}
+	if err := os.Chmod(runAt, 0o700); err != nil {
 		return fail(err)
 	}
 	if err := m.cgroup(d); err != nil {
@@ -543,7 +558,7 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 
 	mode := "app"
-	args := []string{strconv.Itoa(d.ID), strconv.Itoa(d.UID), mode, strconv.Itoa(d.MemMiB)}
+	args := []string{strconv.Itoa(d.ID), fmt.Sprintf("%d:%d", d.UID, d.FrontUID), mode, strconv.Itoa(d.MemMiB)} // domexec: <runtime uid>:<front uid>
 	switch {
 	case d.Probe:
 		args[2] = "probe"
@@ -640,7 +655,7 @@ func exitReason(err error) string {
 func (m *monitor) register(d *domain) {
 	m.mu.Lock()
 	m.doms[d.ID] = d
-	m.byUID[d.UID] = d
+	m.byUID[d.FrontUID] = d
 	m.mu.Unlock()
 }
 
@@ -653,8 +668,8 @@ func (m *monitor) deregister(d *domain) bool {
 	if m.doms[d.ID] == d {
 		delete(m.doms, d.ID)
 	}
-	if m.byUID[d.UID] == d {
-		delete(m.byUID, d.UID)
+	if m.byUID[d.FrontUID] == d {
+		delete(m.byUID, d.FrontUID)
 	}
 	return listed
 }
@@ -974,10 +989,10 @@ func (m *monitor) oneReport(c net.Conn) (refused bool) {
 	d := m.byUID[uid]
 	m.mu.Unlock()
 	if d == nil {
-		// nothing else on this guest runs as a domain uid, so this is either a bug or an attempt to
-		// obtain a report without being a domain
-		fmt.Printf("MON refused report request from uid %d (not a domain)\n", uid)
-		enc.Encode(map[string]string{"error": "caller is not a domain"})
+		// only a domain's FRONT is answered: a runtime's uid, root, or anything else on this guest is either a bug or an
+		// attempt to obtain a report without being a domain's front
+		fmt.Printf("MON refused report request from uid %d (not a domain's front)\n", uid)
+		enc.Encode(map[string]string{"error": "caller is not a domain's front"})
 		return true
 	}
 
@@ -1384,6 +1399,10 @@ func holdSysctl(name, path string, want int, atLeast bool, refused string, write
 	}
 	return fmt.Sprintf("%s=%d -> %d", name, was, now), true
 }
+
+// frontUIDOffset separates the fronts' uids from the runtimes': domain N's runtime is base-uid + N, its front
+// base-uid + frontUIDOffset + N.
+const frontUIDOffset = 1 << 20
 
 // yamaRefused ends every line on which the monitor refuses all domains for want of Yama.
 const yamaRefused = "domains refused (a same-uid runtime could attach to the front)"

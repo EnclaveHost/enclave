@@ -7,6 +7,8 @@
 #     unreachable: the values real guests show), never CONNECTED, never EPERM (only the filter gives that), never
 #     EAFNOSUPPORT (no vsock to measure);
 #   - `seccomp=2`: the probe installed the runtime's filter (m2/app-seccomp.h) on itself;
+#   - `report` and `filtered_report` read Permission denied: the runtime (the probe's uid) cannot reach the report socket in
+#     the front's /run (enclave-87's ruling on enclave-bf's finding);
 #   - the filtered vsock reaches fail WITH EPERM: the filter refusing, as it would for a compromised runtime.
 # The base vsock errors here are whatever this host's vsock gives (its loopback transport answers "Connection reset by
 # peer"); the relay and port confinement they stand for in a guest are the QEMU suite's (test-m3.sh check 10), which
@@ -19,7 +21,10 @@ set -e
 here=$(cd "$(dirname "$0")" && pwd)
 m2=$(cd "$here/../m2" && pwd)
 d=$(mktemp -d)
-trap 'rm -rf "$d"' EXIT
+trap 'reclaim; rm -rf "$d"' EXIT
+# /run ends up owned by the mapped front uid (0700), which the outer user cannot remove: a fresh user namespace with the
+# same --map-auto mapping gives it back to root first
+reclaim() { [ -d "$d/root/run" ] && unshare --map-root-user --map-auto sh -c "chown -R 0:0 '$d/root/run'; chmod -R u+rwx '$d/root/run'" 2>/dev/null; rm -rf "$d/root"; }
 chmod 0755 "$d"
 if ! command -v unshare >/dev/null 2>&1 || ! unshare --map-root-user --map-auto -U true 2>/dev/null; then
   echo "domprobe layers: SKIPPED, no unshare --map-auto here"; exit 0
@@ -27,14 +32,14 @@ fi
 K="vsock_local_domain1 vsock_local_domain2 vsock_own_control vsock_host_control"
 
 run_all() {  # <domprobe.c> <app-seccomp.h> -> 0 only if both layers are as specified
-  rm -rf "$d/b" "$d/root" && mkdir -p "$d/b/m3" "$d/b/m2" "$d/root/plat" "$d/root/run" "$d/root/tmp" "$d/root/proc"
+  reclaim; rm -rf "$d/b" && mkdir -p "$d/b/m3" "$d/b/m2" "$d/root/plat" "$d/root/run" "$d/root/tmp" "$d/root/proc"
   chmod 0755 "$d/root" "$d/root/plat"; chmod 1777 "$d/root/run"
   cp "$here/domexec.c" "$d/b/m3/domexec.c" && cp "$1" "$d/b/m3/domprobe.c" && cp "$2" "$d/b/m2/app-seccomp.h"
   gcc -static -O2 -o "$d/root/plat/domexec" "$d/b/m3/domexec.c" 2>/dev/null || { echo "FAIL domexec did not build"; return 1; }
   gcc -static -O2 -o "$d/root/plat/domprobe" "$d/b/m3/domprobe.c" 2>/dev/null || { echo "FAIL domprobe did not build"; return 1; }
   chmod 0755 "$d/root/plat/domexec" "$d/root/plat/domprobe"
   # the probe pauses after `done` (the harness ends a domain): the timeout ends it here; "0" MiB skips the memory step
-  timeout 20 unshare --map-root-user --map-auto -mpfn -- sh -c "exec chroot '$d/root' /plat/domexec 7 1000 probe 0 3<>/dev/null" \
+  timeout 20 unshare --map-root-user --map-auto -mpfn -- sh -c "chown 1001:1001 '$d/root/run' && chmod 0700 '$d/root/run' && exec chroot '$d/root' /plat/domexec 7 1000:1001 probe 0 3<>/dev/null" \
     > "$d/console.txt" 2>&1 || true
   c="$d/console.txt"; rc=0
   line() { sed -n "s/^PROBE[0-9]* $1=//p" "$c" | head -1; }
@@ -50,6 +55,11 @@ run_all() {  # <domprobe.c> <app-seccomp.h> -> 0 only if both layers are as spec
   done
   s=$(line seccomp)
   [ "$s" = 2 ] && echo "ok   seccomp=$s" || { echo "FAIL seccomp=${s:-missing} (want 2)"; rc=1; }
+  # the runtime (the probe, as its uid) is REFUSED a report, unfiltered and filtered: /run is the front's (enclave-87)
+  for w in report filtered_report; do
+    r=$(sed -n "s/^PROBE7 $w=//p" "$c" | head -1)
+    [ "$r" = "Permission denied" ] && echo "ok   $w=$r (the report channel is the front's)" || { echo "FAIL $w=${r:-missing} (want Permission denied: /run is the front's)"; rc=1; }
+  done
   return $rc
 }
 

@@ -2,8 +2,8 @@
  * checks from INSIDE the process what app-seccomp.h allows and refuses. Used by m2/test-dominit-hardening.sh and
  * m3/test-domexec-seccomp.sh. Its role is its argv[0]: a name containing "front" is the front (it must be UNFILTERED:
  * Seccomp 0); anything else is the runtime (filtered: Seccomp 2, every refusal as specified, every allowance working).
- * Writes "ok ..." / "BAD ..." lines and a final "done ok=N bad=M" to $PROBE_OUT/<role>.seccomp (its stdout may be the
- * null device). Built with glibc -static -pthread.
+ * Writes "ok ..." / "BAD ..." lines and a final "done ok=N bad=M" to $PROBE_OUT/<role>.seccomp, else /probe-out/ (its
+ * stdout may be the null device). Built with glibc -static -pthread.
  *
  * Each refusal is told apart from the kernel's own answer where the kernel would answer differently without the filter
  * (process_vm_readv on ITSELF succeeds; ptrace PEEKDATA on an untraced parent gives ESRCH; keyctl on its session
@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
     const int front = strstr(argv[0], "front") != NULL;
     const char *dir = getenv("PROBE_OUT");
     char path[600];
-    snprintf(path, sizeof path, "%s/%s.seccomp", dir ? dir : "/run", front ? "front" : "runtime");   /* domexec passes no environment: /run */
+    snprintf(path, sizeof path, "%s/%s.seccomp", dir ? dir : "/probe-out", front ? "front" : "runtime");   /* domexec passes no environment: the harness's /probe-out (/run is the front's alone) */
     out = fopen(path, "w");
     if (!out) return 3;
     int mode = status_field("Seccomp");
