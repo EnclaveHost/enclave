@@ -155,6 +155,8 @@ export function runBounded(cmd, args, { env, cwd, timeoutMs, input }) {
 //   repo, commit         the toolchain: a git repository holding the 40-hex `commit`
 //   releases             [{ id, dir }]: every installed domain release (the known answers' included)
 //   admit                [id]: the releases whose images a release admits (a subset of `releases`)
+//   certReleases         [id] (optional): the releases a guest CERTIFICATE may be judged against; default every installed
+//                        one. Must hold every admitted release; a KAT-only release left out stays measurable, not certifiable
 //   readCatalog          async (app, index) -> { app: { active }, version: { cid, memMb, ports, approval, yanked } }
 //   gateway              the trustless gateway the CAR is fetched from (availability only: every block is verified)
 //   sevSnpMeasure        the pinned sev-snp-measure executable (expected-measurement.sh runs ~/.local/bin/sev-snp-measure)
@@ -179,9 +181,12 @@ export function makePredictor(o) {
   const toolPath = (o.toolPath || []).filter(Boolean);
   const releases = new Map((o.releases || []).map((r) => [String(r.id).toLowerCase(), r.dir]));
   const admit = [...new Set((o.admit || []).map((s) => String(s).toLowerCase()))];
-  // the releases a guest CERTIFICATE may be judged against (GET /v1/expected-guest): every INSTALLED release (installing
-  // one is itself the reviewed act, enclave-d1: no second allowlist). The release itself uses only `admit`.
-  const certAdmit = [...releases.keys()];
+  // the releases a guest CERTIFICATE may be judged against (GET /v1/expected-guest): by default every INSTALLED release
+  // (installing one is itself the reviewed act, enclave-d1: no second allowlist); or, when `certReleases` names them, exactly
+  // those (enclave-87, 2026-09-26): so a release installed only for the known-answer test (the 09-24 canary images) stays
+  // measurable by the KAT without making its guests certifiable. The release itself uses only `admit`.
+  const certNamed = [...new Set((o.certReleases || []).map((s) => String(s).toLowerCase()))];
+  const certAdmit = certNamed.length ? certNamed : [...releases.keys()];
   const problems = [
     !HEX(40).test(String(commit || "")) && "the toolchain commit (40 hex)",
     !repo && "the toolchain repository", typeof readCatalog !== "function" && "the catalog reader",
@@ -190,6 +195,10 @@ export function makePredictor(o) {
     !admit.length && "at least one admitted release",
     ...[...(o.toolPath || []), ...(o.seedComponents || [])].filter((d) => d && !path.isAbsolute(d)).map((d) => `an absolute tool/seed directory (not ${d})`),
     ...admit.filter((id) => !HEX(64).test(id) || !releases.has(id)).map((id) => `admitted release ${id.slice(0, 12)} installed`),
+    // a named certificate set: every entry installed, and every ADMITTED release in it (a guest that gets its secrets must be
+    // able to get its certificate: a set that drops one is a misconfiguration, refused, not a silent outage)
+    ...certNamed.filter((id) => !HEX(64).test(id) || !releases.has(id)).map((id) => `certificate release ${id.slice(0, 12)} installed`),
+    ...(certNamed.length ? admit.filter((id) => !certNamed.includes(id)).map((id) => `admitted release ${id.slice(0, 12)} in the certificate set`) : []),
   ].filter(Boolean);
 
   const cache = new Map();          // key -> { at, value } (LRU by insertion order)
@@ -536,6 +545,9 @@ export function versionConfigReader(clients, catalogAddress) {
 //   SECRETS_RELEASE_PREDICT_COMMIT     the toolchain commit, 40 hex
 //   SECRETS_RELEASE_PREDICT_RELEASES   id=dir,id=dir: every installed domain release (the known answers' included)
 //   SECRETS_RELEASE_DOMAIN_RELEASES    id,id: the releases whose images a release admits
+//   SECRETS_RELEASE_CERT_RELEASES      id,id (optional): the releases a guest certificate may be judged against; unset = every
+//                                      installed release. Must include every admitted release. A release installed only for
+//                                      the known-answer test is left out, so its guests are not certifiable.
 //   SECRETS_RELEASE_PREDICT_GATEWAY    https trustless gateway
 //   SECRETS_RELEASE_SEV_SNP_MEASURE    the pinned sev-snp-measure executable
 //   SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256  its sevSnpMeasureDigest (node relay/measurement-predict.mjs digest <exe> prints it)
@@ -549,6 +561,7 @@ export function predictorEnv(env = process.env) {
     .filter((r) => HEX(64).test(r.id) && r.dir);
   return { repo: env.SECRETS_RELEASE_PREDICT_REPO || "", commit: String(env.SECRETS_RELEASE_PREDICT_COMMIT || "").toLowerCase(),
            releases, admit: String(env.SECRETS_RELEASE_DOMAIN_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
+           certReleases: String(env.SECRETS_RELEASE_CERT_RELEASES || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
            gateway: env.SECRETS_RELEASE_PREDICT_GATEWAY || "", sevSnpMeasure: env.SECRETS_RELEASE_SEV_SNP_MEASURE || "",
            sevSnpMeasureSha256: String(env.SECRETS_RELEASE_SEV_SNP_MEASURE_SHA256 || "").toLowerCase(),
            toolPath: String(env.SECRETS_RELEASE_PREDICT_PATH || "").split(":").filter(Boolean),
