@@ -394,7 +394,7 @@ func main() {
 	// A tree whose own judge predates per-release W^X builds guests that state the LEGACY self-test; unnamed, their
 	// records would say "none", and a later tree's judge would refuse them on adoption - the running guests dropped at
 	// a tree switch (enclave-bf's hazard). So such a tree must be named, and a mislabel is a start-up error, not that.
-	if why := needsRelease(*iso, s.TreeReleases); why != "" {
+	if why := needsRelease(*iso, *isoRelease); why != "" {
 		log.Fatalf("-isolation-release: %s", why)
 	}
 	log.Printf("per-release W^X: this tree's guests are named %v; the legacy tree's %v; unrecorded adoptions %v",
@@ -483,7 +483,7 @@ func main() {
 			legacy.m4 = filepath.Join(*legacyIso, "m4")
 			legacy.bootWait = 0
 			s.Legacy = &legacy
-			if why := needsRelease(*legacyIso, s.LegacyTreeReleases); why != "" {
+			if why := needsRelease(*legacyIso, *legacyIsoRelease); why != "" {
 				log.Fatalf("-legacy-isolation-release: %s", why)
 			}
 			log.Printf("non-release deployment guests are built from %s", *legacyIso)
@@ -609,15 +609,31 @@ func parseReleaseIDs(v string) ([]string, error) {
 	return out, nil
 }
 
-// needsRelease: why a tree must be named with its release before guestd uses it, or "". A tree whose own judge has no
-// LEGACY_WX_RELEASES table predates per-release W^X: its guests state the legacy runtime self-test.
-func needsRelease(isoDir string, named []string) string {
+// needsRelease: why guestd must not use a tree as named (flag: the raw -isolation-release value), or "". A tree whose
+// own judge has no LEGACY_WX_RELEASES table predates per-release W^X: its guests state the legacy runtime self-test,
+// and its OWN judge ignores --release, so a wrong name is not caught at launch - it is recorded, and a later tree's
+// judge refuses the guest on adoption. So such a tree must be named, and by @<release.json> only: the id DERIVED from
+// the release it was installed from, never typed (enclave-bf's residual on 89a76686).
+func needsRelease(isoDir, flag string) string {
 	b, err := os.ReadFile(filepath.Join(isoDir, "m2", "judge.mjs"))
 	if err != nil {
 		return fmt.Sprintf("cannot read the tree's judge: %v", err)
 	}
-	if len(named) == 0 && !bytes.Contains(b, []byte("LEGACY_WX_RELEASES")) {
-		return fmt.Sprintf("%s predates per-release W^X (its judge has no LEGACY_WX_RELEASES): its guests state the legacy runtime self-test, so name the release it was installed from, or a later tree's judge refuses them on adoption", isoDir)
+	if bytes.Contains(b, []byte("LEGACY_WX_RELEASES")) {
+		return ""
+	}
+	named := 0
+	for _, f := range strings.Split(flag, ",") {
+		if f = strings.TrimSpace(f); f == "" {
+			continue
+		}
+		if !strings.HasPrefix(f, "@") {
+			return fmt.Sprintf("%s predates per-release W^X, so its release must be DERIVED (@<release dir>/release.json), not typed: %q", isoDir, f)
+		}
+		named++
+	}
+	if named == 0 {
+		return fmt.Sprintf("%s predates per-release W^X (its judge has no LEGACY_WX_RELEASES): its guests state the legacy runtime self-test, so name the release it was installed from (@<release dir>/release.json), or a later tree's judge refuses them on adoption", isoDir)
 	}
 	return ""
 }
