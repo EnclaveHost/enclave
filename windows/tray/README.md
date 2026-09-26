@@ -10,7 +10,7 @@ Left-click the icon, or choose **Hosting controls…**, to open the panel. A sli
 
 ## The node side
 
-The agent serves `GET`/`PUT http://127.0.0.1:9610/v1/local/hosting`. It listens on loopback only, refuses any non-loopback peer, and requires `Authorization: Bearer <token>`. At every start the agent writes a fresh token to `%ProgramData%\Enclave\hosting-admin.token`, locked with `icacls` to SYSTEM, Administrators, the node's own account and `HOSTING_TRAY_USER` (read-only). If the lock can't be applied, the controls stay off and nothing else changes. Settings: `HOSTING_ADMIN_PORT` (default 9610; 0 turns it off), `HOSTING_ADMIN_TOKEN_FILE`, `HOSTING_TRAY_USER`, `HOSTING_CAPS_FILE`.
+The agent serves `GET`/`PUT http://127.0.0.1:9610/v1/local/hosting`. It listens on loopback only, refuses any non-loopback peer, and requires `Authorization: Bearer <token>`. At every start the agent writes a fresh token to `%ProgramData%\Enclave\hosting\hosting-admin.token`. That directory holds nothing else, and its DACL is set before any file is created in it: protected (nothing inherited), with SYSTEM, Administrators and the node's own account full, and `HOSTING_TRAY_USER` read. A new directory is created with that DACL already on it, and the DACL is read back and checked. So the token file is private from the moment it exists, and a handle opened earlier can't reach it. If the directory or `%ProgramData%\Enclave` is a junction or link, is owned by anyone but SYSTEM, Administrators or the node's account, or its DACL doesn't read back as set, the controls stay off, the node logs why, and nothing else changes. Settings: `HOSTING_ADMIN_PORT` (default 9610; 0 turns it off), `HOSTING_ADMIN_TOKEN_FILE`, `HOSTING_TRAY_USER`, `HOSTING_CAPS_FILE`.
 
 Set `HOSTING_TRAY_USER` to the account the tray runs as (for example `set HOSTING_TRAY_USER=NUCBOX-K11\steven` in `node-config.cmd`). Without it, only an elevated administrator can read the token.
 
@@ -18,15 +18,17 @@ Set `HOSTING_TRAY_USER` to the account the tray runs as (for example `set HOSTIN
 
 ```
 build.cmd              compiles EnclaveTray.exe with the in-box csc.exe (.NET Framework 4.x); installs nothing
-install-tray.cmd       copies it to %LOCALAPPDATA%\Enclave\Tray, starts it now and at this user's logon (HKCU Run)
+install-tray.cmd       copies it to %LOCALAPPDATA%\Enclave\Tray, starts it now and at this user's logon (HKCU Run),
+                       and says if this account cannot read the node's token
 uninstall-tray.cmd     stops it, removes the logon start and the folder (the node's caps stay as set)
 ```
 
-Optional `tray-config.json` beside the exe, if the node isn't on the defaults: `{"port": 9610, "tokenFile": "C:\\ProgramData\\Enclave\\hosting-admin.token", "logsFolder": ""}`. The app writes its own log to `%LOCALAPPDATA%\Enclave\Tray\tray.log`.
+Optional `tray-config.json` beside the exe, if the node isn't on the defaults: `{"port": 9610, "tokenFile": "C:\\ProgramData\\Enclave\\hosting\\hosting-admin.token", "logsFolder": ""}`. The app writes its own log to `%LOCALAPPDATA%\Enclave\Tray\tray.log`.
 
 ## Check it by hand
 
 ```
-icacls "%ProgramData%\Enclave\hosting-admin.token"
-for /f %t in ('type "%ProgramData%\Enclave\hosting-admin.token"') do curl -s -H "Authorization: Bearer %t" http://127.0.0.1:9610/v1/local/hosting
+icacls "%ProgramData%\Enclave\hosting"
+icacls "%ProgramData%\Enclave\hosting\hosting-admin.token"
+for /f %t in ('type "%ProgramData%\Enclave\hosting\hosting-admin.token"') do curl -s -H "Authorization: Bearer %t" http://127.0.0.1:9610/v1/local/hosting
 ```
