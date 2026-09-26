@@ -11,7 +11,7 @@ import { execFileSync } from "node:child_process";
 import {
   DEFAULTS, CONSOLE_OK, THRESHOLDS, BOOTSTRAP, remoteCommand, appUrlFor, certFacts, tlsCheck, parseRelayRow, encodeGetCall,
   decodeDeployment, boxScript, parseBoxStdout, consumeChunk, scanLog, consoleScan, pickDeploymentVm, digestBox, newEval, step,
-  summarize, newSampler, humanLine, parseArgs, exercised,
+  summarize, newSampler, humanLine, parseArgs, exercised, headSentInWindow,
 } from "./soak.mjs";
 
 const DEP = DEFAULTS.deployment;
@@ -33,7 +33,7 @@ test("tlsCheck: verification is ON - a self-signed leaf is recorded (SPKI, seria
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const { key, cert } = makeCert(dir, "localhost");
   const seen = [];
-  const srv = https.createServer({ key, cert }, (req, res) => { seen.push([req.url, req.headers["x-hv-soak"]]); res.end("Hello World!\n"); });
+  const srv = https.createServer({ key, cert }, (req, res) => { seen.push([req.url, req.headers["x-hv-soak"], req.method]); res.end("Hello World!\n"); });
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   t.after(() => srv.close());
   const port = srv.address().port;
@@ -55,7 +55,14 @@ test("tlsCheck: verification is ON - a self-signed leaf is recorded (SPKI, seria
   assert.equal(good.bytes, 13);
   assert.equal(good.cert.spkiSha256, want);
   assert.ok(Number.isFinite(good.latencyMs));
-  assert.deepEqual(seen.at(-1), ["/hv-soak/tok123", "tok123"], "the token rides in the path and in the header");
+  assert.deepEqual(seen.at(-1), ["/hv-soak/tok123", "tok123", "GET"], "the token rides in the path and in the header");
+
+  // the HEAD probe: the same verified connection rules, the method reaches the server, no body is read
+  const head = await tlsCheck(`https://localhost:${port}/hv-soak/tok456`, { method: "HEAD", timeoutMs: 5000, ca: cert, headers: { "x-hv-soak": "tok456" } });
+  assert.deepEqual([head.ok, head.authorized, head.status, head.bytes], [true, true, 200, 0]);
+  assert.deepEqual(seen.at(-1), ["/hv-soak/tok456", "tok456", "HEAD"]);
+  const headBad = await tlsCheck(`https://localhost:${port}/`, { method: "HEAD", timeoutMs: 5000 });
+  assert.deepEqual([headBad.authorized, headBad.status], [false, null]);
 
   // a trusted chain for the WRONG name is refused too: the hostname is verified
   const wrong = await tlsCheck(`https://127.0.0.1:${port}/`, { timeoutMs: 5000, ca: cert });
@@ -216,7 +223,42 @@ test("consoleScan: the guest's own lines pass; anything else is counted and hash
   assert.equal(c.tokenHits, 1);
   assert.doesNotMatch(JSON.stringify(c), /Serving|hv-soak/, "no line content in the result");
   assert.ok(CONSOLE_OK.test("DOM1 x") && CONSOLE_OK.test("MON x") && CONSOLE_OK.test("[ 1.5] x") && !CONSOLE_OK.test(" DOM x"));
-  assert.deepEqual(consoleScan(Buffer.alloc(0), { token: "x" }), { bytes: 0, lines: 0, nonMatching: 0, nonMatchingSha256: [], partialTailBytes: 0, tokenHits: 0 });
+  assert.deepEqual(consoleScan(Buffer.alloc(0), { token: "x" }), { bytes: 0, lines: 0, nonMatching: 0, nonMatchingSha256: [], partialTailBytes: 0,
+                                                                    tokenHits: 0, markerHits: 0, sentinelLines: 0, withheld: 0 });
+});
+
+// the target app's HEAD-body marker (a test value: the real one is the sentinel app's, passed with --body-marker)
+const MARK = "SENTINEL-BODY-7f3a";
+// what the front prints when the HEAD probe's app sends a body: the OLD guest (Go stdlib) and the FIXED one
+const OLD_FRONT = `2026/09/26 03:00:01 Unsolicited response received on idle HTTP channel starting with "${MARK}\\n"; err=<nil>`;
+const FIXED_FRONT = "DOM front: unsolicited upstream response (19 bytes withheld)";
+// the sentinel's own per-request line on stdout and stderr
+const SENTINEL_LINE = "-STDOUT-REQ /hv-soak/hvsoakT hvsoakT";
+
+test("consoleScan: the body marker and a -STDOUT-REQ line are sightings; a 'bytes withheld' line is counted and is the guest's own", () => {
+  const old = consoleScan(Buffer.from(`MON ok\r\n${OLD_FRONT}\r\n`, "latin1"), { token: "hvsoakZ", marker: MARK });
+  assert.equal(old.markerHits, 1);
+  assert.equal(old.nonMatching, 1);
+  assert.equal(old.withheld, 0);
+  const fixed = consoleScan(Buffer.from(`${FIXED_FRONT}\r\n${FIXED_FRONT}\r\n`, "latin1"), { token: "hvsoakZ", marker: MARK });
+  assert.deepEqual([fixed.withheld, fixed.nonMatching, fixed.markerHits, fixed.sentinelLines, fixed.lines], [2, 0, 0, 0, 2]);
+  const sen = consoleScan(Buffer.from(`${SENTINEL_LINE}\n${SENTINEL_LINE}\n`), { token: "hvsoakT", marker: MARK });
+  assert.deepEqual([sen.sentinelLines, sen.tokenHits, sen.nonMatching], [2, 4, 2]);
+  assert.equal(consoleScan(Buffer.from(`${OLD_FRONT}\n`), { marker: null }).markerHits, 0, "no marker, no count");
+  assert.doesNotMatch(JSON.stringify(old) + JSON.stringify(sen), /Unsolicited|SENTINEL-BODY|STDOUT-REQ \//, "no line content in the result");
+});
+
+test("scanLog and digestBox: marker and sentinel sightings in the logs; the baseline read is history, reported apart", () => {
+  const c = scanLog(`01:00:00 upstream said ${MARK}\n01:00:01 ${SENTINEL_LINE}\n`, { deployment: DEP, marker: MARK });
+  assert.deepEqual([c.markerHits, c.sentinelLines], [1, 1]);
+  const st = newSampler();
+  const b1 = digestBox(boxRes({ node: `00:00:01 old ${MARK} ${SENTINEL_LINE}\n` }), st, { deployment: DEP, token: "t", marker: MARK });
+  assert.deepEqual([b1.logs.node.markerHits, b1.logs.node.markerHitsHistory, b1.logs.node.sentinelLines, b1.logs.node.sentinelLinesHistory], [0, 1, 0, 1]);
+  const b2 = digestBox(boxRes({ node: `00:05:00 new ${MARK}\n`, nodeFrom: st.offsets.node, console: `${OLD_FRONT}\n${SENTINEL_LINE}\n` }), st,
+                       { deployment: DEP, token: "t", marker: MARK });
+  assert.equal(b2.logs.node.markerHits, 1);
+  assert.equal(b2.console.markerHits, 1);
+  assert.equal(b2.console.sentinelLines, 1);
 });
 
 /* ---------------------------------------------------------------- digestBox */
@@ -290,17 +332,20 @@ const SPKI_A = "a".repeat(64), SPKI_B = "b".repeat(64);
 let clock = Date.parse("2026-09-26T03:00:00Z");
 function S({ ok = true, spki = SPKI_A, authorized = true, status = ok ? 200 : 503, restart = 0, nodeOk = true, baseline = false,
              running = true, price = 0, nonMatching = 0, tokenHits = 0, boxOk = true, sshOk = true, relayOk = true, hostExcluded = false,
-             connected = true, latencyMs = 300, t = null, chain = null } = {}) {
+             connected = true, latencyMs = 300, t = null, chain = null, head = true, markerHits = 0, nodeMarkerHits = 0, withheld = 0,
+             sentinelLines = 0 } = {}) {
   clock += 300_000;
   return { type: "sample", t: t || new Date(clock).toISOString(), deployment: DEP,
     tls: { ok, status: ok ? 200 : status, authorized, latencyMs, cert: spki ? { spkiSha256: spki } : null, error: ok ? null : "x" },
+    head: { method: "HEAD", trigger: head ? "console" : "fallback", authorized: true, status: 200, sentInWindow: head },
     relay: { ok: relayOk, present: true, hostExcluded, mode: "hv-node" },
     chain: chain || { skipped: true },
     box: { ok: boxOk && sshOk, ssh: { ok: sshOk, error: sshOk ? undefined : "timeout" }, vms: { ok: true },
       partition: sshOk ? { running, status: running ? "running" : "starting" } : undefined,
-      logs: sshOk ? { node: nodeOk ? { ok: true, baseline, restart, cardPrice: price, tokenHits: 0, renewed: 0, renewedMine: 0 } : { ok: false, error: "x" },
-                      manager: { ok: true, tokenHits: 0 } } : undefined,
-      console: sshOk ? { connected, nonMatching, nonMatchingSha256: Array(nonMatching).fill("c".repeat(64)), tokenHits, lines: 3 } : undefined } };
+      logs: sshOk ? { node: nodeOk ? { ok: true, baseline, restart, cardPrice: price, tokenHits: 0, markerHits: nodeMarkerHits, renewed: 0, renewedMine: 0 } : { ok: false, error: "x" },
+                      manager: { ok: true, tokenHits: 0, markerHits: 0 } } : undefined,
+      console: sshOk ? { connected, nonMatching, nonMatchingSha256: Array(nonMatching).fill("c".repeat(64)), tokenHits, markerHits, withheld,
+                         sentinelLines, lines: 3 } : undefined } };
 }
 const run = (samples) => { const ev = newEval(); const vs = samples.map((s) => step(ev, s)); return { ev, vs, fails: ev.events.map((e) => e.id) }; };
 
@@ -356,6 +401,26 @@ test("thresholds: any non-DOM/MON console line or any token sighting is a leak",
   assert.deepEqual(run([S({ tokenHits: 1, nonMatching: 2 })]).fails, ["leak", "leak"]);
 });
 
+test("thresholds: the HEAD probe's body marker and a sentinel -STDOUT-REQ line are leaks; a 'withheld' line is not", () => {
+  assert.deepEqual(run([S({ markerHits: 1 })]).fails, ["leak"]);
+  assert.deepEqual(run([S({ nodeMarkerHits: 2 })]).fails, ["leak"], "the marker in node.log");
+  assert.deepEqual(run([S({ sentinelLines: 1 })]).fails, ["leak"]);
+  const w = run([S({ withheld: 1 }), S({ withheld: 3 })]);
+  assert.deepEqual(w.fails, []);
+  assert.ok(w.vs[1].info.some(([id, m]) => id === "leak" && /3 'bytes withheld' line\(s\): the HEAD probe reached the front/.test(m)));
+});
+
+test("headSentInWindow: only a HEAD fired by READY-with-console, verified and answered", () => {
+  const h = { authorized: true, status: 200 };
+  assert.equal(headSentInWindow("console", h), true);
+  assert.equal(headSentInWindow("console", { authorized: true, status: 405 }), true, "any answer proves it was delivered");
+  assert.equal(headSentInWindow("noconsole", h), false, "no console connected: outside any window");
+  assert.equal(headSentInWindow("fallback", h), false, "fired by the timer or the session's end");
+  assert.equal(headSentInWindow("console", { authorized: false, status: null }), false, "unverified: dropped before sending");
+  assert.equal(headSentInWindow("console", { authorized: true, status: null }), false, "no answer");
+  assert.equal(headSentInWindow("console", null), false, "--leak-probe off");
+});
+
 /* the leak check must not pass vacuously: no leak seen PASSes only on enough EXERCISED samples (enclave-bf's blocker) */
 const soakFile = (samples) => [JSON.stringify({ type: "start", interval: 300, deployment: DEP }), ...samples.map((s) => JSON.stringify(s))];
 // n samples, `ex` of them exercised; the others miss ONLY the console (box.ok stays true, so no other threshold moves)
@@ -364,7 +429,8 @@ const coverage = (n, ex) => { clock = Date.parse("2026-09-27T00:00:00Z"); return
 test("exercised: the partition running, a verified 200, the console read, and both logs read", () => {
   assert.equal(exercised(S()), true);
   for (const [o, why] of [[{ running: false }, "not running"], [{ ok: false }, "no verified 200"], [{ ok: false, authorized: false, status: 200 }, "an unverified 200"],
-                          [{ connected: false }, "no console"], [{ nodeOk: false }, "node.log unread"], [{ sshOk: false }, "no box read"]])
+                          [{ connected: false }, "no console"], [{ nodeOk: false }, "node.log unread"], [{ sshOk: false }, "no box read"],
+                          [{ head: false }, "the HEAD probe not sent inside the console window"]])
     assert.equal(exercised(S(o)), false, why);
   const m = S(); m.box.logs.manager = { ok: false };
   assert.equal(exercised(m), false, "manager.log unread");
@@ -402,6 +468,19 @@ test("summarize: a token hit in an exercised sample is a leak FAIL", () => {
   assert.equal(r.pass, false);
   assert.match(r.text, /FAIL leak .*\[exercised 4\/4, floor 90\.0%\]: 1 event\(s\)/);
   assert.match(r.text, /VERDICT: FAIL/);
+});
+
+test("summarize: without the HEAD probe nothing is exercised; a marker sighting FAILs; withheld lines are reported", () => {
+  clock = Date.parse("2026-09-29T00:00:00Z");
+  const off = summarize(soakFile(Array.from({ length: 10 }, (_, i) => S({ baseline: i === 0, head: false }))));
+  assert.equal(off.pass, false);
+  assert.match(off.text, /NOT EXERCISED \(0\/10\) leak/);
+  assert.match(off.text, /HEAD probe: sent inside the console window in 0\/10 samples/);
+  const hit = summarize(soakFile([S({ baseline: true }), S({ markerHits: 1 }), S()]));
+  assert.match(hit.text, /FAIL leak .*: 1 event\(s\); first .*body marker appeared 1 time/);
+  const ok = summarize(soakFile([S({ baseline: true, withheld: 1 }), S({ withheld: 1 }), S()]));
+  assert.equal(ok.pass, true);
+  assert.match(ok.text, /'bytes withheld' lines 2 \(in 2 samples: the probe reached the front\)/);
 });
 
 test("thresholds: the box read FAILs at 3 in a row and is INFO below that", () => {
@@ -473,6 +552,14 @@ test("parseArgs: defaults, the derived URL, and the guards", () => {
   assert.equal(parseArgs(["--leak-floor", "95%"]).leakFloor, 0.95);
   assert.equal(parseArgs(["--leak-floor", "0.5"]).leakFloor, 0.5);
   for (const bad of ["0", "1.5", "x", "-1"]) assert.throws(() => parseArgs(["--leak-floor", bad]), /leak-floor/);
+  // the HEAD probe's marker has NO default: it is the target app's, and it is required with --leak-probe
+  assert.equal(c.leakProbe, false);
+  assert.equal(c.bodyMarker, null);
+  assert.throws(() => parseArgs(["--leak-probe"]), /needs --body-marker/);
+  assert.throws(() => parseArgs(["--body-marker", "SENTINEL-X"]), /only used by --leak-probe/);
+  assert.throws(() => parseArgs(["--leak-probe", "--body-marker", "ab"]), /at least 4/);
+  const lp = parseArgs(["--leak-probe", "--body-marker", "SENTINEL-X"]);
+  assert.deepEqual([lp.leakProbe, lp.bodyMarker], [true, "SENTINEL-X"]);
   assert.throws(() => parseArgs(["--interval", "10"]), /at least 30/);
   assert.throws(() => parseArgs(["--deployment", "0x1"]), /64 hex/);
   assert.throws(() => parseArgs(["--console-sec", "10"]), /outlast/);
