@@ -4,6 +4,8 @@ For enclave-5d or enclave-d1 (executor), from enclave-b4's read-only preflight f
 branch) to what is live NOW. REBOOT.md stays the rule; this sheet says which commands to run, in what order, and where
 today's live state differs from what REBOOT.md assumed. Deployment: test 1 `0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3`
 (`ID` below). Every time is read with `date -u` (ws) or `(Get-Date).ToUniversalTime()` (box), never estimated.
+At step 0, create the ws evidence dir `~/enclave-bench/reboot-v42-<stamp>/` and `tee` every ws step's output into it
+(`… 2>&1 | tee ~/enclave-bench/reboot-v42-<stamp>/step<N>.txt`); step 12 adds the box OutDir and SHA256SUMS (G11).
 `LR` below = `node <a checkout of windows/reboot-go-sheet>/windows/node/ops/hv-node-rollout/ledger-reboot.mjs` (read-only
 chain reads; viem from `VIEM_DIR`, default `~/Projects/enclave`). Revised for enclave-bf's NO-GO on 5268d172 (R1-R4) and
 enclave-87's ruling on bf's S1 (the freeze, G5).
@@ -82,6 +84,14 @@ enclave-87's ruling on bf's S1 (the freeze, G5).
   EnclaveTray pid 13992 as NUCBOX_K11\srbat from the installed exe, exe sha256 `3614819de95316b3…`, the Run value =
   that exe, caps cpuShare 1 / gpuShare 1 (file `f0c774b166fdc57a…`), the token grants srbat read and was re-minted after
   the current boot; controls: a changed exe hash and changed caps each FAIL the post phase, an unchanged pair does not.
+- **G11. Three reads the capture does not make, and the evidence on ws** (enclave-87, after enclave-5d's DONE audit and
+  enclave-b4's independent read at 07:37Z, ~/enclave-bench/done-audit-b4/). Step 7a runs `hvnode-reboot-reads.ps1`
+  (this branch, READ-ONLY; it never reads the hosting token): the NEW record's image must be v42's `0891c740…`; the node
+  tree must be the one before the reboot (run-node.cmd sha256 `5f1a79b4c1927433…`, running `…\hvnode\f1461271\windows\
+  node\agent.mjs`, exactly one such node.exe); and :9610 (the tray's backend) must listen on loopback only, be owned by
+  that agent's pid and answer an unauthenticated GET with the hosting handler's 401. Checked on the box at 07:3xZ: all
+  PASS; controls (a wrong image, run-node sha or tree) each FAIL. Every ws output goes into
+  `~/enclave-bench/reboot-v42-<stamp>/` from step 0, and step 12 brings the box OutDir there and writes SHA256SUMS.
 - **G8. The ledger** (enclave-bf's R2). hvnode-accept-remote.sh prints neither leaseUntil nor balance6, and nothing in it
   looks for a release; a release followed by a re-claim would still end "same runner, live lease". `LR get <ID>` prints
   the block, runner, leaseUntil (and the minutes left), balance6 and spent6 (steps 4, 5, 10); `LR events <ID> <B4>`
@@ -109,16 +119,20 @@ enclave-87's ruling on bf's S1 (the freeze, G5).
 | 5 | ws, then box | enclave-87's freeze ack recorded with its time (G5); wait for a fresh `renewed 0x31136008` line in node.log; `LR get $ID` (ws: leaseUntil); then, BEFORE issuing anything, read the box's clock `$now = (Get-Date).ToUniversalTime()` and compute `leaseUntil − ($now + 60 s)`; ONLY if that is ≥ 40 min, `shutdown.exe /r /t 60 /d p:0:0 /c "enclave hv-node reboot acceptance"` (box), recording `(Get-Date).ToUniversalTime()` as the command time. If it is < 40 min, issue nothing and wait for the next renewal (enclave-87's hard rule: the criterion is checked before the action, never after it) | the freeze ack precedes the command; the criterion computed BEFORE the command was ≥ 40 min, and `leaseUntil − (command time + 60 s) ≥ 40 min` still holds for the recorded command time. `shutdown /a` (within the 60 s) is only for an operator slip, never the plan |
 | 6 | ws | `until ssh -o ConnectTimeout=10 minipc-zt hostname; do sleep 20; done` (read-only reachability) | the box answers |
 | 7 | box | `hvnode-reboot-capture.ps1 -Phase post -DeploymentId $ID -OutDir <the same dir>`, re-run read-only until PASS or the deadline | exit 0. It judges: BootId 70, Secure Boot ON, the legacy task Disabled, both tasks Running, ≤ 15 min; ONE tagged VM, the NEW instance's; the old vmId gone; ONE record, running, not recovered, NEW instance, NEW key; owner-only, tier hv-node; `<ID10> restart recovery: the recovered VM hv88b31102f902741d791a3e90b56f571b (Off) was retired; starting ONE fresh partition`; no reboot-recovery hold; no `card price now`. Note the printed NEW key |
+| 7a | box | `hvnode-reboot-reads.ps1 -DeploymentId $ID -OutDir <the same OutDir>` (G11) | exit 0, `READS: no FAIL`: ONE record for ID, running, image `0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998`; run-node.cmd sha256 `5f1a79b4c192743360344c640291457249b25c51f6bdafde1e12d9c0888a4507`, running the f1461271 agent.mjs, exactly one such node.exe; :9610 on 127.0.0.1 only, owned by that agent's pid, unauthenticated GET → the hosting handler's 401. reads-post.json in the OutDir |
 | 8 | box | `$pre = Get-Content -Raw <the OutDir>\capture-pre.json \| ConvertFrom-Json; Get-Content C:\Users\claude\vbs-like\hvnode\logs\node.log \| Select-Object -Skip ([int]$pre.nodeLogLines) \| Select-String -Pattern 'attach ACCEPTED\|attaching again\|REMOVED\|certificate\|renewed 0x31136008'` (everything since the pre capture, no `-Last`: hvcert's per-pass `certificate: none … retry` lines would push the attach lines out of a tail) | since the boot: ONE `attach ACCEPTED`; no `attaching again` and no `REMOVED` (a re-attach in the freeze is a FAIL, G5); `0x31136008 certificate: 31136008.app.enclave.host installed in partition <NEW instance> (key <NEW key16>…, <issuer>; domain monitor-signed)` within 30 min of the boot (G2; a `certificate: none … retry` before it is INFO); and the FIRST `renewed 0x31136008` after the recovery, before the pre-reboot leaseUntil (G7) |
 | 9 | box | `hvnode-accept.ps1 -Commit f146127176f7 -DeploymentId $ID` (G9's script) | all PASS (A4's gas figure is INFO for the node's first 12 min); A9 as step 2 |
 | 9a | box | `hvnode-tray-check.ps1 -Phase post -OutDir <the same OutDir>` (G10) | exit 0: the exe's sha256 = 3a's; the caps (file sha256, cpuShare, gpuShare) = 3a's; the token re-minted after THIS boot and granting srbat read; the session parse trustworthy (S2: query.exe 0/1, and no srbat-owned EnclaveTray or explorer in an unparsed session). IF srbat has signed in since the boot: the Run value still = the installed exe (and = 3a's) and EnclaveTray running in srbat's session; else INFO `starts at srbat's next logon`. **What 9a's DONE covers without AutoAdminLogon: the exe, the caps and the token. "The Run value and the running tray" are confirmed by a 9a re-run after srbat's next logon** (enclave-bf's nit, enclave-87) |
 | 10 | ws | `hvnode-accept-remote.sh $ID <NEW key>` (G9's script); `LR get $ID`; `LR events $ID <B4>` | all PASS except R4's hostname lines (G1); R1 bootCounter = step 4's + 1, verifiedAt after the reboot. `LR get`: runner nucbox-k11, a live lease, spent6 above step 4's (renewals burned), balance6 moving on. `LR events`: PASS = 0 Claimed and 0 Released from B4 (G8); the Renewed rows are INFO and include step 8's first renewal |
 | 11 | ws | `node soak.mjs --once --via x --out after-once.jsonl` | `ok:true`, status 200, `authorized:true` (a publicly trusted chain; the issuer INFO), `spkiSha256` = the NEW key (≠ `4d80b956…`) |
+| 12 | ws | the evidence: `scp -r "minipc-zt:C:/Users/claude/vbs-like/hvnode/reboot-<UTC stamp>" ~/enclave-bench/reboot-v42-<stamp>/box/`; then in `~/enclave-bench/reboot-v42-<stamp>/`: `find . -type f ! -name SHA256SUMS -print0 \| sort -z \| xargs -0 sha256sum > SHA256SUMS` and `sha256sum -c SHA256SUMS` (G11) | the box OutDir (capture-pre/post.json, tray-pre/post.json, reads-post.json, the step outputs) and every ws output (steps 1, 4, 5's `LR get`, 6, 10, 11, as tee'd from step 0) are in the ws dir; SHA256SUMS written and `-c` all OK; its own sha256 sent to enclave-87 with the result |
 
 **PASS = step 7 within 15 minutes of the boot; steps 8-11 within 30 minutes of it (the certificate window, G2); the first
-renewal before the pre-reboot leaseUntil (G7); 0 Claimed and 0 Released from B4 (G8); no re-attach in the freeze (G5); 9a with no FAIL (G10: the tray);
-and no operator action.** The freeze ends when step 10 is recorded: the executor tells enclave-87. Keep every output in the reboot OutDir
-(box) and in `~/enclave-bench/reboot-v42-<stamp>/` (ws). Then G3's stop and refund, if still wanted.
+renewal before the pre-reboot leaseUntil (G7); 0 Claimed and 0 Released from B4 (G8); no re-attach in the freeze (G5);
+7a with no FAIL (G11: image, node tree, :9610); 9a with no FAIL (G10: the tray); step 12's SHA256SUMS checked (G11);
+and no operator action.** The freeze ends when step 10 is recorded: the executor tells enclave-87. The evidence is the
+reboot OutDir (box) and `~/enclave-bench/reboot-v42-<stamp>/` (ws, with SHA256SUMS, step 12). Then G3's stop and refund,
+if still wanted.
 
 ## What the soak monitor shows
 - **Before** (its last samples, and step 1's one-shot): `via:"x"`, `ok:true`, status 200, `authorized:true`,
