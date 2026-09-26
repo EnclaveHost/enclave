@@ -828,8 +828,9 @@ export class Host {
    * NEW one starts only while the sum of cpuShare over running and starting partitions stays within what the owner offers.
    *
    * It never takes anything away. Not gated: a partition that is already there (reconcile adopts it; refusing to
-   * adopt would not stop it, only stop serving it), and a RELAUNCH of work this box already runs - a forced relaunch,
-   * or a domain that vanished while it served (rec.isolation). Held work is recorded `capHeld`, is not renewed (the
+   * adopt would not stop it, only stop serving it), and a RELAUNCH of work this box already runs - a forced relaunch of
+   * a deployment that occupied the box (ensureApp decides), or a domain that vanished while it served (rec.isolation).
+   * Forcing a held or never-started deployment is NOT a relaunch. Held work is recorded `capHeld`, is not renewed (the
    * tick) and starts on the first pass that it fits. -> the held record, or null to proceed.
    */
   async #spawnCapHold(id, body, client, { relaunch = false } = {}) {
@@ -935,7 +936,10 @@ export class Host {
       // What it does NOT do: change what this box advertises. A T0-hv partition does not exclude
       // the host, attestedCapacity() is false for it, and nothing here touches meetsIsolationContract().
       if (this.isolation) {
-        const outcome = await this.#isolationReconcile(id, d, v, { envOpts, envRead, relaunch: force });
+        // A forced ensure is a RELAUNCH (not measured against the owner's cap) only for work that occupied this box
+        // before it (forcedRec, read before the retire). Forcing a deployment the cap held, or one that never ran,
+        // is a new spawn and is gated like one: the owner's restart must not push the box past its cap (enclave-5d).
+        const outcome = await this.#isolationReconcile(id, d, v, { envOpts, envRead, relaunch: force && Host.occupies(forcedRec) });
         if (outcome) return outcome;
       }
 

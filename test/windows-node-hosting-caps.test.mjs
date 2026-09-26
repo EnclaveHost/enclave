@@ -177,6 +177,26 @@ test("hv: a running partition is never stopped by a lower cap; it is adopted eve
   assert.equal(fake.running().length, 1); assert.notEqual(fake.running()[0].vmId, vmBefore, "a fresh VM");
 });
 
+test("hv: a CAP-HELD deployment is not spawned above the cap by a FORCED ensure - the owner's restart path (enclave-5d)", async () => {
+  const fake = new FakeHost(); const { port } = await bootManager(fake);
+  const h = hvBox(port);
+  h.records.set(B, { ...running(B, 0.5), isolation: { instance: "hvB" } });
+  h.setHostingCaps({ cpuShare: 0.55, gpuShare: 1 });
+  assert.equal((await h.ensureApp(DEP, dep(), { version: PLANNED })).capHeld, true);
+  const forced = await h.ensureApp(DEP, dep(), { force: true, version: PLANNED });
+  assert.equal(fake.running().length, 0, "forcing a held deployment is a new spawn, not a relaunch: nothing above the cap");
+  assert.equal(forced.capHeld, true); assert.match(forced.reason, /not started: the owner offers 55% of this box's CPU/);
+  // through the route itself: restart() passes restartRefusal (active, this box's live lease, the served owner) and still holds
+  ledgerRow();
+  const viaRoute = await h.restart(DEP, rpc.row.current);
+  assert.equal(viaRoute.refused, undefined, viaRoute.reason);
+  assert.equal(viaRoute.capHeld, true); assert.equal(fake.running().length, 0);
+  // once it fits, the owner's restart starts it
+  h.setHostingCaps({ cpuShare: 0.6, gpuShare: 1 });
+  assert.equal((await h.restart(DEP, rpc.row.current)).status, "running");
+  assert.equal(fake.running().length, 1);
+});
+
 test("hv: a node that RESTARTED under a lower cap adopts the partition that is already there (asking the manager only because the cap would refuse)", async () => {
   const fake = new FakeHost(); const { port } = await bootManager(fake);
   const first = hvBox(port);
