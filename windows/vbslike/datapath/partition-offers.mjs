@@ -5,7 +5,7 @@
 //
 // Each value is the PLAN's answer; host.mjs ANDs it with the manager's own /health `supports`, so a feature is offered
 // only when both the node's plan and the manager would honour it. Every false here is a refusal in isolationPlan (or a
-// constant of the spawn body / the splice route), and test/windows-node-price-flags.test.mjs holds the two together.
+// constant of the spawn body / the splice route), and test/windows-node-availability-flags.test.mjs holds the two together.
 export const PARTITION_OFFERS = Object.freeze({
   secrets: false,        // isolationPlan: "the deployment has staged secrets ... cannot deliver them into a partition"
   config: false,         // isolationPlan: config beyond _media is not delivered into a partition
