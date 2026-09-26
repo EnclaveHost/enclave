@@ -1,0 +1,36 @@
+--- /home/steven/enclave-bench/pool-rollout-20260925/s4/lib4.sh	2026-09-25 13:52:45.776757128 -0700
++++ lib5.sh	2026-09-25 17:50:30.237335028 -0700
+@@ -1,14 +1,16 @@
+-# Shared constants and checks for S4 (sourced AFTER ../lib.sh). The release is 79c5ecf2, built by 5d from image commit
+-# aa6c985c (isolation/m4/evidence/production-release-aa6c985c/ at 08b083e6): a4f22748 with init linked against musl
+-# (MIT) instead of glibc (Codex, 09-25: Enclave's LICENSE unchanged). Its step 0 is s4-musl.sh. The 4d tree it follows is
+-# iso-17e182a8 (a4f22748, live since 4d); guestd, the boot path, fwd and the judge equal 17e182a8's.
+-REL=79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4; IMG=aa6c985c688e73ffc2ec547b691c2d804e50ad69
+-SRC=/home/steven/enclave-bench/prod-release-aa6c985c/release-aa6c985c
+-T=$PROD/iso-aa6c985c; R=$PROD/release-aa6c985c; LEG=$PROD/iso-03be27d6/isolation; LEGC=0181bce3aac5fa03dfaf2928d834ecd04d2a4a73
++# Shared constants and checks for S5 (sourced AFTER ../pool-rollout-20260925/lib.sh): the FIXED release 52156652, built by
++# enclave-53 from image commit 4cdd5169 (isolation/front-console-guard: console.go routes everything but the fronts own
++# "DOM ..." statements away from the host console; enclave-d1's finding on 79c5ecf2), bf GO. Only template/front and
++# release.json differ from 79c5ecf2; init/musl, kernel, firmware, rt/, the boot path, fwd, the judge and guestd are
++# byte-identical (53). It follows iso-aa6c985c (79c5ecf2, live since the 09-25 tree switch).
++REL=52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1; IMG=4cdd516924981eeacefc8ccaefb4e7fc0e1ec939
++SRC=/home/steven/enclave-bench/pub-0181bce3/cut-4cdd5169/release-4cdd5169
++T=$PROD/iso-4cdd5169; R=$PROD/release-4cdd5169; LEG=$PROD/iso-03be27d6/isolation; LEGC=0181bce3aac5fa03dfaf2928d834ecd04d2a4a73
+ FLOOR=16384   # Codex: the host floor for THIS 64 GiB pool at its next coordinated guestd rollout, which 4d is
+ # the reviewed host-memory floor (enclave-63): a 4d guestd must be built from a commit carrying both
+ FLOORC="d67b0020c8fd58166392e85bf315e4bb15404183 1b5375c9f9718d346d4c5511d7a9bc3096d5551f d36e8da70b13e2fbb602a2ca9be9c85099efd631 ee8dbbcd494229f843cf92b99ac542cdfd77d755"
+-MAIN=/home/steven/Projects/enclave; S4=$EV/s4; LOG4=$S4/install.log
++MAIN=/home/steven/Projects/enclave; S4=$HOME/enclave-bench/s5-20260926; LOG4=$S4/install.log
++OT=$PROD/iso-aa6c985c; OREL=79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4; OIMG=aa6c985c688e73ffc2ec547b691c2d804e50ad69
+ # Logging NEVER fails (enclave-e3 A3): under set -e a failed log write (disk full, quota) would otherwise exit before a
+ # rollback runs. The line always reaches the terminal; the file is best effort. S4 replaces lib.sh's say the same way.
+ say4() { local m; m="$(date -u +%H:%M:%SZ) $*"; echo "$m"; { echo "$m" >> "$LOG4"; } 2>/dev/null || true; }
+@@ -39,7 +41,7 @@
+   us=$(units) || return 1
+   echo "$pid $ex|${us//$'\n'/;}"
+ }
+-# the installed tree is aa6c985c with no tracked change and no untracked file (ignored build products such as m4/.bundle
++# the installed tree is 4cdd5169 with no tracked change and no untracked file (ignored build products such as m4/.bundle
+ # are what guestd's own builds leave, as in the live tree) and no lab pins
+ tree_ok() {
+   [ "$(git -C "$T" rev-parse HEAD 2>/dev/null)" = "$IMG" ] || { say4 "tree: HEAD is not $IMG"; return 1; }

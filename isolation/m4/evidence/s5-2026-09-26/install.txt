@@ -1,0 +1,10 @@
+00:50:49Z 1b: /home/steven/enclave-prod/iso-4cdd5169 at 4cdd516924981eeacefc8ccaefb4e7fc0e1ec939, clean (no ignored files either)
+release 52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1 verified 15 files
+00:50:49Z 1a: /home/steven/enclave-prod/release-4cdd5169 verified as 52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1
+release 52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1
+00:50:50Z 1d: the installed tree reproduces release 52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1 on this host
+00:50:50Z S5 INSTALL (the fixed tree + release) done and inert: guestd's MainPID/ExecStart and the m2-gd* units are unchanged
+00:52:16Z adoption preflight: gd65f964b3 verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key 9f78d94ca143)
+00:52:16Z adoption preflight: gde1277bac verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key c0894ac9e11a)
+00:52:16Z adoption preflight: gde31e154c verifies with the new tree's judge (VERDICT attested reason="no boundary self-test in the document, and none is required at VMPL0: no confinement above the guest is claimed"; key bf7ec81db35e)
+00:52:16Z ADOPTION PREFLIGHT PASSED: guestd 4e78ba80db7ac14a2d27fd65d495b8feb036ca23 sha256 0ee7ed91e5066a0cbe7a4b528250342c354722a84202d043d03c5ee6dbec3086 tree 4cdd516924981eeacefc8ccaefb4e7fc0e1ec939 at 2026-09-26T00:52:16Z epoch 1790383936: 3/3 canaries verify with the new tree's judge (gd65f964b3 gde1277bac gde31e154c); runtime identity byte-equal, fwd code equal (its VCS stamp aside)
