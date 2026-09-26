@@ -1037,8 +1037,52 @@ func (m *monitor) oneReport(c net.Conn) (refused bool) {
 	// than only on a serial console the HOST owns and could have written. It remains the measured
 	// monitor's own word about its own probe; DESIGN.md states exactly what that is and is not worth.
 	out["boundary"] = m.boundary
+	// ...and so does this domain's W^X scan, made NOW by the monitor (root), because the front runs as its own uid
+	// and cannot read the runtime (enclave-bf's finding on the front uid; enclave-87's ruling). The front puts it in
+	// the document's RuntimeSelfTest; it refuses the document on anything but a clean scan.
+	out["wx"] = m.scanDomainWX(d)
 	enc.Encode(out)
 	return false
+}
+
+// scanDomainWX is the W^X scan of ONE domain: every process in its cgroup (cgroup.procs), each read in full
+// (contract.ScanWX: a process whose mappings cannot be read FAILS the scan; only one proven gone is skipped), each
+// counted by role from its uid - the runtime (the domain's uid), the front (its own), init (domexec, root). ->
+// "wx=clean maps=N runtime=R front=F init=I scope=cgroup:/domN", "wx=found pid P (role): <line>", or "wx=error: why".
+func (m *monitor) scanDomainWX(d *domain) string {
+	raw, err := os.ReadFile(filepath.Join(d.cgroup, "cgroup.procs"))
+	if err != nil {
+		return "wx=error: the domain's cgroup: " + err.Error()
+	}
+	var pids []int
+	for _, l := range strings.Fields(string(raw)) {
+		if pid, perr := strconv.Atoi(l); perr == nil {
+			pids = append(pids, pid)
+		}
+	}
+	scope := "cgroup:/" + filepath.Base(d.cgroup)
+	scan, err := contract.ScanWX(scope, pids, func(pid int) (string, error) {
+		uid, err := contract.UIDOf(pid)
+		if err != nil {
+			return "", err
+		}
+		switch uid {
+		case d.UID:
+			return "runtime", nil
+		case d.FrontUID:
+			return "front", nil
+		case 0:
+			return "init", nil
+		}
+		return "other", nil
+	})
+	if err != nil {
+		return "wx=error: " + err.Error()
+	}
+	if scan.Found != "" {
+		return "wx=found " + scan.Found
+	}
+	return scan.Clean()
 }
 
 func peerUID(c net.Conn) (int, error) {
