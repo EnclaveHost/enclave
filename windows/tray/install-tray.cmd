@@ -15,4 +15,9 @@ if exist "%SRC%tray-config.json" copy /y "%SRC%tray-config.json" "%DEST%\tray-co
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v EnclaveHostingTray /t REG_SZ /d "\"%DEST%\EnclaveTray.exe\"" /f >nul || (echo install: could not register the logon start & exit /b 1)
 start "" "%DEST%\EnclaveTray.exe"
 echo install: %DEST%\EnclaveTray.exe is running and starts at this user's logon (HKCU Run: EnclaveHostingTray)
+rem The node writes the token into its own private directory and grants THIS account read only when it is named in the
+rem node's HOSTING_TRAY_USER; an account without that grant cannot even see the file. Say so now rather than leave the
+rem tray reporting it (a tray-config.json tokenFile overrides the path).
+set "TOKEN=%ProgramData%\Enclave\hosting\hosting-admin.token"
+type "%TOKEN%" >nul 2>&1 || echo install: this account cannot read %TOKEN%. Either the node is not running with its hosting controls on, or this account is not its HOSTING_TRAY_USER: set HOSTING_TRAY_USER=%USERDOMAIN%\%USERNAME% in the node's config and restart the node.
 exit /b 0

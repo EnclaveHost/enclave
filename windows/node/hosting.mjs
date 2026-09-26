@@ -10,12 +10,12 @@
 // THE API IS LOCAL ONLY, three ways over: it listens on 127.0.0.1 alone, on its own port, never on the tunnel (the
 // agent's handle() does not know these routes); it refuses a peer that is not loopback even if a later change binds
 // it wider; and it wants a bearer token from a file that only SYSTEM, Administrators, this process's own account and
-// the configured tray user can read.
+// the configured tray user can read, in a directory whose DACL makes the file private from the moment it exists.
 import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import crypto from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 
 // The sliders move in twentieths. A cap that is not on the grid is snapped to it, so what the file holds, what the
 // node enforces and what the tray shows are the same number.
@@ -95,57 +95,212 @@ export function capsUpdate(current, body) {
 }
 
 // ---- the token ------------------------------------------------------------------------------------------------------
+//
+// ON WINDOWS THE TOKEN FILE MUST BE BORN PRIVATE. Access is checked when a handle is OPENED, and a later DACL change
+// does not revoke a handle already open: a file created under an inherited Users:(RX) and locked a moment afterwards
+// can be held open through the lock by a local user, who then reads the token once it is written (enclave-bf's review
+// of 1fdcedddd). So the token lives in a DEDICATED directory whose own DACL is protected, exact and read back BEFORE
+// any file is created in it, and a file created there inherits that DACL at the instant it exists. When the directory
+// is missing it is created WITH that DACL (Directory.CreateDirectory with a DirectorySecurity), so it has no
+// permissive moment either. Anything unexpected - a reparse point, a foreign owner, a DACL that does not read back as
+// set - and no token is minted: the hosting controls stay off and the node says why.
+
+const SYSTEM = "S-1-5-18", ADMINS = "S-1-5-32-544";
+const FULL = 0x1F01FF, READ_EXEC = 0x1200A9, SYNCHRONIZE = 0x100000;
+const OICI = 3;          // ContainerInherit | ObjectInherit: the entry reaches every file born inside
 
 /** Where the node writes the token and the tray reads it, unless both are told otherwise. ProgramData on Windows, so
- *  the tray finds it without knowing where the node is installed. */
+ *  the tray finds it without knowing where the node is installed; its own directory, which holds nothing else. */
 export function tokenFileDefault(dir) {
   return process.platform === "win32"
-    ? path.join(process.env.ProgramData || "C:\\ProgramData", "Enclave", "hosting-admin.token")
-    : path.join(dir, "hosting-admin.token");
+    ? path.join(process.env.ProgramData || "C:\\ProgramData", "Enclave", "hosting", "hosting-admin.token")
+    : path.join(dir, "hosting", "hosting-admin.token");
 }
 
-/** icacls' arguments: inheritance removed, and exactly these grants. SIDs, not names, where a name is localised. */
-export function aclArgs(file, { selfSid = "", trayUser = "" } = {}) {
-  const args = [file, "/inheritance:r", "/grant:r", "*S-1-5-18:F", "*S-1-5-32-544:F"];   // SYSTEM, Administrators
-  if (selfSid && selfSid !== "S-1-5-18") args.push(`*${selfSid}:F`);                    // the node's own account, to write it
-  if (trayUser) args.push(`${trayUser}:R`);                                                // the owner's interactive account, to read it
-  return args;
+/** The token directory's DACL, exactly: SYSTEM, Administrators and this node's own account full; the tray's user
+ *  read and traverse. Each is inherited by what is created inside. SIDs, never names, which are localised. */
+export function expectedDacl({ selfSid = "", traySid = "" } = {}) {
+  const want = [{ sid: SYSTEM, rights: FULL }, { sid: ADMINS, rights: FULL }];
+  if (selfSid && !want.some((w) => w.sid === selfSid)) want.push({ sid: selfSid, rights: FULL });
+  if (traySid && !want.some((w) => w.sid === traySid)) want.push({ sid: traySid, rights: READ_EXEC });
+  return want;
 }
-const system32 = (exe) => path.join(process.env.SystemRoot || "C:\\Windows", "System32", exe);
-/** The SID of the account this process runs as (whoami /user), so the node can still write the file it locked. */
-function windowsSelfSid() {
-  const out = execFileSync(system32("whoami.exe"), ["/user", "/fo", "csv", "/nh"], { windowsHide: true, stdio: "pipe", timeout: 30_000 });
-  const m = /"(S-1-[0-9-]+)"/.exec(String(out));
-  if (!m) throw new Error(`whoami did not name this account's SID (${String(out).trim().slice(0, 80)})`);
-  return m[1];
-}
-function windowsRestrict(file, trayUser) {
-  execFileSync(system32("icacls.exe"), aclArgs(file, { selfSid: windowsSelfSid(), trayUser }), { windowsHide: true, stdio: "pipe", timeout: 30_000 });
+
+const list = (x) => (Array.isArray(x) ? x : x ? [x] : []);
+const bits = (n) => (((Number(n) >>> 0) & ~SYNCHRONIZE) >>> 0);        // .NET adds SYNCHRONIZE to every allow entry
+const hex = (n) => `0x${(Number(n) >>> 0).toString(16)}`;
+
+/** Why an inspected path may not hold (or lead to) the token, as far as what it IS and who OWNS it; or null. */
+function standingProblem(item, owners, { dir = true } = {}) {
+  if (!item || item.exists !== true) return "it does not exist";
+  if (item.reparse) return "it is a reparse point (a junction or a symbolic link)";
+  if (dir ? !item.dir : item.dir) return dir ? "it is not a directory" : "it is a directory";
+  if (!owners.includes(item.owner))
+    return `it is owned by ${String(item.owner).slice(0, 80)}, not SYSTEM, Administrators or this node's account`;
+  return null;
 }
 
 /**
- * A FRESH token, every start, in a file only SYSTEM, Administrators, this process's account and the tray's user can
- * read. Returns the token; throws when the file cannot be made private, and the caller then serves no admin API.
- *
- * Fresh rather than reused, because the default directory is one an ordinary user can create files in (ProgramData):
- * a token file found there may have been planted. Deleting it and creating a new one with create-new means the file
- * is this process's own. The ACL is set while the file is still EMPTY and the token written after, so there is no
- * moment when a file anybody else can read holds it. The tray re-reads the file on every call, so a new token per
- * node start costs it nothing.
- *
- * `restrict` is the Windows ACL step, replaceable in tests; elsewhere the file is created 0600.
+ * daclProblem(item, want, owners, {file}) -> why this inspected directory (or the token file in it) is not exactly what
+ * this node set, or null. The directory: protected, and EXACTLY the wanted entries, explicit, allow, inherited by what
+ * is born inside. The file: exactly the same entries, every one inherited from that directory, nothing of its own.
  */
-export function mintToken(file, { trayUser = "", platform = process.platform, restrict = windowsRestrict } = {}) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  try { fs.unlinkSync(file); } catch (e) { if (e.code !== "ENOENT") throw e; }
-  fs.closeSync(fs.openSync(file, "wx", 0o600));
+export function daclProblem(item, want, owners, { file = false } = {}) {
+  const standing = standingProblem(item, owners, { dir: !file });
+  if (standing) return standing;
+  if (!file && item.protected !== true) return "its DACL is not protected: it still inherits from the folder above";
+  const rules = list(item.rules);
+  for (const r of rules) {
+    const w = want.find((x) => x.sid === r.sid);
+    if (!w) return `its DACL grants ${String(r.sid).slice(0, 80)}, which is not SYSTEM, Administrators, this node's account or the tray's user`;
+    if (r.allow !== true) return `its DACL has a deny entry for ${r.sid}, which this node did not set`;
+    if (bits(r.rights) !== bits(w.rights)) return `its DACL gives ${r.sid} ${hex(r.rights)}, not ${hex(w.rights)}`;
+    if (file ? r.inherited !== true : r.inherited !== false || Number(r.flags) !== OICI)
+      return file ? `its entry for ${r.sid} is its own, not inherited from the token directory`
+                  : `its entry for ${r.sid} is ${r.inherited ? "inherited" : "not inherited by what is created inside"}`;
+  }
+  for (const w of want) if (!rules.some((r) => r.sid === w.sid)) return `its DACL does not grant ${w.sid}`;
+  if (rules.length !== want.length) return `its DACL has ${rules.length} entries, not the ${want.length} this node set`;
+  return null;
+}
+
+// The Windows half, in PowerShell because .NET is the in-box way to create a directory WITH a security descriptor and
+// to read a DACL back as SIDs. Values travel in environment variables, never on a command line, and answers come back
+// as JSON on stdout ({error} on failure).
+const PS_INSPECT = String.raw`$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+try {
+  $S = [Security.Principal.SecurityIdentifier]
+  $self = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  $tray = $null
+  if ($env:ENCLAVE_TRAY_USER) { $tray = (New-Object Security.Principal.NTAccount($env:ENCLAVE_TRAY_USER)).Translate($S).Value }
+  $items = @()
+  foreach ($p in ($env:ENCLAVE_PATHS -split '\|')) {
+    $i = Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue
+    if ($null -eq $i) { $items += [pscustomobject]@{ exists = $false }; continue }
+    $a = Get-Acl -LiteralPath $p
+    $rules = @($a.GetAccessRules($true, $true, $S) | ForEach-Object {
+      [pscustomobject]@{ sid = $_.IdentityReference.Value; rights = $_.FileSystemRights.value__;
+                         allow = ($_.AccessControlType -eq 'Allow'); inherited = $_.IsInherited; flags = $_.InheritanceFlags.value__ } })
+    $items += [pscustomobject]@{ exists = $true; dir = [bool]$i.PSIsContainer;
+      reparse = [bool]($i.Attributes -band [IO.FileAttributes]::ReparsePoint); owner = $a.GetOwner($S).Value;
+      protected = [bool]$a.AreAccessRulesProtected; rules = $rules }
+  }
+  [Console]::Out.Write(([pscustomobject]@{ selfSid = $self; traySid = $tray; items = $items } | ConvertTo-Json -Compress -Depth 6))
+} catch { [Console]::Out.Write((@{ error = $_.Exception.Message } | ConvertTo-Json -Compress)); exit 3 }`;
+const PS_PROTECT = String.raw`$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+try {
+  $sec = New-Object Security.AccessControl.DirectorySecurity
+  $sec.SetAccessRuleProtection($true, $false)
+  foreach ($g in ($env:ENCLAVE_GRANTS -split ';')) {
+    $sid, $rights = $g -split '='
+    $sec.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(
+      (New-Object Security.Principal.SecurityIdentifier($sid)), [Security.AccessControl.FileSystemRights][int]$rights,
+      [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit', [Security.AccessControl.PropagationFlags]::None,
+      [Security.AccessControl.AccessControlType]::Allow)))
+  }
+  $d = $env:ENCLAVE_DIR
+  if (Test-Path -LiteralPath $d) { [IO.Directory]::SetAccessControl($d, $sec); $act = 'applied' }
+  else { [void][IO.Directory]::CreateDirectory($d, $sec); $act = 'created' }
+  [Console]::Out.Write((@{ action = $act } | ConvertTo-Json -Compress))
+} catch { [Console]::Out.Write((@{ error = $_.Exception.Message } | ConvertTo-Json -Compress)); exit 3 }`;
+
+function powershell(script, env) {
+  const exe = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const args = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")];
+  return new Promise((resolve, reject) => {
+    execFile(exe, args, { env: { ...process.env, ...env }, windowsHide: true, timeout: 60_000, maxBuffer: 1 << 20 }, (e, stdout, stderr) => {
+      let o = null;
+      try { o = JSON.parse(String(stdout).trim()); } catch {}
+      if (o && o.error) return reject(new Error(String(o.error).slice(0, 300)));
+      if (e || !o) return reject(new Error(`powershell: ${String(stderr || (e && e.message) || stdout).trim().split(/\r?\n/)[0].slice(0, 300)}`));
+      resolve(o);
+    });
+  });
+}
+
+/** The two Windows steps mintToken takes; replaceable in tests. */
+export const windowsOps = {
+  // -> { selfSid, traySid, items: [{ exists, dir, reparse, owner, protected, rules: [{ sid, rights, allow, inherited, flags }] }] }
+  inspect: (paths, trayUser) => powershell(PS_INSPECT, { ENCLAVE_PATHS: paths.join("|"), ENCLAVE_TRAY_USER: trayUser || "" }),
+  // the directory created WITH exactly this protected DACL when missing, else its DACL replaced by exactly this one
+  protect: (dir, want) => powershell(PS_PROTECT, { ENCLAVE_DIR: dir, ENCLAVE_GRANTS: want.map((w) => `${w.sid}=${w.rights}`).join(";") }),
+};
+
+/** The file-system steps mintToken takes, apart so a test can watch their order. */
+export const fsOps = {
+  mkdirp: (p) => fs.mkdirSync(p, { recursive: true }),
+  isLink: (p) => { try { return fs.lstatSync(p).isSymbolicLink(); } catch (e) { if (e.code === "ENOENT") return false; throw e; } },
+  realpath: (p) => fs.realpathSync.native(p),
+  writeNew: (p, data) => {
+    const fd = fs.openSync(p, "wx", 0o600);
+    try { fs.writeFileSync(fd, data); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  },
+  rename: (a, b) => fs.renameSync(a, b),
+  unlink: (p) => { try { fs.unlinkSync(p); } catch (e) { if (e.code !== "ENOENT") throw e; } },
+};
+const samePath = (a, b) => path.resolve(a).replace(/[\\/]+$/, "").toLowerCase() === path.resolve(b).replace(/[\\/]+$/, "").toLowerCase();
+
+/**
+ * A FRESH token, every start, in a file only SYSTEM, Administrators, this process's account and the tray's user can
+ * read. Resolves to the token; rejects when that cannot be established, and the caller then serves no admin API.
+ *
+ * Fresh, never reused: whatever sits at the token's name - an earlier start's token, or something planted - is
+ * replaced by a rename and never read. On Windows, in this order, each step refusing on anything unexpected:
+ *   1. the folder above is not a link or junction (nor anything above it) and belongs to SYSTEM, Administrators or
+ *      this node's account; the token directory, if there, likewise;
+ *   2. the directory's DACL is set: protected, exactly expectedDacl() - at birth when the directory is new;
+ *   3. it is read back and must be exactly that (daclProblem), and still not a link;
+ *   4. only now a file: the token under a random name (create-new), renamed over the final name;
+ *   5. the file as it landed must carry exactly the directory's entries, inherited, before its token is used.
+ * Elsewhere: a 0700 directory and a 0600 file, by the same temporary name and rename.
+ */
+export async function mintToken(file, { trayUser = "", platform = process.platform, win = windowsOps, fsx = fsOps } = {}) {
+  const dir = path.dirname(file), parent = path.dirname(dir);
+  const token = crypto.randomBytes(32).toString("base64url");
+  const tmp = path.join(dir, `.hosting-admin.${crypto.randomBytes(8).toString("hex")}.tmp`);
+  if (platform !== "win32") {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); fs.chmodSync(dir, 0o700);
+    try { fsx.writeNew(tmp, token + "\n"); fsx.rename(tmp, file); } catch (e) { fsx.unlink(tmp); throw e; }
+    return token;
+  }
+  const refuse = (where, why) => { throw new Error(`${where}: ${why}`); };
+  // 1.
+  fsx.mkdirp(parent);
+  for (const p of [parent, dir]) if (fsx.isLink(p)) refuse(p, "it is a symbolic link or a junction");
+  const realParent = fsx.realpath(parent);
+  if (!samePath(realParent, parent)) refuse(parent, `it resolves to ${realParent}: a folder on the way is a junction or a link`);
+  let seen = await win.inspect([parent, dir], trayUser);
+  const want = expectedDacl(seen);
+  const owners = [SYSTEM, ADMINS, seen.selfSid].filter(Boolean);
+  if (trayUser && !seen.traySid) refuse(trayUser, "the tray user did not resolve to a SID");
+  let [p, d] = list(seen.items);
+  const pw = standingProblem(p, owners); if (pw) refuse(parent, pw);
+  if (d && d.exists) { const dw = standingProblem(d, owners); if (dw) refuse(dir, dw); }
+  // 2.
+  await win.protect(dir, want);
+  // 3.
+  seen = await win.inspect([parent, dir], trayUser);
+  [p, d] = list(seen.items);
+  const pw2 = standingProblem(p, owners); if (pw2) refuse(parent, pw2);
+  const dw2 = daclProblem(d, want, owners); if (dw2) refuse(dir, `${dw2} (read back after it was set)`);
+  if (fsx.isLink(dir)) refuse(dir, "it is a symbolic link or a junction");
+  const realDir = fsx.realpath(dir);
+  if (!samePath(realDir, dir)) refuse(dir, `it resolves to ${realDir}`);
+  // 4. and 5.
   try {
-    if (platform === "win32") restrict(file, trayUser);
-    const token = crypto.randomBytes(32).toString("base64url");
-    fs.writeFileSync(file, token + "\n", { flag: "r+" });
+    fsx.writeNew(tmp, token + "\n");
+    fsx.rename(tmp, file);
+    seen = await win.inspect([dir, file], trayUser);
+    const [d3, f3] = list(seen.items);
+    const dw3 = daclProblem(d3, want, owners); if (dw3) refuse(dir, `${dw3} (after the token was written)`);
+    const fw = daclProblem(f3, want, owners, { file: true }); if (fw) refuse(file, fw);
+    const realFile = fsx.realpath(file);
+    if (!samePath(realFile, path.join(realDir, path.basename(file)))) refuse(file, `it resolves to ${realFile}`);
     return token;
   } catch (e) {
-    try { fs.unlinkSync(file); } catch {}
+    fsx.unlink(tmp); fsx.unlink(file);           // a token that was never verified is never left to be read
     throw e;
   }
 }
