@@ -1,8 +1,18 @@
-# hv-soak: a read-only soak monitor for the NucBox isolated-app test deployment
+# hv-soak: a read-only soak monitor for the NucBox isolated-app deployments
 
-`soak.mjs` watches one deployment on the NucBox hv-node (T0-hv: the host is not excluded) from the Linux workstation. It
-takes one sample every INTERVAL (300 s by default) and appends each sample as one JSONL line. It uses only Node
-built-ins, so the file runs on its own, outside a checkout.
+`soak.mjs` watches one deployment on the NucBox hv-node (T0-hv: the host is not excluded) from the Linux workstation.
+Every INTERVAL (300 s by default) it takes one sample and appends it as one JSONL line. It uses only Node built-ins, so
+the file runs on its own, outside a checkout.
+
+It runs in one of two modes, chosen by the target:
+
+| run | target | what it can PASS |
+|---|---|---|
+| availability/stability soak | hello-world, or any app | everything except the leak check. Run it with `--leak-scope out --leak-evidence "<why>"`. The verdict line then reads `VERDICT (availability/stability; leak not in scope): PASS\|FAIL`. |
+| leak soak | a sentinel app that echoes the token (below) | everything, the leak check included. The leak check PASSes only on enough exercised samples. |
+
+The default is in scope. A run that cannot exercise the leak check therefore never prints `VERDICT: PASS`; it prints
+`VERDICT: NOT PASS (the leak check was not exercised enough to pass)`.
 
 ## What one sample does
 
@@ -10,132 +20,144 @@ Each sample opens one ssh session and sends one HTTPS request per check.
 
 | # | check | how |
 |---|---|---|
-| 1 | public TLS | ONE `GET https://<id8>.app.enclave.host/hv-soak/<token>`, with the token also in `x-hv-soak`. The chain and the hostname are verified against Node's CA store. When a connection fails verification, its leaf is recorded (SPKI sha256, serial, issuer, the reason) and the connection is dropped before any response is read. Only a verified 200 counts. |
-| 1b | the HEAD leak probe (`--leak-probe --body-marker S`) | ONE `HEAD` to the same URL, with the same token and the same verification rules, sent together with the GET inside the console window. See "The active leak probe" below. |
+| 1 | public TLS | ONE `GET` of the app URL with `--path` (default `/hv-soak/{token}`), where `{token}` is the sample's random token. The token also rides in `x-hv-soak`. The chain and the hostname are verified against Node's CA store. When a connection fails verification, its leaf is recorded (SPKI sha256, serial, issuer, the reason) and the connection is dropped before any response is read. Only a verified 200 counts. The first 4 KiB of the body are kept in memory, never stored, and searched for the token. |
+| 1b | HEAD tripwire (`--leak-probe --body-marker S`) | ONE `HEAD` to the same URL, same token, same verification rules, sent together with the GET. |
 | 2 | relay row | `GET https://api.enclave.host/enclaves`, unauthenticated, reading the `nucbox-k11` row. It is OK when all of these hold: mode and tier `hv-node`, `attach` `attestation`, `tunnel` true, `hvNode.hostExcluded` false, and `availability.claimScope` `owner-only`. The sample also records `lastSeen`, `owners`, `eligible` and `serving`. |
-| 3 | the box | ONE `ssh minipc-zt` session. A short `-EncodedCommand` bootstrap reads the sampler script from stdin. Nothing is written to the box. The script reads: the manager's `GET /vms` (127.0.0.1:8091); `Get-VM` for the `enclave-app-*` VMs; `Win32_OperatingSystem` for free memory; `hvnode\logs\node.log` and `manager.log`, from the byte offset where the last sample stopped (opened for READ with sharing); and the deployment's COM1 console. |
-| 4 | chain (`--no-chain` skips it) | ONE `eth_call get(bytes32)` on the deployments ledger through a public Base RPC. It records balance6, spent6, leaseUntil and whether the runner is this box. After a failed call, the next sample tries the next RPC. |
+| 3 | the box | ONE `ssh minipc-zt` session. A short `-EncodedCommand` bootstrap reads the sampler script from stdin; nothing is written to the box. It reads: the manager's `GET /vms`; `Get-VM` for the `enclave-app-*` VMs; host free memory; `hvnode\logs\node.log` and `manager.log`, from where the last sample stopped, opened for READ with sharing; and the deployment's COM1 console. |
+| 4 | chain (`--no-chain` skips it) | ONE `eth_call get(bytes32)` on the deployments ledger through a public Base RPC. It records balance6, spent6, leaseUntil and whether the runner is this box. |
 
-The console is read as follows:
-- The pipe is `(Get-VMComPort -VMName enclave-app-<instance> -Number 1).Path`, which is `\\.\pipe\enclave-app-<instance>-com1`.
-- It is opened only when the manager's record is `running` and has `guest` set, which means the manager's start-time capture has finished. So the soak never takes the pipe from a start that is still attaching to it.
-- The client reads for `--console-sec` (25 s) and then disconnects.
-- The box prints `HVSOAK1-READY` once it is connected, and the workstation sends the GET and the HEAD only then, both with a 20 s timeout. They therefore land inside the console window.
-- After the window, the logs are read. So a restart that the public check saw is already in the log that the same sample reads.
+**Order within a sample:**
+1. The script reads `/vms`. If the record is `running` with `guest` set (the manager's start-time capture is done), it opens the COM1 pipe `(Get-VMComPort -VMName enclave-app-<instance> -Number 1).Path` as a reading client.
+2. It records each log's size, from an open handle, then prints `HVSOAK1-READY`.
+3. The workstation fires the GET (and the HEAD) at that line, with a 20 s timeout.
+4. The console is read for `--console-sec` (25 s, and at least the timeout plus 5 s), then the logs, `Get-VM` and memory.
 
-## The active leak probe
+The GET is recorded with its trigger:
+- `console`: at READY with the console connected;
+- `noconsole`: at READY with no console;
+- `fallback`: by the 60 s timer or the session's end.
 
-**The token proves nothing for an app that never logs.** hello-world writes nothing to the console, even while it serves, so a token in its request path can never show up anywhere, even on a leaky guest. A leak check built only on the token passes on a leaky guest.
-
-The HEAD probe is what exercises the path:
-- The soak target is a **sentinel app** built by enclave-5d. On each request it prints `-STDOUT-REQ <path> <x-hv-soak header>` to stdout and stderr, and it answers HEAD with a body that carries a marker.
-- An app that sends a body on HEAD makes the in-guest front handle bytes it must drop:
-  - An **old** front (Go stdlib) logs ``Unsolicited response … starting with "<body>"`` to the console, which carries the marker.
-  - The **fixed** front logs `DOM front: unsolicited upstream response (N bytes withheld)`.
-- On a leaky guest the sentinel's stdout also reaches the console. That brings `-STDOUT-REQ` lines, and the sample's token with them.
-
-These count as leaks, each a FAIL wherever it is seen: in the console window, or in node.log or manager.log after the baseline read:
-- the body marker;
-- a `-STDOUT-REQ` line;
-- the token.
-
-A `bytes withheld` line is not a failure. It is counted as proof that the probe reached the front and that the front dropped the body.
-
-**`--body-marker` has no default.** It is the marker the target app puts in its HEAD body, and `--leak-probe` refuses to start without it. For the sentinel, pass the marker the sentinel's source defines: ask enclave-5d, or read the sentinel app. Without `--leak-probe` no HEAD is sent, and the leak check can never PASS (see the leak floor below).
-
-In the node and manager logs, marker and sentinel sightings in the first (baseline) read are the logs' history from before the soak. They are reported apart and not judged.
-
-Nothing on the box is changed. There are no restarts, no config changes and no installs, and nothing under `state\` is read.
-Console and log line CONTENTS are never stored or printed:
+Nothing on the box is changed. There are no restarts, no config changes and no installs, and nothing under `state\` is
+read. Console and log line CONTENTS are never stored or printed:
 - A console line that is not the guest's own is reported as a count and its sha256.
-- Log lines are counted. Only the node's restart and card-price lines are kept, truncated to 200 characters.
+- Log lines are counted. Only the node's restart and card-price lines are kept, truncated.
+- The GET's body is only searched for the token.
 
-## Thresholds (FAIL)
+## The leak check
+
+**What proves a sample exercised it.** A sample is EXERCISED only with proof that the app's output path ran in it. All
+of these must hold:
+- the partition was Running;
+- the GET was a verified 200, fired at READY with the console connected;
+- its body contains this sample's token;
+- the console and both logs were read.
+
+**Why the echo is required:**
+- The sentinel target echoes the token in its body, and prints it to stdout and stderr on every request as `-STDOUT-REQ <path> <x-hv-soak>`.
+- So when the token is absent from the console and from both logs, the app produced those bytes and nothing carried them out.
+- hello-world never echoes, so it can never count. A token in the path proves nothing for an app that never logs.
+
+**What FAILs it**, in the console window or in node.log/manager.log past their history:
+- the sample's token;
+- a `-STDOUT-REQ` line;
+- the HEAD body marker;
+- a console line that does not match `^(DOM|MON)|^\[ *[0-9]+\.[0-9]+\]`.
+
+**The HEAD tripwire (`--leak-probe --body-marker S`).** This is a tripwire, not coverage:
+- **Not covered on hv:** the front's unsolicited-response guard. Under bundle/1 wasi:http (wasmtime serve), hyper frames every response, so no servable app can reach it. Every summary says so.
+- A sighting of the marker S, the token or a `-STDOUT-REQ` line is still a FAIL. An old front would log ``Unsolicited response … starting with "<body>"``.
+- A `DOM front: unsolicited upstream response (N bytes withheld)` line is INFO.
+- The HEAD never makes a sample exercised.
+- `--body-marker` has no default and goes with `--leak-probe`. For hookbin, whose HEAD returns 404 with body `{"error":"gone"}`, it is `--body-marker '{"error":"gone"}'`. Use `--path '/ping?hvsoak={token}'` with it, because hookbin answers GET `/ping` with 200 and every other path with 404, and its path excludes the query. hookbin's body does not echo the token, so a hookbin run cannot exercise the check.
+
+**The leak floor.** `--summary` gives `leak` one of four results:
+- **FAIL**: any leak event, in any sample.
+- **PASS**: no event, at least one exercised sample, and exercised samples make up at least the floor of all samples. The floor is 90% by default; set it with `--leak-floor 0.95` or `95%`.
+- **NOT EXERCISED (x/N)**: otherwise.
+- **NOT IN SCOPE: \<evidence\>**: with `--leak-scope out`. Sightings are still shown on that line, but not judged.
+
+**History (G2).** The logs' history is only the bytes below each log's size at the FIRST READY. It is reported apart and never judged:
+- Everything at or past that size is judged, including the first sample's own probe lines.
+- A line that crosses the boundary is judged, not filed as history.
+- Without that size, the first read fails closed: the log counts as unread, and the next sample tries again.
+- A file that was replaced is all judged.
+
+## Thresholds
 
 | id | FAIL when | notes |
 |---|---|---|
-| public | 3 or more consecutive public checks are not a verified 200 | A TLS failure, a timeout or a non-200 all count. |
+| public | 3 or more consecutive public checks are not a verified 200 | |
 | spki | the leaf's SPKI changes with no restart of the deployment in the node log | See "SPKI baseline and restarts" below. |
-| partition | the partition is not Running on 2 consecutive samples | Running means the manager's `/vms` status is `running` and, when `Get-VM` answered, the VM is `Running`. A sample whose box read failed counts as unknown: it neither counts toward the streak nor resets it. |
-| price | a new `registry: card price now` line appears (a price tx) | The first read of `node.log` is the baseline. |
-| leak | the console has a line that does not match `^(DOM\|MON)\|^\[ *[0-9]+\.[0-9]+\]`; or the sample's token, the body marker or a `-STDOUT-REQ` line appears in the console, node.log or manager.log | Blank lines and the trailing partial line are not judged. The token and the marker are still searched for in the raw text. `bytes withheld` lines are INFO. **No leak seen is not a PASS on its own:** see "The leak floor" below. |
-| box | the ssh or box read fails on 3 or more consecutive samples (INFO below that) | The box read is the ssh session, `/vms`, both logs, and the console whenever the partition is running. |
-| relay | the relay row is wrong on 3 or more consecutive samples, or `hostExcluded` is true in any sample | This threshold is an addition: this tier never excludes the host. |
-
-**The leak floor.** A leak can only be seen in a sample that EXERCISED the check. That needs all of these:
-- the deployment's partition was Running;
-- the public GET carrying the token was a verified 200, so the request reached the partition;
-- the HEAD probe was sent inside the connected console window. That means it was fired by `HVSOAK1-READY` with the console connected, over a verified connection, and it got an answer. A probe fired by the fallback timer does not count, and neither does one with `--leak-probe` off;
-- the console was read around the requests;
-- node.log and manager.log were both read.
-
-`--summary` gives `leak` one of three verdicts:
-- **FAIL**: any leak event, in any sample.
-- **PASS**: no leak event, at least one exercised sample, and exercised samples make up at least **the floor (90% by default)** of all samples. Set the floor with `--leak-floor 0.95` or `--leak-floor 95%`.
-- **NOT EXERCISED (x/N)**: anything else.
-
-The overall verdict is PASS only when every threshold PASSes. With `leak` NOT EXERCISED and nothing FAILed, it reads `NOT PASS`, and the exit code is 1. The exercised count is printed on the leak line and on its own summary line. Each sample also records it, informationally, in `derived.leakExercised`.
-
-This stops two things:
-- **A vacuous PASS.** Examples: 0/144 console reads, a public route that never delivered the token, or a run without the HEAD probe.
-- **Patchy coverage.** Alternating console failures never make 3 in a row, so the `box` threshold alone would never trip.
+| partition | the partition is not Running on 2 consecutive samples | Running means the manager says `running` and, when `Get-VM` answered, the VM is `Running`. A sample whose box read failed is unknown: it neither counts toward the streak nor resets it. |
+| price | a new `registry: card price now` line (a price tx) past the history | |
+| leak | see above | Its result is PASS, FAIL, NOT EXERCISED, or NOT IN SCOPE. |
+| box | the ssh or box read fails on 3 or more consecutive samples (INFO below that) | The box read is ssh, `/vms`, both logs, and the console whenever the partition is running. |
+| relay | the relay row is wrong on 3 or more consecutive samples, or `hostExcluded` is true in any sample | This one is an addition: the hv tier never excludes the host. |
 
 **SPKI baseline and restarts:**
 - The baseline is the first leaf presented, verified or not. With M4, a self-signed leaf and the CA-issued one carry the same key.
-- A change is explained by a restart line for the deployment in the node log: `<id10> isolation spawned`, `<id10> isolated domain retired`, `<id10> isolation respawn`, or `config edit <id10>: … relaunching`. The line must be in the same window or in an earlier window after which no leaf was seen yet. An explained change re-baselines to the new SPKI.
+- A change is explained by a judged restart line for the deployment: `<id10> isolation spawned`, `<id10> isolated domain retired`, `<id10> isolation respawn`, or `config edit <id10>: … relaunching`. The line must be in the same window, or in an earlier window after which no leaf was seen yet. An explained change re-baselines to the new SPKI.
 - If the node log could not be read when the key changed, the change is judged at the next read.
-- Restart lines in the first, baseline read (the history) explain nothing.
-- Each sample also records `derived.spkiEqualsManagerKey`: whether the public leaf's SPKI equals the manager's `transportKeySha256`, which is the partition's own key.
+- Restart lines in the history explain nothing.
+- Each sample also records `derived.spkiEqualsManagerKey`: whether the public leaf's SPKI equals the manager's `transportKeySha256`.
 
 ## Usage: a 12 h run
 
-`soak.mjs` has no imports outside Node, so take a copy of it out of the branch and run it detached. The target is the
-SENTINEL app's deployment. Replace the two `<…>` values: the sentinel deployment's id, and the sentinel's HEAD-body
-marker. The default `--deployment` is the first hello-world test deployment, which cannot exercise the leak check.
+Take a copy of `soak.mjs` out of the branch:
 
 ```sh
 mkdir -p ~/enclave-bench/nucbox-soak && cd ~/enclave-bench/nucbox-soak
 git -C ~/Projects/enclave fetch origin windows/hv-soak-monitor
 git -C ~/Projects/enclave show origin/windows/hv-soak-monitor:windows/node/ops/hv-soak/soak.mjs > soak.mjs
-node soak.mjs --once --deployment 0x<sentinel id> --leak-probe --body-marker '<sentinel marker>'   # one sample, printed
-nohup node soak.mjs --duration 12h --deployment 0x<sentinel id> --leak-probe --body-marker '<sentinel marker>' \
+```
+
+**Availability/stability soak** on the hello-world test deployment (the default `--deployment`):
+
+```sh
+EVID='hv tier: bundle/1 wasi:http under wasmtime serve frames every response; hello-world never prints (box control 2026-09-26)'
+node soak.mjs --once --leak-scope out --leak-evidence "$EVID"                      # one sample, printed; nothing written
+nohup node soak.mjs --duration 12h --leak-scope out --leak-evidence "$EVID" \
   > soak-$(date -u +%Y%m%dT%H%M%SZ).log 2>&1 &
 echo $! > soak.pid
 ```
 
+**Leak soak** on a sentinel deployment. Replace the `<…>` values; the path must be a route that answers 200 and echoes `x-hv-soak`:
+
+```sh
+nohup node soak.mjs --duration 12h --deployment 0x<sentinel id> --path '/<route>?hvsoak={token}' \
+  [--leak-probe --body-marker '<its HEAD-body marker>'] > soak-$(date -u +%Y%m%dT%H%M%SZ).log 2>&1 &
+```
+
 **Where the output goes:**
 - The samples are appended to `~/enclave-bench/nucbox-soak/<start, UTC>.jsonl`. The first line of `soak-*.log` names the file.
-- `soak-*.log` gets one human line per sample, with its FAIL and INFO lines under it, and the summary at the end.
+- The log gets one line per sample, with its FAIL and INFO lines under it, and the summary at the end.
+- The run's header line records the scope, the evidence, the path and the probe settings. The summary takes the scope from it.
 
 **Other commands:**
-- Stop early with `kill "$(cat soak.pid)"` (its exact PID). SIGTERM lets the current sample finish, then prints the summary.
-- Get a summary at any time, including while the run is going, with `node soak.mjs --summary <file.jsonl> [--since <ISO time>] [--leak-floor 0.9]`. It re-evaluates every threshold from the observations, not from the stored verdicts. It exits 1 unless every threshold PASSes.
-- `--since` scores only the part after a given time. For example, a run started before the public route served can be scored from the first verified 200.
-- Options: `--interval 300`, `--duration 12h`, `--out FILE`, `--deployment 0x…`, `--url`, `--node`, `--relay`, `--ssh`, `--root`, `--console-sec 25`, `--rpc URL` (repeatable), `--no-chain`, `--leak-floor 0.9`, and `--leak-probe` with `--body-marker S` (the two go together; the marker has no default).
+- `kill "$(cat soak.pid)"` (its exact PID) stops the run after the current sample and prints the summary.
+- `node soak.mjs --summary FILE.jsonl [--since ISO] [--leak-floor 0.9] [--leak-scope in|out --leak-evidence E] [--json]` summarizes at any time.
+  - It re-evaluates every threshold from the observations, not from the stored verdicts, and exits 1 unless it PASSes.
+  - `--json` prints the summary as JSON, carrying `leakScope`, the `leakEvidence`, the verdict and each threshold.
+  - `--since` scores only the part after a given time.
+- Options: `--interval 300`, `--duration 12h`, `--out FILE`, `--deployment 0x…`, `--url`, `--path`, `--node`, `--relay`, `--ssh`, `--root`, `--console-sec 25`, `--rpc URL` (repeatable), `--no-chain`, `--leak-floor`, `--leak-probe --body-marker S`, and `--leak-scope out --leak-evidence E`.
 
 **What the summary prints:**
-- PASS or FAIL for each threshold (NOT EXERCISED for `leak` below the floor), with the worst streak and the first event.
-- The leak check's exercised count, its share of all samples, and the floor.
-- For the HEAD probe:
-  - the number of samples in which it went out inside the console window;
-  - `bytes withheld` lines, and how many samples had them;
-  - sightings of the marker and of `-STDOUT-REQ` lines;
-  - the logs' history counts.
-- Public uptime (verified 200s over all checks) and latency p50/p95 over those 200s.
-- The longest stretch of samples with no gap longer than 2×INTERVAL, plus the longer gaps.
-- The share of samples with the partition Running.
-- From the node log: renewals, not-renewed lines, restart lines, process restarts, and the card-price baseline and additions.
-- The console totals and the balance trend.
+- the result of each threshold, with the worst streak and the first event;
+- public uptime and latency p50/p95;
+- the longest stretch with no gap over 2×INTERVAL;
+- the share of samples with the partition Running;
+- node-log counts, the console totals and the balance trend;
+- the leak check's exercised count (and how many samples echoed), and the statement that the hv guard is not covered;
+- the HEAD tripwire's counts.
 
 ## Tests
 
-`node --test windows/node/ops/hv-soak/soak.test.mjs` runs the parsers, the thresholds and the summary against fake box
-answers and fake JSONL. It also runs the TLS check against a local server whose throwaway certificate openssl makes
-at test time; that test is skipped when openssl is missing.
+`node --test windows/node/ops/hv-soak/soak.test.mjs` runs the parsers, the thresholds, the leak rules, G2 and both
+summary modes against fake box answers and fake JSONL. It also runs the TLS check, the HEAD and the token echo against
+a local server whose throwaway certificate openssl makes at test time; that test is skipped when openssl is missing.
 
 ## Limits (stated, not hidden)
 
-- **Console coverage.** The console is covered for 25 s per sample, around the GET and the HEAD. The leak floor sets how many samples must have been covered for `leak` to PASS. Output at other times is seen only when a later window catches it, because Hyper-V does not keep it for a reader who was not connected.
-- **The probe needs a target that talks.** The token, the marker and `-STDOUT-REQ` can only be seen if the target app produces them. That is why the soak target is the sentinel, not hello-world.
-- **Partial first line.** If the connection lands in the middle of a line, the first line of a window can be a fragment. It is judged like any other line.
-- **The v40 guest (image b7ba7731) has a known console leak**, fixed in v42. On v40, expect the `leak` threshold to FAIL. The real 12 h soak runs on the v42 guest.
+- **Console coverage.** The console is covered for the window around the requests. Output at other times is seen only when a later window catches it, because Hyper-V does not keep it for a reader who was not connected.
+- **Partial first line.** A window can begin mid-line. Its first line is judged like any other.
+- **v40 console leak.** The v40 guest (image b7ba7731) has a known console leak, fixed in v42.

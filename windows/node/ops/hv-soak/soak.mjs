@@ -9,12 +9,15 @@
 //   1. public TLS: ONE GET of https://<id8>.app.enclave.host/hv-soak/<token> with the token also in a header, over a
 //      connection whose chain and hostname are VERIFIED (Node's CA store). A connection that fails verification is
 //      recorded (its leaf's SPKI sha256, serial, issuer and the reason) and dropped: no response on it is read or counted.
-//      With --leak-probe, ONE HEAD to the same URL: the ACTIVE leak probe. An app that never logs (hello-world) makes the
-//      token unseeable, so the target is a SENTINEL app that prints "-STDOUT-REQ <path> <x-hv-soak>" to stdout and stderr
-//      per request and answers HEAD with a body carrying a marker. The HEAD makes the front handle a body it must drop:
-//      an old front logs it ("Unsolicited response ... starting with "<body>""), the fixed one logs "DOM front:
-//      unsolicited upstream response (N bytes withheld)". The token, the body marker (--body-marker, no default) or a
-//      -STDOUT-REQ line anywhere in the console or a log is a LEAK.
+//      The leak check counts a sample only when the GET's body ECHOES the sample's token: the target is a SENTINEL app
+//      that echoes it and prints "-STDOUT-REQ <path> <x-hv-soak>" to stdout and stderr per request, so the app's output
+//      path provably ran, and the token seen nowhere else means nothing carried it out. An app that never logs
+//      (hello-world) can never count.
+//      With --leak-probe, ONE HEAD to the same URL: a TRIPWIRE only. On hv (wasi:http under wasmtime serve) hyper frames
+//      every response, so no app reaches the front's unsolicited-response guard; the body marker (--body-marker, no
+//      default) or a -STDOUT-REQ line anywhere in the console or a log is still a LEAK, a "withheld" line is INFO.
+//      --leak-scope out --leak-evidence "<why>": an availability/stability soak whose verdict leaves the leak out, and
+//      says so in the verdict line itself.
 //   2. the relay's public row for the node (GET <relay>/enclaves, unauthenticated).
 //   3. the box, over ONE ssh session: the manager's /vms, Hyper-V's view of the manager's VMs, host memory, the node and
 //      manager logs FROM THE LAST SAMPLE'S OFFSET, and the deployment's COM1 console, read for a short window while the
@@ -48,7 +51,10 @@ export const DEFAULTS = Object.freeze({
   rpcs: ["https://base-rpc.publicnode.com", "https://base.drpc.org", "https://mainnet.base.org"],
   tlsTimeoutMs: 20_000,
   httpTimeoutMs: 20_000,
-  consoleSec: 25,            // the console window, from READY; longer than tlsTimeoutMs so the request lands inside it
+  consoleSec: 25,            // the console window, from READY: at least tlsTimeoutMs + CONSOLE_MARGIN_MS
+  // the request target of the GET and the HEAD; {token} is the sample's token. The default suits an app that answers
+  // any path; hookbin answers GET /ping 200 and 404 elsewhere (its path excludes the query): /ping?hvsoak={token}
+  path: "/hv-soak/{token}",
   consoleMaxBytes: 1 << 20,
   leakProbe: false,          // --leak-probe: the HEAD probe; it needs --body-marker (no default: the target app's own marker)
   bodyMarker: null,
@@ -57,6 +63,7 @@ export const DEFAULTS = Object.freeze({
   readyTimeoutMs: 60_000,
 });
 
+export const CONSOLE_MARGIN_MS = 5_000;
 // get(bytes32) on the deployments ledger: keccak256("get(bytes32)")[0..4], computed with viem's toFunctionSelector
 export const GET_SELECTOR = "0x8eaa6ac0";
 // a console line that is the guest's own: the monitor (MON), a domain's init (DOM, DOM1...) or a kernel timestamp
@@ -94,19 +101,24 @@ export function certFacts(x509) {
  * verification can still be recorded; Node still verifies the chain and the hostname and reports it on the socket,
  * and such a connection is destroyed at secureConnect, before any response is read. ok = verified AND 200.
  */
-export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutMs, headers = {}, ca, maxBody = 65536 } = {}) {
+export const BODY_KEEP = 4096;     // the body is retained, bounded, only to look for the sample's token; never stored
+
+export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutMs, headers = {}, ca, maxBody = 65536, expect = null } = {}) {
   return new Promise((resolve) => {
     const t0 = process.hrtime.bigint();
     const ms = () => Number((process.hrtime.bigint() - t0) / 1_000_000n);
     const out = { ok: false, status: null, latencyMs: null, authorized: null, authorizationError: null, error: null,
-                  bytes: null, cert: null };
-    let done = false, timer = null, req = null;
+                  bytes: null, cert: null, bodyHasToken: expect ? false : null };
+    let done = false, timer = null, req = null, kept = Buffer.alloc(0);
     const finish = (extra = {}) => {
       if (done) return;
       done = true; clearTimeout(timer);
       Object.assign(out, extra);
       if (out.latencyMs === null) out.latencyMs = ms();
       out.ok = out.authorized === true && out.status === 200 && !out.error;
+      // only a VERIFIED 200's body can prove the app's output path ran; the first BODY_KEEP bytes are searched
+      if (expect) out.bodyHasToken = out.ok && kept.includes(expect);
+      kept = null;
       resolve(out);
     };
     try {
@@ -114,7 +126,10 @@ export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutM
                                  headers: { "user-agent": "enclave-hv-soak/1", accept: "*/*", ...headers } }, (res) => {
         out.status = res.statusCode;
         let n = 0;
-        res.on("data", (c) => { n += c.length; if (n > maxBody) res.destroy(); });
+        res.on("data", (c) => {
+          if (kept && kept.length < BODY_KEEP) kept = Buffer.concat([kept, c.subarray(0, BODY_KEEP - kept.length)]);
+          n += c.length; if (n > maxBody) res.destroy();
+        });
         res.on("end", () => finish({ bytes: n, latencyMs: ms() }));
         res.on("error", (e) => finish({ bytes: n, error: `response: ${e.message}` }));
         res.on("close", () => finish({ bytes: n, latencyMs: ms() }));
@@ -226,6 +241,10 @@ function Chunk([string]$p, [long]$from) {
     } finally { $fs.Close() }
   } catch { return @{ ok = $false; error = [string]$_.Exception.Message } }
 }
+function SizeOf([string]$p) {
+  try { $f = [IO.File]::Open($p, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)); try { return [long]$f.Length } finally { $f.Close() } }
+  catch { return [long]-1 }
+}
 $o = [ordered]@{ v = 1; t0 = [DateTime]::UtcNow.ToString('o') }
 $vmsText = $null
 try {
@@ -248,6 +267,8 @@ try {
     } else { $con.note = "no single running record with its start capture done ($($recs.Count) record(s), $($run.Count) running)" }
   } else { $con.note = 'no /vms answer, so no record names a console' }
 } catch { $con.note = [string]$_.Exception.Message; if ($cli) { try { $cli.Dispose() } catch {} }; $cli = $null }
+# each log's size BEFORE READY: only bytes below it can be history; the probes that follow READY write after it
+$preNode = SizeOf (Join-Path $Root 'logs\node.log'); $preMgr = SizeOf (Join-Path $Root 'logs\manager.log')
 Emit ('HVSOAK1-READY ' + $(if ($con.connected) { 'console' } else { 'noconsole' }))
 $ms = New-Object System.IO.MemoryStream; $con.truncated = $false
 if ($cli) {
@@ -272,8 +293,8 @@ try {
 } catch { $o.hv = @{ ok = $false; error = [string]$_.Exception.Message } }
 try { $os = Get-CimInstance Win32_OperatingSystem; $o.mem = @{ ok = $true; freeKB = [long]$os.FreePhysicalMemory; totalKB = [long]$os.TotalVisibleMemorySize } }
 catch { $o.mem = @{ ok = $false; error = [string]$_.Exception.Message } }
-$o.node = Chunk (Join-Path $Root 'logs\node.log') $NodeFrom
-$o.manager = Chunk (Join-Path $Root 'logs\manager.log') $MgrFrom
+$o.node = Chunk (Join-Path $Root 'logs\node.log') $NodeFrom; $o.node.preReady = $preNode
+$o.manager = Chunk (Join-Path $Root 'logs\manager.log') $MgrFrom; $o.manager.preReady = $preMgr
 Emit ('HVSOAK1 ' + ($o | ConvertTo-Json -Compress -Depth 6))
 `;
 }
@@ -331,7 +352,19 @@ export function consumeChunk(chunk) {
   const buf = Buffer.from(chunk.b64 || "", "base64");
   const last = buf.lastIndexOf(0x0a);
   const used = last < 0 ? 0 : last + 1;
-  return { text: buf.subarray(0, used).toString("utf8"), next: Number(chunk.from) + used, bytes: used, pendingBytes: buf.length - used };
+  return { buf: buf.subarray(0, used), text: buf.subarray(0, used).toString("utf8"), next: Number(chunk.from) + used, bytes: used,
+           pendingBytes: buf.length - used };
+}
+
+/**
+ * Split complete lines read from file offset `from` at the HISTORY boundary `until` (the log's size before this soak's
+ * first READY): whole lines that end at or below it are history; a line that crosses it, and everything after, are
+ * judged. Rounding toward "judged" is deliberate: a probe's own line must never be filed as history (enclave-bf's G2).
+ */
+export function splitHistory(buf, from, until) {
+  const cut = Math.max(0, Math.min(buf.length, Number(until) - Number(from)));
+  const end = cut > 0 ? buf.subarray(0, cut).lastIndexOf(0x0a) + 1 : 0;
+  return { history: buf.subarray(0, end), current: buf.subarray(end) };
 }
 
 /** Counts over the new node/manager log lines; only the restart and price lines are kept (truncated), nothing else. */
@@ -437,17 +470,34 @@ export function digestBox(res, st, { deployment, token, marker = null }) {
     st.instance = instance;
   } else box.partition = { running: null };
 
+  // THE LOGS. Bytes below the log's size before the FIRST READY are its history (before this soak), reported apart and
+  // never judged; everything at or past it is judged, including the first sample's own probe lines, which the script
+  // reads after READY (enclave-bf's G2). Without that size the first read cannot be split, so it fails closed: the log
+  // is unread this sample and its offset stays, so the next sample tries again.
   box.logs = {};
   for (const k of ["node", "manager"]) {
     const ch = d[k];
     if (!ch || !ch.ok) { box.logs[k] = { ok: false, error: trunc(ch?.error ?? `no ${k} log section`, 300) }; continue; }
-    const baseline = st.offsets[k] === 0 && !st.baselined[k];
+    const baseline = !st.baselined[k];
+    if (baseline) {
+      const pre = Number(ch.preReady);
+      if (!Number.isSafeInteger(pre) || pre < 0) {
+        box.logs[k] = { ok: false, error: `the ${k} log's size before READY is unknown, so its history cannot be told from this sample's own lines` };
+        continue;
+      }
+      st.historyUntil[k] = pre; st.baselined[k] = true;
+    }
+    if (ch.reset === true) st.historyUntil[k] = 0;                  // a new file: none of it is history
     const c = consumeChunk(ch);
-    st.offsets[k] = c.next; st.baselined[k] = true;
-    const sc = scanLog(c.text, { deployment, token, marker });
-    // the baseline read is the log's HISTORY, from before this soak's probes: a marker there is reported, not judged
-    if (baseline) { sc.markerHitsHistory = sc.markerHits; sc.markerHits = 0; sc.sentinelLinesHistory = sc.sentinelLines; sc.sentinelLines = 0; }
-    box.logs[k] = { ok: true, baseline, reset: ch.reset === true, size: ch.size, bytes: c.bytes, pendingBytes: c.pendingBytes, ...sc };
+    st.offsets[k] = c.next;
+    const { history, current } = splitHistory(c.buf, ch.from, st.historyUntil[k]);
+    const sc = scanLog(current.toString("utf8"), { deployment, token, marker });
+    const hist = history.length ? scanLog(history.toString("utf8"), { deployment, token, marker }) : null;
+    box.logs[k] = { ok: true, baseline, reset: ch.reset === true, size: ch.size, preReady: baseline ? st.historyUntil[k] : undefined,
+                    bytes: c.bytes, pendingBytes: c.pendingBytes, ...sc,
+                    history: hist && { bytes: history.length, lines: hist.lines, cardPrice: hist.cardPrice, restart: hist.restart,
+                                       markerHits: hist.markerHits, sentinelLines: hist.sentinelLines, errorLines: hist.errorLines,
+                                       refusLines: hist.refusLines, cardPriceLines: hist.cardPriceLines } };
   }
 
   const con = d.console || {};
@@ -485,8 +535,12 @@ export function step(ev, s) {
   bump("public", t.ok !== true, 3, (n) => `${n} consecutive public checks not 200 (last: ${why})`, (n) => `public check not OK (${why}); ${n} in a row`);
 
   // SPKI: baseline at the first presented leaf; a change needs a restart of the deployment in the node log
-  const node = s.box?.logs?.node;
-  const evidence = node && node.ok ? (!node.baseline && node.restart > 0) : null;     // null = the log was not read
+  let node = s.box?.logs?.node;
+  // a first read recorded before G2 carries no `history` split: it meant "all history", so it is read that way
+  if (node && node.ok && node.baseline && !("history" in node))
+    node = { ...node, history: { cardPrice: node.cardPrice, restart: node.restart }, cardPrice: 0, restart: 0 };
+  // only the JUDGED part of a read (past the pre-READY history) is evidence; null = the log was not read
+  const evidence = node && node.ok ? node.restart > 0 : null;
   const sp = ev.spki, cur = t.cert?.spkiSha256 || null;
   if (evidence === true) sp.pendingRestartSeq = seq;
   if (sp.deferred && evidence !== null) {
@@ -517,8 +571,10 @@ export function step(ev, s) {
 
   // price tx
   if (node && node.ok) {
-    if (node.baseline) { ev.price.baseline = node.cardPrice; info.push(["price", `card-price line baseline ${node.cardPrice}`]); }
-    else if (node.cardPrice > 0) { ev.price.added += node.cardPrice; fail.push(["price", `${node.cardPrice} new 'registry: card price now' line(s): a price tx`]); }
+    if (node.history) ev.price.baseline = (ev.price.baseline ?? 0) + node.history.cardPrice;
+    else if (node.baseline) ev.price.baseline = ev.price.baseline ?? 0;
+    if (node.baseline) info.push(["price", `card-price line baseline ${ev.price.baseline} (the log's history before this soak)`]);
+    if (node.cardPrice > 0) { ev.price.added += node.cardPrice; fail.push(["price", `${node.cardPrice} new 'registry: card price now' line(s): a price tx`]); }
   }
 
   // leak
@@ -551,33 +607,53 @@ export function step(ev, s) {
 }
 
 /**
- * A sample EXERCISED the leak check when a leak could have been seen in it: the partition ran, the token request was
- * delivered (a verified 200), the HEAD probe went out over verified TLS inside the connected console window and was
- * answered, the console was read around both, and both logs were read. The token alone proves nothing for an app that
- * never logs (hello-world writes nothing to the console); the HEAD probe makes the front handle a body it must not
- * pass on. A sample that is not exercised proves nothing either way, so the summary never lets `leak` PASS on coverage
- * below LEAK_FLOOR.
+ * A sample EXERCISED the leak check only with per-sample proof that the app's OUTPUT path ran (enclave-bf's amended
+ * G1): a verified 200, fired at READY with the console connected, whose BODY echoes THIS sample's token. The sentinel
+ * target echoes the token in its body AND prints it to stdout and stderr, so with the console and both logs read,
+ * "the token is absent from all three" means the app produced those bytes and nothing carried them out. hello-world
+ * never echoes, so it can never count.
+ *
+ * The HEAD probe is NOT part of this: on the hv tier (bundle/1 wasi:http under wasmtime serve) hyper frames every
+ * response, so no app can reach the front's unsolicited-response guard, and an answered HEAD proves nothing. It stays a
+ * TRIPWIRE: a marker, sentinel or token sighting is a FAIL; a "withheld" line is INFO.
+ *
+ * A sample that is not exercised proves nothing either way, so the summary never lets `leak` PASS on coverage below
+ * LEAK_FLOOR.
  */
 export const LEAK_FLOOR = 0.9;
-export const exercised = (s) => s.box?.partition?.running === true && s.tls?.ok === true && s.head?.sentInWindow === true
-  && s.box?.console?.connected === true && s.box?.logs?.node?.ok === true && s.box?.logs?.manager?.ok === true;
+export const exercised = (s) => s.box?.partition?.running === true && s.tls?.ok === true && s.tls?.trigger === "console"
+  && s.tls?.bodyHasToken === true && s.box?.console?.connected === true
+  && s.box?.logs?.node?.ok === true && s.box?.logs?.manager?.ok === true;
 /** The HEAD probe counts only when it was fired by a READY with the console connected, verified, and answered. */
 export const headSentInWindow = (trigger, head) => trigger === "console" && head?.authorized === true && head?.status != null;
 
 /* ------------------------------------------------------------------ summary */
 
-const pct =(sorted, p) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))] : null);
+const pct = (sorted, p) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))] : null);
 const dur = (ms) => { const m = Math.round(ms / 60000); return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}m`; };
+export const LEAK_SCOPES = Object.freeze(["in", "out"]);
+export const OUT_OF_SCOPE_VERDICT = "VERDICT (availability/stability; leak not in scope)";
+// stated in every summary: what the HEAD probe cannot reach on this tier, measured on the box
+export const HV_GUARD_NOT_COVERED = "NOT COVERED on hv: the front's unsolicited-response guard. Under bundle/1 wasi:http "
+  + "(wasmtime serve) hyper frames every response, so no servable app can reach it; the HEAD probe is a tripwire only";
 
-/** Re-evaluate a JSONL file's samples from scratch. -> { text, pass }; pass only when every threshold PASSes. */
-export function summarize(lines, { since = null, interval = null, leakFloor = LEAK_FLOOR } = {}) {
+/**
+ * Re-evaluate a JSONL file's samples from scratch. -> { text, pass, json }; pass only when every threshold PASSes.
+ * leakScope "out" (with leakEvidence) judges availability/stability only, and says so in the verdict line itself: it can
+ * never print a plain "VERDICT: PASS". The scope and evidence come from the options, else from the run's header.
+ */
+export function summarize(lines, { since = null, interval = null, leakFloor = LEAK_FLOOR, leakScope = null, leakEvidence = null } = {}) {
   const recs = [];
   for (const l of lines) { if (!l.trim()) continue; try { recs.push(JSON.parse(l)); } catch { /* a torn last line */ } }
   const head = recs.find((r) => r.type === "start");
+  const scope = leakScope ?? head?.leakScope ?? "in";
+  const evidence = leakEvidence ?? head?.leakEvidence ?? null;
+  if (!LEAK_SCOPES.includes(scope)) throw new Error(`leak scope must be one of ${LEAK_SCOPES.join(", ")}, not ${scope}`);
+  if (scope === "out" && !(typeof evidence === "string" && evidence.trim())) throw new Error("leak scope out needs its evidence");
   let samples = recs.filter((r) => r.type === "sample").sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
   if (since) samples = samples.filter((r) => Date.parse(r.t) >= Date.parse(since));
+  if (!samples.length) return { text: "no samples", pass: false, json: { verdict: "NO SAMPLES", pass: false, leakScope: scope } };
   const out = [];
-  if (!samples.length) return { text: "no samples", pass: false };
   const times = samples.map((r) => Date.parse(r.t));
   const diffs = times.slice(1).map((x, i) => x - times[i]);
   const iv = (interval || head?.interval || (diffs.length ? [...diffs].sort((a, b) => a - b)[Math.floor(diffs.length / 2)] / 1000 : DEFAULTS.interval)) * 1000;
@@ -594,7 +670,9 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
   const known = samples.filter((s) => typeof s.box?.partition?.running === "boolean");
   const chain = samples.filter((s) => s.chain?.ok);
   const sum = (f) => samples.reduce((a, s) => a + (f(s) || 0), 0);
-  const nl = (s) => (s.box?.logs?.node?.ok && !s.box.logs.node.baseline ? s.box.logs.node : null);
+  const nl = (s) => (s.box?.logs?.node?.ok ? s.box.logs.node : null);
+  const logs = (s, k) => (s.box?.logs?.node?.[k] || 0) + (s.box?.logs?.manager?.[k] || 0);
+  const hist = (s, k) => (s.box?.logs?.node?.history?.[k] || 0) + (s.box?.logs?.manager?.history?.[k] || 0);
 
   out.push(`hv-soak summary: ${samples.length} samples ${samples[0].t} .. ${samples[samples.length - 1].t} (span ${dur(times[times.length - 1] - times[0])})`
            + `${since ? ` since ${since}` : ""}; interval ${iv / 1000} s; deployment ${head?.deployment || samples[0].deployment || "?"}`);
@@ -611,57 +689,84 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
            + `${sum((s) => s.box?.console?.lines)} lines, ${sum((s) => s.box?.console?.nonMatching)} not DOM/MON/kernel`);
   const ex = samples.filter(exercised).length, exShare = ex / samples.length;
   const leakCovered = ex >= 1 && exShare >= leakFloor;
+  const echoed = samples.filter((s) => s.tls?.bodyHasToken === true).length;
+  if (scope === "out") out.push(`leak check: NOT IN SCOPE for this run: ${evidence}`);
   out.push(`leak check: exercised in ${ex}/${samples.length} samples (${(100 * exShare).toFixed(1)}%; floor ${(100 * leakFloor).toFixed(1)}%): `
-           + "partition running, a verified 200 carrying the token, the HEAD probe sent inside the console window, the console and both logs read");
-  out.push(`HEAD probe: sent inside the console window in ${samples.filter((s) => s.head?.sentInWindow === true).length}/${samples.length} samples; `
-           + `'bytes withheld' lines ${sum((s) => s.box?.console?.withheld)} (in ${samples.filter((s) => s.box?.console?.withheld > 0).length} samples: the probe reached the front); `
-           + `body-marker sightings ${sum((s) => (s.box?.console?.markerHits || 0) + (s.box?.logs?.node?.markerHits || 0) + (s.box?.logs?.manager?.markerHits || 0))}, `
-           + `sentinel '-STDOUT-REQ' lines ${sum((s) => (s.box?.console?.sentinelLines || 0) + (s.box?.logs?.node?.sentinelLines || 0) + (s.box?.logs?.manager?.sentinelLines || 0))}; `
-           + `in the logs' history before the soak: marker ${sum((s) => (s.box?.logs?.node?.markerHitsHistory || 0) + (s.box?.logs?.manager?.markerHitsHistory || 0))}, `
-           + `sentinel ${sum((s) => (s.box?.logs?.node?.sentinelLinesHistory || 0) + (s.box?.logs?.manager?.sentinelLinesHistory || 0))}`
-           + (samples.some((s) => s.head?.skipped) ? `; the probe was OFF in ${samples.filter((s) => s.head?.skipped).length} samples (--leak-probe not given)` : ""));
+           + `the partition running, a verified 200 fired inside the console window whose BODY echoes this sample's token (the app's `
+           + `output path ran; ${echoed}/${samples.length} echoed), the console and both logs read`);
+  out.push(HV_GUARD_NOT_COVERED);
+  out.push(`HEAD tripwire: sent inside the console window in ${samples.filter((s) => s.head?.sentInWindow === true).length}/${samples.length} samples`
+           + (samples.some((s) => s.head?.skipped) ? ` (OFF in ${samples.filter((s) => s.head?.skipped).length}: --leak-probe not given)` : "")
+           + `; 'bytes withheld' lines ${sum((s) => s.box?.console?.withheld)} (INFO); sightings: body marker `
+           + `${sum((s) => (s.box?.console?.markerHits || 0) + logs(s, "markerHits"))}, '-STDOUT-REQ' ${sum((s) => (s.box?.console?.sentinelLines || 0) + logs(s, "sentinelLines"))}, `
+           + `token ${sum((s) => (s.box?.console?.tokenHits || 0) + logs(s, "tokenHits"))}; the logs' history before the soak (not judged): `
+           + `marker ${sum((s) => hist(s, "markerHits"))}, sentinel ${sum((s) => hist(s, "sentinelLines"))}, card-price ${sum((s) => hist(s, "cardPrice"))}`);
+  let chainJson = null;
   if (chain.length) {
     const a = chain[0].chain, b = chain[chain.length - 1].chain;
     const h = (Date.parse(chain[chain.length - 1].t) - Date.parse(chain[0].t)) / 3.6e6;
+    chainJson = { balance6From: a.balance6, balance6To: b.balance6, hours: Number(h.toFixed(2)), leaseUntil: b.leaseUntil, runnerIsBox: b.runnerIsBox };
     out.push(`chain: balance6 ${a.balance6} -> ${b.balance6} (${b.balance6 - a.balance6 >= 0 ? "+" : ""}${b.balance6 - a.balance6} over ${h.toFixed(1)} h), `
              + `spent6 ${a.spent6} -> ${b.spent6}, lease until ${b.leaseUntil}, runner is this box: ${b.runnerIsBox}`);
   } else out.push("chain: no successful reads");
   out.push("thresholds:");
   let failed = 0, unproven = 0;
+  const thJson = [];
   for (const th of THRESHOLDS) {
     const evs = ev.events.filter((e) => e.id === th.id);
+    const worst = ev.worst[th.id] !== undefined ? ` (worst streak ${ev.worst[th.id]})` : "";
+    if (th.id === "leak" && scope === "out") {
+      // not judged: the line says why, and the sightings are still shown
+      out.push(`  NOT IN SCOPE: ${evidence} [leak: ${th.text}; ${evs.length} sighting(s) recorded, not judged; exercised ${ex}/${samples.length}]`);
+      thJson.push({ id: th.id, status: "NOT IN SCOPE", evidence, events: evs.length });
+      continue;
+    }
     // a leak seen anywhere FAILs; no leak seen PASSes only on enough exercised samples, else it is NOT EXERCISED
     const word = evs.length ? "FAIL" : th.id === "leak" && !leakCovered ? `NOT EXERCISED (${ex}/${samples.length})` : "PASS";
     if (evs.length) failed++; else if (word !== "PASS") unproven++;
-    const worst = ev.worst[th.id] !== undefined ? ` (worst streak ${ev.worst[th.id]})` : "";
     const exNote = th.id === "leak" ? ` [exercised ${ex}/${samples.length}, floor ${(100 * leakFloor).toFixed(1)}%]` : "";
     out.push(`  ${word} ${th.id.padEnd(9)} ${th.text}${worst}${exNote}`
              + (evs.length ? `: ${evs.length} event(s); first ${evs[0].t}: ${evs[0].msg}` : ""));
+    thJson.push({ id: th.id, status: word.startsWith("NOT EXERCISED") ? "NOT EXERCISED" : word, events: evs.length,
+                  ...(ev.worst[th.id] !== undefined ? { worstStreak: ev.worst[th.id] } : {}), ...(evs.length ? { first: evs[0] } : {}) });
   }
   const pass = failed === 0 && unproven === 0;
-  out.push(`VERDICT: ${failed ? "FAIL" : unproven ? "NOT PASS (the leak check was not exercised enough to pass)" : "PASS"}`);
-  return { text: out.join("\n"), pass };
+  const verdict = failed ? "FAIL" : unproven ? "NOT PASS" : "PASS";
+  const verdictLine = scope === "out" ? `${OUT_OF_SCOPE_VERDICT}: ${verdict}`
+    : `VERDICT: ${verdict === "NOT PASS" ? "NOT PASS (the leak check was not exercised enough to pass)" : verdict}`;
+  out.push(verdictLine);
+  const json = {
+    verdict, verdictLine, pass, leakScope: scope, ...(scope === "out" ? { leakEvidence: evidence } : {}),
+    samples: samples.length, from: samples[0].t, to: samples[samples.length - 1].t, intervalSec: iv / 1000,
+    deployment: head?.deployment || samples[0].deployment || null,
+    coverage: { gapFreeMs: best, longerGaps: gaps.length, largestGapMs: gaps.length ? Math.max(...gaps.map((g) => g.ms)) : 0 },
+    public: { verified200: ok.length, uptimePct: Number((100 * ok.length / samples.length).toFixed(1)), p50Ms: pct(lat, 50), p95Ms: pct(lat, 95) },
+    partition: { running: known.filter((s) => s.box.partition.running).length, known: known.length },
+    leak: { exercised: ex, floor: leakFloor, echoed, guardNotCovered: HV_GUARD_NOT_COVERED },
+    chain: chainJson, thresholds: thJson,
+  };
+  return { text: out.join("\n"), pass, json };
 }
 
 /* ------------------------------------------------------------------ one sample, the loop, the CLI */
 
 export function newSampler() {
-  return { seq: 0, rpc: 0, offsets: { node: 0, manager: 0 }, baselined: { node: false, manager: false }, instance: undefined };
+  return { seq: 0, rpc: 0, offsets: { node: 0, manager: 0 }, baselined: { node: false, manager: false },
+           historyUntil: { node: 0, manager: 0 }, instance: undefined };
 }
 
 async function takeSample(cfg, st) {
   const seq = st.seq++;
   const t = new Date().toISOString();
   const token = "hvsoak" + crypto.randomBytes(16).toString("hex");
-  const url = new URL(cfg.url);
-  url.pathname = `/hv-soak/${token}`;
+  const url = new URL(cfg.path.replaceAll("{token}", token), cfg.url);
   const script = boxScript({ root: cfg.root, managerPort: cfg.managerPort, deployment: cfg.deployment, nodeFrom: st.offsets.node,
                              managerFrom: st.offsets.manager, cap: cfg.logCapBytes, consoleSec: cfg.consoleSec, consoleMaxBytes: cfg.consoleMaxBytes });
-  // At the box's READY, inside the console window: the token GET and ONE HEAD probe, both over verified TLS. The HEAD
-  // makes the app send a body the front must drop; a leaky front logs it, a fixed one logs that it was withheld.
+  // At the box's READY, inside the console window: the token GET (its body must echo the token for the sample to count
+  // as exercised) and, with --leak-probe, ONE HEAD tripwire, both over verified TLS.
   let probes = null;
   const startProbes = (trigger = "fallback") => (probes ||= { trigger,
-    get: tlsCheck(url.href, { timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token } }),
+    get: tlsCheck(url.href, { timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token }, expect: token }),
     head: cfg.leakProbe ? tlsCheck(url.href, { method: "HEAD", timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token } }) : null });
   const relayP = relayRead(cfg);
   const chainP = cfg.chain ? chainRead(cfg, st) : Promise.resolve({ skipped: true });
@@ -683,14 +788,14 @@ async function takeSample(cfg, st) {
 
 export function humanLine(s, v) {
   const t = s.tls, b = s.box || {}, r = s.relay || {}, n = b.logs?.node, m = b.logs?.manager, c = b.console;
-  const pub = t.ok ? `200 ${t.latencyMs}ms` : t.status != null && t.authorized ? `HTTP ${t.status}` : t.authorized === false ? `TLS ${t.authorizationError}` : `ERR ${trunc(t.error, 60)}`;
+  const pub = t.ok ? `200 ${t.latencyMs}ms${t.bodyHasToken ? " echo" : " no-echo"}` : t.status != null && t.authorized ? `HTTP ${t.status}` : t.authorized === false ? `TLS ${t.authorizationError}` : `ERR ${trunc(t.error, 60)}`;
   const parts = [
     `${s.t.slice(0, 19)}Z #${s.seq}`,
     `public ${pub}${t.cert?.spkiSha256 ? ` spki ${t.cert.spkiSha256.slice(0, 12)}` : ""}${s.derived?.spkiEqualsManagerKey === true ? "=vm" : s.derived?.spkiEqualsManagerKey === false ? "!=vm" : ""}`,
     `relay ${r.ok ? "ok" : "NOT ok"}${r.present ? ` ${r.mode}/${r.attach} hx=${r.hostExcluded} ${r.claimScope} eligible=${r.eligible} serving=${r.serving}` : r.error ? ` ${trunc(r.error, 60)}` : " no row"}`,
     b.ssh?.ok ? `box ${b.ok ? "ok" : "PARTIAL"} ${Math.round((b.ssh.ms || 0) / 100) / 10}s vm ${b.partition?.status ?? "?"}${b.vms?.mine ? ` ${String(b.vms.mine.id).slice(0, 10)} ${b.vms.mine.memMiB}MiB` : ""} hv ${b.partition?.vmState ?? "?"} free ${b.mem?.ok ? (b.mem.freeMiB / 1024).toFixed(1) + "GiB" : "?"}`
               : `box FAIL ${trunc(b.ssh?.error, 80)}`,
-    n?.ok ? `node +${n.lines}${n.baseline ? "(baseline)" : ""} err ${n.errorLines} refus ${n.refusLines} price ${n.cardPrice} renew ${n.renewedMine}/${n.renewed} notRenewed ${n.notRenewed} restart ${n.restart}` : "node log ?",
+    n?.ok ? `node +${n.lines}${n.baseline ? `(baseline; history ${n.history?.lines ?? 0} lines)` : ""} err ${n.errorLines} refus ${n.refusLines} price ${n.cardPrice} renew ${n.renewedMine}/${n.renewed} notRenewed ${n.notRenewed} restart ${n.restart}` : "node log ?",
     m?.ok ? `mgr +${m.lines} err ${m.errorLines} refus ${m.refusLines}` : "mgr log ?",
     `head ${!s.head ? "?" : s.head.skipped ? "off" : (s.head.status != null && s.head.authorized ? `${s.head.status}` : s.head.authorized === false ? `TLS ${s.head.authorizationError}`
       : `ERR ${trunc(s.head.error, 40)}`) + (s.head.sentInWindow ? " in-window" : " NOT in window")}`,
@@ -712,7 +817,7 @@ function parseDuration(x) {
 
 export function parseArgs(argv) {
   const cfg = { ...DEFAULTS, rpcs: [...DEFAULTS.rpcs], chain: true, once: false, summary: null, since: null, out: null, url: null,
-                leakFloor: LEAK_FLOOR };
+                leakFloor: LEAK_FLOOR, leakScope: null, leakEvidence: null, json: false };
   const rpcs = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], v = () => { if (i + 1 >= argv.length) throw new Error(`${a} needs a value`); return argv[++i]; };
@@ -731,6 +836,10 @@ export function parseArgs(argv) {
       case "--root": cfg.root = v(); break;
       case "--console-sec": cfg.consoleSec = parseInt(v(), 10); break;
       case "--leak-probe": cfg.leakProbe = true; break;
+      case "--path": cfg.path = v(); break;
+      case "--leak-scope": cfg.leakScope = v(); break;
+      case "--leak-evidence": cfg.leakEvidence = v(); break;
+      case "--json": cfg.json = true; break;
       case "--body-marker": cfg.bodyMarker = v(); if (cfg.bodyMarker.length < 4) throw new Error("--body-marker must be at least 4 characters"); break;
       case "--leak-floor": {
         const x = String(v()), f = x.endsWith("%") ? Number(x.slice(0, -1)) / 100 : Number(x);
@@ -744,12 +853,20 @@ export function parseArgs(argv) {
     }
   }
   if (rpcs.length) cfg.rpcs = rpcs;
+  if (cfg.leakScope !== null && !LEAK_SCOPES.includes(cfg.leakScope)) throw new Error(`--leak-scope must be ${LEAK_SCOPES.join(" or ")}`);
+  if (cfg.leakScope === "out" && !(cfg.leakEvidence && cfg.leakEvidence.trim()))
+    throw new Error("--leak-scope out needs --leak-evidence \"<why the leak cannot be exercised here, or a reference>\"");
+  if (cfg.leakEvidence && cfg.leakScope !== "out") throw new Error("--leak-evidence goes with --leak-scope out");
+  if (cfg.json && !cfg.summary) throw new Error("--json is for --summary");
   if (cfg.leakProbe && !cfg.bodyMarker) throw new Error("--leak-probe needs --body-marker: the marker the target app puts in its HEAD body (there is no default)");
   if (cfg.bodyMarker && !cfg.leakProbe) throw new Error("--body-marker is only used by --leak-probe");
   if (!HEX64.test(cfg.deployment)) throw new Error("--deployment must be 0x + 64 hex");
   if (!cfg.url) cfg.url = appUrlFor(cfg.deployment);
   if (!(cfg.interval >= 30)) throw new Error("--interval must be at least 30 s");
-  if (cfg.consoleSec * 1000 <= cfg.tlsTimeoutMs) throw new Error("--console-sec must outlast the public request's timeout (20 s)");
+  if (!Number.isSafeInteger(cfg.consoleSec) || cfg.consoleSec * 1000 < cfg.tlsTimeoutMs + CONSOLE_MARGIN_MS)
+    throw new Error(`--console-sec must be at least the requests' timeout (${cfg.tlsTimeoutMs / 1000} s) + ${CONSOLE_MARGIN_MS / 1000} s, so both land inside the window`);
+  if (!cfg.path.startsWith("/") || !cfg.path.includes("{token}") || /[\s#]/.test(cfg.path))
+    throw new Error("--path must start with / and carry {token} (no spaces, no #), e.g. /ping?hvsoak={token}");
   return cfg;
 }
 
@@ -760,16 +877,21 @@ const USAGE = `usage:
 options: --deployment 0x.. --url https://.. --node nucbox-k11 --relay https://api.enclave.host --ssh minipc-zt
          --root C:\\Users\\claude\\vbs-like\\hvnode --console-sec 25 --rpc URL (repeatable)
          --leak-floor F: the share of samples that must EXERCISE the leak check for it to PASS (default 0.9; "90%" works)
-         --leak-probe --body-marker S: send ONE HEAD per sample inside the console window and treat S (the target app's
-             HEAD-body marker; no default) anywhere in the console or a log as a leak. Without it the leak check cannot PASS`;
+         --path T: the GET/HEAD target, carrying {token} (default /hv-soak/{token}; hookbin: /ping?hvsoak={token})
+         --leak-probe --body-marker S: ONE HEAD per sample inside the console window, a TRIPWIRE: S (the target app's
+             HEAD-body marker; no default) anywhere in the console or a log is a leak. It never makes a sample exercised
+         --leak-scope out --leak-evidence E: an availability/stability soak; the leak line reads NOT IN SCOPE: E and the
+             verdict reads "${OUT_OF_SCOPE_VERDICT}: PASS|FAIL" (default scope: in)
+         --json (with --summary): the summary as JSON`;
 
 async function main() {
   let cfg;
   try { cfg = parseArgs(process.argv.slice(2)); } catch (e) { console.error(`${e.message}\n${USAGE}`); process.exitCode = 2; return; }
   if (cfg.help) { console.log(USAGE); return; }
   if (cfg.summary) {
-    const r = summarize(fs.readFileSync(cfg.summary, "utf8").split("\n"), { since: cfg.since, leakFloor: cfg.leakFloor });
-    console.log(r.text);
+    const r = summarize(fs.readFileSync(cfg.summary, "utf8").split("\n"),
+                        { since: cfg.since, leakFloor: cfg.leakFloor, leakScope: cfg.leakScope, leakEvidence: cfg.leakEvidence });
+    console.log(cfg.json ? JSON.stringify(r.json, null, 2) : r.text);
     process.exitCode = r.pass ? 0 : 1;
     return;
   }
@@ -778,7 +900,8 @@ async function main() {
   if (out) fs.mkdirSync(path.dirname(out), { recursive: true });
   const write = (o) => { if (out) fs.appendFileSync(out, JSON.stringify(o) + "\n"); };
   const header = { type: "start", t: new Date().toISOString(), v: 1, interval: cfg.interval, duration: cfg.duration, leakFloor: cfg.leakFloor,
-                   leakProbe: cfg.leakProbe, bodyMarker: cfg.bodyMarker, deployment: cfg.deployment,
+                   leakProbe: cfg.leakProbe, bodyMarker: cfg.bodyMarker, path: cfg.path, leakScope: cfg.leakScope ?? "in",
+                   ...(cfg.leakScope === "out" ? { leakEvidence: cfg.leakEvidence } : {}), deployment: cfg.deployment,
                    url: cfg.url, node: cfg.node, relay: cfg.relay, ssh: cfg.ssh, root: cfg.root, chain: cfg.chain, pid: process.pid, once: cfg.once };
   write(header);
   const st = newSampler(), ev = newEval();
@@ -818,7 +941,7 @@ async function main() {
     k = Math.floor((Date.now() - start) / (cfg.interval * 1000)) + 1;     // a slow sample skips its missed slots
   }
   write({ type: "end", t: new Date().toISOString(), samples: st.seq });
-  console.log(summarize(fs.readFileSync(out, "utf8").split("\n"), { leakFloor: cfg.leakFloor }).text);
+  console.log(summarize(fs.readFileSync(out, "utf8").split("\n"), { leakFloor: cfg.leakFloor }).text);   // scope from the header
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
