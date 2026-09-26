@@ -485,3 +485,31 @@ test("predictorEnv: every knob is read from the environment; malformed release e
   const p = P.makePredictor({ ...P.predictorEnv({}), readCatalog: null });
   assert.ok(p.problems.length >= 6, p.problems.join("; "));
 });
+
+// ---- a certificate set separate from the known-answer set (enclave-87, 2026-09-26) -------------------------------------
+test("certReleases: a release installed only for the KAT is measurable by the KAT but never certifiable; the admitted one stays certifiable", async () => {
+  const { p } = predictor({ admit: [R1], opts: { certReleases: [R1.toUpperCase()] } });
+  assert.deepEqual(p.problems, []);
+  assert.deepEqual(p.sets.cert, [R1], "the named set, not every installed release");
+  const k = await p.selfTest();
+  assert.equal(k.ok, true, `the KAT still runs on RK, installed but not certifiable: ${k.reason}`);
+  const cert = await p.expectedFor(REF, { set: "cert" }), rel = await p.expectedFor(REF);
+  assert.equal(cert.ok, true, JSON.stringify(cert));
+  assert.deepEqual(cert.images.map((i) => i.release), [R1], "a guest on RK (the KAT release) or on R2/R3 gets no certificate: no image to match");
+  assert.deepEqual(rel.images.map((i) => i.release), [R1], "the admitted release is released and certifiable");
+  // unset: unchanged (every installed release)
+  const { p: all } = predictor({ admit: [R1] });
+  assert.deepEqual([...all.sets.cert].sort(), Object.keys(REL).sort());
+});
+
+test("certReleases misconfigured is a PROBLEM (every prediction refused), never a silent outage: not installed, or an admitted release left out", async () => {
+  const { p: stray } = predictor({ admit: [R1], opts: { certReleases: [R1, "c0".repeat(32)] } });
+  assert.ok(stray.problems.some((x) => /certificate release c0c0c0c0c0c0 installed/.test(x)), stray.problems.join("; "));
+  const { p: dropped } = predictor({ admit: [R1, R2], opts: { certReleases: [R1] } });
+  assert.ok(dropped.problems.some((x) => new RegExp(`admitted release ${R2.slice(0, 12)} in the certificate set`).test(x)), dropped.problems.join("; "));
+  const r = await dropped.expectedFor(REF, { set: "cert" });
+  assert.equal(r.ok, false, "a misconfigured predictor answers nothing");
+  const c = P.predictorEnv({ SECRETS_RELEASE_CERT_RELEASES: ` ${R1.toUpperCase()}, ${R2} ` });
+  assert.deepEqual(c.certReleases, [R1, R2]);
+  assert.deepEqual(P.predictorEnv({}).certReleases, [], "unset: none named (every installed release)");
+});
