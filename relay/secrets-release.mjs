@@ -275,8 +275,17 @@ export const CONFIG_CID_RE = /^[A-Za-z0-9]{10,100}$/, MANIFEST_KEYS = ["volumes"
 const PREDICTION_503 = new Set(["warming", "busy", "prediction_unavailable", "catalog_unreachable", "component_unavailable", "prediction_failed", "predictor_unconfigured"]);
 // how long a release waits for a prediction still being computed before answering 503 warming (its ticket kept)
 const PREDICT_WAIT_MS = 10_000;
+// A step of a release or expected-guest request that takes longer than SLOW_STEP_MS names itself in the journal, once, with
+// its duration (enclave-87, 09-26: a 60 s expected-guest at 07:34Z could not be attributed - neither the relay nor Caddy logs
+// per request). The step's outcome is unchanged.
+export const SLOW_STEP_MS = 5_000;
+export async function timedStep(what, id, step, fn, log = console.error) {
+  const t0 = Date.now();
+  try { return await fn(); }
+  finally { const ms = Date.now() - t0; if (ms > SLOW_STEP_MS) log(`[secrets-release] slow ${what} ${String(id).slice(0, 10)}: ${step} took ${(ms / 1000).toFixed(1)} s`); }
+}
 const predictionOf = async (ctx, row) => {
-  try { return await ctx.expectedGuestFor(row, { forPrivate: !!row && row.isPublic === false, waitMs: PREDICT_WAIT_MS }); }
+  try { return await timedStep("release", row && row.id, "the prediction", () => ctx.expectedGuestFor(row, { forPrivate: !!row && row.isPublic === false, waitMs: PREDICT_WAIT_MS })); }
   catch (e) { return { ok: false, code: "prediction_failed", reason: e.message }; }
 };
 const predictionRefusal = (p) => {
@@ -316,7 +325,7 @@ export async function expectedGuest(u, req, res, ctx, { bad, rate }) {
   const id = String(u.searchParams.get("id") || "").toLowerCase();
   if (!/^0x[0-9a-f]{64}$/.test(id)) return bad(422, "bad_id", "id must be a bytes32 deployment id.");
   let row;
-  try { row = await ctx.confirmRow(id); }
+  try { row = await timedStep("expected-guest", id, "the confirmed ledger read", () => ctx.confirmRow(id)); }
   catch (e) {
     if (e && e.code === "no_deployment") return bad(404, "no_deployment", `The ledger holds no deployment ${id}.`);
     return bad(503, "ledger_unconfirmed", "The deployment's record could not be confirmed; retry shortly.");
@@ -325,7 +334,7 @@ export async function expectedGuest(u, req, res, ctx, { bad, rate }) {
   if (/^0x0*$/.test(String(row.runner || "")) || !(Number(row.leaseUntil) * 1000 > Date.now()))
     return bad(409, "not_leased", "The deployment holds no live lease, so no guest of it is expected now.");
   let p;
-  try { p = await ctx.expectedGuestFor(row, { forPrivate: false, waitMs: EXPECTED_WAIT_MS, set: "cert" }); }
+  try { p = await timedStep("expected-guest", id, "the prediction", () => ctx.expectedGuestFor(row, { forPrivate: false, waitMs: EXPECTED_WAIT_MS, set: "cert" })); }
   catch (e) { p = { ok: false, code: "prediction_failed", reason: e.message }; }
   if (!p || p.ok !== true || !Array.isArray(p.images) || !p.images.length) {
     const code = (p && p.ok === false && p.code) || "prediction_unavailable";
@@ -365,7 +374,7 @@ export async function handleRelease(path, b, req, res, ctx, { envOf, bad, rate }
     if (!holdsLease(row, epId)) row = await rowOf(ctx, id, { fresh: true });
     if (!holdsLease(row, epId)) return { refusal: [403, "not_lease_holder", `${endpoint} does not hold a live lease for ${id}.`] };
     let confirmed;
-    try { confirmed = await ctx.confirmRow(id); }
+    try { confirmed = await timedStep("release", id, "the confirmed ledger read", () => ctx.confirmRow(id)); }
     catch (e) { return { retry: true, refusal: [503, "ledger_unconfirmed", `The deployment's record could not be confirmed (${e.message}); retry shortly.`] }; }
     if (!holdsLease(confirmed, epId)) return { refusal: [403, "not_lease_holder", `${endpoint} does not hold a live lease for ${id} (confirmed read).`] };
     const elig = ctx.hostEligibility(epId);

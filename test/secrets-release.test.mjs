@@ -708,3 +708,11 @@ test("rate keys: a ticket request by client IP; a release by its ticket's ENDPOI
   await R.handleRelease("/v1/secrets/release-ticket", { id: A }, {}, {}, ctx, { envOf: () => ({}), bad: () => {}, rate });
   assert.deepEqual(keys, [`ep:${EP}`, "ip:203.0.113.9", "ip:203.0.113.9"]);
 });
+
+test("timedStep (enclave-87's slow-step line): a fast step logs NOTHING and returns its value; an error passes through unchanged; the threshold is 5 s", async () => {
+  const lines = [], log = (l) => lines.push(l), id = "0x" + "ab".repeat(32);
+  assert.equal(R.SLOW_STEP_MS, 5_000);
+  assert.equal(await R.timedStep("expected-guest", id, "the confirmed ledger read", async () => 7, log), 7);
+  await assert.rejects(R.timedStep("release", id, "the prediction", async () => { throw new Error("boom"); }, log), /boom/);
+  assert.deepEqual(lines, [], "nothing logged for fast steps (the slow case is test/relay-rpc-bounded.test.mjs, against the real relay)");
+});
