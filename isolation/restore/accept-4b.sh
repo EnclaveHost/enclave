@@ -70,7 +70,15 @@ prepare)
   setstate BIN "$BIN"; setstate KEY_SHA "$(printf '%s' "$K" | sha)"; setstate TOKEN_SHA "$(printf '%s' "$T" | sha)"
   setstate LITERAL_TOKEN_SHA "$(printf '%s' '$ACCEPT_TOKEN' | sha)"
   setstate CONFIG_SHA "$(sha < "$D/config.json")"
-  say "prepared $D: bin $BIN; config.json $(wc -c < "$D/config.json") B sha256 $(state CONFIG_SHA)"
+  # the size the guest will log (release line `config N bytes`, init's `DOM app config: N bytes`): the RESOLVED config,
+  # i.e. config.json with each $NAME replaced by its value. appconfig.Resolve re-writes the document compact and
+  # order-preserving, with printable ASCII verbatim (appconfig.go writeString), which is JSON.stringify for this config.
+  setstate RESOLVED_BYTES "$(node -e '
+    const fs = require("fs"); const [k, t] = fs.readFileSync(process.argv[2], "utf8").split("\n");
+    const sub = (v) => typeof v === "string" ? v.replace(/\$ACCEPT_API_KEY\b/g, k).replace(/\$ACCEPT_TOKEN\b/g, t)
+      : Array.isArray(v) ? v.map(sub) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([a, b]) => [a, sub(b)])) : v;
+    process.stdout.write(String(Buffer.byteLength(JSON.stringify(sub(JSON.parse(fs.readFileSync(process.argv[1], "utf8")))))));' "$D/config.json" "$D/values")"
+  say "prepared $D: bin $BIN; config.json $(wc -c < "$D/config.json") B sha256 $(state CONFIG_SHA); resolved in the guest: $(state RESOLVED_BYTES) B"
   say "sha256(ACCEPT_API_KEY) $(state KEY_SHA); sha256(ACCEPT_TOKEN) $(state TOKEN_SHA)   (values: $D/values, 0600)"
   ;;
 bin)
@@ -107,13 +115,16 @@ proofs)
       { name: "isPublic", type: "bool" }, { name: "active", type: "bool" }, { name: "createdAt", type: "uint64" }, { name: "rate", type: "uint256" },
       { name: "balance6", type: "uint256" }, { name: "spent6", type: "uint256" }, { name: "runner", type: "bytes32" },
       { name: "runnerOperator", type: "address" }, { name: "leaseUntil", type: "uint64" }] }] }];
-    const rows = await Promise.all(["https://base.drpc.org", "https://base-rpc.publicnode.com"].map((u) =>
-      createPublicClient({ chain: base, transport: http(u) }).readContract({ address: process.env.LEDGER, abi, functionName: "get", args: [process.env.ID] })));
-    if (rows[0].configCid !== rows[1].configCid) { console.log("RPCS-DISAGREE"); process.exit(0); }
+    const urls = ["https://base.drpc.org", "https://base-rpc.publicnode.com", "https://base-mainnet.public.blastapi.io", "https://mainnet.base.org"];
+    const got = await Promise.allSettled(urls.map((u) => createPublicClient({ chain: base, transport: http(u, { retryCount: 2, retryDelay: 800 }) })
+      .readContract({ address: process.env.LEDGER, abi, functionName: "get", args: [process.env.ID] })));
+    const rows = got.filter((g) => g.status === "fulfilled").map((g) => g.value);
+    if (rows.length < 2) { console.log("FEWER-THAN-2-RPCS"); process.exit(0); }
+    if (rows.some((r) => r.configCid !== rows[0].configCid || r.appRef !== rows[0].appRef || r.isPublic !== rows[0].isPublic)) { console.log("RPCS-DISAGREE"); process.exit(0); }
     const env = String(rows[0].configCid || "").trim();
     console.log(crypto.createHash("sha256").update(Buffer.from(env)).digest("hex").slice(0, 16), rows[0].appRef, rows[0].isPublic);') || TAG=""
   set -- $TAG
-  [ "${1:-}" != RPCS-DISAGREE ] && [ -n "${1:-}" ] || die "could not read the ledger row (${TAG:-no answer})"
+  [ -n "${1:-}" ] && [ "${1}" != RPCS-DISAGREE ] && [ "${1}" != FEWER-THAN-2-RPCS ] || die "could not read the ledger row (${TAG:-no answer})"
   say "info proof 3: the serial's 'envelope' must start $1 (sha256 of the trimmed on-chain envelope)"
   [ "${2:-}" = "catalog://0x5bca36b520b80fa26272f34886e38344393e1f69098be8ad5a0d2372ec3147bc/0" ] && c=ok || c=no
   check $c "the deployment runs a69dcbba's app and version (appRef ${2:-?})"
@@ -123,10 +134,11 @@ proofs)
     [ "$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).Name))}catch{}' "$f")" = "$ID" ] \
       && SER="${f%/instance.json}/$(basename "${f%/instance.json}").serial"; done
   if [ -n "$SER" ] && [ -f "$SER" ]; then
-    grep -aq "DOM release: deployment 0x${ID:2:8}.* envelope $1.* 2 allowed origin(s), 0 refused" "$SER" && c=ok || c=no
-    check $c "proof 3: the serial's release line names the on-chain envelope and 2 allowed origins, 0 refused"
-    grep -aq "DOM app config: [0-9]* bytes (ENCLAVE_CONFIG)" "$SER" && grep -aq "DOM serving" "$SER" && c=ok || c=no
-    check $c "proof 3: the serial shows the app config delivered and the domain serving"
+    RB=$(state RESOLVED_BYTES)
+    grep -aq "DOM release: deployment 0x${ID:2:8}.* envelope $1.* 2 allowed origin(s), 0 refused, config $RB bytes" "$SER" && c=ok || c=no
+    check $c "proof 3: the serial's release line names the on-chain envelope, 2 allowed origins, 0 refused, config EXACTLY $RB bytes"
+    grep -aq "DOM app config: $RB bytes (ENCLAVE_CONFIG)" "$SER" && grep -aq "DOM serving" "$SER" && c=ok || c=no
+    check $c "proof 3: init got EXACTLY $RB bytes of config, and the domain serves"
   else check no "proof 3: no serial for $ID under $GUESTD_ROOT"; fi
   # proof 4: substitution into the app's own key gate
   code=$(mcp -H @"$D/hdr-key" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
@@ -176,10 +188,13 @@ proofs)
     [ "$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).Name))}catch{}' "$f")" = 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 ] \
       && HS="${f%/instance.json}/$(basename "${f%/instance.json}").serial"; done
   [ -n "$HS" ] && chan "the hookbin canary's serial" "DOM serving" cat "$HS" || check no "proof 7: the hookbin canary's serial is missing"
-  rh=$(ssh -o BatchMode=yes "$RELAY_SSH" "journalctl -u enclave-api-relay --since '$since' --no-pager -o cat | grep -acF -f /dev/stdin || true" < "$D/values")
-  rm_=$(ssh -o BatchMode=yes "$RELAY_SSH" "journalctl -u enclave-api-relay --since '$since' --no-pager -o cat | grep -ac 'secrets-release' || true")
+  # the patterns arrive on ssh's STDIN; inside the remote pipeline grep's own stdin is the journal, so the patterns are
+  # moved to fd 3 first (enclave-e3: `-f /dev/stdin` there read the JOURNAL as patterns and could never fail). The
+  # positive control goes through the SAME plumbing: the pattern `secrets-release` must count > 0.
+  relay_count() { ssh -o BatchMode=yes "$RELAY_SSH" "bash -c 'exec 3<&0; journalctl -u enclave-api-relay --since \"$since\" --no-pager -o cat | grep -acF -f /dev/fd/3 || true'"; }
+  rh=$(relay_count < "$D/values"); rm_=$(printf 'secrets-release\n' | relay_count)
   [ "${rm_:-0}" -gt 0 ] && [ "${rh:-1}" = 0 ] && c=ok || c=no
-  check $c "proof 7: $RELAY_SSH api-relay journal since create: $rh value hit(s) (readable: $rm_ secrets-release line(s))"
+  check $c "proof 7: $RELAY_SSH api-relay journal since create: $rh value hit(s) (same plumbing, control pattern 'secrets-release': $rm_ line(s))"
   { say "4b evidence $(date -u +%FT%TZ): deployment $ID, bin $BIN, config sha256 $(state CONFIG_SHA)"
     say "sha256(ACCEPT_API_KEY) $(state KEY_SHA); sha256(ACCEPT_TOKEN) $(state TOKEN_SHA); proofs 3-7: $fails failure(s)"; } >> "$D/evidence.txt"
   say "proofs 3-7: $fails failure(s); evidence line appended to $D/evidence.txt (no values)"
@@ -191,8 +206,17 @@ teardown)
   if [ -n "$ID" ]; then
     : "${CLI:?set CLI}"; [ -n "${ETH_AGENT_WALLET:-}" ] || die "ETH_AGENT_WALLET is not set"
     H=$(mktemp -d); trap 'rm -rf "$H"' EXIT
-    HOME="$H" ENCLAVE_KEY="$ETH_AGENT_WALLET" node "$CLI" secrets clear "$ID" --yes 2>&1 | grep -vF -f "$D/values" || true
-    HOME="$H" ENCLAVE_KEY="$ETH_AGENT_WALLET" node "$CLI" refund "$ID" --yes 2>&1 | grep -vF -f "$D/values" || true
+    # each CLI call's OWN status (enclave-63): a pipeline's status would be grep's
+    set +e
+    HOME="$H" ENCLAVE_KEY="$ETH_AGENT_WALLET" node "$CLI" secrets clear "$ID" --yes 2>&1 | grep -vF -f "$D/values"; sc=${PIPESTATUS[0]}
+    HOME="$H" ENCLAVE_KEY="$ETH_AGENT_WALLET" node "$CLI" refund "$ID" --yes 2>&1 | grep -vF -f "$D/values"; rc=${PIPESTATUS[0]}
+    set -e
+    [ "$sc" = 0 ] && say "ok   staged secrets cleared" || say "FAIL secrets clear exited $sc"
+    [ "$rc" = 0 ] && say "ok   refunded and stopped" || say "FAIL refund exited $rc"
+    if [ "$sc" != 0 ] || [ "$rc" != 0 ]; then
+      say "FAIL teardown incomplete: the value files are KEPT in $D for a retry (non-sensitive test values); re-run: $0 teardown $D"
+      exit 1
+    fi
     say "next (63): unlist $ID on the relay; check the deployment is inactive and guestd holds no guest for it"
   fi
   rm -f "$D/values" "$D/secrets.env" "$D/hdr-key"
