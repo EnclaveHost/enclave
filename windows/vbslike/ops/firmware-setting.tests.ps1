@@ -1,4 +1,6 @@
 # firmware-setting.tests.ps1 - uefi-dev-boot.ps1's AllowFirmwareLoadFromFile handling, against RECORDING STUBS (never a host):
+# Read-Setting is FAIL-CLOSED: Absent only for value-not-found, NoKey only for path-not-found, anything else Unreadable, which
+# REFUSES the run before any write (enclave-bf's review of 55019552: a transient error read as Absent removed the setting).
 # already present = 1 -> NO registry write at all (not the apply, not the restore, not the watchdog's restore) and the
 # cleanup says "left as it was"; absent / present-but-0 -> apply 1, restore the exact prior state (enclave-87's ruling on
 # enclave-d1's audit, 09-26). The four functions are read out of uefi-dev-boot.ps1's syntax tree (as judge-probe.tests.ps1
@@ -9,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 $tok = $null; $err = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $Script).Path, [ref]$tok, [ref]$err)
 if ($err.Count) { throw "uefi-dev-boot.ps1 does not parse: $($err[0].Message)" }
-$names = 'FirmwareAlreadyOn', 'Invoke-FirmwareApply', 'Invoke-FirmwareRestore', 'FirmwareWatchdogRestore'
+$names = 'Read-Setting', 'FirmwareAlreadyOn', 'Assert-FirmwareRunnable', 'Invoke-FirmwareApply', 'Invoke-FirmwareRestore', 'FirmwareWatchdogRestore'
 $src = @{}
 foreach ($n in $names) {
   $f = @($ast.FindAll({ param($x) $x -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $x.Name -eq $n }, $true))
@@ -26,7 +28,6 @@ function Set-ItemProperty { param($Path, $Name, $Value, $Type) $script:calls += 
 function Remove-ItemProperty { param($Path, $Name, $EA) $script:calls += "Remove $Name" }
 function New-ItemProperty { param($Path, $Name, $Value, $PropertyType, [switch]$Force) $script:calls += "New $Name" }
 function Note($m) { $script:notes += "$m" }
-function Read-Setting { $script:afterState }
 # the functions' text, dot-sourced at SCRIPT scope by the caller (a dot-source inside a function would define them only there)
 function LoadText([hashtable]$over = @{}) { ($names | ForEach-Object { if ($over.ContainsKey($_)) { $over[$_] } else { $src[$_] } }) -join "`n" }
 function Reset($after) { $script:calls = @(); $script:notes = @(); $script:afterState = $after }
@@ -75,7 +76,55 @@ function Suite([string]$label) {
 }
 
 . ([scriptblock]::Create((LoadText)))
+
+# ---- Read-Setting, FAIL-CLOSED (enclave-bf's review of 55019552), against a stubbed Get-Item ----
+$script:getItem = $null
+function Get-Item { param($LiteralPath, $ErrorAction) & $script:getItem }
+function FakeKey([string[]]$names, $value = 1, [bool]$kindThrows = $false, [bool]$namesThrow = $false) {
+  $o = [pscustomobject]@{ n = $names; v = $value; kt = $kindThrows; nt = $namesThrow }
+  $o | Add-Member -MemberType ScriptMethod -Name GetValueNames -Value { if ($this.nt) { throw [System.IO.IOException]::new('transient read error') }; $this.n }
+  $o | Add-Member -MemberType ScriptMethod -Name GetValue -Value { param($x) $this.v }
+  $o | Add-Member -MemberType ScriptMethod -Name GetValueKind -Value { param($x) if ($this.kt) { throw [System.UnauthorizedAccessException]::new('kind: access denied') }; 'DWord' }
+  $o
+}
+function ReadGroup([string]$label) {
+  $script:getItem = { throw [System.Management.Automation.ItemNotFoundException]::new('Cannot find path') }
+  Check ((Read-Setting).S -eq 'NoKey') "$label key missing (path not found) -> NoKey"
+  $script:getItem = { throw [System.UnauthorizedAccessException]::new('Requested registry access is not allowed.') }
+  Check ((Read-Setting).S -eq 'Unreadable') "$label access denied -> Unreadable (never Absent)"
+  $script:getItem = { FakeKey @('Other') }
+  Check ((Read-Setting).S -eq 'Absent') "$label key present, value absent -> Absent"
+  $script:getItem = { FakeKey @('AllowFirmwareLoadFromFile') 1 }
+  $s = Read-Setting
+  Check ($s.S -eq 'Present' -and "$($s.V)" -eq '1' -and $s.K -eq 'DWord') "$label value present = 1 -> Present 1 DWord"
+  $script:getItem = { FakeKey @('AllowFirmwareLoadFromFile') 1 $true }
+  Check ((Read-Setting).S -eq 'Unreadable') "$label GetValueKind throws -> Unreadable"
+  $script:getItem = { FakeKey @('AllowFirmwareLoadFromFile') 1 $false $true }
+  Check ((Read-Setting).S -eq 'Unreadable') "$label GetValueNames throws (transient) -> Unreadable"
+}
+ReadGroup 'read:'
+
+# bf's scenario, end to end: production Present = 1, ONE transient access-denied read at the start -> refused before any write
+Reset $null
+$script:getItem = { throw [System.UnauthorizedAccessException]::new('Requested registry access is not allowed.') }
+$b = Read-Setting
+$threw = $false; try { Assert-FirmwareRunnable $b $false } catch { $threw = $true }
+Check ($b.S -eq 'Unreadable' -and $threw -and (& $writes).Count -eq 0) 'bf scenario: an unreadable setting REFUSES the run before any write (no apply, no restore)'
+# ... and a transient error only at the AFTER read is NOT verified (never "restored")
+Reset $null
+$script:getItem = { throw [System.UnauthorizedAccessException]::new('Requested registry access is not allowed.') }
+$r = Invoke-FirmwareRestore @{ S = 'Present'; V = 1; K = 'DWord' } $false
+Check ($r -match '^SETTING NOT VERIFIED' -and (& $writes).Count -eq 0) "after-read unreadable: NOT VERIFIED, no write ($r)"
+# Assert-FirmwareRunnable: -WithoutFirmwarePolicy with the setting already on is refused; otherwise it passes
+$t1 = $false; try { Assert-FirmwareRunnable @{ S = 'Present'; V = 1 } $true } catch { $t1 = $true }
+$t2 = $true; try { Assert-FirmwareRunnable @{ S = 'Absent' } $true; $t2 = $false } catch { }
+$t3 = $true; try { Assert-FirmwareRunnable @{ S = 'Present'; V = 1 } $false; $t3 = $false } catch { }
+Check ($t1 -and -not $t2 -and -not $t3) 'assert: -WithoutFirmwarePolicy refused when already on; allowed when absent; a normal run on Present=1 passes'
+
+# the suites below use a Read-Setting stub (the scripted "after" state), defined after the real one so it wins
+function Read-Setting { $script:afterState }
 Suite 'script:'
+
 # MUTANT: the already-on check removed - the present=1 suite must catch the writes
 $fail0 = $fail
 . ([scriptblock]::Create((LoadText @{ FirmwareAlreadyOn = 'function FirmwareAlreadyOn($s) { $false }' })))
@@ -83,6 +132,23 @@ $out = Suite 'mutant:'
 $caught = @($out | Where-Object { $_ -match '^FAIL mutant: present=1: NO registry write' }).Count -eq 1
 $fail = $fail0
 Check $caught 'mutant (no already-on check): the present=1 "NO registry write" assertion FAILS, as it must'
+# MUTANT 2 (enclave-bf): the OLD catch-all Read-Setting (any error -> Absent). The read group must catch it.
+$fail0 = $fail
+$old = @'
+function Read-Setting {
+  if (-not (Test-Path $RegPath)) { return @{ S='NoKey' } }
+  try { $i = Get-ItemProperty $RegPath -Name $RegName -EA Stop
+        @{ S='Present'; V=$i.$RegName; K="$((Get-Item $RegPath).GetValueKind($RegName))" } }
+  catch { @{ S='Absent' } }
+}
+'@
+function Test-Path { param($p) $true }
+function Get-ItemProperty { param($Path, $Name, $EA) throw [System.UnauthorizedAccessException]::new('Requested registry access is not allowed.') }
+. ([scriptblock]::Create($old))
+$out2 = ReadGroup 'mutant2:'
+$caught2 = @($out2 | Where-Object { $_ -match '^FAIL mutant2: access denied -> Unreadable' }).Count -eq 1
+$fail = $fail0
+Check $caught2 'mutant 2 (the old catch-all Read-Setting): "access denied -> Unreadable" FAILS, as it must'
 
 if ($fail) { Write-Output "firmware-setting tests: $fail FAILED"; exit 1 }
 Write-Output 'firmware-setting tests: ALL OK'
