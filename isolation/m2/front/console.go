@@ -24,6 +24,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"runtime/debug"
 	"sync"
 	"syscall"
 )
@@ -149,6 +150,16 @@ func guardConsole() error {
 	if err := syscall.Dup3(int(w.Fd()), 2, 0); err != nil {
 		return fmt.Errorf("route fd 2 through the filter: %w", err)
 	}
+	// fd 2 NON-BLOCKING (enclave-bf's review of fbc50ea4). w.Fd() left the pipe's write end blocking, and a runtime throw
+	// (a stack overflow, "runtime: out of memory") prints every goroutine to fd 2 with the world stopped, so the pump
+	// can never drain the 64 KiB pipe and the write blocked forever: a front that OOMed under load would hang holding
+	// its port, with no exit for init or the monitor to act on. Non-blocking, a full pipe drops the rest of the crash
+	// output (withheld anyway) and the process exits. O_NONBLOCK is on the pipe's write description, which fd 2 now is.
+	if err := syscall.SetNonblock(2, true); err != nil {
+		return fmt.Errorf("fd 2 non-blocking: %w", err)
+	}
+	// and nothing of a traceback is shown anyway: print none of it
+	debug.SetTraceback("none")
 	w.Close()
 	go f.pump(r)
 	return nil

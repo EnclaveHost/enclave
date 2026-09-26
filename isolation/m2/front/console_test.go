@@ -18,6 +18,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"testing"
@@ -344,5 +345,54 @@ func TestTheForwardersLinesAreDOMStatements(t *testing.T) {
 	}
 	if domLogf(nil) != nil {
 		t.Fatal("no logger stays no logger")
+	}
+}
+
+// LIVENESS (enclave-bf's review of fbc50ea4): a guarded front whose runtime THROWS with thousands of goroutines (a
+// stack overflow here; "runtime: out of memory" is the same kind of throw) must EXIT, not block forever writing its
+// traceback into a pipe nobody can drain while the world is stopped. Unfixed (a blocking fd 2) this child hangs.
+func TestGuardHangChild(t *testing.T) {
+	if os.Getenv("FRONT_GUARD_HANG_CHILD") != "1" {
+		t.Skip("run as a child by TestARuntimeThrowUnderTheGuardStillExits")
+	}
+	if err := guardConsole(); err != nil {
+		fmt.Printf("DOM ERROR guard: %v\n", err)
+		os.Exit(3)
+	}
+	block := make(chan struct{})
+	for i := 0; i < 20000; i++ {
+		go func() { <-block }()
+	}
+	debug.SetMaxStack(1 << 20)
+	var recurse func(n int) int
+	recurse = func(n int) int { var pad [256]byte; pad[0] = byte(n); return recurse(n+1) + int(pad[0]) }
+	fmt.Println(recurse(0))
+}
+
+func TestARuntimeThrowUnderTheGuardStillExits(t *testing.T) {
+	for _, tb := range []string{"", "all"} {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestGuardHangChild$", "-test.count=1")
+		cmd.Env = append(os.Environ(), "FRONT_GUARD_HANG_CHILD=1", "GOTRACEBACK="+tb)
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		cmd.Stdout = io.Discard
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() { done <- cmd.Wait() }()
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Fatalf("GOTRACEBACK=%q: the child should have died of its throw", tb)
+			}
+			if strings.Contains(stderr.String(), "goroutine ") {
+				t.Fatalf("GOTRACEBACK=%q: a traceback reached the console: %.200q", tb, stderr.String())
+			}
+		case <-time.After(20 * time.Second):
+			cmd.Process.Kill()
+			<-done
+			t.Fatalf("GOTRACEBACK=%q: the guarded child HUNG after a runtime throw (blocking fd 2)", tb)
+		}
 	}
 }
