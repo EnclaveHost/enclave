@@ -30,6 +30,7 @@
 // Thresholds (FAIL): see THRESHOLDS below; README.md has the rationale.
 import https from "node:https";
 import crypto from "node:crypto";
+import zlib from "node:zlib";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -76,8 +77,11 @@ export function evidenceRegex(pattern, token) {
 }
 // get(bytes32) on the deployments ledger: keccak256("get(bytes32)")[0..4], computed with viem's toFunctionSelector
 export const GET_SELECTOR = "0x8eaa6ac0";
-// a console line that is the guest's own: the monitor (MON), a domain's init (DOM, DOM1...) or a kernel timestamp
-export const CONSOLE_OK = /^(DOM|MON)|^\[ *[0-9]+\.[0-9]+\]/;
+// a console line that is the guest's own: the monitor (MON), a domain's init (DOM, DOM1...), a kernel timestamp, or the
+// fixed front's own DOM line, which keeps Go's log date prefix ("YYYY/MM/DD HH:MM:SS[.ffffff] DOM ...", the form the
+// front's domLine accepts; enclave-d1's box canary: e.g. "DOM proxy: GET unreachable|timeout"). The date is allowed ONLY
+// before "DOM ", never before MON; a date-prefixed line that is not a DOM line is still foreign. Exactly bf's form.
+export const CONSOLE_OK = /^(\d{4}\/\d\d\/\d\d \d\d:\d\d:\d\d(\.\d+)? DOM |DOM|MON)|^\[ *[0-9]+\.[0-9]+\]/;
 export const THRESHOLDS = Object.freeze([
   { id: "public", text: ">=3 consecutive public checks not 200 over verified TLS" },
   { id: "spki", text: "the public leaf's SPKI changed with no restart of the deployment in the node log" },
@@ -240,13 +244,14 @@ export function boxScript({ root, managerPort, deployment, nodeFrom, managerFrom
 $Root = '${root}'; $Port = ${managerPort}; $Dep = '${String(deployment).toLowerCase()}'
 $NodeFrom = [long]${nodeFrom}; $MgrFrom = [long]${managerFrom}; $Cap = [long]${cap}; $ConSec = ${consoleSec}; $ConMax = ${consoleMaxBytes}
 function Emit([string]$s) { [Console]::Out.WriteLine($s); [Console]::Out.Flush() }
+# the logs are opened for READ only, sharing everything with their writer
+function OpenR([string]$p) { [IO.File]::Open($p, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)) }
 function Chunk([string]$p, [long]$from) {
   try {
-    $fs = [IO.File]::Open($p, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    $fs = OpenR $p
     try {
       $size = $fs.Length; $reset = $false
       if ($from -gt $size) { $reset = $true; $from = 0 }
-      if ($from -lt 0) { $from = 0 }
       $n = [int][Math]::Min($Cap, $size - $from)
       $buf = New-Object byte[] $n; [void]$fs.Seek($from, [IO.SeekOrigin]::Begin); $got = 0
       while ($got -lt $n) { $r = $fs.Read($buf, $got, $n - $got); if ($r -le 0) { break }; $got += $r }
@@ -256,37 +261,45 @@ function Chunk([string]$p, [long]$from) {
   } catch { return @{ ok = $false; error = [string]$_.Exception.Message } }
 }
 function SizeOf([string]$p) {
-  try { $f = [IO.File]::Open($p, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete)); try { return [long]$f.Length } finally { $f.Close() } }
+  try { $f = OpenR $p; try { return [long]$f.Length } finally { $f.Close() } }
   catch { return [long]-1 }
 }
-$o = [ordered]@{ v = 1; t0 = [DateTime]::UtcNow.ToString('o') }
+# a Hyper-V call in its own runspace, abandoned after $ms: a busy VMMS must not hang the sample (the process exits at the end)
+function Bounded([scriptblock]$sb, $arg, [int]$ms) {
+  $ps = [PowerShell]::Create(); $null = $ps.AddScript($sb); if ($null -ne $arg) { $null = $ps.AddArgument($arg) }
+  $h = $ps.BeginInvoke()
+  if (-not $h.AsyncWaitHandle.WaitOne($ms)) { throw "timeout $ms ms" }
+  $r = $ps.EndInvoke($h)
+  if ($ps.HadErrors) { throw [string]$ps.Streams.Error[0] }
+  return $r
+}
+$o = [ordered]@{ v = 1 }
 $vmsText = $null
 try {
   $vmsText = [string](Invoke-WebRequest -Uri "http://127.0.0.1:$Port/vms" -TimeoutSec 20 -UseBasicParsing).Content
   $o.vms = @{ ok = $true; b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($vmsText)) }
 } catch { $o.vms = @{ ok = $false; error = [string]$_.Exception.Message } }
-$con = [ordered]@{ attempted = $false; connected = $false; note = '' }; $cli = $null
+$con = [ordered]@{ connected = $false; note = '' }; $cli = $null
 try {
   if ($vmsText) {
     $recs = @((ConvertFrom-Json $vmsText).vms | Where-Object { ([string]$_.name).ToLower() -eq $Dep })
     $run = @($recs | Where-Object { $_.status -eq 'running' -and $_.guest })
     if ($run.Count -eq 1) {
       $vmName = [string]$run[0].vmName; $con.vmName = $vmName
-      if ($vmName -notmatch '^enclave-app-[A-Za-z0-9-]{1,80}$') { throw 'the record names an unexpected VM' }
-      $pipe = [string](Get-VMComPort -VMName $vmName -Number 1).Path; $con.pipe = $pipe
-      if ($pipe -notmatch '^\\\\\.\\pipe\\[A-Za-z0-9._-]{1,120}$') { throw 'COM1 is not a local named pipe' }
-      $con.attempted = $true
-      $cli = New-Object System.IO.Pipes.NamedPipeClientStream('.', ($pipe -replace '^\\\\\.\\pipe\\', ''), [System.IO.Pipes.PipeDirection]::In, [System.IO.Pipes.PipeOptions]::Asynchronous)
+      if ($vmName -notmatch '^enclave-app-[A-Za-z0-9-]{1,80}$') { throw 'bad vmName' }
+      $pipe = [string](Bounded { param($n) (Get-VMComPort -VMName $n -Number 1).Path } $vmName 15000)
+      if ($pipe -notmatch '^\\\\\.\\pipe\\[A-Za-z0-9._-]{1,120}$') { throw 'bad COM1 path' }
+      $cli = New-Object IO.Pipes.NamedPipeClientStream('.', ($pipe -replace '^\\\\\.\\pipe\\', ''), [IO.Pipes.PipeDirection]::In, [IO.Pipes.PipeOptions]::Asynchronous)
       $cli.Connect(3000); $con.connected = $true
-    } else { $con.note = "no single running record with its start capture done ($($recs.Count) record(s), $($run.Count) running)" }
-  } else { $con.note = 'no /vms answer, so no record names a console' }
+    } else { $con.note = "running+captured: $($run.Count)/$($recs.Count)" }
+  } else { $con.note = 'no /vms' }
 } catch { $con.note = [string]$_.Exception.Message; if ($cli) { try { $cli.Dispose() } catch {} }; $cli = $null }
 # each log's size BEFORE READY: only bytes below it can be history; the probes that follow READY write after it
 $preNode = SizeOf (Join-Path $Root 'logs\node.log'); $preMgr = SizeOf (Join-Path $Root 'logs\manager.log')
 Emit ('HVSOAK1-READY ' + $(if ($con.connected) { 'console' } else { 'noconsole' }))
-$ms = New-Object System.IO.MemoryStream; $con.truncated = $false
+$ms = New-Object IO.MemoryStream; $con.truncated = $false
 if ($cli) {
-  $cts = New-Object System.Threading.CancellationTokenSource; $cts.CancelAfter($ConSec * 1000); $pending = $null
+  $cts = New-Object Threading.CancellationTokenSource; $cts.CancelAfter($ConSec * 1000); $pending = $null
   try {
     $buf = New-Object byte[] 4096
     while (-not $cts.IsCancellationRequested) {
@@ -302,21 +315,38 @@ if ($cli) {
 }
 $con.b64 = [Convert]::ToBase64String($ms.ToArray()); $o.console = $con
 try {
-  $list = @(Get-VM | Where-Object { $_.Name -like 'enclave-app-*' } | ForEach-Object { @{ name = $_.Name; state = [string]$_.State; memMiB = [long]($_.MemoryAssigned / 1MB); uptimeSec = [long]$_.Uptime.TotalSeconds } })
+  $list = @(Bounded { @(Get-VM | Where-Object { $_.Name -like 'enclave-app-*' } | ForEach-Object { @{ name = $_.Name; state = [string]$_.State; memMiB = [long]($_.MemoryAssigned / 1MB) } }) } $null 15000)
   $o.hv = @{ ok = $true; vms = $list }
 } catch { $o.hv = @{ ok = $false; error = [string]$_.Exception.Message } }
-try { $os = Get-CimInstance Win32_OperatingSystem; $o.mem = @{ ok = $true; freeKB = [long]$os.FreePhysicalMemory; totalKB = [long]$os.TotalVisibleMemorySize } }
+try { $os = Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 10; $o.mem = @{ ok = $true; freeKB = [long]$os.FreePhysicalMemory; totalKB = [long]$os.TotalVisibleMemorySize } }
 catch { $o.mem = @{ ok = $false; error = [string]$_.Exception.Message } }
 $o.node = Chunk (Join-Path $Root 'logs\node.log') $NodeFrom; $o.node.preReady = $preNode
 $o.manager = Chunk (Join-Path $Root 'logs\manager.log') $MgrFrom; $o.manager.preReady = $preMgr
 Emit ('HVSOAK1 ' + ($o | ConvertTo-Json -Compress -Depth 6))
+[Environment]::Exit(0)
 `;
 }
 
-// the bootstrap (well under cmd.exe's 8191-character command line) reads the script from ssh's stdin
-export const BOOTSTRAP = "$ProgressPreference='SilentlyContinue'; $s=[Console]::In.ReadToEnd(); & ([scriptblock]::Create($s))";
-export const remoteCommand = () =>
-  `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${Buffer.from(BOOTSTRAP, "utf16le").toString("base64")}`;
+// THE COMMAND CARRIES THE SCRIPT; nothing is read from stdin. A stdin-fed script hung once in PowerShell's startup on
+// the box (run 02:56:13Z: the EOF never reached it), and killing the local ssh client did NOT end the remote process.
+// So the script is minified (comment lines and indentation dropped), gzipped and embedded in a short -EncodedCommand
+// bootstrap, kept under cmd.exe's 8191-character command line should the box's default ssh shell ever be cmd.exe
+// (today it is PowerShell), and ssh runs with -n.
+export const CMD_LIMIT = 8191;
+export function minifyPs(script) {
+  return String(script).split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#")).join("\n");
+}
+export function remoteCommand(script) {
+  const z = zlib.deflateRawSync(Buffer.from(minifyPs(script), "utf8"), { level: 9 }).toString("base64");
+  // raw DEFLATE and StreamReader's default UTF-8. The mode is a TYPED enum ([CompressionMode]0 = Decompress): as a
+  // string it is ambiguous between DeflateStream(Stream, CompressionMode) and (Stream, CompressionLevel), and the box
+  // refused it (03:06Z). ::new() and iex keep the bootstrap short.
+  const boot = "$s=[IO.StreamReader]::new([IO.Compression.DeflateStream]::new([IO.MemoryStream]::new("
+    + `[Convert]::FromBase64String('${z}')),[IO.Compression.CompressionMode]0)).ReadToEnd();iex $s`;
+  const cmd = `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${Buffer.from(boot, "utf16le").toString("base64")}`;
+  if (cmd.length >= CMD_LIMIT) throw new Error(`the box command is ${cmd.length} characters, over cmd.exe's ${CMD_LIMIT}`);
+  return cmd;
+}
 
 /** The last `HVSOAK1 {...}` line of the box's stdout. */
 export function parseBoxStdout(stdout) {
@@ -334,9 +364,11 @@ function runBox(cfg, script, onReady) {
     const t0 = Date.now();
     let out = "", err = "", readyMs = null, fired = false, settled = false;
     const fire = (trigger) => { if (!fired) { fired = true; onReady(trigger); } };
-    const ch = spawn("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=15",
-                             "-o", "ServerAliveCountMax=3", "-o", "LogLevel=ERROR", cfg.ssh, remoteCommand()],
-                     { stdio: ["pipe", "pipe", "pipe"] });
+    let command;
+    try { command = remoteCommand(script); } catch (e) { resolve({ ok: false, error: e.message, ms: 0, exit: null, readyMs: null }); onReady("fallback"); return; }
+    const ch = spawn("ssh", ["-n", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=15",
+                             "-o", "ServerAliveCountMax=3", "-o", "LogLevel=ERROR", cfg.ssh, command],
+                     { stdio: ["ignore", "pipe", "pipe"] });
     const readyTimer = setTimeout(() => fire("fallback"), cfg.readyTimeoutMs);
     const killTimer = setTimeout(() => { try { ch.kill("SIGKILL"); } catch {} }, cfg.sshTimeoutMs);   // this child's own PID
     ch.stdout.on("data", (d) => {
@@ -356,8 +388,6 @@ function runBox(cfg, script, onReady) {
     };
     ch.on("error", (e) => end(null, `ssh: ${e.message}`));
     ch.on("close", (code) => end(code));
-    ch.stdin.on("error", () => {});
-    ch.stdin.end(script);
   });
 }
 
@@ -492,7 +522,7 @@ export function digestBox(res, st, { deployment, token, marker = null }) {
     box.partition = { running, status: mine ? mine.status : "absent", instance,
                       instanceChanged: st.instance !== undefined && instance !== st.instance,
                       vmState: hvVm === undefined ? null : hvVm ? hvVm.state : "absent",
-                      vmMemMiB: hvVm ? hvVm.memMiB : null, vmUptimeSec: hvVm ? hvVm.uptimeSec : null };
+                      vmMemMiB: hvVm ? hvVm.memMiB : null };
     st.instance = instance;
   } else box.partition = { running: null };
 
@@ -521,7 +551,7 @@ export function digestBox(res, st, { deployment, token, marker = null }) {
 
   const con = d.console || {};
   const cs = consoleScan(Buffer.from(con.b64 || "", "base64"), { token, marker });
-  box.console = { attempted: con.attempted === true, connected: con.connected === true, ready: res.ready ?? null,
+  box.console = { connected: con.connected === true, ready: res.ready ?? null,
                   note: trunc(con.note || null, 200), vmName: con.vmName ?? null, truncated: con.truncated === true, ...cs };
   // a console the deployment's running partition should have and that could not be read is a failed box read
   const consoleOwed = box.partition.running === true;
