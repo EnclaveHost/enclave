@@ -1,0 +1,13 @@
+rs-10 rollback (the retire of f7888d86)
+
+RULE (enclave-87, 09-26, from enclave-63's note): once rs-10 is ACCEPTED, ANY return to f7888d86 is
+  1. rs-10's own rollback FIRST:  rs-10.sh rollback, then rs-10-accept.sh rollback
+     (the three lines back to rs-9's state: f7888d86 installed, admitted and in the cert set beside 5db18199), and only then
+  2. enclave-63's S8 rollback (the guest tree back to iso-b63c2def = f7888d86).
+NEVER S8 alone: after rs-10 the relay neither admits nor certifies f7888d86, so a guest S8 builds on it would get no
+secrets and no certificate.
+
+rs-10's own rollback re-admits only (it adds f7888d86 back; 5db18199 stays), so it is harmless on its own. It is one relay
+restart; the >= 10 min spacing between api-relay restarts still applies.
+
+The scripts (rs-10.sh 8178f540, rs-10-accept.sh 6291efae, leased-attest.mjs 60dc6c08, bf GO) are unchanged by this note.
