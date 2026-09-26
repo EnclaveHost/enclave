@@ -2320,7 +2320,8 @@ const CATALOG_RPCS = [...new Set(String(process.env.SECRETS_RELEASE_CATALOG_RPCS
 const catalogRpcHosts = new Set(CATALOG_RPCS.map((u) => { try { return new URL(u).host; } catch { return u; } }));
 const catalogClients = CATALOG_RPCS.map((url) => { let c = null; return { readContract: async (q) => {
   if (!c) { const { createPublicClient, http: viemHttp } = await import("viem"); const { base } = await import("viem/chains");
-            c = createPublicClient({ chain: base, transport: viemHttp(url, { timeout: 6_000 }) }); }
+            // one retry (enclave-87, 09-26): a read is bounded at ~12 s per provider (6 s x 2), not viem's default 4 attempts (~25 s)
+            c = createPublicClient({ chain: base, transport: viemHttp(url, { timeout: 6_000, retryCount: 1 }) }); }
   return c.readContract(q);
 } }; });
 // WHICH catalog: APP_CATALOG_ADDRESS when the operator pins it, else the address book's appCatalog read through the SAME
