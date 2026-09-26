@@ -106,6 +106,18 @@ func TestScanWXOfNothingIsNotClean(t *testing.T) {
 	}
 }
 
+// A maps line the scan cannot parse fails it (fail closed), rather than being skipped as if it were not there.
+func TestAnUnparsableMapsLineFails(t *testing.T) {
+	for _, bad := range []string{"7f00-7f01\n", "7f00-7f01 rw\n", "\n"} {
+		if _, _, err := firstWX(strings.NewReader("7f00-7f01 r-xp 0 00:00 0\n" + bad)); err == nil {
+			t.Fatalf("%q was skipped", bad)
+		}
+	}
+	if line, mapped, err := firstWX(strings.NewReader("7f00-7f01 r-xp 0 00:00 0\n7f02-7f03 rwxp 0 00:00 0\n")); err != nil || !mapped || !strings.Contains(line, "rwxp") {
+		t.Fatalf("%q %v %v", line, mapped, err)
+	}
+}
+
 func TestUIDOf(t *testing.T) {
 	if uid, err := UIDOf(os.Getpid()); err != nil || uid != os.Getuid() {
 		t.Fatalf("%d %v", uid, err)
