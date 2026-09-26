@@ -50,3 +50,16 @@ test("without a standby, a lost tunnel is lost and redials, as before", () => {
   assert.deepEqual(h.closed(a), { lost: true, redial: true });
   assert.equal(h.canReattach(), false, "nothing serves: the next dial is a plain one, not a standby");
 });
+
+// Which re-attach an owners change gets (hvnode-attach.mjs reattachMode; enclave-87's ruling on enclave-bf's NO-GO):
+// make-before-break only when nothing was removed; any removal ends the tunnel first, so a revoked owner is never served.
+import { reattachMode } from "../windows/node/hvnode-attach.mjs";
+test("reattachMode: an added owner (or none changed) is make-before-break; ANY removal, or an unknown attached set, is break-before-make", () => {
+  const OP = "0x" + "0a".repeat(20), A = "0x" + "aa".repeat(20), B = "0x" + "bb".repeat(20);
+  assert.equal(reattachMode({ attached: [OP], current: [OP, A] }), "make-before-break");
+  assert.equal(reattachMode({ attached: [OP, A], current: [A.toUpperCase().replace("0X", "0x"), OP] }), "make-before-break", "the same set, any case or order");
+  assert.equal(reattachMode({ attached: [OP, A], current: [OP] }), "break-before-make");
+  assert.equal(reattachMode({ attached: [OP, A], current: [OP, B] }), "break-before-make", "a swap removes A");
+  assert.equal(reattachMode({ attached: null, current: [OP] }), "break-before-make");
+  assert.equal(reattachMode({ attached: [OP], current: undefined }), "break-before-make");
+});

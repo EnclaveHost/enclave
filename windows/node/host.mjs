@@ -221,6 +221,17 @@ export class Host {
    * payoutWallet naming a victim made the box claim, bill and restart the victim's deployments (enclave-5d). Every
    * owner check - claimPolicy, the ledger scan, the restart gate, the sweep's hold - asks this one set.
    */
+  /** The owners an attach carrying `sent` (attachDelegations' list) makes the relay serve: the operator and each sent
+   *  delegation's owner, as this host verified it - what a re-attach compares to tell an added owner from a removed one
+   *  (hvnode-attach.mjs reattachMode). */
+  servedBy(sent = this.attachDelegations()) {
+    const bySig = new Map(this.owners.delegations.map((d) => [String(d.signature).toLowerCase(), d.owner]));
+    const out = new Set();
+    if (this.owners.operator) out.add(this.owners.operator);
+    for (const d of sent) { const o = bySig.get(String(d.signature).toLowerCase()); if (o) out.add(o); }
+    return [...out].sort();
+  }
+
   ownerSet(now = Math.floor(Date.now() / 1000)) {
     const set = new Set();
     if (this.owners.operator) set.add(this.owners.operator);
@@ -2612,6 +2623,10 @@ export class Host {
       id = hit[0];
     }
     const rec = this.records.get(id);
+    // WHOSE app: in owner-only scope a deployment whose ledger owner this box no longer serves (a delegation removed,
+    // expired or invalid) is never spliced, whatever list the relay still holds - the removal takes effect here at once
+    // (enclave-bf's belt, enclave-87's revocation ruling on the make-before-break re-attach).
+    if (rec && rec.owner && this.scope() === "owner-only" && !this.ownerSet().has(rec.owner)) return null;
     // AN ISOLATED DEPLOYMENT HAS NO `app` HERE, AND MUST NOT NEED ONE.
     //
     // Its process is a partition, not an entry in this.apps, so the checks below - which want a

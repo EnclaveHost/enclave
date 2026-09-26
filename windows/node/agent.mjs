@@ -38,7 +38,7 @@ import { initSessionKey, mint as mintSession, addressFor } from './session.mjs';
 import { nonceStore, siweMessage, verifyLogin } from './siwe.mjs';
 import { HV_NODE_FORMAT, buildHvNodeFrame, loadOrCreateNodeKey } from './hvnode-evidence.mjs';
 import { mintToken, startHostingAdmin, tokenFileDefault } from './hosting.mjs';
-import { finishHvAttach, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
+import { finishHvAttach, reattachMode, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
 import { tunnelHandover } from './tunnel-handover.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
@@ -87,7 +87,9 @@ let nodeKey = null;          // windows-hv-node/v1: the agent's own Ed25519 tran
 // What the last hv-node attach told the relay (hvnode-attach.mjs): its signature version and the owners it carried, so a
 // change in whom this node serves is followed by a new attach. `reattachNow` dials a STANDBY tunnel that takes over when
 // the relay accepts it, while the live one keeps serving (make-before-break, tunnel-handover.mjs).
-let attachedOwnersVersion = null, lastOwnerRedial = 0, reattachNow = () => {};
+// `attachedOwners`: the owners the accepted attach made the relay serve (Host.servedBy), to tell an added owner from a
+// removed one; `endTunnelNow` ends every tunnel (the live one and any standby) for a removal (hvnode-attach.mjs reattachMode).
+let attachedOwnersVersion = null, attachedOwners = null, lastOwnerRedial = 0, reattachNow = () => {}, endTunnelNow = () => {};
 // The app-zone half: built once APPS is on, because it needs the host to know which deployment
 // runs where and which certificate belongs to it.
 let zone = null;
@@ -565,6 +567,7 @@ async function handle(frame) {
 function connect() {
   const tunnels = tunnelHandover();
   reattachNow = () => { if (tunnels.canReattach()) dial({ standby: true }); };
+  endTunnelNow = () => { for (const t of [tunnels.standby, tunnels.current]) if (t) { try { t.ws.terminate(); } catch {} } };
   // standby: a make-before-break re-attach (tunnel-handover.mjs). It serves nothing until the relay accepts its attach;
   // the relay then binds it and ends the live one (relay/tunnel.js bind, "newest wins").
   const dial = ({ standby = false } = {}) => {
@@ -613,7 +616,8 @@ function connect() {
             const x = await finishHvAttach(frame, { name: NAME, nonceB64: s.pending.nonce, spki: nodeKey.spki, ekCertDer: s.pending.ekCertDer,
                                                     v2: s.pending.v2, sign: await operatorSigner(), delegations: APPS ? host.attachDelegations() : [] });
             // the version of the list this frame CARRIES (x.delegations), not of whatever the host holds after the awaits above
-            s.attachSent = { version: x.version, owners: APPS ? host.ownersVersion(undefined, x.delegations) : null };
+            s.attachSent = { version: x.version, owners: APPS ? host.ownersVersion(undefined, x.delegations) : null,
+                             served: APPS ? host.servedBy(x.delegations) : null };
             send(frame); log(`sent ${HV_NODE_FORMAT} evidence (quote, credential, log, signed binding), attach signature v${x.version}`
               + (x.version === 2 ? `, ${x.delegations.length} delegation(s)` : ' (the relay offered no v2: it serves no delegated owner from this attach)'));
           }
@@ -629,6 +633,7 @@ function connect() {
                       if (standby) serve();
                       tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
                       attachedOwnersVersion = s.attachSent && s.attachSent.version === 2 ? s.attachSent.owners : null;
+                      attachedOwners = s.attachSent && s.attachSent.version === 2 ? s.attachSent.served : null;
                       host.relayTier = tier;   // the host's contract gate reads the relay's verdict, not ours
                       // the relay's word on host exclusion, kept as given (hv-node: false); never raised by this node
                       host.relayHostExcluded = typeof f.hostExcluded === 'boolean' ? f.hostExcluded : null;
@@ -814,8 +819,15 @@ async function startHostingControls() {
   if (!LEGACY_ENGINE && APPS) setInterval(() => {
     if (!shouldReattach({ attached: attachedAt > 0, attachedVersion: attachedOwnersVersion, currentVersion: host.ownersVersion(), lastRedialMs: lastOwnerRedial })) return;
     lastOwnerRedial = Date.now();
-    log('the owners this node serves changed since its attach: attaching again (make-before-break) so the relay serves the same set');
-    reattachNow();
+    // an ADDED owner: a standby takes over with no gap; a REMOVED one: the tunnel ends now, and the relay serves nothing
+    // of it from here, whatever becomes of the new attach (the app zone refuses it too: Host.appZoneTarget)
+    if (reattachMode({ attached: attachedOwners, current: host.servedBy() }) === 'make-before-break') {
+      log('the owners this node serves grew since its attach: attaching again make-before-break, so the relay serves the new set with no gap');
+      reattachNow();
+    } else {
+      log('an owner this node served was REMOVED since its attach: ending the tunnel now so the relay stops serving it at once, then attaching again');
+      endTunnelNow();
+    }
   }, 30_000).unref?.();
 })().catch((e) => { console.error(e); process.exit(1); });
 process.on('SIGINT', () => { for (const c of Object.values(children)) c?.kill(); tpm?.kill(); process.exit(0); });

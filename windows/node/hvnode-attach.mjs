@@ -53,6 +53,19 @@ export function shouldReattach({ attached, attachedVersion, currentVersion, last
   return nowMs - lastRedialMs >= minGapMs;
 }
 
+/**
+ * How an owners change re-attaches (enclave-87's ruling on enclave-bf's NO-GO): "make-before-break" (a standby tunnel,
+ * no gap: tunnel-handover.mjs) ONLY when the new served set is a SUPERSET of the attached one. If any owner was REMOVED
+ * - a delegation deleted, expired or no longer valid - "break-before-make": the live tunnel ends NOW, so the relay stops
+ * serving that owner at once whatever becomes of the new attach (the relay re-checks a delegation's expiry itself, but a
+ * removal only the node can see). An attached set it does not know is treated as a removal.
+ */
+export function reattachMode({ attached, current }) {
+  if (!Array.isArray(attached) || !Array.isArray(current)) return "break-before-make";
+  const now = new Set(current.map((o) => String(o).toLowerCase()));
+  return attached.every((o) => now.has(String(o).toLowerCase())) ? "make-before-break" : "break-before-make";
+}
+
 /** Put attachExtras' results onto an hv-node attest frame ({ t: "attest", rad }): operatorSig on the frame, the
  *  delegations on rad (sent with v2 only). -> attachExtras' result. */
 export async function finishHvAttach(frame, opts) {
