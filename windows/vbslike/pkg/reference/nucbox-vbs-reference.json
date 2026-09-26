@@ -44,6 +44,44 @@
    }
   },
   {
+   "id": "vbs-linux-candidate-41cacbc8",
+   "class": "candidate",
+   "imageSha256": "252602c860781d64df6e0e2ff003dc33dba4accf7265a9a70f1ac421ef0ae738",
+   "imageBytes": 78004924,
+   "vbsBootDigest": "231D1AB7EE9C3BA1A4046DD26AC911BC247230F5C7FAD79895E9405F3E51A82C",
+   "vbsIsvsvn": 13,
+   "debugBuild": false,
+   "confidentialDebug": false,
+   "trustsHostCommandLine": false,
+   "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553, as in b7ba7731), the monitor initrd 41cacbc8 (isolation/front-console-guard 4cdd5169: the console guard and domexec's /dev/null app stdio, with the attested-release wiring; see the package's profiles.vbsLinux.nextCandidate.guestDelta) and command line as measured pages; static_command_line=true",
+   "booted": "no: build-only; PENDING enclave-d1's box canary (with enclave-5d's sentinel console proof for domexec)",
+   "eligible": false,
+   "reason": "PENDING, NOT eligible: the next candidate after b7ba7731, which stays the one eligible image. It can become eligible only by a rollover in a later version, resting on its own canary, a byte review and enclave-99's verification review; until then a verifier refuses it by this exact digest.",
+   "pin": {
+    "image": "guest/igvm-vbs/vbs-linux-candidate-41cacbc8-252602c8.bin",
+    "identity": "vbs-linux-candidate-41cacbc8-vbs.json"
+   }
+  },
+  {
+   "id": "vbs-linux-candidate-41cacbc8-debug-twin",
+   "class": "debug",
+   "imageSha256": "4df033e84e64017777892f49a2fa8069b87ca1b698d2ec21596cc71d6fe56d0c",
+   "imageBytes": 78004924,
+   "vbsBootDigest": "25E0E2C6706957BF65F888FB6E41933A398C2426CD29249737BB59767E85EEA7",
+   "vbsIsvsvn": 13,
+   "debugBuild": false,
+   "confidentialDebug": true,
+   "trustsHostCommandLine": true,
+   "vtl0": "linux, measured (the 41cacbc8 candidate's own VTL0)",
+   "booted": "no: build-only",
+   "eligible": false,
+   "reason": "REFUSE: carries OPENHCL_CONFIDENTIAL_DEBUG=1, so OpenHCL trusts the host command line; its debugBuild is false all the same",
+   "pin": {
+    "image": "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-41cacbc8-DEBUG-TRUSTS-HOST-4df033e8.bin",
+    "identity": "vbs-linux-candidate-41cacbc8-DEBUG-TRUSTS-HOST-vbs.json"
+   }
+  },
+  {
    "id": "g4-probe-72462737",
    "class": "probe",
    "imageSha256": "724627378d81b51f0c56d7b22120162c11025961c678d2f2952ce7bb87a2bc1b",

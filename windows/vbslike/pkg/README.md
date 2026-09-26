@@ -468,6 +468,69 @@ manifest, but it is not a release and is not staged on the box. When it is relea
   - **Rollback:** v39 as staged. v39's own rollback record names v38.
   - **Also:** `check.ps1 -SelfTest` removes its empty `.selftest` directory, and the acceptance status says which tree
     and manager environment run 094631 used.
+- **v41 draft** (`drafts/nucbox-ownguest-41.json`; supersedes v40; built by enclave-53 in enclave-63's lane on
+  enclave-87's assignment, enclave-63 reviews before staging). Version 41 = version 40 with:
+  - **`control/` = `pkg/control-v41-e53` `cf1ac30d`:** v40's tree `e3acc392` plus windows/isolation-manager `39d5922e`'s
+    `manager-accept.ps1`, and nothing else. A serving run names its launcher by path and sha256 every time; there is no
+    default of the dropped `15338081`.
+  - **The M3 host prerequisites as a PERMANENT install with a verified rollback: `win/host-prereq.ps1`.** Approved by
+    enclave-87 under Steven's authority; run by enclave-d1 only. It is read-only (`-Check`) unless `-Install` or
+    `-Rollback` is given:
+    - `-Install` refuses unless Secure Boot is on and test signing and `nointegritychecks` are off (both `{current}`
+      and `{hypervisorsettings}`), and while an acceptance run holds the shared lock. It takes the lock the way the
+      harnesses do, by opening it (the file outlives every run), and holds it across the writes and the verify;
+    - it records the prior state once (`C:\Users\claude\vbs-like\host-prereq\prior-state.json`, outside the package),
+      then sets `AllowFirmwareLoadFromFile=1` (DWORD) and adds the hv_sock service
+      `00002329-facb-11e6-bd58-64006a7986d3` (port 9001), and verifies both;
+    - `-Rollback` restores exactly the recorded state, changes only values that are still ours, verifies, and retires
+      the record; anything it will not touch is reported `LEFT:` with exit 4;
+    - `-RegRoot <HKCU key>` rehearses the same cycle on a scratch key first. The target is resolved from the spelling
+      before anything else (enclave-bf's review): every HKLM spelling (`HKLM:\`, `Registry::HKEY_LOCAL_MACHINE\`, …)
+      is the REAL target and must be the default key, only an explicit HKCU key is a rehearsal, and anything else is
+      refused. On the box the provider's own key name is checked against that too;
+    - it creates only the 9001 key, never its parent; a rollback also removes the empty key an interrupted install
+      leaves; the loader options (`SystemStartOptions`) are checked for test signing without depending on the display
+      language, and a non-English bcdedit output is refused rather than read.
+    - **M3 is installed on the box:** today's M3 ran the earlier `9abdc36c` (`4a72dab8`, enclave-bf's GO) through
+      enclave-d1's runner `c2cb589e`. v41 ships `b1784c10` (enclave-bf's GO), which reads that run's prior-state
+      record unchanged. Any future run, a re-run or `-Rollback`, re-pins the runner to `b1784c10`. Its box-only paths
+      (the provider's key-name check, the half-written key's rollback, the refusal without `GuestCommunicationServices`)
+      are exercised once in enclave-d1's HKCU rehearsal first.
+  - **The record:** enclave-d1's v40 lab validation `2ea79951`, pinned as an input.
+  - **The node install: enclave-5d's hv-node rollout at its head v2.2.3 (`7fcaa145`), with the node at main `013deb51`** (b4's N1 and
+    N3 are in it). The procedure is `ROLLOUT.md`, pinned as an input; enclave-d1 runs every box step.
+    - `win/node-install.ps1`, `win/node-rollback.ps1` and `win/node-preflight.ps1` are 5d's `hvnode-install.ps1`,
+      `hvnode-rollback.ps1` and `hvnode-preflight.ps1`, byte for byte.
+    - `node/hvnode-013deb51.tar.gz` and its MANIFEST are the node's tree, 45 files, with the import closure checked.
+      `stage-hvnode.sh` makes them deterministically; they were built twice here and equal ROLLOUT.md's pins
+      (`fd145fca`, `c58d3af3`). A test re-stages them from `013deb51`.
+    - The keys are never in the package: the install copies them on the box.
+  - **The next candidate, PENDING: `vbs-linux-candidate-41cacbc8-252602c8.bin`** (launch digest `231D1AB7…`), with its
+    debug twin `4df033e8` (`25E0E2C6…`, refused).
+    - It is `b7ba7731`'s recipe with only the VTL0 initrd swapped, to `41cacbc8`: the NucBox monitor initrd built from the
+      full `isolation/front-console-guard` `4cdd5169` tree (the fixed front; enclave-87: one codebase, no port).
+    - The initrd was built twice from separate git archives with cold Go caches, byte-identical (`gen/build-initrd.sh`
+      in this lane's bench directory). The IGVM was built after the method reproduced `b7ba7731` and the twin proof;
+      `verify --rebuild` rebuilds it, and each of the five mutations moves its digest (`rebuild.vbsLinux41cacbc8`).
+    - What changes in the NucBox guest versus `c192380c` is listed in `profiles.vbsLinux.nextCandidate.guestDelta`: the
+      console guard, including domexec's `/dev/null` app stdio; `d1a38994`; the attested-release and egress wiring;
+      `ecf02384`; and `77f789a6`. None of it has run on the NucBox.
+    - It is no profile's firmware and is `eligible:false`. The reference gains exactly its two entries. It waits for
+      enclave-d1's box canary, which includes enclave-5d's sentinel console proof.
+  - **The correction of v40's status** (above): the package ships only `host.mjs` of `5d71b39f`'s files.
+  - **Unchanged:** the guest `b7ba7731` (the profile's firmware and the one eligible image), the launcher `435717de`,
+    the manager environment, eligibility, the tier and the host policies.
+  - **Not yet run:** this control tree (`cf1ac30d`) and `host-prereq.ps1`. The tree differs from the one `2ea79951` ran
+    only in `manager-accept.ps1`'s `-Serve` argument check.
+  - **Rollback:** v40 as staged (`pkg\15f39ae4d1fab954\`); v40's own rollback record names v39. The host
+    prerequisites roll back separately, with `host-prereq.ps1 -Rollback`.
+  - **Next, v42 (enclave-87):** the rollover to `252602c8` PLUS the cert-name set, as ONE set: the manager at
+    `windows/m4-cert-name` `719133ee` (or its final head), enclave-d1's box-built `vbslike-host.exe` with its build
+    record, and `252602c8`'s monitor. The invariant (enclave-d1, enclave-5d): these three move together. A new manager
+    with an old exe or an old monitor refuses every deployment-id launch, so a partial upgrade (`control\` alone) takes
+    NucBox serving down. v41 changes none of the three. v42's gate: `4cdd5169`'s monitor echoes the cert name through to
+    the front's `-cert-name-file`. 5d confirmed it from source; d1 confirms it on the box. v41's node pin `013deb51` will
+    be stale by then: v42 pins the node at the main commit with b4's urgent fix and the tray.
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
@@ -586,6 +649,21 @@ environment for `igvm` and the smoke command for `hcs-dev`. `-Require igvm` exit
 
 **Limits.** None of these scripts enables a feature, changes a host setting, reboots, or writes outside the package
 directory. They never touch `C:\Users\claude\vbs\node` or `\vbs\ee`.
+
+**The one exception, from v41: `win/host-prereq.ps1`.** It exists to change two host settings, the M3 prerequisites
+(`AllowFirmwareLoadFromFile=1` and the 9001 hv_sock service), and it does so only with `-Install`, run by the box owner.
+Without `-Install` or `-Rollback` it only reads. It writes its record of the prior state to
+`C:\Users\claude\vbs-like\host-prereq\`, outside the package, so that the record survives a package change, and
+`-Rollback` restores exactly that state. `stage.ps1` and `check.ps1` still change nothing; `check.ps1` keeps reporting
+`AllowFirmwareLoadFromFile` as a host check. The order on the box: `-Check`, then the cycle on a scratch key (created first with
+`New-Item`; `-RegRoot <that HKCU key> -RecordDir <its own scratch dir>`, since the default record directory is refused in
+a rehearsal), then `-Install`, then `-Check -Require`.
+
+**From v41, also `win/node-install.ps1` and `win/node-rollback.ps1`** (enclave-5d's hv-node rollout, run by the box owner
+in `ROLLOUT.md`'s order). The install writes the node tree, a verified copy of this package's manager, the node's
+state and logs under `C:\Users\claude\vbs-like\hvnode\`, and registers `\EnclaveHvManager` and `\EnclaveHvNode`
+without starting them. It copies the operator and proof keys there from `C:\Users\claude\vbs\node`, which it only
+reads. The rollback stops and disables both tasks and deletes nothing. `win/node-preflight.ps1` only reads.
 
 ## Boot, then serve (the box owner runs these: they start VMs)
 
