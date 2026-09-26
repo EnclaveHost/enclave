@@ -47,8 +47,10 @@ It simulates `publishVersion(slug "hv-soak-sentinel", …, cid, [0,0,128,1], por
 wallet, and prints that calldata and `setApproval(appId, 0, 1)`'s for the Trezor. It sends no transaction.
 Timing: the daily pin cleanup on nan (04:17 UTC) unpins a catalog-LISTED CID that is not deployable (Pending counts). So
 send 1 and 2 in the same session, before a 04:17. A CID that is pinned but not yet listed is never touched.
-First run 2026-09-26 ~02:45Z: the upload token was issued, but `ipfs.enclave.host/add-wasm` answered 502, as did an
-unauthenticated POST (a live gateway answers 401). nan-wasm-gateway looks down. NOT pinned yet.
+First run 2026-09-26, before 02:44Z (read): the upload token was issued, but `ipfs.enclave.host/add-wasm` answered 502, as did an
+unauthenticated POST (a live gateway answers 401). NOT pinned. enclave-87: most likely the metal0 outage (ipfs.enclave.host
+is served by metal0 tenants: s3-ipfs-adapter 7ae476a3, ipns-publisher d9798e4c), not a new fault. The publish is DEFERRED
+until the gateway is back.
 
 ## Status
 The catalog owner is 0x0b2d…ee61 (Steven's Trezor). A version the agent wallet publishes stays Pending. The CLI deploys a
