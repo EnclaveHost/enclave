@@ -1,0 +1,4 @@
+fd=0 -> socket:[31891290] rdev=0:0 chr=0 cloexec=0
+fd=1 -> <scratch>/evidence/console-control-4cdd5169.txt rdev=0:0 chr=0 cloexec=0
+fd=2 -> <scratch>/evidence/console-control-4cdd5169.txt rdev=0:0 chr=0 cloexec=0
+uid=1000 euid=1000
