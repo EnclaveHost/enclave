@@ -8,7 +8,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { judge, canonical, SIGN_DOMAIN, LEGACY_WX_IMAGES, wxCoverage } from "./judge-hv.mjs";
+import { judge, canonical, SIGN_DOMAIN, LEGACY_WX_IMAGES, SECCOMP_UNSTATED_IMAGES, wxCoverage } from "./judge-hv.mjs";
 import { ABI2, bind2, runtimeId } from "../../../isolation/contract/runtime.mjs";
 
 const CONTRACT_RS = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../host/src/contract.rs"), "utf8");
@@ -21,7 +21,9 @@ const JIT = { name: "wasmtime", version: "48.0.1", execution: "jit", targetIsa: 
 const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
 const launcherKey = publicKey.export({ type: "spki", format: "der" }).subarray(12).toString("base64");
 const spki = crypto.generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
-const ATTEST_TIME = "exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1";
+// what a guest after v43 states: the attest-time scan AND its runtime's seccomp filter (SECCOMP_UNSTATED_IMAGES)
+const SC = "seccomp=" + "d4".repeat(32);
+const ATTEST_TIME = `exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 ${SC} scope=cgroup:/dom1`;
 const LEGACY = "exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom1";
 
 // an ABI/2 document as the m2 front returns it on the NucBox: the launcher-signed report binds the runtime's identity
@@ -102,4 +104,26 @@ test("an ABI/1 document on an unlisted image is refused whether or not the calle
   }
   assert.equal(abi1(V42, false).verdict, "monitor-signed", "v42's image, runtime not pinned: today's handling admits ABI/1");
   assert.equal(abi1(V42, true).verdict, "reject", "v42's image, runtime pinned: today's handling refuses ABI/1");
+});
+
+// The runtime's seccomp filter, per image (SECCOMP_UNSTATED_IMAGES; enclave-87): an image after v43 states seccomp=<its
+// program's sha256>; v43's (and v42's) image may omit it, said, never counted as attested.
+test("an image after v43 must state its runtime's seccomp filter; v43's image may omit it, only as not attested", () => {
+  const V43REAL = "4950052785daf26d9c712a710f118211c853a04e03c01b8d77d8ac44a50327ab", LATER = "44".repeat(32);
+  const noSc = "exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1";   // v43's front
+  const later = judged(noSc, { image: LATER });
+  assert.equal(later.verdict, "reject", "an image after v43 stated no filter and was accepted (the filter skipped)");
+  assert.match(later.reasons.join("; "), /states no seccomp filter/);
+  const v43 = judged(noSc, { image: V43REAL });
+  assert.equal(v43.verdict, "monitor-signed", v43.reasons.join("; "));
+  assert.match(v43.wxWhy, /NOT positively attested/);
+  const stated = judged(ATTEST_TIME, { image: LATER });
+  assert.equal(stated.verdict, "monitor-signed", stated.reasons.join("; "));
+  assert.match(stated.wxWhy, /under the seccomp filter with program sha256 d4d4/);
+  for (const bad of ["seccomp=d4d4", "seccomp=" + "D4".repeat(32)])
+    assert.equal(judged(`exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 ${bad} scope=cgroup:/dom1`, { image: V43REAL }).verdict, "reject", bad);
+  // the image is the caller's: a report naming v43's image under a later record gets no exemption
+  assert.equal(judged(noSc, { image: V43REAL, expectedImageSha256: LATER }).verdict, "reject");
+  assert.ok(Object.isFrozen(SECCOMP_UNSTATED_IMAGES));
+  assert.deepEqual(Object.keys(SECCOMP_UNSTATED_IMAGES).sort(), [...Object.keys(LEGACY_WX_IMAGES), V43REAL].sort());
 });
