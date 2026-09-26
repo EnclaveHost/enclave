@@ -57,6 +57,9 @@ Rules the scripts keep:
 - [release-aa6c985c/](release-aa6c985c/): release id 79c5ecf2…, THE PRODUCTION RELEASE: its init links musl.
   [DRAFT-RELEASE.md](release-aa6c985c/DRAFT-RELEASE.md) is the draft release manifest, for review. NO release is
   created or published.
+- [release-4cdd5169/](release-4cdd5169/): release id 52156652…, the console-guard release, next after 79c5ecf2 (only
+  template/front differs). [DRAFT-RELEASE.md](release-4cdd5169/DRAFT-RELEASE.md) is its draft manifest, for review; it
+  shares 79c5ecf2's source bundle. NO release is created or published.
 - [release-17e182a8/](release-17e182a8/): release id a4f22748…, superseded for publication (its init links glibc); HELD.
   [ARTIFACT.md](release-17e182a8/ARTIFACT.md) has the tarball and its hash. It shares its source bundle with 0181bce3.
 - [production/](production/): the production release (5d's): how it was tracked to its final id.
