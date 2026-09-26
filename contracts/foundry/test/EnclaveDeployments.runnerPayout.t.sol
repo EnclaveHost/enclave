@@ -156,14 +156,14 @@ contract EnclaveDeploymentsRunnerPayoutTest is Test {
         uint256 value = 123_456_789;                   // deliberately non-dividing
         dep.fund(id, value);
         vm.stopPrank();
-        // a funding before any claim splits against the record's working rate,
-        // which pre-claim is its ceiling (see EnclaveDeployments.rateCap.t.sol
-        // for what a later claim at a cheaper host does to the ratio)
+        // a funding with no live lease splits against the record's CAP (its
+        // working rate pre-claim), and since rev 14 escrows the UNFLOORED runner
+        // fraction of it (see EnclaveDeployments.rev14.t.sol)
         uint256 rate = dep.get(id).rate;
         assertEq(rate, ROOMY_CAP + fee);
-        (uint256 r6, uint256 escrow6,) = dep.earnOf(id);
+        (, uint256 escrow6,) = dep.earnOf(id);
         uint256 cut = (value * fee) / rate;            // floor (publisher)
-        uint256 esc = (value * r6 + rate - 1) / rate;  // ceil (escrow)
+        uint256 esc = (value * (rate - fee) * dep.runnerBps() + rate * 10000 - 1) / (rate * 10000);  // ceil (escrow)
         assertEq(escrow6, esc);
         assertEq(usdc.balanceOf(publisher), cut);
         assertEq(usdc.balanceOf(payout), value - cut - esc);
