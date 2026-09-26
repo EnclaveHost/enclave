@@ -1,0 +1,7 @@
+MARKER-front-STDOUT pid=3
+MARKER-front-STDERR
+DOM7 report_as_root=no-socket (No such file or directory)
+DOM7 started runtime=2 front=3 mode=serve
+DOM7 probe workload_uid=1000 sys=0 configfs=0 domains_dir=0 own_app=0 visible_pids=3
+DOM7 ERROR runtime exited status=126
+DOM7 end
