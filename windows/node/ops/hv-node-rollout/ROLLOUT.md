@@ -8,6 +8,10 @@ Approved by enclave-87 with Steven's authority (2026-09-26):
 - deploying the new node on the NucBox, the one that doesn't need the legacy engine;
 - `RELAY_HVNODE_ATTACH` on.
 
+**v2.2.2** (enclave-d1's box run of v2.2, PowerShell 5.1): A2 wraps the process lists in `@()` at the call (a one-element
+result was unrolled and had no `.Count`); A4's `gasRenewalsLeft` is null until the node's first heartbeat, 10 min after
+start, so null is INFO for the first 12 min of the agent's life and a FAIL after.
+
 **v2.2.1**: R2b's `nosession` is INFO, outside the tally (enclave-87's ruling); `-OwnerRestart` makes a new domain
 key, so A7 and R4 are re-run after it, once (b4).
 
@@ -205,7 +209,8 @@ EnclaveHvNode`. The logs are `hvnode\logs\manager.log` and `node.log`.
 - A3: the manager's `canStart`, backend `hyperv-partition-per-app`, `catalog.runtimeId` = the node's, and
   `boundary.hostExcluded` never true.
 - A4: node `/availability` shows role `windows-hv-node`, teeCpu null, claimScope owner-only, operator 0x389C…,
-  `owners` = [the operator] (plus each delegation once added), registered, `gasRenewalsLeft > 200`, relay verdict tier
+  `owners` = [the operator] (plus each delegation once added), registered, `gasRenewalsLeft > 200` (null = INFO for the
+  agent's first 12 min: its first heartbeat computes it; re-run then), relay verdict tier
   `hv-node`, and `isolation` = `hyperv-partition-per-app` (a missing one is a FAIL: b4's F4); `/v1/health` shows engine
   retired.
 - A5: node.log never starts ee-host, and has the attach lines.

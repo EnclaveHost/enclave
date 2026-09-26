@@ -129,7 +129,7 @@ function NodeModulesList([string]$base) {
   @(Get-ChildItem -Recurse -File $base | Where-Object { $_.FullName -like '*\node_modules\*' } |
     ForEach-Object { $_.FullName.Substring($base.Length).ToLower() + ' ' + (Sha256Of $_.FullName) } | Sort-Object)
 }
-$nmPkg = NodeModulesList (Join-Path $Pkg 'control'); $nmCopy = NodeModulesList $cbase
+$nmPkg = @(NodeModulesList (Join-Path $Pkg 'control')); $nmCopy = @(NodeModulesList $cbase)   # @() at the call: PS 5.1 unrolls a 1-element return
 if ($nmPkg.Count -eq 0) { Die "the package's control\ has no node_modules (was it staged?)" }
 if (($nmPkg -join "`n") -ne ($nmCopy -join "`n")) { Die "the manager copy's node_modules differs from the staged package's" }
 Note "manager copy $mcopy = the package MANIFEST's control/ ($($ctl.Count) files) + its node_modules byte for byte ($($nmPkg.Count) files)"
