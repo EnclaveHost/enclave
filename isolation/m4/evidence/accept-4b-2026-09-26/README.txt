@@ -22,3 +22,10 @@ pattern acc-[0-9a-f]{24}, since teardown deleted the values file as designed) re
 its output is committed here as proof 7's record when it lands. The test guest's serial channel is the AT-RUN reading
 (readable, 0 hits): its directory was reclaimed at teardown.
 Teardown: bin deleted, secrets cleared, 0.01 refunded, cancelled, unlisted (list-remove.txt); gone check ok.
+PROOF 7 RECORD (the condition, met 2026-09-26 00:54:16Z): 5d's FIXED accept-4b.sh (isolation/app-config-m1 26cfc8a4,
+sha256 6676e74e: " UTC" on every journalctl --since; every channel's positive control through the same pipe, 0 control
+lines = FAIL "window/plumbing wrong") ran `recheck7 run1` over the recorded window (since 2026-09-26 00:35:50 UTC) with
+the value FORMAT acc-[0-9a-f]{24}: 0 failures (proof7-recheck7.txt). User journal 0 hits (control: 12 lines naming the
+test id), system journal 0 (control 224 lines: readable in the right window), hookbin's serial 0, nan's api-relay journal
+0 (control 1 'secrets-release' line). The test guest's serial is the AT-RUN reading (readable, 0 hits; the proofs output
+in 4b.txt), its directory reclaimed at teardown.
