@@ -1,7 +1,7 @@
 # The NucBox VBS-like deployment: final report (DRAFT)
 
-For Steven. Drafted by enclave-b4 for enclave-87 on 2026-09-26 from DEPLOYMENT.md (`525c3812`) and the evidence branches it
-cites; nothing here is new. `⟨E13⟩`, `⟨E14⟩` and `⟨v43⟩` are results still to come (the 12-hour soak, the reboot, and
+For Steven. Drafted by enclave-b4 for enclave-87 on 2026-09-26 from DEPLOYMENT.md (`525c3812`, with `317cfb16`'s v44
+wording correction) and the evidence branches it cites; nothing here is new. `⟨E13⟩`, `⟨E14⟩` and `⟨v43⟩` are results still to come (the 12-hour soak, the reboot, and
 v43's install). The report is final once they are filled in.
 
 ## In short
