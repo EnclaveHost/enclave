@@ -6,79 +6,41 @@
  "notAClaim": "No image here is an isolation claim: T0-hv, host_excluded=no. No eligibility here changes host policy: production attach OFF, respawn OFF, recovered VMs HELD.",
  "images": [
   {
-   "id": "vbs-linux-candidate-1539",
+   "id": "vbs-linux-candidate-aaad1d37",
    "class": "candidate",
-   "imageSha256": "b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748",
-   "imageBytes": 77794396,
-   "vbsBootDigest": "56FBB27F363A7FEDC83FD56CB4FF39C5411140300BB8F8496C35893A061077E1",
+   "imageSha256": "0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998",
+   "imageBytes": 78009052,
+   "vbsBootDigest": "A39E2F8CB71BEB3DC2A7BF1F41C60FBB76168CACAE11F8002E3C37ADFA94C817",
    "vbsIsvsvn": 13,
    "debugBuild": false,
    "confidentialDebug": false,
    "trustsHostCommandLine": false,
-   "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553), enclave-5d's initrd 1539d5b2 (680d40fa with plat/domprobe rebuilt: the open-only TPM negative control) and command line as measured pages; static_command_line=true",
-   "booted": "yes: BOOTED and SERVED as a type-1 partition, host Secure Boot ON (enclave-d1, canary 093904, 2026-09-25, evidence 0bee8444, script uefi-dev-boot.ps1 at ad61cb02): 'MON boot 5ad7d68955090bb8184fa4db9143babc', MON ready, and the pinned fixture served 03ba204e through the guest's own TLS, served by the box's target\\release wmiserve 0160d835, not the package's launcher. The TPM control: dev_tpm0 and dev_tpmrm0 absent from the domain's view; existence in the root namespace not stated. The live-neighbour probe: INCONCLUSIVE. No report was requested; identity, any report or chain, and host exclusion are NOT established. enclave-d1's byte review agrees (fd92d610).",
+   "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553, as in b7ba7731), the monitor initrd aaad1d37 (298924ae: isolation/front-console-guard 4cdd5169's console guard plus enclave-5d's approved domexec fix; see the package's profiles.vbsLinux.firmwareRecord) and command line as measured pages; static_command_line=true",
+   "booted": "yes: BOOTED AND SERVED on BOTH paths as a type-1 partition, host Secure Boot ON (enclave-d1, canary 2026-09-26 on nucbox-k11, evidence 8d488dbf, canary-0891c740-20260926/; the image from a hash-pinned lab copy, enclave-87's option (a)). (i) uefi-dev-boot -LinuxDirect -IsolationType 1 -VbsOptOut, runs 023202, 023514, 023835 and 024124: every boot 'MON boundary t0-hv host_excluded=no hv_isolation=vbs', 'MON yama ptrace_scope=1 -> 2', 'MON ready ... transport=hv_sock', 'DOM front: not dumpable; none of its 3 threads traced', the runtime wasmtime/48.0.1 (id ccadb38a = runtime.json), 'DOM serving'; no status=126; the sentinel's tag appears nowhere on the console (a /panic ends 'DOM1 ERROR runtime exited status=134' and the domain ends; unsolicited upstream bytes appear only as 'DOM front: unsolicited upstream response (N bytes withheld)'); hello-world 1.0.4 served exactly its 13 pinned bytes (03ba204e). (ii) THE MANAGER PATH: manager-accept with this version's manager (control 90eab896) and launcher 10547aca, runs 024240 and 024728: HVLAB-ACCEPT ALL PASS and RESTART-ACCEPT ALL PASS (A0-A9), image 0891c740 on every spawn; the app answered on its own name (200, monitor-signed on the manager-verified key); enclave-csr CN/SAN 4e62e60d.app.enclave.host, SPKI = transportKeySha256 facd5259. NOT RUN: a probe domain and the live-neighbour probe (the dev-boot script did not yet pin this image's probe build; v42 ships the script with it). No report was requested; identity, any report or chain, and host exclusion are NOT established.",
    "eligible": true,
-   "reason": "ELIGIBLE from v39, and PROSPECTIVE: the ONE permitted measured-image reference (enclave-99's one-eligible rule; a44bb55a superseded in the same version). It rests on its own canary 093904 (0bee8444: boots and serves; the TPM control absent from the domain's view), the package-owned functional acceptance 094631 (98782fbb), enclave-d1's byte review (fd92d610) and enclave-99's verification review. No report has been verified for it: a report from it could be admitted only after every remaining verification requirement holds. It grants no production app capacity, no verified or attested status, no badge and no protected-host admission.",
+   "reason": "ELIGIBLE from v42, and PROSPECTIVE: the ONE permitted measured-image reference (enclave-99's one-eligible rule; b7ba7731 superseded in the same version). It rests on its own canary (see booted: both the direct boot and the manager path, from a lab copy verified by hash at use), its reproducible build (enclave-53) and the reviews of v42. No report has been verified for it: a report from it could be admitted only after every remaining verification requirement holds. It grants no production app capacity, no verified or attested status, no badge and no protected-host admission.",
    "pin": {
-    "image": "guest/igvm-vbs/vbs-linux-candidate-1539-b7ba7731.bin",
-    "identity": "vbs-linux-candidate-1539-vbs.json"
+    "image": "guest/igvm-vbs/vbs-linux-candidate-aaad1d37-0891c740.bin",
+    "identity": "vbs-linux-candidate-aaad1d37-vbs.json"
    }
   },
   {
-   "id": "vbs-linux-candidate-1539-debug-twin",
+   "id": "vbs-linux-candidate-aaad1d37-debug-twin",
    "class": "debug",
-   "imageSha256": "95de03cc46769023adb96ae973b38a2b76b9f3a8bd5c2d4f9c44764ae43b49f5",
-   "imageBytes": 77794396,
-   "vbsBootDigest": "8E9D6ACBDAAD01F79AAB4EC6FA964068DA992C40B32D110025570C46BD682F9A",
+   "imageSha256": "17f4044431749ae66c47ac36873b9ed31469abcd399d7ff4fe0830f49e3b90b3",
+   "imageBytes": 78009052,
+   "vbsBootDigest": "DB5A0402949062412B8828FDD3E4C1F90D4C251106D71FA1DF94088208F09F40",
    "vbsIsvsvn": 13,
    "debugBuild": false,
    "confidentialDebug": true,
    "trustsHostCommandLine": true,
-   "vtl0": "linux, measured (the b7ba7731 candidate's own VTL0)",
+   "vtl0": "linux, measured (the aaad1d37 candidate's own VTL0)",
    "booted": "no: build-only",
    "eligible": false,
    "reason": "REFUSE: carries OPENHCL_CONFIDENTIAL_DEBUG=1, so OpenHCL trusts the host command line; its debugBuild is false all the same",
    "pin": {
-    "image": "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-1539-DEBUG-TRUSTS-HOST-95de03cc.bin",
-    "identity": "vbs-linux-candidate-1539-DEBUG-TRUSTS-HOST-vbs.json"
-   }
-  },
-  {
-   "id": "vbs-linux-candidate-41cacbc8",
-   "class": "candidate",
-   "imageSha256": "252602c860781d64df6e0e2ff003dc33dba4accf7265a9a70f1ac421ef0ae738",
-   "imageBytes": 78004924,
-   "vbsBootDigest": "231D1AB7EE9C3BA1A4046DD26AC911BC247230F5C7FAD79895E9405F3E51A82C",
-   "vbsIsvsvn": 13,
-   "debugBuild": false,
-   "confidentialDebug": false,
-   "trustsHostCommandLine": false,
-   "vtl0": "linux, MEASURED: our kernel (vmlinux 363b3553, as in b7ba7731), the monitor initrd 41cacbc8 (isolation/front-console-guard 4cdd5169: the console guard and domexec's /dev/null app stdio, with the attested-release wiring; see the package's profiles.vbsLinux.nextCandidate.guestDelta) and command line as measured pages; static_command_line=true",
-   "booted": "no: build-only; PENDING enclave-d1's box canary (with enclave-5d's sentinel console proof for domexec)",
-   "eligible": false,
-   "reason": "PENDING, NOT eligible: the next candidate after b7ba7731, which stays the one eligible image. It can become eligible only by a rollover in a later version, resting on its own canary, a byte review and enclave-99's verification review; until then a verifier refuses it by this exact digest.",
-   "pin": {
-    "image": "guest/igvm-vbs/vbs-linux-candidate-41cacbc8-252602c8.bin",
-    "identity": "vbs-linux-candidate-41cacbc8-vbs.json"
-   }
-  },
-  {
-   "id": "vbs-linux-candidate-41cacbc8-debug-twin",
-   "class": "debug",
-   "imageSha256": "4df033e84e64017777892f49a2fa8069b87ca1b698d2ec21596cc71d6fe56d0c",
-   "imageBytes": 78004924,
-   "vbsBootDigest": "25E0E2C6706957BF65F888FB6E41933A398C2426CD29249737BB59767E85EEA7",
-   "vbsIsvsvn": 13,
-   "debugBuild": false,
-   "confidentialDebug": true,
-   "trustsHostCommandLine": true,
-   "vtl0": "linux, measured (the 41cacbc8 candidate's own VTL0)",
-   "booted": "no: build-only",
-   "eligible": false,
-   "reason": "REFUSE: carries OPENHCL_CONFIDENTIAL_DEBUG=1, so OpenHCL trusts the host command line; its debugBuild is false all the same",
-   "pin": {
-    "image": "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-41cacbc8-DEBUG-TRUSTS-HOST-4df033e8.bin",
-    "identity": "vbs-linux-candidate-41cacbc8-DEBUG-TRUSTS-HOST-vbs.json"
+    "image": "guest/igvm-vbs/PROBE-FIRMWARE-never-a-serving-candidate/vbs-linux-candidate-aaad1d37-DEBUG-TRUSTS-HOST-17f40444.bin",
+    "identity": "vbs-linux-candidate-aaad1d37-DEBUG-TRUSTS-HOST-vbs.json"
    }
   },
   {
@@ -159,6 +121,34 @@
   }
  ],
  "superseded": [
+  {
+   "id": "vbs-linux-candidate-1539",
+   "vbsBootDigest": "56FBB27F363A7FEDC83FD56CB4FF39C5411140300BB8F8496C35893A061077E1",
+   "imageSha256": "b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748",
+   "eligible": false,
+   "reason": "REFUSE: superseded in v42 by vbs-linux-candidate-aaad1d37 (0891c740..., A39E2F8C...). It booted and served (canary 093904, acceptance 094631), and it was the eligible image of v39-v41, but no report was ever verified for it. No longer shipped; it stays in the staged v36-v41 packages for rollback (v42's rollback record names v41)."
+  },
+  {
+   "id": "vbs-linux-candidate-1539-debug-twin",
+   "vbsBootDigest": "8E9D6ACBDAAD01F79AAB4EC6FA964068DA992C40B32D110025570C46BD682F9A",
+   "imageSha256": "95de03cc46769023adb96ae973b38a2b76b9f3a8bd5c2d4f9c44764ae43b49f5",
+   "eligible": false,
+   "reason": "REFUSE: the superseded b7ba7731 candidate's debug twin (OPENHCL_CONFIDENTIAL_DEBUG=1: it trusts the host command line); never booted; superseded with it in v42 by 0891c740 (A39E2F8C...)."
+  },
+  {
+   "id": "vbs-linux-candidate-41cacbc8",
+   "vbsBootDigest": "231D1AB7EE9C3BA1A4046DD26AC911BC247230F5C7FAD79895E9405F3E51A82C",
+   "imageSha256": "252602c860781d64df6e0e2ff003dc33dba4accf7265a9a70f1ac421ef0ae738",
+   "eligible": false,
+   "reason": "REFUSE: v41's pending candidate, which failed its canary: domexec's quiet spawn opened /dev/null inside a chroot with no /dev, so the runtime exited 126 and the domain ended (enclave-5d from source, enclave-d1 on the console). Never eligible; superseded in v42 by 0891c740, built from the fix. It stays in the staged v41 package only."
+  },
+  {
+   "id": "vbs-linux-candidate-41cacbc8-debug-twin",
+   "vbsBootDigest": "25E0E2C6706957BF65F888FB6E41933A398C2426CD29249737BB59767E85EEA7",
+   "imageSha256": "4df033e84e64017777892f49a2fa8069b87ca1b698d2ec21596cc71d6fe56d0c",
+   "eligible": false,
+   "reason": "REFUSE: the failed 252602c8 candidate's debug twin (OPENHCL_CONFIDENTIAL_DEBUG=1); never booted; superseded with it in v42."
+  },
   {
    "id": "vbs-linux-candidate-g1",
    "vbsBootDigest": "58DFEBFE5F46E5C0E371CE94C2AB947735EA618CF51F973FBBB58048D9C7343A",

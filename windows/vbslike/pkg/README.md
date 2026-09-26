@@ -535,6 +535,35 @@ manifest, but it is not a release and is not staged on the box. When it is relea
     NucBox serving down. v41 changes none of the three. v42's gate: `4cdd5169`'s monitor echoes the cert name through to
     the front's `-cert-name-file`. 5d confirmed it from source; d1 confirms it on the box. v41's node pin `013deb51` will
     be stale by then: v42 pins the node at the main commit with b4's urgent fix and the tray.
+- **v42 draft** (`drafts/nucbox-ownguest-42.json`; supersedes v41; built by enclave-53 in enclave-63's lane on
+  enclave-87's decision; enclave-bf reviews before staging). Version 42 = version 41 with **one set moved together**,
+  under enclave-d1's and enclave-5d's invariant: the manager, `vbslike-host.exe` and the IGVM's monitor move together.
+  A new manager with an old exe or an old monitor refuses every deployment-id launch.
+  - **The rollover to `0891c740`** (launch digest `A39E2F8C…`). It is `b7ba7731`'s recipe with only the VTL0 initrd
+    swapped, to `aaad1d37`: the monitor initrd from `isolation/front-console-guard` `298924ae`. That is `4cdd5169`'s
+    fixed front plus two changes:
+    - enclave-5d's `domexec` fix `683798d0`: the quiet runtime's `/dev/null` comes from the monitor, because the
+      domain's chroot has no `/dev`;
+    - the front hardening `139c3fdd`, `d9176ed5` and `298924ae`: the front is not dumpable and checks every thread
+      for a tracer, and the monitor holds Yama at 2 or refuses ready.
+  - **The canary:** enclave-d1's canary (`8d488dbf`) passed both the direct boot and the manager path with this
+    version's manager and launcher.
+  - **v41's pending `252602c8` failed its canary.** `domexec` opened `/dev/null` inside a chroot with no `/dev`, so
+    the runtime exited 126. It and its twin are superseded and not shipped. So are `b7ba7731` and its twin.
+  - **The manager:** `control/` = `pkg/control-v42-e53` `90eab896`, which is `cf1ac30d` plus `windows/m4-cert-name`
+    `e36f233b`'s manager delta: the cert name at load, and `launcherVmId` in the view.
+  - **The launcher:** `10547aca`, box-built by enclave-d1 from `ce123042`. It is identical across four clean builds;
+    its build record `2b0e1e3d` is pinned.
+  - **The node install:** enclave-5d's rollout v2.3 `f605bc6b`, with the node at main `07fc4f55`. From v2.3 the
+    install takes every package pin from the staged package's own MANIFEST.json, which it verifies against
+    `-ManifestSha256`. The node archive is re-staged by a test.
+  - **The dev-boot script:** `uefi-dev-boot.ps1` is re-pinned at `804a4107`, which is `ad61cb02` plus the probe-build
+    line for `0891c740`, so kit item 4 and the neighbour probe can run.
+  - **v41's two gaps are closed.** `vmWorkerRead` now lists the firmware pair, and `pkg.mjs verify` refuses any
+    shipped firmware missing from it. v41's rollback note is corrected to name reference `3bb33297`.
+  - **Unchanged:** `runtime.json` (`ccadb38a`), `host-prereq.ps1` (`b1784c10`), the development profiles, and the
+    tier.
+  - **Rollback:** v41 as staged (`pkg\23a41fbd3babf52b\`). Roll back the whole set, never one part of it.
 A manifest is never edited after it is committed. A changed guest, app or tool is a new version with a new id.
 
 **v1 is defective. Use the latest (v7).** v1 pins hello-world's answer as `"Hello World!"`. That answer was never observed: it was
