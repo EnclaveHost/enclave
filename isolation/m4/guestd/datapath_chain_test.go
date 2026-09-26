@@ -9,8 +9,7 @@ package main
 //	     guestd over guestd-control/1 and its data plane over enclave-splice/1)
 //	  -> guestd (this package's real server, auth and data plane)
 //	  -> a fixture forwarder (TCP to the front's unix socket; can be switched to a TLS-terminating MITM)
-//	  -> the REAL guest front (isolation/m2/front), in its own user scope so its W^X scan covers only itself,
-//	     with a fixture app behind it
+//	  -> the REAL guest front (isolation/m2/front), in its own user scope, with a fixture app behind it
 //
 // WHAT IS FIXTURE, and what that means for every result below:
 //   - there is no SNP guest. The front asks a fixture monitor for its report (the M3 shape, -report-unix), and
@@ -51,6 +50,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,6 +68,25 @@ var chainRuntime = contract.RuntimeIdentity{Name: "wasmtime", Version: "0.0.0-fi
 
 // ---- the fixture guest: a real front, a fixture app, a fixture monitor ------------------------------------------
 
+// scanWX is the fixture monitor's W^X scan, made for EACH report as the real m3 monitor's scanDomainWX is, and answered
+// in its words (wx=clean ..., wx=found ..., wx=error: ...). It covers the fixture's RUNTIME: the fixture app, served by
+// THIS test process. The front is NOT DUMPABLE from its first instruction, so its maps are EACCES to this unprivileged
+// monitor (the real one is root and covers it too); a scan that included it fails closed, the front then refuses every
+// document, and the client's verdict is "the domain never answered" - measured, and why the front is left out here.
+func (g *chainGuest) scanWX() string {
+	if o := g.wxOverride.Load(); o != nil {
+		return *o
+	}
+	scan, err := contract.ScanWX("cgroup:/fixture-"+g.label, []int{os.Getpid()}, func(int) (string, error) { return "runtime", nil })
+	switch {
+	case err != nil:
+		return "wx=error: " + err.Error()
+	case scan.Found != "":
+		return "wx=found " + scan.Found
+	}
+	return scan.Clean()
+}
+
 type chainGuest struct {
 	label, appID, meas, sock string
 	hostData                 string // what the fixture monitor puts at 0xC0, as the PSP would from the launch
@@ -78,6 +97,7 @@ type chainGuest struct {
 	mon                      net.Listener
 	fwd                      net.Listener
 	mitm                     atomic.Bool
+	wxOverride               atomic.Pointer[string] // set: the fixture monitor answers THIS instead of scanning (steps a-d)
 	streamed                 atomic.Int64
 	streamsEnded             atomic.Int64
 }
@@ -191,7 +211,7 @@ func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, v
 				// the tier and format the real m3 monitor states for an SNP report (the front reads HOST_DATA only
 				// from an SNP report, never from a launcher-signed document in the same field)
 				_ = json.NewEncoder(c).Encode(map[string]string{"report": base64.StdEncoding.EncodeToString(rep),
-					"tier": contract.TierSNP, "format": contract.FormatSNP})
+					"tier": contract.TierSNP, "format": contract.FormatSNP, "wx": g.scanWX()})
 			}()
 		}
 	}()
@@ -199,9 +219,8 @@ func (l *chainLauncher) Start(ctx context.Context, image, tag, workdir string, v
 	if err := os.WriteFile(shaFile, []byte(g.appID+"\n"), 0o600); err != nil {
 		return "", err
 	}
-	// the real front, alone in a transient user scope: its W^X scan covers its own cgroup, which then holds
-	// only itself (this test's own cgroup holds browsers and editors with W+X JIT pages, and the front would
-	// rightly refuse to serve there)
+	// the real front, alone in a transient user scope (it no longer scans itself in this, the M3 shape: the fixture
+	// monitor's scanWX does, per report, as the real m3 monitor does)
 	g.front = exec.Command("systemd-run", "--user", "--scope", "--quiet", "--", l.front,
 		"-listen-unix", g.sock+".tls", "-report-unix", g.sock+".mon", "-app-sha", shaFile,
 		"-runtime-identity", l.rtFile, "-upstream", al.Addr().String(), "-cert-zone", "app.test")
@@ -298,7 +317,7 @@ func hostCert() (tls.Certificate, error) {
 }
 
 // Verify runs the REAL client in lab-unsigned mode: every field check, no AMD signature (there is none).
-func (l *chainLauncher) Verify(ctx context.Context, port int, meas, appID, hostData, workdir string) (string, string, error) {
+func (l *chainLauncher) Verify(ctx context.Context, port int, meas, appID, hostData, workdir string, releases []string) (string, string, error) {
 	args := []string{"../../m2/client.mjs", "https://127.0.0.1:" + strconv.Itoa(port),
 		"--lab-unsigned", "--no-kds", "--measurement", meas, "--app-sha", appID, "--runtime", l.rtFile, "--answer-within", "10000"}
 	if g := l.guest(workdir); g != nil && g.hostData != hostData {
@@ -306,6 +325,9 @@ func (l *chainLauncher) Verify(ctx context.Context, port int, meas, appID, hostD
 	}
 	if hostData != "" {
 		args = append(args, "--host-data", hostData)
+	}
+	if len(releases) > 0 {
+		args = append(args, "--release", strings.Join(releases, ","))
 	}
 	out, _ := exec.CommandContext(ctx, "node", args...).CombinedOutput()
 	r := results(string(out))
@@ -377,6 +399,38 @@ type chain struct {
 	nDeps    int // deployments the supervisor seam holds
 	ca       *fakeCertService
 	supEnv   func(deps []map[string]any) []string // the supervisor's environment, for a second one (a node restart)
+	supLog   []string                             // the supervisors' certificate lines (installed, or why not), under mu
+}
+
+// supSaid reports whether a supervisor's certificate line names `name` and says `what`, waiting up to `within`.
+func (ch *chain) supSaid(name, what string, within time.Duration) string {
+	for deadline := time.Now().Add(within); ; time.Sleep(300 * time.Millisecond) {
+		ch.mu.Lock()
+		for _, l := range ch.supLog {
+			if strings.Contains(l, name) && strings.Contains(l, what) {
+				ch.mu.Unlock()
+				return l
+			}
+		}
+		ch.mu.Unlock()
+		if time.Now().After(deadline) {
+			return ""
+		}
+	}
+}
+
+// legacyWXRelease is the first release judge.mjs lists in LEGACY_WX_RELEASES, read from its source (the table the
+// supervisor's judge really uses), or "" once every pre-chain release is retired.
+func legacyWXRelease(t *testing.T) string {
+	b, err := os.ReadFile("../../m2/judge.mjs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile(`export const LEGACY_WX_RELEASES = Object\.freeze\(\{\s*'([0-9a-f]{64})'`).FindSubmatch(b)
+	if m == nil {
+		return ""
+	}
+	return string(m[1])
 }
 
 // fakeCertService stands in for the platform certificate service (relay/certs.js POST /v1/certs/issue): it checks the
@@ -511,7 +565,10 @@ func newChain(t *testing.T) *chain {
 			"E": "0x" + strings.Repeat("e5", 32),
 			// A2 and A3: the SAME app as A (identical bundle, so the same AppID and measurement), other deployments.
 			// A3's host copies A's deployment id into its HOST_DATA (copyLabel).
-			"A2": "0x" + strings.Repeat("a2", 32), "A3": "0x" + strings.Repeat("a3", 32)}}
+			"A2": "0x" + strings.Repeat("a2", 32), "A3": "0x" + strings.Repeat("a3", 32),
+			// LW, UW, ZW: A's app again, for the certificate relay's per-release W^X rule (steps a-d): each guest's
+			// monitor is later made to state one self-test, and the relay's prediction names one release for it
+			"LW": "0x" + strings.Repeat("71", 32), "UW": "0x" + strings.Repeat("72", 32), "ZW": "0x" + strings.Repeat("73", 32)}}
 	l.deps = ch.deps
 	l.copyLabel[strings.Repeat("a3", 32)] = strings.Repeat("a1", 32)
 	t.Cleanup(func() {
@@ -524,9 +581,9 @@ func newChain(t *testing.T) *chain {
 	// does not)
 	// L: the same app again under a LAB name (not a deployment id), so guestd binds no HOST_DATA (all zero)
 	ch.deps["L"] = "lab-L"
-	for _, label := range []string{"A", "B", "C", "D", "A2", "A3", "L"} {
+	for _, label := range []string{"A", "B", "C", "D", "A2", "A3", "L", "LW", "UW", "ZW"} {
 		src := label
-		if label == "A2" || label == "A3" || label == "L" {
+		if label == "A2" || label == "A3" || label == "L" || label == "LW" || label == "UW" || label == "ZW" {
 			src = "A" // byte-identical bundles of A
 		}
 		b, err := contract.Build(contract.Manifest{Label: src}, []byte("\x00asm component "+src))
@@ -542,7 +599,7 @@ func newChain(t *testing.T) *chain {
 		ch.inst[label], ch.apps[label] = body["id"].(string), body["appId"].(string)
 	}
 	s.launching.Wait()
-	for _, label := range []string{"A", "B", "C", "A2", "A3", "L"} {
+	for _, label := range []string{"A", "B", "C", "A2", "A3", "L", "LW", "UW", "ZW"} {
 		if _, v := ch.direct("GET", "/vms/"+ch.inst[label], nil); v["status"] != "running" {
 			t.Fatalf("guest %s did not start: %v", label, v)
 		}
@@ -561,6 +618,41 @@ func newChain(t *testing.T) *chain {
 	// A3: its own deployment and guest, but launched by a host that copied A's label into HOST_DATA - the route and the
 	// handshake key are right, so only the attestation (HOST_DATA = this deployment) can stop a certificate
 	deps = append(deps, map[string]any{"id": ch.deps["A3"], "vmId": ch.inst["A3"], "appId": ch.apps["A3"]})
+	for _, label := range []string{"LW", "UW", "ZW"} {
+		deps = append(deps, map[string]any{"id": ch.deps[label], "vmId": ch.inst[label], "appId": ch.apps[label]})
+	}
+	// Past guestd's admission (which judged each by the full rule), LW and UW now state a PRE-CHAIN front's legacy
+	// self-test, and ZW an attest-time one that covered no runtime - what the certificate relay's judge then sees.
+	legacyForm, noRuntime := "wx=clean maps=3 scope=all-processes", "wx=clean maps=1 runtime=0 front=1 scope=cgroup:/fixture-ZW"
+	ch.l.guestByLabel("LW").wxOverride.Store(&legacyForm)
+	ch.l.guestByLabel("UW").wxOverride.Store(&legacyForm)
+	ch.l.guestByLabel("ZW").wxOverride.Store(&noRuntime)
+	// the relay's prediction (/v1/expected-guest, relay/measurement-predict.mjs): per deployment its AppID and the
+	// (release, runtime, measurement) of the image it expects. Served over TLS the supervisor trusts, at SECRETS_API -
+	// never the production relay, which the supervisor's default names. Every guest's release is one this chain built
+	// (NOT in judge.mjs LEGACY_WX_RELEASES), except LW's: a listed pre-chain release.
+	chainRelease := strings.Repeat("11", 32)
+	predicted := map[string][2]string{} // deployment id -> label of the guest it expects, release
+	for _, label := range []string{"A", "B", "C", "D", "A3", "UW", "ZW"} {
+		predicted[ch.deps[label]] = [2]string{label, chainRelease}
+	}
+	predicted[ch.deps["E"]] = [2]string{"A", chainRelease} // E's record launched A's app
+	if lw := legacyWXRelease(t); lw != "" {
+		predicted[ch.deps["LW"]] = [2]string{"LW", lw}
+	}
+	pred := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, ok := predicted[r.URL.Query().Get("id")]
+		if r.URL.Path != "/v1/expected-guest" || !ok {
+			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(404)
+			_, _ = w.Write([]byte(`{"error":"no_deployment"}`))
+			return
+		}
+		w.Header().Set("content-type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"id": r.URL.Query().Get("id"), "appId": ch.apps[p[0]],
+			"images": []map[string]string{{"release": p[1], "runtimeId": s.RuntimeID, "measurement": ch.l.guestByLabel(p[0]).meas}}})
+	}))
+	t.Cleanup(pred.Close)
 	ch.ca = newFakeCertService(t)
 	ch.ca.misbehaveFor = depName(ch.deps["B"])
 	cats := httptest.NewServer(ch.ca)
@@ -572,12 +664,14 @@ func newChain(t *testing.T) *chain {
 	// the fixture CA is a WebPKI root to the supervisor (Node's own extra-roots variable, not a knob of ours), so its
 	// served-chain check can find a certificate the guest already holds
 	caFile := filepath.Join(dir, "fixture-root.pem")
-	_ = os.WriteFile(caFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ch.ca.caCert.Raw}), 0o600)
+	_ = os.WriteFile(caFile, append(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: ch.ca.caCert.Raw}),
+		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: pred.Certificate().Raw})...), 0o600) // + the prediction's TLS
 	supEnv := func(deps []map[string]any) []string {
 		cfg, _ := json.Marshal(map[string]any{"deployments": deps, "guestCerts": map[string]any{"everyMs": 1500}})
 		return append(os.Environ(), "SECRET=test-secret", "ISOLATION_DATAPATH_SELFTEST="+string(cfg),
 			"ISOLATION_BACKEND=snp-guest-per-app", "VMMGR_URL="+ts.URL, "GUESTD_KEY_FILE="+keyFile,
 			"GUESTD_DATA_ADDR="+ch.dataAddr, "APP_CERT_DOMAIN=app.test", "CERTS_API="+cats.URL, "NODE_EXTRA_CA_CERTS="+caFile,
+			"SECRETS_API="+pred.URL,
 			"PUBLIC_URL=https://api.enclave.test/t/metal-iso0", "REGISTRY_PRIVATE_KEY=0x"+strings.Repeat("11", 32),
 			"GUESTD_TRANSPORT_SELFTEST=", "ISOLATION_SELFTEST=", "INSTANCE_SELFTEST=", "POOL_SELFTEST=", "SWEEP_SELFTEST=",
 			"REACH_SELFTEST=", "ACME_SELFTEST=", "CFG_EDIT_SELFTEST=", "ADDRESS_BOOK_ADDRESS=", "REGISTRY_ENABLED=",
@@ -595,6 +689,9 @@ func newChain(t *testing.T) *chain {
 		for sc.Scan() {
 			if strings.Contains(sc.Text(), "certificate") {
 				t.Logf("supervisor: %s", sc.Text())
+				ch.mu.Lock()
+				ch.supLog = append(ch.supLog, sc.Text())
+				ch.mu.Unlock()
 			}
 		}
 	}()
@@ -612,6 +709,10 @@ func newChain(t *testing.T) *chain {
 				_ = json.Unmarshal([]byte(v), &m)
 				ch.mu.Lock()
 				ch.splices = append(ch.splices, m)
+				ch.mu.Unlock()
+			} else if strings.Contains(ln, "[isolation]") && strings.Contains(ln, "certificate") {
+				ch.mu.Lock()
+				ch.supLog = append(ch.supLog, ln)
 				ch.mu.Unlock()
 			} else if strings.HasPrefix(ln, `{"listening":`) {
 				var m struct {
@@ -888,6 +989,24 @@ func TestTheDataPathEndToEnd(t *testing.T) {
 		fmt.Sprintf("CSRs sent for A3: %d", nA3), nA3 == 0)
 	nE := ch.ca.asked(depName(ch.deps["E"]))
 	record("nothing is issued on a route that is not the launched app (E)", fmt.Sprintf("CSRs sent for E: %d", nE), nE == 0)
+	// the per-release W^X rule at the certificate relay (enclave-87): the release is the PREDICTION's, never the guest's
+	nA, _ := ch.ca.stats(depName(A))
+	record("(a) an attest-time self-test that covered the runtime (runtime=1) is certified (A)",
+		fmt.Sprintf("issued %d: %.100s", nA, ch.supSaid(depName(A), "installed", 0)), nA >= 1 && ch.supSaid(depName(A), "UNMEASURED", 0) == "")
+	if legacyWXRelease(t) != "" {
+		lw := ch.supSaid(depName(ch.deps["LW"]), "installed", 30*time.Second)
+		nLW, _ := ch.ca.stats(depName(ch.deps["LW"]))
+		record("(b) a legacy self-test, for a pre-chain release judge.mjs lists, is certified AND marked unmeasured (LW)",
+			fmt.Sprintf("issued %d: ...%s", nLW, lw[max(0, strings.Index(lw, "; guest")):]), nLW >= 1 && strings.Contains(lw, "runtime W^X UNMEASURED: legacy release "+legacyWXRelease(t)[:8]))
+	} else {
+		t.Log("(b) not run: judge.mjs lists no pre-chain release any more")
+	}
+	uw := ch.supSaid(depName(ch.deps["UW"]), "does not say how many runtime processes", 30*time.Second)
+	record("(c) the same legacy self-test, for a release this chain built (not listed), is refused (UW)",
+		fmt.Sprintf("CSRs sent %d: %.200s", ch.ca.asked(depName(ch.deps["UW"])), uw), uw != "" && ch.ca.asked(depName(ch.deps["UW"])) == 0)
+	zw := ch.supSaid(depName(ch.deps["ZW"]), "covered NO runtime process", 30*time.Second)
+	record("(d) an attest-time self-test with runtime=0 is refused (ZW)",
+		fmt.Sprintf("CSRs sent %d: %.200s", ch.ca.asked(depName(ch.deps["ZW"])), zw), zw != "" && ch.ca.asked(depName(ch.deps["ZW"])) == 0)
 	_, keysA := ch.ca.stats(depName(A))
 	onlyA := len(keysA) > 0
 	for _, k := range keysA {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -149,5 +150,94 @@ func TestLogsOfARunningInstance(t *testing.T) {
 	}
 	if code, _ := r.do("GET", "/vms/gd00000000/logs", nil); code != 404 {
 		t.Fatalf("an unknown instance's logs: %d", code)
+	}
+}
+
+// Per release (enclave-87's ruling): guestd names the pre-chain releases (-legacy-wx-releases) to the judge ONLY for a
+// guest it knows a pre-chain tree built - one from the legacy tree, or one adopted from a record an EARLIER guestd
+// wrote - and nothing for any other, at launch and at adoption alike: a current-tree guest is always judged by the
+// full rule, however the host's flag is set.
+func TestOnlyPreChainGuestsNameLegacyReleases(t *testing.T) {
+	pre := []string{strings.Repeat("f7", 32), strings.Repeat("5c", 32)}
+	r := newRig(t)
+	r.s.LegacyWXReleases = pre
+	p, _ := r.bundle("A", contract.Policy{})
+	code, body := r.create("0x"+strings.Repeat("aa", 32), p)
+	if code != 201 {
+		t.Fatalf("create: %d %v", code, body)
+	}
+	r.s.launching.Wait()
+	id := body["id"].(string)
+	dir := filepath.Join(r.s.Root, id)
+	last := func() string {
+		r.f.mu.Lock()
+		defer r.f.mu.Unlock()
+		return r.f.verifyReleases[len(r.f.verifyReleases)-1]
+	}
+	if got := last(); got != "" {
+		t.Fatalf("a guest this tree launched named %q to the judge", got)
+	}
+	rewrite := func(f func(*instanceRecord)) {
+		b, err := os.ReadFile(filepath.Join(dir, recordFile))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rec instanceRecord
+		if err := json.Unmarshal(b, &rec); err != nil {
+			t.Fatal(err)
+		}
+		f(&rec)
+		b, _ = json.Marshal(rec)
+		_ = os.WriteFile(filepath.Join(dir, recordFile), b, 0o600)
+	}
+	adopt := func(flag []string) string {
+		s := newServer(r.f, r.s.Root)
+		s.Now, s.Budget, s.LegacyWXReleases = r.s.Now, r.s.Budget, flag
+		if why := s.adoptOne(context.Background(), dir); why != "" {
+			t.Fatalf("not adopted: %s", why)
+		}
+		return last()
+	}
+	all := strings.Join(pre, ",")
+	// the record exactly as this guestd wrote it: a current-tree guest, so nothing is named on adoption either
+	if got := adopt(pre); got != "" {
+		t.Fatalf("this guestd's own record, as written, named %q on adoption", got)
+	}
+	for _, c := range []struct {
+		what         string
+		legacy, perR bool
+		flag         []string
+		want         string
+	}{
+		{"this guestd's record of a current-tree guest", false, true, pre, ""},
+		{"a record an earlier guestd wrote (no WXPerRelease)", false, false, pre, all},
+		{"a legacy-tree guest's record", true, true, pre, all},
+		{"an earlier guestd's record, with no -legacy-wx-releases", false, false, nil, ""},
+	} {
+		rewrite(func(rec *instanceRecord) { rec.Legacy, rec.WXPerRelease = c.legacy, c.perR })
+		if got := adopt(c.flag); got != c.want {
+			t.Errorf("%s: named %q, want %q", c.what, got, c.want)
+		}
+	}
+	// the launch path's own choice, and the flag's parsing
+	s := &server{LegacyWXReleases: pre}
+	if s.legacyWXReleases(false, true) != nil || strings.Join(s.legacyWXReleases(true, true), ",") != all {
+		t.Fatal("legacyWXReleases at launch")
+	}
+	if got, err := parseReleaseIDs(" " + strings.ToUpper(pre[0]) + ",," + pre[1] + "," + pre[0]); err != nil || strings.Join(got, ",") != all {
+		t.Fatalf("parseReleaseIDs: %q %v", got, err)
+	}
+	for _, bad := range []string{"f7888d86", pre[0] + "00", pre[0] + ",xyz"} {
+		if _, err := parseReleaseIDs(bad); err == nil {
+			t.Errorf("parseReleaseIDs accepted %q", bad)
+		}
+	}
+	// the real launcher's judge command line names them exactly when given
+	rl := &realLauncher{m2: "/m2"}
+	if a := strings.Join(rl.verifyArgs(1, "m", "a", "", "/w", pre), " "); !strings.HasSuffix(a, " --release "+all) {
+		t.Errorf("the real verifier was not given the releases: %s", a)
+	}
+	if a := strings.Join(rl.verifyArgs(1, "m", "a", "", "/w", nil), " "); strings.Contains(a, "--release") {
+		t.Errorf("a current-tree guest's judge was given releases: %s", a)
 	}
 }

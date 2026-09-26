@@ -21,21 +21,22 @@ import (
 )
 
 type fake struct {
-	mu          sync.Mutex
-	builds      int
-	stops       map[string]int
-	alive       map[string]bool
-	verifyErr   error
-	startGate   chan struct{} // when set, Start blocks until it is closed
-	stopGate    chan struct{} // when set, Stop blocks until it is closed (a unit that takes its time to stop)
-	startArgs   [3]int
-	fwdPort     func(workdir string) int                                     // when set, where each guest's forwarder listens (the data-plane tests)
-	hostData    []string                                                     // the HOST_DATA each Start was given, in order
-	keyOverride string                                                       // when set, Verify reports this key (a different guest answering)
-	serial      string                                                       // when set, Start writes it as the guest's serial console
-	verifyHD    []string                                                     // the host data each Verify was asked to require
-	cids        []uint32                                                     // the CID each Start was given
-	guest       func(ctx context.Context, cid uint32, hostData string) error // when set, the guest's boot (release tests)
+	mu             sync.Mutex
+	builds         int
+	stops          map[string]int
+	alive          map[string]bool
+	verifyErr      error
+	startGate      chan struct{} // when set, Start blocks until it is closed
+	stopGate       chan struct{} // when set, Stop blocks until it is closed (a unit that takes its time to stop)
+	startArgs      [3]int
+	fwdPort        func(workdir string) int                                     // when set, where each guest's forwarder listens (the data-plane tests)
+	hostData       []string                                                     // the HOST_DATA each Start was given, in order
+	keyOverride    string                                                       // when set, Verify reports this key (a different guest answering)
+	serial         string                                                       // when set, Start writes it as the guest's serial console
+	verifyHD       []string                                                     // the host data each Verify was asked to require
+	verifyReleases []string                                                     // the releases each Verify named to the judge, comma-joined ("" = none)
+	cids           []uint32                                                     // the CID each Start was given
+	guest          func(ctx context.Context, cid uint32, hostData string) error // when set, the guest's boot (release tests)
 }
 
 func newFake() *fake { return &fake{stops: map[string]int{}, alive: map[string]bool{}} }
@@ -77,9 +78,10 @@ func (f *fake) Forward(ctx context.Context, cid uint32, workdir string) (int, fu
 	}
 	return 4443, func() {}, nil
 }
-func (f *fake) Verify(ctx context.Context, port int, m, id, hostData, workdir string) (string, string, error) {
+func (f *fake) Verify(ctx context.Context, port int, m, id, hostData, workdir string, releases []string) (string, string, error) {
 	f.mu.Lock()
 	f.verifyHD = append(f.verifyHD, hostData)
+	f.verifyReleases = append(f.verifyReleases, strings.Join(releases, ","))
 	f.mu.Unlock()
 	if f.verifyErr != nil {
 		return "", "", f.verifyErr
@@ -440,10 +442,10 @@ func TestHostDataIsTheDeploymentID(t *testing.T) {
 	}
 	// the REAL launcher's judge command line carries the requirement exactly when there is one
 	rl := &realLauncher{m2: "/m2"}
-	if a := strings.Join(rl.verifyArgs(1, "m", "a", want, "/w"), " "); !strings.HasSuffix(a, " --host-data "+want) {
+	if a := strings.Join(rl.verifyArgs(1, "m", "a", want, "/w", nil), " "); !strings.HasSuffix(a, " --host-data "+want) {
 		t.Errorf("the real verifier does not require HOST_DATA: %s", a)
 	}
-	if a := strings.Join(rl.verifyArgs(1, "m", "a", "", "/w"), " "); strings.Contains(a, "--host-data") {
+	if a := strings.Join(rl.verifyArgs(1, "m", "a", "", "/w", nil), " "); strings.Contains(a, "--host-data") {
 		t.Errorf("a lab launch must not demand HOST_DATA: %s", a)
 	}
 	for name, hd := range map[string]string{dep: want, "0x" + strings.Repeat("ab", 31): "", "smoke": "", strings.Repeat("ab", 32): ""} {

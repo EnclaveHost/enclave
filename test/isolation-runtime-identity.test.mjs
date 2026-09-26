@@ -18,7 +18,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
-import { checkRuntime, checkRuntimeSelfTest, judge } from '../isolation/m2/judge.mjs';
+import { checkRuntime, checkRuntimeSelfTest, judge, legacyWxFor, LEGACY_WX_RELEASES } from '../isolation/m2/judge.mjs';
 import { ABI1, ABI2, bind1, bind2, cacheKey, canonical, runtimeId, validateRuntimeIdentity }
   from '../isolation/contract/runtime.mjs';
 
@@ -286,5 +286,65 @@ test('a bad runtime identity is rejected in EVERY mode, including the lab diagno
       report: r.toString('base64') }), SPKI, NONCE, { ...want, mode });
     assert.equal(v.verdict, 'reject', `${mode}: ${v.reasons.join('; ')}`);
     assert.equal(v.gateOpen, false);
+  }
+});
+
+// 4. PER RELEASE, NO FLAG DAY (enclave-87's ruling). A release built before the attest-time scan states the LEGACY form;
+// it is accepted only for a release the CALLER names that the judge lists, and then as runtime W^X UNMEASURED.
+const LEGACY_ST = 'exec_pages=allowed wx=clean maps=3 scope=all-processes';
+const F7 = 'f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca';     // admitted (rs-7), pre-chain
+const RETIRED = '52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1'; // retired by rs-8
+const NEW = '11'.repeat(32);                                                        // a release built from this chain
+const docWith = (st) => doc2({ runtimeSelfTest: st, format: 'sev-snp-guest-domain-v1',
+  report: report(bind2(SPKI, NONCE, runtimeId(JIT))).toString('base64') });
+
+test('the legacy self-test is accepted ONLY for a listed release the caller names, and only as UNMEASURED', async () => {
+  for (const release of [F7, [F7], [F7, '5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2'], F7.toUpperCase()]) {
+    const v = await judge(docWith(LEGACY_ST), SPKI, NONCE, { ...want, release });
+    assert.equal(v.verdict, 'unauthenticated', `${JSON.stringify(release)}: ${v.reasons.join('; ')}`);
+    assert.equal(v.wxCoverage, 'runtime-unmeasured');
+    assert.match(v.reasons.join(' '), /LEGACY runtime self-test.*covered NO runtime process - W\^X of the runtime is UNMEASURED here, not clean/);
+    assert.doesNotMatch(v.reasons.join(' '), /the scan covered every process/);
+  }
+  // a release this chain built, a RETIRED one, one of each, or none named: the legacy form is refused
+  for (const release of [NEW, RETIRED, [F7, NEW], undefined, []]) {
+    const v = await judge(docWith(LEGACY_ST), SPKI, NONCE, { ...want, release });
+    assert.equal(v.verdict, 'reject', `${JSON.stringify(release)} accepted the legacy form: ${v.reasons.join('; ')}`);
+    assert.match(v.reasons.join(' '), /does not say how many runtime processes it covered/);
+  }
+  // a malformed name is the caller's fault, refused - never read as "none named"
+  for (const release of ['f7888d86', `${F7}00`, [F7, 'x'.repeat(64)]]) {
+    const v = await judge(docWith(ST), SPKI, NONCE, { ...want, release });
+    assert.equal(v.verdict, 'reject', JSON.stringify(release));
+    assert.match(v.reasons.join(' '), /not a 64-hex release id/);
+  }
+  // the name counts only with the measurement pinned (it says what THAT measurement is an image of)
+  assert.deepEqual(legacyWxFor(F7, undefined), { ok: true, legacy: null });
+  assert.deepEqual(legacyWxFor(F7, 'ab'.repeat(20)), { ok: true, legacy: null });
+  assert.equal(legacyWxFor(F7, MEAS).legacy, LEGACY_WX_RELEASES[F7]);
+});
+
+test('the attest-time form is judged by the full rule whatever release is named', async () => {
+  for (const release of [F7, NEW, undefined]) {
+    const ok = await judge(docWith(ST), SPKI, NONCE, { ...want, release });
+    assert.equal(ok.verdict, 'unauthenticated', `${release}: ${ok.reasons.join('; ')}`);
+    assert.equal(ok.wxCoverage, 'runtime-covered');
+    // a listed release never excuses a scan that covered no runtime, or a form that names roles but not the runtime
+    for (const st of ['exec_pages=allowed wx=clean maps=2 runtime=0 root=2 scope=all-processes',
+      'exec_pages=allowed wx=clean maps=3 root=3 scope=all-processes',
+      'exec_pages=allowed wx=clean maps=1 runtime=0 front=1 scope=cgroup:/dom1']) {
+      const v = await judge(docWith(st), SPKI, NONCE, { ...want, release });
+      assert.equal(v.verdict, 'reject', `${release} ${st}: ${v.reasons.join('; ')}`);
+    }
+  }
+});
+
+test('the legacy table holds full ids of releases the relay can still predict, and no retired one', () => {
+  assert.ok(Object.isFrozen(LEGACY_WX_RELEASES));
+  const ids = Object.keys(LEGACY_WX_RELEASES);
+  assert.ok(ids.length >= 1 && ids.every((x) => /^[0-9a-f]{64}$/.test(x)), ids.join(' '));
+  for (const retired of [RETIRED, '79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4',
+    'a4f227482df4830ab69b52e38dc5d6e2abea9e5c5fb71f5469f0c30e6b1cb784']) {
+    assert.ok(!ids.includes(retired), `retired release ${retired.slice(0, 8)} still admits the legacy form`);
   }
 });
