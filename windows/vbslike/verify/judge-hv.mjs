@@ -22,6 +22,46 @@ import { createHash, createPublicKey, timingSafeEqual, verify as cryptoVerify } 
 import { checkRuntime } from "../../../isolation/m2/judge.mjs";
 import { bootFormOfStatement, isStatedPartition } from "./boot-statements.mjs";
 
+// THE RUNTIME'S W^X, PER GUEST IMAGE (enclave-87's ruling for v43, no flag day). From v43 the in-guest monitor scans the
+// domain's cgroup at EACH attestation and names what it covered by role ("exec_pages=allowed wx=clean maps=3 runtime=1
+// front=1 init=1 scope=cgroup:/dom1"); an image before that (v42) states one scan made at front start, before the
+// runtime existed ("... wx=clean maps=2 scope=cgroup:/dom1"), which covers NO runtime. This judge requires the
+// attest-time form - runtime >= 1, the role counts adding up to maps - for every image this table does not list, and
+// accepts the legacy form only for a listed image, as "runtime W^X UNMEASURED", never clean. The image is the CALLER's
+// (expectedImageSha256: the launcher's own record of what it put in the partition, from the manager's view), never the
+// document's; no image named means no legacy. An entry goes when its image is retired from service.
+//
+// Who relies on it, and so enforces it through the verdict: the manager's readiness (manager/ready.mjs, server.mjs: a
+// partition whose runtime W^X is unmeasured or not clean never becomes ready, so never serves), the node's certificate
+// pass (windows/node/hvcert.mjs: no certificate for it), and the lab tools (verify/lab.mjs, isolation/m3/hvlab-*.mjs).
+// The shared checkRuntime (isolation/m2/judge.mjs) judges wx=clean, maps and the scope; this adds the coverage, and
+// passes the legacy label to it, so the same verdict comes from main's judge and from the per-release one.
+export const LEGACY_WX_IMAGES = Object.freeze({
+  "0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998": "v42 guest IGVM 0891c740 (digest A39E2F8C, guest 298924ae)",
+});
+const WX_ROLES = ["runtime", "front", "init", "root", "other"];
+
+/** wxCoverage(selfTest, legacy) -> { ok, coverage: "runtime-covered" | "runtime-unmeasured", why } for an ABI/2 document. */
+export function wxCoverage(selfTest, legacy) {
+  if (typeof selfTest !== "string" || !selfTest) return { ok: false, why: "the document states no runtime self-test" };
+  const f = {};
+  for (const part of selfTest.trim().split(/\s+/)) {
+    const i = part.indexOf("=");
+    if (i <= 0 || part.slice(0, i) in f) return { ok: false, why: `malformed runtime self-test ${JSON.stringify(selfTest)}` };
+    f[part.slice(0, i)] = part.slice(i + 1);
+  }
+  const roles = WX_ROLES.filter((r) => r in f);
+  if (!roles.length && legacy) return { ok: true, coverage: "runtime-unmeasured",
+    why: `the LEGACY runtime self-test, accepted only for ${legacy}: one scan at front start, before the runtime existed - runtime W^X UNMEASURED, not clean` };
+  if (f.wx !== "clean") return { ok: false, why: `the runtime self-test says wx=${JSON.stringify(f.wx ?? null)}` };
+  if (!("runtime" in f)) return { ok: false, why: `the runtime self-test names no runtime coverage (runtime=<n>): a scan made before the runtime ran${legacy ? "" : " (the legacy form is accepted only for a listed image)"}` };
+  const counts = roles.map((r) => f[r]);
+  if (!counts.every((n) => /^\d+$/.test(n))) return { ok: false, why: `the runtime self-test's role counts are not counts: ${JSON.stringify(selfTest)}` };
+  if (counts.reduce((a, n) => a + Number(n), 0) !== Number(f.maps)) return { ok: false, why: `the runtime self-test's roles do not add up to maps=${f.maps}` };
+  if (Number(f.runtime) < 1) return { ok: false, why: `the runtime self-test covered NO runtime process (runtime=${f.runtime})` };
+  return { ok: true, coverage: "runtime-covered", why: `W^X measured at attestation over ${f.maps} processes (${roles.map((r) => `${r}=${f[r]}`).join(" ")})` };
+}
+
 export const FORMAT = "hyperv-partition-domain/v1";
 export const TIER = "T0-hv";
 export const SIGN_DOMAIN = Buffer.from("vbslike-report-v1\n");
@@ -81,8 +121,16 @@ export function judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expect
   // the binding: ABI/1 is key || nonce; ABI/2 folds in the runtime identity the document states, so a
   // document naming another runtime, version, execution mode, ISA or feature policy does not verify.
   // checkRuntime (shared) decides the ABI, the identity, the self-test and the binding; null means ABI/1.
-  const rt = checkRuntime(doc, spki, nonce, expectRuntime !== undefined ? { runtime: expectRuntime } : {});
+  const legacy = expectedImageSha256 && Object.hasOwn(LEGACY_WX_IMAGES, String(expectedImageSha256).toLowerCase())
+    ? LEGACY_WX_IMAGES[String(expectedImageSha256).toLowerCase()] : null;
+  const rt = checkRuntime(doc, spki, nonce, { ...(expectRuntime !== undefined ? { runtime: expectRuntime } : {}), legacyWx: legacy });
   c("ABI, runtime identity and self-test admissible (shared checkRuntime)", rt.ok, rt.reasons.filter((r) => r.startsWith("REJECT")).join("; "));
+  // the runtime's W^X, per image (above): judged for every document that states a runtime (ABI/2)
+  let wx = null;
+  if (doc.runtime !== undefined) {
+    wx = wxCoverage(doc.runtimeSelfTest, legacy);
+    c("the runtime's W^X measured at attestation (or a listed image's legacy form, as unmeasured)", wx.ok, wx.why);
+  }
   const bind = rt.ok ? (rt.binding ?? sha256(spki, nonce)) : null;
   c("report_data[0:32] == the binding recomputed from the handshake key, our nonce and the stated runtime", bind !== null && rd.length === 64 && eq(rd.subarray(0, 32), bind), "binding does not match the handshake");
   const expApp = Buffer.from(expectedAppSha256, "hex");
@@ -112,5 +160,5 @@ export function judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expect
   checks.runtimeReasons = rt.reasons;
   const structural = Object.entries(checks).every(([k, v]) => k === "abi" || k === "runtimeReasons" || v || k === "launcher signature verifies");
   const verdict = structural && sigOk ? "monitor-signed" : structural ? "unsigned" : "reject";
-  return { verdict, reasons, checks };
+  return { verdict, reasons, checks, ...(wx && wx.ok ? { wxCoverage: wx.coverage, wxWhy: wx.why } : {}) };
 }
