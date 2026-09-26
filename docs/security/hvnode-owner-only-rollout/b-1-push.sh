@@ -6,6 +6,7 @@ set -euo pipefail; source "$(dirname "$0")/lib.sh"
 git -C $MAIN fetch -q origin main relay/hvnode-owner-only-v2
 [ "$(git -C $MAIN rev-parse origin/relay/hvnode-owner-only-v2)" = "$BC" ] || { say "REFUSING: the pushed branch is not ${BC:0:12} (lib.sh)"; exit 2; }
 [ "$(git -C $MAIN rev-parse origin/main)" = "$BASE" ] || { say "REFUSING: main moved from B's base ${BASE:0:12}: run b-recut.sh"; exit 2; }
+m=$(context_moved $MAIN); [ -z "$m" ] || { say "REFUSING: main changed B's relay context since the review ($REVIEW_BASE): $(echo $m): re-review"; exit 2; }
 [ "$(git -C $MAIN rev-list --count $BASE..$BC)" = 2 ] && [ -z "$(git -C $MAIN rev-list --merges $BASE..$BC)" ] || { say "REFUSING: B is not two plain commits on main"; exit 2; }
 # the EXACT reviewed file list and content (enclave-bf): nothing more, nothing less, every file byte-identical
 got=$(git -C $MAIN diff --name-only $BASE $BC | sort); want=$(printf '%s\n' "${!BFILE[@]}" | sort)
