@@ -48,3 +48,10 @@ no release at its next start). So the order is:
 Before e8 (no aee2059f guest): S9 rollback, then rs-11 rollback (the epoch is gone, no record names aee2059f).
 Once rs-12 has run (5db18199 retired): its own rollback (re-admit 5db18199) comes FIRST, then the order above
 (s9t-rollback's guard enforces it; e3's ROLLBACK.txt says the same) - enclave-5d's completeness note.
+
+RESULT (2026-09-26): S9 APPLIED 07:36:12Z (rc 0; a first run at 07:34:28Z refused at preflight on a 60 s relay read,
+nothing changed); 10-min gate PASSED (6 rounds / 618 s). e8: 0ddbd824 ACCEPTED 07:59:00Z (gd64545354, key 06bb5ccd),
+395bed3e 08:11:38Z (gda61e166b, 93c07e24), 4e62e60d 08:23:36Z (gdd24f727b, a053fa43): each proofs 1-9 with the
+positive seccomp proofs (seccomp=d4d17c9f... attested; "DOM seccomp: app filter installed (sha256 d4d17c9f..., 71
+rules)"), N2's judge certifying ("guest attested"), the retry acceptance (starting retry at 20 s, installs 43.9 / 82.5 /
+46.4 s after running), and the 10-min observe. All records name [aee2059f]. Next: e3's rs-12 (retire 5db18199).
