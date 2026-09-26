@@ -1,0 +1,14 @@
+rs-12 rollback (the retire of 5db18199)
+
+RULE (enclave-87, 09-26, as for rs-10): once rs-12 is ACCEPTED, ANY return to 5db18199 is
+  1. rs-12's own rollback FIRST:  rs-12.sh rollback, then rs-12-accept.sh rollback
+     (the three lines back to rs-11's state: 5db18199 installed, admitted and in the cert set beside aee2059f), and only then
+  2. enclave-63's S9 rollback (guestd back to the 5db18199 tree) and each e8 canary relaunched back onto 5db18199.
+NEVER S9 alone: after rs-12 the relay neither admits nor certifies 5db18199, so a guest built on it would get no secrets and
+no certificate.
+
+rs-12's own rollback re-admits only (it adds 5db18199 back; aee2059f stays), so it is harmless on its own and has no guard. It
+is one relay restart; the >= 10 min spacing between api-relay restarts, the NucBox mutex (a peer's ACK before starting) and the
+reboot freeze all apply.
+
+The scripts (rs-12.sh, rs-12-accept.sh, leased-attest.mjs) are unchanged by this note.

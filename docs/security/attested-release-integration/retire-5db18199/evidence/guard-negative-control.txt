@@ -1,0 +1,10 @@
+--   scope hosts (verified mode snp): 0xf7a1256d
+ok   scope: 3 deployment(s) leased on a verified SNP host, every one release-listed (each chip-verified below)
+FAIL 0ddbd824: measurement 6716ef1462e1 is not aee2059f's 3facefd88284 (still on 5db18199?)
+FAIL 395bed3e: measurement be2bb73c799f is not aee2059f's 8a291bbf9981 (still on 5db18199?)
+FAIL 4e62e60d: measurement be2bb73c799f is not aee2059f's 8a291bbf9981 (still on 5db18199?)
+--   a69dcbba: no live lease (runs nowhere): not checked
+--   d9798e4c: no live lease (runs nowhere): not checked
+--   a77d0c57: no live lease (runs nowhere): not checked
+--   7ae476a3: no live lease (runs nowhere): not checked
+NOT every leased listed deployment is on aee2059f: rs-12 must not run
