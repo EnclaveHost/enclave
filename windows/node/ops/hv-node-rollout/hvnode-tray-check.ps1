@@ -42,14 +42,19 @@ if ($hiveLoaded) {
   if ($rk -and ($rk.PSObject.Properties.Name -contains 'EnclaveHostingTray')) { $runValue = [string]$rk.EnclaveHostingTray }
 }
 
-# the caps file: HOSTING_CAPS_FILE in run-node.cmd if it is set there, else NODE_DIR\hosting-caps.json
-$runNode = Join-Path $Root 'run-node.cmd'
-$capsFile = Join-Path $Root 'state\hosting-caps.json'
-if (Test-Path -LiteralPath $runNode) {
-  $re = '^\s*set\s+"?HOSTING_CAPS_FILE=([^"]+)"?\s*$'
-  $cl = @(Get-Content -LiteralPath $runNode | Where-Object { $_ -match $re })
-  if ($cl.Count) { $null = $cl[0] -match $re; $capsFile = $matches[1].Trim() }
+# the caps file: HOSTING_CAPS_FILE if the node's config sets it, else NODE_DIR\hosting-caps.json. The config is
+# node-config.cmd (which run-node.cmd calls, since -NodeOnly) or run-node.cmd itself (older layouts); NODE_DIR is read
+# from it too, defaulting to <Root>\state
+$nodeDir = Join-Path $Root 'state'
+$capsSet = $null
+foreach ($cfg in @((Join-Path $Root 'node-config.cmd'), (Join-Path $Root 'run-node.cmd'))) {
+  if (-not (Test-Path -LiteralPath $cfg)) { continue }
+  foreach ($line in @(Get-Content -LiteralPath $cfg)) {
+    if ($line -match '^\s*set\s+"?NODE_DIR=([^"]+)"?\s*$') { $nodeDir = $matches[1].Trim() }
+    if ($line -match '^\s*set\s+"?HOSTING_CAPS_FILE=([^"]+)"?\s*$') { $capsSet = $matches[1].Trim() }
+  }
 }
+$capsFile = if ($capsSet) { $capsSet } else { Join-Path $nodeDir 'hosting-caps.json' }
 $caps = $null
 if (Test-Path -LiteralPath $capsFile) { $c = Get-Content -Raw -LiteralPath $capsFile | ConvertFrom-Json; $caps = @{ cpuShare = $c.cpuShare; gpuShare = $c.gpuShare; updatedAt = [string]$c.updatedAt } }
 
