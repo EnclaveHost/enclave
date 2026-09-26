@@ -19,8 +19,8 @@
  *      from it reached everything in the guest: the front's key and memory, the console, the report interface
  *      (enclave-b4's finding on 298924ae; enclave-87's ruling). The front stays root;
  *   5. if either exits, powers the domain off: a domain that cannot serve should not linger.
- * Before any of it, Yama's ptrace_scope is held at 2 or the domain does not start (yama_hold): defence in depth on top
- * of the drop, the same rule as the NucBox monitor's (m3/monitor raisePtraceScope).
+ * Before any of it, the domain starts only with Yama's ptrace_scope held at 2 (defence in depth on top of the drop, the
+ * NucBox monitor's rule, m3/monitor raisePtraceScope), user namespaces off and io_uring off (sysctl_hold).
  * The host ends a serving domain by stopping its VMM (lease end). */
 #define _GNU_SOURCE
 #include <cpuid.h>
@@ -83,33 +83,45 @@ static int write_sysctl(const char *path, const char *s) {
     return 0;
 }
 
-/* Yama's ptrace_scope: set to `want` (2: only CAP_SYS_PTRACE may attach; not 3, which no one can lower again before a
- * reboot) unless it is already higher, and READ BACK. -> 1 when the value read back is at least `want`, else 0: Yama
- * absent, the value unparsable, the write refused, or the read-back short or unreadable. `line` says which, as the DOM
- * line. `wr` is the write, passed in so a test can make one that "succeeds" and changes nothing: only the read-back
- * catches that. The app, dropped to APP_UID, cannot attach to the root front anyway; Yama is the second guard, and the
- * domain starts only with both. */
+/* The kernel settings a domain starts only with, each SET and READ BACK (enclave-87's rulings on enclave-b4's and
+ * enclave-bf's reviews of this file). -> 1 when the value read back is on the right side of `want` (at least it, or with
+ * at_least 0 at most it), else 0: the sysctl absent, its value unparsable, the write refused, or the read-back wrong or
+ * unreadable. A value already on the right side is kept and never written (Yama's 3 is not lowered to 2). `line` says
+ * which, as the DOM line. `wr` is the write, passed in so a test can make one that "succeeds" and changes nothing: only
+ * the read-back catches that.
+ *   - kernel.yama.ptrace_scope >= 2: only CAP_SYS_PTRACE may attach (not 3, which nothing can lower before a reboot).
+ *     The app, dropped to APP_UID, cannot attach to the root front anyway; Yama is the second guard.
+ *   - user.max_user_namespaces <= 0: the app (no capability, no_new_privs) could otherwise unshare(CLONE_NEWUSER) and
+ *     hold every capability inside its own namespace, the usual first step of a kernel privilege escalation (bf).
+ *   - kernel.io_uring_disabled >= 2: io_uring is off for every process (the kernel is built with it; bf).
+ * Nothing in the guest needs the last two: dominit creates no namespace after the kernel's own and uses no io_uring;
+ * the front is Go, whose network poller is epoll; wasmtime serves and runs through tokio/mio, also epoll, and creates
+ * no namespace. */
 #define YAMA_PATH "/proc/sys/kernel/yama/ptrace_scope"
 #define YAMA_WANT 2
-static const char yama_refused[] = "the domain is not started";
-static int yama_hold(const char *path, int want, int (*wr)(const char *, const char *), char *line, size_t cap) {
+static const char hold_refused[] = "the domain is not started";
+static int sysctl_hold(const char *name, const char *path, int want, int at_least, int (*wr)(const char *, const char *),
+                       char *line, size_t cap) {
     int was, now, r = read_sysctl_int(path, &was);
-    if (r == -1) { snprintf(line, cap, "yama absent (%s: %s): %s", path, strerror(errno), yama_refused); return 0; }
-    if (r == -2) { snprintf(line, cap, "yama ptrace_scope unparsable: %s", yama_refused); return 0; }
-    if (was >= want) { snprintf(line, cap, "yama ptrace_scope=%d (already >= %d)", was, want); return 1; }
+    if (r == -1) { snprintf(line, cap, "%s absent (%s: %s): %s", name, path, strerror(errno), hold_refused); return 0; }
+    if (r == -2) { snprintf(line, cap, "%s unparsable: %s", name, hold_refused); return 0; }
+    if (at_least ? was >= want : was <= want) {
+        snprintf(line, cap, "%s=%d (already %s %d)", name, was, at_least ? ">=" : "<=", want);
+        return 1;
+    }
     char v[16];
     snprintf(v, sizeof v, "%d\n", want);
     if (wr(path, v) != 0) {
-        snprintf(line, cap, "yama ptrace_scope=%d, NOT raised to %d (%s): %s", was, want, strerror(errno), yama_refused);
+        snprintf(line, cap, "%s=%d, NOT set to %d (%s): %s", name, was, want, strerror(errno), hold_refused);
         return 0;
     }
     r = read_sysctl_int(path, &now);
-    if (r == -1) { snprintf(line, cap, "yama ptrace_scope=%d -> unreadable (%s): %s", was, strerror(errno), yama_refused); return 0; }
-    if (r == -2 || now < want) {
-        snprintf(line, cap, "yama ptrace_scope=%d -> not the %d asked: %s", was, want, yama_refused);
+    if (r == -1) { snprintf(line, cap, "%s=%d -> unreadable (%s): %s", name, was, strerror(errno), hold_refused); return 0; }
+    if (r == -2 || (at_least ? now < want : now > want)) {
+        snprintf(line, cap, "%s=%d -> not the %d asked: %s", name, was, want, hold_refused);
         return 0;
     }
-    snprintf(line, cap, "yama ptrace_scope=%d -> %d", was, now);
+    snprintf(line, cap, "%s=%d -> %d", name, was, now);
     return 1;
 }
 
@@ -188,21 +200,28 @@ static const char *drop_to_app(void) {
  * at every start, so the answer is this guest's own device modes, not an assumption about them; an absent path is
  * fine. -> NULL, or what could be opened. */
 static pid_t front_pid_g = -1;
+/* the tables, as pointers so the test harness (which includes this file) can aim one at a path the dropped uid CAN open
+ * and see the check refuse it; the guest never changes them */
+static const char *const reach_write_default[] = {"/dev/console", "/dev/ttyS0", "/dev/hvc0", "/dev/kmsg", NULL};
+static const char *const reach_rw_default[] = {"/dev/sev-guest", "/dev/mem", NULL};
+static const char *const *reach_write = reach_write_default;
+static const char *const *reach_rw = reach_rw_default;
+static const char *reach_tsm = "/sys/kernel/config/tsm/report";
 static const char *app_reaches(void) {
-    static char p[64];
-    static const char *const dev[] = {"/dev/console", "/dev/ttyS0", "/dev/hvc0", "/dev/kmsg", NULL};
-    for (int i = 0; dev[i]; i++) {
-        int fd = open(dev[i], O_WRONLY | O_NOCTTY | O_CLOEXEC);
-        if (fd >= 0) { close(fd); return dev[i]; }
+    static char p[600];
+    for (int i = 0; reach_write[i]; i++) {
+        int fd = open(reach_write[i], O_WRONLY | O_NOCTTY | O_CLOEXEC);
+        if (fd >= 0) { close(fd); return reach_write[i]; }
     }
-    static const char *const rw[] = {"/dev/sev-guest", "/dev/mem", NULL};
-    for (int i = 0; rw[i]; i++) {
-        int fd = open(rw[i], O_RDWR | O_CLOEXEC);
-        if (fd >= 0) { close(fd); return rw[i]; }
+    for (int i = 0; reach_rw[i]; i++) {
+        int fd = open(reach_rw[i], O_RDWR | O_CLOEXEC);
+        if (fd >= 0) { close(fd); return reach_rw[i]; }
     }
-    if (mkdir("/sys/kernel/config/tsm/report/app-probe", 0700) == 0) {
-        rmdir("/sys/kernel/config/tsm/report/app-probe");
-        return "/sys/kernel/config/tsm/report (a report entry)";
+    snprintf(p, sizeof p, "%s/app-probe", reach_tsm);
+    if (mkdir(p, 0700) == 0) {
+        rmdir(p);
+        snprintf(p, sizeof p, "%s (a report entry)", reach_tsm);
+        return p;
     }
     pid_t who[] = {1, front_pid_g};
     static const char *const what[] = {"mem", "environ", "fd/1", NULL};
@@ -334,16 +353,24 @@ int main(void) {
     printf("\nDOM snp=%d vcpus=%ld memMiB=%lu boot_ms=%.0f\n", snp, sysconf(_SC_NPROCESSORS_ONLN),
            (unsigned long)(si.totalram * si.mem_unit >> 20), boot_ms);
 
-    /* Yama held at 2, or nothing starts: before the front (and so before its key) and before the app */
-    char yl[256];
-    int yok = yama_hold(YAMA_PATH, YAMA_WANT, write_sysctl, yl, sizeof yl);
-    printf("DOM %s\n", yl);
-    if (!yok) {
-        printf("DOM ERROR refusing to start: %s\n", yl);
-        fflush(stdout);
-        sync();
-        reboot(RB_POWER_OFF);
-        _exit(1);
+    /* the kernel settings the domain starts only with (sysctl_hold): before the front (and so before its key) and
+     * before the app. Any one not held powers the domain off. */
+    static const struct { const char *name, *path; int want, at_least; } holds[] = {
+        {"yama ptrace_scope", YAMA_PATH, YAMA_WANT, 1},
+        {"user.max_user_namespaces", "/proc/sys/user/max_user_namespaces", 0, 0},
+        {"kernel.io_uring_disabled", "/proc/sys/kernel/io_uring_disabled", 2, 1},
+    };
+    for (size_t i = 0; i < sizeof holds / sizeof holds[0]; i++) {
+        char hl[256];
+        int held = sysctl_hold(holds[i].name, holds[i].path, holds[i].want, holds[i].at_least, write_sysctl, hl, sizeof hl);
+        printf("DOM %s\n", hl);
+        if (!held) {
+            printf("DOM ERROR refusing to start: %s\n", hl);
+            fflush(stdout);
+            sync();
+            reboot(RB_POWER_OFF);
+            _exit(1);
+        }
     }
 
     insmod("/vsock.ko.zst");
