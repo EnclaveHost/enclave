@@ -40,10 +40,23 @@ import { bootFormOfStatement, isStatedPartition } from "./boot-statements.mjs";
 export const LEGACY_WX_IMAGES = Object.freeze({
   "0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998": "v42 guest IGVM 0891c740 (digest A39E2F8C, guest 298924ae)",
 });
+// THE RUNTIME'S SECCOMP FILTER, PER IMAGE (enclave-87: positive evidence). From the guest after v43, domexec states the
+// runtime's filter once installed (m2/app-seccomp.h: sha256 of the exact BPF program) on the monitor's fd 4, the monitor
+// checks at each attestation that every runtime process is under a filter (Seccomp: 2) and carries seccomp=<hash>. An
+// image built before that states none, and is accepted without it only when the caller's image is listed here - said,
+// not counted as attested. Same rules as LEGACY_WX_IMAGES: the caller's image, never the document's; an entry goes
+// at its image's retirement. The hash is NOT compared with an expected value (enclave-5d's N2, enclave-87): the image's
+// launch digest pins domexec's compiled filter, so it identifies the program (recomputable from m2/app-seccomp.h); the
+// independent half is the monitor reading the kernel's Seccomp mode at each attestation. The v44 chain's filter is
+// d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66 (71 instructions; recomputed by enclave-bf).
+export const SECCOMP_UNSTATED_IMAGES = Object.freeze({
+  ...LEGACY_WX_IMAGES,
+  "4950052785daf26d9c712a710f118211c853a04e03c01b8d77d8ac44a50327ab": "v43 guest IGVM 49500527 (digest 61C61AD4): W^X at each attestation, no seccomp statement",
+});
 const WX_ROLES = ["runtime", "front", "init", "root", "other"];
 
-/** wxCoverage(selfTest, legacy) -> { ok, coverage: "runtime-covered" | "runtime-unmeasured", why } for an ABI/2 document. */
-export function wxCoverage(selfTest, legacy) {
+/** wxCoverage(selfTest, legacy, seccompUnstated) -> { ok, coverage: "runtime-covered" | "runtime-unmeasured", why }. */
+export function wxCoverage(selfTest, legacy, seccompUnstated = null) {
   if (typeof selfTest !== "string" || !selfTest) return { ok: false, why: "the document states no runtime self-test" };
   const f = Object.create(null);
   for (const part of selfTest.trim().split(/\s+/)) {
@@ -60,7 +73,17 @@ export function wxCoverage(selfTest, legacy) {
   if (!counts.every((n) => /^\d+$/.test(n))) return { ok: false, why: `the runtime self-test's role counts are not counts: ${JSON.stringify(selfTest)}` };
   if (counts.reduce((a, n) => a + Number(n), 0) !== Number(f.maps)) return { ok: false, why: `the runtime self-test's roles do not add up to maps=${f.maps}` };
   if (Number(f.runtime) < 1) return { ok: false, why: `the runtime self-test covered NO runtime process (runtime=${f.runtime})` };
-  return { ok: true, coverage: "runtime-covered", why: `W^X measured at attestation over ${f.maps} processes (${roles.map((r) => `${r}=${f[r]}`).join(" ")})` };
+  // the runtime's seccomp filter (SECCOMP_UNSTATED_IMAGES)
+  let sc;
+  if (Object.hasOwn(f, "seccomp")) {
+    if (!/^[0-9a-f]{64}$/.test(f.seccomp)) return { ok: false, why: `the runtime self-test's seccomp=${JSON.stringify(f.seccomp)} is not a 64-hex filter hash` };
+    sc = `; every runtime process under the seccomp filter with program sha256 ${f.seccomp.slice(0, 16)}…`;
+  } else if (seccompUnstated) {
+    sc = `; no seccomp statement, accepted only for ${seccompUnstated}: the runtime's filter is NOT positively attested`;
+  } else {
+    return { ok: false, why: "the runtime self-test states no seccomp filter (seccomp=<hash>): an image after v43 must (the image is not listed as predating it)" };
+  }
+  return { ok: true, coverage: "runtime-covered", why: `W^X measured at attestation over ${f.maps} processes (${roles.map((r) => `${r}=${f[r]}`).join(" ")})${sc}` };
 }
 
 export const FORMAT = "hyperv-partition-domain/v1";
@@ -124,13 +147,15 @@ export function judge({ doc, spki, nonce, expectedAppSha256, launcherKey, expect
   // checkRuntime (shared) decides the ABI, the identity, the self-test and the binding; null means ABI/1.
   const legacy = expectedImageSha256 && Object.hasOwn(LEGACY_WX_IMAGES, String(expectedImageSha256).toLowerCase())
     ? LEGACY_WX_IMAGES[String(expectedImageSha256).toLowerCase()] : null;
-  const rt = checkRuntime(doc, spki, nonce, { ...(expectRuntime !== undefined ? { runtime: expectRuntime } : {}), legacyWx: legacy });
+  const seccompUnstated = expectedImageSha256 && Object.hasOwn(SECCOMP_UNSTATED_IMAGES, String(expectedImageSha256).toLowerCase())
+    ? SECCOMP_UNSTATED_IMAGES[String(expectedImageSha256).toLowerCase()] : null;
+  const rt = checkRuntime(doc, spki, nonce, { ...(expectRuntime !== undefined ? { runtime: expectRuntime } : {}), legacyWx: legacy, seccompUnstated });
   c("ABI, runtime identity and self-test admissible (shared checkRuntime)", rt.ok, rt.reasons.filter((r) => r.startsWith("REJECT")).join("; "));
   // the runtime's W^X, per image (above), for every ABI/2 document - and for an ABI/1 one on any image the table does NOT
   // list, which states no runtime and no self-test and so is REFUSED, whether or not the caller pins the runtime (enclave-5d,
   // enclave-87: a manager started without ENCLAVE_RUNTIME_IDENTITY would otherwise admit a v43 partition stating no W^X).
   // A listed image keeps today's ABI handling (the caller's expectRuntime decides ABI/1).
-  const wx = doc.runtime !== undefined || !legacy ? wxCoverage(doc.runtimeSelfTest, legacy) : null;
+  const wx = doc.runtime !== undefined || !legacy ? wxCoverage(doc.runtimeSelfTest, legacy, seccompUnstated) : null;
   if (wx) c("the runtime's W^X measured at attestation (or a listed image's legacy form, as unmeasured)", wx.ok, wx.why);
   const bind = rt.ok ? (rt.binding ?? sha256(spki, nonce)) : null;
   c("report_data[0:32] == the binding recomputed from the handshake key, our nonce and the stated runtime", bind !== null && rd.length === 64 && eq(rd.subarray(0, 32), bind), "binding does not match the handshake");
