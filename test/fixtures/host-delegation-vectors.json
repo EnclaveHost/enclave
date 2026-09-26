@@ -1,0 +1,288 @@
+{
+ "note": "enclave-host-delegation-v1 vectors (relay/host-delegation.mjs). The keys are the PUBLIC anvil/hardhat development keys #0 (owner), #1 (operator) and #2 (stranger): never funded on Base, never used for anything real. Every implementation (relay, node) must reach each case expect.",
+ "keys": {
+  "owner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "operator": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+  "stranger": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+ },
+ "exactText": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1798176000",
+ "attachMessageV2": {
+  "name": "nucbox-k11",
+  "nonceB64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+  "keyFp": "abababababababababababababababababababababababababababababababab",
+  "ekCertSha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+  "text": "enclave-tunnel-attach/2:nucbox-k11:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=:abababababababababababababababababababababababababababababababab:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+ },
+ "cases": [
+  {
+   "name": "good: 90 days",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1798176000",
+    "signature": "0xe77b0079c80c829734fce467054954ecff4ca12c8856d9c95b3e4e3a8a37f3ab3423f612b098375b08b5075fc91199f93980036ba5d5b241697ffac7e53b3a7b1c"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": true,
+    "owner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+   }
+  },
+  {
+   "name": "expired",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1790399999",
+    "signature": "0x72d73d0a4ca93b15c02da28518f0de1c47f91c06b86b5a4c5c77a417eab893806824fb291f5044f3ef361be1e8fc89c9a7503db0338bee658d38cea6449c0e791c"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "expired"
+   }
+  },
+  {
+   "name": "expires exactly now",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1790400000",
+    "signature": "0xab2fcc3246652066ffc0f015f0041d4520ebf2b82613653d77500c358a0e44ff75fd5ff15ad611eea080e8422a4b62a1bac2a4b901855e34b4811688b72d9cd21c"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "expired"
+   }
+  },
+  {
+   "name": "more than 180 days out",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1806038400",
+    "signature": "0xba34855b653e764e6689c9271b7aadc6e1db3e5ac7627bcfcccf37d0e41824a431890e01eeec66956f9e54559d2f25aeb5c7607157904018587191f1b35b07241b"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "days out"
+   }
+  },
+  {
+   "name": "other box",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: other-box\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1798176000",
+    "signature": "0xff27516fa143142a95e15ca4e7a63e62456e76f4a7af9734bb0a2bef5a71ee8211ec1be7b69dc0a05ac21654c91dec078881ebcc195508f2212c66a2f6913c391b"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "names box"
+   }
+  },
+  {
+   "name": "other chain",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 1\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1798176000",
+    "signature": "0x5c9a1a66d7e3716a68280c9aa844768e866210e5f8db2d3196e9b083aa025ff172272b495b1ccb690a4a7337522b5ac241191b8fb5c88b7763ba2a53abb435f51c"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "names chain"
+   }
+  },
+  {
+   "name": "other registry",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x1111111111111111111111111111111111111111\nexpires: 1798176000",
+    "signature": "0x4c9863691a16d5352fc5509c66907c19a67982f5cbda18b2746eda91ad0a117973c8d6b4f8e3c7bffcdb0e1cb2534a7b7255460ab78c062a8f9757f8c24180471b"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "names registry"
+   }
+  },
+  {
+   "name": "delegates to another operator",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1798176000",
+    "signature": "0x2a5fdc3f9735bb2968f3d906e6ab47c24ddef4e957ebb2f863dd89c8afec6b172227e2c98cd3aaab4c214e6787a60fef21e8e22b99d081de5bf293b8ccac69f71b"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "delegates to operator"
+   }
+  },
+  {
+   "name": "signed by someone other than the owner",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1798176000",
+    "signature": "0x1af4fb15f128ebbb6c19a47cbb68c3162ccd2aaa9083a89704f355d3c173978022e9f65d137e3d01d58a2cc7b18b6fe6289f511086776003f4388d64730fcfa91b"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "not the owner"
+   }
+  },
+  {
+   "name": "the same good delegation checked by a verifier whose operator differs",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1798176000",
+    "signature": "0xe77b0079c80c829734fce467054954ecff4ca12c8856d9c95b3e4e3a8a37f3ab3423f612b098375b08b5075fc91199f93980036ba5d5b241697ffac7e53b3a7b1c"
+   },
+   "context": {
+    "operator": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "delegates to operator"
+   }
+  },
+  {
+   "name": "uppercase hex in the text (not canonical)",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xF39FD6E51AAD88F6F4CE6AB8827279CFFFB92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1798176000",
+    "signature": "0xe77b0079c80c829734fce467054954ecff4ca12c8856d9c95b3e4e3a8a37f3ab3423f612b098375b08b5075fc91199f93980036ba5d5b241697ffac7e53b3a7b1c"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "owner is not a 0x address"
+   }
+  },
+  {
+   "name": "a trailing newline",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1798176000\n",
+    "signature": "0xe77b0079c80c829734fce467054954ecff4ca12c8856d9c95b3e4e3a8a37f3ab3423f612b098375b08b5075fc91199f93980036ba5d5b241697ffac7e53b3a7b1c"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "not an enclave-host-delegation-v1 message"
+   }
+  },
+  {
+   "name": "fields reordered",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\nbox: nucbox-k11\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1798176000",
+    "signature": "0xe77b0079c80c829734fce467054954ecff4ca12c8856d9c95b3e4e3a8a37f3ab3423f612b098375b08b5075fc91199f93980036ba5d5b241697ffac7e53b3a7b1c"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "line 3"
+   }
+  },
+  {
+   "name": "a leading-zero expiry",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 01798176000",
+    "signature": "0xa9bd28737fa286a6b5a23f2e922fccd4bb772ef848f2fa023138995c850979b15f3c5726794e6034e1ab9528ef1ad91626fa016d6c8d7dcfee8aaececb5c70031c"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "expires is not decimal"
+   }
+  },
+  {
+   "name": "a malformed signature",
+   "delegation": {
+    "message": "enclave-host-delegation-v1\nowner: 0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\noperator: 0x70997970c51812dc3a010c7d01b50e0d17dc79c8\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1798176000",
+    "signature": "0x1234"
+   },
+   "context": {
+    "operator": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "box": "nucbox-k11",
+    "chain": 8453,
+    "registry": "0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac",
+    "now": 1790400000
+   },
+   "expect": {
+    "ok": false,
+    "reason": "not a 65-byte"
+   }
+  }
+ ]
+}

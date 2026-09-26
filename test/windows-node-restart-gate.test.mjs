@@ -6,6 +6,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fakeBaseRpc, DEPLOYMENTS } from "./helpers/fake-base-rpc.mjs";
+import { servedOwner } from "./helpers/owners.mjs";
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
@@ -23,9 +24,10 @@ const ISOLATED = JSON.stringify({ isolation: { require: "hyperv-partition-per-ap
 const ID = "0x" + "a1".repeat(32);
 
 // the NucBox shape: engine retired, the isolation backend configured, owner-only (appsInTee is false)
-const hvBox = (cfg = {}) => new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-restart-")),
+// the box serves OWNER (its operator here: servedOwner); the owner rule itself is test/windows-node-owner-set.test.mjs
+const hvBox = (cfg = {}, owner = OWNER) => servedOwner(new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-restart-")),
   endpoint: "https://api.enclave.host/t/test", name: "test", appsEnabled: true, cpuPricePerSec6: 12, log: () => {},
-  engineRetired: true, isolationManager: "http://127.0.0.1:1", ownerWallet: OWNER, ...cfg });
+  engineRetired: true, isolationManager: "http://127.0.0.1:1", ...cfg }), owner);
 const dep = (h, { owner = OWNER, runner = h.enclaveId, leaseSec = 3600 } = {}) => ({
   appRef: "catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4", createdAt: 1, active: true,
   runner, leaseUntil: Math.floor(Date.now() / 1000) + leaseSec, cpuMilli: 100, gpuMilli: 0, isPublic: true, owner,
@@ -49,7 +51,7 @@ test("a STRANGER's opted-in deployment is refused, and ensureApp is never reache
   // even a stranger's deployment whose lease this box holds is refused in owner-only scope
   const r = await h.restart(ID, dep(h, { owner: STRANGER }));
   assert.equal(r.refused, true);
-  assert.match(r.reason, /owner-only scope and restarts only/);
+  assert.match(r.reason, /owner-only scope and restarts only its operator's and its delegated owners'/);
   assert.equal(calls.length, 0, "ensureApp ran for a refused restart");
   // and no record was made, so HEAD /x/<id> keeps answering 404 for it
   assert.equal(h.records.has(ID), false);
@@ -78,9 +80,13 @@ test("the owner's deployment with NO live lease on this box is refused: no lease
   assert.equal(calls.length, 0);
 });
 
-test("owner-only with no owner declared refuses everything, and a malformed id or no record is refused", async () => {
-  const h = hvBox({ ownerWallet: "" });
-  assert.match(h.restartRefusal(ID, dep(h)), /no owner wallet is declared/);
+test("an EMPTY owner set refuses everything; a stopped deployment, a malformed id or no record is refused", async () => {
+  const h = servedOwner(hvBox(), "");
+  h.owners.operator = null;                          // no operator key, no delegation: nobody is served
+  assert.equal(h.ownerSet().size, 0);
+  assert.match(h.restartRefusal(ID, dep(h)), /restarts only its operator's/);
+  const s = hvBox();
+  assert.match(s.restartRefusal(ID, { ...dep(s), active: false }), /not active/);
   const k = hvBox();
   assert.match(k.restartRefusal("0x1234", dep(k)), /bytes32/);
   assert.match(k.restartRefusal(ID, null), /no such deployment/);

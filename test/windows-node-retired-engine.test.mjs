@@ -5,6 +5,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { fakeBaseRpc, DEPLOYMENTS } from "./helpers/fake-base-rpc.mjs";
+import { servedOwner } from "./helpers/owners.mjs";
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
@@ -16,8 +17,8 @@ const { Host } = await import("../windows/node/host.mjs");
 after(() => rpc.close());
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ee-retired-"));
-const box = (cfg = {}) => new Host({ dir, endpoint: "https://api.enclave.host/t/test", name: "test", appsEnabled: true,
-                                     cpuPricePerSec6: 12, log: () => {}, ...cfg });
+const box = (cfg = {}) => servedOwner(new Host({ dir, endpoint: "https://api.enclave.host/t/test", name: "test", appsEnabled: true,
+                                     cpuPricePerSec6: 12, log: () => {}, ...cfg }), "0x29479bf04ed889d46a7afb7f292b9bb26e12647c");
 const ISOLATED = JSON.stringify({ isolation: { require: "hyperv-partition-per-app" } });
 const dep = (configCid = "") => ({ appRef: "catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4",
                                     leaseUntil: Math.floor(Date.now() / 1000) + 3600, cpuMilli: 100, gpuMilli: 0,

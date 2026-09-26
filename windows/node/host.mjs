@@ -25,6 +25,19 @@ import * as chain from "./chain.mjs";
 import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces, precompile } from "./apprun.mjs";
 import { worldOf } from "./appframe.mjs";
 import { fetchSecrets } from "./secrets.mjs";
+// enclave-e3's shared module, vendored BYTE FOR BYTE from relay/host-delegation.mjs (test/windows-node-host-delegation.test.mjs
+// pins it and replays the relay's vectors), so the relay and this node judge a delegation the same way
+import { verifyDelegation, MAX_DELEGATIONS } from "./host-delegation.mjs";
+
+/** The delegations this box carries: NODE_DIR/delegations/*.json, each { message, signature }, read fresh, in name order. */
+function readDelegationFiles(dir) {
+  let names = [];
+  try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")).sort(); } catch { return []; }
+  return names.slice(0, MAX_DELEGATIONS).map((file) => {
+    try { const o = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8")); return { file, message: o.message, signature: o.signature }; }
+    catch (e) { return { file, error: `unreadable: ${e.message}` }; }
+  });
+}
 import { ensureCert, appHostFor, selfSigned } from "./apptls.mjs";
 import { fetchDomains } from "./domains.mjs";
 import tls from "node:tls";
@@ -127,6 +140,10 @@ export class Host {
     // an app must not rediscover that every 30 seconds for as long as the row is on the ledger.
     // An operator or the console can clear an entry by forcing the claim (/v1/claim-hint force).
     this.blocked = new Map(Object.entries(st.blocked || {}));
+    /// WHOSE deployments this box serves in owner-only scope: its operator, and the owner of each VALID delegation it
+    /// carries (host-delegation.mjs), as refreshOwners last found them. Re-read every tick and before every claim and
+    /// restart, so deleting a delegation file (or its expiry) ends that owner's authority.
+    this.owners = { operator: null, delegations: [], invalid: new Map() };
   }
   #loadState() {
     try { return JSON.parse(fs.readFileSync(this.statePath, "utf8")) || {}; } catch { return {}; }
@@ -174,10 +191,40 @@ export class Host {
   get isolationBackend() { return this.cfg.isolationManager ? "hyperv-partition-per-app" : null; }
 
   /** The wallet whose deployments this box will run: the on-chain declaration, else the config. */
-  ownerAllow() {
-    const ZERO = "0x0000000000000000000000000000000000000000";
-    const declared = this.registered && this.registered.payoutWallet && this.registered.payoutWallet !== ZERO ? this.registered.payoutWallet : null;
-    return declared || this.cfg.ownerWallet || null;
+  /**
+   * ownerSet() -> the lowercase addresses whose deployments this box serves in owner-only scope: its OPERATOR (the key
+   * that signs its attach and its claims) and the owner of each valid, unexpired delegation (host-delegation.mjs).
+   * Coordinator enclave-87's rule (2026-09-26). The registry's payoutWallet and OWNER_WALLET used to be this box's
+   * "owner" and authorize NOTHING now: each is the operator's own statement, with no owner's consent in it, so a
+   * payoutWallet naming a victim made the box claim, bill and restart the victim's deployments (enclave-5d). Every
+   * owner check - claimPolicy, the ledger scan, the restart gate, the sweep's hold - asks this one set.
+   */
+  ownerSet(now = Math.floor(Date.now() / 1000)) {
+    const set = new Set();
+    if (this.owners.operator) set.add(this.owners.operator);
+    for (const d of this.owners.delegations) if (d.expires > now) set.add(d.owner);
+    return set;
+  }
+
+  /** Re-read the operator and the delegation files, verifying each (host-delegation.mjs). An invalid one is logged once per reason. */
+  async refreshOwners({ recover } = {}) {
+    const op = chain.operatorAddress();
+    const operator = op ? String(op).toLowerCase() : null;
+    const dir = this.cfg.delegationsDir || path.join(this.cfg.dir, "delegations");
+    const valid = [], invalid = new Map();
+    for (const f of readDelegationFiles(dir)) {
+      const v = f.error ? { ok: false, reason: f.error }
+        : await verifyDelegation({ message: f.message, signature: f.signature },
+            // chain 8453: Base, the chain this node's ledger is on (chain.mjs uses viem's `base`)
+            { operator, box: this.cfg.name, chain: 8453, registry: chain.addresses.registry, ...(recover ? { recover } : {}) });
+      if (v.ok) valid.push({ file: f.file, owner: v.owner, expires: v.expires, message: f.message, signature: f.signature });
+      else {
+        invalid.set(f.file, v.reason);
+        if (this.owners.invalid.get(f.file) !== v.reason) this.log(`delegation ${f.file} ignored: ${v.reason}`);
+      }
+    }
+    this.owners = { operator, delegations: valid, invalid };
+    return this.ownerSet();
   }
   /**
    * Put this box on the registry, or keep its entry current. The entry is what gives the box an
@@ -276,6 +323,7 @@ export class Host {
     id = String(id).toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(id)) return { accepted: false, reason: "id must be the bytes32 deployment id" };
     if (!this.chainReady) return { accepted: false, reason: `chain unavailable: ${this.lastError}` };
+    await this.refreshOwners();
     if (this.blocked.has(id)) {
       if (!force) {
         const reason = this.blocked.get(id);
@@ -293,7 +341,7 @@ export class Host {
     // catalog read that fails leaves them undeclared, which fails closed in both cases.
     let v = null;
     try { v = await chain.resolveAppRef(d.appRef); } catch (e) { this.#record(id, { reason: `catalog: ${e.message}` }); }
-    const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: this.ownerAllow(), enclaveId: this.enclaveId,
+    const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: this.ownerSet(), enclaveId: this.enclaveId,
                                           appsEnabled: this.cfg.appsEnabled, scope: this.scope(),
                                           version: v, capacity: this.capacity(),
                                           listedAt: this.listedAt(), invited: invited || force,
@@ -350,15 +398,13 @@ export class Host {
   restartRefusal(id, d) {
     if (!/^0x[0-9a-f]{64}$/.test(String(id))) return "id must be the bytes32 deployment id";
     if (!d || typeof d !== "object") return "no such deployment on the ledger";
+    // stopped on the ledger: nothing to run, whatever the lease says (the sweep would stop it next tick; enclave-bf)
+    if (!d.active) return "the deployment is not active on the ledger";
     const ours = String(d.runner || "").toLowerCase() === String(this.enclaveId).toLowerCase();
     if (!ours || !(Number(d.leaseUntil) * 1000 > Date.now()))
       return "this box does not hold a live lease on it, so there is nothing here to restart";
-    if (this.scope() === "owner-only") {
-      const owner = this.ownerAllow();
-      if (!owner) return "this node is in owner-only scope and no owner wallet is declared";
-      if (String(d.owner || "").toLowerCase() !== String(owner).toLowerCase())
-        return `this node is in owner-only scope and restarts only ${owner}'s deployments (this one is owned by ${d.owner})`;
-    }
+    if (this.scope() === "owner-only" && !this.ownerSet().has(String(d.owner || "").toLowerCase()))
+      return `this node is in owner-only scope and restarts only its operator's and its delegated owners' deployments (this one is owned by ${d.owner})`;
     return null;
   }
 
@@ -390,6 +436,7 @@ export class Host {
     try { d = await read(id); } catch (e) { return j(502, { error: "chain", message: e.shortMessage || e.message }); }
     // not the owner: the same answer as a deployment that does not exist, as on Linux
     if (!d || String(d.owner || "").toLowerCase() !== String(who).toLowerCase()) return j(404, { error: "not_found", id });
+    await this.refreshOwners();
     const r = await this.restart(id, d);
     return r.refused ? j(409, { error: "refused", id, reason: r.reason }) : j(200, r);
   }
@@ -1245,12 +1292,12 @@ export class Host {
    * every row it liked at once would spend both before the first app had proved it starts.
    */
   async scanLedger() {
-    const owner = this.ownerAllow();
+    const owners = this.ownerSet();
     const scope = this.scope();
     if (!this.cfg.appsEnabled || !this.registered || !chain.operatorAddress()) return;
-    if (scope === "owner-only" && !owner) return;
+    if (scope === "owner-only" && !owners.size) return;
     let rows; try { rows = await chain.allDeployments(); } catch (e) { this.log(`ledger scan failed: ${e.shortMessage || e.message}`); return; }
-    const isOwners = (d) => owner && String(d.owner).toLowerCase() === String(owner).toLowerCase();
+    const isOwners = (d) => owners.has(String(d.owner || "").toLowerCase());
     const pool = rows.filter((d) => d.active && (scope === "market" ? d.isPublic : isOwners(d)));
     if (pool.length && !this._sawLedger) {
       this._sawLedger = true;
@@ -1281,7 +1328,7 @@ export class Host {
       if (!ours && live && !/^0x0+$/.test(String(d.runner || ""))) continue;   // somebody else is running it
       if (!ours && claimed >= 1) continue;
       let v = null; try { v = await chain.resolveAppRef(d.appRef); } catch {}
-      const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: owner, enclaveId: this.enclaveId, appsEnabled: true,
+      const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: owners, enclaveId: this.enclaveId, appsEnabled: true,
                                             scope, version: v, capacity: this.capacity(), listedAt: this.listedAt(),
                                             legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true,
                                             privateOk: !!this.cfg.sessionKid,
@@ -1299,6 +1346,8 @@ export class Host {
   }
   async tick() {
     if (!this.chainReady) return;
+    // whose deployments this box serves, re-read before the scan and the sweep ask (a deleted delegation ends here)
+    await this.refreshOwners();
     if (!this.registered) await this.refreshRegistration();
     await this.ensureRegistered().catch((e) => this.log(`register: ${e.message}`));
     // The asks, every tick rather than once at start-up: the card price is a function of whether
@@ -1662,6 +1711,13 @@ export class Host {
    * operator's decision (enclave-d1 F2). A held lease simply lapses at leaseUntil.
    */
   heldReason(d) {
+    // AN OWNER THIS BOX DOES NOT SERVE: a lease it holds whose ledger owner is not its operator or a delegated owner -
+    // a deployment transferred away (rev 11), or taken under an owner rule that no longer authorizes it. Without this
+    // the sweep kept renewing it and re-spawned it whenever it was not running, and a share resize or envelope edit ran
+    // ensureApp(force) for it: N1's harm through the sweep instead of the route (enclave-bf).
+    if (this.scope() === "owner-only" && !this.ownerSet().has(String(d?.owner || "").toLowerCase()))
+      return `this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is `
+        + `owned by ${d?.owner}: held - not started, not renewed, not released - pending the operator's decision`;
     if (this.cfg.engineRetired !== true || this.isolatedForThisBox(d)) return null;
     return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired) and this deployment "
       + "does not require it: held - not started, not renewed, not released - pending the operator's decision";
@@ -1800,7 +1856,8 @@ export class Host {
       gasRenewalsLeft: this.gasRenewals ?? null,   // an operator key out of gas stops renewing, and the app goes at the end of its quantum
 
       proofKey: chain.proofAddress() || null,
-      ownerWallet: this.ownerAllow(),
+      // whose deployments this box serves (ownerSet): its operator and its delegated owners, never the payout wallet
+      owners: [...this.ownerSet()],
     };
   }
   /**
