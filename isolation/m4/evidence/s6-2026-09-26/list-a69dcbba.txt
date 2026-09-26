@@ -1,0 +1,3 @@
+list: 3 id(s) -> 4 (add 0xa69dcbba...)
+backup: /etc/nan-relay/api-relay.env.pre-list-20260926T021242Z
+LISTED (add 0xa69dcbba...): release-status as expected for it and the 3 canaries; no refused setting; /enclaves 200
