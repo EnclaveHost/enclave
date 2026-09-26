@@ -10,4 +10,19 @@ ok   PC logs 'is not a whole number of milliseconds'
 ok   GRACE_RE counts all 5 state-change/env lines
 ok   GRACE_RE counts none of recovered/RESUMED/attach/pre-warm
 ok   files_are_pc refuses before the push: tunnel.js is 6331955b6c5c, not df9afd1e343d
-og-selftest: 12/12
+ok   soak_gate before the floor, SOAK_DONE=1 -> 0:closed
+ok   soak_gate at the floor, SOAK_DONE=1 -> 0:open
+ok   soak_gate after the floor, SOAK_DONE unset -> 0:closed
+ok   soak_gate after the floor, SOAK_DONE=true -> 0:closed
+ok   soak_gate DRY=1 after the floor, SOAK_DONE=1 -> 0:open
+ok   soak_gate DRY=true -> 2:REFUSING: DRY must be exactly 0 or 1 (got 'true')
+ok   soak_gate DRY=' 1' -> 2:REFUSING: DRY must be exactly 0 or 1 (got ' 1')
+ok   soak_gate DRY=yes -> 2:REFUSING: DRY must be exactly 0 or 1 (got 'yes')
+ok   soak_gate an unparsable floor -> 2:REFUSING: SOAK_END 'not-a-time' does not parse to a time
+ok   soak_gate an empty floor -> 2:REFUSING: SOAK_END '' does not parse to a time
+ok   soak_gate a floor that date -d accepts but is not the literal ('tomorrow') -> 2:REFUSING: SOAK_END 'tomorrow' does not parse to a time
+ok   soak_gate a non-numeric now -> 2:REFUSING: now 'abc' is not a time
+ok   og-push.sh DRY='true' SOAK_DONE=1 refuses at the gate (rc 2)
+ok   og-push.sh DRY=' 1' SOAK_DONE=1 refuses at the gate (rc 2)
+ok   og-push.sh DRY='yes' SOAK_DONE=1 refuses at the gate (rc 2)
+og-selftest: 27/27

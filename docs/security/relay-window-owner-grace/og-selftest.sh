@@ -19,4 +19,22 @@ neg=$'[tunnel] nucbox-k11 owner read recovered\n[tunnel] nucbox-k11 owner-only s
 [ "$(grep -cE "$GRACE_RE" <<<"$pos")" = 5 ] && t ok "GRACE_RE counts all 5 state-change/env lines" || t no "GRACE_RE counts $(grep -cE "$GRACE_RE" <<<"$pos") of 5"
 [ "$(grep -cE "$GRACE_RE" <<<"$neg" || true)" = 0 ] && t ok "GRACE_RE counts none of recovered/RESUMED/attach/pre-warm" || t no "GRACE_RE counts a line it must not"
 if files_are_pc tunnel.js api-relay.js >/dev/null; then t no "files_are_pc passes BEFORE the push (nan should run main's files)"; else t ok "files_are_pc refuses before the push: $(files_are_pc tunnel.js api-relay.js)"; fi
+# the SOAK gate (enclave-5d's REQUIRED fixes): every outcome of soak_gate, and og-push.sh itself refusing a non-0/1 DRY
+fl=$(date -d "$SOAK_END" +%s)
+g() { local out rc; out=$(soak_gate "$@"); rc=$?; echo "$rc:$out"; }
+chk() { local want=$1 name=$2; shift 2; local got; got=$(g "$@"); [[ "$got" == $want* ]] && t ok "soak_gate $name -> ${got:0:60}" || t no "soak_gate $name -> $got (want $want)"; }
+chk "0:closed" "before the floor, SOAK_DONE=1"            $((fl-1)) 0 1 "$SOAK_END"
+chk "0:open"   "at the floor, SOAK_DONE=1"                $fl 0 1 "$SOAK_END"
+chk "0:closed" "after the floor, SOAK_DONE unset"         $((fl+60)) 0 "" "$SOAK_END"
+chk "0:closed" "after the floor, SOAK_DONE=true"          $((fl+60)) 0 true "$SOAK_END"
+chk "0:open"   "DRY=1 after the floor, SOAK_DONE=1"       $((fl+60)) 1 1 "$SOAK_END"
+chk "2:REFUSING: DRY must be exactly 0 or 1" "DRY=true"   $((fl+60)) true 1 "$SOAK_END"
+chk "2:REFUSING: DRY must be exactly 0 or 1" "DRY=' 1'"   $((fl+60)) " 1" 1 "$SOAK_END"
+chk "2:REFUSING: DRY must be exactly 0 or 1" "DRY=yes"    $((fl+60)) yes 1 "$SOAK_END"
+chk "2:REFUSING: SOAK_END" "an unparsable floor"          $((fl+60)) 0 1 "not-a-time"
+chk "2:REFUSING: SOAK_END" "an empty floor"               $((fl+60)) 0 1 ""
+chk "2:REFUSING: SOAK_END" "a floor that date -d accepts but is not the literal ('tomorrow')" $((fl+60)) 0 1 "tomorrow"
+chk "2:REFUSING: now" "a non-numeric now"                 "abc" 0 1 "$SOAK_END"
+for d in true " 1" yes; do out=$(DRY="$d" SOAK_DONE=1 B_DIR=$(mktemp -d) bash "$H/og-push.sh" 2>&1); rc=$?
+  [ $rc = 2 ] && grep -q "DRY must be exactly 0 or 1" <<<"$out" && t ok "og-push.sh DRY='$d' SOAK_DONE=1 refuses at the gate (rc 2)" || t no "og-push.sh DRY='$d': rc $rc: ${out:0:120}"; done
 echo "og-selftest: $((n-f))/$n"; [ $f = 0 ]
