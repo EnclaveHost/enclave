@@ -1,0 +1,2 @@
+nan: RELAY_HVNODE_OPERATORS on: backup /etc/nan-relay/api-relay.env.bak-b-RELAY_HVNODE_OPERATORS-on-20260926T025212Z; TRUSTED_OPERATORS line digest 3813a04e46c5f1ee (unchanged); restarting the api relay
+nan: RELAY_HVNODE_OPERATORS on applied; api relay invocation 8fdc25f64fd5 -> e9c016e2658a48fb8831699f142a614c, NRestarts 0, stayed up 30 s; TRUSTED_OPERATORS digest after 3813a04e46c5f1ee
