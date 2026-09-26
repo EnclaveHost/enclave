@@ -8526,8 +8526,47 @@ async function issueGuestCsr(name, csrPem, spkiHash) {
   if (r.status !== 200 || !data || !data.certPem) throw new Error(`the certificate service answered ${r.status} ${String(data?.error || "")} ${String(data?.message || "")}`.trim());
   return data.certPem;
 }
+// When a failed certificate pass may try again: the pure policy (test/guestcert-retry.test.mjs slices it out by text).
+// The error's own hint wins (the platform's 202 "in flight" retryAfterSec, the relay's Retry-After on a cold
+// prediction). A guest that guestd still reports STARTING (routeFor's SpliceRefused "not-running", "the instance is
+// starting") serves within seconds of spawning, so it is tried again after GUEST_CERT_STARTING_MS and is NOT counted as
+// a failure: the doubling back-off (5 min, 10, ... 1 h) is for real refusals. Only a guest still "starting" after
+// GUEST_CERT_STARTING_TRIES of those short waits falls through to it. Seen 2026-09-26 on metal-iso0: the first pass ran
+// 2 s after the spawn, 25 s before the guest served, and its 300 s back-off was 5 of the 8 minutes before a first
+// launch's public TLS (enclave-63's breakdown; enclave-87).
+const GUEST_CERT_STARTING_MS = 20_000, GUEST_CERT_STARTING_TRIES = 30, GUEST_CERT_EVERY_MS = 60_000;
+function guestCertRetry(e, prevFailures = 0, prevStarts = 0) {
+  const starting = !!e && e.kind === "not-running" && e.message === "the instance is starting" && prevStarts < GUEST_CERT_STARTING_TRIES;
+  const failures = starting ? prevFailures : prevFailures + 1;
+  const wait = (e && e.retryMs) || (starting ? GUEST_CERT_STARTING_MS : Math.min(3600_000, 300_000 * 2 ** (failures - 1)));
+  return { wait, failures, starts: starting ? prevStarts + 1 : 0 };
+}
+// How long until the first record in back-off is due again (ms), or null when none is: the loop wakes then rather than
+// at its next tick, so a 20 s or 30 s wait is honored within a second instead of being rounded up to the loop's period.
+function nextGuestCertWakeMs(states, now) {
+  let next = Infinity;
+  for (const st of states) if (st && typeof st.backoffUntil === "number" && st.backoffUntil > now) next = Math.min(next, st.backoffUntil);
+  return next === Infinity ? null : next - now;
+}
+let _guestCertRunning = false, _guestCertWake = null;
+function runGuestCertPass() {
+  guestCertPass().catch((e) => console.warn(`[isolation] certificate pass failed: ${e.message}`));
+}
 async function guestCertPass() {
   if (!ISOLATION_BACKEND || !GUESTD_DATA_ADDR || !APP_CERT_DOMAIN) return;
+  if (_guestCertRunning) return;   // a wake and a tick never run two passes at once (one CSR per guest at a time)
+  _guestCertRunning = true;
+  try { await guestCertPassOnce(); } finally {
+    _guestCertRunning = false;
+    const ms = nextGuestCertWakeMs(_guestCerts.values(), Date.now());
+    if (ms !== null && ms < GUEST_CERT_EVERY_MS) {
+      if (_guestCertWake) clearTimeout(_guestCertWake);
+      _guestCertWake = setTimeout(() => { _guestCertWake = null; runGuestCertPass(); }, ms + 100);
+      if (_guestCertWake.unref) _guestCertWake.unref();
+    }
+  }
+}
+async function guestCertPassOnce() {
   let mod, judgeMod, transport;
   try {
     _guestCertMod = _guestCertMod || await import(new URL("./isolation/m4/guestd/supervisor-guestcert.mjs", import.meta.url));
@@ -8557,16 +8596,15 @@ async function guestCertPass() {
         : `[isolation] ${rec.id.slice(0, 10)}: certificate for ${name} installed in guest ${got.instanceId} `
           + `(key ${got.key.slice(0, 16)}…, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; guest ${got.verdict})`);
     } catch (e) {
-      const failures = (st && st.failures || 0) + 1;
-      const wait = e.retryMs || Math.min(3600_000, 300_000 * 2 ** (failures - 1));
-      _guestCerts.set(rec.id, { ...(st && st.instanceId === rec._vmId ? st : {}), backoffUntil: Date.now() + wait, failures, why: e.message });
+      const { wait, failures, starts } = guestCertRetry(e, st && st.failures || 0, st && st.starts || 0);
+      _guestCerts.set(rec.id, { ...(st && st.instanceId === rec._vmId ? st : {}), backoffUntil: Date.now() + wait, failures, starts, why: e.message });
       console.warn(`[isolation] ${rec.id.slice(0, 10)}: no certificate for ${name} (${e.message}); retry in ${Math.round(wait / 1000)}s`);
     }
   }
 }
-function startGuestCertLoop(everyMs = 60_000) {
+function startGuestCertLoop(everyMs = GUEST_CERT_EVERY_MS) {
   if (!ISOLATION_BACKEND || !CERTS_API) return;
-  const t = setInterval(() => { guestCertPass().catch((e) => console.warn(`[isolation] certificate pass failed: ${e.message}`)); }, everyMs);
+  const t = setInterval(runGuestCertPass, everyMs);
   if (t.unref) t.unref();
 }
 
