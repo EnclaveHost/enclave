@@ -52,6 +52,20 @@ cat > "$d/h.c" <<'EOF'
 static double now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec / 1e9; }
 /* one app start through dominit's own channel: argv is what the child execs; nnp: whether it may install the filter */
 int main(int argc, char **argv) {
+    if (argc >= 2 && strcmp(argv[1], "hang") == 0) {   /* a child that neither writes nor execs (enclave-5d's N1) */
+        int p[2];
+        if (pipe2(p, O_CLOEXEC) != 0) return 2;
+        pid_t c = fork();
+        if (c == 0) { sleep(30); _exit(0); }          /* holds the write end, never writes */
+        double t0 = now();
+        seccomp_statement_from(p[0], c);
+        printf("statement wait %.2f s\n", now() - t0);
+        fflush(stdout);
+        int st = 0;
+        waitpid(c, &st, 0);
+        printf("child %s\n", WIFSIGNALED(st) && WTERMSIG(st) == SIGKILL ? "killed" : "not killed");
+        return 0;
+    }
     if (argc < 3) return 2;
     if (strcmp(argv[1], "nnp") == 0 && prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) return 2;
     double t0 = now();
@@ -67,7 +81,7 @@ EOF
 run_all() {  # <dominit.c> -> 0 only if every check passes
   mkdir -p "$d/b" && cp "$1" "$d/b/dominit.c" && cp "$here/app-seccomp.h" "$here/sha256-min.h" "$d/b/"
   rm -rf "$d/sdir"
-  gcc -O2 -Wall -Wno-unused-function -I"$d/b" -DSECCOMP_DIR="\"$d/sdir\"" -o "$d/h" "$d/h.c" 2>"$d/cc.txt" || { echo "FAIL dominit did not build: $(head -3 "$d/cc.txt")"; return 1; }
+  gcc -O2 -Wall -Wno-unused-function -I"$d/b" -DSECCOMP_DIR="\"$d/sdir\"" -DSECCOMP_STATEMENT_MS=500 -o "$d/h" "$d/h.c" 2>"$d/cc.txt" || { echo "FAIL dominit did not build: $(head -3 "$d/cc.txt")"; return 1; }
   rc=0
   "$d/h" nnp /bin/sleep 2 > "$d/run.txt" 2>&1 || true
   if grep -qx "DOM seccomp: app filter installed (sha256 $(echo "$want" | sed 's/.*sha256=\([0-9a-f]*\).*/\1/'), $(echo "$want" | sed 's/.*rules=//') rules)" "$d/run.txt"
@@ -80,6 +94,13 @@ run_all() {  # <dominit.c> -> 0 only if every check passes
   if [ -n "$secs" ] && python3 -c "import sys; sys.exit(0 if float('$secs') < 1.0 else 1)"
   then echo "ok   the exec closed the pipe: dominit's read ended in ${secs} s while the app (sleep 2) ran on"
   else echo "FAIL the app held the statement pipe past its exec (read took ${secs:-?} s)"; rc=1; fi
+  # BOUNDED (N1): PID 1 must not wait forever on a child that neither states nor execs - killed, said, not started
+  timeout 5 "$d/h" hang > "$d/run3.txt" 2>&1 || true
+  w=$(sed -n 's/^statement wait \([0-9.]*\) s$/\1/p' "$d/run3.txt")
+  if [ -n "$w" ] && python3 -c "import sys; sys.exit(0 if float('$w') < 2.0 else 1)" && grep -q '^child killed$' "$d/run3.txt" \
+     && grep -q '^DOM ERROR the app gave no seccomp statement within 500 ms: killed, not started$' "$d/run3.txt"
+  then echo "ok   a child that never states its filter is killed after the bound (${w} s), and the console says so"
+  else echo "FAIL the statement read is not bounded: $(tr '\n' ' ' < "$d/run3.txt" | cut -c1-200)"; rc=1; fi
   rm -rf "$d/sdir"
   "$d/h" none /bin/true > "$d/run2.txt" 2>&1 || true
   if grep -q "^child exit 125$" "$d/run2.txt" && ! grep -q "^DOM seccomp:" "$d/run2.txt" && [ ! -e "$d/sdir/seccomp" ]
@@ -103,6 +124,8 @@ EOF
 k=0
 mut "the statement pipe without O_CLOEXEC" '    if (pipe2(sfd, O_CLOEXEC) != 0) {' '    if (pipe2(sfd, 0) != 0) {' || k=1
 mut "the statement not written" '            if (n < 0 || write(seccomp_status_fd, st, (size_t)n) != n) {' '            if (n < 0) {' || k=1
+mut "the statement read unbounded (N1)" '        int r = left > 0 ? poll(&p, 1, (int)left) : 0;' '        int r = poll(&p, 1, -1);' || k=1
+mut "a silent child not killed" '            if (child > 0) kill(child, SIGKILL);' '            (void)child;' || k=1
 mut "the positive line not printed" '    printf("DOM seccomp: app filter installed (sha256 %s, %u rules)\n", hex, rules);' '    (void)rules;' || k=1
 [ $k = 0 ] && echo "seccomp statement mutants: all killed" || echo "seccomp statement mutants: FAIL"
 [ $g = 0 ] && [ $k = 0 ]

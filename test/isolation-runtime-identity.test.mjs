@@ -180,7 +180,7 @@ test('the runtime self-test must have covered the runtime, by role, and the role
     `exec_pages=allowed wx=clean maps=3 runtime=1 root=2 ${SC} scope=all-processes`,             // the SNP front's own
     'exec_pages=allowed wx=clean maps=1 scope=self',                                        // library-embedded runtime (pVM)
   ]) {
-    const r = checkRuntimeSelfTest(st, JIT);
+    const r = checkRuntimeSelfTest(st, JIT, st.includes('scope=self') ? { allowSelfScope: true } : {});   // the pVM's verifier opts in
     assert.equal(r.ok, true, `${st}: ${r.reasons.join('; ')}`);
   }
   assert.match(checkRuntimeSelfTest('exec_pages=allowed wx=clean maps=2 runtime=0 root=2 scope=all-processes', JIT).reasons.join(' '), /covered NO runtime process/);
@@ -194,12 +194,12 @@ test('the scan scope is a closed vocabulary, so a domain cannot invent one that 
     ['exec_pages=allowed wx=clean maps=1 scope=self', /reporting process ALONE/],
   ];
   for (const [st, re] of ok) {
-    const r = checkRuntimeSelfTest(st, JIT);
+    const r = checkRuntimeSelfTest(st, JIT, st.includes('scope=self') ? { allowSelfScope: true } : {});
     assert.equal(r.ok, true, `${st}: ${r.reasons.join('; ')}`);
     assert.match(r.reasons.join(' '), re);
   }
   // scope=self must say it is incomplete for a separate runtime process, since nothing attests which it is
-  assert.match(checkRuntimeSelfTest('exec_pages=allowed wx=clean maps=1 scope=self', JIT).reasons.join(' '),
+  assert.match(checkRuntimeSelfTest('exec_pages=allowed wx=clean maps=1 scope=self', JIT, { allowSelfScope: true }).reasons.join(' '),
     /separate runtime process would be unscanned/);
   // and anything else is refused, however broad it reads
   for (const st of [
@@ -214,7 +214,7 @@ test('the scan scope is a closed vocabulary, so a domain cannot invent one that 
     assert.equal(checkRuntimeSelfTest(st, JIT).ok, false, `${JSON.stringify(st)} was accepted`);
   }
   // scope=self claiming to have scanned more than the one process it can see is refused
-  assert.equal(checkRuntimeSelfTest('exec_pages=allowed wx=clean maps=9 scope=self', JIT).ok, false);
+  assert.equal(checkRuntimeSelfTest('exec_pages=allowed wx=clean maps=9 scope=self', JIT, { allowSelfScope: true }).ok, false);
 });
 
 test('a JIT identity from a domain that may not hold an executable page is refused', () => {
@@ -377,12 +377,26 @@ test('a release after 5db18199 must state its seccomp filter; one before may omi
     assert.equal(checkRuntimeSelfTest(`exec_pages=allowed wx=clean maps=3 runtime=1 root=2 ${bad} scope=all-processes`, JIT,
       { seccompUnstated: 'x' }).ok, false, bad);
   }
-  // the pVM's embedded runtime (scope=self) has no separate process to filter
-  assert.equal(checkRuntimeSelfTest('exec_pages=allowed wx=clean maps=1 scope=self', JIT).ok, true);
+  // the pVM's embedded runtime (scope=self, its verifier opting in) has no separate process to filter
+  assert.equal(checkRuntimeSelfTest('exec_pages=allowed wx=clean maps=1 scope=self', JIT, { allowSelfScope: true }).ok, true);
 });
 
 test('the seccomp table is the W^X legacy table plus 5db18199, frozen', async () => {
   const { SECCOMP_UNSTATED_RELEASES } = await import('../isolation/m2/judge.mjs');
   assert.ok(Object.isFrozen(SECCOMP_UNSTATED_RELEASES));
   assert.deepEqual(Object.keys(SECCOMP_UNSTATED_RELEASES).sort(), [...Object.keys(LEGACY_WX_RELEASES), R5DB].sort());
+});
+
+// scope=self belongs to the pVM carrier ALONE (enclave-bf's B1, enclave-87: required). An SNP or NucBox document stating
+// it would skip the runtime's coverage and its seccomp statement, so it is refused whatever the release is.
+test('an SNP or hv document stating scope=self is refused, whatever the release; only the pVM verifier may accept it', async () => {
+  for (const st of ['exec_pages=allowed wx=clean maps=1 scope=self', 'exec_pages=allowed wx=clean maps=1 root=1 scope=self',
+    'exec_pages=allowed wx=clean maps=1 runtime=0 front=1 scope=self']) {
+    for (const release of [NEW, F7, R5DB, undefined]) {
+      const v = await judge(docWith(st), SPKI, NONCE, { ...want, release });
+      assert.equal(v.verdict, 'reject', `${st} (${JSON.stringify(release)}) was accepted`);
+      assert.match(v.reasons.join(' '), /only the pVM carrier/);
+    }
+    assert.equal(checkRuntimeSelfTest(st, JIT).ok, false, `${st}: a caller that did not opt in accepted scope=self`);
+  }
 });

@@ -177,7 +177,7 @@ export function checkRuntime(doc, handshakeSpki, nonce, want = {}) {
     reasons.push(`the runtime identity is bound into the report but UNPINNED by this caller: ${r.name}/${r.version} execution=${r.execution} target=${r.targetIsa} host=${r.hostIsa} features=${r.cpuFeatures} wx=${r.wx} cache=${r.cache} (pass want.runtime to pin it)`);
   }
 
-  const st = checkRuntimeSelfTest(doc.runtimeSelfTest, r, { legacy: want.legacyWx, seccompUnstated: want.seccompUnstated });
+  const st = checkRuntimeSelfTest(doc.runtimeSelfTest, r, { legacy: want.legacyWx, seccompUnstated: want.seccompUnstated, allowSelfScope: want.allowSelfScope === true });
   reasons.push(...st.reasons);
   if (!st.ok) return { ok: false, reasons };
 
@@ -235,6 +235,10 @@ export const LEGACY_WX_RELEASES = Object.freeze({
 // accepted without the field only for a release in this table that the caller names (with the measurement pinned), as
 // for the legacy W^X form; every other release, and a caller that names none, must state it. An entry goes at its
 // release's retirement, with the relay's rs-N (as LEGACY_WX_RELEASES).
+// THE HASH IS NOT COMPARED with an expected value (enclave-5d's N2, enclave-87): the launch measurement pins init's and the
+// monitor's compiled filter, so the stated hash IDENTIFIES the program (recomputable from m2/app-seccomp.h) rather than
+// gating it; the independent half is the kernel's Seccomp mode, read at each attestation. This chain's filter is
+// d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66 (71 instructions; recomputed by enclave-bf).
 export const SECCOMP_UNSTATED_RELEASES = Object.freeze({
   ...LEGACY_WX_RELEASES,
   '5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77': 'domain release 5db18199 (tree 0c087de8): W^X at each attestation, no seccomp statement',
@@ -254,7 +258,7 @@ export function legacyWxFor(release, measurement, table = LEGACY_WX_RELEASES) {
   return { ok: true, legacy: ids.map((x) => table[x]).join('; ') };
 }
 const SELFTEST_ROLES = ['runtime', 'front', 'init', 'root', 'other'];
-export function checkRuntimeSelfTest(selfTest, identity, { legacy = null, seccompUnstated = null } = {}) {
+export function checkRuntimeSelfTest(selfTest, identity, { legacy = null, seccompUnstated = null, allowSelfScope = false } = {}) {
   if (typeof selfTest !== 'string' || selfTest === '') {
     return { ok: false, reasons: [`REJECT: the document carries no runtime self-test, so nothing says this domain checked W^X or whether it may hold an executable page at all`] };
   }
@@ -303,6 +307,12 @@ export function checkRuntimeSelfTest(selfTest, identity, { legacy = null, seccom
   // process; a release the caller names from the table may state none
   if ('seccomp' in f && !/^[0-9a-f]{64}$/.test(f.seccomp)) {
     return { ok: false, reasons: [`REJECT: the runtime self-test's seccomp=${JSON.stringify(f.seccomp)} is not a 64-hex filter hash`] };
+  }
+  if (f.scope === 'self' && !allowSelfScope) {
+    // scope=self is the pVM's embedded runtime ALONE (enclave-bf's B1, enclave-87: required): only a verifier of that
+    // carrier passes allowSelfScope. An SNP or NucBox document stating it would skip the runtime's coverage AND its
+    // seccomp statement, so it is refused here whatever the release.
+    return { ok: false, reasons: ['REJECT: the runtime self-test states scope=self, which only the pVM carrier (a runtime embedded in the reporting process) may state; this document is not one'] };
   }
   if (f.scope === 'self') {
     coverage = 'self';
