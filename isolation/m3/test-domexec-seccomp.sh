@@ -27,7 +27,7 @@ gcc -static -pthread -O2 -o "$d/probe" "$m2/app-seccomp-probe.c" 2>/dev/null
 run_all() {  # <domexec.c> <app-seccomp.h>
   reclaim; rm -rf "$d/b" && mkdir -p "$d/b/m3" "$d/b/m2" "$d/root/plat/rt" "$d/root/run" "$d/root/tmp" "$d/root/proc" "$d/root/probe-out"
   chmod 0755 "$d/root" "$d/root/plat" "$d/root/plat/rt"; chmod 1777 "$d/root/probe-out"
-  cp "$1" "$d/b/m3/domexec.c" && cp "$2" "$d/b/m2/app-seccomp.h"
+  cp "$1" "$d/b/m3/domexec.c" && cp "$2" "$d/b/m2/app-seccomp.h" && cp "$(dirname "$0")/../m2/sha256-min.h" "$d/b/m2/"
   gcc -static -O2 -o "$d/root/plat/domexec" "$d/b/m3/domexec.c" 2>/dev/null || { echo "FAIL domexec did not build"; return 1; }
   cp "$d/probe" "$d/root/plat/rt/ld-linux-x86-64.so.2"; cp "$d/probe" "$d/root/plat/front"
   chmod 0755 "$d/root/plat/domexec" "$d/root/plat/rt/ld-linux-x86-64.so.2" "$d/root/plat/front"

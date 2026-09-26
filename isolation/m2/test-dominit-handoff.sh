@@ -61,7 +61,7 @@ int main(void) {
     return fails ? 1 : 0;
 }
 EOF
-cp "$here/dominit.c" "$here/app-seccomp.h" "$d/"
+cp "$here/dominit.c" "$here/app-seccomp.h" "$here/sha256-min.h" "$d/"
 gcc -O2 -Wall -Wextra -Wno-unused-function -o "$d/h" "$d/h.c"
 "$d/h" && echo "dominit handoff (glibc): PASS"
 # ...and against the libc the IMAGE's init links: musl (app-image-template.sh), when its prefix exists

@@ -25,7 +25,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strconv"
 	"strings"
@@ -102,7 +104,7 @@ func probeExecPages() string {
 // Scope matters for correctness, not tidiness. In M2 and M4a the domain is the whole guest, so every process in /proc
 // belongs to it. In a cgroup other than the root the scan is cgroup-scoped, so it never reaches a NEIGHBOUR's process
 // (which would let one domain fault another's attestation).
-func localSelfTest(execPages string) (string, error) {
+func localSelfTest(execPages, seccompStatement string) (string, error) {
 	self, err := cgroupOf("self")
 	if err != nil {
 		return "", err
@@ -150,6 +152,25 @@ func localSelfTest(execPages string) (string, error) {
 	}
 	if scan.Found != "" {
 		return "", fmt.Errorf("the identity says wx=%s but this domain holds a writable AND executable mapping: %s", contract.WXEnforced, scan.Found)
+	}
+	// the runtime's seccomp filter (enclave-87: positive evidence): every runtime process must be under a filter NOW, and
+	// init's statement (dominit, root-only: seccompStatement) says which one - carried as seccomp=<hash>. No statement
+	// yet (the app not started) states none, which a judge refuses for a release that must state it.
+	if err := scan.CheckRuntimeFiltered(); err != nil {
+		return "", err
+	}
+	if seccompStatement != "" {
+		b, err := os.ReadFile(seccompStatement)
+		switch {
+		case err == nil:
+			h, perr := contract.ParseSeccompStatement(b)
+			if perr != nil {
+				return "", fmt.Errorf("init's seccomp statement: %w", perr)
+			}
+			scan.Seccomp = h
+		case !errors.Is(err, fs.ErrNotExist):
+			return "", fmt.Errorf("init's seccomp statement: %w", err)
+		}
 	}
 	return "exec_pages=" + execPages + " " + scan.Clean(), nil
 }

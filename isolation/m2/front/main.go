@@ -94,14 +94,17 @@ type doc struct {
 type front struct {
 	spki, appSha []byte
 	rt           *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
-	snp          bool
-	monitor      string      // M3: the monitor's socket, and then this process never opens configfs at all
-	plane        *appidPlane // M4b: the measured SVSM names this plane and computes the binding itself
-	boundary     string      // the self-test init produced; relayed verbatim, never composed here
-	app          http.Handler
-	certs        *certState // a CA certificate for this domain's own key and deployment name (certs.go)
-	ready        *readiness // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
-	tsmMu        sync.Mutex
+	// seccompStatement: where init (dominit, root) records the app runtime's seccomp filter once it is installed; read
+	// into every self-test this front measures (localSelfTest). "" = none (M3: the monitor states it instead).
+	seccompStatement string
+	snp              bool
+	monitor          string      // M3: the monitor's socket, and then this process never opens configfs at all
+	plane            *appidPlane // M4b: the measured SVSM names this plane and computes the binding itself
+	boundary         string      // the self-test init produced; relayed verbatim, never composed here
+	app              http.Handler
+	certs            *certState // a CA certificate for this domain's own key and deployment name (certs.go)
+	ready            *readiness // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
+	tsmMu            sync.Mutex
 }
 
 func main() {
@@ -136,6 +139,8 @@ func main() {
 	rtID := flag.String("runtime-identity", "/rt/runtime.json", "the runtime identity written into this image beside the runtime; absent means ABI/1")
 	certZone := flag.String("cert-zone", "app.enclave.host", "the app zone this domain's deployment name lives in (<first 4 bytes of its HOST_DATA, hex>.<zone>); empty = never certify a name")
 	certNameFile := flag.String("cert-name-file", "", "where there is no SEV-SNP HOST_DATA (a Hyper-V partition): a file holding the deployment name the LAUNCHER named this domain for; used only if it is <8 hex>.<-cert-zone>")
+	seccompStatement := flag.String("seccomp-statement", "", "where init records the app runtime's seccomp filter once installed (SNP: dominit's "+
+		"root-only /run/enclave/seccomp); read into every self-test this front measures. Empty = none")
 	appMode := flag.String("app-mode", "serve", "how the app runs, for /.well-known/enclave-ready: serve (the runtime serves a wasi:http component) or run (a wasi:cli command binds -upstream itself)")
 	initFD := flag.Int("init-fd", 0, "a pipe from init (M2): after provisioning, the front writes N (no config) or C+config there, and init starts the app only then (provision.go)")
 	flag.Parse()
@@ -176,7 +181,7 @@ func main() {
 	if *appMode != "serve" && *appMode != "run" {
 		die("-app-mode must be serve or run, not %q", *appMode)
 	}
-	f := &front{spki: spki, appSha: appSha, rt: rt, snp: *snp, monitor: *reportUnix, app: appProxy(*upstream),
+	f := &front{spki: spki, appSha: appSha, rt: rt, snp: *snp, monitor: *reportUnix, app: appProxy(*upstream), seccompStatement: *seccompStatement,
 		ready: &readiness{upstream: *upstream, mode: *appMode, appID: hex.EncodeToString(appSha), dial: 2 * time.Second}}
 	if *appid != "" {
 		// ABI/2 or nothing on this path. The SVSM computes Bind2, which folds in a RuntimeID; a domain with no
@@ -488,7 +493,7 @@ func (f *front) askMonitor(bind []byte) (rep, certs []byte, boundary, tier, form
 // else (a W+X mapping found, or a scan that failed) refuses the document. Elsewhere this front measures (localSelfTest).
 func (f *front) selfTest(wx string) (string, error) {
 	if f.monitor == "" {
-		return localSelfTest(f.rt.ExecPages)
+		return localSelfTest(f.rt.ExecPages, f.seccompStatement)
 	}
 	switch {
 	case wx == "":

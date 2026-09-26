@@ -132,6 +132,13 @@ static void probe_report_as_root(void) {
  * enclave-d1's canary of 4cdd5169 (252602c8): the quiet runtime opened "/dev/null" INSIDE the chroot, got ENOENT and
  * exited 126 on every m3 domain, so domexec ended each domain before it served (enclave-87 chose this design). */
 #define NULL_FD 3
+/* The seccomp STATEMENT channel, fd SECCOMP_FD: a pipe the MONITOR hands this process (its read end stays with the
+ * monitor). Close-on-exec from the start and closed here once the runtime is spawned, so only the runtime's child - this
+ * file's code, after the filter is installed and before exec - writes to it: the front, the probe and everything the
+ * runtime runs never hold it. The monitor carries what arrives into the attested self-test (seccomp=<hash>). Absent (an
+ * older monitor): no statement, and the judge refuses a release that must state one. */
+#define SECCOMP_FD 4
+static int seccomp_fd = -1;
 
 /* quiet: the child's stdin, stdout and stderr are the null device (NULL_FD). It is TENANT code (the runtime serving or
  * running the app), and this process's stdout is the monitor's, which is the guest console the HOST reads
@@ -171,6 +178,17 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet, int filter) {
         if (filter && (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0 || app_seccomp_install() != 0)) {
             if (con >= 0) dprintf(con, "DOM%s ERROR the runtime's seccomp filter could not be installed: %s\n", dom_id, strerror(errno));
             _exit(1);
+        }
+        if (filter) {   /* the filter is on: the positive line on the console, and the statement to the monitor */
+            char st[160], hex[65];
+            unsigned rules = 0;
+            int n = app_seccomp_statement(st, sizeof st);
+            if (n < 0 || sscanf(st, "seccomp sha256=%64[0-9a-f] rules=%u", hex, &rules) != 2) _exit(1);
+            if (con >= 0) dprintf(con, "DOM%s seccomp: runtime filter installed (sha256 %s, %u rules)\n", dom_id, hex, rules);
+            if (seccomp_fd >= 0 && write(seccomp_fd, st, (size_t)n) != n) {
+                if (con >= 0) dprintf(con, "DOM%s ERROR the runtime's seccomp statement could not be written: %s\n", dom_id, strerror(errno));
+                _exit(1);
+            }
         }
         char *envp[] = {"HOME=/tmp", "PATH=/plat", NULL};
         execve(argv[0], argv, envp);
@@ -212,6 +230,11 @@ int main(int argc, char **argv) {
         return 2;
     }
     if (fcntl(NULL_FD, F_SETFD, FD_CLOEXEC) != 0) die("cloexec null device");
+    struct stat sst;
+    if (fstat(SECCOMP_FD, &sst) == 0 && S_ISFIFO(sst.st_mode)) {   /* the monitor's statement pipe, if it gave one */
+        if (fcntl(SECCOMP_FD, F_SETFD, FD_CLOEXEC) != 0) die("cloexec seccomp statement");
+        seccomp_fd = SECCOMP_FD;
+    }
 
     if (mount("proc", "/proc", "proc", 0, 0) != 0) die("mount /proc");   /* this PID namespace only */
     if (mount("tmpfs", "/tmp", "tmpfs", 0, "size=64m,mode=1777") != 0) die("mount /tmp");
@@ -264,17 +287,20 @@ int main(int argc, char **argv) {
 
     pid_t rt_pid, front_pid;
     if (argc > 3 && strcmp(argv[3], "probe") == 0) {
+        if (seccomp_fd >= 0) { close(seccomp_fd); seccomp_fd = -1; }   /* the probe states no filter */
         rt_pid = spawn(probe_argv, uid, 0, 0);
         front_pid = -1;
         printf("DOM%s started adversary probe=%d (no app, no front)\n", dom_id, rt_pid);
     } else if (run_port) {
         rt_pid = spawn(run, uid, 1, 1);                 /* the runtime: quiet and filtered */
+        if (seccomp_fd >= 0) { close(seccomp_fd); seccomp_fd = -1; }   /* its child holds the statement pipe until exec */
         front_pid = spawn(run_front, front_uid, 0, 0);  /* the front: its own uid, neither quiet nor filtered */
         front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d mode=run http=%d (/data 64 MiB scratch)\n", dom_id, rt_pid, front_pid,
                run_port);
     } else {
         rt_pid = spawn(rt, uid, 1, 1);                  /* the runtime: quiet and filtered */
+        if (seccomp_fd >= 0) { close(seccomp_fd); seccomp_fd = -1; }   /* its child holds the statement pipe until exec */
         front_pid = spawn(front, front_uid, 0, 0);      /* the front: its own uid, neither quiet nor filtered */
         front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d mode=serve\n", dom_id, rt_pid, front_pid);

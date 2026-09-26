@@ -42,7 +42,7 @@ report_ok() {  # <role> -> 0 if its report is clean
 }
 # the full check against a domexec.c; -> 0 only if every part holds
 run_all() {  # <domexec.c>
-  mkdir -p "$d/b/m3" "$d/b/m2" && cp "$1" "$d/b/m3/domexec.c" && cp "$m2/app-seccomp.h" "$d/b/m2/"
+  mkdir -p "$d/b/m3" "$d/b/m2" && cp "$1" "$d/b/m3/domexec.c" && cp "$m2/app-seccomp.h" "$m2/sha256-min.h" "$d/b/m2/"
   gcc -static -O2 -o "$d/domexec" "$d/b/m3/domexec.c" 2>/dev/null || { echo "FAIL domexec did not build"; return 1; }
   rc=0
   run_one "$d/domexec" 1001 1000:1001

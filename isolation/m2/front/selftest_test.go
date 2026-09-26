@@ -10,10 +10,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
 	"testing"
+	"unsafe"
 
 	"enclave.host/isolation/contract"
 )
@@ -28,11 +30,39 @@ func TestMain(m *testing.M) {
 		}
 		fallthrough
 	case "clean":
+		// a runtime under a filter, as dominit leaves the app (allow-all here: the scan reads the MODE, not the rules)
+		if err := allowAllFilter(); err != nil {
+			os.Exit(3)
+		}
+		fallthrough
+	case "bare":
 		os.Stdout.WriteString("ready\n")
 		bufio.NewReader(os.Stdin).ReadString('\n')
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
+}
+
+// allowAllFilter puts this process (every thread) under a one-instruction allow-all seccomp filter: "Seccomp: 2".
+func allowAllFilter() error {
+	runtime.LockOSThread()
+	if _, _, e := syscall.RawSyscall6(syscall.SYS_PRCTL, 38 /* PR_SET_NO_NEW_PRIVS */, 1, 0, 0, 0, 0); e != 0 {
+		return e
+	}
+	prog := [1]struct {
+		code   uint16
+		jt, jf uint8
+		k      uint32
+	}{{0x06, 0, 0, 0x7fff0000}}
+	fprog := struct {
+		n      uint16
+		_      [6]byte
+		filter uintptr
+	}{n: 1, filter: uintptr(unsafe.Pointer(&prog[0]))}
+	if _, _, e := syscall.RawSyscall(317 /* SYS_seccomp */, 1, 1 /* TSYNC */, uintptr(unsafe.Pointer(&fprog))); e != 0 {
+		return e
+	}
+	return nil
 }
 
 // wxMonitor is fakeMonitor with the W^X scan the m3 monitor now returns beside the report; set() changes what the NEXT
@@ -155,7 +185,17 @@ func TestLocalSelfTestSeesTheRuntime(t *testing.T) {
 	if err := os.WriteFile(self, bin, 0o755); err != nil || os.Chmod(dir, 0o755) != nil {
 		t.Fatal(err)
 	}
-	run := func(kind string) {
+	// init's statement of the runtime's filter (dominit writes it, root-only, once the filter is installed)
+	stmt := filepath.Join(dir, "seccomp")
+	hash := strings.Repeat("5e", 32)
+	run := func(kind, statement string) (string, error) {
+		t.Helper()
+		_ = os.Remove(stmt)
+		if statement != "" {
+			if err := os.WriteFile(stmt, []byte(statement), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
 		cmd := exec.Command(self, "-test.run=^$")
 		cmd.Env = append(os.Environ(), "FRONT_WX_CHILD="+kind, "FRONT_WX_INNER=")
 		cmd.SysProcAttr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: 1000, Gid: 1000}}
@@ -168,20 +208,28 @@ func TestLocalSelfTestSeesTheRuntime(t *testing.T) {
 		if line, _ := bufio.NewReader(out).ReadString('\n'); line != "ready\n" {
 			t.Fatalf("the %s runtime did not start: %q", kind, line)
 		}
-		st, err := localSelfTest("allowed")
-		switch kind {
-		case "clean":
-			if err != nil || !strings.HasPrefix(st, "exec_pages=allowed wx=clean maps=2 runtime=1 root=1 scope=") {
-				t.Fatalf("a clean runtime: %q %v", st, err)
-			}
-			t.Logf("clean: %s", st)
-		case "rwx":
-			if err == nil || !strings.Contains(err.Error(), "(runtime)") || !strings.Contains(err.Error(), "rwxp") {
-				t.Fatalf("a W+X mapping planted in the runtime was not found: %q %v", st, err)
-			}
-			t.Logf("planted: %v", err)
-		}
+		return localSelfTest("allowed", stmt)
 	}
-	run("clean")
-	run("rwx")
+	good := "seccomp sha256=" + hash + " rules=76\n"
+	st, err := run("clean", good)
+	if err != nil || !strings.HasPrefix(st, "exec_pages=allowed wx=clean maps=2 runtime=1 root=1 seccomp="+hash+" scope=") {
+		t.Fatalf("a clean, filtered runtime with init's statement: %q %v", st, err)
+	}
+	t.Logf("clean: %s", st)
+	if st, err := run("clean", ""); err != nil || strings.Contains(st, "seccomp=") {
+		t.Fatalf("no statement yet (the app not started) must state no filter: %q %v", st, err)
+	}
+	if _, err := run("clean", "seccomp sha256="+hash+"\n"); err == nil || !strings.Contains(err.Error(), "seccomp statement") {
+		t.Fatalf("a malformed statement was carried: %v", err)
+	}
+	if _, err := run("rwx", good); err == nil || !strings.Contains(err.Error(), "(runtime)") || !strings.Contains(err.Error(), "rwxp") {
+		t.Fatalf("a W+X mapping planted in the runtime was not found: %v", err)
+	} else {
+		t.Logf("planted: %v", err)
+	}
+	if _, err := run("bare", good); err == nil || !strings.Contains(err.Error(), "not under a seccomp filter") {
+		t.Fatalf("an UNFILTERED runtime passed, whatever init stated: %v", err)
+	} else {
+		t.Logf("unfiltered: %v", err)
+	}
 }
