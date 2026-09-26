@@ -1,0 +1,18 @@
+build 1 from /home/steven/Projects/enclave-build-2492e683 start 06:42:22Z
+build 1 done 06:44:22Z
+build 2 from /home/steven/enclave-bench/n1-20260926/other/checkout/path/src start 06:44:22Z
+build 2 done 06:46:23Z
+vmlinuz: 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7 IDENTICAL-in-build-2
+initramfs.cpio.gz: 3fed53b98cc7a578e0aeffd94281637250f1f62046668f3cfed5d1339956629b IDENTICAL-in-build-2
+cmdline: d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8 IDENTICAL-in-build-2
+prediction 4 vCPU : b2dba54a92de62850f2624da3e84912ae940da8e966155d1e03f51d6bb580797841f90bd9c3d35ef893f60c7d04a27df
+build 2 agrees    : True
+ovmf              : /home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd 142589cc4882f29a
+overlay           : 2492e68346597de6050763849cc0175fb8bce1ba dirty False reproducible True
+overlay files equal across the two builds: True
+overlay vs live f6cbd75a: differ = ['/app/supervisor.js']
+images            : b59f69816d8131f4 1cf721aa25d994e4 (live: b59f69816d8131f4 1cf721aa25d994e4)
+by hand           : b2dba54a92de62850f2624da3e84912ae940da8e966155d1e03f51d6bb580797841f90bd9c3d35ef893f60c7d04a27df
+HAND == MANIFEST
+cpio entries: live 29027, N1 29027; differing: ['app/supervisor.js', 'opt/metal/manifest.json']
+N1 build done 06:46:29Z
