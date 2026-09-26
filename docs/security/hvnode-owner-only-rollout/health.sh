@@ -18,6 +18,14 @@ echo "api relay: invocation ${inv:0:12} since $act, NRestarts $nr; KAT: ${kat:-n
 boot=$(cat $HOME/enclave-prod/guestd-root/*/*.serial 2>/dev/null | grep -aoE 'DOM serving vsock=443 spki_sha256=[0-9a-f]{64}' | grep -oE '[0-9a-f]{64}$' | sort -u)
 spki() { timeout 20 openssl s_client -connect "$1.app.enclave.host:443" -servername "$1.app.enclave.host" </dev/null 2>/dev/null \
          | openssl x509 -pubkey -noout 2>/dev/null | openssl pkey -pubin -outform der 2>/dev/null | sha256sum | cut -c1-64; }
+# after an api-relay restart the tunnels re-attach (metal-iso0 in ~60-90 s; enclave-63). WAIT - bounded (HEALTH_SETTLE_SEC,
+# default 180 s) - for a signal INDEPENDENT of the checks (enclave-bf): the CURRENT invocation's journal shows both
+# "[tunnel] us-west attached" and "[tunnel] metal-iso0 attached", i.e. both came back after this restart. Then judge ONCE:
+# the checks below are never retried. Not back at the bound = judged as it is.
+attached_since_restart() { [ "$($NAN "journalctl _SYSTEMD_INVOCATION_ID=$inv --no-pager -o cat | grep -oE '^\[tunnel\] (us-west|metal-iso0) attached' | sort -u | wc -l")" -ge 2 ]; }
+t0=$(date +%s); until attached_since_restart || [ $(( $(date +%s) - t0 )) -ge ${HEALTH_SETTLE_SEC:-180} ]; do sleep 10; done
+echo "settle: us-west + metal-iso0 re-attached in this invocation after $(( $(date +%s) - t0 )) s of waiting$(attached_since_restart || echo ' (NOT both at the bound: judged as is)')"
+curl -sS -m 20 "$API/enclaves" | python3 -c "import json,sys; r=[e for e in json.load(sys.stdin).get('enclaves',[]) if e.get('name')=='metal-iso0']; sys.exit(0 if r and r[0].get('serving') and r[0].get('eligible') else 1)" 2>/dev/null || bad "metal-iso0 is not serving and eligible"
 for c in 0ddbd824 395bed3e 4e62e60d; do
   r=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}/%{ssl_verify_result}' "https://$c.app.enclave.host/" 2>/dev/null); k=$(spki $c)
   grep -qx "$k" <<<"$boot" && kb=guest-boot-key || kb=NOT-a-guest-boot-key
