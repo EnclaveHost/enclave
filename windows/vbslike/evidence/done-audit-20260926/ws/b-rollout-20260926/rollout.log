@@ -1,0 +1,21 @@
+01:47:59Z B re-cut onto fa4284db5: BC 4d805c1e3726 (every B file byte-identical to the reviewed content)
+02:44:51Z B re-cut onto 864be4e56: BC 407f0936eec6 (every B file byte-identical to the reviewed content)
+02:45:46Z REFUSING: the fleet is not healthy before step 1 (not a window)
+02:47:02Z B step 1 DRY RUN: every pre-push check passed (B 407f0936eec6 on main 864be4e569ae, healthy, TRUSTED digest 3813a04e46c5f1ee); nothing pushed
+02:47:26Z B step 1: pushing 407f0936eec6 to main (fast-forward from 864be4e569ae); TRUSTED_OPERATORS line digest 3813a04e46c5f1ee
+02:47:35Z B step 1: Deploy run 36212790450
+02:50:34Z B step 1: jobs: contracts-notice=skipped contracts=skipped detect=success relay=success release=skipped site=success
+02:50:34Z B step 1 pushed and deployed (run 36212790450); next: b-accept.sh 1
+02:51:35Z      site: 200, every inline script hash in the live CSP
+02:51:35Z      badge classes (B's pricing.js on the live rows): metal-iso0=cpu nucbox-k11=cpu
+02:51:35Z B STEP 1 on ACCEPTED
+02:52:12Z B step 2 on: RELAY_HVNODE_OPERATORS (TRUSTED_OPERATORS digest 3813a04e46c5f1ee)
+02:52:43Z B step 2 on: remote rc=0; TRUSTED_OPERATORS unchanged (3813a04e46c5f1ee); next: b-accept.sh 2 on
+02:53:59Z      nucbox-k11 is not owner-only: its node has not attached with a v2 signature yet (b4's node change) - owner-only NOT EXERCISED
+02:53:59Z      a stranger's deployment on the nucbox splice path: 503
+02:53:59Z      test 1 (0x31136008) is not in the served list (not leased to nucbox-k11, or its owner/requirement): NOT EXERCISED
+02:53:59Z B STEP 2 on ACCEPTED
+02:54:25Z B step 3 on: RELAY_REVERIFY (TRUSTED_OPERATORS digest 3813a04e46c5f1ee)
+02:54:57Z B step 3 on: remote rc=0; TRUSTED_OPERATORS unchanged (3813a04e46c5f1ee); next: b-accept.sh 3 on
+02:56:21Z      nucbox-k11 still ineligible; owner-only null
+02:56:21Z B STEP 3 on ACCEPTED

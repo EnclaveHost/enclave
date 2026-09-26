@@ -1,0 +1,12 @@
+BEFORE /availability cpuShareFree 0.74 maxShare 0.74 apps.running 1
+BEFORE test-1 partition: hv9e568cd8c49461798d33bc9febc8f8cb running
+task d1-oneshot-tray-ui: state Ready, last result 0x2, last run 01:36:33Z
+--- ui-out.txt (as srbat, session 1):
+d1-tray-ui as NUCBOX_K11\srbat session 1
+01:36:33.954Z FAIL: 0 trackbars on the panel (need CPU and GPU)
+AFTER /availability cpuShareFree 0.74 maxShare 0.74 apps.running 1
+AFTER test-1 partition: hv9e568cd8c49461798d33bc9febc8f8cb running
+--- node.log hosting lines:
+01:28:14 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+01:31:40 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+01:33:05 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)

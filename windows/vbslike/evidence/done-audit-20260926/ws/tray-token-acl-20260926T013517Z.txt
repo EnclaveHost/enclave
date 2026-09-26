@@ -1,0 +1,14 @@
+C:\ProgramData\Enclave\hosting NT AUTHORITY\SYSTEM:(OI)(CI)(F)
+                               BUILTIN\Administrators:(OI)(CI)(F)
+                               NUCBOX_K11\srbat:(OI)(CI)(RX)
+
+Successfully processed 1 files; Failed processing 0 files
+C:\ProgramData\Enclave\hosting\hosting-admin.token NT AUTHORITY\SYSTEM:(I)(F)
+                                                   BUILTIN\Administrators:(I)(F)
+                                                   NUCBOX_K11\srbat:(I)(RX)
+
+Successfully processed 1 files; Failed processing 0 files
+01:33:05Z
+01:28:14 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+01:31:40 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+01:33:05 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)

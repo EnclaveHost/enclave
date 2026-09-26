@@ -1,0 +1,25 @@
+BEFORE /availability cpuShareFree 0.19 maxShare 0.19 apps.running 1
+BEFORE test-1 partition: hv9e568cd8c49461798d33bc9febc8f8cb running
+task d1-oneshot-tray-ui: state Ready, last result 0x0, last run 01:38:10Z
+--- ui-out.txt (as srbat, session 1):
+d1-tray-ui as NUCBOX_K11\srbat session 1
+01:38:11.311Z tray pid 13992; CPU trackbar position before: 4 (of 20)
+01:38:18.723Z CPU trackbar position after Home + Right x 20: 20 (want 20 = 100%)
+01:38:18.817Z node /v1/local/hosting: {"caps":{"cpuShare":1,"gpuShare":1},"step":0.05,"capsError":null,"sold":{"cpuShare":0.01,"gpuShare":0},"inUse":{"cpuShare":0.01,"gpuShare":0},"free":{"cpuShare":0.74,"gpuShare":0},"reservedShare":0.25,"deploymentsServed":1,"waitingForCap":0,"backend":"hv","gpu":{"consumer":false,"why":"no partition on the isolated backend holds a GPU share (it spawns them with gpuShare 0, windows/vbslike/datapath/node-bridge.mjs), so nothing on it uses the GPU yet"},"appsEnabled":true,"logsDir":"C:\\Users\\claude\\vbs-like\\hvnode\\state"}
+01:38:18.837Z node /availability cpuShareFree 0.74 maxShare 0.74 apps.running 1
+01:38:18.857Z tray log: 2026-09-26T01:36:10Z started; node 127.0.0.1:9610, token C:\ProgramData\Enclave\hosting\hosting-admin.token
+01:38:18.859Z tray log: 2026-09-26T01:37:14Z set CPU 20%, GPU 100%
+01:38:18.865Z tray log: 2026-09-26T01:38:15Z set CPU 100%, GPU 100%
+AFTER /availability cpuShareFree 0.74 maxShare 0.74 apps.running 1
+AFTER test-1 partition: hv9e568cd8c49461798d33bc9febc8f8cb running
+--- node.log hosting lines:
+01:31:40 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+01:33:05 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+01:37:14 [node] [host] hosting caps set on this box: CPU 100% -> 20%, GPU 100% -> 100%
+01:38:15 [node] [host] hosting caps set on this box: CPU 20% -> 100%, GPU 100% -> 100%
+--- test 1 loopback:
+
+key = manager transportKeySha256: True
+app answer: HTTP/1.1 200 OK | body: d
+
+

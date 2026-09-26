@@ -1,0 +1,7 @@
+task d1-oneshot-tray-install: state Ready, last result 0x0, last run 01:36:07Z
+--- install-out.txt:
+install: C:\Users\srbat\AppData\Local\Enclave\Tray\EnclaveTray.exe is running and starts at this user's logon (HKCU Run: EnclaveHostingTray)
+--- tray process:
+pid 13992 session 1 user NUCBOX_K11\srbat path C:\Users\srbat\AppData\Local\Enclave\Tray\EnclaveTray.exe
+--- srbat HKCU Run EnclaveHostingTray:
+"C:\Users\srbat\AppData\Local\Enclave\Tray\EnclaveTray.exe"
