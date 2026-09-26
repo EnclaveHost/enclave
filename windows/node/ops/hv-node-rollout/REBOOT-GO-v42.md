@@ -116,7 +116,8 @@ and no operator action.** The freeze ends when step 10 is recorded: the executor
 - The tasks do not start at boot: `Start-ScheduledTask EnclaveHvManager`, wait for /health canStart, then
   `Start-ScheduledTask EnclaveHvNode`. The acceptance FAILED (an operator acted).
 - Held (`isolation: reboot recovery: … held`): the owner's session restart
-  (`hvnode-accept.ps1 -DeploymentId $ID -OwnerRestart`), then A7 and step 11 again. FAILED.
+  (`hvnode-accept.ps1 -Commit f146127176f7 -DeploymentId $ID -OwnerRestart`, G9's script: its negative probes stay on the zero
+  id, and only this deliberate restart sends `$ID`), then A7 and step 11 again. FAILED.
 - Everything passes except the certificate within 30 min: record FAIL(cert) (G2) and restart NOTHING. hvcert retries by
   itself; record when the install line lands.
 - The node misbehaves otherwise: `hvnode-rollback.ps1` (nothing serving, nothing deleted).
