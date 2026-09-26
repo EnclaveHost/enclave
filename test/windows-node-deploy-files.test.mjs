@@ -15,7 +15,7 @@ test("the real tree's closure is complete and carries every module the hv node r
   const { files, problems } = closure();
   assert.deepEqual(problems, []);
   for (const f of ["windows/node/agent.mjs", "windows/node/host.mjs", "windows/node/hvnode-evidence.mjs", "windows/node/isolation-client.mjs",
-                   "windows/node/isolation-lifecycle.mjs", "windows/node/host-delegation.mjs", "windows/vbslike/datapath/node-bridge.mjs",
+                   "windows/node/isolation-lifecycle.mjs", "windows/node/host-delegation.mjs", "windows/node/hvnode-attach.mjs", "windows/vbslike/datapath/node-bridge.mjs",
                    "windows/vbslike/datapath/datapath.mjs", "isolation/m4/guestd/supervisor-splice.mjs", "windows/node/package.json"])
     assert.ok(files.includes(f), `${f} is not shipped`);
   assert.ok(!files.some((f) => /\.test\.mjs$|\/evidence\//.test(f)), "a test or evidence file would be shipped");
