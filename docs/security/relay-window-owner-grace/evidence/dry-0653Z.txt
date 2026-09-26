@@ -1,0 +1,5 @@
+06:53:16Z DRY: the soak gate is CLOSED (now 06:53:16Z, floor 2026-09-26T16:01:05Z, SOAK_DONE=unset): the live run would refuse here
+06:53:40Z owner-grace DRY RUN: every pre-push check passed (64186b97d481 on main 3212f1470fc6, healthy, last restart 625s ago, nucbox-k11: hv-node true 0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3); nothing pushed
+dry rc=0 at 06:53:40Z
+
+[exited with code 0]

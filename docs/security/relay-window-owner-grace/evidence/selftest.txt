@@ -1,0 +1,13 @@
+ok   hv_row(nucbox-k11) = 'hv-node true 0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3'
+ok   hv_row(no-such-box) = absent
+ok   hv_attach_line(873a5cdc191c) = 2026-09-26T06:43:03.473607+00:00 Nan node[4129175]: [tunnel] nucbox-k11 attached via attes
+ok   hv_attach_line(no-such-box) empty
+ok   grace_lines(873a5cdc191c) = 0 (a count)
+ok   PC logs 'owner-only serving SUSPENDED'
+ok   PC logs 'owner-only starts SUSPENDED'
+ok   PC logs 'owner read FAILED: serving on'
+ok   PC logs 'is not a whole number of milliseconds'
+ok   GRACE_RE counts all 5 state-change/env lines
+ok   GRACE_RE counts none of recovered/RESUMED/attach/pre-warm
+ok   files_are_pc refuses before the push: tunnel.js is 6331955b6c5c, not df9afd1e343d
+og-selftest: 12/12
