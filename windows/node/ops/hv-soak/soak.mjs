@@ -29,8 +29,11 @@
 //
 // Thresholds (FAIL): see THRESHOLDS below; README.md has the rationale.
 import https from "node:https";
+import http from "node:http";
+import tls from "node:tls";
 import crypto from "node:crypto";
 import zlib from "node:zlib";
+import { Duplex } from "node:stream";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -57,6 +60,7 @@ export const DEFAULTS = Object.freeze({
   // any path; hookbin answers GET /ping 200 and 404 elsewhere (its path excludes the query): /ping?hvsoak={token}
   path: "/hv-soak/{token}",
   consoleMaxBytes: 1 << 20,
+  via: "host",               // --via host: TLS to the public name; --via x: TLS inside the relay's /x splice (xUrlFor)
   leakProbe: false,          // --leak-probe: the HEAD probe; it needs --body-marker (no default: the target app's own marker)
   bodyMarker: null,
   logCapBytes: 4 << 20,      // per log per sample; a longer backlog is read over the following samples
@@ -131,16 +135,17 @@ export function certFacts(x509) {
 export const BODY_KEEP = 4096;     // the body is retained, bounded, only to look for the sample's token; never stored
 
 export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutMs, headers = {}, ca, maxBody = 65536, expect = null,
-                                evidence = null } = {}) {
+                                evidence = null, tunnel = null } = {}) {
   return new Promise((resolve) => {
     const t0 = process.hrtime.bigint();
     const ms = () => Number((process.hrtime.bigint() - t0) / 1_000_000n);
     const out = { ok: false, status: null, latencyMs: null, authorized: null, authorizationError: null, error: null,
                   bytes: null, cert: null, bodyHasToken: expect ? false : null, printedEvidence: evidence ? false : null };
     let done = false, timer = null, req = null, kept = Buffer.alloc(0);
+    const ac = new AbortController();
     const finish = (extra = {}) => {
       if (done) return;
-      done = true; clearTimeout(timer);
+      done = true; clearTimeout(timer); ac.abort();
       Object.assign(out, extra);
       if (out.latencyMs === null) out.latencyMs = ms();
       out.ok = out.authorized === true && out.status === 200 && !out.error;
@@ -152,8 +157,21 @@ export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutM
       kept = null;
       resolve(out);
     };
+    // --via x: the same TLS, with the same verification, run over a byte stream the tunnel opens (a WebSocket through the
+    // relay's /x splice) instead of a TCP connection to the name; the servername is still the URL's host
+    const servername = new URL(url).hostname;
+    const viaTunnel = tunnel ? {
+      // with no agent Node does not know the default port is 443, and would send "Host: <name>:80" (the tests caught it)
+      defaultPort: 443,
+      createConnection: (_opts, cb) => {
+        tunnel(ac.signal).then(
+          (stream) => cb(null, tls.connect({ socket: stream, servername, rejectUnauthorized: false, ALPNProtocols: ["http/1.1"], ...(ca ? { ca } : {}) })),
+          (e) => { if (e && e.wsStatus != null) out.wsStatus = e.wsStatus; cb(e); });
+      },
+    } : {};
     try {
-      req = https.request(url, { method, agent: false, rejectUnauthorized: false, ...(ca ? { ca } : {}),
+      // no agent with a tunnel: `agent: false` makes a fresh Agent, and an Agent ignores createConnection
+      req = https.request(url, { method, ...(tunnel ? viaTunnel : { agent: false }), rejectUnauthorized: false, ...(ca ? { ca } : {}),
                                  headers: { "user-agent": USER_AGENT, accept: "*/*", ...headers } }, (res) => {
         out.status = res.statusCode;
         let n = 0;
@@ -166,7 +184,10 @@ export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutM
         res.on("close", () => finish({ bytes: n, latencyMs: ms() }));
       });
     } catch (e) { finish({ error: e.message }); return; }
-    timer = setTimeout(() => req.destroy(new Error(`timeout after ${timeoutMs} ms`)), timeoutMs);
+    // the timer FINISHES the check itself: a request still waiting for its socket (a tunnel mid-handshake) defers the
+    // error req.destroy() raises until a socket arrives, so it alone would not bound --via x (the tests caught it).
+    // finish() also aborts the tunnel's handshake.
+    timer = setTimeout(() => { const e = new Error(`timeout after ${timeoutMs} ms`); finish({ error: e.message }); req.destroy(e); }, timeoutMs);
     req.on("socket", (sock) => {
       sock.once("secureConnect", () => {
         out.authorized = sock.authorized === true;
@@ -176,6 +197,99 @@ export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutM
       });
     });
     req.on("error", (e) => finish({ error: e.code && !String(e.message).includes(e.code) ? `${e.code}: ${e.message}` : e.message }));
+    req.end();
+  });
+}
+
+/* ------------------------------------------------------------------ --via x: TLS inside the relay's /x splice */
+
+// The route enclave-5d's xsplice.mjs uses (relay.js spliceRaw): no credentials; nan's api-relay admits it only while the
+// owner-only row serves the deployment. The partition's TLS runs INSIDE it, so the relay never holds the key.
+export const xUrlFor = (relay, node, deployment) =>
+  `${String(relay).replace(/^http/, "ws").replace(/\/+$/, "")}/t/${node}/x/${String(deployment).toLowerCase()}/https`;
+const WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+const WS_MAX_FRAME = 16 << 20;
+
+/** One client frame (RFC 6455: FIN, masked). */
+export function wsFrame(opcode, payload = Buffer.alloc(0)) {
+  const n = payload.length, mask = crypto.randomBytes(4);
+  let head;
+  if (n < 126) head = Buffer.from([0x80 | opcode, 0x80 | n]);
+  else if (n < 65536) { head = Buffer.from([0x80 | opcode, 0x80 | 126, 0, 0]); head.writeUInt16BE(n, 2); }
+  else { head = Buffer.alloc(10); head[0] = 0x80 | opcode; head[1] = 0x80 | 127; head.writeBigUInt64BE(BigInt(n), 2); }
+  const body = Buffer.allocUnsafe(n);
+  for (let i = 0; i < n; i++) body[i] = payload[i] ^ mask[i & 3];
+  return Buffer.concat([head, mask, body]);
+}
+
+/** A byte stream over an upgraded socket: binary frames out, the payload of every data frame in. */
+function wsStream(socket, head) {
+  let buf = head && head.length ? Buffer.from(head) : Buffer.alloc(0), ended = false, closeSent = false;
+  const end = () => { if (!ended) { ended = true; d.push(null); } };
+  const sendClose = () => { if (!closeSent && socket.writable) { closeSent = true; socket.write(wsFrame(0x8, Buffer.from([0x03, 0xe8]))); } };
+  const d = new Duplex({
+    read() { socket.resume(); },
+    write(chunk, _enc, cb) { socket.write(wsFrame(0x2, chunk), cb); },
+    final(cb) { sendClose(); socket.end(); cb(); },
+    destroy(err, cb) { socket.destroy(); cb(err); },
+  });
+  const parse = () => {
+    while (buf.length >= 2) {
+      const b0 = buf[0], b1 = buf[1], op = b0 & 0x0f, masked = (b1 & 0x80) !== 0;
+      if (b0 & 0x70) { d.destroy(new Error("websocket: a reserved bit is set (no extension was negotiated)")); return; }
+      let len = b1 & 0x7f, off = 2;
+      if (len === 126) { if (buf.length < 4) return; len = buf.readUInt16BE(2); off = 4; }
+      else if (len === 127) {
+        if (buf.length < 10) return;
+        const big = buf.readBigUInt64BE(2);
+        if (big > BigInt(WS_MAX_FRAME)) { d.destroy(new Error("websocket: a frame over 16 MiB")); return; }
+        len = Number(big); off = 10;
+      }
+      const mk = masked ? 4 : 0;
+      if (buf.length < off + mk + len) return;
+      let payload = buf.subarray(off + mk, off + mk + len);
+      if (masked) { const k = buf.subarray(off, off + 4); payload = Buffer.from(payload.map((x, i) => x ^ k[i & 3])); }
+      buf = buf.subarray(off + mk + len);
+      if (op <= 0x2) { if (!ended && !d.push(Buffer.from(payload))) socket.pause(); }
+      else if (op === 0x8) { sendClose(); socket.end(); end(); return; }
+      else if (op === 0x9) socket.write(wsFrame(0xa, payload));
+      else if (op !== 0xa) { d.destroy(new Error(`websocket: unknown opcode ${op}`)); return; }
+    }
+  };
+  socket.on("data", (c) => { buf = buf.length ? Buffer.concat([buf, c]) : c; parse(); });
+  socket.on("end", end);
+  socket.on("close", end);
+  socket.on("error", (e) => d.destroy(e));
+  parse();
+  return d;
+}
+
+/**
+ * A minimal WebSocket CLIENT on Node built-ins (the soak takes no dependency): -> (signal) => Promise<Duplex>. A
+ * handshake the server refuses rejects with its HTTP status (err.wsStatus), as xsplice's `refused(<status>)`. The wss
+ * connection to the relay is verified by Node's CA store like any other; `ca` is for the tests' local servers.
+ */
+export function wsTunnel(wsUrl, { ca } = {}) {
+  return (signal) => new Promise((resolve, reject) => {
+    const u = new URL(wsUrl), key = crypto.randomBytes(16).toString("base64");
+    const mod = u.protocol === "wss:" ? https : u.protocol === "ws:" ? http : null;
+    if (!mod) { reject(new Error(`websocket: not a ws(s) URL: ${wsUrl}`)); return; }
+    const req = mod.request({ hostname: u.hostname, port: u.port || undefined, path: u.pathname + u.search, method: "GET",
+      agent: false, signal, ...(ca ? { ca } : {}),
+      headers: { connection: "Upgrade", upgrade: "websocket", "sec-websocket-version": "13", "sec-websocket-key": key, "user-agent": USER_AGENT } });
+    req.on("upgrade", (res, socket, head) => {
+      const want = crypto.createHash("sha1").update(key + WS_GUID).digest("base64");
+      if (res.headers["sec-websocket-accept"] !== want) { socket.destroy(); reject(new Error("websocket: a wrong Sec-WebSocket-Accept")); return; }
+      if (res.headers["sec-websocket-extensions"]) { socket.destroy(); reject(new Error("websocket: an extension nobody asked for")); return; }
+      // after this the TLS socket owns the stream: ending or destroying it (the request done, failed or timed out)
+      // closes the WebSocket. Before it, `signal` aborts the handshake request itself.
+      resolve(wsStream(socket, head));
+    });
+    req.on("response", (res) => {
+      res.resume();
+      reject(Object.assign(new Error(`websocket refused (HTTP ${res.statusCode})`), { wsStatus: res.statusCode }));
+    });
+    req.on("error", (e) => reject(new Error(`websocket: ${e.message}`)));
     req.end();
   });
 }
@@ -774,8 +888,10 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
            + `${since ? ` since ${since}` : ""}; interval ${iv / 1000} s; deployment ${head?.deployment || samples[0].deployment || "?"}`);
   out.push(`coverage: ${dur(best)} with no gap longer than ${2 * iv / 1000} s; ${gaps.length} longer gap(s)`
            + (gaps.length ? ` (largest ${Math.round(Math.max(...gaps.map((g) => g.ms)) / 1000)} s, first after ${gaps[0].at})` : ""));
-  out.push(`public: uptime ${(100 * ok.length / samples.length).toFixed(1)}% (${ok.length}/${samples.length} verified 200); `
-           + `latency p50 ${pct(lat, 50) ?? "-"} ms, p95 ${pct(lat, 95) ?? "-"} ms (n=${lat.length})`);
+  const vias = [...new Set(samples.map((s) => s.via || "host"))];
+  out.push(`public (via ${vias.join("+")}): uptime ${(100 * ok.length / samples.length).toFixed(1)}% (${ok.length}/${samples.length} verified 200); `
+           + `latency p50 ${pct(lat, 50) ?? "-"} ms, p95 ${pct(lat, 95) ?? "-"} ms (n=${lat.length})`
+           + (vias.includes("x") ? `; ws refusals ${samples.filter((s) => s.tls?.wsStatus != null).length}` : ""));
   out.push(`partition: Running in ${known.filter((s) => s.box.partition.running).length}/${known.length} samples with a known state; `
            + `instance changes ${samples.filter((s) => s.box?.partition?.instanceChanged).length}`);
   out.push(`node log: renewals ${sum((s) => nl(s)?.renewedMine)} for the deployment (${sum((s) => nl(s)?.renewed)} all), not-renewed ${sum((s) => nl(s)?.notRenewed)}, `
@@ -845,7 +961,7 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
     samples: samples.length, from: samples[0].t, to: samples[samples.length - 1].t, intervalSec: iv / 1000,
     deployment: head?.deployment || samples[0].deployment || null,
     coverage: { gapFreeMs: best, longerGaps: gaps.length, largestGapMs: gaps.length ? Math.max(...gaps.map((g) => g.ms)) : 0 },
-    public: { verified200: ok.length, uptimePct: Number((100 * ok.length / samples.length).toFixed(1)), p50Ms: pct(lat, 50), p95Ms: pct(lat, 95) },
+    public: { via: vias, verified200: ok.length, uptimePct: Number((100 * ok.length / samples.length).toFixed(1)), p50Ms: pct(lat, 50), p95Ms: pct(lat, 95) },
     partition: { running: known.filter((s) => s.box.partition.running).length, known: known.length },
     leak: { exercised: ex, floor: leakFloor, printed, echoed, guardNotCovered: HV_GUARD_NOT_COVERED },
     chain: chainJson, thresholds: thJson,
@@ -869,25 +985,27 @@ async function takeSample(cfg, st) {
                              managerFrom: st.offsets.manager, cap: cfg.logCapBytes, consoleSec: cfg.consoleSec, consoleMaxBytes: cfg.consoleMaxBytes });
   // At the box's READY, inside the console window: the token GET (its body must echo the token for the sample to count
   // as exercised) and, with --leak-probe, ONE HEAD tripwire, both over verified TLS.
+  // --via x: each request opens its own WebSocket through the relay's /x splice and runs the same TLS inside it
+  const via = cfg.via === "x" ? { tunnel: wsTunnel(xUrlFor(cfg.relay, cfg.node, cfg.deployment)) } : {};
   let probes = null;
   const startProbes = (trigger = "fallback") => (probes ||= { trigger,
     get: tlsCheck(url.href, { timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token }, expect: token,
-                              evidence: evidenceRegex(cfg.echoPattern, token) }),
-    head: cfg.leakProbe ? tlsCheck(url.href, { method: "HEAD", timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token } }) : null });
+                              evidence: evidenceRegex(cfg.echoPattern, token), ...via }),
+    head: cfg.leakProbe ? tlsCheck(url.href, { method: "HEAD", timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token }, ...via }) : null });
   const relayP = relayRead(cfg);
   const chainP = cfg.chain ? chainRead(cfg, st) : Promise.resolve({ skipped: true });
   const res = await runBox(cfg, script, startProbes);
   const p = startProbes();
-  const [tls, head] = await Promise.all([p.get, p.head]);
+  const [get, head] = await Promise.all([p.get, p.head]);
   const marker = cfg.leakProbe ? cfg.bodyMarker : null;
   const box = digestBox(res, st, { deployment: cfg.deployment, token, marker });
-  const s = { type: "sample", v: 1, seq, t, tEnd: new Date().toISOString(), deployment: cfg.deployment, token, bodyMarker: marker,
-              tls: { url: url.href, trigger: p.trigger, ...tls },
-              head: head ? { method: "HEAD", trigger: p.trigger, ...head, sentInWindow: headSentInWindow(p.trigger, head) }
+  const s = { type: "sample", v: 1, seq, t, tEnd: new Date().toISOString(), deployment: cfg.deployment, token, bodyMarker: marker, via: cfg.via,
+              tls: { url: url.href, via: cfg.via, trigger: p.trigger, ...get },
+              head: head ? { method: "HEAD", via: cfg.via, trigger: p.trigger, ...head, sentInWindow: headSentInWindow(p.trigger, head) }
                          : { method: "HEAD", skipped: "--leak-probe is off", sentInWindow: false },
               relay: await relayP, chain: await chainP, box };
   const mk = box.vms?.mine?.transportKeySha256;
-  s.derived = { spkiEqualsManagerKey: tls.cert?.spkiSha256 && mk ? tls.cert.spkiSha256 === mk : null };
+  s.derived = { spkiEqualsManagerKey: get.cert?.spkiSha256 && mk ? get.cert.spkiSha256 === mk : null };
   s.derived.leakExercised = exercised(s);           // informational; --summary recomputes it from the observations
   return s;
 }
@@ -897,7 +1015,7 @@ export function humanLine(s, v) {
   const pub = t.ok ? `200 ${t.latencyMs}ms${t.printedEvidence ? " printed" : t.bodyHasToken ? " token-no-print" : " no-token"}` : t.status != null && t.authorized ? `HTTP ${t.status}` : t.authorized === false ? `TLS ${t.authorizationError}` : `ERR ${trunc(t.error, 60)}`;
   const parts = [
     `${s.t.slice(0, 19)}Z #${s.seq}`,
-    `public ${pub}${t.cert?.spkiSha256 ? ` spki ${t.cert.spkiSha256.slice(0, 12)}` : ""}${s.derived?.spkiEqualsManagerKey === true ? "=vm" : s.derived?.spkiEqualsManagerKey === false ? "!=vm" : ""}`,
+    `public[${s.via || "host"}] ${pub}${t.wsStatus != null ? ` ws ${t.wsStatus}` : ""}${t.cert?.spkiSha256 ? ` spki ${t.cert.spkiSha256.slice(0, 12)}` : ""}${s.derived?.spkiEqualsManagerKey === true ? "=vm" : s.derived?.spkiEqualsManagerKey === false ? "!=vm" : ""}`,
     `relay ${r.ok ? "ok" : "NOT ok"}${r.present ? ` ${r.mode}/${r.attach} hx=${r.hostExcluded} ${r.claimScope} eligible=${r.eligible} serving=${r.serving}` : r.error ? ` ${trunc(r.error, 60)}` : " no row"}`,
     b.ssh?.ok ? `box ${b.ok ? "ok" : "PARTIAL"} ${Math.round((b.ssh.ms || 0) / 100) / 10}s vm ${b.partition?.status ?? "?"}${b.vms?.mine ? ` ${String(b.vms.mine.id).slice(0, 10)} ${b.vms.mine.memMiB}MiB` : ""} hv ${b.partition?.vmState ?? "?"} free ${b.mem?.ok ? (b.mem.freeMiB / 1024).toFixed(1) + "GiB" : "?"}`
               : `box FAIL ${trunc(b.ssh?.error, 80)}`,
@@ -941,6 +1059,7 @@ export function parseArgs(argv) {
       case "--ssh": cfg.ssh = v(); break;
       case "--root": cfg.root = v(); break;
       case "--console-sec": cfg.consoleSec = parseInt(v(), 10); break;
+      case "--via": cfg.via = v(); break;
       case "--leak-probe": cfg.leakProbe = true; break;
       case "--path": cfg.path = v(); break;
       case "--echo-pattern": cfg.echoPattern = v(); break;
@@ -960,6 +1079,7 @@ export function parseArgs(argv) {
     }
   }
   if (rpcs.length) cfg.rpcs = rpcs;
+  if (!["host", "x"].includes(cfg.via)) throw new Error("--via must be host or x");
   let evRe;
   try { evRe = evidenceRegex(cfg.echoPattern, DUMMY_TOKEN); } catch (e) { throw new Error(`--echo-pattern: ${e.message}`); }
   if (cfg.leakScope !== null && !LEAK_SCOPES.includes(cfg.leakScope)) throw new Error(`--leak-scope must be ${LEAK_SCOPES.join(" or ")}`);
@@ -993,6 +1113,8 @@ options: --deployment 0x.. --url https://.. --node nucbox-k11 --relay https://ap
          --root C:\\Users\\claude\\vbs-like\\hvnode --console-sec 25 --rpc URL (repeatable)
          --leak-floor F: the share of samples that must EXERCISE the leak check for it to PASS (default 0.9; "90%" works)
          --path T: the GET/HEAD target, carrying {token} (default /hv-soak/{token}; hookbin: /ping?hvsoak={token})
+         --via host|x: TLS to the public name (default), or inside a WebSocket through the relay's /x splice:
+             wss://<relay host>/t/<node>/x/<deployment>/https, servername the URL's host, verified the same way
          --echo-pattern P: the regex the GET's 200 body must match for the sample to EXERCISE the leak check; {token} is
              this sample's token (default: the sentinel's "${ECHO_PATTERN}")
          --leak-probe --body-marker S: ONE HEAD per sample inside the console window, a TRIPWIRE: S (the target app's
@@ -1017,6 +1139,7 @@ async function main() {
   if (out) fs.mkdirSync(path.dirname(out), { recursive: true });
   const write = (o) => { if (out) fs.appendFileSync(out, JSON.stringify(o) + "\n"); };
   const header = { type: "start", t: new Date().toISOString(), v: 1, interval: cfg.interval, duration: cfg.duration, leakFloor: cfg.leakFloor,
+                   via: cfg.via, ...(cfg.via === "x" ? { xUrl: xUrlFor(cfg.relay, cfg.node, cfg.deployment) } : {}),
                    leakProbe: cfg.leakProbe, bodyMarker: cfg.bodyMarker, path: cfg.path, echoPattern: cfg.echoPattern, leakScope: cfg.leakScope ?? "in",
                    ...(cfg.leakScope === "out" ? { leakEvidence: cfg.leakEvidence } : {}), deployment: cfg.deployment,
                    url: cfg.url, node: cfg.node, relay: cfg.relay, ssh: cfg.ssh, root: cfg.root, chain: cfg.chain, pid: process.pid, once: cfg.once };

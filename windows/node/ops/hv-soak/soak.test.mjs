@@ -14,6 +14,7 @@ import {
   decodeDeployment, boxScript, parseBoxStdout, consumeChunk, scanLog, consoleScan, pickDeploymentVm, digestBox, newEval, step,
   summarize, newSampler, humanLine, parseArgs, exercised, headSentInWindow, splitHistory, HV_GUARD_NOT_COVERED, OUT_OF_SCOPE_VERDICT,
   BODY_KEEP, ECHO_PATTERN, evidenceRegex, ROOT_MAX, CONSOLE_SEC_MAX, PS_RENAMES, reflectableForms, DUMMY_TOKEN, USER_AGENT,
+  wsTunnel, xUrlFor,
 } from "./soak.mjs";
 
 test("evidenceRegex: the sentinel's body form, for THIS token only, with stdout n > 0", () => {
@@ -157,6 +158,150 @@ test("tlsCheck: a refused connection is an error with no certificate", async () 
   assert.equal(r.ok, false);
   assert.equal(r.cert, null);
   assert.match(r.error, /ECONNREFUSED/);
+});
+
+/* --via x: TLS inside a WebSocket, as through the relay's /x splice. The SERVER side is the real `ws` package (a test
+   dependency only; soak.mjs speaks WebSocket with Node built-ins), fronting local TLS servers. */
+let WSLib = null;
+try { WSLib = await import("ws"); } catch { /* the via-x tests are skipped */ }
+const X_HOST = "31136008.app.enclave.host";
+
+async function xFixture(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hvsoak-x-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, "good")); fs.mkdirSync(path.join(dir, "evil"));
+  const good = makeCert(path.join(dir, "good"), X_HOST), evil = makeCert(path.join(dir, "evil"), "evil.example");
+  const seen = [];
+  const app = (req, res) => {
+    seen.push({ method: req.method, url: req.url, host: req.headers.host, token: req.headers["x-hv-soak"], sni: req.socket.servername });
+    res.end(`hvsoakbody289ec97d2c0e token=${req.headers["x-hv-soak"]} path=${req.url} printed stdout=57B stderr=57B\n`);
+  };
+  const tlsGood = https.createServer(good, app), tlsEvil = https.createServer(evil, app);
+  await Promise.all([tlsGood, tlsEvil].map((s) => new Promise((r) => s.listen(0, "127.0.0.1", r))));
+  const net = await import("node:net"), http = await import("node:http");
+  const wss = new WSLib.WebSocketServer({ noServer: true, perMessageDeflate: false });
+  const conns = [];
+  const front = http.createServer();
+  front.on("upgrade", (req, socket, head) => {
+    const p = req.url;
+    if (p.startsWith("/t/busy/")) { socket.end("HTTP/1.1 503 Service Unavailable\r\ncontent-length: 0\r\n\r\n"); return; }
+    const to = p === `/t/nucbox-k11/x/${DEP}/https` ? tlsGood : p === `/t/evilnode/x/${DEP}/https` ? tlsEvil : p === "/echo" || p === "/hole" ? p : null;
+    if (!to) { socket.end("HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\n\r\n"); return; }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      const c = { closed: false, pongs: 0 }; conns.push(c);
+      ws.on("close", () => { c.closed = true; });
+      ws.on("pong", () => { c.pongs++; });
+      if (to === "/hole") return;                                            // accepts, then says nothing
+      if (to === "/echo") { ws.ping("hi"); ws.on("message", (m) => ws.send(m, { binary: true })); return; }
+      const tcp = net.connect(to.address().port, "127.0.0.1");
+      const stream = WSLib.createWebSocketStream(ws);
+      stream.pipe(tcp).pipe(stream);
+      stream.on("error", () => tcp.destroy()); tcp.on("error", () => stream.destroy());
+    });
+  });
+  await new Promise((r) => front.listen(0, "127.0.0.1", r));
+  t.after(() => { front.close(); tlsGood.close(); tlsEvil.close(); wss.close(); });
+  const base = `ws://127.0.0.1:${front.address().port}`;
+  return { good, evil, seen, conns, base, xGood: xUrlFor(base.replace(/^ws/, "http"), "nucbox-k11", DEP) };
+}
+
+test("--via x: a verified 200 through the WebSocket - same TLS facts, SNI and Host the app's name, printed evidence", { skip: (!openssl && "no openssl") || (!WSLib && "no ws"), timeout: 20000 }, async (t) => {
+  const f = await xFixture(t);
+  assert.equal(f.xGood, `${f.base}/t/nucbox-k11/x/${DEP}/https`);
+  const r = await tlsCheck(`https://${X_HOST}/hv-soak/tokX`, { timeoutMs: 5000, ca: f.good.cert, tunnel: wsTunnel(f.xGood),
+    headers: { "x-hv-soak": "tokX" }, expect: "tokX", evidence: evidenceRegex(ECHO_PATTERN, "tokX") });
+  assert.deepEqual([r.ok, r.authorized, r.status, r.bodyHasToken, r.printedEvidence], [true, true, 200, true, true]);
+  assert.equal(r.cert.spkiSha256, sha(crypto.createPublicKey(f.good.key).export({ type: "spki", format: "der" })));
+  assert.match(r.cert.issuer, new RegExp(`CN=${X_HOST.replace(/\./g, "\\.")}`));
+  assert.deepEqual(f.seen.at(-1), { method: "GET", url: "/hv-soak/tokX", host: X_HOST, token: "tokX", sni: X_HOST });
+  const h = await tlsCheck(`https://${X_HOST}/hv-soak/tokH`, { method: "HEAD", timeoutMs: 5000, ca: f.good.cert, tunnel: wsTunnel(f.xGood), headers: { "x-hv-soak": "tokH" } });
+  assert.deepEqual([h.ok, h.status, h.bytes, f.seen.at(-1).method], [true, 200, 0, "HEAD"]);
+});
+
+test("--via x: an unverified leaf gives no status; a trusted leaf for the wrong name is refused too", { skip: (!openssl && "no openssl") || (!WSLib && "no ws"), timeout: 20000 }, async (t) => {
+  const f = await xFixture(t);
+  const n = f.seen.length;
+  const r = await tlsCheck(`https://${X_HOST}/hv-soak/tokU`, { timeoutMs: 5000, tunnel: wsTunnel(f.xGood), headers: { "x-hv-soak": "tokU" }, expect: "tokU",
+    evidence: evidenceRegex(ECHO_PATTERN, "tokU") });
+  assert.deepEqual([r.ok, r.authorized, r.authorizationError, r.status, r.printedEvidence], [false, false, "DEPTH_ZERO_SELF_SIGNED_CERT", null, false]);
+  assert.equal(r.cert.spkiSha256, sha(crypto.createPublicKey(f.good.key).export({ type: "spki", format: "der" })), "the leaf is still recorded");
+  assert.equal(f.seen.length, n, "nothing reached the app over an unverified connection's response path that was counted");
+  const evilX = xUrlFor(f.base.replace(/^ws/, "http"), "evilnode", DEP);
+  const w = await tlsCheck(`https://${X_HOST}/`, { timeoutMs: 5000, ca: f.evil.cert, tunnel: wsTunnel(evilX) });
+  assert.deepEqual([w.ok, w.authorized, w.status], [false, false, null]);
+  assert.match(w.authorizationError, /ALTNAME/, "the hostname is verified against the app's name inside the splice");
+});
+
+test("--via x: a WebSocket the relay refuses (503, 404) is a public failure with its status; a silent splice times out and is closed", { skip: (!openssl && "no openssl") || (!WSLib && "no ws"), timeout: 20000 }, async (t) => {
+  const f = await xFixture(t);
+  const busy = await tlsCheck(`https://${X_HOST}/`, { timeoutMs: 5000, ca: f.good.cert, tunnel: wsTunnel(xUrlFor(f.base.replace(/^ws/, "http"), "busy", DEP)) });
+  assert.deepEqual([busy.ok, busy.status, busy.wsStatus, busy.cert], [false, null, 503, null]);
+  assert.match(busy.error, /websocket refused \(HTTP 503\)/);
+  const nf = await tlsCheck(`https://${X_HOST}/`, { timeoutMs: 5000, tunnel: wsTunnel(`${f.base}/nowhere`) });
+  assert.deepEqual([nf.ok, nf.wsStatus], [false, 404]);
+  const hole = await tlsCheck(`https://${X_HOST}/`, { timeoutMs: 1200, tunnel: wsTunnel(`${f.base}/hole`) });
+  assert.equal(hole.ok, false);
+  assert.match(hole.error, /timeout after 1200 ms/);
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(f.conns.at(-1).closed, true, "the abandoned splice is closed, not leaked");
+  const refused = await tlsCheck(`https://${X_HOST}/`, { timeoutMs: 3000, tunnel: wsTunnel("ws://127.0.0.1:1/x") });
+  assert.match(refused.error, /websocket: .*ECONNREFUSED/);
+});
+
+test("wsTunnel: frames of every length form round-trip through a real ws server; pings are answered", { skip: !WSLib && "no ws", timeout: 20000 }, async (t) => {
+  const f = await xFixture(t);
+  const d = await wsTunnel(`${f.base}/echo`)(new AbortController().signal);
+  const parts = [crypto.randomBytes(10), crypto.randomBytes(300), crypto.randomBytes(70000)];
+  const want = Buffer.concat(parts);
+  let got = Buffer.alloc(0);
+  const done = new Promise((r, j) => {
+    const timer = setTimeout(() => j(new Error(`only ${got.length} of ${want.length} bytes came back`)), 5000);
+    d.on("data", (c) => { got = Buffer.concat([got, c]); if (got.length >= want.length) { clearTimeout(timer); r(); } });
+    d.on("error", (e) => { clearTimeout(timer); j(e); });
+  });
+  for (const p of parts) d.write(p);
+  await done;
+  assert.equal(Buffer.compare(got, want), 0);
+  assert.ok(f.conns.at(-1).pongs >= 1, "the server's ping got a pong");
+  d.destroy();
+});
+
+test("--via x: a relay slow to upgrade is left at the request's timeout, not when its 101 finally comes", { timeout: 20000 }, async (t) => {
+  const http = await import("node:http");
+  const ev = [];
+  const srv = http.createServer();
+  srv.on("upgrade", (req, socket) => {
+    const t0 = Date.now();
+    let left = false;
+    const gone = () => { if (!left) { left = true; ev.push(["client left", Date.now() - t0]); } };
+    socket.on("end", gone); socket.on("close", gone);
+    socket.resume();                                   // an upgrade socket is handed over paused: read, to see the client go
+    setTimeout(() => { if (!socket.destroyed) { ev.push(["101 sent", Date.now() - t0]); socket.end("HTTP/1.1 101 Switching Protocols\r\n\r\n"); } }, 2500);
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  t.after(() => srv.close());
+  const r = await tlsCheck(`https://${X_HOST}/`, { timeoutMs: 800, tunnel: wsTunnel(`ws://127.0.0.1:${srv.address().port}/x`) });
+  assert.match(r.error, /timeout after 800 ms/);
+  await new Promise((res) => setTimeout(res, 400));
+  assert.equal(ev[0]?.[0], "client left", `the handshake was aborted with the request: ${JSON.stringify(ev)}`);
+  assert.ok(ev[0][1] < 2000, `left at ${ev[0][1]} ms`);
+});
+
+test("wsTunnel: a 101 with the wrong Sec-WebSocket-Accept, or an extension nobody asked for, is refused", { timeout: 20000 }, async (t) => {
+  const http = await import("node:http");
+  let mode = "accept";
+  const srv = http.createServer();
+  srv.on("upgrade", (req, socket) => {
+    const ok = crypto.createHash("sha1").update(req.headers["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64");
+    socket.end("HTTP/1.1 101 Switching Protocols\r\nupgrade: websocket\r\nconnection: Upgrade\r\n"
+      + (mode === "accept" ? "sec-websocket-accept: AAAAAAAAAAAAAAAAAAAAAAAAAAA=\r\n" : `sec-websocket-accept: ${ok}\r\nsec-websocket-extensions: permessage-deflate\r\n`) + "\r\n");
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  t.after(() => srv.close());
+  const url = `ws://127.0.0.1:${srv.address().port}/x`;
+  await assert.rejects(wsTunnel(url)(new AbortController().signal), /wrong Sec-WebSocket-Accept/);
+  mode = "ext";
+  await assert.rejects(wsTunnel(url)(new AbortController().signal), /an extension nobody asked for/);
 });
 
 test("certFacts: the SPKI hash is over the DER SubjectPublicKeyInfo, not the certificate", { skip: !openssl && "no openssl" }, (t) => {
@@ -851,6 +996,16 @@ test("summarize: uptime, latency percentiles, coverage with a gap, PASS/FAIL per
   assert.equal(summarize([]).pass, false);
 });
 
+test("summarize: the route is printed (via host / x), with the relay's WebSocket refusals for x", () => {
+  clock = Date.parse("2026-10-03T00:00:00Z");
+  const xs = [S(), S({ ok: false }), S()].map((s) => ({ ...s, via: "x" }));
+  xs[1].tls.wsStatus = 503;
+  const r = summarize(soakFile(xs), { leakFloor: 0.5 });
+  assert.match(r.text, /^public \(via x\): uptime 66\.7% \(2\/3 verified 200\); .*; ws refusals 1$/m);
+  assert.deepEqual(r.json.public.via, ["x"]);
+  assert.match(summarize(soakFile([S(), S()])).text, /^public \(via host\): /m, "a record without `via` is host");
+});
+
 test("summarize re-evaluates from the observations, not from the stored verdicts", () => {
   clock = Date.parse("2026-09-26T05:00:00Z");
   const a = S({ baseline: true }), b = S({ spki: SPKI_B });
@@ -900,6 +1055,11 @@ test("parseArgs: defaults, the derived URL, and the guards", () => {
   assert.throws(() => parseArgs(["--leak-scope", "maybe"]), /in or out/);
   const so = parseArgs(["--leak-scope", "out", "--leak-evidence", "hv frames every response"]);
   assert.deepEqual([so.leakScope, so.leakEvidence], ["out", "hv frames every response"]);
+  assert.equal(c.via, "host");
+  assert.equal(parseArgs(["--via", "x"]).via, "x");
+  assert.throws(() => parseArgs(["--via", "sni"]), /--via must be host or x/);
+  assert.equal(xUrlFor("https://api.enclave.host", "nucbox-k11", DEP.toUpperCase().replace("0X", "0x")),
+               `wss://api.enclave.host/t/nucbox-k11/x/${DEP}/https`, "xsplice's route, the id lowercased");
   assert.throws(() => parseArgs(["--json"]), /for --summary/);
   assert.equal(parseArgs(["--summary", "f.jsonl", "--json"]).json, true);
   assert.throws(() => parseArgs(["--bogus"]), /unknown/);
@@ -913,7 +1073,8 @@ test("humanLine: one line per sample with the verdict under it", () => {
               box: digestBox(boxRes(), st, { deployment: DEP, token: "hvsoakX" }), derived: { spkiEqualsManagerKey: false } };
   const v = step(newEval(), s);
   const h = humanLine(s, v);
-  assert.match(h, /^2026-09-26T03:00:00Z #0 \| public TLS DEPTH_ZERO_SELF_SIGNED_CERT spki aaaaaaaaaaaa!=vm \| relay ok hv-node\/attestation/);
+  assert.match(h, /^2026-09-26T03:00:00Z #0 \| public\[host\] TLS DEPTH_ZERO_SELF_SIGNED_CERT spki aaaaaaaaaaaa!=vm \| relay ok hv-node\/attestation/);
+  assert.match(humanLine({ ...s, via: "x", tls: { ...s.tls, wsStatus: 503 } }, v), /\| public\[x\] TLS DEPTH_ZERO_SELF_SIGNED_CERT ws 503 /);
   assert.match(h, /vm running hv1210563e 128MiB hv Running free 100\.0GiB/);
   assert.match(h, /node \+0\(baseline; history 12 lines\)/, "everything before READY is history, nothing after it");
   assert.match(h, /info spki: SPKI baseline aaaaaaaaaaaaaaaa… \(from an UNVERIFIED leaf\)/);
