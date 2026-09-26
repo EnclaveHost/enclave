@@ -1,6 +1,8 @@
-api relay: invocation babdb7faa393 since Sat 2026-09-26 04:44:44 UTC, NRestarts 0; KAT: [measurement-predict] known-answer test at start: PASS: 2 known answer(s) reproduced exactly
+api relay: invocation 9797c8f3a342 since Sat 2026-09-26 04:56:39 UTC, NRestarts 0; KAT: [measurement-predict] known-answer test at start: PASS: 2 known answer(s) reproduced exactly
+settle: us-west + metal-iso0 re-attached in this invocation after 1 s of waiting
 canary 0ddbd824: 200/0 spki d6391ba70880111b (guest-boot-key)
 canary 395bed3e: 200/0 spki bcabba015be30c0a (guest-boot-key)
 canary 4e62e60d: 200/0 spki 71a4892cd7108ce2 (guest-boot-key)
 us-west: [('us-west', '5.78.85.108', None)] | relays 1 labels 64
-/home/steven/Projects/enclave-release/docs/security/relay-window-20260926b/../hvnode-owner-only-rollout/health.sh: line 50: ADMIT: unbound variable
+release (cert set separate): each canary's expected guest = ONLY f7888d86 at its pin; release ON; 404/422
+HEALTHY 04:58:42Z
