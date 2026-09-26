@@ -364,12 +364,12 @@ contract EnclaveDeployments {
     // >= 13 only to know that offering the wider dial will not revert here.
     // Rev 14 changes two money rules and no surface (docs/ledger-rev14-escrow-split.md):
     //   - a funding on a record with NO LIVE LEASE (never claimed, released, or
-    //     lapsed) splits at the record's CAP and the runner share of the cap,
-    //     not at the last lease's rate. Before, a funding made after a free or
+    //     lapsed) splits at the record's CAP and escrows the UNFLOORED runner
+    //     fraction of it, not the last lease's rate. Before, a funding made after a free or
     //     near-free lease (runner share 0) escrowed nothing, the next PAID
     //     runner served those seconds unbacked, and none of it was refundable;
     //   - a lapsed lease may be proven for at most LATE_PROOF_SEC after it
-    //     ended. Past that, what it never proved stops being reserved, so a
+    //     ended (or until the next claim). Past that, what it never proved stops being reserved, so a
     //     refund reaches it (refund()'s own promise, which rev 10-13 could not
     //     keep: a lapse alone never freed the reserve).
     // Clients gate on >= 14 only to know a refund quote can grow after a lapse.
@@ -670,17 +670,10 @@ contract EnclaveDeployments {
     ///      is a new purchase decision, so it re-reads the CURRENT runnerBps,
     ///      exactly as it re-reads the current list prices).
     function _snapRunnerRate(Deployment storage d) private {
-        uint96 r6 = _runnerShare(d.id, d.rate);
-        _earn[d.id].rate6 = r6;
-        emit RunnerRateSet(d.id, r6);
-    }
-
-    /// @dev The runner's per-second cut of `rate` for record `id`: runnerBps of the platform component (rate minus the
-    ///      publisher fee). What a lease at that rate snapshots, and (rev 14) what an unleased funding escrows at the cap.
-    function _runnerShare(bytes32 id, uint256 rate) private view returns (uint96) {
-        uint256 r6 = ((rate - _fees[id].rate6) * runnerBps) / 10000;
+        uint256 r6 = ((d.rate - _fees[d.id].rate6) * runnerBps) / 10000;
         require(r6 <= type(uint96).max, "range");
-        return uint96(r6);
+        _earn[d.id].rate6 = uint96(r6);
+        emit RunnerRateSet(d.id, r6);
     }
 
     /// @dev Record the publisher-fee snapshot (own stack frame, same reason as
@@ -981,8 +974,9 @@ contract EnclaveDeployments {
     ///
     ///      Rev 14: with NO LIVE LEASE (never claimed, released, or lapsed) the
     ///      seconds this funding buys will be sold by whoever claims next, at a
-    ///      price nobody knows yet, so it splits at the worst case the owner
-    ///      allowed: the CAP, and the runner share of the cap. It used to split
+    ///      price nobody knows yet, so it splits at the CAP (_openCap; the ETH
+    ///      path's publisher cut too) and escrows the unfloored runner fraction
+    ///      of it (below). It used to split
     ///      at the LAST lease's snapshot, which after a free lease (rev 12) or
     ///      one so cheap its runner share rounds to 0 escrowed nothing, so the
     ///      next paid runner served unbacked and none of it was refundable. A
@@ -991,16 +985,21 @@ contract EnclaveDeployments {
     ///      pro-rata to the seconds it sells. An uncapped record (cap 0, or a cap
     ///      not above the fee: imported ones) keeps the old rule.
     function _splitFunding(bytes32 id, address payer, uint256 rate, uint256 value) private {
-        uint96 r6 = _earn[id].rate6;
-        uint256 cap = _maxRate6[id];
-        if (_deployments[id].leaseUntil <= block.timestamp && cap > _fees[id].rate6) {
+        // esc = ceil(value x num / (rate x 10000)): a live lease's floored per-second share (num = runnerRate6 x 10000,
+        // exactly rev 13's ceil(value x rate6 / rate)), or with no live lease the cap's UNFLOORED one, (cap - fee) x
+        // runnerBps / cap. Unfloored because a lease's share is floored per second, so the floored share of the cap can
+        // sit BELOW a cheaper runner's (cap 17: 13/17 = 0.765 < rate 9's 7/9 = 0.778; enclave-bf R1); unfloored,
+        // (x - fee) / x only grows with x, so no runner at or under the cap is owed more of a second than this escrows.
+        uint256 num = uint256(_earn[id].rate6) * 10000;
+        uint256 cap = _openCap(id);
+        if (cap != 0) {
             rate = cap;
-            r6 = _runnerShare(id, cap);
+            num = (cap - _fees[id].rate6) * runnerBps;
         }
         (address feeTo, uint256 cut) = _feeShare(id, rate, value);
         uint256 esc = 0;
-        if (r6 > 0) {
-            esc = (value * r6 + (rate - 1)) / rate;            // ceil — escrow must cover its seconds
+        if (num > 0) {
+            esc = (value * num + (rate * 10000 - 1)) / (rate * 10000);   // ceil — escrow must cover its seconds
             if (esc > value - cut) esc = value - cut;
             // cast safe: esc <= value = real USDC received (total supply << uint96.max 6dp)
             _earn[id].escrow6 += uint96(esc);
@@ -1009,6 +1008,14 @@ contract EnclaveDeployments {
         }
         if (cut > 0) require(usdc.transfer(feeTo, cut), "USDC transfer failed");
         if (value - cut - esc > 0) require(usdc.transfer(payout, value - cut - esc), "USDC transfer failed");
+    }
+
+    /// @dev Rev 14: the cap a funding splits at when the record has NO LIVE LEASE (leaseUntil <= now: never claimed,
+    ///      released, lapsed, or at its last second), or 0 when it has one or no usable cap (0, or not above the fee).
+    ///      Shared by the USDC split and the ETH path's publisher cut.
+    function _openCap(bytes32 id) private view returns (uint256) {
+        uint256 cap = _maxRate6[id];
+        return _deployments[id].leaseUntil <= block.timestamp && cap > _fees[id].rate6 ? cap : 0;
     }
 
     /// @notice Fund/top-up with native ETH, credited as USDC-equivalent at the live
@@ -1034,7 +1041,8 @@ contract EnclaveDeployments {
         // the publisher's cut splits the WEI (their wallet gets ETH, not USDC).
         // A fee recipient that reverts on plain sends blocks only ETH funding
         // of their own app's deployments — USDC paths never call out to them.
-        (address feeTo, uint256 cutWei) = _feeShare(id, d.rate, msg.value);
+        uint256 c = _openCap(id);
+        (address feeTo, uint256 cutWei) = _feeShare(id, c != 0 ? c : d.rate, msg.value);
         if (cutWei > 0) {
             (bool okFee, ) = feeTo.call{value: cutWei}("");
             require(okFee, "ETH transfer failed");
@@ -1354,7 +1362,8 @@ contract EnclaveDeployments {
         // once the late-proof horizon has passed, a lapsed lease under proof
         // rules can be paid no further than it PROVED, so only that is held.
         uint64 end = d.leaseUntil;
-        if (proofRequired() && block.timestamp > uint256(end) + LATE_PROOF_SEC && provenUntil[id] < end)
+        // (provenUntil <= leaseUntil at every writer: claim, renew, release, a resize, creditProven's ceiling, import)
+        if (proofRequired() && block.timestamp > uint256(end) + LATE_PROOF_SEC)
             end = provenUntil[id];
         uint256 reserve = end > e.creditedUntil
             ? uint256(end - e.creditedUntil) * e.rate6

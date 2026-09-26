@@ -515,11 +515,14 @@ change, and no surface does (the ABI is unchanged; `deploymentsSchema` 14):
   lapse leave in place. After a free lease (rev 12), or one so cheap its runner
   share rounds to 0 (`floor((1 - fee) × 0.8) = 0` at rate 1), a funding
   escrowed nothing: the next paid runner served unbacked, and none of it was
-  refundable. Rev 14 splits a record with `leaseUntil <= now` at its cap and
-  the runner share of the cap, the worst case the owner allowed, which is what
-  `setMaxRate`'s unleased re-base already intended. A LIVE lease, free ones
-  included, still splits at the rate that lease burns the balance at.
-- **A lapsed lease is provable for `LATE_PROOF_SEC` (900 s) after it ends.**
+  refundable. Rev 14 splits a record with `leaseUntil <= now` at its cap (the
+  publisher's cut, for USDC and ETH alike) and escrows the UNFLOORED runner
+  fraction of the cap, `(cap - fee) × runnerBps / cap`: the floored per-second
+  share of the cap can sit below a cheaper runner's (13/17 < 7/9). A LIVE
+  lease, free ones included, still splits at the rate that lease burns the
+  balance at.
+- **A lapsed lease is provable for up to `LATE_PROOF_SEC` (900 s) after it
+  ends, or until the next claim.**
   `creditProven` refuses later proofs ("nothing to prove"), and `refundableOf`
   stops reserving a lapsed lease's unproven tail once that window has passed
   under proof rules. Before, the tail stayed reserved until a release or a
@@ -821,7 +824,7 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
   the lease is closed out, since escrow a runner never proved against is escrow
   no lease can still claim.
 - **`EnclaveDeployments` is at its size ceiling.** Rev 14 (proposed) builds to
-  24,487 bytes at runs=100, 89 under EIP-170, after merging three validation
+  24,534 bytes at runs=100, 42 under EIP-170, after merging three validation
   strings ("incomplete round" into "stale price", "unfunded at the new rate"
   into "unfunded", "gpuShare > max" into "range"); rev 13 was 24,325. It was
   146 bytes under EIP-170's

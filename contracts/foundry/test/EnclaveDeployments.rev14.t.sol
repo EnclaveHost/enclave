@@ -6,9 +6,15 @@ import {EnclaveDeployments} from "../../EnclaveDeployments.sol";
 import {EnclaveRegistry} from "../../EnclaveRegistry.sol";
 import {MockUSDC} from "./mocks/MockUSDC.sol";
 
+contract Rev14Feed {
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
+        return (1, 3000e8, block.timestamp, block.timestamp, 1);   // $3000/ETH
+    }
+}
+
 /// Rev 14 (docs/ledger-rev14-escrow-split.md): the two money rules it changes.
-///   1. A funding on a record with NO LIVE LEASE splits at the CAP and the
-///      runner share of the cap, not at the last lease's snapshot. Before, a
+///   1. A funding on a record with NO LIVE LEASE splits at the CAP and escrows
+///      the UNFLOORED runner fraction of it, not the last lease's snapshot. Before, a
 ///      funding made after a free lease, or after one so cheap its runner
 ///      share rounded to 0, escrowed nothing: the next paid runner served
 ///      unbacked and none of it was refundable (0xca141665 on the live ledger,
@@ -29,10 +35,12 @@ contract EnclaveDeploymentsRev14Test is Test {
     address internal tenant = makeAddr("tenant");
     address internal otherOp = makeAddr("otherOperator");  // a paid box at the list price
     address internal cheapOp = makeAddr("cheapOperator");  // a box priced so low its runner share rounds to 0
+    address internal midOp = makeAddr("midOperator");      // a box whose rate for 2% of a node is 9 (the cap is 17)
 
     bytes32 internal sellerBox;
     bytes32 internal otherBox;
     bytes32 internal cheapBox;
+    bytes32 internal midBox;
 
     uint64 internal constant CPU_PRICE = 834;    // whole node, µUSDC/s
     uint64 internal constant GPU_PRICE = 1667;
@@ -55,6 +63,9 @@ contract EnclaveDeploymentsRev14Test is Test {
         vm.prank(cheapOp);
         cheapBox = reg.register("https://cheap.example", "EnclaveHost/enclave", bytes32(0), 1, 1,
                                 address(uint160(uint256(keccak256("cheap.proof")))));
+        vm.prank(midOp);
+        midBox = reg.register("https://mid.example", "EnclaveHost/enclave", bytes32(0), 401, 401,
+                              address(uint160(uint256(keccak256("mid.proof")))));
         vm.prank(seller);
         reg.setPayoutWallet(sellerBox);          // the seller's own box hosts the seller's deployments free
 
@@ -96,10 +107,9 @@ contract EnclaveDeploymentsRev14Test is Test {
         (r,,) = dep.earnOf(id);
     }
 
-    /// what rev 14 escrows for `value` at cap `cap` with fee `fee`: the runner share of the cap, ceil (the contract's rule)
+    /// what rev 14 escrows for `value` at cap `cap` with fee `fee`: the UNFLOORED runner fraction of the cap, ceil
     function _escAtCap(uint256 value, uint256 cap, uint256 fee) internal view returns (uint256) {
-        uint256 r6 = ((cap - fee) * dep.runnerBps()) / 10000;
-        return (value * r6 + (cap - 1)) / cap;
+        return (value * (cap - fee) * dep.runnerBps() + cap * 10000 - 1) / (cap * 10000);
     }
 
     function _assertSolvent() internal view {
@@ -127,7 +137,7 @@ contract EnclaveDeploymentsRev14Test is Test {
         uint256 payoutBefore = usdc.balanceOf(payout);
         _fund(seller, id, 100e6);
         uint256 esc = _escAtCap(100e6, cap, 0);
-        assertGt(esc, 0);
+        assertEq(esc, 80e6, "80% of a fee-free funding, unfloored");
         assertEq(_escrow(id), esc, "escrowed at the cap's runner share, not the free lease's 0");
         assertEq(dep.ownerEscrow6(id), esc, "the owner's own money: refundable");
         assertEq(usdc.balanceOf(payout) - payoutBefore, 100e6 - esc, "the platform remainder, and no more");
@@ -160,7 +170,7 @@ contract EnclaveDeploymentsRev14Test is Test {
         _fund(tenant, id, 1e6);                                   // never claimed: d.rate is the cap either way
         uint256 first = _escrow(id);
         assertEq(first, _escAtCap(1e6, 9, 0));
-        assertEq(first, 777778, "Steven's d9798e4c/a77d0c57 escrowed exactly this in August");
+        assertEq(first, 800000, "rev 13 escrowed 777778 here (the floored 7/9, as Steven's d9798e4c/a77d0c57 did in August)");
 
         _claim(cheapOp, id, cheapBox);
         assertEq(dep.get(id).rate, 1);
@@ -169,8 +179,8 @@ contract EnclaveDeploymentsRev14Test is Test {
         vm.warp(leaseUntil + 2000);                               // lapsed, not released: nucbox-k11's leases on 09-25
 
         _fund(tenant, id, 250000);
-        assertEq(_escrow(id) - first, _escAtCap(250000, 9, 0), "the top-up escrows at the cap: 194445, not 0");
-        assertEq(_escAtCap(250000, 9, 0), 194445);
+        assertEq(_escrow(id) - first, _escAtCap(250000, 9, 0), "the top-up escrows at the cap: 200000, not 0");
+        assertEq(_escAtCap(250000, 9, 0), 200000);
 
         _claim(otherOp, id, otherBox);                            // settles cheapOp's tail at ITS rate6 (0) first
         assertEq(dep.earned6(cheapOp), 0);
@@ -181,14 +191,70 @@ contract EnclaveDeploymentsRev14Test is Test {
         _assertSolvent();
     }
 
-    /// A never-claimed record: d.rate IS the cap, so rev 14 changes nothing for it.
-    function test_fundNeverClaimed_isUnchanged() public {
+    /// A never-claimed record: d.rate IS the cap, and it too escrows the UNFLOORED share now (a few µUSDC more than
+    /// rev 13's floored runnerRate6), since any runner at or under the cap may claim it. The publisher's cut is as before.
+    function test_fundNeverClaimed_escrowsTheUnflooredCapShare() public {
         bytes32 id = _create(tenant, 1000, publisher, 100);
         uint256 cap = _hostRate(1000, CPU_PRICE) + 100;
         assertEq(dep.get(id).rate, cap);
         _fund(tenant, id, 50e6);
-        assertEq(_escrow(id), (50e6 * _rate6(id) + cap - 1) / cap);
+        assertEq(_escrow(id), _escAtCap(50e6, cap, 100));
+        assertGe(_escrow(id), (50e6 * _rate6(id) + cap - 1) / cap, "never less than rev 13's floored escrow");
         assertEq(usdc.balanceOf(publisher), (50e6 * 100) / cap);
+    }
+
+    /// enclave-bf's R1: the FLOORED share of the cap can sit below a cheaper runner's. Cap 17 (7ae476a3's) is
+    /// floor(13.6) = 13 per second, 13/17 = 0.765; a runner at rate 9 is 7/9 = 0.778 of each second. The unfloored cap
+    /// fraction (0.8) covers every second that runner can sell.
+    function test_unflooredCapShare_coversACheaperRunner() public {
+        bytes32 id = _create(tenant, 20, address(0), 0);
+        assertEq(dep.capOf(id), 17);
+        _fund(tenant, id, 500000);
+        uint256 esc = _escrow(id);
+        assertEq(esc, 400000);
+        uint256 flooredAtCap = (500000 * uint256(13) + 16) / 17;             // what a floored cap share would escrow
+        _claim(midOp, id, midBox);
+        assertEq(dep.get(id).rate, 9);
+        assertEq(_rate6(id), 7);
+        uint256 owed = (uint256(500000) / 9) * 7;                                     // every second the balance buys at rate 9
+        assertGe(esc, owed, "the unfloored cap share covers the cheaper runner");
+        assertLt(flooredAtCap, owed, "the floored cap share would not (enclave-bf R1)");
+    }
+
+    /// enclave-bf's S3: the boundary second. At block.timestamp == leaseUntil a runner may still renew, but the record
+    /// counts as having no live lease (as setMaxRate and the resize path already treat it), so a funding then splits at
+    /// the cap; one second earlier it splits at the live lease's rate.
+    function test_boundary_atLeaseUntilTheRecordIsUnleased() public {
+        bytes32 id = _create(tenant, 10, address(0), 0);
+        _fund(tenant, id, 1e6);
+        _claim(cheapOp, id, cheapBox);                                       // rate 1, runner share 0
+        uint256 leaseUntil = dep.get(id).leaseUntil;
+        vm.warp(leaseUntil - 1);
+        uint256 e0 = _escrow(id);
+        _fund(tenant, id, 250000);
+        assertEq(_escrow(id), e0, "one second before the end: the live lease's split (share 0)");
+        vm.warp(leaseUntil);
+        _fund(tenant, id, 250000);
+        assertEq(_escrow(id) - e0, _escAtCap(250000, 9, 0), "at leaseUntil: the cap's");
+    }
+
+    /// enclave-bf's S5: fundEth's publisher cut follows the same rule. After a fee-only free lease is released, d.rate
+    /// is the fee alone; rev 13 then sent 100% of an ETH funding to the publisher. Rev 14 cuts it at the cap.
+    function test_fundEthOnAnUnleasedRecord_cutsThePublisherAtTheCap() public {
+        dep.setEthUsdFeed(address(new Rev14Feed()));
+        bytes32 id = _create(seller, 1000, publisher, 100);
+        uint256 cap = _hostRate(1000, CPU_PRICE) + 100;
+        _fund(seller, id, 1e6);
+        _claim(sellerOp, id, sellerBox);
+        assertEq(dep.get(id).rate, 100, "free: the fee alone");
+        vm.warp(T0 + 600);
+        vm.prank(sellerOp);
+        dep.release(id);
+        vm.deal(tenant, 1 ether);
+        uint256 before = publisher.balance;
+        vm.prank(tenant);
+        dep.fundEth{value: 1 ether}(id);
+        assertEq(publisher.balance - before, (1 ether * 100) / cap, "fee / cap of the ETH, not 100%");
     }
 
     // ---- 1b. a LIVE lease keeps today's split -----------------------------------------------------------------------
@@ -217,6 +283,28 @@ contract EnclaveDeploymentsRev14Test is Test {
         uint256 escBefore = _escrow(id);
         _fund(tenant, id, 250000);                                // the lease is LIVE
         assertEq(_escrow(id), escBefore, "split at the live rate 1: runner share 0, as in rev 13");
+    }
+
+    /// enclave-bf's R2, stated as a test: escrow a cap split makes that a cheaper runner never earns stays refundable
+    /// AFTER the balance is spent. Cap 9, 250000 funded with no live lease (200000 escrowed, 50000 to the platform),
+    /// then served to the end by a rate-1 box whose runner share is 0: the owner can still refund the 200000.
+    function test_residual_overEscrowIsRefundableAfterFullConsumption() public {
+        bytes32 id = _create(tenant, 10, address(0), 0);
+        uint256 payout0 = usdc.balanceOf(payout);
+        _fund(tenant, id, 250000);
+        assertEq(_escrow(id), 200000);
+        assertEq(usdc.balanceOf(payout) - payout0, 50000);
+        _claim(cheapOp, id, cheapBox);
+        vm.startPrank(cheapOp);
+        while (dep.get(id).balance6 >= dep.get(id).rate) dep.renew(id);   // every second the balance buys, at rate 1
+        vm.stopPrank();
+        assertEq(dep.get(id).balance6, 0);
+        vm.warp(dep.get(id).leaseUntil + 1);
+        assertEq(dep.get(id).spent6, 250000, "250000 s served");
+        uint256 before = usdc.balanceOf(tenant);
+        vm.prank(tenant);
+        dep.refund(id);
+        assertEq(usdc.balanceOf(tenant) - before, 200000, "and 200000 refunded after it was all served");
     }
 
     // ---- 2. the late-proof horizon ----------------------------------------------------------------------------------
@@ -313,5 +401,33 @@ contract EnclaveDeploymentsRev14Test is Test {
         assertEq(usdc.balanceOf(tenant) - before, quote, "refundableOf is exact");
         assertEq(dep.earned6(otherOp), 1800 * r6);
         _assertSolvent();
+    }
+
+    /// enclave-bf's S1, stated as a test (a residual, not fixed: the fix costs 106 bytes the ledger does not have). Proofs
+    /// on, the horizon passes, the owner refunds the unproven tail. If the platform then turns proofs OFF
+    /// (setProofRequiredFrom(0), the kill switch), the held-time meter credits that tail again, paid from the owner's
+    /// NEXT funding's escrow: 600 s x 667 = 400200. Rev 13 paid it from its own (never released) reserve.
+    function test_residual_killSwitchAfterAHorizonRefundPaysTheTailFromTheNextFunding() public {
+        _proofMode();
+        bytes32 id = _create(tenant, 1000, address(0), 0);
+        _fund(tenant, id, 100e6);
+        _claim(otherOp, id, otherBox);
+        uint256 r6 = _rate6(id);
+        uint64 leaseUntil = dep.get(id).leaseUntil;
+        vm.warp(T0 + 1200);
+        dep.creditProven(id, uint64(T0 + 1200));
+        vm.warp(uint256(leaseUntil) + LATE + 1);
+        vm.prank(tenant);
+        dep.refund(id);                                           // takes the released tail's escrow too
+        assertEq(_escrow(id), 0);
+        dep.setProofRequiredFrom(0);                              // the kill switch
+        vm.startPrank(tenant);
+        dep.setActive(id, true);
+        dep.fund(id, 10e6);
+        vm.stopPrank();
+        uint256 earned0 = dep.earned6(otherOp);
+        dep.settle(id);
+        assertEq(dep.earned6(otherOp) - earned0, 600 * r6, "the refunded tail is credited from the new funding");
+        assertEq(600 * r6, 400200);
     }
 }

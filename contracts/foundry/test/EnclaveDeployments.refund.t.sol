@@ -83,8 +83,13 @@ contract EnclaveDeploymentsRefundTest is Test {
     }
 
     /// The escrow a funding of `value` contributes, by the contract's own rule
-    /// (ceil against the snapshotted rate — the platform absorbs the dust).
+    /// (ceil — the platform absorbs the dust). Rev 14: with no live lease, the
+    /// UNFLOORED runner fraction of the cap; with one, the lease's floored share.
     function _escOf(bytes32 id, uint256 value) internal view returns (uint256) {
+        uint256 cap = dep.capOf(id);
+        (, uint256 fee6) = dep.feeOf(id);
+        if (dep.get(id).leaseUntil <= block.timestamp && cap > fee6)
+            return (value * (cap - fee6) * dep.runnerBps() + cap * 10000 - 1) / (cap * 10000);
         (uint256 r6,,) = dep.earnOf(id);
         uint256 rate = dep.get(id).rate;
         return (value * r6 + (rate - 1)) / rate;
