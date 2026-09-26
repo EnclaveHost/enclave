@@ -67,7 +67,7 @@ out.crossCheck = { ref, ok: r.ok, code: r.code, reason: r.reason, ms: Date.now()
   installed: (c.images || []).map((i) => i.release.slice(0, 12)) };
 const keep = process.env.KEEP_RELEASE, wantKeep = process.env.CROSSCHECK_KEEP, im = r.images || [];
 const of = (rel) => im.filter((i) => i.release === rel);
-const c = await p.expectedFor(ref, { set: "cert" }), certRel = (c.images || []).map((i) => i.release).sort();
+const certRel = (c.images || []).map((i) => i.release).sort();   // c: the cert-set prediction computed above
 out.certReleases = certRel.map((x) => x.slice(0, 12));
 out.pass = k.ok && !p.problems.length && r.ok && im.length === 2 && of(id).length === 1 && of(id)[0].measurement === want
   && of(keep).length === 1 && of(keep)[0].measurement === wantKeep && c.ok && JSON.stringify(certRel) === JSON.stringify([id, keep].sort());
