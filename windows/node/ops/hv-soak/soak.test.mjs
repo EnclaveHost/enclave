@@ -13,7 +13,7 @@ import {
   DEFAULTS, CONSOLE_OK, THRESHOLDS, CMD_LIMIT, minifyPs, remoteCommand, appUrlFor, certFacts, tlsCheck, parseRelayRow, encodeGetCall,
   decodeDeployment, boxScript, parseBoxStdout, consumeChunk, scanLog, consoleScan, pickDeploymentVm, digestBox, newEval, step,
   summarize, newSampler, humanLine, parseArgs, exercised, headSentInWindow, splitHistory, HV_GUARD_NOT_COVERED, OUT_OF_SCOPE_VERDICT,
-  BODY_KEEP, ECHO_PATTERN, evidenceRegex,
+  BODY_KEEP, ECHO_PATTERN, evidenceRegex, ROOT_MAX, CONSOLE_SEC_MAX, PS_RENAMES, reflectableForms, DUMMY_TOKEN, USER_AGENT,
 } from "./soak.mjs";
 
 test("evidenceRegex: the sentinel's body form, for THIS token only, with stdout n > 0", () => {
@@ -31,6 +31,26 @@ test("evidenceRegex: the sentinel's body form, for THIS token only, with stdout 
   assert.throws(() => parseArgs(["--echo-pattern", "wrote=[1-9]"]), /--echo-pattern: .*\{token\}/);
   assert.throws(() => parseArgs(["--echo-pattern", "{token} ("]), /--echo-pattern/);
   assert.equal(parseArgs([]).echoPattern, ECHO_PATTERN);
+});
+
+test("--echo-pattern is refused when the soak's OWN request would satisfy it (a reflector could)", () => {
+  // bf's case: the printed-evidence words smuggled into the path, percent-encoded
+  const smuggled = "/x?q=token={token}%20path=/%20printed%20stdout=5B";
+  assert.throws(() => parseArgs(["--path", smuggled]), /matches what the soak itself sends/);
+  assert.throws(() => parseArgs(["--path", "/x?q=token={token}+path=/+printed+stdout=5B"]), /matches what the soak itself sends/, "+ as a space");
+  assert.throws(() => parseArgs(["--path", "/token={token}%20path=/a%20printed%20stdout=9B"]), /matches what the soak itself sends/);
+  // a pattern the header value alone satisfies
+  assert.throws(() => parseArgs(["--echo-pattern", "{token}"]), /matches what the soak itself sends/);
+  assert.throws(() => parseArgs(["--echo-pattern", "x-hv-soak: {token}"]), /matches what the soak itself sends/, "the request head");
+  // the defaults, and an honest custom pattern with an honest path, pass
+  assert.equal(parseArgs([]).echoPattern, ECHO_PATTERN);
+  assert.equal(parseArgs(["--path", "/ping?hvsoak={token}"]).path, "/ping?hvsoak={token}");
+  assert.equal(parseArgs(["--echo-pattern", "wrote {token} to stdout=[1-9][0-9]*B"]).echoPattern, "wrote {token} to stdout=[1-9][0-9]*B");
+  // what is rendered: the path, the token, the request head, raw and decoded
+  const forms = reflectableForms(smuggled, "https://31136008.app.enclave.host/");
+  assert.equal(forms.length, 5);
+  assert.ok(forms.some((f) => f.includes(`token=${DUMMY_TOKEN} path=/ printed stdout=5B`)));
+  assert.ok(forms.some((f) => f.includes(`user-agent: ${USER_AGENT}`) && f.includes(`x-hv-soak: ${DUMMY_TOKEN}`)));
 });
 
 const DEP = DEFAULTS.deployment;
@@ -229,6 +249,45 @@ test("the ssh command CARRIES the script (gzipped, minified): nothing is read fr
   // minifying drops only comment lines and indentation
   assert.equal(minifyPs("  # a comment\n  $a = 1\n\n    if ($a) { 'x' }  \n"), "$a = 1\nif ($a) { 'x' }");
   assert.throws(() => remoteCommand(script + "\n$z = '" + crypto.randomBytes(6000).toString("hex") + "'"), /over cmd\.exe's 8191/);
+});
+
+// a deterministic stream of characters --root allows, so the worst case does not compress away
+function rootOf(n, seed = 1) {
+  const a = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ._-\\";
+  let x = seed, s = "C:\\";
+  while (s.length < n) { x = (x * 1103515245 + 12345) % 2147483648; s += a[x % a.length]; }
+  return s.replace(/\\+$/, "x");
+}
+
+test("the longest allowed --root, the largest offsets and the longest window still fit cmd.exe's 8191", () => {
+  for (let seed = 1; seed <= 25; seed++) {
+    const root = rootOf(ROOT_MAX, seed);
+    assert.equal(root.length, ROOT_MAX);
+    const s = boxScript({ ...P, root, managerPort: 65535, nodeFrom: Number.MAX_SAFE_INTEGER, managerFrom: Number.MAX_SAFE_INTEGER, consoleSec: CONSOLE_SEC_MAX });
+    const n = remoteCommand(s).length;
+    assert.ok(n < CMD_LIMIT, `seed ${seed}: ${n}`);
+  }
+  // one character longer is refused where it is given, never truncated
+  assert.throws(() => boxScript({ ...P, root: rootOf(ROOT_MAX + 1) }), /at most 64 characters/);
+  assert.throws(() => parseArgs(["--root", rootOf(ROOT_MAX + 1)]), /--root must be a local absolute path of at most 64/);
+  assert.equal(parseArgs(["--root", rootOf(ROOT_MAX)]).root.length, ROOT_MAX);
+  assert.throws(() => parseArgs(["--root", "\\\\server\\share\\x"]), /--root/);
+  assert.throws(() => parseArgs(["--console-sec", String(CONSOLE_SEC_MAX + 1)]), /at most 120/);
+});
+
+test("minifyPs renames to short names: unique per namespace ignoring case, no long name left, no clash with the source", () => {
+  const s = minifyPs(boxScript(P));
+  for (const long of Object.keys(PS_RENAMES)) {
+    const re = long.startsWith("$") ? new RegExp(`\\$${long.slice(1)}\\b`, "i") : new RegExp(`\\b${long}\\b`);
+    assert.doesNotMatch(s, re, long);
+  }
+  for (const isVar of [true, false]) {
+    const shorts = Object.entries(PS_RENAMES).filter(([k]) => k.startsWith("$") === isVar).map(([, v]) => v.toLowerCase());
+    assert.equal(new Set(shorts).size, shorts.length);
+  }
+  assert.throws(() => minifyPs("$zc = 1\n$con = 2"), /already names \$zc/, "a short name the source already uses");
+  assert.throws(() => minifyPs("$Con = 1"), /still names \$con/, "a differently-cased long name the rename missed");
+  assert.equal(minifyPs('function Emit([string]$s) { }\nEmit "$Port/x"'), 'function ZE([string]$s) { }\nZE "$zh/x"', "inside strings too");
 });
 
 test("boxScript: every Hyper-V call is bounded, and the script ends its own process", () => {

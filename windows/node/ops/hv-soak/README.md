@@ -23,7 +23,7 @@ Each sample opens one ssh session and sends one HTTPS request per check.
 | 1 | public TLS | ONE `GET` of the app URL with `--path` (default `/hv-soak/{token}`), where `{token}` is the sample's random token. The token also rides in `x-hv-soak`. The chain and the hostname are verified against Node's CA store. When a connection fails verification, its leaf is recorded (SPKI sha256, serial, issuer, the reason) and the connection is dropped before any response is read. Only a verified 200 counts. The first 4 KiB of the body are kept in memory, never stored, and matched against `--echo-pattern` (below). |
 | 1b | HEAD tripwire (`--leak-probe --body-marker S`) | ONE `HEAD` to the same URL, same token, same verification rules, sent together with the GET. |
 | 2 | relay row | `GET https://api.enclave.host/enclaves`, unauthenticated, reading the `nucbox-k11` row. It is OK when all of these hold: mode and tier `hv-node`, `attach` `attestation`, `tunnel` true, `hvNode.hostExcluded` false, and `availability.claimScope` `owner-only`. The sample also records `lastSeen`, `owners`, `eligible` and `serving`. |
-| 3 | the box | ONE `ssh -n minipc-zt` session. The command itself carries the sampler script, minified, raw-DEFLATEd and base64-encoded inside a short `-EncodedCommand` bootstrap. Nothing is read from stdin and nothing is written to the box. The command stays under cmd.exe's 8191 characters (about 8050 today). It reads: the manager's `GET /vms`; `Get-VM` for the `enclave-app-*` VMs; host free memory; `hvnode\logs\node.log` and `manager.log`, from where the last sample stopped, opened for READ with sharing; and the deployment's COM1 console. Every step is bounded: the HTTP and CIM calls have timeouts, and the Hyper-V calls run in their own runspace, abandoned after 15 s. The script ends its own process. |
+| 3 | the box | ONE `ssh -n minipc-zt` session. The command itself carries the sampler script, minified, raw-DEFLATEd and base64-encoded inside a short `-EncodedCommand` bootstrap. Nothing is read from stdin and nothing is written to the box. The script's variables and functions are shortened from a rename table that the tests check. The command stays under cmd.exe's 8191 characters: 7834 with the install's root, and at most 8014 with the longest `--root` (64 characters), the largest offsets and `--console-sec 120`. A test enforces this. It reads: the manager's `GET /vms`; `Get-VM` for the `enclave-app-*` VMs; host free memory; `hvnode\logs\node.log` and `manager.log`, from where the last sample stopped, opened for READ with sharing; and the deployment's COM1 console. Every step is bounded: the HTTP and CIM calls have timeouts, and the Hyper-V calls run in their own runspace, abandoned after 15 s. The script ends its own process. |
 | 4 | chain (`--no-chain` skips it) | ONE `eth_call get(bytes32)` on the deployments ledger through a public Base RPC. It records balance6, spent6, leaseUntil and whether the runner is this box. |
 
 **Order within a sample:**
@@ -60,6 +60,14 @@ It also prints `-STDOUT-REQ <path> <x-hv-soak>` to stdout and stderr.
 
 `--echo-pattern` is a regex with `{token}`, which is replaced by the regex-escaped token. The default is
 `token={token} path=\S* printed stdout=[1-9][0-9]*B`: this sample's token, and at least one byte printed to stdout.
+
+An operator-supplied pattern is refused at start if the soak's OWN request would satisfy it, because a reflector could.
+The check renders, with a dummy token and each both raw and percent-decoded (`+` read as a space):
+- the `--path`;
+- the `x-hv-soak` value;
+- the whole request head.
+
+For example, `--path '/x?q=token={token}%20path=/%20printed%20stdout=5B'` is refused, and so is `--echo-pattern '{token}'`.
 
 **Why the printed evidence is required:**
 - The token alone proves nothing: it is in the request, so a reflector app would carry it without printing a byte.
@@ -154,7 +162,7 @@ nohup node soak.mjs --duration 12h --deployment 0x<sentinel id> \
   - It re-evaluates every threshold from the observations, not from the stored verdicts, and exits 1 unless it PASSes.
   - `--json` prints the summary as JSON, carrying `leakScope`, the `leakEvidence`, the verdict and each threshold.
   - `--since` scores only the part after a given time.
-- Options: `--interval 300`, `--duration 12h`, `--out FILE`, `--deployment 0x…`, `--url`, `--path`, `--echo-pattern`, `--node`, `--relay`, `--ssh`, `--root`, `--console-sec 25`, `--rpc URL` (repeatable), `--no-chain`, `--leak-floor`, `--leak-probe --body-marker S`, and `--leak-scope out --leak-evidence E`.
+- Options: `--interval 300`, `--duration 12h`, `--out FILE`, `--deployment 0x…`, `--url`, `--path`, `--echo-pattern`, `--node`, `--relay`, `--ssh`, `--root` (at most 64 characters), `--console-sec 25` (25 to 120), `--rpc URL` (repeatable), `--no-chain`, `--leak-floor`, `--leak-probe --body-marker S`, and `--leak-scope out --leak-evidence E`.
 
 **What the summary prints:**
 - the result of each threshold, with the worst streak and the first event;
