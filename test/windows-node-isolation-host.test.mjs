@@ -65,14 +65,17 @@ test("UPGRADE (E2): retire(instanceId) of that VM after the new manager surveyed
 });
 
 test("a HELD recovered domain is recorded by id (finding 3), apart from the record that routes traffic", async () => {
+  // Since enclave-87's ruling (B) a recovered domain is RETIRED and replaced (test/windows-node-reboot-recovery.test.mjs);
+  // it is still HELD, and recorded by id, when its removal cannot be confirmed - the case finding 3 is about.
   const { host, m2, instanceId } = await recoveredOnManager();
+  host.stopFails = true;
   const logs = [];
   const h = box(m2.port, logs);
   h.records.set(DEP, { id: DEP, status: "provisioning" });            // a restarted node
   noSecrets(h);
   const r = await h.ensureApp(DEP, dep(), { version: PLANNED });
-  assert.equal(r.status, "provisioning", `${r.reason} | ${logs.join(" / ")}`);
-  assert.match(r.reason, /recovered from Hyper-V/);
+  assert.equal(r.status, "held", `${r.reason} | ${logs.join(" / ")}`);
+  assert.match(r.reason, /could not be confirmed removed/);
   assert.equal(h.records.get(DEP).isolationHeld, instanceId, "the held instance is not recorded");
   assert.equal(h.records.get(DEP).isolation ?? null, null, "a held domain must not be routed to");
   assert.equal(host.running().length, 1);

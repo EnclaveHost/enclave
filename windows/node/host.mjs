@@ -760,6 +760,10 @@ export class Host {
       if (req === undefined || req === null) this.log(`${id.slice(0, 10)} isolation: the deployment's envelope was not read for an isolation requirement; not isolating`);
       return null;      // fall through: not an error, just not this backend
     }
+    // A reboot recovery that did not end serving (#rebootHold) is not tried again by a routine pass: only an operator's
+    // forced relaunch clears it (ensureApp).
+    const rebootHeld = this.records.get(id)?.rebootHeld;
+    if (rebootHeld) return this.#record(id, { status: "held", reason: rebootHeld });
 
     // THE SAME VERDICT consider() asked before the claim (isolationVerdict): one set of inputs, one answer.
     const plan = await this.isolationVerdict(id, d, v, { envOpts, envRead });
@@ -784,6 +788,29 @@ export class Host {
     let r;
     try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
     catch (e) { return this.#record(id, { status: "failed", reason: `isolation: ${e.message}` }); }
+
+    // RECOVERY AFTER A MANAGER OR HOST RESTART (enclave-87's ruling (B) and its amendment from d1's live A8). A VM the
+    // restarted manager lists `recovered` can never serve again: its relay and its launcher's per-process report key
+    // belonged to the previous manager, so nothing can vouch for it, and RECOVERED's hold stranded the deployment until an
+    // operator acted - after a host restart (the launcher's AutomaticStartAction Nothing leaves it Off, running nothing)
+    // AND after a manager-only restart (still Running, but never judged or relayed again). So a recovered VM, in any state,
+    // is RETIRED through the manager (confirmed gone), and ONE fresh partition is spawned inside the same lease: a new key
+    // and a fresh measured boot, nothing released, never a second VM, and the recovered VM never served. Any failure on
+    // this path HOLDS the deployment (rebootHeld: not retried, not renewed) until an operator's forced relaunch. This is
+    // NOT the crash respawn below (ENCLAVE_ISOLATION_RESPAWN, off by default): a restart is not the app ending.
+    if (r.action === "held" && r.instance && r.instance.recovered === true) {
+      const dead = r.instance.id, state = r.instance.vmState || "state unknown";
+      this.#record(id, { isolationHeld: dead });
+      const gone = await this.#retireIsolated(id, `restart recovery: the recovered VM ${dead} (${state})`);
+      if (!gone) return this.#rebootHold(id, `the recovered VM ${dead} (${state}) could not be confirmed removed`, dead);
+      this.log(`${id.slice(0, 10)} restart recovery: the recovered VM ${dead} (${state}) was retired; starting ONE fresh partition`);
+      try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
+      catch (e) { return this.#rebootHold(id, `the fresh partition could not be started: ${e.message}`); }
+      if (r.action === "failed") return this.#rebootHold(id, `the fresh partition did not come up: ${r.reason}`, r.instance?.id ?? null);
+      if (r.action === "held" && r.instance?.recovered === true)
+        return this.#rebootHold(id, `the fresh partition is a recovered VM again (${r.instance.id}): ${r.reason}`, r.instance.id);
+      // spawned/adopted: served below as any fresh domain; "held" (an unknown outcome) is recorded below as always
+    }
 
     // RESPAWN, OFF BY DEFAULT (cfg.isolationRespawn, ENCLAVE_ISOLATION_RESPAWN=1): a lease policy, Steven's decision,
     // put to him by enclave-d1. Today a domain that ENDED (crashed, stopped by itself, failed the manager's sweeps, or
@@ -891,6 +918,8 @@ export class Host {
 
   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
   async ensureApp(id, d, { force = false, version = null } = {}) {
+    // an operator's FORCED relaunch is what a reboot-recovery hold waits for (#rebootHold): it is tried again from here
+    if (force && this.records.get(id)?.rebootHeld) this.#record(id, { rebootHeld: null });
     const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil),
                                    cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000,
                                    // What the data-path gate needs, from the ledger and nowhere else.
@@ -1524,11 +1553,12 @@ export class Host {
       // outcome is unknown (rec.isolationHeld without a running record) - is the same case: billed, nothing served
       // (enclave-5d's G1; coordinator enclave-87). It is retired at lapse by the id it is held under (#stopApp ->
       // #retireIsolated), and stays tracked until the manager confirms it gone.
-      const notServing = rec.planHeld === true || (!!rec.isolationHeld && rec.status !== "running");
+      // ...and a REBOOT RECOVERY that did not end serving (#rebootHold: held, with or without a VM left to name)
+      const notServing = rec.planHeld === true || (!!rec.isolationHeld && rec.status !== "running") || !!rec.rebootHeld;
       if (notServing) {
         if (untilMs < Date.now()) {
           await this.#stopApp(id, `its lease lapsed while this box was not serving it (not renewed): ${rec.reason || "held"}`);
-          if (this.records.get(id)?.status === "stopped") this.#record(id, { planHeld: null, isolationHeld: null });
+          if (this.records.get(id)?.status === "stopped") this.#record(id, { planHeld: null, isolationHeld: null, rebootHeld: null });
           continue;
         }
         if (untilMs - Date.now() < RENEW_LEAD_MS && rec.noRenewSaid !== untilMs) {
@@ -1644,6 +1674,13 @@ export class Host {
     const recent = (this.#respawns.get(id) || []).filter((t) => Date.now() - t < RESPAWN_WINDOW_MS);
     this.#respawns.set(id, recent);
     return recent.length;
+  }
+
+  /** A reboot recovery that did not end serving: HELD, not retried by ensureApp and not renewed, until a forced relaunch. */
+  #rebootHold(id, why, instanceId = null) {
+    const reason = `isolation: reboot recovery: ${why}; held (not retried, not renewed) until an operator's forced relaunch`;
+    this.log(`${id.slice(0, 10)} ${reason}`);
+    return this.#record(id, { status: "held", rebootHeld: reason, reason, ...(instanceId ? { isolationHeld: instanceId } : {}) });
   }
 
   async #retireIsolated(id, why) {
