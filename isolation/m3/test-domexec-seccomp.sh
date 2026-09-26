@@ -58,6 +58,7 @@ mut() {  # <label> <sed expression> [header]
 }
 k=0
 mut "filter: no AF_VSOCK rule" '/APP_ARG0_EQ(APP_NR_socket, APP_AF_VSOCK, APP_EPERM),/d' header || k=1
+mut "filter: pidfd_getfd allowed" '/APP_RULE(APP_NR_pidfd_getfd, APP_EPERM),/d' header || k=1
 mut "the filter applied to the front" 's/front_pid = spawn(front, uid, 0, 0);/front_pid = spawn(front, uid, 0, 1);/' || k=1
 mut "the runtime unfiltered (serve)" 's/rt_pid = spawn(rt, uid, 1, 1);/rt_pid = spawn(rt, uid, 1, 0);/' || k=1
 mut "the runtime unfiltered (run)" 's/rt_pid = spawn(run, uid, 1, 1);/rt_pid = spawn(run, uid, 1, 0);/' || k=1
