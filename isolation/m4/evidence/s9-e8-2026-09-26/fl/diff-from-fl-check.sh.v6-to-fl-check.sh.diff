@@ -1,0 +1,70 @@
+--- fl-20260926/fl-check.sh.v6	2026-09-25 22:22:43.345221877 -0700
++++ fl-20260926/fl-check.sh	2026-09-26 00:05:17.784379110 -0700
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env bash
+-# One of Steven's apps' FIRST LAUNCH (on whichever admitted release guestd's tree built: f7888d86, 5db18199 after S8), checked READ-ONLY (started by fl-watch.sh at its setConfig). Never acts,
++# One of Steven's apps' FIRST LAUNCH (on whichever admitted release guestd's tree built: 5db18199 after S8, aee2059f after S9), checked READ-ONLY (started by fl-watch.sh at its setConfig). Never acts,
+ # never retries: a failure is a HOLD reported to enclave-87. Proofs:
+ #   A guest: guestd's release guest for it, running, release:true, verdict attested; measurement = the relay's 52156652
+ #     prediction for the id = expected-measurement.sh --pin 52156652 over the bundle that guest runs (a second derivation)
+@@ -30,19 +30,21 @@
+ # one must match, and the independent derivation below uses THAT release's own tree and pinned release dir
+ declare -A RDIR=( [52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1]=/home/steven/enclave-prod/release-4cdd5169
+                   [f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca]=/home/steven/enclave-prod/release-b63c2def
+-                  [5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77]=/home/steven/enclave-prod/release-0c087de8 )
++                  [5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77]=/home/steven/enclave-prod/release-0c087de8
++                  [aee2059ffcc7bd8a459001cba02a7e9139d6a4aa964fd6de68047407f8597532]=/home/steven/enclave-prod/release-4cd26e58 )
+ declare -A RTREE=( [52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1]=/home/steven/enclave-prod/iso-4cdd5169
+                    [f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca]=/home/steven/enclave-prod/iso-b63c2def
+-                   [5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77]=/home/steven/enclave-prod/iso-0c087de8 )
++                   [5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77]=/home/steven/enclave-prod/iso-0c087de8
++                   [aee2059ffcc7bd8a459001cba02a7e9139d6a4aa964fd6de68047407f8597532]=/home/steven/enclave-prod/iso-4cd26e58 )
+ pick() { EG=$(curl -sS --max-time 30 "https://api.enclave.host/v1/expected-guest?id=$AFULL") && IMG=$(python3 -c "import json,sys; r=json.loads(sys.argv[1]); i=[x for x in r.get('images',[]) if x.get('releaseAdmitted') is True and x.get('measurement')==sys.argv[2]]; sys.exit(1) if len(i)!=1 or not i[0].get('runtimeId') else print(i[0]['release'], i[0]['runtimeId'])" "$EG" "$MEAS"); }
+ wait_for 300 pick || hold "A: no single ADMITTED relay image for $AID has guestd's measurement ${MEAS:0:16} (the relay's prediction disagrees, or it is still warming)"
+ GREL=${IMG%% *}; RTID=${IMG##* }; M=$MEAS
+ # enclave-bf: once a switch has run (its restart time recorded in state/s<N>-switched-epoch), a guest CREATED after it
+-# must be that switch's release; one on anything else means the switch did not take. S8 (5db18199) is checked first: a
+-# guest created after it must be 5db18199; else after S7 it must be f7888d86. s8t-rollback.sh removes the S8 epoch.
++# must be that switch's release; one on anything else means the switch did not take. The newest switch is checked first:
++# after S9 a new guest must be aee2059f; else after S8 5db18199; else after S7 f7888d86. Each rollback removes its epoch.
+ CA=$(python3 -c "import json,sys; print(int(json.loads(sys.argv[1])['createdAt']))" "$E")
+ [[ "$CA" =~ ^[0-9]{10}$ ]] || hold "A: $GID's createdAt is missing or not an epoch ('${CA:-none}'): the switch guard cannot place it"   # bf: never skip the guard (v6 failed open here)
+-for sw in "s8 5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77" "s7 f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca"; do
++for sw in "s9 aee2059ffcc7bd8a459001cba02a7e9139d6a4aa964fd6de68047407f8597532" "s8 5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77" "s7 f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca"; do
+   sn=${sw%% *}; srel=${sw##* }
+   [ -r $FST/$sn-switched-epoch ] || continue
+   SW=$(cat $FST/$sn-switched-epoch); [[ "$SW" =~ ^[0-9]{10}$ ]] || hold "A: state/$sn-switched-epoch is not an epoch"
+@@ -62,7 +64,7 @@
+ # runtimeSelfTest must name runtime=<n>=1 or more, with the roles adding up to maps (as judge.mjs checks). On SNP the
+ # roles are runtime and root only (enclave-b4, front/runtime.go:138-144); the check accepts any judge.mjs role
+ WXC=-
+-if [ "$GREL" = 5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77 ]; then
++if [ "$GREL" = 5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77 ] || [ "$GREL" = aee2059ffcc7bd8a459001cba02a7e9139d6a4aa964fd6de68047407f8597532 ]; then
+   VT=$PROD/guestd-root/$GID/verify.txt
+   grep -qx 'RESULT wx_coverage=runtime-covered' "$VT" 2>/dev/null || hold "A: guestd's verify.txt for $GID does not say wx_coverage=runtime-covered"
+   grep -q '^VERDICT attested' "$VT" && grep -qx 'RESULT gate=open' "$VT" || hold "A: guestd's verify.txt for $GID lacks VERDICT attested or RESULT gate=open"
+@@ -79,6 +81,12 @@
+ PY2
+ ) || hold "A: $GID's attested runtime self-test does not cover the runtime (runtime>=1, roles = maps, wx=clean)"
+ fi
++# b4's v44 manifest items 7-8 (S9): a guest on aee2059f STATES its runtime's seccomp filter; the attested self-test must
++# carry seccomp=d4d17c9f… (the expected filter, 71 instructions) and guestd's verify.txt say the runtime is under it
++if [ "$GREL" = aee2059ffcc7bd8a459001cba02a7e9139d6a4aa964fd6de68047407f8597532 ]; then
++  grep -qF 'seccomp=d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66' <<<"$WXC" || hold "A: $GID's attested self-test does not state seccomp=d4d17c9f… ('$WXC')"
++  grep -qF 'under the seccomp filter with program sha256 d4d17c9f' "$VT" || hold "A: guestd's verify.txt for $GID does not say the runtime is under the seccomp filter d4d17c9f…"
++fi
+ say "first launch $AID A ok: attested on release ${GREL:0:8}, measurement ${MEAS:0:16} = the relay's admitted prediction = expected-measurement.sh (that release) over its bundle; runtime ${RTID:0:12} (guestd = the relay's); W^X self-test: ${WXC}"
+ SER=$PROD/guestd-root/$GID/$GID.serial
+ sv() { [ -r "$SER" ] && serial_clean "$SER" | grep -qE '^DOM serving vsock=443 spki_sha256=[0-9a-f]{64} '; }
+@@ -91,6 +99,11 @@
+ sl=$(grep -nE '^DOM serving vsock=443 spki_sha256=[0-9a-f]{64} ' <<<"$C" | cut -d: -f1 || true)
+ [[ "$cl" =~ ^[0-9]+$ ]] && [[ "$sl" =~ ^[0-9]+$ ]] && [ "$rl" -lt "$cl" ] && [ "$cl" -lt "$sl" ] && [ "$CB" -gt 0 ] || hold "C: release ($rl) < app config $CB bytes (${cl:-none}) < serving (${sl:-none}) does not hold"
+ SPKI=$(sed -nE "${sl}s/^DOM serving vsock=443 spki_sha256=([0-9a-f]{64}) .*/\1/p" <<<"$C"); [ "$SPKI" = "$KEY" ] || hold "C: the serial serves ${SPKI:0:16}, not guestd's ${KEY:0:16}"
++# b4's items 7-8 on the serial (aee2059f): init states the installed filter; none of the seccomp refusal lines
++if [ "$GREL" = aee2059ffcc7bd8a459001cba02a7e9139d6a4aa964fd6de68047407f8597532 ]; then
++  grep -qx 'DOM seccomp: app filter installed (sha256 d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66, 71 rules)' <<<"$C" || hold "C: the serial lacks 'DOM seccomp: app filter installed (sha256 d4d17c9f…, 71 rules)'"
++  ! grep -qE "^DOM ERROR the app gave no seccomp statement|held init's seccomp statement pipe past its exec|seccomp statement is malformed|could not record the app's seccomp statement|seccomp filter could not be installed" <<<"$C" || hold "C: a seccomp refusal line in the serial"
++fi
+ Fo=$(serial_foreign "$SER"); [ -z "$Fo" ] || hold "C: $(grep -c . <<<"$Fo") line(s) in the serial that are neither the front's, init's nor the kernel's"
+ say "first launch $AID C ok: DOM release (envelope ${ENVSHA:0:16} = the on-chain envelope, $NO allowed origin(s), 0 refused, config $CB bytes) < app config $CB bytes < serving on ${KEY:0:16}; no foreign lines"
+ RJ=$($NANX "journalctl -u enclave-api-relay --since '$T0 UTC' --no-pager -o short-iso-precise") || hold "B: the relay journal could not be read"
