@@ -100,13 +100,17 @@ export function issuer({ endpoint, sign, base, request = requestCert }) {
  *   client      the manager client (IsolationManagerClient)        dataAddr   the manager's data plane (host:port)
  *   runtimeId   ENCLAVE_ISOLATION_RUNTIME_ID                          endpoint   this box's registered endpoint (PUBLIC_URL)
  *   sign        the operator key's personal_sign (message -> sig)    base       the certificate service's origin (default api.enclave.host)
+ *   served      (owner) -> is this owner one this box serves (host.ownerSet(): the operator and its delegated owners)
  * pass(records) runs once over the host's records (id -> record): every PUBLIC deployment this box RUNS as a partition
- * (status running, rec.isolation.instance/appId) whose certificate is missing or due. An installed one is left until its
+ * (status running, rec.isolation.instance/appId), whose recorded OWNER it serves, and whose certificate is missing or due.
+ * The owner check is this node's own belt (enclave-bf): between a ledger transfer and the sweep that stops the partition
+ * (host.mjs owner hold), the record still reads running, and without it the node would ask the certificate service for
+ * a stranger's name. The service refuses that under B anyway; this never asks. No `served` given = nothing is asked. An installed one is left until its
  * renewal point (2/3 of its life); a guest that already serves a valid one for its key is reused, not re-issued (a node
  * restart asks the CA for nothing); a failure backs off (5 min doubling to 1 h, or the service's retry hint).
  */
 export function createHvCertPass({ client, dataAddr, runtimeId: pinned, endpoint, sign, base, zone = "app.enclave.host",
-                                   log = () => {}, now = Date.now, _ensure = ensureGuestCert, _deps } = {}) {
+                                   served = () => false, log = () => {}, now = Date.now, _ensure = ensureGuestCert, _deps } = {}) {
   const st = new Map();       // id -> { instanceId, key, name, serial, notAfter, renewAt, issuer } | { instanceId, backoffUntil, failures, why }
   const transport = viewTransport(client);
   const issue = issuer({ endpoint, sign, base });
@@ -138,6 +142,7 @@ export function createHvCertPass({ client, dataAddr, runtimeId: pinned, endpoint
         const iso = rec && rec.isolation;
         if (!rec || rec.status !== "running" || rec.isPublic === false || !iso || !iso.instance || !iso.appId) continue;
         if (!/^0x[0-9a-f]{64}$/.test(String(id))) continue;
+        if (!rec.owner || !served(String(rec.owner).toLowerCase())) continue;          // a stranger's name is never asked for
         await one(id, rec);
       }
       for (const id of st.keys()) if (!records.has(id)) st.delete(id);                     // a deployment gone from this box
