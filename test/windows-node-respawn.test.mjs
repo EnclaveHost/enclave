@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { fakeBaseRpc, DEPLOYMENTS } from "./helpers/fake-base-rpc.mjs";
+import { servedOwner } from "./helpers/owners.mjs";
 import { REC, DEP, ISOLATED, PLANNED, FakeHost, bootManager, closeManagers } from "./helpers/hv-fake-manager.mjs";
 
 const rpc = await fakeBaseRpc();                     // before host.mjs loads: nothing here reaches a public RPC
@@ -26,7 +27,7 @@ function box(port, cfg = {}) {
   const h = new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-respawn-")), endpoint: "https://api.enclave.host/t/test", name: "test",
     appsEnabled: true, cpuPricePerSec6: 12, log: () => {}, isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId, ...cfg });
   h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {});        // known: no staged secrets
-  return h;
+  return servedOwner(h, "0x29479bf04ed889d46a7afb7f292b9bb26e12647c");
 }
 // a serving domain, then its VM turned Off and the manager's liveness sweep run: the domain has ENDED
 async function servingThenEnded(cfg) {

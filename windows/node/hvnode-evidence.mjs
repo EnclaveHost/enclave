@@ -96,7 +96,15 @@ export function isolationStatementBytes(health) {
   if (!health || typeof health !== "object") return Buffer.from("null");
   const b = health.boundary || {};
   if (b.hostExcluded === true) throw new Error("the isolation manager reports host exclusion, which this tier never claims");
-  return Buffer.from(JSON.stringify({ stated: true, backend: health.backend ?? null, tier: b.tier ?? null,
+  // THIS backend's tier in the contract's spelling (enclave-b4's N6): the HCS backend states "t0-hv", wmi-launcher
+  // "T0-hv", and host.mjs records "T0-hv". Any other tier is refused as host exclusion is: the node never states more.
+  let tier = null;
+  if (b.tier !== undefined && b.tier !== null) {
+    if (typeof b.tier !== "string" || b.tier.toUpperCase() !== "T0-HV")
+      throw new Error(`the isolation manager reports tier ${JSON.stringify(b.tier).slice(0, 64)}, and this backend's tier is T0-hv`);
+    tier = "T0-hv";
+  }
+  return Buffer.from(JSON.stringify({ stated: true, backend: health.backend ?? null, tier,
                                       hostExcluded: false, derivations: (health.catalog && health.catalog.derivations) || [] }));
 }
 

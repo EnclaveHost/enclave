@@ -27,7 +27,8 @@
 //
 // Env:  ENCLAVE_KEY       hex private key (overrides the key file)
 //       ENCLAVE_API_BASE  gateway or a specific enclave origin (--base)
-//       ENCLAVE_RPC       Base JSON-RPC url (--rpc)
+//       ENCLAVE_RPC       Base JSON-RPC url, or several comma-separated (--rpc)
+//       ENCLAVE_VISIBLE_WAIT  seconds deploy waits for a new record to reach every reader (default 60)
 import fs from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
@@ -371,7 +372,9 @@ const args = [];
 // /availability at the root), so the base is always an origin; a pasted
 // ".../v1" is normalized away.
 const API_BASE = (opt.base || env.ENCLAVE_API_BASE || DEFAULTS.apiBase).replace(/\/+$/, "").replace(/\/v1$/, "");
-const RPCS = (opt.rpc || env.ENCLAVE_RPC) ? [opt.rpc || env.ENCLAVE_RPC] : DEFAULTS.rpcs;
+// --rpc/ENCLAVE_RPC may name several, comma-separated (tried in order, like the defaults)
+const RPCS = (opt.rpc || env.ENCLAVE_RPC)
+  ? String(opt.rpc || env.ENCLAVE_RPC).split(",").map((s) => s.trim()).filter(Boolean) : DEFAULTS.rpcs;
 const CONF_DIR = path.join(env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "enclave");
 
 const say = (...s) => console.log(...s);
@@ -501,6 +504,16 @@ function wallet(account) {
     ? createWalletClient({ account: getAddress(account.address), chain: base, transport: viemHttp(opt.signer) })
     : createWalletClient({ account, chain: base, transport: fallback(RPCS.map((u) => viemHttp(u))) });
   return _wallet;
+}
+// One client PER configured RPC, no fallback and no retries: the
+// read-after-write wait in deploy needs each reader's own answer, where pub()
+// reports whichever one responds first.
+let _pubEach = null;
+function pubEach() {
+  if (!_pubEach) _pubEach = RPCS.map((u) =>
+    ({ host: (() => { try { return new URL(u).host; } catch { return "rpc"; } })(),   // host only: a url can carry an API key
+       c: createPublicClient({ chain: base, transport: viemHttp(u, { retryCount: 0, timeout: 5_000 }) }) }));
+  return _pubEach;
 }
 const read = (address, abi, functionName, a = []) =>
   pub().readContract({ address, abi, functionName, args: a });
@@ -883,7 +896,10 @@ const rate6Of = (p, gpuMilli, cpuMilli) => (p.gpu6 * BigInt(gpuMilli) + p.cpu6 *
 const perSec6FromHour = (usdPerHour) => BigInt(Math.round(Number(usdPerHour) * 1e6 / 3600));
 
 // ---- funding (EIP-3009 receiveWithAuthorization -> EnclaveDeployments) ---------------
-async function fundUsdc(account, id, amountUsd) {
+// `retry` (deploy's read-after-write retry) wraps the SEND, never the signing:
+// a second send carries the same authorization and its one EIP-3009 nonce, so
+// at most one of the two can ever move money.
+async function fundUsdc(account, id, amountUsd, { retry = (send) => send() } = {}) {
   // Funding is billed in whole cents (contract balances are 6dp USDC). Reject
   // sub-cent amounts rather than silently rounding them to nothing / to a cent.
   const cents = amountUsd * 100;
@@ -914,10 +930,57 @@ async function fundUsdc(account, id, amountUsd) {
       { name: "validBefore", type: "uint256" }, { name: "nonce", type: "bytes32" }] },
     message,
   });
-  await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: (await depAbi()).abi,
+  const { abi } = await depAbi();
+  await retry(() => sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi,
     functionName: "fundWithAuthorization",
-    args: [id, account.address, value, 0n, validBefore, nonce, signature] });
+    args: [id, account.address, value, 0n, validBefore, nonce, signature] }));
   return value;
+}
+
+// ---- read-after-write: a mined create is not yet a record every reader sees ----
+// Base RPCs are load-balanced pools, so the node that handed back the create's
+// receipt need not be the one the next call lands on, and the relay reads the
+// ledger through an RPC of its own. Seen live 2026-09-26: seconds after create
+// mined, fund's gas estimate reverted "unknown" (the ledger's
+// require(_exists[id])) and the relay's secrets gate answered 404 for the id.
+// So deploy waits until every reader sees the record before it stages or
+// spends anything on it, and gives each step ONE retry for the lag that can
+// still slip past. The poll and retry pauses scale with the bound.
+const VISIBLE_WAIT_MS = (Number(env.ENCLAVE_VISIBLE_WAIT) > 0 ? Number(env.ENCLAVE_VISIBLE_WAIT) : 60) * 1000;
+const VISIBLE_POLL_MS = Math.min(2000, Math.max(20, VISIBLE_WAIT_MS / 30));
+const LAG_PAUSE_MS = Math.min(3000, Math.max(20, VISIBLE_WAIT_MS / 20));
+// the lag signatures: the ledger's "unknown" on a node without the record,
+// and the relay's owner gate finding no such id in its ledger view
+const isUnknownRevert = (e) => !!(e?.walk?.((x) => x?.reason === "unknown"))
+  || /(reverted with the following reason:|execution reverted:?)\s*unknown\b/i.test(String(e?.shortMessage || e?.message || ""));
+const isRelay404 = (e) => /-> 404: not_found\b/.test(String(e?.message || ""));
+// get(id) as EVERY configured RPC answers it; null = that RPC couldn't be
+// asked (transport trouble abstains - it can neither confirm nor deny)
+async function ledgerViews(id) {
+  const { abi } = await depAbi();
+  return Promise.all(pubEach().map(({ c }) =>
+    c.readContract({ address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi, functionName: "get", args: [id] }).catch(() => null)));
+}
+// Until every RPC that answers returns the record with its owner (and at
+// least one does), and - with secrets to stage - the relay's tokenless record
+// read, which answers from the same ledger cache its secrets gate checks, has
+// it too (404 = not yet; any other failure = this API can't say, and the
+// secrets step's own retry covers it). -> { views } | { lagging: "who" }
+async function waitVisible(id, owner, { relay }) {
+  const deadline = Date.now() + VISIBLE_WAIT_MS;
+  let relayOk = !relay, waited = false;
+  for (;;) {
+    const [views, relayNow] = await Promise.all([ledgerViews(id),
+      relayOk || api("GET", `/v1/deployments/${id}`, { ok404: true }).then(Boolean, () => true)]);
+    relayOk = relayNow;
+    const behind = pubEach().filter((_r, i) => views[i] && views[i].owner.toLowerCase() !== owner.toLowerCase()).map((r) => r.host);
+    if (!relayOk) behind.push(`the relay (${API_BASE})`);
+    if (views.some(Boolean) && !behind.length) return { views };
+    if (Date.now() >= deadline)
+      return { lagging: views.some(Boolean) ? `${behind.join(" and ")} still can't see it` : "no RPC answered" };
+    if (!waited) { waited = true; say("waiting for the new record to reach every RPC" + (relay ? " and the relay" : "") + "…"); }
+    await sleep(VISIBLE_POLL_MS);
+  }
 }
 
 // ---- attestation verification (the real thing, run locally) ----------------------
@@ -1845,7 +1908,7 @@ async function cmdDeploy(rest) {
   const account = loadKey();
   const f = flags(rest, {
     val: ["--gpu", "--cpu", "--fund", "--fund-eth", "--port", "--ports", "--config-cid", "--waf", "--config",
-          "--secrets", "--secrets-file", "--max-rate"],
+          "--secrets", "--secrets-file", "--max-rate", "--isolation"],
     bool: ["--private", "--public", "--no-wait", "--gpu-optional"],
   });
   if (!f._[0]) throw new Error("usage: enclave deploy <app> [--gpu 0..1] [--cpu 0..1] --fund <usd> [flags]");
@@ -1923,6 +1986,21 @@ async function cmdDeploy(rest) {
     envParts.waf = w;
     say(`protection: ${JSON.stringify({ waf: w })} (per requester IP, enforced by the enclave's proxy; needs a fleet that supports the options envelope)`);
   }
+  // --isolation <backend>: the deployment REQUIRES a per-app isolation tier (`{"isolation":{"require":…}}`, the same
+  // envelope namespace an owner's setConfig adds later). Set AT CREATION, so there is no window in which a runner
+  // without that tier can claim it: every other runner refuses the namespace. Refused unless some live host
+  // advertises that backend, because nothing else would ever claim it.
+  let isoBackend = null;
+  if (f.isolation !== undefined) {
+    isoBackend = String(f.isolation).trim();
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(isoBackend)) throw new Error("--isolation takes a backend name, e.g. --isolation snp-guest-per-app");
+    let hosts;
+    try { hosts = ((await api("GET", "/enclaves")).enclaves || []).filter((e) => e && e.availability && e.availability.isolation === isoBackend); }
+    catch (e) { throw new Error(`couldn't read the fleet to confirm a ${isoBackend} host: ${e.message}`); }
+    if (!hosts.length) throw new Error(`no live host advertises the ${isoBackend} tier; a deployment requiring it would never be claimed`);
+    envParts.isolation = { require: isoBackend };
+    say(`isolation: REQUIRES ${isoBackend} (hosts: ${hosts.map((h) => h.name || h.id).join(", ")}); every other runner refuses it`);
+  }
   if (f.config !== undefined) {
     let c; try { c = JSON.parse(f.config); } catch (e) { throw new Error("--config must be a JSON object, e.g. --config '{\"api_key\":\"…\"}': " + e.message); }
     if (!c || Array.isArray(c) || typeof c !== "object")
@@ -1934,7 +2012,10 @@ async function cmdDeploy(rest) {
     // config clear`) — refuse here instead. Only an unreachable aggregate
     // falls through (same information the --waf path has always had), with a
     // loud warning.
-    try {
+    // An isolation tier is not in the fleet-wide AND (its host advertises configOverride:false on purpose: it takes
+    // config only through the attested release), so the gate that matters there is the release, stated instead.
+    if (isoBackend) say(`config: delivered only INTO the ${isoBackend} guest, through the attested release; the deployment stays Queued until the relay lists it for the release and its host has opted in`);
+    else try {
       const av = await api("GET", "/availability");
       if (av && av.aggregate && av.configOverride !== true)
         throw new Error("the live fleet doesn't support per-deployment config overrides yet (availability.configOverride is not true) — a deployment carrying one would never be claimed. Drop --config or retry after the fleet updates.");
@@ -2084,6 +2165,15 @@ async function cmdDeploy(rest) {
   if (!log) throw new Error("create succeeded but no Created event in the receipt; inspect tx " + rcpt.transactionHash);
   const id = log.topics[1];
   say(`created ${id}`);
+  // Echo back the asset the user actually chose (don't flip ETH -> USDC).
+  const fundHint = `enclave fund ${id} ${fundUsd ? `--usdc ${fundUsd}` : `--eth ${fundEth}`}`;
+
+  // 1a. read-after-write: nothing below runs until every reader sees the record
+  const seen = await waitVisible(id, account.address, { relay: !!secretsSet });
+  if (!seen.views)
+    throw new Error(`created ${id}, but after ${VISIBLE_WAIT_MS / 1000}s ${seen.lagging}, so nothing was staged or funded. `
+      + `The deployment exists on-chain, NOT funded (runners skip it). Once it shows up, `
+      + (secretsSet ? `stage its secrets (enclave secrets set ${id} KEY=VALUE…), then ` : "") + `fund it: ${fundHint}`);
 
   // 1b. stage secrets BEFORE funding: claims only chase funded work, so the
   // values are on the relay before any runner can launch the app. A store
@@ -2091,7 +2181,13 @@ async function cmdDeploy(rest) {
   // owner re-runs `enclave secrets set` and restarts).
   if (secretsSet) {
     try {
-      const r = await secretsCall(account, id, JSON.stringify({ set: secretsSet }));
+      const put = () => secretsCall(account, id, JSON.stringify({ set: secretsSet }));
+      const r = await put().catch(async (e) => {
+        if (!isRelay404(e)) throw e;
+        say("! the relay doesn't see the deployment yet; retrying the secrets once");
+        await sleep(LAG_PAUSE_MS);
+        return put();
+      });
       say(`secrets staged (rev ${r.rev}): ${r.names.join(", ")}`);
       await secretsFleetWarn();
     } catch (e) {
@@ -2099,15 +2195,24 @@ async function cmdDeploy(rest) {
     }
   }
 
-  // 2. fund (separate tx — the deployment already exists; if this fails it's inert, not lost)
+  // 2. fund (separate tx — the deployment already exists; if this fails it's inert, not lost).
+  // One retry if the node that estimated it still had no record; before it,
+  // the balance is re-read, so money that already arrived is never sent twice.
+  const bal0 = seen.views.reduce((m, d) => (d && d.balance6 > m ? d.balance6 : m), 0n);
+  const retry = (send) => send().catch(async (e) => {
+    if (!isUnknownRevert(e)) throw e;
+    say("! the funding estimate ran on a node that doesn't see the deployment yet; retrying once");
+    await sleep(LAG_PAUSE_MS);
+    if ((await ledgerViews(id)).some((d) => d && d.balance6 > bal0)) return say("the deployment's balance already moved; not sending again");
+    return send();
+  });
   try {
-    if (fundUsd) await fundUsdc(account, id, fundUsd);
-    else await sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi: (await depAbi()).abi,
-      functionName: "fundEth", args: [id], value: parseEther(String(fundEth)) });
+    if (fundUsd) await fundUsdc(account, id, fundUsd, { retry });
+    else { const { abi } = await depAbi();
+      await retry(() => sendTx(account, { address: DEFAULTS.DEPLOYMENTS_ADDRESS, abi,
+        functionName: "fundEth", args: [id], value: parseEther(String(fundEth)) })); }
   } catch (e) {
-    // Echo back the asset the user actually chose (don't flip ETH -> USDC).
-    const hint = fundUsd ? `--usdc ${fundUsd}` : `--eth ${fundEth}`;
-    throw new Error(`created but NOT funded (${e.message}); top up later: enclave fund ${id} ${hint}`);
+    throw new Error(`created but NOT funded (${e.message}); top up later: ${fundHint}`);
   }
   say(`funded ${fundUsd ? "$" + fundUsd.toFixed(2) : fundEth + " ETH"}`);
 
@@ -2976,6 +3081,8 @@ deployments
          [--secrets '{"NAME":"value"}'] [--secrets-file .env]
                                         PRIVATE env vars staged on the relay (never on-chain):
                                         the enclave injects them into the app at every start
+         [--isolation <backend>]        REQUIRE a per-app isolation tier (e.g. snp-guest-per-app),
+                                        set at creation so no other runner can ever claim it
   secrets set <id> KEY=VALUE… [--file .env] [--restart]
                              store/update private env vars for a deployment (S3
                              keys etc): relay-stored, encrypted at rest, injected

@@ -131,6 +131,13 @@ export function snpChipsAfter(prev, meta = {}) {
   return [...new Set([...keep, ...(meta.snpChip ? [meta.snpChip] : [])])];
 }
 
+// HOW a tunnel proved its name, as published on its row: "token" only for an allowlisted token, "operator" only for the
+// name's on-chain operator key, and "attestation" for EVERYTHING else (a hardware verdict, or a bind that said nothing).
+// Only the two trusted identities may speak for a relay (api-relay.js relayRowOf); anything unknown falls to the untrusted
+// value, never the trusted one (enclave-bf).
+export function attachKindOf(via) {
+  return via === "token" ? "token" : via === "operator" ? "operator" : "attestation";
+}
 export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 30000, onChange = () => {},
                                   operatorFor = null, operatorAttach = false,
                                   trustedOperators = [], operatorsUnrestricted = false } = {}) {
@@ -209,6 +216,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     const prev = tunnels.get(name);
     if (prev && prev.ws !== ws) { try { prev.ws.terminate(); } catch {} }   // newest wins
     const t = { ws, pending: new Map(), streams: new Map(), lastSeen: Date.now(), mode: meta.mode || "", publicUrl: "",
+                // HOW this box proved its name: "token" (an allowlisted token hash), "operator" (the name's on-chain
+                // operator key), or "attestation(...)" (a hardware verdict alone). Only the hub sets it.
+                via: meta.via || "",   // fail closed: a bind that says nothing is NOT a trusted identity (enclave-bf)
                 measurement: meta.measurement || null, keyFp: meta.keyFp || "",
                 // mode "hv-node": "hv-node" (a host-attested boot state; never a TEE tier);
                 // mode "avf": "pvm-cpu" once, and only once, a capability report is admitted (below)
@@ -637,6 +647,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     origins: () => [...tunnels.entries()].map(([name, t]) => ({
       endpoint: `tunnel://${name}`, id: `tunnel:${name}`, name, repo: "EnclaveHost/enclave",
       lastSeen: Math.floor(t.lastSeen / 1000), tunnel: true, mode: t.mode, publicUrl: t.publicUrl,
+      // how the name was proved (the hub's record): "token" | "operator" | "attestation". A trusted-identity attach
+      // (token, operator) is what lets a tunnel row speak for a RELAY (api-relay.js relayRowOf).
+      attach: attachKindOf(t.via),
       measurement: t.measurement || undefined,
       ...(t.tier ? { tier: t.tier } : {}),
       // the pVM CPU tier's display facts (model, context, device name), set by this hub from an

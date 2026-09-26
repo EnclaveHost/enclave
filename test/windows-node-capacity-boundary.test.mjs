@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { fakeBaseRpc, DEPLOYMENTS } from "./helpers/fake-base-rpc.mjs";
+import { servedOwner } from "./helpers/owners.mjs";
 import { REC, DEP, ISOLATED, PLANNED } from "./helpers/hv-fake-manager.mjs";
 import { attestedCapacity } from "../windows/node/isolation-client.mjs";
 
@@ -23,8 +24,8 @@ const servers = [];
 after(() => { rpc.close(); for (const s of servers) { s.closeAllConnections?.(); s.close(); } });
 
 const OWNER = "0x29479bf04ed889d46a7afb7f292b9bb26e12647c", STRANGER = "0x" + "5a".repeat(20);
-const box = (cfg = {}) => new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-capb-")), endpoint: "https://api.enclave.host/t/test",
-  name: "test", appsEnabled: true, cpuPricePerSec6: 12, log: () => {}, ...cfg });
+const box = (cfg = {}) => servedOwner(new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-capb-")), endpoint: "https://api.enclave.host/t/test",
+  name: "test", appsEnabled: true, cpuPricePerSec6: 12, log: () => {}, ...cfg }), OWNER);
 
 // ---- 1. the node's own contract gate: no configuration and no relay tier opens the market ----
 test("no relay tier, and no app-runtime ABI, makes this node meet the isolation contract or leave owner-only scope", () => {
@@ -38,15 +39,20 @@ test("no relay tier, and no app-runtime ABI, makes this node meet the isolation 
 });
 
 test("an isolation-only node (TPM-only identity, tier hv-node) advertises no app hosting and claims no stranger's deployment", () => {
-  const h = box({ engineRetired: true, claimScope: "market", isolationManager: "http://127.0.0.1:1", ownerWallet: OWNER });
+  const h = box({ engineRetired: true, claimScope: "market", isolationManager: "http://127.0.0.1:1" });
   h.relayTier = "hv-node";
   const a = h.availability();
-  assert.equal(a.apps.inTee, false); assert.equal(a.apps.capacity, 0);
+  // It hosts partitions for its operator and delegated owners and SAYS so (enclave-b4's N5: apps.isolation names the
+  // backend, T0-hv, host not excluded); what keeps it off the market is claimEnabled (the isolation contract is not met)
+  // and the owner-only claim policy below. Nothing in relay/ or site/ sells from apps.capacity.
+  assert.equal(a.apps.inTee, false);
+  assert.equal(a.claimEnabled, false, "an hv node must never take market work");
+  assert.equal(a.apps.isolation, "hyperv-partition-per-app"); assert.equal(a.apps.hostExcluded, false);
   const d = { createdAt: 1n, active: true, owner: STRANGER, isPublic: true, runner: "0x" + "00".repeat(32), leaseUntil: 0n,
               configCid: ISOLATED, gpuMilli: 0 };
-  assert.match(chain.claimPolicy(d, { scope: h.scope(), ownerAllow: h.ownerAllow(), enclaveId: h.enclaveId,
+  assert.match(chain.claimPolicy(d, { scope: h.scope(), ownerAllow: h.ownerSet(), enclaveId: h.enclaveId,
                                       isolationBackend: h.isolationBackend }), /owner-only scope/);
-  assert.equal(chain.claimPolicy({ ...d, owner: OWNER }, { scope: h.scope(), ownerAllow: h.ownerAllow(), enclaveId: h.enclaveId,
+  assert.equal(chain.claimPolicy({ ...d, owner: OWNER }, { scope: h.scope(), ownerAllow: h.ownerSet(), enclaveId: h.enclaveId,
                                                          isolationBackend: h.isolationBackend }), null, "its OWNER's deployment is still claimable");
 });
 
