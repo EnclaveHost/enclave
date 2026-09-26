@@ -1,0 +1,18 @@
+build 1 from /home/steven/Projects/enclave-build-6845565a start 06:49:40Z
+build 1 done 06:51:40Z
+build 2 from /home/steven/enclave-bench/n2-20260926/other/checkout/path/src start 06:51:40Z
+build 2 done 06:53:40Z
+vmlinuz: 1a3a02d5a982946e6cec2590171ba742e5528c647790a9ed9127879b76a124e7 IDENTICAL-in-build-2
+initramfs.cpio.gz: 7ad3dae8c7728b670dc4a02247b39128b825532f563c7cda13b65e9962b36942 IDENTICAL-in-build-2
+cmdline: d9e04c2c4769a4aadeaf4591e8e825ac513bf89f2677918d7e74638d8c9c90b8 IDENTICAL-in-build-2
+prediction 4 vCPU : fab9c6c76aca8d7650c05d5efdddc27b4b5aa76e7d81cd5c97365458513aedcf70ffe7d2817ac3836575b34917954bb0
+build 2 agrees    : True
+ovmf              : /home/steven/.cache/enclave-isolation/fwbuild/OVMF.amdsev.fd 142589cc4882f29a
+overlay           : 6845565a9dc0df5d8b469b8f2e74699c1aaa3444 dirty False reproducible True
+overlay files equal across the two builds: True
+overlay vs N1 2492e683: differ = ['/app/isolation/m2/judge.mjs', '/app/isolation/m4/guestd/supervisor-guestcert.mjs', '/app/supervisor.js']
+images            : b59f69816d8131f4 1cf721aa25d994e4 (N1: b59f69816d8131f4 1cf721aa25d994e4)
+by hand           : fab9c6c76aca8d7650c05d5efdddc27b4b5aa76e7d81cd5c97365458513aedcf70ffe7d2817ac3836575b34917954bb0
+HAND == MANIFEST
+cpio entries: N1 29027, N2 29027; differing: ['app/isolation/m2/judge.mjs', 'app/isolation/m4/guestd/supervisor-guestcert.mjs', 'app/supervisor.js', 'opt/metal/manifest.json']
+N2 build done 06:53:47Z

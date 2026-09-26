@@ -56,9 +56,9 @@ The node's certificate pass attests each guest itself and names the release the 
 3. **N2 build and review.** Can run in parallel with 1–2; it needs only the chain commit.
 4. **N2-b:** node swap to N2, from N1 if N1-b has run, otherwise from f6cbd75a.
    - Preflight and post-checks as in N1.
-   - Acceptance: one hookbin owner restart. The node's certificate line must read `guest attested`, with the judge naming 5db18199 (seccomp unstated, listed), and the retry timing from N1 must hold.
+   - Acceptance: one hookbin owner restart. The node's certificate line must read `guest attested`, with the judge naming 5db18199 (seccomp unstated, listed). The retry acceptance (§5) must hold.
 5. **S9 (guestd + tree switch to R):** the chain's guestd main.go refuses to start without `-isolation-release`, which is already set (N4 read, 06:3xZ).
-6. **e8:** the canaries onto R, one at a time. New proof: the attested self-test states `seccomp=<64 hex>`, and the node's certificate line for each R guest comes from N2's judge.
+6. **e8:** the canaries onto R, one at a time. The new proofs follow b4's manifest items 7–9 (§5), and the node's certificate line for each R guest comes from N2's judge.
 7. **rs-12:** retire 5db18199. The paired table change (5db18199 leaves SECCOMP_UNSTATED_RELEASES) goes into the rev after, on both the guestd tree and the node image.
 
 **Why N2 before S9:** the first R guests are then certified by the next-rev judge from the start. That is the judge.mjs pairing rule, and e8 proves it. It also keeps S9's rollback independent of the node.
@@ -74,6 +74,30 @@ Identical to N1 §3:
 - MemAvailable − 6144 ≥ 16384 + pendingMiB, and PSI 0;
 - the canaries on their current keys (lib-e7 until e8);
 - rollback: restore the config backup, keeping the previous image and its allowlist entry for 72 h.
+
+## 5. Acceptance lines (5d's fixes to N1 §3, which apply here because N2 carries the same retry code; plus b4's N3 and N5)
+
+**Retry acceptance, at N2-b's hookbin owner restart.**
+- **A1:** the 20 s line is CONDITIONAL. Passes run on the 60 s tick (`startGuestCertLoop`) and at back-off wakes; nothing runs a pass at launch. So if the first tick lands after the guest already serves, there is legitimately no "starting" answer and no 20 s line. The rule: IF a line `[isolation] 0x0ddbd824…: no certificate for 0ddbd824.app.enclave.host (the instance is starting); retry in` appears, it says `20s`, and NEVER `300s`.
+- **A2:** the certificate request is bounded to the FIRST pass at or after `DOM serving`. That is ≤ 21 s after serving when a starting retry was pending; otherwise it is the next 60 s tick. There is no "≤ 45 s" gate: the tick's phase and the CA's order time are not N2's. The install latency (the CA's time) is REPORTED as a number, not gated.
+- **A3:** every `retry in` grep is anchored on the `[isolation] 0x<id8>…: no certificate for <host> (…); retry in` line. `[bill] <id> respawn failed (…); retry in Ns` (supervisor.js:7073) never counts.
+- The instance-keying half stays unit-tested (with mutants), not measured: a relaunch replaces a success entry.
+
+**b4's N3 (seccomp timing), for e8's R guests.** An attestation in the first instant after start, before the app's exec writes `/run/enclave/seccomp`, states no seccomp and is refused.
+- The node's pass should never see that window. It asks only for a record guestd reports RUNNING, and guestd reports running only after its own attestation, which the front allows only after `DOM serving`, i.e. after the app's exec. Until then routeFor answers "the instance is starting" (20 s retry, not a failure).
+- So in e8: ANY `[isolation] 0x<id8>…: no certificate … REJECT … states no seccomp` line for an R guest is a FAIL (b4: after the app's exec, every attestation must state it), not the expected once-only refusal.
+
+**e8's per-guest proofs on R (b4's manifest items 7–8).**
+- The console shows `DOM seccomp: app filter installed (sha256 d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66, 71 rules)`.
+- None of these appear:
+  - `DOM ERROR the app gave no seccomp statement within 10000 ms: killed, not started`;
+  - `…held init's seccomp statement pipe past its exec…`;
+  - `…seccomp statement is malformed…`;
+  - `…could not record the app's seccomp statement…`;
+  - `…seccomp filter could not be installed…`.
+- The attested self-test carries `seccomp=d4d17c9f…`: `…runtime=R root=K seccomp=d4d17c9f… scope=all-processes`.
+- guestd's verify.txt (client.mjs with `--release aee2059f…`) prints `RESULT wx_coverage=runtime-covered`, and its reasons say "under the seccomp filter with program sha256 d4d17c9f…".
+- The node's certificate line reads `guest attested`, judged by N2.
 
 ## Open
 
