@@ -107,6 +107,9 @@ if ($c8 -notmatch '^[0-9a-f]{8}$') { Die "the archive name must be hvnode-<8 hex
 
 # ---- NODE ONLY: the node moves, nothing else (enclave-d1's spec; 87's order 09-26) ----
 if ($NodeOnly) {
+  # Procs returns @(…), which PowerShell 5.1 UNROLLS at the call when there is ONE match: a bare CimInstance, whose .Count
+  # is EMPTY, not 1 (enclave-d1, on the box at 04:58Z: the up-check never passed, and the gone-check read "none" while one
+  # process still ran). So every call site wraps it again: @(Procs …). test/hvnode-install-ps1.test.mjs refuses a bare one.
   function Procs([string]$name, [string]$like) { @(Get-CimInstance Win32_Process -Filter "Name='$name'" | Where-Object { $_.CommandLine -like $like }) }
   $runNodeCmd = Join-Path $Root 'run-node.cmd'; $nodeCfgCmd = Join-Path $Root 'node-config.cmd'
   # the box is an INSTALLED hv node with its manager serving: this is an upgrade of the node alone, never a first install
@@ -131,7 +134,7 @@ if ($NodeOnly) {
   Note ("manager Running and canStart; the node runs {0}; it moves to {1}" -f $oldNodeDir, $newNodeDir)
   StageNodeTree $true
   if ($script:nodeDir.ToLower() -ne $newNodeDir.ToLower()) { Die "staged $($script:nodeDir), expected $newNodeDir" }
-  $newRun = RunLoop $nodeCfgCmd $newNodeDir 'agent.mjs' (Join-Path $Root 'logs\node.log')
+  $newRun = @(RunLoop $nodeCfgCmd $newNodeDir 'agent.mjs' (Join-Path $Root 'logs\node.log'))
   if ($DryRun) {
     Note "DRY RUN: every check passed and $newNodeDir is staged; the node was NOT stopped and run-node.cmd was NOT rewritten"
     Write-Output ("run-node.cmd would name: {0}" -f ($newRun | Where-Object { $_ -like 'cd /d *' }))
@@ -141,11 +144,11 @@ if ($NodeOnly) {
   Stop-ScheduledTask -TaskName 'EnclaveHvNode' -TaskPath '\' -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 3
   $agentLike = "*$Root\*\windows\node\agent.mjs*"
-  foreach ($p in (Procs 'cmd.exe' "*$runNodeCmd*")) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Note "node loop (cmd.exe pid $($p.ProcessId)) stopped" }
-  foreach ($p in (Procs 'node.exe' $agentLike)) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Note "node agent (node.exe pid $($p.ProcessId)) stopped" }
+  foreach ($p in @(Procs 'cmd.exe' "*$runNodeCmd*")) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Note "node loop (cmd.exe pid $($p.ProcessId)) stopped" }
+  foreach ($p in @(Procs 'node.exe' $agentLike)) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Note "node agent (node.exe pid $($p.ProcessId)) stopped" }
   $gone = $false
   for ($i = 0; $i -lt 30; $i++) {
-    if (-not (Procs 'cmd.exe' "*$runNodeCmd*").Count -and -not (Procs 'node.exe' $agentLike).Count) { $gone = $true; break }
+    if (-not @(Procs 'cmd.exe' "*$runNodeCmd*").Count -and -not @(Procs 'node.exe' $agentLike).Count) { $gone = $true; break }
     Start-Sleep -Seconds 2
   }
   if (-not $gone) { Die 'the node loop or agent is still running after 60 s: run-node.cmd was NOT rewritten; start \EnclaveHvNode again (Start-ScheduledTask) to resume the old tree' }
@@ -171,7 +174,7 @@ if ($NodeOnly) {
   $up = $false; $newLike = "*$newNodeDir\agent.mjs*"
   for ($i = 0; $i -lt 45; $i++) {
     Start-Sleep -Seconds 2
-    if ((Procs 'node.exe' $newLike).Count) {
+    if (@(Procs 'node.exe' $newLike).Count) {
       try { $null = Invoke-RestMethod -Uri "http://127.0.0.1:$LocalPort/availability" -TimeoutSec 5 -UseBasicParsing; $up = $true; break } catch { }
     }
   }
@@ -344,8 +347,8 @@ $nodeCfg = @(
   "set LOCAL_HTTP_PORT=$LocalPort",
   $(if ($HostingTrayUser) { "set HOSTING_TRAY_USER=$HostingTrayUser" } else { 'rem HOSTING_TRAY_USER unset: only SYSTEM and elevated administrators can read the hosting token (the tray cannot)' }),
   "set PYTHON_BIN=$Python", 'set IPFS_GATEWAY=https://ipfs.enclave.host')
-$runMgr = RunLoop (Join-Path $Root 'manager-config.cmd') $mgrDir 'main.mjs' (Join-Path $Root 'logs\manager.log')
-$runNode = RunLoop (Join-Path $Root 'node-config.cmd') $nodeDir 'agent.mjs' (Join-Path $Root 'logs\node.log')
+$runMgr = @(RunLoop (Join-Path $Root 'manager-config.cmd') $mgrDir 'main.mjs' (Join-Path $Root 'logs\manager.log'))
+$runNode = @(RunLoop (Join-Path $Root 'node-config.cmd') $nodeDir 'agent.mjs' (Join-Path $Root 'logs\node.log'))
 Set-Content -Path (Join-Path $Root 'manager-config.cmd') -Value $mgrCfg -Encoding ASCII
 Set-Content -Path (Join-Path $Root 'node-config.cmd') -Value $nodeCfg -Encoding ASCII
 Set-Content -Path (Join-Path $Root 'run-manager.cmd') -Value $runMgr -Encoding ASCII
