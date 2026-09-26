@@ -1382,7 +1382,21 @@ export class Host {
       // HELD (a retired-engine node, a deployment it cannot run): before the renewal, the envelope edit and
       // the resize, each of which can spend or give back the lease on chain. Recorded, and left alone.
       const held = this.heldReason(d);
-      if (held) { this.#record(id, { status: "held", reason: held, leaseUntil: Number(d.leaseUntil) }); continue; }
+      if (held) {
+        // AN OWNER THIS BOX DOES NOT SERVE is not only left unrenewed: what it runs here is STOPPED (enclave-bf's
+        // should-fix). At once after a TRANSFER - the ledger's owner is not the one this box ran it for (rec.owner,
+        // recorded by ensureApp) - and at the latest when the held lease lapses, as a boundary hold is. A delegation
+        // that is merely missing or unreadable (a transient file-system error looks the same) holds until the lease
+        // ends rather than killing a delegated owner's app. #stopApp retires a partition and waits until it is confirmed
+        // gone; nothing is released on chain.
+        if (this.ownerNotServed(d)) {
+          const ranFor = String(rec.owner || "").toLowerCase(), owner = String(d.owner || "").toLowerCase();
+          if (ranFor && ranFor !== owner) { await this.#stopApp(id, `the deployment was transferred to ${d.owner}, whom this box does not serve`); continue; }
+          if (untilMs < Date.now()) { await this.#stopApp(id, `its lease lapsed while held for an owner this box does not serve (${d.owner})`); continue; }
+        }
+        this.#record(id, { status: "held", reason: held, leaseUntil: Number(d.leaseUntil) });
+        continue;
+      }
       // A deployment whose manager stated a boundary this backend cannot have is HELD and NOT renewed: renewing would bill
       // the tenant for a service this box will not give (enclave-99). ensureApp below still re-asks every tick. But its
       // LEASE END is still honoured, and before ensureApp, so a lapsed lease is neither kept running nor served again for
@@ -1718,12 +1732,16 @@ export class Host {
     // a deployment transferred away (rev 11), or taken under an owner rule that no longer authorizes it. Without this
     // the sweep kept renewing it and re-spawned it whenever it was not running, and a share resize or envelope edit ran
     // ensureApp(force) for it: N1's harm through the sweep instead of the route (enclave-bf).
-    if (this.scope() === "owner-only" && !this.ownerSet().has(String(d?.owner || "").toLowerCase()))
+    if (this.ownerNotServed(d))
       return `this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is `
         + `owned by ${d?.owner}: held - not started, not renewed, not released - pending the operator's decision`;
     if (this.cfg.engineRetired !== true || this.isolatedForThisBox(d)) return null;
     return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired) and this deployment "
       + "does not require it: held - not started, not renewed, not released - pending the operator's decision";
+  }
+  /** ownerNotServed(d) -> true when, in owner-only scope, the deployment's ledger owner is not in ownerSet(). */
+  ownerNotServed(d) {
+    return this.scope() === "owner-only" && !this.ownerSet().has(String(d?.owner || "").toLowerCase());
   }
   /** claimRefusal(d) -> why a retired-engine node will not CLAIM a deployment, or null (see heldReason). */
   retiredEngineClaimRefusal(d) {

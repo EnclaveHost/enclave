@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { fakeBaseRpc, DEPLOYMENTS, enclaveIdOf } from "./helpers/fake-base-rpc.mjs";
 import { privateKeyToAccount } from "viem/accounts";
+import { DEP, recoveredOnManager, closeManagers } from "./helpers/hv-fake-manager.mjs";
 
 const OPERATOR_KEY = "0x" + "4f".repeat(32);
 process.env.NODE_OPERATOR_KEY = OPERATOR_KEY;              // loadOperator reads it; a throwaway key, nothing is sent
@@ -21,7 +22,7 @@ chain.addresses.registry = REGISTRY;
 chain.loadOperator();
 const { Host } = await import("../windows/node/host.mjs");
 const { verifyDelegation, parseDelegation } = await import("../windows/node/host-delegation.mjs");
-after(() => rpc.close());
+after(() => { closeManagers(); rpc.close(); });
 
 const OPERATOR = privateKeyToAccount(OPERATOR_KEY).address.toLowerCase();
 const OWNER_A = privateKeyToAccount("0x" + "a1".repeat(32));            // delegates to this box
@@ -146,7 +147,7 @@ async function sweepOnce(owner) {
   return { rec: h.records.get(id), ensured, logs, txs };
 }
 
-test("sweep: a tracked lease whose ledger owner became a stranger (a rev-11 transfer) is HELD - not renewed, not respawned", async () => {
+test("sweep: a tracked lease whose ledger owner is not served (and no record of whom it ran for) is HELD - not renewed, not respawned", async () => {
   const r = await sweepOnce(STRANGER.address);
   assert.equal(r.rec?.status, "held", JSON.stringify(r.rec));
   assert.match(r.rec.reason, /owner-only scope and serves only its operator's/);
@@ -159,4 +160,64 @@ test("sweep control: the operator's own lease is NOT held - the tick goes on to 
   const r = await sweepOnce(OPERATOR);
   assert.notEqual(r.rec?.status, "held", JSON.stringify(r.rec));
   assert.ok(r.logs.some((l) => /renew/i.test(l)) || r.ensured.length === 1, `neither renewed nor ensured: ${r.logs.join(" / ")}`);
+});
+
+// ---- the sweep STOPS what an owner this box does not serve runs (enclave-bf's should-fix): at once after a transfer,
+// at the latest when the held lease lapses; a merely missing delegation on a live lease holds and keeps it running.
+async function sweepPartition({ ranFor, ledgerOwner, leaseSec = 3600 }) {
+  const { host, m2, instanceId } = await recoveredOnManager();
+  const logs = [];
+  const h = hvBox({ log: (s) => logs.push(String(s)), isolationManager: `http://127.0.0.1:${m2.port}` });
+  h.chainReady = true; h.registered = { endpoint: ENDPOINT, cpuPricePerSec6: 12n };
+  h.ensureRegistered = async () => {}; h.ensurePriced = async () => {};
+  h.ensureApp = async () => ({ status: "running" });
+  h.tracked.add(DEP);
+  h.records.set(DEP, { id: DEP, status: "running", owner: String(ranFor).toLowerCase(), isolation: { instance: instanceId } });
+  rpc.row.current = { ...ledgerRow(ledgerOwner), id: DEP, leaseUntil: BigInt(now() + leaseSec) };
+  await h.tick();
+  return { rec: h.records.get(DEP), tracked: h.tracked.has(DEP), vms: host.running().length, logs };
+}
+
+test("sweep: a TRANSFER to an owner this box does not serve STOPS the running partition at once (confirmed gone, untracked)", async () => {
+  const r = await sweepPartition({ ranFor: OPERATOR, ledgerOwner: STRANGER.address });
+  assert.equal(r.rec?.status, "stopped", JSON.stringify(r.rec));
+  assert.match(r.rec.reason, /transferred to .*whom this box does not serve/);
+  assert.equal(r.vms, 0, "the partition still runs");
+  assert.equal(r.tracked, false);
+});
+
+test("sweep: the owner is unchanged but no longer served (its delegation is gone) on a LIVE lease: held, the partition kept", async () => {
+  const r = await sweepPartition({ ranFor: OWNER_A.address, ledgerOwner: OWNER_A.address });
+  assert.equal(r.rec?.status, "held", JSON.stringify(r.rec));
+  assert.equal(r.vms, 1, "a delegated owner's app was killed on a missing file");
+});
+
+test("sweep: ...and once that held lease LAPSES, the partition is stopped", async () => {
+  const r = await sweepPartition({ ranFor: OWNER_A.address, ledgerOwner: OWNER_A.address, leaseSec: -60 });
+  assert.equal(r.rec?.status, "stopped", JSON.stringify(r.rec));
+  assert.match(r.rec.reason, /lease lapsed while held/);
+  assert.equal(r.vms, 0);
+});
+
+// ---- revocation at RESTART time (enclave-bf's should-fix): restartRequest re-reads the delegations itself
+test("restart: a delegated owner's restart is allowed, and refused once the delegation file is removed or has expired", async () => {
+  const { initSessionKey, mint, addressFor } = await import("../windows/node/session.mjs");
+  const h = hvBox();
+  const key = initSessionKey({ dir: h.cfg.dir });
+  h.cfg.sessionVerify = (headers, id) => addressFor(key, headers, id);
+  const asA = { authorization: `Bearer ${mint(key, { subject: OWNER_A.address, ttlSec: 600 })}` };
+  const calls = []; h.ensureApp = async (i, d, o) => { calls.push(o); return { status: "running" }; };
+  const id = "0x" + "d4".repeat(32);
+  const read = async () => dep(OWNER_A.address);
+  carry(h, "a.json", await signed(delegationText()));
+  assert.equal((await h.restartRequest(id, asA, { read })).status, 200);
+  fs.rmSync(path.join(h.cfg.dir, "delegations", "a.json"));
+  const gone = await h.restartRequest(id, asA, { read });
+  assert.equal(gone.status, 409, JSON.stringify(gone));
+  assert.match(gone.body.reason, /restarts only its operator's/);
+  carry(h, "a.json", await signed(delegationText({ expires: now() + 2 })));
+  assert.equal((await h.restartRequest(id, asA, { read })).status, 200);
+  await new Promise((r) => setTimeout(r, 2500));
+  assert.equal((await h.restartRequest(id, asA, { read })).status, 409, "an expired delegation still authorized a restart");
+  assert.equal(calls.length, 2);
 });
