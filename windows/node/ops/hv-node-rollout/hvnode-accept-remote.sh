@@ -25,19 +25,23 @@ set -- $row
 [ "${2:-}" = false ] && c=ok || c=no; check $c "R1 hvNode.hostExcluded ${2:-?}"
 echo "INFO R1 verifiedAt ${3:-?}; omissions ${4:-?}; eligible ${5:-?}; serving ${6:-?}; bootCounter ${7:-?} (the attested boot: +1 after a host reboot); checkedAt ${8:-?}"
 
+# THE NEGATIVE RESTART PROBES AIM AT THE ZERO ID, NEVER A LIVE ONE (enclave-87's hard rule, 2026-09-26: a check never
+# sends a production apply at live state and relies on a guard to refuse it). Were a guard to regress, the zero id names
+# no deployment, so nothing can restart. $ID is never put into R2 or R2b (test/hvnode-negative-probes.test.mjs).
+ZERO_ID=0x0000000000000000000000000000000000000000000000000000000000000000
 # R2 (RELAY): a restart with NO session, through the relay, is refused, never run
-rid=${ID:-0x$(printf '0%.0s' $(seq 1 64))}
-code=$(curl -sS -o /dev/null -m 20 -w '%{http_code}' -X POST "https://api.enclave.host/t/nucbox-k11/v1/deployments/$rid/restart")
+code=$(curl -sS -o /dev/null -m 20 -w '%{http_code}' -X POST "https://api.enclave.host/t/nucbox-k11/v1/deployments/$ZERO_ID/restart")
 case "$code" in 401|403|404|409|503) c=ok ;; *) c=no ;; esac
-check $c "R2 (relay) POST /t/nucbox-k11/v1/deployments/${rid:0:10}…/restart without a session -> $code (refused)"
+check $c "R2 (relay) POST /t/nucbox-k11/v1/deployments/0x00…00 (the zero id)/restart without a session -> $code (refused)"
 
 # R2b (RELAY; b4's check, with a real STRANGER): a throwaway wallet logs in to the node THROUGH the relay (its own SIWE
-# session) and asks to restart the deployment. It must be refused: 404 (not the owner; Linux's rule) once B routes the
-# POST, 401 if the relay strips the credential first. Never 200. The throwaway key lives only in this process.
+# session) and asks to restart the ZERO id. On a nonexistent id "not the owner" and "no such deployment" are the same
+# 404, so this is INFO live, never a PASS (enclave-87); the proof is test-level, test/windows-node-restart-gate.test.mjs
+# ("restartRequest: a valid session for ANOTHER address is 404 …"). A 200 is still a FAIL. The key lives only here.
 # 'nosession' (the relay refused the stranger's login) is INFO, never a PASS, and is left out of the tally (enclave-87's
 # ruling): under B the relay refuses /v1/auth/* for an hv-node row by design (b4), so this check cannot reach the
 # restart; the node's N1 is evidenced by A9 on the box (hvnode-accept.ps1), a hard check.
-r2b=$(cd "$VIEM_DIR" && RID="$rid" node --input-type=module -e '
+r2b=$(cd "$VIEM_DIR" && RID="$ZERO_ID" node --input-type=module -e '
   import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
   const B = "https://api.enclave.host/t/nucbox-k11";
   const acct = privateKeyToAccount(generatePrivateKey());
@@ -55,11 +59,12 @@ if [ "${1:-}" = nosession ]; then
   echo "INFO R2b (relay): the relay refuses /v1/auth for this hv-node box (by design, B): ${r2b}; N1 is evidenced by A9 on the box. NOT counted as a PASS"
   excluded="R2b"
 else
-  case "${1:-}/${2:-}" in
-    session/401|session/403|session/404|session/409|session/503) c=ok ;;
-    *) c=no ;;
-  esac
-  check $c "R2b (relay) a stranger's OWN session on the node, restarting ${rid:0:10}…: ${r2b:-no answer} (refused, never 200)"
+  if [ "${1:-}/${2:-}" = session/200 ]; then
+    check no "R2b (relay) a stranger's OWN session restarting the zero id got 200: a restart the node must never grant"
+  else
+    echo "INFO R2b (relay) a stranger's OWN session, restarting the zero id: ${r2b:-no answer} (not counted: on a nonexistent id 404 cannot say why; test-level proof)"
+  fi
+  excluded="${excluded:+$excluded, }R2b"
 fi
 
 # R3: the operator's gas, and no stuck nonce
