@@ -517,13 +517,22 @@ export function step(ev, s) {
   return { fail, info };
 }
 
+/**
+ * A sample EXERCISED the leak check when a leak could have been seen in it: the partition ran, the token request was
+ * delivered (a verified 200), the console was read around it, and both logs were read. A sample that is not exercised
+ * proves nothing either way, so the summary never lets `leak` PASS on coverage below LEAK_FLOOR.
+ */
+export const LEAK_FLOOR = 0.9;
+export const exercised = (s) => s.box?.partition?.running === true && s.tls?.ok === true && s.box?.console?.connected === true
+  && s.box?.logs?.node?.ok === true && s.box?.logs?.manager?.ok === true;
+
 /* ------------------------------------------------------------------ summary */
 
-const pct = (sorted, p) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))] : null);
+const pct =(sorted, p) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))] : null);
 const dur = (ms) => { const m = Math.round(ms / 60000); return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}m`; };
 
-/** Re-evaluate a JSONL file's samples from scratch. -> { text, pass } */
-export function summarize(lines, { since = null, interval = null } = {}) {
+/** Re-evaluate a JSONL file's samples from scratch. -> { text, pass }; pass only when every threshold PASSes. */
+export function summarize(lines, { since = null, interval = null, leakFloor = LEAK_FLOOR } = {}) {
   const recs = [];
   for (const l of lines) { if (!l.trim()) continue; try { recs.push(JSON.parse(l)); } catch { /* a torn last line */ } }
   const head = recs.find((r) => r.type === "start");
@@ -562,6 +571,10 @@ export function summarize(lines, { since = null, interval = null } = {}) {
            + `card-price lines baseline ${ev.price.baseline ?? "?"}, added ${ev.price.added}`);
   out.push(`console: ${samples.filter((s) => s.box?.console?.connected).length}/${samples.length} samples read, `
            + `${sum((s) => s.box?.console?.lines)} lines, ${sum((s) => s.box?.console?.nonMatching)} not DOM/MON/kernel`);
+  const ex = samples.filter(exercised).length, exShare = ex / samples.length;
+  const leakCovered = ex >= 1 && exShare >= leakFloor;
+  out.push(`leak check: exercised in ${ex}/${samples.length} samples (${(100 * exShare).toFixed(1)}%; floor ${(100 * leakFloor).toFixed(1)}%): `
+           + "partition running, a verified 200 carrying the token, the console read around it, both logs read");
   if (chain.length) {
     const a = chain[0].chain, b = chain[chain.length - 1].chain;
     const h = (Date.parse(chain[chain.length - 1].t) - Date.parse(chain[0].t)) / 3.6e6;
@@ -569,15 +582,19 @@ export function summarize(lines, { since = null, interval = null } = {}) {
              + `spent6 ${a.spent6} -> ${b.spent6}, lease until ${b.leaseUntil}, runner is this box: ${b.runnerIsBox}`);
   } else out.push("chain: no successful reads");
   out.push("thresholds:");
-  let pass = true;
+  let failed = 0, unproven = 0;
   for (const th of THRESHOLDS) {
     const evs = ev.events.filter((e) => e.id === th.id);
-    if (evs.length) pass = false;
+    // a leak seen anywhere FAILs; no leak seen PASSes only on enough exercised samples, else it is NOT EXERCISED
+    const word = evs.length ? "FAIL" : th.id === "leak" && !leakCovered ? `NOT EXERCISED (${ex}/${samples.length})` : "PASS";
+    if (evs.length) failed++; else if (word !== "PASS") unproven++;
     const worst = ev.worst[th.id] !== undefined ? ` (worst streak ${ev.worst[th.id]})` : "";
-    out.push(`  ${evs.length ? "FAIL" : "PASS"} ${th.id.padEnd(9)} ${th.text}${worst}`
+    const exNote = th.id === "leak" ? ` [exercised ${ex}/${samples.length}, floor ${(100 * leakFloor).toFixed(1)}%]` : "";
+    out.push(`  ${word} ${th.id.padEnd(9)} ${th.text}${worst}${exNote}`
              + (evs.length ? `: ${evs.length} event(s); first ${evs[0].t}: ${evs[0].msg}` : ""));
   }
-  out.push(`VERDICT: ${pass ? "PASS" : "FAIL"}`);
+  const pass = failed === 0 && unproven === 0;
+  out.push(`VERDICT: ${failed ? "FAIL" : unproven ? "NOT PASS (the leak check was not exercised enough to pass)" : "PASS"}`);
   return { text: out.join("\n"), pass };
 }
 
@@ -606,6 +623,7 @@ async function takeSample(cfg, st) {
               tls: { url: url.href, ...tls }, relay: await relayP, chain: await chainP, box };
   const mk = box.vms?.mine?.transportKeySha256;
   s.derived = { spkiEqualsManagerKey: tls.cert?.spkiSha256 && mk ? tls.cert.spkiSha256 === mk : null };
+  s.derived.leakExercised = exercised(s);           // informational; --summary recomputes it from the observations
   return s;
 }
 
@@ -621,6 +639,7 @@ export function humanLine(s, v) {
     n?.ok ? `node +${n.lines}${n.baseline ? "(baseline)" : ""} err ${n.errorLines} refus ${n.refusLines} price ${n.cardPrice} renew ${n.renewedMine}/${n.renewed} notRenewed ${n.notRenewed} restart ${n.restart}` : "node log ?",
     m?.ok ? `mgr +${m.lines} err ${m.errorLines} refus ${m.refusLines}` : "mgr log ?",
     c ? `console ${c.connected ? `${c.lines} lines, ${c.nonMatching} not-own` : `none (${trunc(c.note, 50)})`} token ${(c.tokenHits || 0) + (n?.tokenHits || 0) + (m?.tokenHits || 0)}` : "console ?",
+    `leak check ${exercised(s) ? "exercised" : "NOT exercised"}`,
     s.chain?.ok ? `bal6 ${s.chain.balance6}` : s.chain?.skipped ? "" : `chain ?`,
   ].filter(Boolean);
   const tail = [...v.fail.map(([id, msg]) => `FAIL ${id}: ${msg}`), ...v.info.map(([id, msg]) => `info ${id}: ${msg}`)];
@@ -634,7 +653,8 @@ function parseDuration(x) {
 }
 
 export function parseArgs(argv) {
-  const cfg = { ...DEFAULTS, rpcs: [...DEFAULTS.rpcs], chain: true, once: false, summary: null, since: null, out: null, url: null };
+  const cfg = { ...DEFAULTS, rpcs: [...DEFAULTS.rpcs], chain: true, once: false, summary: null, since: null, out: null, url: null,
+                leakFloor: LEAK_FLOOR };
   const rpcs = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], v = () => { if (i + 1 >= argv.length) throw new Error(`${a} needs a value`); return argv[++i]; };
@@ -652,6 +672,11 @@ export function parseArgs(argv) {
       case "--ssh": cfg.ssh = v(); break;
       case "--root": cfg.root = v(); break;
       case "--console-sec": cfg.consoleSec = parseInt(v(), 10); break;
+      case "--leak-floor": {
+        const x = String(v()), f = x.endsWith("%") ? Number(x.slice(0, -1)) / 100 : Number(x);
+        if (!(f > 0 && f <= 1)) throw new Error(`--leak-floor must be a fraction in (0, 1] or a percentage, not ${x}`);
+        cfg.leakFloor = f; break;
+      }
       case "--rpc": rpcs.push(v()); break;
       case "--no-chain": cfg.chain = false; break;
       case "-h": case "--help": cfg.help = true; break;
@@ -669,16 +694,17 @@ export function parseArgs(argv) {
 const USAGE = `usage:
   node soak.mjs [--interval 300] [--duration 12h] [--out FILE.jsonl] [--no-chain]   the loop (default OUT ~/enclave-bench/nucbox-soak/<start>.jsonl)
   node soak.mjs --once [--out FILE.jsonl]                                           one sample, printed (appended to FILE only if --out is given)
-  node soak.mjs --summary FILE.jsonl [--since ISO]                                 PASS/FAIL per threshold; exit 1 on any FAIL
+  node soak.mjs --summary FILE.jsonl [--since ISO] [--leak-floor 0.9]              per threshold; exit 1 unless every one PASSes
 options: --deployment 0x.. --url https://.. --node nucbox-k11 --relay https://api.enclave.host --ssh minipc-zt
-         --root C:\\Users\\claude\\vbs-like\\hvnode --console-sec 25 --rpc URL (repeatable)`;
+         --root C:\\Users\\claude\\vbs-like\\hvnode --console-sec 25 --rpc URL (repeatable)
+         --leak-floor F: the share of samples that must EXERCISE the leak check for it to PASS (default 0.9; "90%" works)`;
 
 async function main() {
   let cfg;
   try { cfg = parseArgs(process.argv.slice(2)); } catch (e) { console.error(`${e.message}\n${USAGE}`); process.exitCode = 2; return; }
   if (cfg.help) { console.log(USAGE); return; }
   if (cfg.summary) {
-    const r = summarize(fs.readFileSync(cfg.summary, "utf8").split("\n"), { since: cfg.since });
+    const r = summarize(fs.readFileSync(cfg.summary, "utf8").split("\n"), { since: cfg.since, leakFloor: cfg.leakFloor });
     console.log(r.text);
     process.exitCode = r.pass ? 0 : 1;
     return;
@@ -687,7 +713,7 @@ async function main() {
   const out = cfg.out || (cfg.once ? null : path.join(os.homedir(), "enclave-bench", "nucbox-soak", `${stamp}.jsonl`));
   if (out) fs.mkdirSync(path.dirname(out), { recursive: true });
   const write = (o) => { if (out) fs.appendFileSync(out, JSON.stringify(o) + "\n"); };
-  const header = { type: "start", t: new Date().toISOString(), v: 1, interval: cfg.interval, duration: cfg.duration, deployment: cfg.deployment,
+  const header = { type: "start", t: new Date().toISOString(), v: 1, interval: cfg.interval, duration: cfg.duration, leakFloor: cfg.leakFloor, deployment: cfg.deployment,
                    url: cfg.url, node: cfg.node, relay: cfg.relay, ssh: cfg.ssh, root: cfg.root, chain: cfg.chain, pid: process.pid, once: cfg.once };
   write(header);
   const st = newSampler(), ev = newEval();
@@ -727,7 +753,7 @@ async function main() {
     k = Math.floor((Date.now() - start) / (cfg.interval * 1000)) + 1;     // a slow sample skips its missed slots
   }
   write({ type: "end", t: new Date().toISOString(), samples: st.seq });
-  console.log(summarize(fs.readFileSync(out, "utf8").split("\n")).text);
+  console.log(summarize(fs.readFileSync(out, "utf8").split("\n"), { leakFloor: cfg.leakFloor }).text);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
