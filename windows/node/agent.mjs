@@ -38,6 +38,7 @@ import { initSessionKey, mint as mintSession, addressFor } from './session.mjs';
 import { nonceStore, siweMessage, verifyLogin } from './siwe.mjs';
 import { HV_NODE_FORMAT, buildHvNodeFrame, loadOrCreateNodeKey } from './hvnode-evidence.mjs';
 import { mintToken, startHostingAdmin, tokenFileDefault } from './hosting.mjs';
+import { finishHvAttach, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
 // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
@@ -82,6 +83,9 @@ const APPS = /^(1|true|yes)$/i.test(String(process.env.APPS || ''));
 const LEGACY_ENGINE = /^legacy$/i.test(String(process.env.ENCLAVE_ENGINE || ''));
 const NO_ENGINE = 'this node runs only the isolated backend: the VBS enclave engine is retired, so this service is unavailable';
 let nodeKey = null;          // windows-hv-node/v1: the agent's own Ed25519 transport key, a HOST key
+// What the last hv-node attach told the relay (hvnode-attach.mjs): its signature version and the owners it carried, so a
+// change in whom this node serves is followed by a new attach. `redialNow` ends the live tunnel; its close handler redials.
+let attachSent = null, attachedOwnersVersion = null, lastOwnerRedial = 0, redialNow = () => {};
 // The app-zone half: built once APPS is on, because it needs the host to know which deployment
 // runs where and which certificate belongs to it.
 let zone = null;
@@ -364,6 +368,14 @@ async function isolationHealth() {
     return await new IsolationManagerClient({ base: host.cfg.isolationManager }).health();
   } catch (e) { log(`isolation manager health unavailable: ${e.message}`); return null; }
 }
+// The operator key's personal_sign, for the hv-node attach (hvnode-attach.mjs picks the text); null without a key.
+async function operatorSigner() {
+  try {
+    const { loadOperator } = await import('./chain.mjs');
+    const acct = loadOperator(path.join(DIR, 'operator.key'));
+    return acct ? (message) => acct.signMessage({ message }) : null;
+  } catch (e) { log(`operator signature unavailable: ${e.message}`); return null; }
+}
 async function operatorSig(nonceB64) {
   try {
     const { loadOperator } = await import('./chain.mjs');
@@ -559,13 +571,19 @@ function connect() {
                                     maxPayload: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576 * 1.4) });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
     tunnelSend = send;
+    redialNow = () => { try { ws.terminate(); } catch {} };
     tunnelBuffered = () => { try { return ws.bufferedAmount || 0; } catch { return 0; } };
     let last = Date.now(); const live = setInterval(() => { if (Date.now() - last > 90_000) { log('tunnel silent for 90s, redialing'); try { ws.terminate(); } catch {} } }, 15_000);
     ws.on('open', () => { last = Date.now(); log('tunnel open, waiting for the challenge'); });
     ws.on('message', async (data) => {
       last = Date.now(); let f; try { f = JSON.parse(data); } catch { return; }
       try {
-        if (f.t === 'challenge') { pending = { nonce: f.nonce }; send(await keysFrame()); log('sent TPM keys'); }
+        if (f.t === 'challenge') {
+          const kf = await keysFrame();
+          // the EK certificate exactly as sent (attach signature v2 binds its sha256) and whether the relay verifies v2
+          pending = { nonce: f.nonce, v2: relayTakesV2(f), ekCertDer: Buffer.from(kf.ek, 'base64') };
+          send(kf); log('sent TPM keys');
+        }
         else if (f.t === 'vbs-credential') {
           if (!pending) return;
           if (LEGACY_ENGINE) {
@@ -581,11 +599,19 @@ function connect() {
               spki: nodeKey.spki, privateKey: nodeKey.privateKey, tpm: tpmCmd,
               managerHealth: await isolationHealth(), platform: await platformInfo() });
             spkiFp = createHash('sha256').update(nodeKey.spki).digest('hex');
-            const sig = await operatorSig(pending.nonce); if (sig) frame.operatorSig = sig;
-            send(frame); log(`sent ${HV_NODE_FORMAT} evidence (quote, credential, log, signed binding)`);
+            // The operator's signature and the owners' delegations (hvnode-attach.mjs, enclave-e3's format): v2, and the
+            // delegations with it, only when the relay's challenge says it verifies v2 - a relay that checks v1 alone
+            // would refuse a v2 signature for this registered name. Delegations re-read now, so the attach is current.
+            if (APPS) await host.refreshOwners().catch((e) => log(`owners: ${e.message}`));
+            const x = await finishHvAttach(frame, { name: NAME, nonceB64: pending.nonce, spki: nodeKey.spki, ekCertDer: pending.ekCertDer,
+                                                    v2: pending.v2, sign: await operatorSigner(), delegations: APPS ? host.attachDelegations() : [] });
+            attachSent = { version: x.version, owners: APPS ? host.ownersVersion() : null };
+            send(frame); log(`sent ${HV_NODE_FORMAT} evidence (quote, credential, log, signed binding), attach signature v${x.version}`
+              + (x.version === 2 ? `, ${x.delegations.length} delegation(s)` : ' (the relay offered no v2: it serves no delegated owner from this attach)'));
           }
         } else if (f.t === 'attest-result') {
           if (f.ok) { tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
+                      attachedOwnersVersion = attachSent && attachSent.version === 2 ? attachSent.owners : null;
                       host.relayTier = tier;   // the host's contract gate reads the relay's verdict, not ours
                       // the relay's word on host exclusion, kept as given (hv-node: false); never raised by this node
                       host.relayHostExcluded = typeof f.hostExcluded === 'boolean' ? f.hostExcluded : null;
@@ -758,5 +784,13 @@ async function startHostingControls() {
   }
   if (process.env.LOCAL_HTTP_PORT) localHttp(Number(process.env.LOCAL_HTTP_PORT));
   if (process.env.RELAY_URL !== 'none') connect(); else log('RELAY_URL=none: local only');
+  // The relay learns whom this node serves only at attach, so when that changes (a delegation added, removed or expired;
+  // the tick re-reads them) the node attaches again - at most every 2 minutes (hvnode-attach.mjs shouldReattach).
+  if (!LEGACY_ENGINE && APPS) setInterval(() => {
+    if (!shouldReattach({ attached: attachedAt > 0, attachedVersion: attachedOwnersVersion, currentVersion: host.ownersVersion(), lastRedialMs: lastOwnerRedial })) return;
+    lastOwnerRedial = Date.now();
+    log('the owners this node serves changed since its attach: attaching again so the relay serves the same set');
+    redialNow();
+  }, 30_000).unref?.();
 })().catch((e) => { console.error(e); process.exit(1); });
 process.on('SIGINT', () => { for (const c of Object.values(children)) c?.kill(); tpm?.kill(); process.exit(0); });

@@ -224,6 +224,18 @@ export class Host {
     return set;
   }
 
+  /** The VALID, unexpired delegations this box carries, as the files hold them: what its hv-node attach sends (hvnode-attach.mjs). */
+  attachDelegations(now = Math.floor(Date.now() / 1000)) {
+    return this.owners.delegations.filter((d) => d.expires > now).slice(0, MAX_DELEGATIONS)
+      .map((d) => ({ message: d.message, signature: d.signature }));
+  }
+  /** A digest of whom this box serves (the operator and the delegations it would send): an attach made under a different
+   *  value no longer tells the relay the truth, so the agent attaches again (hvnode-attach.mjs shouldReattach). */
+  ownersVersion(now = Math.floor(Date.now() / 1000)) {
+    const sigs = this.attachDelegations(now).map((d) => d.signature.toLowerCase()).sort();
+    return crypto.createHash("sha256").update(JSON.stringify([this.owners.operator || null, sigs])).digest("hex");
+  }
+
   /** Re-read the operator and the delegation files, verifying each (host-delegation.mjs). An invalid one is logged once per reason. */
   async refreshOwners({ recover } = {}) {
     const op = chain.operatorAddress();
