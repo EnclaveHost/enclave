@@ -18,7 +18,11 @@
 //   lab-unsigned     attested, no-tcb-policy, unauthenticated   explicit lab-only diagnostic
 //   t0-diagnostic    not-attested                               explicit; a T0 domain is never trusted
 //
-// want = { measurement, appSha, mode, minTcb?, vcek?, kds?, runtime?, hostData? }
+// want = { measurement, appSha, mode, minTcb?, vcek?, kds?, runtime?, hostData?, release? }
+//   release the domain release(s) the CALLER knows the pinned measurement to be an image of - from its own trusted
+//           knowledge (the relay prediction the measurement matched; the tree guestd built the guest from), NEVER from
+//           the document. A string or an array of 64-hex ids. Only when EVERY named release is in LEGACY_WX_RELEASES,
+//           and the measurement is pinned, may the document state the legacy runtime self-test (see below).
 //   hostData the DEPLOYMENT the caller means to reach: the full 32-byte deployment id (hex, 0x optional). A per-app
 //           guest is launched with it as SEV-SNP HOST_DATA (m2/run-domain.sh, m4/guestd), which the PSP signs into
 //           every report and which is outside the launch measurement - so two instances of one app version share a
@@ -173,14 +177,14 @@ export function checkRuntime(doc, handshakeSpki, nonce, want = {}) {
     reasons.push(`the runtime identity is bound into the report but UNPINNED by this caller: ${r.name}/${r.version} execution=${r.execution} target=${r.targetIsa} host=${r.hostIsa} features=${r.cpuFeatures} wx=${r.wx} cache=${r.cache} (pass want.runtime to pin it)`);
   }
 
-  const st = checkRuntimeSelfTest(doc.runtimeSelfTest, r);
+  const st = checkRuntimeSelfTest(doc.runtimeSelfTest, r, { legacy: want.legacyWx });
   reasons.push(...st.reasons);
   if (!st.ok) return { ok: false, reasons };
 
   let rid;
   try { rid = runtimeId(r); } catch (e) { return { ok: false, reasons: [`REJECT: ${e.message}`] }; }
   reasons.push(`${ABI2}: report_data[0:32] must bind the transport key, the nonce AND runtime id ${rid.toString('hex').slice(0, 16)}…`);
-  return { ok: true, reasons, binding: bind2(handshakeSpki, nonce, rid) };
+  return { ok: true, reasons, binding: bind2(handshakeSpki, nonce, rid), wxCoverage: st.coverage };
 }
 
 // checkRuntimeSelfTest judges "exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1".
@@ -189,15 +193,51 @@ export function checkRuntime(doc, handshakeSpki, nonce, want = {}) {
 // runs covers no runtime and says runtime=0, and this judge REJECTS it wherever the runtime is a separate process. Who
 // relies on the wx claim, and who does not (enclave-87: "decide per consumer; never silently accept runtime=0 where the
 // claim is relied on"):
-//   RELIES, and so attests a SERVING domain (waits for the app): this judge, isolation/m2/client.mjs and the lab
-//     harnesses that call it (test-m2.sh, test-m3.sh, test-m4.sh);
-//   EXEMPT, because it does not read the claim at all: the production verifier (verifier/envelope.mjs validates
-//     runtimeSelfTest for SHAPE only, str(4096), "the binding decides") and so the relay's certificate issuance
-//     (guestcert, certs.js incl. the NucBox hvcert pass), the attested release and config handoff (which run before the
-//     app starts), and the site's and CLI's trusted mode; and the NucBox manager's readiness judge (judge-hv.mjs), which
-//     never reads it.
+//   RELIES, and so attests only a SERVING domain (the app is up):
+//     - guestd's admission (m4/guestd server.go launch and persist.go adoption -> client.mjs): only after the console
+//       says "DOM serving", which the front prints once the app LISTENS (m2/front main.go);
+//     - the node supervisor's SNP guest certificate (supervisor.js guestCertPass -> m4/guestd/supervisor-guestcert.mjs):
+//       only for a record guestd reported running, so after that admission;
+//     - isolation/m2/client.mjs and the lab harnesses that call it (test-m2.sh, test-m3.sh, test-m4.sh);
+//   EXEMPT, because it never sees or reads the claim:
+//     - the attested release and config handoff, which runs BEFORE the app starts: its evidence (m2/release
+//       client.go Evidence) is a report with no self-test field;
+//     - the production verifier (verifier/envelope.mjs validates runtimeSelfTest for SHAPE only, str(4096), "the
+//       binding decides"), and so the relay, the site's and CLI's trusted mode;
+//     - the NucBox (T0-hv): its readiness judge and its certificate pass both use judge-hv.mjs, which never reads it.
+//
+// PER RELEASE, NO FLAG DAY (enclave-87's ruling, 2026-09-26). A release built before this scan existed states the LEGACY
+// form, "exec_pages=allowed wx=clean maps=3 scope=all-processes": one scan at front start, before the runtime existed,
+// with no coverage by role. It is accepted ONLY for a release in LEGACY_WX_RELEASES that the CALLER names (want.release),
+// with the measurement pinned, and then as "W^X of the runtime UNMEASURED" (coverage: runtime-unmeasured), never clean.
+// A form that names roles is judged by the full rule whatever the release; a legacy form for any release not listed,
+// or with no release named, is refused. A release's entry is REMOVED when that release is retired (the relay's rs-N;
+// a guest on it can then neither be released to nor certified), and this judge then refuses its legacy form.
+//
+// The releases the relay could still predict when this table was written (enclave-e3, from nan's live env at
+// 2026-09-26T04:29:16Z), every one built before the attest-time scan. Retired, so NOT listed: 52156652 (rs-8),
+// 79c5ecf2 and a4f22748 (rs-6).
+export const LEGACY_WX_RELEASES = Object.freeze({
+  'f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca': 'domain release f7888d86 (image b63c2def): admitted, rs-7',
+  '5c3561f91bc76a7aab5830071d1093162c5833872884c938574673f491dd87f2': 'domain release 5c3561f9 (image 0181bce3): installed, KAT-only; the legacy tree\'s run-mode guests',
+  '6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb': 'domain release 6f14ce75 (release-6757d139): installed, KAT-only; the legacy tree\'s other guests',
+});
+
+// legacyWxFor: whether a caller's named release(s) admit the legacy self-test. null = none named (the full rule applies);
+// { ok: false, why } = a malformed name (the caller's fault: refused, never read as "none"); { ok: true, legacy } where
+// legacy is a label ONLY when every named release is listed and the measurement is pinned, else null.
+export function legacyWxFor(release, measurement, table = LEGACY_WX_RELEASES) {
+  if (release === undefined || release === null) return null;
+  const ids = (Array.isArray(release) ? release : [release]).map((x) => String(x).toLowerCase());
+  if (!ids.length) return null;
+  const bad = ids.find((x) => !/^[0-9a-f]{64}$/.test(x));
+  if (bad !== undefined) return { ok: false, why: `REJECT: the caller names release ${JSON.stringify(bad)}, not a 64-hex release id` };
+  if (!/^[0-9a-f]{96}$/.test(String(measurement || '').toLowerCase())) return { ok: true, legacy: null };
+  if (!ids.every((x) => Object.hasOwn(table, x))) return { ok: true, legacy: null };
+  return { ok: true, legacy: ids.map((x) => table[x]).join('; ') };
+}
 const SELFTEST_ROLES = ['runtime', 'front', 'init', 'root', 'other'];
-export function checkRuntimeSelfTest(selfTest, identity) {
+export function checkRuntimeSelfTest(selfTest, identity, { legacy = null } = {}) {
   if (typeof selfTest !== 'string' || selfTest === '') {
     return { ok: false, reasons: [`REJECT: the document carries no runtime self-test, so nothing says this domain checked W^X or whether it may hold an executable page at all`] };
   }
@@ -241,22 +281,29 @@ export function checkRuntimeSelfTest(selfTest, identity) {
   //                   than a separate `wasmtime serve`. A verifier cannot check in-process-ness, so this
   //                   value carries a residual assumption and says so, and it must have scanned exactly one.
   const reasons = [];
+  let coverage = 'runtime-covered';
   if (f.scope === 'self') {
+    coverage = 'self';
     if (maps !== 1) {
       return { ok: false, reasons: [`REJECT: scope=self scanned maps=${maps}; scanning the reporting process alone is exactly one process`] };
     }
     reasons.push('the scan covered the reporting process ALONE (scope=self), which is complete only because the runtime is a library in that process; a separate runtime process would be unscanned, and the hardware does not attest which it is');
   } else if (f.scope === 'all-processes' || f.scope.startsWith('cgroup:/')) {
     // the runtime is a separate process here, so a clean scan means something only if it SAW the runtime
-    if (!('runtime' in f)) {
+    if (!('runtime' in f) && legacy && !roles.length) {
+      // the LEGACY form, for a release the caller named and this judge lists: accepted, and said to cover nothing
+      coverage = 'runtime-unmeasured';
+      reasons.push(`the LEGACY runtime self-test, accepted ONLY because the caller names ${legacy}, built before the attest-time scan: `
+        + `it was made once at front start, before the runtime existed, and covered NO runtime process - W^X of the runtime is UNMEASURED here, not clean`);
+    } else if (!('runtime' in f)) {
       return { ok: false, reasons: [`REJECT: the runtime self-test (scope=${f.scope}) does not say how many runtime processes it covered; a scan made before the runtime ran covered none (runtime=<n> is required)`] };
-    }
-    if (Number(f.runtime) < 1) {
+    } else if (Number(f.runtime) < 1) {
       return { ok: false, reasons: [`REJECT: the runtime self-test covered NO runtime process (runtime=${f.runtime}): measured before the runtime ran, or unable to see it; nothing shows W^X of the runtime`] };
+    } else {
+      reasons.push(f.scope === 'all-processes'
+        ? `the scan covered every process with an address space in this domain (${maps}: ${roles.map((r) => `${r}=${f[r]}`).join(', ')})`
+        : `the scan covered this domain's own cgroup ${f.scope.slice(7)} (${maps} processes: ${roles.map((r) => `${r}=${f[r]}`).join(', ')}), and no neighbour's`);
     }
-    reasons.push(f.scope === 'all-processes'
-      ? `the scan covered every process with an address space in this domain (${maps}: ${roles.map((r) => `${r}=${f[r]}`).join(', ')})`
-      : `the scan covered this domain's own cgroup ${f.scope.slice(7)} (${maps} processes: ${roles.map((r) => `${r}=${f[r]}`).join(', ')}), and no neighbour's`);
   } else {
     return { ok: false, reasons: [`REJECT: scope=${JSON.stringify(f.scope)} is not one of all-processes, cgroup:/<path>, self; "wx=clean" says nothing without knowing what was scanned`] };
   }
@@ -270,7 +317,7 @@ export function checkRuntimeSelfTest(selfTest, identity) {
     reasons.push(`the domain interprets ${identity.targetIsa} bytecode (exec_pages=${f.exec_pages}) and found no writable-and-executable mapping among ${maps} processes in scope ${f.scope}`);
   }
   reasons.push("that self-test is the measured front's own word, relayed over this attested connection; the hardware does not attest it (see judge.mjs checkRuntime)");
-  return { ok: true, reasons };
+  return { ok: true, reasons, coverage };
 }
 const OPENS = { trusted: ['attested'], 'lab-unsigned': ['attested', 'no-tcb-policy', 'unauthenticated'], 't0-diagnostic': ['not-attested'] };
 
@@ -283,7 +330,7 @@ export function vcekTable(vcekDer) {
   return Buffer.concat([hdr, vcekDer]);
 }
 
-export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mode = 'trusted', minTcb, vcek, kds = true, expectedVmpl, runtime, hostData }) {
+export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mode = 'trusted', minTcb, vcek, kds = true, expectedVmpl, runtime, hostData, release }) {
   if (!MODES.includes(mode)) throw new Error(`unknown mode ${mode}`);
   const out = (verdict, reasons, extra = {}) => ({ verdict, reasons, gateOpen: OPENS[mode].includes(verdict), ...extra });
 
@@ -334,7 +381,10 @@ export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mo
   // Which ABI, and therefore which binding report_data[0:32] must equal. Judged BEFORE the report is
   // verified, for the same reason as the boundary tuple below: an inadmissible runtime identity or an
   // incoherent self-test is a security fault in every mode, including the lab-unsigned diagnostic.
-  const rt = checkRuntime(doc, handshakeSpki, nonce, { runtime });
+  const lw = legacyWxFor(release, measurement);
+  if (lw && !lw.ok) return out('reject', [lw.why], extra);
+  const rt = checkRuntime(doc, handshakeSpki, nonce, { runtime, legacyWx: lw ? lw.legacy : null });
+  if (rt.wxCoverage) extra.wxCoverage = rt.wxCoverage;
   extra.abi = doc.abi ?? ABI1;
   if (doc.runtime !== undefined) extra.runtime = doc.runtime;
   if (doc.runtimeSelfTest !== undefined) extra.runtimeSelfTest = doc.runtimeSelfTest;

@@ -161,7 +161,7 @@ func (l *realLauncher) Forward(ctx context.Context, cid uint32, workdir string) 
 
 // verifyArgs is the judge's command line. With a deployment bound, guestd's own verifier requires the report to carry
 // it (--host-data): a guest that came up without its deployment id in HOST_DATA is never reported running for it.
-func (l *realLauncher) verifyArgs(port int, measurement, appID, hostData, workdir string) []string {
+func (l *realLauncher) verifyArgs(port int, measurement, appID, hostData, workdir string, releases []string) []string {
 	args := []string{filepath.Join(l.m2, "client.mjs"),
 		"https://127.0.0.1:" + strconv.Itoa(port), "--measurement", measurement, "--app-sha", appID, "--no-kds",
 		"--vcek", l.vcek, "--amd-chain", l.product + "=" + l.chain, "--min-tcb", "@" + l.minTCB,
@@ -169,11 +169,14 @@ func (l *realLauncher) verifyArgs(port int, measurement, appID, hostData, workdi
 	if hostData != "" {
 		args = append(args, "--host-data", hostData)
 	}
+	if len(releases) > 0 {
+		args = append(args, "--release", strings.Join(releases, ","))
+	}
 	return args
 }
 
-func (l *realLauncher) Verify(ctx context.Context, port int, measurement, appID, hostData, workdir string) (string, string, error) {
-	out, _ := l.run(ctx, workdir, "verify.txt", "node", l.verifyArgs(port, measurement, appID, hostData, workdir)...)
+func (l *realLauncher) Verify(ctx context.Context, port int, measurement, appID, hostData, workdir string, releases []string) (string, string, error) {
+	out, _ := l.run(ctx, workdir, "verify.txt", "node", l.verifyArgs(port, measurement, appID, hostData, workdir, releases)...)
 	verdict, keySha := "", ""
 	for _, ln := range strings.Split(out, "\n") {
 		if strings.HasPrefix(ln, "VERDICT ") && verdict == "" {
@@ -304,6 +307,7 @@ func main() {
 	idPrefix := flag.String("instance-prefix", "gd", "two lowercase letters for this guestd's instance ids and guest units (m2-<prefix>…); a SECOND guestd on a host needs its own, or its boot sweep stops the first one's guests")
 	ticketPort := flag.Uint("ticket-port", release.TicketPort, "vsock host port of the ticket service (-release); a LAB guestd uses its lab image's (19444) so it never holds production's")
 	egressPortFlag := flag.Uint("egress-port", egressPort, "vsock host port of the egress server (-release); a LAB guestd moves it off production's too")
+	legacyWX := flag.String("legacy-wx-releases", "", "comma-separated 64-hex ids of the PRE-CHAIN domain releases this host may run (its -legacy-isolation tree's, and those of guests an earlier guestd started): named to the judge for those guests only, so their legacy runtime self-test is accepted as UNMEASURED; empty = every guest must state the attest-time self-test")
 	releaseOn := flag.Bool("release", false, "deliver attested-release tickets (vsock host port 9444) and serve deployment guests' egress (9443) (release.go); off = neither, and /health says supports.release=false")
 	flag.Parse()
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
@@ -376,6 +380,16 @@ func main() {
 	l := &realLauncher{m4: filepath.Join(*iso, "m4"), m2: filepath.Join(*iso, "m2"), fwd: fwd, vcek: *vcek,
 		chain: *chain, product: *product, minTCB: *minTCB, runtimeIdentity: rid, env: env}
 	s := newServer(l, *root)
+	wx, err := parseReleaseIDs(*legacyWX)
+	if err != nil {
+		log.Fatalf("-legacy-wx-releases: %v", err)
+	}
+	s.LegacyWXReleases = wx
+	if len(wx) == 0 {
+		log.Printf("no -legacy-wx-releases: EVERY guest, adopted ones included, must state the attest-time runtime self-test; a pre-chain guest (legacy tree, or started by an earlier guestd) will not verify")
+	} else {
+		log.Printf("pre-chain releases named to the judge for legacy-tree and earlier-guestd guests: %s", strings.Join(wx, ","))
+	}
 	// The prefix names this guestd's instances AND its guest units, and the boot sweep below stops only those: a second
 	// guestd on this host with the default prefix would stop the first one's guests. Two letters exactly, so no two
 	// prefixes' unit patterns overlap.
@@ -551,4 +565,24 @@ func hostAddrs() []netip.Addr {
 		}
 	}
 	return out
+}
+
+// parseReleaseIDs reads -legacy-wx-releases: comma-separated 64-hex domain release ids, lowercased, each once.
+func parseReleaseIDs(v string) ([]string, error) {
+	var out []string
+	seen := map[string]bool{}
+	for _, f := range strings.Split(v, ",") {
+		f = strings.ToLower(strings.TrimSpace(f))
+		if f == "" {
+			continue
+		}
+		if !isHex(f, 32) {
+			return nil, fmt.Errorf("%q is not a 64-hex release id", f)
+		}
+		if !seen[f] {
+			seen[f] = true
+			out = append(out, f)
+		}
+	}
+	return out, nil
 }

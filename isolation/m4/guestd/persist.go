@@ -45,8 +45,12 @@ type instanceRecord struct {
 	Release                                                                                 bool // a release guest: egress stays admitted after adoption (release.go)
 	// Legacy: built from the legacy tree (-legacy-isolation). Adoption re-verifies against the RECORDED measurement, so
 	// it needs neither tree; this keeps the instance's public view (legacyImage) true across a guestd restart.
-	Legacy  bool
-	Created time.Time
+	Legacy bool
+	// WXPerRelease: written by a guestd that names releases to the judge (server.go legacyWXReleases). A record
+	// without it was written by an earlier guestd, whose tree built a pre-chain guest; adoption then names
+	// -legacy-wx-releases. The record only picks what the judge is told; the judge still requires each release listed.
+	WXPerRelease bool
+	Created      time.Time
 }
 
 // persistRunning writes the record of an instance that just became running. Best effort: without it the instance
@@ -55,7 +59,8 @@ func (s *server) persistRunning(v *vm) {
 	s.mu.Lock()
 	rec := instanceRecord{ID: v.ID, Name: v.Name, AppID: v.AppID, Measurement: v.Measurement, RecordSha256: v.RecordSha256,
 		HostData: v.HostData, TransportKeySha256: v.TransportKeySha256, Unit: v.unit, Verdict: v.Verdict, CID: v.cid,
-		Vcpus: v.Vcpus, MemMiB: v.MemMiB, CPUPct: v.CPUPct, Created: v.Created, Release: v.release, Legacy: v.legacy}
+		Vcpus: v.Vcpus, MemMiB: v.MemMiB, CPUPct: v.CPUPct, Created: v.Created, Release: v.release, Legacy: v.legacy,
+		WXPerRelease: true}
 	dir := v.workdir
 	s.mu.Unlock()
 	b, _ := json.Marshal(rec)
@@ -110,7 +115,7 @@ func (s *server) adoptOne(ctx context.Context, dir string) string {
 	if err != nil {
 		return "no forwarder: " + err.Error()
 	}
-	verdict, keySha, err := s.L.Verify(ctx, port, rec.Measurement, rec.AppID, rec.HostData, dir)
+	verdict, keySha, err := s.L.Verify(ctx, port, rec.Measurement, rec.AppID, rec.HostData, dir, s.legacyWXReleases(rec.Legacy, rec.WXPerRelease))
 	if err != nil || keySha != rec.TransportKeySha256 {
 		stop()
 		if err != nil {

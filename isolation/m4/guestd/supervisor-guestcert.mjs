@@ -214,8 +214,11 @@ export async function ensureGuestCert({ transport, dataAddr, instanceId, expectA
   if (a.status !== 200) throw new Error(`the guest's attestation answered HTTP ${a.status}`);
   let doc;
   try { doc = JSON.parse(a.body.toString()); } catch { throw new Error("the guest's attestation is not JSON"); }
+  // the release is the prediction's for the measurement it matched (the relay's word, over WebPKI), never the guest's:
+  // it decides whether a pre-chain guest's LEGACY runtime self-test is accepted (judge.mjs LEGACY_WX_RELEASES)
   const v = await judge(doc, a.spki, nonce, { measurement: image ? image.measurement : route.measurement, appSha: expectAppId,
-    mode: judgeMode, hostData: deploymentId, ...(minTcb !== undefined ? { minTcb } : {}) });
+    mode: judgeMode, hostData: deploymentId, ...(minTcb !== undefined ? { minTcb } : {}),
+    ...(image && image.release !== undefined ? { release: image.release } : {}) });
   if (!judgeOk.includes(v.verdict))
     throw new Error(`the guest did not verify (${v.verdict}: ${String(v.reasons?.at(-1) || "").slice(0, 160)}); nothing issued`);
   if (image) {
@@ -235,5 +238,6 @@ export async function ensureGuestCert({ transport, dataAddr, instanceId, expectA
   const i = await ex(dataAddr, route, name, "POST", "/.well-known/enclave-cert", chain, timeoutMs);
   if (i.status !== 200) throw new Error(`the guest refused the certificate (HTTP ${i.status}: ${i.body.toString().slice(0, 160)})`);
   return { instanceId: route.id, key: route.key, name, serial: leaf.serialNumber, issuer: leaf.issuer.replace(/\n/g, ", "),
-           ...renewAtOf(leaf), verdict: v.verdict, ...(image ? { release: image.release ?? null } : {}) };
+           ...renewAtOf(leaf), verdict: v.verdict, ...(image ? { release: image.release ?? null } : {}),
+           ...(v.wxCoverage !== undefined ? { wxCoverage: v.wxCoverage } : {}) };
 }
