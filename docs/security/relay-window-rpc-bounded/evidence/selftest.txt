@@ -1,0 +1,11 @@
+ok   hv_row(nucbox-k11) = hv-node true 0x31136008aa0cf1d826d223777…
+ok   hv_row(no-such-box) = absent
+ok   hv_attach_line(23d460c2af6d) = 2026-09-26T07:05:55.402928+00:00…
+ok   hv_attach_line(no-such-box) empty
+ok   files_are_pc refuses before the push: api-relay.js is f2247cd58730, not 5b6c7e36022d
+ok   SANDBOXED rb-push.sh DRY='true' refuses at the gate (rc 2)
+ok   SANDBOXED rb-push.sh DRY=' 1' refuses at the gate (rc 2)
+ok   SANDBOXED rb-push.sh DRY='yes' refuses at the gate (rc 2)
+ok   SANDBOXED rb-push.sh DRY='2' refuses at the gate (rc 2)
+ok   the sandboxed rb-push.sh attempted no fetch, push, gh, ssh or curl before refusing
+rb-selftest: 10/10
