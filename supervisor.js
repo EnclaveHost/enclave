@@ -8508,7 +8508,7 @@ let _expectedGuest = null;
 // still issues, and the log says which. Malformed = no issuance at all (the judge refuses a malformed floor).
 const ISOLATION_MIN_TCB = (() => { try { return process.env.ISOLATION_MIN_TCB ? JSON.parse(process.env.ISOLATION_MIN_TCB) : undefined; }
                                      catch { return "malformed"; } })();
-const _guestCerts = new Map();         // deployment id -> { instanceId, key, notAfter, renewAt, issuer } | { backoffUntil, failures, why }
+const _guestCerts = new Map();         // deployment id -> { instanceId, key, notAfter, renewAt, issuer } | { instanceId, backoffUntil, failures, starts, why }
 async function issueGuestCsr(name, csrPem, spkiHash) {
   if (!CERTS_API) throw new Error("no platform certificate service (CERTS_API)");
   const endpoint = _advertisedEndpoint || PUBLIC_URL;
@@ -8526,7 +8526,8 @@ async function issueGuestCsr(name, csrPem, spkiHash) {
   if (r.status !== 200 || !data || !data.certPem) throw new Error(`the certificate service answered ${r.status} ${String(data?.error || "")} ${String(data?.message || "")}`.trim());
   return data.certPem;
 }
-// When a failed certificate pass may try again: the pure policy (test/guestcert-retry.test.mjs slices it out by text).
+// When a failed certificate pass may try again, and whether a pass skips a guest: the pure policy (test/guestcert-retry.test.mjs
+// slices it out by text, from here to _guestCertRunning).
 // The error's own hint wins (the platform's 202 "in flight" retryAfterSec, the relay's Retry-After on a cold
 // prediction). A guest that guestd still reports STARTING (routeFor's SpliceRefused "not-running", "the instance is
 // starting") serves within seconds of spawning, so it is tried again after GUEST_CERT_STARTING_MS and is NOT counted as
@@ -8550,6 +8551,21 @@ function nextGuestCertWakeMs(states, now) {
   let next = Infinity;
   for (const st of states) if (st && typeof st.backoffUntil === "number" && st.backoffUntil > now) next = Math.min(next, st.backoffUntil);
   return next === Infinity ? null : next - now;
+}
+// Whether a pass skips this deployment's guest now. The back-off and its counts belong to the INSTANCE (enclave-5d): when
+// guestd replaces a guest (a relaunch, a restart) the new instance is asked at once, never waiting out its predecessor's
+// back-off (up to an hour); the same instance is skipped while in back-off or while its installed certificate is fresh.
+function guestCertSkip(st, vmId, now) {
+  if (!st || st.instanceId !== vmId) return false;
+  if (st.backoffUntil && now < st.backoffUntil) return true;
+  return !!(st.renewAt && now < st.renewAt);
+}
+// The entry a failed pass records, keyed to the instance: a new instance's counts start at 0; the same instance keeps
+// its installed-certificate fields and its counts.
+function guestCertFailure(st, vmId, e, now) {
+  const same = !!st && st.instanceId === vmId;
+  const { wait, failures, starts } = guestCertRetry(e, same ? st.failures || 0 : 0, same ? st.starts || 0 : 0);
+  return { wait, entry: { ...(same ? st : {}), instanceId: vmId, backoffUntil: now + wait, failures, starts, why: e.message } };
 }
 let _guestCertRunning = false, _guestCertWake = null;
 function runGuestCertPass() {
@@ -8580,8 +8596,7 @@ async function guestCertPassOnce() {
   for (const rec of deployments.values()) {
     if (rec.status !== "running" || !rec._vmId || !rec.public) continue;
     const st = _guestCerts.get(rec.id);
-    if (st && st.backoffUntil && Date.now() < st.backoffUntil) continue;
-    if (st && st.instanceId === rec._vmId && st.renewAt && Date.now() < st.renewAt) continue;   // installed and fresh
+    if (guestCertSkip(st, rec._vmId, Date.now())) continue;   // this instance's back-off, or its certificate is fresh
     const name = appCertName(rec.id);
     try {
       const got = await mod.ensureGuestCert({ transport, dataAddr: GUESTD_DATA_ADDR, instanceId: rec._vmId,
@@ -8599,8 +8614,8 @@ async function guestCertPassOnce() {
         : `[isolation] ${rec.id.slice(0, 10)}: certificate for ${name} installed in guest ${got.instanceId} `
           + `(key ${got.key.slice(0, 16)}…, ${got.issuer.slice(0, 60)}, until ${new Date(got.notAfter).toISOString()}; guest ${got.verdict})`);
     } catch (e) {
-      const { wait, failures, starts } = guestCertRetry(e, st && st.failures || 0, st && st.starts || 0);
-      _guestCerts.set(rec.id, { ...(st && st.instanceId === rec._vmId ? st : {}), backoffUntil: Date.now() + wait, failures, starts, why: e.message });
+      const { wait, entry } = guestCertFailure(st, rec._vmId, e, Date.now());
+      _guestCerts.set(rec.id, entry);
       console.warn(`[isolation] ${rec.id.slice(0, 10)}: no certificate for ${name} (${e.message}); retry in ${Math.round(wait / 1000)}s`);
     }
   }

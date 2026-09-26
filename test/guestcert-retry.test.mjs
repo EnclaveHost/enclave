@@ -9,8 +9,10 @@ import fs from "node:fs";
 const src = fs.readFileSync(new URL("../supervisor.js", import.meta.url), "utf8");
 const a = src.indexOf("const GUEST_CERT_STARTING_MS"), b = src.indexOf("let _guestCertRunning");
 assert.ok(a > 0 && b > a, "the policy block is in supervisor.js");
-const { guestCertRetry, nextGuestCertWakeMs, GUEST_CERT_STARTING_MS, GUEST_CERT_STARTING_TRIES } =
-  new Function(src.slice(a, b) + "\nreturn { guestCertRetry, nextGuestCertWakeMs, GUEST_CERT_STARTING_MS, GUEST_CERT_STARTING_TRIES };")();
+const policy = (text) => new Function(text + "\nreturn { guestCertRetry, nextGuestCertWakeMs, guestCertSkip, guestCertFailure, "
+  + "GUEST_CERT_STARTING_MS, GUEST_CERT_STARTING_TRIES };")();
+const { guestCertRetry, nextGuestCertWakeMs, guestCertSkip, guestCertFailure, GUEST_CERT_STARTING_MS, GUEST_CERT_STARTING_TRIES } =
+  policy(src.slice(a, b));
 
 // the errors the pass sees: routeFor's SpliceRefused for a starting guest; the platform's 202; anything else
 const starting = () => Object.assign(new Error("the instance is starting"), { kind: "not-running" });
@@ -68,4 +70,52 @@ test("first launch: the certificate is requested within 20 s of serving, and a 3
   assert.ok(requests[0] - SERVES <= 20_000, `first request ${requests[0] - SERVES} ms after serving`);
   assert.ok(requests[1] - requests[0] <= 30_500 && requests[2] - requests[1] <= 30_500, `in-flight retries ${requests[1] - requests[0]}, ${requests[2] - requests[1]} ms`);
   assert.equal(requests.length, 3);
+});
+
+// enclave-5d's should-fix (enclave-87: required): the back-off and its counts belong to the INSTANCE. guestd replaced a
+// guest that was failing (40 minutes of back-off left, its 30 short tries and 4 failures spent) with a new instance,
+// which spawns at 0 and serves at 25 s. Passes run at the loop's ticks (2 s, then every 60 s) and at each wake.
+function relaunch({ guestCertSkip, guestCertFailure, nextGuestCertWakeMs }) {
+  const OLD = "gdold", NEW = "gdnew", SERVES = 25_000;
+  let st = { instanceId: OLD, backoffUntil: 2_400_000, failures: 4, starts: 30, why: "the instance is starting" };
+  let t = 2_000, first = null; const asked = [];
+  while (t < 3_700_000) {
+    if (!guestCertSkip(st, NEW, t)) {
+      asked.push(t);
+      if (t >= SERVES) return { afterServing: t - SERVES, asked, first };   // it serves: the certificate is issued
+      st = guestCertFailure(st, NEW, starting(), t).entry;
+      first = first || st;
+    }
+    const w = nextGuestCertWakeMs([st], t), tick = 2_000 + 60_000 * (Math.floor((t - 2_000) / 60_000) + 1);
+    t = w !== null && w < 60_000 ? Math.min(tick, t + w + 100) : tick;
+  }
+  return { afterServing: null, asked, first };
+}
+test("a relaunched guest does not inherit its predecessor's back-off: asked at once, certified within 20 s of serving", () => {
+  const r = relaunch({ guestCertSkip, guestCertFailure, nextGuestCertWakeMs });
+  assert.equal(r.asked[0], 2_000, "the new instance is asked at the first pass");
+  assert.deepEqual({ instanceId: r.first.instanceId, failures: r.first.failures, starts: r.first.starts }, { instanceId: "gdnew", failures: 0, starts: 1 });
+  assert.ok(r.afterServing !== null && r.afterServing <= 20_000, `requested ${r.afterServing} ms after serving`);
+  // the same instance still honors its own back-off and a fresh certificate
+  assert.equal(guestCertSkip({ instanceId: "g", backoffUntil: 10 }, "g", 5), true);
+  assert.equal(guestCertSkip({ instanceId: "g", renewAt: 10 }, "g", 5), true);
+  assert.equal(guestCertSkip({ instanceId: "g", backoffUntil: 10, renewAt: 20 }, "g", 15), true);
+  assert.equal(guestCertSkip({ instanceId: "g", backoffUntil: 10 }, "h", 5), false);
+  assert.equal(guestCertSkip(undefined, "g", 5), false);
+  // the same instance keeps its counts and its installed fields on a failure
+  const e1 = guestCertFailure({ instanceId: "g", key: "k", renewAt: 1, failures: 2, starts: 0 }, "g", refused(), 100).entry;
+  assert.deepEqual([e1.instanceId, e1.key, e1.failures, e1.backoffUntil], ["g", "k", 3, 100 + 1_200_000]);
+});
+// The mutants: the REAL source with one half of the fix undone must fail the relaunch (each half alone matters).
+test("mutants: undoing either half of the instance keying makes the relaunch wait out the old back-off", () => {
+  const block = src.slice(a, b);
+  const mutants = {
+    "skip ignores the instance": ["if (!st || st.instanceId !== vmId) return false;", "if (!st) return false;"],
+    "counts inherited": ["same ? st.failures || 0 : 0, same ? st.starts || 0 : 0", "st && st.failures || 0, st && st.starts || 0"],
+  };
+  for (const [name, [from, to]] of Object.entries(mutants)) {
+    assert.equal(block.split(from).length, 2, `${name}: the mutated text is in the block exactly once`);
+    const r = relaunch(policy(block.replace(from, to)));
+    assert.ok(r.afterServing === null || r.afterServing > 20_000, `${name}: the mutant still certified within 20 s (${r.afterServing})`);
+  }
 });
