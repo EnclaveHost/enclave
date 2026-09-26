@@ -6,7 +6,7 @@ NAN="ssh -i $HOME/.ssh/nan-ci-deploy -o IdentitiesOnly=yes -o BatchMode=yes -o C
 NR="ssh -i $HOME/.ssh/nan-ci-deploy -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 root@46.62.128.36"   # nan-relay
 US="ssh -o BatchMode=yes -o ConnectTimeout=15 us-west"                                                              # us-west (Steven's unlocked key)
 BASE=e1c665fd6995504859c2626d3a7882d7353fabad   # main when B was cut (68e96b11); a moved main = re-cut B and re-pin
-BC=9df50309642f9c54dbc5ebccaf8875b88b903782   # B's head (fc44db2f host-delegation.mjs + 9df50309 serving), bf-reviewed
+BC=af9a71751ba7156822aa26e7e77124f096de196e   # B's head (fc44db2f host-delegation.mjs + af9a7175 serving = 9df50309 minus the stray relay/node_modules symlink), bf GO
 # every relay file B deploys, as B has it (sha256): nan (api relay) gets all; nan-relay relay.js/fleet.mjs/dns-relay.js; us-west relay.js/fleet.mjs
 declare -A SHA=(
   [api-relay.js]=d40442cc3c32c72cbe3b64096384b1dfa0e2fc3b0a1e5a3c64b920ad3c5769fd
