@@ -1543,7 +1543,12 @@ test("draft v42 moves ONE SET together (enclave-d1's and enclave-5d's invariant)
   assert.deepEqual(ref.superseded.slice(0, 4).map((e) => e.id), ["vbs-linux-candidate-1539", "vbs-linux-candidate-1539-debug-twin", "vbs-linux-candidate-41cacbc8", "vbs-linux-candidate-41cacbc8-debug-twin"]);
   assert.match(ref.superseded[2].reason, /failed its canary: domexec's quiet spawn opened \/dev\/null inside a chroot with no \/dev/);
   assert.ok(!d.rebuild.vbsLinux1539 && !d.rebuild.vbsLinux41cacbc8 && d.rebuild[`vbsLinux${I8}`] && d.rebuild[`vbsLinux${I8}Debug`], "the old recipes leave with their images");
-  assert.deepEqual({ ...d.rebuild[`vbsLinux${I8}`].resources, linux_initrd: "x" }, { ...v41.rebuild.vbsLinux1539.resources, linux_initrd: "x" }, "b7ba7731's resources with only linux_initrd swapped");
+  // the WHOLE recipe is b7ba7731's except what must follow the initrd (enclave-bf's review of 3c2fc939): igvmfilegen, the
+  // manifest, the twin, the args and the string rules may not drift with a rollover
+  const strip = (u) => ({ ...u, resources: { ...u.resources, linux_initrd: "x" }, output: "x", vbsJson: "x", note: "x",
+    mutations: (u.mutations || []).map((m) => ({ ...m, expectVbsBootDigest: "x" })) });
+  assert.deepEqual(strip(d.rebuild[`vbsLinux${I8}`]), strip(v41.rebuild.vbsLinux1539), "b7ba7731's recipe with only the initrd and what follows it changed");
+  assert.deepEqual(strip(d.rebuild[`vbsLinux${I8}Debug`]), strip(v41.rebuild.vbsLinux1539Debug), "and its debug twin's");
   assert.ok(!d.profiles.vbsLinux.nextCandidate && d.profiles.vbsLinux.firmwareRecord.promotedV42);
   assert.match(d.profiles.vbsLinux.firmwareRecord.candidateV41.failed, /^v41's pending 252602c8 failed its canary/);
   // 2. the manager: control/ = 90eab896, whose manager is m4-cert-name's head byte for byte except manager-accept.ps1
