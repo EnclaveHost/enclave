@@ -12,3 +12,7 @@ LISTED 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a 2026-0
 02:17:12Z step 6: relay-list.sh add 0xa77d0c57 exited 0: list: 5 id(s) -> 6 (add 0xa77d0c57...) backup: /etc/nan-relay/api-relay.env.pre-list-20260926T021706Z LISTED (add 0xa77d0c57...): release-status as expected for it and the 3 canaries; no refused setting; /enclaves 200 
 LISTED 0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371 2026-09-26T02:17:42Z
 02:17:42Z step 6: 0xa77d0c57 LISTED and checked (KAT PASS, metal-iso0 serving, canaries 200 on their keys, every listed id listed:true)
+03:01:35Z step 6: listing 0x7ae476a3 (relay-list.sh add; one api-relay restart)
+03:01:42Z step 6: relay-list.sh add 0x7ae476a3 exited 0: list: 6 id(s) -> 7 (add 0x7ae476a3...) backup: /etc/nan-relay/api-relay.env.pre-list-20260926T030136Z LISTED (add 0x7ae476a3...): release-status as expected for it and the 3 canaries; no refused setting; /enclaves 200 
+LISTED 0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33 2026-09-26T03:02:12Z
+03:02:12Z step 6: 0x7ae476a3 LISTED and checked (KAT PASS, metal-iso0 serving, canaries 200 on their keys, every listed id listed:true)
