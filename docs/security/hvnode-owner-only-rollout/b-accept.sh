@@ -35,8 +35,19 @@ case "$STEP:$MODE" in
     cls=$(node --input-type=module -e "import { enclaveClassOf } from '$W/pricing.mjs'; const d = JSON.parse(process.argv[1]); console.log(d.enclaves.filter((e) => ['nucbox-k11','metal-iso0'].includes(e.name)).map((e) => e.name + '=' + enclaveClassOf(e).kind).join(' '))" "$E"); rm -rf "$W"
     note "badge classes (B's pricing.js on the live rows): $cls"; ! grep -q "nucbox-k11=tee-gpu" <<<"$cls" || bad "nucbox-k11 would badge as a TEE GPU" ;;
   1b:on)
-    files_are_b "$US" relay.js fleet.mjs || bad "us-west's relay.js/fleet.mjs are not B's"
-    canaries_dns || bad "a canary is not 200 via us-west (DNS)" ;;
+    files_are_b "$US" relay.js fleet.mjs connlog.mjs net-guard.mjs || bad "us-west's relay.js/fleet.mjs (or their import closure) are not B's"
+    canaries_dns || bad "a canary is not 200 via us-west (DNS)"
+    # test 1 on its PUBLIC hostname (enclave-87): 200, on the partition's pinned key, and the document there binds that handshake
+    [[ "$TEST1_SPKI" =~ ^[0-9a-f]{64}$ ]] || bad "TEST1_SPKI is not pinned (64 hex): the key check cannot run"
+    g=""; end=$(( $(date +%s) + 90 )); while [ "$(date +%s)" -lt $end ]; do g=$(public_get ${TEST1:2:8}); [[ "$g" == 200\ * ]] && break; sleep 10; done
+    [ "$g" = "200 $TEST1_SPKI" ] && note "test 1 public: 200 on the partition's key ${TEST1_SPKI:0:16}" || bad "test 1 public: '$g' (want '200 ${TEST1_SPKI:0:16}...')"
+    bd=$(public_doc_binds ${TEST1:2:8}); [ "$bd" = bound ] && note "test 1's attestation document binds the public handshake's key" || bad "test 1's document: $bd"
+    # a hostname nothing may serve (a listed deployment with NO live lease, DNS at us-west): refused
+    st=""; for d in $UNLEASED; do
+      [ "$(curl -sS -m 20 "$API/v1/expected-guest?id=$d" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("error",""))' 2>/dev/null)" = not_leased ] || continue
+      [ "$(dig +short ${d:2:8}.app.enclave.host A | head -1)" = 5.78.85.108 ] || continue; st=$d; break; done
+    [ -n "$st" ] || bad "no unleased us-west hostname to probe (all leased or not at us-west)"
+    [ -z "$st" ] || { r=$(public_get ${st:2:8}); [ "$r" = "000 -" ] && note "an unleased hostname (${st:2:8}) is refused" || bad "the unleased ${st:2:8} answered '$r'"; } ;;
   2:on|2:off)
     newinv inv0-2-$MODE.txt
     if [ "$MODE" = on ]; then

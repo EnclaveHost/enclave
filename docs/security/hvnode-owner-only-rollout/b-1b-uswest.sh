@@ -11,13 +11,15 @@ git -C $MAIN show $BC:relay/fleet.mjs > $W/fleet.mjs; git -C $MAIN show $BC:rela
 # us-west must run what main ran before B (U7's e0cb218f / 384a1ef1), so this step brings B's change and nothing else
 h0=$($US 'sha256sum /opt/nan-relay/relay.js /opt/nan-relay/fleet.mjs' | awk '{print substr($1,1,16)}' | tr '\n' ' ')
 [ "$h0" = "e0cb218f6947911e 384a1ef1daf26e8e " ] || { say "REFUSING: us-west runs relay.js/fleet.mjs $h0, not main's pre-B pair"; exit 2; }
+# relay.js + fleet.mjs import ONLY connlog.mjs and net-guard.mjs (and ws, viem); both must already be on us-west, unchanged (e3, 09-26)
+files_are_b "$US" connlog.mjs net-guard.mjs >/dev/null || { say "REFUSING: us-west's import closure differs: $(files_are_b "$US" connlog.mjs net-guard.mjs)"; exit 2; }
 $US 'test ! -e /opt/nan-relay/relay.js.pre-b && test ! -e /opt/nan-relay/fleet.mjs.pre-b && systemctl is-active --quiet enclave-tcp-relay' || { say "REFUSING: a *.pre-b exists, or tcp-relay is not active"; exit 3; }
 nr0=$($US 'systemctl show enclave-tcp-relay -p NRestarts --value')
 say "B step 1b: us-west backup, fleet.mjs then relay.js, restart enclave-tcp-relay (live SNI sessions drop; clients reconnect)"
 $US 'cp -p /opt/nan-relay/relay.js /opt/nan-relay/relay.js.pre-b && cp -p /opt/nan-relay/fleet.mjs /opt/nan-relay/fleet.mjs.pre-b'
 scp -q -o BatchMode=yes $W/fleet.mjs us-west:/opt/nan-relay/fleet.mjs.b && $US 'mv /opt/nan-relay/fleet.mjs.b /opt/nan-relay/fleet.mjs'
 scp -q -o BatchMode=yes $W/relay.js us-west:/opt/nan-relay/relay.js.b && $US 'mv /opt/nan-relay/relay.js.b /opt/nan-relay/relay.js'
-files_are_b "$US" relay.js fleet.mjs || { say "B STEP 1b: the hashes on us-west are wrong: rolling back"; bash "$H/b-rollback-uswest.sh"; exit 4; }
+files_are_b "$US" relay.js fleet.mjs connlog.mjs net-guard.mjs || { say "B STEP 1b: the hashes on us-west are wrong: rolling back"; bash "$H/b-rollback-uswest.sh"; exit 4; }
 T0=$(date -u '+%Y-%m-%d %H:%M:%S UTC'); $US 'systemctl restart enclave-tcp-relay'
 fail() { say "B STEP 1b CHECK FAILED: $* -> rolling back us-west"; bash "$H/b-rollback-uswest.sh"; exit 5; }
 t=$(( $(date +%s) + 120 )); while [ $(date +%s) -lt $t ]; do $US 'systemctl is-active --quiet enclave-tcp-relay' || fail "tcp-relay not active"; sleep 10; done
