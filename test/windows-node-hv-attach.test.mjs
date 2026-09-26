@@ -122,3 +122,24 @@ test("the Host: attachDelegations sends the VALID, unexpired files as written; o
   assert.deepEqual(h.attachDelegations(), [soon]);
   assert.notEqual(h.ownersVersion(), v1);
 });
+
+test("the version an attach records is of the list it SENT: a refresh during the attach's await still triggers a re-attach", async () => {
+  const h = new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-attach-v-")), endpoint: `https://api.enclave.host/t/${BOX}`, name: BOX,
+    appsEnabled: true, cpuPricePerSec6: 12, log: () => {}, engineRetired: true, isolationManager: "http://127.0.0.1:1" });
+  const dir = path.join(h.cfg.dir, "delegations"); fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(dir, "a.json"), JSON.stringify(await del()));
+  await h.refreshOwners();
+  const sent = h.attachDelegations();                                  // what the frame carries
+  assert.equal(h.ownersVersion(undefined, sent), h.ownersVersion(), "nothing changed: the two agree");
+  // a delegation arrives while the attach awaits the operator's signature, and the tick refreshes
+  fs.writeFileSync(path.join(dir, "b.json"), JSON.stringify(await del(undefined, privateKeyToAccount("0x" + "d2".repeat(32)))));
+  await h.refreshOwners();
+  const recorded = h.ownersVersion(undefined, sent);
+  assert.notEqual(recorded, h.ownersVersion());
+  assert.equal(shouldReattach({ attached: true, attachedVersion: recorded, currentVersion: h.ownersVersion(), lastRedialMs: 0 }), true);
+});
+
+test("the agent records the version of x.delegations, the list its frame carried (source)", () => {
+  const src = fs.readFileSync(new URL("../windows/node/agent.mjs", import.meta.url), "utf8");
+  assert.match(src, /attachSent = \{ version: x\.version, owners: APPS \? host\.ownersVersion\(undefined, x\.delegations\) : null \};/);
+});
