@@ -1,0 +1,17 @@
+# nan 2026-09-26 05:25:06-05:25:44Z: stage-retire3.sh (0fa00faa) as root, nice 10; BEFORE_LINES = the live three lines built on nan (e630e880 = rs-9's after); nothing live touched (api relay c4da9f58, NRestarts 0)
+2026-09-26T05:25:06Z
+before (live) e630e880799b5cc7
+stage-retire: lines at /opt/enclave-predict/retire-f7888d86: installed 5c3561f9 6f14ce75 5db18199, admitted 5db18199 (dropped: f7888d86 )
+{"uid":61930,"node":"v22.23.1","module":"/opt/nan-relay/measurement-predict.mjs","problems":[],"knownAnswerTest":{"ok":true,"reason":"2 known answer(s) reproduced exactly"},"crossChecks":[{"ref":"catalog://0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4","ok":true,"releaseImages":["5db18199:6716ef1462e1"],"certReleases":["5db18199"],"one":true,"certOk":true},{"ref":"catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4","ok":true,"releaseImages":["5db18199:be2bb73c799f"],"certReleases":["5db18199"],"one":true,"certOk":true}],"pass":true}
+Running as unit: enclave-predict-check-1790400306.service
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 37.451s
+CPU time consumed: 46.683s
+Memory peak: 2.6M
+Memory swap peak: 0B
+stage-retire: done: /opt/enclave-predict/retire-f7888d86 (nothing outside it changed; no service, env or relay file touched)
+stage exit 0
+03e0ccf11246b77fc54d3a31c87ea48c3a10bc06853dba7037d8280dbb836780  /opt/enclave-predict/retire-f7888d86/predict-lines.env
+e630e880799b5cc7e57df0fe494963204af9ff195b74d0452985b10acdee7e02  /opt/enclave-predict/retire-f7888d86/predict-lines.before.env
+0 c4da9f5891b848ae9c0dee61d4914099 2026-09-26T05:25:44Z
