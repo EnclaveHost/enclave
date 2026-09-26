@@ -11,18 +11,23 @@ set -euo pipefail
 umask 077
 ENV=/etc/nan-relay/api-relay.env; R=/opt/nan-relay
 KEY=RELAY_HVNODE_ATTACH; LINE="$KEY=1"
-# the deployed relay files this flip was reviewed against (main b7a3364c)
-PINS="api-relay.js 1b823be6a64324221a9a6aeedbff5b5118f234dea97b070f6b981c9a82d8d3f2
-tunnel.js 1a6d71c5d90e615279c96928cb00dcfda5a40a5baa30b34bc7adab4c7f1a388f
+# every relay file the attach path runs, as reviewed (main + the relayRowOf fix 54086fb8; enclave-bf: pin them all)
+PINS="api-relay.js 1e99e765bc7eea44b090642db6c6a29f131ca073a3182e41facff8daef83d18c
+tunnel.js 2aae5045b0b717e02109b98a8edc11a2036e31ec07b06d2d3b14f71abfb03e6c
 hvnode-verify.mjs 1e5481cc7c4770c2b7fbf2d18d675d9f837e86f25d6b06e581bcf5fb9478dc68
 vbs-policy.mjs 0e915d95b6771db87e00cee5ef97b82459da0b43653629a2e03264c78a3901cc
+vbs-verify.mjs 422b011f6aa3aad5158cb25329e31751a5c1fd1abd40213ba07a8869a075824b
+vbs-tcglog.mjs 67880a519424de61db4f9deb855c8cc7751854a2194d7c35aef3fe07435e703c
+vbs-credential.mjs b36a2d037323b1e145c82529faffb94a1ecbdc0658c5c5c5c4d08a29c5692a77
+certs.js 9b4cd16469d4d50dd9f37063d51c01f21ee54cd985ae167802b8fcc700ef4aba
+secrets.js 3c7ed954d8744f5ca76a26195c85ee533cfe981b0b7243bec03cda2cd34b3bd3
 fixtures/tpm-roots.pem f72ea29aefa0d778856e105f725d3c9c66a45cfc8cb35c170782bceee8d8ba5b"
 die() { echo "REFUSING: $*"; exit 2; }
 modeok() { [ "$(stat -c '%a %U' "$1")" = "600 root" ]; }
 [ "$(id -u)" = 0 ] || die "run as root on nan"
 modeok "$ENV" || die "$ENV is not 0600 root"
 [ -z "$(tail -c1 "$ENV")" ] || die "$ENV does not end with a newline"
-while read -r f h; do [ "$(sha256sum < "$R/$f" | cut -c1-64)" = "$h" ] || die "$R/$f is not the reviewed file (main b7a3364c)"; done <<<"$PINS"
+while read -r f h; do [ "$(sha256sum < "$R/$f" | cut -c1-64)" = "$h" ] || die "$R/$f is not the reviewed file (54086fb8)"; done <<<"$PINS"
 [ "$(grep -c "^RELAY_HVNODE_EK_ROOTS=" "$ENV" || true)" = 0 ] || die "RELAY_HVNODE_EK_ROOTS is set (tests and labs only)"
 systemctl is-active --quiet enclave-api-relay || die "enclave-api-relay is not active"
 RPID=$(systemctl show -p MainPID --value enclave-api-relay); RUID=$(ps -o uid= -p "$RPID" | tr -d ' '); RGID=$(ps -o gid= -p "$RPID" | tr -d ' ')

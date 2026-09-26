@@ -20,6 +20,11 @@ for c in $CANARIES; do
   [ "$r" = "200/0" ] || { say "REFUSING: canary $c answers $r before the flip (the fleet is not steady: not a window)"; exit 2; }
   echo "$c $(spki "$c")" >> "$OUT/keys-before-$MODE.txt"
 done
+# what the relay publishes from rows' own words, BEFORE (enclave-bf): the relay roster and the public volumes aggregate
+curl -sS -m 20 https://api.enclave.host/v1/relays > "$OUT/relays-before-$MODE.json" && python3 -c "import json,sys; json.load(open(sys.argv[1]))['relays']" "$OUT/relays-before-$MODE.json" \
+  || { say "REFUSING: /v1/relays is not readable before the flip"; exit 2; }
+curl -sS -m 20 https://api.enclave.host/availability > "$OUT/availability-before-$MODE.json" && python3 -c "import json,sys; json.load(open(sys.argv[1]))['volumes']" "$OUT/availability-before-$MODE.json" \
+  || { say "REFUSING: /availability is not readable before the flip"; exit 2; }
 $NAN "systemctl show enclave-api-relay -p InvocationID --value" > "$OUT/inv0-$MODE.txt"
 say "hv-attach $MODE: canary keys recorded; running the remote edit (invocation before: $(cut -c1-12 "$OUT/inv0-$MODE.txt"))"
 set +e; $NAN "MODE=$MODE STAMP=$(date -u +%Y%m%dT%H%M%SZ) bash -s" < "$H/hv-attach-remote.sh" > "$OUT/remote-$MODE.txt" 2>&1; rc=$?; set -e

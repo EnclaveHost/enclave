@@ -1,5 +1,7 @@
 # hv-node attach flip (A): attach-only, on nan's api relay
 
+**v2 (after enclave-bf's NO-GO):** runs only AFTER the relayRowOf fix (relay/roster-attested-identity-only 54086fb8) is on main and deployed, in the same quiet window (push -> relay job -> health -> this flip -> health). Pins: the 10 relay files the attach path runs, at 54086fb8. Acceptance adds bf's items: /v1/relays (relays + every existing label) and /availability volumes unchanged across the flip; hv-node rows must be host-attach-only with attach `attestation`, and zero rows is reported as NOT EXERCISED, never passed silently.
+
 enclave-87's (A), 2026-09-25: GO in a quiet window (no SNP canary observe, no 4b step: releases go through this relay).
 Prepared by enclave-e3; the window is signalled by d1 and 63; 63 holds 4b until "A done, relay healthy".
 

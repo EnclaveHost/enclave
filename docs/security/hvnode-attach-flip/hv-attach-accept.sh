@@ -51,11 +51,27 @@ while :; do
 done
 say "canaries 200 with the same keys; metal-iso0 serving and eligible: $([ $allok = 1 ] && [ "$row" = 1 ] && echo yes || echo NO)"
 curl -sS -m 20 "$API/enclaves" > "$OUT/enclaves-$MODE.json" || bad "/enclaves unreadable"
-python3 - "$OUT/enclaves-$MODE.json" <<'PY' || bad "an hv-node row is not the honest host-attach-only row"
+curl -sS -m 20 "$API/v1/relays" > "$OUT/relays-after-$MODE.json" || bad "/v1/relays unreadable"
+curl -sS -m 20 "$API/availability" > "$OUT/availability-after-$MODE.json" || bad "/availability unreadable"
+# enclave-bf: what the relay publishes from rows' own words must not change: the SAME relays (name, address, address6,
+# services) and every label that named a relay before still names the same one (a new deployment may add labels); the
+# SAME public volumes. And an hv-node row, if one is attached, is host-attach-only; zero rows is said, not passed silently.
+python3 - "$OUT" "$MODE" <<'PY' || bad "the relay roster, the volumes aggregate or an hv-node row changed"
 import json, sys
-rows = [e for e in json.load(open(sys.argv[1])).get("enclaves", []) if str(e.get("mode", "")).lower() == "hv-node" or "hv-node" in str(e.get("tier", "")).lower()]
+o, m = sys.argv[1], sys.argv[2]
+ld = lambda n: json.load(open(f"{o}/{n}-{m}.json"))
+key = lambda r: (r.get("name"), r.get("address"), r.get("address6"), json.dumps(r.get("services"), sort_keys=True))
+rb, ra = ld("relays-before"), ld("relays-after")
+assert sorted(map(key, rb["relays"])) == sorted(map(key, ra["relays"])), ("relays changed", rb["relays"], ra["relays"])
+lb, la = rb.get("labels") or {}, ra.get("labels") or {}
+moved = [k for k, v in lb.items() if (la.get(k) or {}).get("relay") != (v or {}).get("relay")]
+assert not moved, ("labels moved relay", moved[:10])
+vb, va = ld("availability-before")["volumes"], ld("availability-after")["volumes"]
+assert json.dumps(vb, sort_keys=True) == json.dumps(va, sort_keys=True), ("volumes changed", vb, va)
+rows = [e for e in ld("enclaves")["enclaves"] if str(e.get("mode", "")).lower() == "hv-node"]
 for e in rows:
-    assert e.get("eligible") is not True and e.get("serving") is not True, e
-print(f"hv-node rows: {len(rows)} (each NOT eligible, NOT serving)")
+    assert e.get("eligible") is not True and e.get("serving") is not True and e.get("attach") == "attestation", e
+print(f"relays unchanged ({len(ra['relays'])}); labels kept ({len(lb)} before, {len(la)} after); volumes unchanged ({len(va)})")
+print(f"hv-node rows: {len(rows)}" + (" (each NOT eligible, NOT serving, attach attestation)" if rows else " - NOT EXERCISED: no NucBox node is attached (the attach itself is proven by the relay's own tests)"))
 PY
 [ $ok = 1 ] && say "HV-ATTACH $MODE ACCEPTED" || { say "HV-ATTACH $MODE NOT ACCEPTED$([ "$MODE" = on ] && echo ': rollback = hv-attach.sh off, then hv-attach-accept.sh off')"; exit 1; }
