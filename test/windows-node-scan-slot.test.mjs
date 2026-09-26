@@ -211,3 +211,64 @@ test("a claim that fails twice running is held, so the row behind it gets the sl
   assert.deepEqual(asked.slice(3), [F], "a changed balance was not asked again");
   assert.equal(h.claimFails.get(F)?.n, 1, "the count restarts under new inputs");
 });
+
+// A GOOD claim whose ledger read after it fails is not a failed claim (enclave-bf's bo-1 on a1ae8567): it spends the
+// slot (a claim went out), but it neither counts toward the hold nor says "claim failed"; it has its own line, and the row
+// stays "claiming" and tracked, so the scan leaves it to tick()'s lease loop instead of claiming it again.
+test("a claim that succeeds and whose read after it fails is not counted as a failed claim, and says so in its own words", async () => {
+  const S = id("a7"), T = id("a8");
+  rpc.rows.current = [row(S, { createdAt: 1n, configCid: "" }), row(T, { createdAt: 2n, configCid: "" })];
+  const h = await nucbox({ engineRetired: false, isolationManager: undefined });
+  h.ensureApp = async () => assert.fail("launched without the ledger read");
+  const asked = scripted(h, { [T]: "claim" });
+  const before = rpc.chainTx.sent.length;
+  rpc.chainTx.mine = true;
+  let failed = 0;                                                               // only the read AFTER the claim fails
+  rpc.rows.failGet = (rid) => rid === S && rpc.chainTx.sent.length > before && ++failed > 0;
+  try { await h.scanLedger(); } finally { rpc.chainTx.mine = false; rpc.rows.failGet = null; }
+  assert.equal(rpc.chainTx.sent.length - before, 1, "one claim transaction");
+  assert.ok(failed >= 1, "the read after the claim was never failed: nothing here was tested");
+  assert.deepEqual(asked, [S]);
+  assert.equal(h.claimFails.has(S), false, "a good claim was counted as a failed one");
+  assert.equal(h.scanHold.has(S), false, "a good claim was held as a failing one");
+  const rec = h.records.get(S);
+  assert.equal(rec.status, "claiming", `status ${rec.status}`);
+  assert.ok(h.tracked.has(S), "the claimed row is not tracked, so no lease loop resumes it");
+  assert.doesNotMatch(rec.reason, /claim failed/);
+  assert.match(rec.reason, /^claimed \(tx 0x[0-9a-f]{64}\), but the ledger read after it failed: [\s\S]+; the lease loop launches it$/);
+  assert.ok(h.logs.some((l) => /^0xa7a7a7a7 claimed \(tx .*\), but the ledger read after it failed/.test(l)), h.logs.join("\n"));
+  assert.ok(!h.logs.some((l) => /claim failed/.test(l)), h.logs.join("\n"));
+  // the next pass does not claim it again (a "failed" record would be): the slot goes to the row behind it
+  await h.scanLedger();
+  assert.deepEqual(asked, [S, T]);
+});
+
+// bo-2: the count restarts on a good claim, and the hold lasts exactly SCAN_CLAIMFAIL_HOLD_MS (2 min, not 10)
+test("the failed-claim count restarts after a good claim, and the hold is exactly 2 minutes", async () => {
+  assert.equal(Host.SCAN_CLAIMFAIL_HOLD_MS, 2 * 60_000);
+  const F = id("b7"), G = id("b8");
+  rpc.rows.current = [row(F, { createdAt: 1n, configCid: "" }), row(G, { createdAt: 2n, configCid: "" })];
+  const h = await nucbox({ engineRetired: false, isolationManager: undefined });
+  h.ensureApp = async (rid) => { h.records.set(rid, { status: "running" }); };
+  const asked = scripted(h, { [G]: "claim" });   // F: the real consider(); its claim fails unless chainTx.mine
+  await h.scanLedger();                          // F fails: n = 1
+  assert.equal(h.claimFails.get(F)?.n, 1);
+  rpc.chainTx.mine = true;
+  try { await h.scanLedger(); } finally { rpc.chainTx.mine = false; }   // F's claim succeeds (inputs unchanged)
+  assert.equal(h.claimFails.has(F), false, "a good claim did not restart the count");
+  h.records.delete(F);
+  await h.scanLedger();                          // F fails again: n = 1 after the reset, so NOT held
+  assert.equal(h.claimFails.get(F)?.n, 1);
+  assert.equal(h.scanHold.has(F), false, "held after one failure: the good claim between did not reset the count");
+  await h.scanLedger();                          // the second failure running: held
+  assert.deepEqual(asked, [F, F, F, F]);
+  const hold = h.scanHold.get(F);
+  assert.equal(hold?.ms, 2 * 60_000, `the hold is ${hold?.ms} ms`);
+  // just inside 2 min: still held (G is reached); just past it: F is asked again. A 10-min hold fails the second step.
+  hold.at = Date.now() - (2 * 60_000 - 5_000);
+  await h.scanLedger();
+  assert.deepEqual(asked.slice(4), [G], "F was asked again inside its 2-minute hold");
+  hold.at = Date.now() - (2 * 60_000 + 1_000);
+  await h.scanLedger();
+  assert.deepEqual(asked.slice(5), [F], "F was not asked again once its 2-minute hold ran out");
+});

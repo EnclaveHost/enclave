@@ -40,7 +40,7 @@ export const enclaveIdOf = (endpoint) => keccak256(toBytes(endpoint));
 
 export async function fakeBaseRpc() {
   const row = { current: null };
-  const rows = { current: null };                    // the whole ledger for count()/getPage(); null = not served
+  const rows = { current: null, failGet: null };     // the whole ledger for count()/getPage(); null = not served. failGet(id) -> true fails that get()
   const chainTx = { mine: false, sent: [] };         // mine: claim transactions succeed; sent: every raw transaction, in order
   const catalog = { current: null };                 // what getVersion answers (a tuple per CATALOG_ABI); set per test
   const calls = [];
@@ -79,6 +79,8 @@ export async function fakeBaseRpc() {
           const { functionName, args } = decodeFunctionData({ abi: GET_ABI, data: m.params[0].data || m.params[0].input });
           if (functionName === "get" && row.current)
             return { jsonrpc: "2.0", id: m.id, result: encodeFunctionResult({ abi: GET_ABI, functionName: "get", result: row.current }) };
+          if (functionName === "get" && rows.failGet && rows.failGet(String(args[0]).toLowerCase()))
+            return { jsonrpc: "2.0", id: m.id, error: { code: -32000, message: "fake rpc: get failed (failGet)" } };
           if (functionName === "get" && rows.current) {
             const hit = rows.current.find((r) => String(r.id).toLowerCase() === String(args[0]).toLowerCase());
             if (hit) return { jsonrpc: "2.0", id: m.id, result: encodeFunctionResult({ abi: GET_ABI, functionName: "get", result: hit }) };
