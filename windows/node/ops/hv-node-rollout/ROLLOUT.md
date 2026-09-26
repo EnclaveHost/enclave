@@ -357,3 +357,5 @@ install. Written by the tray's author when it lands; reviewed by 5d as node owne
 | usdc-to-operator.mjs, hvnode-test1.ps1 | workstation, box | step 8.1 (`-FundExisting <id>`: fund only) |
 | hvnode-rollback.ps1 | box | rollback |
 | relay-hvnode-attach-on.sh / -off.sh | nan | steps 5 / rollback (line-wise, tested with a harness) |
+| REBOOT.md, hvnode-reboot-capture.ps1 | box | the host-reboot acceptance (production config) and its manager-only variant: read-only pre/post evidence and verdict |
+| canary/ | box, workstation | the v41/v42 candidate canary kit (CANARY-v41.md, console-read.ps1, the keep-alive sentinel's source) |
