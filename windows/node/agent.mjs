@@ -18,7 +18,7 @@
 //   TPMATTEST_EXE, PUBLIC_URL (the https://<relay>/t/<name> route a registered seller claims)
 //   NODE_OPERATOR_KEY    hex private key of the on-chain operator, to sign the attach challenge when the name is registered
 //   HOSTING_ADMIN_PORT   the owner's local hosting controls (hosting.mjs; the tray app, windows/tray), 127.0.0.1 only,
-//                        default 9610, 0 = off. HOSTING_ADMIN_TOKEN_FILE (default %ProgramData%\Enclave\hosting-admin.token),
+//                        default 9610, 0 = off. HOSTING_ADMIN_TOKEN_FILE (default %ProgramData%\Enclave\hosting\hosting-admin.token),
 //                        HOSTING_TRAY_USER (the interactive account the tray runs as, granted read on that file),
 //                        HOSTING_CAPS_FILE (default hosting-caps.json in NODE_DIR)
 import { spawn } from 'node:child_process';
@@ -639,20 +639,20 @@ function localHttp(port) {
 function requireHttp() { return createRequire(import.meta.url)('node:http'); }
 // THE OWNER'S HOSTING CONTROLS (hosting.mjs): the tray app's API, on its own loopback port rather than LOCAL_HTTP_PORT's
 // server, which is optional and unauthenticated and also serves the tunnel's surface. Started first, so the owner can
-// see and set the caps while the rest comes up. A token file that cannot be made private turns the controls OFF and
-// nothing else.
-function startHostingControls() {
+// see and set the caps while the rest comes up, and not awaited: the token's directory checks run in PowerShell. A
+// token that cannot be made private turns the controls OFF and nothing else.
+async function startHostingControls() {
   const port = Number(process.env.HOSTING_ADMIN_PORT ?? 9610);
   if (!port) { log('hosting controls: off (HOSTING_ADMIN_PORT=0)'); return; }
   const file = process.env.HOSTING_ADMIN_TOKEN_FILE || tokenFileDefault(DIR);
   let token;
-  try { token = mintToken(file, { trayUser: process.env.HOSTING_TRAY_USER || '' }); }
-  catch (e) { log(`hosting controls: OFF, the token file ${file} could not be made private (${e.message})`); return; }
+  try { token = await mintToken(file, { trayUser: process.env.HOSTING_TRAY_USER || '' }); }
+  catch (e) { log(`hosting controls: OFF, no private token file at ${file}: ${e.message}`); return; }
   if (!process.env.HOSTING_TRAY_USER) log(`hosting controls: HOSTING_TRAY_USER is not set, so only SYSTEM and an ELEVATED administrator can read ${file}`);
   startHostingAdmin({ host, port, token, log: (m) => log('[hosting]', m) });
 }
 (async () => {
-  startHostingControls();
+  startHostingControls().catch((e) => log(`hosting controls: OFF (${e.message})`));
   if (LEGACY_ENGINE) { await startWorker(); await startHost(); }
   else {
     nodeKey = loadOrCreateNodeKey(DIR);

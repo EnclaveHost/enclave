@@ -2,7 +2,7 @@
 //
 // Two sliders: the most of this machine's CPU, and of its GPU, that the node offers to hosting. They set the node's
 // hosting caps through its LOCAL API (windows/node/hosting.mjs: GET/PUT http://127.0.0.1:9610/v1/local/hosting with the
-// bearer token the node writes to %ProgramData%\Enclave\hosting-admin.token). The node enforces them; this app only
+// bearer token the node writes to %ProgramData%\Enclave\hosting\hosting-admin.token). The node enforces them; this app only
 // shows and sets them. Lowering a cap below what is in use stops nothing: new work waits until use drops below it.
 //
 // Built by build.cmd with the csc.exe that ships with Windows (.NET Framework 4.x, the C# 5 compiler), so the syntax
@@ -29,7 +29,7 @@ namespace Enclave.Tray
     {
         public int Port = 9610;
         public string TokenFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                                               "Enclave", "hosting-admin.token");
+                                               "Enclave", "hosting", "hosting-admin.token");
         public string LogsFolder = "";          // empty: the folder the node reports (its agent.log), else the tray's own
 
         public static TrayConfig Load(string path, out string error)

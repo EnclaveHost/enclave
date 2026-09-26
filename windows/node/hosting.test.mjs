@@ -1,7 +1,8 @@
 // The owner's hosting caps and their local API (hosting.mjs), without a Host: the handler is driven with a stub that
 // has the Host's three methods. What these hold to: the caps survive a restart byte for byte and are written
-// atomically; an unreadable caps file offers nothing new rather than everything; the token file is fresh, private and
-// never readable with the token in it; and nobody off the machine, or without the token, gets an answer.
+// atomically; an unreadable caps file offers nothing new rather than everything; the token file is fresh, and on
+// Windows is only ever created inside a directory whose DACL was set and read back first (so it is born private);
+// and nobody off the machine, or without the token, gets an answer.
 // The Host's own use of the caps (capacity, the claim gate, the isolated spawn gate) is test/windows-node-hosting-caps.test.mjs.
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -9,8 +10,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import http from "node:http";
-import { CAP_STEP, DEFAULT_CAPS, snapShare, loadCaps, saveCaps, capsUpdate, mintToken, aclArgs, isLoopback,
-         hostingAdminHandler, startHostingAdmin } from "./hosting.mjs";
+import { CAP_STEP, DEFAULT_CAPS, snapShare, loadCaps, saveCaps, capsUpdate, mintToken, expectedDacl, daclProblem, fsOps,
+         isLoopback, hostingAdminHandler, startHostingAdmin } from "./hosting.mjs";
 
 const servers = [];
 after(() => { for (const s of servers) { s.closeAllConnections?.(); s.close(); } });
@@ -66,35 +67,176 @@ test("capsUpdate: validates, snaps, keeps the axis not named, and refuses unknow
   assert.deepEqual(cur, { cpuShare: 1, gpuShare: 1 }, "the current caps are never mutated");
 });
 
-test("the token: fresh every start, 0600 here, and a file planted before the node started is replaced, not trusted", () => {
-  const dir = tmp(), file = path.join(dir, "sub", "hosting-admin.token");
+test("the token elsewhere: fresh every start, a 0700 directory and a 0600 file, and a planted file is replaced, never read", async () => {
+  const dir = tmp(), file = path.join(dir, "hosting", "hosting-admin.token");
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, "planted-by-someone-else\n");
-  const a = mintToken(file, { platform: "linux" });
+  const a = await mintToken(file, { platform: "linux" });
   assert.match(a, /^[A-Za-z0-9_-]{43}$/, "32 random bytes, base64url");
   assert.equal(fs.readFileSync(file, "utf8").trim(), a);
-  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
-  const b = mintToken(file, { platform: "linux" });
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600); assert.equal(fs.statSync(path.dirname(file)).mode & 0o777, 0o700);
+  const b = await mintToken(file, { platform: "linux" });
   assert.notEqual(a, b, "a new token per start");
+  assert.deepEqual(fs.readdirSync(path.dirname(file)), ["hosting-admin.token"], "no temporary file left");
 });
 
-test("the token on Windows: the ACL is applied while the file is EMPTY, and a failed ACL leaves no token file at all", () => {
-  const file = path.join(tmp(), "hosting-admin.token");
-  const seen = [];
-  const tok = mintToken(file, { platform: "win32", trayUser: "NUCBOX-K11\\steven",
-                                restrict: (f, user) => seen.push({ f, user, size: fs.statSync(f).size }) });
-  assert.deepEqual(seen, [{ f: file, user: "NUCBOX-K11\\steven", size: 0 }], "restricted once, before the token was written");
-  assert.equal(fs.readFileSync(file, "utf8").trim(), tok);
-  assert.throws(() => mintToken(file, { platform: "win32", restrict: () => { throw new Error("icacls: access denied"); } }), /access denied/);
-  assert.equal(fs.existsSync(file), false, "no file is left that might hold a token under an inherited ACL");
+// ---- the token on Windows, as far as it runs here: the two PowerShell steps faked, the file steps real and watched ----
+const SYSTEM = "S-1-5-18", ADMINS = "S-1-5-32-544", USERS = "S-1-5-32-545";
+const SELF = "S-1-5-21-1-2-3-1001", TRAY = "S-1-5-21-1-2-3-1002", MALLORY = "S-1-5-21-1-2-3-1666";
+const FULL = 0x1F01FF, RX = 0x1200A9;
+const usersInherited = [{ sid: USERS, rights: RX, allow: true, inherited: true, flags: 3 }];
+
+/**
+ * A Windows machine as far as mintToken can see it: %ProgramData%\Enclave (P) and its token directory (D) on a real
+ * disk, the inspection and the DACL step faked, and every step - each inspection, the DACL, each file created, renamed
+ * or removed - in one ordered log. Until protect() runs, D (if there) inherits Users:(RX), as a fresh folder would.
+ */
+function windowsBox({ parent = {}, existing = false, dirBefore = {}, readBack = {}, fileSeen = {}, traySid = TRAY, inspectFails = null } = {}) {
+  const root = fs.realpathSync(tmp()), P = path.join(root, "Enclave"), D = path.join(P, "hosting"), F = path.join(D, "hosting-admin.token");
+  if (existing) fs.mkdirSync(D, { recursive: true });
+  const log = []; let dacl = false;
+  const rel = (p) => path.relative(root, p);
+  // the read-back is what protect() was asked to set, unless a test says the machine shows something else
+  const set = () => win.want.map((w) => ({ sid: w.sid, rights: w.rights, allow: true, inherited: false, flags: 3 }));
+  const view = (p) => {
+    if (p === P) return { exists: true, dir: true, reparse: false, owner: SYSTEM, protected: false, rules: usersInherited, ...parent };
+    if (p === D) {
+      if (!fs.existsSync(D)) return { exists: false };
+      return dacl ? { exists: true, dir: true, reparse: false, owner: SYSTEM, protected: true, rules: set(), ...readBack }
+                  : { exists: true, dir: true, reparse: false, owner: SYSTEM, protected: false, rules: usersInherited, ...dirBefore };
+    }
+    if (p === F) return !fs.existsSync(F) ? { exists: false }
+      : { exists: true, dir: false, reparse: false, owner: SYSTEM, protected: false, rules: set().map((r) => ({ ...r, inherited: true, flags: 0 })), ...fileSeen };
+    throw new Error(`inspected an unexpected path ${p}`);
+  };
+  const win = {
+    async inspect(paths, trayUser) {
+      log.push(["inspect", ...paths.map(rel)]);
+      if (inspectFails) throw new Error(inspectFails);
+      return { selfSid: SELF, traySid: trayUser ? traySid : null, items: paths.map(view) };
+    },
+    async protect(d, want) { log.push(["protect", rel(d)]); win.want = want; fs.mkdirSync(d, { recursive: true }); dacl = true; return { action: "created" }; },
+  };
+  const fsx = { ...fsOps,
+    writeNew: (p, data) => { log.push(["create", rel(p)]); return fsOps.writeNew(p, data); },
+    rename: (a, b) => { log.push(["rename", rel(a), rel(b)]); return fsOps.rename(a, b); },
+    unlink: (p) => { log.push(["unlink", rel(p)]); return fsOps.unlink(p); } };
+  const mint = (o = {}) => mintToken(F, { platform: "win32", trayUser: "NUCBOX-K11\\steven", win, fsx, ...o });
+  return { root, P, D, F, log, win, fsx, mint, steps: () => log.map((e) => e[0]) };
+}
+
+test("Windows: the directory's DACL is SET and READ BACK before the first file is created in it; the token lands by rename and is checked there", async () => {
+  const b = windowsBox();
+  const token = await b.mint();
+  assert.deepEqual(b.steps(), ["inspect", "protect", "inspect", "create", "rename", "inspect"]);
+  assert.deepEqual(b.log[2], ["inspect", "Enclave", "Enclave/hosting"], "the read-back, before anything is created");
+  assert.match(b.log[3][1], /^Enclave\/hosting\/\.hosting-admin\.[0-9a-f]{16}\.tmp$/, "a random name, created new, inside the verified directory");
+  assert.deepEqual(b.log[4], ["rename", b.log[3][1], "Enclave/hosting/hosting-admin.token"]);
+  assert.deepEqual(b.log[5], ["inspect", "Enclave/hosting", "Enclave/hosting/hosting-admin.token"], "the file as it landed");
+  assert.equal(fs.readFileSync(b.F, "utf8").trim(), token);
+  assert.deepEqual(fs.readdirSync(b.D), ["hosting-admin.token"], "no temporary file left");
+  assert.deepEqual(b.win.want, [{ sid: SYSTEM, rights: FULL }, { sid: ADMINS, rights: FULL }, { sid: SELF, rights: FULL }, { sid: TRAY, rights: RX }],
+    "SYSTEM, Administrators and the node's account full; the tray's user read and traverse");
+  // an existing directory takes the same path: the DACL is re-set and read back before anything is created
+  const again = windowsBox({ existing: true });
+  await again.mint();
+  assert.deepEqual(again.steps(), ["inspect", "protect", "inspect", "create", "rename", "inspect"]);
 });
 
-test("icacls arguments: inheritance removed; SYSTEM, Administrators and the node's own account full; the tray user read-only", () => {
-  assert.deepEqual(aclArgs("C:\\ProgramData\\Enclave\\hosting-admin.token", { selfSid: "S-1-5-21-1-2-3-1001", trayUser: "NUCBOX-K11\\steven" }),
-    ["C:\\ProgramData\\Enclave\\hosting-admin.token", "/inheritance:r", "/grant:r", "*S-1-5-18:F", "*S-1-5-32-544:F",
-     "*S-1-5-21-1-2-3-1001:F", "NUCBOX-K11\\steven:R"]);
-  assert.deepEqual(aclArgs("f", { selfSid: "S-1-5-18" }), ["f", "/inheritance:r", "/grant:r", "*S-1-5-18:F", "*S-1-5-32-544:F"],
-    "running as SYSTEM adds no second grant; no tray user, no read grant");
+test("Windows: refused before the DACL step and before any file - a reparse point or a foreign owner, on the directory or the folder above", async () => {
+  for (const [o, re] of [
+    [{ parent: { reparse: true } }, /Enclave: it is a reparse point/],
+    [{ parent: { owner: MALLORY } }, /Enclave: it is owned by S-1-5-21-1-2-3-1666, not SYSTEM, Administrators or this node's account/],
+    [{ parent: { dir: false } }, /Enclave: it is not a directory/],
+    [{ existing: true, dirBefore: { reparse: true } }, /hosting: it is a reparse point/],
+    [{ existing: true, dirBefore: { owner: MALLORY } }, /hosting: it is owned by S-1-5-21-1-2-3-1666/],
+  ]) {
+    const b = windowsBox(o);
+    await assert.rejects(b.mint(), re, JSON.stringify(o));
+    assert.deepEqual(b.steps(), ["inspect"], `${JSON.stringify(o)}: nothing set, nothing created`);
+    assert.equal(fs.existsSync(b.F), false);
+  }
+});
+
+test("Windows: a real link or junction where the directory (or a folder above it) should be is refused, whatever the inspection says", async () => {
+  const b = windowsBox();
+  const elsewhere = path.join(b.root, "elsewhere");
+  fs.mkdirSync(elsewhere); fs.mkdirSync(b.P); fs.symlinkSync(elsewhere, b.D);
+  await assert.rejects(b.mint(), /hosting: it is a symbolic link or a junction/);
+  assert.deepEqual(b.steps(), []); assert.deepEqual(fs.readdirSync(elsewhere), [], "nothing was written through the link");
+  // a link further up: the folder resolves somewhere else
+  const c = windowsBox();
+  const alias = path.join(c.root, "alias"); fs.symlinkSync(c.root, alias);
+  await assert.rejects(mintToken(path.join(alias, "Enclave", "hosting", "hosting-admin.token"),
+    { platform: "win32", win: c.win, fsx: c.fsx }), /resolves to .*: a folder on the way is a junction or a link/);
+  assert.deepEqual(c.steps(), []);
+});
+
+test("Windows: the DACL must READ BACK exactly as set - anything else and no file is ever created", async () => {
+  const exact = expectedDacl({ selfSid: SELF, traySid: TRAY }).map((w) => ({ sid: w.sid, rights: w.rights, allow: true, inherited: false, flags: 3 }));
+  for (const [readBack, re] of [
+    [{ protected: false }, /not protected: it still inherits/],
+    [{ rules: [...exact, { sid: USERS, rights: RX, allow: true, inherited: false, flags: 3 }] }, /grants S-1-5-32-545/],
+    [{ rules: [...exact, ...usersInherited] }, /grants S-1-5-32-545/],
+    [{ rules: exact.filter((r) => r.sid !== TRAY) }, /does not grant S-1-5-21-1-2-3-1002/],
+    [{ rules: exact.map((r) => (r.sid === TRAY ? { ...r, rights: FULL } : r)) }, /gives S-1-5-21-1-2-3-1002 0x1f01ff, not 0x1200a9/],
+    [{ rules: exact.map((r) => (r.sid === TRAY ? { ...r, allow: false } : r)) }, /deny entry for S-1-5-21-1-2-3-1002/],
+    [{ rules: exact.map((r) => ({ ...r, inherited: true })) }, /entry for S-1-5-18 is inherited/],
+    [{ rules: exact.map((r) => ({ ...r, flags: 0 })) }, /not inherited by what is created inside/],
+    [{ rules: [...exact, exact[0]] }, /has 5 entries, not the 4 this node set/],
+    [{ owner: MALLORY }, /owned by S-1-5-21-1-2-3-1666/],
+    [{ reparse: true }, /reparse point/],
+  ]) {
+    const b = windowsBox({ readBack });
+    await assert.rejects(b.mint(), re, JSON.stringify(readBack));
+    assert.deepEqual(b.steps(), ["inspect", "protect", "inspect"], `${JSON.stringify(readBack)}: set, read back, refused, nothing created`);
+    assert.deepEqual(fs.readdirSync(b.D), []);
+  }
+  // .NET adds SYNCHRONIZE to every allow entry; the comparison ignores that bit and nothing else
+  const noSync = exact.map((r) => ({ ...r, rights: r.rights & ~0x100000 }));
+  assert.equal(daclProblem({ exists: true, dir: true, reparse: false, owner: SYSTEM, protected: true, rules: noSync }, expectedDacl({ selfSid: SELF, traySid: TRAY }), [SYSTEM, ADMINS, SELF]), null);
+});
+
+test("Windows: the file as it landed must carry exactly the directory's entries, inherited; otherwise its token is never used and the file is removed", async () => {
+  const inherited = expectedDacl({ selfSid: SELF, traySid: TRAY }).map((w) => ({ sid: w.sid, rights: w.rights, allow: true, inherited: true, flags: 0 }));
+  for (const [fileSeen, re] of [
+    [{ rules: inherited.map((r) => ({ ...r, inherited: false })) }, /its own, not inherited from the token directory/],
+    [{ rules: [...inherited, { sid: USERS, rights: RX, allow: true, inherited: true, flags: 0 }] }, /grants S-1-5-32-545/],
+    [{ owner: MALLORY }, /owned by S-1-5-21-1-2-3-1666/],
+    [{ reparse: true }, /reparse point/],
+  ]) {
+    const b = windowsBox({ fileSeen });
+    await assert.rejects(b.mint(), re, JSON.stringify(fileSeen));
+    assert.equal(fs.existsSync(b.F), false, "the unverified token file is removed");
+    assert.deepEqual(fs.readdirSync(b.D), []);
+  }
+});
+
+test("Windows: a token already there is NEVER trusted - replaced by a fresh one, and gone if the fresh one fails its check", async () => {
+  const b = windowsBox({ existing: true });
+  fs.writeFileSync(b.F, "planted-by-someone-else\n");
+  const t1 = await b.mint();
+  assert.notEqual(t1, "planted-by-someone-else"); assert.equal(fs.readFileSync(b.F, "utf8").trim(), t1);
+  const t2 = await b.mint();
+  assert.notEqual(t2, t1, "a new token every start, never the last one");
+  const c = windowsBox({ existing: true, fileSeen: { owner: MALLORY } });
+  fs.writeFileSync(c.F, "planted-by-someone-else\n");
+  await assert.rejects(c.mint(), /owned by/);
+  assert.equal(fs.existsSync(c.F), false, "neither the planted token nor the unverified new one is left");
+});
+
+test("Windows: a tray user that does not resolve to a SID, or an inspection that fails, mints nothing", async () => {
+  const b = windowsBox({ traySid: null });
+  await assert.rejects(b.mint(), /the tray user did not resolve to a SID/);
+  assert.deepEqual(b.steps(), ["inspect"]);
+  const c = windowsBox({ inspectFails: "Some or all identity references could not be translated." });
+  await assert.rejects(c.mint(), /could not be translated/);
+  assert.deepEqual(c.steps(), ["inspect"]);
+  // no tray user configured: SYSTEM, Administrators and the node's account only
+  const d = windowsBox();
+  await d.mint({ trayUser: "" });
+  assert.deepEqual(d.win.want.map((w) => w.sid), [SYSTEM, ADMINS, SELF]);
+  assert.deepEqual(expectedDacl({ selfSid: SYSTEM }).map((w) => w.sid), [SYSTEM, ADMINS], "running as SYSTEM adds no third full grant");
 });
 
 test("isLoopback: 127/8, ::1 and v4-mapped 127/8 only", () => {
