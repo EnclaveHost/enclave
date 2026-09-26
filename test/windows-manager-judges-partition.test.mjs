@@ -14,6 +14,7 @@ import { selfSigned } from "../windows/node/apptls.mjs";
 import { Manager } from "../windows/vbslike/manager/server.mjs";
 import { judgeRunning, transportKeyOf } from "../windows/vbslike/manager/ready.mjs";
 import { canonical, SIGN_DOMAIN } from "../windows/vbslike/verify/judge-hv.mjs";
+import { ABI2, bind2, runtimeId } from "../isolation/contract/runtime.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 // the report's format and tier as the RUST launcher defines them (host/src/contract.rs), never as the judge does
@@ -25,6 +26,12 @@ const component = Buffer.from(v.component_hex, "hex"), REC = v.ok[0].mapping.rec
 const OURS = "3f1c0f6e-7a2b-4c3d-8e9f-0a1b2c3d4e5f", OTHER = "9b2d4e6f-1a3c-4e5f-8a9b-0c1d2e3f4a5b";
 const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
 const launcherKey = publicKey.export({ type: "spki", format: "der" }).subarray(12).toString("base64");
+// What a current guest's front serves (ABI/2): its runtime's identity, bound into the report, and the attest-time W^X
+// scan with the runtime's seccomp filter. The image here ("ab"x32) is in neither judge-hv legacy table, so an ABI/1
+// document is refused on it (f1461271) and a self-test without seccomp= is too (SECCOMP_UNSTATED_IMAGES); this test is
+// about the PARTITION, so its front states everything else the way a real one does.
+const JIT = { name: "wasmtime", version: "48.0.1", execution: "jit", targetIsa: "x86_64", hostIsa: "x86_64", cpuFeatures: "baseline", wx: "enforced", cache: "none" };
+const SELFTEST = "exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 seccomp=" + "d4".repeat(32) + " scope=cgroup:/dom1";
 
 const servers = [];
 after(() => { for (const s of servers) { s.closeAllConnections?.(); s.close(); } });
@@ -36,14 +43,14 @@ async function front(vmId) {
     if (u.pathname === "/.well-known/enclave-ready") { res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ ready: true, appId: APP })); }
     if (u.pathname !== "/.well-known/enclave-attestation") { res.writeHead(404); return res.end(); }
     const nonce = Buffer.from(u.searchParams.get("nonce") || "", "hex");
-    const binding = crypto.createHash("sha256").update(spki).update(nonce).digest();      // ABI/1: sha256(spki || nonce)
+    const binding = bind2(spki, nonce, runtimeId(JIT));                                   // ABI/2: the runtime is bound too
     const report = { format: FORMAT, tier: TIER, reportData: Buffer.concat([binding, Buffer.from(APP, "hex")]).toString("hex"),
       domain: { appSha256: APP }, partition: { vmId, guestImageSha256: "ab".repeat(32) }, launcher: { key: launcherKey },
       platform: { hostExcluded: false, partition: "hcs-child" }, boundary: "tier=T0-hv partition=hcs-child host_excluded=no" };
     const sig = crypto.sign(null, Buffer.concat([SIGN_DOMAIN, Buffer.from(canonical(report))]), privateKey).toString("base64");
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ format: FORMAT, tier: TIER, nonce: nonce.toString("hex"), appSha256: APP,
-                             report: Buffer.from(JSON.stringify({ doc: report, sig })).toString("base64") }));
+    res.end(JSON.stringify({ format: FORMAT, tier: TIER, nonce: nonce.toString("hex"), appSha256: APP, abi: ABI2, runtime: JIT,
+                             runtimeSelfTest: SELFTEST, report: Buffer.from(JSON.stringify({ doc: report, sig })).toString("base64") }));
   });
   await new Promise((r) => s.listen(0, "127.0.0.1", r)); servers.push(s);
   return { port: s.address().port, key: transportKeyOf(spki) };
