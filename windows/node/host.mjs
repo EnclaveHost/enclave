@@ -153,6 +153,10 @@ export class Host {
     this.owners = { operator: null, delegations: [], invalid: new Map() };
     /// Definite pre-claim refusals (#preclaimVerdict): id -> { key, reason, at }. In memory; a restart asks again once.
     this.preclaim = new Map();
+    /// Rows the ledger scan handed consider() and it DECLINED without a claim transaction (refused, queued, held by the
+    /// partition verdict): id -> { key, at }. The scan skips such a row while its inputs are unchanged (scanHoldKey),
+    /// asking again after SCAN_HOLD_MS for what the key cannot see. In memory; a restart asks again once.
+    this.scanHold = new Map();
     // THE OWNER'S HOSTING CAPS (hosting.mjs, set from the tray): the most of this machine's CPU and GPU the node offers.
     // No file means 1.0 on both, which is this node exactly as it was before they existed.
     this.capsFile = cfg.hostingCapsFile || path.join(cfg.dir, "hosting-caps.json");
@@ -394,16 +398,9 @@ export class Host {
     // hosting cap: a hint for a deployment this box runs is not a new claim, and lowering a cap never takes a running
     // app away (hosting.mjs). Measured against itself, or against a cap below what runs, it would be marked refused.
     const here = Host.occupies(this.records.get(id) || {});
-    const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: this.ownerSet(), enclaveId: this.enclaveId,
-                                          appsEnabled: this.cfg.appsEnabled, scope: this.scope(),
-                                          version: v, capacity: this.capacity({ exclude: id, capped: !here }),
-                                          listedAt: this.listedAt(), invited: invited || force,
-                                          legacy: this.cfg.claimLegacy === true, fetchesConfigCid: this.features().configCidOverride,
-                                          privateOk: !!this.cfg.sessionKid && (!this.partitionsOnly() || this.features().devDeploy),
-                                          features: this.features() });
+    const refuse = this.claimRefusal(d, { version: v, capacity: this.capacity({ exclude: id, capped: !here }),
+                                          appsEnabled: this.cfg.appsEnabled, invited: invited || force });
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
-    const retired = this.retiredEngineClaimRefusal(d);
-    if (retired) { this.#record(id, { status: "refused", reason: retired, appRef: d?.appRef || "" }); return { accepted: false, reason: retired }; }
     // A deployment for the ISOLATED backend that this box would still have to CLAIM is judged by the partition verdict
     // first: nothing is tracked and no chain call is made for one it would refuse or cannot judge (#preclaimVerdict).
     const heldHere = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase() && Number(d.leaseUntil) * 1000 > Date.now();
@@ -435,6 +432,7 @@ export class Host {
           return { accepted: false, reason };
         }
       } catch (e) { this.log(`claimableBy ${id.slice(0, 10)}: ${e.shortMessage || e.message}`); }
+      // claimAttempted: this call went on to a claim TRANSACTION - what spends the ledger scan's one claim per pass
       try {
         this.#record(id, { status: "claiming", appRef: d.appRef });
         const hash = await chain.claimDeployment(id, this.enclaveId);
@@ -443,8 +441,10 @@ export class Host {
         d = await chain.readDeployment(id);
       } catch (e) {
         const reason = `claim failed: ${e.shortMessage || e.message}`;
-        this.#record(id, { status: "failed", reason, appRef: d.appRef }); return { accepted: false, reason };
+        this.#record(id, { status: "failed", reason, appRef: d.appRef }); return { accepted: false, reason, claimAttempted: true };
       }
+      await this.ensureApp(id, d, { force, version: v });
+      return { accepted: true, status: this.records.get(id)?.status || "unknown", claimAttempted: true };
     }
     await this.ensureApp(id, d, { force, version: v });
     return { accepted: true, status: this.records.get(id)?.status || "unknown" };
@@ -1432,7 +1432,11 @@ export class Host {
    * pushes work at a runner.
    *
    * ONE new claim per pass. A claim costs gas and a lease commits capacity, and a scan that took
-   * every row it liked at once would spend both before the first app had proved it starts.
+   * every row it liked at once would spend both before the first app had proved it starts. The slot is
+   * spent only by a row that goes on to a claim TRANSACTION (consider()'s claimAttempted): a row refused
+   * on policy (claimRefusal, the same predicate consider() asks), or declined by consider() without a
+   * claim (queued, the partition verdict), leaves it for the next row - and a declined row is not asked
+   * again while its inputs are unchanged (scanHold), so it cannot starve the rows behind it (enclave-d1's TEST2).
    */
   async scanLedger() {
     const owners = this.ownerSet();
@@ -1451,6 +1455,7 @@ export class Host {
     const ourId = this.enclaveId.toLowerCase();
     const rank = (d) => (String(d.runner || "").toLowerCase() === ourId ? 0 : isOwners(d) ? 1 : 2);
     pool.sort((a, b) => rank(a) - rank(b) || Number(a.createdAt) - Number(b.createdAt));
+    const ov = this.ownersVersion();
     let claimed = 0;
     for (const d of pool) {
       const id = String(d.id).toLowerCase();
@@ -1470,21 +1475,26 @@ export class Host {
       if (ours && live) continue;
       if (!ours && live && !/^0x0+$/.test(String(d.runner || ""))) continue;   // somebody else is running it
       if (!ours && claimed >= 1) continue;
+      const holdKey = this.scanHoldKey(d, ov);
+      const held = this.scanHold.get(id);
+      if (held && held.key === holdKey && Date.now() - held.at < held.ms) continue;   // declined, and nothing it was judged on changed
       let v = null; try { v = await chain.resolveAppRef(d.appRef); } catch {}
-      const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: owners, enclaveId: this.enclaveId, appsEnabled: true,
-                                            scope, version: v, capacity: this.capacity(), listedAt: this.listedAt(),
-                                            legacy: this.cfg.claimLegacy === true, fetchesConfigCid: this.features().configCidOverride,
-                                            privateOk: !!this.cfg.sessionKid && (!this.partitionsOnly() || this.features().devDeploy),
-                                            features: this.features() });
+      const refuse = this.claimRefusal(d, { version: v, capacity: this.capacity(), appsEnabled: true, ownerAllow: owners });
       if (refuse) {
         // Recorded, not logged every 30 seconds: a refusal is a standing fact about a row, and
         // the console reads it off /v1/deployments. Only a CHANGE is worth a line.
         if (!rec || rec.reason !== refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d.appRef }); this.log(`ledger: not taking ${id.slice(0, 10)}: ${refuse}`); }
         continue;
       }
-      if (!ours) claimed++;
-      this.log(`ledger: taking ${id.slice(0, 10)} (${d.appRef}, owner ${d.owner}, ${Math.round(Number(d.cpuMilli) / 10)}% of a node)`);
-      await this.consider(id).catch((e) => this.log(`consider ${id.slice(0, 10)}: ${e.message}`));
+      this.log(`ledger: considering ${id.slice(0, 10)} (${d.appRef}, owner ${d.owner}, ${Math.round(Number(d.cpuMilli) / 10)}% of a node)`);
+      const r = await this.consider(id).catch((e) => { this.log(`consider ${id.slice(0, 10)}: ${e.message}`); return null; });
+      // held only on a STANDING answer: refused (policy, partition verdict) or queued (the ledger's claimableBy, a
+      // verdict input not known yet); a transient failure (chain unavailable, a read that failed) is asked next pass
+      const st = this.records.get(id)?.status;
+      if (r && r.claimAttempted) { if (!ours) claimed++; this.scanHold.delete(id); }
+      else if (r && !r.accepted && (st === "refused" || st === "queued"))
+        this.scanHold.set(id, { key: holdKey, at: Date.now(), ms: st === "refused" ? Host.SCAN_HOLD_MS : Host.SCAN_QUEUED_HOLD_MS });
+      else this.scanHold.delete(id);
     }
   }
   async tick() {
@@ -2006,7 +2016,36 @@ export class Host {
   ownerNotServed(d) {
     return this.scope() === "owner-only" && !this.ownerSet().has(String(d?.owner || "").toLowerCase());
   }
-  /** claimRefusal(d) -> why a retired-engine node will not CLAIM a deployment, or null (see heldReason). */
+  /**
+   * claimRefusal(d, ...) -> why this box will not CLAIM ledger row `d` on policy, or null: chain.claimPolicy AND the
+   * retired-engine rule (a NucBox claims only deployments requiring its partition backend), as ONE predicate that the
+   * ledger scan and consider() both ask, so the scan can never take a row that consider() then refuses on policy
+   * (enclave-d1's TEST2: an owner's older row with no isolation envelope passed the scan's claimPolicy, took the pass's
+   * one claim, was refused by consider() on the retired-engine rule, and again every 30 s, so the owner's newer
+   * hyperv row was never reached).
+   */
+  claimRefusal(d, { version = null, capacity, appsEnabled, invited = false, ownerAllow = this.ownerSet() }) {
+    return chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow, enclaveId: this.enclaveId,
+                                  appsEnabled, scope: this.scope(), version, capacity, listedAt: this.listedAt(), invited,
+                                  legacy: this.cfg.claimLegacy === true, fetchesConfigCid: this.features().configCidOverride,
+                                  privateOk: !!this.cfg.sessionKid && (!this.partitionsOnly() || this.features().devDeploy),
+                                  features: this.features() })
+      || this.retiredEngineClaimRefusal(d);
+  }
+  static SCAN_HOLD_MS = 10 * 60_000;       // a refused row
+  static SCAN_QUEUED_HOLD_MS = 2 * 60_000; // a queued one: its input may come back soon (the preclaim's unknown, the ledger's cap)
+  /**
+   * scanHoldKey(d, ownersVersion) -> what a row consider() declined is judged on, as the scan can see it: the row
+   * (envelope, app, size, visibility, owner, active, funding, rate cap, lease) and this box (whom it serves, what it
+   * charges). A change in any of them asks again; SCAN_HOLD_MS (refused) and SCAN_QUEUED_HOLD_MS (queued) bound what it
+   * cannot see (the relay's secrets answer, the manager's supports, capacity freed by an app that ended).
+   */
+  scanHoldKey(d, ownersVersion) {
+    return JSON.stringify([String(d.appRef || ""), String(d.configCid || ""), String(d.cpuMilli), String(d.gpuMilli), d.isPublic === true,
+      String(d.owner || "").toLowerCase(), d.active === true, String(d.balance6 ?? ""), String(d.rate ?? ""),
+      String(d.runner || "").toLowerCase(), String(d.leaseUntil ?? ""), ownersVersion, String(this.cfg.cpuPricePerSec6), String(this.cardPrice())]);
+  }
+  /** retiredEngineClaimRefusal(d) -> why a retired-engine node will not CLAIM a deployment, or null (see heldReason). */
   retiredEngineClaimRefusal(d) {
     if (this.cfg.engineRetired !== true || this.isolatedForThisBox(d)) return null;
     return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired): "
