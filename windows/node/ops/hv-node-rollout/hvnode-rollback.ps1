@@ -23,8 +23,8 @@ function Note([string]$m) { Write-Output "ok   $m" }
 $fail = @()
 function Procs([string]$name, [string]$like) { @(Get-CimInstance Win32_Process -Filter "Name='$name'" | Where-Object { $_.CommandLine -like $like }) }
 function StopLoop([string]$runCmd, [string]$scriptLike, [string]$what) {
-  foreach ($p in (Procs 'cmd.exe' "*$runCmd*")) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Note "$what loop (cmd.exe pid $($p.ProcessId)) stopped" }
-  foreach ($p in (Procs 'node.exe' $scriptLike)) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Note "$what node.exe pid $($p.ProcessId) stopped" }
+  foreach ($p in @(Procs 'cmd.exe' "*$runCmd*")) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Note "$what loop (cmd.exe pid $($p.ProcessId)) stopped" }
+  foreach ($p in @(Procs 'node.exe' $scriptLike)) { Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue; Note "$what node.exe pid $($p.ProcessId) stopped" }
 }
 
 $node = Get-ScheduledTask -TaskName 'EnclaveHvNode' -TaskPath '\' -ErrorAction SilentlyContinue
