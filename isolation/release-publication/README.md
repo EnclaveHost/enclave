@@ -57,6 +57,9 @@ Rules the scripts keep:
 - [release-aa6c985c/](release-aa6c985c/): release id 79c5ecf2…, THE PRODUCTION RELEASE: its init links musl.
   [DRAFT-RELEASE.md](release-aa6c985c/DRAFT-RELEASE.md) is the draft release manifest, for review. NO release is
   created or published.
+- [release-b63c2def/](release-b63c2def/): release id f7888d86…, the hardened release (the front not dumpable; init runs the
+  app unprivileged with Yama, user-namespace and io_uring holds). [DRAFT-RELEASE.md](release-b63c2def/DRAFT-RELEASE.md)
+  is its draft manifest, for review; it shares 79c5ecf2's source bundle. NO release is created or published.
 - [release-4cdd5169/](release-4cdd5169/): release id 52156652…, the console-guard release, next after 79c5ecf2 (only
   template/front differs). [DRAFT-RELEASE.md](release-4cdd5169/DRAFT-RELEASE.md) is its draft manifest, for review; it
   shares 79c5ecf2's source bundle. NO release is created or published.
