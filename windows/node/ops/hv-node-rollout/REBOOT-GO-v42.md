@@ -24,8 +24,8 @@ today's live state differs from what REBOOT.md assumed. Deployment: test 1 `0x31
   `/x` splice with a VERIFIED chain (as E12, E15): `soak.mjs --once --via x`. The script's hostname R4 is recorded as
   INFO (an expected FAIL), not as the acceptance.
 - **G2. Serving on the NEW key now needs a NEW certificate.** After the reboot the fresh partition holds a new key and
-  first serves its self-signed certificate. hvcert (node, 15 s after start, then every 60 s) must issue a ZeroSSL
-  certificate for the NEW key inside the 15 minutes. This is the FIRST live issuance under f1461271's judge-hv
+  first serves its self-signed certificate. hvcert (node, 15 s after start, then every 60 s) must get a publicly
+  trusted certificate (ZeroSSL or Let's Encrypt) for the NEW key inside the 30-min certificate window. This is the FIRST live issuance under f1461271's judge-hv
   per-image rule: v42's image `0891c740` is listed as legacy, and the record carries guestIdentity + image (above), so
   the legacy path applies ("runtime W^X unmeasured"). **Proven offline at 2026-09-26T06:32:13Z (enclave-87's G2(a),
   read-only):** f1461271's own `hvcert.mjs hvJudge(view, pin)`, with the manager's record as the view, judged test 1's
@@ -60,7 +60,7 @@ today's live state differs from what REBOOT.md assumed. Deployment: test 1 `0x31
 | 1 | ws | `node soak-summary-ecfb7b3f.mjs --summary 20260926T040105Z.jsonl` (the soak's own final summary, d1), then `node soak.mjs --once --via x --out before-once.jsonl` | the summary is recorded; the one-shot sample: `ok:true`, status 200, `authorized:true` (a publicly trusted chain: ZeroSSL or Let's Encrypt, the issuer INFO - the relay fails over between CAs, enclave-d1), `spkiSha256` = `4d80b956…` |
 | 2 | box | `hvnode-accept.ps1 -Commit f146127176f7 -DeploymentId $ID` (read-only: no `-KillRecovery`, no `-OwnerRestart`) | all PASS |
 | 3 | box | `hvnode-reboot-capture.ps1 -Phase pre -DeploymentId $ID -OutDir C:\Users\claude\vbs-like\hvnode\reboot-<UTC stamp>` | exit 0; `pre: BootId 69; … VMs 1; record hv88b31102… running; key 4d80b956…` |
-| 4 | ws | `hvnode-accept-remote.sh $ID 4d80b9566a3ab6c4d898b03ad09a9309f326b891f2b1ddc5bb63ab10046cccb1` | all PASS except R4's hostname lines (G1: INFO). Keep R1 (verifiedAt, bootCounter), R3 (gas ≥ 0.0005 ETH, nonce latest = pending), and the ledger's leaseUntil (≥ 30 min out), balance6 and runner |
+| 4 | ws | `hvnode-accept-remote.sh $ID 4d80b9566a3ab6c4d898b03ad09a9309f326b891f2b1ddc5bb63ab10046cccb1` | all PASS except R4's hostname lines (G1: INFO). Keep R1 (verifiedAt, bootCounter), R3 (gas ≥ 0.0005 ETH, nonce latest = pending), and the ledger's leaseUntil (read here; step 5 applies G7's rule), balance6 and runner |
 | 5 | box | wait for a fresh `renewed 0x31136008` line in node.log and read leaseUntil on chain (G7), then `shutdown.exe /r /t 60 /d p:0:0 /c "enclave hv-node reboot acceptance"`, and record `(Get-Date).ToUniversalTime()` | leaseUntil ≥ 40 min after the shutdown; issued within ~10 min of that renewal; abortable for 60 s with `shutdown /a` |
 | 6 | ws | `until ssh -o ConnectTimeout=10 minipc-zt hostname; do sleep 20; done` (read-only reachability) | the box answers |
 | 7 | box | `hvnode-reboot-capture.ps1 -Phase post -DeploymentId $ID -OutDir <the same dir>`, re-run read-only until PASS or the deadline | exit 0. It judges: BootId 70, Secure Boot ON, the legacy task Disabled, both tasks Running, ≤ 15 min; ONE tagged VM, the NEW instance's; the old vmId gone; ONE record, running, not recovered, NEW instance, NEW key; owner-only, tier hv-node; `<ID10> restart recovery: the recovered VM hv88b31102f902741d791a3e90b56f571b (Off) was retired; starting ONE fresh partition`; no reboot-recovery hold; no `card price now`. Note the printed NEW key |
