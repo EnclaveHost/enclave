@@ -17,6 +17,18 @@ declare -A SHA=(
 RF=5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77   # the admitted release (since rs-10)
 HV=nucbox-k11                     # the owner-only hv-node box (test 1 served over nan's /x)
 SOAK_END=2026-09-26T16:01:05Z     # d1's soak loop end, from its start record (04:01:05.221Z + 43200 s); a hard floor
+# the SOAK gate (enclave-5d's REQUIRED fixes): prints open|closed, or a REFUSING reason with status 2 for a DRY other than exactly
+# 0 or 1 (DRY=true must never read as a live run) or a floor that does not parse (it must never fail OPEN). $1 = now in epoch
+# seconds - og-push passes $(date +%s); never taken from the environment - $2 DRY, $3 SOAK_DONE, $4 SOAK_END.
+soak_gate() {
+  local now=$1 dry=${2:-0} done=${3:-0} end=${4:-} floor
+  case "$dry" in 0|1) ;; *) echo "REFUSING: DRY must be exactly 0 or 1 (got '${dry:0:12}')"; return 2;; esac
+  # a strict UTC literal first: `date -d ""` (and other odd strings) parse as a time too, which would fail OPEN
+  [[ "$end" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] && floor=$(date -u -d "$end" +%s 2>/dev/null) && [[ "$floor" =~ ^[0-9]+$ ]] \
+    || { echo "REFUSING: SOAK_END '${end:0:40}' does not parse to a time"; return 2; }
+  [[ "$now" =~ ^[0-9]+$ ]] || { echo "REFUSING: now '${now:0:20}' is not a time"; return 2; }
+  if [ "$now" -ge "$floor" ] && [ "$done" = 1 ]; then echo open; else echo closed; fi
+}
 say() { local m; m="$(date -u +%H:%M:%SZ) $*"; echo "$m"; { echo "$m" >> "$LOG"; } 2>/dev/null || true; }
 context_moved() { git -C "$1" diff --name-only $REVIEW_BASE origin/main -- relay/ site/ scripts/; }
 files_are_pc() { local f got; for f in "$@"; do got=$($NAN "sha256sum < /opt/nan-relay/$f" | cut -c1-64); [ "$got" = "${SHA[$f]}" ] || { echo "$f is ${got:0:12}, not ${SHA[$f]:0:12}"; return 1; }; done; }

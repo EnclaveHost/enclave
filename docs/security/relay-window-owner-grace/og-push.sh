@@ -5,8 +5,9 @@
 # never before d1's soak loop end (SOAK_END, a hard floor) and only with SOAK_DONE=1 (d1's "soak summary done" received).
 # DRY=1 pushes nothing and reports the soak gate instead of enforcing it. Then: og-accept.sh. Rollback: og-rollback.sh.
 set -euo pipefail; source "$(dirname "$0")/lib.sh"
+gate=$(soak_gate "$(date +%s)" "${DRY:-0}" "${SOAK_DONE:-0}" "$SOAK_END") || { say "$gate"; exit 2; }   # DRY is exactly 0 or 1 from here
 soak="now $(date -u +%H:%M:%SZ), floor $SOAK_END, SOAK_DONE=${SOAK_DONE:-unset}"
-if [ "$(date +%s)" -lt "$(date -d "$SOAK_END" +%s)" ] || [ "${SOAK_DONE:-0}" != 1 ]; then
+if [ "$gate" != open ]; then
   [ "${DRY:-0}" = 1 ] && say "DRY: the soak gate is CLOSED ($soak): the live run would refuse here" \
                       || { say "REFUSING: the soak gate is closed ($soak): d1's final soak summary first (enclave-87)"; exit 2; }
 fi
