@@ -1,0 +1,24 @@
+== stage-release-keep3.sh be43f810, stage-retire3.sh 0fa00faa, sandbox 2026-09-26T05:16:51Z
+PASS keep3  success: 5db18199 beside f7888d86                  rc=0  (want 0 ) | stage-release: done: /tmp/tmp.HAEuzhYzZl/d20067 (nothing outside it changed; no service, env or rela
+PASS keep3  check fails: a wrong expected measurement          rc=6  (want 6 ) | stage-release: CHECK FAILED (rc 1): see /tmp/tmp.HAEuzhYzZl/d2035/CHECK.json (the staged release sta
+PASS keep3  refuse: id not 64 hex                              rc=2  (want 2 ) | stage-release: REFUSED: the id is not 64 hex
+PASS keep3  refuse: DEST exists                                rc=2  (want 2 ) | stage-release: REFUSED: /tmp/tmp.HAEuzhYzZl/d28979 exists (a version is staged once)
+PASS keep3  refuse: BASE not a staging                         rc=2  (want 2 ) | stage-release: REFUSED: /tmp/tmp.HAEuzhYzZl/nobase is not a predictor staging
+PASS keep3  refuse: no module                                  rc=2  (want 2 ) | stage-release: REFUSED: no /tmp/tmp.HAEuzhYzZl/none.mjs or /home/steven/Projects/enclave-release/nod
+PASS keep3  refuse: BEFORE_LINES not the three lines           rc=2  (want 2 ) | stage-release: REFUSED: /tmp/tmp.HAEuzhYzZl/two.env is not exactly the three lines
+PASS keep3  refuse: live cert set != admitted set              rc=5  (want 5 ) | stage-release: STOP: the live certificate set is not the admitted set (a hand edit?)
+PASS keep3  refuse: live admitted is not exactly one           rc=5  (want 5 ) | stage-release: STOP: the live DOMAIN_RELEASES is not exactly one release
+PASS keep3  refuse: the release is already installed           rc=5  (want 5 ) | stage-release: STOP: 5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77 is already ins
+PASS keep3  refuse: the tar is not this release (verify)       rc=4  (want 4 ) | stage-release: STOP: the release does not verify against 5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5
+PASS keep3  refuse: CROSSCHECK_KEEP missing (sh :?)            rc=1  (want 1 ) | /tmp/tmp.HAEuzhYzZl/stage-release-keep3.sh: line 30: CROSSCHECK_KEEP: parameter null or not set
+PASS retire3 success: retire f7888d86, keep 5db18199           rc=0  (want 0 ) | stage-retire: done: /tmp/tmp.HAEuzhYzZl/r25493 (nothing outside it changed; no service, env or relay
+PASS retire3 check fails: a wrong pin                          rc=6  (want 6 ) | stage-retire: CHECK FAILED (rc 1): see /tmp/tmp.HAEuzhYzZl/r829/CHECK.json (nothing else changed)
+PASS retire3 refuse: DEST exists                               rc=2  (want 2 ) | stage-retire: REFUSED: /tmp/tmp.HAEuzhYzZl/r30112 exists (a version is staged once)
+PASS retire3 refuse: BASE not a staging                        rc=2  (want 2 ) | stage-retire: REFUSED: /tmp/tmp.HAEuzhYzZl/nobase is not a predictor staging
+PASS retire3 refuse: BEFORE_LINES not three lines              rc=2  (want 2 ) | stage-retire: REFUSED: /tmp/tmp.HAEuzhYzZl/two.env is not exactly the three lines
+PASS retire3 refuse: KEEP not one id                           rc=2  (want 2 ) | stage-retire: REFUSED: KEEP is not one release id
+PASS retire3 refuse: KEEP not installed                        rc=5  (want 5 ) | stage-retire: STOP: KEEP is not installed
+PASS retire3 refuse: KEEP not admitted                         rc=5  (want 5 ) | stage-retire: STOP: KEEP is not admitted now
+PASS retire3 refuse: KEEP not in the cert set                  rc=5  (want 5 ) | stage-retire: STOP: KEEP is not in the live certificate set
+PASS retire3 refuse: DROP holds KEEP                           rc=2  (want 2 ) | stage-retire: REFUSED: DROP holds a non-id or KEEP
+PASS retire3 refuse: DROP not installed                        rc=5  (want 5 ) | stage-retire: STOP: abababababababababababababababababababababababababababababababab is not installe
