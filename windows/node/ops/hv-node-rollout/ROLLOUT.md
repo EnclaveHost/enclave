@@ -333,6 +333,22 @@ install. Written by the tray's author when it lands; reviewed by 5d as node owne
   restarts. The node's next attach is refused by name.
 - **A node upgrade later:** stage a new `<c8>` and re-run the install with `-Replace` (a new tree beside the old one,
   and the same state\). Roll back by pointing `run-node.cmd` at the previous tree.
+- **A node-only upgrade while the manager serves (`-NodeOnly`, enclave-d1's spec, 09-26):** `-Replace` refuses while
+  either task runs and rewrites the manager's files too, and stopping the manager would retire test 1's partition. So:
+  `hvnode-install.ps1 -NodeOnly -NodeArchive … -NodeArchiveSha256 … -NodeManifest … -NodeManifestSha256 … -LockSha256 …`
+  (no package, no tpmattest pin). RUN IT FIRST WITH `-DryRun`: every check and the staging, and nothing stopped.
+  - It REFUSES unless `\EnclaveHvManager` is Running and its /health reads canStart; unless `\EnclaveHvNode` is
+    registered and the legacy task Disabled; and if the new tree is the one `run-node.cmd` already names.
+  - It stages `hvnode\<c8>` exactly as the full install does (the archive and manifest pins, every file checked, `npm ci`
+    from the pinned lockfile).
+  - It stops ONLY the node: the task, then its loop's cmd.exe, then its node.exe, matched by absolute path, and it waits up
+    to 60 s for both to be gone (or refuses before any rewrite).
+  - Only then it rewrites `run-node.cmd` for the new tree (the old one kept as `run-node.cmd.bak-<old c8>`), starts
+    `\EnclaveHvNode`, and waits up to 90 s for an agent from the new tree to answer the loopback `/availability`.
+  - Untouched: the manager, its copy and task, `manager-config.cmd`, `run-manager.cmd`, `node-config.cmd` (its env; its
+    comment still names the tree it was written for), the keys and `state\`. Test 1's partition keeps running under the
+    manager, and the new node ADOPTS it (node.log `isolation adopted`, the same instance and key).
+  - ROLLBACK: the same `-NodeOnly` with the previous tree's archive and pins (that tree is never deleted).
 
 ## What this does NOT claim
 - **Not isolated hosting.** T0-hv, monitor-signed, `host_excluded=no`. The node's `attestedCapacity()` is always false,
