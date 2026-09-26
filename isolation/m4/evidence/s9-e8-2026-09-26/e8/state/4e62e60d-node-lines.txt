@@ -1,0 +1,4 @@
+[isolation] 0x4e62e60d: guest gdd24f727b app 9c3d10f1450e17bc… (enclave-isolation-policy/1 {"cpuPercent":100,"memMiB":128,"vcpus":1}, record bff33b951aade0a9…)
+[isolation] 0x4e62e60d: release ticket handed to guest gdd24f727b
+[isolation] 0x4e62e60d: no certificate for 4e62e60d.app.enclave.host (order for 4e62e60d.app.enclave.host in flight); retry in 30s
+[isolation] 0x4e62e60d: certificate for 4e62e60d.app.enclave.host installed in guest gdd24f727b (key a053fa43467ef17d…, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2026-12-25T23:59:59.000Z; guest attested)

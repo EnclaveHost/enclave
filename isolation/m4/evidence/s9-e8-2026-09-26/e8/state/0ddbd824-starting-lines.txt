@@ -1,0 +1,1 @@
+2026-09-26T00:47:32.764828-07:00 warden-host node[1767739]: [isolation] 0x0ddbd824: no certificate for 0ddbd824.app.enclave.host (the instance is starting); retry in 20s
