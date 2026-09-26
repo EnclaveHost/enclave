@@ -177,7 +177,7 @@ export function checkRuntime(doc, handshakeSpki, nonce, want = {}) {
     reasons.push(`the runtime identity is bound into the report but UNPINNED by this caller: ${r.name}/${r.version} execution=${r.execution} target=${r.targetIsa} host=${r.hostIsa} features=${r.cpuFeatures} wx=${r.wx} cache=${r.cache} (pass want.runtime to pin it)`);
   }
 
-  const st = checkRuntimeSelfTest(doc.runtimeSelfTest, r, { legacy: want.legacyWx });
+  const st = checkRuntimeSelfTest(doc.runtimeSelfTest, r, { legacy: want.legacyWx, seccompUnstated: want.seccompUnstated });
   reasons.push(...st.reasons);
   if (!st.ok) return { ok: false, reasons };
 
@@ -228,6 +228,18 @@ export const LEGACY_WX_RELEASES = Object.freeze({
   '6f14ce7537082bd2a68d96ead6a133af4a5134e97e9b43ebc210a3cb957c1adb': 'domain release 6f14ce75 (release-6757d139): installed, KAT-only; the legacy tree\'s other guests',
 });
 
+// THE RUNTIME'S SECCOMP FILTER, PER RELEASE (enclave-87: positive evidence, not only the absence of an error). From the chain
+// after 5db18199, init states the app runtime's filter once it is installed (m2/app-seccomp.h: the sha256 of the exact BPF
+// program, 71 instructions at d4d17c9f...), the attester checks at each attestation that every runtime process is under a
+// filter (Seccomp: 2 in /proc) and carries seccomp=<hash> in the self-test. A release built before that states none: it is
+// accepted without the field only for a release in this table that the caller names (with the measurement pinned), as
+// for the legacy W^X form; every other release, and a caller that names none, must state it. An entry goes at its
+// release's retirement, with the relay's rs-N (as LEGACY_WX_RELEASES).
+export const SECCOMP_UNSTATED_RELEASES = Object.freeze({
+  ...LEGACY_WX_RELEASES,
+  '5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77': 'domain release 5db18199 (tree 0c087de8): W^X at each attestation, no seccomp statement',
+});
+
 // legacyWxFor: whether a caller's named release(s) admit the legacy self-test. null = none named (the full rule applies);
 // { ok: false, why } = a malformed name (the caller's fault: refused, never read as "none"); { ok: true, legacy } where
 // legacy is a label ONLY when every named release is listed and the measurement is pinned, else null.
@@ -242,7 +254,7 @@ export function legacyWxFor(release, measurement, table = LEGACY_WX_RELEASES) {
   return { ok: true, legacy: ids.map((x) => table[x]).join('; ') };
 }
 const SELFTEST_ROLES = ['runtime', 'front', 'init', 'root', 'other'];
-export function checkRuntimeSelfTest(selfTest, identity, { legacy = null } = {}) {
+export function checkRuntimeSelfTest(selfTest, identity, { legacy = null, seccompUnstated = null } = {}) {
   if (typeof selfTest !== 'string' || selfTest === '') {
     return { ok: false, reasons: [`REJECT: the document carries no runtime self-test, so nothing says this domain checked W^X or whether it may hold an executable page at all`] };
   }
@@ -287,6 +299,11 @@ export function checkRuntimeSelfTest(selfTest, identity, { legacy = null } = {})
   //                   value carries a residual assumption and says so, and it must have scanned exactly one.
   const reasons = [];
   let coverage = 'runtime-covered';
+  // the runtime's filter (SECCOMP_UNSTATED_RELEASES): stated as its program's sha256 wherever the runtime is a separate
+  // process; a release the caller names from the table may state none
+  if ('seccomp' in f && !/^[0-9a-f]{64}$/.test(f.seccomp)) {
+    return { ok: false, reasons: [`REJECT: the runtime self-test's seccomp=${JSON.stringify(f.seccomp)} is not a 64-hex filter hash`] };
+  }
   if (f.scope === 'self') {
     coverage = 'self';
     if (maps !== 1) {
@@ -320,6 +337,12 @@ export function checkRuntimeSelfTest(selfTest, identity, { legacy = null } = {})
 
   } else {
     reasons.push(`the domain interprets ${identity.targetIsa} bytecode (exec_pages=${f.exec_pages}) and found no writable-and-executable mapping among ${maps} processes in scope ${f.scope}`);
+  }
+  // judged LAST, so a scan's own faults (coverage, exec pages) are what a refusal names first
+  if (f.scope !== 'self') {
+    if ('seccomp' in f) reasons.push(`every runtime process is under the seccomp filter with program sha256 ${f.seccomp.slice(0, 16)}…, measured at this attestation (init's statement; the kernel's mode)`);
+    else if (seccompUnstated) reasons.push(`no seccomp statement, accepted ONLY because the caller names ${seccompUnstated}, built before the statement: the runtime's filter is NOT positively attested here`);
+    else return { ok: false, reasons: [`REJECT: the runtime self-test states no seccomp filter (seccomp=<hash>); a release after 5db18199 must, and none of the releases the caller named is listed as predating it`] };
   }
   reasons.push("that self-test is the measured front's own word, relayed over this attested connection; the hardware does not attest it (see judge.mjs checkRuntime)");
   return { ok: true, reasons, coverage };
@@ -387,8 +410,9 @@ export async function judge(doc, handshakeSpki, nonce, { measurement, appSha, mo
   // verified, for the same reason as the boundary tuple below: an inadmissible runtime identity or an
   // incoherent self-test is a security fault in every mode, including the lab-unsigned diagnostic.
   const lw = legacyWxFor(release, measurement);
+  const su = legacyWxFor(release, measurement, SECCOMP_UNSTATED_RELEASES);
   if (lw && !lw.ok) return out('reject', [lw.why], extra);
-  const rt = checkRuntime(doc, handshakeSpki, nonce, { runtime, legacyWx: lw ? lw.legacy : null });
+  const rt = checkRuntime(doc, handshakeSpki, nonce, { runtime, legacyWx: lw ? lw.legacy : null, seccompUnstated: su && su.ok ? su.legacy : null });
   if (rt.wxCoverage) extra.wxCoverage = rt.wxCoverage;
   extra.abi = doc.abi ?? ABI1;
   if (doc.runtime !== undefined) extra.runtime = doc.runtime;

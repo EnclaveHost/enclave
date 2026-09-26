@@ -382,6 +382,9 @@ func main() {
 	l := &realLauncher{m4: filepath.Join(*iso, "m4"), m2: filepath.Join(*iso, "m2"), fwd: fwd, vcek: *vcek,
 		chain: *chain, product: *product, minTCB: *minTCB, runtimeIdentity: rid, env: env}
 	s := newServer(l, *root)
+	if why := releaseNamingRefusal(*releaseOn, *isoRelease, *legacyIso, *legacyIsoRelease); why != "" {
+		log.Fatal(why)
+	}
 	if s.TreeReleases, err = parseReleaseIDs(*isoRelease); err != nil {
 		log.Fatalf("-isolation-release: %v", err)
 	}
@@ -579,9 +582,27 @@ func hostAddrs() []netip.Addr {
 	return out
 }
 
+// releaseNamingRefusal: on a -release guestd every tree must be NAMED - by the release it was installed from, or by an
+// explicit `none` for a lab tree no published release came from - so that no guest is ever recorded unnamed and later
+// judged under a rule its release predates (the seccomp statement after 5db18199, as the W^X scan before it). -> why
+// not, or "".
+func releaseNamingRefusal(releaseOn bool, isoRelease, legacyIso, legacyIsoRelease string) string {
+	if releaseOn && strings.TrimSpace(isoRelease) == "" {
+		return "-release needs -isolation-release: the release this tree was installed from (@<release dir>/release.json), " +
+			"or `none` for a lab tree no published release came from"
+	}
+	if legacyIso != "" && strings.TrimSpace(legacyIsoRelease) == "" {
+		return "-legacy-isolation needs -legacy-isolation-release: the release(s) that tree was installed from (@<release dir>/release.json)"
+	}
+	return ""
+}
+
 // parseReleaseIDs reads a release flag: comma-separated domain release ids, each 64 hex or @<release.json> (the id is
-// that file's sha256, as the release publication defines it), lowercased, each once.
+// that file's sha256, as the release publication defines it), lowercased, each once; `none` alone names none.
 func parseReleaseIDs(v string) ([]string, error) {
+	if strings.TrimSpace(v) == "none" {
+		return nil, nil
+	}
 	var out []string
 	seen := map[string]bool{}
 	for _, f := range strings.Split(v, ",") {

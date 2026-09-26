@@ -27,7 +27,9 @@ const SPKI = randomBytes(91), NONCE = randomBytes(32);
 const JIT = { name: 'wasmtime', version: '48.0.1', execution: 'jit', targetIsa: 'x86_64',
   hostIsa: 'x86_64', cpuFeatures: 'baseline', wx: 'enforced', cache: 'none' };
 const PULLEY = { ...JIT, execution: 'interpreter', targetIsa: 'pulley64', hostIsa: 'aarch64' };
-const ST = 'exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1';
+// every current document states the runtime's filter (judge.mjs SECCOMP_UNSTATED_RELEASES)
+const SC = 'seccomp=' + 'd4'.repeat(32);
+const ST = `exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 ${SC} scope=cgroup:/dom1`;
 const doc2 = (over = {}) => ({ abi: ABI2, runtime: JIT, runtimeSelfTest: ST, ...over });
 
 // 1. CROSS-LANGUAGE CONFORMANCE. The vectors are produced by the Go implementation and passed by the
@@ -73,7 +75,7 @@ test('every field of the identity changes the binding, and ABI/2 never collides 
     seen.add(r.binding.toString('hex'));
   }
   // and the execution mode: a Pulley interpreter is not the same thing as a JIT
-  const p = checkRuntime({ abi: ABI2, runtime: PULLEY, runtimeSelfTest: 'exec_pages=refused:EACCES wx=clean maps=2 runtime=1 root=1 scope=all-processes' }, SPKI, NONCE, {});
+  const p = checkRuntime({ abi: ABI2, runtime: PULLEY, runtimeSelfTest: `exec_pages=refused:EACCES wx=clean maps=2 runtime=1 root=1 ${SC} scope=all-processes` }, SPKI, NONCE, {});
   assert.equal(p.ok, true, p.reasons.join('; '));
   assert.ok(!seen.has(p.binding.toString('hex')), 'the execution mode must change the binding');
 });
@@ -174,8 +176,8 @@ test('the runtime self-test must have covered the runtime, by role, and the role
     assert.equal(checkRuntimeSelfTest(st, JIT).ok, false, `${JSON.stringify(st)} was accepted`);
   }
   for (const st of [
-    'exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1',      // the NucBox monitor's scan
-    'exec_pages=allowed wx=clean maps=3 runtime=1 root=2 scope=all-processes',             // the SNP front's own
+    `exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 ${SC} scope=cgroup:/dom1`,      // the NucBox monitor's scan
+    `exec_pages=allowed wx=clean maps=3 runtime=1 root=2 ${SC} scope=all-processes`,             // the SNP front's own
     'exec_pages=allowed wx=clean maps=1 scope=self',                                        // library-embedded runtime (pVM)
   ]) {
     const r = checkRuntimeSelfTest(st, JIT);
@@ -187,8 +189,8 @@ test('the runtime self-test must have covered the runtime, by role, and the role
 test('the scan scope is a closed vocabulary, so a domain cannot invent one that reads broad', () => {
   // each admissible scope, with what it claims
   const ok = [
-    ['exec_pages=allowed wx=clean maps=3 runtime=1 root=2 scope=all-processes', /every process with an address space/],
-    ['exec_pages=allowed wx=clean maps=2 runtime=1 front=1 scope=cgroup:/dom7', /own cgroup \/dom7 \(2 processes: runtime=1, front=1\), and no neighbour/],
+    [`exec_pages=allowed wx=clean maps=3 runtime=1 root=2 ${SC} scope=all-processes`, /every process with an address space/],
+    [`exec_pages=allowed wx=clean maps=2 runtime=1 front=1 ${SC} scope=cgroup:/dom7`, /own cgroup \/dom7 \(2 processes: runtime=1, front=1\), and no neighbour/],
     ['exec_pages=allowed wx=clean maps=1 scope=self', /reporting process ALONE/],
   ];
   for (const [st, re] of ok) {
@@ -216,7 +218,7 @@ test('the scan scope is a closed vocabulary, so a domain cannot invent one that 
 });
 
 test('a JIT identity from a domain that may not hold an executable page is refused', () => {
-  const st = 'exec_pages=refused:EACCES wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1';
+  const st = `exec_pages=refused:EACCES wx=clean maps=3 runtime=1 front=1 init=1 ${SC} scope=cgroup:/dom1`;
   const r = checkRuntimeSelfTest(st, JIT);
   assert.equal(r.ok, false);
   assert.match(r.reasons.join(' '), /no JIT can run where an executable page is refused/);
@@ -347,4 +349,40 @@ test('the legacy table holds full ids of releases the relay can still predict, a
     'a4f227482df4830ab69b52e38dc5d6e2abea9e5c5fb71f5469f0c30e6b1cb784']) {
     assert.ok(!ids.includes(retired), `retired release ${retired.slice(0, 8)} still admits the legacy form`);
   }
+});
+
+// 5. THE RUNTIME'S SECCOMP FILTER, PER RELEASE (SECCOMP_UNSTATED_RELEASES; enclave-87: positive evidence). A release after
+// 5db18199 states seccomp=<its program's sha256>; one built before may state none only when the caller names it.
+const NOSC = 'exec_pages=allowed wx=clean maps=3 runtime=1 root=2 scope=all-processes';          // 5db18199's front
+const R5DB = '5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77';
+test('a release after 5db18199 must state its seccomp filter; one before may omit it only when the caller names it', async () => {
+  const with_ = await judge(docWith(`exec_pages=allowed wx=clean maps=3 runtime=1 root=2 ${SC} scope=all-processes`), SPKI, NONCE, { ...want, release: NEW });
+  assert.equal(with_.verdict, 'unauthenticated', with_.reasons.join('; '));
+  assert.match(with_.reasons.join(' '), /under the seccomp filter with program sha256 d4d4/);
+  // enclave-87's mutant, the filter skipped: no statement, so no seccomp= - refused for a new release or none named
+  for (const release of [NEW, undefined, [R5DB, NEW]]) {
+    const v = await judge(docWith(NOSC), SPKI, NONCE, { ...want, release });
+    assert.equal(v.verdict, 'reject', `${JSON.stringify(release)} accepted a self-test with no filter`);
+    assert.match(v.reasons.join(' '), /states no seccomp filter/);
+  }
+  // 5db18199 (and every release before it) may omit it, named by the caller - said, not counted as attested
+  for (const release of [R5DB, F7]) {
+    const st = release === F7 ? LEGACY_ST : NOSC;
+    const v = await judge(docWith(st), SPKI, NONCE, { ...want, release });
+    assert.equal(v.verdict, 'unauthenticated', `${release}: ${v.reasons.join('; ')}`);
+    assert.match(v.reasons.join(' '), /NOT positively attested/);
+  }
+  // a hash that is not one is refused whatever the release
+  for (const bad of ['seccomp=d4d4', 'seccomp=' + 'D4'.repeat(32), 'seccomp=' + 'd4'.repeat(33)]) {
+    assert.equal(checkRuntimeSelfTest(`exec_pages=allowed wx=clean maps=3 runtime=1 root=2 ${bad} scope=all-processes`, JIT,
+      { seccompUnstated: 'x' }).ok, false, bad);
+  }
+  // the pVM's embedded runtime (scope=self) has no separate process to filter
+  assert.equal(checkRuntimeSelfTest('exec_pages=allowed wx=clean maps=1 scope=self', JIT).ok, true);
+});
+
+test('the seccomp table is the W^X legacy table plus 5db18199, frozen', async () => {
+  const { SECCOMP_UNSTATED_RELEASES } = await import('../isolation/m2/judge.mjs');
+  assert.ok(Object.isFrozen(SECCOMP_UNSTATED_RELEASES));
+  assert.deepEqual(Object.keys(SECCOMP_UNSTATED_RELEASES).sort(), [...Object.keys(LEGACY_WX_RELEASES), R5DB].sort());
 });
