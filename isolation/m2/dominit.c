@@ -14,19 +14,28 @@
  *      this process's own are the serial console, a file the HOST reads, so anything the app or its runtime prints
  *      (a request it logs, its config, a panic, a trap) would otherwise reach the host. This tier has no owner-only
  *      log channel, so the app's output is discarded, not kept (Codex, 2026-09-25). Only init's and the front's own
- *      "DOM ..." lines reach the console;
+ *      "DOM ..." lines reach the console. The app runs UNPRIVILEGED (APP_UID, drop_to_app): not root, no capability,
+ *      no supplementary group, no_new_privs. Before this, the runtime ran as root beside the root front, so an escape
+ *      from it reached everything in the guest: the front's key and memory, the console, the report interface
+ *      (enclave-b4's finding on 298924ae; enclave-87's ruling). The front stays root;
  *   5. if either exits, powers the domain off: a domain that cannot serve should not linger.
+ * Before any of it, Yama's ptrace_scope is held at 2 or the domain does not start (yama_hold): defence in depth on top
+ * of the drop, the same rule as the NucBox monitor's (m3/monitor raisePtraceScope).
  * The host ends a serving domain by stopping its VMM (lease end). */
 #define _GNU_SOURCE
 #include <cpuid.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
+#include <limits.h>
 #include <net/if.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
+#include <sys/prctl.h>
 #include <sys/reboot.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -35,6 +44,174 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+
+/* The app's own uid and gid: nobody else in the guest has them (the front and init are root). The image's files are
+ * 0644/0755 root (m4/pack-initrd.sh), so the app can read /app.wasm and run /rt, and nothing else is its own but /data
+ * and what it makes in /tmp. */
+#define APP_UID 1000
+#define APP_GID 1000
+
+/* One integer from a /proc/sys file: 0 on success, -1 unreadable (errno says why), -2 not exactly one integer. */
+static int read_sysctl_int(const char *path, int *v) {
+    char b[32];
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    ssize_t n = read(fd, b, sizeof b - 1);
+    int e = errno;
+    close(fd);
+    if (n < 0) { errno = e; return -1; }
+    b[n] = 0;
+    char *end;
+    errno = 0;
+    long x = strtol(b, &end, 10);
+    if (end == b || errno) return -2;
+    while (*end == '\n' || *end == ' ') end++;
+    if (*end || x < INT_MIN || x > INT_MAX) return -2;
+    *v = (int)x;
+    return 0;
+}
+
+/* Write a string to a /proc/sys file, replacing its value (O_TRUNC, as a shell's `>` does): 0, or -1 with errno. */
+static int write_sysctl(const char *path, const char *s) {
+    int fd = open(path, O_WRONLY | O_TRUNC | O_CLOEXEC);
+    if (fd < 0) return -1;
+    size_t n = strlen(s);
+    ssize_t r = write(fd, s, n);
+    int e = errno;
+    close(fd);
+    if (r != (ssize_t)n) { errno = r < 0 ? e : EIO; return -1; }
+    return 0;
+}
+
+/* Yama's ptrace_scope: set to `want` (2: only CAP_SYS_PTRACE may attach; not 3, which no one can lower again before a
+ * reboot) unless it is already higher, and READ BACK. -> 1 when the value read back is at least `want`, else 0: Yama
+ * absent, the value unparsable, the write refused, or the read-back short or unreadable. `line` says which, as the DOM
+ * line. `wr` is the write, passed in so a test can make one that "succeeds" and changes nothing: only the read-back
+ * catches that. The app, dropped to APP_UID, cannot attach to the root front anyway; Yama is the second guard, and the
+ * domain starts only with both. */
+#define YAMA_PATH "/proc/sys/kernel/yama/ptrace_scope"
+#define YAMA_WANT 2
+static const char yama_refused[] = "the domain is not started";
+static int yama_hold(const char *path, int want, int (*wr)(const char *, const char *), char *line, size_t cap) {
+    int was, now, r = read_sysctl_int(path, &was);
+    if (r == -1) { snprintf(line, cap, "yama absent (%s: %s): %s", path, strerror(errno), yama_refused); return 0; }
+    if (r == -2) { snprintf(line, cap, "yama ptrace_scope unparsable: %s", yama_refused); return 0; }
+    if (was >= want) { snprintf(line, cap, "yama ptrace_scope=%d (already >= %d)", was, want); return 1; }
+    char v[16];
+    snprintf(v, sizeof v, "%d\n", want);
+    if (wr(path, v) != 0) {
+        snprintf(line, cap, "yama ptrace_scope=%d, NOT raised to %d (%s): %s", was, want, strerror(errno), yama_refused);
+        return 0;
+    }
+    r = read_sysctl_int(path, &now);
+    if (r == -1) { snprintf(line, cap, "yama ptrace_scope=%d -> unreadable (%s): %s", was, strerror(errno), yama_refused); return 0; }
+    if (r == -2 || now < want) {
+        snprintf(line, cap, "yama ptrace_scope=%d -> not the %d asked: %s", was, want, yama_refused);
+        return 0;
+    }
+    snprintf(line, cap, "yama ptrace_scope=%d -> %d", was, now);
+    return 1;
+}
+
+/* A run-mode app binds the port its bundle names (1-49999) as APP_UID, and binding below the kernel's
+ * ip_unprivileged_port_start (1024 by default) needs a capability it no longer has. So only when its port is below it,
+ * the start is lowered to EXACTLY that port (not 0: nothing below it becomes bindable), and read back. A port at or
+ * above it changes nothing, and no other process in the guest binds a port by it (the front serves vsock). -> 1 when
+ * the app can bind its port, else 0; `line` says what was done or why not. */
+static int unpriv_port(int port, const char *path, int (*wr)(const char *, const char *), char *line, size_t cap) {
+    int start, now, r = read_sysctl_int(path, &start);
+    if (r != 0) { snprintf(line, cap, "ip_unprivileged_port_start unreadable: the app could not bind port %d", port); return 0; }
+    if (port >= start) {
+        snprintf(line, cap, "app port %d >= ip_unprivileged_port_start %d: unchanged", port, start);
+        return 1;
+    }
+    char v[16];
+    snprintf(v, sizeof v, "%d\n", port);
+    if (wr(path, v) != 0 || read_sysctl_int(path, &now) != 0 || now > port) {
+        snprintf(line, cap, "ip_unprivileged_port_start %d could not be lowered to the app's port %d", start, port);
+        return 0;
+    }
+    snprintf(line, cap, "ip_unprivileged_port_start %d -> %d (the app's port %d; nothing below it)", start, now, port);
+    return 1;
+}
+
+/* The drop, in the app's child while it is still root. The bounding set goes first (dropping from it needs
+ * CAP_SETPCAP), then the ambient set, the supplementary groups, the gid and the uid (real, effective and saved: the
+ * uid change clears the permitted, effective and ambient sets, but NOT the inheritable one, hence the capset), then
+ * no_new_privs. Then every part is checked back from here. -> NULL, or the step that failed or did not hold. */
+static const char *drop_to_app(void) {
+    for (int c = 0; c < 64; c++)
+        if (prctl(PR_CAPBSET_DROP, c, 0, 0, 0) != 0) { if (errno == EINVAL) break; return "PR_CAPBSET_DROP"; }
+    if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0 && errno != EINVAL) return "PR_CAP_AMBIENT_CLEAR_ALL";
+    if (setgroups(0, NULL) != 0) return "setgroups";
+    if (setresgid(APP_GID, APP_GID, APP_GID) != 0) return "setresgid";
+    if (setresuid(APP_UID, APP_UID, APP_UID) != 0) return "setresuid";
+    struct { uint32_t version; int pid; } h = { 0x20080522 /* _LINUX_CAPABILITY_VERSION_3 */, 0 };
+    struct { uint32_t effective, permitted, inheritable; } caps[2];
+    memset(caps, 0, sizeof caps);
+    if (syscall(SYS_capset, &h, caps) != 0) return "capset";
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) return "PR_SET_NO_NEW_PRIVS";
+
+    uid_t ru, eu, su;
+    gid_t rg, eg, sg;
+    if (getresuid(&ru, &eu, &su) != 0 || ru != APP_UID || eu != APP_UID || su != APP_UID) return "the uid did not hold";
+    if (getresgid(&rg, &eg, &sg) != 0 || rg != APP_GID || eg != APP_GID || sg != APP_GID) return "the gid did not hold";
+    if (getgroups(0, NULL) != 0) return "a supplementary group remains";
+    if (setuid(0) == 0 || setgid(0) == 0) return "uid or gid 0 could be taken back";
+    memset(caps, 0xff, sizeof caps);
+    h.version = 0x20080522;
+    h.pid = 0;
+    if (syscall(SYS_capget, &h, caps) != 0) return "capget";
+    for (int i = 0; i < 2; i++)
+        if (caps[i].effective || caps[i].permitted || caps[i].inheritable) return "a capability remains";
+    for (int c = 0; c < 64; c++) {
+        int b = prctl(PR_CAPBSET_READ, c, 0, 0, 0);
+        if (b < 0) break;
+        if (b) return "the bounding set is not empty";
+    }
+    for (int c = 0; c < 64; c++) {
+        int a = prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_IS_SET, c, 0, 0);
+        if (a < 0) break;
+        if (a) return "an ambient capability remains";
+    }
+    if (prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) != 1) return "no_new_privs is not set";
+    return NULL;
+}
+
+/* What the dropped app must NOT be able to open (enclave-87): the console the host reads (and /dev/kmsg, which writes
+ * to it), the SNP report interface (the device and configfs-tsm: with it the app could have a report made over bytes of
+ * its choosing), raw memory, and the memory and descriptors of init and the front. Tried from the dropped child itself,
+ * at every start, so the answer is this guest's own device modes, not an assumption about them; an absent path is
+ * fine. -> NULL, or what could be opened. */
+static pid_t front_pid_g = -1;
+static const char *app_reaches(void) {
+    static char p[64];
+    static const char *const dev[] = {"/dev/console", "/dev/ttyS0", "/dev/hvc0", "/dev/kmsg", NULL};
+    for (int i = 0; dev[i]; i++) {
+        int fd = open(dev[i], O_WRONLY | O_NOCTTY | O_CLOEXEC);
+        if (fd >= 0) { close(fd); return dev[i]; }
+    }
+    static const char *const rw[] = {"/dev/sev-guest", "/dev/mem", NULL};
+    for (int i = 0; rw[i]; i++) {
+        int fd = open(rw[i], O_RDWR | O_CLOEXEC);
+        if (fd >= 0) { close(fd); return rw[i]; }
+    }
+    if (mkdir("/sys/kernel/config/tsm/report/app-probe", 0700) == 0) {
+        rmdir("/sys/kernel/config/tsm/report/app-probe");
+        return "/sys/kernel/config/tsm/report (a report entry)";
+    }
+    pid_t who[] = {1, front_pid_g};
+    static const char *const what[] = {"mem", "environ", "fd/1", NULL};
+    for (int i = 0; i < 2; i++) {
+        if (who[i] <= 0) continue;
+        for (int j = 0; what[j]; j++) {
+            snprintf(p, sizeof p, "/proc/%d/%s", (int)who[i], what[j]);
+            int fd = open(p, O_RDONLY | O_CLOEXEC);
+            if (fd >= 0) { close(fd); return p; }
+        }
+    }
+    return NULL;
+}
 
 static void insmod(const char *p) {
     int fd = open(p, O_RDONLY | O_CLOEXEC);
@@ -58,8 +235,10 @@ static void lo_up(void) {
 /* extra: one more environment entry or NULL; fd3: a descriptor the child gets as fd 3, or -1; quiet: the child's
  * stdin, stdout and stderr are /dev/null (tenant code: nothing it prints reaches the host's serial file). A quiet
  * child keeps a close-on-exec copy of the console only to report its OWN exec failure, and one that cannot open
- * /dev/null exits 126 rather than run with the console. */
-static pid_t spawn(char *const argv[], char *extra, int fd3, int quiet) {
+ * /dev/null exits 126 rather than run with the console. drop: the child becomes APP_UID (drop_to_app) and checks it
+ * can reach nothing it must not (app_reaches) before it runs anything; either failing exits 125, so the app never
+ * starts privileged, and the domain powers off as for any app exit. */
+static pid_t spawn(char *const argv[], char *extra, int fd3, int quiet, int drop) {
     pid_t pid = fork();
     if (pid == 0) {
         if (fd3 == 3) fcntl(3, F_SETFD, 0);                      /* already fd 3: only drop CLOEXEC */
@@ -70,6 +249,18 @@ static pid_t spawn(char *const argv[], char *extra, int fd3, int quiet) {
             int nul = open("/dev/null", O_RDWR);
             if (nul < 0 || dup2(nul, 0) < 0 || dup2(nul, 1) < 0 || dup2(nul, 2) < 0) _exit(126);
             if (nul > 2) close(nul);
+        }
+        if (drop) {
+            const char *bad = drop_to_app();
+            if (bad) {
+                if (con >= 0) dprintf(con, "DOM ERROR the app's privilege drop failed (%s: %s): not started\n", bad, strerror(errno));
+                _exit(125);
+            }
+            const char *reach = app_reaches();
+            if (reach) {
+                if (con >= 0) dprintf(con, "DOM ERROR the app could still open %s after its privilege drop: not started\n", reach);
+                _exit(125);
+            }
         }
         char *envp[] = {"HOME=/tmp", "PATH=/rt", extra, NULL};
         execve(argv[0], argv, envp);
@@ -139,6 +330,18 @@ int main(void) {
     printf("\nDOM snp=%d vcpus=%ld memMiB=%lu boot_ms=%.0f\n", snp, sysconf(_SC_NPROCESSORS_ONLN),
            (unsigned long)(si.totalram * si.mem_unit >> 20), boot_ms);
 
+    /* Yama held at 2, or nothing starts: before the front (and so before its key) and before the app */
+    char yl[256];
+    int yok = yama_hold(YAMA_PATH, YAMA_WANT, write_sysctl, yl, sizeof yl);
+    printf("DOM %s\n", yl);
+    if (!yok) {
+        printf("DOM ERROR refusing to start: %s\n", yl);
+        fflush(stdout);
+        sync();
+        reboot(RB_POWER_OFF);
+        _exit(1);
+    }
+
     insmod("/vsock.ko.zst");
     insmod("/vmw_vsock_virtio_transport_common.ko.zst");
     insmod("/vmw_vsock_virtio_transport.ko.zst");
@@ -183,8 +386,22 @@ int main(void) {
                    "-S", "tcp", "-S", "udp", "-S", "inherit-network", "-S", "allow-ip-name-lookup",
                    "-C", "cache=n", "--dir", "/data::/data", "--env", ports_env, "/app.wasm", NULL};
     if (port) {
+        char data_opts[80], pl[160];
+        snprintf(data_opts, sizeof data_opts, "size=64m,mode=0700,uid=%d,gid=%d", APP_UID, APP_GID);   /* the app's own */
         mkdir("/data", 0700);
-        mount("tmpfs", "/data", "tmpfs", 0, "size=64m,mode=0700");
+        if (mount("tmpfs", "/data", "tmpfs", 0, data_opts) != 0) {
+            printf("DOM ERROR /data: %s: the app is not started\n", strerror(errno));
+            fflush(stdout);
+            reboot(RB_POWER_OFF);
+            _exit(1);
+        }
+        if (!unpriv_port(port, "/proc/sys/net/ipv4/ip_unprivileged_port_start", write_sysctl, pl, sizeof pl)) {
+            printf("DOM ERROR %s: the app is not started\n", pl);
+            fflush(stdout);
+            reboot(RB_POWER_OFF);
+            _exit(1);
+        }
+        printf("DOM %s\n", pl);
         printf("DOM app mode run: a wasi:cli command serving HTTP on %d (ENCLAVE_PORTS http:%d=%d, /data 64 MiB scratch)\n",
                port, port, port);
     }
@@ -198,7 +415,8 @@ int main(void) {
     }
     char *front[] = {"/front", "-port", "443", "-upstream", upstream, snp ? "-snp=true" : "-snp=false",
                      "-init-fd", "3", NULL};
-    pid_t front_pid = spawn(front, NULL, pfd[1], 0);
+    pid_t front_pid = spawn(front, NULL, pfd[1], 0, 0);      /* the front stays root: it holds the key and the release */
+    front_pid_g = front_pid;                                   /* what the app's child checks it cannot open */
     close(pfd[1]);
     char *cfg_env = NULL;
     size_t cfg_len = 0;
@@ -225,7 +443,7 @@ int main(void) {
         app[k++] = base[i];
     }
     app[k] = NULL;
-    pid_t app_pid = spawn(app, cfg_env, -1, 1);
+    pid_t app_pid = spawn(app, cfg_env, -1, 1, 1);           /* quiet, and dropped to APP_UID */
     if (cfg_env) {
         explicit_bzero(cfg_env, sizeof "ENCLAVE_CONFIG=" + cfg_len);
         free(cfg_env);
