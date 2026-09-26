@@ -188,3 +188,26 @@ test("a claim that succeeds spends the slot too: the real consider(), ONE claim 
   assert.equal(rpc.chainTx.sent.length - before, 1);
   assert.deepEqual(asked, [P]);
 });
+
+// A claim whose transaction FAILS every pass (the ledger rejects it, a send that cannot be estimated) spends each pass's one
+// claim; after the second failure under unchanged inputs the row is held (Host.SCAN_CLAIMFAIL_HOLD_MS), so the row
+// behind it is reached (enclave-bf's note on 3d37709a, enclave-87's follow-up). A changed input asks again.
+test("a claim that fails twice running is held, so the row behind it gets the slot; a changed input asks again", async () => {
+  const F = id("f1"), G = id("f2");
+  rpc.rows.current = [row(F, { createdAt: 1n, configCid: "" }), row(G, { createdAt: 2n, configCid: "" })];
+  const h = await nucbox({ engineRetired: false, isolationManager: undefined });
+  const asked = scripted(h, { [G]: "claim" });                  // F: the real consider(), whose claim tx the fake ledger refuses
+  await h.scanLedger();
+  assert.deepEqual(asked, [F], "the first failed claim still spends the pass's slot");
+  await h.scanLedger();
+  assert.deepEqual(asked, [F, F], "one failure is not yet a pattern: asked again");
+  assert.equal(h.claimFails.get(F)?.n, 2);
+  await h.scanLedger();
+  assert.deepEqual(asked, [F, F, G], "after the second failure the row is held and G is reached");
+  assert.ok(h.logs.some((l) => /claim failed 2 passes running with nothing changed/.test(l)), h.logs.join("\n"));
+  // a changed input (a top-up) asks again at once
+  rpc.rows.current = [row(F, { createdAt: 1n, configCid: "", balance6: 10n ** 10n }), row(G, { createdAt: 2n, configCid: "" })];
+  await h.scanLedger();
+  assert.deepEqual(asked.slice(3), [F], "a changed balance was not asked again");
+  assert.equal(h.claimFails.get(F)?.n, 1, "the count restarts under new inputs");
+});
