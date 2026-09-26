@@ -84,7 +84,32 @@ let all = true, canariesOk = 0;
 // the LIVE listing (rs-8.sh passes it from nan's env; enclave-87 item 4): a listed deployment this table has no pin for refuses
 const live = String(process.env.LISTED_IDS || "").toLowerCase().split(/[\s,]+/).filter((x) => /^0x[0-9a-f]{64}$/.test(x));
 if (!live.length) { console.log("FAIL the live listing was not given (LISTED_IDS)"); all = false; }
-for (const id of live) if (!LISTED.some(([x]) => x === id)) { console.log(`FAIL ${id.slice(2, 10)}: listed on the relay but no f7888d86 pin here`); all = false; }
+for (const id of live) if (!LISTED.some(([x]) => x === id)) { console.log(`FAIL ${id.slice(2, 10)}: listed on the relay but no 5db18199 pin here`); all = false; }
+// SCOPE (enclave-bf's REQUIRED addition, enclave-87): the retire removes f7888d86 from the prediction AND certificate sets, so
+// ANY guest still on it - listed or not - loses its certificate renewal. So from the ledger (both providers must agree), EVERY
+// deployment with a LIVE lease on metal-iso0 must be release-listed (and so chip-verified below); an unlisted one refuses
+// unless OVERRIDE=<reason>.
+const ISO0 = "0xf7a1256d22644d59d88fd523a42820586335fb3bcf01f7ed132e9448a298c745";   // keccak256("https://api.enclave.host/t/metal-iso0") = the relay's /enclaves id
+const COUNT = [{ type: "function", name: "count", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] }];
+const GETPAGE = [{ type: "function", name: "getPage", stateMutability: "view", inputs: [{ type: "uint256" }, { type: "uint256" }], outputs: [{ type: "tuple[]", components: DEP }] }];
+const nowSec = Math.floor(Date.now() / 1000);
+async function leasedOnIso0(url) {
+  const c = createPublicClient({ chain: base, transport: http(url, { timeout: 15000 }) });
+  const total = Number(await c.readContract({ address: LEDGER, abi: COUNT, functionName: "count" }));
+  const rows = [];
+  for (let at = 0; at < total; at += 50) rows.push(...await c.readContract({ address: LEDGER, abi: GETPAGE, functionName: "getPage", args: [BigInt(at), 50n] }));
+  return rows.filter((d) => String(d.runner).toLowerCase() === ISO0 && Number(d.leaseUntil) > nowSec).map((d) => String(d.id).toLowerCase()).sort();
+}
+try {
+  const [a, b] = await Promise.all(["https://base-rpc.publicnode.com", "https://base.drpc.org"].map(leasedOnIso0));
+  if (JSON.stringify(a) !== JSON.stringify(b)) { console.log("FAIL the two RPCs disagree about the leases on metal-iso0"); all = false; }
+  else {
+    const extra = a.filter((id) => !live.includes(id));
+    if (extra.length && !process.env.OVERRIDE) { console.log(`FAIL scope: ${extra.length} deployment(s) leased on metal-iso0 are NOT release-listed (a guest of theirs on f7888d86 would lose its certificate): ${extra.map((x) => x.slice(0, 10)).join(", ")}; OVERRIDE=<reason> to proceed`); all = false; }
+    else if (extra.length) console.log(`OVERRIDE (${process.env.OVERRIDE}): ${extra.length} unlisted deployment(s) leased on metal-iso0 NOT checked: ${extra.map((x) => x.slice(0, 10)).join(", ")}`);
+    else console.log(`ok   scope: ${a.length} deployment(s) leased on metal-iso0, every one release-listed (each chip-verified below)`);
+  }
+} catch (e) { console.log(`FAIL scope: the ledger could not be read (${e.message})`); all = false; }
 for (const [id, appId, want, canary] of LISTED.filter(([x]) => live.includes(x))) {
   const label = id.slice(2, 10), nonce = randomBytes(32);
   let leased;

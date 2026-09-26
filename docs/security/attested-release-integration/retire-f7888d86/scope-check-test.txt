@@ -1,0 +1,4 @@
+# rs-10 guard scope check (bf's REQUIRED, 87), warden-host 05:3xZ, live ledger (two providers agree):
+1. live listing: ok scope: 3 deployment(s) leased on metal-iso0, every one release-listed; overall REFUSE (canaries still on f7888d86)
+2. listing without 4e62e60d: FAIL scope: 1 deployment(s) leased on metal-iso0 are NOT release-listed: 0x4e62e60d
+3. same + OVERRIDE=test: 'OVERRIDE (test): 1 unlisted deployment(s) leased on metal-iso0 NOT checked: 0x4e62e60d'
