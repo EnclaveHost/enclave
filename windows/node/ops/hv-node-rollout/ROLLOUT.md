@@ -103,8 +103,9 @@ the same as packaged scripts; don't mix the two on one box.
 
 **3. Gas (workstation, read).** The operator must hold ≥ 0.0005 ETH, with no stuck nonce (GAS.md): 0.001457 ETH
 now. Test 1's app is CHARGED (its owner, the operator, is not the payout wallet), so its lease checkpoints every 5 min:
-~0.00027 ETH/day with heartbeats, about 5 days. Rate-0 (delegated) leases cost far less. A month's margin (~0.008 ETH
-with one charged lease) is Steven's to send; it isn't needed to start. Stop test 1 when it has passed.
+~0.00027 ETH/day with heartbeats. enclave-87: the soak is MULTI-HOUR. Test 1 runs as the soak target for 12 h after
+acceptance and then stops (about 0.00014 ETH), and there is no ask to Steven. If the balance falls below 0.0005 ETH, top it
+up from our operator gas tank (approved).
 
 **4. Install (box).** `hvnode-install.ps1 -Pkg … -NodeArchive … -NodeArchiveSha256 … -NodeManifest …
 -NodeManifestSha256 … -LockSha256 … -TpmattestSha256 …`. It:
@@ -163,7 +164,12 @@ EnclaveHvNode`. The logs are `hvnode\logs\manager.log` and `node.log`.
   the omission `platform-firmware-unpinned`;
 - R2 (**b4's live check**): `POST https://api.enclave.host/t/nucbox-k11/v1/deployments/<id>/restart` with NO session
   is REFUSED (503 today; 401/403/409 once P1 and P3 are live), never 200;
-- R3: gas ≥ 0.0005 ETH, latest nonce = pending.
+- R2b (b4's check with a real STRANGER): a throwaway wallet logs in to the node (its own SIWE session) and asks to
+  restart the test deployment. It must be refused: 404 (not the owner), or 401 if the relay strips the credential.
+  Never 200;
+- R3: gas ≥ 0.0005 ETH (below it, top up from the operator gas tank), latest nonce = pending.
+- After acceptance, test 1 soaks for **12 h** (the DONE soak, enclave-87), then stops: `enclave refund <id>` by the
+  operator on the box, the same way it was created.
 
 **8. Test deployments, in 87's order** (each non-sensitive; each passes 7 and 7r before the next):
 1. **Operator-owned.** An app owned by the operator `0x389C…` itself, at the normal rate (a few cents, approved):
