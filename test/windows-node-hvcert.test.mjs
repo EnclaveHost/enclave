@@ -44,6 +44,10 @@ const DEP = "0x" + "4e62e60d" + "c3".repeat(28);
 const NAME = `${DEP.slice(2, 10)}.app.enclave.host`;
 const VMID = "3f1c0f6e-7a2b-4c3d-8e9f-0a1b2c3d4e5f";
 const IMAGE = "ab".repeat(32);
+// the self-test a v43+ front states (the monitor's scan at each attestation), and a v42 front's start-time one
+const ATTEST_TIME = "exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1";
+const LEGACY_ST = "exec_pages=allowed wx=clean maps=3 scope=cgroup:/dom1";
+const V42 = "0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998";
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
 
 // ---- keys: the partition's own, a stranger's, a throwaway CA ------------------------------------------------------
@@ -74,7 +78,7 @@ const listen = async (s) => { await new Promise((r) => s.listen(0, "127.0.0.1", 
 // ---- the partition's front: its own key, a launcher-signed ABI/2 report, its CSR, and the install route --------------
 const launcher = crypto.generateKeyPairSync("ed25519");
 const LAUNCHER_KEY = launcher.publicKey.export({ type: "spki", format: "der" }).subarray(12).toString("base64");
-async function front({ csr = GUEST.csr, runtime = RT } = {}) {
+async function front({ csr = GUEST.csr, runtime = RT, selfTest = ATTEST_TIME, image = IMAGE, partition = "hcs-child" } = {}) {
   const f = { installed: null, csrAsked: 0, installs: 0, tamper: false };
   const ctxSelf = tls.createSecureContext({ key: GUEST.key, cert: GUEST.self });
   const s = https.createServer({ key: GUEST.key, cert: GUEST.self,
@@ -87,13 +91,13 @@ async function front({ csr = GUEST.csr, runtime = RT } = {}) {
       const nonce = Buffer.from(u.searchParams.get("nonce") || "", "hex");
       const report = { format: FORMAT, tier: TIER,
         reportData: Buffer.concat([bind2(GUEST_SPKI, nonce, runtimeId(runtime)), Buffer.from(APP, "hex")]).toString("hex"),
-        domain: { appSha256: APP }, partition: { vmId: VMID, guestImageSha256: IMAGE }, launcher: { key: LAUNCHER_KEY },
-        platform: { hostExcluded: false, partition: "hcs-child" }, boundary: "tier=T0-hv partition=hcs-child host_excluded=no" };
+        domain: { appSha256: APP }, partition: { vmId: VMID, guestImageSha256: image }, launcher: { key: LAUNCHER_KEY },
+        platform: { hostExcluded: false, partition }, boundary: `tier=T0-hv partition=${partition} host_excluded=no` };
       const signed = crypto.sign(null, Buffer.concat([SIGN_DOMAIN, Buffer.from(canonical(report))]), launcher.privateKey);
       if (f.tamper) signed[0] ^= 1;                              // a report the launcher key does not verify
       const sig = signed.toString("base64");
       return json(200, { format: FORMAT, tier: TIER, nonce: nonce.toString("hex"), appSha256: APP, abi: ABI2, runtime,
-        runtimeSelfTest: "exec_pages=allowed wx=clean maps=3 scope=cgroup:/dom1",
+        runtimeSelfTest: selfTest,
         report: Buffer.from(JSON.stringify({ doc: report, sig })).toString("base64") });
     }
     if (u.pathname === "/.well-known/enclave-csr") { f.csrAsked++; res.writeHead(200, { "content-type": "application/x-pem-file" }); return res.end(csr); }
@@ -289,4 +293,32 @@ test("a RELAUNCHED partition (another instance, another key) is not skipped as i
   assert.equal(svc.asked, 1);
   await p.pass(new Map());
   assert.equal(p.state(DEP), null);
+});
+
+// The runtime's W^X per guest image at the certificate pass (judge-hv LEGACY_WX_IMAGES; enclave-87's v43 ruling): a
+// partition of an image the table does not list gets no certificate unless its front states the attest-time scan; v42's
+// image, named by the manager's view with its launcher statement, is certified on the legacy form only as UNMEASURED.
+test("hvJudge per image: the legacy self-test is certified only for v42's image (as unmeasured), never for another", async () => {
+  const { BOOT_STATEMENTS } = await import("../windows/vbslike/verify/boot-statements.mjs");
+  const LD = BOOT_STATEMENTS["linux-direct"];
+  const docOf = async (f, nonce) => new Promise((resolve, reject) => {
+    https.get({ host: "127.0.0.1", port: f.port, path: `/.well-known/enclave-attestation?nonce=${nonce.toString("hex")}`, rejectUnauthorized: false },
+      (res) => { let b = ""; res.on("data", (c) => b += c); res.on("end", () => resolve(JSON.parse(b))); }).on("error", reject);
+  });
+  const want = { appSha: APP }, base = { launcherKey: LAUNCHER_KEY, launcherVmId: VMID, runtimeId: PIN };
+  // an unlisted image with no statement (the HCS lab's view): the legacy form is refused
+  const f1 = await front({ selfTest: LEGACY_ST }), n1 = crypto.randomBytes(32);
+  const r1 = await hvJudge({ ...base, image: IMAGE, guestIdentity: null }, PIN)(await docOf(f1, n1), GUEST_SPKI, n1, want);
+  assert.equal(r1.verdict, "reject"); assert.match(r1.reasons.join("; "), /names no runtime coverage/);
+  // v42's image under its statement: certified, and said to be unmeasured
+  const stated = { partition: LD.partition, guestImageKind: LD.guestImageKind };
+  const f2 = await front({ selfTest: LEGACY_ST, image: V42, partition: LD.partition }), n2 = crypto.randomBytes(32);
+  const r2 = await hvJudge({ ...base, image: V42, guestIdentity: stated }, PIN)(await docOf(f2, n2), GUEST_SPKI, n2, want);
+  assert.equal(r2.verdict, "monitor-signed", r2.reasons.join("; ")); assert.equal(r2.wxCoverage, "runtime-unmeasured");
+  // a v43 image under the same statement: refused on the legacy form, certified on the attest-time one
+  const f3 = await front({ selfTest: LEGACY_ST, image: IMAGE, partition: LD.partition }), n3 = crypto.randomBytes(32);
+  assert.equal((await hvJudge({ ...base, image: IMAGE, guestIdentity: stated }, PIN)(await docOf(f3, n3), GUEST_SPKI, n3, want)).verdict, "reject");
+  const f4 = await front({ image: IMAGE, partition: LD.partition }), n4 = crypto.randomBytes(32);
+  const r4 = await hvJudge({ ...base, image: IMAGE, guestIdentity: stated }, PIN)(await docOf(f4, n4), GUEST_SPKI, n4, want);
+  assert.equal(r4.verdict, "monitor-signed", r4.reasons.join("; ")); assert.equal(r4.wxCoverage, "runtime-covered");
 });
