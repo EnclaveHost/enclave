@@ -1,0 +1,28 @@
+== rs8-apply-accept-f7888d86.txt
+ok   0x0ddbd824: measurement be6b8644384e predicted under release 5c3561f91bc7; release f7888d869084 predicted (a0101960e272) and admitted
+ok   0x395bed3e: measurement c068f423578c predicted under release 6f14ce753708; release f7888d869084 predicted (4bfae407cddd) and admitted
+ok   0x4e62e60d: measurement c068f423578c predicted under release 6f14ce753708; release f7888d869084 predicted (4bfae407cddd) and admitted
+FAIL release-ticket answered 403, expected 503
+ok   unknown deployment 404
+ok   malformed id 422
+== rs8-apply-refused-52156652.txt
+FAIL 0x0ddbd824: {"id":"0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76","catalogRef":"catalog://0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4","appId":"d2c4d
+FAIL 0x395bed3e: {"id":"0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595","catalogRef":"catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4","appId":"9c3d1
+FAIL 0x4e62e60d: {"id":"0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e","catalogRef":"catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4","appId":"9c3d1
+FAIL release-ticket answered 403, expected 503
+ok   unknown deployment 404
+ok   malformed id 422
+== rs8-apply-refused-79c5ecf2.txt
+FAIL 0x0ddbd824: {"id":"0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76","catalogRef":"catalog://0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4","appId":"d2c4d
+FAIL 0x395bed3e: {"id":"0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595","catalogRef":"catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4","appId":"9c3d1
+FAIL 0x4e62e60d: {"id":"0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e","catalogRef":"catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4","appId":"9c3d1
+FAIL release-ticket answered 403, expected 503
+ok   unknown deployment 404
+ok   malformed id 422
+== rs8-apply-refused-a4f22748.txt
+FAIL 0x0ddbd824: {"id":"0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76","catalogRef":"catalog://0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4","appId":"d2c4d
+FAIL 0x395bed3e: {"id":"0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595","catalogRef":"catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4","appId":"9c3d1
+FAIL 0x4e62e60d: {"id":"0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e","catalogRef":"catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4","appId":"9c3d1
+FAIL release-ticket answered 403, expected 503
+ok   unknown deployment 404
+ok   malformed id 422
