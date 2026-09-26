@@ -105,23 +105,23 @@ const R = (s, o) => ({ t: iso(s), kind: "row", ...o });
 const up = (owners, deps) => ({ present: true, lastSeen: 1, owners: owners.map((owner) => ({ owner })), deps: deps.map((id) => ({ id })) });
 const P = (s, kind, o = {}) => ({ kind, t: iso(s), start: iso(s), end: iso(s + 1.5), x: "open", code: "200", spki: kind === "t1" ? K1 : K2, ca: true, ...o });
 // ADD at +100 s: the owner appears in the row sample at +130 s (the relay bound the attach between +128 and +130);
-// ID2 served from +200; REMOVE at +400: the row is absent at +410..+418, back with [operator] at +420
-function scenario({ t1 = () => ({}), rows = () => null, id2 = () => ({}) } = {}) {
+// ID2 served from +150; REMOVE at `rm` (+400 by default): the row is absent at rm+10..rm+18, back with [operator] at rm+20
+function scenario({ t1 = () => ({}), rows = () => null, id2 = () => ({}), rm = 400 } = {}) {
   const L = [];
   for (let s = 0; s <= 600; s += 2) {
     let r;
     if (s < 130) r = up([OPERATOR], [T1]);
-    else if (s < 200) r = up([OPERATOR, OWNER], [T1]);
-    else if (s < 410) r = up([OPERATOR, OWNER], [T1, ID2]);
-    else if (s < 420) r = { present: false };
+    else if (s < 150) r = up([OPERATOR, OWNER], [T1]);
+    else if (s < rm + 10) r = up([OPERATOR, OWNER], [T1, ID2]);
+    else if (s < rm + 20) r = { present: false };
     else r = up([OPERATOR], [T1]);
     L.push(R(s, rows(s) || r));
   }
   for (let s = 0; s <= 600; s += 1) {
-    const base = s >= 410 && s < 422 ? { x: "refused(404)", code: "000", spki: null } : {};
+    const base = s >= rm + 10 && s < rm + 22 ? { x: "refused(404)", code: "000", spki: null } : {};
     L.push(P(s, "t1", { ...base, ...t1(s) }));
   }
-  for (let s = 0; s <= 600; s += 2) L.push(s >= 200 && s < 410 ? P(s, "id2", id2(s)) : { t: iso(s), kind: "id2", skipped: "not in servesDeployments" });
+  for (let s = 0; s <= 600; s += 2) L.push(s >= 150 && s < rm + 10 ? P(s, "id2", id2(s)) : { t: iso(s), kind: "id2", skipped: "not in servesDeployments" });
   return L;
 }
 const opts = { key1: K1, key2: K2, id2: ID2, addAt: iso(100), rmAt: iso(400) };
@@ -141,8 +141,21 @@ test("summarize A1: a probe cut IN FLIGHT at the handover is INFO; the same cut 
   assert.equal(atHand.verdicts.A1, "PASS");
   assert.ok(atHand.lines.some((l) => /INFO cut at the handover/.test(l)));
   assert.equal(summarize(scenario({ t1: (s) => (s === 180 ? { code: "000", cut: "ECONNRESET" } : {}) }), opts).verdicts.A1, "FAIL");
-  // a wrong KEY is never "a cut", wherever it is
+  // a wrong KEY is never "a cut", wherever it is: outside the handover, and INSIDE it (enclave-bf's W1)
   assert.equal(summarize(scenario({ t1: (s) => (s === 180 ? { spki: K2 } : {}) }), opts).verdicts.A1, "FAIL");
+  assert.equal(summarize(scenario({ t1: (s) => (s === 128 ? { spki: K2 } : {}) }), opts).verdicts.A1, "FAIL");
+  assert.equal(summarize(scenario({ t1: (s) => (s === 128 ? { spki: K2, code: "000", cut: "ECONNRESET" } : {}) }), opts).verdicts.A1, "FAIL");
+  // a 200 whose key was not read (spki null) is not proof of test 1's key, and it is never a cut either
+  assert.equal(summarize(scenario({ t1: (s) => (s === 128 ? { spki: null } : {}) }), opts).verdicts.A1, "FAIL");
+  // at most 2 cuts: two pass, three do not
+  const cuts = (n) => (s) => (s >= 127 && s < 127 + n ? { code: "000", cut: "ECONNRESET" } : {});
+  assert.equal(summarize(scenario({ t1: cuts(2) }), opts).verdicts.A1, "PASS");
+  assert.equal(summarize(scenario({ t1: cuts(3) }), opts).verdicts.A1, "FAIL");
+});
+
+test("summarize: a REMOVE 2-4 min after the ADD stays out of the ADD's lines (enclave-bf's W2)", () => {
+  const s = summarize(scenario({ rm: 250 }), { ...opts, rmAt: iso(250) });
+  assert.deepEqual(s.verdicts, { A1: "PASS", A2: "PASS", A3: "PASS", C1: "PASS", A4: "PASS", A5: "PASS", gate: "PASS" }, s.lines.join("\n"));
 });
 
 test("summarize A1: no handover seen, or too few probes (a dead watcher), FAILS", () => {
