@@ -6,6 +6,10 @@
 //   2. setApproval(appId, 0, 1) FROM the catalog owner 0x0b2d… (Steven's Trezor), AFTER 1.
 // Run from a checkout with viem (module resolution is the cwd's), the key in the ENVIRONMENT only:
 //   cd ~/Projects/enclave && SOAK_WASM=<soak_sentinel.wasm> SOAK_SHA256=<its sha256> node --input-type=module - < pin-and-prepare.mjs
+// PIN_ONLY=1: pin, then fetch the CID back from the gateway's /ipfs/ and compare its sha256, and stop (enclave-63's
+// authenticated-upload check once 7ae476a3, the upload gateway, serves again). A CID pinned and never listed in the
+// catalog is left alone by nan's daily pin cleanup.
+// The catalog is the one the on-chain address book names (as cli/enclave.mjs resolves it), never a baked address.
 // It never prints or writes the key.
 import fs from "node:fs";
 import crypto from "node:crypto";
@@ -14,7 +18,7 @@ import { base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 
 const AGENT = "0x29479bf04ed889d46a7afb7f292b9bb26e12647c";
-const CATALOG = "0xAc5270C57f3118F0b37d4f493198bb6863eDDDdF";   // cli/enclave.mjs APP_CATALOG_ADDRESS
+const ADDRESS_BOOK = "0xab214342d5A490150A4A977063A2f88E21F80907";   // EnclaveAddressBook (cli/enclave.mjs ADDRESS_BOOK_ADDRESS)
 const OWNER = "0x0b2d009c0c9af05b12100d77f3c815fea822ee61";     // the catalog's owner(), read 2026-09-26
 const SLUG = "hv-soak-sentinel", NAME = "hv soak sentinel", VERSION = "1.0.0";
 const DESC = "A test app for the NucBox hv soak: it prints each request's soak token to stdout and stderr and echoes it. Not for use.";
@@ -44,6 +48,12 @@ const CATALOG_ABI = [
     inputs: [{ name: "appId", type: "bytes32" }, { name: "index", type: "uint256" }, { name: "status", type: "uint8" }], outputs: [] },
 ];
 const c = createPublicClient({ chain: base, transport: http("https://base-rpc.publicnode.com", { retryCount: 3 }) });
+// the live catalog, from the address book (the CLI's baked default 0xAc5270… is a RETIRED catalog: 2026-09-26)
+const [bookKeys, bookVals] = await c.readContract({ address: ADDRESS_BOOK, functionName: "all",
+  abi: [{ type: "function", name: "all", stateMutability: "view", inputs: [], outputs: [{ type: "bytes32[]" }, { type: "address[]" }] }] });
+const keyName = (kh) => { let k = ""; for (let b = 2; b < kh.length; b += 2) { const ch = parseInt(kh.slice(b, b + 2), 16); if (!ch) break; k += String.fromCharCode(ch); } return k; };
+const CATALOG = bookVals[bookKeys.findIndex((kh) => keyName(kh) === "appCatalog")];
+if (!/^0x[0-9a-fA-F]{40}$/.test(String(CATALOG || ""))) die("the address book names no appCatalog");
 const owner = String(await c.readContract({ address: CATALOG, abi: CATALOG_ABI, functionName: "owner" })).toLowerCase();
 if (owner !== OWNER) die(`the catalog's owner is ${owner}, not ${OWNER}`);
 const appId = await c.readContract({ address: CATALOG, abi: CATALOG_ABI, functionName: "appIdOf", args: [AGENT, SLUG] });
@@ -63,6 +73,15 @@ const upBody = await up.text();
 if (!up.ok) die(`IPFS upload failed (${up.status}): ${upBody.slice(0, 200)}`);
 const cid = JSON.parse(upBody).cid;
 if (!cid) die("the gateway returned no CID");
+if (process.env.PIN_ONLY === "1") {
+  // the pin serves: the gateway returns the same bytes for the CID it gave (a raw-leaf CID is the bytes themselves)
+  const g = await fetch(`https://ipfs.enclave.host/ipfs/${cid}`, { signal: AbortSignal.timeout(60_000) }).catch((e) => ({ ok: false, status: e.message }));
+  const back = g.ok ? Buffer.from(await g.arrayBuffer()) : null;
+  const backSha = back ? crypto.createHash("sha256").update(back).digest("hex") : null;
+  console.log(`PINNED ${cid} (${bytes.length} bytes, sha256 ${sha}; upload authorized by ${tok.address})`);
+  console.log(`fetch https://ipfs.enclave.host/ipfs/${cid}: ${g.ok ? `${back.length} bytes, sha256 ${backSha} ${backSha === sha ? "= the pinned component: PASS" : "DIFFERS: FAIL"}` : `FAIL (${g.status})`}`);
+  process.exit(backSha === sha ? 0 : 1);
+}
 
 const pubArgs = [SLUG, NAME, DESC, VERSION, cid, RES, "", "", 0n];
 const pubData = encodeFunctionData({ abi: CATALOG_ABI, functionName: "publishVersion", args: pubArgs });
