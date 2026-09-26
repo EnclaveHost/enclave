@@ -86,6 +86,7 @@ test("the per-image W^X rule, both ways: the attest-time self-test is runtime-co
   assert.ok(other.reasons.some((r) => /names no runtime coverage/.test(r)), other.reasons.join("; "));
   const unnamed = await judgeFake({ selfTest: LEGACY_SELFTEST, imageSha256: V42_IMAGE });
   assert.equal(unnamed.verdict, "reject", "no image named by the caller = no legacy, even when the DOCUMENT states the listed image");
+  assert.ok(unnamed.reasons.some((r) => /names no runtime coverage/.test(r)), `refused for the W^X form, not another reason: ${unnamed.reasons.join("; ")}`);
 });
 
 test("RUNNING: the document verified on this handshake's key with a fresh nonce AND ready 200 on the same key", async () => {
