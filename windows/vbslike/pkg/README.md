@@ -524,6 +524,10 @@ manifest, but it is not a release and is not staged on the box. When it is relea
     only in `manager-accept.ps1`'s `-Serve` argument check.
   - **Rollback:** v40 as staged (`pkg\15f39ae4d1fab954\`); v40's own rollback record names v39. The host
     prerequisites roll back separately, with `host-prereq.ps1 -Rollback`.
+    *Correction (enclave-bf's review of `3b0d739e`):* the rollback record's note on
+    `reference/nucbox-vbs-reference.json` says "v40's reference (`b4d6675d`), unchanged in v41". The pin is right for
+    the rollback, but the phrase is false: v41 ships reference `3bb33297`, which is v40's plus the two `eligible:false`
+    entries. v41's manifest stays as committed; v42's notes carry the correction.
   - **Next, v42 (enclave-87):** the rollover to `252602c8` PLUS the cert-name set, as ONE set: the manager at
     `windows/m4-cert-name` `719133ee` (or its final head), enclave-d1's box-built `vbslike-host.exe` with its build
     record, and `252602c8`'s monitor. The invariant (enclave-d1, enclave-5d): these three move together. A new manager
