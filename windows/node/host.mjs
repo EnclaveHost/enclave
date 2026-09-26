@@ -764,10 +764,12 @@ export class Host {
       const why = `isolation: ${plan.input}: ${plan.why}`;
       if (plan.unknown) {
         this.log(`${id.slice(0, 10)} ${why}`);
-        return this.#record(id, { status: "provisioning", reason: why });
+        // planHeld: this box will not provision it until the input is established, so the tick does not RENEW it (87)
+        return this.#record(id, { status: "provisioning", reason: why, planHeld: true });
       }
       return await this.#giveUp(id, why);
     }
+    if (this.records.get(id)?.planHeld) this.#record(id, { planHeld: null, noRenewSaid: null });
 
     const body = IsolationManagerClient.spawnBody(plan.spawn);
     // What this partition holds of the card is what it is spawned with, not what the lease bought: the accounting the
@@ -1510,7 +1512,28 @@ export class Host {
         if (this.records.get(id)?.status === "stopped") this.#record(id, { capHeld: null });   // else retried next tick
         continue;
       }
-      if (rec.boundaryHeld !== true && rec.capHeld !== true && untilMs - Date.now() < RENEW_LEAD_MS) {
+      // HELD BY THE PLAN (#isolationReconcile: an input it cannot establish, such as whether secrets are staged): this box
+      // refuses to provision it, so it is NOT renewed - renewing drained the tenant's balance for time nobody was served
+      // (coordinator enclave-87: d1's live node renewed test 1 at 01:15:58Z while it refused it). ensureApp below asks
+      // again every tick, and a plan that passes clears the hold before the renewal window closes. A lease that lapses
+      // while held is let go here, as a cap hold is; nothing is released on chain.
+      // ...and a domain HELD rather than serving - one recovered from Hyper-V after a host or manager restart, or whose
+      // outcome is unknown (rec.isolationHeld without a running record) - is the same case: billed, nothing served
+      // (enclave-5d's G1; coordinator enclave-87). It is retired at lapse by the id it is held under (#stopApp ->
+      // #retireIsolated), and stays tracked until the manager confirms it gone.
+      const notServing = rec.planHeld === true || (!!rec.isolationHeld && rec.status !== "running");
+      if (notServing) {
+        if (untilMs < Date.now()) {
+          await this.#stopApp(id, `its lease lapsed while this box was not serving it (not renewed): ${rec.reason || "held"}`);
+          if (this.records.get(id)?.status === "stopped") this.#record(id, { planHeld: null, isolationHeld: null });
+          continue;
+        }
+        if (untilMs - Date.now() < RENEW_LEAD_MS && rec.noRenewSaid !== untilMs) {
+          this.#record(id, { noRenewSaid: untilMs });
+          this.log(`${id.slice(0, 10)} NOT renewed: this box is not serving it (${rec.reason || "held"}); the lease ends ${new Date(untilMs).toISOString()}`);
+        }
+      }
+      if (rec.boundaryHeld !== true && rec.capHeld !== true && !notServing && untilMs - Date.now() < RENEW_LEAD_MS) {
         try { await chain.renewDeployment(id); this.log(`renewed ${id.slice(0, 10)}`); d = await chain.readDeployment(id); }
         catch (e) {
           // rateCap doctrine (the platform runner's, mirrored): a renew the LEDGER refuses is not
