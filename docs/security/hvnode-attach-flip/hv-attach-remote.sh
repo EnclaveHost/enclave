@@ -11,9 +11,9 @@ set -euo pipefail
 umask 077
 ENV=/etc/nan-relay/api-relay.env; R=/opt/nan-relay
 KEY=RELAY_HVNODE_ATTACH; LINE="$KEY=1"
-# every relay file the attach path runs, as reviewed (main + the relayRowOf fix 54086fb8; enclave-bf: pin them all)
+# every relay file the attach path runs, as reviewed (main + the relayRowOf fix at aec43870; enclave-bf: pin them all)
 PINS="api-relay.js 1e99e765bc7eea44b090642db6c6a29f131ca073a3182e41facff8daef83d18c
-tunnel.js 2aae5045b0b717e02109b98a8edc11a2036e31ec07b06d2d3b14f71abfb03e6c
+tunnel.js 6becbec3aa8307625cc2b36e159fe5d9c0bf472e7fed424a071696689924b76c
 hvnode-verify.mjs 1e5481cc7c4770c2b7fbf2d18d675d9f837e86f25d6b06e581bcf5fb9478dc68
 vbs-policy.mjs 0e915d95b6771db87e00cee5ef97b82459da0b43653629a2e03264c78a3901cc
 vbs-verify.mjs 422b011f6aa3aad5158cb25329e31751a5c1fd1abd40213ba07a8869a075824b
@@ -27,7 +27,7 @@ modeok() { [ "$(stat -c '%a %U' "$1")" = "600 root" ]; }
 [ "$(id -u)" = 0 ] || die "run as root on nan"
 modeok "$ENV" || die "$ENV is not 0600 root"
 [ -z "$(tail -c1 "$ENV")" ] || die "$ENV does not end with a newline"
-while read -r f h; do [ "$(sha256sum < "$R/$f" | cut -c1-64)" = "$h" ] || die "$R/$f is not the reviewed file (54086fb8)"; done <<<"$PINS"
+while read -r f h; do [ "$(sha256sum < "$R/$f" | cut -c1-64)" = "$h" ] || die "$R/$f is not the reviewed file (aec43870)"; done <<<"$PINS"
 [ "$(grep -c "^RELAY_HVNODE_EK_ROOTS=" "$ENV" || true)" = 0 ] || die "RELAY_HVNODE_EK_ROOTS is set (tests and labs only)"
 systemctl is-active --quiet enclave-api-relay || die "enclave-api-relay is not active"
 RPID=$(systemctl show -p MainPID --value enclave-api-relay); RUID=$(ps -o uid= -p "$RPID" | tr -d ' '); RGID=$(ps -o gid= -p "$RPID" | tr -d ' ')
