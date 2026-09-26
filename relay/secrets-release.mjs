@@ -193,7 +193,12 @@ export const releaseConfig = () => ({
 // then the certificate ("cert") set /v1/expected-guest uses. A "busy" answer (live traffic owns the slots) ends the round;
 // the next round retries. A cached key answers at once, so a periodic round costs only the catalog reads. Nothing here
 // decides anything: a pre-warmed answer is the same answer a release would have computed.
-export async function prewarmReleasePredictions(ctx, { log = console.log, sets = ["release", "cert"] } = {}) {
+// PACED (enclave-87's follow-up, 09-26): the first round after a restart asked the catalog's public RPCs for every listed
+// version back to back and 10 of 14 came back catalog_unreachable (throttled). So: `gapMs` between two predictions, and ONE
+// retry pass for catalog_unreachable only, after `retryAfterMs` - longer than the predictor's 60 s negative cache, so the
+// retry recomputes instead of reading the cached refusal. Any other failure is not retried (it is not a transport blip).
+export async function prewarmReleasePredictions(ctx, { log = console.log, sets = ["release", "cert"], gapMs = 750, retryAfterMs = 61_000,
+                                                       sleep = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   const cfg = releaseConfig();
   if (!cfg.deployments) return { skipped: "no deployment is listed for release" };
   if (cfg.deployments === "*") return { skipped: "SECRETS_RELEASE_DEPLOYMENTS=* names every deployment: not pre-warmed" };
@@ -202,23 +207,43 @@ export async function prewarmReleasePredictions(ctx, { log = console.log, sets =
   let rows;
   try { rows = await ctx.ledgerRows(); } catch (e) { return { skipped: `the ledger could not be read (${e.message})` }; }
   const byId = new Map((rows || []).map((d) => [String(d.id).toLowerCase(), d]));
-  const out = { warmed: 0, failed: [], missing: [], busy: false, ms: 0 };
+  const out = { warmed: 0, failed: [], missing: [], busy: false, retried: 0, ms: 0 };
   const t0 = Date.now();
-  round: for (const id of [...cfg.deployments].sort()) {
+  const jobs = [];
+  for (const id of [...cfg.deployments].sort()) {
     const row = byId.get(id);
     if (!row) { out.missing.push(id); continue; }
-    for (const set of sets) {
-      let p;
-      // the SAME options the consumer passes: the release predicts private-aware, /v1/expected-guest does not
-      try { p = await ctx.expectedGuestFor(row, { forPrivate: set === "release" ? row.isPublic === false : false, set }); }
-      catch (e) { p = { ok: false, code: "prediction_failed", reason: e.message }; }
-      if (p && p.ok === false && p.code === "busy") { out.busy = true; break round; }
-      if (p && p.ok === true) out.warmed++;
-      else out.failed.push(`${id.slice(0, 10)} ${set}: ${(p && p.code) || "no answer"}`);
-    }
+    for (const set of sets) jobs.push({ id, row, set });
   }
+  let first = true;
+  const run = async (job) => {
+    if (!first && gapMs > 0) await sleep(gapMs);
+    first = false;
+    // the SAME options the consumer passes: the release predicts private-aware, /v1/expected-guest does not
+    try { return await ctx.expectedGuestFor(job.row, { forPrivate: job.set === "release" ? job.row.isPublic === false : false, set: job.set }); }
+    catch (e) { return { ok: false, code: "prediction_failed", reason: e.message }; }
+  };
+  const again = [];
+  for (const job of jobs) {
+    const p = await run(job);
+    if (p && p.ok === false && p.code === "busy") { out.busy = true; break; }
+    if (p && p.ok === true) out.warmed++;
+    else if (p && p.code === "catalog_unreachable") again.push(job);
+    else out.failed.push(`${job.id.slice(0, 10)} ${job.set}: ${(p && p.code) || "no answer"}`);
+  }
+  if (again.length && !out.busy) {
+    await sleep(retryAfterMs);
+    for (const job of again) {
+      const p = await run(job);
+      out.retried++;
+      if (p && p.ok === false && p.code === "busy") { out.busy = true; break; }
+      if (p && p.ok === true) out.warmed++;
+      else out.failed.push(`${job.id.slice(0, 10)} ${job.set}: ${(p && p.code) || "no answer"} (after a retry)`);
+    }
+  } else for (const job of again) out.failed.push(`${job.id.slice(0, 10)} ${job.set}: catalog_unreachable`);
   out.ms = Date.now() - t0;
   log(`[secrets-release] pre-warm: ${out.warmed} prediction(s) ready for ${cfg.deployments.size} listed deployment(s) in ${out.ms} ms`
+    + (out.retried ? ` (${out.retried} retried after ${Math.round(retryAfterMs / 1000)} s)` : "")
     + (out.missing.length ? `; not on the ledger: ${out.missing.map((x) => x.slice(0, 10)).join(", ")}` : "")
     + (out.failed.length ? `; failed: ${out.failed.join("; ")}` : "") + (out.busy ? "; the predictor was busy: the next round continues" : ""));
   return out;
