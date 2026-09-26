@@ -18,6 +18,9 @@ param(
   [string]$NodeExe = 'C:\Program Files\nodejs\node.exe', [string]$Npm = 'C:\Program Files\nodejs\npm.cmd',
   [string]$Python = 'C:\Python314\python.exe',
   [int]$ManagerPort = 8091, [int]$DataPort = 8092, [int]$LocalPort = 9600,
+  # the interactive account the hosting tray runs as (windows/tray): the node grants it READ on its admin token at start.
+  # Written into node-config.cmd BEFORE the node starts, e.g. NUCBOX_K11\srbat (the NetBIOS name has an underscore).
+  [ValidatePattern('^(|[A-Za-z0-9_.-]{1,64}\\[A-Za-z0-9_.-]{1,64})$')][string]$HostingTrayUser = '',
   [switch]$Replace
 )
 $ErrorActionPreference = 'Stop'
@@ -41,6 +44,12 @@ $pins = [ordered]@{
 foreach ($k in $pins.Keys) { if ((Sha256Of (Join-Path $Pkg $k)) -ne $pins[$k]) { Die "package $k is not $($pins[$k])" } }
 foreach ($t in 'EnclaveHvManager', 'EnclaveHvNode') {
   if ((Get-ScheduledTask -TaskName $t -TaskPath '\' -ErrorAction SilentlyContinue) -and -not $Replace) { Die "task \$t exists (-Replace to re-register it)" }
+}
+# an UPGRADE (-Replace) rewrites run-node.cmd / run-manager.cmd, which a running loop's cmd.exe reads from disk as it
+# goes: stop both first (hvnode-rollback.ps1 without -Unregister), then install, then start (enclave-d1, redeploy 4ef0e862)
+foreach ($t in 'EnclaveHvManager', 'EnclaveHvNode') {
+  $x = Get-ScheduledTask -TaskName $t -TaskPath '\' -ErrorAction SilentlyContinue
+  if ($x -and $x.State -eq 'Running') { Die "task \$t is RUNNING: stop both first (hvnode-rollback.ps1, without -Unregister), then re-run the install" }
 }
 $legacy = Get-ScheduledTask -TaskName 'EnclaveWindowsNode' -TaskPath '\' -ErrorAction SilentlyContinue
 if (-not $legacy -or $legacy.State -ne 'Disabled') { Die 'the legacy task \EnclaveWindowsNode must exist and be Disabled (it is never deleted, never enabled)' }
@@ -168,6 +177,7 @@ $nodeCfg = @(
   'rem served owners = {operator} + {owners of valid delegations} (enclave-87, final); OWNER_WALLET is not set: it no longer authorizes',
   'rem delegations: NODE_DIR\delegations\*.json ({message, signature}; enclave-host-delegation-v1), re-read every tick (ROLLOUT.md step 8)',
   "set LOCAL_HTTP_PORT=$LocalPort",
+  $(if ($HostingTrayUser) { "set HOSTING_TRAY_USER=$HostingTrayUser" } else { 'rem HOSTING_TRAY_USER unset: only SYSTEM and elevated administrators can read the hosting token (the tray cannot)' }),
   "set PYTHON_BIN=$Python", 'set IPFS_GATEWAY=https://ipfs.enclave.host')
 # each runs its process in a loop: Task Scheduler's restart-on-failure does not reliably fire on a process that EXITS
 # (enclave-d1's review, item 5). Ending or disabling the task ends the loop (hvnode-rollback.ps1 kills the loop's
