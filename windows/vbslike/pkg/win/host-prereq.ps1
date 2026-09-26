@@ -25,15 +25,33 @@
 # -Rollback undoes only what -Install set, and only while it is still exactly that (enclave-d1's review):
 #   - the value: restored to its recorded prior state only while it is still DWORD 1 (what -Install set);
 #   - the 9001 service key: removed only if it was absent before the install AND its ElementName is still this script's
-#     (WMISERVE-PROTOCOL.md: never remove a GUID somebody else registered); a key that existed before is never touched.
+#     (WMISERVE-PROTOCOL.md: never remove a GUID somebody else registered), or it is exactly what an interrupted
+#     -Install leaves (no ElementName, no value, no subkey: the key and its ElementName are two writes); a key that
+#     existed before is never touched.
 #   Anything left for those reasons is printed as "LEFT: ..." and the rollback exits 4 (not verified-equal).
-# A REHEARSAL (-RegRoot on an HKCU key) needs that key to exist first (New-Item <key>), and needs its own -RecordDir: the
-# default record directory is refused in rehearsal, so a rehearsal record can never be taken for the real one.
+# -Install creates only the 9001 key: it refuses when its parent GuestCommunicationServices is absent, so no parent key is
+# ever created unrecorded.
+#
+# THE TARGET is resolved from -RegRoot's spelling BEFORE anything else (enclave-bf's review, enclave-87's rule):
+#   - a root that names HKLM in any spelling (HKLM:\..., Registry::HKEY_LOCAL_MACHINE\...,
+#     Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\..., Registry::HKLM\...) is REAL: it must be the default
+#     Virtualization key, it is used in its canonical HKLM:\ form, and it gets every check below;
+#   - only an explicit HKCU root (HKCU:\<key> or Registry::HKEY_CURRENT_USER\<key>) is a REHEARSAL;
+#   - anything else (another drive, a drive-relative or relative path) is refused.
+#   On the box the resolved key is checked again through the provider: its full name must be the default key under
+#   HKEY_LOCAL_MACHINE\ (real) or start with HKEY_CURRENT_USER\ (rehearsal), so a remapped drive cannot turn one into
+#   the other.
+# A REHEARSAL needs its key AND that key's GuestCommunicationServices to exist first
+# (New-Item '<key>\GuestCommunicationServices' -Force), and needs its own -RecordDir: the default record directory is
+# refused in rehearsal, so a rehearsal record can never be taken for the real one.
 # Nothing else is written: no reboot, no service restart, no file outside that record directory.
 #
-# -Install (on HKLM) also refuses unless this boot has Secure Boot ON (Confirm-SecureBootUEFI) and test signing and
-# nointegritychecks are off in both `bcdedit /enum {current}` and `{hypervisorsettings}` (an absent line is off). The
-# lane's rule: the custom type-1 path runs under Secure Boot only. -Rollback is never refused for that.
+# -Install (REAL) also refuses unless this boot has Secure Boot ON (Confirm-SecureBootUEFI), and test signing and
+# nointegritychecks are off: in this boot's loader options (HKLM\SYSTEM\CurrentControlSet\Control\SystemStartOptions,
+# whose TESTSIGNING and DISABLE_INTEGRITY_CHECKS words do not depend on the display language) AND in both
+# `bcdedit /enum {current}` and `{hypervisorsettings}` (an absent line is off). bcdedit's output is localized, so an
+# output without its English `identifier` line is refused rather than read. The lane's rule: the custom type-1 path runs
+# under Secure Boot only. -Rollback is never refused for that.
 #
 # Exit: 0 done and verified (or -Check); 1 a write did not verify; 2 refused (lock held, not elevated, no record, a record
 # for another root, Secure Boot off or test signing on for -Install, a precondition); 3 -Check -Require and the settings
@@ -45,24 +63,44 @@ param(
   [switch] $Require,
   [string] $RecordDir = 'C:\Users\claude\vbs-like\host-prereq',
   # A REHEARSAL root: give an HKCU key (e.g. HKCU:\Software\EnclaveHostPrereqRehearsal) and a scratch -RecordDir to run the
-  # whole install/check/rollback cycle on keys that change nothing, before the real HKLM run. HKLM is the default.
+  # whole install/check/rollback cycle on keys that change nothing, before the real HKLM run. HKLM is the default, and
+  # any spelling of HKLM is the real target (see THE TARGET above).
   [string] $RegRoot = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization',
   [string] $Lock = 'C:\Users\claude\uefi-probe.lock'
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
 
+function Say([string] $m) { Write-Output "host-prereq: $m" }
+function Refuse([string] $m) { Say "REFUSED: $m"; exit 2 }
+
+# THE TARGET, from the spelling alone (see the header): REAL for any HKLM spelling of the default key, REHEARSAL only for
+# an explicit HKCU key, refused otherwise.
+$DefaultRest = '\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization'
+function Resolve-Target([string] $root) {
+  $p = $root.Trim() -replace '^(?i)(Microsoft\.PowerShell\.Core\\)?Registry::', ''
+  $m = [regex]::Match($p, '^(?i)(?<hive>HKLM:?|HKEY_LOCAL_MACHINE|HKCU:?|HKEY_CURRENT_USER)(?<rest>(\\[^\\]+)+)\\?$')
+  if (-not $m.Success) { return $null }
+  $h = $m.Groups['hive'].Value.TrimEnd(':').ToUpperInvariant()
+  $hive = if ($h -eq 'HKLM' -or $h -eq 'HKEY_LOCAL_MACHINE') { 'HKLM' } else { 'HKCU' }
+  return @{ Hive = $hive; Rest = $m.Groups['rest'].Value; Path = $hive + ':' + $m.Groups['rest'].Value }
+}
+$RegRootGiven = $RegRoot
+$T = Resolve-Target $RegRoot
+if (-not $T) { Refuse "-RegRoot '$RegRoot' is neither an HKLM spelling of the default key nor an explicit HKCU rehearsal key" }
+if ($T.Hive -eq 'HKLM' -and $T.Rest -ne $DefaultRest) {   # -ne ignores case, as the registry does
+  Refuse "-RegRoot '$RegRoot' names HKLM, so it is the REAL target, and the real target is only HKLM:$DefaultRest" }
+$Rehearsal = ($T.Hive -eq 'HKCU')
+$RegRoot = if ($Rehearsal) { $T.Path } else { 'HKLM:' + $DefaultRest }   # the canonical form, also what a record names
 $RegPath = $RegRoot
 $RegName = 'AllowFirmwareLoadFromFile'
-$SvcPath = $RegRoot.TrimEnd('\') + '\GuestCommunicationServices'
-$Rehearsal = -not $RegRoot.StartsWith('HKLM:', [System.StringComparison]::OrdinalIgnoreCase)
+$SvcPath = $RegRoot + '\GuestCommunicationServices'
 $SvcGuid = '00002329-facb-11e6-bd58-64006a7986d3'
 $SvcKey = $SvcPath + '\' + $SvcGuid
 $SvcName = 'enclave report signing (wmiserve, hv_sock port 9001)'
 $DefaultRecordDir = 'C:\Users\claude\vbs-like\host-prereq'
 $Record = $RecordDir.TrimEnd('\') + '\prior-state.json'   # a string join: Join-Path needs the drive to exist
 
-function Say([string] $m) { Write-Output "host-prereq: $m" }
 function Read-State {
   $fw = @{ S = 'Absent'; V = $null; K = $null }
   if (Test-Path $RegPath) {
@@ -71,11 +109,12 @@ function Read-State {
       $fw = @{ S = 'Present'; V = [string]$item.$RegName; K = [string]((Get-Item $RegPath).GetValueKind($RegName)) }
     }
   }
-  $svc = @{ S = 'Absent'; ElementName = $null }
+  $svc = @{ S = 'Absent'; ElementName = $null; Values = 0; SubKeys = 0 }
   if (Test-Path $SvcKey) {
     $e = Get-ItemProperty $SvcKey -EA SilentlyContinue
     $n = $null; if ($e -and ($e.PSObject.Properties.Name -contains 'ElementName')) { $n = [string]$e.ElementName }
-    $svc = @{ S = 'Present'; ElementName = $n }
+    $k = Get-Item $SvcKey
+    $svc = @{ S = 'Present'; ElementName = $n; Values = [int]$k.ValueCount; SubKeys = [int]$k.SubKeyCount }
   }
   return @{ fw = $fw; svc = $svc }
 }
@@ -86,24 +125,29 @@ function Show([string] $label, $st) {
   Say "$label hv_sock service ${SvcGuid} (port 9001): $svv"
 }
 function Installed($st) { return ($st.fw.S -eq 'Present' -and $st.fw.V -eq '1' -and $st.fw.K -eq 'DWord' -and $st.svc.S -eq 'Present') }
-function Refuse([string] $m) { Say "REFUSED: $m"; exit 2 }
 $script:lk = $null
 function Assert-Writable {
   try { $script:lk = [System.IO.File]::Open($Lock, 'OpenOrCreate', 'ReadWrite', 'None') }
-  catch { Refuse "an acceptance run holds $Lock (its harness applies and restores the same settings); run this after it ends" }
+  catch { Refuse "an acceptance run holds $Lock (its harness applies and restores the same settings); run this after it ends ($($_.Exception.Message))" }
   if (-not $Rehearsal) {
     $admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $admin) { Refuse 'not elevated: HKLM writes need an administrator PowerShell' }
   }
   if (-not (Test-Path $RegPath)) {
-    if ($Rehearsal) { Refuse "the rehearsal root $RegPath does not exist: create it first (New-Item '$RegPath')" }
+    if ($Rehearsal) { Refuse "the rehearsal root $RegPath does not exist: create it first (New-Item '$SvcPath' -Force)" }
     Refuse "$RegPath does not exist (is the Hyper-V role installed?); this script creates no Virtualization key" }
+  # the provider's own name for the key: a drive remapped to another hive cannot make a rehearsal real or the reverse
+  $full = [string](Get-Item -LiteralPath $RegPath).Name
+  $want = if ($Rehearsal) { 'HKEY_CURRENT_USER\' } else { 'HKEY_LOCAL_MACHINE' + $DefaultRest }
+  if (($Rehearsal -and -not $full.StartsWith($want, [System.StringComparison]::OrdinalIgnoreCase)) -or (-not $Rehearsal -and -not ($full -ieq $want))) {
+    Refuse "$RegPath resolves to '$full', not $want" }
 }
 
 if (($Install -or $Rollback) -and $Check) { Refuse 'give one of -Install, -Rollback or -Check' }
 if ($Install -and $Rollback) { Refuse 'give one of -Install or -Rollback' }
 
-if ($Rehearsal) { Say "REHEARSAL on $RegRoot (no Hyper-V setting is touched)" }
+if ($Rehearsal) { Say "target: REHEARSAL on $RegRoot (from -RegRoot '$RegRootGiven'; no Hyper-V setting is touched)" }
+else { Say "target: REAL $RegRoot (from -RegRoot '$RegRootGiven'; every check applies)" }
 $now = Read-State
 Show 'now:' $now
 if (Test-Path $Record) { Say "prior-state record: $Record (written by the first -Install)" } else { Say 'prior-state record: none' }
@@ -121,13 +165,18 @@ function Assert-BootPolicy {
   $sb = $null
   try { $sb = Confirm-SecureBootUEFI } catch { Refuse "Secure Boot state unreadable ($($_.Exception.Message)): not installing" }
   if ($sb -ne $true) { Refuse 'Secure Boot is OFF on this boot: the custom type-1 path runs under Secure Boot only; not installing' }
+  # this boot's loader options, whose words do not depend on the display language
+  $sso = [string](Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control' -Name SystemStartOptions -EA Stop).SystemStartOptions
+  if ($sso -match '(?i)\bTESTSIGNING\b') { Refuse "this boot's loader options carry TESTSIGNING ('$sso'): not installing" }
+  if ($sso -match '(?i)\bDISABLE_INTEGRITY_CHECKS\b') { Refuse "this boot's loader options carry DISABLE_INTEGRITY_CHECKS ('$sso'): not installing" }
   foreach ($store in @('{current}', '{hypervisorsettings}')) {
     $bcd = (& bcdedit.exe /enum $store 2>&1) -join "`n"
     if ($LASTEXITCODE -ne 0) { Refuse "bcdedit /enum $store failed: not installing" }
+    if ($bcd -notmatch '(?im)^\s*identifier\s+\{') { Refuse "bcdedit /enum $store is not the English output this check reads (no 'identifier' line): not installing" }
     if ($bcd -match '(?im)^\s*testsigning\s+Yes') { Refuse "test signing is ON in $store for this boot: not installing" }
     if ($bcd -match '(?im)^\s*nointegritychecks\s+Yes') { Refuse "nointegritychecks is ON in $store for this boot: not installing" }
   }
-  Say 'boot policy: Secure Boot ON; test signing and nointegritychecks off in {current} and {hypervisorsettings}'
+  Say 'boot policy: Secure Boot ON; test signing and integrity-check bypass off in this boot''s loader options, {current} and {hypervisorsettings}'
 }
 
 try {
@@ -143,6 +192,7 @@ try {
 
   if ($Install) {
     Assert-BootPolicy
+    if (-not (Test-Path $SvcPath)) { Refuse "$SvcPath does not exist: this script creates only the 9001 key, never its parent" }
     if (-not (Test-Path $Record)) {
       New-Item -ItemType Directory -Path $RecordDir -Force | Out-Null
       $rec = [ordered]@{ type = 'enclave-nucbox-host-prereq/1'; at = (Get-Date).ToUniversalTime().ToString('o'); by = 'win\host-prereq.ps1 -Install';
@@ -152,7 +202,7 @@ try {
     } else { Say 'a prior-state record already exists: kept (a rollback returns to the state before the FIRST install)' }
     Set-ItemProperty -Path $RegPath -Name $RegName -Value 1 -Type DWord
     if (-not (Test-Path $SvcKey)) {
-      New-Item -Path $SvcKey -Force | Out-Null
+      New-Item -Path $SvcKey | Out-Null
       New-ItemProperty -Path $SvcKey -Name 'ElementName' -Value $SvcName -PropertyType String -Force | Out-Null
       Say "registered the hv_sock service $SvcGuid"
     } else { Say "the hv_sock service $SvcGuid was already registered: left as it is" }
@@ -177,7 +227,9 @@ try {
     }
     # the 9001 key: only if it was absent before AND is still this script's (by ElementName)
     if ($b.svc.S -eq 'Absent' -and $now.svc.S -eq 'Present') {
-      if ("$($now.svc.ElementName)" -eq "$SvcName") { Remove-Item -Path $SvcKey -Recurse -Force }
+      # ours: this script's ElementName, or exactly what an interrupted -Install leaves (the key, nothing in it yet)
+      $half = ($null -eq $now.svc.ElementName) -and $now.svc.Values -eq 0 -and $now.svc.SubKeys -eq 0
+      if ("$($now.svc.ElementName)" -eq "$SvcName" -or $half) { Remove-Item -Path $SvcKey -Recurse -Force }
       else { $left += "the hv_sock service $SvcGuid is registered as '$($now.svc.ElementName)', not by this script: somebody else's, left as it is" }
     }
     $after = Read-State
