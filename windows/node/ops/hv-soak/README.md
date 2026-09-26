@@ -20,7 +20,7 @@ Each sample opens one ssh session and sends one HTTPS request per check.
 
 | # | check | how |
 |---|---|---|
-| 1 | public TLS | ONE `GET` of the app URL with `--path` (default `/hv-soak/{token}`), where `{token}` is the sample's random token. The token also rides in `x-hv-soak`. The chain and the hostname are verified against Node's CA store. When a connection fails verification, its leaf is recorded (SPKI sha256, serial, issuer, the reason) and the connection is dropped before any response is read. Only a verified 200 counts. The first 4 KiB of the body are kept in memory, never stored, and matched against `--echo-pattern` (below). |
+| 1 | public TLS | ONE `GET` of the app URL, direct to the name (`--via host`) or inside the relay's `/x` WebSocket splice (`--via x`), with `--path` (default `/hv-soak/{token}`), where `{token}` is the sample's random token. The token also rides in `x-hv-soak`. The chain and the hostname are verified against Node's CA store. When a connection fails verification, its leaf is recorded (SPKI sha256, serial, issuer, the reason) and the connection is dropped before any response is read. Only a verified 200 counts. The first 4 KiB of the body are kept in memory, never stored, and matched against `--echo-pattern` (below). |
 | 1b | HEAD tripwire (`--leak-probe --body-marker S`) | ONE `HEAD` to the same URL, same token, same verification rules, sent together with the GET. |
 | 2 | relay row | `GET https://api.enclave.host/enclaves`, unauthenticated, reading the `nucbox-k11` row. It is OK when all of these hold: mode and tier `hv-node`, `attach` `attestation`, `tunnel` true, `hvNode.hostExcluded` false, and `availability.claimScope` `owner-only`. The sample also records `lastSeen`, `owners`, `eligible` and `serving`. |
 | 3 | the box | ONE `ssh -n minipc-zt` session. The command itself carries the sampler script, minified, raw-DEFLATEd and base64-encoded inside a short `-EncodedCommand` bootstrap. Nothing is read from stdin and nothing is written to the box. The script's variables and functions are shortened from a rename table that the tests check. The command stays under cmd.exe's 8191 characters: 7834 with the install's root, and at most 8014 with the longest `--root` (64 characters), the largest offsets and `--console-sec 120`. A test enforces this. It reads: the manager's `GET /vms`; `Get-VM` for the `enclave-app-*` VMs; host free memory; `hvnode\logs\node.log` and `manager.log`, from where the last sample stopped, opened for READ with sharing; and the deployment's COM1 console. Every step is bounded: the HTTP and CIM calls have timeouts, and the Hyper-V calls run in their own runspace, abandoned after 15 s. The script ends its own process. |
@@ -131,15 +131,26 @@ git -C ~/Projects/enclave fetch origin windows/hv-soak-monitor
 git -C ~/Projects/enclave show origin/windows/hv-soak-monitor:windows/node/ops/hv-soak/soak.mjs > soak.mjs
 ```
 
-**Availability/stability soak** on the hello-world test deployment (the default `--deployment`):
+**Availability/stability soak** on the hello-world test deployment (the default `--deployment`). While the public
+name's route (us-west) is blocked, add `--via x` (below):
 
 ```sh
-EVID='hv tier: bundle/1 wasi:http under wasmtime serve frames every response; hello-world never prints (box control 2026-09-26)'
-node soak.mjs --once --leak-scope out --leak-evidence "$EVID"                      # one sample, printed; nothing written
-nohup node soak.mjs --duration 12h --leak-scope out --leak-evidence "$EVID" \
+EVID="leak classes proven by canary 0891c740 (evidence 8d488dbf): item 1 sentinel stdout discard and item 2 keep-alive front guard (lab bundle/2), both on the dev-boot path with the same IGVM; manager path hello-world only; + unit tests; hv bundle/1 cannot reach the front's unsolicited-response vector (5d, wasmtime 48.0.1)"
+node soak.mjs --once --via x --leak-scope out --leak-evidence "$EVID"              # one sample, printed; nothing written
+nohup node soak.mjs --duration 12h --via x --leak-scope out --leak-evidence "$EVID" \
   > soak-$(date -u +%Y%m%dT%H%M%SZ).log 2>&1 &
 echo $! > soak.pid
 ```
+
+**`--via x`** reaches the app's own HTTPS the way enclave-5d's `xsplice.mjs` does:
+- It opens a WebSocket to `wss://api.enclave.host/t/<node>/x/<deployment>/https` (the relay's `/x` splice, no credentials; `--node` defaults to `nucbox-k11`).
+- It runs the partition's TLS inside that WebSocket. The servername is `<id8>.app.enclave.host`, and the chain and hostname are verified exactly as with `--via host`. The same leaf facts are recorded.
+- It sends the GET (and the HEAD tripwire) over that TLS. The status, the body and the printed-evidence rules are unchanged.
+- A refused WebSocket handshake is a public failure, and its HTTP status is recorded as `wsStatus`. So are a TLS failure and a non-200.
+- The timeouts are identical.
+- Each record carries `via`. The summary's public line and the per-sample line show it.
+- The WebSocket client is built on Node's own modules (RFC 6455, a binary stream), so the file still needs no dependency. The tests check it against the real `ws` server.
+- `--via host`, the default, is the direct TLS to the name.
 
 **Leak soak** on a sentinel deployment. Replace the `<…>` value. The default `--echo-pattern` is the sentinel's body
 form. The default `--path` (`/hv-soak/{token}`) works if the sentinel answers any path, since its body reports the path it
@@ -162,7 +173,7 @@ nohup node soak.mjs --duration 12h --deployment 0x<sentinel id> \
   - It re-evaluates every threshold from the observations, not from the stored verdicts, and exits 1 unless it PASSes.
   - `--json` prints the summary as JSON, carrying `leakScope`, the `leakEvidence`, the verdict and each threshold.
   - `--since` scores only the part after a given time.
-- Options: `--interval 300`, `--duration 12h`, `--out FILE`, `--deployment 0x…`, `--url`, `--path`, `--echo-pattern`, `--node`, `--relay`, `--ssh`, `--root` (at most 64 characters), `--console-sec 25` (25 to 120), `--rpc URL` (repeatable), `--no-chain`, `--leak-floor`, `--leak-probe --body-marker S`, and `--leak-scope out --leak-evidence E`.
+- Options: `--interval 300`, `--duration 12h`, `--out FILE`, `--deployment 0x…`, `--url`, `--via host|x`, `--path`, `--echo-pattern`, `--node`, `--relay`, `--ssh`, `--root` (at most 64 characters), `--console-sec 25` (25 to 120), `--rpc URL` (repeatable), `--no-chain`, `--leak-floor`, `--leak-probe --body-marker S`, and `--leak-scope out --leak-evidence E`.
 
 **What the summary prints:**
 - the result of each threshold, with the worst streak and the first event;
