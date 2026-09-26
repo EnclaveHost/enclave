@@ -162,7 +162,7 @@ func (p *provisioner) run(ctx context.Context, hostData, spki []byte, rt *runtim
 	// tenant cannot reach (the runtime gives it no access to other processes).
 	rel.Secrets = nil
 
-	out.fwd = &egress.Forwarder{Policy: pol, Port: p.fwdPort, Upstream: p.egress, Logf: p.logf}
+	out.fwd = &egress.Forwarder{Policy: pol, Port: p.fwdPort, Upstream: p.egress, Logf: domLogf(p.logf)}
 	if err := out.fwd.Start(ctx); err != nil {
 		return nil, err
 	}
@@ -333,4 +333,14 @@ func handToInit(w *os.File, config string) error {
 		msg[i] = 0
 	}
 	return err
+}
+
+// domLogf makes another package's log lines the front's own statements: "DOM " + the line. The egress forwarder logs
+// only an origin index and a closed-set failure class (egress.dialClass), and stdout carries only DOM statements
+// (enclave-e3's L1 on the console guard).
+func domLogf(logf func(string, ...any)) func(string, ...any) {
+	if logf == nil {
+		return nil
+	}
+	return func(format string, a ...any) { logf("DOM "+format, a...) }
 }
