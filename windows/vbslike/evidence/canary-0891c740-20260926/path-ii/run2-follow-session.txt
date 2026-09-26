@@ -1,0 +1,3 @@
+02:47:55.843Z following enclave-app-hv2fd39d54456753-9c3d10f1
+console-read: enclave-app-hv2fd39d54456753-9c3d10f1 connected=True bytes=32 file=C:\Users\claude\d1-canary-0891c740\ev\M2-console.txt the VM closed its console
+02:48:06.723Z console-read done; bytes 32

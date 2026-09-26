@@ -1,0 +1,12 @@
+MON domain 1 loaded label=canary app_sha256=9a79c076f1d0c9660131d55eecc1d86dc98bb476e5c4050fcb0e45c76462b0c5 port=40001 uid=5001 cpu=100% mem=128MiB mode=run http=8000
+MON refused report request from uid 0 (not a domain)
+DOM1 report_as_root=refused
+DOM1 started runtime=2 front=3 mode=run http=8000 (/data 64 MiB scratch)
+DOM front: not dumpable; none of its 3 threads traced
+DOM runtime wasmtime/48.0.1 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8
+DOM runtime selftest exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom1
+DOM certificate: no HOST_DATA to name this domain (the monitor's report is "hyperv-partition-domain/v1", not an SEV-SNP report: it carries no HOST_DATA); self-signed only
+DOM serving unix=/run/front.sock spki_sha256=c01e49ec7d1095453438e673b4bcc1c42e4a166377ad550d389a369d4bdbdd0c ready_ms=2888
+DOM1 probe workload_uid=5001 sys=0 configfs=0 domains_dir=0 own_app=1 visible_pids=3
+DOM front: unsolicited upstream response (147 bytes withheld)
+DOM front: unsolicited upstream response (149 bytes withheld)

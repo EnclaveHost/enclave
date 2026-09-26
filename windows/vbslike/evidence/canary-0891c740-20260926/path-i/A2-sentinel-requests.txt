@@ -1,0 +1,5 @@
+d1-kit-requests port 19500
+02:35:47.263Z relay up (GET / -> 200)
+02:35:47.304Z GET /req-SNTLa67d9469ffe1-1 -> 200 (body 2 bytes)
+02:35:48.134Z GET /req-SNTLa67d9469ffe1-2 -> 200 (body 2 bytes)
+02:35:48.971Z GET /panic-SNTLa67d9469ffe1-3 -> 502 (body 29 bytes)

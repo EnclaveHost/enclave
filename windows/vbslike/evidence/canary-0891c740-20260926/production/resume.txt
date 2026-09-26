@@ -1,0 +1,22 @@
+manager canStart=True at 02:51:09Z
+--- node.log since resume:
+02:51:12 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+02:51:13 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+02:51:14 [node] [host] ledger: 1 active deployment(s) in scope (owner-only)
+02:51:15 [node] [host] renewed 0x31136008
+02:51:18 [node] attach ACCEPTED tier=hv-node measurement=
+02:51:37 [node] [host] 0x31136008 isolation spawned: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:51:44 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:52:14 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:52:22 [node] attach ACCEPTED tier=hv-node measurement=
+02:52:44 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:53:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+--- vms:
+hv373a31114479cfaefad96d6cabf5536d running key 619479c8f4d03cea3cb835b91ff7080221396284563ddacbfccb336ea9a040a8
+manager vm hv373a31114479cfaefad96d6cabf5536d status running relay {"host":"127.0.0.1","port":49993} transportKeySha256 619479c8f4d03cea3cb835b91ff7080221396284563ddacbfccb336ea9a040a8
+guest TLS: subject CN=enclave-domain issuer CN=enclave-domain SPKI sha256 619479c8f4d03cea3cb835b91ff7080221396284563ddacbfccb336ea9a040a8
+key = manager transportKeySha256: True
+app answer: HTTP/1.1 200 OK | body: d
+Hello World!
+
+0
