@@ -495,6 +495,16 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 	defer cgFD.Close()
 
+	// THE NULL DEVICE for the domain's quiet workload (domexec.c NULL_FD, fd 3): opened HERE, in the guest's own root,
+	// because domexec starts already chrooted into the domain's directory, which has no /dev and must not get one (no
+	// device node and no new filesystem for the tenant). A domain that cannot have it does not start: its app's output
+	// would otherwise have nowhere to go but the console. enclave-d1's canary of 4cdd5169 (252602c8): the quiet runtime
+	// opened /dev/null inside the chroot, got ENOENT and exited, and every m3 domain ended before it served.
+	nul, err := openNullDevice()
+	if err != nil {
+		return fail(err)
+	}
+	defer nul.Close() // the child has its own copy once started (launch); ours is only for the fork
 	ln, err := vsock.Listen(d.Port)
 	if err != nil {
 		return fail(fmt.Errorf("vsock port %d: %w", d.Port, err))
@@ -511,6 +521,7 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 	cmd := exec.Command("/plat/domexec", args...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	cmd.ExtraFiles = []*os.File{nul} // fd 3 in domexec
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Chroot: d.dir,
 		// its own mount, process, network, IPC and hostname namespaces. The network namespace is why
@@ -1267,3 +1278,30 @@ func certNameOK(n string) bool {
 	}
 	return true
 }
+
+// openNullDevice opens /dev/null read-write and checks it IS the null device (character device 1:3): a domain's quiet
+// workload gets it as its stdio (domexec.c NULL_FD), so anything else - a regular file an attacker left in the guest's
+// /dev, a missing node - refuses the domain instead of reaching its output somewhere.
+func openNullDevice() (*os.File, error) { return openNullDeviceAt("/dev/null") }
+
+func openNullDeviceAt(path string) (*os.File, error) {
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return nil, fmt.Errorf("opening %s for the domain's quiet workload: %w", path, err)
+	}
+	var st syscall.Stat_t
+	if err := syscall.Fstat(int(f.Fd()), &st); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("stat %s: %w", path, err)
+	}
+	if st.Mode&syscall.S_IFMT != syscall.S_IFCHR || unixMajor(uint64(st.Rdev)) != 1 || unixMinor(uint64(st.Rdev)) != 3 {
+		f.Close()
+		return nil, fmt.Errorf("%s is not the null device (mode %o, rdev %d:%d): the domain is not started",
+			path, st.Mode, unixMajor(uint64(st.Rdev)), unixMinor(uint64(st.Rdev)))
+	}
+	return f, nil
+}
+
+// Linux's encoding of a device number (glibc gnu_dev_major/minor), without a dependency on x/sys/unix.
+func unixMajor(dev uint64) uint32 { return uint32((dev>>8)&0xfff) | uint32((dev>>32)&^0xfff) }
+func unixMinor(dev uint64) uint32 { return uint32(dev&0xff) | uint32((dev>>12)&^0xff) }
