@@ -54,7 +54,7 @@ function scripted(h, script) {
     const s = script[rid];
     if (!s) return real(rid, opts);
     if (s === "claim") { h.records.set(rid, { status: "running" }); return { accepted: true, status: "running", claimAttempted: true }; }
-    if (s === "queued" || s === "refused") { h.records.set(rid, { status: s, reason: `scripted ${s}` }); return { accepted: false, reason: s }; }
+    if (s === "queued" || s === "refused") { h.records.set(rid, { status: s, reason: `scripted ${s}` }); return { accepted: false, reason: s, standing: s }; }
     return { accepted: false, reason: s };   // a transient failure: no standing record
   };
   return asked;
@@ -76,6 +76,7 @@ test("d1's TEST2: an owner's older row with no isolation envelope is refused AT 
   const r = await h.consider(OLD);
   assert.equal(r.accepted, false);
   assert.equal(r.reason, rec.reason);
+  assert.equal(r.standing, "refused");
   assert.equal(r.claimAttempted, undefined);
 });
 
@@ -103,12 +104,15 @@ test("a row consider() declines without a claim leaves the slot for the next row
   assert.deepEqual(asked.slice(6), [R2]);
 });
 
-test("a transient failure is not held: the row is asked again the next pass", async () => {
+test("a transient failure is not held, even on a row an OLDER answer refused: it is asked again the next pass", async () => {
   const T = id("b1"), U = id("b2");
   rpc.rows.current = [row(T, { createdAt: 1n }), row(U, { createdAt: 2n })];
   const h = await nucbox();
+  // an earlier refusal whose hold has run out: the record still says refused (enclave-5d's case)
+  h.records.set(T, { status: "refused", reason: "an earlier refusal" });
   const asked = scripted(h, { [T]: "ledger read failed: fake", [U]: "claim" });
   await h.scanLedger();
+  assert.equal(h.scanHold.has(T), false, "a transient failure was held as a standing answer");
   await h.scanLedger();
   assert.deepEqual(asked, [T, U, T]);
 });
@@ -139,4 +143,48 @@ test("a claim transaction that FAILS still spends the slot (consider() says clai
   h.records.delete(F);
   await h.scanLedger();
   assert.deepEqual(asked, [F], "the failed claim did not spend the pass's slot");
+});
+
+test("a claim SENT and then a throw (the launch after it) still spends the pass's slot: ONE claim transaction that pass", async () => {
+  // the real consider() and a claim transaction the fake ledger mines; the launch after it throws (as the relay read,
+  // the spawn cap or a giveUp's chain tx can) - enclave-bf's fixture on the real path
+  const X = id("e1"), Y = id("e2");
+  rpc.rows.current = [row(X, { createdAt: 1n, configCid: "" }), row(Y, { createdAt: 2n, configCid: "" })];
+  const h = await nucbox({ engineRetired: false, isolationManager: undefined });
+  const launched = [];
+  h.ensureApp = async (rid) => { launched.push(rid); throw new Error("the launch failed after the claim"); };
+  const asked = scripted(h, {});
+  const before = rpc.chainTx.sent.length;
+  rpc.chainTx.mine = true;
+  try { await h.scanLedger(); } finally { rpc.chainTx.mine = false; }
+  const sent = rpc.chainTx.sent.length - before;
+  assert.deepEqual(launched, [X], "the claim did not get as far as the launch");
+  assert.equal(sent, 1, `claim transactions in ONE pass: ${sent}`);
+  assert.deepEqual(asked, [X]);
+  assert.ok(h.logs.some((l) => /consider 0xe1e1e1e1: the launch failed after the claim/.test(l)), h.logs.join("\n"));
+});
+
+test("at most SCAN_DECLINED_PER_PASS declines a pass: a pool of refused rows is worked through, not asked all at once", async () => {
+  const n = Host.SCAN_DECLINED_PER_PASS + 4, refused = Array.from({ length: n }, (_, i) => id((0x10 + i).toString(16)));
+  const LAST = id("f9");
+  rpc.rows.current = [...refused.map((r, i) => row(r, { createdAt: BigInt(i + 1) })), row(LAST, { createdAt: 1000n })];
+  const h = await nucbox();
+  const asked = scripted(h, { ...Object.fromEntries(refused.map((r) => [r, "refused"])), [LAST]: "claim" });
+  await h.scanLedger();
+  assert.equal(asked.length, Host.SCAN_DECLINED_PER_PASS, `one pass asked ${asked.length}`);
+  await h.scanLedger();
+  assert.deepEqual(asked, [...refused, LAST], "the next pass moved on past the held rows to the rest and the claim");
+});
+
+test("a claim that succeeds spends the slot too: the real consider(), ONE claim transaction a pass", async () => {
+  const P = id("e3"), Q = id("e4");
+  rpc.rows.current = [row(P, { createdAt: 1n, configCid: "" }), row(Q, { createdAt: 2n, configCid: "" })];
+  const h = await nucbox({ engineRetired: false, isolationManager: undefined });
+  h.ensureApp = async (rid) => { h.records.set(rid, { status: "running" }); };
+  const asked = scripted(h, {});
+  const before = rpc.chainTx.sent.length;
+  rpc.chainTx.mine = true;
+  try { await h.scanLedger(); } finally { rpc.chainTx.mine = false; }
+  assert.equal(rpc.chainTx.sent.length - before, 1);
+  assert.deepEqual(asked, [P]);
 });
