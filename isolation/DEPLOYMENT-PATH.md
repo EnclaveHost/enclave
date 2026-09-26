@@ -6,6 +6,33 @@ before anything was deployed; what is live now is under PRODUCTION STATUS. Not i
 
 ## PRODUCTION STATUS (2026-09-24): a canary is live
 
+**2026-09-26, a known gap in an attested claim (enclave-b4's finding, from enclave-bf's review; enclave-87's ruling):** the attested RuntimeSelfTest wx result is measured at front start, before the app exists, so it does not cover the app runtime (all releases through f7888d86); fixed in the next release (the self-test is measured at each attestation and names what it covered, and a judge that relies on it rejects a document that saw no runtime). The production verifier checks the field's shape only, so no production decision rested on it.
+
+**2026-09-26, a known exposure, with its fix scheduled (enclave-b4's finding; enclave-87's ruling).** In every per-app
+guest released so far, including the live domain release 52156652, the app's runtime (wasmtime) runs as ROOT beside
+the root front: `m2/dominit.c` starts both without dropping privileges.
+- **What it takes:** an escape from the runtime, i.e. a wasmtime bug that the app, or a request to it, exploits.
+- **What it reaches:** that app's own guest, and nothing past it. There it gets:
+  - the front's TLS key and memory, since root is not held back by the front's non-dumpable flag or by Yama
+    ptrace_scope 2;
+  - the serial console the host reads;
+  - the SNP report interface, which would let it have a report made over bytes of its choosing.
+- **What it does not reach:** another app's guest (separate ASIDs and keys), or the host's memory.
+- **The fix** is `isolation/snp-dominit-yama`:
+  - the app runs as its own uid, with no capability, no group and no_new_privs;
+  - each start checks that it cannot open the console, the report interface, or init's and the front's `/proc`;
+  - Yama is held at 2 as the second guard;
+  - user namespaces (`user.max_user_namespaces=0`) and io_uring (`kernel.io_uring_disabled=2`) are off, each read
+    back; a missing or wrong value powers the domain off (enclave-bf; the kernel is 7.2.3-arch1-2).
+  It ships in the NEXT SNP domain release, after a full canary cycle and an app-compatibility check for each served
+  app (`/data` writes, egress, ports). Until then this exposure stands and is not claimed away.
+- **What the fix does NOT close** (pre-existing; enclave-5d): an escaped runtime, even as its own uid, can still open
+  AF_VSOCK sockets (there is no seccomp filter) and dial the HOST's vsock services. It cannot bind a vsock port below
+  1024, so it cannot take the front's listener. But what it may ask of the host's ticket, release and egress services
+  is bounded only by those services' own checks. A seccomp filter denying AF_VSOCK to the app closes it:
+  `isolation/runtime-seccomp` (m2/app-seccomp.h, applied to the app runtime only, never the front, in dominit and in
+  the NucBox's domexec), for the SNP release AFTER the next one and the NucBox build after v42 (enclave-87).
+
 **2026-09-25 update: the guest pool is LIVE on metal-iso0** (TASK 4c; evidence in
 `m4/evidence/pool-rollout-2026-09-25/README.txt`).
 - guestd is `~/enclave-prod/bin/guestd.c42612c0` with `-guest-mem-mib 65536 -guest-cpus 16` (Steven's request).

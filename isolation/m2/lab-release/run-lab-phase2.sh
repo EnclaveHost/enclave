@@ -86,7 +86,7 @@ PIDS+=($!)
 ( cd "$ISO/m4/guestd" && go build -o "$L/guestd" . )
 GUESTD_ENABLE=1 "$L/guestd" -gen-key "$L/pair.key" > /dev/null
 GUESTD_ENABLE=1 ISOLATION_LAB_FRONT=1 "$L/guestd" -isolation "$ISO" -root "$L/guestd-root" -listen 127.0.0.1:18095 \
-  -auth-key "$L/pair.key" -release -instance-prefix lb -ticket-port 19444 -egress-port 19445 \
+  -auth-key "$L/pair.key" -release -isolation-release none -instance-prefix lb -ticket-port 19444 -egress-port 19445 \
   -guest-mem-mib 4096 -guest-cpus 2 > "$L/guestd.log" 2>&1 &
 PIDS+=($!)
 for _ in $(seq 1 120); do curl -sf -m 2 http://127.0.0.1:18095/control/hello > /dev/null 2>&1 && break; sleep 1; done

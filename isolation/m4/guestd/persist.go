@@ -45,8 +45,12 @@ type instanceRecord struct {
 	Release                                                                                 bool // a release guest: egress stays admitted after adoption (release.go)
 	// Legacy: built from the legacy tree (-legacy-isolation). Adoption re-verifies against the RECORDED measurement, so
 	// it needs neither tree; this keeps the instance's public view (legacyImage) true across a guestd restart.
-	Legacy  bool
-	Created time.Time
+	Legacy bool
+	// Releases: the release(s) of the tree that built the guest (server.go treeReleases), named to the judge again on
+	// adoption. Absent (null) in a record an earlier guestd wrote: adoption then names -unrecorded-releases. The record
+	// only picks what the judge is told; the judge's own table decides what a release may state.
+	Releases []string
+	Created  time.Time
 }
 
 // persistRunning writes the record of an instance that just became running. Best effort: without it the instance
@@ -55,7 +59,8 @@ func (s *server) persistRunning(v *vm) {
 	s.mu.Lock()
 	rec := instanceRecord{ID: v.ID, Name: v.Name, AppID: v.AppID, Measurement: v.Measurement, RecordSha256: v.RecordSha256,
 		HostData: v.HostData, TransportKeySha256: v.TransportKeySha256, Unit: v.unit, Verdict: v.Verdict, CID: v.cid,
-		Vcpus: v.Vcpus, MemMiB: v.MemMiB, CPUPct: v.CPUPct, Created: v.Created, Release: v.release, Legacy: v.legacy}
+		Vcpus: v.Vcpus, MemMiB: v.MemMiB, CPUPct: v.CPUPct, Created: v.Created, Release: v.release, Legacy: v.legacy,
+		Releases: append([]string{}, v.releases...)}
 	dir := v.workdir
 	s.mu.Unlock()
 	b, _ := json.Marshal(rec)
@@ -110,7 +115,11 @@ func (s *server) adoptOne(ctx context.Context, dir string) string {
 	if err != nil {
 		return "no forwarder: " + err.Error()
 	}
-	verdict, keySha, err := s.L.Verify(ctx, port, rec.Measurement, rec.AppID, rec.HostData, dir)
+	rel := rec.Releases
+	if rel == nil {
+		rel = append([]string{}, s.UnrecordedReleases...) // an earlier guestd's record: the releases the operator names for those
+	}
+	verdict, keySha, err := s.L.Verify(ctx, port, rec.Measurement, rec.AppID, rec.HostData, dir, rel)
 	if err != nil || keySha != rec.TransportKeySha256 {
 		stop()
 		if err != nil {
@@ -123,7 +132,7 @@ func (s *server) adoptOne(ctx context.Context, dir string) string {
 	v := &vm{ID: rec.ID, Name: rec.Name, AppID: rec.AppID, Measurement: rec.Measurement, Status: "running", Verdict: verdict,
 		RecordSha256: rec.RecordSha256, TransportKeySha256: keySha, HostData: rec.HostData, HostPort: port,
 		Vcpus: rec.Vcpus, MemMiB: rec.MemMiB, CPUPct: rec.CPUPct, Created: rec.Created, unit: rec.Unit, cid: rec.CID,
-		workdir: dir, stopFwd: stop, lc: lc, leaseUntil: s.Now().Add(s.LeaseTTL), release: rec.Release, legacy: rec.Legacy}
+		workdir: dir, stopFwd: stop, lc: lc, leaseUntil: s.Now().Add(s.LeaseTTL), release: rec.Release, legacy: rec.Legacy, releases: rel}
 	s.mu.Lock()
 	for _, o := range s.vms {
 		if o.Name == v.Name {
