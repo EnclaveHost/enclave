@@ -38,7 +38,7 @@ function documentFor({ partition, image = IMG }) {
     boundary: "tier=T0-hv partition=hyperv-vm host_excluded=no" };
   const sig = crypto.sign(null, Buffer.concat([SIGN_DOMAIN, Buffer.from(canonical(report))]), privateKey).toString("base64");
   const doc = { format: FORMAT, tier: TIER, nonce: nonce.toString("hex"), appSha256: APP, abi: ABI2, runtime: JIT,
-                runtimeSelfTest: "exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1",
+                runtimeSelfTest: `exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 seccomp=${"d4".repeat(32)} scope=cgroup:/dom1`,
                 report: Buffer.from(JSON.stringify({ doc: report, sig })).toString("base64") };
   return { doc, nonce };
 }

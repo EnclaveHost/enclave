@@ -45,7 +45,7 @@ const NAME = `${DEP.slice(2, 10)}.app.enclave.host`;
 const VMID = "3f1c0f6e-7a2b-4c3d-8e9f-0a1b2c3d4e5f";
 const IMAGE = "ab".repeat(32);
 // the self-test a v43+ front states (the monitor's scan at each attestation), and a v42 front's start-time one
-const ATTEST_TIME = "exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1";
+const ATTEST_TIME = `exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 seccomp=${"d4".repeat(32)} scope=cgroup:/dom1`;
 const LEGACY_ST = "exec_pages=allowed wx=clean maps=3 scope=cgroup:/dom1";
 const V42 = "0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998";
 const sha = (b) => crypto.createHash("sha256").update(b).digest("hex");
