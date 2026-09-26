@@ -25,7 +25,7 @@ import http from "node:http";
 import * as chain from "./chain.mjs";
 import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces, precompile } from "./apprun.mjs";
 import { worldOf } from "./appframe.mjs";
-import { fetchSecrets } from "./secrets.mjs";
+import { fetchSecrets, secretsExist } from "./secrets.mjs";
 // enclave-e3's shared module, vendored BYTE FOR BYTE from relay/host-delegation.mjs (test/windows-node-host-delegation.test.mjs
 // pins it and replays the relay's vectors), so the relay and this node judge a delegation the same way
 import { verifyDelegation, MAX_DELEGATIONS } from "./host-delegation.mjs";
@@ -149,6 +149,8 @@ export class Host {
     /// carries (host-delegation.mjs), as refreshOwners last found them. Re-read every tick and before every claim and
     /// restart, so deleting a delegation file (or its expiry) ends that owner's authority.
     this.owners = { operator: null, delegations: [], invalid: new Map() };
+    /// Definite pre-claim refusals (#preclaimVerdict): id -> { key, reason, at }. In memory; a restart asks again once.
+    this.preclaim = new Map();
   }
   #loadState() {
     try { return JSON.parse(fs.readFileSync(this.statePath, "utf8")) || {}; } catch { return {}; }
@@ -376,6 +378,17 @@ export class Host {
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
     const retired = this.retiredEngineClaimRefusal(d);
     if (retired) { this.#record(id, { status: "refused", reason: retired, appRef: d?.appRef || "" }); return { accepted: false, reason: retired }; }
+    // A deployment for the ISOLATED backend that this box would still have to CLAIM is judged by the partition verdict
+    // first: nothing is tracked and no chain call is made for one it would refuse or cannot judge (#preclaimVerdict).
+    const heldHere = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase() && Number(d.leaseUntil) * 1000 > Date.now();
+    if (!heldHere && this.isolation) {
+      let envOpts = {}, envRead = false;
+      try { envOpts = chain.parseEnvelope(d.configCid, d.gpuMilli) || {}; envRead = true; } catch { envRead = false; }
+      if (envRead && envOpts.isolationRequire === this.isolationBackend) {
+        const pre = await this.#preclaimVerdict(id, d, v, { envOpts, envRead, force });
+        if (pre) return pre;
+      }
+    }
     this.tracked.add(id); this.#saveTracked();
     const ours = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase();
     const live = Number(d.leaseUntil) * 1000 > Date.now();
@@ -614,21 +627,86 @@ export class Host {
    * turns null into false has assumed exactly what it was asked to establish.
    */
   async #secretsState(id) {
-    if (!this.cfg.secretsSign) return null;          // we cannot ask, so we do not know
+    // WHETHER there are staged secrets - the only thing a partition's plan needs, since a partition is never handed
+    // them - from the relay's unauthenticated, lease-free /v1/secrets/exists (secrets.mjs secretsExist). It used to FETCH
+    // them as the lease holder, which (a) cannot be asked before a claim, (b) is refused for a lease holder the relay
+    // does not hold eligible (403 since U7: d1's live test 1 was held on it), and (c) pulled plaintext into this host
+    // (N4). Anything but a clear answer is null: UNKNOWN, which holds - and, before a claim, claims nothing.
+    // Secrets this box already HOLDS for the lease are a known answer (the in-enclave path fetches them; an isolated
+    // deployment never does, so for it this is only ever a test's "known: none").
     if (this.secrets.has(id)) return Object.keys(this.secrets.get(id) || {}).length > 0;
-    let r;
-    try { r = await this.loadSecrets(id); }
-    catch { return null; }                            // asking failed: still unknown, never "no"
-    // A partition is never handed secrets (node-bridge's plan refuses one that has them), so the plaintext this probe
-    // fetched is not kept: the answer is whether there ARE any (enclave-b4's N4).
-    this.secrets.delete(id);
-    // "None" only from the relay's own answer FOR THIS deployment. A relay with no secrets plane (secrets_disabled),
-    // one with no ledger row for it, or no relay configured at all is an in-enclave launch's reason to go without
-    // secrets, and it says nothing about whether this deployment HAS them: unknown, so the isolation plan holds
-    // (enclave-b4's N3).
-    if (!r || r.source !== "relay") return null;
-    // names this box's filter dropped were still STAGED by the tenant: they count as secrets the partition would lack
-    return r.count > 0 || (Array.isArray(r.dropped) && r.dropped.length > 0);
+    // No relay configured = no one to ask: unknown. Never a default address - a Host built without relayBase (a test)
+    // must not reach a live relay.
+    if (!this.cfg.relayBase) return null;
+    try { return await secretsExist({ id, base: this.cfg.relayBase }); }
+    catch (e) { this.log(`${String(id).slice(0, 10)} ${e.message}`); return null; }
+  }
+
+  /**
+   * isolationVerdict(id, d, v, { envOpts, envRead }) -> node-bridge.mjs isolationPlan's answer for this deployment: the
+   * SAME verdict before a claim (consider) and at spawn (#isolationReconcile), from the same inputs - the ledger record,
+   * the catalog version, the config the app would run with, whether secrets are staged (the relay's lease-free exists
+   * probe), the envelope's protection rules and config override (envOpts, parsed ONCE by the caller; unknown when the
+   * envelope could not be read), the model volumes the version needs, the manager's /health, and its pinned runtime.
+   * Its rules and its refusals are node-bridge's (UNKNOWN is not NO: an input that cannot be established is unknown).
+   */
+  async isolationVerdict(id, d, v, { envOpts = {}, envRead = false } = {}) {
+    const { IsolationManagerClient } = await import("./isolation-client.mjs");
+    const { isolationPlan } = await import("../vbslike/datapath/node-bridge.mjs");
+    const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
+    // The WHOLE /health object: the plan checks the manager's backend name and its derivations. null = could not ask.
+    let managerHealth = null;
+    try { managerHealth = (await client.health()) ?? null; } catch { managerHealth = null; }
+    // Which model volumes this version needs, from its own config; null (unknown) when the config cannot be read.
+    let volumes = null;
+    try {
+      const cfg = v && v.config ? (typeof v.config === "string" ? JSON.parse(v.config) : v.config) : {};
+      volumes = Array.isArray(cfg.volumes) ? cfg.volumes.slice() : [];
+    } catch { volumes = null; }
+    return isolationPlan({
+      deploymentId: id, deployment: d, version: v,
+      appConfig: await this.appConfigResolved(d, v),
+      hasSecrets: await this.#secretsState(id),
+      // {} and [] only when known to be none; an unread envelope is unknown - exactly what ensureApp records as `waf`
+      waf: envRead ? (envOpts.waf || {}) : null,
+      volumes,
+      runtimeId: this.cfg.isolationRuntimeId,
+      require: envOpts.isolationRequire ?? null,
+      manager: managerHealth,
+      appConfigCid: envRead ? String(envOpts.configCid || "") : null,
+    });
+  }
+
+  // A DEFINITE pre-claim refusal is reused for this long while the ledger's inputs are unchanged; whether secrets are
+  // staged and what the manager serves are not on the ledger, so they are asked again after it.
+  static PRECLAIM_RECHECK_MS = 10 * 60_000;
+  /**
+   * The partition verdict BEFORE a claim transaction (coordinator enclave-87, from d1's live test 1: 0x31136008 was
+   * claimed at 01:00:29Z, tx 0x0340540e, and held 2 s later on "hasSecrets ... not known here"). A deployment this box
+   * would refuse, or cannot yet judge, is never claimed: unknown -> queued, nothing spent, asked again next pass;
+   * refused -> recorded and STICKY while its ledger inputs are unchanged (PRECLAIM_RECHECK_MS), so nothing re-asks in a
+   * loop. `force` (an operator's claim hint) asks again. -> null to go on to the claim, or consider()'s refusal.
+   */
+  async #preclaimVerdict(id, d, v, { envOpts, envRead, force = false }) {
+    const key = JSON.stringify([String(d.appRef || ""), String(d.configCid || ""), String(d.cpuMilli), String(d.gpuMilli), d.isPublic === true]);
+    const was = this.preclaim.get(id);
+    if (!force && was && was.key === key && Date.now() - was.at < Host.PRECLAIM_RECHECK_MS) {
+      this.#record(id, { status: "refused", reason: was.reason, appRef: d.appRef });
+      return { accepted: false, reason: was.reason };
+    }
+    const plan = await this.isolationVerdict(id, d, v, { envOpts, envRead });
+    if (plan.ok) { this.preclaim.delete(id); return null; }
+    const reason = `isolation, before any claim: ${plan.input}: ${plan.why}`;
+    if (plan.unknown) {
+      this.preclaim.delete(id);
+      this.#record(id, { status: "queued", reason, appRef: d.appRef });
+      this.log(`${id.slice(0, 10)} not claimed: ${reason}`);
+      return { accepted: false, reason };
+    }
+    this.preclaim.set(id, { key, reason, at: Date.now() });
+    this.#record(id, { status: "refused", reason, appRef: d.appRef });
+    this.log(`${id.slice(0, 10)} not claimed: ${reason}`);
+    return { accepted: false, reason };
   }
 
   /**
@@ -656,81 +734,16 @@ export class Host {
   async #isolationReconcile(id, d, v, { envOpts = {}, envRead = false } = {}) {
     const { reconcile } = await import("./isolation-lifecycle.mjs");
     const { IsolationManagerClient } = await import("./isolation-client.mjs");
-    const { isolationPlan } = await import("../vbslike/datapath/node-bridge.mjs");
     const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
 
-    // THE BODY IS BUILT BY THE PLAN, NOT BY HAND.
-    //
-    // enclave-5d checked my hand-built record against the live ones and it was WRONG in two ways
-    // that a test here would never have caught, because both produce a perfectly well-formed body:
-    //   - the policy's memMiB came from this node's memMb (nodeFloorOf, which applies the
-    //     publisher's cpuFallback). The rule takes the version's ON-CHAIN memMb. A different
-    //     number is a different AppID from the Linux tier's for the same app, so a verifier
-    //     recomputing from the catalog would not reproduce what ran here.
-    //   - catalog.app was d.appRef with version.version, where the rule wants the bytes32 app id
-    //     and the index.
-    // One implementation of the rule, shared with the tier that already runs it, is the only way
-    // these stay equal; the plan reproduces the live records exactly (hookbin 1fb9360d, hello
-    // bff33b95).
-    //
-    // WHAT IT REFUSES, and the distinction that matters: `unknown` means an input could not be
-    // established, which is NOT the same as an input that says no. Unknown holds the lease;
-    // a definite refusal gives it back with the reason.
-    // The WHOLE /health object, not just its derivations list: the plan checks the manager's
-    // backend name too, so a manager of another backend that happens to list /1 is refused rather
-    // than used. null when it could not be asked, which the plan treats as unknown (held).
-    let managerHealth = null;
-    try { managerHealth = (await client.health()) ?? null; } catch { managerHealth = null; }
-
-    // Which model volumes this version needs, from the version's own config rather than from a
-    // literal. null when the config could not be read at all: unknown, not "none".
-    let volumes = null;
-    try {
-      const cfg = v && v.config ? (typeof v.config === "string" ? JSON.parse(v.config) : v.config) : {};
-      volumes = Array.isArray(cfg.volumes) ? cfg.volumes.slice() : [];
-    } catch { volumes = null; }
-
-    // DID THIS DEPLOYMENT ASK FOR ISOLATION?
-    //
-    // enclave-99: nothing in the plan's inputs carries the deployment's own requirement, so a
-    // deployment that never asked for a partition would be planned onto one simply because this
-    // box is configured for the backend. That is a scope decision the tenant makes, not the
-    // operator, so it is refused HERE - before the plan - rather than waiting for the plan to
-    // grow an input. A deployment that did not ask falls through to the in-enclave path, which is
-    // what it bought.
     const req = this.records.get(id)?.isolationRequired;
     if (req !== true) {
       if (req === undefined || req === null) this.log(`${id.slice(0, 10)} isolation: the deployment's envelope was not read for an isolation requirement; not isolating`);
       return null;      // fall through: not an error, just not this backend
     }
 
-    const plan = isolationPlan({
-      deploymentId: id,
-      deployment: d,
-      version: v,
-      appConfig: await this.appConfigResolved(d, v),
-      hasSecrets: await this.#secretsState(id),
-      // {} and [] ONLY when known to be none: this node parsed the envelope at claim time and
-      // recorded what it found, so an unparsed envelope must not read as "no rules".
-      waf: this.records.get(id)?.waf ?? null,
-      // DERIVED, not asserted. I wrote `volumes: []` here as a literal, flagged it to 5d as
-      // "asserted by me, not derived", and then left it - which is the same class as the
-      // hasSecrets:false I had just removed, so removing one and leaving the other was not a fix,
-      // it was a preference. enclave-99 caught it. The version's own config says which model
-      // volumes the app needs; a config we could not read is UNKNOWN and holds the lease.
-      volumes,
-      runtimeId: this.cfg.isolationRuntimeId,
-      // The tenant's requirement as a STRING, from the envelope this node parsed above. The plan
-      // refuses a deployment requiring another backend, or none - so the opt-in is now enforced in
-      // BOTH places: my gate above (which falls through to in-enclave) and the plan (which
-      // refuses). Steven asked for both, and they answer different questions: mine is "is this
-      // mine to run", the plan's is "may this be planned at all".
-      require: envOpts.isolationRequire ?? null,
-      manager: managerHealth,
-      // The deployment's config OVERRIDE cid. "" when known none; null when the envelope could not
-      // be read, which is unknown, not none.
-      appConfigCid: envRead ? String(envOpts.configCid || "") : null,
-    });
+    // THE SAME VERDICT consider() asked before the claim (isolationVerdict): one set of inputs, one answer.
+    const plan = await this.isolationVerdict(id, d, v, { envOpts, envRead });
     if (!plan.ok) {
       const why = `isolation: ${plan.input}: ${plan.why}`;
       if (plan.unknown) {

@@ -24,17 +24,17 @@ after(() => { closeManagers(); rpc.close(); });
 const sign = async () => "0x" + "11".repeat(65);
 // a relay (or whatever answers at its address) that replies `answer(call#)` to every POST /v1/secrets/fetch
 async function relayAnswering(answer) {
-  const calls = [];
+  const calls = [], paths = [];
   const srv = http.createServer((req, res) => {
     let raw = ""; req.on("data", (d) => { raw += d; });
     req.on("end", () => {
-      calls.push(raw);
-      const { status, body, type = "application/json" } = answer(calls.length - 1, JSON.parse(raw || "{}"));
+      calls.push(raw); paths.push(req.url);
+      const { status, body, type = "application/json" } = answer(calls.length - 1, JSON.parse(raw || "{}"), req.url);
       res.writeHead(status, { "content-type": type }); res.end(typeof body === "string" ? body : JSON.stringify(body));
     });
   });
   srv.listen(0, "127.0.0.1"); await once(srv, "listening");
-  return { base: `http://127.0.0.1:${srv.address().port}`, calls, close: () => srv.close() };
+  return { base: `http://127.0.0.1:${srv.address().port}`, calls, paths, close: () => srv.close() };
 }
 const PROXY_503 = () => ({ status: 503, type: "text/html", body: "<html><body>503 Service Unavailable</body></html>" });
 const DISABLED = () => ({ status: 503, body: { error: "secrets_disabled", message: "Per-deployment secrets are not configured on this relay." } });
@@ -77,31 +77,35 @@ test("the isolation plan HOLDS when the relay has no secrets plane: secrets_disa
   assert.equal(host.running().length, 0, "a partition was started on an unknown");
 });
 
-test("the isolation plan HOLDS on a proxy's 503: retried, thrown, unknown", { timeout: 30_000 }, async () => {
+test("the isolation plan HOLDS on a proxy's 503: retried once, thrown, unknown", { timeout: 30_000 }, async () => {
   const { r, host, relay } = await planWith(PROXY_503);
   assert.equal(r.status, "provisioning", JSON.stringify(r));
   assert.match(r.reason, /hasSecrets/);
-  assert.equal(relay.calls.length, 3);
+  assert.equal(relay.calls.length, 2);
+  assert.ok(relay.paths.every((p) => p === "/v1/secrets/exists"), relay.paths.join(","));
   assert.equal(host.running().length, 0);
 });
 
-test("the relay's own 200 with nothing staged is KNOWN none: the partition is started", { timeout: 30_000 }, async () => {
-  const { r, host } = await planWith((i, b) => ({ status: 200, body: { id: b.id, rev: 0, env: {} } }));
+test("the relay's exists:false is KNOWN none: the partition is started, and nothing was fetched", { timeout: 30_000 }, async () => {
+  const { r, host, relay } = await planWith((i, b) => ({ status: 200, body: { id: b.id, exists: false } }));
   assert.equal(r.status, "running", r.reason);
   assert.equal(host.running().length, 1);
+  assert.deepEqual([...new Set(relay.paths)], ["/v1/secrets/exists"], "the isolated backend fetched secrets");
 });
 
-test("names the node's filter drops were still STAGED: the plan refuses rather than run without them", { timeout: 30_000 }, async () => {
-  const { r, host } = await planWith((i, b) => ({ status: 200, body: { id: b.id, rev: 1, env: { "not a name": "x" } } }));
-  assert.notEqual(r.status, "running", JSON.stringify(r));
-  assert.match(r.reason, /hasSecrets: the deployment has staged secrets/);
-  assert.equal(host.running().length, 0);
+test("an exists answer for ANOTHER id, or without a boolean, is unknown - never 'none'", { timeout: 30_000 }, async () => {
+  for (const body of [{ id: "0x" + "99".repeat(32), exists: false }, (b) => ({ id: b.id, exists: "no" })]) {
+    const { r, host } = await planWith((i, b) => ({ status: 200, body: typeof body === "function" ? body(b) : body }));
+    assert.equal(r.status, "provisioning", JSON.stringify(r));
+    assert.match(r.reason, /hasSecrets: whether the deployment has staged secrets is not known here/);
+    assert.equal(host.running().length, 0);
+  }
 });
 
 test("N4: a deployment WITH secrets is refused with a reason that does not overstate it, and the plaintext is not kept", { timeout: 30_000 }, async () => {
   const host = new FakeHost();
   const m = await bootManager(host, 0);
-  const relay = await relayAnswering((i, b) => ({ status: 200, body: { id: b.id, rev: 2, env: { API_TOKEN: "t0p" } } }));
+  const relay = await relayAnswering((i, b) => ({ status: 200, body: { id: b.id, exists: true } }));
   const h = servedOwner(new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-sec-n4-")), endpoint: "https://api.enclave.host/t/test",
     name: "test", appsEnabled: true, cpuPricePerSec6: 12, log: () => {}, isolationManager: `http://127.0.0.1:${m.port}`,
     isolationRuntimeId: REC.runtimeId, relayBase: relay.base, engineRetired: true }), dep().owner);
@@ -112,6 +116,7 @@ test("N4: a deployment WITH secrets is refused with a reason that does not overs
   assert.match(r.reason, /cannot deliver them into a partition/);
   assert.match(r.reason, /does not keep them from this host/);
   assert.doesNotMatch(r.reason, /would cross this host/);
-  assert.equal(h.secrets.has(DEP), false, "the fetched plaintext is still held in the agent");
+  assert.equal(h.secrets.has(DEP), false, "plaintext is held in the agent");
+  assert.ok(relay.paths.every((p) => p === "/v1/secrets/exists"), `the node fetched secrets: ${relay.paths.join(",")}`);
   assert.equal(host.running().length, 0);
 });
