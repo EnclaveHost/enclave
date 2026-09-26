@@ -1,0 +1,5 @@
+[isolation] 0x6b1781ff: guest gdea8df09e app 94c04c0edb6b4ca1… (enclave-isolation-policy/1 {"cpuPercent":100,"memMiB":128,"vcpus":1}, record bc1ac3be7625a1f4…)
+[isolation] 0x6b1781ff: release ticket handed to guest gdea8df09e
+[isolation] 0x6b1781ff: no certificate for 6b1781ff.app.enclave.host (the relay's expected guest answered HTTP 503 warming; nothing issued); retry in 60s
+[isolation] 0x6b1781ff: no certificate for 6b1781ff.app.enclave.host (order for 6b1781ff.app.enclave.host in flight); retry in 30s
+[isolation] 0x6b1781ff: certificate for 6b1781ff.app.enclave.host installed in guest gdea8df09e (key a785f12b5ab7aa95…, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2026-12-25T23:59:59.000Z; guest attested)

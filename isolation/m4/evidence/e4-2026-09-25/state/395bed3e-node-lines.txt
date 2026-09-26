@@ -1,0 +1,5 @@
+[isolation] 0x395bed3e: guest gd65f964b3 app 9c3d10f1450e17bc… (enclave-isolation-policy/1 {"cpuPercent":100,"memMiB":128,"vcpus":1}, record bff33b951aade0a9…)
+[isolation] 0x395bed3e: refused (not-running) the instance is starting
+[isolation] 0x395bed3e: release ticket handed to guest gd65f964b3
+[isolation] 0x395bed3e: no certificate for 395bed3e.app.enclave.host (order for 395bed3e.app.enclave.host in flight); retry in 30s
+[isolation] 0x395bed3e: certificate for 395bed3e.app.enclave.host installed in guest gd65f964b3 (key 9f78d94ca143df7e…, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2026-12-25T23:59:59.000Z; guest attested)

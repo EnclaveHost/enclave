@@ -1,0 +1,9 @@
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H
+DOM snp=1 vcpus=1 memMiB=883 boot_ms=798
+DOM runtime wasmtime/48.0.1 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8
+DOM runtime selftest exec_pages=allowed wx=clean maps=2 scope=all-processes
+DOM certificate: this domain may certify 395bed3e.app.enclave.host (HOST_DATA 395bed3e2e24efa0...)
+DOM release: deployment 0x395bed3e... envelope 42c6f115f763f544... 1 allowed origin(s), 0 refused, config 194 bytes
+DOM app config: 194 bytes (ENCLAVE_CONFIG)
+DOM started app=81 front=77 at_ms=11189
+DOM serving vsock=443 spki_sha256=9f78d94ca143df7e3c312eebf77f8ec2bbf7cd4eec2243bd5d0af7a66d6d1be4 ready_ms=11252
