@@ -42,7 +42,12 @@ test("an isolation-only node (TPM-only identity, tier hv-node) advertises no app
   const h = box({ engineRetired: true, claimScope: "market", isolationManager: "http://127.0.0.1:1" });
   h.relayTier = "hv-node";
   const a = h.availability();
-  assert.equal(a.apps.inTee, false); assert.equal(a.apps.capacity, 0);
+  // It hosts partitions for its operator and delegated owners and SAYS so (enclave-b4's N5: apps.isolation names the
+  // backend, T0-hv, host not excluded); what keeps it off the market is claimEnabled (the isolation contract is not met)
+  // and the owner-only claim policy below. Nothing in relay/ or site/ sells from apps.capacity.
+  assert.equal(a.apps.inTee, false);
+  assert.equal(a.claimEnabled, false, "an hv node must never take market work");
+  assert.equal(a.apps.isolation, "hyperv-partition-per-app"); assert.equal(a.apps.hostExcluded, false);
   const d = { createdAt: 1n, active: true, owner: STRANGER, isPublic: true, runner: "0x" + "00".repeat(32), leaseUntil: 0n,
               configCid: ISOLATED, gpuMilli: 0 };
   assert.match(chain.claimPolicy(d, { scope: h.scope(), ownerAllow: h.ownerSet(), enclaveId: h.enclaveId,

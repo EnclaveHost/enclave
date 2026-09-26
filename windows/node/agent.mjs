@@ -579,6 +579,8 @@ function connect() {
         } else if (f.t === 'attest-result') {
           if (f.ok) { tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
                       host.relayTier = tier;   // the host's contract gate reads the relay's verdict, not ours
+                      // the relay's word on host exclusion, kept as given (hv-node: false); never raised by this node
+                      host.relayHostExcluded = typeof f.hostExcluded === 'boolean' ? f.hostExcluded : null;
                       attachedAt = Date.now(); log(`attach ACCEPTED tier=${tier} measurement=${String(f.measurement || '').slice(0, 16)}`); send({ t: 'hello', name: NAME, mode: LEGACY_ENGINE ? 'vbs' : 'hv-node', publicUrl: PUBLIC_URL, transportKeyFp: spkiFp }); }
           else log(`attach REJECTED: ${f.reason}`);
         } else if (f.t === 'ping') send({ t: 'pong' });
