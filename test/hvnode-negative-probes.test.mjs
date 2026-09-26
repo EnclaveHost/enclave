@@ -7,6 +7,8 @@
 // - R2: its block is run by bash with a curl shim, $ID set to a live id; R2b is asserted statically (its fetch goes to
 //   the production relay, so it is not run here).
 //   run: node --test test/hvnode-negative-probes.test.mjs
+//   offline proof (nothing live is reachable): unshare -rn sh -c 'ip link set lo up && node --test test/hvnode-negative-probes.test.mjs'
+//   (a fresh -rn namespace has lo DOWN: without `ip link set lo up` the fake-node cases fail for that reason alone; enclave-5d)
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
