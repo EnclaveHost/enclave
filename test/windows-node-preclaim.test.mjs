@@ -60,18 +60,24 @@ async function node(answer) {
 const TX = /^eth_(sendRawTransaction|sendTransaction|estimateGas|getTransactionCount)$/;
 const claimSide = (from) => rpc.calls.slice(from).filter((m) => TX.test(m));
 
-test("an UNKNOWN has-secrets answer means no claim at all: queued, not tracked, no transaction prepared", async () => {
-  rpc.row.current = row();
-  const { h, r } = await node(() => ({ status: 503, body: { error: "secrets_disabled" } }));
-  const from = rpc.calls.length;
-  const out = await h.consider(DEP);
-  r.close();
-  assert.equal(out.accepted, false);
-  assert.match(out.reason, /before any claim: hasSecrets: whether the deployment has staged secrets is not known here/);
-  assert.equal(h.records.get(DEP).status, "queued");
-  assert.equal(h.tracked.has(DEP), false, "tracked before its verdict");
-  assert.deepEqual(claimSide(from), [], "a claim was prepared");
-  assert.ok(r.paths.every((p) => p === "/v1/secrets/exists"));
+test("an UNKNOWN has-secrets answer (a 5xx, a garbage body) means no claim at all: queued, not tracked, no transaction prepared", async () => {
+  for (const answer of [() => ({ status: 503, body: { error: "secrets_disabled" } }), () => ({ status: 500, body: "garbage" }),
+                        () => ({ status: 200, body: { nonsense: true } }), (b) => ({ status: 200, body: { id: b.id, exists: "maybe" } })]) {
+    rpc.row.current = row();
+    const { h, r } = await node(answer);
+    const from = rpc.calls.length;
+    const out = await h.consider(DEP);
+    assert.equal(out.accepted, false);
+    assert.match(out.reason, /before any claim: hasSecrets: whether the deployment has staged secrets is not known here/);
+    assert.equal(h.records.get(DEP).status, "queued");
+    assert.equal(h.tracked.has(DEP), false, "tracked before its verdict");
+    assert.deepEqual(claimSide(from), [], "a claim was prepared");
+    assert.ok(r.paths.length <= 2 && r.paths.every((p) => p === "/v1/secrets/exists"), r.paths.join(","));
+    // asked again on the next pass - a probe, never a claim
+    await h.consider(DEP);
+    assert.deepEqual(claimSide(from), []);
+    r.close();
+  }
 });
 
 test("a DEFINITE refusal (secrets staged) is sticky: asked once, not re-asked while the ledger's inputs are unchanged, re-asked when they change", async () => {
