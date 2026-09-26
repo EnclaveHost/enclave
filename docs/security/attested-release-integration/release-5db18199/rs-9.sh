@@ -10,6 +10,17 @@
 # predictor problem right after the restart rolls this step back at once. Then: rs-9-accept.sh apply|rollback.
 set -euo pipefail; source ~/enclave-bench/relay-slice-20260925/lib.sh
 MODE=${1:?usage: rs-9.sh apply|rollback}; H=$(cd "$(dirname "$0")" && pwd)
+# ROLLBACK GUARD (enclave-bf's should-fix, required by enclave-87 before S8): once 63's S8 has switched guestd to the 0c087de8
+# tree (5db18199), a rollback would UNINSTALL the release its new guests run on (no secrets, no certificates). So rollback refuses
+# while S8's epoch file exists - roll S8 back first (63) - unless OVERRIDE=<reason> says why not. The apply-time automatic
+# rollback (a predictor problem right after the restart) always runs before S8, so it is unaffected.
+S8_EPOCH=${S8_EPOCH:-$HOME/enclave-bench/fl-20260926/state/s8-switched-epoch}
+if [ "$MODE" = rollback ] && [ -e "$S8_EPOCH" ]; then
+  if [ -z "${OVERRIDE:-}" ]; then
+    echo "REFUSING rs-9 rollback: S8 has switched guestd to 5db18199 at epoch $(cat "$S8_EPOCH" 2>/dev/null) ($S8_EPOCH): roll S8 back FIRST (enclave-63), or OVERRIDE=<reason>"; exit 4
+  fi
+  echo "rs-9 rollback AFTER S8, overridden: $OVERRIDE"
+fi
 DEST=/opt/enclave-predict/rel-5db18199ef0d-b
 NEW_SHA=e630e880799b5cc7e57df0fe494963204af9ff195b74d0452985b10acdee7e02   # predict-lines.env (staged 05:12:03-05:12:41Z, sandboxed check PASS)
 OLD_SHA=34f409e4586ebb3021ed2582e5754c055ac08f5c90e3cf2e62d0424f4a8c8e15   # predict-lines.before.env (= the live three lines, key order)

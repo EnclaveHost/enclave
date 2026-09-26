@@ -1,0 +1,5 @@
+# the rollback guard, sandboxed (warden-host 05:21Z): a copy of the guarded rs-9.sh with nan stubbed
+1. rollback WITH the S8 epoch file: REFUSED rc=4, 0 nan calls
+2. rollback WITH the file + OVERRIDE=test: proceeds ('overridden: test'), nan called
+3. rollback WITHOUT the file: proceeds as before, no guard line
+4. apply WITH the file: the guard is rollback-only, proceeds
