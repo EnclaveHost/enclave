@@ -78,3 +78,14 @@ test("controls: a RUNNING partition and one merely provisioning (no hold) ARE re
   const starting = await tickWith({ status: "provisioning", reason: "isolation: starting" }, 600);
   assert.ok(starting.renewed >= 1, starting.logs.join(" / "));
 });
+
+test("a REBOOT-RECOVERY hold (#rebootHold: the fresh partition did not come up, no VM left to name): NOT renewed; lapsed: stopped", async () => {
+  const held = { status: "held", rebootHeld: "isolation: reboot recovery: the fresh partition did not come up: ...; held", reason: "reboot held" };
+  const a = await tickWith(held, 600);
+  assert.equal(a.renewed, 0, a.logs.join(" / "));
+  assert.equal(a.logs.filter((l) => /NOT renewed: this box is not serving it/.test(l)).length, 1);
+  const b = await tickWith(held, -60);
+  assert.equal(b.rec.status, "stopped", JSON.stringify(b.rec));
+  assert.equal(b.rec.rebootHeld ?? null, null, "cleared once stopped");
+  assert.equal(b.h.tracked.has(DEP), false);
+});

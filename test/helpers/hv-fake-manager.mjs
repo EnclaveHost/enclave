@@ -27,7 +27,9 @@ export const PLANNED = { appId: REC.catalog.app, index: REC.catalog.version, cid
 const BOUNDARY = { tier: "t0-hv", partition: "hyperv-vm", hostExcluded: false, attested: false };
 
 export class FakeHost {
-  constructor() { this.vms = new Map(); this.surveyFails = false; this.stopFails = false; this.stops = 0; }
+  constructor() { this.vms = new Map(); this.surveyFails = false; this.stopFails = false; this.stops = 0; this.starts = 0; this.startFails = false; }
+  // a HOST restart: every VM is Off (the launcher sets AutomaticStartAction Nothing), and nothing in them runs
+  reboot() { for (const vm of this.vms.values()) vm.state = "Off"; }
   running() { return [...this.vms.values()].filter((x) => x.state === "Running"); }
   // a VM under this manager's prefix that carries only the bare owner marker: what an upgrade leaves behind
   addOrphan(name = "enclave-app-orphan") { this.vms.set(name, { name, vmId: crypto.randomUUID(), state: "Running", notes: OWNER_MARKER }); }
@@ -37,6 +39,8 @@ export class FakeLauncher {
   constructor(host, { legacyNotes = false } = {}) { this.host = host; this.prefix = "enclave-app-"; this.legacyNotes = legacyNotes; }
   async preflight() { return { ok: true, checks: [{ name: "fake", ok: true }] }; }
   async start(mapping, { instanceId, identity } = {}) {
+    this.host.starts++;
+    if (this.host.startFails) throw new Error("Start-VM failed (fake)");
     const notes = identity && !this.legacyNotes ? notesFor({ ...identity, instanceId }) : OWNER_MARKER;
     const name = this.prefix + instanceId, vmId = crypto.randomUUID();
     this.host.vms.set(name, { name, vmId, state: "Running", notes, appId: mapping.appId });
@@ -47,7 +51,9 @@ export class FakeLauncher {
   async stop(handle) {
     this.host.stops++;
     if (this.host.stopFails) throw new Error("Stop-VM failed (fake)");
-    if (!handle || !handle.vmId) throw new Error("by id only");
+    // a record whose start threw has no handle: nothing was created, as the real launcher answers (wmi-launcher.mjs stop)
+    if (!handle) return { stopped: false, reason: "no handle" };
+    if (!handle.vmId) throw new Error("by id only");
     const vm = [...this.host.vms.values()].find((x) => x.vmId === handle.vmId);
     if (vm) this.host.vms.delete(vm.name);
     return { stopped: true, removed: !!vm, name: handle.name ?? null, vmId: handle.vmId };
@@ -67,20 +73,26 @@ const live = new Set();
 /** Close every manager this module started (call from the test file's `after`). */
 export function closeManagers() { for (const s of live) { s.closeAllConnections?.(); s.close(); } live.clear(); }
 
-export async function bootManager(host, port = 0, { legacyNotes = false } = {}) {
-  const manager = new Manager({ judgeReady: judgeRunning, runtimeId: REC.runtimeId, fetchComponent: async () => component,
+// judgeReady: the readiness verdict (default: running on one fixed key); kept across restartManager
+export async function bootManager(host, port = 0, { legacyNotes = false, judgeReady = judgeRunning } = {}) {
+  const manager = new Manager({ judgeReady, runtimeId: REC.runtimeId, fetchComponent: async () => component,
                                 backend: new HyperVPartitionBackend({ launcher: new FakeLauncher(host, { legacyNotes }) }) });
   await startManager(manager);
   const server = createServer(manager);
   await new Promise((res) => server.listen(port, "127.0.0.1", res));
   live.add(server);
-  return { manager, server, port: server.address().port };
+  return { manager, server, port: server.address().port, judgeReady };
 }
 export async function restartManager(m, host) {
   m.server.closeAllConnections?.();
   await new Promise((r) => m.server.close(r)); live.delete(m.server);
-  return await bootManager(host, m.port);
+  return await bootManager(host, m.port, { judgeReady: m.judgeReady });
 }
+/** A readiness verdict whose transport key is the partition's own (sha256 of the VM id the launcher names): every
+ *  fresh partition answers on a NEW key, as a real one does. */
+export const judgeRunningPerVm = async (a) => ({ status: "running",
+  transportKeySha256: crypto.createHash("sha256").update(String(a.expectedVmId || a.port)).digest("hex"),
+  checks: { document: { ok: true, verdict: "monitor-signed" }, ready: { ok: true } } });
 // no keep-alive: a restart on the same port must not be answered by a pooled socket to the old process
 function freshFetch(url, { method = "GET", headers = {}, body, signal } = {}) {
   return new Promise((resolve, reject) => {
