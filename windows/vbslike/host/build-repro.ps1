@@ -1,6 +1,7 @@
 # build-repro.ps1 - build vbslike-host.exe TWICE from clean with deterministic flags and record what a pin needs (enclave-d1,
 # v42). Run ON THE BOX from a lab copy: -Lab <dir> holding src\windows\vbslike\host (git archive of this crate). Touches only -Lab.
 # Deterministic: /Brepro (content-derived timestamp + PDB GUID), /PDBALTPATH:%_PDB% (no build dir in the PE), --remap-path-prefix.
+param([Parameter(Mandatory = $true)][string]$Lab)
 $ErrorActionPreference = 'Continue'
 $env:Path = "$env:USERPROFILE\.cargo\bin;" + $env:Path
 function Rec([string]$m) { $l = (Get-Date).ToUniversalTime().ToString('HH:mm:ssZ') + ' ' + $m; Write-Output $l; Add-Content -Path "$Lab\BUILD.txt" -Value $l }
