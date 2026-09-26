@@ -93,7 +93,12 @@ for (const id of live) if (!LISTED.some(([x]) => x === id)) { console.log(`FAIL 
 // the isolation hosts, DERIVED (enclave-87's backlog, enclave-bf's note): every /enclaves row whose mode the relay VERIFIED at
 // attach as "snp" (never the row's own isolation word) - today metal-iso0. Conservative: a future shared-enclave SNP host would
 // show its (unlisted) leases here and refuse, which OVERRIDE=<reason> can pass knowingly. None at all = fail closed.
-const ENCL = await (await fetch("https://api.enclave.host/enclaves", { signal: AbortSignal.timeout(20000) })).json().catch(() => null);
+// SCOPE BOUNDARY (enclave-bf): an SNP machine that attached some OTHER way (not mode snp) is outside HOSTS - its LISTED leases are
+// still chip-verified below, only its unlisted leases escape this check (today only metal-iso0 runs guestd). A network error is a
+// readable FAIL (fail closed), not an uncaught rejection.
+let ENCL = null;
+try { ENCL = await (await fetch("https://api.enclave.host/enclaves", { signal: AbortSignal.timeout(20000) })).json(); }
+catch (e) { console.log(`FAIL scope: /enclaves could not be read (${e.message})`); }
 const HOSTS = new Set(((ENCL && ENCL.enclaves) || []).filter((e) => e && e.mode === "snp" && /^0x[0-9a-f]{64}$/i.test(String(e.id || ""))).map((e) => String(e.id).toLowerCase()));
 if (!HOSTS.size) { console.log("FAIL scope: no verified SNP host in /enclaves (unreadable or empty): refuse"); all = false; }
 else console.log(`--   scope hosts (verified mode snp): ${[...HOSTS].map((x) => x.slice(0, 10)).join(", ")}`);
