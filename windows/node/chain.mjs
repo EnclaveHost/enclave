@@ -441,10 +441,14 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
   if (!appsEnabled) return "this node is not hosting apps (set APPS=1)";
   if (!d || !Number(d.createdAt)) return "no such deployment on the ledger";
   if (!d.active) return "the deployment is not active";
-  const owners = !!ownerAllow && String(d.owner || "").toLowerCase() === String(ownerAllow).toLowerCase();
+  // ownerAllow: the SET of owners this box serves (host.mjs ownerSet: its operator and its delegated owners), or one
+  // address. Membership, never one equality: the claim, the scan, the restart gate and the sweep ask the same set.
+  const allow = new Set([...(ownerAllow instanceof Set ? ownerAllow : Array.isArray(ownerAllow) ? ownerAllow : ownerAllow ? [ownerAllow] : [])]
+                          .map((a) => String(a).toLowerCase()));
+  const owners = allow.has(String(d.owner || "").toLowerCase());
   if (scope === "owner-only") {
-    if (!ownerAllow) return "this node is in owner-only scope and no owner wallet is declared";
-    if (!owners) return `this node is in owner-only scope and hosts only ${ownerAllow} (this one is owned by ${d.owner})`;
+    if (!allow.size) return "this node is in owner-only scope and serves nobody: no operator key and no valid delegation";
+    if (!owners) return `this node is in owner-only scope and hosts only its operator's and its delegated owners' deployments (${[...allow].join(", ")}; this one is owned by ${d.owner})`;
   } else if (!owners && !invited && !legacy && Number(listedAt) > 0 && Number(d.createdAt) < Number(listedAt)) {
     return "it was created before this box was listed, and this box is a VBS enclave on a consumer PC:"
          + " an app runs inside the enclave, but the enclave protects it against this machine's software,"
@@ -502,7 +506,10 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
       return "it bought a share of a card and this box has none to sell; redeploy with {\"gpu\":{\"optional\":true}} to let it run on cores instead of queueing";
     const wantCard = Number(d.gpuMilli) / 1000;
     if (wantCard > (capacity.gpuShareFree ?? 0) + 1e-9)
-      return `it asks for ${Math.round(wantCard * 100)}% of this box's card and ${Math.round((capacity.gpuShareFree ?? 0) * 100)}% of it is left to sell`;
+      return capacity.gpuCap
+        ? `it asks for ${Math.round(wantCard * 100)}% of this box's card, and the owner offers ${Math.round(capacity.gpuCap.offered * 100)}%`
+          + ` of this box's GPU to hosting with ${Math.round(capacity.gpuCap.used * 100)}% of that in use`
+        : `it asks for ${Math.round(wantCard * 100)}% of this box's card and ${Math.round((capacity.gpuShareFree ?? 0) * 100)}% of it is left to sell`;
   }
   // APPROVAL, mirrored from the platform runner's approvalVerdict (supervisor.js): rejected and
   // yanked are refused always, and a version still awaiting the catalog owner's approval is
@@ -523,8 +530,13 @@ export function claimPolicy(d, { ownerAllow, enclaveId, appsEnabled = true, scop
     const want = Number(d.cpuMilli) / 1000;
     if (capacity.slotsFree != null && capacity.slotsFree <= 0)
       return `this box is running its ${capacity.slots} app slots already`;
+    // The box owner's hosting cap (windows/node/hosting.mjs), named when it is what limits: the box is not full, its
+    // owner offers less of it.
     if (want > (capacity.cpuShareFree ?? 0) + 1e-9)
-      return `it asks for ${Math.round(want * 100)}% of a node and this box has ${Math.round((capacity.cpuShareFree ?? 0) * 100)}% left to sell`;
+      return capacity.cpuCap
+        ? `it asks for ${Math.round(want * 100)}% of a node, and the owner offers ${Math.round(capacity.cpuCap.offered * 100)}%`
+          + ` of this box's CPU to hosting with ${Math.round(capacity.cpuCap.used * 100)}% of that in use`
+        : `it asks for ${Math.round(want * 100)}% of a node and this box has ${Math.round((capacity.cpuShareFree ?? 0) * 100)}% left to sell`;
     if (version && capacity.ramMbFree != null) {
       const floor = nodeFloorOf(version);
       if (floor.memMb > capacity.ramMbFree)

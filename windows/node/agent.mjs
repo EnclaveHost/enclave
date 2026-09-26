@@ -17,6 +17,10 @@
 //   HOST_EXE, ENCLAVE_DLL, HOST_PORT (9596), THREADS (8), CTX (1024)
 //   TPMATTEST_EXE, PUBLIC_URL (the https://<relay>/t/<name> route a registered seller claims)
 //   NODE_OPERATOR_KEY    hex private key of the on-chain operator, to sign the attach challenge when the name is registered
+//   HOSTING_ADMIN_PORT   the owner's local hosting controls (hosting.mjs; the tray app, windows/tray), 127.0.0.1 only,
+//                        default 9610, 0 = off. HOSTING_ADMIN_TOKEN_FILE (default %ProgramData%\Enclave\hosting\hosting-admin.token),
+//                        HOSTING_TRAY_USER (the interactive account the tray runs as, granted read on that file),
+//                        HOSTING_CAPS_FILE (default hosting-caps.json in NODE_DIR)
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import fs from 'node:fs';
@@ -33,6 +37,8 @@ import { parseAbiReply } from './appframe.mjs';
 import { initSessionKey, mint as mintSession, addressFor } from './session.mjs';
 import { nonceStore, siweMessage, verifyLogin } from './siwe.mjs';
 import { HV_NODE_FORMAT, buildHvNodeFrame, loadOrCreateNodeKey } from './hvnode-evidence.mjs';
+import { mintToken, startHostingAdmin, tokenFileDefault } from './hosting.mjs';
+import { finishHvAttach, relayTakesV2, shouldReattach } from './hvnode-attach.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
 // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
@@ -63,8 +69,9 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), '[node
 // Hosting apps (APPS=1): this box holds a lease on the ledger and runs that deployment's app under
 // wasmtime, in VTL0. With APPS off it reports no claimEnabled at all and the relay keeps it out of
 // the serving set, which is the honest reading: a box hosting nothing sells nothing.
-// CLAIM_SCOPE=market (the default) takes any wallet's public deployment this box can honour;
-// CLAIM_SCOPE=owner-only narrows it to the box owner's own. chain.mjs claimPolicy has each rule.
+// CLAIM_SCOPE is owner-only by default (below): only the operator's and its delegated owners' deployments (host.mjs
+// ownerSet). CLAIM_SCOPE=market is honoured only by a box that meets the isolation contract (host.scope), which no
+// Windows node does today. chain.mjs claimPolicy has each rule.
 const APPS = /^(1|true|yes)$/i.test(String(process.env.APPS || ''));
 // THE LEGACY VBS-ENCLAVE ENGINE IS RETIRED (Steven, 2026-09-25): this node hosts only the isolated backend (a Hyper-V
 // type-1 partition per app, windows/vbslike). The engine (ee-host.exe + ee-engine.dll) and its worker start ONLY
@@ -76,6 +83,9 @@ const APPS = /^(1|true|yes)$/i.test(String(process.env.APPS || ''));
 const LEGACY_ENGINE = /^legacy$/i.test(String(process.env.ENCLAVE_ENGINE || ''));
 const NO_ENGINE = 'this node runs only the isolated backend: the VBS enclave engine is retired, so this service is unavailable';
 let nodeKey = null;          // windows-hv-node/v1: the agent's own Ed25519 transport key, a HOST key
+// What the last hv-node attach told the relay (hvnode-attach.mjs): its signature version and the owners it carried, so a
+// change in whom this node serves is followed by a new attach. `redialNow` ends the live tunnel; its close handler redials.
+let attachSent = null, attachedOwnersVersion = null, lastOwnerRedial = 0, redialNow = () => {};
 // The app-zone half: built once APPS is on, because it needs the host to know which deployment
 // runs where and which certificate belongs to it.
 let zone = null;
@@ -179,6 +189,8 @@ const host = new Host({
   gateway: process.env.IPFS_GATEWAY || 'https://ipfs.enclave.host',
   portBase: Number(process.env.APP_PORT_BASE || 9700),
   appSlots: Number(process.env.APP_SLOTS || 4),
+  // The owner's hosting caps (hosting.mjs), beside the node's other state unless set.
+  hostingCapsFile: process.env.HOSTING_CAPS_FILE || '',
   // TEMPORARY: see host.mjs. Lets an app that bought a card share run even though its world
   // has no import that reaches the enclave's model.
   allowCardWithoutModel: /^(1|true|on)$/i.test(process.env.ENCLAVE_ALLOW_CARD_WITHOUT_MODEL || ''),
@@ -356,6 +368,14 @@ async function isolationHealth() {
     return await new IsolationManagerClient({ base: host.cfg.isolationManager }).health();
   } catch (e) { log(`isolation manager health unavailable: ${e.message}`); return null; }
 }
+// The operator key's personal_sign, for the hv-node attach (hvnode-attach.mjs picks the text); null without a key.
+async function operatorSigner() {
+  try {
+    const { loadOperator } = await import('./chain.mjs');
+    const acct = loadOperator(path.join(DIR, 'operator.key'));
+    return acct ? (message) => acct.signMessage({ message }) : null;
+  } catch (e) { log(`operator signature unavailable: ${e.message}`); return null; }
+}
 async function operatorSig(nonceB64) {
   try {
     const { loadOperator } = await import('./chain.mjs');
@@ -483,10 +503,11 @@ async function handle(frame) {
     return app ? json(200, { id, lines: app.logs(200) }) : json(404, { error: 'not_found', id });
   }
   if (APPS && method === 'POST' && /^\/v1\/deployments\/0x[0-9a-fA-F]{64}\/restart$/.test(p)) {
-    const id = p.split('/')[3].toLowerCase();
-    let d; try { d = await (await import('./chain.mjs')).readDeployment(id); } catch (e) { return json(502, { error: 'chain', message: e.message }); }
-    const r = await host.ensureApp(id, d, { force: true });
-    return json(200, r);
+    // host.restartRequest: the OWNER's session on this box (401 without one, 404 for anyone else), then this box's live
+    // lease and the owner rule (409). This route used to run ANY ledger deployment here, for anyone (enclave-b4's N1;
+    // the caller check is enclave-5d's review of it).
+    const r = await host.restartRequest(p.split('/')[3], frame.headers);
+    return json(r.status, r.body);
   }
   // The platform's own "come and claim this" nudge (the relay sends it after funding, the console
   // when a row reads queued). The policy in chain.mjs decides; a refusal names its reason.
@@ -550,13 +571,19 @@ function connect() {
                                     maxPayload: Math.round((Number(process.env.ENCLAVE_APP_MAX_BODY_MB) || 64) * 1048576 * 1.4) });
     const send = (o) => { try { ws.send(JSON.stringify(o)); } catch {} };
     tunnelSend = send;
+    redialNow = () => { try { ws.terminate(); } catch {} };
     tunnelBuffered = () => { try { return ws.bufferedAmount || 0; } catch { return 0; } };
     let last = Date.now(); const live = setInterval(() => { if (Date.now() - last > 90_000) { log('tunnel silent for 90s, redialing'); try { ws.terminate(); } catch {} } }, 15_000);
     ws.on('open', () => { last = Date.now(); log('tunnel open, waiting for the challenge'); });
     ws.on('message', async (data) => {
       last = Date.now(); let f; try { f = JSON.parse(data); } catch { return; }
       try {
-        if (f.t === 'challenge') { pending = { nonce: f.nonce }; send(await keysFrame()); log('sent TPM keys'); }
+        if (f.t === 'challenge') {
+          const kf = await keysFrame();
+          // the EK certificate exactly as sent (attach signature v2 binds its sha256) and whether the relay verifies v2
+          pending = { nonce: f.nonce, v2: relayTakesV2(f), ekCertDer: Buffer.from(kf.ek, 'base64') };
+          send(kf); log('sent TPM keys');
+        }
         else if (f.t === 'vbs-credential') {
           if (!pending) return;
           if (LEGACY_ENGINE) {
@@ -572,12 +599,23 @@ function connect() {
               spki: nodeKey.spki, privateKey: nodeKey.privateKey, tpm: tpmCmd,
               managerHealth: await isolationHealth(), platform: await platformInfo() });
             spkiFp = createHash('sha256').update(nodeKey.spki).digest('hex');
-            const sig = await operatorSig(pending.nonce); if (sig) frame.operatorSig = sig;
-            send(frame); log(`sent ${HV_NODE_FORMAT} evidence (quote, credential, log, signed binding)`);
+            // The operator's signature and the owners' delegations (hvnode-attach.mjs, enclave-e3's format): v2, and the
+            // delegations with it, only when the relay's challenge says it verifies v2 - a relay that checks v1 alone
+            // would refuse a v2 signature for this registered name. Delegations re-read now, so the attach is current.
+            if (APPS) await host.refreshOwners().catch((e) => log(`owners: ${e.message}`));
+            const x = await finishHvAttach(frame, { name: NAME, nonceB64: pending.nonce, spki: nodeKey.spki, ekCertDer: pending.ekCertDer,
+                                                    v2: pending.v2, sign: await operatorSigner(), delegations: APPS ? host.attachDelegations() : [] });
+            // the version of the list this frame CARRIES (x.delegations), not of whatever the host holds after the awaits above
+            attachSent = { version: x.version, owners: APPS ? host.ownersVersion(undefined, x.delegations) : null };
+            send(frame); log(`sent ${HV_NODE_FORMAT} evidence (quote, credential, log, signed binding), attach signature v${x.version}`
+              + (x.version === 2 ? `, ${x.delegations.length} delegation(s)` : ' (the relay offered no v2: it serves no delegated owner from this attach)'));
           }
         } else if (f.t === 'attest-result') {
           if (f.ok) { tier = f.tier || '';   // the relay's verdict (vbs | vbs-dev); never our own claim
+                      attachedOwnersVersion = attachSent && attachSent.version === 2 ? attachSent.owners : null;
                       host.relayTier = tier;   // the host's contract gate reads the relay's verdict, not ours
+                      // the relay's word on host exclusion, kept as given (hv-node: false); never raised by this node
+                      host.relayHostExcluded = typeof f.hostExcluded === 'boolean' ? f.hostExcluded : null;
                       attachedAt = Date.now(); log(`attach ACCEPTED tier=${tier} measurement=${String(f.measurement || '').slice(0, 16)}`); send({ t: 'hello', name: NAME, mode: LEGACY_ENGINE ? 'vbs' : 'hv-node', publicUrl: PUBLIC_URL, transportKeyFp: spkiFp }); }
           else log(`attach REJECTED: ${f.reason}`);
         } else if (f.t === 'ping') send({ t: 'pong' });
@@ -626,7 +664,22 @@ function localHttp(port) {
   }).listen(port, '127.0.0.1', () => log(`local http on 127.0.0.1:${port}`));
 }
 function requireHttp() { return createRequire(import.meta.url)('node:http'); }
+// THE OWNER'S HOSTING CONTROLS (hosting.mjs): the tray app's API, on its own loopback port rather than LOCAL_HTTP_PORT's
+// server, which is optional and unauthenticated and also serves the tunnel's surface. Started first, so the owner can
+// see and set the caps while the rest comes up, and not awaited: the token's directory checks run in PowerShell. A
+// token that cannot be made private turns the controls OFF and nothing else.
+async function startHostingControls() {
+  const port = Number(process.env.HOSTING_ADMIN_PORT ?? 9610);
+  if (!port) { log('hosting controls: off (HOSTING_ADMIN_PORT=0)'); return; }
+  const file = process.env.HOSTING_ADMIN_TOKEN_FILE || tokenFileDefault(DIR);
+  let token;
+  try { token = await mintToken(file, { trayUser: process.env.HOSTING_TRAY_USER || '' }); }
+  catch (e) { log(`hosting controls: OFF, no private token file at ${file}: ${e.message}`); return; }
+  if (!process.env.HOSTING_TRAY_USER) log(`hosting controls: HOSTING_TRAY_USER is not set, so only SYSTEM and an ELEVATED administrator can read ${file}`);
+  startHostingAdmin({ host, port, token, log: (m) => log('[hosting]', m) });
+}
 (async () => {
+  startHostingControls().catch((e) => log(`hosting controls: OFF (${e.message})`));
   if (LEGACY_ENGINE) { await startWorker(); await startHost(); }
   else {
     nodeKey = loadOrCreateNodeKey(DIR);
@@ -688,6 +741,24 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
         dataAddr: host.cfg.isolationDataAddr,
         log: (m) => log(m),
       });
+      // M4: the certificate relay for the partitions this box runs (hvcert.mjs): each one's CSR, issued for its own key
+      // under this box's operator signature, installed back into it. Without an operator key there is nothing to sign
+      // the request with, and each partition keeps serving its self-signed certificate.
+      const { loadOperator } = await import('./chain.mjs');
+      let acct = null;
+      try { acct = loadOperator(path.join(DIR, 'operator.key')); } catch (e) { log(`certificates: no operator key (${e.message})`); }
+      if (acct) {
+        const { createHvCertPass } = await import('./hvcert.mjs');
+        const certs = createHvCertPass({
+          client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,
+          runtimeId: host.cfg.isolationRuntimeId, endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }),
+          served: (owner) => host.ownerSet().has(owner), log: (m) => log(m) });
+        let running = false;
+        const tick = () => { if (running) return; running = true;
+          certs.pass(host.records).catch((e) => log(`certificates: pass failed: ${e.message}`)).finally(() => { running = false; }); };
+        setInterval(tick, 60_000).unref?.();
+        setTimeout(tick, 15_000).unref?.();
+      } else log('certificates: this box has no operator key, so its partitions keep their self-signed certificates');
     }
     zone = appZone({
       isolationSplicer,
@@ -714,5 +785,13 @@ function requireHttp() { return createRequire(import.meta.url)('node:http'); }
   }
   if (process.env.LOCAL_HTTP_PORT) localHttp(Number(process.env.LOCAL_HTTP_PORT));
   if (process.env.RELAY_URL !== 'none') connect(); else log('RELAY_URL=none: local only');
+  // The relay learns whom this node serves only at attach, so when that changes (a delegation added, removed or expired;
+  // the tick re-reads them) the node attaches again - at most every 2 minutes (hvnode-attach.mjs shouldReattach).
+  if (!LEGACY_ENGINE && APPS) setInterval(() => {
+    if (!shouldReattach({ attached: attachedAt > 0, attachedVersion: attachedOwnersVersion, currentVersion: host.ownersVersion(), lastRedialMs: lastOwnerRedial })) return;
+    lastOwnerRedial = Date.now();
+    log('the owners this node serves changed since its attach: attaching again so the relay serves the same set');
+    redialNow();
+  }, 30_000).unref?.();
 })().catch((e) => { console.error(e); process.exit(1); });
 process.on('SIGINT', () => { for (const c of Object.values(children)) c?.kill(); tpm?.kill(); process.exit(0); });

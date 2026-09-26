@@ -203,10 +203,20 @@ export class IsolationManagerClient {
       hostExcludedAsStated: o.hostExcluded,
       verdict: o.verdict ?? null,
       relay: o.relay ?? (o.tcpPort ? { host: "127.0.0.1", port: o.tcpPort } : null),
+      // what the manager's own readiness judge was given, as the launcher stated it: the key the domain's reports are
+      // signed with, the partition that key signs for, and the launcher's (partition, guestImageKind) statement. Host
+      // statements (T0-hv), public, and what the node's certificate relay judges the domain with (hvcert.mjs).
+      launcherKey: typeof o.launcherKey === "string" ? o.launcherKey : null,
+      launcherVmId: typeof o.launcherVmId === "string" ? o.launcherVmId : null,
+      guestIdentity: o.guestIdentity && typeof o.guestIdentity === "object"
+        ? { partition: o.guestIdentity.partition ?? null, guestImageKind: o.guestIdentity.guestImageKind ?? null } : null,
       error: o.error ?? null,
       // a domain a RESTARTED manager rebuilt from Hyper-V: alive, and never to serve under that manager
       // (its relay and readiness belonged to the old process). The lifecycle holds it; see reconcile.
       recovered: o.recovered === true,
+      // ...and the state its VM was surveyed in (Hyper-V's word: "Off", "Running", "Saved", ...), for a recovered one: an
+      // Off VM runs nothing, which is what lets the node replace it after a host restart (host.mjs, reboot recovery)
+      vmState: typeof o.vmState === "string" ? o.vmState : null,
       // a recovered VM that names no deployment: see findByName
       unattributed: o.unattributed === true,
       reason: o.reason ?? null,

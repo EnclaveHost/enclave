@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { fakeBaseRpc, DEPLOYMENTS } from "./helpers/fake-base-rpc.mjs";
+import { servedOwner } from "./helpers/owners.mjs";
 import { REC, DEP, deployment, ISOLATED, PLANNED, FakeHost, bootManager, restartManager, clientFor, ledger, fast,
          recoveredOnManager, closeManagers } from "./helpers/hv-fake-manager.mjs";
 import { reconcile, retire } from "../windows/node/isolation-lifecycle.mjs";
@@ -28,9 +29,10 @@ const dep = () => ({ appRef: "catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5
   owner: "0x29479bf04ed889d46a7afb7f292b9bb26e12647c", configCid: ISOLATED });
 // each box gets its own state directory: blocked and tracked deployments persist there, and one test's give-up must
 // not be read by the next
-const box = (port, logs = []) => new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-iso-host-")),
+const box = (port, logs = []) => servedOwner(new Host({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "ee-iso-host-")),
   endpoint: "https://api.enclave.host/t/test", name: "test", appsEnabled: true, cpuPricePerSec6: 12,
-  log: (s) => logs.push(s), isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
+  log: (s) => logs.push(s), isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId }),
+  "0x29479bf04ed889d46a7afb7f292b9bb26e12647c");
 const YANKED = { yanked: true, cid: "bafy", version: 4 };
 const FORCED = { cid: "bafy", version: 4, memMb: 512 };
 const noSecrets = (h) => { h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {}); };   // known: none staged
@@ -63,14 +65,17 @@ test("UPGRADE (E2): retire(instanceId) of that VM after the new manager surveyed
 });
 
 test("a HELD recovered domain is recorded by id (finding 3), apart from the record that routes traffic", async () => {
+  // Since enclave-87's ruling (B) a recovered domain is RETIRED and replaced (test/windows-node-reboot-recovery.test.mjs);
+  // it is still HELD, and recorded by id, when its removal cannot be confirmed - the case finding 3 is about.
   const { host, m2, instanceId } = await recoveredOnManager();
+  host.stopFails = true;
   const logs = [];
   const h = box(m2.port, logs);
   h.records.set(DEP, { id: DEP, status: "provisioning" });            // a restarted node
   noSecrets(h);
   const r = await h.ensureApp(DEP, dep(), { version: PLANNED });
-  assert.equal(r.status, "provisioning", `${r.reason} | ${logs.join(" / ")}`);
-  assert.match(r.reason, /recovered from Hyper-V/);
+  assert.equal(r.status, "held", `${r.reason} | ${logs.join(" / ")}`);
+  assert.match(r.reason, /could not be confirmed removed/);
   assert.equal(h.records.get(DEP).isolationHeld, instanceId, "the held instance is not recorded");
   assert.equal(h.records.get(DEP).isolation ?? null, null, "a held domain must not be routed to");
   assert.equal(host.running().length, 1);

@@ -123,7 +123,9 @@ export function isolationPlan({ deploymentId, deployment, version, appConfig, ha
 
   if (hasSecrets !== true && hasSecrets !== false) return unknownInput("hasSecrets", "whether the deployment has staged secrets");
   if (hasSecrets === true)
-    return refused("hasSecrets", "the deployment has staged secrets, and they would cross this host in plaintext (attested in-partition delivery is not built)");
+    // What the refusal prevents, and no more (enclave-b4's N4): a partition started WITHOUT its secrets. It does not
+    // keep the secrets away from this host - the node learned this by fetching them as the lease holder.
+    return refused("hasSecrets", "the deployment has staged secrets, and this tier cannot deliver them into a partition (attested in-partition delivery is not built), so it is not started without them; the refusal does not keep them from this host, which fetched them as the lease holder to find this out");
 
   if (appConfig === undefined) return unknownInput("appConfig", "the config the app would run with");
   if (appConfigOf(appConfig)) return refused("appConfig", "the app has config beyond _media, which is not delivered into a partition");

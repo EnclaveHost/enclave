@@ -2,9 +2,10 @@
 // and runs that deployment's app, and it answers the platform's host surface over the tunnel.
 //
 // Scope (see chain.mjs claimPolicy for each refusal and its reason): PUBLIC deployments, on CORES,
-// whose options this box actually enforces, that FIT in what it has left to sell. In the default
-// "market" scope that means any wallet's, which is what being a listed enclave means; CLAIM_SCOPE=
-// owner-only narrows it back to the box owner's own for bring-up.
+// whose options this box actually enforces, that FIT in what it has left to sell. The scope is
+// OWNER-ONLY - the operator's and its delegated owners' deployments (ownerSet) - unless the box meets
+// the isolation contract AND CLAIM_SCOPE=market (scope()); no Windows node meets it today, so none
+// takes a stranger's deployment.
 //
 // It advertises `claimEnabled: true` (it takes work) with `fullService: false` (it sells a subset
 // of the platform's features). The relay keeps a partial box out of the fleet-AND capability flags,
@@ -24,11 +25,26 @@ import http from "node:http";
 import * as chain from "./chain.mjs";
 import { App, EnclaveApp, fetchArtifact, wasmLayer, appEnv, missingHostInterfaces, precompile } from "./apprun.mjs";
 import { worldOf } from "./appframe.mjs";
-import { fetchSecrets } from "./secrets.mjs";
+import { fetchSecrets, secretsExist } from "./secrets.mjs";
+// enclave-e3's shared module, vendored BYTE FOR BYTE from relay/host-delegation.mjs (test/windows-node-host-delegation.test.mjs
+// pins it and replays the relay's vectors), so the relay and this node judge a delegation the same way
+import { verifyDelegation, MAX_DELEGATIONS } from "./host-delegation.mjs";
+
+/** The delegations this box carries: NODE_DIR/delegations/*.json, each { message, signature }, read fresh, in name order. */
+function readDelegationFiles(dir) {
+  let names = [];
+  try { names = fs.readdirSync(dir).filter((n) => n.endsWith(".json")).sort(); } catch { return []; }
+  return names.slice(0, MAX_DELEGATIONS).map((file) => {
+    try { const o = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8")); return { file, message: o.message, signature: o.signature }; }
+    catch (e) { return { file, error: `unreadable: ${e.message}` }; }
+  });
+}
 import { ensureCert, appHostFor, selfSigned } from "./apptls.mjs";
 import { fetchDomains } from "./domains.mjs";
 import tls from "node:tls";
 import * as waf from "./waf.mjs";
+import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
+import { PARTITION_OFFERS } from "../vbslike/datapath/partition-offers.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
 const TICK_MS = 30_000;
@@ -86,6 +102,10 @@ export class Host {
     this.statePath = path.join(cfg.dir, "host-state.json");
     const st = this.#loadState();
     this.tracked = new Set(st.tracked || []);
+    /// The last card-price transaction this box SENT ({ want, at, tx }), kept across restarts: a registry read can lag a
+    /// sent transaction, and a node restarted inside that lag used to send the same one again (d1's live node, 00:55:04
+    /// and 00:55:33 at 013deb51). ensurePriced does not resend the same price while it is fresh.
+    this.priceSent = st.priceSent && typeof st.priceSent === "object" ? st.priceSent : null;
     // THE PER-APP ISOLATION BACKEND, off unless a manager is configured. One place decides, so no
     // other code path can half-enable it: the deployed build has no such config and is unaffected.
     this.cfg.isolationManager   = this.cfg.isolationManager   || process.env.ENCLAVE_ISOLATION_MANAGER || "";
@@ -127,6 +147,18 @@ export class Host {
     // an app must not rediscover that every 30 seconds for as long as the row is on the ledger.
     // An operator or the console can clear an entry by forcing the claim (/v1/claim-hint force).
     this.blocked = new Map(Object.entries(st.blocked || {}));
+    /// WHOSE deployments this box serves in owner-only scope: its operator, and the owner of each VALID delegation it
+    /// carries (host-delegation.mjs), as refreshOwners last found them. Re-read every tick and before every claim and
+    /// restart, so deleting a delegation file (or its expiry) ends that owner's authority.
+    this.owners = { operator: null, delegations: [], invalid: new Map() };
+    /// Definite pre-claim refusals (#preclaimVerdict): id -> { key, reason, at }. In memory; a restart asks again once.
+    this.preclaim = new Map();
+    // THE OWNER'S HOSTING CAPS (hosting.mjs, set from the tray): the most of this machine's CPU and GPU the node offers.
+    // No file means 1.0 on both, which is this node exactly as it was before they existed.
+    this.capsFile = cfg.hostingCapsFile || path.join(cfg.dir, "hosting-caps.json");
+    const caps = loadCaps(this.capsFile);
+    this.caps = caps.caps; this.capsError = caps.error;
+    if (caps.error) this.log(caps.error);
   }
   #loadState() {
     try { return JSON.parse(fs.readFileSync(this.statePath, "utf8")) || {}; } catch { return {}; }
@@ -134,7 +166,7 @@ export class Host {
   #saveTracked() {
     try {
       fs.writeFileSync(this.statePath, JSON.stringify({ tracked: [...this.tracked],
-        blocked: Object.fromEntries(this.blocked) }, null, 1));
+        blocked: Object.fromEntries(this.blocked), ...(this.priceSent ? { priceSent: this.priceSent } : {}) }, null, 1));
     } catch {}
   }
 
@@ -163,8 +195,11 @@ export class Host {
     try {
       const e = await chain.readEnclave(this.enclaveId);
       this.registered = e && e.endpoint ? e : null;
+      // The card half says what this box ASKS (cardPrice) and, when the registry still lists something else, both.
+      const listed = Number(e?.gpuPricePerSec6 || 0), ask = this.cardPrice();
       if (this.registered) this.log(`registry: listed as ${e.endpoint} price ${e.cpuPricePerSec6}/sec cpu`
-        + `${Number(e.gpuPricePerSec6) > 0 ? ` + ${e.gpuPricePerSec6}/sec card` : ""}, payout ${e.payoutWallet}`);
+        + `${ask > 0 ? ` + ${ask}/sec card` : ""}${listed !== ask ? `; the registry lists ${listed}/sec for the card, and this box asks ${ask}` : ""}`
+        + `, payout ${e.payoutWallet}`);
     } catch (e) { this.lastError = e.message; }
   }
   /** Is this box running apps as isolated domains? False unless a manager is configured. */
@@ -174,10 +209,54 @@ export class Host {
   get isolationBackend() { return this.cfg.isolationManager ? "hyperv-partition-per-app" : null; }
 
   /** The wallet whose deployments this box will run: the on-chain declaration, else the config. */
-  ownerAllow() {
-    const ZERO = "0x0000000000000000000000000000000000000000";
-    const declared = this.registered && this.registered.payoutWallet && this.registered.payoutWallet !== ZERO ? this.registered.payoutWallet : null;
-    return declared || this.cfg.ownerWallet || null;
+  /**
+   * ownerSet() -> the lowercase addresses whose deployments this box serves in owner-only scope: its OPERATOR (the key
+   * that signs its attach and its claims) and the owner of each valid, unexpired delegation (host-delegation.mjs).
+   * Coordinator enclave-87's rule (2026-09-26). The registry's payoutWallet and OWNER_WALLET used to be this box's
+   * "owner" and authorize NOTHING now: each is the operator's own statement, with no owner's consent in it, so a
+   * payoutWallet naming a victim made the box claim, bill and restart the victim's deployments (enclave-5d). Every
+   * owner check - claimPolicy, the ledger scan, the restart gate, the sweep's hold - asks this one set.
+   */
+  ownerSet(now = Math.floor(Date.now() / 1000)) {
+    const set = new Set();
+    if (this.owners.operator) set.add(this.owners.operator);
+    for (const d of this.owners.delegations) if (d.expires > now) set.add(d.owner);
+    return set;
+  }
+
+  /** The VALID, unexpired delegations this box carries, as the files hold them: what its hv-node attach sends (hvnode-attach.mjs). */
+  attachDelegations(now = Math.floor(Date.now() / 1000)) {
+    return this.owners.delegations.filter((d) => d.expires > now).slice(0, MAX_DELEGATIONS)
+      .map((d) => ({ message: d.message, signature: d.signature }));
+  }
+  /** A digest of whom this box serves (the operator and the delegations it would send): an attach made under a different
+   *  value no longer tells the relay the truth, so the agent attaches again (hvnode-attach.mjs shouldReattach). `sent`
+   *  digests a given list instead - the one an attach ACTUALLY carried, so a refresh during the attach's own await
+   *  cannot make the recorded version describe a set the relay never got (enclave-5d's review of ab7cdbb0). */
+  ownersVersion(now = Math.floor(Date.now() / 1000), sent = null) {
+    const sigs = (sent || this.attachDelegations(now)).map((d) => String(d.signature).toLowerCase()).sort();
+    return crypto.createHash("sha256").update(JSON.stringify([this.owners.operator || null, sigs])).digest("hex");
+  }
+
+  /** Re-read the operator and the delegation files, verifying each (host-delegation.mjs). An invalid one is logged once per reason. */
+  async refreshOwners({ recover } = {}) {
+    const op = chain.operatorAddress();
+    const operator = op ? String(op).toLowerCase() : null;
+    const dir = this.cfg.delegationsDir || path.join(this.cfg.dir, "delegations");
+    const valid = [], invalid = new Map();
+    for (const f of readDelegationFiles(dir)) {
+      const v = f.error ? { ok: false, reason: f.error }
+        : await verifyDelegation({ message: f.message, signature: f.signature },
+            // chain 8453: Base, the chain this node's ledger is on (chain.mjs uses viem's `base`)
+            { operator, box: this.cfg.name, chain: 8453, registry: chain.addresses.registry, ...(recover ? { recover } : {}) });
+      if (v.ok) valid.push({ file: f.file, owner: v.owner, expires: v.expires, message: f.message, signature: f.signature });
+      else {
+        invalid.set(f.file, v.reason);
+        if (this.owners.invalid.get(f.file) !== v.reason) this.log(`delegation ${f.file} ignored: ${v.reason}`);
+      }
+    }
+    this.owners = { operator, delegations: valid, invalid };
+    return this.ownerSet();
   }
   /**
    * Put this box on the registry, or keep its entry current. The entry is what gives the box an
@@ -213,7 +292,11 @@ export class Host {
    * card answering right now. A price posted for silicon whose worker is down would have the
    * ledger sell a share this box cannot deliver.
    */
+  /** Does this node sell a card at all? Not with the engine retired (gpu:false): the card was reached only through the
+   *  enclave's model, so its desired card price is 0. */
+  sellsCard() { return this.cfg.engineRetired !== true; }
   cardPrice() {
+    if (!this.sellsCard()) return 0;
     const card = this.card();
     return card && Number(card.vramBudgetGb) > 0 ? Number(this.cfg.gpuPricePerSec6) || 0 : 0;
   }
@@ -223,13 +306,26 @@ export class Host {
    * a pool in /availability while the registry says the card costs nothing would have the platform
    * hand it out for free.
    */
-  async ensurePriced() {
+  // A sent price transaction is not sent again for this long while the registry read still shows the old value.
+  static PRICE_SETTLE_MS = 10 * 60_000;
+  /**
+   * NO transaction when the chain already equals what this box asks; ONE when it does not, remembered across restarts
+   * (priceSent in host-state.json) so a restart inside a lagging read does not repeat it. `setPrices` and `now` are
+   * parameters so a test can count transactions (test/windows-node-price-once.test.mjs).
+   */
+  async ensurePriced({ setPrices = (...a) => chain.setPrices(...a), now = Date.now() } = {}) {
     if (!this.chainReady || !this.registered || !chain.operatorAddress()) return;
     const want = this.cardPrice();
-    if (Number(this.registered.gpuPricePerSec6 || 0) === want) return;
+    if (Number(this.registered.gpuPricePerSec6 || 0) === want) {
+      if (this.priceSent) { this.priceSent = null; this.#saveTracked(); }
+      return;
+    }
+    const sent = this.priceSent;
+    if (sent && Number(sent.want) === want && now - Number(sent.at) < Host.PRICE_SETTLE_MS) return;   // in flight: the read lags it
     if ((this.gasRenewals ?? 1) <= 0) return;
     try {
-      const hash = await chain.setPrices(this.enclaveId, Number(this.registered.cpuPricePerSec6) || this.cfg.cpuPricePerSec6, want);
+      const hash = await setPrices(this.enclaveId, Number(this.registered.cpuPricePerSec6) || this.cfg.cpuPricePerSec6, want);
+      this.priceSent = { want, at: now, tx: String(hash) }; this.#saveTracked();
       this.log(`registry: card price now ${want}/sec (was ${this.registered.gpuPricePerSec6 || 0}) tx=${hash}`);
       await this.refreshRegistration();
     } catch (e) { this.log(`registry: setPrices failed: ${e.shortMessage || e.message}`); }
@@ -276,6 +372,7 @@ export class Host {
     id = String(id).toLowerCase();
     if (!/^0x[0-9a-f]{64}$/.test(id)) return { accepted: false, reason: "id must be the bytes32 deployment id" };
     if (!this.chainReady) return { accepted: false, reason: `chain unavailable: ${this.lastError}` };
+    await this.refreshOwners();
     if (this.blocked.has(id)) {
       if (!force) {
         const reason = this.blocked.get(id);
@@ -293,16 +390,31 @@ export class Host {
     // catalog read that fails leaves them undeclared, which fails closed in both cases.
     let v = null;
     try { v = await chain.resolveAppRef(d.appRef); } catch (e) { this.#record(id, { reason: `catalog: ${e.message}` }); }
-    const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: this.ownerAllow(), enclaveId: this.enclaveId,
+    // Sized beside the OTHERS (exclude), and work that already OCCUPIES this box is not measured against the owner's
+    // hosting cap: a hint for a deployment this box runs is not a new claim, and lowering a cap never takes a running
+    // app away (hosting.mjs). Measured against itself, or against a cap below what runs, it would be marked refused.
+    const here = Host.occupies(this.records.get(id) || {});
+    const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: this.ownerSet(), enclaveId: this.enclaveId,
                                           appsEnabled: this.cfg.appsEnabled, scope: this.scope(),
-                                          version: v, capacity: this.capacity(),
+                                          version: v, capacity: this.capacity({ exclude: id, capped: !here }),
                                           listedAt: this.listedAt(), invited: invited || force,
-                                          legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true,
-                                          privateOk: !!this.cfg.sessionKid,
+                                          legacy: this.cfg.claimLegacy === true, fetchesConfigCid: this.features().configCidOverride,
+                                          privateOk: !!this.cfg.sessionKid && (!this.partitionsOnly() || this.features().devDeploy),
                                           features: this.features() });
     if (refuse) { this.#record(id, { status: "refused", reason: refuse, appRef: d?.appRef || "" }); return { accepted: false, reason: refuse }; }
     const retired = this.retiredEngineClaimRefusal(d);
     if (retired) { this.#record(id, { status: "refused", reason: retired, appRef: d?.appRef || "" }); return { accepted: false, reason: retired }; }
+    // A deployment for the ISOLATED backend that this box would still have to CLAIM is judged by the partition verdict
+    // first: nothing is tracked and no chain call is made for one it would refuse or cannot judge (#preclaimVerdict).
+    const heldHere = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase() && Number(d.leaseUntil) * 1000 > Date.now();
+    if (!heldHere && this.isolation) {
+      let envOpts = {}, envRead = false;
+      try { envOpts = chain.parseEnvelope(d.configCid, d.gpuMilli) || {}; envRead = true; } catch { envRead = false; }
+      if (envRead && envOpts.isolationRequire === this.isolationBackend) {
+        const pre = await this.#preclaimVerdict(id, d, v, { envOpts, envRead, force });
+        if (pre) return pre;
+      }
+    }
     this.tracked.add(id); this.#saveTracked();
     const ours = String(d.runner || "").toLowerCase() === this.enclaveId.toLowerCase();
     const live = Number(d.leaseUntil) * 1000 > Date.now();
@@ -339,6 +451,61 @@ export class Host {
   }
 
   /**
+   * restartRefusal(id, d) -> why this box will not restart deployment `id`, or null. `d` is the LEDGER record.
+   *
+   * A restart re-runs a deployment this box already serves; it never claims one. So it needs this box's own LIVE
+   * lease (the ledger's runner is this enclave and the lease has not ended) and, in owner-only scope, the box
+   * owner's deployment. ensureApp checks neither: the route used to hand it ANY ledger id, and on the isolation
+   * backend that spawned a stranger's opted-in deployment as a partition here, with no claim, no lease and no owner
+   * (enclave-b4's N1). consider() is not the gate for this: it claims on chain, and a restart must not.
+   */
+  restartRefusal(id, d) {
+    if (!/^0x[0-9a-f]{64}$/.test(String(id))) return "id must be the bytes32 deployment id";
+    if (!d || typeof d !== "object") return "no such deployment on the ledger";
+    // stopped on the ledger: nothing to run, whatever the lease says (the sweep would stop it next tick; enclave-bf)
+    if (!d.active) return "the deployment is not active on the ledger";
+    const ours = String(d.runner || "").toLowerCase() === String(this.enclaveId).toLowerCase();
+    if (!ours || !(Number(d.leaseUntil) * 1000 > Date.now()))
+      return "this box does not hold a live lease on it, so there is nothing here to restart";
+    if (this.scope() === "owner-only" && !this.ownerSet().has(String(d.owner || "").toLowerCase()))
+      return `this node is in owner-only scope and restarts only its operator's and its delegated owners' deployments (this one is owned by ${d.owner})`;
+    return null;
+  }
+
+  /** Restart deployment `id` (ledger record `d`) if restartRefusal allows it: { refused: true, reason } or ensureApp's record. */
+  async restart(id, d) {
+    id = String(id).toLowerCase();
+    const refuse = this.restartRefusal(id, d);
+    if (refuse) { this.log(`restart ${id.slice(0, 10)} refused: ${refuse}`); return { refused: true, reason: refuse }; }
+    return this.ensureApp(id, d, { force: true });
+  }
+
+  /**
+   * POST /v1/deployments/<id>/restart, whole: WHO is asking, then WHAT may be restarted. -> { status, body }
+   *
+   * restartRefusal limits what; this limits who. Without it anyone who reached the route could force-restart the
+   * owner's deployment again and again, and every forced relaunch of a partition mints a new domain key, ends its
+   * sessions and asks the CA for a new certificate: a cheap availability and CA-rate attack (enclave-5d's review of
+   * N1). The caller must hold this box's session (session.mjs, minted by its own SIWE login) for the deployment's
+   * OWNER - the Linux runner's rule (supervisor.js: authed, then 404 unless rec.owner is the caller). No verifier
+   * fails closed. `read` is the ledger read (chain.readDeployment), a parameter so the whole route can be tested.
+   */
+  async restartRequest(id, headers, { read = (x) => chain.readDeployment(x) } = {}) {
+    const j = (status, body) => ({ status, body });
+    id = String(id || "").toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(id)) return j(422, { error: "bad_id", message: "id must be the bytes32 deployment id" });
+    const who = typeof this.cfg.sessionVerify === "function" ? this.cfg.sessionVerify(headers || {}, id) : null;
+    if (!who) return j(401, { error: "unauthorized", message: "Missing or invalid token: a restart needs the owner's session on this box." });
+    let d;
+    try { d = await read(id); } catch (e) { return j(502, { error: "chain", message: e.shortMessage || e.message }); }
+    // not the owner: the same answer as a deployment that does not exist, as on Linux
+    if (!d || String(d.owner || "").toLowerCase() !== String(who).toLowerCase()) return j(404, { error: "not_found", id });
+    await this.refreshOwners();
+    const r = await this.restart(id, d);
+    return r.refused ? j(409, { error: "refused", id, reason: r.reason }) : j(200, r);
+  }
+
+  /**
    * An owner resized the deployment on-chain (setShares). Honour it, or hand the lease back.
    *
    * The ledger starts billing the new shares at once, so the only two honest outcomes are to serve
@@ -366,14 +533,19 @@ export class Host {
     if (cpu === wasCpu && gpu === wasGpu) return;
     // Does the new size still fit BESIDE the others? Its own old share is excluded, or a tenant
     // growing from 10% to 20% is measured against a box that still counts their first 10%.
-    const cap = this.capacity({ exclude: id });
-    if (cpu > cap.cpuShareFree + 1e-9) {
+    // The owner's hosting cap applies only to an axis that GROWS. Lowering a cap never takes a lease back, so a tenant
+    // who shrinks or keeps a share is measured exactly as before the caps existed (capped: false).
+    const capped = this.capacity({ exclude: id }), open = this.capacity({ exclude: id, capped: false });
+    const cpuRoom = cpu > wasCpu ? capped.cpuShareFree : open.cpuShareFree;
+    const gpuRoom = (gpu > wasGpu ? capped.gpuShareFree : open.gpuShareFree) ?? 0;
+    const under = (c) => (c ? ` under the owner's ${Math.round(c.offered * 100)}% hosting cap` : "");
+    if (cpu > cpuRoom + 1e-9) {
       return await this.#giveUp(id, `it was resized to ${Math.round(cpu * 100)}% of a node and this box has`
-        + ` ${Math.round(cap.cpuShareFree * 100)}% left; handing the lease back so a box that fits can take it`);
+        + ` ${Math.round(cpuRoom * 100)}% left${under(cpu > wasCpu && capped.cpuCap)}; handing the lease back so a box that fits can take it`);
     }
-    if (gpu > 0 && gpu > (cap.gpuShareFree ?? 0) + 1e-9) {
+    if (gpu > 0 && gpu > gpuRoom + 1e-9) {
       return await this.#giveUp(id, `it was resized to ${Math.round(gpu * 100)}% of this box's card and`
-        + ` ${Math.round((cap.gpuShareFree ?? 0) * 100)}% of it is left; handing the lease back`);
+        + ` ${Math.round(gpuRoom * 100)}% of it is left${under(gpu > wasGpu && capped.gpuCap)}; handing the lease back`);
     }
     this.#record(id, { servedCpuShare: cpu, servedGpuShare: gpu });
     if (gpu !== wasGpu) {
@@ -469,7 +641,7 @@ export class Host {
    * itself, and that reason is more useful than this box guessing.
    */
   async loadSecrets(id) {
-    if (!this.cfg.secretsSign) return;
+    if (!this.cfg.secretsSign) return null;
     const r = await fetchSecrets({ id, endpoint: this.cfg.endpoint, sign: this.cfg.secretsSign,
                                    base: this.cfg.relayBase, log: (m) => this.log(m) });
     if (r.count > 0) {
@@ -477,6 +649,7 @@ export class Host {
       this.#record(id, { secrets: r.count });
       this.log(`secrets: ${r.count} for ${id.slice(0, 10)} (${Object.keys(r.env).join(", ")})`);
     } else { this.secrets.delete(id); }
+    return r;
   }
 
   /**
@@ -485,12 +658,88 @@ export class Host {
    * turns null into false has assumed exactly what it was asked to establish.
    */
   async #secretsState(id) {
-    if (!this.cfg.secretsSign) return null;          // we cannot ask, so we do not know
+    // WHETHER there are staged secrets - the only thing a partition's plan needs, since a partition is never handed
+    // them - from the relay's unauthenticated, lease-free /v1/secrets/exists (secrets.mjs secretsExist). It used to FETCH
+    // them as the lease holder, which (a) cannot be asked before a claim, (b) is refused for a lease holder the relay
+    // does not hold eligible (403 since U7: d1's live test 1 was held on it), and (c) pulled plaintext into this host
+    // (N4). Anything but a clear answer is null: UNKNOWN, which holds - and, before a claim, claims nothing.
+    // Secrets this box already HOLDS for the lease are a known answer (the in-enclave path fetches them; an isolated
+    // deployment never does, so for it this is only ever a test's "known: none").
+    if (this.secrets.has(id)) return Object.keys(this.secrets.get(id) || {}).length > 0;
+    // No relay configured = no one to ask: unknown. Never a default address - a Host built without relayBase (a test)
+    // must not reach a live relay.
+    if (!this.cfg.relayBase) return null;
+    try { return await secretsExist({ id, base: this.cfg.relayBase }); }
+    catch (e) { this.log(`${String(id).slice(0, 10)} ${e.message}`); return null; }
+  }
+
+  /**
+   * isolationVerdict(id, d, v, { envOpts, envRead }) -> node-bridge.mjs isolationPlan's answer for this deployment: the
+   * SAME verdict before a claim (consider) and at spawn (#isolationReconcile), from the same inputs - the ledger record,
+   * the catalog version, the config the app would run with, whether secrets are staged (the relay's lease-free exists
+   * probe), the envelope's protection rules and config override (envOpts, parsed ONCE by the caller; unknown when the
+   * envelope could not be read), the model volumes the version needs, the manager's /health, and its pinned runtime.
+   * Its rules and its refusals are node-bridge's (UNKNOWN is not NO: an input that cannot be established is unknown).
+   */
+  async isolationVerdict(id, d, v, { envOpts = {}, envRead = false } = {}) {
+    const { IsolationManagerClient } = await import("./isolation-client.mjs");
+    const { isolationPlan } = await import("../vbslike/datapath/node-bridge.mjs");
+    const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
+    // The WHOLE /health object: the plan checks the manager's backend name and its derivations. null = could not ask.
+    let managerHealth = null;
+    try { managerHealth = (await client.health()) ?? null; } catch { managerHealth = null; }
+    // what the manager says it can give a partition (/health supports), for features(): kept when it answered
+    if (managerHealth && managerHealth.supports && typeof managerHealth.supports === "object") this.managerSupports = { ...managerHealth.supports };
+    // Which model volumes this version needs, from its own config; null (unknown) when the config cannot be read.
+    let volumes = null;
     try {
-      if (!this.secrets.has(id)) await this.loadSecrets(id);
-    } catch { return null; }                          // asking failed: still unknown, never "no"
-    const env = this.secrets.get(id);
-    return !!(env && Object.keys(env).length > 0);
+      const cfg = v && v.config ? (typeof v.config === "string" ? JSON.parse(v.config) : v.config) : {};
+      volumes = Array.isArray(cfg.volumes) ? cfg.volumes.slice() : [];
+    } catch { volumes = null; }
+    return isolationPlan({
+      deploymentId: id, deployment: d, version: v,
+      appConfig: await this.appConfigResolved(d, v),
+      hasSecrets: await this.#secretsState(id),
+      // {} and [] only when known to be none; an unread envelope is unknown - exactly what ensureApp records as `waf`
+      waf: envRead ? (envOpts.waf || {}) : null,
+      volumes,
+      runtimeId: this.cfg.isolationRuntimeId,
+      require: envOpts.isolationRequire ?? null,
+      manager: managerHealth,
+      appConfigCid: envRead ? String(envOpts.configCid || "") : null,
+    });
+  }
+
+  // A DEFINITE pre-claim refusal is reused for this long while the ledger's inputs are unchanged; whether secrets are
+  // staged and what the manager serves are not on the ledger, so they are asked again after it.
+  static PRECLAIM_RECHECK_MS = 10 * 60_000;
+  /**
+   * The partition verdict BEFORE a claim transaction (coordinator enclave-87, from d1's live test 1: 0x31136008 was
+   * claimed at 01:00:29Z, tx 0x0340540e, and held 2 s later on "hasSecrets ... not known here"). A deployment this box
+   * would refuse, or cannot yet judge, is never claimed: unknown -> queued, nothing spent, asked again next pass;
+   * refused -> recorded and STICKY while its ledger inputs are unchanged (PRECLAIM_RECHECK_MS), so nothing re-asks in a
+   * loop. `force` (an operator's claim hint) asks again. -> null to go on to the claim, or consider()'s refusal.
+   */
+  async #preclaimVerdict(id, d, v, { envOpts, envRead, force = false }) {
+    const key = JSON.stringify([String(d.appRef || ""), String(d.configCid || ""), String(d.cpuMilli), String(d.gpuMilli), d.isPublic === true]);
+    const was = this.preclaim.get(id);
+    if (!force && was && was.key === key && Date.now() - was.at < Host.PRECLAIM_RECHECK_MS) {
+      this.#record(id, { status: "refused", reason: was.reason, appRef: d.appRef });
+      return { accepted: false, reason: was.reason };
+    }
+    const plan = await this.isolationVerdict(id, d, v, { envOpts, envRead });
+    if (plan.ok) { this.preclaim.delete(id); return null; }
+    const reason = `isolation, before any claim: ${plan.input}: ${plan.why}`;
+    if (plan.unknown) {
+      this.preclaim.delete(id);
+      this.#record(id, { status: "queued", reason, appRef: d.appRef });
+      this.log(`${id.slice(0, 10)} not claimed: ${reason}`);
+      return { accepted: false, reason };
+    }
+    this.preclaim.set(id, { key, reason, at: Date.now() });
+    this.#record(id, { status: "refused", reason, appRef: d.appRef });
+    this.log(`${id.slice(0, 10)} not claimed: ${reason}`);
+    return { accepted: false, reason };
   }
 
   /**
@@ -515,97 +764,68 @@ export class Host {
    * for the others in the block I had just moved). Passing them makes the dependency a parameter
    * the reader can see instead of a scope accident.
    */
-  async #isolationReconcile(id, d, v, { envOpts = {}, envRead = false } = {}) {
+  async #isolationReconcile(id, d, v, { envOpts = {}, envRead = false, relaunch = false } = {}) {
     const { reconcile } = await import("./isolation-lifecycle.mjs");
     const { IsolationManagerClient } = await import("./isolation-client.mjs");
-    const { isolationPlan } = await import("../vbslike/datapath/node-bridge.mjs");
     const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
 
-    // THE BODY IS BUILT BY THE PLAN, NOT BY HAND.
-    //
-    // enclave-5d checked my hand-built record against the live ones and it was WRONG in two ways
-    // that a test here would never have caught, because both produce a perfectly well-formed body:
-    //   - the policy's memMiB came from this node's memMb (nodeFloorOf, which applies the
-    //     publisher's cpuFallback). The rule takes the version's ON-CHAIN memMb. A different
-    //     number is a different AppID from the Linux tier's for the same app, so a verifier
-    //     recomputing from the catalog would not reproduce what ran here.
-    //   - catalog.app was d.appRef with version.version, where the rule wants the bytes32 app id
-    //     and the index.
-    // One implementation of the rule, shared with the tier that already runs it, is the only way
-    // these stay equal; the plan reproduces the live records exactly (hookbin 1fb9360d, hello
-    // bff33b95).
-    //
-    // WHAT IT REFUSES, and the distinction that matters: `unknown` means an input could not be
-    // established, which is NOT the same as an input that says no. Unknown holds the lease;
-    // a definite refusal gives it back with the reason.
-    // The WHOLE /health object, not just its derivations list: the plan checks the manager's
-    // backend name too, so a manager of another backend that happens to list /1 is refused rather
-    // than used. null when it could not be asked, which the plan treats as unknown (held).
-    let managerHealth = null;
-    try { managerHealth = (await client.health()) ?? null; } catch { managerHealth = null; }
-
-    // Which model volumes this version needs, from the version's own config rather than from a
-    // literal. null when the config could not be read at all: unknown, not "none".
-    let volumes = null;
-    try {
-      const cfg = v && v.config ? (typeof v.config === "string" ? JSON.parse(v.config) : v.config) : {};
-      volumes = Array.isArray(cfg.volumes) ? cfg.volumes.slice() : [];
-    } catch { volumes = null; }
-
-    // DID THIS DEPLOYMENT ASK FOR ISOLATION?
-    //
-    // enclave-99: nothing in the plan's inputs carries the deployment's own requirement, so a
-    // deployment that never asked for a partition would be planned onto one simply because this
-    // box is configured for the backend. That is a scope decision the tenant makes, not the
-    // operator, so it is refused HERE - before the plan - rather than waiting for the plan to
-    // grow an input. A deployment that did not ask falls through to the in-enclave path, which is
-    // what it bought.
     const req = this.records.get(id)?.isolationRequired;
     if (req !== true) {
       if (req === undefined || req === null) this.log(`${id.slice(0, 10)} isolation: the deployment's envelope was not read for an isolation requirement; not isolating`);
       return null;      // fall through: not an error, just not this backend
     }
+    // A reboot recovery that did not end serving (#rebootHold) is not tried again by a routine pass: only an operator's
+    // forced relaunch clears it (ensureApp).
+    const rebootHeld = this.records.get(id)?.rebootHeld;
+    if (rebootHeld) return this.#record(id, { status: "held", reason: rebootHeld });
 
-    const plan = isolationPlan({
-      deploymentId: id,
-      deployment: d,
-      version: v,
-      appConfig: await this.appConfigResolved(d, v),
-      hasSecrets: await this.#secretsState(id),
-      // {} and [] ONLY when known to be none: this node parsed the envelope at claim time and
-      // recorded what it found, so an unparsed envelope must not read as "no rules".
-      waf: this.records.get(id)?.waf ?? null,
-      // DERIVED, not asserted. I wrote `volumes: []` here as a literal, flagged it to 5d as
-      // "asserted by me, not derived", and then left it - which is the same class as the
-      // hasSecrets:false I had just removed, so removing one and leaving the other was not a fix,
-      // it was a preference. enclave-99 caught it. The version's own config says which model
-      // volumes the app needs; a config we could not read is UNKNOWN and holds the lease.
-      volumes,
-      runtimeId: this.cfg.isolationRuntimeId,
-      // The tenant's requirement as a STRING, from the envelope this node parsed above. The plan
-      // refuses a deployment requiring another backend, or none - so the opt-in is now enforced in
-      // BOTH places: my gate above (which falls through to in-enclave) and the plan (which
-      // refuses). Steven asked for both, and they answer different questions: mine is "is this
-      // mine to run", the plan's is "may this be planned at all".
-      require: envOpts.isolationRequire ?? null,
-      manager: managerHealth,
-      // The deployment's config OVERRIDE cid. "" when known none; null when the envelope could not
-      // be read, which is unknown, not none.
-      appConfigCid: envRead ? String(envOpts.configCid || "") : null,
-    });
+    // THE SAME VERDICT consider() asked before the claim (isolationVerdict): one set of inputs, one answer.
+    const plan = await this.isolationVerdict(id, d, v, { envOpts, envRead });
     if (!plan.ok) {
       const why = `isolation: ${plan.input}: ${plan.why}`;
       if (plan.unknown) {
         this.log(`${id.slice(0, 10)} ${why}`);
-        return this.#record(id, { status: "provisioning", reason: why });
+        // planHeld: this box will not provision it until the input is established, so the tick does not RENEW it (87)
+        return this.#record(id, { status: "provisioning", reason: why, planHeld: true });
       }
       return await this.#giveUp(id, why);
     }
+    if (this.records.get(id)?.planHeld) this.#record(id, { planHeld: null, noRenewSaid: null });
 
     const body = IsolationManagerClient.spawnBody(plan.spawn);
+    // What this partition holds of the card is what it is spawned with, not what the lease bought: the accounting the
+    // owner's GPU cap and the tray read (shareUse).
+    this.#record(id, { partitionGpuShare: Number(body.gpuShare) || 0 });
+    const capHeld = await this.#spawnCapHold(id, body, client, { relaunch });
+    if (capHeld) return capHeld;
+    if (this.records.get(id)?.capHeld) this.#record(id, { capHeld: null });
     let r;
     try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
     catch (e) { return this.#record(id, { status: "failed", reason: `isolation: ${e.message}` }); }
+
+    // RECOVERY AFTER A MANAGER OR HOST RESTART (enclave-87's ruling (B) and its amendment from d1's live A8). A VM the
+    // restarted manager lists `recovered` can never serve again: its relay and its launcher's per-process report key
+    // belonged to the previous manager, so nothing can vouch for it, and RECOVERED's hold stranded the deployment until an
+    // operator acted - after a host restart (the launcher's AutomaticStartAction Nothing leaves it Off, running nothing)
+    // AND after a manager-only restart (still Running, but never judged or relayed again). So a recovered VM, in any state,
+    // is RETIRED through the manager (confirmed gone), and ONE fresh partition is spawned inside the same lease: a new key
+    // and a fresh measured boot, nothing released, never a second VM, and the recovered VM never served. Any failure on
+    // this path HOLDS the deployment (rebootHeld: not retried, not renewed) until a forced re-ensure (an operator's
+    // relaunch, or an owner's resize or config edit: ensureApp). This is
+    // NOT the crash respawn below (ENCLAVE_ISOLATION_RESPAWN, off by default): a restart is not the app ending.
+    if (r.action === "held" && r.instance && r.instance.recovered === true) {
+      const dead = r.instance.id, state = r.instance.vmState || "state unknown";
+      this.#record(id, { isolationHeld: dead });
+      const gone = await this.#retireIsolated(id, `restart recovery: the recovered VM ${dead} (${state})`);
+      if (!gone) return this.#rebootHold(id, `the recovered VM ${dead} (${state}) could not be confirmed removed`, dead);
+      this.log(`${id.slice(0, 10)} restart recovery: the recovered VM ${dead} (${state}) was retired; starting ONE fresh partition`);
+      try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
+      catch (e) { return this.#rebootHold(id, `the fresh partition could not be started: ${e.message}`); }
+      if (r.action === "failed") return this.#rebootHold(id, `the fresh partition did not come up: ${r.reason}`, r.instance?.id ?? null);
+      if (r.action === "held" && r.instance?.recovered === true)
+        return this.#rebootHold(id, `the fresh partition is a recovered VM again (${r.instance.id}): ${r.reason}`, r.instance.id);
+      // spawned/adopted: served below as any fresh domain; "held" (an unknown outcome) is recorded below as always
+    }
 
     // RESPAWN, OFF BY DEFAULT (cfg.isolationRespawn, ENCLAVE_ISOLATION_RESPAWN=1): a lease policy, Steven's decision,
     // put to him by enclave-d1. Today a domain that ENDED (crashed, stopped by itself, failed the manager's sweeps, or
@@ -686,8 +906,38 @@ export class Host {
                                            transportKeySha256: inst.transportKeySha256 ?? null } });
   }
 
+  /**
+   * THE OWNER'S CAPS ON THE ISOLATED BACKEND, at the one step that adds a partition: a NEW spawn. The claim gate
+   * (claimPolicy over capacity()) already holds new leases under the caps; this holds the partitions themselves, so a
+   * NEW one starts only while the sum of cpuShare over running and starting partitions stays within what the owner offers.
+   *
+   * It never takes anything away. Not gated: a partition that is already there (reconcile adopts it; refusing to
+   * adopt would not stop it, only stop serving it), and a RELAUNCH of work this box already runs - a forced relaunch of
+   * a deployment that occupied the box (ensureApp decides), or a domain that vanished while it served (rec.isolation).
+   * Forcing a held or never-started deployment is NOT a relaunch. Held work is recorded `capHeld`, is not renewed (the
+   * tick) and starts on the first pass that it fits. -> the held record, or null to proceed.
+   */
+  async #spawnCapHold(id, body, client, { relaunch = false } = {}) {
+    const rec = this.records.get(id) || {};
+    if (relaunch || rec.isolation) return null;
+    const why = this.capRefusal(id, { cpuShare: Number(body.cpuShare) || 0, gpuShare: Number(body.gpuShare) || 0 });
+    if (!why) return null;
+    // Only now, when the cap would refuse, ask whether a domain is already there: the default path costs no request.
+    let existing;
+    try { existing = await client.findByName(id); } catch { return null; }   // unknown: reconcile holds on its own
+    if (existing) return null;
+    const reason = `isolation: ${why}`;
+    if (rec.reason !== reason) this.log(`${id.slice(0, 10)} ${reason}`);     // a change is worth a line, every 30 s is not
+    return this.#record(id, { status: "held", capHeld: true, reason });
+  }
+
   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
   async ensureApp(id, d, { force = false, version = null } = {}) {
+    // A FORCED ensure is what a reboot-recovery hold waits for (#rebootHold): it is tried again from here. That is the
+    // operator's forced relaunch AND an owner's own action that re-ensures with force - a resize (#applyShareResize) or a
+    // config edit (#applyEnvelopeEdit). Intended (enclave-b4's review, enclave-87): an owner acting on their deployment is
+    // a reasonable moment to try again, and each such retry is still one attempt, held again if it fails.
+    if (force && this.records.get(id)?.rebootHeld) this.#record(id, { rebootHeld: null });
     const rec = this.#record(id, { appRef: d.appRef, leaseUntil: Number(d.leaseUntil),
                                    cpuShare: Number(d.cpuMilli) / 1000, gpuShare: Number(d.gpuMilli) / 1000,
                                    // What the data-path gate needs, from the ledger and nowhere else.
@@ -775,7 +1025,10 @@ export class Host {
       // What it does NOT do: change what this box advertises. A T0-hv partition does not exclude
       // the host, attestedCapacity() is false for it, and nothing here touches meetsIsolationContract().
       if (this.isolation) {
-        const outcome = await this.#isolationReconcile(id, d, v, { envOpts, envRead });
+        // A forced ensure is a RELAUNCH (not measured against the owner's cap) only for work that occupied this box
+        // before it (forcedRec, read before the retire). Forcing a deployment the cap held, or one that never ran,
+        // is a new spawn and is gated like one: the owner's restart must not push the box past its cap (enclave-5d).
+        const outcome = await this.#isolationReconcile(id, d, v, { envOpts, envRead, relaunch: force && Host.occupies(forcedRec) });
         if (outcome) return outcome;
       }
 
@@ -1182,12 +1435,12 @@ export class Host {
    * every row it liked at once would spend both before the first app had proved it starts.
    */
   async scanLedger() {
-    const owner = this.ownerAllow();
+    const owners = this.ownerSet();
     const scope = this.scope();
     if (!this.cfg.appsEnabled || !this.registered || !chain.operatorAddress()) return;
-    if (scope === "owner-only" && !owner) return;
+    if (scope === "owner-only" && !owners.size) return;
     let rows; try { rows = await chain.allDeployments(); } catch (e) { this.log(`ledger scan failed: ${e.shortMessage || e.message}`); return; }
-    const isOwners = (d) => owner && String(d.owner).toLowerCase() === String(owner).toLowerCase();
+    const isOwners = (d) => owners.has(String(d.owner || "").toLowerCase());
     const pool = rows.filter((d) => d.active && (scope === "market" ? d.isPublic : isOwners(d)));
     if (pool.length && !this._sawLedger) {
       this._sawLedger = true;
@@ -1218,10 +1471,10 @@ export class Host {
       if (!ours && live && !/^0x0+$/.test(String(d.runner || ""))) continue;   // somebody else is running it
       if (!ours && claimed >= 1) continue;
       let v = null; try { v = await chain.resolveAppRef(d.appRef); } catch {}
-      const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: owner, enclaveId: this.enclaveId, appsEnabled: true,
+      const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: owners, enclaveId: this.enclaveId, appsEnabled: true,
                                             scope, version: v, capacity: this.capacity(), listedAt: this.listedAt(),
-                                            legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true,
-                                            privateOk: !!this.cfg.sessionKid,
+                                            legacy: this.cfg.claimLegacy === true, fetchesConfigCid: this.features().configCidOverride,
+                                            privateOk: !!this.cfg.sessionKid && (!this.partitionsOnly() || this.features().devDeploy),
                                             features: this.features() });
       if (refuse) {
         // Recorded, not logged every 30 seconds: a refusal is a standing fact about a row, and
@@ -1236,6 +1489,8 @@ export class Host {
   }
   async tick() {
     if (!this.chainReady) return;
+    // whose deployments this box serves, re-read before the scan and the sweep ask (a deleted delegation ends here)
+    await this.refreshOwners();
     if (!this.registered) await this.refreshRegistration();
     await this.ensureRegistered().catch((e) => this.log(`register: ${e.message}`));
     // The asks, every tick rather than once at start-up: the card price is a function of whether
@@ -1267,7 +1522,21 @@ export class Host {
       // HELD (a retired-engine node, a deployment it cannot run): before the renewal, the envelope edit and
       // the resize, each of which can spend or give back the lease on chain. Recorded, and left alone.
       const held = this.heldReason(d);
-      if (held) { this.#record(id, { status: "held", reason: held, leaseUntil: Number(d.leaseUntil) }); continue; }
+      if (held) {
+        // AN OWNER THIS BOX DOES NOT SERVE is not only left unrenewed: what it runs here is STOPPED (enclave-bf's
+        // should-fix). At once after a TRANSFER - the ledger's owner is not the one this box ran it for (rec.owner,
+        // recorded by ensureApp) - and at the latest when the held lease lapses, as a boundary hold is. A delegation
+        // that is merely missing or unreadable (a transient file-system error looks the same) holds until the lease
+        // ends rather than killing a delegated owner's app. #stopApp retires a partition and waits until it is confirmed
+        // gone; nothing is released on chain.
+        if (this.ownerNotServed(d)) {
+          const ranFor = String(rec.owner || "").toLowerCase(), owner = String(d.owner || "").toLowerCase();
+          if (ranFor && ranFor !== owner) { await this.#stopApp(id, `the deployment was transferred to ${d.owner}, whom this box does not serve`); continue; }
+          if (untilMs < Date.now()) { await this.#stopApp(id, `its lease lapsed while held for an owner this box does not serve (${d.owner})`); continue; }
+        }
+        this.#record(id, { status: "held", reason: held, leaseUntil: Number(d.leaseUntil) });
+        continue;
+      }
       // A deployment whose manager stated a boundary this backend cannot have is HELD and NOT renewed: renewing would bill
       // the tenant for a service this box will not give (enclave-99). ensureApp below still re-asks every tick. But its
       // LEASE END is still honoured, and before ensureApp, so a lapsed lease is neither kept running nor served again for
@@ -1285,7 +1554,37 @@ export class Host {
         await this.#stopApp(id, "the lease lapsed while the deployment was boundary-held (not renewed)");
         continue;
       }
-      if (rec.boundaryHeld !== true && untilMs - Date.now() < RENEW_LEAD_MS) {
+      // HELD BY THE OWNER'S CAP (#spawnCapHold): its partition never started, so it is not renewed (nothing is served
+      // to bill for), and when the lease lapses it is let go here. Nothing runs to retire and nothing is released on
+      // chain; it comes back through the ledger scan, whose claim gate reads the same cap.
+      if (rec.capHeld === true && untilMs < Date.now()) {
+        await this.#stopApp(id, "the lease lapsed while it waited for room under the owner's hosting cap (not renewed)");
+        if (this.records.get(id)?.status === "stopped") this.#record(id, { capHeld: null });   // else retried next tick
+        continue;
+      }
+      // HELD BY THE PLAN (#isolationReconcile: an input it cannot establish, such as whether secrets are staged): this box
+      // refuses to provision it, so it is NOT renewed - renewing drained the tenant's balance for time nobody was served
+      // (coordinator enclave-87: d1's live node renewed test 1 at 01:15:58Z while it refused it). ensureApp below asks
+      // again every tick, and a plan that passes clears the hold before the renewal window closes. A lease that lapses
+      // while held is let go here, as a cap hold is; nothing is released on chain.
+      // ...and a domain HELD rather than serving - one recovered from Hyper-V after a host or manager restart, or whose
+      // outcome is unknown (rec.isolationHeld without a running record) - is the same case: billed, nothing served
+      // (enclave-5d's G1; coordinator enclave-87). It is retired at lapse by the id it is held under (#stopApp ->
+      // #retireIsolated), and stays tracked until the manager confirms it gone.
+      // ...and a REBOOT RECOVERY that did not end serving (#rebootHold: held, with or without a VM left to name)
+      const notServing = rec.planHeld === true || (!!rec.isolationHeld && rec.status !== "running") || !!rec.rebootHeld;
+      if (notServing) {
+        if (untilMs < Date.now()) {
+          await this.#stopApp(id, `its lease lapsed while this box was not serving it (not renewed): ${rec.reason || "held"}`);
+          if (this.records.get(id)?.status === "stopped") this.#record(id, { planHeld: null, isolationHeld: null, rebootHeld: null });
+          continue;
+        }
+        if (untilMs - Date.now() < RENEW_LEAD_MS && rec.noRenewSaid !== untilMs) {
+          this.#record(id, { noRenewSaid: untilMs });
+          this.log(`${id.slice(0, 10)} NOT renewed: this box is not serving it (${rec.reason || "held"}); the lease ends ${new Date(untilMs).toISOString()}`);
+        }
+      }
+      if (rec.boundaryHeld !== true && rec.capHeld !== true && !notServing && untilMs - Date.now() < RENEW_LEAD_MS) {
         try { await chain.renewDeployment(id); this.log(`renewed ${id.slice(0, 10)}`); d = await chain.readDeployment(id); }
         catch (e) {
           // rateCap doctrine (the platform runner's, mirrored): a renew the LEDGER refuses is not
@@ -1395,6 +1694,13 @@ export class Host {
     return recent.length;
   }
 
+  /** A reboot recovery that did not end serving: HELD, not retried by ensureApp and not renewed, until a forced relaunch. */
+  #rebootHold(id, why, instanceId = null) {
+    const reason = `isolation: reboot recovery: ${why}; held (not retried, not renewed) until a forced relaunch, or the owner's resize or config edit`;
+    this.log(`${id.slice(0, 10)} ${reason}`);
+    return this.#record(id, { status: "held", rebootHeld: reason, reason, ...(instanceId ? { isolationHeld: instanceId } : {}) });
+  }
+
   async #retireIsolated(id, why) {
     if (!this.cfg.isolationManager) return true;                                // no backend: nothing can be out there
     const rec = this.records.get(id) || {};
@@ -1482,13 +1788,31 @@ export class Host {
     return r.status === "running" || !!r.isolation || !!r.isolationHeld || !!r.isolationRetireFailed
       || (r.status === "provisioning" && r.isolationRequired === true);
   }
-  /** The node pool this box has left, as a fraction: what the relay's placement reads. */
-  cpuShareFree({ exclude = null } = {}) {
+  /**
+   * The shares the units occupying this box stand for (Host.occupies: running, starting, or a partition that may still
+   * run), summed. `cpu` and `gpu` are what their leases bought; `gpuInUse` is what they hold of the card, which for a
+   * partition is what it was spawned with (partitionGpuShare: 0 on this backend today, node-bridge.mjs isolationPlan).
+   */
+  shareUse({ exclude = null } = {}) {
+    let cpu = 0, gpu = 0, gpuInUse = 0;
+    for (const r of this.records.values()) {
+      if (!Host.occupies(r) || (exclude && String(r.id).toLowerCase() === String(exclude).toLowerCase())) continue;
+      cpu += r.cpuShare || 0; gpu += r.gpuShare || 0;
+      gpuInUse += r.partitionGpuShare ?? (r.gpuShare || 0);
+    }
+    return { cpu, gpu, gpuInUse };
+  }
+  /**
+   * The node pool this box has left, as a fraction: what the relay's placement reads. `capped: false` is the figure
+   * without the owner's cap, for a resize that does not grow (the cap never takes a lease back).
+   */
+  cpuShareFree({ exclude = null, capped = true } = {}) {
     if (!this.cfg.appsEnabled) return 0;
-    const used = [...this.records.values()].filter((r) => Host.occupies(r))
-      .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase())
-      .reduce((a, r) => a + (r.cpuShare || 0), 0);
-    return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25)));   // a quarter stays for the enclave, the worker and the owner
+    const used = this.shareUse({ exclude }).cpu;
+    // The owner's cap (hosting.mjs) can only lower this; at the default 1.0 it never binds and the figure is exactly
+    // the one before caps existed.
+    const offered = capped ? this.caps.cpuShare - used : Infinity;
+    return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25), offered));   // a quarter stays for the enclave, the worker and the owner
   }
   /**
    * The CARD pool this box has left, as a fraction of the worker's budget.
@@ -1499,15 +1823,76 @@ export class Host {
    * card facts arrive from the agent (shieldedcard.mjs asks the worker), so a box whose worker is
    * down sells nothing rather than selling from memory.
    */
-  gpuShareFree({ exclude = null } = {}) {
+  gpuShareFree({ exclude = null, capped = true } = {}) {
     if (!this.cfg.appsEnabled) return 0;
     const card = this.card && this.card();
     if (!card || !(Number(card.vramBudgetGb) > 0)) return 0;
-    const sold = [...this.records.values()].filter((r) => Host.occupies(r))
-      .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase())
-      .reduce((a, r) => a + (r.gpuShare || 0), 0);
+    const sold = this.shareUse({ exclude }).gpu;
     const onCard = Number(card.vramFreeGb) / Number(card.vramBudgetGb);
-    return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0));
+    // ...and a third, the owner's cap, which can only lower it (1.0 by default, where it never binds).
+    return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0, capped ? this.caps.gpuShare - sold : Infinity));
+  }
+  /**
+   * capRefusal(id, {cpuShare, gpuShare}) -> why a NEW unit with these shares does not fit under the owner's caps beside
+   * everything else occupying this box, or null. The isolated backend's spawn gate (#spawnCapHold). A unit that uses
+   * no GPU is never refused for the GPU cap.
+   */
+  capRefusal(id, { cpuShare = 0, gpuShare = 0 } = {}) {
+    const use = this.shareUse({ exclude: id });
+    const pct = (x) => Math.round(x * 100);
+    if (use.cpu + cpuShare > this.caps.cpuShare + 1e-9)
+      return `not started: the owner offers ${pct(this.caps.cpuShare)}% of this box's CPU to hosting, ${pct(use.cpu)}% of it is in use`
+        + ` by running and starting partitions, and this one needs ${pct(cpuShare)}%; it starts when it fits (nothing running was stopped)`;
+    if (gpuShare > 0 && use.gpuInUse + gpuShare > this.caps.gpuShare + 1e-9)
+      return `not started: the owner offers ${pct(this.caps.gpuShare)}% of this box's GPU to hosting, ${pct(use.gpuInUse)}% of it is in use`
+        + ` by running and starting partitions, and this one needs ${pct(gpuShare)}%; it starts when it fits (nothing running was stopped)`;
+    return null;
+  }
+
+  // ---- the owner's hosting controls (hosting.mjs's local API, the tray app) -----------------------------------------
+  hostingCaps() { return { ...this.caps }; }
+  /** Persist, THEN apply: a cap that could not be saved changes nothing, so the tray snaps back to the truth. */
+  setHostingCaps(next) {
+    saveCaps(this.capsFile, next);
+    const was = this.caps;
+    this.caps = { cpuShare: next.cpuShare, gpuShare: next.gpuShare }; this.capsError = null;
+    const use = this.shareUse(), pct = (x) => `${Math.round(x * 100)}%`;
+    this.log(`hosting caps set on this box: CPU ${pct(was.cpuShare)} -> ${pct(this.caps.cpuShare)}, GPU ${pct(was.gpuShare)} -> ${pct(this.caps.gpuShare)}`
+      + (use.cpu > this.caps.cpuShare + 1e-9 ? `; ${pct(use.cpu)} of the CPU is already in use, which keeps running: new work waits until use drops below the cap` : ""));
+    return this.hostingCaps();
+  }
+  /** Does anything on the ACTIVE backend use the GPU? The tray says so rather than imply GPU hosting that is not happening. */
+  gpuConsumer() {
+    if (this.cfg.engineRetired === true) {
+      const held = this.shareUse().gpuInUse;
+      return held > 0 ? { consumer: true, why: `partitions on the isolated backend hold ${Math.round(held * 100)}% of the GPU` }
+        : { consumer: false, why: "no partition on the isolated backend holds a GPU share (it spawns them with gpuShare 0,"
+            + " windows/vbslike/datapath/node-bridge.mjs), so nothing on it uses the GPU yet" };
+    }
+    const card = this.card && this.card();
+    return card && Number(card.vramBudgetGb) > 0
+      ? { consumer: true, why: "the enclave's model offloads to this card through the shielded worker" }
+      : { consumer: false, why: "no shielded worker is answering, so nothing on this node uses the GPU" };
+  }
+  /** GET /v1/local/hosting: the caps, what is sold, in use and free, and what this backend does with the GPU. */
+  hostingView() {
+    const use = this.shareUse(), cap = this.capacity(), r4 = (x) => Math.round(x * 1e4) / 1e4;
+    const recs = [...this.records.values()];
+    return {
+      caps: this.hostingCaps(), step: CAP_STEP, capsError: this.capsError,
+      // The same accounting the claim gate and the isolated backend's spawn gate use (shareUse).
+      sold: { cpuShare: r4(use.cpu), gpuShare: r4(use.gpu) },
+      inUse: { cpuShare: r4(use.cpu), gpuShare: r4(use.gpuInUse) },
+      // What a new claim is measured against: the caps, less what is in use, less the node's reserve.
+      free: { cpuShare: r4(cap.cpuShareFree), gpuShare: r4(cap.gpuShareFree ?? 0) },
+      reservedShare: this.cfg.reservedShare ?? 0.25,
+      deploymentsServed: recs.filter((r) => r.status === "running").length,
+      waitingForCap: recs.filter((r) => r.capHeld === true && r.status === "held").length,
+      backend: this.cfg.engineRetired === true ? "hv" : "legacy",
+      gpu: this.gpuConsumer(),
+      appsEnabled: !!this.cfg.appsEnabled,
+      logsDir: this.cfg.dir,
+    };
   }
 
   /**
@@ -1515,7 +1900,7 @@ export class Host {
    * is not slack: the enclave holds the model and its pads in VTL1, the shielded worker feeds the
    * card, and the owner of the PC is entitled to their own machine.
    */
-  capacity({ exclude = null } = {}) {
+  capacity({ exclude = null, capped = true } = {}) {
     const slots = this.cfg.appSlots ?? 4;
     // `exclude` is how a deployment is sized against the room it would leave BESIDE the others
     // rather than beside itself, and it applies to EVERY axis - memory, node share and card share.
@@ -1563,14 +1948,21 @@ export class Host {
       : hostMb;
     const ramMb = Math.max(0, budgetMb - committedMb);
     const card = this.card && this.card();
-    return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: this.cpuShareFree({ exclude }),
+    const cpuFree = this.cpuShareFree({ exclude, capped }), gpuFree = this.gpuShareFree({ exclude, capped });
+    // THE OWNER'S CAP, named when it is what limits an axis (the capped figure is below the uncapped one), so a refusal
+    // says so (chain.mjs claimPolicy) instead of reading as a full box.
+    const use = this.shareUse({ exclude });
+    const cpuCap = capped && cpuFree < this.cpuShareFree({ exclude, capped: false }) - 1e-9 ? { offered: this.caps.cpuShare, used: use.cpu } : null;
+    const gpuCap = capped && gpuFree < this.gpuShareFree({ exclude, capped: false }) - 1e-9 ? { offered: this.caps.gpuShare, used: use.gpu } : null;
+    return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: cpuFree,
              ramMbFree: ramMb, ramMbPool: this.appsInTee() ? enclaveMb : hostMb, ramMbEngine: engineMb,
              // Has the engine's own hold been measured? A caller that sees false knows ramMbFree
              // is a refusal, not a capacity.
              ramMeasured: !this.appsInTee() || measured !== null,
              cpuGflops: Number(this.cfg.gflops) || 0,
              // The card, in the same shape: what a GPU-dialled deployment is checked against.
-             gpuShareFree: this.gpuShareFree({ exclude }), cardGb: card ? Number(card.vramBudgetGb) || 0 : 0 };
+             gpuShareFree: gpuFree, cardGb: card ? Number(card.vramBudgetGb) || 0 : 0,
+             ...(cpuCap ? { cpuCap } : {}), ...(gpuCap ? { gpuCap } : {}) };
   }
   /**
    * Does an app this box hosts run INSIDE the enclave?
@@ -1599,9 +1991,20 @@ export class Host {
    * operator's decision (enclave-d1 F2). A held lease simply lapses at leaseUntil.
    */
   heldReason(d) {
+    // AN OWNER THIS BOX DOES NOT SERVE: a lease it holds whose ledger owner is not its operator or a delegated owner -
+    // a deployment transferred away (rev 11), or taken under an owner rule that no longer authorizes it. Without this
+    // the sweep kept renewing it and re-spawned it whenever it was not running, and a share resize or envelope edit ran
+    // ensureApp(force) for it: N1's harm through the sweep instead of the route (enclave-bf).
+    if (this.ownerNotServed(d))
+      return `this node is in owner-only scope and serves only its operator's and its delegated owners' deployments; this one is `
+        + `owned by ${d?.owner}: held - not started, not renewed, not released - pending the operator's decision`;
     if (this.cfg.engineRetired !== true || this.isolatedForThisBox(d)) return null;
     return "this node runs only the isolated backend (the legacy VBS-enclave backend is retired) and this deployment "
       + "does not require it: held - not started, not renewed, not released - pending the operator's decision";
+  }
+  /** ownerNotServed(d) -> true when, in owner-only scope, the deployment's ledger owner is not in ownerSet(). */
+  ownerNotServed(d) {
+    return this.scope() === "owner-only" && !this.ownerSet().has(String(d?.owner || "").toLowerCase());
   }
   /** claimRefusal(d) -> why a retired-engine node will not CLAIM a deployment, or null (see heldReason). */
   retiredEngineClaimRefusal(d) {
@@ -1643,6 +2046,8 @@ export class Host {
    */
   availability() {
     const running = [...this.apps.values()].filter((a) => a.state === "running").length;
+    // partitions this node serves: a record with an isolation block is a running domain the app zone splices to
+    const partitions = [...this.records.values()].filter((r) => r && r.isolation && r.status === "running").length;
     const cap = this.capacity();
     const ready = !!(this.cfg.appsEnabled && this.registered && Number(this.registered.cpuPricePerSec6) > 0
                      && chain.operatorAddress() && (this.gasRenewals ?? 1) > 0);
@@ -1662,6 +2067,13 @@ export class Host {
       // a promise the whole fleet has to keep.
       fullService: false,
       ...this.features(),
+      // THE ISOLATION BACKEND, by the name a tenant's isolation.require and `enclave deploy --isolation` match (metal-iso0
+      // advertises "snp-guest-per-app" the same way), or null without a manager. Its boundary is stated beside it and is
+      // this backend's own, never a stronger one: a Hyper-V partition per app is T0-hv, and the host is NOT excluded.
+      isolation: this.isolationBackend,
+      ...(this.isolationBackend ? { isolationBoundary: { tier: "T0-hv", hostExcluded: false } } : {}),
+      // The relay's verdict on this node's attach, as it gave it (null until attached): tier "hv-node", hostExcluded false.
+      attach: { tier: this.relayTier || null, hostExcluded: this.relayHostExcluded ?? null },
       apps: this.appsInTee() ? {
         // Where a leased app runs, in the one word that matters: INSIDE the enclave. The bytecode
         // is interpreted in VTL1 by the runtime linked into the measured image, so the app's code
@@ -1682,6 +2094,12 @@ export class Host {
         // numbers that make the pool checkable rather than asserted.
         ramMb: cap.ramMbPool, engineMb: cap.ramMbEngine, ramMbFree: cap.ramMbFree,
         note: "an app runs inside the VBS enclave, interpreted from bytecode; its host carries the request and response bytes",
+      } : this.isolationBackend ? {
+        // THE ISOLATED BACKEND (enclave-b4's N5): each deployment in its own Hyper-V partition. It used to fall into the
+        // branch below and say isolation "none", capacity 0 and "sells no app hosting" while partitions served.
+        isolation: this.isolationBackend, tier: "T0-hv", hostExcluded: false, inTee: false,
+        running: partitions, capacity: cap.slots, scope: this.scope(),
+        note: "each deployment runs in its own Hyper-V partition (T0-hv), which holds its TLS key and ends TLS; the host is NOT excluded from it",
       } : {
         // No app runtime in this enclave image: the box hosts nothing for a tenant. The VTL0
         // wasmtime path still exists for the box owner's own bring-up, and is not an offer.
@@ -1701,7 +2119,11 @@ export class Host {
         ? { kid: this.cfg.sessionKid, alg: "ES256", keyIn: "host-process", jwks: "/v1/session-jwks",
             note: "private deployments are served to their owner; the key that proves it is in the agent's process, not inside the enclave" }
         : null,
-      appTls: {
+      appTls: !this.appsInTee() && this.isolationBackend ? {
+        // a partition's hostname is spliced to it UNOPENED (node-bridge.mjs): the key and the handshake are the partition's
+        served: partitions > 0, zone: this.cfg.appZone, keyIn: "partition", terminatesIn: "partition",
+        note: "each isolated deployment's hostname is spliced to its partition unopened; the partition holds the key and ends TLS",
+      } : {
         served: this.appsInTee() && Number(this.cfg.enclaveAppWorlds || 0) & 4 ? true : false,
         zone: this.cfg.appZone, keyIn: "host-process", terminatesIn: "host-process",
         issued: [...this.appCerts.values()].filter((c) => c.cert && !c.cert.selfSigned).length,
@@ -1716,14 +2138,15 @@ export class Host {
       // The CARD's price, on the same rule: the registry entry when this box is listed, because
       // that is what the ledger would charge. Zero means this box sells no card share - either it
       // has none, or it has not registered a price for the one it has.
-      askGpuPricePerSec6: Number(this.registered?.gpuPricePerSec6) || 0,
+      // what this box ASKS: the registry's figure when it sells a card, 0 when it does not (engine retired, gpu:false)
+      askGpuPricePerSec6: this.sellsCard() ? Number(this.registered?.gpuPricePerSec6) || 0 : 0,
       // ...and the same number under the name a SHIELDED pool's price is read by. The platform's
       // own boxes publish both from one on-chain figure (supervisor.js: askShieldedPricePerSec6 =
       // SELL_GPU_PRICE6), because the card is charged as the card whichever side of the enclave it
       // sits on; what differs is only which pool the fleet row draws it under. A box that posted
       // only askGpu rendered a shielded pool with no rate at all, which reads as "free".
       ...(Number(this.registered?.gpuPricePerSec6) > 0 && this.card()
-            ? { askShieldedPricePerSec6: Number(this.registered.gpuPricePerSec6) } : {}),
+            && this.sellsCard() ? { askShieldedPricePerSec6: Number(this.registered.gpuPricePerSec6) } : {}),
       nodeSlotsFree: cap.slotsFree, ramMbFree: cap.ramMbFree,
       // The enclave's memory as the fleet row reads it: a FIXED pool and what is really left of
       // it. ramGbFree is the field the row prefers over the share-derived figure, and publishing
@@ -1737,7 +2160,8 @@ export class Host {
       gasRenewalsLeft: this.gasRenewals ?? null,   // an operator key out of gas stops renewing, and the app goes at the end of its quantum
 
       proofKey: chain.proofAddress() || null,
-      ownerWallet: this.ownerAllow(),
+      // whose deployments this box serves (ownerSet): its operator and its delegated owners, never the payout wallet
+      owners: [...this.ownerSet()],
     };
   }
   /**
@@ -1746,7 +2170,34 @@ export class Host {
    * these describe THIS box and nothing else. A true here is a promise the claim policy keeps: if
    * a flag is false, a deployment that needs it is refused by name rather than run without it.
    */
+  /** Does this node run ONLY the isolated backend (the engine retired, a manager configured)? Then what it offers a
+   *  deployment is what a partition can be given, not what the enclave's runtime could do. */
+  partitionsOnly() { return this.cfg.engineRetired === true && !!this.isolationBackend; }
+  /** A partition capability: the node's own plan allows it (PARTITION_OFFERS) AND the manager's /health supports it. */
+  partitionOffers(plan, supports = plan) {
+    return PARTITION_OFFERS[plan] === true && !!this.managerSupports && this.managerSupports[supports] === true;
+  }
   features() {
+    // THE ISOLATED BACKEND offers what a partition can be given (enclave-87, from d1's live node at 013deb51, which
+    // advertised secrets, secretsInConfig, configOverride and customDomains as true while its plan refuses every one).
+    // Each is the node's plan AND the manager's word; today every one is false, and the claim gate refuses such a
+    // deployment by name instead of claiming it.
+    if (this.partitionsOnly()) {
+      const config = this.partitionOffers("config"), configCid = this.partitionOffers("configCid");
+      return {
+        configOverride: config, gpuOptional: this.partitionOffers("gpu"), cpuFallback: true,
+        networkOptions: this.partitionOffers("egress"), rateCap: true, proofOfTime: true,
+        waf: this.partitionOffers("waf"),
+        secrets: this.partitionOffers("secrets") && !!this.cfg.secretsSign,
+        secretsInConfig: this.partitionOffers("secrets") && config && !!this.cfg.secretsSign,
+        configCid, configCidOverride: configCid, configEdit: config,
+        shareResize: true,
+        customDomains: this.partitionOffers("customDomains"),
+        devDeploy: this.partitionOffers("privateDeployments") && !!this.cfg.sessionKid,
+        mem64: false, set: false, p3: false, coopThreads: false,
+        volumes: [],
+      };
+    }
     return {
       // What it does implement.
       configOverride: true,   // the envelope's `config` namespace: the deployment's app-config replaces the version's (appConfig() below)

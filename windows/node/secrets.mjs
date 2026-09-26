@@ -173,7 +173,11 @@ export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enc
     // Authoritative "there is nothing to inject", and not worth a retry: the relay has no secrets
     // plane at all, or its ledger view has no such row (which is also the answer if this relay is
     // old enough to have no fetch route). Neither is a refusal OF THIS BOX, so neither throws.
-    if (status === 503) { log(`secrets: this relay has no secrets plane (${code || "503"}); the app launches with none`); return { env: {}, count: 0, rev: 0, dropped: [], source: "disabled" }; }
+    // ONLY the relay's own secrets_disabled 503 says that (relay/secrets.js: the route's one 503). Any other 503 - a
+    // proxy in front of a relay that is restarting, an overloaded upstream - says nothing about this deployment's
+    // secrets, and used to be read as "no secrets plane", so the app launched without them and the isolation probe
+    // counted "none" (enclave-b4's N3). It is transient now: retried with the 5xx, then thrown.
+    if (status === 503 && code === "secrets_disabled") { log(`secrets: this relay has no secrets plane (${code}); the app launches with none`); return { env: {}, count: 0, rev: 0, dropped: [], source: "disabled" }; }
     if (status === 404) { log(`secrets: the relay has no record to serve for ${idL.slice(0, 10)} (${code || "404"}); the app launches with none`); return { env: {}, count: 0, rev: 0, dropped: [], source: "not-on-ledger" }; }
 
     // REFUSED. Four causes, all of them this box's to fix, and the caller needs the difference:
@@ -205,4 +209,39 @@ export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enc
  */
 export function mergeEnv(base, secrets) {
   return { ...(secrets || {}), ...(base || {}) };
+}
+
+/**
+ * secretsExist({ id, base }) -> true | false: does the relay hold staged secrets for this deployment? Throws when it
+ * cannot say. The relay's /v1/secrets/exists is deliberately UNAUTHENTICATED and needs no lease (relay/secrets.js: a
+ * runner asks it before claiming), and it answers only the boolean - no names, no values. The isolated backend needs
+ * nothing more: a partition is never handed secrets, so all the node must know is whether there are any. Unlike the
+ * lease holder's fetch it works BEFORE a claim, and for a lease holder the relay does not hold eligible - the fetch
+ * refuses both (409 not_lease_holder; 403 host_ineligible since U7), which left d1's live test 1 held as "not known".
+ * Anything but a 200 that names this id with a boolean is a throw (unknown): never "no". A 5xx or the wire is retried once.
+ */
+export async function secretsExist({ id, base = "https://api.enclave.host" } = {}) {
+  const idL = String(id || "").toLowerCase();
+  if (!/^0x[0-9a-f]{64}$/.test(idL)) throw new Error(`secrets: "${id}" is not a bytes32 deployment id`);
+  const api = String(base || "").trim().replace(/\/+$/, "");
+  if (!api) throw new Error("secrets: no relay configured, so whether this deployment has secrets is not known");
+  let last = "";
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt) await sleep(1000);
+    let status = 0, text = "";
+    try {
+      const r = await fetch(`${api}/v1/secrets/exists`, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: idL }), signal: AbortSignal.timeout(TIMEOUT_MS) });
+      status = r.status; text = await r.text();
+    } catch (e) { last = e.message || String(e); continue; }
+    if (status === 200) {
+      let b; try { b = JSON.parse(text); } catch { throw new Error("secrets: the relay's exists answer is not JSON"); }
+      if (String(b?.id || "").toLowerCase() !== idL) throw new Error(`secrets: the relay answered exists for ${String(b?.id || "(nothing)").slice(0, 66)}, not ${idL}`);
+      if (typeof b.exists !== "boolean") throw new Error("secrets: the relay's exists answer carries no boolean");
+      return b.exists;
+    }
+    last = `HTTP ${status}${text ? `: ${text.slice(0, 120)}` : ""}`;
+    if (status < 500) break;                              // 4xx (429 included) is not fixed by asking again now
+  }
+  throw new Error(`secrets: whether ${idL} has staged secrets is not known (${last})`);
 }
