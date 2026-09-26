@@ -106,7 +106,7 @@ export const ADDRESS_BOOK_ADDRESS = _book || "0xab214342d5A490150A4A977063A2f88E
 // console a plausible wrong answer, and any write goes to the dead ledger.
 // Observed 2026-07-28: 0xa025ed60… read active:true/cpu 80/lease live on the
 // live contract and active:false/cpu 10/no lease on the baked one.
-export let APP_CATALOG_ADDRESS = "0xac5270c57f3118f0b37d4f493198bb6863eddddf"; // EnclaveAppCatalog on Base; written automatically by scripts/deploy-app-catalog.mjs
+export let APP_CATALOG_ADDRESS = "0x18419ca2b502d423a8de6269aeee171a378626e3"; // EnclaveAppCatalog on Base; written automatically by scripts/deploy-app-catalog.mjs
 export let DEPLOYMENTS_ADDRESS = "0xf9e71385c5cb49844f2457ba6567de0742f8b89a"; // EnclaveDeployments on Base; written automatically by scripts/deploy-deployments.mjs
 export let REGISTRY_ADDRESS    = "";                            // EnclaveRegistry (fleet membership); resolved from the address book only
 export let FEATURED_ADDRESS    = "";                            // EnclaveFeatured (featured-slot view bids); resolved from the address book only - "" = editorial featured pick, no bidding UI
