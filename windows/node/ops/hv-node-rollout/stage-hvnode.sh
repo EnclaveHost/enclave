@@ -25,16 +25,31 @@ cp "$T/wasm/ipfs_fetch.py" "$T/windows/node/ipfs_fetch.py"
 rm -rf "$T/windows/node/ops" "$T/windows/node/test-fixtures"
 find "$T" -name '*.test.mjs' -delete
 
-# the import closure of agent.mjs + host.mjs must be inside the tree, or the node fails at start on the box
-node --input-type=module -e '
+# the import closure of agent.mjs + host.mjs must be inside the tree, or the node fails at start on the box. A file the
+# closure reaches that the base list above does not carry is taken FROM THE SAME COMMIT and the closure checked again
+# (enclave-53: fa4284db's hvcert.mjs reaches isolation/m4/guestd/supervisor-guestcert.mjs, isolation/m2/judge.mjs,
+# isolation/contract/runtime.mjs and relay/snp-verify.mjs). So the tree is the closure's own, and a commit whose closure
+# the base list already covers stages byte-identically (013deb51 -> fd145fca). A file the commit does not have fails.
+closure() { node --input-type=module -e '
   import fs from "node:fs"; import path from "node:path";
   const root = process.argv[1]; const seen = new Set(); const todo = ["windows/node/agent.mjs", "windows/node/host.mjs"];
   const re = /(?:import\s[^"'"'"'`]*?from\s*|import\s*\(\s*|export\s[^"'"'"'`]*?from\s*)["'"'"'`](\.{1,2}\/[^"'"'"'`]+)["'"'"'`]/g;
-  let missing = 0;
+  const missing = [];
   while (todo.length) { const f = todo.pop(); if (seen.has(f)) continue; seen.add(f);
-    let src; try { src = fs.readFileSync(path.join(root, f), "utf8"); } catch { console.error("MISSING " + f); missing++; continue; }
+    let src; try { src = fs.readFileSync(path.join(root, f), "utf8"); } catch { missing.push(f); continue; }
     for (const m of src.matchAll(re)) { const t = path.normalize(path.join(path.dirname(f), m[1])); if (!seen.has(t)) todo.push(t); } }
-  console.error(`import closure: ${seen.size} files, ${missing} missing`); process.exit(missing ? 1 : 0);' "$T"
+  for (const f of missing) console.log(f);
+  console.error(`import closure: ${seen.size} files, ${missing.length} missing`);' "$T"; }
+for round in 1 2 3 4 5 6; do
+  MISSING=$(closure)
+  [ -z "$MISSING" ] && break
+  for f in $MISSING; do
+    git cat-file -e "$NC:$f" 2>/dev/null || { echo "MISSING $f: not in $NC either, so the node cannot start" >&2; exit 1; }
+    echo "closure: adding $f from $N8" >&2
+    git archive --format=tar "$NC" "$f" | tar -x -C "$T"
+  done
+done
+[ -z "$(closure 2>/dev/null)" ] || { echo "the import closure did not close" >&2; exit 1; }
 
 # the manifest is written OUTSIDE the tree it lists: redirected into $T, the shell created it before find ran, so it
 # listed itself (hashed half-written) while the archive, packed after the mv, did not carry it; the box's per-file check
