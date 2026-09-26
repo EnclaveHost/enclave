@@ -1,0 +1,7 @@
+read at 2026-09-26T07:37:51Z on Nan
+api-relay: 4134180 0 Sat 2026-09-26 07:05:45 UTC 23d460c2af6d4276996ff19aaa762280 
+env file: RELAY_HVNODE_OPERATORS lines=1 exact-match(grep -Fx)=1
+env file: RELAY_REVERIFY lines=1 exact-match(grep -Fx)=1
+process 4134180 environ: RELAY_HVNODE_OPERATORS entries=1 exact-match=1
+process 4134180 environ: RELAY_REVERIFY entries=1 exact-match=1
+TRUSTED_OPERATORS naming 0x389c (must be 0): 0
