@@ -244,11 +244,28 @@ func TestEachGuestIsNamedByItsOwnTreesRelease(t *testing.T) {
 			t.Errorf("parseReleaseIDs accepted %q", bad)
 		}
 	}
+	// on a -release guestd every tree is named (an explicit `none` for a lab tree), and `none` names nothing
+	for _, c := range []struct {
+		on                         bool
+		iso, legacy, legacyRelease string
+		refused                    bool
+	}{{true, "", "", "", true}, {true, "none", "", "", false}, {true, "@x", "", "", false}, {false, "", "", "", false},
+		{true, "none", "/legacy", "", true}, {true, "none", "/legacy", "@y", false}} {
+		if why := releaseNamingRefusal(c.on, c.iso, c.legacy, c.legacyRelease); (why != "") != c.refused {
+			t.Errorf("releaseNamingRefusal(%+v) = %q", c, why)
+		}
+	}
+	if got, err := parseReleaseIDs(" none "); err != nil || got != nil {
+		t.Errorf("none named something: %q %v", got, err)
+	}
 	// a tree whose judge predates per-release W^X must be named; a later tree need not be
 	old, cur := t.TempDir(), t.TempDir()
 	for d, js := range map[string]string{old: "export function judge() {}\n", cur: "export const LEGACY_WX_RELEASES = Object.freeze({});\n"} {
 		_ = os.MkdirAll(filepath.Join(d, "m2"), 0o755)
 		_ = os.WriteFile(filepath.Join(d, "m2", "judge.mjs"), []byte(js), 0o600)
+	}
+	if why := needsRelease(old, "none"); why == "" {
+		t.Error("a pre-chain tree was accepted as `none`")
 	}
 	if why := needsRelease(old, ""); !strings.Contains(why, "predates per-release W^X") {
 		t.Errorf("an unnamed pre-chain tree was accepted: %q", why)

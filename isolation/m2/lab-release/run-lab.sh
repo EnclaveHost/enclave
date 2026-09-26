@@ -138,7 +138,7 @@ PIDS+=($!)
 PIDS+=($!)
 ( cd "$ISO/m4/guestd" && go build -o "$L/guestd" . )
 GUESTD_ENABLE=1 ISOLATION_LAB_FRONT=1 "$L/guestd" -isolation "$ISO" -root "$L/guestd-root" -listen 127.0.0.1:18095 \
-  -release -instance-prefix lb -ticket-port 19444 -egress-port 19445 -guest-mem-mib 4096 -guest-cpus 2 > "$L/guestd.log" 2>&1 &
+  -release -isolation-release none -instance-prefix lb -ticket-port 19444 -egress-port 19445 -guest-mem-mib 4096 -guest-cpus 2 > "$L/guestd.log" 2>&1 &
 PIDS+=($!)
 for _ in $(seq 1 120); do curl -sf -m 2 http://127.0.0.1:18095/health > "$L/health.json" 2>/dev/null && break; sleep 1; done
 grep -q '"release":true' "$L/health.json" || { say "FAIL: the lab guestd did not come up with -release"; exit 1; }

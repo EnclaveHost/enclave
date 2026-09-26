@@ -84,6 +84,11 @@ func (g *chainGuest) scanWX() string {
 	case scan.Found != "":
 		return "wx=found " + scan.Found
 	}
+	// FIXTURE: the fixture runtime (this test process) runs under no seccomp filter, and a filter on a Go test process
+	// would bind the whole test. The fixture monitor STATES one, so the chain's judges see the form every release after
+	// 5db18199 carries (judge.mjs SECCOMP_UNSTATED_RELEASES); the filter itself is proven by the monitor's and the
+	// front's tests (m3/monitor wxscan_test.go, m2/front selftest_test.go) and m2/test-seccomp-statement.sh.
+	scan.Seccomp = strings.Repeat("d4", 32)
 	return scan.Clean()
 }
 

@@ -31,10 +31,12 @@ run_one() {  # <domexec binary> <run-owner> <uids>
   chmod 0755 "$d/root" "$d/root/plat" "$d/root/plat/rt"; chmod 1777 "$d/root/probe-out"
   cp "$1" "$d/root/plat/domexec"; cp "$d/probe" "$d/root/plat/rt/ld-linux-x86-64.so.2"; cp "$d/probe" "$d/root/plat/front"
   chmod 0755 "$d/root/plat/domexec" "$d/root/plat/rt/ld-linux-x86-64.so.2" "$d/root/plat/front"
+  rm -f "$d/stmt.fifo" "$d/stmt.txt"; mkfifo "$d/stmt.fifo"
   timeout 60 unshare --map-root-user --map-auto -mpfn -- sh -c "
+    cat '$d/stmt.fifo' > '$d/stmt.txt' &
     python3 -c \"import socket,os,time; s=socket.socket(socket.AF_UNIX); s.bind('$d/root/run/monitor.sock'); os.chmod('$d/root/run/monitor.sock',0o666); s.listen(8); time.sleep(15)\" &
     for i in \$(seq 1 50); do [ -S '$d/root/run/monitor.sock' ] && break; sleep 0.1; done
-    chown $2:$2 '$d/root/run' && chmod 0700 '$d/root/run' && exec chroot '$d/root' /plat/domexec 7 $3 app 64 3<>/dev/null" > "$d/console.txt" 2>&1 || true
+    chown $2:$2 '$d/root/run' && chmod 0700 '$d/root/run' && exec chroot '$d/root' /plat/domexec 7 $3 app 64 3<>/dev/null 4>'$d/stmt.fifo'" > "$d/console.txt" 2>&1 || true
 }
 report_ok() {  # <role> -> 0 if its report is clean
   f="$d/root/probe-out/$1.frontuid"
@@ -52,6 +54,12 @@ run_all() {  # <domexec.c>
   done
   grep -q '^uid=1000$' "$d/root/probe-out/runtime.frontuid" 2>/dev/null && grep -q '^uid=1001$' "$d/root/probe-out/front.frontuid" 2>/dev/null \
     && echo "ok   the runtime runs as 1000 and the front as 1001" || { echo "FAIL the uids: runtime $(grep '^uid' "$d/root/probe-out/runtime.frontuid" 2>/dev/null), front $(grep '^uid' "$d/root/probe-out/front.frontuid" 2>/dev/null)"; rc=1; }
+  # the seccomp statement (fd 4): what the runtime's child wrote once its filter was on, byte for byte the positive line
+  line=$(grep -m1 '^DOM7 seccomp: runtime filter installed (sha256 [0-9a-f]\{64\}, [0-9]* rules)$' "$d/console.txt")
+  h=$(echo "$line" | sed -n 's/.*sha256 \([0-9a-f]\{64\}\), \([0-9]*\) rules.*/\1/p'); n=$(echo "$line" | sed -n 's/.*, \([0-9]*\) rules.*/\1/p')
+  if [ -n "$h" ] && [ "$(cat "$d/stmt.txt" 2>/dev/null)" = "seccomp sha256=$h rules=$n" ]
+  then echo "ok   the runtime's child stated its filter on fd 4 (sha256 $(echo "$h" | cut -c1-16)…, $n rules), as the console line says"
+  else echo "FAIL the seccomp statement on fd 4: console [$line] fd4 [$(head -c 200 "$d/stmt.txt" 2>/dev/null)]"; rc=1; fi
   # control: a shared uid is refused before anything starts
   run_one "$d/domexec" 1001 1000:1000
   if grep -q "must not share a uid" "$d/console.txt" && [ ! -s "$d/root/probe-out/runtime.frontuid" ]; then echo "ok   a shared uid (1000:1000) is refused: $(grep -m1 'must not share' "$d/console.txt")"
@@ -81,6 +89,8 @@ mut() {  # <label> <sed expression>
 k=0
 mut "the front spawned as the runtime's uid" 's/front_pid = spawn(front, front_uid, 0, 0);/front_pid = spawn(front, uid, 0, 0);/' || k=1
 mut "the shared-uid refusal removed" '/if (front_uid == uid) { printf/d' || k=1
+mut "the statement pipe NOT close-on-exec (the front and the runtime would hold it)" 's/if (fcntl(SECCOMP_FD, F_SETFD, FD_CLOEXEC) != 0) die("cloexec seccomp statement");/(void)0;/' || k=1
+mut "the statement not written" 's/if (seccomp_fd >= 0 \&\& write(seccomp_fd, st, (size_t)n) != n) {/if (0) {/' || k=1
 mut "lenient uid parsing (atoi)" 's/uid_t uid = colon ? parse_uid(argv\[2\], colon) : 0, front_uid = colon ? parse_uid(colon + 1, colon + 1 + strlen(colon + 1)) : 0;/uid_t uid = (uid_t)atoi(argv[2]), front_uid = colon ? (uid_t)atoi(colon + 1) : 0;/' || k=1
 [ $k = 0 ] && echo "domexec front uid mutants: all killed" || echo "domexec front uid mutants: FAIL"
 [ $g = 0 ] && [ $k = 0 ]

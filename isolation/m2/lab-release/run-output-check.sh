@@ -18,6 +18,9 @@
 #
 # usage: bash isolation/m2/lab-release/run-output-check.sh
 set -euo pipefail
+# the releases the legacy tree (0181bce3) was installed from, DERIVED from their release.json (guestd refuses a pre-chain
+# tree named any other way): 5c3561f9 and 6f14ce75
+LEGACY_RELEASES=${LEGACY_RELEASES:-@$HOME/enclave-prod/release-0181bce3/release.json,@$HOME/enclave-prod/release-6757d139/release.json}
 HERE=$(cd "$(dirname "$0")" && pwd)
 ISO=$(cd "$HERE/../.." && pwd)
 REPO=$(cd "$ISO/.." && pwd)
@@ -73,7 +76,7 @@ mkdir -p "$L/legacy"
 git -C "$REPO" archive "$LEGACY_COMMIT" isolation relay test/fixtures/amd | tar -x -C "$L/legacy"
 ( cd "$ISO/m4/guestd" && GOFLAGS= go build -trimpath -o "$L/guestd" . )
 GUESTD_ENABLE=1 "$L/guestd" -isolation "$ISO" -root "$L/guestd-root" -listen 127.0.0.1:18095 \
-  -release -legacy-isolation "$L/legacy/isolation" -instance-prefix lb \
+  -release -isolation-release none -legacy-isolation "$L/legacy/isolation" -legacy-isolation-release "$LEGACY_RELEASES" -instance-prefix lb \
   -ticket-port 19444 -egress-port 19445 -guest-mem-mib 4096 -guest-cpus 2 > "$L/guestd.log" 2>&1 &
 PIDS+=($!)
 for _ in $(seq 1 120); do curl -sf -m 2 http://127.0.0.1:18095/health > /dev/null 2>&1 && break; sleep 1; done

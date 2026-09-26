@@ -69,12 +69,17 @@ static pid_t find(const char *needle) {
 
 int main(int argc, char **argv) {
     (void)argc;
+    /* FIRST, before this process opens anything: the seccomp statement pipe (domexec's fd 4) must not survive the exec */
+    errno = 0;
+    const int fd4_open = fcntl(4, F_GETFD) != -1, fd4_errno = errno;
     const int front = strstr(argv[0], "front") != NULL;
     char path[128];
     snprintf(path, sizeof path, "/probe-out/%s.frontuid", front ? "front" : "runtime");
     out = fopen(path, "w");
     if (!out) return 3;
     fprintf(out, "uid=%d\n", (int)getuid());
+    say(!fd4_open && fd4_errno == EBADF, "the seccomp statement pipe (fd 4) is not held after exec", "%s",
+        fd4_open ? "OPEN: this workload could write a statement" : "closed");
     if (front) {
         int l = unix_at("/run/front.sock", 1);
         say(l >= 0, "the front creates its listen socket in /run", "fd %d (%s)", l, l < 0 ? strerror(errno) : "ok");
