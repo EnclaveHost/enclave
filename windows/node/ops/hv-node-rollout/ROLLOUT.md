@@ -8,6 +8,14 @@ Approved by enclave-87 with Steven's authority (2026-09-26):
 - deploying the new node on the NucBox, the one that doesn't need the legacy engine;
 - `RELAY_HVNODE_ATTACH` on.
 
+**v2.3** (the v42 inputs): the PACKAGE's pins come from the staged package's own MANIFEST.json, verified against
+`-ManifestSha256` (install and preflight), never from constants: the firmware, the launcher, runtime.json and every
+managerEnv value, each package file against the manifest's files[] and each box file against
+hostChecks.<profile>.boxFiles (enclave-53, enclave-87: the v40 constants refused a staged v42). And stage-hvnode.sh's tree
+is the import closure's own: a file the closure reaches that the base list lacks is taken from the same commit
+(enclave-53: fa4284db's hvcert.mjs reaches four files under isolation/ and relay/), so 013deb51 still stages to
+fd145fca.
+
 **v2.2.2** (enclave-d1's box run of v2.2, PowerShell 5.1): A2 wraps the process lists in `@()` at the call (a one-element
 result was unrolled and had no `.Count`); A4's `gasRenewalsLeft` is null until the node's first heartbeat, 10 min after
 start, so null is INFO for the first 12 min of the agent's life and a FAIL after.
@@ -100,7 +108,8 @@ Each step says who runs it and where. "box" means d1, elevated PowerShell on the
 `powershell -ExecutionPolicy Bypass -File <script>` from `C:\Users\claude\vbs-like\hvnode\stage\`.
 
 **0. Stage (workstation, 5d or d1).** `windows/node/ops/hv-node-rollout/stage-hvnode.sh <c> <cc> <outdir>` builds:
-- `hvnode-<c8>.tar.gz`: the node's import closure (25 files at 013deb51, checked) plus the lockfile, relay fixtures and
+- `hvnode-<c8>.tar.gz`: the node's import closure (25 files at 013deb51, 33 at fa4284db; checked, and completed from
+  the same commit when the base list lacks a file) plus the lockfile, relay fixtures and
   fetcher, in the repo layout (45 files);
 - `cli-<cc8>.tar.gz`;
 - their MANIFESTs, written OUTSIDE the tree they list (v2.1.1).
@@ -116,10 +125,16 @@ It prints every sha256, and the archives are deterministic (two runs are identic
 | cli-154b41a9.tar.gz | `9579912d2c39f3f1844af8441c903e3ff08361e5b734cf74b1e3a814d6886c08` |
 | MANIFEST-cli-154b41a9.txt | `73f35e0077e6777180ee0c3e64c47cbb16717980a7188f9f265a5e761b3de564` |
 
+At main **fa4284db** (hvcert + restart recovery; an INTERIM v42 node: the final v42 node is main after b4's attach frame),
+the same script stages, twice identically: `hvnode-fa4284db.tar.gz` `1ac0b200bd6954acfe835917f1782fee212cf90e232daea9e40b231c1d150217`,
+`MANIFEST-hvnode-fa4284db.txt` `3be1b43bd59dc17f6e4a09188ada257b0d735abafe9881f1ff51cb62cd98e731` (52 files; closure 33),
+the lockfile unchanged (`f8964448…`).
+
  d1 copies the archives, the
 manifests and this directory's scripts to `C:\Users\claude\vbs-like\hvnode\stage\`.
 
-**1. Preflight (box, read-only).** `hvnode-preflight.ps1 -Pkg C:\Users\claude\vbs-like\pkg\15f39ae4d1fab954`. It
+**1. Preflight (box, read-only).** `hvnode-preflight.ps1 -Pkg C:\Users\claude\vbs-like\pkg\<16 hex> -ManifestSha256 <sha256>`
+(v40: `15f39ae4d1fab954` / `15f39ae4d1fab954f61a5195a6f8cf59c8bf8786000b95ddbb4e47aaa9efd1df`). It
 checks:
 - Secure Boot, test signing;
 - the legacy task Disabled, and no legacy node or ee-host running;
@@ -151,7 +166,7 @@ now. Test 1's app is CHARGED (its owner, the operator, is not the payout wallet)
 acceptance and then stops (about 0.00014 ETH), and there is no ask to Steven. If the balance falls below 0.0005 ETH, top it
 up from our operator gas tank (approved).
 
-**4. Install (box).** `hvnode-install.ps1 -Pkg … -NodeArchive … -NodeArchiveSha256 … -NodeManifest …
+**4. Install (box).** `hvnode-install.ps1 -Pkg … -ManifestSha256 … -NodeArchive … -NodeArchiveSha256 … -NodeManifest …
 -NodeManifestSha256 … -LockSha256 … -TpmattestSha256 …`. It:
 - checks every input against its pin;
 - expands the tree to `hvnode\<c8>\` and checks EVERY file against the manifest (the exact count);

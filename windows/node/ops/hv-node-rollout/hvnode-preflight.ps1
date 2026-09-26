@@ -1,9 +1,13 @@
 # hvnode-preflight.ps1 - READ-ONLY checks before the NucBox hv-node install (ROLLOUT.md step 1). It changes nothing,
 # prints PASS / FAIL / INFO lines, and exits 1 if any FAIL. Run elevated (bcdedit and the task queries need it):
-#   powershell -ExecutionPolicy Bypass -File hvnode-preflight.ps1 -Pkg C:\Users\claude\vbs-like\pkg\15f39ae4d1fab954
+#   powershell -ExecutionPolicy Bypass -File hvnode-preflight.ps1 -Pkg C:\Users\claude\vbs-like\pkg\<16 hex> -ManifestSha256 <sha256>
+# The package's pins (firmware, launcher, runtime.json, the box files its managerEnv names) come from the package's OWN
+# MANIFEST.json, verified against -ManifestSha256, as hvnode-install.ps1 reads them: never from constants here.
 # It never prints a key: key files are checked for PRESENCE only.
 param(
   [Parameter(Mandatory = $true)][string]$Pkg,
+  [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$ManifestSha256,
+  [string]$PkgProfile = 'vbsLinux',
   [string]$LegacyDir = 'C:\Users\claude\vbs\node',
   [string]$Root = 'C:\Users\claude\vbs-like\hvnode',
   [string]$Python = 'C:\Python314\python.exe',
@@ -54,21 +58,34 @@ Say 'INFO' ("AllowFirmwareLoadFromFile = {0} (M3 sets 1)" -f ($(if ($null -eq $a
 $guid = Join-Path $virt 'GuestCommunicationServices\00002329-facb-11e6-bd58-64006a7986d3'
 Say 'INFO' ("hv_sock 9001 service GUID: {0} (M3 registers it)" -f ($(if (Test-Path $guid) { 'present' } else { 'absent' })))
 
-# --- the staged v40 package and the box files its manager env names (pins from nucbox-ownguest-40.json) ---
-$pins = [ordered]@{
-  'guest\igvm-vbs\vbs-linux-candidate-1539-b7ba7731.bin' = 'b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748'
-  'control\vbslike-host.exe'                               = '435717def62bb5c9a632f80210b5c3fbcbeb7cb8c1047f9beef4ca578ebe99e7'
-  'guest\runtime.json'                                     = 'ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8'
-}
+# --- the staged package, and the files and box files its manager env names, pinned by its OWN verified MANIFEST.json ---
+$manFile = Join-Path $Pkg 'MANIFEST.json'
 Check (Test-Path (Join-Path $Pkg 'staged.json')) "package staged ($Pkg\staged.json)"
-foreach ($k in $pins.Keys) {
-  $p = Join-Path $Pkg $k
-  if (Test-Path $p) { Check ((Sha256Of $p) -eq $pins[$k]) "package $k = $($pins[$k].Substring(0,8))" } else { Say 'FAIL' "package $k is missing" }
+if (-not (Test-Path -LiteralPath $manFile)) { Say 'FAIL' "no MANIFEST.json in $Pkg" }
+elseif ((Sha256Of $manFile) -ne $ManifestSha256.ToLower()) { Say 'FAIL' "$manFile is not $ManifestSha256" }
+else {
+  Say 'PASS' "MANIFEST.json = $($ManifestSha256.Substring(0, 16))"
+  Check ((Split-Path -Leaf $Pkg).ToLower() -eq $ManifestSha256.Substring(0, 16).ToLower()) "the staged directory is named by the manifest ($(Split-Path -Leaf $Pkg))"
+  $man = Get-Content -Raw $manFile | ConvertFrom-Json
+  $fileSha = @{}; foreach ($f in @($man.files)) { $fileSha["$($f.path)"] = "$($f.sha256)".ToLower() }
+  $prof = $man.profiles.$PkgProfile
+  if (-not $prof -or -not $prof.managerEnv) { Say 'FAIL' "the manifest has no profiles.$PkgProfile.managerEnv" }
+  else {
+    $want = @("$($man.runtime.file)") + @($prof.managerEnv | Where-Object { $_.PSObject.Properties.Name -contains 'file' } | ForEach-Object { "$($_.file)" })
+    foreach ($rel in ($want | Sort-Object -Unique)) {
+      $p = Join-Path $Pkg ($rel -replace '/', '\')
+      if (-not $fileSha.ContainsKey($rel)) { Say 'FAIL' "the manifest lists no file $rel" }
+      elseif (-not (Test-Path -LiteralPath $p)) { Say 'FAIL' "package $rel is missing" }
+      else { Check ((Sha256Of $p) -eq $fileSha[$rel]) "package $rel = $($fileSha[$rel].Substring(0, 8))" }
+    }
+    foreach ($b in @($man.hostChecks.$PkgProfile.boxFiles)) {
+      if (Test-Path -LiteralPath "$($b.path)") { Check ((Sha256Of "$($b.path)") -eq "$($b.sha256)".ToLower()) "box file $($b.path) = $("$($b.sha256)".Substring(0, 8))" }
+      else { Say 'FAIL' "box file $($b.path) is missing" }
+    }
+    Say 'INFO' ("package {0} v{1}, profile {2}: runtime {3}" -f $man.name, $man.version, $PkgProfile, "$($man.runtime.runtimeId)".Substring(0, 16))
+  }
 }
-Check (Test-Path (Join-Path $Pkg 'control\windows\vbslike\manager\main.mjs')) 'package control\windows\vbslike\manager\main.mjs present (the v40 manager)'
-$box = [ordered]@{ 'C:\Users\claude\hyperv.psm1' = '17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c'
-                   'C:\Users\claude\vbs-like\type1.vmgs' = '4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d' }
-foreach ($k in $box.Keys) { if (Test-Path $k) { Check ((Sha256Of $k) -eq $box[$k]) "box file $k = $($box[$k].Substring(0,8))" } else { Say 'FAIL' "box file $k is missing" } }
+Check (Test-Path (Join-Path $Pkg 'control\windows\vbslike\manager\main.mjs')) 'package control\windows\vbslike\manager\main.mjs present (the manager)'
 
 # --- tools ---
 $nodeExe = 'C:\Program Files\nodejs\node.exe'

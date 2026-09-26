@@ -3,13 +3,19 @@
 # control\ (hvnode\manager-<pkg8>\). The retired legacy node is left exactly as it is: its
 # task \EnclaveWindowsNode stays DISABLED and is never deleted; C:\Users\claude\vbs\node is only READ (its operator and
 # proof keys and its box-built tpmattest.exe are COPIED, never moved).
-#   powershell -ExecutionPolicy Bypass -File hvnode-install.ps1 -Pkg C:\Users\claude\vbs-like\pkg\15f39ae4d1fab954 `
-#     -NodeArchive C:\Users\claude\vbs-like\hvnode\stage\hvnode-<c8>.tar.gz -NodeArchiveSha256 <sha> `
+#   powershell -ExecutionPolicy Bypass -File hvnode-install.ps1 -Pkg C:\Users\claude\vbs-like\pkg\<first 16 hex of the manifest sha> `
+#     -ManifestSha256 <the package MANIFEST.json's sha256> -NodeArchive C:\Users\claude\vbs-like\hvnode\stage\hvnode-<c8>.tar.gz -NodeArchiveSha256 <sha> `
 #     -NodeManifest C:\Users\claude\vbs-like\hvnode\stage\MANIFEST-hvnode-<c8>.txt -NodeManifestSha256 <sha> `
 #     -LockSha256 <sha> -TpmattestSha256 <sha from the preflight>
+# THE PACKAGE's pins come from the package's OWN MANIFEST.json, verified against -ManifestSha256 (the operator's pin),
+# never from constants here: the guest firmware, the launcher, runtime.json and every managerEnv value (the profile's
+# managerEnv, each file checked against the manifest's files[] sha256 and each box file against hostChecks.<profile>.boxFiles)
+# (enclave-53 / enclave-87: the v40 constants refused a staged v42). A shape it does not know refuses.
 # Everything it writes is under -Root (default C:\Users\claude\vbs-like\hvnode), plus the two tasks. Nothing prints a key.
 param(
   [Parameter(Mandatory = $true)][string]$Pkg,
+  [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$ManifestSha256,
+  [string]$PkgProfile = 'vbsLinux',
   [Parameter(Mandatory = $true)][string]$NodeArchive, [Parameter(Mandatory = $true)][string]$NodeArchiveSha256,
   [Parameter(Mandatory = $true)][string]$NodeManifest, [Parameter(Mandatory = $true)][string]$NodeManifestSha256,
   [Parameter(Mandatory = $true)][string]$LockSha256, [Parameter(Mandatory = $true)][string]$TpmattestSha256,
@@ -37,11 +43,42 @@ if ((Sha256Of $NodeArchive) -ne $NodeArchiveSha256.ToLower()) { Die "$NodeArchiv
 if ((Sha256Of $NodeManifest) -ne $NodeManifestSha256.ToLower()) { Die "$NodeManifest is not $NodeManifestSha256" }
 $c8 = ([IO.Path]::GetFileName($NodeArchive) -replace '^hvnode-([0-9a-f]{8})\.tar\.gz$', '$1')
 if ($c8 -notmatch '^[0-9a-f]{8}$') { Die "the archive name must be hvnode-<8 hex>.tar.gz" }
-$pins = [ordered]@{
-  'guest\igvm-vbs\vbs-linux-candidate-1539-b7ba7731.bin' = 'b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748'
-  'control\vbslike-host.exe'                               = '435717def62bb5c9a632f80210b5c3fbcbeb7cb8c1047f9beef4ca578ebe99e7'
-  'guest\runtime.json'                                     = 'ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8' }
-foreach ($k in $pins.Keys) { if ((Sha256Of (Join-Path $Pkg $k)) -ne $pins[$k]) { Die "package $k is not $($pins[$k])" } }
+# the package: its MANIFEST.json is the operator's pin, and the staged directory is named by that pin
+$manFile = Join-Path $Pkg 'MANIFEST.json'
+if (-not (Test-Path -LiteralPath $manFile)) { Die "no MANIFEST.json in $Pkg" }
+if ((Sha256Of $manFile) -ne $ManifestSha256.ToLower()) { Die "$manFile is not $ManifestSha256" }
+if ((Split-Path -Leaf $Pkg).ToLower() -ne $ManifestSha256.Substring(0, 16).ToLower()) { Die "$Pkg is not the staged directory of $($ManifestSha256.Substring(0, 16))" }
+$man = Get-Content -Raw $manFile | ConvertFrom-Json
+$fileSha = @{}; foreach ($f in @($man.files)) { $fileSha["$($f.path)"] = "$($f.sha256)".ToLower() }
+$boxSha = @{}; $boxPath = @{}
+foreach ($b in @($man.hostChecks.$PkgProfile.boxFiles)) { $boxSha["$($b.name)"] = "$($b.sha256)".ToLower(); $boxPath["$($b.name)"] = "$($b.path)" }
+# a package file: listed in the manifest, and on disk exactly as listed
+function PkgFile([string]$rel) {
+  if (-not $fileSha.ContainsKey($rel)) { Die "the package manifest lists no file $rel" }
+  $p = Join-Path $Pkg ($rel -replace '/', '\')
+  if (-not (Test-Path -LiteralPath $p) -or (Sha256Of $p) -ne $fileSha[$rel]) { Die "package file $rel is not the manifest's $($fileSha[$rel])" }
+  return $p
+}
+# a box file the manifest pins (hostChecks.<profile>.boxFiles): on disk exactly as pinned
+function BoxFile([string]$name) {
+  if (-not $boxSha.ContainsKey($name)) { Die "the package manifest pins no box file $name" }
+  if (-not (Test-Path -LiteralPath $boxPath[$name]) -or (Sha256Of $boxPath[$name]) -ne $boxSha[$name]) { Die "box file $($boxPath[$name]) is not the manifest's $($boxSha[$name])" }
+  return $boxPath[$name]
+}
+$prof = $man.profiles.$PkgProfile
+if (-not $prof -or -not $prof.managerEnv) { Die "the package manifest has no profiles.$PkgProfile.managerEnv" }
+$runtimeId = "$($man.runtime.runtimeId)".ToLower()
+if ($runtimeId -notmatch '^[0-9a-f]{64}$') { Die 'the package manifest states no runtime.runtimeId' }
+$null = PkgFile "$($man.runtime.file)"
+# every file and box file the managerEnv names is checked HERE, before anything is written (step 4 writes them)
+foreach ($e in @($prof.managerEnv)) {
+  $names = @($e.PSObject.Properties.Name)
+  if ($names -contains 'file') { $null = PkgFile "$($e.file)" }
+  if ($names -contains 'sha256Of') { $null = PkgFile "$($e.sha256Of)" }
+  if ($names -contains 'boxFile') { $null = BoxFile "$($e.boxFile)" }
+  if ($names -contains 'boxFileSha256') { $null = BoxFile "$($e.boxFileSha256)" }
+}
+Note ("package {0} v{1}: MANIFEST.json = {2}; profile {3}: {4} managerEnv entries checked; runtime {5}" -f $man.name, $man.version, $ManifestSha256.Substring(0, 16), $PkgProfile, @($prof.managerEnv).Count, $runtimeId.Substring(0, 16))
 foreach ($t in 'EnclaveHvManager', 'EnclaveHvNode') {
   if ((Get-ScheduledTask -TaskName $t -TaskPath '\' -ErrorAction SilentlyContinue) -and -not $Replace) { Die "task \$t exists (-Replace to re-register it)" }
 }
@@ -113,7 +150,6 @@ foreach ($d in 'logs', 'bundles', 'vmgs-archive') { New-Item -ItemType Directory
 #      read-only, hash-pinned references into the package. ----
 $pkgId8 = (Split-Path -Leaf $Pkg).Substring(0, 8)
 $mcopy = Join-Path $Root "manager-$pkgId8"
-$man = Get-Content -Raw (Join-Path $Pkg 'MANIFEST.json') | ConvertFrom-Json
 $ctl = @($man.files | Where-Object { "$($_.path)".StartsWith('control/') })
 if (-not $ctl.Count) { Die 'the package MANIFEST.json lists no control/ files' }
 if (-not (Test-Path $mcopy)) {
@@ -145,32 +181,51 @@ Note "manager copy $mcopy = the package MANIFEST's control/ ($($ctl.Count) files
 
 # ---- 4. configuration: the manager from its copy (the package's managerEnv), the node from main ----
 $mgrDir = Join-Path $mcopy 'control\windows\vbslike\manager'
-$mgrCfg = @(
-  '@echo off', 'rem the v40 manager (package control/ = e3acc392, manager 76af33b4); nucbox-ownguest-40.json profiles.vbsLinux.managerEnv',
-  "set VMMGR_PORT=$ManagerPort",
-  "set ENCLAVE_GUEST_IGVM=$(Join-Path $Pkg 'guest\igvm-vbs\vbs-linux-candidate-1539-b7ba7731.bin')",
-  'set ENCLAVE_GUEST_IGVM_SHA256=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748',
-  'set ENCLAVE_BOOT_FORM=linux-direct',
-  'set ENCLAVE_GUEST_STATE_MASTER=C:\Users\claude\vbs-like\type1.vmgs',
-  'set ENCLAVE_GUEST_STATE_MASTER_SHA256=4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d',
-  "set ENCLAVE_GUEST_STATE_ARCHIVE_DIR=$(Join-Path $Root 'vmgs-archive')",
-  'set ENCLAVE_HYPERV_MODULE=C:\Users\claude\hyperv.psm1',
-  'set ENCLAVE_HYPERV_MODULE_SHA256=17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c',
-  "set ENCLAVE_RUNTIME_IDENTITY=$(Join-Path $Pkg 'guest\runtime.json')",
-  "set PYTHON_BIN=$Python", 'set IPFS_GATEWAY=https://ipfs.enclave.host',
-  "set PYTHONPATH=$(Join-Path $mcopy 'control\wasm')", 'set PYTHONDONTWRITEBYTECODE=1',
-  "set ENCLAVE_WMISERVE_EXE=$(Join-Path $Pkg 'control\vbslike-host.exe')",
-  'set ENCLAVE_WMISERVE_EXE_SHA256=435717def62bb5c9a632f80210b5c3fbcbeb7cb8c1047f9beef4ca578ebe99e7',
-  "set ENCLAVE_BUNDLE_DIR=$(Join-Path $Root 'bundles')",
-  "set ENCLAVE_DATAPLANE_PORT=$DataPort",
-  'set ENCLAVE_LIVENESS_MS=15000', 'set ENCLAVE_ANSWER_CHECK_MS=30000')
+# every line from the package's managerEnv (checked in step 0): a literal value; a package file (`file`, and its manifest
+# sha256 as `sha256Of`); a pinned box file and its sha256; a package directory (`dir`, under control/: the manager's
+# verified COPY). The placeholders the manifest leaves to the install are the ports and the run-owned directories;
+# anything else unknown refuses. PYTHONDONTWRITEBYTECODE=1 is the install's own (the copy stays as verified).
+function EnvValue($e) {
+  $names = @($e.PSObject.Properties.Name)
+  if ($names -contains 'file') { return (PkgFile "$($e.file)") }
+  if ($names -contains 'sha256Of') { $null = PkgFile "$($e.sha256Of)"; return $fileSha["$($e.sha256Of)"] }
+  if ($names -contains 'boxFile') { return (BoxFile "$($e.boxFile)") }
+  if ($names -contains 'boxFileSha256') { $null = BoxFile "$($e.boxFileSha256)"; return $boxSha["$($e.boxFileSha256)"] }
+  if ($names -contains 'dir') {
+    $d = "$($e.dir)"
+    if (-not $d.StartsWith('control/')) { Die "managerEnv $($e.name): a dir outside control/ ($d)" }
+    return (Join-Path $mcopy ($d -replace '/', '\'))
+  }
+  if ($names -contains 'value') {
+    switch ("$($e.name)") {
+      'VMMGR_PORT' { return "$ManagerPort" }
+      'ENCLAVE_DATAPLANE_PORT' { return "$DataPort" }
+      'ENCLAVE_BUNDLE_DIR' { return (Join-Path $Root 'bundles') }
+      'ENCLAVE_GUEST_STATE_ARCHIVE_DIR' { return (Join-Path $Root 'vmgs-archive') }   # the install's own, beside the logs
+      'PYTHON_BIN' { return $Python }
+    }
+    $v = "$($e.value)"
+    if ($v -match '^<.*>$') { Die "managerEnv $($e.name): a placeholder this install does not fill ($v)" }
+    return $v
+  }
+  Die "managerEnv $($e.name): an entry shape this install does not know ($($names -join ', '))"
+}
+$mgrCfg = @('@echo off', ("rem the manager from package {0} v{1} ({2}), profiles.{3}.managerEnv" -f $man.name, $man.version, $ManifestSha256.Substring(0, 16), $PkgProfile))
+foreach ($e in @($prof.managerEnv)) {
+  $n = "$($e.name)"
+  if ($n -notmatch '^[A-Z][A-Z0-9_]*$') { Die "managerEnv has an entry named '$n'" }
+  $v = EnvValue $e
+  if ("$v" -match '[\r\n"%&|<>^]') { Die "managerEnv ${n}: a value this install will not write into a .cmd file" }
+  $mgrCfg += "set $n=$v"
+}
+$mgrCfg += 'set PYTHONDONTWRITEBYTECODE=1'
 $nodeCfg = @(
   '@echo off', "rem the hv node from main at $c8 (engine retired: ENCLAVE_ENGINE unset). No key is in this file: NODE_DIR holds them.",
   'set APPS=1', 'set NODE_NAME=nucbox-k11', 'set PUBLIC_URL=https://api.enclave.host/t/nucbox-k11',
   'set RELAY_URL=wss://api.enclave.host/v1/fleet-tunnel',
   "set NODE_DIR=$state", "set TPMATTEST_EXE=$(Join-Path $bin 'tpmattest.exe')",
   "set ENCLAVE_ISOLATION_MANAGER=http://127.0.0.1:$ManagerPort",
-  'set ENCLAVE_ISOLATION_RUNTIME_ID=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8',
+  "set ENCLAVE_ISOLATION_RUNTIME_ID=$runtimeId",
   "set ENCLAVE_ISOLATION_DATA_ADDR=127.0.0.1:$DataPort",
   'rem owner-only is forced on an engine-retired node anyway (host.mjs scope()); stated for the reader',
   'set CLAIM_SCOPE=owner-only',
