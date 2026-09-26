@@ -31,6 +31,17 @@ Steven's standing rules (DIRECTION.md), which bind every step:
   is 0.001457 ETH (GAS.md).
 - The relay: U7 is live on all 3 relays; `RELAY_HVNODE_ATTACH` is unset; an hv-node row is never eligible on main.
 
+**Box facts, read-only by enclave-d1 at 00:36Z (the pins v2 uses):**
+- node.exe v24.16.0, npm present, `C:\Python314\python.exe` 3.14.5;
+- `hyperv.psm1` = 17ca4352… and `type1.vmgs` = 4f051697… (both = the pins);
+- `C:\Users\claude\vbs\node\tpmattest.exe` = `ebc30d9fa54cf70043900165ce12631224075b3301653eaf8527342d18de6982`, the
+  install's `-TpmattestSha256`;
+- `operator.key` and `proof.key` present (67 bytes each; content never read); `node-transport.key` ABSENT, so the node
+  mints a fresh transport key;
+- ports 8091/8092/9600 free; the new tasks and `hvnode\` absent;
+- **M3 is DONE**: host-prereq's record is at `C:\Users\claude\vbs-like\host-prereq\prior-state.json`, so step 2 is
+  already complete.
+
 ## End state
 - **The node from main runs the hv backend**:
   - a new task `\EnclaveHvNode` runs `windows/node/agent.mjs` from `C:\Users\claude\vbs-like\hvnode\<c8>\`, with the
@@ -93,13 +104,17 @@ checks:
 
 It reports M3's current state. Any FAIL stops the rollout.
 
-**2. M3 (box).** `hvnode-m3.ps1 -Apply`, which:
-- records the prior state (`hvnode\m3-prior-state.json`);
-- sets `AllowFirmwareLoadFromFile=1` (DWORD);
-- registers `GuestCommunicationServices\00002329-facb-11e6-bd58-64006a7986d3` (port 9001).
-
-It needs no reboot. `-Status` shows it; `-Revert` restores exactly the recorded prior state. enclave-53's v41 carries
-the same as packaged scripts; don't mix the two on one box.
+**2. M3 (box): ONE M3 path (enclave-87). DONE by d1 before 00:36Z.** It is enclave-53's `host-prereq.ps1` (windows/vbslike-pkg-v41-e53 @
+9abdc36c, sha256 `4a72dab8981a50269ef9c4f77fad997d46a158b3c1c8902f820fd244c58721c6`), run through d1's runner
+`C:\Users\claude\m3\m3-run.ps1` (c2cb589e7fd20e4c38e874f9cb416fbb0d8838130c59912518491d1d35b3aa53), already staged on the box:
+`powershell -ExecutionPolicy Bypass -File C:\Users\claude\m3\m3-run.ps1 -Script <host-prereq.ps1> -Sha256 4a72dab8…`
+The runner goes: `-Check`, an HKCU rehearsal (including a lock-held refusal), then `-Install`, then `-Check -Require`.
+Each step is recorded, and the real install happens only if every earlier step exits as expected. host-prereq:
+- takes the shared lab lock (`C:\Users\claude\uefi-probe.lock`);
+- refuses unless Secure Boot is ON and test signing and nointegritychecks are off;
+- records the prior state once at `C:\Users\claude\vbs-like\host-prereq\prior-state.json` (with its regRoot);
+- sets `AllowFirmwareLoadFromFile=1` (DWORD) and registers the 9001 GUID.
+No reboot is needed. My earlier hvnode-m3.ps1 is withdrawn; don't mix M3 scripts on one box.
 
 **3. Gas (workstation, read).** The operator must hold ≥ 0.0005 ETH, with no stuck nonce (GAS.md): 0.001457 ETH
 now. Test 1's app is CHARGED (its owner, the operator, is not the payout wallet), so its lease checkpoints every 5 min:
@@ -113,13 +128,21 @@ up from our operator gas tank (approved).
 - expands the tree to `hvnode\<c8>\` and checks EVERY file against the manifest (the exact count);
 - runs `npm ci --omit=dev --ignore-scripts` from the pinned lockfile, and checks ws, viem and tweetnacl at the locked
   versions;
-- COPIES the operator and proof keys (and `node-transport.key` if present) into `hvnode\state\` (byte-identical, never
-  overwriting a differing file, never printed; ACL SYSTEM + Administrators only);
+- sets `hvnode\state\`'s ACL (SYSTEM + Administrators only) FIRST, then COPIES the operator and proof keys (and
+  `node-transport.key` if present) into it: byte-identical, never overwriting a differing file, never printed;
+- copies the package's `control\` to `hvnode\manager-<pkg8>\` and checks EVERY file against the package's
+  `MANIFEST.json` (an extra file, e.g. a `__pycache__`, refuses). The manager runs from that copy with
+  `PYTHONDONTWRITEBYTECODE=1`, never from the staged package (enclave-d1's box rule). The IGVM, runtime.json and the
+  launcher stay hash-pinned, read-only references into the package;
 - copies `tpmattest.exe` into `hvnode\bin\` at its pin;
 - writes the configuration: `manager-config.cmd` (the package's `managerEnv` resolved), `node-config.cmd`, and
   `run-manager.cmd` / `run-node.cmd`;
+- writes `run-manager.cmd` / `run-node.cmd` as bounded RESTART LOOPS (the process, then 10 s, then again), with the
+  script by its ABSOLUTE path. Task Scheduler's restart-on-failure does not reliably fire on a process that exits, and
+  the absolute path lets the acceptance and the rollback match the process by path, never by name;
 - registers the two NEW tasks `\EnclaveHvManager` (boot +30 s) and `\EnclaveHvNode` (boot +90 s): SYSTEM, highest,
-  NO run-time limit, restart ×3. It does NOT start them;
+  NO run-time limit. It does NOT start them. Every native command runs under ErrorAction Continue and is judged by
+  its exit code (the PowerShell 5.1 stderr trap);
 - leaves `\EnclaveWindowsNode` untouched: it refuses unless the task is present and Disabled, before and after.
 
 The node configuration (no key in it; `NODE_DIR` holds them):
@@ -148,7 +171,7 @@ The scripts write all scratch in a private 0700 directory.
 `curl.exe -s http://127.0.0.1:8091/health` to read `"canStart":true`, then `Start-ScheduledTask -TaskName
 EnclaveHvNode`. The logs are `hvnode\logs\manager.log` and `node.log`.
 
-**7. Acceptance, box half (read-only).** `hvnode-accept.ps1 -Commit <c>`:
+**7. Acceptance, box half.** `hvnode-accept.ps1 -Commit <c> [-KillRecovery]` (read-only without -KillRecovery):
 - A1: Secure Boot ON; the legacy task present and Disabled.
 - A2: both tasks Running; one agent and one manager process; run-node.cmd names tree `<c8>`.
 - A3: the manager's `canStart`, backend `hyperv-partition-per-app`, `catalog.runtimeId` = the node's, and
@@ -157,7 +180,9 @@ EnclaveHvNode`. The logs are `hvnode\logs\manager.log` and `node.log`.
   `owners` = [the operator] (plus each delegation once added), registered, `gasRenewalsLeft > 200`, relay verdict tier `hv-node`, and (P2) `isolation`; `/v1/health` shows engine
   retired.
 - A5: node.log never starts ee-host, and has the attach lines.
-- A6: M3 applied and recorded.
+- A6: M3 applied, and host-prereq's record at `C:\Users\claude\vbs-like\host-prereq\prior-state.json` is for the HKLM root.
+- A8 (`-KillRecovery`, not read-only): it kills the agent's node.exe and then the manager's, by exact PID. Each must
+  come back through its run loop with a NEW PID, and /availability or /health must answer within 60 s.
 
 **7r. Acceptance, relay/public half (workstation, read-only).** `hvnode-accept-remote.sh [<deployment id>]`:
 - R1: `/enclaves` has the `nucbox-k11` row: mode `hv-node`, `hvNode.hostExcluded:false`, a recent `verifiedAt`, and
@@ -178,7 +203,9 @@ EnclaveHvNode`. The logs are `hvnode\logs\manager.log` and `node.log`.
    - then, on the box: `hvnode-test1.ps1 -CliArchive … -CliArchiveSha256 …` deploys hello-world 1.0.4
      (`catalog://0x5356e8bd…/4`, bundle/1: 128 MB, no ports) with `--isolation hyperv-partition-per-app --cpu 0.01
      --fund 0.05`, signed by the operator key read from `hvnode\state\operator.key` into that one process's
-     environment and cleared after;
+     environment and cleared after. The CLI runs through Start-Process with its output REDIRECTED TO FILES, so its
+     `created <id>` line is on disk as it prints, and `hvnode\test1-created.txt` records the id even if the deploy then
+     fails;
    - PASS when:
      - the ledger's runner = 0xd497d065… with a live lease;
      - `hvnode-accept.ps1 -DeploymentId <id>` A7 holds (the manager's VM is running, T0-hv, hostExcluded not
@@ -203,12 +230,15 @@ install. Written by the tray's author when it lands; reviewed by 5d as node owne
 - **Node + manager (box):** `hvnode-rollback.ps1 [-Unregister]`. It:
   - disables and ends `\EnclaveHvNode` first (no new lease; held leases lapse on the ledger's clock);
   - destroys every manager VM THROUGH the manager (`DELETE /vms/<id>`), then disables and ends `\EnclaveHvManager`;
-  - turns off and removes any leftover manager-tagged VM (guest-state copies kept);
+  - turns off and removes any leftover manager-tagged VM (guest-state copies kept), ONLY while holding
+    `C:\Users\claude\uefi-probe.lock` exclusively. If a lab run holds it, the cleanup is skipped and reported;
+  - matches processes by the install's absolute paths only, and stops each run loop's cmd.exe before its node.exe;
   - with `-Unregister`, exports each task's XML and then removes it.
   It never enables or deletes `\EnclaveWindowsNode`: the legacy node is retired, so rollback means "nothing serving",
   not "the old node back". Nothing under `hvnode\` is deleted.
-- **M3 (box):** `hvnode-m3.ps1 -Revert` restores the recorded prior value (or its absence), removes the GUID only if
-  `-Apply` added it, and verifies both.
+- **M3 (box):** `host-prereq.ps1 -Rollback`. It restores exactly the recorded prior state, only while each setting is
+  still what `-Install` set, and removes the GUID only if it was absent before and is still its own. Anything else is
+  reported as "LEFT: …", with exit 4.
 - **Relay (nan):** `sh relay-hvnode-attach-off.sh` removes exactly its one line (line-wise, other lines untouched) and
   restarts. The node's next attach is refused by name.
 - **A node upgrade later:** stage a new `<c8>` and re-run the install with `-Replace` (a new tree beside the old one,
@@ -220,7 +250,9 @@ install. Written by the tray's author when it lands; reviewed by 5d as node owne
 - **The first test runs on v40.** v40 carries the front logging leak and domexec's app-stdio leak (both fixed on
   isolation/front-console-guard 0475ae50, going into v41). So its apps are non-sensitive, and DONE is on v41.
 - **TLS.** An isolated app serves the guest's self-signed certificate until M4 relays its CSR to the platform
-  certificate service (5d, with e3's relay half).
+  certificate service (5d, with e3's relay half). R4 with `-k` proves the partition path, NOT public TLS, so **M4 is on
+  DONE's critical path** (enclave-d1).
+- **Logs.** `hvnode\logs\node.log` and `manager.log` grow without bound. Rotation comes later; the 12 h soak is fine.
 
 ## Files (this directory)
 | file | runs where | what |
@@ -229,7 +261,6 @@ install. Written by the tray's author when it lands; reviewed by 5d as node owne
 | GAS.md | | the operator's balance and costs, read 2026-09-26 00:01:45Z |
 | stage-hvnode.sh | workstation | the deterministic node and CLI archives, plus manifests |
 | hvnode-preflight.ps1 | box | step 1, read-only |
-| hvnode-m3.ps1 | box | step 2, -Status / -Apply / -Revert |
 | hvnode-install.ps1 | box | step 4 |
 | hvnode-accept.ps1 | box | step 7, read-only |
 | hvnode-accept-remote.sh | workstation | step 7r, read-only |

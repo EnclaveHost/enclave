@@ -14,10 +14,14 @@ $script:fails = 0
 function Say([string]$k, [string]$m) { Write-Output ("{0,-4} {1}" -f $k, $m); if ($k -eq 'FAIL') { $script:fails++ } }
 function Sha256Of([string]$p) { (Get-FileHash -Algorithm SHA256 -LiteralPath $p).Hash.ToLower() }
 function Check([bool]$ok, [string]$m) { if ($ok) { Say 'PASS' $m } else { Say 'FAIL' $m } }
+# A native command runs under ErrorActionPreference Continue and is judged by its EXIT CODE only: with Stop, PowerShell
+# 5.1 turns a native command's stderr line into a terminating NativeCommandError when the host redirects stderr, as an
+# ssh session does (enclave-d1's review, item 3).
+function Invoke-Native([scriptblock]$b) { $e = $ErrorActionPreference; $ErrorActionPreference = 'Continue'; try { & $b } finally { $ErrorActionPreference = $e } }
 
 # --- the platform: Secure Boot on, no test signing (Steven's standing rule; the relay refuses otherwise) ---
 try { Check ((Confirm-SecureBootUEFI) -eq $true) 'Secure Boot is ON' } catch { Say 'FAIL' "Secure Boot state unreadable: $($_.Exception.Message)" }
-$bcd = (& bcdedit /enum '{current}') -join "`n"
+$bcd = (Invoke-Native { & bcdedit /enum '{current}' 2>&1 }) -join "`n"
 Check (-not ($bcd -match '(?im)^\s*testsigning\s+Yes')) 'test signing is OFF in the current boot entry'
 
 # --- the retired legacy node: its task exists, is DISABLED, and stays that way (never deleted) ---
@@ -43,7 +47,7 @@ try { $null = Get-VM; Say 'PASS' 'Get-VM answers' } catch { Say 'FAIL' "Get-VM: 
 $vms = @(Get-VM | Where-Object { $_.Notes -like 'enclave-vbslike-app-domain*' })
 Say 'INFO' "$($vms.Count) VM(s) carry the manager's Notes tag (a lab run's leftovers would be adopted by the new manager: d1 decides)"
 
-# --- M3 host prerequisites: reported here, set by hvnode-m3.ps1 -Apply ---
+# --- M3 host prerequisites: reported here; set by enclave-53's host-prereq.ps1 through d1's m3-run.ps1 (ROLLOUT step 2) ---
 $virt = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization'
 $afl = (Get-ItemProperty -Path $virt -Name AllowFirmwareLoadFromFile -ErrorAction SilentlyContinue).AllowFirmwareLoadFromFile
 Say 'INFO' ("AllowFirmwareLoadFromFile = {0} (M3 sets 1)" -f ($(if ($null -eq $afl) { '<absent>' } else { $afl })))
@@ -68,7 +72,7 @@ foreach ($k in $box.Keys) { if (Test-Path $k) { Check ((Sha256Of $k) -eq $box[$k
 
 # --- tools ---
 $nodeExe = 'C:\Program Files\nodejs\node.exe'
-if (Test-Path $nodeExe) { $v = (& $nodeExe --version); Check ([int]($v.TrimStart('v').Split('.')[0]) -ge 22) "node.exe $v (>= 22)" } else { Say 'FAIL' "no $nodeExe" }
+if (Test-Path $nodeExe) { $v = [string](Invoke-Native { & $nodeExe --version 2>&1 }); Check ([int]($v.TrimStart('v').Split('.')[0]) -ge 22) "node.exe $v (>= 22)" } else { Say 'FAIL' "no $nodeExe" }
 Check (Test-Path $Python) "python at $Python"
 $npm = 'C:\Program Files\nodejs\npm.cmd'; Check (Test-Path $npm) "npm at $npm"
 
