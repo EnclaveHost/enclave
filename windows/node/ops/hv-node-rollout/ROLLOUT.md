@@ -18,7 +18,8 @@ key, so A7 and R4 are re-run after it, once (b4).
 **v2.2** (on d1's v2.1.1 box-run fixes, bf43e358): P5 pinned to main 013deb51 with the stage's hashes; `-FundExisting`
 (8.1); b4's F1 (A9: N1 checked on the NODE; R2/R2b are relay checks, and R2b's `nosession` is a FAIL), F2/F3 (what a
 removed delegation, a transfer and a lapse do), F4 (A4 fails without `availability.isolation`), F5 (test 2's
-prerequisites), F6 (the closure is 25 files).
+prerequisites), F6 (the closure is 25 files). **v2.2.4:** test 2's relay prerequisite is e3's scoped
+`RELAY_HVNODE_OPERATORS`, never `TRUSTED_OPERATORS` (enclave-87).
 
 Steven's standing rules (DIRECTION.md), which bind every step:
 - the custom type-1 path only;
@@ -281,7 +282,9 @@ EnclaveHvNode`. The logs are `hvnode\logs\manager.log` and `node.log`.
        (`rad.delegations`, as written, ≤ 8) and a **v2 operatorSig** (e3's `attachMessageV2` over the name, the nonce,
        the transport SPKI and the EK), only when the relay's challenge offers v2. It re-attaches, at most every 2 min,
        when the delegation set changes. The relay learns delegations ONLY at attach;
-     - e3's relay half: the challenge offers v2 and verifies it, and **0x389C… is in nan's `TRUSTED_OPERATORS`**;
+     - e3's relay half: the challenge offers v2 and verifies it, and **0x389C… is in nan's `RELAY_HVNODE_OPERATORS`**:
+       e3's SCOPED list, read only on the hv-node attest path (enclave-87's ruling). NOT `TRUSTED_OPERATORS`: that would
+       grant dial discovery on self-reported eligibility, and an operator attach into the roster and DNS;
      - then main with that commit, staged and installed with `-Replace` ("A node upgrade later", under Rollback).
    - The node re-reads the directory every tick, so no restart is needed; its `/availability` `owners` then lists
      `0x2947…`; the relay's served set changes at the node's NEXT attach (b4's re-dial).
