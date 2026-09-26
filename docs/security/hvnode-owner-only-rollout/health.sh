@@ -52,18 +52,25 @@ else
   # SECRETS_RELEASE_CERT_RELEASES set (the KAT-only releases are no longer certifiable, by design): accept.sh's canary lines
   # (the 09-24 guests' measurements under the KAT releases) no longer apply. Instead: each canary's expected guest lists ONLY
   # the admitted release, at its pinned measurement; the release is ON (a ticket answers 403); 404 and 422 as before.
-  declare -A PIN=([0x0ddbd824]=a0101960e272080545e5c0ba7b32c74bbf16849050871b33cb9d52d5749c4b2df082b14148f27bc217ae02bf09f6541a
-                  [0x395bed3e]=4bfae407cddd0e7cac1a886aabdc45711ab7718053f27c1f28f64eb6c3bfd2ca239f5613f270b4ef51f897116f28e84e
-                  [0x4e62e60d]=4bfae407cddd0e7cac1a886aabdc45711ab7718053f27c1f28f64eb6c3bfd2ca239f5613f270b4ef51f897116f28e84e)
+  # the pins per (release, canary): f7888d86 and 5db18199 (enclave-63's and enclave-bf's independent values = the relay's);
+  # ADMIT may name several releases (rs-9: "f7888d86 5db18199"): the expected guest must be EXACTLY one admitted image per
+  # named release, at its pin, and nothing else (no KAT-only or retired release)
+  declare -A PIN=([f7888d86:0x0ddbd824]=a0101960e272080545e5c0ba7b32c74bbf16849050871b33cb9d52d5749c4b2df082b14148f27bc217ae02bf09f6541a
+                  [f7888d86:0x395bed3e]=4bfae407cddd0e7cac1a886aabdc45711ab7718053f27c1f28f64eb6c3bfd2ca239f5613f270b4ef51f897116f28e84e
+                  [f7888d86:0x4e62e60d]=4bfae407cddd0e7cac1a886aabdc45711ab7718053f27c1f28f64eb6c3bfd2ca239f5613f270b4ef51f897116f28e84e
+                  [5db18199:0x0ddbd824]=6716ef1462e1ebabc4fd388c44dea5da1fe6902a60bedbc47aaaeae5199ee91003c8c842c34dde264b31d10c68d5871b
+                  [5db18199:0x395bed3e]=be2bb73c799fa8315d23101521da7f2bf944d7964a56793ce713266426af47237758961ee2b9c2ca22683e43aac13f2b
+                  [5db18199:0x4e62e60d]=be2bb73c799fa8315d23101521da7f2bf944d7964a56793ce713266426af47237758961ee2b9c2ca22683e43aac13f2b)
   for id in 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e; do
+    want=""; for rel in $ADMIT; do p=${PIN[${rel:0:8}:${id:0:10}]:-}; [ -n "$p" ] || { bad "no pin for ${rel:0:8} x ${id:0:10}"; continue; }; want="$want $rel:$p"; done
     eg=""; end=$(( $(date +%s) + 240 ))
     while :; do eg=$(curl -sS -m 40 -w '\n%{http_code}' "$API/v1/expected-guest?id=$id"); c=${eg##*$'\n'}; eg=${eg%$'\n'*}; [ "$c" = 503 ] && [ "$(date +%s)" -lt $end ] || break; sleep 5; done
-    python3 -c 'import json,sys; r=json.loads(sys.argv[1]); im=r.get("images",[]); sys.exit(0 if [(i["release"], i.get("releaseAdmitted"), i["measurement"]) for i in im] == [(sys.argv[2], True, sys.argv[3])] else 1)' "$eg" "$ADMIT" "${PIN[${id:0:10}]}" 2>/dev/null \
-      || bad "expected-guest ${id:0:10} does not list ONLY ${ADMIT:0:8} (admitted) at its pin: ${eg:0:200}"
+    python3 -c 'import json,sys; r=json.loads(sys.argv[1]); got=sorted((i["release"], i.get("releaseAdmitted"), i["measurement"]) for i in r.get("images",[])); want=sorted((w.split(":")[0], True, w.split(":")[1]) for w in sys.argv[2].split()); sys.exit(0 if got == want else 1)' "$eg" "$want" 2>/dev/null \
+      || bad "expected-guest ${id:0:10} is not exactly [$(for rel in $ADMIT; do printf '%s ' ${rel:0:8}; done)] admitted at their pins: ${eg:0:200}"
   done
   r=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{"id":"0x'"$(printf 'ab%.0s' $(seq 32))"'"}' "$API/v1/secrets/release-ticket"); [ "$r" = 403 ] || bad "release-ticket answered $r, not 403 (release ON)"
   [ "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$API/v1/expected-guest?id=0x$(printf 'cd%.0s' $(seq 32))")" = 404 ] || bad "unknown deployment not 404"
   [ "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$API/v1/expected-guest?id=0x12")" = 422 ] || bad "malformed id not 422"
-  [ $ok = 1 ] && echo "release (cert set separate): each canary's expected guest = ONLY ${ADMIT:0:8} at its pin; release ON; 404/422"
+  [ $ok = 1 ] && echo "release (cert set separate): each canary's expected guest = EXACTLY [$(for rel in $ADMIT; do printf '%s ' ${rel:0:8}; done)] admitted at their pins; release ON; 404/422"
 fi
 [ $ok = 1 ] && echo "HEALTHY $(date -u +%H:%M:%SZ)" || { echo "NOT HEALTHY $(date -u +%H:%M:%SZ)"; exit 1; }
