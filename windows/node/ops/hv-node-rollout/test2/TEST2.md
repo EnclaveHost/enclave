@@ -40,7 +40,7 @@ Nothing is released on chain in (b) or (c).
 - **Tools:**
   - `delegation-sign.mjs` (here): signs the agent wallet's delegation with the SAME module the relay and the node
     verify with;
-  - `test2-watch.sh <id>` (here, read-only): the relay's served set, public TLS with and without CA verification, and
+  - `test2-watch.sh <id>` (here, read-only): the owners and deployments the relay serves, public TLS with and without CA verification, and
     the ledger's runner, lease, rate and envelope;
   - on the box: `hvnode-accept.ps1 -DeploymentId <id>`, and the node's loopback `http://127.0.0.1:9600`.
 - Keep a watch running for each id through every step:
@@ -61,12 +61,14 @@ node scripts/host-delegation.mjs verify agent-2947.json --operator 0x389C3f030a2
 - d1 copies the file to the box as `C:\Users\claude\vbs-like\hvnode\state\delegations\agent-2947.json` (create
   `delegations\` if absent). It inherits `state\`'s ACL, SYSTEM + Administrators only (hvnode-install.ps1 sets it with
   inheritance): check with `icacls`.
-- Expect within about 30 s (one tick):
-  - loopback `/availability`: `owners` = [0x389c…, 0x2947…];
-  - node.log: `the owners this node serves changed since its attach: attaching again so the relay serves the same set`;
-  - then `… attach signature v2, 1 delegation(s)`;
-  - the relay accepts it: nan's journal shows `[tunnel] nucbox-k11 served owners now 0x2947…(until <expiry>), 0x389c…`
-    (e3 or 63 reads it).
+- Expect:
+  - at the next 30 s tick, loopback `/availability`: `owners` = [0x389c…, 0x2947…] (the operator first);
+  - within about 1 minute (within 2 if the node re-attached in the last 2 minutes: the re-attach check is its own 30 s
+    timer with a 2-minute minimum gap), node.log: `the owners this node serves changed since its attach: attaching
+    again so the relay serves the same set`, then `… attach signature v2, 1 delegation(s)`;
+  - the relay took it: the watch's relay part reads `ownerOnly=true owners=[0x2947(until <expiry>),0x389c(op)]` (B's
+    row `served`, from that attach). nan's journal shows only `[tunnel] nucbox-k11 attached via …` at an attach, and
+    `hosting delegation #i NOT honoured: <reason>` for a refused one: that is a STOP (enclave-b4).
 - An invalid file is logged once: `delegation agent-2947.json ignored: <reason>`. That is a STOP. Fix it and re-sign;
   never edit the file.
 
@@ -102,7 +104,8 @@ NucBox:
 - **the node** (chain.mjs claimPolicy) refuses it for the backend. If it evaluated ID3 before another box claimed it, its
   loopback `/v1/deployments` record for ID3 is `refused` with `it requires isolation backend snp-guest-per-app, and
   this box runs hyperv-partition-per-app`. A box that already holds a live lease on it makes the NucBox skip it, so the
-  record may be absent: say which.
+  record may be absent: say which. A claimPolicy refusal is recorded, NOT logged: there is no node.log line for it, and
+  the relay's secrets probe is never asked for ID3 (enclave-b4).
 - **the relay** (B's servesDeploymentUntil) serves an owner-only row only a deployment requiring
   `hyperv-partition-per-app`.
 - Observed:
@@ -119,12 +122,13 @@ PASS = none of the NucBox's gates let it through: never its runner, never in its
 - Expect:
   - at the next tick, `/availability` `owners` = [0x389c…] only;
   - within about 2 minutes, node.log `… attaching again …` then `attach signature v2, 0 delegation(s)`, and the watch
-    `served=no`: public TLS through the relay is refused (k=000);
+    `owners=[0x389c(op)] served=no`: public TLS through the relay is refused (k=000);
   - the node HOLDS ID2. Loopback `/v1/deployments`: ID2 is `held`, `…serves only its operator's and its delegated
     owners' deployments; this one is owned by 0x2947…: held - not started, not renewed, not released…`. The partition
     still runs (A7), and node.log has NO `renewed <id10>` from here on;
-  - at the ledger's leaseUntil (read it; the quantum is `leaseSec`, 1800 s today): node.log `stopped <id10>: its lease
-    lapsed while held for an owner this box does not serve (0x2947…)`, and the VM is gone (A7 finds none);
+  - at the ledger's leaseUntil (read it AT the removal: it can be up to `leaseSec`, 1800 s today, after the last renewal):
+    node.log `stopped <id10>: its lease lapsed while held for an owner this box does not serve (0x2947…)` (the owner as
+    the ledger read returns it, checksummed: match `0x2947` case-insensitively), and the VM is gone (A7 finds none);
   - no release transaction for ID2: the watch keeps `runner=nucbox-k11 … (lapsed)`. It is not re-claimed while the
     owner is not served.
 PASS = all of it, with the times read.
@@ -143,6 +147,9 @@ node …/delegation-sign.mjs --operator 0x389C3f030a209D04D026228D2D053fEB75Dbad
 - At the expiry printed by the signer (read the clock):
   - **the RELAY stops at once, without waiting for an attach.** The next watch line reads `served=no`, and a new
     connection is refused (k=000) within a minute of the expiry. The SNI splice checks `until` at decision time.
+    If B's 60 s re-check of the attached delegations runs before the node re-attaches, nan's journal MAY also show
+    `[tunnel] nucbox-k11 served owners now 0x389c…`: the relay dropping the owner on its own (a race with the
+    re-attach, so not required; enclave-b4).
   - **the NODE**, at its next tick:
     - `delegation agent-2947-10m.json ignored: expired at <sec>`;
     - `owners` = [0x389c…];
