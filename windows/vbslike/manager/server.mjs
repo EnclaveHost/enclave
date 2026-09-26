@@ -374,6 +374,10 @@ export class Manager {
       // and it is exactly what this manager's own readiness rule was given (handle.launcherKey). It is a HOST STATEMENT,
       // never a root: consistent with T0-hv, where the host launcher is trusted by definition and the host is not excluded.
       if (h && h.launcherKey) rec.launcherKey = h.launcherKey;
+      // ... and the partition that key signs for, in the launcher's own words (the expectedVmId this manager's readiness
+      // rule judges with): the node's certificate relay judges the domain the same way (M4, enclave-5d), so the view
+      // carries it beside the key. A host statement too, never a root.
+      if (h && h.launcherVmId) rec.launcherVmId = h.launcherVmId;
       // the launcher's (partition, guestImageKind) statement, which the image is only ever compared with
       if (h && h.guestIdentity) rec.guestIdentity = { partition: h.guestIdentity.partition, guestImageKind: h.guestIdentity.guestImageKind };
       if (h && h.tcpPort != null) rec.relay = { host: "127.0.0.1", port: h.tcpPort };
