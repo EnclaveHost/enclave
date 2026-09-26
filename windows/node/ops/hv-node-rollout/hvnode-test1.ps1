@@ -93,17 +93,26 @@ const abi = [{ type: "function", name: "get", stateMutability: "view", inputs: [
   { name: "runnerOperator", type: "address" }, { name: "leaseUntil", type: "uint64" }] }] }];
 const rpcs = ["https://base-rpc.publicnode.com", "https://base-mainnet.public.blastapi.io"].map((u) => createPublicClient({ chain: base, transport: http(u) }));
 const zero = "0x0000000000000000000000000000000000000000", end = Date.now() + secs * 1000;
+// no process.exit(): on Windows it can ABORT in libuv while the RPC client's sockets close (UV_HANDLE_CLOSING,
+// src\win\async.c), turning a printed "visible" into a crash code (enclave-d1's box run). The verdict line is the result;
+// the exit code is set, and the process ends by itself.
+let code = 4;
 for (;;) {
   const owners = await Promise.all(rpcs.map((c) => c.readContract({ address: "0xF9e71385C5cB49844F2457ba6567De0742f8B89a", abi, functionName: "get", args: [id] })
     .then((d) => String(d.owner).toLowerCase()).catch(() => "unreadable")));
-  if (owners.every((o) => o === want)) { console.log(`visible ${owners.join(" ")}`); process.exit(0); }
-  if (owners.some((o) => o !== want && o !== zero && o !== "unreadable")) { console.log(`not-operator ${owners.join(" ")}`); process.exit(3); }
-  if (Date.now() > end) { console.log(`timeout ${owners.join(" ")}`); process.exit(4); }
+  if (owners.every((o) => o === want)) { console.log(`visible ${owners.join(" ")}`); code = 0; break; }
+  if (owners.some((o) => o !== want && o !== zero && o !== "unreadable")) { console.log(`not-operator ${owners.join(" ")}`); code = 3; break; }
+  if (Date.now() > end) { console.log(`timeout ${owners.join(" ")}`); code = 4; break; }
   await new Promise((r) => setTimeout(r, 5000));
 }
+process.exitCode = code;
 '@
   try {
-    $v = Invoke-Native { & $NodeExe $check $id $Operator $VisibleTimeoutSec 2>&1 }; $vc = $LASTEXITCODE
+    $v = Invoke-Native { & $NodeExe $check $id $Operator $VisibleTimeoutSec 2>&1 }
+    # judged by the helper's own VERDICT line, not its exit code (a Windows libuv abort after the line is printed must
+    # not turn "visible" into "not visible", nor anything else into "visible")
+    $word = @($v | ForEach-Object { "$_" } | Where-Object { $_ -match '^(visible|not-operator|timeout) ' } | Select-Object -First 1)
+    $vc = if ($word.Count -and $word[0] -match '^visible ') { 0 } elseif ($word.Count -and $word[0] -match '^not-operator ') { 3 } else { 4 }
   } finally { Remove-Item -Force $check -ErrorAction SilentlyContinue }
   Write-Output "ledger> $v"
   if ($vc -eq 3) { Die "$id is owned by another address on the ledger, not the operator ${Operator}: nothing funded" }
