@@ -356,6 +356,45 @@ function Read-Setting {
         @{ S='Present'; V=$i.$RegName; K="$((Get-Item $RegPath).GetValueKind($RegName))" } }
   catch { @{ S='Absent' } }
 }
+# AllowFirmwareLoadFromFile is HOST-WIDE, and on a production NucBox M3 keeps it Present = 1 permanently: the manager needs it
+# for every partition. A lab run then has nothing to change, so it writes NOTHING - neither the apply nor the restore, nor
+# the watchdog's restore (enclave-87's ruling on enclave-d1's audit, 09-26: a lab run never writes a production-critical
+# setting it would only set to what it already is). Otherwise it applies 1 and restores the exact prior state, verified.
+# windows/vbslike/ops/firmware-setting.tests.ps1 runs these four against recording stubs.
+function FirmwareAlreadyOn($s) { $s.S -eq 'Present' -and "$($s.V)" -eq '1' }
+function Invoke-FirmwareApply($before, [bool]$without) {
+  if ($without) {
+    Note "SETTING NOT APPLIED (-WithoutFirmwarePolicy): this run asks whether Hyper-V loads the firmware file WITHOUT AllowFirmwareLoadFromFile"
+    return $false
+  }
+  if (FirmwareAlreadyOn $before) {
+    Note "SETTING already present ($RegName = 1): not touched by this run, and left as it was at cleanup"
+    return $false
+  }
+  Set-ItemProperty -Path $RegPath -Name $RegName -Value 1 -Type DWORD
+  Note "SETTING APPLIED ($RegName = 1; restored to its prior state, $($before.S), in this run's cleanup)"
+  return $true
+}
+# -> $null when the setting is back to (or still at) its prior state, else the failure text
+function Invoke-FirmwareRestore($before, [bool]$mutated) {
+  if ($mutated) {
+    if ($before.S -eq 'Present') { Set-ItemProperty $RegPath -Name $RegName -Value $before.V -Type $before.K }
+    else { Remove-ItemProperty $RegPath -Name $RegName -EA SilentlyContinue }
+  }
+  $after = Read-Setting
+  if ($after.S -eq $before.S -and "$($after.V)" -eq "$($before.V)") {
+    if ($mutated) { Note "SETTING RESTORED to $($before.S) (verified)" }
+    else { Note "SETTING left as it was ($($before.S)$(if ($before.S -eq 'Present') { ' = ' + $before.V }); this run never wrote it; verified)" }
+    return $null
+  }
+  "SETTING NOT RESTORED: now $($after.S), was $($before.S)"
+}
+# the watchdog's restore, as text for its script: NO write when the setting was already on (this run never wrote it)
+function FirmwareWatchdogRestore($before) {
+  if (FirmwareAlreadyOn $before) { return "# $RegName was already present = 1: this run never wrote it, so the watchdog leaves it as it was" }
+  if ($before.S -eq 'Present') { return "Set-ItemProperty '$RegPath' -Name '$RegName' -Value $($before.V) -Type '$($before.K)'" }
+  "Remove-ItemProperty '$RegPath' -Name '$RegName' -EA SilentlyContinue"
+}
 # THE TWO HEALTH LAYERS, and why the gate is the second one.
 #
 # 01:43:14 on 09-25 this script printed `apps before: <six>=000` and refused the run. The apps were
@@ -482,7 +521,7 @@ if ($ProbeNeighbor -and (-not $Bundle -or -not $LinuxDirect)) { throw "-ProbeNei
 if ($ProbeNeighbor -and ($G1Check -or $HostRead)) { throw "-ProbeNeighbor runs on its own: G1Check destroys the neighbour and HostRead suspends the guest" }
 if (-not $Approve) {
   Write-Host "=== preflight only. Nothing changed. With -Approve it would:"
-  Write-Host "      1. set $RegName = 1 (REG_DWORD)  [HOST-WIDE, permits UNSIGNED guest firmware]"
+  Write-Host "      1. set $RegName = 1 (REG_DWORD)  [HOST-WIDE, permits UNSIGNED guest firmware] - NOT touched when it is already present = 1 (M3)"
   Write-Host "      2. create ONE Gen2 VM, GuestStateIsolationType $IsolationType, Secure Boot OFF,"
   Write-Host "         $(if($IsolationType -eq 1){'WITH the vTPM Windows makes for a VBS VM (nothing reads its PCRs)'}else{'NO vTPM'}),"
   Write-Host "         firmware $Firmware, $(if ($LinuxDirect) { 'NO medium (Linux VTL0 inside the measured IGVM)' } else { "DVD $Iso as the only boot device" }), COM1 -> \\.\pipe\$pipe"
@@ -549,8 +588,7 @@ if (Test-Path '$sentinel') {
   }
   # RESTORE TO WHAT WAS THERE, not unconditionally to absent. It is absent on this box today, which
   # is why always-removing looked correct; it would be wrong the day the key is legitimately set.
-  if ('$($before.S)' -eq 'Present') { Set-ItemProperty '$RegPath' -Name '$RegName' -Value $($before.V) -Type '$($before.K)' }
-  else { Remove-ItemProperty '$RegPath' -Name '$RegName' -EA SilentlyContinue }
+  $(FirmwareWatchdogRestore $before)
   # ONLY IF THIS RUN ADDED IT. The main path records that in the sentinel at the moment it adds the
   # key; the watchdog used to delete it unconditionally, so a killed run removed a registration that
   # was somebody else's (enclave-53).
@@ -568,12 +606,7 @@ Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{
 Note "watchdog armed: it acts when pid $PID ends without cleaning up, or after ${wdCeiling}s if this run hangs"
 
 try {
-  if ($WithoutFirmwarePolicy) {
-    Note "SETTING NOT APPLIED (-WithoutFirmwarePolicy): this run asks whether Hyper-V loads the firmware file WITHOUT AllowFirmwareLoadFromFile"
-  } else {
-    Set-ItemProperty -Path $RegPath -Name $RegName -Value 1 -Type DWORD; $mutated = $true
-    Note "SETTING APPLIED (removed again in this run's cleanup)"
-  }
+  $mutated = Invoke-FirmwareApply $before ([bool]$WithoutFirmwarePolicy)
   # the hv_sock service for the report port, if it is not already somebody else's
   $svcKey = Join-Path $SvcPath $ReportSvcGuid
   $script:svcAdded = $false
@@ -1173,13 +1206,8 @@ finally {
   } catch { $fail += "cleanup: $($_.Exception.Message)" }
   finally {
     try {
-      if ($mutated) {
-        if ($before.S -eq 'Present') { Set-ItemProperty $RegPath -Name $RegName -Value $before.V -Type $before.K }
-        else { Remove-ItemProperty $RegPath -Name $RegName -EA SilentlyContinue }
-      }
-      $after = Read-Setting
-      if ($after.S -eq $before.S -and "$($after.V)" -eq "$($before.V)") { Note "SETTING RESTORED to $($before.S) (verified)" }
-      else { $fail += "SETTING NOT RESTORED: now $($after.S), was $($before.S)" }
+      $restoreFail = Invoke-FirmwareRestore $before ([bool]$mutated)
+      if ($restoreFail) { $fail += $restoreFail }
       # only what THIS run added: a service registered by somebody else is never removed
       if ($script:svcAdded) {
         Remove-Item -Path (Join-Path $SvcPath $ReportSvcGuid) -Recurse -Force -EA SilentlyContinue
