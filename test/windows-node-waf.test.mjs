@@ -161,7 +161,7 @@ test("a refused request does not hold a concurrency slot", () => {
   assert.equal(st.allow, true);
 });
 
-test("the per-address bucket map cannot be grown without end by the sender", (t) => {
+test("the per-address bucket map cannot be grown without end by the sender, and the rule still holds for a live address that arrived after the flood (eviction is FIFO)", (t) => {
   // The buckets are keyed by CLIENT ADDRESS, so their number is chosen by whoever is sending
   // traffic - the wrong person to let decide how much memory this box uses. A sweep handles
   // addresses that go idle; this is the other case, a burst from many addresses at once.
@@ -175,11 +175,14 @@ test("the per-address bucket map cannot be grown without end by the sender", (t)
   for (let i = 0; i < 6000; i++)
     check("0x9", w, { method: "GET", url: "/", headers: {}, ip: `10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}` });
   assert.ok(bucketCount("0x9") <= 4096, `tracking ${bucketCount("0x9")} addresses`);
-  // ...and the limit still WORKS for an address that is actually there.
+  // ...and the limit still WORKS for a live address that arrived AFTER the flood. Eviction is FIFO by arrival, not LRU
+  // (waf.mjs), so a later flood of 4096 new addresses can evict an OLDER live address's bucket and hand it a fresh burst.
+  // Backlog note, not a defect (enclave-87): it gives nothing to a sender who controls 4096+ addresses, since they could
+  // spread their requests across them anyway.
   const ip = "10.99.99.99";
   for (let i = 0; i < 5; i++) assert.equal(check("0x9", w, { method: "GET", url: "/", headers: {}, ip }).allow, true);
   assert.equal(check("0x9", w, { method: "GET", url: "/", headers: {}, ip }).status, 429,
-    "evicting old buckets must not disarm the rule for a live one");
+    "evicting old buckets must not disarm the rule for a live address that arrived after the flood (eviction is FIFO)");
   // ...and the refill is still the wall clock's: one millisecond at rps 1000 is one request again
   t.mock.timers.tick(1);
   assert.equal(check("0x9", w, { method: "GET", url: "/", headers: {}, ip }).allow, true, "a token after 1 ms at rps 1000");
