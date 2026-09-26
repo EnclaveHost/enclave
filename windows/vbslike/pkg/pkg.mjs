@@ -331,6 +331,12 @@ async function checkClaims(m, bytes, R) {
   R.add(has(c.manager, "control.manager") && has(c.fetcher, "control.fetcher"), "control names the manager entry and the fetcher of this package",
         `${c.manager}, ${c.fetcher}`);
   R.add(wr.length > 0 && wr.every((p) => !!file(p)) && wr.includes(ig?.image), "vmWorkerRead names the IGVM", wr.join(", "));
+  // Every image the VM worker may be handed, a pending candidate and a probe included, must be readable by it after
+  // stage.ps1: without the grant a manager-path launch fails with 0x80070005. v41 shipped its pending candidate
+  // 252602c8 and its twin without it (enclave-53's own catch, 2026-09-26); v36 had listed b7ba7731 while it was pending.
+  const unreadable = m.files.filter((f) => /^(guest\.igvm|guest\.uefi-firmware|candidate\.igvm|probe\.firmware)$/.test(f.role) && !wr.includes(f.path)).map((f) => f.path);
+  R.add(unreadable.length === 0, "vmWorkerRead names every firmware image the package ships (the profile firmware, each candidate and each probe)",
+        unreadable.length ? `not granted to the VM worker: ${unreadable.join(", ")}` : `${wr.length} files`);
   R.add(["hcs-dev", "igvm"].every((p) => m.hostChecks?.[p] && typeof P[p]?.status === "string"), "each profile states its host checks and status");
   // the guest's own HTTP surface and the judge that reads its document (isolation/m3/HV-GUEST.md), when declared
   const G = m.guest;
