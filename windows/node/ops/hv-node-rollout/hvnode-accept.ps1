@@ -37,7 +37,9 @@ foreach ($t in 'EnclaveHvManager', 'EnclaveHvNode') {
 $agentPath = "$Root\$c8\windows\node\agent.mjs"
 function AgentProcs { @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like "*$agentPath*" }) }
 function MgrProcs { @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like "*$Root\manager-*\control\windows\vbslike\manager\main.mjs*" }) }
-$nodeProc = AgentProcs; $mgrProc = MgrProcs
+# @(...) at the CALL too: PowerShell 5.1 unrolls a function's one-element array to the bare CimInstance, which has no
+# .Count (enclave-d1's box run of v2.2: "exactly one ... ()" failed with the process running)
+$nodeProc = @(AgentProcs); $mgrProc = @(MgrProcs)
 Check ($nodeProc.Count -eq 1) "A2 exactly one node agent process ($($nodeProc.Count))"
 Check ($mgrProc.Count -eq 1) "A2 exactly one manager process ($($mgrProc.Count))"
 $runNode = Get-Content -Raw (Join-Path $Root 'run-node.cmd')
@@ -62,7 +64,14 @@ try {
   Check ($a.registered -eq $true) 'A4 registered on chain'
   $owners = @($a.owners | ForEach-Object { "$_".ToLower() })
   Check ($owners -contains $Operator.ToLower()) ("A4 owners served: {0} (the operator, plus each valid delegation)" -f ($owners -join ', '))
-  Check ([int]$a.gasRenewalsLeft -gt 200) "A4 gasRenewalsLeft $($a.gasRenewalsLeft) (> 200; GAS.md)"
+  # gasRenewalsLeft is computed by the node's first HEARTBEAT, 10 min after it starts (host.mjs HEARTBEAT_MS, warnLowGas):
+  # null before that is INFO; null once the agent has run 12 min is a FAIL (enclave-d1's box run of v2.2)
+  if ($null -ne $a.gasRenewalsLeft) { Check ([int]$a.gasRenewalsLeft -gt 200) "A4 gasRenewalsLeft $($a.gasRenewalsLeft) (> 200; GAS.md)" }
+  else {
+    $upMin = $(if ($nodeProc.Count -eq 1 -and $nodeProc[0].CreationDate) { [int]((Get-Date) - $nodeProc[0].CreationDate).TotalMinutes } else { -1 })
+    if ($upMin -ge 12) { Say 'FAIL' "A4 gasRenewalsLeft is still null with the agent up $upMin min (its first heartbeat, at 10 min, computes it)" }
+    else { Say 'INFO' "A4 gasRenewalsLeft not computed yet: the node's first heartbeat, 10 min after start, computes it (agent up $upMin min). Re-run this acceptance after 12 min; R3 checks the balance meanwhile" }
+  }
   Check ("$($a.tier)" -eq 'hv-node') "A4 relay verdict tier $($a.tier) (the attach was accepted)"
   # P2 is on main (013deb51): a missing availability.isolation is a FAIL now (b4's F4)
   Check ("$($a.isolation)" -eq 'hyperv-partition-per-app') "A4 advertises isolation $($a.isolation) (test 1's deploy --isolation needs it)"
