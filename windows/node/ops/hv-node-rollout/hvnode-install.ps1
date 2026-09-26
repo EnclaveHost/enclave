@@ -66,9 +66,14 @@ $nodeDir = Join-Path $tree 'windows\node'
 if ((Sha256Of (Join-Path $nodeDir 'package-lock.json')) -ne $LockSha256.ToLower()) { Die 'package-lock.json is not the pinned one' }
 Push-Location $nodeDir
 try { Invoke-Native { & $Npm ci --omit=dev --ignore-scripts --no-audit --no-fund 2>&1 | Out-Null }; if ($LASTEXITCODE -ne 0) { Die 'npm ci failed' } } finally { Pop-Location }
-$lock = Get-Content -Raw (Join-Path $nodeDir 'package-lock.json') | ConvertFrom-Json
+# the lockfile's pinned versions, read from its TEXT: PowerShell 5.1's ConvertFrom-Json refuses an object with an
+# EMPTY-STRING key, and lockfile v2/v3 has "packages": { "": ... } (enclave-d1's box run of 7a02c1bf stopped here).
+# npm writes "version" first in each packages entry; the installed package.json files have no such key and parse fine.
+$lockText = Get-Content -Raw (Join-Path $nodeDir 'package-lock.json')
 foreach ($pkgName in 'ws', 'viem', 'tweetnacl') {
-  $wantV = $lock.packages."node_modules/$pkgName".version
+  $m = [regex]::Match($lockText, '"node_modules/' + [regex]::Escape($pkgName) + '":\s*\{\s*"version":\s*"([^"]+)"')
+  if (-not $m.Success) { Die "the lockfile pins no version for $pkgName" }
+  $wantV = $m.Groups[1].Value
   $gotV = (Get-Content -Raw (Join-Path $nodeDir "node_modules\$pkgName\package.json") | ConvertFrom-Json).version
   if ($gotV -ne $wantV) { Die "$pkgName $gotV installed, the lockfile pins $wantV" }
 }

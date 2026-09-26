@@ -36,9 +36,11 @@ node --input-type=module -e '
     for (const m of src.matchAll(re)) { const t = path.normalize(path.join(path.dirname(f), m[1])); if (!seen.has(t)) todo.push(t); } }
   console.error(`import closure: ${seen.size} files, ${missing} missing`); process.exit(missing ? 1 : 0);' "$T"
 
-(cd "$T" && find . -type f | sort | sed 's|^\./||' | while read -r f; do printf '%s  %s\n' "$(sha256sum "$f" | cut -c1-64)" "$f"; done) > "$T/MANIFEST-hvnode.txt"
+# the manifest is written OUTSIDE the tree it lists: redirected into $T, the shell created it before find ran, so it
+# listed itself (hashed half-written) while the archive, packed after the mv, did not carry it; the box's per-file check
+# then refused the install (enclave-d1, staging 013deb51)
+(cd "$T" && find . -type f | sort | sed 's|^\./||' | while read -r f; do printf '%s  %s\n' "$(sha256sum "$f" | cut -c1-64)" "$f"; done) > "$OUT/MANIFEST-hvnode-$N8.txt"
 pack() { tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner --format=gnu -C "$1" -cf - "${@:3}" | gzip -n -9 > "$2"; }
-mv "$T/MANIFEST-hvnode.txt" "$OUT/MANIFEST-hvnode-$N8.txt"
 pack "$T" "$OUT/hvnode-$N8.tar.gz" .
 
 C=$(mktemp -d); git archive --format=tar "$CC" cli/enclave.mjs cli/package.json cli/package-lock.json | tar -x -C "$C"
