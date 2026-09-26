@@ -66,8 +66,11 @@ honestly as **T0-hv, host not excluded**. It is working serving, not proven isol
    entry and the running tray) is confirmed by one re-run of the tray check after you sign in.
 3. **OPTIONAL: a delegation, if you want your own apps on the NucBox.** If you want your own apps (owned by your wallet,
    not the NucBox operator `0x389c…`) served on the NucBox, sign one `enclave-host-delegation-v1` message for the box
-   with your Trezor (90 days by default); see DEPLOYMENT §4. Without it, the NucBox serves only operator-owned
-   deployments. The message comes from `node scripts/host-delegation.mjs text --owner <your wallet> --operator 0x389c…
+   with your Trezor (90 days by default); see DEPLOYMENT §4. A delegation alone serves nothing: each app must also
+   require `hyperv-partition-per-app` in its own isolation settings (the per-app opt-in, E4; E15 item 1 is a delegated
+   owner's app that requires the SNP tier, refused here). If an app requires `snp-guest-per-app`, switching it moves it
+   from the SNP tier's hardware-attested boundary to the NucBox's T0-hv one (host not excluded; see What is NOT
+   claimed). Without a delegation, the NucBox serves only operator-owned deployments. The message comes from `node scripts/host-delegation.mjs text --owner <your wallet> --operator 0x389c…
    --box nucbox-k11 [--days 90]`, is checked with its `verify`, and the signed file goes into the node's
    `hvnode\state\delegations\`; the relay refuses an expiry beyond 180 days. There is no revocation list: you stop it by
    letting it expire, by dropping your app's `isolation.require`, or by transferring or cancelling the deployment, and the
