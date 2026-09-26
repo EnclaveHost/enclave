@@ -157,9 +157,10 @@ async function certsService({ serves = true, leafName = NAME } = {}) {
   return svc;
 }
 
-const records = (instance, over = {}) => new Map([[DEP, { status: "running", isPublic: true, isolation: { instance, appId: APP }, ...over }]]);
+const OWNER = "0x29479bf04ed889d46a7afb7f292b9bb26e12647c";
+const records = (instance, over = {}) => new Map([[DEP, { status: "running", isPublic: true, owner: OWNER, isolation: { instance, appId: APP }, ...over }]]);
 const passFor = (box, svc, over = {}) => createHvCertPass({ client: box.client, dataAddr: box.dataAddr, runtimeId: PIN, endpoint: ENDPOINT,
-  sign: (message) => operator.signMessage({ message }), base: svc.base, ...over });
+  sign: (message) => operator.signMessage({ message }), base: svc.base, served: (o) => o === OWNER, ...over });
 
 // ---- the path ----------------------------------------------------------------------------------------------------
 test("a running partition's CSR is issued for ITS key under the operator's signature and installed; it then serves the CA leaf for its name", async () => {
@@ -257,6 +258,16 @@ test("hvJudge: no launcher key, no partition for it, or another partition in the
   assert.equal((await hvJudge({ ...view, launcherVmId: "9b2d4e6f-1a3c-4e5f-8a9b-0c1d2e3f4a5b" }, PIN)(doc, GUEST_SPKI, nonce, want)).verdict, "reject");
   const other = crypto.generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" }).subarray(12).toString("base64");
   assert.notEqual((await hvJudge({ ...view, launcherKey: other }, PIN)(doc, GUEST_SPKI, nonce, want)).verdict, "monitor-signed", "another launcher key");
+});
+
+test("a deployment whose owner this box does NOT serve (a transfer the sweep has not stopped yet) asks nothing; no owner set asks nothing", async () => {
+  const f = await front(), box = await managerFor(f), svc = await certsService();
+  await passFor(box, svc).pass(records(box.instance, { owner: "0x" + "11".repeat(20) }));
+  await passFor(box, svc).pass(records(box.instance, { owner: undefined }));
+  await passFor(box, svc, { served: undefined }).pass(records(box.instance));
+  assert.equal(svc.asked, 0); assert.equal(f.csrAsked, 0, "not even the partition was asked");
+  await passFor(box, svc).pass(records(box.instance));
+  assert.equal(svc.issued, 1, "control: the served owner's deployment is certified");
 });
 
 test("only PUBLIC deployments this box RUNS as a partition are considered: held, private, or no partition asks nothing", async () => {

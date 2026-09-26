@@ -725,7 +725,7 @@ async function startHostingControls() {
         const certs = createHvCertPass({
           client: new IsolationManagerClient({ base: host.cfg.isolationManager }), dataAddr: host.cfg.isolationDataAddr,
           runtimeId: host.cfg.isolationRuntimeId, endpoint: host.cfg.endpoint, sign: (message) => acct.signMessage({ message }),
-          log: (m) => log(m) });
+          served: (owner) => host.ownerSet().has(owner), log: (m) => log(m) });
         let running = false;
         const tick = () => { if (running) return; running = true;
           certs.pass(host.records).catch((e) => log(`certificates: pass failed: ${e.message}`)).finally(() => { running = false; }); };
