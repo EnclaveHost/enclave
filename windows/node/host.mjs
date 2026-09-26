@@ -371,6 +371,30 @@ export class Host {
   }
 
   /**
+   * POST /v1/deployments/<id>/restart, whole: WHO is asking, then WHAT may be restarted. -> { status, body }
+   *
+   * restartRefusal limits what; this limits who. Without it anyone who reached the route could force-restart the
+   * owner's deployment again and again, and every forced relaunch of a partition mints a new domain key, ends its
+   * sessions and asks the CA for a new certificate: a cheap availability and CA-rate attack (enclave-5d's review of
+   * N1). The caller must hold this box's session (session.mjs, minted by its own SIWE login) for the deployment's
+   * OWNER - the Linux runner's rule (supervisor.js: authed, then 404 unless rec.owner is the caller). No verifier
+   * fails closed. `read` is the ledger read (chain.readDeployment), a parameter so the whole route can be tested.
+   */
+  async restartRequest(id, headers, { read = (x) => chain.readDeployment(x) } = {}) {
+    const j = (status, body) => ({ status, body });
+    id = String(id || "").toLowerCase();
+    if (!/^0x[0-9a-f]{64}$/.test(id)) return j(422, { error: "bad_id", message: "id must be the bytes32 deployment id" });
+    const who = typeof this.cfg.sessionVerify === "function" ? this.cfg.sessionVerify(headers || {}, id) : null;
+    if (!who) return j(401, { error: "unauthorized", message: "Missing or invalid token: a restart needs the owner's session on this box." });
+    let d;
+    try { d = await read(id); } catch (e) { return j(502, { error: "chain", message: e.shortMessage || e.message }); }
+    // not the owner: the same answer as a deployment that does not exist, as on Linux
+    if (!d || String(d.owner || "").toLowerCase() !== String(who).toLowerCase()) return j(404, { error: "not_found", id });
+    const r = await this.restart(id, d);
+    return r.refused ? j(409, { error: "refused", id, reason: r.reason }) : j(200, r);
+  }
+
+  /**
    * An owner resized the deployment on-chain (setShares). Honour it, or hand the lease back.
    *
    * The ledger starts billing the new shares at once, so the only two honest outcomes are to serve
