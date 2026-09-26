@@ -29,13 +29,18 @@ Deadline: 15 minutes from the boot. Anything later, or any operator action neede
 - **The lease will outlive the reboot:** the ledger's `leaseUntil` for test 1 is at least 30 minutes away (the node
   renews at 15 minutes). A lease that lapses during the reboot takes the claim path instead, which is a different test.
 - **Gas:** the operator holds at least 0.0005 ETH, and latest nonce = pending (R3).
+- **The box can come back unattended** (enclave-d1; `-Phase pre` FAILs otherwise): BitLocker asks for no PIN or key at boot;
+  `sshd` and `ZeroTierOneService` are Running and Automatic (the remote path back, `ssh minipc-zt`); no reboot is already
+  pending; the BootId counter is readable.
 - **Authorization:** enclave-87's go for this reboot, recorded with its time.
 
 ## Evidence BEFORE
 1. Box: `hvnode-accept.ps1 -Commit <c> -DeploymentId <id>` (read-only: no `-KillRecovery`, no `-OwnerRestart`): all PASS.
 2. Box: `hvnode-reboot-capture.ps1 -Phase pre -DeploymentId <id> -OutDir C:\Users\claude\vbs-like\hvnode\reboot-<UTC stamp>`.
-   It records the boot time, Secure Boot, the three tasks, the tagged VMs, the manager's record (instance and transport
-   key), the node's /availability, and the log line counts. It FAILs unless the deployment runs on exactly one partition.
+   It records the BootId and boot time, the time source, Secure Boot, the three tasks, BitLocker, sshd/ZeroTier, pending
+   reboots, the tagged VMs (with vmIds), the manager's record (instance and transport key), the node's /availability,
+   and the log line counts. It FAILs unless the deployment runs on exactly one partition AND exactly one tagged VM exists,
+   Running, whose name is that record's instance (enclave-b4 S2), and unless the box can come back unattended.
 3. Workstation: `hvnode-accept-remote.sh <id> <transportKeySha256>`: all PASS. Keep the R1 INFO line (verifiedAt and
    bootCounter) and R3 (gas, nonce). Also keep the ledger's `leaseUntil`, `balance6` and `runner` for the id.
 
@@ -51,11 +56,14 @@ with `shutdown /a`. Record the time (read, UTC). Nothing is stopped by hand firs
      source (w32tm) recorded both times;
    - Secure Boot ON; the legacy task Disabled;
    - both hv tasks Running;
-   - exactly ONE tagged VM, Running, and the pre-reboot VM gone from Hyper-V;
+   - within 15 minutes of the boot (scripted);
+   - exactly ONE tagged VM, Running, and it is the NEW instance's; the pre-reboot VM, by its vmId, gone from Hyper-V;
    - ONE manager record for the id: running, not recovered, a NEW instance on a NEW transport key;
    - the node registered, owner-only, isolation advertised, tier hv-node;
-   - node.log shows `<id10> restart recovery: the recovered VM <old> (Off) was retired; starting ONE fresh partition`,
-     with NO `renewed <id10>` before it, and no reboot-recovery HOLD.
+   - node.log shows `<id10> restart recovery: the recovered VM <THE pre-reboot instance> (Off) was retired; starting ONE
+     fresh partition` (bound to that instance: enclave-b4 S1), no reboot-recovery HOLD, and NO `registry: card price now`
+     line since pre (the persisted price-once holds across a real reboot: enclave-d1). Renewals before the recovery are
+     INFO only: that property is test/windows-node-norenew.test.mjs's on main.
    It prints the new transportKeySha256. If a check is not yet true, re-run it (read-only) until the 15-minute deadline.
 2. Box: `hvnode-accept.ps1 -Commit <c> -DeploymentId <id>`: all PASS (A4's gas figure is INFO for the node's first 12
    minutes).
@@ -63,6 +71,10 @@ with `shutdown /a`. Record the time (read, UTC). Nothing is stopped by hand firs
    with a verifiedAt later than the reboot. The ledger: the same runner (nucbox-k11), a live lease, NO release
    transaction for the id, and `balance6` moving on.
 PASS = all three, within the deadline, with no operator action.
+
+NOT a failure: the hosting TRAY is not running after the reboot. The box has no AutoAdminLogon, so the tray starts only
+when its user signs in at the console. The owner's caps persist in their file, and the node re-mints the tray's token
+at start, which the tray re-reads per call, so it recovers at sign-in (enclave-d1).
 
 ## The manager-only variant (the self-healing half of A8, with test 1 serving)
 Cheaper than a reboot, and run first: the same recovery with the VM still Running.
@@ -73,15 +85,18 @@ Cheaper than a reboot, and run first: the same recovery with the VM still Runnin
    - the recovered VM (Running) retired;
    - ONE fresh partition on a NEW key;
    - `restart recovery … (Running) was retired` in node.log;
-   - R4 passing on the new key.
-   `-Phase post -ManagerOnly` judges it: the host must NOT have rebooted, and every other line is the same, including
-   `(Running) was retired` rather than `(Off)`.
+   - serving on the new key: public R4 once B is live; until then the LOOPBACK R4 (the partition relay's TLS key = the
+     manager's transportKeySha256 and 200 "Hello": enclave-d1's d1-r4-loopback.ps1) proves this half before B.
+   `-Phase post -ManagerOnly` judges it: the BootId unchanged, within 10 minutes of pre, and every other line the same,
+   including `(Running) was retired` rather than `(Off)`.
 
 ## Rollback
 - **The tasks did not start at boot:** `Start-ScheduledTask EnclaveHvManager`, wait for `/health` canStart, then
   `Start-ScheduledTask EnclaveHvNode`. Record it: the acceptance FAILED (it needed an operator).
-- **The deployment is held** (`isolation: reboot recovery: … held`): an operator's forced relaunch clears it and tries once
-  more (`hvnode-accept.ps1 -DeploymentId <id> -OwnerRestart`: a NEW key, so re-run A7 and R4 once). The acceptance FAILED.
+- **The deployment is held** (`isolation: reboot recovery: … held`): a forced re-ensure clears it and tries once more. That
+  is the OWNER's session restart (`hvnode-accept.ps1 -DeploymentId <id> -OwnerRestart`: the operator owns test 1;
+  restartRequest → ensureApp(force); a NEW key, so re-run A7 and R4 once), or the owner's resize or config edit
+  (enclave-b4 L4). The acceptance FAILED.
 - **The node misbehaves in any other way:** `hvnode-rollback.ps1` (nothing serving; nothing deleted). A lease left held
   lapses unrenewed.
 - **Secure Boot is off after the reboot, or the legacy task changed:** stop, touch nothing, report to enclave-87 and Steven.
