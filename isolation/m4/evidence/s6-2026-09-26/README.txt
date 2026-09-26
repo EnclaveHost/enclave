@@ -12,3 +12,10 @@ The d9798e4c run first REFUSED at 02:13:25Z (nothing changed): right after a lis
 DEVIATION (enclave-87's ruling, recorded): all 3 were listed BEFORE Steven's S5 (the names-only check), not "after that
 app's S5" as ENABLEMENT says. Listing launches nothing: the claim gate refuses each app until its owner setConfig adds
 isolation.require, and Steven signs S6 only after S5 matches. Next: S5, then S6 (Steven, ~1 min apart per app).
+7ae476a3 (the s3-ipfs-adapter behind ipfs.enclave.host uploads; enclave-87 added it to the set 09-26) LISTED
+2026-09-26T03:02:12Z, after e3's B window, once an INDEPENDENT derivation matched e3's prediction: the catalog version
+0x4306e588.../11 read from chain (cid bafybeicugec..., memMb 1024, ports http:8000 -> record.json, enclave-catalog-bundle/2);
+the component fetched with guestd's own CID-verifying fetcher (1,449,150 bytes); catalog.DeriveBundle (derive63.go, run
+against a copy of the 4cdd5169 contract module); expected-measurement.sh --pin 52156652: AppID f187928c68071bf0...,
+measurement aa360adae0988d0b87efa542cfb375df36c8d7a32c1f467c6ab634d4069b6ec2cea4304704c7e0510206610dea5020ce = e3's.
+Its envelope keeps {"network":{"relay":"us-west"}}; the first-launch watcher requires that beside isolation.require.

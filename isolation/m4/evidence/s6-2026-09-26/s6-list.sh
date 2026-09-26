@@ -13,7 +13,8 @@ case ${1:-} in
   a69dcbba) ID=0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77;;
   d9798e4c) ID=0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a;;
   a77d0c57) ID=0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371;;
-  *) echo "usage: s6-list.sh a69dcbba|d9798e4c|a77d0c57"; exit 2;;
+  7ae476a3) ID=0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33;;   # the s3-ipfs-adapter (ipfs.enclave.host uploads), enclave-87 09-26
+  *) echo "usage: s6-list.sh a69dcbba|d9798e4c|a77d0c57|7ae476a3"; exit 2;;
 esac
 [ "$(sha256sum < "$RL" | cut -c1-64)" = "$RL_SHA" ] || { say "REFUSING: relay-list.sh is not the reviewed 3afbae85"; exit 2; }
 for a in 0ddbd824 395bed3e 4e62e60d; do [ -f $ST/accepted-$a ] || { say "REFUSING: canary $a is not accepted on 52156652 (e5)"; exit 2; }; done

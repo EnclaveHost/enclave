@@ -1,0 +1,1 @@
+{"derivation":"enclave-catalog-bundle/2","catalog":{"app":"0x4306e588755347dbb30b5e2090cacbc7e20b00afedff750fe352fe99d6d77a7c","version":11},"cid":"bafybeicugecaxpc6yxxx3ntyfzfn22hvpae4cduarmqnlhbnbbgv24noky","policy":{"cpuPercent":100,"memMiB":1024,"vcpus":1},"runtimeId":"ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8","http":8000}
