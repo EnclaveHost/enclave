@@ -450,15 +450,24 @@ export class Host {
       // claimAttempted: this call went on to a claim TRANSACTION - what spends the ledger scan's one claim per pass. It is
       // carried through ANY later throw (the launch's relay read, its spawn cap, a giveUp's chain tx): a claim once sent
       // must count, or a throw after it lets a second claim go out in the same pass (enclave-bf's NO-GO on 3d37709a).
+      let hash;
       try {
         this.#record(id, { status: "claiming", appRef: d.appRef });
-        const hash = await chain.claimDeployment(id, this.enclaveId);
-        this.#record(id, { claimedAt: Date.now(), claimTx: hash });
-        this.log(`claimed ${id.slice(0, 10)} (tx ${hash})`);
-        d = await chain.readDeployment(id);
+        hash = await chain.claimDeployment(id, this.enclaveId);
       } catch (e) {
         const reason = `claim failed: ${e.shortMessage || e.message}`;
         this.#record(id, { status: "failed", reason, appRef: d.appRef }); return { accepted: false, reason, claimAttempted: true, claimFailed: true };
+      }
+      this.#record(id, { claimedAt: Date.now(), claimTx: hash });
+      this.log(`claimed ${id.slice(0, 10)} (tx ${hash})`);
+      // the ledger read AFTER a good claim is not the claim: a failure here is not a failed claim (no claimFailed, so the
+      // scan's hold does not count it; enclave-bf's note on a1ae8567). The claim is tracked, so tick()'s lease loop resumes it
+      try { d = await chain.readDeployment(id); }
+      catch (e) {
+        const reason = `claimed (tx ${hash}), but the ledger read after it failed: ${e.shortMessage || e.message}; the lease loop launches it`;
+        this.#record(id, { reason });
+        this.log(`${id.slice(0, 10)} ${reason}`);
+        return { accepted: false, reason, claimAttempted: true };
       }
       try { await this.ensureApp(id, d, { force, version: v }); }
       catch (e) { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { claimAttempted: true }); }
@@ -1516,13 +1525,13 @@ export class Host {
         this.scanHold.delete(id);
         if (r.claimFailed) {         // the claim transaction itself failed (reverted, or could not be sent)
           const was = this.claimFails.get(id);
-          const n = was && was.key === holdKey ? was.n + 1 : 1;
+          const n = was && was.key === holdKey ? was.n + 1 : 1;   // n keeps counting: every later failure re-holds (5d)
           this.claimFails.set(id, { key: holdKey, n });
           if (n >= 2) {
             this.scanHold.set(id, { key: holdKey, at: Date.now(), ms: Host.SCAN_CLAIMFAIL_HOLD_MS });
             this.log(`ledger: ${id.slice(0, 10)}'s claim failed ${n} passes running with nothing changed: not asked again for ${Host.SCAN_CLAIMFAIL_HOLD_MS / 1000} s, so the rows behind it are reached`);
           }
-        } else this.claimFails.delete(id);
+        } else this.claimFails.delete(id);   // a good claim (or a launch that threw after one) restarts the count
         continue;
       }
       if (!ours) declined++;
