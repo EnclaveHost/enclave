@@ -1,0 +1,4 @@
+10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba  C:\Users\claude\d1-v42-launcher\out\build1\vbslike-host.exe
+10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba  C:\Users\claude\d1-v42-launcher\out\build2\vbslike-host.exe
+10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba  C:\Users\claude\d1-v42-launcher-alt\out\build1\vbslike-host.exe
+10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba  C:\Users\claude\d1-v42-launcher-alt\out\build2\vbslike-host.exe
