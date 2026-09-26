@@ -5,7 +5,7 @@ B=${B_DIR:-$HOME/enclave-bench/relay-window-20260926c}; mkdir -p $B; LOG=$B/roll
 HEALTH=$H/../hvnode-owner-only-rollout/health.sh   # KAT, canaries on boot keys, us-west, the 7 listed; CERT_SEPARATE=1 after step 3
 NAN="ssh -i $HOME/.ssh/nan-ci-deploy -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 nan"
 NR="ssh -i $HOME/.ssh/nan-ci-deploy -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 root@46.62.128.36"
-PC=0a512d93e4b88ed0abe37e2d73457505133370f2   # relay/prewarm-pacing: 2 commits on main 317b31527 (e85019c6 pacing, 0a512d93 unref; bf GO)
+PC=3212f1470fc6426c25386e77709667421d307a87   # relay/prewarm-pacing: 2 commits on main 317b31527 (e85019c6 pacing, 0a512d93 unref; bf GO)
 BASE=$(git -C $MAIN rev-parse "$PC~2" 2>/dev/null || echo unknown)
 REVIEW_BASE=317b31527   # the main bf reviewed the 2 commits on (release-prewarm 5/5, secrets-release 22/22)
 # the REVIEWED patches, in order (git patch-id --stable): e85019c6 + 0a512d93 (bf GO); a re-cut must reproduce them exactly
