@@ -1,0 +1,10 @@
+ok   node task disabled and ended
+ok   manager destroyed VM hv0261e3f63a43f123675e95ecc70deb2f (0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3)
+ok   manager task disabled and ended
+ok   legacy task untouched (Disabled)
+ROLLED BACK: nothing of the hv node runs; C:\Users\claude\vbs-like\hvnode kept. Next if wanted: host-prereq.ps1 -Rollback (M3); relay-hvnode-attach-off.sh on nan
+exit=0
+EnclaveHvManager Disabled
+EnclaveHvNode Disabled
+all VMs: 0
+02:30:16Z

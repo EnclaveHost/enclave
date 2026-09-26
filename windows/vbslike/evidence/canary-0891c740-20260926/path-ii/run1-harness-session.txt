@@ -1,0 +1,88 @@
+02:42:40.355Z
+02:42:41 === MANAGER ACCEPTANCE (windows\vbslike\manager\ops\restart-accept.mjs). Lifecycle and recovery only: NOT an isolation or attestation result; host_excluded=no. ===
+02:42:41 setting before: Present; IGVM C:\Users\claude\d1-canary-0891c740\pkg\guest\igvm-vbs\vbs-linux-candidate-0891c740.bin verified 0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998; tree C:\Users\claude\d1-canary-252602c8\control
+02:42:55 HASHES AT USE: tree 12493 files, list sha256 47ebdd591a5b6d0ce9d7291c03eee1412428f9813153ee075b3a58cdb1751d01 (C:\Users\claude\vbs-evidence\mgraccept-20260926-024240\tree-hashes.txt)
+02:42:55 HASH AT USE: c91ec4ae407e4925b897917ae596b5dcf7f39696209e5377464c881ed295d8ba  C:\Users\claude\d1-canary-252602c8\control\windows\vbslike\manager\ops\restart-accept.mjs
+02:42:55 HASH AT USE: 5830dedc7ccba6e131d539f49b8176be6a2006e39e2418411dd452c314ec84f0  C:\Users\claude\d1-canary-252602c8\control\isolation\m3\hvlab-accept.mjs
+02:42:55 HASH AT USE: ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8  C:\Users\claude\d1-canary-0891c740\pkg\guest\runtime.json
+02:42:55 HASH AT USE: 523983d7711dbf27d1862ffdebe1b3973708c73ea9d9856802d68b4a0bb317f9  C:\Users\claude\d1-canary-0891c740\pkg\apps\hello-world-1.0.4\spawn.json
+02:42:55 HASH AT USE: 9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45  C:\Users\claude\d1-canary-0891c740\pkg\apps\hello-world-1.0.4\app.bundle
+02:42:55 HASH AT USE: 4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d  C:\Users\claude\vbs-like\type1.vmgs
+02:42:55 HASH AT USE: 17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c  C:\Users\claude\hyperv.psm1
+02:42:55 watchdog armed (pid 9844, ceiling 1800s)
+02:42:55 SETTING APPLIED for this run
+02:42:55 hv_sock service 00002329-facb-11e6-bd58-64006a7986d3 already registered by somebody else; left alone
+02:42:55 config: {"hvlab":{"nodeTree":"C:\\Users\\claude\\d1-canary-252602c8\\control","script":"C:\\Users\\claude\\d1-canary-252602c8\\control\\isolation\\m3\\hvlab-accept.mjs","dataPort":18092,"timeoutS":300},"gsMaster":"C:\\Users\\claude\\vbs-like\\type1.vmgs","name":"0xd1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55d1acce55","gateway":"https://ipfs.enclave.host","igvmSha256":"0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998","gsMasterSha256":"4f051697a74dc72d60e7b36d7cc80554493d64038ea6e146d72b454585ae930d","tree":"C:\\Users\\claude\\d1-canary-252602c8\\control","runtimeIdentity":"C:\\Users\\claude\\d1-canary-0891c740\\pkg\\guest\\runtime.json","wmiserveSha256":"10547aca82ad48be021828164cd11a649cd324e37932b388449f3f44530929ba","wmiserveExe":"C:\\Users\\claude\\d1-v42-launcher\\out\\build1\\vbslike-host.exe","igvm":"C:\\Users\\claude\\d1-canary-0891c740\\pkg\\guest\\igvm-vbs\\vbs-linux-candidate-0891c740.bin","hypervModule":"C:\\Users\\claude\\hyperv.psm1","python":"C:\\Python314\\python.exe","logDir":"C:\\Users\\claude\\vbs-evidence\\mgraccept-20260926-024240","archiveDir":"C:\\Users\\claude\\vbs-evidence","bundleDir":"C:\\Users\\claude\\vbs-evidence\\mgraccept-20260926-024240\\bundles","spawnJson":"C:\\Users\\claude\\d1-canary-0891c740\\pkg\\apps\\hello-world-1.0.4\\spawn.json","dataPort":18092,"port":18091}
+02:45:47   DRIVER: manager #1 pid 14104
+02:45:47   DRIVER: PHASE 1: hvlab-accept against http://127.0.0.1:18091 (data plane 127.0.0.1:18092)
+02:45:47   DRIVER:   HVLAB: manager http://127.0.0.1:18091: backend=hyperv-partition-per-app canStart=true tier=T0-hv hostExcluded=false partition="wmi-openhcl-gen2-igvm-linux" derivations=["enclave-catalog-bundle/1"]
+02:45:47   DRIVER:   HVLAB: [tunnel] hvacc-node attached via token (1 enclave)
+02:45:47   DRIVER:   HVLAB: ensureApp: status=running after 21.9 s, instance=hvf318d393deac052b5d1493be0720f8d8 key=b3c1ff5ac8a373a7 image=0891c740ddf18ded tier=T0-hv hostExcluded=false reason=null
+02:45:47   DRIVER:   HVLAB: PASS ensureApp reaches running through the node's own path: status=running instance=hvf318d393deac052b5d1493be0720f8d8
+02:45:47   DRIVER:   HVLAB: PASS the record's labels are this tier's: T0-hv, the host NOT excluded: tier=T0-hv hostExcluded=false
+02:45:47   DRIVER:   HVLAB: the manager's view of hvf318d393deac052b5d1493be0720f8d8: {"id":"hvf318d393deac052b5d1493be0720f8d8","name":"0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e","status":"running","appId":"9c3d10f1450e17bc6a21478723193ef7e3da409afe353e264714cb801d180d45","runtimeId":"ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8","recordSha256":"bff33b951aade0a921edea4b0aca89712005d20cbb2c074c0f885d079e059d6c","image":"0891c740ddf18ded1; statement {"partition":"wmi-openhcl-gen2-igvm-linux","guestImageKind":"igvm-linux-direct"}
+02:45:47   DRIVER:   HVLAB: PASS browser -> tunnel -> app zone -> data plane -> domain: the session's key is the one the manager verified: monitor-signed on the browser's handshake key b3c1ff5ac8a373a7, record b3c1ff5ac8a373a7
+02:45:47   DRIVER:   HVLAB: the guest's boundary tuple: "tier=t0-hv vmpl=n/a vmpl_floor=n/a vmpl0=n/a host_excluded=no hv_isolation=vbs paravisor=no"
+02:45:47   DRIVER:   HVLAB: PASS the guest states hv_isolation=vbs (stated by the hypervisor, not a proof), and host_excluded=no: hv_isolation=vbs paravisor=no host_excluded=no
+02:45:47   DRIVER:   HVLAB: PASS the app answers on its own name: 200 "Hello World!\n"
+02:45:47   DRIVER:   HVLAB: PASS a verifier that holds another key does not accept the document: reject (binding does not match the handshake)
+02:45:47   DRIVER:   HVLAB: PASS a document for another nonce is not accepted (no replay): reject (document nonce is not ours; binding does not match the handshake)
+02:45:47   DRIVER:   HVLAB: PASS a verifier expecting another app does not accept it: reject (the report names a different app; the domain's own claim differs from the expected app (informational field))
+02:45:47   DRIVER:   HVLAB: PASS data plane admission, the exact record (control: admitted): "OK"
+02:45:47   DRIVER:   HVLAB: PASS data plane admission, another transport key: "NO the instance's verified transport key is not that key"
+02:45:47   DRIVER:   HVLAB: PASS data plane admission, another guest image: "NO the instance was not booted from that guest image"
+02:45:47   DRIVER:   HVLAB: PASS data plane admission, another app: "NO the instance is not that app"
+02:45:47   DRIVER:   HVLAB: PASS data plane admission, another runtime: "NO the instance does not carry that runtime"
+02:45:47   DRIVER:   HVLAB: PASS data plane admission, an instance the manager does not hold: "NO no such instance"
+02:45:47   DRIVER:   HVLAB: ensureApp {force:true}: status=running after 21.8 s, instance=hv8906e78953911da0d08fc196102ba035 key=98d8c24124e11d4c image=0891c740ddf18ded tier=T0-hv hostExcluded=false reason=null
+02:45:47   DRIVER:   HVLAB: PASS the forced relaunch reaches running on a NEW instance with a NEW transport key: instance hvf318d393deac052b5d1493be0720f8d8 -> hv8906e78953911da0d08fc196102ba035, key b3c1ff5ac8a373a7 -> 98d8c24124e11d4c
+02:45:47   DRIVER:   HVLAB: PASS the manager no longer holds the old instance: null
+02:45:47   DRIVER:   HVLAB: PASS exactly one instance carries this deployment's name: hv8906e78953911da0d08fc196102ba035:running
+02:45:47   DRIVER:   HVLAB: PASS the session opened on the old domain has ended: closed
+02:45:47   DRIVER:   HVLAB: PASS the old route (old instance, old key) is refused: "NO no such instance"
+02:45:47   DRIVER:   HVLAB: PASS the new instance under the OLD key is refused: "NO the instance's verified transport key is not that key"
+02:45:47   DRIVER:   HVLAB: PASS the browser reconnects: monitor-signed on the NEW key the manager verified: monitor-signed on 98d8c24124e11d4c, record 98d8c24124e11d4c
+02:45:47   DRIVER:   HVLAB: PASS a client pinned to the old key sees a different key and must refuse: pinned b3c1ff5ac8a373a7, served 98d8c24124e11d4c
+02:45:47   DRIVER:   HVLAB: PASS the app answers after the relaunch: 200
+02:45:47   DRIVER:   HVLAB: [tunnel] hvacc-node detached
+02:45:47   DRIVER:   HVLAB: [tunnel] hvacc-node attached via token (1 enclave)
+02:45:47   DRIVER:   HVLAB: ensureApp after a node restart: status=running after 0.3 s, instance=hv8906e78953911da0d08fc196102ba035 key=98d8c24124e11d4c image=0891c740ddf18ded tier=T0-hv hostExcluded=false reason=null
+02:45:47   DRIVER:   HVLAB: PASS after a node restart ensureApp adopts the SAME instance and key: instance hv8906e78953911da0d08fc196102ba035 key 98d8c24124e11d4c
+02:45:47   DRIVER:   HVLAB: PASS still exactly one instance for the deployment: hv8906e78953911da0d08fc196102ba035:running
+02:45:47   DRIVER:   HVLAB: PASS the browser reconnects through the restarted node, on the same verified key: monitor-signed on 98d8c24124e11d4c
+02:45:47   DRIVER:   HVLAB: PASS the app answers through the restarted node: 200
+02:45:47   DRIVER:   HVLAB: PASS cleanup: instance hv8906e78953911da0d08fc196102ba035 retired and confirmed gone: removed=true reason=null after=null
+02:45:47   DRIVER:   HVLAB:   node: [node-1] 0x4e62e60d isolation spawned: hvf318d393deac052b5d1493be0720f8d8 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+02:45:47   DRIVER:   HVLAB:   node: [node-1 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+02:45:47   DRIVER:   HVLAB:   node: [node-1] 0x4e62e60d isolated domain retired (forced relaunch)
+02:45:47   DRIVER:   HVLAB:   node: [node-1] 0x4e62e60d isolation spawned: hv8906e78953911da0d08fc196102ba035 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+02:45:47   DRIVER:   HVLAB:   node: [node-2] 0x4e62e60d isolation adopted: hv8906e78953911da0d08fc196102ba035 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+02:45:47   DRIVER:   HVLAB:   node: [node-1 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+02:45:47   DRIVER:   HVLAB:   node: [node-2 app-zone] app-zone 0x4e62e60d -> spliced: guest ended
+02:45:47   DRIVER:   HVLAB: HVLAB-ACCEPT ALL PASS
+02:45:47   DRIVER: PHASE 1 RESULT: exit 0, HVLAB-ACCEPT ALL PASS
+02:45:47   DRIVER: PHASE 2: restart recovery (serving: A2s and A7 apply)
+02:45:47   DRIVER: sweeps: liveness 5000 ms, answer check 5000 ms (the driver's default)
+02:45:47   DRIVER: manager #2 pid 20608
+02:45:47   DRIVER: PASS A0: inventory ready and empty; no manager-owned VM on this host
+02:45:47   DRIVER: PASS A1: POST 201 in 7845 ms, id hv715a769107ac2892db146b610326a597, status starting, partition wmi-openhcl-gen2-igvm-linux, hostExcluded false
+02:45:47   DRIVER: PASS A2: 1 VM(s) carry id hv715a769107ac2892db146b610326a597: enclave-app-hv715a769107ac28-9c3d10f1 9285d15a-ca1b-4f78-a5de-e8d0536bd7f8 Running
+02:45:47   DRIVER: PASS A2s: status running, relay port 61347, TCP accepts, launcherKey named, image 0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998, statement {"partition":"wmi-openhcl-gen2-igvm-linux","guestImageKind":"igvm-linux-direct"}
+02:45:47   DRIVER: PASS A3: manager gone; the VM is Running
+02:45:47   DRIVER: PASS A7: relay port 61347 refuses: the relay died with the manager
+02:45:47   DRIVER: manager #3 pid 15504
+02:45:47   DRIVER: PASS A4: GET 200: recovered true, status starting, appReady false, relay null, hostExcluded false
+02:45:47   DRIVER: PASS A5: second POST 409 naming hv715a769107ac2892db146b610326a597; VMs with this id 1, manager-owned VMs 1
+02:45:47   DRIVER: PASS A6: DELETE 200; VMs with this id 0; GET after 404
+02:45:47   DRIVER: A9: monitor stop of domain 1 under boot f82117ba9455e73e4a7f5b1163884004 -> {"stopped":1}
+02:45:47   DRIVER: PASS A9: monitor stop -> {"stopped":1}; status failed after 30692 ms, reason "the domain stopped answering (3 checks in a row): no TLS session: read ECONNRESET; its VM is left for the node to retire", VM Running
+02:45:47   DRIVER: A9 cleanup: DELETE hvf7b2c4c815b55fbd063c69951c656b6c -> 200; VMs with this id 0
+02:45:47   DRIVER: A8: turned de8f97f6-b354-430f-8cb6-cba7749aa3eb off from the host -> {"state":"Off"}
+02:45:47   DRIVER: PASS A8: after turning de8f97f6-b354-430f-8cb6-cba7749aa3eb Off: status failed within 2022 ms, reason "the partition is Off: it stopped by itself (on type 1 a guest reset turns the VM Off, measured in G4 run 082856); its VM is left for the node to retire", relay 61420 refuses
+02:45:47   DRIVER: A8 cleanup: DELETE hvc30bc611bdaec988befdd82788a395d5 -> 200; VMs with this id 0
+02:45:47   DRIVER: RESTART-ACCEPT ALL PASS
+02:45:47   DRIVER: ACCEPTANCE: phase 1 PASS, phase 2 PASS
+02:45:47 SETTING RESTORED to Present (verified)
+02:46:02 TREE UNCHANGED by the run: 12493 files, the same hashes as at use (no __pycache__)
+02:46:02 === RESULT: driver exit 0, harness exit 0 (0 passed; 3 refused; 2 driver failed, cleanup clean; 1 cleanup failed). Evidence: C:\Users\claude\vbs-evidence\mgraccept-20260926-024240 ===
+harness exit=0
