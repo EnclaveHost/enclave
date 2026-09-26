@@ -57,3 +57,27 @@ Then each step's own checks:
   metal-iso0 eligible, us-west a relay, nucbox-k11 not eligible.
 
 The TRUSTED_OPERATORS digest before and after each step is in the evidence directory (~/enclave-bench/b-rollout-20260926).
+
+## Step 1b, re-checked 09-26 07:55Z for enclave-87 (HELD until Steven opens the us-west master; runs only on 87's word)
+
+- **Still applies unchanged.** Main c6347dd2's relay.js (68cd3b93) and fleet.mjs (0441e47d) are byte-identical to B's (407f0936).
+  us-west still runs the pre-B pair (e0cb218f / 384a1ef1 = 2144fcb3), and 1b refuses anything else.
+- **Nothing beyond relay.js + fleet.mjs.** Their import closure is relay.js, fleet.mjs, connlog.mjs and net-guard.mjs, plus
+  node:*, ws and viem. It is the same at pre-B, B and main, and connlog.mjs and net-guard.mjs are unchanged since pre-B, so they
+  are already on us-west. pacing, rs-11, rs-12, rpc-bounded and owner-grace change secrets-release.mjs, api-relay.js, tunnel.js
+  and env lines: none of them is in us-west's closure.
+- **New in b-1b-uswest.sh:** before any copy, us-west's connlog.mjs and net-guard.mjs must equal the pins (a refusal otherwise).
+  After the copy, all four closure files are verified.
+- **New in b-accept.sh 1b.** On top of B's relay.js/fleet.mjs + the closure on us-west and the canaries 200 via DNS:
+  - test 1 (0x31136008) on its PUBLIC hostname answers 200 on the partition's key: sha256 of the SPKI DER = TEST1_SPKI, pinned
+    at run time from d1's current value, since the key changes at the v42 reboot. An unpinned TEST1_SPKI FAILS the accept.
+  - the attestation document on that hostname binds the public handshake (transportKey = the handshake SPKI);
+  - an unleased listed deployment's hostname (at us-west) is refused.
+- **b-1b-dry.sh (no us-west access), 17/17 at 07:55Z:**
+  - the pins and closure;
+  - node --check;
+  - fleet 17/17, owner-only-fleet 3/3 and custom-domain-routing 6/6 at main;
+  - the closure refusal against fixtures;
+  - live public reads: test 1 refused today (pre-1b); a canary 200 on its key with its document bound; the stranger probe
+    (a69dcbba, unleased, at us-west) refused.
+- **Rollback:** b-rollback-uswest.sh (unchanged): the *.pre-b files back, restart enclave-tcp-relay, the canaries 200 via DNS.

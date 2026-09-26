@@ -19,6 +19,9 @@ declare -A SHA=(
   [fleet.mjs]=0441e47decd6bb065a03b0f56fcc3327ebbbbd4e6dfcb57a64b0f81e1555c3db
   [relay.js]=68cd3b938f374a65a6014c51ea9c6b99237cec394f360ece4a0142ef5bced973
   [dns-relay.js]=3360ae772787015bdf38eac57984af62b2df085b64f194b79a45a73eef594cbd
+  # relay.js + fleet.mjs's import closure on us-west (1b; unchanged since pre-B 2144fcb3 and on main c6347dd2)
+  [connlog.mjs]=1ea6002bd044bffec7c508a920e4f5b1441247353bffefc8544fa257b343aeb9
+  [net-guard.mjs]=f319fa3754b8991cb2a71a9c9d7a7637edee1803721109fb78273a2be39931a8
 )
 # the RELAY CONTEXT B was reviewed in (enclave-bf): main at the review. A main that has since changed ANY relay/ file (e.g.
 # secrets-release.mjs beside B), or anything under site/ or scripts/, is a new context: refused until re-reviewed, never re-cut silently
@@ -50,3 +53,28 @@ trusted_digest() { $NAN "grep -E '^TRUSTED_OPERATORS=' /etc/nan-relay/api-relay.
 # the relay files on a host equal B's (host command, file list)
 files_are_b() { local host=$1; shift; local f want got; for f in "$@"; do want=${SHA[$f]}; got=$($host "sha256sum < /opt/nan-relay/$f" | cut -c1-64); [ "$got" = "$want" ] || { echo "$f is ${got:0:12}, not B's ${want:0:12}"; return 1; }; done; }
 canaries_dns() { local l r; for l in 0ddbd824 395bed3e 4e62e60d; do r=$(curl -sS -o /dev/null -w "%{http_code}/%{ssl_verify_result}" --max-time 20 https://$l.app.enclave.host/ 2>/dev/null); [ "$r" = "200/0" ] || { echo "$l: $r"; return 1; }; done; }
+# 1b's acceptance (enclave-87, 09-26): test 1 on its public hostname, on the partition's key; an unleased hostname refused
+TEST1=0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3
+TEST1_SPKI=${TEST1_SPKI:-}   # sha256 of test 1's SPKI DER (d1's R4 key 4d80b956...): pinned before 1b runs; empty = the accept FAILS
+UNLEASED="0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a 0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371"
+# GET https://<label>.app.enclave.host/ -> "<http code> <sha256 of the handshake SPKI DER, or ->"; "000 -" when refused
+public_get() {
+  node -e '
+const https = require("node:https"), { createHash, X509Certificate } = require("node:crypto");
+const req = https.get({ host: process.argv[1] + ".app.enclave.host", path: "/", timeout: 20000, agent: false }, (res) => {
+  const spki = new X509Certificate(res.socket.getPeerCertificate(false).raw).publicKey.export({ type: "spki", format: "der" });
+  res.resume(); res.on("end", () => console.log(res.statusCode, createHash("sha256").update(spki).digest("hex")));
+});
+req.on("timeout", () => req.destroy(new Error("timeout"))); req.on("error", () => console.log("000 -"));' "$1"
+}
+# the attestation document on that hostname: its transportKey equals THIS handshake's SPKI (the TLS ends in the attested partition)
+public_doc_binds() {
+  node -e '
+const https = require("node:https"), { randomBytes, X509Certificate } = require("node:crypto");
+const req = https.get({ host: process.argv[1] + ".app.enclave.host", path: "/.well-known/enclave-attestation?nonce=" + randomBytes(32).toString("hex"), timeout: 20000, agent: false }, (res) => {
+  const spki = new X509Certificate(res.socket.getPeerCertificate(false).raw).publicKey.export({ type: "spki", format: "der" });
+  let b = ""; res.on("data", (c) => (b += c)); res.on("end", () => { let d = {}; try { d = JSON.parse(b); } catch {}
+    console.log(res.statusCode === 200 && d.transportKey && Buffer.from(d.transportKey, "base64").equals(spki) ? "bound" : `not bound (${res.statusCode})`); });
+});
+req.on("timeout", () => req.destroy(new Error("timeout"))); req.on("error", (e) => console.log("refused " + e.message));' "$1"
+}
