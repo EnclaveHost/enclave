@@ -172,7 +172,7 @@ if (A && B) {
   const reach = Object.entries(probe).filter(([k]) => /^(vsock_|tcp_|other_)/.test(k));
   check("5 from inside the partition nothing beyond it is reachable: no other domain's files, no vsock port but its own monitor's, no host network", reach.length >= 6 && reach.every(([, v]) => !/CONNECTED|READABLE/.test(v)), reach.map(([k, v]) => `${k}=${v}`).join("; ") || "no probe output");
   check("5b it cannot reach the report interface directly (no /sys, no configfs in the domain)", probe.configfs_tsm && !/READABLE/.test(probe.configfs_tsm) && probe.create_tsm_entry && !/CREATED/.test(probe.create_tsm_entry), `${probe.configfs_tsm} / ${probe.create_tsm_entry}`);
-  check("5c the report it obtained names ITS OWN app although its request also carried another app hash and id", probe.report === "granted-for-this-domain" && probe.report_b64 && (() => { try { const r = JSON.parse(Buffer.from(probe.report_b64, "base64").toString()); return r.doc && r.doc.domain.appSha256 === appA.appId && r.doc.partition.vmId === P.vmId; } catch { return false; } })(), probe.report);
+  check("5c the RUNTIME (the probe, as its uid) is REFUSED a report, unfiltered and filtered: the report channel is the front's alone (enclave-87's ruling)", probe.report === "Permission denied" && probe.filtered_report === "Permission denied" && !probe.report_b64 /* exactly the front's 0700 /run refusing: "no-answer" would mean the socket was REACHED (enclave-5d) */, `${probe.report} / ${probe.filtered_report}`);
   if (P) { await ask(`destroy ${P.id}`); await ask(`wait ${P.id} 30`); }
 
   console.log("\n6. crash independence: the host terminates partition A without notice; B keeps serving on the same key");

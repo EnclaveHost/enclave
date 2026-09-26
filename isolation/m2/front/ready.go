@@ -88,6 +88,9 @@ func appProxyWithin(upstream string, headerTimeout time.Duration) *httputil.Reve
 		},
 		Transport: &http.Transport{DialContext: (&net.Dialer{}).DialContext, MaxIdleConnsPerHost: 64,
 			ResponseHeaderTimeout: headerTimeout},
+		// the proxy's own error lines (a body-copy error) go through the console filter; the Transport logs an app's
+		// unsolicited bytes through the std logger, which guardConsole routes through the same filter (console.go)
+		ErrorLog: consoleLog,
 		// A client is told which it was: 504 when the app did not start answering in time, 502 when it could not be
 		// reached at all. Neither leaves the connection hanging.
 		//

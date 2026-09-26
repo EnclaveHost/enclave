@@ -161,7 +161,7 @@ func (l *realLauncher) Forward(ctx context.Context, cid uint32, workdir string) 
 
 // verifyArgs is the judge's command line. With a deployment bound, guestd's own verifier requires the report to carry
 // it (--host-data): a guest that came up without its deployment id in HOST_DATA is never reported running for it.
-func (l *realLauncher) verifyArgs(port int, measurement, appID, hostData, workdir string) []string {
+func (l *realLauncher) verifyArgs(port int, measurement, appID, hostData, workdir string, releases []string) []string {
 	args := []string{filepath.Join(l.m2, "client.mjs"),
 		"https://127.0.0.1:" + strconv.Itoa(port), "--measurement", measurement, "--app-sha", appID, "--no-kds",
 		"--vcek", l.vcek, "--amd-chain", l.product + "=" + l.chain, "--min-tcb", "@" + l.minTCB,
@@ -169,11 +169,14 @@ func (l *realLauncher) verifyArgs(port int, measurement, appID, hostData, workdi
 	if hostData != "" {
 		args = append(args, "--host-data", hostData)
 	}
+	if len(releases) > 0 {
+		args = append(args, "--release", strings.Join(releases, ","))
+	}
 	return args
 }
 
-func (l *realLauncher) Verify(ctx context.Context, port int, measurement, appID, hostData, workdir string) (string, string, error) {
-	out, _ := l.run(ctx, workdir, "verify.txt", "node", l.verifyArgs(port, measurement, appID, hostData, workdir)...)
+func (l *realLauncher) Verify(ctx context.Context, port int, measurement, appID, hostData, workdir string, releases []string) (string, string, error) {
+	out, _ := l.run(ctx, workdir, "verify.txt", "node", l.verifyArgs(port, measurement, appID, hostData, workdir, releases)...)
 	verdict, keySha := "", ""
 	for _, ln := range strings.Split(out, "\n") {
 		if strings.HasPrefix(ln, "VERDICT ") && verdict == "" {
@@ -304,6 +307,9 @@ func main() {
 	idPrefix := flag.String("instance-prefix", "gd", "two lowercase letters for this guestd's instance ids and guest units (m2-<prefix>…); a SECOND guestd on a host needs its own, or its boot sweep stops the first one's guests")
 	ticketPort := flag.Uint("ticket-port", release.TicketPort, "vsock host port of the ticket service (-release); a LAB guestd uses its lab image's (19444) so it never holds production's")
 	egressPortFlag := flag.Uint("egress-port", egressPort, "vsock host port of the egress server (-release); a LAB guestd moves it off production's too")
+	isoRelease := flag.String("isolation-release", "", "the domain release(s) the -isolation tree was installed from, comma-separated: a 64-hex id, or @<release.json> (its sha256 IS the id). Named to the judge for every guest this tree builds and recorded with it; the judge's table (m2/judge.mjs LEGACY_WX_RELEASES) decides what that release may state. REQUIRED when the tree predates per-release W^X")
+	legacyIsoRelease := flag.String("legacy-isolation-release", "", "the same, for the -legacy-isolation tree (REQUIRED with it when that tree predates per-release W^X)")
+	unrecordedRel := flag.String("unrecorded-releases", "", "the release(s) named when ADOPTING an instance whose record names none (written by a guestd before per-release records): the pre-chain releases this host ran; empty = none named, and such a pre-chain guest is not adopted")
 	releaseOn := flag.Bool("release", false, "deliver attested-release tickets (vsock host port 9444) and serve deployment guests' egress (9443) (release.go); off = neither, and /health says supports.release=false")
 	flag.Parse()
 	if *guestMem < 0 || *guestCPUs < 0 || (*guestMem > 0) != (*guestCPUs > 0) {
@@ -376,6 +382,26 @@ func main() {
 	l := &realLauncher{m4: filepath.Join(*iso, "m4"), m2: filepath.Join(*iso, "m2"), fwd: fwd, vcek: *vcek,
 		chain: *chain, product: *product, minTCB: *minTCB, runtimeIdentity: rid, env: env}
 	s := newServer(l, *root)
+	if why := releaseNamingRefusal(*releaseOn, *isoRelease, *legacyIso, *legacyIsoRelease); why != "" {
+		log.Fatal(why)
+	}
+	if s.TreeReleases, err = parseReleaseIDs(*isoRelease); err != nil {
+		log.Fatalf("-isolation-release: %v", err)
+	}
+	if s.LegacyTreeReleases, err = parseReleaseIDs(*legacyIsoRelease); err != nil {
+		log.Fatalf("-legacy-isolation-release: %v", err)
+	}
+	if s.UnrecordedReleases, err = parseReleaseIDs(*unrecordedRel); err != nil {
+		log.Fatalf("-unrecorded-releases: %v", err)
+	}
+	// A tree whose own judge predates per-release W^X builds guests that state the LEGACY self-test; unnamed, their
+	// records would say "none", and a later tree's judge would refuse them on adoption - the running guests dropped at
+	// a tree switch (enclave-bf's hazard). So such a tree must be named, and a mislabel is a start-up error, not that.
+	if why := needsRelease(*iso, *isoRelease); why != "" {
+		log.Fatalf("-isolation-release: %s", why)
+	}
+	log.Printf("per-release W^X: this tree's guests are named %v; the legacy tree's %v; unrecorded adoptions %v",
+		s.TreeReleases, s.LegacyTreeReleases, s.UnrecordedReleases)
 	// The prefix names this guestd's instances AND its guest units, and the boot sweep below stops only those: a second
 	// guestd on this host with the default prefix would stop the first one's guests. Two letters exactly, so no two
 	// prefixes' unit patterns overlap.
@@ -460,6 +486,9 @@ func main() {
 			legacy.m4 = filepath.Join(*legacyIso, "m4")
 			legacy.bootWait = 0
 			s.Legacy = &legacy
+			if why := needsRelease(*legacyIso, *legacyIsoRelease); why != "" {
+				log.Fatalf("-legacy-isolation-release: %s", why)
+			}
 			log.Printf("non-release deployment guests are built from %s", *legacyIso)
 		}
 		tl, err := vsock.Listen(uint32(*ticketPort))
@@ -551,4 +580,81 @@ func hostAddrs() []netip.Addr {
 		}
 	}
 	return out
+}
+
+// releaseNamingRefusal: on a -release guestd every tree must be NAMED - by the release it was installed from, or by an
+// explicit `none` for a lab tree no published release came from - so that no guest is ever recorded unnamed and later
+// judged under a rule its release predates (the seccomp statement after 5db18199, as the W^X scan before it). -> why
+// not, or "".
+func releaseNamingRefusal(releaseOn bool, isoRelease, legacyIso, legacyIsoRelease string) string {
+	if releaseOn && strings.TrimSpace(isoRelease) == "" {
+		return "-release needs -isolation-release: the release this tree was installed from (@<release dir>/release.json), " +
+			"or `none` for a lab tree no published release came from"
+	}
+	if legacyIso != "" && strings.TrimSpace(legacyIsoRelease) == "" {
+		return "-legacy-isolation needs -legacy-isolation-release: the release(s) that tree was installed from (@<release dir>/release.json)"
+	}
+	return ""
+}
+
+// parseReleaseIDs reads a release flag: comma-separated domain release ids, each 64 hex or @<release.json> (the id is
+// that file's sha256, as the release publication defines it), lowercased, each once; `none` alone names none.
+func parseReleaseIDs(v string) ([]string, error) {
+	if strings.TrimSpace(v) == "none" {
+		return nil, nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, f := range strings.Split(v, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		if p, ok := strings.CutPrefix(f, "@"); ok {
+			b, err := os.ReadFile(p)
+			if err != nil {
+				return nil, err
+			}
+			sum := sha256.Sum256(b)
+			f = hex.EncodeToString(sum[:])
+		}
+		f = strings.ToLower(f)
+		if !isHex(f, 32) {
+			return nil, fmt.Errorf("%q is not a 64-hex release id", f)
+		}
+		if !seen[f] {
+			seen[f] = true
+			out = append(out, f)
+		}
+	}
+	return out, nil
+}
+
+// needsRelease: why guestd must not use a tree as named (flag: the raw -isolation-release value), or "". A tree whose
+// own judge has no LEGACY_WX_RELEASES table predates per-release W^X: its guests state the legacy runtime self-test,
+// and its OWN judge ignores --release, so a wrong name is not caught at launch - it is recorded, and a later tree's
+// judge refuses the guest on adoption. So such a tree must be named, and by @<release.json> only: the id DERIVED from
+// the release it was installed from, never typed (enclave-bf's residual on 89a76686).
+func needsRelease(isoDir, flag string) string {
+	b, err := os.ReadFile(filepath.Join(isoDir, "m2", "judge.mjs"))
+	if err != nil {
+		return fmt.Sprintf("cannot read the tree's judge: %v", err)
+	}
+	if bytes.Contains(b, []byte("LEGACY_WX_RELEASES")) {
+		return ""
+	}
+	named := 0
+	for _, f := range strings.Split(flag, ",") {
+		if f = strings.TrimSpace(f); f == "" {
+			continue
+		}
+		if !strings.HasPrefix(f, "@") {
+			return fmt.Sprintf("%s predates per-release W^X, so its release must be DERIVED (@<release dir>/release.json), not typed: %q", isoDir, f)
+		}
+		named++
+	}
+	if named == 0 {
+		return fmt.Sprintf("%s predates per-release W^X (its judge has no LEGACY_WX_RELEASES): its guests state the legacy runtime self-test, so name the release it was installed from (@<release dir>/release.json), or a later tree's judge refuses them on adoption", isoDir)
+	}
+	return ""
 }

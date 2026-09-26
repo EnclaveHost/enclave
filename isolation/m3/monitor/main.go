@@ -52,6 +52,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -87,8 +88,13 @@ type domain struct {
 	AppSha string `json:"appSha256"`
 	Port   uint32 `json:"port"`
 	UID    int    `json:"uid"`
-	CPU    int    `json:"cpuPercent"`
-	MemMiB int    `json:"memMiB"`
+	// FrontUID is the uid the domain's FRONT runs as, never the runtime's (UID): the front is the trusted component in a
+	// domain and the runtime is not (enclave-87's ruling on enclave-bf's finding: a runtime sharing the front's uid could
+	// obtain reports for keys of its choosing and replace the front's listen socket). Reports are answered for this uid
+	// only (byUID), and the domain's /run is this uid's alone.
+	FrontUID int `json:"frontUid"`
+	CPU      int `json:"cpuPercent"`
+	MemMiB   int `json:"memMiB"`
 	// How the app runs, from the bundle the monitor hashed (never from the request): "serve" = the runtime serves a
 	// wasi:http component; "run" = a wasi:cli command binds HTTP (enclave-catalog-bundle/2).
 	Mode string `json:"mode"`
@@ -115,6 +121,10 @@ type domain struct {
 	inFlight chan struct{} // this domain's share of concurrent report work
 
 	life *contract.Lifecycle // starting -> running -> ending -> ended; reclamation exactly once
+
+	// seccomp: the runtime's filter as domexec's runtime child stated it once installed (readSeccompStatement), carried
+	// into every self-test this monitor measures for the domain; nil until then.
+	seccomp atomic.Pointer[string]
 
 	mu     sync.Mutex
 	proc   *os.Process // a STABLE handle, set once Start returned. Never signal by raw pid.
@@ -154,7 +164,7 @@ type reporter func(rd []byte) (report, certs []byte, err error)
 type monitor struct {
 	mu      sync.Mutex
 	doms    map[int]*domain
-	byUID   map[int]*domain
+	byUID   map[int]*domain // by the FRONT's uid: the only caller a report is ever made for
 	next    int
 	snp     bool
 	plat    string
@@ -179,6 +189,9 @@ type monitor struct {
 	// from an earlier boot would otherwise act on whatever the new boot numbered 3. It is not a secret and not
 	// authentication: it only makes a stale reference fail as "rebooted" instead of landing on the wrong domain.
 	boot string
+	// noDomains, when set, is why this monitor loads no domain at all (raisePtraceScope: no Yama held at 2). main stops
+	// before `ready` on it; load checks it too, so the gate does not depend on that ordering.
+	noDomains string
 }
 
 var errNoHardwareReport = errors.New("no hardware report on this tier")
@@ -211,7 +224,7 @@ func main() {
 
 	rl, err := net.Listen("unix", *sock)
 	must(err)
-	must(os.Chmod(*sock, 0o666)) // every domain uid may ask; who is asking comes from the kernel, not the request
+	must(os.Chmod(*sock, 0o666)) // every domain FRONT may ask (it is bind-mounted into /run, which only the front can enter); who is asking comes from the kernel, not the request
 	go m.serveReports(rl)
 
 	cl, err := vsock.Listen(uint32(*control))
@@ -219,6 +232,32 @@ func main() {
 	// ONE canonical record of the tuple, emitted exactly once. It used to appear on the MON ready line
 	// too, and two sources of the same fact is one more than a checker can safely believe.
 	fmt.Printf("MON boundary %s\n", m.boundary)
+	// Yama's ptrace scope, set to 2 (only CAP_SYS_PTRACE may attach) and read back. It is THE guard between a tenant
+	// runtime and its domain's front (the same uid), so without it there is no `ready`: the monitor stops here, as it does
+	// with no vsock transport, and the line above says why (raisePtraceScope; enclave-bf's F1/F2, enclave-87's ruling).
+	// load refuses on the same fact, should anything ever reach it.
+	yama, ok := raisePtraceScope("/proc/sys/kernel/yama/ptrace_scope", 2)
+	fmt.Printf("MON %s\n", yama)
+	if !ok {
+		m.noDomains = yama
+		fmt.Printf("MON ERROR refusing to start: %s\n", yama)
+		syscall.Sync()
+		_ = syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
+		os.Exit(1)
+	}
+	// ...and no user namespaces and no io_uring, kernel-wide (holdSysctl; enclave-87, from enclave-bf's review of the SNP
+	// guest's dominit): the runtime's seccomp filter refuses both too, and these hold for anything else in the guest.
+	for _, h := range kernelHolds {
+		line, held := holdSysctl(h.name, h.path, h.want, h.atLeast, h.refused, os.WriteFile)
+		fmt.Printf("MON %s\n", line)
+		if !held {
+			m.noDomains = line
+			fmt.Printf("MON ERROR refusing to start: %s\n", line)
+			syscall.Sync()
+			_ = syscall.Reboot(syscall.LINUX_REBOOT_CMD_POWER_OFF)
+			os.Exit(1)
+		}
+	}
 	// "ready" must mean the control channel can exist. AF_VSOCK accepts a listen with NO transport registered, so a
 	// guest whose kernel carries only another hypervisor's transport used to print ready and then never answer a
 	// load (enclave-d1, the first UEFI boot on the NucBox). Name the transport that can carry the channel, or stop.
@@ -382,6 +421,9 @@ func readLine(br *bufio.Reader, max int) ([]byte, error) {
 }
 
 func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
+	if m.noDomains != "" {
+		return nil, fmt.Errorf("refused: %s", m.noDomains)
+	}
 	if req.Name != "" && !certNameOK(req.Name) {
 		return nil, fmt.Errorf("name %q is not <8 lowercase hex>.<zone>", req.Name)
 	}
@@ -422,15 +464,20 @@ func (m *monitor) load(br *bufio.Reader, req request) (*domain, error) {
 	if manifest != nil && manifest.World == contract.WorldCLI {
 		mode, httpPort = "run", manifest.HTTP
 	}
+	// the front's uid comes from a range of its own, far above the runtimes' (UID = base + id), so no runtime uid is ever
+	// a front's
+	if id >= frontUIDOffset {
+		return nil, fmt.Errorf("domain id %d would give its runtime a uid in the fronts' range", id)
+	}
 	d := &domain{ID: id, Boot: m.boot, Label: req.Label, AppSha: hex.EncodeToString(sum[:]), appHash: sum, Mode: mode, HTTP: httpPort, Name: req.Name,
-		Port: m.basePrt + uint32(id), UID: m.baseUID + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
+		Port: m.basePrt + uint32(id), UID: m.baseUID + id, FrontUID: m.baseUID + frontUIDOffset + id, CPU: pol.CPUPercent, MemMiB: pol.MemMiB,
 		dir: filepath.Join(m.root, strconv.Itoa(id)), cgroup: "/sys/fs/cgroup/dom" + strconv.Itoa(id),
 		Probe: req.Probe, exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
 	if err := m.start(d, artifact); err != nil {
 		return nil, err // start() has already released whatever it managed to take
 	}
-	fmt.Printf("MON domain %d loaded label=%s app_sha256=%s port=%d uid=%d cpu=%d%% mem=%dMiB mode=%s http=%d\n",
-		d.ID, d.Label, d.AppSha, d.Port, d.UID, d.CPU, d.MemMiB, d.Mode, d.HTTP)
+	fmt.Printf("MON domain %d loaded label=%s app_sha256=%s port=%d uid=%d front_uid=%d cpu=%d%% mem=%dMiB mode=%s http=%d\n",
+		d.ID, d.Label, d.AppSha, d.Port, d.UID, d.FrontUID, d.CPU, d.MemMiB, d.Mode, d.HTTP)
 	return d, nil
 }
 
@@ -479,8 +526,13 @@ func (m *monitor) start(d *domain, app []byte) error {
 	if err := syscall.Mount("/run/monitor.sock", sockAt, "", syscall.MS_BIND, ""); err != nil {
 		return fail(fmt.Errorf("bind report socket: %w", err))
 	}
-	// the front creates its own socket in /run, so that directory belongs to the domain
-	if err := os.Chown(filepath.Join(d.dir, "run"), d.UID, d.UID); err != nil {
+	// /run is the FRONT's alone (0700, its uid): it creates its listen socket there and reaches the report socket bind-mounted
+	// there, and the runtime (another uid) can do neither - not replace the front's socket, not ask for a report
+	runAt := filepath.Join(d.dir, "run")
+	if err := os.Chown(runAt, d.FrontUID, d.FrontUID); err != nil {
+		return fail(err)
+	}
+	if err := os.Chmod(runAt, 0o700); err != nil {
 		return fail(err)
 	}
 	if err := m.cgroup(d); err != nil {
@@ -495,13 +547,33 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 	defer cgFD.Close()
 
+	// THE NULL DEVICE for the domain's quiet workload (domexec.c NULL_FD, fd 3): opened HERE, in the guest's own root,
+	// because domexec starts already chrooted into the domain's directory, which has no /dev and must not get one (no
+	// device node and no new filesystem for the tenant). A domain that cannot have it does not start: its app's output
+	// would otherwise have nowhere to go but the console. enclave-d1's canary of 4cdd5169 (252602c8): the quiet runtime
+	// opened /dev/null inside the chroot, got ENOENT and exited, and every m3 domain ended before it served.
+	nul, err := openNullDevice()
+	if err != nil {
+		return fail(err)
+	}
+	defer nul.Close() // the child has its own copy once started (launch); ours is only for the fork
+	// THE SECCOMP STATEMENT (domexec.c SECCOMP_FD, fd 4; enclave-87: positive evidence): a pipe whose write end only the
+	// runtime's child writes, once its filter is installed and before exec - domexec closes its own copy right after
+	// spawning the runtime, so the front, the probe and whatever the runtime runs never hold it. What arrives goes into
+	// every self-test this monitor measures for the domain (scanDomainWX).
+	sr, sw, err := os.Pipe()
+	if err != nil {
+		return fail(fmt.Errorf("seccomp statement pipe: %w", err))
+	}
+	defer sw.Close() // likewise: the child has its own copy once started
+	go m.readSeccompStatement(d, sr)
 	ln, err := vsock.Listen(d.Port)
 	if err != nil {
 		return fail(fmt.Errorf("vsock port %d: %w", d.Port, err))
 	}
 
 	mode := "app"
-	args := []string{strconv.Itoa(d.ID), strconv.Itoa(d.UID), mode, strconv.Itoa(d.MemMiB)}
+	args := []string{strconv.Itoa(d.ID), fmt.Sprintf("%d:%d", d.UID, d.FrontUID), mode, strconv.Itoa(d.MemMiB)} // domexec: <runtime uid>:<front uid>
 	switch {
 	case d.Probe:
 		args[2] = "probe"
@@ -511,6 +583,7 @@ func (m *monitor) start(d *domain, app []byte) error {
 	}
 	cmd := exec.Command("/plat/domexec", args...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	cmd.ExtraFiles = []*os.File{nul, sw} // fd 3 and fd 4 in domexec
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Chroot: d.dir,
 		// its own mount, process, network, IPC and hostname namespaces. The network namespace is why
@@ -597,7 +670,7 @@ func exitReason(err error) string {
 func (m *monitor) register(d *domain) {
 	m.mu.Lock()
 	m.doms[d.ID] = d
-	m.byUID[d.UID] = d
+	m.byUID[d.FrontUID] = d
 	m.mu.Unlock()
 }
 
@@ -610,8 +683,8 @@ func (m *monitor) deregister(d *domain) bool {
 	if m.doms[d.ID] == d {
 		delete(m.doms, d.ID)
 	}
-	if m.byUID[d.UID] == d {
-		delete(m.byUID, d.UID)
+	if m.byUID[d.FrontUID] == d {
+		delete(m.byUID, d.FrontUID)
 	}
 	return listed
 }
@@ -931,10 +1004,10 @@ func (m *monitor) oneReport(c net.Conn) (refused bool) {
 	d := m.byUID[uid]
 	m.mu.Unlock()
 	if d == nil {
-		// nothing else on this guest runs as a domain uid, so this is either a bug or an attempt to
-		// obtain a report without being a domain
-		fmt.Printf("MON refused report request from uid %d (not a domain)\n", uid)
-		enc.Encode(map[string]string{"error": "caller is not a domain"})
+		// only a domain's FRONT is answered: a runtime's uid, root, or anything else on this guest is either a bug or an
+		// attempt to obtain a report without being a domain's front
+		fmt.Printf("MON refused report request from uid %d (not a domain's front)\n", uid)
+		enc.Encode(map[string]string{"error": "caller is not a domain's front"})
 		return true
 	}
 
@@ -979,8 +1052,75 @@ func (m *monitor) oneReport(c net.Conn) (refused bool) {
 	// than only on a serial console the HOST owns and could have written. It remains the measured
 	// monitor's own word about its own probe; DESIGN.md states exactly what that is and is not worth.
 	out["boundary"] = m.boundary
+	// ...and so does this domain's W^X scan, made NOW by the monitor (root), because the front runs as its own uid
+	// and cannot read the runtime (enclave-bf's finding on the front uid; enclave-87's ruling). The front puts it in
+	// the document's RuntimeSelfTest; it refuses the document on anything but a clean scan.
+	out["wx"] = m.scanDomainWX(d)
 	enc.Encode(out)
 	return false
+}
+
+// scanDomainWX is the W^X scan of ONE domain: every process in its cgroup (cgroup.procs), each read in full
+// (contract.ScanWX: a process whose mappings cannot be read FAILS the scan; only one proven gone is skipped), each
+// counted by role from its uid - the runtime (the domain's uid), the front (its own), init (domexec, root). ->
+// "wx=clean maps=N runtime=R front=F init=I scope=cgroup:/domN", "wx=found pid P (role): <line>", or "wx=error: why".
+// readSeccompStatement takes the one statement domexec's runtime child writes on fd 4 (to EOF: its exec closes it).
+func (m *monitor) readSeccompStatement(d *domain, r *os.File) {
+	defer r.Close()
+	line, _ := bufio.NewReader(io.LimitReader(r, 256)).ReadString('\n')
+	if line == "" {
+		return // no filtered runtime (a probe domain), or it failed before its statement: the self-test states none
+	}
+	h, err := contract.ParseSeccompStatement([]byte(line))
+	if err != nil {
+		fmt.Printf("MON dom%d ERROR the runtime's seccomp statement: %v\n", d.ID, err)
+		return
+	}
+	d.seccomp.Store(&h)
+	fmt.Printf("MON dom%d seccomp: runtime filter installed (sha256 %s)\n", d.ID, h)
+}
+
+func (m *monitor) scanDomainWX(d *domain) string {
+	raw, err := os.ReadFile(filepath.Join(d.cgroup, "cgroup.procs"))
+	if err != nil {
+		return "wx=error: the domain's cgroup: " + err.Error()
+	}
+	var pids []int
+	for _, l := range strings.Fields(string(raw)) {
+		if pid, perr := strconv.Atoi(l); perr == nil {
+			pids = append(pids, pid)
+		}
+	}
+	scope := "cgroup:/" + filepath.Base(d.cgroup)
+	scan, err := contract.ScanWX(scope, pids, func(pid int) (string, error) {
+		uid, err := contract.UIDOf(pid)
+		if err != nil {
+			return "", err
+		}
+		switch uid {
+		case d.UID:
+			return "runtime", nil
+		case d.FrontUID:
+			return "front", nil
+		case 0:
+			return "init", nil
+		}
+		return "other", nil
+	})
+	if err != nil {
+		return "wx=error: " + err.Error()
+	}
+	if scan.Found != "" {
+		return "wx=found " + scan.Found
+	}
+	// the runtime's filter: on every runtime process NOW (its Seccomp mode), and which one (domexec's statement)
+	if err := scan.CheckRuntimeFiltered(); err != nil {
+		return "wx=error: " + err.Error()
+	}
+	if h := d.seccomp.Load(); h != nil {
+		scan.Seccomp = *h
+	}
+	return scan.Clean()
 }
 
 func peerUID(c net.Conn) (int, error) {
@@ -1266,4 +1406,124 @@ func certNameOK(n string) bool {
 		}
 	}
 	return true
+}
+
+// openNullDevice opens /dev/null read-write and checks it IS the null device (character device 1:3): a domain's quiet
+// workload gets it as its stdio (domexec.c NULL_FD), so anything else - a regular file an attacker left in the guest's
+// /dev, a missing node - refuses the domain instead of reaching its output somewhere.
+func openNullDevice() (*os.File, error) { return openNullDeviceAt("/dev/null") }
+
+func openNullDeviceAt(path string) (*os.File, error) {
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return nil, fmt.Errorf("opening %s for the domain's quiet workload: %w", path, err)
+	}
+	var st syscall.Stat_t
+	if err := syscall.Fstat(int(f.Fd()), &st); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("stat %s: %w", path, err)
+	}
+	if st.Mode&syscall.S_IFMT != syscall.S_IFCHR || unixMajor(uint64(st.Rdev)) != 1 || unixMinor(uint64(st.Rdev)) != 3 {
+		f.Close()
+		return nil, fmt.Errorf("%s is not the null device (mode %o, rdev %d:%d): the domain is not started",
+			path, st.Mode, unixMajor(uint64(st.Rdev)), unixMinor(uint64(st.Rdev)))
+	}
+	return f, nil
+}
+
+// Linux's encoding of a device number (glibc gnu_dev_major/minor), without a dependency on x/sys/unix.
+func unixMajor(dev uint64) uint32 { return uint32((dev>>8)&0xfff) | uint32((dev>>32)&^0xfff) }
+func unixMinor(dev uint64) uint32 { return uint32(dev&0xff) | uint32((dev>>12)&^0xff) }
+
+// kernelHolds: the kernel settings beside Yama that the monitor starts only with. Nothing in the guest needs either:
+//   - user.max_user_namespaces caps USER namespaces only. The monitor clones each domain with new mount, pid, net, ipc and
+//     uts namespaces as root, never a user namespace, so the cap of 0 does not touch it;
+//   - io_uring: the Go monitor and front poll with epoll, and wasmtime runs on tokio/mio, also epoll.
+var kernelHolds = []struct {
+	name, path string
+	want       int
+	atLeast    bool
+	refused    string
+}{
+	{"user.max_user_namespaces", "/proc/sys/user/max_user_namespaces", 0, false, "domains refused (a runtime could create a user namespace)"},
+	{"kernel.io_uring_disabled", "/proc/sys/kernel/io_uring_disabled", 2, true, "domains refused (a runtime could use io_uring)"},
+}
+
+// holdSysctl sets the sysctl at path to want - at least it (atLeast) or at most it - never moving a value already on the
+// right side, and READS IT BACK. -> (the MON line, ok): ok is false, and the line ends in `refused`, when the sysctl is
+// absent, unparsable, the write is refused, or the read-back is on the wrong side or unreadable. write is passed in so a
+// test can make one that "succeeds" and changes nothing. The same rule as raisePtraceScope, and as the SNP guest's
+// m2/dominit.c sysctl_hold.
+func holdSysctl(name, path string, want int, atLeast bool, refused string, write func(string, []byte, os.FileMode) error) (string, bool) {
+	right := func(v int) bool { return (atLeast && v >= want) || (!atLeast && v <= want) }
+	side := map[bool]string{true: ">=", false: "<="}[atLeast]
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("%s absent: %s (%s: %v)", name, refused, path, err), false
+	}
+	was, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil {
+		return fmt.Sprintf("%s unparsable (%q): %s", name, strings.TrimSpace(string(raw)), refused), false
+	}
+	if right(was) {
+		return fmt.Sprintf("%s=%d (already %s %d)", name, was, side, want), true
+	}
+	if err := write(path, []byte(strconv.Itoa(want)+"\n"), 0); err != nil {
+		return fmt.Sprintf("%s=%d, NOT set to %d (%v): %s", name, was, want, err, refused), false
+	}
+	raw, err = os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("%s=%d -> unreadable (%v): %s", name, was, err, refused), false
+	}
+	now, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || !right(now) {
+		return fmt.Sprintf("%s=%d -> %q, not the %d asked: %s", name, was, strings.TrimSpace(string(raw)), want, refused), false
+	}
+	return fmt.Sprintf("%s=%d -> %d", name, was, now), true
+}
+
+// frontUIDOffset separates the fronts' uids from the runtimes': domain N's runtime is base-uid + N, its front
+// base-uid + frontUIDOffset + N.
+const frontUIDOffset = 1 << 20
+
+// yamaRefused ends every line on which the monitor refuses all domains for want of Yama.
+const yamaRefused = "domains refused (a same-uid runtime could attach to the front)"
+
+// raisePtraceScope sets Yama's ptrace_scope at path to want (2: only CAP_SYS_PTRACE may attach; not 3, which cannot be
+// lowered again before a reboot), never lowering a higher value, and reads it back. -> (the MON line, ok). ok is false,
+// and the line ends in yamaRefused, unless the value READ BACK is at least want: Yama absent, unparsable, the write
+// refused, or the read-back short or unreadable. Then no domain may load (monitor.load), because Yama is the guard that
+// keeps the tenant runtime - the same uid, a sibling of the front - from attaching to the front or opening its
+// /proc/<pid>/mem during the front's start-up; the front's non-dumpable flag is only defence in depth (enclave-bf's F1
+// and F2 on d9176ed5; enclave-87's ruling).
+func raisePtraceScope(path string, want int) (string, bool) {
+	return raisePtraceScopeWith(path, want, os.WriteFile)
+}
+
+// raisePtraceScopeWith is raisePtraceScope with the write passed in: a test's write can "succeed" and change nothing, the
+// case only the read-back catches.
+func raisePtraceScopeWith(path string, want int, write func(string, []byte, os.FileMode) error) (string, bool) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("yama absent: %s (%s: %v)", yamaRefused, path, err), false
+	}
+	was, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil {
+		return fmt.Sprintf("yama ptrace_scope unparsable (%q): %s", strings.TrimSpace(string(raw)), yamaRefused), false
+	}
+	if was >= want {
+		return fmt.Sprintf("yama ptrace_scope=%d (already >= %d)", was, want), true
+	}
+	if err := write(path, []byte(strconv.Itoa(want)+"\n"), 0); err != nil {
+		return fmt.Sprintf("yama ptrace_scope=%d, NOT raised to %d (%v): %s", was, want, err, yamaRefused), false
+	}
+	raw, err = os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("yama ptrace_scope=%d -> unreadable (%v): %s", was, err, yamaRefused), false
+	}
+	now, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || now < want {
+		return fmt.Sprintf("yama ptrace_scope=%d -> %q, not the %d asked: %s", was, strings.TrimSpace(string(raw)), want, yamaRefused), false
+	}
+	return fmt.Sprintf("yama ptrace_scope=%d -> %d", was, now), true
 }

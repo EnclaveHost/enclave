@@ -94,17 +94,38 @@ type doc struct {
 type front struct {
 	spki, appSha []byte
 	rt           *runtimeState // ABI/2 when non-nil, ABI/1 when the image carries no runtime identity
-	snp          bool
-	monitor      string      // M3: the monitor's socket, and then this process never opens configfs at all
-	plane        *appidPlane // M4b: the measured SVSM names this plane and computes the binding itself
-	boundary     string      // the self-test init produced; relayed verbatim, never composed here
-	app          http.Handler
-	certs        *certState // a CA certificate for this domain's own key and deployment name (certs.go)
-	ready        *readiness // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
-	tsmMu        sync.Mutex
+	// seccompStatement: where init (dominit, root) records the app runtime's seccomp filter once it is installed; read
+	// into every self-test this front measures (localSelfTest). "" = none (M3: the monitor states it instead).
+	seccompStatement string
+	snp              bool
+	monitor          string      // M3: the monitor's socket, and then this process never opens configfs at all
+	plane            *appidPlane // M4b: the measured SVSM names this plane and computes the binding itself
+	boundary         string      // the self-test init produced; relayed verbatim, never composed here
+	app              http.Handler
+	certs            *certState // a CA certificate for this domain's own key and deployment name (certs.go)
+	ready            *readiness // GET /.well-known/enclave-ready: the app's port accepts (ready.go)
+	tsmMu            sync.Mutex
 }
 
 func main() {
+	// first, before anything can log: nothing but the front's own DOM statements reaches the host's console (console.go).
+	// Package init() functions, this package's and every import's, run BEFORE this line: none may print (enclave-e3's L2).
+	// ...and not dumpable, before the TLS key exists (dumpable.go). That is defence in depth: the runtime runs as this
+	// domain's uid too, and what keeps it from ptracing this process or reading its memory is Yama, which the monitor
+	// holds at >= 1 or refuses every domain. It prints nothing, so it can precede the guard.
+	tid, tracer, threads, dumpErr := notDumpable()
+	if err := guardConsole(); err != nil {
+		die("console guard: %v", err)
+	}
+	if dumpErr != nil {
+		die("not dumpable: %v", dumpErr)
+	}
+	if tracer != 0 {
+		// a tracer attached before PR_SET_DUMPABLE 0 stays attached, on any thread (enclave-bf): refuse before any key exists
+		fmt.Printf("DOM front: traced at start (thread %d, tracer %d): refusing\n", tid, tracer)
+		os.Exit(1)
+	}
+	fmt.Printf("DOM front: not dumpable; none of its %d threads traced\n", threads)
 	port := flag.Uint("port", 443, "vsock port to serve TLS on")
 	listenUnix := flag.String("listen-unix", "", "serve TLS on this unix socket instead of vsock (M3)")
 	reportUnix := flag.String("report-unix", "", "ask the monitor on this unix socket for reports (M3)")
@@ -118,6 +139,8 @@ func main() {
 	rtID := flag.String("runtime-identity", "/rt/runtime.json", "the runtime identity written into this image beside the runtime; absent means ABI/1")
 	certZone := flag.String("cert-zone", "app.enclave.host", "the app zone this domain's deployment name lives in (<first 4 bytes of its HOST_DATA, hex>.<zone>); empty = never certify a name")
 	certNameFile := flag.String("cert-name-file", "", "where there is no SEV-SNP HOST_DATA (a Hyper-V partition): a file holding the deployment name the LAUNCHER named this domain for; used only if it is <8 hex>.<-cert-zone>")
+	seccompStatement := flag.String("seccomp-statement", "", "where init records the app runtime's seccomp filter once installed (SNP: dominit's "+
+		"root-only /run/enclave/seccomp); read into every self-test this front measures. Empty = none")
 	appMode := flag.String("app-mode", "serve", "how the app runs, for /.well-known/enclave-ready: serve (the runtime serves a wasi:http component) or run (a wasi:cli command binds -upstream itself)")
 	initFD := flag.Int("init-fd", 0, "a pipe from init (M2): after provisioning, the front writes N (no config) or C+config there, and init starts the app only then (provision.go)")
 	flag.Parse()
@@ -138,7 +161,7 @@ func main() {
 		fmt.Printf("DOM runtime %s/%s execution=%s target=%s host=%s features=%s wx=%s cache=%s id=%x\n",
 			rt.ID.Name, rt.ID.Version, rt.ID.Execution, rt.ID.TargetISA, rt.ID.HostISA, rt.ID.CPUFeatures,
 			rt.ID.WX, rt.ID.Cache, rt.RID)
-		fmt.Printf("DOM runtime selftest %s\n", rt.SelfTest)
+		fmt.Printf("DOM runtime selftest exec_pages=%s wx=at-each-attestation\n", rt.ExecPages)
 	} else {
 		fmt.Printf("DOM runtime none: no identity at %s, this domain attests %s\n", *rtID, contract.ABI)
 	}
@@ -158,7 +181,7 @@ func main() {
 	if *appMode != "serve" && *appMode != "run" {
 		die("-app-mode must be serve or run, not %q", *appMode)
 	}
-	f := &front{spki: spki, appSha: appSha, rt: rt, snp: *snp, monitor: *reportUnix, app: appProxy(*upstream),
+	f := &front{spki: spki, appSha: appSha, rt: rt, snp: *snp, monitor: *reportUnix, app: appProxy(*upstream), seccompStatement: *seccompStatement,
 		ready: &readiness{upstream: *upstream, mode: *appMode, appID: hex.EncodeToString(appSha), dial: 2 * time.Second}}
 	if *appid != "" {
 		// ABI/2 or nothing on this path. The SVSM computes Bind2, which folds in a RuntimeID; a domain with no
@@ -189,7 +212,9 @@ func main() {
 		must(f.plane.registerKey(spki))
 		fmt.Printf("DOM plane %s registered spki_sha256=%x\n", *appid, sha256.Sum256(spki))
 	}
-	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute}
+	// ErrorLog: a TLS handshake error names the client, and a recovered handler panic prints its value; both go
+	// through the console filter, as the class alone (console.go)
+	srv := &http.Server{Handler: f, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 2 * time.Minute, ErrorLog: consoleLog}
 	// No session tickets: every connection then proves the attested key in a full handshake, so a
 	// client pins by comparing that key, never by tracking which session came from which handshake.
 	// The name this domain may certify comes from its own HOST_DATA (certs.go); the key is the attested one either way.
@@ -308,12 +333,12 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if f.rt != nil {
-		d.Abi, d.Runtime, d.RuntimeSelfTest = contract.ABI2, &f.rt.ID, f.rt.SelfTest
+		d.Abi, d.Runtime = contract.ABI2, &f.rt.ID
 	} else {
 		d.Abi = contract.ABI
 	}
 	var rep, certs []byte
-	var boundary, tier, format string
+	var boundary, tier, format, wx string
 	switch {
 	case f.plane != nil:
 		// M4b: send the NONCE and nothing else. report_data[0:32] is Bind2(the key registered at startup,
@@ -338,7 +363,7 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 		// M3: send the binding and nothing else. The app half of report_data is the monitor's to write,
 		// from the hash it took when it loaded this domain's app. The monitor also says what kind of
 		// report it is (the PSP's bytes, or a launcher-signed document on a Hyper-V partition).
-		rep, certs, boundary, tier, format, err = f.askMonitor(bind[:])
+		rep, certs, boundary, tier, format, wx, err = f.askMonitor(bind[:])
 		if err == errNoHardwareReport {
 			d.Reason = "T0 domain: the monitor has no hardware report interface on this tier"
 			err = nil
@@ -352,6 +377,18 @@ func (f *front) attest(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "report: "+err.Error(), http.StatusInternalServerError)
 		return
+	}
+	// The runtime self-test, measured NOW for this document (runtime.go): by the monitor on M3 (the front cannot read
+	// the runtime there), by this front elsewhere. A W+X mapping, or a scan that could not read a process, refuses the
+	// document; a scan that covered no runtime says runtime=0, and the judge that relies on it rejects that.
+	if f.rt != nil {
+		st, serr := f.selfTest(wx)
+		if serr != nil {
+			fmt.Printf("DOM runtime selftest FAILED at an attestation: the document is refused\n")
+			http.Error(w, "runtime self-test: "+serr.Error(), http.StatusInternalServerError)
+			return
+		}
+		d.RuntimeSelfTest = st
 	}
 	if len(rep) > 0 {
 		d.Tier, d.Format, d.Reason = "T1", "sev-snp-guest-domain-v1", ""
@@ -379,7 +416,7 @@ func (f *front) hostData() ([]byte, error) {
 		// launcher's signed JSON in the same field; read at 0xC0 it spelled "hostExcl..." and named a deployment
 		// "686f7374" ("host"). Any format but SNP has no HOST_DATA, so no name.
 		var format string
-		rep, _, _, _, format, err = f.askMonitor(make([]byte, 32))
+		rep, _, _, _, format, _, err = f.askMonitor(make([]byte, 32))
 		if err == nil && format != contract.FormatSNP {
 			return nil, fmt.Errorf("the monitor's report is %q, not an SEV-SNP report: it carries no HOST_DATA", format)
 		}
@@ -421,33 +458,51 @@ var errNoHardwareReport = errors.New("no hardware report on this tier")
 
 // askMonitor is the M3 path: one request, one answer, over the socket the monitor bind-mounted into
 // this domain. The monitor identifies the caller from the socket's kernel credentials, so there is
-// nothing in this request that could name a different domain or a different app.
-func (f *front) askMonitor(bind []byte) (rep, certs []byte, boundary, tier, format string, err error) {
+// nothing in this request that could name a different domain or a different app. It also returns the
+// monitor's W^X scan of this domain made for this request (wx: "wx=clean maps=... scope=...", or why not).
+func (f *front) askMonitor(bind []byte) (rep, certs []byte, boundary, tier, format, wx string, err error) {
 	c, err := net.DialTimeout("unix", f.monitor, 10*time.Second)
 	if err != nil {
-		return nil, nil, "", "", "", err
+		return nil, nil, "", "", "", "", err
 	}
 	defer c.Close()
 	c.SetDeadline(time.Now().Add(30 * time.Second))
 	if err := json.NewEncoder(c).Encode(map[string]string{"bind": hex.EncodeToString(bind)}); err != nil {
-		return nil, nil, "", "", "", err
+		return nil, nil, "", "", "", "", err
 	}
-	var resp struct{ Report, Certs, Boundary, Tier, Format, Error string }
+	var resp struct{ Report, Certs, Boundary, Tier, Format, WX, Error string }
 	if err := json.NewDecoder(c).Decode(&resp); err != nil {
-		return nil, nil, "", "", "", err
+		return nil, nil, "", "", "", "", err
 	}
 	if resp.Error != "" {
 		if strings.Contains(resp.Error, "no hardware report") {
-			return nil, nil, "", "", "", errNoHardwareReport
+			return nil, nil, "", "", "", resp.WX, errNoHardwareReport
 		}
-		return nil, nil, "", "", "", errors.New(resp.Error)
+		return nil, nil, "", "", "", "", errors.New(resp.Error)
 	}
 	rep, err = base64.StdEncoding.DecodeString(resp.Report)
 	if err != nil {
-		return nil, nil, "", "", "", err
+		return nil, nil, "", "", "", "", err
 	}
 	certs, _ = base64.StdEncoding.DecodeString(resp.Certs)
-	return rep, certs, resp.Boundary, resp.Tier, resp.Format, nil
+	return rep, certs, resp.Boundary, resp.Tier, resp.Format, resp.WX, nil
+}
+
+// selfTest is this document's runtime self-test. On M3 it is the MONITOR's scan (wx), which alone can read the
+// runtime there: a clean one is used as it is, a missing one says wx=unmeasured (a judge rejects it), and anything
+// else (a W+X mapping found, or a scan that failed) refuses the document. Elsewhere this front measures (localSelfTest).
+func (f *front) selfTest(wx string) (string, error) {
+	if f.monitor == "" {
+		return localSelfTest(f.rt.ExecPages, f.seccompStatement)
+	}
+	switch {
+	case wx == "":
+		return "exec_pages=" + f.rt.ExecPages + " wx=unmeasured maps=0 scope=monitor", nil
+	case strings.HasPrefix(wx, "wx=clean "):
+		return "exec_pages=" + f.rt.ExecPages + " " + wx, nil
+	default:
+		return "", fmt.Errorf("the monitor's W^X scan of this domain: %s", wx)
+	}
 }
 
 // report asks the PSP, through configfs-tsm, for a report carrying rd, plus the certificate table the

@@ -12,8 +12,19 @@
  *   - reach the report interface directly (no /sys), or make the monitor name another domain's app
  *   - reach another domain's port over vsock, going around the monitor's relay
  *   - reach the host, or another domain's service, over the network
- * It SHOULD be able to get a report for ITS OWN domain: that is the domain's own evidence, and the app
- * hash in it comes from the monitor, so a compromised domain can only ever name itself.
+ * It must NOT get a report at all (enclave-87's ruling on enclave-bf's finding, superseding "a compromised domain should
+ * get a report for its own domain"): the model is RUNTIME vs FRONT, the front the domain's trusted component. This probe
+ * stands in for the runtime and runs as ITS uid; the report channel is the front's (the monitor answers the front's uid
+ * only, and /run, where the report socket is, belongs to the front's uid, 0700). A runtime that could get a report could
+ * bind a key of its choosing to this domain's identity.
+ *
+ * TWO LAYERS (enclave-5d, on enclave-b4's runtime seccomp filter 2ea664d8): the runtime now runs under a seccomp filter
+ * (m2/app-seccomp.h), so a compromised runtime IS filtered. domexec starts this probe unfiltered, and the probe measures
+ * both: every check once as it starts (the layer BENEATH the filter: the chroot, the uid, the monitor's relay and port
+ * confinement, each proved on its own), then it installs the same filter on itself and repeats what the filter
+ * changes, the vsock reaches, as `filtered_<what>` (the compromised runtime as it actually exists). A filtered-only probe
+ * would pass the vsock lines on EPERM alone and measure nothing about the relay beneath; an unfiltered-only probe
+ * overstates what a real escape reaches.
  *
  * Every line is printed as `PROBE<id> <what>=<result>` for the harness. This binary never exits on its
  * own: a domain that ended immediately would be reclaimed before the harness could read anything, so it
@@ -37,6 +48,7 @@
 #include <sys/time.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include "../m2/app-seccomp.h"   /* the app runtime's filter, exactly as domexec installs it on the runtime */
 
 #define AF_VSOCK_ 40
 struct sockaddr_vm_ {
@@ -75,15 +87,16 @@ static void try_open(const char *what, const char *path) {
     say(what, "OPENED");
 }
 
-/* ask the monitor for a report and print the app hash it came back with: a compromised domain must only
- * ever be able to name ITSELF */
-static void try_report(void) {
+/* ask the monitor for a report: the runtime (this probe's uid) must be REFUSED - by /run's mode first, by the monitor
+ * second. If one is ever granted, it is printed (report_b64) so the harness shows whose app it named. `what` is the line's
+ * key ("report", then "filtered_report" under the runtime's seccomp filter). */
+static void try_report(const char *what) {
     int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-    if (fd < 0) { say("report", "no socket"); return; }
+    if (fd < 0) { say(what, "no socket"); return; }
     struct sockaddr_un sa = {0};
     sa.sun_family = AF_UNIX;
     strncpy(sa.sun_path, "/run/monitor.sock", sizeof sa.sun_path - 1);
-    if (connect(fd, (struct sockaddr *)&sa, sizeof sa) != 0) { say("report", strerror(errno)); close(fd); return; }
+    if (connect(fd, (struct sockaddr *)&sa, sizeof sa) != 0) { say(what, strerror(errno)); close(fd); return; }
     /* a request that also TRIES to name another app, to show the monitor ignores it */
     static const char req[] = "{\"bind\":\"2222222222222222222222222222222222222222222222222222222222222222\","
                               "\"app\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\","
@@ -93,9 +106,9 @@ static void try_report(void) {
     static char buf[65536];
     ssize_t n = write(fd, req, sizeof req - 1) > 0 ? read(fd, buf, sizeof buf - 1) : -1;
     close(fd);
-    if (n <= 0) { say("report", "no-answer"); return; }
+    if (n <= 0) { say(what, "no-answer"); return; }
     buf[n] = 0;
-    say("report", strstr(buf, "\"report\"") ? "granted-for-this-domain" : "refused");
+    say(what, strstr(buf, "\"report\"") ? "granted-for-this-domain" : "refused");
     /* the harness decodes the report itself; print it so it can check whose app is named */
     char *p = strstr(buf, "\"report\":\"");
     if (p) {
@@ -195,9 +208,9 @@ int main(int argc, char **argv) {
     snprintf(n, sizeof n, "%d", reached);
     say("signalable_pids", n);   /* its own few, never the monitor's or another domain's */
 
-    /* 4. its own report, which it is entitled to, and whose app half is the monitor's to write. FIRST,
-     *    because it is the security-critical one and must not be lost behind a slow network probe. */
-    try_report();
+    /* 4. a report, which the runtime must be REFUSED (the report channel is the front's). FIRST, because it is the
+     *    security-critical one and must not be lost behind a slow network probe. */
+    try_report("report");
 
     /* 5. another domain's port, and the host, over vsock: the monitor relays the host to a domain, and
      *    nothing inside the guest should be able to take that path itself */
@@ -209,6 +222,18 @@ int main(int argc, char **argv) {
     /* 6. the network: its own loopback is all it has */
     try_tcp("own_loopback_8080", "127.0.0.1", 8080);
     try_tcp("host_gateway", "10.0.2.2", 80);
+
+    /* 6b. the runtime's filter, installed on itself as domexec installs it on the runtime (no_new_privs, then the
+     *     filter), and the vsock reaches again: the base lines above must have failed on their own (never EPERM, which
+     *     only the filter gives), and these must fail with EPERM (the filter refusing). */
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) say("seccomp", strerror(errno));
+    else if (app_seccomp_install() != 0) say("seccomp", strerror(errno));
+    else { snprintf(n, sizeof n, "%d", prctl(PR_GET_SECCOMP, 0, 0, 0, 0)); say("seccomp", n); }
+    try_vsock("filtered_vsock_local_domain1", 1, 40001);
+    try_vsock("filtered_vsock_local_domain2", 1, 40002);
+    try_vsock("filtered_vsock_own_control", 1, 9000);
+    try_vsock("filtered_vsock_host_control", 2, 9000);
+    try_report("filtered_report");   /* the runtime as it is: filtered (AF_UNIX is allowed; /run and the monitor refuse) */
 
     printf("PROBE%s done\n", id);
     fflush(stdout);

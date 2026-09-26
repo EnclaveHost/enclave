@@ -12,6 +12,7 @@
 //          [--lab-unsigned | --t0-diagnostic] [--min-tcb <json>|@<file>] [--vcek <der>]
 //          [--amd-chain <Product>=<cert_chain.pem>] [--no-kds] [--t0 <epoch ms>] [--perf] [--save <doc.json>]
 //          [--runtime <runtime.json>] [--servername <name>] [--answer-within <ms>] [--host-data <deployment id>]
+//          [--release <release id>[,<release id>...]]
 //   default          trusted: only a report that is AMD-chain-verified AND meets --min-tcb opens the gate
 //   --lab-unsigned   lab-only diagnostic: verdicts "no-tcb-policy" / "unauthenticated" open it, never "attested"
 //   --t0-diagnostic  talk to a T0 domain, explicitly untrusted (the pin is trust-on-first-use)
@@ -36,6 +37,9 @@
 //                    the key is still taken from this handshake and judged against the report
 //   --host-data      the full 32-byte deployment id this client means to reach; the report's SEV-SNP HOST_DATA must
 //                    equal it (judge.mjs). Without it, another instance of the same app version verifies identically
+//   --release        the domain release(s) the pinned --measurement is, to THIS caller's own knowledge (never the
+//                    domain's word): only if every one is in judge.mjs LEGACY_WX_RELEASES may the document state the
+//                    legacy runtime self-test, which is then reported as runtime W^X UNMEASURED (wx_coverage)
 //   --answer-within  how long to keep retrying for the first attestation document (default 180000 ms, for a
 //                    domain that is still booting); a route that refuses the connection fails after this
 //
@@ -66,6 +70,7 @@ if (opt('--min-tcb') !== undefined) {
 if (opt('--vcek')) want.vcek = fs.readFileSync(opt('--vcek'));
 if (opt('--runtime')) want.runtime = JSON.parse(fs.readFileSync(opt('--runtime'), 'utf8'));
 if (opt('--host-data') !== undefined) want.hostData = opt('--host-data');
+if (opt('--release') !== undefined) want.release = opt('--release').split(',');
 if (opt('--amd-chain')) {
   const [product, file] = opt('--amd-chain').split('=');
   seedCertChain(product, fs.readFileSync(file, 'utf8'));                       // throws unless the ARK is the pin
@@ -176,6 +181,7 @@ out('abi', j1.abi ?? 'enclave-domain-abi/1');
 out('runtime_pinned', want.runtime !== undefined ? 1 : 0);
 if (j1.runtime !== undefined) out('runtime', JSON.stringify(j1.runtime));
 if (j1.runtimeSelfTest !== undefined) out('runtime_selftest', JSON.stringify(j1.runtimeSelfTest));
+if (j1.wxCoverage !== undefined) out('wx_coverage', j1.wxCoverage);
 if (j1.tcb) { out('tcb_product', j1.tcb.product); out('tcb_reported', JSON.stringify(j1.tcb.reported)); out('tcb_checked', j1.tcb.checked ? 1 : 0); }
 console.log(`VERDICT ${j1.verdict} reason=${JSON.stringify(j1.reasons.at(-1))}`);
 out('gate', j1.gateOpen ? 'open' : 'closed');
