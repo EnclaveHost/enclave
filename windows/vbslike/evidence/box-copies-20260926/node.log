@@ -1,0 +1,1485 @@
+00:55:00 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+00:55:02 [node] tpm: ready tpmattest/1
+00:55:02 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+00:55:02 [node] session: minted an ES256 session-signing key
+00:55:02 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+00:55:03 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+00:55:03 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001457 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+00:55:03 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu + 28/sec card, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+00:55:03 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:03 [node] local http on 127.0.0.1:9600
+00:55:03 [node] tunnel open, waiting for the challenge
+00:55:03 [node] sent TPM keys
+00:55:03 [node] attach REJECTED: hv-node attach is not enabled on this relay (the VBS-enclave attach is retired)
+00:55:04 [node] [host] registry: card price now 0/sec (was 28) tx=0xe4368ba9776bdd3ee2b62573b02319a7c75175cf1dbcbabf57dc86ce43922e49
+00:55:04 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu + 28/sec card, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+00:55:04 [node] tunnel closed
+00:55:09 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:09 [node] tunnel open, waiting for the challenge
+00:55:09 [node] sent TPM keys
+00:55:09 [node] attach REJECTED: hv-node attach is not enabled on this relay (the VBS-enclave attach is retired)
+00:55:10 [node] tunnel closed
+00:55:15 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:15 [node] tunnel open, waiting for the challenge
+00:55:15 [node] sent TPM keys
+00:55:15 [node] attach REJECTED: hv-node attach is not enabled on this relay (the VBS-enclave attach is retired)
+00:55:16 [node] tunnel closed
+00:55:21 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:21 [node] tunnel open, waiting for the challenge
+00:55:21 [node] sent TPM keys
+00:55:21 [node] attach REJECTED: hv-node attach is not enabled on this relay (the VBS-enclave attach is retired)
+00:55:22 [node] tunnel closed
+00:55:27 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:27 [node] handshake rejected: HTTP 502
+00:55:27 [node] tunnel error: WebSocket was closed before the connection was established
+00:55:27 [node] tunnel closed
+00:55:32 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:33 [node] tunnel open, waiting for the challenge
+00:55:33 [node] sent TPM keys
+00:55:33 [node] [host] registry: card price now 0/sec (was 28) tx=0x79ebd3892dd58cb5696a04848b1557de7f89f20ae3efbca6a037136f7c86df6a
+00:55:34 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+00:55:36 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+00:55:37 [node] attach ACCEPTED tier=hv-node measurement=
+Fri 09/25/2026 17:55:43.21 [run] agent.mjs exited -1; restarting in 10 s 
+00:55:53 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+00:55:56 [node] tpm: ready tpmattest/1
+00:55:56 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+00:55:56 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+00:55:56 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+00:55:56 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001456 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+00:55:56 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+00:55:56 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+00:55:56 [node] local http on 127.0.0.1:9600
+00:55:57 [node] tunnel open, waiting for the challenge
+00:55:57 [node] sent TPM keys
+00:55:57 [node] isolation manager health unavailable: GET /health: fetch failed
+00:56:00 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+00:56:01 [node] attach ACCEPTED tier=hv-node measurement=
+00:58:27 [node] [host] ledger: 1 active deployment(s) in scope (owner-only)
+00:58:28 [node] [host] ledger: taking 0x31136008 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x389C3f030a209D04D026228D2D053fEB75DbadcA, 1% of a node)
+00:58:57 [node] [host] ledger: taking 0x31136008 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x389C3f030a209D04D026228D2D053fEB75DbadcA, 1% of a node)
+00:59:27 [node] [host] ledger: taking 0x31136008 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x389C3f030a209D04D026228D2D053fEB75DbadcA, 1% of a node)
+00:59:57 [node] [host] ledger: taking 0x31136008 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x389C3f030a209D04D026228D2D053fEB75DbadcA, 1% of a node)
+01:00:27 [node] [host] ledger: taking 0x31136008 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x389C3f030a209D04D026228D2D053fEB75DbadcA, 1% of a node)
+01:00:29 [node] [host] claimed 0x31136008 (tx 0x0340540ef5980f5821a503979b1d5ccdcee030eadb2a1001e30b02cead4d5c4a)
+01:00:31 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:00:32 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:00:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:01:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:01:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:02:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:02:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:03:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:03:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:04:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:04:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:05:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:05:39 [node] tunnel closed
+01:05:44 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+01:05:45 [node] tunnel open, waiting for the challenge
+01:05:45 [node] sent TPM keys
+01:05:48 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+01:05:49 [node] attach ACCEPTED tier=hv-node measurement=
+01:05:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:06:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:06:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:07:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:07:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:08:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:08:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:09:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:09:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:10:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:10:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:11:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:11:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:12:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:12:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:13:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:13:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:14:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:14:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:15:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:15:58 [node] [host] renewed 0x31136008
+01:15:59 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:16:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:16:59 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:17:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:17:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:18:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:18:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:19:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:19:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:20:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:20:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:21:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:21:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:22:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:22:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:23:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:23:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:24:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:24:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:25:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:25:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+^C01:28:11 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+01:28:14 [node] tpm: ready tpmattest/1
+01:28:14 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+01:28:14 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+01:28:14 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+01:28:14 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+01:28:14 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001450 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+01:28:14 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+01:28:14 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+01:28:14 [node] local http on 127.0.0.1:9600
+01:28:14 [node] [host] ledger: 1 active deployment(s) in scope (owner-only)
+01:28:15 [node] tunnel open, waiting for the challenge
+01:28:15 [node] sent TPM keys
+01:28:18 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+01:28:19 [node] attach ACCEPTED tier=hv-node measurement=
+01:28:38 [node] [host] 0x31136008 isolation spawned: hvc8633f87733d74c4c34896dd26621de6 status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:28:45 [node] [host] 0x31136008 isolation adopted: hvc8633f87733d74c4c34896dd26621de6 status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:29:15 [node] [host] 0x31136008 isolation adopted: hvc8633f87733d74c4c34896dd26621de6 status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:29:45 [node] [host] 0x31136008 isolation adopted: hvc8633f87733d74c4c34896dd26621de6 status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:30:15 [node] [host] 0x31136008 isolation adopted: hvc8633f87733d74c4c34896dd26621de6 status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:30:31 [node] [host] 0x31136008 isolated domain retired (forced relaunch)
+01:30:53 [node] [host] 0x31136008 isolation spawned: hv1210563e5e204bbc7cf0f987485949db status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:30:53 [node] [host] 0x31136008 isolation adopted: hv1210563e5e204bbc7cf0f987485949db status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:31:15 [node] [host] 0x31136008 isolation adopted: hv1210563e5e204bbc7cf0f987485949db status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+Fri 09/25/2026 18:31:27.49 [run] agent.mjs exited -1; restarting in 10 s 
+01:31:38 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+01:31:40 [node] tpm: ready tpmattest/1
+01:31:40 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+01:31:40 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+01:31:40 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+01:31:41 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+01:31:41 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001450 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+01:31:41 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+01:31:41 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+01:31:41 [node] local http on 127.0.0.1:9600
+01:31:41 [node] [host] ledger: 1 active deployment(s) in scope (owner-only)
+01:31:41 [node] tunnel open, waiting for the challenge
+01:31:41 [node] sent TPM keys
+01:31:42 [node] [host] 0x31136008 isolation adopted: hv1210563e5e204bbc7cf0f987485949db status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:31:45 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+01:31:46 [node] attach ACCEPTED tier=hv-node measurement=
+01:32:12 [node] [host] 0x31136008 isolation adopted: hv1210563e5e204bbc7cf0f987485949db status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:32:42 [node] [host] 0x31136008 isolation adopted: hv1210563e5e204bbc7cf0f987485949db status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+Fri 09/25/2026 18:32:52.40 [run] agent.mjs exited -1; restarting in 10 s 
+01:33:03 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+01:33:05 [node] tpm: ready tpmattest/1
+01:33:05 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+01:33:05 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+01:33:05 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+01:33:06 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+01:33:06 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001450 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+01:33:06 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+01:33:06 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+01:33:06 [node] local http on 127.0.0.1:9600
+01:33:06 [node] [host] ledger: 1 active deployment(s) in scope (owner-only)
+01:33:06 [node] tunnel open, waiting for the challenge
+01:33:06 [node] sent TPM keys
+01:33:07 [node] isolation manager health unavailable: GET /health: fetch failed
+01:33:07 [node] [host] 0x31136008 isolation: manager: the partition manager's /health is not known here, and this tier refuses what it cannot verify
+01:33:10 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+01:33:11 [node] attach ACCEPTED tier=hv-node measurement=
+01:33:37 [node] [host] 0x31136008 isolation held: 0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3 is hv1210563e5e204bbc7cf0f987485949db, a VM a restarted manager recovered from Hyper-V: it is alive but cannot serve under this manager, so the lease is kept, no second domain is started and nothing is removed; a forced relaunch retires it and starts a fresh one
+01:34:07 [node] [host] 0x31136008 isolation held: 0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3 is hv1210563e5e204bbc7cf0f987485949db, a VM a restarted manager recovered from Hyper-V: it is alive but cannot serve under this manager, so the lease is kept, no second domain is started and nothing is removed; a forced relaunch retires it and starts a fresh one
+01:34:16 [node] [host] 0x31136008 isolated domain retired (forced relaunch)
+01:34:38 [node] [host] 0x31136008 isolation spawned: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:34:39 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:35:08 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:35:37 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:36:07 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:36:37 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:37:07 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:37:14 [node] [host] hosting caps set on this box: CPU 100% -> 20%, GPU 100% -> 100%
+01:37:37 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:38:08 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:38:15 [node] [host] hosting caps set on this box: CPU 20% -> 100%, GPU 100% -> 100%
+01:38:37 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:39:08 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:39:37 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:40:07 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:40:37 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:41:07 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:41:37 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:42:07 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+01:42:37 [node] [host] 0x31136008 isolation adopted: hv9e568cd8c49461798d33bc9febc8f8cb status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+^C02:04:42 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+02:04:45 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+02:04:45 [node] tpm: ready tpmattest/1
+02:04:45 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+02:04:45 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+02:04:45 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+02:04:45 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001450 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+02:04:45 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+02:04:45 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+02:04:45 [node] local http on 127.0.0.1:9600
+02:04:46 [node] [host] ledger: 1 active deployment(s) in scope (owner-only)
+02:04:46 [node] tunnel open, waiting for the challenge
+02:04:46 [node] sent TPM keys
+02:04:46 [node] [host] ledger: taking 0x31136008 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x389C3f030a209D04D026228D2D053fEB75DbadcA, 1% of a node)
+02:04:48 [node] [host] claimed 0x31136008 (tx 0x88988cab5fae34b0e7c61223e99f75d1d1aa1bff2d09b69d44cc328599f28b76)
+02:04:49 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+02:04:50 [node] attach ACCEPTED tier=hv-node measurement=
+02:04:59 [node] [host] 0x31136008 isolation spawned: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:05:00 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:05:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:05:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:06:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:06:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:07:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:07:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:08:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:08:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:09:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:09:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:10:13 [node] tunnel closed
+02:10:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:10:18 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+02:10:18 [node] tunnel open, waiting for the challenge
+02:10:18 [node] sent TPM keys
+02:10:22 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+02:10:23 [node] attach ACCEPTED tier=hv-node measurement=
+02:10:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:11:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:11:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:12:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:12:42 [node] tunnel closed
+02:12:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:12:47 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+02:12:48 [node] tunnel open, waiting for the challenge
+02:12:48 [node] sent TPM keys
+02:12:51 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+02:12:52 [node] attach ACCEPTED tier=hv-node measurement=
+02:13:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:13:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:14:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:14:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:15:06 [node] tunnel closed
+02:15:11 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+02:15:11 [node] tunnel open, waiting for the challenge
+02:15:11 [node] sent TPM keys
+02:15:15 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+02:15:16 [node] attach ACCEPTED tier=hv-node measurement=
+02:15:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:15:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:16:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:16:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:17:07 [node] tunnel closed
+02:17:12 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+02:17:12 [node] tunnel open, waiting for the challenge
+02:17:12 [node] sent TPM keys
+02:17:16 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+02:17:16 [node] attach ACCEPTED tier=hv-node measurement=
+02:17:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:17:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:18:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:18:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:19:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:19:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:20:17 [node] [host] renewed 0x31136008
+02:20:18 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:20:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:21:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:21:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:22:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:22:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:23:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:23:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:24:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:24:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:25:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:25:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:26:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:26:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:27:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:27:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:28:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:28:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:29:17 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:29:47 [node] [host] 0x31136008 isolation adopted: hv0261e3f63a43f123675e95ecc70deb2f status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+^C02:51:10 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+02:51:12 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+02:51:13 [node] tpm: ready tpmattest/1
+02:51:13 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+02:51:13 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+02:51:13 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+02:51:13 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001449 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+02:51:13 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+02:51:13 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+02:51:13 [node] local http on 127.0.0.1:9600
+02:51:14 [node] [host] ledger: 1 active deployment(s) in scope (owner-only)
+02:51:14 [node] tunnel open, waiting for the challenge
+02:51:14 [node] sent TPM keys
+02:51:15 [node] [host] renewed 0x31136008
+02:51:17 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+02:51:18 [node] attach ACCEPTED tier=hv-node measurement=
+02:51:37 [node] [host] 0x31136008 isolation spawned: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:51:44 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:52:13 [node] tunnel closed
+02:52:14 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:52:18 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+02:52:18 [node] tunnel open, waiting for the challenge
+02:52:18 [node] sent TPM keys
+02:52:21 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+02:52:22 [node] attach ACCEPTED tier=hv-node measurement=
+02:52:44 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:53:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:53:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:54:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:54:26 [node] tunnel closed
+02:54:31 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+02:54:32 [node] tunnel open, waiting for the challenge
+02:54:32 [node] sent TPM keys
+02:54:35 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+02:54:36 [node] attach ACCEPTED tier=hv-node measurement=
+02:54:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:55:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:55:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:56:14 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:56:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:57:14 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:57:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:58:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:58:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:59:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+02:59:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:00:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:00:44 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:01:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:01:36 [node] tunnel closed
+03:01:41 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+03:01:42 [node] tunnel open, waiting for the challenge
+03:01:42 [node] sent TPM keys
+03:01:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:01:45 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+03:01:46 [node] attach ACCEPTED tier=hv-node measurement=
+03:02:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:02:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:03:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:03:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:04:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:04:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:05:14 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:05:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:06:14 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:06:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:07:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:07:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:08:16 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:08:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:08:59 [node] tunnel closed
+03:09:04 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+03:09:04 [node] tunnel open, waiting for the challenge
+03:09:04 [node] sent TPM keys
+03:09:08 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+03:09:08 [node] attach ACCEPTED tier=hv-node measurement=
+03:09:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:09:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:10:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:10:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:11:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:11:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:12:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:12:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:13:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:13:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:14:16 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:14:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:15:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:15:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:16:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:16:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:17:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:17:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:18:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:18:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:19:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:19:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:20:15 [node] [host] renewed 0x31136008
+03:20:16 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:20:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:21:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:21:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:22:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:22:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:23:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:23:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:24:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:24:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:25:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:25:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:26:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:26:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:27:15 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+03:27:45 [node] [host] 0x31136008 isolation adopted: hv373a31114479cfaefad96d6cabf5536d status=running image=b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748
+^C03:34:34 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+03:34:37 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+03:34:37 [node] tpm: ready tpmattest/1
+03:34:37 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+03:34:37 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+03:34:37 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+03:34:37 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001448 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+03:34:37 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+03:34:37 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+03:34:37 [node] local http on 127.0.0.1:9600
+03:34:38 [node] [host] ledger: 1 active deployment(s) in scope (owner-only)
+03:34:38 [node] tunnel open, waiting for the challenge
+03:34:38 [node] sent TPM keys
+03:34:41 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 0 delegation(s)
+03:34:42 [node] attach ACCEPTED tier=hv-node measurement=
+03:35:00 [node] [host] 0x31136008 isolation spawned: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:35:08 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:35:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:35:46 [node] 0x31136008 certificate: none for 31136008.app.enclave.host (the order for 31136008.app.enclave.host is in flight (the relay is still getting it)); retry in 30s
+03:36:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:36:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:36:46 [node] 0x31136008 certificate: none for 31136008.app.enclave.host (the order for 31136008.app.enclave.host is in flight (the relay is still getting it)); retry in 30s
+03:37:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:37:38 [node] 0x31136008 certificate: 31136008.app.enclave.host installed in partition hv88b31102f902741d791a3e90b56f571b (key 4d80b9566a3ab6c4…, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2026-12-25T23:59:59.000Z; domain monitor-signed)
+03:37:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:38:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:38:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:39:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:39:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:39:40 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:39:40 [node] [app-zone] app-zone 0x31136008 -> spliced: idle
+03:40:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:40:30 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:40:30 [node] [app-zone] app-zone 0x31136008 -> spliced: idle
+03:40:37 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:40:37 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+03:40:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:41:10 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:41:17 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:41:17 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+03:41:19 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:41:19 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+03:41:20 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:41:20 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+03:41:22 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:41:22 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+03:41:23 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:41:23 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+03:41:25 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:41:25 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+03:41:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:41:41 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:41:41 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+03:42:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:42:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:43:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:43:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:44:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:44:30 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:44:30 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+03:44:31 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:44:31 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+03:44:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:45:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:45:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:46:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:46:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:47:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:47:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:48:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:48:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:49:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:49:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:50:09 [node] [host] renewed 0x31136008
+03:50:10 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:50:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:51:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:51:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:52:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:52:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:53:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:53:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:54:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:54:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:55:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:55:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:56:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:56:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:57:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:57:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:58:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:58:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:58:50 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+03:58:50 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+03:59:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+03:59:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:00:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:00:30 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:00:30 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:00:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:01:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:01:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:01:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:01:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:02:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:02:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:03:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:03:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:04:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:04:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:05:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:05:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:06:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:06:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:06:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:06:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:07:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:07:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:08:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:08:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:09:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:09:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:10:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:10:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:11:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:11:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:11:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:11:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:12:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:12:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:13:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:13:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:14:10 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:14:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:15:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:15:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:16:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:16:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:16:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:16:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:17:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:17:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:18:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:18:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:19:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:19:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:20:09 [node] [host] renewed 0x31136008
+04:20:10 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:20:14 [node] tunnel closed
+04:20:19 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:20:19 [node] tunnel open, waiting for the challenge
+04:20:19 [node] sent TPM keys
+04:20:23 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 0 delegation(s)
+04:20:24 [node] attach ACCEPTED tier=hv-node measurement=
+04:20:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:21:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:21:10 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:21:10 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:21:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:22:09 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:22:39 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:23:04 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:23:04 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:23:08 [node] the owners this node serves changed since its attach: attaching again so the relay serves the same set
+04:23:08 [node] tunnel closed
+04:23:09 [node] [host] ledger: not taking 0xda9e43f8: it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer
+04:23:09 [node] [host] ledger: not taking 0xc34499ee: it is a private deployment, and this box has no session key to verify its owner with
+04:23:09 [node] [host] ledger: not taking 0x7c4149ee: it is a private deployment, and this box has no session key to verify its owner with
+04:23:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:23:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:23:13 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:23:14 [node] tunnel open, waiting for the challenge
+04:23:14 [node] sent TPM keys
+04:23:17 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:23:18 [node] attach ACCEPTED tier=hv-node measurement=
+04:23:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:23:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:24:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:24:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:24:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:24:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:25:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:25:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:25:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:25:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:26:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:26:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:26:09 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:26:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:26:37 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:26:37 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+04:26:39 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:26:39 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+04:26:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:26:42 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:27:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:27:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:27:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:27:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:28:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:28:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:28:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:28:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:29:09 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:29:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:29:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:29:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:30:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:30:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:30:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:30:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:31:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:31:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:31:09 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:31:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:31:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:31:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:32:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:32:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:32:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:32:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:33:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:33:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:33:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:33:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:33:59 [node] tunnel closed
+04:34:04 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:34:04 [node] tunnel open, waiting for the challenge
+04:34:04 [node] sent TPM keys
+04:34:08 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:34:09 [node] attach ACCEPTED tier=hv-node measurement=
+04:34:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:34:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:34:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:34:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:35:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:35:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:35:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:35:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:36:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:36:12 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:36:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:36:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:37:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:37:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:37:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:37:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:38:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:38:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:38:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:38:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:39:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:39:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:39:13 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:39:13 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+04:39:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:39:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:40:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:40:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:40:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:40:42 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:41:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:41:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:41:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:41:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:41:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:41:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:42:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:42:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:42:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:42:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:43:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:43:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:43:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:43:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:44:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:44:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:44:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:44:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:44:44 [node] tunnel closed
+04:44:49 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:44:50 [node] tunnel open, waiting for the challenge
+04:44:50 [node] sent TPM keys
+04:44:53 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:44:54 [node] attach ACCEPTED tier=hv-node measurement=
+04:45:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:45:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:45:34 [node] tunnel closed
+04:45:39 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:45:40 [node] tunnel open, waiting for the challenge
+04:45:40 [node] sent TPM keys
+04:45:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:45:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:45:43 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:45:44 [node] attach ACCEPTED tier=hv-node measurement=
+04:46:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:46:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:46:12 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:46:14 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:46:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:46:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:47:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:47:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:47:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:47:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:48:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:48:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:48:41 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:48:43 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:49:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:49:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:49:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:49:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:50:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:50:11 [node] [host] renewed 0x31136008
+04:50:12 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:50:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:50:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:51:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:51:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:51:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:51:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:51:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:51:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:52:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:52:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:52:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:52:42 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:53:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:53:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:53:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:53:42 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:54:11 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:54:13 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:54:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:54:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:55:11 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:55:12 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:55:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:55:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:56:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+04:56:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+04:56:11 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:56:12 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:56:39 [node] tunnel closed
+04:56:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:56:41 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:56:44 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:56:45 [node] tunnel open, waiting for the challenge
+04:56:45 [node] sent TPM keys
+04:56:48 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:56:49 [node] attach ACCEPTED tier=hv-node measurement=
+04:57:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:57:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:57:40 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:57:42 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:58:10 [node] [host] ledger: taking 0xca141665 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:58:11 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+^C04:58:45 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+04:58:48 [node] tpm: ready tpmattest/1
+04:58:48 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+04:58:48 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+04:58:48 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+04:58:48 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+04:58:48 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001444 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+04:58:48 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+04:58:48 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+04:58:48 [node] local http on 127.0.0.1:9600
+04:58:49 [node] tunnel open, waiting for the challenge
+04:58:49 [node] sent TPM keys
+04:58:49 [node] [host] ledger: 10 active deployment(s) in scope (owner-only)
+04:58:50 [node] [host] ledger: not taking 0xda9e43f8: it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer
+04:58:50 [node] [host] ledger: not taking 0xc34499ee: it is a private deployment, and this box has no session key to verify its owner with
+04:58:50 [node] [host] ledger: not taking 0x7c4149ee: it is a private deployment, and this box has no session key to verify its owner with
+04:58:50 [node] [host] ledger: not taking 0xca141665: this node runs only the isolated backend (the legacy VBS-enclave backend is retired): it claims only deployments that require hyperv-partition-per-app
+04:58:51 [node] [host] ledger: not taking 0x5c61595c: this node runs only the isolated backend (the legacy VBS-enclave backend is retired): it claims only deployments that require hyperv-partition-per-app
+04:58:51 [node] [host] ledger: considering 0x958ae6e9 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+04:58:52 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+04:58:53 [node] [host] claimed 0x958ae6e9 (tx 0x490bdf4e30c428333f0dc908f663d06a2dfc7e36cadbbbc9c7a34384fa93d052)
+04:58:53 [node] attach ACCEPTED tier=hv-node measurement=
+04:59:15 [node] [host] 0x958ae6e9 isolation spawned: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:59:16 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:59:16 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:59:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:59:22 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:59:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:59:51 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+04:59:57 [node] 0x958ae6e9 certificate: none for 958ae6e9.app.enclave.host (the order for 958ae6e9.app.enclave.host is in flight (the relay is still getting it)); retry in 30s
+04:59:57 [node] 0x31136008 certificate: partition hv88b31102f902741d791a3e90b56f571b already serves a valid one for 31136008.app.enclave.host on its key 4d80b9566a3ab6c4… (serial 8BC6DC4787EEEDCDB127339E7F1E5DAC, until 2026-12-25T23:59:59.000Z); nothing issued
+05:00:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:00:22 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:00:49 [node] 0x958ae6e9 certificate: 958ae6e9.app.enclave.host installed in partition hv7bb893717a9893b4e84fad833b3d91e3 (key 78ddc68541a369ba…, C=US, O=Let's Encrypt, CN=YE2, until 2026-12-25T04:01:53.000Z; domain monitor-signed)
+05:00:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:00:51 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:01:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:01:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+05:01:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:01:21 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:01:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:01:51 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:02:16 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:02:16 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: idle
+05:02:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:02:22 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:02:22 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:02:22 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:02:50 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:02:50 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: idle
+05:02:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:02:51 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:02:56 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:02:56 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:03:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:03:21 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:03:23 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:03:23 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: idle
+05:03:30 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:03:30 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:03:53 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:03:54 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:04:02 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:04:02 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:04:04 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:04:04 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:04:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:04:21 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:04:29 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:04:29 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+05:04:30 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:04:30 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+05:04:37 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:04:37 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:04:38 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:04:38 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:04:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:04:51 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:05:11 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:05:11 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:05:12 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:05:12 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:05:22 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:05:23 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:05:45 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:05:45 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:05:47 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:05:47 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:05:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:05:51 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:06:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:06:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+05:06:20 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:20 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:06:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:06:21 [node] [host] 0x958ae6e9 isolation adopted: hv7bb893717a9893b4e84fad833b3d91e3 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:06:21 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:21 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:06:49 [node] the owners this node serves changed since its attach: attaching again so the relay serves the same set
+05:06:49 [node] tunnel closed
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] 0x958ae6e9 app-zone -> hv7bb893717a9893b4e84fad833b3d91e3: spliced
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:06:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:06:54 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+05:06:54 [node] tunnel open, waiting for the challenge
+05:06:54 [node] sent TPM keys
+05:06:58 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 0 delegation(s)
+05:06:58 [node] attach ACCEPTED tier=hv-node measurement=
+05:07:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:07:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:08:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:08:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:09:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:09:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:10:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:10:26 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:10:26 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+05:10:28 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:10:28 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+05:10:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:11:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:11:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+05:11:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:11:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:12:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:12:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:13:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:13:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:14:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:14:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:15:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:15:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:16:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:16:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+05:16:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:16:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:17:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:17:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:18:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:18:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:19:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:19:51 [node] [host] renewed 0x31136008
+05:19:52 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:20:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:20:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:21:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:21:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+05:21:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:21:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:22:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:22:24 [node] tunnel closed
+05:22:29 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+05:22:29 [node] tunnel open, waiting for the challenge
+05:22:29 [node] sent TPM keys
+05:22:33 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 0 delegation(s)
+05:22:34 [node] attach ACCEPTED tier=hv-node measurement=
+05:22:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:23:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:23:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:24:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:24:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:25:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:25:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:26:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:26:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+05:26:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:26:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:27:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:27:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:28:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:28:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:29:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:29:24 [node] [host] 0x958ae6e9 isolated domain retired (its lease lapsed while held for an owner this box does not serve (0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C))
+05:29:24 [node] [host] stopped 0x958ae6e9: its lease lapsed while held for an owner this box does not serve (0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C)
+05:29:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:30:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:30:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:31:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:31:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+05:31:19 [node] the owners this node serves changed since its attach: attaching again so the relay serves the same set
+05:31:19 [node] tunnel closed
+05:31:21 [node] [host] ledger: considering 0x958ae6e9 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C, 1% of a node)
+05:31:23 [node] [host] claimed 0x958ae6e9 (tx 0xde4ea49c7b7156e46c7ffee977648d9ca8d0bb387a37832bce056c01db4f8883)
+05:31:24 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+05:31:25 [node] tunnel open, waiting for the challenge
+05:31:25 [node] sent TPM keys
+05:31:28 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s)
+05:31:29 [node] attach ACCEPTED tier=hv-node measurement=
+05:31:44 [node] [host] 0x958ae6e9 isolation spawned: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:31:45 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:31:46 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:31:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:31:52 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:31:57 [node] 0x958ae6e9 certificate: none for 958ae6e9.app.enclave.host (the order for 958ae6e9.app.enclave.host is in flight (the relay is still getting it)); retry in 30s
+05:32:24 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:32:24 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:32:49 [node] 0x958ae6e9 certificate: 958ae6e9.app.enclave.host installed in partition hv5ccfec2b5e0040f6443404ee52b3b787 (key 6c8a12bd4e6c7c4a…, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2026-12-25T23:59:59.000Z; domain monitor-signed)
+05:32:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:32:51 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:33:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:33:22 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:33:52 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:33:52 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:34:22 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:34:22 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:34:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:34:52 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:34:53 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:34:53 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: idle
+05:34:59 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:34:59 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:35:20 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:35:20 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+05:35:21 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:35:21 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+05:35:22 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:35:22 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:35:27 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:35:27 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: idle
+05:35:34 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:35:34 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:35:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:35:52 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:36:06 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:36:06 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:36:08 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:36:08 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:36:23 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:36:24 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:36:40 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:36:40 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:36:42 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:36:42 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:36:52 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:36:52 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:37:15 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:37:15 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:37:16 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:37:16 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:37:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:37:22 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:37:49 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:37:49 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:37:51 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:37:51 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:37:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:37:52 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:38:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:38:22 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:38:24 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:38:24 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:38:25 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:38:25 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:38:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:38:52 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:38:58 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:38:58 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:38:59 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:38:59 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:39:15 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:39:15 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+05:39:23 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:39:23 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:39:32 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:39:32 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:39:34 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:39:34 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:39:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:39:52 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:40:06 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:40:06 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:40:08 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:40:08 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:40:22 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:40:22 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:40:40 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:40:40 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:40:42 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:40:42 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: guest ended
+05:40:52 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:40:52 [node] [host] 0x958ae6e9 isolation adopted: hv5ccfec2b5e0040f6443404ee52b3b787 status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:05 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:05 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:06 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:06 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:06 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:06 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:06 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:06 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:06 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:06 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:06 [node] 0x958ae6e9 app-zone -> hv5ccfec2b5e0040f6443404ee52b3b787: spliced
+05:41:06 [node] [app-zone] app-zone 0x958ae6e9 -> spliced: client ended
+05:41:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:41:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+05:41:19 [node] [host] delegation agent-2947-10m.json ignored: expired at 1790401262
+05:41:19 [node] the owners this node serves changed since its attach: attaching again so the relay serves the same set
+05:41:19 [node] tunnel closed
+05:41:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:41:24 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+05:41:25 [node] tunnel open, waiting for the challenge
+05:41:25 [node] sent TPM keys
+05:41:28 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 0 delegation(s)
+05:41:29 [node] attach ACCEPTED tier=hv-node measurement=
+05:41:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:42:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:42:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:43:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:43:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:44:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:44:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:45:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:45:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:46:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:46:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+05:46:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:46:52 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:47:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:47:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:48:20 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:48:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:49:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:49:51 [node] [host] renewed 0x31136008
+05:49:52 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:50:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:50:50 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:51:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:51:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+05:51:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:51:52 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:52:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:52:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:53:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:53:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:54:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:54:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:55:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:55:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:56:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+05:56:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+05:56:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:56:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:57:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:57:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:58:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:58:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:59:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+05:59:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:00:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:00:52 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:01:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:01:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:01:22 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:01:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:01:53 [node] [host] 0x958ae6e9 isolated domain retired (its lease lapsed while held for an owner this box does not serve (0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C))
+06:01:53 [node] [host] stopped 0x958ae6e9: its lease lapsed while held for an owner this box does not serve (0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C)
+06:02:21 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:02:51 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+^C06:03:27 [node] isolation-only node: the VBS enclave engine is retired; transport key 2bf1a303115b81f9… (a host key: it proves only that an admin-level process on this host chose it)
+06:03:30 [node] tpm: ready tpmattest/1
+06:03:30 [node] TPM ready: AIK name 000b23f3c0832437…, EK cert 1267 bytes (ncrypt:PCP_EKCERT)
+06:03:30 [node] session: ES256 key l0B-B35JoboP… (in the agent's process, not the enclave)
+06:03:30 [node] [hosting] hosting controls on 127.0.0.1:9610 (loopback only, bearer token)
+06:03:30 [node] [host] chain: registry 0x868eB7fc5B5A84B2FF082eafc9bf40b7AAc5CCAC · deployments 0xF9e71385C5cB49844F2457ba6567De0742f8B89a
+06:03:30 [node] [host] operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA holds 0.001441 ETH; enclave id 0xd497d065ca395192db3630699dbc5a6418f2f028256212a4d9ab73288643fe1b
+06:03:30 [node] [host] registry: listed as https://api.enclave.host/t/nucbox-k11 price 12/sec cpu, payout 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C
+06:03:30 [node] [host] delegation agent-2947-10m.json ignored: expired at 1790401262
+06:03:30 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+06:03:30 [node] local http on 127.0.0.1:9600
+06:03:31 [node] [host] ledger: 1 active deployment(s) in scope (owner-only)
+06:03:31 [node] tunnel open, waiting for the challenge
+06:03:31 [node] sent TPM keys
+06:03:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:03:34 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 0 delegation(s)
+06:03:35 [node] attach ACCEPTED tier=hv-node measurement=
+06:03:45 [node] 0x31136008 certificate: partition hv88b31102f902741d791a3e90b56f571b already serves a valid one for 31136008.app.enclave.host on its key 4d80b9566a3ab6c4… (serial 8BC6DC4787EEEDCDB127339E7F1E5DAC, until 2026-12-25T23:59:59.000Z); nothing issued
+06:04:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:04:31 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:05:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:05:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:06:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:06:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:06:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:06:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:06:47 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:06:47 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+06:06:48 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:06:48 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+06:07:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:07:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:08:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:08:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:09:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:09:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:10:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:10:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:11:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:11:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:11:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:11:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:12:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:12:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:13:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:13:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:14:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:14:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:15:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:15:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:16:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:16:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:16:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:16:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:17:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:17:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:18:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:18:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:19:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:19:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:20:03 [node] [host] renewed 0x31136008
+06:20:04 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:20:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:21:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:21:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:21:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:21:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:22:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:22:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:23:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:23:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:24:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:24:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:25:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:25:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:26:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:26:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:26:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:26:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:27:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:27:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:28:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:28:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:28:53 [node] tunnel closed
+06:28:58 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+06:28:58 [node] tunnel open, waiting for the challenge
+06:28:58 [node] sent TPM keys
+06:29:02 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 0 delegation(s)
+06:29:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:29:03 [node] attach ACCEPTED tier=hv-node measurement=
+06:29:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:30:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:30:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:31:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:31:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:31:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:31:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:32:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:32:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:33:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:33:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:34:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:34:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:35:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:35:18 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:35:18 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+06:35:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:36:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:36:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:36:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:36:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:37:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:37:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:38:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:38:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:39:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:39:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:40:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:40:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:41:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:41:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:41:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:41:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:42:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:42:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:42:53 [node] tunnel closed
+06:42:58 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+06:42:59 [node] tunnel open, waiting for the challenge
+06:42:59 [node] sent TPM keys
+06:43:02 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 0 delegation(s)
+06:43:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:43:03 [node] attach ACCEPTED tier=hv-node measurement=
+06:43:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:44:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:44:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:45:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:45:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:46:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:46:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:46:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:46:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:46:57 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:46:57 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+06:47:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:47:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:48:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:48:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:49:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:49:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:50:02 [node] [host] renewed 0x31136008
+06:50:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:50:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:51:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:51:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:51:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:51:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:52:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:52:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:53:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:53:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:54:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:54:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:55:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:55:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:55:41 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:55:41 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+06:55:43 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:55:43 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+06:56:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:56:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+06:56:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+06:56:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:57:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:57:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:58:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:58:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:59:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+06:59:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:00:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:00:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:01:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:01:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:01:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+07:01:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:02:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:02:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:03:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:03:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:04:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:04:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:05:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:05:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:05:45 [node] tunnel closed
+07:05:45 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:05:45 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:05:45 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+07:05:45 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+07:05:50 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+07:05:51 [node] tunnel open, waiting for the challenge
+07:05:51 [node] sent TPM keys
+07:05:54 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 0 delegation(s)
+07:05:55 [node] attach ACCEPTED tier=hv-node measurement=
+07:06:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:06:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:07:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:07:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:08:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:08:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:09:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:09:12 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:09:12 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+07:09:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:10:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:10:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:11:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:11:10 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:11:10 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+07:11:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:12:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:12:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:13:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:13:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:14:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:14:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:15:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:15:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:15:54 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:15:54 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+07:16:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:16:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:16:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+07:16:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:16:53 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:16:53 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+07:16:54 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:16:54 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+07:17:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:17:32 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:18:04 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:18:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:19:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:19:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:19:57 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:19:57 [node] [app-zone] app-zone 0x31136008 -> spliced: guest ended
+07:20:03 [node] [host] renewed 0x31136008
+07:20:04 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:20:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:21:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:21:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:21:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+07:21:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:22:02 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:22:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:23:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:23:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:24:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:24:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:25:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:25:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:26:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:26:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:26:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+07:26:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:27:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:27:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:28:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:28:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:29:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:29:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:30:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:30:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:31:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:31:08 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:31:08 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+07:31:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:32:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:32:36 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:33:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:33:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:34:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:34:40 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:35:05 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:35:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:36:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:36:09 [node] 0x31136008 app-zone -> hv88b31102f902741d791a3e90b56f571b: spliced
+07:36:09 [node] [app-zone] app-zone 0x31136008 -> spliced: client ended
+07:36:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:37:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:37:33 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998
+07:38:03 [node] [host] 0x31136008 isolation adopted: hv88b31102f902741d791a3e90b56f571b status=running image=0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998

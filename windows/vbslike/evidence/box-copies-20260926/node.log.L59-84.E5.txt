@@ -1,0 +1,26 @@
+00:58:28 [node] [host] ledger: taking 0x31136008 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x389C3f030a209D04D026228D2D053fEB75DbadcA, 1% of a node)
+00:58:57 [node] [host] ledger: taking 0x31136008 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x389C3f030a209D04D026228D2D053fEB75DbadcA, 1% of a node)
+00:59:27 [node] [host] ledger: taking 0x31136008 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x389C3f030a209D04D026228D2D053fEB75DbadcA, 1% of a node)
+00:59:57 [node] [host] ledger: taking 0x31136008 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x389C3f030a209D04D026228D2D053fEB75DbadcA, 1% of a node)
+01:00:27 [node] [host] ledger: taking 0x31136008 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4, owner 0x389C3f030a209D04D026228D2D053fEB75DbadcA, 1% of a node)
+01:00:29 [node] [host] claimed 0x31136008 (tx 0x0340540ef5980f5821a503979b1d5ccdcee030eadb2a1001e30b02cead4d5c4a)
+01:00:31 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:00:32 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:00:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:01:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:01:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:02:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:02:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:03:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:03:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:04:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:04:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:05:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:05:39 [node] tunnel closed
+01:05:44 [node] dialing wss://api.enclave.host/v1/fleet-tunnel as nucbox-k11
+01:05:45 [node] tunnel open, waiting for the challenge
+01:05:45 [node] sent TPM keys
+01:05:48 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding)
+01:05:49 [node] attach ACCEPTED tier=hv-node measurement=
+01:05:58 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
+01:06:28 [node] [host] 0x31136008 isolation: hasSecrets: whether the deployment has staged secrets is not known here, and this tier refuses what it cannot verify
