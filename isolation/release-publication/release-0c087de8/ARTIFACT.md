@@ -25,7 +25,8 @@
   below its title, and licenses/ is identical (c4e18ee9…).
 
 ## Rebuild
-As for f7888d86 ([../release-b63c2def/ARTIFACT.md](../release-b63c2def/ARTIFACT.md)), at 0c087de8 on isolation/wx-at-attest:
+As for f7888d86 ([../release-b63c2def/ARTIFACT.md](../release-b63c2def/ARTIFACT.md)), at 0c087de8 on
+isolation/wx-at-attest:
 - `cut-release.sh 0c087de8 <dir> --reference <f7888d86's release dir> --reference-id f7888d86…`;
 - `MUSL_PREFIX=<dir>/musl make-artifact.sh 0c087de8 <outdir> --expect <dir>/release-0c087de8 --firmware <rebuilt fd>
   --firmware-versions <its versions.txt> --notices isolation/release-publication/release-0c087de8`;

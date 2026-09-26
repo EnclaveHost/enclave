@@ -55,6 +55,7 @@ offered:
 
 ## Not in this publication
 The publications of 79c5ecf2, 52156652 and f7888d86 (../release-aa6c985c/, ../release-4cdd5169/, ../release-b63c2def/)
-are HELD as well; if more than one were ever published they would share the one bundle. The earlier releases 5c3561f9 (0181bce3) and a4f22748 (17e182a8) link glibc statically into init. Their
-packages exist (../release-0181bce3/, ../release-17e182a8/), but their publication stays HELD: the open LGPL-2.1
-section 6 point applies to them, and this release does not resolve it.
+are HELD as well; if more than one were ever published they would share the one bundle. The earlier releases 5c3561f9
+(0181bce3) and a4f22748 (17e182a8) link glibc statically into init. Their packages exist (../release-0181bce3/,
+../release-17e182a8/), but their publication stays HELD: the open LGPL-2.1 section 6 point applies to them, and this
+release does not resolve it.
