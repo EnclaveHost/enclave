@@ -230,6 +230,7 @@ $ProbeBuilds = @{
   'b7ba7731240ec9025f8c92651be17ecf8af17764e2c3eb0bd20af60f00923748' = @{ initrd = '1539d5b2'; domprobe = '2c2600495d07d292'; tpm = $true }
   '0891c740ddf18ded1ea903495b70c799a5cfbe498d05843e47c7b84106ed7998' = @{ initrd = 'aaad1d37'; domprobe = '2c2600495d07d292'; tpm = $true }
   '4950052785daf26d9c712a710f118211c853a04e03c01b8d77d8ac44a50327ab' = @{ initrd = '15833b62'; domprobe = '650caedea6d2fe3d'; tpm = $true; layers = $true }
+  'afa9633c973dd7283613de99df97d3f7b7f3c41ff6eeaa65bac6a52fa95957dd' = @{ initrd = 'e8715775'; domprobe = '650caedea6d2fe3d'; tpm = $true; layers = $true }
 }
 # THE CLASSES a probe result falls in (independent audit: a timeout or no service is not enforcement).
 #   BROKEN:       it reached the target (READABLE, CONNECTED, OPENED, CREATED), or a neighbour's socket is VISIBLE (ENXIO)
