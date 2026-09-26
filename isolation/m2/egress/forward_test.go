@@ -1,6 +1,7 @@
 package egress
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/ecdsa"
@@ -9,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -421,5 +423,35 @@ func TestATransientAcceptFailureDoesNotEndTheServer(t *testing.T) {
 	cancel()
 	if err := <-done; err != nil {
 		t.Fatalf("a cancelled server returned %v", err)
+	}
+}
+
+// The forwarder logs an origin's index and a CLOSED-set class, never an error's own text: a failure whose error carries
+// content (here, the upstream's own error, and a host answer that is not "ok") prints nothing of it (enclave-e3's L1).
+func TestTheForwarderLogsOnlyAClosedSetClass(t *testing.T) {
+	const marker = "LEAKMARK-forwarder"
+	for name, up := range map[string]func() (net.Conn, error){
+		"the upstream errs": func() (net.Conn, error) { return nil, errors.New("dial " + marker) },
+		"the host refuses": func() (net.Conn, error) {
+			a, b := net.Pipe()
+			go func() { bufio.NewReader(b).ReadString('\n'); b.Write([]byte("no " + marker + "\n")); b.Close() }()
+			return a, nil
+		},
+	} {
+		var lines []string
+		f := &Forwarder{Upstream: up, Logf: func(format string, a ...any) { lines = append(lines, fmt.Sprintf(format, a...)) }}
+		tenant, other := net.Pipe()
+		go other.Close()
+		f.forward(tenant, 3, Origin{Host: "api.enclave.host"})
+		if len(lines) != 1 {
+			t.Fatalf("%s: %d log lines: %q", name, len(lines), lines)
+		}
+		ok := false
+		for _, c := range []string{"no path to the host", "the host's egress path failed", "refused by the host", "failed"} {
+			ok = ok || lines[0] == "egress origin #3: "+c
+		}
+		if !ok || strings.Contains(lines[0], marker) {
+			t.Fatalf("%s: %q is not the index and a closed-set class", name, lines[0])
+		}
 	}
 }

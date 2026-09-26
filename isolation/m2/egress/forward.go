@@ -110,7 +110,7 @@ func (f *Forwarder) forward(tenant net.Conn, idx int, o Origin) {
 	defer tenant.Close()
 	up, err := DialOrigin(f.Upstream, o)
 	if err != nil {
-		f.logf("egress origin #%d: %s", idx, err)
+		f.logf("egress origin #%d: %s", idx, dialClass(err))
 		return
 	}
 	defer up.Close()
@@ -120,21 +120,39 @@ func (f *Forwarder) forward(tenant net.Conn, idx int, o Origin) {
 // DialOrigin opens one stream to origin o through the host: the header for THIS origin, the host's "ok", then a
 // connection the caller runs TLS over (the forwarder for the tenant; the front for its own release). The caller
 // never writes a byte before the host has accepted the header. Its errors name no origin.
+// DialOrigin's failures, a CLOSED set: the guest front logs which one (dialClass), and nothing else of an error, so no
+// error type added later can carry content to the console (enclave-e3's L1 on the console guard).
+var (
+	errNoPath     = errors.New("no path to the host")
+	errPathFailed = errors.New("the host's egress path failed")
+	errRefused    = errors.New("refused by the host")
+)
+
+// dialClass is what the guest may log about a DialOrigin failure: one of the closed set above, else "failed".
+func dialClass(err error) string {
+	for _, e := range []error{errNoPath, errPathFailed, errRefused} {
+		if errors.Is(err, e) {
+			return e.Error()
+		}
+	}
+	return "failed"
+}
+
 func DialOrigin(upstream func() (net.Conn, error), o Origin) (net.Conn, error) {
 	up, err := upstream()
 	if err != nil {
-		return nil, errors.New("no path to the host")
+		return nil, errNoPath
 	}
 	up.SetDeadline(time.Now().Add(15 * time.Second))
 	if _, err := fmt.Fprintf(up, "%s %s 443\n", protoVersion, o.Host); err != nil {
 		up.Close()
-		return nil, errors.New("the host's egress path failed")
+		return nil, errPathFailed
 	}
 	br := bufio.NewReaderSize(up, 64)
 	line, err := br.ReadString('\n')
 	if err != nil || line != "ok\n" {
 		up.Close()
-		return nil, errors.New("refused by the host")
+		return nil, errRefused
 	}
 	up.SetDeadline(time.Time{})
 	return &bufConn{Conn: up, r: br}, nil

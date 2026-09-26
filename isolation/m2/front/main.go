@@ -105,7 +105,8 @@ type front struct {
 }
 
 func main() {
-	// first, before anything can log: nothing but the front's own DOM statements reaches the host's console (console.go)
+	// first, before anything can log: nothing but the front's own DOM statements reaches the host's console (console.go).
+	// Package init() functions, this package's and every import's, run BEFORE this line: none may print (enclave-e3's L2).
 	if err := guardConsole(); err != nil {
 		die("console guard: %v", err)
 	}

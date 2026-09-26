@@ -332,3 +332,17 @@ func TestTheRuntimesCrashOutputNeverReachesTheConsole(t *testing.T) {
 		})
 	}
 }
+
+// Another package's lines reach stdout only as the front's own statements (enclave-e3's L1): the egress forwarder's
+// Logf is domLogf(p.logf), so each of its lines is "DOM egress origin #N: <closed-set class>".
+func TestTheForwardersLinesAreDOMStatements(t *testing.T) {
+	var got []string
+	logf := domLogf(func(format string, a ...any) { got = append(got, fmt.Sprintf(format, a...)) })
+	logf("egress origin #%d: %s", 2, "refused by the host")
+	if len(got) != 1 || got[0] != "DOM egress origin #2: refused by the host" {
+		t.Fatalf("%q", got)
+	}
+	if domLogf(nil) != nil {
+		t.Fatal("no logger stays no logger")
+	}
+}
