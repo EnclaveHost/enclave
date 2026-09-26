@@ -25,6 +25,12 @@ function TaskState([string]$n) { $t = Get-ScheduledTask -TaskName $n -TaskPath '
 function LineCount([string]$p) { if (Test-Path -LiteralPath $p) { @(Get-Content -LiteralPath $p).Count } else { 0 } }
 
 $os = Get-CimInstance Win32_OperatingSystem
+# the boot, by the box's own monotonic counter (enclave-d1: it increments on every boot, 69 on 2026-09-26; LastBootUpTime
+# is NOT updated by a Fast Startup "shutdown then power on", so it only corroborates), and the clock it is read against
+$bootId = $null
+try { $bootId = [int](Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters' -Name BootId -ErrorAction Stop).BootId } catch { $bootId = $null }
+$w32 = $e = $null; $e = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+try { $w32 = @(& w32tm /query /status 2>&1 | ForEach-Object { "$_".Trim() } | Where-Object { $_ -match '^(Source|Stratum|Last Successful Sync Time):' }) -join '; ' } finally { $ErrorActionPreference = $e }
 $sb = $null; try { $sb = [bool](Confirm-SecureBootUEFI) } catch { $sb = $null }
 $vms = @(Get-VM | Where-Object { $_.Notes -like 'enclave-vbslike-app-domain*' } |
   ForEach-Object { [ordered]@{ name = $_.Name; vmId = [string]$_.VMId; state = [string]$_.State; uptimeSec = [int]$_.Uptime.TotalSeconds } })
@@ -33,7 +39,7 @@ $mine = @($all | Where-Object { "$($_.name)".ToLower() -eq $id })
 $av = GetJson "http://127.0.0.1:$LocalPort/availability"
 $cap = [ordered]@{
   phase = $Phase; at = (Get-Date).ToUniversalTime().ToString('o'); deployment = $id
-  lastBoot = $os.LastBootUpTime.ToUniversalTime().ToString('o'); secureBoot = $sb
+  bootId = $bootId; lastBoot = $os.LastBootUpTime.ToUniversalTime().ToString('o'); timeSource = $w32; secureBoot = $sb
   tasks = [ordered]@{ manager = (TaskState 'EnclaveHvManager'); node = (TaskState 'EnclaveHvNode'); legacy = (TaskState 'EnclaveWindowsNode') }
   vms = $vms
   managerRecords = @($mine | ForEach-Object { [ordered]@{ id = $_.id; status = $_.status; recovered = [bool]$_.recovered; vmState = $_.vmState; transportKeySha256 = $_.transportKeySha256; tier = $_.tier } })
@@ -45,8 +51,9 @@ $file = Join-Path $OutDir "capture-$Phase.json"
 $cap | ConvertTo-Json -Depth 6 | Set-Content -Path $file -Encoding UTF8
 Write-Output "wrote $file"
 if ($Phase -eq 'pre') {
-  Write-Output ("pre: boot {0}; VMs {1}; record {2}; key {3}; node.log {4} lines" -f $cap.lastBoot, $vms.Count,
-    $(if ($mine.Count) { "$($mine[0].id) $($mine[0].status)" } else { 'none' }), $(if ($mine.Count) { "$($mine[0].transportKeySha256)" } else { '-' }), $cap.nodeLogLines)
+  if ($null -eq $bootId) { Write-Output 'FAIL pre: the BootId counter is unreadable, so a reboot could not be told from none'; exit 1 }
+  Write-Output ("pre: BootId {5}; boot {0}; VMs {1}; record {2}; key {3}; node.log {4} lines" -f $cap.lastBoot, $vms.Count,
+    $(if ($mine.Count) { "$($mine[0].id) $($mine[0].status)" } else { 'none' }), $(if ($mine.Count) { "$($mine[0].transportKeySha256)" } else { '-' }), $cap.nodeLogLines, $bootId)
   if ($mine.Count -ne 1 -or "$($mine[0].status)" -ne 'running') { Write-Output 'FAIL pre: the deployment is not running on exactly one partition: fix that before rebooting'; exit 1 }
   exit 0
 }
@@ -57,8 +64,10 @@ $script:fails = 0
 function Say([string]$k, [string]$m) { Write-Output ("{0,-4} {1}" -f $k, $m); if ($k -eq 'FAIL') { $script:fails++ } }
 function Check([bool]$ok, [string]$m) { if ($ok) { Say 'PASS' $m } else { Say 'FAIL' $m } }
 $preRec = @($pre.managerRecords)[0]
-if ($ManagerOnly) { Check ([datetime]$cap.lastBoot -eq [datetime]$pre.lastBoot) "the host did NOT reboot (manager-only variant; boot $($cap.lastBoot))" }
-else { Check ([datetime]$cap.lastBoot -gt [datetime]$pre.lastBoot) "the host rebooted (boot $($pre.lastBoot) -> $($cap.lastBoot))" }
+# the reboot, by BootId (exact); LastBootUpTime corroborates; both clocks named
+if ($ManagerOnly) { Check ($null -ne $bootId -and $bootId -eq [int]$pre.bootId) "the host did NOT reboot (manager-only variant): BootId $($pre.bootId) -> $bootId" }
+else { Check ($null -ne $bootId -and $bootId -eq ([int]$pre.bootId + 1)) "the host rebooted exactly once: BootId $($pre.bootId) -> $bootId" }
+Say 'INFO' ("LastBootUpTime {0} -> {1} (corroboration only); time source before: {2}; after: {3}" -f $pre.lastBoot, $cap.lastBoot, $pre.timeSource, $cap.timeSource)
 Check ($sb -eq $true) 'Secure Boot is ON'
 Check ($cap.tasks.legacy -eq 'Disabled') "the legacy task \EnclaveWindowsNode is present and Disabled ($($cap.tasks.legacy))"
 Check ($cap.tasks.manager -eq 'Running' -and $cap.tasks.node -eq 'Running') "both hv tasks Running (manager $($cap.tasks.manager), node $($cap.tasks.node))"

@@ -46,7 +46,9 @@ with `shutdown /a`. Record the time (read, UTC). Nothing is stopped by hand firs
 ## Evidence AFTER (within 15 minutes of the boot)
 1. Box, once both tasks are Running: `hvnode-reboot-capture.ps1 -Phase post -DeploymentId <id> -OutDir <the same dir>`.
    It JUDGES against the pre capture, exit 1 on any FAIL:
-   - the host rebooted;
+   - the host rebooted exactly once: the box's BootId counter (HKLM ...\PrefetchParameters\BootId) = pre + 1, with
+     LastBootUpTime as corroboration only (a Fast Startup power cycle does not update it; enclave-d1), and the time
+     source (w32tm) recorded both times;
    - Secure Boot ON; the legacy task Disabled;
    - both hv tasks Running;
    - exactly ONE tagged VM, Running, and the pre-reboot VM gone from Hyper-V;
