@@ -103,6 +103,7 @@ const S = {
   verFee: 0n,                                  // versionFee(appId, *) on the rev-5 catalog (µUSDC/s)
   fleetResize: true,                           // availability.shareResize (fleet-AND; resize tests flip it)
   cap6: 0n,                                    // capOf() (rev-8 ledgers): the deployment's hourly ceiling
+  refundable6: 0n,                             // refundableOf() (rev-10 ledgers)
   fleetRateCap: true,                          // availability.rateCap (fleet-AND for cap edits)
   fleet: null,                                 // GET /enclaves rows (per-box hardware; null = no fleet view)
   money: null,                                 // get(ID) rate/balance6 override ({rate,balance6}); null = the paid default
@@ -262,6 +263,7 @@ function rpcServer() {
       maxFeePerSec6: () => [1389n],          // the publish-time cap (~$5.00/hour)
       feeOf: () => [OWNER, S.verFee],        // rev-4 surface: the deployment's fee snapshot
       capOf: () => [S.cap6],                 // rev-8 surface: the deployment's spend ceiling
+      refundableOf: () => [S.refundable6],   // rev-10 surface: what refund() would pay back now
       getAppsPage: () => [Number(args[0]) === 0 ? [{ appId: APP_ID, publisher: OWNER, slug: "hello-world",
         name: "Hello World", description: "first app", versionCount: S.versionCount, createdAt: 1n, updatedAt: 1n, active: true }] : []],
       getVersionsPage: () => [Number(args[1]) === 0 ? [version, version2()].slice(0, S.versionCount) : []],
@@ -617,6 +619,25 @@ test("stop: with nothing sent on-chain (already inactive), a failing teardown is
     assert.match(r.err, /^error: .*refusing to sign/m);
     assert.doesNotMatch(r.out, /stopped on-chain/);
   } finally { S.evilNonce = null; S.active = true; fs.rmSync(fresh, { recursive: true, force: true }); }
+});
+
+// A refund CANCELS the record, and the ledger funds only an active one (EnclaveDeployments _requireActive: "inactive"),
+// so the old closing hint "`enclave fund <id>` brings it back" named a transaction that reverts (enclave-d1, 09-26 TEST2-MINI:
+// the cancelled 0x958ae6e9 can come back only through setActive(true)). The hint names resume, then a fund.
+test("refund: sends refund(id), says the record is cancelled, and names RESUME (not fund) as the way back", async () => {
+  S.txs.length = 0; S.depRev = 13n; S.refundable6 = 2_000000n;
+  try {
+    const r = await run(["refund", ID]);
+    assert.equal(r.code, 0, r.err);
+    const rf = S.txs.find((t) => t.functionName === "refund");
+    assert.deepEqual(rf && rf.args, [ID]);
+    const s = ID.slice(0, 10) + "…";
+    assert.match(r.out, new RegExp(`${s} is cancelled`));
+    assert.ok(r.out.includes(`\`enclave resume ${s}\` re-activates it`), r.out);
+    assert.doesNotMatch(r.out, /brings it back/);
+    // the fund it mentions comes AFTER the resume, as a balance, never as the way back on its own
+    assert.ok(r.out.indexOf("enclave resume") < r.out.indexOf("enclave fund"), r.out);
+  } finally { S.depRev = 3n; S.refundable6 = 0n; }
 });
 
 test("resume: setActive(true) on-chain + claim-hint nudge", async () => {

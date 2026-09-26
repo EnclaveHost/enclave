@@ -1635,7 +1635,9 @@ async function cmdRefund(rest) {
   const r = await api("DELETE", `/v1/deployments/${id}`, { auth: account, ok404: true }).catch(() => null);
   if (opt.json) return jout({ id, refunded6: String(amount6), refunded: Number(amount6) / 1e6, to: account.address, teardown: r || null });
   say(`refunded ${usd6(amount6)} to ${account.address}; ${short(id)} is cancelled`);
-  say(`\`enclave fund ${short(id)} --usdc 5\` brings it back if you change your mind`);
+  // a refund CANCELS the record, and the ledger funds only an ACTIVE one (_requireActive): `fund` alone reverts
+  // "inactive" here. `resume` (setActive(true)) re-activates it; a balance is then a separate fund.
+  say(`\`enclave resume ${short(id)}\` re-activates it if you change your mind; it runs again once it holds a balance (\`enclave fund ${short(id)} --usdc 5\`)`);
 }
 
 // Hand a deployment to another wallet (rev-11 ledgers). A transfer moves
