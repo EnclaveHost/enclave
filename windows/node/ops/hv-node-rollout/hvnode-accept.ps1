@@ -2,8 +2,11 @@
 # half; the relay/public half is hvnode-accept-remote.sh). Prints PASS / FAIL / INFO; exits 1 on any FAIL.
 #   powershell -ExecutionPolicy Bypass -File hvnode-accept.ps1 -Commit <node commit, 8+ hex> [-DeploymentId 0x…] [-KillRecovery] [-OwnerRestart]
 # A9 (with -DeploymentId) is the LIVE check of N1 on the NODE itself, through its loopback port (b4's F1: through the
-# relay, B refuses these paths before the node ever sees them): no session -> 401, a stranger's OWN session minted on
-# the node -> 404; with -OwnerRestart (it really restarts the app) the operator's own session -> 200.
+# relay, B refuses these paths before the node ever sees them). Its NEGATIVE probes aim at the ZERO id, never the live
+# one (enclave-87's hard rule, 2026-09-26: a check never sends a production apply at live state and relies on a guard to
+# refuse): no session -> 401 (a PASS/FAIL: the session is checked before any lookup), a stranger's OWN session minted
+# on the node -> INFO (on a nonexistent id its 404 cannot say why; the proof is test/windows-node-restart-gate.test.mjs),
+# a 200 FAILS. Only -OwnerRestart (it really restarts the app, on purpose) sends the live id: the operator's session -> 200.
 # -KillRecovery (NOT read-only; enclave-d1's review, item 5) kills the agent's node.exe, then the manager's, by exact PID,
 # and requires the run-*.cmd loop to bring each back: a new PID, and /availability or /health answering within 60 s.
 param(
@@ -120,6 +123,8 @@ if ($DeploymentId) {
 import fs from "node:fs";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 const [base, id, keyFile] = process.argv.slice(2);
+// the negative probes' target: the ZERO id, whatever id the caller passed (test/hvnode-negative-probes.test.mjs)
+const ZERO = "0x" + "0".repeat(64);
 const req = async (method, p, body, token) => {
   const r = await fetch(base + p, { method, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(30000) });
@@ -132,9 +137,9 @@ async function session(acct) {
   return ls === 200 && l.token ? l.token : null;
 }
 const out = [];
-out.push(`none=${(await req("POST", `/v1/deployments/${id}/restart`, {}))[0]}`);
+out.push(`none=${(await req("POST", `/v1/deployments/${ZERO}/restart`, {}))[0]}`);
 const st = await session(privateKeyToAccount(generatePrivateKey()));
-out.push(`stranger=${st ? (await req("POST", `/v1/deployments/${id}/restart`, {}, st))[0] : "nosession"}`);
+out.push(`stranger=${st ? (await req("POST", `/v1/deployments/${ZERO}/restart`, {}, st))[0] : "nosession"}`);
 if (keyFile) {
   let k = fs.readFileSync(keyFile, "utf8").trim(); if (!k.startsWith("0x")) k = "0x" + k;
   const ot = await session(privateKeyToAccount(k)); k = null;
@@ -148,8 +153,9 @@ console.log(out.join(" "));
     try { $res = [string](& $NodeExe $n1 "http://127.0.0.1:$LocalPort" $DeploymentId.ToLower() $keyArg 2>&1) } finally { $ErrorActionPreference = $e }
   } finally { Remove-Item -Force $n1 -ErrorAction SilentlyContinue }
   Say 'INFO' "A9 node loopback N1 check: $res"
-  Check ($res -match '(^| )none=401( |$)') 'A9 a restart with NO session is 401 on the node (N1)'
-  Check ($res -match '(^| )stranger=404( |$)') "A9 a stranger's own session is 404 on the node (not the owner)"
+  Check ($res -match '(^| )none=401( |$)') 'A9 a restart of the ZERO id with NO session is 401 on the node (N1: the session is checked before any lookup)'
+  if ($res -match '(^| )stranger=200( |$)') { Say 'FAIL' "A9 a stranger's own session restarting the zero id got 200: a restart the node must never grant" }
+  else { Say 'INFO' "A9 a stranger's own session on the ZERO id: $(if ($res -match '(^| )(stranger=\S+)') { $matches[2] } else { 'no answer' }) (not counted: on a nonexistent id 404 cannot say why; test-level proof)" }
   if ($OwnerRestart) { Check ($res -match '(^| )owner=200( |$)') "A9 the operator's own session restarts its own deployment (200)" }
 }
 
