@@ -1,6 +1,6 @@
 # The v41/v42 candidate canary on the NucBox: what to run, what to see
 (Written for 252602c8 / guest 4cdd5169, which FAILED item 1's load on every domain; the rebuilt candidate is from
-guest d9176ed5, section 0.)
+guest 298924ae, section 0. d9176ed5 is NOT a candidate: enclave-bf's F1/F2.)
 
 For enclave-d1's isolated lab manager on nucbox-k11 (own instance prefix and ports, `uefi-probe.lock` held, the candidate as
 an explicit override). Everything here is SYNTHETIC: no tenant data, no production deployment. Nothing is improvised on the
@@ -23,13 +23,18 @@ The sentinel app, staged on the workstation (copy it to the box's lab directory)
   - on `GET /panic…` it panics with `SNTLa67d9469ffe1-PANIC <path>` (the runtime prints the panic and the trap on stderr).
   Every request is answered `200 ok` (Content-Length 2, Connection: close).
 
-## 0. The rebuilt candidate (isolation/front-console-guard d9176ed5: 683798d0 + 139c3fdd + d9176ed5)
+## 0. The rebuilt candidate (isolation/front-console-guard 298924ae: 683798d0 + 139c3fdd + d9176ed5 + 298924ae)
 The failure of 252602c8 (every domain: `DOM1 ERROR runtime exited status=126`, the chroot had no /dev) is fixed by the
-monitor handing the null device to domexec on fd 3. The front is also hardened. On EVERY load, the console must show:
-- `MON yama …`, once at boot, right after `MON boundary`: which case the NucBox kernel is in (`yama ptrace_scope=N -> 2`,
-  `(already >= 2)`, or `yama absent …`). RECORD it; an absent Yama is stated, not a failure;
-- `DOM front: not dumpable`, from each domain's front, before `DOM serving`;
-- NEVER `DOM front: traced at start (pid N): refusing`, `… ERROR the monitor handed no null device …`, or
+monitor handing the null device to domexec on fd 3. The front is also hardened, and Yama is now REQUIRED (enclave-bf's
+F1/F2, enclave-87's ruling): the monitor sets ptrace_scope to 2 and reads it back, or it stops before `ready`.
+- At boot, once, right after `MON boundary`: `MON yama ptrace_scope=1 -> 2` (the NucBox kernel 7fe3edb5 has Yama, default
+  1: enclave-d1), or `MON yama ptrace_scope=N (already >= 2)`. RECORD it. The value after `->` is the monitor's own
+  READ-BACK of /proc/sys/kernel/yama/ptrace_scope: nothing else needs to run inside the guest.
+- FAIL, and the partition powers off with no `MON ready`: `MON yama …: domains refused (a same-uid runtime could attach to
+  the front)` followed by `MON ERROR refusing to start: yama …`. Report the exact line to enclave-5d and enclave-87.
+- On EVERY load, from each domain's front, before `DOM serving`: `DOM front: not dumpable; none of its N threads traced`
+  (N is the front's thread count, a small number; RECORD it).
+- NEVER `DOM front: traced at start (thread T, tracer P): refusing`, `… ERROR the monitor handed no null device …`, or
   `DOM<n> ERROR runtime exited status=126`.
 
 ## 1. domexec's app-stdio discard (the tenant runtime gets /dev/null)
