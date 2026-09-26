@@ -1437,8 +1437,12 @@ test("draft v41 re-pins control/ to cf1ac30d (e3acc392 + 39d5922e's manager-acce
   assert.equal(d.rollback.files.length, 4); assert.match(d.rollback.note, /v40's own rollback record names v39.*host-prereq\.ps1 -Rollback/);
   // the acceptance record says which tree ran, and that this one has not
   assert.match(d.acceptance.status, /^RAN, on v40's control\/ tree \(e3acc392, not this version's\): enclave-d1's v40 lab series 2ea79951.*NOT YET RUN on this version's control\/ tree \(cf1ac30d\)/);
+  // v41's one known gap (enclave-53's catch after enclave-bf's GO): its pending candidate and twin are not in
+  // vmWorkerRead. The current verifier refuses v41 for exactly that, and for nothing else.
   const r = run(["verify", D]);
-  assert.equal(r.code, 0, fails(r.out));
+  assert.notEqual(r.code, 0);
+  assert.equal(fails(r.out), "FAIL vmWorkerRead names every firmware image the package ships (the profile firmware, each candidate and each probe): " +
+    `not granted to the VM worker: ${NCF}, ${NDF}\nFAIL package 23a41fbd3babf52b29793f1d39f30a06ec707f6ce3fed06800913a72661dedce`, "the gap, and only the gap");
   assert.match(r.out, /ok   the rollback record names a committed version and exactly its pins \(v40, f4a0bf27\)/);
 });
 
