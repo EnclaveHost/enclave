@@ -60,7 +60,11 @@ else
                   [f7888d86:0x4e62e60d]=4bfae407cddd0e7cac1a886aabdc45711ab7718053f27c1f28f64eb6c3bfd2ca239f5613f270b4ef51f897116f28e84e
                   [5db18199:0x0ddbd824]=6716ef1462e1ebabc4fd388c44dea5da1fe6902a60bedbc47aaaeae5199ee91003c8c842c34dde264b31d10c68d5871b
                   [5db18199:0x395bed3e]=be2bb73c799fa8315d23101521da7f2bf944d7964a56793ce713266426af47237758961ee2b9c2ca22683e43aac13f2b
-                  [5db18199:0x4e62e60d]=be2bb73c799fa8315d23101521da7f2bf944d7964a56793ce713266426af47237758961ee2b9c2ca22683e43aac13f2b)
+                  [5db18199:0x4e62e60d]=be2bb73c799fa8315d23101521da7f2bf944d7964a56793ce713266426af47237758961ee2b9c2ca22683e43aac13f2b
+                  # aee2059f (R, rs-11): enclave-63's and enclave-bf's independent values (expected-measurement.sh --pin, 4cd26e58)
+                  [aee2059f:0x0ddbd824]=3facefd88284eac612f9b4e71ee35fc7b200d74f352c4d8d20e8b35e4a9599a456b88716d3d4f0bf579ee156c0cb57f4
+                  [aee2059f:0x395bed3e]=8a291bbf99818bdb6339ee34020d194d1de385c9f4597db60525c8cef0cc0318943e41d4d6d5ee4c3a98c4972b279504
+                  [aee2059f:0x4e62e60d]=8a291bbf99818bdb6339ee34020d194d1de385c9f4597db60525c8cef0cc0318943e41d4d6d5ee4c3a98c4972b279504)
   for id in 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e; do
     want=""; for rel in $ADMIT; do p=${PIN[${rel:0:8}:${id:0:10}]:-}; [ -n "$p" ] || { bad "no pin for ${rel:0:8} x ${id:0:10}"; continue; }; want="$want $rel:$p"; done
     eg=""; end=$(( $(date +%s) + 240 ))
