@@ -20,7 +20,11 @@ export const RUNTIME = { name: "wasmtime", version: "48.0.1", execution: "jit", 
 // the runtime self-test, as the attest-time scan states it (the domain's cgroup scanned at EACH attestation, by role): the
 // form d1's dev-boot of 49500527 states on the box (evidence fecc47ae), and the only form v43's per-image judge accepts
 // for an image its legacy table does not list (enclave-53, 09-26)
-export const SELFTEST = "exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1";
+// v44 (judge-hv's per-image seccomp, main 53c0be98 + 4dc75f46): an image after v43 must ALSO state its runtime's seccomp filter,
+// seccomp=<sha256 of the BPF program> - the filter m2/app-seccomp.h compiles (d4d17c9f, 71 insns; 53's R cut, enclave-87)
+export const SECCOMP = "d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66";
+export const SELFTEST_NO_SECCOMP = "exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1";   // v43's form
+export const SELFTEST = `${SELFTEST_NO_SECCOMP} seccomp=${SECCOMP}`;
 // the LEGACY form (one scan at front start, before the runtime existed; covers NO runtime): judge-hv accepts it only for an
 // image in its LEGACY_WX_IMAGES table, and then as "runtime W^X UNMEASURED", never clean
 export const LEGACY_SELFTEST = "exec_pages=allowed wx=clean maps=3 scope=all-processes";
