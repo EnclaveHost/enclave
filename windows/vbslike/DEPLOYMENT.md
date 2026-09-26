@@ -70,7 +70,8 @@ never deleted; the legacy `ee-engine` is never restored or signed; respawn is OF
   domain uid); fixed in v43 by a separate front uid and a front-only report channel". Found by enclave-bf 2026-09-26
   (monitor main.go: `/run/monitor.sock` 0666 bind-mounted into every domain, the caller named by uid alone, `/run` owned
   by the domain uid); it needs a runtime escape and exists on v40 and v42. The model is runtime-vs-front (enclave-87's
-  ruling); domain-vs-domain isolation still holds. The SNP tier is not affected (its front is root, its report
+  ruling); domain-vs-domain isolation still holds. The v43 fix is on `isolation/front-uid` `a8de8ca2` (in review:
+  5d, then bf), on top of the runtime seccomp filter. The SNP tier is not affected (its front is root, its report
   interface root-only).
 
 ## 3. Evidence index
