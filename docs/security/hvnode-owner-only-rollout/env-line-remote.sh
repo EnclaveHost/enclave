@@ -19,6 +19,7 @@ tdig() { grep -E '^TRUSTED_OPERATORS=' "$1" | sha256sum | cut -c1-16; }
 [ "$(id -u)" = 0 ] || die "run as root on nan"
 modeok "$ENV" || die "$ENV is not 0600 root"
 [ -z "$(tail -c1 "$ENV")" ] || die "$ENV does not end with a newline"
+[ "$(grep -cE '^[a-z.-]+\.m?js [0-9a-f]{64}$' <<<"$PINS")" = 6 ] && [ "$(grep -c . <<<"$PINS")" = 6 ] || die "PINS is not the 6 relay files (enclave-bf)"
 while read -r f h; do [ -n "$f" ] || continue; [ "$(sha256sum < "$R/$f" | cut -c1-64)" = "$h" ] || die "$R/$f is not B's reviewed file"; done <<<"$PINS"
 systemctl is-active --quiet enclave-api-relay || die "enclave-api-relay is not active"
 T0=$(tdig "$ENV")
