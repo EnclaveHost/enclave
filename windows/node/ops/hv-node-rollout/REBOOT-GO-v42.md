@@ -27,10 +27,19 @@ today's live state differs from what REBOOT.md assumed. Deployment: test 1 `0x31
   first serves its self-signed certificate. hvcert (node, 15 s after start, then every 60 s) must issue a ZeroSSL
   certificate for the NEW key inside the 15 minutes. This is the FIRST live issuance under f1461271's judge-hv
   per-image rule: v42's image `0891c740` is listed as legacy, and the record carries guestIdentity + image (above), so
-  the legacy path applies ("runtime W^X unmeasured"). A failure backs off 5, then 10 min, and that can miss the deadline.
-- **G3. Do NOT stop or refund test 1 at the soak's end.** DEPLOYMENT.md E13 says the soak ends with test 1 stopped
-  (`enclave refund`). The reboot needs test 1 running with a lease at least 30 min out, so: the final summary, THEN this
-  acceptance, THEN the stop and refund, if still wanted.
+  the legacy path applies ("runtime W^X unmeasured"). **Proven offline at 2026-09-26T06:32:13Z (enclave-87's G2(a),
+  read-only):** f1461271's own `hvcert.mjs hvJudge(view, pin)`, with the manager's record as the view, judged test 1's
+  LIVE attestation (a fresh nonce, over b4's own TLS through `/x`; handshake spki = the manager's `4d80b956…`):
+  `monitor-signed`, wxCoverage `runtime-unmeasured` (the v42 legacy path). So G2's only remaining risk is issuance (the
+  CA, the network). A failure backs off 5, then 10 min: **the certificate window is 30 min** (enclave-87).
+- **G3. Do NOT stop or refund test 1 at the soak's end** (enclave-87's order): the final soak summary → enclave-e3's
+  owner-grace relay window → THIS acceptance → the v43 manager-path canary → THEN test 1's stop and refund, if still
+  wanted.
+- **G7. The lease** (enclave-87, from enclave-d1's cadence). The node renews only within its 15-min lead, +30 min each
+  time (test 1's land at about :20 and :50), so leaseUntil is 15-45 min ahead depending on the minute; ≥60 is out of
+  reach without an operator transaction, which is not done. So step 5 starts RIGHT AFTER the node's own `renewed
+  0x31136008` line, with leaseUntil read on chain ≥ 40 min out (≈44). After the boot the FIRST renewal must land before
+  that leaseUntil: none is a FAIL (the recovery held the lease).
 - **G4. `-Commit` is `f146127176f7`** (REBOOT.md predates it).
 - **G5. No re-attach churn** (682dc63d). With no delegation files the owners cannot change, so node.log since the boot
   must show ONE `attach ACCEPTED` and no `attaching again` or `REMOVED` line. The capture script does not check this;
@@ -48,19 +57,20 @@ today's live state differs from what REBOOT.md assumed. Deployment: test 1 `0x31
 | # | Where | Command | PASS when |
 |---|---|---|---|
 | 0 | box | `try { $l=[IO.File]::Open('C:\Users\claude\uefi-probe.lock','OpenOrCreate','ReadWrite','None'); $l.Close(); 'free' } catch { 'HELD' }` · `Get-VM` · `Get-ScheduledTask \| ? State -eq Running` | `free`; `Get-VM` lists only the one test-1 VM (anything else has its owner's OK); no install or lab run active; enclave-87's go recorded with its time |
-| 1 | ws | `node soak-summary-ecfb7b3f.mjs --summary 20260926T040105Z.jsonl` (the soak's own final summary, d1), then `node soak.mjs --once --via x --out before-once.jsonl` | the summary is recorded; the one-shot sample: `ok:true`, status 200, `authorized:true`, ZeroSSL chain, `spkiSha256` = `4d80b956…` |
+| 1 | ws | `node soak-summary-ecfb7b3f.mjs --summary 20260926T040105Z.jsonl` (the soak's own final summary, d1), then `node soak.mjs --once --via x --out before-once.jsonl` | the summary is recorded; the one-shot sample: `ok:true`, status 200, `authorized:true` (a publicly trusted chain: ZeroSSL or Let's Encrypt, the issuer INFO - the relay fails over between CAs, enclave-d1), `spkiSha256` = `4d80b956…` |
 | 2 | box | `hvnode-accept.ps1 -Commit f146127176f7 -DeploymentId $ID` (read-only: no `-KillRecovery`, no `-OwnerRestart`) | all PASS |
 | 3 | box | `hvnode-reboot-capture.ps1 -Phase pre -DeploymentId $ID -OutDir C:\Users\claude\vbs-like\hvnode\reboot-<UTC stamp>` | exit 0; `pre: BootId 69; … VMs 1; record hv88b31102… running; key 4d80b956…` |
 | 4 | ws | `hvnode-accept-remote.sh $ID 4d80b9566a3ab6c4d898b03ad09a9309f326b891f2b1ddc5bb63ab10046cccb1` | all PASS except R4's hostname lines (G1: INFO). Keep R1 (verifiedAt, bootCounter), R3 (gas ≥ 0.0005 ETH, nonce latest = pending), and the ledger's leaseUntil (≥ 30 min out), balance6 and runner |
-| 5 | box | `shutdown.exe /r /t 60 /d p:0:0 /c "enclave hv-node reboot acceptance"`, then record `(Get-Date).ToUniversalTime()` | issued; abortable for 60 s with `shutdown /a` |
+| 5 | box | wait for a fresh `renewed 0x31136008` line in node.log and read leaseUntil on chain (G7), then `shutdown.exe /r /t 60 /d p:0:0 /c "enclave hv-node reboot acceptance"`, and record `(Get-Date).ToUniversalTime()` | leaseUntil ≥ 40 min after the shutdown; issued within ~10 min of that renewal; abortable for 60 s with `shutdown /a` |
 | 6 | ws | `until ssh -o ConnectTimeout=10 minipc-zt hostname; do sleep 20; done` (read-only reachability) | the box answers |
 | 7 | box | `hvnode-reboot-capture.ps1 -Phase post -DeploymentId $ID -OutDir <the same dir>`, re-run read-only until PASS or the deadline | exit 0. It judges: BootId 70, Secure Boot ON, the legacy task Disabled, both tasks Running, ≤ 15 min; ONE tagged VM, the NEW instance's; the old vmId gone; ONE record, running, not recovered, NEW instance, NEW key; owner-only, tier hv-node; `<ID10> restart recovery: the recovered VM hv88b31102f902741d791a3e90b56f571b (Off) was retired; starting ONE fresh partition`; no reboot-recovery hold; no `card price now`. Note the printed NEW key |
-| 8 | box | `Select-String C:\Users\claude\vbs-like\hvnode\logs\node.log -Pattern 'attach ACCEPTED\|attaching again\|REMOVED\|certificate' \| select -Last 12` | since the boot: ONE `attach ACCEPTED`; no `attaching again` and no `REMOVED`; `0x31136008 certificate: 31136008.app.enclave.host installed in partition <NEW instance> (key <NEW key16>…, …ZeroSSL…; domain monitor-signed)` (G2). A single `certificate: none … retry` before it is INFO if the install still lands in time |
+| 8 | box | `Select-String C:\Users\claude\vbs-like\hvnode\logs\node.log -Pattern 'attach ACCEPTED\|attaching again\|REMOVED\|certificate' \| select -Last 12` | since the boot: ONE `attach ACCEPTED`; no `attaching again` and no `REMOVED`; `0x31136008 certificate: 31136008.app.enclave.host installed in partition <NEW instance> (key <NEW key16>…, <issuer>; domain monitor-signed)` within 30 min of the boot (G2; a `certificate: none … retry` before it is INFO); and the FIRST `renewed 0x31136008` after the recovery, before the pre-reboot leaseUntil (G7) |
 | 9 | box | `hvnode-accept.ps1 -Commit f146127176f7 -DeploymentId $ID` | all PASS (A4's gas figure is INFO for the node's first 12 min) |
 | 10 | ws | `hvnode-accept-remote.sh $ID <NEW key>` | all PASS except R4's hostname lines (G1); R1 bootCounter = step 4's + 1, verifiedAt after the reboot. Ledger: the same runner (nucbox-k11), a live lease, NO release transaction for ID, balance6 moving on |
-| 11 | ws | `node soak.mjs --once --via x --out after-once.jsonl` | `ok:true`, status 200, `authorized:true`, ZeroSSL chain, `spkiSha256` = the NEW key (≠ `4d80b956…`) |
+| 11 | ws | `node soak.mjs --once --via x --out after-once.jsonl` | `ok:true`, status 200, `authorized:true` (a publicly trusted chain; the issuer INFO), `spkiSha256` = the NEW key (≠ `4d80b956…`) |
 
-**PASS = steps 7-11 within 15 minutes of the boot, with no operator action.** Keep every output in the reboot OutDir
+**PASS = step 7 within 15 minutes of the boot; steps 8-11 within 30 minutes of it (the certificate window, G2); the first
+renewal before the pre-reboot leaseUntil (G7); and no operator action.** Keep every output in the reboot OutDir
 (box) and in `~/enclave-bench/reboot-v42-<stamp>/` (ws). Then G3's stop and refund, if still wanted.
 
 ## What the soak monitor shows
@@ -76,7 +86,7 @@ today's live state differs from what REBOOT.md assumed. Deployment: test 1 `0x31
   `Start-ScheduledTask EnclaveHvNode`. The acceptance FAILED (an operator acted).
 - Held (`isolation: reboot recovery: … held`): the owner's session restart
   (`hvnode-accept.ps1 -DeploymentId $ID -OwnerRestart`), then A7 and step 11 again. FAILED.
-- Everything passes except the certificate by the deadline: record FAIL (G2) and restart NOTHING. hvcert retries by
+- Everything passes except the certificate within 30 min: record FAIL(cert) (G2) and restart NOTHING. hvcert retries by
   itself; record when the install line lands.
 - The node misbehaves otherwise: `hvnode-rollback.ps1` (nothing serving, nothing deleted).
 - Secure Boot is off, or the legacy task changed: stop, touch nothing, report to enclave-87 and Steven.
