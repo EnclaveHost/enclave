@@ -1,0 +1,8 @@
+observe 8t from 05:26:49Z for 600 s (current e6 keys; guestd.0c087de8 on iso-0c087de8)
+r1 05:27:03Z 3/3 canaries 200 on current keys, relay serving, guestd as expected, node 4c-c
+r2 05:29:18Z 3/3 canaries 200 on current keys, relay serving, guestd as expected, node 4c-c
+r3 05:31:32Z 3/3 canaries 200 on current keys, relay serving, guestd as expected, node 4c-c
+r4 05:33:46Z 3/3 canaries 200 on current keys, relay serving, guestd as expected, node 4c-c
+r5 05:36:01Z 3/3 canaries 200 on current keys, relay serving, guestd as expected, node 4c-c
+r6 05:37:06Z 3/3 canaries 200 on current keys, relay serving, guestd as expected, node 4c-c
+GATE PASSED: 6 rounds over 617 s (read from the clock)
