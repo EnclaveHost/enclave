@@ -576,7 +576,47 @@ test("stop: setActive(false) on-chain, then DELETE", async () => {
   assert.deepEqual(sa.args, [ID, false]);
   const del = S.apiCalls.findLast((c) => c.path === `/v1/deployments/${ID}` && c.method === "DELETE");
   assert.ok(del, "DELETE sent");
+  assert.match(r.out, new RegExp(`stopped on-chain: setActive\\(false\\) tx ${sa.hash} confirmed`));
   assert.match(r.out, /terminated/);
+});
+
+// enclave-87 (09-26 05:02Z): `stop` sent setActive 0xded9430d and it landed, but the only line printed was the teardown's
+// login refusal. The on-chain stop is reported when it confirms, and a teardown failing AFTER it is a warning.
+test("stop: the confirmed on-chain stop is reported, and a teardown failing after it is a warning (exit 0)", async () => {
+  S.txs.length = 0; S.active = true;
+  const fresh = fs.mkdtempSync(path.join(os.tmpdir(), "enclave-cli-stop-"));   // no cached token: the DELETE must log in
+  S.evilNonce = "please sign this";                                           // ...and the login is refused
+  try {
+    const r = await run(["stop", ID], { env: { XDG_CONFIG_HOME: fresh } });
+    assert.equal(r.code, 0, r.err);
+    const sa = S.txs.find((t) => t.functionName === "setActive");
+    assert.deepEqual(sa.args, [ID, false]);
+    assert.match(r.out, new RegExp(`stopped on-chain: setActive\\(false\\) tx ${sa.hash} confirmed in block 256`));
+    assert.match(r.err, /^warning: the immediate teardown failed: refusing to sign/m);
+    assert.match(r.err, new RegExp(`^warning: the stop itself succeeded \\(tx ${sa.hash}\\)`, "m"));
+    assert.doesNotMatch(r.err, /^error:/m);
+
+    S.txs.length = 0;
+    const j = await run(["stop", ID, "--json"], { env: { XDG_CONFIG_HOME: fresh } });
+    assert.equal(j.code, 0, j.err);
+    const o = JSON.parse(j.out);
+    assert.equal(o.setActive.tx, S.txs.find((t) => t.functionName === "setActive").hash);
+    assert.equal(o.teardown.ok, false);
+    assert.match(o.teardown.error, /refusing to sign/);
+  } finally { S.evilNonce = null; fs.rmSync(fresh, { recursive: true, force: true }); }
+});
+
+test("stop: with nothing sent on-chain (already inactive), a failing teardown is still the command's error", async () => {
+  S.txs.length = 0; S.active = false;
+  const fresh = fs.mkdtempSync(path.join(os.tmpdir(), "enclave-cli-stop-"));
+  S.evilNonce = "please sign this";
+  try {
+    const r = await run(["stop", ID], { env: { XDG_CONFIG_HOME: fresh } });
+    assert.notEqual(r.code, 0);
+    assert.equal(S.txs.filter((t) => t.functionName === "setActive").length, 0);
+    assert.match(r.err, /^error: .*refusing to sign/m);
+    assert.doesNotMatch(r.out, /stopped on-chain/);
+  } finally { S.evilNonce = null; S.active = true; fs.rmSync(fresh, { recursive: true, force: true }); }
 });
 
 test("resume: setActive(true) on-chain + claim-hint nudge", async () => {
