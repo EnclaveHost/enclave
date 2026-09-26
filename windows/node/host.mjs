@@ -43,6 +43,7 @@ import { ensureCert, appHostFor, selfSigned } from "./apptls.mjs";
 import { fetchDomains } from "./domains.mjs";
 import tls from "node:tls";
 import * as waf from "./waf.mjs";
+import { CAP_STEP, loadCaps, saveCaps } from "./hosting.mjs";
 
 const HEARTBEAT_MS = 10 * 60_000;
 const TICK_MS = 30_000;
@@ -151,6 +152,12 @@ export class Host {
     this.owners = { operator: null, delegations: [], invalid: new Map() };
     /// Definite pre-claim refusals (#preclaimVerdict): id -> { key, reason, at }. In memory; a restart asks again once.
     this.preclaim = new Map();
+    // THE OWNER'S HOSTING CAPS (hosting.mjs, set from the tray): the most of this machine's CPU and GPU the node offers.
+    // No file means 1.0 on both, which is this node exactly as it was before they existed.
+    this.capsFile = cfg.hostingCapsFile || path.join(cfg.dir, "hosting-caps.json");
+    const caps = loadCaps(this.capsFile);
+    this.caps = caps.caps; this.capsError = caps.error;
+    if (caps.error) this.log(caps.error);
   }
   #loadState() {
     try { return JSON.parse(fs.readFileSync(this.statePath, "utf8")) || {}; } catch { return {}; }
@@ -368,9 +375,13 @@ export class Host {
     // catalog read that fails leaves them undeclared, which fails closed in both cases.
     let v = null;
     try { v = await chain.resolveAppRef(d.appRef); } catch (e) { this.#record(id, { reason: `catalog: ${e.message}` }); }
+    // Sized beside the OTHERS (exclude), and work that already OCCUPIES this box is not measured against the owner's
+    // hosting cap: a hint for a deployment this box runs is not a new claim, and lowering a cap never takes a running
+    // app away (hosting.mjs). Measured against itself, or against a cap below what runs, it would be marked refused.
+    const here = Host.occupies(this.records.get(id) || {});
     const refuse = chain.claimPolicy(d, { isolationBackend: this.isolationBackend, ownerAllow: this.ownerSet(), enclaveId: this.enclaveId,
                                           appsEnabled: this.cfg.appsEnabled, scope: this.scope(),
-                                          version: v, capacity: this.capacity(),
+                                          version: v, capacity: this.capacity({ exclude: id, capped: !here }),
                                           listedAt: this.listedAt(), invited: invited || force,
                                           legacy: this.cfg.claimLegacy === true, fetchesConfigCid: true,
                                           privateOk: !!this.cfg.sessionKid,
@@ -507,14 +518,19 @@ export class Host {
     if (cpu === wasCpu && gpu === wasGpu) return;
     // Does the new size still fit BESIDE the others? Its own old share is excluded, or a tenant
     // growing from 10% to 20% is measured against a box that still counts their first 10%.
-    const cap = this.capacity({ exclude: id });
-    if (cpu > cap.cpuShareFree + 1e-9) {
+    // The owner's hosting cap applies only to an axis that GROWS. Lowering a cap never takes a lease back, so a tenant
+    // who shrinks or keeps a share is measured exactly as before the caps existed (capped: false).
+    const capped = this.capacity({ exclude: id }), open = this.capacity({ exclude: id, capped: false });
+    const cpuRoom = cpu > wasCpu ? capped.cpuShareFree : open.cpuShareFree;
+    const gpuRoom = (gpu > wasGpu ? capped.gpuShareFree : open.gpuShareFree) ?? 0;
+    const under = (c) => (c ? ` under the owner's ${Math.round(c.offered * 100)}% hosting cap` : "");
+    if (cpu > cpuRoom + 1e-9) {
       return await this.#giveUp(id, `it was resized to ${Math.round(cpu * 100)}% of a node and this box has`
-        + ` ${Math.round(cap.cpuShareFree * 100)}% left; handing the lease back so a box that fits can take it`);
+        + ` ${Math.round(cpuRoom * 100)}% left${under(cpu > wasCpu && capped.cpuCap)}; handing the lease back so a box that fits can take it`);
     }
-    if (gpu > 0 && gpu > (cap.gpuShareFree ?? 0) + 1e-9) {
+    if (gpu > 0 && gpu > gpuRoom + 1e-9) {
       return await this.#giveUp(id, `it was resized to ${Math.round(gpu * 100)}% of this box's card and`
-        + ` ${Math.round((cap.gpuShareFree ?? 0) * 100)}% of it is left; handing the lease back`);
+        + ` ${Math.round(gpuRoom * 100)}% of it is left${under(gpu > wasGpu && capped.gpuCap)}; handing the lease back`);
     }
     this.#record(id, { servedCpuShare: cpu, servedGpuShare: gpu });
     if (gpu !== wasGpu) {
@@ -731,7 +747,7 @@ export class Host {
    * for the others in the block I had just moved). Passing them makes the dependency a parameter
    * the reader can see instead of a scope accident.
    */
-  async #isolationReconcile(id, d, v, { envOpts = {}, envRead = false } = {}) {
+  async #isolationReconcile(id, d, v, { envOpts = {}, envRead = false, relaunch = false } = {}) {
     const { reconcile } = await import("./isolation-lifecycle.mjs");
     const { IsolationManagerClient } = await import("./isolation-client.mjs");
     const client = new IsolationManagerClient({ base: this.cfg.isolationManager });
@@ -754,6 +770,12 @@ export class Host {
     }
 
     const body = IsolationManagerClient.spawnBody(plan.spawn);
+    // What this partition holds of the card is what it is spawned with, not what the lease bought: the accounting the
+    // owner's GPU cap and the tray read (shareUse).
+    this.#record(id, { partitionGpuShare: Number(body.gpuShare) || 0 });
+    const capHeld = await this.#spawnCapHold(id, body, client, { relaunch });
+    if (capHeld) return capHeld;
+    if (this.records.get(id)?.capHeld) this.#record(id, { capHeld: null });
     let r;
     try { r = await reconcile({ client, deployment: { id, body }, ledger: null }); }
     catch (e) { return this.#record(id, { status: "failed", reason: `isolation: ${e.message}` }); }
@@ -835,6 +857,30 @@ export class Host {
                                            // has refused any view claiming more); this is NOT verified capacity
                                            hostExcluded: false,
                                            transportKeySha256: inst.transportKeySha256 ?? null } });
+  }
+
+  /**
+   * THE OWNER'S CAPS ON THE ISOLATED BACKEND, at the one step that adds a partition: a NEW spawn. The claim gate
+   * (claimPolicy over capacity()) already holds new leases under the caps; this holds the partitions themselves, so a
+   * NEW one starts only while the sum of cpuShare over running and starting partitions stays within what the owner offers.
+   *
+   * It never takes anything away. Not gated: a partition that is already there (reconcile adopts it; refusing to
+   * adopt would not stop it, only stop serving it), and a RELAUNCH of work this box already runs - a forced relaunch,
+   * or a domain that vanished while it served (rec.isolation). Held work is recorded `capHeld`, is not renewed (the
+   * tick) and starts on the first pass that it fits. -> the held record, or null to proceed.
+   */
+  async #spawnCapHold(id, body, client, { relaunch = false } = {}) {
+    const rec = this.records.get(id) || {};
+    if (relaunch || rec.isolation) return null;
+    const why = this.capRefusal(id, { cpuShare: Number(body.cpuShare) || 0, gpuShare: Number(body.gpuShare) || 0 });
+    if (!why) return null;
+    // Only now, when the cap would refuse, ask whether a domain is already there: the default path costs no request.
+    let existing;
+    try { existing = await client.findByName(id); } catch { return null; }   // unknown: reconcile holds on its own
+    if (existing) return null;
+    const reason = `isolation: ${why}`;
+    if (rec.reason !== reason) this.log(`${id.slice(0, 10)} ${reason}`);     // a change is worth a line, every 30 s is not
+    return this.#record(id, { status: "held", capHeld: true, reason });
   }
 
   /** Fetch + verify + run the deployment's app, and keep the record honest about which stage failed. */
@@ -926,7 +972,7 @@ export class Host {
       // What it does NOT do: change what this box advertises. A T0-hv partition does not exclude
       // the host, attestedCapacity() is false for it, and nothing here touches meetsIsolationContract().
       if (this.isolation) {
-        const outcome = await this.#isolationReconcile(id, d, v, { envOpts, envRead });
+        const outcome = await this.#isolationReconcile(id, d, v, { envOpts, envRead, relaunch: force });
         if (outcome) return outcome;
       }
 
@@ -1452,7 +1498,15 @@ export class Host {
         await this.#stopApp(id, "the lease lapsed while the deployment was boundary-held (not renewed)");
         continue;
       }
-      if (rec.boundaryHeld !== true && untilMs - Date.now() < RENEW_LEAD_MS) {
+      // HELD BY THE OWNER'S CAP (#spawnCapHold): its partition never started, so it is not renewed (nothing is served
+      // to bill for), and when the lease lapses it is let go here. Nothing runs to retire and nothing is released on
+      // chain; it comes back through the ledger scan, whose claim gate reads the same cap.
+      if (rec.capHeld === true && untilMs < Date.now()) {
+        await this.#stopApp(id, "the lease lapsed while it waited for room under the owner's hosting cap (not renewed)");
+        if (this.records.get(id)?.status === "stopped") this.#record(id, { capHeld: null });   // else retried next tick
+        continue;
+      }
+      if (rec.boundaryHeld !== true && rec.capHeld !== true && untilMs - Date.now() < RENEW_LEAD_MS) {
         try { await chain.renewDeployment(id); this.log(`renewed ${id.slice(0, 10)}`); d = await chain.readDeployment(id); }
         catch (e) {
           // rateCap doctrine (the platform runner's, mirrored): a renew the LEDGER refuses is not
@@ -1649,13 +1703,31 @@ export class Host {
     return r.status === "running" || !!r.isolation || !!r.isolationHeld || !!r.isolationRetireFailed
       || (r.status === "provisioning" && r.isolationRequired === true);
   }
-  /** The node pool this box has left, as a fraction: what the relay's placement reads. */
-  cpuShareFree({ exclude = null } = {}) {
+  /**
+   * The shares the units occupying this box stand for (Host.occupies: running, starting, or a partition that may still
+   * run), summed. `cpu` and `gpu` are what their leases bought; `gpuInUse` is what they hold of the card, which for a
+   * partition is what it was spawned with (partitionGpuShare: 0 on this backend today, node-bridge.mjs isolationPlan).
+   */
+  shareUse({ exclude = null } = {}) {
+    let cpu = 0, gpu = 0, gpuInUse = 0;
+    for (const r of this.records.values()) {
+      if (!Host.occupies(r) || (exclude && String(r.id).toLowerCase() === String(exclude).toLowerCase())) continue;
+      cpu += r.cpuShare || 0; gpu += r.gpuShare || 0;
+      gpuInUse += r.partitionGpuShare ?? (r.gpuShare || 0);
+    }
+    return { cpu, gpu, gpuInUse };
+  }
+  /**
+   * The node pool this box has left, as a fraction: what the relay's placement reads. `capped: false` is the figure
+   * without the owner's cap, for a resize that does not grow (the cap never takes a lease back).
+   */
+  cpuShareFree({ exclude = null, capped = true } = {}) {
     if (!this.cfg.appsEnabled) return 0;
-    const used = [...this.records.values()].filter((r) => Host.occupies(r))
-      .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase())
-      .reduce((a, r) => a + (r.cpuShare || 0), 0);
-    return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25)));   // a quarter stays for the enclave, the worker and the owner
+    const used = this.shareUse({ exclude }).cpu;
+    // The owner's cap (hosting.mjs) can only lower this; at the default 1.0 it never binds and the figure is exactly
+    // the one before caps existed.
+    const offered = capped ? this.caps.cpuShare - used : Infinity;
+    return Math.max(0, Math.min(1, 1 - used - (this.cfg.reservedShare ?? 0.25), offered));   // a quarter stays for the enclave, the worker and the owner
   }
   /**
    * The CARD pool this box has left, as a fraction of the worker's budget.
@@ -1666,15 +1738,76 @@ export class Host {
    * card facts arrive from the agent (shieldedcard.mjs asks the worker), so a box whose worker is
    * down sells nothing rather than selling from memory.
    */
-  gpuShareFree({ exclude = null } = {}) {
+  gpuShareFree({ exclude = null, capped = true } = {}) {
     if (!this.cfg.appsEnabled) return 0;
     const card = this.card && this.card();
     if (!card || !(Number(card.vramBudgetGb) > 0)) return 0;
-    const sold = [...this.records.values()].filter((r) => Host.occupies(r))
-      .filter((r) => !exclude || String(r.id).toLowerCase() !== String(exclude).toLowerCase())
-      .reduce((a, r) => a + (r.gpuShare || 0), 0);
+    const sold = this.shareUse({ exclude }).gpu;
     const onCard = Number(card.vramFreeGb) / Number(card.vramBudgetGb);
-    return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0));
+    // ...and a third, the owner's cap, which can only lower it (1.0 by default, where it never binds).
+    return Math.max(0, Math.min(1, 1 - sold, Number.isFinite(onCard) ? onCard : 0, capped ? this.caps.gpuShare - sold : Infinity));
+  }
+  /**
+   * capRefusal(id, {cpuShare, gpuShare}) -> why a NEW unit with these shares does not fit under the owner's caps beside
+   * everything else occupying this box, or null. The isolated backend's spawn gate (#spawnCapHold). A unit that uses
+   * no GPU is never refused for the GPU cap.
+   */
+  capRefusal(id, { cpuShare = 0, gpuShare = 0 } = {}) {
+    const use = this.shareUse({ exclude: id });
+    const pct = (x) => Math.round(x * 100);
+    if (use.cpu + cpuShare > this.caps.cpuShare + 1e-9)
+      return `not started: the owner offers ${pct(this.caps.cpuShare)}% of this box's CPU to hosting, ${pct(use.cpu)}% of it is in use`
+        + ` by running and starting partitions, and this one needs ${pct(cpuShare)}%; it starts when it fits (nothing running was stopped)`;
+    if (gpuShare > 0 && use.gpuInUse + gpuShare > this.caps.gpuShare + 1e-9)
+      return `not started: the owner offers ${pct(this.caps.gpuShare)}% of this box's GPU to hosting, ${pct(use.gpuInUse)}% of it is in use`
+        + ` by running and starting partitions, and this one needs ${pct(gpuShare)}%; it starts when it fits (nothing running was stopped)`;
+    return null;
+  }
+
+  // ---- the owner's hosting controls (hosting.mjs's local API, the tray app) -----------------------------------------
+  hostingCaps() { return { ...this.caps }; }
+  /** Persist, THEN apply: a cap that could not be saved changes nothing, so the tray snaps back to the truth. */
+  setHostingCaps(next) {
+    saveCaps(this.capsFile, next);
+    const was = this.caps;
+    this.caps = { cpuShare: next.cpuShare, gpuShare: next.gpuShare }; this.capsError = null;
+    const use = this.shareUse(), pct = (x) => `${Math.round(x * 100)}%`;
+    this.log(`hosting caps set on this box: CPU ${pct(was.cpuShare)} -> ${pct(this.caps.cpuShare)}, GPU ${pct(was.gpuShare)} -> ${pct(this.caps.gpuShare)}`
+      + (use.cpu > this.caps.cpuShare + 1e-9 ? `; ${pct(use.cpu)} of the CPU is already in use, which keeps running: new work waits until use drops below the cap` : ""));
+    return this.hostingCaps();
+  }
+  /** Does anything on the ACTIVE backend use the GPU? The tray says so rather than imply GPU hosting that is not happening. */
+  gpuConsumer() {
+    if (this.cfg.engineRetired === true) {
+      const held = this.shareUse().gpuInUse;
+      return held > 0 ? { consumer: true, why: `partitions on the isolated backend hold ${Math.round(held * 100)}% of the GPU` }
+        : { consumer: false, why: "no partition on the isolated backend holds a GPU share (it spawns them with gpuShare 0,"
+            + " windows/vbslike/datapath/node-bridge.mjs), so nothing on it uses the GPU yet" };
+    }
+    const card = this.card && this.card();
+    return card && Number(card.vramBudgetGb) > 0
+      ? { consumer: true, why: "the enclave's model offloads to this card through the shielded worker" }
+      : { consumer: false, why: "no shielded worker is answering, so nothing on this node uses the GPU" };
+  }
+  /** GET /v1/local/hosting: the caps, what is sold, in use and free, and what this backend does with the GPU. */
+  hostingView() {
+    const use = this.shareUse(), cap = this.capacity(), r4 = (x) => Math.round(x * 1e4) / 1e4;
+    const recs = [...this.records.values()];
+    return {
+      caps: this.hostingCaps(), step: CAP_STEP, capsError: this.capsError,
+      // The same accounting the claim gate and the isolated backend's spawn gate use (shareUse).
+      sold: { cpuShare: r4(use.cpu), gpuShare: r4(use.gpu) },
+      inUse: { cpuShare: r4(use.cpu), gpuShare: r4(use.gpuInUse) },
+      // What a new claim is measured against: the caps, less what is in use, less the node's reserve.
+      free: { cpuShare: r4(cap.cpuShareFree), gpuShare: r4(cap.gpuShareFree ?? 0) },
+      reservedShare: this.cfg.reservedShare ?? 0.25,
+      deploymentsServed: recs.filter((r) => r.status === "running").length,
+      waitingForCap: recs.filter((r) => r.capHeld === true && r.status === "held").length,
+      backend: this.cfg.engineRetired === true ? "hv" : "legacy",
+      gpu: this.gpuConsumer(),
+      appsEnabled: !!this.cfg.appsEnabled,
+      logsDir: this.cfg.dir,
+    };
   }
 
   /**
@@ -1682,7 +1815,7 @@ export class Host {
    * is not slack: the enclave holds the model and its pads in VTL1, the shielded worker feeds the
    * card, and the owner of the PC is entitled to their own machine.
    */
-  capacity({ exclude = null } = {}) {
+  capacity({ exclude = null, capped = true } = {}) {
     const slots = this.cfg.appSlots ?? 4;
     // `exclude` is how a deployment is sized against the room it would leave BESIDE the others
     // rather than beside itself, and it applies to EVERY axis - memory, node share and card share.
@@ -1730,14 +1863,21 @@ export class Host {
       : hostMb;
     const ramMb = Math.max(0, budgetMb - committedMb);
     const card = this.card && this.card();
-    return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: this.cpuShareFree({ exclude }),
+    const cpuFree = this.cpuShareFree({ exclude, capped }), gpuFree = this.gpuShareFree({ exclude, capped });
+    // THE OWNER'S CAP, named when it is what limits an axis (the capped figure is below the uncapped one), so a refusal
+    // says so (chain.mjs claimPolicy) instead of reading as a full box.
+    const use = this.shareUse({ exclude });
+    const cpuCap = capped && cpuFree < this.cpuShareFree({ exclude, capped: false }) - 1e-9 ? { offered: this.caps.cpuShare, used: use.cpu } : null;
+    const gpuCap = capped && gpuFree < this.gpuShareFree({ exclude, capped: false }) - 1e-9 ? { offered: this.caps.gpuShare, used: use.gpu } : null;
+    return { slots, slotsFree: Math.max(0, slots - running.length), cpuShareFree: cpuFree,
              ramMbFree: ramMb, ramMbPool: this.appsInTee() ? enclaveMb : hostMb, ramMbEngine: engineMb,
              // Has the engine's own hold been measured? A caller that sees false knows ramMbFree
              // is a refusal, not a capacity.
              ramMeasured: !this.appsInTee() || measured !== null,
              cpuGflops: Number(this.cfg.gflops) || 0,
              // The card, in the same shape: what a GPU-dialled deployment is checked against.
-             gpuShareFree: this.gpuShareFree({ exclude }), cardGb: card ? Number(card.vramBudgetGb) || 0 : 0 };
+             gpuShareFree: gpuFree, cardGb: card ? Number(card.vramBudgetGb) || 0 : 0,
+             ...(cpuCap ? { cpuCap } : {}), ...(gpuCap ? { gpuCap } : {}) };
   }
   /**
    * Does an app this box hosts run INSIDE the enclave?

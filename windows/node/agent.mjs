@@ -17,6 +17,10 @@
 //   HOST_EXE, ENCLAVE_DLL, HOST_PORT (9596), THREADS (8), CTX (1024)
 //   TPMATTEST_EXE, PUBLIC_URL (the https://<relay>/t/<name> route a registered seller claims)
 //   NODE_OPERATOR_KEY    hex private key of the on-chain operator, to sign the attach challenge when the name is registered
+//   HOSTING_ADMIN_PORT   the owner's local hosting controls (hosting.mjs; the tray app, windows/tray), 127.0.0.1 only,
+//                        default 9610, 0 = off. HOSTING_ADMIN_TOKEN_FILE (default %ProgramData%\Enclave\hosting-admin.token),
+//                        HOSTING_TRAY_USER (the interactive account the tray runs as, granted read on that file),
+//                        HOSTING_CAPS_FILE (default hosting-caps.json in NODE_DIR)
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import fs from 'node:fs';
@@ -33,6 +37,7 @@ import { parseAbiReply } from './appframe.mjs';
 import { initSessionKey, mint as mintSession, addressFor } from './session.mjs';
 import { nonceStore, siweMessage, verifyLogin } from './siwe.mjs';
 import { HV_NODE_FORMAT, buildHvNodeFrame, loadOrCreateNodeKey } from './hvnode-evidence.mjs';
+import { mintToken, startHostingAdmin, tokenFileDefault } from './hosting.mjs';
 const WAF_TRACE = /^(1|true|yes)$/i.test(String(process.env.WAF_TRACE || ''));
 // SIWE, byte-compatible with the platform's own routes so the console signs what this box issues
 // and posts it back unchanged. The session it mints is for THIS box only (session.mjs).
@@ -180,6 +185,8 @@ const host = new Host({
   gateway: process.env.IPFS_GATEWAY || 'https://ipfs.enclave.host',
   portBase: Number(process.env.APP_PORT_BASE || 9700),
   appSlots: Number(process.env.APP_SLOTS || 4),
+  // The owner's hosting caps (hosting.mjs), beside the node's other state unless set.
+  hostingCapsFile: process.env.HOSTING_CAPS_FILE || '',
   // TEMPORARY: see host.mjs. Lets an app that bought a card share run even though its world
   // has no import that reaches the enclave's model.
   allowCardWithoutModel: /^(1|true|on)$/i.test(process.env.ENCLAVE_ALLOW_CARD_WITHOUT_MODEL || ''),
@@ -630,7 +637,22 @@ function localHttp(port) {
   }).listen(port, '127.0.0.1', () => log(`local http on 127.0.0.1:${port}`));
 }
 function requireHttp() { return createRequire(import.meta.url)('node:http'); }
+// THE OWNER'S HOSTING CONTROLS (hosting.mjs): the tray app's API, on its own loopback port rather than LOCAL_HTTP_PORT's
+// server, which is optional and unauthenticated and also serves the tunnel's surface. Started first, so the owner can
+// see and set the caps while the rest comes up. A token file that cannot be made private turns the controls OFF and
+// nothing else.
+function startHostingControls() {
+  const port = Number(process.env.HOSTING_ADMIN_PORT ?? 9610);
+  if (!port) { log('hosting controls: off (HOSTING_ADMIN_PORT=0)'); return; }
+  const file = process.env.HOSTING_ADMIN_TOKEN_FILE || tokenFileDefault(DIR);
+  let token;
+  try { token = mintToken(file, { trayUser: process.env.HOSTING_TRAY_USER || '' }); }
+  catch (e) { log(`hosting controls: OFF, the token file ${file} could not be made private (${e.message})`); return; }
+  if (!process.env.HOSTING_TRAY_USER) log(`hosting controls: HOSTING_TRAY_USER is not set, so only SYSTEM and an ELEVATED administrator can read ${file}`);
+  startHostingAdmin({ host, port, token, log: (m) => log('[hosting]', m) });
+}
 (async () => {
+  startHostingControls();
   if (LEGACY_ENGINE) { await startWorker(); await startHost(); }
   else {
     nodeKey = loadOrCreateNodeKey(DIR);
