@@ -1,0 +1,13 @@
+[package]
+name = "sentinel-keepalive"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# A LAB app for the v41 canary's item 2 (CANARY-v41.md): the sentinel (isolation/m2/lab-release/sentinel-app) plus two
+# misbehaving answers that make Go's HTTP client log the app's own bytes, which the front's console guard must withhold.
+# No dependencies.
+[dependencies]
+
+[profile.release]
+opt-level = "s"
