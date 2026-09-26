@@ -1,0 +1,8 @@
+observe 5t from 01:09:10Z for 600 s (4e keys)
+r1 01:09:22Z 3/3 canaries 200 on 4e keys, relay serving, guestd as expected, node 4c-c
+r2 01:11:37Z 3/3 canaries 200 on 4e keys, relay serving, guestd as expected, node 4c-c
+r3 01:13:52Z 3/3 canaries 200 on 4e keys, relay serving, guestd as expected, node 4c-c
+r4 01:16:06Z 3/3 canaries 200 on 4e keys, relay serving, guestd as expected, node 4c-c
+r5 01:18:22Z 3/3 canaries 200 on 4e keys, relay serving, guestd as expected, node 4c-c
+r6 01:19:26Z 3/3 canaries 200 on 4e keys, relay serving, guestd as expected, node 4c-c
+GATE PASSED: 6 rounds over 616 s (read from the clock)

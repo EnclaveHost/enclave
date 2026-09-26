@@ -1,0 +1,42 @@
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H
+DOM snp=1 vcpus=1 memMiB=883 boot_ms=801
+DOM app mode run: a wasi:cli command serving HTTP on 8000 (ENCLAVE_PORTS http:8000=8000, /data 64 MiB scratch)
+DOM runtime wasmtime/48.0.1 execution=jit target=x86_64 host=x86_64 features=host-detected wx=enforced cache=none id=ccadb38a6779615597f0614311a631c70810916c1bbeb9f5706ee3a637fd90c8
+DOM runtime selftest exec_pages=allowed wx=clean maps=2 scope=all-processes
+DOM certificate: this domain may certify 0ddbd824.app.enclave.host (HOST_DATA 0ddbd82423a22883...)
+DOM release: deployment 0x0ddbd824... envelope 42c6f115f763f544... 1 allowed origin(s), 0 refused, config 177 bytes
+DOM app config: 177 bytes (ENCLAVE_CONFIG)
+DOM started app=80 front=76 at_ms=12847
+DOM serving vsock=443 spki_sha256=c0894ac9e11a54bf55571dcca884ac706223c8bc89f5873a9ad5ade4a57195bf ready_ms=12979
+2026/09/25 23:53:26 http: TLS handshake error from 2:707963169: EOF
+2026/09/25 23:53:49 http: TLS handshake error from 2:707963175: EOF
+2026/09/25 23:54:26 http: TLS handshake error from 2:707963181: EOF
+DOM certificate installed for 0ddbd824.app.enclave.host: issuer "ZeroSSL ECC DV SSL CA 2", valid until 2026-12-24T23:59:59Z
+2026/09/25 23:55:07 http: TLS handshake error from 2:707963208: EOF
+2026/09/25 23:55:10 http: TLS handshake error from 2:707963209: EOF
+2026/09/25 23:55:13 http: TLS handshake error from 2:707963211: EOF
+2026/09/25 23:56:09 http: TLS handshake error from 2:707963218: read vsock 4294967295:443->2:707963218: i/o timeout
+2026/09/25 23:59:39 Unsolicited response received on idle HTTP channel starting with "{\"error\":\"gone\"}"; err=<nil>
+2026/09/26 00:49:31 Unsolicited response received on idle HTTP channel starting with "{\"error\":\"gone\"}"; err=<nil>
+2026/09/26 00:53:52 http: TLS handshake error from 2:707963568: read vsock 4294967295:443->2:707963568: i/o timeout
+2026/09/26 01:13:00 Unsolicited response received on idle HTTP channel starting with "{\"error\":\"gone\"}"; err=<nil>
+2026/09/26 01:13:19 http: TLS handshake error from 2:707963637: tls: client offered only unsupported versions: [301 302 303]
+2026/09/26 01:13:19 http: TLS handshake error from 2:707963638: tls: client offered only unsupported versions: [303 302 301]
+2026/09/26 01:13:20 http: TLS handshake error from 2:707963639: tls: client offered only unsupported versions: [303 302 301]
+2026/09/26 01:13:20 http: TLS handshake error from 2:707963640: tls: client offered only unsupported versions: [303 302 301]
+2026/09/26 01:13:22 http: TLS handshake error from 2:707963641: tls: client offered only unsupported versions: [303 302 301]
+2026/09/26 01:13:22 http: TLS handshake error from 2:707963642: tls: client offered only unsupported versions: [302 301]
+2026/09/26 01:13:24 http: TLS handshake error from 2:707963643: EOF
+2026/09/26 01:13:24 http: TLS handshake error from 2:707963644: EOF
+2026/09/26 01:13:25 http: TLS handshake error from 2:707963645: tls: no cipher suite supported by both client and server; client offered: [16 33 67 c09e c0a2 9e 39 6b c09f c0a3 9f 45 be 88 c4 9a c008 c009 c023 c0ac c0ae c02b c00a c024 c0ad c0af c02c c072 c073 cca9 cc14 c007 c012 c013 c027 c02f c014 c028 c030 c060 c061 c076 c077 cca8 cc13 c011 a 2f 3c c09c c0a0 9c 35 3d c09d c0a1 9d 41 ba 84 c0 7 4 5]
+2026/09/26 01:13:25 http: TLS handshake error from 2:707963646: EOF
+2026/09/26 01:13:28 http: TLS handshake error from 2:707963648: tls: client offered only unsupported versions: [303 302 301]
+2026/09/26 01:13:28 http: TLS handshake error from 2:707963649: tls: client offered only unsupported versions: [301 302 303]
+2026/09/26 01:13:30 http: TLS handshake error from 2:707963650: tls: client offered only unsupported versions: [303 302 301]
+2026/09/26 01:13:30 http: TLS handshake error from 2:707963651: tls: client offered only unsupported versions: [303 302 301]
+2026/09/26 01:13:31 http: TLS handshake error from 2:707963652: tls: client offered only unsupported versions: [302 301]
+2026/09/26 01:13:31 http: TLS handshake error from 2:707963653: tls: client offered only unsupported versions: [303 302 301]
+2026/09/26 01:13:33 http: TLS handshake error from 2:707963654: EOF
+2026/09/26 01:13:33 http: TLS handshake error from 2:707963655: EOF
+2026/09/26 01:13:34 http: TLS handshake error from 2:707963656: tls: no cipher suite supported by both client and server; client offered: [16 33 67 c09e c0a2 9e 39 6b c09f c0a3 9f 45 be 88 c4 9a c008 c009 c023 c0ac c0ae c02b c00a c024 c0ad c0af c02c c072 c073 cca9 cc14 c007 c012 c013 c027 c02f c014 c028 c030 c060 c061 c076 c077 cca8 cc13 c011 a 2f 3c c09c c0a0 9c 35 3d c09d c0a1 9d 41 ba 84 c0 7 4 5]
+2026/09/26 01:13:35 http: TLS handshake error from 2:707963657: EOF

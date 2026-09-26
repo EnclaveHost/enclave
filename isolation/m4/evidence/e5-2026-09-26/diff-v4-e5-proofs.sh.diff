@@ -1,0 +1,19 @@
+--- e5-proofs.sh.v3	2026-09-25 18:27:58.012799513 -0700
++++ e5-proofs.sh	2026-09-25 18:29:31.337689600 -0700
+@@ -52,7 +52,7 @@
+ # the journal's own timestamps. (A ticket re-presented AFTER its consumption is a silent 403 the relay never logs: no log
+ # check can see it, and this one does not claim to; a second release needs a second ticket and shows as a second line.)
+ RJ=$($NANX "journalctl -u enclave-api-relay --since '$T0 UTC' --no-pager -o short-iso-precise") || hold "proof 1: the relay's journal on nan could not be read"
+-grep -iE "\[secrets-release\] ($FULL:|ticket for $FULL )" <<<"$RJ" > $ST/$ID-relay-lines.txt || true
++grep -iE "\[secrets-release\] ($FULL:|ticket for $FULL |ticket for 0x[0-9a-f]{64} presented for $FULL:)" <<<"$RJ" > $ST/$ID-relay-lines.txt || true
+ p1=$(python3 - $ST/$ID-relay-lines.txt "$FULL" "$RUNTIME" <<'PY1'
+ import sys,re,datetime
+ f,full,rt=sys.argv[1:]; full=full.lower(); rel=[]; kept=[]; bad=[]
+@@ -61,6 +61,7 @@
+     if not m: bad.append("unparsed: "+l[:120]); continue
+     ts=datetime.datetime.fromisoformat(m.group(1)); msg=m.group(2); low=msg.lower()
+     if low.startswith("ticket for "+full+" "): bad.append("a ticket presented for another id or after expiry (burned)"); continue
++    if low.startswith("ticket for ") and (" presented for "+full+":") in low: bad.append("another deployment's ticket presented for this id (burned)"); continue
+     if not low.startswith(full+":"): bad.append("unexpected: "+msg[:120]); continue
+     body=msg[len(full)+1:].strip()
+     if body.startswith("released to a verified guest on ") and ("(runtime "+rt) in body: rel.append(ts)

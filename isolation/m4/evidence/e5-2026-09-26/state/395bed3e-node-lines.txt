@@ -1,0 +1,4 @@
+[isolation] 0x395bed3e: guest gdc71431bd app 9c3d10f1450e17bc… (enclave-isolation-policy/1 {"cpuPercent":100,"memMiB":128,"vcpus":1}, record bff33b951aade0a9…)
+[isolation] 0x395bed3e: release ticket handed to guest gdc71431bd
+[isolation] 0x395bed3e: no certificate for 395bed3e.app.enclave.host (order for 395bed3e.app.enclave.host in flight); retry in 30s
+[isolation] 0x395bed3e: certificate for 395bed3e.app.enclave.host installed in guest gdc71431bd (key b9892100cb73ace6…, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2026-12-25T23:59:59.000Z; guest attested)

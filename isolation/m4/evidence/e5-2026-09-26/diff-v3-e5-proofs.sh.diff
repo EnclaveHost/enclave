@@ -1,0 +1,51 @@
+--- e5-proofs.sh.v2	2026-09-25 17:59:51.412257515 -0700
++++ e5-proofs.sh	2026-09-25 18:27:58.012799513 -0700
+@@ -45,17 +45,42 @@
+ ! grep -qE "$MARK" <<<"$C" || hold "proof 3: the app's own output ($MARK) is in the release guest's serial"
+ F=$(serial_foreign $ST/$ID-new.serial); [ -z "$F" ] || { echo "$F" > $ST/$ID-new-foreign.txt; hold "proof 3: $(grep -c . <<<"$F") line(s) in the serial that are neither the front's, init's nor the kernel's ($ID-new-foreign.txt)"; }
+ say "5e $ID proof 3 ok: DOM release (1 origin = the relay, config $CFGB bytes = the version's _media config) (envelope tag $ENV16) < app config $CFGB bytes < serving on ${SPKI:0:16}; no app output"
+-# ---- proof 1: exactly one release for this id, to a verified guest on runtime ccadb38a; exactly one ticket handed over
+-RJ=$($NANX "journalctl -u enclave-api-relay --since '$T0 UTC' --no-pager -o cat") || hold "proof 1: the relay's journal on nan could not be read"
+-grep -iF "[secrets-release] $FULL:" <<<"$RJ" > $ST/$ID-relay-lines.txt || true
+-[ "$(grep -c . $ST/$ID-relay-lines.txt || [ $? = 1 ])" = 1 ] && grep -qE "released to a verified guest on .* \(runtime $RUNTIME" $ST/$ID-relay-lines.txt \
+-  || hold "proof 1: the relay's lines for $ID since T0 are not exactly one 'released to a verified guest … (runtime $RUNTIME…)' ($ID-relay-lines.txt)"
++# ---- proof 1 (restated, enclave-87; its shape enclave-bf's, from relay/secrets-release.mjs): EXACTLY ONE release to a
++# verified guest on runtime ccadb38a; no REFUSED (:458, :473), no burned ticket (:357 "ticket burned", :346 "ticket for
++# <id> presented ... burned"); "(ticket kept)" lines (:357 warming, :433 collateral) ONLY strictly before the release and
++# within 60 s of it: the relay's cold prediction after a restart answers 503 and KEEPS the ticket (enclave-e3). Ordered by
++# the journal's own timestamps. (A ticket re-presented AFTER its consumption is a silent 403 the relay never logs: no log
++# check can see it, and this one does not claim to; a second release needs a second ticket and shows as a second line.)
++RJ=$($NANX "journalctl -u enclave-api-relay --since '$T0 UTC' --no-pager -o short-iso-precise") || hold "proof 1: the relay's journal on nan could not be read"
++grep -iE "\[secrets-release\] ($FULL:|ticket for $FULL )" <<<"$RJ" > $ST/$ID-relay-lines.txt || true
++p1=$(python3 - $ST/$ID-relay-lines.txt "$FULL" "$RUNTIME" <<'PY1'
++import sys,re,datetime
++f,full,rt=sys.argv[1:]; full=full.lower(); rel=[]; kept=[]; bad=[]
++for l in open(f).read().splitlines():
++    m=re.match(r'^(\S+) \S+ [^:]+: \[secrets-release\] (.*)$', l)
++    if not m: bad.append("unparsed: "+l[:120]); continue
++    ts=datetime.datetime.fromisoformat(m.group(1)); msg=m.group(2); low=msg.lower()
++    if low.startswith("ticket for "+full+" "): bad.append("a ticket presented for another id or after expiry (burned)"); continue
++    if not low.startswith(full+":"): bad.append("unexpected: "+msg[:120]); continue
++    body=msg[len(full)+1:].strip()
++    if body.startswith("released to a verified guest on ") and ("(runtime "+rt) in body: rel.append(ts)
++    elif "evidence REFUSED" in body or body.startswith("REFUSED:"): bad.append("refused: "+body[:120])
++    elif "ticket burned" in body: bad.append("burned: "+body[:120])
++    elif body.endswith("(ticket kept)") or body.startswith("no prediction (ticket kept)") or "(ticket kept)" in body: kept.append(ts)
++    else: bad.append("unknown: "+body[:120])
++if len(rel)!=1: print("not exactly one release (%d)" % len(rel)); sys.exit(1)
++if bad: print("; ".join(bad)); sys.exit(1)
++late=[k for k in kept if not (k < rel[0] and (rel[0]-k).total_seconds() <= 60)]
++if late: print("%d '(ticket kept)' line(s) not strictly before the release within 60 s" % len(late)); sys.exit(1)
++print("one release at %s; %d '(ticket kept)' warming/collateral line(s) before it (%s)" % (rel[0].strftime('%H:%M:%S'), len(kept), ", ".join("%.1f s before" % (rel[0]-k).total_seconds() for k in kept) or "none"))
++PY1
++) || hold "proof 1: the relay's lines for $ID since T0 are not the accepted shape: ${p1:-unreadable} ($ID-relay-lines.txt)"
+ NJ=$(journalctl --user -u enclave-metal-iso.service --since "$T0 UTC" --no-pager -o cat) || hold "proof 1: the node journal could not be read"
+ grep -F "[isolation] 0x$ID:" <<<"$NJ" > $ST/$ID-node-lines.txt || true
+ [ "$(grep -cF "release ticket handed to guest $NEWID" $ST/$ID-node-lines.txt || [ $? = 1 ])" = 1 ] \
+   && ! grep -qE 'did not take the release ticket|release ticket pump for|release ticket for ' $ST/$ID-node-lines.txt \
+   || hold "proof 1: the node's ticket lines for $ID are not exactly one 'release ticket handed to guest $NEWID' ($ID-node-lines.txt)"
+-say "5e $ID proof 1 ok: one relay release to a verified guest (runtime $RUNTIME…), one ticket handed to $NEWID"
++say "5e $ID proof 1 ok: $p1; one ticket handed to $NEWID"
+ # ---- proof 4: the certificate for the NEW key through the expected-guest gate; no refusal for this id
+ certd() { NJ=$(journalctl --user -u enclave-metal-iso.service --since "$T0 UTC" --no-pager -o cat) && grep -qF "[isolation] 0x$ID: certificate for $HOST installed in guest $NEWID (key ${SPKI:0:16}…" <<<"$NJ"; }
+ wait_for 600 certd || hold "proof 4: no certificate installed for $HOST in $NEWID on key ${SPKI:0:16} within 10 min"
