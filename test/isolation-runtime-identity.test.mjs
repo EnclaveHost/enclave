@@ -27,7 +27,7 @@ const SPKI = randomBytes(91), NONCE = randomBytes(32);
 const JIT = { name: 'wasmtime', version: '48.0.1', execution: 'jit', targetIsa: 'x86_64',
   hostIsa: 'x86_64', cpuFeatures: 'baseline', wx: 'enforced', cache: 'none' };
 const PULLEY = { ...JIT, execution: 'interpreter', targetIsa: 'pulley64', hostIsa: 'aarch64' };
-const ST = 'exec_pages=allowed wx=clean maps=3 scope=cgroup:/dom1';
+const ST = 'exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1';
 const doc2 = (over = {}) => ({ abi: ABI2, runtime: JIT, runtimeSelfTest: ST, ...over });
 
 // 1. CROSS-LANGUAGE CONFORMANCE. The vectors are produced by the Go implementation and passed by the
@@ -73,7 +73,7 @@ test('every field of the identity changes the binding, and ABI/2 never collides 
     seen.add(r.binding.toString('hex'));
   }
   // and the execution mode: a Pulley interpreter is not the same thing as a JIT
-  const p = checkRuntime({ abi: ABI2, runtime: PULLEY, runtimeSelfTest: 'exec_pages=refused:EACCES wx=clean maps=2 scope=all-processes' }, SPKI, NONCE, {});
+  const p = checkRuntime({ abi: ABI2, runtime: PULLEY, runtimeSelfTest: 'exec_pages=refused:EACCES wx=clean maps=2 runtime=1 root=1 scope=all-processes' }, SPKI, NONCE, {});
   assert.equal(p.ok, true, p.reasons.join('; '));
   assert.ok(!seen.has(p.binding.toString('hex')), 'the execution mode must change the binding');
 });
@@ -156,11 +156,39 @@ test('the runtime self-test is required and must record a clean W^X scan', () =>
   assert.equal(checkRuntimeSelfTest(ST, JIT).ok, true);
 });
 
+// 5b. ...AND IT HAS TO HAVE SEEN THE RUNTIME (enclave-b4's finding, enclave-87's ruling): the SNP front used to scan once
+// at its own start, before the app existed, and the NucBox front can no longer read the runtime at all. So the self-test
+// is made for each document and names its coverage by role, and where the runtime is a separate process a document that
+// covered no runtime is REJECTED, never read as clean.
+test('the runtime self-test must have covered the runtime, by role, and the roles must add up', () => {
+  for (const st of [
+    'exec_pages=allowed wx=clean maps=3 scope=all-processes',                              // no coverage by role: a start-time scan
+    'exec_pages=allowed wx=clean maps=3 scope=cgroup:/dom1',
+    'exec_pages=allowed wx=clean maps=2 runtime=0 root=2 scope=all-processes',             // covered no runtime
+    'exec_pages=allowed wx=clean maps=2 runtime=0 front=1 init=1 scope=cgroup:/dom1',
+    'exec_pages=allowed wx=clean maps=3 runtime=1 root=1 scope=all-processes',             // roles do not add up
+    'exec_pages=allowed wx=clean maps=3 runtime=x root=2 scope=all-processes',             // not a count
+    'exec_pages=allowed wx=clean maps=3 runtime=-1 root=4 scope=all-processes',
+    'exec_pages=allowed wx=unmeasured maps=0 scope=monitor',                                // the monitor did not measure
+  ]) {
+    assert.equal(checkRuntimeSelfTest(st, JIT).ok, false, `${JSON.stringify(st)} was accepted`);
+  }
+  for (const st of [
+    'exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1',      // the NucBox monitor's scan
+    'exec_pages=allowed wx=clean maps=3 runtime=1 root=2 scope=all-processes',             // the SNP front's own
+    'exec_pages=allowed wx=clean maps=1 scope=self',                                        // library-embedded runtime (pVM)
+  ]) {
+    const r = checkRuntimeSelfTest(st, JIT);
+    assert.equal(r.ok, true, `${st}: ${r.reasons.join('; ')}`);
+  }
+  assert.match(checkRuntimeSelfTest('exec_pages=allowed wx=clean maps=2 runtime=0 root=2 scope=all-processes', JIT).reasons.join(' '), /covered NO runtime process/);
+});
+
 test('the scan scope is a closed vocabulary, so a domain cannot invent one that reads broad', () => {
   // each admissible scope, with what it claims
   const ok = [
-    ['exec_pages=allowed wx=clean maps=3 scope=all-processes', /every process with an address space/],
-    ['exec_pages=allowed wx=clean maps=2 scope=cgroup:/dom7', /own cgroup \/dom7 \(2 processes\), and no neighbour/],
+    ['exec_pages=allowed wx=clean maps=3 runtime=1 root=2 scope=all-processes', /every process with an address space/],
+    ['exec_pages=allowed wx=clean maps=2 runtime=1 front=1 scope=cgroup:/dom7', /own cgroup \/dom7 \(2 processes: runtime=1, front=1\), and no neighbour/],
     ['exec_pages=allowed wx=clean maps=1 scope=self', /reporting process ALONE/],
   ];
   for (const [st, re] of ok) {
@@ -188,7 +216,7 @@ test('the scan scope is a closed vocabulary, so a domain cannot invent one that 
 });
 
 test('a JIT identity from a domain that may not hold an executable page is refused', () => {
-  const st = 'exec_pages=refused:EACCES wx=clean maps=3 scope=cgroup:/dom1';
+  const st = 'exec_pages=refused:EACCES wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1';
   const r = checkRuntimeSelfTest(st, JIT);
   assert.equal(r.ok, false);
   assert.match(r.reasons.join(' '), /no JIT can run where an executable page is refused/);

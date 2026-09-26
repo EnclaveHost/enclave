@@ -12,16 +12,18 @@
 //   - exec_pages: may this domain hold an executable page at all? mmap RW, then mprotect RX. A domain
 //     that CANNOT (a stock Pixel pVM, measured; a Windows VBS enclave, ERROR_DYNAMIC_CODE_BLOCKED,
 //     windows/PARITY.md) may not honestly claim execution=jit, because no JIT can run there.
-//   - wx: is any page in this domain both writable and executable RIGHT NOW? Every mapping of every
-//     process in this domain's cgroup is read. W^X "enforced" means the runtime publishes code
-//     write-then-protect and never keeps W+X, and that is visible in /proc/<pid>/maps.
+//   - wx: is any page in this domain both writable and executable? W^X "enforced" means the runtime publishes
+//     code write-then-protect and never keeps W+X, and that is visible in /proc/<pid>/maps. It is measured at
+//     EACH ATTESTATION, not once at start (enclave-b4's finding, enclave-87's ruling): on the SNP guest the
+//     front starts before the app exists, so a start-time scan never covered the runtime. And it names what it
+//     covered by role, so a judge can refuse a scan that saw no runtime. On the NucBox (M3) the front runs as
+//     its own uid and cannot read the runtime, so the MONITOR measures and returns the result with the report.
 //
-// A fault is fatal: the front exits rather than serving, exactly as the monitor does on an incoherent
-// boundary tuple. A domain that cannot substantiate its runtime identity attests nothing.
+// exec_pages is probed once at start and is fatal there; a W+X mapping found at an attestation refuses that
+// document. A domain that cannot substantiate its runtime identity attests nothing.
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -33,9 +35,9 @@ import (
 )
 
 type runtimeState struct {
-	ID       contract.RuntimeIdentity
-	RID      [32]byte
-	SelfTest string // "exec_pages=allowed wx=clean maps=7 scope=cgroup:/dom1"
+	ID        contract.RuntimeIdentity
+	RID       [32]byte
+	ExecPages string // "allowed", or why not; the wx half is measured at each attestation (selfTest)
 }
 
 // loadRuntime reads the identity, validates it against the contract, checks it against this domain, and
@@ -68,16 +70,7 @@ func loadRuntime(path string) (*runtimeState, error) {
 		return nil, fmt.Errorf("the identity says execution=%s but this domain may not hold an executable page (exec_pages=%s): no JIT can run here, so the identity is false",
 			contract.ExecJIT, execPages)
 	}
-	scope, pids, wx, err := scanWX()
-	if err != nil {
-		return nil, fmt.Errorf("W^X scan: %w", err)
-	}
-	if wx != "" {
-		return nil, fmt.Errorf("the identity says wx=%s but this domain holds a writable AND executable mapping: %s",
-			contract.WXEnforced, wx)
-	}
-	return &runtimeState{ID: id, RID: rid, SelfTest: fmt.Sprintf(
-		"exec_pages=%s wx=clean maps=%d scope=%s", execPages, pids, scope)}, nil
+	return &runtimeState{ID: id, RID: rid, ExecPages: execPages}, nil
 }
 
 // probeExecPages asks whether this domain may hold an executable page: the JIT pattern, one page, on
@@ -100,28 +93,29 @@ func probeExecPages() string {
 	return "allowed"
 }
 
-// scanWX reads every mapping of every process in THIS domain and returns the first that is both
-// writable and executable, or "" when there is none.
+// localSelfTest is the runtime self-test as THIS front can measure it, for a document being issued now: exec_pages
+// from start, and a W^X scan of this domain made now (contract.ScanWX: an unreadable mapping FAILS it). It is used
+// where the front can read every process of its domain - the SNP guest, M2 and M4a, where it is root. A process's
+// role is its uid: root (init and the front) or runtime (the app, dropped to its own uid). A W+X mapping refuses the
+// document.
 //
-// Scope matters for correctness, not tidiness. In M2 and M4a the domain is the whole guest, so every
-// process in /proc belongs to it. In M3 several domains share a guest and each has its own cgroup
-// (monitor/main.go: /sys/fs/cgroup/dom<N>, the front among its processes), and a scan that reached into
-// a NEIGHBOUR would let one domain's runtime fault another domain's attestation - a cross-domain denial
-// of service dressed as a security check, the N5 property in reverse. So the scan is cgroup-scoped
-// whenever this process is in a cgroup other than the root.
-func scanWX() (scope string, scanned int, found string, err error) {
+// Scope matters for correctness, not tidiness. In M2 and M4a the domain is the whole guest, so every process in /proc
+// belongs to it. In a cgroup other than the root the scan is cgroup-scoped, so it never reaches a NEIGHBOUR's process
+// (which would let one domain fault another's attestation).
+func localSelfTest(execPages string) (string, error) {
 	self, err := cgroupOf("self")
 	if err != nil {
-		return "", 0, "", err
+		return "", err
 	}
-	scope = "all-processes"
+	scope := "all-processes"
 	if self != "" && self != "/" {
 		scope = "cgroup:" + self
 	}
 	ents, err := os.ReadDir("/proc")
 	if err != nil {
-		return "", 0, "", err
+		return "", err
 	}
+	var pids []int
 	for _, e := range ents {
 		pid, perr := strconv.Atoi(e.Name())
 		if perr != nil {
@@ -129,26 +123,35 @@ func scanWX() (scope string, scanned int, found string, err error) {
 		}
 		if scope != "all-processes" {
 			cg, cerr := cgroupOf(e.Name())
-			if cerr != nil || cg != self { // a process that ended, or a neighbour: not ours to judge
-				continue
+			if cerr != nil {
+				if contract.Gone(cerr) {
+					continue
+				}
+				return "", fmt.Errorf("pid %d's cgroup: %w", pid, cerr)
+			}
+			if cg != self {
+				continue // a neighbour: not ours to judge
 			}
 		}
-		line, mapped, ferr := firstWXMapping(pid)
-		if ferr != nil {
-			continue // the process ended mid-scan; its mappings went with it
-		}
-		if !mapped {
-			continue // a kernel thread: no address space of its own, and a guest's /proc is mostly these
-		}
-		scanned++
-		if line != "" && found == "" {
-			found = fmt.Sprintf("pid %d: %s", pid, line)
-		}
+		pids = append(pids, pid)
 	}
-	if scanned == 0 {
-		return scope, 0, "", fmt.Errorf("no process with an address space could be read in scope %s: a scan that sees nothing is not a clean scan", scope)
+	scan, err := contract.ScanWX(scope, pids, func(pid int) (string, error) {
+		uid, err := contract.UIDOf(pid)
+		if err != nil {
+			return "", err
+		}
+		if uid == 0 {
+			return "root", nil
+		}
+		return "runtime", nil
+	})
+	if err != nil {
+		return "", fmt.Errorf("W^X scan: %w", err)
 	}
-	return scope, scanned, found, nil
+	if scan.Found != "" {
+		return "", fmt.Errorf("the identity says wx=%s but this domain holds a writable AND executable mapping: %s", contract.WXEnforced, scan.Found)
+	}
+	return "exec_pages=" + execPages + " " + scan.Clean(), nil
 }
 
 // cgroupOf returns the cgroup-v2 path of a process ("0::<path>" in /proc/<pid>/cgroup), or "" when the
@@ -167,28 +170,4 @@ func cgroupOf(pid string) (string, error) {
 		}
 	}
 	return "", nil
-}
-
-// firstWXMapping returns the first writable-and-executable mapping of a process, and whether the process
-// has an address space at all: a kernel thread's maps file is empty, and counting those would make the
-// scan's own count meaningless (74 "processes" in a guest running three).
-func firstWXMapping(pid int) (line string, mapped bool, err error) {
-	f, err := os.Open("/proc/" + strconv.Itoa(pid) + "/maps")
-	if err != nil {
-		return "", false, err
-	}
-	defer f.Close()
-	s := bufio.NewScanner(f)
-	s.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for s.Scan() {
-		mapped = true
-		fields := strings.Fields(s.Text())
-		if len(fields) < 2 || len(fields[1]) < 4 {
-			continue
-		}
-		if fields[1][1] == 'w' && fields[1][2] == 'x' {
-			return s.Text(), true, nil
-		}
-	}
-	return "", mapped, s.Err()
 }

@@ -183,7 +183,20 @@ export function checkRuntime(doc, handshakeSpki, nonce, want = {}) {
   return { ok: true, reasons, binding: bind2(handshakeSpki, nonce, rid) };
 }
 
-// checkRuntimeSelfTest judges "exec_pages=allowed wx=clean maps=7 scope=cgroup:/dom1".
+// checkRuntimeSelfTest judges "exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1".
+//
+// The scan is made for EACH document (enclave-b4's finding, enclave-87's ruling): a document issued before the runtime
+// runs covers no runtime and says runtime=0, and this judge REJECTS it wherever the runtime is a separate process. Who
+// relies on the wx claim, and who does not (enclave-87: "decide per consumer; never silently accept runtime=0 where the
+// claim is relied on"):
+//   RELIES, and so attests a SERVING domain (waits for the app): this judge, isolation/m2/client.mjs and the lab
+//     harnesses that call it (test-m2.sh, test-m3.sh, test-m4.sh);
+//   EXEMPT, because it does not read the claim at all: the production verifier (verifier/envelope.mjs validates
+//     runtimeSelfTest for SHAPE only, str(4096), "the binding decides") and so the relay's certificate issuance
+//     (guestcert, certs.js incl. the NucBox hvcert pass), the attested release and config handoff (which run before the
+//     app starts), and the site's and CLI's trusted mode; and the NucBox manager's readiness judge (judge-hv.mjs), which
+//     never reads it.
+const SELFTEST_ROLES = ['runtime', 'front', 'init', 'root', 'other'];
 export function checkRuntimeSelfTest(selfTest, identity) {
   if (typeof selfTest !== 'string' || selfTest === '') {
     return { ok: false, reasons: [`REJECT: the document carries no runtime self-test, so nothing says this domain checked W^X or whether it may hold an executable page at all`] };
@@ -207,6 +220,15 @@ export function checkRuntimeSelfTest(selfTest, identity) {
   if (!Number.isInteger(maps) || maps < 1) {
     return { ok: false, reasons: [`REJECT: the runtime self-test scanned maps=${JSON.stringify(f.maps)} processes; a scan that saw nothing is not a clean scan`] };
   }
+  // the coverage BY ROLE: each count a whole number, all of them adding up to maps
+  const roles = SELFTEST_ROLES.filter((r) => r in f);
+  for (const r of roles) {
+    const n = Number(f[r]);
+    if (!/^\d+$/.test(f[r]) || !Number.isInteger(n)) return { ok: false, reasons: [`REJECT: the runtime self-test's ${r}=${JSON.stringify(f[r])} is not a count`] };
+  }
+  if (roles.length && roles.reduce((a, r) => a + Number(f[r]), 0) !== maps) {
+    return { ok: false, reasons: [`REJECT: the runtime self-test's roles (${roles.map((r) => `${r}=${f[r]}`).join(' ')}) do not add up to maps=${maps}`] };
+  }
   // The scope is a closed vocabulary, not free text. "wx=clean" means nothing without knowing WHAT was
   // scanned, and if any word were accepted a domain could invent a scope that merely reads broad
   // ("scope=everything") for a scan that covered one process. Each value says what coverage it claims:
@@ -224,10 +246,17 @@ export function checkRuntimeSelfTest(selfTest, identity) {
       return { ok: false, reasons: [`REJECT: scope=self scanned maps=${maps}; scanning the reporting process alone is exactly one process`] };
     }
     reasons.push('the scan covered the reporting process ALONE (scope=self), which is complete only because the runtime is a library in that process; a separate runtime process would be unscanned, and the hardware does not attest which it is');
-  } else if (f.scope === 'all-processes') {
-    reasons.push(`the scan covered every process with an address space in this domain (${maps})`);
-  } else if (f.scope.startsWith('cgroup:/')) {
-    reasons.push(`the scan covered this domain's own cgroup ${f.scope.slice(7)} (${maps} processes), and no neighbour's`);
+  } else if (f.scope === 'all-processes' || f.scope.startsWith('cgroup:/')) {
+    // the runtime is a separate process here, so a clean scan means something only if it SAW the runtime
+    if (!('runtime' in f)) {
+      return { ok: false, reasons: [`REJECT: the runtime self-test (scope=${f.scope}) does not say how many runtime processes it covered; a scan made before the runtime ran covered none (runtime=<n> is required)`] };
+    }
+    if (Number(f.runtime) < 1) {
+      return { ok: false, reasons: [`REJECT: the runtime self-test covered NO runtime process (runtime=${f.runtime}): measured before the runtime ran, or unable to see it; nothing shows W^X of the runtime`] };
+    }
+    reasons.push(f.scope === 'all-processes'
+      ? `the scan covered every process with an address space in this domain (${maps}: ${roles.map((r) => `${r}=${f[r]}`).join(', ')})`
+      : `the scan covered this domain's own cgroup ${f.scope.slice(7)} (${maps} processes: ${roles.map((r) => `${r}=${f[r]}`).join(', ')}), and no neighbour's`);
   } else {
     return { ok: false, reasons: [`REJECT: scope=${JSON.stringify(f.scope)} is not one of all-processes, cgroup:/<path>, self; "wx=clean" says nothing without knowing what was scanned`] };
   }
