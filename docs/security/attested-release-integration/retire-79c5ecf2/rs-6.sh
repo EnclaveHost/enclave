@@ -12,6 +12,13 @@ DEST=/opt/enclave-predict/retire-79c5ecf2
 NEW_SHA=__NEW__   # predict-lines.env (the two new lines; set when staged on nan)
 OLD_SHA=daec659ecb4c7aac7ba7b645892972dcc8b44f0f76935fe3e8d551e9f17e0412   # predict-lines.before.env (= the live two lines = rs-5's after)
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+# PRECONDITION of apply (enclave-bf, required by enclave-87): ALL 3 canaries run on 52156652, CHIP-VERIFIED from each serving
+# guest's own report (canary-attest.mjs: AMD chain, HOST_DATA, ABI/2 binding of our TLS handshake + fresh nonce + the admitted
+# runtime, AppID, measurement = the pinned 52156652 value) - never guestd's or any host's word. A canary still on 79c5ecf2
+# would lose its secrets and certificates to this edit: refused.
+if [ "$MODE" = apply ]; then
+  node "$H/canary-attest.mjs" "$H/../../../../relay" | tee "$RS/rs6-precondition.txt" || { say "REFUSING rs-6 apply: not all 3 canaries are chip-verified on 52156652"; exit 3; }
+fi
 $NAN "systemctl show enclave-api-relay -p InvocationID --value" > "$RS/rs6-$MODE-inv0.txt"
 say "rs-6 $MODE: the two predictor lines on nan, then one api-relay restart (invocation before: $(cut -c1-12 "$RS/rs6-$MODE-inv0.txt"))"
 set +e; $NAN "MODE=$MODE DEST=$DEST STAMP=$STAMP NEW_SHA=$NEW_SHA OLD_SHA=$OLD_SHA bash -s" < "$H/rs-6-remote.sh" > "$RS/rs6-$MODE.txt" 2>&1; rc=$?; set -e

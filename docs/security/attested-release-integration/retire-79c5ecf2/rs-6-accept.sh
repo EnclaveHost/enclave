@@ -9,7 +9,7 @@
 #      certificate); admitted = {52156652} only, at the independently derived measurement (63's = mine);
 #   4. release ON for exactly the 3 canaries; MemoryPeak; /enclaves 200; the canaries 200/0 on their guests' boot keys; us-west
 #      listed; metal-iso0 serving and eligible.
-# rollback: rs-6's state (all five installed, 79c5ecf2 and 52156652 admitted).
+# rollback: rs-5's state (all five installed, 79c5ecf2 and 52156652 admitted).
 set -uo pipefail; source ~/enclave-bench/relay-slice-20260925/lib.sh; source ~/enclave-bench/pool-rollout-20260925/lib.sh
 say() { local m; m="$(date -u +%H:%M:%SZ) $*"; echo "$m"; { echo "$m" >> "$RS/rollout.log"; } 2>/dev/null || true; }
 MODE=${1:?usage: rs-6-accept.sh apply|rollback}; H=$(cd "$(dirname "$0")" && pwd)
