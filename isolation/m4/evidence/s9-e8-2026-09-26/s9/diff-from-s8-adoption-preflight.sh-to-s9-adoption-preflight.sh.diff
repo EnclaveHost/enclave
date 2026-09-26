@@ -1,0 +1,55 @@
+--- s8-20260926/s8-adoption-preflight.sh	2026-09-25 22:13:19.458691083 -0700
++++ s9-20260926/s9-adoption-preflight.sh	2026-09-26 00:01:01.794367758 -0700
+@@ -1,9 +1,9 @@
+ #!/usr/bin/env bash
+-# S8 (the guestd UPGRADE to 0c087de8 plus the tree switch to iso-0c087de8 / release 5db18199) ADOPTION preflight, derived
+-# from s7-adoption-preflight.sh. It runs exactly what the NEW guestd's adoption will: the NEW tree's client.mjs and judge,
+-# with --release naming -unrecorded-releases ($UNREC), because the 3 canaries' records were written by the old guestd
+-# and name no release (persist.go:118-120 at 0c087de8; main.go verifyArgs appends --release). It changes nothing: it
+-# opens one attestation session per canary through its
++# S9 (the guestd UPGRADE to 4cd26e58 plus the tree switch to iso-4cd26e58 / release aee2059f) ADOPTION preflight, derived
++# from s8-adoption-preflight.sh. It runs exactly what the NEW guestd's adoption will: the NEW tree's client.mjs and judge
++# (per-release seccomp), with --release naming each canary's RECORDED release (persist.go: rec.Releases, [5db18199] for
++# all 3 since e7; the NEW judge lists 5db18199 in SECCOMP_UNSTATED_RELEASES). It changes nothing: it opens one
++# attestation session per canary through its
+ # CURRENT forwarder, and, once the gate opens, client.mjs sends the canary's app the same GET /hello?from=client that
+ # adoption sends (retrying on a 502 for up to 60 s); nothing is consumed (independent attestations, --no-kds). At 4d the new guestd adopts each canary only if it verifies again
+ # as the same guest (persist.go adoptOne: a new forwarder to its CID, then THE NEW TREE's judge with the recorded
+@@ -17,9 +17,9 @@
+ #   - each canary's record (instance.json) agrees with guestd's /vms, and the NEW tree's client.mjs, run with guestd's
+ #     own argument list (main.go verifyArgs) against the canary's CURRENT forwarder, says VERDICT attested, gate open,
+ #     and the recorded transport key.
+-# It writes s8-20260926/adoption-check.txt, which s8t-apply.sh requires for the same binary and tree within 2 hours.
+-# Usage: s8-adoption-preflight.sh <the NEW guestd commit (NBINC), 40 hex> <its sha256 (the 1c line)>
+-set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/s8-20260926/lib8.sh
++# It writes s9-20260926/adoption-check.txt, which s9t-apply.sh requires for the same binary and tree within 2 hours.
++# Usage: s9-adoption-preflight.sh <the NEW guestd commit (NBINC), 40 hex> <its sha256 (the 1c line)>
++set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/s9-20260926/lib9.sh
+ export PATH=/usr/local/bin:/usr/bin:/usr/sbin:/bin   # guestd's unit PATH: the wasmtime, node and go the new guestd will use
+ BINC=${1:?commit}; BSHA=${2:?sha256}; [[ "$BINC" =~ ^[0-9a-f]{40}$ && "$BSHA" =~ ^[0-9a-f]{64}$ ]] || { echo "40-hex commit, 64-hex sha"; exit 2; }
+ GR=$PROD/guestd-root; OUT=$S4/adoption-check.txt
+@@ -50,19 +50,20 @@
+     assert rec["TransportKeySha256"]==v["transportKeySha256"] and rec["Unit"] and rec["CID"]>0, v["id"]
+     assert isinstance(v["hostPort"],int) and 0<v["hostPort"]<65536
+     for k in ("Measurement","AppID","HostData","TransportKeySha256"): assert re.fullmatch(r"[0-9a-f]+", rec[k]), k
+-    print("\t".join([v["id"], str(v["hostPort"]), rec["Measurement"], rec["AppID"], rec["HostData"], rec["TransportKeySha256"]]))
++    rel=rec.get("Releases"); assert isinstance(rel,list) and rel and all(re.fullmatch(r"[0-9a-f]{64}",x) for x in rel), v["id"]   # recorded (b4 item 6)
++    print("\t".join([v["id"], str(v["hostPort"]), rec["Measurement"], rec["AppID"], rec["HostData"], rec["TransportKeySha256"], ",".join(rel)]))
+ PY
+ n=0; names=""
+-while IFS=$'\t' read -r id port m a hd key; do
++while IFS=$'\t' read -r id port m a hd key rel; do
+   # guestd's verifyArgs, verbatim, with the NEW tree's m2/client.mjs and chain; the live defaults for vcek and min-tcb
+   out=$(node "$T/isolation/m2/client.mjs" "https://127.0.0.1:$port" --measurement "$m" --app-sha "$a" --no-kds \
+         --vcek "$HOME/.cache/enclave-isolation/m3-clean/vcek.der" \
+         --amd-chain "Turin=$T/test/fixtures/amd/Turin-cert_chain.pem" \
+         --min-tcb "@$HOME/.cache/enclave-isolation/m3-clean/min-tcb.json" \
+-        --runtime "$W/rid.json" --save "$W/$id-doc.json" --host-data "$hd" --release "$UNREC" 2>&1) || true
++        --runtime "$W/rid.json" --save "$W/$id-doc.json" --host-data "$hd" --release "$rel" 2>&1) || true
+   v=$(grep -m1 '^VERDICT ' <<<"$out" || true); k=$(grep -m1 '^RESULT spki_sha256=' <<<"$out" | cut -d= -f2 || true)
+   if [[ "$v" == "VERDICT attested"* ]] && grep -qx 'RESULT gate=open' <<<"$out" && [ "$k" = "$key" ]; then
+-    n=$((n+1)); names+="${id} "; say4 "adoption preflight: $id verifies with the new tree's judge ($v; key ${key:0:12})"
++    n=$((n+1)); names+="${id} "; say4 "adoption preflight: $id (recorded release ${rel:0:8}) verifies with the new tree's judge ($v; key ${key:0:12}; $(grep -m1 '^RESULT wx_coverage=' <<<"$out" || echo 'no wx_coverage'))"
+   else
+     say4 "ADOPTION PREFLIGHT FAILED: $id: ${v:-no verdict}; key ${k:0:12} vs recorded ${key:0:12}"; exit 7
+   fi
