@@ -104,7 +104,7 @@ import { pvmCpuPolicyFromEnv, PVM_CPU_TIER } from "./pvm-cpu-tier.mjs";
 import { VBS_DEFAULT_EK_ROOTS } from "./vbs-policy.mjs";
 import { createPadsLedger, createPrefixStore, createShipmentStore, padsRouter } from "./pads.mjs";
 import { dataDir } from "./store.js";
-import { expectedGuest } from "./secrets-release.mjs";
+import { expectedGuest, prewarmReleasePredictions } from "./secrets-release.mjs";
 import { boxOrigin, boxLabelOfHost } from "./boxhost.js";
 installProcessGuards("api-relay");
 
@@ -2823,8 +2823,22 @@ await initSecrets();           // needs SECRETS_KEY + the same data dir; degrade
 // attested release on: run the predictor's known-answer test now, in the background, so the first release after a restart
 // does not wait for it (a failure is logged and every release refused until a later test passes)
 // whenever the predictor is configured (it also serves /v1/expected-guest with the release OFF)
-if (process.env.SECRETS_RELEASE_PREDICT_COMMIT && !predictorProblems().length)
-  predictor().selfTest().then((k) => console.log(`[measurement-predict] known-answer test at start: ${k.ok ? "PASS" : "FAIL"}: ${k.reason}`)).catch(() => {});
+// ...and once it passes, every release-listed deployment's predictions are pre-warmed (secrets-release.mjs), then again every
+// RELEASE_PREWARM_SEC (default 600; 0 = off): a cached key costs a catalog read, a new app version is computed before its release
+let _prewarming = false;
+const prewarmReleases = () => {
+  if (_prewarming) return;
+  _prewarming = true;
+  prewarmReleasePredictions(relayCtx).catch((e) => console.error(`[secrets-release] pre-warm failed: ${e.message}`)).finally(() => { _prewarming = false; });
+};
+const RELEASE_PREWARM_SEC = parseInt(process.env.RELEASE_PREWARM_SEC ?? "600", 10);
+if (process.env.SECRETS_RELEASE_PREDICT_COMMIT && !predictorProblems().length) {
+  predictor().selfTest().then((k) => {
+    console.log(`[measurement-predict] known-answer test at start: ${k.ok ? "PASS" : "FAIL"}: ${k.reason}`);
+    if (k.ok && RELEASE_PREWARM_SEC > 0) prewarmReleases();
+  }).catch(() => {});
+  if (RELEASE_PREWARM_SEC > 0) setInterval(prewarmReleases, Math.max(60, RELEASE_PREWARM_SEC) * 1000).unref?.();
+}
 startSecretsSweep(relayCtx);   // hourly off-ledger purge (no-op while disabled)
 await initDomains();           // custom domains: same data dir, CUSTOM_DOMAINS=0 opts out
 startDomainSweep(relayCtx);    // DNS re-check + demotion sweep (no-op while disabled)
