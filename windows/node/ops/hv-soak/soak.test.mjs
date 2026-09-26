@@ -11,7 +11,7 @@ import { execFileSync } from "node:child_process";
 import {
   DEFAULTS, CONSOLE_OK, THRESHOLDS, BOOTSTRAP, remoteCommand, appUrlFor, certFacts, tlsCheck, parseRelayRow, encodeGetCall,
   decodeDeployment, boxScript, parseBoxStdout, consumeChunk, scanLog, consoleScan, pickDeploymentVm, digestBox, newEval, step,
-  summarize, newSampler, humanLine, parseArgs,
+  summarize, newSampler, humanLine, parseArgs, exercised,
 } from "./soak.mjs";
 
 const DEP = DEFAULTS.deployment;
@@ -354,8 +354,54 @@ test("thresholds: any non-DOM/MON console line or any token sighting is a leak",
   assert.deepEqual(run([S({ nonMatching: 1 })]).fails, ["leak"]);
   assert.deepEqual(run([S({ tokenHits: 1 })]).fails, ["leak"]);
   assert.deepEqual(run([S({ tokenHits: 1, nonMatching: 2 })]).fails, ["leak", "leak"]);
-  const v = run([S({ connected: false, boxOk: false })]).vs[0];
-  assert.ok(v.info.some(([id, m]) => id === "leak" && /no console coverage/.test(m)));
+});
+
+/* the leak check must not pass vacuously: no leak seen PASSes only on enough EXERCISED samples (enclave-bf's blocker) */
+const soakFile = (samples) => [JSON.stringify({ type: "start", interval: 300, deployment: DEP }), ...samples.map((s) => JSON.stringify(s))];
+// n samples, `ex` of them exercised; the others miss ONLY the console (box.ok stays true, so no other threshold moves)
+const coverage = (n, ex) => { clock = Date.parse("2026-09-27T00:00:00Z"); return soakFile(Array.from({ length: n }, (_, i) => S({ baseline: i === 0, connected: i < ex }))); };
+
+test("exercised: the partition running, a verified 200, the console read, and both logs read", () => {
+  assert.equal(exercised(S()), true);
+  for (const [o, why] of [[{ running: false }, "not running"], [{ ok: false }, "no verified 200"], [{ ok: false, authorized: false, status: 200 }, "an unverified 200"],
+                          [{ connected: false }, "no console"], [{ nodeOk: false }, "node.log unread"], [{ sshOk: false }, "no box read"]])
+    assert.equal(exercised(S(o)), false, why);
+  const m = S(); m.box.logs.manager = { ok: false };
+  assert.equal(exercised(m), false, "manager.log unread");
+});
+
+test("summarize: no console ever read -> leak NOT EXERCISED and the verdict is not PASS", () => {
+  const r = summarize(coverage(10, 0));
+  assert.equal(r.pass, false);
+  assert.match(r.text, /NOT EXERCISED \(0\/10\) leak .*\[exercised 0\/10, floor 90\.0%\]/);
+  assert.match(r.text, /leak check: exercised in 0\/10 samples \(0\.0%; floor 90\.0%\)/);
+  assert.match(r.text, /VERDICT: NOT PASS/);
+  assert.doesNotMatch(r.text, /VERDICT: PASS/);
+  for (const id of ["public", "spki", "partition", "price", "box", "relay"]) assert.match(r.text, new RegExp(`PASS ${id} `), `${id} is untouched`);
+});
+
+test("summarize: just under the floor is NOT PASS; at or above it with no hits is PASS", () => {
+  const under = summarize(coverage(100, 89));
+  assert.equal(under.pass, false);
+  assert.match(under.text, /NOT EXERCISED \(89\/100\) leak/);
+  const at = summarize(coverage(100, 90));
+  assert.equal(at.pass, true);
+  assert.match(at.text, /PASS leak .*\[exercised 90\/100, floor 90\.0%\]/);
+  assert.match(at.text, /VERDICT: PASS/);
+  assert.equal(summarize(coverage(10, 10)).pass, true);
+  // the floor is configurable, and whatever it is, 0 exercised samples never PASS (even a floor of 0 through the API)
+  assert.equal(summarize(coverage(100, 89), { leakFloor: 0.85 }).pass, true);
+  assert.equal(summarize(coverage(10, 0), { leakFloor: 0.01 }).pass, false);
+  assert.equal(summarize(coverage(10, 0), { leakFloor: 0 }).pass, false);
+  assert.equal(summarize(coverage(10, 1), { leakFloor: 0 }).pass, true);
+});
+
+test("summarize: a token hit in an exercised sample is a leak FAIL", () => {
+  clock = Date.parse("2026-09-28T00:00:00Z");
+  const r = summarize(soakFile([S({ baseline: true }), S(), S({ tokenHits: 1 }), S()]));
+  assert.equal(r.pass, false);
+  assert.match(r.text, /FAIL leak .*\[exercised 4\/4, floor 90\.0%\]: 1 event\(s\)/);
+  assert.match(r.text, /VERDICT: FAIL/);
 });
 
 test("thresholds: the box read FAILs at 3 in a row and is INFO below that", () => {
@@ -382,7 +428,9 @@ test("summarize: uptime, latency percentiles, coverage with a gap, PASS/FAIL per
   lines.push(JSON.stringify(S({ ok: false })));
   lines.push(JSON.stringify(S({ ok: false })));
   lines.push("{\"type\":\"sample\",\"t\":\"torn");                // a torn last line is ignored
-  const r = summarize(lines);
+  // 10 of 12 samples exercised the leak check (83%): under the default 90% floor this could not PASS
+  assert.match(summarize(lines).text, /NOT EXERCISED \(10\/12\) leak/);
+  const r = summarize(lines, { leakFloor: 0.8 });
   assert.equal(r.pass, true);
   assert.match(r.text, /12 samples/);
   assert.match(r.text, /uptime 83\.3% \(10\/12 verified 200\)/);
@@ -421,6 +469,10 @@ test("parseArgs: defaults, the derived URL, and the guards", () => {
   assert.equal(parseArgs(["--duration", "90m"]).duration, 5400);
   assert.equal(parseArgs(["--interval", "5m"]).interval, 300);
   assert.equal(parseArgs(["--no-chain"]).chain, false);
+  assert.equal(c.leakFloor, 0.9);
+  assert.equal(parseArgs(["--leak-floor", "95%"]).leakFloor, 0.95);
+  assert.equal(parseArgs(["--leak-floor", "0.5"]).leakFloor, 0.5);
+  for (const bad of ["0", "1.5", "x", "-1"]) assert.throws(() => parseArgs(["--leak-floor", bad]), /leak-floor/);
   assert.throws(() => parseArgs(["--interval", "10"]), /at least 30/);
   assert.throws(() => parseArgs(["--deployment", "0x1"]), /64 hex/);
   assert.throws(() => parseArgs(["--console-sec", "10"]), /outlast/);

@@ -35,9 +35,26 @@ Console and log line CONTENTS are never stored or printed:
 | spki | the leaf's SPKI changes with no restart of the deployment in the node log | See "SPKI baseline and restarts" below. |
 | partition | the partition is not Running on 2 consecutive samples | Running means the manager's `/vms` status is `running` and, when `Get-VM` answered, the VM is `Running`. A sample whose box read failed counts as unknown: it neither counts toward the streak nor resets it. |
 | price | a new `registry: card price now` line appears (a price tx) | The first read of `node.log` is the baseline. |
-| leak | the console has a line that does not match `^(DOM\|MON)\|^\[ *[0-9]+\.[0-9]+\]`, or the sample's token appears in the console, node.log or manager.log | Blank lines and the trailing partial line are not judged. The token is still searched for in the raw text. |
+| leak | the console has a line that does not match `^(DOM\|MON)\|^\[ *[0-9]+\.[0-9]+\]`, or the sample's token appears in the console, node.log or manager.log | Blank lines and the trailing partial line are not judged. The token is still searched for in the raw text. **No leak seen is not a PASS on its own:** see "The leak floor" below. |
 | box | the ssh or box read fails on 3 or more consecutive samples (INFO below that) | The box read is the ssh session, `/vms`, both logs, and the console whenever the partition is running. |
 | relay | the relay row is wrong on 3 or more consecutive samples, or `hostExcluded` is true in any sample | This threshold is an addition: this tier never excludes the host. |
+
+**The leak floor.** A leak can only be seen in a sample that EXERCISED the check. That needs all of these:
+- the deployment's partition was Running;
+- the public GET carrying the token was a verified 200, so the request reached the partition;
+- the console was read around the request;
+- node.log and manager.log were both read.
+
+`--summary` gives `leak` one of three verdicts:
+- **FAIL**: any leak event, in any sample.
+- **PASS**: no leak event, at least one exercised sample, and exercised samples make up at least **the floor (90% by default)** of all samples. Set the floor with `--leak-floor 0.95` or `--leak-floor 95%`.
+- **NOT EXERCISED (x/N)**: anything else.
+
+The overall verdict is PASS only when every threshold PASSes. With `leak` NOT EXERCISED and nothing FAILed, it reads `NOT PASS`, and the exit code is 1. The exercised count is printed on the leak line and on its own summary line. Each sample also records it, informationally, in `derived.leakExercised`.
+
+This stops two things:
+- **A vacuous PASS.** Examples: 0/144 console reads, or a public route that never delivered the token.
+- **Patchy coverage.** Alternating console failures never make 3 in a row, so the `box` threshold alone would never trip.
 
 **SPKI baseline and restarts:**
 - The baseline is the first leaf presented, verified or not. With M4, a self-signed leaf and the CA-issued one carry the same key.
@@ -65,12 +82,13 @@ echo $! > soak.pid
 
 **Other commands:**
 - Stop early with `kill "$(cat soak.pid)"` (its exact PID). SIGTERM lets the current sample finish, then prints the summary.
-- Get a summary at any time, including while the run is going, with `node soak.mjs --summary <file.jsonl> [--since <ISO time>]`. It re-evaluates every threshold from the observations, not from the stored verdicts. It exits 1 on any FAIL.
+- Get a summary at any time, including while the run is going, with `node soak.mjs --summary <file.jsonl> [--since <ISO time>] [--leak-floor 0.9]`. It re-evaluates every threshold from the observations, not from the stored verdicts. It exits 1 unless every threshold PASSes.
 - `--since` scores only the part after a given time. For example, a run started before the public route served can be scored from the first verified 200.
-- Options: `--interval 300`, `--duration 12h`, `--out FILE`, `--deployment 0x…`, `--url`, `--node`, `--relay`, `--ssh`, `--root`, `--console-sec 25`, `--rpc URL` (repeatable) and `--no-chain`.
+- Options: `--interval 300`, `--duration 12h`, `--out FILE`, `--deployment 0x…`, `--url`, `--node`, `--relay`, `--ssh`, `--root`, `--console-sec 25`, `--rpc URL` (repeatable), `--no-chain` and `--leak-floor 0.9`.
 
 **What the summary prints:**
-- PASS or FAIL for each threshold, with the worst streak and the first event.
+- PASS or FAIL for each threshold (NOT EXERCISED for `leak` below the floor), with the worst streak and the first event.
+- The leak check's exercised count, its share of all samples, and the floor.
 - Public uptime (verified 200s over all checks) and latency p50/p95 over those 200s.
 - The longest stretch of samples with no gap longer than 2×INTERVAL, plus the longer gaps.
 - The share of samples with the partition Running.
@@ -85,6 +103,6 @@ at test time; that test is skipped when openssl is missing.
 
 ## Limits (stated, not hidden)
 
-- **Console coverage.** The console is covered for 25 s per sample, around the public request. Output at other times is seen only when a later window catches it, because Hyper-V does not keep it for a reader who was not connected. The token catches a leak of the request itself wherever it is logged.
+- **Console coverage.** The console is covered for 25 s per sample, around the public request. The leak floor sets how many samples must have been covered for `leak` to PASS. Output at other times is seen only when a later window catches it, because Hyper-V does not keep it for a reader who was not connected. The token catches a leak of the request itself wherever it is logged.
 - **Partial first line.** If the connection lands in the middle of a line, the first line of a window can be a fragment. It is judged like any other line.
 - **The v40 guest (image b7ba7731) has a known console leak**, fixed in v42. On v40, expect the `leak` threshold to FAIL. The real 12 h soak runs on the v42 guest.
