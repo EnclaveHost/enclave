@@ -250,13 +250,22 @@ func TestEachGuestIsNamedByItsOwnTreesRelease(t *testing.T) {
 		_ = os.MkdirAll(filepath.Join(d, "m2"), 0o755)
 		_ = os.WriteFile(filepath.Join(d, "m2", "judge.mjs"), []byte(js), 0o600)
 	}
-	if why := needsRelease(old, nil); !strings.Contains(why, "predates per-release W^X") {
+	if why := needsRelease(old, ""); !strings.Contains(why, "predates per-release W^X") {
 		t.Errorf("an unnamed pre-chain tree was accepted: %q", why)
 	}
-	if why := needsRelease(old, tree); why != "" || needsRelease(cur, nil) != "" {
-		t.Error("a named pre-chain tree, or an unnamed later one, was refused")
+	// a pre-chain tree's own judge ignores --release, so a TYPED id is not caught at launch: only a derived one
+	for _, typed := range []string{tree[0], "@" + rj + "," + tree[0]} {
+		if why := needsRelease(old, typed); !strings.Contains(why, "DERIVED") {
+			t.Errorf("a pre-chain tree named by a typed id %q was accepted: %q", typed, why)
+		}
 	}
-	if why := needsRelease(filepath.Join(t.TempDir(), "absent"), tree); why == "" {
+	if why := needsRelease(old, "@"+rj); why != "" {
+		t.Errorf("a pre-chain tree named by its release.json was refused: %q", why)
+	}
+	if needsRelease(cur, "") != "" || needsRelease(cur, tree[0]) != "" {
+		t.Error("a later tree, unnamed or typed, was refused (its own judge checks what it is told)")
+	}
+	if why := needsRelease(filepath.Join(t.TempDir(), "absent"), "@"+rj); why == "" {
 		t.Error("an unreadable tree was accepted")
 	}
 	// the real launcher's judge command line names them exactly when given
