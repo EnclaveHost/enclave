@@ -522,7 +522,10 @@ rep=$(ser s1 | sed -n 's/^PROBE[0-9]* report=//p' | head -1)
 frep=$(ser s1 | sed -n 's/^PROBE[0-9]* filtered_report=//p' | head -1)
 got=$(ser s1 | sed -n 's/^PROBE[0-9]* report_b64=//p' | head -1)
 echo "evidence: the runtime's report request: ${rep:-missing}; filtered: ${frep:-missing}; a report obtained: ${got:+YES}${got:-none}"
-[ -n "$rep" ] && [ -n "$frep" ] && [ "$rep" != "granted-for-this-domain" ] && [ "$frep" != "granted-for-this-domain" ] && [ -z "$got" ] && r=ok || r=no
+# exactly "Permission denied" (the front's 0700 /run refusing), never merely "not granted": "no-answer" would mean the
+# runtime REACHED the report socket and only the monitor stayed silent (enclave-5d). The monitor's own uid refusal is
+# proved separately (monitor/frontuid_test.go), so each layer is measured on its own
+[ "$rep" = "Permission denied" ] && [ "$frep" = "Permission denied" ] && [ -z "$got" ] && r=ok || r=no
 check "10c the RUNTIME (the probe, as its uid) is REFUSED a report, unfiltered and filtered: the report channel is the front's alone" $r
 
 # --- graceful stop ------------------------------------------------------------------------------

@@ -180,14 +180,28 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet, int filter) {
     return pid;
 }
 
+/* a uid spelled in decimal from s up to exactly stop, nothing else, nonzero and not (uid_t)-1: -> it, or 0 */
+static uid_t parse_uid(const char *s, const char *stop) {
+    if (s >= stop || *s < '0' || *s > '9') return 0;
+    char *e;
+    errno = 0;
+    unsigned long v = strtoul(s, &e, 10);
+    if (errno || e != stop || v == 0 || v >= 0xFFFFFFFFUL) return 0;
+    return (uid_t)v;
+}
+
 int main(int argc, char **argv) {
     if (argc < 3) { printf("DOM ERROR domexec <id> <runtime-uid>:<front-uid>\n"); return 2; }
     dom_id = argv[1];
-    /* <runtime-uid>:<front-uid>, two different non-root uids, or nothing starts: a front sharing the runtime's uid is the
-     * v42 residual this closes */
+    /* <runtime-uid>:<front-uid>, exactly two different non-root decimal uids, or nothing starts: a front sharing the
+     * runtime's uid is the v42 residual this closes. Parsed strictly (enclave-5d): "1000:1001x" or "-1:1001" is refused,
+     * not read as 1001 or uid 4294967295. */
     char *colon = strchr(argv[2], ':');
-    uid_t uid = (uid_t)atoi(argv[2]), front_uid = colon ? (uid_t)atoi(colon + 1) : 0;
-    if (uid == 0 || front_uid == 0) { printf("DOM%s ERROR refusing to run a domain as root (or without a front uid): %s\n", dom_id, argv[2]); return 2; }
+    uid_t uid = colon ? parse_uid(argv[2], colon) : 0, front_uid = colon ? parse_uid(colon + 1, colon + 1 + strlen(colon + 1)) : 0;
+    if (uid == 0 || front_uid == 0) {
+        printf("DOM%s ERROR the uids must be <runtime-uid>:<front-uid>, two non-root decimal uids (got %s): not started\n", dom_id, argv[2]);
+        return 2;
+    }
     if (front_uid == uid) { printf("DOM%s ERROR the front and the runtime must not share a uid (%u)\n", dom_id, (unsigned)uid); return 2; }
     /* the null device the monitor opened for us (NULL_FD, above): it must BE the null device (char 1:3), or the domain
      * does not start - a quiet workload with anything else on its stdio could reach the console or a file */
