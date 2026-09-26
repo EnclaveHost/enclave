@@ -79,10 +79,20 @@ func TestFilterPassesDOMLinesAndWithholdsEverythingElse(t *testing.T) {
 			t.Errorf("filter(%q) = %q: a write must become exactly one console line", c.in, got)
 		}
 	}
-	// a write that mixes the two keeps its DOM lines and withholds the rest, in order
-	got := string(filter([]byte("DOM a\n" + m + "\nDOM b\n")))
-	if got != "DOM a\nDOM front: output withheld (26 bytes)\nDOM b\n" {
-		t.Errorf("mixed write: %q", got)
+	// ONE message is judged whole: a multi-line message is withheld whole even when a later line starts with DOM, so a
+	// withheld value cannot carry a line past the filter (enclave-d1's review of 8be920fa)
+	for _, in := range []string{
+		"DOM a\n" + m + "\n",
+		"2026/09/26 00:00:00 http: panic serving 10.0.0.1:1: x\nDOM smuggled " + m + "\ngoroutine 5 [running]:\n",
+		"2026/09/26 00:00:00 httputil: ReverseProxy read error during body copy: x\nDOM smuggled " + m + "\n",
+		"DOM a\nDOM b " + m + "\n",
+		// enclave-d1's measured input on 8be920fa, verbatim but for the marker
+		"2026/09/26 00:00:00 http: panic serving 10.0.0.1:5: x\nDOM smuggled " + m + "\ngoroutine 1 [running]:\n",
+	} {
+		got := string(filter([]byte(in)))
+		if strings.Contains(got, m) || strings.Contains(got, "smuggled") || strings.Count(got, "\n") != 1 || !strings.HasPrefix(got, "DOM front: ") {
+			t.Errorf("filter(%q) = %q: a multi-line message must become ONE class line", in, got)
+		}
 	}
 }
 
@@ -215,6 +225,24 @@ func TestAHandlerPanicNeverPrintsItsValue(t *testing.T) {
 	}
 }
 
+func TestAPanicValueCannotSmuggleADOMLine(t *testing.T) {
+	m := marker(t)
+	buf := withConsole(t, true)
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("x\nDOM smuggled " + m)
+	}))
+	srv.Config.ErrorLog = consoleLog
+	srv.Start()
+	defer srv.Close()
+	if resp, err := srv.Client().Get(srv.URL); err == nil {
+		resp.Body.Close()
+	}
+	if !waitFor(buf, "DOM front: panic (withheld)", 3*time.Second) || strings.Contains(buf.String(), m) ||
+		strings.Contains(buf.String(), "smuggled") {
+		t.Fatalf("log: %q", buf.String())
+	}
+}
+
 func TestATLSHandshakeErrorIsAClassOnly(t *testing.T) {
 	buf := withConsole(t, true)
 	srv := httptest.NewUnstartedServer(http.NotFoundHandler())
@@ -264,9 +292,11 @@ func TestGuardChild(t *testing.T) {
 		}
 	}
 	log.Printf("DOM proxy: GET unreachable")
-	fmt.Fprintf(os.Stderr, "a direct stderr write %s\n", m)
+	// fd 2 carries nothing of the front's, so NOTHING on it passes, not even a line that starts with DOM (the smuggle
+	// twin of the logger case); written directly so it is pumped deterministically before the crash below
+	fmt.Fprintf(os.Stderr, "a direct stderr write %s\nDOM smuggled %s\n", m, m)
 	time.Sleep(200 * time.Millisecond) // the pump drains the direct write first
-	go func() { panic("fatal " + m) }()
+	go func() { panic("fatal\nDOM smuggled " + m) }()
 	time.Sleep(5 * time.Second)
 }
 
@@ -293,8 +323,8 @@ func TestTheRuntimesCrashOutputNeverReachesTheConsole(t *testing.T) {
 				}
 				return
 			}
-			if strings.Contains(out, m) {
-				t.Fatalf("guarded: the marker reached the console: %q", out)
+			if strings.Contains(out, m) || strings.Contains(out, "smuggled") {
+				t.Fatalf("guarded: the marker (or a smuggled DOM line) reached the console: %q", out)
 			}
 			if !strings.Contains(out, "DOM proxy: GET unreachable") || !strings.Contains(out, "DOM front: output withheld") {
 				t.Fatalf("guarded: the DOM line or the withheld class is missing: %q", out)
