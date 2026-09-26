@@ -516,15 +516,14 @@ vis=$(ser s1 | sed -n 's/^PROBE[0-9]* visible_pids=//p' | head -1)
 echo "evidence: it could see $vis processes and signal $sig of the first 400 pids"
 [ -n "$sig" ] && [ "$sig" -le 2 ] && [ -n "$vis" ] && [ "$vis" -le 3 ] && r=ok || r=no
 check "10b it can see and signal only its own processes, not the monitor's and not another domain's" $r
-# the report it DID get must name its own app: a compromised domain can only ever speak for itself
-prep=$(ser s1 | sed -n 's/^PROBE[0-9]* report_b64=//p' | head -1)
-named=$(python3 -c "
-import base64,sys
-b=base64.b64decode(sys.argv[1]) if sys.argv[1] else b''
-print(b[0x50+32:0x50+64].hex() if len(b)>=0x90 else '')" "$prep" 2>/dev/null)
-echo "evidence: the app named in its report: ${named:-none} (its own $shaP; the other domains run $shaA / $shaB)"
-[ -n "$named" ] && [ "$named" = "$shaP" ] && r=ok || r=no
-check "10c the report it obtained names ITS OWN app, although its request also carried another app hash: naming is the monitor's, not the caller's" $r
+# the RUNTIME (the probe runs as its uid) must get NO report at all, unfiltered or filtered: the report channel is the
+# front's (enclave-87's ruling on enclave-bf's finding; the monitor answers the front's uid only, and /run is the front's)
+rep=$(ser s1 | sed -n 's/^PROBE[0-9]* report=//p' | head -1)
+frep=$(ser s1 | sed -n 's/^PROBE[0-9]* filtered_report=//p' | head -1)
+got=$(ser s1 | sed -n 's/^PROBE[0-9]* report_b64=//p' | head -1)
+echo "evidence: the runtime's report request: ${rep:-missing}; filtered: ${frep:-missing}; a report obtained: ${got:+YES}${got:-none}"
+[ -n "$rep" ] && [ -n "$frep" ] && [ "$rep" != "granted-for-this-domain" ] && [ "$frep" != "granted-for-this-domain" ] && [ -z "$got" ] && r=ok || r=no
+check "10c the RUNTIME (the probe, as its uid) is REFUSED a report, unfiltered and filtered: the report channel is the front's alone" $r
 
 # --- graceful stop ------------------------------------------------------------------------------
 echo "evidence: stop: $(cat "$W/s1.stop" 2>/dev/null | tr -d '\n') / $(ser s1 | grep -aE 'stop:|stopped' | tr '\n' '; ')"

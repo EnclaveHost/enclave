@@ -55,9 +55,9 @@ func testMonitor(t *testing.T, report reporter) (*monitor, string) {
 	return m, filepath.Join(dir, "mon.sock")
 }
 
-// the caller of these tests runs as one uid, so that uid is the "domain" the monitor knows
+// the caller of these tests runs as one uid, so that uid is the domain's FRONT the monitor knows (its runtime has another)
 func registerSelf(m *monitor, id int) *domain {
-	d := &domain{ID: id, UID: os.Getuid(), Port: uint32(40000 + id), life: contract.NewLifecycle(contract.Running),
+	d := &domain{ID: id, UID: os.Getuid() + 7, FrontUID: os.Getuid(), Port: uint32(40000 + id), life: contract.NewLifecycle(contract.Running),
 		exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
 	copy(d.appHash[:], []byte(fmt.Sprintf("app-%d", id)))
 	m.register(d)
@@ -148,7 +148,7 @@ func TestUnauthenticatedCallerIsRefusedWithoutParsingItsBytes(t *testing.T) {
 	if err := json.NewDecoder(bufio.NewReader(c)).Decode(&got); err != nil {
 		t.Fatalf("the refusal must reach the caller, not a reset: %v", err)
 	}
-	if got["error"] != "caller is not a domain" {
+	if got["error"] != "caller is not a domain's front" {
 		t.Fatalf("want credential refusal, got %v", got)
 	}
 	if called.Load() != 0 {
@@ -212,11 +212,11 @@ func TestOneDomainCannotCrowdOutAnother(t *testing.T) {
 
 	// a DIFFERENT domain is still served while the noisy one is at its limit. (Same uid here, so the
 	// second domain is simulated by giving the noisy domain's slots back to a fresh domain record.)
-	quiet := &domain{ID: 2, UID: os.Getuid(), life: contract.NewLifecycle(contract.Running), exited: make(chan struct{}),
+	quiet := &domain{ID: 2, UID: os.Getuid() + 7, FrontUID: os.Getuid(), life: contract.NewLifecycle(contract.Running), exited: make(chan struct{}),
 		inFlight: make(chan struct{}, maxReportsPerDom)}
 	copy(quiet.appHash[:], []byte("app-2"))
 	m.mu.Lock()
-	m.byUID[quiet.UID] = quiet
+	m.byUID[quiet.FrontUID] = quiet
 	m.mu.Unlock()
 	done := make(chan map[string]string, 1)
 	go func() {
@@ -249,10 +249,10 @@ func TestFloodIsRefusedRatherThanQueuedUnbounded(t *testing.T) {
 	// first and the global one would never be reached. Give this domain a large allowance: what is
 	// under test here is the GLOBAL limit, which is what stops a flood from spawning a goroutine per
 	// connection however many domains it is spread across.
-	d := &domain{ID: 1, UID: os.Getuid(), life: contract.NewLifecycle(contract.Running), exited: make(chan struct{}),
+	d := &domain{ID: 1, UID: os.Getuid() + 7, FrontUID: os.Getuid(), life: contract.NewLifecycle(contract.Running), exited: make(chan struct{}),
 		inFlight: make(chan struct{}, maxReportsTotal+8)}
 	m.mu.Lock()
-	m.byUID[d.UID] = d
+	m.byUID[d.FrontUID] = d
 	m.mu.Unlock()
 	var conns []net.Conn
 	t.Cleanup(func() {
@@ -325,7 +325,7 @@ func TestRetireIsIdempotentAndRemovesTheDomainOnce(t *testing.T) {
 	}
 	m.mu.Lock()
 	_, byID := m.doms[d.ID]
-	_, byUID := m.byUID[d.UID]
+	_, byUID := m.byUID[d.FrontUID]
 	m.mu.Unlock()
 	if byID || byUID {
 		t.Fatal("a retired domain must leave both tables")
@@ -422,7 +422,7 @@ func TestDestroyWhileAReportIsInFlight(t *testing.T) {
 	}
 	m.mu.Lock()
 	_, byID := m.doms[d.ID]
-	_, byUID := m.byUID[d.UID]
+	_, byUID := m.byUID[d.FrontUID]
 	m.mu.Unlock()
 	if byID || byUID {
 		t.Fatal("the destroyed domain is still registered")
@@ -431,7 +431,7 @@ func TestDestroyWhileAReportIsInFlight(t *testing.T) {
 		t.Fatal("its directory survived")
 	}
 	// a later report from that uid must not find a domain at all
-	if got := mustAsk(t, sock, goodBind); got["error"] != "caller is not a domain" {
+	if got := mustAsk(t, sock, goodBind); got["error"] != "caller is not a domain's front" {
 		t.Fatalf("a destroyed domain must stop being a domain, got %v", got)
 	}
 }
@@ -478,7 +478,7 @@ func endedCleanly(t *testing.T, m *monitor, d *domain) {
 	t.Helper()
 	m.mu.Lock()
 	_, byID := m.doms[d.ID]
-	_, byUID := m.byUID[d.UID]
+	_, byUID := m.byUID[d.FrontUID]
 	m.mu.Unlock()
 	if byID || byUID {
 		t.Fatal("the domain is still registered")
@@ -497,7 +497,7 @@ func endedCleanly(t *testing.T, m *monitor, d *domain) {
 
 func startingDomain(t *testing.T, m *monitor, id int) *domain {
 	t.Helper()
-	d := &domain{ID: id, UID: os.Getuid() + id, life: contract.NewLifecycle(contract.Starting),
+	d := &domain{ID: id, UID: os.Getuid() + 7 + id, FrontUID: os.Getuid() + id, life: contract.NewLifecycle(contract.Starting),
 		dir: filepath.Join(t.TempDir(), "d"), cgroup: filepath.Join(t.TempDir(), "cg"),
 		exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
 	os.MkdirAll(d.dir, 0o755)
@@ -652,11 +652,11 @@ func TestOneDomainsFloodNeitherSpendsTheGlobalBudgetNorBlocksAnother(t *testing.
 
 	// ...and a different domain is served throughout. (Every connection here authenticates as the same
 	// uid, so a second domain is simulated by swapping the record that uid resolves to.)
-	quiet := &domain{ID: 2, UID: os.Getuid(), life: contract.NewLifecycle(contract.Running), exited: make(chan struct{}),
+	quiet := &domain{ID: 2, UID: os.Getuid() + 7, FrontUID: os.Getuid(), life: contract.NewLifecycle(contract.Running), exited: make(chan struct{}),
 		inFlight: make(chan struct{}, maxReportsPerDom)}
 	copy(quiet.appHash[:], []byte("app-2"))
 	m.mu.Lock()
-	m.byUID[quiet.UID] = quiet
+	m.byUID[quiet.FrontUID] = quiet
 	m.mu.Unlock()
 
 	done := make(chan map[string]string, 1)
@@ -687,7 +687,7 @@ func TestRefusalsDoNotStallTheAcceptLoop(t *testing.T) {
 	// built with a large per-domain allowance so the GLOBAL limit is the one under test. It is set at
 	// construction, never assigned afterwards: mutating a field of a domain the monitor is already
 	// serving is a data race, and a racy test cannot be trusted to find real ones.
-	d := &domain{ID: 1, UID: os.Getuid(), life: contract.NewLifecycle(contract.Running), exited: make(chan struct{}),
+	d := &domain{ID: 1, UID: os.Getuid() + 7, FrontUID: os.Getuid(), life: contract.NewLifecycle(contract.Running), exited: make(chan struct{}),
 		inFlight: make(chan struct{}, maxReportsTotal+8)}
 	copy(d.appHash[:], []byte("app-1"))
 	m.register(d)
@@ -741,7 +741,7 @@ func TestAFailedLaunchLeavesNothingBehind(t *testing.T) {
 
 	// a domain built as far as start() builds one, with the files and cgroup in place
 	base := t.TempDir()
-	d := &domain{ID: 1, UID: os.Getuid(), Port: 40001, life: contract.NewLifecycle(contract.Starting),
+	d := &domain{ID: 1, UID: os.Getuid() + 7, FrontUID: os.Getuid(), Port: 40001, life: contract.NewLifecycle(contract.Starting),
 		dir: filepath.Join(base, "1"), cgroup: filepath.Join(base, "dom1"),
 		exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
 	copy(d.appHash[:], []byte("app-1"))
@@ -765,7 +765,7 @@ func TestAFailedLaunchLeavesNothingBehind(t *testing.T) {
 	// BOTH tables
 	m.mu.Lock()
 	_, byID := m.doms[d.ID]
-	_, byUID := m.byUID[d.UID]
+	_, byUID := m.byUID[d.FrontUID]
 	m.mu.Unlock()
 	if byID {
 		t.Error("a failed launch is still listed by id")
@@ -787,7 +787,7 @@ func TestAFailedLaunchLeavesNothingBehind(t *testing.T) {
 
 	// and the thing that matters most: that uid is no longer a domain, so no report can be had for it
 	got := mustAsk(t, sock, goodBind)
-	if got["error"] != "caller is not a domain" {
+	if got["error"] != "caller is not a domain's front" {
 		t.Fatalf("a failed launch must stop being a domain, got %v", got)
 	}
 	if reportCalls.Load() != 0 {
@@ -805,7 +805,7 @@ func TestAFailedLaunchLeavesNothingBehind(t *testing.T) {
 func TestAFailedLaunchClosesItsListener(t *testing.T) {
 	m, _ := testMonitor(t, okReport)
 	base := t.TempDir()
-	d := &domain{ID: 2, UID: os.Getuid() + 2, Port: 40002, life: contract.NewLifecycle(contract.Starting),
+	d := &domain{ID: 2, UID: os.Getuid() + 2, FrontUID: os.Getuid() + 2 + frontUIDOffset, Port: 40002, life: contract.NewLifecycle(contract.Starting),
 		dir: filepath.Join(base, "2"), cgroup: filepath.Join(base, "dom2"),
 		exited: make(chan struct{}), inFlight: make(chan struct{}, maxReportsPerDom)}
 	os.MkdirAll(d.dir, 0o755)

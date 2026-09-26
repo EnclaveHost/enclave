@@ -19,7 +19,11 @@
  * WEAKER than the VMPL separation described in PLAN.md section 1, and is not a substitute for it. SNP
  * still excludes the host from all of it.
  *
- * usage: domexec <id> <uid> [app|probe] [memMiB] (run by the monitor, never by a domain)
+ * usage: domexec <id> <runtime-uid>:<front-uid> [app|probe|run] [memMiB] [port] (run by the monitor, never by a domain)
+ *   The runtime and the front run as DIFFERENT uids (enclave-87's ruling on enclave-bf's finding): the front is the
+ *   trusted component in a domain and the runtime is not, so the runtime must not be able to signal, trace or read the
+ *   front, replace its listen socket, or reach the report socket (the monitor gives /run to the front's uid alone). The
+ *   adversary probe runs as the RUNTIME's uid: it stands in for a compromised runtime.
  *   app   (default) the runtime serving the tenant's app, plus the front
  *   probe the measured adversary probe (domprobe.c) as the domain's only workload, for the isolation
  *         tests: it stands in for a compromised runtime and reports what it could reach
@@ -77,7 +81,7 @@ static void lo_up(void) {
 
 /* What this domain can reach, printed once the workloads are running (so the process count is the
  * domain's real one). The host harness reads these lines off the console. */
-static void probe(uid_t workload_uid) {
+static void probe(uid_t workload_uid, uid_t front_uid) {
     struct stat st;
     int sysfs = stat("/sys", &st) == 0, cfg = stat("/sys/kernel/config", &st) == 0;
     int doms = stat("/domains", &st) == 0, appok = stat("/app.wasm", &st) == 0;
@@ -88,8 +92,8 @@ static void probe(uid_t workload_uid) {
         while ((e = readdir(d))) if (e->d_name[0] >= '1' && e->d_name[0] <= '9') procs++;
         closedir(d);
     }
-    printf("DOM%s probe workload_uid=%d sys=%d configfs=%d domains_dir=%d own_app=%d visible_pids=%d\n",
-           dom_id, (int)workload_uid, sysfs, cfg, doms, appok, procs);
+    printf("DOM%s probe workload_uid=%d front_uid=%d sys=%d configfs=%d domains_dir=%d own_app=%d visible_pids=%d\n",
+           dom_id, (int)workload_uid, (int)front_uid, sysfs, cfg, doms, appok, procs);
 }
 
 /* Evidence for the credential gate: while this process is still ROOT — and root is not a domain — ask
@@ -177,10 +181,14 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet, int filter) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 3) { printf("DOM ERROR domexec <id> <uid>\n"); return 2; }
+    if (argc < 3) { printf("DOM ERROR domexec <id> <runtime-uid>:<front-uid>\n"); return 2; }
     dom_id = argv[1];
-    uid_t uid = (uid_t)atoi(argv[2]);
-    if (uid == 0) { printf("DOM%s ERROR refusing to run a domain as root\n", dom_id); return 2; }
+    /* <runtime-uid>:<front-uid>, two different non-root uids, or nothing starts: a front sharing the runtime's uid is the
+     * v42 residual this closes */
+    char *colon = strchr(argv[2], ':');
+    uid_t uid = (uid_t)atoi(argv[2]), front_uid = colon ? (uid_t)atoi(colon + 1) : 0;
+    if (uid == 0 || front_uid == 0) { printf("DOM%s ERROR refusing to run a domain as root (or without a front uid): %s\n", dom_id, argv[2]); return 2; }
+    if (front_uid == uid) { printf("DOM%s ERROR the front and the runtime must not share a uid (%u)\n", dom_id, (unsigned)uid); return 2; }
     /* the null device the monitor opened for us (NULL_FD, above): it must BE the null device (char 1:3), or the domain
      * does not start - a quiet workload with anything else on its stdio could reach the console or a file */
     struct stat nst;
@@ -196,9 +204,9 @@ int main(int argc, char **argv) {
     lo_up();
     probe_report_as_root();
 
-    /* Both workloads run as the domain's uid, in these namespaces, with this root. The runtime serves
-     * the app on the domain's OWN loopback: every domain uses 127.0.0.1:8080 and they cannot collide
-     * or reach each other, because each has its own network namespace. */
+    /* Both workloads run in these namespaces, with this root: the runtime as the domain's uid, the front as its own
+     * (front_uid). The runtime serves the app on the domain's OWN loopback: every domain uses 127.0.0.1:8080 and they
+     * cannot collide or reach each other, because each has its own network namespace. */
     /* -C cache=n: compile inside the domain every time and keep no compiled artifact. See the same flag in
      * m2/dominit.c: wasmtime caches compiled modules by default, and an unauthenticated compiled cache is
      * refused by the portable-runtime contract (isolation/contract/RUNTIME.md rule 5). It also matters more
@@ -247,18 +255,18 @@ int main(int argc, char **argv) {
         printf("DOM%s started adversary probe=%d (no app, no front)\n", dom_id, rt_pid);
     } else if (run_port) {
         rt_pid = spawn(run, uid, 1, 1);                 /* the runtime: quiet and filtered */
-        front_pid = spawn(run_front, uid, 0, 0);        /* the front: neither */
+        front_pid = spawn(run_front, front_uid, 0, 0);  /* the front: its own uid, neither quiet nor filtered */
         front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d mode=run http=%d (/data 64 MiB scratch)\n", dom_id, rt_pid, front_pid,
                run_port);
     } else {
         rt_pid = spawn(rt, uid, 1, 1);                  /* the runtime: quiet and filtered */
-        front_pid = spawn(front, uid, 0, 0);            /* the front: neither */
+        front_pid = spawn(front, front_uid, 0, 0);      /* the front: its own uid, neither quiet nor filtered */
         front_pid_g = front_pid;
         printf("DOM%s started runtime=%d front=%d mode=serve\n", dom_id, rt_pid, front_pid);
     }
     usleep(200000);
-    probe(uid);
+    probe(uid, front_uid);
 
     for (;;) {
         int st = 0;
