@@ -3,6 +3,8 @@
 # NucBox hv node from OUTSIDE (ROLLOUT.md step 7r): the relay's row, the live restart check, the operator's gas and,
 # with a deployment id, the test app served over the guest's TLS. Needs VIEM_DIR (default ~/Projects/enclave) for the
 # chain reads. Prints PASS / FAIL / INFO; exits 1 on any FAIL.
+# R2 and R2b are RELAY checks: what a stranger gets THROUGH api.enclave.host. The node's own N1 answers (401 without a
+# session, 404 for a stranger's session, 200 for the operator's) are checked on the box itself, hvnode-accept.ps1 A9.
 set -uo pipefail
 ID=${1:-}; KEY=${2:-}
 VIEM_DIR=${VIEM_DIR:-$HOME/Projects/enclave}
@@ -23,15 +25,17 @@ set -- $row
 [ "${2:-}" = false ] && c=ok || c=no; check $c "R1 hvNode.hostExcluded ${2:-?}"
 echo "INFO R1 verifiedAt ${3:-?}; omissions ${4:-?}; eligible ${5:-?}; serving ${6:-?}"
 
-# R2: b4's live check: a restart with NO session is refused, never run
+# R2 (RELAY): a restart with NO session, through the relay, is refused, never run
 rid=${ID:-0x$(printf '0%.0s' $(seq 1 64))}
 code=$(curl -sS -o /dev/null -m 20 -w '%{http_code}' -X POST "https://api.enclave.host/t/nucbox-k11/v1/deployments/$rid/restart")
 case "$code" in 401|403|404|409|503) c=ok ;; *) c=no ;; esac
-check $c "R2 POST /t/nucbox-k11/v1/deployments/${rid:0:10}…/restart without a session -> $code (refused)"
+check $c "R2 (relay) POST /t/nucbox-k11/v1/deployments/${rid:0:10}…/restart without a session -> $code (refused)"
 
-# R2b (b4's check, with a real STRANGER): a throwaway wallet logs in to the node (its own SIWE session) and asks to restart
-# the deployment. It must be refused: 404 (not the owner; Linux's rule) once B routes the POST, 401 if the relay
-# strips the credential first. Never 200. The throwaway key lives only in this process and is discarded.
+# R2b (RELAY; b4's check, with a real STRANGER): a throwaway wallet logs in to the node THROUGH the relay (its own SIWE
+# session) and asks to restart the deployment. It must be refused: 404 (not the owner; Linux's rule) once B routes the
+# POST, 401 if the relay strips the credential first. Never 200. The throwaway key lives only in this process.
+# 'nosession' is a FAIL (enclave-87): a check that never reaches the restart proves nothing about it. If the relay
+# refuses /v1/auth for this box, this check cannot pass; the node's own answer is then A9's (hvnode-accept.ps1).
 r2b=$(cd "$VIEM_DIR" && RID="$rid" node --input-type=module -e '
   import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
   const B = "https://api.enclave.host/t/nucbox-k11";
@@ -48,10 +52,9 @@ r2b=$(cd "$VIEM_DIR" && RID="$rid" node --input-type=module -e '
 set -- $r2b
 case "${1:-}/${2:-}" in
   session/401|session/403|session/404|session/409|session/503) c=ok ;;
-  nosession/*) c=ok ;;
   *) c=no ;;
 esac
-check $c "R2b a stranger's OWN session on the node, restarting ${rid:0:10}…: ${r2b:-no answer} (refused; 'nosession' = the relay did not even let it log in)"
+check $c "R2b (relay) a stranger's OWN session on the node, restarting ${rid:0:10}…: ${r2b:-no answer} (refused; 'nosession' = it never logged in, so it proves nothing: FAIL)"
 
 # R3: the operator's gas, and no stuck nonce
 g=$(cd "$VIEM_DIR" && node --input-type=module -e '
