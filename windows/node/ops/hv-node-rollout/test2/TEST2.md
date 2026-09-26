@@ -147,7 +147,8 @@ node …/delegation-sign.mjs --operator 0x389C3f030a209D04D026228D2D053fEB75Dbad
 - At the expiry printed by the signer (read the clock):
   - **the RELAY stops at once, without waiting for an attach.** The next watch line reads `served=no`, and a new
     connection is refused (k=000) within a minute of the expiry. The SNI splice checks `until` at decision time.
-    If B's 60 s re-check of the attached delegations runs before the node re-attaches, nan's journal MAY also show
+    `served=` decides; `owners=` may still read `0x2947(until <a past time>)` for up to 60 s, until B's re-check or the
+    node's re-attach rewrites the row (enclave-b4). If B's 60 s re-check of the attached delegations runs before the node re-attaches, nan's journal MAY also show
     `[tunnel] nucbox-k11 served owners now 0x389c…`: the relay dropping the owner on its own (a race with the
     re-attach, so not required; enclave-b4).
   - **the NODE**, at its next tick:

@@ -1,7 +1,8 @@
 #!/bin/bash
 # test2-watch.sh <deployment id> - READ-ONLY, one line per call: what the RELAY, the PUBLIC and the LEDGER say about one
 # test-2 deployment right now (TEST2.md). Needs VIEM_DIR (default ~/Projects/enclave) for the ledger read.
-#   relay:  the owners nucbox-k11's row serves (B's row.served, from the node's last attach), and whether the id is in its
+#   relay:  the owners nucbox-k11's row serves (B's row.served, from the node's last attach, re-verified by the relay every
+#           60 s, so it may lag an expiry by up to 60 s), and whether the id is in its
 #           servesDeployments (enclave-e3's B), and until when
 # The ledger address is the CLI's default deployments ledger (0xF9e71385…); the node resolves its own from the address
 # book, and today they are the same (enclave-b4's review).
