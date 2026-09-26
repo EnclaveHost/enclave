@@ -1,0 +1,14 @@
+--   scope hosts (verified mode snp): 0xf7a1256d
+ok   scope: 3 deployment(s) leased on a verified SNP host, every one release-listed (each chip-verified below)
+ok   0ddbd824: leased; AMD-verified report of the serving guest (fresh nonce, TLS key bound), measurement 3facefd88284 = aee2059f's
+ok   395bed3e: leased; AMD-verified report of the serving guest (fresh nonce, TLS key bound), measurement 8a291bbf9981 = aee2059f's
+ok   4e62e60d: leased; AMD-verified report of the serving guest (fresh nonce, TLS key bound), measurement 8a291bbf9981 = aee2059f's
+--   a69dcbba: no live lease (runs nowhere): not checked
+--   d9798e4c: no live lease (runs nowhere): not checked
+--   a77d0c57: no live lease (runs nowhere): not checked
+--   7ae476a3: no live lease (runs nowhere): not checked
+EVERY leased listed deployment chip-verified on aee2059f (the 3 canaries among them)
+08:26:59Z rs-12 apply: the three release lines on nan, then one api-relay restart (invocation before: 23d460c2af6d)
+nan: rs3 apply: backup /etc/nan-relay/api-relay.env.bak-rs3-apply-20260926T082649Z; the three lines replaced (now sha a2d1da9f85ee); api-relay restarted: invocation 23d460c2af6d -> 22e04c2bdf354cd4bb39d4ea93f36038, NRestarts 0, MemoryMax 1536M; the release settings unchanged (07a13d4d9739)
+08:27:25Z rs-12 apply: predictor probe: predicting (200)
+08:27:25Z rs-12 apply: remote rc=0; next: rs-12-accept.sh apply
