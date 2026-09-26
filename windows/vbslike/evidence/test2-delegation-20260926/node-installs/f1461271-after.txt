@@ -1,0 +1,2 @@
+06:03:31Z R4 test1 after: x=refused(404) ca=000 k=000 spki=none
+06:03:44Z R4 test1: x=open ca=200 k=200 spki=4d80b9566a3ab6c4

@@ -1,0 +1,7 @@
+2f1560d343cc9cc8c33b98d937e1fbeb65b52d33cdd489a6ae3898b3b3e89fd9
+C:\Users\claude\vbs-like\hvnode\state\delegations\agent-2947.json BUILTIN\Administrators:(I)(F)
+                                                                  NT AUTHORITY\SYSTEM:(I)(F)
+
+C:\Users\claude\vbs-like\hvnode\state\delegations BUILTIN\Administrators:(I)(OI)(CI)(F)
+                                                  NT AUTHORITY\SYSTEM:(I)(OI)(CI)(F)
+

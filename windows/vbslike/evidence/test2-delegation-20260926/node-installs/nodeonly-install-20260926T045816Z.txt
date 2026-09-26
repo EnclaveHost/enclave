@@ -1,0 +1,7 @@
+ok   manager Running and canStart; the node runs C:\Users\claude\vbs-like\hvnode\07fc4f55\windows\node; it moves to C:\Users\claude\vbs-like\hvnode\317b3152\windows\node
+ok   node tree C:\Users\claude\vbs-like\hvnode\317b3152 = the manifest (53 files)
+ok   npm ci from the pinned lockfile (ws, viem, tweetnacl at the locked versions)
+ok   run-node.cmd sha256 44877fcbfca107b412bbeceeb2ca4b05c00cb50edfc0af5dde933c1477902c1a (names C:\Users\claude\vbs-like\hvnode\317b3152\windows\node; the previous one kept as run-node.cmd.bak-07fc4f55)
+NOT UP: no agent from C:\Users\claude\vbs-like\hvnode\317b3152\windows\node answered http://127.0.0.1:9600/availability within 90 s. Read logs\node.log; ROLLBACK = -NodeOnly with the 07fc4f55 archive and pins
+exit=3
+tasks: EnclaveHvManager=Running EnclaveHvNode=Running

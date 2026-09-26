@@ -1,0 +1,10 @@
+2026-09-26T04:23:44Z
+isolation: REQUIRES hyperv-partition-per-app (hosts: nucbox-k11); every other runner refuses it
+the version's approved config applies (from its on-chain record; override with --config '{…}')
+rate cap: $0.03/h - enclaves dearer than this can't run it, now or after a failover (change it later: enclave rate-cap <id> <usd/hour>)
+created 0x958ae6e9d6cb638901d97d2f29d9775d8143b14fa46f6c37aaa4e3f2c78cdd42
+waiting for the new record to reach every RPC…
+funded $0.01
+claim-hint declined: this runner serves only deployments that require per-app isolation (isolation.require="snp-guest-per-app"), and this one does not ask for it (the sweep may still claim it)
+not waiting; check: enclave status 0x958ae6e9d6cb638901d97d2f29d9775d8143b14fa46f6c37aaa4e3f2c78cdd42
+2026-09-26T04:24:05Z

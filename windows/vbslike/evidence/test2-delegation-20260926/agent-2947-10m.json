@@ -1,0 +1,4 @@
+{
+  "message": "enclave-host-delegation-v1\nowner: 0x29479bf04ed889d46a7afb7f292b9bb26e12647c\noperator: 0x389c3f030a209d04d026228d2d053feb75dbadca\nbox: nucbox-k11\nchain: 8453\nregistry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac\nexpires: 1790401262",
+  "signature": "0xedacb5d60e315aa9e56b951b16dddb5a859079a3236e884b1e451980387c46b702275dde5d6ed073594a8f3c3a4938dbdf8969a40f9dca31bd02c92d6a65f3a41b"
+}

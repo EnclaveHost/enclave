@@ -1,0 +1,24 @@
+The message the OWNER 0x29479bf04ed889d46a7afb7f292b9bb26e12647c signed (personal_sign, EIP-191):
+
+enclave-host-delegation-v1
+owner: 0x29479bf04ed889d46a7afb7f292b9bb26e12647c
+operator: 0x389c3f030a209d04d026228d2d053feb75dbadca
+box: nucbox-k11
+chain: 8453
+registry: 0x868eb7fc5b5a84b2ff082eafc9bf40b7aac5ccac
+expires: 1790401262
+
+expires 2026-09-26T05:41:02.000Z (10 minutes)
+file: /home/steven/enclave-bench/test2/agent-2947-10m.json  sha256 b892883f50326b9eecaa5dacb76644ea20b021a965ba410daadb79225379966a
+verifyDelegation (the relay's and the node's module): VALID, owner 0x29479bf04ed889d46a7afb7f292b9bb26e12647c
+
+What this consent allows, and how to take it back (enclave-e3's scripts/host-delegation.mjs, verbatim in substance):
+  - The host may serve ONLY this owner's deployments whose on-chain options envelope requires
+    {"isolation":{"require":"hyperv-partition-per-app"}}, while that host holds the deployment's live lease, and only as
+    the raw splice of the app's own TLS (TLS ends in the partition). A deployment that requires snp-guest-per-app, or
+    requires nothing, is NEVER served by this host, whatever this delegation says.
+  - The host is NOT excluded from the partition (a host-attested boot state, not a TEE); it never receives the
+    deployment's secrets, and it is never offered to other tenants.
+  - There is no revocation list. The owner's levers: (1) per app, at once: change its isolation.require (setConfig);
+    (2) the expiry above; (3) transfer or cancel the deployment. On the host's side, removing the file stops the node
+    serving that owner at its next tick (held, not renewed, stopped at lapse) and the relay at the node's next attach.

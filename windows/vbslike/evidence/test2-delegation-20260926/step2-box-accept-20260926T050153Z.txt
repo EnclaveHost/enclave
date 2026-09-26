@@ -1,0 +1,36 @@
+PASS A1 Secure Boot is ON
+PASS A1 legacy task \EnclaveWindowsNode exists and is Disabled
+PASS A2 task \EnclaveHvManager is Running (Running)
+PASS A2 task \EnclaveHvNode is Running (Running)
+PASS A2 exactly one node agent process (1)
+PASS A2 exactly one manager process (1)
+PASS A2 run-node.cmd runs the tree 317b3152
+PASS A3 manager /health canStart=true
+PASS A3 manager backend hyperv-partition-per-app
+PASS A3 manager catalog.runtimeId = the node's ENCLAVE_ISOLATION_RUNTIME_ID (ccadb38a)
+PASS A3 manager boundary.hostExcluded=False (never claimed: T0-hv, monitor-signed)
+PASS A4 node role windows-hv-node
+PASS A4 node teeCpu is null (no TEE claim)
+PASS A4 claimScope owner-only
+PASS A4 operator 0x389C3f030a209D04D026228D2D053fEB75DbadcA
+PASS A4 registered on chain
+PASS A4 owners served: 0x389c3f030a209d04d026228d2d053feb75dbadca, 0x29479bf04ed889d46a7afb7f292b9bb26e12647c (the operator, plus each valid delegation)
+INFO A4 gasRenewalsLeft not computed yet: the node's first heartbeat, 10 min after start, computes it (agent up 3 min). Re-run this acceptance after 12 min; R3 checks the balance meanwhile
+PASS A4 relay verdict tier hv-node (the attach was accepted)
+PASS A4 advertises isolation hyperv-partition-per-app (test 1's deploy --isolation needs it)
+PASS A4 engine retired
+PASS A5 node.log never starts ee-host
+INFO A5 node.log attach lines: 04:58:50 [node] [host] ledger: not taking 0xda9e43f8: it needs the attested model volume qwen3.8-27b-mtp-gguf, which this box does not offer | 04:58:52 [node] sent windows-hv-node/v1 evidence (quote, credential, log, signed binding), attach signature v2, 1 delegation(s) | 04:58:53 [node] attach ACCEPTED tier=hv-node measurement=
+PASS A6 AllowFirmwareLoadFromFile = 1
+PASS A6 hv_sock 9001 GUID registered
+PASS A6 host-prereq's prior-state record is for HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization (host-prereq.ps1 -Rollback restores it)
+PASS A7 the manager holds one VM for 0x958ae6e9
+PASS A7 its status running
+PASS A7 its tier T0-hv
+PASS A7 hostExcluded is not claimed
+INFO A7 transportKeySha256 78ddc68541a369ba0ec03f9f40e559268040f8b42c026fea0e8fe012c81d2924 (hvnode-accept-remote.sh compares the public TLS key with it)
+INFO A9 node loopback N1 check: none=401 stranger=404
+PASS A9 a restart with NO session is 401 on the node (N1)
+PASS A9 a stranger's own session is 404 on the node (not the owner)
+ACCEPT (box): all PASS
+exit=0

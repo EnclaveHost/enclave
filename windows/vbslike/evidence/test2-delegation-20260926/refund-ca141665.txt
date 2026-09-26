@@ -1,0 +1,10 @@
+2026-09-26T05:02:06Z
+error: nothing to refund on 0xca141665… (it has already spent or refunded everything it held)
+2026-09-26T05:02:07Z
+2026-09-26T05:02:25Z
+error: refusing to sign: the server's login challenge is not a SIWE message for this wallet (first line is not the SIWE preamble). Nothing was signed. If https://api.enclave.host is not the endpoint you meant, pass --base.
+2026-09-26T05:02:26Z
+base-rpc.publicnode.com "active":true "balance6":"233800" "spent6":"16200" 
+base-mainnet.public.blastapi.io "active":false "balance6":"233800" "spent6":"16200" 
+stop tx 0xded9430daa15b70864f5a5b7012992a249129c2c3388965612aaefe12355d36f 2026-09-26T05:02:27Z from agent 0x29479bf0 sel 0x6485d678 (the CLI printed only the SIWE-refusal error)
+error: nothing to refund on 0xca141665… (it has already spent or refunded everything it held)
