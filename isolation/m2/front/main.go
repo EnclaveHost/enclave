@@ -109,12 +109,17 @@ func main() {
 	// Package init() functions, this package's and every import's, run BEFORE this line: none may print (enclave-e3's L2).
 	// ...and not dumpable, before the TLS key exists (dumpable.go): the runtime runs as this domain's uid too, and must not
 	// be able to ptrace this process or lift its descriptors. It prints nothing, so it can precede the guard.
-	dumpErr := notDumpable()
+	tracer, dumpErr := notDumpable()
 	if err := guardConsole(); err != nil {
 		die("console guard: %v", err)
 	}
 	if dumpErr != nil {
 		die("not dumpable: %v", dumpErr)
+	}
+	if tracer != 0 {
+		// a tracer attached before PR_SET_DUMPABLE 0 stays attached (enclave-bf): refuse before any key exists
+		fmt.Printf("DOM front: traced at start (pid %d): refusing\n", tracer)
+		os.Exit(1)
 	}
 	fmt.Printf("DOM front: not dumpable\n")
 	port := flag.Uint("port", 443, "vsock port to serve TLS on")
