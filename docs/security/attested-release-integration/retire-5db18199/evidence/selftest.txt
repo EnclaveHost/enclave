@@ -1,0 +1,7 @@
+ok   hv_row(nucbox-k11) = hv-node true 0x31136008aa0cf1d826d223777…
+ok   hv_row(no-such-box) = absent
+ok   hv_attach_line(23d460c2af6d) = 2026-09-26T07:05:55.402928+00:00…
+ok   hv_attach_line(no-such-box) empty
+ok   health ADMIT='5db18199 aee2059f' passes NOW (the rollback accept's target = rs-11's state)
+ok   health ADMIT=aee2059f FAILS now on the expected guest (5db18199 still admitted): the apply accept discriminates
+rs12-selftest: 6/6

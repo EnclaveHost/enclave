@@ -1,0 +1,16 @@
+2026-09-26T07:11:48Z
+before (live) 6877d7de91c1f2e5
+stage-retire: lines at /opt/enclave-predict/retire-5db18199: installed 5c3561f9 6f14ce75 aee2059f, admitted aee2059f (dropped: 5db18199 )
+{"uid":61930,"node":"v22.23.1","module":"/opt/nan-relay/measurement-predict.mjs","problems":[],"knownAnswerTest":{"ok":true,"reason":"2 known answer(s) reproduced exactly"},"crossChecks":[{"ref":"catalog://0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4","ok":true,"releaseImages":["aee2059f:3facefd88284"],"certReleases":["aee2059f"],"one":true,"certOk":true},{"ref":"catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4","ok":true,"releaseImages":["aee2059f:8a291bbf9981"],"certReleases":["aee2059f"],"one":true,"certOk":true}],"pass":true}
+Running as unit: enclave-predict-check-1790406708.service
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 37.580s
+CPU time consumed: 46.540s
+Memory peak: 1.1M
+Memory swap peak: 0B
+stage-retire: done: /opt/enclave-predict/retire-5db18199 (nothing outside it changed; no service, env or relay file touched)
+stage exit 0
+a2d1da9f85ee26fd808acd1eb4480223e65a7820c8f192cb57728956f6700dcb  /opt/enclave-predict/retire-5db18199/predict-lines.env
+6877d7de91c1f2e50f7701cefd8bb2b154b2efe8fcb15745a4288b6aed1cbc3d  /opt/enclave-predict/retire-5db18199/predict-lines.before.env
+0 23d460c2af6d4276996ff19aaa762280 2026-09-26T07:12:26Z
