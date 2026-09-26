@@ -226,6 +226,15 @@ function padsRoutes() {
   }
   return padsRoutesInstance;
 }
+// a milliseconds env knob: unset or empty = the default; a whole number >= min = that value; anything else (NaN, negative, a
+// fraction, below min) is logged LOUDLY and the default used - never a silent substitute (enclave-5d)
+function msEnv(key, dflt, min) {
+  const v = String(process.env[key] ?? "").trim();
+  if (v === "") return dflt;
+  if (/^\d+$/.test(v) && Number(v) >= min) return Number(v);
+  console.error(`[api-relay] ${key}="${v.slice(0, 40)}" is not a whole number of milliseconds >= ${min}: using the default ${dflt}`);
+  return dflt;
+}
 const tunnelHub = createTunnelHub({
   allow: [...DEFAULT_METAL_ALLOW, ...ENV_METAL_ALLOW],
   attest: METAL_ALLOWED_MEASUREMENTS.length || AVF_ATTEST || HVNODE_ATTEST
@@ -249,6 +258,9 @@ const tunnelHub = createTunnelHub({
   // RELAY_HVNODE_OPERATORS: the ONLY operators whose v2-signed hv-node attach serves owner-only (tunnel.js reads it in the
   // hv-node attest path and nowhere else); never TRUSTED_OPERATORS, which grants dial discovery and operator attach
   hvNodeOperators: (process.env.RELAY_HVNODE_OPERATORS || "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean),
+  // owner-only's re-check cadence and the grace a failed owner read may lean on the last successful one (defaults 60 s / 15 min)
+  ownerRecheckMs: msEnv("TUNNEL_OWNER_RECHECK_MS", 60_000, 250),
+  ownerGraceMs: msEnv("TUNNEL_OWNER_GRACE_MS", 15 * 60_000, 0),   // 0 = no grace: suspend on the first failed owner read
   // when an enclave attaches/detaches, refresh discovery + availability now so it
   // enters/leaves `live` immediately rather than on the slow (5 min) registry poll
   onChange: () => { pollRegistry().then(pollAvailability).catch(() => {}); },
