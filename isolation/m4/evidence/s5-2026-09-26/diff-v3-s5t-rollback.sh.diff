@@ -1,0 +1,15 @@
+--- s5t-rollback.sh.v2	2026-09-25 17:53:22.420898493 -0700
++++ s5t-rollback.sh	2026-09-25 17:57:42.607636603 -0700
+@@ -5,7 +5,11 @@
+ # canaries on 4e's expected keys, i.e. none relaunched yet (else escalate).
+ # Gate: guestd holds exactly the 3 canaries with 4e's keys and the chain + guestd show no non-canary; a failed read is
+ # unsafe; OVERRIDE=<reason> is logged. The apply's own fail() passes its one-time token instead.
+-set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/s5-20260926/lib5.sh; source ~/enclave-bench/e4-20260925/lib-e4.sh
++set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/e4-20260925/lib-e4.sh; source ~/enclave-bench/s5-20260926/lib5.sh
++# enclave-bf: lib5.sh is sourced LAST (lib-e4.sh sets REL/LOG4/say for 4e), and REL and LOG4 are re-pinned and REL
++# asserted against the installed release, so no later source can clobber the release this switch is about
++REL=52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1; LOG4=$S4/install.log
++[ "$(sha256sum < "$R/release.json" | cut -c1-64)" = "$REL" ] && [ "$T" = /home/steven/enclave-prod/iso-4cdd5169 ] && [ "$OT" = /home/steven/enclave-prod/iso-aa6c985c ] || { echo "REFUSING: REL/T/OT are not the S5 switch's"; exit 2; }
+ B4=$PROD/bin/guestd.4e78ba80   # OT = iso-aa6c985c (lib5.sh)
+ BAK=$EV/secret/enclave-guestd.service.bak-pre-5t; TOK=$EV/secret/5t-rollback-token
+ if [ -n "${FROM_APPLY:-}" ] && [ -f "$TOK" ] && [ "$(cat "$TOK" 2>/dev/null)" = "$FROM_APPLY" ]; then

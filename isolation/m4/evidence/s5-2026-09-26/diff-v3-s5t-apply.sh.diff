@@ -1,0 +1,16 @@
+--- s5t-apply.sh.v2	2026-09-25 17:52:59.831632143 -0700
++++ s5t-apply.sh	2026-09-25 17:57:42.607429713 -0700
+@@ -10,8 +10,12 @@
+ #   - the node check is 4c-c's (02f6e313 / f6cbd75a on launcher 578be084);
+ #   - the rollback (s5t-rollback.sh) restores the iso-aa6c985c unit.
+ # Run it DETACHED through s5t-run.sh, after the relay predicts AND admits 52156652 for the 3 canaries (e3).
+-set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/s5-20260926/lib5.sh; source ~/enclave-bench/s4c-20260925/lib4cc.sh; source ~/enclave-bench/release-on-20260925/lib-ro.sh; source ~/enclave-bench/e4-20260925/lib-e4.sh
++set -euo pipefail; source ~/enclave-bench/pool-rollout-20260925/lib.sh; source ~/enclave-bench/s4c-20260925/lib4cc.sh; source ~/enclave-bench/release-on-20260925/lib-ro.sh; source ~/enclave-bench/e4-20260925/lib-e4.sh; source ~/enclave-bench/s5-20260926/lib5.sh
+ S4OLD=~/enclave-bench/pool-rollout-20260925/s4
++# enclave-bf: lib5.sh is sourced LAST (lib-e4.sh sets REL/LOG4/say for 4e), and REL and LOG4 are re-pinned and REL
++# asserted against the installed release, so no later source can clobber the release this switch is about
++REL=52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1; LOG4=$S4/install.log
++[ "$(sha256sum < "$R/release.json" | cut -c1-64)" = "$REL" ] && [ "$T" = /home/steven/enclave-prod/iso-4cdd5169 ] && [ "$OT" = /home/steven/enclave-prod/iso-aa6c985c ] || { echo "REFUSING: REL/T/OT are not the S5 switch's"; exit 2; }
+ trap '' HUP PIPE
+ trap 'say4 "5T: terminated before any change"; exit 143' TERM INT
+ # the binary stays the live one; the FROM tree is iso-aa6c985c (OT/OIMG, lib5.sh)

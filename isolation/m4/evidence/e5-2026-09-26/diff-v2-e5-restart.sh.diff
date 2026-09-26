@@ -1,0 +1,12 @@
+--- e5-restart.sh.v1	2026-09-25 17:56:16.085200803 -0700
++++ e5-restart.sh	2026-09-25 17:59:51.412137836 -0700
+@@ -21,7 +21,8 @@
+ check_guestd4 || { say "REFUSING: guestd is not the 3 canaries with 4e's expected keys"; exit 3; }
+ noncanary_empty || { say "REFUSING: a non-canary deployment is (or may be) on metal-iso0"; exit 3; }
+ wait_for 60 public_ok4 || { say "REFUSING: the canaries do not serve with 4e's expected keys"; exit 3; }
+-RELM=$(expected_rel $FULL) && [[ "$RELM" =~ ^[0-9a-f]{96}$ ]] && [ "$RELM" != "$LEGM" ] || { say "REFUSING: the relay does not predict AND admit 52156652 for $ID ('${RELM:-none}')"; exit 3; }
++[[ "$RELM" =~ ^[0-9a-f]{96}$ ]] && [ "$RELM" != "$LEGM" ] || { say "REFUSING: no pinned 52156652 measurement for $ID"; exit 3; }
++M=$(expected_rel $FULL) && [ "$M" = "$RELM" ] || { say "REFUSING: the relay's 52156652 prediction for $ID is '${M:-none}', not the independently computed ${RELM:0:12}"; exit 3; }
+ vms4 > $ST/$ID-vms-before.json || { say "REFUSING: guestd unreadable"; exit 3; }
+ E=$(entry4 $FULL) || { say "REFUSING: no single guestd entry for $ID"; exit 3; }
+ python3 -c "import json,sys; e=json.loads(sys.argv[1]); sys.exit(0 if e['status']=='running' and e['measurement']=='$LEGM' and e.get('release') is True else 1)" "$E" \

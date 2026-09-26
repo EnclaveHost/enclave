@@ -1,0 +1,28 @@
+--- e5-proofs.sh.v1	2026-09-25 17:56:51.636817569 -0700
++++ e5-proofs.sh	2026-09-25 17:59:51.412257515 -0700
+@@ -14,9 +14,9 @@
+ grep -qE "^0::/.*/e5-proofs-$ID-[0-9]{8}T[0-9]{6}Z\.service\$" /proc/self/cgroup || { say "REFUSING: run through e5-restart.sh"; exit 2; }
+ B=$ST/$ID-before.json; [ -r $B ] || { say "no $B"; exit 2; }
+ jb() { python3 -c "import json; print(json.load(open('$B'))['$1'])"; }
+-T0=$(jb t0); OLDID=$(jb oldId); OLDKEY=$(jb oldKey); OLDSERIAL=$(jb oldSerial); RELM=$(jb relm)
+-[[ "$RELM" =~ ^[0-9a-f]{96}$ ]] || { say "no recorded 52156652 prediction in $B"; exit 2; }
+-hold() { say "5e $ID HOLD: $* (nothing changed by this checker; rollback = s5t-rollback.sh, then the owner's restart of $ID)"; exit 25; }
++T0=$(jb t0); OLDID=$(jb oldId); OLDKEY=$(jb oldKey); OLDSERIAL=$(jb oldSerial)
++[ "$(jb relm)" = "$RELM" ] && [[ "$RELM" =~ ^[0-9a-f]{96}$ ]] || { say "the recorded prediction in $B is not the pinned ${RELM:0:12}"; exit 2; }
++hold() { say "5e $ID HOLD: $* (nothing changed by this checker; rollback = s5t-rollback.sh, which needs OVERRIDE=<reason> once any canary is accepted on 52156652, then the owner's restart of $ID)"; exit 25; }
+ # ---- the new guest: a different guest for this deployment, running
+ newg() { vms4 >/dev/null && E=$(entry4 $FULL) && python3 -c "import json,sys; e=json.loads(sys.argv[1]); sys.exit(0 if e['id']!='$OLDID' and e['status']=='running' else 1)" "$E"; }
+ wait_for 900 newg || hold "no new running guest for $ID within 15 min of the restart"
+@@ -25,10 +25,10 @@
+ # ---- proof 2: guestd's view: release, attested, the relay's 79c5ecf2 image
+ python3 -c "import json,sys; e=json.loads(sys.argv[1]); sys.exit(0 if e.get('release') is True and e.get('verdict')=='attested' and e['measurement']=='$RELM' else 1)" "$E" \
+   || hold "proof 2: guestd's entry is not release:true / verdict attested / measurement ${RELM:0:12} ($(python3 -c "import json,sys; e=json.loads(sys.argv[1]); print(e.get('release'), e.get('verdict'), e['measurement'][:12])" "$E"))"
+-M=$(expected_rel $FULL) && [ "$M" = "$RELM" ] || hold "proof 2: the relay's expected-guest image under 52156652 is now '${M:-none}', not the recorded ${RELM:0:12}"
++M=$(expected_rel $FULL) && [ "$M" = "$RELM" ] || hold "proof 2: the relay's expected-guest image under 52156652 is now '${M:-none}', not the independently computed ${RELM:0:12}"
+ NEWKEY=$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['transportKeySha256'])" "$E")
+ [[ "$NEWKEY" =~ ^[0-9a-f]{64}$ ]] && [ "$NEWKEY" != "$OLDKEY" ] || hold "proof 2: the new guest's key is not a new 64-hex key"
+-say "5e $ID proof 2 ok: release:true, attested, measurement ${RELM:0:16} = the relay's 52156652 prediction, new key ${NEWKEY:0:16}"
++say "5e $ID proof 2 ok: release:true, attested, measurement ${RELM:0:16} = the independently computed 52156652 value = the relay's prediction, new key ${NEWKEY:0:16}"
+ # ---- proof 3: the serial: release, no app config, serving on the new key; none of the app's own output
+ SER=$PROD/guestd-root/$NEWID/$NEWID.serial
+ serving() { [ -r "$SER" ] && serial_clean "$SER" | grep -qE '^DOM serving vsock=443 spki_sha256=[0-9a-f]{64} '; }

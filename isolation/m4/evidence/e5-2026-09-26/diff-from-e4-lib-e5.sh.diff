@@ -1,0 +1,48 @@
+--- /home/steven/enclave-bench/e4-20260925/lib-e4.sh	2026-09-25 16:51:59.025579649 -0700
++++ lib-e5.sh	2026-09-25 17:55:47.098226353 -0700
+@@ -1,13 +1,17 @@
+-# 4e (ENABLEMENT.md step 4, rev 5 efdea70e): the canaries become RELEASE guests, one at a time, hookbin 0ddbd824 first,
+-# by the owner's restart (the agent wallet). Sourced AFTER ../pool-rollout-20260925/lib.sh, ../s4c-20260925/lib4cc.sh and
+-# ../release-on-20260925/lib-ro.sh. The S0 checks (public_ok, check_guestd) pin the S0 keys, which a relaunch changes by
+-# design, so 4e keeps its OWN expected state in state/ (copies of S0, one canary's key replaced on its acceptance).
+-E4=~/enclave-bench/e4-20260925; LOG4=$E4/e4.log; ST=$E4/state
++# 4e AGAIN, on the FIXED release (enclave-87): the 3 canaries, RELEASE guests on 79c5ecf2 since 4e, relaunch one at a time
++# onto 52156652 (front console guard 4cdd5169: nothing but the front's own DOM statements reaches the host console), by
++# the owner's restart (the agent wallet), AFTER the S5 tree switch put guestd's -isolation on iso-4cdd5169. Derived from
++# lib-e4.sh. Sourced AFTER ../pool-rollout-20260925/lib.sh, ../s4c-20260925/lib4cc.sh and ../release-on-20260925/lib-ro.sh.
++# The expected state (state/) starts as 4e's final one (the canaries' current keys), one key replaced per acceptance.
++# Each canary's NEW measurement is not a constant: it is the relay's /v1/expected-guest answer for that id under
++# 52156652, read before the restart and again after (e3's predictor admits it).
++E4=~/enclave-bench/e5-20260926; LOG4=$E4/e5.log; ST=$E4/state
+ KEYS4=$ST/canary-keys.txt; TSV4=$ST/canaries.tsv
+-REL=79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4; RUNTIME=ccadb38a
++REL=52156652d67a20a71643a5158624058dfeb6b88b58d8de47b360cf0a2a2eb6a1; RUNTIME=ccadb38a
++OLDREL=79c5ecf24eb48a70e2bb20f4bca684b4d5e3c7700f9bf9d38735c19509898ce4; NEWT=/home/steven/enclave-prod/iso-4cdd5169
+ say() { local m; m="$(date -u +%H:%M:%SZ) $*"; echo "$m"; { echo "$m" >> "$LOG4"; } 2>/dev/null || true; }
+-# id8 -> full id, legacy measurement, release-79c5ecf2 measurement (ENABLEMENT step 4; re-checked against the relay), the
+-# app's own stdout marker (a control: the legacy guest's serial shows it; the release guest's must not)
++# id8 -> full id, LEGM = its CURRENT measurement (the 79c5ecf2 release guest's, from 4e), the app's own stdout marker (must
++# stay absent: both releases discard the app's stdio), PREV (the order), CFGB (the version config it gets, unchanged)
+ # CFGB: the config the relay releases. ENABLEMENT's "config:null" was a mis-prediction (0ddbd824, 23:50Z): the canaries'
+ # on-chain envelope is {"isolation":{"require":"snp-guest-per-app"}} (45 bytes, sha256 42c6f115f763f544...: the serial's
+ # envelope tag), which names no config, so the relay releases the catalog VERSION's inline config verbatim
+@@ -17,16 +21,13 @@
+ canary() {
+   case $1 in
+     0ddbd824) FULL=0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76
+-              LEGM=be6b8644384eee12396881e3e4cbca4259ae1a16a1e198d2c48d577ff7b3c6d355971eccebe8353749439adca718da4d
+-              RELM=2317370df6562d5b03f2b4b78c297e0b14cf81cc0e53704f893e86dc305bf397e92233b226868bd219ca9246721262ea
++              LEGM=2317370df6562d5b03f2b4b78c297e0b14cf81cc0e53704f893e86dc305bf397e92233b226868bd219ca9246721262ea
+               MARK='^\[hookbin'; PREV=; CFGB=177;;
+     395bed3e) FULL=0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595
+-              LEGM=c068f423578cda6316fd9462db6b5e9047bd34d6e2c0ae3b0819828e8db78831bd76bdb27092efefe380713662815f9e
+-              RELM=6de873656f88fa63e6f9aceed48951a42fb5703d08a643f2d250b343af178431c75dc7c4cb8454bffbec089bd92c9b25
++              LEGM=6de873656f88fa63e6f9aceed48951a42fb5703d08a643f2d250b343af178431c75dc7c4cb8454bffbec089bd92c9b25
+               MARK='^Serving HTTP on '; PREV=0ddbd824; CFGB=194;;
+     4e62e60d) FULL=0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e
+-              LEGM=c068f423578cda6316fd9462db6b5e9047bd34d6e2c0ae3b0819828e8db78831bd76bdb27092efefe380713662815f9e
+-              RELM=6de873656f88fa63e6f9aceed48951a42fb5703d08a643f2d250b343af178431c75dc7c4cb8454bffbec089bd92c9b25
++              LEGM=6de873656f88fa63e6f9aceed48951a42fb5703d08a643f2d250b343af178431c75dc7c4cb8454bffbec089bd92c9b25
+               MARK='^Serving HTTP on '; PREV=395bed3e; CFGB=194;;
+     *) return 1;;
+   esac
