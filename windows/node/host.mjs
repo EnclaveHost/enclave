@@ -157,6 +157,10 @@ export class Host {
     /// partition verdict): id -> { key, at }. The scan skips such a row while its inputs are unchanged (scanHoldKey),
     /// asking again after SCAN_HOLD_MS for what the key cannot see. In memory; a restart asks again once.
     this.scanHold = new Map();
+    /// Claim transactions that FAILED for a row, in a row, under the same inputs: id -> { key, n }. The second such failure
+    /// holds the row for SCAN_CLAIMFAIL_HOLD_MS (enclave-bf's note on 3d37709a, enclave-87's follow-up): a claim that
+    /// reverts every pass would otherwise spend every pass's one claim, and the rows behind it would wait.
+    this.claimFails = new Map();
     // THE OWNER'S HOSTING CAPS (hosting.mjs, set from the tray): the most of this machine's CPU and GPU the node offers.
     // No file means 1.0 on both, which is this node exactly as it was before they existed.
     this.capsFile = cfg.hostingCapsFile || path.join(cfg.dir, "hosting-caps.json");
@@ -454,7 +458,7 @@ export class Host {
         d = await chain.readDeployment(id);
       } catch (e) {
         const reason = `claim failed: ${e.shortMessage || e.message}`;
-        this.#record(id, { status: "failed", reason, appRef: d.appRef }); return { accepted: false, reason, claimAttempted: true };
+        this.#record(id, { status: "failed", reason, appRef: d.appRef }); return { accepted: false, reason, claimAttempted: true, claimFailed: true };
       }
       try { await this.ensureApp(id, d, { force, version: v }); }
       catch (e) { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { claimAttempted: true }); }
@@ -1507,7 +1511,20 @@ export class Host {
         this.log(`consider ${id.slice(0, 10)}: ${e.message}`);
         return { accepted: false, claimAttempted: e?.claimAttempted === true };
       });
-      if (r.claimAttempted) { if (!ours) claimed++; this.scanHold.delete(id); continue; }
+      if (r.claimAttempted) {
+        if (!ours) claimed++;
+        this.scanHold.delete(id);
+        if (r.claimFailed) {         // the claim transaction itself failed (reverted, or could not be sent)
+          const was = this.claimFails.get(id);
+          const n = was && was.key === holdKey ? was.n + 1 : 1;
+          this.claimFails.set(id, { key: holdKey, n });
+          if (n >= 2) {
+            this.scanHold.set(id, { key: holdKey, at: Date.now(), ms: Host.SCAN_CLAIMFAIL_HOLD_MS });
+            this.log(`ledger: ${id.slice(0, 10)}'s claim failed ${n} passes running with nothing changed: not asked again for ${Host.SCAN_CLAIMFAIL_HOLD_MS / 1000} s, so the rows behind it are reached`);
+          }
+        } else this.claimFails.delete(id);
+        continue;
+      }
       if (!ours) declined++;
       // held only on an answer consider() says is STANDING - refused (policy, partition verdict) or queued (the ledger's
       // claimableBy, a verdict input not known yet) - never read off the record, which may be an OLDER answer; a transient
@@ -2054,6 +2071,7 @@ export class Host {
   }
   static SCAN_HOLD_MS = 10 * 60_000;       // a refused row
   static SCAN_QUEUED_HOLD_MS = 2 * 60_000; // a queued one: its input may come back soon (the preclaim's unknown, the ledger's cap)
+  static SCAN_CLAIMFAIL_HOLD_MS = 2 * 60_000; // a row whose claim tx failed twice running under the same inputs
   // at most this many rows a pass hands consider() and it declines, so a pool full of refused rows cannot make one pass
   // ask the chain and the relay about every row (enclave-bf's should-fix, enclave-87's bound); the next pass moves on,
   // past the ones now held
