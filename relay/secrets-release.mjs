@@ -184,6 +184,46 @@ export const releaseConfig = () => ({
   signingKey: signingKeyEnv(),                                 // v1.2: every release is signed with it
 });
 
+// ---- pre-warm (enclave-87, 2026-09-26): a release must not meet a cold prediction ---------------------------------------
+// The predictor caches per (catalog version, release set) and in memory, so after a relay start, a listing change (an env
+// edit, so a restart too) or a new app version the FIRST release computed its prediction cold: 503 "warming" with the ticket
+// kept (benign, one retry), but a queue of cold keys could outlive a 120 s ticket. So every listed deployment's predictions
+// are computed ahead of time, in the background: ONE at a time (each awaited before the next, so the pre-warm never holds
+// more than one of the predictor's slots and live releases queue behind at most one), the admitted ("release") set first,
+// then the certificate ("cert") set /v1/expected-guest uses. A "busy" answer (live traffic owns the slots) ends the round;
+// the next round retries. A cached key answers at once, so a periodic round costs only the catalog reads. Nothing here
+// decides anything: a pre-warmed answer is the same answer a release would have computed.
+export async function prewarmReleasePredictions(ctx, { log = console.log, sets = ["release", "cert"] } = {}) {
+  const cfg = releaseConfig();
+  if (!cfg.deployments) return { skipped: "no deployment is listed for release" };
+  if (cfg.deployments === "*") return { skipped: "SECRETS_RELEASE_DEPLOYMENTS=* names every deployment: not pre-warmed" };
+  if (typeof ctx.expectedGuestFor !== "function" || typeof ctx.ledgerRows !== "function") return { skipped: "no predictor or ledger in this relay" };
+  if (typeof ctx.predictorProblems === "function" && ctx.predictorProblems().length) return { skipped: "the predictor is not fully configured" };
+  let rows;
+  try { rows = await ctx.ledgerRows(); } catch (e) { return { skipped: `the ledger could not be read (${e.message})` }; }
+  const byId = new Map((rows || []).map((d) => [String(d.id).toLowerCase(), d]));
+  const out = { warmed: 0, failed: [], missing: [], busy: false, ms: 0 };
+  const t0 = Date.now();
+  round: for (const id of [...cfg.deployments].sort()) {
+    const row = byId.get(id);
+    if (!row) { out.missing.push(id); continue; }
+    for (const set of sets) {
+      let p;
+      // the SAME options the consumer passes: the release predicts private-aware, /v1/expected-guest does not
+      try { p = await ctx.expectedGuestFor(row, { forPrivate: set === "release" ? row.isPublic === false : false, set }); }
+      catch (e) { p = { ok: false, code: "prediction_failed", reason: e.message }; }
+      if (p && p.ok === false && p.code === "busy") { out.busy = true; break round; }
+      if (p && p.ok === true) out.warmed++;
+      else out.failed.push(`${id.slice(0, 10)} ${set}: ${(p && p.code) || "no answer"}`);
+    }
+  }
+  out.ms = Date.now() - t0;
+  log(`[secrets-release] pre-warm: ${out.warmed} prediction(s) ready for ${cfg.deployments.size} listed deployment(s) in ${out.ms} ms`
+    + (out.missing.length ? `; not on the ledger: ${out.missing.map((x) => x.slice(0, 10)).join(", ")}` : "")
+    + (out.failed.length ? `; failed: ${out.failed.join("; ")}` : "") + (out.busy ? "; the predictor was busy: the next round continues" : ""));
+  return out;
+}
+
 // ---- tickets: one use, 120 s, bound to the lease holder and the chips it has attested with ----
 const tickets = new Map();   // ticket (base64) -> { id, endpoint, epId, chips: [hex], exp }
 const opFresh = makeReplayCache();
