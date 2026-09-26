@@ -115,9 +115,11 @@ static int yama_hold(const char *path, int want, int (*wr)(const char *, const c
 
 /* A run-mode app binds the port its bundle names (1-49999) as APP_UID, and binding below the kernel's
  * ip_unprivileged_port_start (1024 by default) needs a capability it no longer has. So only when its port is below it,
- * the start is lowered to EXACTLY that port (not 0: nothing below it becomes bindable), and read back. A port at or
- * above it changes nothing, and no other process in the guest binds a port by it (the front serves vsock). -> 1 when
- * the app can bind its port, else 0; `line` says what was done or why not. */
+ * the start is lowered to EXACTLY that port (not 0: nothing below it becomes bindable), and read back. Every port from
+ * it up then becomes bindable to the app, 443 included; that is harmless here: the front's forwarders already hold their
+ * 127.64.x.y:443 before the app starts, its listener audit runs before the app, and nothing but the app dials loopback
+ * (enclave-5d). A port at or above the start changes nothing. -> 1 when the app can bind its port, else 0; `line` says
+ * what was done or why not. */
 static int unpriv_port(int port, const char *path, int (*wr)(const char *, const char *), char *line, size_t cap) {
     int start, now, r = read_sysctl_int(path, &start);
     if (r != 0) { snprintf(line, cap, "ip_unprivileged_port_start unreadable: the app could not bind port %d", port); return 0; }
@@ -138,7 +140,9 @@ static int unpriv_port(int port, const char *path, int (*wr)(const char *, const
 /* The drop, in the app's child while it is still root. The bounding set goes first (dropping from it needs
  * CAP_SETPCAP), then the ambient set, the supplementary groups, the gid and the uid (real, effective and saved: the
  * uid change clears the permitted, effective and ambient sets, but NOT the inheritable one, hence the capset), then
- * no_new_privs. Then every part is checked back from here. -> NULL, or the step that failed or did not hold. */
+ * no_new_privs. Then every part is checked back from here. -> NULL, or the step that failed or did not hold.
+ * Not root, the app is now bound by RLIMIT_NPROC (root was exempt): the kernel's default, threads-max/2, scales with the
+ * guest's RAM; a small guest that shows "Resource temporarily unavailable" spawning threads is this (enclave-5d). */
 static const char *drop_to_app(void) {
     for (int c = 0; c < 64; c++)
         if (prctl(PR_CAPBSET_DROP, c, 0, 0, 0) != 0) { if (errno == EINVAL) break; return "PR_CAPBSET_DROP"; }

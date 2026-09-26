@@ -22,6 +22,11 @@ the root front: `m2/dominit.c` starts both without dropping privileges.
   - Yama is held at 2 as the second guard.
   It ships in the NEXT SNP domain release, after a full canary cycle and an app-compatibility check for each served
   app (`/data` writes, egress, ports). Until then this exposure stands and is not claimed away.
+- **What the fix does NOT close** (pre-existing; enclave-5d): an escaped runtime, even as its own uid, can still open
+  AF_VSOCK sockets (there is no seccomp filter) and dial the HOST's vsock services. It cannot bind a vsock port below
+  1024, so it cannot take the front's listener. But what it may ask of the host's ticket, release and egress services
+  is bounded only by those services' own checks. A seccomp filter denying AF_VSOCK to the app would close it; not
+  scheduled yet.
 
 **2026-09-25 update: the guest pool is LIVE on metal-iso0** (TASK 4c; evidence in
 `m4/evidence/pool-rollout-2026-09-25/README.txt`).
