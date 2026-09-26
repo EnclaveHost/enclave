@@ -1,0 +1,143 @@
+qemu-system-x86_64: terminating on signal 15 from pid 1973 (/usr/lib/systemd/systemd)
+Stopping Enclave Metal isolation-tier node (metal-iso0): control-plane CVM; apps run in per-app SNP guests via enclave-guestd...
+Stopped Enclave Metal isolation-tier node (metal-iso0): control-plane CVM; apps run in per-app SNP guests via enclave-guestd.
+enclave-metal-iso.service: Consumed 9min 57.033s CPU time over 7h 51min 5.903s wall clock time, 5.2G memory peak.
+Started Enclave Metal isolation-tier node (metal-iso0): control-plane CVM; apps run in per-app SNP guests via enclave-guestd.
+[enclave-metal] certificates: platform certificate service at https://api.enclave.host (the key stays in the CVM; the relay holds the CA account)
+[enclave-metal] isolation snp-guest-per-app: attested release OPTED IN (isolation.release: true)
+[enclave-metal] launching metal-iso0 mode=snp 4vcpu/6144MiB
+[enclave-metal] cmdline: console=ttyS0 root=/dev/ram0 rootfstype=ramfs quiet metal.mode=snp metal.isolation=snp-guest-per-app
+[enclave-metal] guest haltpoll: on guest_halt_poll_ns=200000 guest_halt_poll_grow_start=50000 guest_halt_poll_grow=2 guest_halt_poll_shrink=2 guest_halt_poll_allow_shrink=1
+[2J[001;001H[=3h[2J[001;001H[2J[001;001H[8;042;160t[2J[001;001H[2J[001;001H[8;056;240t[2J[001;001H[metal-init] PID1 up; mounting pseudo-filesystems
+[metal-init] ephemeral ports 58000-65535 (clear of the policed range)
+[metal-init] loaded qemu_fw_cfg.ko
+[metal-init] loaded failover.ko
+[metal-init] loaded net_failover.ko
+[metal-init] loaded virtio_net.ko
+[metal-init] loaded tsm_report.ko
+[metal-init] loaded sev-guest.ko
+[metal-init] FAILED tdx-guest.ko: finit_module: No such device
+[metal-init] loaded dm-mod.ko
+[metal-init] loaded dm-bufio.ko
+[metal-init] loaded reed_solomon.ko
+[metal-init] loaded dm-verity.ko
+[metal-init] loaded vsock.ko
+[metal-init] loaded vmw_vsock_virtio_transport_common.ko
+[metal-init] loaded vmw_vsock_virtio_transport.ko
+[metal-init] haltpoll on: driver=haltpoll governor=haltpoll ns=200000 grow_start=50000
+[metal-init] eth0 10.0.2.15 via 10.0.2.2
+[metal-init] handing off to gsup
+[gsup] per-app isolation tier snp-guest-per-app: manager http://10.0.2.2:8095, data plane 10.0.2.2:8096, pairing key present, attested release OPTED IN (relay-listed deployments launch as release guests); no app runs in this CVM
+[gsup] mode=snp name=metal-iso0 public=https://api.enclave.host/t/metal-iso0 relay=set selling=on ask=list price
+[gsup] advertised capacity: 4 vCPU / 6 GB RAM / 250 GFLOPS (RAM nominal, fleet convention)
+[gsup] started supervisor pid=176
+[gsup] started metal-agent pid=177
+[gsup] all services launched
+[agent] transport key fingerprint 551558d8c4490a01…
+[agent] attestation ready: format=sev-snp-guest-metal-v1
+[agent] tunnel dialing wss://api.enclave.host/v1/fleet-tunnel
+[agent] RAD endpoint on 127.0.0.1:8443 (mode=snp)
+[agent] probe: api.enclave.host -> A=[62.238.4.214] AAAA=[2a01:4f9:c013:bdfd::1]
+[agent] probe: TCP 62.238.4.214:443 (v4) OK
+[addressbook] resolved from 0xab214342d5A490150A4A977063A2f88E21F80907 · APP_CATALOG_ADDRESS 0xAc5270C57f3118F0b37d4f493198bb6863eDDDdF -> 0x18419CA2b502D423A8de6269AEeE171a378626e3 · PROOF_OF_TIME_ADDRESS (unset) -> 0xe1a2DF7ee4eEE0939af3C146abC612d8938737F2
+[session] minted in-enclave ES256 session-signing key
+[proof] minted in-enclave secp256k1 proof-of-time signing key
+[proof] proof-of-time signer 0x1CfC2a4Fa3Fe7c5D498d49ED62590d7A95139D2a
+-----
+[tls-bridge] minted in-enclave key + self-signed cert for *.app.enclave.host
+[tls-bridge] in-enclave TLS termination enabled (/x/:id/tls/:port) · 5F:29:B3:30:4D:E4:32:F0:7A:CA:0A:11:43:21:39:1F:04:27:15:CD:CE:F2:39:B7:AD:D9:6D:9C:88:BC:04:EA
+[pay] watching 0x580270e88E5DF35DaD59E7FE3d907ebeA96673a6 for Paid + PaidEth events every 12s (ETH priced via 0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70)
+[claim] loop on: 0xF9e71385C5cB49844F2457ba6567De0742f8B89a every 60s (renew margin 600s)
+[acme] restored 0 certificate(s) from ACME_STORE_DIR (/mnt/ramdisk/enclave-acme)
+[acme] in-enclave issuance on: <label>.app.enclave.host via platform service https://api.enclave.host (own zones + attached custom domains) -> acme-v02.api.letsencrypt.org (dns-01 through http://46.62.128.36:8153)
+[domains] custom hostnames via https://api.enclave.host
+enclave supervisor on :8080 · CPU-only enclave (4 vCPU / 6GB, node-share split)
+[attest] CPU TEE detected: amd-sev-snp
+[agent] tunnel open
+[agent] sent attestation for tunnel challenge + operator signature
+[pay] USDC EIP-712 domain: name="USD Coin" version="2"
+[pay] USDC EIP-712 domain: name="USD Coin" version="2"
+[claim] ledger 0xF9e71385C5cB49844F2457ba6567De0742f8B89a struct schema rev 13
+[registry] registered https://api.enclave.host/t/metal-iso0 repo=EnclaveHost/enclave id=0xf7a1256d22644d59d88fd523a42820586335fb3bcf01f7ed132e9448a298c745 tx=0x4422576976ae5fd6298c09496377337d5d6646bdcb2ca2354c7ebad0b1f1f670 price=834/sec node proofKey=0x1CfC2a4Fa3Fe7c5D498d49ED62590d7A95139D2a
+[proof] on: 0xe1a2DF7ee4eEE0939af3C146abC612d8938737F2 every 300s, signer 0x1CfC2a4Fa3Fe7c5D498d49ED62590d7A95139D2a — proven-time metering is LIVE
+[agent] attest ACCEPTED meas=fab9c6c76aca8d76…
+[registry] payout wallet declared on-chain: 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C — its own deployments run free here
+[registry] earnings sweep to 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61 but the on-chain payout wallet is 0x29479Bf04ED889D46a7AfB7f292B9Bb26e12647C: deployments owned by 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61 are CHARGED here. Send EnclaveRegistry.setPayoutWallet(0xf7a1256d22644d59d88fd523a42820586335fb3bcf01f7ed132e9448a298c745) from 0x0b2d009c0c9Af05b12100D77F3c815fea822eE61 to change that.
+[agent] pads: seed f8c32271452992af116431b791954336 (epoch 1) installed for the wasm manager at /run/enclave/pads/bootstrap.json
+[proof] proof key published: 0x1CfC2a4Fa3Fe7c5D498d49ED62590d7A95139D2a (was 0xdbbA502dEfdEeD7B7f0be201F85229860192723f) tx=0x3ad7b1d793dfbf7bd0759e3fa85a70b37f6428ba2b0b0233bfb58d5437af71ed
+[approval] catalog 0x18419CA2b502D423A8de6269AEeE171a378626e3 schema rev 9
+[lease] 3 tenant(s) we do not own are running on the backend and will be reaped when their lease lapses: 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595 (174.2s), 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e (174.2s), 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 (174.2s)
+[lease] 3 tenant(s) we do not own are running on the backend and will be reaped when their lease lapses: 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595 (174.2s), 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e (174.2s), 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 (174.2s)
+[ledger] full pass: no mirror for this ledger (64 rows, cursor 51808609)
+[claim] 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e resuming our own live lease after a restart
+[isolation] 0x4e62e60d: adopted guest gd2ae6d157 (running), launched from this record before the node restarted
+[claim] 0x4e62e60da567ca6c0b35f818192813e082149e738ad27204b5f074ed8adc6c1e adopted: app=hello-world:1.0.4 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4) gpuShare=0 cpuShare=0.1 lease until 2026-09-26T07:24:29.000Z
+[claim] 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595 resuming our own live lease after a restart
+[isolation] 0x395bed3e: adopted guest gdded47deb (running), launched from this record before the node restarted
+[claim] 0x395bed3e2e24efa02ba9dfed4aa8e081b064e7b5652b3e6474f11c21ae7f1595 adopted: app=hello-world:1.0.4 (catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5a129f48103659f208bcca016ed/4) gpuShare=0 cpuShare=0.1 lease until 2026-09-26T07:23:29.000Z
+[claim] 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 resuming our own live lease after a restart
+[isolation] 0x0ddbd824: adopted guest gdecc7a0a0 (running), launched from this record before the node restarted
+[claim] 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 adopted: app=hookbin:0.1.4 (catalog://0xf7e65a8fdae1dd9f8c2a897f2f372cdb7f6150d1e20526fa06d10a682cc2e9e3/4) gpuShare=0 cpuShare=0.1 lease until 2026-09-26T07:26:29.000Z
+[claim] sweep skips 0xcc1f4f3fada6c3cd8ad0dc4ed03823470639ad2c59edf0a1e1be93ee20241352: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xda09d0f2649ae2afa76403f1f15d87db58faaeb9a3d5bab0fddfb5bc44ba68d9: GPU work this enclave cannot serve: this enclave has no card (the version declares the card required)
+[claim] sweep skips 0x9024841272f80600459960ff9daad5740e6918cc780a720db8943b2bb726b441: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xa025ed600611b591ebbfefb04293c2b7d8ebba93d71d04d319689bfb19cb43e3: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x9ce56ebb8beb8c3702a7da3d7bce9222ea4a0fd35b4a2ecd0dc2c6f717e10283: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x9f8947ecf851683622cedbb0503cf864d4e0d8fd34905bf94ae1fac56c0ce6e8: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x91e26cd752b356b561168647b843c2cd994559ac8796c1befb1bbbe342f2bcc7: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x8e0d023cb8bd68b39cc813836690e363032388d214c2a700682383081c50fe3b: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xe263d2e385568908d380a1c1c8ef8cf08d43fe212e65be48a26faacbe07a8423: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xed05dd0468e32a3a379f33b1ef5f11224d49d8dd550dd40351edde04676e045d: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xfe24ba00f507cbc342cae7216d330746d0c638bc126696f45ebe5609ea5f95ea: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x5c2dcc4b6efe67319276aacf784ffa66008465197986e73e1a9960d9c348cbf1: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xd6041bab81f657bdfbb45b9a3f27b8a90268f2188851ebf5b23de8323f0588b3: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xcbcaac8feb176888090f172a34920be7ae47e15cb0ebe7c258150ca6cb703d8a: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x4c8c436586749f95edf041d1a5619ea57b0757fd1083c29c721cec910c5dfeb2: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x8b9e4cca08f9518ce7a6b9ec8977660d42e03f86a0030a6edf76c0f53d6bdfb7: out of funded time - fund it and retry
+[claim] sweep skips 0x9eb4e60063aa079cebed355f96b2d049457ae77bdbcd49086040282e1e4b871c: out of funded time - fund it and retry
+[claim] sweep skips 0xe64f7cba307e2d97485bde356d75564ccb74c5e31c272b5ab3349abfe122569b: GPU work this enclave cannot serve: this enclave has no card
+[claim] sweep skips 0x16f99ddbb20f8fce09ba53b221646bc40aa7d89c8f3bf723d90408e099c07ac3: out of funded time - fund it and retry
+[claim] sweep skips 0x2215bad49ad8348f57d62d6e2c45b5b0af9d4afe2d2c44c0b2d9a63619c2a1f7: app uses shared-everything threads and this box's runtime does not serve them
+[claim] sweep skips 0x2403c002742c36a07e2ec5d67e61c0efea819518ca89af69fac068365812c775: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x115de07aa7680f71e008beff644da9912b4a00f3c9bbc0c1979cd608e6e347a3: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x90f2f53074009a0774391db220dc65e9e78832cee1819b74a2d9efd48a954cac: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x458a63b9469f0b8f064d0ea4d95710d856a4695f9a76a2e38c4fee7704a7254e: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xaf1829c1917db203ae28a2510d56c84793fa4d6c931f3b684bc339c3e0cd71c5: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x985d9b3cff4d94be6853181de99d92b1ded3fc517c637309187c7f7f71ac5ffe: out of funded time - fund it and retry
+[claim] sweep skips 0x2b84a09895ca94ef8bc8c61c7376154e3c1cc661f12693fb7583d9c19ce59889: out of funded time - fund it and retry
+[claim] sweep skips 0x7ae476a3a1e4b0b144248075ff6656a0a10c3ae4cea8b6e4ad2b59dd8989ce33: this runner serves only deployments that require per-app isolation (isolation.require="snp-guest-per-app"), and this one does not ask for it
+[claim] sweep skips 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a: this runner serves only deployments that require per-app isolation (isolation.require="snp-guest-per-app"), and this one does not ask for it
+[claim] sweep skips 0x4da45a80ee6da0e588831ec125f5ed41f691858a2555bded36e3acc2a0555c1d: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x6c415ce6cde9883df3bda0a0d5f69bfc13e899ca26dce9449c01340b2ec38604: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xcc5cd64e2475677e0b4d6c6a58c55f3f739573d82de8b6fac67d6b04360be125: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x157cf55b533e8e565a4fd8e9fa78db822d195767997c01bfa2732aa5d9b3aecf: out of funded time - fund it and retry
+[claim] sweep skips 0xa90ad39ea366c3bd67afb4db8eab315768efda84ba633afb716171be327040c6: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xcc4dfac7a513a65888f3b09ea265eb21d70aca4306b517fc25389faed8c0dc97: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xc50ea18e7741b75d1cab70232aa3063faacfc014e864ae7dfae3452f51561ee6: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xa425fb9e5e91155e04a24cd77d9f24cdeb12356446c1217c404fff7c611886e1: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x0ceac270916d4947df85a4231ef85fe480bf4d1edac4bb1e5d2bae1cf0bb50f3: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xe9e0764ccd332b4886935b1be424afbc20ea2b776b544814a85a2aae41eeed62: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x4bf4a6858d9f9e07084835980bc511bf58c6b5427a7cff4794d01d4c0eb3f900: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x792d8ca1832befd20264fe02d36c253a5be7ca9ad2b9085a71cf8746d80d1733: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xd3a610e641e1b181dc17b66d679d4ebd3adaac07604d897f8ce99a09e58d2f98: deployment is deactivated (owner setActive(false))
+[claim] 0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8: GPU requirement unmet here - this enclave has no card; serving on cores instead
+[claim] sweep skips 0xda9e43f801a8440493e30a78fb7e697f06007b6e5b5b3dcbdaab7be3f5877ce8: app keeps its config at a CID and this box's manager cannot fetch it
+[claim] sweep skips 0xc63ce1af5d48ee2e50150de834cb2b200babfcdde8d0305f2493a7459017045f: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x67eda9b9d9c545f51ed9bc1a19da6310e9e2ac38d8e7c2f27e97d4ef13dc1a75: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x9d0cd4a1cb3752ba4bfc4164804a8ce922801ae84ba2fac3bab3bf3a77276357: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x5871682b8d8cc3d979f21a795028b5c2e39683be16a91e0f4c965b6158653f09: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371: this runner serves only deployments that require per-app isolation (isolation.require="snp-guest-per-app"), and this one does not ask for it
+[claim] sweep skips 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77: this runner serves only deployments that require per-app isolation (isolation.require="snp-guest-per-app"), and this one does not ask for it
+[claim] sweep skips 0x5a93b6c9ca239fe80fc25810b8963e4b41eb7e4744b4aa12d3388e05cadbcdc3: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0xc34499ee0e252ef82a97b219f941b54732113c9d0b7ced1d1503604d3fe152d8: GPU work this enclave cannot serve: this enclave has no card
+[claim] sweep skips 0xd35d50e59d4516de68e04929f905e8907b2bb14fdfe61aeaf60f1865fe2d93e5: deployment is deactivated (owner setActive(false))
+[claim] 0x7c4149ee08e14b76cc1fe3f417cc844cfed19b987c81f79425009e6a7279810b: GPU requirement unmet here - this enclave has no card; serving on cores instead
+[claim] sweep skips 0x7c4149ee08e14b76cc1fe3f417cc844cfed19b987c81f79425009e6a7279810b: app needs model volume(s) this enclave doesn't carry: qwen3.8-27b-mtp-q8-vl-gguf
+[claim] sweep skips 0xca1416656682bf6b4ab19c1c2c388d483fa6f83b1b79a00dd8ec2295ee4b74a3: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x5c61595cca54d5694c53113da5443d29c6b2dfbf5cf26b96d322f34474a2786f: app not deployable: enclave-hello:0.1.0 is awaiting catalog-owner approval; until then it can only be deployed PRIVATE (owner-only data path) for testing.
+[claim] sweep skips 0x9ee69e3d38a2302109c183af5e268f47f6cfddf875adad60b4d9f98ed146d42f: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x0f46406d2e53babe99258c603168b68b3a4a56ff624dbd224eec8e60776ee41c: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x9796942b6b9fea6f76073cd2189e171804a81187ac731f5a559df6a7055bf261: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x6b1781ff95a6fdf54afc69795c4e47fa1973a597848edfa61b32722c271a0286: deployment is deactivated (owner setActive(false))
+[claim] sweep skips 0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3: another enclave holds a live lease
+[claim] sweep skips 0x958ae6e9d6cb638901d97d2f29d9775d8143b14fa46f6c37aaa4e3f2c78cdd42: deployment is deactivated (owner setActive(false))
