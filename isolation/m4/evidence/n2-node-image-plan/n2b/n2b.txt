@@ -1,0 +1,5 @@
+07:08:01Z N2-b started DETACHED as n2b-apply-20260926T070801Z (exit code -> n2b-n2b-apply-20260926T070801Z.rc); follow: tail -f /home/steven/enclave-bench/n2-20260926/n2b.log
+07:08:20Z N2-b: dist -> dist-iso-6845565a (N2, fab9c6c76aca8d76); restarting enclave-metal-iso (the node CVM reboots; guests keep running)
+07:08:36Z N2-b: the node ATTESTS fab9c6c76aca8d76 (raw report 0x90), overlay 6845565a, launcher 578be084 from /home/steven/enclave-prod/metal-578be084
+07:09:51Z N2-b: node journal: 3 adopted-guest lines, 0 release lines
+07:09:51Z N2-b APPLIED and checked (restart at 2026-09-26 07:08:20 UTC). Next: the 10-min gate, then the hookbin acceptance relaunch (n2acc); rollback = n2b-rollback.sh (OVERRIDE after n2acc)
