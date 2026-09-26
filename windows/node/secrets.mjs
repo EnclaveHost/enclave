@@ -173,7 +173,11 @@ export async function fetchSecrets({ id, endpoint, sign, base = "https://api.enc
     // Authoritative "there is nothing to inject", and not worth a retry: the relay has no secrets
     // plane at all, or its ledger view has no such row (which is also the answer if this relay is
     // old enough to have no fetch route). Neither is a refusal OF THIS BOX, so neither throws.
-    if (status === 503) { log(`secrets: this relay has no secrets plane (${code || "503"}); the app launches with none`); return { env: {}, count: 0, rev: 0, dropped: [], source: "disabled" }; }
+    // ONLY the relay's own secrets_disabled 503 says that (relay/secrets.js: the route's one 503). Any other 503 - a
+    // proxy in front of a relay that is restarting, an overloaded upstream - says nothing about this deployment's
+    // secrets, and used to be read as "no secrets plane", so the app launched without them and the isolation probe
+    // counted "none" (enclave-b4's N3). It is transient now: retried with the 5xx, then thrown.
+    if (status === 503 && code === "secrets_disabled") { log(`secrets: this relay has no secrets plane (${code}); the app launches with none`); return { env: {}, count: 0, rev: 0, dropped: [], source: "disabled" }; }
     if (status === 404) { log(`secrets: the relay has no record to serve for ${idL.slice(0, 10)} (${code || "404"}); the app launches with none`); return { env: {}, count: 0, rev: 0, dropped: [], source: "not-on-ledger" }; }
 
     // REFUSED. Four causes, all of them this box's to fix, and the caller needs the difference:

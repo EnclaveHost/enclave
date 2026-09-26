@@ -501,7 +501,7 @@ export class Host {
    * itself, and that reason is more useful than this box guessing.
    */
   async loadSecrets(id) {
-    if (!this.cfg.secretsSign) return;
+    if (!this.cfg.secretsSign) return null;
     const r = await fetchSecrets({ id, endpoint: this.cfg.endpoint, sign: this.cfg.secretsSign,
                                    base: this.cfg.relayBase, log: (m) => this.log(m) });
     if (r.count > 0) {
@@ -509,6 +509,7 @@ export class Host {
       this.#record(id, { secrets: r.count });
       this.log(`secrets: ${r.count} for ${id.slice(0, 10)} (${Object.keys(r.env).join(", ")})`);
     } else { this.secrets.delete(id); }
+    return r;
   }
 
   /**
@@ -518,11 +519,17 @@ export class Host {
    */
   async #secretsState(id) {
     if (!this.cfg.secretsSign) return null;          // we cannot ask, so we do not know
-    try {
-      if (!this.secrets.has(id)) await this.loadSecrets(id);
-    } catch { return null; }                          // asking failed: still unknown, never "no"
-    const env = this.secrets.get(id);
-    return !!(env && Object.keys(env).length > 0);
+    if (this.secrets.has(id)) return Object.keys(this.secrets.get(id) || {}).length > 0;
+    let r;
+    try { r = await this.loadSecrets(id); }
+    catch { return null; }                            // asking failed: still unknown, never "no"
+    // "None" only from the relay's own answer FOR THIS deployment. A relay with no secrets plane (secrets_disabled),
+    // one with no ledger row for it, or no relay configured at all is an in-enclave launch's reason to go without
+    // secrets, and it says nothing about whether this deployment HAS them: unknown, so the isolation plan holds
+    // (enclave-b4's N3).
+    if (!r || r.source !== "relay") return null;
+    // names this box's filter dropped were still STAGED by the tenant: they count as secrets the partition would lack
+    return r.count > 0 || (Array.isArray(r.dropped) && r.dropped.length > 0);
   }
 
   /**
