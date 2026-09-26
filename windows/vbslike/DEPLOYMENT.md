@@ -65,6 +65,10 @@ never deleted; the legacy `ee-engine` is never restored or signed; respawn is OF
 - **Sensitive apps on the v40 guest.** v40 carries the front's logging leak and domexec's app-stdio leak. Both are
   fixed on the guest candidate (`4cdd5169`, `683798d0`, `139c3fdd`, `d9176ed5`, `298924ae`; IGVM `0891c740`, canary PASSED, E11), which ships in v42 and is not yet deployed.
 - The guest RNG is seeded with host-supplied entropy (READINESS.md §1.1).
+- **That the attested wx self-test covers the running runtime.** On v40 and v42 it is an early snapshot: the front measures
+  once at its own start, just after the runtime is exec'd and before it has compiled the app (enclave-b4, 2026-09-26;
+  enclave-87's ruling). Fixed in v43: measured at each attestation (by the monitor, which can read the runtime), naming
+  what it covered. The production verifier checks the field's shape only.
 - **That only the domain's front can have its key attested (a known residual of v42, enclave-87's words):** "on the NucBox a
   compromised runtime can obtain monitor reports for keys of its choosing and replace the front's listen socket (shared
   domain uid); fixed in v43 by a separate front uid and a front-only report channel". Found by enclave-bf 2026-09-26
