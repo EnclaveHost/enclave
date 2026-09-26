@@ -2072,12 +2072,16 @@ async function cmdDeploy(rest) {
     // hosts, never the fleet-wide aggregate, which leaves them out (enclave-b4's review of 864be4e5): a host that takes
     // config itself (availability.configOverride) must also take it pinned (configCidOverride); a tier that takes it only
     // through the attested release gets the CID resolved there (relay: resolveConfigCid).
+    // PER HOST (enclave-b4's review of 8774b4e7): a host takes a pinned config itself (configCidOverride), or takes
+    // config only through the release (configOverride not true), or takes it only inline. Claimable when ANY host of the
+    // tier can take it, so a tier mixing kinds is judged by the hosts that can.
     if (isoBackend) {
-      if (isoTakesConfig(isoHosts, "configOverride") && !isoTakesConfig(isoHosts, "configCidOverride"))
+      const pinnedSelf = isoHosts.filter((h) => h?.availability?.configCidOverride === true);
+      const viaRelease = isoHosts.filter((h) => h?.availability?.configOverride !== true);
+      if (!pinnedSelf.length && !viaRelease.length)
         throw new Error(`the ${isoBackend} host(s) take a config only inline (availability.configCidOverride is not true), and this one must be pinned (the envelope would be ${Buffer.byteLength(envelope)} bytes, over 4096); trim the config`);
-      say(isoTakesConfig(isoHosts, "configOverride")
-        ? `config: pinned; the ${isoBackend} host(s) take a pinned config (availability.configCidOverride)`
-        : `config: pinned; it reaches the ${isoBackend} guest only through the attested release, which resolves its CID`);
+      if (pinnedSelf.length) say(`config: pinned; ${isoHostNames(pinnedSelf)} take(s) a pinned config (availability.configCidOverride)`);
+      if (viaRelease.length) say(`config: pinned; on ${isoHostNames(viaRelease)} it reaches the ${isoBackend} guest only through the attested release, which resolves its CID`);
     } else {
       const av = await api("GET", "/availability");
       if (!av?.configCidOverride)
