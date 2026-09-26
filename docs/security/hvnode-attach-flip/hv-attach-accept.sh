@@ -50,20 +50,21 @@ while :; do
   sleep 10
 done
 say "canaries 200 with the same keys; metal-iso0 serving and eligible: $([ $allok = 1 ] && [ "$row" = 1 ] && echo yes || echo NO)"
-curl -sS -m 20 "$API/enclaves" > "$OUT/enclaves-$MODE.json" || bad "/enclaves unreadable"
-curl -sS -m 20 "$API/v1/relays" > "$OUT/relays-after-$MODE.json" || bad "/v1/relays unreadable"
-curl -sS -m 20 "$API/availability" > "$OUT/availability-after-$MODE.json" || bad "/availability unreadable"
-# enclave-bf: what the relay publishes from rows' own words must not change: the SAME relays (name, address, address6,
-# services) and every label that named a relay before still names the same one (a new deployment may add labels); the
-# SAME public volumes. And an hv-node row, if one is attached, is host-attach-only; zero rows is said, not passed silently.
-python3 - "$OUT" "$MODE" <<'PY' || bad "the relay roster, the volumes aggregate or an hv-node row changed"
+# enclave-bf (required by enclave-87): what the relay publishes from rows' own words must not change - the SAME relays
+# (name, address, address6, services), every label that named a relay before still naming the same one (a new deployment
+# may ADD labels), a non-empty labels map in BOTH snapshots (a 503 body has none), the SAME public volumes; an hv-node row,
+# if one is attached, host-attach-only, and zero rows said, never passed silently. us-west is a TUNNEL row and drops on the
+# api relay's restart, so the after-snapshot is POLLED until it matches or 180 s pass (not one read and a needless rollback).
+cat > "$OUT/compare-$MODE.py" <<'PY'
 import json, sys
 o, m = sys.argv[1], sys.argv[2]
 ld = lambda n: json.load(open(f"{o}/{n}-{m}.json"))
 key = lambda r: (r.get("name"), r.get("address"), r.get("address6"), json.dumps(r.get("services"), sort_keys=True))
 rb, ra = ld("relays-before"), ld("relays-after")
+lb, la = rb.get("labels"), ra.get("labels")
+assert isinstance(lb, dict) and lb, "the BEFORE snapshot has no labels map"
+assert isinstance(la, dict) and la, "the AFTER snapshot has no labels map (a 503 body?)"
 assert sorted(map(key, rb["relays"])) == sorted(map(key, ra["relays"])), ("relays changed", rb["relays"], ra["relays"])
-lb, la = rb.get("labels") or {}, ra.get("labels") or {}
 moved = [k for k, v in lb.items() if (la.get(k) or {}).get("relay") != (v or {}).get("relay")]
 assert not moved, ("labels moved relay", moved[:10])
 vb, va = ld("availability-before")["volumes"], ld("availability-after")["volumes"]
@@ -74,4 +75,15 @@ for e in rows:
 print(f"relays unchanged ({len(ra['relays'])}); labels kept ({len(lb)} before, {len(la)} after); volumes unchanged ({len(va)})")
 print(f"hv-node rows: {len(rows)}" + (" (each NOT eligible, NOT serving, attach attestation)" if rows else " - NOT EXERCISED: no NucBox node is attached (the attach itself is proven by the relay's own tests)"))
 PY
+end=$(( $(date +%s) + 180 )); cmp_ok=0; why=""
+while :; do
+  if curl -sSf -m 20 "$API/v1/relays" > "$OUT/relays-after-$MODE.json" && curl -sSf -m 20 "$API/availability" > "$OUT/availability-after-$MODE.json" \
+     && curl -sSf -m 20 "$API/enclaves" > "$OUT/enclaves-$MODE.json"; then
+    why=$(python3 "$OUT/compare-$MODE.py" "$OUT" "$MODE" 2>&1) && { cmp_ok=1; break; }
+  else why="a snapshot endpoint did not answer 200"; fi
+  [ "$(date +%s)" -ge $end ] && break
+  sleep 10
+done
+echo "$why"
+[ $cmp_ok = 1 ] || bad "after 180 s the relay roster, the labels, the volumes or an hv-node row still differ: $(tail -1 <<<"$why" | cut -c1-300)"
 [ $ok = 1 ] && say "HV-ATTACH $MODE ACCEPTED" || { say "HV-ATTACH $MODE NOT ACCEPTED$([ "$MODE" = on ] && echo ': rollback = hv-attach.sh off, then hv-attach-accept.sh off')"; exit 1; }

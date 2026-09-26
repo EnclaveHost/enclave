@@ -21,9 +21,11 @@ for c in $CANARIES; do
   echo "$c $(spki "$c")" >> "$OUT/keys-before-$MODE.txt"
 done
 # what the relay publishes from rows' own words, BEFORE (enclave-bf): the relay roster and the public volumes aggregate
-curl -sS -m 20 https://api.enclave.host/v1/relays > "$OUT/relays-before-$MODE.json" && python3 -c "import json,sys; json.load(open(sys.argv[1]))['relays']" "$OUT/relays-before-$MODE.json" \
-  || { say "REFUSING: /v1/relays is not readable before the flip"; exit 2; }
-curl -sS -m 20 https://api.enclave.host/availability > "$OUT/availability-before-$MODE.json" && python3 -c "import json,sys; json.load(open(sys.argv[1]))['volumes']" "$OUT/availability-before-$MODE.json" \
+# (-f: a 503 body - /v1/relays answers one WITHOUT labels when its ledger read fails - is never a snapshot; enclave-bf)
+curl -sSf -m 20 https://api.enclave.host/v1/relays > "$OUT/relays-before-$MODE.json" \
+  && python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['relays'] and isinstance(d.get('labels'), dict) and d['labels']" "$OUT/relays-before-$MODE.json" \
+  || { say "REFUSING: /v1/relays is not a 200 with relays AND a non-empty labels map before the flip"; exit 2; }
+curl -sSf -m 20 https://api.enclave.host/availability > "$OUT/availability-before-$MODE.json" && python3 -c "import json,sys; json.load(open(sys.argv[1]))['volumes']" "$OUT/availability-before-$MODE.json" \
   || { say "REFUSING: /availability is not readable before the flip"; exit 2; }
 $NAN "systemctl show enclave-api-relay -p InvocationID --value" > "$OUT/inv0-$MODE.txt"
 say "hv-attach $MODE: canary keys recorded; running the remote edit (invocation before: $(cut -c1-12 "$OUT/inv0-$MODE.txt"))"
