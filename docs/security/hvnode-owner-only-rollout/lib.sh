@@ -7,7 +7,7 @@ NR="ssh -i $HOME/.ssh/nan-ci-deploy -o IdentitiesOnly=yes -o BatchMode=yes -o Co
 US="ssh -o BatchMode=yes -o ConnectTimeout=15 us-west"                                                              # us-west (Steven's unlocked key)
 # BASE = B's base = the parent of B's two commits; b-1-push.sh requires it to BE main at push time (b-recut.sh re-cuts
 # onto a moved main: B's files must stay byte-identical to the reviewed ones, so no re-review is needed)
-BC=4d805c1e37268aeab999133345b4dec19aa3f4ed   # B's head after the re-cut (fc44db2f + af9a7175 content, bf GO); b-recut.sh updates this line
+BC=407f0936eec636dfc95de4ecfc8829b604f32112   # B's head after the re-cut (fc44db2f + af9a7175 content, bf GO); b-recut.sh updates this line
 BASE=$(git -C $MAIN rev-parse "$BC~2" 2>/dev/null || echo unknown)
 # every relay file B deploys, as B has it (sha256): nan (api relay) gets all; nan-relay relay.js/fleet.mjs/dns-relay.js; us-west relay.js/fleet.mjs
 declare -A SHA=(
