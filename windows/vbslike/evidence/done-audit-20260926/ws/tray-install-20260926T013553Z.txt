@@ -1,0 +1,19 @@
+C:\Users\claude\d1-as-srbat.ps1 : Cannot process argument transformation on parameter 'WaitSec'. 
+Cannot convert value ">" to type "System.Int32". Error: "Input string was not in a correct 
+format."
+    + CategoryInfo          : InvalidData: (:) [d1-as-srbat.ps1], ParentContainsErrorRecordExcept 
+   ion
+    + FullyQualifiedErrorId : ParameterArgumentTransformationError,d1-as-srbat.ps1
+ 
+--- install-out.txt:
+Get-Content : Cannot find path 'C:\Users\Public\enclave-tray\install-out.txt' because it does not 
+exist.
+At line:1 char:287
++ ... -out.txt:"; Get-Content C:\Users\Public\enclave-tray\install-out.txt; ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\Users\Public...install-out.txt:String) [Get-Con 
+   tent], ItemNotFoundException
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetContentCommand
+ 
+--- tray process:
+--- HKCU Run (srbat):

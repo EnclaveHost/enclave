@@ -1,0 +1,4 @@
+rec id=hv88b31102f902741d791a3e90b56f571b status=running vm=enclave-app-hv88b31102f90274-9c3d10f1 key=4d80b9566a3ab6c4 started=1790393688157 guest=True
+hv enclave-app-hv88b31102f90274-9c3d10f1 Running up=306s mem=2048MiB
+tasks EnclaveHvManager=Running EnclaveHvNode=Running
+node.log 57542 manager.log 5686

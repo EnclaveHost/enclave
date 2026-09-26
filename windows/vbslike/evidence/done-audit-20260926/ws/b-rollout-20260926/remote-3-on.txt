@@ -1,0 +1,2 @@
+nan: RELAY_REVERIFY on: backup /etc/nan-relay/api-relay.env.bak-b-RELAY_REVERIFY-on-20260926T025425Z; TRUSTED_OPERATORS line digest 3813a04e46c5f1ee (unchanged); restarting the api relay
+nan: RELAY_REVERIFY on applied; api relay invocation e9c016e2658a -> 95b9b0ac701f4fd98ae81197c87959e0, NRestarts 0, stayed up 30 s; TRUSTED_OPERATORS digest after 3813a04e46c5f1ee
