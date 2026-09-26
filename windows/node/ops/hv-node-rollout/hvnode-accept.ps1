@@ -1,11 +1,15 @@
 # hvnode-accept.ps1 - READ-ONLY acceptance of the running hv node + manager on the NucBox (ROLLOUT.md step 7, the box
 # half; the relay/public half is hvnode-accept-remote.sh). Prints PASS / FAIL / INFO; exits 1 on any FAIL.
-#   powershell -ExecutionPolicy Bypass -File hvnode-accept.ps1 -Commit <node commit, 8+ hex> [-DeploymentId 0x…] [-KillRecovery]
+#   powershell -ExecutionPolicy Bypass -File hvnode-accept.ps1 -Commit <node commit, 8+ hex> [-DeploymentId 0x…] [-KillRecovery] [-OwnerRestart]
+# A9 (with -DeploymentId) is the LIVE check of N1 on the NODE itself, through its loopback port (b4's F1: through the
+# relay, B refuses these paths before the node ever sees them): no session -> 401, a stranger's OWN session minted on
+# the node -> 404; with -OwnerRestart (it really restarts the app) the operator's own session -> 200.
 # -KillRecovery (NOT read-only; enclave-d1's review, item 5) kills the agent's node.exe, then the manager's, by exact PID,
 # and requires the run-*.cmd loop to bring each back: a new PID, and /availability or /health answering within 60 s.
 param(
   [Parameter(Mandatory = $true)][string]$Commit,
-  [string]$DeploymentId = '', [switch]$KillRecovery,
+  [string]$DeploymentId = '', [switch]$KillRecovery, [switch]$OwnerRestart,
+  [string]$NodeExe = 'C:\Program Files\nodejs\node.exe',
   [string]$Root = 'C:\Users\claude\vbs-like\hvnode',
   [int]$ManagerPort = 8091, [int]$LocalPort = 9600,
   [string]$Operator = '0x389C3f030a209D04D026228D2D053fEB75DbadcA',
@@ -60,8 +64,8 @@ try {
   Check ($owners -contains $Operator.ToLower()) ("A4 owners served: {0} (the operator, plus each valid delegation)" -f ($owners -join ', '))
   Check ([int]$a.gasRenewalsLeft -gt 200) "A4 gasRenewalsLeft $($a.gasRenewalsLeft) (> 200; GAS.md)"
   Check ("$($a.tier)" -eq 'hv-node') "A4 relay verdict tier $($a.tier) (the attach was accepted)"
-  if ($null -ne $a.isolation) { Check ("$($a.isolation)" -eq 'hyperv-partition-per-app') "A4 advertises isolation $($a.isolation)" }
-  else { Say 'INFO' 'A4 the node does not advertise availability.isolation yet (b4 adds it; test 1 needs it for `deploy --isolation`)' }
+  # P2 is on main (013deb51): a missing availability.isolation is a FAIL now (b4's F4)
+  Check ("$($a.isolation)" -eq 'hyperv-partition-per-app') "A4 advertises isolation $($a.isolation) (test 1's deploy --isolation needs it)"
   $v = GetJson "http://127.0.0.1:$LocalPort/v1/health"
   Check ("$($v.engine)" -eq 'retired') "A4 engine $($v.engine)"
 } catch { Say 'FAIL' "A4 node loopback: $($_.Exception.Message)" }
@@ -98,6 +102,48 @@ if ($DeploymentId) {
     }
   } catch { Say 'FAIL' "A7 manager /vms: $($_.Exception.Message)" }
 }
+# A9 (with -DeploymentId): N1 on the NODE, through its loopback port. The session is minted ON the node (SIWE nonce +
+# login), by a throwaway wallet that lives only in the check script, or, with -OwnerRestart, by the operator key read in
+# the script from state\operator.key (never printed). The script runs from the node tree, so `viem` resolves.
+if ($DeploymentId) {
+  $n1 = Join-Path $Root "$c8\windows\node\n1check-$([guid]::NewGuid().ToString('N')).mjs"
+  Set-Content -Path $n1 -Encoding ASCII -Value @'
+import fs from "node:fs";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+const [base, id, keyFile] = process.argv.slice(2);
+const req = async (method, p, body, token) => {
+  const r = await fetch(base + p, { method, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(30000) });
+  return [r.status, await r.json().catch(() => ({}))];
+};
+async function session(acct) {
+  const [ns, n] = await req("GET", `/v1/auth/nonce?address=${acct.address}`);
+  if (ns !== 200 || !n.message) return null;
+  const [ls, l] = await req("POST", "/v1/auth/login", { message: n.message, signature: await acct.signMessage({ message: n.message }) });
+  return ls === 200 && l.token ? l.token : null;
+}
+const out = [];
+out.push(`none=${(await req("POST", `/v1/deployments/${id}/restart`, {}))[0]}`);
+const st = await session(privateKeyToAccount(generatePrivateKey()));
+out.push(`stranger=${st ? (await req("POST", `/v1/deployments/${id}/restart`, {}, st))[0] : "nosession"}`);
+if (keyFile) {
+  let k = fs.readFileSync(keyFile, "utf8").trim(); if (!k.startsWith("0x")) k = "0x" + k;
+  const ot = await session(privateKeyToAccount(k)); k = null;
+  out.push(`owner=${ot ? (await req("POST", `/v1/deployments/${id}/restart`, {}, ot))[0] : "nosession"}`);
+}
+console.log(out.join(" "));
+'@
+  try {
+    $keyArg = $(if ($OwnerRestart) { Join-Path $Root 'state\operator.key' } else { '' })
+    $e = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { $res = [string](& $NodeExe $n1 "http://127.0.0.1:$LocalPort" $DeploymentId.ToLower() $keyArg 2>&1) } finally { $ErrorActionPreference = $e }
+  } finally { Remove-Item -Force $n1 -ErrorAction SilentlyContinue }
+  Say 'INFO' "A9 node loopback N1 check: $res"
+  Check ($res -match '(^| )none=401( |$)') 'A9 a restart with NO session is 401 on the node (N1)'
+  Check ($res -match '(^| )stranger=404( |$)') "A9 a stranger's own session is 404 on the node (not the owner)"
+  if ($OwnerRestart) { Check ($res -match '(^| )owner=200( |$)') "A9 the operator's own session restarts its own deployment (200)" }
+}
+
 # A8 (-KillRecovery): each loop brings its process back
 function Recover([string]$what, [scriptblock]$procs, [string]$url) {
   $p = @(& $procs)
