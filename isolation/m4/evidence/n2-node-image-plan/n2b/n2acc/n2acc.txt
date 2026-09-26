@@ -1,0 +1,22 @@
+07:20:49Z n2acc 0ddbd824: 5db18199 release guest gdecc7a0a0 (6716ef1462e1) -> a new 5db18199 guest, predicted 6716ef1462e1 (runtime ccadb38a6779); certificate serial E2D165F58ABC81AFD4741AF79F5CA665; the OWNER's restart now (T0 2026-09-26 07:20:49 UTC)
+07:20:54Z n2acc 0ddbd824: enclave restart exited 0: running (Restarted in place — same version and balance; app state is ephemeral.) 
+07:20:54Z n2acc 0ddbd824: the proofs (1-9) + the 10-min observe run DETACHED as n2acc-proofs-0ddbd824-20260926T072054Z (exit code -> /home/steven/enclave-bench/n2acc-20260926/state/0ddbd824-proofs.rc); follow: tail -f /home/steven/enclave-bench/n2acc-20260926/n2acc.log
+07:21:05Z n2acc 0ddbd824: new guest gd490b00fb running (the legacy one was gdecc7a0a0)
+07:21:06Z n2acc 0ddbd824 proof 2 ok: release:true, attested, measurement 6716ef1462e1ebab = the independently computed 5db18199 value = the relay's prediction, runtime ccadb38a6779 = the prediction, new key d5bbe935a55370f6
+07:21:06Z n2acc 0ddbd824 proof 7 ok: yama ptrace_scope=1 -> 2; user.max_user_namespaces=3420 -> 0; kernel.io_uring_disabled=0 -> 2
+07:21:06Z n2acc 0ddbd824 proof 8 ok: W^X at attest: VERDICT attested, gate open, wx_coverage=runtime-covered, self-test "exec_pages=allowed wx=clean maps=3 runtime=1 root=2 scope=all-processes"; the front states wx=at-each-attestation, no FAILED
+07:21:06Z n2acc 0ddbd824 proof 9 ok: the app's seccomp filter: NOT REFUSED, NOT POSITIVELY ATTESTED (implied by the measured dominit's exit-125 path and serving: no install error, and DOM serving at line 15); front uid: n/a on SNP (M3 only)
+07:21:06Z n2acc 0ddbd824 proof 3 ok: DOM release (1 origin = the relay, config 177 bytes = the version's _media config) (envelope tag 42c6f115f763f544) < app config 177 bytes < serving on d5bbe935a55370f6; no app output
+07:21:06Z n2acc 0ddbd824 proof 1 ok: one release at 07:21:04; 0 '(ticket kept)' warming/collateral line(s) before it (none); one ticket handed to gd490b00fb
+07:22:16Z n2acc 0ddbd824 proof 4 ok: certificate installed in gd490b00fb for key d5bbe935a55370f6, guest attested; no refusal (1 retry line(s))
+07:22:20Z n2acc 0ddbd824 N2-b acceptance ok: the node attests N2; certificate for gd490b00fb judged 'guest attested' by N2's judge; A1: 0 starting retry line(s), all 20 s, no 300 s; A2 (reported): installed 67.7 s after guestd first reported the guest running (install at 2026-09-26T00:22:12.713589-07:00); A3: [isolation]-anchored greps only
+07:22:26Z n2acc 0ddbd824 proof 5 ok: https://0ddbd824.app.enclave.host/ 200 via us-west, new serial 738AEB9CA6C479ED5F31C37B3B0F6B87 on key d5bbe935a55370f6
+07:22:28Z n2acc 0ddbd824 proof 6 ok: HEAD -> 404; the serial withholds the body (DOM front: unsolicited upstream response (119 bytes withheld)), 0 'Unsolicited response' lines (a regression check: the console guard stays in the 5db18199 front)
+07:22:28Z n2acc 0ddbd824: ALL PROOFS PASS; 4e's expected key for 0ddbd824 is now d5bbe935a55370f6; the 10-min observe
+07:22:39Z n2acc 0ddbd824 observe r1: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+07:24:51Z n2acc 0ddbd824 observe r2: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+07:27:03Z n2acc 0ddbd824 observe r3: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+07:29:14Z n2acc 0ddbd824 observe r4: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+07:31:26Z n2acc 0ddbd824 observe r5: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+07:32:42Z n2acc 0ddbd824 observe r6: 3/3 canaries 200 on 4e's keys, relay serving, guestd as expected
+07:32:42Z n2acc 0ddbd824 ACCEPTED (N2-b's acceptance): proofs 1-9 + N2/A1-A3 + the observe (6 rounds over 614 s). Next canary: 395bed3e

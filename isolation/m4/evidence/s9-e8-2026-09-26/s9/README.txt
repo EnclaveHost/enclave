@@ -46,3 +46,5 @@ no release at its next start). So the order is:
   2. relaunch EACH e8-relaunched canary again (owner restart) so it comes up on 5db18199 under S8's unit;
   3. only then e3's rs-11 rollback (its rollback_guard also refuses while any guestd record names aee2059f: e3's delta).
 Before e8 (no aee2059f guest): S9 rollback, then rs-11 rollback (the epoch is gone, no record names aee2059f).
+Once rs-12 has run (5db18199 retired): its own rollback (re-admit 5db18199) comes FIRST, then the order above
+(s9t-rollback's guard enforces it; e3's ROLLBACK.txt says the same) - enclave-5d's completeness note.

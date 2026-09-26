@@ -1,0 +1,4 @@
+[isolation] 0x0ddbd824: guest gd490b00fb app d2c4dfc0ec475910… (enclave-isolation-policy/1 {"cpuPercent":100,"memMiB":256,"vcpus":1}, record 1fb9360ddfd50a25…)
+[isolation] 0x0ddbd824: release ticket handed to guest gd490b00fb
+[isolation] 0x0ddbd824: no certificate for 0ddbd824.app.enclave.host (order for 0ddbd824.app.enclave.host in flight); retry in 30s
+[isolation] 0x0ddbd824: certificate for 0ddbd824.app.enclave.host installed in guest gd490b00fb (key d5bbe935a55370f6…, C=AT, O=ZeroSSL GmbH, CN=ZeroSSL ECC DV SSL CA 2, until 2026-12-25T23:59:59.000Z; guest attested)
