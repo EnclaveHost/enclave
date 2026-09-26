@@ -65,9 +65,10 @@ type Launcher interface {
 	Forward(ctx context.Context, cid uint32, workdir string) (port int, stop func(), err error)
 	// Verify attests the guest over that port against the predicted measurement and the AppID, and returns the
 	// sha256 of the TLS key its OWN handshake saw (the key the verified report binds). The data plane admits a
-	// splice only to a guest still presenting that identity (datapath.go). releases: the domain releases this guest
-	// is an image of, when guestd knows it to be a PRE-CHAIN one (legacyWXReleases); nil = none, so the judge
-	// requires the attest-time runtime self-test (m2/judge.mjs LEGACY_WX_RELEASES).
+	// splice only to a guest still presenting that identity (datapath.go). releases: the domain release(s) the tree
+	// that BUILT this guest was installed from (treeReleases; an adopted guest's recorded ones), named to the judge,
+	// whose frozen table (m2/judge.mjs LEGACY_WX_RELEASES) decides whether that release may state the legacy runtime
+	// self-test; nil or empty = none named, so the attest-time form is required.
 	Verify(ctx context.Context, port int, measurement, appID, hostData, workdir string, releases []string) (verdict, keySha256 string, err error)
 	// Alive reports whether the guest's unit is still active.
 	Alive(unit string) bool
@@ -143,6 +144,7 @@ type vm struct {
 	ticket                                               chan [32]byte        // its one release ticket slot; nil = it takes none (release.go)
 	release                                              bool                 // a release guest (its egress is admitted); false = none, or legacy
 	legacy                                               bool                 // built and started by the legacy launcher (-legacy-isolation)
+	releases                                             []string             // the release(s) of the tree that built it (treeReleases), as recorded
 	awaitingTicket                                       bool                 // its guest is connected and waiting for the ticket
 	ticketTaken                                          bool                 // its guest took its one ticket: no second is handed
 }
@@ -165,14 +167,15 @@ type server struct {
 	// Legacy builds and starts the deployment guests that are NOT release guests on a -release guestd: the previous
 	// tree's image, unchanged (d1's rollout option (i)). nil = such a deployment is refused.
 	Legacy Launcher
-	// LegacyWXReleases (-legacy-wx-releases): the pre-chain domain releases this host may run, whose front states the
-	// LEGACY runtime self-test (measured at front start, covering no runtime). Named to the judge ONLY for a guest
-	// guestd knows was built by a pre-chain tree (legacyWXReleases); every other guest is judged by the full rule.
-	LegacyWXReleases []string
-	TicketHold       time.Duration        // how long a guest's ticket connection is held; 0 = release.TicketHold
-	drawCID          func() uint32        // tests; nil = crypto/rand
-	freedCIDs        map[uint32]time.Time // recently freed CIDs, quarantined (release.go)
-	held             int                  // ticket connections held now (release.go maxHeld)
+	// The domain release(s) each tree was installed from (-isolation-release, -legacy-isolation-release), named to the
+	// judge for every guest that tree builds and RECORDED with it (enclave-bf's design: each guest by its OWN release,
+	// so the order of binary and tree switches cannot change how a guest is judged); UnrecordedReleases
+	// (-unrecorded-releases) for adopting an instance whose record names none (written before per-release records).
+	TreeReleases, LegacyTreeReleases, UnrecordedReleases []string
+	TicketHold                                           time.Duration        // how long a guest's ticket connection is held; 0 = release.TicketHold
+	drawCID                                              func() uint32        // tests; nil = crypto/rand
+	freedCIDs                                            map[uint32]time.Time // recently freed CIDs, quarantined (release.go)
+	held                                                 int                  // ticket connections held now (release.go maxHeld)
 	// HostFloorMiB: a create must leave the host at least this much MemAvailable (pool.go); 0 = off
 	HostFloorMiB int
 	MemAvailable func() (int, error)            // tests; nil = /proc/meminfo
@@ -578,7 +581,9 @@ func (s *server) launch(v *vm) {
 		return
 	}
 	s.set(v, func() { v.HostPort = port })
-	verdict, keySha, err := s.L.Verify(ctx, port, meas, v.AppID, v.HostData, v.workdir, s.legacyWXReleases(v.legacy, true))
+	rel := s.treeReleases(v.legacy)
+	s.set(v, func() { v.releases = rel })
+	verdict, keySha, err := s.L.Verify(ctx, port, meas, v.AppID, v.HostData, v.workdir, rel)
 	if err == nil && !isHex(keySha, 32) {
 		err = fmt.Errorf("the verifier reported no transport key hash (%q)", keySha)
 	}
@@ -734,13 +739,11 @@ func (s *server) tick() {
 	}
 }
 
-// legacyWXReleases is what guestd names to the judge for one guest (enclave-87's per-release ruling): the pre-chain
-// releases (-legacy-wx-releases) for a guest built from the legacy tree (-legacy-isolation), or adopted from a record
-// that an earlier guestd wrote (perRelease false: that guestd's own tree was pre-chain); nil for every other guest,
-// which must then state the attest-time runtime self-test.
-func (s *server) legacyWXReleases(legacy, perRelease bool) []string {
-	if legacy || !perRelease {
-		return s.LegacyWXReleases
+// treeReleases is the release(s) of the tree a new guest is built from: the legacy tree's for a legacy guest, the main
+// tree's otherwise. Never nil, so the record says "recorded: none" apart from "not recorded" (an earlier guestd's).
+func (s *server) treeReleases(legacy bool) []string {
+	if legacy {
+		return append([]string{}, s.LegacyTreeReleases...)
 	}
-	return nil
+	return append([]string{}, s.TreeReleases...)
 }

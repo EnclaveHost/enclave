@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -153,31 +155,30 @@ func TestLogsOfARunningInstance(t *testing.T) {
 	}
 }
 
-// Per release (enclave-87's ruling): guestd names the pre-chain releases (-legacy-wx-releases) to the judge ONLY for a
-// guest it knows a pre-chain tree built - one from the legacy tree, or one adopted from a record an EARLIER guestd
-// wrote - and nothing for any other, at launch and at adoption alike: a current-tree guest is always judged by the
-// full rule, however the host's flag is set.
-func TestOnlyPreChainGuestsNameLegacyReleases(t *testing.T) {
-	pre := []string{strings.Repeat("f7", 32), strings.Repeat("5c", 32)}
+// Per release (enclave-87's ruling, enclave-bf's design): every guest is named to the judge with the release(s) of the
+// tree that BUILT it, recorded with it, and named again on adoption - so which binary or tree is live at a restart can
+// never change how a running guest is judged. A record an earlier guestd wrote (no Releases) gets -unrecorded-releases.
+// The judge's own table decides what a named release may state (m2/judge.mjs LEGACY_WX_RELEASES).
+func TestEachGuestIsNamedByItsOwnTreesRelease(t *testing.T) {
+	tree, legacyTree, unrec := []string{strings.Repeat("f7", 32)}, []string{strings.Repeat("5c", 32), strings.Repeat("6f", 32)}, []string{strings.Repeat("99", 32)}
 	r := newRig(t)
-	r.s.LegacyWXReleases = pre
+	r.s.TreeReleases, r.s.LegacyTreeReleases, r.s.UnrecordedReleases = tree, legacyTree, unrec
 	p, _ := r.bundle("A", contract.Policy{})
 	code, body := r.create("0x"+strings.Repeat("aa", 32), p)
 	if code != 201 {
 		t.Fatalf("create: %d %v", code, body)
 	}
 	r.s.launching.Wait()
-	id := body["id"].(string)
-	dir := filepath.Join(r.s.Root, id)
+	dir := filepath.Join(r.s.Root, body["id"].(string))
 	last := func() string {
 		r.f.mu.Lock()
 		defer r.f.mu.Unlock()
 		return r.f.verifyReleases[len(r.f.verifyReleases)-1]
 	}
-	if got := last(); got != "" {
-		t.Fatalf("a guest this tree launched named %q to the judge", got)
+	if got := last(); got != tree[0] {
+		t.Fatalf("a guest this tree launched was named %q, want its tree's %q", got, tree[0])
 	}
-	rewrite := func(f func(*instanceRecord)) {
+	readRec := func() instanceRecord {
 		b, err := os.ReadFile(filepath.Join(dir, recordFile))
 		if err != nil {
 			t.Fatal(err)
@@ -186,58 +187,84 @@ func TestOnlyPreChainGuestsNameLegacyReleases(t *testing.T) {
 		if err := json.Unmarshal(b, &rec); err != nil {
 			t.Fatal(err)
 		}
+		return rec
+	}
+	if rec := readRec(); strings.Join(rec.Releases, ",") != tree[0] {
+		t.Fatalf("the record does not say which release built the guest: %v", rec.Releases)
+	}
+	writeRec := func(f func(*instanceRecord)) {
+		rec := readRec()
 		f(&rec)
-		b, _ = json.Marshal(rec)
+		b, _ := json.Marshal(rec)
 		_ = os.WriteFile(filepath.Join(dir, recordFile), b, 0o600)
 	}
-	adopt := func(flag []string) string {
+	// adoption by a guestd on ANOTHER tree (its own releases differ): the guest is named by what BUILT it
+	adopt := func() string {
 		s := newServer(r.f, r.s.Root)
-		s.Now, s.Budget, s.LegacyWXReleases = r.s.Now, r.s.Budget, flag
+		s.Now, s.Budget = r.s.Now, r.s.Budget
+		s.TreeReleases, s.LegacyTreeReleases, s.UnrecordedReleases = []string{strings.Repeat("11", 32)}, nil, unrec
 		if why := s.adoptOne(context.Background(), dir); why != "" {
 			t.Fatalf("not adopted: %s", why)
 		}
 		return last()
 	}
-	all := strings.Join(pre, ",")
-	// the record exactly as this guestd wrote it: a current-tree guest, so nothing is named on adoption either
-	if got := adopt(pre); got != "" {
-		t.Fatalf("this guestd's own record, as written, named %q on adoption", got)
+	if got := adopt(); got != tree[0] {
+		t.Fatalf("the record as written, adopted after a tree switch: named %q, want %q", got, tree[0])
 	}
 	for _, c := range []struct {
-		what         string
-		legacy, perR bool
-		flag         []string
-		want         string
+		what string
+		set  func(*instanceRecord)
+		want string
 	}{
-		{"this guestd's record of a current-tree guest", false, true, pre, ""},
-		{"a record an earlier guestd wrote (no WXPerRelease)", false, false, pre, all},
-		{"a legacy-tree guest's record", true, true, pre, all},
-		{"an earlier guestd's record, with no -legacy-wx-releases", false, false, nil, ""},
+		{"a record an earlier guestd wrote (no Releases)", func(rec *instanceRecord) { rec.Releases = nil }, unrec[0]},
+		{"a record naming no release (a tree that was not named)", func(rec *instanceRecord) { rec.Releases = []string{} }, ""},
+		{"a legacy-tree guest's record", func(rec *instanceRecord) { rec.Legacy, rec.Releases = true, legacyTree }, strings.Join(legacyTree, ",")},
 	} {
-		rewrite(func(rec *instanceRecord) { rec.Legacy, rec.WXPerRelease = c.legacy, c.perR })
-		if got := adopt(c.flag); got != c.want {
+		writeRec(c.set)
+		if got := adopt(); got != c.want {
 			t.Errorf("%s: named %q, want %q", c.what, got, c.want)
 		}
 	}
-	// the launch path's own choice, and the flag's parsing
-	s := &server{LegacyWXReleases: pre}
-	if s.legacyWXReleases(false, true) != nil || strings.Join(s.legacyWXReleases(true, true), ",") != all {
-		t.Fatal("legacyWXReleases at launch")
+	// the launch path's choice, and the flag's parsing: ids, or @release.json whose sha256 is the id
+	s := &server{TreeReleases: tree, LegacyTreeReleases: legacyTree}
+	if strings.Join(s.treeReleases(false), ",") != tree[0] || strings.Join(s.treeReleases(true), ",") != strings.Join(legacyTree, ",") {
+		t.Fatal("treeReleases at launch")
 	}
-	if got, err := parseReleaseIDs(" " + strings.ToUpper(pre[0]) + ",," + pre[1] + "," + pre[0]); err != nil || strings.Join(got, ",") != all {
+	if got := (&server{}).treeReleases(false); got == nil || len(got) != 0 {
+		t.Fatalf("an unnamed tree must record an empty list, not nil (nil means an earlier guestd's record): %#v", got)
+	}
+	rj := filepath.Join(t.TempDir(), "release.json")
+	_ = os.WriteFile(rj, []byte(`{"release":"x"}`), 0o600)
+	sum := sha256.Sum256([]byte(`{"release":"x"}`))
+	if got, err := parseReleaseIDs(" " + strings.ToUpper(tree[0]) + ",,@" + rj + "," + tree[0]); err != nil || strings.Join(got, ",") != tree[0]+","+hex.EncodeToString(sum[:]) {
 		t.Fatalf("parseReleaseIDs: %q %v", got, err)
 	}
-	for _, bad := range []string{"f7888d86", pre[0] + "00", pre[0] + ",xyz"} {
+	for _, bad := range []string{"f7888d86", tree[0] + "00", tree[0] + ",xyz", "@" + filepath.Join(t.TempDir(), "absent.json")} {
 		if _, err := parseReleaseIDs(bad); err == nil {
 			t.Errorf("parseReleaseIDs accepted %q", bad)
 		}
 	}
+	// a tree whose judge predates per-release W^X must be named; a later tree need not be
+	old, cur := t.TempDir(), t.TempDir()
+	for d, js := range map[string]string{old: "export function judge() {}\n", cur: "export const LEGACY_WX_RELEASES = Object.freeze({});\n"} {
+		_ = os.MkdirAll(filepath.Join(d, "m2"), 0o755)
+		_ = os.WriteFile(filepath.Join(d, "m2", "judge.mjs"), []byte(js), 0o600)
+	}
+	if why := needsRelease(old, nil); !strings.Contains(why, "predates per-release W^X") {
+		t.Errorf("an unnamed pre-chain tree was accepted: %q", why)
+	}
+	if why := needsRelease(old, tree); why != "" || needsRelease(cur, nil) != "" {
+		t.Error("a named pre-chain tree, or an unnamed later one, was refused")
+	}
+	if why := needsRelease(filepath.Join(t.TempDir(), "absent"), tree); why == "" {
+		t.Error("an unreadable tree was accepted")
+	}
 	// the real launcher's judge command line names them exactly when given
 	rl := &realLauncher{m2: "/m2"}
-	if a := strings.Join(rl.verifyArgs(1, "m", "a", "", "/w", pre), " "); !strings.HasSuffix(a, " --release "+all) {
+	if a := strings.Join(rl.verifyArgs(1, "m", "a", "", "/w", legacyTree), " "); !strings.HasSuffix(a, " --release "+strings.Join(legacyTree, ",")) {
 		t.Errorf("the real verifier was not given the releases: %s", a)
 	}
 	if a := strings.Join(rl.verifyArgs(1, "m", "a", "", "/w", nil), " "); strings.Contains(a, "--release") {
-		t.Errorf("a current-tree guest's judge was given releases: %s", a)
+		t.Errorf("a guest named no release was given --release: %s", a)
 	}
 }
