@@ -219,6 +219,10 @@ func main() {
 	// ONE canonical record of the tuple, emitted exactly once. It used to appear on the MON ready line
 	// too, and two sources of the same fact is one more than a checker can safely believe.
 	fmt.Printf("MON boundary %s\n", m.boundary)
+	// Yama's ptrace scope, raised to at least 2 (only CAP_SYS_PTRACE may attach) where the guest kernel has Yama: defence
+	// in depth for the front, which also makes itself non-dumpable (m2/front/dumpable.go), against a tenant runtime of the
+	// same uid (enclave-b4's review of 683798d0; enclave-87). Stated either way; its absence is not a failure.
+	fmt.Printf("MON %s\n", raisePtraceScope("/proc/sys/kernel/yama/ptrace_scope", 2))
 	// "ready" must mean the control channel can exist. AF_VSOCK accepts a listen with NO transport registered, so a
 	// guest whose kernel carries only another hypervisor's transport used to print ready and then never answer a
 	// load (enclave-d1, the first UEFI boot on the NucBox). Name the transport that can carry the channel, or stop.
@@ -1305,3 +1309,28 @@ func openNullDeviceAt(path string) (*os.File, error) {
 // Linux's encoding of a device number (glibc gnu_dev_major/minor), without a dependency on x/sys/unix.
 func unixMajor(dev uint64) uint32 { return uint32((dev>>8)&0xfff) | uint32((dev>>32)&^0xfff) }
 func unixMinor(dev uint64) uint32 { return uint32(dev&0xff) | uint32((dev>>12)&^0xff) }
+
+// raisePtraceScope sets Yama's ptrace_scope at path to at least min (never lowers it) and says what it found and left.
+func raisePtraceScope(path string, min int) string {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("yama absent (%s unreadable: %v): the front's non-dumpable flag is the guard", path, err)
+	}
+	was, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil {
+		return fmt.Sprintf("yama ptrace_scope unparsable (%q): left as is", strings.TrimSpace(string(raw)))
+	}
+	if was >= min {
+		return fmt.Sprintf("yama ptrace_scope=%d (already >= %d)", was, min)
+	}
+	if err := os.WriteFile(path, []byte(strconv.Itoa(min)+"\n"), 0); err != nil {
+		return fmt.Sprintf("yama ptrace_scope=%d, NOT raised to %d: %v", was, min, err)
+	}
+	now := was
+	if raw, err := os.ReadFile(path); err == nil {
+		if v, err := strconv.Atoi(strings.TrimSpace(string(raw))); err == nil {
+			now = v
+		}
+	}
+	return fmt.Sprintf("yama ptrace_scope=%d -> %d", was, now)
+}
