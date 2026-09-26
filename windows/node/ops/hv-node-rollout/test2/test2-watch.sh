@@ -6,12 +6,14 @@
 #           servesDeployments (enclave-e3's B), and until when
 # The ledger address is the CLI's default deployments ledger (0xF9e71385…); the node resolves its own from the address
 # book, and today they are the same (enclave-b4's review).
-#   public: https://<id8>.app.enclave.host/ - the HTTP code with CA verification (M4) and without it (-k), and the SPKI
+#   public: https://<id8>.app.enclave.host/ - the HTTP code with CA verification (M4) and without it (-k), and the SPKI;
+#           VIA=x: the same, through nan's /x splice (xsplice.mjs), while us-west cannot reach the box (B step 1b held)
 #   ledger: runner (nucbox-k11 or not), leaseUntil, active, rate (0 = self-hosted: the owner is the box's payout wallet),
 #           balance6, the options envelope
 set -uo pipefail
 ID=${1:?usage: test2-watch.sh <0x…64 id>}; ID=$(echo "$ID" | tr 'A-F' 'a-f')
 VIEM_DIR=${VIEM_DIR:-$HOME/Projects/enclave}
+HERE=$(cd "$(dirname "$0")" && pwd)
 now=$(date -u +%FT%TZ)
 relay=$(curl -sS -m 20 https://api.enclave.host/enclaves | ID="$ID" node -e '
   let s = ""; process.stdin.on("data", (d) => s += d).on("end", () => {
@@ -25,11 +27,18 @@ relay=$(curl -sS -m 20 https://api.enclave.host/enclaves | ID="$ID" node -e '
     console.log(`row=${r.mode} ownerOnly=${r.ownerOnly === true} owners=[${owners}] served=${sv ? (me ? "yes" : "no") : "n/a"}${me && me.until ? " until=" + iso(me.until) : ""}`);
   });' 2>/dev/null || echo "row=unreadable")
 host="${ID:2:8}.app.enclave.host"
-ca=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "https://$host/" 2>/dev/null); ca=${ca:-000}
-k=$(curl -sk -o /dev/null -m 20 -w '%{http_code}' "https://$host/" 2>/dev/null); k=${k:-000}
-der=$(echo | timeout 20 openssl s_client -connect "$host:443" -servername "$host" 2>/dev/null | openssl x509 -pubkey -noout 2>/dev/null \
-  | openssl pkey -pubin -outform DER 2>/dev/null | base64 -w0)
-spki=$([ -n "$der" ] && printf '%s' "$der" | base64 -d | sha256sum | cut -c1-16 || echo none)
+if [ "${VIA:-sni}" = x ]; then
+  # through nan's data plane (xsplice.mjs: the WebSocket the SNI relay opens, B's owner-only gate at decision time), for
+  # while B's step 1b on us-west is held and the public name cannot reach the box (enclave-d1's M1)
+  pub="via=x $(cd "$VIEM_DIR" && timeout 60 node --input-type=module - "$ID" < "$HERE/xsplice.mjs" 2>/dev/null || echo "x=error(xsplice) ca=000 k=000 spki=none")"
+else
+  ca=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "https://$host/" 2>/dev/null); ca=${ca:-000}
+  k=$(curl -sk -o /dev/null -m 20 -w '%{http_code}' "https://$host/" 2>/dev/null); k=${k:-000}
+  der=$(echo | timeout 20 openssl s_client -connect "$host:443" -servername "$host" 2>/dev/null | openssl x509 -pubkey -noout 2>/dev/null \
+    | openssl pkey -pubin -outform DER 2>/dev/null | base64 -w0)
+  spki=$([ -n "$der" ] && printf '%s' "$der" | base64 -d | sha256sum | cut -c1-16 || echo none)
+  pub="via=sni ca=$ca k=$k spki=${spki:-none}"
+fi
 ledger=$(cd "$VIEM_DIR" && node --input-type=module -e '
   import { createPublicClient, http, keccak256, toHex } from "viem"; import { base } from "viem/chains";
   const c = createPublicClient({ chain: base, transport: http("https://base-rpc.publicnode.com", { retryCount: 2 }) });
@@ -43,4 +52,4 @@ ledger=$(cd "$VIEM_DIR" && node --input-type=module -e '
   const me = keccak256(toHex("https://api.enclave.host/t/nucbox-k11")).toLowerCase();
   const r = d.runner.toLowerCase(), lu = Number(d.leaseUntil);
   console.log(`runner=${r === me ? "nucbox-k11" : /^0x0+$/.test(r) ? "none" : r.slice(0, 10)} lease=${lu ? new Date(lu * 1000).toISOString() : "-"}${lu * 1000 > Date.now() ? "(live)" : "(lapsed)"} active=${d.active} rate=${d.rate} balance6=${d.balance6} envelope=${d.configCid}`);' "$ID" 2>/dev/null || echo "ledger=unreadable")
-echo "$now $ID | $relay | public ca=$ca k=$k spki=${spki:-none} | $ledger"
+echo "$now $ID | $relay | public $pub | $ledger"
