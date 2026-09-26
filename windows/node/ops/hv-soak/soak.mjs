@@ -70,6 +70,19 @@ export const CONSOLE_MARGIN_MS = 5_000;
 // {token} is this sample's token (regex-escaped); stdout must be n > 0 bytes. The token alone is in the request, so a
 // reflector app would carry it without printing anything (enclave-bf's C); --echo-pattern replaces this.
 export const ECHO_PATTERN = "token={token} path=\\S* printed stdout=[1-9][0-9]*B";
+export const USER_AGENT = "enclave-hv-soak/1";
+export const DUMMY_TOKEN = "hvsoak" + "0123456789abcdef".repeat(2);
+/**
+ * Everything a REFLECTOR could echo back from the soak's own request, for a token: the path, the x-hv-soak value, and
+ * the whole request head, each raw and percent-decoded ("+" as a space too). An --echo-pattern that matches any of them
+ * could be satisfied by an app that printed nothing, so parseArgs refuses it.
+ */
+export function reflectableForms(pathTemplate, url, token = DUMMY_TOKEN) {
+  const path = String(pathTemplate).replaceAll("{token}", token);
+  const head = `GET ${path} HTTP/1.1\r\nhost: ${new URL(url).host}\r\nuser-agent: ${USER_AGENT}\r\naccept: */*\r\nx-hv-soak: ${token}\r\n\r\n`;
+  const dec = (s) => { try { return decodeURIComponent(s.replace(/\+/g, " ")); } catch { return s.replace(/\+/g, " "); } };
+  return [path, token, head, dec(path), dec(head)];
+}
 /** The printed-evidence RegExp for one sample: the pattern with {token} replaced by the escaped token. */
 export function evidenceRegex(pattern, token) {
   if (!String(pattern).includes("{token}")) throw new Error("the echo pattern must contain {token}");
@@ -141,7 +154,7 @@ export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutM
     };
     try {
       req = https.request(url, { method, agent: false, rejectUnauthorized: false, ...(ca ? { ca } : {}),
-                                 headers: { "user-agent": "enclave-hv-soak/1", accept: "*/*", ...headers } }, (res) => {
+                                 headers: { "user-agent": USER_AGENT, accept: "*/*", ...headers } }, (res) => {
         out.status = res.statusCode;
         let n = 0;
         res.on("data", (c) => {
@@ -235,8 +248,13 @@ async function chainRead(cfg, st) {
  * client for reading, only when the manager's record is `running` with its start-time capture done (`guest` present),
  * so it can never take the pipe from a start that is still attaching to it.
  */
+// --root: a local absolute path of at most ROOT_MAX characters (the install's is 31), so the command fits CMD_LIMIT
+export const ROOT_MAX = 64;
+export const ROOT_RE = new RegExp(`^(?=.{4,${ROOT_MAX}}$)[A-Za-z]:\\\\[A-Za-z0-9 ._\\\\-]+$`);
+export const CONSOLE_SEC_MAX = 120;
+
 export function boxScript({ root, managerPort, deployment, nodeFrom, managerFrom, cap, consoleSec, consoleMaxBytes }) {
-  if (!/^[A-Za-z]:\\[A-Za-z0-9 ._\\-]+$/.test(String(root))) throw new Error(`refusing an unexpected root path ${root}`);
+  if (!ROOT_RE.test(String(root))) throw new Error(`refusing an unexpected root path ${root} (a local absolute path, at most ${ROOT_MAX} characters)`);
   if (!HEX64.test(String(deployment).toLowerCase())) throw new Error("the deployment id must be 0x + 64 hex");
   for (const [k, v] of Object.entries({ managerPort, nodeFrom, managerFrom, cap, consoleSec, consoleMaxBytes }))
     if (!Number.isSafeInteger(v) || v < 0) throw new Error(`${k} must be a non-negative integer, not ${v}`);
@@ -333,8 +351,34 @@ Emit ('HVSOAK1 ' + ($o | ConvertTo-Json -Compress -Depth 6))
 // bootstrap, kept under cmd.exe's 8191-character command line should the box's default ssh shell ever be cmd.exe
 // (today it is PowerShell), and ssh runs with -n.
 export const CMD_LIMIT = 8191;
+// the minifier's rename table: the SOURCE keeps readable names, the payload carries short ones. PowerShell names are
+// case-insensitive, so every short name is unique ignoring case (tested, and checked below against the script).
+export const PS_RENAMES = Object.freeze({
+  $con: "$zc", $pending: "$zp", $vmsText: "$zv", $cli: "$zl", $got: "$zg", $from: "$zf", $vmName: "$zn", $Root: "$zo",
+  $room: "$zr", $NodeFrom: "$za", $MgrFrom: "$zb", $reset: "$zs", $run: "$zu", $preNode: "$zd", $cts: "$zt", $recs: "$ze",
+  $pipe: "$zi", $ConSec: "$zk", $ConMax: "$zx", $preMgr: "$zq", $size: "$zy", $list: "$zw", $Port: "$zh", $Dep: "$zj",
+  $Cap: "$zm", $arg: "$zz",
+  Emit: "ZE", OpenR: "ZO", Chunk: "ZK", SizeOf: "ZS", Bounded: "ZB",
+});
 export function minifyPs(script) {
-  return String(script).split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#")).join("\n");
+  let s = String(script).split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#")).join("\n");
+  const before = new Set([...s.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1].toLowerCase()));
+  for (const t of Object.values(PS_RENAMES).filter((v) => v.startsWith("$")))
+    if (before.has(t.slice(1).toLowerCase())) throw new Error(`the script already names ${t}, a short name the minifier assigns`);
+  for (const [from, to] of Object.entries(PS_RENAMES)) {
+    const re = new RegExp((from.startsWith("$") ? "\\$" + from.slice(1) : "\\b" + from) + "\\b", "g");
+    s = s.replace(re, to);
+  }
+  // a short name that some other name in the script already spells (ignoring case) would merge two variables
+  const names = new Set([...s.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1].toLowerCase()));
+  // variables and functions are separate namespaces in PowerShell; within each, a short name must be unique ignoring case
+  for (const isVar of [true, false]) {
+    const shorts = Object.entries(PS_RENAMES).filter(([k]) => k.startsWith("$") === isVar).map(([, t]) => t.toLowerCase());
+    if (new Set(shorts).size !== shorts.length) throw new Error("the rename table has two short names that are one in PowerShell");
+  }
+  for (const long of Object.keys(PS_RENAMES).filter((k) => k.startsWith("$")))
+    if (names.has(long.slice(1).toLowerCase())) throw new Error(`the minified script still names ${long}`);
+  return s;
 }
 export function remoteCommand(script) {
   const z = zlib.deflateRawSync(Buffer.from(minifyPs(script), "utf8"), { level: 9 }).toString("base64");
@@ -916,7 +960,8 @@ export function parseArgs(argv) {
     }
   }
   if (rpcs.length) cfg.rpcs = rpcs;
-  try { evidenceRegex(cfg.echoPattern, "hvsoak0"); } catch (e) { throw new Error(`--echo-pattern: ${e.message}`); }
+  let evRe;
+  try { evRe = evidenceRegex(cfg.echoPattern, DUMMY_TOKEN); } catch (e) { throw new Error(`--echo-pattern: ${e.message}`); }
   if (cfg.leakScope !== null && !LEAK_SCOPES.includes(cfg.leakScope)) throw new Error(`--leak-scope must be ${LEAK_SCOPES.join(" or ")}`);
   if (cfg.leakScope === "out" && !(cfg.leakEvidence && cfg.leakEvidence.trim()))
     throw new Error("--leak-scope out needs --leak-evidence \"<why the leak cannot be exercised here, or a reference>\"");
@@ -929,8 +974,14 @@ export function parseArgs(argv) {
   if (!(cfg.interval >= 30)) throw new Error("--interval must be at least 30 s");
   if (!Number.isSafeInteger(cfg.consoleSec) || cfg.consoleSec * 1000 < cfg.tlsTimeoutMs + CONSOLE_MARGIN_MS)
     throw new Error(`--console-sec must be at least the requests' timeout (${cfg.tlsTimeoutMs / 1000} s) + ${CONSOLE_MARGIN_MS / 1000} s, so both land inside the window`);
+  if (cfg.consoleSec > CONSOLE_SEC_MAX) throw new Error(`--console-sec must be at most ${CONSOLE_SEC_MAX}`);
+  if (!ROOT_RE.test(cfg.root)) throw new Error(`--root must be a local absolute path of at most ${ROOT_MAX} characters`);
   if (!cfg.path.startsWith("/") || !cfg.path.includes("{token}") || /[\s#]/.test(cfg.path))
     throw new Error("--path must start with / and carry {token} (no spaces, no #), e.g. /ping?hvsoak={token}");
+  // a pattern the soak's OWN request satisfies proves nothing: a reflector would pass it without printing a byte
+  if (reflectableForms(cfg.path, cfg.url).some((t) => evRe.test(t)))
+    throw new Error("--echo-pattern matches what the soak itself sends (the --path, the x-hv-soak header, or the request), "
+                    + "so a reflector could satisfy it: refused");
   return cfg;
 }
 
