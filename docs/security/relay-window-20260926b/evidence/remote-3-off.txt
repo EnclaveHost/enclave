@@ -1,0 +1,2 @@
+nan: SECRETS_RELEASE_CERT_RELEASES off: backup /etc/nan-relay/api-relay.env.bak-cs3-off-20260926T044533Z; TRUSTED_OPERATORS line digest 3813a04e46c5f1ee (unchanged); restarting the api relay
+nan: SECRETS_RELEASE_CERT_RELEASES off applied (= the admitted f7888d869084); api relay invocation babdb7faa393 -> 6db2920d8ac148dca0ba27b33da4c6c5, NRestarts 0, stayed up 30 s; TRUSTED_OPERATORS digest after 3813a04e46c5f1ee

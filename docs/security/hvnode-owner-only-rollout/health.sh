@@ -5,6 +5,9 @@
 set -uo pipefail
 NAN="ssh -i $HOME/.ssh/nan-ci-deploy -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 nan"
 API=https://api.enclave.host; ok=1; bad() { echo "UNHEALTHY: $*"; ok=0; }
+# the admitted release both modes check (set ONCE here: the cert-set branch read an unset ADMIT, which aborted step 3's first
+# acceptance at 04:45:33Z and rolled a healthy line back)
+ADMIT=${ADMIT:-f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca}
 inv=$($NAN "systemctl show enclave-api-relay -p InvocationID --value"); nr=$($NAN "systemctl show enclave-api-relay -p NRestarts --value")
 act=$($NAN "systemctl show enclave-api-relay -p ActiveEnterTimestamp --value")
 end=$(( $(date +%s) + ${KAT_WAIT:-900} )); kat=""
@@ -34,7 +37,7 @@ for id in $LIVE_LISTED; do
   curl -sS -m 15 "$API/v1/secrets/release-status?id=$id" | grep -q '"listed":true' || bad "release-status ${id:0:10} not listed:true"; done
 curl -sS -m 15 "$API/v1/secrets/release-status?id=0x$(printf 'e7%.0s' $(seq 32))" | grep -q '"listed":false' || bad "an unlisted id is not listed:false"
 if [ "${CERT_SEPARATE:-0}" != 1 ]; then
-  out=$(ADMIT=${ADMIT:-f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca} bash $HOME/Projects/enclave-release/docs/security/attested-release-integration/accept.sh 2>&1)
+  out=$(ADMIT=$ADMIT bash $HOME/Projects/enclave-release/docs/security/attested-release-integration/accept.sh 2>&1)
   [ "$(grep -c '^ok   0x' <<<"$out")" = 3 ] && [ "$(grep -c '^FAIL' <<<"$out")" = 1 ] && grep -qx 'FAIL release-ticket answered 403, expected 503' <<<"$out" \
     && echo "release: listed x$NL (the live listing, canaries included; an unlisted id not), accept.sh = exactly 'release ON'" || { echo "$out"; bad "accept.sh is not exactly 'release ON'"; }
 else
@@ -53,6 +56,6 @@ else
   r=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{"id":"0x'"$(printf 'ab%.0s' $(seq 32))"'"}' "$API/v1/secrets/release-ticket"); [ "$r" = 403 ] || bad "release-ticket answered $r, not 403 (release ON)"
   [ "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$API/v1/expected-guest?id=0x$(printf 'cd%.0s' $(seq 32))")" = 404 ] || bad "unknown deployment not 404"
   [ "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$API/v1/expected-guest?id=0x12")" = 422 ] || bad "malformed id not 422"
-  echo "release (cert set separate): each canary's expected guest = ONLY ${ADMIT:0:8} at its pin; release ON; 404/422"
+  [ $ok = 1 ] && echo "release (cert set separate): each canary's expected guest = ONLY ${ADMIT:0:8} at its pin; release ON; 404/422"
 fi
 [ $ok = 1 ] && echo "HEALTHY $(date -u +%H:%M:%SZ)" || { echo "NOT HEALTHY $(date -u +%H:%M:%SZ)"; exit 1; }
