@@ -1,0 +1,38 @@
+# hv-attach-remote.sh as root in a container (ubuntu 24.04 userland, node 22): a fake api-relay.env with the two retired METAL_VBS_* keys, main b7a3364c's five pinned relay files, a systemctl shim (case 7 simulates a relay that dies after its restart)
+== 1 on
+nan: on: backup /etc/nan-relay/api-relay.env.bak-hvattach-on-T1; retired METAL_VBS_* lines dropped: 2; restarting the api relay
+nan: on applied; api relay invocation inv-initial -> inv-1790381093813647455, NRestarts 0, stayed up 30 s; RELAY_HVNODE_ATTACH ON
+rc=0
+   env now:
+FOO SECRETS_KEY BAR LAST RELAY_HVNODE_ATTACH 
+600 root
+== 2 on again (must refuse)
+REFUSING: RELAY_HVNODE_ATTACH is already set
+rc=2
+== 3 off
+nan: off: backup /etc/nan-relay/api-relay.env.bak-hvattach-off-T3; retired METAL_VBS_* lines dropped: 0; restarting the api relay
+nan: off applied; api relay invocation inv-17903810 -> inv-1790381123927276234, NRestarts 0, stayed up 30 s; RELAY_HVNODE_ATTACH OFF
+rc=0
+FOO SECRETS_KEY BAR LAST 
+== 4 off again (must refuse)
+REFUSING: not exactly one 'RELAY_HVNODE_ATTACH=1' line (a hand edit: decide by hand)
+rc=2
+== 5 on with the EK bundle missing (must refuse, nothing changed)
+bash: line 25: /opt/nan-relay/fixtures/tpm-roots.pem: No such file or directory
+REFUSING: /opt/nan-relay/fixtures/tpm-roots.pem is not the reviewed file (main b7a3364c)
+rc=2
+   env unchanged
+== 6 on with a tampered hvnode-verify.mjs (must refuse)
+REFUSING: /opt/nan-relay/hvnode-verify.mjs is not the reviewed file (main b7a3364c)
+rc=2
+== 7 on, the relay crashes after the restart (must roll back instantly)
+nan: on: backup /etc/nan-relay/api-relay.env.bak-hvattach-on-T7; retired METAL_VBS_* lines dropped: 0; restarting the api relay
+CHECK FAILED: the api relay did not stay up (active=failed, NRestarts 0): INSTANT ROLLBACK to /etc/nan-relay/api-relay.env.bak-hvattach-on-T7
+rolled back: the api relay is up on the pre-flip env
+rc=20
+   env is the pre-flip copy again
+600 root
+== 8 env 0644 (must refuse)
+REFUSING: /etc/nan-relay/api-relay.env is not 0600 root
+rc=2
+restarts total: 4 (expected 4: on, off, the crashing on + its rollback)
