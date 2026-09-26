@@ -35,6 +35,16 @@ chk "2:REFUSING: SOAK_END" "an unparsable floor"          $((fl+60)) 0 1 "not-a-
 chk "2:REFUSING: SOAK_END" "an empty floor"               $((fl+60)) 0 1 ""
 chk "2:REFUSING: SOAK_END" "a floor that date -d accepts but is not the literal ('tomorrow')" $((fl+60)) 0 1 "tomorrow"
 chk "2:REFUSING: now" "a non-numeric now"                 "abc" 0 1 "$SOAK_END"
-for d in true " 1" yes; do out=$(DRY="$d" SOAK_DONE=1 B_DIR=$(mktemp -d) bash "$H/og-push.sh" 2>&1); rc=$?
-  [ $rc = 2 ] && grep -q "DRY must be exactly 0 or 1" <<<"$out" && t ok "og-push.sh DRY='$d' SOAK_DONE=1 refuses at the gate (rc 2)" || t no "og-push.sh DRY='$d': rc $rc: ${out:0:120}"; done
+# og-push.sh itself, only as a SANDBOXED COPY (enclave-87's hard rule: a test never calls a production push/rollback path on live
+# state): og-push.sh + lib.sh in a temp dir; git, gh, ssh and curl on PATH are shims that log and FAIL, so even a regressed gate
+# could not fetch, push or reach nan; MAIN points into the sandbox
+SB=$(mktemp -d); mkdir -p $SB/bin; cp "$H/og-push.sh" "$H/lib.sh" $SB/
+sed -i "s#MAIN=/home/steven/Projects/enclave#MAIN=$SB/no-main#" $SB/lib.sh; grep -q "MAIN=$SB/no-main" $SB/lib.sh || t no "HARNESS: MAIN not redirected"
+for c in git gh ssh curl; do printf '#!/bin/sh\necho "SHIM-CALLED %s $*" >> %s/shim.log; exit 1\n' "$c" "$SB" > $SB/bin/$c; chmod 755 $SB/bin/$c; done
+for d in true " 1" yes; do out=$(PATH="$SB/bin:$PATH" DRY="$d" SOAK_DONE=1 B_DIR=$SB/b bash "$SB/og-push.sh" 2>&1); rc=$?
+  [ $rc = 2 ] && grep -q "DRY must be exactly 0 or 1" <<<"$out" && t ok "SANDBOXED og-push.sh DRY='$d' SOAK_DONE=1 refuses at the gate (rc 2)" || t no "sandboxed og-push.sh DRY='$d': rc $rc: ${out:0:120}"; done
+# the only call allowed before the gate: lib.sh's own BASE read (git rev-parse, into the sandbox) at source time
+bad=$(grep -v "^SHIM-CALLED git -C $SB/no-main rev-parse " $SB/shim.log 2>/dev/null)
+[ -z "$bad" ] && t ok "the sandboxed og-push.sh attempted no fetch, push, gh, ssh or curl before refusing (only lib.sh's rev-parse, $(grep -c . $SB/shim.log 2>/dev/null || echo 0)x)" || t no "a shim was called: $(head -3 <<<"$bad")"
+rm -rf "$SB"
 echo "og-selftest: $((n-f))/$n"; [ $f = 0 ]

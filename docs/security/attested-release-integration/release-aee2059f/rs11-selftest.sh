@@ -11,8 +11,9 @@ why=$(S9_EPOCH=$E rollback_guard "$N1") && t no "rollback_guard passes a node on
 why=$(S9_EPOCH=$E rollback_guard "$N2") && t no "rollback_guard passes a node on N2" || t ok "rollback_guard: node on N2 -> refuses (${why:0:40}…)"
 why=$(S9_EPOCH=$E rollback_guard "absent") && t no "rollback_guard passes an unreadable node" || t ok "rollback_guard: unreadable node -> refuses ($why)"
 echo 1790410000 > "$E"; why=$(S9_EPOCH=$E rollback_guard "$m") && t no "rollback_guard passes after S9" || t ok "rollback_guard: S9 epoch present -> refuses (${why:0:50}…)"
-out=$(S9_EPOCH=$E bash "$H/rs-11.sh" rollback 2>&1); rc=$?; rm -f "$E"
-[ $rc = 4 ] && grep -q "REFUSING rs-11 rollback: S9 switched" <<<"$out" && t ok "rs-11.sh rollback refuses at its guard (rc 4) before touching nan" || t no "rs-11.sh rollback with S9: rc $rc ${out:0:120}"
+rm -f "$E"
+# (REMOVED 09-26, enclave-87's hard rule: this case ran the REAL rs-11.sh rollback on live state and relied on the guard to refuse.
+#  The wrapper is tested only as a SANDBOXED copy now: rs11-guard-test.sh.)
 row=$(hv_row); [[ "$row" == "hv-node true 0x"* ]] && t ok "hv_row($HV) = ${row:0:40}…" || t no "hv_row($HV) = $row"
 inv=$($NAN "systemctl show enclave-api-relay -p InvocationID --value"); al=$(hv_attach_line "$inv")
 [ -n "$al" ] && t ok "hv_attach_line(${inv:0:12}) = ${al:0:32}…" || t no "hv_attach_line(${inv:0:12}) empty"

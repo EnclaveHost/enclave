@@ -1,8 +1,8 @@
 ok   hv_row(nucbox-k11) = 'hv-node true 0x31136008aa0cf1d826d223777bed396efdf73e89ee5c82a5aabce2ca1aeeeee3'
 ok   hv_row(no-such-box) = absent
-ok   hv_attach_line(873a5cdc191c) = 2026-09-26T06:43:03.473607+00:00 Nan node[4129175]: [tunnel] nucbox-k11 attached via attes
+ok   hv_attach_line(23d460c2af6d) = 2026-09-26T07:05:55.402928+00:00 Nan node[4134180]: [tunnel] nucbox-k11 attached via attes
 ok   hv_attach_line(no-such-box) empty
-ok   grace_lines(873a5cdc191c) = 0 (a count)
+ok   grace_lines(23d460c2af6d) = 0 (a count)
 ok   PC logs 'owner-only serving SUSPENDED'
 ok   PC logs 'owner-only starts SUSPENDED'
 ok   PC logs 'owner read FAILED: serving on'
@@ -22,7 +22,8 @@ ok   soak_gate an unparsable floor -> 2:REFUSING: SOAK_END 'not-a-time' does not
 ok   soak_gate an empty floor -> 2:REFUSING: SOAK_END '' does not parse to a time
 ok   soak_gate a floor that date -d accepts but is not the literal ('tomorrow') -> 2:REFUSING: SOAK_END 'tomorrow' does not parse to a time
 ok   soak_gate a non-numeric now -> 2:REFUSING: now 'abc' is not a time
-ok   og-push.sh DRY='true' SOAK_DONE=1 refuses at the gate (rc 2)
-ok   og-push.sh DRY=' 1' SOAK_DONE=1 refuses at the gate (rc 2)
-ok   og-push.sh DRY='yes' SOAK_DONE=1 refuses at the gate (rc 2)
-og-selftest: 27/27
+ok   SANDBOXED og-push.sh DRY='true' SOAK_DONE=1 refuses at the gate (rc 2)
+ok   SANDBOXED og-push.sh DRY=' 1' SOAK_DONE=1 refuses at the gate (rc 2)
+ok   SANDBOXED og-push.sh DRY='yes' SOAK_DONE=1 refuses at the gate (rc 2)
+ok   the sandboxed og-push.sh attempted no fetch, push, gh, ssh or curl before refusing (only lib.sh's rev-parse, 3x)
+og-selftest: 28/28

@@ -30,25 +30,27 @@ rollback_guard() {
   [[ "$m" =~ ^[0-9a-f]{96}$ ]] || { echo "metal-iso0's measurement is unreadable ('${m:0:20}')"; return 1; }
   case ",$ADD," in *",$m,"*) echo "metal-iso0 attests ${m:0:8} (N1/N2): roll the node back to f6cbd75a FIRST (enclave-63)"; return 1;; esac
   [ ! -e "$S9_EPOCH" ] || { echo "S9 switched guestd to R at epoch $(cat "$S9_EPOCH" 2>/dev/null) ($S9_EPOCH): roll S9 back FIRST (enclave-63)"; return 1; }
-  local g; g=$(guest_on_r) && { echo "$g"; return 1; }
+  # an EXACT "clear" is the only pass (enclave-5d): a missing python3, a traceback or empty output all refuse (fail closed)
+  local g; g=$(guest_on_r 2>&1); [ "$g" = clear ] || { echo "${g:-no answer from the guestd-record check (fail closed)}"; return 1; }
   return 0
 }
 # (d) (enclave-5d's R1) a guest BUILT ON R survives an S9 rollback (the old guestd re-adopts it; s9t-rollback removes the epoch),
-# so the guard also reads guestd's own records on this host (key-free: the instance.json files, never its API or key). Prints the
-# reason and returns 0 (= refuse) when a record names R, or when the root, a guest dir or a record cannot be read (fail closed);
-# returns 1 when every record reads and none names R. Order after e8: S9 rollback -> each e8 canary back onto 5db18199 -> rs-11.
+# so the guard also reads guestd's own records on this host (key-free: the instance.json files, never its API or key). It prints
+# EXACTLY "clear" only when the root and every record read and none names R; anything else it prints (a reason, a traceback,
+# nothing) is a refusal - rollback_guard passes on "clear" alone. Order after e8: S9 rollback -> each e8 canary back onto
+# 5db18199 -> rs-11 rollback.
 GUESTD_ROOT=${GUESTD_ROOT:-$HOME/enclave-prod/guestd-root}
 guest_on_r() { python3 - "$R" "$GUESTD_ROOT" <<'PYG'
 import glob, json, os, sys
 r, root = sys.argv[1], sys.argv[2]
-if not os.path.isdir(root) or not os.access(root, os.R_OK | os.X_OK): print(f"the guestd records at {root} cannot be read (fail closed)"); sys.exit(0)
+if not os.path.isdir(root) or not os.access(root, os.R_OK | os.X_OK): print(f"the guestd records at {root} cannot be read (fail closed)"); sys.exit(1)
 for d in sorted(glob.glob(os.path.join(root, "gd*"))):
     f = os.path.join(d, "instance.json")
     try: rel = json.load(open(f)).get("Releases")
-    except Exception as e: print(f"the guestd record {f} cannot be read ({type(e).__name__}; fail closed)"); sys.exit(0)
-    if not isinstance(rel, list): print(f"the guestd record {f} names no Releases list (fail closed)"); sys.exit(0)
-    if r in rel: print(f"a guestd record names {r[:8]} ({os.path.basename(d)}): relaunch that guest onto 5db18199 FIRST (after S9's rollback)"); sys.exit(0)
-sys.exit(1)
+    except Exception as e: print(f"the guestd record {f} cannot be read ({type(e).__name__}; fail closed)"); sys.exit(1)
+    if not isinstance(rel, list): print(f"the guestd record {f} names no Releases list (fail closed)"); sys.exit(1)
+    if r in rel: print(f"a guestd record names {r[:8]} ({os.path.basename(d)}): relaunch that guest onto 5db18199 FIRST (after S9's rollback)"); sys.exit(1)
+print("clear")
 PYG
 }
 # the live allowlist line's sha256 on nan, and the expected one from the staged file (after = lines4.env, before = lines4.before.env)
