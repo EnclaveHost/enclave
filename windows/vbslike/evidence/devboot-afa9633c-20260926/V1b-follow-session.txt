@@ -1,0 +1,3 @@
+07:09:17.420Z following enclave-uefi-20260926-070842
+console-read: enclave-uefi-20260926-070842 connected=True bytes=1265 file=C:\Users\claude\d1-canary-afa9633c\ev\V1b-console.txt the VM closed its console
+07:11:03.042Z console-read done; bytes 1265
