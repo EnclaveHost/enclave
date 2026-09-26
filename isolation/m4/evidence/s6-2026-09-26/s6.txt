@@ -1,0 +1,14 @@
+02:12:40Z step 6: listing 0xa69dcbba (relay-list.sh add; one api-relay restart)
+02:12:47Z step 6: relay-list.sh add 0xa69dcbba exited 0: list: 3 id(s) -> 4 (add 0xa69dcbba...) backup: /etc/nan-relay/api-relay.env.pre-list-20260926T021242Z LISTED (add 0xa69dcbba...): release-status as expected for it and the 3 canaries; no refused setting; /enclaves 200 
+LISTED 0xa69dcbbae66ac6ca71784d56209b1039142480ec97e0c8a3fd9cc658d969ed77 2026-09-26T02:13:17Z
+02:13:17Z step 6: 0xa69dcbba LISTED and checked (KAT PASS, metal-iso0 serving, canaries 200 on their keys, every listed id listed:true)
+02:13:25Z REFUSING: the relay does not admit EXACTLY 52156652 for 0x0ddbd824 (rs-6 first)
+02:15:03Z public 4e62e60d recovered on its one retry
+02:15:04Z step 6: listing 0xd9798e4c (relay-list.sh add; one api-relay restart)
+02:15:11Z step 6: relay-list.sh add 0xd9798e4c exited 0: list: 4 id(s) -> 5 (add 0xd9798e4c...) backup: /etc/nan-relay/api-relay.env.pre-list-20260926T021506Z LISTED (add 0xd9798e4c...): release-status as expected for it and the 3 canaries; no refused setting; /enclaves 200 
+LISTED 0xd9798e4ccd0c8402d0042000513fc6bc14616043d96dff3368080a21a1abbb9a 2026-09-26T02:15:41Z
+02:15:41Z step 6: 0xd9798e4c LISTED and checked (KAT PASS, metal-iso0 serving, canaries 200 on their keys, every listed id listed:true)
+02:17:05Z step 6: listing 0xa77d0c57 (relay-list.sh add; one api-relay restart)
+02:17:12Z step 6: relay-list.sh add 0xa77d0c57 exited 0: list: 5 id(s) -> 6 (add 0xa77d0c57...) backup: /etc/nan-relay/api-relay.env.pre-list-20260926T021706Z LISTED (add 0xa77d0c57...): release-status as expected for it and the 3 canaries; no refused setting; /enclaves 200 
+LISTED 0xa77d0c577c1ca48510ff72545f9e050dc7d1fc9c6d1129f056494a5190cb8371 2026-09-26T02:17:42Z
+02:17:42Z step 6: 0xa77d0c57 LISTED and checked (KAT PASS, metal-iso0 serving, canaries 200 on their keys, every listed id listed:true)
