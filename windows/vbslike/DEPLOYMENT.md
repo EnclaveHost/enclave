@@ -65,6 +65,13 @@ never deleted; the legacy `ee-engine` is never restored or signed; respawn is OF
 - **Sensitive apps on the v40 guest.** v40 carries the front's logging leak and domexec's app-stdio leak. Both are
   fixed on the guest candidate (`4cdd5169`, `683798d0`, `139c3fdd`, `d9176ed5`, `298924ae`; IGVM `0891c740`, canary PASSED, E11), which ships in v42 and is not yet deployed.
 - The guest RNG is seeded with host-supplied entropy (READINESS.md §1.1).
+- **That only the domain's front can have its key attested.** On the NucBox the runtime and the front share the domain's uid
+  (enclave-bf, 2026-09-26; verified by b4). The monitor's report socket (`/run/monitor.sock`, 0666, bind-mounted into every
+  domain) names the caller by uid alone, and `/run` belongs to that uid. So an ESCAPED runtime could have a genuine,
+  launcher-signed report made over a key of its choosing, and could replace the front's listen socket. It needs a runtime
+  escape, and it stays within that domain's app identity. The fix (a separate front uid, or a report channel given only to
+  the front) awaits enclave-87's ruling, for the NucBox build after v42. The SNP tier is not affected: its front is root
+  and its report interface is root-only.
 
 ## 3. Evidence index
 
