@@ -7,6 +7,8 @@
 #   accept-4b.sh deploy   <dir>   the agent wallet creates the deployment (CLI --isolation; secrets from the 0600 file)
 #   accept-4b.sh proofs   <dir>   proofs 3 (expected envelope tag), 4, 5, 6 and 7, printed as hashes, codes and counts
 #   accept-4b.sh teardown <dir>   delete the bin, clear the staged secrets, refund and stop; remove the values
+#   accept-4b.sh recheck7 <dir>   proof 7 again AFTER teardown (the values file is gone): the same channels and plumbing
+#                                 over the recorded window, with the values' FORMAT (acc- + 24 hex, grep -E) as the pattern
 #
 # Between deploy and proofs, 63 lists the new id on the relay (SECRETS_RELEASE_DEPLOYMENTS, as step 6) and waits for
 # metal-iso0 to claim it and the guest to serve. Proofs 1, 2, 8 and 9 are the relay/guestd/TLS checks of step 4, run as
@@ -32,7 +34,7 @@
 set -euo pipefail
 umask 077
 cmd=${1:-}; D=${2:-}
-[ -n "$cmd" ] && [ -n "$D" ] || { sed -n '5,10p' "$0"; exit 2; }
+[ -n "$cmd" ] && [ -n "$D" ] || { sed -n '5,12p' "$0"; exit 2; }
 HOOKBIN=https://0ddbd824.app.enclave.host
 OFFLIST=https://395bed3e.app.enclave.host
 LEDGER=0xF9e71385C5cB49844F2457ba6567De0742f8B89a
@@ -45,6 +47,49 @@ sha() { sha256sum | cut -c1-64; }
 state() { grep "^$1=" "$D/state.env" | tail -1 | cut -d= -f2-; }
 setstate() { printf '%s=%s\n' "$1" "$2" >> "$D/state.env"; }
 fails=0; check() { if [ "$1" = ok ]; then say "ok   $2"; else say "FAIL $2"; fails=$((fails + 1)); fi; }
+
+# proof 7: no host channel holds a value. proof7 <F|E> <pattern file> <the test guest's serial, or "">
+#   F: the run's values themselves (grep -F; proofs); E: their FORMAT, acc-[0-9a-f]{24} (grep -E; recheck7).
+# The patterns go in as a FILE (local) or on ssh's STDIN (nan), never argv. The WINDOW is the recorded CREATE_TS, which
+# is UTC: journalctl reads a zone-less time as LOCAL time (warden-host is America/Phoenix, UTC-7), so " UTC" is explicit
+# on every journalctl call (enclave-63 found the window 7 h in the future: 0 lines, which failed closed).
+# Every channel has a POSITIVE CONTROL through the same pipe: a marker that must count > 0. A readable channel with 0
+# marker lines is a FAIL named "window/plumbing wrong", since a zero hit count over it proves nothing (enclave-87).
+# Each result line is also appended to evidence.txt (counts only, no values).
+proof7() {
+  local G=$1 PATS=$2 SER=$3 since id8 ev="$D/evidence.txt"
+  since="$(state CREATE_TS) UTC"; id8=$(state ID); id8=${id8:2:8}
+  [ -n "$id8" ] && [ "$since" != " UTC" ] || die "state.env has no ID or CREATE_TS"
+  line() { check "$1" "$2"; if [ "$1" = ok ]; then printf 'ok   %s\n' "$2"; else printf 'FAIL %s\n' "$2"; fi >> "$ev"; }
+  chan() { local name=$1 marker=$2; shift 2; local hits mk
+    hits=$("$@" | grep -ac$G -f "$PATS" || true); mk=$("$@" | grep -acF -- "$marker" || true)
+    if [ "${mk:-0}" -eq 0 ]; then line no "proof 7: $name: 0 '$marker' line(s) on the channel: window/plumbing wrong (its $hits hit(s) prove nothing)"
+    else [ "${hits:-1}" = 0 ] && c=ok || c=no; line $c "proof 7: $name: $hits hit(s) of the $([ "$G" = F ] && echo values || echo value FORMAT) (control: $mk '$marker' line(s))"; fi; }
+  # the user journal's control is the TEST ID: the guest, guestd and launcher (user units) name it, so it proves the
+  # window covers the run, not just that the journal is readable
+  chan "warden-host user journal since $since" "$id8" journalctl --user --since "$since" --no-pager -o cat
+  if journalctl --since "$since" -n 1 --no-pager -q >/dev/null 2>&1 && [ -n "$(journalctl --since "$since" -n 1 --no-pager -q -o cat 2>/dev/null)" ]; then
+    chan "warden-host system journal since $since" "." journalctl --since "$since" --no-pager -o cat
+  else say "info proof 7: the system journal is not readable by $(id -un) over the window; the guest, guestd and launcher units are user units, covered above"; fi
+  if [ "$G" = F ]; then
+    [ -n "$SER" ] && chan "the test guest's serial" "DOM serving" cat "$SER" || line no "proof 7: the test guest's serial is missing"
+  else
+    local at; at=$(grep -a "proof 7: the test guest's serial" "$ev" 2>/dev/null | grep -v 'not re-checkable' | tail -1 || true)
+    say "info proof 7: the test guest's serial went with its guest at teardown: not re-checkable. At run: ${at:-not in evidence.txt (the run's script predates per-channel evidence lines): cite the run's own output}"
+    printf 'info proof 7 (recheck): the test guest serial is not re-checkable; at run: %s\n' "${at:-see the run output}" >> "$ev"
+  fi
+  local HS="" f; for f in "$GUESTD_ROOT"/gd*/instance.json; do
+    [ "$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).Name))}catch{}' "$f")" = 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 ] \
+      && HS="${f%/instance.json}/$(basename "${f%/instance.json}").serial"; done
+  [ -n "$HS" ] && chan "the hookbin canary's serial" "DOM serving" cat "$HS" || line no "proof 7: the hookbin canary's serial is missing"
+  # nan: the patterns arrive on ssh's STDIN; inside the remote pipeline grep's own stdin is the journal, so they are moved
+  # to fd 3 first (enclave-e3: `-f /dev/stdin` there read the JOURNAL as patterns and could never fail). The control goes
+  # through the SAME plumbing: the fixed pattern `secrets-release` must count > 0.
+  relay_count() { ssh -o BatchMode=yes "$RELAY_SSH" "bash -c 'exec 3<&0; journalctl -u enclave-api-relay --since \"$since\" --no-pager -o cat | grep -ac$1 -f /dev/fd/3 || true'"; }
+  local rh rm_; rh=$(relay_count "$G" < "$PATS"); rm_=$(printf 'secrets-release\n' | relay_count F)
+  if [ "${rm_:-0}" -eq 0 ]; then line no "proof 7: $RELAY_SSH api-relay journal since $since: 0 'secrets-release' line(s): window/plumbing wrong (its $rh hit(s) prove nothing)"
+  else [ "${rh:-1}" = 0 ] && c=ok || c=no; line $c "proof 7: $RELAY_SSH api-relay journal since $since: $rh hit(s) (same plumbing, control 'secrets-release': $rm_ line(s))"; fi
+}
 
 case "$cmd" in
 prepare)
@@ -173,28 +218,7 @@ proofs)
   o=$(curl -sS -m 20 -o /dev/null -w '%{http_code}' "$OFFLIST/ping"); [ "$o" = 200 ] && c=ok || c=no
   check $c "proof 6: $OFFLIST/ping from outside -> $o (so the refusal is the guest's policy)"
   rm -f "$D/resp.json"
-  # proof 7: no host channel holds either value. Values go in as a pattern FILE (local) or on STDIN (nan), never argv.
-  # Each channel must also be READABLE and non-empty (a marker count > 0), or a zero would prove nothing.
-  since=$(state CREATE_TS)
-  chan() { local name=$1 marker=$2; shift 2; local hits mk; hits=$("$@" | grep -acF -f "$D/values" || true); mk=$("$@" | grep -ac -- "$marker" || true)
-    [ "${mk:-0}" -gt 0 ] && [ "${hits:-1}" = 0 ] && c=ok || c=no; check $c "proof 7: $name: $hits value hit(s) (channel readable: $mk '$marker' line(s))"; }
-  chan "warden-host user journal since create" "." journalctl --user --since "$since" --no-pager -o cat
-  # the guest, guestd and launcher run as USER units (above); the system journal is checked when this user can read it
-  if journalctl --since "$since" -n 1 --no-pager -q >/dev/null 2>&1 && [ -n "$(journalctl --since "$since" -n 1 --no-pager -q -o cat 2>/dev/null)" ]; then
-    chan "warden-host system journal since create" "." journalctl --since "$since" --no-pager -o cat
-  else say "info proof 7: the system journal is not readable by $(id -un); the guest, guestd and launcher units are user units, covered above"; fi
-  [ -n "$SER" ] && chan "the test guest's serial" "DOM serving" cat "$SER" || check no "proof 7: the test guest's serial is missing"
-  HS=""; for f in "$GUESTD_ROOT"/gd*/instance.json; do
-    [ "$(node -e 'try{process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).Name))}catch{}' "$f")" = 0x0ddbd82423a22883aca0862dc30f7320337e451bc126455cbe4d7846972c2e76 ] \
-      && HS="${f%/instance.json}/$(basename "${f%/instance.json}").serial"; done
-  [ -n "$HS" ] && chan "the hookbin canary's serial" "DOM serving" cat "$HS" || check no "proof 7: the hookbin canary's serial is missing"
-  # the patterns arrive on ssh's STDIN; inside the remote pipeline grep's own stdin is the journal, so the patterns are
-  # moved to fd 3 first (enclave-e3: `-f /dev/stdin` there read the JOURNAL as patterns and could never fail). The
-  # positive control goes through the SAME plumbing: the pattern `secrets-release` must count > 0.
-  relay_count() { ssh -o BatchMode=yes "$RELAY_SSH" "bash -c 'exec 3<&0; journalctl -u enclave-api-relay --since \"$since\" --no-pager -o cat | grep -acF -f /dev/fd/3 || true'"; }
-  rh=$(relay_count < "$D/values"); rm_=$(printf 'secrets-release\n' | relay_count)
-  [ "${rm_:-0}" -gt 0 ] && [ "${rh:-1}" = 0 ] && c=ok || c=no
-  check $c "proof 7: $RELAY_SSH api-relay journal since create: $rh value hit(s) (same plumbing, control pattern 'secrets-release': $rm_ line(s))"
+  proof7 F "$D/values" "$SER"
   { say "4b evidence $(date -u +%FT%TZ): deployment $ID, bin $BIN, config sha256 $(state CONFIG_SHA)"
     say "sha256(ACCEPT_API_KEY) $(state KEY_SHA); sha256(ACCEPT_TOKEN) $(state TOKEN_SHA); proofs 3-7: $fails failure(s)"; } >> "$D/evidence.txt"
   say "proofs 3-7: $fails failure(s); evidence line appended to $D/evidence.txt (no values)"
@@ -221,6 +245,17 @@ teardown)
   fi
   rm -f "$D/values" "$D/secrets.env" "$D/hdr-key"
   say "ok   the local value files are removed; $D keeps state.env, config.json and evidence.txt (hashes only)"
+  ;;
+recheck7)
+  # proof 7 after teardown: the values are gone (by design), so the pattern is their FORMAT; the window is the run's
+  ID=$(state ID); [ -n "$ID" ] || die "no deployment id in $D/state.env"
+  P=$(mktemp); trap 'rm -f "$P"' EXIT; printf 'acc-[0-9a-f]{24}\n' > "$P"
+  # the pattern itself: it must match a value of the run's form and nothing shorter (a control of the regex, not a value)
+  [ "$(printf 'acc-%s\nacc-%s\n' 0123456789abcdef01234567 0123456789abcdef0123456 | grep -acE -f "$P")" = 1 ] || die "the format pattern does not match exactly the run's value form"
+  say "recheck7 $(date -u +%FT%TZ): deployment $ID, window since $(state CREATE_TS) UTC, pattern acc-[0-9a-f]{24}" | tee -a "$D/evidence.txt"
+  proof7 E "$P" ""
+  say "recheck7: $fails failure(s)" | tee -a "$D/evidence.txt"
+  [ "$fails" = 0 ]
   ;;
 *) die "unknown command $cmd" ;;
 esac
