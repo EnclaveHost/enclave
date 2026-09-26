@@ -17,8 +17,11 @@
 # (<outdir>/gocache, empty at the start); the worktree is removed afterwards, so nothing stays registered in the checkout.
 # A release whose init links musl (image commits from aa6c985c on) needs MUSL_PREFIX: a prefix built by that commit's
 # isolation/m2/build-musl.sh; its SOURCE record goes into the manifest.
-# The tarball also carries source/isolation/m2/dominit.c from <commit>: template/init links a libc statically (glibc before aa6c985c, musl after), and
-# LGPL-2.1 section 6(a) wants the work that uses the library to accompany the binary.
+# The tarball also carries template/init's own source from <commit>: isolation/m2/dominit.c AND every local header it
+# includes, transitively (from 0c087de8 on dominit.c includes app-seccomp.h, and from 4cd26e58 that includes
+# sha256-min.h; before this, only dominit.c was carried, which does not compile alone). template/init links a libc
+# statically (glibc before aa6c985c, musl after); LGPL-2.1 section 6(a) wanted the work that uses the library to
+# accompany the binary, and the rule is kept under musl so the source compiles as shipped.
 set -e
 umask 022   # the tarball records modes: the same on every builder
 commit=${1:?usage: make-artifact.sh <commit> <outdir> [--expect dir] [--firmware fd] [--firmware-versions txt]}
@@ -70,11 +73,26 @@ if [ -n "$expect" ]; then
 fi
 
 echo "== manifest and tarball"
+# init's source: dominit.c and its local includes, transitively, each resolved from the including file's directory
+srcs=$(python3 - "$out/src" <<'EOF'
+import os, re, sys
+top = sys.argv[1]; todo = ["isolation/m2/dominit.c"]; seen = []
+while todo:
+    f = todo.pop(0)
+    if f in seen: continue
+    if f.startswith("../") or not os.path.isfile(os.path.join(top, f)): sys.exit(f"make-artifact: {f}, in template/init's source, is not in the tree")
+    seen.append(f)
+    for inc in re.findall(r'^[ \t]*#[ \t]*include[ \t]+"([^"]+)"', open(os.path.join(top, f)).read(), re.M):
+        todo.append(os.path.normpath(os.path.join(os.path.dirname(f), inc)))
+print(" ".join(seen))
+EOF
+)
+echo "init's source: $srcs"
 epoch=$(git -C "$repo" log -1 --format=%ct "$full")
 name=enclave-domain-release-$(echo "$id" | cut -c1-12)
-python3 - "$rel" "$out/PUBLICATION-MANIFEST.json" "$full" "$id" "$epoch" "$fwv" "${fw:-}" "$notices" <<'EOF'
+python3 - "$rel" "$out/PUBLICATION-MANIFEST.json" "$full" "$id" "$epoch" "$fwv" "${fw:-}" "$notices" "$srcs" <<'EOF'
 import hashlib, json, os, subprocess, sys
-rel, dst, commit, rid, epoch, fwv, fw, notices = sys.argv[1:9]
+rel, dst, commit, rid, epoch, fwv, fw, notices, srcs = sys.argv[1:10]
 def sh(*a):
     try: return subprocess.run(a, capture_output=True, text=True).stdout.strip()
     except FileNotFoundError: return None
@@ -107,8 +125,9 @@ m = {
   "release": {"id": rid, "manifest": "release/release.json", "commit": commit, "commitTime": int(epoch)},
   "files": {("release/" + k): v for k, v in sorted(files.items())},
   "hostInputs": host,
-  "source": {"source/isolation/m2/dominit.c": {"sha256": hashlib.sha256(subprocess.run(["git", "-C", os.path.join(os.path.dirname(rel), "src"), "show", commit + ":isolation/m2/dominit.c"], capture_output=True, check=True).stdout).hexdigest(),
-             "why": "template/init's own source: the program the release links a libc into statically (INVENTORY.md gives the command and the libc)"}},
+  "source": {("source/" + s): {"sha256": hashlib.sha256(subprocess.run(["git", "-C", os.path.join(os.path.dirname(rel), "src"), "show", commit + ":" + s], capture_output=True, check=True).stdout).hexdigest(),
+             "why": "template/init's own source: the program the release links a libc into statically (INVENTORY.md gives the command and the libc)" if s.endswith("/dominit.c")
+                    else "a header template/init's source includes (compiled into init): shipped so the source compiles as shipped"} for s in srcs.split()},
   "toolchain": {
     "packages": {p: sh("pacman", "-Q", p) for p in ["linux", "glibc", "gcc", "gcc-libs", "libgcc", "go", "wasmtime", "grub", "dosfstools", "zstd", "python"]},
     "gcc": sh("gcc", "--version").splitlines()[0],
@@ -126,9 +145,9 @@ m = {
 }
 json.dump(m, open(dst, "w"), indent=1, sort_keys=True); open(dst, "a").write("\n")
 EOF
-mkdir -p "$out/pack/$name/source/isolation/m2"
+mkdir -p "$out/pack/$name"
 cp -a "$rel" "$out/pack/$name/release"
-git -C "$repo" show "$full:isolation/m2/dominit.c" > "$out/pack/$name/source/isolation/m2/dominit.c"
+for s in $srcs; do mkdir -p "$out/pack/$name/source/$(dirname "$s")"; git -C "$repo" show "$full:$s" > "$out/pack/$name/source/$s"; done
 cp "$out/PUBLICATION-MANIFEST.json" "$out/pack/$name/"
 if [ -n "$notices" ]; then
   for f in THIRD-PARTY-NOTICES.md INVENTORY.md SOURCES.md; do [ ! -f "$notices/$f" ] || cp "$notices/$f" "$out/pack/$name/"; done
