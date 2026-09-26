@@ -1,9 +1,11 @@
 # hvnode-accept.ps1 - READ-ONLY acceptance of the running hv node + manager on the NucBox (ROLLOUT.md step 7, the box
 # half; the relay/public half is hvnode-accept-remote.sh). Prints PASS / FAIL / INFO; exits 1 on any FAIL.
-#   powershell -ExecutionPolicy Bypass -File hvnode-accept.ps1 -Commit <node commit, 8+ hex> [-DeploymentId 0x…]
+#   powershell -ExecutionPolicy Bypass -File hvnode-accept.ps1 -Commit <node commit, 8+ hex> [-DeploymentId 0x…] [-KillRecovery]
+# -KillRecovery (NOT read-only; enclave-d1's review, item 5) kills the agent's node.exe, then the manager's, by exact PID,
+# and requires the run-*.cmd loop to bring each back: a new PID, and /availability or /health answering within 60 s.
 param(
   [Parameter(Mandatory = $true)][string]$Commit,
-  [string]$DeploymentId = '',
+  [string]$DeploymentId = '', [switch]$KillRecovery,
   [string]$Root = 'C:\Users\claude\vbs-like\hvnode',
   [int]$ManagerPort = 8091, [int]$LocalPort = 9600,
   [string]$Operator = '0x389C3f030a209D04D026228D2D053fEB75DbadcA',
@@ -27,9 +29,11 @@ foreach ($t in 'EnclaveHvManager', 'EnclaveHvNode') {
   $x = Get-ScheduledTask -TaskName $t -TaskPath '\' -ErrorAction SilentlyContinue
   Check ($x -and $x.State -eq 'Running') "A2 task \$t is Running ($(if ($x) { $x.State } else { 'absent' }))"
 }
-$procs = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'")
-$nodeProc = @($procs | Where-Object { $_.CommandLine -like '*agent.mjs*' })
-$mgrProc = @($procs | Where-Object { $_.CommandLine -like '*main.mjs*' })
+# matched by the ABSOLUTE script paths run-*.cmd use: never by a bare name (a tray, a lab manager also run node.exe)
+$agentPath = "$Root\$c8\windows\node\agent.mjs"
+function AgentProcs { @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like "*$agentPath*" }) }
+function MgrProcs { @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like "*$Root\manager-*\control\windows\vbslike\manager\main.mjs*" }) }
+$nodeProc = AgentProcs; $mgrProc = MgrProcs
 Check ($nodeProc.Count -eq 1) "A2 exactly one node agent process ($($nodeProc.Count))"
 Check ($mgrProc.Count -eq 1) "A2 exactly one manager process ($($mgrProc.Count))"
 $runNode = Get-Content -Raw (Join-Path $Root 'run-node.cmd')
@@ -74,7 +78,11 @@ if (Test-Path $log) {
 $virt = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization'
 Check (((Get-ItemProperty -Path $virt -Name AllowFirmwareLoadFromFile -ErrorAction SilentlyContinue).AllowFirmwareLoadFromFile) -eq 1) 'A6 AllowFirmwareLoadFromFile = 1'
 Check (Test-Path (Join-Path $virt 'GuestCommunicationServices\00002329-facb-11e6-bd58-64006a7986d3')) 'A6 hv_sock 9001 GUID registered'
-Check (Test-Path (Join-Path $Root 'm3-prior-state.json')) 'A6 the M3 prior state is recorded (for -Revert)'
+# ONE M3 path (enclave-87): enclave-53's host-prereq.ps1, run through d1's m3-run.ps1; its record, for the REAL root
+$rec = 'C:\Users\claude\vbs-like\host-prereq\prior-state.json'
+if (Test-Path $rec) { $rr = [string](Get-Content -Raw $rec | ConvertFrom-Json).regRoot
+  Check ($rr -like 'HKLM:*') "A6 host-prereq's prior-state record is for $rr (host-prereq.ps1 -Rollback restores it)" }
+else { Say 'FAIL' "A6 no host-prereq record at $rec" }
 
 # A7 (with -DeploymentId): the test deployment runs as a partition, and the manager's view is T0-hv, host not excluded
 if ($DeploymentId) {
@@ -89,6 +97,24 @@ if ($DeploymentId) {
       Say 'INFO' ("A7 transportKeySha256 {0} (hvnode-accept-remote.sh compares the public TLS key with it)" -f $mine[0].transportKeySha256)
     }
   } catch { Say 'FAIL' "A7 manager /vms: $($_.Exception.Message)" }
+}
+# A8 (-KillRecovery): each loop brings its process back
+function Recover([string]$what, [scriptblock]$procs, [string]$url) {
+  $p = @(& $procs)
+  if ($p.Count -ne 1) { Say 'FAIL' "A8 ${what}: $($p.Count) processes before the kill (need exactly one)"; return }
+  $old = $p[0].ProcessId
+  Stop-Process -Id $old -Force
+  $deadline = (Get-Date).AddSeconds(60); $ok = $false
+  while ((Get-Date) -lt $deadline -and -not $ok) {
+    Start-Sleep -Seconds 3
+    $n = @(& $procs)
+    if ($n.Count -eq 1 -and $n[0].ProcessId -ne $old) { try { $null = GetJson $url; $ok = $true } catch { } }
+  }
+  Check $ok "A8 $what killed (pid $old) and back within 60 s through its run loop"
+}
+if ($KillRecovery) {
+  Recover 'node agent' ${function:AgentProcs} "http://127.0.0.1:$LocalPort/availability"
+  Recover 'manager' ${function:MgrProcs} "http://127.0.0.1:$ManagerPort/health"
 }
 if ($script:fails -gt 0) { Write-Output "ACCEPT (box): $($script:fails) FAIL(s)"; exit 1 }
 Write-Output 'ACCEPT (box): all PASS'

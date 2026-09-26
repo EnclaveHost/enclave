@@ -1,5 +1,6 @@
 # hvnode-install.ps1 - install the hv node (from main) and its manager (from the staged v40 package) on the NucBox, as
-# two NEW boot tasks, WITHOUT starting them (ROLLOUT.md step 4). The retired legacy node is left exactly as it is: its
+# two NEW boot tasks, WITHOUT starting them (ROLLOUT.md step 4). The manager runs from a verified COPY of the package's
+# control\ (hvnode\manager-<pkg8>\). The retired legacy node is left exactly as it is: its
 # task \EnclaveWindowsNode stays DISABLED and is never deleted; C:\Users\claude\vbs\node is only READ (its operator and
 # proof keys and its box-built tpmattest.exe are COPIED, never moved).
 #   powershell -ExecutionPolicy Bypass -File hvnode-install.ps1 -Pkg C:\Users\claude\vbs-like\pkg\15f39ae4d1fab954 `
@@ -23,6 +24,10 @@ $ErrorActionPreference = 'Stop'
 function Sha256Of([string]$p) { (Get-FileHash -Algorithm SHA256 -LiteralPath $p).Hash.ToLower() }
 function Die([string]$m) { Write-Output "REFUSED: $m"; exit 2 }
 function Note([string]$m) { Write-Output "ok   $m" }
+# A native command runs under ErrorActionPreference Continue and is judged by its EXIT CODE only: with Stop, PowerShell
+# 5.1 turns a native command's stderr line into a terminating NativeCommandError when the host redirects stderr, as an
+# ssh session does (enclave-d1's review, item 3).
+function Invoke-Native([scriptblock]$b) { $e = $ErrorActionPreference; $ErrorActionPreference = 'Continue'; try { & $b } finally { $ErrorActionPreference = $e } }
 
 # ---- 0. inputs are the pinned ones ----
 if ((Sha256Of $NodeArchive) -ne $NodeArchiveSha256.ToLower()) { Die "$NodeArchive is not $NodeArchiveSha256" }
@@ -44,7 +49,7 @@ if ((Sha256Of (Join-Path $LegacyDir 'tpmattest.exe')) -ne $TpmattestSha256.ToLow
 # ---- 1. the node tree: expanded, then every file checked against the manifest ----
 $tree = Join-Path $Root $c8
 if (Test-Path $tree) { if (-not $Replace) { Die "$tree exists (-Replace to reuse it)" } } else { New-Item -ItemType Directory -Force -Path $tree | Out-Null }
-& "$env:SystemRoot\System32\tar.exe" -xzf $NodeArchive -C $tree
+Invoke-Native { & "$env:SystemRoot\System32\tar.exe" -xzf $NodeArchive -C $tree 2>&1 | Out-Null }
 if ($LASTEXITCODE -ne 0) { Die "tar could not expand $NodeArchive" }
 $want = @(Get-Content $NodeManifest | Where-Object { $_ -match '^[0-9a-f]{64}  ' })
 foreach ($line in $want) {
@@ -60,7 +65,7 @@ Note "node tree $tree = the manifest ($($want.Count) files)"
 $nodeDir = Join-Path $tree 'windows\node'
 if ((Sha256Of (Join-Path $nodeDir 'package-lock.json')) -ne $LockSha256.ToLower()) { Die 'package-lock.json is not the pinned one' }
 Push-Location $nodeDir
-try { & $Npm ci --omit=dev --ignore-scripts --no-audit --no-fund | Out-Null; if ($LASTEXITCODE -ne 0) { Die 'npm ci failed' } } finally { Pop-Location }
+try { Invoke-Native { & $Npm ci --omit=dev --ignore-scripts --no-audit --no-fund 2>&1 | Out-Null }; if ($LASTEXITCODE -ne 0) { Die 'npm ci failed' } } finally { Pop-Location }
 $lock = Get-Content -Raw (Join-Path $nodeDir 'package-lock.json') | ConvertFrom-Json
 foreach ($pkgName in 'ws', 'viem', 'tweetnacl') {
   $wantV = $lock.packages."node_modules/$pkgName".version
@@ -71,6 +76,9 @@ Note 'npm ci from the pinned lockfile (ws, viem, tweetnacl at the locked version
 
 # ---- 3. the node's identity: COPIED from the legacy dir, never moved, never printed; owner-only ACL ----
 $state = Join-Path $Root 'state'; New-Item -ItemType Directory -Force -Path $state | Out-Null
+# the ACL FIRST, so no key ever sits there under inherited permissions (enclave-d1's review, item 7)
+Invoke-Native { & icacls $state /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'BUILTIN\Administrators:(OI)(CI)F' 2>&1 | Out-Null }
+if ($LASTEXITCODE -ne 0) { Die "icacls on $state failed" }
 New-Item -ItemType Directory -Force -Path (Join-Path $state 'delegations') | Out-Null   # empty: test 1 serves the operator only
 foreach ($f in 'operator.key', 'proof.key', 'node-transport.key') {
   $src = Join-Path $LegacyDir $f; $dst = Join-Path $state $f
@@ -79,16 +87,36 @@ foreach ($f in 'operator.key', 'proof.key', 'node-transport.key') {
     if ((Sha256Of $dst) -ne (Sha256Of $src)) { Die "$dst exists and DIFFERS from $src (decide by hand; nothing overwritten)" }
   } else { Copy-Item -LiteralPath $src -Destination $dst; if ((Sha256Of $dst) -ne (Sha256Of $src)) { Die "the copy of $f is not identical" } }
 }
-& icacls $state /inheritance:r /grant:r 'SYSTEM:(OI)(CI)F' 'BUILTIN\Administrators:(OI)(CI)F' | Out-Null
-if ($LASTEXITCODE -ne 0) { Die "icacls on $state failed" }
 Note "keys copied into $state (identical to the legacy dir's; SYSTEM + Administrators only)"
 $bin = Join-Path $Root 'bin'; New-Item -ItemType Directory -Force -Path $bin | Out-Null
 Copy-Item -LiteralPath (Join-Path $LegacyDir 'tpmattest.exe') -Destination (Join-Path $bin 'tpmattest.exe') -Force
 if ((Sha256Of (Join-Path $bin 'tpmattest.exe')) -ne $TpmattestSha256.ToLower()) { Die 'the tpmattest.exe copy is not the pinned one' }
 foreach ($d in 'logs', 'bundles', 'vmgs-archive') { New-Item -ItemType Directory -Force -Path (Join-Path $Root $d) | Out-Null }
 
-# ---- 4. configuration: the manager from the package (its managerEnv), the node from main ----
-$mgrDir = Join-Path $Pkg 'control\windows\vbslike\manager'
+# ---- 3b. the manager runs from a COPY of the package's control\ (enclave-d1's box rule: never from a staged package;
+#      Python would write __pycache__ into it, and a later stage must never be something a running manager depends on).
+#      Every copied file is checked against the package's MANIFEST.json; the IGVM, runtime.json and the launcher stay
+#      read-only, hash-pinned references into the package. ----
+$pkgId8 = (Split-Path -Leaf $Pkg).Substring(0, 8)
+$mcopy = Join-Path $Root "manager-$pkgId8"
+$man = Get-Content -Raw (Join-Path $Pkg 'MANIFEST.json') | ConvertFrom-Json
+$ctl = @($man.files | Where-Object { "$($_.path)".StartsWith('control/') })
+if (-not $ctl.Count) { Die 'the package MANIFEST.json lists no control/ files' }
+if (-not (Test-Path $mcopy)) {
+  New-Item -ItemType Directory -Force -Path $mcopy | Out-Null
+  Invoke-Native { & robocopy (Join-Path $Pkg 'control') (Join-Path $mcopy 'control') /E /NFL /NDL /NJH /NJS /NP 2>&1 | Out-Null }
+  if ($LASTEXITCODE -ge 8) { Die "robocopy of control\ failed ($LASTEXITCODE)" }
+} elseif (-not $Replace) { Die "$mcopy exists (-Replace to reuse it)" }
+foreach ($f in $ctl) {
+  $p = Join-Path $mcopy ("$($f.path)" -replace '/', '\')
+  if (-not (Test-Path -LiteralPath $p) -or (Sha256Of $p) -ne "$($f.sha256)".ToLower()) { Die "manager copy file $($f.path) does not match the package MANIFEST" }
+}
+$extra = @(Get-ChildItem -Recurse -File (Join-Path $mcopy 'control')).Count - $ctl.Count
+if ($extra -ne 0) { Die "the manager copy has $extra file(s) the MANIFEST does not list (a __pycache__ in the package?)" }
+Note "manager copy $mcopy = the package MANIFEST's control/ ($($ctl.Count) files)"
+
+# ---- 4. configuration: the manager from its copy (the package's managerEnv), the node from main ----
+$mgrDir = Join-Path $mcopy 'control\windows\vbslike\manager'
 $mgrCfg = @(
   '@echo off', 'rem the v40 manager (package control/ = e3acc392, manager 76af33b4); nucbox-ownguest-40.json profiles.vbsLinux.managerEnv',
   "set VMMGR_PORT=$ManagerPort",
@@ -102,7 +130,7 @@ $mgrCfg = @(
   'set ENCLAVE_HYPERV_MODULE_SHA256=17ca4352c500d3498f71be420ddfa418c7ed1d1b5f455856c24e633a4635e49c',
   "set ENCLAVE_RUNTIME_IDENTITY=$(Join-Path $Pkg 'guest\runtime.json')",
   "set PYTHON_BIN=$Python", 'set IPFS_GATEWAY=https://ipfs.enclave.host',
-  "set PYTHONPATH=$(Join-Path $Pkg 'control\wasm')",
+  "set PYTHONPATH=$(Join-Path $mcopy 'control\wasm')", 'set PYTHONDONTWRITEBYTECODE=1',
   "set ENCLAVE_WMISERVE_EXE=$(Join-Path $Pkg 'control\vbslike-host.exe')",
   'set ENCLAVE_WMISERVE_EXE_SHA256=435717def62bb5c9a632f80210b5c3fbcbeb7cb8c1047f9beef4ca578ebe99e7',
   "set ENCLAVE_BUNDLE_DIR=$(Join-Path $Root 'bundles')",
@@ -122,10 +150,17 @@ $nodeCfg = @(
   'rem delegations: NODE_DIR\delegations\*.json ({message, signature}; enclave-host-delegation-v1), re-read every tick (ROLLOUT.md step 8)',
   "set LOCAL_HTTP_PORT=$LocalPort",
   "set PYTHON_BIN=$Python", 'set IPFS_GATEWAY=https://ipfs.enclave.host')
-$runMgr = @('@echo off', "call `"$(Join-Path $Root 'manager-config.cmd')`"", "cd /d `"$mgrDir`"",
-            "`"$NodeExe`" main.mjs >> `"$(Join-Path $Root 'logs\manager.log')`" 2>&1")
-$runNode = @('@echo off', "call `"$(Join-Path $Root 'node-config.cmd')`"", "cd /d `"$nodeDir`"",
-             "`"$NodeExe`" agent.mjs >> `"$(Join-Path $Root 'logs\node.log')`" 2>&1")
+# each runs its process in a loop: Task Scheduler's restart-on-failure does not reliably fire on a process that EXITS
+# (enclave-d1's review, item 5). Ending or disabling the task ends the loop (hvnode-rollback.ps1 kills the loop's
+# cmd.exe before the node.exe). The script path is ABSOLUTE, so the process is matched by its path, never by a name.
+function RunLoop([string]$cfg, [string]$dir, [string]$script, [string]$log) {
+  @('@echo off', "call `"$cfg`"", "cd /d `"$dir`"", ':loop',
+    "`"$NodeExe`" `"$(Join-Path $dir $script)`" >> `"$log`" 2>&1",
+    "echo %date% %time% [run] $script exited %errorlevel%; restarting in 10 s >> `"$log`"",
+    'timeout /t 10 /nobreak >nul', 'goto loop')
+}
+$runMgr = RunLoop (Join-Path $Root 'manager-config.cmd') $mgrDir 'main.mjs' (Join-Path $Root 'logs\manager.log')
+$runNode = RunLoop (Join-Path $Root 'node-config.cmd') $nodeDir 'agent.mjs' (Join-Path $Root 'logs\node.log')
 Set-Content -Path (Join-Path $Root 'manager-config.cmd') -Value $mgrCfg -Encoding ASCII
 Set-Content -Path (Join-Path $Root 'node-config.cmd') -Value $nodeCfg -Encoding ASCII
 Set-Content -Path (Join-Path $Root 'run-manager.cmd') -Value $runMgr -Encoding ASCII
@@ -135,7 +170,7 @@ foreach ($f in 'manager-config.cmd', 'node-config.cmd', 'run-manager.cmd', 'run-
 # ---- 5. the two NEW boot tasks (SYSTEM, highest; no run-time limit), registered, NOT started ----
 $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
-  -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
+  -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew   # the run-*.cmd loop is the restart
 foreach ($t in @(@{ n = 'EnclaveHvManager'; run = (Join-Path $Root 'run-manager.cmd'); delay = 'PT30S' },
                  @{ n = 'EnclaveHvNode'; run = (Join-Path $Root 'run-node.cmd'); delay = 'PT90S' })) {
   $action = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\cmd.exe" -Argument ('/c "' + $t.run + '"')
