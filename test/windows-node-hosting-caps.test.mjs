@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { fakeBaseRpc, DEPLOYMENTS, CATALOG, enclaveIdOf } from "./helpers/fake-base-rpc.mjs";
 import { REC, DEP, ISOLATED, PLANNED, FakeHost, bootManager, closeManagers } from "./helpers/hv-fake-manager.mjs";
+import { servedOwner } from "./helpers/owners.mjs";
 
 const rpc = await fakeBaseRpc();                     // BEFORE chain.mjs loads: it reads BASE_RPCS once
 const chain = await import("../windows/node/chain.mjs");
@@ -136,9 +137,10 @@ const dep = () => ({ appRef: "catalog://0x5356e8bd197d682d87f1be0acb6db84ff9acc5
   leaseUntil: Math.floor(Date.now() / 1000) + 3600, cpuMilli: 100, gpuMilli: 0, isPublic: true, owner: OWNER, configCid: ISOLATED });
 function hvBox(port, logs = [], dir = tmp()) {
   const h = new Host({ dir, endpoint: ENDPOINT, name: "test", appsEnabled: true, cpuPricePerSec6: 12, log: (s) => logs.push(s),
-                       ramGb: 64, engineRetired: true, ownerWallet: OWNER, isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
+                       ramGb: 64, engineRetired: true, isolationManager: `http://127.0.0.1:${port}`, isolationRuntimeId: REC.runtimeId });
   h.cfg.secretsSign = async () => "0x" + "11".repeat(65); h.secrets.set(DEP, {});   // known: no secrets staged
-  return h;
+  // the box serves OWNER as its operator (main's owner rule, 4fcb1740: OWNER_WALLET authorizes nothing)
+  return servedOwner(h, OWNER);
 }
 
 test("hv: a NEW partition that does not fit under the CPU cap is not started, is held with the reason, and starts once it fits", async () => {
