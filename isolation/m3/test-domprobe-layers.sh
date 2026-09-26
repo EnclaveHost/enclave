@@ -3,7 +3,9 @@
 # pid/mount/net namespaces in an UNPRIVILEGED user namespace (--map-auto), chrooted into a root holding only plat/, run/,
 # tmp/ and proc/ (an m3 domain's shape, no /dev), in PROBE mode, with the null device on fd 3 as the monitor hands it.
 # From its console lines:
-#   - the base vsock reaches fail ON THEIR OWN: present, never CONNECTED, never EPERM (only the filter gives EPERM);
+#   - the base vsock reaches fail ON THEIR OWN: a refusal the relay and port confinement give (reset, refused, a timeout,
+#     unreachable: the values real guests show), never CONNECTED, never EPERM (only the filter gives that), never
+#     EAFNOSUPPORT (no vsock to measure);
 #   - `seccomp=2`: the probe installed the runtime's filter (m2/app-seccomp.h) on itself;
 #   - the filtered vsock reaches fail WITH EPERM: the filter refusing, as it would for a compromised runtime.
 # The base vsock errors here are whatever this host's vsock gives (its loopback transport answers "Connection reset by
@@ -39,9 +41,10 @@ run_all() {  # <domprobe.c> <app-seccomp.h> -> 0 only if both layers are as spec
   grep -q "^PROBE7 done" "$c" || { echo "FAIL the probe never reported done: $(tr '\n' ' ' < "$c" | cut -c1-300)"; return 1; }
   for w in $K; do   # (not `k`: sh has no local variables, and k is the mutant tally below)
     b=$(line "$w"); f=$(line "filtered_$w")
-    case "$b" in
-      ""|*CONNECTED*|"Operation not permitted") echo "FAIL base $w=${b:-missing} (must fail on its own, not by EPERM)"; rc=1 ;;
-      *) echo "ok   base $w=$b" ;;
+    case "$b" in   # the relay's and port confinement's refusals only, as test-m3.sh check 10 (enclave-bf's review)
+      "Connection reset by peer"|"Connection refused"|"timed out (no answer)"|"Connection timed out"|"Network is unreachable")
+        echo "ok   base $w=$b" ;;
+      *) echo "FAIL base $w=${b:-missing} (must be refused by the layer beneath on its own: not EPERM, not EAFNOSUPPORT)"; rc=1 ;;
     esac
     [ "$f" = "Operation not permitted" ] && echo "ok   filtered_$w=$f" || { echo "FAIL filtered_$w=${f:-missing} (want EPERM)"; rc=1; }
   done
