@@ -56,6 +56,12 @@ run_all() {  # <domexec.c>
   run_one "$d/domexec" 1001 1000:1000
   if grep -q "must not share a uid" "$d/console.txt" && [ ! -s "$d/root/probe-out/runtime.frontuid" ]; then echo "ok   a shared uid (1000:1000) is refused: $(grep -m1 'must not share' "$d/console.txt")"
   else echo "FAIL a shared uid was not refused: $(tr '\n' ' ' < "$d/console.txt" | cut -c1-200)"; rc=1; fi
+  # control: malformed uids are refused exactly (enclave-5d): trailing junk, a sign, a missing half, no colon, root
+  for bad in 1000:1001x -1:1001 1000: :1001 1000 0:1001 1000:4294967295; do
+    run_one "$d/domexec" 1001 "$bad"
+    if grep -q "the uids must be <runtime-uid>:<front-uid>" "$d/console.txt" && [ ! -s "$d/root/probe-out/runtime.frontuid" ]; then echo "ok   malformed uids \"$bad\" refused"
+    else echo "FAIL malformed uids \"$bad\" not refused: $(tr '\n' ' ' < "$d/console.txt" | cut -c1-160)"; rc=1; fi
+  done
   # control: with /run the RUNTIME's (the v42 layout) the runtime's refusals must fail - the probe sees the old condition
   run_one "$d/domexec" 1000 1000:1001
   if [ -s "$d/root/probe-out/runtime.frontuid" ] && ! report_ok runtime; then echo "ok   with /run the runtime's (v42), the probe catches it: $(grep -c '^BAD' "$d/root/probe-out/runtime.frontuid") refusals fail"
@@ -75,5 +81,6 @@ mut() {  # <label> <sed expression>
 k=0
 mut "the front spawned as the runtime's uid" 's/front_pid = spawn(front, front_uid, 0, 0);/front_pid = spawn(front, uid, 0, 0);/' || k=1
 mut "the shared-uid refusal removed" '/if (front_uid == uid) { printf/d' || k=1
+mut "lenient uid parsing (atoi)" 's/uid_t uid = colon ? parse_uid(argv\[2\], colon) : 0, front_uid = colon ? parse_uid(colon + 1, colon + 1 + strlen(colon + 1)) : 0;/uid_t uid = (uid_t)atoi(argv[2]), front_uid = colon ? (uid_t)atoi(colon + 1) : 0;/' || k=1
 [ $k = 0 ] && echo "domexec front uid mutants: all killed" || echo "domexec front uid mutants: FAIL"
 [ $g = 0 ] && [ $k = 0 ]
