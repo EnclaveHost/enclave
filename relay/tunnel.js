@@ -209,6 +209,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     const prev = tunnels.get(name);
     if (prev && prev.ws !== ws) { try { prev.ws.terminate(); } catch {} }   // newest wins
     const t = { ws, pending: new Map(), streams: new Map(), lastSeen: Date.now(), mode: meta.mode || "", publicUrl: "",
+                // HOW this box proved its name: "token" (an allowlisted token hash), "operator" (the name's on-chain
+                // operator key), or "attestation(...)" (a hardware verdict alone). Only the hub sets it.
+                via: meta.via || "token",
                 measurement: meta.measurement || null, keyFp: meta.keyFp || "",
                 // mode "hv-node": "hv-node" (a host-attested boot state; never a TEE tier);
                 // mode "avf": "pvm-cpu" once, and only once, a capability report is admitted (below)
@@ -637,6 +640,9 @@ export function createTunnelHub({ allow = [], attest = null, reqTimeoutMs = 3000
     origins: () => [...tunnels.entries()].map(([name, t]) => ({
       endpoint: `tunnel://${name}`, id: `tunnel:${name}`, name, repo: "EnclaveHost/enclave",
       lastSeen: Math.floor(t.lastSeen / 1000), tunnel: true, mode: t.mode, publicUrl: t.publicUrl,
+      // how the name was proved (the hub's record): "token" | "operator" | "attestation". A trusted-identity attach
+      // (token, operator) is what lets a tunnel row speak for a RELAY (api-relay.js relayRowOf).
+      attach: String(t.via || "").startsWith("attestation") ? "attestation" : t.via === "operator" ? "operator" : "token",
       measurement: t.measurement || undefined,
       ...(t.tier ? { tier: t.tier } : {}),
       // the pVM CPU tier's display facts (model, context, device name), set by this hub from an
