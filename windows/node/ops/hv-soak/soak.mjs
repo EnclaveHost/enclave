@@ -9,10 +9,16 @@
 //   1. public TLS: ONE GET of https://<id8>.app.enclave.host/hv-soak/<token> with the token also in a header, over a
 //      connection whose chain and hostname are VERIFIED (Node's CA store). A connection that fails verification is
 //      recorded (its leaf's SPKI sha256, serial, issuer and the reason) and dropped: no response on it is read or counted.
+//      With --leak-probe, ONE HEAD to the same URL: the ACTIVE leak probe. An app that never logs (hello-world) makes the
+//      token unseeable, so the target is a SENTINEL app that prints "-STDOUT-REQ <path> <x-hv-soak>" to stdout and stderr
+//      per request and answers HEAD with a body carrying a marker. The HEAD makes the front handle a body it must drop:
+//      an old front logs it ("Unsolicited response ... starting with "<body>""), the fixed one logs "DOM front:
+//      unsolicited upstream response (N bytes withheld)". The token, the body marker (--body-marker, no default) or a
+//      -STDOUT-REQ line anywhere in the console or a log is a LEAK.
 //   2. the relay's public row for the node (GET <relay>/enclaves, unauthenticated).
 //   3. the box, over ONE ssh session: the manager's /vms, Hyper-V's view of the manager's VMs, host memory, the node and
 //      manager logs FROM THE LAST SAMPLE'S OFFSET, and the deployment's COM1 console, read for a short window while the
-//      public request is in flight. The script is fed on stdin to a short -EncodedCommand bootstrap: nothing is written
+//      GET and the HEAD are in flight (both go out at the box's READY line). The script is fed on stdin to a short -EncodedCommand bootstrap: nothing is written
 //      to the box, and nothing on it is changed (no restart, no config, no install).
 //   4. optionally the deployment's ledger row (balance), with ONE eth_call to a public Base RPC.
 // The token is random per sample and is not a secret: any sight of it in the console or in either log is a LEAK.
@@ -44,6 +50,8 @@ export const DEFAULTS = Object.freeze({
   httpTimeoutMs: 20_000,
   consoleSec: 25,            // the console window, from READY; longer than tlsTimeoutMs so the request lands inside it
   consoleMaxBytes: 1 << 20,
+  leakProbe: false,          // --leak-probe: the HEAD probe; it needs --body-marker (no default: the target app's own marker)
+  bodyMarker: null,
   logCapBytes: 4 << 20,      // per log per sample; a longer backlog is read over the following samples
   sshTimeoutMs: 150_000,
   readyTimeoutMs: 60_000,
@@ -58,7 +66,7 @@ export const THRESHOLDS = Object.freeze([
   { id: "spki", text: "the public leaf's SPKI changed with no restart of the deployment in the node log" },
   { id: "partition", text: "the deployment's partition not Running on 2 consecutive samples" },
   { id: "price", text: "the node's 'registry: card price now' (price tx) line count increased" },
-  { id: "leak", text: "a console line that is not DOM/MON/kernel, or the sample's token in the console or a log" },
+  { id: "leak", text: "a console line that is not DOM/MON/kernel, or the token, the body marker or a -STDOUT-REQ line in the console or a log" },
   { id: "box", text: "the ssh/box read failing on >=3 consecutive samples (INFO below that)" },
   { id: "relay", text: "relay row not (hv-node, attestation, hostExcluded false, owner-only) on >=3 consecutive samples; hostExcluded true ever" },
 ]);
@@ -86,7 +94,7 @@ export function certFacts(x509) {
  * verification can still be recorded; Node still verifies the chain and the hostname and reports it on the socket,
  * and such a connection is destroyed at secureConnect, before any response is read. ok = verified AND 200.
  */
-export function tlsCheck(url, { timeoutMs = DEFAULTS.tlsTimeoutMs, headers = {}, ca, maxBody = 65536 } = {}) {
+export function tlsCheck(url, { method = "GET", timeoutMs = DEFAULTS.tlsTimeoutMs, headers = {}, ca, maxBody = 65536 } = {}) {
   return new Promise((resolve) => {
     const t0 = process.hrtime.bigint();
     const ms = () => Number((process.hrtime.bigint() - t0) / 1_000_000n);
@@ -102,7 +110,7 @@ export function tlsCheck(url, { timeoutMs = DEFAULTS.tlsTimeoutMs, headers = {},
       resolve(out);
     };
     try {
-      req = https.request(url, { method: "GET", agent: false, rejectUnauthorized: false, ...(ca ? { ca } : {}),
+      req = https.request(url, { method, agent: false, rejectUnauthorized: false, ...(ca ? { ca } : {}),
                                  headers: { "user-agent": "enclave-hv-soak/1", accept: "*/*", ...headers } }, (res) => {
         out.status = res.statusCode;
         let n = 0;
@@ -282,25 +290,29 @@ export function parseBoxStdout(stdout) {
   try { return { ok: true, data: JSON.parse(line.slice(8)) }; } catch (e) { return { ok: false, error: `unparseable box JSON: ${e.message}` }; }
 }
 
-/** ONE ssh session. onReady() fires at the READY line, or when the session ends or stalls without one. */
+/**
+ * ONE ssh session. onReady(trigger) fires at the READY line ("console" when the console is connected, else
+ * "noconsole"), or with "fallback" when the session ends or stalls without one.
+ */
 function runBox(cfg, script, onReady) {
   return new Promise((resolve) => {
     const t0 = Date.now();
     let out = "", err = "", readyMs = null, fired = false, settled = false;
-    const fire = () => { if (!fired) { fired = true; onReady(); } };
+    const fire = (trigger) => { if (!fired) { fired = true; onReady(trigger); } };
     const ch = spawn("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=15",
                              "-o", "ServerAliveCountMax=3", "-o", "LogLevel=ERROR", cfg.ssh, remoteCommand()],
                      { stdio: ["pipe", "pipe", "pipe"] });
-    const readyTimer = setTimeout(fire, cfg.readyTimeoutMs);
+    const readyTimer = setTimeout(() => fire("fallback"), cfg.readyTimeoutMs);
     const killTimer = setTimeout(() => { try { ch.kill("SIGKILL"); } catch {} }, cfg.sshTimeoutMs);   // this child's own PID
     ch.stdout.on("data", (d) => {
       out += d;
-      if (readyMs === null && /(^|\n)HVSOAK1-READY /.test(out)) { readyMs = Date.now() - t0; fire(); }
+      const m = readyMs === null && out.match(/(^|\n)HVSOAK1-READY (\w+)/);
+      if (m) { readyMs = Date.now() - t0; fire(m[2] === "console" ? "console" : "noconsole"); }
     });
     ch.stderr.on("data", (d) => { if (err.length < 8192) err += d; });
     const end = (code, spawnErr) => {
       if (settled) return; settled = true;
-      clearTimeout(readyTimer); clearTimeout(killTimer); fire();
+      clearTimeout(readyTimer); clearTimeout(killTimer); fire("fallback");
       const p = parseBoxStdout(out);
       const ready = out.match(/(^|\n)HVSOAK1-READY (\w+)/);
       const errText = err.replace(/#< CLIXML[\s\S]*/, "").trim();
@@ -323,11 +335,11 @@ export function consumeChunk(chunk) {
 }
 
 /** Counts over the new node/manager log lines; only the restart and price lines are kept (truncated), nothing else. */
-export function scanLog(text, { deployment, token = null }) {
+export function scanLog(text, { deployment, token = null, marker = null }) {
   const d10 = id10(deployment);
   const restartRe = new RegExp(`${reEsc(d10)} (isolation spawned|isolated domain retired|isolation respawn)|config edit ${reEsc(d10)}: .*relaunching`);
   const c = { lines: 0, errorLines: 0, refusLines: 0, cardPrice: 0, renewed: 0, renewedMine: 0, notRenewed: 0, renewFailed: 0,
-              restart: 0, procRestarts: 0, tokenHits: 0, restartLines: [], cardPriceLines: [] };
+              restart: 0, procRestarts: 0, tokenHits: 0, markerHits: 0, sentinelLines: 0, restartLines: [], cardPriceLines: [] };
   for (const raw of String(text).split("\n")) {
     const l = raw.replace(/\r$/, "");
     if (!l.trim()) continue;
@@ -342,25 +354,39 @@ export function scanLog(text, { deployment, token = null }) {
     if (restartRe.test(l)) { c.restart++; if (c.restartLines.length < 5) c.restartLines.push(trunc(l)); }
     if (/\[run\] \S+ exited/.test(l)) c.procRestarts++;
     if (token && l.includes(token)) c.tokenHits++;
+    if (marker && l.includes(marker)) c.markerHits++;
+    if (l.includes(SENTINEL)) c.sentinelLines++;
   }
   return c;
 }
 
-/** The console window's lines: any line that is not the guest's own is counted and hashed, never kept. */
-export function consoleScan(buf, { token = null, allow = CONSOLE_OK } = {}) {
+// the FIXED front's line when an app sends a body on HEAD: the probe reached the front and nothing leaked
+export const WITHHELD = /unsolicited upstream response \(\d+ bytes withheld\)/;
+// the sentinel app's own stdout/stderr line per request: seen outside the app, it is app output that crossed over
+export const SENTINEL = "-STDOUT-REQ";
+
+/**
+ * The console window's lines: any line that is not the guest's own is counted and hashed, never kept. The token and
+ * the body marker are searched for in the raw text (a sighting is a leak); a `withheld` line is the fixed front saying
+ * it dropped the HEAD probe's body, counted as proof the probe reached the front.
+ */
+export function consoleScan(buf, { token = null, marker = null, allow = CONSOLE_OK } = {}) {
   const text = Buffer.isBuffer(buf) ? buf.toString("latin1") : String(buf || "");
   const parts = text.split("\n");
   const tail = parts.pop();                                        // after the last newline: a partial line
   const bad = [];
-  let lines = 0;
+  let lines = 0, withheld = 0;
   for (const raw of parts) {
     const l = raw.replace(/\r$/, "");
     if (!l.trim()) continue;
     lines++;
+    if (WITHHELD.test(l)) withheld++;
     if (!allow.test(l)) bad.push(sha256(Buffer.from(l, "latin1")));
   }
+  const count = (needle) => (needle ? text.split(needle).length - 1 : 0);
   return { bytes: Buffer.byteLength(text, "latin1"), lines, nonMatching: bad.length, nonMatchingSha256: bad.slice(0, 50),
-           partialTailBytes: Buffer.byteLength(tail || "", "latin1"), tokenHits: token ? text.split(token).length - 1 : 0 };
+           partialTailBytes: Buffer.byteLength(tail || "", "latin1"), tokenHits: count(token), markerHits: count(marker),
+           sentinelLines: count(SENTINEL), withheld };
 }
 
 /** The deployment's records in /vms, and the current one (running, else starting, else the last). */
@@ -377,7 +403,7 @@ const asArray = (x) => (Array.isArray(x) ? x : x == null ? [] : [x]);
  * Turn the box's raw answer into the sample's `box` block, advancing the log offsets and the last-seen instance in
  * `st`. Pure apart from `st`, so it is tested against fake answers.
  */
-export function digestBox(res, st, { deployment, token }) {
+export function digestBox(res, st, { deployment, token, marker = null }) {
   const box = { ok: false, ssh: { ok: !!res.ok, exit: res.exit ?? null, ms: res.ms ?? null, readyMs: res.readyMs ?? null,
                                   ...(res.ok ? {} : { error: trunc(res.error, 400) }) } };
   if (!res.ok) return box;
@@ -418,12 +444,14 @@ export function digestBox(res, st, { deployment, token }) {
     const baseline = st.offsets[k] === 0 && !st.baselined[k];
     const c = consumeChunk(ch);
     st.offsets[k] = c.next; st.baselined[k] = true;
-    box.logs[k] = { ok: true, baseline, reset: ch.reset === true, size: ch.size, bytes: c.bytes, pendingBytes: c.pendingBytes,
-                    ...scanLog(c.text, { deployment, token }) };
+    const sc = scanLog(c.text, { deployment, token, marker });
+    // the baseline read is the log's HISTORY, from before this soak's probes: a marker there is reported, not judged
+    if (baseline) { sc.markerHitsHistory = sc.markerHits; sc.markerHits = 0; sc.sentinelLinesHistory = sc.sentinelLines; sc.sentinelLines = 0; }
+    box.logs[k] = { ok: true, baseline, reset: ch.reset === true, size: ch.size, bytes: c.bytes, pendingBytes: c.pendingBytes, ...sc };
   }
 
   const con = d.console || {};
-  const cs = consoleScan(Buffer.from(con.b64 || "", "base64"), { token });
+  const cs = consoleScan(Buffer.from(con.b64 || "", "base64"), { token, marker });
   box.console = { attempted: con.attempted === true, connected: con.connected === true, ready: res.ready ?? null,
                   note: trunc(con.note || null, 200), vmName: con.vmName ?? null, truncated: con.truncated === true, ...cs };
   // a console the deployment's running partition should have and that could not be read is a failed box read
@@ -497,6 +525,11 @@ export function step(ev, s) {
   const con = s.box?.console, mgr = s.box?.logs?.manager;
   const hits = (con?.tokenHits || 0) + (node?.tokenHits || 0) + (mgr?.tokenHits || 0);
   if (hits > 0) fail.push(["leak", `the sample's token appeared ${hits} time(s) (console ${con?.tokenHits || 0}, node.log ${node?.tokenHits || 0}, manager.log ${mgr?.tokenHits || 0})`]);
+  const marks = (con?.markerHits || 0) + (node?.markerHits || 0) + (mgr?.markerHits || 0);
+  if (marks > 0) fail.push(["leak", `the app's body marker appeared ${marks} time(s) (console ${con?.markerHits || 0}, node.log ${node?.markerHits || 0}, manager.log ${mgr?.markerHits || 0})`]);
+  const sent = (con?.sentinelLines || 0) + (node?.sentinelLines || 0) + (mgr?.sentinelLines || 0);
+  if (sent > 0) fail.push(["leak", `${sent} sentinel '-STDOUT-REQ' line(s): the app's own output (console ${con?.sentinelLines || 0}, node.log ${node?.sentinelLines || 0}, manager.log ${mgr?.sentinelLines || 0})`]);
+  if (con?.withheld > 0) info.push(["leak", `${con.withheld} 'bytes withheld' line(s): the HEAD probe reached the front and its body was dropped`]);
   if (con && con.nonMatching > 0) fail.push(["leak", `${con.nonMatching} console line(s) that are not DOM/MON/kernel (sha256 ${con.nonMatchingSha256.slice(0, 3).map((h) => h.slice(0, 12)).join(", ")}…)`]);
   if (s.box?.partition?.running === true && con && !con.connected) info.push(["leak", `no console coverage this sample: ${con.note || "not connected"}`]);
 
@@ -519,12 +552,17 @@ export function step(ev, s) {
 
 /**
  * A sample EXERCISED the leak check when a leak could have been seen in it: the partition ran, the token request was
- * delivered (a verified 200), the console was read around it, and both logs were read. A sample that is not exercised
- * proves nothing either way, so the summary never lets `leak` PASS on coverage below LEAK_FLOOR.
+ * delivered (a verified 200), the HEAD probe went out over verified TLS inside the connected console window and was
+ * answered, the console was read around both, and both logs were read. The token alone proves nothing for an app that
+ * never logs (hello-world writes nothing to the console); the HEAD probe makes the front handle a body it must not
+ * pass on. A sample that is not exercised proves nothing either way, so the summary never lets `leak` PASS on coverage
+ * below LEAK_FLOOR.
  */
 export const LEAK_FLOOR = 0.9;
-export const exercised = (s) => s.box?.partition?.running === true && s.tls?.ok === true && s.box?.console?.connected === true
-  && s.box?.logs?.node?.ok === true && s.box?.logs?.manager?.ok === true;
+export const exercised = (s) => s.box?.partition?.running === true && s.tls?.ok === true && s.head?.sentInWindow === true
+  && s.box?.console?.connected === true && s.box?.logs?.node?.ok === true && s.box?.logs?.manager?.ok === true;
+/** The HEAD probe counts only when it was fired by a READY with the console connected, verified, and answered. */
+export const headSentInWindow = (trigger, head) => trigger === "console" && head?.authorized === true && head?.status != null;
 
 /* ------------------------------------------------------------------ summary */
 
@@ -574,7 +612,14 @@ export function summarize(lines, { since = null, interval = null, leakFloor = LE
   const ex = samples.filter(exercised).length, exShare = ex / samples.length;
   const leakCovered = ex >= 1 && exShare >= leakFloor;
   out.push(`leak check: exercised in ${ex}/${samples.length} samples (${(100 * exShare).toFixed(1)}%; floor ${(100 * leakFloor).toFixed(1)}%): `
-           + "partition running, a verified 200 carrying the token, the console read around it, both logs read");
+           + "partition running, a verified 200 carrying the token, the HEAD probe sent inside the console window, the console and both logs read");
+  out.push(`HEAD probe: sent inside the console window in ${samples.filter((s) => s.head?.sentInWindow === true).length}/${samples.length} samples; `
+           + `'bytes withheld' lines ${sum((s) => s.box?.console?.withheld)} (in ${samples.filter((s) => s.box?.console?.withheld > 0).length} samples: the probe reached the front); `
+           + `body-marker sightings ${sum((s) => (s.box?.console?.markerHits || 0) + (s.box?.logs?.node?.markerHits || 0) + (s.box?.logs?.manager?.markerHits || 0))}, `
+           + `sentinel '-STDOUT-REQ' lines ${sum((s) => (s.box?.console?.sentinelLines || 0) + (s.box?.logs?.node?.sentinelLines || 0) + (s.box?.logs?.manager?.sentinelLines || 0))}; `
+           + `in the logs' history before the soak: marker ${sum((s) => (s.box?.logs?.node?.markerHitsHistory || 0) + (s.box?.logs?.manager?.markerHitsHistory || 0))}, `
+           + `sentinel ${sum((s) => (s.box?.logs?.node?.sentinelLinesHistory || 0) + (s.box?.logs?.manager?.sentinelLinesHistory || 0))}`
+           + (samples.some((s) => s.head?.skipped) ? `; the probe was OFF in ${samples.filter((s) => s.head?.skipped).length} samples (--leak-probe not given)` : ""));
   if (chain.length) {
     const a = chain[0].chain, b = chain[chain.length - 1].chain;
     const h = (Date.parse(chain[chain.length - 1].t) - Date.parse(chain[0].t)) / 3.6e6;
@@ -612,15 +657,24 @@ async function takeSample(cfg, st) {
   url.pathname = `/hv-soak/${token}`;
   const script = boxScript({ root: cfg.root, managerPort: cfg.managerPort, deployment: cfg.deployment, nodeFrom: st.offsets.node,
                              managerFrom: st.offsets.manager, cap: cfg.logCapBytes, consoleSec: cfg.consoleSec, consoleMaxBytes: cfg.consoleMaxBytes });
-  let tlsP = null;
-  const startTls = () => (tlsP ||= tlsCheck(url.href, { timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token } }));
+  // At the box's READY, inside the console window: the token GET and ONE HEAD probe, both over verified TLS. The HEAD
+  // makes the app send a body the front must drop; a leaky front logs it, a fixed one logs that it was withheld.
+  let probes = null;
+  const startProbes = (trigger = "fallback") => (probes ||= { trigger,
+    get: tlsCheck(url.href, { timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token } }),
+    head: cfg.leakProbe ? tlsCheck(url.href, { method: "HEAD", timeoutMs: cfg.tlsTimeoutMs, headers: { "x-hv-soak": token } }) : null });
   const relayP = relayRead(cfg);
   const chainP = cfg.chain ? chainRead(cfg, st) : Promise.resolve({ skipped: true });
-  const res = await runBox(cfg, script, startTls);              // the public request goes out at the box's READY
-  const tls = await startTls();
-  const box = digestBox(res, st, { deployment: cfg.deployment, token });
-  const s = { type: "sample", v: 1, seq, t, tEnd: new Date().toISOString(), deployment: cfg.deployment, token,
-              tls: { url: url.href, ...tls }, relay: await relayP, chain: await chainP, box };
+  const res = await runBox(cfg, script, startProbes);
+  const p = startProbes();
+  const [tls, head] = await Promise.all([p.get, p.head]);
+  const marker = cfg.leakProbe ? cfg.bodyMarker : null;
+  const box = digestBox(res, st, { deployment: cfg.deployment, token, marker });
+  const s = { type: "sample", v: 1, seq, t, tEnd: new Date().toISOString(), deployment: cfg.deployment, token, bodyMarker: marker,
+              tls: { url: url.href, trigger: p.trigger, ...tls },
+              head: head ? { method: "HEAD", trigger: p.trigger, ...head, sentInWindow: headSentInWindow(p.trigger, head) }
+                         : { method: "HEAD", skipped: "--leak-probe is off", sentInWindow: false },
+              relay: await relayP, chain: await chainP, box };
   const mk = box.vms?.mine?.transportKeySha256;
   s.derived = { spkiEqualsManagerKey: tls.cert?.spkiSha256 && mk ? tls.cert.spkiSha256 === mk : null };
   s.derived.leakExercised = exercised(s);           // informational; --summary recomputes it from the observations
@@ -638,7 +692,11 @@ export function humanLine(s, v) {
               : `box FAIL ${trunc(b.ssh?.error, 80)}`,
     n?.ok ? `node +${n.lines}${n.baseline ? "(baseline)" : ""} err ${n.errorLines} refus ${n.refusLines} price ${n.cardPrice} renew ${n.renewedMine}/${n.renewed} notRenewed ${n.notRenewed} restart ${n.restart}` : "node log ?",
     m?.ok ? `mgr +${m.lines} err ${m.errorLines} refus ${m.refusLines}` : "mgr log ?",
-    c ? `console ${c.connected ? `${c.lines} lines, ${c.nonMatching} not-own` : `none (${trunc(c.note, 50)})`} token ${(c.tokenHits || 0) + (n?.tokenHits || 0) + (m?.tokenHits || 0)}` : "console ?",
+    `head ${!s.head ? "?" : s.head.skipped ? "off" : (s.head.status != null && s.head.authorized ? `${s.head.status}` : s.head.authorized === false ? `TLS ${s.head.authorizationError}`
+      : `ERR ${trunc(s.head.error, 40)}`) + (s.head.sentInWindow ? " in-window" : " NOT in window")}`,
+    c ? `console ${c.connected ? `${c.lines} lines, ${c.nonMatching} not-own, withheld ${c.withheld || 0}` : `none (${trunc(c.note, 50)})`} `
+        + `token ${(c.tokenHits || 0) + (n?.tokenHits || 0) + (m?.tokenHits || 0)} marker ${(c.markerHits || 0) + (n?.markerHits || 0) + (m?.markerHits || 0)}`
+        + ` sentinel ${(c.sentinelLines || 0) + (n?.sentinelLines || 0) + (m?.sentinelLines || 0)}` : "console ?",
     `leak check ${exercised(s) ? "exercised" : "NOT exercised"}`,
     s.chain?.ok ? `bal6 ${s.chain.balance6}` : s.chain?.skipped ? "" : `chain ?`,
   ].filter(Boolean);
@@ -672,6 +730,8 @@ export function parseArgs(argv) {
       case "--ssh": cfg.ssh = v(); break;
       case "--root": cfg.root = v(); break;
       case "--console-sec": cfg.consoleSec = parseInt(v(), 10); break;
+      case "--leak-probe": cfg.leakProbe = true; break;
+      case "--body-marker": cfg.bodyMarker = v(); if (cfg.bodyMarker.length < 4) throw new Error("--body-marker must be at least 4 characters"); break;
       case "--leak-floor": {
         const x = String(v()), f = x.endsWith("%") ? Number(x.slice(0, -1)) / 100 : Number(x);
         if (!(f > 0 && f <= 1)) throw new Error(`--leak-floor must be a fraction in (0, 1] or a percentage, not ${x}`);
@@ -684,6 +744,8 @@ export function parseArgs(argv) {
     }
   }
   if (rpcs.length) cfg.rpcs = rpcs;
+  if (cfg.leakProbe && !cfg.bodyMarker) throw new Error("--leak-probe needs --body-marker: the marker the target app puts in its HEAD body (there is no default)");
+  if (cfg.bodyMarker && !cfg.leakProbe) throw new Error("--body-marker is only used by --leak-probe");
   if (!HEX64.test(cfg.deployment)) throw new Error("--deployment must be 0x + 64 hex");
   if (!cfg.url) cfg.url = appUrlFor(cfg.deployment);
   if (!(cfg.interval >= 30)) throw new Error("--interval must be at least 30 s");
@@ -697,7 +759,9 @@ const USAGE = `usage:
   node soak.mjs --summary FILE.jsonl [--since ISO] [--leak-floor 0.9]              per threshold; exit 1 unless every one PASSes
 options: --deployment 0x.. --url https://.. --node nucbox-k11 --relay https://api.enclave.host --ssh minipc-zt
          --root C:\\Users\\claude\\vbs-like\\hvnode --console-sec 25 --rpc URL (repeatable)
-         --leak-floor F: the share of samples that must EXERCISE the leak check for it to PASS (default 0.9; "90%" works)`;
+         --leak-floor F: the share of samples that must EXERCISE the leak check for it to PASS (default 0.9; "90%" works)
+         --leak-probe --body-marker S: send ONE HEAD per sample inside the console window and treat S (the target app's
+             HEAD-body marker; no default) anywhere in the console or a log as a leak. Without it the leak check cannot PASS`;
 
 async function main() {
   let cfg;
@@ -713,7 +777,8 @@ async function main() {
   const out = cfg.out || (cfg.once ? null : path.join(os.homedir(), "enclave-bench", "nucbox-soak", `${stamp}.jsonl`));
   if (out) fs.mkdirSync(path.dirname(out), { recursive: true });
   const write = (o) => { if (out) fs.appendFileSync(out, JSON.stringify(o) + "\n"); };
-  const header = { type: "start", t: new Date().toISOString(), v: 1, interval: cfg.interval, duration: cfg.duration, leakFloor: cfg.leakFloor, deployment: cfg.deployment,
+  const header = { type: "start", t: new Date().toISOString(), v: 1, interval: cfg.interval, duration: cfg.duration, leakFloor: cfg.leakFloor,
+                   leakProbe: cfg.leakProbe, bodyMarker: cfg.bodyMarker, deployment: cfg.deployment,
                    url: cfg.url, node: cfg.node, relay: cfg.relay, ssh: cfg.ssh, root: cfg.root, chain: cfg.chain, pid: process.pid, once: cfg.once };
   write(header);
   const st = newSampler(), ev = newEval();
