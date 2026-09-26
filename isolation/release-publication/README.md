@@ -43,7 +43,9 @@ Enclave's own code in it stays under the repository LICENSE, unchanged.
    --firmware-versions <its versions.txt> --notices <release notes dir>`.
    - It builds the release from a clean worktree of <commit> with domain-release.sh, and verifies its manifest id.
    - It compares every file, the tree and the modes with the deployed release.
-   - It packs one deterministic tarball: release/, PUBLICATION-MANIFEST.json and the notices.
+   - It packs one deterministic tarball: release/, PUBLICATION-MANIFEST.json, the notices and template/init's source.
+     Since the 4cd26e58 artifact, that source is dominit.c WITH the local headers it includes, transitively. Earlier
+     artifacts carried dominit.c alone; from 0c087de8 on, that does not compile without app-seccomp.h.
 
 Rules the scripts keep:
 - no writes to ~/enclave-prod or the firmware cache;
@@ -57,6 +59,10 @@ Rules the scripts keep:
 - [release-aa6c985c/](release-aa6c985c/): release id 79c5ecf2…, THE PRODUCTION RELEASE: its init links musl.
   [DRAFT-RELEASE.md](release-aa6c985c/DRAFT-RELEASE.md) is the draft release manifest, for review. NO release is
   created or published.
+- [release-4cd26e58/](release-4cd26e58/): release id aee2059f…, the seccomp-statement release (branch
+  isolation/seccomp-evidence, 4cd26e58; init states the app runtime's filter, d4d17c9f…, and the front's attester
+  carries seccomp=<hash>). Its draft manifest is [DRAFT-RELEASE.md](release-4cd26e58/DRAFT-RELEASE.md), for review; it
+  shares 79c5ecf2's source bundle. NO release is created or published.
 - [release-0c087de8/](release-0c087de8/): release id 5db18199…, the W^X-at-attest release (branch isolation/wx-at-attest,
   0c087de8; the front's W^X self-test at each attestation, the app runtime's seccomp filter). Its draft manifest is
   [DRAFT-RELEASE.md](release-0c087de8/DRAFT-RELEASE.md), for review; it shares 79c5ecf2's source bundle. NO release is
