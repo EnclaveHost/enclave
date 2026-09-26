@@ -8536,10 +8536,13 @@ async function issueGuestCsr(name, csrPem, spkiHash) {
 // launch's public TLS (enclave-63's breakdown; enclave-87).
 const GUEST_CERT_STARTING_MS = 20_000, GUEST_CERT_STARTING_TRIES = 30, GUEST_CERT_EVERY_MS = 60_000;
 function guestCertRetry(e, prevFailures = 0, prevStarts = 0) {
-  const starting = !!e && e.kind === "not-running" && e.message === "the instance is starting" && prevStarts < GUEST_CERT_STARTING_TRIES;
+  const startingErr = !!e && e.kind === "not-running" && e.message === "the instance is starting";
+  const starting = startingErr && prevStarts < GUEST_CERT_STARTING_TRIES;
   const failures = starting ? prevFailures : prevFailures + 1;
   const wait = (e && e.retryMs) || (starting ? GUEST_CERT_STARTING_MS : Math.min(3600_000, 300_000 * 2 ** (failures - 1)));
-  return { wait, failures, starts: starting ? prevStarts + 1 : 0 };
+  // once the short tries are spent, a guest STILL starting stays on the doubling back-off (enclave-bf): starts holds at
+  // the cap until another answer resets it
+  return { wait, failures, starts: starting ? prevStarts + 1 : startingErr ? prevStarts : 0 };
 }
 // How long until the first record in back-off is due again (ms), or null when none is: the loop wakes then rather than
 // at its next tick, so a 20 s or 30 s wait is honored within a second instead of being rounded up to the loop's period.

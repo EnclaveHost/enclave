@@ -25,8 +25,17 @@ test("another not-running state (stopped, failed) is a real failure, not a short
   const stopped = Object.assign(new Error("the instance is stopped"), { kind: "not-running" });
   assert.deepEqual(guestCertRetry(stopped, 0, 0), { wait: 300_000, failures: 1, starts: 0 });
 });
-test("a guest still starting after the short tries falls through to the doubling back-off", () => {
-  assert.deepEqual(guestCertRetry(starting(), 0, GUEST_CERT_STARTING_TRIES), { wait: 300_000, failures: 1, starts: 0 });
+test("a guest still starting after the short tries stays on the doubling back-off (no cycling back to 20 s)", () => {
+  const cap = GUEST_CERT_STARTING_TRIES;
+  assert.deepEqual(guestCertRetry(starting(), 0, cap), { wait: 300_000, failures: 1, starts: cap });
+  assert.deepEqual(guestCertRetry(starting(), 1, cap), { wait: 600_000, failures: 2, starts: cap });
+  // simulated: 31 passes of "starting" give 30 short waits, then only the back-off
+  let st = { failures: 0, starts: 0 }; const waits = [];
+  for (let i = 0; i < 34; i++) { const r = guestCertRetry(starting(), st.failures, st.starts); waits.push(r.wait); st = r; }
+  assert.deepEqual(waits.slice(0, cap), Array(cap).fill(20_000));
+  assert.deepEqual(waits.slice(cap), [300_000, 600_000, 1_200_000, 2_400_000]);
+  // another answer (a refusal) resets the starting count
+  assert.equal(guestCertRetry(refused(), st.failures, st.starts).starts, 0);
 });
 test("the error's own hint wins (the platform's 202 retryAfterSec)", () => {
   assert.equal(guestCertRetry(inFlight(30), 0, 0).wait, 30_000);
