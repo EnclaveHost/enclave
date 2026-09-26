@@ -1,0 +1,11 @@
+ok    REFUSE post-rs-10 (f7888d86 retired: only 5db18199 listed)
+ok    PASS   f7888d86 admitted for every canary (rs-10 rolled back)
+ok    REFUSE relay unreachable (a real curl to a closed port)
+ok    REFUSE one canary without f7888d86
+ok    REFUSE f7888d86 listed but releaseAdmitted false
+ok    REFUSE an answer for another id
+ok    REFUSE a malformed answer (502 page)
+ok    REFUSE post-rs-10 with OVERRIDE only (the canary gate's bypass)
+ok    PASS   post-rs-10 with OVERRIDE_UNADMITTED (logged)
+ok    PASS   post-rs-10 from the apply's own fail() (FROM_APPLY, exempt)
+ok    REFUSE LIVE relay now (expect REFUSE)
