@@ -18,12 +18,12 @@ row=$(curl -sS -m 20 https://api.enclave.host/enclaves | node -e '
     const r = (JSON.parse(s).enclaves || []).find((e) => e.name === "nucbox-k11");
     if (!r) { console.log("none"); return; }
     const h = r.hvNode || {};
-    console.log([r.mode, h.hostExcluded, h.verifiedAt || "-", (h.omissions || []).join(","), r.eligible, r.serving].join(" "));
+    console.log([r.mode, h.hostExcluded, h.verifiedAt || "-", (h.omissions || []).join(","), r.eligible, r.serving, h.bootCounter ?? "-", r.checkedAt || "-"].join(" "));
   });')
 set -- $row
 [ "${1:-none}" = hv-node ] && c=ok || c=no; check $c "R1 /enclaves row nucbox-k11 mode ${1:-none}"
 [ "${2:-}" = false ] && c=ok || c=no; check $c "R1 hvNode.hostExcluded ${2:-?}"
-echo "INFO R1 verifiedAt ${3:-?}; omissions ${4:-?}; eligible ${5:-?}; serving ${6:-?}"
+echo "INFO R1 verifiedAt ${3:-?}; omissions ${4:-?}; eligible ${5:-?}; serving ${6:-?}; bootCounter ${7:-?} (the attested boot: +1 after a host reboot); checkedAt ${8:-?}"
 
 # R2 (RELAY): a restart with NO session, through the relay, is refused, never run
 rid=${ID:-0x$(printf '0%.0s' $(seq 1 64))}
