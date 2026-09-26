@@ -1,0 +1,13 @@
+ok   scope: 3 deployment(s) leased on metal-iso0, every one release-listed (each chip-verified below)
+ok   0ddbd824: leased; AMD-verified report of the serving guest (fresh nonce, TLS key bound), measurement 6716ef1462e1 = 5db18199's
+ok   395bed3e: leased; AMD-verified report of the serving guest (fresh nonce, TLS key bound), measurement be2bb73c799f = 5db18199's
+ok   4e62e60d: leased; AMD-verified report of the serving guest (fresh nonce, TLS key bound), measurement be2bb73c799f = 5db18199's
+--   a69dcbba: no live lease (runs nowhere): not checked
+--   d9798e4c: no live lease (runs nowhere): not checked
+--   a77d0c57: no live lease (runs nowhere): not checked
+--   7ae476a3: no live lease (runs nowhere): not checked
+EVERY leased listed deployment chip-verified on 5db18199 (the 3 canaries among them)
+06:28:52Z rs-10 apply: the three release lines on nan, then one api-relay restart (invocation before: c4da9f5891b8)
+nan: rs3 apply: backup /etc/nan-relay/api-relay.env.bak-rs3-apply-20260926T062843Z; the three lines replaced (now sha 03e0ccf11246); api-relay restarted: invocation c4da9f5891b8 -> c7d285e3d93f4e4ba935335e4f8de7a8, NRestarts 0, MemoryMax 1536M; the release settings unchanged (07a13d4d9739)
+06:29:18Z rs-10 apply: predictor probe: predicting (200)
+06:29:18Z rs-10 apply: remote rc=0; next: rs-10-accept.sh apply
