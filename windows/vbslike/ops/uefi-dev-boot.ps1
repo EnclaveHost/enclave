@@ -269,13 +269,28 @@ function Classify([string]$v) {
 #     must NOT be EPERM, since only the filter gives EPERM; if it is, the two layers cannot be told apart (INCONCLUSIVE).
 #     The layer this proves on Hyper-V is filtered_vsock_host_control: unfiltered, the connect to CID 2 LEAVES the guest
 #     (timed out), and under the filter it is refused before it is made;
-# - pids: visible <= 3, signalable <= 2 (test-m3's rule), else FAIL; a root uid FAILS;
+# - EVERY line is judged (enclave-bf's review of 446777b3, J4): each PROBE line is scanned for a reach, and a key
+#   printed twice FAILS, since one value could mask the other (memory_touched is a series and exempt);
+# - a line counts only in its EXPECTED class, and any other value is INCONCLUSIVE (bf's J1-J3): the file routes and the
+#   TSM, sysfs and TPM nodes must be DENIED to be "absent from the view"; host_gateway and the in-guest vsock lines must
+#   be ENETUNREACH to be "no route" (a timeout means the connect was made);
+# - pids: visible <= 3, signalable <= 2 (test-m3's rule), else FAIL, and a value that is not a count FAILS; a root uid
+#   FAILS;
 # - memory: UNCONTAINED FAILS; CONTAINED needs a memory_touched line >= 48 MiB AND the domain killed (status 137);
 #   otherwise it is NOT SHOWN (INCONCLUSIVE);
 # - a missing required line FAILS. The TPM lines are required whenever the pinned probe build has them.
 function Judge-Probe($pr, $build, [bool]$neighbour) {
   $id = $pr.id; $fail = @(); $inc = @()
-  $val = @{}; foreach ($l in $pr.lines) { if ($l -match "^PROBE$id ([a-z_0-9]+)=(.*)$") { $val[$matches[1]] = $matches[2] } }
+  $val = @{}; $dup = @(); $reach = @()
+  foreach ($l in $pr.lines) {
+    if ($l -notmatch "^PROBE$id ([a-z_0-9]+)=(.*)$") { continue }
+    $k = $matches[1]; $v = $matches[2]
+    if ($val.ContainsKey($k) -and $k -ne 'memory_touched' -and $dup -notcontains $k) { $dup += $k }
+    if ($k -ne 'own_app' -and $k -ne 'report' -and $k -ne 'filtered_report' -and (Classify $v) -eq 'BROKEN') { $reach += "$k=$v REACHED" }
+    $val[$k] = $v
+  }
+  $fail += $reach
+  foreach ($k in $dup) { $fail += "$k printed more than once: one value could mask another" }
   $req = @('other_app_absolute','other_app_relative','other_app_escape','other_front_socket','own_app','configfs_tsm','sysfs','create_tsm_entry','visible_pids','signalable_pids','report','vsock_local_domain1','vsock_local_domain2','vsock_own_control','vsock_host_control','host_gateway')
   if ($build.tpm) { $req += @('dev_tpm0','dev_tpmrm0') }
   if ($build.layers) { $req += @('seccomp','filtered_vsock_local_domain1','filtered_vsock_local_domain2','filtered_vsock_own_control','filtered_vsock_host_control','filtered_report') }
@@ -283,19 +298,40 @@ function Judge-Probe($pr, $build, [bool]$neighbour) {
   if (-not @($pr.lines | Where-Object { $_ -eq "PROBE$id done" }).Count) { $fail += 'done MISSING' }
   $uidl = @($pr.lines | Where-Object { $_ -match "^PROBE$id uid=(\d+) euid=(\d+)$" })
   if (-not $uidl.Count) { $fail += 'uid line MISSING' } elseif ($uidl[0] -match 'uid=0 |euid=0$') { $fail += "root: $($uidl[0])" } else { Note "  JUDGE uid: $($uidl[0]) (unprivileged)" }
-  foreach ($k in @($val.Keys)) { if ($k -ne 'own_app' -and $k -ne 'report' -and $k -ne 'filtered_report' -and (Classify $val[$k]) -eq 'BROKEN') { $fail += "$k=$($val[$k]) REACHED" } }
   if ($val.ContainsKey('own_app')) { if ($val['own_app'] -ne 'READABLE (6 bytes)') { $inc += "own_app=$($val['own_app']) (the view is not the one assumed)" } else { Note "  JUDGE own_app: READABLE (6 bytes): the view is the probe's own chroot (positive control)" } }
+  # each line below counts only in its expected class; any other value that is not a reach (already FAILED above) is
+  # INCONCLUSIVE, never absent or no-route (J1-J3)
+  $other = { param($k, $want) if ((Classify $val[$k]) -ne 'BROKEN') { "$k=$($val[$k]) (not ${want}: a timeout, no answer, refusal, reset or I/O error is never a denial)" } }
   foreach ($k in 'other_app_absolute','other_front_socket') {
-    if ($val.ContainsKey($k) -and (Classify $val[$k]) -eq 'DENIED') {
+    if (-not $val.ContainsKey($k)) { continue }
+    if ((Classify $val[$k]) -eq 'DENIED') {
       if ($neighbour) { $inc += "$k=$($val[$k]) (absent from the view; the target's existence in the root namespace is not stated)" }
       Note "  JUDGE ${k}: $($val[$k]) - absent from the domain's view$(if ($neighbour) { '; not a neighbour denial: target existence unshown' })"
-    }
+    } else { $inc += @(& $other $k 'absent from the view') }
   }
-  foreach ($k in 'other_app_relative','other_app_escape') { if ($val.ContainsKey($k)) { Note "  JUDGE ${k}: $($val[$k]) (inside a chroot this resolves to the absolute route: reported, not counted)" } }
-  foreach ($k in 'vsock_local_domain1','vsock_local_domain2','vsock_own_control') { if ($val.ContainsKey($k) -and $val[$k] -notmatch 'CONNECTED') { Note "  JUDGE ${k}: $($val[$k]) - NO IN-GUEST ROUTE on this build (no vsock loopback transport): neither denied nor broken, not counted" } }
-  if ($val.ContainsKey('vsock_host_control')) { Note "  JUDGE vsock_host_control: $($val['vsock_host_control']) - a host connection was ATTEMPTED (not refused inside the guest); nothing listens at host port 9000, so this is no service, not a denial" }
-  if ($val.ContainsKey('host_gateway')) { Note "  JUDGE host_gateway: $($val['host_gateway']) - no route in the domain's network namespace (10.0.2.2 has no target on Hyper-V)" }
-  foreach ($k in 'configfs_tsm','sysfs','create_tsm_entry','dev_tpm0','dev_tpmrm0') { if ($val.ContainsKey($k) -and (Classify $val[$k]) -ne 'BROKEN') { Note "  JUDGE ${k}: $($val[$k]) - absent from the domain's view; existence in the root namespace not stated" } }
+  foreach ($k in 'other_app_relative','other_app_escape') {
+    if (-not $val.ContainsKey($k)) { continue }
+    if ((Classify $val[$k]) -eq 'DENIED') { Note "  JUDGE ${k}: $($val[$k]) (inside a chroot this resolves to the absolute route: reported, not counted)" }
+    else { $inc += @(& $other $k 'absent from the view') }
+  }
+  foreach ($k in 'vsock_local_domain1','vsock_local_domain2','vsock_own_control') {
+    if (-not $val.ContainsKey($k)) { continue }
+    if ($val[$k] -eq 'Network is unreachable') { Note "  JUDGE ${k}: $($val[$k]) - NO IN-GUEST ROUTE on this build (no vsock loopback transport): neither denied nor broken, not counted" }
+    else { $inc += @(& $other $k 'ENETUNREACH (no in-guest route)') }
+  }
+  if ($val.ContainsKey('vsock_host_control')) {
+    if ((Classify $val['vsock_host_control']) -eq 'DENIED') { Note "  JUDGE vsock_host_control: $($val['vsock_host_control']) - refused inside the guest; not counted" }
+    else { Note "  JUDGE vsock_host_control: $($val['vsock_host_control']) - a host connection was ATTEMPTED (not refused inside the guest); nothing listens at host port 9000, so this is no service, not a denial" }
+  }
+  if ($val.ContainsKey('host_gateway')) {
+    if ($val['host_gateway'] -eq 'Network is unreachable') { Note "  JUDGE host_gateway: $($val['host_gateway']) - no route in the domain's network namespace (10.0.2.2 has no target on Hyper-V)" }
+    else { $inc += @(& $other 'host_gateway' 'ENETUNREACH (no route)') }
+  }
+  foreach ($k in 'configfs_tsm','sysfs','create_tsm_entry','dev_tpm0','dev_tpmrm0') {
+    if (-not $val.ContainsKey($k)) { continue }
+    if ((Classify $val[$k]) -eq 'DENIED') { Note "  JUDGE ${k}: $($val[$k]) - absent from the domain's view; existence in the root namespace not stated" }
+    else { $inc += @(& $other $k 'absent from the view') }
+  }
   if ($build.layers) {
     foreach ($k in 'report','filtered_report') {
       if (-not $val.ContainsKey($k)) { continue }
@@ -327,7 +363,9 @@ function Judge-Probe($pr, $build, [bool]$neighbour) {
     } else { Note "  JUDGE report: $($val['report']) - refused by the monitor or the signer; not cross-domain evidence, and it never shows signer authorization" }
   }
   foreach ($k in @{ visible_pids = 3; signalable_pids = 2 }.GetEnumerator()) {
-    if ($val.ContainsKey($k.Key)) { if ([int]$val[$k.Key] -gt $k.Value) { $fail += "$($k.Key)=$($val[$k.Key]) (over $($k.Value))" } else { Note "  JUDGE $($k.Key)=$($val[$k.Key]) (at most $($k.Value): its own tree)" } }
+    if (-not $val.ContainsKey($k.Key)) { continue }
+    if ($val[$k.Key] -notmatch '^\d{1,6}$') { $fail += "$($k.Key)=$($val[$k.Key]) (not a count)" }
+    elseif ([int]$val[$k.Key] -gt $k.Value) { $fail += "$($k.Key)=$($val[$k.Key]) (over $($k.Value))" } else { Note "  JUDGE $($k.Key)=$($val[$k.Key]) (at most $($k.Value): its own tree)" }
   }
   if (@($pr.console | Where-Object { $_ -match "^PROBE$id memory_UNCONTAINED" }).Count) { $fail += 'memory_UNCONTAINED' }
   else {
