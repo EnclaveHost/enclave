@@ -82,8 +82,8 @@ contract EnclaveDeploymentsSetSharesTest is Test {
 
     // ---- schema marker ----------------------------------------------------
 
-    function test_schemaIsThirteen() public view {
-        assertEq(dep.deploymentsSchema(), 13);
+    function test_schemaIsFourteen() public view {
+        assertEq(dep.deploymentsSchema(), 14);
     }
 
     // ---- unleased resizes -------------------------------------------------
@@ -205,7 +205,7 @@ contract EnclaveDeploymentsSetSharesTest is Test {
         EnclaveDeployments.Deployment memory d0 = dep.get(id);
 
         vm.prank(user);
-        vm.expectRevert("unfunded at the new rate");
+        vm.expectRevert("unfunded");
         dep.setShares(id, 1000, 1000);
         EnclaveDeployments.Deployment memory d = dep.get(id);
         assertEq(d.rate, d0.rate);
@@ -310,7 +310,7 @@ contract EnclaveDeploymentsSetSharesTest is Test {
 
         dep.setMaxGpuMilli(400);
         vm.prank(user);
-        vm.expectRevert("gpuShare > max");
+        vm.expectRevert("range");
         dep.setShares(id, 500, 250); // the create-time cap re-applies to resizes
     }
 

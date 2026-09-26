@@ -850,8 +850,8 @@ contract EnclaveDeploymentsProofOfTimeTest is Test {
         assertEq(l.provenUntil(id), T0 + 600);        // clamped to now
         vm.expectRevert("nothing to prove");
         l.creditProven(id, uint64(T0 + 300));         // and never backwards
-        _travelTo(uint256(leaseUntil) + 5000);
-        l.creditProven(id, uint64(leaseUntil) + 5000);
+        _travelTo(uint256(leaseUntil) + 600);         // lapsed, inside rev 14's late-proof horizon (900 s)
+        l.creditProven(id, uint64(leaseUntil) + 600);
         assertEq(l.provenUntil(id), leaseUntil);      // clamped to what the tenant bought
 
         // an unleased / unknown id has leaseUntil 0, so the ceiling clamp alone

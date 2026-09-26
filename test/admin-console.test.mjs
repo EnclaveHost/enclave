@@ -501,8 +501,11 @@ test("the escrow step's required-backing formula matches _splitFunding's ceil", 
 
 test("a granted runner rate matches the contract's _snapRunnerRate", () => {
   const sol = fs.readFileSync(path.join(REPO, "contracts/EnclaveDeployments.sol"), "utf8");
-  assert.match(sol, /uint256 r6 = \(\(d\.rate - _fees\[d\.id\]\.rate6\) \* runnerBps\) \/ 10000;/,
+  // rev 14: the formula lives in _runnerShare (shared by _snapRunnerRate and the cap split of an unleased funding)
+  assert.match(sol, /uint256 r6 = \(\(rate - _fees\[id\]\.rate6\) \* runnerBps\) \/ 10000;/,
     "the console grants runnerBps*(rate-fee)/10000; if the contract's formula moves, migrate.js must follow");
+  assert.match(sol, /function _snapRunnerRate\(Deployment storage d\) private \{\s*uint96 r6 = _runnerShare\(d\.id, d\.rate\);/,
+    "_snapRunnerRate must use that formula");
   const grant = (rate, fee6, bps) => ((BigInt(rate) - BigInt(fee6)) * BigInt(bps)) / 10000n;
   assert.equal(grant(834, 0, 8000), 667n);
   assert.equal(grant(1042, 200, 8000), 673n);

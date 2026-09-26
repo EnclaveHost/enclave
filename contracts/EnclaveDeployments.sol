@@ -362,7 +362,23 @@ contract EnclaveDeployments {
     // longer require gpuMilli >= cpuMilli. Nothing changed shape, so a client
     // that never dials CPU above GPU cannot tell 12 from 13 — clients gate on
     // >= 13 only to know that offering the wider dial will not revert here.
-    uint256 public constant deploymentsSchema = 13;
+    // Rev 14 changes two money rules and no surface (docs/ledger-rev14-escrow-split.md):
+    //   - a funding on a record with NO LIVE LEASE (never claimed, released, or
+    //     lapsed) splits at the record's CAP and the runner share of the cap,
+    //     not at the last lease's rate. Before, a funding made after a free or
+    //     near-free lease (runner share 0) escrowed nothing, the next PAID
+    //     runner served those seconds unbacked, and none of it was refundable;
+    //   - a lapsed lease may be proven for at most LATE_PROOF_SEC after it
+    //     ended. Past that, what it never proved stops being reserved, so a
+    //     refund reaches it (refund()'s own promise, which rev 10-13 could not
+    //     keep: a lapse alone never freed the reserve).
+    // Clients gate on >= 14 only to know a refund quote can grow after a lapse.
+    uint256 public constant deploymentsSchema = 14;
+
+    /// @dev Rev 14: how long after a lease ENDS its runner may still land a proof for it (one default proof window of
+    ///      EnclaveProofOfTime: the RPC-stall tolerance that contract was tuned for). A constant, so the platform owner
+    ///      can never shorten a seller's grace; the prover's own window bounds how far each late proof may reach.
+    uint256 private constant LATE_PROOF_SEC = 900;
 
     /// @dev Publisher-fee snapshot, taken at create from the catalog version
     ///      the deployment references (recipient = the app's publisher wallet).
@@ -654,10 +670,17 @@ contract EnclaveDeployments {
     ///      is a new purchase decision, so it re-reads the CURRENT runnerBps,
     ///      exactly as it re-reads the current list prices).
     function _snapRunnerRate(Deployment storage d) private {
-        uint256 r6 = ((d.rate - _fees[d.id].rate6) * runnerBps) / 10000;
-        require(r6 <= type(uint96).max, "range");
-        _earn[d.id].rate6 = uint96(r6);
+        uint96 r6 = _runnerShare(d.id, d.rate);
+        _earn[d.id].rate6 = r6;
         emit RunnerRateSet(d.id, r6);
+    }
+
+    /// @dev The runner's per-second cut of `rate` for record `id`: runnerBps of the platform component (rate minus the
+    ///      publisher fee). What a lease at that rate snapshots, and (rev 14) what an unleased funding escrows at the cap.
+    function _runnerShare(bytes32 id, uint256 rate) private view returns (uint96) {
+        uint256 r6 = ((rate - _fees[id].rate6) * runnerBps) / 10000;
+        require(r6 <= type(uint96).max, "range");
+        return uint96(r6);
     }
 
     /// @dev Record the publisher-fee snapshot (own stack frame, same reason as
@@ -677,7 +700,7 @@ contract EnclaveDeployments {
     ///      without viaIR (same shape as the catalog's `_reserveCid` / `_touchApp`).
     function _initScalars(Deployment storage d, string calldata appRef, uint16 gpuMilli,
                           uint16 cpuMilli, uint32 appPort, bool isPublic) private {
-        require(gpuMilli <= maxGpuMilli, "gpuShare > max");   // create-only cap; imports bypass (grandfathered)
+        require(gpuMilli <= maxGpuMilli, "range");   // create-only cap; imports bypass (grandfathered)
         d.gpuMilli = gpuMilli;
         d.cpuMilli = cpuMilli;
         d.appPort = appPort;
@@ -777,7 +800,7 @@ contract EnclaveDeployments {
     ///         of those same seconds as the balance affords. leaseUntil never
     ///         extends; a grow the balance can't fully cover shrinks it, and
     ///         the runner just renews (or lapses) sooner. A resize that could
-    ///         not fund even one second reverts "unfunded at the new rate" —
+    ///         not fund even one second reverts "unfunded" —
     ///         top up first; a resize never silently kills a running app.
     ///
     ///         The serving runner sees the changed shares on its next ledger
@@ -791,7 +814,7 @@ contract EnclaveDeployments {
         Deployment storage d = _requireOwned(id);
         require(cpuMilli > 0 && cpuMilli <= 1000, "range");
         require(gpuMilli <= 1000, "range");
-        require(gpuMilli <= maxGpuMilli, "gpuShare > max");
+        require(gpuMilli <= maxGpuMilli, "range");
         uint256 newRate = _resizeRate(id, d, gpuMilli, cpuMilli);
         _requireUnderCap(id, newRate);
         _creditRunner(d);                            // settle served time at the OLD runner rate first
@@ -803,7 +826,7 @@ contract EnclaveDeployments {
             uint256 secs = newRate == 0 ? tail       // self-hosted: the window costs nothing to keep
                                         : d.balance6 / newRate;   // re-burn it at the new rate
             if (secs > tail) secs = tail;            // a lease never EXTENDS from a resize
-            require(secs > 0, "unfunded at the new rate");
+            require(secs > 0, "unfunded");
             uint256 burned = secs * newRate;
             d.balance6 -= burned;
             d.spent6 += burned;
@@ -955,10 +978,27 @@ contract EnclaveDeployments {
     ///      can buy. fee + runner share never exceed the rate (the runner cut
     ///      is a bps slice of rate-minus-fee), so the clamp is belt-and-braces
     ///      for the ceil's +1 at the bps=10000 edge.
+    ///
+    ///      Rev 14: with NO LIVE LEASE (never claimed, released, or lapsed) the
+    ///      seconds this funding buys will be sold by whoever claims next, at a
+    ///      price nobody knows yet, so it splits at the worst case the owner
+    ///      allowed: the CAP, and the runner share of the cap. It used to split
+    ///      at the LAST lease's snapshot, which after a free lease (rev 12) or
+    ///      one so cheap its runner share rounds to 0 escrowed nothing, so the
+    ///      next paid runner served unbacked and none of it was refundable. A
+    ///      LIVE lease, free ones included, still splits at the rate that lease
+    ///      is burning the balance at, so its publisher and runner shares stay
+    ///      pro-rata to the seconds it sells. An uncapped record (cap 0, or a cap
+    ///      not above the fee: imported ones) keeps the old rule.
     function _splitFunding(bytes32 id, address payer, uint256 rate, uint256 value) private {
+        uint96 r6 = _earn[id].rate6;
+        uint256 cap = _maxRate6[id];
+        if (_deployments[id].leaseUntil <= block.timestamp && cap > _fees[id].rate6) {
+            rate = cap;
+            r6 = _runnerShare(id, cap);
+        }
         (address feeTo, uint256 cut) = _feeShare(id, rate, value);
         uint256 esc = 0;
-        uint96 r6 = _earn[id].rate6;
         if (r6 > 0) {
             esc = (value * r6 + (rate - 1)) / rate;            // ceil — escrow must cover its seconds
             if (esc > value - cut) esc = value - cut;
@@ -986,7 +1026,7 @@ contract EnclaveDeployments {
         require(address(ethUsdFeed) != address(0), "eth funding disabled");
         (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) = ethUsdFeed.latestRoundData();
         require(answer > 0 && block.timestamp - updatedAt <= FEED_MAX_AGE, "stale price");
-        require(answeredInRound >= roundId, "incomplete round");   // reject an answer carried over from an earlier (unfinalized) round
+        require(answeredInRound >= roundId, "stale price");   // reject an answer carried over from an earlier (unfinalized) round
         // wei(1e18) * price(1e8) -> USDC 6dp: divide by 1e20
         uint256 credited = (msg.value * uint256(answer)) / 1e20;
         require(credited > 0, "amount=0");
@@ -1221,6 +1261,9 @@ contract EnclaveDeployments {
     ///        - never past `leaseUntil` (no earning outside what the tenant
     ///          bought - the released tail is refunded to them, so it can
     ///          never also be earned);
+    ///        - never later than LATE_PROOF_SEC after `leaseUntil` (rev 14: a
+    ///          lapsed lease's grace to land its last proof; after it,
+    ///          refundableOf releases what the lease never proved);
     ///        - strictly monotonic (a watermark cannot be walked backwards to
     ///          replay a window, and a repeat is a revert, not a silent no-op);
     ///        - and _creditRunner below still caps the payout by the escrow
@@ -1241,7 +1284,9 @@ contract EnclaveDeployments {
         require(msg.sender == prover, "!prover");
         Deployment storage d = _deployments[id];
         uint64 ceiling = uint64(block.timestamp);
-        if (ceiling > d.leaseUntil) ceiling = d.leaseUntil;
+        // rev 14: a lapsed lease is provable for LATE_PROOF_SEC after it ends, and never again (refundableOf releases
+        // what it did not prove by then); the existing literal keeps this byte-bound contract under EIP-170
+        if (ceiling > d.leaseUntil) ceiling = ceiling > uint256(d.leaseUntil) + LATE_PROOF_SEC ? 0 : d.leaseUntil;
         if (upto > ceiling) upto = ceiling;
         require(upto > provenUntil[id], "nothing to prove");
         provenUntil[id] = upto;
@@ -1305,9 +1350,14 @@ contract EnclaveDeployments {
         Deployment storage d = _deployments[id];
         Earn storage e = _earn[id];
         // seconds a live lease — or a late checkpoint against one that lapsed —
-        // could still prove and be paid for. That money is the seller's.
-        uint256 reserve = d.leaseUntil > e.creditedUntil
-            ? uint256(d.leaseUntil - e.creditedUntil) * e.rate6
+        // could still prove and be paid for. That money is the seller's. Rev 14:
+        // once the late-proof horizon has passed, a lapsed lease under proof
+        // rules can be paid no further than it PROVED, so only that is held.
+        uint64 end = d.leaseUntil;
+        if (proofRequired() && block.timestamp > uint256(end) + LATE_PROOF_SEC && provenUntil[id] < end)
+            end = provenUntil[id];
+        uint256 reserve = end > e.creditedUntil
+            ? uint256(end - e.creditedUntil) * e.rate6
             : 0;
         uint256 free = e.escrow6 > reserve ? e.escrow6 - reserve : 0;
         uint256 own = ownerEscrow6[id];
@@ -1329,8 +1379,10 @@ contract EnclaveDeployments {
     ///      never needs to make the owner wait for the lease to lapse either.
     ///      Refunding during a live lease pays the free part now; the reserved
     ///      tail becomes refundable once the runner releases (which returns the
-    ///      unused tail to balance6) or the lease lapses unproven, so a second
-    ///      call collects it. All state is written before the transfer (CEI).
+    ///      unused tail to balance6) or, under proof rules, once the lease has
+    ///      lapsed and LATE_PROOF_SEC has passed without a proof for it (rev 14;
+    ///      revs 10-13 held it until a release or a re-claim), so a second call
+    ///      collects it. All state is written before the transfer (CEI).
     function refund(bytes32 id) external {
         Deployment storage d = _deployments[id];
         require(_exists[id], "unknown");

@@ -504,6 +504,29 @@ adversarial rather than self-reported-within-an-attested-boundary — binding a
 client-signed receipt, Storj's uplink orders — is the next step, and is listed
 in the FUTURE block of `EnclaveProofOfTime.sol`.
 
+### Funding splits and the late-proof horizon (rev 14, PROPOSED: not deployed)
+
+Branch `ledger/rev14-escrow-split-5d`; the case for it, its residuals and the
+migration choice are in `docs/ledger-rev14-escrow-split.md`. Two money rules
+change, and no surface does (the ABI is unchanged; `deploymentsSchema` 14):
+
+- **A funding with no live lease splits at the cap.** `_splitFunding` used the
+  record's last lease snapshot (`d.rate`, `runnerRate6`), which `release` and a
+  lapse leave in place. After a free lease (rev 12), or one so cheap its runner
+  share rounds to 0 (`floor((1 - fee) × 0.8) = 0` at rate 1), a funding
+  escrowed nothing: the next paid runner served unbacked, and none of it was
+  refundable. Rev 14 splits a record with `leaseUntil <= now` at its cap and
+  the runner share of the cap, the worst case the owner allowed, which is what
+  `setMaxRate`'s unleased re-base already intended. A LIVE lease, free ones
+  included, still splits at the rate that lease burns the balance at.
+- **A lapsed lease is provable for `LATE_PROOF_SEC` (900 s) after it ends.**
+  `creditProven` refuses later proofs ("nothing to prove"), and `refundableOf`
+  stops reserving a lapsed lease's unproven tail once that window has passed
+  under proof rules. Before, the tail stayed reserved until a release or a
+  re-claim, although `refund()`'s NatSpec said a lapse freed it. The
+  held-time meter (no proofs required) is unchanged: its lapsed tail is still
+  the runner's, and settle pays it.
+
 ### Fairness bounds (the price of decentralized failover)
 
 The old per-tick clock could freeze during outages because one trusted party
@@ -797,7 +820,11 @@ the new enclave. This is the same no-trusted-gateway shape as discovery today.
   than leaving it escrowed is no longer open: rev 10's `refund` reaches it once
   the lease is closed out, since escrow a runner never proved against is escrow
   no lease can still claim.
-- **`EnclaveDeployments` is at its size ceiling.** 146 bytes under EIP-170's
+- **`EnclaveDeployments` is at its size ceiling.** Rev 14 (proposed) builds to
+  24,487 bytes at runs=100, 89 under EIP-170, after merging three validation
+  strings ("incomplete round" into "stale price", "unfunded at the new rate"
+  into "unfunded", "gpuShare > max" into "range"); rev 13 was 24,325. It was
+  146 bytes under EIP-170's
   24,576 as of rev 10, which is why rev 9's verification had to become a second
   contract. Rev 10's `refund` cost 953 bytes and did not fit; it was paid for by
   collapsing the *parameter-validation* revert strings (twelve `"<param> range"`
