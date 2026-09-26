@@ -1,0 +1,7 @@
+api relay: invocation e9c016e2658a since Sat 2026-09-26 02:52:13 UTC, NRestarts 0; KAT: [measurement-predict] known-answer test at start: PASS: 2 known answer(s) reproduced exactly
+canary 0ddbd824: 200/0 spki 9cbf78e91951ea4b (guest-boot-key)
+canary 395bed3e: 200/0 spki b9892100cb73ace6 (guest-boot-key)
+canary 4e62e60d: 200/0 spki 02c87008d2c43a3c (guest-boot-key)
+us-west: [('us-west', '5.78.85.108', None)] | relays 1 labels 63
+release: listed x6 (3 canaries + Steven's 3; an unlisted id not), accept.sh = exactly 'release ON'
+HEALTHY 02:53:57Z
