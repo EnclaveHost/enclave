@@ -2,3 +2,4 @@
 == rollback WITH SECRETS_RELEASE_CERT_RELEASES=f7888d86 set:
 REFUSING: the new env would refuse EVERY prediction: SECRETS_RELEASE_CERT_RELEASES leaves out the admitted 52156652d67a: run cs-3-env.sh off FIRST (nothing written) -> rc=19, env byte-identical, no temp file
 == positive control, rollback without the line: written (the rs-7 lines back; admitted 52156652 f7888d86)
+== after 5d's nits (64-hex installed ids, quote stripping): rollback with the plain cert line REFUSED; with a QUOTED cert line REFUSED; without it written

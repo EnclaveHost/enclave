@@ -13,10 +13,13 @@ import sys, re
 kv = {}
 for l in open(sys.argv[1]):
     m = re.match(r"^(SECRETS_RELEASE_(?:PREDICT_RELEASES|DOMAIN_RELEASES|CERT_RELEASES))=(.*)$", l.rstrip("\n"))
-    if m: kv.setdefault(m.group(1), []).append(m.group(2))
+    # systemd's EnvironmentFile strips one pair of surrounding quotes from a value (enclave-5d's nit)
+    if m: v = m.group(2).strip(); v = v[1:-1] if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'" else v; kv.setdefault(m.group(1), []).append(v)
 if any(len(v) > 1 for v in kv.values()): print("a release key appears more than once"); sys.exit()
 one = lambda k: kv.get(k, [""])[0]
-inst = {p.split("=", 1)[0].strip().lower() for p in one("SECRETS_RELEASE_PREDICT_RELEASES").split(",") if "=" in p}
+# installed = what predictorEnv keeps: 64-hex ids with a non-empty dir (enclave-5d's nit); a malformed entry is not installed
+HEX64 = re.compile(r"^[0-9a-f]{64}$")
+inst = {i for i, d in (((p.split("=", 1)[0].strip().lower(), p.split("=", 1)[1].strip()) for p in one("SECRETS_RELEASE_PREDICT_RELEASES").split(",") if "=" in p)) if HEX64.match(i) and d}
 adm = {x.strip().lower() for x in one("SECRETS_RELEASE_DOMAIN_RELEASES").split(",") if x.strip()}
 cert = {x.strip().lower() for x in one("SECRETS_RELEASE_CERT_RELEASES").split(",") if x.strip()}
 short = lambda s: ",".join(sorted(x[:12] for x in s))
