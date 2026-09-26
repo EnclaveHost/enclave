@@ -100,6 +100,10 @@ export class Host {
     this.statePath = path.join(cfg.dir, "host-state.json");
     const st = this.#loadState();
     this.tracked = new Set(st.tracked || []);
+    /// The last card-price transaction this box SENT ({ want, at, tx }), kept across restarts: a registry read can lag a
+    /// sent transaction, and a node restarted inside that lag used to send the same one again (d1's live node, 00:55:04
+    /// and 00:55:33 at 013deb51). ensurePriced does not resend the same price while it is fresh.
+    this.priceSent = st.priceSent && typeof st.priceSent === "object" ? st.priceSent : null;
     // THE PER-APP ISOLATION BACKEND, off unless a manager is configured. One place decides, so no
     // other code path can half-enable it: the deployed build has no such config and is unaffected.
     this.cfg.isolationManager   = this.cfg.isolationManager   || process.env.ENCLAVE_ISOLATION_MANAGER || "";
@@ -152,7 +156,7 @@ export class Host {
   #saveTracked() {
     try {
       fs.writeFileSync(this.statePath, JSON.stringify({ tracked: [...this.tracked],
-        blocked: Object.fromEntries(this.blocked) }, null, 1));
+        blocked: Object.fromEntries(this.blocked), ...(this.priceSent ? { priceSent: this.priceSent } : {}) }, null, 1));
     } catch {}
   }
 
@@ -181,8 +185,11 @@ export class Host {
     try {
       const e = await chain.readEnclave(this.enclaveId);
       this.registered = e && e.endpoint ? e : null;
+      // The card half says what this box ASKS (cardPrice) and, when the registry still lists something else, both.
+      const listed = Number(e?.gpuPricePerSec6 || 0), ask = this.cardPrice();
       if (this.registered) this.log(`registry: listed as ${e.endpoint} price ${e.cpuPricePerSec6}/sec cpu`
-        + `${Number(e.gpuPricePerSec6) > 0 ? ` + ${e.gpuPricePerSec6}/sec card` : ""}, payout ${e.payoutWallet}`);
+        + `${ask > 0 ? ` + ${ask}/sec card` : ""}${listed !== ask ? `; the registry lists ${listed}/sec for the card, and this box asks ${ask}` : ""}`
+        + `, payout ${e.payoutWallet}`);
     } catch (e) { this.lastError = e.message; }
   }
   /** Is this box running apps as isolated domains? False unless a manager is configured. */
@@ -261,7 +268,11 @@ export class Host {
    * card answering right now. A price posted for silicon whose worker is down would have the
    * ledger sell a share this box cannot deliver.
    */
+  /** Does this node sell a card at all? Not with the engine retired (gpu:false): the card was reached only through the
+   *  enclave's model, so its desired card price is 0. */
+  sellsCard() { return this.cfg.engineRetired !== true; }
   cardPrice() {
+    if (!this.sellsCard()) return 0;
     const card = this.card();
     return card && Number(card.vramBudgetGb) > 0 ? Number(this.cfg.gpuPricePerSec6) || 0 : 0;
   }
@@ -271,13 +282,26 @@ export class Host {
    * a pool in /availability while the registry says the card costs nothing would have the platform
    * hand it out for free.
    */
-  async ensurePriced() {
+  // A sent price transaction is not sent again for this long while the registry read still shows the old value.
+  static PRICE_SETTLE_MS = 10 * 60_000;
+  /**
+   * NO transaction when the chain already equals what this box asks; ONE when it does not, remembered across restarts
+   * (priceSent in host-state.json) so a restart inside a lagging read does not repeat it. `setPrices` and `now` are
+   * parameters so a test can count transactions (test/windows-node-price-once.test.mjs).
+   */
+  async ensurePriced({ setPrices = (...a) => chain.setPrices(...a), now = Date.now() } = {}) {
     if (!this.chainReady || !this.registered || !chain.operatorAddress()) return;
     const want = this.cardPrice();
-    if (Number(this.registered.gpuPricePerSec6 || 0) === want) return;
+    if (Number(this.registered.gpuPricePerSec6 || 0) === want) {
+      if (this.priceSent) { this.priceSent = null; this.#saveTracked(); }
+      return;
+    }
+    const sent = this.priceSent;
+    if (sent && Number(sent.want) === want && now - Number(sent.at) < Host.PRICE_SETTLE_MS) return;   // in flight: the read lags it
     if ((this.gasRenewals ?? 1) <= 0) return;
     try {
-      const hash = await chain.setPrices(this.enclaveId, Number(this.registered.cpuPricePerSec6) || this.cfg.cpuPricePerSec6, want);
+      const hash = await setPrices(this.enclaveId, Number(this.registered.cpuPricePerSec6) || this.cfg.cpuPricePerSec6, want);
+      this.priceSent = { want, at: now, tx: String(hash) }; this.#saveTracked();
       this.log(`registry: card price now ${want}/sec (was ${this.registered.gpuPricePerSec6 || 0}) tx=${hash}`);
       await this.refreshRegistration();
     } catch (e) { this.log(`registry: setPrices failed: ${e.shortMessage || e.message}`); }
@@ -1876,14 +1900,15 @@ export class Host {
       // The CARD's price, on the same rule: the registry entry when this box is listed, because
       // that is what the ledger would charge. Zero means this box sells no card share - either it
       // has none, or it has not registered a price for the one it has.
-      askGpuPricePerSec6: Number(this.registered?.gpuPricePerSec6) || 0,
+      // what this box ASKS: the registry's figure when it sells a card, 0 when it does not (engine retired, gpu:false)
+      askGpuPricePerSec6: this.sellsCard() ? Number(this.registered?.gpuPricePerSec6) || 0 : 0,
       // ...and the same number under the name a SHIELDED pool's price is read by. The platform's
       // own boxes publish both from one on-chain figure (supervisor.js: askShieldedPricePerSec6 =
       // SELL_GPU_PRICE6), because the card is charged as the card whichever side of the enclave it
       // sits on; what differs is only which pool the fleet row draws it under. A box that posted
       // only askGpu rendered a shielded pool with no rate at all, which reads as "free".
       ...(Number(this.registered?.gpuPricePerSec6) > 0 && this.card()
-            ? { askShieldedPricePerSec6: Number(this.registered.gpuPricePerSec6) } : {}),
+            && this.sellsCard() ? { askShieldedPricePerSec6: Number(this.registered.gpuPricePerSec6) } : {}),
       nodeSlotsFree: cap.slotsFree, ramMbFree: cap.ramMbFree,
       // The enclave's memory as the fleet row reads it: a FIXED pool and what is really left of
       // it. ramGbFree is the field the row prefers over the share-derived figure, and publishing
