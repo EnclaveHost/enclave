@@ -213,9 +213,11 @@ export class Host {
       .map((d) => ({ message: d.message, signature: d.signature }));
   }
   /** A digest of whom this box serves (the operator and the delegations it would send): an attach made under a different
-   *  value no longer tells the relay the truth, so the agent attaches again (hvnode-attach.mjs shouldReattach). */
-  ownersVersion(now = Math.floor(Date.now() / 1000)) {
-    const sigs = this.attachDelegations(now).map((d) => d.signature.toLowerCase()).sort();
+   *  value no longer tells the relay the truth, so the agent attaches again (hvnode-attach.mjs shouldReattach). `sent`
+   *  digests a given list instead - the one an attach ACTUALLY carried, so a refresh during the attach's own await
+   *  cannot make the recorded version describe a set the relay never got (enclave-5d's review of ab7cdbb0). */
+  ownersVersion(now = Math.floor(Date.now() / 1000), sent = null) {
+    const sigs = (sent || this.attachDelegations(now)).map((d) => String(d.signature).toLowerCase()).sort();
     return crypto.createHash("sha256").update(JSON.stringify([this.owners.operator || null, sigs])).digest("hex");
   }
 

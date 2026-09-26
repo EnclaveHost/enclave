@@ -598,7 +598,8 @@ function connect() {
             if (APPS) await host.refreshOwners().catch((e) => log(`owners: ${e.message}`));
             const x = await finishHvAttach(frame, { name: NAME, nonceB64: pending.nonce, spki: nodeKey.spki, ekCertDer: pending.ekCertDer,
                                                     v2: pending.v2, sign: await operatorSigner(), delegations: APPS ? host.attachDelegations() : [] });
-            attachSent = { version: x.version, owners: APPS ? host.ownersVersion() : null };
+            // the version of the list this frame CARRIES (x.delegations), not of whatever the host holds after the awaits above
+            attachSent = { version: x.version, owners: APPS ? host.ownersVersion(undefined, x.delegations) : null };
             send(frame); log(`sent ${HV_NODE_FORMAT} evidence (quote, credential, log, signed binding), attach signature v${x.version}`
               + (x.version === 2 ? `, ${x.delegations.length} delegation(s)` : ' (the relay offered no v2: it serves no delegated owner from this attach)'));
           }
