@@ -38,6 +38,7 @@
 #include <sys/mount.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/time.h>
 #include <sys/un.h>
 #include <sys/wait.h>
@@ -118,12 +119,21 @@ static void probe_report_as_root(void) {
     close(fd);
 }
 
-/* quiet: the child's stdin, stdout and stderr are /dev/null. It is TENANT code (the runtime serving or running the app),
- * and this process's stdout is the monitor's, which is the guest console the HOST reads (monitor/main.go runs this
- * with cmd.Stdout/Stderr = its own): nothing an app prints (a request, its config, a panic) may reach it. The same rule
- * as the SEV-SNP guest's m2/dominit.c (77cf2d78). A quiet child keeps a close-on-exec copy of the console only to report
- * its OWN exec failure, and one that cannot open /dev/null exits 126 rather than run with the console. The front
- * (console-guarded, m2/front/console.go) and the adversary probe (our statements only) keep the console. */
+/* The null device, fd NULL_FD: the MONITOR opens /dev/null in the guest's own root and hands it to this process
+ * (monitor/main.go cmd.ExtraFiles), because this process starts already CHROOTED into the domain's directory, which has
+ * no /dev and must not get one (no device node, no mknod, no new filesystem for the tenant to see). main() checks it IS
+ * the null device and marks it close-on-exec, so no workload inherits it except through the quiet spawn's dup2s.
+ * enclave-d1's canary of 4cdd5169 (252602c8): the quiet runtime opened "/dev/null" INSIDE the chroot, got ENOENT and
+ * exited 126 on every m3 domain, so domexec ended each domain before it served (enclave-87 chose this design). */
+#define NULL_FD 3
+
+/* quiet: the child's stdin, stdout and stderr are the null device (NULL_FD). It is TENANT code (the runtime serving or
+ * running the app), and this process's stdout is the monitor's, which is the guest console the HOST reads
+ * (monitor/main.go runs this with cmd.Stdout/Stderr = its own): nothing an app prints (a request, its config, a panic)
+ * may reach it. The same rule as the SEV-SNP guest's m2/dominit.c (77cf2d78). A quiet child keeps a close-on-exec copy
+ * of the console only to report its OWN exec failure, and one whose null device cannot be installed exits 126 rather
+ * than run with the console. The front (console-guarded, m2/front/console.go) and the adversary probe (our statements
+ * only) keep the console. */
 static pid_t spawn(char *const argv[], uid_t uid, int quiet) {
     pid_t pid = fork();
     if (pid < 0) die("fork");
@@ -131,9 +141,8 @@ static pid_t spawn(char *const argv[], uid_t uid, int quiet) {
         int con = 1;
         if (quiet) {
             con = fcntl(1, F_DUPFD_CLOEXEC, 10);
-            int nul = open("/dev/null", O_RDWR);
-            if (nul < 0 || dup2(nul, 0) < 0 || dup2(nul, 1) < 0 || dup2(nul, 2) < 0) _exit(126);
-            if (nul > 2) close(nul);
+            /* dup2 clears close-on-exec on 0-2; NULL_FD itself stays close-on-exec and closes at exec */
+            if (dup2(NULL_FD, 0) < 0 || dup2(NULL_FD, 1) < 0 || dup2(NULL_FD, 2) < 0) _exit(126);
         }
         /* Drop the supplementary groups FIRST. setuid alone would leave this process carrying the
          * monitor's groups — root's among them — so a domain workload could reach anything granted by
@@ -163,6 +172,15 @@ int main(int argc, char **argv) {
     dom_id = argv[1];
     uid_t uid = (uid_t)atoi(argv[2]);
     if (uid == 0) { printf("DOM%s ERROR refusing to run a domain as root\n", dom_id); return 2; }
+    /* the null device the monitor opened for us (NULL_FD, above): it must BE the null device (char 1:3), or the domain
+     * does not start - a quiet workload with anything else on its stdio could reach the console or a file */
+    struct stat nst;
+    if (fstat(NULL_FD, &nst) != 0 || !S_ISCHR(nst.st_mode) || major(nst.st_rdev) != 1 || minor(nst.st_rdev) != 3) {
+        printf("DOM%s ERROR the monitor handed no null device on fd %d, so the app's output could not be discarded: not started\n",
+               dom_id, NULL_FD);
+        return 2;
+    }
+    if (fcntl(NULL_FD, F_SETFD, FD_CLOEXEC) != 0) die("cloexec null device");
 
     if (mount("proc", "/proc", "proc", 0, 0) != 0) die("mount /proc");   /* this PID namespace only */
     if (mount("tmpfs", "/tmp", "tmpfs", 0, "size=64m,mode=1777") != 0) die("mount /tmp");
