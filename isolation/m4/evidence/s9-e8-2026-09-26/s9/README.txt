@@ -37,3 +37,12 @@ ROLLBACK: s9t-rollback.sh returns S8's unit byte-exact (binary, tree, S8's three
 only once S8's unit is verified live. Its enforced guard (S8's, one release on): refuses unless the relay admits
 5db18199 for every canary (i.e. rs-12 not run, or rolled back first); bypass OVERRIDE_UNADMITTED=<reason>;
 test-rollback-guard.sh 11/11. Relay order (e3): N2-b / S9 roll back FIRST, then rs-11.
+
+ROLLBACK ORDER ACROSS PACKAGES (enclave-5d's R1, enclave-87): once ANY canary runs aee2059f (after e8's first relaunch),
+its record names [aee2059f], and an S9 rollback leaves it RUNNING aee2059f (S8's guestd re-adopts it) while removing the
+S9 epoch. rs-11's rollback would then take aee2059f out of all three relay lines under a live aee2059f guest (no renewal,
+no release at its next start). So the order is:
+  1. s9t-rollback.sh (OVERRIDE after e8, the keys moved);
+  2. relaunch EACH e8-relaunched canary again (owner restart) so it comes up on 5db18199 under S8's unit;
+  3. only then e3's rs-11 rollback (its rollback_guard also refuses while any guestd record names aee2059f: e3's delta).
+Before e8 (no aee2059f guest): S9 rollback, then rs-11 rollback (the epoch is gone, no record names aee2059f).

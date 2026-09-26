@@ -12,6 +12,13 @@ source "$(dirname "$0")/guard.sh"
 echo PASS; rm -rf "$FST"
 EOS
 chmod +x $W/run.sh
+# enclave-87's hard rule (09-26): nothing here may reach production. ssh/systemctl/journalctl/sudo/node/systemd-run are
+# FAILING shims that record any call, and the run asserts none was made. curl stays real ONLY for the LIVE case (a read-only
+# public GET) and the unreachable case (a closed local port); every other case replaces it with a fixture function.
+SHIMD=$W/shim; mkdir -p $SHIMD; CALLS=$W/calls; : > $CALLS
+for c in ssh systemctl journalctl sudo node systemd-run; do printf '#!/bin/sh\necho "%s $*" >> %s\nexit 97\n' "$c" "$CALLS" > $SHIMD/$c; chmod +x $SHIMD/$c; done
+NOPY=$W/nopy; mkdir -p $NOPY; printf '#!/bin/sh\nexit 127\n' > $NOPY/python3; chmod +x $NOPY/python3   # an interpreter error
+export PATH="$SHIMD:$PATH"
 N=5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77; O=f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca; bad=0
 t() { local want=$1 name=$2; shift 2; local got; got=$($W/run.sh "$@" 2>/dev/null | tail -1 | cut -c1-4); [ "$got" = "$want" ] && r=ok || { r=WRONG; bad=1; }; printf '%-5s %-4s %s\n' "$r" "$got" "$name"; }
 t HOLD "no createdAt, S8+S7"            '{"id":"x"}'                 $N 1790000000 1780000000
@@ -41,4 +48,6 @@ t9 HOLD "after S9 on 5db18199"               '{"createdAt":1795000100}' $N  1795
 t9 PASS "S8..S9 on 5db18199"                 '{"createdAt":1792000000}' $N  1795000000 1790000000 1780000000
 t9 HOLD "S8..S9 on aee2059f"                 '{"createdAt":1792000000}' $R9 1795000000 1790000000 1780000000
 t9 HOLD "S9 epoch, no createdAt"             '{}'                       $R9 1795000000 1790000000 1780000000
+got=$(PATH="$NOPY:$PATH" $W/run.sh '{"createdAt":1790000100}' $N 1790000000 1780000000 2>/dev/null | tail -1 | cut -c1-4); [ "$got" = HOLD ] && echo "ok    HOLD python3 missing (an interpreter error): the guard fails CLOSED" || { echo "WRONG $got python3 missing"; bad=1; }
+[ ! -s "$CALLS" ] && echo "ok    no ssh/systemctl/journalctl/sudo/node/systemd-run call was made" || { echo "WRONG a production tool was called: $(cat "$CALLS")"; bad=1; }
 exit $bad

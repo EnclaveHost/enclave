@@ -69,7 +69,7 @@ grep -Fq -- "path=$B4 ;" <<<"$X" && grep -Fq -- " -isolation $OT/isolation " <<<
   || { say4 "ROLLBACK FAILED: the live ExecStart is not S8's guestd.0c087de8 on iso-0c087de8 line (the S9 epoch is KEPT)"; exit 22; }
 rm -f ~/enclave-bench/fl-20260926/state/s9-switched-epoch || { say4 "ROLLBACK FAILED: the S9 epoch could not be removed"; exit 22; }
 say4 "9T ROLLBACK: S8's guestd.0c087de8 on iso-0c087de8 is the live unit; the S9 epoch is removed (new guests are 5db18199 again)"
-wait_for 300 check_guestd4 || { say4 "ROLLBACK CHECK FAILED: guestd not back at 65536/1600 with the 3 canaries on their current key ($KEYS4)s"; exit 21; }
+wait_for 300 check_guestd4 || { say4 "ROLLBACK CHECK FAILED: guestd not back at 65536/1600 with the 3 canaries on their current keys ($KEYS4)"; exit 21; }
 python3 -c "import json,sys; h=json.load(open('$ST/.guestd.json'))[0]['body']; s=h.get('supports',{}); p=(h.get('pool') or {}).get('host') or {}; sys.exit(0 if s.get('release') is True and p.get('floorMiB')==$FLOOR else 1)" \
   || { say4 "ROLLBACK CHECK FAILED: not the -release guestd with the 16 GiB floor"; exit 21; }
 [ "$(systemctl --user show enclave-guestd.service -p NRestarts --value)" = 0 ] || { say4 "ROLLBACK CHECK FAILED: restarts"; exit 21; }

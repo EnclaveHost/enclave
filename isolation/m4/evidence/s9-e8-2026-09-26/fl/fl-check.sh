@@ -102,7 +102,7 @@ SPKI=$(sed -nE "${sl}s/^DOM serving vsock=443 spki_sha256=([0-9a-f]{64}) .*/\1/p
 # b4's items 7-8 on the serial (aee2059f): init states the installed filter; none of the seccomp refusal lines
 if [ "$GREL" = aee2059ffcc7bd8a459001cba02a7e9139d6a4aa964fd6de68047407f8597532 ]; then
   grep -qx 'DOM seccomp: app filter installed (sha256 d4d17c9f53832439c92a3232fd09feed8b28f0e3c7dd357d26468a9566f62b66, 71 rules)' <<<"$C" || hold "C: the serial lacks 'DOM seccomp: app filter installed (sha256 d4d17c9f…, 71 rules)'"
-  ! grep -qE "^DOM ERROR the app gave no seccomp statement|held init's seccomp statement pipe past its exec|seccomp statement is malformed|could not record the app's seccomp statement|seccomp filter could not be installed" <<<"$C" || hold "C: a seccomp refusal line in the serial"
+  ! grep -qE "^DOM ERROR.*seccomp|held init's seccomp statement pipe past its exec|seccomp statement is malformed|could not record the app's seccomp statement|seccomp filter could not be installed" <<<"$C" || hold "C: a seccomp refusal line in the serial"   # 5d S1
 fi
 Fo=$(serial_foreign "$SER"); [ -z "$Fo" ] || hold "C: $(grep -c . <<<"$Fo") line(s) in the serial that are neither the front's, init's nor the kernel's"
 say "first launch $AID C ok: DOM release (envelope ${ENVSHA:0:16} = the on-chain envelope, $NO allowed origin(s), 0 refused, config $CB bytes) < app config $CB bytes < serving on ${KEY:0:16}; no foreign lines"

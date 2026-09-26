@@ -5,6 +5,13 @@
 set -uo pipefail; D=$(cd "$(dirname "$0")" && pwd); W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 awk '/^# BEGIN f7888d86-admitted guard$/{f=1;next} /^# END f7888d86-admitted guard$/{f=0} f' $D/s8t-rollback.sh > $W/guard.sh
 [ "$(grep -c . $W/guard.sh)" -gt 10 ] || { echo "the guard block was not found"; exit 2; }
+# enclave-87's hard rule (09-26): nothing here may reach production. ssh/systemctl/journalctl/sudo/node/systemd-run are
+# FAILING shims that record any call, and the run asserts none was made. curl stays real ONLY for the LIVE case (a read-only
+# public GET) and the unreachable case (a closed local port); every other case replaces it with a fixture function.
+SHIMD=$W/shim; mkdir -p $SHIMD; CALLS=$W/calls; : > $CALLS
+for c in ssh systemctl journalctl sudo node systemd-run; do printf '#!/bin/sh\necho "%s $*" >> %s\nexit 97\n' "$c" "$CALLS" > $SHIMD/$c; chmod +x $SHIMD/$c; done
+NOPY=$W/nopy; mkdir -p $NOPY; printf '#!/bin/sh\nexit 127\n' > $NOPY/python3; chmod +x $NOPY/python3   # an interpreter error
+export PATH="$SHIMD:$PATH"
 OLD=f7888d8690845cbb862c1fbcae0a22f5458fcb891de7d0d3ae31ea927536b7ca; NEW=5db18199ef0d321ea9dc8c81e385cb057efd05c2ef5d29e471b81fb2b78c2a77
 cat > $W/run.sh <<EOS
 #!/usr/bin/env bash
@@ -50,4 +57,6 @@ t PASS   "post-rs-10 with OVERRIDE_UNADMITTED (logged)"                  post-rs
 t PASS   "post-rs-10 from the apply's own fail() (FROM_APPLY, exempt)"  post-rs10 FROM_APPLY=tok
 # the LIVE relay: before rs-10 f7888d86 is admitted (PASS); after rs-10 this case must REFUSE (LIVE_EXPECT=REFUSE)
 t "${LIVE_EXPECT:-PASS}" "LIVE relay now (expect ${LIVE_EXPECT:-PASS})" live
+t REFUSE "python3 missing (an interpreter error) with f7888d86 admitted: fails CLOSED"  admitted PATH="$NOPY:$PATH"
+[ ! -s "$CALLS" ] && echo "ok    no ssh/systemctl/journalctl/sudo/node/systemd-run call was made" || { echo "WRONG a production tool was called: $(cat "$CALLS")"; bad=1; }
 exit $bad
