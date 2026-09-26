@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { judge, canonical, SIGN_DOMAIN } from "./judge-hv.mjs";
+import { ABI2, bind2, runtimeId } from "../../../isolation/contract/runtime.mjs";
 import { BOOT_STATEMENTS, bootFormOfStatement, isStatedPartition } from "./boot-statements.mjs";
 import { admit } from "../datapath/datapath.mjs";
 
@@ -24,16 +25,20 @@ const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
 const launcherKey = publicKey.export({ type: "spki", format: "der" }).subarray(12).toString("base64");
 const spki = crypto.generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" });
 
-// a document as the m2 front returns it, carrying a report the launcher signed (ABI/1: binding = sha256(spki || nonce))
+// a document as the m2 front returns it, carrying a report the launcher signed: ABI/2, stating its runtime and the
+// monitor's attest-time W^X scan, as every image after v42 must (judge-hv LEGACY_WX_IMAGES; an ABI/1 document on an
+// unlisted image is refused, wx-per-image.test.mjs)
+const JIT = { name: "wasmtime", version: "48.0.1", execution: "jit", targetIsa: "x86_64", hostIsa: "x86_64", cpuFeatures: "baseline", wx: "enforced", cache: "none" };
 function documentFor({ partition, image = IMG }) {
   const nonce = crypto.randomBytes(32);
-  const binding = crypto.createHash("sha256").update(spki).update(nonce).digest();
+  const binding = bind2(spki, nonce, runtimeId(JIT));
   const report = { format: FORMAT, tier: TIER, reportData: Buffer.concat([binding, Buffer.from(APP, "hex")]).toString("hex"),
     domain: { appSha256: APP }, partition: { vmId: "3f1c0f6e-0000-4000-8000-000000000001", guestImageSha256: image },
     launcher: { key: launcherKey }, platform: { hostExcluded: false, partition },
     boundary: "tier=T0-hv partition=hyperv-vm host_excluded=no" };
   const sig = crypto.sign(null, Buffer.concat([SIGN_DOMAIN, Buffer.from(canonical(report))]), privateKey).toString("base64");
-  const doc = { format: FORMAT, tier: TIER, nonce: nonce.toString("hex"), appSha256: APP,
+  const doc = { format: FORMAT, tier: TIER, nonce: nonce.toString("hex"), appSha256: APP, abi: ABI2, runtime: JIT,
+                runtimeSelfTest: "exec_pages=allowed wx=clean maps=3 runtime=1 front=1 init=1 scope=cgroup:/dom1",
                 report: Buffer.from(JSON.stringify({ doc: report, sig })).toString("base64") };
   return { doc, nonce };
 }
